@@ -548,7 +548,6 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                 {
                     Share *delshare = shareit->second;
                     n->pendingshares->erase(shareit);
-                    found = true;
                     if (notify)
                     {
                         n->changed.pendingshares = true;
@@ -909,7 +908,7 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
     putnodes_prepareOneFolder(&newNode, foldername, true);
 
     // 2. upon completion of putnodes(), set the user's attribute `^!bak`
-    auto addua = [addua_completion, this](const Error& e, targettype_t handletype, vector<NewNode>& nodes, bool /*targetOverride*/, int tag)
+    auto addua = [addua_completion, this](const Error& e, targettype_t handletype, vector<NewNode>& nodes, bool /*targetOverride*/, int)
     {
         if (e != API_OK)
         {
@@ -929,6 +928,11 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
     // Note: this request should not finish until the user's attribute is set successfully
 
     return API_OK;
+}
+
+void MegaClient::getBackupInfo(std::function<void(const Error&, const vector<CommandBackupSyncFetch::Data>&)> f)
+{
+    reqs.add(new CommandBackupSyncFetch(f));
 }
 
 void MegaClient::setFolderLinkAccountAuth(const char *auth)
@@ -1754,38 +1758,6 @@ void resetId(char *id, size_t length, PrnGen& rng)
     {
         id[i] = static_cast<char>('a' + rng.genuint32(26));
     }
-}
-
-void MegaClient::filenameAnomalyDetected(FilenameAnomalyType type,
-                                         const LocalPath& localPath,
-                                         const string& remotePath)
-{
-    const char* typeName;
-
-    switch (type)
-    {
-    case FILENAME_ANOMALY_NAME_MISMATCH:
-        typeName = "NAME_MISMATCH";
-        break;
-    case FILENAME_ANOMALY_NAME_RESERVED:
-        typeName = "NAME_RESERVED";
-        break;
-    default:
-        assert(!"Unknown filename anomaly type!");
-        typeName = "UNKNOWN";
-        break;
-    }
-
-    LOG_debug << "Filename anomaly detected: type: "
-              << typeName
-              << " local path: "
-              << localPath
-              << " remote path: "
-              << remotePath;
-
-    if (!mFilenameAnomalyReporter) return;
-
-    mFilenameAnomalyReporter->anomalyDetected(type, localPath, remotePath);
 }
 
 TypeOfLink MegaClient::validTypeForPublicURL(nodetype_t type)
@@ -4487,7 +4459,7 @@ void MegaClient::dispatchTransfers()
                             ? (Command*)new CommandPutFile(this, ts, putmbpscap)
                             : new CommandGetFile(this, ts->transfer->transferkey.data(), SymmCipher::KEYLENGTH,
                                                  h.as8byte(), hprivate, privauth, pubauth, chatauth, false,
-                            [this, ts, hprivate, h](const Error &e, m_off_t s, m_time_t /*ts*/, m_time_t /*tm*/, dstime tl /*timeleft*/,
+                            [this, ts, hprivate, h](const Error &e, m_off_t s, dstime tl /*timeleft*/,
                                std::string* filename, std::string* /*fingerprint*/, std::string* /*fileattrstring*/,
                                const std::vector<std::string> &tempurls, const std::vector<std::string> &/*ips*/)
                         {
@@ -8847,9 +8819,7 @@ void MegaClient::putnodes(NodeHandle h, VersioningOption vo, vector<NewNode>&& n
 // drop nodes into a user's inbox (must have RSA keypair) - obsolete feature, kept for sending logs to helpdesk
 void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes, int tag, CommandPutNodes::Completion&& completion)
 {
-    User* u;
-
-    if (!(u = finduser(user, 0)) && !user)
+    if (!finduser(user, 0) && !user)
     {
         if (completion) completion(API_EARGS, USER_HANDLE, newnodes, false, tag);
         else app->putnodes_result(API_EARGS, USER_HANDLE, newnodes, false, tag);
@@ -11336,7 +11306,7 @@ void MegaClient::procsr(JSON* j)
         else
         {
             // unknown node: skip
-            while (j->ishandle(USERHANDLE) && (uh = j->gethandle(USERHANDLE)));
+            while (j->ishandle(USERHANDLE) && j->gethandle(USERHANDLE));
         }
     }
 
@@ -13124,7 +13094,6 @@ error MegaClient::decryptlink(const char *link, const char *pwd, string* decrypt
 
     byte hmac[32];
     memcpy((char*)&hmac, ptr, 32);
-    ptr += 32;
 
     // Derive MAC key with salt+pwd
     vector<byte> derivedKey = deriveKey(pwd, salt, 64);
@@ -13344,7 +13313,7 @@ error MegaClient::changepw(const char* password, const char *pin)
     string spwd = password ? password : string();
     string spin = pin ? pin : string();
     reqs.add(new CommandGetUserData(this, reqtag,
-        [this, u, spwd, spin](string* name, string* pubk, string* privk, error e)
+        [this, u, spwd, spin](string*, string*, string*, error e)
         {
             if (e != API_OK)
             {
@@ -13694,7 +13663,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
     {
         LOG_info << "Upgrading cache to NOD";
         // call setparent() for the nodes whose parent was not available upon unserialization
-        for (auto it : delayedParents)
+        for (const auto& it : delayedParents)
         {
             Node *parent = mNodeManager.getNodeByHandle(it.first);
             for (Node* child : it.second)
@@ -14296,7 +14265,7 @@ void MegaClient::initializekeys()
         }
 
         // Check Cu25519 public key against derive version
-        if ((puCu255.size() != ECDH::PUBLIC_KEY_LENGTH) || memcmp(puCu255.data(), chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH))
+        if ((puCu255.size() != ECDH::PUBLIC_KEY_LENGTH) || memcmp(puCu255.data(), chatkey->getPubKey(), ECDH::PUBLIC_KEY_LENGTH))
         {
             LOG_warn << "Public key for Cu25519 mismatch.";
 
@@ -14413,7 +14382,7 @@ void MegaClient::initializekeys()
             ECDH *chatkey = new ECDH();
 
             prEd255 = string((char *)signkey->keySeed, EdDSA::SEED_KEY_LENGTH);
-            prCu255 = string((char *)chatkey->privKey, ECDH::PRIVATE_KEY_LENGTH);
+            prCu255 = string((char *)chatkey->getPrivKey(), ECDH::PRIVATE_KEY_LENGTH);
 
             if (!chatkey->initializationOK || !signkey->initializationOK)
             {
@@ -14450,7 +14419,7 @@ void MegaClient::initializekeys()
             // clients can retrieve chat and signing key for accounts created with ^!keys support)
             TLVstore tlvRecords;
             tlvRecords.set(EdDSA::TLV_KEY, string((const char*)signkey->keySeed, EdDSA::SEED_KEY_LENGTH));
-            tlvRecords.set(ECDH::TLV_KEY, string((const char*)chatkey->privKey, ECDH::PRIVATE_KEY_LENGTH));
+            tlvRecords.set(ECDH::TLV_KEY, string((const char*)chatkey->getPrivKey(), ECDH::PRIVATE_KEY_LENGTH));
             unique_ptr<string> tlvContainer(tlvRecords.tlvRecordsToContainer(rng, &key));
 
             buf.assign(tlvContainer->data(), tlvContainer->size());
@@ -14464,12 +14433,12 @@ void MegaClient::initializekeys()
                 pubk.serializekeyforjs(pubkStr);
                 signkey->signKey((unsigned char*)pubkStr.data(), pubkStr.size(), &sigPubk);
             }
-            signkey->signKey(chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH, &sigCu255);
+            signkey->signKey(chatkey->getPubKey(), ECDH::PUBLIC_KEY_LENGTH, &sigCu255);
 
             buf.assign((const char *) signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH);
             attrs[ATTR_ED25519_PUBK] = buf;
 
-            buf.assign((const char *) chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH);
+            buf.assign((const char *) chatkey->getPubKey(), ECDH::PUBLIC_KEY_LENGTH);
             attrs[ATTR_CU25519_PUBK] = buf;
 
             if (loggedin() != EPHEMERALACCOUNTPLUSPLUS) // Ephemeral++ don't have RSA keys until confirmation, but need chat and signing key
@@ -16138,7 +16107,7 @@ void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConf
     // create the new node(s)
     putnodes(deviceNameNode ? deviceNameNode->nodeHandle() : myBackupsNode->nodeHandle(),
              NoVersioning, std::move(newnodes), nullptr, reqtag, true,
-             [completion, sc, this](const Error& e, targettype_t, vector<NewNode>& nn, bool targetOverride, int tag){
+             [completion, sc, this](const Error& e, targettype_t, vector<NewNode>& nn, bool, int){
 
                 if (e)
                 {
@@ -16214,7 +16183,7 @@ void MegaClient::stopxfers(LocalNode* l, TransferDbCommitter& committer)
 // of identical names to avoid flapping)
 // apply standard unescaping, if necessary (use *strings as ephemeral storage
 // space)
-void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list<string>* strings, FileSystemType fsType) const
+void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list<string>* strings, FileSystemType) const
 {
     Node** npp;
 
@@ -16615,17 +16584,6 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 LocalPath curpath = rit->second->localnode->getLocalPath();
                 rit->second->localnode->treestate(TREESTATE_SYNCING);
 
-                // Check for filename anomalies.
-                {
-                    auto type = isFilenameAnomaly(localpath, rit->second);
-
-                    if (type != FILENAME_ANOMALY_NONE)
-                    {
-                        auto remotepath = rit->second->displaypath();
-                        filenameAnomalyDetected(type, localpath, remotepath);
-                    }
-                }
-
                 LOG_debug << "Renaming/moving from the previous location to the new one";
                 if (fsaccess->renamelocal(curpath, localpath))
                 {
@@ -16747,17 +16705,6 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 }
                 else
                 {
-                    // Check for filename anomalies.
-                    {
-                        auto type = isFilenameAnomaly(localpath, rit->second);
-
-                        if (type != FILENAME_ANOMALY_NONE)
-                        {
-                            auto remotepath = rit->second->displaypath();
-                            filenameAnomalyDetected(type, localpath, remotepath);
-                        }
-                    }
-
                     LOG_debug << "Creating local folder";
 
                     if (fsaccess->mkdirlocal(localpath, false, true))
@@ -17308,26 +17255,6 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
             ll->created = true;
 
             assert (!isSymLink);
-
-            // Check for filename anomalies.
-            if (ll->type == FOLDERNODE)
-            {
-                auto type = isFilenameAnomaly(ll->getLocalname(), ll->name, ll->type);
-
-                if (type != FILENAME_ANOMALY_NONE)
-                {
-                    auto localpath = ll->getLocalPath();
-
-                    // Generate remote path for reporting.
-                    ostringstream remotepath;
-
-                    remotepath << ll->parent->node->displaypath()
-                               << "/"
-                               << ll->name;
-
-                    filenameAnomalyDetected(type, localpath, remotepath.str());
-                }
-            }
 
             // create remote folder or send file
             LOG_debug << "Adding local file to synccreate: "
@@ -17917,7 +17844,7 @@ void MegaClient::disableSyncContainingNode(NodeHandle nodeHandle, SyncError sync
     }
 }
 
-void MegaClient::putnodes_syncdebris_result(error, vector<NewNode>& nn)
+void MegaClient::putnodes_syncdebris_result(error, vector<NewNode>&)
 {
     syncdebrisadding = false;
 }
@@ -21326,8 +21253,10 @@ string KeyManager::toKeysContainer()
     string keysCiphered;
     mKey.gcm_encrypt(&keysPlain, (byte*)iv.data(), IV_LEN, 16, &keysCiphered);
 
+#ifndef NDEBUG
     byte header[2] = {20, 0};
     assert(string({20, 0}) == string((const char*)header, sizeof(header)));
+#endif
 
     return string({20, 0}) + iv + keysCiphered;
 }
@@ -22281,9 +22210,9 @@ string KeyManager::serializePendingOutshares() const
             else    // user's handle in binary format, 8 bytes
             {
                 handle uh;
-                #ifdef DEBUG
+#ifndef NDEBUG
                     int uhsize =
-                #endif
+#endif
                 Base64::atob(uid.c_str(), (byte*)&uh, sizeof uh);
                 assert(uhsize == MegaClient::USERHANDLE);
                 w.serializehandle(uh);
@@ -22428,9 +22357,9 @@ string KeyManager::computeSymmetricKey(handle user)
     }
 
     std::string sharedSecret;
-    sharedSecret.resize(crypto_scalarmult_BYTES);
+    sharedSecret.resize(::mega::ECDH::DERIVED_KEY_LENGTH);
     if (crypto_scalarmult((unsigned char *)sharedSecret.data(),
-                          mClient.chatkey->privKey,
+                          mClient.chatkey->getPrivKey(),
                           (unsigned char *)cachedav->data()))
     {
         return std::string();

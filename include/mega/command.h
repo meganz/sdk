@@ -560,7 +560,7 @@ public:
 
 class MEGA_API CommandGetFile : public Command
 {
-    using Cb = std::function<bool(const Error &/*e*/, m_off_t /*size*/, m_time_t /*ts*/, m_time_t /*tm*/,
+    using Cb = std::function<bool(const Error &/*e*/, m_off_t /*size*/,
     dstime /*timeleft*/, std::string* /*filename*/, std::string* /*fingerprint*/, std::string* /*fileattrstring*/,
     const std::vector<std::string> &/*urls*/, const std::vector<std::string> &/*ips*/)>;
     Cb mCompletion;
@@ -1507,10 +1507,10 @@ public:
 
     bool procresult(Result, JSON&) override;
 
-    CommandBackupSyncFetch(std::function<void(Error, vector<Data>&)>);
+    CommandBackupSyncFetch(std::function<void(const Error&, const vector<Data>&)>);
 
 private:
-    std::function<void(Error, vector<Data>&)> completion;
+    std::function<void(const Error&, const vector<Data>&)> completion;
 };
 
 

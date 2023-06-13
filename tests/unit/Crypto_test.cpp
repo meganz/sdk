@@ -31,7 +31,7 @@ TEST(Crypto, AES_GCM)
     string keyStr = "dGQhii-B7-eLLHRiOA690w";     // Base64 URL encoding
     unsigned keyLen = SymmCipher::KEYLENGTH;
     byte* keyBytes = new byte[keyLen];
-    keyLen = Base64::atob(keyStr.data(), keyBytes, keyLen);
+    Base64::atob(keyStr.data(), keyBytes, keyLen);
 
     string ivStr = "R8q1njARXS7urWv3";
     unsigned ivLen = 12;

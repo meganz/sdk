@@ -361,7 +361,7 @@ void FileFingerprint::serializefingerprint(string* d) const
 }
 
 // decode and set base64-encoded fingerprint
-int FileFingerprint::unserializefingerprint(string* d)
+int FileFingerprint::unserializefingerprint(const string* d)
 {
     byte buf[sizeof crc + sizeof mtime + 1];
     unsigned l;

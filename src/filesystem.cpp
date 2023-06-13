@@ -1225,7 +1225,7 @@ bool FileAccess::frawread(byte* dst, unsigned len, m_off_t pos, bool caller_open
 
 AsyncIOContext::~AsyncIOContext()
 {
-    finish();
+    doFinish();
 
     // AsyncIOContext objects must be deleted before the FileAccess object
     if (op == AsyncIOContext::READ)
@@ -1239,7 +1239,7 @@ std::string FileAccess::getErrorMessage(int error) const
     return std::to_string(error);
 }
 
-void AsyncIOContext::finish()
+void AsyncIOContext::doFinish()
 {
     if (!finished)
     {
@@ -1468,7 +1468,7 @@ bool LocalPath::findNextSeparator(size_t& separatorBytePos) const
     return separatorBytePos != string::npos;
 }
 
-bool LocalPath::findPrevSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const
+bool LocalPath::findPrevSeparator(size_t& separatorBytePos, const FileSystemAccess&) const
 {
     assert(invariant());
     separatorBytePos = localpath.rfind(LocalPath::localPathSeparator, separatorBytePos);
@@ -1845,30 +1845,6 @@ ScopedLengthRestore::~ScopedLengthRestore()
 {
     path.localpath.resize(length);
 };
-
-FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const string& remoteName, nodetype_t type)
-{
-    // toPath() to make sure the name is in NFC.
-    auto localName = localPath.leafName().toPath(true);
-
-    if (compareUtf(localName, false, remoteName, false, true))
-    {
-        return FILENAME_ANOMALY_NAME_MISMATCH;
-    }
-    else if (isReservedName(remoteName, type))
-    {
-        return FILENAME_ANOMALY_NAME_RESERVED;
-    }
-
-    return FILENAME_ANOMALY_NONE;
-}
-
-FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const Node* node)
-{
-    assert(node);
-
-    return isFilenameAnomaly(localPath, node->displayname(), node->type);
-}
 
 bool isNetworkFilesystem(FileSystemType type)
 {

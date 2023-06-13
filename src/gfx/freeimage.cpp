@@ -248,7 +248,7 @@ private:
 template<class F, class P>
 ScopeGuard<F, P> makeScopeGuard(F f, P p){ return ScopeGuard<F, P>(f, p);	}
 
-bool GfxProviderFreeImage::readbitmapFfmpeg(FileSystemAccess* fa, const LocalPath& imagePath, int size)
+bool GfxProviderFreeImage::readbitmapFfmpeg(FileSystemAccess* fa, const LocalPath& imagePath, int)
 {
 #ifndef DEBUG
     av_log_set_level(AV_LOG_PANIC);
@@ -322,7 +322,7 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(FileSystemAccess* fa, const LocalPat
 
     AVCodecContext *codecContext = avcodec_alloc_context3(decoder);
     auto codecContextGuard = makeScopeGuard(avcodec_free_context, &codecContext);
-    if (codecContext && avcodec_parameters_to_context(codecContext, codecParm) < 0)
+    if (!codecContext || avcodec_parameters_to_context(codecContext, codecParm) < 0)
     {
         LOG_warn << "Could not copy codec parameters to context";
         return false;

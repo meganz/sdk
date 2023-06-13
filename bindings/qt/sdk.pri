@@ -110,6 +110,8 @@ else {
 CONFIG(ENABLE_WERROR_COMPILATION) {
     !win32 {
         QMAKE_CXXFLAGS += -Werror
+        # Warnings which should not be promoted to errors, but still appear as warnings
+        QMAKE_CXXFLAGS += -Wno-error=deprecated-declarations
     }
     else {
         QMAKE_CXXFLAGS += /WX

@@ -34,7 +34,7 @@
 
 namespace mega {
 
-CommandPutFA::CommandPutFA(NodeOrUploadHandle cth, fatype ctype, bool usehttps, int ctag, size_t size, bool getIP, CommandPutFA::Cb &&completion)
+CommandPutFA::CommandPutFA(NodeOrUploadHandle cth, fatype, bool usehttps, int ctag, size_t size, bool getIP, CommandPutFA::Cb &&completion)
     : mCompletion(std::move(completion))
 {
     cmd("ufa");
@@ -762,7 +762,7 @@ void CommandGetFile::callFailedCompletion(const Error &e)
     assert(mCompletion);
     if (mCompletion)
     {
-        mCompletion(e, -1, -1, -1, 0, nullptr, nullptr, nullptr, {}, {});
+        mCompletion(e, -1, 0, nullptr, nullptr, nullptr, {}, {});
     }
 }
 
@@ -783,7 +783,6 @@ bool CommandGetFile::procresult(Result r, JSON& json)
     m_off_t s = -1;
     dstime tl = 0;
     std::unique_ptr<byte[]> buf;
-    m_time_t ts = 0, tm = 0;
 
     // credentials relevant to a non-TransferSlot scenario (node query)
     string fileattrstring;
@@ -827,14 +826,6 @@ bool CommandGetFile::procresult(Result r, JSON& json)
 
             case 's':
                 s = json.getint();
-                break;
-
-            case MAKENAMEID2('t', 's'):
-                ts = json.getint();
-                break;
-
-            case MAKENAMEID3('t', 'm', 'd'):
-                tm = ts + json.getint();
                 break;
 
             case MAKENAMEID2('a', 't'):
@@ -912,7 +903,7 @@ bool CommandGetFile::procresult(Result r, JSON& json)
 
                         case EOO:
                             { //succeded, call completion function!
-                                return mCompletion ? mCompletion(e, s, ts, tm, tl,
+                                return mCompletion ? mCompletion(e, s, tl,
                                             &filenamestring, &filefingerprint, &fileattrstring,
                                             tempurls, tempips) : false;
                             }
@@ -963,7 +954,7 @@ CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher, 
     completion = std::move(c);
 }
 
-bool CommandSetAttr::procresult(Result r, JSON& json)
+bool CommandSetAttr::procresult(Result r, JSON&)
 {
     if (completion) completion(h, r.errorOrOK());
     return r.wasErrorOrOK();
@@ -979,7 +970,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
 {
     byte key[FILENODEKEYLENGTH];
 
-#ifdef DEBUG
+#ifndef NDEBUG
     assert(newnodes.size() > 0);
     for (auto& n : newnodes) assert(n.canChangeVault == canChangeVault);
 #endif
@@ -1376,7 +1367,7 @@ CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t
     completion = std::move(c);
 }
 
-bool CommandMoveNode::procresult(Result r, JSON& json)
+bool CommandMoveNode::procresult(Result r, JSON&)
 {
     if (r.wasErrorOrOK())
     {
@@ -1406,7 +1397,7 @@ bool CommandMoveNode::procresult(Result r, JSON& json)
                                 if (syncop)
                                 {
                                     // After speculative instant completion removal, this is not needed (always sent via actionpacket code)
-                                    client->syncs.forEachRunningSyncContainingNode(n, [&](Sync* s) {
+                                    client->syncs.forEachRunningSyncContainingNode(n, [&](Sync*) {
                                         if (toDebrisNode->type == FOLDERNODE)
                                         {
                                             LOG_debug << "Sync - remote folder deletion detected " << n->displayname();
@@ -1540,7 +1531,7 @@ CommandDelVersions::CommandDelVersions(MegaClient* client)
     tag = client->reqtag;
 }
 
-bool CommandDelVersions::procresult(Result r, JSON& json)
+bool CommandDelVersions::procresult(Result r, JSON&)
 {
     client->app->unlinkversions_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -1566,7 +1557,7 @@ CommandKillSessions::CommandKillSessions(MegaClient* client, handle sessionid)
     tag = client->reqtag;
 }
 
-bool CommandKillSessions::procresult(Result r, JSON& json)
+bool CommandKillSessions::procresult(Result r, JSON&)
 {
     client->app->sessions_killed(h, r.errorOrOK());
     return r.wasErrorOrOK();
@@ -1595,7 +1586,7 @@ const char* CommandLogout::getJSON(MegaClient* client)
     return jsonWriter.getstring().c_str();
 }
 
-bool CommandLogout::procresult(Result r, JSON& json)
+bool CommandLogout::procresult(Result r, JSON&)
 {
     assert(r.wasErrorOrOK());
     if (client->loggingout > 0)
@@ -2481,7 +2472,7 @@ CommandUpdatePendingContact::CommandUpdatePendingContact(MegaClient* client, han
     mCompletion = std::move(completion);
 }
 
-bool CommandUpdatePendingContact::procresult(Result r, JSON& json)
+bool CommandUpdatePendingContact::procresult(Result r, JSON&)
 {
     doComplete(r.errorOrOK(), this->action);
 
@@ -2864,7 +2855,6 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
         if (readingL)
         {
             // just read currency data, keep reading objects for each pro/business plan
-            readingL = false;
             client->app->enumeratequotaitems_result(std::move(currencyData));
             continue;
         }
@@ -3045,7 +3035,7 @@ CommandRemoveContact::CommandRemoveContact(MegaClient* client, const char* m, vi
     mCompletion = std::move(completion);
 }
 
-bool CommandRemoveContact::procresult(Result r, JSON& json)
+bool CommandRemoveContact::procresult(Result r, JSON&)
 {
     assert(r.hasJsonObject() || r.wasStrictlyError());
 
@@ -3131,7 +3121,7 @@ bool CommandPutMultipleUAVer::procresult(Result r, JSON& json)
             if (type == ATTR_UNKNOWN || value.empty() || (it == this->attrs.end()))
             {
                 LOG_err << "Error in CommandPutMultipleUAVer. Undefined attribute or version: " << key;
-                for (auto a : this->attrs) { LOG_err << " expected one of: " << User::attr2string(a.first); }
+                for (const auto& a : this->attrs) { LOG_err << " expected one of: " << User::attr2string(a.first); }
                 break;
             }
             else
@@ -3790,7 +3780,7 @@ CommandSendDevCommand::CommandSendDevCommand(MegaClient *client, const char *com
     tag = client->reqtag;
 }
 
-bool CommandSendDevCommand::procresult(Result r, JSON& json)
+bool CommandSendDevCommand::procresult(Result r, JSON&)
 {
     client->app->senddevcommand_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -4008,7 +3998,7 @@ void CommandPubKeyRequest::invalidateUser()
     u = NULL;
 }
 
-CommandGetUserData::CommandGetUserData(MegaClient *client, int tag, std::function<void(string*, string*, string*, error)> completion)
+CommandGetUserData::CommandGetUserData(MegaClient*, int tag, std::function<void(string*, string*, string*, error)> completion)
 {
     cmd("ug");
     arg("v", 1);
@@ -4048,7 +4038,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     string versionPushSetting;
     string contactLinkVerification;
     string versionContactLinkVerification;
+#ifndef NDEBUG
     handle me = UNDEF;
+#endif
     string chatFolder;
     string versionChatFolder;
     string cameraUploadFolder;
@@ -4080,6 +4072,8 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     string versionCookieSettings;
     string appPrefs;
     string versionAppPrefs;
+    string ccPrefs;
+    string versionCcPrefs;
 #ifdef ENABLE_SYNC
     string jsonSyncConfigData;
     string jsonSyncConfigDataVersion;
@@ -4157,7 +4151,10 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             break;
 
         case 'u':
-            me = json.gethandle(MegaClient::USERHANDLE);
+#ifndef NDEBUG
+            me = 
+#endif
+                 json.gethandle(MegaClient::USERHANDLE);
             break;
 
         case MAKENAMEID8('l', 'a', 's', 't', 'n', 'a', 'm', 'e'):
@@ -4226,6 +4223,10 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
         case MAKENAMEID8('*', '!', 'a', 'P', 'r', 'e', 'f', 's'):
             parseUserAttribute(json, appPrefs, versionAppPrefs);
+            break;
+
+        case MAKENAMEID8('*', '!', 'c', 'c', 'P', 'r', 'e', 'f'):
+            parseUserAttribute(json, ccPrefs, versionCcPrefs);
             break;
 
 #ifdef ENABLE_SYNC
@@ -4593,6 +4594,11 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 if (!appPrefs.empty())
                 {
                     changes += u->updateattr(ATTR_APPS_PREFS, &appPrefs, &versionAppPrefs);
+                }
+
+                if (!ccPrefs.empty())
+                {
+                    changes += u->updateattr(ATTR_CC_PREFS, &ccPrefs, &versionCcPrefs);
                 }
 
                 if (aliases.size())
@@ -4995,8 +5001,10 @@ CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, std::shared_ptr<Acc
 bool CommandGetUserQuota::procresult(Result r, JSON& json)
 {
     m_off_t td;
+#ifndef NDEBUG
     bool got_storage = false;
     bool got_storage_used = false;
+#endif
     int uslw = -1;
 
     if (r.wasErrorOrOK())
@@ -5079,7 +5087,9 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
             case MAKENAMEID5('c', 's', 't', 'r', 'g'):
             // Your total account storage usage
                 details->storage_used = json.getint();
+#ifndef NDEBUG
                 got_storage_used = true;
+#endif
                 break;
 
             case MAKENAMEID6('c', 's', 't', 'r', 'g', 'n'):
@@ -5125,7 +5135,9 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
             case MAKENAMEID5('m', 's', 't', 'r', 'g'):
             // maximum storage allowance
                 details->storage_max = json.getint();
+#ifndef NDEBUG
                 got_storage = true;
+#endif
                 break;
 
             case MAKENAMEID6('c', 'a', 'x', 'f', 'e', 'r'):
@@ -5345,7 +5357,7 @@ CommandGetUserTransactions::CommandGetUserTransactions(MegaClient* client, std::
     tag = client->reqtag;
 }
 
-bool CommandGetUserTransactions::procresult(Result r, JSON& json)
+bool CommandGetUserTransactions::procresult(Result, JSON& json)
 {
     details->transactions.clear();
 
@@ -5387,7 +5399,7 @@ CommandGetUserPurchases::CommandGetUserPurchases(MegaClient* client, std::shared
     tag = client->reqtag;
 }
 
-bool CommandGetUserPurchases::procresult(Result r, JSON& json)
+bool CommandGetUserPurchases::procresult(Result, JSON& json)
 {
     client->restag = tag;
 
@@ -5434,7 +5446,7 @@ CommandGetUserSessions::CommandGetUserSessions(MegaClient* client, std::shared_p
     tag = client->reqtag;
 }
 
-bool CommandGetUserSessions::procresult(Result r, JSON& json)
+bool CommandGetUserSessions::procresult(Result, JSON& json)
 {
     details->sessions.clear();
 
@@ -5468,7 +5480,7 @@ bool CommandGetUserSessions::procresult(Result r, JSON& json)
     return true;
 }
 
-CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t cets, bool writable, bool megaHosted,
+CommandSetPH::CommandSetPH(MegaClient*, Node* n, int del, m_time_t cets, bool writable, bool megaHosted,
     int ctag, std::function<void(Error, handle, handle)> f)
 {
     h = n->nodehandle;
@@ -5841,7 +5853,7 @@ CommandCancelSignup::CommandCancelSignup(MegaClient *client)
     tag = client->reqtag;
 }
 
-bool CommandCancelSignup::procresult(Result r, JSON& json)
+bool CommandCancelSignup::procresult(Result r, JSON&)
 {
     client->app->cancelsignup_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -5888,7 +5900,7 @@ CommandSendSignupLink2::CommandSendSignupLink2(MegaClient* client, const char* e
     tag = client->reqtag;
 }
 
-CommandSendSignupLink2::CommandSendSignupLink2(MegaClient* client, const char* email, const char* name, byte *clientrandomvalue, byte *encmasterkey, byte *hashedauthkey, int ctag)
+CommandSendSignupLink2::CommandSendSignupLink2(MegaClient*, const char* email, const char* name, byte *clientrandomvalue, byte *encmasterkey, byte *hashedauthkey, int ctag)
 {
     cmd("uc2");
     arg("n", (byte*)name, int(strlen(name)));
@@ -5901,7 +5913,7 @@ CommandSendSignupLink2::CommandSendSignupLink2(MegaClient* client, const char* e
     tag = ctag;
 }
 
-bool CommandSendSignupLink2::procresult(Result r, JSON& json)
+bool CommandSendSignupLink2::procresult(Result r, JSON&)
 {
     client->app->sendsignuplink_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -5992,7 +6004,7 @@ bool CommandSetKeyPair::procresult(Result r, JSON& json)
 }
 
 // fetch full node tree
-CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache)
+CommandFetchNodes::CommandFetchNodes(MegaClient*, int tag, bool nocache)
 {
     cmd("f");
     arg("c", 1);
@@ -6202,7 +6214,7 @@ CommandSubmitPurchaseReceipt::CommandSubmitPurchaseReceipt(MegaClient *client, i
     tag = client->reqtag;
 }
 
-bool CommandSubmitPurchaseReceipt::procresult(Result r, JSON& json)
+bool CommandSubmitPurchaseReceipt::procresult(Result r, JSON&)
 {
     client->app->submitpurchasereceipt_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -6221,7 +6233,7 @@ CommandCreditCardStore::CommandCreditCardStore(MegaClient* client, const char *c
     tag = client->reqtag;
 }
 
-bool CommandCreditCardStore::procresult(Result r, JSON& json)
+bool CommandCreditCardStore::procresult(Result r, JSON&)
 {
     client->app->creditcardstore_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -6267,7 +6279,7 @@ CommandCreditCardCancelSubscriptions::CommandCreditCardCancelSubscriptions(MegaC
     tag = client->reqtag;
 }
 
-bool CommandCreditCardCancelSubscriptions::procresult(Result r, JSON& json)
+bool CommandCreditCardCancelSubscriptions::procresult(Result r, JSON&)
 {
     client->app->creditcardcancelsubscriptions_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -6412,7 +6424,7 @@ CommandSendReport::CommandSendReport(MegaClient *client, const char *type, const
     tag = client->reqtag;
 }
 
-bool CommandSendReport::procresult(Result r, JSON& json)
+bool CommandSendReport::procresult(Result r, JSON&)
 {
     client->app->userfeedbackstore_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -6448,7 +6460,7 @@ CommandSendEvent::CommandSendEvent(MegaClient *client, int type, const char *des
     tag = client->reqtag;
 }
 
-bool CommandSendEvent::procresult(Result r, JSON& json)
+bool CommandSendEvent::procresult(Result r, JSON&)
 {
     client->app->sendevent_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -6464,7 +6476,7 @@ CommandSupportTicket::CommandSupportTicket(MegaClient *client, const char *messa
     tag = client->reqtag;
 }
 
-bool CommandSupportTicket::procresult(Result r, JSON& json)
+bool CommandSupportTicket::procresult(Result r, JSON&)
 {
     client->app->supportticket_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -6477,7 +6489,7 @@ CommandCleanRubbishBin::CommandCleanRubbishBin(MegaClient *client)
     tag = client->reqtag;
 }
 
-bool CommandCleanRubbishBin::procresult(Result r, JSON& json)
+bool CommandCleanRubbishBin::procresult(Result r, JSON&)
 {
     client->app->cleanrubbishbin_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -6497,7 +6509,7 @@ CommandGetRecoveryLink::CommandGetRecoveryLink(MegaClient *client, const char *e
     tag = client->reqtag;
 }
 
-bool CommandGetRecoveryLink::procresult(Result r, JSON& json)
+bool CommandGetRecoveryLink::procresult(Result r, JSON&)
 {
     client->app->getrecoverylink_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -6640,7 +6652,7 @@ CommandConfirmRecoveryLink::CommandConfirmRecoveryLink(MegaClient *client, const
     tag = client->reqtag;
 }
 
-bool CommandConfirmRecoveryLink::procresult(Result r, JSON& json)
+bool CommandConfirmRecoveryLink::procresult(Result r, JSON&)
 {
     client->app->confirmrecoverylink_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -6654,7 +6666,7 @@ CommandConfirmCancelLink::CommandConfirmCancelLink(MegaClient *client, const cha
     tag = client->reqtag;
 }
 
-bool CommandConfirmCancelLink::procresult(Result r, JSON& json)
+bool CommandConfirmCancelLink::procresult(Result r, JSON&)
 {
     MegaApp *app = client->app;
     app->confirmcancellink_result(r.errorOrOK());
@@ -6673,7 +6685,7 @@ CommandResendVerificationEmail::CommandResendVerificationEmail(MegaClient *clien
     tag = client->reqtag;
 }
 
-bool CommandResendVerificationEmail::procresult(Result r, JSON& json)
+bool CommandResendVerificationEmail::procresult(Result r, JSON&)
 {
     client->app->resendverificationemail_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -6685,7 +6697,7 @@ CommandResetSmsVerifiedPhoneNumber::CommandResetSmsVerifiedPhoneNumber(MegaClien
     tag = client->reqtag;
 }
 
-bool CommandResetSmsVerifiedPhoneNumber::procresult(Result r, JSON& json)
+bool CommandResetSmsVerifiedPhoneNumber::procresult(Result r, JSON&)
 {
     if (r.wasError(API_OK))
     {
@@ -6704,7 +6716,7 @@ CommandValidatePassword::CommandValidatePassword(MegaClient *client, const char 
     tag = client->reqtag;
 }
 
-bool CommandValidatePassword::procresult(Result r, JSON& json)
+bool CommandValidatePassword::procresult(Result r, JSON&)
 {
     if (r.wasErrorOrOK())
     {
@@ -6742,7 +6754,7 @@ CommandGetEmailLink::CommandGetEmailLink(MegaClient *client, const char *email, 
     tag = client->reqtag;
 }
 
-bool CommandGetEmailLink::procresult(Result r, JSON& json)
+bool CommandGetEmailLink::procresult(Result r, JSON&)
 {
     client->app->getemaillink_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -6770,7 +6782,7 @@ CommandConfirmEmailLink::CommandConfirmEmailLink(MegaClient *client, const char 
     tag = client->reqtag;
 }
 
-bool CommandConfirmEmailLink::procresult(Result r, JSON& json)
+bool CommandConfirmEmailLink::procresult(Result r, JSON&)
 {
     if (r.wasError(API_OK))
     {
@@ -7144,7 +7156,7 @@ CommandSetChatOptions::CommandSetChatOptions(MegaClient* client, handle chatid, 
     tag = client->reqtag;
 }
 
-bool CommandSetChatOptions::procresult(Result r, JSON& json)
+bool CommandSetChatOptions::procresult(Result r, JSON&)
 {
     if (r.wasError(API_OK))
     {
@@ -7200,7 +7212,7 @@ CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, handle u
     tag = client->reqtag;
 }
 
-bool CommandChatInvite::procresult(Result r, JSON& json)
+bool CommandChatInvite::procresult(Result r, JSON&)
 {
     if (r.wasError(API_OK))
     {
@@ -7252,7 +7264,7 @@ CommandChatRemove::CommandChatRemove(MegaClient *client, handle chatid, handle u
     tag = client->reqtag;
 }
 
-bool CommandChatRemove::procresult(Result r, JSON& json)
+bool CommandChatRemove::procresult(Result r, JSON&)
 {
     if (r.wasError(API_OK))
     {
@@ -7360,7 +7372,7 @@ CommandChatGrantAccess::CommandChatGrantAccess(MegaClient *client, handle chatid
     tag = client->reqtag;
 }
 
-bool CommandChatGrantAccess::procresult(Result r, JSON& json)
+bool CommandChatGrantAccess::procresult(Result r, JSON&)
 {
     if (r.wasError(API_OK))
     {
@@ -7400,7 +7412,7 @@ CommandChatRemoveAccess::CommandChatRemoveAccess(MegaClient *client, handle chat
     tag = client->reqtag;
 }
 
-bool CommandChatRemoveAccess::procresult(Result r, JSON& json)
+bool CommandChatRemoveAccess::procresult(Result r, JSON&)
 {
     if (r.wasError(API_OK))
     {
@@ -7440,7 +7452,7 @@ CommandChatUpdatePermissions::CommandChatUpdatePermissions(MegaClient *client, h
     tag = client->reqtag;
 }
 
-bool CommandChatUpdatePermissions::procresult(Result r, JSON& json)
+bool CommandChatUpdatePermissions::procresult(Result r, JSON&)
 {
     if (r.wasError(API_OK))
     {
@@ -7510,7 +7522,7 @@ CommandChatTruncate::CommandChatTruncate(MegaClient *client, handle chatid, hand
     tag = client->reqtag;
 }
 
-bool CommandChatTruncate::procresult(Result r, JSON& json)
+bool CommandChatTruncate::procresult(Result r, JSON&)
 {
     if (r.wasError(API_OK))
     {
@@ -7546,7 +7558,7 @@ CommandChatSetTitle::CommandChatSetTitle(MegaClient *client, handle chatid, cons
     tag = client->reqtag;
 }
 
-bool CommandChatSetTitle::procresult(Result r, JSON& json)
+bool CommandChatSetTitle::procresult(Result r, JSON&)
 {
     if (r.wasError(API_OK))
     {
@@ -7607,7 +7619,7 @@ CommandRegisterPushNotification::CommandRegisterPushNotification(MegaClient *cli
     tag = client->reqtag;
 }
 
-bool CommandRegisterPushNotification::procresult(Result r, JSON& json)
+bool CommandRegisterPushNotification::procresult(Result r, JSON&)
 {
     client->app->registerpushnotification_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -7629,7 +7641,7 @@ CommandArchiveChat::CommandArchiveChat(MegaClient *client, handle chatid, bool a
     tag = client->reqtag;
 }
 
-bool CommandArchiveChat::procresult(Result r, JSON& json)
+bool CommandArchiveChat::procresult(Result r, JSON&)
 {
     if (r.wasError(API_OK))
     {
@@ -7663,7 +7675,7 @@ CommandSetChatRetentionTime::CommandSetChatRetentionTime(MegaClient *client, han
     tag = client->reqtag;
 }
 
-bool CommandSetChatRetentionTime::procresult(Result r, JSON& json)
+bool CommandSetChatRetentionTime::procresult(Result r, JSON&)
 {
     client->app->setchatretentiontime_result(r.errorOrOK());
     return true;
@@ -7896,7 +7908,7 @@ CommandChatLinkClose::CommandChatLinkClose(MegaClient *client, handle chatid, co
     tag = client->reqtag;
 }
 
-bool CommandChatLinkClose::procresult(Result r, JSON& json)
+bool CommandChatLinkClose::procresult(Result r, JSON&)
 {
     if (r.wasError(API_OK))
     {
@@ -7931,7 +7943,7 @@ CommandChatLinkJoin::CommandChatLinkJoin(MegaClient *client, handle publichandle
     tag = client->reqtag;
 }
 
-bool CommandChatLinkJoin::procresult(Result r, JSON& json)
+bool CommandChatLinkJoin::procresult(Result r, JSON&)
 {
     client->app->chatlinkjoin_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -8335,7 +8347,7 @@ CommandContactLinkDelete::CommandContactLinkDelete(MegaClient *client, handle h)
     tag = client->reqtag;
 }
 
-bool CommandContactLinkDelete::procresult(Result r, JSON& json)
+bool CommandContactLinkDelete::procresult(Result r, JSON&)
 {
     client->app->contactlinkdelete_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -8356,7 +8368,7 @@ CommandKeepMeAlive::CommandKeepMeAlive(MegaClient *client, int type, bool enable
     tag = client->reqtag;
 }
 
-bool CommandKeepMeAlive::procresult(Result r, JSON& json)
+bool CommandKeepMeAlive::procresult(Result r, JSON&)
 {
     client->app->keepmealive_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -8432,7 +8444,7 @@ CommandMultiFactorAuthDisable::CommandMultiFactorAuthDisable(MegaClient *client,
     tag = client->reqtag;
 }
 
-bool CommandMultiFactorAuthDisable::procresult(Result r, JSON& json)
+bool CommandMultiFactorAuthDisable::procresult(Result r, JSON&)
 {
     client->app->multifactorauthdisable_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -8603,7 +8615,7 @@ CommandSetLastAcknowledged::CommandSetLastAcknowledged(MegaClient* client)
     tag = client->reqtag;
 }
 
-bool CommandSetLastAcknowledged::procresult(Result r, JSON& json)
+bool CommandSetLastAcknowledged::procresult(Result r, JSON&)
 {
     if (r.succeeded())
     {
@@ -8642,7 +8654,7 @@ bool CommandSMSVerificationSend::isPhoneNumber(const string& s)
     return s.size() > 6;
 }
 
-bool CommandSMSVerificationSend::procresult(Result r, JSON& json)
+bool CommandSMSVerificationSend::procresult(Result r, JSON&)
 {
     client->app->smsverificationsend_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -9076,7 +9088,7 @@ CommandBackupPutHeartBeat::CommandBackupPutHeartBeat(MegaClient* client, handle 
     tag = client->reqtag;
 }
 
-bool CommandBackupPutHeartBeat::procresult(Result r, JSON& json)
+bool CommandBackupPutHeartBeat::procresult(Result r, JSON&)
 {
     if (mCompletion) mCompletion(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -9092,7 +9104,7 @@ CommandBackupRemove::CommandBackupRemove(MegaClient *client, handle backupId, st
     mCompletion = completion;
 }
 
-bool CommandBackupRemove::procresult(Result r, JSON& json)
+bool CommandBackupRemove::procresult(Result r, JSON&)
 {
     if (mCompletion)
     {
@@ -9101,7 +9113,7 @@ bool CommandBackupRemove::procresult(Result r, JSON& json)
     return r.wasErrorOrOK();
 }
 
-CommandBackupSyncFetch::CommandBackupSyncFetch(std::function<void(Error, vector<Data>&)> f)
+CommandBackupSyncFetch::CommandBackupSyncFetch(std::function<void(const Error&, const vector<Data>&)> f)
     : completion(std::move(f))
 {
     cmd("sf");
@@ -9305,7 +9317,7 @@ CommandDismissBanner::CommandDismissBanner(MegaClient* client, int id, m_time_t 
     tag = client->reqtag;
 }
 
-bool CommandDismissBanner::procresult(Result r, JSON& json)
+bool CommandDismissBanner::procresult(Result r, JSON&)
 {
     client->app->dismissbanner_result(r.errorOrOK());
     return r.wasErrorOrOK();
@@ -9499,7 +9511,7 @@ CommandRemoveSet::CommandRemoveSet(MegaClient* cl, handle id, std::function<void
     notself(cl); // don't process its Action Packet after sending this
 }
 
-bool CommandRemoveSet::procresult(Result r, JSON& json)
+bool CommandRemoveSet::procresult(Result r, JSON&)
 {
     Error e = API_OK;
     bool parsedOk = procerrorcode(r, e);
@@ -9729,7 +9741,7 @@ bool CommandPutSetElement::procresult(Result r, JSON& json)
     m_time_t ts = 0;
     int64_t order = 0;
     Error e = API_OK;
-#ifdef DEBUG
+#ifndef NDEBUG
     bool isNew = mElement->id() == UNDEF;
 #endif
     const SetElement* el = nullptr;
@@ -10026,7 +10038,7 @@ CommandMeetingJoin::CommandMeetingJoin(MegaClient *client, handle chatid, handle
     tag = client->reqtag;
 }
 
-bool CommandMeetingEnd::procresult(Command::Result r, JSON& json)
+bool CommandMeetingEnd::procresult(Command::Result r, JSON&)
 {
     if (r.wasErrorOrOK())
     {
@@ -10158,7 +10170,7 @@ CommandScheduledMeetingRemove::CommandScheduledMeetingRemove(MegaClient* client,
     tag = client->reqtag;
 }
 
-bool CommandScheduledMeetingRemove::procresult(Command::Result r, JSON& json)
+bool CommandScheduledMeetingRemove::procresult(Command::Result r, JSON&)
 {
     if (!r.wasErrorOrOK())
     {

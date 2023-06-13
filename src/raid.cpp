@@ -143,6 +143,7 @@ RaidBufferManager::RaidBufferManager()
     , outputfilepos(0)
     , startfilepos(0)
     , resumewastedbytes(0)
+    , mDisableAvoidSmallLastRequest(false)
 {
     for (int i = RAIDPARTS; i--; )
     {
@@ -151,10 +152,6 @@ RaidBufferManager::RaidBufferManager()
         raidHttpGetErrorCount[i] = 0;
         connectionStarted[i] = false;
     }
-
-#ifdef DEBUG
-    mDisableAvoidSmallLastRequest = false;
-#endif
 }
 
 static void clearOwningFilePieces(std::deque<RaidBufferManager::FilePiece*>& q)
@@ -238,12 +235,10 @@ void RaidBufferManager::updateUrlsAndResetPos(const std::vector<std::string>& te
     }
 }
 
-#ifdef DEBUG
 void RaidBufferManager::disableAvoidSmallLastRequest()
 {
     mDisableAvoidSmallLastRequest = true;
 }
-#endif
 
 bool RaidBufferManager::isRaid() const
 {
@@ -390,9 +385,7 @@ std::pair<m_off_t, m_off_t> RaidBufferManager::nextNPosForConnection(unsigned co
                                 static_cast<size_t>(npos - curpos) :
                                 0;
         LOG_debug << "Raid lines per chunk = " << raidLinesPerChunk << ", curpos = " << curpos << ", npos = " << npos << ", maxpos = " << maxpos << ", acquirelimitpos = " << acquirelimitpos << ", nextChunkSize = " << nextChunkSize;
-#ifdef DEBUG
         if (!mDisableAvoidSmallLastRequest)
-#endif
         {
             size_t lastChunkSize = (npos < maxpos) ?             // Last chunk left apart from the current chunk
                                     static_cast<size_t>(maxpos - npos) :
@@ -743,7 +736,7 @@ bool RaidBufferManager::FilePiece::finalize(bool parallel, m_off_t filesize, int
     return queueParallel;
 }
 
-void TransferBufferManager::finalize(FilePiece& r)
+void TransferBufferManager::finalize(FilePiece&)
 {
     // for transfers (as opposed to DirectRead), decrypt/mac is now done on threads
 }

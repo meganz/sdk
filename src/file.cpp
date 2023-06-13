@@ -309,7 +309,7 @@ void File::completed(Transfer* t, putsource_t source)
 
 
 void File::sendPutnodesOfUpload(MegaClient* client, UploadHandle fileAttrMatchHandle, const UploadToken& ultoken,
-                        const FileNodeKey& filekey, putsource_t source, NodeHandle ovHandle,
+                        const FileNodeKey& filekey, putsource_t source, NodeHandle,
                         CommandPutNodes::Completion&& completion,
                         LocalNode* l, const m_time_t* overrideMtime, bool canChangeVault)
 {
@@ -659,7 +659,7 @@ void SyncFileGet::updatelocalname()
 }
 
 // add corresponding LocalNode (by path), then self-destruct
-void SyncFileGet::completed(Transfer*, putsource_t source)
+void SyncFileGet::completed(Transfer*, putsource_t)
 {
     sync->threadSafeState->transferComplete(GET, size);
 
@@ -677,7 +677,7 @@ void SyncFileGet::completed(Transfer*, putsource_t source)
     delete this;
 }
 
-void SyncFileGet::terminated(error e)
+void SyncFileGet::terminated(error)
 {
     sync->threadSafeState->transferFailed(GET, size);
 

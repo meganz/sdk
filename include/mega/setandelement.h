@@ -101,7 +101,7 @@ namespace mega {
         bool hasAttrChanged(const std::string& tag, const std::unique_ptr<string_map>& otherAttrs) const;
         void rebaseCommonAttrsOn(const string_map* baseAttrs);
 
-        static bool validChangeType(const unsigned& typ, const unsigned& typMax) { assert(typ < typMax); return typ < typMax; }
+        static bool validChangeType(const uint64_t& typ, const uint64_t& typMax) { assert(typ < typMax); return typ < typMax; }
 
         std::unique_ptr<std::string> mEncryptedAttrs;             // "at": up to 65535 bytes of miscellaneous data, encrypted with mKey
 
@@ -179,7 +179,7 @@ namespace mega {
         unsigned long changes() const { return mChanges.to_ulong(); }
 
         // return true if internal parameter pointed out by changeType has changed (useful for app notifications)
-        bool hasChanged(int changeType) const { return validChangeType(changeType, CH_EL_SIZE) ? mChanges[changeType] : false; }
+        bool hasChanged(uint64_t changeType) const { return validChangeType(changeType, CH_EL_SIZE) ? mChanges[changeType] : false; }
 
         bool serialize(std::string*) const override;
         static std::unique_ptr<SetElement> unserialize(std::string* d);
@@ -262,7 +262,7 @@ namespace mega {
         unsigned long changes() const { return mChanges.to_ulong(); }
 
         // return true if internal parameter pointed out by changeType has changed (useful for app notifications)
-        bool hasChanged(int changeType) const { return validChangeType(changeType, CH_SIZE) ? mChanges[changeType] : false; }
+        bool hasChanged(uint64_t changeType) const { return validChangeType(changeType, CH_SIZE) ? mChanges[changeType] : false; }
 
         bool isExported() const { return mPublicId != UNDEF; }
 
