@@ -331,10 +331,10 @@ openssl_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="OpenSSL"
-    local openssl_ver="1.1.1"
-    local openssl_rel="d"
-    local openssl_url="https://www.openssl.org/source/old/${openssl_ver}/openssl-$openssl_${openssl_ver}${openssl_rel}.tar.gz"
-    local openssl_md5="3be209000dbc7e1b95bcdf47980a3baa"
+    local openssl_ver="3.1.1"
+    local openssl_rel=""
+    local openssl_url="https://github.com/openssl/openssl/releases/download/openssl-${openssl_ver}${openssl_rel}/openssl-${openssl_ver}${openssl_rel}.tar.gz"
+    local openssl_md5="1864b75e31fb4a6e0a07fd832529add3"
     local openssl_file="openssl-${openssl_ver}${openssl_rel}.tar.gz"
     local openssl_dir="openssl-${openssl_ver}${openssl_rel}"
     if [ $use_dynamic -eq 1 ]; then
