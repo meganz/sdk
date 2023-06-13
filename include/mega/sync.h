@@ -572,7 +572,7 @@ private:
 
 public:
     // original filesystem fingerprint
-    fsfp_t fsfp = 0;
+    fsfp_t fsfp;
 
     // does the filesystem have stable IDs? (FAT does not)
     bool fsstableids = false;
@@ -1093,15 +1093,15 @@ public:
     // maps local fsid to corresponding LocalNode* (s)
     fsid_localnode_map localnodeBySyncedFsid;
     fsid_localnode_map localnodeByScannedFsid;
-    LocalNode* findLocalNodeBySyncedFsid(mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint& fp, Sync* filesystemSync, std::function<bool(LocalNode* ln)> extraCheck, handle owningUser);
-    LocalNode* findLocalNodeByScannedFsid(mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint* fp, Sync* filesystemSync, std::function<bool(LocalNode* ln)> extraCheck, handle owningUser);
+    LocalNode* findLocalNodeBySyncedFsid(fsfp_t, mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint& fp, std::function<bool(LocalNode* ln)> extraCheck, handle owningUser);
+    LocalNode* findLocalNodeByScannedFsid(fsfp_t, mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint* fp, std::function<bool(LocalNode* ln)> extraCheck, handle owningUser);
 
-    void setSyncedFsidReused(mega::handle fsid);
-    void setScannedFsidReused(mega::handle fsid);
+    void setSyncedFsidReused(fsfp_t, mega::handle fsid);
+    void setScannedFsidReused(fsfp_t, mega::handle fsid);
 
     // maps nodehandle to corresponding LocalNode* (s)
     nodehandle_localnode_map localnodeByNodeHandle;
-    bool findLocalNodeByNodeHandle(NodeHandle h, LocalNode*& sourceSyncNodeOriginal, LocalNode*& sourceSyncNodeCurrent, Sync* sameSync, bool& unsureDueToIncompleteScanning);
+    bool findLocalNodeByNodeHandle(NodeHandle h, LocalNode*& sourceSyncNodeOriginal, LocalNode*& sourceSyncNodeCurrent, bool& unsureDueToIncompleteScanning);
 
     // manage syncdown flags inside the syncs
     // backupId of UNDEF to rescan all

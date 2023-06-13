@@ -21919,7 +21919,7 @@ void MegaApiImpl::syncFolder(const char* localFolder, const char* name, MegaHand
 
             SyncConfig syncConfig(localPathLP,
                 syncName, NodeHandle(), "",
-                0, drivePath, true, type);
+                fsfp_t(), drivePath, true, type);
 
 
             if (type == SyncConfig::TYPE_BACKUP)
@@ -22101,10 +22101,11 @@ void MegaApiImpl::copySyncDataToCache(const char* localFolder, const char* name,
             // Copy sync config is only used for sync migration
             // therefore only deals with internal syncs, so drive path is empty
             LocalPath drivePath;
-
+            fsfp_t fsfp;
+            fsfp.id = request->getNumber();
             SyncConfig syncConfig(LocalPath::fromAbsolutePath(localPath),
                                   name, NodeHandle().set6byte(request->getNodeHandle()), remotePath ? remotePath : "",
-                                  static_cast<fsfp_t>(request->getNumber()),
+                                  fsfp,
                                   drivePath, enabled);
 
             if (temporaryDisabled)
@@ -24720,7 +24721,7 @@ void MegaApiImpl::addSyncByRequest(MegaRequestPrivate* request, SyncConfig syncC
             }
             else
             {
-                request->setNumber(createdConfig.mFilesystemFingerprint);
+                request->setNumber(createdConfig.mFilesystemFingerprint.id);
                 request->setParentHandle(backupId);
 
                 auto sync = ::mega::make_unique<MegaSyncPrivate>(createdConfig, client);
@@ -26436,7 +26437,7 @@ MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, MegaClient* client /*
     this->lastKnownMegaFolder = NULL;
     this->fingerprint = 0;
 
-    setLocalFingerprint(static_cast<long long>(config.mFilesystemFingerprint));
+    setLocalFingerprint(static_cast<long long>(config.mFilesystemFingerprint.id));
     setLastKnownMegaFolder(config.mOriginalPathOfRemoteRootNode.c_str());
 
     setError(config.mError < 0 ? 0 : config.mError);

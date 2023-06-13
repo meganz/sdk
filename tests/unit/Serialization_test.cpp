@@ -196,14 +196,14 @@ TEST(Serialization, CacheableReaderWriter_fsfp_t)
     std::string data;
     {
         mega::CacheableWriter writer{data};
-        writer.serializefsfp(42);
+        writer.serializefsfp(mega::fsfp_t(42));
     }
     mega::CacheableReader reader{data};
-    fsfp_t fsfp;
+    mega::fsfp_t fsfp;
     ASSERT_TRUE(reader.unserializefsfp(fsfp));
     ASSERT_EQ(1u, reader.fieldnum);
     ASSERT_EQ(reader.ptr, data.c_str() + data.size());
-    ASSERT_EQ(42u, fsfp);
+    ASSERT_EQ(42u, fsfp.id);
 }
 
 namespace {

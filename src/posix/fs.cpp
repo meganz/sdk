@@ -1793,7 +1793,7 @@ private:
     {
         int fd = ::open(path, O_NOATIME | O_RDONLY) ;
 
-        if (fd < 0 && errno == EPERM) 
+        if (fd < 0 && errno == EPERM)
         {
             fd = ::open(path, O_RDONLY);
         }
@@ -2020,17 +2020,19 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
 fsfp_t PosixFileSystemAccess::fsFingerprint(const LocalPath& path) const
 {
     struct statfs statfsbuf;
+    fsfp_t result;
 
     // FIXME: statfs() does not really do what we want.
     if (statfs(path.localpath.c_str(), &statfsbuf))
     {
         int e = errno;
         LOG_err << "statfs() failed, errno " << e << " while processing path " << path;
-        return 0;
+        return result;
     }
-    fsfp_t tmp;
-    memcpy(&tmp, &statfsbuf.f_fsid, sizeof(fsfp_t));
-    return tmp+1;
+    handle tmp;
+    memcpy(&tmp, &statfsbuf.f_fsid, sizeof(handle));
+    result.id = tmp+1;
+    return result;
 }
 
 bool PosixFileSystemAccess::fsStableIDs(const LocalPath& path) const

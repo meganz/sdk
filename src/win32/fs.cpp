@@ -1219,18 +1219,21 @@ fsfp_t WinFileSystemAccess::fsFingerprint(const LocalPath& path) const
                     FILE_FLAG_BACKUP_SEMANTICS,
                     NULL);
 
+    fsfp_t result;
+
     if (!hDirectory)
-        return 0;
+        return result;
 
     BY_HANDLE_FILE_INFORMATION fi;
 
 	if (!GetFileInformationByHandle(hDirectory.get(), &fi))
     {
         LOG_err << "Unable to get fsfingerprint. Error code: " << GetLastError();
-        return 0;
+        return result;
     }
 
-    return fi.dwVolumeSerialNumber + 1;
+    result.id = fi.dwVolumeSerialNumber + 1;
+    return result;
 }
 
 bool WinFileSystemAccess::fsStableIDs(const LocalPath& path) const
