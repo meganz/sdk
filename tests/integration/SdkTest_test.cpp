@@ -772,6 +772,11 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
     mApi[apiIndex].requestFlags[request->getType()] = true;
 }
 
+void SdkTest::onTransferStart(MegaApi *api, MegaTransfer *transfer)
+{
+    onTransferStart_progress = transfer->getTransferredBytes();
+}
+
 void SdkTest::onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* e)
 {
     int apiIndex = getApiIndex(api);
@@ -6225,6 +6230,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransferResume)
     ASSERT_NO_FATAL_FAILURE(locallogout());
     ErrorCodes result = rdt.waitForResult();
     ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE) << "Download interrupted with unexpected code: " << result;
+
+    onTransferStart_progress = 0;
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
 
@@ -6237,9 +6244,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferResume)
         transfers.reset(megaApi[0]->getTransfers(MegaTransfer::TYPE_DOWNLOAD));
     }
     ASSERT_EQ(transfers->size(), 1) << "Download ended before resumption was checked, or was not resumed after 20 seconds";
-    MegaTransfer* dnl = transfers->get(0);
-    long long dnlBytes = dnl->getTransferredBytes();
-    ASSERT_GT(dnlBytes, pauseThreshold / 2) << "Download appears to have been restarted instead of resumed";
+    ASSERT_GT(onTransferStart_progress, 0) << "Download appears to have been restarted instead of resumed";
 
     megaApi[0]->setMaxDownloadSpeed(-1);
 

@@ -4919,8 +4919,21 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     freeq(GET);
     freeq(PUT);
 
-    // close the transfer cache database.
     disconnect();
+
+    // commit and close the transfer cache database.
+    if (tctable && tctable->getTransactionCommitter())
+    {
+        auto committer = dynamic_cast<TransferDbCommitter*>(tctable->getTransactionCommitter());
+        if (committer)
+        {
+            // If we don't commit the last changes to the transfer database here, they would be reverted in closetc()
+            // freeq() has its own committer, but it doesn't do anything because it's usually nested by the one
+            // in the intermediate layer (MegaApiImpl::sendPendingTransfers).
+            committer->commitNow();
+        }
+    }
+
     closetc();
 
     freeq(GET);  // freeq after closetc due to optimizations
