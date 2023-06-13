@@ -5743,11 +5743,12 @@ MegaApiImpl* MegaApiImpl::ImplOf(MegaApi* api)
     return api->pImpl;
 }
 
-void MegaApiImpl::loggedInStateChanged(sessiontype_t s, handle me)
+void MegaApiImpl::loggedInStateChanged(sessiontype_t s, handle me, const string& email)
 {
     std::lock_guard<std::mutex> g(mLastRecievedLoggedMeMutex);
     mLastReceivedLoggedInState = s;
     mLastReceivedLoggedInMeHandle = me;
+    mLastReceivedLoggedInMyEmail = email;
 }
 
 int MegaApiImpl::isLoggedIn()
@@ -5763,14 +5764,15 @@ bool MegaApiImpl::isEphemeralPlusPlus()
 
 char* MegaApiImpl::getMyEmail()
 {
-    User* u;
-    SdkMutexGuard g(sdkMutex);
-    if (!client->loggedin() || !(u = client->finduser(client->me)))
+    std::unique_lock<mutex> g(mLastRecievedLoggedMeMutex);
+
+    if (mLastReceivedLoggedInState == NOTLOGGEDIN ||
+            mLastReceivedLoggedInMyEmail.empty())
     {
-        return NULL;
+        return nullptr;
     }
 
-    return MegaApi::strdup(u->email.c_str());
+    return MegaApi::strdup(mLastReceivedLoggedInMyEmail.c_str());
 }
 
 int64_t MegaApiImpl::getAccountCreationTs()
@@ -13354,6 +13356,22 @@ void MegaApiImpl::users_updated(User** u, int count)
     MegaUserList *userList = NULL;
     if(u != NULL)
     {
+        // if the email of own user has changed, cache it in the intermediate layer
+        int i = count;
+        while (i--)
+        {
+            User* user = u[i];
+            if (user && user->userhandle == client->me)
+            {
+                if (user->changed.email)
+                {
+                    std::lock_guard<std::mutex> g(mLastRecievedLoggedMeMutex);
+                    mLastReceivedLoggedInMyEmail = user->email;
+                }
+                break;  // same user is only notified once
+            }
+        }
+
         userList = new MegaUserListPrivate(u, count);
         fireOnUsersUpdate(userList);
     }
@@ -14481,6 +14499,7 @@ void MegaApiImpl::logout_result(error e, MegaRequestPrivate* request)
 
         mLastReceivedLoggedInState = NOTLOGGEDIN;
         mLastReceivedLoggedInMeHandle = UNDEF;
+        mLastReceivedLoggedInMyEmail.clear();
         mLastKnownRootNode.reset();
         mLastKnownVaultNode.reset();
         mLastKnownRubbishNode.reset();

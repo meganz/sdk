@@ -585,6 +585,7 @@ public:
     void reportLoggedInChanges();
     sessiontype_t mLastLoggedInReportedState = NOTLOGGEDIN;
     handle mLastLoggedInMeHandle = UNDEF;
+    string mLastLoggedInMyEmail;
 
     // check the reason of being blocked
     void whyamiblocked();

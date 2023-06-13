@@ -544,6 +544,8 @@ public:
         if (err == API_OK) recommendedLevel = (int)rt.request->getNumber();
         return err;
     }
+    template<typename ... requestArgs> int synchronousChangeEmail(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->changeEmail(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int synchronousConfirmChangeEmail(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->confirmChangeEmail(args..., &rt); return rt.waitForResult(); }
 
     // Checkup methods called from MegaApi callbacks
     void onNodesUpdateCheck(size_t apiIndex, MegaHandle target, MegaNodeList* nodes, int change, bool& flag);
