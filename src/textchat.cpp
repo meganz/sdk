@@ -1089,7 +1089,10 @@ bool TextChat::setMode(bool publicchat)
         return false;
     }
 
-    if (!publicchat) { LOG_debug << "TextChat::setMode: EKR enabled (private chat)"; }
+    if (!publicchat)
+    {
+        LOG_debug << "TextChat::setMode: EKR enabled (private chat) for chat: " << Base64Str<MegaClient::CHATHANDLE>(id);
+    }
     this->publicchat = publicchat;
     changed.mode = true;
 
