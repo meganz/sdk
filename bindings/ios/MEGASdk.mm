@@ -1989,7 +1989,7 @@ using namespace mega;
 
 - (void)getRecommendedProLevelWithDelegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
-        self.megaApi->getRecommendedProLevel([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+        self.megaApi->getRecommendedProLevel([self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
     }
 }
 
