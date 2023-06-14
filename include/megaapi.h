@@ -9735,6 +9735,21 @@ class MegaApi
         bool newLinkFormatEnabled();
 
         /**
+         * @brief Get the value of an A/B Test flag
+         *
+         * Returns the value of an A/B Test flag in the account. Any value over 0 means
+         * that the flag is active and 0 means that the flag is not active. Different
+         * values over 0 may have different meanings depending on each flag.
+         * 0 is also returned for flags not set in the account, which should be treated
+         * as a deactivated flag.
+         *
+         * @param flag Name or key of the value to be retrieved.
+         *
+         * @return An unsigned integer with the value of the flag.
+         */
+        unsigned int getABTestValue(const char* flag);
+
+        /**
          * @brief Check if the opt-in or account unblocking SMS is allowed
          *
          * The result indicated whether the MegaApi::sendSMSVerificationCode function can be used.

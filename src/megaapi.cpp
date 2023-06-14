@@ -2154,6 +2154,11 @@ bool MegaApi::newLinkFormatEnabled()
     return pImpl->newLinkFormatEnabled();
 }
 
+unsigned int MegaApi::getABTestValue(const char* flag)
+{
+    return pImpl->getABTestValue(flag);
+}
+
 int MegaApi::smsAllowedState()
 {
     return pImpl->smsAllowedState();

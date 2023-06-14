@@ -482,6 +482,9 @@ public:
     // Don't start showing the cookie banner until API says so
     bool mCookieBannerEnabled = false;
 
+    // AB Test flags
+    std::map<string, unsigned int> mABTestFlags;
+
 private:
     // Pro Flexi plan is enabled
     bool mProFlexi = false;

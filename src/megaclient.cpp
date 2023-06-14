@@ -4891,6 +4891,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     aplvp_enabled = false;
     mNewLinkFormat = false;
     mCookieBannerEnabled = false;
+    mABTestFlags.clear();
     mProFlexi = false;
     mSmsVerificationState = SMS_STATE_UNKNOWN;
     mSmsVerifiedPhone.clear();
@@ -10193,6 +10194,7 @@ error MegaClient::readmiscflags(JSON *json)
     bool journeyIdFound = false;
     while (1)
     {
+        string fieldName = json->getnameWithoutAdvance();
         switch (json->getnameid())
         {
         // mcs:1 --> MegaChat enabled
@@ -10256,7 +10258,12 @@ error MegaClient::readmiscflags(JSON *json)
             }
             return API_OK;
         default:
-            if (!json->storeobject())
+            if (fieldName.rfind("ab_", 0) == 0) // Starting with "ab_"
+            {
+                string tag = fieldName.substr(3); // The string after "ab_" prefix
+                mABTestFlags[tag] = json->getuint32();
+            }
+            else if (!json->storeobject())
             {
                 return API_EINTERNAL;
             }

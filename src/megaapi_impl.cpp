@@ -6302,6 +6302,14 @@ bool MegaApiImpl::newLinkFormatEnabled()
     return client->mNewLinkFormat;
 }
 
+unsigned int MegaApiImpl::getABTestValue(const char* flag)
+{
+    if (!flag) return 0;
+    SdkMutexGuard g(sdkMutex);
+    auto it = client->mABTestFlags.find(flag);
+    return (it != client->mABTestFlags.end() ? it->second : 0 );
+}
+
 int MegaApiImpl::smsAllowedState()
 {
     return (client->mSmsVerificationState != SMS_STATE_UNKNOWN) ? client->mSmsVerificationState : 0;

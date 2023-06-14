@@ -2505,6 +2505,7 @@ class MegaApiImpl : public MegaApp
         bool serverSideRubbishBinAutopurgeEnabled();
         bool appleVoipPushEnabled();
         bool newLinkFormatEnabled();
+        unsigned int getABTestValue(const char* flag);
         int smsAllowedState();
         char* smsVerifiedPhoneNumber();
         void resetSmsVerifiedPhoneNumber(MegaRequestListener *listener);
