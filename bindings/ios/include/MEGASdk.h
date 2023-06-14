@@ -5207,7 +5207,7 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
  *
  * The associated request type with this request is MEGARequestTypeGetRecommenedProPlan.
  *
- * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest getNumber] the recommended PRO level:
  *     Valid values are (there are other account types):
@@ -5226,7 +5226,7 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
  *
  * The associated request type with this request is MEGARequestTypeGetRecommenedProPlan.
  *
- * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest getNumber] the recommended PRO level:
  *     Valid values are (there are other account types):
