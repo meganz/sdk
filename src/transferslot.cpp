@@ -875,7 +875,10 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                 case REQ_DECRYPTING:
                 {
                     assert(transfer->type == GET);
-                    p += reqs[i]->size; // This is part of the transferred bytes
+                    // this must return the same piece we are decrypting, since we have not asked the transferbuf to discard it yet.
+                    auto outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
+                    assert(outputPiece && outputPiece->buf.datalen());
+                    p += outputPiece->buf.datalen(); // This is part of the transferred bytes
                     break;
                 }
                 case REQ_DECRYPTED:
