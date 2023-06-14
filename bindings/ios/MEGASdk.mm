@@ -1993,12 +1993,6 @@ using namespace mega;
     }
 }
 
-- (void)getRecommendedProLevel {
-    if (self.megaApi) {
-        self.megaApi->getRecommendedProLevel();
-    }
-}
-
 - (void)getPricingWithDelegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->getPricing([self createDelegateMEGARequestListener:delegate singleListener:YES]);
