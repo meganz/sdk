@@ -1987,6 +1987,18 @@ using namespace mega;
     }
 }
 
+- (void)getRecommendedProLevelWithDelegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->getRecommendedProLevel([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
+
+- (void)getRecommendedProLevel {
+    if (self.megaApi) {
+        self.megaApi->getRecommendedProLevel();
+    }
+}
+
 - (void)getPricingWithDelegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->getPricing([self createDelegateMEGARequestListener:delegate singleListener:YES]);
