@@ -799,6 +799,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                         HttpReqDL *downloadRequest = static_cast<HttpReqDL*>(reqs[i].get());
                         if (reqs[i]->size == reqs[i]->bufpos || downloadRequest->buffer_released)   // downloadRequest->buffer_released being true indicates we're retrying this asyncIO
                         {
+                            p += downloadRequest->size;
                             if (!downloadRequest->buffer_released)
                             {
                                 transferbuf.submitBuffer(i, new TransferBufferManager::FilePiece(downloadRequest->dlpos, downloadRequest->release_buf())); // resets size & bufpos.  finalize() is taken care of in the transferbuf
@@ -869,6 +870,12 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                 case REQ_UPLOAD_PREPARED_BUT_WAIT:
                 {
                     assert(transfer->type == PUT);
+                    break;
+                }
+                case REQ_DECRYPTING:
+                {
+                    assert(transfer->type == GET);
+                    p += reqs[i]->size; // This is part of the transferred bytes
                     break;
                 }
                 case REQ_DECRYPTED:
