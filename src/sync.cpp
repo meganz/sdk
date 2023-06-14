@@ -6797,7 +6797,7 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
                             {
                                 LOG_debug << syncname << "Removing " << s->children.size() << " child LocalNodes from excluded " << s->getLocalPath();
                                 vector<LocalNode*> cs;
-                                cs.resize(s->children.size());
+                                cs.reserve(s->children.size());
                                 for (auto& i : s->children)
                                 {
                                     cs.push_back(i.second);
@@ -6814,6 +6814,7 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
                             {
                                 s->resetTransfer(nullptr);
                             }
+                            s->checkTreestate(true);
                             continue;
                         }
                     }

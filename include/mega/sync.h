@@ -265,7 +265,7 @@ enum SyncRowType : unsigned {
     SRT_CXF,
     SRT_CSX,
     SRT_CSF
-}; // SyncRowType
+}; // C(cloud) S(sync) F(file) as elements of the triplet. X means that element of the triplet is missing
 
 struct SyncRow
 {
