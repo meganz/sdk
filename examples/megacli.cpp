@@ -341,7 +341,7 @@ void AppFileGet::start()
 }
 
 // transfer completion
-void AppFileGet::completed(Transfer*, putsource_t)
+void AppFileGet::completed(Transfer*, putsource_t source)
 {
     if (onCompleted) onCompleted();
 
@@ -350,7 +350,7 @@ void AppFileGet::completed(Transfer*, putsource_t)
 }
 
 // transfer terminated - too many failures, or unrecoverable failure, or cancelled
-void AppFileGet::terminated(error)
+void AppFileGet::terminated(error e)
 {
     delete this;
 }
@@ -368,7 +368,7 @@ void AppFilePut::completed(Transfer* t, putsource_t source)
 
     auto onCompleted_foward = onCompleted;
     sendPutnodesOfUpload(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(),
-        [onCompleted_foward](const Error& e, targettype_t, vector<NewNode>&, bool, int){
+        [onCompleted_foward](const Error& e, targettype_t, vector<NewNode>&, bool targetOverride, int tag){
 
             if (e)
             {
@@ -383,7 +383,7 @@ void AppFilePut::completed(Transfer* t, putsource_t source)
 }
 
 // transfer terminated - too many failures, or unrecoverable failure, or cancelled
-void AppFilePut::terminated(error)
+void AppFilePut::terminated(error e)
 {
     delete this;
 }
@@ -901,7 +901,7 @@ void DemoApp::chatlinkclose_result(error e)
     }
 }
 
-void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *ct, int, m_time_t ts, bool, handle, error e)
+void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *ct, int, m_time_t ts, bool meetingRoom, handle callid, error e)
 {
     if (e)
     {
@@ -2672,7 +2672,7 @@ public:
         else if (!stack->filesLeft)
         {
             cout << "<find complete>" << endl;
-            for (const auto& s : stack->servers)
+            for (auto s : stack->servers)
             {
                 cout << s << endl;
             }
@@ -3341,7 +3341,7 @@ void exec_showattributes(autocomplete::ACState& s)
 {
     if (const Node* n = nodeFromRemotePath(s.words[1].s))
     {
-        for (const auto& pair : n->attrs.map)
+        for (auto pair : n->attrs.map)
         {
             char namebuf[10]{};
             AttrMap::nameid2string(pair.first, namebuf);
@@ -3402,7 +3402,7 @@ public:
     string mLogFileName;
     bool logToConsole = false;
 
-    void log(const char*, int, const char*, const char *message
+    void log(const char*, int loglevel, const char*, const char *message
 #ifdef ENABLE_LOG_PERFORMANCE
                  , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
 #endif
@@ -3615,7 +3615,7 @@ void exec_setdevicename(autocomplete::ACState& s)
     putua_map(b64idhash, b64devname, ATTR_DEVICE_NAMES);
 }
 
-void exec_getdevicename(autocomplete::ACState&)
+void exec_getdevicename(autocomplete::ACState& s)
 {
     User* u = client->ownuser();
     if (!u)
@@ -3751,90 +3751,7 @@ void exec_getmybackups(autocomplete::ACState&)
     cout << "\"My Backups\" folder (handle " << toHandle(h) << "): " << n->displaypath() << endl;
 }
 
-// if `moveOrDelete` is true, the `backupRootNode` will be moved to `targetDest`. If the latter were `nullptr`, then it will be deleted
-void backupremove(handle backupId, Node* backupRootNode, Node *targetDest, bool moveOrDelete)
-{
-    vector<pair<handle, int>> sdsBkps;
-    if (backupRootNode) // also allow removing orphan syncs (with no nodes)
-    {
-        // validate node's sds attribute
-        sdsBkps = backupRootNode->getSdsBackups();
-        assert(std::find_if(sdsBkps.begin(), sdsBkps.end(), [&backupId](const pair<handle, int>& n)
-            {
-                return n.first == backupId && n.second == CommandBackupPut::DELETED;
-            }) == sdsBkps.end());
-    }
-
-    // prepare to update sds node attribute
-    CommandSetAttr::Completion attrCompl = [backupRootNode, targetDest, moveOrDelete](NodeHandle nh, Error e)
-    {
-        if (e != API_OK)
-        {
-            setattr_result(nh, e);
-            return;
-        }
-
-        if (moveOrDelete)
-        {
-            // delete or move backup files
-            if (!targetDest)
-            {
-                // ...delete target...
-                auto completion = [](NodeHandle, Error e)
-                {
-                    if (e != API_OK)
-                    {
-                        cout << "Backup Centre - Failed to delete remote backup node (" << errorstring(e) << ')' << endl;
-                    }
-                };
-                e = client->unlink(backupRootNode, false, 0, true, std::move(completion));
-                if (e != API_OK)
-                {
-                    cout << "Backup Centre - Failed to delete remote backup node locally (" << errorstring(e) << ')' << endl;
-                }
-            }
-            else    // move to target destination
-            {
-                NodeHandle prevParent;
-                prevParent.set6byte(backupRootNode->parenthandle);
-                CommandMoveNode::Completion completion = [](NodeHandle, Error e)
-                {
-                    if (e != API_OK)
-                    {
-                        cout << "Backup Centre - Failed to move remote backup node (" << errorstring(e) << ')' << endl;
-                    }
-                };
-                client->reqs.add(new CommandMoveNode(client, backupRootNode, targetDest, SYNCDEL_NONE, prevParent, std::move(completion), true));
-            }
-        }
-    };
-
-    // remove backup
-    client->reqs.add(new CommandBackupRemove(client, backupId,
-        [backupId, backupRootNode, sdsBkps, attrCompl](const Error& cbrErr) mutable
-        {
-            if (cbrErr != API_OK && cbrErr != API_ENOENT)
-            {
-                cout << "Backup Centre - Failed to remove sync / backup (" << error(cbrErr) << ": " << errorstring(cbrErr) << ')' << endl;
-                return;
-            }
-
-            cout << "Backup Centre - Sync / backup removed" << endl;
-
-            if (backupRootNode)
-            {
-                sdsBkps.emplace_back(std::make_pair(backupId, CommandBackupPut::DELETED));
-                const string& sdsValue = Node::toSdsString(sdsBkps);
-
-                auto e = client->setattr(backupRootNode, attr_map(Node::sdsId(), sdsValue), std::move(attrCompl), true);
-                if (e != API_OK)
-                {
-                    cout << "Backup Centre - Failed to set sds node attributes (" << e << ": " << errorstring(e) << ')' << endl;
-                }
-            }
-        }));
-}
-
+#ifdef ENABLE_SYNC
 void exec_backupcentre(autocomplete::ACState& s)
 {
     bool delFlag = s.extractflag("-del");
@@ -3847,7 +3764,7 @@ void exec_backupcentre(autocomplete::ACState& s)
         {
             if (e)
             {
-                cout << "backupcentre failed: " << e << endl;
+                cout << "Backup Center - failed to get info about Backups: " << e << endl;
             }
             else
             {
@@ -3859,7 +3776,7 @@ void exec_backupcentre(autocomplete::ACState& s)
                         {
                             if (e)
                             {
-                                cout << "backup center failed to purge id: " << toHandle(d.backupId) << endl;
+                                cout << "Backup Center - failed to purge id: " << toHandle(d.backupId) << endl;
                             }
                         }));
 
@@ -3896,79 +3813,65 @@ void exec_backupcentre(autocomplete::ACState& s)
              }
         });
     }
-    else if (s.words.size() >= 2 && (delFlag || stopFlag))
+    else if ((delFlag && s.words.size() >= 2) || // remove backup && (move or delete) its contents
+             (stopFlag && s.words.size() == 2))  // stop non-backup sync
     {
-        // get backup's remote node
+        handle backupId = 0;
         const string& backupIdStr = s.words[1].s;
+        Base64::atob(backupIdStr.c_str(), (byte*)&backupId, MegaClient::BACKUPHANDLE);
 
-        Node *targetDest = nullptr;
-        if (s.words.size() == 3 && delFlag)    // move backup to cloud
+        // get move destination for the removed backup
+        handle hDest = 0;
+        if (delFlag && s.words.size() == 3)
         {
-            handle hDest = 0;   // set most significant bytes to 0, since it's used as NodeHandle later
             Base64::atob(s.words[2].s.c_str(), (byte*)&hDest, MegaClient::NODEHANDLE);
 
-            targetDest = client->nodebyhandle(hDest);
+            // validation
+            Node* targetDest = client->nodebyhandle(hDest);
             if (!targetDest)
             {
-                cout << "Backup Centre - Move destination not found" << endl;
+                cout << "Backup Centre - Move destination " << s.words[2].s << " not found" << endl;
                 return;
             }
         }
-
-        client->reqs.add(new CommandBackupSyncFetch([backupIdStr, targetDest, delFlag, stopFlag](const Error& e, const vector<CommandBackupSyncFetch::Data>& data)
+        else
         {
-            if (e != API_OK)
-            {
-                cout << "Backup Centre - Failed to fetch ('sf'): " << e << endl;
-                return;
-            }
+            hDest = UNDEF;
+        }
 
-            handle backupId = 0;
-            Base64::atob(backupIdStr.c_str(), (byte*)&backupId, MegaClient::BACKUPHANDLE);
+        // determine if it's a backup or other type of sync
+        SyncConfig c;
+        bool found = client->syncs.configById(backupId, c);
+        bool isBackup = found && c.isBackup();
 
-            bool found = false;
-            for (auto& d : data)
+        // request removal
+        client->removeFromBC(backupId, hDest, [backupId, isBackup, hDest](const Error& e)
+        {
+            if (e == API_OK)
             {
-                if (d.backupId == backupId)
+                cout << "Backup Centre - " << (isBackup ? "Backup " : "Sync ") << toHandle(backupId);
+                if (isBackup)
                 {
-                    if (delFlag && d.backupType != BackupType::BACKUP_UPLOAD)
-                    {
-                        cout << "Backup Centre - Provided id is not a backup: " << backupIdStr << endl;
-                        return;
-                    }
-                    if (stopFlag && d.backupType != BackupType::TWO_WAY)
-                    {
-                        cout << "Backup Centre - Provided id is not a regular sync: " << backupIdStr << endl;
-                        return;
-                    }
-                    Node* remoteNode = client->nodebyhandle(d.rootNode);
-                    if (!remoteNode)
-                    {
-                        cout << "Backup Centre - Remote node not found for id: " << backupIdStr << endl;
-
-                        if (stopFlag && d.backupType == BackupType::TWO_WAY)
-                        {
-                            cout << "Backup Centre - Attempt to forcefully remove orphan sync." << endl;
-                        }
-                        else
-                        {
-                            return;
-                        }
-                    }
-
-                    backupremove(backupId, remoteNode, targetDest, delFlag);
-                    found = true;
-                    break;
+                    cout << " removed and contents " << (hDest == UNDEF ? "deleted" : "moved") << endl;
+                }
+                else
+                {
+                    cout << " stopped" << endl;
                 }
             }
-            if (!found)
+            else
             {
-                cout << "Backup Centre - id not found: " << backupIdStr << endl;
-                return;
+                cout << "Backup Centre - Failed to " << (isBackup ? "remove Backup " : "stop sync") << toHandle(backupId);
+                if (isBackup)
+                {
+                    cout << " and " << (hDest == UNDEF ? "deleted" : "moved") << " its contents";
+                }
+                cout << " (" << errorstring(e) << ')' << endl;
             }
-        }));
+        });
     }
 }
+#endif
 
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
 void exec_simulatecondition(autocomplete::ACState& s)
@@ -5537,7 +5440,7 @@ void exec_put(autocomplete::ACState& s)
         << " file(s) in queue" << endl;
 }
 
-void exec_pwd(autocomplete::ACState&)
+void exec_pwd(autocomplete::ACState& s)
 {
     string path;
 
@@ -5563,13 +5466,8 @@ void exec_lcd(autocomplete::ACState& s)
 }
 
 
-void exec_llockfile(autocomplete::ACState&
-#ifdef WIN32
-                    s
-#endif
-                    )
+void exec_llockfile(autocomplete::ACState& s)
 {
-#ifdef WIN32
     bool readlock = s.extractflag("-read");
     bool writelock = s.extractflag("-write");
     bool unlock = s.extractflag("-unlock");
@@ -5582,6 +5480,7 @@ void exec_llockfile(autocomplete::ACState&
 
     LocalPath localpath = localPathArg(s.words[1].s);
 
+#ifdef WIN32
     static map<LocalPath, HANDLE> llockedFiles;
 
     if (unlock)
@@ -5787,7 +5686,7 @@ void exec_lpwd(autocomplete::ACState& s)
 #endif
 
 
-void exec_test(autocomplete::ACState&)
+void exec_test(autocomplete::ACState& s)
 {
 }
 
@@ -5811,7 +5710,7 @@ void exec_mfac(autocomplete::ACState& s)
     client->multifactorauthcheck(email.c_str());
 }
 
-void exec_mfae(autocomplete::ACState&)
+void exec_mfae(autocomplete::ACState& s)
 {
     client->multifactorauthsetup();
 }
@@ -5851,7 +5750,8 @@ void exec_login(autocomplete::ACState& s)
             }
             else
             {
-                if (strchr(s.words[1].s.c_str(), '#'))  // folder link indicator
+                const char* ptr;
+                if ((ptr = strchr(s.words[1].s.c_str(), '#')))  // folder link indicator
                 {
                     const char *authKey = s.words.size() == 3 ? s.words[2].s.c_str() : nullptr;
                     return client->app->login_result(client->folderaccess(s.words[1].s.c_str(), authKey));
@@ -6485,7 +6385,7 @@ void exec_clear(autocomplete::ACState& s)
 }
 #endif
 
-void exec_retry(autocomplete::ACState&)
+void exec_retry(autocomplete::ACState& s)
 {
     if (client->abortbackoff())
     {
@@ -6497,7 +6397,7 @@ void exec_retry(autocomplete::ACState&)
     }
 }
 
-void exec_recon(autocomplete::ACState&)
+void exec_recon(autocomplete::ACState& s)
 {
     cout << "Closing all open network connections..." << endl;
 
@@ -6841,7 +6741,7 @@ void exec_apiurl(autocomplete::ACState& s)
     }
 }
 
-void exec_passwd(autocomplete::ACState&)
+void exec_passwd(autocomplete::ACState& s)
 {
     if (client->loggedin() != NOTLOGGEDIN)
     {
@@ -7016,7 +6916,7 @@ void exec_signup(autocomplete::ACState& s)
     }
 }
 
-void exec_cancelsignup(autocomplete::ACState&)
+void exec_cancelsignup(autocomplete::ACState& s)
 {
     client->cancelsignup();
 }
@@ -7301,7 +7201,7 @@ void exec_chatst(autocomplete::ACState& s)
     }
 }
 
-void exec_chatpu(autocomplete::ACState&)
+void exec_chatpu(autocomplete::ACState& s)
 {
     client->getChatPresenceUrl();
 }
@@ -7622,7 +7522,7 @@ void exec_session(autocomplete::ACState& s)
     }
 }
 
-void exec_version(autocomplete::ACState&)
+void exec_version(autocomplete::ACState& s)
 {
     cout << "MEGA SDK version: " << MEGA_MAJOR_VERSION << "." << MEGA_MINOR_VERSION << "." << MEGA_MICRO_VERSION << endl;
 
@@ -7675,7 +7575,7 @@ void exec_version(autocomplete::ACState&)
     cwd = NodeHandle();
 }
 
-void exec_showpcr(autocomplete::ACState&)
+void exec_showpcr(autocomplete::ACState& s)
 {
     string outgoing;
     string incoming;
@@ -7901,7 +7801,7 @@ void exec_smsverify(autocomplete::ACState& s)
     }
 }
 
-void exec_verifiedphonenumber(autocomplete::ACState&)
+void exec_verifiedphonenumber(autocomplete::ACState& s)
 {
     cout << "Verified phone number: " << client->mSmsVerifiedPhone << endl;
 }
@@ -7927,7 +7827,7 @@ void exec_killsession(autocomplete::ACState& s)
     }
 }
 
-void exec_locallogout(autocomplete::ACState&)
+void exec_locallogout(autocomplete::ACState& s)
 {
     cout << "Logging off locally..." << endl;
 
@@ -8335,7 +8235,7 @@ void DemoApp::sendsignuplink_result(error e)
     }
 }
 
-void DemoApp::confirmsignuplink2_result(handle, const char*, const char *email, error e)
+void DemoApp::confirmsignuplink2_result(handle, const char *name, const char *email, error e)
 {
     if (e)
     {
@@ -8839,7 +8739,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     delete [] buf;
 }
 
-void DemoApp::folderlinkinfo_result(error e, handle owner, handle /*ph*/, string *attr, string* k, m_off_t currentSize, uint32_t numFiles, uint32_t numFolders, m_off_t, uint32_t numVersions)
+void DemoApp::folderlinkinfo_result(error e, handle owner, handle /*ph*/, string *attr, string* k, m_off_t currentSize, uint32_t numFiles, uint32_t numFolders, m_off_t versionsSize, uint32_t numVersions)
 {
     if (e != API_OK)
     {
@@ -10034,7 +9934,7 @@ void exec_metamac(autocomplete::ACState& s)
     }
 }
 
-void exec_resetverifiedphonenumber(autocomplete::ACState&)
+void exec_resetverifiedphonenumber(autocomplete::ACState& s)
 {
     client->resetSmsVerifiedPhoneNumber();
 }
@@ -10335,7 +10235,7 @@ void exec_syncopendrive(autocomplete::ACState& s)
         });
 }
 
-void exec_synclist(autocomplete::ACState&)
+void exec_synclist(autocomplete::ACState& s)
 {
     // Check the user's logged in.
     if (client->loggedin() != FULLACCOUNT)
@@ -10522,7 +10422,7 @@ void exec_syncremove(autocomplete::ACState& s)
         // unlink the backup's Vault nodes after deregistering it
         NodeHandle source = v[0].mRemoteNode;
         NodeHandle destination = NodeHandle().set6byte(bkpDest);
-        completion = [completion, source, destination](Error){
+        completion = [completion, source, destination](Error e){
             client->unlinkOrMoveBackupNodes(source, destination, completion);
         };
     }
@@ -10576,7 +10476,7 @@ void exec_syncxable(autocomplete::ACState& s)
     {
         // sync enable id
         bool pause = targetState == SyncRunState::Pause;
-        client->syncs.enableSyncByBackupId(backupId, pause, false, true, true, [pause](error err, SyncError, handle)
+        client->syncs.enableSyncByBackupId(backupId, pause, false, true, true, [pause](error err, SyncError serr, handle)
             {
                 if (err)
                 {
@@ -11043,7 +10943,7 @@ void DemoApp::reqstat_progress(int permilprogress)
     cout << "Progress (per mille) of request: " << permilprogress << endl;
 }
 
-void exec_numberofnodes(autocomplete::ACState&)
+void exec_numberofnodes(autocomplete::ACState &s)
 {
     uint64_t numberOfNodes = client->mNodeManager.getNodeCount();
     // We have to add RootNode, Incoming and rubbish

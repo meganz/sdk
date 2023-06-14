@@ -64,12 +64,12 @@ ARES_DOWNLOAD_URL=http://c-ares.haxx.se/download/${ARES_SOURCE_FILE}
 ARES_SHA1="74a50c02b7f051c4fb66c0f60f187350f196d908"
 
 OPENSSL=openssl
-OPENSSL_VERSION=1.1.1d
-OPENSSL_SOURCE_FILE=openssl-${OPENSSL_VERSION}.tar.gz
+OPENSSL_VERSION="3.1.1"
+OPENSSL_SOURCE_FILE=${OPENSSL}-${OPENSSL_VERSION}.tar.gz
 OPENSSL_SOURCE_FOLDER=${OPENSSL}-${OPENSSL_VERSION}
-OPENSSL_DOWNLOAD_URL=https://www.openssl.org/source/old/${OPENSSL_VERSION%?}/${OPENSSL_SOURCE_FILE}
+OPENSSL_DOWNLOAD_URL="https://github.com/openssl/openssl/releases/download/${OPENSSL}-${OPENSSL_VERSION}/${OPENSSL_SOURCE_FILE}"
 OPENSSL_PREFIX=${JNI_PATH}/${OPENSSL}/${OPENSSL_SOURCE_FOLDER}
-OPENSSL_SHA1="056057782325134b76d1931c48f2c7e6595d7ef4"
+OPENSSL_SHA1="d01a0f243672d514aee14bdd74a5d109b6394a78"
 
 SODIUM=sodium
 SODIUM_VERSION=1.0.18
@@ -400,9 +400,9 @@ if [ ! -f ${OPENSSL}/${OPENSSL_SOURCE_FILE}.ready ]; then
 
     if [ -n "`echo ${BUILD_ARCHS} | grep -w x86`" ]; then
         echo "* Prebuilding OpenSSL for x86"
-        export ANDROID_NDK_HOME=${NDK_ROOT}
-        PATH=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/:$ORIG_PATH
-        mkdir openssl-android-x86/
+        export ANDROID_NDK_ROOT=${NDK_ROOT}
+        PATH=$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/:$ORIG_PATH
+        mkdir -p openssl-android-x86/
         ./Configure android-x86 -D__ANDROID_API__=${ANDROID_API} --openssldir=${PWD}/openssl-android-x86/ --prefix=${PWD}/openssl-android-x86/ &>> ${LOG_FILE}
         make -j8 &>> ${LOG_FILE}
         make install &>> ${LOG_FILE}
@@ -411,9 +411,9 @@ if [ ! -f ${OPENSSL}/${OPENSSL_SOURCE_FILE}.ready ]; then
 
     if [ -n "`echo ${BUILD_ARCHS} | grep -w armeabi-v7a`" ]; then
         echo "* Prebuilding OpenSSL for ARMv7"
-        export ANDROID_NDK_HOME=${NDK_ROOT}
-        PATH=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/:$ORIG_PATH
-        mkdir openssl-android-armeabi-v7a
+        export ANDROID_NDK_ROOT=${NDK_ROOT}
+        PATH=$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/:$ORIG_PATH
+        mkdir -p openssl-android-armeabi-v7a
         ./Configure android-arm -latomic -D__ANDROID_API__=${ANDROID_API} --openssldir=${PWD}/openssl-android-armeabi-v7a/ --prefix=${PWD}/openssl-android-armeabi-v7a/ &>> ${LOG_FILE}
         make -j8 &>> ${LOG_FILE}
         make install &>> ${LOG_FILE}
@@ -422,9 +422,9 @@ if [ ! -f ${OPENSSL}/${OPENSSL_SOURCE_FILE}.ready ]; then
 
     if [ -n "`echo ${BUILD_ARCHS} | grep -w x86_64`" ]; then
         echo "* Prebuilding OpenSSL for x86_64"
-        export ANDROID_NDK_HOME=${NDK_ROOT}
-        PATH=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/:$ORIG_PATH
-        mkdir openssl-android-x86_64/
+        export ANDROID_NDK_ROOT=${NDK_ROOT}
+        PATH=$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/:$ORIG_PATH
+        mkdir -p openssl-android-x86_64/
         ./Configure android-x86_64 -D__ANDROID_API__=${ANDROID_API} --openssldir=${PWD}/openssl-android-x86_64/ --prefix=${PWD}/openssl-android-x86_64/ &>> ${LOG_FILE}
         make -j8 &>> ${LOG_FILE}
         make install &>> ${LOG_FILE}
@@ -433,8 +433,8 @@ if [ ! -f ${OPENSSL}/${OPENSSL_SOURCE_FILE}.ready ]; then
 
     if [ -n "`echo ${BUILD_ARCHS} | grep -w arm64-v8a`" ]; then
         echo "* Prebuilding OpenSSL for ARMv8"
-        export ANDROID_NDK_HOME=${NDK_ROOT}
-        PATH=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/:$ORIG_PATH
+        export ANDROID_NDK_ROOT=${NDK_ROOT}
+        PATH=$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/:$ORIG_PATH
         mkdir -p openssl-android-arm64-v8a
         ./Configure android-arm64 -latomic -D__ANDROID_API__=${ANDROID_API} --openssldir=${PWD}/openssl-android-arm64-v8a/ --prefix=${PWD}/openssl-android-arm64-v8a/ &>> ${LOG_FILE}
         make -j8 &>> ${LOG_FILE}

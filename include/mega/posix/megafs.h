@@ -155,12 +155,9 @@ struct MEGA_API PosixAsyncIOContext : public AsyncIOContext
 {
     PosixAsyncIOContext();
     ~PosixAsyncIOContext() override;
-    void finish() override { doFinish(); }
+    void finish() override;
 
     struct aiocb *aiocb;
-
-private:
-    void doFinish();
 };
 #endif
 

@@ -210,7 +210,7 @@ public:
     // Result is undefined if this path is a "root."
     LocalPath parentPath() const;
 
-    LocalPath insertFilenameCounter(unsigned counter) const;
+    LocalPath insertFilenameSuffix(const std::string& suffix) const;
 
     bool isContainingPathOf(const LocalPath& path, size_t* subpathIndex = nullptr) const;
     bool nextPathComponent(size_t& subpathIndex, LocalPath& component) const;
@@ -387,7 +387,7 @@ struct MEGA_API AsyncIOContext
     };
 
     virtual ~AsyncIOContext();
-    virtual void finish() { doFinish(); }
+    virtual void finish();
 
     // results
     asyncfscallback userCallback = nullptr;
@@ -406,9 +406,6 @@ struct MEGA_API AsyncIOContext
     unsigned dataBufferLen = 0;
     Waiter *waiter = nullptr;
     FileAccess *fa = nullptr;
-
-private:
-    void doFinish();
 };
 
 // map a request tag with pending paths of temporary files
@@ -770,7 +767,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // append local operating system version information to string.
     // Set includeArchExtraInfo to know if the app is 32 bit running on 64 bit (on windows, that is via the WOW subsystem)
-    virtual void osversion(string*, bool) const { }
+    virtual void osversion(string*, bool includeArchExtraInfo) const { }
 
     // append id for stats
     virtual void statsid(string*) const { }

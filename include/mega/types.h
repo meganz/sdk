@@ -895,7 +895,7 @@ namespace CodeCounter
             return s;
         }
 #else
-        ScopeStats(std::string) {}
+        ScopeStats(std::string s) {}
 #endif
     };
 
@@ -954,7 +954,7 @@ namespace CodeCounter
             }
         }
 #else
-        ScopeTimer(ScopeStats&) {}
+        ScopeTimer(ScopeStats& sm) {}
         void complete() {}
 #endif
     };

@@ -333,7 +333,7 @@ SyncApp:: SyncApp(string local_folder_, string remote_folder_) :
     local_folder(local_folder_), remote_folder(remote_folder_), cwd(UNDEF), initial_fetch(true)
 {}
 
-void SyncApp::log(const char *time, int loglevel, const char*, const char *message
+void SyncApp::log(const char *time, int loglevel, const char *source, const char *message
 #ifdef ENABLE_LOG_PERFORMANCE
                  , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
 #endif
@@ -342,6 +342,11 @@ void SyncApp::log(const char *time, int loglevel, const char*, const char *messa
     if (!time)
     {
         time = "";
+    }
+
+    if (!source)
+    {
+        source = "";
     }
 
     if (!message)
@@ -357,7 +362,7 @@ void SyncApp::log(const char *time, int loglevel, const char*, const char *messa
     cout << endl;
 }
 
-void SyncApp::prelogin_result(int version, std::string*, std::string *salt, error e)
+void SyncApp::prelogin_result(int version, std::string* email, std::string *salt, error e)
 {
     if (e)
     {
@@ -427,7 +432,7 @@ void SyncApp::fetchnodes_result(const Error &e)
 #ifdef ENABLE_SYNC
                 SyncConfig syncConfig(LocalPath::fromAbsolutePath(local_folder), local_folder, NodeHandle().set6byte(n->nodehandle), remote_folder, 0, LocalPath());
                 client->addsync(std::move(syncConfig), false,
-                                [](error err, const SyncError& serr, handle) {
+                                [](error err, const SyncError& serr, handle backupId) {
                     if (err)
                     {
                         LOG_err << "Sync could not be added! " << err << " syncError = " << serr;
@@ -450,7 +455,7 @@ void SyncApp::fetchnodes_result(const Error &e)
 }
 
 // this callback function is called when request-level error occurred
-void SyncApp::request_error(error)
+void SyncApp::request_error(error e)
 {
     LOG_err << "FATAL: Request failed, exiting";
     exit(1);
@@ -486,7 +491,7 @@ static const char* treestatename(treestate_t ts)
     return "UNKNOWN";
 }
 
-void SyncApp::syncupdate_treestate(const SyncConfig&, const LocalPath& lp, treestate_t ts, nodetype_t)
+void SyncApp::syncupdate_treestate(const SyncConfig &config, const LocalPath& lp, treestate_t ts, nodetype_t)
 {
     LOG_info << "Sync - state change of node " << lp << " to " << treestatename(ts);
 }

@@ -252,7 +252,6 @@ TransferSlot::~TransferSlot()
                     anyData = true;
                     if (fa && fa->fwrite(outputPiece->buf.datastart(), static_cast<unsigned>(outputPiece->buf.datalen()), outputPiece->pos))
                     {
-
                         LOG_verbose << "Sync write succeeded";
                         transferbuf.bufferWriteCompleted(i, true);
                         cachetransfer = true;
@@ -800,7 +799,6 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                         HttpReqDL *downloadRequest = static_cast<HttpReqDL*>(reqs[i].get());
                         if (reqs[i]->size == reqs[i]->bufpos || downloadRequest->buffer_released)   // downloadRequest->buffer_released being true indicates we're retrying this asyncIO
                         {
-
                             if (!downloadRequest->buffer_released)
                             {
                                 transferbuf.submitBuffer(i, new TransferBufferManager::FilePiece(downloadRequest->dlpos, downloadRequest->release_buf())); // resets size & bufpos.  finalize() is taken care of in the transferbuf
