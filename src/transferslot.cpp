@@ -104,7 +104,7 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
     statex.dwLength = sizeof (statex);
     if (GlobalMemoryStatusEx(&statex))
     {
-        LOG_debug << "RAM stats. Free physical: " << statex.ullAvailPhys << "   Free virtual: " << statex.ullAvailVirtual;
+        LOG_debug << "[Windows] RAM stats. Free physical: " << statex.ullAvailPhys << "   Free virtual: " << statex.ullAvailVirtual;
         if (statex.ullAvailPhys < 1073741824 // 1024 MB
                 || statex.ullAvailVirtual < 1073741824)
         {
@@ -126,14 +126,10 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
                 maxRequestSize = 8388608; // 8 MB
             }
         }
-        else
-        {
-            maxRequestSize = 16777216; // 16 MB
-        }
     }
     else
     {
-        LOG_warn << "Error getting RAM usage info";
+        LOG_warn << "[Windows] Error getting RAM usage info";
     }
 #endif
 }
