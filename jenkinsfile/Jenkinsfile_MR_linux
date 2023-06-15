@@ -105,7 +105,7 @@ pipeline {
                     //Build SDK
                     sh "echo Building SDK"                                   
                     sh "./autogen.sh"
-                    sh "./configure --disable-silent-rules --enable-debug --enable-tests --enable-chat --with-gtest=/opt/gtest/gtest-1.10.0 --with-curl=${linux_sources_workspace}/3rd_deps \
+                    sh "./configure --disable-silent-rules --enable-debug --enable-tests --enable-chat --with-fuse=no --with-gtest=/opt/gtest/gtest-1.10.0 --with-curl=${linux_sources_workspace}/3rd_deps \
                     --disable-curl-checks --enable-rotative-performance-logger --enable-werror ${BUILD_OPTIONS}"
                     sh "sed -i 's/#define ENABLE_LOG_PERFORMANCE 1//g' ./include/mega/config.h"
                     sh "make clean"
