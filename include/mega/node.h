@@ -768,7 +768,7 @@ struct MEGA_API LocalNode
     // current subtree sync state as last notified to OS
     treestate_t mReportedSyncState = TREESTATE_NONE;
 
-    // check the current state (only useful for folders)
+    // check the current state
     treestate_t checkTreestate(bool notifyChangeToApp);
     void recursiveSetAndReportTreestate(treestate_t ts, bool recurse, bool reportToApp);
 
