@@ -17872,6 +17872,7 @@ class MegaApi
          * @param key Key of the node (Base64 encoded)
          * @param name Name of the node (Base64 encoded)
          * @param size Size of the node
+         * @param crc portion of the file's Fingerprint (base 64)
          * @param mtime Modification time of the node
          * @param parentHandle Handle of the parent node
          * @param privateAuth Private authentication token to access the node
@@ -17880,7 +17881,8 @@ class MegaApi
          * @return MegaNode object
          */
         MegaNode *createForeignFileNode(MegaHandle handle, const char *key, const char *name,
-                                       int64_t size, int64_t mtime, MegaHandle parentHandle, const char *privateAuth, const char *publicAuth, const char *chatAuth);
+                                       int64_t size, int64_t mtime, const char* fingerprintCrc,
+                                       MegaHandle parentHandle, const char *privateAuth, const char *publicAuth, const char *chatAuth);
 
         /**
          * @brief Create a MegaNode that represents a folder of a different account
