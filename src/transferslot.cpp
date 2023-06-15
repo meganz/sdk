@@ -633,7 +633,6 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                             << " " << reqs[i]->pos << " - " << (reqs[i]->pos + reqs[i]->size)
                             << "   Size: " << reqs[i]->size
                             << (transferbuf.isRaid() ? string("   Part progress: " + std::to_string(transferbuf.transferPos(i)) + "/" + std::to_string(transferbuf.raidPartSize(i, transfer->size))) : "")
-                            << "   (Finished: " << transfer->progresscompleted << "/" << transfer->size
                             << "   (" << mReqSpeeds[i].lastRequestSpeed() << " B/s)";
 
                     if (transfer->type == PUT)
