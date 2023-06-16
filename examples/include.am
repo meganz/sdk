@@ -1,11 +1,6 @@
 # applications
 EXAMPLES = examples/megacli examples/megasimplesync
 
-
-if BUILD_FUSE_EXAMPLE
-EXAMPLES += examples/linux/megafuse
-endif
-
 if BUILD_EXAMPLES
 bin_PROGRAMS += $(EXAMPLES)
 endif
@@ -34,12 +29,6 @@ examples_megacli_LDADD = $(PDF_LDFLAGS) $(PDF_LIBS) $(ICU_LDFLAGS) $(ICU_LIBS) $
 
 examples_megasimplesync_CXXFLAGS = $(PDF_CXXFLAGS) $(ICU_CXXFLAGS) $(FI_CXXFLAGS) $(ZLIB_CXXFLAGS) $(LIBUV_CXXFLAGS) $(LIBRAW_CXXFLAGS) $(LIBMEDIAINFO_CXXFLAGS) $(FFMPEG_CXXFLAGS) $(CARES_FLAGS) $(LIBCURL_FLAGS) $(CRYPTO_CXXFLAGS) $(DB_CXXFLAGS) $(SODIUM_CXXFLAGS) $(LIBSSL_FLAGS) $(PCRE_CXXFLAGS)
 examples_megasimplesync_LDADD = $(PDF_LDFLAGS) $(PDF_LIBS) $(ICU_LDFLAGS) $(ICU_LIBS) $(FI_LDFLAGS) $(FI_LIBS) $(LIBUV_LDFLAGS) $(LIBUV_LIBS) $(LIBRAW_LDFLAGS) $(LIBRAW_LIBS) $(LIBMEDIAINFO_LDFLAGS) $(LIBMEDIAINFO_LIBS) $(CRYPTO_LDFLAGS) $(CRYPTO_LIBS) $(CARES_LDFLAGS) $(CARES_LIBS) $(LIBCURL_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(LIBSSL_LDFLAGS) $(LIBSSL_LIBS) $(PCRE_LDFLAGS) $(PCRE_LIBS) $(top_builddir)/src/libmega.la $(FFMPEG_LDFLAGS) $(FFMPEG_LIBS)  $(ZLIB_LDFLAGS) $(ZLIB_LIBS)
-
-if BUILD_FUSE_EXAMPLE
-examples_linux_megafuse_SOURCES =  examples/linux/megafuse.cpp
-examples_linux_megafuse_CXXFLAGS =  $(FUSE_CXXFLAGS)
-examples_linux_megafuse_LDADD =  $(top_builddir)/src/libmega.la $(FUSE_LDFLAGS) $(FUSE_LIBS)
-endif
 
 endif
 

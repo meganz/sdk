@@ -7638,7 +7638,7 @@ void MegaApiImpl::getPricing(MegaRequestListener *listener)
 void MegaApiImpl::getRecommendedProLevel(MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN, listener);
-    
+
     request->performRequest = [this, request]() {
         if (client->loggedin() != FULLACCOUNT)
         {
@@ -8846,7 +8846,7 @@ void MegaApiImpl::retryTransfer(MegaTransfer *transfer, MegaTransferListener *li
         {
             node = getNodeByHandle(t->getNodeHandle());
         }
-        this->startDownload(true, node, t->getPath(), NULL, 0, t->getAppData(), CancelToken(), 
+        this->startDownload(true, node, t->getPath(), NULL, 0, t->getAppData(), CancelToken(),
             static_cast<int>(t->getCollisionCheck()), static_cast<int>(t->getCollisionResolution()), listener);
 
         delete node;
@@ -11258,14 +11258,37 @@ bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, boo
 }
 
 
-MegaNode *MegaApiImpl::createForeignFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime,
+MegaNode *MegaApiImpl::createForeignFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime, const char* fingerprintCrc,
                                             MegaHandle parentHandle, const char* privateauth, const char *publicauth, const char *chatauth)
 {
     string nodekey;
     string fileattrsting;
     nodekey.resize(strlen(key) * 3 / 4 + 3);
     nodekey.resize(Base64::atob(key, (byte *)nodekey.data(), int(nodekey.size())));
-    return new MegaNodePrivate(name, FILENODE, size, mtime, mtime, handle, &nodekey, &fileattrsting, NULL, NULL, INVALID_HANDLE,
+
+    string fingerprintStr;
+    unique_ptr<char[]> sdkFingerprintStr;
+
+    if (fingerprintCrc)
+    {
+        FileFingerprint ff;
+        ff.size = size;
+        ff.mtime = mtime;
+
+        int bytesWritten = Base64::atob(fingerprintCrc, (byte*)&ff.crc, sizeof(ff.crc));
+        assert(bytesWritten == sizeof(ff.crc));
+        if (bytesWritten == sizeof(ff.crc))
+        {
+            // only contains crc, mtime.  because Node has size serialized separately
+            ff.serializefingerprint(&fingerprintStr);
+
+            // prepend size on the front
+            sdkFingerprintStr.reset(getSdkFingerprintFromMegaFingerprint(fingerprintStr.c_str(), size));
+        }
+    }
+
+    return new MegaNodePrivate(name, FILENODE, size, mtime, mtime, handle, &nodekey, &fileattrsting,
+                               sdkFingerprintStr.get(), NULL, INVALID_HANDLE,
                                parentHandle, privateauth, publicauth, false, true, chatauth, true);
 }
 
@@ -11688,9 +11711,9 @@ int MegaApiImpl::calcRecommendedProLevel(MegaPricing& pricing, MegaAccountDetail
     // if this algorithm changes also have the webclient implementation updated
     int currProLevel = details.getProLevel();
     if (currProLevel == MegaAccountDetails::ACCOUNT_TYPE_BUSINESS || currProLevel == MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI)
-        return currProLevel; 
+        return currProLevel;
         // business can not upgrade, flexi can only change to free so we do not recommend that
-    int orderedCurrProLevel = orderProLevel(currProLevel); 
+    int orderedCurrProLevel = orderProLevel(currProLevel);
     uint64_t usedStorageBytes = details.getStorageUsed();
     int bestProLevel = -1;
     uint64_t bestStorageBytes = UINT64_MAX;
@@ -17965,7 +17988,8 @@ CollisionChecker::Result CollisionChecker::check(FileAccess* fa, MegaNode* fileN
     return check(
         fa,
         [fileNode]() {
-            return *MegaApiImpl::getFileFingerprintInternal(fileNode->getFingerprint());
+            unique_ptr<FileFingerprint> ff(MegaApiImpl::getFileFingerprintInternal(fileNode->getFingerprint()));
+            return ff ? *ff : FileFingerprint();  // if not available, !isvalid
         },
         [fileNode, fa]() {
             return CompareLocalFileMetaMac(fa, fileNode);
@@ -18377,7 +18401,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                     {
                         if (transfer->getCollisionCheckResult() == CollisionChecker::Result::NotYet)
                         {
-                            node 
+                            node
                                 ?  transfer->setCollisionCheckResult(CollisionChecker::check(fa.get(), node, transfer->getCollisionCheck()))
                                 :  transfer->setCollisionCheckResult(CollisionChecker::check(fa.get(), publicNode, transfer->getCollisionCheck()));
                         }
@@ -29112,7 +29136,7 @@ uv_buf_t StreamingBuffer::nextBuffer()
 
 void StreamingBuffer::freeData(size_t len)
 {
-    LOG_verbose << "[Streaming] Streaming buffer free data: len = " << len << ", actual free = " << free << ", new free = " << (free+len) << ", size = " << size << " [capacity = " << capacity << "]"; 
+    LOG_verbose << "[Streaming] Streaming buffer free data: len = " << len << ", actual free = " << free << ", new free = " << (free+len) << ", size = " << size << " [capacity = " << capacity << "]";
     // update the internal state
     free += len;
 }
@@ -31161,7 +31185,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                         h, httpctx->nodekey.c_str(),
                         httpctx->nodename.c_str(),
                         httpctx->nodesize,
-                        -1, UNDEF, httpctx->nodeprivauth.c_str(), httpctx->nodepubauth.c_str(), httpctx->nodechatauth.c_str());
+                        -1, nullptr, UNDEF, httpctx->nodeprivauth.c_str(), httpctx->nodepubauth.c_str(), httpctx->nodechatauth.c_str());
         }
         else
         {
