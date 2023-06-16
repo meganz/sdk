@@ -9741,7 +9741,8 @@ class MegaApi
          * that the flag is active and 0 means that the flag is not active. Different
          * values over 0 may have different meanings depending on each flag.
          * 0 is also returned for flags not set in the account, which should be treated
-         * as a deactivated flag.
+         * as a deactivated flag. If a null flag is passed as a parameter the function
+         * will also return 0.
          *
          * @param flag Name or key of the value to be retrieved.
          *

@@ -4261,7 +4261,7 @@ autocomplete::ACN autocompleteSyntax()
                         )));
 
     p->Add(exec_reqstat, sequence(text("reqstat"), opt(either(flag("-on"), flag("-off")))));
-    p->Add(exec_getABflag, sequence(text("getab"), param("flag")));
+    p->Add(exec_getABTestValue, sequence(text("getabflag"), param("flag")));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -10944,7 +10944,7 @@ void DemoApp::reqstat_progress(int permilprogress)
     cout << "Progress (per mille) of request: " << permilprogress << endl;
 }
 
-void exec_getABflag(autocomplete::ACState &s)
+void exec_getABTestValue(autocomplete::ACState &s)
 {
     string flag = s.words[1].s;
 
