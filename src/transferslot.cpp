@@ -629,7 +629,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                     lastdata = Waiter::ds;
                     transfer->lastaccesstime = m_time();
 
-                    LOG_debug << "Conn " << i << " : Transfer request finished (" << (transfer->type == GET ? "GET" : "PUT") << ")"
+                    LOG_debug << "Conn " << i << " : Transfer request finished (" << connDirectionToStr(transfer->type) << ")"
                             << " " << reqs[i]->pos << " - " << (reqs[i]->pos + reqs[i]->size)
                             << "   Size: " << reqs[i]->size
                             << (transferbuf.isRaid() ? string("   Part progress: " + std::to_string(transferbuf.transferPos(i)) + "/" + std::to_string(transferbuf.raidPartSize(i, transfer->size))) : "")
