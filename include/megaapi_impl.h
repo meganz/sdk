@@ -1497,7 +1497,7 @@ class MegaRequestPrivate : public MegaRequest
         // instead of adding more code to the huge switch there
         std::function<error()> performRequest;
         std::function<error(TransferDbCommitter&)> performTransferRequest;
-        
+
         // perform fireOnRequestFinish in sendPendingReqeusts()
         // See fireOnRequestFinish
         std::function<void()> performFireOnRequestFinish;
@@ -2940,7 +2940,7 @@ class MegaApiImpl : public MegaApp
 
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
 
-        MegaNode *createForeignFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime,
+        MegaNode *createForeignFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime, const char* fingerprintCrc,
                                        MegaHandle parentHandle, const char *privateauth, const char *publicauth, const char *chatauth);
         MegaNode *createForeignFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle,
                                          const char *privateauth, const char *publicauth);
@@ -3276,7 +3276,7 @@ protected:
         node_vector searchInNodeManager(MegaHandle nodeHandle, const char* searchString, int mimeType, bool recursive, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelToken);
 
         bool isValidTypeNode(Node *node, int type);
-        
+
         MegaApi *api;
         std::thread thread;
         std::thread::id threadId;
