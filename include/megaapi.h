@@ -4435,7 +4435,8 @@ class MegaRequest
             TYPE_GET_RECOMMENDED_PRO_PLAN                                   = 168,
             TYPE_BACKUP_INFO                                                = 169,
             TYPE_BACKUP_REMOVE_MD                                           = 170,
-            TOTAL_OF_REQUEST_TYPES                                          = 171,
+            TYPE_AB_TEST_ACTIVE                                             = 171,
+            TOTAL_OF_REQUEST_TYPES                                          = 172,
         };
 
         virtual ~MegaRequest();
@@ -9749,6 +9750,18 @@ class MegaApi
          * @return An unsigned integer with the value of the flag.
          */
         unsigned int getABTestValue(const char* flag);
+
+        /**
+         * @brief Sends to the API an A/B Test flag activation.
+         *
+         * Informs the API that a user has become relevant for an A/B Test campaing.
+         * The campaing is identified by the flag string. Can be called multiple times for
+         * the same user and flag.
+         *
+         * @param flag flag to be be sent to the API as active.
+         * @param listener MegaRequestListener to track this request
+         */
+        void sendABTestActive(const char* flag, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Check if the opt-in or account unblocking SMS is allowed

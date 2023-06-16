@@ -4321,6 +4321,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_RECOMMENDED_PRO_PLAN: return "GET_RECOMMENDED_PRO_PLAN";
         case TYPE_BACKUP_INFO: return "BACKUP_INFO";
         case TYPE_BACKUP_REMOVE_MD: return "BACKUP_REMOVE_MD";
+        case TYPE_AB_TEST_ACTIVE: return "AB_TEST_ACTIVE";
     }
     return "UNKNOWN";
 }
@@ -6308,6 +6309,24 @@ unsigned int MegaApiImpl::getABTestValue(const char* flag)
     SdkMutexGuard g(sdkMutex);
     auto it = client->mABTestFlags.find(flag);
     return (it != client->mABTestFlags.end() ? it->second : 0 );
+}
+
+void MegaApiImpl::sendABTestActive(const char* flag, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_AB_TEST_ACTIVE, listener);
+    request->setText(flag);
+
+    request->performRequest = [this, request]()
+    {
+        client->reqs.add(new CommandABTestActive(client, request->getText(), [this, request](Error e)
+        {
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+        }));
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 int MegaApiImpl::smsAllowedState()
