@@ -1768,6 +1768,7 @@ LocalNode::LocalNode(Sync* csync)
 , certainlyOrphaned(0)
 , neverScanned(0)
 , localFSCannotStoreThisName(0)
+, mIsIgnoreFile(false)
 {
     fsid_lastSynced_it = sync->syncs.localnodeBySyncedFsid.end();
     fsid_asScanned_it = sync->syncs.localnodeByScannedFsid.end();
@@ -3221,29 +3222,12 @@ const FilterChain& LocalNode::filterChainRO() const
     return dummy;
 }
 
-bool LocalNode::loadFiltersIfChanged(const FileFingerprint& fingerprint, const LocalPath& path)
+bool LocalNode::loadFilters(const LocalPath& path)
 {
-    // Only meaningful for directories.
     assert(type == FOLDERNODE);
-
-    // we will end up with rare fields so access directly
     auto& fc = rare().filterChain;
-    if (fc &&
-        fc->mFingerprint == fingerprint &&
-        fc->mLoadSucceeded)
-    {
-        // already up to date
-        return true;
-    }
-
     fc.reset(new FilterChain);
-    fc->mFingerprint = fingerprint;
     fc->mLoadSucceeded = FLR_SUCCESS == fc->load(*sync->syncs.fsaccess, path);
-
-    // bear in mind that we may fail to read the file due to exclusive editing
-    // then we come back on some later iteration and read it successfully
-    setRecomputeExclusionState(false, true);
-
     return fc->mLoadSucceeded;
 }
 
@@ -3492,17 +3476,6 @@ bool LocalNode::recomputeExclusionState()
     }
 
     return mExclusionState != ES_UNKNOWN;
-}
-
-
-void LocalNode::ignoreFilterPresenceChanged(bool present, FSNode* fsNode)
-{
-    // ignore file appeared or disappeared
-    if (rareRO().filterChain)
-    {
-        rare().filterChain.reset();
-    }
-    setRecomputeExclusionState(false, false);
 }
 
 #endif // ENABLE_SYNC

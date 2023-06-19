@@ -178,6 +178,8 @@ public:
     FileFingerprint mFingerprint;
     bool mLoadSucceeded = false;
 
+    bool mSyncThisMegaignore = false;
+
 private:
     // Name and/or path filters.
     StringFilterPtrVector mStringFilters;

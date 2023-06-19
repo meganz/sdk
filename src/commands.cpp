@@ -1288,13 +1288,16 @@ bool CommandPutNodes::procresult(Result r, JSON& json)
         }
 
 #ifdef DEBUG
-        for (auto& n : nn)
+        if (type != USER_HANDLE)
         {
-            // double check we got a node, or know the error why it didn't get created
-            if (!((n.added && n.mAddedHandle != UNDEF && !n.mError) ||
-                 (!n.added && n.mAddedHandle == UNDEF && n.mError)))
+            for (auto& n : nn)
             {
-                assert(false);
+                // double check we got a node, or know the error why it didn't get created
+                if (!((n.added && n.mAddedHandle != UNDEF && !n.mError) ||
+                     (!n.added && n.mAddedHandle == UNDEF && n.mError)))
+                {
+                    assert(false);
+                }
             }
         }
 #endif

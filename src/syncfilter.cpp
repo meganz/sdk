@@ -209,7 +209,7 @@ private:
 static bool add(const string& text, SizeFilterPtr& filter);
 
 // Parses the string filter "text" and adds it to the "filters" vector.
-static bool add(const string& text, StringFilterPtrVector& filters);
+static bool add(const string& text, StringFilterPtrVector& filters, bool& syncThisMegaignore);
 
 // Logs an invalid threshold error and returns false.
 static bool invalidThresholdsError(const SizeFilter& filter);
@@ -511,6 +511,15 @@ FilterLoadResult FilterChain::load(FileSystemAccess& fsAccess, const LocalPath& 
     // Ignore file exists so try and load it.
     auto result = load(*fileAccess);
 
+    if (result == FLR_SUCCESS)
+    {
+        if (!mFingerprint.genfingerprint(fileAccess.get()))
+        {
+            result = FLR_FAILED;
+            LOG_debug << "Failed to fingerprint .megaignore file after loading rules";
+        }
+    }
+
     if (result != FLR_SUCCESS)
     {
         LOG_info << "Could not read or rule failure at " << path << " error " << (int)result;
@@ -571,7 +580,7 @@ FilterLoadResult FilterChain::load(FileAccess& fileAccess)
                 return FLR_FAILED;
             }
         }
-        else if (!add(l, stringFilters))
+        else if (!add(l, stringFilters, mSyncThisMegaignore))
         {
             LOG_info << "Could not load exclusions, string filter add failed";
             return FLR_FAILED;
@@ -995,7 +1004,7 @@ bool add(const string& text, SizeFilterPtr& filter)
     return true;
 }
 
-bool add(const string& text, StringFilterPtrVector& filters)
+bool add(const string& text, StringFilterPtrVector& filters, bool& syncThisMegaignore)
 {
     enum FilterType
     {
@@ -1032,6 +1041,13 @@ bool add(const string& text, StringFilterPtrVector& filters)
     default:
         // Invalid filter class.
         return syntaxError(text);
+    }
+
+    if (0 == strcmp(m, "sync:.megaignore"))
+    {
+        LOG_debug << "megaignore to be synced: " << inclusion;
+        syncThisMegaignore = inclusion;
+        return true;
     }
 
     // What kind of node does this filter apply to?
