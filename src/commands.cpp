@@ -9545,7 +9545,7 @@ CommandFetchSet::CommandFetchSet(MegaClient* cl,
     if(!cl->inPublicSetPreview())
     {
         LOG_err << "Sets: CommandFetchSet only available for Public Set in Preview Mode";
-        assert(false);
+        assert(cl->inPublicSetPreview());
     }
 }
 

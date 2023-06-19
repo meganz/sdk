@@ -19999,9 +19999,8 @@ bool MegaClient::procaesp(JSON& j)
 
 error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<handle, elementsmap_t>& newElements)
 {
-    bool loopAgain = true;
 
-    while (loopAgain)
+    for (bool loopAgain = true; loopAgain;)
     {
         switch (j.getnameid())
         {
