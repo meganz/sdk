@@ -9754,9 +9754,9 @@ class MegaApi
         /**
          * @brief Sends to the API an A/B Test flag activation.
          *
-         * Informs the API that a user has become relevant for an A/B Test campaing.
-         * The campaing is identified by the flag string. Can be called multiple times for
-         * the same user and flag.
+         * Informs the API that a user has become relevant for an A/B Test flag.
+         * The flag identification string is sent in the first parameter.
+         * Can be called multiple times for the same account and flag.
          *
          * @param flag flag to be be sent to the API as active.
          * @param listener MegaRequestListener to track this request
