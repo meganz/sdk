@@ -12301,6 +12301,8 @@ void MegaClient::loginResult(error e, std::function<void()> onLoginOk)
         return;
     }
 
+    assert(!mV1PswdVault || accountversion == 1);
+
     if (accountversion == 1 && mV1PswdVault)
     {
         auto v1PswdVault(std::move(mV1PswdVault));
@@ -12320,7 +12322,7 @@ void MegaClient::loginResult(error e, std::function<void()> onLoginOk)
                             LOG_debug << "Account upgrade to V2 failed with EEXIST. It must have been upgraded in the meantime. Fetching user data again.";
 
                             // upgrade done in the meantime by different client; get account details again
-                            getuserdata(reqtag, [this, onLoginOk](string*, string*, string*, error e)
+                            getuserdata(restag, [this, onLoginOk](string*, string*, string*, error e)
                                 {
                                     error loginErr = e == API_OK ? API_OK : API_EINTERNAL;
                                     app->login_result(loginErr); // if error, report for login too because user data is inconsistent now
