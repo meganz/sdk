@@ -7008,8 +7008,8 @@ TEST_F(SdkTest, SdkSimpleCommands)
     ASSERT_TRUE(mApi[0].tzDetails && mApi[0].tzDetails->getNumTimeZones()) << "Invalid Time Zone details"; // some simple validation
 
     // getABTestValue() -- logged in.
-    ASSERT_GE(megaApi[0]->getABTestValue("devtest"), 1);
-    ASSERT_EQ(megaApi[0]->getABTestValue("devtest_inexistent_flag"), 0);
+    ASSERT_GE(megaApi[0]->getABTestValue("devtest"), 1u);
+    ASSERT_EQ(megaApi[0]->getABTestValue("devtest_inexistent_flag"), 0u);
 
     logout(0, false, maxTimeout);
     gSessionIDs[0] = "invalid";
@@ -7019,7 +7019,7 @@ TEST_F(SdkTest, SdkSimpleCommands)
     ASSERT_EQ(API_OK, err) << "Get misc flags failed (error: " << err << ")";
 
     // getABTestValue() -- not logged in
-    ASSERT_EQ(megaApi[0]->getABTestValue("devtest"), 0);
+    ASSERT_EQ(megaApi[0]->getABTestValue("devtest"), 0u);
 
     // getUserEmail() test
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
