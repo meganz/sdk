@@ -931,6 +931,90 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
     return API_OK;
 }
 
+void MegaClient::removeFromBC(handle bkpId, handle targetDest, std::function<void(const Error&)> finalCompletion)
+{
+    shared_ptr<handle> bkpRoot = std::make_shared<handle>(0);
+    shared_ptr<bool> isBackup = std::make_shared<bool>(false);
+
+    // step 4: move or delete backup contents
+    auto moveOrDeleteBackup = [this, bkpId, bkpRoot, targetDest, isBackup, finalCompletion](NodeHandle, Error setAttrErr)
+    {
+        if (!*isBackup || setAttrErr != API_OK)
+        {
+            if (setAttrErr != API_OK)
+            {
+                LOG_err << "Remove backup/sync: failed to set 'sds' for " << toHandle(bkpId) << ": " << setAttrErr;
+            }
+            finalCompletion(setAttrErr);
+            return;
+        }
+
+        NodeHandle bkpRootNH;
+        bkpRootNH.set6byte(*bkpRoot);
+        NodeHandle targetDestNH;
+        targetDestNH.set6byte(targetDest ? targetDest : UNDEF); // allow 0 as well
+
+        unlinkOrMoveBackupNodes(bkpRootNH, targetDestNH, finalCompletion);
+    };
+
+    // step 3: set sds attribute
+    auto updateSds = [this, bkpId, bkpRoot, moveOrDeleteBackup, finalCompletion](const Error& bkpRmvErr) mutable
+    {
+        if (bkpRmvErr != API_OK)
+        {
+            LOG_err << "Remove backup/sync: failed to remove " << toHandle(bkpId);
+            // Don't break execution here in case of error. Still try to set 'sds' node attribute.
+        }
+
+        Node* bkpRootNode = nodebyhandle(*bkpRoot);
+        if (!bkpRootNode)
+        {
+            LOG_err << "Remove backup/sync: root folder not found";
+            finalCompletion(API_ENOENT);
+            return;
+        }
+
+        vector<pair<handle, int>> sdsBkps = bkpRootNode->getSdsBackups();
+        sdsBkps.emplace_back(std::make_pair(bkpId, CommandBackupPut::DELETED));
+        const string& sdsValue = Node::toSdsString(sdsBkps);
+        attr_map sdsAttrMap(Node::sdsId(), sdsValue);
+
+        auto e = setattr(bkpRootNode, std::move(sdsAttrMap), moveOrDeleteBackup, true);
+        if (e != API_OK)
+        {
+            LOG_err << "Remove backup/sync: failed to set the 'sds' node attribute";
+            finalCompletion(e);
+        }
+    };
+
+    // step 1: fetch Backup/sync data from Backup Centre
+    getBackupInfo([this, bkpId, bkpRoot, updateSds, isBackup, finalCompletion](const Error& e, const vector<CommandBackupSyncFetch::Data>& data)
+        {
+            if (e != API_OK)
+            {
+                LOG_err << "Remove backup/sync: getBackupInfo failed with " << e;
+                finalCompletion(e);
+                return;
+            }
+
+            for (auto& d : data)
+            {
+                if (d.backupId == bkpId)
+                {
+                    *bkpRoot = d.rootNode;
+                    *isBackup = d.backupType == BackupType::BACKUP_UPLOAD;
+
+                    // step 2: remove backup/sync
+                    reqs.add(new CommandBackupRemove(this, bkpId, updateSds));
+                    return;
+                }
+            }
+
+            LOG_err << "Remove backup/sync: " << toHandle(bkpId) << " not returned by 'sr' command";
+            finalCompletion(API_ENOENT);
+        });
+}
+
 void MegaClient::getBackupInfo(std::function<void(const Error&, const vector<CommandBackupSyncFetch::Data>&)> f)
 {
     reqs.add(new CommandBackupSyncFetch(f));
@@ -4835,8 +4919,21 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     freeq(GET);
     freeq(PUT);
 
-    // close the transfer cache database.
     disconnect();
+
+    // commit and close the transfer cache database.
+    if (tctable && tctable->getTransactionCommitter())
+    {
+        auto committer = dynamic_cast<TransferDbCommitter*>(tctable->getTransactionCommitter());
+        if (committer)
+        {
+            // If we don't commit the last changes to the transfer database here, they would be reverted in closetc()
+            // freeq() has its own committer, but it doesn't do anything because it's usually nested by the one
+            // in the intermediate layer (MegaApiImpl::sendPendingTransfers).
+            committer->commitNow();
+        }
+    }
+
     closetc();
 
     freeq(GET);  // freeq after closetc due to optimizations
@@ -7424,6 +7521,9 @@ void MegaClient::sc_se()
                 mapuser(uh, email.c_str()); // update email used as index for user's map
                 u->changed.email = true;
                 notifyuser(u);
+
+                // produce a callback to update cached email in MegaApp
+                reportLoggedInChanges();
             }
             // TODO: manage different status once multiple-emails is supported
 
@@ -7803,11 +7903,12 @@ void MegaClient::sc_delscheduledmeeting()
                         handle chatid = chat->id;
                         chat->setTag(0);    // external change
                         notifychat(chat);
-                        for_each(begin(deletedChildren), end(deletedChildren),
-                                 [this, ou, chatid](handle sm) { createDeletedSMAlert(ou, chatid, sm); });
 
                         if (statecurrent)
                         {
+                            for_each(begin(deletedChildren), end(deletedChildren),
+                                     [this, ou, chatid](handle sm) { createDeletedSMAlert(ou, chatid, sm); });
+
                             createDeletedSMAlert(ou, chatid, schedId);
                         }
                         reqs.add(new CommandScheduledMeetingFetchEvents(this, chatid, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
@@ -13445,12 +13546,15 @@ sessiontype_t MegaClient::loggedin()
 void MegaClient::reportLoggedInChanges()
 {
     auto currState = loggedin();
+    string currentEmail = ownuser() ? ownuser()->email : "";
     if (mLastLoggedInReportedState != currState ||
-        mLastLoggedInMeHandle != me)
+            mLastLoggedInMeHandle != me ||
+            (mLastLoggedInMyEmail != currentEmail))
     {
         mLastLoggedInReportedState = currState;
         mLastLoggedInMeHandle = me;
-        app->loggedInStateChanged(currState, me);
+        mLastLoggedInMyEmail = currentEmail;
+        app->loggedInStateChanged(currState, me, currentEmail);
     }
 }
 

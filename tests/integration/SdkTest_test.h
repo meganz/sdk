@@ -313,6 +313,7 @@ public:
     std::vector<PerApi> mApi;
     std::vector<std::unique_ptr<MegaApi>> megaApi;
 
+    m_off_t onTransferStart_progress;
     m_off_t onTransferUpdate_progress;
     m_off_t onTransferUpdate_filesize;
     unsigned onTranferFinishedCount = 0;
@@ -341,7 +342,7 @@ protected:
     void onRequestUpdate(MegaApi*api, MegaRequest *request) override {}
     void onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e) override;
     void onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* error) override {}
-    void onTransferStart(MegaApi *api, MegaTransfer *transfer) override { }
+    void onTransferStart(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* e) override;
     void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* error) override {}
@@ -544,6 +545,8 @@ public:
         if (err == API_OK) recommendedLevel = (int)rt.request->getNumber();
         return err;
     }
+    template<typename ... requestArgs> int synchronousChangeEmail(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->changeEmail(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int synchronousConfirmChangeEmail(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->confirmChangeEmail(args..., &rt); return rt.waitForResult(); }
 
     // Checkup methods called from MegaApi callbacks
     void onNodesUpdateCheck(size_t apiIndex, MegaHandle target, MegaNodeList* nodes, int change, bool& flag);

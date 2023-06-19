@@ -537,7 +537,7 @@ bool MegaNode::isRemoved()
     return false;
 }
 
-bool MegaNode::isMarkedSensitive() 
+bool MegaNode::isMarkedSensitive()
 {
     return false;
 }
@@ -3448,9 +3448,9 @@ void MegaApi::startUploadForChat(const char *localPath, MegaNode *parent, const 
                        true /*forceNewUpload*/, FS_UNKNOWN, CancelToken(), listener);
 }
 
-void MegaApi::startDownload(MegaNode* node, const char* localPath, const char *customName, const char *appData, bool startFirst, MegaCancelToken *cancelToken, MegaTransferListener *listener)
+void MegaApi::startDownload(MegaNode* node, const char* localPath, const char *customName, const char *appData, bool startFirst, MegaCancelToken *cancelToken, int collisionCheck, int collisionResolution, MegaTransferListener *listener)
 {
-    pImpl->startDownload(startFirst, node, localPath, customName, 0 /*folderTransferTag*/, appData, convertToCancelToken(cancelToken), listener);
+    pImpl->startDownload(startFirst, node, localPath, customName, 0 /*folderTransferTag*/, appData, convertToCancelToken(cancelToken), collisionCheck, collisionResolution, listener);
 }
 
 void MegaApi::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
@@ -3983,10 +3983,10 @@ bool MegaApi::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, bool re
 }
 
 MegaNode *MegaApi::createForeignFileNode(MegaHandle handle, const char *key,
-                                    const char *name, int64_t size, int64_t mtime,
+                                    const char *name, int64_t size, int64_t mtime, const char* fingerprintCrc,
                                         MegaHandle parentHandle, const char *privateAuth, const char *publicAuth, const char *chatAuth)
 {
-    return pImpl->createForeignFileNode(handle, key, name, size, mtime, parentHandle, privateAuth, publicAuth, chatAuth);
+    return pImpl->createForeignFileNode(handle, key, name, size, mtime, fingerprintCrc, parentHandle, privateAuth, publicAuth, chatAuth);
 }
 
 void MegaApi::getLastAvailableVersion(const char *appKey, MegaRequestListener *listener)
@@ -5717,6 +5717,11 @@ void MegaApi::updateBackup(MegaHandle backupId, int backupType, MegaHandle targe
 void MegaApi::removeBackup(MegaHandle backupId, MegaRequestListener *listener)
 {
     pImpl->removeBackup(backupId, listener);
+}
+
+void MegaApi::removeFromBC(MegaHandle backupId, MegaHandle moveDestination, MegaRequestListener* listener)
+{
+    pImpl->removeFromBC(backupId, moveDestination, listener);
 }
 
 void MegaApi::getBackupInfo(MegaRequestListener* listener)
