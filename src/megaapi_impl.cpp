@@ -29435,8 +29435,8 @@ void MegaTCPServer::run()
         uv_close((uv_handle_t *)&exit_handle,NULL);
         uv_close((uv_handle_t *)&server,NULL);
         uv_sem_post(&semaphoreStartup);
-        uv_run(&uv_loop, UV_RUN_ONCE); // so that resources are cleaned peacefully
         uv_sem_post(&semaphoreEnd);
+        uv_run(&uv_loop, UV_RUN_ONCE); // so that resources are cleaned peacefully
         return;
     }
 
