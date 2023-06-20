@@ -483,7 +483,7 @@ public:
     bool mCookieBannerEnabled = false;
 
     // AB Test flags
-    std::map<string, unsigned int> mABTestFlags;
+    std::map<string, uint32_t> mABTestFlags;
 
 private:
     // Pro Flexi plan is enabled

@@ -10261,7 +10261,16 @@ error MegaClient::readmiscflags(JSON *json)
             if (fieldName.rfind("ab_", 0) == 0) // Starting with "ab_"
             {
                 string tag = fieldName.substr(3); // The string after "ab_" prefix
-                mABTestFlags[tag] = json->getuint32();
+                int64_t value = json->getint();
+                if (value >= 0)
+                {
+                    mABTestFlags[tag] = static_cast<uint32_t>(value);
+                }
+                else
+                {
+                    LOG_err << "[MegaClient::readmiscflags] Invalid value for A/B Test flag";
+                    assert(value >= 0 && "A/B test value must be greater or equal to 0");
+                }
             }
             else if (!json->storeobject())
             {

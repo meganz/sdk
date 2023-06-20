@@ -4982,7 +4982,8 @@ CommandABTestActive::CommandABTestActive(MegaClient *client, const string& flag,
 
 bool CommandABTestActive::procresult(Result r, JSON&)
 {
-    if (r.wasErrorOrOK() && mCompletion)
+    assert(r.wasErrorOrOK());
+    if (mCompletion)
     {
         mCompletion(r.errorOrOK());
     }
