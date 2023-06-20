@@ -25513,54 +25513,22 @@ void MegaApiImpl::getPreviewElementNode(MegaHandle eid, MegaRequestListener* lis
             return API_EARGS;
         }
 
-        std::array<byte, FILENODEKEYLENGTH> ekey;
-        handle enode = element->node();
-        memcpy(ekey.data(), element->key().c_str(), ekey.size());
-        auto commandCB =
-            [ekey, enode, request, this] (const Error &e, m_off_t size,
-            dstime /*timeleft*/, std::string* filename, std::string* fingerprint,
-            std::string* fileattrstring, const std::vector<std::string> &/*tempurls*/,
-            const std::vector<std::string> &/*ips*/)
-            {
-                if (!fingerprint) // failed processing the command
-                {
-                    LOG_err << "Sets: Link check failed: " << e;
-                    if (e == API_OK)
-                    {
-                        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_EINTERNAL));
-                        return true;
-                    }
-                }
-                const auto getMtimeFromFingerprint = [&fingerprint]() -> m_time_t
-                {
-                    FileFingerprint ffp;
-                    if(ffp.unserializefingerprint(fingerprint)) return ffp.mtime;
-                    return 0;
-                };
+        auto nm = element->nodeMetadata();
+        if (!nm)
+        {
+            LOG_err << paramErr << "Element node not found for preview";
+            return API_ENOENT;
+        }
 
-                if (e)
-                {
-                    LOG_err << "Sets: Not available: " << e;
-                }
-                else
-                {
-                    m_time_t ts = 0; // all foreign nodes' creation time must be set to 0
-                    m_time_t tm = getMtimeFromFingerprint();
-                    auto ekeyStr = string((char*)ekey.data(), ekey.size());
-                    unique_ptr<MegaNodePrivate>ret(new MegaNodePrivate(filename->c_str(), FILENODE, size, ts, tm,
-                                                                       enode, &ekeyStr, fileattrstring, fingerprint->c_str(),
-                                                                       nullptr, INVALID_HANDLE, INVALID_HANDLE, nullptr, nullptr,
-                                                                       false /*isPublic*/, true /*isForeign*/));
-                    request->setPublicNode(ret.get());
-                }
-                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-                return true;
-            };
+        m_time_t ts = 0; // all foreign nodes' creation time must be set to 0 (so don't use node metadata's ts?)
+        FileFingerprint ffp;
+        m_time_t tm = ffp.unserializefingerprint(&nm->fingerprint) ? ffp.mtime : 0;
 
-        client->reqs.add(new CommandGetFile(client, (byte*)ekey.data(), ekey.size(), enode,
-                                            true /*private*/, nullptr, nullptr, nullptr, false,
-                                            commandCB));
+        MegaNodePrivate ret(nm->filename.c_str(), FILENODE, nm->s, ts, tm, nm->h, &element->key(), &nm->fa, nm->fingerprint.c_str(),
+                            nullptr, INVALID_HANDLE, INVALID_HANDLE, nullptr, nullptr, false /*isPublic*/, true /*isForeign*/);
+        request->setPublicNode(&ret);
 
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
         return API_OK;
     };
 

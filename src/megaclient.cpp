@@ -19999,6 +19999,7 @@ bool MegaClient::procaesp(JSON& j)
 
 error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<handle, elementsmap_t>& newElements)
 {
+    std::unique_ptr<std::map<handle, NodeMetadata>> nodeData;
 
     for (bool loopAgain = true; loopAgain;)
     {
@@ -20024,6 +20025,14 @@ error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<ha
         case MAKENAMEID1('e'):
         {
             error e = readElements(j, newElements);
+            if (e != API_OK) return e;
+            break;
+        }
+
+        case MAKENAMEID1('n'):
+        {
+            nodeData.reset(new std::map<handle, NodeMetadata>());
+            error e = readAllNodeMetadata(j, *nodeData);
             if (e != API_OK) return e;
             break;
         }
@@ -20082,6 +20091,31 @@ error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<ha
                     itE = itEls->second.erase(itE);
                     continue;
                 }
+
+                // fill in node attributes in case of having foreign node
+                if (nodeData)
+                {
+                    auto itNode = nodeData->find(itE->second.node());
+                    if (itNode != nodeData->end())
+                    {
+                        NodeMetadata& nodeMeta = itNode->second;
+
+                        if (!nodeMeta.at.empty() && decryptNodeMetadata(nodeMeta, itE->second.key()))
+                        {
+                            itE->second.setNodeMetadata(std::move(nodeMeta));
+                        }
+
+                        nodeData->erase(itNode);
+                    }
+
+                    if (!itE->second.nodeMetadata())
+                    {
+                        LOG_err << "Invalid node for element. itE Handle = " << itE->first << ", itE Key << " << itE->second.key() << ", itS Handle = " << itS->first << ", itS Key = " << itS->second.key();
+                        itE = itEls->second.erase(itE);
+                        continue;
+                    }
+                }
+
                 ++elCount;
                 ++itE;
             }
@@ -20404,6 +20438,124 @@ error MegaClient::readElement(JSON& j, SetElement& el)
             return API_OK;
         }
     }
+}
+
+error MegaClient::readAllNodeMetadata(JSON& j, map<handle, NodeMetadata>& nodes)
+{
+    if (!j.enterarray())
+    {
+        return API_EINTERNAL;
+    }
+
+    while (j.enterobject())
+    {
+        NodeMetadata eln;
+        error e = readSingleNodeMetadata(j, eln);
+        if (e)
+        {
+            return e;
+        }
+        nodes.emplace(eln.h, std::move(eln));
+
+        j.leaveobject();
+    }
+
+    j.leavearray();
+    return API_OK;
+}
+
+error MegaClient::readSingleNodeMetadata(JSON& j, NodeMetadata& eln)
+{
+    for (;;)
+    {
+        switch (j.getnameid())
+        {
+        case MAKENAMEID1('h'):
+            eln.h = j.gethandle(MegaClient::NODEHANDLE);
+            break;
+
+        case MAKENAMEID1('u'):
+            eln.u = j.gethandle(MegaClient::USERHANDLE);
+            break;
+
+        case MAKENAMEID1('s'):
+            eln.s = j.getint();
+            break;
+
+        case MAKENAMEID2('a', 't'):
+            j.storeobject(&eln.at);
+            break;
+
+        case MAKENAMEID2('f', 'a'):
+            j.storeobject(&eln.fa);
+            break;
+
+        case MAKENAMEID2('t', 's'):
+            eln.ts = j.getint();
+            break;
+
+        default: // skip unknown member
+            if (!j.storeobject())
+            {
+                LOG_err << "Sets: Failed to parse node metadata";
+                return API_EINTERNAL;
+            }
+            break;
+
+        case EOO:
+            return API_OK;
+        }
+    }
+}
+
+bool MegaClient::decryptNodeMetadata(NodeMetadata& nodeMeta, const string& key)
+{
+    SymmCipher* cipher = getRecycledTemporaryTransferCipher(reinterpret_cast<const byte*>(key.c_str()), FILENODE);
+    std::unique_ptr<byte[]> buf;
+    buf.reset(Node::decryptattr(cipher, nodeMeta.at.c_str(), nodeMeta.at.size()));
+    if (!buf)
+    {
+        LOG_err << "Decrypting node attributes failed. Node Handle = " << nodeMeta.h;
+        return false;
+    }
+
+    // all good, let's parse the attribute string
+    JSON attrJson;
+    attrJson.begin(reinterpret_cast<const char*>(buf.get()) + 5);
+
+    for (bool jsonHasData = true; jsonHasData;)
+    {
+        switch (attrJson.getnameid())
+        {
+        case 'c':
+            if (!attrJson.storeobject(&nodeMeta.fingerprint))
+            {
+                LOG_err << "Reading node fingerprint failed. Node Handle = " << nodeMeta.h;
+            }
+            break;
+
+        case 'n':
+            if (!attrJson.storeobject(&nodeMeta.filename))
+            {
+                LOG_err << "Reading node filename failed. Node Handle = " << nodeMeta.h;
+            }
+            break;
+
+        case EOO:
+            jsonHasData = false;
+            break;
+
+        default:
+            if (!attrJson.storeobject())
+            {
+                LOG_err << "Skipping unexpected node attribute failed. Node Handle = " << nodeMeta.h;
+            }
+        }
+    }
+
+    nodeMeta.at.clear();
+
+    return true;
 }
 
 const Set* MegaClient::getSet(handle sid) const

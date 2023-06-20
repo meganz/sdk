@@ -2443,6 +2443,9 @@ private:
     error readSet(JSON& j, Set& s);
     error readElements(JSON& j, map<handle, elementsmap_t>& elements);
     error readElement(JSON& j, SetElement& el);
+    error readAllNodeMetadata(JSON& j, map<handle, NodeMetadata>& nodes);
+    error readSingleNodeMetadata(JSON& j, NodeMetadata& node);
+    bool decryptNodeMetadata(NodeMetadata& nodeMeta, const string& key);
     error readExportedSet(JSON& j, Set& s, pair<bool, m_off_t>& exportRemoved);
     error readSetsPublicHandles(JSON& j, map<handle, Set>& sets);
     error readSetPublicHandle(JSON& j, map<handle, Set>& sets);

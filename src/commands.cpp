@@ -9542,6 +9542,7 @@ CommandFetchSet::CommandFetchSet(MegaClient* cl,
     : mCompletion(completion)
 {
     cmd("aft");
+    arg("v", 2);  // version 2: server can supply node metadata
     if(!cl->inPublicSetPreview())
     {
         LOG_err << "Sets: CommandFetchSet only available for Public Set in Preview Mode";
