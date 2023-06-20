@@ -447,7 +447,7 @@ private:
                         bool& name_too_long, Sync* syncForDebris,
                         const FileFingerprint& confirmFingerprint);
 
-    static bool copyToForMethod_RenameWithBracketedNumber(const LocalPath& source, LocalPath& target,
+    static bool copyToForMethod_RenameWithBracketedNumber(const LocalPath& source, LocalPath& target, m_time_t mtime,
                         FileSystemAccess& fsaccess, bool& transient_error, bool& name_too_long);
 
     static bool copyToForMethod_RenameExistingToOldN(const LocalPath& source, LocalPath& target, m_time_t mtime,

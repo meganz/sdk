@@ -2078,23 +2078,23 @@ bool FileDistributor::copyToForMethod_MoveReplacedFileToSyncDebris(const LocalPa
 }
 #endif //ENABLE_SYNC
 
-bool FileDistributor::copyToForMethod_RenameWithBracketedNumber(const LocalPath& source, LocalPath& target,
+bool FileDistributor::copyToForMethod_RenameWithBracketedNumber(const LocalPath& source, LocalPath& target, m_time_t mtime,
                         FileSystemAccess& fsAccess, bool& transient_error, bool& name_too_long)
 {
         // add an (x) suffix until there's no clash
         auto fa = fsAccess.newfileaccess();
         auto changedName = FileNameGenerator::suffixWithN(fa.get(), target);
-        LOG_debug << "The move destination file path exists already. Updated name: " << changedName;
+        LOG_debug << "The copy destination file path exists already. Updated name: " << changedName;
 
-        // Try and move the source to the changed name.
-        if (fsAccess.renamelocal(source, changedName, false))
+        // copy the source to the changed name.
+        if (fsAccess.copylocal(source, changedName, mtime))
         {
             target = changedName;
             return true;
         }
         else
         {
-            LOG_debug << "File move failed even after renaming with (N) to avoid a clash. Updated name: " << changedName;
+            LOG_debug << "File copy failed even after renaming with (N) to avoid a clash. Updated name: " << changedName;
             transient_error = fsAccess.transient_error;
             name_too_long = fsAccess.target_name_too_long;
             return false;
@@ -2107,7 +2107,7 @@ bool FileDistributor::copyToForMethod_RenameExistingToOldN(const LocalPath& sour
         // rename the existing with an .oldN suffix until there's no clash
         auto fa = fsAccess.newfileaccess();
         auto newName = FileNameGenerator::suffixWithOldN(fa.get(), target);
-        LOG_debug << "The move destination file path exists already. renamed it to: " << newName;
+        LOG_debug << "The copy destination file path exists already. renamed it to: " << newName;
 
         // Try rename the target to the new name.
         if (!fsAccess.renamelocal(target, newName, false))
@@ -2169,7 +2169,7 @@ bool FileDistributor::copyTo(const LocalPath& source, LocalPath& target, m_time_
         case OverwriteTarget:
             return copyToForMethod_OverwriteTarget(source, target, mtime, fsAccess, transient_error, name_too_long, confirmFingerprint);
         case RenameWithBracketedNumber:
-            return copyToForMethod_RenameWithBracketedNumber(source, target, fsAccess, transient_error, name_too_long);
+            return copyToForMethod_RenameWithBracketedNumber(source, target, mtime, fsAccess, transient_error, name_too_long);
         case RenameExistingToOldN:
             return copyToForMethod_RenameExistingToOldN(source, target, mtime, fsAccess, transient_error, name_too_long);
         default:
