@@ -5772,6 +5772,16 @@ bool CommandAccountVersionUpgrade::procresult(Result r, JSON&)
         }
     }
 
+    if (e == API_OK)
+    {
+        client->sendevent(99473, "Account successfully upgraded to v2");
+    }
+    else
+    {
+        const string& msg = "Account upgrade to v2 has failed (" + std::to_string(e) + ')';
+        client->sendevent(99474, msg.c_str());
+    }
+
     if (mCompletion)
     {
         mCompletion(e);
