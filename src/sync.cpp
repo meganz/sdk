@@ -2370,6 +2370,11 @@ bool Sync::processCompletedUploadFromHere(SyncRow& row, SyncRow& parentRow, Sync
         row.syncNode->syncedFingerprint = *upload;
         row.syncNode->setSyncedNodeHandle(upload->putnodesResultHandle);
         statecacheadd(row.syncNode);
+
+        // void going into syncItem() in case we only just got the cloud Node
+        // and we are iterating that very directory already, in which case we won't have
+        // the cloud side node, and we would create an extra upload
+        row.itemProcessed = true;
     }
 
     // either way, we reset and revisit.  Following the signature pattern for similar functions
