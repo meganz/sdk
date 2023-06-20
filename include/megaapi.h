@@ -2073,13 +2073,13 @@ public:
 #ifdef ENABLE_CHAT
     enum
     {
-        SM_CHANGE_TYPE_TITLE            = 0,
-        SM_CHANGE_TYPE_DESCRIPTION      = 1,
-        SM_CHANGE_TYPE_CANCELLED        = 2,
-        SM_CHANGE_TYPE_TIMEZONE         = 3,
-        SM_CHANGE_TYPE_STARTDATE        = 4,
-        SM_CHANGE_TYPE_ENDDATE          = 5,
-        SM_CHANGE_TYPE_RULES            = 6,
+        SM_CHANGE_TYPE_TITLE            = 0x01,
+        SM_CHANGE_TYPE_DESCRIPTION      = 0x02,
+        SM_CHANGE_TYPE_CANCELLED        = 0x04,
+        SM_CHANGE_TYPE_TIMEZONE         = 0x08,
+        SM_CHANGE_TYPE_STARTDATE        = 0x10,
+        SM_CHANGE_TYPE_ENDDATE          = 0x20,
+        SM_CHANGE_TYPE_RULES            = 0x40,
     };
 #endif
     virtual ~MegaUserAlert();
@@ -2343,13 +2343,13 @@ public:
      *   TYPE_SCHEDULEDMEETING_UPDATED
      *
      * @param changeType The type of change to check. It can be one of the following values:
-     * - MegaUserAlert::SM_CHANGE_TYPE_TITLE           [0]  - Title has changed
-     * - MegaUserAlert::SM_CHANGE_TYPE_DESCRIPTION     [1]  - Description has changed
-     * - MegaUserAlert::SM_CHANGE_TYPE_CANCELLED       [2]  - Cancelled flag has changed
-     * - MegaUserAlert::SM_CHANGE_TYPE_TIMEZONE        [3]  - Timezone has changed
-     * - MegaUserAlert::SM_CHANGE_TYPE_STARTDATE       [4]  - Start date time has changed
-     * - MegaUserAlert::SM_CHANGE_TYPE_ENDDATE         [5]  - End date time has changed
-     * - MegaUserAlert::SM_CHANGE_TYPE_RULES           [6]  - Repetition rules have changed
+     * - MegaUserAlert::SM_CHANGE_TYPE_TITLE           0x01  - Title has changed
+     * - MegaUserAlert::SM_CHANGE_TYPE_DESCRIPTION     0x02  - Description has changed
+     * - MegaUserAlert::SM_CHANGE_TYPE_CANCELLED       0x04  - Cancelled flag has changed
+     * - MegaUserAlert::SM_CHANGE_TYPE_TIMEZONE        0x08  - Timezone has changed
+     * - MegaUserAlert::SM_CHANGE_TYPE_STARTDATE       0x10  - Start date time has changed
+     * - MegaUserAlert::SM_CHANGE_TYPE_ENDDATE         0x20  - End date time has changed
+     * - MegaUserAlert::SM_CHANGE_TYPE_RULES           0x40  - Repetition rules have changed
      *
      * @return true if this scheduled meeting associated to this alert has an specific change
      */
@@ -18047,6 +18047,7 @@ class MegaApi
          * @param name Name of the node (Base64 encoded)
          * @param size Size of the node
          * @param mtime Modification time of the node
+         * @param crc portion of the file's Fingerprint (base 64)
          * @param parentHandle Handle of the parent node
          * @param privateAuth Private authentication token to access the node
          * @param publicAuth Public authentication token to access the node
@@ -18054,7 +18055,8 @@ class MegaApi
          * @return MegaNode object
          */
         MegaNode *createForeignFileNode(MegaHandle handle, const char *key, const char *name,
-                                       int64_t size, int64_t mtime, MegaHandle parentHandle, const char *privateAuth, const char *publicAuth, const char *chatAuth);
+                                       int64_t size, int64_t mtime, const char* fingerprintCrc,
+                                       MegaHandle parentHandle, const char *privateAuth, const char *publicAuth, const char *chatAuth);
 
         /**
          * @brief Create a MegaNode that represents a folder of a different account

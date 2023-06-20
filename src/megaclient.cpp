@@ -4268,8 +4268,21 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     freeq(GET);
     freeq(PUT);
 
-    // close the transfer cache database.
     disconnect();
+
+    // commit and close the transfer cache database.
+    if (tctable && tctable->getTransactionCommitter())
+    {
+        auto committer = dynamic_cast<TransferDbCommitter*>(tctable->getTransactionCommitter());
+        if (committer)
+        {
+            // If we don't commit the last changes to the transfer database here, they would be reverted in closetc()
+            // freeq() has its own committer, but it doesn't do anything because it's usually nested by the one
+            // in the intermediate layer (MegaApiImpl::sendPendingTransfers).
+            committer->commitNow();
+        }
+    }
+
     closetc();
 
     freeq(GET);  // freeq after closetc due to optimizations
@@ -7023,6 +7036,9 @@ void MegaClient::sc_se()
                 mapuser(uh, email.c_str()); // update email used as index for user's map
                 u->changed.email = true;
                 notifyuser(u);
+
+                // produce a callback to update cached email in MegaApp
+                reportLoggedInChanges();
             }
             // TODO: manage different status once multiple-emails is supported
 
@@ -7420,11 +7436,12 @@ void MegaClient::sc_delscheduledmeeting()
                         handle chatid = chat->id;
                         chat->setTag(0);    // external change
                         notifychat(chat);
-                        for_each(begin(deletedChildren), end(deletedChildren),
-                                 [this, ou, chatid](handle sm) { createDeletedSMAlert(ou, chatid, sm); });
 
                         if (statecurrent)
                         {
+                            for_each(begin(deletedChildren), end(deletedChildren),
+                                     [this, ou, chatid](handle sm) { createDeletedSMAlert(ou, chatid, sm); });
+
                             createDeletedSMAlert(ou, chatid, schedId);
                         }
                         reqs.add(new CommandScheduledMeetingFetchEvents(this, chatid, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
@@ -12843,12 +12860,15 @@ sessiontype_t MegaClient::loggedin()
 void MegaClient::reportLoggedInChanges()
 {
     auto currState = loggedin();
+    string currentEmail = ownuser() ? ownuser()->email : "";
     if (mLastLoggedInReportedState != currState ||
-        mLastLoggedInMeHandle != me)
+            mLastLoggedInMeHandle != me ||
+            (mLastLoggedInMyEmail != currentEmail))
     {
         mLastLoggedInReportedState = currState;
         mLastLoggedInMeHandle = me;
-        app->loggedInStateChanged(currState, me);
+        mLastLoggedInMyEmail = currentEmail;
+        app->loggedInStateChanged(currState, me, currentEmail);
     }
 }
 

@@ -6779,6 +6779,9 @@ bool CommandConfirmEmailLink::procresult(Result r, JSON& json)
             client->mapuser(u->userhandle, email.c_str()); // update email used as index for user's map
             u->changed.email = true;
             client->notifyuser(u);
+
+            // produce a callback to update cached email in MegaApp
+            client->reportLoggedInChanges();
         }
         // TODO: once we manage multiple emails, add the new email to the list of emails
     }

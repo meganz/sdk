@@ -1035,6 +1035,9 @@ struct SyncTransferCounts
 // creates a new id filling `id` with random bytes, up to `length`
 void resetId(char *id, size_t length, PrnGen& rng);
 
+// returns the direction type of a connection
+string connDirectionToStr(mega::direction_t directionType);
+
 } // namespace mega
 
 #endif
