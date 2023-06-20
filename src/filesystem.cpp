@@ -1899,6 +1899,29 @@ bool Notification::invalidated() const
 }
 #endif
 
+LocalPath FileNameGenerator::suffixWithN(FileAccess* fa, const LocalPath& localname)
+{
+    return suffix(fa, localname, [ ](unsigned num) { return " (" + std::to_string(num) + ")"; });
+}
+
+LocalPath FileNameGenerator::suffixWithOldN(FileAccess* fa, const LocalPath& localname)
+{
+    return suffix(fa, localname, [](unsigned num) { return ".old" + std::to_string(num); });
+}
+
+LocalPath FileNameGenerator::suffix(FileAccess* fa, const LocalPath& localname, std::function<std::string(unsigned)> suffixF)
+{
+    LocalPath localnewname;
+    unsigned num = 0;
+    do
+    {
+        num++;
+        localnewname = localname.insertFilenameSuffix(suffixF(num));
+    } while (fa->fopen(localnewname, FSLogging::logExceptFileNotFound) || fa->type == FOLDERNODE);
+
+    return localnewname;
+}
+
 FileDistributor::FileDistributor(const LocalPath& lp, size_t ntargets, m_time_t mtime, const FileFingerprint& confirm)
     : theFile(lp)
     , numTargets(ntargets)
@@ -1956,18 +1979,14 @@ bool FileDistributor::moveTo(const LocalPath& source, LocalPath& target, TargetN
     }
 #endif // ENABLE_SYNC
 
-    if (method == RenameWithBracketedNumber)
+    if (method == RenameWithBracketedNumber || method == RenameWithBracketedNumber)
     {
         // the destination path already exists
-        // add an (x) suffix until there's no clash
+        // add an (x) suffix or .oldN until there's no clash
         auto fa = fsAccess.newfileaccess();
-        auto changedName = target;
-        unsigned num = 0;
-        do
-        {
-            num++;
-            changedName = target.insertFilenameSuffix("(" + std::to_string(num) + ")");
-        } while (fa->fopen(changedName, FSLogging::logExceptFileNotFound) || fa->type == FOLDERNODE);
+        auto changedName = (method == RenameWithBracketedNumber)
+                ?  FileNameGenerator::suffixWithN(fa.get(), target)
+                : FileNameGenerator::suffixWithOldN(fa.get(), target);
 
         LOG_debug << "The move destination file path exists already. Updated name: " << changedName;
 
@@ -2032,18 +2051,14 @@ bool FileDistributor::copyTo(const LocalPath& source, LocalPath& target, m_time_
     }
 #endif // ENABLE_SYNC
 
-    if (method == RenameWithBracketedNumber)
+    if (method == RenameWithBracketedNumber || method == RenameWithBracketedNumber)
     {
         // the destination path already exists
-        // add an (x) suffix until there's no clash
+        // add an (x) suffix or .oldN until there's no clash until there's no clash
         auto fa = fsAccess.newfileaccess();
-        auto changedName = target;
-        unsigned num = 0;
-        do
-        {
-            num++;
-            changedName = target.insertFilenameSuffix("(" + std::to_string(num) + ")");
-        } while (fa->fopen(changedName, FSLogging::logExceptFileNotFound) || fa->type == FOLDERNODE);
+        auto changedName = (method == RenameWithBracketedNumber)
+                ?  FileNameGenerator::suffixWithN(fa.get(), target)
+                : FileNameGenerator::suffixWithOldN(fa.get(), target);
 
         LOG_debug << "The copy destination file path exists already. Updated name: " << changedName;
 

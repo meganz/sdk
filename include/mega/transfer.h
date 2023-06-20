@@ -206,7 +206,7 @@ struct MEGA_API Transfer : public FileFingerprint
     bool mOptimizedDelete = false;
 
 private:
-    bool resolveCollision(FileAccess* fa, File* file, LocalPath& dest);
+    FileDistributor::TargetNameExistsResolution toTargetNameExistsResolution(CollisionResolution resolution);
 };
 
 
