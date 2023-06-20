@@ -9738,12 +9738,7 @@ class MegaApi
         /**
          * @brief Get the value of an A/B Test flag
          *
-         * Returns the value of an A/B Test flag in the account. Any value over 0 means
-         * that the flag is active and 0 means that the flag is not active. Different
-         * values over 0 may have different meanings depending on each flag.
-         * 0 is also returned for flags not set in the account, which should be treated
-         * as a deactivated flag. If a null flag is passed as a parameter the function
-         * will also return 0.
+         * Any value greater than 0 means he flag is active.
          *
          * @param flag Name or key of the value to be retrieved.
          *
@@ -9755,10 +9750,14 @@ class MegaApi
          * @brief Sends to the API an A/B Test flag activation.
          *
          * Informs the API that a user has become relevant for an A/B Test flag.
-         * The flag identification string is sent in the first parameter.
          * Can be called multiple times for the same account and flag.
          *
-         * @param flag flag to be be sent to the API as active.
+         * The associated request type with this request is MegaRequest::TYPE_AB_TEST_ACTIVE
+         *
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getText - Returns the flag passed as parameter
+         *
+         * @param flag Flag to be be sent to the API as active.
          * @param listener MegaRequestListener to track this request
          */
         void sendABTestActive(const char* flag, MegaRequestListener *listener = NULL);
