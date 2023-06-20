@@ -3372,9 +3372,19 @@ LocalNode::exclusionState(const PathType& path, nodetype_t type, m_off_t size) c
     // Scan-blocked appear as TYPE_UNKNOWN and the user must be
 	// able to exclude them when they are notified of them
 
-    // Ignore files are only excluded if one of their parents is.
-    if (type == FILENODE && path == IGNORE_FILE_NAME)
-        return ES_INCLUDED;
+    if (rareRO().filterChain)
+    {
+        if (!rareRO().filterChain->mLoadSucceeded)
+        {
+            return ES_UNKNOWN;
+        }
+        else if (type == FILENODE && path == IGNORE_FILE_NAME)
+        {
+            // Ignore files are synced or not depending on flags in the file text
+            return rareRO().filterChain->mSyncThisMegaignore ? ES_INCLUDED : ES_EXCLUDED;
+        }
+    }
+
 
     // We can't know the child's state unless our filters are current.
     if (mWaitingForIgnoreFileLoad)
