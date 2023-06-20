@@ -609,7 +609,7 @@ FileDistributor::TargetNameExistsResolution Transfer::toTargetNameExistsResoluti
         case CollisionResolution::Overwrite:
             return FileDistributor::TargetNameExistsResolution::OverwriteTarget;
         case CollisionResolution::RenameExistingToOldN:
-            return FileDistributor::TargetNameExistsResolution::RenameWithDotOldNumber;
+            return FileDistributor::TargetNameExistsResolution::RenameExistingToOldN;
         case CollisionResolution::RenameNewWithN: // fall through
         default:
             return FileDistributor::TargetNameExistsResolution::RenameWithBracketedNumber;

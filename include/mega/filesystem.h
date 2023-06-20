@@ -412,7 +412,7 @@ public:
         OverwriteTarget,
         RenameWithBracketedNumber,
         MoveReplacedFileToSyncDebris,
-        RenameWithDotOldNumber,
+        RenameExistingToOldN,
     };
 
 
@@ -424,21 +424,48 @@ public:
     // static functions used by distributeTo
     // these will be useful for other cases also
 
+    LocalPath distributeFromPath()
+    {
+        lock_guard<recursive_mutex> g(mMutex);
+        return theFile;
+    }
+
+private:
     static bool moveTo(const LocalPath& source, LocalPath& target,
                         TargetNameExistsResolution, FileSystemAccess& fsaccess,
                         bool& transient_error, bool& name_too_long, Sync* syncForDebris,
                         const FileFingerprint& confirmFingerprint);
+
+    static bool moveToForMethod_RenameWithBracketedNumber(const LocalPath& source, LocalPath& target,
+                        FileSystemAccess& fsaccess, bool& transient_error, bool& name_too_long);
+
+    static bool moveToForMethod_RenameExistingToOldN(const LocalPath& source, LocalPath& target,
+                        FileSystemAccess& fsaccess, bool& transient_error, bool& name_too_long);
 
     static bool copyTo(const LocalPath& source, LocalPath& target, m_time_t mtime,
                         TargetNameExistsResolution, FileSystemAccess& fsaccess, bool& transient_error,
                         bool& name_too_long, Sync* syncForDebris,
                         const FileFingerprint& confirmFingerprint);
 
-    LocalPath distributeFromPath()
-    {
-        lock_guard<recursive_mutex> g(mMutex);
-        return theFile;
-    }
+    static bool copyToForMethod_RenameWithBracketedNumber(const LocalPath& source, LocalPath& target,
+                        FileSystemAccess& fsaccess, bool& transient_error, bool& name_too_long);
+
+    static bool copyToForMethod_RenameExistingToOldN(const LocalPath& source, LocalPath& target, m_time_t mtime,
+                        FileSystemAccess& fsaccess, bool& transient_error, bool& name_too_long);
+
+    static bool copyToForMethod_OverwriteTarget(const LocalPath& source, LocalPath& target, m_time_t mtime,
+                        FileSystemAccess& fsaccess, bool& transient_error, bool& name_too_long, const FileFingerprint& confirmFingerprint);
+
+
+#ifdef ENABLE_SYNC
+    static bool moveToForMethod_MoveReplacedFileToSyncDebris(const LocalPath& source, LocalPath& target, FileSystemAccess& fsaccess,
+                        bool& transient_error, bool& name_too_long, Sync* syncForDebris,
+                        const FileFingerprint& confirmFingerprint);
+
+    static bool copyToForMethod_MoveReplacedFileToSyncDebris(const LocalPath& source, LocalPath& target, m_time_t mtime, FileSystemAccess& fsaccess,
+                        bool& transient_error, bool& name_too_long, Sync* syncForDebris,
+                        const FileFingerprint& confirmFingerprint);
+#endif
 };
 
 
