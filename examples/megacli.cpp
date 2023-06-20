@@ -10964,7 +10964,7 @@ void exec_sendABTestActive(autocomplete::ACState &s)
 {
     string flag = s.words[1].s;
 
-    client->reqs.add(new CommandABTestActive(client, flag, [](Error e)
+    client->sendABTestActive(flag.c_str(), [](Error e)
         {
             if (e)
             {
@@ -10974,7 +10974,7 @@ void exec_sendABTestActive(autocomplete::ACState &s)
             {
                 cout << "Flag has been correctly sent." << endl;
             }
-        }));
+        });
 }
 
 void exec_numberofnodes(autocomplete::ACState &s)

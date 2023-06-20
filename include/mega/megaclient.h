@@ -491,6 +491,8 @@ private:
 public:
     bool isProFlexi() const { return mProFlexi; }
 
+    Error sendABTestActive(const char* flag, CommandABTestActive::Completion completion);
+
     // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed  -1 = flag was not received
     SmsVerificationState mSmsVerificationState;
 

@@ -21170,6 +21170,11 @@ void MegaClient::clearsetelementnotify(handle sid)
     }
 }
 
+Error MegaClient::sendABTestActive(const char* flag, CommandABTestActive::Completion completion)
+{
+    reqs.add(new CommandABTestActive(this, flag, std::move(completion)));
+    return API_OK;
+}
 
 FetchNodesStats::FetchNodesStats()
 {

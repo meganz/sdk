@@ -6318,11 +6318,10 @@ void MegaApiImpl::sendABTestActive(const char* flag, MegaRequestListener* listen
 
     request->performRequest = [this, request]()
     {
-        client->reqs.add(new CommandABTestActive(client, request->getText(), [this, request](Error e)
+        return client->sendABTestActive(request->getText(), [this, request](Error e)
         {
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-        }));
-        return API_OK;
+        });
     };
 
     requestQueue.push(request);
