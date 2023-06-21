@@ -590,6 +590,11 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                 TreeProcDel td;
                 proctree(n, &td, true);
             }
+            else if (notify)
+            {
+                n->changed.inshare = true;
+                notifynode(n);
+            }
         }
     }
     else
