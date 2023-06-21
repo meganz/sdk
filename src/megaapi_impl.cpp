@@ -24854,6 +24854,7 @@ void MegaApiImpl::updateStats()
 
 long long MegaApiImpl::getNumNodes()
 {
+    SdkMutexGuard g(sdkMutex);
     return client->totalNodes;
 }
 
