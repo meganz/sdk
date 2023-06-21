@@ -12779,7 +12779,7 @@ TEST_F(LocalToCloudFilterFixture, AcceptableFilterNameClash)
         auto ignoreFilePath = cu->fsBasePath / ".megaignore";
 
         // Create an ignore file for us to upload.
-        ASSERT_TRUE(createDataFile(ignoreFilePath, "#"));
+        ASSERT_TRUE(createDataFile(ignoreFilePath, "+sync:.megaignore"));
 
         // Upload the ignore file twice so to create a remote name clash.
         ASSERT_TRUE(cu->uploadFile(ignoreFilePath, "s"));

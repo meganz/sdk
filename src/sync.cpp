@@ -6894,6 +6894,15 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
 
                     case 1:
                         // second pass: full syncItem processing for each node that wasn't part of a move
+
+                        // moved from the end of syncItem_checkMoves.  So we can check ignore files also, as those skip move processing
+                        if ((syncHere || belowRemovedCloudNode || belowRemovedFsNode) &&
+                            syncItem_checkFilenameClashes(childRow, row, fullPath))
+                        {
+                            row.syncNode->setSyncAgain(false, true, false);
+                            break;
+                        }
+
                         if (belowRemovedCloudNode)
                         {
                             // when syncing/scanning below a removed cloud node, we just want to collect up scan fsids
@@ -7227,6 +7236,11 @@ bool Sync::syncItem_checkMoves(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
         }
     }
 
+    return false;
+}
+
+bool Sync::syncItem_checkFilenameClashes(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath)
+{
     // Avoid syncing nodes that have multiple clashing names
     // Except if we previously had a folder (just itself) synced, allow recursing into that one.
     if (!row.fsClashingNames.empty() || !row.cloudClashingNames.empty())
@@ -7243,25 +7257,25 @@ bool Sync::syncItem_checkMoves(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
             return false;
         }
 
-        // Is this clash due to multiple ignore files being present in the cloud?
-        auto isIgnoreFileClash = [](const SyncRow& row) {
-            // Any clashes in the cloud?
-            if (row.cloudClashingNames.empty())
-                return false;
+        //// Is this clash due to multiple ignore files being present in the cloud?
+        //auto isIgnoreFileClash = [](const SyncRow& row) {
+        //    // Any clashes in the cloud?
+        //    if (row.cloudClashingNames.empty())
+        //        return false;
 
-            // Any clashes on the local disk?
-            if (!row.fsClashingNames.empty())
-                return false;
+        //    // Any clashes on the local disk?
+        //    if (!row.fsClashingNames.empty())
+        //        return false;
 
-            if (!(row.fsNode || row.syncNode))
-                return false;
+        //    if (!(row.fsNode || row.syncNode))
+        //        return false;
 
-            // Row represents an ignore file?
-            return row.isIgnoreFile();
-        };
+        //    // Row represents an ignore file?
+        //    return row.isIgnoreFile();
+        //};
 
-        if (isIgnoreFileClash(row))
-            return false;
+        //if (isIgnoreFileClash(row))
+        //    return false;
 
         LOG_debug << syncname << "Multiple names clash here.  Excluding this node from sync for now." << logTriplet(row, fullPath);
 
