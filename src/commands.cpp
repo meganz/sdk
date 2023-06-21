@@ -5746,7 +5746,7 @@ bool CommandSetMasterKey::procresult(Result r, JSON& json)
     return false;
 }
 
-CommandAccountVersionUpgrade::CommandAccountVersionUpgrade(vector<byte>&& clRandValue, vector<byte>&& encMKey, string&& hashedAuthKey, string&& salt,
+CommandAccountVersionUpgrade::CommandAccountVersionUpgrade(vector<byte>&& clRandValue, vector<byte>&& encMKey, string&& hashedAuthKey, string&& salt, int ctag,
     std::function<void(error e)> completion)
     : mEncryptedMasterKey(std::move(encMKey)), mSalt(std::move(salt)), mCompletion(completion)
 {
@@ -5755,6 +5755,8 @@ CommandAccountVersionUpgrade::CommandAccountVersionUpgrade(vector<byte>&& clRand
     arg("emk", mEncryptedMasterKey.data(), static_cast<int>(mEncryptedMasterKey.size()));
     arg("hak", reinterpret_cast<const byte*>(hashedAuthKey.c_str()), static_cast<int>(hashedAuthKey.size()));
     arg("crv", clRandValue.data(), static_cast<int>(clRandValue.size()));
+
+    tag = ctag;
 }
 
 bool CommandAccountVersionUpgrade::procresult(Result r, JSON&)

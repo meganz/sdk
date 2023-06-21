@@ -12409,7 +12409,7 @@ void MegaClient::upgradeAccountToV2(const string& pwd, std::function<void(error 
 
     fillCypheredAccountDataV2(pwd.c_str(), clientRandomValue, encmasterkey, hashedauthkey, salt);
 
-    reqs.add(new CommandAccountVersionUpgrade(std::move(clientRandomValue), std::move(encmasterkey), std::move(hashedauthkey), std::move(salt), completion));
+    reqs.add(new CommandAccountVersionUpgrade(std::move(clientRandomValue), std::move(encmasterkey), std::move(hashedauthkey), std::move(salt), reqtag, completion));
 }
 // -------- end of Account upgrade to V2
 
