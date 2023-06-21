@@ -4860,6 +4860,8 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 
     mAsyncQueue.clearDiscardable();
 
+    mV1PswdVault.reset();
+
 #ifdef ENABLE_SYNC
     syncs.locallogout(removecaches, keepSyncsConfigFile, false);
 #endif
@@ -12314,6 +12316,14 @@ void MegaClient::loginResult(error e, std::function<void()> onLoginOk)
             string pwd;
             if (tlv && tlv->get("p", pwd))
             {
+                if (pwd.empty())
+                {
+                    char msg[] = "Account upgrade to v2 has failed (invalid content in vault)";
+                    LOG_err << msg;
+                    sendevent(99474, msg);
+                    return;
+                }
+
                 upgradeAccountToV2(pwd, [this, onLoginOk](error e)
                     {
                         // handle upgrade result
