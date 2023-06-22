@@ -12321,6 +12321,13 @@ void MegaClient::loginResult(error e, std::function<void()> onLoginOk)
                     char msg[] = "Account upgrade to v2 has failed (invalid content in vault)";
                     LOG_err << msg;
                     sendevent(99474, msg);
+
+                    // report successful login, even if upgrade failed; user data was not affected, so apps can continue running
+                    app->login_result(API_OK);
+                    if (onLoginOk)
+                    {
+                        onLoginOk();
+                    }
                     return;
                 }
 
