@@ -9991,9 +9991,17 @@ CommandMeetingStart::CommandMeetingStart(MegaClient* client, handle chatid, hand
         arg("sfu", client->mSfuid);
     }
 
+    /**
+     * + If schedId is valid
+     *      - If Waiting room option is enabled : Call shouldn't ring and we'll be redirected to Waiting room
+     *      - If Waiting room option is disabled: Call shouldn't ring
+     *
+     * + If schedId is UNDEF
+     *      - If Waiting room option is enabled : Call should ring and we'll bypass waiting room
+     *      - If Waiting room option is disabled: Call should ring
+     */
     if (schedId != UNDEF)
     {
-        // sm param indicates that call is in the context of a scheduled meeting, so it won't ring
         arg("sm", (byte*)&schedId, MegaClient::CHATHANDLE);
     }
     tag = client->reqtag;
