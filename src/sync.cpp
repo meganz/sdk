@@ -3439,8 +3439,8 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool not
             filter = &tempFilter;
         }
 
-        // Try and create the missing ignore file.
-        if (!filter->create(us.mConfig.mLocalPath, *fsaccess))
+        // Try and create the missing ignore file.  Not synced by default
+        if (!filter->create(us.mConfig.mLocalPath, *fsaccess, false))
         {
             LOG_debug << "Failed to create ignore file for sync without one at: " << us.mConfig.mLocalPath;
 

@@ -285,7 +285,7 @@ DefaultFilterChain& DefaultFilterChain::operator=(DefaultFilterChain& rhs)
     return *this;
 }
 
-bool DefaultFilterChain::create(const LocalPath& targetPath, FileSystemAccess& fsAccess)
+bool DefaultFilterChain::create(const LocalPath& targetPath, FileSystemAccess& fsAccess, bool setSyncIgnoreFileFlag)
 {
     // Compute the path for the target's ignore file.
     auto filePath = targetPath;
@@ -299,7 +299,7 @@ bool DefaultFilterChain::create(const LocalPath& targetPath, FileSystemAccess& f
         return false;
 
     // Generate the ignore file's content (including BOM).
-    auto content = generate(targetPath, fsAccess, true);
+    auto content = generate(targetPath, fsAccess, true, setSyncIgnoreFileFlag);
 
     // Write the content to disk.
     return fileAccess->fwrite((const byte*)content.data(),
@@ -405,7 +405,7 @@ vector<LocalPath> DefaultFilterChain::applicablePaths(LocalPath targetPath) cons
     return paths;
 }
 
-string DefaultFilterChain::generate(const LocalPath& targetPath, FileSystemAccess& fsAccess, bool includeBOM) const
+string DefaultFilterChain::generate(const LocalPath& targetPath, FileSystemAccess& fsAccess, bool includeBOM, bool setSyncIgnoreFileFlag) const
 {
     lock_guard<mutex> guard(mLock);
 
@@ -415,6 +415,11 @@ string DefaultFilterChain::generate(const LocalPath& targetPath, FileSystemAcces
     {
         // utf8-BOM
         ostream << string("\xEF\xBB\xBF", 3);
+    }
+
+    if (setSyncIgnoreFileFlag)
+    {
+        ostream << "+sync:.megaignore\n";
     }
 
     // Size filters.

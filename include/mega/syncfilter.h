@@ -62,7 +62,7 @@ public:
     // - We successfully created an ignore file in the target directory.
     //
     // Returns false otherwise.
-    bool create(const LocalPath& targetPath, FileSystemAccess& fsAccess);
+    bool create(const LocalPath& targetPath, FileSystemAccess& fsAccess, bool setSyncIgnoreFileFlag);
 
     // Specify what names should be excluded.
     //
@@ -76,7 +76,7 @@ public:
     void excludePath(const string& path);
 
     // Generates the content for an ignore file.
-    string generate(const LocalPath& targetPath, FileSystemAccess& fsAccess, bool includeBOM) const;
+    string generate(const LocalPath& targetPath, FileSystemAccess& fsAccess, bool includeBOM, bool setSyncIgnoreFileFlag) const;
 
     // Specify the lower size limit.
     //

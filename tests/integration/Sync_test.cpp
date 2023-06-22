@@ -46,9 +46,6 @@ bool suppressfiles = false;
 // dgw: TODO: Perhaps make this a runtime parameter?
 #define SCAN_INTERVAL_SEC 3600
 
-// Don't use size filters.
-//#define NO_SIZE_FILTER
-
 bool adjustLastModificationTime(const fs::path& path, int adjustment)
 {
     using std::chrono::seconds;
@@ -12286,10 +12283,11 @@ TEST_F(FilterFixture, MigrateLegacyFilters)
     localFS.addfile("dn/fl", randomData(MAXSIZE + 1));
     localFS.addfile("dp/fi", randomData(MINSIZE));
     localFS.generate(root);
-    localFS.addfile(".megaignore", oldExclusions.generate(rootPath, fsAccess, true));
+    localFS.addfile(".megaignore", oldExclusions.generate(rootPath, fsAccess, true, false));
 
     // Prepare remote model.
     RemoteNodeModel remoteTree = localFS;
+    remoteTree.removenode(".megaignore"); // not synced by default
 
     remoteTree.removenode("dn/fe");
     remoteTree.removenode("dn/fs");
@@ -12326,9 +12324,9 @@ TEST_F(FilterFixture, MigrateLegacyFilters)
 
     // Remove the ignore file from the cloud.
     {
-        remoteTree.removenode(".megaignore");
+        //remoteTree.removenode(".megaignore");
 
-        ASSERT_TRUE(cu->deleteremote("cu/.megaignore"));
+        //ASSERT_TRUE(cu->deleteremote("cu/.megaignore"));
 
         auto predicate = SyncRemoteMatch("cu", remoteTree.root.get());
         ASSERT_TRUE(cu->waitFor(predicate, DEFAULTWAIT));
@@ -12342,11 +12340,11 @@ TEST_F(FilterFixture, MigrateLegacyFilters)
     waitOnSyncs(cu);
 
     // Make sure everything's uploaded as it should be.
-    Model model = localFS;
+    RemoteNodeModel remoteTree2 = localFS;
+    localFS.addfile(".megaignore", newExclusions.generate(rootPath, fsAccess, true, false));   // .megaignore not synced by default
 
-    model.addfile(".megaignore", newExclusions.generate(rootPath, fsAccess, true));
-
-    ASSERT_TRUE(confirm(*cu, id, model));
+    ASSERT_TRUE(confirm(*cu, id, localFS));
+    ASSERT_TRUE(confirm(*cu, id, remoteTree2));
 }
 
 TEST_F(FilterFixture, NameFilter)
@@ -12887,9 +12885,7 @@ TEST_F(LocalToCloudFilterFixture, DoesntDownloadIgnoredNodes)
         model.addfile("d/f");
         model.addfile(".megaignore", "+sync:.megaignore");
         model.addfile("f");
-#ifndef NO_SIZE_FILTER
         model.addfile("g", string(16, '!'));
-#endif // ! NO_SIZE_FILTER
         model.generate(root(*cu) / "root");
 
         ASSERT_TRUE(cu->makeCloudSubdirs("x", 0, 0));
@@ -12924,9 +12920,7 @@ TEST_F(LocalToCloudFilterFixture, DoesntDownloadIgnoredNodes)
 
     remoteTree.addfile("d/f");
     remoteTree.addfile("f");
-#ifndef NO_SIZE_FILTER
     remoteTree.addfile("g", string(16, '!'));
-#endif // ! NO_SIZE_FILTER
 
     // Add and start sync.
     auto id = setupSync(*cd, "root", "x", false);
@@ -13108,7 +13102,6 @@ TEST_F(LocalToCloudFilterFixture, DoesntUploadIgnoredNodes)
     RemoteNodeModel remoteTree;
 
     // Setup local FS.
-#ifndef NO_SIZE_FILTER
     localFS.addfile("db/.megaignore", "exclude-smaller:8\nexclude-larger:16\n+sync:.megaignore");
     localFS.addfile("db/fe0", randomData(7));
     localFS.addfile("db/fe1", randomData(17));
@@ -13120,7 +13113,6 @@ TEST_F(LocalToCloudFilterFixture, DoesntUploadIgnoredNodes)
     localFS.addfile("du/.megaignore", "exclude-larger:16\n+sync:.megaignore");
     localFS.addfile("du/fe", randomData(17));
     localFS.addfile("du/fi", randomData(16));
-#endif // ! NO_SIZE_FILTER
     localFS.addfolder("dx");
     localFS.addfile("fu");
     localFS.addfile("fx");
@@ -13129,14 +13121,12 @@ TEST_F(LocalToCloudFilterFixture, DoesntUploadIgnoredNodes)
 
     // Setup remote tree
     remoteTree = localFS;
-#ifndef NO_SIZE_FILTER
     remoteTree.removenode("db/fe0");
     remoteTree.removenode("db/fe1");
     remoteTree.removenode("dl/fe");
     remoteTree.removenode("dr/fe0");
     remoteTree.removenode("dr/fe1");
     remoteTree.removenode("du/fe");
-#endif // ! NO_SIZE_FILTER
     remoteTree.removenode("dx");
     remoteTree.removenode("fx");
 
@@ -13155,7 +13145,6 @@ TEST_F(LocalToCloudFilterFixture, DoesntUploadIgnoredNodes)
     ASSERT_TRUE(confirm(*cu, id, localFS));
     ASSERT_TRUE(confirm(*cu, id, remoteTree));
 
-#ifndef NO_SIZE_FILTER
     // Update du/fi so that it violates the size filter.
     localFS.addfile("du/fi", randomData(32768));
     localFS.generate(root(*cu) / "root");
@@ -13173,7 +13162,6 @@ TEST_F(LocalToCloudFilterFixture, DoesntUploadIgnoredNodes)
 
     // It should also be removed in the cloud due to above.
     remoteTree.removenode("du/fi");
-#endif // ! NO_SIZE_FILTER
 
     // Wait for the sync to complete.
     cu->triggerPeriodicScanEarly(id);
@@ -13300,17 +13288,13 @@ TEST_F(LocalToCloudFilterFixture, FilterChanged)
     localFS.addfile(".megaignore", "-:*y\nexclude-larger:2\n\n+sync:.megaignore");
     localFS.addfile("fx");
     localFS.addfile("fy");
-#ifndef NO_SIZE_FILTER
     localFS.addfile("fz", "xxx");
-#endif // ! NO_SIZE_FILTER
     localFS.generate(root(*cu) / "root");
 
     // fy should not be present in the remote tree.
     remoteTree = localFS;
     remoteTree.removenode("fy");
-#ifndef NO_SIZE_FILTER
     remoteTree.removenode("fz");
-#endif // ! NO_SIZE_FILTER
 
     // Log in client.
     ASSERT_TRUE(cu->makeCloudSubdirs("cu", 0, 0));
@@ -13989,9 +13973,7 @@ TEST_F(LocalToCloudFilterFixture, MoveToIgnoredRubbishesRemote)
     // Setup local FS.
     localFS.addfile("1/.megaignore", "-:f\nexclude-larger:1\n\n+sync:.megaignore");
     localFS.addfile("0/f", "f");
-#ifndef NO_SIZE_FILTER
     localFS.addfile("0/g", "gg");
-#endif // ! NO_SIZE_FILTER
     localFS.addfile(".megaignore", "+sync:.megaignore");
     localFS.generate(root(*cu) / "root");
 
@@ -14021,21 +14003,17 @@ TEST_F(LocalToCloudFilterFixture, MoveToIgnoredRubbishesRemote)
 
     localFS.movenode("0/f", "1");
 
-#ifndef NO_SIZE_FILTER
     // Move 0/g to 1/g.
     fs::rename(root(*cu) / "root" / "0" / "g",
                root(*cu) / "root" / "1" / "g");
 
     localFS.movenode("0/g", "1");
-#endif // ! NO_SIZE_FILTER
 
     // Neither 0/f or 1 are present in local or remote tree.
     remoteTree = localFS;
     remoteTree.removenode("1/f");
 
-#ifndef NO_SIZE_FILTER
     remoteTree.removenode("1/g");
-#endif // ! NO_SIZE_FILTER
 
     // Wait for sync to complete.
     cu->triggerPeriodicScanEarly(id);
@@ -14058,7 +14036,7 @@ TEST_F(LocalToCloudFilterFixture, OverwriteExcluded)
 
     // Set up local FS.
     localFS.addfile("d/f");
-    localFS.addfile("d/.megaignore", "+:f");
+    localFS.addfile("d/.megaignore", "+:f\n+sync:.megaignore");
     localFS.addfile("f");
     localFS.addfile(".megaignore", "+sync:.megaignore");
     localFS.generate(root(*cdu) / "root");
@@ -14185,9 +14163,9 @@ TEST_F(LocalToCloudFilterFixture, RenameReplaceIgnoreFile)
     // Populate local filesystem.
     Model model;
 
-    model.addfile("d0/.megaignore", "#");
-    model.addfile("d1/.megaignore", "#");
-    model.addfile(".megaignore", "+:.*");
+    model.addfile("d0/.megaignore", "+sync:.megaignore");
+    model.addfile("d1/.megaignore", "+sync:.megaignore");
+    model.addfile(".megaignore", "+:.*\n+sync:.megaignore");
     model.generate(root);
 
     // Wait for initial sync to complete.
@@ -14200,7 +14178,7 @@ TEST_F(LocalToCloudFilterFixture, RenameReplaceIgnoreFile)
     // Rename/Replace d0/.megaignore
     {
         // Rename .megaignore -> f
-        model.addfile("d0/f", "#");
+        model.addfile("d0/f", "+sync:.megaignore");
 
         fs::rename(root / "d0" / ".megaignore",
                    root / "d0" / "f");
@@ -14221,7 +14199,7 @@ TEST_F(LocalToCloudFilterFixture, RenameReplaceIgnoreFile)
     // Rename/Replace d1/.megaignore
     {
         // Rename .megaignore -> .f
-        model.addfile("d1/.f", "#");
+        model.addfile("d1/.f", "+sync:.megaignore");
 
         fs::rename(root / "d1" / ".megaignore",
                    root / "d1" / ".f");
@@ -14280,7 +14258,6 @@ TEST_F(CloudToLocalFilterFixture, DoesntDownloadIgnoredNodes)
         remoteTree.addfile(".megaignore", "-:f\n+sync:.megaignore");
         remoteTree.addfile("d/f");
         remoteTree.addfile("d/g");
-#ifndef NO_SIZE_FILTER
         remoteTree.addfile("db/.megaignore", "exclude-smaller:8\nexclude-larger:16");
         remoteTree.addfile("db/fe0", randomData(7));
         remoteTree.addfile("db/fe1", randomData(17));
@@ -14292,7 +14269,6 @@ TEST_F(CloudToLocalFilterFixture, DoesntDownloadIgnoredNodes)
         remoteTree.addfile("du/.megaignore", "exclude-larger:16");
         remoteTree.addfile("du/fe", randomData(17));
         remoteTree.addfile("du/fi", randomData(16));
-#endif // ! NO_SIZE_FILTER
         remoteTree.addfile("f");
         remoteTree.addfile("g");
         remoteTree.generate(lRoot);
@@ -14315,14 +14291,12 @@ TEST_F(CloudToLocalFilterFixture, DoesntDownloadIgnoredNodes)
     LocalFSModel localFS = remoteTree;
 
     localFS.removenode("d/f");
-#ifndef NO_SIZE_FILTER
     localFS.removenode("db/fe0");
     localFS.removenode("db/fe1");
     localFS.removenode("dl/fe");
     localFS.removenode("dr/fe0");
     localFS.removenode("dr/fe1");
     localFS.removenode("du/fe");
-#endif // ! NO_SIZE_FILTER
     localFS.removenode("f");
 
     // Add and start sync.
@@ -14338,7 +14312,6 @@ TEST_F(CloudToLocalFilterFixture, DoesntDownloadIgnoredNodes)
     ASSERT_TRUE(confirm(*cd, id, localFS));
     ASSERT_TRUE(confirm(*cd, id, remoteTree));
 
-#ifndef NO_SIZE_FILTER
     // Change du/fi's size such that it violates the size filter.
     {
         auto data = randomData(24);
@@ -14375,7 +14348,6 @@ TEST_F(CloudToLocalFilterFixture, DoesntDownloadIgnoredNodes)
     // Everything as we'd expect?
     ASSERT_TRUE(confirm(*cd, id, localFS));
     ASSERT_TRUE(confirm(*cd, id, remoteTree));
-#endif // ! NO_SIZE_FILTER
 }
 
 TEST_F(CloudToLocalFilterFixture, DoesntMoveIgnoredNodes)
@@ -14612,9 +14584,7 @@ TEST_F(CloudToLocalFilterFixture, DoesntUploadIgnoredNodes)
     localFS.addfile("db/g.txt", "dbg");
     localFS.addfile("f.txt", "rf");
     localFS.addfile("g.txt", "rg");
-#ifndef NO_SIZE_FILTER
     localFS.addfile("h.txt", "!");
-#endif // NO_SIZE_FILTER
     localFS.generate(root(*cd) / "root");
     localFS.addfile(".megaignore", ignoreFile);
 
@@ -14622,9 +14592,7 @@ TEST_F(CloudToLocalFilterFixture, DoesntUploadIgnoredNodes)
     remoteTree.removenode("da");
     remoteTree.removenode("db/f.txt");
     remoteTree.removenode("f.txt");
-#ifndef NO_SIZE_FILTER
     remoteTree.removenode("h.txt");
-#endif // NO_SIZE_FILTER
 
     // Add and start sync.
     auto id = setupSync(*cd, "root", "x", false);
@@ -14927,7 +14895,7 @@ TEST_F(CloudToLocalFilterFixture, FilterDeferredChange)
     // Set up local FS.
     LocalFSModel localFS;
 
-    localFS.addfile(".megaignore", "-:d");
+    localFS.addfile(".megaignore", "-:d\n+sync:.megaignore");
 
     // Set up remote model.
     RemoteNodeModel remoteTree = model;
@@ -15513,10 +15481,8 @@ TEST_F(CloudToLocalFilterFixture, MoveToIgnoredRubbishesRemote)
 
     // Set up local FS.
     localFS.addfile("f");
-#ifndef NO_SIZE_FILTER
     localFS.addfile("g");
-    localFS.addfile("x/.megaignore", "exclude-smaller:2\n");
-#endif // ! NO_SIZE_FILTER
+    localFS.addfile("x/.megaignore", "exclude-smaller:2\n+sync:.megaignore");
     localFS.addfile(".megaignore", "-:d\n+sync:.megaignore");
     localFS.generate(root(*cdu) / "root");
 
@@ -15569,10 +15535,8 @@ TEST_F(CloudToLocalFilterFixture, MoveToIgnoredRubbishesRemote)
         // Move f to d/f.
         ASSERT_TRUE(cdu->movenode("cdu/f", "cdu/d"));
 
-#ifndef NO_SIZE_FILTER
         // Move g to x/g.
         ASSERT_TRUE(cdu->movenode("cdu/g", "cdu/x"));
-#endif // ! NO_SIZE_FILTER
 
         // f and g should have been moved into the local debris.
         localFS.copynode("f", debrisFilePath("f"));
@@ -15581,13 +15545,11 @@ TEST_F(CloudToLocalFilterFixture, MoveToIgnoredRubbishesRemote)
         // f has moved to d/f in the cloud.
         remoteTree.movenode("f", "d");
 
-#ifndef NO_SIZE_FILTER
         localFS.copynode("g", debrisFilePath("g"));
         localFS.removenode("g");
 
         // g has moved to x/g in the cloud.
         remoteTree.movenode("g", "x");
-#endif // ! NO_SIZE_FILTER
 
         // Wait for all the clients to receive the changes.
         auto predicate = SyncRemoteMatch("cdu", remoteTree.root.get());
@@ -15612,7 +15574,7 @@ TEST_F(CloudToLocalFilterFixture, OverwriteExcluded)
     LocalFSModel localFS;
 
     localFS.addfile("d/f");
-    localFS.addfile("d/.megaignore", "+:f");
+    localFS.addfile("d/.megaignore", "+:f\n+sync:.megaignore");
     localFS.addfile("f");
     localFS.addfile(".megaignore", "+sync:.megaignore");
     localFS.generate(root(*cdu) / "root");
