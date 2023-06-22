@@ -25520,12 +25520,12 @@ void MegaApiImpl::getPreviewElementNode(MegaHandle eid, MegaRequestListener* lis
             return API_ENOENT;
         }
 
-        m_time_t ts = 0; // all foreign nodes' creation time must be set to 0 (so don't use node metadata's ts?)
         FileFingerprint ffp;
         m_time_t tm = ffp.unserializefingerprint(&nm->fingerprint) ? ffp.mtime : 0;
+        unique_ptr<const char[]> megaApiImplFingerprint(getSdkFingerprintFromMegaFingerprint(nm->fingerprint.c_str(), nm->s));
 
-        MegaNodePrivate ret(nm->filename.c_str(), FILENODE, nm->s, ts, tm, nm->h, &element->key(), &nm->fa, nm->fingerprint.c_str(),
-                            nullptr, INVALID_HANDLE, INVALID_HANDLE, nullptr, nullptr, false /*isPublic*/, true /*isForeign*/);
+        MegaNodePrivate ret(nm->filename.c_str(), FILENODE, nm->s, nm->ts, tm, nm->h, &element->key(), &nm->fa, megaApiImplFingerprint.get(),
+                            nullptr, nm->u, INVALID_HANDLE, nullptr, nullptr, false /*isPublic*/, true /*isForeign*/);
         request->setPublicNode(&ret);
 
         fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
