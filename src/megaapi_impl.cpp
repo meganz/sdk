@@ -30040,6 +30040,12 @@ MegaTCPContext::~MegaTCPContext()
         evt_tls_free(evt_tls);
     }
 #endif
+
+    if(!finished) // Set listener pointers to NULL upon premature destruction
+    {
+        megaApi->removeTransferListener(this);
+        megaApi->removeRequestListener(this);
+    }
 }
 
 void MegaTCPServer::onAsyncEvent(uv_async_t* handle)
