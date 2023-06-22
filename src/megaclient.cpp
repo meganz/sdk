@@ -19999,7 +19999,7 @@ bool MegaClient::procaesp(JSON& j)
 
 error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<handle, elementsmap_t>& newElements)
 {
-    std::unique_ptr<std::map<handle, NodeMetadata>> nodeData;
+    std::unique_ptr<std::map<handle, SetElement::NodeMetadata>> nodeData;
 
     for (bool loopAgain = true; loopAgain;)
     {
@@ -20031,7 +20031,7 @@ error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<ha
 
         case MAKENAMEID1('n'):
         {
-            nodeData.reset(new std::map<handle, NodeMetadata>());
+            nodeData.reset(new std::map<handle, SetElement::NodeMetadata>());
             error e = readAllNodeMetadata(j, *nodeData);
             if (e != API_OK) return e;
             break;
@@ -20073,7 +20073,7 @@ error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<ha
     return API_OK;
 }
 
-size_t MegaClient::decryptAllSets(map<handle, Set>& newSets, map<handle, elementsmap_t>& newElements, map<handle, NodeMetadata>* nodeData)
+size_t MegaClient::decryptAllSets(map<handle, Set>& newSets, map<handle, elementsmap_t>& newElements, map<handle, SetElement::NodeMetadata>* nodeData)
 {
     size_t elCount = 0;
 
@@ -20112,7 +20112,7 @@ size_t MegaClient::decryptAllSets(map<handle, Set>& newSets, map<handle, element
                     auto itNode = nodeData->find(itE->second.node());
                     if (itNode != nodeData->end())
                     {
-                        NodeMetadata& nodeMeta = itNode->second;
+                        SetElement::NodeMetadata& nodeMeta = itNode->second;
 
                         if (!nodeMeta.at.empty() && decryptNodeMetadata(nodeMeta, itE->second.key()))
                         {
@@ -20451,7 +20451,7 @@ error MegaClient::readElement(JSON& j, SetElement& el)
     }
 }
 
-error MegaClient::readAllNodeMetadata(JSON& j, map<handle, NodeMetadata>& nodes)
+error MegaClient::readAllNodeMetadata(JSON& j, map<handle, SetElement::NodeMetadata>& nodes)
 {
     if (!j.enterarray())
     {
@@ -20460,7 +20460,7 @@ error MegaClient::readAllNodeMetadata(JSON& j, map<handle, NodeMetadata>& nodes)
 
     while (j.enterobject())
     {
-        NodeMetadata eln;
+        SetElement::NodeMetadata eln;
         error e = readSingleNodeMetadata(j, eln);
         if (e)
         {
@@ -20475,7 +20475,7 @@ error MegaClient::readAllNodeMetadata(JSON& j, map<handle, NodeMetadata>& nodes)
     return API_OK;
 }
 
-error MegaClient::readSingleNodeMetadata(JSON& j, NodeMetadata& eln)
+error MegaClient::readSingleNodeMetadata(JSON& j, SetElement::NodeMetadata& eln)
 {
     for (;;)
     {
@@ -20525,7 +20525,7 @@ error MegaClient::readSingleNodeMetadata(JSON& j, NodeMetadata& eln)
     }
 }
 
-bool MegaClient::decryptNodeMetadata(NodeMetadata& nodeMeta, const string& key)
+bool MegaClient::decryptNodeMetadata(SetElement::NodeMetadata& nodeMeta, const string& key)
 {
     SymmCipher* cipher = getRecycledTemporaryNodeCipher(&key);
     std::unique_ptr<byte[]> buf;

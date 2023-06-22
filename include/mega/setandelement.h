@@ -118,18 +118,6 @@ namespace mega {
         }
     };
 
-    struct NodeMetadata
-    {
-        handle h = UNDEF; // node handle
-        handle u = UNDEF; // owning user
-        m_off_t s = 0; // size
-        string at; // node attributes
-        string fingerprint;
-        string filename;
-        string fa; // file attributes
-        m_time_t ts; // timestamp
-    };
-
     /**
      * @brief Internal representation of an Element
      */
@@ -151,8 +139,6 @@ namespace mega {
         // return handle of the node represented by this Element
         const handle& node() const { return mNodeHandle; }
 
-        const NodeMetadata* nodeMetadata() const { return mNodeMetadata.get(); }
-
         // return order of this Element
         int64_t order() const { return mOrder ? *mOrder : 0; }
 
@@ -161,12 +147,6 @@ namespace mega {
 
         // set handle of the node represented by this Element
         void setNode(handle nh) { mNodeHandle = nh; mNodeMetadata.reset(); }
-
-        void setNodeMetadata(NodeMetadata&& nm)
-        {
-            assert(mNodeHandle == nm.h);
-            mNodeMetadata.reset(new NodeMetadata(std::move(nm)));
-        }
 
         // set order of this Element
         void setOrder(int64_t order);
@@ -213,6 +193,27 @@ namespace mega {
 
             CH_EL_SIZE
         };
+
+        struct NodeMetadata
+        {
+            handle h = UNDEF; // node handle
+            handle u = UNDEF; // owning user
+            m_off_t s = 0; // size
+            string at; // node attributes
+            string fingerprint;
+            string filename;
+            string fa; // file attributes
+            m_time_t ts; // timestamp
+        };
+
+        // return node metadata in case of Element in preview, null otherwise
+        const NodeMetadata* nodeMetadata() const { return mNodeMetadata.get(); }
+
+        void setNodeMetadata(NodeMetadata&& nm)
+        {
+            assert(mNodeHandle == nm.h);
+            mNodeMetadata.reset(new NodeMetadata(std::move(nm)));
+        }
 
     private:
         handle mSetId = UNDEF;
