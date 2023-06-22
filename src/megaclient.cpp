@@ -20062,7 +20062,10 @@ error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<ha
     }
 
     // decrypt data, and confirm that all elements are valid
-    size_t elCount = decryptAllSets(newSets, newElements, nodeData.get());
+#ifndef NDEBUG
+    size_t elCount =
+#endif
+    decryptAllSets(newSets, newElements, nodeData.get());
 
     // check for orphan Elements, it should not happen
     assert(elCount == [&newElements]() { size_t c = 0; for (const auto& els : newElements) c += els.second.size(); return c; } ());
