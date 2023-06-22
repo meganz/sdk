@@ -12324,7 +12324,7 @@ void MegaClient::loginResult(error e, std::function<void()> onLoginOk)
                     return;
                 }
 
-                upgradeAccountToV2(pwd, [this, onLoginOk](error e)
+                upgradeAccountToV2(pwd, restag, [this, onLoginOk](error e)
                     {
                         // handle upgrade result
                         if (e == API_EEXIST)
@@ -12406,7 +12406,7 @@ void MegaClient::saveV1Pwd(const char* pwd)
     }
 }
 
-void MegaClient::upgradeAccountToV2(const string& pwd, std::function<void(error e)> completion)
+void MegaClient::upgradeAccountToV2(const string& pwd, int ctag, std::function<void(error e)> completion)
 {
     assert(loggedin() == FULLACCOUNT);
     assert(accountversion == 1);
@@ -12419,7 +12419,7 @@ void MegaClient::upgradeAccountToV2(const string& pwd, std::function<void(error 
 
     fillCypheredAccountDataV2(pwd.c_str(), clientRandomValue, encmasterkey, hashedauthkey, salt);
 
-    reqs.add(new CommandAccountVersionUpgrade(std::move(clientRandomValue), std::move(encmasterkey), std::move(hashedauthkey), std::move(salt), reqtag, completion));
+    reqs.add(new CommandAccountVersionUpgrade(std::move(clientRandomValue), std::move(encmasterkey), std::move(hashedauthkey), std::move(salt), ctag, completion));
 }
 // -------- end of Account upgrade to V2
 

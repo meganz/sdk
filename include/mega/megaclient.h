@@ -798,7 +798,7 @@ public:
 public:
     void saveV1Pwd(const char* pwd);
 private:
-    void upgradeAccountToV2(const string& pwd, std::function<void(error e)> completion);
+    void upgradeAccountToV2(const string& pwd, int ctag, std::function<void(error e)> completion);
     // temporarily stores v1 account password, to allow automatic upgrade to v2 after successful (full-)login
     unique_ptr<pair<string, SymmCipher>> mV1PswdVault;
 // -------- end of Account upgrade to V2
