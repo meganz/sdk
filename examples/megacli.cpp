@@ -10801,10 +10801,13 @@ void exec_setsandelements(autocomplete::ACState& s)
             {
                 cout << "\tElement found in preview Set\n";
 
-                fileSize = element->nodeMetadata()->s;
-                fileName = element->nodeMetadata()->filename;
-                fingerprint = element->nodeMetadata()->fingerprint;
-                fileattrstring = element->nodeMetadata()->fa;
+                if (element->nodeMetadata()) // only present starting with 'aft' v2
+                {
+                    fileSize = element->nodeMetadata()->s;
+                    fileName = element->nodeMetadata()->filename;
+                    fingerprint = element->nodeMetadata()->fingerprint;
+                    fileattrstring = element->nodeMetadata()->fa;
+                }
             }
             else if (!isClientLoggedIn())
             {
