@@ -20491,11 +20491,17 @@ error MegaClient::readSingleNodeMetadata(JSON& j, NodeMetadata& eln)
             break;
 
         case MAKENAMEID2('a', 't'):
-            j.storeobject(&eln.at);
+            if (!j.storeobject(&eln.at))
+            {
+                LOG_err << "Sets: Failed to read node attributes";
+            }
             break;
 
         case MAKENAMEID2('f', 'a'):
-            j.storeobject(&eln.fa);
+            if (!j.storeobject(&eln.fa))
+            {
+                LOG_err << "Sets: Failed to read file attributes";
+            }
             break;
 
         case MAKENAMEID2('t', 's'):
@@ -20529,7 +20535,7 @@ bool MegaClient::decryptNodeMetadata(NodeMetadata& nodeMeta, const string& key)
 
     // all good, let's parse the attribute string
     JSON attrJson;
-    attrJson.begin(reinterpret_cast<const char*>(buf.get()) + 5);
+    attrJson.begin(reinterpret_cast<const char*>(buf.get()) + 5); // skip "MEGA{" prefix
 
     for (bool jsonHasData = true; jsonHasData;)
     {
