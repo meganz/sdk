@@ -121,8 +121,9 @@ struct RequestTracker : public ::mega::MegaRequestListener
         : mApi(api)
         , onFinish(finish)
     {
+    }
 
-    ~RequestTracker()
+    ~RequestTracker() override
     {
         mApi->removeRequestListener(this);
     }
