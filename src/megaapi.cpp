@@ -1625,7 +1625,8 @@ void MegaRequestListener::onRequestUpdate(MegaApi *, MegaRequest *)
 { }
 void MegaRequestListener::onRequestTemporaryError(MegaApi *, MegaRequest *, MegaError *)
 { }
-MegaRequestListener::~MegaRequestListener() { std::cout << "[~MegaRequestListener] this = " << this << std::endl; }
+MegaRequestListener::~MegaRequestListener()
+{ }
 
 
 SynchronousRequestListener::SynchronousRequestListener()
