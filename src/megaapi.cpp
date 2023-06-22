@@ -537,7 +537,7 @@ bool MegaNode::isRemoved()
     return false;
 }
 
-bool MegaNode::isMarkedSensitive() 
+bool MegaNode::isMarkedSensitive()
 {
     return false;
 }
@@ -3987,10 +3987,10 @@ bool MegaApi::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, bool re
 }
 
 MegaNode *MegaApi::createForeignFileNode(MegaHandle handle, const char *key,
-                                    const char *name, int64_t size, int64_t mtime,
+                                    const char *name, int64_t size, int64_t mtime, const char* fingerprintCrc,
                                         MegaHandle parentHandle, const char *privateAuth, const char *publicAuth, const char *chatAuth)
 {
-    return pImpl->createForeignFileNode(handle, key, name, size, mtime, parentHandle, privateAuth, publicAuth, chatAuth);
+    return pImpl->createForeignFileNode(handle, key, name, size, mtime, fingerprintCrc, parentHandle, privateAuth, publicAuth, chatAuth);
 }
 
 void MegaApi::getLastAvailableVersion(const char *appKey, MegaRequestListener *listener)

@@ -30,9 +30,7 @@ cryptopp/c303dd024e2dc03a0665ddffbb12a1077933e649
 curl/7375bb408f2278d2f1875c259beef93332697ba7 all:on ios:off
 curl[core,sectransp]/7375bb408f2278d2f1875c259beef93332697ba7 all:off ios:curl-for-ios.patch
 libsodium/92adeffbce95847e141411177248ed04ac49ea9b all:on ios:libsodium-ios.patch
-openssl/c303dd024e2dc03a0665ddffbb12a1077933e649 ios:off osx:off
-openssl-unix/c303dd024e2dc03a0665ddffbb12a1077933e649 all:off linux:on
-openssl-windows/c303dd024e2dc03a0665ddffbb12a1077933e649 all:off windows:on
+openssl/6172c4b5a08aecf5755f753c6338fa74103d39cf ios:off osx:off
 
 # needed by external projects which still rely on SDK to fetch and build it; SDK no longer uses PCRE
 # this is the minimum version after PCRE's ftp server switched

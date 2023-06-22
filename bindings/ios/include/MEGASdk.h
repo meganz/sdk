@@ -5202,6 +5202,25 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
 - (void)queryTransferQuotaWithSize:(long long)size;
 
 /**
+ * @brief Get the recommended PRO level. The smallest plan that is an upgrade (free -> lite -> proi -> proii -> proiii)
+ * and has enough space.
+ *
+ * The associated request type with this request is MEGARequestTypeGetRecommenedProPlan.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest getNumber] the recommended PRO level:
+ *     Valid values are (there are other account types):
+ *     - MEGAAccountTypeFree = 0
+ *     - MEGAAccountTypeProI = 1
+ *     - MEGAAccountTypeProII = 2
+ *     - MEGAAccountTypeProIII = 3
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getRecommendedProLevelWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
  * @brief Get the available pricing plans to upgrade a MEGA account.
  *
  * You can get a payment URL for any of the pricing plans provided by this function

@@ -64,7 +64,15 @@ static void tls_begin(void)
 {
     SSL_library_init();
     SSL_load_error_strings();
+#ifdef _WIN32
+// Disable 4996 warning for Windows. Starting on OpenSSL 3
+// It could be removed when ERR_load_BIO_strings usage in this function is updated.
+#pragma warning( disable : 4996)
+#endif
     ERR_load_BIO_strings();
+#ifdef _WIN32
+#pragma warning( default : 4996) // Restore default bahaviour
+#endif
     OpenSSL_add_all_algorithms();
     ERR_load_crypto_strings();
 }
