@@ -20061,8 +20061,19 @@ error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<ha
         }
     }
 
-    // decrypt data
-    size_t elCount = 0; // Elements related to known Sets and successfully decrypted
+    // decrypt data, and confirm that all elements are valid
+    size_t elCount = decryptAllSets(newSets, newElements, nodeData.get());
+
+    // check for orphan Elements, it should not happen
+    assert(elCount == [&newElements]() { size_t c = 0; for (const auto& els : newElements) c += els.second.size(); return c; } ());
+
+    return API_OK;
+}
+
+size_t MegaClient::decryptAllSets(map<handle, Set>& newSets, map<handle, elementsmap_t>& newElements, map<handle, NodeMetadata>* nodeData)
+{
+    size_t elCount = 0;
+
     for (auto itS = newSets.begin(); itS != newSets.end();)
     {
         error e = decryptSetData(itS->second);
@@ -20124,10 +20135,7 @@ error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<ha
         ++itS;
     }
 
-    // check for orphan Elements, it should not happen
-    assert(elCount == [&newElements]() { size_t c = 0; for (const auto& els : newElements) c += els.second.size(); return c; } ());
-
-    return API_OK;
+    return elCount;
 }
 
 error MegaClient::decryptSetData(Set& s)
@@ -20510,7 +20518,7 @@ error MegaClient::readSingleNodeMetadata(JSON& j, NodeMetadata& eln)
 
 bool MegaClient::decryptNodeMetadata(NodeMetadata& nodeMeta, const string& key)
 {
-    SymmCipher* cipher = getRecycledTemporaryTransferCipher(reinterpret_cast<const byte*>(key.c_str()), FILENODE);
+    SymmCipher* cipher = getRecycledTemporaryNodeCipher(&key);
     std::unique_ptr<byte[]> buf;
     buf.reset(Node::decryptattr(cipher, nodeMeta.at.c_str(), nodeMeta.at.size()));
     if (!buf)
