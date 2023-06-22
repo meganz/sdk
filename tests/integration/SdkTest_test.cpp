@@ -14067,3 +14067,27 @@ TEST_F(SdkTest, SdkTestJourneyTracking)
     journeyId = newJourneyId; // Update journeyId reference (captured in lambda functions)
     checkJourneyId(9, true);
 }
+
+/**
+ * @brief TEST_F SdkTestDeleteListenerBeforeFinishingRequest
+ *
+ * Tests deleting the listener after a request has started and before it has finished (before fireOnRequestFinish() call).
+ */
+TEST_F(SdkTest, SdkTestDeleteListenerBeforeFinishingRequest)
+{
+    LOG_info << "___TEST SdkTestDeleteListenerBeforeFinishingRequest";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    {
+        string link = MegaClient::MEGAURL+"/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns";
+        auto rt = std::make_unique<RequestTracker>(megaApi[0].get());
+
+        std::unique_ptr<MegaNode> parent{megaApi[0]->getRootNode()};
+        mApi[0].megaApi->importFileLink(link.c_str(), parent.get(), rt.get());
+
+        // Brief wait before getting out of the scope (RequestTracker object, the one used as the listener, will be deleted afterwards)
+        std::this_thread::sleep_for(std::chrono::milliseconds{10});
+
+        ASSERT_TRUE(rt->request == nullptr) << "RequestTrack's request is not nullptr. onRequestFinish() has been called before deletion";
+    }
+}
