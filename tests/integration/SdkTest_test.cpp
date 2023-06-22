@@ -14085,9 +14085,14 @@ TEST_F(SdkTest, SdkTestDeleteListenerBeforeFinishingRequest)
         std::unique_ptr<MegaNode> parent{megaApi[0]->getRootNode()};
         mApi[0].megaApi->importFileLink(link.c_str(), parent.get(), rt.get());
 
-        // Brief wait before getting out of the scope (RequestTracker object, the one used as the listener, will be deleted afterwards)
-        std::this_thread::sleep_for(std::chrono::milliseconds{10});
-
-        ASSERT_TRUE(rt->request == nullptr) << "RequestTrack's request is not nullptr. onRequestFinish() has been called before deletion";
+        // Brief wait for the request to start before getting out of the scope
+        // The RequestTracker object, the one used as the listener, will be deleted after the scope ends
+        const auto start = std::chrono::steady_clock::now();
+        while (!rt->started.load() && ((std::chrono::steady_clock::now() - start) < std::chrono::seconds(maxTimeout))) // Timeout just in case it never starts
+        {
+            std::this_thread::sleep_for(std::chrono::microseconds{10});
+        }
+        ASSERT_TRUE(rt->started);
+        ASSERT_FALSE(rt->finished);
     }
 }
