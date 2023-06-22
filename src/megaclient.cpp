@@ -1108,6 +1108,7 @@ void SCSN::clear()
 {
     memset(scsn, 0, sizeof(scsn));
     stopsc = false;
+    LOG_debug << "scsn cleared";
 }
 
 // set server-client sequence number
@@ -1127,13 +1128,19 @@ bool SCSN::setScsn(JSON* j)
 
 void SCSN::setScsn(handle h)
 {
+    bool wasReady = ready();
     Base64::btoa((byte*)&h, sizeof h, scsn);
+    if (ready() != wasReady)
+    {
+        LOG_debug << "scsn now ready: " << ready();
+    }
 }
 
 void SCSN::stopScsn()
 {
     memset(scsn, 0, sizeof(scsn));
     stopsc = true;
+    LOG_debug << "scsn stopped";
 }
 
 bool SCSN::ready() const
