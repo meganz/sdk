@@ -14080,7 +14080,7 @@ TEST_F(SdkTest, SdkTestDeleteListenerBeforeFinishingRequest)
 
     {
         string link = MegaClient::MEGAURL+"/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns";
-        auto rt = mega::make_unique<RequestTracker>(megaApi[0].get());
+        auto rt = ::mega::make_unique<RequestTracker>(megaApi[0].get());
 
         std::unique_ptr<MegaNode> parent{megaApi[0]->getRootNode()};
         mApi[0].megaApi->importFileLink(link.c_str(), parent.get(), rt.get());
