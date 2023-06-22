@@ -6983,12 +6983,13 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
                 }
             }
 
-            if (ignoreRow)
+            if (ignoreRow && ignoreRow->syncNode && ignoreRow->syncNode->transferSP)
             {
                 if (!row.syncNode->rareRO().filterChain ||
                     !row.syncNode->rareRO().filterChain->mLoadSucceeded)
                 {
-                    // we can't calculate what's included, come back when the .megaignore is present and well-formed
+                    // we can't calculate what's included yet.  Let the download complete
+                    // and come back when the .megaignore is present and well-formed
                     break;
                 }
             }
