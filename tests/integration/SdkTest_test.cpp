@@ -14067,3 +14067,32 @@ TEST_F(SdkTest, SdkTestJourneyTracking)
     journeyId = newJourneyId; // Update journeyId reference (captured in lambda functions)
     checkJourneyId(9, true);
 }
+
+/**
+ * @brief TEST_F SdkTestDeleteListenerBeforeFinishingRequest
+ *
+ * Tests deleting the listener after a request has started and before it has finished (before fireOnRequestFinish() call).
+ */
+TEST_F(SdkTest, SdkTestDeleteListenerBeforeFinishingRequest)
+{
+    LOG_info << "___TEST SdkTestDeleteListenerBeforeFinishingRequest";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    {
+        string link = MegaClient::MEGAURL+"/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns";
+        auto rt = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+
+        std::unique_ptr<MegaNode> parent{megaApi[0]->getRootNode()};
+        mApi[0].megaApi->importFileLink(link.c_str(), parent.get(), rt.get());
+
+        // Brief wait for the request to start before getting out of the scope
+        // The RequestTracker object, the one used as the listener, will be deleted after the scope ends
+        const auto start = std::chrono::steady_clock::now();
+        while (!rt->started.load() && ((std::chrono::steady_clock::now() - start) < std::chrono::seconds(maxTimeout))) // Timeout just in case it never starts
+        {
+            std::this_thread::sleep_for(std::chrono::microseconds{10});
+        }
+        ASSERT_TRUE(rt->started);
+        ASSERT_FALSE(rt->finished);
+    }
+}
