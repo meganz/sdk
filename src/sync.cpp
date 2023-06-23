@@ -6696,16 +6696,28 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
 
         bool invalidateExclusions = false;
 
-        if (ignoreFile && !row.syncNode->rareRO().filterChain)
+        if (ignoreRow && !row.syncNode->rareRO().filterChain)
         {
-            LOG_debug << syncname << ".megaignore file detected inside " << logTriplet(row, fullPath);
+            // instantiate filterChain as soon as we have a row, even if we don't have a
+            // local file yet, in order to prevent any sync steps for other things until
+            // we get the local file by download, or stall if there are cloud duplicates etc.
+            LOG_debug << syncname << ".megaignore row detected inside " << logTriplet(row, fullPath);
             row.syncNode->rare().filterChain.reset(new FilterChain);
             invalidateExclusions = true;
         }
-        if (!ignoreFile && row.syncNode->rareRO().filterChain)
+        if (!ignoreRow && row.syncNode->rareRO().filterChain)
+        {
+            LOG_debug << syncname << ".megaignore row disappeared inside " << logTriplet(row, fullPath);
+            row.syncNode->rare().filterChain.reset();
+            invalidateExclusions = true;
+        }
+        if (ignoreRow && !ignoreFile &&
+            row.syncNode->rareRO().filterChain &&
+            row.syncNode->rare().filterChain->mLoadSucceeded)
         {
             LOG_debug << syncname << ".megaignore file disappeared inside " << logTriplet(row, fullPath);
-            row.syncNode->rare().filterChain.reset();
+            row.syncNode->rare().filterChain->mFingerprint = FileFingerprint();
+            row.syncNode->rare().filterChain->mLoadSucceeded = false;
             invalidateExclusions = true;
         }
         if (ignoreFile && row.syncNode->rareRO().filterChain)
@@ -6983,7 +6995,7 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
                 }
             }
 
-            if (ignoreRow && ignoreRow->syncNode && ignoreRow->syncNode->transferSP)
+            if (ignoreRow && ignoreRow->syncNode /*&& ignoreRow->syncNode->transferSP*/)
             {
                 if (!row.syncNode->rareRO().filterChain ||
                     !row.syncNode->rareRO().filterChain->mLoadSucceeded)

@@ -3374,14 +3374,22 @@ LocalNode::exclusionState(const PathType& path, nodetype_t type, m_off_t size) c
 
     if (rareRO().filterChain)
     {
+        auto& fc = rareRO().filterChain;
+        if (type == FILENODE && path == IGNORE_FILE_NAME)
+        {
+            // if there's no local file, allow download
+            if (!fc->mFingerprint.isvalid) return ES_INCLUDED;
+
+            // Make sure we evaluate the local content first to see if it has the sync flag
+            // if we can't load it yet, the user must adjust it before we can know
+            if (!fc->mLoadSucceeded) return ES_EXCLUDED;
+
+            // Ignore files are synced or not depending on flags in the file text
+            return fc->mSyncThisMegaignore ? ES_INCLUDED : ES_EXCLUDED;
+        }
         if (!rareRO().filterChain->mLoadSucceeded)
         {
             return ES_UNKNOWN;
-        }
-        else if (type == FILENODE && path == IGNORE_FILE_NAME)
-        {
-            // Ignore files are synced or not depending on flags in the file text
-            return rareRO().filterChain->mSyncThisMegaignore ? ES_INCLUDED : ES_EXCLUDED;
         }
     }
 

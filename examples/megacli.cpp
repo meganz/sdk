@@ -3987,7 +3987,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_mkdir, sequence(text("mkdir"), opt(flag("-allowduplicate")), opt(flag("-exactleafname")), remoteFSFolder(client, &cwd)));
     p->Add(exec_rm, sequence(text("rm"), remoteFSPath(client, &cwd), opt(sequence(flag("-regexchild"), param("regex")))));
     p->Add(exec_mv, sequence(text("mv"), remoteFSPath(client, &cwd, "src"), remoteFSPath(client, &cwd, "dst")));
-    p->Add(exec_cp, sequence(text("cp"), opt(flag("-noversion")), opt(flag("-version")), opt(flag("-versionreplace")), remoteFSPath(client, &cwd, "src"), either(remoteFSPath(client, &cwd, "dst"), param("dstemail"))));
+    p->Add(exec_cp, sequence(text("cp"), opt(flag("-noversion")), opt(flag("-version")), opt(flag("-versionreplace")), opt(flag("-allowduplicateversions")), remoteFSPath(client, &cwd, "src"), either(remoteFSPath(client, &cwd, "dst"), param("dstemail"))));
     p->Add(exec_du, sequence(text("du"), opt(flag("-listfolders")), opt(remoteFSPath(client, &cwd))));
     p->Add(exec_numberofnodes, sequence(text("nn")));
     p->Add(exec_numberofchildren, sequence(text("nc"), opt(remoteFSPath(client, &cwd))));
@@ -4793,6 +4793,8 @@ void exec_cp(autocomplete::ACState& s)
     if (s.extractflag("-version")) vo = ClaimOldVersion;
     if (s.extractflag("-versionreplace")) vo = ReplaceOldVersion;
 
+    bool allowDuplicateVersions = s.extractflag("-allowduplicateversions");
+
     if (s.words.size() > 2)
     {
         if ((n = nodebypath(s.words[1].s.c_str())))
@@ -4873,7 +4875,7 @@ void exec_cp(autocomplete::ACState& s)
                 }
             }
 
-            if (tn && n->type == FILENODE)
+            if (tn && n->type == FILENODE && !allowDuplicateVersions)
             {
                 Node *ovn = client->childnodebyname(tn, sname.c_str(), true);
                 if (ovn)
