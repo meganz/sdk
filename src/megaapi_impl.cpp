@@ -6626,42 +6626,11 @@ void MegaApiImpl::resendSignupLink(const char *email, const char *name, MegaRequ
     waiter->notify();
 }
 
-void MegaApiImpl::fastSendSignupLink(const char *email, const char *base64pwkey, const char *name, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SEND_SIGNUP_LINK, listener);
-    request->setEmail(email);
-    request->setPrivateKey(base64pwkey);
-    request->setName(name);
-
-    request->performRequest = [this, request]()
-    {
-        return performRequest_sendSignupLink(request);
-    };
-
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::confirmAccount(const char* link, const char *password, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CONFIRM_ACCOUNT, listener);
     request->setLink(link);
     request->setPassword(password);
-
-    request->performRequest = [this, request]()
-    {
-        return performRequest_confirmAccount(request);
-    };
-
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::fastConfirmAccount(const char* link, const char *base64pwkey, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CONFIRM_ACCOUNT, listener);
-    request->setLink(link);
-    request->setPrivateKey(base64pwkey);
 
     request->performRequest = [this, request]()
     {
@@ -21074,11 +21043,6 @@ error MegaApiImpl::performRequest_createAccount(MegaRequestPrivate* request)
 
 error MegaApiImpl::performRequest_sendSignupLink(MegaRequestPrivate* request)
 {
-            if (request->getPrivateKey())
-            {
-                // obsolete. Use registration flow v2: calling (re)sendSignupLink() instead of fastSendSignupLink()
-                return API_EINTERNAL;
-            }
             const char *email = request->getEmail();
             const char *name = request->getName();
             if (!email || !name)
@@ -21200,12 +21164,6 @@ error MegaApiImpl::performRequest_confirmAccount(MegaRequestPrivate* request)
             if (!link || !password)
             {
                 return API_EARGS;
-            }
-
-            if (request->getPrivateKey())
-            {
-                // obsolete. Use registration flow v2
-                return API_EINTERNAL;
             }
 
             const char* ptr = link;

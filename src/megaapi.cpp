@@ -2355,11 +2355,6 @@ void MegaApi::resendSignupLink(const char *email, const char *name, MegaRequestL
     pImpl->resendSignupLink(email, name, listener);
 }
 
-void MegaApi::fastSendSignupLink(const char *email, const char *base64pwkey, const char *name, MegaRequestListener *listener)
-{
-    pImpl->fastSendSignupLink(email, base64pwkey, name, listener);
-}
-
 void MegaApi::querySignupLink(const char* link, MegaRequestListener *listener)
 {
     pImpl->querySignupLink(link, listener);
@@ -2368,11 +2363,6 @@ void MegaApi::querySignupLink(const char* link, MegaRequestListener *listener)
 void MegaApi::confirmAccount(const char* link, const char *password, MegaRequestListener *listener)
 {
     pImpl->confirmAccount(link, password, listener);
-}
-
-void MegaApi::fastConfirmAccount(const char* link, const char *base64pwkey, MegaRequestListener *listener)
-{
-    pImpl->fastConfirmAccount(link, base64pwkey, listener);
 }
 
 void MegaApi::resetPassword(const char *email, bool hasMasterKey, MegaRequestListener *listener)

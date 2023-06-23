@@ -10535,11 +10535,6 @@ class MegaApi
         void resendSignupLink(const char* email, const char *name, MegaRequestListener *listener = NULL);
 
         /**
-         * @obsolete  This method cannot be used anymore by apps. It will always result on API_EINTERNAL.
-         */
-        void fastSendSignupLink(const char* email, const char *base64pwkey, const char *name, MegaRequestListener *listener = NULL);
-
-        /**
          * @brief Get information about a confirmation link or a new signup link
          *
          * The associated request type with this request is MegaRequest::TYPE_QUERY_SIGNUP_LINK.
@@ -10594,11 +10589,6 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void confirmAccount(const char* link, const char *password, MegaRequestListener *listener = NULL);
-
-        /**
-         * @obsolete This method cannot be used anymore by apps. It will always result on API_EINTERNAL.
-         */
-        void fastConfirmAccount(const char* link, const char *base64pwkey, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Initialize the reset of the existing password, with and without the Master Key.
