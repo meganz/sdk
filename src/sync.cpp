@@ -6995,16 +6995,16 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
                 }
             }
 
-            if (ignoreRow && ignoreRow->syncNode /*&& ignoreRow->syncNode->transferSP*/)
-            {
-                if (!row.syncNode->rareRO().filterChain ||
-                    !row.syncNode->rareRO().filterChain->mLoadSucceeded)
-                {
-                    // we can't calculate what's included yet.  Let the download complete
-                    // and come back when the .megaignore is present and well-formed
-                    break;
-                }
-            }
+            //if (ignoreRow && ignoreRow->syncNode /*&& ignoreRow->syncNode->transferSP*/)
+            //{
+            //    if (!row.syncNode->rareRO().filterChain ||
+            //        !row.syncNode->rareRO().filterChain->mLoadSucceeded)
+            //    {
+            //        // we can't calculate what's included yet.  Let the download complete
+            //        // and come back when the .megaignore is present and well-formed
+            //        break;
+            //    }
+            //}
         }
 
         if (!anyNameConflicts)
@@ -9535,7 +9535,8 @@ bool Sync::resolve_fsNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& fullPa
             {movedLocalNode->getLocalPath()}));
 
     }
-    else if (!syncs.mSyncFlags->scanningWasComplete)
+    else if (!syncs.mSyncFlags->scanningWasComplete &&
+             !row.isIgnoreFile())  // ignore files do not participate in move logic
     {
         SYNC_verbose << syncname << "Wait for scanning to finish before confirming fsid " << toHandle(row.syncNode->fsid_lastSynced) << " deleted or moved: " << logTriplet(row, fullPath);
 
