@@ -166,10 +166,10 @@ PosixAsyncIOContext::PosixAsyncIOContext() : AsyncIOContext()
 PosixAsyncIOContext::~PosixAsyncIOContext()
 {
     LOG_verbose << "Deleting PosixAsyncIOContext";
-    doFinish();
+    finish();
 }
 
-void PosixAsyncIOContext::doFinish()
+void PosixAsyncIOContext::finish()
 {
     if (aiocb)
     {
@@ -523,7 +523,7 @@ int PosixFileAccess::stealFileDescriptor()
     return toret;
 }
 
-bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, FSLogging fsl, DirAccess* iteratingDir, bool, bool skipcasecheck, LocalPath*)
+bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, FSLogging fsl, DirAccess* iteratingDir, bool, bool skipcasecheck, LocalPath* actualLeafNameIfDifferent)
 {
     struct stat statbuf;
 

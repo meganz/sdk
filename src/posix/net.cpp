@@ -182,7 +182,7 @@ void CurlHttpIO::locking_function(int mode, int lockNumber, const char *, int)
 }
 
 #if OPENSSL_VERSION_NUMBER >= 0x10000000 || defined (LIBRESSL_VERSION_NUMBER)
-void CurlHttpIO::id_function(CRYPTO_THREADID*)
+void CurlHttpIO::id_function(CRYPTO_THREADID* id)
 {
     CRYPTO_THREADID_set_pointer(id, (void *)THREAD_CLASS::currentThreadId());
 }
@@ -1556,6 +1556,9 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         curl_easy_setopt(curl, CURLOPT_SOCKOPTFUNCTION, sockopt_callback);
         curl_easy_setopt(curl, CURLOPT_SOCKOPTDATA, (void*)req);
         curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
+#ifndef MEGA_USE_C_ARES
+        curl_easy_setopt(curl, CURLOPT_QUICK_EXIT, 1L);
+#endif
 
         // Some networks (eg vodafone UK) seem to block TLS 1.3 ClientHello.  1.2 is secure, and works:
         curl_easy_setopt(curl, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2 | CURL_SSLVERSION_MAX_TLSv1_2);

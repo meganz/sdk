@@ -186,7 +186,7 @@ Command* Request::getCurrentCommand()
     return cmds[processindex].get();
 }
 
-void Request::serverresponse(std::string&& movestring, MegaClient*)
+void Request::serverresponse(std::string&& movestring, MegaClient* client)
 {
     assert(processindex == 0);
     jsonresponse = std::move(movestring);
@@ -310,7 +310,7 @@ bool RequestDispatcher::cmdsInflight() const
     return !inflightreq.empty() && inflightFailReason == RETRY_NONE;
 }
 
-string RequestDispatcher::serverrequest(bool& suppressSID, bool &includesFetchingNodes, bool&, MegaClient* client, string& idempotenceId)
+string RequestDispatcher::serverrequest(bool& suppressSID, bool &includesFetchingNodes, bool& v3, MegaClient* client, string& idempotenceId)
 {
     if (!inflightreq.empty() && inflightFailReason != RETRY_NONE)
     {

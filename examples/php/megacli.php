@@ -463,6 +463,8 @@ class GetCommand extends Command
 		, null	 /*app data*/
 		, false	 /*start first*/
 		, null	 /*cancel token*/
+		, 3      /*collision check COLLISION_CHECK_FINGERPRINT*/
+		, 2      /*collision resolution COLLISION_RESOLUTION_NEW_WITH_N*/
 		, null); /*listener*/
     }
 }
