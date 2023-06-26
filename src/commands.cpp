@@ -4100,7 +4100,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
         case 'u':
 #ifndef NDEBUG
-            me = 
+            me =
 #endif
                  json.gethandle(MegaClient::USERHANDLE);
             break;
@@ -5967,6 +5967,17 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache, 
     mLoadSyncs = loadSyncs;
 
     this->tag = tag;
+}
+
+const char* CommandFetchNodes::getJSON(MegaClient* client)
+{
+    // reset all the sc channel state, prevent sending sc requests while fetchnodes is sent
+    // we wait until this moment, because when `f` is queued, there may be
+    // other commands queued ahead of it, and those may need sc responses in order
+    // to fully complete, and so we can't reset these members at that time.
+    client->resetScForFetchnodes();
+
+    return Command::getJSON(client);
 }
 
 // purge and rebuild node/user tree

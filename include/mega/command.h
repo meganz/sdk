@@ -443,6 +443,8 @@ class MEGA_API CommandFetchNodes : public Command
 {
     bool mLoadSyncs = false;
 
+    const char* getJSON(MegaClient* client) override;
+
 public:
     bool procresult(Result, JSON&) override;
 
