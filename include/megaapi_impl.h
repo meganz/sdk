@@ -558,7 +558,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
 {
     public:
         MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime,
-                        MegaHandle nodeMegaHandle, std::string *nodekey, std::string *fileattrstring,
+                        MegaHandle nodeMegaHandle, const std::string *nodekey, const std::string *fileattrstring,
                         const char *fingerprint, const char *originalFingerprint, MegaHandle owner, MegaHandle parentHandle = INVALID_HANDLE,
                         const char *privateauth = NULL, const char *publicauth = NULL, bool isPublic = true,
                         bool isForeign = false, const char *chatauth = NULL, bool isNodeDecrypted = true);

@@ -67,7 +67,7 @@ struct AppFileGet : public AppFile
         return File::failed(e, c);
     }
 
-    AppFileGet(Node*, NodeHandle = NodeHandle(), byte* = NULL, m_off_t = -1, m_time_t = 0, string* = NULL, string* = NULL, const string& targetfolder = "");
+    AppFileGet(Node*, NodeHandle = NodeHandle(), const byte* = NULL, m_off_t = -1, m_time_t = 0, const string* = NULL, const string* = NULL, const string& targetfolder = "");
     ~AppFileGet();
 };
 

@@ -4865,6 +4865,8 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 
     mAsyncQueue.clearDiscardable();
 
+    mV1PswdVault.reset();
+
 #ifdef ENABLE_SYNC
     syncs.locallogout(removecaches, keepSyncsConfigFile, false);
 #endif
@@ -12297,6 +12299,142 @@ void MegaClient::getUserEmail(const char *uid)
     reqs.add(new CommandGetUserEmail(this, uid));
 }
 
+void MegaClient::loginResult(error e, std::function<void()> onLoginOk)
+{
+    if (e != API_OK)
+    {
+        mV1PswdVault.reset(); // clear this before the app knows that login is done, might improve security
+        app->login_result(e);
+        return;
+    }
+
+    assert(!mV1PswdVault || accountversion == 1);
+
+    if (accountversion == 1 && mV1PswdVault)
+    {
+        auto v1PswdVault(std::move(mV1PswdVault));
+
+        if (loggedin() == FULLACCOUNT)
+        {
+            // initiate automatic upgrade to V2
+            unique_ptr<TLVstore> tlv(TLVstore::containerToTLVrecords(&v1PswdVault->first, &v1PswdVault->second));
+            string pwd;
+            if (tlv && tlv->get("p", pwd))
+            {
+                if (pwd.empty())
+                {
+                    char msg[] = "Account upgrade to v2 has failed (invalid content in vault)";
+                    LOG_err << msg;
+                    sendevent(99475, msg);
+
+                    // report successful login, even if upgrade failed; user data was not affected, so apps can continue running
+                    app->login_result(API_OK);
+                    if (onLoginOk)
+                    {
+                        onLoginOk();
+                    }
+                    return;
+                }
+
+                upgradeAccountToV2(pwd, restag, [this, onLoginOk](error e)
+                    {
+                        // handle upgrade result
+                        if (e == API_EEXIST)
+                        {
+                            LOG_debug << "Account upgrade to V2 failed with EEXIST. It must have been upgraded in the meantime. Fetching user data again.";
+
+                            // upgrade done in the meantime by different client; get account details again
+                            getuserdata(restag, [this, onLoginOk](string*, string*, string*, error e)
+                                {
+                                    error loginErr = e == API_OK ? API_OK : API_EINTERNAL;
+                                    app->login_result(loginErr); // if error, report for login too because user data is inconsistent now
+
+                                    if (e != API_OK)
+                                    {
+                                        LOG_err << "Failed to get user data after acccount upgrade to V2 ended with EEXIST, error: " << e;
+                                    }
+                                    else if (onLoginOk)
+                                    {
+                                        onLoginOk();
+                                    }
+                                }
+                            );
+                        }
+
+                        else
+                        {
+                            if (e == API_OK)
+                            {
+                                LOG_info << "Account successfully upgraded to V2.";
+                            }
+                            else
+                            {
+                                LOG_warn << "Failed to upgrade account to V2, error: " << e;
+                            }
+
+                            // report successful login, even if upgrade failed; user data was not affected, so apps can continue running
+                            app->login_result(API_OK);
+                            if (onLoginOk)
+                            {
+                                onLoginOk();
+                            }
+                        }
+                    }
+                );
+
+                return; // stop here when account upgrade was initiated
+            }
+        }
+    }
+
+    // V2, or V1 without mandatory requirements for upgrade
+    app->login_result(API_OK);
+    if (onLoginOk)
+    {
+        onLoginOk();
+    }
+}
+
+//
+// Account upgrade to V2
+//
+void MegaClient::saveV1Pwd(const char* pwd)
+{
+    assert(pwd);
+    if (pwd && accountversion == 1)
+    {
+        vector<byte> pwkey(SymmCipher::KEYLENGTH);
+        rng.genblock(pwkey.data(), pwkey.size());
+        SymmCipher pwcipher(pwkey.data());
+
+        TLVstore tlv;
+        tlv.set("p", pwd);
+        unique_ptr<string> tlvStr(tlv.tlvRecordsToContainer(rng, &pwcipher));
+
+        if (tlvStr)
+        {
+            mV1PswdVault.reset(new pair<string, SymmCipher>(std::move(*tlvStr), std::move(pwcipher)));
+        }
+    }
+}
+
+void MegaClient::upgradeAccountToV2(const string& pwd, int ctag, std::function<void(error e)> completion)
+{
+    assert(loggedin() == FULLACCOUNT);
+    assert(accountversion == 1);
+    assert(!pwd.empty());
+
+    vector<byte> clientRandomValue;
+    vector<byte> encmasterkey;
+    string hashedauthkey;
+    string salt;
+
+    fillCypheredAccountDataV2(pwd.c_str(), clientRandomValue, encmasterkey, hashedauthkey, salt);
+
+    reqs.add(new CommandAccountVersionUpgrade(std::move(clientRandomValue), std::move(encmasterkey), std::move(hashedauthkey), std::move(salt), ctag, completion));
+}
+// -------- end of Account upgrade to V2
+
 #ifdef DEBUG
 void MegaClient::delua(const char *an)
 {
@@ -13488,7 +13626,7 @@ error MegaClient::changepw(const char* password, const char *pin)
     // Confirm account version, not rely on cached values
     string spwd = password ? password : string();
     string spin = pin ? pin : string();
-    reqs.add(new CommandGetUserData(this, reqtag,
+    getuserdata(reqtag,
         [this, u, spwd, spin](string* name, string* pubk, string* privk, error e)
         {
             if (e != API_OK)
@@ -13517,7 +13655,7 @@ error MegaClient::changepw(const char* password, const char *pin)
                 app->changepw_result(e);
             }
         }
-    ));
+    );
 
     return API_OK;
 }
@@ -13545,33 +13683,43 @@ error MegaClient::changePasswordV1(User* u, const char* password, const char* pi
 
 error MegaClient::changePasswordV2(const char* password, const char* pin)
 {
-    byte clientRandomValue[SymmCipher::KEYLENGTH];
-    rng.genblock(clientRandomValue, sizeof(clientRandomValue));
-
+    vector<byte> clientRandomValue;
+    vector<byte> encmasterkey;
+    string hashedauthkey;
     string salt;
-    HashSHA256 hasher;
+
+    fillCypheredAccountDataV2(password, clientRandomValue, encmasterkey, hashedauthkey, salt);
+
+    // Pass the salt and apply to this->accountsalt if the command succeed to allow posterior checks of the password without getting it from the server
+    reqs.add(new CommandSetMasterKey(this, encmasterkey.data(), reinterpret_cast<const byte*>(hashedauthkey.data()), SymmCipher::KEYLENGTH,
+                                     clientRandomValue.data(), pin, &salt));
+    return API_OK;
+}
+
+void MegaClient::fillCypheredAccountDataV2(const char* password, vector<byte>& clientRandomValue, vector<byte>& encmasterkey,
+                                           string& hashedauthkey, string& salt)
+{
+    clientRandomValue.resize(SymmCipher::KEYLENGTH, 0);
+    rng.genblock(clientRandomValue.data(), clientRandomValue.size());
+
     string buffer = "mega.nz";
     buffer.resize(200, 'P');
-    buffer.append((char *)clientRandomValue, sizeof(clientRandomValue));
-    hasher.add((const byte*)buffer.data(), unsigned(buffer.size()));
+    buffer.append(reinterpret_cast<const char*>(clientRandomValue.data()), clientRandomValue.size());
+    HashSHA256 hasher;
+    hasher.add(reinterpret_cast<const byte*>(buffer.data()), unsigned(buffer.size()));
     hasher.get(&salt);
 
     vector<byte> derivedKey = deriveKey(password, salt, 2 * SymmCipher::KEYLENGTH);
 
-    byte encmasterkey[SymmCipher::KEYLENGTH];
     SymmCipher cipher;
     cipher.setkey(derivedKey.data());
-    cipher.ecb_encrypt(key.key, encmasterkey);
+    encmasterkey.resize(SymmCipher::KEYLENGTH, 0);
+    cipher.ecb_encrypt(key.key, encmasterkey.data());
 
-    string hashedauthkey;
     const byte *authkey = derivedKey.data() + SymmCipher::KEYLENGTH;
     hasher.add(authkey, SymmCipher::KEYLENGTH);
     hasher.get(&hashedauthkey);
     hashedauthkey.resize(SymmCipher::KEYLENGTH);
-
-    // Pass the salt and apply to this->accountsalt if the command succeed to allow posterior checks of the password without getting it from the server
-    reqs.add(new CommandSetMasterKey(this, encmasterkey, (byte*)hashedauthkey.data(), SymmCipher::KEYLENGTH, clientRandomValue, pin, &salt));
-    return API_OK;
 }
 
 vector<byte> MegaClient::deriveKey(const char* password, const string& salt, size_t derivedKeySize)
@@ -20004,9 +20152,9 @@ bool MegaClient::procaesp(JSON& j)
 
 error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<handle, elementsmap_t>& newElements)
 {
-    bool loopAgain = true;
+    std::unique_ptr<std::map<handle, SetElement::NodeMetadata>> nodeData;
 
-    while (loopAgain)
+    for (bool loopAgain = true; loopAgain;)
     {
         switch (j.getnameid())
         {
@@ -20030,6 +20178,14 @@ error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<ha
         case MAKENAMEID1('e'):
         {
             error e = readElements(j, newElements);
+            if (e != API_OK) return e;
+            break;
+        }
+
+        case MAKENAMEID1('n'):
+        {
+            nodeData.reset(new std::map<handle, SetElement::NodeMetadata>());
+            error e = readAllNodeMetadata(j, *nodeData);
             if (e != API_OK) return e;
             break;
         }
@@ -20058,8 +20214,22 @@ error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<ha
         }
     }
 
-    // decrypt data
-    size_t elCount = 0; // Elements related to known Sets and successfully decrypted
+    // decrypt data, and confirm that all elements are valid
+#ifndef NDEBUG
+    size_t elCount =
+#endif
+    decryptAllSets(newSets, newElements, nodeData.get());
+
+    // check for orphan Elements, it should not happen
+    assert(elCount == [&newElements]() { size_t c = 0; for (const auto& els : newElements) c += els.second.size(); return c; } ());
+
+    return API_OK;
+}
+
+size_t MegaClient::decryptAllSets(map<handle, Set>& newSets, map<handle, elementsmap_t>& newElements, map<handle, SetElement::NodeMetadata>* nodeData)
+{
+    size_t elCount = 0;
+
     for (auto itS = newSets.begin(); itS != newSets.end();)
     {
         error e = decryptSetData(itS->second);
@@ -20088,6 +20258,31 @@ error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<ha
                     itE = itEls->second.erase(itE);
                     continue;
                 }
+
+                // fill in node attributes in case of having foreign node
+                if (nodeData)
+                {
+                    auto itNode = nodeData->find(itE->second.node());
+                    if (itNode != nodeData->end())
+                    {
+                        SetElement::NodeMetadata& nodeMeta = itNode->second;
+
+                        if (!nodeMeta.at.empty() && decryptNodeMetadata(nodeMeta, itE->second.key()))
+                        {
+                            itE->second.setNodeMetadata(std::move(nodeMeta));
+                        }
+
+                        nodeData->erase(itNode);
+                    }
+
+                    if (!itE->second.nodeMetadata())
+                    {
+                        LOG_err << "Invalid node for element. itE Handle = " << itE->first << ", itE Key << " << itE->second.key() << ", itS Handle = " << itS->first << ", itS Key = " << itS->second.key();
+                        itE = itEls->second.erase(itE);
+                        continue;
+                    }
+                }
+
                 ++elCount;
                 ++itE;
             }
@@ -20096,10 +20291,7 @@ error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<ha
         ++itS;
     }
 
-    // check for orphan Elements, it should not happen
-    assert(elCount == [&newElements]() { size_t c = 0; for (const auto& els : newElements) c += els.second.size(); return c; } ());
-
-    return API_OK;
+    return elCount;
 }
 
 error MegaClient::decryptSetData(Set& s)
@@ -20410,6 +20602,130 @@ error MegaClient::readElement(JSON& j, SetElement& el)
             return API_OK;
         }
     }
+}
+
+error MegaClient::readAllNodeMetadata(JSON& j, map<handle, SetElement::NodeMetadata>& nodes)
+{
+    if (!j.enterarray())
+    {
+        return API_EINTERNAL;
+    }
+
+    while (j.enterobject())
+    {
+        SetElement::NodeMetadata eln;
+        error e = readSingleNodeMetadata(j, eln);
+        if (e)
+        {
+            return e;
+        }
+        nodes.emplace(eln.h, std::move(eln));
+
+        j.leaveobject();
+    }
+
+    j.leavearray();
+    return API_OK;
+}
+
+error MegaClient::readSingleNodeMetadata(JSON& j, SetElement::NodeMetadata& eln)
+{
+    for (;;)
+    {
+        switch (j.getnameid())
+        {
+        case MAKENAMEID1('h'):
+            eln.h = j.gethandle(MegaClient::NODEHANDLE);
+            break;
+
+        case MAKENAMEID1('u'):
+            eln.u = j.gethandle(MegaClient::USERHANDLE);
+            break;
+
+        case MAKENAMEID1('s'):
+            eln.s = j.getint();
+            break;
+
+        case MAKENAMEID2('a', 't'):
+            if (!j.storeobject(&eln.at))
+            {
+                LOG_err << "Sets: Failed to read node attributes";
+            }
+            break;
+
+        case MAKENAMEID2('f', 'a'):
+            if (!j.storeobject(&eln.fa))
+            {
+                LOG_err << "Sets: Failed to read file attributes";
+            }
+            break;
+
+        case MAKENAMEID2('t', 's'):
+            eln.ts = j.getint();
+            break;
+
+        default: // skip unknown member
+            if (!j.storeobject())
+            {
+                LOG_err << "Sets: Failed to parse node metadata";
+                return API_EINTERNAL;
+            }
+            break;
+
+        case EOO:
+            return API_OK;
+        }
+    }
+}
+
+bool MegaClient::decryptNodeMetadata(SetElement::NodeMetadata& nodeMeta, const string& key)
+{
+    SymmCipher* cipher = getRecycledTemporaryNodeCipher(&key);
+    std::unique_ptr<byte[]> buf;
+    buf.reset(Node::decryptattr(cipher, nodeMeta.at.c_str(), nodeMeta.at.size()));
+    if (!buf)
+    {
+        LOG_err << "Decrypting node attributes failed. Node Handle = " << nodeMeta.h;
+        return false;
+    }
+
+    // all good, let's parse the attribute string
+    JSON attrJson;
+    attrJson.begin(reinterpret_cast<const char*>(buf.get()) + 5); // skip "MEGA{" prefix
+
+    for (bool jsonHasData = true; jsonHasData;)
+    {
+        switch (attrJson.getnameid())
+        {
+        case 'c':
+            if (!attrJson.storeobject(&nodeMeta.fingerprint))
+            {
+                LOG_err << "Reading node fingerprint failed. Node Handle = " << nodeMeta.h;
+            }
+            break;
+
+        case 'n':
+            if (!attrJson.storeobject(&nodeMeta.filename))
+            {
+                LOG_err << "Reading node filename failed. Node Handle = " << nodeMeta.h;
+            }
+            break;
+
+        case EOO:
+            jsonHasData = false;
+            break;
+
+        default:
+            if (!attrJson.storeobject())
+            {
+                LOG_err << "Skipping unexpected node attribute failed. Node Handle = " << nodeMeta.h;
+            }
+        }
+    }
+
+    nodeMeta.at.clear();
+
+    return true;
 }
 
 const Set* MegaClient::getSet(handle sid) const
