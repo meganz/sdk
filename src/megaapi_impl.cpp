@@ -6043,32 +6043,6 @@ long long MegaApiImpl::getSDKtime()
     return Waiter::ds;
 }
 
-char* MegaApiImpl::getStringHash(const char* base64pwkey, const char* inBuf)
-{
-    if (!base64pwkey || !inBuf)
-    {
-        return NULL;
-    }
-
-    char pwkey[2 * SymmCipher::KEYLENGTH];
-    if (Base64::atob(base64pwkey, (byte *)pwkey, sizeof pwkey) != SymmCipher::KEYLENGTH)
-    {
-        return MegaApi::strdup("");
-    }
-
-    SymmCipher key;
-    key.setkey((byte*)pwkey);
-
-    uint64_t strhash;
-    string neBuf = inBuf;
-
-    strhash = client->stringhash64(&neBuf, &key);
-
-    char* buf = new char[8*4/3+4];
-    Base64::btoa((byte*)&strhash, 8, buf);
-    return buf;
-}
-
 MegaHandle MegaApiImpl::base32ToHandle(const char *base32Handle)
 {
     if(!base32Handle) return INVALID_HANDLE;
