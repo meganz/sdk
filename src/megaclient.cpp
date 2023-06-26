@@ -13751,7 +13751,7 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
         // delay resetting the sc channel state.
         // we wait until `f` is sent, because when `f` is queued, there may be
         // other commands queued ahead of it, and those may need sc responses in order
-        // to fully complete, and so we can't reset those members at that this.
+        // to fully complete, and so we can't reset those members at this time.
 
         if (!loggedIntoFolder())
         {
