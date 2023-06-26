@@ -14373,8 +14373,7 @@ void MegaApiImpl::login_result(error result)
     if(!request || (request->getType() != MegaRequest::TYPE_LOGIN && request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT)) return;
 
     // if login with user+pwd succeed, update lastLogin timestamp
-    if (result == API_OK && request->getEmail() &&
-            (request->getPassword() || request->getPrivateKey()))
+    if (result == API_OK && request->getEmail() && request->getPassword())
     {
         client->isNewSession = true;
         client->tsLogin = m_time();
@@ -20884,7 +20883,6 @@ error MegaApiImpl::performRequest_createAccount(MegaRequestPrivate* request)
             const char *password = request->getPassword();
             const char *name = request->getName();
             const char *lastname = request->getText();
-            const char *pwkey = request->getPrivateKey();
             const char *sid = request->getSessionKey();
             bool resumeProcess = (request->getParamType() == MegaApi::RESUME_ACCOUNT);   // resume existing ephemeral account
             bool cancelProcess = (request->getParamType() == MegaApi::CANCEL_ACCOUNT);
@@ -20903,7 +20901,7 @@ error MegaApiImpl::performRequest_createAccount(MegaRequestPrivate* request)
             }
 
             if ((!resumeProcess && !cancelProcess && !resumeEphemeralPlusPlus && !createEphemeralPlusPlus &&
-                  (!email || !name || (!password && !pwkey))) ||
+                  (!email || !name || !password)) ||
                  ((resumeProcess || resumeEphemeralPlusPlus) && !sid) ||
                  (createEphemeralPlusPlus && !(name && lastname)))
             {
