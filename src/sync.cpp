@@ -3439,8 +3439,8 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool not
             filter = &tempFilter;
         }
 
-        // Try and create the missing ignore file.
-        if (!filter->create(us.mConfig.mLocalPath, *fsaccess))
+        // Try and create the missing ignore file.  Not synced by default
+        if (!filter->create(us.mConfig.mLocalPath, *fsaccess, false))
         {
             LOG_debug << "Failed to create ignore file for sync without one at: " << us.mConfig.mLocalPath;
 
@@ -6070,31 +6070,6 @@ SyncRowType SyncRow::type() const
     return static_cast<SyncRowType>(c * 4 + s * 2 + f);
 }
 
-bool SyncRow::ignoreFileChanged() const
-{
-    assert(syncNode);
-    assert(syncNode->type == FOLDERNODE);
-
-    return mIgnoreFileChanged;
-}
-
-void SyncRow::ignoreFileChanging()
-{
-    assert(syncNode);
-    assert(syncNode->type == FOLDERNODE);
-
-    mIgnoreFileChanged = true;
-}
-
-bool SyncRow::ignoreFileStable() const
-{
-    assert(syncNode);
-    assert(syncNode->type == FOLDERNODE);
-
-    return !mIgnoreFileChanged
-           && !syncNode->waitingForIgnoreFileLoad();
-}
-
 ExclusionState SyncRow::exclusionState(const CloudNode& node) const
 {
     assert(syncNode);
@@ -6141,6 +6116,14 @@ bool SyncRow::hasCaseInsensitiveLocalNameChange() const
         0 != compareUtf(syncNode->localname, true, fsNode->localname, true, false) &&
         0 == compareUtf(syncNode->localname, true, fsNode->localname, true, true) &&
         0 != compareUtf(cloudNode->name, true, fsNode->localname, true, false);
+}
+
+bool SyncRow::isLocalOnlyIgnoreFile() const
+{
+    return isIgnoreFile() && syncNode &&
+           syncNode->parent &&
+           syncNode->parent->rareRO().filterChain &&
+           !syncNode->parent->rareRO().filterChain->mSyncThisMegaignore;
 }
 
 bool SyncRow::isIgnoreFile() const
@@ -6705,14 +6688,67 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
         // Ignore files must be fully processed before any other child.
         auto sequences = computeSyncSequences(childRows);
 
-        bool ignoreFilePresent = sequences.size() > 1;
-        bool hasFilter = row.syncNode->rareRO().filterChain &&
-                         row.syncNode->rareRO().filterChain->mLoadSucceeded;
+        SyncRow* ignoreRow = !childRows.empty() &&
+                              childRows.front().isIgnoreFile() ?
+                             &childRows.front() : nullptr;
 
-        if (ignoreFilePresent != hasFilter && !sequences.empty())
+        FSNode* ignoreFile = ignoreRow ? ignoreRow->fsNode : nullptr;
+
+        bool invalidateExclusions = false;
+
+        if (ignoreRow && !row.syncNode->rareRO().filterChain)
         {
-            row.syncNode->ignoreFilterPresenceChanged(ignoreFilePresent, childRows[sequences.front().first].fsNode);
+            // instantiate filterChain as soon as we have a row, even if we don't have a
+            // local file yet, in order to prevent any sync steps for other things until
+            // we get the local file by download, or stall if there are cloud duplicates etc.
+            LOG_debug << syncname << ".megaignore row detected inside " << logTriplet(row, fullPath);
+            row.syncNode->rare().filterChain.reset(new FilterChain);
+            invalidateExclusions = true;
         }
+        if (!ignoreRow && row.syncNode->rareRO().filterChain)
+        {
+            LOG_debug << syncname << ".megaignore row disappeared inside " << logTriplet(row, fullPath);
+            row.syncNode->rare().filterChain.reset();
+            invalidateExclusions = true;
+        }
+        if (ignoreRow && !ignoreFile &&
+            row.syncNode->rareRO().filterChain &&
+            row.syncNode->rare().filterChain->mLoadSucceeded)
+        {
+            LOG_debug << syncname << ".megaignore file disappeared inside " << logTriplet(row, fullPath);
+            row.syncNode->rare().filterChain->mFingerprint = FileFingerprint();
+            row.syncNode->rare().filterChain->mLoadSucceeded = false;
+            invalidateExclusions = true;
+        }
+        if (ignoreFile && row.syncNode->rareRO().filterChain)
+        {
+            if (row.syncNode->rareRO().filterChain->mFingerprint != ignoreFile->fingerprint)
+            {
+                LOG_debug << syncname << "loading .megaignore file inside " << logTriplet(row, fullPath);
+                auto ignorepath = fullPath.localPath;
+                ignorepath.appendWithSeparator(IGNORE_FILE_NAME, true);
+                bool ok = row.syncNode->loadFilters(ignorepath);
+                if (ok != !row.syncNode->rareRO().badlyFormedIgnoreFilePath)
+                {
+                    if (ok)
+                    {
+                        row.syncNode->rare().badlyFormedIgnoreFilePath.reset();
+                    }
+                    else
+                    {
+                        row.syncNode->rare().badlyFormedIgnoreFilePath.reset(new LocalNode::RareFields::BadlyFormedIgnore(ignorepath, this));
+                        syncs.badlyFormedIgnoreFilePaths.push_back(row.syncNode->rare().badlyFormedIgnoreFilePath);
+                    }
+                }
+                invalidateExclusions = true;
+            }
+        }
+
+        if (invalidateExclusions)
+        {
+            row.syncNode->setRecomputeExclusionState(false, false);
+        }
+
 
         // Here is where we loop over the syncRows for this folder.
         // We must process things in a particular order
@@ -6807,6 +6843,7 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
                         {
                             if (!s->children.empty())
                             {
+                                // We keep the immediately excluded node (parent folder is not excluded), but remove anything below it
                                 LOG_debug << syncname << "Removing " << s->children.size() << " child LocalNodes from excluded " << s->getLocalPath();
                                 vector<LocalNode*> cs;
                                 cs.reserve(s->children.size());
@@ -6869,6 +6906,15 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
 
                     case 1:
                         // second pass: full syncItem processing for each node that wasn't part of a move
+
+                        // moved from the end of syncItem_checkMoves.  So we can check ignore files also, as those skip move processing
+                        if ((syncHere || belowRemovedCloudNode || belowRemovedFsNode) &&
+                            syncItem_checkFilenameClashes(childRow, row, fullPath))
+                        {
+                            row.syncNode->setSyncAgain(false, true, false);
+                            break;
+                        }
+
                         if (belowRemovedCloudNode)
                         {
                             // when syncing/scanning below a removed cloud node, we just want to collect up scan fsids
@@ -6901,25 +6947,6 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
                                 else
                                 {
                                     row.syncNode->setSyncAgain(false, true, false);
-                                }
-                            }
-
-                            if (ignoreFilePresent && childRow.isIgnoreFile() && childRow.fsNode)
-                            {
-                                // Load filters if new/updated.  If it fails, filters are marked invalid
-                                bool ok = row.syncNode->loadFiltersIfChanged(childRow.fsNode->fingerprint, fullPath.localPath);
-
-                                if (ok != !row.syncNode->rareRO().badlyFormedIgnoreFilePath)
-                                {
-                                    if (ok)
-                                    {
-                                        row.syncNode->rare().badlyFormedIgnoreFilePath.reset();
-                                    }
-                                    else
-                                    {
-                                        row.syncNode->rare().badlyFormedIgnoreFilePath.reset(new LocalNode::RareFields::BadlyFormedIgnore(fullPath.localPath, this));
-                                        syncs.badlyFormedIgnoreFilePaths.push_back(row.syncNode->rare().badlyFormedIgnoreFilePath);
-                                    }
                                 }
                             }
                         }
@@ -6968,18 +6995,16 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
                 }
             }
 
-            if (ignoreFilePresent)
-            {
-                if (!row.syncNode->rareRO().filterChain ||
-                    !row.syncNode->rareRO().filterChain->mLoadSucceeded)
-                {
-                    // we can't calculate what's included, come back when the .megaignore is present and well-formed
-                    break;
-                }
-
-                // processed already, don't worry about it for the rest
-                ignoreFilePresent = false;
-            }
+            //if (ignoreRow && ignoreRow->syncNode /*&& ignoreRow->syncNode->transferSP*/)
+            //{
+            //    if (!row.syncNode->rareRO().filterChain ||
+            //        !row.syncNode->rareRO().filterChain->mLoadSucceeded)
+            //    {
+            //        // we can't calculate what's included yet.  Let the download complete
+            //        // and come back when the .megaignore is present and well-formed
+            //        break;
+            //    }
+            //}
         }
 
         if (!anyNameConflicts)
@@ -7019,7 +7044,7 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
             continue;
         }
 
-        if (row.ignoreFileStable() && child.second->type > FILENODE)
+        if (child.second->type > FILENODE)
         {
             row.syncNode->scanAgain = updateTreestateFromChild(row.syncNode->scanAgain, child.second->scanAgain);
             row.syncNode->syncAgain = updateTreestateFromChild(row.syncNode->syncAgain, child.second->syncAgain);
@@ -7224,6 +7249,11 @@ bool Sync::syncItem_checkMoves(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
         }
     }
 
+    return false;
+}
+
+bool Sync::syncItem_checkFilenameClashes(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath)
+{
     // Avoid syncing nodes that have multiple clashing names
     // Except if we previously had a folder (just itself) synced, allow recursing into that one.
     if (!row.fsClashingNames.empty() || !row.cloudClashingNames.empty())
@@ -7240,25 +7270,25 @@ bool Sync::syncItem_checkMoves(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
             return false;
         }
 
-        // Is this clash due to multiple ignore files being present in the cloud?
-        auto isIgnoreFileClash = [](const SyncRow& row) {
-            // Any clashes in the cloud?
-            if (row.cloudClashingNames.empty())
-                return false;
+        //// Is this clash due to multiple ignore files being present in the cloud?
+        //auto isIgnoreFileClash = [](const SyncRow& row) {
+        //    // Any clashes in the cloud?
+        //    if (row.cloudClashingNames.empty())
+        //        return false;
 
-            // Any clashes on the local disk?
-            if (!row.fsClashingNames.empty())
-                return false;
+        //    // Any clashes on the local disk?
+        //    if (!row.fsClashingNames.empty())
+        //        return false;
 
-            if (!(row.fsNode || row.syncNode))
-                return false;
+        //    if (!(row.fsNode || row.syncNode))
+        //        return false;
 
-            // Row represents an ignore file?
-            return row.isIgnoreFile();
-        };
+        //    // Row represents an ignore file?
+        //    return row.isIgnoreFile();
+        //};
 
-        if (isIgnoreFileClash(row))
-            return false;
+        //if (isIgnoreFileClash(row))
+        //    return false;
 
         LOG_debug << syncname << "Multiple names clash here.  Excluding this node from sync for now." << logTriplet(row, fullPath);
 
@@ -7769,7 +7799,8 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
     {
         CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemXSF);
 
-        if (row.syncNode->type == TYPE_DONOTSYNC)
+        if (row.syncNode->type == TYPE_DONOTSYNC ||
+            row.isLocalOnlyIgnoreFile())
         {
             // we do not upload do-not-sync files (eg. system+hidden, on windows)
             return true;
@@ -7906,19 +7937,9 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
     {
         CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemXXF);
 
-        // Have we detected a new ignore file?
-        if (row.isIgnoreFile())
-        {
-            // Don't process any other rows (yet).
-            // Skip ahead to make the node, .megaignore files are not ignored
-            parentRow.ignoreFileChanging();
-        }
-        else
-        {
-            // Don't create a sync node for this file unless we know that it's included.
-            if (parentRow.exclusionState(*row.fsNode) != ES_INCLUDED)
-                return true;
-        }
+        // Don't create a sync node for this file unless we know that it's included.
+        if (parentRow.exclusionState(*row.fsNode) != ES_INCLUDED)
+            return true;
 
         // Item exists locally only. Check if it was moved/renamed here, or Create
         // If creating, next run through will upload it
@@ -7931,13 +7952,6 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
         // Don't create sync nodes unless we know the row is included.
         if (parentRow.exclusionState(*row.cloudNode) != ES_INCLUDED)
             return true;
-
-        // Are we creating a node for an ignore file?
-        if (row.isIgnoreFile())
-        {
-            // Then let the parent know we want to process it exclusively.
-            parentRow.ignoreFileChanging();
-        }
 
         // item exists remotely only
         return resolve_makeSyncNode_fromCloud(row, parentRow, fullPath, false);
@@ -8294,13 +8308,6 @@ bool Sync::resolve_delSyncNode(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
     assert(syncs.onSyncThread());
     ProgressingMonitor monitor(*this, row, fullPath);
 
-    // Are we deleting an ignore file?
-    if (row.syncNode->isIgnoreFile())
-    {
-        // Then make sure we process it exclusively.
-        parentRow.ignoreFileChanging();
-    }
-
     if (row.syncNode->hasRare())
     {
         // We should never reach this function if pendingFrom is live.
@@ -8476,12 +8483,6 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
 
     if (row.fsNode->type == FILENODE)
     {
-        // Make sure the ignore file is uploaded before processing other rows.
-        if (row.syncNode->isIgnoreFile())
-        {
-            parentRow.ignoreFileChanging();
-        }
-
         // upload the file if we're not already uploading it
         if (!row.syncNode->transferResetUnlessMatched(PUT, row.fsNode->fingerprint))
         {
@@ -9490,14 +9491,8 @@ bool Sync::resolve_fsNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& fullPa
 
     LocalNode* movedLocalNode = nullptr;
 
-    // Has the user removed an ignore file?
-    if (row.syncNode->isIgnoreFile())
-    {
-        // Then make sure we process it exclusively.
-        parentRow.ignoreFileChanging();
-    }
     // Ignore files aren't subject to the usual move processing.
-    else if (!row.syncNode->fsidSyncedReused)
+    if (!row.syncNode->fsidSyncedReused && !row.syncNode->isIgnoreFile())
     {
         auto predicate = [&row](LocalNode* n) {
             return n != row.syncNode && !n->isIgnoreFile();
@@ -9540,7 +9535,8 @@ bool Sync::resolve_fsNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& fullPa
             {movedLocalNode->getLocalPath()}));
 
     }
-    else if (!syncs.mSyncFlags->scanningWasComplete)
+    else if (!syncs.mSyncFlags->scanningWasComplete &&
+             !row.isIgnoreFile())  // ignore files do not participate in move logic
     {
         SYNC_verbose << syncname << "Wait for scanning to finish before confirming fsid " << toHandle(row.syncNode->fsid_lastSynced) << " deleted or moved: " << logTriplet(row, fullPath);
 

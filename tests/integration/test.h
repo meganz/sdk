@@ -492,8 +492,18 @@ struct StandardClient : public MegaApp
 
         void completed(Transfer* t, putsource_t source) override
         {
-            File::completed(t, source);
-            if (completion) completion(true);
+            // do the same thing as File::completed(t, source), but only execute our functor completion() after putnodes completes
+
+            assert(!transfer || t == transfer);
+            assert(source == PUTNODES_APP);  // derived class for sync doesn't use this code path
+            assert(t->type == PUT);
+            
+            auto finalCompletion = move(completion);
+            sendPutnodesOfUpload(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(),
+                [finalCompletion](const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag){
+                    if (finalCompletion) finalCompletion(true);
+                }, nullptr, false);
+
             delete this;
         }
 

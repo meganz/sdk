@@ -836,8 +836,6 @@ struct MEGA_API LocalNode
     // Create a watch for this node if necessary.
     WatchResult watch(const LocalPath& path, handle fsid);
 
-    void ignoreFilterPresenceChanged(bool present, FSNode* fsNode);
-
     void setSubtreeNeedsRefingerprint();
 
 private:
@@ -859,10 +857,10 @@ private:
     // Query whether a file is excluded by a size filter.
     ExclusionState calcExcluded(const RemotePathPair& namePath, m_off_t size) const;
 
+public:
     // Signal that LocalNodes in this subtree must recompute their exclusion state.
     void setRecomputeExclusionState(bool includingThisOne, bool scan);
 
-public:
     // Clears the filters defined by this node.
     void clearFilters();
 
@@ -870,7 +868,7 @@ public:
     const FilterChain& filterChainRO() const;
 
     // Load filters from the ignore file identified by path.
-    bool loadFiltersIfChanged(const FileFingerprint& fingerprint, const LocalPath& path);
+    bool loadFilters(const LocalPath& path);
 
     // Signal whether this node needs to load its ignore file.
     //void setWaitingForIgnoreFileLoad(bool waiting);

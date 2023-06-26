@@ -135,6 +135,11 @@ bool Request::processSeqTag(Command* cmd, bool withJSON, bool& parsedOk, bool in
     if (cmd->client->mCurrentSeqtag == st ||
         !cmd->client->scsn.ready())  // if we have not started the sc channel, we won't receive the matching st, so ignore st until we do
     {
+        if (!cmd->client->scsn.ready())
+        {
+            LOG_verbose << "Processing command result regardless of st as we don't have scsn yet. " << st << cmd->client->mCurrentSeqtag;
+        }
+
         assert(cmd->client->mCurrentSeqtagSeen || !cmd->client->scsn.ready());
         cmd->client->mCurrentSeqtag.clear();
         cmd->client->mCurrentSeqtagSeen = false;

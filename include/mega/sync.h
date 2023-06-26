@@ -321,15 +321,6 @@ struct SyncRow
     // What type of sync row is this?
     SyncRowType type() const;
 
-    // Does our ignore file require exclusive processing?
-    bool ignoreFileChanged() const;
-
-    // Signals that our ignore file is changing and requires exclusive processing.
-    void ignoreFileChanging();
-
-    // Can our ignore file be processed alongside other rows?
-    bool ignoreFileStable() const;
-
     // Convenience specializations.
     ExclusionState exclusionState(const CloudNode& node) const;
     ExclusionState exclusionState(const FSNode& node) const;
@@ -340,13 +331,10 @@ struct SyncRow
 
     // Does this row represent an ignore file?
     bool isIgnoreFile() const;
+    bool isLocalOnlyIgnoreFile() const;
 
     // Does this row represent a "no name" triplet?
     bool isNoName() const;
-
-private:
-    // Whether our ignore file requires exclusive processing.
-    bool mIgnoreFileChanged = false;
 };
 
 struct SyncPath
@@ -517,6 +505,7 @@ public:
 
     bool recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedCloudNode, bool belowRemovedFsNode, unsigned depth);
     bool syncItem_checkMoves(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool belowRemovedCloudNode, bool belowRemovedFsNode);
+    bool syncItem_checkFilenameClashes(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath);
     bool syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath);
     bool syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFolderLogSummaryCounts& pflsc);
 

@@ -1113,6 +1113,7 @@ void SCSN::clear()
 {
     memset(scsn, 0, sizeof(scsn));
     stopsc = false;
+    LOG_debug << "scsn cleared";
 }
 
 // set server-client sequence number
@@ -1132,13 +1133,19 @@ bool SCSN::setScsn(JSON* j)
 
 void SCSN::setScsn(handle h)
 {
+    bool wasReady = ready();
     Base64::btoa((byte*)&h, sizeof h, scsn);
+    if (ready() != wasReady)
+    {
+        LOG_debug << "scsn now ready: " << ready();
+    }
 }
 
 void SCSN::stopScsn()
 {
     memset(scsn, 0, sizeof(scsn));
     stopsc = true;
+    LOG_debug << "scsn stopped";
 }
 
 bool SCSN::ready() const
@@ -13745,21 +13752,11 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
         fnstats.mode = FetchNodesStats::MODE_API;
         fnstats.cache = nocache ? FetchNodesStats::API_NO_CACHE : FetchNodesStats::API_CACHE;
         fetchingnodes = true;
-        pendingsccommit = false;
 
-        // prevent the processing of previous sc requests
-        pendingsc.reset();
-        pendingscUserAlerts.reset();
-        jsonsc.pos = NULL;
-        scnotifyurl.clear();
-        mPendingCatchUps = 0;
-        mReceivingCatchUp = false;
-        insca = false;
-        insca_notlast = false;
-        btsc.reset();
-
-        // don't allow to start new sc requests yet
-        scsn.clear();
+        // delay resetting the sc channel state.
+        // we wait until `f` is sent, because when `f` is queued, there may be
+        // other commands queued ahead of it, and those may need sc responses in order
+        // to fully complete, and so we can't reset those members at this time.
 
         if (!loggedIntoFolder())
         {
@@ -13803,6 +13800,31 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
         }
     }
 }
+
+void MegaClient::resetScForFetchnodes()
+{
+    // reset all the sc channel state, prevent sending sc requests while fetchnodes is sent
+    // we wait until this moment, because when `f` is queued, there may be
+    // other commands queued ahead of it, and those may need sc responses in order
+    // to fully complete, and so we can't reset these members at that time.
+
+    pendingsccommit = false;
+
+    // prevent the processing of previous sc requests
+    pendingsc.reset();
+    pendingscUserAlerts.reset();
+    jsonsc.pos = NULL;
+    scnotifyurl.clear();
+    mPendingCatchUps = 0;
+    mReceivingCatchUp = false;
+    insca = false;
+    insca_notlast = false;
+    btsc.reset();
+
+    // don't allow to start new sc requests yet
+    scsn.clear();
+}
+
 
 void MegaClient::initializekeys()
 {

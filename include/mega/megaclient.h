@@ -648,6 +648,9 @@ public:
     // change login password
     error changepw(const char *password, const char *pin = NULL);
 
+    // invoked at the moment we actually send `f`
+    void resetScForFetchnodes();
+
     // load all trees: nodes, shares, contacts
     void fetchnodes(bool nocache, bool loadSyncs, bool reloadingMidSession);
 
