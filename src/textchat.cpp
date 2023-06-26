@@ -1082,20 +1082,30 @@ bool TextChat::addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting> sm, boo
             : updateSchedMeeting(std::move(sm));
 }
 
-bool TextChat::setMode(bool publicchat)
+bool TextChat::setMode(bool publicchat, MegaClient* client)
 {
     if (this->publicchat == publicchat)
     {
         return false;
     }
 
-    if (!publicchat)
+    if (!client)
     {
-        LOG_debug << "TextChat::setMode: EKR enabled (private chat) for chat: " << Base64Str<MegaClient::CHATHANDLE>(id);
+        LOG_warn << "TextChat::setMode: invalid client";
+        return false;
     }
+
+    if (!this->publicchat && publicchat)
+    {
+        std::string msg = "TextChat::setMode: trying to convert a chat from private into public. chatid: " + std::string(Base64Str<MegaClient::CHATHANDLE>(id));
+        client->sendevent(99476, msg.c_str(), 0);
+        LOG_warn << msg;
+        return false;
+    }
+
+    LOG_debug << "TextChat::setMode: EKR enabled (private chat) for chat: " << Base64Str<MegaClient::CHATHANDLE>(id);
     this->publicchat = publicchat;
     changed.mode = true;
-
     return true;
 }
 

@@ -7727,7 +7727,7 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
 
                     if (readingPublicChat)
                     {
-                        chat->setMode(publicchat);
+                        chat->setMode(publicchat, this);
                         if (!unifiedkey.empty())    // not all actionpackets include it
                         {
                             chat->unifiedKey = unifiedkey;

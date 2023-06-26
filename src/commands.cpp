@@ -7979,7 +7979,7 @@ bool CommandChatLinkClose::procresult(Result r, JSON& json)
         }
 
         TextChat *chat = it->second;
-        chat->setMode(false);
+        chat->setMode(false, client);
         if (!mTitle.empty())
         {
             chat->title = mTitle;
