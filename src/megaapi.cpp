@@ -2225,11 +2225,6 @@ void MegaApi::addEntropy(char *data, unsigned int size)
     pImpl->addEntropy(data, size);
 }
 
-void MegaApi::fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener)
-{
-    pImpl->fastLogin(email, stringHash, base64pwkey,listener);
-}
-
 void MegaApi::fastLogin(const char *session, MegaRequestListener *listener)
 {
     pImpl->fastLogin(session, listener);

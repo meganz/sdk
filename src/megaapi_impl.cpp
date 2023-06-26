@@ -6363,22 +6363,6 @@ void MegaApiImpl::multiFactorAuthCancelAccount(const char *pin, MegaRequestListe
     waiter->notify();
 }
 
-void MegaApiImpl::fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
-    request->setEmail(email);
-    request->setPassword(stringHash);
-    request->setPrivateKey(base64pwkey);
-
-    request->performRequest = [this, request]()
-    {
-        return performRequest_login(request);
-    };
-
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::fastLogin(const char *session, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
@@ -14298,30 +14282,6 @@ void MegaApiImpl::prelogin_result(int version, string* email, string *salt, erro
         if (version == 1)
         {
             const char *password = request->getPassword();
-            const char* base64pwkey = request->getPrivateKey();
-            if (base64pwkey)
-            {
-                byte pwkey[SymmCipher::KEYLENGTH];
-                Base64::atob(base64pwkey, (byte *)pwkey, sizeof pwkey);
-                if (password)
-                {
-                    uint64_t emailhash;
-                    Base64::atob(password, (byte *)&emailhash, sizeof emailhash);
-
-                    int creqtag = client->reqtag;
-                    client->reqtag = client->restag;
-                    client->fastlogin(email->c_str(), pwkey, emailhash);
-                    client->reqtag = creqtag;
-                }
-                else
-                {
-                    int creqtag = client->reqtag;
-                    client->reqtag = client->restag;
-                    client->login(email->c_str(), pwkey, pin);
-                    client->reqtag = creqtag;
-                }
-            }
-            else
             {
                 error err;
                 byte pwkey[SymmCipher::KEYLENGTH];
@@ -14340,18 +14300,6 @@ void MegaApiImpl::prelogin_result(int version, string* email, string *salt, erro
         else if (version == 2 && salt)
         {
             const char *password = request->getPassword();
-            const char* base64pwkey = request->getPrivateKey();
-            if (base64pwkey)
-            {
-                byte derivedKey[2 * SymmCipher::KEYLENGTH];
-                Base64::atob(base64pwkey, derivedKey, sizeof derivedKey);
-
-                int creqtag = client->reqtag;
-                client->reqtag = client->restag;
-                client->login2(email->c_str(), derivedKey, pin);
-                client->reqtag = creqtag;
-            }
-            else
             {
                 int creqtag = client->reqtag;
                 client->reqtag = client->restag;
@@ -18925,10 +18873,9 @@ error MegaApiImpl::performRequest_login(MegaRequestPrivate* request)
             const char *login = request->getEmail();
             const char *password = request->getPassword();
             const char* megaFolderLink = request->getLink();
-            const char* base64pwkey = request->getPrivateKey();
             const char* sessionKey = request->getSessionKey();
 
-            if (!megaFolderLink && (!(login && password)) && !sessionKey && (!(login && base64pwkey)))
+            if (!megaFolderLink && (!(login && password)) && !sessionKey)
             {
                 return API_EARGS;
             }
@@ -18953,7 +18900,7 @@ error MegaApiImpl::performRequest_login(MegaRequestPrivate* request)
             {
                 client->login(Base64::atob(string(sessionKey)));
             }
-            else if (login && (base64pwkey || password) && !megaFolderLink)
+            else if (login && password && !megaFolderLink)
             {
                 client->prelogin(slogin.c_str());
             }
