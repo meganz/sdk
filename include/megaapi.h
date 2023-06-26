@@ -2071,13 +2071,13 @@ public:
 #ifdef ENABLE_CHAT
     enum
     {
-        SM_CHANGE_TYPE_TITLE            = 0,
-        SM_CHANGE_TYPE_DESCRIPTION      = 1,
-        SM_CHANGE_TYPE_CANCELLED        = 2,
-        SM_CHANGE_TYPE_TIMEZONE         = 3,
-        SM_CHANGE_TYPE_STARTDATE        = 4,
-        SM_CHANGE_TYPE_ENDDATE          = 5,
-        SM_CHANGE_TYPE_RULES            = 6,
+        SM_CHANGE_TYPE_TITLE            = 0x01,
+        SM_CHANGE_TYPE_DESCRIPTION      = 0x02,
+        SM_CHANGE_TYPE_CANCELLED        = 0x04,
+        SM_CHANGE_TYPE_TIMEZONE         = 0x08,
+        SM_CHANGE_TYPE_STARTDATE        = 0x10,
+        SM_CHANGE_TYPE_ENDDATE          = 0x20,
+        SM_CHANGE_TYPE_RULES            = 0x40,
     };
 #endif
     virtual ~MegaUserAlert();
@@ -2341,13 +2341,13 @@ public:
      *   TYPE_SCHEDULEDMEETING_UPDATED
      *
      * @param changeType The type of change to check. It can be one of the following values:
-     * - MegaUserAlert::SM_CHANGE_TYPE_TITLE           [0]  - Title has changed
-     * - MegaUserAlert::SM_CHANGE_TYPE_DESCRIPTION     [1]  - Description has changed
-     * - MegaUserAlert::SM_CHANGE_TYPE_CANCELLED       [2]  - Cancelled flag has changed
-     * - MegaUserAlert::SM_CHANGE_TYPE_TIMEZONE        [3]  - Timezone has changed
-     * - MegaUserAlert::SM_CHANGE_TYPE_STARTDATE       [4]  - Start date time has changed
-     * - MegaUserAlert::SM_CHANGE_TYPE_ENDDATE         [5]  - End date time has changed
-     * - MegaUserAlert::SM_CHANGE_TYPE_RULES           [6]  - Repetition rules have changed
+     * - MegaUserAlert::SM_CHANGE_TYPE_TITLE           0x01  - Title has changed
+     * - MegaUserAlert::SM_CHANGE_TYPE_DESCRIPTION     0x02  - Description has changed
+     * - MegaUserAlert::SM_CHANGE_TYPE_CANCELLED       0x04  - Cancelled flag has changed
+     * - MegaUserAlert::SM_CHANGE_TYPE_TIMEZONE        0x08  - Timezone has changed
+     * - MegaUserAlert::SM_CHANGE_TYPE_STARTDATE       0x10  - Start date time has changed
+     * - MegaUserAlert::SM_CHANGE_TYPE_ENDDATE         0x20  - End date time has changed
+     * - MegaUserAlert::SM_CHANGE_TYPE_RULES           0x40  - Repetition rules have changed
      *
      * @return true if this scheduled meeting associated to this alert has an specific change
      */
@@ -4434,7 +4434,8 @@ class MegaRequest
             TYPE_GET_EXPORTED_SET_ELEMENT                                   = 167,
             TYPE_GET_RECOMMENDED_PRO_PLAN                                   = 168,
             TYPE_BACKUP_INFO                                                = 169,
-            TOTAL_OF_REQUEST_TYPES                                          = 170,
+            TYPE_BACKUP_REMOVE_MD                                           = 170,
+            TOTAL_OF_REQUEST_TYPES                                          = 171,
         };
 
         virtual ~MegaRequest();
@@ -11700,7 +11701,7 @@ class MegaApi
          * With this feature flag set, the client will require manual verification of
          * contact credentials of users (both sharers AND sharees) in order to decrypt
          * shared folders correctly if the "secure" flag is set to true.
-         * 
+         *
          * The default value is "false".
          *
          * @note If the "secure" flag is disabled, "Manual Verification" flag has no
@@ -13111,9 +13112,9 @@ class MegaApi
         void getPricing(MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Get the recommended PRO level. The smallest plan that is an upgrade (free -> lite -> proi -> proii -> proiii) 
+         * @brief Get the recommended PRO level. The smallest plan that is an upgrade (free -> lite -> proi -> proii -> proiii)
          * and has enough space.
-         * 
+         *
          * The associated request type with this request is MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
@@ -13124,7 +13125,7 @@ class MegaApi
          *     - MegaAccountDetails::ACCOUNT_TYPE_PROII = 2
          *     - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
          *     - MegaAccountDetails::ACCOUNT_TYPE_LITE = 4
-         * 
+         *
          * @param listener MegaRequestListener to track this request
          */
         void getRecommendedProLevel(MegaRequestListener* listener = NULL);
@@ -17872,6 +17873,7 @@ class MegaApi
          * @param name Name of the node (Base64 encoded)
          * @param size Size of the node
          * @param mtime Modification time of the node
+         * @param crc portion of the file's Fingerprint (base 64)
          * @param parentHandle Handle of the parent node
          * @param privateAuth Private authentication token to access the node
          * @param publicAuth Public authentication token to access the node
@@ -17879,7 +17881,8 @@ class MegaApi
          * @return MegaNode object
          */
         MegaNode *createForeignFileNode(MegaHandle handle, const char *key, const char *name,
-                                       int64_t size, int64_t mtime, MegaHandle parentHandle, const char *privateAuth, const char *publicAuth, const char *chatAuth);
+                                       int64_t size, int64_t mtime, const char* fingerprintCrc,
+                                       MegaHandle parentHandle, const char *privateAuth, const char *publicAuth, const char *chatAuth);
 
         /**
          * @brief Create a MegaNode that represents a folder of a different account
@@ -20549,6 +20552,28 @@ class MegaApi
         void removeBackup(MegaHandle backupId, MegaRequestListener *listener = nullptr);
 
         /**
+         * @brief Mark a backup already registered in Backup Centre, for removal, and
+         * move or delete its contents. Other sync types will only be stopped.
+         *
+         * This method allows to remove a backup from the list of backups displayed in the
+         * Backup Centre, and completely remove its contents, either by moving them to
+         * moveDestination or (when the latter has a valid value) by deleting them (when
+         * destination is INVALID_HANDLE).
+         *
+         * The associated request type with this request is MegaRequest::TYPE_BACKUP_REMOVE_MD
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns the backup id
+         * - MegaRequest::getNodeHandle - Returns the node handle corresponding to the move destination
+         * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+         *
+         * @param backupId backup id of the backup to be removed
+         * @param moveDestination node handle where backup contents will be moved; if INVALID_HANDLE,
+         * backup contents will be deleted; for non-backup syncs it will be ignored
+         * @param listener MegaRequestListener to track this request
+        */
+        void removeFromBC(MegaHandle backupId, MegaHandle moveDestination, MegaRequestListener* listener = nullptr);
+
+        /**
          * @brief Fetch information about all registered backups for Backup Centre
          *
          * The associated request type with this request is MegaRequest::TYPE_BACKUP_INFO
@@ -21137,6 +21162,7 @@ class MegaApi
          * - MegaError::API_EACCESS - Public Set preview mode is not enabled
          * - MegaError::API_EARGS - MegaHandle for SetElement provided as param doesn't match any Element
          * in previewed Set
+         * - MegaError::API_ENOENT - Node metadata was not available for the SetElement provided as param
          *
          * If the MEGA account is a business account and it's status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.

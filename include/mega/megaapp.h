@@ -55,7 +55,7 @@ struct MEGA_API MegaApp
     // login result
     virtual void login_result(error) { }
 
-    virtual void loggedInStateChanged(sessiontype_t, handle me) { }
+    virtual void loggedInStateChanged(sessiontype_t, handle /*me*/, const string& /*email*/) { }
 
     // user data result
     virtual void userdata_result(string*, string*, string*, Error) { }

@@ -3033,5 +3033,20 @@ std::string winErrorMessage(DWORD error)
 }
 #endif
 
+string connDirectionToStr(mega::direction_t directionType)
+{
+    switch (directionType)
+    {
+        case GET:
+            return "GET";
+        case PUT:
+            return "PUT";
+        case API:
+            return "API";
+        default:
+            return "UNKNOWN";
+    }
+}
+
 } // namespace mega
 

@@ -565,6 +565,9 @@ public:
     // session login: binary session, bytecount
     void login(string session);
 
+    // handle login result, and allow further actions when successful
+    void loginResult(error e, std::function<void()> onLoginOk = nullptr);
+
     // check password
     error validatepwd(const char* pswd);
     bool validatepwdlocally(const char* pswd);
@@ -585,6 +588,7 @@ public:
     void reportLoggedInChanges();
     sessiontype_t mLastLoggedInReportedState = NOTLOGGEDIN;
     handle mLastLoggedInMeHandle = UNDEF;
+    string mLastLoggedInMyEmail;
 
     // check the reason of being blocked
     void whyamiblocked();
@@ -787,6 +791,19 @@ public:
     // retrieve the email address of a user
     void getUserEmail(const char *uid);
 
+
+//
+// Account upgrade to V2
+//
+public:
+    void saveV1Pwd(const char* pwd);
+private:
+    void upgradeAccountToV2(const string& pwd, int ctag, std::function<void(error e)> completion);
+    // temporarily stores v1 account password, to allow automatic upgrade to v2 after successful (full-)login
+    unique_ptr<pair<string, SymmCipher>> mV1PswdVault;
+// -------- end of Account upgrade to V2
+
+public:
 #ifdef DEBUG
     // queue a user attribute removal
     void delua(const char* an);
@@ -2086,6 +2103,10 @@ public:
     // create a new folder with given name and stores its node's handle into the user's attribute ^!bak
     error setbackupfolder(const char* foldername, int tag, std::function<void(Error)> addua_completion);
 
+    // fetch backups and syncs from BC, search bkpId among them, disable the backup or sync, update sds attribute, for a backup move or delete its contents
+    void removeFromBC(handle bkpId, handle bkpDest, std::function<void(const Error&)> f);
+
+    // fetch backups and syncs from BC
     void getBackupInfo(std::function<void(const Error&, const vector<CommandBackupSyncFetch::Data>&)> f);
 
     // sets the auth token to be used when logged into a folder link
@@ -2321,6 +2342,8 @@ private:
 
     error changePasswordV1(User* u, const char* password, const char* pin);
     error changePasswordV2(const char* password, const char* pin);
+    void fillCypheredAccountDataV2(const char* password, vector<byte>& clientRandomValue, vector<byte>& encmasterkey,
+                                   string& hashedauthkey, string& salt);
 
     static vector<byte> deriveKey(const char* password, const string& salt, size_t derivedKeySize);
 
@@ -2438,9 +2461,13 @@ private:
     error readSet(JSON& j, Set& s);
     error readElements(JSON& j, map<handle, elementsmap_t>& elements);
     error readElement(JSON& j, SetElement& el);
+    error readAllNodeMetadata(JSON& j, map<handle, SetElement::NodeMetadata>& nodes);
+    error readSingleNodeMetadata(JSON& j, SetElement::NodeMetadata& node);
+    bool decryptNodeMetadata(SetElement::NodeMetadata& nodeMeta, const string& key);
     error readExportedSet(JSON& j, Set& s, pair<bool, m_off_t>& exportRemoved);
     error readSetsPublicHandles(JSON& j, map<handle, Set>& sets);
     error readSetPublicHandle(JSON& j, map<handle, Set>& sets);
+    size_t decryptAllSets(map<handle, Set>& newSets, map<handle, elementsmap_t>& newElements, map<handle, SetElement::NodeMetadata>* nodeData);
     error decryptSetData(Set& s);
     error decryptElementData(SetElement& el, const string& setKey);
     string decryptKey(const string& k, SymmCipher& cipher) const;

@@ -537,7 +537,7 @@ bool MegaNode::isRemoved()
     return false;
 }
 
-bool MegaNode::isMarkedSensitive() 
+bool MegaNode::isMarkedSensitive()
 {
     return false;
 }
@@ -1625,7 +1625,8 @@ void MegaRequestListener::onRequestUpdate(MegaApi *, MegaRequest *)
 { }
 void MegaRequestListener::onRequestTemporaryError(MegaApi *, MegaRequest *, MegaError *)
 { }
-MegaRequestListener::~MegaRequestListener() {}
+MegaRequestListener::~MegaRequestListener()
+{ }
 
 
 SynchronousRequestListener::SynchronousRequestListener()
@@ -3983,10 +3984,10 @@ bool MegaApi::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, bool re
 }
 
 MegaNode *MegaApi::createForeignFileNode(MegaHandle handle, const char *key,
-                                    const char *name, int64_t size, int64_t mtime,
+                                    const char *name, int64_t size, int64_t mtime, const char* fingerprintCrc,
                                         MegaHandle parentHandle, const char *privateAuth, const char *publicAuth, const char *chatAuth)
 {
-    return pImpl->createForeignFileNode(handle, key, name, size, mtime, parentHandle, privateAuth, publicAuth, chatAuth);
+    return pImpl->createForeignFileNode(handle, key, name, size, mtime, fingerprintCrc, parentHandle, privateAuth, publicAuth, chatAuth);
 }
 
 void MegaApi::getLastAvailableVersion(const char *appKey, MegaRequestListener *listener)
@@ -5717,6 +5718,11 @@ void MegaApi::updateBackup(MegaHandle backupId, int backupType, MegaHandle targe
 void MegaApi::removeBackup(MegaHandle backupId, MegaRequestListener *listener)
 {
     pImpl->removeBackup(backupId, listener);
+}
+
+void MegaApi::removeFromBC(MegaHandle backupId, MegaHandle moveDestination, MegaRequestListener* listener)
+{
+    pImpl->removeFromBC(backupId, moveDestination, listener);
 }
 
 void MegaApi::getBackupInfo(MegaRequestListener* listener)
