@@ -229,15 +229,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     {
         string fingerprint;
         node->serializefingerprint(&fingerprint);
-        m_off_t size = node->size;
-        char bsize[sizeof(size)+1];
-        int l = Serialize64::serialize((byte *)bsize, size);
-        char *buf = new char[l * 4 / 3 + 4];
-        char ssize = static_cast<char>('A' + Base64::btoa((const byte *)bsize, l, buf));
-        string result(1, ssize);
-        result.append(buf);
-        result.append(fingerprint);
-        delete [] buf;
+        string result = Node::fingerprintToStr(fingerprint, node->size);
 
         this->fingerprint = MegaApi::strdup(result.c_str());
     }
@@ -12034,16 +12026,7 @@ char *MegaApiImpl::getFingerprint(const char *filePath)
 
     string fingerprint;
     fp.serializefingerprint(&fingerprint);
-
-    char bsize[sizeof(size)+1];
-    int l = Serialize64::serialize((byte *)bsize, size);
-    char *buf = new char[l * 4 / 3 + 4];
-    char ssize = static_cast<char>('A' + Base64::btoa((const byte *)bsize, l, buf));
-
-    string result(1, ssize);
-    result.append(buf);
-    result.append(fingerprint);
-    delete [] buf;
+    string result = Node::fingerprintToStr(fingerprint, size);
 
     return MegaApi::strdup(result.c_str());
 }
@@ -12085,16 +12068,7 @@ char *MegaApiImpl::getFingerprint(MegaInputStream *inputStream, int64_t mtime)
 
     string fingerprint;
     fp.serializefingerprint(&fingerprint);
-
-    char bsize[sizeof(size)+1];
-    int l = Serialize64::serialize((byte *)bsize, size);
-    char *buf = new char[l * 4 / 3 + 4];
-    char ssize = static_cast<char>('A' + Base64::btoa((const byte *)bsize, l, buf));
-
-    string result(1, ssize);
-    result.append(buf);
-    result.append(fingerprint);
-    delete [] buf;
+    string result = Node::fingerprintToStr(fingerprint, size);
 
     return MegaApi::strdup(result.c_str());
 }
@@ -17802,14 +17776,7 @@ char *MegaApiImpl::getSdkFingerprintFromMegaFingerprint(const char *megaFingerpr
         return NULL;
     }
 
-    char bsize[sizeof(size) + 1];
-    int l = Serialize64::serialize((byte *)bsize, size);
-    char *buf = new char[l * 4 / 3 + 4];
-    char sizelen = static_cast<char>('A' + Base64::btoa((const byte *)bsize, l, buf));
-    string result(1, sizelen);
-    result.append(buf);
-    result.append(megaFingerprint);
-    delete [] buf;
+    string result = Node::fingerprintToStr(sMegaFingerprint, size);
 
     return MegaApi::strdup(result.c_str());
 }

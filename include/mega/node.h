@@ -212,6 +212,9 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // parse node attributes from an incoming buffer, this function must be called after call decryptattr
     static void parseattr(byte*, AttrMap&, m_off_t, m_time_t&, string&, string&, FileFingerprint&);
 
+    // prepares a string with the size and fingerprint for its usage by MegaApps
+    static string fingerprintToStr(const string& fingerprint, m_off_t size);
+
     // inbound share
     Share* inshare = nullptr;
 
