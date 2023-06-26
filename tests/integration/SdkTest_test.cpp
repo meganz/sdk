@@ -12032,6 +12032,14 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
             ASSERT_EQ(foreignNode->getCreationTime(), sourceNode->getCreationTime()) << "Node creation time did not match";
             ASSERT_EQ(foreignNode->getModificationTime(), sourceNode->getModificationTime())
                 << "\tForeign node's mtime inconsistent";
+
+            const std::string fp = sourceNode->getFingerprint(); const auto nodeSize = sourceNode->getSize();
+            const std::string s1 = MegaApiImpl::getMegaFingerprintFromSdkFingerprint(fp.c_str());
+            const std::string s2 = MegaNodePrivate::removeAppPrefixFromFingerprint(fp);
+            const std::string s3 = MegaApiImpl::getSdkFingerprintFromMegaFingerprint(s1.c_str(), nodeSize);
+            const std::string s4 = MegaNodePrivate::addAppPrefixToFingerprint(s2, nodeSize);
+            ASSERT_EQ(s1, s2);
+            ASSERT_EQ(s3, s4);
         }
         else
         {

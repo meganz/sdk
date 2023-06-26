@@ -1006,6 +1006,61 @@ const char* MegaNodePrivate::getS4() const
     return mS4.c_str();
 }
 
+string MegaNodePrivate::addAppPrefixToFingerprint(const string& fp, const m_off_t nodeSize)
+{
+    if (fp.empty())
+    {
+        LOG_warn << "Requesting app prefix addition to an empty fingerprint";
+        return string{};
+    }
+
+    FileFingerprint ffp;
+    if (!ffp.unserializefingerprint(&fp))
+    {
+        LOG_err << "Internal error: fingerprint validation failed in app prefix addition. Unserialization check failed";
+        return string{};
+    }
+
+    char bsize[sizeof(nodeSize) + 1];
+    int l = Serialize64::serialize((byte *)bsize, nodeSize);
+    unique_ptr<char> buf(new char[l * 4 / 3 + 4]);
+    char ssize = static_cast<char>('A' + Base64::btoa((const byte *)bsize, l, buf.get()));
+
+    string result(1, ssize);
+    result.append(buf.get());
+    result.append(fp);
+
+    return result;
+}
+
+string MegaNodePrivate::removeAppPrefixFromFingerprint(const string& appFp)
+{
+    if (appFp.empty())
+    {
+        LOG_warn << "Requesting app prefix removal from an empty fingerprint";
+        return string{};
+    }
+
+    const unsigned int sizelen = appFp[0] - 'A';
+    const std::size_t fplen = appFp.size();
+    if (sizelen > (sizeof(m_off_t) * 4/3 + 4) ||  fplen <= (sizelen + 1))
+    {
+        LOG_err << "Internal error: fingerprint validation failed. Fingerprint with sizelen: " << sizelen
+                << " and fplen: " << fplen;
+        return string{};
+    }
+
+    FileFingerprint ffp;
+    string result = appFp.substr(sizelen + 1);
+    if (!ffp.unserializefingerprint(&result))
+    {
+        LOG_err << "Internal error: fingerprint unserialization failed in app prefix removal";
+        return string{};
+    }
+
+    return result;
+}
+
 MegaBackgroundMediaUploadPrivate::MegaBackgroundMediaUploadPrivate(MegaApi* capi)
     : api(MegaApiImpl::ImplOf(capi))
 {

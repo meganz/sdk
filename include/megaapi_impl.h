@@ -683,6 +683,10 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         bool mMarkedSensitive = false; // sensitive attribute set on this node
         nodelabel_t mLabel;
         bool mIsNodeKeyDecrypted = false;
+
+public:
+    static string removeAppPrefixFromFingerprint(const string& appFingerprint);
+    static string addAppPrefixToFingerprint(const string& fingerprint, const m_off_t nodeSize);
 };
 
 
