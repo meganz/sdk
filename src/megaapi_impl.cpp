@@ -11314,7 +11314,7 @@ MegaNode *MegaApiImpl::createForeignFileNode(MegaHandle handle, const char *key,
     nodekey.resize(Base64::atob(key, (byte *)nodekey.data(), int(nodekey.size())));
 
     string fingerprintStr;
-    unique_ptr<char[]> sdkFingerprintStr;
+    string sdkFingerprintStr;
 
     if (fingerprintCrc)
     {
@@ -11330,12 +11330,12 @@ MegaNode *MegaApiImpl::createForeignFileNode(MegaHandle handle, const char *key,
             ff.serializefingerprint(&fingerprintStr);
 
             // prepend size on the front
-            sdkFingerprintStr.reset(getSdkFingerprintFromMegaFingerprint(fingerprintStr.c_str(), size));
+            sdkFingerprintStr = MegaNodePrivate::addAppPrefixToFingerprint(fingerprintStr, size);
         }
     }
 
     return new MegaNodePrivate(name, FILENODE, size, mtime, mtime, handle, &nodekey, &fileattrsting,
-                               sdkFingerprintStr.get(), NULL, INVALID_HANDLE,
+                               sdkFingerprintStr.empty() ? nullptr : sdkFingerprintStr.c_str(), NULL, INVALID_HANDLE,
                                parentHandle, privateauth, publicauth, false, true, chatauth, true);
 }
 
@@ -17795,47 +17795,6 @@ FileFingerprint *MegaApiImpl::getFileFingerprintInternal(const char *fingerprint
     return fp;
 }
 
-char *MegaApiImpl::getMegaFingerprintFromSdkFingerprint(const char *sdkFingerprint)
-{
-    if (!sdkFingerprint || !sdkFingerprint[0])
-    {
-        return NULL;
-    }
-
-    unsigned int sizelen = sdkFingerprint[0] - 'A';
-    if (sizelen > (sizeof(m_off_t) * 4 / 3 + 4) || strlen(sdkFingerprint) <= (sizelen + 1))
-    {
-        return NULL;
-    }
-
-    FileFingerprint ffp;
-    string result = sdkFingerprint + sizelen + 1;
-    if (!ffp.unserializefingerprint(&result))
-    {
-        return NULL;
-    }
-    return MegaApi::strdup(result.c_str());
-}
-
-char *MegaApiImpl::getSdkFingerprintFromMegaFingerprint(const char *megaFingerprint, m_off_t size)
-{
-    if (!megaFingerprint || !megaFingerprint[0] || size < 0)
-    {
-        return NULL;
-    }
-
-    FileFingerprint ffp;
-    string sMegaFingerprint = megaFingerprint;
-    if (!ffp.unserializefingerprint(&sMegaFingerprint))
-    {
-        return NULL;
-    }
-
-    string result = Node::fingerprintToStr(sMegaFingerprint, size);
-
-    return MegaApi::strdup(result.c_str());
-}
-
 MegaNode* MegaApiImpl::getParentNode(MegaNode* n)
 {
     if(!n) return NULL;
@@ -24147,8 +24106,8 @@ error MegaApiImpl::performRequest_completeBackgroundUpload(MegaRequestPrivate* r
                 return API_ENOENT;
             }
 
-            std::unique_ptr<char[]> megafingerprint(getMegaFingerprintFromSdkFingerprint(fingerprint));
-            if (!megafingerprint)
+            const string megafingerprint = MegaNodePrivate::removeAppPrefixFromFingerprint(fingerprint);
+            if (megafingerprint.empty())
             {
                 LOG_err << "Bad fingerprint";
                 return API_EARGS;
@@ -24196,7 +24155,7 @@ error MegaApiImpl::performRequest_completeBackgroundUpload(MegaRequestPrivate* r
             vector<NewNode> newnodes(1);
             NewNode* newnode = &newnodes[0];
             error e = client->putnodes_prepareOneFile(newnode, parentNode, utf8Name, ulToken,
-                                                theFileKey, megafingerprint.get(), fingerprintOriginal,
+                                                theFileKey, megafingerprint.c_str(), fingerprintOriginal,
                                                 std::move(addNodeAttrsFunc),
                                                 std::move(addFileAttrsFunc));
             if (e != API_OK)
@@ -25546,9 +25505,10 @@ void MegaApiImpl::getPreviewElementNode(MegaHandle eid, MegaRequestListener* lis
 
         FileFingerprint ffp;
         m_time_t tm = ffp.unserializefingerprint(&nm->fingerprint) ? ffp.mtime : 0;
-        unique_ptr<const char[]> megaApiImplFingerprint(getSdkFingerprintFromMegaFingerprint(nm->fingerprint.c_str(), nm->s));
+        const string megaApiImplFingerprint(MegaNodePrivate::addAppPrefixToFingerprint(nm->fingerprint, nm->s));
 
-        MegaNodePrivate ret(nm->filename.c_str(), FILENODE, nm->s, nm->ts, tm, nm->h, &element->key(), &nm->fa, megaApiImplFingerprint.get(),
+        MegaNodePrivate ret(nm->filename.c_str(), FILENODE, nm->s, nm->ts, tm, nm->h, &element->key(), &nm->fa,
+                            megaApiImplFingerprint.empty() ? nullptr : megaApiImplFingerprint.c_str(),
                             nullptr, nm->u, INVALID_HANDLE, nullptr, nullptr, false /*isPublic*/, true /*isForeign*/);
         request->setPublicNode(&ret);
 

@@ -3219,11 +3219,6 @@ class MegaApiImpl : public MegaApp
         MegaClient *getMegaClient();
         static FileFingerprint *getFileFingerprintInternal(const char *fingerprint);
 
-        // You take the ownership of the returned value of both functiions
-        // It can be NULL if the input parameters are invalid
-        static char* getMegaFingerprintFromSdkFingerprint(const char* sdkFingerprint);
-        static char* getSdkFingerprintFromMegaFingerprint(const char *megaFingerprint, m_off_t size);
-
         error processAbortBackupRequest(MegaRequestPrivate *request);
         void fireOnBackupStateChanged(MegaScheduledCopyController *backup);
         void fireOnBackupStart(MegaScheduledCopyController *backup);
