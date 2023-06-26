@@ -14390,6 +14390,7 @@ void MegaApiImpl::prelogin_result(int version, string* email, string *salt, erro
 
                 int creqtag = client->reqtag;
                 client->reqtag = client->restag;
+                client->saveV1Pwd(password); // for automatic upgrade to V2  // cannot be null by now
                 client->login(email->c_str(), pwkey, pin);
                 client->reqtag = creqtag;
             }
