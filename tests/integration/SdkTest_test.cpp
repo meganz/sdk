@@ -12023,7 +12023,13 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
         {
             ASSERT_NE(foreignNode, nullptr);
             unique_ptr<MegaNode> sourceNode(megaApi[0]->getNodeByHandle(uploadedNode));
-            ASSERT_EQ(foreignNode->getCreationTime(), 0) << "\tAll foreign node's creation time must be 0";
+            ASSERT_TRUE(sourceNode) << "Failed to find source file (should never happed)";
+            ASSERT_STREQ(foreignNode->getName(), sourceNode->getName()) << "File names did not match";
+            ASSERT_EQ(foreignNode->getSize(), sourceNode->getSize()) << "File size did not match";
+            ASSERT_EQ(foreignNode->getOwner(), sourceNode->getOwner()) << "File owner did not match";
+            ASSERT_STREQ(foreignNode->getFingerprint(), sourceNode->getFingerprint()) << "File fingerprint did not match";
+            ASSERT_STREQ(foreignNode->getFileAttrString(), sourceNode->getFileAttrString()) << "File attrs did not match";
+            ASSERT_EQ(foreignNode->getCreationTime(), sourceNode->getCreationTime()) << "Node creation time did not match";
             ASSERT_EQ(foreignNode->getModificationTime(), sourceNode->getModificationTime())
                 << "\tForeign node's mtime inconsistent";
         }

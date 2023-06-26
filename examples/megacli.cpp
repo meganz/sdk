@@ -616,8 +616,8 @@ bool DemoApp::sync_syncable(Sync *, const char *name, LocalPath&)
 }
 #endif
 
-AppFileGet::AppFileGet(Node* n, NodeHandle ch, byte* cfilekey, m_off_t csize, m_time_t cmtime, string* cfilename,
-                       string* cfingerprint, const string& targetfolder)
+AppFileGet::AppFileGet(Node* n, NodeHandle ch, const byte* cfilekey, m_off_t csize, m_time_t cmtime, const string* cfilename,
+                       const string* cfingerprint, const string& targetfolder)
 {
     appxfer_it = appxferq[GET].end();
 
@@ -10545,12 +10545,21 @@ void printElements(const elementsmap_t* elems)
     {
         const SetElement& el = p.second;
         cout << "\t\telement " << toHandle(el.id()) << endl;
-        cout << "\t\t\tset " << toHandle(el.set()) << endl;
-        cout << "\t\t\tnode: " << toNodeHandle(el.node()) << endl;
+        cout << "\t\t\tset: " << toHandle(el.set()) << endl;
         cout << "\t\t\tname: " << el.name() << endl;
         cout << "\t\t\torder: " << el.order() << endl;
         cout << "\t\t\tkey: " << (el.key().empty() ? "(no key)" : Base64::btoa(el.key())) << endl;
         cout << "\t\t\tts: " << el.ts() << endl;
+        cout << "\t\t\tnode: " << toNodeHandle(el.node()) << endl;
+        if (el.nodeMetadata())
+        {
+            cout << "\t\t\t\tfile name: " << el.nodeMetadata()->filename << endl;
+            cout << "\t\t\t\tfile size: " << el.nodeMetadata()->s << endl;
+            cout << "\t\t\t\tfile attrs: " << el.nodeMetadata()->fa << endl;
+            cout << "\t\t\t\tfingerprint: " << el.nodeMetadata()->fingerprint << endl;
+            cout << "\t\t\t\tts: " << el.nodeMetadata()->ts << endl;
+            cout << "\t\t\t\towner: " << toHandle(el.nodeMetadata()->u) << endl;
+        }
     }
     cout << endl;
 }
@@ -10781,10 +10790,26 @@ void exec_setsandelements(autocomplete::ACState& s)
 
         cout << "\tSet preview mode " << (client->inPublicSetPreview() ? "en" : "dis") << "abled\n";
         const SetElement* element = nullptr;
+        m_off_t fileSize = 0;
+        string fileName;
+        string fingerprint;
+        string fileattrstring;
+
         if (client->inPublicSetPreview())
         {
             element = client->getPreviewSetElement(eid);
-            if (element) cout << "\tElement found in preview Set\n";
+            if (element)
+            {
+                cout << "\tElement found in preview Set\n";
+
+                if (element->nodeMetadata()) // only present starting with 'aft' v2
+                {
+                    fileSize = element->nodeMetadata()->s;
+                    fileName = element->nodeMetadata()->filename;
+                    fingerprint = element->nodeMetadata()->fingerprint;
+                    fileattrstring = element->nodeMetadata()->fa;
+                }
+            }
             else if (!isClientLoggedIn())
             {
                 cout << "Error: attempting to dowload an element which is not in the previewed "
@@ -10795,7 +10820,22 @@ void exec_setsandelements(autocomplete::ACState& s)
         if (!element)
         {
             element = client->getSetElement(sid, eid);
-            if (element) cout << "\tElement found in owned Set\n";
+            if (element)
+            {
+                cout << "\tElement found in owned Set\n";
+
+                std::unique_ptr<Node> mn(client->nodebyhandle(element->node()));
+
+                if (!mn)
+                {
+                    cout << "\tElement node not found\n";
+                    return;
+                }
+                fileSize = mn->size;
+                fileName = mn->displayname();
+                mn->serializefingerprint(&fingerprint);
+                fileattrstring = mn->fileattrstring;
+            }
         }
 
         if (!element)
@@ -10804,57 +10844,25 @@ void exec_setsandelements(autocomplete::ACState& s)
             return;
         }
 
-        std::array<byte, FILENODEKEYLENGTH> ekey;
-        handle enode = element->node();
-        memcpy(ekey.data(), element->key().c_str(), ekey.size());
-        auto commandCB =
-            [ekey, enode] (const Error &e, m_off_t size,
-                          dstime /*timeleft*/, std::string* filename, std::string* fingerprint,
-                          std::string* fileattrstring, const std::vector<std::string> &/*tempurls*/,
-                          const std::vector<std::string> &/*ips*/)
-        {
-            if (!fingerprint) // failed processing the command
-            {
-                if (e == API_ETOOMANY && e.hasExtraInfo())
-                {
-                    cout << "Link check failed: " << DemoApp::getExtraInfoErrorString(e)
-                         << endl;
-                }
-                else cout << "Link check failed: " << errorstring(e) << endl;
+        FileFingerprint ffp;
+        m_time_t tm = 0;
+        if (ffp.unserializefingerprint(&fingerprint)) tm = ffp.mtime;
 
-                return true;
-            }
+        cout << "\tName: " << fileName << ", size: " << fileSize << ", tm: " << tm;
+        if (!fingerprint.empty()) cout << ", fingerprint available";
+        if (!fileattrstring.empty()) cout << ", has attributes";
+        cout << endl;
 
-            FileFingerprint ffp;
-            m_time_t tm = 0;
-            if (ffp.unserializefingerprint(fingerprint)) tm = ffp.mtime;
+        cout << "\tInitiating download..." << endl;
 
-            cout << "\tName: " << *filename << ", size: " << size << ", tm: " << tm;
-            if (fingerprint->size()) cout << ", fingerprint available";
-            if (fileattrstring->size()) cout << ", has attributes";
-            cout << endl;
-
-            if (e) cout << "Not available: " << errorstring(e) << endl;
-            else
-            {
-                cout << "\tInitiating download..." << endl;
-
-                TransferDbCommitter committer(client->tctable);
-                auto file = ::mega::make_unique<AppFileGet>(nullptr,
-                                                            NodeHandle().set6byte(enode),
-                                                            (byte*)ekey.data(), size, tm,
-                                                            filename, fingerprint);
-                file->hprivate = true;
-                file->hforeign = true;
-                startxfer(committer, std::move(file), *filename, client->nextreqtag());
-            }
-
-            return true;
-        };
-
-        client->reqs.add(new CommandGetFile(client, (byte*)ekey.data(), ekey.size(), enode,
-                                            true /*private*/, nullptr, nullptr, nullptr, false,
-                                            commandCB));
+        TransferDbCommitter committer(client->tctable);
+        auto file = ::mega::make_unique<AppFileGet>(nullptr,
+                                                    NodeHandle().set6byte(element->node()),
+                                                    reinterpret_cast<const byte*>(element->key().c_str()), fileSize, tm,
+                                                    &fileName, &fingerprint);
+        file->hprivate = true;
+        file->hforeign = true;
+        startxfer(committer, std::move(file), fileName, client->nextreqtag());
     }
 
     else // create or update element
