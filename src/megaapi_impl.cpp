@@ -229,8 +229,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     {
         string fingerprint;
         node->serializefingerprint(&fingerprint);
-        string result = Node::fingerprintToStr(fingerprint, node->size);
-
+        string result = MegaNodePrivate::addAppPrefixToFingerprint(fingerprint, node->size);
         this->fingerprint = MegaApi::strdup(result.c_str());
     }
 
@@ -12096,7 +12095,7 @@ char *MegaApiImpl::getFingerprint(const char *filePath)
 
     string fingerprint;
     fp.serializefingerprint(&fingerprint);
-    string result = Node::fingerprintToStr(fingerprint, size);
+    string result = MegaNodePrivate::addAppPrefixToFingerprint(fingerprint, size);
 
     return MegaApi::strdup(result.c_str());
 }
@@ -12138,7 +12137,7 @@ char *MegaApiImpl::getFingerprint(MegaInputStream *inputStream, int64_t mtime)
 
     string fingerprint;
     fp.serializefingerprint(&fingerprint);
-    string result = Node::fingerprintToStr(fingerprint, size);
+    string result = MegaNodePrivate::addAppPrefixToFingerprint(fingerprint, size);
 
     return MegaApi::strdup(result.c_str());
 }
@@ -13229,6 +13228,7 @@ void MegaApiImpl::folderlinkinfo_result(error e, handle owner, handle /*ph*/, st
                 FileFingerprint ffp;
                 m_time_t mtime = 0;
                 Node::parseattr(buf, attrs, currentSize, mtime, fileName, fingerprint, ffp);
+                fingerprint = MegaNodePrivate::addAppPrefixToFingerprint(fingerprint, ffp.size);
 
                 // Normalize node name to UTF-8 string
                 attr_map::iterator it = attrs.map.find('n');
@@ -14700,6 +14700,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
     if (buf)
     {
         Node::parseattr(buf, attrs, size, mtime, fileName, fingerprint, ffp);
+        fingerprint = MegaNodePrivate::addAppPrefixToFingerprint(fingerprint, ffp.size);
 
         // Normalize node name to UTF-8 string
         attr_map::iterator it = attrs.map.find('n');
