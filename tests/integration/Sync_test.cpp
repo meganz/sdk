@@ -2510,7 +2510,7 @@ void StandardClient::setupBackup_inThread(const string& rootPath,
                 if (e && revertOnError) revertOnError(nullptr);
                 result->set_value(e ? UNDEF : h);
 
-            }, "");
+            }, "", "");
         }
     });
 }

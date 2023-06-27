@@ -10070,7 +10070,7 @@ void exec_syncadd(autocomplete::ACState& s)
         config.mRemoteNode = targetNode ? NodeHandle().set6byte(targetNode->nodehandle) : NodeHandle();
         config.mOriginalPathOfRemoteRootNode = targetNode ? targetNode->displaypath() : string();
 
-        client->addsync(std::move(config), false, sync_completion, "");
+        client->addsync(std::move(config), false, sync_completion, "", "");
     }
 
     else // backup
@@ -10111,7 +10111,7 @@ void exec_syncadd(autocomplete::ACState& s)
                     }
                     sync_completion(e, se, h);
 
-                }, "");
+                }, "", "");
             }
         });
     }
