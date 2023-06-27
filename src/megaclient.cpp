@@ -7659,7 +7659,7 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                     {
                         chat = chats[chatid];
                         oldPriv = chat->priv;
-                        if (readingPublicChat) { chat->setMode(publicchat, this); }
+                        if (readingPublicChat) { setChatMode(chat, publicchat); }
                     }
 
                     chat->id = chatid;
@@ -12795,7 +12795,7 @@ void MegaClient::procmcf(JSON *j)
                                     else
                                     {
                                         chat = chats[chatid];
-                                        if (readingPublicChats) { chat->setMode(publicchat, this); }
+                                        if (readingPublicChats) { setChatMode(chat, publicchat); }
                                     }
 
                                     chat->id = chatid;
@@ -19044,6 +19044,19 @@ void MegaClient::removeFromChat(handle chatid, handle uh)
 void MegaClient::getUrlChat(handle chatid)
 {
     reqs.add(new CommandChatURL(this, chatid));
+}
+
+void MegaClient::setChatMode(TextChat* chat, bool pubChat)
+{
+    if (!chat) { return; }
+
+    if (chat->setMode(pubChat) == API_EACCESS)
+    {
+        std::string msg = "TextChat::setMode: trying to convert a chat from private into public. chatid: "
+                          + std::string(Base64Str<MegaClient::CHATHANDLE>(chat->id));
+        sendevent(99476, msg.c_str(), 0);
+        LOG_warn << msg;
+    }
 }
 
 userpriv_vector *MegaClient::readuserpriv(JSON *j)

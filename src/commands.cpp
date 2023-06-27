@@ -7135,7 +7135,7 @@ bool CommandChatCreate::procresult(Result r, JSON& json)
                         else
                         {
                             chat = client->chats[chatid];
-                            chat->setMode(mPublicChat, client);
+                            client->setChatMode(chat, mPublicChat);
                         }
 
                         chat->id = chatid;
@@ -7984,7 +7984,7 @@ bool CommandChatLinkClose::procresult(Result r, JSON& json)
         }
 
         TextChat *chat = it->second;
-        chat->setMode(false, client);
+        client->setChatMode(chat, false);
         if (!mTitle.empty())
         {
             chat->title = mTitle;

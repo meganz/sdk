@@ -287,7 +287,7 @@ public:
     bool isFlagSet(uint8_t offset) const;
     void clearUpdatedSchedMeetingOccurrences();
     void addUpdatedSchedMeetingOccurrence(std::unique_ptr<ScheduledMeeting> sm);
-    bool setMode(bool publicchat, MegaClient* client);
+    ErrorCodes setMode(bool pubChat);
 
     // add or update a scheduled meeting, SDK adquires the ownership of provided ScheduledMeeting
     bool addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting> sm, bool notify = true);

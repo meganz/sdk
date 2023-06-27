@@ -1076,6 +1076,9 @@ public:
     // get the URL of a chat
     void getUrlChat(handle chatid);
 
+    // set chat mode (public/private)
+    void setChatMode(TextChat* chat, bool pubChat);
+
     // process object arrays by the API server (users + privileges)
     userpriv_vector * readuserpriv(JSON* j);
 
