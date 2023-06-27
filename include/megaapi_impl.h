@@ -685,7 +685,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         bool mIsNodeKeyDecrypted = false;
 
 public:
-    static string removeAppPrefixFromFingerprint(const string& appFingerprint);
+    static string removeAppPrefixFromFingerprint(const string& appFingerprint, m_off_t* nodeSize = nullptr);
     static string addAppPrefixToFingerprint(const string& fingerprint, const m_off_t nodeSize);
 };
 

@@ -1033,7 +1033,7 @@ string MegaNodePrivate::addAppPrefixToFingerprint(const string& fp, const m_off_
     return result;
 }
 
-string MegaNodePrivate::removeAppPrefixFromFingerprint(const string& appFp)
+string MegaNodePrivate::removeAppPrefixFromFingerprint(const string& appFp, m_off_t* nodeSize)
 {
     if (appFp.empty())
     {
@@ -1048,6 +1048,21 @@ string MegaNodePrivate::removeAppPrefixFromFingerprint(const string& appFp)
         LOG_err << "Internal error: fingerprint validation failed. Fingerprint with sizelen: " << sizelen
                 << " and fplen: " << fplen;
         return string{};
+    }
+
+    if (nodeSize)
+    {
+        m_off_t nSize = 0;
+        int len = sizeof(nSize);
+        std::unique_ptr<byte[]> buf (new byte[len]);
+        Base64::atob(appFp.c_str() + 1, buf.get(), len);
+        int l = Serialize64::unserialize(buf.get(), len, (uint64_t*)&nSize);
+        if (l <= 0)
+        {
+            LOG_err << "Internal error: node size extraction from fingerprint failed";
+            return string{};
+        }
+        *nodeSize = nSize;
     }
 
     FileFingerprint ffp;
@@ -17758,30 +17773,10 @@ Node *MegaApiImpl::getNodeByFingerprintInternal(const char *fingerprint, Node *p
 
 FileFingerprint *MegaApiImpl::getFileFingerprintInternal(const char *fingerprint)
 {
-    if(!fingerprint || !fingerprint[0])
-    {
-        return NULL;
-    }
-
     m_off_t size = 0;
-    unsigned int fsize = unsigned(strlen(fingerprint));
-    unsigned int ssize = fingerprint[0] - 'A';
-    if(ssize > (sizeof(size) * 4 / 3 + 4) || fsize <= (ssize + 1))
-    {
-        return NULL;
-    }
+    string sfingerprint = MegaNodePrivate::removeAppPrefixFromFingerprint(fingerprint, &size);
 
-    int len =  sizeof(size) + 1;
-    byte *buf = new byte[len];
-    Base64::atob(fingerprint + 1, buf, len);
-    int l = Serialize64::unserialize(buf, len, (uint64_t *)&size);
-    delete [] buf;
-    if(l <= 0)
-    {
-        return NULL;
-    }
-
-    string sfingerprint = fingerprint + ssize + 1;
+    if (sfingerprint.empty()) return nullptr;
 
     FileFingerprint *fp = new FileFingerprint;
     if(!fp->unserializefingerprint(&sfingerprint))
