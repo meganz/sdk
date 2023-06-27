@@ -484,7 +484,7 @@ ScheduledMeeting* ScheduledMeeting::unserialize(const string& in, const handle c
                                 flags.get(), rules.get());
 }
 
-TextChat::TextChat()
+TextChat::TextChat(bool aPublicChat) : publicchat(aPublicChat)
 {
     id = UNDEF;
     priv = PRIV_UNKNOWN;
@@ -495,7 +495,6 @@ TextChat::TextChat()
     resetTag();
     ts = 0;
     flags = 0;
-    publicchat = false;
     chatOptions = 0;
 
     memset(&changed, 0, sizeof(changed));
@@ -860,7 +859,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
 
     if (client->chats.find(id) == client->chats.end())
     {
-        client->chats[id] = new TextChat();
+        client->chats[id] = new TextChat(publicchat);
     }
     else
     {
@@ -878,7 +877,6 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     chat->ts = ts;
     chat->flags = flags;
     chat->attachedNodes = attachedNodes;
-    chat->publicchat = publicchat;
     chat->unifiedKey = unifiedKey;
     chat->meeting = meetingRoom;
     chat->chatOptions = chatOptions;
@@ -1086,7 +1084,7 @@ bool TextChat::setMode(bool publicchat, MegaClient* client)
 {
     if (this->publicchat == publicchat)
     {
-        return false;
+        return true;
     }
 
     if (!client)

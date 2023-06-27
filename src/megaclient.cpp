@@ -7646,19 +7646,22 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                 }
                 else
                 {
+                    TextChat* chat = nullptr;
                     bool mustHaveUK = false;
                     privilege_t oldPriv = PRIV_UNKNOWN;
                     if (chats.find(chatid) == chats.end())
                     {
-                        chats[chatid] = new TextChat();
+                        chat = new TextChat(readingPublicChat ? publicchat : false);
+                        chats[chatid] = chat;
                         mustHaveUK = true;
                     }
                     else
                     {
-                        oldPriv = chats[chatid]->priv;
+                        chat = chats[chatid];
+                        oldPriv = chat->priv;
+                        if (readingPublicChat) { chat->setMode(publicchat, this); }
                     }
 
-                    TextChat *chat = chats[chatid];
                     chat->id = chatid;
                     chat->shard = shard;
                     chat->group = group;
@@ -7727,7 +7730,6 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
 
                     if (readingPublicChat)
                     {
-                        chat->setMode(publicchat, this);
                         if (!unifiedkey.empty())    // not all actionpackets include it
                         {
                             chat->unifiedKey = unifiedkey;
@@ -12784,12 +12786,18 @@ void MegaClient::procmcf(JSON *j)
                             case EOO:
                                 if (chatid != UNDEF && priv != PRIV_UNKNOWN && shard != -1)
                                 {
+                                    TextChat* chat = nullptr;
                                     if (chats.find(chatid) == chats.end())
                                     {
-                                        chats[chatid] = new TextChat();
+                                        chat = new TextChat(readingPublicChats ? publicchat : false);
+                                        chats[chatid] = chat;
+                                    }
+                                    else
+                                    {
+                                        chat = chats[chatid];
+                                        if (readingPublicChats) { chat->setMode(publicchat, this); }
                                     }
 
-                                    TextChat *chat = chats[chatid];
                                     chat->id = chatid;
                                     chat->priv = priv;
                                     chat->shard = shard;
@@ -12805,7 +12813,6 @@ void MegaClient::procmcf(JSON *j)
 
                                     if (readingPublicChats)
                                     {
-                                        chat->publicchat = publicchat;  // true or false (formerly public, now private)
                                         chat->unifiedKey = unifiedKey;
 
                                         if (unifiedKey.empty())

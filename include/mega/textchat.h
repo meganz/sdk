@@ -259,7 +259,7 @@ private:        // use setter to modify these members
 public:
     int tag;    // source tag, to identify own changes
 
-    TextChat();
+    TextChat(bool aPublicChat);
     ~TextChat();
 
     bool serialize(string *d) const override;
