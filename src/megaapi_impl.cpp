@@ -26959,24 +26959,9 @@ bool MegaTreeProcCopy::processMegaNode(MegaNode *n)
         LocalPath::utf8_normalize(&sname);
         attrs.map['n'] = sname;
 
-        const char *fingerprint = n->getFingerprint();
-        if (fingerprint && fingerprint[0])
         {
-            m_off_t size = 0;
-            unsigned int fsize = unsigned(strlen(fingerprint));
-            unsigned int ssize = fingerprint[0] - 'A';
-            if (!(ssize > (sizeof(size) * 4 / 3 + 4) || fsize <= (ssize + 1)))
-            {
-                int len =  sizeof(size) + 1;
-                byte *buf = new byte[len];
-                Base64::atob(fingerprint + 1, buf, len);
-                int l = Serialize64::unserialize(buf, len, (uint64_t *)&size);
-                delete [] buf;
-                if (l > 0)
-                {
-                    attrs.map['c'] = fingerprint + ssize + 1;
-                }
-            }
+            string sfp = MegaNodePrivate::removeAppPrefixFromFingerprint(n->getFingerprint());
+            if (!sfp.empty()) attrs.map['c'] = std::move(sfp);
         }
 
         string attrstring;
