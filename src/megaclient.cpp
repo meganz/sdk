@@ -19048,11 +19048,15 @@ void MegaClient::getUrlChat(handle chatid)
 
 void MegaClient::setChatMode(TextChat* chat, bool pubChat)
 {
-    if (!chat) { return; }
+    if (!chat)
+    {
+        LOG_warn << "setChatMode: Invalid chat provided";
+        return;
+    }
 
     if (chat->setMode(pubChat) == API_EACCESS)
     {
-        std::string msg = "TextChat::setMode: trying to convert a chat from private into public. chatid: "
+        std::string msg = "setChatMode: trying to convert a chat from private into public. chatid: "
                           + std::string(Base64Str<MegaClient::CHATHANDLE>(chat->id));
         sendevent(99476, msg.c_str(), 0);
         LOG_warn << msg;
