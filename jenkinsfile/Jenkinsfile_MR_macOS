@@ -46,11 +46,6 @@ pipeline {
                 }
 
                 stage('Get API URL'){
-                    when {
-                        expression { 
-                            env.gitlabMergeRequestDescription.contains('USE_APIURL_TO_TEST')
-                        }
-                    }
                     steps {
                         script{
                             APIURL_TO_TEST = sh(script: 'echo "$gitlabMergeRequestDescription" | grep USE_APIURL_TO_TEST | awk -F "USE_APIURL_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
