@@ -3494,7 +3494,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool not
                 }
             }
 
-            string wholefile;
+            string wholefile = string("\xEF\xBB\xBF", 3);        // utf8-BOM
             for (auto& line : *resultIfMegaignoreDefault)
             {
 #ifdef WIN32

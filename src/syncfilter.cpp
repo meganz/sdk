@@ -420,21 +420,27 @@ string DefaultFilterChain::generate(const LocalPath& targetPath, FileSystemAcces
         ostream << string("\xEF\xBB\xBF", 3);
     }
 
+#ifdef WIN32
+       #define NL "\r\n";
+#else
+       #define NL  "\n";
+#endif
+
     if (setSyncIgnoreFileFlag)
     {
-        ostream << "+sync:.megaignore\n";
+        ostream << "+sync:.megaignore" NL;
     }
 
     // Size filters.
     if (mLowerLimit)
-        ostream << "exclude-smaller:" << mLowerLimit << "\n";
+        ostream << "exclude-smaller:" << mLowerLimit << NL;
 
     if (mUpperLimit)
-        ostream << "exclude-larger:" << mUpperLimit << "\n";
+        ostream << "exclude-larger:" << mUpperLimit << NL;
 
     // Name filters.
     for (auto& name : mExcludedNames)
-            ostream << "-:" << name << "\n";
+            ostream << "-:" << name << NL;
 
     // Path filters.
     if (mExcludedPaths.empty())
@@ -443,7 +449,9 @@ string DefaultFilterChain::generate(const LocalPath& targetPath, FileSystemAcces
     auto paths = applicablePaths(targetPath);
 
     for (auto& path : toRemotePaths(paths, fsAccess))
-        ostream << "-p:" << path.toName(fsAccess) << "\n";
+        ostream << "-p:" << path.toName(fsAccess) << NL;
+
+    #undef NL
 
     return ostream.str();
 }

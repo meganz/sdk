@@ -12248,7 +12248,10 @@ TEST_F(FilterFixture, MigrateLegacyFilters)
     // Helpful aliases.
     auto& oldExclusions = cu->client.syncs.mLegacyUpgradeFilterChain;
     auto& fsAccess = *cu->client.fsaccess;
-    auto& newExclusions = cu->client.syncs.mNewSyncFilterChain;
+    DefaultFilterChain oldExclusionsNoAbsoutePaths;
+
+    // after we add .megaignore.default, we will actually be using the legacy rules (until edited)
+    // auto& newExclusions = cu->client.syncs.mNewSyncFilterChain;
 
     // Convenience.
     auto root = this->root(*cu) / "root";
@@ -12274,14 +12277,27 @@ TEST_F(FilterFixture, MigrateLegacyFilters)
         oldExclusions.upperLimit(MAXSIZE);
     }
 
+    // Prepare legacy exclusions without absolute paths, as would go into .megaignore.default
+    {
+        // Set legacy name filters.
+        string_vector elements = {"fe"};
+
+        oldExclusionsNoAbsoutePaths.excludedNames(elements, fsAccess);
+
+        // Set legacy size exclusions.
+        oldExclusionsNoAbsoutePaths.lowerLimit(MINSIZE);
+        oldExclusionsNoAbsoutePaths.upperLimit(MAXSIZE);
+    }
+
+
     // Prepare local filesystem.
     LocalFSModel localFS;
-
+    string dpfidata;
     localFS.addfile("dn/fi", randomData(MINSIZE));
     localFS.addfile("dn/fe", randomData(MINSIZE));
     localFS.addfile("dn/fs", randomData(MINSIZE - 1));
     localFS.addfile("dn/fl", randomData(MAXSIZE + 1));
-    localFS.addfile("dp/fi", randomData(MINSIZE));
+    localFS.addfile("dp/fi", (dpfidata = randomData(MINSIZE)));
     localFS.generate(root);
     localFS.addfile(".megaignore", oldExclusions.generate(rootPath, fsAccess, true, false));
 
@@ -12324,7 +12340,7 @@ TEST_F(FilterFixture, MigrateLegacyFilters)
 
     // Remove the ignore file from the cloud.
     {
-        //remoteTree.removenode(".megaignore");
+        remoteTree.removenode(".megaignore");
 
         //ASSERT_TRUE(cu->deleteremote("cu/.megaignore"));
 
@@ -12340,11 +12356,15 @@ TEST_F(FilterFixture, MigrateLegacyFilters)
     waitOnSyncs(cu);
 
     // Make sure everything's uploaded as it should be.
-    RemoteNodeModel remoteTree2 = localFS;
-    localFS.addfile(".megaignore", newExclusions.generate(rootPath, fsAccess, true, false));   // .megaignore not synced by default
+    //RemoteNodeModel remoteTree2 = localFS;
+    // after we add .megaignore.default, we will actually be using the legacy rules (until edited)
+    localFS.addfile(".megaignore", /*newExclusions*/ oldExclusionsNoAbsoutePaths.generate(rootPath, fsAccess, true, false));   // .megaignore not synced by default
+
+    // with .megaignore.default copied to the sync, dp path is no longer excluded
+    remoteTree.addfile("dp/fi", dpfidata);
 
     ASSERT_TRUE(confirm(*cu, id, localFS));
-    ASSERT_TRUE(confirm(*cu, id, remoteTree2));
+    ASSERT_TRUE(confirm(*cu, id, remoteTree));
 }
 
 TEST_F(FilterFixture, NameFilter)
