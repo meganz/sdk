@@ -5324,6 +5324,7 @@ public:
         EVENT_FATAL_ERROR               = 17, // Notify fatal error to user (may require to reload)
         EVENT_UPGRADE_SECURITY          = 18, // Account upgraded. Cryptography relies now on keys attribute information.
         EVENT_DOWNGRADE_ATTACK          = 19, // A downgrade attack has been detected. Removed shares may have reappeared. Please tread carefully.
+        EVENT_ACCOUNT_CONFIRM_USER      = 20,
     };
 
     enum
@@ -8143,6 +8144,13 @@ class MegaGlobalListener
          *   Valid data in the MegaEvent object received in the callback:
          *      - MegaEvent::getText: email address used to confirm the account
          *
+         *  - MegaEvent::EVENT_ACCOUNT_CONFIRM_USER: when a new account is finally confirmed
+         * by confirming the signup link, and RSA keys have been generated.
+         *
+         *   Valid data in the MegaEvent object received in the callback:
+         *      - MegaEvent::getHandle: user handle for the confirmed account
+         *      - MegaEvent::getText: email address used to confirm the account
+         *
          *  - MegaEvent::EVENT_CHANGE_TO_HTTPS: when the SDK automatically starts using HTTPS for all
          * its communications. This happens when the SDK is able to detect that MEGA servers can't be
          * reached using HTTP or that HTTP communications are being tampered. Transfers of files and
@@ -8750,6 +8758,13 @@ class MegaListener
          * by the user by confirming the signup link.
          *
          *   Valid data in the MegaEvent object received in the callback:
+         *      - MegaEvent::getText: email address used to confirm the account
+         *
+         *  - MegaEvent::EVENT_ACCOUNT_CONFIRM_USER: when a new account is finally confirmed
+         * by confirming the signup link, and RSA keys have been generated.
+         *
+         *   Valid data in the MegaEvent object received in the callback:
+         *      - MegaEvent::getHandle: user handle for the confirmed account
          *      - MegaEvent::getText: email address used to confirm the account
          *
          *  - MegaEvent::EVENT_CHANGE_TO_HTTPS: when the SDK automatically starts using HTTPS for all
@@ -10577,10 +10592,12 @@ class MegaApi
          * - MegaRequest::getEmail - Email of the account
          * - MegaRequest::getName - Name of the user
          *
-         * As a result of a successfull confirmation, the app will receive the callback
-         * MegaListener::onEvent and MegaGlobalListener::onEvent with an event of type
-         * MegaEvent::EVENT_ACCOUNT_CONFIRMATION. You can check the email used to confirm
-         * the account by checking MegaEvent::getText. @see MegaListener::onEvent.
+         * As a result of a successful confirmation, the app will receive callbacks
+         * MegaListener::onEvent and MegaGlobalListener::onEvent with events of type
+         * MegaEvent::EVENT_ACCOUNT_CONFIRMATION and MegaEvent::EVENT_ACCOUNT_CONFIRM_USER.
+         * You can check the email used to confirm the account by checking MegaEvent::getText
+         * of either of them, and the new user handle by checking MegaEvent::getHandle of the
+         * latter. @see MegaListener::onEvent.
          *
          * If already logged-in into a different account, you will get the error code MegaError::API_EACCESS
          * in onRequestFinish.

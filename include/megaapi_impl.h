@@ -3645,6 +3645,9 @@ protected:
         // notify about account confirmation
         void notify_confirmation(const char*) override;
 
+        // notify about account confirmation after signup link -> user, email have been confirmed
+        void notify_confirm_user(handle /*user*/, const char* /*email*/) override;
+
         // network layer disconnected
         void notify_disconnect() override;
 
