@@ -285,11 +285,14 @@ DefaultFilterChain& DefaultFilterChain::operator=(DefaultFilterChain& rhs)
     return *this;
 }
 
-bool DefaultFilterChain::create(const LocalPath& targetPath, FileSystemAccess& fsAccess, bool setSyncIgnoreFileFlag)
+bool DefaultFilterChain::create(const LocalPath& targetPath, bool appendName, FileSystemAccess& fsAccess, bool setSyncIgnoreFileFlag)
 {
     // Compute the path for the target's ignore file.
     auto filePath = targetPath;
-    filePath.appendWithSeparator(IGNORE_FILE_NAME, false);
+    if (appendName)
+    {
+        filePath.appendWithSeparator(IGNORE_FILE_NAME, false);
+    }
 
     // Get access to the filesystem.
     auto fileAccess = fsAccess.newfileaccess(false);
@@ -655,6 +658,7 @@ ExclusionState FilterChain::match(const m_off_t s) const
     // Attempt the match.
     return mSizeFilter->match(t) ? ES_INCLUDED : ES_EXCLUDED;
 }
+
 
 #ifdef _WIN32
 const LocalPath IgnoreFileName::mLocalName = LocalPath::fromPlatformEncodedRelative(L".megaignore");

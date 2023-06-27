@@ -3279,6 +3279,48 @@ UnifiedSync::UnifiedSync(Syncs& s, const SyncConfig& c)
     mNextHeartbeat.reset(new HeartBeatSyncInfo());
 }
 
+void Syncs::confirmOrCreateDefaultMegaignore(bool transitionToMegaignore, unique_ptr<DefaultFilterChain>& resultIfDfc, unique_ptr<string_vector>& resultIfMegaignoreDefault)
+{
+    // In a new install, we would populate .megaignore.default with the default defaults.
+    // But when upgrading an old MEGAsync that has syncs and legacy rules, copy
+    // those legacy rules to .megaignore.default.  transitionToMegaignore tells us which it is.
+
+    resultIfDfc.reset(new DefaultFilterChain(transitionToMegaignore ? mLegacyUpgradeFilterChain : mNewSyncFilterChain));
+
+    // However, if .megaignore.default already exists, then use that one of course.
+    // If it doesn't exist yet, write it.
+
+    auto defaultpath = mClient.dbaccess->rootPath();
+    defaultpath.appendWithSeparator(LocalPath::fromRelativePath(".megaignore.default"), false);
+    if (!fsaccess->fileExistsAt(defaultpath))
+    {
+        LOG_info << "Writing .megaignore.default according to upgrade flag: " << transitionToMegaignore << " at " << defaultpath;
+        if (!resultIfDfc->create(defaultpath, false, *fsaccess, false))
+        {
+            LOG_err << "Failed to write .megaignore.default";
+        }
+    }
+    else if (!transitionToMegaignore)
+    {
+        // If we are in transitionToMegaignore, don't load from the default as it will lose
+        // the absolute paths which might be relevant for a particular sync
+        resultIfMegaignoreDefault.reset(new string_vector);
+        auto fa = fsaccess->newfileaccess(false);
+        if (fa->fopen(defaultpath, true, false, FSLogging::logOnError))
+        {
+            if (readLines(*fa, *resultIfMegaignoreDefault))
+            {
+                // Return the text of the file.
+                // FilterChain and FilterChainDefault are very different and conversion between them is not really practical
+                resultIfDfc.reset();
+                return;
+            }
+        }
+        LOG_err << "Failed to load .megaignore.default, going with default defaults instead";
+        resultIfMegaignoreDefault.reset();
+    }
+}
+
 void Syncs::enableSyncByBackupId(handle backupId, bool paused, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname)
 {
     assert(!onSyncThread());
@@ -3406,44 +3448,77 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool not
         return;
     }
 
-    // Does this sync contain an ignore file?
+    // Does this sync already contain an ignore file?
     if (!hasIgnoreFile(us.mConfig))
     {
-        DefaultFilterChain* filter = nullptr;
+        // Create a new chain so that we can add custom rules if necessary.
+        unique_ptr<DefaultFilterChain> resultIfDfc;
+        unique_ptr<string_vector> resultIfMegaignoreDefault;
+        confirmOrCreateDefaultMegaignore(!us.mConfig.mLegacyExclusionsIneligigble, resultIfDfc, resultIfMegaignoreDefault);
+        assert(resultIfDfc || resultIfMegaignoreDefault);
 
-        // What chain are we using as a template?
-        if (us.mConfig.mLegacyExclusionsIneligigble)
+        bool writeMegaignoreFailed = false;
+
+        if (resultIfDfc)
         {
-            filter = &mNewSyncFilterChain;
-            LOG_debug << "Adding standard default .megaignore to sync";
+            // We are using default rules, or legacy rules for this sync
+
+            // Do we have a custom rule to apply?
+            if (!excludedPath.empty())
+            {
+                resultIfDfc->excludePath(excludedPath);
+            }
+
+            // Try and create the missing ignore file.  Not synced by default
+            if (!resultIfDfc->create(us.mConfig.mLocalPath, true, *fsaccess, false))
+            {
+                LOG_debug << "Failed to create ignore file for sync without one at: " << us.mConfig.mLocalPath;
+                writeMegaignoreFailed = true;
+            }
         }
         else
         {
-            filter = &mLegacyUpgradeFilterChain;
-            LOG_debug << "Converting legacy exclusion rules to .megaignore for this sync";
+            // We are copying .megaignore.default but adding one more excluded path into it
+
+            // Do we have a custom rule to apply?
+            if (!excludedPath.empty())
+            {
+                string temp = excludedPath;
+                LocalPath::utf8_normalize(&temp);
+                auto targetPath = LocalPath::fromAbsolutePath(std::move(temp));
+                size_t index;
+                if (us.mConfig.mLocalPath.isContainingPathOf(targetPath, &index))
+                {
+                    // Path exclusions should be relative to the .megaignore file
+                    resultIfMegaignoreDefault->push_back("-p:" + targetPath.subpathFrom(index).toPath(false));
+                }
+            }
+
+            string wholefile;
+            for (auto& line : *resultIfMegaignoreDefault)
+            {
+#ifdef WIN32
+                wholefile += line + "\r\n";
+#else
+                wholefile += line + "\n";
+#endif
+            }
+
+            auto filePath = us.mConfig.mLocalPath;
+            filePath.appendWithSeparator(IGNORE_FILE_NAME, false);
+            auto fa = fsaccess->newfileaccess(false);
+            writeMegaignoreFailed = true;
+            if (fa->fopen(filePath, false, true, FSLogging::logOnError))
+            {
+                if (fa->fwrite((const byte*)wholefile.data(), (unsigned)wholefile.size(), 0))
+                {
+                    writeMegaignoreFailed = false;
+                }
+            }
         }
 
-        // Create a new chain so that we can add custom rules if necessary.
-        DefaultFilterChain tempFilter;
-
-        // Do we have a custom rule to apply?
-        if (!excludedPath.empty())
+        if (writeMegaignoreFailed)
         {
-            // Then copy the template...
-            tempFilter = *filter;
-
-            // And add the new exclusion.
-            tempFilter.excludePath(excludedPath);
-
-            // Use the updated filter when generating a new ignore file.
-            filter = &tempFilter;
-        }
-
-        // Try and create the missing ignore file.  Not synced by default
-        if (!filter->create(us.mConfig.mLocalPath, *fsaccess, false))
-        {
-            LOG_debug << "Failed to create ignore file for sync without one at: " << us.mConfig.mLocalPath;
-
             // for backups, it's ok to be backup up read-only folders.
             // for syncs, we can't sync if we can't bring changes back
 

@@ -62,7 +62,7 @@ public:
     // - We successfully created an ignore file in the target directory.
     //
     // Returns false otherwise.
-    bool create(const LocalPath& targetPath, FileSystemAccess& fsAccess, bool setSyncIgnoreFileFlag);
+    bool create(const LocalPath& targetPath, bool appendName, FileSystemAccess& fsAccess, bool setSyncIgnoreFileFlag);
 
     // Specify what names should be excluded.
     //

@@ -1363,6 +1363,8 @@ private:
     // Check if the sync described by config contains an ignore file.
     bool hasIgnoreFile(const SyncConfig& config);
 
+    void confirmOrCreateDefaultMegaignore(bool transitionToMegaignore, unique_ptr<DefaultFilterChain>& resultIfDfc, unique_ptr<string_vector>& resultIfMegaignoreDefault);
+
     // ------ private data members
 
     MegaClient& mClient;
