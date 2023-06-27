@@ -6043,32 +6043,6 @@ long long MegaApiImpl::getSDKtime()
     return Waiter::ds;
 }
 
-char* MegaApiImpl::getStringHash(const char* base64pwkey, const char* inBuf)
-{
-    if (!base64pwkey || !inBuf)
-    {
-        return NULL;
-    }
-
-    char pwkey[2 * SymmCipher::KEYLENGTH];
-    if (Base64::atob(base64pwkey, (byte *)pwkey, sizeof pwkey) != SymmCipher::KEYLENGTH)
-    {
-        return MegaApi::strdup("");
-    }
-
-    SymmCipher key;
-    key.setkey((byte*)pwkey);
-
-    uint64_t strhash;
-    string neBuf = inBuf;
-
-    strhash = client->stringhash64(&neBuf, &key);
-
-    char* buf = new char[8*4/3+4];
-    Base64::btoa((byte*)&strhash, 8, buf);
-    return buf;
-}
-
 MegaHandle MegaApiImpl::base32ToHandle(const char *base32Handle)
 {
     if(!base32Handle) return INVALID_HANDLE;
@@ -6389,22 +6363,6 @@ void MegaApiImpl::multiFactorAuthCancelAccount(const char *pin, MegaRequestListe
     waiter->notify();
 }
 
-void MegaApiImpl::fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
-    request->setEmail(email);
-    request->setPassword(stringHash);
-    request->setPrivateKey(base64pwkey);
-
-    request->performRequest = [this, request]()
-    {
-        return performRequest_login(request);
-    };
-
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::fastLogin(const char *session, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
@@ -6626,42 +6584,11 @@ void MegaApiImpl::resendSignupLink(const char *email, const char *name, MegaRequ
     waiter->notify();
 }
 
-void MegaApiImpl::fastSendSignupLink(const char *email, const char *base64pwkey, const char *name, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SEND_SIGNUP_LINK, listener);
-    request->setEmail(email);
-    request->setPrivateKey(base64pwkey);
-    request->setName(name);
-
-    request->performRequest = [this, request]()
-    {
-        return performRequest_sendSignupLink(request);
-    };
-
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::confirmAccount(const char* link, const char *password, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CONFIRM_ACCOUNT, listener);
     request->setLink(link);
     request->setPassword(password);
-
-    request->performRequest = [this, request]()
-    {
-        return performRequest_confirmAccount(request);
-    };
-
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::fastConfirmAccount(const char* link, const char *base64pwkey, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CONFIRM_ACCOUNT, listener);
-    request->setLink(link);
-    request->setPrivateKey(base64pwkey);
 
     request->performRequest = [this, request]()
     {
@@ -14355,30 +14282,6 @@ void MegaApiImpl::prelogin_result(int version, string* email, string *salt, erro
         if (version == 1)
         {
             const char *password = request->getPassword();
-            const char* base64pwkey = request->getPrivateKey();
-            if (base64pwkey)
-            {
-                byte pwkey[SymmCipher::KEYLENGTH];
-                Base64::atob(base64pwkey, (byte *)pwkey, sizeof pwkey);
-                if (password)
-                {
-                    uint64_t emailhash;
-                    Base64::atob(password, (byte *)&emailhash, sizeof emailhash);
-
-                    int creqtag = client->reqtag;
-                    client->reqtag = client->restag;
-                    client->fastlogin(email->c_str(), pwkey, emailhash);
-                    client->reqtag = creqtag;
-                }
-                else
-                {
-                    int creqtag = client->reqtag;
-                    client->reqtag = client->restag;
-                    client->login(email->c_str(), pwkey, pin);
-                    client->reqtag = creqtag;
-                }
-            }
-            else
             {
                 error err;
                 byte pwkey[SymmCipher::KEYLENGTH];
@@ -14398,18 +14301,6 @@ void MegaApiImpl::prelogin_result(int version, string* email, string *salt, erro
         else if (version == 2 && salt)
         {
             const char *password = request->getPassword();
-            const char* base64pwkey = request->getPrivateKey();
-            if (base64pwkey)
-            {
-                byte derivedKey[2 * SymmCipher::KEYLENGTH];
-                Base64::atob(base64pwkey, derivedKey, sizeof derivedKey);
-
-                int creqtag = client->reqtag;
-                client->reqtag = client->restag;
-                client->login2(email->c_str(), derivedKey, pin);
-                client->reqtag = creqtag;
-            }
-            else
             {
                 int creqtag = client->reqtag;
                 client->reqtag = client->restag;
@@ -14483,8 +14374,7 @@ void MegaApiImpl::login_result(error result)
     if(!request || (request->getType() != MegaRequest::TYPE_LOGIN && request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT)) return;
 
     // if login with user+pwd succeed, update lastLogin timestamp
-    if (result == API_OK && request->getEmail() &&
-            (request->getPassword() || request->getPrivateKey()))
+    if (result == API_OK && request->getEmail() && request->getPassword())
     {
         client->isNewSession = true;
         client->tsLogin = m_time();
@@ -18983,10 +18873,9 @@ error MegaApiImpl::performRequest_login(MegaRequestPrivate* request)
             const char *login = request->getEmail();
             const char *password = request->getPassword();
             const char* megaFolderLink = request->getLink();
-            const char* base64pwkey = request->getPrivateKey();
             const char* sessionKey = request->getSessionKey();
 
-            if (!megaFolderLink && (!(login && password)) && !sessionKey && (!(login && base64pwkey)))
+            if (!megaFolderLink && (!(login && password)) && !sessionKey)
             {
                 return API_EARGS;
             }
@@ -19011,7 +18900,7 @@ error MegaApiImpl::performRequest_login(MegaRequestPrivate* request)
             {
                 client->login(Base64::atob(string(sessionKey)));
             }
-            else if (login && (base64pwkey || password) && !megaFolderLink)
+            else if (login && password && !megaFolderLink)
             {
                 client->prelogin(slogin.c_str());
             }
@@ -20995,7 +20884,6 @@ error MegaApiImpl::performRequest_createAccount(MegaRequestPrivate* request)
             const char *password = request->getPassword();
             const char *name = request->getName();
             const char *lastname = request->getText();
-            const char *pwkey = request->getPrivateKey();
             const char *sid = request->getSessionKey();
             bool resumeProcess = (request->getParamType() == MegaApi::RESUME_ACCOUNT);   // resume existing ephemeral account
             bool cancelProcess = (request->getParamType() == MegaApi::CANCEL_ACCOUNT);
@@ -21014,7 +20902,7 @@ error MegaApiImpl::performRequest_createAccount(MegaRequestPrivate* request)
             }
 
             if ((!resumeProcess && !cancelProcess && !resumeEphemeralPlusPlus && !createEphemeralPlusPlus &&
-                  (!email || !name || (!password && !pwkey))) ||
+                  (!email || !name || !password)) ||
                  ((resumeProcess || resumeEphemeralPlusPlus) && !sid) ||
                  (createEphemeralPlusPlus && !(name && lastname)))
             {
@@ -21075,11 +20963,6 @@ error MegaApiImpl::performRequest_createAccount(MegaRequestPrivate* request)
 
 error MegaApiImpl::performRequest_sendSignupLink(MegaRequestPrivate* request)
 {
-            if (request->getPrivateKey())
-            {
-                // obsolete. Use registration flow v2: calling (re)sendSignupLink() instead of fastSendSignupLink()
-                return API_EINTERNAL;
-            }
             const char *email = request->getEmail();
             const char *name = request->getName();
             if (!email || !name)
@@ -21201,12 +21084,6 @@ error MegaApiImpl::performRequest_confirmAccount(MegaRequestPrivate* request)
             if (!link || !password)
             {
                 return API_EARGS;
-            }
-
-            if (request->getPrivateKey())
-            {
-                // obsolete. Use registration flow v2
-                return API_EINTERNAL;
             }
 
             const char* ptr = link;

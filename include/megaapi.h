@@ -4549,7 +4549,6 @@ class MegaRequest
          * This value is valid for these requests:
          * - MegaApi::querySignupLink - Returns the confirmation link
          * - MegaApi::confirmAccount - Returns the confirmation link
-         * - MegaApi::fastConfirmAccount - Returns the confirmation link
          * - MegaApi::loginToFolder - Returns the link to the folder
          * - MegaApi::importFileLink - Returns the link to the file to import
          * - MegaApi::getPublicNode - Returns the link to the file
@@ -4635,7 +4634,6 @@ class MegaRequest
          * error code is MegaError::API_OK:
          * - MegaApi::querySignupLink - Returns the name of the user
          * - MegaApi::confirmAccount - Returns the name of the user
-         * - MegaApi::fastConfirmAccount - Returns the name of the user
          * - MegaApi::getUserData - Returns the name of the user
          * - MegaApi::getDownloadUrl - Returns semicolon-separated download URL(s) to the file
          *
@@ -4667,7 +4665,6 @@ class MegaRequest
          * error code is MegaError::API_OK:
          * - MegaApi::querySignupLink - Returns the email of the account
          * - MegaApi::confirmAccount - Returns the email of the account
-         * - MegaApi::fastConfirmAccount - Returns the email of the account
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
@@ -4682,7 +4679,6 @@ class MegaRequest
          * This value is valid for these requests:
          * - MegaApi::login - Returns the password of the account
          * - MegaApi::loginToFolder - Returns the authentication key to write in public folder
-         * - MegaApi::fastLogin - Returns the hash of the email
          * - MegaApi::createAccount - Returns the password for the account
          * - MegaApi::confirmAccount - Returns the password for the account
          * - MegaApi::changePassword - Returns the old password of the account (first parameter)
@@ -4716,10 +4712,6 @@ class MegaRequest
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
-         *
-         * This value is valid for these requests:
-         * - MegaApi::fastLogin - Returns the base64pwKey parameter
-         * - MegaApi::fastConfirmAccount - Returns the base64pwKey parameter
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -9468,24 +9460,6 @@ class MegaApi
         void removeGlobalListener(MegaGlobalListener* listener);
 
         /**
-         * @brief Generates a hash based in the provided private key and email
-         *
-         * This is a time consuming operation (specially for low-end mobile devices). Since the resulting key is
-         * required to log in, this function allows to do this step in a separate function. You should run this function
-         * in a background thread, to prevent UI hangs. The resulting key can be used in MegaApi::fastLogin
-         *
-         * You take the ownership of the returned value.
-         *
-         * @param base64pwkey Private key returned by MegaRequest::getPrivateKey in the onRequestFinish callback of createAccount
-         * @param email Email to create the hash
-         * @return Base64-encoded hash
-         *
-         * @deprecated This function is only useful for old accounts. Once enabled the new registration logic,
-         * this function will return an empty string for new accounts and will be removed few time after.
-         */
-        char* getStringHash(const char* base64pwkey, const char* email);
-
-        /**
          * @brief Get internal timestamp used by the SDK
          *
          * This is a time used in certain internal operations.
@@ -10010,27 +9984,6 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void loginToFolder(const char* megaFolderLink, const char *authKey, MegaRequestListener *listener = NULL);
-        /**
-         * @brief Log in to a MEGA account using precomputed keys
-         *
-         * The associated request type with this request is MegaRequest::TYPE_LOGIN.
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getEmail - Returns the first parameter
-         * - MegaRequest::getPassword - Returns the second parameter
-         * - MegaRequest::getPrivateKey - Returns the third parameter
-         *
-         * If the email/stringHash/base64pwKey aren't valid the error code provided in onRequestFinish is
-         * MegaError::API_ENOENT.
-         *
-         * @param email Email of the user
-         * @param stringHash Hash of the email returned by MegaApi::getStringHash
-         * @param base64pwkey Private key returned by MegaRequest::getPrivateKey in the onRequestFinish callback of createAccount
-         * @param listener MegaRequestListener to track this request
-         *
-         * @deprecated The parameter stringHash is no longer for new accounts so this function will be replaced by another
-         * one soon. Please use MegaApi::login (with email and password) or MegaApi::fastLogin (with session) instead when possible.
-         */
-        void fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Log in to a MEGA account using a session key
@@ -10535,11 +10488,6 @@ class MegaApi
         void resendSignupLink(const char* email, const char *name, MegaRequestListener *listener = NULL);
 
         /**
-         * @obsolete  This method cannot be used anymore by apps. It will always result on API_EINTERNAL.
-         */
-        void fastSendSignupLink(const char* email, const char *base64pwkey, const char *name, MegaRequestListener *listener = NULL);
-
-        /**
          * @brief Get information about a confirmation link or a new signup link
          *
          * The associated request type with this request is MegaRequest::TYPE_QUERY_SIGNUP_LINK.
@@ -10594,11 +10542,6 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void confirmAccount(const char* link, const char *password, MegaRequestListener *listener = NULL);
-
-        /**
-         * @obsolete This method cannot be used anymore by apps. It will always result on API_EINTERNAL.
-         */
-        void fastConfirmAccount(const char* link, const char *base64pwkey, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Initialize the reset of the existing password, with and without the Master Key.
