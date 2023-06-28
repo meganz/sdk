@@ -343,8 +343,13 @@ struct IsPath<RemotePath>
 }; // IsPath<RemotePath>
 
 struct NameConflict {
+    struct NameHandle {
+        string name;
+        NodeHandle handle;
+        NameHandle(const string& s, NodeHandle h) : name(s), handle(h) {}
+    };
     string cloudPath;
-    vector<string> clashingCloudNames;
+    vector<NameHandle> clashingCloud;
     LocalPath localPath;
     vector<LocalPath> clashingLocalNames;
 };
