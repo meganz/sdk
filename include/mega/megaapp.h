@@ -360,7 +360,7 @@ struct MEGA_API MegaApp
     virtual void notify_confirmation(const char* /*email*/) { }
 
     // account confirmation after signup link -> user, email have been confirmed
-    virtual void notify_confirm_user(handle /*user*/, const char* /*email*/) { }
+    virtual void notify_confirm_user_email(handle /*user*/, const char* /*email*/) { }
 
     // network layer disconnected
     virtual void notify_disconnect() { }

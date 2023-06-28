@@ -8954,7 +8954,7 @@ void DemoApp::notify_confirmation(const char *email)
     }
 }
 
-void DemoApp::notify_confirm_user(handle user, const char *email)
+void DemoApp::notify_confirm_user_email(handle user, const char *email)
 {
     if (client->loggedin() == EPHEMERALACCOUNT || client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
     {

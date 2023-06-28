@@ -14195,7 +14195,7 @@ void MegaApiImpl::notify_confirmation(const char *email)
     fireOnEvent(event);
 }
 
-void MegaApiImpl::notify_confirm_user(handle user, const char* email)
+void MegaApiImpl::notify_confirm_user_email(handle user, const char* email)
 {
     MegaEventPrivate* event = new MegaEventPrivate(MegaEvent::EVENT_CONFIRM_USER_EMAIL);
     event->setHandle(user);

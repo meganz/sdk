@@ -8102,7 +8102,7 @@ void MegaClient::sc_uec()
                     LOG_warn << "Missing user handle in `uec` action packet";
                 }
                 app->account_updated();
-                app->notify_confirm_user(u, email.c_str());
+                app->notify_confirm_user_email(u, email.c_str());
                 ephemeralSession = false;
                 ephemeralSessionPlusPlus = false;
                 return;
