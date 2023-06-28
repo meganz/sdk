@@ -109,7 +109,7 @@ pipeline {
 
                     //Build SDK
                     sh "echo Building SDK"
-                    sh "cmake -DENABLE_WERROR=1 -DENABLE_CHAT=1 -DCMAKE_BUILD_TYPE=Debug -DMega3rdPartyDir=${VCPKGPATH} ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=1 -DUSE_THIRDPARTY_FROM_VCPKG=1 -DUSE_POLL=1 \
+                    sh "cmake -DENABLE_WERROR=1 -DENABLE_CHAT=1 -DCMAKE_BUILD_TYPE=Debug -DMega3rdPartyDir=${VCPKGPATH} ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=1 -DUSE_THIRDPARTY_FROM_VCPKG=1 \
                     -S ${mac_sources_workspace}/contrib/cmake -B ${mac_sources_workspace}/${BUILD_DIR}"
                     sh "cmake --build ${mac_sources_workspace}/${BUILD_DIR} --target Mega -j1"
                     sh "cmake --build ${mac_sources_workspace}/${BUILD_DIR} --target megacli -j1"
