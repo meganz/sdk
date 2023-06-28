@@ -25,6 +25,10 @@
 #include "mega/waiter.h"
 #include <mutex>
 
+#ifdef __APPLE__
+#define USE_POLL
+#endif
+
 #ifndef USE_POLL
     #define MEGA_FD_ZERO FD_ZERO
     #define MEGA_FD_SET FD_SET
