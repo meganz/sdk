@@ -14197,7 +14197,7 @@ void MegaApiImpl::notify_confirmation(const char *email)
 
 void MegaApiImpl::notify_confirm_user(handle user, const char* email)
 {
-    MegaEventPrivate* event = new MegaEventPrivate(MegaEvent::EVENT_ACCOUNT_CONFIRM_USER);
+    MegaEventPrivate* event = new MegaEventPrivate(MegaEvent::EVENT_CONFIRM_USER_EMAIL);
     event->setHandle(user);
     event->setText(email);
     fireOnEvent(event);
@@ -35496,7 +35496,7 @@ const char *MegaEventPrivate::getEventString(int type)
     {
         case MegaEvent::EVENT_COMMIT_DB: return "EVENT_COMMIT_DB";
         case MegaEvent::EVENT_ACCOUNT_CONFIRMATION: return "EVENT_ACCOUNT_CONFIRMATION";
-        case MegaEvent::EVENT_ACCOUNT_CONFIRM_USER: return "EVENT_ACCOUNT_CONFIRM_USER";
+        case MegaEvent::EVENT_CONFIRM_USER_EMAIL: return "EVENT_CONFIRM_USER_EMAIL";
         case MegaEvent::EVENT_CHANGE_TO_HTTPS: return "EVENT_CHANGE_TO_HTTPS";
         case MegaEvent::EVENT_DISCONNECT: return "EVENT_DISCONNECT";
         case MegaEvent::EVENT_ACCOUNT_BLOCKED: return "EVENT_ACCOUNT_BLOCKED";

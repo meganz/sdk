@@ -5324,7 +5324,7 @@ public:
         EVENT_FATAL_ERROR               = 17, // Notify fatal error to user (may require to reload)
         EVENT_UPGRADE_SECURITY          = 18, // Account upgraded. Cryptography relies now on keys attribute information.
         EVENT_DOWNGRADE_ATTACK          = 19, // A downgrade attack has been detected. Removed shares may have reappeared. Please tread carefully.
-        EVENT_ACCOUNT_CONFIRM_USER      = 20, // Ephemeral account confirmed the associated email
+        EVENT_CONFIRM_USER_EMAIL        = 20, // Ephemeral account confirmed the associated email
     };
 
     enum
@@ -8144,7 +8144,7 @@ class MegaGlobalListener
          *   Valid data in the MegaEvent object received in the callback:
          *      - MegaEvent::getText: email address used to confirm the account
          *
-         *  - MegaEvent::EVENT_ACCOUNT_CONFIRM_USER: when a new account is finally confirmed
+         *  - MegaEvent::EVENT_CONFIRM_USER_EMAIL: when a new account is finally confirmed
          * by confirming the signup link.
          *
          *   Valid data in the MegaEvent object received in the callback:
@@ -8760,7 +8760,7 @@ class MegaListener
          *   Valid data in the MegaEvent object received in the callback:
          *      - MegaEvent::getText: email address used to confirm the account
          *
-         *  - MegaEvent::EVENT_ACCOUNT_CONFIRM_USER: when a new account is finally confirmed
+         *  - MegaEvent::EVENT_CONFIRM_USER_EMAIL: when a new account is finally confirmed
          * by confirming the signup link.
          *
          *   Valid data in the MegaEvent object received in the callback:
