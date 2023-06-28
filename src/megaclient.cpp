@@ -12789,7 +12789,7 @@ void MegaClient::procmcf(JSON *j)
                                     TextChat* chat = nullptr;
                                     if (chats.find(chatid) == chats.end())
                                     {
-                                        chat = new TextChat(readingPublicChats ? publicchat : false);
+                                        chat = new TextChat(readingPublicChats && publicchat);
                                         chats[chatid] = chat;
                                     }
                                     else
