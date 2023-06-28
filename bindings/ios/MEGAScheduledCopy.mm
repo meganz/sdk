@@ -95,8 +95,8 @@ using namespace mega;
     return self.megaScheduledCopy ? self.megaScheduledCopy->getMaxBackups() : 0;
 }
 
-- (NSUInteger)state {
-    return self.megaScheduledCopy ? self.megaScheduledCopy->getState() : -2;
+- (MEGAScheduledCopyState)state {
+    return (MEGAScheduledCopyState) (self.megaScheduledCopy ? self.megaScheduledCopy->getState() : MEGAScheduledCopyStateFailed);
 }
 
 - (long long)numberFolders {
@@ -135,7 +135,7 @@ using namespace mega;
     return self.megaScheduledCopy ? self.megaScheduledCopy->getUpdateTime() : 0;
 }
 
-- (MEGATransferList *)failedTransferss {
+- (MEGATransferList *)failedTransfers {
     if (self.megaScheduledCopy == nil) return nil;
     return [[MEGATransferList alloc] initWithTransferList:self.megaScheduledCopy->getFailedTransfers() cMemoryOwn:YES];
 }

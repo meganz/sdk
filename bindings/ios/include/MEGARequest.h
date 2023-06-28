@@ -205,6 +205,7 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeExportSet,
     MEGARequestTypeExportedSetElement,
     MEGARequestTypeGetRecommenedProPlan,
+    MEGARequestTypeBackupInfo,
     TotalOfRequestTypes
 };
 

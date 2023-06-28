@@ -2,10 +2,35 @@
  * @file MEGAScheduledCopy.h
  * @brief Provides information about a backup
  *
+ * (c) 2023 by Mega Limited, Auckland, New Zealand
+ *
+ * This file is part of the MEGA SDK - Client Access Engine.
+ *
+ * Applications using the MEGA API must present a valid application key
+ * and comply with the the rules set forth in the Terms of Service.
+ *
+ * The MEGA SDK is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * @copyright Simplified (2-clause) BSD License.
+ *
+ * You should have received a copy of the license along with this
+ * program.
  */
 
 #import <Foundation/Foundation.h>
 #import "MEGATransferList.h"
+
+typedef NS_ENUM(NSInteger, MEGAScheduledCopyState) {
+    MEGAScheduledCopyStateFailed = -2,
+    MEGAScheduledCopyStateCanceled = -1,
+    MEGAScheduledCopyStateInitialScan = 0,
+    MEGAScheduledCopyStateActive = 1,
+    MEGAScheduledCopyStateOnGoing = 2,
+    MEGAScheduledCopyStateSkipping = 3,
+    MEGAScheduledCopyStateRemovingExceeding = 4,
+};
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -32,9 +57,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 /**
  * @brief Get the path of the local folder that is being backed up
- *
- * The SDK retains the ownership of the returned value. It will be valid until
- * the MegaScheduledCopy object is deleted.
  *
  * @return Local folder that is being backed up
  */
@@ -106,32 +128,31 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly, nonatomic) NSUInteger maxBackups;
 
 /**
- * @brief Get the state of the backup
  *
  * Possible values are:
- * - SCHEDULED_COPY_FAILED = -2
+ * - MEGAScheduledCopyStateFailed                          = -2
  * The backup has failed and has been disabled
  *
- * - SCHEDULED_COPY_CANCELED = -1,
+ * - MEGAScheduledCopyStateCanceled                    = -1,
  * The backup has failed and has been disabled
  *
- * - SCHEDULED_COPY_INITIALSCAN = 0,
+ * - MEGAScheduledCopyStateInitialScan                   = 0,
  * The backup is doing the initial scan
  *
- * - SCHEDULED_COPY_ACTIVE
+ * - MEGAScheduledCopyStateActive                          = 1,
  * The backup is active
  *
- * - SCHEDULED_COPY_ONGOING
+ * - MEGAScheduledCopyStateOnGoing                     = 2,
  * A backup is being performed
  *
- * - SCHEDULED_COPY_SKIPPING
+ * - MEGAScheduledCopyStateSkipping                      = 3,
  * A backup is being skipped
  *
- * - SCHEDULED_COPY_REMOVING_EXCEEDING
+ * - MEGAScheduledCopyStateRemovingExceeding   = 4,
  * The backup is active and an exceeding backup is being removed
  * @return State of the backup
  */
-@property (readonly, nonatomic) NSUInteger state;
+@property (readonly, nonatomic) MEGAScheduledCopyState state;
 
 
 // Current backup data:
@@ -203,10 +224,9 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * You take the ownership of the returned value
  *
- * @return Names of the custom attributes of the node
- * @see MegaApi::setCustomNodeAttribute
+ * @return List with all failed transfers
  */
-@property (readonly, nonatomic) MEGATransferList *failedTransferss;
+@property (readonly, nonatomic) MEGATransferList *failedTransfers;
 
 @end
 

@@ -9906,13 +9906,13 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
 
 /**
  * @brief Fetch information about all registered backups for Backup Centre
- * The associated request type with this request is MegaRequest::TYPE_BACKUP_INFO
+ * The associated request type with this request is MEGARequestTypeBackupInfo
  * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest getListener] - Returns the MegaRequestListener to track this request
+ * - backupInfoList: to get the list of backups.
  *
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
- * - [MEGARequest getMegaBackupInfoList] - Returns information about all registered backups
+ * - [MEGARequest backupInfoList] - Returns information about all registered backups
  *
  * @param delegate MEGARequestDelegate to track this request
 */
