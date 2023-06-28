@@ -37,19 +37,6 @@ NS_ASSUME_NONNULL_BEGIN
 @interface MEGAScheduledCopy : NSObject
 
 /**
- * @brief Creates a copy of this MegaScheduledCopy object
- *
- * The resulting object is fully independent of the source MegaScheduledCopy,
- * it contains a copy of all internal attributes, so it will be valid after
- * the original object is deleted.
- *
- * You are the owner of the returned object
- *
- * @return Copy of the MegaScheduledCopy object
- */
-- (nullable instancetype)clone;
-
-/**
  * @brief Get the handle of the folder that is being backed up
  * @return Handle of the folder that is being backed up in MEGA
  */

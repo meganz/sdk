@@ -50,10 +50,6 @@ using namespace mega;
     }
 }
 
-- (instancetype)clone {
-    return self.megaScheduledCopy ? [[MEGAScheduledCopy alloc] initWithMegaScheduledCopy:self.megaScheduledCopy->copy() cMemoryOwn:YES] : nil;
-}
-
 - (MegaScheduledCopy *)getCPtr {
     return self.megaScheduledCopy;
 }

@@ -49,10 +49,6 @@ using namespace mega;
     }
 }
 
-- (instancetype)clone {
-    return self.megaBackupInfo ? [[MEGABackupInfo alloc] initWithMegaBackupInfo:self.megaBackupInfo->copy() cMemoryOwn:YES] : nil;
-}
-
 - (BOOL)isEqual:(id)object {
     if (![object isKindOfClass:[MEGABackupInfo class]]) {
         return false;
