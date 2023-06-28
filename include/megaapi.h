@@ -5324,7 +5324,7 @@ public:
         EVENT_FATAL_ERROR               = 17, // Notify fatal error to user (may require to reload)
         EVENT_UPGRADE_SECURITY          = 18, // Account upgraded. Cryptography relies now on keys attribute information.
         EVENT_DOWNGRADE_ATTACK          = 19, // A downgrade attack has been detected. Removed shares may have reappeared. Please tread carefully.
-        EVENT_ACCOUNT_CONFIRM_USER      = 20,
+        EVENT_ACCOUNT_CONFIRM_USER      = 20, // Ephemeral account confirmed the associated email
     };
 
     enum
@@ -8145,7 +8145,7 @@ class MegaGlobalListener
          *      - MegaEvent::getText: email address used to confirm the account
          *
          *  - MegaEvent::EVENT_ACCOUNT_CONFIRM_USER: when a new account is finally confirmed
-         * by confirming the signup link, and RSA keys have been generated.
+         * by confirming the signup link.
          *
          *   Valid data in the MegaEvent object received in the callback:
          *      - MegaEvent::getHandle: user handle for the confirmed account
@@ -8761,7 +8761,7 @@ class MegaListener
          *      - MegaEvent::getText: email address used to confirm the account
          *
          *  - MegaEvent::EVENT_ACCOUNT_CONFIRM_USER: when a new account is finally confirmed
-         * by confirming the signup link, and RSA keys have been generated.
+         * by confirming the signup link.
          *
          *   Valid data in the MegaEvent object received in the callback:
          *      - MegaEvent::getHandle: user handle for the confirmed account
@@ -10594,8 +10594,8 @@ class MegaApi
          *
          * As a result of a successful confirmation, the app will receive callbacks
          * MegaListener::onEvent and MegaGlobalListener::onEvent with events of type
-         * MegaEvent::EVENT_ACCOUNT_CONFIRMATION and MegaEvent::EVENT_ACCOUNT_CONFIRM_USER.
-         * You can check the email used to confirm the account by checking MegaEvent::getText
+         * MegaEvent::EVENT_ACCOUNT_CONFIRMATION. You can check the email used to confirm
+         * the account by checking MegaEvent::getText. @see MegaListener::onEvent.
          * of either of them, and the new user handle by checking MegaEvent::getHandle of the
          * latter. @see MegaListener::onEvent.
          *
