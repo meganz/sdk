@@ -484,7 +484,7 @@ ScheduledMeeting* ScheduledMeeting::unserialize(const string& in, const handle c
                                 flags.get(), rules.get());
 }
 
-TextChat::TextChat(bool aPublicChat) : publicchat(aPublicChat)
+TextChat::TextChat(const bool publicChat) : mPublicChat(publicChat)
 {
     id = UNDEF;
     priv = PRIV_UNKNOWN;
@@ -545,7 +545,7 @@ bool TextChat::serialize(string *d) const
 
     d->append((char*)&flags, 1);
 
-    char mode = publicchat ? 1 : 0;
+    char mode = mPublicChat ? 1 : 0;
     d->append((char*)&mode, 1);
 
     char hasUnifiedKey = unifiedKey.size() ? 1 : 0;
@@ -1082,14 +1082,19 @@ bool TextChat::addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting> sm, boo
 
 ErrorCodes TextChat::setMode(bool pubChat)
 {
-    if (publicchat == pubChat) { return API_EEXIST; }
+    if (mPublicChat == pubChat) { return API_EEXIST; }
 
     if (pubChat) { return API_EACCESS; } // trying to convert a chat from private into public
 
     LOG_debug << "TextChat::setMode: EKR enabled (private chat) for chat: " << Base64Str<MegaClient::CHATHANDLE>(id);
-    publicchat = pubChat;
+    mPublicChat = pubChat;
     changed.mode = true;
     return API_OK;
+}
+
+bool TextChat::publicChat() const
+{
+    return mPublicChat;
 }
 
 bool TextChat::addOrUpdateChatOptions(int speakRequest, int waitingRoom, int openInvite)

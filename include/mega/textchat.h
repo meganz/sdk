@@ -233,7 +233,6 @@ struct TextChat : public Cacheable
     handle ou;
     m_time_t ts;     // creation time
     attachments_map attachedNodes;
-    bool publicchat;  // whether the chat is public or private
     bool meeting;     // chat is meeting room
     byte chatOptions; // each chat option is represented in 1 bit (check ChatOptions struct at types.h)
 
@@ -249,6 +248,7 @@ struct TextChat : public Cacheable
 
 
 private:        // use setter to modify these members
+    bool mPublicChat;  // whether the chat is public or private
     byte flags;     // currently only used for "archive" flag at first bit
     void deleteSchedMeeting(const handle sm)
     {
@@ -259,7 +259,7 @@ private:        // use setter to modify these members
 public:
     int tag;    // source tag, to identify own changes
 
-    TextChat(bool aPublicChat);
+    TextChat(const bool publicChat);
     ~TextChat();
 
     bool serialize(string *d) const override;
@@ -288,6 +288,7 @@ public:
     void clearUpdatedSchedMeetingOccurrences();
     void addUpdatedSchedMeetingOccurrence(std::unique_ptr<ScheduledMeeting> sm);
     ErrorCodes setMode(bool pubChat);
+    bool publicChat() const;
 
     // add or update a scheduled meeting, SDK adquires the ownership of provided ScheduledMeeting
     bool addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting> sm, bool notify = true);
