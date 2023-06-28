@@ -160,6 +160,8 @@ pipeline {
                         pid=\$!
                         wait \$pid || FAILED=1
                         if [ -z \"\$FAILED\" ]; then
+                            ulimit -a
+                            ulimit -n 1024000
                             ./test_integration --CI --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} &
                             pid=\$!
                             wait \$pid || FAILED=2

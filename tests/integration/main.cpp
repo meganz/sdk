@@ -4,6 +4,10 @@
 #include <stdio.h>
 #include <fstream>
 
+#if defined(__linux__) || defined(__APPLE__)
+    #include <sys/resource.h>
+#endif
+
 // If running in Jenkins, we use its working folder.  But for local manual testing, use a convenient location
 #ifdef WIN32
     #include <winhttp.h>
@@ -43,6 +47,25 @@ void WaitMillisec(unsigned n)
 #else
     usleep(n * 1000);
 #endif
+}
+
+std::string getSystemResouceLimits()
+{
+    std::string result;
+#if defined(__linux__) || defined(__APPLE__)
+    struct rlimit limit;
+    if (getrlimit(RLIMIT_NOFILE, &limit) == 0)
+    {
+        result = "rlimit: the maximum number of open files " + std::to_string(limit.rlim_cur);
+    }
+    else 
+    {
+        result = "rlimit: error " + std::to_string(errno);
+    }
+#else
+    result = "rlimit: not supported OS";
+#endif
+    return result;
 }
 
 string runProgram(const string& command, PROG_OUTPUT_TYPE ot)
@@ -519,6 +542,8 @@ int main (int argc, char *argv[])
             }
         });
     }
+
+    LOG_debug << getSystemResouceLimits(); // for tracing system resource limits
 
     auto ret = RUN_ALL_TESTS();
 
