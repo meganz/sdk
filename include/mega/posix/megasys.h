@@ -116,9 +116,6 @@
 #include <curl/curl.h>
 #include <stdexcept>
 
-#ifdef __APPLE__
-#define USE_POLL
-#endif
 
 #ifndef USE_POLL
 #ifndef FD_COPY
