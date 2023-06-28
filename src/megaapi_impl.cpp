@@ -1020,10 +1020,10 @@ string MegaNodePrivate::addAppPrefixToFingerprint(const string& fp, const m_off_
         return string{};
     }
 
-    char bsize[sizeof(nodeSize) + 1];
-    int l = Serialize64::serialize((byte *)bsize, nodeSize);
-    unique_ptr<char> buf(new char[l * 4 / 3 + 4]);
-    char ssize = static_cast<char>('A' + Base64::btoa((const byte *)bsize, l, buf.get()));
+    byte bsize[sizeof(nodeSize) + 1];
+    int l = Serialize64::serialize(bsize, nodeSize);
+    unique_ptr<char[]> buf(new char[l * 4 / 3 + 4]);
+    char ssize = static_cast<char>('A' + Base64::btoa(bsize, l, buf.get()));
 
     string result(1, ssize);
     result.append(buf.get());
@@ -1040,12 +1040,11 @@ string MegaNodePrivate::removeAppPrefixFromFingerprint(const string& appFp, m_of
         return string{};
     }
 
-    const unsigned int sizelen = appFp[0] - 'A';
-    const std::size_t fplen = appFp.size();
-    if (sizelen > (sizeof(m_off_t) * 4/3 + 4) ||  fplen <= (sizelen + 1))
+    const size_t sizelen = appFp[0] - 'A';
+    if (sizelen > (sizeof(m_off_t) * 4/3 + 4) || appFp.size() <= (sizelen + 1))
     {
         LOG_err << "Internal error: fingerprint validation failed. Fingerprint with sizelen: " << sizelen
-                << " and fplen: " << fplen;
+                << " and fplen: " << appFp.size();
         return string{};
     }
 
@@ -25501,7 +25500,7 @@ void MegaApiImpl::getPreviewElementNode(MegaHandle eid, MegaRequestListener* lis
 
         FileFingerprint ffp;
         m_time_t tm = ffp.unserializefingerprint(&nm->fingerprint) ? ffp.mtime : 0;
-        const string megaApiImplFingerprint(MegaNodePrivate::addAppPrefixToFingerprint(nm->fingerprint, nm->s));
+        const string megaApiImplFingerprint = MegaNodePrivate::addAppPrefixToFingerprint(nm->fingerprint, nm->s);
 
         MegaNodePrivate ret(nm->filename.c_str(), FILENODE, nm->s, nm->ts, tm, nm->h, &element->key(), &nm->fa,
                             megaApiImplFingerprint.empty() ? nullptr : megaApiImplFingerprint.c_str(),

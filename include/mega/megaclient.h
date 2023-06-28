@@ -746,7 +746,7 @@ public:
 
     // helpfer function for preparing a putnodes call for new node
     error putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, const char *utf8Name, const UploadToken& binaryUploadToken,
-                                  byte *theFileKey, const char *megafingerprint, const char *fingerprintOriginal,
+                                  const byte *theFileKey, const char *megafingerprint, const char *fingerprintOriginal,
                                   std::function<error(AttrMap&)> addNodeAttrsFunc = nullptr,
                                   std::function<error(std::string *)> addFileAttrsFunc = nullptr);
 
