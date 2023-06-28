@@ -70,11 +70,11 @@
 #include "mega/thread/posixthread.h"
 #include "mega/thread/cppthread.h"
 
-#include "megawaiter.h"
-#include "meganet.h"
-#include "megafs.h"
-#include "megaconsole.h"
-#include "megaconsolewaiter.h"
+#include "mega/posix/megawaiter.h"
+#include "mega/posix/meganet.h"
+#include "mega/posix/megafs.h"
+#include "mega/posix/megaconsole.h"
+#include "mega/posix/megaconsolewaiter.h"
 
 #include "mega/db/sqlite.h"
 

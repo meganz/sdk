@@ -24,7 +24,7 @@
 
 #include <mutex>
 
-#include "megawaiter.h"
+#include "mega/posix/megawaiter.h"
 #include "mega/thread/posixthread.h"
 #include "mega/thread/cppthread.h"
 
