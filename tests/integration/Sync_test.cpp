@@ -7333,7 +7333,7 @@ TEST_F(SyncTest, DetectsAndReportsNameClashes)
     ASSERT_EQ(conflicts.back().clashingLocalNames.size(), 2u);
     ASSERT_TRUE(localConflictDetected(conflicts.back(), LocalPath::fromRelativePath("f%30")));
     ASSERT_TRUE(localConflictDetected(conflicts.back(), LocalPath::fromRelativePath("f0")));
-    ASSERT_EQ(conflicts.back().clashingCloudNames.size(), 0u);
+    ASSERT_EQ(conflicts.back().clashingCloud.size(), 0u);
 
     client->triggerPeriodicScanEarly(backupId1);
 
@@ -7354,7 +7354,7 @@ TEST_F(SyncTest, DetectsAndReportsNameClashes)
     ASSERT_EQ(conflicts.front().clashingLocalNames.size(), 2u);
     ASSERT_TRUE(localConflictDetected(conflicts.front(), LocalPath::fromRelativePath("g%30")));
     ASSERT_TRUE(localConflictDetected(conflicts.front(), LocalPath::fromRelativePath("g0")));
-    ASSERT_EQ(conflicts.front().clashingCloudNames.size(), 0u);
+    ASSERT_EQ(conflicts.front().clashingCloud.size(), 0u);
 
     // Resolve the g / g%30 conflict.
     ASSERT_TRUE(fs::remove(root / "d" / "e" / "g%30"));
@@ -7386,9 +7386,9 @@ TEST_F(SyncTest, DetectsAndReportsNameClashes)
     // Does our list of conflicts include remotes?
     ASSERT_GE(conflicts.size(), 1u);
     ASSERT_EQ(conflicts.front().cloudPath, string("/mega_test_sync/x/d"));
-    ASSERT_EQ(conflicts.front().clashingCloudNames.size(), 2u);
-    ASSERT_EQ(conflicts.front().clashingCloudNames[0], string("h"));
-    ASSERT_EQ(conflicts.front().clashingCloudNames[1], string("h"));
+    ASSERT_EQ(conflicts.front().clashingCloud.size(), 2u);
+    ASSERT_EQ(conflicts.front().clashingCloud[0].name, string("h"));
+    ASSERT_EQ(conflicts.front().clashingCloud[1].name, string("h"));
     ASSERT_EQ(conflicts.front().clashingLocalNames.size(), 0u);
 
     // Resolve the remote conflict.
@@ -12830,11 +12830,11 @@ TEST_F(LocalToCloudFilterFixture, AcceptableFilterNameClash)
         ASSERT_EQ(conflict.cloudPath, "/mega_test_sync/s");
 
         // Two clashing names?
-        ASSERT_EQ(conflict.clashingCloudNames.size(), 2u);
+        ASSERT_EQ(conflict.clashingCloud.size(), 2u);
 
         // Both ignore files?
-        ASSERT_EQ(conflict.clashingCloudNames[0], IGNORE_FILE_NAME);
-        ASSERT_EQ(conflict.clashingCloudNames[1], IGNORE_FILE_NAME);
+        ASSERT_EQ(conflict.clashingCloud[0].name, IGNORE_FILE_NAME);
+        ASSERT_EQ(conflict.clashingCloud[1].name, IGNORE_FILE_NAME);
     }
 
     // Check that the engine uploaded what we expect.
@@ -15407,11 +15407,11 @@ TEST_F(CloudToLocalFilterFixture, FilterNameClash)
     ASSERT_EQ(conflict.cloudPath, "/mega_test_sync/s");
 
     // Two remote name clashes detected?
-    ASSERT_EQ(conflict.clashingCloudNames.size(), 2u);
+    ASSERT_EQ(conflict.clashingCloud.size(), 2u);
 
     // Both ignore files?
-    ASSERT_EQ(conflict.clashingCloudNames[0], IGNORE_FILE_NAME);
-    ASSERT_EQ(conflict.clashingCloudNames[1], IGNORE_FILE_NAME);
+    ASSERT_EQ(conflict.clashingCloud[0].name, IGNORE_FILE_NAME);
+    ASSERT_EQ(conflict.clashingCloud[1].name, IGNORE_FILE_NAME);
 
     // Make sure the engine didn't upload the "d" directory.
     ASSERT_EQ(cdu->drillchildnodebyname(cdu->gettestbasenode(), "s/d"), nullptr);

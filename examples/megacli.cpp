@@ -10373,12 +10373,12 @@ void exec_synclist(autocomplete::ACState& s)
         client->syncs.collectSyncNameConflicts(config.mBackupId, [&synchronous](list<NameConflict>&& conflicts){
             for (auto& c : conflicts)
             {
-                if (!c.cloudPath.empty() || !c.clashingCloudNames.empty())
+                if (!c.cloudPath.empty() || !c.clashingCloud.empty())
                 {
                     cout << "  Cloud Path conflict at " << c.cloudPath << ": ";
-                    for (auto& n : c.clashingCloudNames)
+                    for (auto& n : c.clashingCloud)
                     {
-                        cout << n << " ";
+                        cout << n.name << " ";
                     }
                     cout << "\n";
                 }
