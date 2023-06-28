@@ -10596,8 +10596,6 @@ class MegaApi
          * MegaListener::onEvent and MegaGlobalListener::onEvent with events of type
          * MegaEvent::EVENT_ACCOUNT_CONFIRMATION. You can check the email used to confirm
          * the account by checking MegaEvent::getText. @see MegaListener::onEvent.
-         * of either of them, and the new user handle by checking MegaEvent::getHandle of the
-         * latter. @see MegaListener::onEvent.
          *
          * If already logged-in into a different account, you will get the error code MegaError::API_EACCESS
          * in onRequestFinish.
