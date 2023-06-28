@@ -10070,7 +10070,7 @@ void exec_syncadd(autocomplete::ACState& s)
         config.mRemoteNode = targetNode ? NodeHandle().set6byte(targetNode->nodehandle) : NodeHandle();
         config.mOriginalPathOfRemoteRootNode = targetNode ? targetNode->displaypath() : string();
 
-        client->addsync(std::move(config), false, sync_completion, "");
+        client->addsync(std::move(config), false, sync_completion, "", "");
     }
 
     else // backup
@@ -10111,7 +10111,7 @@ void exec_syncadd(autocomplete::ACState& s)
                     }
                     sync_completion(e, se, h);
 
-                }, "");
+                }, "", "");
             }
         });
     }
@@ -10373,12 +10373,12 @@ void exec_synclist(autocomplete::ACState& s)
         client->syncs.collectSyncNameConflicts(config.mBackupId, [&synchronous](list<NameConflict>&& conflicts){
             for (auto& c : conflicts)
             {
-                if (!c.cloudPath.empty() || !c.clashingCloudNames.empty())
+                if (!c.cloudPath.empty() || !c.clashingCloud.empty())
                 {
                     cout << "  Cloud Path conflict at " << c.cloudPath << ": ";
-                    for (auto& n : c.clashingCloudNames)
+                    for (auto& n : c.clashingCloud)
                     {
-                        cout << n << " ";
+                        cout << n.name << " ";
                     }
                     cout << "\n";
                 }

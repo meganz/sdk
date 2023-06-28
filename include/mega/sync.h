@@ -284,6 +284,8 @@ struct SyncRow
     LocalNode* syncNode;
     FSNode* fsNode;
 
+    NodeHandle cloudHandleOpt() { return cloudNode ? cloudNode->handle : NodeHandle(); }
+
     vector<CloudNode*> cloudClashingNames;
     vector<FSNode*> fsClashingNames;
 
@@ -839,10 +841,11 @@ struct SyncStallEntry
     {
         PathProblem problem = PathProblem::NoProblem;
         string cloudPath;
+        NodeHandle cloudHandle;
 
         StallCloudPath() {}
 
-        StallCloudPath(const string& cp, PathProblem pp = PathProblem::NoProblem)
+        StallCloudPath(NodeHandle h, const string& cp, PathProblem pp = PathProblem::NoProblem)
             : problem(pp), cloudPath(cp)
         {
         }
@@ -1362,6 +1365,8 @@ private:
 
     // Check if the sync described by config contains an ignore file.
     bool hasIgnoreFile(const SyncConfig& config);
+
+    void confirmOrCreateDefaultMegaignore(bool transitionToMegaignore, unique_ptr<DefaultFilterChain>& resultIfDfc, unique_ptr<string_vector>& resultIfMegaignoreDefault);
 
     // ------ private data members
 

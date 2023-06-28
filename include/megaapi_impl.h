@@ -2487,6 +2487,13 @@ class MegaSyncStallPrivate : public MegaSyncStall
             return SyncStallReason(info.reason);
         }
 
+        MegaHandle cloudNodeHandle(int index) const override
+        {
+            if (index == 0) return info.cloudPath1.cloudHandle.as8byte();
+            if (index == 1) return info.cloudPath2.cloudHandle.as8byte();
+            return UNDEF;
+        }
+
         const char* path(bool cloudSide, int index)  const override
         {
             if (cloudSide)
@@ -2602,6 +2609,16 @@ public:
         return SyncStallReason(NamesWouldClashWhenSynced);
     }
 
+    MegaHandle cloudNodeHandle(int index)  const override
+    {
+        if (index >= 0 && index < int(mConflict.clashingCloud.size()))
+        {
+            return mConflict.clashingCloud[index].handle.as8byte();
+        }
+        return UNDEF;
+    }
+
+
     const char* path(bool cloudSide, int index)  const override
     {
         if (cloudSide)
@@ -2609,9 +2626,9 @@ public:
             auto i = mCache1.find(index);
             if (i != mCache1.end()) return i->second.c_str();
 
-            if (index >= 0 && index < int(mConflict.clashingCloudNames.size()))
+            if (index >= 0 && index < int(mConflict.clashingCloud.size()))
             {
-                mCache1[index] = mConflict.cloudPath + "/" + mConflict.clashingCloudNames[index];
+                mCache1[index] = mConflict.cloudPath + "/" + mConflict.clashingCloud[index].name;
                 return mCache1[index].c_str();
             }
         }
@@ -2635,7 +2652,7 @@ public:
     {
         if (cloudSide)
         {
-            return static_cast<unsigned int>(mConflict.clashingCloudNames.size());
+            return static_cast<unsigned int>(mConflict.clashingCloud.size());
         }
         else
         {

@@ -24771,7 +24771,7 @@ void MegaApiImpl::addSyncByRequest(MegaRequestPrivate* request, SyncConfig syncC
 
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             }
-        }, "");
+        }, "", basePath);
 }
 #endif
 

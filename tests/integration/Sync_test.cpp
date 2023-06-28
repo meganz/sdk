@@ -2510,7 +2510,7 @@ void StandardClient::setupBackup_inThread(const string& rootPath,
                 if (e && revertOnError) revertOnError(nullptr);
                 result->set_value(e ? UNDEF : h);
 
-            }, "");
+            }, "", "");
         }
     });
 }
@@ -7333,7 +7333,7 @@ TEST_F(SyncTest, DetectsAndReportsNameClashes)
     ASSERT_EQ(conflicts.back().clashingLocalNames.size(), 2u);
     ASSERT_TRUE(localConflictDetected(conflicts.back(), LocalPath::fromRelativePath("f%30")));
     ASSERT_TRUE(localConflictDetected(conflicts.back(), LocalPath::fromRelativePath("f0")));
-    ASSERT_EQ(conflicts.back().clashingCloudNames.size(), 0u);
+    ASSERT_EQ(conflicts.back().clashingCloud.size(), 0u);
 
     client->triggerPeriodicScanEarly(backupId1);
 
@@ -7354,7 +7354,7 @@ TEST_F(SyncTest, DetectsAndReportsNameClashes)
     ASSERT_EQ(conflicts.front().clashingLocalNames.size(), 2u);
     ASSERT_TRUE(localConflictDetected(conflicts.front(), LocalPath::fromRelativePath("g%30")));
     ASSERT_TRUE(localConflictDetected(conflicts.front(), LocalPath::fromRelativePath("g0")));
-    ASSERT_EQ(conflicts.front().clashingCloudNames.size(), 0u);
+    ASSERT_EQ(conflicts.front().clashingCloud.size(), 0u);
 
     // Resolve the g / g%30 conflict.
     ASSERT_TRUE(fs::remove(root / "d" / "e" / "g%30"));
@@ -7386,9 +7386,9 @@ TEST_F(SyncTest, DetectsAndReportsNameClashes)
     // Does our list of conflicts include remotes?
     ASSERT_GE(conflicts.size(), 1u);
     ASSERT_EQ(conflicts.front().cloudPath, string("/mega_test_sync/x/d"));
-    ASSERT_EQ(conflicts.front().clashingCloudNames.size(), 2u);
-    ASSERT_EQ(conflicts.front().clashingCloudNames[0], string("h"));
-    ASSERT_EQ(conflicts.front().clashingCloudNames[1], string("h"));
+    ASSERT_EQ(conflicts.front().clashingCloud.size(), 2u);
+    ASSERT_EQ(conflicts.front().clashingCloud[0].name, string("h"));
+    ASSERT_EQ(conflicts.front().clashingCloud[1].name, string("h"));
     ASSERT_EQ(conflicts.front().clashingLocalNames.size(), 0u);
 
     // Resolve the remote conflict.
@@ -12248,7 +12248,10 @@ TEST_F(FilterFixture, MigrateLegacyFilters)
     // Helpful aliases.
     auto& oldExclusions = cu->client.syncs.mLegacyUpgradeFilterChain;
     auto& fsAccess = *cu->client.fsaccess;
-    auto& newExclusions = cu->client.syncs.mNewSyncFilterChain;
+    DefaultFilterChain oldExclusionsNoAbsoutePaths;
+
+    // after we add .megaignore.default, we will actually be using the legacy rules (until edited)
+    // auto& newExclusions = cu->client.syncs.mNewSyncFilterChain;
 
     // Convenience.
     auto root = this->root(*cu) / "root";
@@ -12274,14 +12277,27 @@ TEST_F(FilterFixture, MigrateLegacyFilters)
         oldExclusions.upperLimit(MAXSIZE);
     }
 
+    // Prepare legacy exclusions without absolute paths, as would go into .megaignore.default
+    {
+        // Set legacy name filters.
+        string_vector elements = {"fe"};
+
+        oldExclusionsNoAbsoutePaths.excludedNames(elements, fsAccess);
+
+        // Set legacy size exclusions.
+        oldExclusionsNoAbsoutePaths.lowerLimit(MINSIZE);
+        oldExclusionsNoAbsoutePaths.upperLimit(MAXSIZE);
+    }
+
+
     // Prepare local filesystem.
     LocalFSModel localFS;
-
+    string dpfidata;
     localFS.addfile("dn/fi", randomData(MINSIZE));
     localFS.addfile("dn/fe", randomData(MINSIZE));
     localFS.addfile("dn/fs", randomData(MINSIZE - 1));
     localFS.addfile("dn/fl", randomData(MAXSIZE + 1));
-    localFS.addfile("dp/fi", randomData(MINSIZE));
+    localFS.addfile("dp/fi", (dpfidata = randomData(MINSIZE)));
     localFS.generate(root);
     localFS.addfile(".megaignore", oldExclusions.generate(rootPath, fsAccess, true, false));
 
@@ -12324,7 +12340,7 @@ TEST_F(FilterFixture, MigrateLegacyFilters)
 
     // Remove the ignore file from the cloud.
     {
-        //remoteTree.removenode(".megaignore");
+        remoteTree.removenode(".megaignore");
 
         //ASSERT_TRUE(cu->deleteremote("cu/.megaignore"));
 
@@ -12340,11 +12356,15 @@ TEST_F(FilterFixture, MigrateLegacyFilters)
     waitOnSyncs(cu);
 
     // Make sure everything's uploaded as it should be.
-    RemoteNodeModel remoteTree2 = localFS;
-    localFS.addfile(".megaignore", newExclusions.generate(rootPath, fsAccess, true, false));   // .megaignore not synced by default
+    //RemoteNodeModel remoteTree2 = localFS;
+    // after we add .megaignore.default, we will actually be using the legacy rules (until edited)
+    localFS.addfile(".megaignore", /*newExclusions*/ oldExclusionsNoAbsoutePaths.generate(rootPath, fsAccess, true, false));   // .megaignore not synced by default
+
+    // with .megaignore.default copied to the sync, dp path is no longer excluded
+    remoteTree.addfile("dp/fi", dpfidata);
 
     ASSERT_TRUE(confirm(*cu, id, localFS));
-    ASSERT_TRUE(confirm(*cu, id, remoteTree2));
+    ASSERT_TRUE(confirm(*cu, id, remoteTree));
 }
 
 TEST_F(FilterFixture, NameFilter)
@@ -12810,11 +12830,11 @@ TEST_F(LocalToCloudFilterFixture, AcceptableFilterNameClash)
         ASSERT_EQ(conflict.cloudPath, "/mega_test_sync/s");
 
         // Two clashing names?
-        ASSERT_EQ(conflict.clashingCloudNames.size(), 2u);
+        ASSERT_EQ(conflict.clashingCloud.size(), 2u);
 
         // Both ignore files?
-        ASSERT_EQ(conflict.clashingCloudNames[0], IGNORE_FILE_NAME);
-        ASSERT_EQ(conflict.clashingCloudNames[1], IGNORE_FILE_NAME);
+        ASSERT_EQ(conflict.clashingCloud[0].name, IGNORE_FILE_NAME);
+        ASSERT_EQ(conflict.clashingCloud[1].name, IGNORE_FILE_NAME);
     }
 
     // Check that the engine uploaded what we expect.
@@ -15387,11 +15407,11 @@ TEST_F(CloudToLocalFilterFixture, FilterNameClash)
     ASSERT_EQ(conflict.cloudPath, "/mega_test_sync/s");
 
     // Two remote name clashes detected?
-    ASSERT_EQ(conflict.clashingCloudNames.size(), 2u);
+    ASSERT_EQ(conflict.clashingCloud.size(), 2u);
 
     // Both ignore files?
-    ASSERT_EQ(conflict.clashingCloudNames[0], IGNORE_FILE_NAME);
-    ASSERT_EQ(conflict.clashingCloudNames[1], IGNORE_FILE_NAME);
+    ASSERT_EQ(conflict.clashingCloud[0].name, IGNORE_FILE_NAME);
+    ASSERT_EQ(conflict.clashingCloud[1].name, IGNORE_FILE_NAME);
 
     // Make sure the engine didn't upload the "d" directory.
     ASSERT_EQ(cdu->drillchildnodebyname(cdu->gettestbasenode(), "s/d"), nullptr);

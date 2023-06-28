@@ -7063,6 +7063,12 @@ class MegaSyncStall
         virtual const char* path(bool cloudSide, int index) const = 0;
 
         /**
+         * For cloud-side paths, call this function to get the
+         * corresponding node handle (if any)
+         */
+        virtual MegaHandle cloudNodeHandle(int index) const = 0;
+
+        /**
          * To get the count of paths
          *
          * @return path count involved in the sync stall

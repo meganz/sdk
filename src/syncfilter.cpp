@@ -285,11 +285,14 @@ DefaultFilterChain& DefaultFilterChain::operator=(DefaultFilterChain& rhs)
     return *this;
 }
 
-bool DefaultFilterChain::create(const LocalPath& targetPath, FileSystemAccess& fsAccess, bool setSyncIgnoreFileFlag)
+bool DefaultFilterChain::create(const LocalPath& targetPath, bool appendName, FileSystemAccess& fsAccess, bool setSyncIgnoreFileFlag)
 {
     // Compute the path for the target's ignore file.
     auto filePath = targetPath;
-    filePath.appendWithSeparator(IGNORE_FILE_NAME, false);
+    if (appendName)
+    {
+        filePath.appendWithSeparator(IGNORE_FILE_NAME, false);
+    }
 
     // Get access to the filesystem.
     auto fileAccess = fsAccess.newfileaccess(false);
@@ -417,21 +420,27 @@ string DefaultFilterChain::generate(const LocalPath& targetPath, FileSystemAcces
         ostream << string("\xEF\xBB\xBF", 3);
     }
 
+#ifdef WIN32
+       #define NL "\r\n";
+#else
+       #define NL  "\n";
+#endif
+
     if (setSyncIgnoreFileFlag)
     {
-        ostream << "+sync:.megaignore\n";
+        ostream << "+sync:.megaignore" NL;
     }
 
     // Size filters.
     if (mLowerLimit)
-        ostream << "exclude-smaller:" << mLowerLimit << "\n";
+        ostream << "exclude-smaller:" << mLowerLimit << NL;
 
     if (mUpperLimit)
-        ostream << "exclude-larger:" << mUpperLimit << "\n";
+        ostream << "exclude-larger:" << mUpperLimit << NL;
 
     // Name filters.
     for (auto& name : mExcludedNames)
-            ostream << "-:" << name << "\n";
+            ostream << "-:" << name << NL;
 
     // Path filters.
     if (mExcludedPaths.empty())
@@ -440,7 +449,9 @@ string DefaultFilterChain::generate(const LocalPath& targetPath, FileSystemAcces
     auto paths = applicablePaths(targetPath);
 
     for (auto& path : toRemotePaths(paths, fsAccess))
-        ostream << "-p:" << path.toName(fsAccess) << "\n";
+        ostream << "-p:" << path.toName(fsAccess) << NL;
+
+    #undef NL
 
     return ostream.str();
 }
@@ -655,6 +666,7 @@ ExclusionState FilterChain::match(const m_off_t s) const
     // Attempt the match.
     return mSizeFilter->match(t) ? ES_INCLUDED : ES_EXCLUDED;
 }
+
 
 #ifdef _WIN32
 const LocalPath IgnoreFileName::mLocalName = LocalPath::fromPlatformEncodedRelative(L".megaignore");
