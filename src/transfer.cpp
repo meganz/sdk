@@ -33,46 +33,6 @@
 
 namespace mega {
 
-class FileNameGenerator
-{
-public:
-    // It generates a new name suffixed with (n). It is not conflicted in the file system
-    // always a new name is returned
-    static LocalPath suffixWithN(FileAccess* fa, const LocalPath& localname);
-
-    // It generates a new name suffixed with .oldn. It is not conflicted in the file system
-    // always a new name is returned
-    static LocalPath suffixWithOldN(FileAccess* fa, const LocalPath& localname);
-
-private:
-    static LocalPath suffix(FileAccess* fa, const LocalPath& localname, std::function<std::string(unsigned)> suffixF);
-};
-
-LocalPath FileNameGenerator::suffixWithN(FileAccess* fa, const LocalPath& localname)
-{
-    return suffix(fa, localname, [ ](unsigned num) { return " (" + std::to_string(num) + ")"; });
-}
-
-LocalPath FileNameGenerator::suffixWithOldN(FileAccess* fa, const LocalPath& localname)
-{
-    return suffix(fa, localname, [](unsigned num) { return ".old" + std::to_string(num); });
-}
-
-LocalPath FileNameGenerator::suffix(FileAccess* fa, const LocalPath& localname, std::function<std::string(unsigned)> suffixF)
-{
-    LocalPath localnewname;
-    unsigned num = 0;
-    do
-    {
-        num++;
-        localnewname = localname.insertFilenameSuffix(suffixF(num));
-    } while (fa->fopen(localnewname, FSLogging::logExceptFileNotFound) || fa->type == FOLDERNODE);
-
-    return localnewname;
-}
-
-
-
 TransferCategory::TransferCategory(direction_t d, filesizetype_t s)
     : direction(d)
     , sizetype(s)
@@ -643,32 +603,17 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ LocalPath&
 #endif
 }
 
-bool Transfer::resolveCollision(FileAccess* fa, File* file, LocalPath &dest)
+FileDistributor::TargetNameExistsResolution Transfer::toTargetNameExistsResolution(CollisionResolution resolution)
 {
-    bool transient_error = false;
-    switch (file->getCollisionResolution())
-    {
-    case CollisionResolution::Overwrite:
-        LOG_debug << "The destination file exist (not synced). Overwrite";
-        break;
-    case CollisionResolution::RenameExistingToOldN:
-        LOG_debug << "The destination file exist (not synced). Rename it";
-        if (client->fsaccess->renamelocal(dest, FileNameGenerator::suffixWithOldN(fa, dest)))
-        {
-            //OK;
-        }
-        else if (client->fsaccess->transient_error)
-        {
-            transient_error = true;
-        }
-        break;
-    case CollisionResolution::RenameNewWithN: //fall through
-    default:
-        LOG_debug << "The destination file exist (not synced). Saving with a different name";
-        file->setLocalname(dest = FileNameGenerator::suffixWithN(fa, dest));
-        break;
+    switch (resolution) {
+        case CollisionResolution::Overwrite:
+            return FileDistributor::TargetNameExistsResolution::OverwriteTarget;
+        case CollisionResolution::RenameExistingToOldN:
+            return FileDistributor::TargetNameExistsResolution::RenameExistingToOldN;
+        case CollisionResolution::RenameNewWithN: // fall through
+        default:
+            return FileDistributor::TargetNameExistsResolution::RenameWithBracketedNumber;
     }
-    return transient_error;
 }
 
 // transfer completion: copy received file locally, set timestamp(s), verify
@@ -842,7 +787,8 @@ void Transfer::complete(TransferDbCommitter& committer)
 
                 // it may update the path to include (n) if there is a clash
                 bool name_too_long = false;
-                success = downloadDistributor->distributeTo(finalpath, *client->fsaccess, FileDistributor::RenameWithBracketedNumber, transient_error, name_too_long, nullptr);
+                auto r = toTargetNameExistsResolution((*it)->getCollisionResolution());
+                success = downloadDistributor->distributeTo(finalpath, *client->fsaccess, r, transient_error, name_too_long, nullptr);
 
                 if (success)
                 {
