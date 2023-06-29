@@ -3230,7 +3230,7 @@ class MegaApiImpl : public MegaApp
         void unlockMutex();
         bool tryLockMutexFor(long long time);
 
-protected:
+private:
         void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, unsigned clientWorkerThreadCount /*= 1*/);
 
         static void *threadEntryPoint(void *param);
@@ -3618,7 +3618,6 @@ protected:
 
         void backupput_result(const Error&, handle backupId) override;
 
-protected:
         // Notify sdk errors (DB, node serialization, ...) to apps
         void notifyError(const char*, ErrorReason errorReason) override;
 
@@ -3688,7 +3687,6 @@ protected:
         friend class MegaFolderUploadController;
         friend class MegaRecursiveOperation;
 
-private:
         void setCookieSettings_sendPendingRequests(MegaRequestPrivate* request);
         error getCookieSettings_getua_result(byte* data, unsigned len, MegaRequestPrivate* request);
 
