@@ -229,16 +229,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     {
         string fingerprint;
         node->serializefingerprint(&fingerprint);
-        m_off_t size = node->size;
-        char bsize[sizeof(size)+1];
-        int l = Serialize64::serialize((byte *)bsize, size);
-        char *buf = new char[l * 4 / 3 + 4];
-        char ssize = static_cast<char>('A' + Base64::btoa((const byte *)bsize, l, buf));
-        string result(1, ssize);
-        result.append(buf);
-        result.append(fingerprint);
-        delete [] buf;
-
+        string result = MegaNodePrivate::addAppPrefixToFingerprint(fingerprint, node->size);
         this->fingerprint = MegaApi::strdup(result.c_str());
     }
 
@@ -1012,6 +1003,75 @@ const char* MegaNodePrivate::getDeviceId() const
 const char* MegaNodePrivate::getS4() const
 {
     return mS4.c_str();
+}
+
+string MegaNodePrivate::addAppPrefixToFingerprint(const string& fp, const m_off_t nodeSize)
+{
+    if (fp.empty())
+    {
+        LOG_warn << "Requesting app prefix addition to an empty fingerprint";
+        return string{};
+    }
+
+    FileFingerprint ffp;
+    if (!ffp.unserializefingerprint(&fp))
+    {
+        LOG_err << "Internal error: fingerprint validation failed in app prefix addition. Unserialization check failed";
+        return string{};
+    }
+
+    byte bsize[sizeof(nodeSize) + 1];
+    int l = Serialize64::serialize(bsize, nodeSize);
+    unique_ptr<char[]> buf(new char[l * 4 / 3 + 4]);
+    char ssize = static_cast<char>('A' + Base64::btoa(bsize, l, buf.get()));
+
+    string result(1, ssize);
+    result.append(buf.get());
+    result.append(fp);
+
+    return result;
+}
+
+string MegaNodePrivate::removeAppPrefixFromFingerprint(const string& appFp, m_off_t* nodeSize)
+{
+    if (appFp.empty())
+    {
+        LOG_warn << "Requesting app prefix removal from an empty fingerprint";
+        return string{};
+    }
+
+    const size_t sizelen = appFp[0] - 'A';
+    if (sizelen > (sizeof(m_off_t) * 4/3 + 4) || appFp.size() <= (sizelen + 1))
+    {
+        LOG_err << "Internal error: fingerprint validation failed. Fingerprint with sizelen: " << sizelen
+                << " and fplen: " << appFp.size();
+        return string{};
+    }
+
+    if (nodeSize)
+    {
+        m_off_t nSize = 0;
+        int len = sizeof(nSize);
+        std::unique_ptr<byte[]> buf (new byte[len]);
+        Base64::atob(appFp.c_str() + 1, buf.get(), len);
+        int l = Serialize64::unserialize(buf.get(), len, (uint64_t*)&nSize);
+        if (l <= 0)
+        {
+            LOG_err << "Internal error: node size extraction from fingerprint failed";
+            return string{};
+        }
+        *nodeSize = nSize;
+    }
+
+    FileFingerprint ffp;
+    string result = appFp.substr(sizelen + 1);
+    if (!ffp.unserializefingerprint(&result))
+    {
+        LOG_err << "Internal error: fingerprint unserialization failed in app prefix removal";
+        return string{};
+    }
+
+    return result;
 }
 
 MegaBackgroundMediaUploadPrivate::MegaBackgroundMediaUploadPrivate(MegaApi* capi)
@@ -11194,7 +11254,7 @@ MegaNode *MegaApiImpl::createForeignFileNode(MegaHandle handle, const char *key,
     nodekey.resize(Base64::atob(key, (byte *)nodekey.data(), int(nodekey.size())));
 
     string fingerprintStr;
-    unique_ptr<char[]> sdkFingerprintStr;
+    string sdkFingerprintStr;
 
     if (fingerprintCrc)
     {
@@ -11210,12 +11270,12 @@ MegaNode *MegaApiImpl::createForeignFileNode(MegaHandle handle, const char *key,
             ff.serializefingerprint(&fingerprintStr);
 
             // prepend size on the front
-            sdkFingerprintStr.reset(getSdkFingerprintFromMegaFingerprint(fingerprintStr.c_str(), size));
+            sdkFingerprintStr = MegaNodePrivate::addAppPrefixToFingerprint(fingerprintStr, size);
         }
     }
 
     return new MegaNodePrivate(name, FILENODE, size, mtime, mtime, handle, &nodekey, &fileattrsting,
-                               sdkFingerprintStr.get(), NULL, INVALID_HANDLE,
+                               sdkFingerprintStr.empty() ? nullptr : sdkFingerprintStr.c_str(), NULL, INVALID_HANDLE,
                                parentHandle, privateauth, publicauth, false, true, chatauth, true);
 }
 
@@ -11961,16 +12021,7 @@ char *MegaApiImpl::getFingerprint(const char *filePath)
 
     string fingerprint;
     fp.serializefingerprint(&fingerprint);
-
-    char bsize[sizeof(size)+1];
-    int l = Serialize64::serialize((byte *)bsize, size);
-    char *buf = new char[l * 4 / 3 + 4];
-    char ssize = static_cast<char>('A' + Base64::btoa((const byte *)bsize, l, buf));
-
-    string result(1, ssize);
-    result.append(buf);
-    result.append(fingerprint);
-    delete [] buf;
+    string result = MegaNodePrivate::addAppPrefixToFingerprint(fingerprint, size);
 
     return MegaApi::strdup(result.c_str());
 }
@@ -12012,16 +12063,7 @@ char *MegaApiImpl::getFingerprint(MegaInputStream *inputStream, int64_t mtime)
 
     string fingerprint;
     fp.serializefingerprint(&fingerprint);
-
-    char bsize[sizeof(size)+1];
-    int l = Serialize64::serialize((byte *)bsize, size);
-    char *buf = new char[l * 4 / 3 + 4];
-    char ssize = static_cast<char>('A' + Base64::btoa((const byte *)bsize, l, buf));
-
-    string result(1, ssize);
-    result.append(buf);
-    result.append(fingerprint);
-    delete [] buf;
+    string result = MegaNodePrivate::addAppPrefixToFingerprint(fingerprint, size);
 
     return MegaApi::strdup(result.c_str());
 }
@@ -13112,6 +13154,7 @@ void MegaApiImpl::folderlinkinfo_result(error e, handle owner, handle /*ph*/, st
                 FileFingerprint ffp;
                 m_time_t mtime = 0;
                 Node::parseattr(buf, attrs, currentSize, mtime, fileName, fingerprint, ffp);
+                fingerprint = MegaNodePrivate::addAppPrefixToFingerprint(fingerprint, ffp.size);
 
                 // Normalize node name to UTF-8 string
                 attr_map::iterator it = attrs.map.find('n');
@@ -14546,6 +14589,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
     if (buf)
     {
         Node::parseattr(buf, attrs, size, mtime, fileName, fingerprint, ffp);
+        fingerprint = MegaNodePrivate::addAppPrefixToFingerprint(fingerprint, ffp.size);
 
         // Normalize node name to UTF-8 string
         attr_map::iterator it = attrs.map.find('n');
@@ -17619,30 +17663,10 @@ Node *MegaApiImpl::getNodeByFingerprintInternal(const char *fingerprint, Node *p
 
 FileFingerprint *MegaApiImpl::getFileFingerprintInternal(const char *fingerprint)
 {
-    if(!fingerprint || !fingerprint[0])
-    {
-        return NULL;
-    }
-
     m_off_t size = 0;
-    unsigned int fsize = unsigned(strlen(fingerprint));
-    unsigned int ssize = fingerprint[0] - 'A';
-    if(ssize > (sizeof(size) * 4 / 3 + 4) || fsize <= (ssize + 1))
-    {
-        return NULL;
-    }
+    string sfingerprint = MegaNodePrivate::removeAppPrefixFromFingerprint(fingerprint, &size);
 
-    int len =  sizeof(size) + 1;
-    byte *buf = new byte[len];
-    Base64::atob(fingerprint + 1, buf, len);
-    int l = Serialize64::unserialize(buf, len, (uint64_t *)&size);
-    delete [] buf;
-    if(l <= 0)
-    {
-        return NULL;
-    }
-
-    string sfingerprint = fingerprint + ssize + 1;
+    if (sfingerprint.empty()) return nullptr;
 
     FileFingerprint *fp = new FileFingerprint;
     if(!fp->unserializefingerprint(&sfingerprint))
@@ -17654,54 +17678,6 @@ FileFingerprint *MegaApiImpl::getFileFingerprintInternal(const char *fingerprint
     fp->size = size;
 
     return fp;
-}
-
-char *MegaApiImpl::getMegaFingerprintFromSdkFingerprint(const char *sdkFingerprint)
-{
-    if (!sdkFingerprint || !sdkFingerprint[0])
-    {
-        return NULL;
-    }
-
-    unsigned int sizelen = sdkFingerprint[0] - 'A';
-    if (sizelen > (sizeof(m_off_t) * 4 / 3 + 4) || strlen(sdkFingerprint) <= (sizelen + 1))
-    {
-        return NULL;
-    }
-
-    FileFingerprint ffp;
-    string result = sdkFingerprint + sizelen + 1;
-    if (!ffp.unserializefingerprint(&result))
-    {
-        return NULL;
-    }
-    return MegaApi::strdup(result.c_str());
-}
-
-char *MegaApiImpl::getSdkFingerprintFromMegaFingerprint(const char *megaFingerprint, m_off_t size)
-{
-    if (!megaFingerprint || !megaFingerprint[0] || size < 0)
-    {
-        return NULL;
-    }
-
-    FileFingerprint ffp;
-    string sMegaFingerprint = megaFingerprint;
-    if (!ffp.unserializefingerprint(&sMegaFingerprint))
-    {
-        return NULL;
-    }
-
-    char bsize[sizeof(size) + 1];
-    int l = Serialize64::serialize((byte *)bsize, size);
-    char *buf = new char[l * 4 / 3 + 4];
-    char sizelen = static_cast<char>('A' + Base64::btoa((const byte *)bsize, l, buf));
-    string result(1, sizelen);
-    result.append(buf);
-    result.append(megaFingerprint);
-    delete [] buf;
-
-    return MegaApi::strdup(result.c_str());
 }
 
 MegaNode* MegaApiImpl::getParentNode(MegaNode* n)
@@ -24002,8 +23978,8 @@ error MegaApiImpl::performRequest_completeBackgroundUpload(MegaRequestPrivate* r
                 return API_ENOENT;
             }
 
-            std::unique_ptr<char[]> megafingerprint(getMegaFingerprintFromSdkFingerprint(fingerprint));
-            if (!megafingerprint)
+            const string megafingerprint = MegaNodePrivate::removeAppPrefixFromFingerprint(fingerprint);
+            if (megafingerprint.empty())
             {
                 LOG_err << "Bad fingerprint";
                 return API_EARGS;
@@ -24051,7 +24027,7 @@ error MegaApiImpl::performRequest_completeBackgroundUpload(MegaRequestPrivate* r
             vector<NewNode> newnodes(1);
             NewNode* newnode = &newnodes[0];
             error e = client->putnodes_prepareOneFile(newnode, parentNode, utf8Name, ulToken,
-                                                theFileKey, megafingerprint.get(), fingerprintOriginal,
+                                                theFileKey, megafingerprint.c_str(), fingerprintOriginal,
                                                 std::move(addNodeAttrsFunc),
                                                 std::move(addFileAttrsFunc));
             if (e != API_OK)
@@ -25401,9 +25377,10 @@ void MegaApiImpl::getPreviewElementNode(MegaHandle eid, MegaRequestListener* lis
 
         FileFingerprint ffp;
         m_time_t tm = ffp.unserializefingerprint(&nm->fingerprint) ? ffp.mtime : 0;
-        unique_ptr<const char[]> megaApiImplFingerprint(getSdkFingerprintFromMegaFingerprint(nm->fingerprint.c_str(), nm->s));
+        const string megaApiImplFingerprint = MegaNodePrivate::addAppPrefixToFingerprint(nm->fingerprint, nm->s);
 
-        MegaNodePrivate ret(nm->filename.c_str(), FILENODE, nm->s, nm->ts, tm, nm->h, &element->key(), &nm->fa, megaApiImplFingerprint.get(),
+        MegaNodePrivate ret(nm->filename.c_str(), FILENODE, nm->s, nm->ts, tm, nm->h, &element->key(), &nm->fa,
+                            megaApiImplFingerprint.empty() ? nullptr : megaApiImplFingerprint.c_str(),
                             nullptr, nm->u, INVALID_HANDLE, nullptr, nullptr, false /*isPublic*/, true /*isForeign*/);
         request->setPublicNode(&ret);
 
@@ -26859,24 +26836,9 @@ bool MegaTreeProcCopy::processMegaNode(MegaNode *n)
         LocalPath::utf8_normalize(&sname);
         attrs.map['n'] = sname;
 
-        const char *fingerprint = n->getFingerprint();
-        if (fingerprint && fingerprint[0])
         {
-            m_off_t size = 0;
-            unsigned int fsize = unsigned(strlen(fingerprint));
-            unsigned int ssize = fingerprint[0] - 'A';
-            if (!(ssize > (sizeof(size) * 4 / 3 + 4) || fsize <= (ssize + 1)))
-            {
-                int len =  sizeof(size) + 1;
-                byte *buf = new byte[len];
-                Base64::atob(fingerprint + 1, buf, len);
-                int l = Serialize64::unserialize(buf, len, (uint64_t *)&size);
-                delete [] buf;
-                if (l > 0)
-                {
-                    attrs.map['c'] = fingerprint + ssize + 1;
-                }
-            }
+            string sfp = MegaNodePrivate::removeAppPrefixFromFingerprint(n->getFingerprint());
+            if (!sfp.empty()) attrs.map['c'] = std::move(sfp);
         }
 
         string attrstring;

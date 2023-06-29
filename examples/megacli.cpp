@@ -8770,7 +8770,7 @@ void DemoApp::folderlinkinfo_result(error e, handle owner, handle /*ph*/, string
         {
             AttrMap attrs;
             string fileName;
-            string fingerprint;
+            string fingerprint; // raw fingerprint without App's prefix (different layer)
             FileFingerprint ffp;
             m_time_t mtime = 0;
             Node::parseattr(buf, attrs, currentSize, mtime, fileName, fingerprint, ffp);
