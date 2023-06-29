@@ -23078,15 +23078,15 @@ void MegaApiImpl::inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, 
             }
 
             TextChat *chat = it->second;
-            if (chat->publicchat != publicMode)
+            if (chat->publicChat() != publicMode)
             {
-                LOG_err << "Request (TYPE_CHAT_INVITE). " << (chat->publicchat ? "Public chat mode" : "Private chat mode")
+                LOG_err << "Request (TYPE_CHAT_INVITE). " << (chat->publicChat() ? "Public chat mode" : "Private chat mode")
                 << " ,unexpected for chat: " << Base64Str<MegaClient::USERHANDLE>(chatid);
                 return API_EACCESS;
             }
 
             // new participants of private chats require the title to be encrypted to them
-            if (!chat->publicchat && (!chat->title.empty() && (!title || title[0] == '\0')))
+            if (!chat->publicChat() && (!chat->title.empty() && (!title || title[0] == '\0')))
             {
                 LOG_err << "Request (TYPE_CHAT_INVITE). Invalid title for chat: " << Base64Str<MegaClient::USERHANDLE>(chatid);
                 return API_EINCOMPLETE;
@@ -23537,7 +23537,7 @@ void MegaApiImpl::chatLinkHandle(MegaHandle chatid, bool del, bool createifmissi
                 return API_ENOENT;
             }
             TextChat *chat = it->second;
-            if (!chat->group || !chat->publicchat || chat->priv == PRIV_RM
+            if (!chat->group || !chat->publicChat() || chat->priv == PRIV_RM
                     || ((del || createifmissing) && chat->priv != PRIV_MODERATOR))
             {
                 return API_EACCESS;
@@ -23592,7 +23592,7 @@ void MegaApiImpl::chatLinkClose(MegaHandle chatid, const char* title, MegaReques
                 return API_ENOENT;
             }
             TextChat *chat = it->second;
-            if (!chat->publicchat)
+            if (!chat->publicChat())
             {
                 return API_EEXIST;
             }
@@ -34700,7 +34700,7 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
     this->tag = chat->tag;
     this->ts = chat->ts;
     this->archived = chat->isFlagSet(TextChat::FLAG_OFFSET_ARCHIVE);
-    this->publicchat = chat->publicchat;
+    this->publicchat = chat->publicChat();
     this->unifiedKey = chat->unifiedKey;
     this->meeting = chat->meeting;
     this->chatOptions = chat->chatOptions;
