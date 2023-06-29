@@ -964,8 +964,8 @@ void DemoApp::printChatInformation(TextChat *chat)
     cout << "\tChat shard: " << chat->shard << endl;
     cout << "\tGroup chat: " << ((chat->group) ? "yes" : "no") << endl;
     cout << "\tArchived chat: " << ((chat->isFlagSet(TextChat::FLAG_OFFSET_ARCHIVE)) ? "yes" : "no") << endl;
-    cout << "\tPublic chat: " << ((chat->publicchat) ? "yes" : "no") << endl;
-    if (chat->publicchat)
+    cout << "\tPublic chat: " << ((chat->publicChat()) ? "yes" : "no") << endl;
+    if (chat->publicChat())
     {
         cout << "\tUnified key: " << chat->unifiedKey.c_str() << endl;
         cout << "\tMeeting room: " << ((chat->meeting) ? "yes" : "no") << endl;
