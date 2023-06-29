@@ -55,25 +55,25 @@ NS_ASSUME_NONNULL_BEGIN
  * @return Sync state of the backup.
  *
  * It can be one of the following values:
- * - MEGABackupTypeInvalid              = -1,
+ * - MEGABackupTypeInvalid                   = -1,
  * Invalid backup type.
  *
- * - MEGABackupTypeTwoWay           = 0,
+ * - MEGABackupTypeTwoWay                = 0,
  * Two way backup type.
  *
- * - MEGABackupTypeUpSync              = 1,
+ * - MEGABackupTypeUpSync                 = 1,
  * Up sync backup type.
  *
- * - MEGABackupTypeDownSync         = 2,
+ * - MEGABackupTypeDownSync            = 2,
  * Down sync backup type.
  *
- * - MEGABackupTypeCameraUpload = 3,
+ * - MEGABackupTypeCameraUpload     = 3,
  * Camera Upload backup type.
  *
- * - MEGABackupTypeMediaUpload      = 4,
+ * - MEGABackupTypeMediaUpload        = 4,
  * Media Upload backup type.
  *
- * - MEGABackupTypeBackupUpload     = 5,
+ * - MEGABackupTypeBackupUpload      = 5,
  * Backup upload backup type.
  *
  */
