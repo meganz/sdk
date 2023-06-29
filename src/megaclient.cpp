@@ -7646,19 +7646,22 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                 }
                 else
                 {
+                    TextChat* chat = nullptr;
                     bool mustHaveUK = false;
                     privilege_t oldPriv = PRIV_UNKNOWN;
                     if (chats.find(chatid) == chats.end())
                     {
-                        chats[chatid] = new TextChat();
+                        chat = new TextChat(readingPublicChat ? publicchat : false);
+                        chats[chatid] = chat;
                         mustHaveUK = true;
                     }
                     else
                     {
-                        oldPriv = chats[chatid]->priv;
+                        chat = chats[chatid];
+                        oldPriv = chat->priv;
+                        if (readingPublicChat) { setChatMode(chat, publicchat); }
                     }
 
-                    TextChat *chat = chats[chatid];
                     chat->id = chatid;
                     chat->shard = shard;
                     chat->group = group;
@@ -7727,7 +7730,6 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
 
                     if (readingPublicChat)
                     {
-                        chat->setMode(publicchat);
                         if (!unifiedkey.empty())    // not all actionpackets include it
                         {
                             chat->unifiedKey = unifiedkey;
@@ -8818,7 +8820,7 @@ error MegaClient::setattr(Node* n, attr_map&& updates, CommandSetAttr::Completio
 }
 
 error MegaClient::putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, const char *utf8Name, const UploadToken& binaryUploadToken,
-                                          byte *theFileKey, char *megafingerprint, const char *fingerprintOriginal,
+                                          const byte *theFileKey, const char *megafingerprint, const char *fingerprintOriginal,
                                           std::function<error(AttrMap&)> addNodeAttrsFunc, std::function<error(std::string *)> addFileAttrsFunc)
 {
     error e = API_OK;
@@ -12784,12 +12786,18 @@ void MegaClient::procmcf(JSON *j)
                             case EOO:
                                 if (chatid != UNDEF && priv != PRIV_UNKNOWN && shard != -1)
                                 {
+                                    TextChat* chat = nullptr;
                                     if (chats.find(chatid) == chats.end())
                                     {
-                                        chats[chatid] = new TextChat();
+                                        chat = new TextChat(readingPublicChats && publicchat);
+                                        chats[chatid] = chat;
+                                    }
+                                    else
+                                    {
+                                        chat = chats[chatid];
+                                        if (readingPublicChats) { setChatMode(chat, publicchat); }
                                     }
 
-                                    TextChat *chat = chats[chatid];
                                     chat->id = chatid;
                                     chat->priv = priv;
                                     chat->shard = shard;
@@ -12805,7 +12813,6 @@ void MegaClient::procmcf(JSON *j)
 
                                     if (readingPublicChats)
                                     {
-                                        chat->publicchat = publicchat;  // true or false (formerly public, now private)
                                         chat->unifiedKey = unifiedKey;
 
                                         if (unifiedKey.empty())
@@ -19037,6 +19044,23 @@ void MegaClient::removeFromChat(handle chatid, handle uh)
 void MegaClient::getUrlChat(handle chatid)
 {
     reqs.add(new CommandChatURL(this, chatid));
+}
+
+void MegaClient::setChatMode(TextChat* chat, bool pubChat)
+{
+    if (!chat)
+    {
+        LOG_warn << "setChatMode: Invalid chat provided";
+        return;
+    }
+
+    if (chat->setMode(pubChat) == API_EACCESS)
+    {
+        std::string msg = "setChatMode: trying to convert a chat from private into public. chatid: "
+                          + std::string(Base64Str<MegaClient::CHATHANDLE>(chat->id));
+        sendevent(99476, msg.c_str(), 0);
+        LOG_warn << msg;
+    }
 }
 
 userpriv_vector *MegaClient::readuserpriv(JSON *j)

@@ -210,7 +210,9 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     static byte* decryptattr(SymmCipher*, const char*, size_t);
 
     // parse node attributes from an incoming buffer, this function must be called after call decryptattr
-    static void parseattr(byte*, AttrMap&, m_off_t, m_time_t&, string&, string&, FileFingerprint&);
+    // fingerprint output param is a raw fingerprint (i.e. without App prefixes)
+    static void parseattr(byte* bufattr, AttrMap& attrs, m_off_t size, m_time_t& mtime, string& fileName,
+                          string& fingerprint, FileFingerprint& ffp);
 
     // inbound share
     Share* inshare = nullptr;

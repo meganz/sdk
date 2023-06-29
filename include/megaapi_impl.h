@@ -638,6 +638,9 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         bool serialize(string*) const override;
         static MegaNodePrivate* unserialize(string*);
 
+        static string removeAppPrefixFromFingerprint(const string& appFingerprint, m_off_t* nodeSize = nullptr);
+        static string addAppPrefixToFingerprint(const string& fingerprint, const m_off_t nodeSize);
+
     protected:
         MegaNodePrivate(Node *node);
         int type;
@@ -3210,11 +3213,6 @@ class MegaApiImpl : public MegaApp
 
         MegaClient *getMegaClient();
         static FileFingerprint *getFileFingerprintInternal(const char *fingerprint);
-
-        // You take the ownership of the returned value of both functiions
-        // It can be NULL if the input parameters are invalid
-        static char* getMegaFingerprintFromSdkFingerprint(const char* sdkFingerprint);
-        static char* getSdkFingerprintFromMegaFingerprint(const char *megaFingerprint, m_off_t size);
 
         error processAbortBackupRequest(MegaRequestPrivate *request);
         void fireOnBackupStateChanged(MegaScheduledCopyController *backup);
