@@ -10358,16 +10358,8 @@ MegaHandleList *MegaApiImpl::getAttachmentAccess(MegaHandle chatid, MegaHandle h
     textchat_map::iterator itc = client->chats.find(chatid);
     if (itc != client->chats.end())
     {
-        attachments_map::iterator ita = itc->second->attachedNodes.find(h);
-        if (ita != itc->second->attachedNodes.end())
-        {
-            set<handle> userList = ita->second;
-            set<handle>::iterator ituh;
-            for (ituh = userList.begin(); ituh != userList.end(); ituh++)
-            {
-                uhList->addMegaHandle(*ituh);
-            }
-        }
+        set<handle> userList = itc->second->getUsersOfAttachment(h);
+        std::for_each(userList.begin(), userList.end(), [uhList](const handle& u) { uhList->addMegaHandle(u); });
     }
     return uhList;
 }
@@ -10386,12 +10378,7 @@ bool MegaApiImpl::hasAccessToAttachment(MegaHandle chatid, MegaHandle h, MegaHan
     textchat_map::iterator itc = client->chats.find(chatid);
     if (itc != client->chats.end())
     {
-        attachments_map::iterator ita = itc->second->attachedNodes.find(h);
-        if (ita != itc->second->attachedNodes.end())
-        {
-            set<handle> userList = ita->second;
-            ret = (userList.find(uh) != userList.end());
-        }
+        ret = itc->second->isUserOfAttachment(h, uh);
     }
     return ret;
 }
@@ -12893,7 +12880,7 @@ void MegaApiImpl::chatcreate_result(TextChat *chat, error e)
     {
         // encapsulate the chat in a list for the request
         textchat_map chatList;
-        chatList[chat->id] = chat;
+        chatList[chat->getChatId()] = chat;
 
         auto megaChatList = mega::make_unique<MegaTextChatListPrivate>(&chatList);
         request->setMegaTextChatList(megaChatList.get());
@@ -23021,7 +23008,7 @@ void MegaApiImpl::setChatOption(MegaHandle chatid, int option, bool enabled, Meg
             }
 
             TextChat* chat = it->second;
-            if (!chat->group)
+            if (!chat->getGroup())
             {
                 return API_EARGS;
             }
@@ -23086,22 +23073,22 @@ void MegaApiImpl::inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, 
             }
 
             // new participants of private chats require the title to be encrypted to them
-            if (!chat->publicChat() && (!chat->title.empty() && (!title || title[0] == '\0')))
+            if (!chat->publicChat() && (!chat->getTitle().empty() && (!title || title[0] == '\0')))
             {
                 LOG_err << "Request (TYPE_CHAT_INVITE). Invalid title for chat: " << Base64Str<MegaClient::USERHANDLE>(chatid);
                 return API_EINCOMPLETE;
             }
 
-            if (!chat->group)
+            if (!chat->getGroup())
             {
                 LOG_err << "Request (TYPE_CHAT_INVITE). Invalid chat (1on1): " << Base64Str<MegaClient::USERHANDLE>(chatid);
                 return API_EACCESS;
             }
 
-            if (chat->priv < PRIV_MODERATOR)
+            if (chat->getOwnPrivileges() < PRIV_MODERATOR)
             {
-                ChatOptions chatOptions(static_cast<ChatOptions_t>(chat->chatOptions));
-                if (chat->priv < PRIV_STANDARD || !chatOptions.openInvite())
+                ChatOptions chatOptions(static_cast<ChatOptions_t>(chat->getChatOptions()));
+                if (chat->getOwnPrivileges() < PRIV_STANDARD || !chatOptions.openInvite())
                 {
                     // only allowed moderators or participants with standard permissions just if openInvite is enabled
                     LOG_err << "Request (TYPE_CHAT_INVITE). Insufficient permissions to perform this action, for chat: "
@@ -23147,7 +23134,7 @@ void MegaApiImpl::removeFromChat(MegaHandle chatid, MegaHandle uh, MegaRequestLi
             // user is optional. If not provided, command apply to own user
             if (uh != INVALID_HANDLE)
             {
-                if (!chat->group || (uh != client->me && chat->priv != PRIV_MODERATOR))
+                if (!chat->getGroup() || (uh != client->me && chat->getOwnPrivileges() != PRIV_MODERATOR))
                 {
                     return API_EACCESS;
                 }
@@ -23271,7 +23258,7 @@ void MegaApiImpl::updateChatPermissions(MegaHandle chatid, MegaHandle uh, int pr
                 return API_ENOENT;
             }
             TextChat *chat = it->second;
-            if (!chat->group || chat->priv != PRIV_MODERATOR)
+            if (!chat->getGroup() || chat->getOwnPrivileges() != PRIV_MODERATOR)
             {
                 return API_EACCESS;
             }
@@ -23305,7 +23292,7 @@ void MegaApiImpl::truncateChat(MegaHandle chatid, MegaHandle messageid, MegaRequ
                 return API_ENOENT;
             }
             TextChat *chat = it->second;
-            if (chat->priv != PRIV_MODERATOR)
+            if (chat->getOwnPrivileges() != PRIV_MODERATOR)
             {
                 return API_EACCESS;
             }
@@ -23339,7 +23326,7 @@ void MegaApiImpl::setChatTitle(MegaHandle chatid, const char* title, MegaRequest
                 return API_ENOENT;
             }
             TextChat *chat = it->second;
-            if (!chat->group || chat->priv != PRIV_MODERATOR)
+            if (!chat->getGroup() || chat->getOwnPrivileges() != PRIV_MODERATOR)
             {
                 return API_EACCESS;
             }
@@ -23439,7 +23426,7 @@ void MegaApiImpl::setChatRetentionTime(MegaHandle chatid, unsigned period, MegaR
                 return API_ENOENT;
             }
             TextChat *chat = it->second;
-            if (chat->priv != PRIV_MODERATOR)
+            if (chat->getOwnPrivileges() != PRIV_MODERATOR)
             {
                 return API_EACCESS;
             }
@@ -23537,8 +23524,8 @@ void MegaApiImpl::chatLinkHandle(MegaHandle chatid, bool del, bool createifmissi
                 return API_ENOENT;
             }
             TextChat *chat = it->second;
-            if (!chat->group || !chat->publicChat() || chat->priv == PRIV_RM
-                    || ((del || createifmissing) && chat->priv != PRIV_MODERATOR))
+            if (!chat->getGroup() || !chat->publicChat() || chat->getOwnPrivileges() == PRIV_RM
+                    || ((del || createifmissing) && chat->getOwnPrivileges() != PRIV_MODERATOR))
             {
                 return API_EACCESS;
             }
@@ -23596,11 +23583,11 @@ void MegaApiImpl::chatLinkClose(MegaHandle chatid, const char* title, MegaReques
             {
                 return API_EEXIST;
             }
-            if (!chat->group || chat->priv != PRIV_MODERATOR)
+            if (!chat->getGroup() || chat->getOwnPrivileges() != PRIV_MODERATOR)
             {
                 return API_EACCESS;
             }
-            if (!chat->title.empty() && (!title || title[0] == '\0'))
+            if (!chat->getTitle().empty() && (!title || title[0] == '\0'))
             {
                 return API_EARGS;
             }
@@ -24417,7 +24404,7 @@ void MegaApiImpl::endChatCall(MegaHandle chatid, MegaHandle callid, int reason, 
             }
 
             TextChat* chat = it->second;
-            if (reason == END_CALL_REASON_BY_MODERATOR && !chat->group)
+            if (reason == END_CALL_REASON_BY_MODERATOR && !chat->getGroup())
             {
                 return API_EACCESS;
             }
@@ -34640,7 +34627,7 @@ void MegaTextChatPeerListPrivate::setPeerPrivilege(handle uh, privilege_t priv)
     addPeer(uh, priv);
 }
 
-MegaTextChatPeerListPrivate::MegaTextChatPeerListPrivate(userpriv_vector *userpriv)
+MegaTextChatPeerListPrivate::MegaTextChatPeerListPrivate(const userpriv_vector *userpriv)
 {
     handle uh;
     privilege_t priv;
@@ -34690,35 +34677,35 @@ MegaTextChatPrivate::MegaTextChatPrivate(const MegaTextChat *chat)
 
 MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
 {
-    this->id = chat->id;
-    this->priv = chat->priv;
-    this->shard = chat->shard;
-    this->peers = chat->userpriv ? new MegaTextChatPeerListPrivate(chat->userpriv) : NULL;
-    this->group = chat->group;
-    this->ou = chat->ou;
-    this->title = chat->title;
-    this->tag = chat->tag;
-    this->ts = chat->ts;
+    this->id = chat->getChatId();
+    this->priv = chat->getOwnPrivileges();
+    this->shard = chat->getShard();
+    this->peers = chat->getUserPrivileges() ? new MegaTextChatPeerListPrivate(chat->getUserPrivileges()) : nullptr;
+    this->group = chat->getGroup();
+    this->ou = chat->getOwnUser();
+    this->title = chat->getTitle();
+    this->tag = chat->getTag();
+    this->ts = chat->getTs();
     this->archived = chat->isFlagSet(TextChat::FLAG_OFFSET_ARCHIVE);
     this->publicchat = chat->publicChat();
-    this->unifiedKey = chat->unifiedKey;
-    this->meeting = chat->meeting;
-    this->chatOptions = chat->chatOptions;
+    this->unifiedKey = chat->getUnifiedKey();
+    this->meeting = chat->getMeeting();
+    this->chatOptions = chat->getChatOptions();
     this->changed = 0;
 
-    if (!chat->mScheduledMeetings.empty())
+    if (!chat->getSchedMeetings().empty())
     {
         mScheduledMeetings.reset(MegaScheduledMeetingList::createInstance());
-        for (auto it = chat->mScheduledMeetings.begin(); it != chat->mScheduledMeetings.end(); it++)
+        for (auto it = chat->getSchedMeetings().begin(); it != chat->getSchedMeetings().end(); it++)
         {
             mScheduledMeetings->insert(new MegaScheduledMeetingPrivate(it->second.get()));
         }
     }
 
-    if (!chat->mSchedMeetingsChanged.empty())
+    if (!chat->getSchedMeetingsChanged().empty())
     {
         mSchedMeetingsChanged.reset(MegaHandleList::createInstance());
-        for (auto it = chat->mSchedMeetingsChanged.begin(); it != chat->mSchedMeetingsChanged.end(); it++)
+        for (auto it = chat->getSchedMeetingsChanged().begin(); it != chat->getSchedMeetingsChanged().end(); it++)
         {
             mSchedMeetingsChanged->addMegaHandle(*it);
         }
@@ -34731,10 +34718,10 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
                 ? MegaTextChat::CHANGE_TYPE_SCHED_REPLACE_OCURR
                 : MegaTextChat::CHANGE_TYPE_SCHED_APPEND_OCURR;
 
-        if (!chat->mUpdatedOcurrences.empty())
+        if (!chat->getUpdatedOcurrences().empty())
         {
             mUpdatedOcurrences.reset(MegaScheduledMeetingList::createInstance());
-            for (auto it = chat->mUpdatedOcurrences.begin(); it != chat->mUpdatedOcurrences.end(); it++)
+            for (auto it = chat->getUpdatedOcurrences().begin(); it != chat->getUpdatedOcurrences().end(); it++)
             {
                 mUpdatedOcurrences->insert(new MegaScheduledMeetingPrivate((*it).get()));
             }

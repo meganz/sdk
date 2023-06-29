@@ -5981,8 +5981,7 @@ void MegaClient::updatesc()
             // 6. write new or modified chats
             for (textchat_map::iterator it = chatnotify.begin(); it != chatnotify.end(); it++)
             {
-                char base64[12];
-                LOG_verbose << "Adding chat to database: " << (Base64::btoa((byte*)&(it->second->id),MegaClient::CHATHANDLE,base64) ? base64 : "");
+                LOG_verbose << "Adding chat to database: " << Base64Str<sizeof(handle)>(it->second->getChatId());
                 if (!(complete = sctable->put(CACHEDCHAT, it->second, &key)))
                 {
                     break;
@@ -7658,22 +7657,23 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                     else
                     {
                         chat = chats[chatid];
-                        oldPriv = chat->priv;
+                        oldPriv = chat->getOwnPrivileges();
                         if (readingPublicChat) { setChatMode(chat, publicchat); }
                     }
 
-                    chat->id = chatid;
-                    chat->shard = shard;
-                    chat->group = group;
-                    chat->priv = PRIV_UNKNOWN;
-                    chat->ou = ou;
-                    chat->title = title;
+                    chat->setChatId(chatid);
+                    chat->setShard(shard);
+                    chat->setGroup(group);
+                    chat->setOwnPrivileges(PRIV_UNKNOWN);
+                    chat->setOwnUser(ou);
+                    chat->setTitle(title);
+
                     // chat->flags = ?; --> flags are received in other AP: mcfc
                     if (ts != -1)
                     {
-                        chat->ts = ts;  // only in APs related to chat creation or when you're added to
+                        chat->setTs(ts);  // only in APs related to chat creation or when you're added to
                     }
-                    chat->meeting = meeting;
+                    chat->setMeeting(meeting);
 
                     if (group)
                     {
@@ -7691,7 +7691,7 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                             {
                                 found = true;
                                 mustHaveUK = (oldPriv <= PRIV_RM && upvit->second > PRIV_RM);
-                                chat->priv = upvit->second;
+                                chat->setOwnPrivileges(upvit->second);
                                 userpriv->erase(upvit);
                                 if (userpriv->empty())
                                 {
@@ -7711,13 +7711,13 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                             if (upvit->first == me)
                             {
                                 mustHaveUK = (oldPriv <= PRIV_RM && upvit->second > PRIV_RM);
-                                chat->priv = upvit->second;
+                                chat->setOwnPrivileges(upvit->second);
                                 break;
                             }
                         }
                     }
 
-                    if (chat->priv == PRIV_RM)
+                    if (chat->getOwnPrivileges() == PRIV_RM)
                     {
                         // clear the list of peers because API still includes peers in the
                         // actionpacket, but not in a fresh fetchnodes
@@ -7725,14 +7725,13 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                         userpriv = NULL;
                     }
 
-                    delete chat->userpriv;  // discard any existing `userpriv`
-                    chat->userpriv = userpriv;
+                    chat->setUserPrivileges(userpriv);
 
                     if (readingPublicChat)
                     {
                         if (!unifiedkey.empty())    // not all actionpackets include it
                         {
-                            chat->unifiedKey = unifiedkey;
+                            chat->setUnifiedKey(unifiedkey);
                         }
                         else if (mustHaveUK)
                         {
@@ -7909,7 +7908,7 @@ void MegaClient::sc_delscheduledmeeting()
                     {
                         // remove children scheduled meetings (API requirement)
                         handle_set deletedChildren = chat->removeChildSchedMeetings(schedId);
-                        handle chatid = chat->id;
+                        handle chatid = chat->getChatId();
                         chat->setTag(0);    // external change
                         notifychat(chat);
 
@@ -7965,7 +7964,7 @@ void MegaClient::sc_scheduledmeetings()
         handle schedId = sm->schedId();
         handle parentSchedId = sm->parentSchedId();
         m_time_t overrides = sm->overrides();
-        bool isNewSchedMeeting = chat->mScheduledMeetings.find(schedId) == end(chat->mScheduledMeetings);
+        bool isNewSchedMeeting = !chat->hasScheduledMeeting(schedId);
 
         // remove child scheduled meetings in cmd (child meetings deleted) array
         chat->removeSchedMeetingsList(childMeetingsDeleted);
@@ -7981,7 +7980,7 @@ void MegaClient::sc_scheduledmeetings()
             }
 
             // if we couldn't update scheduled meeting, but we have deleted it's children, we also need to notify apps
-            handle chatid = chat->id;
+            handle chatid = chat->getChatId();
             chat->setTag(0);    // external change
             notifychat(chat);
 
@@ -7993,14 +7992,14 @@ void MegaClient::sc_scheduledmeetings()
 
                 if (res)
                 {
-                    if (isNewSchedMeeting) createNewSMAlert(ou, chat->id, schedId, parentSchedId, overrides);
-                    else createUpdatedSMAlert(ou, chat->id, schedId, parentSchedId, overrides, std::move(cs));
+                    if (isNewSchedMeeting) createNewSMAlert(ou, chat->getChatId(), schedId, parentSchedId, overrides);
+                    else createUpdatedSMAlert(ou, chat->getChatId(), schedId, parentSchedId, overrides, std::move(cs));
                 }
             }
         }
 
         // fetch for fresh scheduled meetings occurrences
-        reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
+        reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->getChatId(), mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
     }
 }
 
@@ -8412,9 +8411,9 @@ void MegaClient::notifypurge(void)
 
             chat->notified = false;
             chat->resetTag();
-            memset(&(chat->changed), 0, sizeof(chat->changed));
-            chat->mSchedMeetingsChanged.clear();
-            chat->mUpdatedOcurrences.clear();
+            chat->changed = {};
+            chat->clearSchedMeetingsChanged();
+            chat->clearUpdatedSchedMeetingOccurrences();
         }
 
         chatnotify.clear();
@@ -12530,7 +12529,7 @@ void MegaClient::notifychat(TextChat *chat)
     if (!chat->notified)
     {
         chat->notified = true;
-        chatnotify[chat->id] = chat;
+        chatnotify[chat->getChatId()] = chat;
     }
 }
 #endif
@@ -12798,13 +12797,13 @@ void MegaClient::procmcf(JSON *j)
                                         if (readingPublicChats) { setChatMode(chat, publicchat); }
                                     }
 
-                                    chat->id = chatid;
-                                    chat->priv = priv;
-                                    chat->shard = shard;
-                                    chat->group = group;
-                                    chat->title = title;
-                                    chat->ts = (ts != -1) ? ts : 0;
-                                    chat->meeting = meeting;
+                                    chat->setChatId(chatid);
+                                    chat->setOwnPrivileges(priv);
+                                    chat->setShard(shard);
+                                    chat->setGroup(group);
+                                    chat->setTitle(title);
+                                    chat->setTs(ts != -1 ? ts : 0);
+                                    chat->setMeeting(meeting);
 
                                     if (group)
                                     {
@@ -12813,7 +12812,7 @@ void MegaClient::procmcf(JSON *j)
 
                                     if (readingPublicChats)
                                     {
-                                        chat->unifiedKey = unifiedKey;
+                                        chat->setUnifiedKey(unifiedKey);
 
                                         if (unifiedKey.empty())
                                         {
@@ -12824,7 +12823,7 @@ void MegaClient::procmcf(JSON *j)
                                     // remove yourself from the list of users (only peers matter)
                                     if (userpriv)
                                     {
-                                        if (chat->priv == PRIV_RM)
+                                        if (chat->getOwnPrivileges() == PRIV_RM)
                                         {
                                             // clear the list of peers because API still includes peers in the
                                             // actionpacket, but not in a fresh fetchnodes
@@ -12849,8 +12848,7 @@ void MegaClient::procmcf(JSON *j)
                                             }
                                         }
                                     }
-                                    delete chat->userpriv;  // discard any existing `userpriv`
-                                    chat->userpriv = userpriv;
+                                    chat->setUserPrivileges(userpriv);
                                 }
                                 else
                                 {
@@ -12918,7 +12916,7 @@ void MegaClient::procmcf(JSON *j)
                                     else
                                     {
                                         it->second->setFlags(flags);
-                                        assert(!readingPublicChats || !it->second->unifiedKey.empty());
+                                        assert(!readingPublicChats || !it->second->getUnifiedKey().empty());
                                     }
                                 }
                                 else
@@ -19057,7 +19055,7 @@ void MegaClient::setChatMode(TextChat* chat, bool pubChat)
     if (chat->setMode(pubChat) == API_EACCESS)
     {
         std::string msg = "setChatMode: trying to convert a chat from private into public. chatid: "
-                          + std::string(Base64Str<MegaClient::CHATHANDLE>(chat->id));
+                          + std::string(Base64Str<MegaClient::CHATHANDLE>(chat->getChatId()));
         sendevent(99476, msg.c_str(), 0);
         LOG_warn << msg;
     }

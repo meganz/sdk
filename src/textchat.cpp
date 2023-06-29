@@ -486,23 +486,6 @@ ScheduledMeeting* ScheduledMeeting::unserialize(const string& in, const handle c
 
 TextChat::TextChat(const bool publicChat) : mPublicChat(publicChat)
 {
-    id = UNDEF;
-    priv = PRIV_UNKNOWN;
-    shard = -1;
-    userpriv = NULL;
-    group = false;
-    ou = UNDEF;
-    resetTag();
-    ts = 0;
-    flags = 0;
-    chatOptions = 0;
-
-    memset(&changed, 0, sizeof(changed));
-}
-
-TextChat::~TextChat()
-{
-    delete userpriv;
 }
 
 bool TextChat::serialize(string *d) const
@@ -869,7 +852,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     chat->id = id;
     chat->priv = priv;
     chat->shard = shard;
-    chat->userpriv = userpriv;
+    chat->setUserPrivileges(userpriv);
     chat->group = group;
     chat->title = title;
     chat->ou = ou;
@@ -890,16 +873,216 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
         }
         else
         {
-            assert(false);
             LOG_err << "Failure at schedule meeting unserialization";
-            delete userpriv;
+            assert(auxMeet);
             return NULL;
         }
     }
 
-    memset(&chat->changed, 0, sizeof(chat->changed));
-
     return chat;
+}
+
+void TextChat::setChatId(handle newId)
+{
+    id = newId;
+}
+
+handle TextChat::getChatId() const
+{
+    return id;
+}
+
+void TextChat::setOwnPrivileges(privilege_t p)
+{
+    priv = p;
+}
+
+privilege_t TextChat::getOwnPrivileges() const
+{
+    return priv;
+}
+
+void TextChat::setShard(int sh)
+{
+    shard = sh;
+}
+
+int TextChat::getShard() const
+{
+    return shard;
+}
+
+void TextChat::addUserPrivileges(handle uid, privilege_t p)
+{
+    if (!userpriv)
+    {
+        userpriv = make_unique<userpriv_vector>();
+    }
+    userpriv->emplace_back(uid, p);
+}
+
+bool TextChat::updateUserPrivileges(handle uid, privilege_t p)
+{
+    if (!userpriv)
+    {
+        return false;
+    }
+
+    auto it = std::find_if(userpriv->begin(), userpriv->end(), [uid](const userpriv_pair& p) { return p.first == uid; });
+    if (it != userpriv->end())
+    {
+        it->second = p;
+        return true;
+    }
+
+    return false;
+}
+
+bool TextChat::removeUserPrivileges(handle uid)
+{
+    if (!userpriv)
+    {
+        return false;
+    }
+
+    auto it = std::find_if(userpriv->begin(), userpriv->end(), [uid](const userpriv_pair& p) { return p.first == uid; });
+    if (it != userpriv->end())
+    {
+        userpriv->erase(it);
+        if (userpriv->empty())
+        {
+            userpriv.reset();
+        }
+    }
+
+    return true;
+}
+
+void TextChat::setUserPrivileges(userpriv_vector* pvs)
+{
+    userpriv.reset(pvs);
+}
+
+const userpriv_vector* TextChat::getUserPrivileges() const
+{
+    return userpriv.get();
+}
+
+void TextChat::setGroup(bool g)
+{
+    group = g;
+}
+
+bool TextChat::getGroup() const
+{
+    return group;
+}
+
+void TextChat::setTitle(const string& t)
+{
+    title = t;
+}
+
+const string& TextChat::getTitle() const
+{
+    return title;
+}
+
+void TextChat::setUnifiedKey(const string& uk)
+{
+    unifiedKey = uk;
+}
+
+const string& TextChat::getUnifiedKey() const
+{
+    return unifiedKey;
+}
+
+void TextChat::setOwnUser(handle u)
+{
+    ou = u;
+}
+
+handle TextChat::getOwnUser() const
+{
+    return ou;
+}
+
+void TextChat::setTs(m_time_t t)
+{
+    ts = t;
+}
+
+m_time_t TextChat::getTs() const
+{
+    return ts;
+}
+
+const attachments_map& TextChat::getAttachments() const
+{
+    return attachedNodes;
+}
+
+handle_set TextChat::getUsersOfAttachment(handle a) const
+{
+    auto ita = attachedNodes.find(a);
+    if (ita != attachedNodes.end())
+    {
+        return ita->second;
+    }
+
+    return handle_set();
+}
+
+bool TextChat::isUserOfAttachment(handle a, handle uid) const
+{
+    auto ita = attachedNodes.find(a);
+    if (ita != attachedNodes.end())
+    {
+        return ita->second.find(uid) != ita->second.end();
+    }
+
+    return false;
+}
+
+void TextChat::addUserForAttachment(handle a, handle uid)
+{
+    attachedNodes[a].insert(uid);
+}
+
+void TextChat::setMeeting(bool m)
+{
+    meeting = m;
+}
+
+bool TextChat::getMeeting() const
+{
+    return meeting;
+}
+
+byte TextChat::getChatOptions() const
+{
+    return chatOptions;
+}
+
+bool TextChat::hasScheduledMeeting(handle smid) const
+{
+    return mScheduledMeetings.find(smid) != mScheduledMeetings.end();
+}
+
+const handle_set& TextChat::getSchedMeetingsChanged() const
+{
+    return mSchedMeetingsChanged;
+}
+
+void TextChat::clearSchedMeetingsChanged()
+{
+    mSchedMeetingsChanged.clear();
+}
+
+const vector<std::unique_ptr<ScheduledMeeting>>& TextChat::getUpdatedOcurrences() const
+{
+    return mUpdatedOcurrences;
 }
 
 void TextChat::setTag(int tag)
@@ -910,7 +1093,7 @@ void TextChat::setTag(int tag)
     }
 }
 
-int TextChat::getTag()
+int TextChat::getTag() const
 {
     return tag;
 }
@@ -975,7 +1158,7 @@ void TextChat::addUpdatedSchedMeetingOccurrence(std::unique_ptr<ScheduledMeeting
     mUpdatedOcurrences.emplace_back(std::move(sm));
 }
 
-ScheduledMeeting* TextChat::getSchedMeetingById(handle id)
+const ScheduledMeeting* TextChat::getSchedMeetingById(handle id) const
 {
     auto it = mScheduledMeetings.find(id);
     if (it != mScheduledMeetings.end())
@@ -985,7 +1168,7 @@ ScheduledMeeting* TextChat::getSchedMeetingById(handle id)
     return nullptr;
 }
 
-const map<handle/*schedId*/, std::unique_ptr<ScheduledMeeting>>& TextChat::getSchedMeetings()
+const map<handle/*schedId*/, std::unique_ptr<ScheduledMeeting>>& TextChat::getSchedMeetings() const
 {
     return mScheduledMeetings;
 }

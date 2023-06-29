@@ -217,24 +217,26 @@ private:
     std::unique_ptr<ScheduledRules> mRules;
 };
 
-struct TextChat : public Cacheable
+class TextChat : public Cacheable
 {
+public:
     enum {
         FLAG_OFFSET_ARCHIVE = 0
     };
 
-    handle id;
-    privilege_t priv;
-    int shard;
-    userpriv_vector *userpriv;
-    bool group;
+private:
+    handle id = UNDEF;
+    privilege_t priv = PRIV_UNKNOWN;
+    int shard = -1;
+    std::unique_ptr<userpriv_vector> userpriv;
+    bool group = false;
     string title;        // byte array
     string unifiedKey;   // byte array
-    handle ou;
-    m_time_t ts;     // creation time
+    handle ou = UNDEF;
+    m_time_t ts = 0;     // creation time
     attachments_map attachedNodes;
-    bool meeting;     // chat is meeting room
-    byte chatOptions; // each chat option is represented in 1 bit (check ChatOptions struct at types.h)
+    bool meeting = false;     // chat is meeting room
+    byte chatOptions = 0; // each chat option is represented in 1 bit (check ChatOptions struct at types.h)
 
     // maps a scheduled meeting id to a scheduled meeting
     // a scheduled meetings allows the user to specify an event that will occur in the future (check ScheduledMeeting class documentation)
@@ -246,37 +248,67 @@ struct TextChat : public Cacheable
     // vector of scheduled meeting occurrences that needs to be notified
     std::vector<std::unique_ptr<ScheduledMeeting>> mUpdatedOcurrences;
 
-
-private:        // use setter to modify these members
     bool mPublicChat;  // whether the chat is public or private
-    byte flags;     // currently only used for "archive" flag at first bit
+    byte flags = 0;     // currently only used for "archive" flag at first bit
     void deleteSchedMeeting(const handle sm)
     {
         mScheduledMeetings.erase(sm);
         mSchedMeetingsChanged.insert(sm);
     }
 
-public:
-    int tag;    // source tag, to identify own changes
+    int tag = -1;    // source tag, to identify own changes
 
+public:
     TextChat(const bool publicChat);
-    ~TextChat();
+    ~TextChat() = default;
 
     bool serialize(string *d) const override;
     static TextChat* unserialize(class MegaClient *client, string *d);
 
+    void setChatId(handle newId);
+    handle getChatId() const;
+    void setOwnPrivileges(privilege_t p);
+    privilege_t getOwnPrivileges() const;
+    void setShard(int sh);
+    int getShard() const;
+    void addUserPrivileges(handle uid, privilege_t p);
+    bool updateUserPrivileges(handle uid, privilege_t p);
+    bool removeUserPrivileges(handle uid);
+    void setUserPrivileges(userpriv_vector* pvs);
+    const userpriv_vector* getUserPrivileges() const;
+    void setGroup(bool g);
+    bool getGroup() const;
+    void setTitle(const string& t);
+    const string& getTitle() const;
+    void setUnifiedKey(const string& uk);
+    const string& getUnifiedKey() const;
+    void setOwnUser(handle u);
+    handle getOwnUser() const;
+    void setTs(m_time_t t);
+    m_time_t getTs() const;
+    const attachments_map& getAttachments() const;
+    handle_set getUsersOfAttachment(handle a) const;
+    bool isUserOfAttachment(handle a, handle uid) const;
+    void addUserForAttachment(handle a, handle uid);
+    void setMeeting(bool m);
+    bool getMeeting() const;
+    byte getChatOptions() const;
+    bool hasScheduledMeeting(handle smid) const;
+    const handle_set& getSchedMeetingsChanged() const;
+    void clearSchedMeetingsChanged();
+    const vector<std::unique_ptr<ScheduledMeeting>>& getUpdatedOcurrences() const;
     void setTag(int tag);
-    int getTag();
+    int getTag() const;
     void resetTag();
 
     struct
     {
-        bool attachments : 1;
-        bool flags : 1;
-        bool mode : 1;
-        bool options : 1;
-        bool schedOcurrReplace : 1;
-        bool schedOcurrAppend : 1;
+        bool attachments = false;
+        bool flags = false;
+        bool mode = false;
+        bool options =false;
+        bool schedOcurrReplace = false;
+        bool schedOcurrAppend = false;
     } changed;
 
     // return false if failed
@@ -310,10 +342,10 @@ public:
     bool updateSchedMeeting(std::unique_ptr<ScheduledMeeting> sm);
 
     // returns a scheduled meeting (if any) whose schedId is equal to provided id. Otherwise returns nullptr
-    ScheduledMeeting* getSchedMeetingById(handle id);
+    const ScheduledMeeting* getSchedMeetingById(handle id) const;
 
     // returns a map of schedId to ScheduledMeeting
-    const map<handle/*schedId*/, std::unique_ptr<ScheduledMeeting>>& getSchedMeetings();
+    const map<handle/*schedId*/, std::unique_ptr<ScheduledMeeting>>& getSchedMeetings() const;
 };
 
 typedef vector<TextChat*> textchat_vector;
