@@ -484,7 +484,7 @@ ScheduledMeeting* ScheduledMeeting::unserialize(const string& in, const handle c
                                 flags.get(), rules.get());
 }
 
-TextChat::TextChat()
+TextChat::TextChat(const bool publicChat) : mPublicChat(publicChat)
 {
     id = UNDEF;
     priv = PRIV_UNKNOWN;
@@ -495,7 +495,6 @@ TextChat::TextChat()
     resetTag();
     ts = 0;
     flags = 0;
-    publicchat = false;
     chatOptions = 0;
 
     memset(&changed, 0, sizeof(changed));
@@ -546,7 +545,7 @@ bool TextChat::serialize(string *d) const
 
     d->append((char*)&flags, 1);
 
-    char mode = publicchat ? 1 : 0;
+    char mode = mPublicChat ? 1 : 0;
     d->append((char*)&mode, 1);
 
     char hasUnifiedKey = unifiedKey.size() ? 1 : 0;
@@ -860,7 +859,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
 
     if (client->chats.find(id) == client->chats.end())
     {
-        client->chats[id] = new TextChat();
+        client->chats[id] = new TextChat(publicchat);
     }
     else
     {
@@ -878,7 +877,6 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     chat->ts = ts;
     chat->flags = flags;
     chat->attachedNodes = attachedNodes;
-    chat->publicchat = publicchat;
     chat->unifiedKey = unifiedKey;
     chat->meeting = meetingRoom;
     chat->chatOptions = chatOptions;
@@ -1082,17 +1080,21 @@ bool TextChat::addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting> sm, boo
             : updateSchedMeeting(std::move(sm));
 }
 
-bool TextChat::setMode(bool publicchat)
+ErrorCodes TextChat::setMode(bool pubChat)
 {
-    if (this->publicchat == publicchat)
-    {
-        return false;
-    }
+    if (mPublicChat == pubChat) { return API_EEXIST; }
 
-    this->publicchat = publicchat;
+    if (pubChat) { return API_EACCESS; } // trying to convert a chat from private into public
+
+    LOG_debug << "TextChat::setMode: EKR enabled (private chat) for chat: " << Base64Str<MegaClient::CHATHANDLE>(id);
+    mPublicChat = pubChat;
     changed.mode = true;
+    return API_OK;
+}
 
-    return true;
+bool TextChat::publicChat() const
+{
+    return mPublicChat;
 }
 
 bool TextChat::addOrUpdateChatOptions(int speakRequest, int waitingRoom, int openInvite)

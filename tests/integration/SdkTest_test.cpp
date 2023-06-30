@@ -772,6 +772,11 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
     mApi[apiIndex].requestFlags[request->getType()] = true;
 }
 
+void SdkTest::onTransferStart(MegaApi *api, MegaTransfer *transfer)
+{
+    onTransferStart_progress = transfer->getTransferredBytes();
+}
+
 void SdkTest::onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* e)
 {
     int apiIndex = getApiIndex(api);
@@ -1924,6 +1929,39 @@ TEST_F(SdkTest, SdkTestCreateAccount)
         ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes after change password for account " << newTestAcc.c_str();
     }
 
+    // test changing the email
+    // -----------------------
+
+    const string changedTestAcc = Utils::replace(newTestAcc, "@", "-new@");
+    chrono::time_point<chrono::system_clock> timeOfChangeEmail = chrono::system_clock::now();
+    ASSERT_EQ(synchronousChangeEmail(0, changedTestAcc.c_str()), MegaError::API_OK) << "changeEmail failed";
+
+    {
+        string changelink = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, changedTestAcc, MegaClient::verifyLinkPrefix(), timeOfChangeEmail);
+        ASSERT_FALSE(changelink.empty()) << "Change email account link was not found.";
+
+        ASSERT_EQ(newTestAcc, megaApi[0]->getMyEmail()) << "email changed prematurely";
+        ASSERT_EQ(synchronousConfirmChangeEmail(0, changelink.c_str(), newTestPwd), MegaError::API_OK) << "confirmChangeEmail failed";
+    }
+
+    // Login using new email
+    ASSERT_EQ(changedTestAcc, megaApi[0]->getMyEmail()) << "email not changed correctly";
+    {
+        unique_ptr<RequestTracker> loginTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+        megaApi[0]->login(changedTestAcc.c_str(), newTestPwd, loginTracker.get());
+        ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account after change email with new email " << changedTestAcc.c_str();
+    }
+
+    // fetchnodes - needed internally to fill in user details, to allow cancelAccount() to work
+    {
+        unique_ptr<RequestTracker> fetchnodesTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+        megaApi[0]->fetchNodes(fetchnodesTracker.get());
+        ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes after change password for account " << changedTestAcc.c_str();
+    }
+
+    ASSERT_EQ(changedTestAcc, megaApi[0]->getMyEmail()) << "my email not set correctly after changed";
+
+
     // delete the account
     // ------------------
 
@@ -1932,12 +1970,12 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     {
         unique_ptr<RequestTracker> cancelLinkTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->cancelAccount(cancelLinkTracker.get());
-        ASSERT_EQ(API_OK, cancelLinkTracker->waitForResult()) << " Failed to request cancel link for account " << newTestAcc.c_str();
+        ASSERT_EQ(API_OK, cancelLinkTracker->waitForResult()) << " Failed to request cancel link for account " << changedTestAcc.c_str();
     }
 
     // Get cancel account link from the mailbox
     {
-        string deleteLink = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, newTestAcc, MegaClient::cancelLinkPrefix(), timeOfDeleteEmail);
+        string deleteLink = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, changedTestAcc, MegaClient::cancelLinkPrefix(), timeOfDeleteEmail);
         ASSERT_FALSE(deleteLink.empty()) << "Cancel account link was not found.";
 
         // Use cancel account link
@@ -1945,7 +1983,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
         megaApi[0]->confirmCancelAccount(deleteLink.c_str(), newTestPwd, useCancelLinkTracker.get());
         // Allow API_ESID beside API_OK, due to the race between sc and cs channels
         ASSERT_PRED3([](int t, int v1, int v2) { return t == v1 || t == v2; }, useCancelLinkTracker->waitForResult(), API_OK, API_ESID)
-            << " Failed to confirm cancel account " << newTestAcc.c_str();
+            << " Failed to confirm cancel account " << changedTestAcc.c_str();
     }
 }
 
@@ -6263,6 +6301,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransferResume)
     ASSERT_NO_FATAL_FAILURE(locallogout());
     ErrorCodes result = rdt.waitForResult();
     ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE) << "Download interrupted with unexpected code: " << result;
+
+    onTransferStart_progress = 0;
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
 
@@ -6275,9 +6315,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferResume)
         transfers.reset(megaApi[0]->getTransfers(MegaTransfer::TYPE_DOWNLOAD));
     }
     ASSERT_EQ(transfers->size(), 1) << "Download ended before resumption was checked, or was not resumed after 20 seconds";
-    MegaTransfer* dnl = transfers->get(0);
-    long long dnlBytes = dnl->getTransferredBytes();
-    ASSERT_GT(dnlBytes, pauseThreshold / 2) << "Download appears to have been restarted instead of resumed";
+    ASSERT_GT(onTransferStart_progress, 0) << "Download appears to have been restarted instead of resumed";
 
     megaApi[0]->setMaxDownloadSpeed(-1);
 
@@ -12161,7 +12199,13 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
         {
             ASSERT_NE(foreignNode, nullptr);
             unique_ptr<MegaNode> sourceNode(megaApi[0]->getNodeByHandle(uploadedNode));
-            ASSERT_EQ(foreignNode->getCreationTime(), 0) << "\tAll foreign node's creation time must be 0";
+            ASSERT_TRUE(sourceNode) << "Failed to find source file (should never happed)";
+            ASSERT_STREQ(foreignNode->getName(), sourceNode->getName()) << "File names did not match";
+            ASSERT_EQ(foreignNode->getSize(), sourceNode->getSize()) << "File size did not match";
+            ASSERT_EQ(foreignNode->getOwner(), sourceNode->getOwner()) << "File owner did not match";
+            ASSERT_STREQ(foreignNode->getFingerprint(), sourceNode->getFingerprint()) << "File fingerprint did not match";
+            ASSERT_STREQ(foreignNode->getFileAttrString(), sourceNode->getFileAttrString()) << "File attrs did not match";
+            ASSERT_EQ(foreignNode->getCreationTime(), sourceNode->getCreationTime()) << "Node creation time did not match";
             ASSERT_EQ(foreignNode->getModificationTime(), sourceNode->getModificationTime())
                 << "\tForeign node's mtime inconsistent";
         }
@@ -13781,6 +13825,28 @@ TEST_F(SdkTest, SdkResumableTrasfers)
     megaApi[0]->setMaxDownloadSpeed(-1);
 }
 
+
+class ScopedMinimumPermissions
+{
+    int mDirectory;
+    int mFile;
+
+public:
+    ScopedMinimumPermissions(int directory, int file)
+      : mDirectory(0700)
+      , mFile(0600)
+    {
+        FileSystemAccess::setMinimumDirectoryPermissions(directory);
+        FileSystemAccess::setMinimumFilePermissions(file);
+    }
+
+    ~ScopedMinimumPermissions()
+    {
+        FileSystemAccess::setMinimumDirectoryPermissions(mDirectory);
+        FileSystemAccess::setMinimumFilePermissions(mFile);
+    }
+}; // ScopedMinimumPermissions
+
 /**
  * @brief Test file permissions for a download when using megaApi->setDefaultFilePermissions.
  *
@@ -13852,6 +13918,7 @@ TEST_F(SdkTest, SdkTestFilePermissions)
     ASSERT_TRUE(openFile(true, true)) << "Couldn't open file for read|write";
     deleteFile(filename.c_str());
 
+    ScopedMinimumPermissions minimumPermissions(0700, 0400);
 
     // TEST 2: Change file permissions: 0400. Only for reading.
     // Expected successful download, unsuccessful file opening for reading and writing (only for reading)
@@ -13977,6 +14044,8 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
     ASSERT_EQ(API_OK, downloadFolder());
     ASSERT_TRUE(openFolderAndFiles(true, true)) << "Couldn't open files for read|write";
     deleteFolder(foldername.c_str());
+
+    ScopedMinimumPermissions minimumPermissions(0400, 0400);
 
     // TEST 2. Change folder permissions: only read (0400). Default file permissions (0600).
     // Folder permissions: 0400. Expected to fail with API_EINCOMPLETE (-13): request incomplete because it can't write on resource (affecting children, not the parent folder downloaded).
@@ -14179,4 +14248,33 @@ TEST_F(SdkTest, SdkTestJourneyTracking)
     ASSERT_FALSE(newJourneyId == journeyId) << "Wrong result when comparing newJourneyId and old JourneyId. They should be different after a full logout - values are reset and cached file is deleted";
     journeyId = newJourneyId; // Update journeyId reference (captured in lambda functions)
     checkJourneyId(9, true);
+}
+
+/**
+ * @brief TEST_F SdkTestDeleteListenerBeforeFinishingRequest
+ *
+ * Tests deleting the listener after a request has started and before it has finished (before fireOnRequestFinish() call).
+ */
+TEST_F(SdkTest, SdkTestDeleteListenerBeforeFinishingRequest)
+{
+    LOG_info << "___TEST SdkTestDeleteListenerBeforeFinishingRequest";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    {
+        string link = MegaClient::MEGAURL+"/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns";
+        auto rt = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+
+        std::unique_ptr<MegaNode> parent{megaApi[0]->getRootNode()};
+        mApi[0].megaApi->importFileLink(link.c_str(), parent.get(), rt.get());
+
+        // Brief wait for the request to start before getting out of the scope
+        // The RequestTracker object, the one used as the listener, will be deleted after the scope ends
+        const auto start = std::chrono::steady_clock::now();
+        while (!rt->started.load() && ((std::chrono::steady_clock::now() - start) < std::chrono::seconds(maxTimeout))) // Timeout just in case it never starts
+        {
+            std::this_thread::sleep_for(std::chrono::microseconds{10});
+        }
+        ASSERT_TRUE(rt->started);
+        ASSERT_FALSE(rt->finished);
+    }
 }

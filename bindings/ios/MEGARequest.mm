@@ -292,8 +292,6 @@ using namespace mega;
                                             cMemoryOwn:YES]];
     }
     
-    delete setElementList;
-    
     return [setElements copy];
 }
 

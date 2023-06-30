@@ -801,7 +801,7 @@ void Transfer::complete(TransferDbCommitter& committer)
                 if (localname != localfilename)
                 {
                     fa = client->fsaccess->newfileaccess();
-                    if (fa->fopen(localname, FSLogging::logOnError) || fa->type == FOLDERNODE)
+                    if (fa->fopen(localname, FSLogging::noLogging) || fa->type == FOLDERNODE)
                     {
                         // the destination path already exists
         #ifdef ENABLE_SYNC

@@ -2071,13 +2071,13 @@ public:
 #ifdef ENABLE_CHAT
     enum
     {
-        SM_CHANGE_TYPE_TITLE            = 0,
-        SM_CHANGE_TYPE_DESCRIPTION      = 1,
-        SM_CHANGE_TYPE_CANCELLED        = 2,
-        SM_CHANGE_TYPE_TIMEZONE         = 3,
-        SM_CHANGE_TYPE_STARTDATE        = 4,
-        SM_CHANGE_TYPE_ENDDATE          = 5,
-        SM_CHANGE_TYPE_RULES            = 6,
+        SM_CHANGE_TYPE_TITLE            = 0x01,
+        SM_CHANGE_TYPE_DESCRIPTION      = 0x02,
+        SM_CHANGE_TYPE_CANCELLED        = 0x04,
+        SM_CHANGE_TYPE_TIMEZONE         = 0x08,
+        SM_CHANGE_TYPE_STARTDATE        = 0x10,
+        SM_CHANGE_TYPE_ENDDATE          = 0x20,
+        SM_CHANGE_TYPE_RULES            = 0x40,
     };
 #endif
     virtual ~MegaUserAlert();
@@ -2341,13 +2341,13 @@ public:
      *   TYPE_SCHEDULEDMEETING_UPDATED
      *
      * @param changeType The type of change to check. It can be one of the following values:
-     * - MegaUserAlert::SM_CHANGE_TYPE_TITLE           [0]  - Title has changed
-     * - MegaUserAlert::SM_CHANGE_TYPE_DESCRIPTION     [1]  - Description has changed
-     * - MegaUserAlert::SM_CHANGE_TYPE_CANCELLED       [2]  - Cancelled flag has changed
-     * - MegaUserAlert::SM_CHANGE_TYPE_TIMEZONE        [3]  - Timezone has changed
-     * - MegaUserAlert::SM_CHANGE_TYPE_STARTDATE       [4]  - Start date time has changed
-     * - MegaUserAlert::SM_CHANGE_TYPE_ENDDATE         [5]  - End date time has changed
-     * - MegaUserAlert::SM_CHANGE_TYPE_RULES           [6]  - Repetition rules have changed
+     * - MegaUserAlert::SM_CHANGE_TYPE_TITLE           0x01  - Title has changed
+     * - MegaUserAlert::SM_CHANGE_TYPE_DESCRIPTION     0x02  - Description has changed
+     * - MegaUserAlert::SM_CHANGE_TYPE_CANCELLED       0x04  - Cancelled flag has changed
+     * - MegaUserAlert::SM_CHANGE_TYPE_TIMEZONE        0x08  - Timezone has changed
+     * - MegaUserAlert::SM_CHANGE_TYPE_STARTDATE       0x10  - Start date time has changed
+     * - MegaUserAlert::SM_CHANGE_TYPE_ENDDATE         0x20  - End date time has changed
+     * - MegaUserAlert::SM_CHANGE_TYPE_RULES           0x40  - Repetition rules have changed
      *
      * @return true if this scheduled meeting associated to this alert has an specific change
      */
@@ -4549,7 +4549,6 @@ class MegaRequest
          * This value is valid for these requests:
          * - MegaApi::querySignupLink - Returns the confirmation link
          * - MegaApi::confirmAccount - Returns the confirmation link
-         * - MegaApi::fastConfirmAccount - Returns the confirmation link
          * - MegaApi::loginToFolder - Returns the link to the folder
          * - MegaApi::importFileLink - Returns the link to the file to import
          * - MegaApi::getPublicNode - Returns the link to the file
@@ -4635,7 +4634,6 @@ class MegaRequest
          * error code is MegaError::API_OK:
          * - MegaApi::querySignupLink - Returns the name of the user
          * - MegaApi::confirmAccount - Returns the name of the user
-         * - MegaApi::fastConfirmAccount - Returns the name of the user
          * - MegaApi::getUserData - Returns the name of the user
          * - MegaApi::getDownloadUrl - Returns semicolon-separated download URL(s) to the file
          *
@@ -4667,7 +4665,6 @@ class MegaRequest
          * error code is MegaError::API_OK:
          * - MegaApi::querySignupLink - Returns the email of the account
          * - MegaApi::confirmAccount - Returns the email of the account
-         * - MegaApi::fastConfirmAccount - Returns the email of the account
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
@@ -4682,7 +4679,6 @@ class MegaRequest
          * This value is valid for these requests:
          * - MegaApi::login - Returns the password of the account
          * - MegaApi::loginToFolder - Returns the authentication key to write in public folder
-         * - MegaApi::fastLogin - Returns the hash of the email
          * - MegaApi::createAccount - Returns the password for the account
          * - MegaApi::confirmAccount - Returns the password for the account
          * - MegaApi::changePassword - Returns the old password of the account (first parameter)
@@ -4716,10 +4712,6 @@ class MegaRequest
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
-         *
-         * This value is valid for these requests:
-         * - MegaApi::fastLogin - Returns the base64pwKey parameter
-         * - MegaApi::fastConfirmAccount - Returns the base64pwKey parameter
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -9468,24 +9460,6 @@ class MegaApi
         void removeGlobalListener(MegaGlobalListener* listener);
 
         /**
-         * @brief Generates a hash based in the provided private key and email
-         *
-         * This is a time consuming operation (specially for low-end mobile devices). Since the resulting key is
-         * required to log in, this function allows to do this step in a separate function. You should run this function
-         * in a background thread, to prevent UI hangs. The resulting key can be used in MegaApi::fastLogin
-         *
-         * You take the ownership of the returned value.
-         *
-         * @param base64pwkey Private key returned by MegaRequest::getPrivateKey in the onRequestFinish callback of createAccount
-         * @param email Email to create the hash
-         * @return Base64-encoded hash
-         *
-         * @deprecated This function is only useful for old accounts. Once enabled the new registration logic,
-         * this function will return an empty string for new accounts and will be removed few time after.
-         */
-        char* getStringHash(const char* base64pwkey, const char* email);
-
-        /**
          * @brief Get internal timestamp used by the SDK
          *
          * This is a time used in certain internal operations.
@@ -10010,27 +9984,6 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void loginToFolder(const char* megaFolderLink, const char *authKey, MegaRequestListener *listener = NULL);
-        /**
-         * @brief Log in to a MEGA account using precomputed keys
-         *
-         * The associated request type with this request is MegaRequest::TYPE_LOGIN.
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getEmail - Returns the first parameter
-         * - MegaRequest::getPassword - Returns the second parameter
-         * - MegaRequest::getPrivateKey - Returns the third parameter
-         *
-         * If the email/stringHash/base64pwKey aren't valid the error code provided in onRequestFinish is
-         * MegaError::API_ENOENT.
-         *
-         * @param email Email of the user
-         * @param stringHash Hash of the email returned by MegaApi::getStringHash
-         * @param base64pwkey Private key returned by MegaRequest::getPrivateKey in the onRequestFinish callback of createAccount
-         * @param listener MegaRequestListener to track this request
-         *
-         * @deprecated The parameter stringHash is no longer for new accounts so this function will be replaced by another
-         * one soon. Please use MegaApi::login (with email and password) or MegaApi::fastLogin (with session) instead when possible.
-         */
-        void fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Log in to a MEGA account using a session key
@@ -10535,11 +10488,6 @@ class MegaApi
         void resendSignupLink(const char* email, const char *name, MegaRequestListener *listener = NULL);
 
         /**
-         * @obsolete  This method cannot be used anymore by apps. It will always result on API_EINTERNAL.
-         */
-        void fastSendSignupLink(const char* email, const char *base64pwkey, const char *name, MegaRequestListener *listener = NULL);
-
-        /**
          * @brief Get information about a confirmation link or a new signup link
          *
          * The associated request type with this request is MegaRequest::TYPE_QUERY_SIGNUP_LINK.
@@ -10594,11 +10542,6 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void confirmAccount(const char* link, const char *password, MegaRequestListener *listener = NULL);
-
-        /**
-         * @obsolete This method cannot be used anymore by apps. It will always result on API_EINTERNAL.
-         */
-        void fastConfirmAccount(const char* link, const char *base64pwkey, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Initialize the reset of the existing password, with and without the Master Key.
@@ -11701,7 +11644,7 @@ class MegaApi
          * With this feature flag set, the client will require manual verification of
          * contact credentials of users (both sharers AND sharees) in order to decrypt
          * shared folders correctly if the "secure" flag is set to true.
-         * 
+         *
          * The default value is "false".
          *
          * @note If the "secure" flag is disabled, "Manual Verification" flag has no
@@ -13112,9 +13055,9 @@ class MegaApi
         void getPricing(MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Get the recommended PRO level. The smallest plan that is an upgrade (free -> lite -> proi -> proii -> proiii) 
+         * @brief Get the recommended PRO level. The smallest plan that is an upgrade (free -> lite -> proi -> proii -> proiii)
          * and has enough space.
-         * 
+         *
          * The associated request type with this request is MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
@@ -13125,7 +13068,7 @@ class MegaApi
          *     - MegaAccountDetails::ACCOUNT_TYPE_PROII = 2
          *     - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
          *     - MegaAccountDetails::ACCOUNT_TYPE_LITE = 4
-         * 
+         *
          * @param listener MegaRequestListener to track this request
          */
         void getRecommendedProLevel(MegaRequestListener* listener = NULL);
@@ -17873,6 +17816,7 @@ class MegaApi
          * @param name Name of the node (Base64 encoded)
          * @param size Size of the node
          * @param mtime Modification time of the node
+         * @param crc portion of the file's Fingerprint (base 64)
          * @param parentHandle Handle of the parent node
          * @param privateAuth Private authentication token to access the node
          * @param publicAuth Public authentication token to access the node
@@ -17880,7 +17824,8 @@ class MegaApi
          * @return MegaNode object
          */
         MegaNode *createForeignFileNode(MegaHandle handle, const char *key, const char *name,
-                                       int64_t size, int64_t mtime, MegaHandle parentHandle, const char *privateAuth, const char *publicAuth, const char *chatAuth);
+                                       int64_t size, int64_t mtime, const char* fingerprintCrc,
+                                       MegaHandle parentHandle, const char *privateAuth, const char *publicAuth, const char *chatAuth);
 
         /**
          * @brief Create a MegaNode that represents a folder of a different account
@@ -21160,6 +21105,7 @@ class MegaApi
          * - MegaError::API_EACCESS - Public Set preview mode is not enabled
          * - MegaError::API_EARGS - MegaHandle for SetElement provided as param doesn't match any Element
          * in previewed Set
+         * - MegaError::API_ENOENT - Node metadata was not available for the SetElement provided as param
          *
          * If the MEGA account is a business account and it's status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.

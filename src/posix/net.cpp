@@ -1555,6 +1555,9 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         curl_easy_setopt(curl, CURLOPT_SOCKOPTFUNCTION, sockopt_callback);
         curl_easy_setopt(curl, CURLOPT_SOCKOPTDATA, (void*)req);
         curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
+#ifndef MEGA_USE_C_ARES
+        curl_easy_setopt(curl, CURLOPT_QUICK_EXIT, 1L);
+#endif
 
         // Some networks (eg vodafone UK) seem to block TLS 1.3 ClientHello.  1.2 is secure, and works:
         curl_easy_setopt(curl, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2 | CURL_SSLVERSION_MAX_TLSv1_2);
@@ -2910,6 +2913,11 @@ const BIGNUM *RSA_get0_d(const RSA *rsa)
 // SSL public key pinning
 int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
 {
+#ifdef _WIN32
+// Disable 4996 warning for Windows. Starting on OpenSSL 3
+// It could be removed when RSA_get0_x usages in this function are updated.
+#pragma warning( disable : 4996)
+#endif
     HttpReq *request = (HttpReq *)req;
     CurlHttpIO *httpio = (CurlHttpIO *)request->httpio;
     unsigned char buf[sizeof(APISSLMODULUS1) - 1];
@@ -2984,6 +2992,9 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
     }
 
     return ok;
+#ifdef _WIN32
+#pragma warning( default : 4996) // // Restore default bahaviour
+#endif
 }
 #endif
 
