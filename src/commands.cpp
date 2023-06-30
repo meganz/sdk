@@ -1659,7 +1659,7 @@ bool CommandLogin::procresult(Result r, JSON& json)
 {
     if (r.wasErrorOrOK())
     {
-        client->app->login_result(r.errorOrOK());
+        client->loginResult(r.errorOrOK());
         return true;
     }
 
@@ -1723,7 +1723,7 @@ bool CommandLogin::procresult(Result r, JSON& json)
                 {
                     if (ISUNDEF(me) || len_k != sizeof hash)
                     {
-                        client->app->login_result(API_EINTERNAL);
+                        client->loginResult(API_EINTERNAL);
                         return true;
                     }
 
@@ -1750,7 +1750,7 @@ bool CommandLogin::procresult(Result r, JSON& json)
                 {
                     if (len_sek != SymmCipher::KEYLENGTH)
                     {
-                        client->app->login_result(API_EINTERNAL);
+                        client->loginResult(API_EINTERNAL);
                         return true;
                     }
 
@@ -1774,7 +1774,7 @@ bool CommandLogin::procresult(Result r, JSON& json)
                     if (!client->checktsid(sidbuf, len_tsid))
                     {
                         LOG_warn << "Error checking tsid";
-                        client->app->login_result(API_ENOENT);
+                        client->loginResult(API_ENOENT);
                         return true;
                     }
 
@@ -1789,7 +1789,7 @@ bool CommandLogin::procresult(Result r, JSON& json)
                     {
                         if (!checksession)
                         {
-                            client->app->login_result(API_EINTERNAL);
+                            client->loginResult(API_EINTERNAL);
                             return true;
                         }
                         else if (!client->ephemeralSessionPlusPlus && !client->ephemeralSession)
@@ -1809,7 +1809,7 @@ bool CommandLogin::procresult(Result r, JSON& json)
                         if (!client->asymkey.setkey(AsymmCipher::PRIVKEY, privkbuf, len_privk))
                         {
                             LOG_warn << "Error checking private key";
-                            client->app->login_result(API_ENOENT);
+                            client->loginResult(API_ENOENT);
                             return true;
                         }
                     }
@@ -1818,7 +1818,7 @@ bool CommandLogin::procresult(Result r, JSON& json)
                     {
                         if (len_csid < 32)
                         {
-                            client->app->login_result(API_EINTERNAL);
+                            client->loginResult(API_EINTERNAL);
                             return true;
                         }
 
@@ -1830,7 +1830,7 @@ bool CommandLogin::procresult(Result r, JSON& json)
                                 || (Base64::atob((char*)sidbuf + SymmCipher::KEYLENGTH, buf, sizeof buf) != sizeof buf)
                                 || (me != MemAccess::get<handle>((const char*)buf)))
                         {
-                            client->app->login_result(API_EINTERNAL);
+                            client->loginResult(API_EINTERNAL);
                             return true;
                         }
 
@@ -1851,14 +1851,22 @@ bool CommandLogin::procresult(Result r, JSON& json)
 
                 client->openStatusTable(true);
                 client->loadJourneyIdCacheValues();
-                client->app->login_result(API_OK);
-                client->getaccountdetails(std::make_shared<AccountDetails>(), false, false, true, false, false, false);
+
+                { // scope for local variable
+                    MegaClient* cl = client; // make a copy, because 'this' will be gone by the time lambda will execute
+                    client->loginResult(API_OK, [cl]()
+                        {
+                            cl->getaccountdetails(std::make_shared<AccountDetails>(), false, false, true, false, false, false);
+                        }
+                    );
+                }
+
                 return true;
 
             default:
                 if (!json.storeobject())
                 {
-                    client->app->login_result(API_EINTERNAL);
+                    client->loginResult(API_EINTERNAL);
                     return false;
                 }
         }
@@ -5676,6 +5684,52 @@ bool CommandSetMasterKey::procresult(Result r, JSON& json)
 
     client->app->changepw_result(API_EINTERNAL);
     return false;
+}
+
+CommandAccountVersionUpgrade::CommandAccountVersionUpgrade(vector<byte>&& clRandValue, vector<byte>&& encMKey, string&& hashedAuthKey, string&& salt, int ctag,
+    std::function<void(error e)> completion)
+    : mEncryptedMasterKey(std::move(encMKey)), mSalt(std::move(salt)), mCompletion(completion)
+{
+    cmd("avu");
+
+    arg("emk", mEncryptedMasterKey.data(), static_cast<int>(mEncryptedMasterKey.size()));
+    arg("hak", reinterpret_cast<const byte*>(hashedAuthKey.c_str()), static_cast<int>(hashedAuthKey.size()));
+    arg("crv", clRandValue.data(), static_cast<int>(clRandValue.size()));
+
+    tag = ctag;
+}
+
+bool CommandAccountVersionUpgrade::procresult(Result r, JSON&)
+{
+    bool goodJson = r.wasErrorOrOK();
+    error e = goodJson ? error(r.errorOrOK()) : API_EINTERNAL;
+
+    if (goodJson)
+    {
+        if (r.errorOrOK() == API_OK)
+        {
+            client->accountversion = 2;
+            client->k.assign(reinterpret_cast<const char*>(mEncryptedMasterKey.data()), mEncryptedMasterKey.size());
+            client->accountsalt = std::move(mSalt);
+        }
+    }
+
+    if (e == API_OK)
+    {
+        client->sendevent(99473, "Account successfully upgraded to v2");
+    }
+    else
+    {
+        const string& msg = "Account upgrade to v2 has failed (" + std::to_string(e) + ')';
+        client->sendevent(99474, msg.c_str());
+    }
+
+    if (mCompletion)
+    {
+        mCompletion(e);
+    }
+
+    return goodJson;
 }
 
 CommandCreateEphemeralSession::CommandCreateEphemeralSession(MegaClient* client,
@@ -9566,10 +9620,11 @@ CommandFetchSet::CommandFetchSet(MegaClient* cl,
     : mCompletion(completion)
 {
     cmd("aft");
+    arg("v", 2);  // version 2: server can supply node metadata
     if(!cl->inPublicSetPreview())
     {
         LOG_err << "Sets: CommandFetchSet only available for Public Set in Preview Mode";
-        assert(false);
+        assert(cl->inPublicSetPreview());
     }
 }
 

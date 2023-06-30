@@ -125,6 +125,15 @@ struct RequestTracker : public ::mega::MegaRequestListener
     {
     }
 
+    ~RequestTracker() override
+    {
+        if (!finished)
+        {
+            assert(mApi);
+            mApi->removeRequestListener(this);
+        }
+    }
+
     void onRequestStart(MegaApi* api, MegaRequest *request) override
     {
         started = true;

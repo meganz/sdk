@@ -1634,7 +1634,8 @@ void MegaRequestListener::onRequestUpdate(MegaApi *, MegaRequest *)
 { }
 void MegaRequestListener::onRequestTemporaryError(MegaApi *, MegaRequest *, MegaError *)
 { }
-MegaRequestListener::~MegaRequestListener() {}
+MegaRequestListener::~MegaRequestListener()
+{ }
 
 
 SynchronousRequestListener::SynchronousRequestListener()
@@ -2085,11 +2086,6 @@ long long MegaApi::getSDKtime()
     return pImpl->getSDKtime();
 }
 
-char *MegaApi::getStringHash(const char* base64pwkey, const char* inBuf)
-{
-    return pImpl->getStringHash(base64pwkey, inBuf);
-}
-
 void MegaApi::getSessionTransferURL(const char *path, MegaRequestListener *listener)
 {
     pImpl->getSessionTransferURL(path, listener);
@@ -2240,11 +2236,6 @@ void MegaApi::addEntropy(char *data, unsigned int size)
     pImpl->addEntropy(data, size);
 }
 
-void MegaApi::fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener)
-{
-    pImpl->fastLogin(email, stringHash, base64pwkey,listener);
-}
-
 void MegaApi::fastLogin(const char *session, MegaRequestListener *listener)
 {
     pImpl->fastLogin(session, listener);
@@ -2370,11 +2361,6 @@ void MegaApi::resendSignupLink(const char *email, const char *name, MegaRequestL
     pImpl->resendSignupLink(email, name, listener);
 }
 
-void MegaApi::fastSendSignupLink(const char *email, const char *base64pwkey, const char *name, MegaRequestListener *listener)
-{
-    pImpl->fastSendSignupLink(email, base64pwkey, name, listener);
-}
-
 void MegaApi::querySignupLink(const char* link, MegaRequestListener *listener)
 {
     pImpl->querySignupLink(link, listener);
@@ -2383,11 +2369,6 @@ void MegaApi::querySignupLink(const char* link, MegaRequestListener *listener)
 void MegaApi::confirmAccount(const char* link, const char *password, MegaRequestListener *listener)
 {
     pImpl->confirmAccount(link, password, listener);
-}
-
-void MegaApi::fastConfirmAccount(const char* link, const char *base64pwkey, MegaRequestListener *listener)
-{
-    pImpl->fastConfirmAccount(link, base64pwkey, listener);
 }
 
 void MegaApi::resetPassword(const char *email, bool hasMasterKey, MegaRequestListener *listener)

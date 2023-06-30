@@ -3800,6 +3800,11 @@ bool StandardClient::resetBaseFolderMulticlient(StandardClient* c2, StandardClie
 
 void StandardClient::cleanupForTestReuse(int loginIndex)
 {
+    // remove .megaignore.default in case other tests left one lying around
+    auto defaultignorepath = client.dbaccess->rootPath();
+    defaultignorepath.appendWithSeparator(LocalPath::fromRelativePath(".megaignore.default"), false);
+    std::error_code ec;
+    fs::remove(defaultignorepath.toPath(false), ec);
 
     if (client.nodeByPath("/abort_jenkins_test_run"))
     {
