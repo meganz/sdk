@@ -960,11 +960,12 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
 
             if (isNewRaid())
             {
-                maxReqSize = TransferSlot::MAX_REQ_SIZE;
-                maxReqSize = std::max(maxReqSize, static_cast<m_off_t>((11*1024*1024) * 5)); // 11MB * 5 raid parts
-                m_off_t maxReqSize2 = static_cast<m_off_t>(transfer->size / transfer->slot->connections);
-                maxReqSize = std::max(maxReqSize, maxReqSize2);
-                maxReqSize = static_cast<m_off_t>((2*1024*1024) * 5);
+                maxReqSize = TransferSlot::MAX_REQ_SIZE_NEW_RAID;
+                //maxReqSize = std::max(maxReqSize, static_cast<m_off_t>((11*1024*1024) * 5)); // 11MB * 5 raid parts
+                //m_off_t maxReqSize2 = static_cast<m_off_t>(transfer->size / transfer->slot->connections);
+                //maxReqSize = std::max(maxReqSize, maxReqSize2);
+                //maxReqSize = static_cast<m_off_t>((2*1024*1024) * 5);
+
 
                 //maxReqSize = maxReqSize2;
                 //maxReqSize = std::max(maxReqSize, static_cast<m_off_t>((5*1024*1024) * 5));

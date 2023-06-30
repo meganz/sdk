@@ -433,8 +433,6 @@ int PartFetcher::trigger(raidTime delay, bool disconnect)
         }
     }
 
-    if (delay < 0) delay = 0;
-
     directTrigger(!delay);
 
     if (delay) delayuntil = currtime+delay;
@@ -786,7 +784,7 @@ int PartFetcher::onFailure()
 
             if (s->status == REQ_FAILURE) // shouldn't be
             {
-                s->status == REQ_READY;
+                s->status = REQ_READY;
             }
             return trigger(backoff);
         }
@@ -825,7 +823,7 @@ RaidReq::RaidReq(const Params& p, RaidReqPool& rrp, const std::shared_ptr<CloudR
     , notifyeventfd(notifyfd)
 {
     assert(p.tempUrls.size() > 0);
-    assert((p.reqStartPos >= 0) && (p.reqlen >= 0) && (p.reqlen <= p.filesize));
+    assert((p.reqStartPos >= 0) /*&& (p.reqlen >= 0)*/ && (p.reqlen <= p.filesize));
     sockets.resize(p.tempUrls.size());
     for(auto& s : sockets)
     {

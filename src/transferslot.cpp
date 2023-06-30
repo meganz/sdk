@@ -69,6 +69,9 @@ const dstime TransferSlot::PROGRESSTIMEOUT = 10;
     const m_off_t TransferSlot::MAX_REQ_SIZE = 16777216; // 16 MB [Previous value: 4194304 -> 4 MB]
 #endif
 
+const m_off_t TransferSlot::MAX_REQ_SIZE_NEW_RAID = 10 * 1024 * 1024;
+#define NUM_CONNECTIONS_NEW_RAID 4 // Used as a temp fix for tests -until we have a way to change the value on megaCmd-
+
 const m_off_t TransferSlot::MAX_GAP_SIZE = 256 * 1024 * 1024; // 256 MB
 
 TransferSlot::TransferSlot(Transfer* ctransfer)
@@ -151,7 +154,7 @@ bool TransferSlot::createconnectionsonce(MegaClient* client, TransferDbCommitter
         }
 
         connections = transferbuf.isRaid() ? RAIDPARTS : transfer->size > 131072 ? transfer->client->connections[transfer->type] : 1;
-        if (transferbuf.isNewRaid()) connections *= 16; //8;
+        if (transferbuf.isNewRaid()) connections = NUM_CONNECTIONS_NEW_RAID; //8;
         else { std::cout << "ALERT: NO ES RAID!!!!!!!!!!!!!!!!!!" << std::endl; }
         std::cout << "Num connections: " << connections << " JEJE" << std::endl;
         LOG_debug << "Populating transfer slot with " << connections << " connections, max request size of " << maxRequestSize << " bytes";
@@ -865,8 +868,11 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
 
                                     client->mAsyncQueue.push([req, i, outputPiece, transferkey, ctriv, filesize](SymmCipher& sc)
                                     {
+                                        std::cout << "[TransferSlot::doio] sc.setkey [req = " << (void*)req.get() << "]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
                                         sc.setkey(transferkey.data());
+                                        std::cout << "[TransferSlot::doio] sc.setkey END -> call finalize [req = " << (void*)req.get() << "]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
                                         outputPiece->finalize(true, filesize, ctriv, &sc, nullptr);
+                                        std::cout << "[TransferSlot::doio] finalize END -> REQ_DECRYPTED [req = " << (void*)req.get() << "]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
                                         req->status = REQ_DECRYPTED;
                                     }, false);  // not discardable:  if we downloaded the data, don't waste it - decrypt and write as much as we can to file
                                 }

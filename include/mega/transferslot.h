@@ -71,6 +71,9 @@ struct MEGA_API TransferSlot
     // max request size for downloads and uploads
     static const m_off_t MAX_REQ_SIZE;
 
+    // max request size per raid part for each connection
+    static const m_off_t MAX_REQ_SIZE_NEW_RAID;
+
     // maximum gap between chunks for uploads
     static const m_off_t MAX_GAP_SIZE;
 
