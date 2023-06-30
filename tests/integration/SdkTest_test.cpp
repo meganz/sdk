@@ -7737,6 +7737,14 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
     }
     ASSERT_NE(backupId, INVALID_HANDLE) << "2nd backup could not be found";
 
+    // Wait for other API to see the backup destination
+    auto bkpDestOK = [this, differentApiIdx, &moveDest]()
+    {
+        unique_ptr<MegaNode> bd(megaApi[differentApiIdx]->getNodeByHandle(moveDest));
+        return bd != nullptr;
+    };
+    ASSERT_TRUE(WaitFor(bkpDestOK, 60000)) << "Other API could not see the backup destination after 60 seconds";
+
     // Request backup removal (and move its contents) from a different connection
     RequestTracker removeBackupTracker2(megaApi[differentApiIdx].get());
     megaApi[differentApiIdx]->removeFromBC(backupId, moveDest, &removeBackupTracker2);
