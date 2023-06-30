@@ -846,7 +846,7 @@ struct SyncStallEntry
         StallCloudPath() {}
 
         StallCloudPath(NodeHandle h, const string& cp, PathProblem pp = PathProblem::NoProblem)
-            : cloudHandle(h), problem(pp), cloudPath(cp)
+            : problem(pp), cloudPath(cp), cloudHandle(h)
         {
         }
 
