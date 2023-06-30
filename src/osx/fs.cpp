@@ -102,9 +102,7 @@ MacDirNotify::MacDirNotify(const LocalPath& ignoreName,
         context.info = this;
 
         // Flags customizing the stream's behavior.
-        constexpr auto flags =
-          kFSEventStreamCreateFlagFileEvents
-          | kFSEventStreamCreateFlagWatchRoot;
+        constexpr auto flags = kFSEventStreamCreateFlagFileEvents;
 
         // How long the stream should wait before sending events.
         constexpr auto latency = 0.1;

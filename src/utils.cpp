@@ -2907,6 +2907,10 @@ bool platformSetRLimitNumFile(int newNumFileLimit)
             LOG_err << "Error calling setrlimit: " << e;
             return false;
         }
+        else 
+        {
+            LOG_info << "rlimit for NOFILE is: " << rl.rlim_cur;
+        }
     }
     return true;
 #else
