@@ -46,7 +46,7 @@ void checkTextChats(const mega::TextChat& exp, const mega::TextChat& act)
     ASSERT_EQ(exp.ts, act.ts);
     ASSERT_EQ(exp.attachedNodes, act.attachedNodes);
     ASSERT_EQ(exp.isFlagSet(0), act.isFlagSet(0));
-    ASSERT_EQ(exp.publicchat, act.publicchat);
+    ASSERT_EQ(exp.publicChat(), act.publicChat());
     ASSERT_EQ(exp.unifiedKey, act.unifiedKey);
 }
 
@@ -57,7 +57,7 @@ TEST(TextChat, serialize_unserialize)
     mega::MegaApp app;
     auto client = mt::makeClient(app);
 
-    mega::TextChat tc;
+    mega::TextChat tc(true);
     tc.id = 1;
     tc.priv = mega::PRIV_STANDARD;
     tc.shard = 2;
@@ -72,7 +72,6 @@ TEST(TextChat, serialize_unserialize)
     tc.attachedNodes[7].insert(9);
     tc.attachedNodes[8].insert(10);
     tc.setFlag(true, 0);
-    tc.publicchat = true;
     tc.unifiedKey = "bar";
 
     std::string d;
@@ -87,7 +86,7 @@ TEST(TextChat, unserialize_32bit)
     mega::MegaApp app;
     auto client = mt::makeClient(app);
 
-    mega::TextChat tc;
+    mega::TextChat tc(true);
     tc.id = 1;
     tc.priv = mega::PRIV_STANDARD;
     tc.shard = 2;
@@ -102,7 +101,6 @@ TEST(TextChat, unserialize_32bit)
     tc.attachedNodes[7].insert(9);
     tc.attachedNodes[8].insert(10);
     tc.setFlag(true, 0);
-    tc.publicchat = true;
     tc.unifiedKey = "bar";
 
     // This is the result of serialization on 32bit Windows
