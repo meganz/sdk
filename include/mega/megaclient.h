@@ -758,7 +758,7 @@ public:
 
     // helpfer function for preparing a putnodes call for new node
     error putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, const char *utf8Name, const UploadToken& binaryUploadToken,
-                                  byte *theFileKey, char *megafingerprint, const char *fingerprintOriginal,
+                                  const byte *theFileKey, const char *megafingerprint, const char *fingerprintOriginal,
                                   std::function<error(AttrMap&)> addNodeAttrsFunc = nullptr,
                                   std::function<error(std::string *)> addFileAttrsFunc = nullptr);
 
@@ -1083,6 +1083,9 @@ public:
 
     // get the URL of a chat
     void getUrlChat(handle chatid);
+
+    // set chat mode (public/private)
+    void setChatMode(TextChat* chat, bool pubChat);
 
     // process object arrays by the API server (users + privileges)
     userpriv_vector * readuserpriv(JSON* j);

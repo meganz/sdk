@@ -7122,12 +7122,18 @@ bool CommandChatCreate::procresult(Result r, JSON& json)
                 case EOO:
                     if (chatid != UNDEF && shard != -1)
                     {
+                        TextChat* chat = nullptr;
                         if (client->chats.find(chatid) == client->chats.end())
                         {
-                            client->chats[chatid] = new TextChat();
+                            chat = new TextChat(mPublicChat);
+                            client->chats[chatid] = chat;
+                        }
+                        else
+                        {
+                            chat = client->chats[chatid];
+                            client->setChatMode(chat, mPublicChat);
                         }
 
-                        TextChat *chat = client->chats[chatid];
                         chat->id = chatid;
                         chat->priv = PRIV_MODERATOR;
                         chat->shard = shard;
@@ -7135,7 +7141,6 @@ bool CommandChatCreate::procresult(Result r, JSON& json)
                         chat->userpriv = this->chatPeers;
                         chat->group = group;
                         chat->ts = (ts != -1) ? ts : 0;
-                        chat->publicchat = mPublicChat;
                         chat->meeting = mMeeting;
                         // no need to fetch scheduled meetings as we have just created the chat, so it doesn't have any
 
@@ -7994,7 +7999,7 @@ bool CommandChatLinkClose::procresult(Result r, JSON& json)
         }
 
         TextChat *chat = it->second;
-        chat->setMode(false);
+        client->setChatMode(chat, false);
         if (!mTitle.empty())
         {
             chat->title = mTitle;

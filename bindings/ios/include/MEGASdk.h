@@ -51,6 +51,10 @@
 #import "MEGALogLevel.h"
 #import "ListenerDispatch.h"
 #import "MEGAUserAlert.h"
+#import "MEGABackupInfo.h"
+#import "MEGABackupInfoList.h"
+#import "MEGAScheduledCopy.h"
+#import "MEGAScheduledCopyDelegate.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -742,6 +746,24 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
  * @param delegate Previously registered MegaLogger implementation
  */
 - (void)removeLoggerDelegate:(id<MEGALoggerDelegate>)delegate;
+
+/**
+ * @brief Add a MEGAScheduledCopyDelegate implementation to receive SDK logs
+ *
+ * This delegate receive backups events.
+ *
+ * @param delegate Delegate implementation
+ */
+- (void)addMEGAScheduledCopyDelegate:(id<MEGAScheduledCopyDelegate>)delegate;
+
+/**
+ * @brief Add a MEGAScheduledCopyDelegate implementation to receive SDK logs
+ *
+ * This delegate won't receive more events.
+ *
+ * @param delegate Delegate implementation
+ */
+- (void)removeMEGAScheduledCopyDelegate:(id<MEGAScheduledCopyDelegate>)delegate;
 
 #pragma mark - Utils
 
@@ -9881,6 +9903,20 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
  * @param delegate MEGARequestDelegate to track this request
 */
 - (void)updateBackup:(MEGAHandle)backupId backupType:(BackUpType)type targetNode:(MEGANode *)node folderPath:(nullable NSString *)path backupName:(NSString *)name state:(BackUpState)state subState:(BackUpSubState)subState delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Fetch information about all registered backups for Backup Centre
+ * The associated request type with this request is MEGARequestTypeBackupInfo
+ * Valid data in the MEGARequest object received on callbacks:
+ * - backupInfoList: to get the list of backups.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest backupInfoList] - Returns information about all registered backups
+ *
+ * @param delegate MEGARequestDelegate to track this request
+*/
+- (void)getBackupInfo:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Unregister a backup already registered for the Backup Centre
