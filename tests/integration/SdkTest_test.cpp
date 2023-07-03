@@ -13923,7 +13923,21 @@ TEST_F(SdkTest, GetRecommendedProLevel)
     int level = -1;
     int err = synchronousGetRecommendedProLevel(0, level);
     ASSERT_EQ(err, API_OK) << "synchronousGetRecommendedProLevel() failed: " << err << ": " << MegaError::getErrorString(err);
-    ASSERT_EQ(level, MegaAccountDetails::ACCOUNT_TYPE_LITE);
+    err = synchronousGetPricing(0);
+    ASSERT_EQ(err, API_OK) << "synchronousGetPricing() failed: " << err << ": " << MegaError::getErrorString(err);
+
+    bool liteAvailable = false;
+    for (int i = 0; i < mApi[0].mMegaPricing->getNumProducts(); ++i)
+    {
+        if (mApi[0].mMegaPricing->getProLevel(i) == MegaAccountDetails::ACCOUNT_TYPE_LITE)
+        {
+            LOG_debug << "GetRecommendedProLevel: ACCOUNT_TYPE_LITE is available.";
+            liteAvailable = true;
+            break;
+        }
+    }
+
+    ASSERT_EQ(level, liteAvailable ? MegaAccountDetails::ACCOUNT_TYPE_LITE : MegaAccountDetails::ACCOUNT_TYPE_PROI);
 }
 
 /**
