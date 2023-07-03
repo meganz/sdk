@@ -2077,12 +2077,6 @@ Node* StandardClient::drillchildnodebyname(Node* n, const string& path)
         n = client.childnodebyname(n, path.substr(p, pos - p).c_str(), false);
         p = pos == string::npos ? path.size() : pos + 1;
     }
-
-    if (n == nullptr)
-    {
-        LOG_err << "drillchildnodebyname is NULL, node:" << n->displayname() << " path:" << path;
-    }
-
     return n;
 }
 
@@ -8736,18 +8730,26 @@ struct TwoWaySyncSymmetryCase
     Node* remoteSyncRoot()
     {
         Node* root = client1().client.nodebyhandle(client1().basefolderhandle);
-        if (root)
+        std::string remoteRootPath = remoteSyncRootPath();
+        if (!root)
         {
-            return client1().drillchildnodebyname(root, remoteSyncRootPath());
+            LOG_err << name()
+                    << " root is NULL, local sync root:" 
+                    << localSyncRootPath().u8string() 
+                    << " remote sync root:" 
+                    << remoteRootPath;
+            return nullptr;
         }
 
-        LOG_err << name()
-                << " root is NULL, local sync root:" 
-                << localSyncRootPath().u8string() 
-                << " remote sync root:" 
-                << remoteSyncRootPath();
-
-        return nullptr;
+        Node* n = client1().drillchildnodebyname(root, remoteRootPath);
+        if (!n)
+        {
+            LOG_err << "remote sync root is NULL, local sync root:" 
+                    << root->displaypath()
+                    << " remote sync root:" 
+                    << remoteRootPath;
+        }
+        return n;
     }
 
     void SetupTwoWaySync()
