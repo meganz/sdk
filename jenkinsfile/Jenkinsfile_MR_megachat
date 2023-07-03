@@ -158,6 +158,7 @@ pipeline {
             environment {
                 MEGA_PWD0 = credentials('MEGA_PWD_DEFAULT')
                 MEGA_PWD1 = credentials('MEGA_PWD_DEFAULT')
+                MEGA_PWD2 = credentials('MEGA_PWD_DEFAULT')
             }
             options{
                 timeout(time: 300, unit: 'MINUTES')
@@ -169,6 +170,7 @@ pipeline {
                             def accounts_array = "${env.ACCOUNTS_COMBINATION}".split(',')
                             env.MEGA_EMAIL0 = accounts_array[0]
                             env.MEGA_EMAIL1 = accounts_array[1]
+                            env.MEGA_EMAIL2 = accounts_array[2]
                             echo "${env.ACCOUNTS_COMBINATION}"
                         }
                         sh "ln -sfr ${megachat_sources_workspace}/build/MEGAchatTests/megachat_tests megachat_tests"
