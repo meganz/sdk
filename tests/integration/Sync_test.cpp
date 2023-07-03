@@ -972,7 +972,14 @@ void StandardClient::nodes_updated(Node** nodes, int numNodes)
     if (logcb)
     {
         lock_guard<mutex> g(om);
-        out() << clientname << "nodes_updated: received " << numNodes << " including " << nodes[0]->displaypath();
+        if (numNodes > 1) // output root of sync (the second node) for tracing
+        {
+            out() << clientname << "nodes_updated: received " << numNodes << " including " << nodes[0]->displaypath() << " " << nodes[1]->displaypath();
+        }
+        else 
+        {
+            out() << clientname << "nodes_updated: received " << numNodes << " including " << nodes[0]->displaypath();        
+        }
     }
     received_node_actionpackets = true;
     nodes_updated_cv.notify_all();
@@ -2070,6 +2077,12 @@ Node* StandardClient::drillchildnodebyname(Node* n, const string& path)
         n = client.childnodebyname(n, path.substr(p, pos - p).c_str(), false);
         p = pos == string::npos ? path.size() : pos + 1;
     }
+
+    if (n == nullptr)
+    {
+        LOG_err << "drillchildnodebyname is NULL, node:" << n->displayname() << " path:" << path;
+    }
+
     return n;
 }
 
@@ -8727,6 +8740,12 @@ struct TwoWaySyncSymmetryCase
         {
             return client1().drillchildnodebyname(root, remoteSyncRootPath());
         }
+
+        LOG_err << name()
+                << " root is NULL, local sync root:" 
+                << localSyncRootPath().u8string() 
+                << " remote sync root:" 
+                << remoteSyncRootPath();
 
         return nullptr;
     }
