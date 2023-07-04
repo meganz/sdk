@@ -4979,6 +4979,26 @@ bool CommandGetMiscFlags::procresult(Result r, JSON& json)
     return error(e) != API_EINTERNAL;
 }
 
+CommandABTestActive::CommandABTestActive(MegaClient *client, const string& flag, Completion completion)
+    : mCompletion(completion)
+{
+    cmd("abta");
+    arg("c", flag.c_str());
+
+    tag = client->reqtag;
+}
+
+bool CommandABTestActive::procresult(Result r, JSON&)
+{
+    assert(r.wasErrorOrOK());
+    if (mCompletion)
+    {
+        mCompletion(r.errorOrOK());
+    }
+
+    return r.wasErrorOrOK();
+}
+
 CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, std::shared_ptr<AccountDetails> ad, bool storage, bool transfer, bool pro, int source)
 {
     details = ad;
