@@ -1875,8 +1875,20 @@ TEST_F(SdkTest, SdkTestCreateAccount)
         string conformLink = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, newTestAcc, MegaClient::confirmLinkPrefix(), timeOfConfirmEmail);
         ASSERT_FALSE(conformLink.empty()) << "Confirmation link was not found.";
 
+        // create another connection to confirm the account
+        megaApi.resize(2);
+        mApi.resize(2);
+        ASSERT_NO_FATAL_FAILURE(configureTestInstance(1, bufRealEmail, bufRealPswd));
+
+        PerApi& initialConn = mApi[0];
+        initialConn.resetlastEvent();
+
         // Use confirmation link
-        ASSERT_EQ(API_OK, synchronousConfirmSignupLink(0, conformLink.c_str(), origTestPwd));
+        ASSERT_EQ(API_OK, synchronousConfirmSignupLink(1, conformLink.c_str(), origTestPwd));
+
+        // check for event triggered by 'uec' action packet received after the confirmation
+        EXPECT_TRUE(WaitFor([&initialConn]() { return initialConn.lastEventsContain(MegaEvent::EVENT_CONFIRM_USER_EMAIL); }, 10000))
+            << "EVENT_CONFIRM_USER_EMAIL event triggered by 'uec' action packet was not received";
     }
 
     // Login to the new account

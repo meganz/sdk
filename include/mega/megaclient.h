@@ -1432,6 +1432,7 @@ public:
     static error parseScheduledMeetingChangeset(JSON*, UserAlert::UpdatedScheduledMeeting::Changeset*);
 #endif
     void sc_uac();
+    void sc_uec();
     void sc_la();
     void sc_ub();
     void sc_sqac();
