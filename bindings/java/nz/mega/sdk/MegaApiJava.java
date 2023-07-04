@@ -12443,6 +12443,6 @@ public class MegaApiJava {
      * @param listener MegaRequestListener to track this request
      */
     public void getBackupInfo(MegaRequestListenerInterface listener) {
-        megaApi.getBackupInfo(createDelegateRequestListener(listener))
+        megaApi.getBackupInfo(createDelegateRequestListener(listener));
     }
 }
