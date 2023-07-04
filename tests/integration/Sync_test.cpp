@@ -972,7 +972,14 @@ void StandardClient::nodes_updated(Node** nodes, int numNodes)
     if (logcb)
     {
         lock_guard<mutex> g(om);
-        out() << clientname << "nodes_updated: received " << numNodes << " including " << nodes[0]->displaypath();
+        if (numNodes > 1) // output root of sync (the second node) for tracing
+        {
+            out() << clientname << "nodes_updated: received " << numNodes << " including " << nodes[0]->displaypath() << " " << nodes[1]->displaypath();
+        }
+        else 
+        {
+            out() << clientname << "nodes_updated: received " << numNodes << " including " << nodes[0]->displaypath();        
+        }
     }
     received_node_actionpackets = true;
     nodes_updated_cv.notify_all();
@@ -8723,12 +8730,26 @@ struct TwoWaySyncSymmetryCase
     Node* remoteSyncRoot()
     {
         Node* root = client1().client.nodebyhandle(client1().basefolderhandle);
-        if (root)
+        std::string remoteRootPath = remoteSyncRootPath();
+        if (!root)
         {
-            return client1().drillchildnodebyname(root, remoteSyncRootPath());
+            LOG_err << name()
+                    << " root is NULL, local sync root:" 
+                    << localSyncRootPath().u8string() 
+                    << " remote sync root:" 
+                    << remoteRootPath;
+            return nullptr;
         }
 
-        return nullptr;
+        Node* n = client1().drillchildnodebyname(root, remoteRootPath);
+        if (!n)
+        {
+            LOG_err << "remote sync root is NULL, local sync root:" 
+                    << root->displaypath()
+                    << " remote sync root:" 
+                    << remoteRootPath;
+        }
+        return n;
     }
 
     void SetupTwoWaySync()
