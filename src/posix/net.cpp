@@ -2987,13 +2987,13 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
         {
             LOG_warn << "Public key size mismatch " << BN_num_bytes(rsaN) << " " << BN_num_bytes(rsaE);
         }
-
-        EVP_PKEY_free(evp);
     }
     else
     {
         LOG_warn << "Public key not found";
     }
+
+    EVP_PKEY_free(evp);
 
     if (!ok)
     {
