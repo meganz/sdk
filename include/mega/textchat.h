@@ -248,7 +248,7 @@ private:
     // vector of scheduled meeting occurrences that needs to be notified
     std::vector<std::unique_ptr<ScheduledMeeting>> mUpdatedOcurrences;
 
-    bool mPublicChat;  // whether the chat is public or private
+    bool mPublicChat = false;  // whether the chat is public or private
     byte flags = 0;     // currently only used for "archive" flag at first bit
     void deleteSchedMeeting(const handle sm)
     {

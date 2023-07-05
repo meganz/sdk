@@ -607,7 +607,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     handle id;
     privilege_t priv;
     int shard;
-    userpriv_vector *userpriv = NULL;
+    std::unique_ptr<userpriv_vector> userpriv;
     bool group;
     string title;   // byte array
     handle ou;
@@ -646,7 +646,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
             return NULL;
         }
 
-        userpriv = new userpriv_vector();
+        userpriv = make_unique<userpriv_vector>();
 
         for (unsigned short i = 0; i < ll; i++)
         {
@@ -661,14 +661,12 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
 
         if (priv == PRIV_RM)    // clear peerlist if removed
         {
-            delete userpriv;
-            userpriv = NULL;
+            userpriv.reset();
         }
     }
 
     if (ptr + sizeof(bool) + sizeof(unsigned short) > end)
     {
-        delete userpriv;
         return NULL;
     }
 
@@ -681,7 +679,6 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     {
         if (ptr + ll > end)
         {
-            delete userpriv;
             return NULL;
         }
         title.assign(ptr, ll);
@@ -690,7 +687,6 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
 
     if (ptr + sizeof(handle) + sizeof(m_time_t) + sizeof(char) + 9 > end)
     {
-        delete userpriv;
         return NULL;
     }
 
@@ -735,7 +731,6 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
         unsigned short numNodes = 0;
         if (ptr + sizeof numNodes > end)
         {
-            delete userpriv;
             return NULL;
         }
 
@@ -748,7 +743,6 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
             unsigned short numUsers = 0;
             if (ptr + sizeof h + sizeof numUsers > end)
             {
-                delete userpriv;
                 return NULL;
             }
 
@@ -761,7 +755,6 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
             handle uh = UNDEF;
             if (ptr + (numUsers * sizeof(uh)) > end)
             {
-                delete userpriv;
                 return NULL;
             }
 
@@ -780,7 +773,6 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
         unsigned short keylen = 0;
         if (ptr + sizeof keylen > end)
         {
-            delete userpriv;
             return NULL;
         }
 
@@ -789,7 +781,6 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
 
         if (ptr + keylen > end)
         {
-            delete userpriv;
             return NULL;
         }
 
@@ -803,7 +794,6 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
         unsigned short schedMeetingsSize = 0;
         if (ptr + sizeof schedMeetingsSize > end)
         {
-            delete userpriv;
             return NULL;
         }
 
@@ -815,7 +805,6 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
             unsigned short len = 0;
             if (ptr + sizeof len > end)
             {
-                delete userpriv;
                 return NULL;
             }
 
@@ -824,7 +813,6 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
 
             if (ptr + len > end)
             {
-                delete userpriv;
                 return NULL;
             }
 
@@ -836,23 +824,36 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
 
     if (ptr < end)
     {
-        delete userpriv;
         return NULL;
     }
 
-    if (client->chats.find(id) == client->chats.end())
+    vector<unique_ptr<ScheduledMeeting>> schedMeetings;
+    for (const auto& i : scheduledMeetingsStr)
     {
-        client->chats[id] = new TextChat(publicchat);
+        ScheduledMeeting* auxMeet = ScheduledMeeting::unserialize(i, id);
+        if (!auxMeet)
+        {
+            LOG_err << "Failure at schedule meeting unserialization";
+            assert(auxMeet);
+            return NULL;
+        }
+        schedMeetings.push_back(std::unique_ptr<ScheduledMeeting>(auxMeet));
+    }
+
+    TextChat*& chat = client->chats[id]; // use reference to pointer to avoid 3 searches instead of one
+    if (!chat)
+    {
+        chat = new TextChat(publicchat);
     }
     else
     {
         LOG_warn << "Unserialized a chat already in RAM";
+        chat->changed = {};
     }
-    TextChat* chat = client->chats[id];
     chat->id = id;
     chat->priv = priv;
     chat->shard = shard;
-    chat->setUserPrivileges(userpriv);
+    chat->setUserPrivileges(userpriv.release());
     chat->group = group;
     chat->title = title;
     chat->ou = ou;
@@ -864,19 +865,9 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     chat->meeting = meetingRoom;
     chat->chatOptions = chatOptions;
 
-    for (auto i: scheduledMeetingsStr)
+    for (auto& sm : schedMeetings)
     {
-        ScheduledMeeting* auxMeet = ScheduledMeeting::unserialize(i, chat->id);
-        if (auxMeet)
-        {
-            chat->addSchedMeeting(std::unique_ptr<ScheduledMeeting>(auxMeet), false /*notify*/);
-        }
-        else
-        {
-            LOG_err << "Failure at schedule meeting unserialization";
-            assert(auxMeet);
-            return NULL;
-        }
+        chat->addSchedMeeting(std::move(sm), false /*notify*/);
     }
 
     return chat;
