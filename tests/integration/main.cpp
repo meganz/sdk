@@ -494,8 +494,9 @@ int main (int argc, char *argv[])
 #endif
 
 #if defined(__APPLE__)
-    // Try and raise the file descriptor limit as high as we can.
-    platformSetRLimitNumFile();
+    // our waiter uses select which only supports file number <=1024.
+    // by limiting max open files to 1024, we might able to know this error precisely
+    platformSetRLimitNumFile(1024); 
 #endif // __APPLE__
 
     ::testing::InitGoogleTest(&argc, myargv2.data());

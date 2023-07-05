@@ -44,18 +44,14 @@ pipeline {
                 }
 
                 stage('Get MEGAchat branch'){
-                    when {
-                        expression { 
-                            env.gitlabMergeRequestDescription.contains('MEGACHAT_BRANCH_TO_TEST')
-                        }
-                    }
                     steps {
                         script{
                             env.MEGACHAT_BRANCH = sh(script: 'echo "$gitlabMergeRequestDescription" | grep MEGACHAT_BRANCH_TO_TEST | awk -F "MEGACHAT_BRANCH_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
-                            println MEGACHAT_BRANCH
                             if (MEGACHAT_BRANCH == ""){
                                 echo "MEGACHAT_BRANCH was not found on description so develop will be used by default"
+                                env.MEGACHAT_BRANCH = "develop"
                             }
+                            println MEGACHAT_BRANCH
                         }
                     }
                     post{
@@ -70,11 +66,6 @@ pipeline {
                 }
 
                 stage('Get API URL'){
-                    when {
-                        expression { 
-                            env.gitlabMergeRequestDescription.contains('USE_APIURL_TO_TEST')
-                        }
-                    }
                     steps {
                         script{
                             APIURL_TO_TEST = sh(script: 'echo "$gitlabMergeRequestDescription" | grep USE_APIURL_TO_TEST | awk -F "USE_APIURL_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
@@ -158,6 +149,7 @@ pipeline {
             environment {
                 MEGA_PWD0 = credentials('MEGA_PWD_DEFAULT')
                 MEGA_PWD1 = credentials('MEGA_PWD_DEFAULT')
+                MEGA_PWD2 = credentials('MEGA_PWD_DEFAULT')
             }
             options{
                 timeout(time: 300, unit: 'MINUTES')
@@ -169,6 +161,7 @@ pipeline {
                             def accounts_array = "${env.ACCOUNTS_COMBINATION}".split(',')
                             env.MEGA_EMAIL0 = accounts_array[0]
                             env.MEGA_EMAIL1 = accounts_array[1]
+                            env.MEGA_EMAIL2 = accounts_array[2]
                             echo "${env.ACCOUNTS_COMBINATION}"
                         }
                         sh "ln -sfr ${megachat_sources_workspace}/build/MEGAchatTests/megachat_tests megachat_tests"

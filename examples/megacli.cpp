@@ -964,8 +964,8 @@ void DemoApp::printChatInformation(TextChat *chat)
     cout << "\tChat shard: " << chat->shard << endl;
     cout << "\tGroup chat: " << ((chat->group) ? "yes" : "no") << endl;
     cout << "\tArchived chat: " << ((chat->isFlagSet(TextChat::FLAG_OFFSET_ARCHIVE)) ? "yes" : "no") << endl;
-    cout << "\tPublic chat: " << ((chat->publicchat) ? "yes" : "no") << endl;
-    if (chat->publicchat)
+    cout << "\tPublic chat: " << ((chat->publicChat()) ? "yes" : "no") << endl;
+    if (chat->publicChat())
     {
         cout << "\tUnified key: " << chat->unifiedKey.c_str() << endl;
         cout << "\tMeeting room: " << ((chat->meeting) ? "yes" : "no") << endl;
@@ -4261,6 +4261,8 @@ autocomplete::ACN autocompleteSyntax()
                         )));
 
     p->Add(exec_reqstat, sequence(text("reqstat"), opt(either(flag("-on"), flag("-off")))));
+    p->Add(exec_getABTestValue, sequence(text("getabflag"), param("flag")));
+    p->Add(exec_sendABTestActive, sequence(text("setabflag"), param("flag")));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -8770,7 +8772,7 @@ void DemoApp::folderlinkinfo_result(error e, handle owner, handle /*ph*/, string
         {
             AttrMap attrs;
             string fileName;
-            string fingerprint;
+            string fingerprint; // raw fingerprint without App's prefix (different layer)
             FileFingerprint ffp;
             m_time_t mtime = 0;
             Node::parseattr(buf, attrs, currentSize, mtime, fileName, fingerprint, ffp);
@@ -8950,7 +8952,16 @@ void DemoApp::notify_confirmation(const char *email)
 {
     if (client->loggedin() == EPHEMERALACCOUNT || client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
     {
-        LOG_debug << "Account has been confirmed with email " << email << ". Proceed to login with credentials.";
+        LOG_debug << "Account has been confirmed with email " << email << ".";
+    }
+}
+
+void DemoApp::notify_confirm_user_email(handle user, const char *email)
+{
+    if (client->loggedin() == EPHEMERALACCOUNT || client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
+    {
+        LOG_debug << "Account has been confirmed with user " << user << " and email " << email << ". Proceed to login with credentials.";
+        cout << "Account has been confirmed with user " << toHandle(user) << " and email " << email << ". Proceed to login with credentials.";
     }
 }
 
@@ -10950,6 +10961,38 @@ void exec_reqstat(autocomplete::ACState &s)
 void DemoApp::reqstat_progress(int permilprogress)
 {
     cout << "Progress (per mille) of request: " << permilprogress << endl;
+}
+
+void exec_getABTestValue(autocomplete::ACState &s)
+{
+    string flag = s.words[1].s;
+
+    auto it = client->mABTestFlags.find(flag);
+
+    string value = "0 (not set)";
+    if (it != client->mABTestFlags.end())
+    {
+        value = std::to_string(it->second);
+    }
+
+    cout << "[" << flag<< "]:" << value << endl;
+}
+
+void exec_sendABTestActive(autocomplete::ACState &s)
+{
+    string flag = s.words[1].s;
+
+    client->sendABTestActive(flag.c_str(), [](Error e)
+        {
+            if (e)
+            {
+                cout << "Error sending Ab Test flag: " << e << endl;
+            }
+            else
+            {
+                cout << "Flag has been correctly sent." << endl;
+            }
+        });
 }
 
 void exec_numberofnodes(autocomplete::ACState &s)

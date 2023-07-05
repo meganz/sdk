@@ -34,6 +34,7 @@
 #import "MEGAHandleList+init.h"
 #import "MEGACurrency+init.h"
 #import "MEGARecentActionBucket+init.h"
+#import "MEGABackupInfo+init.h"
 
 using namespace mega;
 
@@ -276,6 +277,18 @@ using namespace mega;
     return recentActionBucketMutableArray;
 }
 
+- (NSArray<MEGABackupInfo *> *)backupInfoList {
+    MegaBackupInfoList *megaBackupInfoList = self.megaRequest->getMegaBackupInfoList();
+    int count = megaBackupInfoList->size();
+    NSMutableArray *backupInfoMutableArray = [NSMutableArray.alloc initWithCapacity:(NSInteger)count];
+    for (int i = 0; i < count; i++) {
+        MEGABackupInfo *megaBackupInfo = [MEGABackupInfo.alloc initWithMegaBackupInfo:megaBackupInfoList->get(i)->copy() cMemoryOwn:YES];
+        [backupInfoMutableArray addObject:megaBackupInfo];
+    }
+
+    return backupInfoMutableArray;
+}
+
 - (MEGASet *)set {
     return self.megaRequest ? [[MEGASet alloc] initWithMegaSet:self.megaRequest->getMegaSet()->copy() cMemoryOwn:YES] : nil;
 }
@@ -291,8 +304,6 @@ using namespace mega;
                                 initWithMegaSetElement:setElementList->get(i)->copy()
                                             cMemoryOwn:YES]];
     }
-    
-    delete setElementList;
     
     return [setElements copy];
 }

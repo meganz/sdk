@@ -4898,6 +4898,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     aplvp_enabled = false;
     mNewLinkFormat = false;
     mCookieBannerEnabled = false;
+    mABTestFlags.clear();
     mProFlexi = false;
     mSmsVerificationState = SMS_STATE_UNKNOWN;
     mSmsVerifiedPhone.clear();
@@ -5649,6 +5650,11 @@ bool MegaClient::procsc()
                             case MAKENAMEID2('p', 'k'):
                                 // pending keys
                                 sc_pk();
+                                break;
+
+                            case MAKENAMEID3('u', 'e', 'c'):
+                                // User Email Confirm (uec)
+                                sc_uec();
                                 break;
                         }
                     }
@@ -7646,19 +7652,22 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                 }
                 else
                 {
+                    TextChat* chat = nullptr;
                     bool mustHaveUK = false;
                     privilege_t oldPriv = PRIV_UNKNOWN;
                     if (chats.find(chatid) == chats.end())
                     {
-                        chats[chatid] = new TextChat();
+                        chat = new TextChat(readingPublicChat ? publicchat : false);
+                        chats[chatid] = chat;
                         mustHaveUK = true;
                     }
                     else
                     {
-                        oldPriv = chats[chatid]->priv;
+                        chat = chats[chatid];
+                        oldPriv = chat->priv;
+                        if (readingPublicChat) { setChatMode(chat, publicchat); }
                     }
 
-                    TextChat *chat = chats[chatid];
                     chat->id = chatid;
                     chat->shard = shard;
                     chat->group = group;
@@ -7727,7 +7736,6 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
 
                     if (readingPublicChat)
                     {
-                        chat->setMode(publicchat);
                         if (!unifiedkey.empty())    // not all actionpackets include it
                         {
                             chat->unifiedKey = unifiedkey;
@@ -8064,6 +8072,48 @@ void MegaClient::sc_uac()
                 if (!jsonsc.storeobject())
                 {
                     LOG_warn << "Failed to parse `uac` action packet";
+                    return;
+                }
+        }
+    }
+}
+
+void MegaClient::sc_uec()
+{
+    handle u = UNDEF;
+    string email;
+
+    for (;;)
+    {
+        switch (jsonsc.getnameid())
+        {
+            case 'm':
+                jsonsc.storeobject(&email);
+                break;
+
+            case 'u':
+                u = jsonsc.gethandle(USERHANDLE);
+                break;
+
+            case EOO:
+                if (email.empty())
+                {
+                    LOG_warn << "Missing email address in `uec` action packet";
+                }
+                if (u == UNDEF)
+                {
+                    LOG_warn << "Missing user handle in `uec` action packet";
+                }
+                app->account_updated();
+                app->notify_confirm_user_email(u, email.c_str());
+                ephemeralSession = false;
+                ephemeralSessionPlusPlus = false;
+                return;
+
+            default:
+                if (!jsonsc.storeobject())
+                {
+                    LOG_warn << "Failed to parse `uec` action packet";
                     return;
                 }
         }
@@ -8818,7 +8868,7 @@ error MegaClient::setattr(Node* n, attr_map&& updates, CommandSetAttr::Completio
 }
 
 error MegaClient::putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, const char *utf8Name, const UploadToken& binaryUploadToken,
-                                          byte *theFileKey, char *megafingerprint, const char *fingerprintOriginal,
+                                          const byte *theFileKey, const char *megafingerprint, const char *fingerprintOriginal,
                                           std::function<error(AttrMap&)> addNodeAttrsFunc, std::function<error(std::string *)> addFileAttrsFunc)
 {
     error e = API_OK;
@@ -10200,6 +10250,7 @@ error MegaClient::readmiscflags(JSON *json)
     bool journeyIdFound = false;
     while (1)
     {
+        string fieldName = json->getnameWithoutAdvance();
         switch (json->getnameid())
         {
         // mcs:1 --> MegaChat enabled
@@ -10263,7 +10314,21 @@ error MegaClient::readmiscflags(JSON *json)
             }
             return API_OK;
         default:
-            if (!json->storeobject())
+            if (fieldName.rfind("ab_", 0) == 0) // Starting with "ab_"
+            {
+                string tag = fieldName.substr(3); // The string after "ab_" prefix
+                int64_t value = json->getint();
+                if (value >= 0)
+                {
+                    mABTestFlags[tag] = static_cast<uint32_t>(value);
+                }
+                else
+                {
+                    LOG_err << "[MegaClient::readmiscflags] Invalid value for A/B Test flag";
+                    assert(value >= 0 && "A/B test value must be greater or equal to 0");
+                }
+            }
+            else if (!json->storeobject())
             {
                 return API_EINTERNAL;
             }
@@ -12784,12 +12849,18 @@ void MegaClient::procmcf(JSON *j)
                             case EOO:
                                 if (chatid != UNDEF && priv != PRIV_UNKNOWN && shard != -1)
                                 {
+                                    TextChat* chat = nullptr;
                                     if (chats.find(chatid) == chats.end())
                                     {
-                                        chats[chatid] = new TextChat();
+                                        chat = new TextChat(readingPublicChats && publicchat);
+                                        chats[chatid] = chat;
+                                    }
+                                    else
+                                    {
+                                        chat = chats[chatid];
+                                        if (readingPublicChats) { setChatMode(chat, publicchat); }
                                     }
 
-                                    TextChat *chat = chats[chatid];
                                     chat->id = chatid;
                                     chat->priv = priv;
                                     chat->shard = shard;
@@ -12805,7 +12876,6 @@ void MegaClient::procmcf(JSON *j)
 
                                     if (readingPublicChats)
                                     {
-                                        chat->publicchat = publicchat;  // true or false (formerly public, now private)
                                         chat->unifiedKey = unifiedKey;
 
                                         if (unifiedKey.empty())
@@ -19039,6 +19109,23 @@ void MegaClient::getUrlChat(handle chatid)
     reqs.add(new CommandChatURL(this, chatid));
 }
 
+void MegaClient::setChatMode(TextChat* chat, bool pubChat)
+{
+    if (!chat)
+    {
+        LOG_warn << "setChatMode: Invalid chat provided";
+        return;
+    }
+
+    if (chat->setMode(pubChat) == API_EACCESS)
+    {
+        std::string msg = "setChatMode: trying to convert a chat from private into public. chatid: "
+                          + std::string(Base64Str<MegaClient::CHATHANDLE>(chat->id));
+        sendevent(99476, msg.c_str(), 0);
+        LOG_warn << msg;
+    }
+}
+
 userpriv_vector *MegaClient::readuserpriv(JSON *j)
 {
     userpriv_vector *userpriv = NULL;
@@ -21484,6 +21571,11 @@ void MegaClient::clearsetelementnotify(handle sid)
     }
 }
 
+Error MegaClient::sendABTestActive(const char* flag, CommandABTestActive::Completion completion)
+{
+    reqs.add(new CommandABTestActive(this, flag, std::move(completion)));
+    return API_OK;
+}
 
 FetchNodesStats::FetchNodesStats()
 {

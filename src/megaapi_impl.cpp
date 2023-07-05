@@ -229,16 +229,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     {
         string fingerprint;
         node->serializefingerprint(&fingerprint);
-        m_off_t size = node->size;
-        char bsize[sizeof(size)+1];
-        int l = Serialize64::serialize((byte *)bsize, size);
-        char *buf = new char[l * 4 / 3 + 4];
-        char ssize = static_cast<char>('A' + Base64::btoa((const byte *)bsize, l, buf));
-        string result(1, ssize);
-        result.append(buf);
-        result.append(fingerprint);
-        delete [] buf;
-
+        string result = MegaNodePrivate::addAppPrefixToFingerprint(fingerprint, node->size);
         this->fingerprint = MegaApi::strdup(result.c_str());
     }
 
@@ -1012,6 +1003,75 @@ const char* MegaNodePrivate::getDeviceId() const
 const char* MegaNodePrivate::getS4() const
 {
     return mS4.c_str();
+}
+
+string MegaNodePrivate::addAppPrefixToFingerprint(const string& fp, const m_off_t nodeSize)
+{
+    if (fp.empty())
+    {
+        LOG_warn << "Requesting app prefix addition to an empty fingerprint";
+        return string{};
+    }
+
+    FileFingerprint ffp;
+    if (!ffp.unserializefingerprint(&fp))
+    {
+        LOG_err << "Internal error: fingerprint validation failed in app prefix addition. Unserialization check failed";
+        return string{};
+    }
+
+    byte bsize[sizeof(nodeSize) + 1];
+    int l = Serialize64::serialize(bsize, nodeSize);
+    unique_ptr<char[]> buf(new char[l * 4 / 3 + 4]);
+    char ssize = static_cast<char>('A' + Base64::btoa(bsize, l, buf.get()));
+
+    string result(1, ssize);
+    result.append(buf.get());
+    result.append(fp);
+
+    return result;
+}
+
+string MegaNodePrivate::removeAppPrefixFromFingerprint(const string& appFp, m_off_t* nodeSize)
+{
+    if (appFp.empty())
+    {
+        LOG_warn << "Requesting app prefix removal from an empty fingerprint";
+        return string{};
+    }
+
+    const size_t sizelen = appFp[0] - 'A';
+    if (sizelen > (sizeof(m_off_t) * 4/3 + 4) || appFp.size() <= (sizelen + 1))
+    {
+        LOG_err << "Internal error: fingerprint validation failed. Fingerprint with sizelen: " << sizelen
+                << " and fplen: " << appFp.size();
+        return string{};
+    }
+
+    if (nodeSize)
+    {
+        m_off_t nSize = 0;
+        int len = sizeof(nSize);
+        std::unique_ptr<byte[]> buf (new byte[len]);
+        Base64::atob(appFp.c_str() + 1, buf.get(), len);
+        int l = Serialize64::unserialize(buf.get(), len, (uint64_t*)&nSize);
+        if (l <= 0)
+        {
+            LOG_err << "Internal error: node size extraction from fingerprint failed";
+            return string{};
+        }
+        *nodeSize = nSize;
+    }
+
+    FileFingerprint ffp;
+    string result = appFp.substr(sizelen + 1);
+    if (!ffp.unserializefingerprint(&result))
+    {
+        LOG_err << "Internal error: fingerprint unserialization failed in app prefix removal";
+        return string{};
+    }
+
+    return result;
 }
 
 MegaBackgroundMediaUploadPrivate::MegaBackgroundMediaUploadPrivate(MegaApi* capi)
@@ -4321,6 +4381,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_RECOMMENDED_PRO_PLAN: return "GET_RECOMMENDED_PRO_PLAN";
         case TYPE_BACKUP_INFO: return "BACKUP_INFO";
         case TYPE_BACKUP_REMOVE_MD: return "BACKUP_REMOVE_MD";
+        case TYPE_AB_TEST_ACTIVE: return "AB_TEST_ACTIVE";
     }
     return "UNKNOWN";
 }
@@ -6043,32 +6104,6 @@ long long MegaApiImpl::getSDKtime()
     return Waiter::ds;
 }
 
-char* MegaApiImpl::getStringHash(const char* base64pwkey, const char* inBuf)
-{
-    if (!base64pwkey || !inBuf)
-    {
-        return NULL;
-    }
-
-    char pwkey[2 * SymmCipher::KEYLENGTH];
-    if (Base64::atob(base64pwkey, (byte *)pwkey, sizeof pwkey) != SymmCipher::KEYLENGTH)
-    {
-        return MegaApi::strdup("");
-    }
-
-    SymmCipher key;
-    key.setkey((byte*)pwkey);
-
-    uint64_t strhash;
-    string neBuf = inBuf;
-
-    strhash = client->stringhash64(&neBuf, &key);
-
-    char* buf = new char[8*4/3+4];
-    Base64::btoa((byte*)&strhash, 8, buf);
-    return buf;
-}
-
 MegaHandle MegaApiImpl::base32ToHandle(const char *base32Handle)
 {
     if(!base32Handle) return INVALID_HANDLE;
@@ -6302,6 +6337,31 @@ bool MegaApiImpl::newLinkFormatEnabled()
     return client->mNewLinkFormat;
 }
 
+unsigned int MegaApiImpl::getABTestValue(const char* flag)
+{
+    if (!flag) return 0;
+    SdkMutexGuard g(sdkMutex);
+    auto it = client->mABTestFlags.find(flag);
+    return (it != client->mABTestFlags.end() ? it->second : 0 );
+}
+
+void MegaApiImpl::sendABTestActive(const char* flag, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_AB_TEST_ACTIVE, listener);
+    request->setText(flag);
+
+    request->performRequest = [this, request]()
+    {
+        return client->sendABTestActive(request->getText(), [this, request](Error e)
+        {
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+        });
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 int MegaApiImpl::smsAllowedState()
 {
     return (client->mSmsVerificationState != SMS_STATE_UNKNOWN) ? client->mSmsVerificationState : 0;
@@ -6383,22 +6443,6 @@ void MegaApiImpl::multiFactorAuthCancelAccount(const char *pin, MegaRequestListe
     request->performRequest = [this, request]()
     {
         return performRequest_getCancelLink(request);
-    };
-
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
-    request->setEmail(email);
-    request->setPassword(stringHash);
-    request->setPrivateKey(base64pwkey);
-
-    request->performRequest = [this, request]()
-    {
-        return performRequest_login(request);
     };
 
     requestQueue.push(request);
@@ -6626,42 +6670,11 @@ void MegaApiImpl::resendSignupLink(const char *email, const char *name, MegaRequ
     waiter->notify();
 }
 
-void MegaApiImpl::fastSendSignupLink(const char *email, const char *base64pwkey, const char *name, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SEND_SIGNUP_LINK, listener);
-    request->setEmail(email);
-    request->setPrivateKey(base64pwkey);
-    request->setName(name);
-
-    request->performRequest = [this, request]()
-    {
-        return performRequest_sendSignupLink(request);
-    };
-
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::confirmAccount(const char* link, const char *password, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CONFIRM_ACCOUNT, listener);
     request->setLink(link);
     request->setPassword(password);
-
-    request->performRequest = [this, request]()
-    {
-        return performRequest_confirmAccount(request);
-    };
-
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::fastConfirmAccount(const char* link, const char *base64pwkey, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CONFIRM_ACCOUNT, listener);
-    request->setLink(link);
-    request->setPrivateKey(base64pwkey);
 
     request->performRequest = [this, request]()
     {
@@ -11267,7 +11280,7 @@ MegaNode *MegaApiImpl::createForeignFileNode(MegaHandle handle, const char *key,
     nodekey.resize(Base64::atob(key, (byte *)nodekey.data(), int(nodekey.size())));
 
     string fingerprintStr;
-    unique_ptr<char[]> sdkFingerprintStr;
+    string sdkFingerprintStr;
 
     if (fingerprintCrc)
     {
@@ -11283,12 +11296,12 @@ MegaNode *MegaApiImpl::createForeignFileNode(MegaHandle handle, const char *key,
             ff.serializefingerprint(&fingerprintStr);
 
             // prepend size on the front
-            sdkFingerprintStr.reset(getSdkFingerprintFromMegaFingerprint(fingerprintStr.c_str(), size));
+            sdkFingerprintStr = MegaNodePrivate::addAppPrefixToFingerprint(fingerprintStr, size);
         }
     }
 
     return new MegaNodePrivate(name, FILENODE, size, mtime, mtime, handle, &nodekey, &fileattrsting,
-                               sdkFingerprintStr.get(), NULL, INVALID_HANDLE,
+                               sdkFingerprintStr.empty() ? nullptr : sdkFingerprintStr.c_str(), NULL, INVALID_HANDLE,
                                parentHandle, privateauth, publicauth, false, true, chatauth, true);
 }
 
@@ -12034,16 +12047,7 @@ char *MegaApiImpl::getFingerprint(const char *filePath)
 
     string fingerprint;
     fp.serializefingerprint(&fingerprint);
-
-    char bsize[sizeof(size)+1];
-    int l = Serialize64::serialize((byte *)bsize, size);
-    char *buf = new char[l * 4 / 3 + 4];
-    char ssize = static_cast<char>('A' + Base64::btoa((const byte *)bsize, l, buf));
-
-    string result(1, ssize);
-    result.append(buf);
-    result.append(fingerprint);
-    delete [] buf;
+    string result = MegaNodePrivate::addAppPrefixToFingerprint(fingerprint, size);
 
     return MegaApi::strdup(result.c_str());
 }
@@ -12085,16 +12089,7 @@ char *MegaApiImpl::getFingerprint(MegaInputStream *inputStream, int64_t mtime)
 
     string fingerprint;
     fp.serializefingerprint(&fingerprint);
-
-    char bsize[sizeof(size)+1];
-    int l = Serialize64::serialize((byte *)bsize, size);
-    char *buf = new char[l * 4 / 3 + 4];
-    char ssize = static_cast<char>('A' + Base64::btoa((const byte *)bsize, l, buf));
-
-    string result(1, ssize);
-    result.append(buf);
-    result.append(fingerprint);
-    delete [] buf;
+    string result = MegaNodePrivate::addAppPrefixToFingerprint(fingerprint, size);
 
     return MegaApi::strdup(result.c_str());
 }
@@ -13185,6 +13180,7 @@ void MegaApiImpl::folderlinkinfo_result(error e, handle owner, handle /*ph*/, st
                 FileFingerprint ffp;
                 m_time_t mtime = 0;
                 Node::parseattr(buf, attrs, currentSize, mtime, fileName, fingerprint, ffp);
+                fingerprint = MegaNodePrivate::addAppPrefixToFingerprint(fingerprint, ffp.size);
 
                 // Normalize node name to UTF-8 string
                 attr_map::iterator it = attrs.map.find('n');
@@ -14195,6 +14191,14 @@ void MegaApiImpl::notify_confirmation(const char *email)
     fireOnEvent(event);
 }
 
+void MegaApiImpl::notify_confirm_user_email(handle user, const char* email)
+{
+    MegaEventPrivate* event = new MegaEventPrivate(MegaEvent::EVENT_CONFIRM_USER_EMAIL);
+    event->setHandle(user);
+    event->setText(email);
+    fireOnEvent(event);
+}
+
 void MegaApiImpl::notify_disconnect()
 {
     MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_DISCONNECT);
@@ -14355,30 +14359,6 @@ void MegaApiImpl::prelogin_result(int version, string* email, string *salt, erro
         if (version == 1)
         {
             const char *password = request->getPassword();
-            const char* base64pwkey = request->getPrivateKey();
-            if (base64pwkey)
-            {
-                byte pwkey[SymmCipher::KEYLENGTH];
-                Base64::atob(base64pwkey, (byte *)pwkey, sizeof pwkey);
-                if (password)
-                {
-                    uint64_t emailhash;
-                    Base64::atob(password, (byte *)&emailhash, sizeof emailhash);
-
-                    int creqtag = client->reqtag;
-                    client->reqtag = client->restag;
-                    client->fastlogin(email->c_str(), pwkey, emailhash);
-                    client->reqtag = creqtag;
-                }
-                else
-                {
-                    int creqtag = client->reqtag;
-                    client->reqtag = client->restag;
-                    client->login(email->c_str(), pwkey, pin);
-                    client->reqtag = creqtag;
-                }
-            }
-            else
             {
                 error err;
                 byte pwkey[SymmCipher::KEYLENGTH];
@@ -14398,18 +14378,6 @@ void MegaApiImpl::prelogin_result(int version, string* email, string *salt, erro
         else if (version == 2 && salt)
         {
             const char *password = request->getPassword();
-            const char* base64pwkey = request->getPrivateKey();
-            if (base64pwkey)
-            {
-                byte derivedKey[2 * SymmCipher::KEYLENGTH];
-                Base64::atob(base64pwkey, derivedKey, sizeof derivedKey);
-
-                int creqtag = client->reqtag;
-                client->reqtag = client->restag;
-                client->login2(email->c_str(), derivedKey, pin);
-                client->reqtag = creqtag;
-            }
-            else
             {
                 int creqtag = client->reqtag;
                 client->reqtag = client->restag;
@@ -14483,8 +14451,7 @@ void MegaApiImpl::login_result(error result)
     if(!request || (request->getType() != MegaRequest::TYPE_LOGIN && request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT)) return;
 
     // if login with user+pwd succeed, update lastLogin timestamp
-    if (result == API_OK && request->getEmail() &&
-            (request->getPassword() || request->getPrivateKey()))
+    if (result == API_OK && request->getEmail() && request->getPassword())
     {
         client->isNewSession = true;
         client->tsLogin = m_time();
@@ -14656,6 +14623,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
     if (buf)
     {
         Node::parseattr(buf, attrs, size, mtime, fileName, fingerprint, ffp);
+        fingerprint = MegaNodePrivate::addAppPrefixToFingerprint(fingerprint, ffp.size);
 
         // Normalize node name to UTF-8 string
         attr_map::iterator it = attrs.map.find('n');
@@ -17729,30 +17697,10 @@ Node *MegaApiImpl::getNodeByFingerprintInternal(const char *fingerprint, Node *p
 
 FileFingerprint *MegaApiImpl::getFileFingerprintInternal(const char *fingerprint)
 {
-    if(!fingerprint || !fingerprint[0])
-    {
-        return NULL;
-    }
-
     m_off_t size = 0;
-    unsigned int fsize = unsigned(strlen(fingerprint));
-    unsigned int ssize = fingerprint[0] - 'A';
-    if(ssize > (sizeof(size) * 4 / 3 + 4) || fsize <= (ssize + 1))
-    {
-        return NULL;
-    }
+    string sfingerprint = MegaNodePrivate::removeAppPrefixFromFingerprint(fingerprint, &size);
 
-    int len =  sizeof(size) + 1;
-    byte *buf = new byte[len];
-    Base64::atob(fingerprint + 1, buf, len);
-    int l = Serialize64::unserialize(buf, len, (uint64_t *)&size);
-    delete [] buf;
-    if(l <= 0)
-    {
-        return NULL;
-    }
-
-    string sfingerprint = fingerprint + ssize + 1;
+    if (sfingerprint.empty()) return nullptr;
 
     FileFingerprint *fp = new FileFingerprint;
     if(!fp->unserializefingerprint(&sfingerprint))
@@ -17764,54 +17712,6 @@ FileFingerprint *MegaApiImpl::getFileFingerprintInternal(const char *fingerprint
     fp->size = size;
 
     return fp;
-}
-
-char *MegaApiImpl::getMegaFingerprintFromSdkFingerprint(const char *sdkFingerprint)
-{
-    if (!sdkFingerprint || !sdkFingerprint[0])
-    {
-        return NULL;
-    }
-
-    unsigned int sizelen = sdkFingerprint[0] - 'A';
-    if (sizelen > (sizeof(m_off_t) * 4 / 3 + 4) || strlen(sdkFingerprint) <= (sizelen + 1))
-    {
-        return NULL;
-    }
-
-    FileFingerprint ffp;
-    string result = sdkFingerprint + sizelen + 1;
-    if (!ffp.unserializefingerprint(&result))
-    {
-        return NULL;
-    }
-    return MegaApi::strdup(result.c_str());
-}
-
-char *MegaApiImpl::getSdkFingerprintFromMegaFingerprint(const char *megaFingerprint, m_off_t size)
-{
-    if (!megaFingerprint || !megaFingerprint[0] || size < 0)
-    {
-        return NULL;
-    }
-
-    FileFingerprint ffp;
-    string sMegaFingerprint = megaFingerprint;
-    if (!ffp.unserializefingerprint(&sMegaFingerprint))
-    {
-        return NULL;
-    }
-
-    char bsize[sizeof(size) + 1];
-    int l = Serialize64::serialize((byte *)bsize, size);
-    char *buf = new char[l * 4 / 3 + 4];
-    char sizelen = static_cast<char>('A' + Base64::btoa((const byte *)bsize, l, buf));
-    string result(1, sizelen);
-    result.append(buf);
-    result.append(megaFingerprint);
-    delete [] buf;
-
-    return MegaApi::strdup(result.c_str());
 }
 
 MegaNode* MegaApiImpl::getParentNode(MegaNode* n)
@@ -18983,10 +18883,9 @@ error MegaApiImpl::performRequest_login(MegaRequestPrivate* request)
             const char *login = request->getEmail();
             const char *password = request->getPassword();
             const char* megaFolderLink = request->getLink();
-            const char* base64pwkey = request->getPrivateKey();
             const char* sessionKey = request->getSessionKey();
 
-            if (!megaFolderLink && (!(login && password)) && !sessionKey && (!(login && base64pwkey)))
+            if (!megaFolderLink && (!(login && password)) && !sessionKey)
             {
                 return API_EARGS;
             }
@@ -19011,7 +18910,7 @@ error MegaApiImpl::performRequest_login(MegaRequestPrivate* request)
             {
                 client->login(Base64::atob(string(sessionKey)));
             }
-            else if (login && (base64pwkey || password) && !megaFolderLink)
+            else if (login && password && !megaFolderLink)
             {
                 client->prelogin(slogin.c_str());
             }
@@ -20995,7 +20894,6 @@ error MegaApiImpl::performRequest_createAccount(MegaRequestPrivate* request)
             const char *password = request->getPassword();
             const char *name = request->getName();
             const char *lastname = request->getText();
-            const char *pwkey = request->getPrivateKey();
             const char *sid = request->getSessionKey();
             bool resumeProcess = (request->getParamType() == MegaApi::RESUME_ACCOUNT);   // resume existing ephemeral account
             bool cancelProcess = (request->getParamType() == MegaApi::CANCEL_ACCOUNT);
@@ -21014,7 +20912,7 @@ error MegaApiImpl::performRequest_createAccount(MegaRequestPrivate* request)
             }
 
             if ((!resumeProcess && !cancelProcess && !resumeEphemeralPlusPlus && !createEphemeralPlusPlus &&
-                  (!email || !name || (!password && !pwkey))) ||
+                  (!email || !name || !password)) ||
                  ((resumeProcess || resumeEphemeralPlusPlus) && !sid) ||
                  (createEphemeralPlusPlus && !(name && lastname)))
             {
@@ -21075,11 +20973,6 @@ error MegaApiImpl::performRequest_createAccount(MegaRequestPrivate* request)
 
 error MegaApiImpl::performRequest_sendSignupLink(MegaRequestPrivate* request)
 {
-            if (request->getPrivateKey())
-            {
-                // obsolete. Use registration flow v2: calling (re)sendSignupLink() instead of fastSendSignupLink()
-                return API_EINTERNAL;
-            }
             const char *email = request->getEmail();
             const char *name = request->getName();
             if (!email || !name)
@@ -21201,12 +21094,6 @@ error MegaApiImpl::performRequest_confirmAccount(MegaRequestPrivate* request)
             if (!link || !password)
             {
                 return API_EARGS;
-            }
-
-            if (request->getPrivateKey())
-            {
-                // obsolete. Use registration flow v2
-                return API_EINTERNAL;
             }
 
             const char* ptr = link;
@@ -23225,15 +23112,15 @@ void MegaApiImpl::inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, 
             }
 
             TextChat *chat = it->second;
-            if (chat->publicchat != publicMode)
+            if (chat->publicChat() != publicMode)
             {
-                LOG_err << "Request (TYPE_CHAT_INVITE). " << (chat->publicchat ? "Public chat mode" : "Private chat mode")
+                LOG_err << "Request (TYPE_CHAT_INVITE). " << (chat->publicChat() ? "Public chat mode" : "Private chat mode")
                 << " ,unexpected for chat: " << Base64Str<MegaClient::USERHANDLE>(chatid);
                 return API_EACCESS;
             }
 
             // new participants of private chats require the title to be encrypted to them
-            if (!chat->publicchat && (!chat->title.empty() && (!title || title[0] == '\0')))
+            if (!chat->publicChat() && (!chat->title.empty() && (!title || title[0] == '\0')))
             {
                 LOG_err << "Request (TYPE_CHAT_INVITE). Invalid title for chat: " << Base64Str<MegaClient::USERHANDLE>(chatid);
                 return API_EINCOMPLETE;
@@ -23684,7 +23571,7 @@ void MegaApiImpl::chatLinkHandle(MegaHandle chatid, bool del, bool createifmissi
                 return API_ENOENT;
             }
             TextChat *chat = it->second;
-            if (!chat->group || !chat->publicchat || chat->priv == PRIV_RM
+            if (!chat->group || !chat->publicChat() || chat->priv == PRIV_RM
                     || ((del || createifmissing) && chat->priv != PRIV_MODERATOR))
             {
                 return API_EACCESS;
@@ -23739,7 +23626,7 @@ void MegaApiImpl::chatLinkClose(MegaHandle chatid, const char* title, MegaReques
                 return API_ENOENT;
             }
             TextChat *chat = it->second;
-            if (!chat->publicchat)
+            if (!chat->publicChat())
             {
                 return API_EEXIST;
             }
@@ -24125,8 +24012,8 @@ error MegaApiImpl::performRequest_completeBackgroundUpload(MegaRequestPrivate* r
                 return API_ENOENT;
             }
 
-            std::unique_ptr<char[]> megafingerprint(getMegaFingerprintFromSdkFingerprint(fingerprint));
-            if (!megafingerprint)
+            const string megafingerprint = MegaNodePrivate::removeAppPrefixFromFingerprint(fingerprint);
+            if (megafingerprint.empty())
             {
                 LOG_err << "Bad fingerprint";
                 return API_EARGS;
@@ -24174,7 +24061,7 @@ error MegaApiImpl::performRequest_completeBackgroundUpload(MegaRequestPrivate* r
             vector<NewNode> newnodes(1);
             NewNode* newnode = &newnodes[0];
             error e = client->putnodes_prepareOneFile(newnode, parentNode, utf8Name, ulToken,
-                                                theFileKey, megafingerprint.get(), fingerprintOriginal,
+                                                theFileKey, megafingerprint.c_str(), fingerprintOriginal,
                                                 std::move(addNodeAttrsFunc),
                                                 std::move(addFileAttrsFunc));
             if (e != API_OK)
@@ -25524,9 +25411,10 @@ void MegaApiImpl::getPreviewElementNode(MegaHandle eid, MegaRequestListener* lis
 
         FileFingerprint ffp;
         m_time_t tm = ffp.unserializefingerprint(&nm->fingerprint) ? ffp.mtime : 0;
-        unique_ptr<const char[]> megaApiImplFingerprint(getSdkFingerprintFromMegaFingerprint(nm->fingerprint.c_str(), nm->s));
+        const string megaApiImplFingerprint = MegaNodePrivate::addAppPrefixToFingerprint(nm->fingerprint, nm->s);
 
-        MegaNodePrivate ret(nm->filename.c_str(), FILENODE, nm->s, nm->ts, tm, nm->h, &element->key(), &nm->fa, megaApiImplFingerprint.get(),
+        MegaNodePrivate ret(nm->filename.c_str(), FILENODE, nm->s, nm->ts, tm, nm->h, &element->key(), &nm->fa,
+                            megaApiImplFingerprint.empty() ? nullptr : megaApiImplFingerprint.c_str(),
                             nullptr, nm->u, INVALID_HANDLE, nullptr, nullptr, false /*isPublic*/, true /*isForeign*/);
         request->setPublicNode(&ret);
 
@@ -26982,24 +26870,9 @@ bool MegaTreeProcCopy::processMegaNode(MegaNode *n)
         LocalPath::utf8_normalize(&sname);
         attrs.map['n'] = sname;
 
-        const char *fingerprint = n->getFingerprint();
-        if (fingerprint && fingerprint[0])
         {
-            m_off_t size = 0;
-            unsigned int fsize = unsigned(strlen(fingerprint));
-            unsigned int ssize = fingerprint[0] - 'A';
-            if (!(ssize > (sizeof(size) * 4 / 3 + 4) || fsize <= (ssize + 1)))
-            {
-                int len =  sizeof(size) + 1;
-                byte *buf = new byte[len];
-                Base64::atob(fingerprint + 1, buf, len);
-                int l = Serialize64::unserialize(buf, len, (uint64_t *)&size);
-                delete [] buf;
-                if (l > 0)
-                {
-                    attrs.map['c'] = fingerprint + ssize + 1;
-                }
-            }
+            string sfp = MegaNodePrivate::removeAppPrefixFromFingerprint(n->getFingerprint());
+            if (!sfp.empty()) attrs.map['c'] = std::move(sfp);
         }
 
         string attrstring;
@@ -34861,7 +34734,7 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
     this->tag = chat->tag;
     this->ts = chat->ts;
     this->archived = chat->isFlagSet(TextChat::FLAG_OFFSET_ARCHIVE);
-    this->publicchat = chat->publicchat;
+    this->publicchat = chat->publicChat();
     this->unifiedKey = chat->unifiedKey;
     this->meeting = chat->meeting;
     this->chatOptions = chat->chatOptions;
@@ -35488,6 +35361,7 @@ const char *MegaEventPrivate::getEventString(int type)
     {
         case MegaEvent::EVENT_COMMIT_DB: return "EVENT_COMMIT_DB";
         case MegaEvent::EVENT_ACCOUNT_CONFIRMATION: return "EVENT_ACCOUNT_CONFIRMATION";
+        case MegaEvent::EVENT_CONFIRM_USER_EMAIL: return "EVENT_CONFIRM_USER_EMAIL";
         case MegaEvent::EVENT_CHANGE_TO_HTTPS: return "EVENT_CHANGE_TO_HTTPS";
         case MegaEvent::EVENT_DISCONNECT: return "EVENT_DISCONNECT";
         case MegaEvent::EVENT_ACCOUNT_BLOCKED: return "EVENT_ACCOUNT_BLOCKED";
