@@ -33,46 +33,6 @@
 
 namespace mega {
 
-class FileNameGenerator
-{
-public:
-    // It generates a new name suffixed with (n). It is not conflicted in the file system
-    // always a new name is returned
-    static LocalPath suffixWithN(FileAccess* fa, const LocalPath& localname);
-
-    // It generates a new name suffixed with .oldn. It is not conflicted in the file system
-    // always a new name is returned
-    static LocalPath suffixWithOldN(FileAccess* fa, const LocalPath& localname);
-
-private:
-    static LocalPath suffix(FileAccess* fa, const LocalPath& localname, std::function<std::string(unsigned)> suffixF);
-};
-
-LocalPath FileNameGenerator::suffixWithN(FileAccess* fa, const LocalPath& localname)
-{
-    return suffix(fa, localname, [ ](unsigned num) { return " (" + std::to_string(num) + ")"; });
-}
-
-LocalPath FileNameGenerator::suffixWithOldN(FileAccess* fa, const LocalPath& localname)
-{
-    return suffix(fa, localname, [](unsigned num) { return ".old" + std::to_string(num); });
-}
-
-LocalPath FileNameGenerator::suffix(FileAccess* fa, const LocalPath& localname, std::function<std::string(unsigned)> suffixF)
-{
-    LocalPath localnewname;
-    unsigned num = 0;
-    do
-    {
-        num++;
-        localnewname = localname.insertFilenameSuffix(suffixF(num));
-    } while (fa->fopen(localnewname, FSLogging::logExceptFileNotFound) || fa->type == FOLDERNODE);
-
-    return localnewname;
-}
-
-
-
 TransferCategory::TransferCategory(direction_t d, filesizetype_t s)
     : direction(d)
     , sizetype(s)
