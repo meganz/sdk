@@ -303,13 +303,13 @@ public:
 
     struct
     {
-        bool attachments = false;
-        bool flags = false;
-        bool mode = false;
-        bool options =false;
-        bool schedOcurrReplace = false;
-        bool schedOcurrAppend = false;
-    } changed;
+        bool attachments : 1;
+        bool flags : 1;
+        bool mode : 1;
+        bool options : 1;
+        bool schedOcurrReplace : 1;
+        bool schedOcurrAppend : 1;
+    } changed = {};
 
     // return false if failed
     bool setNodeUserAccess(handle h, handle uh, bool revoke = false);
