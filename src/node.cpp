@@ -40,8 +40,6 @@ Node::Node(MegaClient& cclient, NodeHandle h, NodeHandle ph,
            nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts)
     : client(&cclient)
 {
-    outshares = NULL;
-    pendingshares = NULL;
     appdata = NULL;
 
     nodehandle = h.as8byte();
@@ -66,11 +64,7 @@ Node::Node(MegaClient& cclient, NodeHandle h, NodeHandle ph,
 
     ctime = ts;
 
-    inshare = NULL;
-    sharekey = NULL;
     foreignkey = false;
-
-    plink = NULL;
 
     memset(&changed, 0, sizeof changed);
 
