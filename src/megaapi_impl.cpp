@@ -504,7 +504,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     // if there's only one share and it has no user --> public link
     this->outShares = (node->outshares) ? (node->outshares->size() > 1 || node->outshares->begin()->second->user) : false;
     this->inShare = node->inshare != nullptr;
-    this->plink = node->plink ? new PublicLink(node->plink) : NULL;
+    this->plink = node->plink ? new PublicLink(*node->plink) : NULL;
     this->mNewLinkFormat = node->client->mNewLinkFormat;
     if (plink && type == FOLDERNODE && node->sharekey)
     {
@@ -6958,7 +6958,7 @@ MegaShareList *MegaApiImpl::getUnverifiedInShares(int order)
 
     for (Node *node : nodes)
     {
-        shares.push_back(node->inshare);
+        shares.push_back(node->inshare.get());  // copied, not stored
         handles.push_back(node->nodehandle);
         verified.push_back(false);
     }
@@ -7002,7 +7002,7 @@ MegaShareList *MegaApiImpl::getUnverifiedOutShares(int order)
             {
                 if (share.second->user && client->mKeyManager.isUnverifiedOutShare(n->nodehandle, toHandle(share.second->user->userhandle)))  // public links have no user
                 {
-                    nodeSharesMap[n->nodeHandle()].insert(share.second);
+                    nodeSharesMap[n->nodeHandle()].insert(share.second.get());  // not stored
                 }
             }
         }
@@ -7015,7 +7015,7 @@ MegaShareList *MegaApiImpl::getUnverifiedOutShares(int order)
                 if (share.second->pcr &&
                         client->mKeyManager.isUnverifiedOutShare(n->nodehandle, share.second->pcr->targetemail))
                 {
-                    nodeSharesMap[n->nodeHandle()].insert(share.second);
+                    nodeSharesMap[n->nodeHandle()].insert(share.second.get()); // not stored
                 }
             }
         }
@@ -10863,7 +10863,7 @@ MegaShareList* MegaApiImpl::getInSharesList(int order)
 
     for (Node *node : nodes)
     {
-        shares.push_back(node->inshare);
+        shares.push_back(node->inshare.get());  // not kept
         handles.push_back(node->nodehandle);
         verified.push_back(true);
     }
@@ -10946,7 +10946,7 @@ MegaShareList *MegaApiImpl::getOutShares(int order)
                 assert(!share.second->pcr);
                 if (share.second->user) // public links have no user
                 {
-                    nodeSharesMap[n->nodeHandle()].insert(share.second);
+                    nodeSharesMap[n->nodeHandle()].insert(share.second.get()); // not kept
                 }
             }
         }
@@ -10957,7 +10957,7 @@ MegaShareList *MegaApiImpl::getOutShares(int order)
             {
                 if (share.second->pcr)
                 {
-                    nodeSharesMap[n->nodeHandle()].insert(share.second);
+                    nodeSharesMap[n->nodeHandle()].insert(share.second.get());  // not kept
                 }
             }
         }
@@ -11014,7 +11014,7 @@ MegaShareList* MegaApiImpl::getOutShares(MegaNode *megaNode)
     {
         for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
         {
-            Share *share = it->second;
+            Share *share = it->second.get();  // temporary
             assert(!share->pcr);
             if (share->user)    // public links have no user
             {
@@ -11029,7 +11029,7 @@ MegaShareList* MegaApiImpl::getOutShares(MegaNode *megaNode)
     {
         for (share_map::iterator it = node->pendingshares->begin(); it != node->pendingshares->end(); it++)
         {
-            Share *share = it->second;
+            Share *share = it->second.get();  // temporary
             assert(share->pcr);
             assert(!share->user);
             if (share->pcr)
@@ -11061,7 +11061,7 @@ MegaShareList *MegaApiImpl::getPendingOutShares()
             if (share.second->pcr)
             {
                 handles.push_back(n->nodehandle);
-                shares.push_back(share.second);
+                shares.push_back(share.second.get());  // copied, not stored
                 verified.push_back(!client->mKeyManager.isUnverifiedOutShare(n->nodehandle, share.second->pcr->targetemail));
             }
         }
@@ -11088,7 +11088,7 @@ MegaShareList *MegaApiImpl::getPendingOutShares(MegaNode *megaNode)
     vector<byte> vVerified;
     for (share_map::iterator it = node->pendingshares->begin(); it != node->pendingshares->end(); it++)
     {
-        vShares.push_back(it->second);
+        vShares.push_back(it->second.get()); // not kept
         vHandles.push_back(node->nodehandle);
         vVerified.push_back(!client->mKeyManager.isUnverifiedOutShare(node->nodehandle, it->second->pcr->targetemail));
     }
