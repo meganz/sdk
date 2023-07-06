@@ -4381,6 +4381,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_RECOMMENDED_PRO_PLAN: return "GET_RECOMMENDED_PRO_PLAN";
         case TYPE_BACKUP_INFO: return "BACKUP_INFO";
         case TYPE_BACKUP_REMOVE_MD: return "BACKUP_REMOVE_MD";
+        case TYPE_AB_TEST_ACTIVE: return "AB_TEST_ACTIVE";
     }
     return "UNKNOWN";
 }
@@ -6334,6 +6335,31 @@ bool MegaApiImpl::appleVoipPushEnabled()
 bool MegaApiImpl::newLinkFormatEnabled()
 {
     return client->mNewLinkFormat;
+}
+
+unsigned int MegaApiImpl::getABTestValue(const char* flag)
+{
+    if (!flag) return 0;
+    SdkMutexGuard g(sdkMutex);
+    auto it = client->mABTestFlags.find(flag);
+    return (it != client->mABTestFlags.end() ? it->second : 0 );
+}
+
+void MegaApiImpl::sendABTestActive(const char* flag, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_AB_TEST_ACTIVE, listener);
+    request->setText(flag);
+
+    request->performRequest = [this, request]()
+    {
+        return client->sendABTestActive(request->getText(), [this, request](Error e)
+        {
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+        });
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 int MegaApiImpl::smsAllowedState()
@@ -14148,6 +14174,14 @@ void MegaApiImpl::notify_change_to_https()
 void MegaApiImpl::notify_confirmation(const char *email)
 {
     MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_ACCOUNT_CONFIRMATION);
+    event->setText(email);
+    fireOnEvent(event);
+}
+
+void MegaApiImpl::notify_confirm_user_email(handle user, const char* email)
+{
+    MegaEventPrivate* event = new MegaEventPrivate(MegaEvent::EVENT_CONFIRM_USER_EMAIL);
+    event->setHandle(user);
     event->setText(email);
     fireOnEvent(event);
 }
@@ -35314,6 +35348,7 @@ const char *MegaEventPrivate::getEventString(int type)
     {
         case MegaEvent::EVENT_COMMIT_DB: return "EVENT_COMMIT_DB";
         case MegaEvent::EVENT_ACCOUNT_CONFIRMATION: return "EVENT_ACCOUNT_CONFIRMATION";
+        case MegaEvent::EVENT_CONFIRM_USER_EMAIL: return "EVENT_CONFIRM_USER_EMAIL";
         case MegaEvent::EVENT_CHANGE_TO_HTTPS: return "EVENT_CHANGE_TO_HTTPS";
         case MegaEvent::EVENT_DISCONNECT: return "EVENT_DISCONNECT";
         case MegaEvent::EVENT_ACCOUNT_BLOCKED: return "EVENT_ACCOUNT_BLOCKED";

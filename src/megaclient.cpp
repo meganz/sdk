@@ -4898,6 +4898,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     aplvp_enabled = false;
     mNewLinkFormat = false;
     mCookieBannerEnabled = false;
+    mABTestFlags.clear();
     mProFlexi = false;
     mSmsVerificationState = SMS_STATE_UNKNOWN;
     mSmsVerifiedPhone.clear();
@@ -5649,6 +5650,11 @@ bool MegaClient::procsc()
                             case MAKENAMEID2('p', 'k'):
                                 // pending keys
                                 sc_pk();
+                                break;
+
+                            case MAKENAMEID3('u', 'e', 'c'):
+                                // User Email Confirm (uec)
+                                sc_uec();
                                 break;
                         }
                     }
@@ -8071,6 +8077,48 @@ void MegaClient::sc_uac()
     }
 }
 
+void MegaClient::sc_uec()
+{
+    handle u = UNDEF;
+    string email;
+
+    for (;;)
+    {
+        switch (jsonsc.getnameid())
+        {
+            case 'm':
+                jsonsc.storeobject(&email);
+                break;
+
+            case 'u':
+                u = jsonsc.gethandle(USERHANDLE);
+                break;
+
+            case EOO:
+                if (email.empty())
+                {
+                    LOG_warn << "Missing email address in `uec` action packet";
+                }
+                if (u == UNDEF)
+                {
+                    LOG_warn << "Missing user handle in `uec` action packet";
+                }
+                app->account_updated();
+                app->notify_confirm_user_email(u, email.c_str());
+                ephemeralSession = false;
+                ephemeralSessionPlusPlus = false;
+                return;
+
+            default:
+                if (!jsonsc.storeobject())
+                {
+                    LOG_warn << "Failed to parse `uec` action packet";
+                    return;
+                }
+        }
+    }
+}
+
 void MegaClient::sc_sqac()
 {
     m_off_t gb = -1;
@@ -10201,6 +10249,7 @@ error MegaClient::readmiscflags(JSON *json)
     bool journeyIdFound = false;
     while (1)
     {
+        string fieldName = json->getnameWithoutAdvance();
         switch (json->getnameid())
         {
         // mcs:1 --> MegaChat enabled
@@ -10264,7 +10313,21 @@ error MegaClient::readmiscflags(JSON *json)
             }
             return API_OK;
         default:
-            if (!json->storeobject())
+            if (fieldName.rfind("ab_", 0) == 0) // Starting with "ab_"
+            {
+                string tag = fieldName.substr(3); // The string after "ab_" prefix
+                int64_t value = json->getint();
+                if (value >= 0)
+                {
+                    mABTestFlags[tag] = static_cast<uint32_t>(value);
+                }
+                else
+                {
+                    LOG_err << "[MegaClient::readmiscflags] Invalid value for A/B Test flag";
+                    assert(value >= 0 && "A/B test value must be greater or equal to 0");
+                }
+            }
+            else if (!json->storeobject())
             {
                 return API_EINTERNAL;
             }
@@ -21506,6 +21569,11 @@ void MegaClient::clearsetelementnotify(handle sid)
     }
 }
 
+Error MegaClient::sendABTestActive(const char* flag, CommandABTestActive::Completion completion)
+{
+    reqs.add(new CommandABTestActive(this, flag, std::move(completion)));
+    return API_OK;
+}
 
 FetchNodesStats::FetchNodesStats()
 {

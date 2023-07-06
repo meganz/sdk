@@ -1875,8 +1875,20 @@ TEST_F(SdkTest, SdkTestCreateAccount)
         string conformLink = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, newTestAcc, MegaClient::confirmLinkPrefix(), timeOfConfirmEmail);
         ASSERT_FALSE(conformLink.empty()) << "Confirmation link was not found.";
 
+        // create another connection to confirm the account
+        megaApi.resize(2);
+        mApi.resize(2);
+        ASSERT_NO_FATAL_FAILURE(configureTestInstance(1, bufRealEmail, bufRealPswd));
+
+        PerApi& initialConn = mApi[0];
+        initialConn.resetlastEvent();
+
         // Use confirmation link
-        ASSERT_EQ(API_OK, synchronousConfirmSignupLink(0, conformLink.c_str(), origTestPwd));
+        ASSERT_EQ(API_OK, synchronousConfirmSignupLink(1, conformLink.c_str(), origTestPwd));
+
+        // check for event triggered by 'uec' action packet received after the confirmation
+        EXPECT_TRUE(WaitFor([&initialConn]() { return initialConn.lastEventsContain(MegaEvent::EVENT_CONFIRM_USER_EMAIL); }, 10000))
+            << "EVENT_CONFIRM_USER_EMAIL event triggered by 'uec' action packet was not received";
     }
 
     // Login to the new account
@@ -7007,11 +7019,19 @@ TEST_F(SdkTest, SdkSimpleCommands)
     ASSERT_EQ(API_OK, err) << "Fetch time zone failed (error: " << err << ")";
     ASSERT_TRUE(mApi[0].tzDetails && mApi[0].tzDetails->getNumTimeZones()) << "Invalid Time Zone details"; // some simple validation
 
-    // getMiscFlags() -- not logged in
+    // getABTestValue() -- logged in.
+    ASSERT_GE(megaApi[0]->getABTestValue("devtest"), 1u);
+    ASSERT_EQ(megaApi[0]->getABTestValue("devtest_inexistent_flag"), 0u);
+
     logout(0, false, maxTimeout);
     gSessionIDs[0] = "invalid";
+
+    // getMiscFlags() -- not logged in
     err = synchronousGetMiscFlags(0);
     ASSERT_EQ(API_OK, err) << "Get misc flags failed (error: " << err << ")";
+
+    // getABTestValue() -- not logged in
+    ASSERT_EQ(megaApi[0]->getABTestValue("devtest"), 0u);
 
     // getUserEmail() test
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -7021,6 +7041,9 @@ TEST_F(SdkTest, SdkSimpleCommands)
     err = synchronousGetUserEmail(0, user->getHandle());
     ASSERT_EQ(API_OK, err) << "Get user email failed (error: " << err << ")";
     ASSERT_NE(mApi[0].email.find('@'), std::string::npos); // some simple validation
+
+    // sendABTestActive()
+    ASSERT_EQ(API_OK, syncSendABTestActive(0, "devtest"));
 
     // cleanRubbishBin() test (accept both success and already empty statuses)
     err = synchronousCleanRubbishBin(0);
@@ -7736,6 +7759,14 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
         }
     }
     ASSERT_NE(backupId, INVALID_HANDLE) << "2nd backup could not be found";
+
+    // Wait for other API to see the backup destination
+    auto bkpDestOK = [this, differentApiIdx, &moveDest]()
+    {
+        unique_ptr<MegaNode> bd(megaApi[differentApiIdx]->getNodeByHandle(moveDest));
+        return bd != nullptr;
+    };
+    ASSERT_TRUE(WaitFor(bkpDestOK, 60000)) << "Other API could not see the backup destination after 60 seconds";
 
     // Request backup removal (and move its contents) from a different connection
     RequestTracker removeBackupTracker2(megaApi[differentApiIdx].get());
@@ -13923,7 +13954,21 @@ TEST_F(SdkTest, GetRecommendedProLevel)
     int level = -1;
     int err = synchronousGetRecommendedProLevel(0, level);
     ASSERT_EQ(err, API_OK) << "synchronousGetRecommendedProLevel() failed: " << err << ": " << MegaError::getErrorString(err);
-    ASSERT_EQ(level, MegaAccountDetails::ACCOUNT_TYPE_LITE);
+    err = synchronousGetPricing(0);
+    ASSERT_EQ(err, API_OK) << "synchronousGetPricing() failed: " << err << ": " << MegaError::getErrorString(err);
+
+    bool liteAvailable = false;
+    for (int i = 0; i < mApi[0].mMegaPricing->getNumProducts(); ++i)
+    {
+        if (mApi[0].mMegaPricing->getProLevel(i) == MegaAccountDetails::ACCOUNT_TYPE_LITE)
+        {
+            LOG_debug << "GetRecommendedProLevel: ACCOUNT_TYPE_LITE is available.";
+            liteAvailable = true;
+            break;
+        }
+    }
+
+    ASSERT_EQ(level, liteAvailable ? MegaAccountDetails::ACCOUNT_TYPE_LITE : MegaAccountDetails::ACCOUNT_TYPE_PROI);
 }
 
 /**

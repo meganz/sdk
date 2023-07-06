@@ -4435,7 +4435,8 @@ class MegaRequest
             TYPE_GET_RECOMMENDED_PRO_PLAN                                   = 168,
             TYPE_BACKUP_INFO                                                = 169,
             TYPE_BACKUP_REMOVE_MD                                           = 170,
-            TOTAL_OF_REQUEST_TYPES                                          = 171,
+            TYPE_AB_TEST_ACTIVE                                             = 171,
+            TOTAL_OF_REQUEST_TYPES                                          = 172,
         };
 
         virtual ~MegaRequest();
@@ -5316,6 +5317,7 @@ public:
         EVENT_FATAL_ERROR               = 17, // Notify fatal error to user (may require to reload)
         EVENT_UPGRADE_SECURITY          = 18, // Account upgraded. Cryptography relies now on keys attribute information.
         EVENT_DOWNGRADE_ATTACK          = 19, // A downgrade attack has been detected. Removed shares may have reappeared. Please tread carefully.
+        EVENT_CONFIRM_USER_EMAIL        = 20, // Ephemeral account confirmed the associated email
     };
 
     enum
@@ -8135,6 +8137,13 @@ class MegaGlobalListener
          *   Valid data in the MegaEvent object received in the callback:
          *      - MegaEvent::getText: email address used to confirm the account
          *
+         *  - MegaEvent::EVENT_CONFIRM_USER_EMAIL: when a new account is finally confirmed
+         * by confirming the signup link.
+         *
+         *   Valid data in the MegaEvent object received in the callback:
+         *      - MegaEvent::getHandle: user handle for the confirmed account
+         *      - MegaEvent::getText: email address used to confirm the account
+         *
          *  - MegaEvent::EVENT_CHANGE_TO_HTTPS: when the SDK automatically starts using HTTPS for all
          * its communications. This happens when the SDK is able to detect that MEGA servers can't be
          * reached using HTTP or that HTTP communications are being tampered. Transfers of files and
@@ -8742,6 +8751,13 @@ class MegaListener
          * by the user by confirming the signup link.
          *
          *   Valid data in the MegaEvent object received in the callback:
+         *      - MegaEvent::getText: email address used to confirm the account
+         *
+         *  - MegaEvent::EVENT_CONFIRM_USER_EMAIL: when a new account is finally confirmed
+         * by confirming the signup link.
+         *
+         *   Valid data in the MegaEvent object received in the callback:
+         *      - MegaEvent::getHandle: user handle for the confirmed account
          *      - MegaEvent::getText: email address used to confirm the account
          *
          *  - MegaEvent::EVENT_CHANGE_TO_HTTPS: when the SDK automatically starts using HTTPS for all
@@ -9709,6 +9725,33 @@ class MegaApi
         bool newLinkFormatEnabled();
 
         /**
+         * @brief Get the value of an A/B Test flag
+         *
+         * Any value greater than 0 means he flag is active.
+         *
+         * @param flag Name or key of the value to be retrieved.
+         *
+         * @return An unsigned integer with the value of the flag.
+         */
+        unsigned int getABTestValue(const char* flag);
+
+        /**
+         * @brief Sends to the API an A/B Test flag activation.
+         *
+         * Informs the API that a user has become relevant for an A/B Test flag.
+         * Can be called multiple times for the same account and flag.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_AB_TEST_ACTIVE
+         *
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getText - Returns the flag passed as parameter
+         *
+         * @param flag Flag to be be sent to the API as active.
+         * @param listener MegaRequestListener to track this request
+         */
+        void sendABTestActive(const char* flag, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Check if the opt-in or account unblocking SMS is allowed
          *
          * The result indicated whether the MegaApi::sendSMSVerificationCode function can be used.
@@ -10525,8 +10568,8 @@ class MegaApi
          * - MegaRequest::getEmail - Email of the account
          * - MegaRequest::getName - Name of the user
          *
-         * As a result of a successfull confirmation, the app will receive the callback
-         * MegaListener::onEvent and MegaGlobalListener::onEvent with an event of type
+         * As a result of a successful confirmation, the app will receive callbacks
+         * MegaListener::onEvent and MegaGlobalListener::onEvent with events of type
          * MegaEvent::EVENT_ACCOUNT_CONFIRMATION. You can check the email used to confirm
          * the account by checking MegaEvent::getText. @see MegaListener::onEvent.
          *
