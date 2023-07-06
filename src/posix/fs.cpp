@@ -109,6 +109,16 @@ using namespace std;
 
 bool PosixFileAccess::mFoundASymlink = false;
 
+void FileSystemAccess::setMinimumDirectoryPermissions(int permissions)
+{
+    mMinimumDirectoryPermissions = permissions & 07777;
+}
+
+void FileSystemAccess::setMinimumFilePermissions(int permissions)
+{
+    mMinimumFilePermissions = permissions & 07777;
+}
+
 #ifdef USE_IOS
 
 const string adjustBasePath(const LocalPath& name)
@@ -213,7 +223,7 @@ PosixFileAccess::~PosixFileAccess()
     }
 }
 
-bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
+bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size, FSLogging)
 {
 #ifdef USE_IOS
     const string nameStr = adjustBasePath(nonblocking_localname);
@@ -257,7 +267,7 @@ bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
     return false;
 }
 
-bool PosixFileAccess::sysopen(bool)
+bool PosixFileAccess::sysopen(bool, FSLogging fsl)
 {
     assert(fd < 0 && "There should be no opened file descriptor at this point");
     errorcode = 0;
@@ -274,7 +284,10 @@ bool PosixFileAccess::sysopen(bool)
     if (fd < 0)
     {
         errorcode = errno;
-        LOG_err_if(!isErrorFileNotFound(errorcode)) << "Failed to open('" << adjustBasePath(nonblocking_localname) << "'): error " << errorcode << ": " << getErrorMessage(errorcode);
+        if (fsl.doLog(errorcode, *this))
+        {
+            LOG_err << "Failed to open('" << adjustBasePath(nonblocking_localname) << "'): error " << errorcode << ": " << getErrorMessage(errorcode);
+        }
     }
 
     return fd >= 0;
@@ -348,10 +361,10 @@ void PosixFileAccess::asyncsysopen(AsyncIOContext *context)
 {
 #ifdef HAVE_AIO_RT
     context->failed = !fopen(context->openPath, context->access & AsyncIOContext::ACCESS_READ,
-                             context->access & AsyncIOContext::ACCESS_WRITE);
+                             context->access & AsyncIOContext::ACCESS_WRITE, FSLogging::logOnError);
     if (context->failed)
     {
-        LOG_err_if(!isErrorFileNotFound(errorcode)) << "Failed to fopen('" << context->openPath << "'): error " << errorcode << ": " << getErrorMessage(errorcode);
+        LOG_err << "Failed to fopen('" << context->openPath << "'): error " << errorcode << ": " << getErrorMessage(errorcode);
     }
     context->retry = retry;
     context->finished = true;
@@ -520,7 +533,7 @@ int PosixFileAccess::stealFileDescriptor()
     return toret;
 }
 
-bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, DirAccess* iteratingDir, bool, bool skipcasecheck, LocalPath* actualLeafNameIfDifferent)
+bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, FSLogging fsl, DirAccess* iteratingDir, bool, bool skipcasecheck, LocalPath* actualLeafNameIfDifferent)
 {
     struct stat statbuf;
 
@@ -658,7 +671,10 @@ bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, DirAccess
     if (fd < 0)
     {
         errorcode = errno; // streaming may set errno
-        LOG_err_if(!isErrorFileNotFound(errorcode)) << "Failed to open('" << fstr << "'): error " << errorcode << ": " << getErrorMessage(errorcode) << (statok ? " (statok so may still open ok)" : "");
+        if (fsl.doLog(errorcode, *this))
+        {
+            LOG_err << "Failed to open('" << fstr << "'): error " << errorcode << ": " << getErrorMessage(errorcode) << (statok ? " (statok so may still open ok)" : "");
+        }
     }
     if (fd >= 0 || statok)
     {
@@ -1129,7 +1145,10 @@ int PosixFileSystemAccess::getdefaultfilepermissions()
 
 void PosixFileSystemAccess::setdefaultfilepermissions(int permissions)
 {
-    defaultfilepermissions = permissions | 0600;
+    // Sanitize permissions.
+    permissions &= 07777;
+
+    defaultfilepermissions = permissions | mMinimumFilePermissions;
 }
 
 int PosixFileSystemAccess::getdefaultfolderpermissions()
@@ -1139,7 +1158,10 @@ int PosixFileSystemAccess::getdefaultfolderpermissions()
 
 void PosixFileSystemAccess::setdefaultfolderpermissions(int permissions)
 {
-    defaultfolderpermissions = permissions | 0700;
+    // Sanitize permissions.
+    permissions &= 07777;
+
+    defaultfolderpermissions = permissions | mMinimumDirectoryPermissions;
 }
 
 bool PosixFileSystemAccess::rmdirlocal(const LocalPath& name)
@@ -1883,7 +1905,7 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
         // Can we avoid recomputing this file's fingerprint?
         if (it != known.end() && reuse(result, it->second))
         {
-            result.fingerprint = move(it->second.fingerprint);
+            result.fingerprint = std::move(it->second.fingerprint);
             continue;
         }
 

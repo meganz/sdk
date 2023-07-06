@@ -424,6 +424,21 @@ public:
 
     static std::string stringToHex(const std::string& input);
     static std::string hexToString(const std::string& input);
+    /**
+     * @brief Converts a hexadecimal string to a uint64_t value. The input string may or may not have the hex prefix "0x".
+     *
+     * @param input The hexadecimal string to be converted (ex: "78b1bbbda5f32526", "0x10FF, "0x0001")
+     * @return The uint64_t value corresponding to the input hexadecimal string.
+    */
+    static uint64_t hexStringToUint64(const std::string &input);
+    /**
+     * @brief Converts a 8-byte numeric value to a 16-character lowercase hexadecimal string, with zero-padding if necessary.
+     *
+     * @param input The uint64_t value to be converted to a hexadecimal string.
+     * @return A 16-character lowercase hexadecimal string representation of the input value (ex: "78b1bbbda5f32526").
+     *
+    */
+    static std::string uint64ToHexString(uint64_t input);
 
     static int32_t toLower(const int32_t c)
     {
@@ -656,6 +671,10 @@ class SymmCipher;
 std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, FileAccess &ifAccess, const int64_t iv);
 
 std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &isAccess, const int64_t iv);
+
+bool CompareLocalFileMetaMacWithNodeKey(FileAccess* fa, const std::string& nodeKey, int type);
+
+bool CompareLocalFileMetaMacWithNode(FileAccess* fa, Node* node);
 
 // Helper class for MegaClient.  Suitable for expansion/templatizing for other use caes.
 // Maintains a small thread pool for executing independent operations such as encrypt/decrypt a block of data
@@ -1015,6 +1034,9 @@ struct SyncTransferCounts
 
 // creates a new id filling `id` with random bytes, up to `length`
 void resetId(char *id, size_t length, PrnGen& rng);
+
+// returns the direction type of a connection
+string connDirectionToStr(direction_t directionType);
 
 } // namespace mega
 

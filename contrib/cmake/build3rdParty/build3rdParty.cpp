@@ -150,7 +150,7 @@ try
                     auto patch = patches.find(portname);
                     if (patch != patches.end()) {
                         cout << "Applying patch " << patch->second.u8string() << " for port " << portname << "\n";
-                        execute("git apply --verbose --directory=ports/" + portname + " " + patch->second.u8string());
+                        execute("git apply --verbose --ignore-whitespace --directory=ports/" + portname + " " + patch->second.u8string());
                     }
                     fs::current_path(vcpkgDir);
                 }
@@ -206,9 +206,9 @@ try
             for (auto portPair : ports)
             {
                 #ifdef WIN32
-                    execute("vcpkg install --triplet " + triplet + " " + portPair.first + featurePackages[portPair.first]);
+                    execute("vcpkg install --triplet " + triplet + " --host-triplet "  + triplet + " " + portPair.first + featurePackages[portPair.first]);
                 #else
-                    execute("./vcpkg install --triplet " + triplet + " " + portPair.first + featurePackages[portPair.first]);
+                    execute("./vcpkg install --triplet " + triplet + " --host-triplet "  + triplet + " " + portPair.first + featurePackages[portPair.first]);
                 #endif
             }
         }

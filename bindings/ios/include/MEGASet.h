@@ -23,12 +23,12 @@
 
 #import <Foundation/Foundation.h>
 
-typedef NS_ENUM (NSInteger, MEGASetChangeType) {
-    MEGASetChangeTypeNew       = 0x01,
-    MEGASetChangeTypeName      = 0x02,
-    MEGASetChangeTypeCover     = 0x04,
-    MEGASetChangeTypeRemoved   = 0x08,
-    MEGASetChangeTypeExported  = 0x10
+typedef NS_ENUM(NSUInteger, MEGASetChangeType) {
+    MEGASetChangeTypeNew           = 0x01,
+    MEGASetChangeTypeName          = 0x02,
+    MEGASetChangeTypeCover         = 0x04,
+    MEGASetChangeTypeRemoved       = 0x08,
+    MEGASetChangeTypeExported      = 0x10
 };
 
 NS_ASSUME_NONNULL_BEGIN
@@ -109,21 +109,30 @@ NS_ASSUME_NONNULL_BEGIN
  * - MEGASetChangeTypeNew                  = 0x01
  * Check if the Set was new
  *
- * - MEGASetChangeTypeName                 = 0x02
+ * - MEGASetChangeTypeName                = 0x02
  * Check if Set name has changed
  *
  * - MEGASetChangeTypeCover                = 0x04
  * Check if Set cover has changed
  *
- * - MEGASetChangeTypeRemoved              = 0x08
+ * - MEGASetChangeTypeRemoved          = 0x08
  * Check if the Set was removed
  *
- * - MEGASetChangeTypeExported             = 0x10
+ * - MEGASetChangeTypeExported           = 0x10
  * Check if the Set was exported or disabled (i.e. exporting ended)
  *
  * @return YES if this Set has a specific change
  */
 - (BOOL)hasChangedType:(MEGASetChangeType)changeType;
+
+/**
+ * @brief Returns changes  for MEGASet
+ *
+ * Note that the position of each bit matches the MEGASetChangeType value
+ *
+ * @return combination of changes in
+ */
+- (MEGASetChangeType)changes;
 
 /**
  * @brief Returns true if this Set is exported (can be accessed via public link)

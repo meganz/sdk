@@ -77,29 +77,29 @@ export BUILD_SDKROOT="${BUILD_DEVROOT}/SDKs/${PLATFORM}${SDKVERSION}.sdk"
 RUNTARGET=""
 if [[ "${ARCH}" == "arm64"  && "$PLATFORM" == "iPhoneSimulator" ]];
 then
-RUNTARGET="-target ${ARCH}-apple-ios13.0-simulator"
+RUNTARGET="-target ${ARCH}-apple-ios14.0-simulator"
 fi
 
 export CC="${BUILD_TOOLS}/usr/bin/gcc -arch ${ARCH}"
-mkdir -p "${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk"
+mkdir -p "${CURRENTPATH}/bin/zenlib/${PLATFORM}${SDKVERSION}-${ARCH}.sdk"
+mkdir -p "${CURRENTPATH}/bin/mediainfo/${PLATFORM}${SDKVERSION}-${ARCH}.sdk"
 
 # Build
-export LDFLAGS="-Os -arch ${ARCH} -Wl,-dead_strip -miphoneos-version-min=13.0 -L${BUILD_SDKROOT}/usr/lib"
-export CFLAGS="-Os -arch ${ARCH} -pipe -no-cpp-precomp -isysroot ${BUILD_SDKROOT} -miphoneos-version-min=13.0 -DMEDIAINFO_ADVANCED_NO ${RUNTARGET}"
+export LDFLAGS="-Os -arch ${ARCH} -Wl,-dead_strip -miphoneos-version-min=14.0"
+export CFLAGS="-Os -arch ${ARCH} -pipe -no-cpp-precomp -isysroot ${BUILD_SDKROOT} -miphoneos-version-min=14.0 -DMEDIAINFO_ADVANCED_NO ${RUNTARGET}"
 export CPPFLAGS="${CFLAGS} -I${BUILD_SDKROOT}/usr/include -DNDEBUG"
 export CXXFLAGS="${CPPFLAGS}"
 
 sh autogen.sh
 
 if [ "${ARCH}" == "arm64" ]; then
-./configure --host=arm-apple-darwin --disable-shared --disable-archive
+./configure --prefix="${CURRENTPATH}/bin/zenlib/${PLATFORM}${SDKVERSION}-${ARCH}.sdk" --host=arm-apple-darwin --disable-shared --disable-archive
 else
-./configure --host=${ARCH}-apple-darwin --disable-shared --disable-archive
+./configure --prefix="${CURRENTPATH}/bin/zenlib/${PLATFORM}${SDKVERSION}-${ARCH}.sdk" --host=${ARCH}-apple-darwin --disable-shared --disable-archive
 fi
 
 make -j${CORES}
-
-cp -f .libs/libzen.a ${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk/
+make install
 
 popd
 
@@ -115,14 +115,14 @@ echo "${bold}Building mediainfo for $PLATFORM $ARCH${normal}"
 sh autogen.sh
 
 if [ "${ARCH}" == "arm64" ]; then
-./configure --host=arm-apple-darwin --disable-shared --enable-minimize-size --enable-minimal --disable-archive --disable-image --disable-tag --disable-text --disable-swf --disable-flv --disable-hdsf4m --disable-cdxa --disable-dpg --disable-pmp --disable-rm --disable-wtv --disable-mxf --disable-dcp --disable-aaf --disable-bdav --disable-bdmv --disable-dvdv --disable-gxf --disable-mixml --disable-skm --disable-nut --disable-tsp --disable-hls --disable-dxw --disable-dvdif --disable-dashmpd --disable-aic --disable-avsv --disable-canopus --disable-ffv1 --disable-flic --disable-huffyuv --disable-prores --disable-y4m --disable-adpcm --disable-amr --disable-amv --disable-ape --disable-au --disable-la --disable-celt --disable-midi --disable-mpc --disable-openmg --disable-pcm --disable-ps2a --disable-rkau --disable-speex --disable-tak --disable-tta --disable-twinvq --disable-references
+./configure --prefix="${CURRENTPATH}/bin/mediainfo/${PLATFORM}${SDKVERSION}-${ARCH}.sdk" --host=arm-apple-darwin --disable-shared --enable-minimize-size --enable-minimal --disable-archive --disable-image --disable-tag --disable-text --disable-swf --disable-flv --disable-hdsf4m --disable-cdxa --disable-dpg --disable-pmp --disable-rm --disable-wtv --disable-mxf --disable-dcp --disable-aaf --disable-bdav --disable-bdmv --disable-dvdv --disable-gxf --disable-mixml --disable-skm --disable-nut --disable-tsp --disable-hls --disable-dxw --disable-dvdif --disable-dashmpd --disable-aic --disable-avsv --disable-canopus --disable-ffv1 --disable-flic --disable-huffyuv --disable-prores --disable-y4m --disable-adpcm --disable-amr --disable-amv --disable-ape --disable-au --disable-la --disable-celt --disable-midi --disable-mpc --disable-openmg --disable-pcm --disable-ps2a --disable-rkau --disable-speex --disable-tak --disable-tta --disable-twinvq --disable-references
 else
-./configure --host=${ARCH}-apple-darwin --disable-shared --enable-minimize-size --enable-minimal --disable-archive --disable-image --disable-tag --disable-text --disable-swf --disable-flv --disable-hdsf4m --disable-cdxa --disable-dpg --disable-pmp --disable-rm --disable-wtv --disable-mxf --disable-dcp --disable-aaf --disable-bdav --disable-bdmv --disable-dvdv --disable-gxf --disable-mixml --disable-skm --disable-nut --disable-tsp --disable-hls --disable-dxw --disable-dvdif --disable-dashmpd --disable-aic --disable-avsv --disable-canopus --disable-ffv1 --disable-flic --disable-huffyuv --disable-prores --disable-y4m --disable-adpcm --disable-amr --disable-amv --disable-ape --disable-au --disable-la --disable-celt --disable-midi --disable-mpc --disable-openmg --disable-pcm --disable-ps2a --disable-rkau --disable-speex --disable-tak --disable-tta --disable-twinvq --disable-references
+./configure --prefix="${CURRENTPATH}/bin/mediainfo/${PLATFORM}${SDKVERSION}-${ARCH}.sdk" --host=${ARCH}-apple-darwin --disable-shared --enable-minimize-size --enable-minimal --disable-archive --disable-image --disable-tag --disable-text --disable-swf --disable-flv --disable-hdsf4m --disable-cdxa --disable-dpg --disable-pmp --disable-rm --disable-wtv --disable-mxf --disable-dcp --disable-aaf --disable-bdav --disable-bdmv --disable-dvdv --disable-gxf --disable-mixml --disable-skm --disable-nut --disable-tsp --disable-hls --disable-dxw --disable-dvdif --disable-dashmpd --disable-aic --disable-avsv --disable-canopus --disable-ffv1 --disable-flic --disable-huffyuv --disable-prores --disable-y4m --disable-adpcm --disable-amr --disable-amv --disable-ape --disable-au --disable-la --disable-celt --disable-midi --disable-mpc --disable-openmg --disable-pcm --disable-ps2a --disable-rkau --disable-speex --disable-tak --disable-tta --disable-twinvq --disable-references
 fi
 
 make -j${CORES}
-
-cp -f .libs/libmediainfo.a ${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk/
+make install
+make clean
 
 popd
 
@@ -130,25 +130,21 @@ done
 
 mkdir xcframework || true
 
-lipo -create ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-x86_64.sdk/libzen.a ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-arm64.sdk/libzen.a -output ${CURRENTPATH}/bin/libzen.a
+echo "${bold}Lipo library for x86_64 and arm64 simulators for zenlib ${normal}"
+
+lipo -create ${CURRENTPATH}/bin/zenlib/iPhoneSimulator${SDKVERSION}-x86_64.sdk/lib/libzen.a ${CURRENTPATH}/bin/zenlib/iPhoneSimulator${SDKVERSION}-arm64.sdk/lib/libzen.a -output ${CURRENTPATH}/bin/zenlib/libzen.a
 
 echo "${bold}Creating libzen xcframework ${normal}"
 
-xcodebuild -create-xcframework -library ${CURRENTPATH}/bin/libzen.a -library ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-arm64.sdk/libzen.a -output ${CURRENTPATH}/xcframework/libzen.xcframework
+xcodebuild -create-xcframework -library ${CURRENTPATH}/bin/zenlib/libzen.a -headers ${CURRENTPATH}/bin/zenlib/iPhoneSimulator${SDKVERSION}-arm64.sdk/include -library  ${CURRENTPATH}/bin/zenlib/iPhoneOS${SDKVERSION}-arm64.sdk/lib/libzen.a -headers ${CURRENTPATH}/bin/zenlib/iPhoneOS${SDKVERSION}-arm64.sdk/include -output ${CURRENTPATH}/xcframework/libzen.xcframework
 
-lipo -create ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-x86_64.sdk/libmediainfo.a ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-arm64.sdk/libmediainfo.a -output ${CURRENTPATH}/bin/libmediainfo.a
+echo "${bold}Lipo library for x86_64 and arm64 simulators for mediainfo ${normal}"
+
+lipo -create ${CURRENTPATH}/bin/mediainfo/iPhoneSimulator${SDKVERSION}-x86_64.sdk/lib/libmediainfo.a ${CURRENTPATH}/bin/mediainfo/iPhoneSimulator${SDKVERSION}-arm64.sdk/lib/libmediainfo.a -output ${CURRENTPATH}/bin/mediainfo/libmediainfo.a
 
 echo "${bold}Creating libmediainfo xcframework ${normal}"
 
-xcodebuild -create-xcframework -library ${CURRENTPATH}/bin/libmediainfo.a -library ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-arm64.sdk/libmediainfo.a -output ${CURRENTPATH}/xcframework/libmediainfo.xcframework
-
-rm -rf include/ZenLib
-mkdir include/ZenLib
-cp -fR ZenLib/Source/ZenLib/*.h include/ZenLib/
-
-rm -rf include/MediaInfo
-mkdir include/MediaInfo
-cp -fR MediaInfoLib-${MEDIAINFO_VERSION}/Source/MediaInfo/*.h include/MediaInfo
+xcodebuild -create-xcframework -library ${CURRENTPATH}/bin/mediainfo/libmediainfo.a -headers ${CURRENTPATH}/bin/mediainfo/iPhoneSimulator${SDKVERSION}-arm64.sdk/include -library  ${CURRENTPATH}/bin/mediainfo/iPhoneOS${SDKVERSION}-arm64.sdk/lib/libmediainfo.a -headers ${CURRENTPATH}/bin/mediainfo/iPhoneOS${SDKVERSION}-arm64.sdk/include -output ${CURRENTPATH}/xcframework/libmediainfo.xcframework
  
 echo "${bold}Cleaning up ${normal}"
 
@@ -156,5 +152,5 @@ rm -rf bin
 rm -rf MediaInfoLib-${MEDIAINFO_VERSION}
 rm -rf ZenLib
 
-echo "Done."
+echo "${bold}Done.${normal}"
 

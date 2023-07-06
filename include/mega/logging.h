@@ -101,7 +101,14 @@
 
 // define MEGA_QT_LOGGING to support QString
 #ifdef MEGA_QT_LOGGING
-    #include <QString>
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+#endif
+#include <QString>
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 #endif
 
 #include "mega/utils.h"
@@ -660,12 +667,6 @@ std::ostream& operator <<(std::ostream&, const std::error_code&);
 #define LOG_fatal \
     ::mega::SimpleLogger(::mega::logFatal, ::mega::log_file_leafname(__FILE__), __LINE__)
 
-// LOG_err if the condition is true otherwise LOG_warning
-// condition may be evaluated twice
-#define LOG_err_if(condition) \
-    if (::mega::SimpleLogger::logCurrentLevel >= ((condition) ? ::mega::logError : ::mega::logWarning)) \
-        ::mega::SimpleLogger((condition) ? ::mega::logError : ::mega::logWarning, ::mega::log_file_leafname(__FILE__), __LINE__)
-
 #if (defined(ANDROID) || defined(__ANDROID__))
 inline void crashlytics_log(const char* msg)
 {
@@ -699,11 +700,20 @@ public:
 #endif
     ) override;
 
+    // Do not use this unless you know what you are doing!
+    //
+    // This is an unfortunate workaround for cases when multiple connections/clients add
+    // each its own logger to the same target (i.e. file), leading to duplicated messages
+    // being logged consecutively.
+    // This for example has happened in MegaChat's automated tests.
+    void useOnlyFirstLogger(bool onlyFirst = true) { useOnlyFirstMegaLogger = onlyFirst; }
+
 private:
     std::recursive_mutex mutex;
     map<void*, LogCallback> megaLoggers;
     bool logToConsole;
     bool alreadyLogging = false;
+    bool useOnlyFirstMegaLogger = false;
 };
 
 

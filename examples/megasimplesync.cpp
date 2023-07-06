@@ -58,6 +58,7 @@ struct Login
             }
             else
             {
+                client->saveV1Pwd(password.c_str()); // for automatic upgrade to V2
                 client->login(email.c_str(), pwkey, pin.c_str());
             }
         }
@@ -80,13 +81,13 @@ class SyncApp : public MegaApp, public Logger
     handle cwd;
     bool initial_fetch;
 
-    void prelogin_result(int version, string* email, string *salt, error e);
+    void prelogin_result(int version, string* email, string *salt, error e) override;
 
-    void login_result(error e);
+    void login_result(error e) override;
 
-    void fetchnodes_result(const Error& e);
+    void fetchnodes_result(const Error& e) override;
 
-    void request_error(error e);
+    void request_error(error e) override;
 
 #ifdef ENABLE_SYNC
     void syncupdate_stateconfig(const SyncConfig& config) override;
@@ -103,7 +104,7 @@ public:
         #ifdef ENABLE_LOG_PERFORMANCE
             , const char **directMessages = nullptr, size_t *directMessagesSizes = nullptr, unsigned numberMessages = 0
         #endif
-    );
+    ) override;
 };
 
 // globals
@@ -431,7 +432,7 @@ void SyncApp::fetchnodes_result(const Error &e)
             {
 #ifdef ENABLE_SYNC
                 SyncConfig syncConfig(LocalPath::fromAbsolutePath(local_folder), local_folder, NodeHandle().set6byte(n->nodehandle), remote_folder, 0, LocalPath());
-                client->addsync(move(syncConfig), false,
+                client->addsync(std::move(syncConfig), false,
                                 [](error err, const SyncError& serr, handle backupId) {
                     if (err)
                     {

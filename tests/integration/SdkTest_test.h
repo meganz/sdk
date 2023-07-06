@@ -72,7 +72,7 @@ struct TransferTracker : public ::mega::MegaTransferListener
         finished = true;
 
         // this local version still valid even after we self-delete
-        std::promise<ErrorCodes> local_promise = move(promiseResult);
+        std::promise<ErrorCodes> local_promise = std::move(promiseResult);
 
         if (selfDeleteOnFinalCallback)
         {
@@ -121,6 +121,15 @@ struct RequestTracker : public ::mega::MegaRequestListener
         : mApi(api)
         , onFinish(finish)
     {
+    }
+
+    ~RequestTracker() override
+    {
+        if (!finished)
+        {
+            assert(mApi);
+            mApi->removeRequestListener(this);
+        }
     }
 
     void onRequestStart(MegaApi* api, MegaRequest *request) override
@@ -313,6 +322,7 @@ public:
     std::vector<PerApi> mApi;
     std::vector<std::unique_ptr<MegaApi>> megaApi;
 
+    m_off_t onTransferStart_progress;
     m_off_t onTransferUpdate_progress;
     m_off_t onTransferUpdate_filesize;
     unsigned onTranferFinishedCount = 0;
@@ -329,6 +339,8 @@ protected:
     bool checkAlert(int apiIndex, const string& title, const string& path);
     bool checkAlert(int apiIndex, const string& title, handle h, int64_t n = -1, MegaHandle mh = INVALID_HANDLE);
 
+    void testPrefs(const std::string& title, int type);
+
 #ifdef ENABLE_CHAT
     void delSchedMeetings();
 #endif
@@ -339,7 +351,7 @@ protected:
     void onRequestUpdate(MegaApi*api, MegaRequest *request) override {}
     void onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e) override;
     void onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* error) override {}
-    void onTransferStart(MegaApi *api, MegaTransfer *transfer) override { }
+    void onTransferStart(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* e) override;
     void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* error) override {}
@@ -372,7 +384,7 @@ public:
     void fetchnodes(unsigned int apiIndex, int timeout = maxTimeout);
     void logout(unsigned int apiIndex, bool keepSyncConfigs, int timeout);
     char* dumpSession();
-    void locallogout(int timeout = maxTimeout);
+    void locallogout(unsigned apiIndex = 0);
     void resumeSession(const char *session, int timeout = maxTimeout);
 
     void purgeTree(unsigned int apiIndex, MegaNode *p, bool depthfirst = true);
@@ -414,12 +426,11 @@ public:
     template<typename ... Args> int synchronousRemoveBackup(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_BACKUP_REMOVE, [this, apiIndex, args...]() { megaApi[apiIndex]->removeBackup(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousSendBackupHeartbeat(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_BACKUP_PUT_HEART_BEAT, [this, apiIndex, args...]() { megaApi[apiIndex]->sendBackupHeartbeat(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousSetMyBackupsFolder(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SET_MY_BACKUPS, [this, apiIndex, args...]() { megaApi[apiIndex]->setMyBackupsFolder(args...); }); return mApi[apiIndex].lastError; }
-    template<typename ... Args> int synchronousSetDeviceName(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->setDeviceName(args...); }); return mApi[apiIndex].lastError; }
-    template<typename ... Args> int synchronousGetDeviceName(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_GET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->getDeviceName(args...); }); return mApi[apiIndex].lastError; }
-    template<typename ... Args> int synchronousSetDriveName(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->setDriveName(args...); }); return mApi[apiIndex].lastError; }
-    template<typename ... Args> int synchronousGetDriveName(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_GET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->getDriveName(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousSetUserAlias(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->setUserAlias(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousGetUserAlias(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_GET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->getUserAlias(args...); }); return mApi[apiIndex].lastError; }
+    template<typename ... Args> int synchronousFolderInfo(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_FOLDER_INFO, [this, apiIndex, args...]() { megaApi[apiIndex]->getFolderInfo(args...); }); return mApi[apiIndex].lastError; }
+    // do not add functions using this pattern, see comment at top of this stanza
+
 
     // *** USE THESE ONES INSTEAD ***
     // convenience functions - make a request and wait for the result via listener, return the result code.  To add new functions to call, just copy the line
@@ -432,12 +443,18 @@ public:
     template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestLocalLogout(MegaApi *api, requestArgs... args) { auto rt = ::mega::make_unique<RequestTracker>(api); api->localLogout(args..., rt.get()); return rt; }
     template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestFetchnodes(unsigned apiIndex, requestArgs... args) { auto rt = ::mega::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->fetchNodes(args..., rt.get()); return rt; }
     template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestFetchnodes(MegaApi *api, requestArgs... args) { auto rt = ::mega::make_unique<RequestTracker>(api); api->fetchNodes(args..., rt.get()); return rt; }
+    template<typename ... requestArgs> int doGetDeviceName(unsigned apiIndex, string* dvc) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->getDeviceName(&rt); auto e = rt.waitForResult(); if (dvc && e == API_OK) *dvc = rt.request->getName(); return e; }
+    template<typename ... requestArgs> int doSetDeviceName(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setDeviceName(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int doGetDriveName(unsigned apiIndex, string* drv, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->getDriveName(args..., &rt); auto e = rt.waitForResult(); if (drv && e == API_OK) *drv = rt.request->getName(); return e; }
+    template<typename ... requestArgs> int doSetDriveName(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setDriveName(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int doRequestLogout(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->logout(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int doRequestLocalLogout(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->localLogout(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int doSetNodeDuration(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setNodeDuration(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int doStartUpload(unsigned apiIndex, MegaHandle* newNodeHandleResult, requestArgs... args) { TransferTracker tt(megaApi[apiIndex].get()); megaApi[apiIndex]->startUpload(args..., &tt); auto e = tt.waitForResult(); if (newNodeHandleResult) *newNodeHandleResult = tt.resultNodeHandle; return e;}
     template<typename ... requestArgs> int doStartDownload(unsigned apiIndex, requestArgs... args) { TransferTracker tt(megaApi[apiIndex].get()); megaApi[apiIndex]->startDownload(args..., &tt); auto e = tt.waitForResult(); return e;}
     template<typename ... requestArgs> int doSetFileVersionsOption(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setFileVersionsOption(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int doRemoveVersion(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->removeVersion(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int doRemoveVersions(unsigned apiIndex) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->removeVersions(&rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int doMoveNode(unsigned apiIndex, MegaHandle* movedNodeHandle, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->moveNode(args..., &rt); rt.waitForResult(); if (movedNodeHandle) *movedNodeHandle = rt.getNodeHandle(); return rt.result; }
     template<typename ... requestArgs> int doCopyNode(unsigned apiIndex, MegaHandle* newNodeResult, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->copyNode(args..., &rt); rt.waitForResult(); if (newNodeResult) *newNodeResult = rt.getNodeHandle(); return rt.result; }
     template<typename ... requestArgs> int doRenameNode(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->renameNode(args..., &rt); return rt.waitForResult(); }
@@ -468,7 +485,6 @@ public:
     template<typename ... requestArgs> int synchronousReplyContactRequest(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get());  megaApi[apiIndex]->replyContactRequest(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousVerifyCredentials(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get());  megaApi[apiIndex]->verifyCredentials(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousResetCredentials(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get());  megaApi[apiIndex]->resetCredentials(args..., &rt); return rt.waitForResult(); }
-    template<typename ... Args> int synchronousFolderInfo(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_FOLDER_INFO, [this, apiIndex, args...]() { megaApi[apiIndex]->getFolderInfo(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... requestArgs> int synchronousRemove(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->remove(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int doCreateSet(unsigned apiIndex, MegaSet** s, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->createSet(args..., &rt); rt.waitForResult(); if (s && rt.request->getMegaSet()) *s = rt.request->getMegaSet()->copy(); return rt.result; }
     template<typename ... requestArgs> int doUpdateSetName(unsigned apiIndex, MegaHandle* id, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->updateSetName(args..., &rt); rt.waitForResult(); if (id) *id = rt.request->getParentHandle(); return rt.result; }
@@ -529,6 +545,18 @@ public:
     template<typename ... requestArgs> int synchronousSetAvatar(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setAvatar(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousRemoveContact(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->removeContact(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousShare(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->share(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int synchronousResetPassword(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->resetPassword(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int synchronousConfirmResetPassword(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->confirmResetPassword(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int synchronousGetRecommendedProLevel(unsigned apiIndex, int& recommendedLevel, requestArgs... args) {
+        RequestTracker rt(megaApi[apiIndex].get());
+        megaApi[apiIndex]->getRecommendedProLevel(args..., &rt);
+        int err = rt.waitForResult();
+        if (err == API_OK) recommendedLevel = (int)rt.request->getNumber();
+        return err;
+    }
+    template<typename ... requestArgs> int synchronousChangeEmail(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->changeEmail(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int synchronousConfirmChangeEmail(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->confirmChangeEmail(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int syncSendABTestActive(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->sendABTestActive(args..., &rt); return rt.waitForResult(); }
 
     // Checkup methods called from MegaApi callbacks
     void onNodesUpdateCheck(size_t apiIndex, MegaHandle target, MegaNodeList* nodes, int change, bool& flag);
@@ -536,6 +564,7 @@ public:
     bool createFile(string filename, bool largeFile = true, string content = "test ");
     int64_t getFilesize(string filename);
     void deleteFile(string filename);
+    void deleteFolder(string foldername);
 
     void getAccountsForTest(unsigned howMany = 1);
     void configureTestInstance(unsigned index, const std::string& email, const std::string pass);

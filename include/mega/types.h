@@ -400,7 +400,7 @@ class Cacheable
 public:
     virtual ~Cacheable() = default;
 
-    virtual bool serialize(string*) = 0;
+    virtual bool serialize(string*) const = 0;
 
     uint32_t dbid = 0;
     bool notified = false;
@@ -686,7 +686,7 @@ typedef enum { TREESTATE_NONE = 0,
                TREESTATE_SYNCED,
                TREESTATE_PENDING,
                TREESTATE_SYNCING,
-			   TREESTATE_IGNORED,
+               TREESTATE_IGNORED,
                } treestate_t;
 
 typedef enum { TRANSFERSTATE_NONE = 0, TRANSFERSTATE_QUEUED, TRANSFERSTATE_ACTIVE, TRANSFERSTATE_PAUSED,
@@ -743,6 +743,8 @@ typedef enum {
     //ATTR_DRIVE_NAMES = 35,                // (merged with ATTR_DEVICE_NAMES and removed) private - byte array - versioned
     ATTR_NO_CALLKIT = 36,                   // private, non-encrypted - char array in B64 - non-versioned
     ATTR_KEYS = 37,                         // private, non-encrypted (but encrypted to derived key from MK) - binary blob, non-versioned
+    ATTR_APPS_PREFS = 38,                   // private - byte array - versioned (apps preferences)
+    ATTR_CC_PREFS   = 39,                   // private - byte array - versioned (content consumption preferences)
 
 } attr_t;
 typedef map<attr_t, string> userattr_map;
@@ -843,6 +845,7 @@ typedef enum {
     REASON_ERROR_UNSERIALIZE_NODE   = 1,
     REASON_ERROR_DB_IO              = 2,
     REASON_ERROR_DB_FULL            = 3,
+    REASON_ERROR_DB_INDEX_OVERFLOW  = 4,
 } ErrorReason;
 
 // inside 'mega' namespace, since use C++11 and can't rely on C++14 yet, provide make_unique for the most common case.
@@ -974,7 +977,7 @@ public:
     CacheableStatus(Type type, int64_t value);
 
     // serializes the object to a string
-    bool serialize(string* data) override;
+    bool serialize(string* data) const override;
 
     // deserializes the string to a SyncConfig object. Returns null in case of failure
     // returns a pointer to the unserialized value, owned by MegaClient passed as parameter
@@ -988,9 +991,6 @@ public:
     static string typeToStr(Type type);
 
 private:
-
-    // need this to ensure serialization doesn't mutate state (Cacheable::serialize is non-const)
-    bool serialize(std::string& data) const;
 
     Type mType = STATUS_UNKNOWN;
     int64_t mValue = 0;

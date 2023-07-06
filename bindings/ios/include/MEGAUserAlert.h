@@ -51,13 +51,13 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertType) {
 };
 
 typedef NS_ENUM(NSInteger, MEGAUserAlertScheduledMeetingChangeType) {
-    MEGAUserAlertScheduledMeetingChangeTypeTitle,        // Title has changed
-    MEGAUserAlertScheduledMeetingChangeTypeDescription,  // Description has changed
-    MEGAUserAlertScheduledMeetingChangeTypeCancelled,    // Cancelled flag has changed
-    MEGAUserAlertScheduledMeetingChangeTypeTimeZone,     // Timezone has changed
-    MEGAUserAlertScheduledMeetingChangeTypeStartDate,    // Start date time has changed
-    MEGAUserAlertScheduledMeetingChangeTypeEndDate,      // End date time has changed
-    MEGAUserAlertScheduledMeetingChangeTypeRules,        // Repetition rules have changed
+    MEGAUserAlertScheduledMeetingChangeTypeTitle        = 0x01, // Title has changed
+    MEGAUserAlertScheduledMeetingChangeTypeDescription  = 0x02, // Description has changed
+    MEGAUserAlertScheduledMeetingChangeTypeCancelled    = 0x04, // Cancelled flag has changed
+    MEGAUserAlertScheduledMeetingChangeTypeTimeZone     = 0x08, // Timezone has changed
+    MEGAUserAlertScheduledMeetingChangeTypeStartDate    = 0x10, // Start date time has changed
+    MEGAUserAlertScheduledMeetingChangeTypeEndDate      = 0x20, // End date time has changed
+    MEGAUserAlertScheduledMeetingChangeTypeRules        = 0x40, // Repetition rules have changed
 };
 
 

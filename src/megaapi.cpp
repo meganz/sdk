@@ -537,17 +537,17 @@ bool MegaNode::isRemoved()
     return false;
 }
 
-bool MegaNode::isMarkedSensitive() 
+bool MegaNode::isMarkedSensitive()
 {
     return false;
 }
 
-bool MegaNode::hasChanged(int /*changeType*/)
+bool MegaNode::hasChanged(uint64_t /*changeType*/)
 {
     return false;
 }
 
-int MegaNode::getChanges()
+uint64_t MegaNode::getChanges()
 {
     return 0;
 }
@@ -703,12 +703,12 @@ int64_t MegaUser::getTimestamp()
     return 0;
 }
 
-bool MegaUser::hasChanged(int)
+bool MegaUser::hasChanged(uint64_t)
 {
     return false;
 }
 
-int MegaUser::getChanges()
+uint64_t MegaUser::getChanges()
 {
     return 0;
 }
@@ -810,7 +810,7 @@ MegaHandle MegaUserAlert::getSchedId() const
     return INVALID_HANDLE;
 }
 
-bool MegaUserAlert::hasSchedMeetingChanged(int) const
+bool MegaUserAlert::hasSchedMeetingChanged(uint64_t) const
 {
     return false;
 }
@@ -1143,6 +1143,11 @@ MegaSet* MegaRequest::getMegaSet() const
 }
 
 MegaSetElementList* MegaRequest::getMegaSetElementList() const
+{
+    return nullptr;
+}
+
+MegaBackupInfoList* MegaRequest::getMegaBackupInfoList() const
 {
     return nullptr;
 }
@@ -1620,7 +1625,8 @@ void MegaRequestListener::onRequestUpdate(MegaApi *, MegaRequest *)
 { }
 void MegaRequestListener::onRequestTemporaryError(MegaApi *, MegaRequest *, MegaError *)
 { }
-MegaRequestListener::~MegaRequestListener() {}
+MegaRequestListener::~MegaRequestListener()
+{ }
 
 
 SynchronousRequestListener::SynchronousRequestListener()
@@ -1830,6 +1836,8 @@ void MegaListener::onSyncDeleted(MegaApi *, MegaSync *)
 { }
 void MegaListener::onSyncStateChanged(MegaApi *, MegaSync *)
 { }
+void MegaListener::onSyncStatsUpdated(MegaApi *api, MegaSyncStats* syncStats)
+{ }
 void MegaListener::onGlobalSyncStateChanged(MegaApi *)
 { }
 #endif
@@ -1936,6 +1944,11 @@ void MegaApi::acknowledgeUserAlerts(MegaRequestListener *listener)
 char *MegaApi::getMyEmail()
 {
     return pImpl->getMyEmail();
+}
+
+void MegaApi::getRecommendedProLevel(MegaRequestListener* listener)
+{
+    pImpl->getRecommendedProLevel(listener);
 }
 
 int64_t MegaApi::getAccountCreationTs()
@@ -2047,11 +2060,6 @@ void MegaApi::removeLoggerObject(MegaLogger *megaLogger, bool singleExclusiveLog
     MegaApiImpl::removeLoggerClass(megaLogger, singleExclusiveLogger);
 }
 
-void MegaApi::setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter)
-{
-    pImpl->setFilenameAnomalyReporter(reporter);
-}
-
 void MegaApi::log(int logLevel, const char *message, const char *filename, int line)
 {
     MegaApiImpl::log(logLevel, message, filename, line);
@@ -2065,11 +2073,6 @@ void MegaApi::setLoggingName(const char* loggingName)
 long long MegaApi::getSDKtime()
 {
     return pImpl->getSDKtime();
-}
-
-char *MegaApi::getStringHash(const char* base64pwkey, const char* inBuf)
-{
-    return pImpl->getStringHash(base64pwkey, inBuf);
 }
 
 void MegaApi::getSessionTransferURL(const char *path, MegaRequestListener *listener)
@@ -2147,6 +2150,16 @@ bool MegaApi::newLinkFormatEnabled()
     return pImpl->newLinkFormatEnabled();
 }
 
+unsigned int MegaApi::getABTestValue(const char* flag)
+{
+    return pImpl->getABTestValue(flag);
+}
+
+void MegaApi::sendABTestActive(const char* flag, MegaRequestListener *listener)
+{
+    pImpl->sendABTestActive(flag, listener);
+}
+
 int MegaApi::smsAllowedState()
 {
     return pImpl->smsAllowedState();
@@ -2220,11 +2233,6 @@ void MegaApi::fetchTimeZoneFromLocal(MegaRequestListener* listener)
 void MegaApi::addEntropy(char *data, unsigned int size)
 {
     pImpl->addEntropy(data, size);
-}
-
-void MegaApi::fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener)
-{
-    pImpl->fastLogin(email, stringHash, base64pwkey,listener);
 }
 
 void MegaApi::fastLogin(const char *session, MegaRequestListener *listener)
@@ -2347,11 +2355,6 @@ void MegaApi::resendSignupLink(const char *email, const char *name, MegaRequestL
     pImpl->resendSignupLink(email, name, listener);
 }
 
-void MegaApi::fastSendSignupLink(const char *email, const char *base64pwkey, const char *name, MegaRequestListener *listener)
-{
-    pImpl->fastSendSignupLink(email, base64pwkey, name, listener);
-}
-
 void MegaApi::querySignupLink(const char* link, MegaRequestListener *listener)
 {
     pImpl->querySignupLink(link, listener);
@@ -2360,11 +2363,6 @@ void MegaApi::querySignupLink(const char* link, MegaRequestListener *listener)
 void MegaApi::confirmAccount(const char* link, const char *password, MegaRequestListener *listener)
 {
     pImpl->confirmAccount(link, password, listener);
-}
-
-void MegaApi::fastConfirmAccount(const char* link, const char *base64pwkey, MegaRequestListener *listener)
-{
-    pImpl->fastConfirmAccount(link, base64pwkey, listener);
 }
 
 void MegaApi::resetPassword(const char *email, bool hasMasterKey, MegaRequestListener *listener)
@@ -2670,6 +2668,11 @@ char *MegaApi::getUserAvatarSecondaryColor(const char *userhandle)
 void MegaApi::setAvatar(const char *dstFilePath, MegaRequestListener *listener)
 {
     pImpl->setAvatar(dstFilePath, listener);
+}
+
+char* MegaApi::getPrivateKey(int type)
+{
+    return pImpl->getPrivateKey(type);
 }
 
 bool MegaApi::testAllocation(unsigned allocCount, size_t allocSize)
@@ -3037,7 +3040,7 @@ MegaScheduledFlags::~MegaScheduledFlags()
 
 void MegaScheduledFlags::reset()                                {}
 bool MegaScheduledFlags::isEmpty() const                        { return false; }
-unsigned long MegaScheduledFlags::getNumericValue() const       {return 0;}
+unsigned long MegaScheduledFlags::getNumericValue() const       { return ScheduledFlags::schedEmptyFlags; }
 
 /* Class MegaScheduledRules */
 MegaScheduledRules* MegaScheduledRules::createInstance(int freq,
@@ -3203,7 +3206,12 @@ void MegaApi::submitFeedback(int rating, const char *comment, MegaRequestListene
 
 void MegaApi::sendEvent(int eventType, const char *message, MegaRequestListener *listener)
 {
-    pImpl->sendEvent(eventType, message, listener);
+    pImpl->sendEvent(eventType, message, false, nullptr, listener);
+}
+
+void MegaApi::sendEvent(int eventType, const char *message, bool addJourneyId, const char *viewId, MegaRequestListener *listener)
+{
+    pImpl->sendEvent(eventType, message, addJourneyId, viewId, listener);
 }
 
 void MegaApi::createSupportTicket(const char *message, int type, MegaRequestListener *listener)
@@ -3431,9 +3439,9 @@ void MegaApi::startUploadForChat(const char *localPath, MegaNode *parent, const 
                        true /*forceNewUpload*/, FS_UNKNOWN, CancelToken(), listener);
 }
 
-void MegaApi::startDownload(MegaNode* node, const char* localPath, const char *customName, const char *appData, bool startFirst, MegaCancelToken *cancelToken, MegaTransferListener *listener)
+void MegaApi::startDownload(MegaNode* node, const char* localPath, const char *customName, const char *appData, bool startFirst, MegaCancelToken *cancelToken, int collisionCheck, int collisionResolution, MegaTransferListener *listener)
 {
-    pImpl->startDownload(startFirst, node, localPath, customName, 0 /*folderTransferTag*/, appData, convertToCancelToken(cancelToken), listener);
+    pImpl->startDownload(startFirst, node, localPath, customName, 0 /*folderTransferTag*/, appData, convertToCancelToken(cancelToken), collisionCheck, collisionResolution, listener);
 }
 
 void MegaApi::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
@@ -3966,10 +3974,10 @@ bool MegaApi::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, bool re
 }
 
 MegaNode *MegaApi::createForeignFileNode(MegaHandle handle, const char *key,
-                                    const char *name, int64_t size, int64_t mtime,
+                                    const char *name, int64_t size, int64_t mtime, const char* fingerprintCrc,
                                         MegaHandle parentHandle, const char *privateAuth, const char *publicAuth, const char *chatAuth)
 {
-    return pImpl->createForeignFileNode(handle, key, name, size, mtime, parentHandle, privateAuth, publicAuth, chatAuth);
+    return pImpl->createForeignFileNode(handle, key, name, size, mtime, fingerprintCrc, parentHandle, privateAuth, publicAuth, chatAuth);
 }
 
 void MegaApi::getLastAvailableVersion(const char *appKey, MegaRequestListener *listener)
@@ -4047,6 +4055,11 @@ void MegaApi::changeApiUrl(const char *apiURL, bool disablepkp)
 bool MegaApi::setLanguage(const char *languageCode)
 {
     return pImpl->setLanguage(languageCode);
+}
+
+const char* MegaApi::generateViewId()
+{
+    return strdup(pImpl->generateViewId().c_str());
 }
 
 void MegaApi::setLanguagePreference(const char *languageCode, MegaRequestListener *listener)
@@ -4293,31 +4306,6 @@ void MegaApi::removeTransferListener(MegaTransferListener* listener)
 void MegaApi::removeGlobalListener(MegaGlobalListener* listener)
 {
     pImpl->removeGlobalListener(listener);
-}
-
-MegaRequest *MegaApi::getCurrentRequest()
-{
-    return pImpl->getCurrentRequest();
-}
-
-MegaTransfer *MegaApi::getCurrentTransfer()
-{
-    return pImpl->getCurrentTransfer();
-}
-
-MegaError *MegaApi::getCurrentError()
-{
-    return pImpl->getCurrentError();
-}
-
-MegaNodeList *MegaApi::getCurrentNodes()
-{
-    return pImpl->getCurrentNodes();
-}
-
-MegaUserList *MegaApi::getCurrentUsers()
-{
-    return pImpl->getCurrentUsers();
 }
 
 MegaError MegaApi::checkAccess(MegaNode* megaNode, int level)
@@ -5722,6 +5710,16 @@ void MegaApi::removeBackup(MegaHandle backupId, MegaRequestListener *listener)
     pImpl->removeBackup(backupId, listener);
 }
 
+void MegaApi::removeFromBC(MegaHandle backupId, MegaHandle moveDestination, MegaRequestListener* listener)
+{
+    pImpl->removeFromBC(backupId, moveDestination, listener);
+}
+
+void MegaApi::getBackupInfo(MegaRequestListener* listener)
+{
+    pImpl->getBackupInfo(listener);
+}
+
 void MegaApi::sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode, MegaRequestListener *listener)
 {
     pImpl->sendBackupHeartbeat(backupId, status, progress, ups, downs, ts, lastNode, listener);
@@ -6868,12 +6866,12 @@ unsigned char MegaTextChat::getChatOptions() const
     return 0;
 }
 
-bool MegaTextChat::hasChanged(int) const
+bool MegaTextChat::hasChanged(uint64_t) const
 {
     return false;
 }
 
-int MegaTextChat::getChanges() const
+uint64_t MegaTextChat::getChanges() const
 {
     return 0;
 }

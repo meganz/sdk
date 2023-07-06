@@ -96,6 +96,14 @@ private:
     HANDLE mHandle;
 };
 
+void FileSystemAccess::setMinimumDirectoryPermissions(int)
+{
+}
+
+void FileSystemAccess::setMinimumFilePermissions(int)
+{
+}
+
 int platformCompareUtf(const string& p1, bool unescape1, const string& p2, bool unescape2)
 {
     return compareUtf(p1, unescape1, p2, unescape2, true);
@@ -249,7 +257,7 @@ m_time_t FileTime_to_POSIX(FILETIME* ft)
     return t;
 }
 
-bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
+bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size, FSLogging fsl)
 {
     assert(!nonblocking_localname.empty());
     WIN32_FILE_ATTRIBUTE_DATA fad;
@@ -258,7 +266,10 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
     if (!GetFileAttributesExW(nonblocking_localname.localpath.c_str(), GetFileExInfoStandard, (LPVOID)&fad))
     {
         DWORD e = GetLastError();
-        LOG_warn << "Unable to stat: GetFileAttributesExW('" << nonblocking_localname << "'): error code: " << e << ": " << getErrorMessage(e);
+        if (fsl.doLog(e, *this))
+        {
+            LOG_warn << "Unable to stat: GetFileAttributesExW('" << nonblocking_localname << "'): error code: " << e << ": " << getErrorMessage(e);
+        }
         errorcode = e;
         retry = WinFileSystemAccess::istransient(e);
         return false;
@@ -285,11 +296,11 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
     return true;
 }
 
-bool WinFileAccess::sysopen(bool async)
+bool WinFileAccess::sysopen(bool async, FSLogging fsl)
 {
     assert(hFile == INVALID_HANDLE_VALUE);
     assert(!nonblocking_localname.empty());
-    
+
     if (hFile != INVALID_HANDLE_VALUE)
     {
         sysclose();
@@ -303,7 +314,10 @@ bool WinFileAccess::sysopen(bool async)
     {
         DWORD e = GetLastError();
         errorcode = e;
-        LOG_err_if(!isErrorFileNotFound(e)) << "Unable to open file '" << nonblocking_localname << "': (CreateFileW). Error code: " << e << ": " << getErrorMessage(e);
+        if (fsl.doLog(errorcode, *this))
+        {
+            LOG_err << "Unable to open file '" << nonblocking_localname << "': (CreateFileW). Error code: " << e << ": " << getErrorMessage(e);
+        }
         retry = WinFileSystemAccess::istransient(e);
         return false;
     }
@@ -394,7 +408,7 @@ void WinFileAccess::asyncsysopen(AsyncIOContext *context)
     bool read = context->access & AsyncIOContext::ACCESS_READ;
     bool write = context->access & AsyncIOContext::ACCESS_WRITE;
 
-    context->failed = !fopen_impl(context->openPath, read, write, true, nullptr, false, false, nullptr);
+    context->failed = !fopen_impl(context->openPath, read, write, FSLogging::logOnError, true, nullptr, false, false, nullptr);
     context->retry = retry;
     context->finished = true;
     if (context->userCallback)
@@ -518,13 +532,15 @@ bool WinFileAccess::skipattributes(DWORD dwAttributes)
 // CreateFile() operation without first looking at the attributes?
 // FIXME #2: How to convert a CreateFile()-opened directory directly to a hFind
 // without doing a FindFirstFile()?
-bool WinFileAccess::fopen(const LocalPath& name, bool read, bool write, DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck, LocalPath* actualLeafNameIfDifferent)
+bool WinFileAccess::fopen(const LocalPath& name, bool read, bool write, FSLogging fsl,
+                          DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck, LocalPath* actualLeafNameIfDifferent)
 {
-    fopenSucceeded = fopen_impl(name, read, write, false, iteratingDir, ignoreAttributes, skipcasecheck, actualLeafNameIfDifferent);
+    fopenSucceeded = fopen_impl(name, read, write, fsl, false, iteratingDir, ignoreAttributes, skipcasecheck, actualLeafNameIfDifferent);
     return fopenSucceeded;
 }
 
-bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write, bool async, DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck, LocalPath* actualLeafNameIfDifferent)
+bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write, FSLogging fsl,
+                               bool async, DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck, LocalPath* actualLeafNameIfDifferent)
 {
     WIN32_FIND_DATA fad = { 0 };
     assert(hFile == INVALID_HANDLE_VALUE);
@@ -585,7 +601,7 @@ bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write,
 
             if (actualFilename != namePath.leafName())
             {
-                *actualLeafNameIfDifferent = move(actualFilename);
+                *actualLeafNameIfDifferent = std::move(actualFilename);
             }
         }
 
@@ -644,7 +660,10 @@ bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write,
     if (hFile == INVALID_HANDLE_VALUE)
     {
         DWORD e = GetLastError();
-        LOG_err_if(!isErrorFileNotFound(e)) << "Unable to open file. '" << namePath << "' error code : " << e << " : " << getErrorMessage(e);
+        if (fsl.doLog(e, *this))
+        {
+            LOG_err << "Unable to open file. '" << namePath << "' error code : " << e << " : " << getErrorMessage(e);
+        }
         errorcode = e;
         retry = WinFileSystemAccess::istransient(e);
         return false;
@@ -718,7 +737,7 @@ bool WinFileSystemAccess::cwd(LocalPath& path) const
         buf.pop_back();
     }
 
-    path = LocalPath::fromPlatformEncodedAbsolute(move(buf));
+    path = LocalPath::fromPlatformEncodedAbsolute(std::move(buf));
 
     return nWritten > 0;
 }
@@ -1832,7 +1851,7 @@ ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path, handle expe
                     assert(wstr.back() != 0);
                     if (wstr != result.localname.localpath)
                     {
-                        result.shortname.reset(new LocalPath(LocalPath::fromPlatformEncodedRelative(move(wstr))));
+                        result.shortname.reset(new LocalPath(LocalPath::fromPlatformEncodedRelative(std::move(wstr))));
                     }
                 }
 
@@ -1868,7 +1887,7 @@ ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path, handle expe
                         LocalPath p = path;
                         p.appendWithSeparator(result.localname, false);
                         auto fa = newfileaccess();
-                        if (fa->fopen(p, true, false))
+                        if (fa->fopen(p, true, false, FSLogging::logOnError))
                         {
                             result.fingerprint.genfingerprint(fa.get());
                             nFingerprinted += 1;
@@ -1881,7 +1900,7 @@ ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path, handle expe
                     }
                 }
 
-                results.push_back(move(result));
+                results.push_back(std::move(result));
             }
         }
         while (GetFileInformationByHandleEx( rightTypeHandle.get(),

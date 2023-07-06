@@ -22,6 +22,10 @@
 #ifndef MEGAUSERNOTIFICATIONS_H
 #define MEGAUSERNOTIFICATIONS_H 1
 
+#include "json.h"
+#include "utils.h"
+#include <bitset>
+
 namespace mega {
 
 struct UserAlertRaw
@@ -139,7 +143,7 @@ namespace UserAlert
             bool seen = false;
         } pst;
 
-        bool serialize(string*) override;
+        bool serialize(string*) const override;
         static unique_ptr<Persistent> readBase(CacheableReader& r);
         static unique_ptr<Persistent> unserialize(string*);
         friend Base* unserializeNewUpdSched(string*, unsigned id);
@@ -162,7 +166,7 @@ namespace UserAlert
 
         virtual void text(string& header, string& title, MegaClient* mc) override;
 
-        bool serialize(string*) override;
+        bool serialize(string*) const override;
         static IncomingPendingContact* unserialize(string*, unsigned id);
     };
 
@@ -175,7 +179,7 @@ namespace UserAlert
         virtual void text(string& header, string& title, MegaClient* mc) override;
         virtual bool checkprovisional(handle ou, MegaClient* mc) override;
 
-        bool serialize(string*) override;
+        bool serialize(string*) const override;
         static ContactChange* unserialize(string*, unsigned id);
     };
 
@@ -187,7 +191,7 @@ namespace UserAlert
         UpdatedPendingContactIncoming(int s, handle uh, const string& email, m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc) override;
 
-        bool serialize(string*) override;
+        bool serialize(string*) const override;
         static UpdatedPendingContactIncoming* unserialize(string*, unsigned id);
     };
 
@@ -199,7 +203,7 @@ namespace UserAlert
         UpdatedPendingContactOutgoing(int s, handle uh, const string& email, m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc) override;
 
-        bool serialize(string*) override;
+        bool serialize(string*) const override;
         static UpdatedPendingContactOutgoing* unserialize(string*, unsigned id);
     };
 
@@ -211,7 +215,7 @@ namespace UserAlert
         NewShare(handle h, handle uh, const string& email, m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc) override;
 
-        bool serialize(string*) override;
+        bool serialize(string*) const override;
         static NewShare* unserialize(string*, unsigned id);
     };
 
@@ -227,7 +231,7 @@ namespace UserAlert
         virtual void text(string& header, string& title, MegaClient* mc) override;
         virtual void updateEmail(MegaClient* mc) override;
 
-        bool serialize(string*) override;
+        bool serialize(string*) const override;
         static DeletedShare* unserialize(string*, unsigned id);
     };
 
@@ -243,7 +247,7 @@ namespace UserAlert
 
         virtual void text(string& header, string& title, MegaClient* mc) override;
 
-        bool serialize(string*) override;
+        bool serialize(string*) const override;
         static NewSharedNodes* unserialize(string*, unsigned id);
     };
 
@@ -257,7 +261,7 @@ namespace UserAlert
 
         virtual void text(string& header, string& title, MegaClient* mc) override;
 
-        bool serialize(string*) override;
+        bool serialize(string*) const override;
         static RemovedSharedNode* unserialize(string*, unsigned id);
     };
 
@@ -270,7 +274,7 @@ namespace UserAlert
                           vector<handle>&& handles);
         virtual void text(string& header, string& title, MegaClient* mc) override;
 
-        bool serialize(string*) override;
+        bool serialize(string*) const override;
         static UpdatedSharedNode* unserialize(string*, unsigned id);
     };
 
@@ -284,7 +288,7 @@ namespace UserAlert
         virtual void text(string& header, string& title, MegaClient* mc) override;
         string getProPlanName();
 
-        bool serialize(string*) override;
+        bool serialize(string*) const override;
         static Payment* unserialize(string*, unsigned id);
     };
 
@@ -295,7 +299,7 @@ namespace UserAlert
         PaymentReminder(m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc) override;
 
-        bool serialize(string*) override;
+        bool serialize(string*) const override;
         static PaymentReminder* unserialize(string*, unsigned id);
     };
 
@@ -309,7 +313,7 @@ namespace UserAlert
         Takedown(bool down, bool reinstate, int t, handle nh, m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc) override;
 
-        bool serialize(string*) override;
+        bool serialize(string*) const override;
         static Takedown* unserialize(string*, unsigned id);
     };
 
@@ -331,7 +335,7 @@ namespace UserAlert
             {}
 
         virtual void text(string& header, string& title, MegaClient* mc) override;
-        bool serialize(string* d) override;
+        bool serialize(string* d) const override;
         static NewScheduledMeeting* unserialize(string*, unsigned id);
     };
 
@@ -342,15 +346,15 @@ namespace UserAlert
         public:
             enum
             {
-                CHANGE_TYPE_TITLE,
-                CHANGE_TYPE_DESCRIPTION,
-                CHANGE_TYPE_CANCELLED,
-                CHANGE_TYPE_TIMEZONE,
-                CHANGE_TYPE_STARTDATE,
-                CHANGE_TYPE_ENDDATE,
-                CHANGE_TYPE_RULES,
+                CHANGE_TYPE_TITLE       = 0x01,
+                CHANGE_TYPE_DESCRIPTION = 0x02,
+                CHANGE_TYPE_CANCELLED   = 0x04,
+                CHANGE_TYPE_TIMEZONE    = 0x08,
+                CHANGE_TYPE_STARTDATE   = 0x10,
+                CHANGE_TYPE_ENDDATE     = 0x20,
+                CHANGE_TYPE_RULES       = 0x40,
 
-                CHANGE_TYPE_SIZE
+                CHANGE_TYPE_SIZE        = 7 // remember to update this when adding new values
             };
             struct StrChangeset { string oldValue, newValue; };
             struct TsChangeset  { m_time_t oldValue, newValue; };
@@ -359,16 +363,14 @@ namespace UserAlert
             const StrChangeset* getUpdatedTimeZone() const      { return mUpdatedTimeZone.get(); }
             const TsChangeset* getUpdatedStartDateTime() const  { return mUpdatedStartDateTime.get(); }
             const TsChangeset* getUpdatedEndDateTime() const    { return mUpdatedEndDateTime.get(); }
-            unsigned long getChanges() const                    { return mUpdatedFields.to_ulong(); }
-            bool hasChanged(int changeType) const
+            uint64_t getChanges() const                         { return mUpdatedFields.to_ullong(); }
+            bool hasChanged(uint64_t changeType) const
             {
-                return isValidChange(changeType)
-                        ? mUpdatedFields[changeType]
-                        : false;
+                return getChanges() & changeType;
             }
 
-            string changeToString(int changeType) const;
-            void addChange(int changeType, StrChangeset* = nullptr, TsChangeset* = nullptr);
+            string changeToString(uint64_t changeType) const;
+            void addChange(uint64_t changeType, StrChangeset* = nullptr, TsChangeset* = nullptr);
             Changeset() = default;
             Changeset(const std::bitset<CHANGE_TYPE_SIZE>& _bs,
                       unique_ptr<StrChangeset>& _titleCS,
@@ -393,16 +395,12 @@ namespace UserAlert
              */
             bool invariant() const
             {
+                const auto changes = getChanges();
                 return (mUpdatedFields.size() == CHANGE_TYPE_SIZE
-                        && (!mUpdatedFields[CHANGE_TYPE_TITLE]     || !!mUpdatedTitle)
-                        && (!mUpdatedFields[CHANGE_TYPE_TIMEZONE]  || !!mUpdatedTimeZone)
-                        && (!mUpdatedFields[CHANGE_TYPE_STARTDATE] || !!mUpdatedStartDateTime)
-                        && (!mUpdatedFields[CHANGE_TYPE_ENDDATE]   || !!mUpdatedEndDateTime));
-            }
-
-            bool isValidChange(int changeType) const
-            {
-                return static_cast<unsigned>(changeType) < static_cast<unsigned>(CHANGE_TYPE_SIZE);
+                        && (!(changes & CHANGE_TYPE_TITLE)     || mUpdatedTitle)
+                        && (!(changes & CHANGE_TYPE_TIMEZONE)  || mUpdatedTimeZone)
+                        && (!(changes & CHANGE_TYPE_STARTDATE) || mUpdatedStartDateTime)
+                        && (!(changes & CHANGE_TYPE_ENDDATE)   || mUpdatedEndDateTime));
             }
 
             void replaceCurrent(const Changeset& src)
@@ -450,7 +448,7 @@ namespace UserAlert
             {}
 
         virtual void text(string& header, string& title, MegaClient* mc) override;
-        bool serialize(string*) override;
+        bool serialize(string*) const override;
         static UpdatedScheduledMeeting* unserialize(string*, unsigned id);
     };
 
@@ -466,7 +464,7 @@ namespace UserAlert
             {}
 
         virtual void text(string& header, string& title, MegaClient* mc) override;
-        bool serialize(string* d) override;
+        bool serialize(string* d) const override;
         static DeletedScheduledMeeting* unserialize(string*, unsigned id);
     };
 #endif

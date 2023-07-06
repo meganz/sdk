@@ -693,23 +693,8 @@ Node *Node::unserialize(MegaClient& client, const std::string *d, bool fromOldCa
 }
 
 // serialize node - nodes with pending or RSA keys are unsupported
-bool Node::serialize(string* d)
+bool Node::serialize(string* d) const
 {
-    // do not serialize encrypted nodes
-    if (attrstring)
-    {
-        LOG_debug << "Trying to serialize an encrypted node";
-
-        //Last attempt to decrypt the node
-        applykey();
-        setattr();
-
-        if (attrstring)
-        {
-            LOG_debug << "Serializing an encrypted node.";
-        }
-    }
-
     switch (type)
     {
         case FILENODE:
@@ -954,17 +939,7 @@ void Node::parseattr(byte *bufattr, AttrMap &attrs, m_off_t size, m_time_t &mtim
             ffp.size = size;
             mtime = ffp.mtime;
 
-            char bsize[sizeof(size) + 1];
-            int l = Serialize64::serialize((byte *)bsize, size);
-            char *buf = new char[l * 4 / 3 + 4];
-            char ssize = static_cast<char>('A' + Base64::btoa((const byte *)bsize, l, buf));
-
-            string result(1, ssize);
-            result.append(buf);
-            result.append(it->second);
-            delete [] buf;
-
-            fingerprint = result;
+            fingerprint = it->second;
         }
     }
 }
@@ -2298,7 +2273,7 @@ void LocalNode::completed(Transfer* t, putsource_t source)
 // - corresponding Node handle
 // - local name
 // - fingerprint crc/mtime (filenodes only)
-bool LocalNode::serialize(string* d)
+bool LocalNode::serialize(string* d) const
 {
     CacheableWriter w(*d);
     w.serializei64(type ? -type : size);

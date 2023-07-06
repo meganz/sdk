@@ -1,7 +1,15 @@
 #pragma once
 
 #include <megaapi.h>
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+#endif
 #include <QEvent>
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 namespace mega
 {
@@ -27,6 +35,7 @@ public:
         OnEvent,
 #if ENABLE_SYNC
         OnSyncStateChanged,
+        OnSyncStatsUpdated,
         OnFileSyncStateChanged,
         OnSyncAdded,
         OnSyncDeleted,
@@ -35,7 +44,7 @@ public:
     };
 
     QTMegaEvent(MegaApi *megaApi, Type type);
-    ~QTMegaEvent();
+    ~QTMegaEvent() override;
 
     MegaApi *getMegaApi();
     MegaRequest* getRequest();
@@ -57,6 +66,8 @@ public:
 #ifdef ENABLE_SYNC
     MegaSync *getSync();
     void setSync(MegaSync *sync);
+    void setSyncStats(MegaSyncStats *stats);
+    MegaSyncStats *getSyncStats();
     std::string *getLocalPath();
     void setLocalPath(std::string *localPath);
     int getNewState();
@@ -75,6 +86,7 @@ private:
 
 #ifdef ENABLE_SYNC
     MegaSync *sync;
+    MegaSyncStats *syncStats = nullptr;
     std::string* localPath;
     int newState;
 #endif

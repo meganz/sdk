@@ -64,7 +64,15 @@ static void tls_begin(void)
 {
     SSL_library_init();
     SSL_load_error_strings();
+#ifdef _WIN32
+// Disable 4996 warning for Windows. Starting on OpenSSL 3
+// It could be removed when ERR_load_BIO_strings usage in this function is updated.
+#pragma warning( disable : 4996)
+#endif
     ERR_load_BIO_strings();
+#ifdef _WIN32
+#pragma warning( default : 4996) // Restore default bahaviour
+#endif
     OpenSSL_add_all_algorithms();
     ERR_load_crypto_strings();
 }
@@ -204,8 +212,11 @@ int evt_ctx_init(evt_ctx_t *tls)
 
 int evt_ctx_init_ex(evt_ctx_t *tls, const char *crtf, const char *key)
 {
+#ifndef NDEBUG
     int r = 0;
-    r = evt_ctx_init( tls);
+    r =
+#endif
+    evt_ctx_init( tls);
     assert( 0 == r);
     return evt_ctx_set_crt_key(tls, crtf, key);
 }
@@ -322,7 +333,7 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, size_t 
         r = SSL_shutdown(conn->ssl);
         //it might be possible that peer send close_notify and close the network
         //hence, no check if sending is complete
-        bytes = evt__send_pending(conn);
+        evt__send_pending(conn);
         if ( (1 == r)  && conn->close_cb ) {
             conn->close_cb(conn, r);
         }
@@ -449,7 +460,11 @@ void evt_ctx_free(evt_ctx_t *ctx)
 
 
 // adapted from Openssl's s23_srvr.c code
-int evt_is_tls_stream(const char *bfr, const ssize_t nrd)
+int evt_is_tls_stream(const char *bfr, const ssize_t
+#ifndef NDEBUG
+                      nrd
+#endif
+                      )
 {
     int is_tls = 0;
     assert( nrd >= 11);

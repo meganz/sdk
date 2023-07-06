@@ -33,6 +33,46 @@
 
 namespace mega {
 
+class FileNameGenerator
+{
+public:
+    // It generates a new name suffixed with (n). It is not conflicted in the file system
+    // always a new name is returned
+    static LocalPath suffixWithN(FileAccess* fa, const LocalPath& localname);
+
+    // It generates a new name suffixed with .oldn. It is not conflicted in the file system
+    // always a new name is returned
+    static LocalPath suffixWithOldN(FileAccess* fa, const LocalPath& localname);
+
+private:
+    static LocalPath suffix(FileAccess* fa, const LocalPath& localname, std::function<std::string(unsigned)> suffixF);
+};
+
+LocalPath FileNameGenerator::suffixWithN(FileAccess* fa, const LocalPath& localname)
+{
+    return suffix(fa, localname, [ ](unsigned num) { return " (" + std::to_string(num) + ")"; });
+}
+
+LocalPath FileNameGenerator::suffixWithOldN(FileAccess* fa, const LocalPath& localname)
+{
+    return suffix(fa, localname, [](unsigned num) { return ".old" + std::to_string(num); });
+}
+
+LocalPath FileNameGenerator::suffix(FileAccess* fa, const LocalPath& localname, std::function<std::string(unsigned)> suffixF)
+{
+    LocalPath localnewname;
+    unsigned num = 0;
+    do
+    {
+        num++;
+        localnewname = localname.insertFilenameSuffix(suffixF(num));
+    } while (fa->fopen(localnewname, FSLogging::logExceptFileNotFound) || fa->type == FOLDERNODE);
+
+    return localnewname;
+}
+
+
+
 TransferCategory::TransferCategory(direction_t d, filesizetype_t s)
     : direction(d)
     , sizetype(s)
@@ -141,7 +181,7 @@ Transfer::~Transfer()
     }
 }
 
-bool Transfer::serialize(string *d)
+bool Transfer::serialize(string *d) const
 {
     assert(localfilename.empty() || localfilename.isAbsolute());
 
@@ -492,11 +532,11 @@ void Transfer::failed(const Error& e, TransferDbCommitter& committer, dstime tim
         slot = NULL;
         client->transfercacheadd(this, &committer);
 
-        LOG_debug << "Deferring transfer " << failcount << " during " << (bt.retryin() * 100) << " ms";
+        LOG_debug << "Deferring transfer " << failcount << " during " << (bt.retryin() * 100) << " ms" << " [this = " << this << "]";
     }
     else
     {
-        LOG_debug << "Removing transfer";
+        LOG_debug << "Removing transfer" << " [this = " << this << "]";
         state = TRANSFERSTATE_FAILED;
         finished = true;
 
@@ -574,6 +614,34 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ LocalPath&
 #endif
 }
 
+bool Transfer::resolveCollision(FileAccess* fa, File* file, LocalPath &dest)
+{
+    bool transient_error = false;
+    switch (file->getCollisionResolution())
+    {
+    case CollisionResolution::Overwrite:
+        LOG_debug << "The destination file exist (not synced). Overwrite";
+        break;
+    case CollisionResolution::RenameExistingToOldN:
+        LOG_debug << "The destination file exist (not synced). Rename it";
+        if (client->fsaccess->renamelocal(dest, FileNameGenerator::suffixWithOldN(fa, dest)))
+        {
+            //OK;
+        }
+        else if (client->fsaccess->transient_error)
+        {
+            transient_error = true;
+        }
+        break;
+    case CollisionResolution::RenameNewWithN: //fall through
+    default:
+        LOG_debug << "The destination file exist (not synced). Saving with a different name";
+        file->setLocalname(dest = FileNameGenerator::suffixWithN(fa, dest));
+        break;
+    }
+    return transient_error;
+}
+
 // transfer completion: copy received file locally, set timestamp(s), verify
 // fingerprint, notify app, notify files
 void Transfer::complete(TransferDbCommitter& committer)
@@ -589,8 +657,8 @@ void Transfer::complete(TransferDbCommitter& committer)
         LOG_debug << client->clientname << "Download complete: " << (files.size() ? LOG_NODEHANDLE(files.front()->h) : "NO_FILES") << " " << files.size() << (files.size() ? files.front()->name : "");
 
         bool transient_error = false;
-        LocalPath tmplocalname;
         LocalPath localname;
+        bool tempfileIsUsed = false;
         bool success;
 
         // disconnect temp file from slot...
@@ -636,7 +704,7 @@ void Transfer::complete(TransferDbCommitter& committer)
             }
         }
 
-        if (!fixedfingerprint && success && fa->fopen(localfilename, true, false))
+        if (!fixedfingerprint && success && fa->fopen(localfilename, true, false, FSLogging::logOnError))
         {
             fingerprint.genfingerprint(fa.get());
             if (isvalid && !(fingerprint == *(FileFingerprint*)this))
@@ -733,7 +801,7 @@ void Transfer::complete(TransferDbCommitter& committer)
                 if (localname != localfilename)
                 {
                     fa = client->fsaccess->newfileaccess();
-                    if (fa->fopen(localname) || fa->type == FOLDERNODE)
+                    if (fa->fopen(localname, FSLogging::noLogging) || fa->type == FOLDERNODE)
                     {
                         // the destination path already exists
         #ifdef ENABLE_SYNC
@@ -774,20 +842,7 @@ void Transfer::complete(TransferDbCommitter& committer)
                         else
         #endif
                         {
-                            LOG_debug << "The destination file exist (not synced). Saving with a different name";
-
-                            // the destination path isn't synced, save with a (x) suffix
-                            LocalPath localnewname;
-                            unsigned num = 0;
-                            do
-                            {
-                                num++;
-                                localnewname = localname.insertFilenameCounter(num);
-                            } while (fa->fopen(localnewname) || fa->type == FOLDERNODE);
-
-
-                            (*it)->setLocalname(localnewname);
-                            localname = localnewname;
+                            transient_error = resolveCollision(fa.get(), *it, localname);
                         }
                     }
                     else
@@ -803,14 +858,15 @@ void Transfer::complete(TransferDbCommitter& committer)
                     }
                 }
 
-                if (files.size() == 1 && tmplocalname.empty())
+                // rename the temp file for the last one when the temp file is not used yet
+                if (files.size() == 1 && !tempfileIsUsed)
                 {
                     if (localfilename != localname)
                     {
                         LOG_debug << "Renaming temporary file to target path";
                         if (client->fsaccess->renamelocal(localfilename, localname))
                         {
-                            tmplocalname = localname;
+                            tempfileIsUsed = true;
                             success = true;
                         }
                         else if (client->fsaccess->transient_error)
@@ -820,20 +876,21 @@ void Transfer::complete(TransferDbCommitter& committer)
                     }
                     else
                     {
-                        tmplocalname = localname;
+                        tempfileIsUsed = true;
                         success = true;
                     }
                 }
 
+                // copy the temp file to the destination
                 if (!success)
                 {
-                    if((!tmplocalname.empty() ? tmplocalname : localfilename) == localname)
+                    if(localfilename == localname)
                     {
                         LOG_debug << "Identical node downloaded to the same folder";
+                        tempfileIsUsed = true;
                         success = true;
                     }
-                    else if (client->fsaccess->copylocal(!tmplocalname.empty() ? tmplocalname : localfilename,
-                                                   localname, mtime))
+                    else if (client->fsaccess->copylocal(localfilename, localname, mtime))
                     {
                         success = true;
                     }
@@ -875,17 +932,6 @@ void Transfer::complete(TransferDbCommitter& committer)
 
                 if (success || !transient_error)
                 {
-                    if (auto node = client->nodeByHandle((*it)->h))
-                    {
-                        auto path = (*it)->getLocalname();
-                        auto type = isFilenameAnomaly(path, node);
-
-                        if (type != FILENAME_ANOMALY_NONE)
-                        {
-                            client->filenameAnomalyDetected(type, path, node->displaypath());
-                        }
-                    }
-
                     if (success)
                     {
                         // prevent deletion of associated Transfer object in completed()
@@ -893,13 +939,12 @@ void Transfer::complete(TransferDbCommitter& committer)
                         client->app->file_complete(*it);
                         (*it)->transfer = NULL;
                         (*it)->completed(this, (*it)->syncxfer ? PUTNODES_SYNC : PUTNODES_APP);
+                        files.erase(it++);
                     }
-
-                    if (success || !(*it)->failed(API_EAGAIN, client))
+                    else if (!(*it)->failed(API_EAGAIN, client)) // failed and doesn't retry
                     {
                         File* f = (*it);
                         files.erase(it++);
-                        if (!success)
                         {
                             LOG_warn << "Unable to complete transfer due to a persistent error";
                             client->filecachedel(f, &committer);
@@ -914,27 +959,28 @@ void Transfer::complete(TransferDbCommitter& committer)
                             f->terminated(API_EWRITE);
                         }
                     }
-                    else
+                    else // failed and retry
                     {
                         failcount++;
                         LOG_debug << "Persistent error completing file. Failcount: " << failcount;
                         it++;
                     }
                 }
-                else
+                else // Transient error, retry
                 {
                     LOG_debug << "Transient error completing file";
                     it++;
                 }
             }
 
-            if (tmplocalname.empty() && !files.size())
+            // unlink the temp file if it is not used yet when all files are completed
+            if (files.empty() && !tempfileIsUsed)
             {
                 client->fsaccess->unlinklocal(localfilename);
             }
         }
 
-        if (!files.size())
+        if (files.empty()) // all processed
         {
             state = TRANSFERSTATE_COMPLETED;
             localfilename = localname;
@@ -982,22 +1028,6 @@ void Transfer::complete(TransferDbCommitter& committer)
                 localpath = synclocalpath;
             }
 #endif
-            if (auto node = client->nodeByHandle(f->h))
-            {
-                auto type = isFilenameAnomaly(localpath, f->name);
-
-                if (type != FILENAME_ANOMALY_NONE)
-                {
-                    // Construct remote path for reporting.
-                    ostringstream remotepath;
-
-                    remotepath << node->displaypath()
-                               << (node->parent ? "/" : "")
-                               << f->name;
-
-                    client->filenameAnomalyDetected(type, localpath, remotepath.str());
-                }
-            }
 
             if (localpath == f->getLocalname())
             {
@@ -1005,7 +1035,7 @@ void Transfer::complete(TransferDbCommitter& committer)
             }
 
             auto fa = client->fsaccess->newfileaccess();
-            bool isOpen = fa->fopen(localpath);
+            bool isOpen = fa->fopen(localpath, FSLogging::logOnError);
             if (!isOpen)
             {
                 if (client->fsaccess->transient_error)
@@ -1142,7 +1172,7 @@ void DirectReadNode::dispatch()
 {
     if (reads.empty())
     {
-        LOG_debug << "Removing DirectReadNode";
+        LOG_debug << "Removing DirectReadNode" << " [this = " << this << "]";
         delete this;
     }
     else
@@ -1167,7 +1197,7 @@ void DirectReadNode::retry(const Error& e, dstime timeleft)
 {
     if (reads.empty())
     {
-        LOG_warn << "Removing DirectReadNode. No reads to retry.";
+        LOG_warn << "Removing DirectReadNode. No reads to retry" << " [this = " << this << "]";
         delete this;
         return;
     }
@@ -1176,26 +1206,49 @@ void DirectReadNode::retry(const Error& e, dstime timeleft)
 
     retries++;
 
-    LOG_warn << "Streaming transfer retry due to error " << e;
+    LOG_warn << "[DirectReadNode::retry] Streaming transfer retry due to error " << e << " [this = " << this << "]";
     if (client->autodownport)
     {
         client->usealtdownport = !client->usealtdownport;
     }
 
-    // signal failure to app , obtain minimum desired retry time
-    for (dr_list::iterator it = reads.begin(); it != reads.end(); it++)
+    // signal failure to app, obtain minimum desired retry time
+    for (dr_list::iterator it = reads.begin(); it != reads.end(); )
     {
-        (*it)->abort();
-
-        if (e)
+        if ((*it)->appdata)
         {
-            dstime retryds = client->app->pread_failure(e, retries, (*it)->appdata, timeleft);
+            (*it)->abort();
 
-            if (retryds < minretryds && !(e == API_ETOOMANY && e.hasExtraInfo()))
+            if (e)
             {
-                minretryds = retryds;
+                LOG_debug << "[DirectReadNode::retry] Calling pread_failure for DirectRead (" << (void*)(*it) << ")" << " [this = " << this << "]";
+                dstime retryds = client->app->pread_failure(e, retries, (*it)->appdata, timeleft);
+
+                if (retryds < minretryds && !(e == API_ETOOMANY && e.hasExtraInfo()))
+                {
+                    minretryds = retryds;
+                }
             }
         }
+        else
+        {
+            // This situation should never happen
+            client->sendevent(99472, "DirectRead detected with a null transfer");
+        }
+        if (!(*it)->appdata) // It may have been deleted after pread_failure
+        {
+            // Transfer is deleted
+            LOG_warn << "[DirectReadNode::retry] No appdata (transfer has been deleted) for this DirectRead (" << (void*)(*it) << "). Deleting affected DirectRead" << " [this = " << this << "]";
+            delete *(it++);
+        }
+        else it++;
+    }
+
+    if (reads.empty()) // Check again if there are DirectReads left to retry
+    {
+        LOG_warn << "Removing DirectReadNode. No reads left to retry" << " [this = " << this << "]";
+        delete this;
+        return;
     }
 
     if (e == API_EOVERQUOTA && timeleft)
@@ -1229,7 +1282,7 @@ void DirectReadNode::retry(const Error& e, dstime timeleft)
         else
         {
             // cancellation desired
-            LOG_debug << "Removing DirectReadNode. Too many errors.";
+            LOG_debug << "[DirectReadNode::retry] Removing DirectReadNode. Too many errors" << " [this = " << this << "]";
             delete this;
         }
     }
@@ -1250,7 +1303,9 @@ void DirectReadNode::cmdresult(const Error &e, dstime timeleft)
             if (dr->drbuf.tempUrlVector().empty())
             {
                 // DirectRead starting
-                dr->drbuf.setIsRaid(dr->drn->tempurls, dr->offset, dr->offset + dr->count, dr->drn->size, 2097152);  // 2 MB max buffer usage approx for streaming
+                m_off_t streamingMaxReqSize = dr->drMaxReqSize();
+                LOG_debug << "Direct read node size = " << dr->drn->size << ", streaming max request size: " << streamingMaxReqSize;
+                dr->drbuf.setIsRaid(dr->drn->tempurls, dr->offset, dr->offset + dr->count, dr->drn->size, streamingMaxReqSize);
             }
             else
             {
@@ -1295,176 +1350,529 @@ void DirectReadNode::enqueue(m_off_t offset, m_off_t count, int reqtag, void* ap
 bool DirectReadSlot::processAnyOutputPieces()
 {
     bool continueDirectRead = true;
+
     std::shared_ptr<TransferBufferManager::FilePiece> outputPiece;
-    while (continueDirectRead && (outputPiece = dr->drbuf.getAsyncOutputBufferPointer(0)))
+    while (continueDirectRead && (outputPiece = mDr->drbuf.getAsyncOutputBufferPointer(0)))
     {
         size_t len = outputPiece->buf.datalen();
-        speed = speedController.calculateSpeed();
-        meanSpeed = speedController.getMeanSpeed();
-        dr->drn->client->httpio->updatedownloadspeed(len);
-        continueDirectRead = dr->drn->client->app->pread_data(outputPiece->buf.datastart(), len, pos, speed, meanSpeed, dr->appdata);
+        mSpeed = mSpeedController.calculateSpeed(len);
+        mMeanSpeed = mSpeedController.getMeanSpeed();
+        mDr->drn->client->httpio->updatedownloadspeed(len);
 
-        dr->drbuf.bufferWriteCompleted(0, true);
+        if (mDr->appdata)
+        {
+            mSlotThroughput.first += static_cast<m_off_t>(len);
+            auto lastDataTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - mSlotStartTime).count();
+            mSlotThroughput.second = static_cast<m_off_t>(lastDataTime);
+            LOG_verbose << "DirectReadSlot -> Delivering assembled part ->"
+                        << "len = " << len << ", speed = " << mSpeed << ", meanSpeed = " << (mMeanSpeed / 1024) << " KB/s"
+                        << ", slotThroughput = " << ((calcThroughput(mSlotThroughput.first, mSlotThroughput.second) * 1000) / 1024) << " KB/s]" << " [this = " << this << "]";
+            continueDirectRead = mDr->drn->client->app->pread_data(outputPiece->buf.datastart(), len, mPos, mSpeed, mMeanSpeed, mDr->appdata);
+        }
+        else
+        {
+            LOG_err << "DirectReadSlot tried to deliver an assembled part, but the transfer doesn't exist anymore. Aborting" << " [this = " << this << "]";
+            mDr->drn->client->sendevent(99472, "DirectRead detected with a null transfer");
+            continueDirectRead = false;
+        }
+        mDr->drbuf.bufferWriteCompleted(0, true);
 
         if (continueDirectRead)
         {
-            pos += len;
-            dr->drn->partiallen += len;
-            dr->progress += len;
+            mPos += len;
+            mDr->drn->partiallen += len;
+            mDr->progress += len;
+            mMinComparableThroughput = static_cast<m_off_t>(len);
         }
     }
     return continueDirectRead;
 }
 
+bool DirectReadSlot::waitForPartsInFlight() const
+{
+    return DirectReadSlot::WAIT_FOR_PARTS_IN_FLIGHT &&
+            mDr->drbuf.isRaid() &&
+            mWaitForParts;
+}
+
+unsigned DirectReadSlot::usedConnections() const
+{
+    assert(mDr->drbuf.isRaid());
+    if (!mDr->drbuf.isRaid() || mReqs.empty())
+    {
+        LOG_warn << "DirectReadSlot -> usedConnections() being used when it shouldn't" << " [this = " << this << "]";
+    }
+    return static_cast<unsigned>(mReqs.size()) - ((mUnusedRaidConnection != static_cast<unsigned>(mReqs.size())) ? 1 : 0);
+}
+
+bool DirectReadSlot::resetConnection(size_t connectionNum)
+{
+    LOG_debug << "DirectReadSlot [conn " << connectionNum << "] -> resetConnection" << " [this = " << this << "]";
+    assert(connectionNum < mReqs.size());
+    if (connectionNum >= mReqs.size())
+    {
+        return false;
+    }
+    if (mReqs[connectionNum])
+    {
+        mReqs[connectionNum]->disconnect();
+        mReqs[connectionNum]->status = REQ_READY;
+        mThroughput[connectionNum].first = 0;
+        mThroughput[connectionNum].second = 0;
+    }
+    mDr->drbuf.resetPart(static_cast<unsigned>(connectionNum));
+    return true;
+}
+
+m_off_t DirectReadSlot::getThroughput(size_t connectionNum) const
+{
+    assert(connectionNum < mReqs.size());
+    m_off_t connectionThroughPut = calcThroughput(mThroughput[connectionNum].first, mThroughput[connectionNum].second);
+    return connectionThroughPut;
+}
+
+m_off_t DirectReadSlot::calcThroughput(m_off_t numBytes, m_off_t timeCount) const
+{
+    m_off_t throughput = (numBytes && timeCount) ?
+                            numBytes / timeCount :
+                            0;
+    return throughput;
+}
+
+bool DirectReadSlot::searchAndDisconnectSlowestConnection(size_t connectionNum)
+{
+    assert(connectionNum < mReqs.size());
+    if (!mDr->drbuf.isRaid() ||
+        mNumSlowConnectionsSwitches >= DirectReadSlot::MAX_SLOW_CONNECTION_SWITCHES || // Limit for connection switches
+        mNumReqsInflight) // If there is any connection inflight we don't switch (we only switch when the status is REQ_READY for all reqs to avoid disconnections)
+    {
+        return false;
+    }
+    std::unique_ptr<HttpReq>& req = mReqs[connectionNum];
+    if (!req || (connectionNum == mUnusedRaidConnection))
+    {
+        return false;
+    }
+    bool minComparableThroughputForThisConnection = mThroughput[connectionNum].second &&
+                                                    mThroughput[connectionNum].first >= mMinComparableThroughput;
+    if (minComparableThroughputForThisConnection)
+    {
+        size_t slowestConnection = connectionNum;
+        size_t fastestConnection = connectionNum;
+        size_t numReqs = mReqs.size();
+        bool minComparableThroughputForOtherConnection = true;
+        for (size_t otherConnection = numReqs; (otherConnection-- > 0) && minComparableThroughputForOtherConnection;)
+        {
+            if ((otherConnection != connectionNum) &&
+                (otherConnection != mUnusedRaidConnection))
+            {
+                bool otherConnectionIsDone = (mReqs[otherConnection] &&
+                                                    (mReqs[otherConnection]->status == REQ_DONE ||
+                                                    (mReqs[otherConnection]->pos == mDr->drbuf.transferSize(static_cast<unsigned>(otherConnection)))));
+                bool otherConnectionHasEnoughDataToCompare = mThroughput[otherConnection].second && mThroughput[otherConnection].first >= mMinComparableThroughput;
+                bool compareCondition = otherConnectionHasEnoughDataToCompare && !otherConnectionIsDone;
+                if (compareCondition)
+                {
+                    m_off_t otherConnectionThroughput = getThroughput(otherConnection);
+                    m_off_t slowestConnectionThroughput = getThroughput(slowestConnection);
+                    m_off_t fastestConnectionThroughput = getThroughput(fastestConnection);
+                    if (otherConnectionThroughput < slowestConnectionThroughput)
+                    {
+                        slowestConnection = otherConnection;
+                    }
+                    if (otherConnectionThroughput > fastestConnectionThroughput)
+                    {
+                        fastestConnection = otherConnection;
+                    }
+                }
+                else // If we don't have enough throughput data for one connection, or any connection is done (we shouldn't reset it at that point), then we just skip this
+                {
+                    // Cannot compare... will need to wait
+                    slowestConnection = numReqs;
+                    fastestConnection = numReqs;
+                    minComparableThroughputForOtherConnection = false;
+                }
+            }
+        }
+        LOG_verbose << "DirectReadSlot [conn " << connectionNum << "]"
+                    << " Test slow connection -> slowest connection = " << slowestConnection
+                    << ", fastest connection = " << fastestConnection
+                    << ", unused raid connection = " << mUnusedRaidConnection
+                    << ", mMinComparableThroughput = " << (mMinComparableThroughput / 1024) << " KB/s" << " [this = " << this << "]";
+        if (((slowestConnection == connectionNum) ||
+             ((slowestConnection != numReqs) && (mReqs[slowestConnection]->status == REQ_READY))) &&
+            (fastestConnection != slowestConnection))
+        {
+            m_off_t slowestConnectionThroughput = getThroughput(slowestConnection);
+            m_off_t fastestConnectionThroughput = getThroughput(fastestConnection);
+            if (fastestConnectionThroughput * SLOWEST_TO_FASTEST_THROUGHPUT_RATIO[0]
+                        >
+                slowestConnectionThroughput * SLOWEST_TO_FASTEST_THROUGHPUT_RATIO[1])
+            {
+                LOG_warn << "DirectReadSlot [conn " << connectionNum << "]"
+                         << " Connection " << slowestConnection << " is slow, trying the other 5 cloudraid connections"
+                         << " [slowest speed = " << ((slowestConnectionThroughput * 1000 / 1024)) << " KB/s"
+                         << ", fastest speed = " << ((fastestConnectionThroughput * 1000 / 1024)) << " KB/s"
+                         << ", mMinComparableThroughput = " << (mMinComparableThroughput / 1024) << " KB/s]"
+                         << " [total slow connections switches = " << mNumSlowConnectionsSwitches << "]"
+                         << " [current unused raid connection = " << mUnusedRaidConnection << "]" << " [this = " << this << "]";
+                if (mDr->drbuf.setUnusedRaidConnection(static_cast<unsigned>(slowestConnection)))
+                {
+                    if (mUnusedRaidConnection != mReqs.size())
+                    {
+                        resetConnection(mUnusedRaidConnection);
+                    }
+                    mUnusedRaidConnection = slowestConnection;
+                    ++mNumSlowConnectionsSwitches;
+                    LOG_verbose << "DirectReadSlot [conn " << connectionNum << "]"
+                                << " Continuing after setting slow connection"
+                                << " [total slow connections switches = " << mNumSlowConnectionsSwitches << "]" << " [this = " << this << "]";
+                    return resetConnection(mUnusedRaidConnection);
+                }
+            }
+        }
+    }
+    return false;
+}
+
+bool DirectReadSlot::decreaseReqsInflight()
+{
+    if (mDr->drbuf.isRaid())
+    {
+        LOG_verbose << "Decreasing counter of total requests inflight: " << mNumReqsInflight << " - 1" << " [this = " << this << "]";
+        assert(mNumReqsInflight > 0);
+        --mNumReqsInflight;
+        if ((mUnusedRaidConnection < mReqs.size()) &&
+            (mReqs[mUnusedRaidConnection]->status != REQ_DONE) &&
+            (mNumReqsInflight == (static_cast<unsigned>(mReqs.size()) - usedConnections())))
+        {
+            mNumReqsInflight = 0;
+        }
+        if (mNumReqsInflight == 0)
+        {
+            LOG_verbose << "Wait for parts set to false" << " [this = " << this << "]";
+            // waitForParts could be true at this point if there were connections with REQ_DONE status which didn't increase the inflight counter
+            mWaitForParts = false;
+            mMaxChunkSubmitted = 0;
+        }
+        return true;
+    }
+    return false;
+}
+
+bool DirectReadSlot::increaseReqsInflight()
+{
+    if (mDr->drbuf.isRaid())
+    {
+        LOG_verbose << "Increasing counter of total requests inflight: " << mNumReqsInflight << " + 1 = " << (mNumReqsInflight + 1) << " [this = " << this << "]";
+        assert(mNumReqsInflight < mReqs.size());
+        ++mNumReqsInflight;
+        if (mNumReqsInflight == static_cast<unsigned>(mReqs.size()))
+        {
+            assert(!mWaitForParts);
+            LOG_verbose << "Wait for parts set to true" << " [this = " << this << "]";
+            mWaitForParts = true;
+        }
+        return true;
+    }
+    return false;
+}
+
+bool DirectReadSlot::watchOverDirectReadPerformance()
+{
+    auto dsSinceLastWatch = Waiter::ds - mDr->drn->partialstarttime;
+    if (dsSinceLastWatch > MEAN_SPEED_INTERVAL_DS)
+    {
+        m_off_t meanspeed = (10 * mDr->drn->partiallen) / dsSinceLastWatch;
+
+        int minspeed = mDr->drn->client->minstreamingrate;
+        if (minspeed < 0)
+        {
+            LOG_warn << "DirectReadSlot: Watchdog -> Set min speed as MIN_BYTES_PER_SECOND(" << MIN_BYTES_PER_SECOND << ") to compare with average speed." << " [this = " << this << "]";
+            minspeed = MIN_BYTES_PER_SECOND;
+        }
+        LOG_debug << "DirectReadSlot: Watchdog -> Mean speed: " << meanspeed << " B/s. Min speed: " << minspeed << " B/s [Partial len: " << mDr->drn->partiallen << ". Ds: " << dsSinceLastWatch << "]" << " [this = " << this << "]";
+        if (minspeed != 0 && meanspeed < minspeed)
+        {
+            if (!mDr->appdata)
+            {
+                // It's better for this check to be here instead of above: this way we can know if the transfer speed is to low, even if the transfer is already deleted at this point.
+                LOG_err << "DirectReadSlot: Watchdog -> Transfer speed too low for streaming, but transfer is already deleted. Skipping retry" << " [this = " << this << "]";
+                mDr->drn->client->sendevent(99472, "DirectRead detected with a null transfer");
+                return false;
+            }
+            LOG_warn << "DirectReadSlot: Watchdog -> Transfer speed too low for streaming. Retrying" << " [this = " << this << "]";
+            mDr->drn->retry(API_EAGAIN);
+            return true;
+        }
+        else
+        {
+            mDr->drn->partiallen = 0;
+            mDr->drn->partialstarttime = Waiter::ds;
+        }
+    }
+    return false;
+}
+
 bool DirectReadSlot::doio()
 {
-    for (unsigned connectionNum = unsigned(reqs.size()); connectionNum--; )
+    bool isRaid = mDr->drbuf.isRaid();
+    unsigned numParts = isRaid ? (RAIDPARTS-1) : 1;
+    unsigned minSpeedPerConnection = mDr->drn->client->minstreamingrate < 0 ? // Default limit
+                                        (MIN_BYTES_PER_SECOND / numParts) :
+                                     mDr->drn->client->minstreamingrate > 0 ? // Custom limit
+                                        (mDr->drn->client->minstreamingrate / numParts) :
+                                        1; // No limit (1 B/s)
+    if (isRaid) { minSpeedPerConnection = (minSpeedPerConnection + RAIDSECTOR - 1) & - RAIDSECTOR; } // round up to a RAIDSECTOR divisible value
+    for (int connectionNum = static_cast<int>(mReqs.size()); connectionNum--; )
     {
-        HttpReq* req = reqs[connectionNum];
+        std::unique_ptr<HttpReq>& req = mReqs[connectionNum];
+        bool isNotUnusedConnection = !isRaid || (static_cast<unsigned>(connectionNum) != mUnusedRaidConnection);
+        bool submitCondition = req && isNotUnusedConnection && (req->status == REQ_INFLIGHT || req->status == REQ_SUCCESS);
 
-        if (req->status == REQ_INFLIGHT || req->status == REQ_SUCCESS)
+        if (submitCondition)
         {
             if (req->in.size())
             {
-                unsigned n = unsigned(req->in.size());
+                unsigned n = static_cast<unsigned>(req->in.size());
+                auto lastDataTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - req->postStartTime).count();
+                m_off_t chunkTime = static_cast<m_off_t>(lastDataTime) - mThroughput[connectionNum].second;
 
+                unsigned minChunkSize;
+                m_off_t maxChunkSize, aggregatedThroughput;
                 if (req->status == REQ_INFLIGHT)
                 {
-                    // raid reassembly logic needs to operate on whole raidlines
-                    n -= n % RAIDSECTOR;
+                    m_off_t updatedThroughput = calcThroughput(mThroughput[connectionNum].first + n, mThroughput[connectionNum].second + chunkTime) * 1000;
+                    m_off_t chunkThroughput = calcThroughput(static_cast<m_off_t>(n), chunkTime) * 1000;
+                    aggregatedThroughput = (chunkThroughput + updatedThroughput) / 2;
+                    maxChunkSize = aggregatedThroughput;
+                    // 16KB as min chunk divisible size to submit. If the user's speed is even lower than 16KB/s per connection, then respect the minSpeedPerConnection.
+                    // This is to avoid small chunks to be assembled (if raid) and delivered.
+                    unsigned minChunkDivisibleSize = maxChunkSize < (16 * 1024) ? minSpeedPerConnection : 16 * 1024; // 16KB is divisible by RAIDSECTOR: works for RAID and NON-RAID
+
+                    if (mMaxChunkSubmitted && maxChunkSize && ((std::max(static_cast<unsigned>(maxChunkSize), mMaxChunkSubmitted) / std::min(static_cast<unsigned>(maxChunkSize), mMaxChunkSubmitted)) == 1))
+                    {
+                        // Avoid small chunks due to fragmentation caused by similar (but different) chunk sizes (compared to max submitted chunk size)
+                        maxChunkSize = mMaxChunkSubmitted;
+                    }
+                    minChunkSize = std::max(static_cast<unsigned>(maxChunkSize), minChunkDivisibleSize);
+                    n = (n >= minChunkSize) ?
+                            (n / minChunkDivisibleSize) * minChunkDivisibleSize :
+                            0;
+                }
+                else
+                {
+                    minChunkSize = 0;
+                    maxChunkSize = n;
+                    aggregatedThroughput = 0;
+                }
+
+                assert(!mDr->drbuf.isRaid() || (req->status == REQ_SUCCESS) || ((n % RAIDSECTOR) == 0));
+                if ((mDr->drbuf.isRaid() && (req->status != REQ_SUCCESS) && ((n % RAIDSECTOR) != 0)))
+                {
+                    LOG_err << "DirectReadSlot [conn " << connectionNum << "] ERROR: (isRaid() && (req->status != REQ_SUCCESS) && ((n % RAIDSECTOR) != 0)"
+                            << " n = " << n
+                            << ", req->in.size = " << req->in.size()
+                            << ", req->status = " << req->status.load()
+                            << ", adapted maxChunkSize = " << maxChunkSize
+                            << ", mMaxChunkSize = " << mMaxChunkSize
+                            << ", submitted = " << mThroughput[connectionNum].first << " [this = " << this << "]";
                 }
 
                 if (n)
                 {
-
+                    mThroughput[connectionNum].first += static_cast<m_off_t>(n);
+                    mThroughput[connectionNum].second += chunkTime;
+                    LOG_verbose << "DirectReadSlot [conn " << connectionNum << "] ->"
+                                << " FilePiece's going to be submitted: n = " << n << ", req->in.size = " << req->in.size() << ", req->in.capacity = " << req->in.capacity()
+                                << " [minChunkSize = " << minChunkSize
+                                << ", mMaxChunkSize = " << mMaxChunkSize
+                                << ", reqs.size = " << mReqs.size()
+                                << ", req->status = " << std::string(req->status == REQ_READY ? "REQ_READY" : req->status == REQ_INFLIGHT ? "REQ_INFLIGHT"
+                                                                                                          : req->status == REQ_SUCCESS    ? "REQ_SUCCESS"
+                                                                                                                                          : "REQ_SOMETHING")
+                                << ", req->httpstatus = " << req->httpstatus << ", req->contentlength = " << req->contentlength
+                                << ", numReqsInflight = " << mNumReqsInflight << ", unusedRaidConnection = " << mUnusedRaidConnection << "]"
+                                << " [chunk throughput = " << ((calcThroughput(static_cast<m_off_t>(n), chunkTime) * 1000) / 1024) << " KB/s"
+                                << ", average throughput = " << (getThroughput(connectionNum) * 1000 / 1024) << " KB/s"
+                                << ", aggregated throughput = " << (aggregatedThroughput / 1024) << " KB/s"
+                                << ", maxChunkSize = " << (maxChunkSize / 1024) << " KBs]"
+                                << ", [req->pos_pre = " << (req->pos) << ", req->pos_now = " << (req->pos + n) << "]" << " [this = " << this << "]";
                     RaidBufferManager::FilePiece* np = new RaidBufferManager::FilePiece(req->pos, n);
-                    memcpy(np->buf.datastart(), req->in.data(), n);
+                    memcpy(np->buf.datastart(), req->in.c_str(), n);
 
                     req->in.erase(0, n);
                     req->contentlength -= n;
                     req->bufpos = 0;
                     req->pos += n;
 
-                    dr->drbuf.submitBuffer(connectionNum, np);
+                    unsigned submittingConnection = isRaid ? connectionNum : 0;
+                    mDr->drbuf.submitBuffer(submittingConnection, np);
 
-                    if (req->httpio)
+                    if (n > mMaxChunkSubmitted)
                     {
-                        req->httpio->lastdata = Waiter::ds;
-                        req->lastdata = Waiter::ds;
-                    }
-
-                    dr->drn->schedule(DirectReadSlot::TIMEOUT_DS);
-
-                    // we might have a raid-reassembled block to write now, or this very block in non-raid
-                    if (!processAnyOutputPieces())
-                    {
-                        // app-requested abort
-                        delete dr;
-                        return true;
+                        mMaxChunkSubmitted = n;
                     }
                 }
+
+                if (req->httpio)
+                {
+                    req->httpio->lastdata = Waiter::ds;
+                }
+                req->lastdata = Waiter::ds;
+
+                // we might have a raid-reassembled block to write now, or this very block in non-raid
+                if (n && !processAnyOutputPieces())
+                {
+                    LOG_debug << "DirectReadSlot [conn " << connectionNum << "] Transfer is finished after processing pending output pieces. Removing DirectRead" << " [this = " << this << "]";
+                    delete mDr;
+                    return true;
+                }
+
+                mDr->drn->schedule(DirectReadSlot::TEMPURL_TIMEOUT_DS);
             }
 
-            if (req->status == REQ_SUCCESS)
+            if (req->status == REQ_SUCCESS && !req->in.size())
             {
+                decreaseReqsInflight();
                 req->status = REQ_READY;
             }
         }
 
-        if (req->status == REQ_READY)
+        if (!req || req->status == REQ_READY)
         {
-            bool newBufferSupplied = false, pauseForRaid = false;
-            std::pair<m_off_t, m_off_t> posrange = dr->drbuf.nextNPosForConnection(connectionNum, newBufferSupplied, pauseForRaid);
-
-            // we might have a raid-reassembled block to write, or a previously loaded block, or a skip block to process.
-            if (!processAnyOutputPieces())
+            bool waitForOthers = isRaid ? waitForPartsInFlight() : false;
+            if (!waitForOthers)
             {
-                // app-requested abort
-                delete dr;
-                return true;
-            }
-
-            if (!newBufferSupplied && !pauseForRaid)
-            {
-                if (posrange.first >= posrange.second)
+                if (searchAndDisconnectSlowestConnection(connectionNum))
                 {
-                    req->status = REQ_DONE;
-                    bool allDone = true;
-                    for (size_t i = reqs.size(); i--; )
-                    {
-                        if (reqs[i]->status != REQ_DONE)
-                        {
-                            allDone = false;
-                        }
-                    }
-                    if (allDone)
-                    {
-                        dr->drn->schedule(DirectReadSlot::TEMPURL_TIMEOUT_DS);
+                    LOG_verbose << "DirectReadSlot [conn " << connectionNum << "] Continue DirectReadSlot loop after disconnecting slow connection " << mUnusedRaidConnection << " [this = " << this << "]";
+                }
+                bool newBufferSupplied = false, pauseForRaid = false;
+                std::pair<m_off_t, m_off_t> posrange = mDr->drbuf.nextNPosForConnection(connectionNum, newBufferSupplied, pauseForRaid);
 
-                        // remove and delete completed read request, then remove slot
-                        delete dr;
+                if (newBufferSupplied)
+                {
+                    if (static_cast<unsigned>(connectionNum) == mUnusedRaidConnection)
+                    {
+                        // Count the "unused connection" (restored by parity) as a req inflight, so we avoid to exec this piece of code needlessly
+                        increaseReqsInflight();
+                    }
+                    // we might have a raid-reassembled block to write, or a previously loaded block, or a skip block to process.
+                    if (!processAnyOutputPieces())
+                    {
+                        LOG_debug << "DirectReadSlot [conn " << connectionNum << "] Transfer is finished after processing pending output pieces (on new buffer supplied). Removing DirectRead" << " [this = " << this << "]";
+                        delete mDr;
                         return true;
                     }
                 }
-                else
+                else if (!pauseForRaid)
                 {
-                    char buf[128];
-                    snprintf(buf, sizeof(buf), "/%" PRIu64 "-", posrange.first);
-                    if (dr->count)
+                    if (posrange.first >= posrange.second)
                     {
-                        char* ptr = strchr(buf, 0);
-                        snprintf(ptr, sizeof(buf) - (ptr - buf), "%" PRIu64, posrange.second - 1);
+                        if (req)
+                        {
+                            LOG_verbose << "DirectReadSlot [conn " << connectionNum << "] Request status set to DONE" << " [this = " << this << "]";
+                            req->status = REQ_DONE;
+                        }
+                        bool allDone = true;
+                        for (size_t i = mReqs.size(); i--;)
+                        {
+                            if (mReqs[i] && mReqs[i]->status != REQ_DONE)
+                            {
+                                allDone = false;
+                            }
+                        }
+                        if (allDone)
+                        {
+                            LOG_debug << "DirectReadSlot [conn " << connectionNum << "] All requests are DONE: Delete read request and direct read slot" << " [this = " << this << "]";
+
+                            // remove and delete completed read request, then remove slot
+                            delete mDr;
+                            return true;
+                        }
                     }
+                    else
+                    {
+                        if (!mDr->appdata)
+                        {
+                            LOG_err << "DirectReadSlot [conn " << connectionNum << "] There is a chunk request, but transfer is already deleted. This should never happen. Aborting" << " [this = " << this << "]";
+                            mDr->drn->client->sendevent(99472, "DirectRead detected with a null transfer");
+                            delete mDr;
+                            return true;
+                        }
 
-                    req->pos = posrange.first;
-                    req->posturl = adjustURLPort(dr->drbuf.tempURL(connectionNum));
-                    req->posturl.append(buf);
-                    LOG_debug << "POST URL: " << req->posturl;
-                    req->post(dr->drn->client);  // status will go to inflight or fail
+                        if (!req)
+                        {
+                            mReqs[connectionNum] = make_unique<HttpReq>(true);
+                        }
 
-                    dr->drbuf.transferPos(connectionNum) = posrange.second;
+                        if (!mDr->drbuf.isRaid())
+                        {
+                            // Chunk size limit for non-raid: MAX_DELIVERY_CHUNK.
+                            // If the whole chunk is requested (file size), with the same request all the time,
+                            // the throughput could be too low for long periods of time, depending on the actual TCP congestion algorithm.
+                            posrange.second = std::min(posrange.second, posrange.first + DirectReadSlot::MAX_DELIVERY_CHUNK);
+                        }
+
+                        char buf[128];
+                        snprintf(buf, sizeof(buf), "/%" PRIu64 "-", posrange.first);
+                        if (mDr->count)
+                        {
+                            snprintf(strchr(buf, 0), sizeof(buf) - strlen(buf), "%" PRIu64, posrange.second - 1);
+                        }
+
+                        req->pos = posrange.first;
+                        req->posturl = adjustURLPort(mDr->drbuf.tempURL(connectionNum));
+                        req->posturl.append(buf);
+                        LOG_debug << "DirectReadSlot [conn " << connectionNum << "] Request chunk of size " << (posrange.second - posrange.first) << " (request status = " << req->status.load() << ")" << " [this = " << this << "]";
+                        LOG_debug << "POST URL: " << req->posturl;
+
+                        mThroughput[connectionNum].first = 0;
+                        mThroughput[connectionNum].second = 0;
+                        req->in.reserve(mMaxChunkSize + (mMaxChunkSize/2));
+                        req->post(mDr->drn->client); // status will go to inflight or fail
+                        LOG_verbose << "DirectReadSlot [conn " << connectionNum << "] POST done (new request status = " << req->status.load() << ")" << " [this = " << this << "]";
+
+                        mDr->drbuf.transferPos(connectionNum) = posrange.second;
+                        increaseReqsInflight();
+                    }
                 }
             }
         }
 
-        if (req->status == REQ_FAILURE)
+        if (req && req->status == REQ_FAILURE)
         {
-            if (req->httpstatus == 509)
+            LOG_warn << "DirectReadSlot [conn " << connectionNum << "] Request status is FAILURE [Request status = " << req->status.load() << ", HTTP status = " << req->httpstatus << "]" << " [this = " << this << "]";
+            decreaseReqsInflight();
+            if (mDr->appdata)
             {
-                LOG_warn << "Bandwidth overquota from storage server for streaming transfer";
+                if (req->httpstatus == 509)
+                {
+                    LOG_warn << "DirectReadSlot Bandwidth overquota from storage server for streaming transfer" << " [this = " << this << "]";
 
-                dstime backoff = dr->drn->client->overTransferQuotaBackoff(req);
-                dr->drn->retry(API_EOVERQUOTA, backoff);
+                    dstime backoff = mDr->drn->client->overTransferQuotaBackoff(req.get());
+                    mDr->drn->retry(API_EOVERQUOTA, backoff);
+                }
+                else
+                {
+                    // a failure triggers a complete abort and retry of all pending reads for this node, including getting updated URL(s)
+                    mDr->drn->retry(API_EREAD);
+                }
             }
             else
             {
-                // a failure triggers a complete abort and retry of all pending reads for this node, including getting updated URL(s)
-                dr->drn->retry(API_EREAD);
+                LOG_err << "DirectReadSlot [conn " << connectionNum << "] Request failed, but transfer is already deleted. Aborting" << " [this = " << this << "]";
+                mDr->drn->client->sendevent(99472, "DirectRead detected with a null transfer");
+                delete mDr;
             }
             return true;
         }
 
-        if (Waiter::ds - dr->drn->partialstarttime > MEAN_SPEED_INTERVAL_DS)
+        if (watchOverDirectReadPerformance())
         {
-            m_off_t meanspeed = (10 * dr->drn->partiallen) / (Waiter::ds - dr->drn->partialstarttime);
-
-            LOG_debug << "Mean speed (B/s): " << meanspeed;
-            int minspeed = dr->drn->client->minstreamingrate;
-            if (minspeed < 0)
-            {
-                minspeed = MIN_BYTES_PER_SECOND;
-            }
-            if (minspeed != 0 && meanspeed < minspeed)
-            {
-                LOG_warn << "Transfer speed too low for streaming. Retrying";
-                dr->drn->retry(API_EAGAIN);
-                return true;
-            }
-            else
-            {
-                dr->drn->partiallen = 0;
-                dr->drn->partialstarttime = Waiter::ds;
-            }
+            LOG_debug << "DirectReadSlot [conn " << connectionNum << "] DirectReadSlot will be retried" << " [this = " << this << "]";
+            return true;
         }
     }
 
@@ -1484,9 +1892,18 @@ void DirectRead::abort()
     }
 }
 
+m_off_t DirectRead::drMaxReqSize() const
+{
+    m_off_t numParts = drn->tempurls.size() == RAIDPARTS ?
+                                    (RAIDPARTS - 1) :
+                                    drn->tempurls.size();
+    return std::max(drn->size / numParts, TransferSlot::MAX_REQ_SIZE);
+}
+
 DirectRead::DirectRead(DirectReadNode* cdrn, m_off_t ccount, m_off_t coffset, int creqtag, void* cappdata)
     : drbuf(this)
 {
+    LOG_debug << "[DirectRead::DirectRead] New DirectRead [cappdata = " << cappdata << "]" << " [this = " << this << "]";
     drn = cdrn;
 
     count = ccount;
@@ -1502,7 +1919,9 @@ DirectRead::DirectRead(DirectReadNode* cdrn, m_off_t ccount, m_off_t coffset, in
     if (!drn->tempurls.empty())
     {
         // we already have tempurl(s): queue for immediate fetching
-        drbuf.setIsRaid(drn->tempurls, offset, offset + count, drn->size, 2097152);  // 2 MB max buffer usage approx
+        m_off_t streamingMaxReqSize = drMaxReqSize();
+        LOG_debug << "Direct read start -> direct read node size = " << drn->size << ", streaming max request size: " << streamingMaxReqSize;
+        drbuf.setIsRaid(drn->tempurls, offset, offset + count, drn->size, streamingMaxReqSize);
         drq_it = drn->client->drq.insert(drn->client->drq.end(), this);
     }
     else
@@ -1514,6 +1933,7 @@ DirectRead::DirectRead(DirectReadNode* cdrn, m_off_t ccount, m_off_t coffset, in
 
 DirectRead::~DirectRead()
 {
+    LOG_debug << "Deleting DirectRead" << " [this = " << this << "]";
     abort();
 
     if (reads_it != drn->reads.end())
@@ -1533,7 +1953,7 @@ std::string DirectReadSlot::adjustURLPort(std::string url)
         {
             if (portstartindex == string::npos)
             {
-                if (dr->drn->client->usealtdownport)
+                if (mDr->drn->client->usealtdownport)
                 {
                     LOG_debug << "Enabling alternative port for streaming transfer";
                     url.insert(portendindex, ":8080");
@@ -1541,7 +1961,7 @@ std::string DirectReadSlot::adjustURLPort(std::string url)
             }
             else
             {
-                if (!dr->drn->client->usealtdownport)
+                if (!mDr->drn->client->usealtdownport)
                 {
                     LOG_debug << "Disabling alternative port for streaming transfer";
                     url.erase(portstartindex, portendindex - portstartindex);
@@ -1555,36 +1975,54 @@ std::string DirectReadSlot::adjustURLPort(std::string url)
 // request DirectRead's range via tempurl
 DirectReadSlot::DirectReadSlot(DirectRead* cdr)
 {
-    dr = cdr;
+    LOG_debug << "[DirectReadSlot::DirectReadSlot] New DirectReadSlot [cdr = " << (void*)cdr << "]" << " [this = " << this << "]";
+    mDr = cdr;
 
-    pos = dr->offset + dr->progress;
-    dr->nextrequestpos = pos;
+    mPos = mDr->offset + mDr->progress;
+    mDr->nextrequestpos = mPos;
 
-    speed = meanSpeed = 0;
+    mSpeed = mMeanSpeed = 0;
 
-    assert(reqs.empty());
-    for (size_t i = dr->drbuf.tempUrlVector().size(); i--; )
+    assert(mReqs.empty());
+    size_t numReqs = mDr->drbuf.isRaid() ? mDr->drbuf.tempUrlVector().size() : 1;
+    assert(mDr->drbuf.isRaid() ? (numReqs == RAIDPARTS) : 1);
+    for (size_t i = numReqs; i--; )
     {
-        reqs.push_back(new HttpReq(true));
-        reqs.back()->status = REQ_READY;
-        reqs.back()->type = REQ_BINARY;
+        mReqs.push_back(make_unique<HttpReq>(true));
+        mReqs.back()->status = REQ_READY;
+        mReqs.back()->type = REQ_BINARY;
     }
+    LOG_verbose << "[DirectReadSlot::DirectReadSlot] Num requests: " << numReqs << " [this = " << this << "]";
+    mThroughput.resize(mReqs.size());
+    mUnusedRaidConnection = mDr->drbuf.isRaid() ? mDr->drbuf.getUnusedRaidConnection() : mReqs.size();
+    if (mDr->drbuf.isRaid() && mUnusedRaidConnection == RAIDPARTS)
+    {
+        LOG_verbose << "[DirectReadSlot::DirectReadSlot] Set initial unused raid connection to 0" << " [this = " << this << "]";
+        mDr->drbuf.setUnusedRaidConnection(0);
+        mUnusedRaidConnection = 0;
+    }
+    mNumSlowConnectionsSwitches = 0;
+    mNumReqsInflight = 0;
+    mWaitForParts = false;
+    mMaxChunkSubmitted = 0;
 
-    drs_it = dr->drn->client->drss.insert(dr->drn->client->drss.end(), this);
+    mDrs_it = mDr->drn->client->drss.insert(mDr->drn->client->drss.end(), this);
 
-    dr->drn->partiallen = 0;
-    dr->drn->partialstarttime = Waiter::ds;
+    mDr->drn->partiallen = 0;
+    mDr->drn->partialstarttime = Waiter::ds;
+    mMaxChunkSize = static_cast<unsigned>(static_cast<unsigned>(DirectReadSlot::MAX_DELIVERY_CHUNK) / (mReqs.size() == static_cast<unsigned>(RAIDPARTS) ? (static_cast<unsigned>(RAIDPARTS-1)) : mReqs.size()));
+    if (mDr->drbuf.isRaid())
+    {
+        mMaxChunkSize -= mMaxChunkSize % RAIDSECTOR;
+    }
+    mMinComparableThroughput = DirectReadSlot::DEFAULT_MIN_COMPARABLE_THROUGHPUT;
+    mSlotStartTime = std::chrono::steady_clock::now();
 }
 
 DirectReadSlot::~DirectReadSlot()
 {
-    dr->drn->client->drss.erase(drs_it);
-
-    LOG_debug << "Deleting DirectReadSlot";
-    for (size_t i = reqs.size(); i--; )
-    {
-        delete reqs[i];
-    }
+    mDr->drn->client->drss.erase(mDrs_it);
+    LOG_debug << "Deleting DirectReadSlot" << " [this = " << this << "]";
 }
 
 bool priority_comparator(const LazyEraseTransferPtr& i, const LazyEraseTransferPtr& j)

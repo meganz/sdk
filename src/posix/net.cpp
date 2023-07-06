@@ -989,9 +989,9 @@ bool CurlHttpIO::cacheresolvedurls(const std::vector<string>& urls, std::vector<
 
         // add resolved host name to cache, or replace the previous one
         CurlDNSEntry& dnsEntry = dnscache[host];
-        dnsEntry.ipv4 = move(ips[2 * i]);
+        dnsEntry.ipv4 = std::move(ips[2 * i]);
         dnsEntry.ipv4timestamp = Waiter::ds;
-        dnsEntry.ipv6 = move(ips[2 * i + 1]);
+        dnsEntry.ipv6 = std::move(ips[2 * i + 1]);
         dnsEntry.ipv6timestamp = Waiter::ds;
         dnsEntry.mNeedsResolvingAgain = false;
     }
@@ -1556,17 +1556,22 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         curl_easy_setopt(curl, CURLOPT_SOCKOPTFUNCTION, sockopt_callback);
         curl_easy_setopt(curl, CURLOPT_SOCKOPTDATA, (void*)req);
         curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
+#ifndef MEGA_USE_C_ARES
+        curl_easy_setopt(curl, CURLOPT_QUICK_EXIT, 1L);
+#endif
 
         // Some networks (eg vodafone UK) seem to block TLS 1.3 ClientHello.  1.2 is secure, and works:
         curl_easy_setopt(curl, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2 | CURL_SSLVERSION_MAX_TLSv1_2);
 
         if (httpio->maxspeed[GET] && httpio->maxspeed[GET] <= 102400)
         {
+            LOG_debug << "Low maxspeed, set curl buffer size to 4 KB";
             curl_easy_setopt(curl, CURLOPT_BUFFERSIZE, 4096L);
         }
 
         if (req->minspeed)
         {
+            LOG_debug << "Setting low speed limit (<30 Bytes/s) and how much time the speed is allowed to be lower than the limit before aborting (30 secs)";
             curl_easy_setopt(curl, CURLOPT_LOW_SPEED_TIME, 60L);
             curl_easy_setopt(curl, CURLOPT_LOW_SPEED_LIMIT, 30L);
         }
@@ -1976,6 +1981,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
     req->in.clear();
     req->status = REQ_INFLIGHT;
+    req->postStartTime = std::chrono::steady_clock::now();
 
     if (proxyip.size() && req->method != METHOD_NONE)
     {
@@ -2296,7 +2302,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                         }
                     }
 
-                    if (req->method == METHOD_NONE)
+                    if (req->method == METHOD_NONE && req->httpiohandle)
                     {
                         char *ip = NULL;
                         CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
@@ -2907,6 +2913,11 @@ const BIGNUM *RSA_get0_d(const RSA *rsa)
 // SSL public key pinning
 int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
 {
+#ifdef _WIN32
+// Disable 4996 warning for Windows. Starting on OpenSSL 3
+// It could be removed when RSA_get0_x usages in this function are updated.
+#pragma warning( disable : 4996)
+#endif
     HttpReq *request = (HttpReq *)req;
     CurlHttpIO *httpio = (CurlHttpIO *)request->httpio;
     unsigned char buf[sizeof(APISSLMODULUS1) - 1];
@@ -2981,6 +2992,9 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
     }
 
     return ok;
+#ifdef _WIN32
+#pragma warning( default : 4996) // // Restore default bahaviour
+#endif
 }
 #endif
 

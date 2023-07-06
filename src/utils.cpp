@@ -1775,6 +1775,23 @@ std::string Utils::hexToString(const std::string &input)
     return output;
 }
 
+uint64_t Utils::hexStringToUint64(const std::string &input)
+{
+    uint64_t output;
+    std::stringstream outputStream;
+    outputStream << std::hex << input;
+    outputStream >> output;
+    return output;
+}
+
+std::string Utils::uint64ToHexString(uint64_t input)
+{
+    std::stringstream outputStream;
+    outputStream << std::hex << std::setfill('0') << std::setw(16) << input;
+    std::string output = outputStream.str();
+    return output;
+}
+
 int Utils::icasecmp(const std::string& lhs,
                     const std::string& rhs,
                     const size_t length)
@@ -2388,13 +2405,6 @@ CacheableStatus::CacheableStatus(mega::CacheableStatus::Type type, int64_t value
 { }
 
 
-// This should be a const-method but can't be due to the broken Cacheable interface.
-// Do not mutate members in this function! Hence, we forward to a private const-method.
-bool CacheableStatus::serialize(std::string* data)
-{
-    return const_cast<const CacheableStatus*>(this)->serialize(*data);
-}
-
 CacheableStatus* CacheableStatus::unserialize(class MegaClient *client, const std::string& data)
 {
     int64_t typeBuf;
@@ -2415,9 +2425,9 @@ CacheableStatus* CacheableStatus::unserialize(class MegaClient *client, const st
     return client->mCachedStatus.getPtr(type);
 }
 
-bool CacheableStatus::serialize(std::string& data) const
+bool CacheableStatus::serialize(std::string* data) const
 {
-    CacheableWriter writer{data};
+    CacheableWriter writer{*data};
     writer.serializei64(mType);
     writer.serializei64(mValue);
     return true;
@@ -2498,6 +2508,22 @@ std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &
     }
 
     return std::make_pair(true, chunkMacs.macsmac(&cipher));
+}
+
+bool CompareLocalFileMetaMacWithNodeKey(FileAccess* fa, const std::string& nodeKey, int type)
+{
+    SymmCipher cipher;
+    const char* iva = &nodeKey[SymmCipher::KEYLENGTH];
+    int64_t remoteIv = MemAccess::get<int64_t>(iva);
+    int64_t remoteMac = MemAccess::get<int64_t>(iva + sizeof(int64_t));
+    cipher.setkey((byte*)&nodeKey[0], type);
+    auto result = generateMetaMac(cipher, *fa, remoteIv);
+    return result.first && result.second == remoteMac;
+}
+
+bool CompareLocalFileMetaMacWithNode(FileAccess* fa, Node* node)
+{
+    return CompareLocalFileMetaMacWithNodeKey(fa, node->nodekey(), node->type);
 }
 
 void MegaClientAsyncQueue::push(std::function<void(SymmCipher&)> f, bool discardable)
@@ -2778,13 +2804,13 @@ error readDriveId(FileSystemAccess& fsAccess, const LocalPath& pathToDrive, hand
 
     auto fileAccess = fsAccess.newfileaccess(false);
 
-    if (!fileAccess->fopen(path, true, false))
+    if (!fileAccess->fopen(path, true, false, FSLogging::logExceptFileNotFound))
     {
         // This case is valid when only checking for file existence
         return API_ENOENT;
     }
 
-    if (!fileAccess->frawread((byte*)&driveId, sizeof(driveId), 0))
+    if (!fileAccess->frawread((byte*)&driveId, sizeof(driveId), 0, false, FSLogging::logOnError))
     {
         LOG_err << "Unable to read drive-id from file: " << path;
         return API_EREAD;
@@ -2812,7 +2838,7 @@ error writeDriveId(FileSystemAccess& fsAccess, const char* pathToDrive, handle d
 
     // Open the file for writing
     auto fileAccess = fsAccess.newfileaccess(false);
-    if (!fileAccess->fopen(path, false, true))
+    if (!fileAccess->fopen(path, false, true, FSLogging::logOnError))
     {
         LOG_err << "Unable to open file to write drive-id: " << path;
         return API_EWRITE;
@@ -2880,6 +2906,10 @@ bool platformSetRLimitNumFile(int newNumFileLimit)
             auto e = errno;
             LOG_err << "Error calling setrlimit: " << e;
             return false;
+        }
+        else 
+        {
+            LOG_info << "rlimit for NOFILE is: " << rl.rlim_cur;
         }
     }
     return true;
@@ -3006,6 +3036,21 @@ std::string winErrorMessage(DWORD error)
     return r;
 }
 #endif
+
+string connDirectionToStr(mega::direction_t directionType)
+{
+    switch (directionType)
+    {
+        case GET:
+            return "GET";
+        case PUT:
+            return "PUT";
+        case API:
+            return "API";
+        default:
+            return "UNKNOWN";
+    }
+}
 
 } // namespace mega
 

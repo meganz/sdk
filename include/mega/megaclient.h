@@ -257,9 +257,7 @@ struct FileAttributesPending : public mapWithLookupExisting<UploadHandle, Upload
     }
 };
 
-
 class MegaClient;
-
 
 class MEGA_API KeyManager
 {
@@ -484,11 +482,16 @@ public:
     // Don't start showing the cookie banner until API says so
     bool mCookieBannerEnabled = false;
 
+    // AB Test flags
+    std::map<string, uint32_t> mABTestFlags;
+
 private:
     // Pro Flexi plan is enabled
     bool mProFlexi = false;
 public:
     bool isProFlexi() const { return mProFlexi; }
+
+    Error sendABTestActive(const char* flag, CommandABTestActive::Completion completion);
 
     // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed  -1 = flag was not received
     SmsVerificationState mSmsVerificationState;
@@ -543,7 +546,7 @@ public:
     void cancelsignup();
 
     // full account confirmation/creation support
-    string sendsignuplink2(const char*, const char *, const char*);
+    string sendsignuplink2(const char*, const char *, const char*, int ctag = 0);
     void resendsignuplink2(const char*, const char *);
 
     void confirmsignuplink2(const byte*, unsigned);
@@ -567,6 +570,9 @@ public:
     // session login: binary session, bytecount
     void login(string session);
 
+    // handle login result, and allow further actions when successful
+    void loginResult(error e, std::function<void()> onLoginOk = nullptr);
+
     // check password
     error validatepwd(const char* pswd);
     bool validatepwdlocally(const char* pswd);
@@ -587,6 +593,7 @@ public:
     void reportLoggedInChanges();
     sessiontype_t mLastLoggedInReportedState = NOTLOGGEDIN;
     handle mLastLoggedInMeHandle = UNDEF;
+    string mLastLoggedInMyEmail;
 
     // check the reason of being blocked
     void whyamiblocked();
@@ -645,9 +652,6 @@ public:
 
     // fetchnodes stats
     FetchNodesStats fnstats;
-
-    // load cryptographic keys: RSA, Ed25519, Cu25519 and their signatures
-    void fetchkeys();
 
     // check existence and integrity of keys and signatures, initialize if missing
     void initializekeys();
@@ -747,7 +751,7 @@ public:
 
     // helpfer function for preparing a putnodes call for new node
     error putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, const char *utf8Name, const UploadToken& binaryUploadToken,
-                                  byte *theFileKey, char *megafingerprint, const char *fingerprintOriginal,
+                                  const byte *theFileKey, const char *megafingerprint, const char *fingerprintOriginal,
                                   std::function<error(AttrMap&)> addNodeAttrsFunc = nullptr,
                                   std::function<error(std::string *)> addFileAttrsFunc = nullptr);
 
@@ -792,6 +796,19 @@ public:
     // retrieve the email address of a user
     void getUserEmail(const char *uid);
 
+
+//
+// Account upgrade to V2
+//
+public:
+    void saveV1Pwd(const char* pwd);
+private:
+    void upgradeAccountToV2(const string& pwd, int ctag, std::function<void(error e)> completion);
+    // temporarily stores v1 account password, to allow automatic upgrade to v2 after successful (full-)login
+    unique_ptr<pair<string, SymmCipher>> mV1PswdVault;
+// -------- end of Account upgrade to V2
+
+public:
 #ifdef DEBUG
     // queue a user attribute removal
     void delua(const char* an);
@@ -1029,8 +1046,8 @@ public:
     void userfeedbackstore(const char *);
 
     // send event
-    void sendevent(int, const char *);
-    void sendevent(int, const char *, int tag);
+    void sendevent(int, const char *, const char* viewId = nullptr, bool addJourneyId = false);
+    void sendevent(int, const char *, int tag, const char* viewId = nullptr, bool addJourneyId = false);
 
     // create support ticket
     void supportticket(const char *message, int type);
@@ -1063,6 +1080,9 @@ public:
 
     // get the URL of a chat
     void getUrlChat(handle chatid);
+
+    // set chat mode (public/private)
+    void setChatMode(TextChat* chat, bool pubChat);
 
     // process object arrays by the API server (users + privileges)
     userpriv_vector * readuserpriv(JSON* j);
@@ -1110,7 +1130,7 @@ public:
 
     // parse scheduled meeting or scheduled meeting occurrences
     error parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting> > &schedMeetings,
-                                 bool parsingOccurrences, JSON *j = nullptr, bool parseOnce = false,
+                                 bool parsingOccurrences, JSON *j, bool parseOnce = false,
                                  handle* originatingUser = nullptr,
                                  UserAlert::UpdatedScheduledMeeting::Changeset* cs = nullptr,
                                  handle_set* childMeetingsDeleted = nullptr);
@@ -1314,7 +1334,6 @@ private:
     // Working lock
     unique_ptr<HttpReq> workinglockcs;
 
-private:
     // Request status monitor
     unique_ptr<HttpReq> mReqStatCS;
 
@@ -1418,6 +1437,7 @@ public:
     static error parseScheduledMeetingChangeset(JSON*, UserAlert::UpdatedScheduledMeeting::Changeset*);
 #endif
     void sc_uac();
+    void sc_uec();
     void sc_la();
     void sc_ub();
     void sc_sqac();
@@ -1466,7 +1486,6 @@ public:
 
     void dodiscarduser(User* u, bool discardnotified);
 
-public:
     void enabletransferresumption(const char *loggedoutid = NULL);
     void disabletransferresumption(const char *loggedoutid = NULL);
 
@@ -1578,9 +1597,6 @@ public:
 
     // flag to pause / resume the processing of action packets
     bool scpaused;
-
-    // MegaClient-Server response JSON
-    JSON json;
 
     // Server-MegaClient request JSON and processing state flag ("processing a element")
     JSON jsonsc;
@@ -2040,12 +2056,6 @@ public:
     // Pending contact keys during initialization
     std::map<attr_t, set<handle>> mPendingContactKeys;
 
-    // number of authrings being fetched
-    unsigned short mFetchingAuthrings = 0;
-
-    // actual state of keys
-    bool fetchingkeys;
-
     // invalidate received keys (when fail to load)
     void clearKeys();
 
@@ -2101,6 +2111,12 @@ public:
 
     // create a new folder with given name and stores its node's handle into the user's attribute ^!bak
     error setbackupfolder(const char* foldername, int tag, std::function<void(Error)> addua_completion);
+
+    // fetch backups and syncs from BC, search bkpId among them, disable the backup or sync, update sds attribute, for a backup move or delete its contents
+    void removeFromBC(handle bkpId, handle bkpDest, std::function<void(const Error&)> f);
+
+    // fetch backups and syncs from BC
+    void getBackupInfo(std::function<void(const Error&, const vector<CommandBackupSyncFetch::Data>&)> f);
 
     // sets the auth token to be used when logged into a folder link
     void setFolderLinkAccountAuth(const char *auth);
@@ -2275,9 +2291,6 @@ public:
     MegaClient(MegaApp*, shared_ptr<Waiter>, HttpIO*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();
 
-    void filenameAnomalyDetected(FilenameAnomalyType type, const LocalPath& localPath, const string& remotePath);
-    unique_ptr<FilenameAnomalyReporter> mFilenameAnomalyReporter;
-
 struct MyAccountData
 {
     void setProLevel(AccountType prolevel) { mProLevel = prolevel; }
@@ -2293,6 +2306,42 @@ private:
     m_time_t mProUntil = -1;
 } mMyAccount;
 
+// JourneyID for cs API requests and log events. Populated from "ug"/"gmf" commands response.
+// It is kept in memory and persisted in disk until a full logout.
+struct JourneyID
+{
+private:
+    // The JourneyID value - a 16-char hex string (or an empty string if it hasn't been retrieved yet)
+    string mJidValue;
+    // The tracking flag: used to attach the JourneyID to cs requests
+    bool mTrackValue;
+    // Local cache file
+    unique_ptr<FileSystemAccess>& mClientFsaccess;
+    LocalPath mCacheFilePath;
+    bool storeValuesToCache(bool storeJidValue, bool storeTrackValue) const;
+
+public:
+    static constexpr size_t HEX_STRING_SIZE = 16;
+    JourneyID(unique_ptr<FileSystemAccess>& clientFsaccess, const LocalPath& rootPath);
+    // Updates the JourneyID and the tracking flag based on the provided jidValue, which must be a 16-char hex string.
+    // When jidValue is not empty:
+    // - Sets mJidValue to jidValue only if it is currently unset (empty).
+    // - Sets mTrackValue if it is currently unset (false).
+    // When jidValue is empty:
+    // - Keeps mJidValue unchanged.
+    // - Unsets mTrackValue if it is currently set (true).
+    // Returns true if either the JourneyID (mJidValue) or the tracking flag (mTrackValue) have been updated.
+    bool setValue(const string& jidValue);
+    // Get the JourneyID (empty if still unset)
+    string getValue() const;
+    // Check if the tracking flag is set, i.e.: the JourneyID must be tracked (used in cs API reqs)
+    bool isTrackingOn() const;
+    // Load the JourneyID and the tracking flag stored in the cache file.
+    bool loadValuesFromCache();
+    // Remove local cache file and reset the JourneyID so a new one can be set from the next "ug"/"gmf" command.
+    bool resetCacheAndValues();
+};
+
 private:
     // Since it's quite expensive to create a SymmCipher, this are provided to use for quick operations - just set the key and use.
     SymmCipher tmpnodecipher;
@@ -2302,15 +2351,41 @@ private:
 
     error changePasswordV1(User* u, const char* password, const char* pin);
     error changePasswordV2(const char* password, const char* pin);
+    void fillCypheredAccountDataV2(const char* password, vector<byte>& clientRandomValue, vector<byte>& encmasterkey,
+                                   string& hashedauthkey, string& salt);
 
     static vector<byte> deriveKey(const char* password, const string& salt, size_t derivedKeySize);
 
+//
+// JourneyID and ViewID
+//
+    // JourneyID for cs API requests and log events
+    JourneyID mJourneyId;
+
+public:
+
+    // Checks if there is a valid JourneyID and tracking flag is set
+    bool trackJourneyId() const;
+
+    // Retrieves the JourneyID value, which is a 16-character hexadecimal string (for submission to the API)
+    // If the JourneyID is still unset, it returns an empty string.
+    string getJourneyId() const;
+
+    // Load the JourneyID values from the local cache.
+    bool loadJourneyIdCacheValues();
+
+    // Set the JourneyID value from a 16-character hexadecimal string (obtained from API commands "ug"/"gmf")
+    // See JourneyID::setValue() for full doc
+    bool setJourneyId(const string& jid);
+
+    // Generates a unique ViewID that the caller should store and can optionally use in subsequent sendevent() calls.
+    // ViewID is employed by apps for event logging. It is generated by the SDK to ensure consistent and shared logic across applications.
+    static string generateViewId(PrnGen& rng);
 
 //
 // Sets and Elements
 //
 
-public:
     // generate "asp" command
     void putSet(Set&& s, std::function<void(Error, const Set*)> completion);
 
@@ -2333,7 +2408,7 @@ public:
     void removeSetElement(handle sid, handle eid, std::function<void(Error)> completion);
 
     // handle "aesp" parameter, part of 'f'/ "fetch nodes" response
-    bool procaesp();
+    bool procaesp(JSON& j);
 
     // load Sets and Elements from json
     error readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<handle, elementsmap_t>& newElements);
@@ -2395,9 +2470,13 @@ private:
     error readSet(JSON& j, Set& s);
     error readElements(JSON& j, map<handle, elementsmap_t>& elements);
     error readElement(JSON& j, SetElement& el);
+    error readAllNodeMetadata(JSON& j, map<handle, SetElement::NodeMetadata>& nodes);
+    error readSingleNodeMetadata(JSON& j, SetElement::NodeMetadata& node);
+    bool decryptNodeMetadata(SetElement::NodeMetadata& nodeMeta, const string& key);
     error readExportedSet(JSON& j, Set& s, pair<bool, m_off_t>& exportRemoved);
     error readSetsPublicHandles(JSON& j, map<handle, Set>& sets);
     error readSetPublicHandle(JSON& j, map<handle, Set>& sets);
+    size_t decryptAllSets(map<handle, Set>& newSets, map<handle, elementsmap_t>& newElements, map<handle, SetElement::NodeMetadata>* nodeData);
     error decryptSetData(Set& s);
     error decryptElementData(SetElement& el, const string& setKey);
     string decryptKey(const string& k, SymmCipher& cipher) const;

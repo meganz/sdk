@@ -110,6 +110,8 @@ else {
 CONFIG(ENABLE_WERROR_COMPILATION) {
     !win32 {
         QMAKE_CXXFLAGS += -Werror
+        # Warnings which should not be promoted to errors, but still appear as warnings
+        QMAKE_CXXFLAGS += -Wno-error=deprecated-declarations
     }
     else {
         QMAKE_CXXFLAGS += /WX
@@ -273,34 +275,6 @@ CONFIG(USE_PDFIUM) {
     vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/pdfium
     vcpkg:LIBS += -lpdfium -lfreetype$$DEBUG_SUFFIX -ljpeg -lopenjp2  -llcms$$DEBUG_SUFFIX 
 
-    #make sure we get the vcpkg built icu libraries and not a system one with the same name
-    vcpkg {
-        win32 {
-            vcpkg:LIBS += -lbz2$$DEBUG_SUFFIX_WO -licudt$$DEBUG_SUFFIX_WO
-            debug: LIBS += -l$$THIRDPARTY_VCPKG_PATH/debug/lib/icuucd -l$$THIRDPARTY_VCPKG_PATH/debug/lib/icuiod
-            !debug: LIBS += -l$$THIRDPARTY_VCPKG_PATH/lib/icuuc$$DEBUG_SUFFIX_WO.lib -l$$THIRDPARTY_VCPKG_PATH/lib/icuio$$DEBUG_SUFFIX_WO.lib
-            #QMAKE_LFLAGS_WINDOWS += /VERBOSE
-        }
-        else {
-            debug {
-                # icu doesn't build debug libs with 'd' suffix, but check anyway
-                exists($$THIRDPARTY_VCPKG_PATH/debug/lib/libicuuc$$DEBUG_SUFFIX.a) {
-                    LIBS += $$THIRDPARTY_VCPKG_PATH/debug/lib/libicuuc$$DEBUG_SUFFIX.a
-                }
-                else {
-                    LIBS += $$THIRDPARTY_VCPKG_PATH/debug/lib/libicuuc.a
-                }
-                exists($$THIRDPARTY_VCPKG_PATH/debug/lib/libicuio$$DEBUG_SUFFIX.a) {
-                    LIBS += $$THIRDPARTY_VCPKG_PATH/debug/lib/libicuio$$DEBUG_SUFFIX.a
-                }
-                else {
-                    LIBS += $$THIRDPARTY_VCPKG_PATH/debug/lib/libicuio.a
-                }
-            }
-            !debug: LIBS += $$THIRDPARTY_VCPKG_PATH/lib/libicuuc.a $$THIRDPARTY_VCPKG_PATH/lib/libicuio.a
-        }
-    }
-
     vcpkg:unix:!macx:LIBS += -lharfbuzz #freetype dependencies. ideally we could use pkg-config to get these
     vcpkg:unix:LIBS += -lpng
     # is it needed? win has it, mac does not -licuin$$DEBUG_SUFFIX_WO
@@ -386,6 +360,9 @@ CONFIG(USE_FFMPEG) {
             debug:LIBS += $$THIRDPARTY_VCPKG_PATH/debug/lib/libbz2d.a
             else:LIBS += $$THIRDPARTY_VCPKG_PATH/lib/libbz2.a
         }
+        vcpkg:win32 {
+            LIBS += -lbz2$$DEBUG_SUFFIX
+        }
     }
 }
 
@@ -450,8 +427,8 @@ else:CONFIG += USE_CURL
 
 unix {
 SOURCES += src/posix/net.cpp  \
-    src/posix/fs.cpp  \
-    src/posix/waiter.cpp
+           src/posix/fs.cpp  \
+           src/posix/waiter.cpp
 }
 
 HEADERS  += include/mega.h \
@@ -639,8 +616,48 @@ vcpkg {
     else:LIBS += -lsodium -lcryptopp -lz
     win32:DEFINES += SODIUM_STATIC
     LIBS += -lsqlite3
-}
 
+    # Use the icu lib from vckpg, not the system one.
+    win32 {
+        LIBS += -licudt$$DEBUG_SUFFIX_WO
+        debug:LIBS += -l$$THIRDPARTY_VCPKG_PATH/debug/lib/icuucd -l$$THIRDPARTY_VCPKG_PATH/debug/lib/icuiod
+        !debug:LIBS += -l$$THIRDPARTY_VCPKG_PATH/lib/icuuc$$DEBUG_SUFFIX_WO.lib -l$$THIRDPARTY_VCPKG_PATH/lib/icuio$$DEBUG_SUFFIX_WO.lib
+        #QMAKE_LFLAGS_WINDOWS += /VERBOSE
+    }
+    else {
+        debug {
+            # icu doesn't build debug libs with 'd' suffix, but check anyway
+            exists($$THIRDPARTY_VCPKG_PATH/debug/lib/libicuuc$$DEBUG_SUFFIX.a) {
+                LIBS += $$THIRDPARTY_VCPKG_PATH/debug/lib/libicuuc$$DEBUG_SUFFIX.a
+            }
+            else {
+                LIBS += $$THIRDPARTY_VCPKG_PATH/debug/lib/libicuuc.a
+            }
+
+            exists($$THIRDPARTY_VCPKG_PATH/debug/lib/libicuio$$DEBUG_SUFFIX.a) {
+                LIBS += $$THIRDPARTY_VCPKG_PATH/debug/lib/libicuio$$DEBUG_SUFFIX.a
+            }
+            else {
+                LIBS += $$THIRDPARTY_VCPKG_PATH/debug/lib/libicuio.a
+            }
+        }
+        else {
+            LIBS += $$THIRDPARTY_VCPKG_PATH/lib/libicuuc.a $$THIRDPARTY_VCPKG_PATH/lib/libicuio.a
+        }
+    }
+}
+else {
+    # Use system icu if we are not using vcpkg and PDFium is not used. PDFium already includes icu lib.
+    !CONFIG(USE_PDFIUM)
+    {
+        unix:!macx {
+            LIBS += -licuuc -licudata
+        }
+        else {#win/mac
+            LIBS += -licu -licudt
+        }
+    }
+}
 
 win32 {
     !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/zlib

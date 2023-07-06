@@ -42,6 +42,7 @@
 #import "DelegateMEGAListener.h"
 #import "DelegateMEGALoggerListener.h"
 #import "DelegateMEGATreeProcessorListener.h"
+#import "DelegateMEGAScheduledCopyListener.h"
 #import "MEGAFileInputStream.h"
 #import "MEGADataInputStream.h"
 #import "MEGACancelToken+init.h"
@@ -63,6 +64,7 @@ using namespace mega;
 @property (nonatomic, assign) std::set<DelegateMEGAGlobalListener *>activeGlobalListeners;
 @property (nonatomic, assign) std::set<DelegateMEGAListener *>activeMegaListeners;
 @property (nonatomic, assign) std::set<DelegateMEGALoggerListener *>activeLoggerListeners;
+@property (nonatomic, assign) std::set<DelegateMEGAScheduledCopyListener *>activeScheduledCopyListeners;
 
 - (MegaRequestListener *)createDelegateMEGARequestListener:(id<MEGARequestDelegate>)delegate singleListener:(BOOL)singleListener;
 - (MegaRequestListener *)createDelegateMEGARequestListener:(id<MEGARequestDelegate>)delegate singleListener:(BOOL)singleListener queueType:(ListenerQueueType)queueType;
@@ -71,6 +73,7 @@ using namespace mega;
 - (MegaGlobalListener *)createDelegateMEGAGlobalListener:(id<MEGAGlobalDelegate>)delegate  queueType:(ListenerQueueType)queueType;
 - (MegaListener *)createDelegateMEGAListener:(id<MEGADelegate>)delegate;
 - (MegaLogger *)createDelegateMegaLogger:(id<MEGALoggerDelegate>)delegate;
+- (MegaScheduledCopyListener *)createDelegateMEGAScheduledCopyListener:(id<MEGAScheduledCopyDelegate>)delegate queueType:(ListenerQueueType)queueType;
 
 @property (nonatomic, nullable) MegaApi *megaApi;
 
@@ -276,6 +279,12 @@ using namespace mega;
     }
 }
 
+- (void)addMEGARequestDelegate:(id<MEGARequestDelegate>)delegate queueType:(ListenerQueueType)queueType {
+    if (self.megaApi) {
+        self.megaApi->addRequestListener([self createDelegateMEGARequestListener:delegate singleListener:NO queueType:queueType]);
+    }
+}
+
 - (void)addMEGATransferDelegate:(id<MEGATransferDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->addTransferListener([self createDelegateMEGATransferListener:delegate singleListener:NO]);
@@ -424,6 +433,44 @@ using namespace mega;
         MegaApi::removeLoggerObject(listenersToRemove[i]);
         delete listenersToRemove[i];
     }
+}
+
+- (void)addMEGAScheduledCopyDelegate:(id<MEGAScheduledCopyDelegate>)delegate {
+    [self addMEGAScheduledCopyDelegate:delegate queueType:ListenerQueueTypeMain];
+}
+
+- (void)addMEGAScheduledCopyDelegate:(id<MEGAScheduledCopyDelegate>)delegate queueType:(ListenerQueueType)queueType {
+    if (self.megaApi) {
+        self.megaApi->addScheduledCopyListener([self createDelegateMEGAScheduledCopyListener:delegate queueType:queueType]);
+    }
+}
+
+- (void)removeMEGAScheduledCopyDelegate:(id<MEGAScheduledCopyDelegate>)delegate {
+    std::vector<DelegateMEGAScheduledCopyListener *> listenersToRemove;
+    
+    pthread_mutex_lock(&listenerMutex);
+    std::set<DelegateMEGAScheduledCopyListener *>::iterator it = _activeScheduledCopyListeners.begin();
+    while (it != _activeScheduledCopyListeners.end()) {
+        DelegateMEGAScheduledCopyListener *delegateListener = *it;
+        if (delegateListener->getUserListener() == delegate) {
+            listenersToRemove.push_back(delegateListener);
+            _activeScheduledCopyListeners.erase(it++);
+        }
+        else {
+            it++;
+        }
+    }
+    pthread_mutex_unlock(&listenerMutex);
+    
+    
+    for (int i = 0; i < listenersToRemove.size(); i++)
+    {
+        if (self.megaApi) {
+            self.megaApi->removeScheduledCopyListener(listenersToRemove[i]);
+        }
+        delete listenersToRemove[i];
+    }
+    
 }
 
 #pragma mark - Utils
@@ -1909,6 +1956,26 @@ using namespace mega;
     }
 }
 
+- (void)setUserAttributeType:(MEGAUserAttribute)type key:(NSString *)key value:(NSString *)value {
+    if (self.megaApi) {
+        const char *base64Value = MegaApi::binaryToBase64((const char *)value.UTF8String, value.length);
+        MegaStringMap *stringMap = MegaStringMap::createInstance();
+        stringMap->set(key.UTF8String, base64Value);
+
+        self.megaApi->setUserAttribute((int)type, stringMap);
+    }
+}
+
+- (void)setUserAttributeType:(MEGAUserAttribute)type key:(NSString *)key value:(NSString *)value delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        const char *base64Value = MegaApi::binaryToBase64((const char *)value.UTF8String, value.length);
+        MegaStringMap *stringMap = MegaStringMap::createInstance();
+        stringMap->set(key.UTF8String, base64Value);
+
+        self.megaApi->setUserAttribute((int)type, stringMap, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
+
 - (void)getUserAliasWithHandle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->getUserAlias(handle, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
@@ -1958,6 +2025,12 @@ using namespace mega;
 - (void)queryTransferQuotaWithSize:(long long)size {
     if (self.megaApi) {
         self.megaApi->queryTransferQuota(size);
+    }
+}
+
+- (void)getRecommendedProLevelWithDelegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->getRecommendedProLevel([self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
     }
 }
 
@@ -2506,15 +2579,15 @@ using namespace mega;
     }
 }
 
-- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath  fileName:(nullable NSString*)fileName appData:(nullable NSString *)appData startFirst:(BOOL) startFirst cancelToken:(nullable MEGACancelToken *)cancelToken {
+- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath  fileName:(nullable NSString*)fileName appData:(nullable NSString *)appData startFirst:(BOOL) startFirst cancelToken:(nullable MEGACancelToken *)cancelToken collisionCheck:(CollisionCheck)collisionCheck collisionResolution:(CollisionResolution)collisionResolution {
     if (self.megaApi) {
-        self.megaApi->startDownload(node.getCPtr, localPath.UTF8String, fileName.UTF8String, appData.UTF8String, startFirst, cancelToken.getCPtr);
+        self.megaApi->startDownload(node.getCPtr, localPath.UTF8String, fileName.UTF8String, appData.UTF8String, startFirst, cancelToken.getCPtr, (int)collisionCheck, (int)collisionResolution);
     }
 }
 
-- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath  fileName:(nullable NSString*)fileName appData:(nullable NSString *)appData startFirst:(BOOL) startFirst cancelToken:(nullable MEGACancelToken *)cancelToken delegate:(id<MEGATransferDelegate>)delegate {
+- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath  fileName:(nullable NSString*)fileName appData:(nullable NSString *)appData startFirst:(BOOL) startFirst cancelToken:(nullable MEGACancelToken *)cancelToken collisionCheck:(CollisionCheck)collisionCheck collisionResolution:(CollisionResolution)collisionResolution delegate:(id<MEGATransferDelegate>)delegate {
     if (self.megaApi) {
-        self.megaApi->startDownload(node.getCPtr, localPath.UTF8String, fileName.UTF8String, appData.UTF8String, startFirst, cancelToken.getCPtr, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
+        self.megaApi->startDownload(node.getCPtr, localPath.UTF8String, fileName.UTF8String, appData.UTF8String, startFirst, cancelToken.getCPtr, (int)collisionCheck, (int)collisionResolution, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
     }
 }
 
@@ -3649,6 +3722,12 @@ using namespace mega;
     }
 }
 
+- (void)getBackupInfo:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->getBackupInfo([self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
 - (void)sendBackupHeartbeat:(MEGAHandle)backupId status:(BackupHeartbeatStatus)status progress:(NSInteger)progress pendingUploadCount:(NSUInteger)pendingUploadCount lastActionDate:(nullable NSDate *)lastActionDate lastBackupNode:(nullable MEGANode *)lastBackupNode delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->sendBackupHeartbeat(backupId, (int)status, (int)progress, (int)pendingUploadCount, 0, lastActionDate != nil ? (long long)[lastActionDate timeIntervalSince1970] : (long long)0, lastBackupNode != nil ? lastBackupNode.handle : INVALID_HANDLE, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
@@ -3699,6 +3778,29 @@ using namespace mega;
     if (self.megaApi) {
         self.megaApi->sendEvent((int)eventType, message.UTF8String);
     }
+}
+
+- (void)sendEvent:(NSInteger)eventType message:(NSString *)message addJourneyId:(BOOL)addJourneyId viewId:(nullable NSString *)viewId delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->sendEvent((int)eventType, message.UTF8String, addJourneyId, viewId.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
+
+- (void)sendEvent:(NSInteger)eventType message:(NSString *)message addJourneyId:(BOOL)addJourneyId viewId:(nullable NSString *)viewId {
+    if (self.megaApi) {
+        self.megaApi->sendEvent((int)eventType, message.UTF8String, addJourneyId, viewId.UTF8String);
+    }
+}
+
+- (NSString *)generateViewId {
+    if (self.megaApi == nil) return nil;
+    const char *val = self.megaApi->generateViewId();
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
 }
 
 - (void)createSupportTicketWithMessage:(NSString *)message type:(NSInteger)type delegate:(id<MEGARequestDelegate>)delegate {
@@ -3770,6 +3872,16 @@ using namespace mega;
     DelegateMEGALoggerListener *delegateListener = new DelegateMEGALoggerListener(delegate);
     pthread_mutex_lock(&listenerMutex);
     _activeLoggerListeners.insert(delegateListener);
+    pthread_mutex_unlock(&listenerMutex);
+    return delegateListener;
+}
+
+- (MegaScheduledCopyListener *)createDelegateMEGAScheduledCopyListener:(id<MEGAScheduledCopyDelegate>)delegate queueType:(ListenerQueueType)queueType {
+    if (delegate == nil) return nil;
+    
+    DelegateMEGAScheduledCopyListener *delegateListener = new DelegateMEGAScheduledCopyListener(self, delegate, queueType);
+    pthread_mutex_lock(&listenerMutex);
+    _activeScheduledCopyListeners.insert(delegateListener);
     pthread_mutex_unlock(&listenerMutex);
     return delegateListener;
 }

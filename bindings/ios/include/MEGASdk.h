@@ -51,6 +51,10 @@
 #import "MEGALogLevel.h"
 #import "ListenerDispatch.h"
 #import "MEGAUserAlert.h"
+#import "MEGABackupInfo.h"
+#import "MEGABackupInfoList.h"
+#import "MEGAScheduledCopy.h"
+#import "MEGAScheduledCopyDelegate.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -140,7 +144,9 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
     MEGAUserAttributeCookieSettings          = 33, // private - byte array
     MEGAUserAttributeJsonSyncConfigData      = 34, // private - byte array
     MEGAUserAttributeDrivesName              = 35, // private - byte array
-    MEGAUserAttributeNoCallKit               = 36  // private - byte array
+    MEGAUserAttributeNoCallKit               = 36, // private - byte array
+    MEGAUserAttributeAppsPreferences         = 38, // private - byte array - versioned (apps preferences)
+    MEGAUserAttributeContentConsumptionPreferences = 39, // private - byte array - versioned (content consumption preferences)
 };
 
 typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
@@ -315,6 +321,20 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
     AccountActionTypeCancel = 2,
     AccountActionTypeCreateEphemeralPlusPlus = 3,
     AccountActionTypeResumeEphemeralPlusPlus = 4,
+};
+
+typedef NS_ENUM(NSInteger, CollisionCheck) {
+    CollisionCheckAssumeSame        = 1,
+    CollisionCheckAlwaysError       = 2,
+    CollisionCheckFingerprint       = 3,
+    CollisionCheckMetaMac           = 4,
+    CollisionCheckAssumeDifferent   = 5,
+};
+
+typedef NS_ENUM(NSInteger, CollisionResolution) {
+    CollisionResolutionOverwrite        = 1,
+    CollisionResolutionNewWithN         = 2,
+    CollisionResolutionExistingToOldN   = 3,
 };
 
 /**
@@ -630,6 +650,16 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 - (void)addMEGARequestDelegate:(id<MEGARequestDelegate>)delegate;
 
 /**
+ * @brief Register a delegate with queue type to receive all events about requests.
+ *
+ * You can use [MEGASdk removeMEGARequestDelegateAsync:] to stop receiving events.
+ *
+ * @param delegate Delegate that will receive all events about requests.
+ * @param queueType ListenerQueueType to receive the MEGARequest events on.
+ */
+- (void)addMEGARequestDelegate:(id<MEGARequestDelegate>)delegate queueType:(ListenerQueueType)queueType;
+
+/**
  * @brief Register a delegate to receive all events about transfers.
  *
  * You can use [MEGASdk removeMEGATransferDelegate:] to stop receiving events.
@@ -716,6 +746,24 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param delegate Previously registered MegaLogger implementation
  */
 - (void)removeLoggerDelegate:(id<MEGALoggerDelegate>)delegate;
+
+/**
+ * @brief Add a MEGAScheduledCopyDelegate implementation to receive SDK logs
+ *
+ * This delegate receive backups events.
+ *
+ * @param delegate Delegate implementation
+ */
+- (void)addMEGAScheduledCopyDelegate:(id<MEGAScheduledCopyDelegate>)delegate;
+
+/**
+ * @brief Add a MEGAScheduledCopyDelegate implementation to receive SDK logs
+ *
+ * This delegate won't receive more events.
+ *
+ * @param delegate Delegate implementation
+ */
+- (void)removeMEGAScheduledCopyDelegate:(id<MEGAScheduledCopyDelegate>)delegate;
 
 #pragma mark - Utils
 
@@ -1308,7 +1356,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 
 /**
  * @brief Check if the MEGASdk object is logged in.
- * @return 0 if not logged in, Otherwise, a number >= 0.
+ * @return 0 if not logged in, Otherwise, a number > 0.
  */
 - (NSInteger)isLoggedIn;
 
@@ -4957,6 +5005,97 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 - (void)setUserAttributeType:(MEGAUserAttribute)type value:(NSString *)value delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
+ * @brief Set a private attribute of the current user
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type
+ * - [MEGARequest megaStringDictionary] - Returns the new value for the attribute
+ *
+ * You can remove existing records/keypairs from the following attributes:
+ *  - MEGAUserAttributeAlias
+ *  - MEGAUserAttributeDeviceNames
+ *  - MEGAUserAttributeAppsPreferences
+ *  - MEGAUserAttributeContentConsumptionPreferences
+ * by adding a keypair into MegaStringMap whit the key to remove and an empty C-string null terminated as value.
+ *
+ * @param type Attribute type
+ *
+ * Valid values are:
+ *
+ * MEGAUserAttributeAuthRing = 3
+ * Get the authentication ring of the user (private)
+ * MEGAUserAttributeLastInteraction = 4
+ * Get the last interaction of the contacts of the user (private)
+ * MEGAUserAttributeKeyring = 7
+ * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+ * MEGAUserAttributeRichPreviews = 18
+ * Get whether user generates rich-link messages or not (private)
+ * MEGAUserAttributeRubbishTime = 19
+ * Set number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+ * MEGAUserAttributeGeolocation = 22
+ * Set whether the user can send geolocation messages (private)
+ * MEGAUserAttributeAlias = 27
+ * Set the list of users's aliases (private)
+ * MEGAUserAttributeDeviceNames = 30
+ * Set the list of device names (private)
+ * MEGAUserAttributeAppsPreferences = 38
+ * Set the apps prefs (private)
+ * MEGAUserAttributeContentConsumptionPreferences = 39
+ * Set the content consumption prefs (private)
+ *
+ * @param key Key for the new attribute in the string map
+ * @param value New attribute value
+ */
+- (void)setUserAttributeType:(MEGAUserAttribute)type key:(NSString *)key value:(NSString *)value;
+
+/**
+ * @brief Set a private attribute of the current user
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type
+ * - [MEGARequest megaStringDictionary] - Returns the new value for the attribute
+ *
+ * You can remove existing records/keypairs from the following attributes:
+ *  - MEGAUserAttributeAlias
+ *  - MEGAUserAttributeDeviceNames
+ *  - MEGAUserAttributeAppsPreferences
+ *  - MEGAUserAttributeContentConsumptionPreferences
+ * by adding a keypair into MegaStringMap whit the key to remove and an empty C-string null terminated as value.
+ *
+ * @param type Attribute type
+ *
+ * Valid values are:
+ *
+ * MEGAUserAttributeAuthRing = 3
+ * Get the authentication ring of the user (private)
+ * MEGAUserAttributeLastInteraction = 4
+ * Get the last interaction of the contacts of the user (private)
+ * MEGAUserAttributeKeyring = 7
+ * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+ * MEGAUserAttributeRichPreviews = 18
+ * Get whether user generates rich-link messages or not (private)
+ * MEGAUserAttributeRubbishTime = 19
+ * Set number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+ * MEGAUserAttributeGeolocation = 22
+ * Set whether the user can send geolocation messages (private)
+ * MEGAUserAttributeAlias = 27
+ * Set the list of users's aliases (private)
+ * MEGAUserAttributeDeviceNames = 30
+ * Set the list of device names (private)
+ * MEGAUserAttributeAppsPreferences = 38
+ * Set the apps prefs (private)
+ * MEGAUserAttributeContentConsumptionPreferences = 39
+ * Set the content consumption prefs (private)
+ *
+ * @param key Key for the new attribute in the string map
+ * @param value New attribute value
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setUserAttributeType:(MEGAUserAttribute)type key:(NSString *)key value:(NSString *)value delegate:(id<MEGARequestDelegate>)delegate;
+    
+/**
  * @brief Gets the alias for an user
  *
  * The associated request type with this request is MEGARequestTypeGetAttrUser
@@ -5083,6 +5222,25 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param size Amount of bytes to be transferred
  */
 - (void)queryTransferQuotaWithSize:(long long)size;
+
+/**
+ * @brief Get the recommended PRO level. The smallest plan that is an upgrade (free -> lite -> proi -> proii -> proiii)
+ * and has enough space.
+ *
+ * The associated request type with this request is MEGARequestTypeGetRecommenedProPlan.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest getNumber] the recommended PRO level:
+ *     Valid values are (there are other account types):
+ *     - MEGAAccountTypeFree = 0
+ *     - MEGAAccountTypeProI = 1
+ *     - MEGAAccountTypeProII = 2
+ *     - MEGAAccountTypeProIII = 3
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getRecommendedProLevelWithDelegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Get the available pricing plans to upgrade a MEGA account.
@@ -6674,8 +6832,10 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param cancelToken MEGACancelToken to be able to cancel a folder/file download process.
  * This param is required to be able to cancel the transfer safely by calling [MEGACancelToken cancel]
  * You preserve the ownership of this param.
+ * @param collisionCheck Indicates the collision check on same files
+ * @param collisionResolution Indicates how to save same files
  */
-- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath  fileName:(nullable NSString*)fileName appData:(nullable NSString *)appData startFirst:(BOOL) startFirst cancelToken:(nullable MEGACancelToken *)cancelToken;
+- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath  fileName:(nullable NSString*)fileName appData:(nullable NSString *)appData startFirst:(BOOL) startFirst cancelToken:(nullable MEGACancelToken *)cancelToken collisionCheck:(CollisionCheck)collisionCheck collisionResolution:(CollisionResolution)collisionResolution;
 
 /**
  * @brief Download a file or a folder from MEGA, saving custom app data during the transfer
@@ -6707,9 +6867,11 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param cancelToken MEGACancelToken to be able to cancel a folder/file download process.
  * This param is required to be able to cancel the transfer safely by calling [MEGACancelToken cancel]
  * You preserve the ownership of this param.
+ * @param collisionCheck Indicates the collision check on same files
+ * @param collisionResolution Indicates how to save same files
  * @param delegate Delegate to track this transfer.
  */
-- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath  fileName:(nullable NSString*)fileName appData:(nullable NSString *)appData startFirst:(BOOL) startFirst cancelToken:(nullable MEGACancelToken *)cancelToken delegate:(id<MEGATransferDelegate>)delegate;
+- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath  fileName:(nullable NSString*)fileName appData:(nullable NSString *)appData startFirst:(BOOL) startFirst cancelToken:(nullable MEGACancelToken *)cancelToken collisionCheck:(CollisionCheck)collisionCheck collisionResolution:(CollisionResolution)collisionResolution delegate:(id<MEGATransferDelegate>)delegate;
 
 /**
  * @brief Start an streaming download for a file in MEGA
@@ -9506,8 +9668,10 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  *  - MEGA SDK:  [99400, 99500)
  *  - MEGAsync:  [99500, 99600)
  *  - Webclient: [99600, 99800]
+ *
+ * @deprecated This version of the function is deprecated. Please use [MEGASdk sendEvent:message:addJourneyId:viewId:delegate].
  */
-- (void)sendEvent:(NSInteger)eventType message:(NSString *)message delegate:(id<MEGARequestDelegate>)delegate;
+- (void)sendEvent:(NSInteger)eventType message:(NSString *)message delegate:(id<MEGARequestDelegate>)delegate __attribute__((deprecated("Use [MEGASdk sendEvent:message:addJourneyId:viewId:delegate] instead of this function.")));
 
 /**
 * @brief Send events to the stats server
@@ -9530,8 +9694,80 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 *  - MEGA SDK:  [99400, 99500)
 *  - MEGAsync:  [99500, 99600)
 *  - Webclient: [99600, 99800]
+*
+* @deprecated This version of the function is deprecated. Please use [MEGASdk sendEvent:message:addJourneyId:viewId].
 */
-- (void)sendEvent:(NSInteger)eventType message:(NSString *)message;
+- (void)sendEvent:(NSInteger)eventType message:(NSString *)message __attribute__((deprecated("Use [MEGASdk sendEvent:message:addJourneyId:viewId] instead of this function.")));
+
+/**
+ * @brief Send events to the stats server
+ *
+ * The associated request type with this request is MEGARequestTypeSendEvent
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest number] - Returns the event type
+ * - [MEGARequest text] - Returns the event message
+ * - [MEGARequest flag] - Returns the addJourneyId flag
+ * - [MEGARequest sessionKey] - Returns the ViewID
+ *
+ * @param eventType Event type
+ * @param message Event message
+ * @param addJourneyId True if JourneyID should be included. Otherwise, false.
+ * @param viewId ViewID value (C-string null-terminated) to be sent with the event.
+ *               This value should have been generated with [MEGASdk generateViewId] method.
+ * @param delegate Delegate to track this request
+ *
+ * @warning This function is for internal usage of MEGA apps for debug purposes. This info
+ * is sent to MEGA servers.
+ *
+ * @note Event types are restricted to the following ranges:
+ *  - MEGAcmd:   [98900, 99000)
+ *  - MEGAchat:  [99000, 99150)
+ *  - Android:   [99200, 99300)
+ *  - iOS:       [99300, 99400)
+ *  - MEGA SDK:  [99400, 99500)
+ *  - MEGAsync:  [99500, 99600)
+ *  - Webclient: [99600, 99800]
+ */
+- (void)sendEvent:(NSInteger)eventType message:(NSString *)message addJourneyId:(BOOL)addJourneyId viewId:(nullable NSString *)viewId delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Send events to the stats server
+ *
+ * The associated request type with this request is MEGARequestTypeSendEvent
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest number] - Returns the event type
+ * - [MEGARequest text] - Returns the event message
+ * - [MEGARequest flag] - Returns the addJourneyId flag
+ * - [MEGARequest sessionKey] - Returns the ViewID
+ *
+ * @param eventType Event type
+ * @param message Event message
+ * @param addJourneyId True if JourneyID should be included. Otherwise, false.
+ * @param viewId ViewID value (C-string null-terminated) to be sent with the event.
+ *               This value should have been generated with [MEGASdk generateViewId] method.
+ *
+ * @warning This function is for internal usage of MEGA apps for debug purposes. This info
+ * is sent to MEGA servers.
+ *
+ * @note Event types are restricted to the following ranges:
+ *  - MEGAcmd:   [98900, 99000)
+ *  - MEGAchat:  [99000, 99150)
+ *  - Android:   [99200, 99300)
+ *  - iOS:       [99300, 99400)
+ *  - MEGA SDK:  [99400, 99500)
+ *  - MEGAsync:  [99500, 99600)
+ *  - Webclient: [99600, 99800]
+ */
+- (void)sendEvent:(NSInteger)eventType message:(NSString *)message addJourneyId:(BOOL)addJourneyId viewId:(nullable NSString *)viewId;
+
+/**
+ * Generate an unique ViewID
+ *
+ * The caller gets the ownership of the object.
+ * 
+ * A ViewID consists of a random generated id, encoded in hexadecimal as 16 characters of a null-terminated string.
+ */
+- (nullable NSString *)generateViewId;
 
 /**
  * @brief Create a new ticket for support with attached description
@@ -9667,6 +9903,20 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param delegate MEGARequestDelegate to track this request
 */
 - (void)updateBackup:(MEGAHandle)backupId backupType:(BackUpType)type targetNode:(MEGANode *)node folderPath:(nullable NSString *)path backupName:(NSString *)name state:(BackUpState)state subState:(BackUpSubState)subState delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Fetch information about all registered backups for Backup Centre
+ * The associated request type with this request is MEGARequestTypeBackupInfo
+ * Valid data in the MEGARequest object received on callbacks:
+ * - backupInfoList: to get the list of backups.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest backupInfoList] - Returns information about all registered backups
+ *
+ * @param delegate MEGARequestDelegate to track this request
+*/
+- (void)getBackupInfo:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Unregister a backup already registered for the Backup Centre

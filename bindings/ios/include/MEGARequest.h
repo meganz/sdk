@@ -31,6 +31,7 @@
 #import "MEGAHandleList.h"
 #import "MEGACurrency.h"
 #import "MEGARecentActionBucket.h"
+#import "MEGABackupInfo.h"
 #import "MEGASet.h"
 #import "MEGASetElement.h"
 
@@ -171,21 +172,40 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeBackupPut,
     MEGARequestTypeBackupRemove,
     MEGARequestTypeBackupPutHeartbeat,
-    MEGARequestTypeFetchGoogleAds,
-    MEGARequestTypeQueryGoogleAds,
+    MEGARequestTypeFetchGoogleAds, // Deprecated
+    MEGARequestTypeQueryGoogleAds, // Deprecated
     MEGARequestTypeGetAttrNode,
     MEGARequestTypeLoadExternalDriveBackups,
     MEGARequestTypeCloseExternalDriveBackups,
     MEGARequestTypeGetDownloadUrls,
+    MEGARequestTypeStartChatCall,
+    MEGARequestTypeJoinChatCall,
+    MEGARequestTypeEndChatCall,
+    MEGARequestTypeGetFAUploadUrl,
     MEGARequestTypeExecuteOnThread,
+    MEGARequestTypeGetChatOptions,
     MEGARequestTypeGetRecentActions,
+    MEGARequestTypeCheckRecoveryKey,
+    MEGARequestTypeSetMyBackups,
     MEGARequestTypePutSet,
     MEGARequestTypeRemoveSet,
     MEGARequestTypeFetchSet,
     MEGARequestTypePutSetElement,
     MEGARequestTypeRemoveSetElement,
+    MEGARequestTypeRemoveOldBackupNodes,
+    MEGARequestTypeSetSyncRunstate,
+    MEGARequestTypeAddUpdateScheduledMeeting,
+    MEGARequestTypeDelScheduledMeeting,
+    MEGARequestTypeFetchScheduledMeeting,
+    MEGARequestTypeFetchScheduledMeetingOccurrences,
+    MEGARequestTypeOpenShareDialog,
+    MEGARequestTypeUpgradeSecurity,
+    MEGARequestTypePutSetElements,
+    MEGARequestTypeRemoveSetElements,
     MEGARequestTypeExportSet,
     MEGARequestTypeExportedSetElement,
+    MEGARequestTypeGetRecommenedProPlan,
+    MEGARequestTypeBackupInfo,
     TotalOfRequestTypes
 };
 
@@ -583,6 +603,14 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
 /// - [MEGASdk getRecentActionsAsyncSinceDays:maxNodes:]
 /// 
 @property (readonly, nonatomic) NSArray<MEGARecentActionBucket *> *recentActionsBuckets;
+
+/// Array of all registered backups of the current use
+///
+/// This value is valid for these requests:
+///
+/// - [MEGASdk getBackupInfo:]
+///
+@property (readonly, nonatomic) NSArray<MEGABackupInfo *> *backupInfoList;
 
 /**
  * @brief Returns a MEGASet explicitly fetched from online API (typically using 'aft' command)

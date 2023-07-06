@@ -29,10 +29,13 @@
 
 namespace mega {
 
+struct MegaApp;
 class HeartBeatSyncInfo;
 class BackupInfoSync;
 class BackupMonitor;
 class MegaClient;
+struct JSON;
+class JSONWriter;
 
 // Searching from the back, this function compares path1 and path2 character by character and
 // returns the number of consecutive character matches (excluding separators) but only including whole node names.
@@ -141,7 +144,7 @@ public:
 
     // Maintained as we transition
     SyncRunState mRunState = SyncRunState::Pending;
-	
+
     // not serialized.  Prevent re-enabling sync after removal
     bool mSyncDeregisterSent = false;
 
@@ -170,6 +173,20 @@ private:
 // Convenience.
 using SyncConfigVector = vector<SyncConfig>;
 struct Syncs;
+
+struct PerSyncStats
+{
+    // Data that we report per running sync for display alongside the sync
+    bool scanning = false;
+    bool syncing = false;
+    int32_t numFiles = 0;
+    int32_t numFolders = 0;
+    int32_t numUploads = 0;
+    int32_t numDownloads = 0;
+
+    bool operator==(const PerSyncStats&);
+    bool operator!=(const PerSyncStats&);
+};
 
 struct UnifiedSync
 {

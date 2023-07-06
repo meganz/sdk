@@ -152,7 +152,7 @@ void DriveNotifyWin::doInThread()
         DriveInfo p = WinWmi::GetVolumeProperties(pDriveInfo.Get());
         p.connected = eventType == DRIVE_CONNECTED_EVENT;
 
-        add(move(p));
+        add(std::move(p));
 
         VariantClear(&evPropVariant);
     }

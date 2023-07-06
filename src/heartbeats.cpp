@@ -260,7 +260,7 @@ void BackupMonitor::updateOrRegisterSync(UnifiedSync& us)
 
     if (us.mConfig.mSyncDeregisterSent) return;
 
-#ifdef DEBUG
+#ifndef NDEBUG
     handle backupId = us.mConfig.mBackupId;
     assert(!ISUNDEF(backupId)); // syncs are registered before adding them
 #endif

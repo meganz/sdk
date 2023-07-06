@@ -147,7 +147,7 @@ struct MEGA_API Transfer : public FileFingerprint
     virtual ~Transfer();
 
     // serialize the Transfer object
-    bool serialize(string*) override;
+    bool serialize(string*) const override;
 
     // unserialize a Transfer and add it to the transfer map
     static Transfer* unserialize(MegaClient *, string*, transfer_multimap *);
@@ -157,6 +157,9 @@ struct MEGA_API Transfer : public FileFingerprint
 
     // whether the Transfer needs to remove itself from the list it's in (for quick shutdown we can skip)
     bool mOptimizedDelete = false;
+
+private:
+    bool resolveCollision(FileAccess* fa, File* file, LocalPath& dest);
 };
 
 
@@ -218,32 +221,405 @@ private:
     bool isReady(Transfer *transfer);
 };
 
+/**
+*   @brief Direct Read Slot: slot for DirectRead for connections i/o operations
+*
+*   Slot for DirectRead.
+*   Holds the HttpReq objects for each connection.
+*   Loops over every HttpReq to process data and send it to the client.
+*
+*   @see DirectRead
+*   @see DirectReadNode
+*   @see RaidBufferManager
+*   @see HttpReq
+*/
 struct MEGA_API DirectReadSlot
 {
-    m_off_t pos;
+public:
 
-    // values to calculate the transfer speed
-    static const int MEAN_SPEED_INTERVAL_DS = 100;
-    static const int MIN_BYTES_PER_SECOND = 1024 * 15;
-    static const int TIMEOUT_DS = 100;
-    static const int TEMPURL_TIMEOUT_DS = 3000;
+    /* ===================*\
+     *      Constants     *
+    \* ===================*/
 
-    DirectRead* dr;
-    std::vector<HttpReq*> reqs;
+    /**
+    *   @brief Time interval to recalculate speed and mean speed values.
+    *
+    *   This value is used to watch over DirectRead performance in case it should be retried.
+    *
+    *   @see DirectReadSlot::watchOverDirectReadPerformance()
+    */
+    static constexpr int MEAN_SPEED_INTERVAL_DS = 100;
 
-    drs_list::iterator drs_it;
-    SpeedController speedController;
-    m_off_t speed;
-    m_off_t meanSpeed;
+    /**
+    *   @brief Min speed value allowed for the transfer.
+    *
+    *   @see DirectReadSlot::watchOverDirectReadPerformance()
+    */
+    static constexpr int MIN_BYTES_PER_SECOND = 1024 * 15;
 
+    /**
+    *   @brief Time interval allowed without request/connections updates before retrying DirectRead operations (from a new DirectReadSlot).
+    *
+    *   @see DirectReadNode::schedule()
+    */
+    static constexpr int TIMEOUT_DS = 100;
+
+    /**
+    *   @brief Timeout value for retrying a completed DirectRead in case it doesn't finish properly.
+    *
+    *   Timeout value when all the requests are done, and everything regarding DirectRead is cleaned up,
+    *   before retrying DirectRead operations.
+    *
+    *   @see DirectReadNode::schedule()
+    */
+    static constexpr int TEMPURL_TIMEOUT_DS = 3000;
+
+    /**
+    *   @brief Min chunk size allowed to be sent to the server/consumer.
+    *
+    *   Chunk size values (allowed to be submitted to the transfer buffer) will be multiple of this value.
+    *   For RAID files (or for any multi-connection approach) this value is used to calculate minChunk value,
+    *   having this value divided by the number of connections an padded to RAIDSECTOR
+    *
+    *   @see DirectReadSlot::mMaxChunkSize
+    */
+#if defined(__ANDROID__) || defined(USE_IOS)
+    static constexpr unsigned MAX_DELIVERY_CHUNK = 16 * 1024 * 1024;
+#else
+    static constexpr unsigned MAX_DELIVERY_CHUNK = 33 * 1024 * 1024;
+#endif
+
+    /**
+    *   @brief Min chunk size for a given connection to be throughput-comparable to another connection.
+    *
+    *   @see DirectReadSlot::searchAndDisconnectSlowestConnection()
+    */
+    static constexpr unsigned DEFAULT_MIN_COMPARABLE_THROUGHPUT = MAX_DELIVERY_CHUNK;
+
+    /**
+    *   @brief Max times a DirectReadSlot is allowed to detect a slower connection and switch it to the unused one.
+    *
+    *   @see DirectReadSlot::searchAndDisconnectSlowestConnection()
+    */
+    static constexpr unsigned MAX_SLOW_CONNECTION_SWITCHES = 6;
+
+    /**
+    *   @brief Requests are sent in batch, and no connection is allowed to request the next chunk until the other connections have finished fetching their current one.
+    *
+    *   Flag value for waiting for all the connections to finish their current chunk requests (with status REQ_INFLIGHT)
+    *   before any finished connection can be allowed again to request the next chunk.
+    *   Warning: This value is needed to be true in order to gain fairness.
+    *            It should only set to false under special conditions or testing purposes with a very fast link.
+    *
+    *   @see DirectReadSlot::waitForPartsInFlight()
+    */
+    static constexpr bool WAIT_FOR_PARTS_IN_FLIGHT = true;
+
+    /**
+    *   @brief Relation of X Y multiplying factor to consider connection A to be faster than connection B
+    *
+    *   @param first  X factor for connection A -> X * ConnectionA_throughput
+    *   @param second Y factor for connection B -> Y * ConnectionY_throughput
+    *
+    *   @see DirectReadSlot::mThroughput
+    *   @see DirectReadSlot::searchAndDisconnectSlowestConnection()
+    */
+    static constexpr m_off_t SLOWEST_TO_FASTEST_THROUGHPUT_RATIO[2] { 4, 5 };
+
+
+    /* ===================*\
+     *      Methods       *
+    \* ===================*/
+
+    /**
+    *   @brief Main i/o loop (process every HTTP req from req vector).
+    *
+    *   @return True if connection must be retried, False to continue as normal.
+    */
     bool doio();
 
+    /**
+    *   @brief Flag value getter to check if a given request is allowed to request a further chunk.
+    *
+    *   Calling request should be in status REQ_READY.
+    *   If wait value is true, it will remain in that status before being allowed to POST.
+    *
+    *   @return True for waiting, False otherwise.
+    *   @see DirectReadSlot::WAIT_FOR_PARTS_IN_FLIGHT
+    *   @see DirectReadSlot::mWaitForParts
+    */
+    bool waitForPartsInFlight() const;
+
+    /**
+    *   @brief Number of used connections (all conections but the unused one, if any).
+    *
+    *   @return Count of used connections
+    *   @see mUnusedRaidConnection
+    */
+    unsigned usedConnections() const;
+
+    /**
+    *   @brief Disconnect and reset a connection, meant for connections with a request in REQ_INFLIGHT status.
+    *
+    *   This method should be called every time a HttpReq should call its disconnect() method.
+    *
+    *   @param connectionNum Connection index in mReq vector.
+    *   @return True if connectionNum is valid and connection has been reset successfuly.
+    */
+    bool resetConnection(size_t connectionNum = 0);
+
+    /**
+    *   @brief Calculate throughput for a given connection: relation of bytes per millisecond.
+    *
+    *   Throughput is updated every time a new chunk is submitted to the transfer buffer.
+    *   Throughput values are reset when a new request starts.
+    *
+    *   @param connectionNum Connection index in mReq vector.
+    *   @return Connection throughput: average number of bytes fetched per millisecond.
+    *
+    *   @see DirectReadSlot::detectSlowestStartConnection()
+    *   @see DirectReadSlot::calcThroughput()
+    *   @see DirectReadSlot::mThroughPut
+    */
+    m_off_t getThroughput(size_t connectionNum) const;
+
+    /**
+    *   @brief Search for the slowest connection and switch it with the actual unused connection.
+    *
+    *   This method is called between requests:
+    *   If WAIT_FOR_PARTS_IN_FLIGHT is true, this ensures to compare among all the connections before they POST again.
+    *   If WAIT_FOR_PARTS_IN_FLIGHT is false, any connection with a REQ_INFLIGHT status will be ignored for comparison purposes.
+    *
+    *   @param connectionNum Connection index in mReq vector.
+    *   @return True if the slowest connection has been detected and switched with the actual unused connection, False otherwise.
+    *   @see DirectReadSlot::MIN_COMPARABLE_THROUGHPUT
+    *   @see DirectReadSlot::MAX_SLOW_CONECCTION_SWITCHES
+    */
+    bool searchAndDisconnectSlowestConnection(size_t connectionNum = 0);
+
+    /**
+    *   @brief Decrease counter for requests with REQ_INFLIGHT status
+    *
+    *   Valid only for 2+ connections
+    *
+    *   @return True if counter was decreased, false otherwise (i.e.: if we only have one connection)
+    *   @see DirectReadSlot::WAIT_FOR_PARTS_IN_FLIGHT
+    *   @see DirectReadSlot:::mNumReqsInflight
+    */
+    bool decreaseReqsInflight();
+
+    /**
+    *   @brief Increase counter for requests with REQ_INFLIGHT status
+    *
+    *   Valid only for 2+ connections
+    *
+    *   @return True if counter was increased, false otherwise (i.e.: if we only have one connection)
+    *   @see DirectReadSlot::WAIT_FOR_PARTS_IN_FLIGHT
+    *   @see DirectReadSlot::mNumReqsInflight
+    */
+    bool increaseReqsInflight();
+
+    /**
+    *   @brief Calculate speed and mean speed for DirectRead aggregated operations.
+    *
+    *   Controlling progress values are updated when an output piece is delivered to the client.
+    *
+    *   @return true if Transfer must be retried, false otherwise
+    *   @see DirectReadSlot::MEAN_SPEED_INTERVAL_DS
+    */
+    bool watchOverDirectReadPerformance();
+
+    /**
+    *   @brief Builds a DirectReadSlot attached to a DirectRead object.
+    *
+    *   Insert DirectReadSlot object in MegaClient's DirectRead list to start fetching operations.
+    */
     DirectReadSlot(DirectRead*);
+
+    /**
+    *   @brief Destroy DirectReadSlot and stop any pendant operation.
+    *
+    *   Aborts DirectRead operations and remove iterator from MegaClient's DirectRead list.
+    */
     ~DirectReadSlot();
 
+
 private:
+
+    /* ===================*\
+     *      Attributes    *
+    \* ===================*/
+
+    /**
+    *   @brief Actual position, updated after combined data is sent to the http server / streaming buffers.
+    */
+    m_off_t mPos;
+
+    /**
+    *   @brief DirectReadSlot iterator from MegaClient's DirectReadSlot list.
+    *
+    *   @see mega::drs_list
+    */
+    drs_list::iterator mDrs_it;
+
+    /**
+    *   @brief Pointer to DirectRead (equivallent to Transfer for TransferSlot).
+    *
+    *   @see DirectRead
+    */
+    DirectRead* mDr;
+
+    /**
+    *   @brief Vector for requests, each one corresponding to a different connection.
+    *
+    *   For RAID files this value will be 6 (one for each part)
+    *   For NON-RAID files the default value is 1, but conceptually it could be greater than one
+    *   if a parallel-tcp-requests strategy is used or implemented.
+    *
+    *   @see HttpReq
+    */
+    std::vector<std::unique_ptr<HttpReq>> mReqs;
+
+    /**
+    *   @brief Pair of <Bytes downloaded> and <Total milliseconds> for throughput calculations.
+    *
+    *   Values are reset by default between different chunk requests.
+    *
+    *   @see DirectReadSlot::MIN_COMPARABLE_THROUGHPUT
+    */
+    std::vector<std::pair<m_off_t, m_off_t>> mThroughput;
+
+    /**
+    *   @brief Same pair of values than above, used to calculate the delivery speed.
+    *
+    *   'Delivery speed' is calculated from the time interval between new output pieces (combined if RAID)
+    *   are processed and ready to sent to the client.
+    */
+    std::pair<m_off_t, m_off_t> mSlotThroughput;
+
+    /**
+    *   @brief Timestamp for DirectReadSlot start. Defined in DirectReadSlot constructor.
+    */
+    std::chrono::steady_clock::time_point mSlotStartTime;
+
+    /**
+    *   @brief Unused connection due to slowness.
+    *
+    *   This value is used for detecting the slowest start connection and further search and disconnect new slowest connections.
+    *   It must be synchronized with RaidBufferManager value, which is the one to be cached (so we keep it if reseting the DirectReadSlot).
+    */
+    size_t mUnusedRaidConnection;
+
+    /**
+    *   @brief Current total switches done, i.e.: the slowest connection being switched with the unused connection.
+    *
+    *   @see DirectReadSlot::MAX_SLOW_CONNECTION_SWITCHES
+    */
+    unsigned mNumSlowConnectionsSwitches;
+
+    /**
+    *   @brief Current flag value for waiting for the other connects to finish their TCP requests before any other connection is allowed to request the next chunk.
+    *
+    *   @see DirectReadSlot::WAIT_FOR_PARTS_IN_FLIGHT
+    */
+    bool mWaitForParts;
+
+    /**
+    *   @brief Current requests with status REQ_INFLIGHT.
+    *
+    *   @see DirectReadSlot::mWaitForParts
+    */
+    unsigned mNumReqsInflight;
+
+    /**
+    *   @brief Speed controller instance.
+    */
+    SpeedController mSpeedController;
+
+    /**
+    *   @brief Calculated speed by speedController (different from the one calculated by throughput).
+    */
+    m_off_t mSpeed;
+
+    /**
+    *   @brief Calculated mean speed by speedController (different from the one calculated by throughput).
+    */
+    m_off_t mMeanSpeed;
+
+    /**
+    *   @brief Max chunk size allowed to submit the request data to the transfer buffer.
+    *
+    *   This value is dynamically set depending on the average throughput of each connection,
+    *   so the DirectReadSlot will try to submit buffers as big as possible depending
+    *   on connection(s) capacity and general limits (memory, etc.).
+    *
+    *   For NON-RAID files, the upper limit is defined by MAX_DELIVERY_CHUNK.
+    *   For RAID files, the upper limit is calculated from MAX_DELIVERY_CHUNK divided by the number of raid parts and padding it to RAIDSECTOR value.
+    *
+    *   @see DirectReadSlot::MAX_DELIVERY_CHUNK
+    */
+    unsigned mMaxChunkSize;
+
+    /**
+    *   @brief Min submitted bytes needed for a connection to be throughput-comparable with others.
+    *
+    *   This value is set on global delivery throughput.
+    *   Ex:
+    *       1. Raid file, each connection submits 1MB.
+    *       2. Delivery chunk size from combined data is 5MB -> min comparable throughtput until next deliver will be 5MB.
+    *
+    *   @see detectSlowestStartConnection()
+    *   @see searchAndDisconnectSlowestConnection()
+    *   @see processAnyOutputPieces()
+    */
+    m_off_t mMinComparableThroughput;
+
+    /**
+    *   @brief Max chunk size submitted from one of the connections to the transfer buffer.
+    *
+    *   For NON-RAID files, this value is got from MAX_DELIVERY_CHUNK (so submitting buffer size and delivering buffer size are the same).
+    *   For RAID files, this value is calculated from MAX_DELIVERY_CHUNK divided by the number of raid parts and padding it to RAIDSECTOR value.
+    *
+    *   @see DirectReadSlot::MAX_DELIVERY_CHUNK
+    */
+    unsigned mMaxChunkSubmitted;
+
+
+    /* =======================*\
+     *   Private aux methods  *
+    \* =======================*/
+
+    /**
+    *   @brief Adjust URL port in URL for streaming (8080).
+    *
+    *   @param url Current URL.
+    *   @return New URL with updated port.
+    */
     std::string adjustURLPort(std::string url);
+
+    /**
+    *   @brief Try processing new output pieces (generated by submitted buffers, fed by each connection request).
+    *
+    *    - Combine output pieces for RAID files if needed.
+    *    - Deliver final combined chunks to the client.
+    *
+    *   @return True if DirectReadSlot can continue, False if some delivery has failed.
+    *   @see DirectReadSlot::MAX_DELIVERY_CHUNK
+    *   @see MegaApiImpl::pread_data()
+    */
     bool processAnyOutputPieces();
+
+    /**
+    *   @brief Aux method to calculate the throughput: numBytes for 1 unit of timeCount.
+    *
+    *
+    *   @param numBytes Total numBytes received for timeCount period.
+    *   @param timeCount Time period spent for receiving numBytes.
+    *   @return Throughput: average number of bytes fetched for timeCount=1.
+    *
+    *   @see DirectReadSlot::mThroughPut
+    */
+    m_off_t calcThroughput(m_off_t numBytes, m_off_t timeCount) const;
 };
 
 struct MEGA_API DirectRead
@@ -266,6 +642,7 @@ struct MEGA_API DirectRead
     int reqtag;
 
     void abort();
+    m_off_t drMaxReqSize() const;
 
     DirectRead(DirectReadNode*, m_off_t, m_off_t, int, void*);
     ~DirectRead();

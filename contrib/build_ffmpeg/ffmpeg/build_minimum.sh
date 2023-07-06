@@ -90,9 +90,9 @@ echo "#### FFmpeg static build ####"
 cd $BUILD_DIR
 
 download \
-  "n3.2.4.tar.gz" \
-  "ffmpeg3.2.4.tar.gz" \
-  "8ca58121dd042153656d89eba3daa7ab" \
+  "n5.1.2.tar.gz" \
+  "ffmpeg5.1.2.tar.gz" \
+  "208f6321d58ae939ee44ac419a87262c" \
   "https://github.com/FFmpeg/FFmpeg/archive"
 
 [ $download_only -eq 1 ] && exit 0

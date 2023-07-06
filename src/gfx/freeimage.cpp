@@ -313,7 +313,7 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(FileSystemAccess* fa, const LocalPat
 
     // Find decoder for video stream
     AVCodecID codecId = codecParm->codec_id;
-    AVCodec* decoder = avcodec_find_decoder(codecId);
+    auto decoder = avcodec_find_decoder(codecId);
     if (!decoder)
     {
         LOG_warn << "Codec not found: " << codecId;
@@ -322,7 +322,7 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(FileSystemAccess* fa, const LocalPat
 
     AVCodecContext *codecContext = avcodec_alloc_context3(decoder);
     auto codecContextGuard = makeScopeGuard(avcodec_free_context, &codecContext);
-    if (codecContext && avcodec_parameters_to_context(codecContext, codecParm) < 0)
+    if (!codecContext || avcodec_parameters_to_context(codecContext, codecParm) < 0)
     {
         LOG_warn << "Could not copy codec parameters to context";
         return false;
@@ -330,7 +330,6 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(FileSystemAccess* fa, const LocalPat
 
     // Force seeking to key frames
     formatContext->seek2any = false;
-    videoStream->skip_to_keyframe = true;
     if (decoder->capabilities & CAP_TRUNCATED)
     {
         codecContext->flags |= CAP_TRUNCATED;
@@ -554,9 +553,9 @@ const char* GfxProviderFreeImage::supportedformats()
 {
     if (sformats.empty())
     {
-        //Disable thumbnail creation temporarily for .tiff.tif.exr
+        //Disable thumbnail creation temporarily for .tiff.tif.exr.pict.pic.pct
         sformats+=".jpg.png.bmp.jpeg.cut.dds.g3.gif.hdr.ico.iff.ilbm"
-           ".jbig.jng.jif.koala.pcd.mng.pcx.pbm.pgm.ppm.pfm.pict.pic.pct.pds.raw.3fr.ari"
+           ".jbig.jng.jif.koala.pcd.mng.pcx.pbm.pgm.ppm.pfm.pds.raw.3fr.ari"
            ".arw.bay.crw.cr2.cap.dcs.dcr.dng.drf.eip.erf.fff.iiq.k25.kdc.mdc.mef.mos.mrw"
            ".nef.nrw.obm.orf.pef.ptx.pxn.r3d.raf.raw.rwl.rw2.rwz.sr2.srf.srw.x3f.ras.tga"
            ".xbm.xpm.jp2.j2k.jpf.jpx.";

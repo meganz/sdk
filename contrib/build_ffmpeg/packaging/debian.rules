@@ -1,5 +1,6 @@
 #!/usr/bin/make -f
 FMEDIAINFO := $(shell dpkg -l | grep mediainfo >/dev/null && echo "-i" || echo " ")
+DPKGXZ := $(shell cat /etc/issue | grep "Ubuntu 23\|Lunar Lobster\|Ubuntu 22\|Jammy Jellyfish\|Ubuntu 21.10\|Impish Indri" >/dev/null && echo "-- -Zxz" || echo "")
 
 build: build-stamp
 build-stamp:
@@ -14,7 +15,8 @@ clean:
 
 install: build
 	dh_install target/lib/lib*a /usr/lib/
-	for i in `find target/include -type f | grep -v openssl | grep -v time.h `; do a=`echo $$i | awk -F "/" 'BEGIN{OFS="/"}{NF--;print $$0}' | sed "s#target/include/##g"`; dh_install $$i /usr/include/ffmpeg-mega/$$a; done
+	for i in `find target/include -type f | grep -v openssl | grep -v time.h `; do a=`echo $$i | awk -F "/" 'BEGIN{OFS="/"}{NF--;print $$0}' | sed "s#target/include/##g"`; echo dh_install $$i /usr/include/ffmpeg-mega/$$a; dh_install $$i /usr/include/ffmpeg-mega/$$a; done
+
 
 # Build architecture-independent files here.
 binary-indep: build install
@@ -48,7 +50,7 @@ binary-arch: build install
 	dh_shlibdeps
 	dh_gencontrol
 	dh_md5sums
-	dh_builddeb
+	dh_builddeb $(DPKGXZ)
 
 binary: binary-indep binary-arch
 .PHONY: build clean binary-indep binary-arch binary install

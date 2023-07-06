@@ -30,8 +30,8 @@ PubKeyAction::PubKeyAction()
 }
 
 PubKeyActionPutNodes::PubKeyActionPutNodes(vector<NewNode>&& newnodes, int ctag, CommandPutNodes::Completion&& c)
-    : nn(move(newnodes))
-    , completion(move(c))
+    : nn(std::move(newnodes))
+    , completion(std::move(c))
 {
     tag = ctag;
 }
@@ -56,7 +56,7 @@ void PubKeyActionPutNodes::proc(MegaClient* client, User* u)
             nn[i].nodekey.assign((char*)buf, t);
         }
 
-        client->reqs.add(new CommandPutNodes(client, NodeHandle(), u->uid.c_str(), NoVersioning, move(nn), tag, PUTNODES_APP, nullptr, move(completion), false));
+        client->reqs.add(new CommandPutNodes(client, NodeHandle(), u->uid.c_str(), NoVersioning, std::move(nn), tag, PUTNODES_APP, nullptr, std::move(completion), false));
         // 'canChangeVault' is false here because this code path is to write to user's Inbox, which should not require "vw:1"
     }
     else
@@ -119,7 +119,7 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
         user->isTemporary = true;
     }
 
-    client->setShareCompletion(n, user, a, mWritable, selfemail.c_str(), tag, move(completion));
+    client->setShareCompletion(n, user, a, mWritable, selfemail.c_str(), tag, std::move(completion));
 }
 
 // share node sh with access level sa
@@ -129,7 +129,7 @@ PubKeyActionCreateShare::PubKeyActionCreateShare(handle sh, accesslevel_t sa, in
     a = sa;
     tag = ctag;
     mWritable = writable;
-    completion = move(f);
+    completion = std::move(f);
     assert(completion);
 
     if (personal_representation)

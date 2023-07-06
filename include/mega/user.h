@@ -86,6 +86,8 @@ struct MEGA_API User : public Cacheable
         bool jsonSyncConfigData : 1;
         bool drivenames : 1;    // drive names
         bool keys : 1;
+        bool aPrefs : 1;    // apps preferences
+        bool ccPrefs : 1;   // content consumption preferences
     } changed;
 
     // user's public key
@@ -112,7 +114,7 @@ private:
 public:
     void set(visibility_t, m_time_t);
 
-    bool serialize(string*) override;
+    bool serialize(string*) const override;
     static User* unserialize(class MegaClient *, string*);
 
     void removepkrs(MegaClient*);
