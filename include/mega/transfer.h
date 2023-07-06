@@ -57,6 +57,8 @@ struct MEGA_API Transfer : public FileFingerprint
     // file is removed
     file_list files;
 
+    unique_ptr<FileDistributor> downloadDistributor;
+
     // failures/backoff
     unsigned failcount;
     BackoffTimerTracked bt;
@@ -159,7 +161,7 @@ struct MEGA_API Transfer : public FileFingerprint
     bool mOptimizedDelete = false;
 
 private:
-    bool resolveCollision(FileAccess* fa, File* file, LocalPath& dest);
+    FileDistributor::TargetNameExistsResolution toTargetNameExistsResolution(CollisionResolution resolution);
 };
 
 
