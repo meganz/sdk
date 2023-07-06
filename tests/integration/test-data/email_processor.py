@@ -1,3 +1,7 @@
+
+# Extact a link from an email.
+# Used by sdk/test/integration test SdkTest.SdkTestCreateAccount
+
 import email
 import imaplib
 import os
