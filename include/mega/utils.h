@@ -1036,7 +1036,7 @@ struct SyncTransferCounts
 void resetId(char *id, size_t length, PrnGen& rng);
 
 // returns the direction type of a connection
-string connDirectionToStr(mega::direction_t directionType);
+string connDirectionToStr(direction_t directionType);
 
 } // namespace mega
 
