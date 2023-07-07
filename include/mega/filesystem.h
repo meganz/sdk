@@ -819,6 +819,19 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // On success, the number of free bytes available to the caller.
     // On failure, zero.
     virtual m_off_t availableDiskSpace(const LocalPath& drivePath) = 0;
+
+    // Specify the minimum permissions for new created directories.
+    static void setMinimumDirectoryPermissions(int permissions);
+
+    // Specify the minimum permissions for newly created files.
+    static void setMinimumFilePermissions(int permissions);
+
+protected:
+    // Specifies the minimum permissions allowed for directories.
+    static std::atomic<int> mMinimumDirectoryPermissions;
+
+    // Specifies the minimum permissions allowed for files.
+    static std::atomic<int> mMinimumFilePermissions;
 };
 
 int compareUtf(const string&, bool unescaping1, const string&, bool unescaping2, bool caseInsensitive);

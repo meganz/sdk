@@ -21162,6 +21162,7 @@ class MegaApi
          * - MegaError::API_EACCESS - Public Set preview mode is not enabled
          * - MegaError::API_EARGS - MegaHandle for SetElement provided as param doesn't match any Element
          * in previewed Set
+         * - MegaError::API_ENOENT - Node metadata was not available for the SetElement provided as param
          *
          * If the MEGA account is a business account and it's status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.

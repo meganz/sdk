@@ -63,7 +63,7 @@
 namespace mega {
 
 MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, uint64_t nodehandle,
-                                 string *nodekey, string *fileattrstring, const char *fingerprint, const char *originalFingerprint, MegaHandle owner, MegaHandle parentHandle,
+                                 const string *nodekey, const string *fileattrstring, const char *fingerprint, const char *originalFingerprint, MegaHandle owner, MegaHandle parentHandle,
                                  const char *privateauth, const char *publicauth, bool ispublic, bool isForeign, const char *chatauth, bool isNodeKeyDecrypted)
 : MegaNode()
 {
@@ -14390,6 +14390,7 @@ void MegaApiImpl::prelogin_result(int version, string* email, string *salt, erro
 
                 int creqtag = client->reqtag;
                 client->reqtag = client->restag;
+                client->saveV1Pwd(password); // for automatic upgrade to V2  // cannot be null by now
                 client->login(email->c_str(), pwkey, pin);
                 client->reqtag = creqtag;
             }
@@ -24854,6 +24855,7 @@ void MegaApiImpl::updateStats()
 
 long long MegaApiImpl::getNumNodes()
 {
+    SdkMutexGuard g(sdkMutex);
     return client->totalNodes;
 }
 
@@ -25513,54 +25515,22 @@ void MegaApiImpl::getPreviewElementNode(MegaHandle eid, MegaRequestListener* lis
             return API_EARGS;
         }
 
-        std::array<byte, FILENODEKEYLENGTH> ekey;
-        handle enode = element->node();
-        memcpy(ekey.data(), element->key().c_str(), ekey.size());
-        auto commandCB =
-            [ekey, enode, request, this] (const Error &e, m_off_t size,
-            dstime /*timeleft*/, std::string* filename, std::string* fingerprint,
-            std::string* fileattrstring, const std::vector<std::string> &/*tempurls*/,
-            const std::vector<std::string> &/*ips*/)
-            {
-                if (!fingerprint) // failed processing the command
-                {
-                    LOG_err << "Sets: Link check failed: " << e;
-                    if (e == API_OK)
-                    {
-                        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_EINTERNAL));
-                        return true;
-                    }
-                }
-                const auto getMtimeFromFingerprint = [&fingerprint]() -> m_time_t
-                {
-                    FileFingerprint ffp;
-                    if(ffp.unserializefingerprint(fingerprint)) return ffp.mtime;
-                    return 0;
-                };
+        auto nm = element->nodeMetadata();
+        if (!nm)
+        {
+            LOG_err << paramErr << "Element node not found for preview";
+            return API_ENOENT;
+        }
 
-                if (e)
-                {
-                    LOG_err << "Sets: Not available: " << e;
-                }
-                else
-                {
-                    m_time_t ts = 0; // all foreign nodes' creation time must be set to 0
-                    m_time_t tm = getMtimeFromFingerprint();
-                    auto ekeyStr = string((char*)ekey.data(), ekey.size());
-                    unique_ptr<MegaNodePrivate>ret(new MegaNodePrivate(filename->c_str(), FILENODE, size, ts, tm,
-                                                                       enode, &ekeyStr, fileattrstring, fingerprint->c_str(),
-                                                                       nullptr, INVALID_HANDLE, INVALID_HANDLE, nullptr, nullptr,
-                                                                       false /*isPublic*/, true /*isForeign*/));
-                    request->setPublicNode(ret.get());
-                }
-                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-                return true;
-            };
+        FileFingerprint ffp;
+        m_time_t tm = ffp.unserializefingerprint(&nm->fingerprint) ? ffp.mtime : 0;
+        unique_ptr<const char[]> megaApiImplFingerprint(getSdkFingerprintFromMegaFingerprint(nm->fingerprint.c_str(), nm->s));
 
-        client->reqs.add(new CommandGetFile(client, (byte*)ekey.data(), ekey.size(), enode,
-                                            true /*private*/, nullptr, nullptr, nullptr, false,
-                                            commandCB));
+        MegaNodePrivate ret(nm->filename.c_str(), FILENODE, nm->s, nm->ts, tm, nm->h, &element->key(), &nm->fa, megaApiImplFingerprint.get(),
+                            nullptr, nm->u, INVALID_HANDLE, nullptr, nullptr, false /*isPublic*/, true /*isForeign*/);
+        request->setPublicNode(&ret);
 
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
         return API_OK;
     };
 
@@ -29435,8 +29405,8 @@ void MegaTCPServer::run()
         uv_close((uv_handle_t *)&exit_handle,NULL);
         uv_close((uv_handle_t *)&server,NULL);
         uv_sem_post(&semaphoreStartup);
-        uv_run(&uv_loop, UV_RUN_ONCE); // so that resources are cleaned peacefully
         uv_sem_post(&semaphoreEnd);
+        uv_run(&uv_loop, UV_RUN_ONCE); // so that resources are cleaned peacefully
         return;
     }
 
@@ -30039,6 +30009,12 @@ MegaTCPContext::~MegaTCPContext()
         evt_tls_free(evt_tls);
     }
 #endif
+
+    if(!finished) // Set listener pointers to NULL upon premature destruction
+    {
+        megaApi->removeTransferListener(this);
+        megaApi->removeRequestListener(this);
+    }
 }
 
 void MegaTCPServer::onAsyncEvent(uv_async_t* handle)
