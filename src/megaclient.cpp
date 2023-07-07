@@ -479,9 +479,8 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                     {
                         sendevent(99428,"Replacing share key", 0);
                     }
-                    delete n->sharekey;
                 }
-                n->sharekey = new SymmCipher(s->key);
+                n->sharekey.reset(new SymmCipher(s->key));
                 skreceived = true;
 
                 // Save the new sharekey in mKeyManager
@@ -523,7 +522,6 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                 share_map::iterator shareit = n->outshares->find(s->peer);
                 if (shareit != n->outshares->end())
                 {
-                    Share *delshare = shareit->second;
                     n->outshares->erase(shareit);
                     found = true;
                     if (notify)
@@ -531,13 +529,11 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                         n->changed.outshares = true;
                         notifynode(n);
                     }
-                    delete delshare;
                 }
 
-                if (!n->outshares->size())
+                if (n->outshares->empty())
                 {
-                    delete n->outshares;
-                    n->outshares = NULL;
+                    n->outshares.reset();
                 }
             }
             if (n->pendingshares && !found && s->pending)
@@ -546,7 +542,6 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                 share_map::iterator shareit = n->pendingshares->find(s->pending);
                 if (shareit != n->pendingshares->end())
                 {
-                    Share *delshare = shareit->second;
                     n->pendingshares->erase(shareit);
                     found = true;
                     if (notify)
@@ -554,13 +549,11 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                         n->changed.pendingshares = true;
                         notifynode(n);
                     }
-                    delete delshare;
                 }
 
-                if (!n->pendingshares->size())
+                if (n->pendingshares->empty())
                 {
-                    delete n->pendingshares;
-                    n->pendingshares = NULL;
+                    n->pendingshares.reset();
                 }
             }
 
@@ -569,9 +562,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
             if (s->remove_key && !n->outshares && !n->pendingshares)
             {
                 rewriteforeignkeys(n);
-
-                delete n->sharekey;
-                n->sharekey = NULL;
+                n->sharekey.reset();
             }
         }
         else
@@ -580,8 +571,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
             {
                 n->inshare->user->sharing.erase(n->nodehandle);
                 notifyuser(n->inshare->user);
-                delete n->inshare;
-                n->inshare = NULL;
+                n->inshare.reset();
             }
 
             // incoming share deleted - remove tree
@@ -608,13 +598,13 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                 // only on own nodes and signed unless read from cache
                 if (checkaccess(n, OWNERPRELOGIN))
                 {
-                    Share** sharep;
+                    unique_ptr<Share>* sharep;
                     if (!ISUNDEF(s->pending))
                     {
                         // Pending share
                         if (!n->pendingshares)
                         {
-                            n->pendingshares = new share_map();
+                            n->pendingshares.reset(new share_map());
                         }
 
                         if (s->upgrade_pending_to_full)
@@ -624,20 +614,17 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                             {
                                 // This is currently a pending share that needs to be upgraded to a full share
                                 // erase from pending shares & delete the pending share list if needed
-                                Share *delshare = shareit->second;
                                 n->pendingshares->erase(shareit);
                                 if (notify)
                                 {
                                     n->changed.pendingshares = true;
                                     notifynode(n);
                                 }
-                                delete delshare;
                             }
 
-                            if (!n->pendingshares->size())
+                            if (n->pendingshares->empty())
                             {
-                                delete n->pendingshares;
-                                n->pendingshares = NULL;
+                                n->pendingshares.reset();
                             }
 
                             // clear this so we can fall through to below and have it re-create the share in
@@ -647,7 +634,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                             // create the outshares list if needed
                             if (!n->outshares)
                             {
-                                n->outshares = new share_map();
+                                n->outshares.reset(new share_map());
                             }
 
                             sharep = &((*n->outshares)[s->peer]);
@@ -662,7 +649,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                         // Normal outshare
                         if (!n->outshares)
                         {
-                            n->outshares = new share_map();
+                            n->outshares.reset(new share_map());
                         }
 
                         sharep = &((*n->outshares)[s->peer]);
@@ -675,7 +662,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                     }
                     else
                     {
-                        *sharep = new Share(ISUNDEF(s->peer) ? NULL : finduser(s->peer, 1), s->access, s->ts, findpcr(s->pending));
+                        sharep->reset(new Share(ISUNDEF(s->peer) ? NULL : finduser(s->peer, 1), s->access, s->ts, findpcr(s->pending)));
                     }
 
                     if (notify)
@@ -715,7 +702,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                         }
                         else
                         {
-                            n->inshare = new Share(finduser(s->peer, 1), s->access, s->ts, NULL);
+                            n->inshare.reset(new Share(finduser(s->peer, 1), s->access, s->ts, NULL));
                             n->inshare->user->sharing.insert(n->nodehandle);
                         }
 
@@ -7444,11 +7431,7 @@ void MegaClient::sc_ph()
 
                 if (deleted)        // deletion
                 {
-                    if (n->plink)
-                    {
-                        delete n->plink;
-                        n->plink = NULL;
-                    }
+                    n->plink.reset();
                 }
                 else
                 {
@@ -9774,7 +9757,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                         {
                             // If logged into writable folder, we need the sharekey set in the root node
                             // so as to include it in subsequent put nodes
-                            n->sharekey = new SymmCipher(key); //we use the "master key", in this case the secret share key
+                            n->sharekey.reset(new SymmCipher(key)); //we use the "master key", in this case the secret share key
                         }
                     }
                 }
@@ -11832,13 +11815,13 @@ void MegaClient::openShareDialog(Node* n, std::function<void(Error)> completion)
             LOG_debug << "Creating new share key for " << toHandle(n->nodehandle);
             byte key[SymmCipher::KEYLENGTH];
             rng.genblock(key, sizeof key);
-            n->sharekey = new SymmCipher(key);
+            n->sharekey.reset(new SymmCipher(key));
             updateKeys = true;
         }
         else
         {
             LOG_debug << "Setting node's sharekey from KeyManager (openShareDialog)";
-            n->sharekey = new SymmCipher((const byte*)previousKey.data());
+            n->sharekey.reset(new SymmCipher((const byte*)previousKey.data()));
         }
     }
     else assert(mKeyManager.getShareKey(n->nodehandle).size());
@@ -11942,13 +11925,13 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
             LOG_debug << "Creating new share key for folder link on " << toHandle(n->nodehandle);
             byte key[SymmCipher::KEYLENGTH];
             rng.genblock(key, sizeof key);
-            n->sharekey = new SymmCipher(key);
+            n->sharekey.reset(new SymmCipher(key));
             newShareKey = true;
         }
         else
         {
             LOG_debug << "Reusing node's sharekey from KeyManager for folder link on " << toHandle(n->nodehandle);
-            n->sharekey = new SymmCipher((const byte*)previousKey.data());
+            n->sharekey.reset(new SymmCipher((const byte*)previousKey.data()));
         }
     }
 
@@ -14479,7 +14462,7 @@ void MegaClient::fetchnodes(bool nocache)
                 // so as to include it in subsequent put nodes
                 if (Node* n = nodeByHandle(mNodeManager.getRootNodeFiles()))
                 {
-                    n->sharekey = new SymmCipher(key); //we use the "master key", in this case the secret share key
+                    n->sharekey.reset(new SymmCipher(key)); //we use the "master key", in this case the secret share key
                 }
             }
 
