@@ -21129,6 +21129,8 @@ public:
     /**
      * @brief Returns the sync substate of the backup.
      *
+     * It can be one of the enum values defined at MegaSync::Error.
+     *
      * @return Sync substate of the backup.
      */
     virtual int substate() const { return 0; }
