@@ -1205,18 +1205,11 @@ public:
     /**
      * @brief Returns Backup type.
      *
-     * It can be one of the following values:
-     *  INVALID       = -1
-     *  TWO_WAY       =  0
-     *  UP_SYNC       =  1
-     *  DOWN_SYNC     =  2
-     *  CAMERA_UPLOAD =  3
-     *  MEDIA_UPLOAD  =  4
-     *  BACKUP_UPLOAD =  5
+     * It can be one of the MegaApi::BACKUP_TYPE_x values.
      *
      * @return Backup type.
      */
-    virtual int type() const { return -1; } // values from BackupType enum
+    virtual int type() const { return MegaApi::BACKUP_TYPE_INVALID; }
 
     /**
      * @brief Returns handle of Backup root.
@@ -1240,19 +1233,29 @@ public:
     virtual const char* deviceId() const { return nullptr; }
 
     /**
+     * @brief Possible sync state of a backup.
+     */
+    enum // 1:1 with CommandBackupPut::SPState enum values
+    {
+        BACKUP_STATE_NOT_INITIALIZED = 0,
+        BACKUP_STATE_ACTIVE = 1, // Working fine (enabled)
+        BACKUP_STATE_FAILED = 2, // Failed (permanently disabled)
+        BACKUP_STATE_TEMPORARY_DISABLED = 3, // Temporarily disabled due to a transient situation (e.g: account blocked). Will be resumed when the condition passes
+        BACKUP_STATE_DISABLED = 4, // Disabled by the user
+        BACKUP_STATE_PAUSE_UP = 5, // Active but upload transfers paused in the SDK
+        BACKUP_STATE_PAUSE_DOWN = 6, // Active but download transfers paused in the SDK
+        BACKUP_STATE_PAUSE_FULL = 7, // Active but transfers paused in the SDK
+        BACKUP_STATE_DELETED = 8, // Sync needs to be deleted, as required by sync-desired-state received from BackupCenter (WebClient)
+    };
+
+    /**
      * @brief Returns the sync state of the backup.
      *
-     * It can be one of the following values:
-     *  STATE_NOT_INITIALIZED = 0
-     *  UPTODATE = 1 -> Up to date: local and remote paths are in sync
-     *  SYNCING  = 2 -> The sync engine is working, transfers are in progress
-     *  PENDING  = 3 -> The sync engine is working, e.g: scanning local folders
-     *  INACTIVE = 4 -> Sync is not active. A state != ACTIVE should have been sent through '''sp'''
-     *  UNKNOWN  = 5 -> Unknown status
+     * It can be one of the BACKUP_STATE_x enum values.
      *
      * @return Sync state of the backup.
      */
-    virtual int state() const { return 0; }
+    virtual int state() const { return BACKUP_STATE_NOT_INITIALIZED; }
 
     /**
      * @brief Returns the sync substate of the backup.
@@ -1283,11 +1286,26 @@ public:
     virtual uint64_t ts() const { return 0; }
 
     /**
+     * @brief Possible status of a backup.
+     */
+    enum // 1:1 with CommandBackupPutHeartBeat::SPHBStatus enum values
+    {
+        BACKUP_STATUS_NOT_INITIALIZED = 0,
+        BACKUP_STATUS_UPTODATE = 1, // Up to date: local and remote paths are in sync
+        BACKUP_STATUS_SYNCING = 2, // The sync engine is working, transfers are in progress
+        BACKUP_STATUS_PENDING = 3, // The sync engine is working, e.g: scanning local folders
+        BACKUP_STATUS_INACTIVE = 4, // Sync is not active. A state != ACTIVE should have been sent through 'sp'
+        BACKUP_STATUS_UNKNOWN = 5, // Unknown status
+    };
+
+    /**
      * @brief Returns the status of the backup, as reported by heartbeats.
+     *
+     * It can be one of the BACKUP_STATUS_x enum values.
      *
      * @return Status of the backup, as reported by heartbeats.
      */
-    virtual int status() const { return 0; }
+    virtual int status() const { return BACKUP_STATUS_NOT_INITIALIZED; }
 
     /**
      * @brief Returns the progress of the backup, as reported by heartbeats.
@@ -9300,6 +9318,7 @@ class MegaApi
             BACKUP_TYPE_DOWN_SYNC = 2,
             BACKUP_TYPE_CAMERA_UPLOADS = 3,
             BACKUP_TYPE_MEDIA_UPLOADS = 4,   // Android has a secondary CU
+            BACKUP_TYPE_BACKUP_UPLOAD = 5,
         };
 
         enum {
