@@ -479,9 +479,8 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                     {
                         sendevent(99428,"Replacing share key", 0);
                     }
-                    delete n->sharekey;
                 }
-                n->sharekey = new SymmCipher(s->key);
+                n->sharekey.reset(new SymmCipher(s->key));
                 skreceived = true;
 
                 // Save the new sharekey in mKeyManager
@@ -523,7 +522,6 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                 share_map::iterator shareit = n->outshares->find(s->peer);
                 if (shareit != n->outshares->end())
                 {
-                    Share *delshare = shareit->second;
                     n->outshares->erase(shareit);
                     found = true;
                     if (notify)
@@ -531,13 +529,11 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                         n->changed.outshares = true;
                         notifynode(n);
                     }
-                    delete delshare;
                 }
 
-                if (!n->outshares->size())
+                if (n->outshares->empty())
                 {
-                    delete n->outshares;
-                    n->outshares = NULL;
+                    n->outshares.reset();
                 }
             }
             if (n->pendingshares && !found && s->pending)
@@ -546,7 +542,6 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                 share_map::iterator shareit = n->pendingshares->find(s->pending);
                 if (shareit != n->pendingshares->end())
                 {
-                    Share *delshare = shareit->second;
                     n->pendingshares->erase(shareit);
                     found = true;
                     if (notify)
@@ -554,13 +549,11 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                         n->changed.pendingshares = true;
                         notifynode(n);
                     }
-                    delete delshare;
                 }
 
-                if (!n->pendingshares->size())
+                if (n->pendingshares->empty())
                 {
-                    delete n->pendingshares;
-                    n->pendingshares = NULL;
+                    n->pendingshares.reset();
                 }
             }
 
@@ -569,9 +562,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
             if (s->remove_key && !n->outshares && !n->pendingshares)
             {
                 rewriteforeignkeys(n);
-
-                delete n->sharekey;
-                n->sharekey = NULL;
+                n->sharekey.reset();
             }
         }
         else
@@ -580,8 +571,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
             {
                 n->inshare->user->sharing.erase(n->nodehandle);
                 notifyuser(n->inshare->user);
-                delete n->inshare;
-                n->inshare = NULL;
+                n->inshare.reset();
             }
 
             // incoming share deleted - remove tree
@@ -608,13 +598,13 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                 // only on own nodes and signed unless read from cache
                 if (checkaccess(n, OWNERPRELOGIN))
                 {
-                    Share** sharep;
+                    unique_ptr<Share>* sharep;
                     if (!ISUNDEF(s->pending))
                     {
                         // Pending share
                         if (!n->pendingshares)
                         {
-                            n->pendingshares = new share_map();
+                            n->pendingshares.reset(new share_map());
                         }
 
                         if (s->upgrade_pending_to_full)
@@ -624,20 +614,17 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                             {
                                 // This is currently a pending share that needs to be upgraded to a full share
                                 // erase from pending shares & delete the pending share list if needed
-                                Share *delshare = shareit->second;
                                 n->pendingshares->erase(shareit);
                                 if (notify)
                                 {
                                     n->changed.pendingshares = true;
                                     notifynode(n);
                                 }
-                                delete delshare;
                             }
 
-                            if (!n->pendingshares->size())
+                            if (n->pendingshares->empty())
                             {
-                                delete n->pendingshares;
-                                n->pendingshares = NULL;
+                                n->pendingshares.reset();
                             }
 
                             // clear this so we can fall through to below and have it re-create the share in
@@ -647,7 +634,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                             // create the outshares list if needed
                             if (!n->outshares)
                             {
-                                n->outshares = new share_map();
+                                n->outshares.reset(new share_map());
                             }
 
                             sharep = &((*n->outshares)[s->peer]);
@@ -662,7 +649,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                         // Normal outshare
                         if (!n->outshares)
                         {
-                            n->outshares = new share_map();
+                            n->outshares.reset(new share_map());
                         }
 
                         sharep = &((*n->outshares)[s->peer]);
@@ -675,7 +662,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                     }
                     else
                     {
-                        *sharep = new Share(ISUNDEF(s->peer) ? NULL : finduser(s->peer, 1), s->access, s->ts, findpcr(s->pending));
+                        sharep->reset(new Share(ISUNDEF(s->peer) ? NULL : finduser(s->peer, 1), s->access, s->ts, findpcr(s->pending)));
                     }
 
                     if (notify)
@@ -715,7 +702,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                         }
                         else
                         {
-                            n->inshare = new Share(finduser(s->peer, 1), s->access, s->ts, NULL);
+                            n->inshare.reset(new Share(finduser(s->peer, 1), s->access, s->ts, NULL));
                             n->inshare->user->sharing.insert(n->nodehandle);
                         }
 
@@ -5987,8 +5974,7 @@ void MegaClient::updatesc()
             // 6. write new or modified chats
             for (textchat_map::iterator it = chatnotify.begin(); it != chatnotify.end(); it++)
             {
-                char base64[12];
-                LOG_verbose << "Adding chat to database: " << (Base64::btoa((byte*)&(it->second->id),MegaClient::CHATHANDLE,base64) ? base64 : "");
+                LOG_verbose << "Adding chat to database: " << Base64Str<sizeof(handle)>(it->second->getChatId());
                 if (!(complete = sctable->put(CACHEDCHAT, it->second, &key)))
                 {
                     break;
@@ -7445,11 +7431,7 @@ void MegaClient::sc_ph()
 
                 if (deleted)        // deletion
                 {
-                    if (n->plink)
-                    {
-                        delete n->plink;
-                        n->plink = NULL;
-                    }
+                    n->plink.reset();
                 }
                 else
                 {
@@ -7664,22 +7646,23 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                     else
                     {
                         chat = chats[chatid];
-                        oldPriv = chat->priv;
+                        oldPriv = chat->getOwnPrivileges();
                         if (readingPublicChat) { setChatMode(chat, publicchat); }
                     }
 
-                    chat->id = chatid;
-                    chat->shard = shard;
-                    chat->group = group;
-                    chat->priv = PRIV_UNKNOWN;
-                    chat->ou = ou;
-                    chat->title = title;
+                    chat->setChatId(chatid);
+                    chat->setShard(shard);
+                    chat->setGroup(group);
+                    chat->setOwnPrivileges(PRIV_UNKNOWN);
+                    chat->setOwnUser(ou);
+                    chat->setTitle(title);
+
                     // chat->flags = ?; --> flags are received in other AP: mcfc
                     if (ts != -1)
                     {
-                        chat->ts = ts;  // only in APs related to chat creation or when you're added to
+                        chat->setTs(ts);  // only in APs related to chat creation or when you're added to
                     }
-                    chat->meeting = meeting;
+                    chat->setMeeting(meeting);
 
                     if (group)
                     {
@@ -7697,7 +7680,7 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                             {
                                 found = true;
                                 mustHaveUK = (oldPriv <= PRIV_RM && upvit->second > PRIV_RM);
-                                chat->priv = upvit->second;
+                                chat->setOwnPrivileges(upvit->second);
                                 userpriv->erase(upvit);
                                 if (userpriv->empty())
                                 {
@@ -7717,13 +7700,13 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                             if (upvit->first == me)
                             {
                                 mustHaveUK = (oldPriv <= PRIV_RM && upvit->second > PRIV_RM);
-                                chat->priv = upvit->second;
+                                chat->setOwnPrivileges(upvit->second);
                                 break;
                             }
                         }
                     }
 
-                    if (chat->priv == PRIV_RM)
+                    if (chat->getOwnPrivileges() == PRIV_RM)
                     {
                         // clear the list of peers because API still includes peers in the
                         // actionpacket, but not in a fresh fetchnodes
@@ -7731,14 +7714,13 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                         userpriv = NULL;
                     }
 
-                    delete chat->userpriv;  // discard any existing `userpriv`
-                    chat->userpriv = userpriv;
+                    chat->setUserPrivileges(userpriv);
 
                     if (readingPublicChat)
                     {
                         if (!unifiedkey.empty())    // not all actionpackets include it
                         {
-                            chat->unifiedKey = unifiedkey;
+                            chat->setUnifiedKey(unifiedkey);
                         }
                         else if (mustHaveUK)
                         {
@@ -7915,7 +7897,7 @@ void MegaClient::sc_delscheduledmeeting()
                     {
                         // remove children scheduled meetings (API requirement)
                         handle_set deletedChildren = chat->removeChildSchedMeetings(schedId);
-                        handle chatid = chat->id;
+                        handle chatid = chat->getChatId();
                         chat->setTag(0);    // external change
                         notifychat(chat);
 
@@ -7971,7 +7953,7 @@ void MegaClient::sc_scheduledmeetings()
         handle schedId = sm->schedId();
         handle parentSchedId = sm->parentSchedId();
         m_time_t overrides = sm->overrides();
-        bool isNewSchedMeeting = chat->mScheduledMeetings.find(schedId) == end(chat->mScheduledMeetings);
+        bool isNewSchedMeeting = !chat->hasScheduledMeeting(schedId);
 
         // remove child scheduled meetings in cmd (child meetings deleted) array
         chat->removeSchedMeetingsList(childMeetingsDeleted);
@@ -7987,7 +7969,7 @@ void MegaClient::sc_scheduledmeetings()
             }
 
             // if we couldn't update scheduled meeting, but we have deleted it's children, we also need to notify apps
-            handle chatid = chat->id;
+            handle chatid = chat->getChatId();
             chat->setTag(0);    // external change
             notifychat(chat);
 
@@ -7999,14 +7981,14 @@ void MegaClient::sc_scheduledmeetings()
 
                 if (res)
                 {
-                    if (isNewSchedMeeting) createNewSMAlert(ou, chat->id, schedId, parentSchedId, overrides);
-                    else createUpdatedSMAlert(ou, chat->id, schedId, parentSchedId, overrides, std::move(cs));
+                    if (isNewSchedMeeting) createNewSMAlert(ou, chat->getChatId(), schedId, parentSchedId, overrides);
+                    else createUpdatedSMAlert(ou, chat->getChatId(), schedId, parentSchedId, overrides, std::move(cs));
                 }
             }
         }
 
         // fetch for fresh scheduled meetings occurrences
-        reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
+        reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->getChatId(), mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
     }
 }
 
@@ -8460,9 +8442,9 @@ void MegaClient::notifypurge(void)
 
             chat->notified = false;
             chat->resetTag();
-            memset(&(chat->changed), 0, sizeof(chat->changed));
-            chat->mSchedMeetingsChanged.clear();
-            chat->mUpdatedOcurrences.clear();
+            chat->changed = {};
+            chat->clearSchedMeetingsChanged();
+            chat->clearUpdatedSchedMeetingOccurrences();
         }
 
         chatnotify.clear();
@@ -9775,7 +9757,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                         {
                             // If logged into writable folder, we need the sharekey set in the root node
                             // so as to include it in subsequent put nodes
-                            n->sharekey = new SymmCipher(key); //we use the "master key", in this case the secret share key
+                            n->sharekey.reset(new SymmCipher(key)); //we use the "master key", in this case the secret share key
                         }
                     }
                 }
@@ -11833,13 +11815,13 @@ void MegaClient::openShareDialog(Node* n, std::function<void(Error)> completion)
             LOG_debug << "Creating new share key for " << toHandle(n->nodehandle);
             byte key[SymmCipher::KEYLENGTH];
             rng.genblock(key, sizeof key);
-            n->sharekey = new SymmCipher(key);
+            n->sharekey.reset(new SymmCipher(key));
             updateKeys = true;
         }
         else
         {
             LOG_debug << "Setting node's sharekey from KeyManager (openShareDialog)";
-            n->sharekey = new SymmCipher((const byte*)previousKey.data());
+            n->sharekey.reset(new SymmCipher((const byte*)previousKey.data()));
         }
     }
     else assert(mKeyManager.getShareKey(n->nodehandle).size());
@@ -11943,13 +11925,13 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
             LOG_debug << "Creating new share key for folder link on " << toHandle(n->nodehandle);
             byte key[SymmCipher::KEYLENGTH];
             rng.genblock(key, sizeof key);
-            n->sharekey = new SymmCipher(key);
+            n->sharekey.reset(new SymmCipher(key));
             newShareKey = true;
         }
         else
         {
             LOG_debug << "Reusing node's sharekey from KeyManager for folder link on " << toHandle(n->nodehandle);
-            n->sharekey = new SymmCipher((const byte*)previousKey.data());
+            n->sharekey.reset(new SymmCipher((const byte*)previousKey.data()));
         }
     }
 
@@ -12593,7 +12575,7 @@ void MegaClient::notifychat(TextChat *chat)
     if (!chat->notified)
     {
         chat->notified = true;
-        chatnotify[chat->id] = chat;
+        chatnotify[chat->getChatId()] = chat;
     }
 }
 #endif
@@ -12861,13 +12843,13 @@ void MegaClient::procmcf(JSON *j)
                                         if (readingPublicChats) { setChatMode(chat, publicchat); }
                                     }
 
-                                    chat->id = chatid;
-                                    chat->priv = priv;
-                                    chat->shard = shard;
-                                    chat->group = group;
-                                    chat->title = title;
-                                    chat->ts = (ts != -1) ? ts : 0;
-                                    chat->meeting = meeting;
+                                    chat->setChatId(chatid);
+                                    chat->setOwnPrivileges(priv);
+                                    chat->setShard(shard);
+                                    chat->setGroup(group);
+                                    chat->setTitle(title);
+                                    chat->setTs(ts != -1 ? ts : 0);
+                                    chat->setMeeting(meeting);
 
                                     if (group)
                                     {
@@ -12876,7 +12858,7 @@ void MegaClient::procmcf(JSON *j)
 
                                     if (readingPublicChats)
                                     {
-                                        chat->unifiedKey = unifiedKey;
+                                        chat->setUnifiedKey(unifiedKey);
 
                                         if (unifiedKey.empty())
                                         {
@@ -12887,7 +12869,7 @@ void MegaClient::procmcf(JSON *j)
                                     // remove yourself from the list of users (only peers matter)
                                     if (userpriv)
                                     {
-                                        if (chat->priv == PRIV_RM)
+                                        if (chat->getOwnPrivileges() == PRIV_RM)
                                         {
                                             // clear the list of peers because API still includes peers in the
                                             // actionpacket, but not in a fresh fetchnodes
@@ -12912,8 +12894,7 @@ void MegaClient::procmcf(JSON *j)
                                             }
                                         }
                                     }
-                                    delete chat->userpriv;  // discard any existing `userpriv`
-                                    chat->userpriv = userpriv;
+                                    chat->setUserPrivileges(userpriv);
                                 }
                                 else
                                 {
@@ -12981,7 +12962,7 @@ void MegaClient::procmcf(JSON *j)
                                     else
                                     {
                                         it->second->setFlags(flags);
-                                        assert(!readingPublicChats || !it->second->unifiedKey.empty());
+                                        assert(!readingPublicChats || !it->second->getUnifiedKey().empty());
                                     }
                                 }
                                 else
@@ -14481,7 +14462,7 @@ void MegaClient::fetchnodes(bool nocache)
                 // so as to include it in subsequent put nodes
                 if (Node* n = nodeByHandle(mNodeManager.getRootNodeFiles()))
                 {
-                    n->sharekey = new SymmCipher(key); //we use the "master key", in this case the secret share key
+                    n->sharekey.reset(new SymmCipher(key)); //we use the "master key", in this case the secret share key
                 }
             }
 
@@ -19120,7 +19101,7 @@ void MegaClient::setChatMode(TextChat* chat, bool pubChat)
     if (chat->setMode(pubChat) == API_EACCESS)
     {
         std::string msg = "setChatMode: trying to convert a chat from private into public. chatid: "
-                          + std::string(Base64Str<MegaClient::CHATHANDLE>(chat->id));
+                          + std::string(Base64Str<MegaClient::CHATHANDLE>(chat->getChatId()));
         sendevent(99476, msg.c_str(), 0);
         LOG_warn << msg;
     }

@@ -4105,20 +4105,19 @@ TEST_F(SdkTest, SdkTestShares)
     long long nodeCountAfterShareN1 = megaApi[1]->getNumNodes();
     ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterShareN1);
 
-
     // remove nested share
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(dummyNode2->getHandle(), MegaNode::CHANGE_TYPE_OUTSHARE, check1);
+    mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(dummyNode2->getHandle(), MegaNode::CHANGE_TYPE_INSHARE, check2);
     ASSERT_NO_FATAL_FAILURE(shareFolder(dummyNode2.get(), mApi[1].email.data(), MegaShare::ACCESS_UNKNOWN));
     ASSERT_TRUE(waitForResponse(&check1))   // at the target side (main account)
         << "Node update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE(waitForResponse(&check2))   // at the target side (auxiliar account)
+        << "Node update not received after " << maxTimeout << " seconds";
+
     // important to reset
     resetOnNodeUpdateCompletionCBs();
     ASSERT_EQ(check1, true);
-
-//    TODO nested in shares aren't notified when they are removed (Ticket SDK-1912)
-//    ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated))   // at the target side (auxiliar account)
-//        << "Node update not received after " << maxTimeout << " seconds";
-    WaitMillisec(2000); // alternative attempt for mApi[1].nodeUpdated not being set
+    ASSERT_EQ(check2, true);
 
     // number of nodes should not change, because this node was a nested share
     long long nodeCountAfterInSharesRemovedNestedSubfolder = megaApi[1]->getNumNodes();

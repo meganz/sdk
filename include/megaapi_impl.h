@@ -1946,7 +1946,7 @@ class MegaTextChatPeerListPrivate : public MegaTextChatPeerList
 {
 public:
     MegaTextChatPeerListPrivate();
-    MegaTextChatPeerListPrivate(userpriv_vector *);
+    MegaTextChatPeerListPrivate(const userpriv_vector *);
 
     virtual ~MegaTextChatPeerListPrivate();
     virtual MegaTextChatPeerList *copy() const;
