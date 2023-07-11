@@ -1032,8 +1032,9 @@ string MegaNodePrivate::addAppPrefixToFingerprint(const string& fp, const m_off_
     return result;
 }
 
-string MegaNodePrivate::removeAppPrefixFromFingerprint(const string& appFp, m_off_t* nodeSize)
+string MegaNodePrivate::removeAppPrefixFromFingerprint(const char* appFpParam, m_off_t* nodeSize)
 {
+    const std::string appFp = appFpParam ? appFpParam : "";
     if (appFp.empty())
     {
         LOG_warn << "Requesting app prefix removal from an empty fingerprint";

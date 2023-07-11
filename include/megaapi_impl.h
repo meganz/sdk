@@ -638,7 +638,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         bool serialize(string*) const override;
         static MegaNodePrivate* unserialize(string*);
 
-        static string removeAppPrefixFromFingerprint(const string& appFingerprint, m_off_t* nodeSize = nullptr);
+        static string removeAppPrefixFromFingerprint(const char* appFingerprint, m_off_t* nodeSize = nullptr);
         static string addAppPrefixToFingerprint(const string& fingerprint, const m_off_t nodeSize);
 
     protected:
