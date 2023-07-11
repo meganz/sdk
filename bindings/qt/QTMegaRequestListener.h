@@ -44,6 +44,7 @@ public:
         , consumer(this, std::move(onFinishedFunc))
     {
     }
+    ~OnFinishOneShot(){};
 
     struct QTEventConsumer : MegaRequestListener
     {
