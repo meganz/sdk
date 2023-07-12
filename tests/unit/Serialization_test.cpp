@@ -408,7 +408,7 @@ TEST(Serialization, Node_forFile_withoutShares)
         {102, "bar"},
     };
     n->fileattrstring = "blah";
-    n->plink = new mega::PublicLink{n->nodehandle, 1, 2, false};
+    n->plink.reset(new mega::PublicLink{n->nodehandle, 1, 2, false});
     std::string data;
     ASSERT_TRUE(n->serialize(&data));
     ASSERT_EQ(131u, data.size());
@@ -430,7 +430,7 @@ TEST(Serialization, Node_forFile_withoutShares_withAuthKey)
         {102, "bar"},
     };
     n->fileattrstring = "blah";
-    n->plink = new mega::PublicLink{n->nodehandle, 1, 2, false, "someAuthKey"};
+    n->plink.reset(new mega::PublicLink{n->nodehandle, 1, 2, false, "someAuthKey"});
     std::string data;
     ASSERT_TRUE(n->serialize(&data));
     ASSERT_EQ(142u, data.size());
@@ -451,7 +451,7 @@ TEST(Serialization, Node_forFile_withoutShares_32bit)
         {102, "bar"},
     };
     n->fileattrstring = "blah";
-    n->plink = new mega::PublicLink{n->nodehandle, 1, 2, false};
+    n->plink.reset(new mega::PublicLink{n->nodehandle, 1, 2, false});
 
     // This is the result of serialization on 32bit Windows
     const std::array<char, 131> rawData = {
@@ -540,7 +540,7 @@ TEST(Serialization, Node_forFolder_withoutShares)
         {102, "bar"},
     };
     n->fileattrstring = "blah";
-    n->plink = new mega::PublicLink{n->nodehandle, 1, 2, false};
+    n->plink.reset(new mega::PublicLink{n->nodehandle, 1, 2, false});
     std::string data;
     ASSERT_TRUE(n->serialize(&data));
 
@@ -562,7 +562,7 @@ TEST(Serialization, Node_forFolder_withoutShares_32bit)
         {102, "bar"},
     };
     n->fileattrstring = "blah";
-    n->plink = new mega::PublicLink{n->nodehandle, 1, 2, false};
+    n->plink.reset(new mega::PublicLink{n->nodehandle, 1, 2, false});
 
     // This is the result of serialization on 32bit Windows
     const std::array<unsigned char, 108> rawData = {

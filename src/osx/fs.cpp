@@ -102,9 +102,7 @@ MacDirNotify::MacDirNotify(const LocalPath& ignoreName,
         context.info = this;
 
         // Flags customizing the stream's behavior.
-        constexpr auto flags =
-          kFSEventStreamCreateFlagFileEvents
-          | kFSEventStreamCreateFlagWatchRoot;
+        constexpr auto flags = kFSEventStreamCreateFlagFileEvents;
 
         // How long the stream should wait before sending events.
         constexpr auto latency = 0.1;
@@ -129,12 +127,14 @@ MacDirNotify::MacDirNotify(const LocalPath& ignoreName,
     if (!mEventStream)
         return;
 
-    // How long is the root path?
-    mRootPathLength = rootPath.localpath.size();
-
-    // Exclude any trailing separator.
-    if (rootPath.endsInSeparator())
-        --mRootPathLength;
+    // How long is the normalized root path((like std::canonical and Exclude any trailing separator)?
+    LocalPath expanseRootPath;
+    if (!FSACCESS_CLASS().expanselocalpath(rootPath, expanseRootPath))
+    {
+        LOG_err << "Fail to expanseRootPath:" << rootPath.localpath;
+        return;
+    }
+    mRootPathLength = expanseRootPath.endsInSeparator() ? expanseRootPath.localpath.size() - 1 : expanseRootPath.localpath.size();
 
     // Specify who should process our filesystem events.
     FSEventStreamSetDispatchQueue(mEventStream, mOwner.mDispatchQueue);

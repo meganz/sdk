@@ -4979,6 +4979,26 @@ bool CommandGetMiscFlags::procresult(Result r, JSON& json)
     return error(e) != API_EINTERNAL;
 }
 
+CommandABTestActive::CommandABTestActive(MegaClient *client, const string& flag, Completion completion)
+    : mCompletion(completion)
+{
+    cmd("abta");
+    arg("c", flag.c_str());
+
+    tag = client->reqtag;
+}
+
+bool CommandABTestActive::procresult(Result r, JSON&)
+{
+    assert(r.wasErrorOrOK());
+    if (mCompletion)
+    {
+        mCompletion(r.errorOrOK());
+    }
+
+    return r.wasErrorOrOK();
+}
+
 CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, std::shared_ptr<AccountDetails> ad, bool storage, bool transfer, bool pro, int source)
 {
     details = ad;
@@ -7126,21 +7146,25 @@ bool CommandChatCreate::procresult(Result r, JSON& json)
                 case EOO:
                     if (chatid != UNDEF && shard != -1)
                     {
+                        TextChat* chat = nullptr;
                         if (client->chats.find(chatid) == client->chats.end())
                         {
-                            client->chats[chatid] = new TextChat();
+                            chat = new TextChat(mPublicChat);
+                            client->chats[chatid] = chat;
+                        }
+                        else
+                        {
+                            chat = client->chats[chatid];
+                            client->setChatMode(chat, mPublicChat);
                         }
 
-                        TextChat *chat = client->chats[chatid];
-                        chat->id = chatid;
-                        chat->priv = PRIV_MODERATOR;
-                        chat->shard = shard;
-                        delete chat->userpriv;  // discard any existing `userpriv`
-                        chat->userpriv = this->chatPeers;
-                        chat->group = group;
-                        chat->ts = (ts != -1) ? ts : 0;
-                        chat->publicchat = mPublicChat;
-                        chat->meeting = mMeeting;
+                        chat->setChatId(chatid);
+                        chat->setOwnPrivileges(PRIV_MODERATOR);
+                        chat->setShard(shard);
+                        chat->setUserPrivileges(chatPeers);
+                        chat->setGroup(group);
+                        chat->setTs(ts != -1 ? ts : 0);
+                        chat->setMeeting(mMeeting);
                         // no need to fetch scheduled meetings as we have just created the chat, so it doesn't have any
 
                         if (group) // we are creating a chat, so we need to initialize all chat options enabled/disabled
@@ -7149,25 +7173,25 @@ bool CommandChatCreate::procresult(Result r, JSON& json)
                         }
 
                         chat->setTag(tag ? tag : -1);
-                        if (chat->group && !mTitle.empty())
+                        if (chat->getGroup() && !mTitle.empty())
                         {
-                            chat->title = mTitle;
+                            chat->setTitle(mTitle);
                         }
                         if (mPublicChat)
                         {
-                            chat->unifiedKey = mUnifiedKey;
+                            chat->setUnifiedKey(mUnifiedKey);
                         }
 
                         if (schedId != UNDEF && mSchedMeeting)
                         {
-                            assert(chat->mScheduledMeetings.find(schedId) == end(chat->mScheduledMeetings));
+                            assert(!chat->hasScheduledMeeting(schedId));
                             mSchedMeeting->setSchedId(schedId);
                             mSchedMeeting->setChatid(chatid);
                             if (!chat->addOrUpdateSchedMeeting(std::move(mSchedMeeting)))
                             {
                                 LOG_err << "Error adding a new scheduled meeting with schedId [" <<  Base64Str<MegaClient::CHATHANDLE>(schedId) << "]";
                             }
-                            client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chat->id, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
+                            client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chat->getChatId(), mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
                         }
 
                         client->notifychat(chat);
@@ -7282,16 +7306,11 @@ bool CommandChatInvite::procresult(Result r, JSON& json)
         }
 
         TextChat *chat = client->chats[chatid];
-        if (!chat->userpriv)
-        {
-            chat->userpriv = new userpriv_vector();
-        }
-
-        chat->userpriv->push_back(userpriv_pair(uh, priv));
+        chat->addUserPrivileges(uh, priv);
 
         if (!title.empty())  // only if title was set for this chatroom, update it
         {
-            chat->title = title;
+            chat->setTitle(title);
         }
 
         chat->setTag(tag ? tag : -1);
@@ -7334,24 +7353,7 @@ bool CommandChatRemove::procresult(Result r, JSON& json)
         }
 
         TextChat *chat = client->chats[chatid];
-        if (chat->userpriv)
-        {
-            userpriv_vector::iterator upvit;
-            for (upvit = chat->userpriv->begin(); upvit != chat->userpriv->end(); upvit++)
-            {
-                if (upvit->first == uh)
-                {
-                    chat->userpriv->erase(upvit);
-                    if (chat->userpriv->empty())
-                    {
-                        delete chat->userpriv;
-                        chat->userpriv = NULL;
-                    }
-                    break;
-                }
-            }
-        }
-        else
+        if (!chat->removeUserPrivileges(uh))
         {
             if (uh != client->me)
             {
@@ -7363,11 +7365,10 @@ bool CommandChatRemove::procresult(Result r, JSON& json)
 
         if (uh == client->me)
         {
-            chat->priv = PRIV_RM;
+            chat->setOwnPrivileges(PRIV_RM);
 
             // clear the list of peers (if re-invited, peers will be re-added)
-            delete chat->userpriv;
-            chat->userpriv = NULL;
+            chat->setUserPrivileges(nullptr);
         }
 
         chat->setTag(tag ? tag : -1);
@@ -7524,27 +7525,7 @@ bool CommandChatUpdatePermissions::procresult(Result r, JSON& json)
         TextChat *chat = client->chats[chatid];
         if (uh != client->me)
         {
-            if (!chat->userpriv)
-            {
-                // the update succeed, but that peer is not included in the chatroom
-                client->app->chatupdatepermissions_result(API_EINTERNAL);
-                return true;
-            }
-
-            bool found = false;
-            userpriv_vector::iterator upvit;
-            for (upvit = chat->userpriv->begin(); upvit != chat->userpriv->end(); upvit++)
-            {
-                if (upvit->first == uh)
-                {
-                    chat->userpriv->erase(upvit);
-                    chat->userpriv->push_back(userpriv_pair(uh, priv));
-                    found = true;
-                    break;
-                }
-            }
-
-            if (!found)
+            if (!chat->updateUserPrivileges(uh, priv))
             {
                 // the update succeed, but that peer is not included in the chatroom
                 client->app->chatupdatepermissions_result(API_EINTERNAL);
@@ -7553,7 +7534,7 @@ bool CommandChatUpdatePermissions::procresult(Result r, JSON& json)
         }
         else
         {
-            chat->priv = priv;
+            chat->setOwnPrivileges(priv);
         }
 
         chat->setTag(tag ? tag : -1);
@@ -7628,7 +7609,7 @@ bool CommandChatSetTitle::procresult(Result r, JSON& json)
         }
 
         TextChat *chat = client->chats[chatid];
-        chat->title = title;
+        chat->setTitle(title);
 
         chat->setTag(tag ? tag : -1);
         client->notifychat(chat);
@@ -7979,10 +7960,10 @@ bool CommandChatLinkClose::procresult(Result r, JSON& json)
         }
 
         TextChat *chat = it->second;
-        chat->setMode(false);
+        client->setChatMode(chat, false);
         if (!mTitle.empty())
         {
-            chat->title = mTitle;
+            chat->setTitle(mTitle);
         }
 
         chat->setTag(tag ? tag : -1);
@@ -10214,7 +10195,7 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r, JSON& jso
     }
 
     // fetch for fresh scheduled meetings occurrences
-    client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chat->id, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
+    client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chat->getChatId(), mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
 
     if (mCompletion) { mCompletion(e, result); }
     return res;
@@ -10256,7 +10237,7 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r, JSON& json)
             client->notifychat(chat);
 
             // re-fetch scheduled meetings occurrences
-            client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chat->id, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
+            client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chat->getChatId(), mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
         }
     }
 

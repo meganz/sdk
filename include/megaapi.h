@@ -1183,150 +1183,7 @@ class MegaNode
 };
 
 
-/**
- * @brief Represents information of a Backup in MEGA
- *
- * It allows getting all information about a Backup.
- *
- * Objects of this class aren't live, they are snapshots of the state of a Backup
- * when the object was created. They are immutable.
- *
- */
-class MegaBackupInfo
-{
-public:
-    /**
-     * @brief Returns Backup id.
-     *
-     * @return Backup id.
-     */
-    virtual MegaHandle id() const { return INVALID_HANDLE; }
-
-    /**
-     * @brief Returns Backup type.
-     *
-     * It can be one of the following values:
-     *  INVALID       = -1
-     *  TWO_WAY       =  0
-     *  UP_SYNC       =  1
-     *  DOWN_SYNC     =  2
-     *  CAMERA_UPLOAD =  3
-     *  MEDIA_UPLOAD  =  4
-     *  BACKUP_UPLOAD =  5
-     *
-     * @return Backup type.
-     */
-    virtual int type() const { return -1; } // values from BackupType enum
-
-    /**
-     * @brief Returns handle of Backup root.
-     *
-     * @return Backup root handle.
-     */
-    virtual MegaHandle root() const { return INVALID_HANDLE; }
-
-    /**
-     * @brief Returns the name of the backed up local folder.
-     *
-     * @return Name of the backed up local folder.
-     */
-    virtual const char* localFolder() const { return nullptr; }
-
-    /**
-     * @brief Returns the id of the device where the backup originated.
-     *
-     * @return Id of the device where the backup originated.
-     */
-    virtual const char* deviceId() const { return nullptr; }
-
-    /**
-     * @brief Returns the sync state of the backup.
-     *
-     * It can be one of the following values:
-     *  STATE_NOT_INITIALIZED = 0
-     *  UPTODATE = 1 -> Up to date: local and remote paths are in sync
-     *  SYNCING  = 2 -> The sync engine is working, transfers are in progress
-     *  PENDING  = 3 -> The sync engine is working, e.g: scanning local folders
-     *  INACTIVE = 4 -> Sync is not active. A state != ACTIVE should have been sent through '''sp'''
-     *  UNKNOWN  = 5 -> Unknown status
-     *
-     * @return Sync state of the backup.
-     */
-    virtual int state() const { return 0; }
-
-    /**
-     * @brief Returns the sync substate of the backup.
-     *
-     * @return Sync substate of the backup.
-     */
-    virtual int substate() const { return 0; }
-
-    /**
-     * @brief Returns extra information, used as source for extracting other details.
-     *
-     * @return Extra information, used as source for extracting other details.
-     */
-    virtual const char* extra() const { return nullptr; }
-
-    /**
-     * @brief Returns the name of the backup.
-     *
-     * @return Name of the backup.
-     */
-    virtual const char* name() const { return nullptr; }
-
-    /**
-     * @brief Returns the timestamp of the backup, as reported by heartbeats.
-     *
-     * @return Timestamp of the backup, as reported by heartbeats.
-     */
-    virtual uint64_t ts() const { return 0; }
-
-    /**
-     * @brief Returns the status of the backup, as reported by heartbeats.
-     *
-     * @return Status of the backup, as reported by heartbeats.
-     */
-    virtual int status() const { return 0; }
-
-    /**
-     * @brief Returns the progress of the backup, as reported by heartbeats.
-     *
-     * @return Progress of the backup, as reported by heartbeats.
-     */
-    virtual int progress() const { return 0; }
-
-    /**
-     * @brief Returns upload count.
-     *
-     * @return Upload count.
-     */
-    virtual int uploads() const { return 0; }
-
-    /**
-     * @brief Returns download count.
-     *
-     * @return Download count.
-     */
-    virtual int downloads() const { return 0; }
-
-    /**
-     * @brief Returns the last activity timestamp, as reported by heartbeats.
-     *
-     * @return Last activity timestamp, as reported by heartbeats.
-     */
-    virtual uint64_t activityTs() const { return 0; }
-
-    /**
-     * @brief Returns handle of the last synced node.
-     *
-     * @return Handle of the last synced node.
-     */
-    virtual MegaHandle lastSync() const { return INVALID_HANDLE; }
-
-    virtual MegaBackupInfo* copy() const { return nullptr; }
-    virtual ~MegaBackupInfo() = default;
-};
+class MegaBackupInfo;
 
 /**
  * @brief List of MegaBackupInfo objects
@@ -4435,7 +4292,8 @@ class MegaRequest
             TYPE_GET_RECOMMENDED_PRO_PLAN                                   = 168,
             TYPE_BACKUP_INFO                                                = 169,
             TYPE_BACKUP_REMOVE_MD                                           = 170,
-            TOTAL_OF_REQUEST_TYPES                                          = 171,
+            TYPE_AB_TEST_ACTIVE                                             = 171,
+            TOTAL_OF_REQUEST_TYPES                                          = 172,
         };
 
         virtual ~MegaRequest();
@@ -4549,7 +4407,6 @@ class MegaRequest
          * This value is valid for these requests:
          * - MegaApi::querySignupLink - Returns the confirmation link
          * - MegaApi::confirmAccount - Returns the confirmation link
-         * - MegaApi::fastConfirmAccount - Returns the confirmation link
          * - MegaApi::loginToFolder - Returns the link to the folder
          * - MegaApi::importFileLink - Returns the link to the file to import
          * - MegaApi::getPublicNode - Returns the link to the file
@@ -4635,7 +4492,6 @@ class MegaRequest
          * error code is MegaError::API_OK:
          * - MegaApi::querySignupLink - Returns the name of the user
          * - MegaApi::confirmAccount - Returns the name of the user
-         * - MegaApi::fastConfirmAccount - Returns the name of the user
          * - MegaApi::getUserData - Returns the name of the user
          * - MegaApi::getDownloadUrl - Returns semicolon-separated download URL(s) to the file
          *
@@ -4667,7 +4523,6 @@ class MegaRequest
          * error code is MegaError::API_OK:
          * - MegaApi::querySignupLink - Returns the email of the account
          * - MegaApi::confirmAccount - Returns the email of the account
-         * - MegaApi::fastConfirmAccount - Returns the email of the account
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
@@ -4682,7 +4537,6 @@ class MegaRequest
          * This value is valid for these requests:
          * - MegaApi::login - Returns the password of the account
          * - MegaApi::loginToFolder - Returns the authentication key to write in public folder
-         * - MegaApi::fastLogin - Returns the hash of the email
          * - MegaApi::createAccount - Returns the password for the account
          * - MegaApi::confirmAccount - Returns the password for the account
          * - MegaApi::changePassword - Returns the old password of the account (first parameter)
@@ -4716,10 +4570,6 @@ class MegaRequest
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
-         *
-         * This value is valid for these requests:
-         * - MegaApi::fastLogin - Returns the base64pwKey parameter
-         * - MegaApi::fastConfirmAccount - Returns the base64pwKey parameter
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -5324,6 +5174,7 @@ public:
         EVENT_FATAL_ERROR               = 17, // Notify fatal error to user (may require to reload)
         EVENT_UPGRADE_SECURITY          = 18, // Account upgraded. Cryptography relies now on keys attribute information.
         EVENT_DOWNGRADE_ATTACK          = 19, // A downgrade attack has been detected. Removed shares may have reappeared. Please tread carefully.
+        EVENT_CONFIRM_USER_EMAIL        = 20, // Ephemeral account confirmed the associated email
     };
 
     enum
@@ -8143,6 +7994,13 @@ class MegaGlobalListener
          *   Valid data in the MegaEvent object received in the callback:
          *      - MegaEvent::getText: email address used to confirm the account
          *
+         *  - MegaEvent::EVENT_CONFIRM_USER_EMAIL: when a new account is finally confirmed
+         * by confirming the signup link.
+         *
+         *   Valid data in the MegaEvent object received in the callback:
+         *      - MegaEvent::getHandle: user handle for the confirmed account
+         *      - MegaEvent::getText: email address used to confirm the account
+         *
          *  - MegaEvent::EVENT_CHANGE_TO_HTTPS: when the SDK automatically starts using HTTPS for all
          * its communications. This happens when the SDK is able to detect that MEGA servers can't be
          * reached using HTTP or that HTTP communications are being tampered. Transfers of files and
@@ -8752,6 +8610,13 @@ class MegaListener
          *   Valid data in the MegaEvent object received in the callback:
          *      - MegaEvent::getText: email address used to confirm the account
          *
+         *  - MegaEvent::EVENT_CONFIRM_USER_EMAIL: when a new account is finally confirmed
+         * by confirming the signup link.
+         *
+         *   Valid data in the MegaEvent object received in the callback:
+         *      - MegaEvent::getHandle: user handle for the confirmed account
+         *      - MegaEvent::getText: email address used to confirm the account
+         *
          *  - MegaEvent::EVENT_CHANGE_TO_HTTPS: when the SDK automatically starts using HTTPS for all
          * its communications. This happens when the SDK is able to detect that MEGA servers can't be
          * reached using HTTP or that HTTP communications are being tampered. Transfers of files and
@@ -9292,6 +9157,7 @@ class MegaApi
             BACKUP_TYPE_DOWN_SYNC = 2,
             BACKUP_TYPE_CAMERA_UPLOADS = 3,
             BACKUP_TYPE_MEDIA_UPLOADS = 4,   // Android has a secondary CU
+            BACKUP_TYPE_BACKUP_UPLOAD = 5,
         };
 
         enum {
@@ -9466,24 +9332,6 @@ class MegaApi
          * @param listener Object that is unregistered
          */
         void removeGlobalListener(MegaGlobalListener* listener);
-
-        /**
-         * @brief Generates a hash based in the provided private key and email
-         *
-         * This is a time consuming operation (specially for low-end mobile devices). Since the resulting key is
-         * required to log in, this function allows to do this step in a separate function. You should run this function
-         * in a background thread, to prevent UI hangs. The resulting key can be used in MegaApi::fastLogin
-         *
-         * You take the ownership of the returned value.
-         *
-         * @param base64pwkey Private key returned by MegaRequest::getPrivateKey in the onRequestFinish callback of createAccount
-         * @param email Email to create the hash
-         * @return Base64-encoded hash
-         *
-         * @deprecated This function is only useful for old accounts. Once enabled the new registration logic,
-         * this function will return an empty string for new accounts and will be removed few time after.
-         */
-        char* getStringHash(const char* base64pwkey, const char* email);
 
         /**
          * @brief Get internal timestamp used by the SDK
@@ -9733,6 +9581,33 @@ class MegaApi
          * @return True if this feature is enabled. Otherwise, false.
          */
         bool newLinkFormatEnabled();
+
+        /**
+         * @brief Get the value of an A/B Test flag
+         *
+         * Any value greater than 0 means he flag is active.
+         *
+         * @param flag Name or key of the value to be retrieved.
+         *
+         * @return An unsigned integer with the value of the flag.
+         */
+        unsigned int getABTestValue(const char* flag);
+
+        /**
+         * @brief Sends to the API an A/B Test flag activation.
+         *
+         * Informs the API that a user has become relevant for an A/B Test flag.
+         * Can be called multiple times for the same account and flag.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_AB_TEST_ACTIVE
+         *
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getText - Returns the flag passed as parameter
+         *
+         * @param flag Flag to be be sent to the API as active.
+         * @param listener MegaRequestListener to track this request
+         */
+        void sendABTestActive(const char* flag, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Check if the opt-in or account unblocking SMS is allowed
@@ -10010,27 +9885,6 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void loginToFolder(const char* megaFolderLink, const char *authKey, MegaRequestListener *listener = NULL);
-        /**
-         * @brief Log in to a MEGA account using precomputed keys
-         *
-         * The associated request type with this request is MegaRequest::TYPE_LOGIN.
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getEmail - Returns the first parameter
-         * - MegaRequest::getPassword - Returns the second parameter
-         * - MegaRequest::getPrivateKey - Returns the third parameter
-         *
-         * If the email/stringHash/base64pwKey aren't valid the error code provided in onRequestFinish is
-         * MegaError::API_ENOENT.
-         *
-         * @param email Email of the user
-         * @param stringHash Hash of the email returned by MegaApi::getStringHash
-         * @param base64pwkey Private key returned by MegaRequest::getPrivateKey in the onRequestFinish callback of createAccount
-         * @param listener MegaRequestListener to track this request
-         *
-         * @deprecated The parameter stringHash is no longer for new accounts so this function will be replaced by another
-         * one soon. Please use MegaApi::login (with email and password) or MegaApi::fastLogin (with session) instead when possible.
-         */
-        void fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Log in to a MEGA account using a session key
@@ -10535,11 +10389,6 @@ class MegaApi
         void resendSignupLink(const char* email, const char *name, MegaRequestListener *listener = NULL);
 
         /**
-         * @obsolete  This method cannot be used anymore by apps. It will always result on API_EINTERNAL.
-         */
-        void fastSendSignupLink(const char* email, const char *base64pwkey, const char *name, MegaRequestListener *listener = NULL);
-
-        /**
          * @brief Get information about a confirmation link or a new signup link
          *
          * The associated request type with this request is MegaRequest::TYPE_QUERY_SIGNUP_LINK.
@@ -10577,8 +10426,8 @@ class MegaApi
          * - MegaRequest::getEmail - Email of the account
          * - MegaRequest::getName - Name of the user
          *
-         * As a result of a successfull confirmation, the app will receive the callback
-         * MegaListener::onEvent and MegaGlobalListener::onEvent with an event of type
+         * As a result of a successful confirmation, the app will receive callbacks
+         * MegaListener::onEvent and MegaGlobalListener::onEvent with events of type
          * MegaEvent::EVENT_ACCOUNT_CONFIRMATION. You can check the email used to confirm
          * the account by checking MegaEvent::getText. @see MegaListener::onEvent.
          *
@@ -10594,11 +10443,6 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void confirmAccount(const char* link, const char *password, MegaRequestListener *listener = NULL);
-
-        /**
-         * @obsolete This method cannot be used anymore by apps. It will always result on API_EINTERNAL.
-         */
-        void fastConfirmAccount(const char* link, const char *base64pwkey, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Initialize the reset of the existing password, with and without the Master Key.
@@ -21205,6 +21049,172 @@ class MegaApi
  private:
         MegaApiImpl *pImpl = nullptr;
         friend class MegaApiImpl;
+};
+
+
+/**
+ * @brief Represents information of a Backup in MEGA
+ *
+ * It allows getting all information about a Backup.
+ *
+ * Objects of this class aren't live, they are snapshots of the state of a Backup
+ * when the object was created. They are immutable.
+ *
+ */
+class MegaBackupInfo
+{
+public:
+    /**
+     * @brief Returns Backup id.
+     *
+     * @return Backup id.
+     */
+    virtual MegaHandle id() const { return INVALID_HANDLE; }
+
+    /**
+     * @brief Returns Backup type.
+     *
+     * It can be one of the MegaApi::BACKUP_TYPE_x values.
+     *
+     * @return Backup type.
+     */
+    virtual int type() const { return MegaApi::BACKUP_TYPE_INVALID; }
+
+    /**
+     * @brief Returns handle of Backup root.
+     *
+     * @return Backup root handle.
+     */
+    virtual MegaHandle root() const { return INVALID_HANDLE; }
+
+    /**
+     * @brief Returns the name of the backed up local folder.
+     *
+     * @return Name of the backed up local folder.
+     */
+    virtual const char* localFolder() const { return nullptr; }
+
+    /**
+     * @brief Returns the id of the device where the backup originated.
+     *
+     * @return Id of the device where the backup originated.
+     */
+    virtual const char* deviceId() const { return nullptr; }
+
+    /**
+     * @brief Possible sync state of a backup.
+     */
+    enum // 1:1 with CommandBackupPut::SPState enum values
+    {
+        BACKUP_STATE_NOT_INITIALIZED = 0,
+        BACKUP_STATE_ACTIVE = 1, // Working fine (enabled)
+        BACKUP_STATE_FAILED = 2, // Failed (permanently disabled)
+        BACKUP_STATE_TEMPORARY_DISABLED = 3, // Temporarily disabled due to a transient situation (e.g: account blocked). Will be resumed when the condition passes
+        BACKUP_STATE_DISABLED = 4, // Disabled by the user
+        BACKUP_STATE_PAUSE_UP = 5, // Active but upload transfers paused in the SDK
+        BACKUP_STATE_PAUSE_DOWN = 6, // Active but download transfers paused in the SDK
+        BACKUP_STATE_PAUSE_FULL = 7, // Active but transfers paused in the SDK
+        BACKUP_STATE_DELETED = 8, // Sync needs to be deleted, as required by sync-desired-state received from BackupCenter (WebClient)
+    };
+
+    /**
+     * @brief Returns the sync state of the backup.
+     *
+     * It can be one of the BACKUP_STATE_x enum values.
+     *
+     * @return Sync state of the backup.
+     */
+    virtual int state() const { return BACKUP_STATE_NOT_INITIALIZED; }
+
+    /**
+     * @brief Returns the sync substate of the backup.
+     *
+     * It can be one of the enum values defined at MegaSync::Error.
+     *
+     * @return Sync substate of the backup.
+     */
+    virtual int substate() const { return 0; }
+
+    /**
+     * @brief Returns extra information, used as source for extracting other details.
+     *
+     * @return Extra information, used as source for extracting other details.
+     */
+    virtual const char* extra() const { return nullptr; }
+
+    /**
+     * @brief Returns the name of the backup.
+     *
+     * @return Name of the backup.
+     */
+    virtual const char* name() const { return nullptr; }
+
+    /**
+     * @brief Returns the timestamp of the backup, as reported by heartbeats.
+     *
+     * @return Timestamp of the backup, as reported by heartbeats.
+     */
+    virtual uint64_t ts() const { return 0; }
+
+    /**
+     * @brief Possible status of a backup.
+     */
+    enum // 1:1 with CommandBackupPutHeartBeat::SPHBStatus enum values
+    {
+        BACKUP_STATUS_NOT_INITIALIZED = 0,
+        BACKUP_STATUS_UPTODATE = 1, // Up to date: local and remote paths are in sync
+        BACKUP_STATUS_SYNCING = 2, // The sync engine is working, transfers are in progress
+        BACKUP_STATUS_PENDING = 3, // The sync engine is working, e.g: scanning local folders
+        BACKUP_STATUS_INACTIVE = 4, // Sync is not active. A state != ACTIVE should have been sent through 'sp'
+        BACKUP_STATUS_UNKNOWN = 5, // Unknown status
+    };
+
+    /**
+     * @brief Returns the status of the backup, as reported by heartbeats.
+     *
+     * It can be one of the BACKUP_STATUS_x enum values.
+     *
+     * @return Status of the backup, as reported by heartbeats.
+     */
+    virtual int status() const { return BACKUP_STATUS_NOT_INITIALIZED; }
+
+    /**
+     * @brief Returns the progress of the backup, as reported by heartbeats.
+     *
+     * @return Progress of the backup, as reported by heartbeats.
+     */
+    virtual int progress() const { return 0; }
+
+    /**
+     * @brief Returns upload count.
+     *
+     * @return Upload count.
+     */
+    virtual int uploads() const { return 0; }
+
+    /**
+     * @brief Returns download count.
+     *
+     * @return Download count.
+     */
+    virtual int downloads() const { return 0; }
+
+    /**
+     * @brief Returns the last activity timestamp, as reported by heartbeats.
+     *
+     * @return Last activity timestamp, as reported by heartbeats.
+     */
+    virtual uint64_t activityTs() const { return 0; }
+
+    /**
+     * @brief Returns handle of the last synced node.
+     *
+     * @return Handle of the last synced node.
+     */
+    virtual MegaHandle lastSync() const { return INVALID_HANDLE; }
+
+    virtual MegaBackupInfo* copy() const { return nullptr; }
+    virtual ~MegaBackupInfo() = default;
 };
 
 

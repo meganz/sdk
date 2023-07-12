@@ -28,25 +28,24 @@ source TestScripts/setenv-ios.sh iPhone ${ARCH}
 elif [ $ARCH = "arm64-simulator" ]; then
 source TestScripts/setenv-ios.sh iPhoneSimulator ${ARCH}
 fi;
-mkdir -p "${CURRENTPATH}/bin/${ARCH}.sdk"
+mkdir -p "${CURRENTPATH}/bin/cryptopp/${ARCH}.sdk"
 make -f GNUmakefile-cross lean -j${NPROCESSORS}
-mv libcryptopp.a "${CURRENTPATH}/bin/${ARCH}.sdk"
+mv libcryptopp.a "${CURRENTPATH}/bin/cryptopp/${ARCH}.sdk"
+mkdir -p "${CURRENTPATH}/bin/cryptopp/${ARCH}.sdk/include/cryptopp"
+cp -f *.h "${CURRENTPATH}/bin/cryptopp/${ARCH}.sdk/include/cryptopp"
 make clean
 popd
 done
 
 mkdir xcframework || true
 
-lipo -create "${CURRENTPATH}/bin/x86_64.sdk/libcryptopp.a" "${CURRENTPATH}/bin/arm64-simulator.sdk/libcryptopp.a" -output "${CURRENTPATH}/bin/libcryptopp.a"
+lipo -create "${CURRENTPATH}/bin/cryptopp/x86_64.sdk/libcryptopp.a" "${CURRENTPATH}/bin/cryptopp/arm64-simulator.sdk/libcryptopp.a" -output "${CURRENTPATH}/bin/cryptopp/libcryptopp.a"
 
-xcodebuild -create-xcframework -library ${CURRENTPATH}/bin/libcryptopp.a -library ${CURRENTPATH}/bin/arm64.sdk/libcryptopp.a -output ${CURRENTPATH}/xcframework/libcryptopp.xcframework
-
-tar zxf ${CRYPTOPP_VERSION}.tar.gz
-mkdir -p include/cryptopp || true
-cp -f cryptopp-${CRYPTOPP_VERSION}/*.h include/cryptopp
-rm -rf cryptopp-${CRYPTOPP_VERSION}
+xcodebuild -create-xcframework -library ${CURRENTPATH}/bin/cryptopp/libcryptopp.a -headers ${CURRENTPATH}/bin/cryptopp/arm64-simulator.sdk//include -library ${CURRENTPATH}/bin/cryptopp/arm64.sdk/libcryptopp.a -headers ${CURRENTPATH}/bin/cryptopp/arm64.sdk/include -output ${CURRENTPATH}/xcframework/libcryptopp.xcframework
 
 rm -rf bin
 rm -rf ${CRYPTOPP_VERSION}.tar.gz
+rm -rf cryptopp-${CRYPTOPP_VERSION}
 
-echo "Done."
+
+echo "${bold}Done.${normal}"

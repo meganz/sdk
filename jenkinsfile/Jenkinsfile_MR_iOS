@@ -48,18 +48,14 @@ pipeline {
                 }
 
                 stage('Get MEGAchat branch'){
-                    when {
-                        expression { 
-                            env.gitlabMergeRequestDescription.contains('MEGACHAT_BRANCH_TO_TEST')
-                        }
-                    }
                     steps {
                         script{
                             env.MEGACHAT_BRANCH = sh(script: 'echo "$gitlabMergeRequestDescription" | grep MEGACHAT_BRANCH_TO_TEST | awk -F "MEGACHAT_BRANCH_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
-                            println MEGACHAT_BRANCH
                             if (MEGACHAT_BRANCH == ""){
                                 echo "MEGACHAT_BRANCH was not found on description so develop will be used by default"
+                                env.MEGACHAT_BRANCH = "develop"
                             }
+                            println MEGACHAT_BRANCH
                         }
                     }
                     post{
@@ -74,18 +70,14 @@ pipeline {
                 }
                 
                 stage('Get iOS branch'){
-                    when {
-                        expression { 
-                            env.gitlabMergeRequestDescription.contains('IOS_BRANCH_TO_TEST')
-                        }
-                    }
                     steps {
                         script{
                             env.IOS_BRANCH = sh(script: 'echo "$gitlabMergeRequestDescription" | grep IOS_BRANCH_TO_TEST | awk -F "IOS_BRANCH_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
-                            println IOS_BRANCH
                             if (IOS_BRANCH == ""){
                                 echo "IOS_BRANCH was not found on description so develop will be used by default"
+                                env.IOS_BRANCH = "develop"
                             }
+                            println IOS_BRANCH
                         }
                     }
                     post{

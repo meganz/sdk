@@ -482,11 +482,16 @@ public:
     // Don't start showing the cookie banner until API says so
     bool mCookieBannerEnabled = false;
 
+    // AB Test flags
+    std::map<string, uint32_t> mABTestFlags;
+
 private:
     // Pro Flexi plan is enabled
     bool mProFlexi = false;
 public:
     bool isProFlexi() const { return mProFlexi; }
+
+    Error sendABTestActive(const char* flag, CommandABTestActive::Completion completion);
 
     // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed  -1 = flag was not received
     SmsVerificationState mSmsVerificationState;
@@ -746,7 +751,7 @@ public:
 
     // helpfer function for preparing a putnodes call for new node
     error putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, const char *utf8Name, const UploadToken& binaryUploadToken,
-                                  byte *theFileKey, char *megafingerprint, const char *fingerprintOriginal,
+                                  const byte *theFileKey, const char *megafingerprint, const char *fingerprintOriginal,
                                   std::function<error(AttrMap&)> addNodeAttrsFunc = nullptr,
                                   std::function<error(std::string *)> addFileAttrsFunc = nullptr);
 
@@ -1075,6 +1080,9 @@ public:
 
     // get the URL of a chat
     void getUrlChat(handle chatid);
+
+    // set chat mode (public/private)
+    void setChatMode(TextChat* chat, bool pubChat);
 
     // process object arrays by the API server (users + privileges)
     userpriv_vector * readuserpriv(JSON* j);
@@ -1429,6 +1437,7 @@ public:
     static error parseScheduledMeetingChangeset(JSON*, UserAlert::UpdatedScheduledMeeting::Changeset*);
 #endif
     void sc_uac();
+    void sc_uec();
     void sc_la();
     void sc_ub();
     void sc_sqac();
