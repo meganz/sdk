@@ -9965,9 +9965,6 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
  * @brief Returns the device id stored as a Node attribute.
  * It will be an empty string for other nodes than device folders related to backups.
  *
- * The MEGANode object retains the ownership of the returned string, it will be valid until
- * the MEGANode object is deleted.
- *
  * @return The device id associated with the Node of a Backup folder.
  */
 - (nullable NSString *)deviceId;
