@@ -7776,11 +7776,11 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
             if (s->exclusionState() != ES_INCLUDED)
             {
                 // Is it a move target?
-                if (auto& moveToHere = s->rare().moveToHere)
+                if (s->rare().moveToHere)
                 {
-                    assert(!moveToHere->failed);
-                    assert(!moveToHere->syncCodeProcessedResult);
-                    assert(moveToHere->succeeded);
+                    assert(!s->rare().moveToHere->failed);
+                    assert(!s->rare().moveToHere->syncCodeProcessedResult);
+                    assert(s->rare().moveToHere->succeeded);
 
                     // Necessary as excluded rows may not reach CSF.
                     resolve_checkMoveComplete(row, parentRow, fullPath);
