@@ -11897,7 +11897,7 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
 
         if (owningUser)
         {
-            if (auto inshare = n->firstancestor()->inshare)
+            if (auto& inshare = n->firstancestor()->inshare)
             {
                 *owningUser = inshare->user->userhandle;
             }

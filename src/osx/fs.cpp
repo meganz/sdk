@@ -122,12 +122,14 @@ MacDirNotify::MacDirNotify(MacFileSystemAccess& owner,
     if (!mEventStream)
         return;
 
-    // How long is the root path?
-    mRootPathLength = rootPath.localpath.size();
-
-    // Exclude any trailing separator.
-    if (rootPath.endsInSeparator())
-        --mRootPathLength;
+    // How long is the normalized root path((like std::canonical and Exclude any trailing separator)?
+    LocalPath expanseRootPath;
+    if (!FSACCESS_CLASS().expanselocalpath(rootPath, expanseRootPath))
+    {
+        LOG_err << "Fail to expanseRootPath:" << rootPath.localpath;
+        return;
+    }
+    mRootPathLength = expanseRootPath.endsInSeparator() ? expanseRootPath.localpath.size() - 1 : expanseRootPath.localpath.size();
 
     // Specify who should process our filesystem events.
     FSEventStreamSetDispatchQueue(mEventStream, mOwner.mDispatchQueue);
