@@ -5940,6 +5940,8 @@ CommandConfirmSignupLink2::CommandConfirmSignupLink2(MegaClient* client,
                                                    const byte* code,
                                                    unsigned len)
 {
+    mSeqtagArray = true;
+
     cmd("ud2");
     arg("c", code, len);
 
