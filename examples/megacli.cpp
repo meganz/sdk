@@ -951,39 +951,39 @@ void DemoApp::printChatInformation(TextChat *chat)
         return;
     }
 
-    cout << "Chat ID: " << Base64Str<sizeof(handle)>(chat->id) << endl;
-    cout << "\tOwn privilege level: " << DemoApp::getPrivilegeString(chat->priv) << endl;
-    cout << "\tCreation ts: " << chat->ts << endl;
-    cout << "\tChat shard: " << chat->shard << endl;
-    cout << "\tGroup chat: " << ((chat->group) ? "yes" : "no") << endl;
+    cout << "Chat ID: " << Base64Str<sizeof(handle)>(chat->getChatId()) << endl;
+    cout << "\tOwn privilege level: " << DemoApp::getPrivilegeString(chat->getOwnPrivileges()) << endl;
+    cout << "\tCreation ts: " << chat->getTs() << endl;
+    cout << "\tChat shard: " << chat->getShard() << endl;
+    cout << "\tGroup chat: " << ((chat->getGroup()) ? "yes" : "no") << endl;
     cout << "\tArchived chat: " << ((chat->isFlagSet(TextChat::FLAG_OFFSET_ARCHIVE)) ? "yes" : "no") << endl;
     cout << "\tPublic chat: " << ((chat->publicChat()) ? "yes" : "no") << endl;
     if (chat->publicChat())
     {
-        cout << "\tUnified key: " << chat->unifiedKey.c_str() << endl;
-        cout << "\tMeeting room: " << ((chat->meeting) ? "yes" : "no") << endl;
+        cout << "\tUnified key: " << chat->getUnifiedKey() << endl;
+        cout << "\tMeeting room: " << (chat->getMeeting() ? "yes" : "no") << endl;
     }
 
     cout << "\tPeers:";
 
-    if (chat->userpriv)
+    if (chat->getOwnPrivileges())
     {
         cout << "\t\t(userhandle)\t(privilege level)" << endl;
-        for (unsigned i = 0; i < chat->userpriv->size(); i++)
+        for (unsigned i = 0; i < chat->getUserPrivileges()->size(); i++)
         {
-            Base64Str<sizeof(handle)> hstr(chat->userpriv->at(i).first);
+            Base64Str<sizeof(handle)> hstr(chat->getUserPrivileges()->at(i).first);
             cout << "\t\t\t" << hstr;
-            cout << "\t" << DemoApp::getPrivilegeString(chat->userpriv->at(i).second) << endl;
+            cout << "\t" << DemoApp::getPrivilegeString(chat->getUserPrivileges()->at(i).second) << endl;
         }
     }
     else
     {
         cout << " no peers (only you as participant)" << endl;
     }
-    cout << "\tIs own change: " << ((chat->tag) ? "yes" : "no") << endl;
-    if (!chat->title.empty())
+    cout << "\tIs own change: " << (chat->getTag() ? "yes" : "no") << endl;
+    if (!chat->getTitle().empty())
     {
-        cout << "\tTitle: " << chat->title.c_str() << endl;
+        cout << "\tTitle: " << chat->getTitle() << endl;
     }
 }
 
@@ -4263,6 +4263,8 @@ autocomplete::ACN autocompleteSyntax()
                         )));
 
     p->Add(exec_reqstat, sequence(text("reqstat"), opt(either(flag("-on"), flag("-off")))));
+    p->Add(exec_getABTestValue, sequence(text("getabflag"), param("flag")));
+    p->Add(exec_sendABTestActive, sequence(text("setabflag"), param("flag")));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -8965,7 +8967,16 @@ void DemoApp::notify_confirmation(const char *email)
 {
     if (client->loggedin() == EPHEMERALACCOUNT || client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
     {
-        LOG_debug << "Account has been confirmed with email " << email << ". Proceed to login with credentials.";
+        LOG_debug << "Account has been confirmed with email " << email << ".";
+    }
+}
+
+void DemoApp::notify_confirm_user_email(handle user, const char *email)
+{
+    if (client->loggedin() == EPHEMERALACCOUNT || client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
+    {
+        LOG_debug << "Account has been confirmed with user " << user << " and email " << email << ". Proceed to login with credentials.";
+        cout << "Account has been confirmed with user " << toHandle(user) << " and email " << email << ". Proceed to login with credentials.";
     }
 }
 
@@ -11179,6 +11190,38 @@ void exec_reqstat(autocomplete::ACState &s)
 void DemoApp::reqstat_progress(int permilprogress)
 {
     cout << "Progress (per mille) of request: " << permilprogress << endl;
+}
+
+void exec_getABTestValue(autocomplete::ACState &s)
+{
+    string flag = s.words[1].s;
+
+    auto it = client->mABTestFlags.find(flag);
+
+    string value = "0 (not set)";
+    if (it != client->mABTestFlags.end())
+    {
+        value = std::to_string(it->second);
+    }
+
+    cout << "[" << flag<< "]:" << value << endl;
+}
+
+void exec_sendABTestActive(autocomplete::ACState &s)
+{
+    string flag = s.words[1].s;
+
+    client->sendABTestActive(flag.c_str(), [](Error e)
+        {
+            if (e)
+            {
+                cout << "Error sending Ab Test flag: " << e << endl;
+            }
+            else
+            {
+                cout << "Flag has been correctly sent." << endl;
+            }
+        });
 }
 
 void exec_numberofnodes(autocomplete::ACState &s)

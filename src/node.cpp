@@ -40,8 +40,6 @@ Node::Node(MegaClient& cclient, NodeHandle h, NodeHandle ph,
            nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts)
     : client(&cclient)
 {
-    outshares = NULL;
-    pendingshares = NULL;
     appdata = NULL;
 
     nodehandle = h.as8byte();
@@ -58,11 +56,7 @@ Node::Node(MegaClient& cclient, NodeHandle h, NodeHandle ph,
 
     ctime = ts;
 
-    inshare = NULL;
-    sharekey = NULL;
     foreignkey = false;
-
-    plink = NULL;
 
     memset(&changed, 0, sizeof changed);
 
@@ -90,29 +84,6 @@ Node::~Node()
     // abort pending direct reads
     client->preadabort(this);
 
-    if (outshares)
-    {
-        // delete outshares, including pointers from users for this node
-        for (share_map::iterator it = outshares->begin(); it != outshares->end(); it++)
-        {
-            delete it->second;
-        }
-        delete outshares;
-    }
-
-    if (pendingshares)
-    {
-        // delete pending shares
-        for (share_map::iterator it = pendingshares->begin(); it != pendingshares->end(); it++)
-        {
-            delete it->second;
-        }
-        delete pendingshares;
-    }
-
-    delete plink;
-    delete inshare;
-    delete sharekey;
 }
 int Node::getShareType() const
 {
@@ -128,7 +99,7 @@ int Node::getShareType() const
         {
             for (share_map::iterator it = outshares->begin(); it != outshares->end(); it++)
             {
-                Share *share = it->second;
+                Share *share = it->second.get();
                 if (share->user)    // folder links are shares without user
                 {
                     shareType |= ShareType_t::OUT_SHARES;
@@ -561,7 +532,6 @@ Node *Node::unserialize(MegaClient& client, const std::string *d, bool fromOldCa
     }
     // else from new cache, names has been normalized before to store in DB
 
-    PublicLink *plink = NULL;
     if (isExported)
     {
         if (ptr + MegaClient::NODEHANDLE + sizeof(m_time_t) + sizeof(bool) > end)
@@ -584,9 +554,8 @@ Node *Node::unserialize(MegaClient& client, const std::string *d, bool fromOldCa
             ptr += sizeof(cts);
         }
 
-        plink = new PublicLink(ph, cts, ets, takendown, authKey ? authKey : "");
+        n->plink.reset(new PublicLink(ph, cts, ets, takendown, authKey ? authKey : ""));
     }
-    n->plink = plink;
 
     if (encrypted)
     {
@@ -1303,7 +1272,7 @@ bool Node::applykey()
                         continue;
                     }
 
-                    sc = n->sharekey;
+                    sc = n->sharekey.get();
                 }
                 else
                 {
@@ -1532,7 +1501,7 @@ void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown, 
 {
     if (!plink) // creation
     {
-        plink = new PublicLink(ph, cts, ets, takendown, authKey.empty() ? nullptr : authKey.c_str());
+        plink.reset(new PublicLink(ph, cts, ets, takendown, authKey.empty() ? nullptr : authKey.c_str()));
     }
     else            // update
     {
@@ -1554,15 +1523,6 @@ PublicLink::PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown, co
     {
         this->mAuthKey = authKey;
     }
-}
-
-PublicLink::PublicLink(PublicLink *plink)
-{
-    this->ph = plink->ph;
-    this->cts = plink->cts;
-    this->ets = plink->ets;
-    this->takendown = plink->takendown;
-    this->mAuthKey = plink->mAuthKey;
 }
 
 bool PublicLink::isExpired()

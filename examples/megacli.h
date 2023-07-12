@@ -140,6 +140,7 @@ struct DemoApp : public MegaApp
     void nodes_current() override;
     void account_updated() override;
     void notify_confirmation(const char *email) override;
+    void notify_confirm_user_email(handle user, const char *email) override;
     void sets_updated(Set**, int) override;
     void setelements_updated(SetElement**, int) override;
 
@@ -405,6 +406,8 @@ void exec_banner(autocomplete::ACState& s);
 void exec_drivemonitor(autocomplete::ACState& s);
 void exec_driveid(autocomplete::ACState& s);
 void exec_randomfile(autocomplete::ACState& s);
+void exec_getABTestValue(autocomplete::ACState& s);
+void exec_sendABTestActive(autocomplete::ACState& s);
 
 #ifdef ENABLE_SYNC
 

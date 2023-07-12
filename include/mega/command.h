@@ -754,6 +754,19 @@ public:
     CommandGetMiscFlags(MegaClient*);
 };
 
+class MEGA_API CommandABTestActive : public Command
+{
+public:
+    using Completion = std::function<void(error)>;
+
+    bool procresult(Result, JSON&) override;
+
+    CommandABTestActive(MegaClient*, const string& tag, Completion completion);
+
+private:
+    Completion mCompletion;
+};
+
 class MEGA_API CommandSetPendingContact : public Command
 {
     opcactions_t action;

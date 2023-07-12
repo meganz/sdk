@@ -2014,8 +2014,6 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
 
                                     }, canChangeVault);
                                 }
-
-                                // deletePtr lives until this moment
                             };
 
                         syncs.queueClient(move(simultaneousMoveReplacedNodeToDebris));
@@ -7329,12 +7327,90 @@ bool Sync::syncItem_checkMoves(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
     return false;
 }
 
+bool Sync::syncItem_checkBackupCloudNameClash(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath)
+{
+    assert(isBackup() == threadSafeState->mCanChangeVault);
+    if (!isBackup()) return false;
+
+    if (!row.cloudClashingNames.empty())
+    {
+        // Duplicates like this should not occur for backups.  However, before SRW, it could occur due to bugs, races etc.
+        // Since stall resolution at the app level won't work, as it can't alter the Vault, we have to address it here
+        // Choose one to delete (to debris) - avoid the one that is marked as synced already, if there is one
+
+        if (auto& rn = row.syncNode->rare().removeNodeHere)
+        {
+            if (!rn->failed && !rn->succeeded)
+            {
+                return true;  // concentrate on the delete until that is done
+            }
+            LOG_debug << syncname << "Completed duplicate backup cloud item to cloud sync debris but some dupes remain (" << rn->succeeded << "): " << fullPath.cloudPath << logTriplet(row, fullPath);
+            rn.reset();
+        }
+
+        // choose which one to remove
+        NodeHandle avoidHandle = row.syncNode ? row.syncNode->syncedCloudNodeHandle : NodeHandle();
+        CloudNode* cn = nullptr;
+        auto consider = [&](CloudNode* c){
+            if (c && c->handle != avoidHandle)
+            {
+                if (!cn) cn = c;
+            }
+        };
+        for (auto& i : row.cloudClashingNames)
+        {
+            consider(i);
+        }
+        consider(row.cloudNode);
+
+        // set up the operation and pass it to the client thread, track the operation by removeNodeHere
+        if (cn)
+        {
+            LOG_debug << syncname << "Moving duplicate backup cloud item to cloud sync debris: " << cn->handle << " " << cn->name << " " << fullPath.cloudPath << logTriplet(row, fullPath);
+            bool fromInshare = inshare;
+            auto debrisNodeHandle = cn->handle;
+
+            auto deletePtr = std::make_shared<LocalNode::RareFields::DeleteToDebrisInProgress>();
+            deletePtr->pathDeleting = fullPath.cloudPath;
+            bool canChangeVault = threadSafeState->mCanChangeVault;
+
+            syncs.queueClient([debrisNodeHandle, fromInshare, deletePtr, canChangeVault](MegaClient& mc, TransferDbCommitter& committer)
+                {
+                    if (auto n = mc.nodeByHandle(debrisNodeHandle))
+                    {
+                        mc.movetosyncdebris(n, fromInshare, [deletePtr](NodeHandle, Error e){
+
+                            LOG_debug << "Sync backup duplicate delete to sync debris completed: " << e << " " << deletePtr->pathDeleting;
+
+                            if (e) deletePtr->failed = true;
+                            else deletePtr->succeeded = true;
+
+                        }, canChangeVault);
+                    }
+                });
+
+            // Remember that the delete is going on, so we don't do anything else until that resolves
+            // We will detach the synced-fsid side on final completion of this operation.  If we do so
+            // earier, the logic will evaluate that updated state too soon, perhaps resulting in downsync.
+            row.syncNode->rare().removeNodeHere = deletePtr;
+            return true;
+        }
+    }
+    return false;  // no backup node removal needed
+}
+
 bool Sync::syncItem_checkFilenameClashes(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath)
 {
     // Avoid syncing nodes that have multiple clashing names
     // Except if we previously had a folder (just itself) synced, allow recursing into that one.
     if (!row.fsClashingNames.empty() || !row.cloudClashingNames.empty())
     {
+
+        if (syncItem_checkBackupCloudNameClash(row, parentRow, fullPath))
+        {
+            return false;
+        }
+
         if (row.syncNode) row.syncNode->setContainsConflicts(true, false, false);
         else parentRow.syncNode->setContainsConflicts(false, true, false);
 
@@ -7700,11 +7776,11 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
             if (s->exclusionState() != ES_INCLUDED)
             {
                 // Is it a move target?
-                if (auto& moveToHere = s->rare().moveToHere)
+                if (s->rare().moveToHere)
                 {
-                    assert(!moveToHere->failed);
-                    assert(!moveToHere->syncCodeProcessedResult);
-                    assert(moveToHere->succeeded);
+                    assert(!s->rare().moveToHere->failed);
+                    assert(!s->rare().moveToHere->syncCodeProcessedResult);
+                    assert(s->rare().moveToHere->succeeded);
 
                     // Necessary as excluded rows may not reach CSF.
                     resolve_checkMoveComplete(row, parentRow, fullPath);
@@ -9666,7 +9742,6 @@ bool Sync::resolve_fsNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& fullPa
 
                                 mc.movetosyncdebris(n, fromInshare, [deletePtr](NodeHandle, Error e){
 
-                                    // deletePtr lives until this moment
                                     LOG_debug << "Sync delete to sync debris completed: " << e << " " << deletePtr->pathDeleting;
 
                                     if (e) deletePtr->failed = true;
@@ -11822,7 +11897,7 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
 
         if (owningUser)
         {
-            if (auto inshare = n->firstancestor()->inshare)
+            if (auto& inshare = n->firstancestor()->inshare)
             {
                 *owningUser = inshare->user->userhandle;
             }
