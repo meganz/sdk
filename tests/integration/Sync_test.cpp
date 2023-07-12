@@ -696,7 +696,8 @@ std::set<string> declaredTestAccounts;
 
 StandardClientInUse ClientManager::getCleanStandardClient(int loginIndex, fs::path workingFolder)
 {
-    assert(loginIndex >= 0 && loginIndex < 3);
+    EXPECT_TRUE(loginIndex >= 0) << "ClientManager::getCleanStandardClient(): invalid number of test account to setup " << loginIndex << " is < 0";
+    EXPECT_TRUE(loginIndex <= gMaxAccounts) << "ClientManager::getCleanStandardClient(): too many test accounts requested " << loginIndex << " is > " << gMaxAccounts;
 
     for (auto i = clients[loginIndex].begin(); i != clients[loginIndex].end(); ++i)
     {
@@ -744,6 +745,14 @@ StandardClientInUse ClientManager::getCleanStandardClient(int loginIndex, fs::pa
 
 ClientManager::~ClientManager()
 {
+    clear();
+}
+
+void ClientManager::clear()
+{
+    if (clients.empty())
+        return;
+
     while (clients.size())
     {
         LOG_debug << "Shutting down ClientManager, remaining: " << clients.size();
@@ -4525,14 +4534,14 @@ bool createSpecialFiles(fs::path targetfolder, const string& prefix, int n = 1)
 }
 #endif
 
-class SyncFingerprintCollision
-  : public ::testing::Test
+class SyncFingerprintCollisionTest
+  : public SdkTestBase
 {
 public:
 
     fs::path testRootFolder;
 
-    SyncFingerprintCollision()
+    SyncFingerprintCollisionTest()
       : client0()
       , client1()
       , model0()
@@ -4548,12 +4557,14 @@ public:
         client1->logcb = true;
     }
 
-    ~SyncFingerprintCollision()
+    ~SyncFingerprintCollisionTest()
     {
     }
 
     void SetUp() override
     {
+        SdkTestBase::SetUp();
+
         SimpleLogger::setLogLevel(logMax);
 
         ASSERT_TRUE(client0->login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "d", 1, 2));
@@ -4645,7 +4656,7 @@ public:
     const std::size_t arbitraryFileLength;
 }; /* SyncFingerprintCollision */
 
-TEST_F(SyncFingerprintCollision, DifferentMacSameName)
+TEST_F(SyncFingerprintCollisionTest, DifferentMacSameName)
 {
     auto data0 = randomData(arbitraryFileLength);
     auto data1 = data0;
@@ -4689,7 +4700,7 @@ TEST_F(SyncFingerprintCollision, DifferentMacSameName)
     confirmModels();
 }
 
-TEST_F(SyncFingerprintCollision, DifferentMacDifferentName)
+TEST_F(SyncFingerprintCollisionTest, DifferentMacDifferentName)
 {
     auto data0 = randomData(arbitraryFileLength);
     auto data1 = data0;
@@ -4729,7 +4740,7 @@ TEST_F(SyncFingerprintCollision, DifferentMacDifferentName)
     confirmModels();
 }
 
-TEST_F(SyncFingerprintCollision, SameMacDifferentName)
+TEST_F(SyncFingerprintCollisionTest, SameMacDifferentName)
 {
     auto data0 = randomData(arbitraryFileLength);
     const auto path0 = localRoot0() / "d_0" / "a";
@@ -4766,19 +4777,21 @@ TEST_F(SyncFingerprintCollision, SameMacDifferentName)
 }
 
 class SyncTest
-    : public ::testing::Test
+    : public SdkTestBase
 {
 public:
 
-    // Sets up the test fixture.
+    // Sets up the test case.
     void SetUp() override
     {
+        SdkTestBase::SetUp();
+
         LOG_info << "____TEST SetUp: " << ::testing::UnitTest::GetInstance()->current_test_info()->name();
 
         SimpleLogger::setLogLevel(logMax);
     }
 
-    // Tears down the test fixture.
+    // Tears down the test case.
     void TearDown() override
     {
         LOG_info << "____TEST TearDown: " << ::testing::UnitTest::GetInstance()->current_test_info()->name();
@@ -9516,7 +9529,7 @@ bool WaitForRemoteMatch(map<string, TwoWaySyncSymmetryCase>& testcases,
     return true;
 }
 
-TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
+void runTwoWayHighlevelSymmetriesTest(TwoWaySyncSymmetryCase::SyncType syncType, bool selfChange, bool up)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot();
@@ -9544,57 +9557,43 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
     static set<string> tests = {
     }; // tests
 
-    for (int syncType = TwoWaySyncSymmetryCase::type_numTypes; syncType--; )
+
+    for (int action = 0; action < (int)TwoWaySyncSymmetryCase::action_numactions; ++action)
     {
-        //if (syncType != TwoWaySyncSymmetryCase::type_backupSync) continue;
+        //if (action != TwoWaySyncSymmetryCase::action_rename) continue;
 
-        for (int selfChange = 0; selfChange < 2; ++selfChange)
+        for (int file = 0; file < 2; ++file)
         {
-            //if (!selfChange) continue;
+            //if (!file) continue;
 
-            for (int up = 0; up < 2; ++up)
+            for (int isExternal = 0; isExternal < 2; ++isExternal)
             {
-                //if (!up) continue;
-
-                for (int action = 0; action < (int)TwoWaySyncSymmetryCase::action_numactions; ++action)
+                if (isExternal && syncType != TwoWaySyncSymmetryCase::type_backupSync)
                 {
-                    //if (action != TwoWaySyncSymmetryCase::action_rename) continue;
+                    continue;
+                }
 
-                    for (int file = 0; file < 2; ++file)
+                for (int pauseDuringAction = 0; pauseDuringAction < 2; ++pauseDuringAction)
+                {
+                    //if (pauseDuringAction) continue;
+
+                    // we can't make changes if the client is not running
+                    if (pauseDuringAction && selfChange) continue;
+
+                    TwoWaySyncSymmetryCase testcase(allstate);
+                    testcase.syncType = syncType;
+                    testcase.selfChange = selfChange;
+                    testcase.up = up;
+                    testcase.action = TwoWaySyncSymmetryCase::Action(action);
+                    testcase.file = file;
+                    testcase.isExternal = isExternal;
+                    testcase.pauseDuringAction = pauseDuringAction;
+                    testcase.printTreesBeforeAndAfter = !tests.empty();
+
+                    if (tests.empty() || tests.count(testcase.name()) > 0)
                     {
-                        //if (!file) continue;
-
-                        for (int isExternal = 0; isExternal < 2; ++isExternal)
-                        {
-                            if (isExternal && syncType != TwoWaySyncSymmetryCase::type_backupSync)
-                            {
-                                continue;
-                            }
-
-                            for (int pauseDuringAction = 0; pauseDuringAction < 2; ++pauseDuringAction)
-                            {
-                                //if (pauseDuringAction) continue;
-
-                                // we can't make changes if the client is not running
-                                if (pauseDuringAction && selfChange) continue;
-
-                                TwoWaySyncSymmetryCase testcase(allstate);
-                                testcase.syncType = TwoWaySyncSymmetryCase::SyncType(syncType);
-                                testcase.selfChange = selfChange != 0;
-                                testcase.up = up;
-                                testcase.action = TwoWaySyncSymmetryCase::Action(action);
-                                testcase.file = file;
-                                testcase.isExternal = isExternal;
-                                testcase.pauseDuringAction = pauseDuringAction;
-                                testcase.printTreesBeforeAndAfter = !tests.empty();
-
-                                if (tests.empty() || tests.count(testcase.name()) > 0)
-                                {
-                                    auto name = testcase.name();
-                                    cases.emplace(name, std::move(testcase));
-                                }
-                            }
-                        }
+                        auto name = testcase.name();
+                        cases.emplace(name, std::move(testcase));
                     }
                 }
             }
@@ -9773,6 +9772,43 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
         StandardClient cC(localtestroot, "cC");
         ASSERT_TRUE(cC.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD", false, true));
     }
+}
+
+// 10+ mins total so split too run in parellel quickly
+// the outer two for loops have been converted to parameters
+TEST_F(SyncTest, TwoWay_Highlevel_Symmetries_twoWay_false_false)
+{
+    runTwoWayHighlevelSymmetriesTest(TwoWaySyncSymmetryCase::type_twoWay, false, false);
+}
+TEST_F(SyncTest, TwoWay_Highlevel_Symmetries_twoWay_true_false)
+{
+    runTwoWayHighlevelSymmetriesTest(TwoWaySyncSymmetryCase::type_twoWay, true, false);
+}
+TEST_F(SyncTest, TwoWay_Highlevel_Symmetries_backupSync_false_false)
+{
+    runTwoWayHighlevelSymmetriesTest(TwoWaySyncSymmetryCase::type_backupSync, false, false);
+}
+TEST_F(SyncTest, TwoWay_Highlevel_Symmetries_backupSync_true_false)
+{
+    runTwoWayHighlevelSymmetriesTest(TwoWaySyncSymmetryCase::type_backupSync, true, false);
+}
+
+
+TEST_F(SyncTest, TwoWay_Highlevel_Symmetries_twoWay_false_true)
+{
+    runTwoWayHighlevelSymmetriesTest(TwoWaySyncSymmetryCase::type_twoWay, false, true);
+}
+TEST_F(SyncTest, TwoWay_Highlevel_Symmetries_twoWay_true_true)
+{
+    runTwoWayHighlevelSymmetriesTest(TwoWaySyncSymmetryCase::type_twoWay, true, true);
+}
+TEST_F(SyncTest, TwoWay_Highlevel_Symmetries_backupSync_false_true)
+{
+    runTwoWayHighlevelSymmetriesTest(TwoWaySyncSymmetryCase::type_backupSync, false, true);
+}
+TEST_F(SyncTest, TwoWay_Highlevel_Symmetries_backupSync_true_true)
+{
+    runTwoWayHighlevelSymmetriesTest(TwoWaySyncSymmetryCase::type_backupSync, true, true);
 }
 
 TEST_F(SyncTest, MoveExistingIntoNewDirectoryWhilePaused)
@@ -10557,7 +10593,6 @@ TEST_F(BackupBehavior, SameMTimeSmallerSize)
 
     doTest(initialContent, updatedContent);
 }
-
 #endif // DEBUG
 
 TEST_F(SyncTest, UndecryptableSharesBehavior)
@@ -10816,3 +10851,4 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
 }
 
 #endif
+
