@@ -2476,6 +2476,7 @@ private:
     error readExportedSet(JSON& j, Set& s, pair<bool, m_off_t>& exportRemoved);
     error readSetsPublicHandles(JSON& j, map<handle, Set>& sets);
     error readSetPublicHandle(JSON& j, map<handle, Set>& sets);
+    void fixSetElementWithWrongKey(const Set& set);
     size_t decryptAllSets(map<handle, Set>& newSets, map<handle, elementsmap_t>& newElements, map<handle, SetElement::NodeMetadata>* nodeData);
     error decryptSetData(Set& s);
     error decryptElementData(SetElement& el, const string& setKey);

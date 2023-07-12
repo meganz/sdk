@@ -20818,6 +20818,46 @@ const Set* MegaClient::addSet(Set&& a)
     return &add.first->second;
 }
 
+void MegaClient::fixSetElementWithWrongKey(const Set& s)
+{
+    const auto els = getSetElements(s.id());
+    vector<SetElement> newEls;
+    vector<handle> taintedEls;
+    const auto hasWrongKey = [](const SetElement& el) { return el.key().size() != static_cast<size_t>(FILENODEKEYLENGTH); };
+    for (auto& p : *els) // candidate to paral in >C++17 via algorithms
+    {
+        const SetElement& e = p.second;
+        if (hasWrongKey(e))
+        {
+            LOG_warn << "Sets: SetElement " << toHandle(e.id()) << " from Set " << toHandle(s.id())
+                     << " contains invalid key of " << s.key().size() << " Bytes";
+            taintedEls.push_back(e.id());
+            newEls.emplace_back(e);
+        }
+    }
+
+    if (taintedEls.empty()) return;
+
+    const auto logResult = [](Error e, const vector<int64_t>* results, const std::string msg)
+    {
+        if (e == API_OK && results &&
+            std::all_of(begin(*results), end(*results), [](int64_t r) { return r == API_OK; }))
+        {
+            LOG_debug << "Sets: SetElements with wrong key " << msg << "successfully";
+        }
+        else
+        {
+            LOG_warn << "Sets: Error all SetElements with wrong key " << msg << " failed";
+        }
+    };
+    // removal must take place before because there can't be 2 SetElements with the same node
+    removeSetElements(s.id(), std::move(taintedEls),
+                      [logResult](Error e, const vector<int64_t>* results) { logResult(e, results, "removed"); });
+
+    putSetElements(std::move(newEls), [logResult](Error e, const vector<const SetElement*>*, const vector<int64_t>* results)
+        { logResult(e, results, "created"); });
+}
+
 bool MegaClient::updateSet(Set&& s)
 {
     auto it = mSets.find(s.id());
@@ -20826,6 +20866,11 @@ bool MegaClient::updateSet(Set&& s)
         if (it->second.updateWith(std::move(s)))
         {
             notifyset(&it->second);
+        }
+
+        if (it->second.hasChanged(Set::CH_EXPORTED) && it->second.isExported())
+        {
+            fixSetElementWithWrongKey(s);
         }
 
         return true; // return true if found, even if nothing was updated
