@@ -3733,10 +3733,9 @@ void StandardClient::match(NodeHandle handle, const Model::ModelNode* source, Pr
     result->set_value(node && match(*node, *source));
 }
 
-bool StandardClient::waitFor(std::function<bool(StandardClient&)> predicate, const std::chrono::seconds &timeout)
+bool StandardClient::waitFor(std::function<bool(StandardClient&)> predicate, const std::chrono::seconds &timeout, const std::chrono::milliseconds &sleepIncrement = std::chrono::milliseconds(500))
 {
     auto total = std::chrono::milliseconds(0);
-    auto sleepIncrement = std::chrono::milliseconds(500);
 
     out() << "Waiting for predicate to match...";
 
@@ -9313,6 +9312,22 @@ struct TwoWaySyncSymmetryCase
         EXPECT_TRUE(localfs && localnode && remote) << " failed in " << name();
     }
 
+    void WaitSetup()
+    {
+        const std::chrono::seconds maxWaitSeconds(120);
+        const std::chrono::milliseconds checkInterval(5000);
+
+        auto remoteIsReady = [this](StandardClient& client){ 
+                int descendents1 = 0, descendents2 = 0;
+                bool reported1 = false, reported2 = false;
+                return client.recursiveConfirm(remoteModel.findnode("f"), client.drillchildnodebyname(client.gettestbasenode(), remoteTestBasePath + "/f"), descendents1, name(), 0, reported1, true, false) 
+                    && client.recursiveConfirm(remoteModel.findnode("outside"), client.drillchildnodebyname(client.gettestbasenode(), remoteTestBasePath + "/outside"), descendents2, name(), 0, reported2, true, false);
+        };
+
+        state.resumeClient.waitFor(remoteIsReady, maxWaitSeconds, checkInterval);
+        state.steadyClient.waitFor(remoteIsReady, maxWaitSeconds, checkInterval);
+        state.nonsyncClient.waitFor(remoteIsReady, maxWaitSeconds, checkInterval);
+    }
 
     // Two-way sync is stable again after the change.  Check the results.
     bool finalResult = false;
@@ -9592,27 +9607,12 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
         testcase.second.SetupForSync();
     }
 
-    // set up sync for A1, it should build matching cloud files/folders as the test cases add local files/folders
-    handle backupId1 = clientA1Steady.setupSync_mainthread("twoway", "twoway", false, false);
-    ASSERT_NE(backupId1, UNDEF);
-    handle backupId2 = clientA1Resume.setupSync_mainthread("twoway", "twoway", false, false);
-    ASSERT_NE(backupId2, UNDEF);
-    ASSERT_EQ(allstate.localBaseFolderSteady, clientA1Steady.syncSet(backupId1).localpath);
-    ASSERT_EQ(allstate.localBaseFolderResume, clientA1Resume.syncSet(backupId2).localpath);
-
-    out() << "Full-sync all test folders to the cloud for setup";
-    waitonsyncs(std::chrono::seconds(10), &clientA1Steady, &clientA1Resume);
-    CatchupClients(&clientA1Steady, &clientA1Resume, &clientA2);
-    waitonsyncs(std::chrono::seconds(20), &clientA1Steady, &clientA1Resume);
-
-    out() << "Stopping full-sync";
-    // remove syncs in reverse order, just in case removeSyncByIndex() will benefit from that
-    ASSERT_TRUE(clientA1Resume.delSync_mainthread(backupId2));
-    ASSERT_TRUE(clientA1Steady.delSync_mainthread(backupId1));
-    waitonsyncs(std::chrono::seconds(10), &clientA1Steady, &clientA1Resume);
-    CatchupClients(&clientA1Steady, &clientA1Resume, &clientA2);
-    waitonsyncs(std::chrono::seconds(20), &clientA1Steady, &clientA1Resume);
-
+    out() << "Waiting intial state to be ready and clients are updated with actionpackets";
+    for (auto& testcase : cases)
+    {
+        testcase.second.WaitSetup();
+    }
+    
     out() << "Setting up each sub-test's Two-way sync of 'f'";
     for (auto& testcase : cases)
     {
