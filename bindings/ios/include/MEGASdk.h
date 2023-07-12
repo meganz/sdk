@@ -9970,7 +9970,7 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
  *
  * @return The device id associated with the Node of a Backup folder.
  */
-- (NSString *)getDeviceId;
+- (nullable NSString *)deviceId;
 
 /**
  * @brief Returns the name set for this device

@@ -3734,7 +3734,7 @@ using namespace mega;
     }
 }
 
-- (NSString *)getDeviceId {
+- (nullable NSString *)deviceId {
     if (self.megaApi) {
         const char *val = self.megaApi->getDeviceId();
         
