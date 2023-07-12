@@ -105,7 +105,8 @@ pipeline {
                         [$class: "UserIdentity",name: "jenkins", email: "jenkins@jenkins"]
                         ]
                 ])
-                dir("iMEGA/Vendor/Karere"){
+                dir('Modules/DataSource/MEGAChatSDK/Sources/MEGAChatSDK'){  
+
                     //Clone MEGAchat
                     sh "echo Cloning megachat branch ${env.MEGACHAT_BRANCH}"
                     checkout([
@@ -133,8 +134,8 @@ pipeline {
                 sh "git submodule update --init iMEGA/Vendor/LTHPasscodeViewController"
                 script{
                     ios_sources_workspace = WORKSPACE
-                    sdk_sources_workspace = "${ios_sources_workspace}/iMEGA/Vendor/SDK"
-                    megachat_sources_workspace = "${ios_sources_workspace}/iMEGA/Vendor/Karere"
+                    sdk_sources_workspace = "${ios_sources_workspace}/Modules/DataSource/MEGASDK/Sources/MEGASDK"
+                    megachat_sources_workspace = "${ios_sources_workspace}/Modules/DataSource/MEGAChatSDK/Sources/MEGAChatSDK"
                 }
             }
         }
