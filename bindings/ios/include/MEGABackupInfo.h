@@ -160,22 +160,34 @@ NS_ASSUME_NONNULL_BEGIN
  * @return Sync state of the backup.
  *
  * It can be one of the following values:
- * - MEGASyncStateNotInitialized              = 0,
+ * - MEGASyncStateNotInitialized                 = 0,
  * Not initialized sync state.
  *
- * - MEGASyncStateUpToDate                   = 1,
- * Up to date: local and remote paths are in sync.
+ * - MEGASyncStateActive                            = 1,
+ * Working fine (enabled)
  *
- * - MEGASyncStateSyncing                      = 2,
- * The sync engine is working, transfers are in progress.
+ * - MEGASyncStateFailed                            = 2,
+ * Failed (permanently disabled)
  *
- * - MEGASyncStatePending                      = 3,
- * The sync engine is working, e.g: scanning local folders.
+ * - MEGASyncStateTemporaryDisabled      = 3,
+ * emporarily disabled due to a transient situation (e.g: account blocked). Will be resumed when the condition passes
  *
- * - MEGASyncStateInactive                       = 4,
- * Sync is not active. A state != ACTIVE should have been sent through '''sp'''.
+ * - MEGASyncStateDisabled                       = 4,
+ * Disabled by the user
  *
- * - MEGASyncStateUnknown                    = 5,
+ * - MEGASyncStatePauseUp                       = 5,
+ * Active but upload transfers paused in the SDK
+ *
+ * - MEGASyncStatePauseDown                  = 6,
+ * Active but download transfers paused in the SDK
+ *
+ * - MEGASyncStatePauseFull                     = 7,
+ * Active but transfers paused in the SDK
+ *
+ * - MEGASyncStateDeleted                        = 8,
+ * Sync needs to be deleted, as required by sync-desired-state received from BackupCenter (WebClient)
+ *
+ * - MEGASyncStateUnknown                     = 9,
  * Unknown status.
  *
  */
