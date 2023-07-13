@@ -1086,15 +1086,17 @@ public:
     // maps local fsid to corresponding LocalNode* (s)
     fsid_localnode_map localnodeBySyncedFsid;
     fsid_localnode_map localnodeByScannedFsid;
-    LocalNode* findLocalNodeBySyncedFsid(fsfp_t, mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint& fp, std::function<bool(LocalNode* ln)> extraCheck, handle owningUser);
-    LocalNode* findLocalNodeByScannedFsid(fsfp_t, mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint* fp, std::function<bool(LocalNode* ln)> extraCheck, handle owningUser);
+    LocalNode* findLocalNodeBySyncedFsid(fsfp_t, mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint& fp,
+                                         std::function<bool(LocalNode* ln)> extraCheck, handle owningUser, bool& foundExclusionUnknown);
+    LocalNode* findLocalNodeByScannedFsid(fsfp_t, mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint* fp,
+                                         std::function<bool(LocalNode* ln)> extraCheck, handle owningUser, bool& foundExclusionUnknown);
 
     void setSyncedFsidReused(fsfp_t, mega::handle fsid);
     void setScannedFsidReused(fsfp_t, mega::handle fsid);
 
     // maps nodehandle to corresponding LocalNode* (s)
     nodehandle_localnode_map localnodeByNodeHandle;
-    bool findLocalNodeByNodeHandle(NodeHandle h, LocalNode*& sourceSyncNodeOriginal, LocalNode*& sourceSyncNodeCurrent, bool& unsureDueToIncompleteScanning);
+    bool findLocalNodeByNodeHandle(NodeHandle h, LocalNode*& sourceSyncNodeOriginal, LocalNode*& sourceSyncNodeCurrent, bool& unsureDueToIncompleteScanning, bool& unsureDueToUnknownExclusionMoveSource);
 
     // manage syncdown flags inside the syncs
     // backupId of UNDEF to rescan all
