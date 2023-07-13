@@ -94,8 +94,8 @@ using namespace mega;
     return (MEGASyncState) (self.megaBackupInfo ? self.megaBackupInfo->state() : MEGASyncStateUnknown);
 }
 
-- (NSUInteger)substate {
-    return self.megaBackupInfo ? self.megaBackupInfo->substate() : 0;
+- (MEGABackupSubstate)substate {
+    return (MEGABackupSubstate) (self.megaBackupInfo ? self.megaBackupInfo->substate() : MEGABackupSubstateNoSyncError);
 }
 
 - (NSString *)extra {
@@ -114,8 +114,8 @@ using namespace mega;
     return self.megaBackupInfo ? [[NSDate alloc] initWithTimeIntervalSince1970:self.megaBackupInfo->ts()] : nil;
 }
 
-- (NSUInteger)status {
-    return self.megaBackupInfo ? self.megaBackupInfo->status() : 0;
+- (MEGABackupHeartbeatStatus)status {
+    return (MEGABackupHeartbeatStatus) (self.megaBackupInfo ? self.megaBackupInfo->status() : MEGABackupHeartbeatStatusUnknown);
 }
 
 - (NSUInteger)progress {
