@@ -3734,6 +3734,20 @@ using namespace mega;
     }
 }
 
+- (nullable NSString *)deviceId {
+    if (self.megaApi) {
+        const char *val = self.megaApi->getDeviceId();
+        
+        if (!val) return nil;
+        
+        NSString *ret = [[NSString alloc] initWithUTF8String:val];
+        
+        delete [] val;
+        return ret;
+    }
+    return nil;
+}
+
 - (void)getDeviceNameWithDelegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->getDeviceName([self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
