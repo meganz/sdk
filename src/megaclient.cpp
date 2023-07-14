@@ -20851,7 +20851,7 @@ void MegaClient::fixSetElementWithWrongKey(const Set& s)
         {
             const std::string m = "Sets: Error all SetElements with wrong key " + msg + " failed";
             LOG_warn << m;
-            sendevent(99477, m.c_str());
+            sendevent(99478, m.c_str());
         }
     };
     // removal must take place before because there can't be 2 SetElements with the same node
