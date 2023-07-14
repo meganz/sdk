@@ -10431,7 +10431,7 @@ const char* MegaApiImpl::getFileAttribute(MegaHandle h)
     char* fileAttributes = NULL;
 
     SdkMutexGuard g(sdkMutex);
-    if (Node *node = client->nodebyhandle(h))
+    if (std::shared_ptr<Node> node = client->nodebyhandle(h))
     {
         fileAttributes = MegaApi::strdup(node->fileattrstring.c_str());
     }
