@@ -3551,9 +3551,9 @@ bool CloudNode::isIgnoreFile() const
 }
 
 NodeManagerNode::NodeManagerNode(NodeManager& nodeManager, NodeHandle nodeHandle)
-    : mNodeHandle(nodeHandle)
+    : mLRUPosition(nodeManager.invalidCacheLRUPos())
+    , mNodeHandle(nodeHandle)
     , mNodeManager(nodeManager)
-    , mLRUPosition(nodeManager.invalidCacheLRUPos())
 {
 }
 
