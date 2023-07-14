@@ -6361,7 +6361,7 @@ public class MegaApiJava {
      * @param listener MegaRequestListener to track this request
      */
     public void logout(MegaRequestListenerInterface listener) {
-        megaApi.logout(false, createDelegateRequestListener(listener));
+        megaApi.logout(createDelegateRequestListener(listener));
     }
 
     /**
@@ -6382,7 +6382,7 @@ public class MegaApiJava {
      * triggered the automatic logout (MegaError::API_EBLOCKED for the example).
      */
     public void logout() {
-        megaApi.logout(false, null);
+        megaApi.logout();
     }
 
     /**
