@@ -71,6 +71,8 @@ Node::Node(MegaClient& cclient, NodeHandle h, NodeHandle ph,
     {
         mCounter.folders = 1;
     }
+
+    client->mNodeManager.increaseNumNodesInRam();
 }
 
 Node::~Node()
@@ -84,6 +86,7 @@ Node::~Node()
     // abort pending direct reads
     client->preadabort(this);
 
+    client->mNodeManager.decreaseNumNodesInRam();
 }
 int Node::getShareType() const
 {
@@ -122,7 +125,7 @@ int Node::getShareType() const
 
 bool Node::isAncestor(NodeHandle ancestorHandle) const
 {
-    Node* ancestor = parent;
+    Node* ancestor = parent.get();
     while (ancestor)
     {
         if (ancestor->nodeHandle() == ancestorHandle)
@@ -130,7 +133,7 @@ bool Node::isAncestor(NodeHandle ancestorHandle) const
             return true;
         }
 
-        ancestor = ancestor->parent;
+        ancestor = ancestor->parent.get();
     }
 
     return false;
@@ -325,7 +328,7 @@ void Node::setKey(const string& key)
     assert(client->mAppliedKeyNodeCount >= 0);
 }
 
-Node *Node::unserialize(MegaClient& client, const std::string *d, bool fromOldCache, std::list<std::unique_ptr<NewShare>>& ownNewshares)
+std::shared_ptr<Node> Node::unserialize(MegaClient& client, const std::string *d, bool fromOldCache, std::list<std::unique_ptr<NewShare>>& ownNewshares)
 {
     handle h, ph;
     nodetype_t t;
@@ -474,7 +477,7 @@ Node *Node::unserialize(MegaClient& client, const std::string *d, bool fromOldCa
         skey = NULL;
     }
 
-    unique_ptr<Node> n(new Node(client, NodeHandle().set6byte(h), NodeHandle().set6byte(ph), t, s, u, fa, ts));
+    shared_ptr<Node> n = std::make_shared<Node>(client, NodeHandle().set6byte(h), NodeHandle().set6byte(ph), t, s, u, fa, ts);
 
     // read inshare, outshares, or pending shares
     while (numshares)   // inshares: -1, outshare/s: num_shares
@@ -607,7 +610,7 @@ Node *Node::unserialize(MegaClient& client, const std::string *d, bool fromOldCa
 
     if (ptr == end)
     {
-        return n.release();
+        return n;
     }
     else
     {
@@ -926,14 +929,14 @@ bool Node::isSensitiveInherited() const
 {
     if (isMarkedSensitive())
         return true;
-    Node* p = parent;
+    Node* p = parent.get();
     while (p)
     {
         if (p->isMarkedSensitive())
         {
             return true;
         }
-        p = p->parent;
+        p = p->parent.get();
     }
 
     return false;
@@ -959,7 +962,7 @@ bool Node::anyExcludeRecursiveFlag(Node::Flags excludeRecursiveFlags) const
     if ((getDBFlagsBitset() & excludeRecursiveFlags).any())
         return true;
 
-    const Node* p = parent;
+    const Node* p = parent.get();
     while (p)
     {
         Node::Flags flags = p->getDBFlagsBitset();
@@ -967,7 +970,7 @@ bool Node::anyExcludeRecursiveFlag(Node::Flags excludeRecursiveFlags) const
         {
             return true;
         }
-        p = p->parent;
+        p = p->parent.get();
     }
 
     return false;
@@ -1110,7 +1113,7 @@ string Node::displaypath() const
     // factored from nearly identical functions in megapi_impl and megacli
     string path;
     const Node* n = this;
-    for (; n; n = n->parent)
+    for (; n; n = n->parent.get())
     {
         switch (n->type)
         {
@@ -1266,7 +1269,7 @@ bool Node::applykey()
                 auto it = client->mNewKeyRepository.find(NodeHandle().set6byte(h));
                 if (it == client->mNewKeyRepository.end())
                 {
-                    Node* n;
+                    std::shared_ptr<Node> n;
                     if (!(n = client->nodebyhandle(h)) || !n->sharekey)
                     {
                         continue;
@@ -1393,17 +1396,17 @@ void Node::setCounter(const NodeCounter &counter)
 }
 
 // returns whether node was moved
-bool Node::setparent(Node* p, bool updateNodeCounters)
+bool Node::setparent(std::shared_ptr<Node> p, bool updateNodeCounters)
 {
     if (p == parent)
     {
         return false;
     }
 
-    Node *oldparent = parent;
+    std::shared_ptr<Node> oldparent = parent;
     if (oldparent)
     {
-        client->mNodeManager.removeChild(oldparent, nodeHandle());
+        client->mNodeManager.removeChild(oldparent.get(), nodeHandle());
     }
 
     parenthandle = p ? p->nodehandle : UNDEF;
@@ -1415,7 +1418,9 @@ bool Node::setparent(Node* p, bool updateNodeCounters)
 
     if (updateNodeCounters)
     {
-        client->mNodeManager.updateCounter(*this, oldparent);
+        std::shared_ptr<Node> node = this->mNodePosition->second.getNodeInRam();
+        assert(node);
+        client->mNodeManager.updateCounter(node, oldparent);
     }
 
     return true;
@@ -1426,7 +1431,7 @@ const Node* Node::firstancestor() const
     const Node* n = this;
     while (n->parent != NULL)
     {
-        n = n->parent;
+        n = n->parent.get();
     }
 
     return n;
@@ -1439,7 +1444,7 @@ const Node* Node::latestFileVersion() const
     {
         while (n->parent && n->parent->type == FILENODE)
         {
-            n = n->parent;
+            n = n->parent.get();
         }
     }
     return n;
@@ -1450,7 +1455,7 @@ unsigned Node::depth() const
     auto* node = latestFileVersion();
     unsigned depth = 0u;
 
-    for ( ; node->parent; node = node->parent)
+    for ( ; node->parent.get(); node = node->parent.get())
         ++depth;
 
     return depth;
@@ -1473,7 +1478,7 @@ bool Node::isbelow(Node* p) const
             return true;
         }
 
-        n = n->parent;
+        n = n->parent.get();
     }
 }
 
@@ -1493,7 +1498,7 @@ bool Node::isbelow(NodeHandle p) const
             return true;
         }
 
-        n = n->parent;
+        n = n->parent.get();
     }
 }
 
@@ -2736,8 +2741,8 @@ void LocalNode::queueClientUpload(shared_ptr<SyncUpload_inClient> upload, Versio
         {
             // Can we do it by Node clone if there is a matching file already in the cloud?
             Node* cloneNode = nullptr;
-            node_vector v = mc.mNodeManager.getNodesByFingerprint(*upload);
-            for (auto n: v)
+            sharedNode_vector v = mc.mNodeManager.getNodesByFingerprint(*upload);
+            for (auto& n: v)
             {
                 string ext1, ext2;
                 mc.fsaccess->getextension(upload->getLocalname(), ext1);
@@ -2747,7 +2752,7 @@ void LocalNode::queueClientUpload(shared_ptr<SyncUpload_inClient> upload, Versio
 
                 if (mc.treatAsIfFileDataEqual(*n, ext1, *upload, ext2))
                 {
-                    cloneNode = n;
+                    cloneNode = n.get();
                     break;
                 }
             }
@@ -3543,6 +3548,35 @@ CloudNode::CloudNode(const Node& n)
 bool CloudNode::isIgnoreFile() const
 {
     return type == FILENODE && name == IGNORE_FILE_NAME;
+}
+
+NodeManagerNode::NodeManagerNode(NodeManager& nodeManager, NodeHandle nodeHandle)
+    : mNodeHandle(nodeHandle)
+    , mNodeManager(nodeManager)
+    , mLRUPosition(nodeManager.invalidCacheLRUPos())
+{
+}
+
+void NodeManagerNode::setNode(shared_ptr<Node> node)
+{
+    assert(mNode.expired());
+    mNode = node;
+}
+
+shared_ptr<Node> NodeManagerNode::getNodeInRam(bool updatePositionAtLRU)
+{
+    shared_ptr<Node> node = mNode.lock();
+    if (node && updatePositionAtLRU)
+    {
+        mNodeManager.insertNodeCacheLRU(node);
+    }
+
+    return node;
+}
+
+NodeHandle NodeManagerNode::getNodeHandle() const
+{
+    return mNodeHandle;
 }
 
 } // namespace

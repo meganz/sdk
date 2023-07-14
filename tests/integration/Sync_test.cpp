@@ -990,12 +990,12 @@ CloudItem::CloudItem(handle nodeHandle)
 {
 }
 
-Node* CloudItem::resolve(StandardClient& client) const
+std::shared_ptr<Node> CloudItem::resolve(StandardClient& client) const
 {
     if (!mNodeHandle.isUndef())
         return client.client.nodeByHandle(mNodeHandle);
 
-    auto* root = client.gettestbasenode();
+    auto root = client.gettestbasenode();
 
     if (mFromRoot)
         root = client.getcloudrootnode();
@@ -1668,13 +1668,13 @@ void StandardClient::copy(const CloudItem& source,
                           PromiseBoolSP result,
                           VersioningOption versioningPolicy)
 {
-    auto* sourceNode = source.resolve(*this);
+    auto sourceNode = source.resolve(*this);
     EXPECT_TRUE(sourceNode);
 
     if (!sourceNode)
         return result->set_value(false);
 
-    auto* targetNode = target.resolve(*this);
+    auto targetNode = target.resolve(*this);
     EXPECT_TRUE(targetNode);
 
     if (!targetNode || targetNode->type == FILENODE)
@@ -1690,18 +1690,18 @@ void StandardClient::copy(const CloudItem& source,
     TreeProcCopy proc;
 
     // Figure out how many nodes we need to copy.
-    client.proctree(sourceNode, &proc, false, true);
+    client.proctree(sourceNode.get(), &proc, false, true);
 
     // Allocate and populate nodes.
     proc.allocnodes();
 
-    client.proctree(sourceNode, &proc, false, true);
+    client.proctree(sourceNode.get(), &proc, false, true);
 
     // We need the original node's handle if we're using versioning.
-    Node* victimNode = nullptr;
+    std::shared_ptr<Node> victimNode;
 
     if (versioningPolicy != NoVersioning)
-        victimNode = client.childnodebyname(targetNode, name.c_str(), true);
+        victimNode = client.childnodebyname(targetNode.get(), name.c_str(), true);
 
     if (victimNode)
         proc.nn[0].ovhandle = victimNode->nodeHandle();
@@ -1775,7 +1775,7 @@ void StandardClient::putnodes(const CloudItem& parent,
                               std::vector<NewNode>&& nodes,
                               PromiseBoolSP result)
 {
-    auto* node = parent.resolve(*this);
+    auto node = parent.resolve(*this);
     EXPECT_TRUE(node);
 
     if (!node)
@@ -1835,7 +1835,7 @@ void StandardClient::uploadFolderTree(fs::path p, Node* n2, PromiseBoolSP pb)
 
 void StandardClient::downloadFile(const CloudItem& item, const fs::path& destination, PromiseBoolSP result)
 {
-    auto* node = item.resolve(*this);
+    auto node = item.resolve(*this);
     if (!node)
         return result->set_value(false);
 
@@ -1918,11 +1918,11 @@ void StandardClient::uploadFile(const fs::path& path, const string& name, const 
 bool StandardClient::uploadFile(const fs::path& path, const string& name, const CloudItem& parent, int timeoutSeconds, VersioningOption vo)
 {
     auto result = thread_do<bool>([&](StandardClient& client, PromiseBoolSP pb) {
-        auto* parentNode = parent.resolve(client);
+        auto parentNode = parent.resolve(client);
         if (!parentNode)
             return pb->set_value(false);
 
-        client.uploadFile(path, name, parentNode, [pb](bool b){ pb->set_value(b); }, vo);
+        client.uploadFile(path, name, parentNode.get(), [pb](bool b){ pb->set_value(b); }, vo);
     }, __FILE__, __LINE__);
 
     auto status = result.wait_for(std::chrono::seconds(timeoutSeconds));
@@ -1952,7 +1952,7 @@ void StandardClient::uploadFilesInTree_recurse(const Node* target, const fs::pat
         {
             for (fs::directory_iterator i(p); i != fs::directory_iterator(); ++i)
             {
-                uploadFilesInTree_recurse(newtarget, *i, inprogress, committer, vo);
+                uploadFilesInTree_recurse(newtarget.get(), *i, inprogress, committer, vo);
             }
         }
     }
@@ -1962,7 +1962,7 @@ bool StandardClient::uploadFilesInTree(fs::path p, const CloudItem& n2, Versioni
 {
     std::atomic_int inprogress(0);
 
-    Node* targetNode = nullptr;
+    std::shared_ptr<Node> targetNode = nullptr;
     {
         lock_guard<recursive_mutex> guard(clientMutex);
         targetNode = n2.resolve(*this);
@@ -1978,7 +1978,7 @@ bool StandardClient::uploadFilesInTree(fs::path p, const CloudItem& n2, Versioni
         thread_do<bool>([&inprogress, this, targetNode, p, vo](StandardClient& client, PromiseBoolSP result)
                         {
                             TransferDbCommitter committer(client.client.tctable);
-                            uploadFilesInTree_recurse(targetNode, p, inprogress, committer, vo);
+                            uploadFilesInTree_recurse(targetNode.get(), p, inprogress, committer, vo);
                             result->set_value(true);
                         }, __FILE__, __LINE__);
 
@@ -2051,7 +2051,7 @@ void StandardClient::uploadFile(const fs::path& sourcePath,
     // Make sure we have exclusive access to the client.
     lock_guard<recursive_mutex> guard(clientMutex);
 
-    auto* parentNode = parent.resolve(*this);
+    auto parentNode = parent.resolve(*this);
     if (!parentNode)
         return completion(API_ENOENT);
 
@@ -2111,7 +2111,7 @@ void StandardClient::fetchnodes(bool noCache, bool loadSyncs, bool reloadingMidS
             else
             {
                 TreeProcPrintTree tppt;
-                client.proctree(client.nodeByHandle(client.mNodeManager.getRootNodeFiles()), &tppt);
+                client.proctree(client.nodeByHandle(client.mNodeManager.getRootNodeFiles()).get(), &tppt);
 
                 if (onFetchNodes)
                 {
@@ -2197,9 +2197,9 @@ unsigned StandardClient::deleteTestBaseFolder(bool mayNeedDeleting)
 
 void StandardClient::deleteTestBaseFolder(bool mayNeedDeleting, bool deleted, PromiseUnsignedSP result)
 {
-    if (Node* root = client.nodeByHandle(client.mNodeManager.getRootNodeFiles()))
+    if (std::shared_ptr<Node> root = client.nodeByHandle(client.mNodeManager.getRootNodeFiles()))
     {
-        if (Node* basenode = client.childnodebyname(root, "mega_test_sync", false))
+        if (std::shared_ptr<Node> basenode = client.childnodebyname(root.get(), "mega_test_sync", false))
         {
             if (mayNeedDeleting)
             {
@@ -2210,7 +2210,7 @@ void StandardClient::deleteTestBaseFolder(bool mayNeedDeleting, bool deleted, Pr
                 };
 
                 resultproc.prepresult(COMPLETION, ++next_request_tag,
-                    [&](){ client.unlink(basenode, false, 0, false, std::move(completion)); },
+                    [=](){ client.unlink(basenode.get(), false, 0, false, std::move(completion)); },
                     nullptr);
                 return;
             }
@@ -2231,9 +2231,9 @@ void StandardClient::deleteTestBaseFolder(bool mayNeedDeleting, bool deleted, Pr
 
 void StandardClient::ensureTestBaseFolder(bool mayneedmaking, PromiseBoolSP pb)
 {
-    if (Node* root = client.nodeByHandle(client.mNodeManager.getRootNodeFiles()))
+    if (std::shared_ptr<Node> root = client.nodeByHandle(client.mNodeManager.getRootNodeFiles()))
     {
-        if (Node* basenode = client.childnodebyname(root, "mega_test_sync", false))
+        if (std::shared_ptr<Node> basenode = client.childnodebyname(root.get(), "mega_test_sync", false))
         {
             out() << clientname << "ensureTestBaseFolder node found";
             if (basenode->type == FOLDERNODE)
@@ -2308,7 +2308,7 @@ void StandardClient::makeCloudSubdirs(const string& prefix, int depth, int fanou
     nn->parenthandle = UNDEF;
     nn->ovhandle = NodeHandle();
 
-    Node* atnode = client.nodebyhandle(basefolderhandle);
+    std::shared_ptr<Node> atnode = client.nodebyhandle(basefolderhandle);
     if (atnode && !atpath.empty())
     {
         atnode = drillchildnodebyname(atnode, atpath);
@@ -2390,39 +2390,39 @@ StandardClient::SyncInfo StandardClient::syncSet(handle backupId) const
     return const_cast<StandardClient&>(*this).syncSet(backupId);
 }
 
-Node* StandardClient::getcloudrootnode()
+std::shared_ptr<Node> StandardClient::getcloudrootnode()
 {
     return client.nodeByHandle(client.mNodeManager.getRootNodeFiles());
 }
 
-Node* StandardClient::gettestbasenode()
+std::shared_ptr<Node> StandardClient::gettestbasenode()
 {
-    return client.childnodebyname(getcloudrootnode(), "mega_test_sync", false);
+    return client.childnodebyname(getcloudrootnode().get(), "mega_test_sync", false);
 }
 
-Node* StandardClient::getcloudrubbishnode()
+std::shared_ptr<Node> StandardClient::getcloudrubbishnode()
 {
     return client.nodeByHandle(client.mNodeManager.getRootNodeRubbish());
 }
 
-Node* StandardClient::getsyncdebrisnode()
+std::shared_ptr<Node> StandardClient::getsyncdebrisnode()
 {
     return drillchildnodebyname(getcloudrubbishnode(), "SyncDebris");
 }
 
-Node* StandardClient::drillchildnodebyname(Node* n, const string& path)
+std::shared_ptr<Node> StandardClient::drillchildnodebyname(std::shared_ptr<Node> n, const string& path)
 {
     for (size_t p = 0; n && p < path.size(); )
     {
         auto pos = path.find("/", p);
         if (pos == string::npos) pos = path.size();
-        n = client.childnodebyname(n, path.substr(p, pos - p).c_str(), false);
+        n = client.childnodebyname(n.get(), path.substr(p, pos - p).c_str(), false);
         p = pos == string::npos ? path.size() : pos + 1;
     }
     return n;
 }
 
-vector<Node*> StandardClient::drillchildnodesbyname(Node* n, const string& path)
+vector<std::shared_ptr<Node> > StandardClient::drillchildnodesbyname(Node* n, const string& path)
 {
     auto pos = path.find("/");
     if (pos == string::npos)
@@ -2431,12 +2431,12 @@ vector<Node*> StandardClient::drillchildnodesbyname(Node* n, const string& path)
     }
     else
     {
-        vector<Node*> results, subnodes = client.childnodesbyname(n, path.c_str(), false);
+        vector<std::shared_ptr<Node> > results, subnodes = client.childnodesbyname(n, path.c_str(), false);
         for (size_t i = subnodes.size(); i--; )
         {
             if (subnodes[i]->type != FILENODE)
             {
-                vector<Node*> v = drillchildnodesbyname(subnodes[i], path.substr(pos + 1));
+                vector<std::shared_ptr<Node> > v = drillchildnodesbyname(subnodes[i].get(), path.substr(pos + 1));
                 results.insert(results.end(), v.begin(), v.end());
             }
         }
@@ -2565,7 +2565,7 @@ void StandardClient::setupSync_inThread(const string& rootPath,
 
     // Check if node is (or is contained by) an in-share.
     auto isShare = [](const Node* node) {
-        for ( ; node; node = node->parent) {
+        for ( ; node; node = node->parent.get()) {
             if (node->type != FOLDERNODE)
                 continue;
 
@@ -2576,7 +2576,7 @@ void StandardClient::setupSync_inThread(const string& rootPath,
         return false;
     };
 
-    auto* remoteNode = remoteItem.resolve(*this);
+    auto remoteNode = remoteItem.resolve(*this);
     EXPECT_TRUE(remoteNode);
 
     if (!remoteNode)
@@ -2628,7 +2628,7 @@ void StandardClient::setupSync_inThread(const string& rootPath,
     auto legacyExclusionsEligible = syncOptions.legacyExclusionsEligible;
     auto isBackup = syncOptions.isBackup;
     auto remoteHandle = remoteNode->nodeHandle();
-    auto remoteIsShare = isShare(remoteNode);
+    auto remoteIsShare = isShare(remoteNode.get());
     auto remotePath = string(remoteNode->displaypath());
 
     // Called when it's time to actually add the sync.
@@ -2721,7 +2721,7 @@ void StandardClient::setupSync_inThread(const string& rootPath,
         LOG_debug << "Uploading initial megaignore file...";
 
         // Upload the ignore file.
-        uploadFile(ignorePath, remoteNode, std::move(completion));
+        uploadFile(ignorePath, remoteNode.get(), std::move(completion));
 
         // Completion function will continue the work.
         return;
@@ -2799,7 +2799,6 @@ bool StandardClient::recursiveConfirm(Model::ModelNode* mn, Node* n, int& descen
     }
 
     multimap<string, Model::ModelNode*, CloudNameLess> ms;
-    multimap<string, Node*, CloudNameLess> ns;
     for (auto& m : mn->kids)
     {
         if (m->fsOnly)
@@ -2810,12 +2809,15 @@ bool StandardClient::recursiveConfirm(Model::ModelNode* mn, Node* n, int& descen
 
         ms.emplace(m->cloudName(), m.get());
     }
-    for (auto& n2 : client.getChildren(n))
+
+    multimap<string, Node*, CloudNameLess> ns;
+    sharedNode_list children = client.getChildren(n);
+    for (auto& n2 : children)
     {
         if (skipIgnoreFile && n2->displayname() == IGNORE_FILE_NAME)
             continue;
 
-        ns.emplace(n2->displayname(), n2);
+        ns.emplace(n2->displayname(), n2.get());
     }
 
     int matched = 0;
@@ -2928,7 +2930,7 @@ bool StandardClient::recursiveConfirm(Model::ModelNode* mn, LocalNode* n, int& d
             EXPECT_TRUE(!!client.nodeByHandle(n->syncedCloudNodeHandle)) << "expected synced handle that looks up node at localnode: " << n->getLocalPath().toPath(false);
         }
     }
-    Node* syncedNode = client.nodeByHandle(n->syncedCloudNodeHandle);
+    std::shared_ptr<Node> syncedNode = client.nodeByHandle(n->syncedCloudNodeHandle);
     if (depth && syncedNode)
     {
         EXPECT_EQ(compareUtf(mn->cloudName(), false, syncedNode->displayname(), false, false), 0)
@@ -2946,7 +2948,7 @@ bool StandardClient::recursiveConfirm(Model::ModelNode* mn, LocalNode* n, int& d
         string parentpath = n->parent->getLocalPath().toName(*client.fsaccess);
         EXPECT_EQ(localpath.substr(0, parentpath.size()), parentpath);
     }
-    Node* parentSyncedNode = n->parent ? client.nodeByHandle(n->parent->syncedCloudNodeHandle) : nullptr;
+    std::shared_ptr<Node> parentSyncedNode = n->parent ? client.nodeByHandle(n->parent->syncedCloudNodeHandle) : nullptr;
     if (syncedNode && n->parent && parentSyncedNode)
     {
         string p = syncedNode->displaypath();
@@ -3321,7 +3323,7 @@ bool StandardClient::confirmModel(handle backupId, Model::ModelNode* mnode, cons
     }
 
     // compare model against nodes representing remote state
-    if ((confirm & CONFIRM_REMOTE) && !confirmModel(backupId, mnode, client.nodeByHandle(si.h), expectFail, skipIgnoreFile))
+    if ((confirm & CONFIRM_REMOTE) && !confirmModel(backupId, mnode, client.nodeByHandle(si.h).get(), expectFail, skipIgnoreFile))
     {
         return false;
     }
@@ -3415,11 +3417,11 @@ void StandardClient::setattr(const CloudItem& item, attr_map&& updates, PromiseB
                             ++next_request_tag,
                             [=]()
                             {
-                                auto* node = item.resolve(*this);
+                                auto node = item.resolve(*this);
                                 if (!node)
                                     return result->set_value(false);
 
-                                client.setattr(node, attr_map(updates),
+                                client.setattr(node.get(), attr_map(updates),
                                     [result](NodeHandle, error e) { result->set_value(!e); }, false);
                             }, nullptr);
 }
@@ -3468,11 +3470,11 @@ bool StandardClient::disableSync(handle id, SyncError error, bool enabled, bool 
 
 void StandardClient::deleteremote(const CloudItem& item, PromiseBoolSP result)
 {
-    auto* node = item.resolve(*this);
+    auto node = item.resolve(*this);
     if (!node)
         return result->set_value(false);
 
-    client.unlink(node, false, 0, false, [result](NodeHandle, Error e) {
+    client.unlink(node.get(), false, 0, false, [result](NodeHandle, Error e) {
         result->set_value(e == API_OK);
     });
 }
@@ -3501,7 +3503,7 @@ bool StandardClient::deleteremotedebris()
 
 void StandardClient::deleteremotedebris(PromiseBoolSP result)
 {
-    if (auto* debris = getsyncdebrisnode())
+    if (auto debris = getsyncdebrisnode())
     {
         deleteremotenodes({debris}, std::move(result));
     }
@@ -3511,7 +3513,7 @@ void StandardClient::deleteremotedebris(PromiseBoolSP result)
     }
 }
 
-void StandardClient::deleteremotenodes(vector<Node*> ns, PromiseBoolSP pb)
+void StandardClient::deleteremotenodes(vector<std::shared_ptr<Node> > ns, PromiseBoolSP pb)
 {
     if (ns.empty())
     {
@@ -3526,7 +3528,7 @@ void StandardClient::deleteremotenodes(vector<Node*> ns, PromiseBoolSP pb)
             };
 
             resultproc.prepresult(COMPLETION, ++next_request_tag,
-                [&](){ client.unlink(ns[i], false, 0, false, std::move(completion)); },
+                [&](){ client.unlink(ns[i].get(), false, 0, false, std::move(completion)); },
                 nullptr);
         }
     }
@@ -3554,11 +3556,11 @@ void StandardClient::movenode(const CloudItem& source,
                               const string& newName,
                               PromiseBoolSP result)
 {
-    auto* sourceNode = source.resolve(*this);
+    auto sourceNode = source.resolve(*this);
     if (!sourceNode)
         return result->set_value(false);
 
-    auto* targetNode = target.resolve(*this);
+    auto targetNode = target.resolve(*this);
     if (!targetNode)
         return result->set_value(false);
 
@@ -3566,8 +3568,8 @@ void StandardClient::movenode(const CloudItem& source,
         result->set_value(e == API_OK);
     };
 
-    client.rename(sourceNode,
-                  targetNode,
+    client.rename(sourceNode.get(),
+                  targetNode.get(),
                   SYNCDEL_NONE,
                   NodeHandle(),
                   newName.empty() ? nullptr : newName.c_str(),
@@ -3577,14 +3579,14 @@ void StandardClient::movenode(const CloudItem& source,
 
 void StandardClient::movenodetotrash(string path, PromiseBoolSP pb)
 {
-    Node* n = drillchildnodebyname(gettestbasenode(), path);
-    Node* p = getcloudrubbishnode();
+    std::shared_ptr<Node> n = drillchildnodebyname(gettestbasenode(), path);
+    std::shared_ptr<Node> p = getcloudrubbishnode();
     if (n && p && n->parent)
     {
         resultproc.prepresult(COMPLETION, ++next_request_tag,
             [pb, n, p, this]()
             {
-                client.rename(n, p, SYNCDEL_NONE, NodeHandle(), nullptr, false,
+                client.rename(n.get(), p.get(), SYNCDEL_NONE, NodeHandle(), nullptr, false,
                     [pb](NodeHandle h, Error e) { pb->set_value(!e); });
             },
             nullptr);
@@ -3845,14 +3847,14 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
 
         if (auto vault = sc.client.nodeByHandle(sc.client.mNodeManager.getRootNodeVault()))
         {
-            for (auto n : sc.client.mNodeManager.getChildren(vault))
+            for (auto n : sc.client.mNodeManager.getChildren(vault.get()))
             {
                 LOG_debug << "vault child: " << n->displaypath();
-                for (auto n2 : sc.client.mNodeManager.getChildren(n))
+                for (auto& n2 : sc.client.mNodeManager.getChildren(n.get()))
                 {
                     LOG_debug << "Unlinking: " << n2->displaypath();
                     ++requestcount;
-                    sc.client.unlink(n2, false, 0, true, [&requestcount](NodeHandle, Error){ --requestcount; });
+                    sc.client.unlink(n2.get(), false, 0, true, [&requestcount](NodeHandle, Error){ --requestcount; });
                 }
             }
         }
@@ -3863,11 +3865,11 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
 
         if (auto bin = sc.client.nodeByHandle(sc.client.mNodeManager.getRootNodeRubbish()))
         {
-            for (auto n : sc.client.mNodeManager.getChildren(bin))
+            for (auto n : sc.client.mNodeManager.getChildren(bin.get()))
             {
                 LOG_debug << "Unlinking from bin: " << n->displaypath();
                 ++requestcount;
-                sc.client.unlink(n, false, 0, false, [&requestcount](NodeHandle, Error){ --requestcount; });
+                sc.client.unlink(n.get(), false, 0, false, [&requestcount](NodeHandle, Error){ --requestcount; });
             }
         }
     }, __FILE__, __LINE__);
@@ -4121,7 +4123,7 @@ void StandardClient::match(handle id, const Model::ModelNode* source, PromiseBoo
     if (!found)
         return result->set_value(false);
 
-    const auto* destination = client.nodeByHandle(info.h);
+    const auto destination = client.nodeByHandle(info.h);
     EXPECT_TRUE(destination);
 
     result->set_value(destination && match(*destination, *source));
@@ -4219,7 +4221,8 @@ bool StandardClient::match(const Node& destination, const Model::ModelNode& sour
         set<string, CloudNameLess> sd;
 
         // Index children for pairing.
-        for (const auto* child : dn.client->getChildren(&dn))
+        sharedNode_list children = dn.client->getChildren(&dn);
+        for (auto& child : children)
         {
             string name = child->displayname();
 
@@ -4231,7 +4234,7 @@ bool StandardClient::match(const Node& destination, const Model::ModelNode& sour
                 continue;
             }
 
-            auto result = dc.emplace(child->displayname(), child);
+            auto result = dc.emplace(child->displayname(), child.get());
 
             // Didn't exist? No duplicate.
             if (result.second)
@@ -4369,7 +4372,7 @@ handle StandardClient::getNodeHandle(const CloudItem& item)
 
 void StandardClient::getNodeHandle(const CloudItem& item, PromiseHandleSP result)
 {
-    if (auto* node = item.resolve(*this))
+    if (auto node = item.resolve(*this))
         return result->set_value(node->nodehandle);
 
     result->set_value(UNDEF);
@@ -4403,13 +4406,13 @@ vector<FileFingerprint> StandardClient::fingerprints(const string& path)
     vector<FileFingerprint> results;
 
     // Get our hands on the root node.
-    auto* root = gettestbasenode();
+    auto root = gettestbasenode();
 
     if (!root)
         return results;
 
     // Locate the specified node.
-    auto* node = drillchildnodebyname(root, path);
+    auto node = drillchildnodebyname(root, path);
 
     if (!node)
         return results;
@@ -4421,13 +4424,13 @@ vector<FileFingerprint> StandardClient::fingerprints(const string& path)
     // Extract the fingerprints from the version chain.
     results.emplace_back(*node);
 
-    auto nodes = client.mNodeManager.getChildren(node);
+    auto nodes = client.mNodeManager.getChildren(node.get());
 
     while (!nodes.empty())
     {
         node = nodes.front();
         results.emplace_back(*node);
-        nodes = client.mNodeManager.getChildren(node);
+        nodes = client.mNodeManager.getChildren(node.get());
     }
 
     // Pass fingerprints to caller.
@@ -4635,7 +4638,7 @@ bool StandardClient::rmcontact(const string& email)
 
 void StandardClient::share(const CloudItem& item, const string& email, accesslevel_t permissions, PromiseBoolSP result)
 {
-    auto* node = item.resolve(*this);
+    auto node = item.resolve(*this);
     if (!node)
         return result->set_value(false);
 
@@ -4643,11 +4646,11 @@ void StandardClient::share(const CloudItem& item, const string& email, accesslev
         if (e == API_EKEY)
         {
             // create share key and try again
-            client.openShareDialog(node, [=](Error osdErr)
+            client.openShareDialog(node.get(), [=](Error osdErr)
                 {
                     if (osdErr == API_OK)
                     {
-                        client.setshare(node,
+                        client.setshare(node.get(),
                             email.c_str(),
                             permissions,
                             false,
@@ -4668,7 +4671,7 @@ void StandardClient::share(const CloudItem& item, const string& email, accesslev
         }
     };
 
-    client.setshare(node,
+    client.setshare(node.get(),
                     email.c_str(),
                     permissions,
                     false,
@@ -4736,7 +4739,7 @@ SyncWaitPredicate SyncRemoteMatch(const CloudItem& item, const Model::ModelNode*
 {
     return [=](StandardClient& client) {
         return client.thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
-            if (auto* node = item.resolve(client))
+            if (auto node = item.resolve(client))
                 return client.match(node->nodeHandle(), source, std::move(result));
             result->set_value(false);
         }, __FILE__, __LINE__).get();
@@ -4752,7 +4755,7 @@ SyncWaitPredicate SyncRemoteNodePresent(const CloudItem& item)
 {
     return [item](StandardClient& client) {
         return client.thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
-            result->set_value(item.resolve(client));
+            result->set_value(item.resolve(client).get());
         }, __FILE__, __LINE__).get();
     };
 }
@@ -5071,7 +5074,7 @@ public:
 
         // Make sure the client's agree on the cloud's state before proceeding.
         {
-            auto* root = client0->gettestbasenode();
+            auto root = client0->gettestbasenode();
             ASSERT_NE(root, nullptr);
 
             auto predicate = SyncRemoteMatch(*root, model0.root.get());
@@ -6418,13 +6421,13 @@ TEST_F(SyncTest, CmdChecks_RRAttributeAfterMoveNode)
 
     ASSERT_TRUE(pclientA1->login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f", 3, 3));
 
-    Node* f = pclientA1->drillchildnodebyname(pclientA1->gettestbasenode(), "f");
+    std::shared_ptr<Node> f = pclientA1->drillchildnodebyname(pclientA1->gettestbasenode(), "f");
     handle original_f_handle = f->nodehandle;
     handle original_f_parent_handle = f->parent->nodehandle;
 
     // make sure there are no 'f' in the rubbish
-    auto fv = pclientA1->drillchildnodesbyname(pclientA1->getcloudrubbishnode(), "f");
-    future<bool> fb = pclientA1->thread_do<bool>([&fv](StandardClient& sc, PromiseBoolSP pb) { sc.deleteremotenodes(fv, pb); }, __FILE__, __LINE__);
+    auto fv = pclientA1->drillchildnodesbyname(pclientA1->getcloudrubbishnode().get(), "f");
+    future<bool> fb = pclientA1->thread_do<bool>([fv](StandardClient& sc, PromiseBoolSP pb) { sc.deleteremotenodes(fv, pb); }, __FILE__, __LINE__);
     ASSERT_TRUE(waitonresults(&fb));
 
     f = pclientA1->drillchildnodebyname(pclientA1->getcloudrubbishnode(), "f");
@@ -6671,7 +6674,7 @@ TEST_F(SyncTest, PutnodesForMultipleFolders)
         WaitMillisec(100);
     }
 
-    Node* cloudRoot = standardclient->client.nodeByHandle(targethandle);
+    std::shared_ptr<Node> cloudRoot = standardclient->client.nodeByHandle(targethandle);
 
     ASSERT_TRUE(nullptr != standardclient->drillchildnodebyname(cloudRoot, "folder1"));
     ASSERT_TRUE(nullptr != standardclient->drillchildnodebyname(cloudRoot, "folder2"));
@@ -6695,34 +6698,34 @@ TEST_F(SyncTest, DISABLED_ExerciseCommands)
     ASSERT_TRUE(waitonresults(&p1));
 
     assert(standardclient.lastPutnodesResultFirstHandle != UNDEF);
-    Node* n2 = standardclient.client.nodebyhandle(standardclient.lastPutnodesResultFirstHandle);
+    std::shared_ptr<Node> n2 = standardclient.client.nodebyhandle(standardclient.lastPutnodesResultFirstHandle);
 
     out() << "Testing make public link for node: " << n2->displaypath();
 
     // try to get a link on an existing unshared folder
     promise<Error> pe1, pe1a, pe2, pe3, pe4;
-    standardclient.getpubliclink(n2, 0, 0, false, false, pe1);
+    standardclient.getpubliclink(n2.get(), 0, 0, false, false, pe1);
     ASSERT_TRUE(debugTolerantWaitOnFuture(pe1.get_future(), 45));
     ASSERT_EQ(API_EACCESS, pe1.get_future().get());
 
     // create on existing node
-    standardclient.exportnode(n2, 0, 0, false, false, pe1a);
+    standardclient.exportnode(n2.get(), 0, 0, false, false, pe1a);
     ASSERT_TRUE(debugTolerantWaitOnFuture(pe1a.get_future(), 45));
     ASSERT_EQ(API_OK, pe1a.get_future().get());
 
     // get link on existing shared folder node, with link already  (different command response)
-    standardclient.getpubliclink(n2, 0, 0, false, false, pe2);
+    standardclient.getpubliclink(n2.get(), 0, 0, false, false, pe2);
     ASSERT_TRUE(debugTolerantWaitOnFuture(pe2.get_future(), 45));
     ASSERT_EQ(API_OK, pe2.get_future().get());
 
     // delete existing link on node
-    standardclient.getpubliclink(n2, 1, 0, false, false, pe3);
+    standardclient.getpubliclink(n2.get(), 1, 0, false, false, pe3);
     ASSERT_TRUE(debugTolerantWaitOnFuture(pe3.get_future(), 45));
     ASSERT_EQ(API_OK, pe3.get_future().get());
 
     // create on non existent node
     n2->nodehandle = UNDEF;
-    standardclient.getpubliclink(n2, 0, 0, false, false, pe4);
+    standardclient.getpubliclink(n2.get(), 0, 0, false, false, pe4);
     ASSERT_TRUE(debugTolerantWaitOnFuture(pe4.get_future(), 45));
     ASSERT_EQ(API_EACCESS, pe4.get_future().get());
 }
@@ -7144,7 +7147,8 @@ TEST_F(SyncTest, BasicSync_NewVersionsCreatedWhenFilesModified)
     ASSERT_TRUE(c->confirmModel_mainthread(model.root.get(), id));
 
     // Get our hands on f's node.
-    auto *f = c->drillchildnodebyname(c->gettestbasenode(), "x/f");
+    //TODO LRU chache convert f in shared pointer => drillchildnodebyname return drillchildnodebyname
+    auto f = c->drillchildnodebyname(c->gettestbasenode(), "x/f");
     ASSERT_TRUE(f);
 
     // Validate the version chain.
@@ -7155,7 +7159,7 @@ TEST_F(SyncTest, BasicSync_NewVersionsCreatedWhenFilesModified)
     {
         matched &= *f == *i++;
 
-        node_list children = c->client.getChildren(f);
+        sharedNode_list children = c->client.getChildren(f.get());
         f = children.empty() ? nullptr : children.front();
     }
 
@@ -7382,10 +7386,10 @@ TEST_F(SyncTest, DetectsAndReportsNameClashes)
     ASSERT_EQ(conflicts.size(), 0u);
 
     // Create a remote name clash.
-    auto* node = client->drillchildnodebyname(client->gettestbasenode(), "x/d");
+    auto node = client->drillchildnodebyname(client->gettestbasenode(), "x/d");
     ASSERT_TRUE(!!node);
-    ASSERT_TRUE(client->uploadFile(root / "d" / "f0", "h", node));
-    ASSERT_TRUE(client->uploadFile(root / "d" / "f0", "h", node));
+    ASSERT_TRUE(client->uploadFile(root / "d" / "f0", "h", node.get()));
+    ASSERT_TRUE(client->uploadFile(root / "d" / "f0", "h", node.get()));
 
     // Let the client attempt to synchronize.
     waitonsyncs(TIMEOUT, client);
@@ -7453,22 +7457,22 @@ TEST_F(SyncTest, DoesntDownloadFilesWithClashingNames)
         // ff will be singular, no clash.
         ASSERT_TRUE(createNameFile(root, "ff"));
 
-        auto* node = cu->drillchildnodebyname(cu->gettestbasenode(), "x");
+        auto node = cu->drillchildnodebyname(cu->gettestbasenode(), "x");
         ASSERT_TRUE(!!node);
 
         // Upload d twice, generate clash.
-        ASSERT_TRUE(cu->uploadFolderTree(root / "d", node));
-        ASSERT_TRUE(cu->uploadFolderTree(root / "d", node));
+        ASSERT_TRUE(cu->uploadFolderTree(root / "d", node.get()));
+        ASSERT_TRUE(cu->uploadFolderTree(root / "d", node.get()));
 
         // Upload dd once.
-        ASSERT_TRUE(cu->uploadFolderTree(root / "dd", node));
+        ASSERT_TRUE(cu->uploadFolderTree(root / "dd", node.get()));
 
         // Upload f twice, generate clash.
-        ASSERT_TRUE(cu->uploadFile(root / "f", node));
-        ASSERT_TRUE(cu->uploadFile(root / "f", node));
+        ASSERT_TRUE(cu->uploadFile(root / "f", node.get()));
+        ASSERT_TRUE(cu->uploadFile(root / "f", node.get()));
 
         // Upload ff once.
-        ASSERT_TRUE(cu->uploadFile(root / "ff", node));
+        ASSERT_TRUE(cu->uploadFile(root / "ff", node.get()));
     }
 
     // Add and start sync.
@@ -7608,7 +7612,7 @@ TEST_F(SyncTest, RemotesWithControlCharactersSynchronizeCorrectly)
     {
         // Log in client and clear remote contents.
 
-        auto* node = cu->drillchildnodebyname(cu->gettestbasenode(), "x");
+        auto node = cu->drillchildnodebyname(cu->gettestbasenode(), "x");
         ASSERT_TRUE(!!node);
 
         // Create some directories containing control characters.
@@ -7628,8 +7632,8 @@ TEST_F(SyncTest, RemotesWithControlCharactersSynchronizeCorrectly)
         ASSERT_TRUE(createNameFile(root, "f"));
 
         // Upload files.
-        ASSERT_TRUE(cu->uploadFile(root / "f", "f\7", node));
-        ASSERT_TRUE(cu->uploadFile(root / "f", node));
+        ASSERT_TRUE(cu->uploadFile(root / "f", "f\7", node.get()));
+        ASSERT_TRUE(cu->uploadFile(root / "f", node.get()));
     }
 
     // Add and start sync.
@@ -7724,16 +7728,16 @@ TEST_F(SyncTest, DISABLED_RemotesWithEscapesSynchronizeCorrectly)
         ASSERT_TRUE(createNameFile(root, "f0"));
         ASSERT_TRUE(createNameFile(root, "f%30"));
 
-        auto* node = cu->drillchildnodebyname(cu->gettestbasenode(), "x");
+        auto node = cu->drillchildnodebyname(cu->gettestbasenode(), "x");
         ASSERT_TRUE(!!node);
 
         // Upload directories.
-        ASSERT_TRUE(cu->uploadFolderTree(root / "d0", node));
-        ASSERT_TRUE(cu->uploadFolderTree(root / "d%30", node));
+        ASSERT_TRUE(cu->uploadFolderTree(root / "d0", node.get()));
+        ASSERT_TRUE(cu->uploadFolderTree(root / "d%30", node.get()));
 
         // Upload files.
-        ASSERT_TRUE(cu->uploadFile(root / "f0", node));
-        ASSERT_TRUE(cu->uploadFile(root / "f%30", node));
+        ASSERT_TRUE(cu->uploadFile(root / "f0", node.get()));
+        ASSERT_TRUE(cu->uploadFile(root / "f%30", node.get()));
     }
 
     // Add and start sync.
@@ -8506,7 +8510,7 @@ TEST_F(SyncTest, DownloadedDirectoriesHaveFilesystemWatch)
         c->client.putnodes_prepareOneFolder(&nodes[0], "d", false);
 
         // Get our hands on the sync root.
-        auto* root = c->drillchildnodebyname(c->gettestbasenode(), "s");
+        auto root = c->drillchildnodebyname(c->gettestbasenode(), "s");
         ASSERT_TRUE(root);
 
         // Create new node in the cloud.
@@ -8673,13 +8677,13 @@ TEST_F(SyncTest, MoveTargetHasFilesystemWatch)
 
     // Wait for everything to reach the cloud.
     {
-        auto *root = c->gettestbasenode();
+        auto root = c->gettestbasenode();
         ASSERT_NE(root, nullptr);
 
         root = c->drillchildnodebyname(root, "s");
         ASSERT_NE(root, nullptr);
 
-        auto predicate = SyncRemoteMatch(*root, model.root.get());
+        auto predicate = SyncRemoteMatch(root.get(), model.root.get());
         ASSERT_TRUE(c->waitFor(std::move(predicate), DEFAULTWAIT));
     }
 
@@ -9003,26 +9007,26 @@ TEST_F(SyncTest, RenameTargetHasFilesystemWatch)
     {
         StandardClientInUse cr = g_clientManager->getCleanStandardClient(0, TESTROOT);
 
-        auto* root = cr->gettestbasenode();
+        auto root = cr->gettestbasenode();
         ASSERT_TRUE(root);
 
         // dr -> ds (ascending.)
         model.removenode("dr");
         model.addfile("ds/f", "x");
 
-        auto* dr = cr->drillchildnodebyname(root, "s/dr");
+        auto dr = cr->drillchildnodebyname(root, "s/dr");
         ASSERT_TRUE(dr);
 
-        ASSERT_TRUE(cr->setattr(dr, attr_map('n', "ds")));
+        ASSERT_TRUE(cr->setattr(dr.get(), attr_map('n', "ds")));
 
         // dy -> dx (descending.)
         model.removenode("dy");
         model.addfile("dx/f", "y");
 
-        auto* dy = cr->drillchildnodebyname(root, "s/dy");
+        auto dy = cr->drillchildnodebyname(root, "s/dy");
         ASSERT_TRUE(dy);
 
-        ASSERT_TRUE(cr->setattr(dy, attr_map('n', "dx")));
+        ASSERT_TRUE(cr->setattr(dy.get(), attr_map('n', "dx")));
     }
 
     // it can take a while for APs to arrive (or to be sent)
@@ -9376,16 +9380,16 @@ struct TwoWaySyncSymmetryCase
 
             auto& client = changeClient();
 
-            auto* root = client.gettestbasenode();
+            auto root = client.gettestbasenode();
             ASSERT_NE(root, nullptr);
 
             root = client.drillchildnodebyname(root, state.remoteBaseFolder);
             ASSERT_NE(root, nullptr);
 
-            auto* from = client.drillchildnodebyname(root, "initial");
+            auto from = client.drillchildnodebyname(root, "initial");
             ASSERT_NE(from, nullptr);
 
-            ASSERT_TRUE(client.copy(from, root, name()));
+            ASSERT_TRUE(client.copy(from.get(), root.get(), name()));
         }
 
         // Prepare Local Filesystem
@@ -9476,11 +9480,11 @@ struct TwoWaySyncSymmetryCase
         return remoteTestBasePath + "/f";
     }
 
-    Node* remoteSyncRoot()
+    std::shared_ptr<Node> remoteSyncRoot()
     {
-        Node* root = client1().client.nodebyhandle(client1().basefolderhandle);
+        std::shared_ptr<Node> root = client1().client.nodebyhandle(client1().basefolderhandle);
         std::string remoteRootPath = remoteSyncRootPath();
-        if (!root)
+        if (root)
         {
             LOG_err << name()
                     << " root is NULL, local sync root:" 
@@ -9490,7 +9494,7 @@ struct TwoWaySyncSymmetryCase
             return nullptr;
         }
 
-        Node* n = client1().drillchildnodebyname(root, remoteRootPath);
+        std::shared_ptr<Node> n = client1().drillchildnodebyname(root, remoteRootPath);
         if (!n)
         {
             LOG_err << "remote sync root is NULL, local sync root:" 
@@ -9551,14 +9555,14 @@ struct TwoWaySyncSymmetryCase
 
         if (updatemodel) remoteModel.emulate_rename(nodepath, newname);
 
-        Node* testRoot = changeClient().client.nodebyhandle(client1().basefolderhandle);
-        Node* n = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + nodepath);
+        std::shared_ptr<Node> testRoot = changeClient().client.nodebyhandle(client1().basefolderhandle);
+        std::shared_ptr<Node> n = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + nodepath);
         ASSERT_TRUE(!!n);
 
         if (reportaction) out() << name() << " action: remote rename " << n->displaypath() << " to " << newname;
 
         attr_map updates('n', newname);
-        auto e = changeClient().client.setattr(n, std::move(updates), nullptr, false);
+        auto e = changeClient().client.setattr(n.get(), std::move(updates), nullptr, false);
 
         ASSERT_EQ(API_OK, error(e));
     }
@@ -9571,15 +9575,15 @@ struct TwoWaySyncSymmetryCase
 
         if (updatemodel) remoteModel.emulate_move(nodepath, newparentpath);
 
-        Node* testRoot = changeClient().client.nodebyhandle(changeClient().basefolderhandle);
-        Node* n1 = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + nodepath);
-        Node* n2 = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + newparentpath);
+        std::shared_ptr<Node> testRoot = changeClient().client.nodebyhandle(changeClient().basefolderhandle);
+        std::shared_ptr<Node> n1 = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + nodepath);
+        std::shared_ptr<Node> n2 = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + newparentpath);
         ASSERT_TRUE(!!n1);
         ASSERT_TRUE(!!n2);
 
         if (reportaction) out() << name() << " action: remote move " << n1->displaypath() << " to " << n2->displaypath();
 
-        auto e = changeClient().client.rename(n1, n2, SYNCDEL_NONE, NodeHandle(), nullptr, false, nullptr);
+        auto e = changeClient().client.rename(n1.get(), n2.get(), SYNCDEL_NONE, NodeHandle(), nullptr, false, nullptr);
         ASSERT_EQ(API_OK, e);
     }
 
@@ -9589,18 +9593,18 @@ struct TwoWaySyncSymmetryCase
 
         if (updatemodel) remoteModel.emulate_copy(nodepath, newparentpath);
 
-        Node* testRoot = changeClient().client.nodebyhandle(changeClient().basefolderhandle);
-        Node* n1 = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + nodepath);
-        Node* n2 = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + newparentpath);
+        std::shared_ptr<Node> testRoot = changeClient().client.nodebyhandle(changeClient().basefolderhandle);
+        std::shared_ptr<Node> n1 = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + nodepath);
+        std::shared_ptr<Node> n2 = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + newparentpath);
         ASSERT_TRUE(!!n1);
         ASSERT_TRUE(!!n2);
 
         if (reportaction) out() << name() << " action: remote copy " << n1->displaypath() << " to " << n2->displaypath();
 
         TreeProcCopy tc;
-        changeClient().client.proctree(n1, &tc, false, true);
+        changeClient().client.proctree(n1.get(), &tc, false, true);
         tc.allocnodes();
-        changeClient().client.proctree(n1, &tc, false, true);
+        changeClient().client.proctree(n1.get(), &tc, false, true);
         tc.nn[0].parenthandle = UNDEF;
 
         SymmCipher key;
@@ -9622,18 +9626,18 @@ struct TwoWaySyncSymmetryCase
             remoteModel.emulate_rename_copy(nodepath, newparentpath, newname);
         }
 
-        Node* testRoot = changeClient().client.nodebyhandle(changeClient().basefolderhandle);
-        Node* n1 = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + nodepath);
-        Node* n2 = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + newparentpath);
+        std::shared_ptr<Node> testRoot = changeClient().client.nodebyhandle(changeClient().basefolderhandle);
+        std::shared_ptr<Node> n1 = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + nodepath);
+        std::shared_ptr<Node> n2 = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + newparentpath);
         ASSERT_TRUE(!!n1);
         ASSERT_TRUE(!!n2);
 
         if (reportaction) out() << name() << " action: remote rename + copy " << n1->displaypath() << " to " << n2->displaypath() << " as " << newname;
 
         TreeProcCopy tc;
-        changeClient().client.proctree(n1, &tc, false, true);
+        changeClient().client.proctree(n1.get(), &tc, false, true);
         tc.allocnodes();
-        changeClient().client.proctree(n1, &tc, false, true);
+        changeClient().client.proctree(n1.get(), &tc, false, true);
         tc.nn[0].parenthandle = UNDEF;
 
         SymmCipher key;
@@ -9657,15 +9661,15 @@ struct TwoWaySyncSymmetryCase
             remoteModel.emulate_rename_copy(nodepath, newparentpath, newname);
         }
 
-        Node* testRoot = changeClient().client.nodebyhandle(changeClient().basefolderhandle);
-        Node* n1 = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + nodepath);
-        Node* n2 = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + newparentpath);
+        std::shared_ptr<Node> testRoot = changeClient().client.nodebyhandle(changeClient().basefolderhandle);
+        std::shared_ptr<Node> n1 = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + nodepath);
+        std::shared_ptr<Node> n2 = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + newparentpath);
         ASSERT_TRUE(!!n1);
         ASSERT_TRUE(!!n2);
 
         if (reportaction) out() << name() << " action: remote rename + move " << n1->displaypath() << " to " << n2->displaypath() << " as " << newname;
 
-        error e = changeClient().client.rename(n1, n2, SYNCDEL_NONE, NodeHandle(), newname.c_str(), false, nullptr);
+        error e = changeClient().client.rename(n1.get(), n2.get(), SYNCDEL_NONE, NodeHandle(), newname.c_str(), false, nullptr);
         EXPECT_EQ(e, API_OK);
     }
 
@@ -9673,8 +9677,8 @@ struct TwoWaySyncSymmetryCase
     {
         std::lock_guard<std::recursive_mutex> g(changeClient().clientMutex);
 
-        Node* testRoot = changeClient().client.nodebyhandle(changeClient().basefolderhandle);
-        Node* n = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + nodepath);
+        std::shared_ptr<Node> testRoot = changeClient().client.nodebyhandle(changeClient().basefolderhandle);
+        std::shared_ptr<Node> n = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + nodepath);
         if (mightNotExist && !n) return;  // eg when checking to remove an item that is a move target but there isn't one
 
         ASSERT_TRUE(!!n);
@@ -9683,7 +9687,7 @@ struct TwoWaySyncSymmetryCase
 
         if (updatemodel) remoteModel.emulate_delete(nodepath);
 
-        auto e = changeClient().client.unlink(n, false, ++next_request_tag, false);
+        auto e = changeClient().client.unlink(n.get(), false, ++next_request_tag, false);
         ASSERT_TRUE(!e);
     }
 
@@ -9856,7 +9860,7 @@ struct TwoWaySyncSymmetryCase
         if (n->type == FILENODE) return;
         for (auto& c : client1().client.getChildren(n))
         {
-            PrintRemoteTree(c, prefix);
+            PrintRemoteTree(c.get(), prefix);
         }
     }
 
@@ -9891,10 +9895,10 @@ struct TwoWaySyncSymmetryCase
             }
 
             out() << " ---- remote node tree initial state ----";
-            Node* testRoot = client1().client.nodebyhandle(changeClient().basefolderhandle);
-            if (Node* n = client1().drillchildnodebyname(testRoot, remoteTestBasePath))
+            std::shared_ptr<Node> testRoot = client1().client.nodebyhandle(changeClient().basefolderhandle);
+            if (std::shared_ptr<Node> n = client1().drillchildnodebyname(testRoot, remoteTestBasePath))
             {
-                PrintRemoteTree(n);
+                PrintRemoteTree(n.get());
             }
         }
 
@@ -10044,10 +10048,10 @@ struct TwoWaySyncSymmetryCase
             }
 
             out() << " ---- remote node tree before change ----";
-            Node* testRoot = client1().client.nodebyhandle(changeClient().basefolderhandle);
-            if (Node* n = client1().drillchildnodebyname(testRoot, remoteTestBasePath))
+            std::shared_ptr<Node> testRoot = client1().client.nodebyhandle(changeClient().basefolderhandle);
+            if (std::shared_ptr<Node> n = client1().drillchildnodebyname(testRoot, remoteTestBasePath))
             {
-                PrintRemoteTree(n);
+                PrintRemoteTree(n.get());
             }
         }
 
@@ -10070,8 +10074,8 @@ struct TwoWaySyncSymmetryCase
         auto remoteIsReady = [this](StandardClient& client){ 
                 int descendents1 = 0, descendents2 = 0;
                 bool reported1 = false, reported2 = false;
-                return client.recursiveConfirm(remoteModel.findnode("f"), client.drillchildnodebyname(client.gettestbasenode(), remoteTestBasePath + "/f"), descendents1, name(), 0, reported1, true, false) 
-                    && client.recursiveConfirm(remoteModel.findnode("outside"), client.drillchildnodebyname(client.gettestbasenode(), remoteTestBasePath + "/outside"), descendents2, name(), 0, reported2, true, false);
+                return client.recursiveConfirm(remoteModel.findnode("f"), client.drillchildnodebyname(client.gettestbasenode(), remoteTestBasePath + "/f").get(), descendents1, name(), 0, reported1, true, false)
+                    && client.recursiveConfirm(remoteModel.findnode("outside"), client.drillchildnodebyname(client.gettestbasenode(), remoteTestBasePath + "/outside").get(), descendents2, name(), 0, reported2, true, false);
         };
 
         state.resumeClient.waitFor(remoteIsReady, maxWaitSeconds, checkInterval);
@@ -10096,10 +10100,10 @@ struct TwoWaySyncSymmetryCase
             }
 
             out() << " ---- remote node tree after sync of change ----";
-            Node* testRoot = client1().client.nodebyhandle(changeClient().basefolderhandle);
-            if (Node* n = client1().drillchildnodebyname(testRoot, remoteTestBasePath))
+            std::shared_ptr<Node> testRoot = client1().client.nodebyhandle(changeClient().basefolderhandle);
+            if (std::shared_ptr<Node> n = client1().drillchildnodebyname(testRoot, remoteTestBasePath))
             {
-                PrintRemoteTree(n);
+                PrintRemoteTree(n.get());
             }
             out() << " ---- expected sync destination (model) ----";
             auto n = destinationModel().findnode("f");
@@ -10121,7 +10125,7 @@ struct TwoWaySyncSymmetryCase
         if (shouldDisableSync())
         {
             bool lfs = client1().confirmModel(backupId, localModel.findnode("f"), localSyncRootPath(), true, false, false);
-            bool rnt = client1().confirmModel(backupId, remoteModel.findnode("f"), remoteSyncRoot(), false, false);
+            bool rnt = client1().confirmModel(backupId, remoteModel.findnode("f"), remoteSyncRoot().get(), false, false);
 
             EXPECT_EQ(sync, nullptr) << "Sync isn't disabled: " << name();
             EXPECT_TRUE(lfs) << "Couldn't confirm LFS: " << name();
@@ -10203,15 +10207,15 @@ void PrepareForSync(StandardClient& client)
     ASSERT_TRUE(createDataFile(local / "f" / "file_newer_1", "file_newer_1", delta));
     ASSERT_TRUE(createDataFile(local / "f" / "file_newer_2", "file_newer_2", delta));
 
-    auto* remote = client.drillchildnodebyname(client.gettestbasenode(), "twoway");
+    auto remote = client.drillchildnodebyname(client.gettestbasenode(), "twoway");
     ASSERT_NE(remote, nullptr);
 
     // Upload initial ignore file.
-    ASSERT_TRUE(client.uploadFile(ignoreFilePath, remote));
+    ASSERT_TRUE(client.uploadFile(ignoreFilePath, remote.get()));
 
     // Upload initial sync contents.
-    ASSERT_TRUE(client.uploadFolderTree(local, remote));
-    ASSERT_TRUE(client.uploadFilesInTree(local, remote));
+    ASSERT_TRUE(client.uploadFolderTree(local, remote.get()));
+    ASSERT_TRUE(client.uploadFilesInTree(local, remote.get()));
 }
 
 bool WaitForRemoteMatch(map<string, TwoWaySyncSymmetryCase>& testcases,
@@ -11425,29 +11429,29 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
     model.generate(client1.fsBasePath / "s");
 
     // Get our hands on the remote test root.
-    Node* r = client0.gettestbasenode();
+    std::shared_ptr<Node> r = client0.gettestbasenode();
     ASSERT_NE(r, nullptr);
 
     // Populate the remote test root.
     {
         auto sPath = client1.fsBasePath / "s";
 
-        ASSERT_TRUE(client0.uploadFolderTree(sPath, r));
-        ASSERT_TRUE(client0.uploadFilesInTree(sPath, r));
+        ASSERT_TRUE(client0.uploadFolderTree(sPath, r.get()));
+        ASSERT_TRUE(client0.uploadFilesInTree(sPath, r.get()));
     }
 
     NodeHandle sh;
 
     // Get our hands on the remote sync root.
     {
-        Node* s = client0.drillchildnodebyname(r, "s");
+        std::shared_ptr<Node> s = client0.drillchildnodebyname(r, "s");
         ASSERT_NE(s, nullptr);
 
         sh = s->nodeHandle();
     }
 
     // Share the test root with client 1.
-    ASSERT_TRUE(client0.share(*r, getenv("MEGA_EMAIL_AUX"), FULL));
+    ASSERT_TRUE(client0.share(r.get(), getenv("MEGA_EMAIL_AUX"), FULL));
     ASSERT_TRUE(client1.waitFor(SyncRemoteNodePresent(*r), std::chrono::seconds(90)));
 
     // Share the sync root with client 2.
@@ -11474,16 +11478,16 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
     // Make a couple changes to client1's sync via client2.
     {
         // Nodes from client2's perspective.
-        auto* xs = client2.client.nodeByHandle(sh);
+        auto xs = client2.client.nodeByHandle(sh);
         ASSERT_NE(xs, nullptr);
 
-        auto* xt = client2.client.childnodebyname(xs, "t");
+        auto xt = client2.client.childnodebyname(xs.get(), "t");
         ASSERT_NE(xt, nullptr);
 
-        auto* xu = client2.client.childnodebyname(xs, "u");
+        auto xu = client2.client.childnodebyname(xs.get(), "u");
         ASSERT_NE(xu, nullptr);
 
-        auto* xv = client2.client.childnodebyname(xs, "v");
+        auto xv = client2.client.childnodebyname(xs.get(), "v");
         ASSERT_NE(xv, nullptr);
 
         // Create a new directory w under s.
@@ -11500,7 +11504,7 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
         }
 
         // Get our hands on w from client 2's perspective.
-        auto* xw = client2.client.childnodebyname(xs, "w");
+        auto xw = client2.client.childnodebyname(xs.get(), "w");
         ASSERT_NE(xw, nullptr);
 
         // Be certain that client 1 can see w.
@@ -11645,7 +11649,7 @@ TEST_F(SyncTest, RemoteReplaceDirectory)
         ASSERT_TRUE(cr.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
 
         // Get our hands on x/d's node.
-        auto* node = cr.drillchildnodebyname(cr.gettestbasenode(), "s/x/d");
+        auto node = cr.drillchildnodebyname(cr.gettestbasenode(), "s/x/d");
         ASSERT_NE(node, nullptr);
 
         {
@@ -11663,7 +11667,7 @@ TEST_F(SyncTest, RemoteReplaceDirectory)
             c.received_node_actionpackets = false;
 
             // Remove the original x/d.
-            ASSERT_TRUE(cr.deleteremote(node));
+            ASSERT_TRUE(cr.deleteremote(node.get()));
 
             // Wait for c to receive cr's changes.
             ASSERT_TRUE(c.waitForNodesUpdated(8));
@@ -11729,7 +11733,7 @@ TEST_F(SyncTest, RemoteReplaceFile)
         ASSERT_TRUE(cr.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
 
         // Get our hands on d/f's node.
-        auto* node = cr.drillchildnodebyname(cr.gettestbasenode(), "s/d/f");
+        auto node = cr.drillchildnodebyname(cr.gettestbasenode(), "s/d/f");
         ASSERT_NE(node, nullptr);
 
         {
@@ -11740,7 +11744,7 @@ TEST_F(SyncTest, RemoteReplaceFile)
             ASSERT_TRUE(c.waitFor(SyncStallState(true), chrono::seconds(8)));
 
             // Remove the original /d/f.
-            ASSERT_TRUE(cr.deleteremote(node));
+            ASSERT_TRUE(cr.deleteremote(node.get()));
 
             // Wait for c to recover from the stall.
             ASSERT_TRUE(c.waitFor(SyncStallState(false), chrono::seconds(8)));
@@ -11977,14 +11981,14 @@ TEST_F(FilterFixture, AlreadySyncedFilterIsLoaded)
 
     // Populate cloud filesystem.
     {
-        auto* base = cdu->gettestbasenode();
-        auto* x = cdu->drillchildnodebyname(base, "x");
+        auto base = cdu->gettestbasenode();
+        auto x = cdu->drillchildnodebyname(base, "x");
 
         // Upload .megaignore.
-        ASSERT_TRUE(cdu->uploadFile(root(*cdu) / "root" / ".megaignore", x));
+        ASSERT_TRUE(cdu->uploadFile(root(*cdu) / "root" / ".megaignore", *x));
 
         // Upload f.
-        ASSERT_TRUE(cdu->uploadFile(root(*cdu) / "root" / "f", x));
+        ASSERT_TRUE(cdu->uploadFile(root(*cdu) / "root" / "f", *x));
     }
 
     // Client shouldn't upload g as it will be excluded.
@@ -12864,14 +12868,14 @@ TEST_F(LocalToCloudFilterFixture, AcceptableFilterNameClash)
     }
 
     // Check that the engine uploaded what we expect.
-    auto* root = cu->gettestbasenode();
+    auto root = cu->gettestbasenode();
 
     // Get our hands on the cloud root.
     root = cu->drillchildnodebyname(root, "s");
     ASSERT_NE(root, nullptr);
 
     // Check that the directory "dl" has been uploaded.
-    auto *dl = cu->drillchildnodebyname(root, "dl");
+    auto dl = cu->drillchildnodebyname(root, "dl");
     ASSERT_NE(dl, nullptr);
 
     // Check that the file "dl/fi" has been uploaded.
@@ -13572,7 +13576,7 @@ TEST_F(LocalToCloudFilterFixture, FilterMovedBetweenSyncs)
         cdu->client.putnodes_prepareOneFolder(&nodes[0], "s0", false);
         cdu->client.putnodes_prepareOneFolder(&nodes[1], "s1", false);
 
-        Node* root = cdu->gettestbasenode();
+        std::shared_ptr<Node> root = cdu->gettestbasenode();
 
         ASSERT_TRUE(cdu->putnodes(root->nodeHandle(), NoVersioning, std::move(nodes)));
 
@@ -14070,7 +14074,7 @@ TEST_F(LocalToCloudFilterFixture, MoveToIgnoredRubbishesRemote)
     ASSERT_TRUE(confirm(*cu, id, remoteTree));
 
     // Verify that 0/f was moved into the remote debris.
-    Node* u = cu->drillchildnodebyname(cu->getcloudrubbishnode(),
+    std::shared_ptr<Node> u = cu->drillchildnodebyname(cu->getcloudrubbishnode(),
                                        debrisFilePath("f"));
     ASSERT_TRUE(u);
 }
@@ -14189,7 +14193,7 @@ TEST_F(LocalToCloudFilterFixture, RenameToIgnoredRubbishesRemote)
     ASSERT_TRUE(confirm(*cu, id, remoteTree));
 
     // Verify that u was moved into the remote debris.
-    Node* u = cu->drillchildnodebyname(cu->getcloudrubbishnode(),
+    std::shared_ptr<Node> u = cu->drillchildnodebyname(cu->getcloudrubbishnode(),
                                        debrisFilePath("u"));
     ASSERT_TRUE(u);
 }
@@ -14320,10 +14324,10 @@ TEST_F(CloudToLocalFilterFixture, DoesntDownloadIgnoredNodes)
         remoteTree.generate(lRoot);
 
         // Create directories.
-        ASSERT_TRUE(cu->uploadFolderTree(lRoot, rRoot));
+        ASSERT_TRUE(cu->uploadFolderTree(lRoot, rRoot.get()));
 
         // Upload files.
-        ASSERT_TRUE(cu->uploadFilesInTree(lRoot, rRoot));
+        ASSERT_TRUE(cu->uploadFilesInTree(lRoot, rRoot.get()));
 
         // Make sure everything made it to the cloud.
         auto predicate = SyncRemoteMatch("x", remoteTree.root.get());
@@ -14607,10 +14611,10 @@ TEST_F(CloudToLocalFilterFixture, DoesntUploadIgnoredNodes)
         model.generate(lRoot);
 
         // Create directories.
-        ASSERT_TRUE(cu->uploadFolderTree(lRoot, rRoot));
+        ASSERT_TRUE(cu->uploadFolderTree(lRoot, rRoot.get()));
 
         // Upload files.
-        ASSERT_TRUE(cu->uploadFilesInTree(lRoot, rRoot));
+        ASSERT_TRUE(cu->uploadFilesInTree(lRoot, rRoot.get()));
 
         // Wait for everyone to agree on the state of the cloud.
         auto predicate = SyncRemoteMatch("x", model.root.get());
@@ -14670,10 +14674,10 @@ TEST_F(CloudToLocalFilterFixture, ExcludedIgnoreFile)
         model.generate(lRoot);
 
         // Create directories.
-        ASSERT_TRUE(cu->uploadFolderTree(lRoot, rRoot));
+        ASSERT_TRUE(cu->uploadFolderTree(lRoot, rRoot.get()));
 
         // Upload files
-        ASSERT_TRUE(cu->uploadFilesInTree(lRoot, rRoot));
+        ASSERT_TRUE(cu->uploadFilesInTree(lRoot, rRoot.get()));
 
         // Wait for the clients to agree on the cloud's state.
         auto predicate = SyncRemoteMatch("x", model.root.get());
@@ -14929,8 +14933,8 @@ TEST_F(CloudToLocalFilterFixture, FilterDeferredChange)
     model.generate(cuLocalRoot);
 
     // Upload tree.
-    ASSERT_TRUE(cu->uploadFolderTree(cuLocalRoot, cuCloudRoot));
-    ASSERT_TRUE(cu->uploadFilesInTree(cuLocalRoot, cuCloudRoot));
+    ASSERT_TRUE(cu->uploadFolderTree(cuLocalRoot, cuCloudRoot.get()));
+    ASSERT_TRUE(cu->uploadFilesInTree(cuLocalRoot, cuCloudRoot.get()));
 
     // Wait for cd to receive cu's changes.
     {
@@ -15021,8 +15025,8 @@ TEST_F(CloudToLocalFilterFixture, FilterMovedAcrossHierarchy)
         model.generate(lRoot);
 
         // Upload tree.
-        ASSERT_TRUE(cu->uploadFolderTree(lRoot, rRoot));
-        ASSERT_TRUE(cu->uploadFilesInTree(lRoot, rRoot));
+        ASSERT_TRUE(cu->uploadFolderTree(lRoot, rRoot.get()));
+        ASSERT_TRUE(cu->uploadFilesInTree(lRoot, rRoot.get()));
 
         // Make sure everything made it to the cloud.
         auto predicate = SyncRemoteMatch("x", model.root.get());
@@ -15104,8 +15108,8 @@ TEST_F(CloudToLocalFilterFixture, FilterMovedDownHierarchy)
         model.generate(lRoot);
 
         // Upload tree.
-        ASSERT_TRUE(cu->uploadFolderTree(lRoot, rRoot));
-        ASSERT_TRUE(cu->uploadFilesInTree(lRoot, rRoot));
+        ASSERT_TRUE(cu->uploadFolderTree(lRoot, rRoot.get()));
+        ASSERT_TRUE(cu->uploadFilesInTree(lRoot, rRoot.get()));
 
         // Make sure everything made it to the cloud.
         auto predicate = SyncRemoteMatch("x", model.root.get());
@@ -15202,8 +15206,8 @@ TEST_F(CloudToLocalFilterFixture, FilterMovedIntoExcluded)
         remoteTree = model;
 
         // Upload tree.
-        ASSERT_TRUE(cu->uploadFolderTree(lRoot, rRoot));
-        ASSERT_TRUE(cu->uploadFilesInTree(lRoot, rRoot));
+        ASSERT_TRUE(cu->uploadFolderTree(lRoot, rRoot.get()));
+        ASSERT_TRUE(cu->uploadFilesInTree(lRoot, rRoot.get()));
 
         // Make sure everything made it to the cloud.
         auto predicate = SyncRemoteMatch("x", model.root.get());
@@ -15269,8 +15273,8 @@ TEST_F(CloudToLocalFilterFixture, FilterMovedUpHierarchy)
         model.generate(lRoot);
 
         // Upload tree.
-        ASSERT_TRUE(cu->uploadFolderTree(lRoot, rRoot));
-        ASSERT_TRUE(cu->uploadFilesInTree(lRoot, rRoot));
+        ASSERT_TRUE(cu->uploadFolderTree(lRoot, rRoot.get()));
+        ASSERT_TRUE(cu->uploadFilesInTree(lRoot, rRoot.get()));
 
         // Make sure everything made it to the cloud.
         auto predicate = SyncRemoteMatch("x", model.root.get());
@@ -15459,8 +15463,8 @@ TEST_F(CloudToLocalFilterFixture, FilterRemoved)
         model.generate(lRoot);
 
         // Upload tree.
-        ASSERT_TRUE(cu->uploadFolderTree(lRoot, rRoot));
-        ASSERT_TRUE(cu->uploadFilesInTree(lRoot, rRoot));
+        ASSERT_TRUE(cu->uploadFolderTree(lRoot, rRoot.get()));
+        ASSERT_TRUE(cu->uploadFilesInTree(lRoot, rRoot.get()));
 
         // Make sure everything made it up to the cloud.
         auto predicate = SyncRemoteMatch("x", model.root.get());
@@ -15667,14 +15671,14 @@ TEST_F(CloudToLocalFilterFixture, OverwriteExcluded)
         ASSERT_TRUE(cd->waitFor(predicate, DEFAULTWAIT));
 
         // Get a fix on x/f.
-        auto* node = cd->drillchildnodebyname(cd->gettestbasenode(), "x/f");
+        auto node = cd->drillchildnodebyname(cd->gettestbasenode(), "x/f");
         ASSERT_TRUE(node);
 
         // Move x/d/f to x.
         ASSERT_TRUE(cd->movenode("x/d/f", "x"));
 
         // Remove original x/f.
-        ASSERT_TRUE(cd->deleteremote(node));
+        ASSERT_TRUE(cd->deleteremote(node.get()));
 
         // Update models.
         localFS.removenode("d/f");
@@ -16266,7 +16270,7 @@ TEST_F(SyncTest, MaximumTreeDepthBehavior)
     ASSERT_TRUE(client->resetBaseFolderMulticlient());
 
     // Get our hands on the cloud root.
-    auto* root = client->gettestbasenode();
+    auto root = client->gettestbasenode();
     ASSERT_NE(root, nullptr);
 
     // Create a deep hierarchy in the cloud.
@@ -16604,10 +16608,10 @@ TEST_F(SyncTest, ExistingCloudMoveTargetMovedToDebrisWhenSynced)
     // Rename fx -> fy.
     {
         // Get our hands on the original fy.
-        auto* root = c->gettestbasenode();
+        auto root = c->gettestbasenode();
         ASSERT_NE(root, nullptr);
 
-        auto* fy = c->drillchildnodebyname(root, "s/fy");
+        auto fy = c->drillchildnodebyname(root, "s/fy");
         ASSERT_NE(fy, nullptr);
 
         // Rename fx -> fy.
@@ -16620,7 +16624,7 @@ TEST_F(SyncTest, ExistingCloudMoveTargetMovedToDebrisWhenSynced)
 
         // Remove original fy.
         c->received_node_actionpackets = false;
-        ASSERT_TRUE(c->deleteremote(fy));
+        ASSERT_TRUE(c->deleteremote(fy.get()));
         ASSERT_TRUE(c->waitForNodesUpdated(16));
     }
 
@@ -16746,10 +16750,10 @@ TEST_F(SyncTest, StallsWhenExistingCloudMoveTargetUnsynced)
     // Remotely rename fx -> fy.
     {
         // Get our hands on the original fy.
-        auto* root = c->gettestbasenode();
+        auto root = c->gettestbasenode();
         ASSERT_NE(root, nullptr);
 
-        auto* fy = c->drillchildnodebyname(root, "s/fy");
+        auto fy = c->drillchildnodebyname(root, "s/fy");
         ASSERT_NE(fy, nullptr);
 
         // Rename fx -> fy.
@@ -16759,7 +16763,7 @@ TEST_F(SyncTest, StallsWhenExistingCloudMoveTargetUnsynced)
 
         // Remove original fy.
         c->received_node_actionpackets = false;
-        ASSERT_TRUE(c->deleteremote(fy));
+        ASSERT_TRUE(c->deleteremote(fy.get()));
         ASSERT_TRUE(c->waitForNodesUpdated(16));
     }
 

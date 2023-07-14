@@ -55,7 +55,10 @@ void TreeProcForeignKeys::proc(MegaClient* client, Node* n)
 void TreeProcDel::proc(MegaClient* client, Node* n)
 {
     n->changed.removed = true;
-    client->mNodeManager.notifyNode(n);
+    // TODO cache LRU receive shared_ptr direclty as argument
+    std::shared_ptr<Node> node = n->mNodePosition->second.getNodeInRam();
+    assert(n == node.get());
+    client->mNodeManager.notifyNode(node);
     handle userHandle = ISUNDEF(mOriginatingUser) ? n->owner : mOriginatingUser;
 
     if (userHandle != client->me)
@@ -77,7 +80,11 @@ void TreeProcApplyKey::proc(MegaClient *client, Node *n)
         if (!n->attrstring)
         {
             n->changed.attrs = true;
-            client->mNodeManager.notifyNode(n);
+            // TODO cache LRU receive shared_ptr direclty as argument
+            std::shared_ptr<Node> node = n->mNodePosition->second.getNodeInRam();
+            assert(node);
+            assert(n == node.get());
+            client->mNodeManager.notifyNode(node);
         }
     }
 }

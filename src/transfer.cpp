@@ -654,7 +654,7 @@ void Transfer::complete(TransferDbCommitter& committer)
         // verify integrity of file
         auto fa = client->fsaccess->newfileaccess();
         FileFingerprint fingerprint;
-        Node* n = nullptr;
+        std::shared_ptr<Node> n;
         bool fixfingerprint = false;
         bool fixedfingerprint = false;
         bool syncxfer = false;
@@ -667,7 +667,7 @@ void Transfer::complete(TransferDbCommitter& committer)
             }
 
             if (!fixedfingerprint && (n = client->nodeByHandle((*it)->h))
-                 && !(*(FileFingerprint*)this == *(FileFingerprint*)n))
+                 && !(*(FileFingerprint*)this == *(FileFingerprint*)n.get()))
             {
                 LOG_debug << "Wrong fingerprint already fixed";
                 fixedfingerprint = true;
@@ -740,15 +740,15 @@ void Transfer::complete(TransferDbCommitter& committer)
                         nodes.insert(n->nodehandle);
 
                         if ((!n->isvalid || fixfingerprint)
-                                && !(fingerprint == *(FileFingerprint*)n)
+                                && !(fingerprint == *(FileFingerprint*)n.get())
                                 && fingerprint.size == this->size)
                         {
                             LOG_debug << "Fixing fingerprint";
-                            *(FileFingerprint*)n = fingerprint;
+                            *(FileFingerprint*)n.get() = fingerprint;
 
                             attr_map attrUpdate;
                             n->serializefingerprint(&attrUpdate['c']);
-                            client->setattr(n, std::move(attrUpdate), nullptr, false);
+                            client->setattr(n.get(), std::move(attrUpdate), nullptr, false);
                         }
                     }
                 }
@@ -808,7 +808,7 @@ void Transfer::complete(TransferDbCommitter& committer)
                         auto localname = (*it)->getLocalname();
                         if (!client->gfxdisabled && client->gfx && client->gfx->isgfx(localname) &&
                             keys.find(n->nodekey()) == keys.end() &&    // this file hasn't been processed yet
-                            client->checkaccess(n, OWNER))
+                            client->checkaccess(n.get(), OWNER))
                         {
                             keys.insert(n->nodekey());
 
@@ -825,7 +825,7 @@ void Transfer::complete(TransferDbCommitter& committer)
                                     client->gfx->gendimensionsputfa(NULL, localname, NodeOrUploadHandle(n->nodeHandle()), n->nodecipher(), missingattr);
                                 }
 
-                                addAnyMissingMediaFileAttributes(n, localname);
+                                addAnyMissingMediaFileAttributes(n.get(), localname);
                             }
                         }
                     }

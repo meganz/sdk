@@ -1170,10 +1170,10 @@ public:
     m_off_t getmaxuploadspeed();
 
     // get the handle of the older version for a NewNode
-    Node* getovnode(Node *parent, string *name);
+    std::shared_ptr<Node> getovnode(Node *parent, string *name);
 
     // Load from db node children at first level
-    node_list getChildren(const Node *parent, CancelToken cancelToken = CancelToken());
+    sharedNode_list getChildren(const Node *parent, CancelToken cancelToken = CancelToken());
 
     // Get number of children from a node
     size_t getNumberOfChildren(NodeHandle parentHandle);
@@ -1415,7 +1415,7 @@ public:
     bool sc_checkActionPacket(Node* lastAPDeletedNode);
 
     void sc_updatenode();
-    Node* sc_deltree();
+    std::shared_ptr<Node> sc_deltree();
     handle sc_newnodes(Node* priorActionpacketDeletedNode, bool& firstHandleMismatchedDelete);
     void sc_contacts();
     void sc_keys();
@@ -1454,10 +1454,10 @@ public:
     void removeCaches();
 
     // add node to vector and return index
-    unsigned addnode(node_vector*, Node*) const;
+    unsigned addnode(sharedNode_vector* v, std::shared_ptr<Node> n) const;
 
     // crypto request response
-    void cr_response(node_vector*, node_vector*, JSON*);
+    void cr_response(sharedNode_vector*, sharedNode_vector*, JSON*);
 
     // read node tree from JSON object
     void readtree(JSON*, Node* priorActionpacketDeletedNode, bool& firstHandleMatchedDelete);
@@ -1681,13 +1681,13 @@ public:
     void mergenewshare(NewShare *s, bool notify, bool skipWriteInDb);    // merge only the given share
 
     // return the list of incoming shared folder (only top level, nested inshares are skipped)
-    node_vector getInShares();
+    sharedNode_vector getInShares();
 
     // return the list of verified incoming shared folders (only top level, nested inshares are skipped)
-    node_vector getVerifiedInShares();
+    sharedNode_vector getVerifiedInShares();
 
     // return the list of unverified incoming shared folders (only top level, nested inshares are skipped)
-    node_vector getUnverifiedInShares();
+    sharedNode_vector getUnverifiedInShares();
 
     // transfer queues (PUT/GET)
     transfer_multimap multi_transfers[2];
@@ -1787,14 +1787,13 @@ public:
     void notifypurge();
 
     // If it's necessary, load nodes from data base
-    Node* nodeByHandle(NodeHandle);
-    Node* nodebyhandle(handle);
+    shared_ptr<Node> nodeByHandle(NodeHandle);
+    shared_ptr<Node> nodebyhandle(handle);
 
-    Node* nodeByPath(const char* path, Node* node = nullptr, nodetype_t type = TYPE_UNKNOWN);
+    shared_ptr<Node> nodeByPath(const char* path, Node* node = nullptr, nodetype_t type = TYPE_UNKNOWN);
 
-    Node* nodebyfingerprint(FileFingerprint*);
-#ifdef ENABLE_SYNC
-    Node* nodebyfingerprint(LocalNode*);
+#if ENABLE_SYNC
+    std::shared_ptr<Node> nodebyfingerprint(LocalNode*);
 #endif /* ENABLE_SYNC */
 
     // get a vector of recent actions in the account
@@ -1844,7 +1843,7 @@ public:
     // move queued nodes to SyncDebris (for syncing into the user's own cloud drive)
     void execmovetosyncdebris(Node* n, std::function<void(NodeHandle, Error)>&& completion, bool canChangeVault);
 
-    Node* getOrCreateSyncdebrisFolder();
+    std::shared_ptr<Node> getOrCreateSyncdebrisFolder();
     struct pendingDebrisRecord {
         NodeHandle nodeHandle;
         std::function<void(NodeHandle, Error)> completion;
@@ -1916,10 +1915,10 @@ public:
     void warn(const char*);
     bool warnlevel();
 
-    Node *childnodebyname(const Node *parent, const char* name, bool skipFolders = false);
-    node_vector childnodesbyname(Node* parent, const char* name, bool skipFolders = false);
-    Node* childnodebynametype(Node* parent, const char* name, nodetype_t mustBeType);
-    Node* childnodebyattribute(Node* parent, nameid attrId, const char* attrValue);
+    std::shared_ptr<Node> childnodebyname(const Node *parent, const char* name, bool skipFolders = false);
+    sharedNode_vector childnodesbyname(Node* parent, const char* name, bool skipFolders = false);
+    std::shared_ptr<Node> childnodebynametype(Node* parent, const char* name, nodetype_t mustBeType);
+    std::shared_ptr<Node> childnodebyattribute(Node* parent, nameid attrId, const char* attrValue);
 
     static void honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs);
 
@@ -2055,7 +2054,7 @@ public:
     bool isValidFolderLink();
 
     //returns the top-level node for a node
-    Node *getrootnode(Node*);
+    shared_ptr<Node> getrootnode(Node*);
 
     //returns true if the node referenced by the handle belongs to the logged-in account
     bool isPrivateNode(NodeHandle h);

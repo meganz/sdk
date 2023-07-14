@@ -2176,6 +2176,7 @@ class MegaNodeListPrivate : public MegaNodeList
         MegaNodeListPrivate(node_vector& v);
         MegaNodeListPrivate(Node** newlist, int size);
         MegaNodeListPrivate(const MegaNodeListPrivate *nodeList, bool copyChildren = false);
+        MegaNodeListPrivate(sharedNode_vector& v);
         virtual ~MegaNodeListPrivate();
         MegaNodeList *copy() const override;
         MegaNode* get(int i) const override;
@@ -2409,7 +2410,7 @@ struct MegaFilePut : public MegaFile
 {
     void completed(Transfer* t, putsource_t source) override;
     void terminated(error e) override;
-    MegaFilePut(MegaClient *client, LocalPath clocalname, string *filename, NodeHandle ch, const char* ctargetuser, int64_t mtime = -1, bool isSourceTemporary = false, Node *pvNode = nullptr);
+    MegaFilePut(MegaClient *client, LocalPath clocalname, string *filename, NodeHandle ch, const char* ctargetuser, int64_t mtime = -1, bool isSourceTemporary = false, std::shared_ptr<Node> pvNode = nullptr);
     ~MegaFilePut() {}
 
     bool serialize(string*) const override;
@@ -3126,6 +3127,7 @@ class MegaApiImpl : public MegaApp
         void resetTotalUploads();
         void updateStats();
         long long getNumNodes();
+        void setLRUCacheSize(long long size);
         long long getTotalDownloadedBytes();
         long long getTotalUploadedBytes();
         long long getTotalDownloadBytes();
@@ -3274,6 +3276,7 @@ class MegaApiImpl : public MegaApp
         void resumeActionPackets();
 
         static std::function<bool (Node*, Node*)>getComparatorFunction(int order, MegaClient& mc);
+        static void sortByComparatorFunction(sharedNode_vector&v, int order, MegaClient& mc);
         static void sortByComparatorFunction(node_vector&, int order, MegaClient& mc);
         static bool nodeNaturalComparatorASC(Node *i, Node *j);
         static bool nodeNaturalComparatorDESC(Node *i, Node *j);
@@ -3551,7 +3554,7 @@ private:
         void processTransferRemoved(Transfer *tr, MegaTransferPrivate *transfer, const Error &e);
 
         // if seachString == "" type must not be default
-        node_vector searchInNodeManager(MegaHandle nodeHandle, const char* searchString, int mimeType, bool recursive, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelToken);
+        sharedNode_vector searchInNodeManager(MegaHandle nodeHandle, const char* searchString, int mimeType, bool recursive, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelToken);
 
         bool isValidTypeNode(Node *node, int type);
 
@@ -3941,8 +3944,8 @@ private:
         void updateBackups();
 
         //Internal
-        Node* getNodeByFingerprintInternal(const char *fingerprint);
-        Node *getNodeByFingerprintInternal(const char *fingerprint, Node *parent);
+        std::shared_ptr<Node> getNodeByFingerprintInternal(const char *fingerprint);
+        std::shared_ptr<Node> getNodeByFingerprintInternal(const char *fingerprint, Node *parent);
 
         void getNodeAttribute(MegaNode* node, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
         void cancelGetNodeAttribute(MegaNode *node, int type, MegaRequestListener *listener = NULL);

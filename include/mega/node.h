@@ -133,10 +133,20 @@ typedef fingerprint_set::iterator FingerprintPosition;
 class NodeManagerNode
 {
 public:
+    NodeManagerNode(NodeManager& nodeManager, NodeHandle nodeHandle);
     // Instances of this class cannot be copied
-    std::unique_ptr<Node> mNode;
-    std::unique_ptr<std::map<NodeHandle, Node*>> mChildren;
+    std::unique_ptr<std::map<NodeHandle, NodeManagerNode*>> mChildren;
     bool mAllChildrenHandleLoaded = false;
+    void setNode(shared_ptr<Node> node);
+    shared_ptr<Node> getNodeInRam(bool updatePositionAtLRU = true);
+    NodeHandle getNodeHandle() const;
+
+    std::list<std::shared_ptr<Node> >::iterator mLRUPosition;
+
+private:
+    NodeHandle mNodeHandle;
+    NodeManager& mNodeManager;
+    weak_ptr<Node> mNode;
 };
 typedef std::map<NodeHandle, NodeManagerNode>::iterator NodePosition;
 
@@ -199,7 +209,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     bool keyApplied() const;
 
     // change parent node association. updateNodeCounters is false when called from NodeManager::unserializeNode
-    bool setparent(Node*, bool updateNodeCounters = true);
+    bool setparent(std::shared_ptr<Node> , bool updateNodeCounters = true);
 
     // follow the parent links all the way to the top
     const Node* firstancestor() const;
@@ -339,8 +349,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     void setCounter(const NodeCounter &counter);  // to only be called by mNodeManger::setNodeCounter
 
     // parent
-    // nullptr if is root node or top node of an inshare
-    Node* parent = nullptr;
+    shared_ptr<Node> parent;
 
     // own position in NodeManager::mFingerPrints (only valid for file nodes)
     // It's used for speeding up node removing at NodeManager::removeFingerprint
@@ -349,7 +358,6 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // previously Node exists
     // It's used for speeding up get children when Node parent is known
     NodePosition mNodePosition;
-
 
     // check if node is below this node
     bool isbelow(Node*) const;
@@ -361,7 +369,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     void setpubliclink(handle, m_time_t, m_time_t, bool, const string &authKey = {});
 
     bool serialize(string*) const override;
-    static Node* unserialize(MegaClient& client, const string*, bool fromOldCache, std::list<std::unique_ptr<NewShare>>& ownNewshares);
+    static std::shared_ptr<Node> unserialize(MegaClient& client, const string*, bool fromOldCache, std::list<std::unique_ptr<NewShare>>& ownNewshares);
 
     Node(MegaClient&, NodeHandle, NodeHandle, nodetype_t, m_off_t, handle, const char*, m_time_t);
     ~Node();

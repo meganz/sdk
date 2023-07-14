@@ -83,7 +83,7 @@ void ShareNodeKeys::add(const string& nodekey, handle nodehandle, Node* sn, bool
             keys.append(buf, ptr - buf);
             addnode = 1;
         }
-    } while (includeParentChain && (sn = sn->parent));
+    } while (includeParentChain && (sn = sn->parent.get()));
 
     if (addnode)
     {

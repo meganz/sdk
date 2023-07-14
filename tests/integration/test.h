@@ -203,7 +203,7 @@ public:
 
     CloudItem(handle nodeHandle);
 
-    Node* resolve(StandardClient& client) const;
+    std::shared_ptr<Node> resolve(StandardClient& client) const;
 
 private:
     NodeHandle mNodeHandle;
@@ -576,12 +576,12 @@ struct StandardClient : public MegaApp
     bool syncSet(handle backupId, SyncInfo& info) const;
     SyncInfo syncSet(handle backupId);
     SyncInfo syncSet(handle backupId) const;
-    Node* getcloudrootnode();
-    Node* gettestbasenode();
-    Node* getcloudrubbishnode();
-    Node* getsyncdebrisnode();
-    Node* drillchildnodebyname(Node* n, const string& path);
-    vector<Node*> drillchildnodesbyname(Node* n, const string& path);
+    std::shared_ptr<Node> getcloudrootnode();
+    std::shared_ptr<Node> gettestbasenode();
+    std::shared_ptr<Node> getcloudrubbishnode();
+    std::shared_ptr<Node> getsyncdebrisnode();
+    std::shared_ptr<Node> drillchildnodebyname(std::shared_ptr<Node> n, const string& path);
+    vector<std::shared_ptr<Node>> drillchildnodesbyname(Node* n, const string& path);
 
     // setupBackup is implicitly in Vault
     handle setupBackup_mainthread(const string& rootPath);
@@ -708,7 +708,7 @@ struct StandardClient : public MegaApp
 
     bool deleteremotedebris();
     void deleteremotedebris(PromiseBoolSP result);
-    void deleteremotenodes(vector<Node*> ns, PromiseBoolSP pb);
+    void deleteremotenodes(vector<std::shared_ptr<Node> > ns, PromiseBoolSP pb);
 
     bool movenode(const CloudItem& source,
                   const CloudItem& target,

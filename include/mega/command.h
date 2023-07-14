@@ -486,7 +486,7 @@ class MEGA_API CommandKeyCR : public Command
 {
     bool procresult(Result, JSON&) override { return true; }
 public:
-    CommandKeyCR(MegaClient*, node_vector*, node_vector*, const char*);
+    CommandKeyCR(MegaClient*, sharedNode_vector*, sharedNode_vector*, const char*);
 };
 
 class MEGA_API CommandMoveNode : public Command
@@ -680,6 +680,9 @@ public:
 
 private:
     NodeHandle h;
+    // TODO LRU cache review if it's possible implemente without add shared_ptr<Node> here
+    // It's defined here to avoid node will be destroyed and Node::mPendingChanges will be missed
+    std::shared_ptr<Node> mNode;
     attr_map mAttrMapUpdates;
     error generationError;
     bool mCanChangeVault;

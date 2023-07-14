@@ -356,7 +356,7 @@ void File::sendPutnodesOfUpload(MegaClient* client, UploadHandle fileAttrMatchHa
     newnode->parenthandle = UNDEF;
 
     AttrMap attrs;
-    MegaClient::honorPreviousVersionAttrs(previousNode, attrs);
+    MegaClient::honorPreviousVersionAttrs(previousNode.get(), attrs);
 
     // store filename
     attrs.map['n'] = name;
@@ -394,7 +394,8 @@ void File::sendPutnodesOfUpload(MegaClient* client, UploadHandle fileAttrMatchHa
             // for manual upload, let the API apply the `ov` according to the global versions_disabled flag.
             // with versions on, the API will make the ov the first version of this new node
             // with versions off, the API will permanently delete `ov`, replacing it with this (and attaching the ov's old versions)
-            if (Node* ovNode = client->getovnode(client->nodeByHandle(th), &name))
+            std::shared_ptr<Node> n = client->nodeByHandle(th);
+            if (std::shared_ptr<Node> ovNode = client->getovnode(n.get(), &name))
             {
                 newnode->ovhandle = ovNode->nodeHandle();
             }
@@ -501,7 +502,7 @@ void File::displayname(string* dname)
     }
     else
     {
-        Node* n;
+        shared_ptr<Node> n;
 
         if ((n = transfer->client->nodeByHandle(h)))
         {
@@ -792,8 +793,8 @@ bool SyncDownload_inClient::failed(error e, MegaClient* mc)
     if (e == API_EBLOCKED)
     {
         // Still exists in the cloud?
-        if (auto* n = mc->nodeByHandle(h))
-            mc->movetosyncdebris(n, fromInsycShare, nullptr, syncThreadSafeState->mCanChangeVault);
+        if (auto n = mc->nodeByHandle(h))
+            mc->movetosyncdebris(n.get(), fromInsycShare, nullptr, syncThreadSafeState->mCanChangeVault);
     }
 
     return false;
