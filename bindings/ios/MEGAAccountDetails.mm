@@ -94,7 +94,7 @@ using namespace mega;
 }
 
 - (NSString *)subscriptionMethod {
-    const char *val = self.accountDetails->getSubscriptionMethod();
+    const char *val = self.accountDetails ? self.accountDetails->getSubscriptionMethod() : nil;
     if (!val) return nil;
     
     NSString *ret = [[NSString alloc] initWithUTF8String:val];

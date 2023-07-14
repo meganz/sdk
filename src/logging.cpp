@@ -141,6 +141,11 @@ void ExternalLogger::log(const char *time, int loglevel, const char *source, con
             , directMessages, directMessagesSizes, numberMessages
 #endif
         );
+
+        if (useOnlyFirstMegaLogger)
+        {
+            break;
+        }
     }
 
     if (logToConsole)

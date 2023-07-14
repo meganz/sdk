@@ -24,7 +24,11 @@
 
 #include <mutex>
 
+#ifdef USE_IOS
+#include "mega/posix/megawaiter.h"
+#else
 #include "megawaiter.h"
+#endif
 #include "mega/thread/posixthread.h"
 #include "mega/thread/cppthread.h"
 

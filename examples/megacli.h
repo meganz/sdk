@@ -67,7 +67,7 @@ struct AppFileGet : public AppFile
         return File::failed(e, c);
     }
 
-    AppFileGet(Node*, NodeHandle = NodeHandle(), byte* = NULL, m_off_t = -1, m_time_t = 0, string* = NULL, string* = NULL, const string& targetfolder = "");
+    AppFileGet(Node*, NodeHandle = NodeHandle(), const byte* = NULL, m_off_t = -1, m_time_t = 0, const string* = NULL, const string* = NULL, const string& targetfolder = "");
     ~AppFileGet();
 };
 
@@ -140,6 +140,7 @@ struct DemoApp : public MegaApp
     void nodes_current() override;
     void account_updated() override;
     void notify_confirmation(const char *email) override;
+    void notify_confirm_user_email(handle user, const char *email) override;
     void sets_updated(Set**, int) override;
     void setelements_updated(SetElement**, int) override;
 
@@ -404,6 +405,8 @@ void exec_banner(autocomplete::ACState& s);
 void exec_drivemonitor(autocomplete::ACState& s);
 void exec_driveid(autocomplete::ACState& s);
 void exec_randomfile(autocomplete::ACState& s);
+void exec_getABTestValue(autocomplete::ACState& s);
+void exec_sendABTestActive(autocomplete::ACState& s);
 
 #ifdef ENABLE_SYNC
 

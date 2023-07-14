@@ -1,6 +1,6 @@
 #!/bin/sh
 
-UV_VERSION="1.42.0"
+UV_VERSION="1.45.0"
 SDKVERSION=`xcrun -sdk iphoneos --show-sdk-version`
 
 ##############################################
@@ -73,44 +73,43 @@ export BUILD_SDKROOT="${BUILD_DEVROOT}/SDKs/${PLATFORM}${SDKVERSION}.sdk"
 RUNTARGET=""
 if [[ "${ARCH}" == "arm64"  && "$PLATFORM" == "iPhoneSimulator" ]];
 then
-RUNTARGET="-target ${ARCH}-apple-ios13.0-simulator"
+RUNTARGET="-target ${ARCH}-apple-ios14.0-simulator"
 fi
 
 export CC="${BUILD_TOOLS}/usr/bin/gcc -arch ${ARCH}"
-mkdir -p "${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk"
+mkdir -p "${CURRENTPATH}/bin/libuv/${PLATFORM}${SDKVERSION}-${ARCH}.sdk"
 
 # Build
-export LDFLAGS="-Os -arch ${ARCH} -Wl,-dead_strip -miphoneos-version-min=13.0"
-export CFLAGS="-Os -arch ${ARCH} -pipe -no-cpp-precomp -isysroot ${BUILD_SDKROOT} -miphoneos-version-min=13.0 ${RUNTARGET}"
+export LDFLAGS="-Os -arch ${ARCH} -Wl,-dead_strip -miphoneos-version-min=14.0"
+export CFLAGS="-Os -arch ${ARCH} -pipe -no-cpp-precomp -isysroot ${BUILD_SDKROOT} -miphoneos-version-min=14.0 ${RUNTARGET}"
 export CPPFLAGS="${CFLAGS} -DNDEBUG"
 export CXXFLAGS="${CPPFLAGS}"
 
 sh autogen.sh
 
 if [ "${ARCH}" == "arm64" ]; then
-./configure --host=arm-apple-darwin --enable-static --disable-shared
+./configure --prefix="${CURRENTPATH}/bin/libuv/${PLATFORM}${SDKVERSION}-${ARCH}.sdk" --host=arm-apple-darwin --enable-static --disable-shared
 else
-./configure --host=${ARCH}-apple-darwin --enable-static --disable-shared
+./configure --prefix="${CURRENTPATH}/bin/libuv/${PLATFORM}${SDKVERSION}-${ARCH}.sdk" --host=${ARCH}-apple-darwin --enable-static --disable-shared
 fi
 
 make -j${CORES}
-cp -f .libs/libuv.a ${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk/
-#make clean
+make install
+make clean
 
 popd
 
 done
 
+mkdir xcframework || true
 
-mkdir lib || true
-lipo -create ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-x86_64.sdk/libuv.a ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-arm64.sdk/libuv.a -output ${CURRENTPATH}/bin/libuv.a
+echo "${bold}Lipo library for x86_64 and arm64 simulators ${normal}"
+
+lipo -create ${CURRENTPATH}/bin/libuv/iPhoneSimulator${SDKVERSION}-x86_64.sdk/lib/libuv.a ${CURRENTPATH}/bin/libuv/iPhoneSimulator${SDKVERSION}-arm64.sdk/lib/libuv.a -output ${CURRENTPATH}/bin/libuv/libuv.a
 
 echo "${bold}Creating xcframework ${normal}"
 
-xcodebuild -create-xcframework -library ${CURRENTPATH}/bin/libuv.a -library ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-arm64.sdk/libuv.a -output ${CURRENTPATH}/xcframework/libuv.xcframework
-
-mkdir -p include || true
-cp -f -R libuv-v${UV_VERSION}/include/ include/
+xcodebuild -create-xcframework -library ${CURRENTPATH}/bin/libuv/libuv.a -headers ${CURRENTPATH}/bin/libuv/iPhoneSimulator${SDKVERSION}-arm64.sdk/include -library ${CURRENTPATH}/bin/libuv/iPhoneOS${SDKVERSION}-arm64.sdk/lib/libuv.a -headers ${CURRENTPATH}/bin/libuv/iPhoneOS${SDKVERSION}-arm64.sdk/include -output ${CURRENTPATH}/xcframework/libuv.xcframework
 
 echo "${bold}Cleaning up ${normal}"
 rm -rf bin
@@ -118,4 +117,4 @@ rm -rf libuv-v${UV_VERSION}
 rm -rf libuv-v${UV_VERSION}.tar.gz
 
 
-echo "Done."
+echo "${bold}Done.${normal}"

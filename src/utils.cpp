@@ -37,7 +37,9 @@
 #include <sys/sysctl.h>
 #endif
 
-#ifndef WIN32
+#ifdef WIN32
+#include <direct.h>
+#else
 #include <sys/time.h>
 #include <sys/resource.h>
 #endif // ! WIN32
@@ -1880,6 +1882,133 @@ std::string Utils::replace(const std::string& str, const std::string& search, co
     return r;
 }
 
+bool Utils::hasenv(const std::string &key)
+{
+    bool r = false;
+    getenv(key, &r);
+    return r;
+}
+
+std::string Utils::getenv(const std::string& key, const std::string& def) 
+{
+    bool found = false;
+    string r = getenv(key, &found);
+    if (!found) return def;
+    return r;
+}
+
+std::string Utils::getenv(const std::string& key, bool* out_found)\
+{
+    // sets *out_found to if found
+#ifdef WIN32
+    // on Windows the charset is not UTF-8 by default
+    WCHAR buf[32 * 1024];
+    wstring keyW;
+    LocalPath::path2local(&key, &keyW);
+    DWORD size = GetEnvironmentVariable(keyW.c_str(), buf, sizeof(buf) / sizeof(buf[0]));
+    if (size == 0)
+    {
+        if (out_found) *out_found = false;
+        return "";
+    }
+    else 
+    {
+        if (out_found) *out_found = true;
+
+        string ret;
+        wstring input(buf, size);
+        LocalPath::local2path(&input, &ret, false);
+        return ret;
+    }
+#else
+    const char* value = ::getenv(key.c_str());
+    if (out_found)
+    {
+        *out_found = value != nullptr;
+    }
+    if (value)
+    {
+        return value;
+    }
+    return "";
+#endif
+}
+
+void Utils::setenv(const std::string& key, const std::string& value)
+{
+#ifdef WIN32
+    std::wstring keyW;
+    LocalPath::path2local(&key, &keyW);
+
+    std::wstring valueW;
+    LocalPath::path2local(&value, &valueW);
+
+    // on Windows the charset is not UTF-8 by default
+    SetEnvironmentVariable(keyW.c_str(), valueW.c_str());
+
+    // ::getenv() reads the process environment not calling the operating system
+    _putenv_s(key.c_str(), value.c_str());
+#else
+    ::setenv(key.c_str(), value.c_str(), true);
+#endif
+}
+
+void Utils::unsetenv(const std::string& key)
+{
+#ifdef WIN32
+    std::wstring keyW;
+    LocalPath::path2local(&key, &keyW);
+
+    SetEnvironmentVariable(keyW.c_str(), L"");
+    // ::getenv() reads the process environment not calling the operating system
+    _putenv_s(key.c_str(), ""); // removes the env var
+#else
+    ::unsetenv(key.c_str());
+#endif
+}
+
+std::string Utils::join(const std::vector<std::string>& items, const std::string& with)
+{
+    string r;
+    bool first = true;
+    for (const string& str : items)
+    {
+        if (!first) r.append(with);
+        r.append(str);
+        first = false;
+    }
+    return r;
+}
+
+bool Utils::startswith(const std::string& str, const std::string& start)
+{
+    if (str.length() < start.length()) return false;
+    return memcmp(str.data(), start.data(), start.length()) == 0;
+}
+
+bool Utils::startswith(const std::string &str, char chr)
+{
+    return str.length() >= 1 && chr == str.front();
+}
+
+bool Utils::endswith(const std::string &str, char chr)
+{
+    return str.length() >= 1 && chr == str.back();
+}
+
+const std::string Utils::_trimDefaultChars(" \t\r\n\0", 5);
+// space, \t, \0, \r, \n
+
+// return string with trimchrs removed from front and back of given string str
+string Utils::trim(const string& str, const string& trimchrs)
+{
+    string::size_type s = str.find_first_not_of(trimchrs);
+    if (s == string::npos) return "";
+    string::size_type e = str.find_last_not_of(trimchrs);
+    if (e == string::npos) return "";	// impossible
+    return str.substr(s, e - s + 1);
+}
+
 long long abs(long long n)
 {
     // for pre-c++11 where this version is not defined yet
@@ -2907,6 +3036,10 @@ bool platformSetRLimitNumFile(int newNumFileLimit)
             LOG_err << "Error calling setrlimit: " << e;
             return false;
         }
+        else 
+        {
+            LOG_info << "rlimit for NOFILE is: " << rl.rlim_cur;
+        }
     }
     return true;
 #else
@@ -3002,7 +3135,7 @@ std::string winErrorMessage(DWORD error)
     if (error == 0xFFFFFFFF)
         error = GetLastError();
 
-    LPWSTR lpMsgBuf;
+    LPWSTR lpMsgBuf = nullptr;
     if (!FormatMessage(
         FORMAT_MESSAGE_ALLOCATE_BUFFER |
         FORMAT_MESSAGE_FROM_SYSTEM |
@@ -3020,17 +3153,36 @@ std::string winErrorMessage(DWORD error)
 
     std::wstring wstr(lpMsgBuf);
     // Free the buffer.
+
     LocalFree(lpMsgBuf);
 
     std::string r;
     LocalPath::local2path(&wstr, &r, false);
 
-    // remove tailing \r\n
-    if (r.length() >= 2 && r[r.length() - 2] == '\r' && r[r.length() - 1] == '\n')
-        r.erase(r.length() - 2);
-
-    return r;
+    // remove trailing \r\n
+    return Utils::trim(r);
 }
+
+void reportWindowsError(const std::string& message, DWORD error) {
+
+    if (error == 0xFFFFFFFF)
+        error = GetLastError();
+    // in case streaming touches the operating system
+
+    LOG_err << message << ": " << error << ": " << winErrorMessage(error);
+}
+
+#else
+
+void reportError(const std::string& message, int aerrno) {
+
+    if (aerrno == -1)
+        aerrno = errno;
+    // in case streaming touches the operating system
+
+    LOG_err << message << ": " << aerrno << ": " << strerror(aerrno);
+}
+
 #endif
 
 string connDirectionToStr(mega::direction_t directionType)

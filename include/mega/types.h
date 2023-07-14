@@ -636,7 +636,7 @@ typedef map<int, GenericHttpReq*> pendinghttp_map;
 typedef map<NodeHandle, unique_ptr<Node>> node_map;
 
 // maps node handles to Share pointers
-typedef map<handle, struct Share*> share_map;
+typedef map<handle, unique_ptr<struct Share>> share_map;
 
 // maps node handles NewShare pointers
 typedef list<struct NewShare*> newshare_list;
