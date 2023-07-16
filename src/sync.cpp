@@ -3013,10 +3013,10 @@ bool Sync::checkCloudPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
 
         monitor.waitingCloud(fullPath.cloudPath, SyncStallEntry(
             SyncWaitReason::MoveOrRenameCannotOccur, false, true,
-            {sourceSyncNodeOriginal->syncedCloudNodeHandle, sourceSyncNodeOriginal->getCloudPath(true)},
-            {NodeHandle(), fullPath.cloudPath},
-            {sourceSyncNodeOriginal->getLocalPath()},
-            {fullPath.localPath, PathProblem::WaitingForScanningToComplete}));
+            {NodeHandle(), string(), PathProblem::IgnoreRulesUnknown},
+            {row.cloudNode->handle, fullPath.cloudPath},
+            {LocalPath(), PathProblem::IgnoreRulesUnknown},
+            {fullPath.localPath}));
 
         rowResult = false;
         return true;
