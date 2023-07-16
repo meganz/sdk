@@ -9529,7 +9529,7 @@ bool WaitForRemoteMatch(map<string, TwoWaySyncSymmetryCase>& testcases,
     return true;
 }
 
-void runTwoWayHighlevelSymmetriesTest(TwoWaySyncSymmetryCase::SyncType syncType, bool selfChange, bool up)
+TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot();
@@ -9557,43 +9557,57 @@ void runTwoWayHighlevelSymmetriesTest(TwoWaySyncSymmetryCase::SyncType syncType,
     static set<string> tests = {
     }; // tests
 
-
-    for (int action = 0; action < (int)TwoWaySyncSymmetryCase::action_numactions; ++action)
+    for (int syncType = TwoWaySyncSymmetryCase::type_numTypes; syncType--; )
     {
-        //if (action != TwoWaySyncSymmetryCase::action_rename) continue;
+        //if (syncType != TwoWaySyncSymmetryCase::type_backupSync) continue;
 
-        for (int file = 0; file < 2; ++file)
+        for (int selfChange = 0; selfChange < 2; ++selfChange)
         {
-            //if (!file) continue;
+            //if (!selfChange) continue;
 
-            for (int isExternal = 0; isExternal < 2; ++isExternal)
+            for (int up = 0; up < 2; ++up)
             {
-                if (isExternal && syncType != TwoWaySyncSymmetryCase::type_backupSync)
+                //if (!up) continue;
+
+                for (int action = 0; action < (int)TwoWaySyncSymmetryCase::action_numactions; ++action)
                 {
-                    continue;
-                }
+                    //if (action != TwoWaySyncSymmetryCase::action_rename) continue;
 
-                for (int pauseDuringAction = 0; pauseDuringAction < 2; ++pauseDuringAction)
-                {
-                    //if (pauseDuringAction) continue;
-
-                    // we can't make changes if the client is not running
-                    if (pauseDuringAction && selfChange) continue;
-
-                    TwoWaySyncSymmetryCase testcase(allstate);
-                    testcase.syncType = syncType;
-                    testcase.selfChange = selfChange;
-                    testcase.up = up;
-                    testcase.action = TwoWaySyncSymmetryCase::Action(action);
-                    testcase.file = file;
-                    testcase.isExternal = isExternal;
-                    testcase.pauseDuringAction = pauseDuringAction;
-                    testcase.printTreesBeforeAndAfter = !tests.empty();
-
-                    if (tests.empty() || tests.count(testcase.name()) > 0)
+                    for (int file = 0; file < 2; ++file)
                     {
-                        auto name = testcase.name();
-                        cases.emplace(name, std::move(testcase));
+                        //if (!file) continue;
+
+                        for (int isExternal = 0; isExternal < 2; ++isExternal)
+                        {
+                            if (isExternal && syncType != TwoWaySyncSymmetryCase::type_backupSync)
+                            {
+                                continue;
+                            }
+
+                            for (int pauseDuringAction = 0; pauseDuringAction < 2; ++pauseDuringAction)
+                            {
+                                //if (pauseDuringAction) continue;
+
+                                // we can't make changes if the client is not running
+                                if (pauseDuringAction && selfChange) continue;
+
+                                TwoWaySyncSymmetryCase testcase(allstate);
+                                testcase.syncType = TwoWaySyncSymmetryCase::SyncType(syncType);
+                                testcase.selfChange = selfChange != 0;
+                                testcase.up = up;
+                                testcase.action = TwoWaySyncSymmetryCase::Action(action);
+                                testcase.file = file;
+                                testcase.isExternal = isExternal;
+                                testcase.pauseDuringAction = pauseDuringAction;
+                                testcase.printTreesBeforeAndAfter = !tests.empty();
+
+                                if (tests.empty() || tests.count(testcase.name()) > 0)
+                                {
+                                    auto name = testcase.name();
+                                    cases.emplace(name, std::move(testcase));
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -9772,43 +9786,6 @@ void runTwoWayHighlevelSymmetriesTest(TwoWaySyncSymmetryCase::SyncType syncType,
         StandardClient cC(localtestroot, "cC");
         ASSERT_TRUE(cC.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD", false, true));
     }
-}
-
-// 10+ mins total so split too run in parellel quickly
-// the outer two for loops have been converted to parameters
-TEST_F(SyncTest, TwoWay_Highlevel_Symmetries_twoWay_false_false)
-{
-    runTwoWayHighlevelSymmetriesTest(TwoWaySyncSymmetryCase::type_twoWay, false, false);
-}
-TEST_F(SyncTest, TwoWay_Highlevel_Symmetries_twoWay_true_false)
-{
-    runTwoWayHighlevelSymmetriesTest(TwoWaySyncSymmetryCase::type_twoWay, true, false);
-}
-TEST_F(SyncTest, TwoWay_Highlevel_Symmetries_backupSync_false_false)
-{
-    runTwoWayHighlevelSymmetriesTest(TwoWaySyncSymmetryCase::type_backupSync, false, false);
-}
-TEST_F(SyncTest, TwoWay_Highlevel_Symmetries_backupSync_true_false)
-{
-    runTwoWayHighlevelSymmetriesTest(TwoWaySyncSymmetryCase::type_backupSync, true, false);
-}
-
-
-TEST_F(SyncTest, TwoWay_Highlevel_Symmetries_twoWay_false_true)
-{
-    runTwoWayHighlevelSymmetriesTest(TwoWaySyncSymmetryCase::type_twoWay, false, true);
-}
-TEST_F(SyncTest, TwoWay_Highlevel_Symmetries_twoWay_true_true)
-{
-    runTwoWayHighlevelSymmetriesTest(TwoWaySyncSymmetryCase::type_twoWay, true, true);
-}
-TEST_F(SyncTest, TwoWay_Highlevel_Symmetries_backupSync_false_true)
-{
-    runTwoWayHighlevelSymmetriesTest(TwoWaySyncSymmetryCase::type_backupSync, false, true);
-}
-TEST_F(SyncTest, TwoWay_Highlevel_Symmetries_backupSync_true_true)
-{
-    runTwoWayHighlevelSymmetriesTest(TwoWaySyncSymmetryCase::type_backupSync, true, true);
 }
 
 TEST_F(SyncTest, MoveExistingIntoNewDirectoryWhilePaused)
