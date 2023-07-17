@@ -699,6 +699,7 @@ public:
     MegaHandle root() const override { return mData.rootNode; }
     const char* localFolder() const override { return mData.localFolder.c_str(); }
     const char* deviceId() const override { return mData.deviceId.c_str(); }
+    const char* deviceUserAgent() const override { return mData.deviceUserAgent.c_str(); }
     int state() const override { return mData.syncState; }
     int substate() const override { return mData.syncSubstate; }
     const char* extra() const override { return mData.extra.c_str(); }

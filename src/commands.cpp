@@ -9202,6 +9202,7 @@ bool CommandBackupSyncFetch::procresult(Result r, JSON& json)
                                                 d.localFolder = client->decypherTLVTextWithMasterKey("lf", d.localFolder);
                                                 break;
                 case MAKENAMEID1('d'):          json.storeobject(&d.deviceId); break;
+                case MAKENAMEID3('d', 'u', 'a'):json.storeobject(&d.deviceUserAgent); break;
                 case MAKENAMEID1('s'):          d.syncState = json.getint32(); break;
                 case MAKENAMEID2('s', 's'):     d.syncSubstate = json.getint32(); break;
                 case MAKENAMEID1('e'):          json.storeobject(&d.extra);

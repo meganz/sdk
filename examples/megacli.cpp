@@ -3788,6 +3788,7 @@ void exec_backupcentre(autocomplete::ACState& s)
                         cout << "  root handle: " << toNodeHandle(d.rootNode) << endl;
                         cout << "  local folder: " << d.localFolder << endl;
                         cout << "  device id: " << d.deviceId << endl;
+                        cout << "  device user-agent: " << d.deviceUserAgent << endl;
                         cout << "  sync state: " << d.syncState << endl;
                         cout << "  sync substate: " << d.syncSubstate << endl;
                         cout << "  extra: " << d.extra << endl;

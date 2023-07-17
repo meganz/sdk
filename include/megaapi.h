@@ -21102,6 +21102,13 @@ public:
     virtual const char* deviceId() const { return nullptr; }
 
     /**
+     * @brief Returns the user-agent associated with the device where the backup originated.
+     *
+     * @return User-agent associated with the device where the backup originated.
+     */
+    virtual const char* deviceUserAgent() const { return nullptr; }
+
+    /**
      * @brief Possible sync state of a backup.
      */
     enum // 1:1 with CommandBackupPut::SPState enum values
