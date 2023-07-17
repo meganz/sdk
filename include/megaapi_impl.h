@@ -1744,6 +1744,7 @@ public:
     virtual bool isCurrent() const;
     virtual bool isAlive() const;
     virtual MegaHandle getHandle() const;
+    char *getDeviceId() const override;
 
 private:
     MegaAccountSessionPrivate(const AccountSession *session);

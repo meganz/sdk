@@ -9247,8 +9247,8 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
                 {
                     printf("\t* Current Session\n");
                 }
-                printf("\tSession ID: %s\n\tSession start: %s\n\tMost recent activity: %s\n\tIP: %s\n\tCountry: %.2s\n\tUser-Agent: %s\n\t-----\n",
-                        id.chars, timebuf, timebuf2, it->ip.c_str(), it->country, it->useragent.c_str());
+                printf("\tSession ID: %s\n\tSession start: %s\n\tMost recent activity: %s\n\tIP: %s\n\tCountry: %.2s\n\tUser-Agent: %s\n\tDevice ID: %s\n\t-----\n",
+                        id.chars, timebuf, timebuf2, it->ip.c_str(), it->country, it->useragent.c_str(), it->deviceid.c_str());
             }
         }
 

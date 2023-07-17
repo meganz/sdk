@@ -21363,6 +21363,15 @@ public:
      * @return Handle of the session
      */
     virtual MegaHandle getHandle() const;
+
+    /**
+     * @brief Get the Device-id of the device where the session originated
+     *
+     * You take the ownership of the returned value
+     *
+     * @return Device-id of the device where the session originated
+     */
+    virtual char *getDeviceId() const;
 };
 
 /**

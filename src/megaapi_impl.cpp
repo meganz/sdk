@@ -26702,6 +26702,11 @@ MegaHandle MegaAccountSessionPrivate::getHandle() const
     return session.id;
 }
 
+char *MegaAccountSessionPrivate::getDeviceId() const
+{
+    return MegaApi::strdup(session.deviceid.c_str());
+}
+
 MegaAccountSessionPrivate::MegaAccountSessionPrivate(const AccountSession *session)
 {
     this->session = *session;

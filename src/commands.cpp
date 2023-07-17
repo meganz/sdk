@@ -5470,6 +5470,7 @@ CommandGetUserSessions::CommandGetUserSessions(MegaClient* client, std::shared_p
 {
     cmd("usl");
     arg("x", 1); // Request the additional id and alive information
+    arg("d", 1); // Request the additional device-id
 
     details = ad;
     tag = client->reqtag;
@@ -5497,6 +5498,7 @@ bool CommandGetUserSessions::procresult(Result r, JSON& json)
 
         details->sessions[t].id = json.gethandle(8);
         details->sessions[t].alive = (int)json.getint();
+        json.storeobject(&details->sessions[t].deviceid);
 
         if (!json.leavearray())
         {
