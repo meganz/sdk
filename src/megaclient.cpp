@@ -20874,11 +20874,6 @@ bool MegaClient::updateSet(Set&& s)
             notifyset(&it->second);
         }
 
-        if (it->second.hasChanged(Set::CH_EXPORTED) && it->second.isExported())
-        {
-            fixSetElementWithWrongKey(s);
-        }
-
         return true; // return true if found, even if nothing was updated
     }
 
@@ -21265,6 +21260,12 @@ void MegaClient::exportSet(handle sid, bool makePublic, std::function<void(Error
     const auto setToBeUpdated = getSet(sid);
     if (setToBeUpdated)
     {
+        if (makePublic) // legacy bug: some Element's key were set incorrectly -> repair
+        {
+            Set s(*setToBeUpdated);
+            fixSetElementWithWrongKey(s);
+        }
+
         if (setToBeUpdated->isExported() == makePublic) completion(API_OK);
         else
         {
