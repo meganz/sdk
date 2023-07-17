@@ -8,8 +8,9 @@ pipeline {
     
 
     environment {
-        BUILD_OPTIONS = ' '
-        APIURL_TO_TEST = ' '
+        BUILD_OPTIONS = ''
+        TESTS_PARALLEL = ''
+        APIURL_TO_TEST = ''
     }
 
     stages {
@@ -19,19 +20,15 @@ pipeline {
                 updateGitlabCommitStatus(name: 'Build & test windows', state: 'running')
             }
         }
-        stage('Get build parameters'){
+        stage('Get parameters'){
             parallel{
-                stage('Get build options'){
-                    when {
-                        allOf {
-                            expression { env.gitlabTriggerPhrase != null }
-                            expression { env.gitlabTriggerPhrase.contains('BUILD_OPTIONS') }
-                        }
-                    }
+                stage('Get build and run paramters'){
                     steps {
                         script{
-                            BUILD_OPTIONS = sh(script: 'echo "$gitlabTriggerPhrase" | grep BUILD_OPTIONS | awk -F "BUILD_OPTIONS="  \'{print \$2}\' | cut -d"\"" -f2', returnStdout: true).trim()
+                            BUILD_OPTIONS = sh(script: 'echo "$gitlabTriggerPhrase" | grep BUILD_OPTIONS | awk -F "BUILD_OPTIONS="  \'{print \$2}\' | cut -d"\\"" -f2 || :', returnStdout: true).trim()
+                            TESTS_PARALLEL = sh(script: 'echo "$gitlabTriggerPhrase" | grep "\\-\\-parallel" >/dev/null 2>&1 && echo "--INSTANCES:10" || :', returnStdout: true).trim()
                             println BUILD_OPTIONS
+                            println TESTS_PARALLEL
                         }
                     }
                     post{
@@ -123,27 +120,23 @@ pipeline {
             }
             environment {
                 PATH = "${windows_sources_workspace}\\\\..\\\\vcpkg\\\\installed\\\\x64-windows-mega\\\\debug\\\\bin;${env.PATH}"
-                MEGA_LINK_EXTRACT_SCRIPT = "${windows_sources_workspace}\\\\tests\\\\python\\\\email_processor.py"
                 MEGA_PWD = credentials('MEGA_PWD_DEFAULT')
                 MEGA_PWD_AUX = credentials('MEGA_PWD_DEFAULT')
                 MEGA_PWD_AUX2 = credentials('MEGA_PWD_DEFAULT')
                 MEGA_REAL_PWD=credentials('MEGA_REAL_PWD_TEST')
             }
             steps{
-                lock(label: 'SDK_Test_Accounts', variable: 'ACCOUNTS_COMBINATION', quantity: 1, resource: null){    
+                lock(label: 'SDK_Concurrent_Test_Accounts', variable: 'ACCOUNTS_COMBINATION', quantity: 1, resource: null){
                     dir("${windows_sources_workspace}") {
                         script{
-                            def accounts_array = "${env.ACCOUNTS_COMBINATION}".split(',')
-                            env.MEGA_EMAIL = accounts_array[0]
-                            env.MEGA_EMAIL_AUX = accounts_array[1]
-                            env.MEGA_EMAIL_AUX2 = accounts_array[2]
+                            env.MEGA_EMAIL = "${env.ACCOUNTS_COMBINATION}"
                             echo "${env.ACCOUNTS_COMBINATION}"
                         }
                         sh "echo Running tests"
                         bat """
                         contrib\\\\cmake\\\\build_dir\\\\Debug\\\\test_unit.exe
                         if %ERRORLEVEL% NEQ 0 exit 1
-                        contrib\\\\cmake\\\\build_dir\\\\Debug\\\\test_integration.exe --CI --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST}
+                        contrib\\\\cmake\\\\build_dir\\\\Debug\\\\test_integration.exe --CI --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${TESTS_PARALLEL}
                         if %ERRORLEVEL% NEQ 0 set ERROR_VAL=1
                         gzip -c test_integration.log > test_integration_${BUILD_ID}.log.zip
                         rm test_integration.log

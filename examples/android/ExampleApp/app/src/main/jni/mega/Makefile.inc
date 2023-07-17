@@ -116,7 +116,6 @@ HEADERS= sdk/include/mega.h \
         sdk/include/mega/gfx/external.h \
         sdk/include/mega/thread/posixthread.h \
         sdk/include/mega/logging.h \
-	sdk/include/mega/mega_http_parser.h \
         sdk/include/mega/mega_zxcvbn.h \
         sdk/include/mega/mediafileattribute.h \
         sdk/include/mega/textchat.h \
