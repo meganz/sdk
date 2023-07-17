@@ -1007,7 +1007,8 @@ std::set<string> declaredTestAccounts;
 
 StandardClientInUse ClientManager::getCleanStandardClient(int loginIndex, fs::path workingFolder)
 {
-    assert(loginIndex >= 0 && loginIndex < 3);
+    EXPECT_TRUE(loginIndex >= 0) << "ClientManager::getCleanStandardClient(): invalid number of test account to setup " << loginIndex << " is < 0";
+    EXPECT_TRUE(loginIndex <= gMaxAccounts) << "ClientManager::getCleanStandardClient(): too many test accounts requested " << loginIndex << " is > " << gMaxAccounts;
 
     for (auto i = clients[loginIndex].begin(); i != clients[loginIndex].end(); ++i)
     {
@@ -1055,6 +1056,14 @@ StandardClientInUse ClientManager::getCleanStandardClient(int loginIndex, fs::pa
 
 ClientManager::~ClientManager()
 {
+    clear();
+}
+
+void ClientManager::clear()
+{
+    if (clients.empty())
+        return;
+
     while (clients.size())
     {
         LOG_debug << "Shutting down ClientManager, remaining: " << clients.size();
@@ -5031,14 +5040,14 @@ bool createSpecialFiles(fs::path targetfolder, const string& prefix, int n = 1)
 }
 #endif
 
-class SyncFingerprintCollision
-  : public ::testing::Test
+class SyncFingerprintCollisionTest
+  : public SdkTestBase
 {
 public:
 
     fs::path testRootFolder;
 
-    SyncFingerprintCollision()
+    SyncFingerprintCollisionTest()
       : client0()
       , client1()
       , model0()
@@ -5054,12 +5063,14 @@ public:
         client1->logcb = true;
     }
 
-    ~SyncFingerprintCollision()
+    ~SyncFingerprintCollisionTest()
     {
     }
 
     void SetUp() override
     {
+        SdkTestBase::SetUp();
+
         SimpleLogger::setLogLevel(logMax);
 
         ASSERT_TRUE(client0->login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "d", 1, 2));
@@ -5151,7 +5162,7 @@ public:
     const std::size_t arbitraryFileLength;
 }; /* SyncFingerprintCollision */
 
-TEST_F(SyncFingerprintCollision, DifferentMacSameName)
+TEST_F(SyncFingerprintCollisionTest, DifferentMacSameName)
 {
     auto data0 = randomData(arbitraryFileLength);
     auto data1 = data0;
@@ -5195,7 +5206,7 @@ TEST_F(SyncFingerprintCollision, DifferentMacSameName)
     confirmModels();
 }
 
-TEST_F(SyncFingerprintCollision, DifferentMacDifferentName)
+TEST_F(SyncFingerprintCollisionTest, DifferentMacDifferentName)
 {
     auto data0 = randomData(arbitraryFileLength);
     auto data1 = data0;
@@ -5235,7 +5246,7 @@ TEST_F(SyncFingerprintCollision, DifferentMacDifferentName)
     confirmModels();
 }
 
-TEST_F(SyncFingerprintCollision, SameMacDifferentName)
+TEST_F(SyncFingerprintCollisionTest, SameMacDifferentName)
 {
     auto data0 = randomData(arbitraryFileLength);
     const auto path0 = localRoot0() / "d_0" / "a";
@@ -5272,19 +5283,21 @@ TEST_F(SyncFingerprintCollision, SameMacDifferentName)
 }
 
 class SyncTest
-    : public ::testing::Test
+    : public SdkTestBase
 {
 public:
 
-    // Sets up the test fixture.
+    // Sets up the test case.
     void SetUp() override
     {
+        SdkTestBase::SetUp();
+
         LOG_info << "____TEST SetUp: " << ::testing::UnitTest::GetInstance()->current_test_info()->name();
 
         SimpleLogger::setLogLevel(logMax);
     }
 
-    // Tears down the test fixture.
+    // Tears down the test case.
     void TearDown() override
     {
         LOG_info << "____TEST TearDown: " << ::testing::UnitTest::GetInstance()->current_test_info()->name();
@@ -11322,7 +11335,6 @@ TEST_F(BackupBehavior, SameMTimeSmallerSize)
 
     doTest(initialContent, updatedContent);
 }
-
 #endif // DEBUG
 
 TEST_F(SyncTest, UndecryptableSharesBehavior)

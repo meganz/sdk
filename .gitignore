@@ -27,6 +27,8 @@
 *.app
 /tests/test_unit
 /tests/test_integration
+/tests/test_integration/*
+!/tests/test_integration/test-data/
 /tests/tool_purge_account
 examples/megacli
 examples/megasimplesync
