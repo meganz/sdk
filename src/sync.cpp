@@ -2560,6 +2560,13 @@ bool Sync::checkCloudPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
     // this one is a bit too verbose for large down-syncs
     //SYNC_verbose << syncname << "checking localnodes for synced cloud handle " << row.cloudNode->handle;
 
+    // Are we moving an ignore file?
+    if (row.isIgnoreFile())
+    {
+        // Then it's not subject to the usual move procesing.
+        return false;
+    }
+
     ProgressingMonitor monitor(*this, row, fullPath);
 
     unique_ptr<LocalNode> childrenToDeleteOnFunctionExit;
@@ -2636,7 +2643,7 @@ bool Sync::checkCloudPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
         }
 
         // Are we moving an ignore file?
-        if (row.isIgnoreFile() || sourceSyncNode->isIgnoreFile())
+        if (sourceSyncNode->isIgnoreFile())
         {
             // Then it's not subject to the usual move procesing.
             return false;
