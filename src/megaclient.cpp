@@ -20821,6 +20821,8 @@ const Set* MegaClient::addSet(Set&& a)
 void MegaClient::fixSetElementWithWrongKey(const Set& s)
 {
     const auto els = getSetElements(s.id());
+    if (!els) return;
+
     vector<SetElement> newEls;
     vector<handle> taintedEls;
     const auto hasWrongKey = [](const SetElement& el) { return el.key().size() != static_cast<size_t>(FILENODEKEYLENGTH); };
