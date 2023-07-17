@@ -303,7 +303,6 @@ CurlHttpIO::CurlHttpIO()
     if (++instanceCount == 1)
     {
         curl_global_init(CURL_GLOBAL_DEFAULT);
-        LOG_debug << "curl_version(): " << curl_version();
 #ifdef MEGA_USE_C_ARES
         ares_library_init(ARES_LIB_INIT_ALL);
 
