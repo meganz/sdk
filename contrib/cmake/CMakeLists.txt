@@ -12,7 +12,6 @@
 
 # check the ./build3rdParty.cmd script in this folder for how to (relatively) easily build the dependencies, typically in a 3rdParty folder outside of the SDK repo.
 
-
 if (WIN32)
   cmake_minimum_required(VERSION 3.15)
   cmake_policy(SET CMP0091 NEW)   # for msvc dll/stsatic target
@@ -1047,10 +1046,12 @@ add_executable(test_unit
     ${MegaDir}/tests/unit/utils.cpp
     ${MegaDir}/tests/unit/utils.h
     ${MegaDir}/tests/unit/utils_test.cpp
+    ${MegaDir}/tests/integration/process.cpp
 )
 
 add_executable(test_integration
     ${MegaDir}/tests/integration/main.cpp
+    ${MegaDir}/tests/integration/process.cpp
     ${MegaDir}/tests/integration/SdkTest_test.cpp
     ${MegaDir}/tests/integration/Sync_test.cpp
 )
@@ -1094,9 +1095,13 @@ if (HAVE_ASIO)
     endif()
 endif()
 
-#test apps need this file or tests fail
-configure_file("${MegaDir}/logo.png" logo.png COPYONLY)
-configure_file("${MegaDir}/tests/integration/test_cover_png.mp3" test_cover_png.mp3 COPYONLY)
+#Integration tests require the following files to work
+file(GLOB TESTING_AUX_FILES "${MegaDir}/tests/integration/test-data/*")
+add_custom_command(
+    TARGET test_integration POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy ${TESTING_AUX_FILES} $<TARGET_FILE_DIR:test_integration>
+    COMMENT "Copying test files for integration tests."
+)
 
 # actual apps
 
