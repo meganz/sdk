@@ -21262,8 +21262,7 @@ void MegaClient::exportSet(handle sid, bool makePublic, std::function<void(Error
     {
         if (makePublic) // legacy bug: some Element's key were set incorrectly -> repair
         {
-            Set s(*setToBeUpdated);
-            fixSetElementWithWrongKey(s);
+            fixSetElementWithWrongKey(*setToBeUpdated);
         }
 
         if (setToBeUpdated->isExported() == makePublic) completion(API_OK);
