@@ -142,7 +142,7 @@
 #define USE_DB 0
 
 /* Use inotify API */
-//#define USE_INOTIFY 1
+#define USE_INOTIFY 1
 
 /* Define to use OpenSSL */
 #define USE_OPENSSL 1
