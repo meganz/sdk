@@ -20,6 +20,7 @@
  */
 #include <cctype>
 
+#include "mega.h"
 #include "mega/filesystem.h"
 #include "mega/node.h"
 #include "mega/megaclient.h"
