@@ -1741,10 +1741,6 @@ void LinuxDirNotify::removeWatch(WatchMapIterator entry)
 #endif // USE_INOTIFY
 #endif // __linux__
 
-#ifndef O_NOATIME
-#define O_NOATIME 0x0
-#endif // !O_NOATIME
-
 #endif //ENABLE_SYNC
 // Used by directoryScan(...) below to avoid extra stat(...) calls.
 class UnixStreamAccess
@@ -1799,12 +1795,21 @@ private:
     // open with O_NOATIME if possible
     int open(const char *path)
     {
-        int fd = ::open(path, O_NOATIME | O_RDONLY) ;
+#ifdef TARGET_OS_IPHONE
+        // building for iOS, there is no O_NOATIME flag
+        int fd = ::open(path, O_RDONLY) ;
+#else
+        // for sync in particular, try to open without setting access-time
+        // we don't want to update that every time we get a fingerprint to see if it's changed
+        // and we don't want to be processing the filesystem notifications that would cause either
+        int fd = ::open(path, O_NOATIME | O_RDONLY);
 
         if (fd < 0 && errno == EPERM)
         {
+            // But then, on some systems (Android) sometimes (for external storage, but not for internal), the call fails if we try to set O_NOATIME
             fd = ::open(path, O_RDONLY);
         }
+#endif
         return fd;
     }
 
