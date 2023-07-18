@@ -6341,9 +6341,16 @@ bool MegaApiImpl::newLinkFormatEnabled()
 unsigned int MegaApiImpl::getABTestValue(const char* flag)
 {
     if (!flag) return 0;
+
     SdkMutexGuard g(sdkMutex);
     auto it = client->mABTestFlags.find(flag);
-    return (it != client->mABTestFlags.end() ? it->second : 0 );
+    if (it != client->mABTestFlags.end())
+    {
+        sendABTestActive(flag, nullptr);
+        return it->second;
+    }
+
+    return 0;
 }
 
 void MegaApiImpl::sendABTestActive(const char* flag, MegaRequestListener* listener)

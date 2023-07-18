@@ -9585,7 +9585,7 @@ class MegaApi
         /**
          * @brief Get the value of an A/B Test flag
          *
-         * Any value greater than 0 means he flag is active.
+         * Any value greater than 0 means the flag is active.
          *
          * @param flag Name or key of the value to be retrieved.
          *
@@ -9606,6 +9606,9 @@ class MegaApi
          *
          * @param flag Flag to be be sent to the API as active.
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This method will be removed in the future. The SDK already
+         * notifies the API automatically upon calls to @see getABTestValue.
          */
         void sendABTestActive(const char* flag, MegaRequestListener *listener = NULL);
 
