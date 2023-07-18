@@ -18810,6 +18810,31 @@ bool MegaClient::nodeIsDocument(const Node *n) const
     return n->getMimeType() == MimeType_t::MIME_TYPE_DOCUMENT;
 }
 
+bool MegaClient::nodeIsPdf(const Node *n) const
+{
+    return n->getMimeType() == MimeType_t::MIME_TYPE_PDF;
+}
+
+bool MegaClient::nodeIsPresentation(const Node *n) const
+{
+    return n->getMimeType() == MimeType_t::MIME_TYPE_PRESENTATION;
+}
+
+bool MegaClient::nodeIsArchive(const Node* n) const
+{
+    return n->getMimeType() == MimeType_t::MIME_TYPE_ARCHIVE;
+}
+
+bool MegaClient::nodeIsProgram(const Node* n) const
+{
+    return n->getMimeType() == MimeType_t::MIME_TYPE_PROGRAM;
+}
+
+bool MegaClient::nodeIsMiscellaneous(const Node* n) const
+{
+    return n->getMimeType() == MimeType_t::MIME_TYPE_MISC;
+}
+
 bool MegaClient::treatAsIfFileDataEqual(const FileFingerprint& node1, const LocalPath& file2, const string& filenameExtensionLowercaseNoDot)
 {
     // if equal, upload or download could be skipped

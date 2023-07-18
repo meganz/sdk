@@ -249,8 +249,24 @@ bool Node::getExtension(std::string& ext) const
 
 // these lists of file extensions (and the logic to use them) all come from the webclient - if updating here, please make sure the webclient is updated too, preferably webclient first.
 
-static const std::set<nameid> documentExtensions = {MAKENAMEID3('a','n','s'), MAKENAMEID5('a','s','c','i','i'), MAKENAMEID3('d','o','c'), MAKENAMEID4('d','o','c','x'), MAKENAMEID4('d','o','t', 'x'), MAKENAMEID4('j','s','o','n'),  MAKENAMEID3('l','o','g'), MAKENAMEID3('o','d','s'), MAKENAMEID3('o','d','t'), MAKENAMEID5('p','a','g','e','s'), MAKENAMEID3('p','d','f'), MAKENAMEID3('p','p','c'), MAKENAMEID3('p','p','s'), MAKENAMEID3('p','p','t'), MAKENAMEID4('p','p','t','x'), MAKENAMEID3('r','t','f'),
+static const std::set<nameid> documentExtensions = {MAKENAMEID3('a','n','s'), MAKENAMEID5('a','s','c','i','i'), MAKENAMEID3('d','o','c'), MAKENAMEID4('d','o','c','x'), MAKENAMEID4('d','o','t', 'x'), MAKENAMEID3('o','d','s'), MAKENAMEID3('o','d','t'), MAKENAMEID5('p','a','g','e','s'), MAKENAMEID3('p','p','c'), MAKENAMEID3('r','t','f'),
                                              MAKENAMEID3('s','t','c'), MAKENAMEID3('s','t','d'), MAKENAMEID3('s','t','w'), MAKENAMEID3('s','t','i'), MAKENAMEID3('s','x','c'), MAKENAMEID3('s','x','d'), MAKENAMEID3('s','x','i'), MAKENAMEID3('s','x','m'), MAKENAMEID3('s','x','w'), MAKENAMEID3('t','x','t'), MAKENAMEID3('w','p','d'), MAKENAMEID3('w','p','s'), MAKENAMEID3('x','l','s'), MAKENAMEID4('x','l','s','x'), MAKENAMEID3('x','l','t'), MAKENAMEID4('x','l','t','m')};
+
+static const std::set<nameid> pdfExtensions = {MAKENAMEID3('p','d','f')};
+
+static const std::set<nameid> presentationExtensions = {MAKENAMEID3('p','p','s'), MAKENAMEID3('p','p','t'), MAKENAMEID4('p','p','t','x'),
+                                                        MAKENAMEID3('o','d','p')};
+
+static const std::set<nameid> archiveExtensions = {MAKENAMEID3('z','i','p'), MAKENAMEID3('r','a','r'), MAKENAMEID3('t','a','r'),
+                                                   MAKENAMEID2('7','z'), MAKENAMEID2('g','z'), MAKENAMEID3('b','z','2')};
+
+static const std::set<nameid> programExtensions = {MAKENAMEID3('e','x','e'), MAKENAMEID3('b','a','t'), MAKENAMEID2('s','h'),
+                                                   MAKENAMEID4('j','a','v','a'), MAKENAMEID2('p','y'), MAKENAMEID3('c','p','p')};
+
+static const std::set<nameid> miscExtensions = {MAKENAMEID3('t','t','f'), MAKENAMEID3('o','t','f'), MAKENAMEID3('i','n','i'),
+                                                MAKENAMEID3('c','f','g'), MAKENAMEID3('c','s','v'), MAKENAMEID4('j','s','o','n'),
+                                                MAKENAMEID3('l','o','g'), MAKENAMEID3('b','a','k'), MAKENAMEID2('d','b'),
+                                                MAKENAMEID6('s','q','l','i','t','e')};
 
 static const std::set<nameid> audioExtensions = {MAKENAMEID3('a','c','3'), MAKENAMEID3('e','c','3'), MAKENAMEID3('3','g','a'), MAKENAMEID3('a','a','c'), MAKENAMEID3('a','d','p'), MAKENAMEID3('a','i','f'), MAKENAMEID4('a','i','f','c'), MAKENAMEID4('a','i','f','f'), MAKENAMEID2('a','u'), MAKENAMEID3('c','a','f'), MAKENAMEID3('d','r','a'), MAKENAMEID3('d','t','s'), MAKENAMEID5('d','t','s','h','d'), MAKENAMEID3('e','o','l'), MAKENAMEID4('f','l','a','c'), MAKENAMEID3('i','f','f'), MAKENAMEID3('k','a','r'), MAKENAMEID3('l','v','p'),
                                           MAKENAMEID3('m','2','a'), MAKENAMEID3('m','3','a'), MAKENAMEID3('m','3','u'), MAKENAMEID3('m','4','a'), MAKENAMEID3('m','i','d'), MAKENAMEID4('m','i','d','i'), MAKENAMEID3('m','k','a'), MAKENAMEID3('m','p','2'), MAKENAMEID4('m','p','2','a'), MAKENAMEID3('m','p','3'), MAKENAMEID4('m','p','4','a'), MAKENAMEID4('m','p','g','a'), MAKENAMEID3('o','g','a'), MAKENAMEID3('o','g','g'), MAKENAMEID4('o','p','u','s'), MAKENAMEID3('p','y','a'), MAKENAMEID2('r','a'),
@@ -328,6 +344,31 @@ bool Node::isAudio(const std::string& ext) const
 bool Node::isDocument(const std::string& ext) const
 {
     return documentExtensions.find(getExtensionNameId(ext)) != documentExtensions.end();
+}
+
+bool Node::isPdf(const std::string& ext) const
+{
+    return pdfExtensions.find(getExtensionNameId(ext)) != pdfExtensions.end();
+}
+
+bool Node::isPresentation(const std::string& ext) const
+{
+    return presentationExtensions.find(getExtensionNameId(ext)) != presentationExtensions.end();
+}
+
+bool Node::isArchive(const std::string& ext) const
+{
+    return archiveExtensions.find(getExtensionNameId(ext)) != archiveExtensions.end();
+}
+
+bool Node::isProgram(const std::string& ext) const
+{
+    return programExtensions.find(getExtensionNameId(ext)) != programExtensions.end();
+}
+
+bool Node::isMiscellaneous(const std::string& ext) const
+{
+    return miscExtensions.find(getExtensionNameId(ext)) != miscExtensions.end();
 }
 
 nameid Node::getExtensionNameId(const std::string& ext)
@@ -1245,6 +1286,26 @@ MimeType_t Node::getMimeType(bool checkPreview) const
     else if (isDocument(extension))
     {
         return MimeType_t::MIME_TYPE_DOCUMENT;
+    }
+    else if (isPdf(extension))
+    {
+        return MimeType_t::MIME_TYPE_PDF;
+    }
+    else if (isPresentation(extension))
+    {
+        return MimeType_t::MIME_TYPE_PRESENTATION;
+    }
+    else if (isArchive(extension))
+    {
+        return MimeType_t::MIME_TYPE_ARCHIVE;
+    }
+    else if (isProgram(extension))
+    {
+        return MimeType_t::MIME_TYPE_PROGRAM;
+    }
+    else if (isMiscellaneous(extension))
+    {
+        return MimeType_t::MIME_TYPE_MISC;
     }
 
     return MimeType_t::MIME_TYPE_UNKNOWN;

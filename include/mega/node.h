@@ -376,6 +376,11 @@ private:
     bool isVideo(const std::string& ext) const;
     bool isAudio(const std::string& ext) const;
     bool isDocument(const std::string& ext) const;
+    bool isPdf(const std::string& ext) const;
+    bool isPresentation(const std::string& ext) const;
+    bool isArchive(const std::string& ext) const;
+    bool isProgram(const std::string& ext) const;
+    bool isMiscellaneous(const std::string& ext) const;
 
     static nameid getExtensionNameId(const std::string& ext);
 };

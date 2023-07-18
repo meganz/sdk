@@ -11691,6 +11691,16 @@ bool MegaApiImpl::isValidTypeNode(Node *node, int type)
             return client->nodeIsVideo(node);
         case MegaApi::FILE_TYPE_DOCUMENT:
             return client->nodeIsDocument(node);
+        case MegaApi::FILE_TYPE_PDF:
+            return client->nodeIsPdf(node);
+        case MegaApi::FILE_TYPE_PRESENTATION:
+            return client->nodeIsPdf(node);
+        case MegaApi::FILE_TYPE_ARCHIVE:
+            return client->nodeIsArchive(node);
+        case MegaApi::FILE_TYPE_PROGRAM:
+            return client->nodeIsProgram(node);
+        case MegaApi::FILE_TYPE_MISC:
+            return client->nodeIsMiscellaneous(node);
         case MegaApi::FILE_TYPE_DEFAULT:
         default:
             return true;
