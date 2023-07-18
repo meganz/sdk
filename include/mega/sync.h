@@ -25,7 +25,7 @@
 #include <future>
 
 #include "db.h"
-#include "megawaiter.h"
+#include "waiter.h"
 
 #ifdef ENABLE_SYNC
 #include "node.h"
