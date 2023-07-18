@@ -616,8 +616,8 @@ bool DemoApp::sync_syncable(Sync *, const char *name, LocalPath&)
 }
 #endif
 
-AppFileGet::AppFileGet(Node* n, NodeHandle ch, byte* cfilekey, m_off_t csize, m_time_t cmtime, string* cfilename,
-                       string* cfingerprint, const string& targetfolder)
+AppFileGet::AppFileGet(Node* n, NodeHandle ch, const byte* cfilekey, m_off_t csize, m_time_t cmtime, const string* cfilename,
+                       const string* cfingerprint, const string& targetfolder)
 {
     appxfer_it = appxferq[GET].end();
 
@@ -958,39 +958,39 @@ void DemoApp::printChatInformation(TextChat *chat)
         return;
     }
 
-    cout << "Chat ID: " << Base64Str<sizeof(handle)>(chat->id) << endl;
-    cout << "\tOwn privilege level: " << DemoApp::getPrivilegeString(chat->priv) << endl;
-    cout << "\tCreation ts: " << chat->ts << endl;
-    cout << "\tChat shard: " << chat->shard << endl;
-    cout << "\tGroup chat: " << ((chat->group) ? "yes" : "no") << endl;
+    cout << "Chat ID: " << Base64Str<sizeof(handle)>(chat->getChatId()) << endl;
+    cout << "\tOwn privilege level: " << DemoApp::getPrivilegeString(chat->getOwnPrivileges()) << endl;
+    cout << "\tCreation ts: " << chat->getTs() << endl;
+    cout << "\tChat shard: " << chat->getShard() << endl;
+    cout << "\tGroup chat: " << ((chat->getGroup()) ? "yes" : "no") << endl;
     cout << "\tArchived chat: " << ((chat->isFlagSet(TextChat::FLAG_OFFSET_ARCHIVE)) ? "yes" : "no") << endl;
-    cout << "\tPublic chat: " << ((chat->publicchat) ? "yes" : "no") << endl;
-    if (chat->publicchat)
+    cout << "\tPublic chat: " << ((chat->publicChat()) ? "yes" : "no") << endl;
+    if (chat->publicChat())
     {
-        cout << "\tUnified key: " << chat->unifiedKey.c_str() << endl;
-        cout << "\tMeeting room: " << ((chat->meeting) ? "yes" : "no") << endl;
+        cout << "\tUnified key: " << chat->getUnifiedKey() << endl;
+        cout << "\tMeeting room: " << (chat->getMeeting() ? "yes" : "no") << endl;
     }
 
     cout << "\tPeers:";
 
-    if (chat->userpriv)
+    if (chat->getOwnPrivileges())
     {
         cout << "\t\t(userhandle)\t(privilege level)" << endl;
-        for (unsigned i = 0; i < chat->userpriv->size(); i++)
+        for (unsigned i = 0; i < chat->getUserPrivileges()->size(); i++)
         {
-            Base64Str<sizeof(handle)> hstr(chat->userpriv->at(i).first);
+            Base64Str<sizeof(handle)> hstr(chat->getUserPrivileges()->at(i).first);
             cout << "\t\t\t" << hstr;
-            cout << "\t" << DemoApp::getPrivilegeString(chat->userpriv->at(i).second) << endl;
+            cout << "\t" << DemoApp::getPrivilegeString(chat->getUserPrivileges()->at(i).second) << endl;
         }
     }
     else
     {
         cout << " no peers (only you as participant)" << endl;
     }
-    cout << "\tIs own change: " << ((chat->tag) ? "yes" : "no") << endl;
-    if (!chat->title.empty())
+    cout << "\tIs own change: " << (chat->getTag() ? "yes" : "no") << endl;
+    if (!chat->getTitle().empty())
     {
-        cout << "\tTitle: " << chat->title.c_str() << endl;
+        cout << "\tTitle: " << chat->getTitle() << endl;
     }
 }
 
@@ -4261,6 +4261,8 @@ autocomplete::ACN autocompleteSyntax()
                         )));
 
     p->Add(exec_reqstat, sequence(text("reqstat"), opt(either(flag("-on"), flag("-off")))));
+    p->Add(exec_getABTestValue, sequence(text("getabflag"), param("flag")));
+    p->Add(exec_sendABTestActive, sequence(text("setabflag"), param("flag")));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -4364,6 +4366,7 @@ struct Login
             }
             else
             {
+                mc->saveV1Pwd(password.c_str()); // for automatic upgrade to V2
                 mc->login(email.c_str(), keybuf, (!pin.empty()) ? pin.c_str() : NULL);
             }
         }
@@ -8769,7 +8772,7 @@ void DemoApp::folderlinkinfo_result(error e, handle owner, handle /*ph*/, string
         {
             AttrMap attrs;
             string fileName;
-            string fingerprint;
+            string fingerprint; // raw fingerprint without App's prefix (different layer)
             FileFingerprint ffp;
             m_time_t mtime = 0;
             Node::parseattr(buf, attrs, currentSize, mtime, fileName, fingerprint, ffp);
@@ -8949,7 +8952,16 @@ void DemoApp::notify_confirmation(const char *email)
 {
     if (client->loggedin() == EPHEMERALACCOUNT || client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
     {
-        LOG_debug << "Account has been confirmed with email " << email << ". Proceed to login with credentials.";
+        LOG_debug << "Account has been confirmed with email " << email << ".";
+    }
+}
+
+void DemoApp::notify_confirm_user_email(handle user, const char *email)
+{
+    if (client->loggedin() == EPHEMERALACCOUNT || client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
+    {
+        LOG_debug << "Account has been confirmed with user " << user << " and email " << email << ". Proceed to login with credentials.";
+        cout << "Account has been confirmed with user " << toHandle(user) << " and email " << email << ". Proceed to login with credentials.";
     }
 }
 
@@ -10544,12 +10556,21 @@ void printElements(const elementsmap_t* elems)
     {
         const SetElement& el = p.second;
         cout << "\t\telement " << toHandle(el.id()) << endl;
-        cout << "\t\t\tset " << toHandle(el.set()) << endl;
-        cout << "\t\t\tnode: " << toNodeHandle(el.node()) << endl;
+        cout << "\t\t\tset: " << toHandle(el.set()) << endl;
         cout << "\t\t\tname: " << el.name() << endl;
         cout << "\t\t\torder: " << el.order() << endl;
         cout << "\t\t\tkey: " << (el.key().empty() ? "(no key)" : Base64::btoa(el.key())) << endl;
         cout << "\t\t\tts: " << el.ts() << endl;
+        cout << "\t\t\tnode: " << toNodeHandle(el.node()) << endl;
+        if (el.nodeMetadata())
+        {
+            cout << "\t\t\t\tfile name: " << el.nodeMetadata()->filename << endl;
+            cout << "\t\t\t\tfile size: " << el.nodeMetadata()->s << endl;
+            cout << "\t\t\t\tfile attrs: " << el.nodeMetadata()->fa << endl;
+            cout << "\t\t\t\tfingerprint: " << el.nodeMetadata()->fingerprint << endl;
+            cout << "\t\t\t\tts: " << el.nodeMetadata()->ts << endl;
+            cout << "\t\t\t\towner: " << toHandle(el.nodeMetadata()->u) << endl;
+        }
     }
     cout << endl;
 }
@@ -10780,10 +10801,26 @@ void exec_setsandelements(autocomplete::ACState& s)
 
         cout << "\tSet preview mode " << (client->inPublicSetPreview() ? "en" : "dis") << "abled\n";
         const SetElement* element = nullptr;
+        m_off_t fileSize = 0;
+        string fileName;
+        string fingerprint;
+        string fileattrstring;
+
         if (client->inPublicSetPreview())
         {
             element = client->getPreviewSetElement(eid);
-            if (element) cout << "\tElement found in preview Set\n";
+            if (element)
+            {
+                cout << "\tElement found in preview Set\n";
+
+                if (element->nodeMetadata()) // only present starting with 'aft' v2
+                {
+                    fileSize = element->nodeMetadata()->s;
+                    fileName = element->nodeMetadata()->filename;
+                    fingerprint = element->nodeMetadata()->fingerprint;
+                    fileattrstring = element->nodeMetadata()->fa;
+                }
+            }
             else if (!isClientLoggedIn())
             {
                 cout << "Error: attempting to dowload an element which is not in the previewed "
@@ -10794,7 +10831,22 @@ void exec_setsandelements(autocomplete::ACState& s)
         if (!element)
         {
             element = client->getSetElement(sid, eid);
-            if (element) cout << "\tElement found in owned Set\n";
+            if (element)
+            {
+                cout << "\tElement found in owned Set\n";
+
+                std::unique_ptr<Node> mn(client->nodebyhandle(element->node()));
+
+                if (!mn)
+                {
+                    cout << "\tElement node not found\n";
+                    return;
+                }
+                fileSize = mn->size;
+                fileName = mn->displayname();
+                mn->serializefingerprint(&fingerprint);
+                fileattrstring = mn->fileattrstring;
+            }
         }
 
         if (!element)
@@ -10803,57 +10855,25 @@ void exec_setsandelements(autocomplete::ACState& s)
             return;
         }
 
-        std::array<byte, FILENODEKEYLENGTH> ekey;
-        handle enode = element->node();
-        memcpy(ekey.data(), element->key().c_str(), ekey.size());
-        auto commandCB =
-            [ekey, enode] (const Error &e, m_off_t size,
-                          dstime /*timeleft*/, std::string* filename, std::string* fingerprint,
-                          std::string* fileattrstring, const std::vector<std::string> &/*tempurls*/,
-                          const std::vector<std::string> &/*ips*/)
-        {
-            if (!fingerprint) // failed processing the command
-            {
-                if (e == API_ETOOMANY && e.hasExtraInfo())
-                {
-                    cout << "Link check failed: " << DemoApp::getExtraInfoErrorString(e)
-                         << endl;
-                }
-                else cout << "Link check failed: " << errorstring(e) << endl;
+        FileFingerprint ffp;
+        m_time_t tm = 0;
+        if (ffp.unserializefingerprint(&fingerprint)) tm = ffp.mtime;
 
-                return true;
-            }
+        cout << "\tName: " << fileName << ", size: " << fileSize << ", tm: " << tm;
+        if (!fingerprint.empty()) cout << ", fingerprint available";
+        if (!fileattrstring.empty()) cout << ", has attributes";
+        cout << endl;
 
-            FileFingerprint ffp;
-            m_time_t tm = 0;
-            if (ffp.unserializefingerprint(fingerprint)) tm = ffp.mtime;
+        cout << "\tInitiating download..." << endl;
 
-            cout << "\tName: " << *filename << ", size: " << size << ", tm: " << tm;
-            if (fingerprint->size()) cout << ", fingerprint available";
-            if (fileattrstring->size()) cout << ", has attributes";
-            cout << endl;
-
-            if (e) cout << "Not available: " << errorstring(e) << endl;
-            else
-            {
-                cout << "\tInitiating download..." << endl;
-
-                TransferDbCommitter committer(client->tctable);
-                auto file = ::mega::make_unique<AppFileGet>(nullptr,
-                                                            NodeHandle().set6byte(enode),
-                                                            (byte*)ekey.data(), size, tm,
-                                                            filename, fingerprint);
-                file->hprivate = true;
-                file->hforeign = true;
-                startxfer(committer, std::move(file), *filename, client->nextreqtag());
-            }
-
-            return true;
-        };
-
-        client->reqs.add(new CommandGetFile(client, (byte*)ekey.data(), ekey.size(), enode,
-                                            true /*private*/, nullptr, nullptr, nullptr, false,
-                                            commandCB));
+        TransferDbCommitter committer(client->tctable);
+        auto file = ::mega::make_unique<AppFileGet>(nullptr,
+                                                    NodeHandle().set6byte(element->node()),
+                                                    reinterpret_cast<const byte*>(element->key().c_str()), fileSize, tm,
+                                                    &fileName, &fingerprint);
+        file->hprivate = true;
+        file->hforeign = true;
+        startxfer(committer, std::move(file), fileName, client->nextreqtag());
     }
 
     else // create or update element
@@ -10941,6 +10961,38 @@ void exec_reqstat(autocomplete::ACState &s)
 void DemoApp::reqstat_progress(int permilprogress)
 {
     cout << "Progress (per mille) of request: " << permilprogress << endl;
+}
+
+void exec_getABTestValue(autocomplete::ACState &s)
+{
+    string flag = s.words[1].s;
+
+    auto it = client->mABTestFlags.find(flag);
+
+    string value = "0 (not set)";
+    if (it != client->mABTestFlags.end())
+    {
+        value = std::to_string(it->second);
+    }
+
+    cout << "[" << flag<< "]:" << value << endl;
+}
+
+void exec_sendABTestActive(autocomplete::ACState &s)
+{
+    string flag = s.words[1].s;
+
+    client->sendABTestActive(flag.c_str(), [](Error e)
+        {
+            if (e)
+            {
+                cout << "Error sending Ab Test flag: " << e << endl;
+            }
+            else
+            {
+                cout << "Flag has been correctly sent." << endl;
+            }
+        });
 }
 
 void exec_numberofnodes(autocomplete::ACState &s)

@@ -482,11 +482,16 @@ public:
     // Don't start showing the cookie banner until API says so
     bool mCookieBannerEnabled = false;
 
+    // AB Test flags
+    std::map<string, uint32_t> mABTestFlags;
+
 private:
     // Pro Flexi plan is enabled
     bool mProFlexi = false;
 public:
     bool isProFlexi() const { return mProFlexi; }
+
+    Error sendABTestActive(const char* flag, CommandABTestActive::Completion completion);
 
     // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed  -1 = flag was not received
     SmsVerificationState mSmsVerificationState;
@@ -564,6 +569,9 @@ public:
 
     // session login: binary session, bytecount
     void login(string session);
+
+    // handle login result, and allow further actions when successful
+    void loginResult(error e, std::function<void()> onLoginOk = nullptr);
 
     // check password
     error validatepwd(const char* pswd);
@@ -743,7 +751,7 @@ public:
 
     // helpfer function for preparing a putnodes call for new node
     error putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, const char *utf8Name, const UploadToken& binaryUploadToken,
-                                  byte *theFileKey, char *megafingerprint, const char *fingerprintOriginal,
+                                  const byte *theFileKey, const char *megafingerprint, const char *fingerprintOriginal,
                                   std::function<error(AttrMap&)> addNodeAttrsFunc = nullptr,
                                   std::function<error(std::string *)> addFileAttrsFunc = nullptr);
 
@@ -788,6 +796,19 @@ public:
     // retrieve the email address of a user
     void getUserEmail(const char *uid);
 
+
+//
+// Account upgrade to V2
+//
+public:
+    void saveV1Pwd(const char* pwd);
+private:
+    void upgradeAccountToV2(const string& pwd, int ctag, std::function<void(error e)> completion);
+    // temporarily stores v1 account password, to allow automatic upgrade to v2 after successful (full-)login
+    unique_ptr<pair<string, SymmCipher>> mV1PswdVault;
+// -------- end of Account upgrade to V2
+
+public:
 #ifdef DEBUG
     // queue a user attribute removal
     void delua(const char* an);
@@ -1059,6 +1080,9 @@ public:
 
     // get the URL of a chat
     void getUrlChat(handle chatid);
+
+    // set chat mode (public/private)
+    void setChatMode(TextChat* chat, bool pubChat);
 
     // process object arrays by the API server (users + privileges)
     userpriv_vector * readuserpriv(JSON* j);
@@ -1413,6 +1437,7 @@ public:
     static error parseScheduledMeetingChangeset(JSON*, UserAlert::UpdatedScheduledMeeting::Changeset*);
 #endif
     void sc_uac();
+    void sc_uec();
     void sc_la();
     void sc_ub();
     void sc_sqac();
@@ -2326,6 +2351,8 @@ private:
 
     error changePasswordV1(User* u, const char* password, const char* pin);
     error changePasswordV2(const char* password, const char* pin);
+    void fillCypheredAccountDataV2(const char* password, vector<byte>& clientRandomValue, vector<byte>& encmasterkey,
+                                   string& hashedauthkey, string& salt);
 
     static vector<byte> deriveKey(const char* password, const string& salt, size_t derivedKeySize);
 
@@ -2443,9 +2470,13 @@ private:
     error readSet(JSON& j, Set& s);
     error readElements(JSON& j, map<handle, elementsmap_t>& elements);
     error readElement(JSON& j, SetElement& el);
+    error readAllNodeMetadata(JSON& j, map<handle, SetElement::NodeMetadata>& nodes);
+    error readSingleNodeMetadata(JSON& j, SetElement::NodeMetadata& node);
+    bool decryptNodeMetadata(SetElement::NodeMetadata& nodeMeta, const string& key);
     error readExportedSet(JSON& j, Set& s, pair<bool, m_off_t>& exportRemoved);
     error readSetsPublicHandles(JSON& j, map<handle, Set>& sets);
     error readSetPublicHandle(JSON& j, map<handle, Set>& sets);
+    size_t decryptAllSets(map<handle, Set>& newSets, map<handle, elementsmap_t>& newElements, map<handle, SetElement::NodeMetadata>* nodeData);
     error decryptSetData(Set& s);
     error decryptElementData(SetElement& el, const string& setKey);
     string decryptKey(const string& k, SymmCipher& cipher) const;

@@ -558,7 +558,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
 {
     public:
         MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime,
-                        MegaHandle nodeMegaHandle, std::string *nodekey, std::string *fileattrstring,
+                        MegaHandle nodeMegaHandle, const std::string *nodekey, const std::string *fileattrstring,
                         const char *fingerprint, const char *originalFingerprint, MegaHandle owner, MegaHandle parentHandle = INVALID_HANDLE,
                         const char *privateauth = NULL, const char *publicauth = NULL, bool isPublic = true,
                         bool isForeign = false, const char *chatauth = NULL, bool isNodeDecrypted = true);
@@ -637,6 +637,9 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         char *serialize() override;
         bool serialize(string*) const override;
         static MegaNodePrivate* unserialize(string*);
+
+        static string removeAppPrefixFromFingerprint(const char* appFingerprint, m_off_t* nodeSize = nullptr);
+        static string addAppPrefixToFingerprint(const string& fingerprint, const m_off_t nodeSize);
 
     protected:
         MegaNodePrivate(Node *node);
@@ -1497,7 +1500,7 @@ class MegaRequestPrivate : public MegaRequest
         // instead of adding more code to the huge switch there
         std::function<error()> performRequest;
         std::function<error(TransferDbCommitter&)> performTransferRequest;
-        
+
         // perform fireOnRequestFinish in sendPendingReqeusts()
         // See fireOnRequestFinish
         std::function<void()> performFireOnRequestFinish;
@@ -1943,7 +1946,7 @@ class MegaTextChatPeerListPrivate : public MegaTextChatPeerList
 {
 public:
     MegaTextChatPeerListPrivate();
-    MegaTextChatPeerListPrivate(userpriv_vector *);
+    MegaTextChatPeerListPrivate(const userpriv_vector *);
 
     virtual ~MegaTextChatPeerListPrivate();
     virtual MegaTextChatPeerList *copy() const;
@@ -2483,7 +2486,6 @@ class MegaApiImpl : public MegaApp
 
         //Utils
         long long getSDKtime();
-        char *getStringHash(const char* base64pwkey, const char* inBuf);
         void getSessionTransferURL(const char *path, MegaRequestListener *listener);
         static MegaHandle base32ToHandle(const char* base32Handle);
         static handle base64ToHandle(const char* base64Handle);
@@ -2505,6 +2507,8 @@ class MegaApiImpl : public MegaApp
         bool serverSideRubbishBinAutopurgeEnabled();
         bool appleVoipPushEnabled();
         bool newLinkFormatEnabled();
+        unsigned int getABTestValue(const char* flag);
+        void sendABTestActive(const char* flag, MegaRequestListener* listener);
         int smsAllowedState();
         char* smsVerifiedPhoneNumber();
         void resetSmsVerifiedPhoneNumber(MegaRequestListener *listener);
@@ -2528,7 +2532,6 @@ class MegaApiImpl : public MegaApp
         char *getAccountAuth();
         void setAccountAuth(const char* auth);
 
-        void fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener = NULL);
         void fastLogin(const char* session, MegaRequestListener *listener = NULL);
         void killSession(MegaHandle sessionHandle, MegaRequestListener *listener = NULL);
         void getUserData(MegaRequestListener *listener = NULL);
@@ -2546,10 +2549,8 @@ class MegaApiImpl : public MegaApp
         void cancelCreateAccount(MegaRequestListener *listener = NULL);
         void sendSignupLink(const char* email, const char *name, const char *password, MegaRequestListener *listener = NULL);
         void resendSignupLink(const char* email, const char *name, MegaRequestListener *listener = NULL);
-        void fastSendSignupLink(const char *email, const char *base64pwkey, const char *name, MegaRequestListener *listener = NULL);
         void querySignupLink(const char* link, MegaRequestListener *listener = NULL);
         void confirmAccount(const char* link, const char *password, MegaRequestListener *listener = NULL);
-        void fastConfirmAccount(const char* link, const char *base64pwkey, MegaRequestListener *listener = NULL);
         void resetPassword(const char *email, bool hasMasterKey, MegaRequestListener *listener = NULL);
         void queryRecoveryLink(const char *link, MegaRequestListener *listener = NULL);
         void confirmResetPasswordLink(const char *link, const char *newPwd, const char *masterKey = NULL, MegaRequestListener *listener = NULL);
@@ -2940,7 +2941,7 @@ class MegaApiImpl : public MegaApp
 
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
 
-        MegaNode *createForeignFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime,
+        MegaNode *createForeignFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime, const char* fingerprintCrc,
                                        MegaHandle parentHandle, const char *privateauth, const char *publicauth, const char *chatauth);
         MegaNode *createForeignFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle,
                                          const char *privateauth, const char *publicauth);
@@ -3215,11 +3216,6 @@ class MegaApiImpl : public MegaApp
         MegaClient *getMegaClient();
         static FileFingerprint *getFileFingerprintInternal(const char *fingerprint);
 
-        // You take the ownership of the returned value of both functiions
-        // It can be NULL if the input parameters are invalid
-        static char* getMegaFingerprintFromSdkFingerprint(const char* sdkFingerprint);
-        static char* getSdkFingerprintFromMegaFingerprint(const char *megaFingerprint, m_off_t size);
-
         error processAbortBackupRequest(MegaRequestPrivate *request);
         void fireOnBackupStateChanged(MegaScheduledCopyController *backup);
         void fireOnBackupStart(MegaScheduledCopyController *backup);
@@ -3232,7 +3228,7 @@ class MegaApiImpl : public MegaApp
         void unlockMutex();
         bool tryLockMutexFor(long long time);
 
-protected:
+private:
         void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, unsigned clientWorkerThreadCount /*= 1*/);
 
         static void *threadEntryPoint(void *param);
@@ -3276,7 +3272,7 @@ protected:
         node_vector searchInNodeManager(MegaHandle nodeHandle, const char* searchString, int mimeType, bool recursive, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelToken);
 
         bool isValidTypeNode(Node *node, int type);
-        
+
         MegaApi *api;
         std::thread thread;
         std::thread::id threadId;
@@ -3620,7 +3616,6 @@ protected:
 
         void backupput_result(const Error&, handle backupId) override;
 
-protected:
         // Notify sdk errors (DB, node serialization, ...) to apps
         void notifyError(const char*, ErrorReason errorReason) override;
 
@@ -3644,6 +3639,9 @@ protected:
 
         // notify about account confirmation
         void notify_confirmation(const char*) override;
+
+        // notify about account confirmation after signup link -> user, email have been confirmed
+        void notify_confirm_user_email(handle /*user*/, const char* /*email*/) override;
 
         // network layer disconnected
         void notify_disconnect() override;
@@ -3690,7 +3688,6 @@ protected:
         friend class MegaFolderUploadController;
         friend class MegaRecursiveOperation;
 
-private:
         void setCookieSettings_sendPendingRequests(MegaRequestPrivate* request);
         error getCookieSettings_getua_result(byte* data, unsigned len, MegaRequestPrivate* request);
 

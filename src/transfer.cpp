@@ -33,46 +33,6 @@
 
 namespace mega {
 
-class FileNameGenerator
-{
-public:
-    // It generates a new name suffixed with (n). It is not conflicted in the file system
-    // always a new name is returned
-    static LocalPath suffixWithN(FileAccess* fa, const LocalPath& localname);
-
-    // It generates a new name suffixed with .oldn. It is not conflicted in the file system
-    // always a new name is returned
-    static LocalPath suffixWithOldN(FileAccess* fa, const LocalPath& localname);
-
-private:
-    static LocalPath suffix(FileAccess* fa, const LocalPath& localname, std::function<std::string(unsigned)> suffixF);
-};
-
-LocalPath FileNameGenerator::suffixWithN(FileAccess* fa, const LocalPath& localname)
-{
-    return suffix(fa, localname, [ ](unsigned num) { return " (" + std::to_string(num) + ")"; });
-}
-
-LocalPath FileNameGenerator::suffixWithOldN(FileAccess* fa, const LocalPath& localname)
-{
-    return suffix(fa, localname, [](unsigned num) { return ".old" + std::to_string(num); });
-}
-
-LocalPath FileNameGenerator::suffix(FileAccess* fa, const LocalPath& localname, std::function<std::string(unsigned)> suffixF)
-{
-    LocalPath localnewname;
-    unsigned num = 0;
-    do
-    {
-        num++;
-        localnewname = localname.insertFilenameSuffix(suffixF(num));
-    } while (fa->fopen(localnewname, FSLogging::logExceptFileNotFound) || fa->type == FOLDERNODE);
-
-    return localnewname;
-}
-
-
-
 TransferCategory::TransferCategory(direction_t d, filesizetype_t s)
     : direction(d)
     , sizetype(s)
@@ -147,6 +107,14 @@ Transfer::~Transfer()
         }
 
         (*it)->transfer = NULL;
+
+        if (type == GET)
+        {
+            if (downloadDistributor)
+                downloadDistributor->removeTarget();
+        }
+
+        // this File may be deleted by this call.  So call after the tests above
         (*it)->terminated(API_OK);
     }
 
@@ -614,32 +582,17 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ LocalPath&
 #endif
 }
 
-bool Transfer::resolveCollision(FileAccess* fa, File* file, LocalPath &dest)
+FileDistributor::TargetNameExistsResolution Transfer::toTargetNameExistsResolution(CollisionResolution resolution)
 {
-    bool transient_error = false;
-    switch (file->getCollisionResolution())
-    {
-    case CollisionResolution::Overwrite:
-        LOG_debug << "The destination file exist (not synced). Overwrite";
-        break;
-    case CollisionResolution::RenameExistingToOldN:
-        LOG_debug << "The destination file exist (not synced). Rename it";
-        if (client->fsaccess->renamelocal(dest, FileNameGenerator::suffixWithOldN(fa, dest)))
-        {
-            //OK;
-        }
-        else if (client->fsaccess->transient_error)
-        {
-            transient_error = true;
-        }
-        break;
-    case CollisionResolution::RenameNewWithN: //fall through
-    default:
-        LOG_debug << "The destination file exist (not synced). Saving with a different name";
-        file->setLocalname(dest = FileNameGenerator::suffixWithN(fa, dest));
-        break;
+    switch (resolution) {
+        case CollisionResolution::Overwrite:
+            return FileDistributor::TargetNameExistsResolution::OverwriteTarget;
+        case CollisionResolution::RenameExistingToOldN:
+            return FileDistributor::TargetNameExistsResolution::RenameExistingToOldN;
+        case CollisionResolution::RenameNewWithN: // fall through
+        default:
+            return FileDistributor::TargetNameExistsResolution::RenameWithBracketedNumber;
     }
-    return transient_error;
 }
 
 // transfer completion: copy received file locally, set timestamp(s), verify
@@ -657,8 +610,6 @@ void Transfer::complete(TransferDbCommitter& committer)
         LOG_debug << client->clientname << "Download complete: " << (files.size() ? LOG_NODEHANDLE(files.front()->h) : "NO_FILES") << " " << files.size() << (files.size() ? files.front()->name : "");
 
         bool transient_error = false;
-        LocalPath localname;
-        bool tempfileIsUsed = false;
         bool success;
 
         // disconnect temp file from slot...
@@ -788,6 +739,12 @@ void Transfer::complete(TransferDbCommitter& committer)
                 (*it)->updatelocalname();
             }
 
+            if (!downloadDistributor)
+            {
+                // we keep the old one in case there was a temporary_error previously
+                downloadDistributor.reset(new FileDistributor(localfilename, files.size(), mtime, *this));
+            }
+
             set<string> keys;
             // place file in all target locations - use up to one renames, copy
             // operations for the rest
@@ -796,108 +753,40 @@ void Transfer::complete(TransferDbCommitter& committer)
             {
                 transient_error = false;
                 success = false;
-                localname = (*it)->getLocalname();
 
-                if (localname != localfilename)
+                auto finalpath = (*it)->getLocalname();
+
+                // it may update the path to include (n), or .oldN if there is a clash
+                bool name_too_long = false;
+#ifdef ENABLE_SYNC
+                if ((*it)->syncxfer)
                 {
-                    fa = client->fsaccess->newfileaccess();
-                    if (fa->fopen(localname, FSLogging::logOnError) || fa->type == FOLDERNODE)
+                    auto syncFileGet = dynamic_cast<SyncFileGet*>(*it);
+                    if (syncFileGet && syncFileGet->sync)
                     {
-                        // the destination path already exists
-        #ifdef ENABLE_SYNC
-                        if((*it)->syncxfer)
-                        {
-                            bool foundOne = false;
-                            client->syncs.forEachRunningSync([&](Sync* sync){
-
-                                LocalNode *localNode = sync->localnodebypath(NULL, localname);
-                                if (localNode && !foundOne)
-                                {
-                                    LOG_debug << "Overwriting a local synced file. Moving the previous one to debris";
-
-                                    // try to move to local debris
-                                    if(!sync->movetolocaldebris(localname))
-                                    {
-                                        transient_error = client->fsaccess->transient_error;
-                                    }
-
-                                    foundOne = true;
-                                }
-                            });
-
-                            if (!foundOne)
-                            {
-                                LOG_err << "LocalNode for destination file not found";
-
-                                if(client->syncs.hasRunningSyncs())
-                                {
-                                    // try to move to debris in the first sync
-                                    if(!client->syncs.firstRunningSync()->movetolocaldebris(localname))
-                                    {
-                                        transient_error = client->fsaccess->transient_error;
-                                    }
-                                }
-                            }
-                        }
-                        else
-        #endif
-                        {
-                            transient_error = resolveCollision(fa.get(), *it, localname);
-                        }
+                        success = downloadDistributor->distributeTo(finalpath, *client->fsaccess, FileDistributor::MoveReplacedFileToSyncDebris, transient_error, name_too_long, syncFileGet->sync);
                     }
                     else
                     {
-                        transient_error = fa->retry;
-                    }
-
-                    if (transient_error)
-                    {
-                        LOG_warn << "Transient error checking if the destination file exist";
-                        it++;
-                        continue;
+                        LOG_err << "Unable to complete transfer due to syncFileGet " << syncFileGet << " ->sync " << (syncFileGet ? syncFileGet->sync : nullptr);
+                        success = false;
                     }
                 }
-
-                // rename the temp file for the last one when the temp file is not used yet
-                if (files.size() == 1 && !tempfileIsUsed)
+                else 
+#endif //ENABLE_SYNC
                 {
-                    if (localfilename != localname)
-                    {
-                        LOG_debug << "Renaming temporary file to target path";
-                        if (client->fsaccess->renamelocal(localfilename, localname))
-                        {
-                            tempfileIsUsed = true;
-                            success = true;
-                        }
-                        else if (client->fsaccess->transient_error)
-                        {
-                            transient_error = true;
-                        }
-                    }
-                    else
-                    {
-                        tempfileIsUsed = true;
-                        success = true;
-                    }
+                    auto r = toTargetNameExistsResolution((*it)->getCollisionResolution());
+                    success = downloadDistributor->distributeTo(finalpath, *client->fsaccess, r, transient_error, name_too_long, nullptr);
                 }
 
-                // copy the temp file to the destination
-                if (!success)
+                if (success)
                 {
-                    if(localfilename == localname)
-                    {
-                        LOG_debug << "Identical node downloaded to the same folder";
-                        tempfileIsUsed = true;
-                        success = true;
-                    }
-                    else if (client->fsaccess->copylocal(localfilename, localname, mtime))
-                    {
-                        success = true;
-                    }
-                    else if (client->fsaccess->transient_error)
-                    {
-                        transient_error = true;
-                    }
+                    (*it)->setLocalname(finalpath);  // so the app may report an accurate final name
+                }
+                else if (transient_error)
+                {
+                    it++;
+                    continue;
                 }
 
                 if (success)
@@ -905,6 +794,7 @@ void Transfer::complete(TransferDbCommitter& committer)
                     // set missing node attributes
                     if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodeByHandle((*it)->h)))
                     {
+                        auto localname = (*it)->getLocalname();
                         if (!client->gfxdisabled && client->gfx && client->gfx->isgfx(localname) &&
                             keys.find(n->nodekey()) == keys.end() &&    // this file hasn't been processed yet
                             client->checkaccess(n, OWNER))
@@ -930,60 +820,63 @@ void Transfer::complete(TransferDbCommitter& committer)
                     }
                 }
 
-                if (success || !transient_error)
+                if (success)
                 {
-                    if (success)
-                    {
-                        // prevent deletion of associated Transfer object in completed()
-                        client->filecachedel(*it, &committer);
-                        client->app->file_complete(*it);
-                        (*it)->transfer = NULL;
-                        (*it)->completed(this, (*it)->syncxfer ? PUTNODES_SYNC : PUTNODES_APP);
-                        files.erase(it++);
-                    }
-                    else if (!(*it)->failed(API_EAGAIN, client)) // failed and doesn't retry
-                    {
-                        File* f = (*it);
-                        files.erase(it++);
-                        {
-                            LOG_warn << "Unable to complete transfer due to a persistent error";
-                            client->filecachedel(f, &committer);
+                    // prevent deletion of associated Transfer object in completed()
+                    client->filecachedel(*it, &committer);
+                    client->app->file_complete(*it);
+                    (*it)->transfer = NULL;
+                    (*it)->completed(this, (*it)->syncxfer ? PUTNODES_SYNC : PUTNODES_APP);
+                    files.erase(it++);
+                }
+                else if (transient_error)
+                {
+                    LOG_debug << "Transient error completing file";
+                    it++;
+                }
+                else if (!(*it)->failed(API_EAGAIN, client))
+                {
+                    File* f = (*it);
+                    files.erase(it++);
+
+                    LOG_warn << "Unable to complete transfer due to a persistent error";
+                    client->filecachedel(f, &committer);
 #ifdef ENABLE_SYNC
                             if (f->syncxfer)
                             {
                                 client->syncdownrequired = true;
                             }
 #endif
-                            client->app->file_removed(f, API_EWRITE);
-                            f->transfer = NULL;
-                            f->terminated(API_EWRITE);
-                        }
-                    }
-                    else // failed and retry
                     {
-                        failcount++;
-                        LOG_debug << "Persistent error completing file. Failcount: " << failcount;
-                        it++;
+                        downloadDistributor->removeTarget();
                     }
+
+                    client->app->file_removed(f, API_EWRITE);
+                    f->transfer = NULL;
+                    f->terminated(API_EWRITE);
                 }
-                else // Transient error, retry
+                else
                 {
-                    LOG_debug << "Transient error completing file";
+                    failcount++;
+                    LOG_debug << "Persistent error completing file. Failcount: " << failcount;
+                    if (name_too_long)
+                    {
+                        LOG_warn << "Error is: name too long";
+                    }
                     it++;
                 }
             }
 
-            // unlink the temp file if it is not used yet when all files are completed
-            if (files.empty() && !tempfileIsUsed)
+            if (files.empty())
             {
-                client->fsaccess->unlinklocal(localfilename);
+                // check if we should delete the download at downloaded path
+                downloadDistributor.reset();
             }
         }
 
         if (files.empty()) // all processed
         {
             state = TRANSFERSTATE_COMPLETED;
-            localfilename = localname;
             assert(localfilename.isAbsolute());
             finished = true;
             client->looprequested = true;

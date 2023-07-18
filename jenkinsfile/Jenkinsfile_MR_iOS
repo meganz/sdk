@@ -48,18 +48,14 @@ pipeline {
                 }
 
                 stage('Get MEGAchat branch'){
-                    when {
-                        expression { 
-                            env.gitlabMergeRequestDescription.contains('MEGACHAT_BRANCH_TO_TEST')
-                        }
-                    }
                     steps {
                         script{
                             env.MEGACHAT_BRANCH = sh(script: 'echo "$gitlabMergeRequestDescription" | grep MEGACHAT_BRANCH_TO_TEST | awk -F "MEGACHAT_BRANCH_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
-                            println MEGACHAT_BRANCH
                             if (MEGACHAT_BRANCH == ""){
                                 echo "MEGACHAT_BRANCH was not found on description so develop will be used by default"
+                                env.MEGACHAT_BRANCH = "develop"
                             }
+                            println MEGACHAT_BRANCH
                         }
                     }
                     post{
@@ -74,18 +70,14 @@ pipeline {
                 }
                 
                 stage('Get iOS branch'){
-                    when {
-                        expression { 
-                            env.gitlabMergeRequestDescription.contains('IOS_BRANCH_TO_TEST')
-                        }
-                    }
                     steps {
                         script{
                             env.IOS_BRANCH = sh(script: 'echo "$gitlabMergeRequestDescription" | grep IOS_BRANCH_TO_TEST | awk -F "IOS_BRANCH_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
-                            println IOS_BRANCH
                             if (IOS_BRANCH == ""){
                                 echo "IOS_BRANCH was not found on description so develop will be used by default"
+                                env.IOS_BRANCH = "develop"
                             }
+                            println IOS_BRANCH
                         }
                     }
                     post{
@@ -113,7 +105,8 @@ pipeline {
                         [$class: "UserIdentity",name: "jenkins", email: "jenkins@jenkins"]
                         ]
                 ])
-                dir("iMEGA/Vendor/Karere"){
+                dir('Modules/DataSource/MEGAChatSDK/Sources/MEGAChatSDK'){  
+
                     //Clone MEGAchat
                     sh "echo Cloning megachat branch ${env.MEGACHAT_BRANCH}"
                     checkout([
@@ -141,8 +134,8 @@ pipeline {
                 sh "git submodule update --init iMEGA/Vendor/LTHPasscodeViewController"
                 script{
                     ios_sources_workspace = WORKSPACE
-                    sdk_sources_workspace = "${ios_sources_workspace}/iMEGA/Vendor/SDK"
-                    megachat_sources_workspace = "${ios_sources_workspace}/iMEGA/Vendor/Karere"
+                    sdk_sources_workspace = "${ios_sources_workspace}/Modules/DataSource/MEGASDK/Sources/MEGASDK"
+                    megachat_sources_workspace = "${ios_sources_workspace}/Modules/DataSource/MEGAChatSDK/Sources/MEGAChatSDK"
                 }
             }
         }
@@ -171,8 +164,10 @@ pipeline {
                         sh "bash download_3rdparty.sh" 
                     }   
                 }
-                sh "bundle exec fastlane update_plugins"
-                sh "bundle exec fastlane build_simulator"
+                withCredentials([gitUsernamePassword(credentialsId: 'jenkins_sdk_token_with_user', gitToolName: 'Default')]) {
+                        sh "bundle exec fastlane update_plugins"
+                        sh "bundle exec fastlane build_simulator"
+                }
             }
         }
     }

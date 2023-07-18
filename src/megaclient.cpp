@@ -479,9 +479,8 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                     {
                         sendevent(99428,"Replacing share key", 0);
                     }
-                    delete n->sharekey;
                 }
-                n->sharekey = new SymmCipher(s->key);
+                n->sharekey.reset(new SymmCipher(s->key));
                 skreceived = true;
 
                 // Save the new sharekey in mKeyManager
@@ -523,7 +522,6 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                 share_map::iterator shareit = n->outshares->find(s->peer);
                 if (shareit != n->outshares->end())
                 {
-                    Share *delshare = shareit->second;
                     n->outshares->erase(shareit);
                     found = true;
                     if (notify)
@@ -531,13 +529,11 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                         n->changed.outshares = true;
                         notifynode(n);
                     }
-                    delete delshare;
                 }
 
-                if (!n->outshares->size())
+                if (n->outshares->empty())
                 {
-                    delete n->outshares;
-                    n->outshares = NULL;
+                    n->outshares.reset();
                 }
             }
             if (n->pendingshares && !found && s->pending)
@@ -546,7 +542,6 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                 share_map::iterator shareit = n->pendingshares->find(s->pending);
                 if (shareit != n->pendingshares->end())
                 {
-                    Share *delshare = shareit->second;
                     n->pendingshares->erase(shareit);
                     found = true;
                     if (notify)
@@ -554,13 +549,11 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                         n->changed.pendingshares = true;
                         notifynode(n);
                     }
-                    delete delshare;
                 }
 
-                if (!n->pendingshares->size())
+                if (n->pendingshares->empty())
                 {
-                    delete n->pendingshares;
-                    n->pendingshares = NULL;
+                    n->pendingshares.reset();
                 }
             }
 
@@ -569,9 +562,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
             if (s->remove_key && !n->outshares && !n->pendingshares)
             {
                 rewriteforeignkeys(n);
-
-                delete n->sharekey;
-                n->sharekey = NULL;
+                n->sharekey.reset();
             }
         }
         else
@@ -580,8 +571,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
             {
                 n->inshare->user->sharing.erase(n->nodehandle);
                 notifyuser(n->inshare->user);
-                delete n->inshare;
-                n->inshare = NULL;
+                n->inshare.reset();
             }
 
             // incoming share deleted - remove tree
@@ -589,6 +579,11 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
             {
                 TreeProcDel td;
                 proctree(n, &td, true);
+            }
+            else if (notify)
+            {
+                n->changed.inshare = true;
+                notifynode(n);
             }
         }
     }
@@ -603,13 +598,13 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                 // only on own nodes and signed unless read from cache
                 if (checkaccess(n, OWNERPRELOGIN))
                 {
-                    Share** sharep;
+                    unique_ptr<Share>* sharep;
                     if (!ISUNDEF(s->pending))
                     {
                         // Pending share
                         if (!n->pendingshares)
                         {
-                            n->pendingshares = new share_map();
+                            n->pendingshares.reset(new share_map());
                         }
 
                         if (s->upgrade_pending_to_full)
@@ -619,20 +614,17 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                             {
                                 // This is currently a pending share that needs to be upgraded to a full share
                                 // erase from pending shares & delete the pending share list if needed
-                                Share *delshare = shareit->second;
                                 n->pendingshares->erase(shareit);
                                 if (notify)
                                 {
                                     n->changed.pendingshares = true;
                                     notifynode(n);
                                 }
-                                delete delshare;
                             }
 
-                            if (!n->pendingshares->size())
+                            if (n->pendingshares->empty())
                             {
-                                delete n->pendingshares;
-                                n->pendingshares = NULL;
+                                n->pendingshares.reset();
                             }
 
                             // clear this so we can fall through to below and have it re-create the share in
@@ -642,7 +634,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                             // create the outshares list if needed
                             if (!n->outshares)
                             {
-                                n->outshares = new share_map();
+                                n->outshares.reset(new share_map());
                             }
 
                             sharep = &((*n->outshares)[s->peer]);
@@ -657,7 +649,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                         // Normal outshare
                         if (!n->outshares)
                         {
-                            n->outshares = new share_map();
+                            n->outshares.reset(new share_map());
                         }
 
                         sharep = &((*n->outshares)[s->peer]);
@@ -670,7 +662,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                     }
                     else
                     {
-                        *sharep = new Share(ISUNDEF(s->peer) ? NULL : finduser(s->peer, 1), s->access, s->ts, findpcr(s->pending));
+                        sharep->reset(new Share(ISUNDEF(s->peer) ? NULL : finduser(s->peer, 1), s->access, s->ts, findpcr(s->pending)));
                     }
 
                     if (notify)
@@ -710,7 +702,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                         }
                         else
                         {
-                            n->inshare = new Share(finduser(s->peer, 1), s->access, s->ts, NULL);
+                            n->inshare.reset(new Share(finduser(s->peer, 1), s->access, s->ts, NULL));
                             n->inshare->user->sharing.insert(n->nodehandle);
                         }
 
@@ -4860,6 +4852,8 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 
     mAsyncQueue.clearDiscardable();
 
+    mV1PswdVault.reset();
+
 #ifdef ENABLE_SYNC
     syncs.locallogout(removecaches, keepSyncsConfigFile, false);
 #endif
@@ -4891,6 +4885,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     aplvp_enabled = false;
     mNewLinkFormat = false;
     mCookieBannerEnabled = false;
+    mABTestFlags.clear();
     mProFlexi = false;
     mSmsVerificationState = SMS_STATE_UNKNOWN;
     mSmsVerifiedPhone.clear();
@@ -5643,6 +5638,11 @@ bool MegaClient::procsc()
                                 // pending keys
                                 sc_pk();
                                 break;
+
+                            case MAKENAMEID3('u', 'e', 'c'):
+                                // User Email Confirm (uec)
+                                sc_uec();
+                                break;
                         }
                     }
                 }
@@ -5974,8 +5974,7 @@ void MegaClient::updatesc()
             // 6. write new or modified chats
             for (textchat_map::iterator it = chatnotify.begin(); it != chatnotify.end(); it++)
             {
-                char base64[12];
-                LOG_verbose << "Adding chat to database: " << (Base64::btoa((byte*)&(it->second->id),MegaClient::CHATHANDLE,base64) ? base64 : "");
+                LOG_verbose << "Adding chat to database: " << Base64Str<sizeof(handle)>(it->second->getChatId());
                 if (!(complete = sctable->put(CACHEDCHAT, it->second, &key)))
                 {
                     break;
@@ -7432,11 +7431,7 @@ void MegaClient::sc_ph()
 
                 if (deleted)        // deletion
                 {
-                    if (n->plink)
-                    {
-                        delete n->plink;
-                        n->plink = NULL;
-                    }
+                    n->plink.reset();
                 }
                 else
                 {
@@ -7639,31 +7634,35 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                 }
                 else
                 {
+                    TextChat* chat = nullptr;
                     bool mustHaveUK = false;
                     privilege_t oldPriv = PRIV_UNKNOWN;
                     if (chats.find(chatid) == chats.end())
                     {
-                        chats[chatid] = new TextChat();
+                        chat = new TextChat(readingPublicChat ? publicchat : false);
+                        chats[chatid] = chat;
                         mustHaveUK = true;
                     }
                     else
                     {
-                        oldPriv = chats[chatid]->priv;
+                        chat = chats[chatid];
+                        oldPriv = chat->getOwnPrivileges();
+                        if (readingPublicChat) { setChatMode(chat, publicchat); }
                     }
 
-                    TextChat *chat = chats[chatid];
-                    chat->id = chatid;
-                    chat->shard = shard;
-                    chat->group = group;
-                    chat->priv = PRIV_UNKNOWN;
-                    chat->ou = ou;
-                    chat->title = title;
+                    chat->setChatId(chatid);
+                    chat->setShard(shard);
+                    chat->setGroup(group);
+                    chat->setOwnPrivileges(PRIV_UNKNOWN);
+                    chat->setOwnUser(ou);
+                    chat->setTitle(title);
+
                     // chat->flags = ?; --> flags are received in other AP: mcfc
                     if (ts != -1)
                     {
-                        chat->ts = ts;  // only in APs related to chat creation or when you're added to
+                        chat->setTs(ts);  // only in APs related to chat creation or when you're added to
                     }
-                    chat->meeting = meeting;
+                    chat->setMeeting(meeting);
 
                     if (group)
                     {
@@ -7681,7 +7680,7 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                             {
                                 found = true;
                                 mustHaveUK = (oldPriv <= PRIV_RM && upvit->second > PRIV_RM);
-                                chat->priv = upvit->second;
+                                chat->setOwnPrivileges(upvit->second);
                                 userpriv->erase(upvit);
                                 if (userpriv->empty())
                                 {
@@ -7701,13 +7700,13 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                             if (upvit->first == me)
                             {
                                 mustHaveUK = (oldPriv <= PRIV_RM && upvit->second > PRIV_RM);
-                                chat->priv = upvit->second;
+                                chat->setOwnPrivileges(upvit->second);
                                 break;
                             }
                         }
                     }
 
-                    if (chat->priv == PRIV_RM)
+                    if (chat->getOwnPrivileges() == PRIV_RM)
                     {
                         // clear the list of peers because API still includes peers in the
                         // actionpacket, but not in a fresh fetchnodes
@@ -7715,15 +7714,13 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                         userpriv = NULL;
                     }
 
-                    delete chat->userpriv;  // discard any existing `userpriv`
-                    chat->userpriv = userpriv;
+                    chat->setUserPrivileges(userpriv);
 
                     if (readingPublicChat)
                     {
-                        chat->setMode(publicchat);
                         if (!unifiedkey.empty())    // not all actionpackets include it
                         {
-                            chat->unifiedKey = unifiedkey;
+                            chat->setUnifiedKey(unifiedkey);
                         }
                         else if (mustHaveUK)
                         {
@@ -7900,7 +7897,7 @@ void MegaClient::sc_delscheduledmeeting()
                     {
                         // remove children scheduled meetings (API requirement)
                         handle_set deletedChildren = chat->removeChildSchedMeetings(schedId);
-                        handle chatid = chat->id;
+                        handle chatid = chat->getChatId();
                         chat->setTag(0);    // external change
                         notifychat(chat);
 
@@ -7956,7 +7953,7 @@ void MegaClient::sc_scheduledmeetings()
         handle schedId = sm->schedId();
         handle parentSchedId = sm->parentSchedId();
         m_time_t overrides = sm->overrides();
-        bool isNewSchedMeeting = chat->mScheduledMeetings.find(schedId) == end(chat->mScheduledMeetings);
+        bool isNewSchedMeeting = !chat->hasScheduledMeeting(schedId);
 
         // remove child scheduled meetings in cmd (child meetings deleted) array
         chat->removeSchedMeetingsList(childMeetingsDeleted);
@@ -7972,7 +7969,7 @@ void MegaClient::sc_scheduledmeetings()
             }
 
             // if we couldn't update scheduled meeting, but we have deleted it's children, we also need to notify apps
-            handle chatid = chat->id;
+            handle chatid = chat->getChatId();
             chat->setTag(0);    // external change
             notifychat(chat);
 
@@ -7984,14 +7981,14 @@ void MegaClient::sc_scheduledmeetings()
 
                 if (res)
                 {
-                    if (isNewSchedMeeting) createNewSMAlert(ou, chat->id, schedId, parentSchedId, overrides);
-                    else createUpdatedSMAlert(ou, chat->id, schedId, parentSchedId, overrides, std::move(cs));
+                    if (isNewSchedMeeting) createNewSMAlert(ou, chat->getChatId(), schedId, parentSchedId, overrides);
+                    else createUpdatedSMAlert(ou, chat->getChatId(), schedId, parentSchedId, overrides, std::move(cs));
                 }
             }
         }
 
         // fetch for fresh scheduled meetings occurrences
-        reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
+        reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->getChatId(), mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
     }
 }
 
@@ -8057,6 +8054,48 @@ void MegaClient::sc_uac()
                 if (!jsonsc.storeobject())
                 {
                     LOG_warn << "Failed to parse `uac` action packet";
+                    return;
+                }
+        }
+    }
+}
+
+void MegaClient::sc_uec()
+{
+    handle u = UNDEF;
+    string email;
+
+    for (;;)
+    {
+        switch (jsonsc.getnameid())
+        {
+            case 'm':
+                jsonsc.storeobject(&email);
+                break;
+
+            case 'u':
+                u = jsonsc.gethandle(USERHANDLE);
+                break;
+
+            case EOO:
+                if (email.empty())
+                {
+                    LOG_warn << "Missing email address in `uec` action packet";
+                }
+                if (u == UNDEF)
+                {
+                    LOG_warn << "Missing user handle in `uec` action packet";
+                }
+                app->account_updated();
+                app->notify_confirm_user_email(u, email.c_str());
+                ephemeralSession = false;
+                ephemeralSessionPlusPlus = false;
+                return;
+
+            default:
+                if (!jsonsc.storeobject())
+                {
+                    LOG_warn << "Failed to parse `uec` action packet";
                     return;
                 }
         }
@@ -8403,9 +8442,9 @@ void MegaClient::notifypurge(void)
 
             chat->notified = false;
             chat->resetTag();
-            memset(&(chat->changed), 0, sizeof(chat->changed));
-            chat->mSchedMeetingsChanged.clear();
-            chat->mUpdatedOcurrences.clear();
+            chat->changed = {};
+            chat->clearSchedMeetingsChanged();
+            chat->clearUpdatedSchedMeetingOccurrences();
         }
 
         chatnotify.clear();
@@ -8811,7 +8850,7 @@ error MegaClient::setattr(Node* n, attr_map&& updates, CommandSetAttr::Completio
 }
 
 error MegaClient::putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, const char *utf8Name, const UploadToken& binaryUploadToken,
-                                          byte *theFileKey, char *megafingerprint, const char *fingerprintOriginal,
+                                          const byte *theFileKey, const char *megafingerprint, const char *fingerprintOriginal,
                                           std::function<error(AttrMap&)> addNodeAttrsFunc, std::function<error(std::string *)> addFileAttrsFunc)
 {
     error e = API_OK;
@@ -9718,7 +9757,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                         {
                             // If logged into writable folder, we need the sharekey set in the root node
                             // so as to include it in subsequent put nodes
-                            n->sharekey = new SymmCipher(key); //we use the "master key", in this case the secret share key
+                            n->sharekey.reset(new SymmCipher(key)); //we use the "master key", in this case the secret share key
                         }
                     }
                 }
@@ -10193,6 +10232,7 @@ error MegaClient::readmiscflags(JSON *json)
     bool journeyIdFound = false;
     while (1)
     {
+        string fieldName = json->getnameWithoutAdvance();
         switch (json->getnameid())
         {
         // mcs:1 --> MegaChat enabled
@@ -10256,7 +10296,21 @@ error MegaClient::readmiscflags(JSON *json)
             }
             return API_OK;
         default:
-            if (!json->storeobject())
+            if (fieldName.rfind("ab_", 0) == 0) // Starting with "ab_"
+            {
+                string tag = fieldName.substr(3); // The string after "ab_" prefix
+                int64_t value = json->getint();
+                if (value >= 0)
+                {
+                    mABTestFlags[tag] = static_cast<uint32_t>(value);
+                }
+                else
+                {
+                    LOG_err << "[MegaClient::readmiscflags] Invalid value for A/B Test flag";
+                    assert(value >= 0 && "A/B test value must be greater or equal to 0");
+                }
+            }
+            else if (!json->storeobject())
             {
                 return API_EINTERNAL;
             }
@@ -11761,13 +11815,13 @@ void MegaClient::openShareDialog(Node* n, std::function<void(Error)> completion)
             LOG_debug << "Creating new share key for " << toHandle(n->nodehandle);
             byte key[SymmCipher::KEYLENGTH];
             rng.genblock(key, sizeof key);
-            n->sharekey = new SymmCipher(key);
+            n->sharekey.reset(new SymmCipher(key));
             updateKeys = true;
         }
         else
         {
             LOG_debug << "Setting node's sharekey from KeyManager (openShareDialog)";
-            n->sharekey = new SymmCipher((const byte*)previousKey.data());
+            n->sharekey.reset(new SymmCipher((const byte*)previousKey.data()));
         }
     }
     else assert(mKeyManager.getShareKey(n->nodehandle).size());
@@ -11871,13 +11925,13 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
             LOG_debug << "Creating new share key for folder link on " << toHandle(n->nodehandle);
             byte key[SymmCipher::KEYLENGTH];
             rng.genblock(key, sizeof key);
-            n->sharekey = new SymmCipher(key);
+            n->sharekey.reset(new SymmCipher(key));
             newShareKey = true;
         }
         else
         {
             LOG_debug << "Reusing node's sharekey from KeyManager for folder link on " << toHandle(n->nodehandle);
-            n->sharekey = new SymmCipher((const byte*)previousKey.data());
+            n->sharekey.reset(new SymmCipher((const byte*)previousKey.data()));
         }
     }
 
@@ -12292,6 +12346,142 @@ void MegaClient::getUserEmail(const char *uid)
     reqs.add(new CommandGetUserEmail(this, uid));
 }
 
+void MegaClient::loginResult(error e, std::function<void()> onLoginOk)
+{
+    if (e != API_OK)
+    {
+        mV1PswdVault.reset(); // clear this before the app knows that login is done, might improve security
+        app->login_result(e);
+        return;
+    }
+
+    assert(!mV1PswdVault || accountversion == 1);
+
+    if (accountversion == 1 && mV1PswdVault)
+    {
+        auto v1PswdVault(std::move(mV1PswdVault));
+
+        if (loggedin() == FULLACCOUNT)
+        {
+            // initiate automatic upgrade to V2
+            unique_ptr<TLVstore> tlv(TLVstore::containerToTLVrecords(&v1PswdVault->first, &v1PswdVault->second));
+            string pwd;
+            if (tlv && tlv->get("p", pwd))
+            {
+                if (pwd.empty())
+                {
+                    char msg[] = "Account upgrade to v2 has failed (invalid content in vault)";
+                    LOG_err << msg;
+                    sendevent(99475, msg);
+
+                    // report successful login, even if upgrade failed; user data was not affected, so apps can continue running
+                    app->login_result(API_OK);
+                    if (onLoginOk)
+                    {
+                        onLoginOk();
+                    }
+                    return;
+                }
+
+                upgradeAccountToV2(pwd, restag, [this, onLoginOk](error e)
+                    {
+                        // handle upgrade result
+                        if (e == API_EEXIST)
+                        {
+                            LOG_debug << "Account upgrade to V2 failed with EEXIST. It must have been upgraded in the meantime. Fetching user data again.";
+
+                            // upgrade done in the meantime by different client; get account details again
+                            getuserdata(restag, [this, onLoginOk](string*, string*, string*, error e)
+                                {
+                                    error loginErr = e == API_OK ? API_OK : API_EINTERNAL;
+                                    app->login_result(loginErr); // if error, report for login too because user data is inconsistent now
+
+                                    if (e != API_OK)
+                                    {
+                                        LOG_err << "Failed to get user data after acccount upgrade to V2 ended with EEXIST, error: " << e;
+                                    }
+                                    else if (onLoginOk)
+                                    {
+                                        onLoginOk();
+                                    }
+                                }
+                            );
+                        }
+
+                        else
+                        {
+                            if (e == API_OK)
+                            {
+                                LOG_info << "Account successfully upgraded to V2.";
+                            }
+                            else
+                            {
+                                LOG_warn << "Failed to upgrade account to V2, error: " << e;
+                            }
+
+                            // report successful login, even if upgrade failed; user data was not affected, so apps can continue running
+                            app->login_result(API_OK);
+                            if (onLoginOk)
+                            {
+                                onLoginOk();
+                            }
+                        }
+                    }
+                );
+
+                return; // stop here when account upgrade was initiated
+            }
+        }
+    }
+
+    // V2, or V1 without mandatory requirements for upgrade
+    app->login_result(API_OK);
+    if (onLoginOk)
+    {
+        onLoginOk();
+    }
+}
+
+//
+// Account upgrade to V2
+//
+void MegaClient::saveV1Pwd(const char* pwd)
+{
+    assert(pwd);
+    if (pwd && accountversion == 1)
+    {
+        vector<byte> pwkey(SymmCipher::KEYLENGTH);
+        rng.genblock(pwkey.data(), pwkey.size());
+        SymmCipher pwcipher(pwkey.data());
+
+        TLVstore tlv;
+        tlv.set("p", pwd);
+        unique_ptr<string> tlvStr(tlv.tlvRecordsToContainer(rng, &pwcipher));
+
+        if (tlvStr)
+        {
+            mV1PswdVault.reset(new pair<string, SymmCipher>(std::move(*tlvStr), std::move(pwcipher)));
+        }
+    }
+}
+
+void MegaClient::upgradeAccountToV2(const string& pwd, int ctag, std::function<void(error e)> completion)
+{
+    assert(loggedin() == FULLACCOUNT);
+    assert(accountversion == 1);
+    assert(!pwd.empty());
+
+    vector<byte> clientRandomValue;
+    vector<byte> encmasterkey;
+    string hashedauthkey;
+    string salt;
+
+    fillCypheredAccountDataV2(pwd.c_str(), clientRandomValue, encmasterkey, hashedauthkey, salt);
+
+    reqs.add(new CommandAccountVersionUpgrade(std::move(clientRandomValue), std::move(encmasterkey), std::move(hashedauthkey), std::move(salt), ctag, completion));
+}
+// -------- end of Account upgrade to V2
+
 #ifdef DEBUG
 void MegaClient::delua(const char *an)
 {
@@ -12385,7 +12575,7 @@ void MegaClient::notifychat(TextChat *chat)
     if (!chat->notified)
     {
         chat->notified = true;
-        chatnotify[chat->id] = chat;
+        chatnotify[chat->getChatId()] = chat;
     }
 }
 #endif
@@ -12641,19 +12831,25 @@ void MegaClient::procmcf(JSON *j)
                             case EOO:
                                 if (chatid != UNDEF && priv != PRIV_UNKNOWN && shard != -1)
                                 {
+                                    TextChat* chat = nullptr;
                                     if (chats.find(chatid) == chats.end())
                                     {
-                                        chats[chatid] = new TextChat();
+                                        chat = new TextChat(readingPublicChats && publicchat);
+                                        chats[chatid] = chat;
+                                    }
+                                    else
+                                    {
+                                        chat = chats[chatid];
+                                        if (readingPublicChats) { setChatMode(chat, publicchat); }
                                     }
 
-                                    TextChat *chat = chats[chatid];
-                                    chat->id = chatid;
-                                    chat->priv = priv;
-                                    chat->shard = shard;
-                                    chat->group = group;
-                                    chat->title = title;
-                                    chat->ts = (ts != -1) ? ts : 0;
-                                    chat->meeting = meeting;
+                                    chat->setChatId(chatid);
+                                    chat->setOwnPrivileges(priv);
+                                    chat->setShard(shard);
+                                    chat->setGroup(group);
+                                    chat->setTitle(title);
+                                    chat->setTs(ts != -1 ? ts : 0);
+                                    chat->setMeeting(meeting);
 
                                     if (group)
                                     {
@@ -12662,8 +12858,7 @@ void MegaClient::procmcf(JSON *j)
 
                                     if (readingPublicChats)
                                     {
-                                        chat->publicchat = publicchat;  // true or false (formerly public, now private)
-                                        chat->unifiedKey = unifiedKey;
+                                        chat->setUnifiedKey(unifiedKey);
 
                                         if (unifiedKey.empty())
                                         {
@@ -12674,7 +12869,7 @@ void MegaClient::procmcf(JSON *j)
                                     // remove yourself from the list of users (only peers matter)
                                     if (userpriv)
                                     {
-                                        if (chat->priv == PRIV_RM)
+                                        if (chat->getOwnPrivileges() == PRIV_RM)
                                         {
                                             // clear the list of peers because API still includes peers in the
                                             // actionpacket, but not in a fresh fetchnodes
@@ -12699,8 +12894,7 @@ void MegaClient::procmcf(JSON *j)
                                             }
                                         }
                                     }
-                                    delete chat->userpriv;  // discard any existing `userpriv`
-                                    chat->userpriv = userpriv;
+                                    chat->setUserPrivileges(userpriv);
                                 }
                                 else
                                 {
@@ -12768,7 +12962,7 @@ void MegaClient::procmcf(JSON *j)
                                     else
                                     {
                                         it->second->setFlags(flags);
-                                        assert(!readingPublicChats || !it->second->unifiedKey.empty());
+                                        assert(!readingPublicChats || !it->second->getUnifiedKey().empty());
                                     }
                                 }
                                 else
@@ -13483,7 +13677,7 @@ error MegaClient::changepw(const char* password, const char *pin)
     // Confirm account version, not rely on cached values
     string spwd = password ? password : string();
     string spin = pin ? pin : string();
-    reqs.add(new CommandGetUserData(this, reqtag,
+    getuserdata(reqtag,
         [this, u, spwd, spin](string* name, string* pubk, string* privk, error e)
         {
             if (e != API_OK)
@@ -13512,7 +13706,7 @@ error MegaClient::changepw(const char* password, const char *pin)
                 app->changepw_result(e);
             }
         }
-    ));
+    );
 
     return API_OK;
 }
@@ -13540,33 +13734,43 @@ error MegaClient::changePasswordV1(User* u, const char* password, const char* pi
 
 error MegaClient::changePasswordV2(const char* password, const char* pin)
 {
-    byte clientRandomValue[SymmCipher::KEYLENGTH];
-    rng.genblock(clientRandomValue, sizeof(clientRandomValue));
-
+    vector<byte> clientRandomValue;
+    vector<byte> encmasterkey;
+    string hashedauthkey;
     string salt;
-    HashSHA256 hasher;
+
+    fillCypheredAccountDataV2(password, clientRandomValue, encmasterkey, hashedauthkey, salt);
+
+    // Pass the salt and apply to this->accountsalt if the command succeed to allow posterior checks of the password without getting it from the server
+    reqs.add(new CommandSetMasterKey(this, encmasterkey.data(), reinterpret_cast<const byte*>(hashedauthkey.data()), SymmCipher::KEYLENGTH,
+                                     clientRandomValue.data(), pin, &salt));
+    return API_OK;
+}
+
+void MegaClient::fillCypheredAccountDataV2(const char* password, vector<byte>& clientRandomValue, vector<byte>& encmasterkey,
+                                           string& hashedauthkey, string& salt)
+{
+    clientRandomValue.resize(SymmCipher::KEYLENGTH, 0);
+    rng.genblock(clientRandomValue.data(), clientRandomValue.size());
+
     string buffer = "mega.nz";
     buffer.resize(200, 'P');
-    buffer.append((char *)clientRandomValue, sizeof(clientRandomValue));
-    hasher.add((const byte*)buffer.data(), unsigned(buffer.size()));
+    buffer.append(reinterpret_cast<const char*>(clientRandomValue.data()), clientRandomValue.size());
+    HashSHA256 hasher;
+    hasher.add(reinterpret_cast<const byte*>(buffer.data()), unsigned(buffer.size()));
     hasher.get(&salt);
 
     vector<byte> derivedKey = deriveKey(password, salt, 2 * SymmCipher::KEYLENGTH);
 
-    byte encmasterkey[SymmCipher::KEYLENGTH];
     SymmCipher cipher;
     cipher.setkey(derivedKey.data());
-    cipher.ecb_encrypt(key.key, encmasterkey);
+    encmasterkey.resize(SymmCipher::KEYLENGTH, 0);
+    cipher.ecb_encrypt(key.key, encmasterkey.data());
 
-    string hashedauthkey;
     const byte *authkey = derivedKey.data() + SymmCipher::KEYLENGTH;
     hasher.add(authkey, SymmCipher::KEYLENGTH);
     hasher.get(&hashedauthkey);
     hashedauthkey.resize(SymmCipher::KEYLENGTH);
-
-    // Pass the salt and apply to this->accountsalt if the command succeed to allow posterior checks of the password without getting it from the server
-    reqs.add(new CommandSetMasterKey(this, encmasterkey, (byte*)hashedauthkey.data(), SymmCipher::KEYLENGTH, clientRandomValue, pin, &salt));
-    return API_OK;
 }
 
 vector<byte> MegaClient::deriveKey(const char* password, const string& salt, size_t derivedKeySize)
@@ -14258,7 +14462,7 @@ void MegaClient::fetchnodes(bool nocache)
                 // so as to include it in subsequent put nodes
                 if (Node* n = nodeByHandle(mNodeManager.getRootNodeFiles()))
                 {
-                    n->sharekey = new SymmCipher(key); //we use the "master key", in this case the secret share key
+                    n->sharekey.reset(new SymmCipher(key)); //we use the "master key", in this case the secret share key
                 }
             }
 
@@ -18886,6 +19090,23 @@ void MegaClient::getUrlChat(handle chatid)
     reqs.add(new CommandChatURL(this, chatid));
 }
 
+void MegaClient::setChatMode(TextChat* chat, bool pubChat)
+{
+    if (!chat)
+    {
+        LOG_warn << "setChatMode: Invalid chat provided";
+        return;
+    }
+
+    if (chat->setMode(pubChat) == API_EACCESS)
+    {
+        std::string msg = "setChatMode: trying to convert a chat from private into public. chatid: "
+                          + std::string(Base64Str<MegaClient::CHATHANDLE>(chat->getChatId()));
+        sendevent(99476, msg.c_str(), 0);
+        LOG_warn << msg;
+    }
+}
+
 userpriv_vector *MegaClient::readuserpriv(JSON *j)
 {
     userpriv_vector *userpriv = NULL;
@@ -19999,9 +20220,9 @@ bool MegaClient::procaesp(JSON& j)
 
 error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<handle, elementsmap_t>& newElements)
 {
-    bool loopAgain = true;
+    std::unique_ptr<std::map<handle, SetElement::NodeMetadata>> nodeData;
 
-    while (loopAgain)
+    for (bool loopAgain = true; loopAgain;)
     {
         switch (j.getnameid())
         {
@@ -20025,6 +20246,14 @@ error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<ha
         case MAKENAMEID1('e'):
         {
             error e = readElements(j, newElements);
+            if (e != API_OK) return e;
+            break;
+        }
+
+        case MAKENAMEID1('n'):
+        {
+            nodeData.reset(new std::map<handle, SetElement::NodeMetadata>());
+            error e = readAllNodeMetadata(j, *nodeData);
             if (e != API_OK) return e;
             break;
         }
@@ -20053,8 +20282,22 @@ error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<ha
         }
     }
 
-    // decrypt data
-    size_t elCount = 0; // Elements related to known Sets and successfully decrypted
+    // decrypt data, and confirm that all elements are valid
+#ifndef NDEBUG
+    size_t elCount =
+#endif
+    decryptAllSets(newSets, newElements, nodeData.get());
+
+    // check for orphan Elements, it should not happen
+    assert(elCount == [&newElements]() { size_t c = 0; for (const auto& els : newElements) c += els.second.size(); return c; } ());
+
+    return API_OK;
+}
+
+size_t MegaClient::decryptAllSets(map<handle, Set>& newSets, map<handle, elementsmap_t>& newElements, map<handle, SetElement::NodeMetadata>* nodeData)
+{
+    size_t elCount = 0;
+
     for (auto itS = newSets.begin(); itS != newSets.end();)
     {
         error e = decryptSetData(itS->second);
@@ -20083,6 +20326,31 @@ error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<ha
                     itE = itEls->second.erase(itE);
                     continue;
                 }
+
+                // fill in node attributes in case of having foreign node
+                if (nodeData)
+                {
+                    auto itNode = nodeData->find(itE->second.node());
+                    if (itNode != nodeData->end())
+                    {
+                        SetElement::NodeMetadata& nodeMeta = itNode->second;
+
+                        if (!nodeMeta.at.empty() && decryptNodeMetadata(nodeMeta, itE->second.key()))
+                        {
+                            itE->second.setNodeMetadata(std::move(nodeMeta));
+                        }
+
+                        nodeData->erase(itNode);
+                    }
+
+                    if (!itE->second.nodeMetadata())
+                    {
+                        LOG_err << "Invalid node for element. itE Handle = " << itE->first << ", itE Key << " << itE->second.key() << ", itS Handle = " << itS->first << ", itS Key = " << itS->second.key();
+                        itE = itEls->second.erase(itE);
+                        continue;
+                    }
+                }
+
                 ++elCount;
                 ++itE;
             }
@@ -20091,10 +20359,7 @@ error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<ha
         ++itS;
     }
 
-    // check for orphan Elements, it should not happen
-    assert(elCount == [&newElements]() { size_t c = 0; for (const auto& els : newElements) c += els.second.size(); return c; } ());
-
-    return API_OK;
+    return elCount;
 }
 
 error MegaClient::decryptSetData(Set& s)
@@ -20405,6 +20670,130 @@ error MegaClient::readElement(JSON& j, SetElement& el)
             return API_OK;
         }
     }
+}
+
+error MegaClient::readAllNodeMetadata(JSON& j, map<handle, SetElement::NodeMetadata>& nodes)
+{
+    if (!j.enterarray())
+    {
+        return API_EINTERNAL;
+    }
+
+    while (j.enterobject())
+    {
+        SetElement::NodeMetadata eln;
+        error e = readSingleNodeMetadata(j, eln);
+        if (e)
+        {
+            return e;
+        }
+        nodes.emplace(eln.h, std::move(eln));
+
+        j.leaveobject();
+    }
+
+    j.leavearray();
+    return API_OK;
+}
+
+error MegaClient::readSingleNodeMetadata(JSON& j, SetElement::NodeMetadata& eln)
+{
+    for (;;)
+    {
+        switch (j.getnameid())
+        {
+        case MAKENAMEID1('h'):
+            eln.h = j.gethandle(MegaClient::NODEHANDLE);
+            break;
+
+        case MAKENAMEID1('u'):
+            eln.u = j.gethandle(MegaClient::USERHANDLE);
+            break;
+
+        case MAKENAMEID1('s'):
+            eln.s = j.getint();
+            break;
+
+        case MAKENAMEID2('a', 't'):
+            if (!j.storeobject(&eln.at))
+            {
+                LOG_err << "Sets: Failed to read node attributes";
+            }
+            break;
+
+        case MAKENAMEID2('f', 'a'):
+            if (!j.storeobject(&eln.fa))
+            {
+                LOG_err << "Sets: Failed to read file attributes";
+            }
+            break;
+
+        case MAKENAMEID2('t', 's'):
+            eln.ts = j.getint();
+            break;
+
+        default: // skip unknown member
+            if (!j.storeobject())
+            {
+                LOG_err << "Sets: Failed to parse node metadata";
+                return API_EINTERNAL;
+            }
+            break;
+
+        case EOO:
+            return API_OK;
+        }
+    }
+}
+
+bool MegaClient::decryptNodeMetadata(SetElement::NodeMetadata& nodeMeta, const string& key)
+{
+    SymmCipher* cipher = getRecycledTemporaryNodeCipher(&key);
+    std::unique_ptr<byte[]> buf;
+    buf.reset(Node::decryptattr(cipher, nodeMeta.at.c_str(), nodeMeta.at.size()));
+    if (!buf)
+    {
+        LOG_err << "Decrypting node attributes failed. Node Handle = " << nodeMeta.h;
+        return false;
+    }
+
+    // all good, let's parse the attribute string
+    JSON attrJson;
+    attrJson.begin(reinterpret_cast<const char*>(buf.get()) + 5); // skip "MEGA{" prefix
+
+    for (bool jsonHasData = true; jsonHasData;)
+    {
+        switch (attrJson.getnameid())
+        {
+        case 'c':
+            if (!attrJson.storeobject(&nodeMeta.fingerprint))
+            {
+                LOG_err << "Reading node fingerprint failed. Node Handle = " << nodeMeta.h;
+            }
+            break;
+
+        case 'n':
+            if (!attrJson.storeobject(&nodeMeta.filename))
+            {
+                LOG_err << "Reading node filename failed. Node Handle = " << nodeMeta.h;
+            }
+            break;
+
+        case EOO:
+            jsonHasData = false;
+            break;
+
+        default:
+            if (!attrJson.storeobject())
+            {
+                LOG_err << "Skipping unexpected node attribute failed. Node Handle = " << nodeMeta.h;
+            }
+        }
+    }
+
+    nodeMeta.at.clear();
+
+    return true;
 }
 
 const Set* MegaClient::getSet(handle sid) const
@@ -21163,6 +21552,11 @@ void MegaClient::clearsetelementnotify(handle sid)
     }
 }
 
+Error MegaClient::sendABTestActive(const char* flag, CommandABTestActive::Completion completion)
+{
+    reqs.add(new CommandABTestActive(this, flag, std::move(completion)));
+    return API_OK;
+}
 
 FetchNodesStats::FetchNodesStats()
 {

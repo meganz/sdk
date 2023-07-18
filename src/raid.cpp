@@ -952,7 +952,7 @@ void TransferBufferManager::bufferWriteCompletedAction(FilePiece& r)
     r.chunkmacs.copyEntriesTo(transfer->chunkmacs);
     r.chunkmacs.clear();
     transfer->progresscompleted += r.buf.datalen();
-    LOG_debug << "Cached data at: " << r.pos << "   Size: " << r.buf.datalen();
+    LOG_debug << "On write completed -> Cached data at: " << r.pos << "   Size: " << r.buf.datalen() << "   Progress completed: " << transfer->progresscompleted << "/" << transfer->size;
 }
 
 

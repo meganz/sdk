@@ -240,6 +240,14 @@ public class MegaApiJava {
     public final static int SEARCH_TARGET_ROOTNODE = MegaApi.SEARCH_TARGET_ROOTNODE;
     public final static int SEARCH_TARGET_ALL = MegaApi.SEARCH_TARGET_ALL;
 
+    public final static int ACCOUNT_NOT_BLOCKED = MegaApi.ACCOUNT_NOT_BLOCKED;
+    public final static int ACCOUNT_BLOCKED_TOS_COPYRIGHT = MegaApi.ACCOUNT_BLOCKED_TOS_COPYRIGHT;
+    public final static int ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = MegaApi.ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT;
+    public final static int ACCOUNT_BLOCKED_SUBUSER_DISABLED = MegaApi.ACCOUNT_BLOCKED_SUBUSER_DISABLED;
+    public final static int ACCOUNT_BLOCKED_SUBUSER_REMOVED = MegaApi.ACCOUNT_BLOCKED_SUBUSER_REMOVED;
+    public final static int ACCOUNT_BLOCKED_VERIFICATION_SMS = MegaApi.ACCOUNT_BLOCKED_VERIFICATION_SMS;
+    public final static int ACCOUNT_BLOCKED_VERIFICATION_EMAIL = MegaApi.ACCOUNT_BLOCKED_VERIFICATION_EMAIL;
+
     public final static int BACKUP_TYPE_INVALID = MegaApi.BACKUP_TYPE_INVALID;
     public final static int BACKUP_TYPE_TWO_WAY_SYNC = MegaApi.BACKUP_TYPE_TWO_WAY_SYNC;
     public final static int BACKUP_TYPE_UP_SYNC = MegaApi.BACKUP_TYPE_UP_SYNC;
@@ -626,6 +634,37 @@ public class MegaApiJava {
      */
     public boolean newLinkFormatEnabled() {
         return megaApi.newLinkFormatEnabled();
+    }
+
+    /**
+     * Get the value of an A/B Test flag
+     * <p>
+     * Any value greater than 0 means he flag is active.
+     *
+     * @param flag Name or key of the value to be retrieved.
+     *
+     * @return A long with the value of the flag.
+     */
+    public long getABTestValue(String flag) {
+        return megaApi.getABTestValue(flag);
+    }
+
+    /**
+     * Sends to the API an A/B Test flag activation.
+     * <p>
+     * Informs the API that a user has become relevant for an A/B Test flag.
+     * Can be called multiple times for the same account and flag.
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_AB_TEST_ACTIVE
+     * <p>
+     * Valid data in the MegaRequest object received on all callbacks:
+     * - MegaRequest::getText - Returns the flag passed as parameter
+     *
+     * @param flag Name or key of the value to be retrieved.
+     * @param listener MegaRequestListener to track this request
+     */
+    public void sendABTestActive(String flag, MegaRequestListenerInterface listener) {
+        megaApi.sendABTestActive(flag, createDelegateRequestListener(listener));
     }
 
     /**
@@ -6322,7 +6361,7 @@ public class MegaApiJava {
      * @param listener MegaRequestListener to track this request
      */
     public void logout(MegaRequestListenerInterface listener) {
-        megaApi.logout(createDelegateRequestListener(listener));
+        megaApi.logout(false, createDelegateRequestListener(listener));
     }
 
     /**
@@ -6343,7 +6382,7 @@ public class MegaApiJava {
      * triggered the automatic logout (MegaError::API_EBLOCKED for the example).
      */
     public void logout() {
-        megaApi.logout();
+        megaApi.logout(false, null);
     }
 
     /**
@@ -11500,6 +11539,23 @@ public class MegaApiJava {
      */
     public void removeBackup(long backupId, MegaRequestListenerInterface listener) {
         megaApi.removeBackup(backupId, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Fetch information about all registered backups for Backup Centre
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_BACKUP_INFO
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+     * <p>
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaBackupInfoList - Returns information about all registered backups
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getBackupInfo(MegaRequestListenerInterface listener) {
+        megaApi.getBackupInfo(createDelegateRequestListener(listener));
     }
 
     /**

@@ -63,10 +63,12 @@ SSL *evt_get_ssl(const evt_tls_t *tls)
 static void tls_begin(void)
 {
     SSL_library_init();
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+    // the following functions have been deprecated and are no longer needed starting with OpenSSL v1.1.0
     SSL_load_error_strings();
     ERR_load_BIO_strings();
+#endif
     OpenSSL_add_all_algorithms();
-    ERR_load_crypto_strings();
 }
 
 evt_tls_t *evt_ctx_get_tls(evt_ctx_t *d_eng)

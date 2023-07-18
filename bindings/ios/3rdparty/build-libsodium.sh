@@ -72,42 +72,41 @@ export BUILD_SDKROOT="${BUILD_DEVROOT}/SDKs/${PLATFORM}${SDKVERSION}.sdk"
 RUNTARGET=""
 if [[ "${ARCH}" == "arm64"  && "$PLATFORM" == "iPhoneSimulator" ]];
 then
-RUNTARGET="-target ${ARCH}-apple-ios13.0-simulator"
+RUNTARGET="-target ${ARCH}-apple-ios14.0-simulator"
 fi
 
 export CC="${BUILD_TOOLS}/usr/bin/gcc -arch ${ARCH}"
-mkdir -p "${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk"
+mkdir -p "${CURRENTPATH}/bin/sodium/${PLATFORM}${SDKVERSION}-${ARCH}.sdk"
 
 # Build
-export LDFLAGS="-Os -arch ${ARCH} -Wl,-dead_strip -miphoneos-version-min=13.0 -L${BUILD_SDKROOT}/usr/lib"
-export CFLAGS="-Os -arch ${ARCH} -pipe -no-cpp-precomp -isysroot ${BUILD_SDKROOT} -miphoneos-version-min=13.0 -DNDEBUG ${RUNTARGET}"
+export LDFLAGS="-Os -arch ${ARCH} -Wl,-dead_strip -miphoneos-version-min=14.0 -L${BUILD_SDKROOT}/usr/lib"
+export CFLAGS="-Os -arch ${ARCH} -pipe -no-cpp-precomp -isysroot ${BUILD_SDKROOT} -miphoneos-version-min=14.0 -DNDEBUG ${RUNTARGET}"
 export CPPFLAGS="${CFLAGS} -I${BUILD_SDKROOT}/usr/include"
 export CXXFLAGS="${CPPFLAGS}"
 
 if [ "${ARCH}" == "arm64" ]; then
-./configure --host=arm-apple-darwin --disable-shared --enable-minimal
+./configure --prefix="${CURRENTPATH}/bin/sodium/${PLATFORM}${SDKVERSION}-${ARCH}.sdk" --host=arm-apple-darwin --disable-shared --enable-minimal
 else
-./configure --host=${ARCH}-apple-darwin --disable-shared --enable-minimal
+./configure --prefix="${CURRENTPATH}/bin/sodium/${PLATFORM}${SDKVERSION}-${ARCH}.sdk" --host=${ARCH}-apple-darwin --disable-shared --enable-minimal
 fi
 
 make -j${CORES}
-
-cp -f src/libsodium/.libs/libsodium.a ${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk/
+make install
+make clean
 
 popd
 
 done
 
+mkdir xcframework || true
 
-mkdir lib || true
+echo "${bold}Lipo library for x86_64 and arm64 simulators ${normal}"
 
-lipo -create ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-x86_64.sdk/libsodium.a ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-arm64.sdk/libsodium.a -output ${CURRENTPATH}/bin/libsodium.a
+lipo -create ${CURRENTPATH}/bin/sodium/iPhoneSimulator${SDKVERSION}-x86_64.sdk/lib/libsodium.a ${CURRENTPATH}/bin/sodium/iPhoneSimulator${SDKVERSION}-arm64.sdk/lib/libsodium.a -output ${CURRENTPATH}/bin/sodium/libsodium.a
 
 echo "${bold}Creating xcframework ${normal}"
 
-xcodebuild -create-xcframework -library ${CURRENTPATH}/bin/libsodium.a -library ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-arm64.sdk/libsodium.a -output ${CURRENTPATH}/xcframework/libsodium.xcframework
-
-cp -fR libsodium-${LIBSODIUM_VERSION}/src/libsodium/include/sodium* include
+xcodebuild -create-xcframework -library ${CURRENTPATH}/bin/sodium/libsodium.a -headers ${CURRENTPATH}/bin/sodium/iPhoneSimulator${SDKVERSION}-arm64.sdk/include -library ${CURRENTPATH}/bin/sodium/iPhoneOS${SDKVERSION}-arm64.sdk/lib/libsodium.a -headers ${CURRENTPATH}/bin/sodium/iPhoneOS${SDKVERSION}-arm64.sdk/include -output ${CURRENTPATH}/xcframework/libsodium.xcframework
  
 echo "${bold}Cleaning up ${normal}"
 
@@ -115,5 +114,5 @@ rm -rf bin
 rm -rf libsodium-${LIBSODIUM_VERSION}
 rm -rf libsodium-${LIBSODIUM_VERSION}.tar.gz
 
-echo "Done."
+echo "${bold}Done.${normal}"
 

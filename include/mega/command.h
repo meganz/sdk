@@ -244,6 +244,19 @@ public:
     CommandSetMasterKey(MegaClient*, const byte*, const byte *, int, const byte* clientrandomvalue = NULL, const char* = NULL, string* = NULL);
 };
 
+class MEGA_API CommandAccountVersionUpgrade : public Command
+{
+    vector<byte> mEncryptedMasterKey;
+    string mSalt;
+    std::function<void(error e)> mCompletion;
+
+public:
+    bool procresult(Result, JSON&) override;
+
+    CommandAccountVersionUpgrade(vector<byte>&& clRandValue, vector<byte>&&encMKey, string&& hashedAuthKey, string&& salt, int ctag,
+        std::function<void(error e)> completion);
+};
+
 class MEGA_API CommandCreateEphemeralSession : public Command
 {
     byte pw[SymmCipher::KEYLENGTH];
@@ -719,6 +732,19 @@ public:
     bool procresult(Result, JSON&) override;
 
     CommandGetMiscFlags(MegaClient*);
+};
+
+class MEGA_API CommandABTestActive : public Command
+{
+public:
+    using Completion = std::function<void(error)>;
+
+    bool procresult(Result, JSON&) override;
+
+    CommandABTestActive(MegaClient*, const string& tag, Completion completion);
+
+private:
+    Completion mCompletion;
 };
 
 class MEGA_API CommandSetPendingContact : public Command

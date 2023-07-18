@@ -123,6 +123,15 @@ struct RequestTracker : public ::mega::MegaRequestListener
     {
     }
 
+    ~RequestTracker() override
+    {
+        if (!finished)
+        {
+            assert(mApi);
+            mApi->removeRequestListener(this);
+        }
+    }
+
     void onRequestStart(MegaApi* api, MegaRequest *request) override
     {
         started = true;
@@ -194,7 +203,7 @@ struct OneShotListener : public ::mega::MegaRequestListener
 using onNodesUpdateCompletion_t = std::function<void(size_t apiIndex, MegaNodeList* nodes)>;
 
 // Fixture class with common code for most of tests
-class SdkTest : public ::testing::Test, public MegaListener, public MegaRequestListener, MegaTransferListener, MegaLogger {
+class SdkTest : public SdkTestBase, public MegaListener, public MegaRequestListener, MegaTransferListener, MegaLogger {
 
 public:
     struct PerApi
@@ -547,6 +556,7 @@ public:
     }
     template<typename ... requestArgs> int synchronousChangeEmail(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->changeEmail(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousConfirmChangeEmail(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->confirmChangeEmail(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int syncSendABTestActive(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->sendABTestActive(args..., &rt); return rt.waitForResult(); }
 
     // Checkup methods called from MegaApi callbacks
     void onNodesUpdateCheck(size_t apiIndex, MegaHandle target, MegaNodeList* nodes, int change, bool& flag);

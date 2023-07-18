@@ -87,7 +87,7 @@ struct MEGA_API PublicLink
     string mAuthKey;
 
     PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown, const char *authKey = nullptr);
-    PublicLink(PublicLink *plink);
+    PublicLink(const PublicLink& plink) = default;
 
     bool isExpired();
 };
@@ -210,19 +210,21 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     static byte* decryptattr(SymmCipher*, const char*, size_t);
 
     // parse node attributes from an incoming buffer, this function must be called after call decryptattr
-    static void parseattr(byte*, AttrMap&, m_off_t, m_time_t&, string&, string&, FileFingerprint&);
+    // fingerprint output param is a raw fingerprint (i.e. without App prefixes)
+    static void parseattr(byte* bufattr, AttrMap& attrs, m_off_t size, m_time_t& mtime, string& fileName,
+                          string& fingerprint, FileFingerprint& ffp);
 
     // inbound share
-    Share* inshare = nullptr;
+    unique_ptr<Share> inshare;
 
     // outbound shares by user
-    share_map* outshares = nullptr;
+    unique_ptr<share_map> outshares;
 
     // outbound pending shares
-    share_map* pendingshares = nullptr;
+    unique_ptr<share_map> pendingshares;
 
     // incoming/outgoing share key
-    SymmCipher* sharekey = nullptr;
+    unique_ptr<SymmCipher> sharekey;
 
     // app-private pointer
     void* appdata = nullptr;
@@ -304,7 +306,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     bool isbelow(NodeHandle) const;
 
     // handle of public link for the node
-    PublicLink* plink = nullptr;
+    unique_ptr<PublicLink> plink;
 
     void setpubliclink(handle, m_time_t, m_time_t, bool, const string &authKey = {});
 

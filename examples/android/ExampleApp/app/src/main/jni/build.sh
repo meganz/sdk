@@ -81,9 +81,9 @@ SODIUM_SHA1="795b73e3f92a362fabee238a71735579bf46bb97"
 LIBUV=libuv
 LIBUV_VERSION=1.8.0
 LIBUV_SOURCE_FILE=libuv-v${LIBUV_VERSION}.tar.gz
-LIBUV_SOURCE_FOLDER=libuv-v${LIBUV_VERSION}
-LIBUV_DOWNLOAD_URL=http://dist.libuv.org/dist/v${LIBUV_VERSION}/${LIBUV_SOURCE_FILE}
-LIBUV_SHA1="91ea51844ec0fac1c6358a7ad3e8bba128e9d0cc"
+LIBUV_SOURCE_FOLDER=libuv-${LIBUV_VERSION}
+LIBUV_DOWNLOAD_URL=https://github.com/libuv/libuv/archive/refs/tags/v${LIBUV_VERSION}.tar.gz
+LIBUV_SHA1="d8d7b81d46709347195566a05ecd4066a429e441"
 
 MEDIAINFO=mediainfo
 MEDIAINFO_VERSION=4ee7f77c087b29055f48d539cd679de8de6f9c48
@@ -202,7 +202,7 @@ function createMEGABindings
 
     echo "* Creating MEGA Java bindings"
     mkdir -p ../java/nz/mega/sdk
-    swig -c++ -Imega/sdk/include -java -package nz.mega.sdk -outdir ${JAVA_OUTPUT_PATH}/nz/mega/sdk -o bindings/megasdk.cpp -DHAVE_LIBUV -DENABLE_CHAT mega/sdk/bindings/megaapi.i &>> ${LOG_FILE}
+    swig -c++ -Imega/sdk/include -java -package nz.mega.sdk -outdir ${JAVA_OUTPUT_PATH}/nz/mega/sdk -o bindings/megasdk.cpp -DHAVE_LIBUV -DENABLE_CHAT -DENABLE_SYNC mega/sdk/bindings/megaapi.i &>> ${LOG_FILE}
 }
 
 

@@ -104,7 +104,7 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
     statex.dwLength = sizeof (statex);
     if (GlobalMemoryStatusEx(&statex))
     {
-        LOG_debug << "RAM stats. Free physical: " << statex.ullAvailPhys << "   Free virtual: " << statex.ullAvailVirtual;
+        LOG_debug << "[Windows] RAM stats. Free physical: " << statex.ullAvailPhys << "   Free virtual: " << statex.ullAvailVirtual;
         if (statex.ullAvailPhys < 1073741824 // 1024 MB
                 || statex.ullAvailVirtual < 1073741824)
         {
@@ -126,14 +126,10 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
                 maxRequestSize = 8388608; // 8 MB
             }
         }
-        else
-        {
-            maxRequestSize = 16777216; // 16 MB
-        }
     }
     else
     {
-        LOG_warn << "Error getting RAM usage info";
+        LOG_warn << "[Windows] Error getting RAM usage info";
     }
 #endif
 }
@@ -161,6 +157,7 @@ bool TransferSlot::createconnectionsonce()
 // reused on a new slot)
 TransferSlot::~TransferSlot()
 {
+    LOG_verbose << "Deleting TransferSlot";
     if (transfer->type == GET && !transfer->finished
             && transfer->progresscompleted != transfer->size
             && !transfer->asyncopencontext)
@@ -176,13 +173,13 @@ TransferSlot::~TransferSlot()
                     asyncIO[i]->finish();
                     if (!asyncIO[i]->failed)
                     {
-                        LOG_verbose << "Async write succeeded";
+                        LOG_verbose << "[TransferSlot::~TransferSlot] Conn " << i << " : Async write succeeded (size: " << asyncIO[i]->dataBufferLen << ")";
                         transferbuf.bufferWriteCompleted(i, true);
                         cachetransfer = true;
                     }
                     else
                     {
-                        LOG_verbose << "Async write failed";
+                        LOG_verbose << "[TransferSlot::~TransferSlot] Conn " << i << " : Async write failed (size: " << asyncIO[i]->dataBufferLen << ")";
                         transferbuf.bufferWriteCompleted(i, false);
                     }
                     reqs[i]->status = REQ_READY;
@@ -218,7 +215,7 @@ TransferSlot::~TransferSlot()
 
                     case REQ_DECRYPTING:
                     {
-                        LOG_info << "Waiting for block decryption";
+                        LOG_info << "[TransferSlot::~TransferSlot] Conn " << i << " : Waiting for block decryption";
                         std::mutex finalizedMutex;
                         std::unique_lock<std::mutex> guard(finalizedMutex);
                         auto outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
@@ -252,13 +249,13 @@ TransferSlot::~TransferSlot()
                     anyData = true;
                     if (fa && fa->fwrite(outputPiece->buf.datastart(), static_cast<unsigned>(outputPiece->buf.datalen()), outputPiece->pos))
                     {
-                        LOG_verbose << "Sync write succeeded";
+                        LOG_verbose << "[TransferSlot::~TransferSlot] Conn " << i << " : Sync write succeeded (size: " << outputPiece->buf.datalen() << ")";
                         transferbuf.bufferWriteCompleted(i, true);
                         cachetransfer = true;
                     }
                     else
                     {
-                        LOG_err << "Error caching data at: " << outputPiece->pos;
+                        LOG_err << "[TransferSlot::~TransferSlot] Conn " << i << " : Error caching data at: " << outputPiece->pos << " (size: " << outputPiece->buf.datalen() << ")";
                         transferbuf.bufferWriteCompleted(i, false);  // throws the data away so we can move on to the next one
                     }
                 }
@@ -268,7 +265,7 @@ TransferSlot::~TransferSlot()
         if (cachetransfer)
         {
             transfer->client->transfercacheadd(transfer, nullptr);
-            LOG_debug << "Completed: " << transfer->progresscompleted;
+            LOG_debug << "[TransferSlot::~TransferSlot] Cachetransfer. Completed: " << transfer->progresscompleted;
         }
     }
 
@@ -628,16 +625,11 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                     lastdata = Waiter::ds;
                     transfer->lastaccesstime = m_time();
 
-                    if (!transferbuf.isRaid())
-                    {
-                        LOG_debug << "Transfer request finished (" << transfer->type << ") Position: " << transferbuf.transferPos(i) << " (" << transfer->pos << ") Size: " << reqs[i]->size
-                            << " Completed: " << (transfer->progresscompleted + reqs[i]->size) << " of " << transfer->size << " speed " << mReqSpeeds[i].lastRequestSpeed();
-                    }
-                    else
-                    {
-                        LOG_debug << "Transfer request finished (" << transfer->type << ") " << " on connection " << i << " part pos: " << transferbuf.transferPos(i) << " of part size " << transferbuf.raidPartSize(i, transfer->size)
-                            << " Overall Completed: " << (transfer->progresscompleted) << " of " << transfer->size << " speed " << mReqSpeeds[i].lastRequestSpeed();
-                    }
+                    LOG_debug << "Conn " << i << " : Transfer request finished (" << connDirectionToStr(transfer->type) << ")"
+                            << " " << reqs[i]->pos << " - " << (reqs[i]->pos + reqs[i]->size)
+                            << "   Size: " << reqs[i]->size
+                            << (transferbuf.isRaid() ? string("   Part progress: " + std::to_string(transferbuf.transferPos(i)) + "/" + std::to_string(transferbuf.raidPartSize(i, transfer->size))) : "")
+                            << "   (" << mReqSpeeds[i].lastRequestSpeed() << " B/s)";
 
                     if (transfer->type == PUT)
                     {
@@ -645,7 +637,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                         // return of the upload token
                         if (reqs[i]->in.size() == UPLOADTOKENLEN)
                         {
-                            LOG_debug << "Upload token received";
+                            LOG_debug << "Conn " << i << " : Upload token received";
                             transfer->ultoken.reset(new UploadToken);
                             memcpy(transfer->ultoken.get(), reqs[i]->in.data(), UPLOADTOKENLEN);
 
@@ -664,7 +656,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                                 if (j != i && reqs[j] &&
                                     reqs[j]->status == REQ_ENCRYPTING)
                                 {
-                                    LOG_debug << "Waiting for encryption of chunk so we know all chunk macs " << j;
+                                    LOG_debug << "Conn " << i << " : Connection " << j << " is in REQ_ENCRYPTING status. Waiting for encryption of chunk so we know all chunk macs";
                                     while (reqs[j]->status == REQ_ENCRYPTING)
                                     {
                                         std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -683,7 +675,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                                     || reqs[j]->status == REQ_PREPARED
                                     || reqs[j]->status == REQ_UPLOAD_PREPARED_BUT_WAIT))
                                 {
-                                    LOG_debug << "Including chunk MACs from incomplete/unprocessed (at this end) connection " << j;
+                                    LOG_debug << "Conn " << i << " : Including chunk MACs from incomplete/unprocessed (at this end) from connection " << j;
                                     transfer->progresscompleted += reqs[j]->size;
                                     transfer->chunkmacs.finishedUploadChunks(static_cast<HttpReqUL*>(reqs[j].get())->mChunkmacs);
                                 }
@@ -691,6 +683,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
 
                             transfer->chunkmacs.finishedUploadChunks(static_cast<HttpReqUL*>(reqs[i].get())->mChunkmacs);
                             transfer->progresscompleted += reqs[i]->size;
+                            LOG_debug << "Conn " << i << " : Progress completed: " << transfer->progresscompleted << "/" << transfer->size;
                             assert(transfer->progresscompleted == transfer->size);
 
                             updatecontiguousprogress();
@@ -715,7 +708,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
 
                         if (reqs[i]->in.size() != 1 || reqs[i]->in[0] != '0')
                         {
-                            LOG_debug << "Error uploading chunk: " << reqs[i]->in;
+                            LOG_debug << "Conn " << i << " : Error uploading chunk: " << reqs[i]->in;
                             error e = (error)atoi(reqs[i]->in.c_str());
 
                             DEBUG_TEST_HOOK_UPLOADCHUNK_FAILED(e);
@@ -739,13 +732,13 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                                 if (e == DAEMON_EFAILED)
                                 {
                                     // megad returning -4 should result in restarting the transfer
-                                    LOG_warn << "Upload piece failed with -4, the upload cannot be continued on that server";
+                                    LOG_warn << "Conn " << i << " : Upload piece failed with -4, the upload cannot be continued on that server";
                                     string event = "Unexpected upload chunk confirmation length: " + std::to_string(reqs[i]->in.size());
                                     client->sendevent(99441, event.c_str(), 0);  // old-style -4 (from requests with c= instead of d=) were/are reported as 99440
                                 }
                                 else
                                 {
-                                    LOG_warn << "Invalid Content-Type detected during upload: " << reqs[i]->contenttype;
+                                    LOG_warn << "Conn " << i << " : Invalid Content-Type detected during upload: " << reqs[i]->contenttype;
                                 }
                                 client->sendevent(99436, "Automatic change to HTTPS", 0);
 
@@ -758,11 +751,13 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
 
                         transfer->chunkmacs.finishedUploadChunks(static_cast<HttpReqUL*>(reqs[i].get())->mChunkmacs);
                         transfer->progresscompleted += reqs[i]->size;
+                        LOG_debug << "Conn " << i << " : Progress completed: " << transfer->progresscompleted << "/" << transfer->size;
 
                         updatecontiguousprogress();
 
                         if (transfer->progresscompleted == transfer->size)
                         {
+                            LOG_err << "Conn " << i << " : Upload is completed, but no upload token was received";
                             client->sendevent(99409, "No upload token received", 0);
 
                             return transfer->failed(API_EINTERNAL, committer);
@@ -839,6 +834,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                             }
                             else
                             {
+                                LOG_err << "Conn " << i << " : non-raid, if the request succeeded then we must have a piece to write to file, but there is no piece!!";
                                 assert(false);  // non-raid, if the request succeeded then we must have a piece to write to file.
                             }
                         }
@@ -847,7 +843,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                             if (reqs[i]->contenttype.find("text/html") != string::npos
                                     && !memcmp(reqs[i]->posturl.c_str(), "http:", 5))
                             {
-                                LOG_warn << "Invalid Content-Type detected during download: " << reqs[i]->contenttype;
+                                LOG_warn << "Conn " << i << " : Invalid Content-Type detected during download: " << reqs[i]->contenttype;
                                 client->usehttps = true;
                                 client->app->notify_change_to_https();
 
@@ -858,7 +854,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
 
                             client->sendevent(99430, "Invalid chunk size", 0);
 
-                            LOG_warn << "Invalid chunk size: " << reqs[i]->size << " - " << reqs[i]->bufpos;
+                            LOG_warn << "Conn " << i << " : Invalid chunk size: " << reqs[i]->size << " - " << reqs[i]->bufpos;
                             lasterror = API_EREAD;
                             errorcount++;
                             reqs[i]->status = REQ_PREPARED;
@@ -892,14 +888,14 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                         {
                             if (asyncIO[i])
                             {
-                                LOG_warn << "Retrying failed async write";
+                                LOG_warn << "Conn " << i << " : Retrying failed async write";
                                 delete asyncIO[i];
                                 asyncIO[i] = NULL;
                             }
 
                             p += outputPiece->buf.datalen();
 
-                            LOG_debug << "Writing data asynchronously at " << outputPiece->pos << " to " << (outputPiece->pos + outputPiece->buf.datalen());
+                            LOG_debug << "Conn " << i << " : Writing data asynchronously at " << outputPiece->pos << " to " << (outputPiece->pos + outputPiece->buf.datalen()) << " (size: " << outputPiece->buf.datalen() << ")";
                             asyncIO[i] = fa->asyncfwrite(outputPiece->buf.datastart(), static_cast<unsigned>(outputPiece->buf.datalen()), outputPiece->pos);
                             reqs[i]->status = REQ_ASYNCIO;
                         }
@@ -907,7 +903,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                         {
                             if (fa->fwrite(outputPiece->buf.datastart(), static_cast<unsigned>(outputPiece->buf.datalen()), outputPiece->pos))
                             {
-                                LOG_verbose << "Sync write succeeded";
+                                LOG_verbose << "Conn " << i << " : Sync write succeeded (size: " << outputPiece->buf.datalen() << ")";
                                 transferbuf.bufferWriteCompleted(i, true);
                                 errorcount = 0;
                                 transfer->failcount = 0;
@@ -915,7 +911,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                             }
                             else
                             {
-                                LOG_err << "Error saving finished chunk";
+                                LOG_err << "Conn " << i << " : Error saving finished chunk (size: " << outputPiece->buf.datalen() << ")";
                                 if (!fa->retry)
                                 {
                                     transferbuf.bufferWriteCompleted(i, false);  // discard failed data so we don't retry on slot deletion
@@ -940,12 +936,12 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                 case REQ_ASYNCIO:
                     if (asyncIO[i]->finished)
                     {
-                        LOG_verbose << "Processing finished async fs operation";
+                        LOG_verbose << "Conn " << i << " : Processing finished async fs operation";
                         if (!asyncIO[i]->failed)
                         {
                             if (transfer->type == PUT)
                             {
-                                LOG_verbose << "Async read succeeded";
+                                LOG_verbose << "Conn " << i << " : Async read succeeded (size: " << asyncIO[i]->dataBufferLen << ")";
                                 m_off_t npos = asyncIO[i]->posOfBuffer + asyncIO[i]->dataBufferLen;
                                 string finaltempurl = transferbuf.tempURL(i);
                                 if (client->usealtupport && !memcmp(finaltempurl.c_str(), "http:", 5))
@@ -973,7 +969,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                             }
                             else
                             {
-                                LOG_verbose << "Async write succeeded";
+                                LOG_verbose << "Conn " << i << " : Async write succeeded (size: " << asyncIO[i]->dataBufferLen << ")";
                                 transferbuf.bufferWriteCompleted(i, true);
                                 errorcount = 0;
                                 transfer->failcount = 0;
@@ -1002,7 +998,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                         }
                         else
                         {
-                            LOG_warn << "Async operation failed: " << asyncIO[i]->retry;
+                            LOG_warn << "Conn " << i << " : Async operation failed  (size: " << asyncIO[i]->dataBufferLen << "). Retry: " << asyncIO[i]->retry;
                             if (!asyncIO[i]->retry)
                             {
                                 transferbuf.bufferWriteCompleted(i, false);  // discard failed data so we don't retry on slot deletion
@@ -1032,11 +1028,11 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                     break;
 
                 case REQ_FAILURE:
-                    LOG_warn << "Failed chunk. HTTP status: " << reqs[i]->httpstatus << " on channel " << i;
+                    LOG_warn << "Conn " << i << " : Failed chunk. HTTP status: " << reqs[i]->httpstatus;
                     if (reqs[i]->httpstatus && reqs[i]->contenttype.find("text/html") != string::npos
                             && !memcmp(reqs[i]->posturl.c_str(), "http:", 5))
                     {
-                        LOG_warn << "Invalid Content-Type detected on failed chunk: " << reqs[i]->contenttype;
+                        LOG_warn << "Conn " << i << " : Invalid Content-Type detected on failed chunk: " << reqs[i]->contenttype;
                         client->usehttps = true;
                         client->app->notify_change_to_https();
 
@@ -1047,7 +1043,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
 
                     if (reqs[i]->httpstatus == 509)
                     {
-                        LOG_warn << "Bandwidth overquota from storage server";
+                        LOG_warn << "Conn " << i << " : Bandwidth overquota from storage server";
 
                         dstime backoff = client->overTransferQuotaBackoff(reqs[i].get());
 
@@ -1089,13 +1085,13 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
 
                             if (transfer->type == GET && client->autodownport && !memcmp(transferbuf.tempURL(i).c_str(), "http:", 5))
                             {
-                                LOG_debug << "Automatically changing download port";
+                                LOG_debug << "Conn " << i << " : Automatically changing download port";
                                 client->usealtdownport = !client->usealtdownport;
                                 changeport = true;
                             }
                             else if (transfer->type == PUT && client->autoupport && !memcmp(transferbuf.tempURL(i).c_str(), "http:", 5))
                             {
-                                LOG_debug << "Automatically changing upload port";
+                                LOG_debug << "Conn " << i << " : Automatically changing upload port";
                                 client->usealtupport = !client->usealtupport;
                                 changeport = true;
                             }
@@ -1164,7 +1160,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                         {
                             if (asyncIO[i])
                             {
-                                LOG_warn << "Retrying a failed read";
+                                LOG_warn << "Conn " << i << " : Retrying a failed read";
                                 pos = asyncIO[i]->posOfBuffer;
                                 size = asyncIO[i]->dataBufferLen;
                                 posrange.second = pos + size;
@@ -1180,7 +1176,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                         {
                             if (!fa->fread(reqs[i]->out, size, (-(int)size) & (SymmCipher::BLOCKSIZE - 1), transfer->pos, FSLogging::logOnError))
                             {
-                                LOG_warn << "Error preparing transfer: " << fa->retry;
+                                LOG_warn << "Conn " << i << " : Error preparing transfer: " << fa->retry;
                                 if (!fa->retry)
                                 {
                                     return transfer->failed(API_EREAD, committer);
@@ -1224,6 +1220,10 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                         reqs[i]->status = REQ_PREPARED;
                     }
 
+                    LOG_verbose << "Conn " << i << " : Request prepared. Pos: " << posrange.first << " to npos: " << posrange.second << ". Size: " << (posrange.second - posrange.first) << ""
+                                << (transferbuf.isRaid() ? "Transfer" : "Raid part") << " pos: " << transferbuf.transferPos(i) << ". New " << (transferbuf.isRaid() ? "Transfer" : "Raid part") << " pos: " << (std::max<m_off_t>(transferbuf.transferPos(i), posrange.second))
+                                << (transferbuf.isRaid() ? string(". Part size: " + std::to_string(transferbuf.raidPartSize(i, transfer->size))) : "")
+                                << ". Transfer size: " << transfer->size;
                     transferbuf.transferPos(i) = std::max<m_off_t>(transferbuf.transferPos(i), posrange.second);
                 }
                 else if (reqs[i])
