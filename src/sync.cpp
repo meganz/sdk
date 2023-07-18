@@ -5609,6 +5609,7 @@ SyncConfigVector Syncs::selectedSyncConfigs(std::function<bool(SyncConfig&, Sync
 // case 2: Backup is deleted from backup center
 //    we'll receive sds delete and the backup root node is deleted in action packets
 //    The node deleteion could appear first or after sds delete due to async
+// @return true if removing sync by sds
 bool Syncs::processRemovingSyncBySds(UnifiedSync& us, bool foundRootNode, vector<pair<handle, int>>& sdsBackups)
 {
     assert(onSyncThread());
@@ -5616,7 +5617,7 @@ bool Syncs::processRemovingSyncBySds(UnifiedSync& us, bool foundRootNode, vector
     // prevent the reentry due to aync nature
     if (us.mConfig.mRemovingSyncBySds)
     {
-        return false;
+        return true;
     }
 
     if (!foundRootNode && us.mConfig.isBackup())
@@ -5649,11 +5650,11 @@ void Syncs::deregisterThenRemoveSyncBySds(UnifiedSync& us, std::function<void(Me
     }
     auto backupId = us.mConfig.mBackupId;
     queueClient([backupId, clientRemoveSdsEntryFunction](MegaClient& mc, TransferDbCommitter& committer) {
-        mc.syncs.deregisterThenRemoveSync(backupId, nullptr, true, clientRemoveSdsEntryFunction);
+        mc.syncs.deregisterThenRemoveSync(backupId, nullptr, clientRemoveSdsEntryFunction);
     });
 }
 
-void Syncs::deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion, bool removingSyncBySds, std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction)
+void Syncs::deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion, std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction)
 {
     assert(!onSyncThread());
 
@@ -5673,9 +5674,6 @@ void Syncs::deregisterThenRemoveSync(handle backupId, std::function<void(Error)>
             {
                 // prevent any sp or sphb messages being queued after
                 config.mSyncDeregisterSent = true;
-
-                // Prevent notifying the client app for this sync's state changes
-                config.mRemovingSyncBySds = removingSyncBySds;
             }
         }
     }
@@ -11241,7 +11239,10 @@ void Syncs::syncLoop()
                                                     nullptr,
                                                     &sdsBackups);
 
-            processRemovingSyncBySds(*us.get(), foundRootNode, sdsBackups);
+            if (processRemovingSyncBySds(*us.get(), foundRootNode, sdsBackups))
+            {
+                continue;
+            }
 
             if (Sync* sync = us->mSync.get())
             {

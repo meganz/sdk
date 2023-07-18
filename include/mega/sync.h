@@ -994,7 +994,7 @@ struct Syncs
     void disableSyncs(SyncError syncError, bool newEnabledFlag, bool keepSyncDb);
 
     // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered.  Synchronous (for now)
-    void deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion, bool removingSyncBySds, std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction);
+    void deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion, std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction);
     
     // async, callback on client thread
     void renameSync(handle backupId, const string& newname, std::function<void(Error e)> result);
