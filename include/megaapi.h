@@ -9608,7 +9608,7 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          *
          * @deprecated This method will be removed in the future. The SDK already
-         * notifies the API automatically upon calls to @see getABTestActive.
+         * notifies the API automatically upon calls to @see getABTestValue.
          */
         void sendABTestActive(const char* flag, MegaRequestListener *listener = NULL);
 
