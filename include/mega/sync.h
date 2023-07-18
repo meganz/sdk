@@ -174,7 +174,7 @@ public:
     // not serialized.  Prevent re-enabling sync after removal
     bool mSyncDeregisterSent = false;
 
-    // not serialized.  Prevent notifying the client app for this sync's state changes
+    // not serialized.  Prevent notifying the client app for this sync's state changes and prevent reentry removing sync by sds
     bool mRemovingSyncBySds = false;
 
     // not serialized.  Prevent notifying the client app for this sync's state changes
@@ -995,7 +995,7 @@ struct Syncs
 
     // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered.  Synchronous (for now)
     void deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion, bool removingSyncBySds, std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction);
-
+    
     // async, callback on client thread
     void renameSync(handle backupId, const string& newname, std::function<void(Error e)> result);
 
@@ -1219,6 +1219,8 @@ private:
     error backupCloseDrive_inThread(LocalPath drivePath);
     void getSyncProblems_inThread(SyncProblems& problems);
     bool checkSdsCommandsForDelete(UnifiedSync& us, vector<pair<handle, int>>& sdsBackups, std::function<void(MegaClient&, TransferDbCommitter&)>& clientRemoveSdsEntryFunction);
+    bool processRemovingSyncBySds(UnifiedSync& us, bool foundRootNode, vector<pair<handle, int>>& sdsBackups);
+    void deregisterThenRemoveSyncBySds(UnifiedSync& us, std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction);
 
     void syncLoop();
 

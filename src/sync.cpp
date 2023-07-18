@@ -5602,6 +5602,57 @@ SyncConfigVector Syncs::selectedSyncConfigs(std::function<bool(SyncConfig&, Sync
     return selected;
 }
 
+// process backup is removed by SDS if there is any
+//
+// case 1: Backup is moved from backup center to the cloud node
+//    we'll receive sds delete and the backup root node is moved in action packets
+// case 2: Backup is deleted from backup center
+//    we'll receive sds delete and the backup root node is deleted in action packets
+//    The node deleteion could appear first or after sds delete due to async
+bool Syncs::processRemovingSyncBySds(UnifiedSync& us, bool foundRootNode, vector<pair<handle, int>>& sdsBackups)
+{
+    assert(onSyncThread());
+
+    // prevent the reentry due to aync nature
+    if (us.mConfig.mRemovingSyncBySds)
+    {
+        return false;
+    }
+
+    if (!foundRootNode && us.mConfig.isBackup())
+    {
+        LOG_debug << "Backup root node no longer exists " << toHandle(us.mConfig.mBackupId);
+        deregisterThenRemoveSyncBySds(us, nullptr);
+        return true;
+    }
+
+    std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction;
+    if (checkSdsCommandsForDelete(us, sdsBackups, clientRemoveSdsEntryFunction))
+    {
+        LOG_debug << "SDS command received to stop sync " << toHandle(us.mConfig.mBackupId);
+        deregisterThenRemoveSyncBySds(us, clientRemoveSdsEntryFunction);
+        return true;
+    }
+
+    return false;
+}
+
+void Syncs::deregisterThenRemoveSyncBySds(UnifiedSync& us, std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction)
+{
+    assert(onSyncThread());
+
+    us.mConfig.mRemovingSyncBySds = true;
+    if (Sync* sync = us.mSync.get())
+    {
+        // prevent the sync doing anything more before we delete it
+        sync->changestate(NO_SYNC_ERROR, false, false, false);
+    }
+    auto backupId = us.mConfig.mBackupId;
+    queueClient([backupId, clientRemoveSdsEntryFunction](MegaClient& mc, TransferDbCommitter& committer) {
+        mc.syncs.deregisterThenRemoveSync(backupId, nullptr, true, clientRemoveSdsEntryFunction);
+    });
+}
+
 void Syncs::deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion, bool removingSyncBySds, std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction)
 {
     assert(!onSyncThread());
@@ -11174,10 +11225,7 @@ void Syncs::syncLoop()
         // (this covers mountovers, some device removals and some failures)
         for (auto& us : mSyncVec)
         {
-
             vector<pair<handle, int>> sdsBackups;
-            std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction;
-
             CloudNode cloudNode;
             string cloudRootPath;
             bool inTrash = false;
@@ -11193,22 +11241,7 @@ void Syncs::syncLoop()
                                                     nullptr,
                                                     &sdsBackups);
 
-            if (checkSdsCommandsForDelete(*us, sdsBackups, clientRemoveSdsEntryFunction))
-            {
-                LOG_debug << "SDS command received to stop sync " << toHandle(us->mConfig.mBackupId);
-
-                if (Sync* sync = us->mSync.get())
-                {
-                    // prevent the sync doing anything more before we delete it
-                    sync->changestate(NO_SYNC_ERROR, false, false, false);
-                }
-
-                auto backupId = us->mConfig.mBackupId;
-                queueClient([backupId, clientRemoveSdsEntryFunction](MegaClient& mc, TransferDbCommitter& committer) {
-                    mc.syncs.deregisterThenRemoveSync(backupId, nullptr, true, clientRemoveSdsEntryFunction);
-                });
-                continue;
-            }
+            processRemovingSyncBySds(*us.get(), foundRootNode, sdsBackups);
 
             if (Sync* sync = us->mSync.get())
             {
