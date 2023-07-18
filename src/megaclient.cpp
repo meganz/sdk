@@ -8361,7 +8361,7 @@ error MegaClient::setattr(Node* n, attr_map&& updates, CommandSetAttr::Completio
     }
 
     // we only update the values stored in the node once the command completes successfully
-    reqs.add(new CommandSetAttr(this, n, std::move(updates), move(c), canChangeVault));
+    reqs.add(new CommandSetAttr(this, n, move(updates), move(c), canChangeVault));
 
     return API_OK;
 }

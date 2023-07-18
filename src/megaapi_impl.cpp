@@ -5872,7 +5872,7 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     httpio = new MegaHttpIO();
     waiter.reset(new MegaWaiter());
 
-    fsAccess.reset(new MegaFileSystemAccess());
+    fsAccess.reset(new MegaFileSystemAccess);
 
     dbAccess = nullptr;
     if (basePath)
@@ -18407,7 +18407,7 @@ void MegaApiImpl::removeRecursively(const char *path)
 {
 #ifndef _WIN32
     auto localpath = LocalPath::fromPlatformEncodedAbsolute(path);
-    FSACCESS_CLASS::emptydirlocal(localpath);
+    MegaFileSystemAccess::emptydirlocal(localpath);
 #else
     auto localpath = LocalPath::fromAbsolutePath(path);
     WinFileSystemAccess::emptydirlocal(localpath);
@@ -26816,7 +26816,7 @@ bool MegaTreeProcCopy::processMegaNode(MegaNode *n)
 
 MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *api, MegaTransferPrivate *t)
     : MegaRecursiveOperation(api->getMegaClient())
-    , fsaccess(new FSACCESS_CLASS())
+    , fsaccess(new MegaFileSystemAccess)
 {
     megaApi = api;
     transfer = t;
@@ -28401,7 +28401,7 @@ MegaClient* MegaRecursiveOperation::megaapiThreadClient()
 
 MegaFolderDownloadController::MegaFolderDownloadController(MegaApiImpl *api, MegaTransferPrivate *t)
     : MegaRecursiveOperation(api->client)
-    , fsaccess(new FSACCESS_CLASS())
+    , fsaccess(new MegaFileSystemAccess)
 {
     megaApi = api;
     fsaccess->setdefaultfilepermissions(megaApi->getDefaultFilePermissions()); // Grant default file permissions
@@ -29029,7 +29029,7 @@ MegaTCPServer::MegaTCPServer(MegaApiImpl *megaApi, string basePath, bool tls, st
     this->remainingcloseevents = 0;
     this->evtrequirescleaning = false;
 #endif
-    fsAccess = new MegaFileSystemAccess();
+    fsAccess = new MegaFileSystemAccess;
 
     if (basePath.size())
     {

@@ -19,6 +19,7 @@
  * program.
  */
 
+#include "mega.h"
 #include "mega/node.h"
 #include "mega/megaclient.h"
 #include "mega/megaapp.h"
