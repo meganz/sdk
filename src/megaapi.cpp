@@ -3150,12 +3150,22 @@ const char* MegaApi::getDeviceId() const
 
 void MegaApi::getDeviceName(MegaRequestListener *listener)
 {
-    pImpl->getDeviceName(listener);
+    pImpl->getDeviceName(nullptr, listener);
+}
+
+void MegaApi::getDeviceName(const char *deviceId, MegaRequestListener *listener)
+{
+    pImpl->getDeviceName(deviceId, listener);
 }
 
 void MegaApi::setDeviceName(const char *deviceName, MegaRequestListener *listener)
 {
-    pImpl->setDeviceName(deviceName, listener);
+    pImpl->setDeviceName(nullptr, deviceName, listener);
+}
+
+void MegaApi::setDeviceName(const char *deviceId, const char *deviceName, MegaRequestListener *listener)
+{
+    pImpl->setDeviceName(deviceId, deviceName, listener);
 }
 
 void MegaApi::getDriveName(const char *pathToDrive, MegaRequestListener *listener)

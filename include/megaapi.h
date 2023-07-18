@@ -13705,8 +13705,30 @@ class MegaApi
          * - MegaRequest::getName - Returns device name.
          *
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This version of the function is deprecated. Please use the non-deprecated one below.
          */
+        MEGA_DEPRECATED
         void getDeviceName(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Returns the name previously set for a device
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DEVICE_NAMES
+         * - MegaRequest::getText - Returns passed device id (or the value returned by getDeviceId()
+         * if deviceId was initially passed as null).
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getName - Returns device name.
+         *
+         * @param deviceId The id of the device to get the name for. If null, the value returned
+         * by getDeviceId() will be used instead.
+         * @param listener MegaRequestListener to track this request
+         */
+        void getDeviceName(const char *deviceId, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Sets device name
@@ -13718,8 +13740,28 @@ class MegaApi
          *
          * @param deviceName String with device name
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This version of the function is deprecated. Please use the non-deprecated one below.
          */
+        MEGA_DEPRECATED
         void setDeviceName(const char* deviceName, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Sets name for specified device
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DEVICE_NAMES
+         * - MegaRequest::getName - Returns device name.
+         * - MegaRequest::getText - Returns passed device id (or the value returned by getDeviceId()
+         * if deviceId was initially passed as null).
+         *
+         * @param deviceId The id of the device to set the name for If null, the value returned
+         * by getDeviceId() will be used instead.
+         * @param deviceName String with device name
+         * @param listener MegaRequestListener to track this request
+         */
+        void setDeviceName(const char* deviceId, const char* deviceName, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Returns the name set for this drive

@@ -7380,10 +7380,12 @@ const char* MegaApiImpl::getDeviceId() const
     return MegaApi::strdup(client->getDeviceidHash().c_str());
 }
 
-void MegaApiImpl::getDeviceName(MegaRequestListener *listener)
+void MegaApiImpl::getDeviceName(const char* deviceId, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
     request->setParamType(MegaApi::USER_ATTR_DEVICE_NAMES);
+    string id = deviceId ? deviceId : client->getDeviceidHash();
+    request->setText(id.c_str());
 
     request->performRequest = [this, request]()
     {
@@ -7394,13 +7396,15 @@ void MegaApiImpl::getDeviceName(MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::setDeviceName(const char *deviceName, MegaRequestListener *listener)
+void MegaApiImpl::setDeviceName(const char *deviceId, const char *deviceName, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
     MegaStringMapPrivate stringMap;
+    string id = deviceId ? deviceId : client->getDeviceidHash();
     string buf = deviceName ? deviceName : "";
-    stringMap.set(client->getDeviceidHash().c_str(), Base64::btoa(buf).c_str());
+    stringMap.set(id.c_str(), Base64::btoa(buf).c_str());
     request->setMegaStringMap(&stringMap);
+    request->setText(id.c_str());
     request->setName(deviceName);
     request->setParamType(MegaApi::USER_ATTR_DEVICE_NAMES);
 
@@ -15244,7 +15248,7 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                 }
                 else
                 {
-                    buf = stringMap->get(client->getDeviceidHash().c_str());
+                    buf = stringMap->get(request->getText());
                 }
 
                 if (!buf)
