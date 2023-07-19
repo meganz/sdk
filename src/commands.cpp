@@ -10228,10 +10228,11 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r, JSON& json)
         {
             // remove children scheduled meetings (API requirement)
             chat->removeChildSchedMeetings(mSchedId);
-            client->clearSchedOccurrences(*chat);
-            chat->setTag(tag ? tag : -1);
-            client->notifychat(chat);
         }
+
+        client->clearSchedOccurrences(*chat);
+        chat->setTag(tag ? tag : -1);
+        client->notifychat(chat);
     }
 
     if (mCompletion) { mCompletion(r.errorOrOK()); }
