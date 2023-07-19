@@ -20840,18 +20840,18 @@ void MegaClient::fixSetElementWithWrongKey(const Set& s)
 
     if (taintedEls.empty()) return;
 
-    const auto logResult = [this](Error e, const vector<int64_t>* results, const std::string msg)
+    const auto logResult = [this](Error e, const vector<int64_t>* results, const std::string& msg)
     {
-        if (e == API_OK && results &&
-            std::all_of(begin(*results), end(*results), [](int64_t r) { return r == API_OK; }))
+        if (e == API_OK && (!results ||
+            std::all_of(begin(*results), end(*results), [](int64_t r) { return r == API_OK; })))
         {
-            const std::string m = "Sets: SetElements with wrong key " + msg + "successfully";
+            const std::string m = "Sets: SetElements with wrong key " + msg + " successfully";
             LOG_debug << m;
             sendevent(99477, m.c_str());
         }
         else
         {
-            const std::string m = "Sets: Error all SetElements with wrong key " + msg + " failed";
+            const std::string m = "Sets: Error: SetElements with wrong key failed to be " + msg;
             LOG_warn << m;
             sendevent(99478, m.c_str());
         }
