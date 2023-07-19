@@ -10550,7 +10550,7 @@ void exec_syncremove(autocomplete::ACState& s)
         };
     }
 
-    client->syncs.deregisterThenRemoveSync(v[0].mBackupId, completion, false, nullptr);
+    client->syncs.deregisterThenRemoveSync(v[0].mBackupId, completion, nullptr);
 }
 
 void exec_syncstatus(autocomplete::ACState& s)
