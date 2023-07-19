@@ -803,6 +803,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                             auto outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
                             if (outputPiece)
                             {
+                                p += outputPiece->buf.datalen(); // p (and progressreported) needs to be updated with this value. If raid, it will also be increased with the data waiting to be recombined
                                 mRaidChannelSwapsForSlowness = 0;
                                 bool parallelNeeded = outputPiece->finalize(false, transfer->size, transfer->ctriv, transfer->transfercipher(), &transfer->chunkmacs);
 
@@ -865,6 +866,15 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                 case REQ_UPLOAD_PREPARED_BUT_WAIT:
                 {
                     assert(transfer->type == PUT);
+                    break;
+                }
+                case REQ_DECRYPTING:
+                {
+                    assert(transfer->type == GET);
+                    // this must return the same piece we are decrypting, since we have not asked the transferbuf to discard it yet.
+                    auto outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
+                    assert(outputPiece && outputPiece->buf.datalen());
+                    p += outputPiece->buf.datalen(); // This is part of the transferred bytes
                     break;
                 }
                 case REQ_DECRYPTED:
