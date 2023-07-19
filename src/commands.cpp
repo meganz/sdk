@@ -10178,12 +10178,11 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r, JSON& jso
     error e = API_EINTERNAL;
     bool res = chat->addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting>(mScheduledMeeting->copy())); // add or update scheduled meeting if already exists
     client->clearSchedOccurrences(*chat);
+    chat->setTag(tag ? tag : -1);
+    client->notifychat(chat);
 
     if (res)
     {
-        chat->setTag(tag ? tag : -1);
-        client->notifychat(chat);
-
         result = mScheduledMeeting.get();
         e = API_OK;
     }
@@ -10191,8 +10190,6 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r, JSON& jso
     {
         // if we couldn't update scheduled meeting, but we have deleted it's children, we also need to notify apps
         LOG_debug << "Error adding or updating a scheduled meeting schedId [" <<  Base64Str<MegaClient::CHATHANDLE>(schedId) << "]";
-        chat->setTag(tag ? tag : -1);
-        client->notifychat(chat);
     }
 
     if (mCompletion) { mCompletion(e, result); }
