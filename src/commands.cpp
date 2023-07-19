@@ -7191,7 +7191,6 @@ bool CommandChatCreate::procresult(Result r, JSON& json)
                             {
                                 LOG_err << "Error adding a new scheduled meeting with schedId [" <<  Base64Str<MegaClient::CHATHANDLE>(schedId) << "]";
                             }
-                            client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chat->getChatId(), mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
                         }
 
                         client->notifychat(chat);
@@ -10178,6 +10177,8 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r, JSON& jso
     ScheduledMeeting* result = nullptr;
     error e = API_EINTERNAL;
     bool res = chat->addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting>(mScheduledMeeting->copy())); // add or update scheduled meeting if already exists
+    client->clearSchedOccurrences(chat->getChatId());
+
     if (res)
     {
         chat->setTag(tag ? tag : -1);
@@ -10193,9 +10194,6 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r, JSON& jso
         chat->setTag(tag ? tag : -1);
         client->notifychat(chat);
     }
-
-    // fetch for fresh scheduled meetings occurrences
-    client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chat->getChatId(), mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
 
     if (mCompletion) { mCompletion(e, result); }
     return res;
@@ -10233,11 +10231,9 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r, JSON& json)
         {
             // remove children scheduled meetings (API requirement)
             chat->removeChildSchedMeetings(mSchedId);
+            client->clearSchedOccurrences(chat->getChatId());
             chat->setTag(tag ? tag : -1);
             client->notifychat(chat);
-
-            // re-fetch scheduled meetings occurrences
-            client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chat->getChatId(), mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
         }
     }
 

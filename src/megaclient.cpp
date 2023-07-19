@@ -7898,6 +7898,7 @@ void MegaClient::sc_delscheduledmeeting()
                         // remove children scheduled meetings (API requirement)
                         handle_set deletedChildren = chat->removeChildSchedMeetings(schedId);
                         handle chatid = chat->getChatId();
+                        clearSchedOccurrences(chatid);
                         chat->setTag(0);    // external change
                         notifychat(chat);
 
@@ -7908,7 +7909,6 @@ void MegaClient::sc_delscheduledmeeting()
 
                             createDeletedSMAlert(ou, chatid, schedId);
                         }
-                        reqs.add(new CommandScheduledMeetingFetchEvents(this, chatid, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
                         break;
                     }
                 }
@@ -7970,6 +7970,7 @@ void MegaClient::sc_scheduledmeetings()
 
             // if we couldn't update scheduled meeting, but we have deleted it's children, we also need to notify apps
             handle chatid = chat->getChatId();
+            clearSchedOccurrences(chatid);
             chat->setTag(0);    // external change
             notifychat(chat);
 
@@ -7986,9 +7987,6 @@ void MegaClient::sc_scheduledmeetings()
                 }
             }
         }
-
-        // fetch for fresh scheduled meetings occurrences
-        reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->getChatId(), mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
     }
 }
 
@@ -19778,6 +19776,21 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
     } while (keepParsing);
 
     return e;
+}
+
+void MegaClient::clearSchedOccurrences(const handle chatid)
+{
+    auto it = chats.find(chatid);
+    if (it == chats.end())
+    {
+        LOG_warn << "clearSchedOccurrences: Chat not found with chatid: "
+                 << Base64Str<MegaClient::CHATHANDLE>(chatid);
+
+        return;
+    }
+    TextChat* chat = it->second;
+    chat->clearUpdatedSchedMeetingOccurrences();
+    chat->changed.schedOcurrReplace = true;
 }
 
 #endif
