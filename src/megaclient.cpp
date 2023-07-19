@@ -7898,7 +7898,7 @@ void MegaClient::sc_delscheduledmeeting()
                         // remove children scheduled meetings (API requirement)
                         handle_set deletedChildren = chat->removeChildSchedMeetings(schedId);
                         handle chatid = chat->getChatId();
-                        clearSchedOccurrences(chatid);
+                        clearSchedOccurrences(*chat);
                         chat->setTag(0);    // external change
                         notifychat(chat);
 
@@ -7970,7 +7970,7 @@ void MegaClient::sc_scheduledmeetings()
 
             // if we couldn't update scheduled meeting, but we have deleted it's children, we also need to notify apps
             handle chatid = chat->getChatId();
-            clearSchedOccurrences(chatid);
+            clearSchedOccurrences(*chat);
             chat->setTag(0);    // external change
             notifychat(chat);
 
@@ -19778,19 +19778,10 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
     return e;
 }
 
-void MegaClient::clearSchedOccurrences(const handle chatid)
+void MegaClient::clearSchedOccurrences(TextChat& chat)
 {
-    auto it = chats.find(chatid);
-    if (it == chats.end())
-    {
-        LOG_warn << "clearSchedOccurrences: Chat not found with chatid: "
-                 << Base64Str<MegaClient::CHATHANDLE>(chatid);
-
-        return;
-    }
-    TextChat* chat = it->second;
-    chat->clearUpdatedSchedMeetingOccurrences();
-    chat->changed.schedOcurrReplace = true;
+    chat.clearUpdatedSchedMeetingOccurrences();
+    chat.changed.schedOcurrReplace = true;
 }
 
 #endif

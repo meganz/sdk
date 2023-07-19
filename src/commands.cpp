@@ -10177,7 +10177,7 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r, JSON& jso
     ScheduledMeeting* result = nullptr;
     error e = API_EINTERNAL;
     bool res = chat->addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting>(mScheduledMeeting->copy())); // add or update scheduled meeting if already exists
-    client->clearSchedOccurrences(chat->getChatId());
+    client->clearSchedOccurrences(*chat);
 
     if (res)
     {
@@ -10231,7 +10231,7 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r, JSON& json)
         {
             // remove children scheduled meetings (API requirement)
             chat->removeChildSchedMeetings(mSchedId);
-            client->clearSchedOccurrences(chat->getChatId());
+            client->clearSchedOccurrences(*chat);
             chat->setTag(tag ? tag : -1);
             client->notifychat(chat);
         }

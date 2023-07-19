@@ -1435,7 +1435,7 @@ public:
     void createUpdatedSMAlert(const handle&, handle chatid, handle schedId, handle parentSchedId,
                                m_time_t startDateTime, UserAlert::UpdatedScheduledMeeting::Changeset&& cs);
     static error parseScheduledMeetingChangeset(JSON*, UserAlert::UpdatedScheduledMeeting::Changeset*);
-    void clearSchedOccurrences(const handle chatid);
+    void clearSchedOccurrences(TextChat& chat);
 #endif
     void sc_uac();
     void sc_uec();
