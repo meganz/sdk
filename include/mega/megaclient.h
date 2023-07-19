@@ -386,7 +386,6 @@ private:
     string mPrivEd25519, mPrivCu25519, mPrivRSA;
     string mAuthEd25519, mAuthCu25519;
     string mBackups;
-    string mWarnings;
     string mOther;
 
     // maps node handle of the shared folder to a pair of sharekey bytes and trust flag
@@ -398,12 +397,20 @@ private:
     // maps base64 node handles to pairs of source user handle and share key
     map<string, pair<handle, string>> mPendingInShares;
 
+    // warnings as stored as a key-value map
+    map<string, string> mWarnings;
+
     // decode data from the decrypted ^!keys attribute and stores values in `km`
     // returns false in case of unserializatison isues
     static bool unserialize(KeyManager& km, const string& keysContainer);
 
     // prepares the header for a new serialized record of type 'tag' and 'len' bytes
     string tagHeader(const byte tag, size_t len) const;
+
+    // Serialize pairs of tags and values as Length+Name+Lengh+Value.
+    // warnings and pending inshares are encoded like that when serialized.
+    static bool deserializeFromLTLV(const string& blob, map<string, string>& data);
+    static string serializeToLTLV(const map<string, string>& data);
 
     // encode data from the decrypted ^!keys attribute
     string serialize() const;
@@ -422,6 +429,10 @@ private:
 
     string serializeBackups() const;
     static bool deserializeBackups(KeyManager& km, const string& blob);
+
+    string serializeWarnings() const;
+    static bool deserializeWarnings(KeyManager& km, const string& blob);
+    static string warningsToString(const KeyManager& km);
 
     std::string computeSymmetricKey(handle user);
 
