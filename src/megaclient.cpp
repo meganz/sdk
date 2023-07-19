@@ -9001,6 +9001,8 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
     set<NodeHandle> allParents;
 #endif
 
+    NodeManager::MissingParentNodes missingParentNodes;
+
     while (j->enterobject())
     {
         handle h = UNDEF, ph = UNDEF;
@@ -9167,7 +9169,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                     {
                         n->setparent(NULL);
                         n->parenthandle = ph;
-                        mNodeManager.addNodeWithMissingParent(n);
+                        missingParentNodes[n->parentHandle()].insert(n);
                     }
                 }
 
@@ -9255,7 +9257,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 }
 
                 // NodeManager takes n ownership
-                mNodeManager.addNode(n, notify,  fetchingnodes);
+                mNodeManager.addNode(n, notify,  fetchingnodes, missingParentNodes);
 
                 if (!ISUNDEF(su))   // node represents an incoming share
                 {
@@ -9319,7 +9321,12 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
     }
 
     mergenewshares(notify);
-    mNodeManager.checkOrphanNodes();
+    mNodeManager.checkOrphanNodes(missingParentNodes);
+
+    // If we didn't get all the parents of all the nodes,
+    // then the API is sending us inconsistent data,
+    // or we have a bug processing it.  Please investigate
+    assert(missingParentNodes.empty());
 
 #ifdef ENABLE_SYNC
     for (NodeHandle p : allParents)
