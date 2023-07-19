@@ -1502,7 +1502,9 @@ void NodeManager::checkOrphanNodes(MissingParentNodes& nodesWithMissingParent)
     {
         for (const auto& orphan : it.second)
         {
-            // top-level inshares have no parent (nested ones have)
+            // For inshares, we get sent the inshare node including its parent handle
+            // even though we will never actually get that parent node (unless the share is nested)
+            // So, don't complain about those ones.  Just about really un-attached subtrees.
             if (!orphan->inshare)
             {
                 // At this point, all nodes have been already parsed, so the parent should never arrive.
@@ -1520,6 +1522,11 @@ void NodeManager::checkOrphanNodes(MissingParentNodes& nodesWithMissingParent)
                         << " Parent: " << toNodeHandle(orphan->parentHandle());
 
                mClient.sendevent(99455, "Orphan node(s) detected");
+
+                // If we didn't get all the parents of all the (not inshare) nodes,
+                // then the API is sending us inconsistent data,
+                // or we have a bug processing it.  Please investigate
+                assert(false);
             }
         }
     }

@@ -9323,11 +9323,6 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
     mergenewshares(notify);
     mNodeManager.checkOrphanNodes(missingParentNodes);
 
-    // If we didn't get all the parents of all the nodes,
-    // then the API is sending us inconsistent data,
-    // or we have a bug processing it.  Please investigate
-    assert(missingParentNodes.empty());
-
 #ifdef ENABLE_SYNC
     for (NodeHandle p : allParents)
     {
