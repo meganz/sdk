@@ -7451,6 +7451,12 @@ TEST_F(SdkTest, SdkDeviceNames)
     string deviceNameInCloud;
     ASSERT_EQ(API_OK, doGetDeviceName(0, &deviceNameInCloud, nullptr)) << "getDeviceName failed";
     ASSERT_EQ(deviceNameInCloud, deviceName) << "getDeviceName returned incorrect value";
+
+    // test device name taken directly from user attribute
+    RequestTracker devNameTracker(megaApi[0].get());
+    megaApi[0]->getUserAttribute(MegaApi::USER_ATTR_DEVICE_NAMES, &devNameTracker);
+    ASSERT_EQ(API_OK, devNameTracker.waitForResult());
+    ASSERT_STREQ(devNameTracker.request->getName(), deviceName.c_str());
 }
 
 TEST_F(SdkTest, SdkBackupFolder)
