@@ -20823,6 +20823,52 @@ const Set* MegaClient::addSet(Set&& a)
     return &add.first->second;
 }
 
+void MegaClient::fixSetElementWithWrongKey(const Set& s)
+{
+    const auto els = getSetElements(s.id());
+    if (!els) return;
+
+    vector<SetElement> newEls;
+    vector<handle> taintedEls;
+    const auto hasWrongKey = [](const SetElement& el) { return el.key().size() != static_cast<size_t>(FILENODEKEYLENGTH); };
+    for (auto& p : *els) // candidate to paral in >C++17 via algorithms
+    {
+        const SetElement& e = p.second;
+        if (hasWrongKey(e))
+        {
+            LOG_warn << "Sets: SetElement " << toHandle(e.id()) << " from Set " << toHandle(s.id())
+                     << " contains invalid key of " << s.key().size() << " Bytes";
+            taintedEls.push_back(e.id());
+            newEls.emplace_back(e);
+        }
+    }
+
+    if (taintedEls.empty()) return;
+
+    const auto logResult = [this](Error e, const vector<int64_t>* results, const std::string& msg)
+    {
+        if (e == API_OK && (!results ||
+            std::all_of(begin(*results), end(*results), [](int64_t r) { return r == API_OK; })))
+        {
+            const std::string m = "Sets: SetElements with wrong key " + msg + " successfully";
+            LOG_debug << m;
+            sendevent(99477, m.c_str());
+        }
+        else
+        {
+            const std::string m = "Sets: Error: SetElements with wrong key failed to be " + msg;
+            LOG_warn << m;
+            sendevent(99478, m.c_str());
+        }
+    };
+    // removal must take place before because there can't be 2 SetElements with the same node
+    removeSetElements(s.id(), std::move(taintedEls),
+                      [logResult](Error e, const vector<int64_t>* results) { logResult(e, results, "removed"); });
+
+    putSetElements(std::move(newEls), [logResult](Error e, const vector<const SetElement*>*, const vector<int64_t>* results)
+        { logResult(e, results, "created"); });
+}
+
 bool MegaClient::updateSet(Set&& s)
 {
     auto it = mSets.find(s.id());
@@ -21219,6 +21265,11 @@ void MegaClient::exportSet(handle sid, bool makePublic, std::function<void(Error
     const auto setToBeUpdated = getSet(sid);
     if (setToBeUpdated)
     {
+        if (makePublic) // legacy bug: some Element's key were set incorrectly -> repair
+        {
+            fixSetElementWithWrongKey(*setToBeUpdated);
+        }
+
         if (setToBeUpdated->isExported() == makePublic) completion(API_OK);
         else
         {
