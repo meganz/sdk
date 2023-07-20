@@ -15255,7 +15255,9 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                 }
                 else
                 {
-                    buf = stringMap->get(request->getText());
+                    // getDeviceName() will set MegaRequestPrivate::text to the id of the requested device;
+                    // getUserAttr(USER_ATTR_DEVICE_NAMES) will not set that field, so use the id of the current device
+                    buf = stringMap->get(request->getText() ? request->getText() : client->getDeviceidHash().c_str());
                 }
 
                 if (!buf)
