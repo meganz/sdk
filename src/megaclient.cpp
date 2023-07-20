@@ -7898,8 +7898,6 @@ void MegaClient::sc_delscheduledmeeting()
                         // remove children scheduled meetings (API requirement)
                         handle_set deletedChildren = chat->removeChildSchedMeetings(schedId);
                         handle chatid = chat->getChatId();
-                        chat->setTag(0);    // external change
-                        notifychat(chat);
 
                         if (statecurrent)
                         {
@@ -7908,9 +7906,12 @@ void MegaClient::sc_delscheduledmeeting()
 
                             createDeletedSMAlert(ou, chatid, schedId);
                         }
-                        reqs.add(new CommandScheduledMeetingFetchEvents(this, chatid, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
                         break;
                     }
+
+                    clearSchedOccurrences(*chat);
+                    chat->setTag(0);    // external change
+                    notifychat(chat);
                 }
                 break;
             }
@@ -7970,9 +7971,6 @@ void MegaClient::sc_scheduledmeetings()
 
             // if we couldn't update scheduled meeting, but we have deleted it's children, we also need to notify apps
             handle chatid = chat->getChatId();
-            chat->setTag(0);    // external change
-            notifychat(chat);
-
             if (statecurrent)
             {
                 // generate deleted scheduled meetings user alerts for each member in cmd (child meetings deleted) array
@@ -7987,8 +7985,9 @@ void MegaClient::sc_scheduledmeetings()
             }
         }
 
-        // fetch for fresh scheduled meetings occurrences
-        reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->getChatId(), mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
+        clearSchedOccurrences(*chat);
+        chat->setTag(0);    // external change
+        notifychat(chat);
     }
 }
 
@@ -19778,6 +19777,12 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
     } while (keepParsing);
 
     return e;
+}
+
+void MegaClient::clearSchedOccurrences(TextChat& chat)
+{
+    chat.clearUpdatedSchedMeetingOccurrences();
+    chat.changed.schedOcurrReplace = true;
 }
 
 #endif
