@@ -9841,6 +9841,13 @@ bool Sync::resolve_fsNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& fullPa
             {fullPath.localPath},
             {movedLocalNode->getLocalPath()}));
 
+        // make sure we do visit the parent folder of that node so the move can be processed
+        if (movedLocalNode->parent && !movedLocalNode->parent->syncRequired())
+        {
+            SYNC_verbose << syncname << "Ensuring we visit the move-target node parent: " << movedLocalNode->getLocalPath() << ". At " << logTriplet(row, fullPath);
+            movedLocalNode->setSyncAgain(true, true, false);
+        }
+
     }
     else if (!syncs.mSyncFlags->scanningWasComplete &&
              !row.isIgnoreFile())  // ignore files do not participate in move logic
