@@ -58,12 +58,10 @@ public:
     void reset();
 
     // Take node ownership
-    bool addNode(Node* node, bool notify, bool isFetching = false);
+    typedef map<NodeHandle,  set<Node*>> MissingParentNodes;
+    bool addNode(Node* node, bool notify, bool isFetching, MissingParentNodes& missingParentNodes);
     bool updateNode(Node* node);
     // removeNode() --> it's done through notifypurge()
-
-    // if a node is received before its parent, it needs to be updated when received
-    void addNodeWithMissingParent(Node *node);
 
     // if node is not available in memory, it's loaded from DB
     Node *getNodeByHandle(NodeHandle handle);
@@ -197,9 +195,8 @@ public:
     void setRootNodeVault(NodeHandle h);
     void setRootNodeRubbish(NodeHandle h);
 
-    // Check if there are orphan nodes and clear mNodesWithMissingParent
     // In case of orphans send an event
-    void checkOrphanNodes();
+    void checkOrphanNodes(MissingParentNodes& nodesWithMissingParent);
 
     // This method is called when initial fetch nodes is finished
     // Initialize node counters and create indexes at DB
@@ -267,11 +264,8 @@ private:
     // nodes that have changed and are pending to notify to app and dump to DB
     node_vector mNodeNotify;
 
-    // holds references to unknown parent nodes until those are received (delayed-parents: dp)
-    std::map<NodeHandle,  set<Node*>> mNodesWithMissingParent;
-
     Node* getNodeInRAM(NodeHandle handle);
-    void saveNodeInRAM(Node* node, bool isRootnode);    // takes ownership
+    void saveNodeInRAM(Node* node, bool isRootnode, MissingParentNodes& missingParentNodes);    // takes ownership
     node_vector getNodesWithSharesOrLink_internal(ShareType_t shareType);
 
     enum OperationType
@@ -325,9 +319,8 @@ private:
     // It's quite a verbose approach, but at least simple, easy to understand, and easy to get right.
     void setTable_internal(DBTableNodes *table);
     void reset_internal();
-    bool addNode_internal(Node* node, bool notify, bool isFetching = false);
+    bool addNode_internal(Node* node, bool notify, bool isFetching, MissingParentNodes& missingParentNodes);
     bool updateNode_internal(Node* node);
-    void addNodeWithMissingParent_internal(Node *node);
     Node *getNodeByHandle_internal(NodeHandle handle);
     node_list getChildren_internal(const Node *parent, CancelToken cancelToken = CancelToken());
     node_vector getChildrenFromType_internal(const Node *parent, nodetype_t type, CancelToken cancelToken);
@@ -366,7 +359,6 @@ private:
     void setRootNodeFiles_internal(NodeHandle h);
     void setRootNodeVault_internal(NodeHandle h);
     void setRootNodeRubbish_internal(NodeHandle h);
-    void checkOrphanNodes_internal();
     void initCompleted_internal();
 };
 
