@@ -12022,15 +12022,13 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
 
         if (nodeIsInActiveUnpausedSyncQuery)
         {
-            for (auto & rn : activeSyncRoots)
+            auto it = std::find_if(activeSyncRoots.begin(), activeSyncRoots.end(), [n](const pair<Node*, Sync*>& rn) {return n->isbelow(rn.first);});
+            if (it != activeSyncRoots.end() && !it->second->getConfig().mTemporarilyPaused)
             {
-                if (n->isbelow(rn.first) && !rn.second->getConfig().mTemporarilyPaused)
-                {
                     *nodeIsInActiveUnpausedSyncQuery = true;
 
                     if (nodeIsDefinitelyExcluded)
-                        *nodeIsDefinitelyExcluded = isDefinitelyExcluded(rn, n);
-                }
+                        *nodeIsDefinitelyExcluded = isDefinitelyExcluded(*it, n);
             }
         }
 
