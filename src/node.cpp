@@ -1903,13 +1903,19 @@ void LocalNode::setSyncAgain(bool doParent, bool doHere, bool doBelow)
 {
     auto state = TreeState((doHere?1u:0u) << 1 | (doBelow?1u:0u));
 
+    parentSetSyncAgain = parentSetSyncAgain || doParent;
+
     syncAgain = std::max<TreeState>(syncAgain, state);
     for (auto p = parent; p != NULL; p = p->parent)
     {
+        if (doParent)
+        {
+            p->syncAgain = std::max<TreeState>(p->syncAgain, TREE_ACTION_HERE);
+            doParent = false;
+        }
+
         p->syncAgain = std::max<TreeState>(p->syncAgain, TREE_DESCENDANT_FLAGGED);
     }
-
-    parentSetSyncAgain = parentSetSyncAgain || doParent;
 }
 
 void LocalNode::setContainsConflicts(bool doParent, bool doHere, bool doBelow)
