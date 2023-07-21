@@ -7450,10 +7450,16 @@ TEST_F(SdkTest, SdkDeviceNames)
 
     // test setter/getter
     string deviceName = string("SdkDeviceNamesTest_") + getCurrentTimestamp(true);
-    ASSERT_EQ(API_OK, doSetDeviceName(0, deviceName.c_str())) << "setDeviceName failed";
+    ASSERT_EQ(API_OK, doSetDeviceName(0, nullptr, deviceName.c_str())) << "setDeviceName failed";
     string deviceNameInCloud;
-    ASSERT_EQ(API_OK, doGetDeviceName(0, &deviceNameInCloud)) << "getDeviceName failed";
+    ASSERT_EQ(API_OK, doGetDeviceName(0, &deviceNameInCloud, nullptr)) << "getDeviceName failed";
     ASSERT_EQ(deviceNameInCloud, deviceName) << "getDeviceName returned incorrect value";
+
+    // test device name taken directly from user attribute
+    RequestTracker devNameTracker(megaApi[0].get());
+    megaApi[0]->getUserAttribute(MegaApi::USER_ATTR_DEVICE_NAMES, &devNameTracker);
+    ASSERT_EQ(API_OK, devNameTracker.waitForResult());
+    ASSERT_STREQ(devNameTracker.request->getName(), deviceName.c_str());
 }
 
 TEST_F(SdkTest, SdkBackupFolder)
@@ -7469,14 +7475,14 @@ TEST_F(SdkTest, SdkBackupFolder)
     // look for Device Name attr
     string deviceName;
     bool deviceNameWasSetByCurrentTest = false;
-    if (doGetDeviceName(0, &deviceName) != API_OK || deviceName.empty())
+    if (doGetDeviceName(0, &deviceName, nullptr) != API_OK || deviceName.empty())
     {
         deviceName = "Jenkins " + timestamp;
-        doSetDeviceName(0, deviceName.c_str());
+        doSetDeviceName(0, nullptr, deviceName.c_str());
 
         // make sure Device Name attr was set
         string deviceNameInCloud;
-        ASSERT_EQ(doGetDeviceName(0, &deviceNameInCloud), API_OK) << "Getting device name attr failed";
+        ASSERT_EQ(doGetDeviceName(0, &deviceNameInCloud, nullptr), API_OK) << "Getting device name attr failed";
         ASSERT_EQ(deviceName, deviceNameInCloud) << "Getting device name attr failed (wrong value)";
         deviceNameWasSetByCurrentTest = true;
     }
@@ -7651,12 +7657,12 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
 
     // Set device name if missing
     string deviceName;
-    if (doGetDeviceName(0, &deviceName) != API_OK || deviceName.empty())
+    if (doGetDeviceName(0, &deviceName, nullptr) != API_OK || deviceName.empty())
     {
         string newDeviceName = "Jenkins " + timestamp;
-        ASSERT_EQ(doSetDeviceName(0, newDeviceName.c_str()), API_OK) << "Setting device name failed";
+        ASSERT_EQ(doSetDeviceName(0, nullptr, newDeviceName.c_str()), API_OK) << "Setting device name failed";
         // make sure Device Name attr was set
-        ASSERT_EQ(doGetDeviceName(0, &deviceName), API_OK) << "Getting device name failed";
+        ASSERT_EQ(doGetDeviceName(0, &deviceName, nullptr), API_OK) << "Getting device name failed";
         ASSERT_EQ(deviceName, newDeviceName) << "Getting device name failed (wrong value)";
     }
     // Make sure My Backups folder was created
@@ -7838,7 +7844,7 @@ TEST_F(SdkTest, SdkExternalDriveFolder)
 
     // attempt to set the name of an external drive to the name of current device (if the latter was already set)
     string deviceName;
-    if (doGetDeviceName(0, &deviceName) == API_OK && !deviceName.empty())
+    if (doGetDeviceName(0, &deviceName, nullptr) == API_OK && !deviceName.empty())
     {
         ASSERT_EQ(API_EEXIST, doSetDriveName(0, pathToDriveStr.c_str(), deviceName.c_str()))
             << "Ext-drive name was set to current device name: " << deviceName;

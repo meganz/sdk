@@ -161,7 +161,7 @@ pipeline {
                         }                                   
                     }
                     else {
-                        sh "bash download_3rdparty.sh" 
+                        sh "bundle exec fastlane configure_sdk_and_chat_library use_cache:true"
                     }   
                 }
                 withCredentials([gitUsernamePassword(credentialsId: 'jenkins_sdk_token_with_user', gitToolName: 'Default')]) {
