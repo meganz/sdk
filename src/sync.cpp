@@ -7160,6 +7160,16 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
                         break;
 
                     }
+
+                    if (!childRow.fsNode && childRow.syncNode)
+                    {
+                        // if there's no local file/folder, we can't scan
+                        // avoid the case of large folder upload, deleted while uploading
+                        // that then persists in thinking subtree needs scanning
+                        childRow.syncNode->syncAgain = TREE_RESOLVED;
+                        childRow.syncNode->parentSetScanAgain = false;
+                    }
+
                 }
             }
 
