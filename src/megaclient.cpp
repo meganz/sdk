@@ -9517,10 +9517,28 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
         return 0;
     }
 
+    while (int e = readnode(j, notify, source, nn, modifiedByThisClient, applykeys))
+    {
+        if (e != 1)
+        {
+            LOG_err << "Parsing error in readnodes: " << e;
+            return 0;
+        }
+    }
+
+    mergenewshares(notify);
+    mNodeManager.checkOrphanNodes();
+
+    return j->leavearray();
+}
+
+
+int MegaClient::readnode(JSON* j, int notify, putsource_t source, vector<NewNode>* nn, bool modifiedByThisClient, bool applykeys)
+{
     Node* n;
 
     handle previousHandleForAlert = UNDEF;
-    while (j->enterobject())
+    if (j->enterobject())
     {
         handle h = UNDEF, ph = UNDEF;
         handle u = 0, su = UNDEF;
@@ -9599,7 +9617,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 default:
                     if (!j->storeobject())
                     {
-                        return 0;
+                        return 2;
                     }
             }
         }
@@ -9876,12 +9894,11 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 }
             }
         }
+
+        return 1;
     }
 
-    mergenewshares(notify);
-    mNodeManager.checkOrphanNodes();
-
-    return j->leavearray();
+    return 0;
 }
 
 // decrypt and set encrypted sharekey
@@ -10317,12 +10334,29 @@ error MegaClient::readmiscflags(JSON *json)
     }
 }
 
-void MegaClient::procph(JSON *j)
+bool MegaClient::procph(JSON *j)
 {
-    // fields: h, ph, ets
-    if (j->enterarray())
+    if (!j->enterarray())
     {
-        while (j->enterobject())
+        return false;
+    }
+
+    while (int e = procphelement(j))
+    {
+        if (e != 1)
+        {
+            LOG_err << "Parsing error in procph: " << e;
+            return false;
+        }
+    }
+
+    return j->leavearray();
+}
+
+int MegaClient::procphelement(JSON *j)
+{
+        // fields: h, ph, ets
+        if (j->enterobject())
         {
             handle h = UNDEF;
             handle ph = UNDEF;
@@ -10388,14 +10422,13 @@ void MegaClient::procph(JSON *j)
                     default:
                        if (!j->storeobject())
                        {
-                            return;
+                            return 2;
                        }
                 }
             }
+            return 1;
         }
-
-        j->leavearray();
-    }
+        return 0;
 }
 
 void MegaClient::applykeys()
@@ -10443,10 +10476,24 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
 {
     if (!j->enterarray())
     {
-        return 0;
+        return false;
     }
 
-    while (j->enterobject())
+    while (int e = readuser(j, actionpackets))
+    {
+        if (e != 1)
+        {
+            LOG_err << "Parsing error in readusers: " << e;
+            return false;
+        }
+    }
+
+    return j->leavearray();
+}
+
+int MegaClient::readuser(JSON* j, bool actionpackets)
+{
+    if (j->enterobject())
     {
         handle uh = 0;
         visibility_t v = VISIBILITY_UNKNOWN;    // new share objects do not override existing visibility
@@ -10493,7 +10540,7 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
                                     break;
                                 default:
                                     if (!j->storeobject())
-                                        return false;
+                                        return 2;
                                     break;
                             }
                         }
@@ -10534,7 +10581,7 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
                         default:
                             if (!j->storeobject())
                             {
-                                return false;
+                                return 3;
                             }
                             break;
                     }
@@ -10632,9 +10679,11 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
                 }
             }
         }
+
+        return 1;
     }
 
-    return j->leavearray();
+    return 0;
 }
 
 // Supported formats:
