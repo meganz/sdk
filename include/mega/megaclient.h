@@ -294,6 +294,8 @@ public:
     bool addShareKey(handle sharehandle, std::string shareKey, bool sharedSecurely = false);
     string getShareKey(handle sharehandle) const;
     bool isShareKeyTrusted(handle sharehandle) const;
+    bool isShareufskeysSent(handle sharehandle) const;
+    void setShareufskeysSent(handle sharehandle, bool sent);
 
     // return empty string if the user's credentials are not verified (or if fail to encrypt)
     std::string encryptShareKeyTo(handle userhandle, std::string shareKey);
@@ -353,6 +355,15 @@ private:
         TAG_WARNINGS = 96,
     };
 
+    enum SKBitMap
+    {
+        TRUSTED = 0,
+        UFSKEYSSENT = 1,
+    };
+
+    // bit.0 -> "trusted key", bit.1 -> "shareufskeys sent to API". Other bits not used or reserved.
+    typedef std::bitset<8> SKBitField;
+
     static const uint8_t IV_LEN = 12;
     static const std::string SVCRYPTO_PAIRWISE_KEY;
 
@@ -389,8 +400,9 @@ private:
     string mWarnings;
     string mOther;
 
-    // maps node handle of the shared folder to a pair of sharekey bytes and trust flag
-    map<handle, pair<string, bool>> mShareKeys;
+    // maps node handle of the shared folder to a pair of sharekey bytes and a bit field mapped as follows:
+    // bit.0 -> "trusted key", bit.1 -> "shareufskeys sent to API". Other bits not used or reserved.
+    map<handle, pair<string, SKBitField>> mShareKeys;
 
     // maps node handle to the target users (where value can be a user's handle in B64 or the email address)
     map<handle, set<string>> mPendingOutShares;
@@ -438,7 +450,7 @@ private:
     void updateAuthring(attr_t at, std::string &value);
 
     // update sharekeys (incl. trust). It doesn't purge non-existing items
-    void updateShareKeys(map<handle, pair<std::string, bool> > &shareKeys);
+    void updateShareKeys(map<handle, pair<std::string, SKBitField> > &shareKeys);
 
     // true if the credentials of this user require verification
     bool verificationRequired(handle userHandle);

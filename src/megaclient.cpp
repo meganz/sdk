@@ -21960,14 +21960,17 @@ bool KeyManager::removePendingInShare(std::string shareHandle)
 bool KeyManager::addShareKey(handle sharehandle, std::string shareKey, bool sharedSecurely)
 {
     auto it = mShareKeys.find(sharehandle);
-    if (it != mShareKeys.end() && it->second.second && it->second.first != shareKey)
+    if (it != mShareKeys.end() && it->second.second[SKBitMap::TRUSTED] && it->second.first != shareKey)
     {
         LOG_warn << "Replacement of trusted sharekey for " << toNodeHandle(sharehandle);
         mClient.sendevent(99470, "KeyMgr / Replacing trusted sharekey");
         assert(false);
     }
 
-    mShareKeys[sharehandle] = pair<string, bool>(shareKey, sharedSecurely && isSecure());
+    SKBitField bitField(0);
+    bitField[SKBitMap::TRUSTED] = sharedSecurely && isSecure();
+
+    mShareKeys[sharehandle] = pair<string, SKBitField>(shareKey, bitField);
     return true;
 }
 
@@ -21984,7 +21987,22 @@ string KeyManager::getShareKey(handle sharehandle) const
 bool KeyManager::isShareKeyTrusted(handle sharehandle) const
 {
     auto it = mShareKeys.find(sharehandle);
-    return it != mShareKeys.end() && it->second.second;
+    return it != mShareKeys.end() && it->second.second[SKBitMap::TRUSTED];
+}
+
+bool KeyManager::isShareufskeysSent(handle sharehandle) const
+{
+    auto it = mShareKeys.find(sharehandle);
+    return it != mShareKeys.end() && it->second.second[SKBitMap::UFSKEYSSENT];
+}
+
+void KeyManager::setShareufskeysSent(handle sharehandle, bool sent)
+{
+    auto it = mShareKeys.find(sharehandle);
+    if (it != mShareKeys.end())
+    {
+        it->second.second[SKBitMap::UFSKEYSSENT] = sent;
+    }
 }
 
 string KeyManager::encryptShareKeyTo(handle userhandle, std::string shareKey)
@@ -22304,9 +22322,10 @@ string KeyManager::shareKeysToString(const KeyManager& km)
         ++count;
         handle h = it.first;
         const string& shareKeyStr = it.second.first;
-        bool trust = it.second.second;
+        bool trust = it.second.second[SKBitMap::TRUSTED];
+        bool ufskeysSent = it.second.second[SKBitMap::UFSKEYSSENT];
         buf << "\t#" << count << "\t h: " << toNodeHandle(h) <<
-                       " sk: " << Base64::btoa(shareKeyStr) << " t: " << trust << "\n";
+                       " sk: " << Base64::btoa(shareKeyStr) << " t: " << trust << " ufsks: " << ufskeysSent << "\n";
     }
 
     return buf.str();
@@ -22644,18 +22663,19 @@ bool KeyManager::deserializeShareKeys(KeyManager& km, const string &blob)
     {
         handle h = UNDEF;
         byte shareKey[SymmCipher::KEYLENGTH];
-        byte trust = 0;
+        byte byteData = 0;
 
         if (!r.unserializenodehandle(h)
                 || !r.unserializebinary(shareKey, sizeof(shareKey))
-                || !r.unserializebyte(trust))
+                || !r.unserializebyte(byteData))
         {
             LOG_err << "Share keys is corrupt";
             return false;
         }
 
         string shareKeyStr((const char*)shareKey, sizeof(shareKey));
-        km.mShareKeys[h] = pair<string, bool>(shareKeyStr, trust ? true : false);
+        SKBitField bitField(byteData);
+        km.mShareKeys[h] = pair<string, SKBitField>(shareKeyStr, bitField);
     }
 
     return true;
@@ -22676,8 +22696,8 @@ string KeyManager::serializeShareKeys() const
         byte *shareKey = (byte*)it.second.first.data();
         w.serializebinary(shareKey, shareKeyLen);
 
-        byte trust = it.second.second;
-        w.serializebyte(trust);
+        byte byteData = static_cast<byte>(it.second.second.to_ulong());
+        w.serializebyte(byteData);
     }
 
     return result;
@@ -22987,7 +23007,7 @@ void KeyManager::updateAuthring(attr_t at, string& value)
     }
 }
 
-void KeyManager::updateShareKeys(map<handle, pair<string, bool>>& shareKeys)
+void KeyManager::updateShareKeys(map<handle, pair<string, SKBitField>>& shareKeys)
 {
     for (const auto& itNew : shareKeys)
     {
@@ -22999,13 +23019,20 @@ void KeyManager::updateShareKeys(map<handle, pair<string, bool>>& shareKeys)
             if (itNew.second.first != itOld->second.first)
             {
                 LOG_warn << "[keymgr] Sharekey for " << toNodeHandle(h) << " has changed. Updating...";
-                assert(!itOld->second.second);
+                assert(!itOld->second.second[SKBitMap::TRUSTED]);
                 mClient.sendevent(99469, "KeyMgr / Replacing sharekey");
             }
             else
             {
-                LOG_warn << "[keymgr] Trust for " << toNodeHandle(h) << " has changed ("
-                         << itOld->second.second << " -> " << itNew.second.second << "). Updating...";
+                if (itNew.second.second[SKBitMap::TRUSTED] != itOld->second.second[SKBitMap::TRUSTED])
+                {
+                    LOG_warn << "[keymgr] Trust for " << toNodeHandle(h) << " share key has changed ("
+                             << itOld->second.second[SKBitMap::TRUSTED] << " -> " << itNew.second.second[SKBitMap::TRUSTED] << "). Updating...";
+                }
+                else {
+                    LOG_warn << "[keymgr] Bit field for " << toNodeHandle(h) << " share key has changed ("
+                             << itOld->second.second.to_ulong() << " -> " << itNew.second.second.to_ulong() << "). Updating...";
+                }
             }
         }
     }
