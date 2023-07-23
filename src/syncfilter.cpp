@@ -1114,7 +1114,7 @@ bool add(const string& text, StringFilterPtrVector& filters, bool& syncThisMegai
     case 's':
         // Applies only to symlinks.
         ++m;
-        target = &FileTarget::instance();
+        target = &SymlinkTarget::instance();
         break;
     default:
         // Default applies to all node types.
