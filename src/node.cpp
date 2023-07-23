@@ -1146,6 +1146,7 @@ string Node::displaypath() const
 
         case TYPE_DONOTSYNC:
         case TYPE_SPECIAL:
+        case TYPE_SYMLINK:
         case TYPE_UNKNOWN:
         case FILENODE:
             path.insert(0, n->displayname());

@@ -1960,7 +1960,7 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
                      << (metadata.st_mode & S_IFMT);
 
             result.isSymlink = S_ISLNK(metadata.st_mode);
-            result.type = TYPE_SPECIAL;
+            result.type = result.isSymlink ? TYPE_SYMLINK: TYPE_SPECIAL;
             continue;
         }
 
