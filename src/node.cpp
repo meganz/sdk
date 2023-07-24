@@ -2090,9 +2090,10 @@ void LocalNode::propagateAnySubtreeFlags()
 
 bool isDoNotSyncFileName(const string& name)
 {
-    return name == "desktop.ini"
-           || name == ".DS_Store"
-           || name == "Icon\x0d";
+    return name == "desktop.ini" // on windows, automatically updated by Explorer based on folder content
+           || name == ".DS_Store" // on mac, contains some info about contents of that folder
+           || name == ".Spotlight-V100" // created on external USB on mac - can't be listed, and is based on disk contents- we also don't want to be continuously uploading things from it on every other change
+           || name == "Icon\x0d";  // on mac, icon for the folder (maybe automatic or if the user chooses an icon?).  Awkward for the control character.  Possibly only produced by older OS?
 }
 
 bool LocalNode::processBackgroundFolderScan(SyncRow& row, SyncPath& fullPath)
