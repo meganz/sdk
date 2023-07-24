@@ -3673,6 +3673,7 @@ TEST_F(SdkTest, SdkTestShares2)
  * - Get a node from a file public link
  * - Remove a public link
  * - Create a folder public link
+ * - Import folder public link
  */
 TEST_F(SdkTest, SdkTestShares)
 {
@@ -4324,6 +4325,34 @@ TEST_F(SdkTest, SdkTestShares)
     // Regenerate the same link should not trigger a new request
     string nodelink6 = createPublicLink(0, nfolder1.get(), 0, maxTimeout, mApi[0].accountDetails->getProLevel() == 0);
     ASSERT_STREQ(nodelink5.c_str(), nodelink6.c_str()) << "Wrong public link after link update";
+
+
+    // --- Import folder public link ---
+    const char* email = getenv(envVarAccount[2].c_str());
+    ASSERT_NE(email, nullptr);
+    const char* pass = getenv(envVarPass[2].c_str());
+    ASSERT_NE(pass, nullptr);
+    mApi.resize(3);
+    megaApi.resize(3);
+    configureTestInstance(2, email, pass);
+    auto loginFolderTracker = asyncRequestLoginToFolder(2, nodelink6.c_str());
+    ASSERT_EQ(loginFolderTracker->waitForResult(), API_OK) << "Failed to login to folder " << nodelink6;
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(2));
+    std::unique_ptr<MegaNode> folderNodeToImport(megaApi[2]->getRootNode());
+    ASSERT_TRUE(folderNodeToImport) << "Failed to get folder node to import from link " << nodelink6;
+    std::unique_ptr<MegaNode> authorizedFolderNode(megaApi[2]->authorizeNode(folderNodeToImport.get()));
+    ASSERT_TRUE(authorizedFolderNode) << "Failed to authorize folder node from link " << nodelink6;
+    logout(2, false, 20);
+
+    auto loginTracker = asyncRequestLogin(2, email, pass);
+    ASSERT_EQ(loginTracker->waitForResult(), API_OK) << "Failed to login with " << email;
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(2));
+    std::unique_ptr<MegaNode> rootNode2(megaApi[2]->getRootNode());
+    RequestTracker nodeCopyTracker(megaApi[2].get());
+    megaApi[2]->copyNode(authorizedFolderNode.get(), rootNode2.get(), nullptr, &nodeCopyTracker);
+    EXPECT_EQ(nodeCopyTracker.waitForResult(), API_OK) << "Failed to copy node to import";
+    std::unique_ptr<MegaNode> importedNode(megaApi[2]->getNodeByPath(authorizedFolderNode->getName(), rootNode2.get()));
+    EXPECT_TRUE(importedNode) << "Imported node not found";
 }
 
 
