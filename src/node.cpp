@@ -2264,9 +2264,9 @@ bool LocalNode::processBackgroundFolderScan(SyncRow& row, SyncPath& fullPath)
                         ++numFingerprintBlocked;
                     }
                 }
-                else if (n.type == TYPE_SPECIAL)
+                else if (n.type == TYPE_SPECIAL || n.type == TYPE_SYMLINK)
                 {
-                    if (ES_EXCLUDED == exclusionState(n.localname, TYPE_SPECIAL, n.fingerprint.size))
+                    if (ES_EXCLUDED == exclusionState(n.localname, n.type, n.fingerprint.size))
                     {
                         // no need to complain about this one anymore, the user excluded it
                         n.type = TYPE_DONOTSYNC;
