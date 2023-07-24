@@ -3370,6 +3370,7 @@ LocalNode::exclusionState(const PathType& path, nodetype_t type, m_off_t size) c
             break;
 
         // Is this path component excluded?
+        // A component could only be FOLDERNODE as we don't recusively go into others such as symlink
         if (ES_EXCLUDED == calcExcluded(namePath, FOLDERNODE, false))
             return ES_EXCLUDED;
     }
