@@ -64,7 +64,8 @@ SOURCES += \
 ../../../../tests/unit/Transfer_test.cpp \
 ../../../../tests/unit/User_test.cpp \
 ../../../../tests/unit/utils.cpp \
-../../../../tests/unit/utils_test.cpp
+../../../../tests/unit/utils_test.cpp \
+../../../../tests/integration/process.cpp
 
 HEADERS += \
 ../../../../tests/unit/constants.h \

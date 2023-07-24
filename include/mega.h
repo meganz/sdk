@@ -29,6 +29,10 @@
 // version
 #include "mega/version.h"
 
+#ifdef __clang__
+#pragma GCC diagnostic ignored "-Wunqualified-std-cast-call"
+#endif
+
 // project types
 #include "mega/types.h"
 
@@ -73,7 +77,7 @@
 #ifdef USE_IOS
 #include "mega/posix/megawaiter.h"
 #include "mega/posix/meganet.h"
-#include "mega/posix/megafs.h"
+#include "mega/osx/megafs.h"
 #include "mega/posix/megaconsole.h"
 #include "mega/posix/megaconsolewaiter.h"
 #else

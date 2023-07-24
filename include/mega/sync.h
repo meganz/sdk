@@ -25,7 +25,7 @@
 #include <future>
 
 #include "db.h"
-#include "megawaiter.h"
+#include "waiter.h"
 
 #ifdef ENABLE_SYNC
 #include "node.h"
@@ -174,7 +174,7 @@ public:
     // not serialized.  Prevent re-enabling sync after removal
     bool mSyncDeregisterSent = false;
 
-    // not serialized.  Prevent notifying the client app for this sync's state changes
+    // not serialized.  Prevent notifying the client app for this sync's state changes and prevent reentry removing sync by sds
     bool mRemovingSyncBySds = false;
 
     // not serialized.  Prevent notifying the client app for this sync's state changes
@@ -994,8 +994,8 @@ struct Syncs
     void disableSyncs(SyncError syncError, bool newEnabledFlag, bool keepSyncDb);
 
     // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered.  Synchronous (for now)
-    void deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion, bool removingSyncBySds, std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction);
-
+    void deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion, std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction);
+    
     // async, callback on client thread
     void renameSync(handle backupId, const string& newname, std::function<void(Error e)> result);
 
@@ -1086,15 +1086,17 @@ public:
     // maps local fsid to corresponding LocalNode* (s)
     fsid_localnode_map localnodeBySyncedFsid;
     fsid_localnode_map localnodeByScannedFsid;
-    LocalNode* findLocalNodeBySyncedFsid(fsfp_t, mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint& fp, std::function<bool(LocalNode* ln)> extraCheck, handle owningUser);
-    LocalNode* findLocalNodeByScannedFsid(fsfp_t, mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint* fp, std::function<bool(LocalNode* ln)> extraCheck, handle owningUser);
+    LocalNode* findLocalNodeBySyncedFsid(fsfp_t, mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint& fp,
+                                         std::function<bool(LocalNode* ln)> extraCheck, handle owningUser, bool& foundExclusionUnknown);
+    LocalNode* findLocalNodeByScannedFsid(fsfp_t, mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint* fp,
+                                         std::function<bool(LocalNode* ln)> extraCheck, handle owningUser, bool& foundExclusionUnknown);
 
     void setSyncedFsidReused(fsfp_t, mega::handle fsid);
     void setScannedFsidReused(fsfp_t, mega::handle fsid);
 
     // maps nodehandle to corresponding LocalNode* (s)
     nodehandle_localnode_map localnodeByNodeHandle;
-    bool findLocalNodeByNodeHandle(NodeHandle h, LocalNode*& sourceSyncNodeOriginal, LocalNode*& sourceSyncNodeCurrent, bool& unsureDueToIncompleteScanning);
+    bool findLocalNodeByNodeHandle(NodeHandle h, LocalNode*& sourceSyncNodeOriginal, LocalNode*& sourceSyncNodeCurrent, bool& unsureDueToIncompleteScanning, bool& unsureDueToUnknownExclusionMoveSource);
 
     // manage syncdown flags inside the syncs
     // backupId of UNDEF to rescan all
@@ -1217,6 +1219,8 @@ private:
     error backupCloseDrive_inThread(LocalPath drivePath);
     void getSyncProblems_inThread(SyncProblems& problems);
     bool checkSdsCommandsForDelete(UnifiedSync& us, vector<pair<handle, int>>& sdsBackups, std::function<void(MegaClient&, TransferDbCommitter&)>& clientRemoveSdsEntryFunction);
+    bool processRemovingSyncBySds(UnifiedSync& us, bool foundRootNode, vector<pair<handle, int>>& sdsBackups);
+    void deregisterThenRemoveSyncBySds(UnifiedSync& us, std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction);
 
     void syncLoop();
 

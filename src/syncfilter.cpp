@@ -85,7 +85,7 @@ public:
                const bool inclusion,
                const bool inheritable);
 
-    bool match(const RemotePathPair& p) const;
+    bool match(const RemotePathPair& p) const override;
 
     string debugDescription() const override;
 }; /* NameFilter */
@@ -99,7 +99,7 @@ public:
                const bool inclusion,
                const bool inheritable);
 
-    bool match(const RemotePathPair& p) const;
+    bool match(const RemotePathPair& p) const override;
 
     string debugDescription() const override;
 }; /* PathFilter */

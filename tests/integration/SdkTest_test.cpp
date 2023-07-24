@@ -99,11 +99,13 @@ const char* cwd()
     // for windows and linux
     static char path[1024];
     const char* ret;
-    #ifdef _WIN32
+#ifdef _WIN32
+    #define getcwd _getcwd
     ret = _getcwd(path, sizeof path);
-    #else
+    #undef getcwd 
+#else
     ret = getcwd(path, sizeof path);
-    #endif
+#endif
     assert(ret);
     return ret;
 }
@@ -191,11 +193,6 @@ enum { USERALERT_ARRIVAL_MILLISEC = 1000 };
 #ifdef _WIN32
 #include "mega/autocomplete.h"
 #include <filesystem>
-#define getcwd _getcwd
-void usleep(int n)
-{
-    Sleep(n / 1000);
-}
 #endif
 
 void cleanUp(::mega::MegaApi* megaApi, const fs::path &basePath);
@@ -260,6 +257,7 @@ std::map<size_t, std::string> gSessionIDs;
 
 void SdkTest::SetUp()
 {
+    SdkTestBase::SetUp();
 }
 
 void SdkTest::TearDown()
@@ -1148,7 +1146,8 @@ void SdkTest::deleteFolder(string foldername)
 
 void SdkTest::getAccountsForTest(unsigned howMany)
 {
-    assert(howMany > 0 && howMany <= 3);
+    EXPECT_TRUE(howMany > 0) << "SdkTest::getAccountsForTest(): invalid number of test account to setup " << howMany << " is < 0";
+    EXPECT_TRUE(howMany <= (unsigned)gMaxAccounts) << "SdkTest::getAccountsForTest(): too many test accounts requested " << howMany << " is > " << gMaxAccounts;
     out() << "Test setting up for " << howMany << " accounts ";
 
     megaApi.resize(howMany);
@@ -1167,12 +1166,12 @@ void SdkTest::getAccountsForTest(unsigned howMany)
 
         if (!gResumeSessions || gSessionIDs[index].empty() || gSessionIDs[index] == "invalid")
         {
-            out() << "Logging into account " << index;
+            out() << "Logging into account #" << index << ": " << mApi[index].email;
             trackers[index] = asyncRequestLogin(index, mApi[index].email.c_str(), mApi[index].pwd.c_str());
         }
         else
         {
-            out() << "Resuming session for account " << index;
+            out() << "Resuming session for account #" << index;
             trackers[index] = asyncRequestFastLogin(index, gSessionIDs[index].c_str());
         }
     }
@@ -1182,7 +1181,7 @@ void SdkTest::getAccountsForTest(unsigned howMany)
     for (unsigned index = 0; index < howMany; ++index)
     {
         auto loginResult = trackers[index]->waitForResult();
-        EXPECT_EQ(API_OK, loginResult) << " Failed to establish a login/session for account " << index;
+        EXPECT_EQ(API_OK, loginResult) << " Failed to establish a login/session for account #" << index << ": " << mApi[index].email << ": " << MegaError::getErrorString(loginResult);
         if (loginResult != API_OK) anyLoginFailed = true;
         else {
             gSessionIDs[index] = "invalid"; // default
@@ -1827,9 +1826,9 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     // Make sure the new account details have been set up
     const char* bufRealEmail = getenv("MEGA_REAL_EMAIL"); // user@host.domain
     const char* bufRealPswd = getenv("MEGA_REAL_PWD"); // email password of user@host.domain
-    const char* bufScript = getenv("MEGA_LINK_EXTRACT_SCRIPT"); // full path to the link extraction script
-    ASSERT_TRUE(bufRealEmail && bufRealPswd && bufScript) <<
-        "MEGA_REAL_EMAIL, MEGA_REAL_PWD, MEGA_LINK_EXTRACT_SCRIPT env vars must all be defined";
+    fs::path bufScript = getLinkExtractSrciptPath();
+    ASSERT_TRUE(bufRealEmail && bufRealPswd) <<
+        "MEGA_REAL_EMAIL, MEGA_REAL_PWD env vars must all be defined";
 
     // test that Python 3 was installed
     string pyExe = "python";
@@ -1875,7 +1874,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
 
     // Get confirmation link from the email
     {
-        string conformLink = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, newTestAcc, MegaClient::confirmLinkPrefix(), timeOfConfirmEmail);
+        string conformLink = getLinkFromMailbox(pyExe, bufScript.string(), realAccount, bufRealPswd, newTestAcc, MegaClient::confirmLinkPrefix(), timeOfConfirmEmail);
         ASSERT_FALSE(conformLink.empty()) << "Confirmation link was not found.";
 
         // create another connection to confirm the account
@@ -1917,7 +1916,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     // Get cancel account link from the mailbox
     const char* newTestPwd = "PassAndGotHerPhoneNumber!#$**!";
     {
-        string recoverink = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, newTestAcc, MegaClient::recoverLinkPrefix(), timeOfResetEmail);
+        string recoverink = getLinkFromMailbox(pyExe, bufScript.string(), realAccount, bufRealPswd, newTestAcc, MegaClient::recoverLinkPrefix(), timeOfResetEmail);
         ASSERT_FALSE(recoverink.empty()) << "Recover account link was not found.";
 
         char* masterKey = megaApi[0]->exportMasterKey();
@@ -1946,7 +1945,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     ASSERT_EQ(synchronousChangeEmail(0, changedTestAcc.c_str()), MegaError::API_OK) << "changeEmail failed";
 
     {
-        string changelink = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, changedTestAcc, MegaClient::verifyLinkPrefix(), timeOfChangeEmail);
+        string changelink = getLinkFromMailbox(pyExe, bufScript.string(), realAccount, bufRealPswd, changedTestAcc, MegaClient::verifyLinkPrefix(), timeOfChangeEmail);
         ASSERT_FALSE(changelink.empty()) << "Change email account link was not found.";
 
         ASSERT_EQ(newTestAcc, megaApi[0]->getMyEmail()) << "email changed prematurely";
@@ -1984,7 +1983,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
 
     // Get cancel account link from the mailbox
     {
-        string deleteLink = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, changedTestAcc, MegaClient::cancelLinkPrefix(), timeOfDeleteEmail);
+        string deleteLink = getLinkFromMailbox(pyExe, bufScript.string(), realAccount, bufRealPswd, changedTestAcc, MegaClient::cancelLinkPrefix(), timeOfDeleteEmail);
         ASSERT_FALSE(deleteLink.empty()) << "Cancel account link was not found.";
 
         // Use cancel account link
@@ -2911,6 +2910,7 @@ TEST_F(SdkTest, SdkTestContacts)
     LOG_info << "___TEST Contacts___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
+    copyFileFromTestData(AVATARSRC);
 
     // --- Check my email and the email of the contact ---
 
@@ -6855,6 +6855,7 @@ TEST_F(SdkTest, SdkHttpReqCommandPutFATest)
 {
     LOG_info << "___TEST SdkHttpReqCommandPutFATest___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    copyFileFromTestData(IMAGEFILE);
 
     // SCENARIO 1: Upload image file and check thumbnail and preview
     std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
@@ -6903,6 +6904,7 @@ TEST_F(SdkTest, SdkMediaImageUploadTest)
 {
     LOG_info << "___TEST MediaUploadRequestURL___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    copyFileFromTestData(IMAGEFILE);
 
     unsigned int apiIndex = 0;
     int64_t fileSize = 1304;
@@ -7214,8 +7216,10 @@ TEST_F(SdkTest, SdkFavouriteNodes)
 // includes tests of MegaApi::searchByType()
 TEST_F(SdkTest, SdkSensitiveNodes)
 {
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
     LOG_info << "___TEST SDKSensitive___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+
+    copyFileFromTestData(IMAGEFILE);
 
     unique_ptr<MegaNode> rootnodeA(megaApi[0]->getRootNode());
 
@@ -7446,10 +7450,16 @@ TEST_F(SdkTest, SdkDeviceNames)
 
     // test setter/getter
     string deviceName = string("SdkDeviceNamesTest_") + getCurrentTimestamp(true);
-    ASSERT_EQ(API_OK, doSetDeviceName(0, deviceName.c_str())) << "setDeviceName failed";
+    ASSERT_EQ(API_OK, doSetDeviceName(0, nullptr, deviceName.c_str())) << "setDeviceName failed";
     string deviceNameInCloud;
-    ASSERT_EQ(API_OK, doGetDeviceName(0, &deviceNameInCloud)) << "getDeviceName failed";
+    ASSERT_EQ(API_OK, doGetDeviceName(0, &deviceNameInCloud, nullptr)) << "getDeviceName failed";
     ASSERT_EQ(deviceNameInCloud, deviceName) << "getDeviceName returned incorrect value";
+
+    // test device name taken directly from user attribute
+    RequestTracker devNameTracker(megaApi[0].get());
+    megaApi[0]->getUserAttribute(MegaApi::USER_ATTR_DEVICE_NAMES, &devNameTracker);
+    ASSERT_EQ(API_OK, devNameTracker.waitForResult());
+    ASSERT_STREQ(devNameTracker.request->getName(), deviceName.c_str());
 }
 
 TEST_F(SdkTest, SdkBackupFolder)
@@ -7465,14 +7475,14 @@ TEST_F(SdkTest, SdkBackupFolder)
     // look for Device Name attr
     string deviceName;
     bool deviceNameWasSetByCurrentTest = false;
-    if (doGetDeviceName(0, &deviceName) != API_OK || deviceName.empty())
+    if (doGetDeviceName(0, &deviceName, nullptr) != API_OK || deviceName.empty())
     {
         deviceName = "Jenkins " + timestamp;
-        doSetDeviceName(0, deviceName.c_str());
+        doSetDeviceName(0, nullptr, deviceName.c_str());
 
         // make sure Device Name attr was set
         string deviceNameInCloud;
-        ASSERT_EQ(doGetDeviceName(0, &deviceNameInCloud), API_OK) << "Getting device name attr failed";
+        ASSERT_EQ(doGetDeviceName(0, &deviceNameInCloud, nullptr), API_OK) << "Getting device name attr failed";
         ASSERT_EQ(deviceName, deviceNameInCloud) << "Getting device name attr failed (wrong value)";
         deviceNameWasSetByCurrentTest = true;
     }
@@ -7647,12 +7657,12 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
 
     // Set device name if missing
     string deviceName;
-    if (doGetDeviceName(0, &deviceName) != API_OK || deviceName.empty())
+    if (doGetDeviceName(0, &deviceName, nullptr) != API_OK || deviceName.empty())
     {
         string newDeviceName = "Jenkins " + timestamp;
-        ASSERT_EQ(doSetDeviceName(0, newDeviceName.c_str()), API_OK) << "Setting device name failed";
+        ASSERT_EQ(doSetDeviceName(0, nullptr, newDeviceName.c_str()), API_OK) << "Setting device name failed";
         // make sure Device Name attr was set
-        ASSERT_EQ(doGetDeviceName(0, &deviceName), API_OK) << "Getting device name failed";
+        ASSERT_EQ(doGetDeviceName(0, &deviceName, nullptr), API_OK) << "Getting device name failed";
         ASSERT_EQ(deviceName, newDeviceName) << "Getting device name failed (wrong value)";
     }
     // Make sure My Backups folder was created
@@ -7834,7 +7844,7 @@ TEST_F(SdkTest, SdkExternalDriveFolder)
 
     // attempt to set the name of an external drive to the name of current device (if the latter was already set)
     string deviceName;
-    if (doGetDeviceName(0, &deviceName) == API_OK && !deviceName.empty())
+    if (doGetDeviceName(0, &deviceName, nullptr) == API_OK && !deviceName.empty())
     {
         ASSERT_EQ(API_EEXIST, doSetDriveName(0, pathToDriveStr.c_str(), deviceName.c_str()))
             << "Ext-drive name was set to current device name: " << deviceName;
@@ -10458,8 +10468,7 @@ TEST_F(SdkTest, SdkTargetOverwriteTest)
  * Tests extracting thumbnail for uploaded audio file.
  *
  * The file to be uploaded must exist or the test will fail.
- * If environment variable MEGA_DIR_PATH_TO_INPUT_FILES is defined, the file is expected to be in that folder. Otherwise,
- * a relative path will be checked. Currently, the relative path is dependent on the building tool
+ * File is expected at the directory returned by getTestDataDir().
  */
 #if !USE_FREEIMAGE || !USE_MEDIAINFO
 TEST_F(SdkTest, DISABLED_SdkTestAudioFileThumbnail)
@@ -10468,31 +10477,13 @@ TEST_F(SdkTest, SdkTestAudioFileThumbnail)
 #endif
 {
     LOG_info << "___TEST Audio File Thumbnail___";
-
-    const char* bufPathToMp3 = getenv("MEGA_DIR_PATH_TO_INPUT_FILES"); // needs platform-specific path separators
+    
     static const std::string AUDIO_FILENAME = "test_cover_png.mp3";
 
-    // Attempt to get the test audio file from these locations:
-    // 1. dedicated env var;
-    // 2. subtree location, like the one in the repo;
-    // 3. current working directory
     LocalPath mp3LP;
 
-    if (bufPathToMp3)
-    {
-        mp3LP = LocalPath::fromAbsolutePath(bufPathToMp3);
-        mp3LP.appendWithSeparator(LocalPath::fromRelativePath(AUDIO_FILENAME), false);
-    }
-    else
-    {
-        mp3LP.append(LocalPath::fromRelativePath("."));
-        mp3LP.appendWithSeparator(LocalPath::fromRelativePath("tests"), false);
-        mp3LP.appendWithSeparator(LocalPath::fromRelativePath("integration"), false);
-        mp3LP.appendWithSeparator(LocalPath::fromRelativePath(AUDIO_FILENAME), false);
-
-        if (!fileexists(mp3LP.toPath(false)))
-            mp3LP = LocalPath::fromRelativePath(AUDIO_FILENAME);
-    }
+    mp3LP = LocalPath::fromAbsolutePath(getTestDataDir().string());
+    mp3LP.appendWithSeparator(LocalPath::fromRelativePath(AUDIO_FILENAME), false);
 
     const std::string& mp3 = mp3LP.toPath(false);
 

@@ -1607,8 +1607,24 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
         // We want the one that does have the corresponding synced Node still present on the cloud side.
 
         // also possible: was the file overwritten by moving an existing file over it?
+        bool foundExclusionUnknown = false;
 
-        if (LocalNode* sourceSyncNode = syncs.findLocalNodeBySyncedFsid(fsfp, row.fsNode->fsid, fullPath.localPath, row.fsNode->type, row.fsNode->fingerprint, nullptr, cloudRootOwningUser))   // todo: maybe null for sync* to detect moves between sync?
+        LocalNode* sourceSyncNode = syncs.findLocalNodeBySyncedFsid(fsfp, row.fsNode->fsid, fullPath.localPath, row.fsNode->type, row.fsNode->fingerprint, nullptr, cloudRootOwningUser, foundExclusionUnknown);
+
+        if (foundExclusionUnknown)
+        {
+            // this may occur during eg. the first pass of the tree after loading from Suspended state
+            // and the corresponding node is later in the tree
+            // on the next pass we should have resolved all the exclusion states, so delay this decision until then
+
+            LOG_debug << syncname << "Move detected by fsid but the fsid's exclusion state is not determined yet. Destination here at " << logTriplet(row, fullPath);
+
+            // Attempt the move later once exclusions have propagatged through the tree.
+            parentRow.syncNode->setCheckMovesAgain(false, true, false);
+            return rowResult = false, true;
+        }
+
+        if (sourceSyncNode)
         {
             // We've found a node associated with the local file's FSID.
 
@@ -1816,18 +1832,24 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
                 LocalNode* other = nullptr;
 
                 // Is the file on disk visible elsewhere?
+                bool foundOtherButExclusionUnknown = false;
                 if (problem == PathProblem::NoProblem
                     && !row.syncNode->fsidSyncedReused)
+                {
                     other = syncs.findLocalNodeByScannedFsid(fsfp, row.syncNode->fsid_lastSynced,
                                                              fullPath.localPath,
                                                              row.syncNode->type,
                                                              &row.syncNode->syncedFingerprint,
                                                              nullptr,
-                                                             cloudRootOwningUser);
+                                                             cloudRootOwningUser, foundOtherButExclusionUnknown);
+                }
 
                 // Then it's probably part of another move.
-                if (other && other != row.syncNode && other != sourceSyncNode)
+                if ((other && other != row.syncNode && other != sourceSyncNode)
+                   || foundOtherButExclusionUnknown)
+                {
                     problem = PathProblem::WaitingForAnotherMoveToComplete;
+                }
 
                 // Is the overwrite legitimate?
                 if (problem != PathProblem::NoProblem)
@@ -2538,17 +2560,25 @@ bool Sync::checkCloudPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
     // this one is a bit too verbose for large down-syncs
     //SYNC_verbose << syncname << "checking localnodes for synced cloud handle " << row.cloudNode->handle;
 
+    // Are we moving an ignore file?
+    if (row.isIgnoreFile())
+    {
+        // Then it's not subject to the usual move procesing.
+        return false;
+    }
+
     ProgressingMonitor monitor(*this, row, fullPath);
 
     unique_ptr<LocalNode> childrenToDeleteOnFunctionExit;
 
     // find out where the node was when synced, and is now.
     // If they are the same, both pointer are set to that one.
-    LocalNode* sourceSyncNodeOriginal;
-    LocalNode* sourceSyncNode;
-    bool unsureDueToIncompleteScanning;
+    LocalNode* sourceSyncNodeOriginal = nullptr;
+    LocalNode* sourceSyncNode = nullptr;
+    bool unsureDueToIncompleteScanning = false;
+    bool unsureDueToUnknownExclusionMoveSource = false;
 
-    if (syncs.findLocalNodeByNodeHandle(row.cloudNode->handle, sourceSyncNodeOriginal, sourceSyncNode, unsureDueToIncompleteScanning))
+    if (syncs.findLocalNodeByNodeHandle(row.cloudNode->handle, sourceSyncNodeOriginal, sourceSyncNode, unsureDueToIncompleteScanning, unsureDueToUnknownExclusionMoveSource))
     {
 
         // Check if the source file/folder is still present
@@ -2613,7 +2643,7 @@ bool Sync::checkCloudPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
         }
 
         // Are we moving an ignore file?
-        if (row.isIgnoreFile() || sourceSyncNode->isIgnoreFile())
+        if (sourceSyncNode->isIgnoreFile())
         {
             // Then it's not subject to the usual move procesing.
             return false;
@@ -2980,6 +3010,20 @@ bool Sync::checkCloudPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
             {NodeHandle(), fullPath.cloudPath},
             {sourceSyncNodeOriginal->getLocalPath()},
             {fullPath.localPath, PathProblem::WaitingForScanningToComplete}));
+
+        rowResult = false;
+        return true;
+    }
+    else if (unsureDueToUnknownExclusionMoveSource)
+    {
+        SYNC_verbose << "Move to here delayed since unsureDueToUnknownExclusionMoveSource at: " << logTriplet(row, fullPath);
+
+        monitor.waitingCloud(fullPath.cloudPath, SyncStallEntry(
+            SyncWaitReason::MoveOrRenameCannotOccur, false, true,
+            {NodeHandle(), string(), PathProblem::IgnoreRulesUnknown},
+            {row.cloudNode->handle, fullPath.cloudPath},
+            {LocalPath(), PathProblem::IgnoreRulesUnknown},
+            {fullPath.localPath}));
 
         rowResult = false;
         return true;
@@ -5558,7 +5602,59 @@ SyncConfigVector Syncs::selectedSyncConfigs(std::function<bool(SyncConfig&, Sync
     return selected;
 }
 
-void Syncs::deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion, bool removingSyncBySds, std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction)
+// process backup is removed by SDS if there is any
+//
+// case 1: Backup is moved from backup center to the cloud node
+//    we'll receive sds delete and the backup root node is moved in action packets
+// case 2: Backup is deleted from backup center
+//    we'll receive sds delete and the backup root node is deleted in action packets
+//    The node deleteion could appear first or after sds delete due to async
+// @return true if removing sync by sds
+bool Syncs::processRemovingSyncBySds(UnifiedSync& us, bool foundRootNode, vector<pair<handle, int>>& sdsBackups)
+{
+    assert(onSyncThread());
+
+    // prevent the reentry due to aync nature
+    if (us.mConfig.mRemovingSyncBySds)
+    {
+        return true;
+    }
+
+    if (!foundRootNode && us.mConfig.isBackup())
+    {
+        LOG_debug << "Backup root node no longer exists " << toHandle(us.mConfig.mBackupId);
+        deregisterThenRemoveSyncBySds(us, nullptr);
+        return true;
+    }
+
+    std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction;
+    if (checkSdsCommandsForDelete(us, sdsBackups, clientRemoveSdsEntryFunction))
+    {
+        LOG_debug << "SDS command received to stop sync " << toHandle(us.mConfig.mBackupId);
+        deregisterThenRemoveSyncBySds(us, clientRemoveSdsEntryFunction);
+        return true;
+    }
+
+    return false;
+}
+
+void Syncs::deregisterThenRemoveSyncBySds(UnifiedSync& us, std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction)
+{
+    assert(onSyncThread());
+
+    us.mConfig.mRemovingSyncBySds = true;
+    if (Sync* sync = us.mSync.get())
+    {
+        // prevent the sync doing anything more before we delete it
+        sync->changestate(NO_SYNC_ERROR, false, false, false);
+    }
+    auto backupId = us.mConfig.mBackupId;
+    queueClient([backupId, clientRemoveSdsEntryFunction](MegaClient& mc, TransferDbCommitter& committer) {
+        mc.syncs.deregisterThenRemoveSync(backupId, nullptr, clientRemoveSdsEntryFunction);
+    });
+}
+
+void Syncs::deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion, std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction)
 {
     assert(!onSyncThread());
 
@@ -5578,9 +5674,6 @@ void Syncs::deregisterThenRemoveSync(handle backupId, std::function<void(Error)>
             {
                 // prevent any sp or sphb messages being queued after
                 config.mSyncDeregisterSent = true;
-
-                // Prevent notifying the client app for this sync's state changes
-                config.mRemovingSyncBySds = removingSyncBySds;
             }
         }
     }
@@ -7067,6 +7160,16 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
                         break;
 
                     }
+
+                    if (!childRow.fsNode && childRow.syncNode)
+                    {
+                        // if there's no local file/folder, we can't scan
+                        // avoid the case of large folder upload, deleted while uploading
+                        // that then persists in thinking subtree needs scanning
+                        childRow.syncNode->scanAgain = TREE_RESOLVED;
+                        childRow.syncNode->parentSetScanAgain = false;
+                    }
+
                 }
             }
 
@@ -8136,13 +8239,19 @@ bool Sync::resolve_checkMoveDownloadComplete(SyncRow& row, SyncPath& fullPath)
         return false;
 
     // Are we still associated with the move source?
+    bool sourceExclusionUnknown = false;
     auto source = syncs.findLocalNodeBySyncedFsid(movePtr->sourceFsfp,
                                                   movePtr->sourceFsid,
                                                   fullPath.localPath,
                                                   movePtr->sourceType,
                                                   movePtr->sourceFingerprint,
                                                   nullptr,
-                                                  cloudRootOwningUser);
+                                                  cloudRootOwningUser, sourceExclusionUnknown);
+
+    if (sourceExclusionUnknown)
+    {
+        LOG_debug << "In resolve_checkMoveDownloadComplete, download source's exclusion state is unknown.  at: " << logTriplet(row, fullPath);
+    }
 
     // No longer associated with the move source.
     if (!source)
@@ -8210,11 +8319,18 @@ bool Sync::resolve_checkMoveComplete(SyncRow& row, SyncRow& parentRow, SyncPath&
 {
     // Confirm that the move details are the same as recorded (LocalNodes may have changed or been deleted by now, etc.
     auto movePtr = row.syncNode->rare().moveToHere;
-    LocalNode* sourceSyncNode = nullptr;
 
     LOG_debug << syncname << "Checking move source/target by fsid " << toHandle(movePtr->sourceFsid);
 
-    if ((sourceSyncNode = syncs.findLocalNodeBySyncedFsid(movePtr->sourceFsfp, movePtr->sourceFsid, fullPath.localPath, movePtr->sourceType, movePtr->sourceFingerprint, nullptr, cloudRootOwningUser)))
+    bool sourceExclusionUnknown = false;
+    LocalNode* sourceSyncNode = syncs.findLocalNodeBySyncedFsid(movePtr->sourceFsfp, movePtr->sourceFsid, fullPath.localPath, movePtr->sourceType, movePtr->sourceFingerprint, nullptr, cloudRootOwningUser, sourceExclusionUnknown);
+
+    if (sourceExclusionUnknown)
+    {
+        LOG_debug << "In resolve_checkMoveComplete, move source's exclusion state is unknown.  at: " << logTriplet(row, fullPath);
+    }
+
+    if (sourceSyncNode)
     {
         LOG_debug << syncname << "Sync cloud move/rename from : " << sourceSyncNode->getCloudPath(true) << " resolved here! " << logTriplet(row, fullPath);
 
@@ -8550,17 +8666,24 @@ bool Sync::resolve_delSyncNode(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
         bool cloudNodeIsElsewhere = false;
         LocalNode* fsElsewhere = nullptr;
         string fsElsewhereLocation;
+        bool sourceFsidExclusionUnknown = false;
 
         if (!syncs.mSyncFlags->scanningWasComplete)
         {
             fsNodeIsElsewhere = true;
         }
         else if (row.syncNode->fsid_lastSynced != UNDEF &&
-            nullptr != (fsElsewhere = syncs.findLocalNodeByScannedFsid(fsfp, row.syncNode->fsid_lastSynced, fullPath.localPath, row.syncNode->type, nullptr, nullptr, cloudRootOwningUser)))
+            nullptr != (fsElsewhere = syncs.findLocalNodeByScannedFsid(fsfp, row.syncNode->fsid_lastSynced, fullPath.localPath, row.syncNode->type, nullptr, nullptr, cloudRootOwningUser, sourceFsidExclusionUnknown)))
         {
             fsNodeIsElsewhere = true;
             fsElsewhereLocation = fsElsewhere->getCloudPath(false);
             SYNC_verbose << "LocalNode considered for deletion, but fsNode is elsewhere: " << fsElsewhere->getLocalPath() << logTriplet(row, fullPath);
+        }
+
+        if (sourceFsidExclusionUnknown)
+        {
+            SYNC_verbose << "LocalNode considered for deletion, but fsNode is elsewhere with unknown exclusion state: " << fsElsewhere->getLocalPath() << logTriplet(row, fullPath);
+            fsNodeIsElsewhere = true;
         }
 
         CloudNode cloudNode;
@@ -9346,7 +9469,9 @@ bool Sync::resolve_cloudNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& ful
     return false;
 }
 
-LocalNode* Syncs::findLocalNodeBySyncedFsid(fsfp_t fsfp, mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint& fingerprint, std::function<bool(LocalNode* ln)> extraCheck, handle owningUser)
+LocalNode* Syncs::findLocalNodeBySyncedFsid(fsfp_t fsfp, mega::handle fsid,
+    const LocalPath& originalpath, nodetype_t type, const FileFingerprint& fingerprint,
+    std::function<bool(LocalNode* ln)> extraCheck, handle owningUser, bool& foundExclusionUnknown)
 {
     assert(onSyncThread());
     if (fsid == UNDEF) return nullptr;
@@ -9366,9 +9491,14 @@ LocalNode* Syncs::findLocalNodeBySyncedFsid(fsfp_t fsfp, mega::handle fsid, cons
             continue;
         }
 
-        if (it->second->exclusionState() != ES_INCLUDED)
+        switch (it->second->exclusionState())
         {
-            continue;
+        case ES_INCLUDED: break;
+        case ES_UNKNOWN:  LOG_verbose << mClient.clientname << "findLocalNodeBySyncedFsid - unknown exclusion with that fsid " << toHandle(fsid) << " at: " << it->second->getLocalPath() << " checked from " << originalpath;
+                          foundExclusionUnknown = true;
+                          continue;
+        case ES_EXCLUDED: continue;
+        default: assert(false); continue;
         }
 
         // If we got this far, it's a good enough match to use
@@ -9382,7 +9512,9 @@ LocalNode* Syncs::findLocalNodeBySyncedFsid(fsfp_t fsfp, mega::handle fsid, cons
     return nullptr;
 }
 
-LocalNode* Syncs::findLocalNodeByScannedFsid(fsfp_t fsfp, mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint* fingerprint, std::function<bool(LocalNode* ln)> extraCheck, handle owningUser)
+LocalNode* Syncs::findLocalNodeByScannedFsid(fsfp_t fsfp, mega::handle fsid,
+    const LocalPath& originalpath, nodetype_t type, const FileFingerprint* fingerprint,
+    std::function<bool(LocalNode* ln)> extraCheck, handle owningUser, bool& foundExclusionUnknown)
 {
     assert(onSyncThread());
     if (fsid == UNDEF) return nullptr;
@@ -9395,9 +9527,14 @@ LocalNode* Syncs::findLocalNodeByScannedFsid(fsfp_t fsfp, mega::handle fsid, con
         if (it->second->fsidScannedReused)   continue;
         if (it->second->sync->fsfp.id != fsfp.id) continue; // they must be on the same filesystem
 
-        if (it->second->exclusionState() == ES_EXCLUDED)
+        switch (it->second->exclusionState())
         {
-            continue;
+        case ES_INCLUDED: break;
+        case ES_UNKNOWN:  LOG_verbose << mClient.clientname << "findLocalNodeByScannedFsid - unknown exclusion with that fsid " << toHandle(fsid) << " at: " << it->second->getLocalPath() << " checked from " << originalpath;
+                          foundExclusionUnknown = true;
+                          continue;
+        case ES_EXCLUDED: continue;
+        default: assert(false); continue;
         }
 
         // we can't move a node between cloud users (eg inshare to this account, or inshare to inshare), so avoid detecting those
@@ -9458,7 +9595,7 @@ void Syncs::setScannedFsidReused(fsfp_t fsfp, mega::handle fsid)
     }
 }
 
-bool Syncs::findLocalNodeByNodeHandle(NodeHandle h, LocalNode*& sourceSyncNodeOriginal, LocalNode*& sourceSyncNodeCurrent, bool& unsureDueToIncompleteScanning)
+bool Syncs::findLocalNodeByNodeHandle(NodeHandle h, LocalNode*& sourceSyncNodeOriginal, LocalNode*& sourceSyncNodeCurrent, bool& unsureDueToIncompleteScanning, bool& unsureDueToUnknownExclusionMoveSource)
 {
     // find where the node was (based on synced local file presence)
     // and where it is now (synced local file absent at the corresponding path)
@@ -9473,6 +9610,7 @@ bool Syncs::findLocalNodeByNodeHandle(NodeHandle h, LocalNode*& sourceSyncNodeOr
     sourceSyncNodeOriginal = nullptr;
     sourceSyncNodeCurrent = nullptr;
     unsureDueToIncompleteScanning = false;
+    unsureDueToUnknownExclusionMoveSource = false;
 
     assert(onSyncThread());
     if (h.isUndef()) return false;
@@ -9481,20 +9619,27 @@ bool Syncs::findLocalNodeByNodeHandle(NodeHandle h, LocalNode*& sourceSyncNodeOr
 
     for (auto it = range.first; it != range.second; ++it)
     {
-        if (it->second->exclusionState() != ES_EXCLUDED)
+        switch (it->second->exclusionState())
         {
-            // check the file/folder actually exists (with same fsid) on disk for this LocalNode
-            LocalPath lp = it->second->getLocalPath();
+        case ES_INCLUDED: break;
+        case ES_UNKNOWN:  LOG_verbose << mClient.clientname << "findLocalNodeByNodeHandle - unknown exclusion with that handle " << h << " at: " << it->second->getLocalPath();
+                          unsureDueToUnknownExclusionMoveSource = true;
+                          continue;
+        case ES_EXCLUDED: continue;
+        default: assert(false); continue;
+        }
 
-            if (it->second->fsid_lastSynced != UNDEF &&
-                it->second->fsid_lastSynced == fsaccess->fsidOf(lp, false, false, FSLogging::logExceptFileNotFound))
-            {
-                sourceSyncNodeCurrent = it->second;
-            }
-            else
-            {
-                sourceSyncNodeOriginal = it->second;
-            }
+        // check the file/folder actually exists (with same fsid) on disk for this LocalNode
+        LocalPath lp = it->second->getLocalPath();
+
+        if (it->second->fsid_lastSynced != UNDEF &&
+            it->second->fsid_lastSynced == fsaccess->fsidOf(lp, false, false, FSLogging::logExceptFileNotFound))
+        {
+            sourceSyncNodeCurrent = it->second;
+        }
+        else
+        {
+            sourceSyncNodeOriginal = it->second;
         }
     }
 
@@ -9507,7 +9652,12 @@ bool Syncs::findLocalNodeByNodeHandle(NodeHandle h, LocalNode*& sourceSyncNodeOr
                 sourceSyncNodeOriginal->getLocalPath(),
                 sourceSyncNodeOriginal->type,
                 &sourceSyncNodeOriginal->syncedFingerprint,
-                nullptr, sourceSyncNodeOriginal->sync->cloudRootOwningUser);
+                nullptr, sourceSyncNodeOriginal->sync->cloudRootOwningUser, unsureDueToUnknownExclusionMoveSource);
+
+        if (unsureDueToUnknownExclusionMoveSource)
+        {
+            LOG_verbose << mClient.clientname << "findLocalNodeByNodeHandle - unknown exclusion after fsid lookup";
+        }
 
         if (!sourceSyncNodeCurrent && !mSyncFlags->scanningWasComplete)
         {
@@ -9643,6 +9793,7 @@ bool Sync::resolve_fsNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& fullPa
     ProgressingMonitor monitor(*this, row, fullPath);
 
     LocalNode* movedLocalNode = nullptr;
+    bool unsureOfMovedLocalNodeDueToUnknownExclusions = false;
 
     // Ignore files aren't subject to the usual move processing.
     if (!row.syncNode->fsidSyncedReused && !row.syncNode->isIgnoreFile())
@@ -9657,10 +9808,23 @@ bool Sync::resolve_fsNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& fullPa
                 row.syncNode->type,
                 &row.syncNode->syncedFingerprint,
                 std::move(predicate),
-                cloudRootOwningUser);
+                cloudRootOwningUser, unsureOfMovedLocalNodeDueToUnknownExclusions);
     }
 
-    if (movedLocalNode)
+    if (unsureOfMovedLocalNodeDueToUnknownExclusions)
+    {
+        row.syncNode->setCheckMovesAgain(true, false, false);
+
+        SYNC_verbose << syncname << "This file/folder was probably moved, but the destination is currently exclusion-unknown: " << logTriplet(row, fullPath);
+
+        monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
+            SyncWaitReason::MoveOrRenameCannotOccur, false, false,
+            {row.cloudHandleOpt(), fullPath.cloudPath},
+            {NodeHandle(), movedLocalNode->getCloudPath(false), PathProblem::DestinationPathInUnresolvedArea},
+            {fullPath.localPath},
+            {movedLocalNode->getLocalPath()}));
+    }
+    else if (movedLocalNode)
     {
         // if we can find the place it moved to, we don't need to wait for scanning be complete
         row.syncNode->setCheckMovesAgain(true, false, false);
@@ -9686,6 +9850,13 @@ bool Sync::resolve_fsNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& fullPa
             {NodeHandle(), movedLocalNode->getCloudPath(false), PathProblem::DestinationPathInUnresolvedArea},
             {fullPath.localPath},
             {movedLocalNode->getLocalPath()}));
+
+        // make sure we do visit the parent folder of that node so the move can be processed
+        if (movedLocalNode->parent && !movedLocalNode->parent->syncRequired())
+        {
+            SYNC_verbose << syncname << "Ensuring we visit the move-target node parent: " << movedLocalNode->getLocalPath() << ". At " << logTriplet(row, fullPath);
+            movedLocalNode->setSyncAgain(true, true, false);
+        }
 
     }
     else if (!syncs.mSyncFlags->scanningWasComplete &&
@@ -11069,10 +11240,7 @@ void Syncs::syncLoop()
         // (this covers mountovers, some device removals and some failures)
         for (auto& us : mSyncVec)
         {
-
             vector<pair<handle, int>> sdsBackups;
-            std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction;
-
             CloudNode cloudNode;
             string cloudRootPath;
             bool inTrash = false;
@@ -11088,20 +11256,8 @@ void Syncs::syncLoop()
                                                     nullptr,
                                                     &sdsBackups);
 
-            if (checkSdsCommandsForDelete(*us, sdsBackups, clientRemoveSdsEntryFunction))
+            if (processRemovingSyncBySds(*us.get(), foundRootNode, sdsBackups))
             {
-                LOG_debug << "SDS command received to stop sync " << toHandle(us->mConfig.mBackupId);
-
-                if (Sync* sync = us->mSync.get())
-                {
-                    // prevent the sync doing anything more before we delete it
-                    sync->changestate(NO_SYNC_ERROR, false, false, false);
-                }
-
-                auto backupId = us->mConfig.mBackupId;
-                queueClient([backupId, clientRemoveSdsEntryFunction](MegaClient& mc, TransferDbCommitter& committer) {
-                    mc.syncs.deregisterThenRemoveSync(backupId, nullptr, true, clientRemoveSdsEntryFunction);
-                });
                 continue;
             }
 

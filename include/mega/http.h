@@ -385,8 +385,8 @@ struct MEGA_API HttpReq
     // a buffer that the HttpReq filled in.   This struct owns the buffer (so HttpReq no longer has it).
     struct http_buf_t
     {
-        byte* datastart();
-        size_t datalen();
+        byte* datastart() const;
+        size_t datalen() const;
 
         size_t start;
         size_t end;
@@ -394,7 +394,7 @@ struct MEGA_API HttpReq
         http_buf_t(byte* b, size_t s, size_t e);  // takes ownership of the byte*, which must have been allocated with new[]
         ~http_buf_t();
         void swap(http_buf_t& other);
-        bool isNull();
+        bool isNull() const;
 
     private:
         byte* buf;

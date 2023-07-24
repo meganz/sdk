@@ -90,18 +90,12 @@ using MegaGfxProvider = GfxProviderExternal;
 	class MegaFileSystemAccess : public WinFileSystemAccess {};
 	class MegaWaiter : public WinWaiter {};
 #else
-    #ifdef __APPLE__
-    typedef CurlHttpIO MegaHttpIO;
-        #if TARGET_OS_IPHONE
-        typedef PosixFileSystemAccess MegaFileSystemAccess;
-        #else
-        typedef MacFileSystemAccess MegaFileSystemAccess;
-        #endif
-    typedef PosixWaiter MegaWaiter;
-    #else
     class MegaHttpIO : public CurlHttpIO {};
-    class MegaFileSystemAccess : public LinuxFileSystemAccess {};
     class MegaWaiter : public PosixWaiter {};
+    #ifdef __APPLE__
+    class MegaFileSystemAccess : public MacFileSystemAccess {};
+    #else
+    class MegaFileSystemAccess : public LinuxFileSystemAccess {};
     #endif
 #endif
 
@@ -2927,8 +2921,8 @@ class MegaApiImpl : public MegaApp
         void getRubbishBinAutopurgePeriod(MegaRequestListener *listener = NULL);
         void setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listener = NULL);
         const char* getDeviceId() const;
-        void getDeviceName(MegaRequestListener *listener = NULL);
-        void setDeviceName(const char* deviceName, MegaRequestListener *listener = NULL);
+        void getDeviceName(const char* deviceId, MegaRequestListener *listener = NULL);
+        void setDeviceName(const char* deviceId, const char* deviceName, MegaRequestListener *listener = NULL);
         void getDriveName(const char *pathToDrive, MegaRequestListener *listener = NULL);
         void setDriveName(const char* pathToDrive, const char *driveName, MegaRequestListener *listener = NULL);
         void getUserEmail(MegaHandle handle, MegaRequestListener *listener = NULL);

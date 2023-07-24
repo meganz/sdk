@@ -58,12 +58,10 @@ public:
     void reset();
 
     // Take node ownership
-    bool addNode(std::shared_ptr<Node> node, bool notify, bool isFetching = false);
+    typedef map<NodeHandle,  set<std::shared_ptr<Node>>> MissingParentNodes;
+    bool addNode(std::shared_ptr<Node> node, bool notify, bool isFetching, MissingParentNodes& missingParentNodes);
     bool updateNode(Node* node);
     // removeNode() --> it's done through notifypurge()
-
-    // if a node is received before its parent, it needs to be updated when received
-    void addNodeWithMissingParent(std::shared_ptr<Node> node);
 
     // if node is not available in memory, it's loaded from DB
     std::shared_ptr<Node> getNodeByHandle(NodeHandle handle);
@@ -198,9 +196,8 @@ public:
     void setRootNodeVault(NodeHandle h);
     void setRootNodeRubbish(NodeHandle h);
 
-    // Check if there are orphan nodes and clear mNodesWithMissingParent
     // In case of orphans send an event
-    void checkOrphanNodes();
+    void checkOrphanNodes(MissingParentNodes& nodesWithMissingParent);
 
     // This method is called when initial fetch nodes is finished
     // Initialize node counters and create indexes at DB
@@ -213,10 +210,10 @@ public:
     void increaseNumNodesInRam();
     void decreaseNumNodesInRam();
 
-    uint32_t getCacheLRUMaxSize() const;
+    uint64_t getCacheLRUMaxSize() const;
     void setCacheLRUMaxSize(uint64_t cacheLRUMaxSize);
 
-    uint32_t getNumNodesAtCacheLRU() const;
+    uint64_t getNumNodesAtCacheLRU() const;
 
 private:
     MegaClient& mClient;
@@ -286,11 +283,8 @@ private:
     // nodes that have changed and are pending to notify to app and dump to DB
     sharedNode_vector mNodeNotify;
 
-    // holds references to unknown parent nodes until those are received (delayed-parents: dp)
-    std::map<NodeHandle, set<std::shared_ptr<Node> >> mNodesWithMissingParent;
-
     shared_ptr<Node> getNodeInRAM(NodeHandle handle);
-    void saveNodeInRAM(std::shared_ptr<Node> node, bool isRootnode);    // takes ownership
+    void saveNodeInRAM(std::shared_ptr<Node> node, bool isRootnode, MissingParentNodes& missingParentNodes);    // takes ownership
     sharedNode_vector getNodesWithSharesOrLink_internal(ShareType_t shareType);
 
     enum OperationType
@@ -344,9 +338,8 @@ private:
     // It's quite a verbose approach, but at least simple, easy to understand, and easy to get right.
     void setTable_internal(DBTableNodes *table);
     void reset_internal();
-    bool addNode_internal(std::shared_ptr<Node> node, bool notify, bool isFetching = false);
+    bool addNode_internal(std::shared_ptr<Node> node, bool notify, bool isFetching, MissingParentNodes& missingParentNodes);
     bool updateNode_internal(Node* node);
-    void addNodeWithMissingParent_internal(std::shared_ptr<Node> node);
     std::shared_ptr<Node> getNodeByHandle_internal(NodeHandle handle);
     sharedNode_list getChildren_internal(const Node *parent, CancelToken cancelToken = CancelToken());
     sharedNode_vector getChildrenFromType_internal(const Node *parent, nodetype_t type, CancelToken cancelToken);
@@ -385,7 +378,6 @@ private:
     void setRootNodeFiles_internal(NodeHandle h);
     void setRootNodeVault_internal(NodeHandle h);
     void setRootNodeRubbish_internal(NodeHandle h);
-    void checkOrphanNodes_internal();
     void initCompleted_internal();
     void insertNodeCacheLRU_internal(std::shared_ptr<Node> node);
     void unLoadNodeFromCacheLRU();

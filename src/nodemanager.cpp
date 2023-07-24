@@ -168,13 +168,13 @@ void NodeManager::notifyNode_internal(std::shared_ptr<Node> n, sharedNode_vector
     }
 }
 
-bool NodeManager::addNode(std::shared_ptr<Node> node, bool notify, bool isFetching)
+bool NodeManager::addNode(std::shared_ptr<Node> node, bool notify, bool isFetching, MissingParentNodes& missingParentNodes)
 {
     LockGuard g(mMutex);
-    return addNode_internal(node, notify, isFetching);
+    return addNode_internal(node, notify, isFetching, missingParentNodes);
 }
 
-bool NodeManager::addNode_internal(std::shared_ptr<Node> node, bool notify, bool isFetching)
+bool NodeManager::addNode_internal(std::shared_ptr<Node> node, bool notify, bool isFetching, MissingParentNodes& missingParentNodes)
 {
     assert(mMutex.locked());
     // ownership of 'node' is taken by NodeManager::mNodes if node is kept in memory,
@@ -202,7 +202,7 @@ bool NodeManager::addNode_internal(std::shared_ptr<Node> node, bool notify, bool
 
     if (keepNodeInMemory)
     {
-        saveNodeInRAM(node, rootNode || isFolderLink);   // takes ownership
+        saveNodeInRAM(node, rootNode || isFolderLink, missingParentNodes);   // takes ownership
     }
     else
     {
@@ -214,7 +214,7 @@ bool NodeManager::addNode_internal(std::shared_ptr<Node> node, bool notify, bool
         auto pair = mNodes.emplace(node->nodeHandle(), NodeManagerNode(*this, node->nodeHandle()));
         // The NodeManagerNode could have been added by NodeManager::addChild() but, in that case, mNode would be invalid
         auto& nodePosition = pair.first;
-        nodePosition->second.mAllChildrenHandleLoaded = true; // Receive a new node, children aren't received yet or they are stored a mNodesWithMissingParents
+        nodePosition->second.mAllChildrenHandleLoaded = true; // Receive a new node, children aren't received yet or they are stored in nodesWithMissingParents
         addChild_internal(node->parentHandle(), node->nodeHandle(), nullptr);
     }
 
@@ -240,18 +240,6 @@ bool NodeManager::updateNode_internal(Node *node)
     putNodeInDb(node);
 
     return true;
-}
-
-void NodeManager::addNodeWithMissingParent(std::shared_ptr<Node> node)
-{
-    LockGuard g(mMutex);
-    addNodeWithMissingParent_internal(node);
-}
-
-void NodeManager::addNodeWithMissingParent_internal(std::shared_ptr<Node> node)
-{
-    assert(mMutex.locked());
-    mNodesWithMissingParent[node->parentHandle()].insert(node);
 }
 
 std::shared_ptr<Node> NodeManager::getNodeByHandle(NodeHandle handle)
@@ -1214,7 +1202,6 @@ void NodeManager::cleanNodes_internal()
     mNodesInRam = 0;
     mNodeToWriteInDb.reset();
     mNodeNotify.clear();
-    mNodesWithMissingParent.clear();
 
     rootnodes.clear();
 
@@ -1379,7 +1366,6 @@ void NodeManager::notifyPurge()
                 removeFingerprint(n.get());
 
                 // effectively delete node from RAM
-                mNodesWithMissingParent.erase(h);
                 if (n->mNodePosition->second.mLRUPosition != mCacheLRU.end())
                 {
                     mCacheLRU.erase(n->mNodePosition->second.mLRUPosition);
@@ -1460,7 +1446,7 @@ shared_ptr<Node> NodeManager::getNodeInRAM(NodeHandle handle)
     return nullptr;
 }
 
-void NodeManager::saveNodeInRAM(std::shared_ptr<Node> node, bool isRootnode)
+void NodeManager::saveNodeInRAM(std::shared_ptr<Node> node, bool isRootnode, MissingParentNodes& missingParentNodes)
 {
     assert(mMutex.locked());
 
@@ -1473,7 +1459,7 @@ void NodeManager::saveNodeInRAM(std::shared_ptr<Node> node, bool isRootnode)
 
     insertNodeCacheLRU_internal(node);
 
-    // In case of rootnode, no need to add to mNodesWithMissingParent
+    // In case of rootnode, no need to add to missingParentNodes
     if (!isRootnode)
     {
         std::shared_ptr<Node> parent;
@@ -1483,7 +1469,7 @@ void NodeManager::saveNodeInRAM(std::shared_ptr<Node> node, bool isRootnode)
         }
         else
         {
-            addNodeWithMissingParent_internal(node);
+            missingParentNodes[node->parentHandle()].insert(node);
         }
     }
     else
@@ -1491,15 +1477,15 @@ void NodeManager::saveNodeInRAM(std::shared_ptr<Node> node, bool isRootnode)
         setrootnode_internal(node);
     }
 
-    auto it = mNodesWithMissingParent.find(node->nodeHandle());
-    if (it != mNodesWithMissingParent.end())
+    auto it = missingParentNodes.find(node->nodeHandle());
+    if (it != missingParentNodes.end())
     {
         for (auto& n : it->second)
         {
             n->setparent(node);
         }
 
-        mNodesWithMissingParent.erase(it);
+        missingParentNodes.erase(it);
     }
 }
 
@@ -1555,22 +1541,19 @@ void NodeManager::setRootNodeRubbish(NodeHandle h)
 }
 
 
-void NodeManager::checkOrphanNodes()
+void NodeManager::checkOrphanNodes(MissingParentNodes& nodesWithMissingParent)
 {
-    LockGuard g(mMutex);
-    checkOrphanNodes_internal();
-}
-
-void NodeManager::checkOrphanNodes_internal()
-{
-    assert(mMutex.locked());
+    // we don't actually use any members here, so no need to lock.  (well, just mClient, not part of our data structure)
+    assert(!mMutex.locked());
 
     // detect if there's any orphan node and report to API
-    for (const auto& it : mNodesWithMissingParent)
+    for (const auto& it : nodesWithMissingParent)
     {
         for (const auto& orphan : it.second)
         {
-            // top-level inshares have no parent (nested ones have)
+            // For inshares, we get sent the inshare node including its parent handle
+            // even though we will never actually get that parent node (unless the share is nested)
+            // So, don't complain about those ones.  Just about really un-attached subtrees.
             if (!orphan->inshare)
             {
                 // At this point, all nodes have been already parsed, so the parent should never arrive.
@@ -1588,12 +1571,14 @@ void NodeManager::checkOrphanNodes_internal()
                         << " Parent: " << toNodeHandle(orphan->parentHandle());
 
                mClient.sendevent(99455, "Orphan node(s) detected");
+
+                // If we didn't get all the parents of all the (not inshare) nodes,
+                // then the API is sending us inconsistent data,
+                // or we have a bug processing it.  Please investigate
+                assert(false);
             }
         }
     }
-
-    // If parent hasn't arrived, it wont' arrive never
-    mNodesWithMissingParent.clear();
 }
 
 void NodeManager::initCompleted()
@@ -1630,7 +1615,7 @@ void NodeManager::decreaseNumNodesInRam()
     mNodesInRam--;
 }
 
-uint32_t NodeManager::getCacheLRUMaxSize() const
+uint64_t NodeManager::getCacheLRUMaxSize() const
 {
     return mCacheLRUMaxSize;
 }
@@ -1640,7 +1625,7 @@ void NodeManager::setCacheLRUMaxSize(uint64_t cacheLRUMaxSize)
     mCacheLRUMaxSize = cacheLRUMaxSize;
 }
 
-uint32_t NodeManager::getNumNodesAtCacheLRU() const
+uint64_t NodeManager::getNumNodesAtCacheLRU() const
 {
     return mCacheLRU.size();
 }

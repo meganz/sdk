@@ -576,17 +576,17 @@ void HttpReq::http_buf_t::swap(http_buf_t& other)
     size_t te = end; end = other.end; other.end = te;
 }
 
-bool HttpReq::http_buf_t::isNull()
+bool HttpReq::http_buf_t::isNull() const
 {
     return buf == NULL;
 }
 
-byte* HttpReq::http_buf_t::datastart()
+byte* HttpReq::http_buf_t::datastart() const
 {
     return buf + start;
 }
 
-size_t HttpReq::http_buf_t::datalen()
+size_t HttpReq::http_buf_t::datalen() const
 {
     return end - start;
 }

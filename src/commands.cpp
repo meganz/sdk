@@ -3355,7 +3355,11 @@ bool CommandPutUA::procresult(Result r, JSON& json)
 CommandGetUA::CommandGetUA(MegaClient* /*client*/, const char* uid, attr_t at, const char* ph, int ctag,
                            CompletionErr completionErr, CompletionBytes completionBytes, CompletionTLV compltionTLV)
 {
-    mV3 = false;
+    // It's important for this one to be v3, as the phone apps send huge numbers of alternating uga/uge
+    // and so we need those to go out in a single batch, rather than a batch per request
+    mV3 = true;
+    // we probably don't need to set mSeqtagArray, becuase the API doco says the (successful) response is always a { JSON object }
+    // And from experimentation, a failed response is just a raw error, eg -9
 
     this->uid = uid;
     this->at = at;
@@ -7193,7 +7197,6 @@ bool CommandChatCreate::procresult(Result r, JSON& json)
                             {
                                 LOG_err << "Error adding a new scheduled meeting with schedId [" <<  Base64Str<MegaClient::CHATHANDLE>(schedId) << "]";
                             }
-                            client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chat->getChatId(), mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
                         }
 
                         client->notifychat(chat);
@@ -10208,11 +10211,12 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r, JSON& jso
     ScheduledMeeting* result = nullptr;
     error e = API_EINTERNAL;
     bool res = chat->addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting>(mScheduledMeeting->copy())); // add or update scheduled meeting if already exists
+    client->clearSchedOccurrences(*chat);
+    chat->setTag(tag ? tag : -1);
+    client->notifychat(chat);
+
     if (res)
     {
-        chat->setTag(tag ? tag : -1);
-        client->notifychat(chat);
-
         result = mScheduledMeeting.get();
         e = API_OK;
     }
@@ -10220,12 +10224,7 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r, JSON& jso
     {
         // if we couldn't update scheduled meeting, but we have deleted it's children, we also need to notify apps
         LOG_debug << "Error adding or updating a scheduled meeting schedId [" <<  Base64Str<MegaClient::CHATHANDLE>(schedId) << "]";
-        chat->setTag(tag ? tag : -1);
-        client->notifychat(chat);
     }
-
-    // fetch for fresh scheduled meetings occurrences
-    client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chat->getChatId(), mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
 
     if (mCompletion) { mCompletion(e, result); }
     return res;
@@ -10263,12 +10262,11 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r, JSON& json)
         {
             // remove children scheduled meetings (API requirement)
             chat->removeChildSchedMeetings(mSchedId);
-            chat->setTag(tag ? tag : -1);
-            client->notifychat(chat);
-
-            // re-fetch scheduled meetings occurrences
-            client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chat->getChatId(), mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
         }
+
+        client->clearSchedOccurrences(*chat);
+        chat->setTag(tag ? tag : -1);
+        client->notifychat(chat);
     }
 
     if (mCompletion) { mCompletion(r.errorOrOK()); }

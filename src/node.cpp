@@ -19,6 +19,7 @@
  * program.
  */
 
+#include "mega.h"
 #include "mega/node.h"
 #include "mega/megaclient.h"
 #include "mega/megaapp.h"
@@ -1907,13 +1908,19 @@ void LocalNode::setSyncAgain(bool doParent, bool doHere, bool doBelow)
 {
     auto state = TreeState((doHere?1u:0u) << 1 | (doBelow?1u:0u));
 
+    parentSetSyncAgain = parentSetSyncAgain || doParent;
+
     syncAgain = std::max<TreeState>(syncAgain, state);
     for (auto p = parent; p != NULL; p = p->parent)
     {
+        if (doParent)
+        {
+            p->syncAgain = std::max<TreeState>(p->syncAgain, TREE_ACTION_HERE);
+            doParent = false;
+        }
+
         p->syncAgain = std::max<TreeState>(p->syncAgain, TREE_DESCENDANT_FLAGGED);
     }
-
-    parentSetSyncAgain = parentSetSyncAgain || doParent;
 }
 
 void LocalNode::setContainsConflicts(bool doParent, bool doHere, bool doBelow)
@@ -2088,9 +2095,10 @@ void LocalNode::propagateAnySubtreeFlags()
 
 bool isDoNotSyncFileName(const string& name)
 {
-    return name == "desktop.ini"
-           || name == ".DS_Store"
-           || name == "Icon\x0d";
+    return name == "desktop.ini" // on windows, automatically updated by Explorer based on folder content
+           || name == ".DS_Store" // on mac, contains some info about contents of that folder
+           || name == ".Spotlight-V100" // created on external USB on mac - can't be listed, and is based on disk contents- we also don't want to be continuously uploading things from it on every other change
+           || name == "Icon\x0d";  // on mac, icon for the folder (maybe automatic or if the user chooses an icon?).  Awkward for the control character.  Possibly only produced by older OS?
 }
 
 bool LocalNode::processBackgroundFolderScan(SyncRow& row, SyncPath& fullPath)

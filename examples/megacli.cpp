@@ -3985,7 +3985,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_smsverify, sequence(text("smsverify"), either(sequence(text("send"), param("phonenumber"), opt(param("reverifywhitelisted"))), sequence(text("code"), param("verificationcode")))));
     p->Add(exec_verifiedphonenumber, sequence(text("verifiedphone")));
     p->Add(exec_resetverifiedphonenumber, sequence(text("resetverifiedphone")));
-    p->Add(exec_mkdir, sequence(text("mkdir"), opt(flag("-allowduplicate")), opt(flag("-exactleafname")), remoteFSFolder(client, &cwd)));
+    p->Add(exec_mkdir, sequence(text("mkdir"), opt(flag("-allowduplicate")), opt(flag("-exactleafname")), opt(flag("-writevault")), remoteFSFolder(client, &cwd)));
     p->Add(exec_rm, sequence(text("rm"), remoteFSPath(client, &cwd), opt(sequence(flag("-regexchild"), param("regex")))));
     p->Add(exec_mv, sequence(text("mv"), remoteFSPath(client, &cwd, "src"), remoteFSPath(client, &cwd, "dst")));
     p->Add(exec_cp, sequence(text("cp"), opt(flag("-noversion")), opt(flag("-version")), opt(flag("-versionreplace")), opt(flag("-allowduplicateversions")), remoteFSPath(client, &cwd, "src"), either(remoteFSPath(client, &cwd, "dst"), param("dstemail"))));
@@ -6040,6 +6040,7 @@ void exec_mkdir(autocomplete::ACState& s)
 {
     bool allowDuplicate = s.extractflag("-allowduplicate");
     bool exactLeafName = s.extractflag("-exactleafname");
+    bool writevault = s.extractflag("-writevault");
 
     if (s.words.size() > 1)
     {
@@ -6068,8 +6069,8 @@ void exec_mkdir(autocomplete::ACState& s)
             if (newname.size())
             {
                 vector<NewNode> nn(1);
-                client->putnodes_prepareOneFolder(&nn[0], newname, false);
-                client->putnodes(n->nodeHandle(), NoVersioning, std::move(nn), nullptr, gNextClientTag++, false);
+                client->putnodes_prepareOneFolder(&nn[0], newname, writevault);
+                client->putnodes(n->nodeHandle(), NoVersioning, std::move(nn), nullptr, gNextClientTag++, writevault);
             }
             else if (allowDuplicate && n->parent && n->parent->nodehandle != UNDEF)
             {
@@ -6078,8 +6079,8 @@ void exec_mkdir(autocomplete::ACState& s)
                 auto pos = leafname.find_last_of("/");
                 if (pos != string::npos) leafname.erase(0, pos + 1);
                 vector<NewNode> nn(1);
-                client->putnodes_prepareOneFolder(&nn[0], leafname, false);
-                client->putnodes(n->parent->nodeHandle(), NoVersioning, std::move(nn), nullptr, gNextClientTag++, false);
+                client->putnodes_prepareOneFolder(&nn[0], leafname, writevault);
+                client->putnodes(n->parent->nodeHandle(), NoVersioning, std::move(nn), nullptr, gNextClientTag++, writevault);
             }
             else
             {
@@ -10554,7 +10555,7 @@ void exec_syncremove(autocomplete::ACState& s)
         };
     }
 
-    client->syncs.deregisterThenRemoveSync(v[0].mBackupId, completion, false, nullptr);
+    client->syncs.deregisterThenRemoveSync(v[0].mBackupId, completion, nullptr);
 }
 
 void exec_syncstatus(autocomplete::ACState& s)
