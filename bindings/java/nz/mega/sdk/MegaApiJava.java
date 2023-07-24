@@ -6102,7 +6102,7 @@ public class MegaApiJava {
      * - MegaRequest::getText - Returns passed device id (or the value returned by getDeviceId()
      * if deviceId was initially passed as null).
      *
-     * @param deviceId The id of the device to set the name for If null, the value returned
+     * @param deviceId The id of the device to set the name for. If null, the value returned
      * by getDeviceId() will be used instead.
      * @param deviceName String with device name
      * @param listener MegaRequestListener to track this request
