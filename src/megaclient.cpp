@@ -7906,12 +7906,13 @@ void MegaClient::sc_delscheduledmeeting()
 
                             createDeletedSMAlert(ou, chatid, schedId);
                         }
+
+                        clearSchedOccurrences(*chat);
+                        chat->setTag(0);    // external change
+                        notifychat(chat);
                         break;
                     }
 
-                    clearSchedOccurrences(*chat);
-                    chat->setTag(0);    // external change
-                    notifychat(chat);
                 }
                 break;
             }
