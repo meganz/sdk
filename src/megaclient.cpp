@@ -11875,9 +11875,27 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
     if (a == ACCESS_UNKNOWN)
     {
         User *u = getUserForSharing(user);
+        handle nodehandle = n->nodehandle;
         reqs.add(new CommandSetShare(this, n, u, a, 0, NULL, writable, personal_representation, tag,
-        [u, completion](Error e, bool writable)
+        [this, u, total, nodehandle, completion](Error e, bool writable)
         {
+            if (!e && total == 1)
+            {
+                if (mKeyManager.isShareufskeysSent(nodehandle))
+                {
+                    LOG_debug << "Last share: removing shareufskeys bit in KeyManager. nh: " << toNodeHandle(nodehandle);
+                    mKeyManager.commit(
+                    [this, nodehandle]()
+                    {
+                        mKeyManager.setShareufskeysSent(nodehandle, false);
+                    });
+                }
+                else
+                {
+                    LOG_warn << "shareufskeys bit in KeyManager not set when removing the last share. nh: " << toNodeHandle(nodehandle);
+                }
+            }
+
             if (u && u->isTemporary)
             {
                 delete u;
@@ -11959,8 +11977,37 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
         }
 
         reqs.add(new CommandSetShare(this, n, user, a, newshare, NULL, writable, msg.c_str(), tag,
-        [user, completion](Error e, bool writable)
+        [this, user, newshare, nodehandle, completion](Error e, bool writable)
         {
+            if (!e)
+            {
+                if (mKeyManager.isShareKeyTrusted(nodehandle) && !mKeyManager.isShareufskeysSent(nodehandle))
+                {
+                    if (!newshare)
+                    {
+                        LOG_warn << "shareufskeys bit in KeyManager not set but node was already shared. nh: " << toNodeHandle(nodehandle);
+                    }
+
+                    LOG_debug << "Setting shareufskeys bit. nh: " << toNodeHandle(nodehandle);
+                    mKeyManager.commit(
+                    [this, nodehandle]()
+                    {
+                        mKeyManager.setShareufskeysSent(nodehandle, true);
+                    });
+                }
+                else
+                {
+                    if (!mKeyManager.isShareKeyTrusted(nodehandle)) // Legacy share
+                    {
+                        LOG_debug << "shareufskeys bit in KeyManager not set. Share Key not trusted. nh: " << toNodeHandle(nodehandle);
+                    }
+                    else if (newshare) // trusted, bit set but was not shared.
+                    {
+                        LOG_err << "shareufskeys bit in KeyManager is set but the node was not shared before. nh: " << toNodeHandle(nodehandle);
+                    }
+                }
+            }
+
             completion(e, writable);
             if (user && user->isTemporary) delete user;
         }));
