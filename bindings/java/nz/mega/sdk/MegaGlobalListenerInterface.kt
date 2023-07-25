@@ -246,4 +246,14 @@ interface MegaGlobalListenerInterface {
      * @param elements List that contains the new or updated Set-Elements
      */
     fun onSetElementsUpdate(api: MegaApiJava, elements: ArrayList<MegaSetElement>?)
+
+    /**
+     * @brief This function is called with the state of the synchronization engine has changed
+     *
+     * You can call MegaApi::isScanning and MegaApi::isWaiting to know the global state
+     * of the synchronization engine.
+     *
+     * @param api MegaApi object related to the event
+     */
+    fun onGlobalSyncStateChanged(api: MegaApiJava)
 }
