@@ -594,30 +594,6 @@ TEST(Filesystem, isContainingPathOf)
 #undef SEP
 }
 
-
-TEST(Filesystem, isReservedName)
-{
-    using namespace mega;
-
-    bool expected = false;
-
-#ifdef _WIN32
-    expected = true;
-#endif // _WIN32
-
-    // Representative examples.
-    static const string reserved[] = {"AUX", "com1", "LPT4"};
-
-    for (auto& r : reserved)
-    {
-        EXPECT_EQ(isReservedName(r, FILENODE),   expected);
-        EXPECT_EQ(isReservedName(r, FOLDERNODE), expected);
-    }
-
-    EXPECT_EQ(isReservedName("a.", FILENODE),   false);
-    EXPECT_EQ(isReservedName("a.", FOLDERNODE), expected);
-}
-
 class SqliteDBTest
   : public ::testing::Test
 {

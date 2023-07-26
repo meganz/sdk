@@ -804,7 +804,7 @@ node_vector NodeManager::getRootNodes_internal()
             }
 
             nodes.push_back(n);
-            //It isn't necessary call to setrootnode(n) because mClient.rootnodes.files is set correctly for folder link at login commad
+            //It isn't necessary call to setrootnode(n) because mClient.rootnodes.files is set correctly for folder link at login command
         }
         else
         {

@@ -1296,9 +1296,9 @@ void StandardClient::nodes_updated(Node** nodes, int numNodes)
         {
             out() << clientname << "nodes_updated: received " << numNodes << " including " << nodes[0]->displaypath() << " " << nodes[1]->displaypath();
         }
-        else 
+        else
         {
-            out() << clientname << "nodes_updated: received " << numNodes << " including " << nodes[0]->displaypath();        
+            out() << clientname << "nodes_updated: received " << numNodes << " including " << nodes[0]->displaypath();
         }
     }
     received_node_actionpackets = true;
@@ -9496,9 +9496,9 @@ struct TwoWaySyncSymmetryCase
         if (!root)
         {
             LOG_err << name()
-                    << " root is NULL, local sync root:" 
-                    << localSyncRootPath().u8string() 
-                    << " remote sync root:" 
+                    << " root is NULL, local sync root:"
+                    << localSyncRootPath().u8string()
+                    << " remote sync root:"
                     << remoteRootPath;
             return nullptr;
         }
@@ -9506,9 +9506,9 @@ struct TwoWaySyncSymmetryCase
         Node* n = client1().drillchildnodebyname(root, remoteRootPath);
         if (!n)
         {
-            LOG_err << "remote sync root is NULL, local sync root:" 
+            LOG_err << "remote sync root is NULL, local sync root:"
                     << root->displaypath()
-                    << " remote sync root:" 
+                    << " remote sync root:"
                     << remoteRootPath;
         }
         return n;
@@ -10080,10 +10080,10 @@ struct TwoWaySyncSymmetryCase
         const std::chrono::seconds maxWaitSeconds(120);
         const std::chrono::milliseconds checkInterval(5000);
 
-        auto remoteIsReady = [this](StandardClient& client){ 
+        auto remoteIsReady = [this](StandardClient& client){
                 int descendents1 = 0, descendents2 = 0;
                 bool reported1 = false, reported2 = false;
-                return client.recursiveConfirm(remoteModel.findnode("f"), client.drillchildnodebyname(client.gettestbasenode(), remoteTestBasePath + "/f"), descendents1, name(), 0, reported1, true, false) 
+                return client.recursiveConfirm(remoteModel.findnode("f"), client.drillchildnodebyname(client.gettestbasenode(), remoteTestBasePath + "/f"), descendents1, name(), 0, reported1, true, false)
                     && client.recursiveConfirm(remoteModel.findnode("outside"), client.drillchildnodebyname(client.gettestbasenode(), remoteTestBasePath + "/outside"), descendents2, name(), 0, reported2, true, false);
         };
 
@@ -10389,7 +10389,7 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
     {
         testcase.second.WaitSetup();
     }
-    
+
     out() << "Setting up each sub-test's Two-way sync of 'f'";
     for (auto& testcase : cases)
     {
@@ -15768,27 +15768,6 @@ TEST_F(CloudToLocalFilterFixture, RenameToIgnoredRubbishesRemote)
     ASSERT_TRUE(confirm(*cdu, id, localFS, false));
     ASSERT_TRUE(confirm(*cdu, id, remoteTree));
 }
-
-struct ReservedNameTest
-  : public ::testing::Test
-{
-    // Make sure hook is established before any clients run.
-    void SetUp() override
-    {
-        // Meaningful only for UNIX systems.
-        isReservedNameHook([](const string& name, nodetype_t) {
-            // Representative examples.
-            return name == "AUX" || name == "LPT1";
-        });
-    }
-
-    // Make sure hook is cleared after all clients are destroyed.
-    void TearDown() override
-    {
-        isReservedNameHook(nullptr);
-    }
-}; // ReservedNameTest
-
 
 TEST_F(SyncTest, StallsWhenDownloadTargetHasLongName)
 {
