@@ -337,7 +337,7 @@ bool CommandAttachFA::procresult(Result r, JSON& json)
              {
                 n->fileattrstring = fa;
                 n->changed.fileattrstring = true;
-                client->notifynode(n);
+                client->mNodeManager.notifyNode(n);
              }
              client->app->putfa_result(h, type, API_OK);
              return true;
@@ -4161,7 +4161,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
         case 'u':
 #ifndef NDEBUG
-            me = 
+            me =
 #endif
                  json.gethandle(MegaClient::USERHANDLE);
             break;
@@ -5577,7 +5577,7 @@ bool CommandSetPH::procresult(Result r, JSON& json)
                     {
                         n->setpubliclink(ph, time(nullptr), ets, false, authKey);
                         n->changed.publiclink = true;
-                        client->notifynode(n);
+                        client->mNodeManager.notifyNode(n);
                     }
                     completion(API_OK, h, ph);
                     return true;
@@ -5606,7 +5606,7 @@ bool CommandSetPH::procresult(Result r, JSON& json)
             {
                 n->setpubliclink(ph, time(nullptr), ets, false, "");
                 n->changed.publiclink = true;
-                client->notifynode(n);
+                client->mNodeManager.notifyNode(n);
             }
 
             completion(API_OK, h, ph);

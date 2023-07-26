@@ -20,6 +20,7 @@
  */
 #include <cctype>
 
+#include "mega.h"
 #include "mega/filesystem.h"
 #include "mega/node.h"
 #include "mega/megaclient.h"
@@ -522,6 +523,16 @@ void LocalPath::normalizeAbsolute()
     {
         // The caller already passed in a path that should be precise either with \\?\ or \\.\ or \\<server> etc.
         // Let's trust they know what they are doing and leave the path alone
+
+        if (localpath.substr(0,4) != L"\\\\?\\" &&
+            localpath.substr(0,4) != L"\\\\.\\")
+        {
+            // However, it turns out, \\?\UNC\<server>\etc  can allow us to operate on paths with trailing spaces and other things Explorer doesn't like, which just \\server\ does not
+            if (localpath.substr(0,8) != L"\\\\?\\UNC\\")
+            {
+                localpath.insert(2, L"?\\UNC\\");
+            }
+        }
     }
     else
     {
@@ -616,7 +627,7 @@ bool FileSystemAccess::decodeEscape(const char* s, char& escapedChar) const
 }
 
 
-const char *FileSystemAccess::fstypetostring(FileSystemType type) const
+const char *FileSystemAccess::fstypetostring(FileSystemType type)
 {
     switch (type)
     {
@@ -1369,9 +1380,19 @@ std::string LocalPath::platformEncoded() const
 
     if (localpath.size() >= 4 && 0 == localpath.compare(0, 4, L"\\\\?\\", 4))
     {
-        // when a path leaves LocalPath, we can remove prefix which is only needed internally
-        outstr.resize((localpath.size() - 4) * sizeof(wchar_t));
-        memcpy(const_cast<char*>(outstr.data()), localpath.data() + 4, (localpath.size() - 4) * sizeof(wchar_t));
+        if (0 == localpath.compare(4, 4, L"UNC\\", 4))
+        {
+            // when a path leaves LocalPath, we can remove prefix which is only needed internally
+            outstr.resize((localpath.size() - 6) * sizeof(wchar_t));
+            memcpy(const_cast<char*>(outstr.data()), localpath.data() + 0, 2 * sizeof(wchar_t));  // "\\\\"
+            memcpy(const_cast<char*>(outstr.data()) + 4, localpath.data() + 8, (localpath.size() - 8) * sizeof(wchar_t));
+        }
+        else
+        {
+            // when a path leaves LocalPath, we can remove prefix which is only needed internally
+            outstr.resize((localpath.size() - 4) * sizeof(wchar_t));
+            memcpy(const_cast<char*>(outstr.data()), localpath.data() + 4, (localpath.size() - 4) * sizeof(wchar_t));
+        }
     }
     else
     {
@@ -1573,8 +1594,16 @@ string LocalPath::toPath(bool normalize) const
 #ifdef WIN32
     if (path.size() >= 4 && 0 == path.compare(0, 4, "\\\\?\\", 4))
     {
-        // when a path leaves LocalPath, we can remove prefix which is only needed internally
-        path.erase(0, 4);
+        if (0 == localpath.compare(4, 4, L"UNC\\", 4))
+        {
+            // when a path leaves LocalPath, we can remove prefix which is only needed internally
+            path.erase(2, 6);
+        }
+        else
+        {
+            // when a path leaves LocalPath, we can remove prefix which is only needed internally
+            path.erase(0, 4);
+        }
     }
 #endif
 

@@ -527,7 +527,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                     if (notify)
                     {
                         n->changed.outshares = true;
-                        notifynode(n);
+                        mNodeManager.notifyNode(n);
                     }
                 }
 
@@ -547,7 +547,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                     if (notify)
                     {
                         n->changed.pendingshares = true;
-                        notifynode(n);
+                        mNodeManager.notifyNode(n);
                     }
                 }
 
@@ -583,7 +583,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
             else if (notify)
             {
                 n->changed.inshare = true;
-                notifynode(n);
+                mNodeManager.notifyNode(n);
             }
         }
     }
@@ -618,7 +618,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                                 if (notify)
                                 {
                                     n->changed.pendingshares = true;
-                                    notifynode(n);
+                                    mNodeManager.notifyNode(n);
                                 }
                             }
 
@@ -675,7 +675,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                         {
                             n->changed.outshares = true;
                         }
-                        notifynode(n);
+                        mNodeManager.notifyNode(n);
                     }
                 }
             }
@@ -709,7 +709,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                         if (notify)
                         {
                             n->changed.inshare = true;
-                            notifynode(n);
+                            mNodeManager.notifyNode(n);
                         }
                     }
                     else
@@ -1100,6 +1100,7 @@ void SCSN::clear()
 {
     memset(scsn, 0, sizeof(scsn));
     stopsc = false;
+    LOG_debug << "scsn cleared";
 }
 
 // set server-client sequence number
@@ -1119,13 +1120,19 @@ bool SCSN::setScsn(JSON* j)
 
 void SCSN::setScsn(handle h)
 {
+    bool wasReady = ready();
     Base64::btoa((byte*)&h, sizeof h, scsn);
+    if (ready() != wasReady)
+    {
+        LOG_debug << "scsn now ready: " << ready();
+    }
 }
 
 void SCSN::stopScsn()
 {
     memset(scsn, 0, sizeof(scsn));
     stopsc = true;
+    LOG_debug << "scsn stopped";
 }
 
 bool SCSN::ready() const
@@ -3010,8 +3017,8 @@ void MegaClient::exec()
                 fsfp_t current = fsaccess->fsFingerprint(sync->getConfig().mLocalPath);
                 if (sync->fsfp != current)
                 {
-                    LOG_err << "Local filesystem mismatch. Previous fsfp: " << sync->fsfp
-                            << "  Current: " << current;
+                    LOG_err << "Local filesystem mismatch. Previous fsfp: " << sync->fsfp.id
+                            << "  Current: " << current.id;
                     syncs.disableSyncByBackupId(sync->getConfig().mBackupId, true, current ? LOCAL_FILESYSTEM_MISMATCH : LOCAL_PATH_UNAVAILABLE, false, nullptr);
                 }
             }
@@ -4396,6 +4403,7 @@ void MegaClient::dispatchTransfers()
                         openfinished = true;
                         nexttransfer->asyncopencontext.reset();
                         asyncfopens--;
+                        ts->fa->fopenSucceeded = openok;
                     }
 
                     assert(!asyncfopens);
@@ -4566,7 +4574,7 @@ void MegaClient::dispatchTransfers()
                                     if (n)
                                     {
                                         n->size = s;
-                                        notifynode(n);
+                                        mNodeManager.notifyNode(n);
                                     }
                                 }
 
@@ -4847,7 +4855,7 @@ void MegaClient::logout(bool keepSyncConfigsFile, CommandLogout::Completion comp
 
 void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 {
-    LOG_debug << clientname << "exectuing locallogout processing";  // track possible lack of logout callbacks
+    LOG_debug << clientname << "executing locallogout processing";  // track possible lack of logout callbacks
     executingLocalLogout = true;
 
     mAsyncQueue.clearDiscardable();
@@ -6314,7 +6322,7 @@ void MegaClient::sc_updatenode()
 
                         if (notify)
                         {
-                            notifynode(n);
+                            mNodeManager.notifyNode(n);
                         }
                     }
                 }
@@ -6845,7 +6853,7 @@ void MegaClient::sc_fileattr()
                 {
                     JSON::copystring(&n->fileattrstring, fa);
                     n->changed.fileattrstring = true;
-                    notifynode(n);
+                    mNodeManager.notifyNode(n);
                 }
                 return;
 
@@ -7439,7 +7447,7 @@ void MegaClient::sc_ph()
                 }
 
                 n->changed.publiclink = true;
-                notifynode(n);
+                mNodeManager.notifyNode(n);
             }
             else
             {
@@ -8842,7 +8850,7 @@ error MegaClient::setattr(Node* n, attr_map&& updates, CommandSetAttr::Completio
 
     n->changed.attrs = true;
     n->changed.modifiedByThisClient = true;
-    notifynode(n);
+    mNodeManager.notifyNode(n);
 
     reqs.add(new CommandSetAttr(this, n, cipher, std::move(c), canChangeVault));
 
@@ -9172,7 +9180,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
 
         n->changed.parent = true;
         n->changed.modifiedByThisClient = true;
-        notifynode(n);
+        mNodeManager.notifyNode(n);
 
         // rewrite keys of foreign nodes that are moved out of an outbound share
         rewriteforeignkeys(n);
@@ -9317,7 +9325,7 @@ error MegaClient::unlink(Node* n, bool keepversions, int tag, bool canChangeVaul
             olderversion->setparent(newerversion);
             olderversion->changed.parent = true;
             olderversion->changed.modifiedByThisClient = true;
-            notifynode(olderversion);
+            mNodeManager.notifyNode(olderversion);
         }
     }
 
@@ -9521,6 +9529,9 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
     Node* n;
 
     handle previousHandleForAlert = UNDEF;
+
+    NodeManager::MissingParentNodes missingParentNodes;
+
     while (j->enterobject())
     {
         handle h = UNDEF, ph = UNDEF;
@@ -9675,7 +9686,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                     {
                         n->setparent(NULL);
                         n->parenthandle = ph;
-                        mNodeManager.addNodeWithMissingParent(n);
+                        missingParentNodes[n->parentHandle()].insert(n);
                     }
                 }
 
@@ -9763,7 +9774,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 }
 
                 // NodeManager takes n ownership
-                mNodeManager.addNode(n, notify,  fetchingnodes);
+                mNodeManager.addNode(n, notify,  fetchingnodes, missingParentNodes);
 
                 if (!ISUNDEF(su))   // node represents an incoming share
                 {
@@ -9848,7 +9859,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
             if (notify)
             {
                 // node is save in DB at notifypurge
-                notifynode(n);
+                mNodeManager.notifyNode(n);
             }
             else // Only need to save in DB if node is not notified
             {
@@ -9880,7 +9891,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
     }
 
     mergenewshares(notify);
-    mNodeManager.checkOrphanNodes();
+    mNodeManager.checkOrphanNodes(missingParentNodes);
 
     return j->leavearray();
 }
@@ -12496,12 +12507,6 @@ void MegaClient::senddevcommand(const char *command, const char *email, long lon
     reqs.add(new CommandSendDevCommand(this, command, email, q, bs, us));
 }
 #endif
-
-// queue node for notification
-void MegaClient::notifynode(Node* n)
-{
-    mNodeManager.notifyNode(n);
-}
 
 void MegaClient::transfercacheadd(Transfer *transfer, TransferDbCommitter* committer)
 {
@@ -18307,8 +18312,10 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
         {
             if (!f->isvalid)
             {
+                LOG_warn << "Downloading a file with invalid fingerprint, was: " << f->fingerprintDebugString() << " name: " << f->getLocalname();
                 // no valid fingerprint: use filekey as its replacement
                 memcpy(f->crc.data(), f->filekey, sizeof f->crc);
+                LOG_warn << "Downloading a file with invalid fingerprint, adjusted to: " << f->fingerprintDebugString() << " name: " << f->getLocalname();
             }
         }
 

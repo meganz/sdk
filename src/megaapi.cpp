@@ -3637,11 +3637,6 @@ MegaSyncList* MegaApi::getSyncs()
    return pImpl->getSyncs();
 }
 
-string MegaApi::getLocalPath(MegaNode *n)
-{
-    return pImpl->getLocalPath(n);
-}
-
 long long MegaApi::getNumLocalNodes()
 {
     return pImpl->getNumLocalNodes();
