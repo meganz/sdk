@@ -3775,18 +3775,18 @@ TEST_F(SdkTest, SdkTestShares)
 
     mApi[1].contactRequestUpdated = false;
     ASSERT_NO_FATAL_FAILURE( inviteContact(0, mApi[1].email, message, MegaContactRequest::INVITE_ACTION_ADD) );
-    ASSERT_TRUE( waitForResponse(&mApi[1].contactRequestUpdated) )   // at the target side (auxiliar account)
-            << "Contact request creation not received after " << maxTimeout << " seconds";
+    EXPECT_TRUE( waitForResponse(&mApi[1].contactRequestUpdated, 10u) )   // at the target side (auxiliar account)
+            << "Contact request creation not received after 10 seconds";
 
 
-    ASSERT_NO_FATAL_FAILURE( getContactRequest(1, false) );
+    EXPECT_NO_FATAL_FAILURE( getContactRequest(1, false) );
 
     mApi[0].contactRequestUpdated = mApi[1].contactRequestUpdated = false;
-    ASSERT_NO_FATAL_FAILURE( replyContact(mApi[1].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT) );
-    ASSERT_TRUE( waitForResponse(&mApi[1].contactRequestUpdated) )   // at the target side (auxiliar account)
-            << "Contact request creation not received after " << maxTimeout << " seconds";
-    ASSERT_TRUE( waitForResponse(&mApi[0].contactRequestUpdated) )   // at the source side (main account)
-            << "Contact request creation not received after " << maxTimeout << " seconds";
+    EXPECT_NO_FATAL_FAILURE( replyContact(mApi[1].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT) );
+    EXPECT_TRUE( waitForResponse(&mApi[1].contactRequestUpdated, 10u) )   // at the target side (auxiliar account)
+            << "Contact request creation not received after 10 seconds";
+    EXPECT_TRUE( waitForResponse(&mApi[0].contactRequestUpdated, 10u) )   // at the source side (main account)
+            << "Contact request creation not received after 10 seconds";
 
     mApi[1].cr.reset();
 
@@ -3883,14 +3883,14 @@ TEST_F(SdkTest, SdkTestShares)
     MegaHandle copiedNodeHandle = INVALID_HANDLE;
     ASSERT_EQ(API_OK, doCopyNode(1, &copiedNodeHandle, std::unique_ptr<MegaNode>(megaApi[1]->getNodeByHandle(hfile2)).get(),
               std::unique_ptr<MegaNode>(megaApi[1]->getNodeByHandle(hfolder1)).get(), "copy")) << "Copying shared file (not owned) to same place failed";
-    ASSERT_TRUE( waitForResponse(&check1) )   // at the target side (main account)
-            << "Node update not received after " << maxTimeout << " seconds";
+    EXPECT_TRUE( waitForResponse(&check1, 10u) )   // at the target side (main account)
+            << "Node update not received after 10 seconds";
     ASSERT_TRUE( waitForResponse(&check2) )   // at the target side (auxiliar account)
             << "Node update not received after " << maxTimeout << " seconds";
 
     resetOnNodeUpdateCompletionCBs();
     ++inSharedNodeCount;
-    ASSERT_EQ(check1, true);
+    EXPECT_EQ(check1, true);
     ASSERT_EQ(check2, true);
 
 
@@ -3911,7 +3911,7 @@ TEST_F(SdkTest, SdkTestShares)
     MegaHandle copyAndDeleteNodeHandle = INVALID_HANDLE;
 
     copiedNode.reset(megaApi[0]->getNodeByHandle(copiedNodeHandle));
-    ASSERT_EQ(API_OK, doMoveNode(1, &copyAndDeleteNodeHandle, copiedNode.get(), rubbishNode.get())) << "Moving shared file, same name and fingerprint";
+    EXPECT_EQ(API_OK, doMoveNode(1, &copyAndDeleteNodeHandle, copiedNode.get(), rubbishNode.get())) << "Moving shared file, same name and fingerprint";
 
     ASSERT_EQ(megaApi[1]->getNodeByHandle(copiedNodeHandle), nullptr) << "Move didn't delete source file";
     ASSERT_TRUE( waitForResponse(&check1) )   // at the target side (main account)
@@ -3989,7 +3989,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterInSharesAddedDummyFolders);
 
     // check the corresponding user alert
-    ASSERT_TRUE(checkAlert(1, mApi[0].email + " added 2 folders", std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder2)}->getHandle(), 2, dummyhandle1));
+    EXPECT_TRUE(checkAlert(1, mApi[0].email + " added 2 folders", std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder2)}->getHandle(), 2, dummyhandle1));
 
     // add 2 more files to the share
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check1);
