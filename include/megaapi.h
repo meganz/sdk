@@ -20006,8 +20006,13 @@ class MegaApi
         /**
          * @brief Allows to start chat call in a chat room
          *
-         * - Note: Scheduled meeting id: When a scheduled meeting exists for a chatroom, and a call is started in that scheduled meeting context, it won't
-         * ring the participants.
+         * - If schedId param is INVALID_HANDLE:
+         *      + If Waiting room option is enabled : Call should ring and we'll bypass waiting room
+         *      + If Waiting room option is disabled: Call should ring
+         *
+         * - If schedId param is valid:
+         *      + If Waiting room option is enabled : Call shouldn't ring and we'll be redirected to Waiting room
+         *      + If Waiting room option is disabled: Call shouldn't ring
          *
          * The associated request type with this request is MegaRequest::TYPE_START_CHAT_CALL
          *
