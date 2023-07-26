@@ -235,9 +235,6 @@ public:
     // Check if the parsing is starting
     bool isStarting();
 
-    // Total bytes consumed from the stream
-    m_off_t consumedBytes();
-
 protected:
     // Returns the position (in bytes) to the end of the current JSON string, or -1 if it's not found
     int strEnd();
@@ -268,9 +265,6 @@ protected:
     // because they belong to a JSON element that hasn't been totally
     // received nor filtered yet.
     m_off_t mProcessedBytes = 0;
-
-    // Total bytes consumed from the JSON stream
-    m_off_t mTotalConsumedBytes = 0;
 
     // 0: no value expected, 1: optional value expected, -1: compulsory value expected
     int mExpectValue = 1;

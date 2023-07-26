@@ -1086,7 +1086,6 @@ void JSONSplitter::clear()
     mStack.clear();
     mCurrentPath.clear();
     mProcessedBytes = 0;
-    mTotalConsumedBytes = 0;
     mExpectValue = 1;
     mStarting = true;
     mFinished = false;
@@ -1390,7 +1389,6 @@ m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)>
 
     mProcessedBytes = mPos - mLastPos;
     m_off_t consumedBytes = mLastPos - data;
-    mTotalConsumedBytes += consumedBytes;
 
     JSON_verbose << "JSON leaving processChunk at path " << mCurrentPath << "."
                  << " Data: " << std::string(mPos, strlen(mPos) < 32 ? strlen(mPos) : 32)
@@ -1413,11 +1411,6 @@ bool JSONSplitter::hasFailed()
 bool JSONSplitter::isStarting()
 {
     return mStarting;
-}
-
-m_off_t JSONSplitter::consumedBytes()
-{
-    return mTotalConsumedBytes;
 }
 
 int JSONSplitter::strEnd()

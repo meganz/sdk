@@ -2333,6 +2333,15 @@ void MegaClient::exec()
 
                             if (pendingcs->bufpos > pendingcs->notifiedbufpos)
                             {
+                                if (pendingcs->mChunked)
+                                {
+                                    size_t consumedBytes = reqs.serverChunk(pendingcs->data(), this);
+                                    LOG_verbose << "Consumed a chunk of " << consumedBytes << " bytes. "
+                                                << "Total: " << reqs.chunkedProgress() << " of "
+                                                << pendingcs->contentlength;
+                                    pendingcs->purge(consumedBytes);
+                                }
+
                                 abortlockrequest();
                                 app->request_response_progress(pendingcs->bufpos, pendingcs->contentlength);
                                 pendingcs->notifiedbufpos = pendingcs->bufpos;
@@ -2344,9 +2353,11 @@ void MegaClient::exec()
                         abortlockrequest();
                         app->request_response_progress(pendingcs->bufpos, -1);
 
-                        if (pendingcs->in != "-3" && pendingcs->in != "-4")
+                        if ((!pendingcs->mChunked && pendingcs->in != "-3" && pendingcs->in != "-4")
+                            || (pendingcs->mChunked && (reqs.chunkedProgress() || (pendingcs->in != "-3" && pendingcs->in != "-4"))))
                         {
-                            if (*pendingcs->in.c_str() == '[')
+                            if ((!pendingcs->mChunked && *pendingcs->in.c_str() == '[')
+                                || (pendingcs->mChunked && (reqs.chunkedProgress() || *pendingcs->in.c_str() == '[')))
                             {
                                 CodeCounter::ScopeTimer ccst(performanceStats.csSuccessProcessingTime);
 
@@ -2362,8 +2373,22 @@ void MegaClient::exec()
                                     csretrying = false;
                                 }
 
-                                // request succeeded, process result array
-                                reqs.serverresponse(std::move(pendingcs->in), this);
+                                if (!pendingcs->mChunked)
+                                {
+                                    // request succeeded, process result array
+                                    reqs.serverresponse(std::move(pendingcs->in), this);
+                                }
+                                else
+                                {
+                                    size_t consumedBytes = reqs.serverChunk(pendingcs->data(), this);
+                                    if (consumedBytes)
+                                    {
+                                        LOG_verbose << "Consumed the last chunk of " << consumedBytes << " bytes";
+                                    }
+
+                                    // The requests should be already terminated
+                                    assert(!reqs.chunkedProgress());
+                                }
 
                                 WAIT_CLASS::bumpds();
 
@@ -2556,6 +2581,12 @@ void MegaClient::exec()
                         pendingcs->posturl.append(mJourneyId.getValue());
                     }
                     pendingcs->type = REQ_JSON;
+
+                    if (pendingcs->includesFetchingNodes && !mNodeManager.hasCacheLoaded())
+                    {
+                        // Currently only fetchnodes requests can take advantage of chunked processing
+                        pendingcs->mChunked = true;
+                    }
 
                     performanceStats.csRequestWaitTime.start();
                     pendingcs->post(this);

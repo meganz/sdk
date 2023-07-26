@@ -157,6 +157,7 @@ m_off_t Request::processChunk(const char* chunk, MegaClient *client)
         return 0;
     }
 
+    mChunkedProgress += consumed;
     json.begin(chunk + consumed);
     if (mJsonSplitter.hasFinished())
     {
@@ -174,12 +175,13 @@ m_off_t Request::processChunk(const char* chunk, MegaClient *client)
         cmds[0].reset();
         clear();
     }
+
     return consumed;
 }
 
 m_off_t Request::totalChunkedProgress()
 {
-    return mJsonSplitter.consumedBytes();
+    return mChunkedProgress;
 }
 
 void Request::process(MegaClient* client)
@@ -283,6 +285,7 @@ void Request::clear()
     json.pos = NULL;
     processindex = 0;
     mJsonSplitter.clear();
+    mChunkedProgress = 0;
     stopProcessing = false;
 }
 

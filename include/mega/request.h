@@ -36,6 +36,7 @@ private:
     JSON json;
     size_t processindex = 0;
     JSONSplitter mJsonSplitter;
+    size_t mChunkedProgress = 0;
 
     // once we send the commands, any retry must be for exactly
     // the same JSON, or idempotence will not work properly
