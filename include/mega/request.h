@@ -35,6 +35,7 @@ private:
     string jsonresponse;
     JSON json;
     size_t processindex = 0;
+    JSONSplitter mJsonSplitter;
 
     // once we send the commands, any retry must be for exactly
     // the same JSON, or idempotence will not work properly
@@ -55,6 +56,8 @@ public:
 
     void process(MegaClient* client);
     bool processCmdJSON(Command* cmd, bool couldBeError, JSON& json);
+    m_off_t processChunk(const char* chunk, MegaClient*);
+    m_off_t totalChunkedProgress();
 
     void clear();
     bool empty() const;
@@ -111,6 +114,14 @@ public:
     // Once we get a successful reply from the server, call this to complete everything
     // Since we need to support idempotence, we cannot add anything more to the in-progress request
     void serverresponse(string&& movestring, MegaClient*);
+
+    // Call this function when a chunk of data is received from the server for chunked requests
+    // The return value is the number of bytes that must be discarded. The chunk in the next call
+    // must start with the data that was not discarded in the previous call
+    size_t serverChunk(const char *chunk, MegaClient*);
+
+    // Amount of data consumed for chunked requests, 0 for non-chunked requests
+    size_t chunkedProgress();
 
     // If we need to retry (eg due to networking issue, abandoned req, server refusal etc) call this and we will abandon that attempt.
     // The req will be retried via the next serverrequest(), and idempotence takes care of avoiding duplicate actions

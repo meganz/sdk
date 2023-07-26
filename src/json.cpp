@@ -1410,6 +1410,11 @@ bool JSONSplitter::hasFailed()
     return mFailed;
 }
 
+bool JSONSplitter::isStarting()
+{
+    return mStarting;
+}
+
 m_off_t JSONSplitter::consumedBytes()
 {
     return mTotalConsumedBytes;

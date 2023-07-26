@@ -232,6 +232,9 @@ public:
     // Check if the parsing has failed
     bool hasFailed();
 
+    // Check if the parsing is starting
+    bool isStarting();
+
     // Total bytes consumed from the stream
     m_off_t consumedBytes();
 
