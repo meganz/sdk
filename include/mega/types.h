@@ -345,8 +345,9 @@ typedef list<struct File*> file_list;
 
 // node types:
 typedef enum {
+    TYPE_SYMLINK = -4,
     TYPE_DONOTSYNC = -3,
-    TYPE_SPECIAL = -2,
+    TYPE_SPECIAL = -2, // but not include SYMLINK
     TYPE_UNKNOWN = -1,
     FILENODE = 0,    // FILE - regular file nodes
     FOLDERNODE,      // FOLDER - regular folder nodes

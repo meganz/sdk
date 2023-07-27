@@ -1151,6 +1151,7 @@ string Node::displaypath() const
 
         case TYPE_DONOTSYNC:
         case TYPE_SPECIAL:
+        case TYPE_SYMLINK:
         case TYPE_UNKNOWN:
         case FILENODE:
             path.insert(0, n->displayname());
@@ -2277,9 +2278,9 @@ bool LocalNode::processBackgroundFolderScan(SyncRow& row, SyncPath& fullPath)
                         ++numFingerprintBlocked;
                     }
                 }
-                else if (n.type == TYPE_SPECIAL)
+                else if (n.type == TYPE_SPECIAL || n.type == TYPE_SYMLINK)
                 {
-                    if (ES_EXCLUDED == exclusionState(n.localname, TYPE_SPECIAL, n.fingerprint.size))
+                    if (ES_EXCLUDED == exclusionState(n.localname, n.type, n.fingerprint.size))
                     {
                         // no need to complain about this one anymore, the user excluded it
                         n.type = TYPE_DONOTSYNC;
@@ -3383,6 +3384,7 @@ LocalNode::exclusionState(const PathType& path, nodetype_t type, m_off_t size) c
             break;
 
         // Is this path component excluded?
+        // A component could only be FOLDERNODE as we don't recusively go into others such as symlink
         if (ES_EXCLUDED == calcExcluded(namePath, FOLDERNODE, false))
             return ES_EXCLUDED;
     }

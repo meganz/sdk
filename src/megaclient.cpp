@@ -8032,6 +8032,8 @@ shared_ptr<Node> MegaClient::nodebyhandle(handle h)
 
 shared_ptr<Node> MegaClient::nodeByHandle(NodeHandle h)
 {
+    if (h.isUndef()) return nullptr;
+
     return mNodeManager.getNodeByHandle(h);
 }
 
@@ -14607,10 +14609,7 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
         if (!user || !user->isattrvalid(ATTR_CU25519_PUBK))
         {
             LOG_warn << "Failed to verify signature " << User::attr2string(signatureType) << " for user " << uid << ": CU25519 public key is not available";
-
-            // this assert does occur in test SyncPersistence (occasionally - but we can't have the jenkins tests terminated here)
-            //assert(false);
-
+            assert(false);
             return API_EINTERNAL;
         }
         pubKey = user->getattr(ATTR_CU25519_PUBK);
@@ -17461,9 +17460,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
 
                         sendevent(99471, errMsg.c_str());
                         LOG_err << errMsg;
-
-                        // this does occur but we don't want the tests terminated in SRW
-                        //assert(false);
+                        assert(false);
                     }
                     else
                     {
@@ -19664,19 +19661,6 @@ void KeyManager::setKey(const mega::SymmCipher &masterKey)
 
 bool KeyManager::fromKeysContainer(const string &data)
 {
-    LOG_debug << "Entering KeyManager::fromKeysContainer";
-
-    string s;
-    for (size_t i = 0; i < data.size(); ++i)
-    {
-        char hex[20];
-        snprintf(hex, 20, "%02x ", (unsigned char)data[i]);
-        s += hex;
-    }
-
-    LOG_debug << "data is " << data.size() << ": " << s;
-
-
     bool success = false;
     KeyManager km(mClient);  // keymanager to store values temporary
 
@@ -19693,7 +19677,6 @@ bool KeyManager::fromKeysContainer(const string &data)
             string keysPlain;
             mKey.gcm_decrypt(&keysCiphered, (byte*)data.data() + 2, IV_LEN, 16, &keysPlain);
 
-            LOG_debug << "calling unserialize";
             success = unserialize(km, keysPlain);
             if (!success)
             {
@@ -19709,8 +19692,6 @@ bool KeyManager::fromKeysContainer(const string &data)
     {
         updateValues(km);
     }
-
-    LOG_debug << "Leaving KeyManager::fromKeysContainer";
 
     assert(success);
     return success;

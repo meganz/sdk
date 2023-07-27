@@ -205,6 +205,20 @@ private:
     FileTarget() = default;
 }; /* FileTarget */
 
+class SymlinkTarget
+  : public Target
+{
+public:
+    // True if type is SYMLINK.
+    bool applicable(const nodetype_t type) const override;
+
+    // Returns a FileTarget instance.
+    static const SymlinkTarget& instance();
+
+private:
+    SymlinkTarget() = default;
+}; /* FileTarget */
+
 // Parses the size filter "text" and updates (creates) "filter."
 static bool add(const string& text, SizeFilterPtr& filter);
 
@@ -638,8 +652,7 @@ ExclusionState FilterChain::match(const RemotePathPair& p,
             continue;
         }
 
-        if (((*i)->applicable(type) || type == TYPE_UNKNOWN)  // TYPE_UNKNOWN because we need to be able to exclude scan-blocked items, and that is the type they appear as.
-           && (*i)->match(p))
+        if ((*i)->applicable(type) && (*i)->match(p))
         {
             return (*i)->inclusion() ? ES_INCLUDED : ES_EXCLUDED;
         }
@@ -887,6 +900,18 @@ const FileTarget& FileTarget::instance()
     return instance;
 }
 
+bool SymlinkTarget::applicable(const nodetype_t type) const
+{
+    return type == TYPE_SYMLINK;
+}
+
+const SymlinkTarget& SymlinkTarget::instance()
+{
+    static SymlinkTarget instance;
+
+    return instance;
+}
+
 bool add(const string& text, SizeFilterPtr& filter)
 {
     // Handy constants.
@@ -1084,6 +1109,11 @@ bool add(const string& text, StringFilterPtrVector& filters, bool& syncThisMegai
         // Applies only to files.
         ++m;
         target = &FileTarget::instance();
+        break;
+    case 's':
+        // Applies only to symlinks.
+        ++m;
+        target = &SymlinkTarget::instance();
         break;
     default:
         // Default applies to all node types.

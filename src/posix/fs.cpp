@@ -1960,7 +1960,7 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
                      << (metadata.st_mode & S_IFMT);
 
             result.isSymlink = S_ISLNK(metadata.st_mode);
-            result.type = TYPE_SPECIAL;
+            result.type = result.isSymlink ? TYPE_SYMLINK: TYPE_SPECIAL;
             continue;
         }
 
@@ -2345,32 +2345,6 @@ PosixDirAccess::~PosixDirAccess()
     {
         globfree(&globbuf);
     }
-}
-
-
-static std::function<bool(const string&, nodetype_t)> gIsReservedNameHook;
-
-void isReservedNameHook(std::function<bool(const string&, nodetype_t)> predicate)
-{
-    gIsReservedNameHook = predicate;
-}
-
-bool isReservedName(const string& name, nodetype_t type)
-{
-    if (gIsReservedNameHook)
-        return gIsReservedNameHook(name, type);
-
-    return false;
-}
-
-bool isReservedName(const FileSystemAccess& fsAccess,
-                    const LocalPath& name,
-                    nodetype_t type)
-{
-    if (gIsReservedNameHook)
-        return isReservedName(name.toName(fsAccess), type);
-
-    return false;
 }
 
 // A more robust implementation would check whether the device has storage

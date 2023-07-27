@@ -1818,12 +1818,8 @@ ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path, handle expe
                     result.fingerprint.mtime = FileTime_to_POSIX((FILETIME*)&info->LastWriteTime);
                     result.fingerprint.size = (m_off_t)info->EndOfFile.QuadPart;
                     result.fsid = (handle)info->FileId.QuadPart;
-                    result.type = TYPE_SPECIAL;
-
-                    if (checkForSymlink(filePath))
-                    {
-                        result.isSymlink = true;
-                    }
+                    result.isSymlink = checkForSymlink(filePath);
+                    result.type = result.isSymlink ? TYPE_SYMLINK : TYPE_SPECIAL;
 
 
                     results.emplace_back(std::move(result));
@@ -2030,49 +2026,6 @@ WinDirAccess::~WinDirAccess()
     {
         FindClose(hFind);
     }
-}
-
-void isReservedNameHook(std::function<bool(const string&, nodetype_t)>)
-{
-}
-
-bool isReservedName(const string& name, nodetype_t type)
-{
-    if (name.empty()) return false;
-
-    if (type == FOLDERNODE && name.back() == '.') return true;
-
-    if (name.size() == 3)
-    {
-        static const string reserved[] = {"AUX", "CON", "NUL", "PRN"};
-
-        for (auto& r : reserved)
-        {
-            if (!_stricmp(name.c_str(), r.c_str())) return true;
-        }
-
-        return false;
-    }
-
-    if (name.size() != 4) return false;
-
-    if (!std::isdigit(name.back())) return false;
-
-    static const string reserved[] = {"COM", "LPT"};
-
-    for (auto& r : reserved)
-    {
-        if (!_strnicmp(name.c_str(), r.c_str(), 3)) return true;
-    }
-
-    return false;
-}
-
-bool isReservedName(const FileSystemAccess& fsAccess,
-                    const LocalPath& name,
-                    nodetype_t type)
-{
-    return isReservedName(name.toName(fsAccess), type);
 }
 
 m_off_t WinFileSystemAccess::availableDiskSpace(const LocalPath& drivePath)

@@ -7792,6 +7792,7 @@ void exec_mediainfo(autocomplete::ACState& s)
             }
             case TYPE_DONOTSYNC:
             case TYPE_SPECIAL:
+            case TYPE_SYMLINK:
             case TYPE_UNKNOWN:
                 cout << "node type is inappropriate for mediainfo: " << n->type << endl;
                 break;

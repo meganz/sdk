@@ -17553,7 +17553,7 @@ int MegaApiImpl::getNumVersions(MegaNode *node)
 
 bool MegaApiImpl::hasVersions(MegaNode *node)
 {
-    return getNumVersions(node);
+    return getNumVersions(node) > 1;
 }
 
 MegaNodeList* MegaApiImpl::getChildrenFromType(MegaNode* p, int type, int order, CancelToken cancelToken)
