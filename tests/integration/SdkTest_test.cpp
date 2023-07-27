@@ -11986,13 +11986,6 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(sets2->size(), 0u);
 }
 
-
-/* this test brought from develop is breaking, and causing havoc alongside the jenkins changes where we can't tell which job is which.  Disable out on SRW for now
-eg
-[ RUN      ] SdkTest.SdkTestSetsAndElementsPublicLink
-test_integration: src/transfer.cpp:639: void mega::Transfer::complete(mega::TransferDbCommitter&): Assertion `FSNode::debugConfirmOnDiskFingerprintOrLogWhy(*client->fsaccess, localfilename, *this)' failed.
-*/
-#if 0
 /**
  * @brief TEST_F SdkTestSetsAndElementsPublicLink
  *
@@ -12378,8 +12371,6 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     sets.reset(megaApi[userIdx]->getSets());
     ASSERT_EQ(sets->size(), 0u);
 }
-
-#endif
 
 /**
  * @brief TEST_F SdkUserAlerts

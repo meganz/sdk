@@ -2028,49 +2028,6 @@ WinDirAccess::~WinDirAccess()
     }
 }
 
-void isReservedNameHook(std::function<bool(const string&, nodetype_t)>)
-{
-}
-
-bool isReservedName(const string& name, nodetype_t type)
-{
-    if (name.empty()) return false;
-
-    if (type == FOLDERNODE && name.back() == '.') return true;
-
-    if (name.size() == 3)
-    {
-        static const string reserved[] = {"AUX", "CON", "NUL", "PRN"};
-
-        for (auto& r : reserved)
-        {
-            if (!_stricmp(name.c_str(), r.c_str())) return true;
-        }
-
-        return false;
-    }
-
-    if (name.size() != 4) return false;
-
-    if (!std::isdigit(name.back())) return false;
-
-    static const string reserved[] = {"COM", "LPT"};
-
-    for (auto& r : reserved)
-    {
-        if (!_strnicmp(name.c_str(), r.c_str(), 3)) return true;
-    }
-
-    return false;
-}
-
-bool isReservedName(const FileSystemAccess& fsAccess,
-                    const LocalPath& name,
-                    nodetype_t type)
-{
-    return isReservedName(name.toName(fsAccess), type);
-}
-
 m_off_t WinFileSystemAccess::availableDiskSpace(const LocalPath& drivePath)
 {
     m_off_t maximumBytes = std::numeric_limits<m_off_t>::max();
