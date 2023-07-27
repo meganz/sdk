@@ -1503,7 +1503,7 @@ void NodeManager::notifyPurge()
             }
         });
 #endif
-
+        LockGuard g(mMutex);
         TransferDbCommitter committer(mClient.tctable);
 
         unsigned removed = 0;
