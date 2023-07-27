@@ -3086,9 +3086,12 @@ dstime Sync::procscanq()
             size_t index = 0;
             if (remainder.nextPathComponent(index, firstComponent))
             {
-                if (!(firstComponent == IGNORE_FILE_NAME) &&  // as the exclusionState check below skips that check for TYPE_UNKNOWN
+                // firstComponent is a folder if has next path component, otherwise it is unknown
+                auto type = remainder.hasNextPathComponent(index) ? FOLDERNODE : TYPE_UNKNOWN;
+
+                if (!(firstComponent == IGNORE_FILE_NAME) &&
                     (isDoNotSyncFileName(firstComponent.toPath(false)) ||
-                    ES_EXCLUDED == nearest->exclusionState(firstComponent, TYPE_UNKNOWN, 0)))
+                    ES_EXCLUDED == nearest->exclusionState(firstComponent, type, 0)))
                 {
                     // no need to rescan anything when the change was in an excluded folder
                     SYNC_verbose << "Ignoring notification under excluded/do-not-sync node:"

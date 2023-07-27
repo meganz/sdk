@@ -652,8 +652,7 @@ ExclusionState FilterChain::match(const RemotePathPair& p,
             continue;
         }
 
-        if (((*i)->applicable(type) || type == TYPE_UNKNOWN)  // TYPE_UNKNOWN because we need to be able to exclude scan-blocked items, and that is the type they appear as.
-           && (*i)->match(p))
+        if ((*i)->applicable(type) && (*i)->match(p))
         {
             return (*i)->inclusion() ? ES_INCLUDED : ES_EXCLUDED;
         }
