@@ -1818,12 +1818,8 @@ ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path, handle expe
                     result.fingerprint.mtime = FileTime_to_POSIX((FILETIME*)&info->LastWriteTime);
                     result.fingerprint.size = (m_off_t)info->EndOfFile.QuadPart;
                     result.fsid = (handle)info->FileId.QuadPart;
-                    result.type = TYPE_SPECIAL;
-
-                    if (checkForSymlink(filePath))
-                    {
-                        result.isSymlink = true;
-                    }
+                    result.isSymlink = checkForSymlink(filePath);
+                    result.type = result.isSymlink ? TYPE_SYMLINK : TYPE_SPECIAL;
 
 
                     results.emplace_back(std::move(result));

@@ -1468,25 +1468,15 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
             return rowResult = false, false;
         }
     }
-    else if (parentRow.syncNode &&
-             parentRow.syncNode->exclusionState(row.fsNode->toName_of_localname(*syncs.fsaccess),
-                                                row.fsNode->type,
-                                                row.fsNode->fingerprint.size)
-             == ES_EXCLUDED)
+    else if (parentRow.syncNode && parentRow.exclusionState(*row.fsNode) == ES_EXCLUDED)
     {
         return rowResult = false, false;
     }
 
-    if (row.fsNode->type == TYPE_SPECIAL)
+    if (row.fsNode->type == TYPE_SPECIAL || row.fsNode->type == TYPE_SYMLINK)
     {
-        auto message = "special file";
-        auto problem = PathProblem::DetectedHardLink;
-
-        if (row.fsNode->isSymlink)
-        {
-            message = "symlink";
-            problem = PathProblem::DetectedSymlink;
-        }
+        auto message = row.fsNode->type == TYPE_SPECIAL ? "special file" : "symlink";
+        auto problem = row.fsNode->type == TYPE_SPECIAL ? PathProblem::DetectedHardLink : PathProblem::DetectedSymlink;
 
         ProgressingMonitor monitor(*this, row, fullPath);
 
@@ -12039,15 +12029,11 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
 
         if (nodeIsInActiveUnpausedSyncQuery)
         {
-            for (auto & rn : activeSyncRoots)
-            {
-                if (n->isbelow(rn.first) && !rn.second->getConfig().mTemporarilyPaused)
-                {
-                    *nodeIsInActiveUnpausedSyncQuery = true;
-
-                    if (nodeIsDefinitelyExcluded)
-                        *nodeIsDefinitelyExcluded = isDefinitelyExcluded(rn, n);
-                }
+            auto it = std::find_if(activeSyncRoots.begin(), activeSyncRoots.end(),
+                          [n](const pair<Node *, Sync *> &rn) { return n->isbelow(rn.first) && !rn.second->getConfig().mTemporarilyPaused; });
+            if (it != activeSyncRoots.end()) {
+                *nodeIsInActiveUnpausedSyncQuery = true;
+                if (nodeIsDefinitelyExcluded) *nodeIsDefinitelyExcluded = isDefinitelyExcluded(*it, n);
             }
         }
 
