@@ -78,7 +78,9 @@ Node::Node(MegaClient& cclient, NodeHandle h, NodeHandle ph,
 
 Node::~Node()
 {
-    if (keyApplied())
+    // If root node is undef, Node manager has been cleaned up (mAppliedKeyNodeCount has been initialized to zero)
+    // Node desctruction is launched by a reference not included at NodeManager
+    if (keyApplied() && !client->mNodeManager.getRootNodeFiles().isUndef())
     {
         client->mAppliedKeyNodeCount--;
         assert(client->mAppliedKeyNodeCount >= 0);

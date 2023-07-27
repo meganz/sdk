@@ -1746,7 +1746,7 @@ public:
     long long totalNodes;
 
     // tracks how many nodes have had a successful applykey()
-    long long mAppliedKeyNodeCount = 0;
+    std::atomic<long long> mAppliedKeyNodeCount;
 
     // server-client request sequence number
     SCSN scsn;

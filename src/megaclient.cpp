@@ -1717,6 +1717,8 @@ MegaClient::MegaClient(MegaApp* a, shared_ptr<Waiter> w, HttpIO* h, DbAccess* d,
     ephemeralSession = false;
     ephemeralSessionPlusPlus = false;
 
+    mAppliedKeyNodeCount = 0;
+
 #ifndef EMSCRIPTEN
     autodownport = true;
     autoupport = true;
