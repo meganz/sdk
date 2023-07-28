@@ -2333,7 +2333,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                     {
                         LOG_debug << req->logname << "[received " << (req->buf ? req->bufpos : (int)req->in.size()) << " bytes of raw data]";
                     }
-                    else if (req->mChunked && req->bufpos != req->in.size())
+                    else if (req->mChunked && size_t(req->bufpos) != req->in.size())
                     {
                         LOG_debug << req->logname << "[received " << req->bufpos << " bytes of chunked data]";
                     }
