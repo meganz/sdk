@@ -337,7 +337,7 @@ bool CommandAttachFA::procresult(Result r, JSON& json)
              {
                 n->fileattrstring = fa;
                 n->changed.fileattrstring = true;
-                client->notifynode(n);
+                client->mNodeManager.notifyNode(n);
              }
              client->app->putfa_result(h, type, API_OK);
              return true;
@@ -4161,7 +4161,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
         case 'u':
 #ifndef NDEBUG
-            me = 
+            me =
 #endif
                  json.gethandle(MegaClient::USERHANDLE);
             break;
@@ -5577,7 +5577,7 @@ bool CommandSetPH::procresult(Result r, JSON& json)
                     {
                         n->setpubliclink(ph, time(nullptr), ets, false, authKey);
                         n->changed.publiclink = true;
-                        client->notifynode(n);
+                        client->mNodeManager.notifyNode(n);
                     }
                     completion(API_OK, h, ph);
                     return true;
@@ -5606,7 +5606,7 @@ bool CommandSetPH::procresult(Result r, JSON& json)
             {
                 n->setpubliclink(ph, time(nullptr), ets, false, "");
                 n->changed.publiclink = true;
-                client->notifynode(n);
+                client->mNodeManager.notifyNode(n);
             }
 
             completion(API_OK, h, ph);
@@ -6103,15 +6103,16 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache)
     mFilters->emplace("", [this, client](JSON *)
     {
         mScsn = 0;
+        mMissingParentNodes.clear();
         client->purgenodesusersabortsc(true);
         client->mKeyManager.cacheShareKeys();
         return true;
     });
 
     // Node objects (one by one)
-    auto f = mFilters->emplace("{[f{", [client](JSON *json)
+    auto f = mFilters->emplace("{[f{", [this, client](JSON *json)
     {
-        if (client->readnode(json, 0, PUTNODES_APP, nullptr, false, true) != 1)
+        if (client->readnode(json, 0, PUTNODES_APP, nullptr, false, true, mMissingParentNodes) != 1)
         {
             return false;
         }
@@ -6122,10 +6123,11 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache)
     mFilters->emplace("{[f2{", f.first->second);
 
     // End of node array
-    f = mFilters->emplace("{[f", [client](JSON *json)
+    f = mFilters->emplace("{[f", [this, client](JSON *json)
     {
         client->mergenewshares(0);
-        client->mNodeManager.checkOrphanNodes();
+        client->mNodeManager.checkOrphanNodes(mMissingParentNodes);
+        mMissingParentNodes.clear();
 
         // This is intended to consume the '[' character if the array
         // was empty and an empty array arrives here "[]".
@@ -10238,9 +10240,17 @@ CommandMeetingStart::CommandMeetingStart(MegaClient* client, handle chatid, hand
         arg("sfu", client->mSfuid);
     }
 
+    /**
+     * + If schedId is valid
+     *      - If Waiting room option is enabled : Call shouldn't ring and we'll be redirected to Waiting room
+     *      - If Waiting room option is disabled: Call shouldn't ring
+     *
+     * + If schedId is UNDEF
+     *      - If Waiting room option is enabled : Call should ring and we'll bypass waiting room
+     *      - If Waiting room option is disabled: Call should ring
+     */
     if (schedId != UNDEF)
     {
-        // sm param indicates that call is in the context of a scheduled meeting, so it won't ring
         arg("sm", (byte*)&schedId, MegaClient::CHATHANDLE);
     }
     tag = client->reqtag;

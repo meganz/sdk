@@ -102,7 +102,7 @@ const char* cwd()
 #ifdef _WIN32
     #define getcwd _getcwd
     ret = _getcwd(path, sizeof path);
-    #undef getcwd 
+    #undef getcwd
 #else
     ret = getcwd(path, sizeof path);
 #endif
@@ -1807,10 +1807,10 @@ std::string getCurrentTimestamp(bool includeDate);
  *  - Logout and resume the create-account process
  *  - Extract confirmation link from the mailbox
  *  - Use the link to confirm the account
- * 
+ *
  *  - Request a reset password link
  *  - Confirm the reset password
- * 
+ *
  *  - Login to the new account
  *  - Request cancel account link
  *  - Extract cancel account link from the mailbox
@@ -1906,7 +1906,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
 
     // test resetting the password
     // ---------------------------
-    
+
     ASSERT_EQ(synchronousResetPassword(0, newTestAcc.c_str(), true), MegaError::API_OK) << "resetPassword failed";
     chrono::time_point<chrono::system_clock> timeOfResetEmail = chrono::system_clock::now();
 
@@ -1969,7 +1969,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
 
     // delete the account
     // ------------------
-    
+
     // Request cancel account link
     chrono::time_point<chrono::system_clock>  timeOfDeleteEmail = std::chrono::system_clock::now();
     {
@@ -10269,7 +10269,7 @@ TEST_F(SdkTest, SdkTestAudioFileThumbnail)
 #endif
 {
     LOG_info << "___TEST Audio File Thumbnail___";
-    
+
     static const std::string AUDIO_FILENAME = "test_cover_png.mp3";
 
     LocalPath mp3LP;
@@ -11244,6 +11244,16 @@ TEST_F(SdkTest, SdkNodesOnDemandVersions)
     // important to reset
     resetOnNodeUpdateCompletionCBs();
 
+    // check no versions exist yet in either client
+    {
+        unique_ptr<MegaNode> n1(megaApi[0]->getNodeByPath(("/" + fileName).c_str()));
+        unique_ptr<MegaNode> n2(megaApi[1]->getNodeByPath(("/" + fileName).c_str()));
+        ASSERT_TRUE(n1 && !megaApi[0]->hasVersions(n1.get()));
+        ASSERT_TRUE(n2 && !megaApi[1]->hasVersions(n2.get()));
+        ASSERT_TRUE(n1 && 1 == megaApi[0]->getNumVersions(n1.get()));
+        ASSERT_TRUE(n2 && 1 == megaApi[1]->getNumVersions(n2.get()));
+    }
+
     // upload a file to replace the last one in the root of client 0
     // of course client 1 will see the same new file (and the old file becomes a version, if versioning is on.  Built with ENABLE_SYNC or not is irrelevant)
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check1);
@@ -11271,6 +11281,16 @@ TEST_F(SdkTest, SdkNodesOnDemandVersions)
     deleteFile(fileName);
     // important to reset
     resetOnNodeUpdateCompletionCBs();
+
+    // check both client now know the file has versons
+    {
+        unique_ptr<MegaNode> n1(megaApi[0]->getNodeByPath(("/" + fileName).c_str()));
+        unique_ptr<MegaNode> n2(megaApi[1]->getNodeByPath(("/" + fileName).c_str()));
+        ASSERT_TRUE(n1 && megaApi[0]->hasVersions(n1.get()));
+        ASSERT_TRUE(n2 && megaApi[1]->hasVersions(n2.get()));
+        ASSERT_TRUE(n1 && 2 == megaApi[0]->getNumVersions(n1.get()));
+        ASSERT_TRUE(n2 && 2 == megaApi[1]->getNumVersions(n2.get()));
+    }
 
     nodeFile.reset(megaApi[0]->getNodeByHandle(fh));
     unique_ptr<MegaNodeList> list(megaApi[0]->getChildren(nodeFile.get())); // null
@@ -13838,7 +13858,7 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
     ASSERT_EQ(API_OK, uploadListener.waitForResult());
     std::unique_ptr<MegaNode> nimported(megaApi[0]->getNodeByHandle(uploadListener.resultNodeHandle));
     int nimportedNumChildren = megaApi[0]->getNumChildren(nimported.get());
-    EXPECT_EQ(nimportedNumChildren, 1) << "This folder should have 1 children (the file inside the folder) but it doesn't. Num children: '" << nimportedNumChildren << "'"; 
+    EXPECT_EQ(nimportedNumChildren, 1) << "This folder should have 1 children (the file inside the folder) but it doesn't. Num children: '" << nimportedNumChildren << "'";
 
     // Delete the local folder
     deleteFolder(foldername);

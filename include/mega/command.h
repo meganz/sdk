@@ -30,6 +30,7 @@
 #include "http.h"
 #include "json.h"
 #include "textchat.h"
+#include "nodemanager.h"
 
 namespace mega {
 
@@ -455,6 +456,9 @@ public:
     bool parsingFinished();
 
     CommandFetchNodes(MegaClient*, int tag, bool nocache);
+
+protected:
+    NodeManager::MissingParentNodes mMissingParentNodes;
 };
 
 // update own node keys

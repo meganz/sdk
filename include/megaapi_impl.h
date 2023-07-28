@@ -90,18 +90,16 @@ using MegaGfxProvider = GfxProviderExternal;
 	class MegaFileSystemAccess : public WinFileSystemAccess {};
 	class MegaWaiter : public WinWaiter {};
 #else
+    class MegaHttpIO : public CurlHttpIO {};
+    class MegaWaiter : public PosixWaiter {};
     #ifdef __APPLE__
-    typedef CurlHttpIO MegaHttpIO;
         #if TARGET_OS_IPHONE
         typedef PosixFileSystemAccess MegaFileSystemAccess;
         #else
-        typedef MacFileSystemAccess MegaFileSystemAccess;
+        class MegaFileSystemAccess : public MacFileSystemAccess {};
         #endif
-    typedef PosixWaiter MegaWaiter;
     #else
-    class MegaHttpIO : public CurlHttpIO {};
     class MegaFileSystemAccess : public PosixFileSystemAccess {};
-    class MegaWaiter : public PosixWaiter {};
     #endif
 #endif
 

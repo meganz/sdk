@@ -344,8 +344,13 @@ struct IsPath<RemotePath>
 }; // IsPath<RemotePath>
 
 struct NameConflict {
+    struct NameHandle {
+        string name;
+        NodeHandle handle;
+        NameHandle(const string& s, NodeHandle h) : name(s), handle(h) {}
+    };
     string cloudPath;
-    vector<string> clashingCloudNames;
+    vector<NameHandle> clashingCloud;
     LocalPath localPath;
     vector<LocalPath> clashingLocalNames;
 };
@@ -790,7 +795,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     bool islocalfscompatible(unsigned char, bool isEscape, FileSystemType = FS_UNKNOWN) const;
     void escapefsincompatible(string*, FileSystemType fileSystemType) const;
 
-    const char *fstypetostring(FileSystemType type) const;
+    static const char *fstypetostring(FileSystemType type);
     virtual bool getlocalfstype(const LocalPath& path, FileSystemType& type) const = 0;
     FileSystemType getlocalfstype(const LocalPath& path) const;
     void unescapefsincompatible(string*) const;
@@ -940,12 +945,6 @@ int platformCompareUtf(const string&, bool unescape1, const string&, bool unesca
 int platformCompareUtf(const string&, bool unescape1, const LocalPath&, bool unescape2);
 int platformCompareUtf(const LocalPath&, bool unescape1, const string&, bool unescape2);
 int platformCompareUtf(const LocalPath&, bool unescape1, const LocalPath&, bool unescape2);
-
-// Returns true if name is a reserved file name.
-//
-// On Windows, a reserved file name is:
-//   - AUX, COM[0-9], CON, LPT[0-9], NUL or PRN.
-bool isReservedName(const string& name, nodetype_t type = FILENODE);
 
 struct MEGA_API FSNode
 {
