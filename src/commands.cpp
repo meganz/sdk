@@ -6097,10 +6097,9 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache)
 
     ///////////////////////////////////
     // Filters for parsing in streaming
-    mFilters = make_unique<std::map<std::string, std::function<bool(JSON *)>>>();
 
     // Parsing started
-    mFilters->emplace("", [this, client](JSON *)
+    mFilters.emplace("", [this, client](JSON *)
     {
         mScsn = 0;
         mMissingParentNodes.clear();
@@ -6110,7 +6109,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache)
     });
 
     // Node objects (one by one)
-    auto f = mFilters->emplace("{[f{", [this, client](JSON *json)
+    auto f = mFilters.emplace("{[f{", [this, client](JSON *json)
     {
         if (client->readnode(json, 0, PUTNODES_APP, nullptr, false, true, mMissingParentNodes) != 1)
         {
@@ -6120,10 +6119,10 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache)
     });
 
     // Node versions (one by one)
-    mFilters->emplace("{[f2{", f.first->second);
+    mFilters.emplace("{[f2{", f.first->second);
 
     // End of node array
-    f = mFilters->emplace("{[f", [this, client](JSON *json)
+    f = mFilters.emplace("{[f", [this, client](JSON *json)
     {
         client->mergenewshares(0);
         client->mNodeManager.checkOrphanNodes(mMissingParentNodes);
@@ -6139,10 +6138,10 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache)
     });
 
     // End of node versions array
-    mFilters->emplace("{[f2", f.first->second);
+    mFilters.emplace("{[f2", f.first->second);
 
     // Legacy keys (one by one)
-    mFilters->emplace("{[ok0{", [client](JSON *json)
+    mFilters.emplace("{[ok0{", [client](JSON *json)
     {
         if (!json->enterobject())
         {
@@ -6154,7 +6153,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache)
     });
 
     // Outgoing shares (one by one)
-    f = mFilters->emplace("{[s{", [client](JSON *json)
+    f = mFilters.emplace("{[s{", [client](JSON *json)
     {
         if (!json->enterobject())
         {
@@ -6166,10 +6165,10 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache)
     });
 
     // Pending shares (one by one)
-    mFilters->emplace("{[ps{", f.first->second);
+    mFilters.emplace("{[ps{", f.first->second);
 
     // End of outgoing shares array
-    f = mFilters->emplace("{[s", [client](JSON *json)
+    f = mFilters.emplace("{[s", [client](JSON *json)
     {
         client->mergenewshares(0);
 
@@ -6178,10 +6177,10 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache)
     });
 
     // End of pending shares array
-    mFilters->emplace("{[ps", f.first->second);
+    mFilters.emplace("{[ps", f.first->second);
 
     // Users (one by one)
-    mFilters->emplace("{[u{", [client](JSON *json)
+    mFilters.emplace("{[u{", [client](JSON *json)
     {
         if (client->readuser(json, false) != 1)
         {
@@ -6191,52 +6190,52 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache)
     });
 
     // Legacy node key requests (array)
-    f = mFilters->emplace("{[cr", [client](JSON *json)
+    f = mFilters.emplace("{[cr", [client](JSON *json)
     {
         client->proccr(json);
         return true;
     });
 
     // Legacy node key requests (object)
-    mFilters->emplace("{{cr", f.first->second);
+    mFilters.emplace("{{cr", f.first->second);
 
     // Legacy share key requests
-    mFilters->emplace("{[sr", [client](JSON *json)
+    mFilters.emplace("{[sr", [client](JSON *json)
     {
         client->procsr(json);
         return true;
     });
 
     // Incoming contact requests
-    mFilters->emplace("{[ipc", [client](JSON *json)
+    mFilters.emplace("{[ipc", [client](JSON *json)
     {
         client->readipc(json);
         return true;
     });
 
     // Outgoing contact requests
-    mFilters->emplace("{[opc", [client](JSON *json)
+    mFilters.emplace("{[opc", [client](JSON *json)
     {
         client->readopc(json);
         return true;
     });
 
     // Public links (one by one)
-    mFilters->emplace("{[ph{", [client](JSON *json)
+    mFilters.emplace("{[ph{", [client](JSON *json)
     {
         client->procphelement(json);
         return true;
     });
 
     // Sets and Elements
-    mFilters->emplace("{{aesp", [client](JSON *json)
+    mFilters.emplace("{{aesp", [client](JSON *json)
     {
         client->procaesp(*json);
         return true;
     });
 
     // sn tag
-    mFilters->emplace("{\"sn", [this, client](JSON *json)
+    mFilters.emplace("{\"sn", [this, client](JSON *json)
     {
         if (json->storebinary((byte*)&mScsn, sizeof mScsn) != sizeof mScsn)
         {
@@ -6246,7 +6245,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache)
     });
 
     // Parsing finished
-    mFilters->emplace("{", [this, client](JSON *)
+    mFilters.emplace("{", [this, client](JSON *)
     {
         WAIT_CLASS::bumpds();
         client->fnstats.timeToLastByte = Waiter::ds - client->fnstats.startTime;
@@ -6255,7 +6254,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache)
     });
 
     // Numeric error, either a number or an error object {"err":XXX}
-    mFilters->emplace("#", [this, client](JSON *json)
+    mFilters.emplace("#", [this, client](JSON *json)
     {
         client->mNewKeyRepository.clear();
 
@@ -6270,7 +6269,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache)
     });
 
     // Parsing error
-    mFilters->emplace("E", [this, client](JSON *)
+    mFilters.emplace("E", [this, client](JSON *)
     {
         WAIT_CLASS::bumpds();
         client->fnstats.timeToLastByte = Waiter::ds - client->fnstats.startTime;
@@ -6284,20 +6283,20 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache)
 
 #ifdef ENABLE_CHAT
     // Chat-related callbacks
-    mFilters->emplace("{{mcf", [client](JSON *json)
+    mFilters.emplace("{{mcf", [client](JSON *json)
     {
         client->procmcf(json);
         return true;
     });
 
-    f = mFilters->emplace("{[mcpna", [client](JSON *json)
+    f = mFilters.emplace("{[mcpna", [client](JSON *json)
     {
         client->procmcna(json);
         return true;
     });
-    mFilters->emplace("{[mcna", f.first->second);
+    mFilters.emplace("{[mcna", f.first->second);
 
-    mFilters->emplace("{[mcsm", [client](JSON *json)
+    mFilters.emplace("{[mcsm", [client](JSON *json)
     {
         client->procmcsm(json);
         return true;

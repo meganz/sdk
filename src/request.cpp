@@ -148,7 +148,7 @@ m_off_t Request::processChunk(const char* chunk, MegaClient *client)
         assert(mJsonSplitter.isStarting());
     }
 
-    consumed += mJsonSplitter.processChunk(cmd.mFilters.get(), json.pos);
+    consumed += mJsonSplitter.processChunk(&cmd.mFilters, json.pos);
     if (mJsonSplitter.hasFailed())
     {
         // stop the processing

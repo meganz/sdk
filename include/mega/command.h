@@ -64,7 +64,7 @@ public:
     bool suppressSID;
 
     // filters for JSON parsing in streaming
-    std::unique_ptr<std::map<std::string, std::function<bool(JSON *)>>> mFilters;
+    std::map<std::string, std::function<bool(JSON *)>> mFilters;
 
     void cmd(const char*);
     void notself(MegaClient*);
