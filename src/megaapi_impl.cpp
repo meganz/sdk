@@ -4982,6 +4982,21 @@ MegaNodeListPrivate::MegaNodeListPrivate(sharedNode_vector& v)
         list[i] = MegaNodePrivate::fromNode(v[i].get());
 }
 
+MegaNodeListPrivate::MegaNodeListPrivate(sharedNode_list& l)
+{
+    list = NULL;
+    s = static_cast<int>(l.size());
+    if (!s) return;
+
+    list = new MegaNode*[s];
+    int i = 0;
+    for (auto& node : l)
+    {
+        list[i] = MegaNodePrivate::fromNode(node.get());
+        i++;
+    }
+}
+
 MegaNodeListPrivate::~MegaNodeListPrivate()
 {
     if(!list)
@@ -9851,19 +9866,19 @@ MegaNodeList *MegaApiImpl::httpServerGetWebDavAllowedNodes()
 
     set<handle> handles = httpServer->getAllowedWebDavHandles();
 
-    vector<Node *> listofnodes;
+    vector<std::shared_ptr<Node>> listofnodes;
 
     for (std::set<handle>::iterator it = handles.begin(); it != handles.end(); ++it)
     {
         handle h = *it;
-        Node *n = client->nodebyhandle(h);
+        std::shared_ptr<Node>n = client->nodebyhandle(h);
         if (n)
         {
             listofnodes.push_back(n);
         }
     }
 
-    return new MegaNodeListPrivate(listofnodes.data(), int(listofnodes.size()));
+    return new MegaNodeListPrivate(listofnodes);
 }
 
 void MegaApiImpl::httpServerRemoveWebDavAllowedNode(MegaHandle handle)
@@ -10188,19 +10203,19 @@ MegaNodeList *MegaApiImpl::ftpServerGetAllowedNodes()
 
     set<handle> handles = ftpServer->getAllowedHandles();
 
-    vector<Node *> listofnodes;
+    vector<std::shared_ptr<Node>> listofnodes;
 
     for (std::set<handle>::iterator it = handles.begin(); it != handles.end(); ++it)
     {
         handle h = *it;
-        Node *n = client->nodebyhandle(h);
+        std::shared_ptr<Node>n = client->nodebyhandle(h);
         if (n)
         {
             listofnodes.push_back(n);
         }
     }
 
-    return new MegaNodeListPrivate(listofnodes.data(), int(listofnodes.size()));
+    return new MegaNodeListPrivate(listofnodes);
 }
 
 void MegaApiImpl::ftpServerRemoveAllowedNode(MegaHandle handle)

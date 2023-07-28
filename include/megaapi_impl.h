@@ -2171,6 +2171,7 @@ class MegaNodeListPrivate : public MegaNodeList
         MegaNodeListPrivate(Node** newlist, int size);
         MegaNodeListPrivate(const MegaNodeListPrivate *nodeList, bool copyChildren = false);
         MegaNodeListPrivate(sharedNode_vector& v);
+        MegaNodeListPrivate(sharedNode_list& l);
         virtual ~MegaNodeListPrivate();
         MegaNodeList *copy() const override;
         MegaNode* get(int i) const override;
