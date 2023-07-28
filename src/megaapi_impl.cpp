@@ -17575,13 +17575,7 @@ int MegaApiImpl::getNumVersions(MegaNode *node)
 
 bool MegaApiImpl::hasVersions(MegaNode *node)
 {
-    if (!node || node->getType() != MegaNode::TYPE_FILE)
-    {
-        return false;
-    }
-
-    SdkMutexGuard guard(sdkMutex);
-    return client->mNodeManager.hasVersion(NodeHandle().set6byte(node->getHandle()));
+    return getNumVersions(node) > 1;
 }
 
 MegaNodeList* MegaApiImpl::getChildrenFromType(MegaNode* p, int type, int order, CancelToken cancelToken)
@@ -18477,7 +18471,7 @@ void MegaApiImpl::removeRecursively(const char *path)
 {
 #ifndef _WIN32
     auto localpath = LocalPath::fromPlatformEncodedAbsolute(path);
-    FSACCESS_CLASS::emptydirlocal(localpath);
+    MegaFileSystemAccess::emptydirlocal(localpath);
 #else
     auto localpath = LocalPath::fromAbsolutePath(path);
     WinFileSystemAccess::emptydirlocal(localpath);
@@ -22102,9 +22096,11 @@ void MegaApiImpl::copySyncDataToCache(const char* localFolder, const char* name,
 
             const auto& drivePath = request->getLink() ? LocalPath::fromAbsolutePath(request->getLink()) : LocalPath();
 
+            fsfp_t fsfp;
+            fsfp.id = request->getNumber();
             SyncConfig syncConfig(LocalPath::fromAbsolutePath(localPath),
                                   name, NodeHandle().set6byte(request->getNodeHandle()), remotePath ? remotePath : "",
-                                  static_cast<fsfp_t>(request->getNumber()),
+                                  fsfp,
                                   drivePath, enabled);
 
             if (temporaryDisabled)
@@ -24720,7 +24716,7 @@ void MegaApiImpl::addSyncByRequest(MegaRequestPrivate* request, SyncConfig syncC
             }
             else
             {
-                request->setNumber(createdConfig.mFilesystemFingerprint);
+                request->setNumber(createdConfig.mFilesystemFingerprint.id);
                 request->setParentHandle(backupId);
 
                 auto sync = ::mega::make_unique<MegaSyncPrivate>(createdConfig, client);
@@ -26412,7 +26408,7 @@ MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, MegaClient* client /*
     this->lastKnownMegaFolder = NULL;
     this->fingerprint = 0;
 
-    setLocalFingerprint(static_cast<long long>(config.mFilesystemFingerprint));
+    setLocalFingerprint(static_cast<long long>(config.mFilesystemFingerprint.id));
     setLastKnownMegaFolder(config.mOriginalPathOfRemoteRootNode.c_str());
 
     setError(config.mError < 0 ? 0 : config.mError);
@@ -26900,7 +26896,7 @@ bool MegaTreeProcCopy::processMegaNode(MegaNode *n)
 
 MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *api, MegaTransferPrivate *t)
     : MegaRecursiveOperation(api->getMegaClient())
-    , fsaccess(new FSACCESS_CLASS())
+    , fsaccess(new MegaFileSystemAccess)
 {
     megaApi = api;
     transfer = t;
@@ -28485,7 +28481,7 @@ MegaClient* MegaRecursiveOperation::megaapiThreadClient()
 
 MegaFolderDownloadController::MegaFolderDownloadController(MegaApiImpl *api, MegaTransferPrivate *t)
     : MegaRecursiveOperation(api->client)
-    , fsaccess(new FSACCESS_CLASS())
+    , fsaccess(new MegaFileSystemAccess)
 {
     megaApi = api;
     fsaccess->setdefaultfilepermissions(megaApi->getDefaultFilePermissions()); // Grant default file permissions
@@ -29113,7 +29109,7 @@ MegaTCPServer::MegaTCPServer(MegaApiImpl *megaApi, string basePath, bool tls, st
     this->remainingcloseevents = 0;
     this->evtrequirescleaning = false;
 #endif
-    fsAccess = new MegaFileSystemAccess();
+    fsAccess = new MegaFileSystemAccess;
 
     if (basePath.size())
     {
