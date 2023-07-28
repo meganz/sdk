@@ -3719,7 +3719,7 @@ void MegaClient::exec()
     } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.readyToSend() && btcs.armed()) || looprequested);
 
 
-    if (fetchingnodes)
+    if (!fetchingnodes)
     {
         NodeCounter nc = mNodeManager.getCounterOfRootNodes();
         m_off_t sum = nc.storage + nc.versionStorage;
