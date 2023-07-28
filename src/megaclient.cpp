@@ -3712,12 +3712,15 @@ void MegaClient::exec()
     } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.readyToSend() && btcs.armed()) || looprequested);
 
 
-    NodeCounter nc = mNodeManager.getCounterOfRootNodes();
-    m_off_t sum = nc.storage + nc.versionStorage;
-    if (mNotifiedSumSize != sum)
+    if (fetchingnodes)
     {
-        mNotifiedSumSize = sum;
-        app->storagesum_changed(mNotifiedSumSize);
+        NodeCounter nc = mNodeManager.getCounterOfRootNodes();
+        m_off_t sum = nc.storage + nc.versionStorage;
+        if (mNotifiedSumSize != sum)
+        {
+            mNotifiedSumSize = sum;
+            app->storagesum_changed(mNotifiedSumSize);
+        }
     }
 
 #ifdef MEGA_MEASURE_CODE
@@ -8352,6 +8355,12 @@ void MegaClient::sc_ub()
 // purge removed nodes after notification
 void MegaClient::notifypurge(void)
 {
+    if (!mNodeManager.ready())
+    {
+        // the filesystem is being initialized
+        return;
+    }
+
     int i, t;
 
     handle tscsn = cachedscsn;

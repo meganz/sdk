@@ -982,6 +982,8 @@ void NodeManager::cleanNodes()
     rootnodes.vault.setUndef();
 
     if (mTable) mTable->removeNodes();
+
+    mInitialized = false;
 }
 
 Node *NodeManager::getNodeFromBlob(const std::string* nodeSerialized)
@@ -1343,6 +1345,7 @@ bool NodeManager::loadNodes()
         getChildren(node);
     }
 
+    mInitialized = true;
     return true;
 }
 
@@ -1471,6 +1474,12 @@ void NodeManager::initCompleted()
     }
 
     mTable->createIndexes();
+    mInitialized = true;
+}
+
+bool NodeManager::ready()
+{
+    return mInitialized;
 }
 
 NodeCounter NodeManager::getCounterOfRootNodes()
@@ -1574,6 +1583,7 @@ void NodeManager::dumpNodes()
     }
 
     mTable->createIndexes();
+    mInitialized = true;
 }
 
 void NodeManager::saveNodeInDb(Node *node)
