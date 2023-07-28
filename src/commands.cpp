@@ -6102,6 +6102,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache)
     mFilters.emplace("", [this, client](JSON *)
     {
         mScsn = 0;
+        mPreviousHandleForAlert = UNDEF;
         mMissingParentNodes.clear();
         client->purgenodesusersabortsc(true);
         client->mKeyManager.cacheShareKeys();
@@ -6111,7 +6112,8 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache)
     // Node objects (one by one)
     auto f = mFilters.emplace("{[f{", [this, client](JSON *json)
     {
-        if (client->readnode(json, 0, PUTNODES_APP, nullptr, false, true, mMissingParentNodes) != 1)
+        if (client->readnode(json, 0, PUTNODES_APP, nullptr, false, true,
+                             mMissingParentNodes, mPreviousHandleForAlert) != 1)
         {
             return false;
         }
@@ -6126,6 +6128,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache)
     {
         client->mergenewshares(0);
         client->mNodeManager.checkOrphanNodes(mMissingParentNodes);
+        mPreviousHandleForAlert = UNDEF;
         mMissingParentNodes.clear();
 
         // This is intended to consume the '[' character if the array

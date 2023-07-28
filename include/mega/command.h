@@ -455,6 +455,7 @@ public:
     CommandFetchNodes(MegaClient*, int tag, bool nocache);
 
 protected:
+    handle mPreviousHandleForAlert = UNDEF;
     NodeManager::MissingParentNodes mMissingParentNodes;
 
     // Field to temporarily save the received scsn

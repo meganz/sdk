@@ -1976,7 +1976,8 @@ public:
     // 0 -> no object found
     // 1 -> successful parsing
     // any other number -> parsing error
-    int readnode(JSON*, int, putsource_t, vector<NewNode>*, bool modifiedByThisClient, bool applykeys, NodeManager::MissingParentNodes& missingParentNodes);
+    int readnode(JSON*, int, putsource_t, vector<NewNode>*, bool modifiedByThisClient, bool applykeys,
+                 NodeManager::MissingParentNodes& missingParentNodes, handle &previousHandleForAlert);
 
     void readok(JSON*);
     void readokelement(JSON*);

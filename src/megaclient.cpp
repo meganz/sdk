@@ -9566,8 +9566,10 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
         return 0;
     }
 
+    handle previousHandleForAlert = UNDEF;
+
     NodeManager::MissingParentNodes missingParentNodes;
-    while (int e = readnode(j, notify, source, nn, modifiedByThisClient, applykeys, missingParentNodes))
+    while (int e = readnode(j, notify, source, nn, modifiedByThisClient, applykeys, missingParentNodes, previousHandleForAlert))
     {
         if (e != 1)
         {
@@ -9583,11 +9585,11 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
 }
 
 
-int MegaClient::readnode(JSON* j, int notify, putsource_t source, vector<NewNode>* nn, bool modifiedByThisClient, bool applykeys, mega::NodeManager::MissingParentNodes &missingParentNodes)
+int MegaClient::readnode(JSON* j, int notify, putsource_t source, vector<NewNode>* nn, bool modifiedByThisClient, bool applykeys,
+                         mega::NodeManager::MissingParentNodes &missingParentNodes, handle &previousHandleForAlert)
 {
     Node* n;
 
-    handle previousHandleForAlert = UNDEF;
     if (j->enterobject())
     {
         handle h = UNDEF, ph = UNDEF;
