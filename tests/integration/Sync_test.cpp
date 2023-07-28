@@ -9497,7 +9497,7 @@ struct TwoWaySyncSymmetryCase
     {
         std::shared_ptr<Node> root = client1().client.nodebyhandle(client1().basefolderhandle);
         std::string remoteRootPath = remoteSyncRootPath();
-        if (root)
+        if (!root)
         {
             LOG_err << name()
                     << " root is NULL, local sync root:"
