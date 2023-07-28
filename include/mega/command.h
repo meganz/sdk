@@ -65,6 +65,9 @@ public:
     // filters for JSON parsing in streaming
     std::unique_ptr<std::map<std::string, std::function<bool(JSON *)>>> mFilters;
 
+    // Field to temporarily save the received scsn
+    handle mScsn;
+
     void cmd(const char*);
     void notself(MegaClient*);
     virtual void cancel(void);

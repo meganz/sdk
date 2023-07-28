@@ -6100,8 +6100,9 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache)
     mFilters = make_unique<std::map<std::string, std::function<bool(JSON *)>>>();
 
     // Parsing started
-    mFilters->emplace("", [client](JSON *)
+    mFilters->emplace("", [this, client](JSON *)
     {
+        mScsn = 0;
         client->purgenodesusersabortsc(true);
         client->mKeyManager.cacheShareKeys();
         return true;
@@ -6233,9 +6234,13 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache)
     });
 
     // sn tag
-    mFilters->emplace("{\"sn", [client](JSON *json)
+    mFilters->emplace("{\"sn", [this, client](JSON *json)
     {
-        return client->scsn.setScsn(json);
+        if (json->storebinary((byte*)&mScsn, sizeof mScsn) != sizeof mScsn)
+        {
+            return false;
+        }
+        return true;
     });
 
     // Parsing finished
@@ -6243,6 +6248,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache)
     {
         WAIT_CLASS::bumpds();
         client->fnstats.timeToLastByte = Waiter::ds - client->fnstats.startTime;
+        client->scsn.setScsn(mScsn);
         return parsingFinished();
     });
 
