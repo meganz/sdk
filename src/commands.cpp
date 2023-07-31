@@ -9616,7 +9616,7 @@ bool CommandFetchSet::procresult(Result r, JSON& json)
         if (sets.empty())
         {
             LOG_err << "Sets: Failed to decrypt data from \"aft\" response";
-            mCompletion(API_EINTERNAL, nullptr, nullptr);
+            mCompletion(API_EKEY, nullptr, nullptr);
         }
 
         else

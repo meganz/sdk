@@ -12026,7 +12026,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     LOG_debug << "# U2: Attempt to fetch public Set using wrong key";
     string exportedSetURL_wrongKey = exportedSetURL;
     exportedSetURL_wrongKey.replace(exportedSetURL_wrongKey.find('#'), string::npos, "#aaaaaaaaaaaaaaaaaaaaaa");
-    ASSERT_EQ(doFetchPublicSet(1, nullptr, nullptr, exportedSetURL_wrongKey.c_str()), API_EINTERNAL);
+    ASSERT_EQ(doFetchPublicSet(1, nullptr, nullptr, exportedSetURL_wrongKey.c_str()), API_EKEY);
 
 
     LOG_debug << "# U2: Fetch public Set and start preview mode";
