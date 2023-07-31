@@ -337,7 +337,7 @@ bool CommandAttachFA::procresult(Result r, JSON& json)
              {
                 n->fileattrstring = fa;
                 n->changed.fileattrstring = true;
-                client->notifynode(n);
+                client->mNodeManager.notifyNode(n);
              }
              client->app->putfa_result(h, type, API_OK);
              return true;
@@ -4161,7 +4161,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
         case 'u':
 #ifndef NDEBUG
-            me = 
+            me =
 #endif
                  json.gethandle(MegaClient::USERHANDLE);
             break;
@@ -5577,7 +5577,7 @@ bool CommandSetPH::procresult(Result r, JSON& json)
                     {
                         n->setpubliclink(ph, time(nullptr), ets, false, authKey);
                         n->changed.publiclink = true;
-                        client->notifynode(n);
+                        client->mNodeManager.notifyNode(n);
                     }
                     completion(API_OK, h, ph);
                     return true;
@@ -5606,7 +5606,7 @@ bool CommandSetPH::procresult(Result r, JSON& json)
             {
                 n->setpubliclink(ph, time(nullptr), ets, false, "");
                 n->changed.publiclink = true;
-                client->notifynode(n);
+                client->mNodeManager.notifyNode(n);
             }
 
             completion(API_OK, h, ph);
@@ -10035,9 +10035,17 @@ CommandMeetingStart::CommandMeetingStart(MegaClient* client, handle chatid, hand
         arg("sfu", client->mSfuid);
     }
 
+    /**
+     * + If schedId is valid
+     *      - If Waiting room option is enabled : Call shouldn't ring and we'll be redirected to Waiting room
+     *      - If Waiting room option is disabled: Call shouldn't ring
+     *
+     * + If schedId is UNDEF
+     *      - If Waiting room option is enabled : Call should ring and we'll bypass waiting room
+     *      - If Waiting room option is disabled: Call should ring
+     */
     if (schedId != UNDEF)
     {
-        // sm param indicates that call is in the context of a scheduled meeting, so it won't ring
         arg("sm", (byte*)&schedId, MegaClient::CHATHANDLE);
     }
     tag = client->reqtag;

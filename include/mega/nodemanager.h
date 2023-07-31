@@ -58,12 +58,10 @@ public:
     void reset();
 
     // Take node ownership
-    bool addNode(Node* node, bool notify, bool isFetching = false);
+    typedef map<NodeHandle,  set<Node*>> MissingParentNodes;
+    bool addNode(Node* node, bool notify, bool isFetching, MissingParentNodes& missingParentNodes);
     bool updateNode(Node* node);
     // removeNode() --> it's done through notifypurge()
-
-    // if a node is received before its parent, it needs to be updated when received
-    void addNodeWithMissingParent(Node *node);
 
     // if node is not available in memory, it's loaded from DB
     Node *getNodeByHandle(NodeHandle handle);
@@ -134,7 +132,10 @@ public:
     void applyKeys(uint32_t appliedKeys);
 
     // add node to the notification queue
-    void notifyNode(Node* node);
+    void notifyNode(Node* node, node_vector* nodesToReport = nullptr);
+
+    // for consistently notifying when updating node counters
+    void setNodeCounter(Node* n, const NodeCounter &counter, bool notify, node_vector* nodesToReport);
 
     // process notified/changed nodes from 'mNodeNotify': dump changes to DB
     void notifyPurge();
@@ -187,31 +188,15 @@ public:
     // Returns the number of versions for a node (including the current version)
     int getNumVersions(NodeHandle nodeHandle);
 
-    // Returns true if a node has versions
-    bool hasVersion(NodeHandle nodeHandle);
+    NodeHandle getRootNodeFiles() const;
+    NodeHandle getRootNodeVault() const;
+    NodeHandle getRootNodeRubbish() const;
+    void setRootNodeFiles(NodeHandle h);
+    void setRootNodeVault(NodeHandle h);
+    void setRootNodeRubbish(NodeHandle h);
 
-    NodeHandle getRootNodeFiles() const {
-        return rootnodes.files;
-    }
-    NodeHandle getRootNodeVault() const {
-        return rootnodes.vault;
-    }
-    NodeHandle getRootNodeRubbish() const {
-        return rootnodes.rubbish;
-    }
-    void setRootNodeFiles(NodeHandle h) {
-        rootnodes.files = h;
-    }
-    void setRootNodeVault(NodeHandle h) {
-        rootnodes.vault = h;
-    }
-    void setRootNodeRubbish(NodeHandle h) {
-        rootnodes.rubbish = h;
-    }
-
-    // Check if there are orphan nodes and clear mNodesWithMissingParent
     // In case of orphans send an event
-    void checkOrphanNodes();
+    void checkOrphanNodes(MissingParentNodes& nodesWithMissingParent);
 
     // This method is called when initial fetch nodes is finished
     // Initialize node counters and create indexes at DB
@@ -219,6 +204,29 @@ public:
 
 private:
     MegaClient& mClient;
+
+    // NodeManager needs to be thread safe so that it can be accessed
+    // from the sync thread, and even directly by impl functions on
+    // behalf of the app, without locking sdkMutex (in future)
+    struct checkableMutex : recursive_mutex
+    {
+#ifdef DEBUG
+        // This class is for making sure the public functions of NodeManager lock the mutex
+        // whereas the internal functions operate with it already locked, and we check that.
+        // This should be based on mutex, but we still have high dependency on MegaClient,
+        // sometimes we call functions there, and it then calls back into NodeManager.
+        // So, it has to be recursive for now.  We can work towards tidying that up, and
+        // eventually swap to plain `mutex`.
+        void lock() { recursive_mutex::lock(); lockedBy = std::this_thread::get_id(); ++lockCount; }
+        void unlock() { --lockCount; recursive_mutex::unlock();  }
+        bool locked() { return lockedBy == std::this_thread::get_id() && lockCount > 0; }
+    private:
+        std::thread::id lockedBy;
+        uint32_t lockCount = 0;
+#endif
+    };
+    mutable checkableMutex mMutex;
+    using LockGuard = lock_guard<checkableMutex>;
 
     // interface to handle accesses to "nodes" table
     DBTableNodes* mTable = nullptr;
@@ -232,7 +240,7 @@ private:
 
         // returns true if the 'h' provided matches any of the rootnodes.
         // (when logged into folder links, the handle of the folder is set to 'files')
-        bool isRootNode(NodeHandle h) { return (h == files || h == vault || h == rubbish); }
+        bool isRootNode(NodeHandle h) const { return (h == files || h == vault || h == rubbish); }
     } rootnodes;
 
     class FingerprintContainer : public fingerprint_set
@@ -256,12 +264,9 @@ private:
     // nodes that have changed and are pending to notify to app and dump to DB
     node_vector mNodeNotify;
 
-    // holds references to unknown parent nodes until those are received (delayed-parents: dp)
-    std::map<NodeHandle,  set<Node*>> mNodesWithMissingParent;
-
     Node* getNodeInRAM(NodeHandle handle);
-    void saveNodeInRAM(Node* node, bool isRootnode);    // takes ownership
-    node_vector getNodesWithSharesOrLink(ShareType_t shareType);
+    void saveNodeInRAM(Node* node, bool isRootnode, MissingParentNodes& missingParentNodes);    // takes ownership
+    node_vector getNodesWithSharesOrLink_internal(ShareType_t shareType);
 
     enum OperationType
     {
@@ -271,7 +276,7 @@ private:
 
     // Update a node counter for 'origin' and its subtree (recursively)
     // If operationType is INCREASE, nc is added, in other case is decreased (ie. upon deletion)
-    void updateTreeCounter(Node* origin, NodeCounter nc, OperationType operation);
+    void updateTreeCounter(Node* origin, NodeCounter nc, OperationType operation, node_vector* nodesToReport);
 
     // returns nullptr if there are unserialization errors. Also triggers a full reload (fetchnodes)
     Node* getNodeFromNodeSerialized(const NodeSerialized& nodeSerialized);
@@ -303,6 +308,58 @@ private:
     // Stores (or updates) the node in the DB. It also tries to decrypt it for the last time before storing it.
     void putNodeInDb(Node* node) const;
 
+    // These are all the "internal" versions of the public interfaces.
+    // This is to avoid confusion where public functions used to call other public functions
+    // but that introudces confusion about where the mutex gets locked.
+    // Now the public interfaces lock the mutex once, and call these internal functions
+    // which have all the original code in them.
+    // Internal functions only call other internal fucntions, and that keeps things simple
+    // We would use a non-recursive mutex for more precise control, and to make sure we can unlock
+    // it when we need to make callbacks to the app.
+    // It's quite a verbose approach, but at least simple, easy to understand, and easy to get right.
+    void setTable_internal(DBTableNodes *table);
+    void reset_internal();
+    bool addNode_internal(Node* node, bool notify, bool isFetching, MissingParentNodes& missingParentNodes);
+    bool updateNode_internal(Node* node);
+    Node *getNodeByHandle_internal(NodeHandle handle);
+    node_list getChildren_internal(const Node *parent, CancelToken cancelToken = CancelToken());
+    node_vector getChildrenFromType_internal(const Node *parent, nodetype_t type, CancelToken cancelToken);
+    node_vector getRecentNodes_internal(unsigned maxcount, m_time_t since);
+    node_vector search_internal(NodeHandle ancestorHandle, const char* searchString, bool recursive, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelFlag);
+    node_vector getInSharesWithName_internal(const char *searchString, CancelToken cancelFlag);
+    node_vector getOutSharesWithName_internal(const char *searchString, CancelToken cancelFlag);
+    node_vector getPublicLinksWithName_internal(const char *searchString, CancelToken cancelFlag);
+    node_vector getNodesByFingerprint_internal(FileFingerprint& fingerprint);
+    node_vector getNodesByOrigFingerprint_internal(const std::string& fingerprint, Node *parent);
+    Node *getNodeByFingerprint_internal(FileFingerprint &fingerprint);
+    Node* childNodeByNameType_internal(const Node *parent, const std::string& name, nodetype_t nodeType);
+    node_vector getRootNodes_internal();
+    node_vector getNodesWithInShares_internal(); // both, top-level and nested ones
+    node_vector getNodesByMimeType_internal(MimeType_t mimeType, NodeHandle ancestorHandle, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelFlag);
+    std::vector<NodeHandle> getFavouritesNodeHandles_internal(NodeHandle node, uint32_t count);
+    size_t getNumberOfChildrenFromNode_internal(NodeHandle parentHandle);
+    size_t getNumberOfChildrenByType_internal(NodeHandle parentHandle, nodetype_t nodeType);
+    bool isAncestor_internal(NodeHandle nodehandle, NodeHandle ancestor, CancelToken cancelFlag);
+    void removeChanges_internal();
+    void cleanNodes_internal();
+    Node* getNodeFromBlob_internal(const string* nodeSerialized);
+    void applyKeys_internal(uint32_t appliedKeys);
+    void notifyNode_internal(Node* node, node_vector* nodesToReport);
+    bool loadNodes_internal();
+    uint64_t getNodeCount_internal();
+    NodeCounter getCounterOfRootNodes_internal();
+    void updateCounter_internal(Node &n, Node *oldParent);
+    bool setrootnode_internal(Node* node);
+    FingerprintPosition insertFingerprint_internal(Node* node);
+    void removeFingerprint_internal(Node* node);
+    void saveNodeInDb_internal(Node *node);
+    void dumpNodes_internal();
+    void addChild_internal(NodeHandle parent, NodeHandle child, Node *node);
+    void removeChild_internal(Node *parent, NodeHandle child);
+    void setRootNodeFiles_internal(NodeHandle h);
+    void setRootNodeVault_internal(NodeHandle h);
+    void setRootNodeRubbish_internal(NodeHandle h);
+    void initCompleted_internal();
 };
 
 } // namespace

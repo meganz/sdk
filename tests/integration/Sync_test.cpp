@@ -985,9 +985,9 @@ void StandardClient::nodes_updated(Node** nodes, int numNodes)
         {
             out() << clientname << "nodes_updated: received " << numNodes << " including " << nodes[0]->displaypath() << " " << nodes[1]->displaypath();
         }
-        else 
+        else
         {
-            out() << clientname << "nodes_updated: received " << numNodes << " including " << nodes[0]->displaypath();        
+            out() << clientname << "nodes_updated: received " << numNodes << " including " << nodes[0]->displaypath();
         }
     }
     received_node_actionpackets = true;
@@ -3482,6 +3482,20 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
         }
     }, __FILE__, __LINE__);
 
+    // delete everything from //bin
+    p1 = thread_do<bool>([=, &requestcount](StandardClient& sc, PromiseBoolSP pb) {
+
+        if (auto bin = sc.client.nodeByHandle(sc.client.mNodeManager.getRootNodeRubbish()))
+        {
+            for (auto n : sc.client.mNodeManager.getChildren(bin))
+            {
+                LOG_debug << "Unlinking from bin: " << n->displaypath();
+                ++requestcount;
+                sc.client.unlink(n, false, 0, false, [&requestcount](NodeHandle, Error){ --requestcount; });
+            }
+        }
+    }, __FILE__, __LINE__);
+
     int limit = 100;
     while (requestcount.load() > 0 && --limit)
     {
@@ -3492,6 +3506,21 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
     client.setmaxdownloadspeed(0);
     client.setmaxuploadspeed(0);
 
+    // Make sure any event handlers are released.
+    // TODO: May require synchronization?
+    mOnConflictsDetected = nullptr;
+    mOnFileAdded = nullptr;
+    mOnFileComplete = nullptr;
+    mOnStall = nullptr;
+    mOnSyncStateConfig = nullptr;
+    mOnTransferAdded = nullptr;
+    onTransferCompleted = nullptr;
+
+#ifdef DEBUG
+    mOnMoveBegin = nullptr;
+    mOnPutnodesBegin = nullptr;
+    mOnSyncDebugNotification = nullptr;
+#endif // DEBUG
 
 
     LOG_debug << clientname << "cleaning transfers for client reuse";

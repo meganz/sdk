@@ -269,7 +269,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     void faspec(string*);
 
     NodeCounter getCounter() const;
-    void setCounter(const NodeCounter &counter, bool notify);
+    void setCounter(const NodeCounter &counter);  // to only be called by mNodeManger::setNodeCounter
 
     // parent
     // nullptr if is root node or top node of an inshare
@@ -371,7 +371,9 @@ private:
     // keeps track of counts of files, folder, versions, storage and version's storage
     NodeCounter mCounter;
 
+public:
     bool getExtension(std::string& ext) const;
+private:
     bool isPhoto(const std::string& ext, bool checkPreview) const;
     bool isVideo(const std::string& ext) const;
     bool isAudio(const std::string& ext) const;
