@@ -20316,9 +20316,8 @@ size_t MegaClient::decryptAllSets(map<handle, Set>& newSets, map<handle, element
         error e = decryptSetData(itS->second);
         if (e != API_OK)
         {
-            assert(false); // failed to decrypt Set attributes
-
             // skip this Set and its Elements
+            // allow execution to continue, including the test for this scenario
             newElements.erase(itS->first);
             itS = newSets.erase(itS);
             continue;

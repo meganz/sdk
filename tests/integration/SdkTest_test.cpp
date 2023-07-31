@@ -11799,6 +11799,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     // U1: Get public Set URL
     // U1: Fetch Public Set and start Public Set preview mode
     // U1: Stop Public Set preview mode
+    // U2: Attempt to fetch public Set using wrong key
     // U2: Fetch public Set and start preview mode
     // U2: Download foreign Set Element in preview set mode
     // U2: Stop Public Set preview mode
@@ -12040,6 +12041,12 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     megaApi[userIdx]->stopPublicSetPreview();
     ASSERT_FALSE(megaApi[userIdx]->inPublicSetPreview());
     ASSERT_NO_FATAL_FAILURE(lFetchCurrentSetInPreviewMode(userIdx, false));
+
+
+    LOG_debug << "# U2: Attempt to fetch public Set using wrong key";
+    string exportedSetURL_wrongKey = exportedSetURL;
+    exportedSetURL_wrongKey.replace(exportedSetURL_wrongKey.find('#'), string::npos, "#aaaaaaaaaaaaaaaaaaaaaa");
+    ASSERT_EQ(doFetchPublicSet(1, nullptr, nullptr, exportedSetURL_wrongKey.c_str()), API_EKEY);
 
 
     LOG_debug << "# U2: Fetch public Set and start preview mode";

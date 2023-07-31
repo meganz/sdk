@@ -20981,7 +20981,8 @@ class MegaApi
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_ENOENT - Set could not be found.
-         * - MegaError::API_EINTERNAL - Received answer could not be read or decrypted.
+         * - MegaError::API_EINTERNAL - Received answer could not be read.
+         * - MegaError::API_EKEY - Received answer could not be decrypted.
          * - MegaError::API_EARGS - Malformed (from API).
          * - MegaError::API_EACCESS - Permissions Error (from API).
          *

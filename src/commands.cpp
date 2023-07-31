@@ -9613,11 +9613,20 @@ bool CommandFetchSet::procresult(Result r, JSON& json)
 
     if (mCompletion)
     {
-        Set* s = sets.empty() ? new Set() : (new Set(std::move(sets.begin()->second)));
-        elementsmap_t* els = elements.empty()
-                             ? new elementsmap_t()
-                             : new elementsmap_t(std::move(elements.begin()->second));
-        mCompletion(API_OK, s, els);
+        if (sets.empty())
+        {
+            LOG_err << "Sets: Failed to decrypt data from \"aft\" response";
+            mCompletion(API_EKEY, nullptr, nullptr);
+        }
+
+        else
+        {
+            Set* s = new Set(std::move(sets.begin()->second));
+            elementsmap_t* els = elements.empty()
+                                 ? new elementsmap_t()
+                                 : new elementsmap_t(std::move(elements.begin()->second));
+            mCompletion(API_OK, s, els);
+        }
     }
 
     return true;
