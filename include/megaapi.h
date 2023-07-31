@@ -19911,7 +19911,7 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getNodeHandle - Returns the public hanle
+         * - MegaRequest::getNodeHandle - Returns the public handle
          * - MegaRequest::getLink - Returns the URL to connect to chatd for the chat link
          * - MegaRequest::getParentHandle - Returns the chat identifier
          * - MegaRequest::getAccess - Returns the shard
@@ -19919,7 +19919,9 @@ class MegaApi
          * - MegaRequest::getNumDetails - Returns the current number of participants
          * - MegaRequest::getNumber - Returns the creation timestamp
          * - MegaRequest::getFlag - Returns if chatRoom is a meeting Room
+         * - MegaRequest::getParamType - Returns 1 if chatRoom has waiting room option enabled
          * - MegaRequest::getMegaHandleList - Returns a vector with one element (callid), if call doesn't exit it will be NULL
+         * - MegaRequest::getMegaScheduledMeetingList - Returns a MegaScheduledMeetingList (with a list of scheduled meetings associated to the chatroom) or nullptr if none.
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_ENOENT - If the public handle is not valid or the chatroom does not exists.
