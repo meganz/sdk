@@ -21143,6 +21143,13 @@ public:
     virtual const char* deviceId() const { return nullptr; }
 
     /**
+     * @brief Returns the user-agent associated with the device where the backup originated.
+     *
+     * @return User-agent associated with the device where the backup originated.
+     */
+    virtual const char* deviceUserAgent() const { return nullptr; }
+
+    /**
      * @brief Possible sync state of a backup.
      */
     enum // 1:1 with CommandBackupPut::SPState enum values
@@ -21397,6 +21404,15 @@ public:
      * @return Handle of the session
      */
     virtual MegaHandle getHandle() const;
+
+    /**
+     * @brief Get the Device-id of the device where the session originated
+     *
+     * You take the ownership of the returned value
+     *
+     * @return Device-id of the device where the session originated
+     */
+    virtual char *getDeviceId() const;
 };
 
 /**
