@@ -6683,7 +6683,7 @@ bool MegaClient::sc_upgrade()
         switch (jsonsc.getnameid())
         {
             case MAKENAMEID2('i', 't'):
-                itemclass = int(jsonsc.getint()); // itemclass. For now, it's always 0.
+                itemclass = int(jsonsc.getint()); // itemclass
                 break;
 
             case 'p':
@@ -6699,7 +6699,7 @@ bool MegaClient::sc_upgrade()
                 break;
 
             case EOO:
-                if (itemclass == 0 && statecurrent)
+                if ((itemclass == 0 || itemclass == 1) && statecurrent)
                 {
                     useralerts.add(new UserAlert::Payment(success, proNumber, m_time(), useralerts.nextId()));
                 }
