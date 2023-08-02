@@ -22017,10 +22017,10 @@ bool KeyManager::addShareKey(handle sharehandle, std::string shareKey, bool shar
         assert(false);
     }
 
-    ShareKeyFlags bitField(0);
-    bitField[ShareKeyFlagsId::TRUSTED] = sharedSecurely && isSecure();
+    ShareKeyFlags flags;
+    flags[ShareKeyFlagsId::TRUSTED] = sharedSecurely && isSecure();
 
-    mShareKeys[sharehandle] = pair<string, ShareKeyFlags>(shareKey, bitField);
+    mShareKeys[sharehandle] = pair<string, ShareKeyFlags>(shareKey, flags);
     return true;
 }
 
@@ -22712,26 +22712,26 @@ bool KeyManager::deserializeShareKeys(KeyManager& km, const string &blob)
     // clean old data, so we don't left outdated sharekeys in place
     km.mShareKeys.clear();
 
-    // [nodeHandle.6 shareKey.16 trust.1]*
+    // [nodeHandle.6 shareKey.16 flags.1]*
     CacheableReader r(blob);
 
     while(r.hasdataleft())
     {
         handle h = UNDEF;
         byte shareKey[SymmCipher::KEYLENGTH];
-        byte byteData = 0;
+        byte flagsBuf = 0;
 
         if (!r.unserializenodehandle(h)
                 || !r.unserializebinary(shareKey, sizeof(shareKey))
-                || !r.unserializebyte(byteData))
+                || !r.unserializebyte(flagsBuf))
         {
             LOG_err << "Share keys is corrupt";
             return false;
         }
 
         string shareKeyStr((const char*)shareKey, sizeof(shareKey));
-        ShareKeyFlags bitField(byteData);
-        km.mShareKeys[h] = pair<string, ShareKeyFlags>(shareKeyStr, bitField);
+        ShareKeyFlags flags(flagsBuf);
+        km.mShareKeys[h] = pair<string, ShareKeyFlags>(shareKeyStr, flags);
     }
 
     return true;
@@ -22752,8 +22752,8 @@ string KeyManager::serializeShareKeys() const
         byte *shareKey = (byte*)it.second.first.data();
         w.serializebinary(shareKey, shareKeyLen);
 
-        byte byteData = static_cast<byte>(it.second.second.to_ulong());
-        w.serializebyte(byteData);
+        byte flagsBuf = static_cast<byte>(it.second.second.to_ulong());
+        w.serializebyte(flagsBuf);
     }
 
     return result;
