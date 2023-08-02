@@ -23085,7 +23085,7 @@ void KeyManager::updateShareKeys(map<handle, pair<string, ShareKeyFlags>>& share
                     LOG_warn << "[keymgr] Trust for " << toNodeHandle(h) << " share key has changed ("
                              << itOld->second.second[ShareKeyFlagsId::TRUSTED] << " -> " << itNew.second.second[ShareKeyFlagsId::TRUSTED] << "). Updating...";
                 }
-                else if (itNew.second.second[ShareKeyFlagsId::INUSE] != itOld->second.second[ShareKeyFlagsId::INUSE]
+                else if (itNew.second.second[ShareKeyFlagsId::INUSE] != itOld->second.second[ShareKeyFlagsId::INUSE])
                 {
                     LOG_debug << "[keymgr] In-use flag for " << toNodeHandle(h) << " share key has changed ("
                              << itOld->second.second[ShareKeyFlagsId::INUSE] << " -> " << itNew.second.second[ShareKeyFlagsId::INUSE] << "). Updating...";
