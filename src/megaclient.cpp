@@ -11890,7 +11890,7 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
                         mKeyManager.setSharekeyInUse(nodehandle, false);
                     });
                 }
-                else
+                else if (mKeyManager.isShareKeyTrusted(nodehandle))
                 {
                     LOG_warn << "in-use flag was already disabled for the sharekey in KeyManager when removing the last share. nh: " << toNodeHandle(nodehandle);
                 }
