@@ -12004,6 +12004,9 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
                     else if (newshare) // trusted, bit set but was not shared.
                     {
                         LOG_err << "in-use flag for the sharekey in KeyManager is already set but the node was not being shared before. nh: " << toNodeHandle(nodehandle);
+                        string msg = "in-use flag already set for a node with no previous active share";
+                        sendevent(99479, msg.c_str());
+                        assert(!newshare && msg.c_str());
                     }
                 }
             }
