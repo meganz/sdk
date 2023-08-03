@@ -1088,7 +1088,7 @@ void UserAlert::Payment::text(string& header, string& title, MegaClient* mc)
     ostringstream s;
     if (success)
     {
-        s << "Your payment for the " << getProPlanName() << " plan was received. "; // 7142
+        s << "Your payment for the " << getProPlanName() << " plan was received."; // 7142
     }
     else
     {
