@@ -22261,15 +22261,6 @@ bool KeyManager::isUnverifiedInShare(handle nodeHandle, handle userHandle)
     return false;
 }
 
-void KeyManager::cacheShareKeys()
-{
-    for (const auto& it : mShareKeys)
-    {
-        const string& k = it.second.first;
-        mClient.mNewKeyRepository[NodeHandle().set6byte(it.first)] = { k.begin(), k.end() };
-    }
-}
-
 void KeyManager::loadShareKeys()
 {
     for (const auto& it : mShareKeys)
