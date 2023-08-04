@@ -9740,6 +9740,9 @@ TEST_F(SdkTest, SyncOQTransitions)
     ASSERT_EQ(nodeList->size(), 1);
     MegaNode* inshareNode = nodeList->get(0);
 
+    // Wait for the outshare to be added to the sharer's node by the action packets
+    ASSERT_TRUE(WaitFor([this, &remoteFillNode]() { return unique_ptr<MegaNode>(megaApi[0]->getNodeByHandle(remoteFillNode->getHandle()))->isOutShare(); }, 60*1000));
+
     // Make sure that search functionality finds them
     unique_ptr<MegaNodeList> outShares(megaApi[0]->searchOnOutShares(fillPath.u8string().c_str(), nullptr));
     ASSERT_TRUE(outShares);
