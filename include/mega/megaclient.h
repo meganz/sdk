@@ -318,6 +318,12 @@ public:
     // returns a formatted string, for logging purposes
     string toString() const;
 
+    // Returns true if the warnings related to shares with non-verified contacts are enabled.
+    bool getContactVerificationWarning();
+
+    // Enable/disable the warnings for shares with non-verified contacts.
+    void setContactVerificationWarning(bool enabled);
+
     // this method allows to change the feature-flag for testing purposes
     void setSecureFlag(bool enabled) { mSecure = enabled; }
 
@@ -833,6 +839,9 @@ public:
 
     // Migrate the account to start using the new ^!keys attr.
     void upgradeSecurity(std::function<void(Error)> completion);
+
+    // Set the flag to enable/disable warnings when sharing with a non-verified contact.
+    void setContactVerificationWarning(bool enabled, std::function<void(Error)> completion = nullptr);
 
     // Creates a new share key for the node if there is no share key already created.
     void openShareDialog(Node* n, std::function<void (Error)> completion);

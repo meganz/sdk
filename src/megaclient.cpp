@@ -11790,6 +11790,25 @@ void MegaClient::upgradeSecurity(std::function<void(Error)> completion)
     });
 }
 
+void MegaClient::setContactVerificationWarning(bool enabled, std::function<void(Error)> completion)
+{
+    if (mKeyManager.getContactVerificationWarning() == enabled)
+    {
+        if (completion) completion(API_OK);
+        return;
+    }
+
+    mKeyManager.commit(
+        [this, enabled]()
+        {
+            mKeyManager.setContactVerificationWarning(enabled);
+        },
+        [completion]()
+        {
+            if (completion) completion(API_OK);
+        });
+}
+
 // Creates a new share key for the node if there is no share key already created.
 void MegaClient::openShareDialog(Node* n, std::function<void(Error)> completion)
 {
@@ -22294,6 +22313,31 @@ string KeyManager::toString() const
     return buf.str();
 }
 
+bool KeyManager::getContactVerificationWarning()
+{
+    auto it = mWarnings.find("cv");
+
+    if (it != mWarnings.end() && mWarnings["cv"].size())
+    {
+        char* endp;
+        long int res;
+        errno = 0;
+        res = strtol(mWarnings["cv"].c_str(), &endp, 10);
+        if (*endp != '\0' || endp == mWarnings["cv"].c_str() || errno == ERANGE)
+        {
+            LOG_err << "cv field in warnings is malformed";
+            return false;
+        }
+        return res;
+    }
+    return false;
+}
+
+void KeyManager::setContactVerificationWarning(bool enabled)
+{
+    mWarnings["cv"] = std::to_string(enabled);
+}
+
 string KeyManager::shareKeysToString(const KeyManager& km)
 {
     ostringstream buf;
@@ -22356,11 +22400,9 @@ string KeyManager::warningsToString(const KeyManager& km)
     ostringstream buf;
     buf << "Warnings:\n";
 
-    unsigned count = 0;
     for (const auto &it : km.mWarnings)
     {
-        ++count;
-        buf << "\t#" << count << "\ttag: " << it.first << " val: " << Base64::btoa(it.second) << "\n";
+        buf << "\ttag: \"" << it.first << "\" \tval: \"" << it.second << "\"\n";
     }
 
     return buf.str();
