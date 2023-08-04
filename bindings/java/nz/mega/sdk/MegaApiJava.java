@@ -637,6 +637,37 @@ public class MegaApiJava {
     }
 
     /**
+     * Get the value of an A/B Test flag
+     * <p>
+     * Any value greater than 0 means he flag is active.
+     *
+     * @param flag Name or key of the value to be retrieved.
+     *
+     * @return A long with the value of the flag.
+     */
+    public long getABTestValue(String flag) {
+        return megaApi.getABTestValue(flag);
+    }
+
+    /**
+     * Sends to the API an A/B Test flag activation.
+     * <p>
+     * Informs the API that a user has become relevant for an A/B Test flag.
+     * Can be called multiple times for the same account and flag.
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_AB_TEST_ACTIVE
+     * <p>
+     * Valid data in the MegaRequest object received on all callbacks:
+     * - MegaRequest::getText - Returns the flag passed as parameter
+     *
+     * @param flag Name or key of the value to be retrieved.
+     * @param listener MegaRequestListener to track this request
+     */
+    public void sendABTestActive(String flag, MegaRequestListenerInterface listener) {
+        megaApi.sendABTestActive(flag, createDelegateRequestListener(listener));
+    }
+
+    /**
      * Check if multi-factor authentication can be enabled for the current account.
      * <p>
      * This function will NOT return a valid value until the callback onEvent with
@@ -6016,24 +6047,32 @@ public class MegaApiJava {
      * - MegaRequest::getName - Returns device name.
      *
      * @param listener MegaRequestListener to track this request
+     * @deprecated This version of the function is deprecated. Please use the non-deprecated one below.
      */
+    @Deprecated
     public void getDeviceName(MegaRequestListenerInterface listener) {
         megaApi.getDeviceName(createDelegateRequestListener(listener));
     }
 
     /**
-     * Returns the name set for this device
+     * Returns the name previously set for a device
      * <p>
      * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
      * Valid data in the MegaRequest object received on callbacks:
      * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DEVICE_NAMES
+     * - MegaRequest::getText - Returns passed device id (or the value returned by getDeviceId()
+     * if deviceId was initially passed as null).
      * <p>
      * Valid data in the MegaRequest object received in onRequestFinish when the error code
      * is MegaError::API_OK:
      * - MegaRequest::getName - Returns device name.
+     *
+     * @param deviceId The id of the device to get the name for. If null, the value returned
+     * by getDeviceId() will be used instead.
+     * @param listener MegaRequestListener to track this request
      */
-    public void getDeviceName() {
-        megaApi.getDeviceName();
+    public void getDeviceName(String deviceId, MegaRequestListenerInterface listener) {
+        megaApi.getDeviceName(deviceId, createDelegateRequestListener(listener));
     }
 
     /**
@@ -6046,23 +6085,30 @@ public class MegaApiJava {
      *
      * @param deviceName String with device name
      * @param listener   MegaRequestListener to track this request
+     * @deprecated This version of the function is deprecated. Please use the non-deprecated one below.
      */
+    @Deprecated
     public void setDeviceName(String deviceName, MegaRequestListenerInterface listener) {
         megaApi.setDeviceName(deviceName, createDelegateRequestListener(listener));
     }
 
     /**
-     * Sets device name
+     * Sets name for specified device
      * <p>
      * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
      * Valid data in the MegaRequest object received on callbacks:
      * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DEVICE_NAMES
      * - MegaRequest::getName - Returns device name.
+     * - MegaRequest::getText - Returns passed device id (or the value returned by getDeviceId()
+     * if deviceId was initially passed as null).
      *
+     * @param deviceId The id of the device to set the name for. If null, the value returned
+     * by getDeviceId() will be used instead.
      * @param deviceName String with device name
+     * @param listener MegaRequestListener to track this request
      */
-    public void setDeviceName(String deviceName) {
-        megaApi.setDeviceName(deviceName);
+    public void setDeviceName(String deviceId, String deviceName, MegaRequestListenerInterface listener) {
+        megaApi.setDeviceName(deviceId, deviceName, createDelegateRequestListener(listener));
     }
 
     /**
@@ -6330,7 +6376,7 @@ public class MegaApiJava {
      * @param listener MegaRequestListener to track this request
      */
     public void logout(MegaRequestListenerInterface listener) {
-        megaApi.logout(createDelegateRequestListener(listener));
+        megaApi.logout(false, createDelegateRequestListener(listener));
     }
 
     /**
@@ -6351,7 +6397,7 @@ public class MegaApiJava {
      * triggered the automatic logout (MegaError::API_EBLOCKED for the example).
      */
     public void logout() {
-        megaApi.logout();
+        megaApi.logout(false, null);
     }
 
     /**

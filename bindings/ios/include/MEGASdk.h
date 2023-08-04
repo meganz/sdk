@@ -9962,6 +9962,14 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
 - (void)sendBackupHeartbeat:(MEGAHandle)backupId status:(BackupHeartbeatStatus)status progress:(NSInteger)progress pendingUploadCount:(NSUInteger)pendingUploadCount lastActionDate:(nullable NSDate *)lastActionDate lastBackupNode:(nullable MEGANode *)lastBackupNode delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
+ * @brief Returns the device id stored as a Node attribute.
+ * It will be an empty string for other nodes than device folders related to backups.
+ *
+ * @return The device id associated with the Node of a Backup folder.
+ */
+- (nullable NSString *)deviceId;
+
+/**
  * @brief Returns the name set for this device
  *
  * The associated request type with this request is MEGARequestTypeGetAttrUser

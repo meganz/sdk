@@ -8,8 +8,9 @@ pipeline {
     
 
     environment {
-        BUILD_OPTIONS = ' '
-        APIURL_TO_TEST = ' '
+        BUILD_OPTIONS = ''
+        TESTS_PARALLEL = ''
+        APIURL_TO_TEST = ''
     }
 
     stages {
@@ -19,19 +20,15 @@ pipeline {
                 updateGitlabCommitStatus(name: 'Build & test macOS', state: 'running')
             }
         }
-        stage('Get build parameters'){
+        stage('Get parameters'){
             parallel{
-                stage('Get build options'){
-                    when {
-                        allOf {
-                            expression { env.gitlabTriggerPhrase != null }
-                            expression { env.gitlabTriggerPhrase.contains('BUILD_OPTIONS') }
-                        }
-                    }
+                stage('Get build and run paramters'){
                     steps {
                         script{
-                            BUILD_OPTIONS = sh(script: 'echo "$gitlabTriggerPhrase" | grep BUILD_OPTIONS | awk -F "BUILD_OPTIONS="  \'{print \$2}\' | cut -d"\"" -f2', returnStdout: true).trim()
+                            BUILD_OPTIONS = sh(script: 'echo "$gitlabTriggerPhrase" | grep BUILD_OPTIONS | awk -F "BUILD_OPTIONS="  \'{print \$2}\' | cut -d"\\"" -f2 || :', returnStdout: true).trim()
+                            TESTS_PARALLEL = sh(script: 'echo "$gitlabTriggerPhrase" | grep "\\-\\-parallel" >/dev/null 2>&1 && echo "--INSTANCES:10" || :', returnStdout: true).trim()
                             println BUILD_OPTIONS
+                            println TESTS_PARALLEL
                         }
                     }
                     post{
@@ -95,8 +92,8 @@ pipeline {
             }
             environment{
                 PATH = "/usr/local/bin:${env.PATH}"
-                VCPKGPATH = "/Users/macstudio3/jenkins/3rdparty"
-                BUILD_DIR = "contrib/cmake/build_dir"                        
+                VCPKGPATH = "${env.HOME}/jenkins/3rdparty"
+                BUILD_DIR = "contrib/cmake/build_dir"
             }
             steps{
                 dir(mac_sources_workspace){
@@ -120,10 +117,10 @@ pipeline {
                     sh "cp ${BUILD_DIR}/megasimplesync ./examples-${BUILD_ID}"
                     sh "install_name_tool -add_rpath @executable_path/.libs ./examples-${BUILD_ID}/megacli"
                     sh "install_name_tool -add_rpath @executable_path/.libs ./examples-${BUILD_ID}/megasimplesync"
-                    sh "mkdir ./examples-${BUILD_ID}/.libs; cp -RP ${mac_sources_workspace}/../../3rdparty/vcpkg/installed/x64-osx-mega/debug/lib/*.dylib ./examples-${BUILD_ID}/.libs || :"
-                    sh "cp -RP ${mac_sources_workspace}/../../3rdparty/vcpkg/installed/x64-osx-mega/debug/lib/*.dylib ./examples-${BUILD_ID}/.libs || :"
+                    sh "mkdir ./examples-${BUILD_ID}/.libs; cp -RP ${VCPKGPATH}/vcpkg/installed/arm64-osx-mega/debug/lib/*.dylib ./examples-${BUILD_ID}/.libs || :"
+                    sh "cp -RP ${VCPKGPATH}/vcpkg/installed/arm64-osx-mega/debug/lib/*.dylib ./examples-${BUILD_ID}/.libs || :"
                     sh "tar czf examples-${BUILD_ID}.tar.gz ./examples-${BUILD_ID} || :"
-                }    
+                }
             }
         }
         stage('Run macOS tests'){
@@ -131,7 +128,6 @@ pipeline {
                 timeout(time: 250, unit: 'MINUTES')
             }
             environment { 
-                MEGA_LINK_EXTRACT_SCRIPT = "${mac_sources_workspace}/tests/python/email_processor.py"
                 MEGA_PWD = credentials('MEGA_PWD_DEFAULT')
                 MEGA_PWD_AUX = credentials('MEGA_PWD_DEFAULT')
                 MEGA_PWD_AUX2 = credentials('MEGA_PWD_DEFAULT')
@@ -139,35 +135,57 @@ pipeline {
                 BUILD_DIR = "contrib/cmake/build_dir"  
                 }
             steps{
-                lock(label: 'SDK_Test_Accounts', variable: 'ACCOUNTS_COMBINATION', quantity: 1, resource: null){
+                lock(label: 'SDK_Concurrent_Test_Accounts', variable: 'ACCOUNTS_COMBINATION', quantity: 1, resource: null){
                     dir(mac_sources_workspace){
                         script{
-                            def accounts_array = "${env.ACCOUNTS_COMBINATION}".split(',')
-                            env.MEGA_EMAIL = accounts_array[0]
-                            env.MEGA_EMAIL_AUX = accounts_array[1]
-                            env.MEGA_EMAIL_AUX2 = accounts_array[2]
+                            env.MEGA_EMAIL = "${env.ACCOUNTS_COMBINATION}"
                             echo "${env.ACCOUNTS_COMBINATION}"
                         }
                         sh "echo Running tests"
-                        sh """
+                        sh """#!/bin/zsh
+                        set -x
                         cd ${env.BUILD_DIR}
                         ./test_unit &
                         pid=\$!
                         wait \$pid || FAILED=1
+
                         if [ -z \"\$FAILED\" ]; then
-                            ./test_integration --CI --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} &
-                            pid=\$!
-                            wait \$pid || FAILED=2
-                        fi
-                        if [ -n \"\$FAILED\" ]; then
-                            sleep 10
-                            [ \"\$FAILED\" == \"1\" ] && last_core=`grep \"test_unit.*\$pid\" -rn /users/macstudio3/Library/Logs/DiagnosticReports | cut -d':' -f1`
-                            [ \"\$FAILED\" == \"2\" ] && last_core=`grep \"test_integration.*\$pid\" -rn /users/macstudio3/Library/Logs/DiagnosticReports | cut -d':' -f1`
-                            if [ -n \"\$last_core\" ]; then
-                                cat \"\$last_core\"
-                                rm \"\$last_core\"
+                            if [ -z \"${TESTS_PARALLEL}\" ]; then
+                                # Sequential run
+                                ./test_integration --CI --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} &
+                                pid=\$!
+                                wait \$pid || FAILED=2
+                            else
+                                # Parallel run
+                                ./test_integration --CI --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${TESTS_PARALLEL} 2>&1 | tee tests.stdout
+                                [ \"\${pipestatus[1]}\" != \"0\" ] && FAILED=2
                             fi
                         fi
+
+                        if [ -n \"\$FAILED\" ]; then
+                            if [ \"\$FAILED\" -eq 1 ]; then
+                                procFailed=\$pid
+                            else # FAILED=2
+                                if [ -z \"${TESTS_PARALLEL}\" ]; then
+                                    # Sequential run
+                                    procFailed=\$pid
+                                else
+                                    # Parallel run
+                                    procFailed=`grep \"<< PROCESS\" tests.stdout | sed 's/.*PID:\\([0-9]*\\).*/\\1/' | tr '\\n' ' '`
+                                fi
+                            fi
+                            if [ -n \"\$procFailed\" ]; then
+                                sleep 10
+                                for i in `echo \$procFailed`; do
+                                    last_core=`grep \"test_.*\$i\" -rn \$HOME/Library/Logs/DiagnosticReports | cut -d':' -f1`
+                                    if [ -n \"\$last_core\" ]; then
+                                        cat \"\$last_core\"
+                                        rm \"\$last_core\"
+                                    fi
+                                done
+                            fi
+                        fi
+
                         gzip -c test_integration.log > test_integration_${BUILD_ID}.log.gz || :
                         rm test_integration.log || :
                         if [ -n \"\$FAILED\" ]; then

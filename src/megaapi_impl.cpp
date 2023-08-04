@@ -6341,9 +6341,16 @@ bool MegaApiImpl::newLinkFormatEnabled()
 unsigned int MegaApiImpl::getABTestValue(const char* flag)
 {
     if (!flag) return 0;
+
     SdkMutexGuard g(sdkMutex);
     auto it = client->mABTestFlags.find(flag);
-    return (it != client->mABTestFlags.end() ? it->second : 0 );
+    if (it != client->mABTestFlags.end())
+    {
+        sendABTestActive(flag, nullptr);
+        return it->second;
+    }
+
+    return 0;
 }
 
 void MegaApiImpl::sendABTestActive(const char* flag, MegaRequestListener* listener)
@@ -7380,10 +7387,12 @@ const char* MegaApiImpl::getDeviceId() const
     return MegaApi::strdup(client->getDeviceidHash().c_str());
 }
 
-void MegaApiImpl::getDeviceName(MegaRequestListener *listener)
+void MegaApiImpl::getDeviceName(const char* deviceId, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
     request->setParamType(MegaApi::USER_ATTR_DEVICE_NAMES);
+    string id = deviceId ? deviceId : client->getDeviceidHash();
+    request->setText(id.c_str());
 
     request->performRequest = [this, request]()
     {
@@ -7394,13 +7403,15 @@ void MegaApiImpl::getDeviceName(MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::setDeviceName(const char *deviceName, MegaRequestListener *listener)
+void MegaApiImpl::setDeviceName(const char *deviceId, const char *deviceName, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
     MegaStringMapPrivate stringMap;
+    string id = deviceId ? deviceId : client->getDeviceidHash();
     string buf = deviceName ? deviceName : "";
-    stringMap.set(client->getDeviceidHash().c_str(), Base64::btoa(buf).c_str());
+    stringMap.set(id.c_str(), Base64::btoa(buf).c_str());
     request->setMegaStringMap(&stringMap);
+    request->setText(id.c_str());
     request->setName(deviceName);
     request->setParamType(MegaApi::USER_ATTR_DEVICE_NAMES);
 
@@ -15234,6 +15245,7 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
             }
             case MegaApi::USER_ATTR_DEVICE_NAMES:
             {
+                bool errorForNameNotFound = true;
                 const char* buf = nullptr;
 
                 if (request->getFlag()) // external drive
@@ -15244,15 +15256,22 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                 }
                 else
                 {
-                    buf = stringMap->get(client->getDeviceidHash().c_str());
+                    // getDeviceName() will set MegaRequestPrivate::text to the id of the requested device;
+                    // getUserAttr(USER_ATTR_DEVICE_NAMES) will not set that field, so use the id of the current device
+                    buf = stringMap->get(request->getText() ? request->getText() : client->getDeviceidHash().c_str());
+                    errorForNameNotFound = request->getText() && client->getDeviceidHash() != request->getText();
                 }
 
-                if (!buf)
+                // Searching for an external drive that is not there should end with error;
+                // specifying a device that is not there should end with error;
+                // but requesting the name of current device even if not set yet should still succeed (and
+                // along with it return the device list which is the purpose of getting USER_ATTR_DEVICE_NAMES attribute).
+                if (!buf && errorForNameNotFound)
                 {
                     e = API_ENOENT;
                     break;
                 }
-                request->setName(Base64::atob(buf).c_str());
+                request->setName(Base64::atob(buf ? buf : "").c_str());
                 break;
             }
 
