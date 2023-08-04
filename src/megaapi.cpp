@@ -2505,6 +2505,11 @@ void MegaApi::upgradeSecurity(MegaRequestListener* listener)
     pImpl->upgradeSecurity(listener);
 }
 
+bool MegaApi::contactVerificationWarningEnabled()
+{
+    return pImpl->contactVerificationWarningEnabled();
+}
+
 void MegaApi::setSecureFlag(bool enable)
 {
     pImpl->setSecureFlag(enable);
