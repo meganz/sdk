@@ -901,7 +901,7 @@ void DemoApp::chatlinkclose_result(error e)
     }
 }
 
-void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *ct, int, m_time_t ts, bool meetingRoom, handle callid, error e)
+void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *ct, int, m_time_t ts, bool meetingRoom, const bool waitingRoom, const std::vector<std::unique_ptr<ScheduledMeeting>>* smList, handle callid, error e)
 {
     if (e)
     {
@@ -915,6 +915,10 @@ void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *
         cout << "URL for chat-link: " << url->c_str() << endl;
         cout << "Encrypted chat-topic: " << ct->c_str() << endl;
         cout << "Creation timestamp: " << ts << endl;
+        cout << "Callid: " << Base64Str<MegaClient::CHATHANDLE>(callid) << endl;
+        cout << "Meeting room: " << meetingRoom << endl;
+        cout << "Waiting room: " << waitingRoom << endl;
+        cout << "Scheduled meeting: " << smList << endl;
     }
 }
 
