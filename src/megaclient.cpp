@@ -22246,6 +22246,16 @@ bool KeyManager::isUnverifiedOutShare(handle nodeHandle, const string& uid)
     return false;
 }
 
+void KeyManager::cacheShareKeys()
+{
+    for (const auto& it : mShareKeys)
+    {
+        const string& k = it.second.first;
+        mClient.mNewKeyRepository[NodeHandle().set6byte(it.first)] = { k.begin(), k.end() };
+    }
+}
+
+
 bool KeyManager::isUnverifiedInShare(handle nodeHandle, handle userHandle)
 {
     auto it = mPendingInShares.find(toNodeHandle(nodeHandle));
