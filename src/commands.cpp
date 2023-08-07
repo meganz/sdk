@@ -6118,11 +6118,6 @@ bool CommandFetchNodes::procresult(Result r, JSON& json)
         switch (json.getnameid())
         {
             case 'f':
-                if (client->mKeyManager.isSecure() && client->mKeyManager.generation()) // Remove when unsecure account won't be supported
-                {
-                        client->mKeyManager.cacheShareKeys();
-                }
-
                 // nodes
                 if (!client->readnodes(&json, 0, PUTNODES_APP, nullptr, false, true))
                 {
@@ -6134,11 +6129,6 @@ bool CommandFetchNodes::procresult(Result r, JSON& json)
                 break;
 
             case MAKENAMEID2('f', '2'):
-                if (client->mKeyManager.isSecure() && client->mKeyManager.generation()) // Remove when unsecure account won't be supported
-                {
-                    client->mKeyManager.cacheShareKeys();
-                }
-
                 // old versions
                 if (!client->readnodes(&json, 0, PUTNODES_APP, nullptr, false, true))
                 {
