@@ -41,6 +41,7 @@ struct MEGA_API AccountSession
     int current;
     handle id;
     int alive;
+    string deviceid;
 };
 
 struct MEGA_API AccountPurchase

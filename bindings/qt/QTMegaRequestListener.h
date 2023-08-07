@@ -58,8 +58,8 @@ public:
         void onRequestUpdate(MegaApi*, MegaRequest*) override {}
         void onRequestTemporaryError(MegaApi*, MegaRequest*, MegaError*) override {}
 
-        void onRequestFinish(MegaApi*, MegaRequest* request, MegaError* e) override {
-            onFinishedFunction(*request,*e);
+        void onRequestFinish(MegaApi*, MegaRequest *request, MegaError* e) override {
+            onFinishedFunction(*request, *e);
             delete oneShotOwner;
         }
     };

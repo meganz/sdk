@@ -60,6 +60,7 @@ struct fsfp_t
     uint64_t id = 0;
     fsfp_t() {}
     fsfp_t(uint64_t i) : id(i) {}
+    operator bool() { return id != 0; }
 };
 
 // within ::mega namespace, byte is unsigned char (avoids ambiguity when std::byte from c++17 and perhaps other defined ::byte are available)
