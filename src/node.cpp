@@ -211,10 +211,10 @@ uint64_t Node::getDBFlags(uint64_t oldFlags, bool isInRubbish, bool isVersion, b
     return flags.to_ulong();
 }
 
-bool Node::getExtension(std::string& ext) const
+bool Node::getExtension(std::string& ext, const string& nodeName)
 {
     ext.clear();
-    const char* name = displayname();
+    const char* name = nodeName.c_str();
     const size_t size = strlen(name);
 
     const char* ptr = name + size;
@@ -290,46 +290,21 @@ static const std::set<nameid> photoRawExtensions = {MAKENAMEID3('3','f','r'), MA
 
 static const std::set<nameid> photoImageDefExtension = {MAKENAMEID3('j','p','g'), MAKENAMEID4('j','p','e','g'), MAKENAMEID3('g','i','f'), MAKENAMEID3('b','m','p'), MAKENAMEID3('p','n','g')};
 
-bool Node::isPhoto(const std::string& ext, bool checkPreview) const
+bool Node::isPhoto(const std::string& ext)
 {
     nameid extNameid = getExtensionNameId(ext);
     // evaluate according to the webclient rules, so that we get exactly the same bucketing.
     return photoImageDefExtension.find(extNameid) != photoImageDefExtension.end() ||
         photoRawExtensions.find(extNameid) != photoRawExtensions.end() ||
-        (photoExtensions.find(extNameid) != photoExtensions.end()
-            && (!checkPreview || hasfileattribute(GfxProc::PREVIEW)));
+        photoExtensions.find(extNameid) != photoExtensions.end();
 }
 
-bool Node::isVideo(const std::string& ext) const
+bool Node::isVideo(const std::string& ext)
 {
-    if (hasfileattribute(fa_media) && nodekey().size() == FILENODEKEYLENGTH)
-    {
-#ifdef USE_MEDIAINFO
-        if (client->mediaFileInfo.mediaCodecsReceived)
-        {
-            MediaProperties mp = MediaProperties::decodeMediaPropertiesAttributes(fileattrstring, (uint32_t*)(nodekey().data() + FILENODEKEYLENGTH / 2));
-            unsigned videocodec = mp.videocodecid;
-            if (!videocodec && mp.shortformat)
-            {
-                auto& v = client->mediaFileInfo.mediaCodecs.shortformats;
-                if (mp.shortformat < v.size())
-                {
-                    videocodec = v[mp.shortformat].videocodecid;
-                }
-            }
-            // approximation: the webclient has a lot of logic to determine if a particular codec is playable in that browser.  We'll just base our decision on the presence of a video codec.
-            if (!videocodec)
-            {
-                return false; // otherwise double-check by extension
-            }
-        }
-#endif
-    }
-
     return videoExtensions.find(getExtensionNameId(ext)) != videoExtensions.end();
 }
 
-bool Node::isAudio(const std::string& ext) const
+bool Node::isAudio(const std::string& ext)
 {
     nameid extNameid = getExtensionNameId(ext);
     if (extNameid != 0)
@@ -341,32 +316,32 @@ bool Node::isAudio(const std::string& ext) const
     return longAudioExtension.find(ext) != longAudioExtension.end();
 }
 
-bool Node::isDocument(const std::string& ext) const
+bool Node::isDocument(const std::string& ext)
 {
     return documentExtensions.find(getExtensionNameId(ext)) != documentExtensions.end();
 }
 
-bool Node::isPdf(const std::string& ext) const
+bool Node::isPdf(const std::string& ext)
 {
     return pdfExtensions.find(getExtensionNameId(ext)) != pdfExtensions.end();
 }
 
-bool Node::isPresentation(const std::string& ext) const
+bool Node::isPresentation(const std::string& ext)
 {
     return presentationExtensions.find(getExtensionNameId(ext)) != presentationExtensions.end();
 }
 
-bool Node::isArchive(const std::string& ext) const
+bool Node::isArchive(const std::string& ext)
 {
     return archiveExtensions.find(getExtensionNameId(ext)) != archiveExtensions.end();
 }
 
-bool Node::isProgram(const std::string& ext) const
+bool Node::isProgram(const std::string& ext)
 {
     return programExtensions.find(getExtensionNameId(ext)) != programExtensions.end();
 }
 
-bool Node::isMiscellaneous(const std::string& ext) const
+bool Node::isMiscellaneous(const std::string& ext)
 {
     return miscExtensions.find(getExtensionNameId(ext)) != miscExtensions.end();
 }
@@ -1266,12 +1241,12 @@ MimeType_t Node::getMimeType(bool checkPreview) const
     }
 
     std::string extension;
-    if (!getExtension(extension))
+    if (!getExtension(extension, displayname()))
     {
         return MimeType_t::MIME_TYPE_UNKNOWN;
     }
 
-    if (isPhoto(extension, checkPreview))
+    if (isPhoto(extension))
     {
         return MimeType_t::MIME_TYPE_PHOTO;
     }

@@ -115,6 +115,8 @@ public:
             const UChar32 uEsc         /* The escape character */
           );
 
+    static void userIsMimetype(sqlite3_context* context, int argc, sqlite3_value** argv);
+
 private:
     // Iterate over a SQL query row by row and fill the map
     // Allow at least the following containers:
