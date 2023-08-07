@@ -413,7 +413,7 @@ private:
     // prepares the header for a new serialized record of type 'tag' and 'len' bytes
     string tagHeader(const byte tag, size_t len) const;
 
-    // Serialize pairs of tags and values as Length+Name+Lengh+Value.
+    // Serialize pairs of tags and values as Length+Tag+Lengh+Value.
     // warnings and pending inshares are encoded like that when serialized.
     static bool deserializeFromLTLV(const string& blob, map<string, string>& data);
     static string serializeToLTLV(const map<string, string>& data);

@@ -22967,7 +22967,8 @@ bool KeyManager::deserializePendingInshares(KeyManager& km, const string &blob)
         return false;
     }
 
-    for ( const auto& it : decodedBlob ) {
+    for ( const auto& it : decodedBlob )
+    {
 
         if (it.second.size() < sizeof(handle)) // it may have only the user handle (no share key yet)
         {
