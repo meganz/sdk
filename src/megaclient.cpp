@@ -22964,6 +22964,7 @@ bool KeyManager::deserializePendingInshares(KeyManager& km, const string &blob)
     if (!deserializeFromLTLV(blob, decodedBlob))
     {
         LOG_err << "Pending inshare is corrupt";
+        return false;
     }
 
     for ( const auto& it : decodedBlob ) {
