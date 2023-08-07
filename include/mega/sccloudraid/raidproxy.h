@@ -7,8 +7,6 @@
 #include <mutex>
 #include <atomic>
 #include <chrono>
-//#include "raidstub.h"
-//#include "mega/base64.h"
 #include "mega/raid.h"
 #include "mega.h"
 
@@ -18,27 +16,17 @@ namespace mega::SCCR {
 #define RAIDPARTS 6
 #define RAIDSECTOR 16
 #define RAIDLINE ((RAIDPARTS-1)*RAIDSECTOR)
-
-//#define NUMLINES 2048
-//#define NUMLINES 4096
-//#define NUMLINES 32768
-#define NUMLINES 65536
-//#define NUMLINES 131072
-//#define NUMLINES 262144
-//#define NUMLINES 524288
-
+#define NUMLINES 16384 //32768
 #define MAXRETRIES 10
-
 #define READAHEAD ((off_t)NUMLINES*RAIDSECTOR)
 
-// number of senddata() requests until the next interval check is conducted
+// number of readdata() requests until the next interval check is conducted
 #define LAGINTERVAL 256
 
 typedef uint128_t raidsector_t;
 using HttpReqType = HttpReqDL;
 using HttpReqPtr = std::shared_ptr<HttpReqType>;
 using HttpInputBuf = mega::HttpReq::http_buf_t;
-//using raidTime = mega::dstime;
 
 #pragma pack(push,1)
 struct RaidPart
@@ -93,14 +81,11 @@ public:
     int trigger(raidTime = 0, bool = false);
     bool directTrigger(bool = true);
     void closesocket(bool = false);
-    void swapSocket(int otherPart);
-    int getFastestInactiveSocket();
     int io();
     void cont(int);
     bool feedreadahead();
     void resume(bool = false);
     int onFailure();
-    bool reqPreparedCanPost();
     off_t getSocketSpeed();
     off_t getSocketSpeedInKBs();
 
@@ -126,7 +111,7 @@ class RaidReq
     socket_deque pendingio;
     void handlependingio();
     void dispatchio(const HttpReqPtr&);
-    int notifyeventfd = -1;
+    void shiftdata(off_t);
 
     alignas(RAIDSECTOR) byte data[NUMLINES*RAIDLINE];       // always starts on a RAID line boundary
     alignas(RAIDSECTOR) byte parity[NUMLINES*RAIDSECTOR];   // parity sectors
@@ -141,44 +126,24 @@ class RaidReq
     bool haddata;                       // flag indicating whether any data was forwarded to user on this RaidReq
     bool reported;
     bool missingsource;                 // disable all-channel logic
-    std::atomic<int> numPostInflight;
     m_off_t reqStartPos;
     m_off_t maxRequestSize;
-
-    void shiftdata(off_t);
-
-    // for error reporting in raidrepair
-    byte err_type = NOERR;
-    short err_server = 0;
-    int err_errno = 0;
 
     bool allconnected(int = RAIDPARTS);
     int numPartsUnfinished();
 
 public:
-    static constexpr int MAX_POST_INFLIGHT = 5;
-    static constexpr int MIN_UNFINISHED_PARTS = 6;
-    static constexpr int MAX_UNFINISHED_PARTS = 1;
-
     std::chrono::time_point<std::chrono::system_clock> downloadStartTime;
     size_t filesize;
-    enum errortype { NOERR, READERR, WRITEERR, CONNECTERR }; // largest is the one reported
 
     void procdata(int, byte*, off_t, int);
-
     off_t readdata(byte*, off_t);
-    off_t senddata(byte*, off_t);
 
     void resumeall(int = RAIDPARTS);
-
     void procreadahead();
     void watchdog();
-    bool isSocketConnected(size_t);
     void disconnect();
-    void processFeedLag();
-    int processFeedLag2();
-
-    string getfaildescription();
+    int processFeedLag();
 
     struct Params
     {
@@ -192,7 +157,7 @@ public:
             : tempUrls(tempUrls), filesize(cfilesize), reqStartPos(creqStartPos), reqlen(creqlen), maxRequestSize(cmaxRequestSize), skippart(cskippart) {}
     };
 
-    RaidReq(const Params&, RaidReqPool&, const std::shared_ptr<CloudRaid>&, int notifyfd);
+    RaidReq(const Params&, RaidReqPool&, const std::shared_ptr<CloudRaid>&);
     ~RaidReq();
 
     static size_t raidPartSize(int part, size_t fullfilesize);
@@ -226,22 +191,17 @@ class RaidReqPool
     void raidproxyiothread();
     static void raidproxyiothreadstart(RaidReqPool* rrp);
 
-    static int64_t constexpr maxThreadSleepingTimeUs = 100;
     map<RaidReq*, unique_ptr<RaidReq>> rrs;
-
     typedef set<pair<raidTime, HttpReqPtr>> timesocket_set;
-    typedef set<HttpReqPtr> directsocket_set;
     typedef deque<HttpReqPtr> directsocket_queue;
     timesocket_set scheduledio;
-    directsocket_set directio_set;
-    directsocket_queue directio;
-    //directsocket_set directio;
+    set<HttpReqPtr> directio_set;
 
 
 public:
     RaidReqPool(RaidReqPoolArray& ar);
     ~RaidReqPool();
-    RaidReq* request(const RaidReq::Params& p, const std::shared_ptr<CloudRaid>&, int notifyfd);
+    RaidReq* request(const RaidReq::Params& p, const std::shared_ptr<CloudRaid>&);
     void removerequest(RaidReq* rr);
     int rrcount();
     bool addScheduledio(raidTime, const HttpReqPtr&);
@@ -282,7 +242,7 @@ public:
     void start(unsigned n);
 
     // ask the least busy pool to process a new raid request
-    Token balancedRequest(const RaidReq::Params&, const std::shared_ptr<CloudRaid>&, int notifyfd);
+    Token balancedRequest(const RaidReq::Params&, const std::shared_ptr<CloudRaid>&);
 
     // when the RaidReq has succeeded or failed, clean up with this
     void remove(Token& t);

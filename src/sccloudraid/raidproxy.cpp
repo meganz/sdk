@@ -8,34 +8,10 @@ std::atomic<mega::SCCR::raidTime> currtime;
 
 using namespace mega::SCCR;
 
-// DONE: add connection re-use between RaidReqs
-// DONE: allow multiple CloudRAID threads with RaidReq-level mutexes
-// FIXME: read local files directly
-// FIXME: use predictive HTTP GET request pipelining to avoid RTTs
-// DONE: use all connections
-// FIXME: switch back to five connections when beneficial (less reconnection overhead)
-
-#define MAXEPOLLEVENTS 1024
 #define MAX_DELAY_IN_SECONDS 30
 
 bool PartFetcher::updateGlobalBytesReceived;
 std::atomic<uint64_t> PartFetcher::globalBytesReceived;
-
-static std::atomic<int> current_readahead, highest_readahead;
-static std::atomic<int> connest, connerr, readerr;
-static std::atomic<int> bytesreceived;
-
-void proxylog()
-{
-    static raidTime lasttime;
-    syslog(LOG_INFO, "RAIDPROXY ra=%d conn=%d connerr=%d readerr=%d bytes/s=%d", (int)highest_readahead, (int)connest, (int)connerr, (int)readerr, (int)bytesreceived/(currtime-lasttime+1));
-    highest_readahead = 0;
-    connest = 0;
-    connerr = 0;
-    readerr = 0;
-    lasttime = currtime;
-    bytesreceived = 0;
-}
 
 PartFetcher::PartFetcher()
 {
@@ -78,7 +54,6 @@ PartFetcher::~PartFetcher()
         {
             free(readahead.begin()->second.first);
             readahead.erase(readahead.begin());
-current_readahead--;
         }
     }
     if (part == 0) std::cout << "[PartFetcher::~PartFetcher] GLOBAL AVERAGE SPEED = " << (globalTimeInflight ? (((globalReqBytesReceived / globalTimeInflight) * 1000) / 1024) : 0) << " KB/s [totalBytesReceived = " << globalReqBytesReceived << ", totalTimeInflight = " << globalTimeInflight << "]" << std::endl;
@@ -330,10 +305,6 @@ void PartFetcher::closesocket(bool reuseSocket)
             {
                 rr->cloudRaid->disconnect(s);
             }
-            if (s->status == REQ_INFLIGHT)
-            {
-                rr->numPostInflight--;
-            }
             rr->pool.socketrrs.del(s);
             s->status = REQ_READY;
         }
@@ -348,50 +319,6 @@ void PartFetcher::closesocket(bool reuseSocket)
             rr->pool.socketrrs.del(rr->sockets[part]);
         }
     }
-}
-
-void PartFetcher::swapSocket(int otherPart)
-{
-    std::cout << "[PartFetcher::swapSocket] part = " << std::to_string(part) << ", swap to = " << otherPart << std::endl;
-    assert(otherPart >= 0 && otherPart < RAIDPARTS);
-    std::swap(rr->sockets[part], rr->sockets[otherPart]);
-    std::swap(reqBytesReceived, rr->fetcher[otherPart].reqBytesReceived);
-    std::swap(timeInflight, rr->fetcher[otherPart].timeInflight);
-}
-
-int PartFetcher::getFastestInactiveSocket()
-{
-    std::cout << "[PartFetcher::getFastestInactiveSocket]" << std::endl;
-    if (timeInflight > 0) // if reqBytesReceived == 0 (thus timeInFlight would be 0), we cannot compare yet
-    {
-        int fastest = RAIDPARTS;
-        int inactive = RAIDPARTS;
-        int64_t fastestSpeed = getSocketSpeed(); // This part is the fastest one... for now
-        for (int i = RAIDPARTS; i--;)
-        {
-            if (i != part && !rr->fetcher[i].connected && !rr->fetcher[i].errors && !rr->fetcher[i].finished)
-            {
-                if (!rr->fetcher[i].timeInflight) // Unused connection, let's try that one first
-                {
-                    inactive = i;
-                }
-                else
-                {
-                    std::cout << "[PartFetcher::getFastestInactiveSocket] part = " << std::to_string(part) << " Looking for faster source: " << i << ". rr->fetcher[i].finished = " << rr->fetcher[i].finished << ", rr->fetcher[i].reqBytesReceived = " << rr->fetcher[i].reqBytesReceived << ", rr->fetcher[i].timeInFlight = " << rr->fetcher[i].timeInflight << std::endl;
-                    int64_t iPartSpeed = rr->fetcher[i].getSocketSpeed();
-                    if (iPartSpeed > fastestSpeed)
-                    {
-                        fastest = i;
-                        fastestSpeed = iPartSpeed;
-                    }
-                }
-            }
-        }
-        if (fastest != RAIDPARTS) std::cout << "[PartFetcher::getFastestInactiveSocket] part = " << std::to_string(part) << " Faster source found: " << fastest << ". [this_speed = " << getSocketSpeedInKBs() << " KB/s, fastest = " << fastestSpeed << " KB/s] [s->status = " << rr->sockets[part]->status << "] [prepareRequest]" << std::endl;
-        else if (inactive != RAIDPARTS) std::cout << "[PartFetcher::getFastestInactiveSocket] part = " << std::to_string(part) << " No faster source found, but there is an inactive source = " << inactive << ", Returning it. [this_speed = " << getSocketSpeedInKBs() << " KB/s] [s->status = " << rr->sockets[part]->status << "] [prepareRequest]" << std::endl;
-        return fastest != RAIDPARTS ? fastest : inactive;
-    }
-    return RAIDPARTS;
 }
 
 // (re)create, set up socket and start (optionally delayed) io on it
@@ -447,11 +374,6 @@ bool PartFetcher::directTrigger(bool addDirectio)
     auto s = rr->sockets[part];
 
     assert(s != nullptr);
-    if (!s)
-    {
-        LOGF("E 10800 Can't get CloudRAID socket (%d)", errno);
-        exit(0);
-    }
     assert(!connected || (rr->pool.socketrrs.lookup(s) == nullptr));
     if (!connected)
     {
@@ -501,8 +423,7 @@ std::cout << "[PartFetcher::io] part = " << std::to_string(part) << ", s="<<s<<"
     }
     // unless the fetch position/length for the connection has been computed
     // before, we do so *after* the connection so that the order in which
-    // the connections are established are the first criterion for slow source
-    // heuristics
+    // the connections are established are the first criterion for slow source heuristics
     else if (!rem && s->status != REQ_SUCCESS)
     {
         std::cout << "[PartFetcher::io] part = " << std::to_string(part) << ", (!rem) -> setposrem() && s->status = " << s->status << " [pos="<<pos<<", rem="<<rem<<", remfeed="<<remfeed<<", sourcesize="<<sourcesize<<"]" << std::endl;
@@ -525,7 +446,7 @@ std::cout << "[PartFetcher::io] part = " << std::to_string(part) << ", s="<<s<<"
         {
             if (true) //(reqBytesReceived)
             {
-                if (rr->processFeedLag2() == (int)part)
+                if (rr->processFeedLag() == (int)part)
                 {
                     std::cout << "[PartFetcher::io] part = " << std::to_string(part) << " ALERT: this part has been detected as lagged. return -1" << std::endl;
                     return -1;
@@ -535,25 +456,22 @@ std::cout << "[PartFetcher::io] part = " << std::to_string(part) << ", s="<<s<<"
         }
 
         if (inbuf)
+        {
             inbuf.reset(nullptr);
+        }
 
-        //size_t chunkSize = rem >= sourcesize ? (rem/2) : rem;
-        //size_t chunkSize = std::min<size_t>(50*1024*1024, rem);
-        size_t chunkSize = rem;
-        size_t npos = pos + chunkSize;
+        size_t npos = pos + rem;
         assert(npos <= rr->paddedpartsize);
         std::cout << "[PartFetcher::io] [part=" << std::to_string(part) << "] (REQ_READY) -> rr->cloudRaid->prepareRequest(s=" << s << ", url='"<</*<<url<<"*/"', pos=" << pos << ", npos=" << npos << ") size = " << (npos-pos) << " [sourcesize = " << sourcesize << ", rr->paddedpartsize = " << rr->paddedpartsize << ", reqBytesReceived = " << reqBytesReceived << "] [rem=" << rem << ", rr->completed=" << rr->completed << "] [partStartPos = " << partStartPos << ", maxRequestSize = " << rr->maxRequestSize << ", numPartsUnfinished = " << rr->numPartsUnfinished() << ", rr->pool.rrcount = " << rr->pool.rrcount() << "] [feedlag = " << rr->feedlag[part] << "]" << std::endl;
         rr->cloudRaid->prepareRequest(s, url, pos + partStartPos, npos + partStartPos);
         assert(s->status == REQ_PREPARED);
         connected = true;
-connest++;
     }
 
     if (connected)
     {
         if (s->status == REQ_PREPARED)
         {
-            rr->numPostInflight++;
             bool postDone = rr->cloudRaid->post(s);
             if (postDone)
             {
@@ -580,7 +498,6 @@ connest++;
                 inbuf.reset(s->release_buf());
                 s->buffer_released = true;
                 reqBytesReceived += inbuf->datalen();
-                rr->numPostInflight--;
                 postCompleted = true;
                 rr->feedlag[(int)part] += (inbuf->datalen() ? (((inbuf->datalen() / reqTime)*1000)/1024) : 0); // KB/s
                 std::cout << "[io] [part="<<std::to_string(part)<<"] s->status = REQ_SUCCESS -> reqTime = " << reqTime << " ms (req speed = " << (inbuf->datalen() ? (((inbuf->datalen() / reqTime)*1000)/1024) : 0) << " KB/s, req size = " << inbuf->datalen() << ") [prepareRequest]" << std::endl;
@@ -600,8 +517,6 @@ std::cout << "[io] [part="<<std::to_string(part)<<"] s->status = REQ_SUCCESS [re
                     errors++;
                     int save_errno = t ? errno : 0;
                     LOGF("E 10804 CloudRAID data read from %d failed (%d)", url, save_errno);
-                    readerr++;
-                    errors++;
 
                     // read error: try previously unused source
                     {
@@ -617,7 +532,6 @@ std::cout << "[io] [part="<<std::to_string(part)<<"] s->status = REQ_SUCCESS [re
                                     rr->fetcher[i].trigger();
                                     return -1;
                                 }
-
                                 break;
                             }
                         }
@@ -640,7 +554,6 @@ std::cout << "[io] [part="<<std::to_string(part)<<"] s->status = REQ_SUCCESS [re
                 else
                 {
                     if (updateGlobalBytesReceived) globalBytesReceived += t;  // atomically added
-    bytesreceived += t;
                     remfeed -= t;
                     rem -= t;
 
@@ -673,12 +586,11 @@ std::cout << "[io] [part="<<std::to_string(part)<<"] s->status = REQ_SUCCESS [re
 
             if (!rem)
             {
-                if (/*readahead.empty() &&*/ pos == rr->paddedpartsize)
+                if (pos == rr->paddedpartsize)
                 {
                     std::cout << "[io] [part="<<std::to_string(part)<<"] (!rem && pos == rr->paddedpartsize) -> closesocket() && finished = true && rr->resumeall() [rem = " << rem << ", remfeed = " << remfeed << ", inbuf->datalen = " << inbuf->datalen() << "] [readahead.size = " << readahead.size() << "] [rr->completed = " << rr->completed << "]" << std::endl;
                     closesocket();
                     finished = true;
-                    //rr->resumeall((int)part);
                     return -1;
                 }
             }
@@ -717,7 +629,6 @@ int PartFetcher::onFailure()
     auto& s = rr->sockets[part];
     assert(s != nullptr);
     std::cout << "[PartFetcher::onFailure] s->status = " << s->status << ", s->httpstatus = " << s->httpstatus << std::endl;
-    rr->numPostInflight--;
     if (s->status == REQ_FAILURE)
     {
         raidTime backoff = 0;
@@ -752,7 +663,6 @@ int PartFetcher::onFailure()
             LOGF("E 10802 CloudRAID connection to %d failed: http status (%d)", url, s->httpstatus);
             lastlog = currtime;
         }
-        connerr++;
         errors++;
 
         if (consecutive_errors > MAXRETRIES || s->status == REQ_READY)
@@ -767,7 +677,6 @@ int PartFetcher::onFailure()
                     rr->fetcher[i].trigger();
                 }
             }
-
             return -1;
         }
         else
@@ -808,22 +717,18 @@ void PartFetcher::cont(int numbytes)
         std::cout << "PartFetcher::cont(numbytes="<<numbytes<<") (pos < rr->paddedpartsize) -> Ojo PREV -> changing remfeed. PREV remfeed = " << remfeed << std::endl;
         setremfeed(static_cast<unsigned>(numbytes));
         std::cout << "PartFetcher::cont(numbytes="<<numbytes<<") (pos < rr->paddedpartsize) -> Ojo -> changing remfeed. New remfeed = " << remfeed << std::endl;
-
-        auto& s = rr->sockets[part];
-assert(s != nullptr);
         trigger();
     }
 }
 
-#include <random>
+//#include <random>
 
-RaidReq::RaidReq(const Params& p, RaidReqPool& rrp, const std::shared_ptr<CloudRaid>& cloudRaid, int notifyfd)
+RaidReq::RaidReq(const Params& p, RaidReqPool& rrp, const std::shared_ptr<CloudRaid>& cloudRaid)
     : pool(rrp)
     , cloudRaid(cloudRaid)
-    , notifyeventfd(notifyfd)
 {
     assert(p.tempUrls.size() > 0);
-    assert((p.reqStartPos >= 0) /*&& (p.reqlen >= 0)*/ && (p.reqlen <= p.filesize));
+    assert((p.reqStartPos >= 0) && (p.reqlen <= p.filesize));
     sockets.resize(p.tempUrls.size());
     for(auto& s : sockets)
     {
@@ -855,20 +760,9 @@ RaidReq::RaidReq(const Params& p, RaidReqPool& rrp, const std::shared_ptr<CloudR
 
     downloadStartTime = std::chrono::system_clock::now();
 
-    int firstExcluded = 5;
+    int firstExcluded = 5; // Todo: get the unused source from raid.cpp
     std::vector<int> partOrder = { 5, 4, 3, 2, 1, 0 };
 
-    unsigned seed = (std::chrono::system_clock::now().time_since_epoch().count() + (unsigned)reqStartPos);
-    std::knuth_b shuffleOrderEngine(seed);
-    std::shuffle(std::begin(partOrder), std::end(partOrder), shuffleOrderEngine);
-    std::cout << "PartOrder: {";
-    for (int i : partOrder)
-    {
-        std::cout << " " << i;
-    }
-    std::cout << " } [prepareRequest]" << std::endl;
-
-    //for (int i = RAIDPARTS; i--; )
     for (int i : partOrder)
     {
         if (!p.tempUrls[i].empty())
@@ -886,15 +780,14 @@ RaidReq::RaidReq(const Params& p, RaidReqPool& rrp, const std::shared_ptr<CloudR
             missingsource = true;
         }
     }
-
-    numPostInflight = 0;
 }
 
 RaidReq::~RaidReq()
 {
     {
-        std::cout << "[~RaidReq] rrp_lock -> let other operations end [this = " << this << "]" << std::endl;
+        std::cout << "[~RaidReq] rrp_lock -> let other operations end (BEGIN PRE rrp_lock) [this = " << this << "]" << std::endl;
         lock_guard<recursive_mutex> g(pool.rrp_lock); // Let other operations end
+        std::cout << "[~RaidReq] rrp_lock -> let other operations end (END POST rrp_lock) [this = " << this << "]" << std::endl;
     }
     const auto& downloadEndTime = std::chrono::system_clock::now();
     auto downloadTime = std::chrono::duration_cast<std::chrono::milliseconds>(downloadEndTime - downloadStartTime).count();
@@ -904,8 +797,7 @@ RaidReq::~RaidReq()
 int RaidReq::numPartsUnfinished()
 {
    int count = 0;
-   int i = RAIDPARTS;
-   while (i --> 0)
+   for (int i = RAIDPARTS; i--;)
    {
         if (!fetcher[i].finished)
         {
@@ -919,7 +811,7 @@ int RaidReq::numPartsUnfinished()
 void PartFetcher::resume(bool forceSetPosRem)
 {
     bool skipPartsPending = false;
-    std::cout << "[PartFetcher::resume] part = " << std::to_string(part) << " [forceSetPosRem = " << forceSetPosRem << "] [rem = " << rem << ", remfeed = " << remfeed << "] [connected = " << connected << ", s->status = " << rr->sockets[part]->status << ", rr->numPostInflight = " << rr->numPostInflight << ", finished = " << finished << "] [pos = " << pos << ", rr->paddedpartsize = " << rr->paddedpartsize << "]" << std::endl;
+    std::cout << "[PartFetcher::resume] part = " << std::to_string(part) << " [forceSetPosRem = " << forceSetPosRem << "] [rem = " << rem << ", remfeed = " << remfeed << "] [connected = " << connected << ", s->status = " << rr->sockets[part]->status << ", finished = " << finished << "] [pos = " << pos << ", rr->paddedpartsize = " << rr->paddedpartsize << "]" << std::endl;
     bool resumeCondition = finished ? false : true;
 
     std::cout << "[PartFetcher::resume] part = " << std::to_string(part) << " resumeCondition = " << resumeCondition << "" << std::endl;
@@ -974,7 +866,7 @@ bool PartFetcher::feedreadahead()
     int total = readahead.size();
     int remaining = total;
 
-    std::cout << "[PartFetcher::feedreadahead] -> total = " << total << ", remaining = " << remaining << " [part = " << std::to_string(part) << "]" << std::endl;
+    //std::cout << "[PartFetcher::feedreadahead] -> total = " << total << ", remaining = " << remaining << " [part = " << std::to_string(part) << "]" << std::endl;
     while (remaining)
     {
         auto it = readahead.begin();
@@ -999,9 +891,8 @@ bool PartFetcher::feedreadahead()
         byte* d = it->second.first;
         unsigned l = it->second.second;
         readahead.erase(it);
-current_readahead--;
 
-        std::cout << "[PartFetcher::feedreadahead] -> rr->procdata(part, d, p, l) [part = " << std::to_string(part) << ", d = " << (void*)d << ", p = " << p << ", l = " << l << "]" << std::endl;
+        //std::cout << "[PartFetcher::feedreadahead] -> rr->procdata(part, d, p, l) [part = " << std::to_string(part) << ", d = " << (void*)d << ", p = " << p << ", l = " << l << "]" << std::endl;
         rr->procdata(part, d, p, l);
         free(d);
 
@@ -1065,8 +956,6 @@ void RaidReq::procdata(int part, byte* ptr, off_t pos, int len)
             byte* p = itReadAhead != fetcher[part].readahead.end() ? static_cast<byte*>(std::realloc(itReadAhead->second.first, ahead_len)) : static_cast<byte*>(malloc(ahead_len));
             memcpy(p, ahead_ptr, ahead_len);
             fetcher[part].readahead[ahead_pos] = pair<byte*, unsigned>(p, ahead_len);
-// FIXME: race condition below
-if (++current_readahead > highest_readahead) highest_readahead = (int)current_readahead;
         }
         else std::cout << "[RaidReq::procdata]  ALERT ReadAhead pair already exist -> WON'T BE INSERTED -> ahead_pos = " << ahead_pos << ", ahead_len = " << ahead_len << std::endl;
         // if this is a pure readahead, we're done
@@ -1242,49 +1131,8 @@ void RaidReq::shiftdata(off_t len)
     std::cout << "Shiftdata end [len = " << len << "] [skip = " << skip << ", rem = " << rem << "]" << std::endl;
 }
 
-void RaidReq::processFeedLag()
-{
-    std::cout << "RaidReq::processFeedLag()" << std::endl;
-    if (++lagrounds > LAGINTERVAL)
-    {
-        // (dominance is defined as the ratio between fastest and slowest)
-        int highest = 0, lowest = 0;
 
-        for (int i = RAIDPARTS; --i;)
-        {
-            if (feedlag[i] > feedlag[highest])
-                highest = i;
-            else if (feedlag[i] < feedlag[lowest])
-                lowest = i;
-        }
-
-        if (!missingsource && !fetcher[highest].finished && !fetcher[highest].rem && feedlag[highest] > NUMLINES * RAIDSECTOR * LAGINTERVAL * 3 / 4 && feedlag[highest] > 16 * feedlag[lowest])
-        {
-            {
-                fetcher[highest].errors++;
-
-                // check if we have a fresh and idle channel left to try
-                int fresh;
-                for (fresh = RAIDPARTS; fresh--;)
-                    if (!fetcher[fresh].connected && fetcher[fresh].errors < 3)
-                        break;
-
-                if (fresh >= 0)
-                {
-                    std::cout << "Trying fresh channel " << fresh << "... [part = " << highest << ", s->status = " << sockets[highest]->status << "]" << std::endl;
-                    fetcher[highest].closesocket();
-                    fetcher[fresh].resume(true);
-                }
-            }
-        }
-
-        memset(feedlag, 0, sizeof feedlag);
-        lagrounds = 0;
-    }
-}
-
-
-int RaidReq::processFeedLag2()
+int RaidReq::processFeedLag()
 {
     std::cout << "RaidReq::processFeedLag() begin [lagrounds+1="<<(lagrounds+1)<<", numPartsUnfinished="<<numPartsUnfinished()<<"]" << std::endl;
     int laggedPart = RAIDPARTS;
@@ -1353,7 +1201,6 @@ int RaidReq::processFeedLag2()
 
 void RaidReq::dispatchio(const HttpReqPtr& s)
 {
-    //processFeedLag2();
     // fast lookup of which PartFetcher to call from a single cache line
     // we don't check for s not being found since we know sometimes it won't be when we closed a socket to a slower/nonresponding server
     for (int i = RAIDPARTS; i--; )
@@ -1387,7 +1234,7 @@ void RaidReq::handlependingio()
 // watchdog: resolve stuck connections
 void RaidReq::watchdog()
 {
-    std::cout << "Watchdog begin" << std::endl;
+    //std::cout << "Watchdog begin" << std::endl;
     if (missingsource) return;
 
     // check for a single fast source hanging
@@ -1408,7 +1255,7 @@ void RaidReq::watchdog()
             if (sockets[i]->status == REQ_INFLIGHT)
             {
                 fetcher[i].lastdata = sockets[i]->lastdata;
-                if (fetcher[i].remfeed && ((currtime - sockets[i]->lastdata > 50) /*|| (currtime - fetcher[i].lastdata > 200)*/))
+                if (fetcher[i].remfeed && ((currtime - sockets[i]->lastdata > 100) || (currtime - fetcher[i].lastdata > 200)))
                 {
                     hanging++;
                     hangingsource = i;
@@ -1427,10 +1274,9 @@ void RaidReq::watchdog()
         else if (!fetcher[i].finished && !fetcher[i].errors) idlegoodsource = i;
     }
 
-    std::cout << "Watchdog -> hanging = " << hanging << ", hangingsource = " << hangingsource << ", numconnected = " << numconnected << ", idlegoodsource = " << idlegoodsource << " [allconnected = " << allconnected() << "] [numReady = " << numReady << ", numPrepared = " << numPrepared << ", numInflight = " << numInflight << ", numSuccess = " << numSuccess << ", numFailure = " << numFailure << "] [numPartsUnfinished = " << numPartsUnfinished() << "] [this = " << this << "]" << std::endl;
-
     if (hanging)
     {
+        std::cout << "Watchdog -> hanging = " << hanging << ", hangingsource = " << hangingsource << ", numconnected = " << numconnected << ", idlegoodsource = " << idlegoodsource << " [allconnected = " << allconnected() << "] [numReady = " << numReady << ", numPrepared = " << numPrepared << ", numInflight = " << numInflight << ", numSuccess = " << numSuccess << ", numFailure = " << numFailure << "] [numPartsUnfinished = " << numPartsUnfinished() << "] [this = " << this << "]" << std::endl;
         {
             if (idlegoodsource >= 0)
             {
@@ -1448,59 +1294,34 @@ void RaidReq::watchdog()
             else std::cout << "Inactive connection potentially bad" << std::endl;
         }
     }
-    std::cout << "Watchdog end" << std::endl;
+    //std::cout << "Watchdog end" << std::endl;
 }
-
-std::string RaidReq::getfaildescription()
-{
-    char buf[300];
-    const char* msg;
-
-    switch (err_type)
-    {
-        case NOERR: msg = "NOERR on "; break;
-        case READERR: msg = "network read from "; break;
-        case WRITEERR: msg = "network write to "; break;
-        case CONNECTERR: msg = "connect to "; break;
-        default: msg = NULL;
-    }
-
-    sprintf(buf, "%s with errno %d %s", msg, err_errno, dataline ? " at start" : " partway");
-
-    return std::string(buf);
-}
-
-int readdatacount;
-off_t readdatatotal;
-long readdatalock;
-int numrrq;
-int epolls, epollevents;
 
 off_t RaidReq::readdata(byte* buf, off_t len)
 {
     std::cout << "readdata begin [len = " << len << "] [completed = " << completed << "] [this = " << this << "]" << std::endl;
-    off_t t;
 
     lock_guard<recursive_mutex> g(rr_lock);
-    std::cout << "readdata post lock guard [len = " << len << "] [this = " << this << "]" << std::endl;
+    //std::cout << "readdata post lock guard [len = " << len << "] [this = " << this << "]" << std::endl;
 
     watchdog();
 
     off_t lenCompleted = 0;
     int old_completed, new_completed;
+    off_t t;
     do
     {
-    std::cout << "readdata -> count readahead -> [completed = " << completed << "] [this = " << this << "]" << std::endl;
+    //std::cout << "readdata -> count readahead -> [completed = " << completed << "] [this = " << this << "]" << std::endl;
+    /*
     for (int i = RAIDPARTS; i--; )
     {
         std::cout << "fetcher["<<i<<"].readahead.size = " << fetcher[i].readahead.size() << ". Req status = " << (sockets[i] ? sockets[i]->status.load() : 999) << ". Errors: " << fetcher[i].errors << ". Connected: " << fetcher[i].connected << ". Fetcher: " << (void*)&fetcher[i] << ". Pos: " << fetcher[i].pos << ". Finished: " << fetcher[i].finished << " [this = " << this << "]" << std::endl;
     }
-    //do
-    //{
+    */
     if (completed < NUMLINES)
     {
         old_completed = completed;
-        std::cout << "readdata -> (completed < NUMLINES) -> call procreadahead() [this = " << this << "]" << std::endl;
+        //std::cout << "readdata -> (completed < NUMLINES) -> call procreadahead() [this = " << this << "]" << std::endl;
         procreadahead();
     }
     else
@@ -1508,16 +1329,17 @@ off_t RaidReq::readdata(byte* buf, off_t len)
         old_completed = 0;
     }
     new_completed = completed;
-    std::cout << "readdata -> old_completed = " << old_completed << ", new_completed = " << new_completed << ", NUMLINES = " << NUMLINES << " [this = " << this << "]" << std::endl;
-    //} while (completed < NUMLINES && completed > old_completed);
-    std::cout << "readdata -> count readahead 2 -> [completed = " << completed << "] [this = " << this << "]" << std::endl;
+    //std::cout << "readdata -> old_completed = " << old_completed << ", new_completed = " << new_completed << ", NUMLINES = " << NUMLINES << " [this = " << this << "]" << std::endl;
+    //std::cout << "readdata -> count readahead 2 -> [completed = " << completed << "] [this = " << this << "]" << std::endl;
+    /*
     for (int i = RAIDPARTS; i--; )
     {
         std::cout << "fetcher["<<i<<"].readahead.size = " << fetcher[i].readahead.size() << " [this = " << this << "]" << std::endl;
     }
+    */
     t = completed*RAIDLINE-skip;
 
-    std::cout << "readdata t = " << t << ", completed = " << completed << ", skip = " << skip << " [lenCompleted = " << lenCompleted << "] [len = " << len << "] [this = " << this << "]" << std::endl;
+    //std::cout << "readdata t = " << t << ", completed = " << completed << ", skip = " << skip << " [lenCompleted = " << lenCompleted << "] [len = " << len << "] [this = " << this << "]" << std::endl;
 
     if (t > 0)
     {
@@ -1531,8 +1353,10 @@ off_t RaidReq::readdata(byte* buf, off_t len)
     {
         if (currtime-lastdata > 1000)
         {
+            std::cout << "readdata (currtime-lastdata > 1000) -> stuck" << std::endl;
             if (currtime-lastdata > 6000)
             {
+                std::cout << "readdata (currtime-lastdata > 6000) -> timed out" << std::endl;
                 LOGF("E %d CloudRAID feed timed out", 10812+haddata);
                 if (!haddata) pstats.raidproxyerr++;
                 return -1;
@@ -1540,6 +1364,7 @@ off_t RaidReq::readdata(byte* buf, off_t len)
 
             if (!reported)
             {
+                std::cout << "readdata (currtime-lastdata > 1000) -> !reported -> feed stuck" << std::endl;
                 reported = true;
                 LOGF("E %d CloudRAID feed stuck", 10810+haddata);
                 if (!haddata) pstats.raidproxyerr++;
@@ -1558,49 +1383,6 @@ off_t RaidReq::readdata(byte* buf, off_t len)
     return lenCompleted;
 }
 
-off_t RaidReq::senddata(byte* outbuf, off_t len)
-{
-    off_t t;
-    int e;
-
-    lock_guard<recursive_mutex> g(rr_lock);
-
-    watchdog();
-    t = completed*RAIDLINE-skip;
-
-    if (t > 0)
-    {
-        if (t > len) t = len;
-
-        memcpy(outbuf, data+skip, t);
-        e = errno;
-
-        if (t > 0) shiftdata(t);
-    }
-    else
-    {
-        if (currtime-lastdata > 300 && !reported)
-        {
-            reported = true;
-            LOGF("E %d CloudRAID feed stuck", 10810+haddata);
-            if (!haddata) pstats.raidproxyerr++;
-        }
-
-        t = -1;
-        e = EAGAIN;
-    }
-
-    errno = e;
-    return t;
-}
-
-bool RaidReq::isSocketConnected(size_t pos)
-{
-    assert(pos < sockets.size());
-    const auto& s = sockets[pos];
-    return s != nullptr && s->httpio;
-}
-
 void RaidReq::disconnect()
 {
     for (int i = 0; i < sockets.size(); i++)
@@ -1611,7 +1393,6 @@ void RaidReq::disconnect()
 
 bool RaidReqPool::addScheduledio(raidTime scheduledFor, const HttpReqPtr& req)
 {
-    //if (scheduledFor == 0) return addDirectio(req);
 //std::cout << "addScheduledio. pre lock_guard<recursive_mutex> g(rrp_queuelock)" << std::endl;
     lock_guard<recursive_mutex> g(rrp_queuelock);
 //std::cout << "addScheduledio. post lock_guard<recursive_mutex> g(rrp_queuelock)" << std::endl;
@@ -1628,34 +1409,18 @@ bool RaidReqPool::addScheduledio(raidTime scheduledFor, const HttpReqPtr& req)
 bool RaidReqPool::addDirectio(const HttpReqPtr& req)
 {
     return addScheduledio(0, req);
-std::cout << "addDirectio. pre lock_guard<recursive_mutex> g(rrp_queuelock)" << std::endl;
-    lock_guard<recursive_mutex> g(rrp_queuelock);
-std::cout << "addDirectio. post lock_guard<recursive_mutex> g(rrp_queuelock)" << std::endl;
-    auto it = directio_set.insert(req);
-    if (it.second)
-    {
-        if (req->status != REQ_INFLIGHT)
-        {
-            directio.emplace_front(req);
-        }
-        else
-        {
-            directio.emplace_back(req);
-        }
-
-    }
-
-    return it.second;
 }
 
 void RaidReqPool::raidproxyiothread()
 {
+    /*
     std::array<unsigned long, 11> reqTypes{};
     const char * reqTypesStr[11] = {
         "READY", "PREPARED", "UPLOAD_PREPARED_BUT_WAIT", "ENCRYPTING", "DECRYPTING",
         "DECRYPTED", "INFLIGHT", "SUCCESS", "FAILURE", "DONE", "ASYNCIO"
     };
     std::map<HttpReqPtr, std::array<unsigned long, 11>> reqTypesMap;
+    */
     directsocket_queue events;
 
     const auto& raidThreadStartTime = std::chrono::system_clock::now();
@@ -1663,7 +1428,7 @@ void RaidReqPool::raidproxyiothread()
     {
         std::this_thread::sleep_for(std::chrono::microseconds(1));
 
-////std::cout << "io. 0-0. Pre. Scheduledio.size = " << scheduledio.size() << " << directio.size = " << directio.size() << ", events.size = " << events.size() << std::endl;
+////std::cout << "io. 0-0. Pre. Scheduledio.size = " << scheduledio.size() << ", events.size = " << events.size() << std::endl;
         if (!isRunning.load()) break;
 
         {
@@ -1675,8 +1440,8 @@ void RaidReqPool::raidproxyiothread()
             auto itScheduled = scheduledio.begin();
             while (itScheduled != scheduledio.end() && itScheduled->first <= currtime)
             {
-                reqTypes[itScheduled->second->status]++;
-                reqTypesMap[itScheduled->second][itScheduled->second->status]++;
+                //reqTypes[itScheduled->second->status]++;
+                //reqTypesMap[itScheduled->second][itScheduled->second->status]++;
                 if (itScheduled->second->status == REQ_INFLIGHT)
                 {
                     itScheduled++;
@@ -1738,15 +1503,16 @@ void RaidReqPool::raidproxyiothread()
             }
             while (!events.empty())
             {
-                //addScheduledio(0, events.front());
                 addDirectio(std::move((events.front())));
                 events.pop_front();
             }
         }
-//std::cout << "io. 0-2. Post 2. Scheduledio.size = " << scheduledio.size() << " << directio.size = " << directio.size() << ", events.size = " << events.size() << " [this = " << this << "]" << std::endl;
+//std::cout << "io. 0-2. Post 2. Scheduledio.size = " << scheduledio.size() << ", events.size = " << events.size() << " [this = " << this << "]" << std::endl;
     }
     const auto& raidThreadEndTime = std::chrono::system_clock::now();
     auto raidThreadTime = std::chrono::duration_cast<std::chrono::milliseconds>(raidThreadEndTime - raidThreadStartTime).count();
+    std::cout << "[RaidReqPool::raidproxyiothread] END -> raidThreadTime = " << raidThreadTime << " ms [this = " << this << "]" << std::endl;
+    /*
     std::cout << "[RaidReqPool::raidproxyiothread] END -> counting reqs [this = " << this << "]" << std::endl;
     unsigned long totalReqs = 0;
     for (size_t i = 0; i < 11; i++)
@@ -1797,6 +1563,7 @@ void RaidReqPool::raidproxyiothread()
     std::cout << raidThreadTime << " ms\n\n" << std::endl;
 
     std::cout << "IOTHREAD END" << std::endl;
+    */
 }
 
 void RaidReqPool::raidproxyiothreadstart(RaidReqPool* rrp)
@@ -1821,10 +1588,12 @@ RaidReqPool::~RaidReqPool()
     std::cout << "[RaidReqPool::~RaidReqPool] destructor -> end [this = " << this << "]" << std::endl;
 }
 
-RaidReq* RaidReqPool::request(const mega::SCCR::RaidReq::Params& p, const std::shared_ptr<CloudRaid>& cloudRaid, int notifyfd)
+RaidReq* RaidReqPool::request(const mega::SCCR::RaidReq::Params& p, const std::shared_ptr<CloudRaid>& cloudRaid)
 {
+    std::cout << "[RaidReqPool::request] PRE rrp_lock [this = " << this << "]" << std::endl;
     lock_guard<recursive_mutex> g(rrp_lock);
-    auto rr = new RaidReq(p, *this, cloudRaid, notifyfd);
+    std::cout << "[RaidReqPool::request] POST rrp_lock [this = " << this << "]" << std::endl;
+    auto rr = new RaidReq(p, *this, cloudRaid);
     rrs[rr].reset(rr);
     return rr;
 }
@@ -1833,14 +1602,19 @@ void RaidReqPool::removerequest(RaidReq* rr)
 {
     if (rr)
     {
+        std::cout << "[RaidReqPool::removerequest] BEGIN remove rr PRE rrp_lock [" << (void*)rr << "] [this = " << this << "]" << std::endl;
         lock_guard<recursive_mutex> g(rrp_lock);
+        std::cout << "[RaidReqPool::removerequest] remove rr POST rrp_lock - PRE ERASE [" << (void*)rr << "] [this = " << this << "]" << std::endl;
         rrs.erase(rr); // Invokes rr destructor (unique_ptr value)
+        std::cout << "[RaidReqPool::removerequest] END remove rr POST rrp_lock [" << (void*)rr << "] [this = " << this << "]" << std::endl;
     }
 }
 
 int RaidReqPool::rrcount()
 {
+    std::cout << "[RaidReqPool::rrcount] BEGIN PRE rrp_lock [this = " << this << "]" << std::endl;
     lock_guard<recursive_mutex> g(rrp_lock);
+    std::cout << "[RaidReqPool::rrcount] END POST rrp_lock [this = " << this << "]" << std::endl;
     return (int)rrs.size();
 }
 
@@ -1850,7 +1624,7 @@ void RaidReqPoolArray::start(unsigned poolcount)
     for (unsigned i = poolcount; i--; ) rrps.emplace_back(new RaidReqPool(*this));
 }
 
-RaidReqPoolArray::Token RaidReqPoolArray::balancedRequest(const RaidReq::Params& params, const std::shared_ptr<CloudRaid>& cloudRaid, int notifyfd)
+RaidReqPoolArray::Token RaidReqPoolArray::balancedRequest(const RaidReq::Params& params, const std::shared_ptr<CloudRaid>& cloudRaid)
 {
     std::cout << "[RaidReqPoolArray::balancedRequest] BEGIN" << std::endl;
     Token t;
@@ -1864,7 +1638,7 @@ RaidReqPoolArray::Token RaidReqPoolArray::balancedRequest(const RaidReq::Params&
         }
     }
 
-    t.rr = rrps[t.poolId]->request(params, cloudRaid, notifyfd);
+    t.rr = rrps[t.poolId]->request(params, cloudRaid);
     std::cout << "[RaidReqPoolArray::balancedRequest] end -> return t [t.poolId = " << t.poolId << ", t.rr = " << t.rr << "]" << std::endl;
     return t;
 }

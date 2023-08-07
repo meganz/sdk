@@ -960,18 +960,13 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
 
             if (isNewRaid())
             {
-                maxReqSize = TransferSlot::MAX_REQ_SIZE_NEW_RAID;
-                //maxReqSize = std::max(maxReqSize, static_cast<m_off_t>((11*1024*1024) * 5)); // 11MB * 5 raid parts
-                //m_off_t maxReqSize2 = static_cast<m_off_t>(transfer->size / transfer->slot->connections);
-                //maxReqSize = std::max(maxReqSize, maxReqSize2);
-                //maxReqSize = static_cast<m_off_t>((2*1024*1024) * 5);
-
-
-                //maxReqSize = maxReqSize2;
-                //maxReqSize = std::max(maxReqSize, static_cast<m_off_t>((5*1024*1024) * 5));
-                //maxReqSize = std::max(maxReqSize2, static_cast<m_off_t>((5*1024*1024) * 5));
-                //maxReqSize = maxReqSize2;
-                //maxReqSize = static_cast<m_off_t>(transfer->size / 12);
+                //maxReqSize = TransferSlot::MAX_REQ_SIZE_NEW_RAID;
+                m_off_t defaultMaxReqSize = static_cast<m_off_t>((2*1024*1024) * 5);
+                m_off_t maxReqsSize = defaultMaxReqSize * 4; // based on 4 connections
+                maxReqSize = static_cast<m_off_t>(maxReqsSize / transfer->slot->connections);
+                maxReqSize = std::max<m_off_t>(maxReqSize, (1*1024*1024)*5); // 1MB for each raidpart min
+                maxReqSize = std::min<m_off_t>(maxReqSize, transfer->size); // Not greater than the transfer itself
+                std::cout << "[TransferBufferManager::nextNPosForConnection] FINAL maxReqSize = " << maxReqSize << " [defaultMaxReqSize = " << defaultMaxReqSize << ", maxReqsSize = " << maxReqsSize << ", transfer->size = " << transfer->size << "]" << std::endl;
 
                 if ((transfer->pos + ChunkedHash::chunkceil(maxReqSize)) < transfer->size)
                 {
@@ -1082,7 +1077,6 @@ class CloudRaid::CloudRaidImpl
 {
 private:
     SCCR::RaidReqPoolArray& raidReqPoolArray;
-    //SCCR::RaidReq::Params raidReqParams;
     std::vector<SCCR::RaidReqPoolArray::Token> raidReqToken;
     int connections;
     TransferSlot* tslot;
@@ -1243,7 +1237,7 @@ public:
 
 
     /* CloudRaid functionality */
-    bool balancedRequest(int connection, const std::vector<std::string> &tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, m_off_t cmaxRequestSize, int cskippart, int notifyfd)
+    bool balancedRequest(int connection, const std::vector<std::string> &tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, m_off_t cmaxRequestSize, int cskippart)
     {
         std::cout << "[CloudRaidImpl::balancedRequest] connection = " << connection << " [started = " << started.load() << "]" << std::endl;
         if (!started.load())
@@ -1253,7 +1247,7 @@ public:
         }
         currtime = Waiter::ds;
         SCCR::RaidReq::Params raidReqParams(tempUrls, cfilesize, cstart, creqlen, cmaxRequestSize, cskippart);
-        raidReqToken[connection] = raidReqPoolArray.balancedRequest(raidReqParams, tslot->getcloudRaidPtr(), notifyfd);
+        raidReqToken[connection] = raidReqPoolArray.balancedRequest(raidReqParams, tslot->getcloudRaidPtr());
         if (raidReqToken[connection].rr)
         {
             std::cout << "[CloudRaidImpl::balancedRequest] connection = " << connection << " (raidReqToken[connection].rr) -> return true [started = " << started.load() << "]" << std::endl;
@@ -1418,12 +1412,12 @@ bool CloudRaid::init(TransferSlot* tslot, MegaClient* client, TransferDbCommitte
     return shown.load();
 }
 
-bool CloudRaid::balancedRequest(int connection, const std::vector<std::string> &tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, m_off_t cmaxRequestSize, int cskippart, int notifyfd)
+bool CloudRaid::balancedRequest(int connection, const std::vector<std::string> &tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, m_off_t cmaxRequestSize, int cskippart)
 {
     std::cout << "[CloudRaid::balancedRequest] connection = " << connection << " [shown = " << shown.load() << "]" << std::endl;
     if (!shown.load())
         return false;
-    return Pimpl()->balancedRequest(connection, tempUrls, cfilesize, cstart, creqlen, cmaxRequestSize, cskippart, notifyfd);
+    return Pimpl()->balancedRequest(connection, tempUrls, cfilesize, cstart, creqlen, cmaxRequestSize, cskippart);
 }
 
 bool CloudRaid::isStarted() const
