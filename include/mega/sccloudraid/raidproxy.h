@@ -16,9 +16,9 @@ namespace mega::SCCR {
 #define RAIDPARTS 6
 #define RAIDSECTOR 16
 #define RAIDLINE ((RAIDPARTS-1)*RAIDSECTOR)
-#define NUMLINES 16384 //32768
+#define NUMLINES 16384 // 16 KBs
 #define MAXRETRIES 10
-#define READAHEAD ((off_t)NUMLINES*RAIDSECTOR)
+#define READAHEAD ((m_off_t)NUMLINES*RAIDSECTOR)
 
 // number of readdata() requests until the next interval check is conducted
 #define LAGINTERVAL 256
@@ -36,7 +36,6 @@ struct RaidPart
 #pragma pack(pop)
 
 class RaidReqPool;
-class RaidReqPoolArray;
 
 class PartFetcher
 {
@@ -46,7 +45,7 @@ class PartFetcher
     raidTime delayuntil;
 
     std::unique_ptr<HttpInputBuf> inbuf;
-    off_t partStartPos;
+    m_off_t partStartPos;
 
     bool skip_setposrem;
     void setposrem();
@@ -67,12 +66,12 @@ public:
 
     std::chrono::time_point<std::chrono::system_clock> postStartTime;
     int64_t timeInflight;
-    off_t reqBytesReceived;
+    m_off_t reqBytesReceived;
     bool postCompleted;
 
-    off_t sourcesize;
-    off_t pos, rem;
-    map<off_t, pair<byte*, unsigned>> readahead;   // read-ahead data
+    m_off_t sourcesize;
+    m_off_t pos, rem;
+    map<m_off_t, pair<byte*, unsigned>> readahead;   // read-ahead data
 
     static bool updateGlobalBytesReceived;
     static std::atomic<uint64_t> globalBytesReceived;
@@ -86,8 +85,7 @@ public:
     bool feedreadahead();
     void resume(bool = false);
     int onFailure();
-    off_t getSocketSpeed();
-    off_t getSocketSpeedInKBs();
+    m_off_t getSocketSpeed();
 
     PartFetcher();
     ~PartFetcher();
@@ -100,7 +98,7 @@ class RaidReq
     RaidReqPool& pool;
     std::shared_ptr<CloudRaid> cloudRaid;
     recursive_mutex rr_lock;
-    std::vector<HttpReqPtr> sockets;
+    std::vector<HttpReqPtr> httpReqs;
     std::array<PartFetcher, RAIDPARTS> fetcher;
 
     int partpos[RAIDPARTS];                          // incoming part positions relative to dataline
@@ -111,14 +109,14 @@ class RaidReq
     socket_deque pendingio;
     void handlependingio();
     void dispatchio(const HttpReqPtr&);
-    void shiftdata(off_t);
+    void shiftdata(m_off_t);
 
     alignas(RAIDSECTOR) byte data[NUMLINES*RAIDLINE];       // always starts on a RAID line boundary
     alignas(RAIDSECTOR) byte parity[NUMLINES*RAIDSECTOR];   // parity sectors
     char invalid[NUMLINES];             // bitfield indicating which sectors have yet to be received
-    off_t dataline;                     // data's position relative to the file's beginning in RAID lines
-    off_t rem;                          // bytes remaining for this request
-    off_t paddedpartsize;               // the size of the biggest part (0) rounded up to the next RAIDSECTOR boundary
+    m_off_t dataline;                     // data's position relative to the file's beginning in RAID lines
+    m_off_t rem;                          // bytes remaining for this request
+    m_off_t paddedpartsize;               // the size of the biggest part (0) rounded up to the next RAIDSECTOR boundary
     int skip;                           // bytes to skip from start of data
     int completed;                      // valid data RAID lines in data
 
@@ -136,8 +134,8 @@ public:
     std::chrono::time_point<std::chrono::system_clock> downloadStartTime;
     size_t filesize;
 
-    void procdata(int, byte*, off_t, int);
-    off_t readdata(byte*, off_t);
+    void procdata(int, byte*, m_off_t, int);
+    m_off_t readdata(byte*, m_off_t);
 
     void resumeall(int = RAIDPARTS);
     void procreadahead();
@@ -183,7 +181,6 @@ class RaidReqPool
     friend class RaidReq;
     ts_ptr_map<HttpReqPtr, RaidReq> socketrrs; // to be able to set up the handling of epoll events from any thread safely
 
-    RaidReqPoolArray& array;
     recursive_mutex rrp_lock, rrp_queuelock;
     std::thread rrp_thread;
     std::atomic<bool> isRunning;
@@ -191,7 +188,7 @@ class RaidReqPool
     void raidproxyiothread();
     static void raidproxyiothreadstart(RaidReqPool* rrp);
 
-    map<RaidReq*, unique_ptr<RaidReq>> rrs;
+    unique_ptr<RaidReq> raidReq;
     typedef set<pair<raidTime, HttpReqPtr>> timesocket_set;
     typedef deque<HttpReqPtr> directsocket_queue;
     timesocket_set scheduledio;
@@ -199,53 +196,12 @@ class RaidReqPool
 
 
 public:
-    RaidReqPool(RaidReqPoolArray& ar);
+    RaidReqPool();
     ~RaidReqPool();
-    RaidReq* request(const RaidReq::Params& p, const std::shared_ptr<CloudRaid>&);
-    void removerequest(RaidReq* rr);
-    int rrcount();
+    void request(const RaidReq::Params& p, const std::shared_ptr<CloudRaid>&);
     bool addScheduledio(raidTime, const HttpReqPtr&);
     bool addDirectio(const HttpReqPtr&);
-};
-
-
-class RaidReqPoolArray
-{
-    vector<unique_ptr<RaidReqPool>> rrps;
-
-public:
-    RaidReqPoolArray() { std::cout << "[RaidReqPoolArray::RaidReqPoolArray] constructor call" << std::endl; };
-    ~RaidReqPoolArray()
-    {
-        std::cout << "[RaidReqPoolArray::~RaidReqPoolArray] destructor call" << std::endl;
-        if (rrps.size())
-        {
-            std::cout << "[RaidReqPoolArray::~RaidReqPoolArray] (rrps.size() > 0 !!!) [rrps.size = " << rrps.size() << "]" << std::endl;
-        }
-        rrps.clear();
-    }
-
-    struct Token
-    {
-        int poolId = -1;
-        RaidReq* rr = nullptr;
-        operator bool() { return poolId >= 0 && rr; }
-    };
-
-    // get size
-    size_t size()
-    {
-        return rrps.size();
-    }
-
-    // set up with the specified number of pools to process RaidReq requests, each poll has a dedicated thread
-    void start(unsigned n);
-
-    // ask the least busy pool to process a new raid request
-    Token balancedRequest(const RaidReq::Params&, const std::shared_ptr<CloudRaid>&);
-
-    // when the RaidReq has succeeded or failed, clean up with this
-    void remove(Token& t);
+    RaidReq* rr() { return raidReq.get(); }
 };
 
 } // namespace

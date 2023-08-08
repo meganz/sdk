@@ -89,12 +89,6 @@ namespace mega {
         // indicate if the file is new raid (CloudRaidProxy) or not
         bool isNewRaid() const;
 
-        // get calculated raid lines per chunk
-        unsigned getRaidLinesPerChunk();
-
-        // get raid max chunks per read
-        unsigned getRaidMaxChunksPerRead();
-
         // Is this the connection we are not using
         bool isUnusedRaidConection(unsigned connectionNum) const;
 
@@ -296,14 +290,10 @@ namespace mega {
 
         /* TransferSlot functionality for RaidProxy */
         bool disconnect(const std::shared_ptr<HttpReqXfer>& req);
-        bool prepareRequest(const std::shared_ptr<HttpReqXfer>& req, const string& tempURL, off_t pos, off_t npos);
+        bool prepareRequest(const std::shared_ptr<HttpReqXfer>& req, const string& tempURL, m_off_t pos, m_off_t npos);
         bool post(const std::shared_ptr<HttpReqXfer>& req);
         bool onRequestFailure(const std::shared_ptr<HttpReqXfer>& req, int part, SCCR::raidTime& backoff);
         bool onTransferFailure();
-
-        /* RaidBufferManager functionality for RaidProxy */
-        std::pair<bool, size_t> getRaidLinesPerChunk() const;
-        std::pair<bool, size_t> getRaidMaxChunksPerRead() const;
 
         /* RaidProxy functionality for TransferSlot */
         bool init(TransferSlot* tslot, MegaClient* client, TransferDbCommitter& committer, int connections);
@@ -313,7 +303,7 @@ namespace mega {
         bool pauseTransferSlotFunctionality();
         bool resumeTransferSlotFunctionality();
 
-        m_off_t read_data(int connection, byte* buf, off_t len);
+        m_off_t read_data(int connection, byte* buf, m_off_t len);
     };
 
 } // namespace

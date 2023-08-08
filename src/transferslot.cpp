@@ -69,7 +69,7 @@ const dstime TransferSlot::PROGRESSTIMEOUT = 10;
     const m_off_t TransferSlot::MAX_REQ_SIZE = 16777216; // 16 MB [Previous value: 4194304 -> 4 MB]
 #endif
 
-const m_off_t TransferSlot::MAX_REQ_SIZE_NEW_RAID = 10 * 1024 * 1024;
+const m_off_t TransferSlot::MAX_REQ_SIZE_NEW_RAID = 2 * 1024 * 1024;
 #define NUM_CONNECTIONS_NEW_RAID 4 // Used as a temp fix for tests -until we have a way to change the value on megaCmd-
 
 const m_off_t TransferSlot::MAX_GAP_SIZE = 256 * 1024 * 1024; // 256 MB
@@ -1427,7 +1427,7 @@ m_off_t TransferSlot::processRaidReq(size_t connection)
     }
     m_off_t progress = -1;
     byte* buf = httpReq->buf + httpReq->bufpos;
-    off_t len = httpReq->size - httpReq->bufpos;
+    m_off_t len = httpReq->size - httpReq->bufpos;
     assert(len > 0);
     if (transfer->type == GET)
     {
@@ -1450,7 +1450,7 @@ m_off_t TransferSlot::processRaidReq(size_t connection)
     return progress;
 }
 
-void TransferSlot::prepareRequest(const std::shared_ptr<HttpReqXfer>& httpReq, const string& tempURL, off_t pos, off_t npos, bool setReqPreparedStatus)
+void TransferSlot::prepareRequest(const std::shared_ptr<HttpReqXfer>& httpReq, const string& tempURL, m_off_t pos, m_off_t npos, bool setReqPreparedStatus)
 {
     size_t index = string::npos;
     if (((transfer->type == GET && transfer->client->usealtdownport) ||
