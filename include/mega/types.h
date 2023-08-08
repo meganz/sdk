@@ -159,6 +159,7 @@ class AuthRing;
 // Utils.h has functions m_time() and so on corresponding to time() which help us to use this type and avoid arithmetic overflow when working with time_t on systems where it's 32-bit
 typedef int64_t m_time_t;
 constexpr m_time_t mega_invalid_timestamp = 0;
+static bool isValidTimeStamp(m_time_t t) { return t != mega_invalid_timestamp; }
 
 // monotonously increasing time in deciseconds
 typedef uint32_t dstime;
