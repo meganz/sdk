@@ -163,7 +163,7 @@ constexpr m_time_t mega_invalid_timestamp = 0;
 #ifdef ENABLE_CHAT
 // To avoid warning warning C4505 we need to define this method inside ENABLE_CHAT, as it's not currently used outside chat scope.
 // Remove this ifdef when it's required to use this method outside chat scope
-static bool isValidTimeStamp(m_time_t t) { return t != mega_invalid_timestamp; }
+inline bool isValidTimeStamp(m_time_t t) { return t != mega_invalid_timestamp; }
 #endif
 
 // monotonously increasing time in deciseconds
