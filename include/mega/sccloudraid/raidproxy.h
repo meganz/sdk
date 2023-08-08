@@ -73,9 +73,6 @@ public:
     m_off_t pos, rem;
     map<m_off_t, pair<byte*, unsigned>> readahead;   // read-ahead data
 
-    static bool updateGlobalBytesReceived;
-    static std::atomic<uint64_t> globalBytesReceived;
-
     bool setsource(const std::string&, RaidReq*, int);
     int trigger(raidTime = 0, bool = false);
     bool directTrigger(bool = true);

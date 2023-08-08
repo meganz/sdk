@@ -174,7 +174,6 @@ RaidBufferManager::~RaidBufferManager()
 
 void RaidBufferManager::setIsRaid(const std::vector<std::string>& tempUrls, m_off_t resumepos, m_off_t readtopos, m_off_t filesize, m_off_t maxRequestSize, bool isNewRaid)
 {
-    std::cout << "setIsRaid: fileSize: " << filesize << ", maxRequestSize: " << maxRequestSize << ", resumepos = " << resumepos << ", readtopos = " << readtopos << ", isNewRaid : " << isNewRaid << std::endl;
     assert(tempUrls.size() == RAIDPARTS || tempUrls.size() == 1);
     assert(0 <= resumepos && resumepos <= readtopos && readtopos <= filesize);
     assert(!raidKnown);
@@ -220,7 +219,6 @@ void RaidBufferManager::setIsRaid(const std::vector<std::string>& tempUrls, m_of
         unusedRaidConnection = g_faultyServers.selectWorstServer(tempurls);
         LOG_debug << "[RaidBufferManager::setIsRaid] unusedRaidConnection = " << unusedRaidConnection;
     }
-    std::cout << "setIsRaid: isRaid = " << is_raid << ", isNewRaid = " << is_newRaid << " [prepareRequest]" << std::endl;
 
     DEBUG_TEST_HOOK_RAIDBUFFERMANAGER_SETISRAID(this)
 }
@@ -955,7 +953,6 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
                 maxReqSize = static_cast<m_off_t>(maxReqsSize / transfer->slot->connections);
                 maxReqSize = std::max<m_off_t>(maxReqSize, (1*1024*1024)*5); // 1MB for each raidpart min
                 maxReqSize = std::min<m_off_t>(maxReqSize, transfer->size); // Not greater than the transfer itself
-                std::cout << "[TransferBufferManager::nextNPosForConnection] FINAL maxReqSize = " << maxReqSize << " [defaultMaxReqSize = " << defaultMaxReqSize << ", maxReqsSize = " << maxReqsSize << ", transfer->size = " << transfer->size << "]" << std::endl;
                 m_off_t nextChunk = ChunkedHash::chunkceil(transfer->pos + maxReqSize, transfer->size);
                 while ((nextChunk < transfer->size) && (((nextChunk - transfer->pos) % RAIDLINE) != 0))
                 {
@@ -963,19 +960,15 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
                     nextChunk = ChunkedHash::chunkceil(transfer->pos + maxReqSize, transfer->size);
                 }
                 maxReqSize += 1;
-                std::cout << "[TransferBufferManager::nextNPosForConnection] [end while] MaxReqSize = " << maxReqSize << ", exMaxReqSize = " << (maxReqSize-1) << ", ChunkFloor = " << ChunkedHash::chunkfloor(maxReqSize) << ", ChunkCeil = " << ChunkedHash::chunkceil(maxReqSize) << ", nextChunk = " << nextChunk << ", nextChunkFlor = " << ChunkedHash::chunkfloor(nextChunk) << ", transfer->size = " << transfer->size << std::endl;
         }
 
     }
     // Calc npos limit depending on the maxReqSize, the next processed piece and the transfer size.
     npos = transfer->chunkmacs.expandUnprocessedPiece(transfer->pos, npos, transfer->size, maxReqSize);
-    std::cout << "[TransferBufferManager::nextNPosForConnection] AFTER expandUnprocessedPiece -> transfer->pos = " << transfer->pos << ", npos = " << npos << ", size = " << (npos -transfer->pos) << ", maxReqSize = " << maxReqSize << "" << std::endl;
     if (isNewRaid() && (npos < transfer->size) && ((npos - transfer->pos) % RAIDLINE != 0))
     {
         LOG_err << "Wrong chunk size for new raid, not padded to RAIDLINE: pos = " << transfer->pos << ", npos = " << npos << ", size = " << (npos-transfer->pos) << ", RAIDLINE = " << RAIDLINE << ", mod = " << ((npos-transfer->pos)%RAIDLINE);
-    	std::cout << "KAKAKAAAAAAAA [pos = " << transfer->pos << ", npos = " << npos << ", size = " << (npos-transfer->pos) << ", RAIDLINE = " << RAIDLINE << ", mod = " << ((npos-transfer->pos)%RAIDLINE) << "] prepareRequest" << std::endl;
     	assert(false);
-    	std::cout << "Kaka2 prepareRequest" << std::endl;
     	return std::make_pair(0, 0);
     }
 
@@ -1074,15 +1067,12 @@ public:
         assert(tslot != nullptr);
         assert(client != nullptr);
         start();
-        std::cout << "[CloudRaidImpl::CloudRaidImpl] constructor call" << std::endl;
     }
 
     ~CloudRaidImpl()
     {
-        std::cout << "[CloudRaidImpl::~CloudRaidImpl] destructor call" << std::endl;
         if (waitForTs)
         {
-            std::cout << "[CloudRaidImpl::stop] ALERT -> waitForTs !!!! call stopWaitForTransferSlot [started = " << started.load() << "]" << std::endl;
             stopWaitForTransferSlot();
         }
         stop();
@@ -1090,25 +1080,17 @@ public:
 
     void waitForTransferSlot()
     {
-        if (!started.load()) std::cout << "[CloudRaidImpl::waitForTransferSlot] call NOT STARTED [started = " << started.load() << "]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
-        std::cout << "[CloudRaidImpl::waitForTransferSlot] pre wftSLock [waitForTs = " << waitForTs.load() << "]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
         std::unique_lock<std::mutex> wftSLock(wfts_m);
-        std::cout << "[CloudRaidImpl::waitForTransferSlot] post wftSLock -> wait [waitForTs = " << waitForTs.load() << "]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
         cvWaitForTS.wait(wftSLock, [this]{ return !waitForTs.load(); });
-        std::cout << "[CloudRaidImpl::waitForTransferSlot] post wait -> continue [waitForTs = " << waitForTs.load() << "]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
     }
 
     bool addWaitForTransferSlot()
     {
-        if (!started.load()) std::cout << "[CloudRaidImpl::addWaitForTransferSlot] call NOT STARTED [started = " << started.load() << "]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
         if (!started.load()) return false;
-       	std::cout << " " << std::endl; //std::cout << "[CloudRaidImpl::addWaitForTransferSlot] [pre tSLock] [waitForTs = " << waitForTs.load() << "]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
         std::lock_guard<std::recursive_mutex> tSLock(ts_m);
-        std::cout << " " << std::endl; //std::cout << "[CloudRaidImpl::addWaitForTransferSlot] [pre wftSLock] [post tSlock] [waitForTs = " << waitForTs.load() << "]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
         {
             std::lock_guard<std::mutex> wftSLock(wfts_m);
             assert(waitForTs == false);
-        std::cout << "addpausex" << std::endl; //std::cout << "[CloudRaidImpl::addWaitForTransferSlot] [post wftSLock] waitForTs = true [waitForTs = " << waitForTs.load() << "]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
             waitForTs.store(true);
         }
         return true;
@@ -1116,13 +1098,10 @@ public:
 
     bool stopWaitForTransferSlot()
     {
-        if (!started.load()) std::cout << "[CloudRaidImpl::stopWaitForTransferSlot] call NOT STARTED [started = " << started.load() << "]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
         if (!started.load()) return false;
-    std::cout << " " << std::endl; //std::cout << "[CloudRaidImpl::stopWaitForTransferSlot] [pre wftSLock] [waitForTs = " << waitForTs.load() << "]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
         {
             std::lock_guard<std::mutex> wftSLock(wfts_m);
             assert(waitForTs == true);
-        std::cout << "stoppausex"  << std::endl; //std::cout << "[CloudRaidImpl::stopWaitForTransferSlot] [post wftSLock] waitForTs = false && notify all [waitForTs = " << waitForTs.load() << "]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
             waitForTs.store(false);
         }
         cvWaitForTS.notify_all();
@@ -1132,59 +1111,44 @@ public:
     /* TransferSlot functionality */
     bool disconnect(std::shared_ptr<HttpReqXfer> req)
     {
-        if (!started.load()) std::cout << "[CloudRaidImpl::disconnect] call NOT STARTED [started = " << started.load() << "]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
         if (!started.load()) return false;
-        std::cout << "[CloudRaidImpl::disconnect] BEGIN" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
         std::lock_guard<std::recursive_mutex> tSLock(ts_m);
-    std::cout << "[CloudRaidImpl::disconnect] pre waitForTransferSlot()" << std::endl;
         waitForTransferSlot();
-    std::cout << "[CloudRaidImpl::disconnect] post waitForTransferSlot()" << std::endl;
         tslot->disconnect(req);
-        std::cout << "[CloudRaidImpl::disconnect] END" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
         return true;
     }
 
     bool prepareRequest(std::shared_ptr<HttpReqXfer> req, const string& tempURL, m_off_t pos, m_off_t npos)
     {
         if (!started.load()) return false;
-        std::cout << "[CloudRaidImpl::prepareRequest] BEGIN [pos = " << pos << ", npos = " << npos << "]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
         std::lock_guard<std::recursive_mutex> tSLock(ts_m);
         waitForTransferSlot();
         tslot->prepareRequest(req, tempURL, pos, npos);
-        std::cout << "[CloudRaidImpl::prepareRequest] END [pos = " << pos << ", npos = " << npos << "]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
         return req->status == REQ_PREPARED;
     }
 
     bool post(std::shared_ptr<HttpReqXfer> req)
     {
         if (!started.load()) return false;
-        std::cout << "[CloudRaidImpl::post] BEGIN" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
         std::lock_guard<std::recursive_mutex> tSLock(ts_m);
         waitForTransferSlot();
         req->post(client);
-        std::cout << "[CloudRaidImpl::post] END" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
         return req->status == REQ_INFLIGHT;
     }
 
     bool onRequestFailure(std::shared_ptr<HttpReqXfer> req, int part, SCCR::raidTime& backoff)
     {
-        std::cout << "[CloudRaidImpl::onRequestFailure] call [req = " << req << ", part = " << part << "] [started = " << started.load() << "]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
         if (!started.load()) return false;
-        std::cout << "[CloudRaidImpl::onRequestFailure] BEGIN" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
         std::lock_guard<std::recursive_mutex> tSLock(ts_m);
-    std::cout << "[CloudRaidImpl::onRequestFailure] PRe WAITFortransferSlot" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
         waitForTransferSlot();
-    std::cout << "[CloudRaidImpl::onRequestFailure] POST waitForTransferSlot" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
         dstime tslot_backoff = 0;
         tslot->processRequestFailure(client, committer, req, tslot_backoff, part);
         backoff = static_cast<SCCR::raidTime>(tslot_backoff);
-        std::cout << "[CloudRaidImpl::onRequestFailure] END" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
         return true;
     }
 
     bool onTransferFailure()
     {
-        std::cout << "[CloudRaidImpl::onTransferFailure] call tslot->transfer->failed(API_EAGAIN, committer) [started = " << started.load() << "]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
         if (!started.load()) return false;
         tslot->transfer->failed(API_EAGAIN, committer);
         return true;
@@ -1193,23 +1157,15 @@ public:
     /* CloudRaid functionality */
     bool balancedRequest(int connection, const std::vector<std::string> &tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, m_off_t cmaxRequestSize, int cskippart)
     {
-        std::cout << "[CloudRaidImpl::balancedRequest] connection = " << connection << " [started = " << started.load() << "]" << std::endl;
         if (!started.load())
         {
-            std::cout << "[CloudRaidImpl::balancedRequest] connection = " << connection << " ALERT! start is false! -> calling start() [started = " << started.load() << "]" << std::endl;
             start();
         }
         currtime = Waiter::ds;
         SCCR::RaidReq::Params raidReqParams(tempUrls, cfilesize, cstart, creqlen, cmaxRequestSize, cskippart);
         raidReqPoolArray[connection].reset(new SCCR::RaidReqPool());
         raidReqPoolArray[connection]->request(raidReqParams, tslot->getcloudRaidPtr());
-        if (raidReqPoolArray[connection]->rr())
-        {
-            std::cout << "[CloudRaidImpl::balancedRequest] connection = " << connection << " (raidReqPool[connection].rr) -> return true [started = " << started.load() << "]" << std::endl;
-            return true;
-        }
-        else std::cout << "[CloudRaidImpl::balancedRequest] connection = " << connection << " !(raidReqPool[connection].rr) -> NOTHING !!!! -> return false [started = " << started.load() << "]" << std::endl;
-        return false;
+        return raidReqPoolArray[connection]->rr() != nullptr;
     }
 
     bool isStarted() const
@@ -1219,7 +1175,6 @@ public:
 
     bool start()
     {
-        std::cout << "[CloudRaidImpl::start] call [started = " << started.load() << "]" << std::endl;
         if (started.load())
         {
             return false;
@@ -1231,14 +1186,12 @@ public:
 
     bool stop()
     {
-        std::cout << "[CloudRaidImpl::stop] call [started = " << started.load() << "]" << std::endl;
         if (!started.load())
         {
             return false;
         }
         if (waitForTs)
         {
-            std::cout << "[CloudRaidImpl::stop] ALERT -> waitForTs !!!! call stopWaitForTransferSlot [started = " << started.load() << "]" << std::endl;
             stopWaitForTransferSlot();
         }
         raidReqPoolArray.clear();
@@ -1248,7 +1201,6 @@ public:
 
     bool removeRaidReq(int connection)
     {
-        std::cout << "[CloudRaidImpl::removeRaidReq] connection = " << connection << " [started = " << started.load() << "]" << std::endl;
         if (started.load() && raidReqPoolArray[connection])
         {
             raidReqPoolArray[connection].reset();
@@ -1259,7 +1211,6 @@ public:
 
     bool resumeAllConnections()
     {
-        std::cout << "[CloudRaidImpl::resumeAllConnections] BEGIN" << std::endl;
         if (started.load())
         {
             int i = connections;
@@ -1267,7 +1218,6 @@ public:
             {
                 raidReqPoolArray[i]->rr()->resumeall();
             }
-            std::cout << "[CloudRaidImpl::resumeAllConnections] END" << std::endl;
             return true;
         }
         return false;
@@ -1278,11 +1228,9 @@ public:
         m_off_t readData = -1;
         if (started.load())
         {
-            std::cout << "[CloudRaidImpl::read_data] call [currtime = " << currtime << ", new currtime = " << Waiter::ds << "]" << std::endl;
             currtime = Waiter::ds;
             readData = static_cast<m_off_t>(raidReqPoolArray[connection]->rr()->readdata(buf, len));
         }
-        else { std::cout << "[CloudRaidImpl::read_data] NO STARTED !!!! [currtime = " << currtime << "]" << std::endl; }
         return readData;
     }
 };
@@ -1294,11 +1242,10 @@ CloudRaid::CloudRaid()
 
 CloudRaid::CloudRaid(TransferSlot* tslot, MegaClient* client, TransferDbCommitter& committer, int connections)
 {
-    std::cout << "[CloudRaid::CloudRaid] constructor call -> connections = " << connections << "" << std::endl;
     init(tslot, client, committer, connections);
 }
 
-CloudRaid::~CloudRaid() { std::cout << "[CloudRaid::CloudRaid] destructor call" << std::endl; }
+CloudRaid::~CloudRaid() { LOG_verbose << "[CloudRaid::~CloudRaid] destructor call"; }
 
 bool CloudRaid::isShown() const
 {
@@ -1343,7 +1290,6 @@ bool CloudRaid::onTransferFailure()
 
 bool CloudRaid::init(TransferSlot* tslot, MegaClient* client, TransferDbCommitter& committer, int connections)
 {
-    std::cout << "[CloudRaid::init] connections = " << connections << " [shown = " << shown.load() << "]" << std::endl;
     m_pImpl = mega::make_unique<CloudRaidImpl>(tslot, client, committer, connections);
     shown.store(m_pImpl != nullptr);
     return shown.load();
@@ -1351,7 +1297,6 @@ bool CloudRaid::init(TransferSlot* tslot, MegaClient* client, TransferDbCommitte
 
 bool CloudRaid::balancedRequest(int connection, const std::vector<std::string> &tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, m_off_t cmaxRequestSize, int cskippart)
 {
-    std::cout << "[CloudRaid::balancedRequest] connection = " << connection << " [shown = " << shown.load() << "]" << std::endl;
     if (!shown.load())
         return false;
     return Pimpl()->balancedRequest(connection, tempUrls, cfilesize, cstart, creqlen, cmaxRequestSize, cskippart);
@@ -1359,7 +1304,6 @@ bool CloudRaid::balancedRequest(int connection, const std::vector<std::string> &
 
 bool CloudRaid::isStarted() const
 {
-    std::cout << "[CloudRaid::isStarted] call [shown = " << shown.load() << "]" << std::endl;
     if (!shown.load())
         return false;
     return Pimpl()->isStarted();
@@ -1367,7 +1311,6 @@ bool CloudRaid::isStarted() const
 
 bool CloudRaid::removeRaidReq(int connection)
 {
-    std::cout << "[CloudRaid::removeRaidReq] connection = " << connection << " [shown = " << shown.load() << "]" << std::endl;
     if (!shown.load())
         return false;
     return Pimpl()->removeRaidReq(connection);
@@ -1375,7 +1318,6 @@ bool CloudRaid::removeRaidReq(int connection)
 
 m_off_t CloudRaid::read_data(int connection, byte* buf, m_off_t len)
 {
-    if (!shown.load()) std::cout << "[CloudRaid::read_data] ALERT! READ_DATA BUT SHOWN = FALSE!!! -> connection = " << connection << " [shown = " << shown.load() << "]" << std::endl;
     if (!shown.load())
         return -1;
     return Pimpl()->read_data(connection, buf, len);
@@ -1383,7 +1325,6 @@ m_off_t CloudRaid::read_data(int connection, byte* buf, m_off_t len)
 
 bool CloudRaid::pauseTransferSlotFunctionality()
 {
-    std::cout << "[CloudRaid::pauseTransferSlotFunctionality] [shown = " << shown.load() << "]" << std::endl;
     if (!shown.load())
         return false;
     return Pimpl()->addWaitForTransferSlot();
@@ -1391,7 +1332,6 @@ bool CloudRaid::pauseTransferSlotFunctionality()
 
 bool CloudRaid::resumeTransferSlotFunctionality()
 {
-    std::cout << "[CloudRaid::resumeTransferSlotFunctionality] [shown = " << shown.load() << "]" << std::endl;
     if (!shown.load())
         return false;
     return Pimpl()->stopWaitForTransferSlot();

@@ -57,19 +57,9 @@
 
 #include <openssl/ssl.h>
 
-//using namespace std;
-
 
 // basic types
-typedef uint64_t token_t;
-typedef uint64_t userid_t;
-typedef uint64_t sn_t;
-
 typedef uint64_t mtime_t;
-typedef uint8_t opcode_t;
-typedef uint32_t connid_t;
-typedef uint32_t count_t;
-typedef uint8_t version_t;
 
 typedef unsigned int uint128_t __attribute__((mode(TI)));
 

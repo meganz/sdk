@@ -3,8 +3,6 @@
 
 #include <array>
 
-//#define SEGSIZE 131072
-
 namespace mega::SCCR {
 
 class ChunkedHash
