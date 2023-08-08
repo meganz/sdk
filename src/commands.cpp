@@ -10319,9 +10319,9 @@ CommandScheduledMeetingFetchEvents::CommandScheduledMeetingFetchEvents(MegaClien
 {
     cmd("mcsmfo");
     arg("cid", (byte*) &chatid, MegaClient::CHATHANDLE);
-    if (since != mega_invalid_timestamp)      { arg("cf", since); }
-    if (until != mega_invalid_timestamp)      { arg("ct", until); }
-    if (count)                                { arg("cc", count); }
+    if (isValidTimeStamp(since))      { arg("cf", since); }
+    if (isValidTimeStamp(until))      { arg("ct", until); }
+    if (count)                        { arg("cc", count); }
     tag = client->reqtag;
 }
 
