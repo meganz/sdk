@@ -1240,7 +1240,7 @@ bool Node::applykey()
     handle h;
     const char* k = NULL;
     SymmCipher* sc = &client->key;
-    handle me = client->loggedin() ? client->me : client->mNodeManager.getRootNodeFiles().as8byte();
+    handle me = client->loggedIntoFolder() ? client->mNodeManager.getRootNodeFiles().as8byte() : client->me;
 
     while ((t = nodekeydata.find_first_of(':', t)) != string::npos)
     {

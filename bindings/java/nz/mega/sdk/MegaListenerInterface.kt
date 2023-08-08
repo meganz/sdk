@@ -31,4 +31,4 @@ package nz.mega.sdk
  * @see MegaTransferListenerInterface
  */
 interface MegaListenerInterface : MegaRequestListenerInterface, MegaGlobalListenerInterface,
-    MegaTransferListenerInterface
+    MegaTransferListenerInterface, MegaSyncListenerInterface

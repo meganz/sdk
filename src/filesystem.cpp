@@ -528,7 +528,6 @@ void LocalPath::normalizeAbsolute()
             localpath.substr(0,4) != L"\\\\.\\")
         {
             // However, it turns out, \\?\UNC\<server>\etc  can allow us to operate on paths with trailing spaces and other things Explorer doesn't like, which just \\server\ does not
-            if (localpath.substr(0,8) != L"\\\\?\\UNC\\")
             {
                 localpath.insert(2, L"?\\UNC\\");
             }

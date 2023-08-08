@@ -3957,5 +3957,10 @@ using namespace mega;
     return self.megaApi->cookieBannerEnabled();
 }
 
+#pragma mark - A/B Testing
+- (NSInteger)getABTestValue:(NSString*)flag {
+    if (self.megaApi == nil) return 0;
+    return self.megaApi->getABTestValue((const char *)flag.UTF8String);
+}
 
 @end

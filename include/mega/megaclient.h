@@ -595,7 +595,7 @@ public:
     // get the public key of an user
     void getpubkey(const char* user);
 
-    // check if logged in
+    // check if logged in (avoid repetitive calls <-- requires call to Cryptopp::InverseMod(), which is slow)
     sessiontype_t loggedin();
 
     // provide state by change callback
