@@ -23083,15 +23083,20 @@ void KeyManager::updateShareKeys(map<handle, pair<string, ShareKeyFlags>>& share
                 if (itNew.second.second[ShareKeyFlagsId::TRUSTED] != itOld->second.second[ShareKeyFlagsId::TRUSTED])
                 {
                     LOG_warn << "[keymgr] Trust for " << toNodeHandle(h) << " share key has changed ("
-                             << itOld->second.second[ShareKeyFlagsId::TRUSTED] << " -> " << itNew.second.second[ShareKeyFlagsId::TRUSTED] << "). Updating...";
+                             << static_cast<bool>(itOld->second.second[ShareKeyFlagsId::TRUSTED]) << " -> "
+                             << static_cast<bool>(itNew.second.second[ShareKeyFlagsId::TRUSTED]) << "). Updating...";
                 }
-                else if (itNew.second.second[ShareKeyFlagsId::INUSE] != itOld->second.second[ShareKeyFlagsId::INUSE])
+                if (itNew.second.second[ShareKeyFlagsId::INUSE] != itOld->second.second[ShareKeyFlagsId::INUSE])
                 {
                     LOG_debug << "[keymgr] In-use flag for " << toNodeHandle(h) << " share key has changed ("
-                             << itOld->second.second[ShareKeyFlagsId::INUSE] << " -> " << itNew.second.second[ShareKeyFlagsId::INUSE] << "). Updating...";
+                             << static_cast<bool>(itOld->second.second[ShareKeyFlagsId::INUSE]) << " -> "
+                             << static_cast<bool>(itNew.second.second[ShareKeyFlagsId::INUSE]) << "). Updating...";
 
                 }
-                else 
+                // Compare the remaining flags
+                ShareKeyFlags mask(0x03); // ShareKeyFlagsId::TRUSTED and ShareKeyFlagsId::INUSE
+                mask.flip();
+                if ((itNew.second.second & mask) != (itOld->second.second & mask))
                 {
                     LOG_warn << "[keymgr] Flags for " << toNodeHandle(h) << " share key has changed ("
                              << itOld->second.second.to_ulong() << " -> " << itNew.second.second.to_ulong() << "). Updating...";
