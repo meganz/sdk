@@ -22088,9 +22088,8 @@ string KeyManager::decryptShareKeyFrom(handle userhandle, std::string key)
     std::string shareKey;
     shareKey.resize(CryptoPP::AES::BLOCKSIZE);
 
-    std::string encryptedKey = Base64::atob(key);
     CryptoPP::ECB_Mode<CryptoPP::AES>::Decryption aesencryption((byte *)sharedKey.data(), sharedKey.size());
-    aesencryption.ProcessData((byte *)shareKey.data(), (byte *)encryptedKey.data(), encryptedKey.size());
+    aesencryption.ProcessData((byte *)shareKey.data(), (byte *)key.data(), key.size());
 
     return shareKey;
 }
@@ -22173,10 +22172,19 @@ bool KeyManager::promotePendingShares()
         Base64::atob(it.first.c_str(), (byte*)&nodeHandle, MegaClient::NODEHANDLE);
 
         handle userHandle = it.second.first;
-        const std::string &encryptedShareKey = it.second.second;
+        std::string encryptedShareKey = it.second.second;
 
         if (!verificationRequired(userHandle))
         {
+            if (encryptedShareKey.size() > 16)
+            {
+                // If size > 16 the share key may be stored as a base64 string instead of binary data.
+                string msg = "KeyMgr / Pending inshare key from string to binary";
+                mClient.sendevent(99480, msg.c_str());
+                assert(encryptedShareKey.size() == 16 && msg.c_str());
+                encryptedShareKey = Base64::atob(it.second.second);
+            }
+
             LOG_debug << "Promoting pending inshare of node " << toNodeHandle(nodeHandle) << " for " << toHandle(userHandle);
             std::string shareKey = decryptShareKeyFrom(userHandle, encryptedShareKey);
             if (shareKey.size())

@@ -2278,7 +2278,7 @@ bool CommandPendingKeys::procresult(Result r, JSON& json)
         {
             string sharekey;
             JSON::copystring(&sharekey, json.getvalue());
-            (*keys)[userhandle][sharehandle] = sharekey;
+            (*keys)[userhandle][sharehandle] = Base64::atob(sharekey);
         }
 
         json.leaveobject();
