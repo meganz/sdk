@@ -32,9 +32,8 @@
 
 TEST(CacheLRU, checkNumNodes_higherLRUSize)
 {
-    mkdir("db", 644);
     mega::MegaApp app;
-    mega::SqliteDbAccess* dbAccess = new mega::SqliteDbAccess(mega::LocalPath::fromAbsolutePath("db"));
+    mega::SqliteDbAccess* dbAccess = new mega::SqliteDbAccess(mega::LocalPath::fromAbsolutePath("."));
 
     uint32_t LRUsize = 8;
 
@@ -91,9 +90,8 @@ TEST(CacheLRU, checkNumNodes_higherLRUSize)
 
 TEST(CacheLRU, checkNumNodes_LRUSize)
 {
-    mkdir("db", 644);
     mega::MegaApp app;
-    mega::SqliteDbAccess* dbAccess = new mega::SqliteDbAccess(mega::LocalPath::fromAbsolutePath("db"));
+    mega::SqliteDbAccess* dbAccess = new mega::SqliteDbAccess(mega::LocalPath::fromAbsolutePath("."));
 
     uint32_t LRUsize = 8;
 
@@ -155,9 +153,8 @@ TEST(CacheLRU, checkNumNodes_LRUSize)
 
 TEST(CacheLRU, removeNode)
 {
-    mkdir("db", 644);
     mega::MegaApp app;
-    mega::SqliteDbAccess* dbAccess = new mega::SqliteDbAccess(mega::LocalPath::fromAbsolutePath("db"));
+    mega::SqliteDbAccess* dbAccess = new mega::SqliteDbAccess(mega::LocalPath::fromAbsolutePath("."));
 
     uint32_t LRUsize = 8;
 
@@ -230,9 +227,8 @@ TEST(CacheLRU, removeNode)
 
 TEST(CacheLRU, getNodebyFingerprint_RAM_NoLRU)
 {
-    mkdir("db", 644);
     mega::MegaApp app;
-    mega::SqliteDbAccess* dbAccess = new mega::SqliteDbAccess(mega::LocalPath::fromAbsolutePath("db"));
+    mega::SqliteDbAccess* dbAccess = new mega::SqliteDbAccess(mega::LocalPath::fromAbsolutePath("."));
 
     uint32_t LRUsize = 8;
 
@@ -326,9 +322,8 @@ TEST(CacheLRU, getNodebyFingerprint_RAM_NoLRU)
 
 TEST(CacheLRU, getNodeByFingerprint_NoRAM_NoLRU)
 {
-    mkdir("db", 644);
     mega::MegaApp app;
-    mega::SqliteDbAccess* dbAccess = new mega::SqliteDbAccess(mega::LocalPath::fromAbsolutePath("db"));
+    mega::SqliteDbAccess* dbAccess = new mega::SqliteDbAccess(mega::LocalPath::fromAbsolutePath("."));
 
     uint32_t LRUsize = 8;
 
@@ -413,9 +408,8 @@ TEST(CacheLRU, getNodeByFingerprint_NoRAM_NoLRU)
 
 TEST(CacheLRU, searchNode) // processUnserializedNodes
 {
-    mkdir("db", 644);
     mega::MegaApp app;
-    mega::SqliteDbAccess* dbAccess = new mega::SqliteDbAccess(mega::LocalPath::fromAbsolutePath("db"));
+    mega::SqliteDbAccess* dbAccess = new mega::SqliteDbAccess(mega::LocalPath::fromAbsolutePath("."));
 
     uint32_t LRUsize = 8;
 
@@ -497,9 +491,8 @@ TEST(CacheLRU, searchNode) // processUnserializedNodes
 
 TEST(CacheLRU, getChildren)
 {
-    mkdir("db", 644);
     mega::MegaApp app;
-    mega::SqliteDbAccess* dbAccess = new mega::SqliteDbAccess(mega::LocalPath::fromAbsolutePath("db"));
+    mega::SqliteDbAccess* dbAccess = new mega::SqliteDbAccess(mega::LocalPath::fromAbsolutePath("."));
 
     uint32_t LRUsize = 8;
 
@@ -606,9 +599,8 @@ TEST(CacheLRU, getChildren)
 
 TEST(CacheLRU, getNodeByHandle)
 {
-    mkdir("db", 644);
     mega::MegaApp app;
-    mega::SqliteDbAccess* dbAccess = new mega::SqliteDbAccess(mega::LocalPath::fromAbsolutePath("db"));
+    mega::SqliteDbAccess* dbAccess = new mega::SqliteDbAccess(mega::LocalPath::fromAbsolutePath("."));
 
     uint32_t LRUsize = 8;
 
@@ -691,9 +683,8 @@ TEST(CacheLRU, getNodeByHandle)
 
 TEST(CacheLRU, childNodeByNameType)
 {
-    mkdir("db", 644);
     mega::MegaApp app;
-    mega::SqliteDbAccess* dbAccess = new mega::SqliteDbAccess(mega::LocalPath::fromAbsolutePath("db"));
+    mega::SqliteDbAccess* dbAccess = new mega::SqliteDbAccess(mega::LocalPath::fromAbsolutePath("."));
 
     uint32_t LRUsize = 8;
 
