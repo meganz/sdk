@@ -6630,6 +6630,11 @@ MegaHandle MegaAccountSession::getHandle() const
     return INVALID_HANDLE;
 }
 
+char *MegaAccountSession::getDeviceId() const
+{
+    return nullptr;
+}
+
 
 MegaAccountPurchase::~MegaAccountPurchase()
 {

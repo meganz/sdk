@@ -2028,6 +2028,7 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
 
     return SCAN_SUCCESS;
 }
+
 #ifdef ENABLE_SYNC
 
 fsfp_t PosixFileSystemAccess::fsFingerprint(const LocalPath& path) const

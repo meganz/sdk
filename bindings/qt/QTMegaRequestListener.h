@@ -39,7 +39,7 @@ class OnFinishOneShot : public QTMegaRequestListener
 {
 
 public:
-    OnFinishOneShot(MegaApi *megaApi, std::function<void(const MegaError&, const MegaRequest&)>&& onFinishedFunc)
+    OnFinishOneShot(MegaApi *megaApi, std::function<void(const MegaRequest&, const MegaError&)>&& onFinishedFunc)
         : QTMegaRequestListener(megaApi, &consumer)
         , consumer(this, std::move(onFinishedFunc))
     {
@@ -47,19 +47,19 @@ public:
 
     struct QTEventConsumer : MegaRequestListener
     {
-        QTEventConsumer(OnFinishOneShot* owner, std::function<void(const MegaError&, const MegaRequest&)>&& fin)
+        QTEventConsumer(OnFinishOneShot* owner, std::function<void(const MegaRequest&, const MegaError&)>&& fin)
             : oneShotOwner(owner)
             , onFinishedFunction(fin) {}
 
         OnFinishOneShot* oneShotOwner;
-        std::function<void(const MegaError&, const MegaRequest&)> onFinishedFunction;
+        std::function<void(const MegaRequest&, const MegaError&)> onFinishedFunction;
 
         void onRequestStart(MegaApi*, MegaRequest*) override {}
         void onRequestUpdate(MegaApi*, MegaRequest*) override {}
         void onRequestTemporaryError(MegaApi*, MegaRequest*, MegaError*) override {}
 
-        void onRequestFinish(MegaApi*, MegaRequest* request, MegaError* e) override {
-            onFinishedFunction(*e, *request);
+        void onRequestFinish(MegaApi*, MegaRequest *request, MegaError* e) override {
+            onFinishedFunction(*request, *e);
             delete oneShotOwner;
         }
     };

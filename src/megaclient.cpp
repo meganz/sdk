@@ -6203,7 +6203,7 @@ bool MegaClient::sc_upgrade()
         switch (jsonsc.getnameid())
         {
             case MAKENAMEID2('i', 't'):
-                itemclass = int(jsonsc.getint()); // itemclass. For now, it's always 0.
+                itemclass = int(jsonsc.getint()); // itemclass
                 break;
 
             case 'p':
@@ -6219,7 +6219,7 @@ bool MegaClient::sc_upgrade()
                 break;
 
             case EOO:
-                if (itemclass == 0 && statecurrent)
+                if ((itemclass == 0 || itemclass == 1) && statecurrent)
                 {
                     useralerts.add(new UserAlert::Payment(success, proNumber, m_time(), useralerts.nextId()));
                 }
@@ -7452,12 +7452,13 @@ void MegaClient::sc_delscheduledmeeting()
 
                             createDeletedSMAlert(ou, chatid, schedId);
                         }
+
+                        clearSchedOccurrences(*chat);
+                        chat->setTag(0);    // external change
+                        notifychat(chat);
                         break;
                     }
 
-                    clearSchedOccurrences(*chat);
-                    chat->setTag(0);    // external change
-                    notifychat(chat);
                 }
                 break;
             }
@@ -18241,9 +18242,8 @@ size_t MegaClient::decryptAllSets(map<handle, Set>& newSets, map<handle, element
         error e = decryptSetData(itS->second);
         if (e != API_OK)
         {
-            assert(false); // failed to decrypt Set attributes
-
             // skip this Set and its Elements
+            // allow execution to continue, including the test for this scenario
             newElements.erase(itS->first);
             itS = newSets.erase(itS);
             continue;
