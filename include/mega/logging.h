@@ -645,10 +645,8 @@ std::ostream& operator <<(std::ostream&, const std::system_error&);
 std::ostream& operator <<(std::ostream&, const std::error_code&);
 
 // Helper used in LOG_* macros below to make the right operand of ?: void to match the left one
-class LoggerVoidify
+struct LoggerVoidify
 {
-public:
-    LoggerVoidify() = default;
     void operator&(SimpleLogger&) {}
 };
 
