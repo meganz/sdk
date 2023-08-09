@@ -139,7 +139,7 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     // Create specific table for handle nodes
     std::string sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle int64 PRIMARY KEY NOT NULL, "
                       "parenthandle int64, name text, fingerprint BLOB, origFingerprint BLOB, "
-                      "type tinyint, size int64, share tinyint, fav tinyint, mimetype tinyint, "
+                      "type tinyint, size int64, share tinyint, fav tinyint, "
                       "ctime int64, flags int64, counter BLOB NOT NULL, node BLOB NOT NULL)";
     int result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
     if (result)
@@ -924,8 +924,8 @@ bool SqliteAccountState::put(Node *node)
     if (!mStmtPutNode)
     {
         sqlResult = sqlite3_prepare_v2(db, "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, "
-                                           "name, fingerprint, origFingerprint, type, size, share, fav, mimetype, ctime, flags, counter, node) "
-                                           "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &mStmtPutNode, NULL);
+                                           "name, fingerprint, origFingerprint, type, size, share, fav, ctime, flags, counter, node) "
+                                           "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &mStmtPutNode, NULL);
     }
 
     if (sqlResult == SQLITE_OK)
@@ -963,12 +963,11 @@ bool SqliteAccountState::put(Node *node)
         auto favIt = node->attrs.map.find(favId);
         bool fav = (favIt != node->attrs.map.end() && favIt->second == "1"); // test 'fav' attr value (only "1" is valid)
         sqlite3_bind_int(mStmtPutNode, 9, fav);
-        sqlite3_bind_int(mStmtPutNode, 10, node->getMimeType());
-        sqlite3_bind_int64(mStmtPutNode, 11, node->ctime);
-        sqlite3_bind_int64(mStmtPutNode, 12, node->getDBFlags());
+        sqlite3_bind_int64(mStmtPutNode, 10, node->ctime);
+        sqlite3_bind_int64(mStmtPutNode, 11, node->getDBFlags());
         std::string nodeCountersBlob = node->getCounter().serialize();
-        sqlite3_bind_blob(mStmtPutNode, 13, nodeCountersBlob.data(), static_cast<int>(nodeCountersBlob.size()), SQLITE_STATIC);
-        sqlite3_bind_blob(mStmtPutNode, 14, nodeSerialized.data(), static_cast<int>(nodeSerialized.size()), SQLITE_STATIC);
+        sqlite3_bind_blob(mStmtPutNode, 12, nodeCountersBlob.data(), static_cast<int>(nodeCountersBlob.size()), SQLITE_STATIC);
+        sqlite3_bind_blob(mStmtPutNode, 13, nodeSerialized.data(), static_cast<int>(nodeSerialized.size()), SQLITE_STATIC);
 
         sqlResult = sqlite3_step(mStmtPutNode);
     }
