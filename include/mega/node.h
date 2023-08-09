@@ -364,7 +364,9 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     static bool getExtension(std::string& ext, const std::string& nodeName);
     static bool isPhoto(const std::string& ext);
+    static bool isPhotoWithFileAttribures(const std::string& ext, bool checkPreview, const string fileattrstring);
     static bool isVideo(const std::string& ext);
+    static bool isVideoWithFileAttributes(const string& ext, const string fileattrstring, const string nodekey, MegaClient* client);
     static bool isAudio(const std::string& ext);
     static bool isDocument(const std::string& ext);
     static bool isPdf(const std::string& ext);
