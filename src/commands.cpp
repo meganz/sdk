@@ -4321,7 +4321,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                                            break;
 
                                         case EOO:
-                                            if (status != BIZ_STATUS_UNKNOWN && ts != 0)
+                                            if (status != BIZ_STATUS_UNKNOWN && isValidTimeStamp(ts))
                                             {
                                                 sts.push_back(std::make_pair(status, ts));
                                             }
