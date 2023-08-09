@@ -298,7 +298,7 @@ bool Node::isPhoto(const std::string& ext)
         photoExtensions.find(extNameid) != photoExtensions.end();
 }
 
-bool Node::isPhotoWithFileAttribures(const string& ext, bool checkPreview, const string fileattrstring)
+bool Node::isPhotoWithFileAttributes(const string& ext, bool checkPreview) const
 {
     // evaluate according to the webclient rules, so that we get exactly the same bucketing.
     return (isPhoto(ext)
@@ -310,14 +310,14 @@ bool Node::isVideo(const std::string& ext)
     return videoExtensions.find(getExtensionNameId(ext)) != videoExtensions.end();
 }
 
-bool Node::isVideoWithFileAttributes(const std::string& ext, const string fileattrstring, const string nodekey, MegaClient* client)
+bool Node::isVideoWithFileAttributes(const std::string& ext) const
 {
-    if (Node::hasfileattribute(&fileattrstring, fa_media) && nodekey.size() == FILENODEKEYLENGTH)
+    if (Node::hasfileattribute(&fileattrstring, fa_media) && nodekey().size() == FILENODEKEYLENGTH)
     {
 #ifdef USE_MEDIAINFO
         if (client->mediaFileInfo.mediaCodecsReceived)
         {
-            MediaProperties mp = MediaProperties::decodeMediaPropertiesAttributes(fileattrstring, (uint32_t*)(nodekey.data() + FILENODEKEYLENGTH / 2));
+            MediaProperties mp = MediaProperties::decodeMediaPropertiesAttributes(fileattrstring, (uint32_t*)(nodekey().data() + FILENODEKEYLENGTH / 2));
             unsigned videocodec = mp.videocodecid;
             if (!videocodec && mp.shortformat)
             {
