@@ -1981,6 +1981,7 @@ void SqliteAccountState::userIsMimetype(sqlite3_context* context, int argc, sqli
     {
         LOG_err << "Invalid parameters for user isMimetype";
         assert(false);
+        sqlite3_result_int(context, 0);
         return;
     }
 
