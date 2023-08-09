@@ -1743,7 +1743,10 @@ bool SqliteAccountState::getNodesByMimetype(MimeType_t mimeType, std::vector<std
         // exclude previous versions <- parent handle is of type != FILENODE
         std::string query = "SELECT n1.nodehandle, n1.counter, n1.node FROM nodes n1 "
             "INNER JOIN nodes n2 on n2.nodehandle = n1.parenthandle where ismimetype(n1.name, ?) = 1 AND n1.flags & ? = ? AND n1.flags & ? = 0 AND n2.type !=";
-        query.append(std::to_string(FILENODE));
+        query.append(std::to_string(FILENODE))
+            .append(" AND n1.type =")
+            .append(std::to_string(FILENODE));
+
         sqlResult = sqlite3_prepare_v2(db, query.c_str(), -1, &mStmtNodeByMimeType, nullptr);
     }
     if (sqlResult == SQLITE_OK)
@@ -1796,11 +1799,12 @@ bool SqliteAccountState::getNodesByMimetypeExclusiveRecursive(MimeType_t mimeTyp
         // exclude previous versions <- parent handle is of type != FILENODE
         //query = "SELECT nodehandle, counter, node FROM nodes";
 
-        std::string query = "WITH nodesCTE(nodehandle, parenthandle, flags, name, counter, node) AS (SELECT nodehandle, parenthandle, flags, name, counter, node "
-            "FROM nodes WHERE parenthandle = ? UNION ALL SELECT N.nodehandle, N.parenthandle, N.flags, N.name, N.counter, N.node "
+        std::string query = "WITH nodesCTE(nodehandle, parenthandle, flags, name, type, counter, node) AS (SELECT nodehandle, parenthandle, flags, name, type, counter, node "
+            "FROM nodes WHERE parenthandle = ? UNION ALL SELECT N.nodehandle, N.parenthandle, N.flags, N.name, N.type, N.counter, N.node "
             "FROM nodes AS N INNER JOIN nodesCTE AS P ON (N.parenthandle = P.nodehandle AND N.flags & ? = 0)) "
             "SELECT node.nodehandle, node.counter, node.node "
-            "FROM nodesCTE AS node INNER JOIN nodes parent on node.parenthandle = parent.nodehandle AND ismimetype(node.name, ?) = 1 AND node.flags & ? = ? AND node.flags & ? = 0 AND parent.type != " + std::to_string(FILENODE);
+            "FROM nodesCTE AS node INNER JOIN nodes parent on node.parenthandle = parent.nodehandle AND ismimetype(node.name, ?) = 1 AND node.flags & ? = ? AND node.flags & ? = 0 AND parent.type != "
+                            + std::to_string(FILENODE) + " AND node.type = " + std::to_string(FILENODE);
 
         sqlResult = sqlite3_prepare_v2(db, query.c_str(), -1, &mStmtNodeByMimeTypeExcludeRecursiveFlags, nullptr);
     }
