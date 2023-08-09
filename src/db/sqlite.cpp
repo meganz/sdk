@@ -1987,7 +1987,7 @@ void SqliteAccountState::userIsMimetype(sqlite3_context* context, int argc, sqli
 
     int result = 0;
     std::string name = argv[0] ? reinterpret_cast<const char*>(sqlite3_value_text(argv[0])) : "";
-    int mimetype = argv[1] ? sqlite3_value_int(argv[1]) : 0;
+    int mimetype = argv[1] ? sqlite3_value_int(argv[1]) : MimeType_t::MIME_TYPE_UNKNOWN;
     if (name.size() && mimetype)
     {
         std::string ext;
