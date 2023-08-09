@@ -563,7 +563,6 @@ typedef set<Node*> node_set;
 
 // enumerates a node's children
 // FIXME: switch to forward_list once C++11 becomes more widely available
-typedef list<Node*> node_list;
 typedef list<std::shared_ptr<Node> > sharedNode_list;
 
 // undefined node handle

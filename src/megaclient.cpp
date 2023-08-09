@@ -9005,7 +9005,6 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
         return 0;
     }
 
-    node_vector dp;
     std::shared_ptr<Node> n;
     handle previousHandleForAlert = UNDEF;
 

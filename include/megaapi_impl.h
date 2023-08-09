@@ -2169,7 +2169,6 @@ class MegaNodeListPrivate : public MegaNodeList
 {
 	public:
         MegaNodeListPrivate();
-        MegaNodeListPrivate(node_vector& v);
         MegaNodeListPrivate(Node** newlist, int size);
         MegaNodeListPrivate(const MegaNodeListPrivate *nodeList, bool copyChildren = false);
         MegaNodeListPrivate(sharedNode_vector& v);
@@ -3274,7 +3273,6 @@ class MegaApiImpl : public MegaApp
 
         static std::function<bool (Node*, Node*)>getComparatorFunction(int order, MegaClient& mc);
         static void sortByComparatorFunction(sharedNode_vector&v, int order, MegaClient& mc);
-        static void sortByComparatorFunction(node_vector&, int order, MegaClient& mc);
         static bool nodeNaturalComparatorASC(Node *i, Node *j);
         static bool nodeNaturalComparatorDESC(Node *i, Node *j);
         static bool nodeComparatorDefaultASC  (Node *i, Node *j);

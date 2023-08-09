@@ -33,7 +33,7 @@ TreeProcShareKeys::TreeProcShareKeys(Node* n, bool includeParentChain)
 
 void TreeProcShareKeys::proc(MegaClient*, Node* n)
 {
-    snk.add(n, sn, includeParentChain);
+    snk.add(n->mNodePosition->second.getNodeInRam(), sn->mNodePosition->second.getNodeInRam(), includeParentChain);
 }
 
 void TreeProcShareKeys::get(Command* c)

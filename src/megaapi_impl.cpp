@@ -4928,16 +4928,6 @@ MegaNodeListPrivate::MegaNodeListPrivate()
     s = 0;
 }
 
-MegaNodeListPrivate::MegaNodeListPrivate(node_vector& v)
-{
-    list = NULL; s = static_cast<int>(v.size());
-    if (!s) return;
-
-    list = new MegaNode*[s];
-    for (int i = 0; i < s; i++)
-        list[i] = MegaNodePrivate::fromNode(v[i]);
-}
-
 MegaNodeListPrivate::MegaNodeListPrivate(Node** newlist, int size)
 {
     list = NULL; s = size;
@@ -10873,15 +10863,10 @@ MegaNodeList* MegaApiImpl::getInShares(int order)
     SdkMutexGuard lock(sdkMutex);
 
     sharedNode_vector sharedNodes = client->getInShares();
-    node_vector nodes;
-    for (auto& node : sharedNodes)
-    {
-        nodes.push_back(node.get());
-    }
 
-    sortByComparatorFunction(nodes, order, *client);
+    sortByComparatorFunction(sharedNodes, order, *client);
 
-    return new MegaNodeListPrivate(nodes.data(), int(nodes.size()));
+    return new MegaNodeListPrivate(sharedNodes);
 }
 
 MegaShareList* MegaApiImpl::getInSharesList(int order)
@@ -16959,14 +16944,6 @@ void MegaApiImpl::sortByComparatorFunction(sharedNode_vector&v, int order, MegaC
         {
             return f(i.get(), j.get());
         });
-    }
-}
-
-void MegaApiImpl::sortByComparatorFunction(node_vector& v, int order, MegaClient& mc)
-{
-    if (auto f = getComparatorFunction(order, mc))
-    {
-        std::sort(v.begin(), v.end(), f);
     }
 }
 
