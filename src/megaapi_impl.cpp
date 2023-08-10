@@ -25508,7 +25508,7 @@ void MegaApiImpl::getVpnCredentials(MegaRequestListener* listener)
     // Call vpng command
 }
 
-void MegaApiImpl::getVpnCredential(const char* region, MegaRequestListener* listener)
+void MegaApiImpl::putVpnCredential(const char* region, MegaRequestListener* listener)
 {
     // Call vpnp command
 }

@@ -5925,9 +5925,9 @@ void MegaApi::getVpnCredentials(MegaRequestListener* listener)
     return pImpl->getVpnCredentials(listener);
 }
 
-void MegaApi::getVpnCredential(const char* region, MegaRequestListener* listener)
+void MegaApi::putVpnCredential(const char* region, MegaRequestListener* listener)
 {
-    return pImpl->getVpnCredential(region, listener);
+    return pImpl->putVpnCredential(region, listener);
 }
 
 void MegaApi::delVpnCredential(int slotID, MegaRequestListener* listener)
