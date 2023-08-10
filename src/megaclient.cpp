@@ -527,7 +527,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                     if (notify)
                     {
                         n->changed.outshares = true;
-                        notifynode(n);
+                        mNodeManager.notifyNode(n);
                     }
                 }
 
@@ -547,7 +547,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                     if (notify)
                     {
                         n->changed.pendingshares = true;
-                        notifynode(n);
+                        mNodeManager.notifyNode(n);
                     }
                 }
 
@@ -583,7 +583,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
             else if (notify)
             {
                 n->changed.inshare = true;
-                notifynode(n);
+                mNodeManager.notifyNode(n);
             }
         }
     }
@@ -618,7 +618,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                                 if (notify)
                                 {
                                     n->changed.pendingshares = true;
-                                    notifynode(n);
+                                    mNodeManager.notifyNode(n);
                                 }
                             }
 
@@ -675,7 +675,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                         {
                             n->changed.outshares = true;
                         }
-                        notifynode(n);
+                        mNodeManager.notifyNode(n);
                     }
                 }
             }
@@ -709,7 +709,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                         if (notify)
                         {
                             n->changed.inshare = true;
-                            notifynode(n);
+                            mNodeManager.notifyNode(n);
                         }
                     }
                     else
@@ -1100,6 +1100,7 @@ void SCSN::clear()
 {
     memset(scsn, 0, sizeof(scsn));
     stopsc = false;
+    LOG_debug << "scsn cleared";
 }
 
 // set server-client sequence number
@@ -1119,13 +1120,19 @@ bool SCSN::setScsn(JSON* j)
 
 void SCSN::setScsn(handle h)
 {
+    bool wasReady = ready();
     Base64::btoa((byte*)&h, sizeof h, scsn);
+    if (ready() != wasReady)
+    {
+        LOG_debug << "scsn now ready: " << ready();
+    }
 }
 
 void SCSN::stopScsn()
 {
     memset(scsn, 0, sizeof(scsn));
     stopsc = true;
+    LOG_debug << "scsn stopped";
 }
 
 bool SCSN::ready() const
@@ -3010,8 +3017,8 @@ void MegaClient::exec()
                 fsfp_t current = fsaccess->fsFingerprint(sync->getConfig().mLocalPath);
                 if (sync->fsfp != current)
                 {
-                    LOG_err << "Local filesystem mismatch. Previous fsfp: " << sync->fsfp
-                            << "  Current: " << current;
+                    LOG_err << "Local filesystem mismatch. Previous fsfp: " << sync->fsfp.id
+                            << "  Current: " << current.id;
                     syncs.disableSyncByBackupId(sync->getConfig().mBackupId, true, current ? LOCAL_FILESYSTEM_MISMATCH : LOCAL_PATH_UNAVAILABLE, false, nullptr);
                 }
             }
@@ -4396,6 +4403,7 @@ void MegaClient::dispatchTransfers()
                         openfinished = true;
                         nexttransfer->asyncopencontext.reset();
                         asyncfopens--;
+                        ts->fa->fopenSucceeded = openok;
                     }
 
                     assert(!asyncfopens);
@@ -4566,7 +4574,7 @@ void MegaClient::dispatchTransfers()
                                     if (n)
                                     {
                                         n->size = s;
-                                        notifynode(n);
+                                        mNodeManager.notifyNode(n);
                                     }
                                 }
 
@@ -4847,7 +4855,7 @@ void MegaClient::logout(bool keepSyncConfigsFile, CommandLogout::Completion comp
 
 void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 {
-    LOG_debug << clientname << "exectuing locallogout processing";  // track possible lack of logout callbacks
+    LOG_debug << clientname << "executing locallogout processing";  // track possible lack of logout callbacks
     executingLocalLogout = true;
 
     mAsyncQueue.clearDiscardable();
@@ -6314,7 +6322,7 @@ void MegaClient::sc_updatenode()
 
                         if (notify)
                         {
-                            notifynode(n);
+                            mNodeManager.notifyNode(n);
                         }
                     }
                 }
@@ -6675,7 +6683,7 @@ bool MegaClient::sc_upgrade()
         switch (jsonsc.getnameid())
         {
             case MAKENAMEID2('i', 't'):
-                itemclass = int(jsonsc.getint()); // itemclass. For now, it's always 0.
+                itemclass = int(jsonsc.getint()); // itemclass
                 break;
 
             case 'p':
@@ -6691,7 +6699,7 @@ bool MegaClient::sc_upgrade()
                 break;
 
             case EOO:
-                if (itemclass == 0 && statecurrent)
+                if ((itemclass == 0 || itemclass == 1) && statecurrent)
                 {
                     useralerts.add(new UserAlert::Payment(success, proNumber, m_time(), useralerts.nextId()));
                 }
@@ -6845,7 +6853,7 @@ void MegaClient::sc_fileattr()
                 {
                     JSON::copystring(&n->fileattrstring, fa);
                     n->changed.fileattrstring = true;
-                    notifynode(n);
+                    mNodeManager.notifyNode(n);
                 }
                 return;
 
@@ -7439,7 +7447,7 @@ void MegaClient::sc_ph()
                 }
 
                 n->changed.publiclink = true;
-                notifynode(n);
+                mNodeManager.notifyNode(n);
             }
             else
             {
@@ -7898,8 +7906,6 @@ void MegaClient::sc_delscheduledmeeting()
                         // remove children scheduled meetings (API requirement)
                         handle_set deletedChildren = chat->removeChildSchedMeetings(schedId);
                         handle chatid = chat->getChatId();
-                        chat->setTag(0);    // external change
-                        notifychat(chat);
 
                         if (statecurrent)
                         {
@@ -7908,9 +7914,13 @@ void MegaClient::sc_delscheduledmeeting()
 
                             createDeletedSMAlert(ou, chatid, schedId);
                         }
-                        reqs.add(new CommandScheduledMeetingFetchEvents(this, chatid, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
+
+                        clearSchedOccurrences(*chat);
+                        chat->setTag(0);    // external change
+                        notifychat(chat);
                         break;
                     }
+
                 }
                 break;
             }
@@ -7970,9 +7980,6 @@ void MegaClient::sc_scheduledmeetings()
 
             // if we couldn't update scheduled meeting, but we have deleted it's children, we also need to notify apps
             handle chatid = chat->getChatId();
-            chat->setTag(0);    // external change
-            notifychat(chat);
-
             if (statecurrent)
             {
                 // generate deleted scheduled meetings user alerts for each member in cmd (child meetings deleted) array
@@ -7987,8 +7994,9 @@ void MegaClient::sc_scheduledmeetings()
             }
         }
 
-        // fetch for fresh scheduled meetings occurrences
-        reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->getChatId(), mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
+        clearSchedOccurrences(*chat);
+        chat->setTag(0);    // external change
+        notifychat(chat);
     }
 }
 
@@ -8842,7 +8850,7 @@ error MegaClient::setattr(Node* n, attr_map&& updates, CommandSetAttr::Completio
 
     n->changed.attrs = true;
     n->changed.modifiedByThisClient = true;
-    notifynode(n);
+    mNodeManager.notifyNode(n);
 
     reqs.add(new CommandSetAttr(this, n, cipher, std::move(c), canChangeVault));
 
@@ -9172,7 +9180,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
 
         n->changed.parent = true;
         n->changed.modifiedByThisClient = true;
-        notifynode(n);
+        mNodeManager.notifyNode(n);
 
         // rewrite keys of foreign nodes that are moved out of an outbound share
         rewriteforeignkeys(n);
@@ -9317,7 +9325,7 @@ error MegaClient::unlink(Node* n, bool keepversions, int tag, bool canChangeVaul
             olderversion->setparent(newerversion);
             olderversion->changed.parent = true;
             olderversion->changed.modifiedByThisClient = true;
-            notifynode(olderversion);
+            mNodeManager.notifyNode(olderversion);
         }
     }
 
@@ -9521,6 +9529,9 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
     Node* n;
 
     handle previousHandleForAlert = UNDEF;
+
+    NodeManager::MissingParentNodes missingParentNodes;
+
     while (j->enterobject())
     {
         handle h = UNDEF, ph = UNDEF;
@@ -9675,7 +9686,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                     {
                         n->setparent(NULL);
                         n->parenthandle = ph;
-                        mNodeManager.addNodeWithMissingParent(n);
+                        missingParentNodes[n->parentHandle()].insert(n);
                     }
                 }
 
@@ -9763,7 +9774,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 }
 
                 // NodeManager takes n ownership
-                mNodeManager.addNode(n, notify,  fetchingnodes);
+                mNodeManager.addNode(n, notify,  fetchingnodes, missingParentNodes);
 
                 if (!ISUNDEF(su))   // node represents an incoming share
                 {
@@ -9848,7 +9859,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
             if (notify)
             {
                 // node is save in DB at notifypurge
-                notifynode(n);
+                mNodeManager.notifyNode(n);
             }
             else // Only need to save in DB if node is not notified
             {
@@ -9880,7 +9891,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
     }
 
     mergenewshares(notify);
-    mNodeManager.checkOrphanNodes();
+    mNodeManager.checkOrphanNodes(missingParentNodes);
 
     return j->leavearray();
 }
@@ -12496,12 +12507,6 @@ void MegaClient::senddevcommand(const char *command, const char *email, long lon
     reqs.add(new CommandSendDevCommand(this, command, email, q, bs, us));
 }
 #endif
-
-// queue node for notification
-void MegaClient::notifynode(Node* n)
-{
-    mNodeManager.notifyNode(n);
-}
 
 void MegaClient::transfercacheadd(Transfer *transfer, TransferDbCommitter* committer)
 {
@@ -18307,8 +18312,10 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
         {
             if (!f->isvalid)
             {
+                LOG_warn << "Downloading a file with invalid fingerprint, was: " << f->fingerprintDebugString() << " name: " << f->getLocalname();
                 // no valid fingerprint: use filekey as its replacement
                 memcpy(f->crc.data(), f->filekey, sizeof f->crc);
+                LOG_warn << "Downloading a file with invalid fingerprint, adjusted to: " << f->fingerprintDebugString() << " name: " << f->getLocalname();
             }
         }
 
@@ -19805,6 +19812,12 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
     return e;
 }
 
+void MegaClient::clearSchedOccurrences(TextChat& chat)
+{
+    chat.clearUpdatedSchedMeetingOccurrences();
+    chat.changed.schedOcurrReplace = true;
+}
+
 #endif
 
 void MegaClient::getaccountachievements(AchievementsDetails *details)
@@ -20328,9 +20341,8 @@ size_t MegaClient::decryptAllSets(map<handle, Set>& newSets, map<handle, element
         error e = decryptSetData(itS->second);
         if (e != API_OK)
         {
-            assert(false); // failed to decrypt Set attributes
-
             // skip this Set and its Elements
+            // allow execution to continue, including the test for this scenario
             newElements.erase(itS->first);
             itS = newSets.erase(itS);
             continue;
@@ -20843,6 +20855,52 @@ const Set* MegaClient::addSet(Set&& a)
     return &add.first->second;
 }
 
+void MegaClient::fixSetElementWithWrongKey(const Set& s)
+{
+    const auto els = getSetElements(s.id());
+    if (!els) return;
+
+    vector<SetElement> newEls;
+    vector<handle> taintedEls;
+    const auto hasWrongKey = [](const SetElement& el) { return el.key().size() != static_cast<size_t>(FILENODEKEYLENGTH); };
+    for (auto& p : *els) // candidate to paral in >C++17 via algorithms
+    {
+        const SetElement& e = p.second;
+        if (hasWrongKey(e))
+        {
+            LOG_warn << "Sets: SetElement " << toHandle(e.id()) << " from Set " << toHandle(s.id())
+                     << " contains invalid key of " << s.key().size() << " Bytes";
+            taintedEls.push_back(e.id());
+            newEls.emplace_back(e);
+        }
+    }
+
+    if (taintedEls.empty()) return;
+
+    const auto logResult = [this](Error e, const vector<int64_t>* results, const std::string& msg)
+    {
+        if (e == API_OK && (!results ||
+            std::all_of(begin(*results), end(*results), [](int64_t r) { return r == API_OK; })))
+        {
+            const std::string m = "Sets: SetElements with wrong key " + msg + " successfully";
+            LOG_debug << m;
+            sendevent(99477, m.c_str());
+        }
+        else
+        {
+            const std::string m = "Sets: Error: SetElements with wrong key failed to be " + msg;
+            LOG_warn << m;
+            sendevent(99478, m.c_str());
+        }
+    };
+    // removal must take place before because there can't be 2 SetElements with the same node
+    removeSetElements(s.id(), std::move(taintedEls),
+                      [logResult](Error e, const vector<int64_t>* results) { logResult(e, results, "removed"); });
+
+    putSetElements(std::move(newEls), [logResult](Error e, const vector<const SetElement*>*, const vector<int64_t>* results)
+        { logResult(e, results, "created"); });
+}
+
 bool MegaClient::updateSet(Set&& s)
 {
     auto it = mSets.find(s.id());
@@ -21239,6 +21297,11 @@ void MegaClient::exportSet(handle sid, bool makePublic, std::function<void(Error
     const auto setToBeUpdated = getSet(sid);
     if (setToBeUpdated)
     {
+        if (makePublic) // legacy bug: some Element's key were set incorrectly -> repair
+        {
+            fixSetElementWithWrongKey(*setToBeUpdated);
+        }
+
         if (setToBeUpdated->isExported() == makePublic) completion(API_OK);
         else
         {

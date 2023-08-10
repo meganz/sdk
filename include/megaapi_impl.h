@@ -90,18 +90,16 @@ using MegaGfxProvider = GfxProviderExternal;
 	class MegaFileSystemAccess : public WinFileSystemAccess {};
 	class MegaWaiter : public WinWaiter {};
 #else
+    class MegaHttpIO : public CurlHttpIO {};
+    class MegaWaiter : public PosixWaiter {};
     #ifdef __APPLE__
-    typedef CurlHttpIO MegaHttpIO;
         #if TARGET_OS_IPHONE
         typedef PosixFileSystemAccess MegaFileSystemAccess;
         #else
-        typedef MacFileSystemAccess MegaFileSystemAccess;
+        class MegaFileSystemAccess : public MacFileSystemAccess {};
         #endif
-    typedef PosixWaiter MegaWaiter;
     #else
-    class MegaHttpIO : public CurlHttpIO {};
     class MegaFileSystemAccess : public PosixFileSystemAccess {};
-    class MegaWaiter : public PosixWaiter {};
     #endif
 #endif
 
@@ -699,6 +697,7 @@ public:
     MegaHandle root() const override { return mData.rootNode; }
     const char* localFolder() const override { return mData.localFolder.c_str(); }
     const char* deviceId() const override { return mData.deviceId.c_str(); }
+    const char* deviceUserAgent() const override { return mData.deviceUserAgent.c_str(); }
     int state() const override { return mData.syncState; }
     int substate() const override { return mData.syncSubstate; }
     const char* extra() const override { return mData.extra.c_str(); }
@@ -1743,6 +1742,7 @@ public:
     virtual bool isCurrent() const;
     virtual bool isAlive() const;
     virtual MegaHandle getHandle() const;
+    char *getDeviceId() const override;
 
 private:
     MegaAccountSessionPrivate(const AccountSession *session);
@@ -2650,8 +2650,8 @@ class MegaApiImpl : public MegaApp
         void getRubbishBinAutopurgePeriod(MegaRequestListener *listener = NULL);
         void setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listener = NULL);
         const char* getDeviceId() const;
-        void getDeviceName(MegaRequestListener *listener = NULL);
-        void setDeviceName(const char* deviceName, MegaRequestListener *listener = NULL);
+        void getDeviceName(const char* deviceId, MegaRequestListener *listener = NULL);
+        void setDeviceName(const char* deviceId, const char* deviceName, MegaRequestListener *listener = NULL);
         void getDriveName(const char *pathToDrive, MegaRequestListener *listener = NULL);
         void setDriveName(const char* pathToDrive, const char *driveName, MegaRequestListener *listener = NULL);
         void getUserEmail(MegaHandle handle, MegaRequestListener *listener = NULL);
@@ -3573,7 +3573,7 @@ private:
         void chats_updated(textchat_map *, int) override;
         void richlinkrequest_result(string*, error) override;
         void chatlink_result(handle, error) override;
-        void chatlinkurl_result(handle, int, string*, string*, int, m_time_t, bool, handle, error) override;
+        void chatlinkurl_result(handle, int, string*, string*, int, m_time_t, bool, const bool, const std::vector<std::unique_ptr<ScheduledMeeting>>*, handle, error) override;
         void chatlinkclose_result(error) override;
         void chatlinkjoin_result(error) override;
 #endif

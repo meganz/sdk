@@ -586,7 +586,7 @@ public:
     // get the public key of an user
     void getpubkey(const char* user);
 
-    // check if logged in
+    // check if logged in (avoid repetitive calls <-- requires call to Cryptopp::InverseMod(), which is slow)
     sessiontype_t loggedin();
 
     // provide state by change callback
@@ -1435,6 +1435,7 @@ public:
     void createUpdatedSMAlert(const handle&, handle chatid, handle schedId, handle parentSchedId,
                                m_time_t startDateTime, UserAlert::UpdatedScheduledMeeting::Changeset&& cs);
     static error parseScheduledMeetingChangeset(JSON*, UserAlert::UpdatedScheduledMeeting::Changeset*);
+    void clearSchedOccurrences(TextChat& chat);
 #endif
     void sc_uac();
     void sc_uec();
@@ -1515,6 +1516,8 @@ public:
 
     // NodeManager instance to wrap all access to Node objects
     NodeManager mNodeManager;
+
+    mutex nodeTreeMutex;
 
     // there is data to commit to the database when possible
     bool pendingsccommit;
@@ -1727,8 +1730,6 @@ public:
 
     pcr_vector pcrnotify;
     void notifypcr(PendingContactRequest*);
-
-    void notifynode(Node*);
 
     // update transfer in the persistent cache
     void transfercacheadd(Transfer*, TransferDbCommitter*);
@@ -2491,6 +2492,7 @@ private:
     error readExportedSet(JSON& j, Set& s, pair<bool, m_off_t>& exportRemoved);
     error readSetsPublicHandles(JSON& j, map<handle, Set>& sets);
     error readSetPublicHandle(JSON& j, map<handle, Set>& sets);
+    void fixSetElementWithWrongKey(const Set& set);
     size_t decryptAllSets(map<handle, Set>& newSets, map<handle, elementsmap_t>& newElements, map<handle, SetElement::NodeMetadata>* nodeData);
     error decryptSetData(Set& s);
     error decryptElementData(SetElement& el, const string& setKey);

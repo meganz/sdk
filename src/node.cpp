@@ -1372,7 +1372,7 @@ bool Node::applykey()
     handle h;
     const char* k = NULL;
     SymmCipher* sc = &client->key;
-    handle me = client->loggedin() ? client->me : client->mNodeManager.getRootNodeFiles().as8byte();
+    handle me = client->loggedIntoFolder() ? client->mNodeManager.getRootNodeFiles().as8byte() : client->me;
 
     while ((t = nodekeydata.find_first_of(':', t)) != string::npos)
     {
@@ -1521,15 +1521,9 @@ NodeCounter Node::getCounter() const
     return mCounter;
 }
 
-void Node::setCounter(const NodeCounter &counter, bool notify)
+void Node::setCounter(const NodeCounter &counter)
 {
     mCounter = counter;
-
-    if (notify)
-    {
-        changed.counter = true;
-        client->notifynode(this);
-    }
 }
 
 // returns whether node was moved

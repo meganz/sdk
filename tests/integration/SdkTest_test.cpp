@@ -102,7 +102,7 @@ const char* cwd()
 #ifdef _WIN32
     #define getcwd _getcwd
     ret = _getcwd(path, sizeof path);
-    #undef getcwd 
+    #undef getcwd
 #else
     ret = getcwd(path, sizeof path);
 #endif
@@ -1807,10 +1807,10 @@ std::string getCurrentTimestamp(bool includeDate);
  *  - Logout and resume the create-account process
  *  - Extract confirmation link from the mailbox
  *  - Use the link to confirm the account
- * 
+ *
  *  - Request a reset password link
  *  - Confirm the reset password
- * 
+ *
  *  - Login to the new account
  *  - Request cancel account link
  *  - Extract cancel account link from the mailbox
@@ -1906,7 +1906,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
 
     // test resetting the password
     // ---------------------------
-    
+
     ASSERT_EQ(synchronousResetPassword(0, newTestAcc.c_str(), true), MegaError::API_OK) << "resetPassword failed";
     chrono::time_point<chrono::system_clock> timeOfResetEmail = chrono::system_clock::now();
 
@@ -1969,7 +1969,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
 
     // delete the account
     // ------------------
-    
+
     // Request cancel account link
     chrono::time_point<chrono::system_clock>  timeOfDeleteEmail = std::chrono::system_clock::now();
     {
@@ -7447,10 +7447,16 @@ TEST_F(SdkTest, SdkDeviceNames)
 
     // test setter/getter
     string deviceName = string("SdkDeviceNamesTest_") + getCurrentTimestamp(true);
-    ASSERT_EQ(API_OK, doSetDeviceName(0, deviceName.c_str())) << "setDeviceName failed";
+    ASSERT_EQ(API_OK, doSetDeviceName(0, nullptr, deviceName.c_str())) << "setDeviceName failed";
     string deviceNameInCloud;
-    ASSERT_EQ(API_OK, doGetDeviceName(0, &deviceNameInCloud)) << "getDeviceName failed";
+    ASSERT_EQ(API_OK, doGetDeviceName(0, &deviceNameInCloud, nullptr)) << "getDeviceName failed";
     ASSERT_EQ(deviceNameInCloud, deviceName) << "getDeviceName returned incorrect value";
+
+    // test device name taken directly from user attribute
+    RequestTracker devNameTracker(megaApi[0].get());
+    megaApi[0]->getUserAttribute(MegaApi::USER_ATTR_DEVICE_NAMES, &devNameTracker);
+    ASSERT_EQ(API_OK, devNameTracker.waitForResult());
+    ASSERT_STREQ(devNameTracker.request->getName(), deviceName.c_str());
 }
 
 TEST_F(SdkTest, SdkBackupFolder)
@@ -7466,14 +7472,14 @@ TEST_F(SdkTest, SdkBackupFolder)
     // look for Device Name attr
     string deviceName;
     bool deviceNameWasSetByCurrentTest = false;
-    if (doGetDeviceName(0, &deviceName) != API_OK || deviceName.empty())
+    if (doGetDeviceName(0, &deviceName, nullptr) != API_OK || deviceName.empty())
     {
         deviceName = "Jenkins " + timestamp;
-        doSetDeviceName(0, deviceName.c_str());
+        doSetDeviceName(0, nullptr, deviceName.c_str());
 
         // make sure Device Name attr was set
         string deviceNameInCloud;
-        ASSERT_EQ(doGetDeviceName(0, &deviceNameInCloud), API_OK) << "Getting device name attr failed";
+        ASSERT_EQ(doGetDeviceName(0, &deviceNameInCloud, nullptr), API_OK) << "Getting device name attr failed";
         ASSERT_EQ(deviceName, deviceNameInCloud) << "Getting device name attr failed (wrong value)";
         deviceNameWasSetByCurrentTest = true;
     }
@@ -7648,12 +7654,12 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
 
     // Set device name if missing
     string deviceName;
-    if (doGetDeviceName(0, &deviceName) != API_OK || deviceName.empty())
+    if (doGetDeviceName(0, &deviceName, nullptr) != API_OK || deviceName.empty())
     {
         string newDeviceName = "Jenkins " + timestamp;
-        ASSERT_EQ(doSetDeviceName(0, newDeviceName.c_str()), API_OK) << "Setting device name failed";
+        ASSERT_EQ(doSetDeviceName(0, nullptr, newDeviceName.c_str()), API_OK) << "Setting device name failed";
         // make sure Device Name attr was set
-        ASSERT_EQ(doGetDeviceName(0, &deviceName), API_OK) << "Getting device name failed";
+        ASSERT_EQ(doGetDeviceName(0, &deviceName, nullptr), API_OK) << "Getting device name failed";
         ASSERT_EQ(deviceName, newDeviceName) << "Getting device name failed (wrong value)";
     }
     // Make sure My Backups folder was created
@@ -7835,7 +7841,7 @@ TEST_F(SdkTest, SdkExternalDriveFolder)
 
     // attempt to set the name of an external drive to the name of current device (if the latter was already set)
     string deviceName;
-    if (doGetDeviceName(0, &deviceName) == API_OK && !deviceName.empty())
+    if (doGetDeviceName(0, &deviceName, nullptr) == API_OK && !deviceName.empty())
     {
         ASSERT_EQ(API_EEXIST, doSetDriveName(0, pathToDriveStr.c_str(), deviceName.c_str()))
             << "Ext-drive name was set to current device name: " << deviceName;
@@ -9734,6 +9740,9 @@ TEST_F(SdkTest, SyncOQTransitions)
     ASSERT_EQ(nodeList->size(), 1);
     MegaNode* inshareNode = nodeList->get(0);
 
+    // Wait for the outshare to be added to the sharer's node by the action packets
+    ASSERT_TRUE(WaitFor([this, &remoteFillNode]() { return unique_ptr<MegaNode>(megaApi[0]->getNodeByHandle(remoteFillNode->getHandle()))->isOutShare(); }, 60*1000));
+
     // Make sure that search functionality finds them
     unique_ptr<MegaNodeList> outShares(megaApi[0]->searchOnOutShares(fillPath.u8string().c_str(), nullptr));
     ASSERT_TRUE(outShares);
@@ -10263,7 +10272,7 @@ TEST_F(SdkTest, SdkTestAudioFileThumbnail)
 #endif
 {
     LOG_info << "___TEST Audio File Thumbnail___";
-    
+
     static const std::string AUDIO_FILENAME = "test_cover_png.mp3";
 
     LocalPath mp3LP;
@@ -11238,6 +11247,16 @@ TEST_F(SdkTest, SdkNodesOnDemandVersions)
     // important to reset
     resetOnNodeUpdateCompletionCBs();
 
+    // check no versions exist yet in either client
+    {
+        unique_ptr<MegaNode> n1(megaApi[0]->getNodeByPath(("/" + fileName).c_str()));
+        unique_ptr<MegaNode> n2(megaApi[1]->getNodeByPath(("/" + fileName).c_str()));
+        ASSERT_TRUE(n1 && !megaApi[0]->hasVersions(n1.get()));
+        ASSERT_TRUE(n2 && !megaApi[1]->hasVersions(n2.get()));
+        ASSERT_TRUE(n1 && 1 == megaApi[0]->getNumVersions(n1.get()));
+        ASSERT_TRUE(n2 && 1 == megaApi[1]->getNumVersions(n2.get()));
+    }
+
     // upload a file to replace the last one in the root of client 0
     // of course client 1 will see the same new file (and the old file becomes a version, if versioning is on.  Built with ENABLE_SYNC or not is irrelevant)
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check1);
@@ -11265,6 +11284,16 @@ TEST_F(SdkTest, SdkNodesOnDemandVersions)
     deleteFile(fileName);
     // important to reset
     resetOnNodeUpdateCompletionCBs();
+
+    // check both client now know the file has versons
+    {
+        unique_ptr<MegaNode> n1(megaApi[0]->getNodeByPath(("/" + fileName).c_str()));
+        unique_ptr<MegaNode> n2(megaApi[1]->getNodeByPath(("/" + fileName).c_str()));
+        ASSERT_TRUE(n1 && megaApi[0]->hasVersions(n1.get()));
+        ASSERT_TRUE(n2 && megaApi[1]->hasVersions(n2.get()));
+        ASSERT_TRUE(n1 && 2 == megaApi[0]->getNumVersions(n1.get()));
+        ASSERT_TRUE(n2 && 2 == megaApi[1]->getNumVersions(n2.get()));
+    }
 
     nodeFile.reset(megaApi[0]->getNodeByHandle(fh));
     unique_ptr<MegaNodeList> list(megaApi[0]->getChildren(nodeFile.get())); // null
@@ -11773,6 +11802,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     // U1: Get public Set URL
     // U1: Fetch Public Set and start Public Set preview mode
     // U1: Stop Public Set preview mode
+    // U2: Attempt to fetch public Set using wrong key
     // U2: Fetch public Set and start preview mode
     // U2: Download foreign Set Element in preview set mode
     // U2: Stop Public Set preview mode
@@ -12014,6 +12044,12 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     megaApi[userIdx]->stopPublicSetPreview();
     ASSERT_FALSE(megaApi[userIdx]->inPublicSetPreview());
     ASSERT_NO_FATAL_FAILURE(lFetchCurrentSetInPreviewMode(userIdx, false));
+
+
+    LOG_debug << "# U2: Attempt to fetch public Set using wrong key";
+    string exportedSetURL_wrongKey = exportedSetURL;
+    exportedSetURL_wrongKey.replace(exportedSetURL_wrongKey.find('#'), string::npos, "#aaaaaaaaaaaaaaaaaaaaaa");
+    ASSERT_EQ(doFetchPublicSet(1, nullptr, nullptr, exportedSetURL_wrongKey.c_str()), API_EKEY);
 
 
     LOG_debug << "# U2: Fetch public Set and start preview mode";
@@ -13832,7 +13868,7 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
     ASSERT_EQ(API_OK, uploadListener.waitForResult());
     std::unique_ptr<MegaNode> nimported(megaApi[0]->getNodeByHandle(uploadListener.resultNodeHandle));
     int nimportedNumChildren = megaApi[0]->getNumChildren(nimported.get());
-    EXPECT_EQ(nimportedNumChildren, 1) << "This folder should have 1 children (the file inside the folder) but it doesn't. Num children: '" << nimportedNumChildren << "'"; 
+    EXPECT_EQ(nimportedNumChildren, 1) << "This folder should have 1 children (the file inside the folder) but it doesn't. Num children: '" << nimportedNumChildren << "'";
 
     // Delete the local folder
     deleteFolder(foldername);

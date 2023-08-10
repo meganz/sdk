@@ -112,13 +112,13 @@ if [ ! -e "${CURRENTPATH}/lib/libcurl.a" ]; then
 
   echo "Openssl prefix"
   echo ${OPENSSL_PREFIX}
-  echo "CC=gcc -lstdc++ LIBS=-lpthread ./configure --prefix="${CURRENTPATH}" --enable-static --disable-shared --with-ssl=${OPENSSL_PREFIX} --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb"
+  echo "CC=gcc -lstdc++ LIBS=-lpthread ./configure --prefix="${CURRENTPATH}" --enable-static --disable-shared --with-ssl=${OPENSSL_PREFIX} --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb --without-libidn2"
 
   if [[ $(uname) == 'Darwin' ]]; then
 	CC="gcc -lstdc++" LIBS=-lpthread ./configure --prefix="${CURRENTPATH}" --enable-static --disable-shared --without-brotli --with-ssl=${OPENSSL_PREFIX} --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb --without-libidn2
     make -j `sysctl -n hw.physicalcpu`
   else
-	CC="gcc" LIBS="-lpthread -lstdc++" ./configure --prefix="${CURRENTPATH}" --enable-static --disable-shared --without-brotli --with-ssl=${OPENSSL_PREFIX} --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb
+	CC="gcc" LIBS="-lpthread -lstdc++" ./configure --prefix="${CURRENTPATH}" --enable-static --disable-shared --without-brotli --with-ssl=${OPENSSL_PREFIX} --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb --without-libidn2
     make -j `nproc`
   fi
   make install

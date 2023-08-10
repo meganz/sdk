@@ -6514,6 +6514,7 @@ public:
         FAILURE_ACCESSING_PERSISTENT_STORAGE = 43, // Failure accessing to persistent storage
         MISMATCH_OF_ROOT_FSID = 44,             // The sync root's FSID changed.  So this is a different folder.  And, we can't identify the old sync db as the name depends on this
         FILESYSTEM_FILE_IDS_ARE_UNSTABLE = 45,  // On MAC in particular, the FSID of a file in an exFAT drive can and does change spontaneously and frequently
+        FILESYSTEM_ID_UNAVAILABLE = 46,         // Could not get the filesystem's id
     };
 
     enum Warning
@@ -13708,8 +13709,30 @@ class MegaApi
          * - MegaRequest::getName - Returns device name.
          *
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This version of the function is deprecated. Please use the non-deprecated one below.
          */
+        MEGA_DEPRECATED
         void getDeviceName(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Returns the name previously set for a device
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DEVICE_NAMES
+         * - MegaRequest::getText - Returns passed device id (or the value returned by getDeviceId()
+         * if deviceId was initially passed as null).
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getName - Returns device name.
+         *
+         * @param deviceId The id of the device to get the name for. If null, the value returned
+         * by getDeviceId() will be used instead.
+         * @param listener MegaRequestListener to track this request
+         */
+        void getDeviceName(const char *deviceId, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Sets device name
@@ -13721,8 +13744,28 @@ class MegaApi
          *
          * @param deviceName String with device name
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This version of the function is deprecated. Please use the non-deprecated one below.
          */
+        MEGA_DEPRECATED
         void setDeviceName(const char* deviceName, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Sets name for specified device
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DEVICE_NAMES
+         * - MegaRequest::getName - Returns device name.
+         * - MegaRequest::getText - Returns passed device id (or the value returned by getDeviceId()
+         * if deviceId was initially passed as null).
+         *
+         * @param deviceId The id of the device to set the name for If null, the value returned
+         * by getDeviceId() will be used instead.
+         * @param deviceName String with device name
+         * @param listener MegaRequestListener to track this request
+         */
+        void setDeviceName(const char* deviceId, const char* deviceName, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Returns the name set for this drive
@@ -15447,17 +15490,6 @@ class MegaApi
 
          */
         MegaError* isNodeSyncableWithError(MegaNode* node);
-
-        /**
-         * @brief Get the corresponding local path of a synced node
-         * @param Node to check
-         * @return Local path of the corresponding file in the local computer. If the node is't synced
-         * this function returns an empty string.
-         *
-         * @deprecated New functions to manage synchronizations are being implemented. This funtion will
-         * be removed in future updates.
-         */
-        std::string getLocalPath(MegaNode *node);
 
         /**
          * @brief Get the synchronization identified with a backupId
@@ -19885,7 +19917,7 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getNodeHandle - Returns the public hanle
+         * - MegaRequest::getNodeHandle - Returns the public handle
          * - MegaRequest::getLink - Returns the URL to connect to chatd for the chat link
          * - MegaRequest::getParentHandle - Returns the chat identifier
          * - MegaRequest::getAccess - Returns the shard
@@ -19893,7 +19925,9 @@ class MegaApi
          * - MegaRequest::getNumDetails - Returns the current number of participants
          * - MegaRequest::getNumber - Returns the creation timestamp
          * - MegaRequest::getFlag - Returns if chatRoom is a meeting Room
+         * - MegaRequest::getParamType - Returns 1 if chatRoom has waiting room option enabled
          * - MegaRequest::getMegaHandleList - Returns a vector with one element (callid), if call doesn't exit it will be NULL
+         * - MegaRequest::getMegaScheduledMeetingList - Returns a MegaScheduledMeetingList (with a list of scheduled meetings associated to the chatroom) or nullptr if none.
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_ENOENT - If the public handle is not valid or the chatroom does not exists.
@@ -19970,8 +20004,13 @@ class MegaApi
         /**
          * @brief Allows to start chat call in a chat room
          *
-         * - Note: Scheduled meeting id: When a scheduled meeting exists for a chatroom, and a call is started in that scheduled meeting context, it won't
-         * ring the participants.
+         * - If schedId param is INVALID_HANDLE:
+         *      + If Waiting room option is enabled : Call should ring and we'll bypass waiting room
+         *      + If Waiting room option is disabled: Call should ring
+         *
+         * - If schedId param is valid:
+         *      + If Waiting room option is enabled : Call shouldn't ring and we'll be redirected to Waiting room
+         *      + If Waiting room option is disabled: Call shouldn't ring
          *
          * The associated request type with this request is MegaRequest::TYPE_START_CHAT_CALL
          *
@@ -20950,7 +20989,8 @@ class MegaApi
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_ENOENT - Set could not be found.
-         * - MegaError::API_EINTERNAL - Received answer could not be read or decrypted.
+         * - MegaError::API_EINTERNAL - Received answer could not be read.
+         * - MegaError::API_EKEY - Received answer could not be decrypted.
          * - MegaError::API_EARGS - Malformed (from API).
          * - MegaError::API_EACCESS - Permissions Error (from API).
          *
@@ -21109,6 +21149,13 @@ public:
      * @return Id of the device where the backup originated.
      */
     virtual const char* deviceId() const { return nullptr; }
+
+    /**
+     * @brief Returns the user-agent associated with the device where the backup originated.
+     *
+     * @return User-agent associated with the device where the backup originated.
+     */
+    virtual const char* deviceUserAgent() const { return nullptr; }
 
     /**
      * @brief Possible sync state of a backup.
@@ -21365,6 +21412,15 @@ public:
      * @return Handle of the session
      */
     virtual MegaHandle getHandle() const;
+
+    /**
+     * @brief Get the Device-id of the device where the session originated
+     *
+     * You take the ownership of the returned value
+     *
+     * @return Device-id of the device where the session originated
+     */
+    virtual char *getDeviceId() const;
 };
 
 /**

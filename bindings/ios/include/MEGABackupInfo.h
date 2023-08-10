@@ -350,7 +350,7 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  * @brief Returns the timestamp of the backup, as reported by heartbeats.
  */
-@property (readonly, nonatomic, nullable) NSDate *ts;
+@property (readonly, nonatomic, nullable) NSDate *timestamp;
 
 /**
  * @brief Returns the status of the backup, as reported by heartbeats.
@@ -394,7 +394,7 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  * @brief Returns the last activity timestamp, as reported by heartbeats.
  */
-@property (readonly, nonatomic, nullable) NSDate *activityTs;
+@property (readonly, nonatomic, nullable) NSDate *activityTimestamp;
 
 /**
  * @brief Returns handle of the last synced node.

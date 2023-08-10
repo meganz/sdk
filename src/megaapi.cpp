@@ -3150,12 +3150,22 @@ const char* MegaApi::getDeviceId() const
 
 void MegaApi::getDeviceName(MegaRequestListener *listener)
 {
-    pImpl->getDeviceName(listener);
+    pImpl->getDeviceName(nullptr, listener);
+}
+
+void MegaApi::getDeviceName(const char *deviceId, MegaRequestListener *listener)
+{
+    pImpl->getDeviceName(deviceId, listener);
 }
 
 void MegaApi::setDeviceName(const char *deviceName, MegaRequestListener *listener)
 {
-    pImpl->setDeviceName(deviceName, listener);
+    pImpl->setDeviceName(nullptr, deviceName, listener);
+}
+
+void MegaApi::setDeviceName(const char *deviceId, const char *deviceName, MegaRequestListener *listener)
+{
+    pImpl->setDeviceName(deviceId, deviceName, listener);
 }
 
 void MegaApi::getDriveName(const char *pathToDrive, MegaRequestListener *listener)
@@ -3625,11 +3635,6 @@ const char* MegaApi::exportSyncConfigs()
 MegaSyncList* MegaApi::getSyncs()
 {
    return pImpl->getSyncs();
-}
-
-string MegaApi::getLocalPath(MegaNode *n)
-{
-    return pImpl->getLocalPath(n);
 }
 
 long long MegaApi::getNumLocalNodes()
@@ -6594,6 +6599,11 @@ bool MegaAccountSession::isAlive() const
 MegaHandle MegaAccountSession::getHandle() const
 {
     return INVALID_HANDLE;
+}
+
+char *MegaAccountSession::getDeviceId() const
+{
+    return nullptr;
 }
 
 
