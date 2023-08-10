@@ -865,7 +865,7 @@ public:
      * @param syncError filled with SyncError with the sync error that makes the node unsyncable
      * @return API_OK if syncable. (regular) error otherwise
      */
-    error isnodesyncable(Node*, bool * isinshare = NULL, SyncError *syncError = nullptr);
+    error isnodesyncable(std::shared_ptr<Node>, bool * isinshare = NULL, SyncError *syncError = nullptr);
 
     /**
      * @brief is local path syncable

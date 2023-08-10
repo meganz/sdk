@@ -1304,7 +1304,7 @@ MegaError* MegaApiImpl::isNodeSyncableWithError(MegaNode* megaNode) {
     }
 
     SyncError se = SyncError::NO_SYNC_ERROR;
-    error e = client->isnodesyncable(node.get(), nullptr, &se);
+    error e = client->isnodesyncable(node, nullptr, &se);
     return new MegaErrorPrivate(e, se);
 }
 

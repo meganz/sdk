@@ -1059,7 +1059,6 @@ shared_ptr<Node> MegaClient::getrootnode(Node *node)
         return NULL;
     }
 
-    // TODO cache LRU receive shared_ptr direclty as argument
     std::shared_ptr<Node> n = node->mNodePosition->second.getNodeInRam();
     assert(n);
     assert(n.get() == node);
@@ -15261,7 +15260,7 @@ error MegaClient::addtimer(TimerWithBackoff *twb)
 
 #ifdef ENABLE_SYNC
 
-error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *syncError)
+error MegaClient::isnodesyncable(std::shared_ptr<Node> remotenode, bool *isinshare, SyncError *syncError)
 {
     // cannot sync files, rubbish bins or vault
     if (remotenode->type != FOLDERNODE && remotenode->type != ROOTNODE)
@@ -15283,7 +15282,7 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
             // We cannot use this function re-test an existing sync
             // This is just for testing whether we can create a new one with `remotenode`
             bool above = remotenode->isbelow(syncRoot.get());
-            bool below = syncRoot->isbelow(remotenode);
+            bool below = syncRoot->isbelow(remotenode.get());
             if (above && below)
             {
                 if (syncError) *syncError = ACTIVE_SYNC_SAME_PATH;
@@ -15303,10 +15302,7 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
     }
 
     // any active syncs above? or node within //bin or inside non full access inshare
-    // TODO cache LRU receive shared_ptr direclty as argument
-    std::shared_ptr<Node> n = remotenode->mNodePosition->second.getNodeInRam();
-    assert(n);
-    assert(n.get() == remotenode);
+    std::shared_ptr<Node> n = remotenode;
     bool inshare = false;
 
     do {
@@ -15352,7 +15348,7 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
                     if ((n = nodebyhandle(*sit)) && n->inshare && n->inshare->access != FULL)
                     {
                         do {
-                            if (n.get() == remotenode)
+                            if (n == remotenode)
                             {
                                 if(syncError)
                                 {
@@ -15459,7 +15455,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         return API_ENOENT;
     }
 
-    if (error e = isnodesyncable(remotenode.get(), &inshare, &syncConfig.mError))
+    if (error e = isnodesyncable(remotenode, &inshare, &syncConfig.mError))
     {
         LOG_debug << "Node is not syncable for sync add";
         syncConfig.mEnabled = false;
