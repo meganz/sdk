@@ -4297,7 +4297,7 @@ class MegaRequest
             TOTAL_OF_REQUEST_TYPES                                          = 172,
             TYPE_GET_VPN_REGIONS                                            = 173,
             TYPE_GET_VPN_CREDENTIALS                                        = 174,
-            TYPE_GET_VPN_CREDENTIAL                                         = 175,
+            TYPE_PUT_VPN_CREDENTIAL                                         = 175,
             TYPE_DEL_VPN_CREDENTIAL                                         = 176,
         };
 

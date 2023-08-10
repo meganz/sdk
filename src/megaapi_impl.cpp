@@ -4387,7 +4387,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_AB_TEST_ACTIVE: return "AB_TEST_ACTIVE";
         case TYPE_GET_VPN_REGIONS: return "GET_VPN_REGIONS";
         case TYPE_GET_VPN_CREDENTIALS: return "GET_VPN_CREDENTIALS";
-        case TYPE_GET_VPN_CREDENTIAL: return "GET_VPN_CREDENTIAL";
+        case TYPE_PUT_VPN_CREDENTIAL: return "PUT_VPN_CREDENTIAL";
         case TYPE_DEL_VPN_CREDENTIAL: return "DEL_VPN_CREDENTIALS";
     }
     return "UNKNOWN";
