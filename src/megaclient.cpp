@@ -22178,7 +22178,8 @@ bool KeyManager::promotePendingShares()
         {
             if (encryptedShareKey.size() > 16)
             {
-                // If size > 16 the share key may be stored as a base64 string instead of binary data.
+                // Legacy bug: SDK used to store share keys in B64. If size > 16
+                // the share key should be converted first into binary data.
                 string msg = "KeyMgr / Pending inshare key from string to binary";
                 mClient.sendevent(99480, msg.c_str());
                 encryptedShareKey = Base64::atob(it.second.second);
