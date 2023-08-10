@@ -763,6 +763,13 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         }
         break;
 #endif
+
+    case MegaRequest::TYPE_GET_VPN_REGIONS:
+        if (mApi[apiIndex].lastError == API_OK)
+        {
+            mApi[apiIndex].setStringList(request->getMegaStringList()->copy());
+        }
+        break;
     }
 
     // set this flag always the latest, since it is used to unlock the wait
@@ -14165,5 +14172,21 @@ TEST_F(SdkTest, SdkTestDeleteListenerBeforeFinishingRequest)
         }
         ASSERT_TRUE(rt->started);
         ASSERT_FALSE(rt->finished);
+    }
+}
+
+TEST_F(SdkTest, SdkTestMegaVpnCredentials)
+{
+    LOG_info << "___TEST SdkTestMegaVpnCredentials";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    {
+        auto rt = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+        mApi[0].megaApi->getVpnRegions(rt.get());
+        ASSERT_EQ(API_OK, rt->waitForResult(300)) << "getting the VPN regions took more than 5 minutes";
+
+        const MegaStringList* vpnRegions = mApi[0].getStringList();
+
+        ASSERT_TRUE(vpnRegions->size()) << "list of VPN regions is empty";
     }
 }

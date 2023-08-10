@@ -1748,6 +1748,48 @@ public:
 };
 #endif
 
+/* MegaVPN Commands BEGIN */
+class MEGA_API CommandGetVpnRegions : public Command
+{
+private:
+    using Cb = std::function<bool(const Error& /*e*/, const std::vector<std::string>& /*VPN regions*/)>;
+    Cb mCompletion;
+public:
+    CommandGetVpnRegions(MegaClient*, Cb&& completion = nullptr);
+    bool procresult(Result, JSON&) override;
+};
+
+class MEGA_API CommandGetCredentials : public Command
+{
+public:
+    CommandGetCredentials(MegaClient*);
+    bool procresult(Result, JSON&) override;
+
+private:
+    std::function<void(Error)> mCompletion;
+};
+
+class MEGA_API CommandPutCredentials : public Command
+{
+public:
+    CommandPutCredentials(MegaClient*, const string& pubKey);
+    bool procresult(Result, JSON&) override;
+
+private:
+    std::function<void(Error)> mCompletion;
+};
+
+class MEGA_API CommandDeleteCredentials : public Command
+{
+public:
+    CommandDeleteCredentials(MegaClient*, int slotID);
+    bool procresult(Result, JSON&) override;
+
+private:
+    std::function<void(Error)> mCompletion;
+};
+/* MegaVPN Commands END*/
+
 } // namespace
 
 #endif

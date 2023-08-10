@@ -1280,6 +1280,8 @@ byte *EncryptFilePieceByChunks::nextbuffer(unsigned bufsize)
     return (byte*)buffer.data();
 }
 
+/* BEGIN MEGAAPIIMPL */
+
 #ifdef ENABLE_SYNC
 
 bool MegaApiImpl::is_syncable(Sync *sync, const char *, const LocalPath& localpath)
@@ -4383,6 +4385,10 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_BACKUP_INFO: return "BACKUP_INFO";
         case TYPE_BACKUP_REMOVE_MD: return "BACKUP_REMOVE_MD";
         case TYPE_AB_TEST_ACTIVE: return "AB_TEST_ACTIVE";
+        case TYPE_GET_VPN_REGIONS: return "GET_VPN_REGIONS";
+        case TYPE_GET_VPN_CREDENTIALS: return "GET_VPN_CREDENTIALS";
+        case TYPE_GET_VPN_CREDENTIAL: return "GET_VPN_CREDENTIAL";
+        case TYPE_DEL_VPN_CREDENTIAL: return "DEL_VPN_CREDENTIALS";
     }
     return "UNKNOWN";
 }
@@ -25468,6 +25474,53 @@ const char* MegaApiImpl::getPublicLinkForExportedSet(MegaHandle sid)
     return link;
 }
 
+void MegaApiImpl::getVpnRegions(MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_VPN_REGIONS, listener);
+
+    request->performRequest = [this, request]()
+    {
+        client->reqs.add(new CommandGetVpnRegions(client,
+            [this, request](const Error& e, const std::vector<std::string>& vpnRegions)
+            {
+                if (e == API_OK && !vpnRegions.empty())
+                {
+                    string_vector vpnRegionslist;
+                    for (const auto& vpnRegion : vpnRegions)
+                    {
+                        vpnRegionslist.push_back(vpnRegion);
+                    }
+                    request->setMegaStringList(new MegaStringListPrivate(std::move(vpnRegionslist)));
+                }
+
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                return true;
+            })
+        );
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getVpnCredentials(MegaRequestListener* listener)
+{
+    // Call vpng command
+}
+
+void MegaApiImpl::getVpnCredential(const char* region, MegaRequestListener* listener)
+{
+    // Call vpnp command
+}
+
+void MegaApiImpl::delVpnCredential(int slotID, MegaRequestListener* listener)
+{
+    // Call vpnd command
+}
+
+/* END MEGAAPIIMPL */
+
 void TreeProcCopy::allocnodes()
 {
     nn.resize(nc);
@@ -36498,5 +36551,40 @@ bool MegaCancelTokenPrivate::isCancelled() const
 {
     return cancelFlag.isCancelled();
 }
+
+/* MegaVpnCredentialsPrivate BEGIN */
+MegaVpnCredentialsPrivate::MegaVpnCredentialsPrivate()
+{
+}
+
+MegaVpnCredentialsPrivate::~MegaVpnCredentialsPrivate()
+{
+}
+
+MegaStringList* MegaVpnCredentialsPrivate::getVpnRegions()
+{
+    return nullptr;
+}
+
+const char* MegaVpnCredentialsPrivate::getIPv4(int slotID) const
+{
+    return ipV4.c_str();
+}
+
+const char* MegaVpnCredentialsPrivate::getIPv6(int slotID) const
+{
+    return ipV6.c_str();
+}
+
+int MegaVpnCredentialsPrivate::getClusterID(int slotID) const
+{
+    return clusterID;
+}
+
+const char* MegaVpnCredentialsPrivate::getPublicKey(int clusterID) const
+{
+    return pubKey.c_str();
+}
+/* MegaVpnCredentials END */
 
 } // namespace mega

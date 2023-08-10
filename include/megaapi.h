@@ -92,6 +92,7 @@ class MegaScheduledFlags;
 class MegaScheduledRules;
 class MegaIntegerMap;
 class MegaIntegerList;
+class MegaVpnCredentials;
 
 #if defined(SWIG)
     #define MEGA_DEPRECATED
@@ -4294,6 +4295,10 @@ class MegaRequest
             TYPE_BACKUP_REMOVE_MD                                           = 170,
             TYPE_AB_TEST_ACTIVE                                             = 171,
             TOTAL_OF_REQUEST_TYPES                                          = 172,
+            TYPE_GET_VPN_REGIONS                                            = 173,
+            TYPE_GET_VPN_CREDENTIALS                                        = 174,
+            TYPE_GET_VPN_CREDENTIAL                                         = 175,
+            TYPE_DEL_VPN_CREDENTIAL                                         = 176,
         };
 
         virtual ~MegaRequest();
@@ -21089,6 +21094,12 @@ class MegaApi
          */
         bool requestStatusMonitorEnabled();
 
+        /* MegaVpnCredentials */
+        void getVpnRegions(MegaRequestListener* listener = nullptr);
+        void getVpnCredentials(MegaRequestListener* listener = nullptr);
+        void getVpnCredential(const char* region, MegaRequestListener* listener = nullptr);
+        void delVpnCredential(int slotID, MegaRequestListener* listener = nullptr);
+
  private:
         MegaApiImpl *pImpl = nullptr;
         friend class MegaApiImpl;
@@ -22438,6 +22449,23 @@ public:
      * @return The state of the flag
      */
     virtual bool isCancelled() const = 0;
+};
+
+class MegaVpnCredentials
+{
+protected:
+    MegaVpnCredentials();
+
+public:
+
+    virtual ~MegaVpnCredentials();
+
+    virtual MegaStringList* getVpnRegions() = 0;
+
+    virtual const char* getIPv4(int slotID) const = 0;
+    virtual const char* getIPv6(int slotID) const = 0;
+    virtual int getClusterID(int slotID) const = 0;
+    virtual const char* getPublicKey(int clusterID) const = 0;
 };
 }
 

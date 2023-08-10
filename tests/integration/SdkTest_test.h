@@ -292,9 +292,11 @@ public:
         unsigned getFavNodeCount() const { return mMegaFavNodeList ? mMegaFavNodeList->size() : 0u; }
         MegaHandle getFavNode(unsigned i) const { return mMegaFavNodeList->size() > i ? mMegaFavNodeList->get(i) : INVALID_HANDLE; }
 
+        void setStringList(const MegaStringList* s) { mStringList.reset(s); }
         void setStringLists(const MegaStringListMap* s) { stringListMap.reset(s); }
         unsigned getStringListCount() const { return stringListMap ? stringListMap->size() : 0u; }
         const MegaStringList* getStringList(const char* key) const { return stringListMap ? stringListMap->get(key) : nullptr; }
+        const MegaStringList* getStringList() const { return mStringList.get(); }
 
         void setStringTable(const MegaStringTable* s) { stringTable.reset(s); }
         int getStringTableSize() const { return stringTable ? stringTable->size() : 0; }
@@ -319,6 +321,7 @@ public:
         shared_ptr<const MegaStringListMap> stringListMap;
         shared_ptr<const MegaHandleList> mMegaFavNodeList;
         shared_ptr<const MegaStringTable> stringTable;
+        shared_ptr<const MegaStringList> mStringList;
     };
 
     std::vector<PerApi> mApi;

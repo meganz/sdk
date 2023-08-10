@@ -3205,6 +3205,12 @@ class MegaApiImpl : public MegaApp
         void enableRequestStatusMonitor(bool enable);
         bool requestStatusMonitorEnabled();
 
+        /* MegaVpnCredentials */
+        void getVpnRegions(MegaRequestListener* listener = nullptr);
+        void getVpnCredentials(MegaRequestListener* listener = nullptr);
+        void getVpnCredential(const char* region, MegaRequestListener* listener = nullptr);
+        void delVpnCredential(int slotID, MegaRequestListener* listener = nullptr);
+
         void fireOnTransferStart(MegaTransferPrivate *transfer);
         void fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e); // deletes `transfer` !!
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);
@@ -4457,6 +4463,27 @@ private:
     std::vector<std::unique_ptr<MegaScheduledMeeting>> mList;
 };
 #endif
+
+class MegaVpnCredentialsPrivate : public MegaVpnCredentials
+{
+private:
+    std::vector<std::string> vpnRegions;
+    std::string ipV4;
+    std::string ipV6;
+    int clusterID;
+    std::string pubKey;
+
+public:
+    MegaVpnCredentialsPrivate();
+    ~MegaVpnCredentialsPrivate();
+
+    MegaStringList* getVpnRegions() override;
+
+    const char* getIPv4(int slotID) const override;
+    const char* getIPv6(int slotID) const override;
+    int getClusterID(int slotID) const override;
+    const char* getPublicKey(int clusterID) const override;
+};
 
 }
 

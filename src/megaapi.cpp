@@ -1867,6 +1867,8 @@ bool MegaTreeProcessor::processMegaNode(MegaNode*)
 MegaTreeProcessor::~MegaTreeProcessor()
 { }
 
+/* BEGIN MEGAAPI */
+
 MegaApi::MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned workerThreadCount)
 {
     pImpl = new MegaApiImpl(this, appKey, processor, basePath, userAgent, workerThreadCount);
@@ -5913,6 +5915,28 @@ bool MegaApi::requestStatusMonitorEnabled()
     return pImpl->requestStatusMonitorEnabled();
 }
 
+void MegaApi::getVpnRegions(MegaRequestListener* listener)
+{
+    return pImpl->getVpnRegions(listener);
+}
+
+void MegaApi::getVpnCredentials(MegaRequestListener* listener)
+{
+    return pImpl->getVpnCredentials(listener);
+}
+
+void MegaApi::getVpnCredential(const char* region, MegaRequestListener* listener)
+{
+    return pImpl->getVpnCredential(region, listener);
+}
+
+void MegaApi::delVpnCredential(int slotID, MegaRequestListener* listener)
+{
+    return pImpl->delVpnCredential(slotID, listener);
+}
+
+/* END MEGAAPI */
+
 MegaHashSignature::MegaHashSignature(const char *base64Key)
 {
     pImpl = new MegaHashSignatureImpl(base64Key);
@@ -7619,5 +7643,41 @@ MegaCurrency *MegaCurrency::copy()
 {
     return nullptr;
 }
+
+
+/* MegaVpnCredentials BEGIN */
+MegaVpnCredentials::MegaVpnCredentials()
+{
+}
+
+MegaVpnCredentials::~MegaVpnCredentials()
+{
+}
+
+MegaStringList* MegaVpnCredentials::getVpnRegions()
+{
+    return nullptr;
+}
+
+const char* MegaVpnCredentials::getIPv4(int slotID) const
+{
+    return nullptr;
+}
+
+const char* MegaVpnCredentials::getIPv6(int slotID) const
+{
+    return nullptr;
+}
+
+int MegaVpnCredentials::getClusterID(int slotID) const
+{
+    return 0;
+}
+
+const char* MegaVpnCredentials::getPublicKey(int clusterID) const
+{
+    return nullptr;
+}
+/* MegaVpnCredentials END */
 
 }

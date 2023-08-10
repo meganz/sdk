@@ -10370,4 +10370,82 @@ bool CommandScheduledMeetingFetchEvents::procresult(Command::Result r, JSON& jso
 
 #endif
 
+/* MegaVPN Commands BEGIN */
+CommandGetVpnRegions::CommandGetVpnRegions(MegaClient* client, Cb&& completion)
+{
+    cmd("vpnr");
+    tag = client->reqtag;
+
+    mCompletion = std::move(completion);
+}
+
+bool CommandGetVpnRegions::procresult(Command::Result r, JSON& json)
+{
+    std::vector<std::string> vpnRegions;
+
+    Error e(API_EINTERNAL);
+
+    if (!r.hasJsonArray())
+    {
+        if (mCompletion) { mCompletion(e, {}); }
+        return false;
+    }
+
+    std::string vpnRegion;
+
+    while (json.storeobject(&vpnRegion))
+    {
+        vpnRegions.push_back(vpnRegion);
+        if (*json.pos == ']')
+        {
+            break;
+        }
+    }
+
+    if (vpnRegions.empty())
+    {
+        if (mCompletion) { mCompletion(e, {}); }
+        return false;
+    }
+
+    e.setErrorCode(API_OK);
+    return mCompletion ? mCompletion(e, vpnRegions) : true;
+}
+
+CommandGetCredentials::CommandGetCredentials(MegaClient* client)
+{
+    cmd("vpng");
+    tag = client->reqtag;
+}
+
+bool CommandGetCredentials::procresult(Command::Result r, JSON& json)
+{
+    return false;
+}
+
+CommandPutCredentials::CommandPutCredentials(MegaClient* client, const string& pubKey)
+{
+    cmd("vpnp");
+    arg("k", (byte*)pubKey.c_str(), static_cast<int>(pubKey.size()));
+    tag = client->reqtag;
+}
+
+bool CommandPutCredentials::procresult(Command::Result r, JSON& json)
+{
+    return false;
+}
+
+CommandDeleteCredentials::CommandDeleteCredentials(MegaClient* client, int slotID)
+{
+    cmd("vpnp");
+    arg("s", slotID); // SlotID to remove the credentials
+    tag = client->reqtag;
+}
+
+bool CommandDeleteCredentials::procresult(Command::Result r, JSON& json)
+{
+    return false;
+}
+/* MegaVPN Commands END*/
+
 } // namespace
