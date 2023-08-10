@@ -7700,7 +7700,7 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
     ASSERT_NE(backupId, INVALID_HANDLE) << "Backup could not be found";
 
     // Use another connection with the same credentials
-    megaApi.emplace_back(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
+    megaApi.emplace_back(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(1).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
     auto& differentApi = *megaApi.back();
     differentApi.addListener(this);
     PerApi pa; // make a copy
@@ -9740,6 +9740,9 @@ TEST_F(SdkTest, SyncOQTransitions)
     ASSERT_EQ(nodeList->size(), 1);
     MegaNode* inshareNode = nodeList->get(0);
 
+    // Wait for the outshare to be added to the sharer's node by the action packets
+    ASSERT_TRUE(WaitFor([this, &remoteFillNode]() { return unique_ptr<MegaNode>(megaApi[0]->getNodeByHandle(remoteFillNode->getHandle()))->isOutShare(); }, 60*1000));
+
     // Make sure that search functionality finds them
     unique_ptr<MegaNodeList> outShares(megaApi[0]->searchOnOutShares(fillPath.u8string().c_str(), nullptr));
     ASSERT_TRUE(outShares);
@@ -11343,7 +11346,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     // 11. Remove all Sets
 
     // Use another connection with the same credentials
-    megaApi.emplace_back(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
+    megaApi.emplace_back(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(1).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
     auto& differentApi = *megaApi.back();
     differentApi.addListener(this);
     PerApi pa; // make a copy
@@ -11799,6 +11802,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     // U1: Get public Set URL
     // U1: Fetch Public Set and start Public Set preview mode
     // U1: Stop Public Set preview mode
+    // U2: Attempt to fetch public Set using wrong key
     // U2: Fetch public Set and start preview mode
     // U2: Download foreign Set Element in preview set mode
     // U2: Stop Public Set preview mode
@@ -12040,6 +12044,12 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     megaApi[userIdx]->stopPublicSetPreview();
     ASSERT_FALSE(megaApi[userIdx]->inPublicSetPreview());
     ASSERT_NO_FATAL_FAILURE(lFetchCurrentSetInPreviewMode(userIdx, false));
+
+
+    LOG_debug << "# U2: Attempt to fetch public Set using wrong key";
+    string exportedSetURL_wrongKey = exportedSetURL;
+    exportedSetURL_wrongKey.replace(exportedSetURL_wrongKey.find('#'), string::npos, "#aaaaaaaaaaaaaaaaaaaaaa");
+    ASSERT_EQ(doFetchPublicSet(1, nullptr, nullptr, exportedSetURL_wrongKey.c_str()), API_EKEY);
 
 
     LOG_debug << "# U2: Fetch public Set and start preview mode";

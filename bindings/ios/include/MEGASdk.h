@@ -10096,6 +10096,18 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
  */
 - (BOOL)cookieBannerEnabled;
 
+#pragma mark - A/B Testing
+/**
+ * @brief Get the value of an A/B Test flag
+ *
+ * Any value greater than 0 means the flag is active.
+ *
+ * @param flag Name or key of the value to be retrieved.
+ *
+ * @return An unsigned integer with the value of the flag.
+ */
+- (NSInteger)getABTestValue:(NSString*)flag;
+
 @end
 
 NS_ASSUME_NONNULL_END

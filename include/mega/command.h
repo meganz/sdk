@@ -1534,6 +1534,7 @@ public:
         int syncSubstate = 0;
         string extra;
         string backupName;
+        string deviceUserAgent;
         uint64_t hbTimestamp = 0;
         int hbStatus = 0;
         int hbProgress = 0;

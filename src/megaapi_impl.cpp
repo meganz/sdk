@@ -13104,7 +13104,8 @@ void MegaApiImpl::chatlink_result(handle h, error e)
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::chatlinkurl_result(handle chatid, int shard, string *link, string *ct, int numPeers, m_time_t ts, bool meetingRoom, handle callid, error e)
+void MegaApiImpl::chatlinkurl_result(handle chatid, int shard, string *link, string *ct, int numPeers, m_time_t ts
+                                     , bool meetingRoom, const bool waitingRoom, const std::vector<std::unique_ptr<ScheduledMeeting>>* smList, handle callid, error e)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
@@ -13118,7 +13119,19 @@ void MegaApiImpl::chatlinkurl_result(handle chatid, int shard, string *link, str
         request->setText(ct->c_str());
         request->setNumDetails(numPeers);
         request->setNumber(ts);
+        request->setParamType(waitingRoom);
         request->setFlag(meetingRoom);
+
+        if (smList && !smList->empty())
+        {
+            std::unique_ptr<MegaScheduledMeetingList> l(MegaScheduledMeetingList::createInstance());
+            for (auto const& sm: *smList)
+            {
+               l->insert(new MegaScheduledMeetingPrivate(sm.get()));
+            }
+            request->setMegaScheduledMeetingList(l.get());
+        }
+
         if (callid != INVALID_HANDLE)
         {
             std::vector<MegaHandle> handleList;
@@ -26715,6 +26728,11 @@ bool MegaAccountSessionPrivate::isAlive() const
 MegaHandle MegaAccountSessionPrivate::getHandle() const
 {
     return session.id;
+}
+
+char *MegaAccountSessionPrivate::getDeviceId() const
+{
+    return MegaApi::strdup(session.deviceid.c_str());
 }
 
 MegaAccountSessionPrivate::MegaAccountSessionPrivate(const AccountSession *session)

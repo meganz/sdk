@@ -1049,16 +1049,22 @@ UserAlert::UpdatedSharedNode* UserAlert::UpdatedSharedNode::unserialize(string* 
 string UserAlert::Payment::getProPlanName()
 {
     switch (planNumber) {
-    case 1:
-        return "PRO I"; // 5819
-    case 2:
-        return "PRO II"; // 6125
-    case 3:
-        return "PRO III"; // 6126
-    case 4:
-        return "PRO LITE"; // 8413
+    case ACCOUNT_TYPE_PROI:
+        return "Pro I"; // 5819
+    case ACCOUNT_TYPE_PROII:
+        return "Pro II"; // 6125
+    case ACCOUNT_TYPE_PROIII:
+        return "Pro III"; // 6126
+    case ACCOUNT_TYPE_LITE:
+        return "Pro Lite"; // 8413
+    case ACCOUNT_TYPE_BUSINESS:
+        return "Business";  // 19530
+    case ACCOUNT_TYPE_PRO_FLEXI:
+        return "Pro Flexi";
+    case ACCOUNT_TYPE_FREE:
+        [[fallthrough]];
     default:
-        return "FREE"; // 435
+        return "Free"; // 435
     }
 }
 
@@ -1082,7 +1088,7 @@ void UserAlert::Payment::text(string& header, string& title, MegaClient* mc)
     ostringstream s;
     if (success)
     {
-        s << "Your payment for the " << getProPlanName() << " plan was received. "; // 7142
+        s << "Your payment for the " << getProPlanName() << " plan was received."; // 7142
     }
     else
     {

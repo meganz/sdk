@@ -901,7 +901,7 @@ void DemoApp::chatlinkclose_result(error e)
     }
 }
 
-void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *ct, int, m_time_t ts, bool meetingRoom, handle callid, error e)
+void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *ct, int, m_time_t ts, bool meetingRoom, const bool waitingRoom, const std::vector<std::unique_ptr<ScheduledMeeting>>* smList, handle callid, error e)
 {
     if (e)
     {
@@ -915,6 +915,10 @@ void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *
         cout << "URL for chat-link: " << url->c_str() << endl;
         cout << "Encrypted chat-topic: " << ct->c_str() << endl;
         cout << "Creation timestamp: " << ts << endl;
+        cout << "Callid: " << Base64Str<MegaClient::CHATHANDLE>(callid) << endl;
+        cout << "Meeting room: " << meetingRoom << endl;
+        cout << "Waiting room: " << waitingRoom << endl;
+        cout << "Scheduled meeting: " << smList << endl;
     }
 }
 
@@ -3788,6 +3792,7 @@ void exec_backupcentre(autocomplete::ACState& s)
                         cout << "  root handle: " << toNodeHandle(d.rootNode) << endl;
                         cout << "  local folder: " << d.localFolder << endl;
                         cout << "  device id: " << d.deviceId << endl;
+                        cout << "  device user-agent: " << d.deviceUserAgent << endl;
                         cout << "  sync state: " << d.syncState << endl;
                         cout << "  sync substate: " << d.syncSubstate << endl;
                         cout << "  extra: " << d.extra << endl;
@@ -9249,8 +9254,8 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
                 {
                     printf("\t* Current Session\n");
                 }
-                printf("\tSession ID: %s\n\tSession start: %s\n\tMost recent activity: %s\n\tIP: %s\n\tCountry: %.2s\n\tUser-Agent: %s\n\t-----\n",
-                        id.chars, timebuf, timebuf2, it->ip.c_str(), it->country, it->useragent.c_str());
+                printf("\tSession ID: %s\n\tSession start: %s\n\tMost recent activity: %s\n\tIP: %s\n\tCountry: %.2s\n\tUser-Agent: %s\n\tDevice ID: %s\n\t-----\n",
+                        id.chars, timebuf, timebuf2, it->ip.c_str(), it->country, it->useragent.c_str(), it->deviceid.c_str());
             }
         }
 

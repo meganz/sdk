@@ -294,6 +294,8 @@ public:
     bool addShareKey(handle sharehandle, std::string shareKey, bool sharedSecurely = false);
     string getShareKey(handle sharehandle) const;
     bool isShareKeyTrusted(handle sharehandle) const;
+    bool isShareKeyInUse(handle sharehandle) const;
+    void setSharekeyInUse(handle sharehandle, bool sent);
 
     // return empty string if the user's credentials are not verified (or if fail to encrypt)
     std::string encryptShareKeyTo(handle userhandle, std::string shareKey);
@@ -353,6 +355,17 @@ private:
         TAG_WARNINGS = 96,
     };
 
+    // Bit position for different flags for each sharekey. Bits 2 to 7 reserved for future usage.
+    enum ShareKeyFlagsId
+    {
+        TRUSTED = 0,    // If the sharekey is trusted
+        INUSE = 1,      // If there is an active outshare or folder-link using the sharekey
+    };
+
+    // Bitmap with flags for each sharekey. The field is 1 byte size in the attribute.
+    // See used bits and flag meaning in "ShareKeyFlagsId" enumeration.
+    typedef std::bitset<8> ShareKeyFlags;
+
     static const uint8_t IV_LEN = 12;
     static const std::string SVCRYPTO_PAIRWISE_KEY;
 
@@ -389,8 +402,8 @@ private:
     string mWarnings;
     string mOther;
 
-    // maps node handle of the shared folder to a pair of sharekey bytes and trust flag
-    map<handle, pair<string, bool>> mShareKeys;
+    // maps node handle of the shared folder to a pair of sharekey bytes and sharekey flags.
+    map<handle, pair<string, ShareKeyFlags>> mShareKeys;
 
     // maps node handle to the target users (where value can be a user's handle in B64 or the email address)
     map<handle, set<string>> mPendingOutShares;
@@ -438,7 +451,7 @@ private:
     void updateAuthring(attr_t at, std::string &value);
 
     // update sharekeys (incl. trust). It doesn't purge non-existing items
-    void updateShareKeys(map<handle, pair<std::string, bool> > &shareKeys);
+    void updateShareKeys(map<handle, pair<std::string, ShareKeyFlags> > &shareKeys);
 
     // true if the credentials of this user require verification
     bool verificationRequired(handle userHandle);
@@ -586,7 +599,7 @@ public:
     // get the public key of an user
     void getpubkey(const char* user);
 
-    // check if logged in
+    // check if logged in (avoid repetitive calls <-- requires call to Cryptopp::InverseMod(), which is slow)
     sessiontype_t loggedin();
 
     // provide state by change callback
