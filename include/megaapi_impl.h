@@ -2609,6 +2609,7 @@ class MegaApiImpl : public MegaApp
         void sendFileToUser(MegaNode *node, MegaUser *user, MegaRequestListener *listener = NULL);
         void sendFileToUser(MegaNode *node, const char* email, MegaRequestListener *listener = NULL);
         void upgradeSecurity(MegaRequestListener* listener = NULL);
+        bool contactVerificationWarningEnabled();
         void setSecureFlag(bool enable);
         void setManualVerificationFlag(bool enable);
         void openShareDialog(MegaNode *node, MegaRequestListener *listener = NULL);

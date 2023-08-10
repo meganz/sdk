@@ -320,6 +320,12 @@ public:
     // returns a formatted string, for logging purposes
     string toString() const;
 
+    // Returns true if the warnings related to shares with non-verified contacts are enabled.
+    bool getContactVerificationWarning();
+
+    // Enable/disable the warnings for shares with non-verified contacts.
+    void setContactVerificationWarning(bool enabled);
+
     // this method allows to change the feature-flag for testing purposes
     void setSecureFlag(bool enabled) { mSecure = enabled; }
 
@@ -399,7 +405,6 @@ private:
     string mPrivEd25519, mPrivCu25519, mPrivRSA;
     string mAuthEd25519, mAuthCu25519;
     string mBackups;
-    string mWarnings;
     string mOther;
 
     // maps node handle of the shared folder to a pair of sharekey bytes and sharekey flags.
@@ -411,12 +416,20 @@ private:
     // maps base64 node handles to pairs of source user handle and share key
     map<string, pair<handle, string>> mPendingInShares;
 
+    // warnings as stored as a key-value map
+    map<string, string> mWarnings;
+
     // decode data from the decrypted ^!keys attribute and stores values in `km`
     // returns false in case of unserializatison isues
     static bool unserialize(KeyManager& km, const string& keysContainer);
 
     // prepares the header for a new serialized record of type 'tag' and 'len' bytes
     string tagHeader(const byte tag, size_t len) const;
+
+    // Serialize pairs of tags and values as Length+Tag+Lengh+Value.
+    // warnings and pending inshares are encoded like that when serialized.
+    static bool deserializeFromLTLV(const string& blob, map<string, string>& data);
+    static string serializeToLTLV(const map<string, string>& data);
 
     // encode data from the decrypted ^!keys attribute
     string serialize() const;
@@ -435,6 +448,10 @@ private:
 
     string serializeBackups() const;
     static bool deserializeBackups(KeyManager& km, const string& blob);
+
+    string serializeWarnings() const;
+    static bool deserializeWarnings(KeyManager& km, const string& blob);
+    static string warningsToString(const KeyManager& km);
 
     std::string computeSymmetricKey(handle user);
 
@@ -835,6 +852,9 @@ public:
 
     // Migrate the account to start using the new ^!keys attr.
     void upgradeSecurity(std::function<void(Error)> completion);
+
+    // Set the flag to enable/disable warnings when sharing with a non-verified contact.
+    void setContactVerificationWarning(bool enabled, std::function<void(Error)> completion = nullptr);
 
     // Creates a new share key for the node if there is no share key already created.
     void openShareDialog(Node* n, std::function<void (Error)> completion);

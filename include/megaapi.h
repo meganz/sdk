@@ -11524,6 +11524,16 @@ class MegaApi
          */
         void upgradeSecurity(MegaRequestListener* listener = NULL);
 
+
+        /**
+         * @brief Get the contact verification warning flag status
+         *
+         * It returns if showing the warnings to verify contacts is enabled.
+         *
+         * @return True if showing the warnings are enabled, false otherwise.
+         */
+        bool contactVerificationWarningEnabled();
+
         /**
          * @brief Allows to change the hardcoded value of the "secure" flag
          *

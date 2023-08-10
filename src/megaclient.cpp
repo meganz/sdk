@@ -11801,6 +11801,25 @@ void MegaClient::upgradeSecurity(std::function<void(Error)> completion)
     });
 }
 
+void MegaClient::setContactVerificationWarning(bool enabled, std::function<void(Error)> completion)
+{
+    if (mKeyManager.getContactVerificationWarning() == enabled)
+    {
+        if (completion) completion(API_OK);
+        return;
+    }
+
+    mKeyManager.commit(
+        [this, enabled]()
+        {
+            mKeyManager.setContactVerificationWarning(enabled);
+        },
+        [completion]()
+        {
+            if (completion) completion(API_OK);
+        });
+}
+
 // Creates a new share key for the node if there is no share key already created.
 void MegaClient::openShareDialog(Node* n, std::function<void(Error)> completion)
 {
@@ -22009,8 +22028,9 @@ string KeyManager::serialize() const
     result.append(tagHeader(TAG_BACKUPS, backups.size()));
     result.append(backups);
 
-    result.append(tagHeader(TAG_WARNINGS, mWarnings.size()));
-    result.append(mWarnings);
+    string warnings = serializeWarnings();
+    result.append(tagHeader(TAG_WARNINGS, warnings.size()));
+    result.append(warnings);
 
     result.append(mOther);
 
@@ -22425,9 +22445,34 @@ string KeyManager::toString() const
     buf << pendingOutsharesToString(*this);
     buf << pendingInsharesToString(*this);
     buf << "Backups: " << Base64::btoa(mBackups) << "\n";
-    buf << "Warnings: " << Base64::btoa(mWarnings) << "\n";
+    buf << warningsToString(*this);
 
     return buf.str();
+}
+
+bool KeyManager::getContactVerificationWarning()
+{
+    auto it = mWarnings.find("cv");
+
+    if (it != mWarnings.end() && mWarnings["cv"].size())
+    {
+        char* endp;
+        long int res;
+        errno = 0;
+        res = strtol(mWarnings["cv"].c_str(), &endp, 10);
+        if (*endp != '\0' || endp == mWarnings["cv"].c_str() || errno == ERANGE)
+        {
+            LOG_err << "cv field in warnings is malformed";
+            return false;
+        }
+        return res;
+    }
+    return false;
+}
+
+void KeyManager::setContactVerificationWarning(bool enabled)
+{
+    mWarnings["cv"] = std::to_string(enabled);
 }
 
 string KeyManager::shareKeysToString(const KeyManager& km)
@@ -22483,6 +22528,19 @@ string KeyManager::pendingInsharesToString(const KeyManager& km)
         const string& shareKey = it.second.second;
 
         buf << "\t#" << count << "\tn: " << nh << " uh: " << toHandle(uh) << " sk: " << Base64::btoa(shareKey) << "\n";
+    }
+
+    return buf.str();
+}
+
+string KeyManager::warningsToString(const KeyManager& km)
+{
+    ostringstream buf;
+    buf << "Warnings:\n";
+
+    for (const auto &it : km.mWarnings)
+    {
+        buf << "\ttag: \"" << it.first << "\" \tval: \"" << it.second << "\"\n";
     }
 
     return buf.str();
@@ -22751,14 +22809,15 @@ bool KeyManager::unserialize(KeyManager& km, const string &keysContainer)
             break;
         }
         case TAG_WARNINGS:
-            km.mWarnings.assign(blob + offset, len);
-            // TODO: deserialize it
+        {
+            string buf(blob + offset, len);
+            if (!deserializeWarnings(km, buf)) return false;
             if (mDebugContents)
             {
-                LOG_verbose << "Warnings: " << Base64::btoa(km.mWarnings);
+                LOG_verbose << warningsToString(km);
             }
             break;
-
+        }
         default:    // any other tag needs to be stored as well, and included in newer versions
             km.mOther.append(blob + offset - headerSize, headerSize + len);
             break;
@@ -22930,70 +22989,146 @@ string KeyManager::serializePendingOutshares() const
     return result;
 }
 
-bool KeyManager::deserializePendingInshares(KeyManager& km, const string &blob)
+bool KeyManager::deserializeFromLTLV(const string& blob, map<string, string>& data)
 {
-    // clean old data, so we don't left outdated pending inshares in place
-    km.mPendingInShares.clear();
-
-    // [len.1 name.len lenBlob.2|6 blob.lenBlob]*
-    // if lenBlob == 0xFFFF -> len is indicated by next 4 extra bytes
-    // if len < 0xFFFF      -> actual len (no extra bytes for length)
-    // blob includes the user's handle (8 bytes) and the encrypted share key
+    // blob format as follows:
+    // [len.1 tag.len lenValue.2|6 value.lenValue]*
+    // if lenValue == 0xFFFF  -> length is indicated by next 4 extra bytes
+    // if lenValue < 0xFFFF   -> actual length (no extra bytes present)
 
     CacheableReader r(blob);
 
     while(r.hasdataleft())
     {
-        // len of the "name"
+        // length of the tag
         byte len = 0;
         if (!r.unserializebyte(len))
         {
-            LOG_err << "Pending inshare is corrupt: len of name";
+            LOG_err << "Corrupt LTLV: len of tag";
             return false;
         }
 
-        // read the "name"
-        string name;
-        name.resize(len);
-        if (!r.unserializebinary((byte*)name.data(), name.size()))
+        // read the tag
+        string tag;
+        tag.resize(len);
+        if (!r.unserializebinary((byte*)tag.data(), tag.size()))
         {
-            LOG_err << "Pending inshare is corrupt: name";
+            LOG_err << "Corrupt LTLV: tag";
             return false;
         }
 
-        // len of the blob (pairs of uh+sk for this node handle)
-        uint32_t lenBlob = 0;
-        uint16_t lenBlob16 = 0;
-        bool success = r.unserializeu16(lenBlob16);
-        lenBlob16 = ntohs(lenBlob16); // Webclient sets length as BigEndian
-        if (lenBlob16 == 0xFFFF)
+        // len of the value
+        uint32_t lenValue = 0;
+        uint16_t lenValue16 = 0;
+        bool success = r.unserializeu16(lenValue16);
+        lenValue16 = ntohs(lenValue16); // Webclient sets length as BigEndian
+        if (lenValue16 == 0xFFFF)
         {
-            success = r.unserializeu32(lenBlob);
-            lenBlob = ntohl(lenBlob);
+            success = r.unserializeu32(lenValue);
+            lenValue = ntohl(lenValue);
         }
         else
         {
-            lenBlob = lenBlob16;
+            lenValue = lenValue16;
         }
 
-        if (!success || (lenBlob < sizeof(handle)))    // it may have only the user handle (no share key yet)
+        if (!success)
         {
-            LOG_err << "Pending inshare is corrupt: blob len";
+            LOG_err << "Corrupt LTLV: value len";
+            return false;
+        }
+
+        // read the value
+        string value;
+        value.resize(lenValue);
+        if (!r.unserializebinary((byte*)value.data(), value.size()))
+        {
+            LOG_err << "Corrupt LTLV: value";
+            return false;
+        }
+
+        data[tag] = value;
+    }
+
+    return true;
+}
+
+string KeyManager::serializeToLTLV(const map<string, string>& values)
+{
+    // Encoded format as follows:
+    // [len.1 tag.len lenValue.2|6 value.lenValue]*
+    // if length of value < 0xFFFF -> 2 bytes for lenValue
+    // else -> 2 bytes set as 0xFFFF and 4 extra bytes for actual length
+
+    string result;
+
+    CacheableWriter w(result);
+
+    for (const auto& it : values)
+    {
+        // write tag length
+        w.serializebyte(static_cast<byte>(it.first.size()));
+        // write tag
+        w.serializebinary((byte*)it.first.data(), it.first.size());
+
+        // write value length
+        if (it.second.size() < 0xFFFF)
+        {
+            uint16_t lenValue16 = static_cast<uint16_t>(it.second.size());
+            uint16_t lenValue16BE = htons(lenValue16); // Webclient sets length as BigEndian
+            w.serializeu16(lenValue16BE);
+        }
+        else // excess, 4 extra bytes
+        {
+            w.serializeu16(0xFFFF);
+            uint32_t lenValue32 = static_cast<uint32_t>(it.second.size());
+            uint32_t lenValue32BE = htonl(lenValue32);
+            w.serializeu32(lenValue32BE);
+        }
+
+        // write value
+        w.serializebinary((byte*)it.second.data(), it.second.size());
+    }
+
+    return result;
+}
+
+bool KeyManager::deserializePendingInshares(KeyManager& km, const string &blob)
+{
+    // clean old data, so we don't left outdated pending inshares in place
+    km.mPendingInShares.clear();
+
+    // key is the node handle, value includes the user's handle (8 bytes) and the encrypted share key
+    map<string, string> decodedBlob;
+    if (!deserializeFromLTLV(blob, decodedBlob))
+    {
+        LOG_err << "Pending inshare is corrupt";
+        return false;
+    }
+
+    for ( const auto& it : decodedBlob )
+    {
+
+        if (it.second.size() < sizeof(handle)) // it may have only the user handle (no share key yet)
+        {
+            LOG_err << "Pending inshare is corrupt: incorrect value size";
             return false;
         }
 
         // user handle (sharer) and share key
+        CacheableReader r(it.second);
+
         handle uh = UNDEF;
         string shareKey;
-        shareKey.resize(lenBlob - sizeof(uh));
+        shareKey.resize(it.second.size() - sizeof(uh));
         if (!r.unserializehandle(uh)
                 || !r.unserializebinary((byte*)shareKey.data(), shareKey.size()))
         {
-            LOG_err << "Pending inshare is corrupt: blob";
+            LOG_err << "Pending inshare is corrupt: incorrect sharer handle or sharekey";
             return false;
         }
 
-        km.mPendingInShares[name] = pair<handle, string>(uh, shareKey);
+        km.mPendingInShares[it.first] = pair<handle, string>(uh, shareKey);
     }
 
     return true;
@@ -23001,36 +23136,20 @@ bool KeyManager::deserializePendingInshares(KeyManager& km, const string &blob)
 
 string KeyManager::serializePendingInshares() const
 {
-    string result;
-
-    CacheableWriter w(result);
+    map<string, string> pendingInsharesToEncode;
 
     for (const auto& it : mPendingInShares)
     {
-        byte len = static_cast<byte>(it.first.size());
-        assert(len == 8); // node handle in B64
-        w.serializebyte(len);
-        w.serializebinary((byte*)it.first.data(), it.first.size());
-
-        uint32_t lenBlob = static_cast<uint32_t>(MegaClient::USERHANDLE + it.second.second.size());
-        if (lenBlob < 0xFFFF)
-        {
-            uint16_t lenBlob16 = static_cast<uint16_t>(lenBlob);
-            uint16_t lenBlob16BE = htons(lenBlob16); // Webclient sets length as BigEndian
-            w.serializeu16(lenBlob16BE);
-        }
-        else    // excess, 4 extra bytes
-        {
-            w.serializeu16(0xFFFF);
-            uint32_t lenBlobBE = htonl(lenBlob);
-            w.serializeu32(lenBlobBE);
-        }
+        string value;
+        CacheableWriter w(value);
 
         w.serializehandle(it.second.first); // share's owner user handle
         w.serializebinary((byte*)it.second.second.data(), it.second.second.size());
+
+        pendingInsharesToEncode[it.first] = value;
     }
 
-    return result;
+    return serializeToLTLV(pendingInsharesToEncode);
 }
 
 bool KeyManager::deserializeBackups(KeyManager& km, const string &blob)
@@ -23039,6 +23158,20 @@ bool KeyManager::deserializeBackups(KeyManager& km, const string &blob)
     km.mBackups = blob;
     return true;
 }
+
+string KeyManager::serializeWarnings() const
+{
+    return serializeToLTLV(mWarnings);
+}
+
+bool KeyManager::deserializeWarnings(KeyManager& km, const string &blob)
+{
+    // clean old data, so we don't left outdated warnings
+    km.mWarnings.clear();
+
+    return deserializeFromLTLV(blob, km.mWarnings);
+}
+
 
 string KeyManager::computeSymmetricKey(handle user)
 {

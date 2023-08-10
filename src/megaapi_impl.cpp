@@ -6917,6 +6917,12 @@ void MegaApiImpl::upgradeSecurity(MegaRequestListener* listener)
     waiter->notify();
 }
 
+bool MegaApiImpl::contactVerificationWarningEnabled()
+{
+    SdkMutexGuard m(sdkMutex);
+    return client->mKeyManager.getContactVerificationWarning();
+}
+
 void MegaApiImpl::setSecureFlag(bool enable)
 {
     SdkMutexGuard m(sdkMutex);
