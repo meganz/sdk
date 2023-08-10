@@ -10435,7 +10435,7 @@ CommandFetchGoogleAds::CommandFetchGoogleAds(MegaClient* client, int adFlags, co
 {
     cmd("adf");
     arg("ad", adFlags);
-    arg("af", 2); // IU (mobile apps)
+    arg("af", 1);   // ad format: URL
 
     if (!ISUNDEF(publicHandle))
     {
