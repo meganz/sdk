@@ -154,7 +154,7 @@ void Request::process(MegaClient* client)
             processingJson.storeobject();
 
             // alert devs to the JSON problem (bad JSON from server, or bad parsing of it) immediately
-            assert(*processingJson.pos == ']');
+            assert(false);
         }
         else
         {
