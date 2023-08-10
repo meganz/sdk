@@ -10393,11 +10393,11 @@ bool CommandGetVpnRegions::procresult(Command::Result r, JSON& json)
 
     while (json.storeobject(&vpnRegion))
     {
-        vpnRegions.push_back(vpnRegion);
-        if (*json.pos == ']')
+        if (vpnRegion.empty())
         {
             break;
         }
+        vpnRegions.push_back(vpnRegion);
     }
 
     mCompletion(API_OK, vpnRegions);
