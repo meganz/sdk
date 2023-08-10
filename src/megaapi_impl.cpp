@@ -24921,6 +24921,35 @@ void MegaApiImpl::fetchGoogleAds(int adFlags, MegaStringList *adUnits, MegaHandl
     request->setNumber(adFlags);
     request->setMegaStringList(adUnits);
     request->setNodeHandle(publicHandle);
+
+    request->performRequest = [this, request]()
+    {
+        int flags = int(request->getNumber());
+        if (flags < MegaApi::GOOGLE_ADS_DEFAULT || flags > MegaApi::GOOGLE_ADS_FLAG_IGNORE_ROLLOUT)
+        {
+            return API_EARGS;
+        }
+
+        const string_vector &vectorString = static_cast<MegaStringListPrivate*>(request->getMegaStringList())->getVector();
+        client->reqs.add(new CommandFetchGoogleAds(client, flags, vectorString, request->getNodeHandle(), [request, this](Error e, string_map value)
+        {
+           if (e == API_OK)
+           {
+               std::unique_ptr<MegaStringMap> stringMap = std::unique_ptr<MegaStringMap>(MegaStringMap::createInstance());
+               for (const auto& itMap : value)
+               {
+                   stringMap->set(itMap.first.c_str(), itMap.second.c_str());
+               }
+
+               request->setMegaStringMap(stringMap.get());
+           }
+
+           fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+        }));
+
+        return API_OK;
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -24930,6 +24959,24 @@ void MegaApiImpl::queryGoogleAds(int adFlags, MegaHandle publicHandle, MegaReque
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_QUERY_GOOGLE_ADS, listener);
     request->setNumber(adFlags);
     request->setNodeHandle(publicHandle);
+
+    request->performRequest = [this, request]()
+    {
+        int flags = int(request->getNumber());
+        if (flags < MegaApi::GOOGLE_ADS_DEFAULT || flags > MegaApi::GOOGLE_ADS_FLAG_IGNORE_ROLLOUT)
+        {
+            return API_EARGS;
+        }
+
+        client->reqs.add(new CommandQueryGoogleAds(client, flags, request->getNodeHandle(), [request, this](Error e, int value)
+        {
+           if (e == API_OK) request->setNumDetails(value);
+           fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+        }));
+
+        return API_OK;
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }
