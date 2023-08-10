@@ -79,7 +79,7 @@ mega::Node& makeNode(mega::MegaClient& client, const mega::nodetype_t type, mega
     assert(client.nodeByHandle(handle) == nullptr);
     const auto ph = parent ? parent->nodeHandle() : ::mega::NodeHandle();
     auto n = new mega::Node{client, handle, ph, type, -1, mega::UNDEF, nullptr, 0}; // owned by the client
-    if (type == mega::FILENODE || type == mega::FOLDERNODE)
+    if (type == mega::FILENODE || type == mega::FOLDERNODE || type == mega::TYPE_UNKNOWN)
     {
         n->setkey(reinterpret_cast<const mega::byte*>(std::string((type == mega::FILENODE) ? mega::FILENODEKEYLENGTH : mega::FOLDERNODEKEYLENGTH, 'X').c_str()));
     }
