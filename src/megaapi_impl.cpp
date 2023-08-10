@@ -25494,7 +25494,6 @@ void MegaApiImpl::getVpnRegions(MegaRequestListener* listener)
                 }
 
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-                return true;
             })
         );
         return API_OK;

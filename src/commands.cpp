@@ -10383,11 +10383,9 @@ bool CommandGetVpnRegions::procresult(Command::Result r, JSON& json)
 {
     std::vector<std::string> vpnRegions;
 
-    Error e(API_EINTERNAL);
-
     if (!r.hasJsonArray())
     {
-        if (mCompletion) { mCompletion(e, {}); }
+        if (mCompletion) { mCompletion(API_EINTERNAL, {}); }
         return false;
     }
 
@@ -10402,14 +10400,9 @@ bool CommandGetVpnRegions::procresult(Command::Result r, JSON& json)
         }
     }
 
-    if (vpnRegions.empty())
-    {
-        if (mCompletion) { mCompletion(e, {}); }
-        return false;
-    }
+    mCompletion(API_OK, vpnRegions);
 
-    e.setErrorCode(API_OK);
-    return mCompletion ? mCompletion(e, vpnRegions) : true;
+    return true;
 }
 
 CommandGetCredentials::CommandGetCredentials(MegaClient* client)

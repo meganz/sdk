@@ -1752,7 +1752,7 @@ public:
 class MEGA_API CommandGetVpnRegions : public Command
 {
 private:
-    using Cb = std::function<bool(const Error& /*e*/, const std::vector<std::string>& /*VPN regions*/)>;
+    using Cb = std::function<void(const Error& /*e*/, const std::vector<std::string>& /*VPN regions*/)>;
     Cb mCompletion;
 public:
     CommandGetVpnRegions(MegaClient*, Cb&& completion = nullptr);
