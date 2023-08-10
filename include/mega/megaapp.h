@@ -99,7 +99,7 @@ struct MEGA_API MegaApp
     virtual void setelements_updated(SetElement**, int) { }
 
     // nodes have been updated
-    virtual void nodes_updated(Node**, int) { }
+    virtual void nodes_updated(sharedNode_vector*, int) { }
 
     // new actionpackets arrived with a new sequence tag
     virtual void sequencetag_update(const string&) { }

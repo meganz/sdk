@@ -316,7 +316,7 @@ struct StandardClient : public MegaApp
     bool received_node_actionpackets = false;
     std::condition_variable nodes_updated_cv;
 
-    void nodes_updated(Node** nodes, int numNodes) override;
+    void nodes_updated(sharedNode_vector* nodes, int numNodes) override;
     bool waitForNodesUpdated(unsigned numSeconds);
     void syncupdate_stateconfig(const SyncConfig& config) override;
 

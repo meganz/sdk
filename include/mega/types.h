@@ -429,8 +429,6 @@ typedef enum { OPCA_ADD = 0, OPCA_DELETE, OPCA_REMIND} opcactions_t;
 // operations for incoming pending contacts
 typedef enum { IPCA_ACCEPT = 0, IPCA_DENY, IPCA_IGNORE} ipcactions_t;
 
-
-typedef vector<Node*> node_vector;
 typedef vector<std::shared_ptr<Node> > sharedNode_vector;
 
 // contact visibility:

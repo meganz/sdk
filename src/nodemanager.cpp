@@ -1296,10 +1296,7 @@ void NodeManager::notifyPurge()
         if (!mClient.fetchingnodes)
         {
             assert(!mMutex.locked());
-            // TODO cache LRU change nodes_updated to shared_ptr
-            node_vector nodes;
-            std::transform(nodesToReport.begin(), nodesToReport.end(), std::back_inserter(nodes), [](std::shared_ptr<Node> n){return n.get();});
-            mClient.app->nodes_updated(&nodes.data()[0], static_cast<int>(nodes.size()));
+            mClient.app->nodes_updated(&nodesToReport, static_cast<int>(nodesToReport.size()));
         }
 
         LockGuard g(mMutex);

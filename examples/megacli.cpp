@@ -8916,18 +8916,19 @@ void DemoApp::clearing()
 // nodes have been modified
 // (nodes with their removed flag set will be deleted immediately after returning from this call,
 // at which point their pointers will become invalid at that point.)
-void DemoApp::nodes_updated(Node** n, int count)
+void DemoApp::nodes_updated(sharedNode_vector* nodes, int count)
 {
     int c[2][6] = { { 0 } };
 
-    if (n)
+    if (nodes)
     {
+        auto it = nodes->begin();
         while (count--)
         {
-            if ((*n)->type < 6)
+            if ((*it)->type < 6)
             {
-                c[!(*n)->changed.removed][(*n)->type]++;
-                n++;
+                c[!(*it)->changed.removed][(*it)->type]++;
+                it++;
             }
         }
     }
@@ -9891,18 +9892,19 @@ void DemoAppFolder::fetchnodes_result(const Error& e)
     }
 }
 
-void DemoAppFolder::nodes_updated(Node** n, int count)
+void DemoAppFolder::nodes_updated(sharedNode_vector* nodes, int count)
 {
     int c[2][6] = { { 0 } };
 
-    if (n)
+    if (nodes)
     {
+        auto it = nodes->begin();
         while (count--)
         {
-            if ((*n)->type < 6)
+            if ((*it)->type < 6)
             {
-                c[!(*n)->changed.removed][(*n)->type]++;
-                n++;
+                c[!(*it)->changed.removed][(*it)->type]++;
+                it++;
             }
         }
     }

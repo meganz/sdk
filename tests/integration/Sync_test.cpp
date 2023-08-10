@@ -1282,7 +1282,7 @@ void StandardClient::syncs_restored(SyncError syncError)
     received_syncs_restored = true;
 }
 
-void StandardClient::nodes_updated(Node** nodes, int numNodes)
+void StandardClient::nodes_updated(sharedNode_vector* nodes, int numNodes)
 {
     if (!nodes)
     {
@@ -1294,11 +1294,11 @@ void StandardClient::nodes_updated(Node** nodes, int numNodes)
         lock_guard<mutex> g(om);
         if (numNodes > 1) // output root of sync (the second node) for tracing
         {
-            out() << clientname << "nodes_updated: received " << numNodes << " including " << nodes[0]->displaypath() << " " << nodes[1]->displaypath();
+            out() << clientname << "nodes_updated: received " << numNodes << " including " << nodes->at(0)->displaypath() << " " << nodes->at(1)->displaypath();
         }
         else
         {
-            out() << clientname << "nodes_updated: received " << numNodes << " including " << nodes[0]->displaypath();
+            out() << clientname << "nodes_updated: received " << numNodes << " including " << nodes->at(0)->displaypath();
         }
     }
     received_node_actionpackets = true;

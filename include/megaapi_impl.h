@@ -3708,7 +3708,7 @@ private:
 
         void unlink_result(handle, error) override;
         void unlinkversions_result(error) override;
-        void nodes_updated(Node**, int) override;
+        void nodes_updated(sharedNode_vector* nodes, int) override;
         void users_updated(User**, int) override;
         void useralerts_updated(UserAlert::Base**, int) override;
         void account_updated() override;

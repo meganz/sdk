@@ -14702,7 +14702,7 @@ void MegaApiImpl::reloading()
 // nodes have been modified
 // (nodes with their removed flag set will be deleted immediately after returning from this call,
 // at which point their pointers will become invalid at that point.)
-void MegaApiImpl::nodes_updated(Node** n, int count)
+void MegaApiImpl::nodes_updated(sharedNode_vector* nodes, int count)
 {
     LOG_debug << "Nodes updated: " << count;
     if (!count)
@@ -14711,9 +14711,9 @@ void MegaApiImpl::nodes_updated(Node** n, int count)
     }
 
     MegaNodeList *nodeList = NULL;
-    if (n != NULL)
+    if (nodes != NULL)
     {
-        nodeList = new MegaNodeListPrivate(n, count);
+        nodeList = new MegaNodeListPrivate(*nodes);
         fireOnNodesUpdate(nodeList);
     }
     else
