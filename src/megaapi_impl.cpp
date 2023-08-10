@@ -9540,8 +9540,8 @@ bool MegaApiImpl::createThumbnail(const char *imagePath, const char *dstPath)
     LocalPath localDstPath = LocalPath::fromAbsolutePath(dstPath);
 
     SdkMutexGuard g(sdkMutex);
-    return gfxAccess->savefa(localImagePath, GfxProc::dimensions[GfxProc::THUMBNAIL][0],
-            GfxProc::dimensions[GfxProc::THUMBNAIL][1], localDstPath);
+    return gfxAccess->savefa(localImagePath, GfxProc::DIMENSIONS[GfxProc::THUMBNAIL].width,
+            GfxProc::DIMENSIONS[GfxProc::THUMBNAIL].height, localDstPath);
 }
 
 bool MegaApiImpl::createPreview(const char *imagePath, const char *dstPath)
@@ -9555,8 +9555,8 @@ bool MegaApiImpl::createPreview(const char *imagePath, const char *dstPath)
     LocalPath localDstPath = LocalPath::fromAbsolutePath(dstPath);
 
     SdkMutexGuard g(sdkMutex);
-    return gfxAccess->savefa(localImagePath, GfxProc::dimensions[GfxProc::PREVIEW][0],
-            GfxProc::dimensions[GfxProc::PREVIEW][1], localDstPath);
+    return gfxAccess->savefa(localImagePath, GfxProc::DIMENSIONS[GfxProc::PREVIEW].width,
+            GfxProc::DIMENSIONS[GfxProc::PREVIEW].height, localDstPath);
 }
 
 bool MegaApiImpl::createAvatar(const char *imagePath, const char *dstPath)
@@ -9570,8 +9570,8 @@ bool MegaApiImpl::createAvatar(const char *imagePath, const char *dstPath)
     LocalPath localDstPath = LocalPath::fromAbsolutePath(dstPath);
 
     SdkMutexGuard g(sdkMutex);
-    return gfxAccess->savefa(localImagePath, GfxProc::dimensionsavatar[GfxProc::AVATAR250X250][0],
-            GfxProc::dimensionsavatar[GfxProc::AVATAR250X250][1], localDstPath);
+    return gfxAccess->savefa(localImagePath, GfxProc::DIMENSIONSVATAR[GfxProc::AVATAR250X250].width,
+            GfxProc::DIMENSIONSVATAR[GfxProc::AVATAR250X250].height, localDstPath);
 }
 
 void MegaApiImpl::getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener)

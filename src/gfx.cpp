@@ -21,14 +21,15 @@
 
 #include "mega.h"
 #include "mega/gfx.h"
+#include <numeric>
 
 namespace mega {
-const int GfxProc::dimensions[][2] = {
+const std::vector<GfxProc::Dimension> GfxProc::DIMENSIONS = {
     { 200, 0 },     // THUMBNAIL: square thumbnail, cropped from near center
     { 1000, 1000 }  // PREVIEW: scaled version inside 1000x1000 bounding square
 };
 
-const int GfxProc::dimensionsavatar[][2] = {
+const std::vector<GfxProc::Dimension> GfxProc::DIMENSIONSVATAR = {
     { 250, 0 }      // AVATAR250X250: square thumbnail, cropped from near center
 };
 
@@ -120,44 +121,18 @@ void GfxProc::loop()
                 break;
             }
 
-            mutex.lock();
-            LOG_debug << "Processing media file: " << job->h;
-
-            // (this assumes that the width of the largest dimension is max)
-            if (mGfxProvider->readbitmap(client->fsaccess.get(), job->localfilename, dimensions[sizeof dimensions/sizeof dimensions[0]-1][0]))
+            std::lock_guard<std::mutex> g(mutex);
             {
-                for (unsigned i = 0; i < job->imagetypes.size(); i++)
-                {
-                    // successively downscale the original image
-                    string* jpeg = new string();
-                    int w = dimensions[job->imagetypes[i]][0];
-                    int h = dimensions[job->imagetypes[i]][1];
+                LOG_debug << "Processing media file: " << job->h;
 
-                    if (mGfxProvider->width() < w && mGfxProvider->height() < h)
-                    {
-                        LOG_debug << "Skipping upsizing of preview or thumbnail";
-                        w = mGfxProvider->width();
-                        h = mGfxProvider->height();
-                    }
-
-                    if (!mGfxProvider->resizebitmap(w, h, jpeg))
-                    {
-                        delete jpeg;
-                        jpeg = NULL;
-                    }
-                    job->images.push_back(jpeg);
-                }
-                mGfxProvider->freebitmap();
-            }
-            else
-            {
-                for (unsigned i = 0; i < job->imagetypes.size(); i++)
+                auto images = GenerateImages(job->localfilename, DIMENSIONS);
+                for (auto& image : images)
                 {
-                    job->images.push_back(NULL);
+                    string* jepg = image.empty() ? nullptr : new string(std::move(image));
+                    job->images.push_back(jepg);
                 }
             }
 
-            mutex.unlock();
             responses.push(job);
             client->waiter->notify();
         }
@@ -296,7 +271,7 @@ int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, const LocalPath& localfilena
     job->localfilename = localfilename;
 
     int generatingAttrs = 0;
-    for (fatype i = sizeof dimensions/sizeof dimensions[0]; i--; )
+    for (fatype i = static_cast<fatype>(DIMENSIONS.size()); i--; )
     {
         if (missing & (1 << i))
         {
@@ -316,6 +291,36 @@ int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, const LocalPath& localfilena
     return generatingAttrs;
 }
 
+std::vector<std::string> GfxProc::GenerateImages(const LocalPath& localfilepath, const std::vector<Dimension>& dimensions)
+{
+    std::vector<std::string> images(dimensions.size());
+
+    int maxDimension = std::accumulate(dimensions.begin(), dimensions.end(), 0, [](int max, const Dimension& d) { return std::max(max, std::max(d.width, d.height)); });
+
+    if (mGfxProvider->readbitmap(client->fsaccess.get(), localfilepath, maxDimension))
+    {
+        for (int i = 0; i < dimensions.size(); ++i)
+        {
+            string jpeg;
+            int width = dimensions[i].width, height = dimensions[i].height;
+            if (mGfxProvider->width() < width && mGfxProvider->height() < height)
+            {
+                LOG_debug << "Skipping upsizing of local preview";
+                width = mGfxProvider->width();
+                height = mGfxProvider->height();
+            }
+
+            if (mGfxProvider->resizebitmap(width, height, &jpeg))
+            {
+                images[i] = std::move(jpeg);
+            }
+        }
+        mGfxProvider->freebitmap();
+    }
+
+    return images;
+}
+
 bool GfxProc::savefa(const LocalPath& localfilepath, int width, int height, LocalPath& localdstpath)
 {
     if (!isgfx(localfilepath))
@@ -323,28 +328,15 @@ bool GfxProc::savefa(const LocalPath& localfilepath, int width, int height, Loca
         return false;
     }
 
-    mutex.lock();
-    if (!mGfxProvider->readbitmap(client->fsaccess.get(), localfilepath, width > height ? width : height))
-    {
-        mutex.unlock();
-        return false;
-    }
-
-    int w = width;
-    int h = height;
-    if (mGfxProvider->width() < w && mGfxProvider->height() < h)
-    {
-        LOG_debug << "Skipping upsizing of local preview";
-        w = mGfxProvider->width();
-        h = mGfxProvider->height();
-    }
-
     string jpeg;
-    bool success = mGfxProvider->resizebitmap(w, h, &jpeg);
-    mGfxProvider->freebitmap();
-    mutex.unlock();
+    {
+        std::lock_guard<std::mutex> g(mutex);
+        std::vector<Dimension> d{ Dimension{width, height} };
+        auto images = GenerateImages(localfilepath, d);
+        jpeg = std::move(images[0]);
+    }
 
-    if (!success)
+    if (jpeg.empty())
     {
         return false;
     }
