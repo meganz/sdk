@@ -10955,6 +10955,13 @@ class MegaApi
         bool isAchievementsEnabled();
 
         /**
+         * @brief Check if the account is a Pro Flexi account.
+         *
+         * @return returns true if it's a Pro Flexi account, otherwise false
+         */
+        bool isProFlexiAccount();
+
+        /**
          * @brief Check if the account is a business account.
          *
          * For accounts under Pro Flexi plans, this method also returns true.

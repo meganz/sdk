@@ -5876,6 +5876,11 @@ bool MegaApiImpl::isAchievementsEnabled()
     return client->achievements_enabled;
 }
 
+bool MegaApiImpl::isProFlexiAccount()
+{
+    return client->isProFlexi();
+}
+
 bool MegaApiImpl::isBusinessAccount()
 {
     return client->mBizStatus != BIZ_STATUS_INACTIVE
