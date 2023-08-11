@@ -10553,6 +10553,7 @@ bool CommandGetVpnCredentials::procresult(Command::Result r, JSON& json)
 
 CommandPutVpnCredential::CommandPutVpnCredential(MegaClient* client, const string& pubKey, Cb&& completion)
 {
+    std::cout << "[CommandPutVpnCredential] pubKeySize: " << pubKey.size() << ", pubKey: '" << pubKey << "'" << std::endl;
     cmd("vpnp");
     arg("k", (byte*)pubKey.c_str(), static_cast<int>(pubKey.size()));
     tag = client->reqtag;
@@ -10562,6 +10563,12 @@ CommandPutVpnCredential::CommandPutVpnCredential(MegaClient* client, const strin
 
 bool CommandPutVpnCredential::procresult(Command::Result r, JSON& json)
 {
+    if (r.wasErrorOrOK())
+    {
+        if (mCompletion) { mCompletion(r.errorOrOK(), -1, {}, {}); }
+        return true;
+    }
+
     if (!r.hasJsonArray())
     {
         if (mCompletion) { mCompletion(API_EINTERNAL, -1, {}, {}); }
@@ -10600,8 +10607,19 @@ bool CommandPutVpnCredential::procresult(Command::Result r, JSON& json)
     // Skip VPN regions
     if (json.enterarray())
     {
+        string skippedRegion;
+        while (json.storeobject(&skippedRegion))
+        {
+            if (skippedRegion.empty())
+            {
+                std::cout << "End of skipped regions, continue" << std::endl;
+                break;
+            }
+        }
         json.leavearray();
     }
+
+    std::cout << "[Cmd] SlotID: " << slotID << ". IPv4: '" << ipv4 << "'. IPv6: '" << ipv6 << "'" << std::endl;
 
     if (mCompletion) { mCompletion(API_OK, slotID, std::move(ipv4), std::move(ipv6)); }
     return true;
@@ -10609,7 +10627,8 @@ bool CommandPutVpnCredential::procresult(Command::Result r, JSON& json)
 
 CommandDelVpnCredential::CommandDelVpnCredential(MegaClient* client, int slotID, Cb&& completion)
 {
-    cmd("vpnp");
+    std::cout << "[CommandDelVpnCredential] SlotID: " << slotID << std::endl;
+    cmd("vpnd");
     arg("s", slotID); // SlotID to remove the credentials
     tag = client->reqtag;
 

@@ -25556,12 +25556,19 @@ void MegaApiImpl::putVpnCredential(const char* region, MegaRequestListener* list
     request->performRequest = [this, request]()
     {
         auto vpnKeyPair = client->generateVpnKeyPair();
-        client->reqs.add(new CommandPutVpnCredential(client, vpnKeyPair.second,
-            [this, request, &vpnKeyPair](const Error& e, int slotID, std::string&& ipv4, std::string&& ipv6)
+        std::string privKey = vpnKeyPair.first;
+        std::string pubKey = vpnKeyPair.second;
+        std::cout << "VpnKeyPair1 size: " << privKey.size() << ". VpnKeyPair2 size: " << pubKey.size() << std::endl;
+        client->reqs.add(new CommandPutVpnCredential(client, pubKey,
+            [this, request, privKey, pubKey]
+            (const Error& e, int slotID, std::string&& ipv4, std::string&& ipv6)
             {
                 if (e == API_OK && slotID && !ipv4.empty() && !ipv6.empty())
                 {
+                    auto vpnKeyPair = std::make_pair(privKey, pubKey);
+                    std::cout << "VpnKeyPair1 size: " << vpnKeyPair.first.size() << ". VpnKeyPair2 size: " << vpnKeyPair.second.size() << std::endl;
                     string region = string(request->getText());
+                    std::cout << "Region: " << region << std::endl;
                     string newCredential = client->getVpnCredentialString(slotID, std::move(region), std::move(ipv4), std::move(ipv6), std::move(vpnKeyPair));
                     request->setNumber(slotID);
                     request->setText(newCredential.c_str());
@@ -25587,6 +25594,7 @@ void MegaApiImpl::delVpnCredential(int slotID, MegaRequestListener* listener)
     request->performRequest = [this, request]()
     {
         int slotID = static_cast<int>(request->getNumber());
+        std::cout << "[DelVpnCredential] SlotID: " << slotID << std::endl;
         client->reqs.add(new CommandDelVpnCredential(client, slotID,
             [this, request](const Error& e)
             {

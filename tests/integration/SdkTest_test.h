@@ -305,6 +305,9 @@ public:
         void setVpnCredentials(const MegaVpnCredentials* vpnCredentials) { mVpnCredentials.reset(vpnCredentials); }
         const MegaVpnCredentials* getVpnCredentials() const { return mVpnCredentials.get(); }
 
+        void setNumber(m_off_t reqNumber) { mNumber = reqNumber; }
+        m_off_t getNumber() { return mNumber; }
+
     private:
         mutex& getResourceMutex() const
         {
@@ -321,6 +324,7 @@ public:
         string attributeValue;
         string chatlink;  // not really used anywhere, should it be removed ?
         MegaHandle mBackupId = UNDEF;
+        m_off_t mNumber;
         shared_ptr<const MegaStringListMap> stringListMap;
         shared_ptr<const MegaHandleList> mMegaFavNodeList;
         shared_ptr<const MegaStringTable> stringTable;

@@ -777,6 +777,13 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
             mApi[apiIndex].setVpnCredentials(request->getMegaVpnCredentials()->copy());
         }
         break;
+
+    case MegaRequest::TYPE_PUT_VPN_CREDENTIAL:
+        if (mApi[apiIndex].lastError == API_OK)
+        {
+            mApi[apiIndex].setNumber(request->getNumber()); // SlotID
+            mApi[apiIndex].setAttributeValue(request->getText() ? request->getText() : ""); // Credential string for conf file
+        }
     }
 
     // set this flag always the latest, since it is used to unlock the wait
@@ -14182,46 +14189,77 @@ TEST_F(SdkTest, SdkTestDeleteListenerBeforeFinishingRequest)
     }
 }
 
-TEST_F(SdkTest, SdkTestMegaVpnRegions)
+/**
+ * @brief TEST_F SdkTestMegaVpnCredentials
+ *
+ * Tests the related commands for MEGA VPN
+ *
+ * 1) GET the MEGA VPN regions
+ * 2) Choose one of the regions above to PUT a new VPN credential. A new slotID shall be returned.
+ * 3) GET the MEGA VPN credentials. Check the related fields for the slotID returned:
+ *      - IPv4 and IPv6
+ *      - ClusterID
+ *      - Cluster Public Key
+ * 4) DELETE the MEGA VPN credentials for the slotID used above.
+ */
+TEST_F(SdkTest, SdkTestMegaVpnCredentials)
 {
-    LOG_info << "___TEST SdkTestMegaVpnRegions";
+    LOG_info << "___TEST SdkTestMegaVpnPutCredential";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
+    // Get VPN regions to choose one of them
     {
         auto rt = ::mega::make_unique<RequestTracker>(megaApi[0].get());
         mApi[0].megaApi->getVpnRegions(rt.get());
-        ASSERT_EQ(API_OK, rt->waitForResult(300)) << "getting the VPN regions took more than 5 minutes";
-
+        ASSERT_EQ(API_OK, rt->waitForResult()) << "getting the VPN regions failed (error: " << mApi[0].lastError << ")";
         const MegaStringList* vpnRegions = mApi[0].getStringList();
-
         ASSERT_TRUE(vpnRegions->size()) << "list of VPN regions is empty";
-        for (int i = 0; i < vpnRegions->size(); i++)
+
+        const char* vpnRegion = vpnRegions->get(0); // Choose the first vpn region
+
+        std::cout << "Put VPN credential on region: '" << vpnRegion << "'" << std::endl;
+        auto rt2 = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+        mApi[0].megaApi->putVpnCredential(vpnRegion, rt2.get());
+        ASSERT_EQ(API_OK, rt2->waitForResult()) << "adding a new VPN credential failed (error: " << mApi[0].lastError << ")";
+        int slotID = static_cast<int>(mApi[0].getNumber());
+        ASSERT_TRUE(slotID >= 1 && slotID <= 5) << "slotID should be between 1-5";
+        std::string newCredential = mApi[0].getAttributeValue();
+        ASSERT_FALSE(newCredential.empty()) << "VPN Credential string is EMPTY";
+        std::cout << "New credential put OK on region: '" << vpnRegion << "'. SlotID: " << slotID << std::endl;
+        std::cout << "-----------------------\nCredential:\n" << newCredential << "\n-----------------------" << std::endl;
+
+        // Get VPN credentials and search for the one on our slot
         {
-            const char* vpnRegion = vpnRegions->get(i);
-            std::cout << "VpnRegion[" << i << "]: '" << vpnRegion << "'" << std::endl;
+            auto rt3 = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+            mApi[0].megaApi->getVpnCredentials(rt3.get());
+            ASSERT_EQ(API_OK, rt3->waitForResult()) << "getting the VPN credentials failed (error: " << mApi[0].lastError << ")";
+
+            const MegaVpnCredentials* megaVpnCredentials = mApi[0].getVpnCredentials();
+
+            // Get IPv4
+            string ipv4 = megaVpnCredentials->getIPv4(slotID);
+            ASSERT_FALSE(ipv4.empty()) << "IPv4 value not found for SlotID: " << slotID;
+            string ipv6 = megaVpnCredentials->getIPv6(slotID);
+            ASSERT_FALSE(ipv6.empty()) << "IPv6 value not found for SlotID: " << slotID;
+            int clusterID = megaVpnCredentials->getClusterID(slotID);
+            ASSERT_TRUE(clusterID >= 0) << "clusterID should be a positive value. SlotID: " << slotID;
+            string clusterPublicKey = megaVpnCredentials->getPublicKey(clusterID);
+            ASSERT_FALSE(clusterPublicKey.empty()) << "Cluster Public Key not found for ClusterID: " << clusterID;
+
+            // Check VPN regions, they should not be empty
+            std::unique_ptr<MegaStringList> vpnRegions;
+            vpnRegions.reset(megaVpnCredentials->getVpnRegions());
+            ASSERT_TRUE(vpnRegions->size()) << "list of VPN regions is empty";
+            for (int i = 0; i < vpnRegions->size(); i++)
+            {
+                const char* vpnRegion = vpnRegions->get(i);
+                std::cout << "VpnRegion[" << i << "]: '" << vpnRegion << "'" << std::endl;
+            }
         }
-    }
-}
 
-TEST_F(SdkTest, SdkTestMegaVpnCredentials)
-{
-    LOG_info << "___TEST SdkTestMegaVpnCredentials";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-
-    {
-        auto rt = ::mega::make_unique<RequestTracker>(megaApi[0].get());
-        mApi[0].megaApi->getVpnCredentials(rt.get());
-        ASSERT_EQ(API_OK, rt->waitForResult(300)) << "getting the VPN credentials took more than 5 minutes";
-
-        const MegaVpnCredentials* megaVpnCredentials = mApi[0].getVpnCredentials();
-
-        std::unique_ptr<MegaStringList> vpnRegions;
-        vpnRegions.reset(megaVpnCredentials->getVpnRegions());
-        ASSERT_TRUE(vpnRegions->size()) << "list of VPN regions is empty";
-        for (int i = 0; i < vpnRegions->size(); i++)
-        {
-            const char* vpnRegion = vpnRegions->get(i);
-            std::cout << "VpnRegion[" << i << "]: '" << vpnRegion << "'" << std::endl;
-        }
+        // Delete VPN credentials
+        auto rt4 = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+        mApi[0].megaApi->delVpnCredential(slotID, rt4.get());
+        ASSERT_EQ(API_OK, rt4->waitForResult()) << "deleting the VPN credentials for slotID " << slotID << " (error: " << mApi[0].lastError << ")";
     }
 }
