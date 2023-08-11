@@ -2572,6 +2572,7 @@ class MegaApiImpl : public MegaApp
         MegaHandle getMyUserHandleBinary();
         MegaUser *getMyUser();
         bool isAchievementsEnabled();
+        bool isProFlexiAccount();
         bool isBusinessAccount();
         bool isMasterBusinessAccount();
         bool isBusinessAccountActive();

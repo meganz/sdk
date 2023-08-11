@@ -1975,6 +1975,11 @@ bool MegaApi::isAchievementsEnabled()
     return pImpl->isAchievementsEnabled();
 }
 
+bool MegaApi::isProFlexiAccount()
+{
+    return pImpl->isProFlexiAccount();
+}
+
 bool MegaApi::isBusinessAccount()
 {
     return pImpl->isBusinessAccount();
