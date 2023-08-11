@@ -2522,6 +2522,13 @@ private:
     { return mPreviewSet && (mPreviewSet->mElements.find(eid) != end(mPreviewSet->mElements)); }
 // -------- end of Sets and Elements
 
+public:
+
+    // Generates a key pair (x25519 (Cu) key pair) to use for Vpn Credentials (PutVpnCredentials)
+    std::pair<string, string> generateVpnKeyPair();
+    // Mega VPN Credentials - Generates the text for Vpn Credentials (to be saved or used as a conf file)
+    string getVpnCredentialString(int slotID, string&& vpnRegion, string&& ipv4, string&& ipv6, std::pair<string, string>&& peerKeyPair);
+
 };
 
 } // namespace

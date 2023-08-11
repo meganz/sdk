@@ -21621,6 +21621,46 @@ Error MegaClient::sendABTestActive(const char* flag, CommandABTestActive::Comple
     return API_OK;
 }
 
+std::pair<string, string> MegaClient::generateVpnKeyPair()
+{
+    auto vpnKey = ::mega::make_unique<ECDH>();
+    string prCu255 = string((char *)vpnKey->getPrivKey(), ECDH::PRIVATE_KEY_LENGTH);
+    if (!vpnKey->initializationOK)
+    {
+        LOG_err << "Initialization of keys Cu25519 and/or Ed25519 failed";
+        return std::make_pair(string(), string());
+    }
+    string privateKey = Base64::btoa(string((char *)vpnKey->getPrivKey(), ECDH::PRIVATE_KEY_LENGTH));
+    string publicKey = Base64::btoa(string(prCu255.c_str(), ECDH::PUBLIC_KEY_LENGTH));
+    return std::make_pair(privateKey, publicKey);
+}
+
+string MegaClient::getVpnCredentialString(int slotID, string&& vpnRegion, string&& ipv4, string&& ipv6, std::pair<string, string>&& peerKeyPair)
+{
+    /*
+        [Interface]
+        PrivateKey = XXxxxxxxxxxxXXXXXXXXXXXXxxxxxxxxxxxXxxxxx=
+        Address = X.X.X.X/32, aaaa::aaaa:aaaa:aaaa:aaaa:a/128
+        DNS = 8.8.8.8, 2001:4860:4860::8888
+
+        [Peer]
+        PublicKey = XXxxxxxxxxxxXXXXXXXXXXXXxxxxxxxxxxxXxxxxx=
+        AllowedIPs = 0.0.0.0/0, ::/0
+        Endpoint = CA-WEST.vpn.mega.nz:51820
+    */
+   string credential;
+   credential.append("[Interface]")
+             .append("PrivateKey = ").append(peerKeyPair.first).append("\n")
+             .append("Address = ").append(ipv4).append("/32").append(", ").append(ipv6).append("/128\n")
+             .append("DNS = 8.8.8.8, 2001:4860:4860::8888\n")
+             .append("\n")
+             .append("[Peer]")
+             .append("PublicKey = ").append(peerKeyPair.second).append("\n")
+             .append("AllowedIPs = 0.0.0.0/0, ::/0\n")
+             .append("Endpoint = ").append(vpnRegion).append(".vpn.mega.nz:51820");
+    return credential;
+}
+
 FetchNodesStats::FetchNodesStats()
 {
     init();

@@ -302,6 +302,9 @@ public:
         int getStringTableSize() const { return stringTable ? stringTable->size() : 0; }
         const MegaStringList* getStringTableRow(int i) { return stringTable ? stringTable->get(i) : nullptr; }
 
+        void setVpnCredentials(const MegaVpnCredentials* vpnCredentials) { mVpnCredentials.reset(vpnCredentials); }
+        const MegaVpnCredentials* getVpnCredentials() const { return mVpnCredentials.get(); }
+
     private:
         mutex& getResourceMutex() const
         {
@@ -322,6 +325,7 @@ public:
         shared_ptr<const MegaHandleList> mMegaFavNodeList;
         shared_ptr<const MegaStringTable> stringTable;
         shared_ptr<const MegaStringList> mStringList;
+        shared_ptr<const MegaVpnCredentials> mVpnCredentials;
     };
 
     std::vector<PerApi> mApi;

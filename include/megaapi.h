@@ -5143,6 +5143,25 @@ class MegaRequest
         virtual MegaSetElementList* getMegaSetElementList() const;
 
         virtual MegaBackupInfoList* getMegaBackupInfoList() const;
+
+        /**
+         * @brief Returns the VPN credentials for the user
+         *
+         * For each SlotID [1-5]:
+         *    - ClusterID, IPv4 and IPv6 values.
+         * For each ClusterID:
+         *    - Cluster Public Key
+         * List of VPN regions (as a MegaStringList)
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * This value is valid for these requests:
+         * - MegaApi::getVpnCredentials
+         *
+         * @return list of elements in the requested MegaSet, or null if Set not found
+         */
+        virtual MegaVpnCredentials* getMegaVpnCredentials() const;
 };
 
 /**
@@ -22457,15 +22476,15 @@ protected:
     MegaVpnCredentials();
 
 public:
-
     virtual ~MegaVpnCredentials();
 
-    virtual MegaStringList* getVpnRegions() = 0;
-
+    virtual MegaStringList* getVpnRegions() const = 0;
     virtual const char* getIPv4(int slotID) const = 0;
     virtual const char* getIPv6(int slotID) const = 0;
     virtual int getClusterID(int slotID) const = 0;
     virtual const char* getPublicKey(int clusterID) const = 0;
+
+    virtual MegaVpnCredentials* copy() const = 0;
 };
 }
 

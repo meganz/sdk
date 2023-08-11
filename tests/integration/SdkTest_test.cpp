@@ -770,6 +770,13 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
             mApi[apiIndex].setStringList(request->getMegaStringList()->copy());
         }
         break;
+
+    case MegaRequest::TYPE_GET_VPN_CREDENTIALS:
+        if (mApi[apiIndex].lastError == API_OK)
+        {
+            mApi[apiIndex].setVpnCredentials(request->getMegaVpnCredentials()->copy());
+        }
+        break;
     }
 
     // set this flag always the latest, since it is used to unlock the wait
@@ -14175,9 +14182,9 @@ TEST_F(SdkTest, SdkTestDeleteListenerBeforeFinishingRequest)
     }
 }
 
-TEST_F(SdkTest, SdkTestMegaVpnCredentials)
+TEST_F(SdkTest, SdkTestMegaVpnRegions)
 {
-    LOG_info << "___TEST SdkTestMegaVpnCredentials";
+    LOG_info << "___TEST SdkTestMegaVpnRegions";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     {
@@ -14188,5 +14195,33 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
         const MegaStringList* vpnRegions = mApi[0].getStringList();
 
         ASSERT_TRUE(vpnRegions->size()) << "list of VPN regions is empty";
+        for (int i = 0; i < vpnRegions->size(); i++)
+        {
+            const char* vpnRegion = vpnRegions->get(i);
+            std::cout << "VpnRegion[" << i << "]: '" << vpnRegion << "'" << std::endl;
+        }
+    }
+}
+
+TEST_F(SdkTest, SdkTestMegaVpnCredentials)
+{
+    LOG_info << "___TEST SdkTestMegaVpnCredentials";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    {
+        auto rt = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+        mApi[0].megaApi->getVpnCredentials(rt.get());
+        ASSERT_EQ(API_OK, rt->waitForResult(300)) << "getting the VPN credentials took more than 5 minutes";
+
+        const MegaVpnCredentials* megaVpnCredentials = mApi[0].getVpnCredentials();
+
+        std::unique_ptr<MegaStringList> vpnRegions;
+        vpnRegions.reset(megaVpnCredentials->getVpnRegions());
+        ASSERT_TRUE(vpnRegions->size()) << "list of VPN regions is empty";
+        for (int i = 0; i < vpnRegions->size(); i++)
+        {
+            const char* vpnRegion = vpnRegions->get(i);
+            std::cout << "VpnRegion[" << i << "]: '" << vpnRegion << "'" << std::endl;
+        }
     }
 }

@@ -1624,6 +1624,9 @@ class MegaRequestPrivate : public MegaRequest
         MegaBackupInfoList* getMegaBackupInfoList() const override;
         void setMegaBackupInfoList(std::unique_ptr<MegaBackupInfoList> bkps);
 
+        MegaVpnCredentials* getMegaVpnCredentials() const override;
+        void setMegaVpnCredentials(MegaVpnCredentials* megaVpnCredentials);
+
 protected:
         std::shared_ptr<AccountDetails> accountDetails;
         MegaPricingPrivate *megaPricing;
@@ -1679,6 +1682,7 @@ protected:
         unique_ptr<MegaSetElementList> mMegaSetElementList;
         unique_ptr<MegaIntegerList> mMegaIntegerList;
         unique_ptr<MegaBackupInfoList> mMegaBackupInfoList;
+        unique_ptr<MegaVpnCredentials> mMegaVpnCredentials;
 
     public:
         shared_ptr<ExecuteOnce> functionToExecute;
@@ -4466,23 +4470,24 @@ private:
 
 class MegaVpnCredentialsPrivate : public MegaVpnCredentials
 {
-private:
-    std::vector<std::string> vpnRegions;
-    std::string ipV4;
-    std::string ipV6;
-    int clusterID;
-    std::string pubKey;
-
 public:
-    MegaVpnCredentialsPrivate();
+    using MegaVpnCredentialsIps = std::map<int, std::pair<int, std::pair<std::string, std::string>>>;
+    using MegaVpnCredentialsClusterPublicKeys = std::map<int, std::string>;
+    MegaVpnCredentialsPrivate(MegaVpnCredentialsIps&&, MegaVpnCredentialsClusterPublicKeys&&, MegaStringList*);
+    MegaVpnCredentialsPrivate(const MegaVpnCredentialsPrivate&);
     ~MegaVpnCredentialsPrivate();
 
-    MegaStringList* getVpnRegions() override;
-
+    MegaStringList* getVpnRegions() const override;
     const char* getIPv4(int slotID) const override;
     const char* getIPv6(int slotID) const override;
     int getClusterID(int slotID) const override;
     const char* getPublicKey(int clusterID) const override;
+    MegaVpnCredentials* copy() const override;
+
+private:
+    MegaVpnCredentialsIps mMapIps;
+    MegaVpnCredentialsClusterPublicKeys mMapPubKeys;
+    std::unique_ptr<MegaStringList> mVpnRegions;
 };
 
 }

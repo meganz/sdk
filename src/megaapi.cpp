@@ -1152,6 +1152,11 @@ MegaBackupInfoList* MegaRequest::getMegaBackupInfoList() const
     return nullptr;
 }
 
+MegaVpnCredentials* MegaRequest::getMegaVpnCredentials() const
+{
+    return nullptr;
+}
+
 MegaTransfer::~MegaTransfer() { }
 
 MegaTransfer *MegaTransfer::copy()
@@ -7654,7 +7659,7 @@ MegaVpnCredentials::~MegaVpnCredentials()
 {
 }
 
-MegaStringList* MegaVpnCredentials::getVpnRegions()
+MegaStringList* MegaVpnCredentials::getVpnRegions() const
 {
     return nullptr;
 }
@@ -7675,6 +7680,11 @@ int MegaVpnCredentials::getClusterID(int slotID) const
 }
 
 const char* MegaVpnCredentials::getPublicKey(int clusterID) const
+{
+    return nullptr;
+}
+
+MegaVpnCredentials* MegaVpnCredentials::copy() const
 {
     return nullptr;
 }
