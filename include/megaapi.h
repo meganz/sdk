@@ -15826,6 +15826,12 @@ class MegaApi
                FILE_TYPE_AUDIO,
                FILE_TYPE_VIDEO,
                FILE_TYPE_DOCUMENT,
+               FILE_TYPE_PDF,
+               FILE_TYPE_PRESENTATION,
+               FILE_TYPE_ARCHIVE,
+               FILE_TYPE_PROGRAM,
+               FILE_TYPE_MISC,
+               FILE_TYPE_LAST = FILE_TYPE_MISC,
              };
 
         enum { SEARCH_TARGET_INSHARE = 0,

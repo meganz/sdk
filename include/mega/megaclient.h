@@ -1821,6 +1821,21 @@ public:
     // determine if the file is a document.
     bool nodeIsDocument(const Node *n) const;
 
+    // determine if the file is a PDF.
+    bool nodeIsPdf(const Node *n) const;
+
+    // determine if the file is a presentation.
+    bool nodeIsPresentation(const Node *n) const;
+
+    // determine if the file is an archive.
+    bool nodeIsArchive(const Node* n) const;
+
+    // determine if the file is a program.
+    bool nodeIsProgram(const Node* n) const;
+
+    // determine if the file is miscellaneous.
+    bool nodeIsMiscellaneous(const Node* n) const;
+
     // functions for determining whether we can clone a node instead of upload
     // or whether two files are the same so we can just upload/download the data once
     bool treatAsIfFileDataEqual(const FileFingerprint& nodeFingerprint, const LocalPath& file2, const string& filenameExtensionLowercaseNoDot);
