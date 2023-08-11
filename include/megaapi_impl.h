@@ -1753,8 +1753,8 @@ class MegaAccountPurchasePrivate : public MegaAccountPurchase
 {
 public:
     static MegaAccountPurchase *fromAccountPurchase(const AccountPurchase *purchase);
-    virtual ~MegaAccountPurchasePrivate();
-    virtual MegaAccountPurchase* copy();
+    ~MegaAccountPurchasePrivate() override;
+    MegaAccountPurchase* copy();
 
     int64_t getTimestamp() const override;
     char *getHandle() const override;
@@ -1771,8 +1771,8 @@ class MegaAccountTransactionPrivate : public MegaAccountTransaction
 {
 public:
     static MegaAccountTransaction *fromAccountTransaction(const AccountTransaction *transaction);
-    virtual ~MegaAccountTransactionPrivate() ;
-    virtual MegaAccountTransaction* copy();
+    ~MegaAccountTransactionPrivate() override;
+    MegaAccountTransaction* copy();
 
     int64_t getTimestamp() const override;
     char *getHandle() const override;
@@ -1788,7 +1788,7 @@ class MegaAccountDetailsPrivate : public MegaAccountDetails
 {
     public:
         static MegaAccountDetails *fromAccountDetails(AccountDetails *details);
-        virtual ~MegaAccountDetailsPrivate();
+        ~MegaAccountDetailsPrivate() override;
 
         int getProLevel() override;
         int64_t getProExpiration() override;
@@ -1909,7 +1909,7 @@ class MegaAchievementsDetailsPrivate : public MegaAchievementsDetails
 {
 public:
     static MegaAchievementsDetails *fromAchievementsDetails(AchievementsDetails *details);
-    virtual ~MegaAchievementsDetailsPrivate();
+    ~MegaAchievementsDetailsPrivate() override;
 
     MegaAchievementsDetails* copy() override;
 
