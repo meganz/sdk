@@ -702,7 +702,7 @@ public:
     void querytransferquota(m_off_t size);
 
     // update node attributes
-    error setattr(Node*, attr_map&& updates, CommandSetAttr::Completion&& c, bool canChangeVault);
+    error setattr(std::shared_ptr<Node>, attr_map&& updates, CommandSetAttr::Completion&& c, bool canChangeVault);
 
     // prefix and encrypt attribute json
     static void makeattr(SymmCipher*, string*, const char*, int = -1);
@@ -725,7 +725,7 @@ public:
     void unlinkversions();
 
     // move node to new parent folder
-    error rename(Node*, Node*, syncdel_t, NodeHandle prevparenthandle, const char *newName, bool canChangeVault, CommandMoveNode::Completion&& c);
+    error rename(std::shared_ptr<Node>, std::shared_ptr<Node>, syncdel_t, NodeHandle prevparenthandle, const char *newName, bool canChangeVault, CommandMoveNode::Completion&& c);
 
     // Queue commands (if needed) to remvoe any outshares (or pending outshares) below the specified node
     void removeOutSharesFromSubtree(Node* n, int tag);
@@ -1791,7 +1791,7 @@ public:
     shared_ptr<Node> nodeByHandle(NodeHandle);
     shared_ptr<Node> nodebyhandle(handle);
 
-    shared_ptr<Node> nodeByPath(const char* path, Node* node = nullptr, nodetype_t type = TYPE_UNKNOWN);
+    shared_ptr<Node> nodeByPath(const char* path, std::shared_ptr<Node> node = nullptr, nodetype_t type = TYPE_UNKNOWN);
 
 #if ENABLE_SYNC
     std::shared_ptr<Node> nodebyfingerprint(LocalNode*);
@@ -2055,7 +2055,7 @@ public:
     bool isValidFolderLink();
 
     //returns the top-level node for a node
-    shared_ptr<Node> getrootnode(Node*);
+    shared_ptr<Node> getrootnode(shared_ptr<Node>);
 
     //returns true if the node referenced by the handle belongs to the logged-in account
     bool isPrivateNode(NodeHandle h);

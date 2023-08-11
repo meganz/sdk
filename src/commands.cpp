@@ -128,7 +128,7 @@ bool CommandPutFA::procresult(Result r, JSON& json)
                 // 'canChangeVault' is false here because restoration of file attributes is triggered by
                 // downloads, so it cannot be triggered by a Backup operation
                 bool canChangeVault = false;
-                client->setattr(n.get(), attr_map('f', me64), nullptr, canChangeVault);
+                client->setattr(n, attr_map('f', me64), nullptr, canChangeVault);
             }
         }
 
@@ -375,7 +375,7 @@ CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
                 assert(node->type != FILENODE);
                 assert(!node->parent || node->parent->type != FILENODE);
 
-                handle rootnode = client->getrootnode(node.get())->nodehandle;
+                handle rootnode = client->getrootnode(node)->nodehandle;
                 if (targetRoots.find(rootnode) != targetRoots.end())
                 {
                     continue;
@@ -928,16 +928,16 @@ bool CommandGetFile::procresult(Result r, JSON& json)
     }
 }
 
-CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, attr_map&& attrMapUpdates, Completion&& c, bool canChangeVault)
+CommandSetAttr::CommandSetAttr(MegaClient* client, std::shared_ptr<Node> n, attr_map&& attrMapUpdates, Completion&& c, bool canChangeVault)
     : mAttrMapUpdates(attrMapUpdates)
     , mCanChangeVault(canChangeVault)
 {
     h = n->nodeHandle();
-    mNode = n->mNodePosition->second.getNodeInRam();
+    mNode = n;
     generationError = API_OK;
     completion = c;
 
-    addToNodePendingCommands(n);
+    addToNodePendingCommands(n.get());
 }
 
 const char* CommandSetAttr::getJSON(MegaClient* client)

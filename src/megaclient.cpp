@@ -971,7 +971,7 @@ void MegaClient::removeFromBC(handle bkpId, handle targetDest, std::function<voi
         const string& sdsValue = Node::toSdsString(sdsBkps);
         attr_map sdsAttrMap(Node::sdsId(), sdsValue);
 
-        auto e = setattr(bkpRootNode.get(), std::move(sdsAttrMap), moveOrDeleteBackup, true);
+        auto e = setattr(bkpRootNode, std::move(sdsAttrMap), moveOrDeleteBackup, true);
         if (e != API_OK)
         {
             LOG_err << "Remove backup/sync: failed to set the 'sds' node attribute";
@@ -1052,16 +1052,14 @@ bool MegaClient::isValidFolderLink()
     return false;
 }
 
-shared_ptr<Node> MegaClient::getrootnode(Node *node)
+shared_ptr<Node> MegaClient::getrootnode(shared_ptr<Node> node)
 {
     if (!node)
     {
         return NULL;
     }
 
-    std::shared_ptr<Node> n = node->mNodePosition->second.getNodeInRam();
-    assert(n);
-    assert(n.get() == node);
+    std::shared_ptr<Node> n = node;
     while (n->parent)
     {
         n = n->parent;
@@ -1078,7 +1076,7 @@ bool MegaClient::isPrivateNode(NodeHandle h)
         return false;
     }
 
-    NodeHandle rootnode = getrootnode(node.get())->nodeHandle();
+    NodeHandle rootnode = getrootnode(node)->nodeHandle();
     return mNodeManager.isRootNode(rootnode);
 }
 
@@ -1090,7 +1088,7 @@ bool MegaClient::isForeignNode(NodeHandle h)
         return false;
     }
 
-    NodeHandle rootnode = getrootnode(node.get())->nodeHandle();
+    NodeHandle rootnode = getrootnode(node)->nodeHandle();
     return !mNodeManager.isRootNode(rootnode);
 }
 
@@ -8037,11 +8035,11 @@ shared_ptr<Node> MegaClient::nodeByHandle(NodeHandle h)
     return mNodeManager.getNodeByHandle(h);
 }
 
-shared_ptr<Node> MegaClient::nodeByPath(const char* path, Node* node, nodetype_t type)
+shared_ptr<Node> MegaClient::nodeByPath(const char* path, std::shared_ptr<Node> node, nodetype_t type)
 {
     if (!path) return NULL;
 
-    Node *cwd = node;
+    std::shared_ptr<Node> cwd = node;
     vector<string> c;
     string s;
     int l = 0;
@@ -8198,8 +8196,7 @@ shared_ptr<Node> MegaClient::nodeByPath(const char* path, Node* node, nodetype_t
         }
         else
         {
-            n = cwd ? cwd->mNodePosition->second.getNodeInRam() : nullptr;
-            assert(n.get() == cwd);
+            n = cwd;
         }
     }
 
@@ -8240,9 +8237,7 @@ shared_ptr<Node> MegaClient::nodeByPath(const char* path, Node* node, nodetype_t
                         return NULL;
                     }
 
-                    n = nn->mNodePosition->second.getNodeInRam();
-                    assert(n);
-                    assert(nn.get() == n.get());
+                    n = nn;
                 }
             }
         }
@@ -8345,14 +8340,14 @@ void MegaClient::makeattr(SymmCipher* key, const std::unique_ptr<string>& attrst
 }
 
 // update node attributes
-error MegaClient::setattr(Node* n, attr_map&& updates, CommandSetAttr::Completion&& c, bool canChangeVault)
+error MegaClient::setattr(std::shared_ptr<Node> n, attr_map&& updates, CommandSetAttr::Completion&& c, bool canChangeVault)
 {
     if (ststatus == STORAGE_PAYWALL)
     {
         return API_EPAYWALL;
     }
 
-    if (!checkaccess(n, FULL))
+    if (!checkaccess(n.get(), FULL))
     {
         return API_EACCESS;
     }
@@ -8613,7 +8608,7 @@ error MegaClient::checkmove(Node* fn, Node* tn)
 
 // move node to new parent node (for changing the filename, use setattr and
 // modify the 'n' attribute)
-error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevparenthandle, const char *newName, bool canChangeVault, CommandMoveNode::Completion&& c)
+error MegaClient::rename(std::shared_ptr<Node> n, std::shared_ptr<Node> p, syncdel_t syncdel, NodeHandle prevparenthandle, const char *newName, bool canChangeVault, CommandMoveNode::Completion&& c)
 {
     if (mBizStatus == BIZ_STATUS_EXPIRED)
     {
@@ -8622,7 +8617,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
 
     error e;
 
-    if ((e = checkmove(n, p)))
+    if ((e = checkmove(n.get(), p.get())))
     {
         return e;
     }
@@ -8630,7 +8625,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
     if (p->firstancestor()->type == RUBBISHNODE)
     {
         // similar to the webclient, send `s2` along with `m` if the node is moving to the rubbish
-        removeOutSharesFromSubtree(n, 0);
+        removeOutSharesFromSubtree(n.get(), 0);
     }
 
     std::shared_ptr<Node> prevParent = NULL;
@@ -8647,7 +8642,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
 
     if (prevParent)
     {
-        std::shared_ptr<Node> prevRoot = getrootnode(prevParent.get());
+        std::shared_ptr<Node> prevRoot = getrootnode(prevParent);
         std::shared_ptr<Node> newRoot = getrootnode(p);
         handle rubbishHandle = mNodeManager.getRootNodeRubbish().as8byte();
         nameid rrname = AttrMap::string2nameid("rr");
@@ -8688,7 +8683,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
         setattr(n, std::move(attrUpdates), nullptr, canChangeVault);  // no completion function, result is after the move completes
     }
 
-    reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparenthandle, move(c), canChangeVault));
+    reqs.add(new CommandMoveNode(this, n.get(), p.get(), syncdel, prevparenthandle, move(c), canChangeVault));
 
     return API_OK;
 }
@@ -8772,7 +8767,7 @@ void MegaClient::unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle d
             return;
         }
 
-        error e = rename(n.get(), p.get(), SYNCDEL_NONE, NodeHandle(), nullptr, true, [completion](NodeHandle, Error e){ completion(e); });
+        error e = rename(n, p, SYNCDEL_NONE, NodeHandle(), nullptr, true, [completion](NodeHandle, Error e){ completion(e); });
         if (e)
         {
             // error before we sent a request so call completion directly
@@ -16017,7 +16012,7 @@ void MegaClient::execmovetosyncdebris(Node* requestedNode, std::function<void(No
             if (std::shared_ptr<Node> n = nodeByHandle(rec.nodeHandle))
             {
                 LOG_debug << "Moving to cloud Syncdebris: " << n->displaypath() << " in " << debrisTarget->displaypath() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
-                rename(n.get(), debrisTarget.get(), SYNCDEL_DEBRISDAY, n->parent ? n->parent->nodeHandle() : NodeHandle(), nullptr, canChangeVault, move(rec.completion));
+                rename(n, debrisTarget, SYNCDEL_DEBRISDAY, n->parent ? n->parent->nodeHandle() : NodeHandle(), nullptr, canChangeVault, move(rec.completion));
             }
             else
             {

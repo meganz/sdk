@@ -3430,7 +3430,7 @@ void StandardClient::setattr(const CloudItem& item, attr_map&& updates, PromiseB
                                 if (!node)
                                     return result->set_value(false);
 
-                                client.setattr(node.get(), attr_map(updates),
+                                client.setattr(node, attr_map(updates),
                                     [result](NodeHandle, error e) { result->set_value(!e); }, false);
                             }, nullptr);
 }
@@ -3577,8 +3577,8 @@ void StandardClient::movenode(const CloudItem& source,
         result->set_value(e == API_OK);
     };
 
-    client.rename(sourceNode.get(),
-                  targetNode.get(),
+    client.rename(sourceNode,
+                  targetNode,
                   SYNCDEL_NONE,
                   NodeHandle(),
                   newName.empty() ? nullptr : newName.c_str(),
@@ -3595,7 +3595,7 @@ void StandardClient::movenodetotrash(string path, PromiseBoolSP pb)
         resultproc.prepresult(COMPLETION, ++next_request_tag,
             [pb, n, p, this]()
             {
-                client.rename(n.get(), p.get(), SYNCDEL_NONE, NodeHandle(), nullptr, false,
+                client.rename(n, p, SYNCDEL_NONE, NodeHandle(), nullptr, false,
                     [pb](NodeHandle h, Error e) { pb->set_value(!e); });
             },
             nullptr);
@@ -9575,7 +9575,7 @@ struct TwoWaySyncSymmetryCase
         if (reportaction) out() << name() << " action: remote rename " << n->displaypath() << " to " << newname;
 
         attr_map updates('n', newname);
-        auto e = changeClient().client.setattr(n.get(), std::move(updates), nullptr, false);
+        auto e = changeClient().client.setattr(n, std::move(updates), nullptr, false);
 
         ASSERT_EQ(API_OK, error(e));
     }
@@ -9596,7 +9596,7 @@ struct TwoWaySyncSymmetryCase
 
         if (reportaction) out() << name() << " action: remote move " << n1->displaypath() << " to " << n2->displaypath();
 
-        auto e = changeClient().client.rename(n1.get(), n2.get(), SYNCDEL_NONE, NodeHandle(), nullptr, false, nullptr);
+        auto e = changeClient().client.rename(n1, n2, SYNCDEL_NONE, NodeHandle(), nullptr, false, nullptr);
         ASSERT_EQ(API_OK, e);
     }
 
@@ -9682,7 +9682,7 @@ struct TwoWaySyncSymmetryCase
 
         if (reportaction) out() << name() << " action: remote rename + move " << n1->displaypath() << " to " << n2->displaypath() << " as " << newname;
 
-        error e = changeClient().client.rename(n1.get(), n2.get(), SYNCDEL_NONE, NodeHandle(), newname.c_str(), false, nullptr);
+        error e = changeClient().client.rename(n1, n2, SYNCDEL_NONE, NodeHandle(), newname.c_str(), false, nullptr);
         EXPECT_EQ(e, API_OK);
     }
 

@@ -2733,7 +2733,7 @@ bool recurse_findemptysubfoldertrees(Node* n, bool moveToTrash)
         return false;
     }
 
-    std::vector<Node*> emptyFolders;
+    sharedNode_vector emptyFolders;
     bool empty = true;
     std::shared_ptr<Node> trash = client->nodeByHandle(client->mNodeManager.getRootNodeRubbish());
     sharedNode_list children = client->getChildren(n);
@@ -2742,18 +2742,18 @@ bool recurse_findemptysubfoldertrees(Node* n, bool moveToTrash)
         bool subfolderEmpty = recurse_findemptysubfoldertrees(c.get(), moveToTrash);
         if (subfolderEmpty)
         {
-            emptyFolders.push_back(c.get());
+            emptyFolders.push_back(c);
         }
         empty = empty && subfolderEmpty;
     }
     if (!empty)
     {
-        for (auto c : emptyFolders)
+        for (auto& c : emptyFolders)
         {
             if (moveToTrash)
             {
                 cout << "moving to trash: " << c->displaypath() << endl;
-                client->rename(c, trash.get(), SYNCDEL_NONE, NodeHandle(), nullptr, false, rename_result);
+                client->rename(c, trash, SYNCDEL_NONE, NodeHandle(), nullptr, false, rename_result);
             }
             else
             {
@@ -4702,7 +4702,7 @@ void exec_mv(autocomplete::ACState& s)
                             // rename
                             LocalPath::utf8_normalize(&newname);
 
-                            if ((e = client->setattr(n.get(), attr_map('n', newname), setattr_result, false)))
+                            if ((e = client->setattr(n, attr_map('n', newname), setattr_result, false)))
                             {
                                 cout << "Cannot rename file (" << errorstring(e) << ")" << endl;
                             }
@@ -4733,7 +4733,7 @@ void exec_mv(autocomplete::ACState& s)
                             }
 
                             // overwrite existing target file: rename source...
-                            e = client->setattr(n.get(), attr_map('n', tn->attrs.map['n']), setattr_result, false);
+                            e = client->setattr(n, attr_map('n', tn->attrs.map['n']), setattr_result, false);
 
                             if (e)
                             {
@@ -4765,7 +4765,7 @@ void exec_mv(autocomplete::ACState& s)
                 {
                     if (e == API_OK)
                     {
-                        e = client->rename(n.get(), tn.get(), SYNCDEL_NONE, NodeHandle(), nullptr, false, rename_result);
+                        e = client->rename(n, tn, SYNCDEL_NONE, NodeHandle(), nullptr, false, rename_result);
 
                         if (e)
                         {

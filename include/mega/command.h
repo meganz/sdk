@@ -694,7 +694,7 @@ private:
 public:
     bool procresult(Result, JSON&) override;
 
-    CommandSetAttr(MegaClient*, Node*, attr_map&& attrMapUpdates, Completion&& c, bool canChangeVault);
+    CommandSetAttr(MegaClient*, std::shared_ptr<Node>, attr_map&& attrMapUpdates, Completion&& c, bool canChangeVault);
 };
 
 class MEGA_API CommandSetShare : public Command

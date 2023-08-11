@@ -2097,7 +2097,7 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
                                     if (signalMoveBegin)
                                         signalMoveBegin(mc);
 
-                                    mc.setattr(n.get(), attr_map('n', newName), [&mc, movePtr, newName](NodeHandle, Error err){
+                                    mc.setattr(n, attr_map('n', newName), [&mc, movePtr, newName](NodeHandle, Error err){
 
                                         LOG_debug << mc.clientname << "SYNC Rename completed: " << newName << " err:" << err;
 
@@ -2148,7 +2148,7 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
                                     simultaneousMoveReplacedNodeToDebris(mc, committer);
                                 }
 
-                                auto err = mc.rename(fromNode.get(), toNode.get(),
+                                auto err = mc.rename(fromNode, toNode,
                                             SYNCDEL_NONE,
                                             sourceCloudNode.parentHandle,
                                             newName.empty() ? nullptr : newName.c_str(),
@@ -11112,7 +11112,7 @@ bool Syncs::checkSdsCommandsForDelete(UnifiedSync& us, vector<pair<handle, int>>
         {
             if (std::shared_ptr<Node> node = mc.nodeByHandle(remoteNode))
             {
-                mc.setattr(node.get(),
+                mc.setattr(node,
                         attr_map(Node::sdsId(), Node::toSdsString(sdsCopy)),
                         [boolsptr](NodeHandle handle, Error result) {
                             LOG_debug << "SDS: Attribute updated on " << handle << " result: " << result;

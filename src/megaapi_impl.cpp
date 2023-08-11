@@ -10906,7 +10906,7 @@ MegaUser *MegaApiImpl::getUserFromInShare(MegaNode *megaNode, bool recurse)
     std::shared_ptr<Node> node = client->nodebyhandle(megaNode->getHandle());
     if (recurse && node)
     {
-        node = client->getrootnode(node.get());
+        node = client->getrootnode(node);
     }
 
     if (node && node->inshare && node->inshare->user)
@@ -17747,7 +17747,7 @@ MegaNode* MegaApiImpl::getNodeByPath(const char *path, MegaNode* node)
         }
     }
 
-    std::shared_ptr<Node> result = client->nodeByPath(path, root.get());
+    std::shared_ptr<Node> result = client->nodeByPath(path, root);
 
     return MegaNodePrivate::fromNode(result.get());
 }
@@ -17769,7 +17769,7 @@ MegaNode* MegaApiImpl::getNodeByPathOfType(const char* path, MegaNode* node, int
 
     nodetype_t t = (type == MegaNode::TYPE_FILE ? FILENODE :
                    (type == MegaNode::TYPE_FOLDER ? FOLDERNODE : TYPE_UNKNOWN));
-    std::shared_ptr<Node> result = client->nodeByPath(path, root.get(), t);
+    std::shared_ptr<Node> result = client->nodeByPath(path, root, t);
 
     return MegaNodePrivate::fromNode(result.get());
 }
@@ -19193,7 +19193,7 @@ void MegaApiImpl::moveNode(MegaNode* node, MegaNode* newParent, const char* newN
                 }
 
                 // Mark node to be restored if moving to Rubbish Bin
-                if (client->getrootnode(newParent.get())->type == RUBBISHNODE && client->getrootnode(node.get())->type != RUBBISHNODE)
+                if (client->getrootnode(newParent)->type == RUBBISHNODE && client->getrootnode(node)->type != RUBBISHNODE)
                 {
                     // "rr" attribute name and value
                     nameid rrname = AttrMap::string2nameid("rr");
@@ -19216,7 +19216,7 @@ void MegaApiImpl::moveNode(MegaNode* node, MegaNode* newParent, const char* newN
                 return e;
             }
 
-            e = client->rename(node.get(), newParent.get(), SYNCDEL_NONE, NodeHandle(), name, false,
+            e = client->rename(node, newParent, SYNCDEL_NONE, NodeHandle(), name, false,
                 [request, this](NodeHandle h, Error e)
                 {
                     request->setNodeHandle(h.as8byte());
@@ -19486,7 +19486,7 @@ void MegaApiImpl::renameNode(MegaNode* node, const char* newName, MegaRequestLis
 
             string sname = newName;
             LocalPath::utf8_normalize(&sname);
-            return client->setattr(node.get(), attr_map('n', sname),
+            return client->setattr(node, attr_map('n', sname),
                 [request, this](NodeHandle h, Error e)
                 {
                     request->setNodeHandle(h.as8byte());
@@ -20492,7 +20492,7 @@ error MegaApiImpl::performRequest_setAttrNode(MegaRequestPrivate* request)
                 }
                 else if (type == MegaApi::NODE_ATTR_LABEL || type == MegaApi::NODE_ATTR_FAV || type == MegaApi::NODE_ATTR_SEN)
                 {
-                    Node *current = node.get();
+                    std::shared_ptr<Node> current = node;
                     bool remove = false;
                     nameid nid = 0;
                     int value = 0;
@@ -20532,13 +20532,13 @@ error MegaApiImpl::performRequest_setAttrNode(MegaRequestPrivate* request)
                     // update file versions if any
                     if (current->type == FILENODE)
                     {
-                        sharedNode_list childrens = client->getChildren(current);
+                        sharedNode_list childrens = client->getChildren(current.get());
                         while (childrens.size())
                         {
                             assert(childrens.size() != 1);
-                            Node* n = childrens.begin()->get();
+                            std::shared_ptr<Node> n = *childrens.begin();
                             client->setattr(n, attr_map(attrUpdates), nullptr, false); // no callback for these
-                            childrens = client->getChildren(n);
+                            childrens = client->getChildren(n.get());
                         }
                     }
 
@@ -20588,7 +20588,7 @@ error MegaApiImpl::performRequest_setAttrNode(MegaRequestPrivate* request)
 
             if (!e && !attrUpdates.empty())
             {
-                e = client->setattr(node.get(), std::move(attrUpdates),
+                e = client->setattr(node, std::move(attrUpdates),
                     [request, this](NodeHandle h, Error e)
                     {
                         request->setNodeHandle(h.as8byte());
