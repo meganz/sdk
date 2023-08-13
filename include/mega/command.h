@@ -1793,7 +1793,7 @@ class MEGA_API CommandDelVpnCredential : public Command
 {
 private:
     using Cb = std::function<void(const Error& /*e*/)>;
-    std::function<void(Error)> mCompletion;
+    Cb mCompletion;
 
 public:
     CommandDelVpnCredential(MegaClient*, int slotID, Cb&& completion = nullptr);

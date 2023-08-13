@@ -5922,22 +5922,22 @@ bool MegaApi::requestStatusMonitorEnabled()
 
 void MegaApi::getVpnRegions(MegaRequestListener* listener)
 {
-    return pImpl->getVpnRegions(listener);
+    pImpl->getVpnRegions(listener);
 }
 
 void MegaApi::getVpnCredentials(MegaRequestListener* listener)
 {
-    return pImpl->getVpnCredentials(listener);
+    pImpl->getVpnCredentials(listener);
 }
 
 void MegaApi::putVpnCredential(const char* region, MegaRequestListener* listener)
 {
-    return pImpl->putVpnCredential(region, listener);
+    pImpl->putVpnCredential(region, listener);
 }
 
 void MegaApi::delVpnCredential(int slotID, MegaRequestListener* listener)
 {
-    return pImpl->delVpnCredential(slotID, listener);
+    pImpl->delVpnCredential(slotID, listener);
 }
 
 /* END MEGAAPI */

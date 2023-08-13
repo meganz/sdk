@@ -4294,11 +4294,11 @@ class MegaRequest
             TYPE_BACKUP_INFO                                                = 169,
             TYPE_BACKUP_REMOVE_MD                                           = 170,
             TYPE_AB_TEST_ACTIVE                                             = 171,
-            TOTAL_OF_REQUEST_TYPES                                          = 172,
-            TYPE_GET_VPN_REGIONS                                            = 173,
-            TYPE_GET_VPN_CREDENTIALS                                        = 174,
-            TYPE_PUT_VPN_CREDENTIAL                                         = 175,
-            TYPE_DEL_VPN_CREDENTIAL                                         = 176,
+            TYPE_GET_VPN_REGIONS                                            = 172,
+            TYPE_GET_VPN_CREDENTIALS                                        = 173,
+            TYPE_PUT_VPN_CREDENTIAL                                         = 174,
+            TYPE_DEL_VPN_CREDENTIAL                                         = 175,
+            TOTAL_OF_REQUEST_TYPES                                          = 176
         };
 
         virtual ~MegaRequest();

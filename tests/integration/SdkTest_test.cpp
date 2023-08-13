@@ -14204,11 +14204,12 @@ TEST_F(SdkTest, SdkTestDeleteListenerBeforeFinishingRequest)
  */
 TEST_F(SdkTest, SdkTestMegaVpnCredentials)
 {
-    LOG_info << "___TEST SdkTestMegaVpnPutCredential";
+    LOG_info << "___TEST SdkTestMegaVpnCredentials";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // Get VPN regions to choose one of them
     {
+        std::cout << "[SdkTest] Get VPN regions" << std::endl;
         auto rt = ::mega::make_unique<RequestTracker>(megaApi[0].get());
         mApi[0].megaApi->getVpnRegions(rt.get());
         ASSERT_EQ(API_OK, rt->waitForResult()) << "getting the VPN regions failed (error: " << mApi[0].lastError << ")";
@@ -14230,6 +14231,7 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
 
         // Get VPN credentials and search for the one on our slot
         {
+            std::cout << "[SdkTest] Get VPN credentials" << std::endl;
             auto rt3 = ::mega::make_unique<RequestTracker>(megaApi[0].get());
             mApi[0].megaApi->getVpnCredentials(rt3.get());
             ASSERT_EQ(API_OK, rt3->waitForResult()) << "getting the VPN credentials failed (error: " << mApi[0].lastError << ")";
@@ -14247,16 +14249,18 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
             ASSERT_FALSE(clusterPublicKey.empty()) << "Cluster Public Key not found for ClusterID: " << clusterID;
 
             // Check VPN regions, they should not be empty
-            std::unique_ptr<MegaStringList> vpnRegions;
-            vpnRegions.reset(megaVpnCredentials->getVpnRegions());
+            std::unique_ptr<MegaStringList> vpnRegionsFromCredentials;
+            vpnRegionsFromCredentials.reset(megaVpnCredentials->getVpnRegions());
+            std::cout << "[vpnRegionsFromCredentials] Internal VPN regions: " << (void*)vpnRegionsFromCredentials.get() << std::endl;
             ASSERT_TRUE(vpnRegions->size()) << "list of VPN regions is empty";
-            for (int i = 0; i < vpnRegions->size(); i++)
+            for (int i = 0; i < vpnRegionsFromCredentials->size(); i++)
             {
-                const char* vpnRegion = vpnRegions->get(i);
+                const char* vpnRegion = vpnRegionsFromCredentials->get(i);
                 std::cout << "VpnRegion[" << i << "]: '" << vpnRegion << "'" << std::endl;
             }
         }
 
+        std::cout << "[SdkTest] Delete VPN credentials" << std::endl;
         // Delete VPN credentials
         auto rt4 = ::mega::make_unique<RequestTracker>(megaApi[0].get());
         mApi[0].megaApi->delVpnCredential(slotID, rt4.get());
