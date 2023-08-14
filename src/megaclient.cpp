@@ -21621,41 +21621,54 @@ Error MegaClient::sendABTestActive(const char* flag, CommandABTestActive::Comple
     return API_OK;
 }
 
-std::pair<string, string> MegaClient::generateVpnKeyPair()
+/* Mega VPN methods BEGIN */
+std::pair<std::string, std::string> MegaClient::generateVpnKeyPair()
 {
     auto vpnKey = ::mega::make_unique<ECDH>();
     if (!vpnKey->initializationOK)
     {
         LOG_err << "Initialization of keys Cu25519 and/or Ed25519 failed";
-        return std::make_pair(string(), string());
+        return std::make_pair(std::string(), std::string());
     }
     std::cout << "PV Length: " << ECDH::PRIVATE_KEY_LENGTH << ". PB Length: " << ECDH::PUBLIC_KEY_LENGTH << std::endl;
-    //string privateKey = Base64::btoa(string((char *)vpnKey->getPrivKey(), ECDH::PRIVATE_KEY_LENGTH));
-    //string publicKey = Base64::btoa(string((char *)vpnKey->getPubKey(), ECDH::PUBLIC_KEY_LENGTH));
-    string privateKey = string((char *)vpnKey->getPrivKey(), ECDH::PRIVATE_KEY_LENGTH);
-    string publicKey = string((char *)vpnKey->getPubKey(), ECDH::PUBLIC_KEY_LENGTH);
-    //char privateKey[ECDH::PRIVATE_KEY_LENGTH];
-    //char publicKey[ECDH::PUBLIC_KEY_LENGTH];
-    //Base64::btoa((const byte *)vpnKey->getPrivKey(), ECDH::PRIVATE_KEY_LENGTH, privateKey);
-    //Base64::btoa((const byte *)vpnKey->getPubKey(), ECDH::PUBLIC_KEY_LENGTH, publicKey);
+    string privateKey = std::string((char *)vpnKey->getPrivKey(), ECDH::PRIVATE_KEY_LENGTH);
+    string publicKey = std::string((char *)vpnKey->getPubKey(), ECDH::PUBLIC_KEY_LENGTH);
     std::cout << "B64 PV Length: " << privateKey.size() << ". Key: '" << privateKey << "'. PB Length: " << publicKey.size() << ". Key: '" << publicKey << "'" << std::endl;
-    //std::cout << "B64 PV Key: '" << privateKey << "'. PB Key: '" << publicKey << "'" << std::endl;
     return std::make_pair(std::string(privateKey), std::string(publicKey));
 }
 
-string MegaClient::getVpnCredentialString(int slotID, string&& vpnRegion, string&& ipv4, string&& ipv6, std::pair<string, string>&& peerKeyPair)
+// Call "vpnr" command.
+void MegaClient::getVpnRegions(CommandGetVpnRegions::Cb&& completion)
 {
-    /*
-        [Interface]
-        PrivateKey = XXxxxxxxxxxxXXXXXXXXXXXXxxxxxxxxxxxXxxxxx=
-        Address = X.X.X.X/32, aaaa::aaaa:aaaa:aaaa:aaaa:a/128
-        DNS = 8.8.8.8, 2001:4860:4860::8888
+    reqs.add(new CommandGetVpnRegions(this, std::move(completion)));
+}
 
-        [Peer]
-        PublicKey = XXxxxxxxxxxxXXXXXXXXXXXXxxxxxxxxxxxXxxxxx=
-        AllowedIPs = 0.0.0.0/0, ::/0
-        Endpoint = CA-WEST.vpn.mega.nz:51820
-    */
+// Call "vpng" command.
+void MegaClient::getVpnCredentials(CommandGetVpnCredentials::Cb&& completion)
+{
+    reqs.add(new CommandGetVpnCredentials(this, std::move(completion)));
+}
+
+// Call "vpnp" command.
+void MegaClient::putVpnCredential(std::string&& vpnRegion, CommandPutVpnCredential::Cb&& completion)
+{
+    auto vpnKeyPair = generateVpnKeyPair();
+    reqs.add(new CommandPutVpnCredential(this, std::move(vpnRegion), std::move(vpnKeyPair), std::move(completion)));
+}
+
+// Call "vpnd" command.
+void MegaClient::delVpnCredential(int slotID, CommandDelVpnCredential::Cb&& completion)
+{
+    reqs.add(new CommandDelVpnCredential(this, slotID, std::move(completion)));
+}
+
+// Get the credential string.
+string MegaClient::getVpnCredentialString(int slotID,
+                                        std::string&& vpnRegion,
+                                        std::string&& ipv4,
+                                        std::string&& ipv6,
+                                        std::pair<std::string, std::string>&& peerKeyPair)
+{
     string peerPrivateKey = Base64::btoa(string((char *)peerKeyPair.first.c_str(), ECDH::PRIVATE_KEY_LENGTH));
     string peerPublicKey = Base64::btoa(string((char *)peerKeyPair.second.c_str(), ECDH::PUBLIC_KEY_LENGTH));
     string credential;
@@ -21670,6 +21683,7 @@ string MegaClient::getVpnCredentialString(int slotID, string&& vpnRegion, string
              .append("Endpoint = ").append(vpnRegion).append(".vpn.mega.nz:51820");
     return credential;
 }
+/* Mega VPN methods END */
 
 FetchNodesStats::FetchNodesStats()
 {

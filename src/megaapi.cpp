@@ -97,7 +97,7 @@ MegaStringList *MegaStringList::createInstance()
 
 MegaStringList::~MegaStringList()
 {
-
+    std::cout << "[MegaStringList::~MegaStringList] destructor [this = " << this << "]" << std::endl;
 }
 
 MegaStringList *MegaStringList::copy() const
@@ -1568,7 +1568,7 @@ const char *MegaError::__toString() const
 
 MegaContactRequest::~MegaContactRequest()
 {
-
+    std::cout << "[MegaContactRequest::~MegaContactRequest] call " << " [this = " << this << "]" << std::endl;
 }
 
 MegaContactRequest *MegaContactRequest::copy() const
@@ -7659,6 +7659,11 @@ MegaVpnCredentials::~MegaVpnCredentials()
 {
 }
 
+MegaIntegerList* MegaVpnCredentials::getSlotIDs() const
+{
+    return nullptr;
+}
+
 MegaStringList* MegaVpnCredentials::getVpnRegions() const
 {
     return nullptr;
@@ -7679,7 +7684,7 @@ int MegaVpnCredentials::getClusterID(int slotID) const
     return 0;
 }
 
-const char* MegaVpnCredentials::getPublicKey(int clusterID) const
+const char* MegaVpnCredentials::getClusterPublicKey(int clusterID) const
 {
     return nullptr;
 }

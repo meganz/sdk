@@ -3214,6 +3214,7 @@ class MegaApiImpl : public MegaApp
         void getVpnCredentials(MegaRequestListener* listener = nullptr);
         void putVpnCredential(const char* region, MegaRequestListener* listener = nullptr);
         void delVpnCredential(int slotID, MegaRequestListener* listener = nullptr);
+        /* MegaVpnCredentials end */
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
         void fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e); // deletes `transfer` !!
@@ -4477,16 +4478,17 @@ public:
     MegaVpnCredentialsPrivate(const MegaVpnCredentialsPrivate&);
     ~MegaVpnCredentialsPrivate();
 
+    MegaIntegerList* getSlotIDs() const override;
     MegaStringList* getVpnRegions() const override;
     const char* getIPv4(int slotID) const override;
     const char* getIPv6(int slotID) const override;
     int getClusterID(int slotID) const override;
-    const char* getPublicKey(int clusterID) const override;
+    const char* getClusterPublicKey(int clusterID) const override;
     MegaVpnCredentials* copy() const override;
 
 private:
-    MegaVpnCredentialsIps mMapIps;
-    MegaVpnCredentialsClusterPublicKeys mMapPubKeys;
+    MegaVpnCredentialsIps mMapSlotIDToClusterIDAndIPs;
+    MegaVpnCredentialsClusterPublicKeys mMapClusterPubKeys;
     std::unique_ptr<MegaStringList> mVpnRegions;
 };
 

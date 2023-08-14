@@ -10396,7 +10396,7 @@ bool CommandGetVpnRegions::procresult(Command::Result r, JSON& json)
         {
             break;
         }
-        vpnRegions.push_back(vpnRegion);
+        vpnRegions.emplace_back(std::move(vpnRegion));
     }
 
     mCompletion(API_OK, std::move(vpnRegions));
@@ -10420,8 +10420,8 @@ bool CommandGetVpnCredentials::procresult(Command::Result r, JSON& json)
     }
 
     Error e(API_EINTERNAL);
-    std::map<int, std::pair<int, std::pair<std::string, std::string>>> mapIps;
-    std::map<int, std::string> mapPubKeys;
+    std::map<int, std::pair<int, std::pair<std::string, std::string>>> mapSlotIDToClusterIDAndIPs;
+    std::map<int, std::string> mapClusterPubKeys;
     {
         // Parse ClusterID and IPs
         if (json.enterobject())
@@ -10460,7 +10460,7 @@ bool CommandGetVpnCredentials::procresult(Command::Result r, JSON& json)
                     }
                     auto pairIps = std::make_pair(ipv4, ipv6);
                     auto pairClusterIdAndIps = std::make_pair(clusterID, pairIps);
-                    mapIps.emplace(std::make_pair(std::stoi(slotID), pairClusterIdAndIps));
+                    mapSlotIDToClusterIDAndIPs.emplace(std::make_pair(std::stoi(slotID), pairClusterIdAndIps));
                     std::cout << "[Cmd] End element. SlotID: " << slotID << ". ClusterID: " << clusterID << ". IPv4: '" << ipv4 << "'. IPv6: '" << ipv6 << "'" << std::endl;
                     json.leavearray();
                 }
@@ -10506,7 +10506,7 @@ bool CommandGetVpnCredentials::procresult(Command::Result r, JSON& json)
                     break;
                 }
 
-                mapPubKeys.emplace(std::make_pair(std::stoi(clusterID), clusterPubKey));
+                mapClusterPubKeys.emplace(std::make_pair(std::stoi(clusterID), clusterPubKey));
                 std::cout << "[Cmd] ClusterID: '" << clusterID << "'. Pubkey: '" << clusterPubKey << "'" << std::endl;
             }
             if (!parsedOk)
@@ -10536,7 +10536,7 @@ bool CommandGetVpnCredentials::procresult(Command::Result r, JSON& json)
             {
                 break;
             }
-            vpnRegions.push_back(vpnRegion);
+            vpnRegions.emplace_back(std::move(vpnRegion));
         }
         json.leavearray();
     }
@@ -10546,18 +10546,23 @@ bool CommandGetVpnCredentials::procresult(Command::Result r, JSON& json)
     }
 
     e.setErrorCode(API_OK);
-    mCompletion(e, std::move(mapIps), std::move(mapPubKeys), std::move(vpnRegions));
+    mCompletion(e, std::move(mapSlotIDToClusterIDAndIPs), std::move(mapClusterPubKeys), std::move(vpnRegions));
 
     return true;
 }
 
-CommandPutVpnCredential::CommandPutVpnCredential(MegaClient* client, const string& pubKey, Cb&& completion)
+CommandPutVpnCredential::CommandPutVpnCredential(MegaClient* client,
+                                                std::string&& region,
+                                                std::pair<std::string, std::string>&& peerKeyPair,
+                                                Cb&& completion)
 {
-    std::cout << "[CommandPutVpnCredential] pubKeySize: " << pubKey.size() << ", pubKey: '" << pubKey << "'" << std::endl;
+    std::cout << "[CommandPutVpnCredential] pubKeySize: " << peerKeyPair.second.size() << ", pubKey: '" << peerKeyPair.second << "'" << std::endl;
     cmd("vpnp");
-    arg("k", (byte*)pubKey.c_str(), static_cast<int>(pubKey.size()));
+    arg("k", (byte*)peerKeyPair.second.c_str(), static_cast<int>(peerKeyPair.second.size()));
     tag = client->reqtag;
 
+    mRegion = std::move(region);
+    mPeerKeyPair = std::move(peerKeyPair);
     mCompletion = std::move(completion);
 }
 
@@ -10565,13 +10570,13 @@ bool CommandPutVpnCredential::procresult(Command::Result r, JSON& json)
 {
     if (r.wasErrorOrOK())
     {
-        if (mCompletion) { mCompletion(r.errorOrOK(), -1, {}, {}); }
+        if (mCompletion) { mCompletion(r.errorOrOK(), -1, {}); }
         return true;
     }
 
     if (!r.hasJsonArray())
     {
-        if (mCompletion) { mCompletion(API_EINTERNAL, -1, {}, {}); }
+        if (mCompletion) { mCompletion(API_EINTERNAL, -1, {}); }
         return false;
     }
 
@@ -10588,7 +10593,7 @@ bool CommandPutVpnCredential::procresult(Command::Result r, JSON& json)
     if (!json.storeobject(&ipv4) || ipv4.empty())
     {
         std::cout << "[Cmd] Error parsing IPv4" << std::endl;
-        if (mCompletion) { mCompletion(API_EINTERNAL, -1, {}, {}); }
+        if (mCompletion) { mCompletion(API_EINTERNAL, -1, {}); }
         return false;
     }
 
@@ -10597,7 +10602,7 @@ bool CommandPutVpnCredential::procresult(Command::Result r, JSON& json)
     if (!json.storeobject(&ipv6) || ipv6.empty())
     {
         std::cout << "[Cmd] Error parsing IPv6" << std::endl;
-        if (mCompletion) { mCompletion(API_EINTERNAL, -1, {}, {}); }
+        if (mCompletion) { mCompletion(API_EINTERNAL, -1, {}); }
         return false;
     }
 
@@ -10621,7 +10626,11 @@ bool CommandPutVpnCredential::procresult(Command::Result r, JSON& json)
 
     std::cout << "[Cmd] SlotID: " << slotID << ". IPv4: '" << ipv4 << "'. IPv6: '" << ipv6 << "'" << std::endl;
 
-    if (mCompletion) { mCompletion(API_OK, slotID, std::move(ipv4), std::move(ipv6)); }
+    if (mCompletion)
+    {
+        string newCredential = client->getVpnCredentialString(slotID, std::move(mRegion), std::move(ipv4), std::move(ipv6), std::move(mPeerKeyPair));
+        mCompletion(API_OK, slotID, std::move(newCredential));
+    }
     return true;
 }
 
@@ -10641,10 +10650,12 @@ bool CommandDelVpnCredential::procresult(Command::Result r, JSON& json)
     {
         if (r.wasErrorOrOK())
         {
+            std::cout << "[CommandDelVpnCredential] r.wasErrorOrOK" << std::endl;
             mCompletion(r.errorOrOK());
         }
         else
         {
+            std::cout << "[CommandDelVpnCredential] API_OK" << std::endl;
             mCompletion(API_OK);
         }
     }

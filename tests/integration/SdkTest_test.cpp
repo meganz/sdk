@@ -14218,6 +14218,7 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
 
         const char* vpnRegion = vpnRegions->get(0); // Choose the first vpn region
 
+        // Put VPN credential on the choosen region
         std::cout << "Put VPN credential on region: '" << vpnRegion << "'" << std::endl;
         auto rt2 = ::mega::make_unique<RequestTracker>(megaApi[0].get());
         mApi[0].megaApi->putVpnCredential(vpnRegion, rt2.get());
@@ -14238,6 +14239,14 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
 
             const MegaVpnCredentials* megaVpnCredentials = mApi[0].getVpnCredentials();
 
+            // Get SlotIDs - it should not be empty (we don't check that there is only ONE as we could have more slots on this account)
+            {
+                std::unique_ptr<MegaIntegerList> slotIDsList;
+                slotIDsList.reset(megaVpnCredentials->getSlotIDs());
+                ASSERT_TRUE(slotIDsList) << "MegaIntegerList of slotIDs is NULL";
+                ASSERT_TRUE(slotIDsList->size()) << "slotIDs list is empty";
+            }
+
             // Get IPv4
             string ipv4 = megaVpnCredentials->getIPv4(slotID);
             ASSERT_FALSE(ipv4.empty()) << "IPv4 value not found for SlotID: " << slotID;
@@ -14245,7 +14254,7 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
             ASSERT_FALSE(ipv6.empty()) << "IPv6 value not found for SlotID: " << slotID;
             int clusterID = megaVpnCredentials->getClusterID(slotID);
             ASSERT_TRUE(clusterID >= 0) << "clusterID should be a positive value. SlotID: " << slotID;
-            string clusterPublicKey = megaVpnCredentials->getPublicKey(clusterID);
+            string clusterPublicKey = megaVpnCredentials->getClusterPublicKey(clusterID);
             ASSERT_FALSE(clusterPublicKey.empty()) << "Cluster Public Key not found for ClusterID: " << clusterID;
 
             // Check VPN regions, they should not be empty
@@ -14260,10 +14269,28 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
             }
         }
 
-        std::cout << "[SdkTest] Delete VPN credentials" << std::endl;
-        // Delete VPN credentials
-        auto rt4 = ::mega::make_unique<RequestTracker>(megaApi[0].get());
-        mApi[0].megaApi->delVpnCredential(slotID, rt4.get());
-        ASSERT_EQ(API_OK, rt4->waitForResult()) << "deleting the VPN credentials for slotID " << slotID << " (error: " << mApi[0].lastError << ")";
+        // Delete VPN credentials on the used slot
+        {
+            std::cout << "[SdkTest] Delete VPN credentials" << std::endl;
+            auto rt4 = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+            mApi[0].megaApi->delVpnCredential(slotID, rt4.get());
+            ASSERT_EQ(API_OK, rt4->waitForResult()) << "deleting the VPN credentials failed for slotID " << slotID << " (error: " << mApi[0].lastError << ")";
+        }
+
+        // Delete VPN credentials again -expected API_OK: despite it is empty now, it has been occupied before-
+        {
+            std::cout << "[SdkTest] Delete VPN credentials again" << std::endl;
+            auto rt5 = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+            mApi[0].megaApi->delVpnCredential(slotID, rt5.get());
+            ASSERT_EQ(API_OK, rt5->waitForResult()) << "deleting the VPN credentials failed for unused slotID " << slotID << " (error: " << mApi[0].lastError << ")";
+        }
+
+        // Delete VPN credentials with an invalid slot -expected EARGS: Slot ID is not valid-
+        {
+            std::cout << "[SdkTest] Delete VPN credentials on an invalid Slot ID" << std::endl;
+            auto rt6 = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+            mApi[0].megaApi->delVpnCredential(-1, rt6.get());
+            ASSERT_EQ(API_EARGS, rt6->waitForResult()) << "deleting the VPN credentials failed for invalid slotID " << slotID << " (error: " << mApi[0].lastError << ")";
+        }
     }
 }
