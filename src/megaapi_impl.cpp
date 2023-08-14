@@ -14466,6 +14466,9 @@ void MegaApiImpl::logout_result(error e, MegaRequestPrivate* request)
 
 #ifdef ENABLE_SYNC
         mCachedMegaSyncPrivate.reset();
+        receivedStallFlag = false;
+        receivedNameConflictsFlag = false;
+        mAddressedStallFilter.clear();
 #endif
 
         mLastReceivedLoggedInState = NOTLOGGEDIN;
@@ -14474,10 +14477,6 @@ void MegaApiImpl::logout_result(error e, MegaRequestPrivate* request)
         mLastKnownRootNode.reset();
         mLastKnownVaultNode.reset();
         mLastKnownRubbishNode.reset();
-
-        receivedStallFlag = false;
-        receivedNameConflictsFlag = false;
-        mAddressedStallFilter.clear();
     }
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
