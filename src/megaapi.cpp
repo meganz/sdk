@@ -97,6 +97,7 @@ MegaStringList *MegaStringList::createInstance()
 
 MegaStringList::~MegaStringList()
 {
+
 }
 
 MegaStringList *MegaStringList::copy() const
@@ -1567,6 +1568,7 @@ const char *MegaError::__toString() const
 
 MegaContactRequest::~MegaContactRequest()
 {
+
 }
 
 MegaContactRequest *MegaContactRequest::copy() const

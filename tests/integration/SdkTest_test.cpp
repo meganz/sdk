@@ -14275,7 +14275,6 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
  * 4) DELETE the MEGA VPN credentials associated with the slotID used above.
  * 5) DELETE the MEGA VPN credentials from an unoccupied slot.
  * 6) DELETE the MEGA VPN credentials from an invalid slot.
- *
  */
 TEST_F(SdkTest, SdkTestMegaVpnCredentials)
 {
