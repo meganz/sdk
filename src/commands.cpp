@@ -10413,10 +10413,10 @@ CommandGetVpnCredentials::CommandGetVpnCredentials(MegaClient* client, Cb&& comp
 
 bool CommandGetVpnCredentials::procresult(Command::Result r, JSON& json)
 {
-    if (!r.hasJsonArray())
+    if (r.wasErrorOrOK())
     {
-        if (mCompletion) { mCompletion(API_EINTERNAL, {}, {}, {}); }
-        return false;
+        if (mCompletion) { mCompletion(r.errorOrOK(), {}, {}, {}); }
+        return true;
     }
 
     Error e(API_EINTERNAL);
@@ -10468,7 +10468,8 @@ bool CommandGetVpnCredentials::procresult(Command::Result r, JSON& json)
             if (!parsedOk)
             {
                 std::cout << "[Cmd] IPs Not parsed OK." << std::endl;
-                if (mCompletion) { mCompletion(e, {}, {}, {}); } // There were credentials, but something was wrong with the JSON
+                // There were credentials, but something was wrong with the JSON
+                if (mCompletion) { mCompletion(e, {}, {}, {}); }
                 return false;
             }
             std::cout << "[Cmd] Leave object." << std::endl;
@@ -10477,7 +10478,8 @@ bool CommandGetVpnCredentials::procresult(Command::Result r, JSON& json)
         else
         {
             std::cout << "[Cmd] No enter object. Break." << std::endl;
-            if (mCompletion) { mCompletion(e, {}, {}, {}); } // It should be empty (no credentials) when it shouldn't
+            // There should be a valid object at this point
+            if (mCompletion) { mCompletion(e, {}, {}, {}); }
             return false;
         }
 
@@ -10511,7 +10513,8 @@ bool CommandGetVpnCredentials::procresult(Command::Result r, JSON& json)
             }
             if (!parsedOk)
             {
-                if (mCompletion) { mCompletion(e, {}, {}, {}); } // There were credentials and public key, but something was wrong with the JSON
+                // There were credentials and a valid ClusterID, but something was wrong with the Cluster Public Key value
+                if (mCompletion) { mCompletion(e, {}, {}, {}); }
                 return false;
             }
             std::cout << "[Cmd] Leave object." << std::endl;
@@ -10520,7 +10523,8 @@ bool CommandGetVpnCredentials::procresult(Command::Result r, JSON& json)
         else
         {
             std::cout << "[Cmd] No enter object (no cluster public keys). Break." << std::endl;
-            if (mCompletion) { mCompletion(e, {}, {}, {}); } // There were credentials, but there were no public key for any clusterID
+            // There were credentials, but there were no information regarding the Cluster Public Key(s)
+            if (mCompletion) { mCompletion(e, {}, {}, {}); }
             return false;
         }
     }
