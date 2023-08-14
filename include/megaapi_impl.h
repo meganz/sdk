@@ -2712,6 +2712,7 @@ public:
     void filterStallLocal(const LocalPath& localPath, int completedPassCount);
     void filterNameConfict(const string& cloudPath, const LocalPath& localPath, int completedPassCount);
     void removeOldFilters(int completedPassCount);
+    void clear();
 };
 
 
