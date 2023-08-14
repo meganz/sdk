@@ -1430,6 +1430,8 @@ void AddressedStallFilter::filterNameConfict(const string& cloudPath, const Loca
 
 void AddressedStallFilter::removeOldFilters(int completedPassCount)
 {
+    lock_guard<mutex> g(m);
+
     // when a filter was added, the sync code could already have started a new pass, and passed this node.
     // So, only after we are on a number greater than n+1 of the added n can we remove a filter
 
@@ -1466,6 +1468,17 @@ void AddressedStallFilter::removeOldFilters(int completedPassCount)
         else ++i;
     }
 }
+
+void AddressedStallFilter::clear()
+{
+    lock_guard<mutex> g(m);
+
+    addressedSyncCloudStalls.clear();
+    addressedSyncLocalStalls.clear();
+    addressedNameConflictCloudStalls.clear();
+    addressedNameConflictLocalStalls.clear();
+}
+
 
 void MegaApiImpl::getMegaSyncStallList(MegaRequestListener* listener)
 {
@@ -14461,6 +14474,10 @@ void MegaApiImpl::logout_result(error e, MegaRequestPrivate* request)
         mLastKnownRootNode.reset();
         mLastKnownVaultNode.reset();
         mLastKnownRubbishNode.reset();
+
+        receivedStallFlag = false;
+        receivedNameConflictsFlag = false;
+        mAddressedStallFilter.clear();
     }
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
