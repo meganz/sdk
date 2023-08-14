@@ -5892,6 +5892,11 @@ bool MegaApiImpl::isAchievementsEnabled()
     return client->achievements_enabled;
 }
 
+bool MegaApiImpl::isProFlexiAccount()
+{
+    return client->isProFlexi();
+}
+
 bool MegaApiImpl::isBusinessAccount()
 {
     return client->mBizStatus != BIZ_STATUS_INACTIVE
@@ -6931,6 +6936,12 @@ void MegaApiImpl::upgradeSecurity(MegaRequestListener* listener)
 
     requestQueue.push(request);
     waiter->notify();
+}
+
+bool MegaApiImpl::contactVerificationWarningEnabled()
+{
+    SdkMutexGuard m(sdkMutex);
+    return client->mKeyManager.getContactVerificationWarning();
 }
 
 void MegaApiImpl::setSecureFlag(bool enable)
@@ -11711,6 +11722,16 @@ bool MegaApiImpl::isValidTypeNode(Node *node, int type)
             return client->nodeIsVideo(node);
         case MegaApi::FILE_TYPE_DOCUMENT:
             return client->nodeIsDocument(node);
+        case MegaApi::FILE_TYPE_PDF:
+            return client->nodeIsPdf(node);
+        case MegaApi::FILE_TYPE_PRESENTATION:
+            return client->nodeIsPdf(node);
+        case MegaApi::FILE_TYPE_ARCHIVE:
+            return client->nodeIsArchive(node);
+        case MegaApi::FILE_TYPE_PROGRAM:
+            return client->nodeIsProgram(node);
+        case MegaApi::FILE_TYPE_MISC:
+            return client->nodeIsMiscellaneous(node);
         case MegaApi::FILE_TYPE_DEFAULT:
         default:
             return true;
@@ -11820,7 +11841,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, CancelT
 
 MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString, CancelToken cancelToken, bool recursive, int order, int mimeType, int target, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags)
 {
-    if (!n && !searchString && (mimeType < MegaApi::FILE_TYPE_PHOTO || mimeType > MegaApi::FILE_TYPE_DOCUMENT))
+    if (!n && !searchString && (mimeType < MegaApi::FILE_TYPE_PHOTO || mimeType > MegaApi::FILE_TYPE_LAST))
     {
         // If node is not valid, and no search string, and mimeType is not valid
         return new MegaNodeListPrivate();
