@@ -121,16 +121,13 @@ void GfxProc::loop()
                 break;
             }
 
-            std::lock_guard<std::mutex> g(mutex);
-            {
-                LOG_debug << "Processing media file: " << job->h;
+            LOG_debug << "Processing media file: " << job->h;
 
-                auto images = GenerateImages(job->localfilename, DIMENSIONS);
-                for (auto& image : images)
-                {
-                    string* jepg = image.empty() ? nullptr : new string(std::move(image));
-                    job->images.push_back(jepg);
-                }
+            auto images = GenerateImages(job->localfilename, DIMENSIONS);
+            for (auto& image : images)
+            {
+                string* jepg = image.empty() ? nullptr : new string(std::move(image));
+                job->images.push_back(jepg);
             }
 
             responses.push(job);
@@ -260,10 +257,7 @@ void IGfxProvider::transform(int& w, int& h, int& rw, int& rh, int& px, int& py)
 // load bitmap image, generate all designated sizes, attach to specified upload/node handle
 int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, const LocalPath& localfilename, NodeOrUploadHandle th, SymmCipher* key, int missing)
 {
-    if (SimpleLogger::logCurrentLevel >= logDebug)
-    {
-        LOG_debug << "Creating thumb/preview for " << localfilename;
-    }
+    LOG_debug << "Creating thumb/preview for " << localfilename;
 
     GfxJob *job = new GfxJob();
     job->h = th;
@@ -291,11 +285,15 @@ int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, const LocalPath& localfilena
     return generatingAttrs;
 }
 
-std::vector<std::string> GfxProc::GenerateImages(const LocalPath& localfilepath, const std::vector<Dimension>& dimensions)
+std::vector<std::string> GfxProc::GenerateImagesHelper(const LocalPath& localfilepath, const std::vector<Dimension>& dimensions)
 {
     std::vector<std::string> images(dimensions.size());
 
-    int maxDimension = std::accumulate(dimensions.begin(), dimensions.end(), 0, [](int max, const Dimension& d) { return std::max(max, std::max(d.width, d.height)); });
+    int maxDimension = std::accumulate(
+        dimensions.begin(),
+        dimensions.end(),
+        0, 
+        [](int max, const Dimension& d) { return std::max(max, std::max(d.width, d.height)); });
 
     if (mGfxProvider->readbitmap(client->fsaccess.get(), localfilepath, maxDimension))
     {
@@ -321,20 +319,26 @@ std::vector<std::string> GfxProc::GenerateImages(const LocalPath& localfilepath,
     return images;
 }
 
-bool GfxProc::savefa(const LocalPath& localfilepath, int width, int height, LocalPath& localdstpath)
+std::vector<std::string> GfxProc::GenerateImages(const LocalPath& localfilepath, const std::vector<Dimension>& dimensions)
+{
+    std::lock_guard<std::mutex> g(mutex);
+    return GenerateImagesHelper(localfilepath, dimensions);
+}
+
+std::string GfxProc::GenerateOneImage(const LocalPath& localfilepath, const Dimension& dimension)
+{
+    std::lock_guard<std::mutex> g(mutex);
+    return GenerateImagesHelper(localfilepath, std::vector<Dimension>{ dimension })[0];
+}
+
+bool GfxProc::savefa(const LocalPath& localfilepath, const Dimension& dimension, LocalPath& localdstpath)
 {
     if (!isgfx(localfilepath))
     {
         return false;
     }
 
-    string jpeg;
-    {
-        std::lock_guard<std::mutex> g(mutex);
-        std::vector<Dimension> d{ Dimension{width, height} };
-        auto images = GenerateImages(localfilepath, d);
-        jpeg = std::move(images[0]);
-    }
+    string jpeg = GenerateOneImage(localfilepath, dimension);
 
     if (jpeg.empty())
     {

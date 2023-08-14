@@ -123,7 +123,11 @@ class MEGA_API GfxProc
         int height;
     };
 
+    std::vector<std::string> GenerateImagesHelper(const LocalPath& localfilepath, const std::vector<Dimension>& dimensions);
+
     std::vector<std::string> GenerateImages(const LocalPath& localfilepath, const std::vector<Dimension>& dimensions);
+
+    std::string GenerateOneImage(const LocalPath& localfilepath, const Dimension& dimension);
 
 public:
     // synchronously processes the results of gendimensionsputfa() (if any) in a thread safe manner
@@ -149,7 +153,7 @@ public:
     typedef enum { AVATAR250X250 } avatar_t;
 
     // synchronously generate and save a fa to a file
-    bool savefa(const LocalPath& source, int, int, LocalPath& destination);
+    bool savefa(const LocalPath& source, const Dimension& dimension, LocalPath& destination);
 
     // - w*0: largest square crop at the center (landscape) or at 1/6 of the height above center (portrait)
     // - w*h: resize to fit inside w*h bounding box
