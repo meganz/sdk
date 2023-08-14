@@ -21630,10 +21630,8 @@ std::pair<std::string, std::string> MegaClient::generateVpnKeyPair()
         LOG_err << "Initialization of keys Cu25519 and/or Ed25519 failed";
         return std::make_pair(std::string(), std::string());
     }
-    std::cout << "PV Length: " << ECDH::PRIVATE_KEY_LENGTH << ". PB Length: " << ECDH::PUBLIC_KEY_LENGTH << std::endl;
     string privateKey = std::string((char *)vpnKey->getPrivKey(), ECDH::PRIVATE_KEY_LENGTH);
     string publicKey = std::string((char *)vpnKey->getPubKey(), ECDH::PUBLIC_KEY_LENGTH);
-    std::cout << "B64 PV Length: " << privateKey.size() << ". Key: '" << privateKey << "'. PB Length: " << publicKey.size() << ". Key: '" << publicKey << "'" << std::endl;
     return std::make_pair(std::string(privateKey), std::string(publicKey));
 }
 

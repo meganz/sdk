@@ -97,7 +97,6 @@ MegaStringList *MegaStringList::createInstance()
 
 MegaStringList::~MegaStringList()
 {
-    std::cout << "[MegaStringList::~MegaStringList] destructor [this = " << this << "]" << std::endl;
 }
 
 MegaStringList *MegaStringList::copy() const
@@ -1568,7 +1567,6 @@ const char *MegaError::__toString() const
 
 MegaContactRequest::~MegaContactRequest()
 {
-    std::cout << "[MegaContactRequest::~MegaContactRequest] call " << " [this = " << this << "]" << std::endl;
 }
 
 MegaContactRequest *MegaContactRequest::copy() const
