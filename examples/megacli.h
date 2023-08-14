@@ -424,3 +424,10 @@ void exec_syncxable(autocomplete::ACState& s);
 
 void exec_setsandelements(autocomplete::ACState& s);
 void exec_reqstat(autocomplete::ACState& s);
+
+/* MEGA VPN commands */
+void exec_getvpnregions(autocomplete::ACState& s);
+void exec_getvpncredentials(autocomplete::ACState& s);
+void exec_putvpncredential(autocomplete::ACState& s);
+void exec_delvpncredential(autocomplete::ACState& s);
+/* MEGA VPN commands END */

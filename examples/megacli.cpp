@@ -4269,6 +4269,13 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_getABTestValue, sequence(text("getabflag"), param("flag")));
     p->Add(exec_sendABTestActive, sequence(text("setabflag"), param("flag")));
 
+    /* MEGA VPN commands */
+    p->Add(exec_getvpnregions, sequence(text("getvpnregions")));
+    p->Add(exec_getvpncredentials, sequence(text("getvpncredentials"), opt(sequence(flag("-s"), param("slotID"))), opt(flag("-noregions"))));
+    p->Add(exec_putvpncredential, sequence(text("putvpncredential"), param("region")));
+    p->Add(exec_delvpncredential, sequence(text("delvpncredential"), param("slotID")));
+    /* MEGA VPN commands END */
+
     return autocompleteTemplate = std::move(p);
 }
 
@@ -11101,3 +11108,225 @@ void exec_manualverif(autocomplete::ACState &s)
         client->mKeyManager.setManualVerificationFlag(false);
     }
 }
+
+/* MEGA VPN commands */
+void exec_getvpnregions(autocomplete::ACState& s)
+{
+    cout << "Getting the list of VPN regions" << endl;
+    client->getVpnRegions([]
+            (const Error& e, std::vector<std::string>&& vpnRegions)
+            {
+                if (e == API_OK)
+                {
+                    cout << "List of VPN regions:" << endl;
+                    for (size_t i = 0; i < vpnRegions.size(); i++)
+                    {
+                        cout << (i+1) << ". " << vpnRegions[i] << "." << endl;
+                    }
+                }
+                else
+                {
+                    cout << "Getting the MEGA VPN credentials for the user failed. Error value: " << e << ". Reason: '" << errorstring(e) << "'" << endl;
+                }
+            });
+}
+
+void exec_getvpncredentials(autocomplete::ACState& s)
+{
+    cout << "Getting the MEGA VPN credentials for the user" << endl;
+    string slotIDstr;
+    int slotID{-1};
+    if (s.extractflagparam("-s", slotIDstr))
+    {
+        try
+        {
+            slotID = std::stoi(slotIDstr);
+        }
+        catch (std::exception const &ex)
+        {
+            std::cout << "Could not convert param SlotID(" << slotIDstr << ") to integer. Exception: " << ex.what() << std::endl;
+            return;
+        }
+    }
+    bool showVpnRegions = !s.extractflag("-noregions");
+    
+    client->getVpnCredentials([slotID, showVpnRegions]
+            (const Error& e,
+            std::map<int, std::pair<int, std::pair<std::string, std::string>>>&& mapSlotIDToClusterIDAndIPs, /* Map of SlotID: { ClusterID, IPv4 and IPv6 } */
+            std::map<int, std::string>&& mapClusterPubKeys, /* Map of ClusterID: Cluster Public Key */
+            std::vector<std::string>&& vpnRegions /* VPN Regions */)
+            {
+                if (e == API_OK)
+                {
+                    if (slotID > 0)
+                    {
+                        auto clusterIdAndIpsForSlotID = mapSlotIDToClusterIDAndIPs.find(slotID);
+                        if (clusterIdAndIpsForSlotID != mapSlotIDToClusterIDAndIPs.end())
+                        {
+                            cout << "====================================================================" << endl;
+                            std::cout << "SlotID: " << clusterIdAndIpsForSlotID->first << endl;
+                            int clusterID = clusterIdAndIpsForSlotID->second.first;
+                            std::cout << "ClusterID: " << clusterID << endl;
+                            std::cout << "Cluster Public Key: ";
+                            auto clusterPublicKey = mapClusterPubKeys.find(clusterID);
+                            if (clusterPublicKey != mapClusterPubKeys.end())
+                            {
+                                std::cout << clusterPublicKey->second << endl;
+                            }
+                            else
+                            {
+                                std::cout << "Not found" << endl;
+                            }
+                            auto& ipPair = clusterIdAndIpsForSlotID->second.second; // Pair<ClusterID, pair<IPv4, IPv6>>
+                            std::cout << "IPv4: " << ipPair.first << endl;
+                            std::cout << "IPv6: " << ipPair.second << endl;
+                            cout << "====================================================================" << endl;
+                        }
+                        else
+                        {
+                            cout << "There are no MEGA VPN credentials on SlotID " << slotID << endl;
+                        }
+                    }
+                    else
+                    {
+                        if (mapSlotIDToClusterIDAndIPs.empty())
+                        {
+                            cout << "List of VPN slots is EMPTY" << endl;
+                        }
+                        else
+                        {
+                            cout << "List of VPN slots:\n" << endl;
+                            cout << "===================================================" << endl;
+                            for (auto& vpnSlot : mapSlotIDToClusterIDAndIPs)
+                            {
+                                cout << "SlotID: " << vpnSlot.first << endl;
+                                auto& pairClusterIDAndIps = vpnSlot.second;
+                                cout << "ClusterID: " << pairClusterIDAndIps.first << endl;
+                                cout << "IPv4: " << pairClusterIDAndIps.second.first << endl;
+                                cout << "IPv6: " << pairClusterIDAndIps.second.second << endl;
+                                cout << "===================================================" << endl;
+                            }
+                        }
+                        cout << endl;
+
+                        if (mapClusterPubKeys.empty())
+                        {
+                            cout << "List of Cluster Public Keys is EMPTY" << endl;
+                        }
+                        else
+                        {
+                            cout << "List of Cluster Public Keys:\n" << endl;
+                            cout << "==========================================================================" << endl;
+                            for (auto& clusterPubKey : mapClusterPubKeys)
+                            {
+                                cout << "ClusterID: " << clusterPubKey.first << ". ";
+                                cout << "Public Key: " << clusterPubKey.second << endl;
+                            }
+                            cout << "==========================================================================" << endl;
+                        }
+                    }
+
+                    if (showVpnRegions)
+                    {
+                        if (vpnRegions.empty())
+                        {
+                            cout << "List of VPN regions is EMPTY" << endl;
+                        }
+                        else
+                        {
+                            cout << "\nList of VPN regions:\n" << endl;
+                            cout << "===================================================" << endl;
+                            for (size_t i = 0; i < vpnRegions.size(); i++)
+                            {
+                                cout << (i+1) << ". " << vpnRegions[i] << "." << endl;
+                            }
+                            cout << "===================================================" << endl;
+                        }
+                    }
+                }
+                else
+                {
+                    cout << "Getting the MEGA VPN credentials for the user failed. Error value: " << e << ". Reason: '";
+                    switch(e)
+                    {
+                        case API_ENOENT:
+                            cout << "The user has no credentials registered";
+                            break;
+                        default:
+                            cout << errorstring(e);
+                    }
+                    cout << "'" << endl;
+                }
+                
+            });
+}
+
+void exec_putvpncredential(autocomplete::ACState& s)
+{
+    string vpnRegion = s.words[1].s;
+    cout << "Adding a new MEGA VPN credential with VPN region: " << vpnRegion << endl;
+    client->putVpnCredential(std::move(vpnRegion),
+            [] (const Error& e, int slotID, std::string&& newCredential)
+            {
+                if (e == API_OK && (slotID > 0) && !newCredential.empty())
+                {
+                    cout << "\n########################################" << endl;
+                    cout << "#####     MEGA VPN credentials     #####" << endl;
+                    cout << "#####     SlotID " << slotID << "                 #####" << endl;
+                    cout << "########################################" << endl;
+                    cout << newCredential << endl;
+                }
+                else
+                {
+                    cout << "Adding a new MEGA VPN credential failed. Error value: " << e << ". Reason: '";
+                    switch(e)
+                    {
+                        case API_EARGS:
+                            cout << "Peer Public Key does not have the correct format/length";
+                            break;
+                        case API_EACCESS:
+                            cout << "Either the user is not a PRO user, the user is not logged in, or the peer Public Key is already taken";
+                            break;
+                        case API_ETOOMANY:
+                            cout << "User has too many registered credentials";
+                            break;
+                        default:
+                            cout << errorstring(e);
+                    }
+                    cout << "'" << endl;
+                }
+            });
+}
+
+void exec_delvpncredential(autocomplete::ACState& s)
+{
+    int slotID = stoi(s.words[1].s);
+    cout << "Deleting the MEGA VPN credential on SlotID: " << slotID << endl;
+    client->delVpnCredential(slotID,
+            [slotID] (const Error& e)
+            {
+                cout << "MEGA VPN credential on slotID " << slotID << " ";
+                if (e == API_OK)
+                {
+                    cout << "has been removed OK.";
+                }
+                else
+                {
+                    cout << "has not been removed. Error value: " << e << ". Reason: '";
+                    switch(e)
+                    {
+                        case API_EARGS:
+                            cout << "SlotID is not valid";
+                            break;
+                        case API_ENOENT:
+                            cout << "Slot was not occupied";
+                            break;
+                        default:
+                            cout << errorstring(e);
+                    }
+                    cout << "'";
+                }
+                cout << endl;
+            });
+}
+/* MEGA VPN commands */
