@@ -29,7 +29,7 @@ const std::vector<GfxProc::Dimension> GfxProc::DIMENSIONS = {
     { 1000, 1000 }  // PREVIEW: scaled version inside 1000x1000 bounding square
 };
 
-const std::vector<GfxProc::Dimension> GfxProc::DIMENSIONSVATAR = {
+const std::vector<GfxProc::Dimension> GfxProc::DIMENSIONS_VATAR = {
     { 250, 0 }      // AVATAR250X250: square thumbnail, cropped from near center
 };
 
@@ -126,8 +126,8 @@ void GfxProc::loop()
             auto images = GenerateImages(job->localfilename, DIMENSIONS);
             for (auto& image : images)
             {
-                string* jepg = image.empty() ? nullptr : new string(std::move(image));
-                job->images.push_back(jepg);
+                string* jpeg = image.empty() ? nullptr : new string(std::move(image));
+                job->images.push_back(jpeg);
             }
 
             responses.push(job);
