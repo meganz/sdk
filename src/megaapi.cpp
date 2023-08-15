@@ -1975,6 +1975,11 @@ bool MegaApi::isAchievementsEnabled()
     return pImpl->isAchievementsEnabled();
 }
 
+bool MegaApi::isProFlexiAccount()
+{
+    return pImpl->isProFlexiAccount();
+}
+
 bool MegaApi::isBusinessAccount()
 {
     return pImpl->isBusinessAccount();
@@ -2503,6 +2508,11 @@ void MegaApi::sendFileToUser(MegaNode *node, const char* email, MegaRequestListe
 void MegaApi::upgradeSecurity(MegaRequestListener* listener)
 {
     pImpl->upgradeSecurity(listener);
+}
+
+bool MegaApi::contactVerificationWarningEnabled()
+{
+    return pImpl->contactVerificationWarningEnabled();
 }
 
 void MegaApi::setSecureFlag(bool enable)

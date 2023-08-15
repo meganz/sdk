@@ -901,7 +901,7 @@ void DemoApp::chatlinkclose_result(error e)
     }
 }
 
-void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *ct, int, m_time_t ts, bool meetingRoom, handle callid, error e)
+void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *ct, int, m_time_t ts, bool meetingRoom, const bool waitingRoom, const std::vector<std::unique_ptr<ScheduledMeeting>>* smList, handle callid, error e)
 {
     if (e)
     {
@@ -915,6 +915,10 @@ void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *
         cout << "URL for chat-link: " << url->c_str() << endl;
         cout << "Encrypted chat-topic: " << ct->c_str() << endl;
         cout << "Creation timestamp: " << ts << endl;
+        cout << "Callid: " << Base64Str<MegaClient::CHATHANDLE>(callid) << endl;
+        cout << "Meeting room: " << meetingRoom << endl;
+        cout << "Waiting room: " << waitingRoom << endl;
+        cout << "Scheduled meeting: " << smList << endl;
     }
 }
 
@@ -4264,6 +4268,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_reqstat, sequence(text("reqstat"), opt(either(flag("-on"), flag("-off")))));
     p->Add(exec_getABTestValue, sequence(text("getabflag"), param("flag")));
     p->Add(exec_sendABTestActive, sequence(text("setabflag"), param("flag")));
+    p->Add(exec_contactVerificationWarning, sequence(text("verificationwarnings"), opt(either(flag("-on"), flag("-off")))));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -10997,6 +11002,33 @@ void exec_sendABTestActive(autocomplete::ACState &s)
                 cout << "Flag has been correctly sent." << endl;
             }
         });
+}
+
+void exec_contactVerificationWarning(autocomplete::ACState& s)
+{
+    bool enable = s.extractflag("-on");
+    bool disable = s.extractflag("-off");
+
+    if (enable)
+    {
+        client->setContactVerificationWarning(true,
+          [](Error e)
+          {
+              if (!e) cout << "Warnings for unverified contacts: Enabled.";
+          });
+    }
+    else if (disable)
+    {
+        client->setContactVerificationWarning(false,
+          [](Error e)
+          {
+              if (!e) cout << "Warnings for unverified contacts: Disabled.";
+          });
+    }
+    else
+    {
+        cout << "Warnings for unverified contacts: " << (client->mKeyManager.getContactVerificationWarning() ? "Enabled" : "Disabled") << endl;
+    }
 }
 
 void exec_numberofnodes(autocomplete::ACState &s)

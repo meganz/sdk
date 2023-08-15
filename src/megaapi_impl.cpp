@@ -5876,6 +5876,11 @@ bool MegaApiImpl::isAchievementsEnabled()
     return client->achievements_enabled;
 }
 
+bool MegaApiImpl::isProFlexiAccount()
+{
+    return client->isProFlexi();
+}
+
 bool MegaApiImpl::isBusinessAccount()
 {
     return client->mBizStatus != BIZ_STATUS_INACTIVE
@@ -6915,6 +6920,12 @@ void MegaApiImpl::upgradeSecurity(MegaRequestListener* listener)
 
     requestQueue.push(request);
     waiter->notify();
+}
+
+bool MegaApiImpl::contactVerificationWarningEnabled()
+{
+    SdkMutexGuard m(sdkMutex);
+    return client->mKeyManager.getContactVerificationWarning();
 }
 
 void MegaApiImpl::setSecureFlag(bool enable)
@@ -11692,6 +11703,16 @@ bool MegaApiImpl::isValidTypeNode(Node *node, int type)
             return client->nodeIsVideo(node);
         case MegaApi::FILE_TYPE_DOCUMENT:
             return client->nodeIsDocument(node);
+        case MegaApi::FILE_TYPE_PDF:
+            return client->nodeIsPdf(node);
+        case MegaApi::FILE_TYPE_PRESENTATION:
+            return client->nodeIsPdf(node);
+        case MegaApi::FILE_TYPE_ARCHIVE:
+            return client->nodeIsArchive(node);
+        case MegaApi::FILE_TYPE_PROGRAM:
+            return client->nodeIsProgram(node);
+        case MegaApi::FILE_TYPE_MISC:
+            return client->nodeIsMiscellaneous(node);
         case MegaApi::FILE_TYPE_DEFAULT:
         default:
             return true;
@@ -11801,7 +11822,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, CancelT
 
 MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString, CancelToken cancelToken, bool recursive, int order, int mimeType, int target, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags)
 {
-    if (!n && !searchString && (mimeType < MegaApi::FILE_TYPE_PHOTO || mimeType > MegaApi::FILE_TYPE_DOCUMENT))
+    if (!n && !searchString && (mimeType < MegaApi::FILE_TYPE_PHOTO || mimeType > MegaApi::FILE_TYPE_LAST))
     {
         // If node is not valid, and no search string, and mimeType is not valid
         return new MegaNodeListPrivate();
@@ -13101,7 +13122,8 @@ void MegaApiImpl::chatlink_result(handle h, error e)
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::chatlinkurl_result(handle chatid, int shard, string *link, string *ct, int numPeers, m_time_t ts, bool meetingRoom, handle callid, error e)
+void MegaApiImpl::chatlinkurl_result(handle chatid, int shard, string *link, string *ct, int numPeers, m_time_t ts
+                                     , bool meetingRoom, const bool waitingRoom, const std::vector<std::unique_ptr<ScheduledMeeting>>* smList, handle callid, error e)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
@@ -13115,7 +13137,19 @@ void MegaApiImpl::chatlinkurl_result(handle chatid, int shard, string *link, str
         request->setText(ct->c_str());
         request->setNumDetails(numPeers);
         request->setNumber(ts);
+        request->setParamType(waitingRoom);
         request->setFlag(meetingRoom);
+
+        if (smList && !smList->empty())
+        {
+            std::unique_ptr<MegaScheduledMeetingList> l(MegaScheduledMeetingList::createInstance());
+            for (auto const& sm: *smList)
+            {
+               l->insert(new MegaScheduledMeetingPrivate(sm.get()));
+            }
+            request->setMegaScheduledMeetingList(l.get());
+        }
+
         if (callid != INVALID_HANDLE)
         {
             std::vector<MegaHandle> handleList;

@@ -7700,7 +7700,7 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
     ASSERT_NE(backupId, INVALID_HANDLE) << "Backup could not be found";
 
     // Use another connection with the same credentials
-    megaApi.emplace_back(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
+    megaApi.emplace_back(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(1).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
     auto& differentApi = *megaApi.back();
     differentApi.addListener(this);
     PerApi pa; // make a copy
@@ -9740,6 +9740,9 @@ TEST_F(SdkTest, SyncOQTransitions)
     ASSERT_EQ(nodeList->size(), 1);
     MegaNode* inshareNode = nodeList->get(0);
 
+    // Wait for the outshare to be added to the sharer's node by the action packets
+    ASSERT_TRUE(WaitFor([this, &remoteFillNode]() { return unique_ptr<MegaNode>(megaApi[0]->getNodeByHandle(remoteFillNode->getHandle()))->isOutShare(); }, 60*1000));
+
     // Make sure that search functionality finds them
     unique_ptr<MegaNodeList> outShares(megaApi[0]->searchOnOutShares(fillPath.u8string().c_str(), nullptr));
     ASSERT_TRUE(outShares);
@@ -11343,7 +11346,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     // 11. Remove all Sets
 
     // Use another connection with the same credentials
-    megaApi.emplace_back(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
+    megaApi.emplace_back(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(1).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
     auto& differentApi = *megaApi.back();
     differentApi.addListener(this);
     PerApi pa; // make a copy
@@ -14163,4 +14166,76 @@ TEST_F(SdkTest, SdkTestDeleteListenerBeforeFinishingRequest)
         ASSERT_TRUE(rt->started);
         ASSERT_FALSE(rt->finished);
     }
+}
+
+/**
+ * SdkTestGetNodeByMimetype
+ * Steps:
+ * - Create three files (test.cpp, test.pdf, test.json)
+ * - Check number of files from type program
+ * - Check number of files from type pdf
+ * - Check number of files from type json
+ */
+TEST_F(SdkTest, SdkTestGetNodeByMimetype)
+{
+    LOG_info << "___TEST Get Node By Mimetypes___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_NE(rootnode.get(), nullptr);
+
+    std::string codeFile = "test.cpp";
+    ASSERT_TRUE(createFile(codeFile.c_str(), false)) << "Couldn't create " << PUBLICFILE.c_str();
+
+    MegaHandle handleCodeFile = UNDEF;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handleCodeFile, codeFile.c_str(),
+                                               rootnode.get(),
+                                               nullptr /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload a test file";
+
+    std::string pdfFile = "test.pdf";
+    ASSERT_TRUE(createFile(pdfFile.c_str(), false)) << "Couldn't create " << PUBLICFILE.c_str();
+
+    MegaHandle handlePdfFile = UNDEF;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handlePdfFile, pdfFile.c_str(),
+                                               rootnode.get(),
+                                               nullptr /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload a test file";
+
+    std::string jsonFile = "test.json";
+    ASSERT_TRUE(createFile(jsonFile.c_str(), false)) << "Couldn't create " << PUBLICFILE.c_str();
+
+    MegaHandle handleJsonFile = UNDEF;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handleJsonFile, jsonFile.c_str(),
+                                               rootnode.get(),
+                                               nullptr /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload a test file";
+
+    std::unique_ptr<MegaNodeList> nodeList(megaApi[0]->searchByType(nullptr, nullptr, nullptr, true, MegaApi::ORDER_NONE, MegaApi::FILE_TYPE_PROGRAM));
+    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), handleCodeFile);
+
+    nodeList.reset(megaApi[0]->searchByType(nullptr, nullptr, nullptr, true, MegaApi::ORDER_NONE, MegaApi::FILE_TYPE_PDF));
+    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), handlePdfFile);
+
+    nodeList.reset(megaApi[0]->searchByType(nullptr, nullptr, nullptr, true, MegaApi::ORDER_NONE, MegaApi::FILE_TYPE_MISC));
+    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), handleJsonFile);
+
+    deleteFile(codeFile);
+    deleteFile(pdfFile);
+    deleteFile(jsonFile);
 }
