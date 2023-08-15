@@ -9579,7 +9579,7 @@ bool MegaApiImpl::createAvatar(const char *imagePath, const char *dstPath)
     LocalPath localDstPath = LocalPath::fromAbsolutePath(dstPath);
 
     SdkMutexGuard g(sdkMutex);
-    return gfxAccess->savefa(localImagePath, GfxProc::DIMENSIONS_VATAR[GfxProc::AVATAR250X250], localDstPath);
+    return gfxAccess->savefa(localImagePath, GfxProc::DIMENSIONS_AVATAR[GfxProc::AVATAR250X250], localDstPath);
 }
 
 void MegaApiImpl::getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener)

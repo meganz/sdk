@@ -29,7 +29,7 @@ const std::vector<GfxProc::Dimension> GfxProc::DIMENSIONS = {
     { 1000, 1000 }  // PREVIEW: scaled version inside 1000x1000 bounding square
 };
 
-const std::vector<GfxProc::Dimension> GfxProc::DIMENSIONS_VATAR = {
+const std::vector<GfxProc::Dimension> GfxProc::DIMENSIONS_AVATAR = {
     { 250, 0 }      // AVATAR250X250: square thumbnail, cropped from near center
 };
 

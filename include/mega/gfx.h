@@ -158,7 +158,7 @@ public:
     // - w*0: largest square crop at the center (landscape) or at 1/6 of the height above center (portrait)
     // - w*h: resize to fit inside w*h bounding box
     static const std::vector<Dimension> DIMENSIONS;
-    static const std::vector<Dimension> DIMENSIONS_VATAR;
+    static const std::vector<Dimension> DIMENSIONS_AVATAR;
     
     MegaClient* client;
 
