@@ -297,7 +297,7 @@ std::vector<std::string> GfxProc::GenerateImagesHelper(const LocalPath& localfil
 
     if (mGfxProvider->readbitmap(client->fsaccess.get(), localfilepath, maxDimension))
     {
-        for (int i = 0; i < dimensions.size(); ++i)
+        for (unsigned int i = 0; i < dimensions.size(); ++i)
         {
             string jpeg;
             int width = dimensions[i].width, height = dimensions[i].height;
