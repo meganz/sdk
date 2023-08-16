@@ -2846,6 +2846,7 @@ class MegaApiImpl : public MegaApp
         void resetTotalUploads();
         void updateStats();
         long long getNumNodes();
+        long long getImpreciseNumNodes();
         long long getTotalDownloadedBytes();
         long long getTotalUploadedBytes();
         long long getTotalDownloadBytes();

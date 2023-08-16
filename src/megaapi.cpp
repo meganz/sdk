@@ -4458,6 +4458,11 @@ long long MegaApi::getNumNodes()
     return pImpl->getNumNodes();
 }
 
+long long MegaApi::getImpreciseNumNodes()
+{
+    return pImpl->getImpreciseNumNodes();
+}
+
 long long MegaApi::getTotalDownloadedBytes()
 {
     return pImpl->getTotalDownloadedBytes();
