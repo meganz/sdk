@@ -22825,10 +22825,11 @@ bool KeyManager::unserialize(KeyManager& km, const string &keysContainer)
         {
             string buf(blob + offset, len);
             if (!deserializePendingInshares(km, buf)) return false;
-            if (mDebugContents)
-            {
+            // Commented to trace possible issues with pending inshares.
+            //if (mDebugContents)
+            //{
                 LOG_verbose << pendingInsharesToString(km);
-            }
+            //}
             break;
         }
         case TAG_BACKUPS:
