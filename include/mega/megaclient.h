@@ -2608,7 +2608,8 @@ public:
      * @see MegaClient::putVpnCredential()
      * @return The string with the VPN credentials specified above.
     */
-    string getVpnCredentialString(std::string&& /* VPN Region */,
+    string getVpnCredentialString(int /* ClusterID */,
+                                  std::string&& /* VPN Region */,
                                   std::string&& /* IPv4 */,
                                   std::string&& /* IPv6 */,
                                   std::pair<std::string, std::string>&& /* Peer Key Pair <User Private, Cluster Public> */);

@@ -10563,8 +10563,8 @@ bool CommandPutVpnCredential::procresult(Command::Result r, JSON& json)
     // Parse SlotID
     int slotID = static_cast<int>(json.getint());
 
-    // Skip Cluster ID
-    json.getint();
+    // Parse ClusterID
+    int clusterID = static_cast<int>(json.getint());
 
     // Parse IPv4
     std::string ipv4;
@@ -10607,7 +10607,7 @@ bool CommandPutVpnCredential::procresult(Command::Result r, JSON& json)
     if (mCompletion)
     {
         auto peerKeyPair = std::make_pair(std::move(mUserPrivKey), std::move(clusterPubKey));
-        string newCredential = client->getVpnCredentialString(std::move(mRegion), std::move(ipv4), std::move(ipv6), std::move(peerKeyPair));
+        string newCredential = client->getVpnCredentialString(clusterID, std::move(mRegion), std::move(ipv4), std::move(ipv6), std::move(peerKeyPair));
         mCompletion(API_OK, slotID, std::move(newCredential));
     }
     return true;

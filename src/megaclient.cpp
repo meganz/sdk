@@ -21755,7 +21755,8 @@ void MegaClient::delVpnCredential(int slotID, CommandDelVpnCredential::Cb&& comp
 }
 
 // Get the credential string.
-string MegaClient::getVpnCredentialString(std::string&& vpnRegion,
+string MegaClient::getVpnCredentialString(int clusterID,
+                                          std::string&& vpnRegion,
                                           std::string&& ipv4,
                                           std::string&& ipv6,
                                           std::pair<std::string, std::string>&& peerKeyPair)
@@ -21778,14 +21779,18 @@ string MegaClient::getVpnCredentialString(std::string&& vpnRegion,
     string credential;
     credential.reserve(300);
     credential.append("[Interface]\n")
-             .append("PrivateKey = ").append(peerPrivateKey).append("\n")
-             .append("Address = ").append(ipv4).append("/32").append(", ").append(ipv6).append("/128\n")
-             .append("DNS = 8.8.8.8, 2001:4860:4860::8888\n")
-             .append("\n")
-             .append("[Peer]\n")
-             .append("PublicKey = ").append(peerPublicKey).append("\n")
-             .append("AllowedIPs = 0.0.0.0/0, ::/0\n")
-             .append("Endpoint = ").append(vpnRegion).append(".vpn.mega.nz:51820");
+              .append("PrivateKey = ").append(peerPrivateKey).append("\n")
+              .append("Address = ").append(ipv4).append("/32").append(", ").append(ipv6).append("/128\n")
+              .append("DNS = 8.8.8.8, 2001:4860:4860::8888\n\n")
+              .append("[Peer]\n")
+              .append("PublicKey = ").append(peerPublicKey).append("\n")
+              .append("AllowedIPs = 0.0.0.0/0, ::/0\n")
+              .append("Endpoint = ").append(vpnRegion).append(".vpn");
+    if (clusterID > 1)
+    {
+        credential.append(std::to_string(clusterID));
+    }
+    credential.append(".mega.nz:51820");
     return credential;
 }
 /* Mega VPN methods END */
