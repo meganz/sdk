@@ -6107,7 +6107,6 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache)
         mPreviousHandleForAlert = UNDEF;
         mMissingParentNodes.clear();
         client->purgenodesusersabortsc(true);
-        client->mKeyManager.cacheShareKeys();
         return true;
     });
 
