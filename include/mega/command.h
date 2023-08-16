@@ -1783,13 +1783,13 @@ public:
                                 std::string&&   /* New Credential */)>;
     CommandPutVpnCredential(MegaClient*,
                             std::string&& /* VPN Region */,
-                            std::pair<std::string, std::string>&& /* Peer Key Pair <Private, Public> */,
+                            std::pair<std::string, std::string>&& /* User Key Pair <Private, Public> */,
                             Cb&& completion = nullptr);
     bool procresult(Result, JSON&) override;
 
 private:
     std::string mRegion;
-    std::pair<std::string, std::string> mPeerKeyPair;
+    std::string mUserPrivKey;
     Cb mCompletion;
 };
 

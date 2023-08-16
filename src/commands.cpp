@@ -10540,7 +10540,7 @@ CommandPutVpnCredential::CommandPutVpnCredential(MegaClient* client,
     tag = client->reqtag;
 
     mRegion = std::move(region);
-    mPeerKeyPair = std::move(peerKeyPair);
+    mUserPrivKey = std::move(peerKeyPair.first);
     mCompletion = std::move(completion);
 }
 
@@ -10582,8 +10582,13 @@ bool CommandPutVpnCredential::procresult(Command::Result r, JSON& json)
         return false;
     }
 
-    // Skip Cluster Public Key
-    json.storeobject();
+    // Parse Cluster Public Key
+    std::string clusterPubKey;
+    if (!json.storeobject(&clusterPubKey) || clusterPubKey.empty())
+    {
+        if (mCompletion) { mCompletion(API_EINTERNAL, -1, {}); }
+        return false;
+    }
 
     // Skip VPN regions
     if (json.enterarray())
@@ -10601,7 +10606,8 @@ bool CommandPutVpnCredential::procresult(Command::Result r, JSON& json)
 
     if (mCompletion)
     {
-        string newCredential = client->getVpnCredentialString(slotID, std::move(mRegion), std::move(ipv4), std::move(ipv6), std::move(mPeerKeyPair));
+        auto peerKeyPair = std::make_pair(std::move(mUserPrivKey), std::move(clusterPubKey));
+        string newCredential = client->getVpnCredentialString(std::move(mRegion), std::move(ipv4), std::move(ipv6), std::move(peerKeyPair));
         mCompletion(API_OK, slotID, std::move(newCredential));
     }
     return true;

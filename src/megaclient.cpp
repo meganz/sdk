@@ -21724,9 +21724,9 @@ std::pair<std::string, std::string> MegaClient::generateVpnKeyPair()
         LOG_err << "Initialization of keys Cu25519 and/or Ed25519 failed";
         return std::make_pair(std::string(), std::string());
     }
-    string privateKey = std::string((char *)vpnKey->getPrivKey(), ECDH::PRIVATE_KEY_LENGTH);
-    string publicKey = std::string((char *)vpnKey->getPubKey(), ECDH::PUBLIC_KEY_LENGTH);
-    return std::make_pair(std::string(privateKey), std::string(publicKey));
+    string privateKey = std::string((const char *)vpnKey->getPrivKey(), ECDH::PRIVATE_KEY_LENGTH);
+    string publicKey = std::string((const char *)vpnKey->getPubKey(), ECDH::PUBLIC_KEY_LENGTH);
+    return std::make_pair(std::move(privateKey), std::move(publicKey));
 }
 
 // Call "vpnr" command.
@@ -21755,14 +21755,13 @@ void MegaClient::delVpnCredential(int slotID, CommandDelVpnCredential::Cb&& comp
 }
 
 // Get the credential string.
-string MegaClient::getVpnCredentialString(int slotID,
-                                        std::string&& vpnRegion,
-                                        std::string&& ipv4,
-                                        std::string&& ipv6,
-                                        std::pair<std::string, std::string>&& peerKeyPair)
+string MegaClient::getVpnCredentialString(std::string&& vpnRegion,
+                                          std::string&& ipv4,
+                                          std::string&& ipv6,
+                                          std::pair<std::string, std::string>&& peerKeyPair)
 {
-    string peerPrivateKey = Base64::btoa(string((char *)peerKeyPair.first.c_str(), ECDH::PRIVATE_KEY_LENGTH));
-    string peerPublicKey = Base64::btoa(string((char *)peerKeyPair.second.c_str(), ECDH::PUBLIC_KEY_LENGTH));
+    string peerPrivateKey = Base64::btoa(peerKeyPair.first);
+    string peerPublicKey = peerKeyPair.second;
     string credential;
     credential.reserve(300);
     credential.append("[Interface]\n")

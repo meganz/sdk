@@ -2595,12 +2595,12 @@ public:
      *
      * Content:
      *    [Interface]
-     *    PrivateKey = Peer Private Key
+     *    PrivateKey = User Private Key
      *    Address = IPv4, IPv6
      *    DNS = IPv4, IPv6
      *
      *    [Peer]
-     *    PublicKey = Peer Public Key
+     *    PublicKey = Cluster Public Key
      *    AllowedIPs = 0.0.0.0/0, ::/0
      *    Endpoint = host:port
      *
@@ -2608,11 +2608,10 @@ public:
      * @see MegaClient::putVpnCredential()
      * @return The string with the VPN credentials specified above.
     */
-    string getVpnCredentialString(int /* Slot ID*/, 
-                                std::string&& /* VPN Region */,
-                                std::string&& /* IPv4 */,
-                                std::string&& /* IPv6 */,
-                                std::pair<std::string, std::string>&& /* Peer Key Pair <Private, Public> */);
+    string getVpnCredentialString(std::string&& /* VPN Region */,
+                                  std::string&& /* IPv4 */,
+                                  std::string&& /* IPv6 */,
+                                  std::pair<std::string, std::string>&& /* Peer Key Pair <User Private, Cluster Public> */);
 
 /* Mega VPN methods END */
 
