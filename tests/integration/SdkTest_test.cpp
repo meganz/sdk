@@ -8436,23 +8436,20 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
     ASSERT_EQ(true, megaApi[0]->setMaxDownloadSpeed(currentMaxDownloadSpeed)); // restore previous max download speed (bytes per second)
 }
 
-TEST_F(SdkTest, QueryGoogleAds)
+TEST_F(SdkTest, QueryAds)
 {
-    LOG_info << "___TEST QueryGoogleAds";
+    LOG_info << "___TEST QueryAds";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     int err = synchronousQueryAds(0, MegaApi::ADS_FORCE_ADS);
-    ASSERT_EQ(MegaError::API_OK, err) << "Query Google Ads failed (error: " << err << ")";
+    ASSERT_EQ(MegaError::API_OK, err) << "Query Ads failed (error: " << err << ")";
 }
 
-TEST_F(SdkTest, FetchGoogleAds)
+TEST_F(SdkTest, FetchAds)
 {
-    LOG_info << "___TEST FetchGoogleAds";
+    LOG_info << "___TEST FetchAds";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-    std::unique_ptr<MegaStringList> stringList = std::unique_ptr<MegaStringList>(MegaStringList::createInstance());
-    stringList->add("and0");
-    stringList->add("ios0");
-    int err = synchronousFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get());
-    ASSERT_EQ(MegaError::API_OK, err) << "Fetch Google Ads failed (error: " << err << ")";
+    int err = synchronousFetchAds(0, MegaApi::ADS_FORCE_ADS, nullptr);
+    ASSERT_EQ(MegaError::API_OK, err) << "Fetch Ads failed (error: " << err << ")";
     ASSERT_EQ(mApi[0].mStringMap->size(), 2);
 }
 
