@@ -8459,7 +8459,7 @@ void MegaClient::notifypurge(void)
     }
 #endif
 
-    totalNodes = mNodeManager.getNodeCount();
+    totalNodes.store(mNodeManager.getNodeCount());
 }
 
 void MegaClient::persistAlert(UserAlert::Base* a)

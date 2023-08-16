@@ -15806,19 +15806,9 @@ class MegaApi
 
         /**
          * @brief Get the total number of nodes in the account
-         * This function guarantees the result to be correct,
-         * but does not guarantee the return to not be blocked by another process.
          * @return Total number of nodes in the account
          */
         long long getNumNodes();
-
-        /**
-         * @brief Get the total number of nodes in the account
-         * This function guarantees the return to not be blocked,
-         * but does not guarantee the result to be correct.
-         * @return Total number of nodes in the account
-         */
-        long long getImpreciseNumNodes();
 
         enum { ORDER_NONE = 0, ORDER_DEFAULT_ASC, ORDER_DEFAULT_DESC,
             ORDER_SIZE_ASC, ORDER_SIZE_DESC,
