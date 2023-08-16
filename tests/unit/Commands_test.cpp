@@ -316,7 +316,7 @@ public:
 };
 
 
-TEST(Commands, CommandCommandFetchAds)
+TEST(Commands, CommandFetchAds)
 {
     FileSystemAccessMockup fileSystem;
     HttpIOMockup httpIO;
@@ -327,7 +327,7 @@ TEST(Commands, CommandCommandFetchAds)
     handle h = UNDEF;
     int adFlags = 512;
 
-    ::mega::CommandFetchGoogleAds command(&client, adFlags, v, h, [](::mega::Error e, ::mega::string_map value)
+    ::mega::CommandFetchAds command(&client, adFlags, v, h, [](::mega::Error e, ::mega::string_map value)
     {
         ASSERT_EQ(e, API_OK);
         ASSERT_EQ(value.size(), 3);
@@ -355,7 +355,7 @@ TEST(Commands, CommandQueryAds)
     handle h = UNDEF;
     int adFlags = 512;
 
-    ::mega::CommandQueryGoogleAds command(&client, adFlags, h, [](::mega::Error e, int value)
+    ::mega::CommandQueryAds command(&client, adFlags, h, [](::mega::Error e, int value)
     {
         ASSERT_EQ(e, API_OK);
         ASSERT_EQ(value, 1);

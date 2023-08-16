@@ -18736,7 +18736,6 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_FETCH_ADS:    // fall-through
         case MegaRequest::TYPE_QUERY_ADS:
         {
-            // deprecated
             e = API_EEXPIRED;
             break;
         }
@@ -24930,7 +24929,8 @@ void MegaApiImpl::fetchAds(int adFlags, MegaStringList *adUnits, MegaHandle publ
             return API_EARGS;
         }
 
-        const string_vector &vectorString = static_cast<MegaStringListPrivate*>(request->getMegaStringList())->getVector();
+        MegaStringListPrivate* ads = static_cast<MegaStringListPrivate*>(request->getMegaStringList());
+        const string_vector& vectorString = ads ? ads->getVector() : string_vector(); // prevent a crash, although this cannot be null nor empty
         client->reqs.add(new CommandFetchAds(client, flags, vectorString, request->getNodeHandle(), [request, this](Error e, string_map value)
         {
            if (e == API_OK)

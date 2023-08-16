@@ -5732,6 +5732,7 @@ void MegaApi::sendBackupHeartbeat(MegaHandle backupId, int status, int progress,
 
 void MegaApi::fetchAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle, MegaRequestListener *listener)
 {
+    assert(adUnits && adUnits->size());
     pImpl->fetchAds(adFlags, adUnits, publicHandle, listener);
 }
 

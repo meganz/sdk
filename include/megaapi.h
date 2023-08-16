@@ -20539,7 +20539,7 @@ class MegaApi
          *      - ADS_IGNORE_IP = 0x1000
          *      - ADS_IGNORE_PRO = 0x2000
          *      - ADS_FLAG_IGNORE_ROLLOUT = 0x4000
-         * @param adUnits A list of the adslot ids to fetch
+         * @param adUnits A list of the adslot ids to fetch; it cannot be null nor empty
          * @param publicHandle Provide the public handle that the user is visiting
          * @param listener MegaRequestListener to track this request
          */

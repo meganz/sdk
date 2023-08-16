@@ -8440,17 +8440,18 @@ TEST_F(SdkTest, QueryAds)
 {
     LOG_info << "___TEST QueryAds";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-    int err = synchronousQueryAds(0, MegaApi::ADS_FORCE_ADS);
-    ASSERT_EQ(MegaError::API_OK, err) << "Query Ads failed (error: " << err << ")";
+    ASSERT_EQ(MegaError::API_OK, synchronousQueryAds(0, MegaApi::ADS_FORCE_ADS)) << "Query Ads failed";
 }
 
 TEST_F(SdkTest, FetchAds)
 {
     LOG_info << "___TEST FetchAds";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-    int err = synchronousFetchAds(0, MegaApi::ADS_FORCE_ADS, nullptr);
-    ASSERT_EQ(MegaError::API_OK, err) << "Fetch Ads failed (error: " << err << ")";
-    ASSERT_EQ(mApi[0].mStringMap->size(), 2);
+    std::unique_ptr<MegaStringList> stringList = std::unique_ptr<MegaStringList>(MegaStringList::createInstance());
+    stringList->add("dummyAdUnit");
+    ASSERT_EQ(MegaError::API_OK, synchronousFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get())) << "Fetch Ads failed";
+    ASSERT_TRUE(mApi[0].mStringMap) << "Fetch Ads didn't copy ads to `request`";
+    ASSERT_EQ(mApi[0].mStringMap->size(), 0) << "Fetch Ads found some dummy ads";
 }
 
 #ifdef ENABLE_SYNC
