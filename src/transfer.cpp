@@ -1305,7 +1305,7 @@ void DirectReadNode::cmdresult(const Error &e, dstime timeleft)
                 // DirectRead starting
                 m_off_t streamingMaxReqSize = dr->drMaxReqSize();
                 LOG_debug << "Direct read node size = " << dr->drn->size << ", streaming max request size: " << streamingMaxReqSize;
-                dr->drbuf.setIsRaid(dr->drn->tempurls, dr->offset, dr->offset + dr->count, dr->drn->size, streamingMaxReqSize);
+                dr->drbuf.setIsRaid(dr->drn->tempurls, dr->offset, dr->offset + dr->count, dr->drn->size, streamingMaxReqSize, false);
             }
             else
             {
@@ -1921,7 +1921,7 @@ DirectRead::DirectRead(DirectReadNode* cdrn, m_off_t ccount, m_off_t coffset, in
         // we already have tempurl(s): queue for immediate fetching
         m_off_t streamingMaxReqSize = drMaxReqSize();
         LOG_debug << "Direct read start -> direct read node size = " << drn->size << ", streaming max request size: " << streamingMaxReqSize;
-        drbuf.setIsRaid(drn->tempurls, offset, offset + count, drn->size, streamingMaxReqSize);
+        drbuf.setIsRaid(drn->tempurls, offset, offset + count, drn->size, streamingMaxReqSize, false);
         drq_it = drn->client->drq.insert(drn->client->drq.end(), this);
     }
     else

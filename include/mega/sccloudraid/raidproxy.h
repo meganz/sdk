@@ -28,12 +28,10 @@ using HttpReqType = HttpReqDL;
 using HttpReqPtr = std::shared_ptr<HttpReqType>;
 using HttpInputBuf = mega::HttpReq::http_buf_t;
 
-#pragma pack(push,1)
 struct RaidPart
 {
     std::string tempUrl;
 };
-#pragma pack(pop)
 
 class RaidReqPool;
 
