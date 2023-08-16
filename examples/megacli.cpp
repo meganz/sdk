@@ -4270,6 +4270,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_reqstat, sequence(text("reqstat"), opt(either(flag("-on"), flag("-off")))));
     p->Add(exec_getABTestValue, sequence(text("getabflag"), param("flag")));
     p->Add(exec_sendABTestActive, sequence(text("setabflag"), param("flag")));
+    p->Add(exec_contactVerificationWarning, sequence(text("verificationwarnings"), opt(either(flag("-on"), flag("-off")))));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -11229,6 +11230,33 @@ void exec_sendABTestActive(autocomplete::ACState &s)
                 cout << "Flag has been correctly sent." << endl;
             }
         });
+}
+
+void exec_contactVerificationWarning(autocomplete::ACState& s)
+{
+    bool enable = s.extractflag("-on");
+    bool disable = s.extractflag("-off");
+
+    if (enable)
+    {
+        client->setContactVerificationWarning(true,
+          [](Error e)
+          {
+              if (!e) cout << "Warnings for unverified contacts: Enabled.";
+          });
+    }
+    else if (disable)
+    {
+        client->setContactVerificationWarning(false,
+          [](Error e)
+          {
+              if (!e) cout << "Warnings for unverified contacts: Disabled.";
+          });
+    }
+    else
+    {
+        cout << "Warnings for unverified contacts: " << (client->mKeyManager.getContactVerificationWarning() ? "Enabled" : "Disabled") << endl;
+    }
 }
 
 void exec_numberofnodes(autocomplete::ACState &s)

@@ -159,6 +159,7 @@ class AuthRing;
 // Utils.h has functions m_time() and so on corresponding to time() which help us to use this type and avoid arithmetic overflow when working with time_t on systems where it's 32-bit
 typedef int64_t m_time_t;
 constexpr m_time_t mega_invalid_timestamp = 0;
+inline bool isValidTimeStamp(m_time_t t) { return t != mega_invalid_timestamp; }
 
 // monotonously increasing time in deciseconds
 typedef uint32_t dstime;
@@ -370,7 +371,12 @@ typedef enum { MIME_TYPE_UNKNOWN    = 0,
                MIME_TYPE_PHOTO      = 1,    // photoExtensions, photoRawExtensions, photoImageDefExtension
                MIME_TYPE_AUDIO      = 2,    // audioExtensions longAudioExtension
                MIME_TYPE_VIDEO      = 3,    // videoExtensions
-               MIME_TYPE_DOCUMENT   = 4     // documentExtensions
+               MIME_TYPE_DOCUMENT   = 4,    // documentExtensions
+               MIME_TYPE_PDF        = 5,    // pdfExtensions
+               MIME_TYPE_PRESENTATION = 6,  // presentationExtensions
+               MIME_TYPE_ARCHIVE    = 7,    // archiveExtensions
+               MIME_TYPE_PROGRAM    = 8,    // programExtensions
+               MIME_TYPE_MISC       = 9,    // miscExtensions
              } MimeType_t;
 
 typedef enum { LBL_UNKNOWN = 0, LBL_RED = 1, LBL_ORANGE = 2, LBL_YELLOW = 3, LBL_GREEN = 4,
