@@ -4348,8 +4348,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_BACKUP_PUT: return "BACKUP_PUT";
         case TYPE_BACKUP_REMOVE: return "BACKUP_REMOVE";
         case TYPE_BACKUP_PUT_HEART_BEAT: return "BACKUP_PUT_HEART_BEAT";
-        case TYPE_FETCH_GOOGLE_ADS: return "FETCH_GOOGLE_ADS";
-        case TYPE_QUERY_GOOGLE_ADS: return "QUERY_GOOGLE_ADS";
+        case TYPE_FETCH_ADS: return "FETCH_ADS";
+        case TYPE_QUERY_ADS: return "QUERY_ADS";
         case TYPE_GET_ATTR_NODE: return "GET_ATTR_NODE";
         case TYPE_START_CHAT_CALL: return "START_CHAT_CALL";
         case TYPE_JOIN_CHAT_CALL: return "JOIN_CHAT_CALL";
@@ -18733,8 +18733,8 @@ void MegaApiImpl::sendPendingRequests()
             e = API_EINTERNAL;
             break;
         }
-        case MegaRequest::TYPE_FETCH_GOOGLE_ADS:    // fall-through
-        case MegaRequest::TYPE_QUERY_GOOGLE_ADS:
+        case MegaRequest::TYPE_FETCH_ADS:    // fall-through
+        case MegaRequest::TYPE_QUERY_ADS:
         {
             // deprecated
             e = API_EEXPIRED;
@@ -24915,9 +24915,9 @@ void MegaApiImpl::updateBackup(MegaHandle backupId, int backupType, MegaHandle t
     waiter->notify();
 }
 
-void MegaApiImpl::fetchGoogleAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle, MegaRequestListener *listener)
+void MegaApiImpl::fetchAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle, MegaRequestListener *listener)
 {
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_GOOGLE_ADS, listener);
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_ADS, listener);
     request->setNumber(adFlags);
     request->setMegaStringList(adUnits);
     request->setNodeHandle(publicHandle);
@@ -24925,13 +24925,13 @@ void MegaApiImpl::fetchGoogleAds(int adFlags, MegaStringList *adUnits, MegaHandl
     request->performRequest = [this, request]()
     {
         int flags = int(request->getNumber());
-        if (flags < MegaApi::GOOGLE_ADS_DEFAULT || flags > MegaApi::GOOGLE_ADS_FLAG_IGNORE_ROLLOUT)
+        if (flags < MegaApi::ADS_DEFAULT || flags > MegaApi::ADS_FLAG_IGNORE_ROLLOUT)
         {
             return API_EARGS;
         }
 
         const string_vector &vectorString = static_cast<MegaStringListPrivate*>(request->getMegaStringList())->getVector();
-        client->reqs.add(new CommandFetchGoogleAds(client, flags, vectorString, request->getNodeHandle(), [request, this](Error e, string_map value)
+        client->reqs.add(new CommandFetchAds(client, flags, vectorString, request->getNodeHandle(), [request, this](Error e, string_map value)
         {
            if (e == API_OK)
            {
@@ -24954,21 +24954,21 @@ void MegaApiImpl::fetchGoogleAds(int adFlags, MegaStringList *adUnits, MegaHandl
     waiter->notify();
 }
 
-void MegaApiImpl::queryGoogleAds(int adFlags, MegaHandle publicHandle, MegaRequestListener *listener)
+void MegaApiImpl::queryAds(int adFlags, MegaHandle publicHandle, MegaRequestListener *listener)
 {
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_QUERY_GOOGLE_ADS, listener);
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_QUERY_ADS, listener);
     request->setNumber(adFlags);
     request->setNodeHandle(publicHandle);
 
     request->performRequest = [this, request]()
     {
         int flags = int(request->getNumber());
-        if (flags < MegaApi::GOOGLE_ADS_DEFAULT || flags > MegaApi::GOOGLE_ADS_FLAG_IGNORE_ROLLOUT)
+        if (flags < MegaApi::ADS_DEFAULT || flags > MegaApi::ADS_FLAG_IGNORE_ROLLOUT)
         {
             return API_EARGS;
         }
 
-        client->reqs.add(new CommandQueryGoogleAds(client, flags, request->getNodeHandle(), [request, this](Error e, int value)
+        client->reqs.add(new CommandQueryAds(client, flags, request->getNodeHandle(), [request, this](Error e, int value)
         {
            if (e == API_OK) request->setNumDetails(value);
            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));

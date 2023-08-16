@@ -316,7 +316,7 @@ public:
 };
 
 
-TEST(Commands, CommandCommandFetchGoogleAds)
+TEST(Commands, CommandCommandFetchAds)
 {
     FileSystemAccessMockup fileSystem;
     HttpIOMockup httpIO;
@@ -345,7 +345,7 @@ TEST(Commands, CommandCommandFetchGoogleAds)
     command.procresult(r);
 }
 
-TEST(Commands, CommandQueryGoogleAds)
+TEST(Commands, CommandQueryAds)
 {
     FileSystemAccessMockup fileSystem;
     HttpIOMockup httpIO;

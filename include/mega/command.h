@@ -1748,24 +1748,24 @@ public:
 };
 #endif
 
-typedef std::function<void(Error, string_map)> CommandFetchGoogleAdsCompletion;
-class MEGA_API CommandFetchGoogleAds : public Command
+typedef std::function<void(Error, string_map)> CommandFetchAdsCompletion;
+class MEGA_API CommandFetchAds : public Command
 {
-    CommandFetchGoogleAdsCompletion mCompletion;
+    CommandFetchAdsCompletion mCompletion;
 public:
     bool procresult(Result, JSON&) override;
 
-    CommandFetchGoogleAds(MegaClient*, int adFlags, const std::vector<std::string>& adUnits, handle publicHandle, CommandFetchGoogleAdsCompletion completion);
+    CommandFetchAds(MegaClient*, int adFlags, const std::vector<std::string>& adUnits, handle publicHandle, CommandFetchAdsCompletion completion);
 };
 
-typedef std::function<void(Error, int)> CommandQueryGoogleAdsCompletion;
-class MEGA_API CommandQueryGoogleAds : public Command
+typedef std::function<void(Error, int)> CommandQueryAdsCompletion;
+class MEGA_API CommandQueryAds : public Command
 {
-    CommandQueryGoogleAdsCompletion mCompletion;
+    CommandQueryAdsCompletion mCompletion;
 public:
     bool procresult(Result, JSON&) override;
 
-    CommandQueryGoogleAds(MegaClient*, int adFlags, handle publicHandle, CommandQueryGoogleAdsCompletion completion);
+    CommandQueryAds(MegaClient*, int adFlags, handle publicHandle, CommandQueryAdsCompletion completion);
 };
 
 } // namespace

@@ -431,8 +431,8 @@ public:
     template<typename ... Args> int synchronousSetUserAlias(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->setUserAlias(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousGetUserAlias(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_GET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->getUserAlias(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousFolderInfo(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_FOLDER_INFO, [this, apiIndex, args...]() { megaApi[apiIndex]->getFolderInfo(args...); }); return mApi[apiIndex].lastError; }
-    template<typename ... Args> int synchronousQueryGoogleAds(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_QUERY_GOOGLE_ADS, [this, apiIndex, args...]() { megaApi[apiIndex]->queryGoogleAds(args...); }); return mApi[apiIndex].lastError; }
-    template<typename ... Args> int synchronousFetchGoogleAds(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_FETCH_GOOGLE_ADS, [this, apiIndex, args...]() { megaApi[apiIndex]->fetchGoogleAds(args...); }); return mApi[apiIndex].lastError; }
+    template<typename ... Args> int synchronousQueryAds(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_QUERY_ADS, [this, apiIndex, args...]() { megaApi[apiIndex]->queryAds(args...); }); return mApi[apiIndex].lastError; }
+    template<typename ... Args> int synchronousFetchAds(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_FETCH_ADS, [this, apiIndex, args...]() { megaApi[apiIndex]->fetchAds(args...); }); return mApi[apiIndex].lastError; }
     // do not add functions using this pattern, see comment at top of this stanza
 
     // *** USE THESE ONES INSTEAD ***

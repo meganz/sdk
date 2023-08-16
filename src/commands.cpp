@@ -10370,7 +10370,7 @@ bool CommandScheduledMeetingFetchEvents::procresult(Command::Result r, JSON& jso
 
 #endif
 
-bool CommandFetchGoogleAds::procresult(Command::Result r, JSON& json)
+bool CommandFetchAds::procresult(Command::Result r, JSON& json)
 {
     string_map result;
     if (r.wasStrictlyError())
@@ -10430,7 +10430,7 @@ bool CommandFetchGoogleAds::procresult(Command::Result r, JSON& json)
     return !error;
 }
 
-CommandFetchGoogleAds::CommandFetchGoogleAds(MegaClient* client, int adFlags, const std::vector<std::string> &adUnits, handle publicHandle, CommandFetchGoogleAdsCompletion completion)
+CommandFetchAds::CommandFetchAds(MegaClient* client, int adFlags, const std::vector<std::string> &adUnits, handle publicHandle, CommandFetchAdsCompletion completion)
     : mCompletion(completion)
 {
     cmd("adf");
@@ -10452,7 +10452,7 @@ CommandFetchGoogleAds::CommandFetchGoogleAds(MegaClient* client, int adFlags, co
     tag = client->reqtag;
 }
 
-bool CommandQueryGoogleAds::procresult(Command::Result r, JSON &json)
+bool CommandQueryAds::procresult(Command::Result r, JSON &json)
 {
     if (r.wasErrorOrOK())
     {
@@ -10473,7 +10473,7 @@ bool CommandQueryGoogleAds::procresult(Command::Result r, JSON &json)
     return true;
 }
 
-CommandQueryGoogleAds::CommandQueryGoogleAds(MegaClient* client, int adFlags, handle publicHandle, CommandQueryGoogleAdsCompletion completion)
+CommandQueryAds::CommandQueryAds(MegaClient* client, int adFlags, handle publicHandle, CommandQueryAdsCompletion completion)
     : mCompletion(completion)
 {
     cmd("ads");
