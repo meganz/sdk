@@ -3173,6 +3173,17 @@ public class MegaApiJava {
     }
 
     /**
+     * Get the contact verification warning flag status
+     *
+     * It returns if showing the warnings to verify contacts is enabled.
+     *
+     * @return True if showing the warnings are enabled, false otherwise.
+     */
+    public boolean contactVerificationWarningEnabled() {
+        return megaApi.contactVerificationWarningEnabled();
+    }
+
+    /**
      * Allows to change the hardcoded value of the "secure" flag
      * <p>
      * With this feature flag set, the client will manage encryption keys for
