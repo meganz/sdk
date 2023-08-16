@@ -21762,6 +21762,19 @@ string MegaClient::getVpnCredentialString(std::string&& vpnRegion,
 {
     string peerPrivateKey = Base64::btoa(peerKeyPair.first);
     string peerPublicKey = peerKeyPair.second;
+
+    // Base64 standard format for Peer Key Pair:
+    // We need to replace chars "-_" (Base64::to64()) with "+/". And add the trailing "=" to have a "correct" length (from 32 to 44).
+    std::replace(peerPrivateKey.begin(), peerPrivateKey.end(), '-', '+');
+    std::replace(peerPrivateKey.begin(), peerPrivateKey.end(), '_', '/');
+    std::replace(peerPublicKey.begin(), peerPublicKey.end(), '-', '+');
+    std::replace(peerPublicKey.begin(), peerPublicKey.end(), '_', '/');
+    peerPrivateKey.append("=");
+    peerPublicKey.append("=");
+    assert(peerPrivateKey.size() == peerPublicKey.size());
+    assert(peerPrivateKey.size() % 4 == 0);
+
+    // Now they peer keys are valid for WireGuard and can be added to the credentials.
     string credential;
     credential.reserve(300);
     credential.append("[Interface]\n")
