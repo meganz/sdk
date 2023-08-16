@@ -6113,8 +6113,6 @@ bool CommandFetchNodes::procresult(Result r, JSON& json)
         return true;
     }
 
-    client->mKeyManager.cacheShareKeys();
-
     for (;;)
     {
         switch (json.getnameid())
