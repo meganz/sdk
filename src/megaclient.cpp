@@ -397,8 +397,6 @@ void MegaClient::mergenewshares(bool notify, bool skipWriteInDb)
         delete s;
         newshares.erase(it++);
     }
-
-    mNewKeyRepository.clear();
 }
 
 void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
@@ -5259,6 +5257,7 @@ bool MegaClient::procsc()
                     LOG_debug << "Processing of action packets for " << string(sessionid, sizeof(sessionid)) << " finished.  More to follow: " << insca_notlast;
                     mergenewshares(1);
                     applykeys();
+                    mNewKeyRepository.clear();
 
                     if (!statecurrent && !insca_notlast)   // with actionpacket spoonfeeding, just finishing a batch does not mean we are up to date yet - keep going while "ir":1
                     {
@@ -22477,15 +22476,6 @@ bool KeyManager::isUnverifiedInShare(handle nodeHandle, handle userHandle)
     return false;
 }
 
-void KeyManager::cacheShareKeys()
-{
-    for (const auto& it : mShareKeys)
-    {
-        const string& k = it.second.first;
-        mClient.mNewKeyRepository[NodeHandle().set6byte(it.first)] = { k.begin(), k.end() };
-    }
-}
-
 void KeyManager::loadShareKeys()
 {
     for (const auto& it : mShareKeys)
@@ -22914,10 +22904,11 @@ bool KeyManager::unserialize(KeyManager& km, const string &keysContainer)
         {
             string buf(blob + offset, len);
             if (!deserializePendingInshares(km, buf)) return false;
-            if (mDebugContents)
-            {
+            // Commented to trace possible issues with pending inshares.
+            //if (mDebugContents)
+            //{
                 LOG_verbose << pendingInsharesToString(km);
-            }
+            //}
             break;
         }
         case TAG_BACKUPS:

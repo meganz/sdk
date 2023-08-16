@@ -311,7 +311,6 @@ public:
     bool isUnverifiedOutShare(handle nodeHandle, const string& uid);
     bool isUnverifiedInShare(handle nodeHandle, handle userHandle);
 
-    void cacheShareKeys();
     void loadShareKeys();
 
     void commit(std::function<void()> applyChanges, std::function<void()> completion = nullptr);
