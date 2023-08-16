@@ -2821,7 +2821,7 @@ void LocalNode::queueClientUpload(shared_ptr<SyncUpload_inClient> upload, Versio
             {
                 string ext1, ext2;
                 mc.fsaccess->getextension(upload->getLocalname(), ext1);
-                n->getExtension(ext2);
+                n->getExtension(ext2, n->displayname());
                 if (!ext1.empty() && ext1[0] == '.') ext1.erase(0, 1);
                 if (!ext2.empty() && ext2[0] == '.') ext2.erase(0, 1);
 
