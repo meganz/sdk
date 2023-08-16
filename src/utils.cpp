@@ -254,7 +254,7 @@ void CacheableWriter::serializeNodeHandle(NodeHandle field)
 
 void CacheableWriter::serializefsfp(fsfp_t field)
 {
-    dest.append((char*)&field, sizeof(field));
+    dest.append((char*)&field.id, sizeof(field.id));
 }
 
 void CacheableWriter::serializebool(bool field)
@@ -866,8 +866,8 @@ bool CacheableReader::unserializefsfp(fsfp_t& field)
     {
         return false;
     }
-    field = MemAccess::get<fsfp_t>(ptr);
-    ptr += sizeof(fsfp_t);
+    field.id = MemAccess::get<uint64_t>(ptr);
+    ptr += sizeof(uint64_t);
     fieldnum += 1;
     return true;
 }
@@ -2799,6 +2799,15 @@ bool readLines(const std::string& input, string_vector& destination)
 {
     const char *current = input.data();
     const char *end = current + input.size();
+
+    // we assume utf8.  Skip the BOM if there is one
+    if (input.size() > 2 &&
+        static_cast<unsigned char>(current[0]) == 0xEF &&
+        static_cast<unsigned char>(current[1]) == 0xBB &&
+        static_cast<unsigned char>(current[2]) == 0xBF)
+    {
+        current += 3;
+    }
 
     while (current < end && (*current == '\r' || *current == '\n'))
     {

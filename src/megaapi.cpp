@@ -3637,11 +3637,6 @@ MegaSyncList* MegaApi::getSyncs()
    return pImpl->getSyncs();
 }
 
-string MegaApi::getLocalPath(MegaNode *n)
-{
-    return pImpl->getLocalPath(n);
-}
-
 long long MegaApi::getNumLocalNodes()
 {
     return pImpl->getNumLocalNodes();
@@ -6604,6 +6599,11 @@ bool MegaAccountSession::isAlive() const
 MegaHandle MegaAccountSession::getHandle() const
 {
     return INVALID_HANDLE;
+}
+
+char *MegaAccountSession::getDeviceId() const
+{
+    return nullptr;
 }
 
 
