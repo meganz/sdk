@@ -4273,7 +4273,7 @@ autocomplete::ACN autocompleteSyntax()
     /* MEGA VPN commands */
     p->Add(exec_getvpnregions, sequence(text("getvpnregions")));
     p->Add(exec_getvpncredentials, sequence(text("getvpncredentials"), opt(sequence(flag("-s"), param("slotID"))), opt(flag("-noregions"))));
-    p->Add(exec_putvpncredential, sequence(text("putvpncredential"), param("region")));
+    p->Add(exec_putvpncredential, sequence(text("putvpncredential"), param("region"), opt(sequence(flag("-file"), param("credentialfilewithoutextension"))), opt(flag("-noconsole"))));
     p->Add(exec_delvpncredential, sequence(text("delvpncredential"), param("slotID")));
     /* MEGA VPN commands END */
 
@@ -11186,6 +11186,7 @@ void exec_getvpncredentials(autocomplete::ACState& s)
             {
                 if (e == API_OK)
                 {
+                    cout << endl;
                     if (slotID > 0)
                     {
                         auto clusterIdAndIpsForSlotID = mapSlotIDToClusterIDAndIPs.find(slotID);
@@ -11292,21 +11293,60 @@ void exec_getvpncredentials(autocomplete::ACState& s)
 void exec_putvpncredential(autocomplete::ACState& s)
 {
     string vpnRegion = s.words[1].s;
-    cout << "Adding a new MEGA VPN credential with VPN region: " << vpnRegion << endl;
+    cout << "Adding new MEGA VPN credentials. VPN region: " << vpnRegion << endl;
+    string filename;
+    if (s.extractflagparam("-file", filename))
+    {
+        filename.append(".conf");
+        cout << "Credential data will be saved in: '" << filename << "'" << endl;
+    }
+    bool consoleoutput = !s.extractflag("-noconsole");
     client->putVpnCredential(std::move(vpnRegion),
-            [] (const Error& e, int slotID, std::string&& newCredential)
+            [filename, consoleoutput] (const Error& e, int slotID, std::string&& newCredential)
             {
                 if (e == API_OK && (slotID > 0) && !newCredential.empty())
                 {
-                    cout << "\n########################################" << endl;
-                    cout << "#####     MEGA VPN credentials     #####" << endl;
-                    cout << "#####     SlotID " << slotID << "                 #####" << endl;
-                    cout << "########################################" << endl;
-                    cout << newCredential << endl;
+                    std::cout << "\nNew MEGA VPN credential added successfully to slot " << slotID << endl;
+                    if (consoleoutput || !filename.empty())
+                    {
+                        string credentialHeader;
+                        credentialHeader.reserve(180);
+                        credentialHeader.append("########################################\n")
+                                        .append("#####     MEGA VPN credentials     #####\n")
+                                        .append("#####     SlotID ").append(std::to_string(slotID)).append("                 #####\n")
+                                        .append("########################################\n");
+                        if (consoleoutput)
+                        {
+                            cout << "\n" << credentialHeader << newCredential << endl;
+                        }
+                        if (!filename.empty())
+                        {
+                            if (consoleoutput) { cout << endl; } // Leave a line between credential info and log info below
+                            std::ofstream ostream(filename);
+
+                            if (!ostream)
+                            {
+                                cerr << "Unable to open conf file for writing the new credential: '" << filename << "'" << endl;
+                            }
+                            else
+                            {
+                                ostream << credentialHeader << newCredential << endl;
+                                if (ostream.flush())
+                                {
+                                    cout << "VPN credentials saved in: '" << filename << "'" << endl;
+                                }
+                                else
+                                {
+                                    cerr << "Encountered an error while writing conf file '" << filename << "'" << endl;
+                                    return;
+                                }
+                            }
+                        }
+                    }
                 }
                 else
                 {
-                    cout << "Adding a new MEGA VPN credential failed. Error value: " << e << ". Reason: '";
+                    cout << "Adding new MEGA VPN credentials failed. Error value: " << e << ". Reason: '";
                     switch(e)
                     {
                         case API_EARGS:
@@ -11336,7 +11376,7 @@ void exec_delvpncredential(autocomplete::ACState& s)
                 cout << "MEGA VPN credential on slotID " << slotID << " ";
                 if (e == API_OK)
                 {
-                    cout << "has been removed OK.";
+                    cout << "has been removed OK";
                 }
                 else
                 {

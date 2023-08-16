@@ -21764,6 +21764,7 @@ string MegaClient::getVpnCredentialString(int slotID,
     string peerPrivateKey = Base64::btoa(string((char *)peerKeyPair.first.c_str(), ECDH::PRIVATE_KEY_LENGTH));
     string peerPublicKey = Base64::btoa(string((char *)peerKeyPair.second.c_str(), ECDH::PUBLIC_KEY_LENGTH));
     string credential;
+    credential.reserve(300);
     credential.append("[Interface]\n")
              .append("PrivateKey = ").append(peerPrivateKey).append("\n")
              .append("Address = ").append(ipv4).append("/32").append(", ").append(ipv6).append("/128\n")
