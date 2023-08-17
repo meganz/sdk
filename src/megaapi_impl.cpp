@@ -25517,12 +25517,7 @@ void MegaApiImpl::getVpnRegions(MegaRequestListener* listener)
             {
                 if (e == API_OK && !vpnRegions.empty())
                 {
-                    string_vector vpnRegionsList;
-                    for (const auto& vpnRegion : vpnRegions)
-                    {
-                        vpnRegionsList.emplace_back(std::move(vpnRegion));
-                    }
-                    auto vpnRegionsMegaStringList = ::mega::make_unique<MegaStringListPrivate>(std::move(vpnRegionsList));
+                    auto vpnRegionsMegaStringList = ::mega::make_unique<MegaStringListPrivate>(std::move(vpnRegions));
                     request->setMegaStringList(vpnRegionsMegaStringList.get());
                 }
 
@@ -25549,12 +25544,7 @@ void MegaApiImpl::getVpnCredentials(MegaRequestListener* listener)
             {
                 if (e == API_OK && !mapSlotIDToClusterIDAndIPs.empty() && !mapClusterPubKeys.empty() && !vpnRegions.empty())
                 {
-                    string_vector vpnRegionsList;
-                    for (const auto& vpnRegion : vpnRegions)
-                    {
-                        vpnRegionsList.emplace_back(std::move(vpnRegion));
-                    }
-                    auto vpnRegionsMegaStringList = ::mega::make_unique<MegaStringListPrivate>(std::move(vpnRegionsList));
+                    auto vpnRegionsMegaStringList = ::mega::make_unique<MegaStringListPrivate>(std::move(vpnRegions));
                     request->setMegaVpnCredentials(new MegaVpnCredentialsPrivate(std::move(mapSlotIDToClusterIDAndIPs), std::move(mapClusterPubKeys), vpnRegionsMegaStringList.get()));
                 }
 
