@@ -8440,7 +8440,8 @@ TEST_F(SdkTest, QueryAds)
 {
     LOG_info << "___TEST QueryAds";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-    ASSERT_EQ(MegaError::API_OK, synchronousQueryAds(0, MegaApi::ADS_FORCE_ADS)) << "Query Ads failed";
+    std::unique_ptr<RequestTracker> tr = asyncQueryAds(0, MegaApi::ADS_FORCE_ADS, INVALID_HANDLE);
+    ASSERT_EQ(API_OK, tr->waitForResult()) << "Query Ads failed";
 }
 
 TEST_F(SdkTest, FetchAds)
@@ -8448,14 +8449,17 @@ TEST_F(SdkTest, FetchAds)
     LOG_info << "___TEST FetchAds";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     std::unique_ptr<MegaStringList> stringList = std::unique_ptr<MegaStringList>(MegaStringList::createInstance());
-    ASSERT_EQ(MegaError::API_EARGS, synchronousFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get())) << "Fetch Ads succeeded with invalid arguments";
+    std::unique_ptr<RequestTracker> tr = asyncFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get(), INVALID_HANDLE);
+    ASSERT_EQ(API_EARGS, tr->waitForResult()) << "Fetch Ads succeeded with invalid arguments";
     stringList->add("dummyAdUnit");
-    ASSERT_EQ(MegaError::API_OK, synchronousFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get())) << "Fetch Ads failed";
+    tr = asyncFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get(), INVALID_HANDLE);
+    ASSERT_EQ(API_OK, tr->waitForResult()) << "Fetch Ads failed";
     ASSERT_TRUE(mApi[0].mStringMap) << "Fetch Ads didn't copy ads to `request`";
     ASSERT_EQ(mApi[0].mStringMap->size(), 0) << "Fetch Ads found some dummy ads";
     const char valiAdSlot[] = "ANDFB";
     stringList->add(valiAdSlot);
-    ASSERT_EQ(MegaError::API_OK, synchronousFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get())) << "Fetch Ads failed";
+    tr = asyncFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get(), INVALID_HANDLE);
+    ASSERT_EQ(API_OK, tr->waitForResult()) << "Fetch Ads failed";
     ASSERT_TRUE(mApi[0].mStringMap) << "Fetch Ads didn't copy ads to `request`";
     ASSERT_EQ(mApi[0].mStringMap->size(), 1) << "Fetch Ads findings are incorrect";
     ASSERT_NE(mApi[0].mStringMap->get(valiAdSlot), nullptr) << "Fetch Ads didn't find " << valiAdSlot;
