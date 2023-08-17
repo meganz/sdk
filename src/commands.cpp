@@ -2278,7 +2278,7 @@ bool CommandPendingKeys::procresult(Result r, JSON& json)
         {
             string sharekey;
             JSON::copystring(&sharekey, json.getvalue());
-            (*keys)[userhandle][sharehandle] = sharekey;
+            (*keys)[userhandle][sharehandle] = Base64::atob(sharekey);
         }
 
         json.leaveobject();
@@ -4321,7 +4321,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                                            break;
 
                                         case EOO:
-                                            if (status != BIZ_STATUS_UNKNOWN && ts != 0)
+                                            if (status != BIZ_STATUS_UNKNOWN && isValidTimeStamp(ts))
                                             {
                                                 sts.push_back(std::make_pair(status, ts));
                                             }
@@ -6112,8 +6112,6 @@ bool CommandFetchNodes::procresult(Result r, JSON& json)
         client->app->fetchnodes_result(r.errorOrOK());
         return true;
     }
-
-    client->mKeyManager.cacheShareKeys();
 
     for (;;)
     {
@@ -10319,9 +10317,9 @@ CommandScheduledMeetingFetchEvents::CommandScheduledMeetingFetchEvents(MegaClien
 {
     cmd("mcsmfo");
     arg("cid", (byte*) &chatid, MegaClient::CHATHANDLE);
-    if (since != mega_invalid_timestamp)      { arg("cf", since); }
-    if (until != mega_invalid_timestamp)      { arg("ct", until); }
-    if (count)                                { arg("cc", count); }
+    if (isValidTimeStamp(since))      { arg("cf", since); }
+    if (isValidTimeStamp(until))      { arg("ct", until); }
+    if (count)                        { arg("cc", count); }
     tag = client->reqtag;
 }
 
