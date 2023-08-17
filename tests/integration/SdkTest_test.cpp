@@ -763,27 +763,6 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         }
         break;
 #endif
-
-    case MegaRequest::TYPE_GET_VPN_REGIONS:
-        if (mApi[apiIndex].lastError == API_OK)
-        {
-            mApi[apiIndex].setStringList(request->getMegaStringList()->copy());
-        }
-        break;
-
-    case MegaRequest::TYPE_GET_VPN_CREDENTIALS:
-        if (mApi[apiIndex].lastError == API_OK)
-        {
-            mApi[apiIndex].setVpnCredentials(request->getMegaVpnCredentials()->copy());
-        }
-        break;
-
-    case MegaRequest::TYPE_PUT_VPN_CREDENTIAL:
-        if (mApi[apiIndex].lastError == API_OK)
-        {
-            mApi[apiIndex].setNumber(request->getNumber()); // SlotID
-            mApi[apiIndex].setAttributeValue(request->getText() ? request->getText() : ""); // Credential string for conf file
-        }
     }
 
     // set this flag always the latest, since it is used to unlock the wait
@@ -14283,11 +14262,11 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
     LOG_info << "___TEST SdkTestMegaVpnCredentials";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
+    int result;
     // Get VPN regions to choose one of them
     {
-        auto rt = ::mega::make_unique<RequestTracker>(megaApi[0].get());
-        mApi[0].megaApi->getVpnRegions(rt.get());
-        ASSERT_EQ(API_OK, rt->waitForResult()) << "getting the VPN regions failed (error: " << mApi[0].lastError << ")";
+        result = doGetVpnRegions(0);
+        ASSERT_EQ(API_OK, result) << "getting the VPN regions failed (error: " << result << ")";
         const MegaStringList* vpnRegions = mApi[0].getStringList();
         ASSERT_TRUE(vpnRegions) << "list of VPN regions is NULL";
         ASSERT_TRUE(vpnRegions->size()) << "list of VPN regions is empty";
@@ -14301,12 +14280,11 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
         bool isProAccount = (mApi[0].accountDetails->getProLevel() != MegaAccountDetails::ACCOUNT_TYPE_FREE);
 
         // Put VPN credential on the chosen region
-        auto rt2 = ::mega::make_unique<RequestTracker>(megaApi[0].get());
-        mApi[0].megaApi->putVpnCredential(vpnRegion, rt2.get());
+        result = doPutVpnCredential(0, vpnRegion);
         int slotID = -1;
         if (isProAccount)
         {
-            ASSERT_EQ(API_OK, rt2->waitForResult()) << "adding a new VPN credential failed (error: " << mApi[0].lastError << ")";
+            ASSERT_EQ(API_OK, result) << "adding a new VPN credential failed (error: " << result << ")";
             slotID = static_cast<int>(mApi[0].getNumber());
             ASSERT_TRUE(slotID > 0) << "slotID should be greater than 0";
             std::string newCredential = mApi[0].getAttributeValue();
@@ -14314,17 +14292,16 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
         }
         else
         {
-            ASSERT_EQ(API_EACCESS, rt2->waitForResult()) << "adding a new VPN credential on a free account didn't return the expected error value (error: " << mApi[0].lastError << ")";
+            ASSERT_EQ(API_EACCESS, result) << "adding a new VPN credential on a free account didn't return the expected error value (error: " << result << ")";
         }
 
         // Get VPN credentials and search for the credential associated with the returned SlotID
         {
-            auto rt3 = ::mega::make_unique<RequestTracker>(megaApi[0].get());
-            mApi[0].megaApi->getVpnCredentials(rt3.get());
+            result = doGetVpnCredentials(0);
 
             if (isProAccount)
             {
-                ASSERT_EQ(API_OK, rt3->waitForResult()) << "getting the VPN credentials failed (error: " << mApi[0].lastError << ")";
+                ASSERT_EQ(API_OK, result) << "getting the VPN credentials failed (error: " << result << ")";
 
                 const MegaVpnCredentials* megaVpnCredentials = mApi[0].getVpnCredentials();
                 ASSERT_TRUE(megaVpnCredentials) << "MegaVpnCredentials is NULL";
@@ -14356,38 +14333,35 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
             }
             else
             {
-                ASSERT_EQ(API_ENOENT, rt3->waitForResult()) << "getting the VPN credentials for a free account didn't return the expected error value (error: " << mApi[0].lastError << ")";
+                ASSERT_EQ(API_ENOENT, result) << "getting the VPN credentials for a free account didn't return the expected error value (error: " << result << ")";
             }
         }
 
         // Delete VPN credentials on the used slot
         {
-            auto rt4 = ::mega::make_unique<RequestTracker>(megaApi[0].get());
-            mApi[0].megaApi->delVpnCredential(isProAccount ? slotID : 1, rt4.get());
+            result = doDelVpnCredential(0, isProAccount ? slotID : 1);
             if (isProAccount)
             {
-                ASSERT_EQ(API_OK, rt4->waitForResult()) << "deleting the VPN credentials on the slotID " << slotID << " failed (error: " << mApi[0].lastError << ")";
+                ASSERT_EQ(API_OK, result) << "deleting the VPN credentials on the slotID " << slotID << " failed (error: " << result << ")";
             }
             else
             {
                 // Expected -9: the slot has never been occupied
-                ASSERT_EQ(API_ENOENT, rt4->waitForResult()) << "deleting the VPN credentials on a never occupied slotID " << slotID << " didn't return the expected error value (error: " << mApi[0].lastError << ")";
+                ASSERT_EQ(API_ENOENT, result) << "deleting the VPN credentials on a never occupied slotID " << slotID << " didn't return the expected error value (error: " << result << ")";
             }
         }
 
         // Delete VPN credentials on the same slotID - expected API_OK: despite it is empty now, it has been occupied before
         if (isProAccount)
         {
-            auto rt5 = ::mega::make_unique<RequestTracker>(megaApi[0].get());
-            mApi[0].megaApi->delVpnCredential(slotID, rt5.get());
-            ASSERT_EQ(API_OK, rt5->waitForResult()) << "deleting the VPN credentials on the unused slotID " << slotID << " failed (error: " << mApi[0].lastError << ")";
+            result = doDelVpnCredential(0, slotID);
+            ASSERT_EQ(API_OK, result) << "deleting the VPN credentials on the unused slotID " << slotID << " failed (error: " << result << ")";
         }
 
         // Delete VPN credentials with an invalid slot -expected EARGS: Slot ID is not valid-
         {
-            auto rt6 = ::mega::make_unique<RequestTracker>(megaApi[0].get());
-            mApi[0].megaApi->delVpnCredential(-1, rt6.get());
-            ASSERT_EQ(API_EARGS, rt6->waitForResult()) << "deleting the VPN credentials failed for invalid slotID " << slotID << " (error: " << mApi[0].lastError << ")";
+            result = doDelVpnCredential(0, -1);
+            ASSERT_EQ(API_EARGS, result) << "deleting the VPN credentials failed for invalid slotID " << slotID << " (error: " << result << ")";
         }
     }
 }

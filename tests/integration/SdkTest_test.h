@@ -619,4 +619,22 @@ public:
 #ifdef ENABLE_CHAT
     void createChat(bool group, MegaTextChatPeerList *peers, int timeout = maxTimeout);
 #endif
+
+    /* MegaVpnCredentials */
+    template<typename ... requestArgs> int doGetVpnRegions(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->getVpnRegions(args..., &rt); auto e = rt.waitForResult(); if (e == API_OK) mApi[apiIndex].setStringList(rt.request->getMegaStringList()->copy()); return e; }
+    template<typename ... requestArgs> int doGetVpnCredentials(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->getVpnCredentials(args..., &rt); auto e = rt.waitForResult(); if (e == API_OK)  mApi[apiIndex].setVpnCredentials(rt.request->getMegaVpnCredentials()->copy()); return rt.result; }
+    template<typename ... requestArgs> int doPutVpnCredential(unsigned apiIndex, requestArgs... args)
+    {
+        RequestTracker rt(megaApi[apiIndex].get());
+        megaApi[apiIndex]->putVpnCredential(args..., &rt);
+        auto e = rt.waitForResult();
+        if (e == API_OK)
+        {
+            mApi[apiIndex].setNumber(rt.request->getNumber()); // SlotID
+            mApi[apiIndex].setAttributeValue(rt.request->getText() ? rt.request->getText() : ""); // Credential string for conf file
+        }
+        return e;
+    }
+    template<typename ... requestArgs> int doDelVpnCredential(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->delVpnCredential(args..., &rt); rt.waitForResult(); return rt.result; }
+    /* MegaVpnCredentials END */
 };
