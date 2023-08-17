@@ -10430,33 +10430,45 @@ bool CommandGetVpnCredentials::procresult(Command::Result r, JSON& json)
         // Parse ClusterID and IPs
         if (json.enterobject())
         {
-            string slotID;
+            string slotIDStr;
             bool parsedOk = true;
             while (parsedOk)
             {
-                slotID = json.getname();
-                if (slotID.empty())
+                slotIDStr = json.getname();
+                if (slotIDStr.empty())
                 {
                     break;
                 }
 
-                if (json.enterarray())
+                int slotID = -1;
+                try
+                {
+                    slotID = std::stoi(slotIDStr);
+                }
+                catch (std::exception const &ex)
+                {
+                    LOG_err << "[CommandGetVpnCredentials] Could not convert param SlotID(" << slotIDStr << ") to integer. Exception: " << ex.what();
+                    parsedOk = false;
+                }
+
+                if (parsedOk && json.enterarray())
                 {
                     int clusterID = static_cast<int>(json.getint());
                     std::string ipv4, ipv6;
                     if (!json.storeobject(&ipv4))
                     {
                         parsedOk = false;
-                        break;
                     }
-                    if (!json.storeobject(&ipv6))
+                    if (parsedOk && !json.storeobject(&ipv6))
                     {
                         parsedOk = false;
-                        break;
                     }
-                    auto pairIPs = std::make_pair(ipv4, ipv6);
-                    auto pairClusterIDAndIPs = std::make_pair(clusterID, pairIPs);
-                    mapSlotIDToClusterIDAndIPs.emplace(std::make_pair(std::stoi(slotID), pairClusterIDAndIPs));
+                    if (parsedOk)
+                    {
+                        auto pairIPs = std::make_pair(ipv4, ipv6);
+                        auto pairClusterIDAndIPs = std::make_pair(clusterID, pairIPs);
+                        mapSlotIDToClusterIDAndIPs.emplace(std::make_pair(slotID, pairClusterIDAndIPs));
+                    }
                     json.leavearray();
                 }
             }
@@ -10478,23 +10490,36 @@ bool CommandGetVpnCredentials::procresult(Command::Result r, JSON& json)
         // Parse Cluster Public Keys
         if (json.enterobject())
         {
-            string clusterID;
             bool parsedOk = true;
             while (parsedOk)
             {
-                clusterID = json.getname();
-                if (clusterID.empty())
+                std::string clusterIDStr = json.getname();
+                if (clusterIDStr.empty())
                 {
                     break;
                 }
 
-                std::string clusterPubKey;
-                if (!json.storeobject(&clusterPubKey))
+                int clusterID = -1;
+                try
                 {
-                    parsedOk = false;
-                    break;
+                    clusterID = std::stoi(clusterIDStr);
                 }
-                mapClusterPubKeys.emplace(std::make_pair(std::stoi(clusterID), clusterPubKey));
+                catch (std::exception const &ex)
+                {
+                    LOG_err << "[CommandGetVpnCredentials] Could not convert param ClusterID(" << clusterIDStr << ") to integer. Exception: " << ex.what();
+                    parsedOk = false;
+                }
+
+                if (parsedOk)
+                {
+                    std::string clusterPubKey;
+                    if (!json.storeobject(&clusterPubKey))
+                    {
+                        parsedOk = false;
+                        break;
+                    }
+                    mapClusterPubKeys.emplace(std::make_pair(clusterID, clusterPubKey));
+                }
             }
             if (!parsedOk)
             {
@@ -10614,18 +10639,15 @@ CommandDelVpnCredential::CommandDelVpnCredential(MegaClient* client, int slotID,
 
 bool CommandDelVpnCredential::procresult(Command::Result r, JSON& json)
 {
-    if (mCompletion)
+    if (r.wasErrorOrOK())
     {
-        if (r.wasErrorOrOK())
+        if (mCompletion)
         {
             mCompletion(r.errorOrOK());
         }
-        else
-        {
-            mCompletion(API_OK);
-        }
+        return true;
     }
-    return true;
+    return false;
 }
 /* MegaVPN Commands END*/
 
