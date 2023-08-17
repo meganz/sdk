@@ -4474,9 +4474,10 @@ private:
 class MegaVpnCredentialsPrivate : public MegaVpnCredentials
 {
 public:
-    using MegaVpnCredentialsIps = std::map<int, std::pair<int, std::pair<std::string, std::string>>>;
-    using MegaVpnCredentialsClusterPublicKeys = std::map<int, std::string>;
-    MegaVpnCredentialsPrivate(MegaVpnCredentialsIps&&, MegaVpnCredentialsClusterPublicKeys&&, MegaStringList*);
+    using MapSlotIDToClusterIDAndIPs = CommandGetVpnCredentials::MapSlotIDToClusterIDAndIPs;
+    using MapClusterPublicKeys = CommandGetVpnCredentials::MapClusterPublicKeys;
+
+    MegaVpnCredentialsPrivate(MapSlotIDToClusterIDAndIPs&&, MapClusterPublicKeys&&, MegaStringList*);
     MegaVpnCredentialsPrivate(const MegaVpnCredentialsPrivate&);
     ~MegaVpnCredentialsPrivate();
 
@@ -4489,8 +4490,8 @@ public:
     MegaVpnCredentials* copy() const override;
 
 private:
-    MegaVpnCredentialsIps mMapSlotIDToClusterIDAndIPs;
-    MegaVpnCredentialsClusterPublicKeys mMapClusterPubKeys;
+    MapSlotIDToClusterIDAndIPs mMapSlotIDToClusterIDAndIPs;
+    MapClusterPublicKeys mMapClusterPubKeys;
     std::unique_ptr<MegaStringList> mVpnRegions;
 };
 

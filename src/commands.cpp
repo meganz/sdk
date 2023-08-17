@@ -10450,9 +10450,9 @@ bool CommandGetVpnCredentials::procresult(Command::Result r, JSON& json)
                         parsedOk = false;
                         break;
                     }
-                    auto pairIps = std::make_pair(ipv4, ipv6);
-                    auto pairClusterIdAndIps = std::make_pair(clusterID, pairIps);
-                    mapSlotIDToClusterIDAndIPs.emplace(std::make_pair(std::stoi(slotID), pairClusterIdAndIps));
+                    auto pairIPs = std::make_pair(ipv4, ipv6);
+                    auto pairClusterIDAndIPs = std::make_pair(clusterID, pairIPs);
+                    mapSlotIDToClusterIDAndIPs.emplace(std::make_pair(std::stoi(slotID), pairClusterIDAndIPs));
                     json.leavearray();
                 }
             }

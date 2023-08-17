@@ -25543,8 +25543,8 @@ void MegaApiImpl::getVpnCredentials(MegaRequestListener* listener)
     {
         client->getVpnCredentials([this, request]
             (const Error& e,
-            std::map<int, std::pair<int, std::pair<std::string, std::string>>>&& mapSlotIDToClusterIDAndIPs, /* Map of SlotID: { ClusterID, IPv4 and IPv6 } */
-            std::map<int, std::string>&& mapClusterPubKeys, /* Map of ClusterID: Cluster Public Key */
+            CommandGetVpnCredentials::MapSlotIDToClusterIDAndIPs&& mapSlotIDToClusterIDAndIPs, /* Map of SlotID: { ClusterID, IPv4 and IPv6 } */
+            CommandGetVpnCredentials::MapClusterPublicKeys&& mapClusterPubKeys, /* Map of ClusterID: Cluster Public Key */
             std::vector<std::string>&& vpnRegions /* VPN Regions */)
             {
                 if (e == API_OK && !mapSlotIDToClusterIDAndIPs.empty() && !mapClusterPubKeys.empty() && !vpnRegions.empty())
@@ -36655,7 +36655,9 @@ bool MegaCancelTokenPrivate::isCancelled() const
 }
 
 /* MegaVpnCredentialsPrivate BEGIN */
-MegaVpnCredentialsPrivate::MegaVpnCredentialsPrivate(MegaVpnCredentialsIps&& mapSlotIDToClusterIDAndIPs, MegaVpnCredentialsClusterPublicKeys&& mapClusterPubKeys, MegaStringList* vpnRegions) :
+MegaVpnCredentialsPrivate::MegaVpnCredentialsPrivate(MapSlotIDToClusterIDAndIPs&& mapSlotIDToClusterIDAndIPs,
+                                                    MapClusterPublicKeys&& mapClusterPubKeys,
+                                                    MegaStringList* vpnRegions) :
     mMapSlotIDToClusterIDAndIPs(std::move(mapSlotIDToClusterIDAndIPs)),
     mMapClusterPubKeys(std::move(mapClusterPubKeys))
 {

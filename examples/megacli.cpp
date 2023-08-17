@@ -11180,8 +11180,8 @@ void exec_getvpncredentials(autocomplete::ACState& s)
     
     client->getVpnCredentials([slotID, showVpnRegions]
             (const Error& e,
-            std::map<int, std::pair<int, std::pair<std::string, std::string>>>&& mapSlotIDToClusterIDAndIPs, /* Map of SlotID: { ClusterID, IPv4 and IPv6 } */
-            std::map<int, std::string>&& mapClusterPubKeys, /* Map of ClusterID: Cluster Public Key */
+            CommandGetVpnCredentials::MapSlotIDToClusterIDAndIPs&& mapSlotIDToClusterIDAndIPs, /* Map of SlotID: { ClusterID, IPv4 and IPv6 } */
+            CommandGetVpnCredentials::MapClusterPublicKeys mapClusterPubKeys, /* Map of ClusterID: Cluster Public Key */
             std::vector<std::string>&& vpnRegions /* VPN Regions */)
             {
                 if (e == API_OK)
