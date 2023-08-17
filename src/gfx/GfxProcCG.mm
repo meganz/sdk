@@ -95,13 +95,13 @@ bool GfxProviderCG::readbitmap(FileSystemAccess* fa, const LocalPath& name, int 
                 CFDictionaryRef imageProperties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, imageOptions);
                 if (imageProperties) {
                     CFNumberRef width = (CFNumberRef)CFDictionaryGetValue(imageProperties, kCGImagePropertyPixelWidth);
-                    CFNumberRef heigth = (CFNumberRef)CFDictionaryGetValue(imageProperties, kCGImagePropertyPixelHeight);
-                    if (width && heigth) {
+                    CFNumberRef height = (CFNumberRef)CFDictionaryGetValue(imageProperties, kCGImagePropertyPixelHeight);
+                    if (width && height) {
                         CGFloat value;
                         if (CFNumberGetValue(width, kCFNumberCGFloatType, &value)) {
                             w = value;
                         }
-                        if (CFNumberGetValue(heigth, kCFNumberCGFloatType, &value)) {
+                        if (CFNumberGetValue(height, kCFNumberCGFloatType, &value)) {
                             h = value;
                         }
                     }
