@@ -10392,7 +10392,7 @@ bool CommandFetchAds::procresult(Command::Result r, JSON& json)
                     json.storeobject(&id);
                     break;
 
-                case MAKENAMEID2('i', 'u'):
+                case MAKENAMEID3('s', 'r', 'c'):
                     json.storeobject(&iu);
                     break;
 

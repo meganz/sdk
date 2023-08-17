@@ -18751,12 +18751,6 @@ void MegaApiImpl::sendPendingRequests()
             e = API_EINTERNAL;
             break;
         }
-        case MegaRequest::TYPE_FETCH_ADS:    // fall-through
-        case MegaRequest::TYPE_QUERY_ADS:
-        {
-            e = API_EEXPIRED;
-            break;
-        }
 #ifdef ENABLE_SYNC
         case MegaRequest::TYPE_REMOVE_SYNCS:
         {
@@ -24942,14 +24936,14 @@ void MegaApiImpl::fetchAds(int adFlags, MegaStringList *adUnits, MegaHandle publ
     request->performRequest = [this, request]()
     {
         int flags = int(request->getNumber());
-        if (flags < MegaApi::ADS_DEFAULT || flags > MegaApi::ADS_FLAG_IGNORE_ROLLOUT)
+        MegaStringListPrivate* ads = static_cast<MegaStringListPrivate*>(request->getMegaStringList());
+        if (flags < MegaApi::ADS_DEFAULT || flags > MegaApi::ADS_FLAG_IGNORE_ROLLOUT ||
+            !ads || !ads->size())
         {
             return API_EARGS;
         }
 
-        MegaStringListPrivate* ads = static_cast<MegaStringListPrivate*>(request->getMegaStringList());
-        const string_vector& vectorString = ads ? ads->getVector() : string_vector(); // prevent a crash, although this cannot be null nor empty
-        client->reqs.add(new CommandFetchAds(client, flags, vectorString, request->getNodeHandle(), [request, this](Error e, string_map value)
+        client->reqs.add(new CommandFetchAds(client, flags, ads->getVector(), request->getNodeHandle(), [request, this](Error e, string_map value)
         {
            if (e == API_OK)
            {

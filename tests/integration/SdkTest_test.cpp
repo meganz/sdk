@@ -8448,10 +8448,17 @@ TEST_F(SdkTest, FetchAds)
     LOG_info << "___TEST FetchAds";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     std::unique_ptr<MegaStringList> stringList = std::unique_ptr<MegaStringList>(MegaStringList::createInstance());
+    ASSERT_EQ(MegaError::API_EARGS, synchronousFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get())) << "Fetch Ads succeeded with invalid arguments";
     stringList->add("dummyAdUnit");
     ASSERT_EQ(MegaError::API_OK, synchronousFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get())) << "Fetch Ads failed";
     ASSERT_TRUE(mApi[0].mStringMap) << "Fetch Ads didn't copy ads to `request`";
     ASSERT_EQ(mApi[0].mStringMap->size(), 0) << "Fetch Ads found some dummy ads";
+    const char valiAdSlot[] = "ANDFB";
+    stringList->add(valiAdSlot);
+    ASSERT_EQ(MegaError::API_OK, synchronousFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get())) << "Fetch Ads failed";
+    ASSERT_TRUE(mApi[0].mStringMap) << "Fetch Ads didn't copy ads to `request`";
+    ASSERT_EQ(mApi[0].mStringMap->size(), 1) << "Fetch Ads findings are incorrect";
+    ASSERT_NE(mApi[0].mStringMap->get(valiAdSlot), nullptr) << "Fetch Ads didn't find " << valiAdSlot;
 }
 
 #ifdef ENABLE_SYNC
