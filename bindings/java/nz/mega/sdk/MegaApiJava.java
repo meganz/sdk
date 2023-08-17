@@ -11606,14 +11606,14 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief Fetch ads
-     *
+     * Fetch ads
+     * <p>
      * The associated request type with this request is MegaRequest::TYPE_FETCH_ADS
      * Valid data in the MegaRequest object received on callbacks:
      *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
      *  - MegaRequest::getMegaStringList List of the adslot ids to fetch
      *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
-     *
+     * <p>
      * Valid data in the MegaRequest object received in onRequestFinish when the error code
      * is MegaError::API_OK:
      * - MegaRequest::getMegaStringMap: map with relationship between ids and ius
@@ -11633,17 +11633,17 @@ public class MegaApiJava {
      */
     public void fetchAds(int adFlags, MegaStringList adUnits, long publicHandle,
                          MegaRequestListenerInterface listener) {
-        megaApi.fetchAds(adFlags, adUnits, publicHandle, createDelegateRequestListener(listener))
+        megaApi.fetchAds(adFlags, adUnits, publicHandle, createDelegateRequestListener(listener));
     };
 
     /**
-     * @brief Check if ads should show or not
-     *
+     * Check if ads should show or not
+     * <p>
      * The associated request type with this request is MegaRequest::TYPE_QUERY_ADS
      * Valid data in the MegaRequest object received on callbacks:
      *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
      *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
-     *
+     * <p>
      * Valid data in the MegaRequest object received in onRequestFinish when the error code
      * is MegaError::API_OK:
      * - MegaRequest::getNumDetails Return if ads should be show or not
@@ -11660,9 +11660,9 @@ public class MegaApiJava {
      * @param publicHandle MegaHandle, provide the public handle that the user is visiting
      * @param listener MegaRequestListener to track this request
      */
-    void queryAds(int adFlags, long publicHandle, MegaRequestListenerInterface listener) {
-        megaApi.queryAds(adFlags, publicHandle, createDelegateRequestListener(listener))
-    };
+    public void queryAds(int adFlags, long publicHandle, MegaRequestListenerInterface listener) {
+        megaApi.queryAds(adFlags, publicHandle, createDelegateRequestListener(listener));
+    }
 
     /**
      * Set a bitmap to indicate whether some cookies are enabled or not
