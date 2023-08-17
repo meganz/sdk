@@ -7354,14 +7354,14 @@ void exec_chatcp(autocomplete::ACState& s)
             char uhB64[12];
             Base64::btoa((byte *)&u->userhandle, MegaClient::USERHANDLE, uhB64);
             uhB64[11] = '\0';
-            userkeymap->insert(std::pair<string, string>(uhB64, unifiedkey));
+            userkeymap->insert(StringPair(uhB64, unifiedkey));
             numUsers++;
         }
     }
     char ownHandleB64[12];
     Base64::btoa((byte *)&client->me, MegaClient::USERHANDLE, ownHandleB64);
     ownHandleB64[11] = '\0';
-    userkeymap->insert(std::pair<string, string>(ownHandleB64, mownkey));
+    userkeymap->insert(StringPair(ownHandleB64, mownkey));
     client->createChat(true, true, userpriv, userkeymap, title, meeting);
     delete userpriv;
     delete userkeymap;

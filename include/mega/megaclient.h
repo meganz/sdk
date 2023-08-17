@@ -2571,7 +2571,7 @@ private:
 // -------- end of Sets and Elements
 
     // Generates a key pair (x25519 (Cu) key pair) to use for Vpn Credentials (MegaClient::putVpnCredential)
-    std::pair<string, string> generateVpnKeyPair();
+    StringPair generateVpnKeyPair();
 
 public:
 
@@ -2612,7 +2612,7 @@ public:
                                   std::string&& /* VPN Region */,
                                   std::string&& /* IPv4 */,
                                   std::string&& /* IPv6 */,
-                                  std::pair<std::string, std::string>&& /* Peer Key Pair <User Private, Cluster Public> */);
+                                  StringPair&& /* Peer Key Pair <User Private, Cluster Public> */);
 
 /* Mega VPN methods END */
 

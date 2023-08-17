@@ -9651,7 +9651,7 @@ bool CommandFetchSet::procresult(Result r, JSON& json)
     return true;
 }
 
-CommandPutSetElements::CommandPutSetElements(MegaClient* cl, vector<SetElement>&& els, vector<pair<string, string>>&& encrDetails,
+CommandPutSetElements::CommandPutSetElements(MegaClient* cl, vector<SetElement>&& els, vector<StringPair>&& encrDetails,
                                                std::function<void(Error, const vector<const SetElement*>*, const vector<int64_t>*)> completion)
     : mElements(new vector<SetElement>(std::move(els))), mCompletion(completion)
 {
@@ -10420,7 +10420,7 @@ bool CommandGetVpnCredentials::procresult(Command::Result r, JSON& json)
     }
 
     Error e(API_EINTERNAL);
-    std::map<int, std::pair<int, std::pair<std::string, std::string>>> mapSlotIDToClusterIDAndIPs;
+    std::map<int, std::pair<int, StringPair>> mapSlotIDToClusterIDAndIPs;
     std::map<int, std::string> mapClusterPubKeys;
     {
         // Parse ClusterID and IPs
@@ -10532,7 +10532,7 @@ bool CommandGetVpnCredentials::procresult(Command::Result r, JSON& json)
 
 CommandPutVpnCredential::CommandPutVpnCredential(MegaClient* client,
                                                 std::string&& region,
-                                                std::pair<std::string, std::string>&& peerKeyPair,
+                                                StringPair&& peerKeyPair,
                                                 Cb&& completion)
 {
     cmd("vpnp");

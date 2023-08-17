@@ -20153,7 +20153,7 @@ void MegaClient::putSetElements(vector<SetElement>&& els, std::function<void(Err
     }
 
     // build encrypted details
-    vector<pair<string, string>> encrDetails(els.size()); // vector < {encrypted attrs, encrypted key} >
+    vector<StringPair> encrDetails(els.size()); // vector < {encrypted attrs, encrypted key} >
     for (size_t i = 0u; i < els.size(); ++i)
     {
         SetElement& el = els[i];
@@ -21716,7 +21716,7 @@ Error MegaClient::sendABTestActive(const char* flag, CommandABTestActive::Comple
 }
 
 /* Mega VPN methods BEGIN */
-std::pair<std::string, std::string> MegaClient::generateVpnKeyPair()
+StringPair MegaClient::generateVpnKeyPair()
 {
     auto vpnKey = ::mega::make_unique<ECDH>();
     if (!vpnKey->initializationOK)
@@ -21759,7 +21759,7 @@ string MegaClient::getVpnCredentialString(int clusterID,
                                           std::string&& vpnRegion,
                                           std::string&& ipv4,
                                           std::string&& ipv6,
-                                          std::pair<std::string, std::string>&& peerKeyPair)
+                                          StringPair&& peerKeyPair)
 {
     string peerPrivateKey = Base64::btoa(peerKeyPair.first);
     string peerPublicKey = peerKeyPair.second;

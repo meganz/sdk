@@ -1229,4 +1229,6 @@ static constexpr int sfu_invalid_id = -1;
     MEGA_DEFAULT_COPY(class_name) \
     MEGA_DEFAULT_MOVE(class_name)
 
+typedef std::pair<std::string, std::string> StringPair;
+
 #endif

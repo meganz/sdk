@@ -1611,7 +1611,7 @@ private:
 class MEGA_API CommandPutSetElements : public CommandSE
 {
 public:
-    CommandPutSetElements(MegaClient*, vector<SetElement>&& el, vector<pair<string, string>>&& encrDetails,
+    CommandPutSetElements(MegaClient*, vector<SetElement>&& el, vector<StringPair>&& encrDetails,
                          std::function<void(Error, const vector<const SetElement*>*, const vector<int64_t>*)> completion);
     bool procresult(Result, JSON&) override;
 
@@ -1783,7 +1783,7 @@ public:
                                 std::string&&   /* New Credential */)>;
     CommandPutVpnCredential(MegaClient*,
                             std::string&& /* VPN Region */,
-                            std::pair<std::string, std::string>&& /* User Key Pair <Private, Public> */,
+                            StringPair&& /* User Key Pair <Private, Public> */,
                             Cb&& completion = nullptr);
     bool procresult(Result, JSON&) override;
 
