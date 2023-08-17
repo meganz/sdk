@@ -4271,7 +4271,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_contactVerificationWarning, sequence(text("verificationwarnings"), opt(either(flag("-on"), flag("-off")))));
 
     /* MEGA VPN commands */
-    p->Add(exec_getvpnregions, sequence(text("getvpnregions")));
+    p->Add(exec_getvpnregions, text("getvpnregions"));
     p->Add(exec_getvpncredentials, sequence(text("getvpncredentials"), opt(sequence(flag("-s"), param("slotID"))), opt(flag("-noregions"))));
     p->Add(exec_putvpncredential, sequence(text("putvpncredential"), param("region"), opt(sequence(flag("-file"), param("credentialfilewithoutextension"))), opt(flag("-noconsole"))));
     p->Add(exec_delvpncredential, sequence(text("delvpncredential"), param("slotID")));

@@ -10379,6 +10379,18 @@ CommandGetVpnRegions::CommandGetVpnRegions(MegaClient* client, Cb&& completion)
     mCompletion = std::move(completion);
 }
 
+void CommandGetVpnRegions::parseregions(JSON& json, std::vector<std::string>* vpnRegions)
+{
+    std::string vpnRegion;
+    while (json.storeobject(&vpnRegion))
+    {
+        if (vpnRegions)
+        {
+            vpnRegions->emplace_back(std::move(vpnRegion));
+        }
+    }
+}
+
 bool CommandGetVpnRegions::procresult(Command::Result r, JSON& json)
 {
     if (!r.hasJsonArray())
@@ -10389,15 +10401,7 @@ bool CommandGetVpnRegions::procresult(Command::Result r, JSON& json)
 
     // Parse regions
     std::vector<std::string> vpnRegions;
-    std::string vpnRegion;
-    while (json.storeobject(&vpnRegion))
-    {
-        if (vpnRegion.empty())
-        {
-            break;
-        }
-        vpnRegions.emplace_back(std::move(vpnRegion));
-    }
+    parseregions(json, &vpnRegions);
 
     mCompletion(API_OK, std::move(vpnRegions));
     return true;
@@ -10420,8 +10424,8 @@ bool CommandGetVpnCredentials::procresult(Command::Result r, JSON& json)
     }
 
     Error e(API_EINTERNAL);
-    std::map<int, std::pair<int, StringPair>> mapSlotIDToClusterIDAndIPs;
-    std::map<int, std::string> mapClusterPubKeys;
+    MapSlotIDToClusterIDAndIPs mapSlotIDToClusterIDAndIPs;
+    MapClusterPublicKeys mapClusterPubKeys;
     {
         // Parse ClusterID and IPs
         if (json.enterobject())
@@ -10440,12 +10444,12 @@ bool CommandGetVpnCredentials::procresult(Command::Result r, JSON& json)
                 {
                     int clusterID = static_cast<int>(json.getint());
                     std::string ipv4, ipv6;
-                    if (!json.storeobject(&ipv4) || ipv4.empty())
+                    if (!json.storeobject(&ipv4))
                     {
                         parsedOk = false;
                         break;
                     }
-                    if (!json.storeobject(&ipv6) || ipv6.empty())
+                    if (!json.storeobject(&ipv6))
                     {
                         parsedOk = false;
                         break;
@@ -10485,7 +10489,7 @@ bool CommandGetVpnCredentials::procresult(Command::Result r, JSON& json)
                 }
 
                 std::string clusterPubKey;
-                if (!json.storeobject(&clusterPubKey) || clusterPubKey.empty())
+                if (!json.storeobject(&clusterPubKey))
                 {
                     parsedOk = false;
                     break;
@@ -10512,15 +10516,8 @@ bool CommandGetVpnCredentials::procresult(Command::Result r, JSON& json)
     std::vector<std::string> vpnRegions;
     if (json.enterarray())
     {
-        std::string vpnRegion;
-        while (json.storeobject(&vpnRegion))
-        {
-            if (vpnRegion.empty())
-            {
-                break;
-            }
-            vpnRegions.emplace_back(std::move(vpnRegion));
-        }
+        // Parse regions
+        CommandGetVpnRegions::parseregions(json, &vpnRegions);
         json.leavearray();
     }
 
@@ -10568,7 +10565,7 @@ bool CommandPutVpnCredential::procresult(Command::Result r, JSON& json)
 
     // Parse IPv4
     std::string ipv4;
-    if (!json.storeobject(&ipv4) || ipv4.empty())
+    if (!json.storeobject(&ipv4))
     {
         if (mCompletion) { mCompletion(API_EINTERNAL, -1, {}); }
         return false;
@@ -10576,7 +10573,7 @@ bool CommandPutVpnCredential::procresult(Command::Result r, JSON& json)
 
     // Parse IPv6
     std::string ipv6;
-    if (!json.storeobject(&ipv6) || ipv6.empty())
+    if (!json.storeobject(&ipv6))
     {
         if (mCompletion) { mCompletion(API_EINTERNAL, -1, {}); }
         return false;
@@ -10584,7 +10581,7 @@ bool CommandPutVpnCredential::procresult(Command::Result r, JSON& json)
 
     // Parse Cluster Public Key
     std::string clusterPubKey;
-    if (!json.storeobject(&clusterPubKey) || clusterPubKey.empty())
+    if (!json.storeobject(&clusterPubKey))
     {
         if (mCompletion) { mCompletion(API_EINTERNAL, -1, {}); }
         return false;
@@ -10593,14 +10590,7 @@ bool CommandPutVpnCredential::procresult(Command::Result r, JSON& json)
     // Skip VPN regions
     if (json.enterarray())
     {
-        string skippedRegion;
-        while (json.storeobject(&skippedRegion))
-        {
-            if (skippedRegion.empty())
-            {
-                break;
-            }
-        }
+        CommandGetVpnRegions::parseregions(json, nullptr);
         json.leavearray();
     }
 

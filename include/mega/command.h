@@ -1756,6 +1756,7 @@ public:
                                 std::vector<std::string>&& /* VPN regions */)>;
     CommandGetVpnRegions(MegaClient*, Cb&& completion = nullptr);
     bool procresult(Result, JSON&) override;
+    static void parseregions(JSON& json, std::vector<std::string>*);
 
 private:
     Cb mCompletion;
