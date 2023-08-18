@@ -435,6 +435,48 @@ void SdkTest::Cleanup()
                 }
             }
 
+
+            // Delete Sets and their public links
+            unique_ptr<MegaSetList> sets(megaApi[nApi]->getSets());
+            for (unsigned i = 0u; i < sets->size(); ++i)
+            {
+                const MegaSet* s = sets->get(i);
+                if (s->isExported())
+                {
+                    EXPECT_EQ(doDisableExportSet(nApi, s->id()), API_OK);
+                }
+                EXPECT_EQ(doRemoveSet(nApi, s->id()), API_OK);
+            }
+
+
+#ifdef ENABLE_CHAT
+            // Delete chat links
+            unique_ptr<MegaTextChatList> chats(megaApi[nApi]->getChatList());
+            for (int i = 0u; i < chats->size(); ++i)
+            {
+                const MegaTextChat* c = chats->get(i);
+                RequestTracker rt(megaApi[nApi].get());
+                megaApi[nApi]->chatLinkQuery(c->getHandle(), &rt);
+                auto e = rt.waitForResult();
+                EXPECT_TRUE(e == API_OK || e == API_ENOENT || e == API_EACCESS) << "e == " << e;
+                if (e == API_OK)
+                {
+                    RequestTracker rtD(megaApi[nApi].get());
+                    megaApi[nApi]->chatLinkDelete(c->getHandle(), &rtD);
+                    EXPECT_EQ(rtD.waitForResult(), API_OK);
+                }
+            }
+#endif
+
+
+            // Delete node links
+            unique_ptr<MegaNodeList> nodeLinks(megaApi[nApi]->getPublicLinks());
+            for (int i = 0; i < nodeLinks->size(); ++i)
+            {
+                EXPECT_EQ(doDisableExport(nApi, nodeLinks->get(i)), API_OK) << "Failed to disable node public link";
+            }
+
+
             // Remove nodes in Cloud & Rubbish
             purgeTree(nApi, std::unique_ptr<MegaNode>{megaApi[nApi]->getRootNode()}.get(), false);
             purgeTree(nApi, std::unique_ptr<MegaNode>{megaApi[nApi]->getRubbishNode()}.get(), false);
