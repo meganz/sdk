@@ -256,6 +256,14 @@ public class MegaApiJava {
     public final static int BACKUP_TYPE_MEDIA_UPLOADS = MegaApi.BACKUP_TYPE_MEDIA_UPLOADS;
     public final static int BACKUP_TYPE_BACKUP_UPLOAD = MegaApi.BACKUP_TYPE_BACKUP_UPLOAD;
 
+    public final static int ADS_DEFAULT = MegaApi.ADS_DEFAULT;
+    public final static int ADS_FORCE_ADS = MegaApi.ADS_FORCE_ADS;
+    public final static int ADS_IGNORE_MEGA = MegaApi.ADS_IGNORE_MEGA;
+    public final static int ADS_IGNORE_COUNTRY = MegaApi.ADS_IGNORE_COUNTRY;
+    public final static int ADS_IGNORE_IP = MegaApi.ADS_IGNORE_IP;
+    public final static int ADS_IGNORE_PRO = MegaApi.ADS_IGNORE_PRO;
+    public final static int ADS_FLAG_IGNORE_ROLLOUT = MegaApi.ADS_FLAG_IGNORE_ROLLOUT;
+
 
     MegaApi getMegaApi() {
         return megaApi;
