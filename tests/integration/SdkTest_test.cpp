@@ -729,10 +729,6 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
     case MegaRequest::TYPE_BACKUP_PUT:
         mApi[apiIndex].setBackupId(request->getParentHandle());
         break;
-        
-    case MegaRequest::TYPE_FETCH_ADS:
-        mApi[apiIndex].mStringMap.reset(mApi[apiIndex].lastError == API_OK ? request->getMegaStringMap()->copy() : nullptr);
-            break;
 
     case MegaRequest::TYPE_GET_ATTR_NODE:
         if (mApi[apiIndex].lastError == API_OK)
@@ -8454,15 +8450,17 @@ TEST_F(SdkTest, FetchAds)
     stringList->add("dummyAdUnit");
     tr = asyncFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get(), INVALID_HANDLE);
     ASSERT_EQ(API_OK, tr->waitForResult()) << "Fetch Ads failed";
-    ASSERT_TRUE(mApi[0].mStringMap) << "Fetch Ads didn't copy ads to `request`";
-    ASSERT_EQ(mApi[0].mStringMap->size(), 0) << "Fetch Ads found some dummy ads";
+    const MegaStringMap* ads = tr->request->getMegaStringMap();
+    ASSERT_TRUE(ads) << "Fetch Ads didn't copy ads to `request`";
+    ASSERT_EQ(ads->size(), 0) << "Fetch Ads found some dummy ads";
     const char valiAdSlot[] = "ANDFB";
     stringList->add(valiAdSlot);
     tr = asyncFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get(), INVALID_HANDLE);
     ASSERT_EQ(API_OK, tr->waitForResult()) << "Fetch Ads failed";
-    ASSERT_TRUE(mApi[0].mStringMap) << "Fetch Ads didn't copy ads to `request`";
-    ASSERT_EQ(mApi[0].mStringMap->size(), 1) << "Fetch Ads findings are incorrect";
-    ASSERT_NE(mApi[0].mStringMap->get(valiAdSlot), nullptr) << "Fetch Ads didn't find " << valiAdSlot;
+    ads = tr->request->getMegaStringMap();
+    ASSERT_TRUE(ads) << "Fetch Ads didn't copy ads to `request`";
+    ASSERT_EQ(ads->size(), 1) << "Fetch Ads findings are incorrect";
+    ASSERT_NE(ads->get(valiAdSlot), nullptr) << "Fetch Ads didn't find " << valiAdSlot;
 }
 
 #ifdef ENABLE_SYNC
