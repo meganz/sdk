@@ -20858,7 +20858,7 @@ bool MegaClient::decryptNodeMetadata(SetElement::NodeMetadata& nodeMeta, const s
     buf.reset(Node::decryptattr(cipher, nodeMeta.at.c_str(), nodeMeta.at.size()));
     if (!buf)
     {
-        LOG_err << "Decrypting node attributes failed. Node Handle = " << nodeMeta.h;
+        LOG_err << "Decrypting node attributes failed. Node Handle = " << toNodeHandle(nodeMeta.h);
         return false;
     }
 
@@ -20873,14 +20873,14 @@ bool MegaClient::decryptNodeMetadata(SetElement::NodeMetadata& nodeMeta, const s
         case 'c':
             if (!attrJson.storeobject(&nodeMeta.fingerprint))
             {
-                LOG_err << "Reading node fingerprint failed. Node Handle = " << nodeMeta.h;
+                LOG_err << "Reading node fingerprint failed. Node Handle = " << toNodeHandle(nodeMeta.h);
             }
             break;
 
         case 'n':
             if (!attrJson.storeobject(&nodeMeta.filename))
             {
-                LOG_err << "Reading node filename failed. Node Handle = " << nodeMeta.h;
+                LOG_err << "Reading node filename failed. Node Handle = " << toNodeHandle(nodeMeta.h);
             }
             break;
 
@@ -20891,7 +20891,7 @@ bool MegaClient::decryptNodeMetadata(SetElement::NodeMetadata& nodeMeta, const s
         default:
             if (!attrJson.storeobject())
             {
-                LOG_err << "Skipping unexpected node attribute failed. Node Handle = " << nodeMeta.h;
+                LOG_err << "Skipping unexpected node attribute failed. Node Handle = " << toNodeHandle(nodeMeta.h);
             }
         }
     }
