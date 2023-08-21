@@ -566,14 +566,6 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
         return;
     }
 
-    if (transferbuf.isNewRaid() && cloudRaid)
-    {
-        // Resume connections after httpio::doio
-       cloudRaid->resumeTransferSlotFunctionality();
-       static int contiVal2 = 0;
-       contiVal2 = (contiVal2 + 1) % 1000000;
-    }
-
     dstime backoff = 0;
     m_off_t p = 0;
     bool earliestUploadCompleted = false;
@@ -1233,6 +1225,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                 }
                 if (transferbuf.isNewRaid())
                 {
+                    cloudRaid->resumeTransferSlotFunctionality();
                     if (reqs[i]->status == REQ_PREPARED || reqs[i]->status == REQ_INFLIGHT)
                     {
                         m_off_t reqProgress = processRaidReq(i);
@@ -1241,6 +1234,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                             cloudRaid->removeRaidReq(i);
                         }
                     }
+                    cloudRaid->pauseTransferSlotFunctionality();
                 }
             }
         }
@@ -1332,14 +1326,6 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
     {
         retrybt.backoff(backoff);
         retrying = true;  // we don't bother checking the `retrybt` before calling `doio` unless `retrying` is set.
-    }
-
-    if (transferbuf.isNewRaid() && cloudRaid)
-    {
-        // Resume connections after httpio::doio
-        cloudRaid->pauseTransferSlotFunctionality();
-        static int contiVal = 0;
-        contiVal = (contiVal + 1) % 1000000;
     }
 }
 
