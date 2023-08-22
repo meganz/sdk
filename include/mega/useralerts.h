@@ -24,6 +24,8 @@
 
 #include "json.h"
 #include "utils.h"
+
+#include <algorithm>
 #include <bitset>
 
 namespace mega {
@@ -530,13 +532,24 @@ private:
             return v;
         }
 
-	bool areNodesVersions() const { return mAreNodesVersions; }
-	void areNodesVersions(const bool theyAre) { mAreNodesVersions = mAreNodesVersions || theyAre; }
+        bool areNodesVersions() const { return mAreNodesVersions; }
+        void areNodesVersions(const bool theyAre) { mAreNodesVersions = mAreNodesVersions || theyAre; }
+
+        ff& operator+=(const ff &rhs)
+        {
+            areNodesVersions(rhs.areNodesVersions());
+            std::for_each(std::begin(rhs.alertTypePerFileNode), std::end(rhs.alertTypePerFileNode),
+                          [this](const std::pair<handle, nameid>& p) { this->alertTypePerFileNode[p.first] = p.second; });
+            std::for_each(std::begin(rhs.alertTypePerFolderNode), std::end(rhs.alertTypePerFolderNode),
+                          [this](const std::pair<handle, nameid>& p) { this->alertTypePerFolderNode[p.first] = p.second; });
+
+            return *this;
+        }
 
     private:
 	bool mAreNodesVersions = false;
     };
-    using notedShNodesMap = map<pair<handle, handle>, ff>;
+    using notedShNodesMap = map<pair<handle, handle>, ff>; // <<userhandle, parenthandle>,ff>
     notedShNodesMap notedSharedNodes;
     notedShNodesMap deletedSharedNodesStash;
     bool notingSharedNodes;

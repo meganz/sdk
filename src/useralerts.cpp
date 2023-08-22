@@ -21,6 +21,8 @@
 
 #include "mega.h"
 #include "mega/megaclient.h"
+#include "mega/useralerts.h"
+
 #include <utility>
 
 using std::to_string;
@@ -2437,7 +2439,7 @@ void UserAlerts::setNewNodeAlertToUpdateNodeAlert(Node* nodeToUpdate)
     // Remove NewSharedNode alert from noted node alerts
     if (setNotedSharedNodeToUpdate(nodeToUpdate))
     {
-        LOG_debug << debug_msg << " new-alert found in noted nodes";
+        LOG_verbose << debug_msg << " new-alert found in noted nodes";
     }
 }
 
@@ -2449,7 +2451,7 @@ void UserAlerts::purgeVersionNodesFromStash()
     std::vector<notedShNodesMap::const_iterator> vers;
     for(auto stashIt = std::begin(stash); stashIt != std::end(stash); ++stashIt)
     {
-	if (stashIt->second.areNodesVersions()) vers.push_back(stashIt);
+        if (stashIt->second.areNodesVersions()) vers.push_back(stashIt);
     }
 
     std::for_each(std::begin(vers), std::end(vers), [&stash](notedShNodesMap::const_iterator it) { stash.erase(it); });
@@ -2457,6 +2459,8 @@ void UserAlerts::purgeVersionNodesFromStash()
 
 void UserAlerts::convertStashedDeletedSharedNodes()
 {
+    if (deletedSharedNodesStash.empty()) return;
+
     notedSharedNodes = deletedSharedNodesStash;
     deletedSharedNodesStash.clear();
 
@@ -2475,24 +2479,14 @@ void UserAlerts::stashDeletedNotedSharedNodes(handle originatingUser)
 {
     if (isConvertReadyToAdd(originatingUser))
     {
-        for(auto it = notedSharedNodes.begin(); it!=notedSharedNodes.end(); it++)
+        std::for_each(std::begin(notedSharedNodes), std::end(notedSharedNodes), [this](const std::pair<std::pair<handle, handle>, ff> p)
         {
-            ff& f = deletedSharedNodesStash[it->first];
-	    f.areNodesVersions(it->second.areNodesVersions());
-            for(auto filesIt = it->second.alertTypePerFileNode.begin(); filesIt!=it->second.alertTypePerFileNode.end(); filesIt++)
-            {
-                f.alertTypePerFileNode[filesIt->first] = filesIt->second;
-            }
-
-            for(auto foldersIt = it->second.alertTypePerFolderNode.begin(); foldersIt!=it->second.alertTypePerFolderNode.end(); foldersIt++)
-            {
-                f.alertTypePerFileNode[foldersIt->first] = foldersIt->second;
-            }
-        }
+            deletedSharedNodesStash[p.first] += p.second;
+        });
     }
 
     clearNotedSharedMembers();
-    LOG_debug << "Removal-alert noted-nodes alert notifications stashed";
+    LOG_verbose << "Removal-alert noted-nodes alert notifications stashed";
 }
 
 // process server-client notifications
