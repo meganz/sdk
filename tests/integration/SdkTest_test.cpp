@@ -14265,9 +14265,9 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
     int result;
     // Get VPN regions to choose one of them
     {
-        result = doGetVpnRegions(0);
+        std::unique_ptr<MegaStringList> vpnRegions;
+        result = doGetVpnRegions(0, vpnRegions);
         ASSERT_EQ(API_OK, result) << "getting the VPN regions failed (error: " << result << ")";
-        const MegaStringList* vpnRegions = mApi[0].getStringList();
         ASSERT_TRUE(vpnRegions) << "list of VPN regions is NULL";
         ASSERT_TRUE(vpnRegions->size()) << "list of VPN regions is empty";
 
@@ -14280,31 +14280,31 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
         bool isProAccount = (mApi[0].accountDetails->getProLevel() != MegaAccountDetails::ACCOUNT_TYPE_FREE);
 
         // Put VPN credential on the chosen region
-        result = doPutVpnCredential(0, vpnRegion);
         int slotID = -1;
+        std::string newCredential;
+        result = doPutVpnCredential(0, slotID, newCredential, vpnRegion);
         if (isProAccount)
         {
             ASSERT_EQ(API_OK, result) << "adding a new VPN credential failed (error: " << result << ")";
-            slotID = static_cast<int>(mApi[0].getNumber());
             ASSERT_TRUE(slotID > 0) << "slotID should be greater than 0";
-            std::string newCredential = mApi[0].getAttributeValue();
             ASSERT_FALSE(newCredential.empty()) << "VPN Credential string is EMPTY";
         }
         else
         {
             ASSERT_EQ(API_EACCESS, result) << "adding a new VPN credential on a free account didn't return the expected error value (error: " << result << ")";
+            ASSERT_TRUE(slotID < 0) << "slotID should be smaller than 0 on a free account";
+            ASSERT_TRUE(newCredential.empty()) << "VPN Credential string is NOT EMPTY on a free account";
         }
 
         // Get VPN credentials and search for the credential associated with the returned SlotID
         {
-            result = doGetVpnCredentials(0);
+            std::unique_ptr<MegaVpnCredentials> megaVpnCredentials;
+            result = doGetVpnCredentials(0, megaVpnCredentials);
 
             if (isProAccount)
             {
                 ASSERT_EQ(API_OK, result) << "getting the VPN credentials failed (error: " << result << ")";
-
-                const MegaVpnCredentials* megaVpnCredentials = mApi[0].getVpnCredentials();
-                ASSERT_TRUE(megaVpnCredentials) << "MegaVpnCredentials is NULL";
+                ASSERT_TRUE(megaVpnCredentials != nullptr) << "MegaVpnCredentials is NULL";
 
                 // Get SlotIDs - it should not be empty
                 // We don't check whether there should be only ONE slotID, as we could have more slots on this account
@@ -14334,6 +14334,7 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
             else
             {
                 ASSERT_EQ(API_ENOENT, result) << "getting the VPN credentials for a free account didn't return the expected error value (error: " << result << ")";
+                ASSERT_TRUE(megaVpnCredentials == nullptr) << "MegaVpnCredentials is NOT NULL for a free account";
             }
         }
 

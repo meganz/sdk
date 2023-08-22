@@ -10639,15 +10639,11 @@ CommandDelVpnCredential::CommandDelVpnCredential(MegaClient* client, int slotID,
 
 bool CommandDelVpnCredential::procresult(Command::Result r, JSON& json)
 {
-    if (r.wasErrorOrOK())
+    if (mCompletion)
     {
-        if (mCompletion)
-        {
-            mCompletion(r.errorOrOK());
-        }
-        return true;
+        mCompletion(r.errorOrOK());
     }
-    return false;
+    return r.wasErrorOrOK();
 }
 /* MegaVPN Commands END*/
 

@@ -292,21 +292,13 @@ public:
         unsigned getFavNodeCount() const { return mMegaFavNodeList ? mMegaFavNodeList->size() : 0u; }
         MegaHandle getFavNode(unsigned i) const { return mMegaFavNodeList->size() > i ? mMegaFavNodeList->get(i) : INVALID_HANDLE; }
 
-        void setStringList(const MegaStringList* s) { mStringList.reset(s); }
         void setStringLists(const MegaStringListMap* s) { stringListMap.reset(s); }
         unsigned getStringListCount() const { return stringListMap ? stringListMap->size() : 0u; }
         const MegaStringList* getStringList(const char* key) const { return stringListMap ? stringListMap->get(key) : nullptr; }
-        const MegaStringList* getStringList() const { return mStringList.get(); }
 
         void setStringTable(const MegaStringTable* s) { stringTable.reset(s); }
         int getStringTableSize() const { return stringTable ? stringTable->size() : 0; }
         const MegaStringList* getStringTableRow(int i) { return stringTable ? stringTable->get(i) : nullptr; }
-
-        void setVpnCredentials(const MegaVpnCredentials* vpnCredentials) { mVpnCredentials.reset(vpnCredentials); }
-        const MegaVpnCredentials* getVpnCredentials() const { return mVpnCredentials.get(); }
-
-        void setNumber(m_off_t reqNumber) { mNumber = reqNumber; }
-        m_off_t getNumber() { return mNumber; }
 
     private:
         mutex& getResourceMutex() const
@@ -328,8 +320,6 @@ public:
         shared_ptr<const MegaStringListMap> stringListMap;
         shared_ptr<const MegaHandleList> mMegaFavNodeList;
         shared_ptr<const MegaStringTable> stringTable;
-        shared_ptr<const MegaStringList> mStringList;
-        shared_ptr<const MegaVpnCredentials> mVpnCredentials;
     };
 
     std::vector<PerApi> mApi;
@@ -621,20 +611,33 @@ public:
 #endif
 
     /* MegaVpnCredentials */
-    template<typename ... requestArgs> int doGetVpnRegions(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->getVpnRegions(args..., &rt); auto e = rt.waitForResult(); if (e == API_OK) mApi[apiIndex].setStringList(rt.request->getMegaStringList()->copy()); return e; }
-    template<typename ... requestArgs> int doGetVpnCredentials(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->getVpnCredentials(args..., &rt); auto e = rt.waitForResult(); if (e == API_OK)  mApi[apiIndex].setVpnCredentials(rt.request->getMegaVpnCredentials()->copy()); return rt.result; }
-    template<typename ... requestArgs> int doPutVpnCredential(unsigned apiIndex, requestArgs... args)
+    template<typename ... requestArgs> int doGetVpnRegions(unsigned apiIndex, unique_ptr<MegaStringList>& vpnRegions, requestArgs... args)
+    {
+        RequestTracker rt(megaApi[apiIndex].get());
+        megaApi[apiIndex]->getVpnRegions(args..., &rt);
+        auto e = rt.waitForResult();
+        auto vpnRegionsFromRequest = rt.request->getMegaStringList() ? rt.request->getMegaStringList()->copy() : nullptr;
+        vpnRegions.reset(vpnRegionsFromRequest);
+        return e;
+    }
+    template<typename ... requestArgs> int doGetVpnCredentials(unsigned apiIndex, unique_ptr<MegaVpnCredentials>& vpnCredentials, requestArgs... args)
+    {
+        RequestTracker rt(megaApi[apiIndex].get());
+        megaApi[apiIndex]->getVpnCredentials(args..., &rt);
+        auto e = rt.waitForResult();
+        auto vpnCredentialsFromRequest = rt.request->getMegaVpnCredentials() ? rt.request->getMegaVpnCredentials()->copy() : nullptr;
+        vpnCredentials.reset(vpnCredentialsFromRequest);
+        return e;
+    }
+    template<typename ... requestArgs> int doPutVpnCredential(unsigned apiIndex, int& slotID, string& newCredential, requestArgs... args)
     {
         RequestTracker rt(megaApi[apiIndex].get());
         megaApi[apiIndex]->putVpnCredential(args..., &rt);
         auto e = rt.waitForResult();
-        if (e == API_OK)
-        {
-            mApi[apiIndex].setNumber(rt.request->getNumber()); // SlotID
-            mApi[apiIndex].setAttributeValue(rt.request->getText() ? rt.request->getText() : ""); // Credential string for conf file
-        }
+        slotID = static_cast<int>(rt.request->getNumber());
+        newCredential = rt.request->getText() ? rt.request->getText() : ""; // Credential string for conf file
         return e;
     }
-    template<typename ... requestArgs> int doDelVpnCredential(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->delVpnCredential(args..., &rt); rt.waitForResult(); return rt.result; }
+    template<typename ... requestArgs> int doDelVpnCredential(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->delVpnCredential(args..., &rt); return rt.waitForResult(); }
     /* MegaVpnCredentials END */
 };
