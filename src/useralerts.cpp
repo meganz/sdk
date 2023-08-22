@@ -2100,6 +2100,7 @@ void UserAlerts::noteSharedNode(handle user, int type, m_time_t ts, Node* n, nam
         else if (n && type == FILENODE)
         {
             f.alertTypePerFileNode[n->nodehandle] = alertType;
+	    f.areNodesVersions(n && n->parent && n->parent->type == FILENODE);
         }
         // there shouldn't be any other types
 
@@ -2440,6 +2441,20 @@ void UserAlerts::setNewNodeAlertToUpdateNodeAlert(Node* nodeToUpdate)
     }
 }
 
+void UserAlerts::purgeVersionNodesFromStash()
+{
+    auto& stash = deletedSharedNodesStash;
+    if (stash.empty()) return;
+
+    std::vector<notedShNodesMap::const_iterator> vers;
+    for(auto stashIt = std::begin(stash); stashIt != std::end(stash); ++stashIt)
+    {
+	if (stashIt->second.areNodesVersions()) vers.push_back(stashIt);
+    }
+
+    std::for_each(std::begin(vers), std::end(vers), [&stash](notedShNodesMap::const_iterator it) { stash.erase(it); });
+}
+
 void UserAlerts::convertStashedDeletedSharedNodes()
 {
     notedSharedNodes = deletedSharedNodesStash;
@@ -2463,6 +2478,7 @@ void UserAlerts::stashDeletedNotedSharedNodes(handle originatingUser)
         for(auto it = notedSharedNodes.begin(); it!=notedSharedNodes.end(); it++)
         {
             ff& f = deletedSharedNodesStash[it->first];
+	    f.areNodesVersions(it->second.areNodesVersions());
             for(auto filesIt = it->second.alertTypePerFileNode.begin(); filesIt!=it->second.alertTypePerFileNode.end(); filesIt++)
             {
                 f.alertTypePerFileNode[filesIt->first] = filesIt->second;

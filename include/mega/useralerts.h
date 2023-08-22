@@ -529,6 +529,12 @@ private:
             std::transform(alertTypePerFolderNode.begin(), alertTypePerFolderNode.end(), std::back_inserter(v), [](const pair<handle, nameid>& p) { return p.first; });
             return v;
         }
+
+	bool areNodesVersions() const { return mAreNodesVersions; }
+	void areNodesVersions(const bool theyAre) { mAreNodesVersions = mAreNodesVersions || theyAre; }
+
+    private:
+	bool mAreNodesVersions = false;
     };
     using notedShNodesMap = map<pair<handle, handle>, ff>;
     notedShNodesMap notedSharedNodes;
@@ -603,6 +609,7 @@ public:
     bool unserializeAlert(string* d, uint32_t dbid);
 
     // stash removal-alert noted nodes
+    void purgeVersionNodesFromStash();
     void convertStashedDeletedSharedNodes();
     bool isDeletedSharedNodesStashEmpty() const;
     void stashDeletedNotedSharedNodes(handle originatingUser);

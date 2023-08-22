@@ -5216,6 +5216,7 @@ bool MegaClient::procsc()
                 case EOO:
                     if (!useralerts.isDeletedSharedNodesStashEmpty())
                     {
+			useralerts.purgeVersionNodesFromStash();
                         useralerts.convertStashedDeletedSharedNodes();
                     }
 
