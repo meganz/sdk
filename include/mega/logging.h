@@ -101,7 +101,14 @@
 
 // define MEGA_QT_LOGGING to support QString
 #ifdef MEGA_QT_LOGGING
-    #include <QString>
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+#endif
+#include <QString>
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 #endif
 
 #include "mega/utils.h"
@@ -637,25 +644,31 @@ template<std::size_t N> inline const char* log_file_leafname( const char (&fullp
 std::ostream& operator <<(std::ostream&, const std::system_error&);
 std::ostream& operator <<(std::ostream&, const std::error_code&);
 
+// Helper used in LOG_* macros below to make the right operand of ?: void to match the left one
+struct LoggerVoidify
+{
+    void operator&(SimpleLogger&) {}
+};
+
 #define LOG_verbose \
-    if (::mega::SimpleLogger::logCurrentLevel >= ::mega::logMax) \
-        ::mega::SimpleLogger(::mega::logMax, ::mega::log_file_leafname(__FILE__), __LINE__)
+    ::mega::SimpleLogger::logCurrentLevel < ::mega::logMax ? (void)0 : \
+        ::mega::LoggerVoidify() & ::mega::SimpleLogger(::mega::logMax, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_debug \
-    if (::mega::SimpleLogger::logCurrentLevel >= ::mega::logDebug) \
-        ::mega::SimpleLogger(::mega::logDebug, ::mega::log_file_leafname(__FILE__), __LINE__)
+    ::mega::SimpleLogger::logCurrentLevel < ::mega::logDebug ? (void)0 : \
+        ::mega::LoggerVoidify() & ::mega::SimpleLogger(::mega::logDebug, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_info \
-    if (::mega::SimpleLogger::logCurrentLevel >= ::mega::logInfo) \
-        ::mega::SimpleLogger(::mega::logInfo, ::mega::log_file_leafname(__FILE__), __LINE__)
+    ::mega::SimpleLogger::logCurrentLevel < ::mega::logInfo ? (void)0 : \
+        ::mega::LoggerVoidify() & ::mega::SimpleLogger(::mega::logInfo, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_warn \
-    if (::mega::SimpleLogger::logCurrentLevel >= ::mega::logWarning) \
-        ::mega::SimpleLogger(::mega::logWarning, ::mega::log_file_leafname(__FILE__), __LINE__)
+    ::mega::SimpleLogger::logCurrentLevel < ::mega::logWarning ? (void)0 : \
+        ::mega::LoggerVoidify() & ::mega::SimpleLogger(::mega::logWarning, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_err \
-    if (::mega::SimpleLogger::logCurrentLevel >= ::mega::logError) \
-        ::mega::SimpleLogger(::mega::logError, ::mega::log_file_leafname(__FILE__), __LINE__)
+    ::mega::SimpleLogger::logCurrentLevel < ::mega::logError ? (void)0 : \
+        ::mega::LoggerVoidify() & ::mega::SimpleLogger(::mega::logError, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_fatal \
     ::mega::SimpleLogger(::mega::logFatal, ::mega::log_file_leafname(__FILE__), __LINE__)
@@ -693,11 +706,20 @@ public:
 #endif
     ) override;
 
+    // Do not use this unless you know what you are doing!
+    //
+    // This is an unfortunate workaround for cases when multiple connections/clients add
+    // each its own logger to the same target (i.e. file), leading to duplicated messages
+    // being logged consecutively.
+    // This for example has happened in MegaChat's automated tests.
+    void useOnlyFirstLogger(bool onlyFirst = true) { useOnlyFirstMegaLogger = onlyFirst; }
+
 private:
     std::recursive_mutex mutex;
     map<void*, LogCallback> megaLoggers;
     bool logToConsole;
     bool alreadyLogging = false;
+    bool useOnlyFirstMegaLogger = false;
 };
 
 

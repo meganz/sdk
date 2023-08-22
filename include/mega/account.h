@@ -22,6 +22,7 @@
 #ifndef MEGA_ACCOUNT_H
 #define MEGA_ACCOUNT_H 1
 
+#include "types.h"
 
 namespace mega {
 // account details/history
@@ -40,6 +41,7 @@ struct MEGA_API AccountSession
     int current;
     handle id;
     int alive;
+    string deviceid;
 };
 
 struct MEGA_API AccountPurchase

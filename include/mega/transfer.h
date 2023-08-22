@@ -57,6 +57,8 @@ struct MEGA_API Transfer : public FileFingerprint
     // file is removed
     file_list files;
 
+    unique_ptr<FileDistributor> downloadDistributor;
+
     // failures/backoff
     unsigned failcount;
     BackoffTimerTracked bt;
@@ -157,6 +159,9 @@ struct MEGA_API Transfer : public FileFingerprint
 
     // whether the Transfer needs to remove itself from the list it's in (for quick shutdown we can skip)
     bool mOptimizedDelete = false;
+
+private:
+    FileDistributor::TargetNameExistsResolution toTargetNameExistsResolution(CollisionResolution resolution);
 };
 
 
@@ -280,7 +285,11 @@ public:
     *
     *   @see DirectReadSlot::mMaxChunkSize
     */
+#if defined(__ANDROID__) || defined(USE_IOS)
+    static constexpr unsigned MAX_DELIVERY_CHUNK = 16 * 1024 * 1024;
+#else
     static constexpr unsigned MAX_DELIVERY_CHUNK = 33 * 1024 * 1024;
+#endif
 
     /**
     *   @brief Min chunk size for a given connection to be throughput-comparable to another connection.

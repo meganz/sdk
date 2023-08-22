@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file mega/utils.h
  * @brief Mega SDK various utilities and helper classes
  *
@@ -28,7 +28,6 @@
 #include <mutex>
 
 #include "types.h"
-
 #undef SSIZE_MAX
 #include "mega/mega_utf8proc.h"
 #undef SSIZE_MAX
@@ -478,6 +477,25 @@ public:
                                const std::string& search,
                                const std::string& replacement);
 
+    // join({"a", "new", "loom"}, "; ") -> "a; new; loom"
+    static std::string join(const std::vector<std::string>& items, const std::string& with);
+    static bool startswith(const std::string& str, const std::string& start);
+    static bool startswith(const std::string& str, char chr);
+    static bool endswith(const std::string& str, char chr);
+    static const std::string _trimDefaultChars;
+    // return string with trimchrs removed from front and back of given string str
+    static string trim(const string& str, const string& trimchars = _trimDefaultChars);
+
+
+    // --- environment functions that work with Unicode UTF-8 on Windows (set/unset/get) ---
+
+    static bool hasenv(const std::string& key);
+    // sets *out_found if found
+    static std::string getenv(const std::string& key, bool* out_found);
+    // return def if value not found
+    static std::string getenv(const std::string& key, const std::string& def);
+    static void setenv(const std::string& key, const std::string& value);
+    static void unsetenv(const std::string& key);
 };
 
 // for pre-c++11 where this version is not defined yet.
@@ -671,6 +689,10 @@ class SymmCipher;
 std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, FileAccess &ifAccess, const int64_t iv);
 
 std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &isAccess, const int64_t iv);
+
+bool CompareLocalFileMetaMacWithNodeKey(FileAccess* fa, const std::string& nodeKey, int type);
+
+bool CompareLocalFileMetaMacWithNode(FileAccess* fa, Node* node);
 
 // Helper class for MegaClient.  Suitable for expansion/templatizing for other use caes.
 // Maintains a small thread pool for executing independent operations such as encrypt/decrypt a block of data
@@ -1029,8 +1051,32 @@ struct SyncTransferCounts
 };
 
 // creates a new id filling `id` with random bytes, up to `length`
-void resetId(char *id, size_t length, PrnGen& rng);
+void resetId(char* id, size_t length, PrnGen& rng);
+
+// write messsage and strerror(aerrno) to log as an error
+void reportError(const std::string& message, int aerrno = -1);
+
+#ifdef WIN32
+
+// as per (non C library standard) unix API
+inline void sleep(int sec) {
+    Sleep(sec * 1000);
+}
+
+// as per (non C library standard) unix API
+// sleep for given number of microseconds
+inline void usleep(int microsec) {
+    Sleep(microsec / 1000);
+}
+
+// print messgae: error-num: error-description
+void reportWindowsError(const std::string& message, DWORD error = 0xFFFFFFFF);
+
+#endif // WIN32
+
+// returns the direction type of a connection
+string connDirectionToStr(direction_t directionType);
 
 } // namespace mega
 
-#endif
+#endif // MEGA_UTILS_H

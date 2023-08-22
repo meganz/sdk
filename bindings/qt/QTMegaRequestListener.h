@@ -1,6 +1,14 @@
 #pragma once
 
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+#endif
 #include <QObject>
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
+
 #include "megaapi.h"
 #include <functional>
 
@@ -12,7 +20,7 @@ class QTMegaRequestListener : public QObject, public MegaRequestListener
 
 public:
     QTMegaRequestListener(MegaApi *megaApi, MegaRequestListener *listener = NULL);
-    virtual ~QTMegaRequestListener();
+    ~QTMegaRequestListener() override;
 
 	//Request callbacks
 	void onRequestStart(MegaApi* api, MegaRequest *request) override;
@@ -21,7 +29,7 @@ public:
 	void onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* e) override;
 
 protected:
-    virtual void customEvent(QEvent * event);
+    virtual void customEvent(QEvent * event) override;
 
 	MegaRequestListener *listener;
     MegaApi *megaApi;
@@ -31,27 +39,28 @@ class OnFinishOneShot : public QTMegaRequestListener
 {
 
 public:
-    OnFinishOneShot(MegaApi *megaApi, std::function<void(const MegaError&)>&& onFinishedFunc)
+    OnFinishOneShot(MegaApi *megaApi, std::function<void(const MegaRequest&, const MegaError&)>&& onFinishedFunc)
         : QTMegaRequestListener(megaApi, &consumer)
         , consumer(this, std::move(onFinishedFunc))
     {
     }
+    ~OnFinishOneShot(){};
 
     struct QTEventConsumer : MegaRequestListener
     {
-        QTEventConsumer(OnFinishOneShot* owner, std::function<void(const MegaError&)>&& fin)
+        QTEventConsumer(OnFinishOneShot* owner, std::function<void(const MegaRequest&, const MegaError&)>&& fin)
             : oneShotOwner(owner)
             , onFinishedFunction(fin) {}
 
         OnFinishOneShot* oneShotOwner;
-        std::function<void(const MegaError&)> onFinishedFunction;
+        std::function<void(const MegaRequest&, const MegaError&)> onFinishedFunction;
 
-	    void onRequestStart(MegaApi* api, MegaRequest *request) override {}
-        void onRequestUpdate(MegaApi* api, MegaRequest *request) override {}
-	    void onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* e) override {}
+        void onRequestStart(MegaApi*, MegaRequest*) override {}
+        void onRequestUpdate(MegaApi*, MegaRequest*) override {}
+        void onRequestTemporaryError(MegaApi*, MegaRequest*, MegaError*) override {}
 
-	    void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError* e) override {
-            onFinishedFunction(*e);
+        void onRequestFinish(MegaApi*, MegaRequest *request, MegaError* e) override {
+            onFinishedFunction(*request, *e);
             delete oneShotOwner;
         }
     };

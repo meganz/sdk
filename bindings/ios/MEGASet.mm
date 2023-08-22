@@ -84,8 +84,8 @@ using namespace mega;
     return self.set ? self.set->hasChanged(int(changeType)) : NO;
 }
 
-- (MEGASetChanges)changes {
-    return (MEGASetChanges) (self.set ? self.set->getChanges() : 0);
+- (MEGASetChangeType)changes {
+    return (MEGASetChangeType) (self.set ? self.set->getChanges() : 0);
 }
 
 - (BOOL)isExported {

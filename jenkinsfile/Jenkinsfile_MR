@@ -192,7 +192,7 @@ pipeline {
                 stage('Build macOS'){
                     when {
                         anyOf {
-                            expression { env.gitlabTriggerPhrase != null && ( env.gitlabTriggerPhrase == 'trigger compilation' || env.gitlabTriggerPhrase.startsWith('trigger compilation macos'))  }
+                            expression { env.gitlabTriggerPhrase != null && ( env.gitlabTriggerPhrase == 'build compilation' || env.gitlabTriggerPhrase.startsWith('build compilation macos'))  }
                             allOf{
                                 expression { env.gitlabTriggerPhrase == null }
                                 triggeredBy "GitlabWebhookCause" 
@@ -214,6 +214,10 @@ pipeline {
                             env.TRIGGERED_BUILD_URL_MACOS = triggeredBuild.getAbsoluteUrl()
                             env.TRIGGERED_PROJECT_NAME_MACOS = triggeredBuild.getProjectName()
                             env.TRIGGERED_BUILD_DISPLAY_NAME_MACOS = triggeredBuild.getFullDisplayName()
+
+                            if (triggeredBuild.result != 'SUCCESS') {
+                                currentbuild.currentResult = 'FAILURE'
+                            } 
                         }
                     }
                     
@@ -247,7 +251,7 @@ pipeline {
                 stage('Build Linux'){
                     when{
                         anyOf {
-                            expression { env.gitlabTriggerPhrase != null && ( env.gitlabTriggerPhrase == 'trigger compilation' || env.gitlabTriggerPhrase.startsWith('trigger compilation linux'))  }
+                            expression { env.gitlabTriggerPhrase != null && ( env.gitlabTriggerPhrase == 'build compilation' || env.gitlabTriggerPhrase.startsWith('build compilation linux'))  }
                             allOf{
                                 expression { env.gitlabTriggerPhrase == null }
                                 triggeredBy "GitlabWebhookCause" 
@@ -269,6 +273,10 @@ pipeline {
                             env.TRIGGERED_BUILD_URL_LINUX = triggeredBuild.getAbsoluteUrl()
                             env.TRIGGERED_PROJECT_NAME_LINUX = triggeredBuild.getProjectName()
                             env.TRIGGERED_BUILD_DISPLAY_NAME_LINUX = triggeredBuild.getFullDisplayName()
+
+                            if (triggeredBuild.result != 'SUCCESS') {
+                                currentbuild.currentResult = 'FAILURE'
+                            }  
                         }
                     }
                     post{
@@ -302,7 +310,7 @@ pipeline {
                 stage('Build Windows'){
                     when {
                         anyOf {
-                            expression { env.gitlabTriggerPhrase != null && ( env.gitlabTriggerPhrase == 'trigger compilation' || env.gitlabTriggerPhrase.startsWith('trigger compilation windows'))  }
+                            expression { env.gitlabTriggerPhrase != null && ( env.gitlabTriggerPhrase == 'build compilation' || env.gitlabTriggerPhrase.startsWith('build compilation windows'))  }
                             allOf{
                                 expression { env.gitlabTriggerPhrase == null }
                                 triggeredBy "GitlabWebhookCause" 
@@ -324,6 +332,10 @@ pipeline {
                             env.TRIGGERED_BUILD_URL_WINDOWS = triggeredBuild.getAbsoluteUrl()
                             env.TRIGGERED_PROJECT_NAME_WINDOWS = triggeredBuild.getProjectName()
                             env.TRIGGERED_BUILD_DISPLAY_NAME_WINDOWS = triggeredBuild.getFullDisplayName()
+
+                            if (triggeredBuild.result != 'SUCCESS') {
+                                currentbuild.currentResult = 'FAILURE'
+                            }  
                         }
                     }
                     post{
@@ -357,7 +369,7 @@ pipeline {
                 stage('Build MEGAchat'){
                     when {
                         anyOf {
-                            expression { env.gitlabTriggerPhrase != null && ( env.gitlabTriggerPhrase == 'trigger compilation' || env.gitlabTriggerPhrase.startsWith('trigger compilation megachat'))  }
+                            expression { env.gitlabTriggerPhrase != null && ( env.gitlabTriggerPhrase == 'build compilation' || env.gitlabTriggerPhrase.startsWith('build compilation megachat'))  }
                             allOf{
                                 expression { env.gitlabTriggerPhrase == null }
                                 triggeredBy "GitlabWebhookCause" 
@@ -380,6 +392,10 @@ pipeline {
                             env.TRIGGERED_BUILD_URL_MEGACHAT = triggeredBuild.getAbsoluteUrl()
                             env.TRIGGERED_PROJECT_NAME_MEGACHAT = triggeredBuild.getProjectName()
                             env.TRIGGERED_BUILD_DISPLAY_NAME_MEGACHAT = triggeredBuild.getFullDisplayName()
+
+                            if (triggeredBuild.result != 'SUCCESS') {
+                                currentbuild.currentResult = 'FAILURE'
+                            } 
                         }
                     }
                     post{
@@ -413,7 +429,7 @@ pipeline {
                 stage('Build Android'){
                     when {
                         anyOf {
-                            expression { env.gitlabTriggerPhrase != null && ( env.gitlabTriggerPhrase == 'trigger compilation' || env.gitlabTriggerPhrase.startsWith('trigger compilation android'))  }
+                            expression { env.gitlabTriggerPhrase != null && ( env.gitlabTriggerPhrase == 'build compilation' || env.gitlabTriggerPhrase.startsWith('build compilation android'))  }
                             allOf{
                                 expression { env.gitlabTriggerPhrase == null }
                                 triggeredBy "GitlabWebhookCause" 
@@ -436,6 +452,10 @@ pipeline {
                             env.TRIGGERED_BUILD_URL_ANDROID = triggeredBuild.getAbsoluteUrl()
                             env.TRIGGERED_PROJECT_NAME_ANDROID = triggeredBuild.getProjectName()
                             env.TRIGGERED_BUILD_DISPLAY_NAME_ANDROID = triggeredBuild.getFullDisplayName()
+                            
+                            if (triggeredBuild.result != 'SUCCESS') {
+                                currentbuild.currentResult = 'FAILURE'
+                            } 
                         }
                     }
                     post{
@@ -469,7 +489,7 @@ pipeline {
                 stage('Build iOS'){
                     when {
                         anyOf {
-                            expression { env.gitlabTriggerPhrase != null && ( env.gitlabTriggerPhrase == 'trigger compilation' || env.gitlabTriggerPhrase.startsWith('trigger compilation ios'))  }
+                            expression { env.gitlabTriggerPhrase != null && ( env.gitlabTriggerPhrase == 'build compilation' || env.gitlabTriggerPhrase.startsWith('build compilation ios'))  }
                             allOf{
                                 expression { env.gitlabTriggerPhrase == null }
                                 triggeredBy "GitlabWebhookCause" 
@@ -492,6 +512,9 @@ pipeline {
                             env.TRIGGERED_BUILD_URL_IOS = triggeredBuild.getAbsoluteUrl()
                             env.TRIGGERED_PROJECT_NAME_IOS = triggeredBuild.getProjectName()
                             env.TRIGGERED_BUILD_DISPLAY_NAME_IOS = triggeredBuild.getFullDisplayName()
+                            if (triggeredBuild.result != 'SUCCESS') {
+                                currentBuild.currentResult = 'FAILURE'
+                            } 
                         }
                     }
                     post{

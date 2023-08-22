@@ -861,7 +861,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
 
     // set specified fsfp or get from fs if none
     const auto cfsfp = mUnifiedSync.mConfig.mFilesystemFingerprint;
-    if (cfsfp)
+    if (cfsfp.id)
     {
         fsfp = cfsfp;
     }
@@ -1315,7 +1315,11 @@ void UnifiedSync::changeState(syncstate_t newstate, SyncError newSyncError, bool
 // localpath must be relative to l or start with the root prefix if l == NULL
 // localpath must be a full sync path, i.e. start with localroot->localname
 // NULL: no match, optionally returns residual path
-LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, LocalNode** parent, LocalPath* outpath, bool fromOutsideThreadAlreadyLocked)
+LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, LocalNode** parent, LocalPath* outpath, bool
+#ifndef NDEBUG
+                                 fromOutsideThreadAlreadyLocked
+#endif
+                                 )
 {
     assert(syncs.onSyncThread() || fromOutsideThreadAlreadyLocked);
     assert(!outpath || outpath->empty());
@@ -2573,8 +2577,8 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
 
     if (prevFingerprint && prevFingerprint != us.mConfig.mFilesystemFingerprint)
     {
-        LOG_err << "New sync local fingerprint mismatch. Previous: " << prevFingerprint
-            << "  Current: " << us.mConfig.mFilesystemFingerprint;
+        LOG_err << "New sync local fingerprint mismatch. Previous: " << prevFingerprint.id
+            << "  Current: " << us.mConfig.mFilesystemFingerprint.id;
 
         return fail(API_EEXIST, LOCAL_FILESYSTEM_MISMATCH, false);
     }
@@ -4386,7 +4390,7 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
                 }
             }
 
-#ifdef DEBUG
+#ifndef NDEBUG
             bool hadAnError = unifiedSync->mConfig.mError != NO_SYNC_ERROR;
 #endif
 
@@ -4403,17 +4407,17 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
 #ifdef __APPLE__
                 unifiedSync->mConfig.mFilesystemFingerprint = 0; //for certain MacOS, fsfp seems to vary when restarting. we set it to 0, so that it gets recalculated
 #endif
-                LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << unifiedSync->mConfig.mError;
+                LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint.id << " error = " << unifiedSync->mConfig.mError;
 
                 enableSyncByBackupId_inThread(unifiedSync->mConfig.mBackupId, false, false, true, false, [&unifiedSync](error e, SyncError se, handle backupId)
                     {
-                        LOG_debug << "Sync autoresumed: " << toHandle(backupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << se;
+                        LOG_debug << "Sync autoresumed: " << toHandle(backupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint.id << " error = " << se;
                     }, "");
             }
             else
             {
                 unifiedSync->mConfig.mRunState = SyncRunState::Disable;
-                LOG_debug << "Sync loaded (but not resumed): " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << unifiedSync->mConfig.mError;
+                LOG_debug << "Sync loaded (but not resumed): " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint.id << " error = " << unifiedSync->mConfig.mError;
             }
         }
     }
@@ -4565,7 +4569,7 @@ error SyncConfigStore::read(const LocalPath& drivePath, SyncConfigVector& config
 
 error SyncConfigStore::write(const LocalPath& drivePath, const SyncConfigVector& configs)
 {
-#ifdef DEBUG
+#ifndef NDEBUG
     for (const auto& config : configs)
     {
         assert(equal(config.mExternalDrivePath, drivePath));
@@ -5157,7 +5161,7 @@ bool SyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader, bool isE
             break;
 
         case TYPE_FINGERPRINT:
-            config.mFilesystemFingerprint = reader.getfp();
+            config.mFilesystemFingerprint = reader.getfsfp();
             break;
 
         case TYPE_LAST_ERROR:

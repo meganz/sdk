@@ -66,6 +66,8 @@ struct TransferTracker : public ::mega::MegaTransferListener
     }
     void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* error) override
     {
+        LOG_debug << "TransferTracker::onTransferFinish callback received.  Result: " << error->getErrorCode() << " for " << (transfer->getFileName() ? transfer->getFileName() : "<null>");
+
         // called back on a different thread
         resultNodeHandle = transfer->getNodeHandle();
         result = static_cast<ErrorCodes>(error->getErrorCode());
@@ -121,6 +123,15 @@ struct RequestTracker : public ::mega::MegaRequestListener
         : mApi(api)
         , onFinish(finish)
     {
+    }
+
+    ~RequestTracker() override
+    {
+        if (!finished)
+        {
+            assert(mApi);
+            mApi->removeRequestListener(this);
+        }
     }
 
     void onRequestStart(MegaApi* api, MegaRequest *request) override
@@ -194,7 +205,7 @@ struct OneShotListener : public ::mega::MegaRequestListener
 using onNodesUpdateCompletion_t = std::function<void(size_t apiIndex, MegaNodeList* nodes)>;
 
 // Fixture class with common code for most of tests
-class SdkTest : public ::testing::Test, public MegaListener, public MegaRequestListener, MegaTransferListener, MegaLogger {
+class SdkTest : public SdkTestBase, public MegaListener, public MegaRequestListener, MegaTransferListener, MegaLogger {
 
 public:
     struct PerApi
@@ -313,6 +324,7 @@ public:
     std::vector<PerApi> mApi;
     std::vector<std::unique_ptr<MegaApi>> megaApi;
 
+    m_off_t onTransferStart_progress;
     m_off_t onTransferUpdate_progress;
     m_off_t onTransferUpdate_filesize;
     unsigned onTranferFinishedCount = 0;
@@ -329,6 +341,8 @@ protected:
     bool checkAlert(int apiIndex, const string& title, const string& path);
     bool checkAlert(int apiIndex, const string& title, handle h, int64_t n = -1, MegaHandle mh = INVALID_HANDLE);
 
+    void testPrefs(const std::string& title, int type);
+
 #ifdef ENABLE_CHAT
     void delSchedMeetings();
 #endif
@@ -339,7 +353,7 @@ protected:
     void onRequestUpdate(MegaApi*api, MegaRequest *request) override {}
     void onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e) override;
     void onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* error) override {}
-    void onTransferStart(MegaApi *api, MegaTransfer *transfer) override { }
+    void onTransferStart(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* e) override;
     void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* error) override {}
@@ -431,9 +445,9 @@ public:
     template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestLocalLogout(MegaApi *api, requestArgs... args) { auto rt = ::mega::make_unique<RequestTracker>(api); api->localLogout(args..., rt.get()); return rt; }
     template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestFetchnodes(unsigned apiIndex, requestArgs... args) { auto rt = ::mega::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->fetchNodes(args..., rt.get()); return rt; }
     template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestFetchnodes(MegaApi *api, requestArgs... args) { auto rt = ::mega::make_unique<RequestTracker>(api); api->fetchNodes(args..., rt.get()); return rt; }
-    template<typename ... requestArgs> int doGetDeviceName(unsigned apiIndex, string* dvc) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->getDeviceName(&rt); auto e = rt.waitForResult(); if (dvc) *dvc = rt.request->getName(); return e; }
+    template<typename ... requestArgs> int doGetDeviceName(unsigned apiIndex, string* dvc, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->getDeviceName(args..., &rt); auto e = rt.waitForResult(); if (dvc && e == API_OK) *dvc = rt.request->getName(); return e; }
     template<typename ... requestArgs> int doSetDeviceName(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setDeviceName(args..., &rt); return rt.waitForResult(); }
-    template<typename ... requestArgs> int doGetDriveName(unsigned apiIndex, string* drv, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->getDriveName(args..., &rt); auto e = rt.waitForResult(); if (drv) *drv = rt.request->getName(); return e; }
+    template<typename ... requestArgs> int doGetDriveName(unsigned apiIndex, string* drv, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->getDriveName(args..., &rt); auto e = rt.waitForResult(); if (drv && e == API_OK) *drv = rt.request->getName(); return e; }
     template<typename ... requestArgs> int doSetDriveName(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setDriveName(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int doRequestLogout(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->logout(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int doRequestLocalLogout(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->localLogout(args..., &rt); return rt.waitForResult(); }
@@ -542,6 +556,9 @@ public:
         if (err == API_OK) recommendedLevel = (int)rt.request->getNumber();
         return err;
     }
+    template<typename ... requestArgs> int synchronousChangeEmail(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->changeEmail(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int synchronousConfirmChangeEmail(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->confirmChangeEmail(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int syncSendABTestActive(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->sendABTestActive(args..., &rt); return rt.waitForResult(); }
 
     // Checkup methods called from MegaApi callbacks
     void onNodesUpdateCheck(size_t apiIndex, MegaHandle target, MegaNodeList* nodes, int change, bool& flag);

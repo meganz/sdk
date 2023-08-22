@@ -355,8 +355,11 @@ std::ostream& Text::describe(std::ostream& s) const
 
 bool ExportedLink::isLink(const string& s, bool file, bool folder)
 {
-    bool filestr = (s.find("#!") != string::npos || s.find("file/") != string::npos);
-    bool folderstr = (s.find("#F!") != string::npos || s.find("folder/") != string::npos);
+    bool filestr = (s.find("https://mega.nz/#!") != string::npos || s.find("https://mega.nz/file/") != string::npos) ||
+                   (s.find("https://mega.co.nz/#!") != string::npos || s.find("https://mega.co.nz/file/") != string::npos);
+    bool folderstr = (s.find("https://mega.nz/#F!") != string::npos || s.find("https://mega.nz/folder/") != string::npos) ||
+                     (s.find("https://mega.co.nz/#F!") != string::npos || s.find("https://mega.co.nz/folder/") != string::npos);
+
     if (file && !folder)
     {
         return filestr;

@@ -109,6 +109,16 @@ using namespace std;
 
 bool PosixFileAccess::mFoundASymlink = false;
 
+void FileSystemAccess::setMinimumDirectoryPermissions(int permissions)
+{
+    mMinimumDirectoryPermissions = permissions & 07777;
+}
+
+void FileSystemAccess::setMinimumFilePermissions(int permissions)
+{
+    mMinimumFilePermissions = permissions & 07777;
+}
+
 #ifdef USE_IOS
 
 const string adjustBasePath(const LocalPath& name)
@@ -1135,11 +1145,10 @@ int PosixFileSystemAccess::getdefaultfilepermissions()
 
 void PosixFileSystemAccess::setdefaultfilepermissions(int permissions)
 {
-#ifdef DEBUG
-    defaultfilepermissions = permissions | 0400; // Min: read (otherwise it cannot be deleted without root)
-#else
-    defaultfilepermissions = permissions | 0600;
-#endif
+    // Sanitize permissions.
+    permissions &= 07777;
+
+    defaultfilepermissions = permissions | mMinimumFilePermissions;
 }
 
 int PosixFileSystemAccess::getdefaultfolderpermissions()
@@ -1149,11 +1158,10 @@ int PosixFileSystemAccess::getdefaultfolderpermissions()
 
 void PosixFileSystemAccess::setdefaultfolderpermissions(int permissions)
 {
-#ifdef DEBUG
-    defaultfolderpermissions = permissions | 0400; // Min: read (otherwise it cannot be deleted without root)
-#else
-    defaultfolderpermissions = permissions | 0700;
-#endif
+    // Sanitize permissions.
+    permissions &= 07777;
+
+    defaultfolderpermissions = permissions | mMinimumDirectoryPermissions;
 }
 
 bool PosixFileSystemAccess::rmdirlocal(const LocalPath& name)
@@ -1930,20 +1938,23 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
 }
 
 #ifdef ENABLE_SYNC
+
 fsfp_t PosixFileSystemAccess::fsFingerprint(const LocalPath& path) const
 {
     struct statfs statfsbuf;
+    fsfp_t result;
 
     // FIXME: statfs() does not really do what we want.
     if (statfs(path.localpath.c_str(), &statfsbuf))
     {
         int e = errno;
         LOG_err << "statfs() failed, errno " << e << " while processing path " << path;
-        return 0;
+        return result;
     }
-    fsfp_t tmp;
-    memcpy(&tmp, &statfsbuf.f_fsid, sizeof(fsfp_t));
-    return tmp+1;
+    handle tmp;
+    memcpy(&tmp, &statfsbuf.f_fsid, sizeof(handle));
+    result.id = tmp+1;
+    return result;
 }
 
 bool PosixFileSystemAccess::fsStableIDs(const LocalPath& path) const
@@ -1960,7 +1971,8 @@ bool PosixFileSystemAccess::fsStableIDs(const LocalPath& path) const
 
     return type != FS_EXFAT
            && type != FS_FAT32
-           && type != FS_FUSE;
+           && type != FS_FUSE
+           && type != FS_LIFS;
 }
 
 bool PosixFileSystemAccess::initFilesystemNotificationSystem()
@@ -2100,7 +2112,8 @@ bool PosixFileSystemAccess::getlocalfstype(const LocalPath& path, FileSystemType
         {"ntfs",        FS_NTFS}, // Apple NTFS
         {"smbfs",       FS_SMB},
         {"tuxera_ntfs", FS_NTFS}, // Tuxera NTFS for Mac
-        {"ufsd_NTFS",   FS_NTFS}  // Paragon NTFS for Mac
+        {"ufsd_NTFS",   FS_NTFS},  // Paragon NTFS for Mac
+        {"lifs",        FS_LIFS},  // on macos (in Ventura at least), external USB with exFAT are reported as "lifs"
     }; /* filesystemTypes */
 
     struct statfs statbuf;
@@ -2253,10 +2266,6 @@ PosixDirAccess::~PosixDirAccess()
     }
 }
 
-bool isReservedName(const string&, nodetype_t)
-{
-    return false;
-}
 
 // A more robust implementation would check whether the device has storage
 // quotas enabled and if so, return the amount of space available before

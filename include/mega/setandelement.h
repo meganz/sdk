@@ -101,7 +101,7 @@ namespace mega {
         bool hasAttrChanged(const std::string& tag, const std::unique_ptr<string_map>& otherAttrs) const;
         void rebaseCommonAttrsOn(const string_map* baseAttrs);
 
-        static bool validChangeType(const unsigned& typ, const unsigned& typMax) { assert(typ < typMax); return typ < typMax; }
+        static bool validChangeType(const uint64_t& typ, const uint64_t& typMax) { assert(typ < typMax); return typ < typMax; }
 
         std::unique_ptr<std::string> mEncryptedAttrs;             // "at": up to 65535 bytes of miscellaneous data, encrypted with mKey
 
@@ -146,7 +146,7 @@ namespace mega {
         void setSet(handle s) { mSetId = s; }
 
         // set handle of the node represented by this Element
-        void setNode(handle nh) { mNodeHandle = nh; }
+        void setNode(handle nh) { mNodeHandle = nh; mNodeMetadata.reset(); }
 
         // set order of this Element
         void setOrder(int64_t order);
@@ -179,7 +179,7 @@ namespace mega {
         unsigned long changes() const { return mChanges.to_ulong(); }
 
         // return true if internal parameter pointed out by changeType has changed (useful for app notifications)
-        bool hasChanged(int changeType) const { return validChangeType(changeType, CH_EL_SIZE) ? mChanges[changeType] : false; }
+        bool hasChanged(uint64_t changeType) const { return validChangeType(changeType, CH_EL_SIZE) ? mChanges[changeType] : false; }
 
         bool serialize(std::string*) const override;
         static std::unique_ptr<SetElement> unserialize(std::string* d);
@@ -194,9 +194,31 @@ namespace mega {
             CH_EL_SIZE
         };
 
+        struct NodeMetadata
+        {
+            handle h = UNDEF; // node handle
+            handle u = UNDEF; // owning user
+            m_off_t s = 0; // size
+            string at; // node attributes
+            string fingerprint;
+            string filename;
+            string fa; // file attributes
+            m_time_t ts; // timestamp
+        };
+
+        // return node metadata in case of Element in preview, null otherwise
+        const NodeMetadata* nodeMetadata() const { return mNodeMetadata.get(); }
+
+        void setNodeMetadata(NodeMetadata&& nm)
+        {
+            assert(mNodeHandle == nm.h);
+            mNodeMetadata.reset(new NodeMetadata(std::move(nm)));
+        }
+
     private:
         handle mSetId = UNDEF;
         handle mNodeHandle = UNDEF;
+        std::unique_ptr<NodeMetadata> mNodeMetadata;
         std::unique_ptr<int64_t> mOrder;
         bool mAttrsClearedByLastUpdate = false;
 
@@ -206,6 +228,7 @@ namespace mega {
         {
             this->mSetId = src.mSetId;
             this->mNodeHandle = src.mNodeHandle;
+            this->mNodeMetadata.reset(src.mNodeMetadata ? new NodeMetadata(*src.mNodeMetadata) : nullptr);
             this->mOrder.reset(src.mOrder ? new int64_t(*src.mOrder) : nullptr);
             this->mAttrsClearedByLastUpdate = src.mAttrsClearedByLastUpdate;
             this->mChanges = src.mChanges;
@@ -262,7 +285,7 @@ namespace mega {
         unsigned long changes() const { return mChanges.to_ulong(); }
 
         // return true if internal parameter pointed out by changeType has changed (useful for app notifications)
-        bool hasChanged(int changeType) const { return validChangeType(changeType, CH_SIZE) ? mChanges[changeType] : false; }
+        bool hasChanged(uint64_t changeType) const { return validChangeType(changeType, CH_SIZE) ? mChanges[changeType] : false; }
 
         bool isExported() const { return mPublicId != UNDEF; }
 

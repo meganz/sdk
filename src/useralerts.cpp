@@ -1049,16 +1049,22 @@ UserAlert::UpdatedSharedNode* UserAlert::UpdatedSharedNode::unserialize(string* 
 string UserAlert::Payment::getProPlanName()
 {
     switch (planNumber) {
-    case 1:
-        return "PRO I"; // 5819
-    case 2:
-        return "PRO II"; // 6125
-    case 3:
-        return "PRO III"; // 6126
-    case 4:
-        return "PRO LITE"; // 8413
+    case ACCOUNT_TYPE_PROI:
+        return "Pro I"; // 5819
+    case ACCOUNT_TYPE_PROII:
+        return "Pro II"; // 6125
+    case ACCOUNT_TYPE_PROIII:
+        return "Pro III"; // 6126
+    case ACCOUNT_TYPE_LITE:
+        return "Pro Lite"; // 8413
+    case ACCOUNT_TYPE_BUSINESS:
+        return "Business";  // 19530
+    case ACCOUNT_TYPE_PRO_FLEXI:
+        return "Pro Flexi";
+    case ACCOUNT_TYPE_FREE:
+        [[fallthrough]];
     default:
-        return "FREE"; // 435
+        return "Free"; // 435
     }
 }
 
@@ -1082,7 +1088,7 @@ void UserAlert::Payment::text(string& header, string& title, MegaClient* mc)
     ostringstream s;
     if (success)
     {
-        s << "Your payment for the " << getProPlanName() << " plan was received. "; // 7142
+        s << "Your payment for the " << getProPlanName() << " plan was received."; // 7142
     }
     else
     {
@@ -1549,8 +1555,9 @@ void UserAlert::UpdatedScheduledMeeting::text(string& header, string& title, Meg
         << "\n\tMeeting start date time (overrides): " << mStartDateTime
         << "\n\tUpdated by: " << pst.userEmail;
 
-    for (int changeType = 0; changeType < Changeset::CHANGE_TYPE_SIZE; ++changeType)
+    for (size_t changeBitPos = 0; changeBitPos < Changeset::CHANGE_TYPE_SIZE; ++changeBitPos)
     {
+        uint64_t changeType = 1ull << changeBitPos;
         if (!mUpdatedChangeset.hasChanged(changeType)) continue;
 
         oss << "\n\t\t" << mUpdatedChangeset.changeToString(changeType) << " updated";
@@ -1650,18 +1657,16 @@ UserAlert::UpdatedScheduledMeeting* UserAlert::UpdatedScheduledMeeting::unserial
     handle sm = UNDEF;
     handle parentSchedId = UNDEF;
     m_time_t overrides = mega_invalid_timestamp;
-    uint64_t bits = 0;
+    uint64_t changes = 0;
     unsigned char expF[8];
     if (r.unserializehandle(chatid)
         && r.unserializehandle(sm)
         && r.unserializehandle(parentSchedId)
         && r.unserializei64(overrides)
-        && r.unserializeu64(bits))
+        && r.unserializeu64(changes))
     {
-        std::bitset<Changeset::CHANGE_TYPE_SIZE> bs (static_cast<unsigned long>(bits));
-
         unique_ptr<Changeset::StrChangeset> tcs;
-        if (bs[Changeset::CHANGE_TYPE_TITLE])
+        if (changes & Changeset::CHANGE_TYPE_TITLE)
         {
             string oldTitle, newTitle;
             if (r.unserializestring(oldTitle) && r.unserializestring(newTitle))
@@ -1671,7 +1676,7 @@ UserAlert::UpdatedScheduledMeeting* UserAlert::UpdatedScheduledMeeting::unserial
         }
 
         unique_ptr<Changeset::StrChangeset> tzcs;
-        if (bs[Changeset::CHANGE_TYPE_TIMEZONE])
+        if (changes & Changeset::CHANGE_TYPE_TIMEZONE)
         {
             string oldTz, newTz;
             if (r.unserializestring(oldTz) && r.unserializestring(newTz))
@@ -1681,7 +1686,7 @@ UserAlert::UpdatedScheduledMeeting* UserAlert::UpdatedScheduledMeeting::unserial
         }
 
         unique_ptr<Changeset::TsChangeset> sdcs;
-        if (bs[Changeset::CHANGE_TYPE_STARTDATE])
+        if (changes & Changeset::CHANGE_TYPE_STARTDATE)
         {
             m_time_t oldsd, newsd;
             if (r.unserializei64(oldsd) && r.unserializei64(newsd))
@@ -1691,7 +1696,7 @@ UserAlert::UpdatedScheduledMeeting* UserAlert::UpdatedScheduledMeeting::unserial
         }
 
         unique_ptr<Changeset::TsChangeset> edcs;
-        if (bs[Changeset::CHANGE_TYPE_ENDDATE])
+        if (changes & Changeset::CHANGE_TYPE_ENDDATE)
         {
             m_time_t olded, newed;
             if (r.unserializei64(olded) && r.unserializei64(newed))
@@ -1702,7 +1707,7 @@ UserAlert::UpdatedScheduledMeeting* UserAlert::UpdatedScheduledMeeting::unserial
 
         if (r.unserializeexpansionflags(expF, 0))
         {
-            auto* usm = new UpdatedScheduledMeeting(b->userHandle, b->timestamp, id, chatid, sm, parentSchedId, overrides, {bs, tcs, tzcs, sdcs, edcs});
+            auto* usm = new UpdatedScheduledMeeting(b->userHandle, b->timestamp, id, chatid, sm, parentSchedId, overrides, {changes, tcs, tzcs, sdcs, edcs});
             usm->setRelevant(b->relevant);
             usm->setSeen(b->seen);
             return usm;
@@ -1730,7 +1735,7 @@ UserAlert::UpdatedScheduledMeeting::Changeset::Changeset(const std::bitset<CHANG
     }
 }
 
-string UserAlert::UpdatedScheduledMeeting::Changeset::changeToString(int changeType) const
+string UserAlert::UpdatedScheduledMeeting::Changeset::changeToString(uint64_t changeType) const
 {
     switch (changeType)
     {
@@ -1745,30 +1750,32 @@ string UserAlert::UpdatedScheduledMeeting::Changeset::changeToString(int changeT
     }
 }
 
-void UserAlert::UpdatedScheduledMeeting::Changeset::addChange(int changeType,
+void UserAlert::UpdatedScheduledMeeting::Changeset::addChange(uint64_t changeType,
                              UpdatedScheduledMeeting::Changeset::StrChangeset* sSet,
                              UpdatedScheduledMeeting::Changeset::TsChangeset* tSet)
 {
-    if (isValidChange(changeType))
+    mUpdatedFields |= changeType;
+    switch (changeType)
     {
-        mUpdatedFields[static_cast<size_t>(changeType)] = true; // update bitmask
-        switch (changeType)
-        {
-            case CHANGE_TYPE_TITLE:
-                if (sSet) { mUpdatedTitle.reset(new StrChangeset{sSet->oldValue, sSet->newValue}); }
-                break;
-            case CHANGE_TYPE_TIMEZONE:
-                if (sSet) { mUpdatedTimeZone.reset(new StrChangeset{sSet->oldValue, sSet->newValue}); }
-                break;
-            case CHANGE_TYPE_STARTDATE:
-                if (tSet) { mUpdatedStartDateTime.reset(new TsChangeset{tSet->oldValue, tSet->newValue}); }
-                break;
-            case CHANGE_TYPE_ENDDATE:
-                if (tSet) { mUpdatedEndDateTime.reset(new TsChangeset{tSet->oldValue, tSet->newValue}); }
-                break;
-            default:
-                break;
-        }
+        case CHANGE_TYPE_TITLE:
+            if (sSet) { mUpdatedTitle.reset(new StrChangeset{sSet->oldValue, sSet->newValue}); }
+            break;
+        case CHANGE_TYPE_TIMEZONE:
+            if (sSet) { mUpdatedTimeZone.reset(new StrChangeset{sSet->oldValue, sSet->newValue}); }
+            break;
+        case CHANGE_TYPE_STARTDATE:
+            if (tSet) { mUpdatedStartDateTime.reset(new TsChangeset{tSet->oldValue, tSet->newValue}); }
+            break;
+        case CHANGE_TYPE_ENDDATE:
+            if (tSet) { mUpdatedEndDateTime.reset(new TsChangeset{tSet->oldValue, tSet->newValue}); }
+            break;
+        case CHANGE_TYPE_DESCRIPTION:
+        case CHANGE_TYPE_CANCELLED:
+        case CHANGE_TYPE_RULES:
+            break;
+        default:
+            mUpdatedFields &= ~changeType;
+            break;
     }
     if (!invariant())
     {
@@ -1917,7 +1924,7 @@ UserAlert::Base* UserAlerts::findAlertToCombineWith(const UserAlert::Base* a, na
 {
     if (a->type == t)
     {
-        auto ait = std::find_if(alerts.rbegin(), alerts.rend(), [t](UserAlert::Base* b) { return !b->removed(); });
+        auto ait = std::find_if(alerts.rbegin(), alerts.rend(), [](UserAlert::Base* b) { return !b->removed(); });
         return ait != alerts.rend() && (*ait)->type == t ? *ait : nullptr;
     }
 

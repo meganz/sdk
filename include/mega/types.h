@@ -52,10 +52,17 @@ typedef char __static_check_01__[sizeof(bool) == sizeof(char) ? 1 : -1];
 // signed 64-bit generic offset
 typedef int64_t m_off_t;
 
-// opaque filesystem fingerprint
-typedef uint64_t fsfp_t;
-
 namespace mega {
+
+// opaque filesystem fingerprint (eg on windows, volume serial number).  Let's make it a proper type so the compiler helps us not mix it up with other IDs
+struct fsfp_t
+{
+    uint64_t id = 0;
+    fsfp_t() {}
+    fsfp_t(uint64_t i) : id(i) {}
+    operator bool() { return id != 0; }
+};
+
 // within ::mega namespace, byte is unsigned char (avoids ambiguity when std::byte from c++17 and perhaps other defined ::byte are available)
 #if defined(USE_CRYPTOPP) && (CRYPTOPP_VERSION >= 600) && ((__cplusplus >= 201103L) || (__RPCNDR_H_VERSION__ == 500))
 using byte = CryptoPP::byte;
@@ -152,6 +159,7 @@ class AuthRing;
 // Utils.h has functions m_time() and so on corresponding to time() which help us to use this type and avoid arithmetic overflow when working with time_t on systems where it's 32-bit
 typedef int64_t m_time_t;
 constexpr m_time_t mega_invalid_timestamp = 0;
+inline bool isValidTimeStamp(m_time_t t) { return t != mega_invalid_timestamp; }
 
 // monotonously increasing time in deciseconds
 typedef uint32_t dstime;
@@ -362,7 +370,12 @@ typedef enum { MIME_TYPE_UNKNOWN    = 0,
                MIME_TYPE_PHOTO      = 1,    // photoExtensions, photoRawExtensions, photoImageDefExtension
                MIME_TYPE_AUDIO      = 2,    // audioExtensions longAudioExtension
                MIME_TYPE_VIDEO      = 3,    // videoExtensions
-               MIME_TYPE_DOCUMENT   = 4     // documentExtensions
+               MIME_TYPE_DOCUMENT   = 4,    // documentExtensions
+               MIME_TYPE_PDF        = 5,    // pdfExtensions
+               MIME_TYPE_PRESENTATION = 6,  // presentationExtensions
+               MIME_TYPE_ARCHIVE    = 7,    // archiveExtensions
+               MIME_TYPE_PROGRAM    = 8,    // programExtensions
+               MIME_TYPE_MISC       = 9,    // miscExtensions
              } MimeType_t;
 
 typedef enum { LBL_UNKNOWN = 0, LBL_RED = 1, LBL_ORANGE = 2, LBL_YELLOW = 3, LBL_GREEN = 4,
@@ -511,6 +524,9 @@ enum SyncError {
     UNABLE_TO_OPEN_DATABASE = 41,           // Unable to open state cache database.
     INSUFFICIENT_DISK_SPACE = 42,           // Insufficient space for download.
     FAILURE_ACCESSING_PERSISTENT_STORAGE = 43, // Failure accessing to persistent storage
+    MISMATCH_OF_ROOT_FSID = 44,             // The sync root's FSID changed.  So this is a different folder.  And, we can't identify the old sync db as the name depends on this
+    FILESYSTEM_FILE_IDS_ARE_UNSTABLE = 45,  // On MAC in particular, the FSID of a file in an exFAT drive can and does change spontaneously and frequently
+    FILESYSTEM_ID_UNAVAILABLE = 46,         // If we can't get a filesystem's id
 };
 
 enum SyncWarning {
@@ -636,7 +652,7 @@ typedef map<int, GenericHttpReq*> pendinghttp_map;
 typedef map<NodeHandle, unique_ptr<Node>> node_map;
 
 // maps node handles to Share pointers
-typedef map<handle, struct Share*> share_map;
+typedef map<handle, unique_ptr<struct Share>> share_map;
 
 // maps node handles NewShare pointers
 typedef list<struct NewShare*> newshare_list;
@@ -744,6 +760,7 @@ typedef enum {
     ATTR_NO_CALLKIT = 36,                   // private, non-encrypted - char array in B64 - non-versioned
     ATTR_KEYS = 37,                         // private, non-encrypted (but encrypted to derived key from MK) - binary blob, non-versioned
     ATTR_APPS_PREFS = 38,                   // private - byte array - versioned (apps preferences)
+    ATTR_CC_PREFS   = 39,                   // private - byte array - versioned (content consumption preferences)
 
 } attr_t;
 typedef map<attr_t, string> userattr_map;

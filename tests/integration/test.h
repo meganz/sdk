@@ -1,4 +1,7 @@
-#pragma once
+
+#ifndef TEST_H
+#define TEST_H 1
+
 #include <sstream>
 #include <string>
 #include <thread>
@@ -80,12 +83,13 @@ private:
 }; // LogStream
 
 extern std::string USER_AGENT;
-extern bool gRunningInCI;
 extern bool gResumeSessions;
 extern bool gScanOnly;
+extern int gMaxAccounts;
 extern bool gManualVerification;
 
-extern bool WaitFor(std::function<bool()>&& f, unsigned millisec);
+// the directory the checked-in test data is in
+fs::path getTestDataDir();
 
 LogStream out();
 
@@ -95,12 +99,22 @@ class TestFS
 {
 public:
     // these getters should return std::filesystem::path type, when C++17 will become mandatory
-    static fs::path GetTestBaseFolder();
+    
+    // $WORKSPACE or hard coded path
+    // ie. /home/<user>/mega_tests
+    static fs::path GetBaseFolder();
+
+    // PID specific directory
+    static fs::path GetProcessFolder();
+
+    // directory for "test" within the process folder, often created and deleted per test
     static fs::path GetTestFolder();
     static fs::path GetTrashFolder();
 
     void DeleteTestFolder() { DeleteFolder(GetTestFolder()); }
     void DeleteTrashFolder() { DeleteFolder(GetTrashFolder()); }
+    static void ChangeToProcessFolder();
+    static void ClearProcessFolder();
 
     ~TestFS();
 
@@ -728,7 +742,7 @@ struct StandardClient : public MegaApp
     void match(handle id, const Model::ModelNode* source, PromiseBoolSP result);
     bool match(NodeHandle handle, const Model::ModelNode* source);
     void match(NodeHandle handle, const Model::ModelNode* source, PromiseBoolSP result);
-    bool waitFor(std::function<bool(StandardClient&)> predicate, const std::chrono::seconds &timeout);
+    bool waitFor(std::function<bool(StandardClient&)> predicate, const std::chrono::seconds &timeout, const std::chrono::milliseconds &sleepIncrement);
     bool match(const Node& destination, const Model::ModelNode& source) const;
     bool makeremotenodes(const string& prefix, int depth, int fanout);
     bool backupOpenDrive(const fs::path& drivePath);
@@ -854,6 +868,7 @@ public:
 
     StandardClientInUse getCleanStandardClient(int loginIndex, fs::path workingFolder);
 
+    void clear();
     ~ClientManager();
 };
 
@@ -878,4 +893,26 @@ bool debugTolerantWaitOnFuture(std::future<T> f, size_t numSeconds)
 extern ClientManager* g_clientManager;
 
 #endif // ENABLE_SYNC
+
+// common base class for test suites so we 
+// always change into the process directory
+// for each test
+class SdkTestBase : public ::testing::Test
+{
+public:
+    static bool clearProcessFolderEachTest;
+    // set to check that the tests are independednt
+    // by clearing the process's folder
+    // slow as remove the database
+    
+    // run before each test
+    void SetUp() override;
+};
+
+// copy a file from sdk/tests/integration to destination
+void copyFileFromTestData(fs::path filename, fs::path destination = ".");
+
+fs::path getLinkExtractSrciptPath();
+
+#endif // TEST_H
 

@@ -616,8 +616,8 @@ bool DemoApp::sync_syncable(Sync *, const char *name, LocalPath&)
 }
 #endif
 
-AppFileGet::AppFileGet(Node* n, NodeHandle ch, byte* cfilekey, m_off_t csize, m_time_t cmtime, string* cfilename,
-                       string* cfingerprint, const string& targetfolder)
+AppFileGet::AppFileGet(Node* n, NodeHandle ch, const byte* cfilekey, m_off_t csize, m_time_t cmtime, const string* cfilename,
+                       const string* cfingerprint, const string& targetfolder)
 {
     appxfer_it = appxferq[GET].end();
 
@@ -901,7 +901,7 @@ void DemoApp::chatlinkclose_result(error e)
     }
 }
 
-void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *ct, int, m_time_t ts, bool meetingRoom, handle callid, error e)
+void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *ct, int, m_time_t ts, bool meetingRoom, const bool waitingRoom, const std::vector<std::unique_ptr<ScheduledMeeting>>* smList, handle callid, error e)
 {
     if (e)
     {
@@ -915,6 +915,10 @@ void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *
         cout << "URL for chat-link: " << url->c_str() << endl;
         cout << "Encrypted chat-topic: " << ct->c_str() << endl;
         cout << "Creation timestamp: " << ts << endl;
+        cout << "Callid: " << Base64Str<MegaClient::CHATHANDLE>(callid) << endl;
+        cout << "Meeting room: " << meetingRoom << endl;
+        cout << "Waiting room: " << waitingRoom << endl;
+        cout << "Scheduled meeting: " << smList << endl;
     }
 }
 
@@ -958,39 +962,39 @@ void DemoApp::printChatInformation(TextChat *chat)
         return;
     }
 
-    cout << "Chat ID: " << Base64Str<sizeof(handle)>(chat->id) << endl;
-    cout << "\tOwn privilege level: " << DemoApp::getPrivilegeString(chat->priv) << endl;
-    cout << "\tCreation ts: " << chat->ts << endl;
-    cout << "\tChat shard: " << chat->shard << endl;
-    cout << "\tGroup chat: " << ((chat->group) ? "yes" : "no") << endl;
+    cout << "Chat ID: " << Base64Str<sizeof(handle)>(chat->getChatId()) << endl;
+    cout << "\tOwn privilege level: " << DemoApp::getPrivilegeString(chat->getOwnPrivileges()) << endl;
+    cout << "\tCreation ts: " << chat->getTs() << endl;
+    cout << "\tChat shard: " << chat->getShard() << endl;
+    cout << "\tGroup chat: " << ((chat->getGroup()) ? "yes" : "no") << endl;
     cout << "\tArchived chat: " << ((chat->isFlagSet(TextChat::FLAG_OFFSET_ARCHIVE)) ? "yes" : "no") << endl;
-    cout << "\tPublic chat: " << ((chat->publicchat) ? "yes" : "no") << endl;
-    if (chat->publicchat)
+    cout << "\tPublic chat: " << ((chat->publicChat()) ? "yes" : "no") << endl;
+    if (chat->publicChat())
     {
-        cout << "\tUnified key: " << chat->unifiedKey.c_str() << endl;
-        cout << "\tMeeting room: " << ((chat->meeting) ? "yes" : "no") << endl;
+        cout << "\tUnified key: " << chat->getUnifiedKey() << endl;
+        cout << "\tMeeting room: " << (chat->getMeeting() ? "yes" : "no") << endl;
     }
 
     cout << "\tPeers:";
 
-    if (chat->userpriv)
+    if (chat->getOwnPrivileges())
     {
         cout << "\t\t(userhandle)\t(privilege level)" << endl;
-        for (unsigned i = 0; i < chat->userpriv->size(); i++)
+        for (unsigned i = 0; i < chat->getUserPrivileges()->size(); i++)
         {
-            Base64Str<sizeof(handle)> hstr(chat->userpriv->at(i).first);
+            Base64Str<sizeof(handle)> hstr(chat->getUserPrivileges()->at(i).first);
             cout << "\t\t\t" << hstr;
-            cout << "\t" << DemoApp::getPrivilegeString(chat->userpriv->at(i).second) << endl;
+            cout << "\t" << DemoApp::getPrivilegeString(chat->getUserPrivileges()->at(i).second) << endl;
         }
     }
     else
     {
         cout << " no peers (only you as participant)" << endl;
     }
-    cout << "\tIs own change: " << ((chat->tag) ? "yes" : "no") << endl;
-    if (!chat->title.empty())
+    cout << "\tIs own change: " << (chat->getTag() ? "yes" : "no") << endl;
+    if (!chat->getTitle().empty())
     {
-        cout << "\tTitle: " << chat->title.c_str() << endl;
+        cout << "\tTitle: " << chat->getTitle() << endl;
     }
 }
 
@@ -1538,6 +1542,11 @@ bool showattrs = false;
 // returns NULL if path malformed or not found
 static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart = NULL)
 {
+    if (!ptr)
+    {
+        return nullptr;
+    }
+
     vector<string> c;
     string s;
     int l = 0;
@@ -3746,90 +3755,7 @@ void exec_getmybackups(autocomplete::ACState&)
     cout << "\"My Backups\" folder (handle " << toHandle(h) << "): " << n->displaypath() << endl;
 }
 
-// if `moveOrDelete` is true, the `backupRootNode` will be moved to `targetDest`. If the latter were `nullptr`, then it will be deleted
-void backupremove(handle backupId, Node* backupRootNode, Node *targetDest, bool moveOrDelete)
-{
-    vector<pair<handle, int>> sdsBkps;
-    if (backupRootNode) // also allow removing orphan syncs (with no nodes)
-    {
-        // validate node's sds attribute
-        sdsBkps = backupRootNode->getSdsBackups();
-        assert(std::find_if(sdsBkps.begin(), sdsBkps.end(), [&backupId](const pair<handle, int>& n)
-            {
-                return n.first == backupId && n.second == CommandBackupPut::DELETED;
-            }) == sdsBkps.end());
-    }
-
-    // prepare to update sds node attribute
-    CommandSetAttr::Completion attrCompl = [backupRootNode, targetDest, moveOrDelete](NodeHandle nh, Error e)
-    {
-        if (e != API_OK)
-        {
-            setattr_result(nh, e);
-            return;
-        }
-
-        if (moveOrDelete)
-        {
-            // delete or move backup files
-            if (!targetDest)
-            {
-                // ...delete target...
-                auto completion = [](NodeHandle, Error e)
-                {
-                    if (e != API_OK)
-                    {
-                        cout << "Backup Centre - Failed to delete remote backup node (" << errorstring(e) << ')' << endl;
-                    }
-                };
-                e = client->unlink(backupRootNode, false, 0, true, std::move(completion));
-                if (e != API_OK)
-                {
-                    cout << "Backup Centre - Failed to delete remote backup node locally (" << errorstring(e) << ')' << endl;
-                }
-            }
-            else    // move to target destination
-            {
-                NodeHandle prevParent;
-                prevParent.set6byte(backupRootNode->parenthandle);
-                CommandMoveNode::Completion completion = [](NodeHandle, Error e)
-                {
-                    if (e != API_OK)
-                    {
-                        cout << "Backup Centre - Failed to move remote backup node (" << errorstring(e) << ')' << endl;
-                    }
-                };
-                client->reqs.add(new CommandMoveNode(client, backupRootNode, targetDest, SYNCDEL_NONE, prevParent, std::move(completion), true));
-            }
-        }
-    };
-
-    // remove backup
-    client->reqs.add(new CommandBackupRemove(client, backupId,
-        [backupId, backupRootNode, sdsBkps, attrCompl](const Error& cbrErr) mutable
-        {
-            if (cbrErr != API_OK && cbrErr != API_ENOENT)
-            {
-                cout << "Backup Centre - Failed to remove sync / backup (" << error(cbrErr) << ": " << errorstring(cbrErr) << ')' << endl;
-                return;
-            }
-
-            cout << "Backup Centre - Sync / backup removed" << endl;
-
-            if (backupRootNode)
-            {
-                sdsBkps.emplace_back(std::make_pair(backupId, CommandBackupPut::DELETED));
-                const string& sdsValue = Node::toSdsString(sdsBkps);
-
-                auto e = client->setattr(backupRootNode, attr_map(Node::sdsId(), sdsValue), std::move(attrCompl), true);
-                if (e != API_OK)
-                {
-                    cout << "Backup Centre - Failed to set sds node attributes (" << e << ": " << errorstring(e) << ')' << endl;
-                }
-            }
-        }));
-}
-
+#ifdef ENABLE_SYNC
 void exec_backupcentre(autocomplete::ACState& s)
 {
     bool delFlag = s.extractflag("-del");
@@ -3838,11 +3764,11 @@ void exec_backupcentre(autocomplete::ACState& s)
 
     if (s.words.size() == 1)
     {
-        client->reqs.add(new CommandBackupSyncFetch([purgeFlag](Error e, vector<CommandBackupSyncFetch::Data>& data)
+        client->getBackupInfo([purgeFlag](const Error& e, const vector<CommandBackupSyncFetch::Data>& data)
         {
             if (e)
             {
-                cout << "backupcentre failed: " << e << endl;
+                cout << "Backup Center - failed to get info about Backups: " << e << endl;
             }
             else
             {
@@ -3854,7 +3780,7 @@ void exec_backupcentre(autocomplete::ACState& s)
                         {
                             if (e)
                             {
-                                cout << "backup center failed to purge id: " << toHandle(d.backupId) << endl;
+                                cout << "Backup Center - failed to purge id: " << toHandle(d.backupId) << endl;
                             }
                         }));
 
@@ -3866,6 +3792,7 @@ void exec_backupcentre(autocomplete::ACState& s)
                         cout << "  root handle: " << toNodeHandle(d.rootNode) << endl;
                         cout << "  local folder: " << d.localFolder << endl;
                         cout << "  device id: " << d.deviceId << endl;
+                        cout << "  device user-agent: " << d.deviceUserAgent << endl;
                         cout << "  sync state: " << d.syncState << endl;
                         cout << "  sync substate: " << d.syncSubstate << endl;
                         cout << "  extra: " << d.extra << endl;
@@ -3889,81 +3816,67 @@ void exec_backupcentre(autocomplete::ACState& s)
                     cout << "Backup Centre - Sync / backup count: " << data.size() << endl;
                 }
              }
-        }));
+        });
     }
-    else if (s.words.size() >= 2 && (delFlag || stopFlag))
+    else if ((delFlag && s.words.size() >= 2) || // remove backup && (move or delete) its contents
+             (stopFlag && s.words.size() == 2))  // stop non-backup sync
     {
-        // get backup's remote node
+        handle backupId = 0;
         const string& backupIdStr = s.words[1].s;
+        Base64::atob(backupIdStr.c_str(), (byte*)&backupId, MegaClient::BACKUPHANDLE);
 
-        Node *targetDest = nullptr;
-        if (s.words.size() == 3 && delFlag)    // move backup to cloud
+        // get move destination for the removed backup
+        handle hDest = 0;
+        if (delFlag && s.words.size() == 3)
         {
-            handle hDest = 0;   // set most significant bytes to 0, since it's used as NodeHandle later
             Base64::atob(s.words[2].s.c_str(), (byte*)&hDest, MegaClient::NODEHANDLE);
 
-            targetDest = client->nodebyhandle(hDest);
+            // validation
+            Node* targetDest = client->nodebyhandle(hDest);
             if (!targetDest)
             {
-                cout << "Backup Centre - Move destination not found" << endl;
+                cout << "Backup Centre - Move destination " << s.words[2].s << " not found" << endl;
                 return;
             }
         }
-
-        client->reqs.add(new CommandBackupSyncFetch([backupIdStr, targetDest, delFlag, stopFlag](Error e, vector<CommandBackupSyncFetch::Data>& data)
+        else
         {
-            if (e != API_OK)
-            {
-                cout << "Backup Centre - Failed to fetch ('sf'): " << e << endl;
-                return;
-            }
+            hDest = UNDEF;
+        }
 
-            handle backupId = 0;
-            Base64::atob(backupIdStr.c_str(), (byte*)&backupId, MegaClient::BACKUPHANDLE);
+        // determine if it's a backup or other type of sync
+        SyncConfig c;
+        bool found = client->syncs.configById(backupId, c);
+        bool isBackup = found && c.isBackup();
 
-            bool found = false;
-            for (auto& d : data)
+        // request removal
+        client->removeFromBC(backupId, hDest, [backupId, isBackup, hDest](const Error& e)
+        {
+            if (e == API_OK)
             {
-                if (d.backupId == backupId)
+                cout << "Backup Centre - " << (isBackup ? "Backup " : "Sync ") << toHandle(backupId);
+                if (isBackup)
                 {
-                    if (delFlag && d.backupType != BackupType::BACKUP_UPLOAD)
-                    {
-                        cout << "Backup Centre - Provided id is not a backup: " << backupIdStr << endl;
-                        return;
-                    }
-                    if (stopFlag && d.backupType != BackupType::TWO_WAY)
-                    {
-                        cout << "Backup Centre - Provided id is not a regular sync: " << backupIdStr << endl;
-                        return;
-                    }
-                    Node* remoteNode = client->nodebyhandle(d.rootNode);
-                    if (!remoteNode)
-                    {
-                        cout << "Backup Centre - Remote node not found for id: " << backupIdStr << endl;
-
-                        if (stopFlag && d.backupType == BackupType::TWO_WAY)
-                        {
-                            cout << "Backup Centre - Attempt to forcefully remove orphan sync." << endl;
-                        }
-                        else
-                        {
-                            return;
-                        }
-                    }
-
-                    backupremove(backupId, remoteNode, targetDest, delFlag);
-                    found = true;
-                    break;
+                    cout << " removed and contents " << (hDest == UNDEF ? "deleted" : "moved") << endl;
+                }
+                else
+                {
+                    cout << " stopped" << endl;
                 }
             }
-            if (!found)
+            else
             {
-                cout << "Backup Centre - id not found: " << backupIdStr << endl;
-                return;
+                cout << "Backup Centre - Failed to " << (isBackup ? "remove Backup " : "stop sync") << toHandle(backupId);
+                if (isBackup)
+                {
+                    cout << " and " << (hDest == UNDEF ? "deleted" : "moved") << " its contents";
+                }
+                cout << " (" << errorstring(e) << ')' << endl;
             }
-        }));
+        });
     }
 }
+#endif
 
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
 void exec_simulatecondition(autocomplete::ACState& s)
@@ -4083,10 +3996,10 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_smsverify, sequence(text("smsverify"), either(sequence(text("send"), param("phonenumber"), opt(param("reverifywhitelisted"))), sequence(text("code"), param("verificationcode")))));
     p->Add(exec_verifiedphonenumber, sequence(text("verifiedphone")));
     p->Add(exec_resetverifiedphonenumber, sequence(text("resetverifiedphone")));
-    p->Add(exec_mkdir, sequence(text("mkdir"), opt(flag("-allowduplicate")), opt(flag("-exactleafname")), remoteFSFolder(client, &cwd)));
+    p->Add(exec_mkdir, sequence(text("mkdir"), opt(flag("-allowduplicate")), opt(flag("-exactleafname")), opt(flag("-writevault")), remoteFSFolder(client, &cwd)));
     p->Add(exec_rm, sequence(text("rm"), remoteFSPath(client, &cwd), opt(sequence(flag("-regexchild"), param("regex")))));
     p->Add(exec_mv, sequence(text("mv"), remoteFSPath(client, &cwd, "src"), remoteFSPath(client, &cwd, "dst")));
-    p->Add(exec_cp, sequence(text("cp"), opt(flag("-noversion")), opt(flag("-version")), opt(flag("-versionreplace")), remoteFSPath(client, &cwd, "src"), either(remoteFSPath(client, &cwd, "dst"), param("dstemail"))));
+    p->Add(exec_cp, sequence(text("cp"), opt(flag("-noversion")), opt(flag("-version")), opt(flag("-versionreplace")), opt(flag("-allowduplicateversions")), remoteFSPath(client, &cwd, "src"), either(remoteFSPath(client, &cwd, "dst"), param("dstemail"))));
     p->Add(exec_du, sequence(text("du"), opt(flag("-listfolders")), opt(remoteFSPath(client, &cwd))));
     p->Add(exec_numberofnodes, sequence(text("nn")));
     p->Add(exec_numberofchildren, sequence(text("nc"), opt(remoteFSPath(client, &cwd))));
@@ -4353,6 +4266,9 @@ autocomplete::ACN autocompleteSyntax()
                         )));
 
     p->Add(exec_reqstat, sequence(text("reqstat"), opt(either(flag("-on"), flag("-off")))));
+    p->Add(exec_getABTestValue, sequence(text("getabflag"), param("flag")));
+    p->Add(exec_sendABTestActive, sequence(text("setabflag"), param("flag")));
+    p->Add(exec_contactVerificationWarning, sequence(text("verificationwarnings"), opt(either(flag("-on"), flag("-off")))));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -4456,6 +4372,7 @@ struct Login
             }
             else
             {
+                mc->saveV1Pwd(password.c_str()); // for automatic upgrade to V2
                 mc->login(email.c_str(), keybuf, (!pin.empty()) ? pin.c_str() : NULL);
             }
         }
@@ -4567,8 +4484,6 @@ static void process_line(char* l)
         }
         else
         {
-            error e;
-
             if (signupemail.size())
             {
                 string buf = client->sendsignuplink2(signupemail.c_str(), newpassword.c_str(), signupname.c_str());
@@ -4596,7 +4511,7 @@ static void process_line(char* l)
             }
             else
             {
-                if ((e = client->changepw(newpassword.c_str())) == API_OK)
+                if (client->changepw(newpassword.c_str()) == API_OK)
                 {
                     memcpy(pwkey, newpwkey, sizeof pwkey);
                     cout << endl << "Changing password..." << endl;
@@ -4885,6 +4800,8 @@ void exec_cp(autocomplete::ACState& s)
     if (s.extractflag("-version")) vo = ClaimOldVersion;
     if (s.extractflag("-versionreplace")) vo = ReplaceOldVersion;
 
+    bool allowDuplicateVersions = s.extractflag("-allowduplicateversions");
+
     if (s.words.size() > 2)
     {
         if ((n = nodebypath(s.words[1].s.c_str())))
@@ -4965,7 +4882,7 @@ void exec_cp(autocomplete::ACState& s)
                 }
             }
 
-            if (tn && n->type == FILENODE)
+            if (tn && n->type == FILENODE && !allowDuplicateVersions)
             {
                 Node *ovn = client->childnodebyname(tn, sname.c_str(), true);
                 if (ovn)
@@ -5155,7 +5072,7 @@ void exec_get(autocomplete::ACState& s)
             cout << "Checking link..." << endl;
 
             client->reqs.add(new CommandGetFile(client, key, FILENODEKEYLENGTH, ph, false, nullptr, nullptr, nullptr, false,
-                [key, ph](const Error &e, m_off_t size, m_time_t ts, m_time_t tm, dstime /*timeleft*/,
+                [key, ph](const Error &e, m_off_t size, dstime /*timeleft*/,
                    std::string* filename, std::string* fingerprint, std::string* fileattrstring,
                    const std::vector<std::string> &/*tempurls*/, const std::vector<std::string> &/*ips*/)
                 {
@@ -5195,7 +5112,7 @@ void exec_get(autocomplete::ACState& s)
                         cout << "Initiating download..." << endl;
 
                         TransferDbCommitter committer(client->tctable);
-                        auto file = ::mega::make_unique<AppFileGet>(nullptr, NodeHandle().set6byte(ph), (byte*)key, size, tm, filename, fingerprint);
+                        auto file = ::mega::make_unique<AppFileGet>(nullptr, NodeHandle().set6byte(ph), (byte*)key, size, 0, filename, fingerprint);
                         startxfer(committer, std::move(file), *filename, client->nextreqtag());
                     }
 
@@ -6112,6 +6029,7 @@ void exec_mkdir(autocomplete::ACState& s)
 {
     bool allowDuplicate = s.extractflag("-allowduplicate");
     bool exactLeafName = s.extractflag("-exactleafname");
+    bool writevault = s.extractflag("-writevault");
 
     if (s.words.size() > 1)
     {
@@ -6140,8 +6058,8 @@ void exec_mkdir(autocomplete::ACState& s)
             if (newname.size())
             {
                 vector<NewNode> nn(1);
-                client->putnodes_prepareOneFolder(&nn[0], newname, false);
-                client->putnodes(n->nodeHandle(), NoVersioning, std::move(nn), nullptr, gNextClientTag++, false);
+                client->putnodes_prepareOneFolder(&nn[0], newname, writevault);
+                client->putnodes(n->nodeHandle(), NoVersioning, std::move(nn), nullptr, gNextClientTag++, writevault);
             }
             else if (allowDuplicate && n->parent && n->parent->nodehandle != UNDEF)
             {
@@ -6150,8 +6068,8 @@ void exec_mkdir(autocomplete::ACState& s)
                 auto pos = leafname.find_last_of("/");
                 if (pos != string::npos) leafname.erase(0, pos + 1);
                 vector<NewNode> nn(1);
-                client->putnodes_prepareOneFolder(&nn[0], leafname, false);
-                client->putnodes(n->parent->nodeHandle(), NoVersioning, std::move(nn), nullptr, gNextClientTag++, false);
+                client->putnodes_prepareOneFolder(&nn[0], leafname, writevault);
+                client->putnodes(n->parent->nodeHandle(), NoVersioning, std::move(nn), nullptr, gNextClientTag++, writevault);
             }
             else
             {
@@ -7671,8 +7589,8 @@ void exec_version(autocomplete::ACState& s)
 
 void exec_showpcr(autocomplete::ACState& s)
 {
-    string outgoing = "";
-    string incoming = "";
+    string outgoing;
+    string incoming;
     for (handlepcr_map::iterator it = client->pcrindex.begin(); it != client->pcrindex.end(); it++)
     {
         if (it->second->isoutgoing)
@@ -8863,7 +8781,7 @@ void DemoApp::folderlinkinfo_result(error e, handle owner, handle /*ph*/, string
         {
             AttrMap attrs;
             string fileName;
-            string fingerprint;
+            string fingerprint; // raw fingerprint without App's prefix (different layer)
             FileFingerprint ffp;
             m_time_t mtime = 0;
             Node::parseattr(buf, attrs, currentSize, mtime, fileName, fingerprint, ffp);
@@ -9043,7 +8961,16 @@ void DemoApp::notify_confirmation(const char *email)
 {
     if (client->loggedin() == EPHEMERALACCOUNT || client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
     {
-        LOG_debug << "Account has been confirmed with email " << email << ". Proceed to login with credentials.";
+        LOG_debug << "Account has been confirmed with email " << email << ".";
+    }
+}
+
+void DemoApp::notify_confirm_user_email(handle user, const char *email)
+{
+    if (client->loggedin() == EPHEMERALACCOUNT || client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
+    {
+        LOG_debug << "Account has been confirmed with user " << user << " and email " << email << ". Proceed to login with credentials.";
+        cout << "Account has been confirmed with user " << toHandle(user) << " and email " << email << ". Proceed to login with credentials.";
     }
 }
 
@@ -9328,8 +9255,8 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
                 {
                     printf("\t* Current Session\n");
                 }
-                printf("\tSession ID: %s\n\tSession start: %s\n\tMost recent activity: %s\n\tIP: %s\n\tCountry: %.2s\n\tUser-Agent: %s\n\t-----\n",
-                        id.chars, timebuf, timebuf2, it->ip.c_str(), it->country, it->useragent.c_str());
+                printf("\tSession ID: %s\n\tSession start: %s\n\tMost recent activity: %s\n\tIP: %s\n\tCountry: %.2s\n\tUser-Agent: %s\n\tDevice ID: %s\n\t-----\n",
+                        id.chars, timebuf, timebuf2, it->ip.c_str(), it->country, it->useragent.c_str(), it->deviceid.c_str());
             }
         }
 
@@ -10638,12 +10565,21 @@ void printElements(const elementsmap_t* elems)
     {
         const SetElement& el = p.second;
         cout << "\t\telement " << toHandle(el.id()) << endl;
-        cout << "\t\t\tset " << toHandle(el.set()) << endl;
-        cout << "\t\t\tnode: " << toNodeHandle(el.node()) << endl;
+        cout << "\t\t\tset: " << toHandle(el.set()) << endl;
         cout << "\t\t\tname: " << el.name() << endl;
         cout << "\t\t\torder: " << el.order() << endl;
         cout << "\t\t\tkey: " << (el.key().empty() ? "(no key)" : Base64::btoa(el.key())) << endl;
         cout << "\t\t\tts: " << el.ts() << endl;
+        cout << "\t\t\tnode: " << toNodeHandle(el.node()) << endl;
+        if (el.nodeMetadata())
+        {
+            cout << "\t\t\t\tfile name: " << el.nodeMetadata()->filename << endl;
+            cout << "\t\t\t\tfile size: " << el.nodeMetadata()->s << endl;
+            cout << "\t\t\t\tfile attrs: " << el.nodeMetadata()->fa << endl;
+            cout << "\t\t\t\tfingerprint: " << el.nodeMetadata()->fingerprint << endl;
+            cout << "\t\t\t\tts: " << el.nodeMetadata()->ts << endl;
+            cout << "\t\t\t\towner: " << toHandle(el.nodeMetadata()->u) << endl;
+        }
     }
     cout << endl;
 }
@@ -10874,10 +10810,26 @@ void exec_setsandelements(autocomplete::ACState& s)
 
         cout << "\tSet preview mode " << (client->inPublicSetPreview() ? "en" : "dis") << "abled\n";
         const SetElement* element = nullptr;
+        m_off_t fileSize = 0;
+        string fileName;
+        string fingerprint;
+        string fileattrstring;
+
         if (client->inPublicSetPreview())
         {
             element = client->getPreviewSetElement(eid);
-            if (element) cout << "\tElement found in preview Set\n";
+            if (element)
+            {
+                cout << "\tElement found in preview Set\n";
+
+                if (element->nodeMetadata()) // only present starting with 'aft' v2
+                {
+                    fileSize = element->nodeMetadata()->s;
+                    fileName = element->nodeMetadata()->filename;
+                    fingerprint = element->nodeMetadata()->fingerprint;
+                    fileattrstring = element->nodeMetadata()->fa;
+                }
+            }
             else if (!isClientLoggedIn())
             {
                 cout << "Error: attempting to dowload an element which is not in the previewed "
@@ -10888,7 +10840,22 @@ void exec_setsandelements(autocomplete::ACState& s)
         if (!element)
         {
             element = client->getSetElement(sid, eid);
-            if (element) cout << "\tElement found in owned Set\n";
+            if (element)
+            {
+                cout << "\tElement found in owned Set\n";
+
+                std::unique_ptr<Node> mn(client->nodebyhandle(element->node()));
+
+                if (!mn)
+                {
+                    cout << "\tElement node not found\n";
+                    return;
+                }
+                fileSize = mn->size;
+                fileName = mn->displayname();
+                mn->serializefingerprint(&fingerprint);
+                fileattrstring = mn->fileattrstring;
+            }
         }
 
         if (!element)
@@ -10897,56 +10864,25 @@ void exec_setsandelements(autocomplete::ACState& s)
             return;
         }
 
-        std::array<byte, FILENODEKEYLENGTH> ekey;
-        handle enode = element->node();
-        memcpy(ekey.data(), element->key().c_str(), ekey.size());
-        auto commandCB =
-            [ekey, enode] (const Error &e, m_off_t size, m_time_t ts, m_time_t tm,
-                          dstime /*timeleft*/, std::string* filename, std::string* fingerprint,
-                          std::string* fileattrstring, const std::vector<std::string> &/*tempurls*/,
-                          const std::vector<std::string> &/*ips*/)
-        {
-            if (!fingerprint) // failed processing the command
-            {
-                if (e == API_ETOOMANY && e.hasExtraInfo())
-                {
-                    cout << "Link check failed: " << DemoApp::getExtraInfoErrorString(e)
-                         << endl;
-                }
-                else cout << "Link check failed: " << errorstring(e) << endl;
+        FileFingerprint ffp;
+        m_time_t tm = 0;
+        if (ffp.unserializefingerprint(&fingerprint)) tm = ffp.mtime;
 
-                return true;
-            }
+        cout << "\tName: " << fileName << ", size: " << fileSize << ", tm: " << tm;
+        if (!fingerprint.empty()) cout << ", fingerprint available";
+        if (!fileattrstring.empty()) cout << ", has attributes";
+        cout << endl;
 
-            FileFingerprint ffp;
-            if (ffp.unserializefingerprint(fingerprint)) tm = ffp.mtime;
+        cout << "\tInitiating download..." << endl;
 
-            cout << "\tName: " << *filename << ", size: " << size << ", ts: " << ts << ", tm: " << tm;
-            if (fingerprint->size()) cout << ", fingerprint available";
-            if (fileattrstring->size()) cout << ", has attributes";
-            cout << endl;
-
-            if (e) cout << "Not available: " << errorstring(e) << endl;
-            else
-            {
-                cout << "\tInitiating download..." << endl;
-
-                TransferDbCommitter committer(client->tctable);
-                auto file = ::mega::make_unique<AppFileGet>(nullptr,
-                                                            NodeHandle().set6byte(enode),
-                                                            (byte*)ekey.data(), size, tm,
-                                                            filename, fingerprint);
-                file->hprivate = true;
-                file->hforeign = true;
-                startxfer(committer, std::move(file), *filename, client->nextreqtag());
-            }
-
-            return true;
-        };
-
-        client->reqs.add(new CommandGetFile(client, (byte*)ekey.data(), ekey.size(), enode,
-                                            true /*private*/, nullptr, nullptr, nullptr, false,
-                                            commandCB));
+        TransferDbCommitter committer(client->tctable);
+        auto file = ::mega::make_unique<AppFileGet>(nullptr,
+                                                    NodeHandle().set6byte(element->node()),
+                                                    reinterpret_cast<const byte*>(element->key().c_str()), fileSize, tm,
+                                                    &fileName, &fingerprint);
+        file->hprivate = true;
+        file->hforeign = true;
+        startxfer(committer, std::move(file), fileName, client->nextreqtag());
     }
 
     else // create or update element
@@ -11034,6 +10970,65 @@ void exec_reqstat(autocomplete::ACState &s)
 void DemoApp::reqstat_progress(int permilprogress)
 {
     cout << "Progress (per mille) of request: " << permilprogress << endl;
+}
+
+void exec_getABTestValue(autocomplete::ACState &s)
+{
+    string flag = s.words[1].s;
+
+    auto it = client->mABTestFlags.find(flag);
+
+    string value = "0 (not set)";
+    if (it != client->mABTestFlags.end())
+    {
+        value = std::to_string(it->second);
+    }
+
+    cout << "[" << flag<< "]:" << value << endl;
+}
+
+void exec_sendABTestActive(autocomplete::ACState &s)
+{
+    string flag = s.words[1].s;
+
+    client->sendABTestActive(flag.c_str(), [](Error e)
+        {
+            if (e)
+            {
+                cout << "Error sending Ab Test flag: " << e << endl;
+            }
+            else
+            {
+                cout << "Flag has been correctly sent." << endl;
+            }
+        });
+}
+
+void exec_contactVerificationWarning(autocomplete::ACState& s)
+{
+    bool enable = s.extractflag("-on");
+    bool disable = s.extractflag("-off");
+
+    if (enable)
+    {
+        client->setContactVerificationWarning(true,
+          [](Error e)
+          {
+              if (!e) cout << "Warnings for unverified contacts: Enabled.";
+          });
+    }
+    else if (disable)
+    {
+        client->setContactVerificationWarning(false,
+          [](Error e)
+          {
+              if (!e) cout << "Warnings for unverified contacts: Disabled.";
+          });
+    }
+    else
+    {
+        cout << "Warnings for unverified contacts: " << (client->mKeyManager.getContactVerificationWarning() ? "Enabled" : "Disabled") << endl;
+    }
 }
 
 void exec_numberofnodes(autocomplete::ACState &s)

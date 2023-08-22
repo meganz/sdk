@@ -1556,6 +1556,9 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         curl_easy_setopt(curl, CURLOPT_SOCKOPTFUNCTION, sockopt_callback);
         curl_easy_setopt(curl, CURLOPT_SOCKOPTDATA, (void*)req);
         curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
+#ifndef MEGA_USE_C_ARES
+        curl_easy_setopt(curl, CURLOPT_QUICK_EXIT, 1L);
+#endif
 
         // Some networks (eg vodafone UK) seem to block TLS 1.3 ClientHello.  1.2 is secure, and works:
         curl_easy_setopt(curl, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2 | CURL_SSLVERSION_MAX_TLSv1_2);
@@ -1595,14 +1598,24 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
             else
         #endif
             {
-            #ifdef USE_OPENSSL
-                curl_easy_setopt(curl, CURLOPT_SSL_CTX_FUNCTION, ssl_ctx_function);
-                curl_easy_setopt(curl, CURLOPT_SSL_CTX_DATA, (void*)req);
-                curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1);
+            #ifdef USE_OPENSSL // options only available for OpenSSL
+                if (curl_easy_setopt(curl, CURLOPT_SSL_CTX_FUNCTION, ssl_ctx_function) != CURLE_OK)
+                {
+                    LOG_err << "Could not set curl option CURLOPT_SSL_CTX_FUNCTION";
+                }
+                if (curl_easy_setopt(curl, CURLOPT_SSL_CTX_DATA, (void*)req) != CURLE_OK)
+                {
+                    LOG_err << "Could not set curl option CURLOPT_SSL_CTX_DATA";
+                }
             #else
                 LOG_fatal << "cURL built without support for public key pinning. Aborting.";
                 throw std::runtime_error("ccURL built without support for public key pinning. Aborting.");
             #endif
+
+                if (curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1) != CURLE_OK)
+                {
+                    LOG_err << "Could not set curl option CURLOPT_SSL_VERIFYPEER";
+                }
             }
         }
         else
@@ -2299,7 +2312,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                         }
                     }
 
-                    if (req->method == METHOD_NONE)
+                    if (req->method == METHOD_NONE && req->httpiohandle)
                     {
                         char *ip = NULL;
                         CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
@@ -2913,7 +2926,6 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
     HttpReq *request = (HttpReq *)req;
     CurlHttpIO *httpio = (CurlHttpIO *)request->httpio;
     unsigned char buf[sizeof(APISSLMODULUS1) - 1];
-    EVP_PKEY* evp = nullptr;
     int ok = 0;
 
     if (httpio->disablepkp)
@@ -2922,13 +2934,33 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
         return 1;
     }
 
-    if (EVP_PKEY_id(evp) == EVP_PKEY_RSA
-            && (evp = X509_PUBKEY_get(X509_get_X509_PUBKEY(X509_STORE_CTX_get0_cert(ctx)))))
+    EVP_PKEY* evp = X509_PUBKEY_get(X509_get_X509_PUBKEY(X509_STORE_CTX_get0_cert(ctx)));
+    if (evp && EVP_PKEY_id(evp) == EVP_PKEY_RSA)
     {
-        if (BN_num_bytes(RSA_get0_n(EVP_PKEY_get0_RSA(evp))) == sizeof APISSLMODULUS1 - 1
-                && BN_num_bytes(RSA_get0_e(EVP_PKEY_get0_RSA(evp))) == sizeof APISSLEXPONENT - 1)
+        // get needed components of RSA key:
+        // n: modulus common to both public and private key;
+        // e: public exponent.
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
+        const rsa_st* rsaKey = EVP_PKEY_get0_RSA(evp);
+        const BIGNUM* rsaN = RSA_get0_n(rsaKey);
+        const BIGNUM* rsaE = RSA_get0_e(rsaKey);
+        bool rsaOk = true;
+#else
+        BIGNUM* rsaN = nullptr;
+        BIGNUM* rsaE = nullptr;
+        bool rsaOk = EVP_PKEY_get_bn_param(evp, "n", &rsaN) &&
+                     EVP_PKEY_get_bn_param(evp, "e", &rsaE);
+
+        // ensure cleanup
+        std::unique_ptr<BIGNUM, decltype(&BN_free)> nCleanup(rsaN, &BN_free);
+        std::unique_ptr<BIGNUM, decltype(&BN_free)> eCleanup(rsaE, &BN_free);
+#endif
+
+        if (rsaOk &&
+            BN_num_bytes(rsaN) == sizeof APISSLMODULUS1 - 1 &&
+            BN_num_bytes(rsaE) == sizeof APISSLEXPONENT - 1)
         {
-            BN_bn2bin(RSA_get0_n(EVP_PKEY_get0_RSA(evp)), buf);
+            BN_bn2bin(rsaN, buf);
 
             // check the public key matches for the URL of the connection (API or SFU-stats)
             if ((!memcmp(request->posturl.data(), httpio->APIURL.data(), httpio->APIURL.size())
@@ -2937,7 +2969,7 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
                     && (!memcmp(buf, SFUSTATSSSLMODULUS, sizeof SFUSTATSSSLMODULUS - 1) || !memcmp(buf, SFUSTATSSSLMODULUS2, sizeof SFUSTATSSSLMODULUS2 - 1)))
                 )
             {
-                BN_bn2bin(RSA_get0_e(EVP_PKEY_get0_RSA(evp)), buf);
+                BN_bn2bin(rsaE, buf);
 
                 if (!memcmp(buf, APISSLEXPONENT, sizeof APISSLEXPONENT - 1))
                 {
@@ -2952,15 +2984,15 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
         }
         else
         {
-            LOG_warn << "Public key size mismatch " << BN_num_bytes(RSA_get0_n(EVP_PKEY_get0_RSA(evp))) << " " << BN_num_bytes(RSA_get0_e(EVP_PKEY_get0_RSA(evp)));
+            LOG_warn << "Public key size mismatch " << BN_num_bytes(rsaN) << " " << BN_num_bytes(rsaE);
         }
-
-        EVP_PKEY_free(evp);
     }
     else
     {
         LOG_warn << "Public key not found";
     }
+
+    EVP_PKEY_free(evp);
 
     if (!ok)
     {

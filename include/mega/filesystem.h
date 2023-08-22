@@ -210,7 +210,7 @@ public:
     // Result is undefined if this path is a "root."
     LocalPath parentPath() const;
 
-    LocalPath insertFilenameCounter(unsigned counter) const;
+    LocalPath insertFilenameSuffix(const std::string& suffix) const;
 
     bool isContainingPathOf(const LocalPath& path, size_t* subpathIndex = nullptr) const;
     bool nextPathComponent(size_t& subpathIndex, LocalPath& component) const;
@@ -344,8 +344,13 @@ struct IsPath<RemotePath>
 }; // IsPath<RemotePath>
 
 struct NameConflict {
+    struct NameHandle {
+        string name;
+        NodeHandle handle;
+        NameHandle(const string& s, NodeHandle h) : name(s), handle(h) {}
+    };
     string cloudPath;
-    vector<string> clashingCloudNames;
+    vector<NameHandle> clashingCloud;
     LocalPath localPath;
     vector<LocalPath> clashingLocalNames;
 };
@@ -373,6 +378,102 @@ inline LocalPath operator+(LocalPath& a, LocalPath& b)
     result.append(b);
     return result;
 }
+
+class FileNameGenerator
+{
+public:
+    // It generates a new name suffixed with (n). It is not conflicted in the file system
+    // always a new name is returned
+    static LocalPath suffixWithN(FileAccess* fa, const LocalPath& localname);
+
+    // It generates a new name suffixed with .oldn. It is not conflicted in the file system
+    // always a new name is returned
+    static LocalPath suffixWithOldN(FileAccess* fa, const LocalPath& localname);
+
+private:
+    static LocalPath suffix(FileAccess* fa, const LocalPath& localname, std::function<std::string(unsigned)> suffixF);
+};
+
+class FileDistributor
+{
+    // This class is to manage copying/moving a Transfer's downloaded file
+    // To all the correct locations (one per File that the transfer owns)
+    // Taking into account that the sync thread will do some of the moving/copying
+    // So it has to operate properly across threads.
+    // Note that the file is not always "tmp", one of the target locations
+    // may actually be the place it was downloaded to, rather than a tmp location.
+
+    recursive_mutex mMutex;
+    LocalPath theFile;
+    size_t  numTargets;
+    bool actualPathUsed = false;
+    m_time_t mMtime;
+    FileFingerprint confirmFingerprint;
+
+public:
+    FileDistributor(const LocalPath& lp, size_t ntargets, m_time_t mtime, const FileFingerprint& confirm);
+    ~FileDistributor();
+
+    enum TargetNameExistsResolution {
+        OverwriteTarget,
+        RenameWithBracketedNumber,
+        MoveReplacedFileToSyncDebris,
+        RenameExistingToOldN,
+    };
+
+
+    bool distributeTo(LocalPath& lp, FileSystemAccess& fsaccess, TargetNameExistsResolution, bool& transient_error, bool& name_too_long, Sync* syncForDebris);
+
+    // Remove a pending distribution target.
+    void removeTarget();
+
+    // static functions used by distributeTo
+    // these will be useful for other cases also
+
+    LocalPath distributeFromPath()
+    {
+        lock_guard<recursive_mutex> g(mMutex);
+        return theFile;
+    }
+
+private:
+    static bool moveTo(const LocalPath& source, LocalPath& target,
+                        TargetNameExistsResolution, FileSystemAccess& fsaccess,
+                        bool& transient_error, bool& name_too_long, Sync* syncForDebris,
+                        const FileFingerprint& confirmFingerprint);
+
+    static bool moveToForMethod_RenameWithBracketedNumber(const LocalPath& source, LocalPath& target,
+                        FileSystemAccess& fsaccess, bool& transient_error, bool& name_too_long);
+
+    static bool moveToForMethod_RenameExistingToOldN(const LocalPath& source, LocalPath& target,
+                        FileSystemAccess& fsaccess, bool& transient_error, bool& name_too_long);
+
+    static bool copyTo(const LocalPath& source, LocalPath& target, m_time_t mtime,
+                        TargetNameExistsResolution, FileSystemAccess& fsaccess, bool& transient_error,
+                        bool& name_too_long, Sync* syncForDebris,
+                        const FileFingerprint& confirmFingerprint);
+
+    static bool copyToForMethod_RenameWithBracketedNumber(const LocalPath& source, LocalPath& target, m_time_t mtime,
+                        FileSystemAccess& fsaccess, bool& transient_error, bool& name_too_long);
+
+    static bool copyToForMethod_RenameExistingToOldN(const LocalPath& source, LocalPath& target, m_time_t mtime,
+                        FileSystemAccess& fsaccess, bool& transient_error, bool& name_too_long);
+
+    static bool copyToForMethod_OverwriteTarget(const LocalPath& source, LocalPath& target, m_time_t mtime,
+                        FileSystemAccess& fsaccess, bool& transient_error, bool& name_too_long, const FileFingerprint& confirmFingerprint);
+
+
+#ifdef ENABLE_SYNC
+    static bool moveToForMethod_MoveReplacedFileToSyncDebris(const LocalPath& source, LocalPath& target, FileSystemAccess& fsaccess,
+                        bool& transient_error, bool& name_too_long, Sync* syncForDebris,
+                        const FileFingerprint& confirmFingerprint);
+
+    static bool copyToForMethod_MoveReplacedFileToSyncDebris(const LocalPath& source, LocalPath& target, m_time_t mtime, FileSystemAccess& fsaccess,
+                        bool& transient_error, bool& name_too_long, Sync* syncForDebris,
+                        const FileFingerprint& confirmFingerprint);
+#endif
+};
+
 
 struct MEGA_API AsyncIOContext
 {
@@ -694,7 +795,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     bool islocalfscompatible(unsigned char, bool isEscape, FileSystemType = FS_UNKNOWN) const;
     void escapefsincompatible(string*, FileSystemType fileSystemType) const;
 
-    const char *fstypetostring(FileSystemType type) const;
+    static const char *fstypetostring(FileSystemType type);
     virtual bool getlocalfstype(const LocalPath& path, FileSystemType& type) const = 0;
     FileSystemType getlocalfstype(const LocalPath& path) const;
     void unescapefsincompatible(string*) const;
@@ -819,6 +920,19 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // On success, the number of free bytes available to the caller.
     // On failure, zero.
     virtual m_off_t availableDiskSpace(const LocalPath& drivePath) = 0;
+
+    // Specify the minimum permissions for new created directories.
+    static void setMinimumDirectoryPermissions(int permissions);
+
+    // Specify the minimum permissions for newly created files.
+    static void setMinimumFilePermissions(int permissions);
+
+protected:
+    // Specifies the minimum permissions allowed for directories.
+    static std::atomic<int> mMinimumDirectoryPermissions;
+
+    // Specifies the minimum permissions allowed for files.
+    static std::atomic<int> mMinimumFilePermissions;
 };
 
 int compareUtf(const string&, bool unescaping1, const string&, bool unescaping2, bool caseInsensitive);
@@ -831,12 +945,6 @@ int platformCompareUtf(const string&, bool unescape1, const string&, bool unesca
 int platformCompareUtf(const string&, bool unescape1, const LocalPath&, bool unescape2);
 int platformCompareUtf(const LocalPath&, bool unescape1, const string&, bool unescape2);
 int platformCompareUtf(const LocalPath&, bool unescape1, const LocalPath&, bool unescape2);
-
-// Returns true if name is a reserved file name.
-//
-// On Windows, a reserved file name is:
-//   - AUX, COM[0-9], CON, LPT[0-9], NUL or PRN.
-bool isReservedName(const string& name, nodetype_t type = FILENODE);
 
 struct MEGA_API FSNode
 {

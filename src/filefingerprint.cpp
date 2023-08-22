@@ -361,7 +361,7 @@ void FileFingerprint::serializefingerprint(string* d) const
 }
 
 // decode and set base64-encoded fingerprint
-int FileFingerprint::unserializefingerprint(string* d)
+int FileFingerprint::unserializefingerprint(const string* d)
 {
     byte buf[sizeof crc + sizeof mtime + 1];
     unsigned l;
@@ -388,7 +388,7 @@ int FileFingerprint::unserializefingerprint(string* d)
 
 string FileFingerprint::fingerprintDebugString() const
 {
-    return std::to_string(size) + ":" + std::to_string(mtime) + ":" + (const char*)Base64Str<sizeof(crc)>((byte*)crc.data());
+    return std::to_string(size) + ":" + std::to_string(mtime) + ":" + (const char*)Base64Str<sizeof(crc)>((byte*)crc.data()) + (isvalid ? ":1" : ":0");
 }
 
 bool FileFingerprintCmp::operator()(const FileFingerprint* a, const FileFingerprint* b) const

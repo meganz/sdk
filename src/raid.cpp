@@ -137,13 +137,13 @@ void RaidBufferManager::FilePiece::swap(FilePiece& other)
 RaidBufferManager::RaidBufferManager()
     : is_raid(false)
     , raidKnown(false)
-    , mAvoidSmallLastRequest(AVOID_SMALL_SIZE_LAST_REQUEST)
     , raidLinesPerChunk(16 * 1024)
     , unusedRaidConnection(0)
     , raidpartspos(0)
     , outputfilepos(0)
     , startfilepos(0)
     , resumewastedbytes(0)
+    , mDisableAvoidSmallLastRequest(false)
 {
     for (int i = RAIDPARTS; i--; )
     {
@@ -235,14 +235,9 @@ void RaidBufferManager::updateUrlsAndResetPos(const std::vector<std::string>& te
     }
 }
 
-void RaidBufferManager::setAvoidSmallLastRequest(bool value)
+void RaidBufferManager::disableAvoidSmallLastRequest()
 {
-    mAvoidSmallLastRequest = value;
-}
-
-bool RaidBufferManager::getAvoidSmallLastRequest() const
-{
-    return mAvoidSmallLastRequest;
+    mDisableAvoidSmallLastRequest = true;
 }
 
 bool RaidBufferManager::isRaid() const
@@ -390,14 +385,22 @@ std::pair<m_off_t, m_off_t> RaidBufferManager::nextNPosForConnection(unsigned co
                                 static_cast<size_t>(npos - curpos) :
                                 0;
         LOG_debug << "Raid lines per chunk = " << raidLinesPerChunk << ", curpos = " << curpos << ", npos = " << npos << ", maxpos = " << maxpos << ", acquirelimitpos = " << acquirelimitpos << ", nextChunkSize = " << nextChunkSize;
-        if (mAvoidSmallLastRequest && (nextChunkSize > 0) && (nextChunkSize < MIN_LAST_CHUNK)) // Dont leave a chunk smaller than MIN_LAST_CHUNK (10 MB) for the last request
+        if (!mDisableAvoidSmallLastRequest)
         {
-            // If this chunk and the last one are greater or equal than +16 MB, we'll ask for two chunks of +8 MB.
-            // Otherwise, we'll request the remaining: -15 MB
-            npos = (nextChunkSize >= MAX_LAST_CHUNK) ?
-                        (npos + (nextChunkSize / 2)) :
-                        maxpos;
-            LOG_debug << "Avoiding small last request (" << nextChunkSize << "), change npos to " << npos;
+            size_t lastChunkSize = (npos < maxpos) ?             // Last chunk left apart from the current chunk
+                                    static_cast<size_t>(maxpos - npos) :
+                                    0;
+            if (lastChunkSize && (lastChunkSize < MIN_LAST_CHUNK)) // Dont leave a last chunk smaller than MIN_LAST_CHUNK for the last request
+            {
+                // If this chunk and the last one are greater or equal than +16 MB (or the corresponding value for MAX_CHUNK_SIZE), we'll ask for two chunks of +8 MB.
+                // Otherwise, we'll request the remaining: -15 MB
+                size_t remainingSize = maxpos - curpos;          // Remaining size (current chunk + last chunk)
+                npos = (remainingSize >= MAX_LAST_CHUNK) ?      // If the remaining size (current chunk + last chunk) is greater than MAX_LAST_CHUNK
+                            (curpos + ((remainingSize/2) & - RAIDSECTOR)) :    // Npos moved to half of the remaining size (truncated to RAIDSECTOR)
+                            maxpos;                             // Npos moved to the end
+                assert(npos <= maxpos);
+                LOG_debug << "Avoiding small last request (" << lastChunkSize << "), change npos to " << npos << ", new nextChunkSize = " << (npos - curpos);
+            }
         }
         if (unusedRaidConnection == connectionNum && npos > curpos)
         {
@@ -733,7 +736,7 @@ bool RaidBufferManager::FilePiece::finalize(bool parallel, m_off_t filesize, int
     return queueParallel;
 }
 
-void TransferBufferManager::finalize(FilePiece& r)
+void TransferBufferManager::finalize(FilePiece&)
 {
     // for transfers (as opposed to DirectRead), decrypt/mac is now done on threads
 }
@@ -847,6 +850,12 @@ m_off_t RaidBufferManager::progress() const
         }
     }
 
+    if (!leftoverchunk.buf.isNull())
+    {
+        // Need to count the valid data on the leftover chunk, if any.
+        reportPos += leftoverchunk.buf.datalen();
+    }
+
     return reportPos;
 }
 
@@ -943,7 +952,7 @@ void TransferBufferManager::bufferWriteCompletedAction(FilePiece& r)
     r.chunkmacs.copyEntriesTo(transfer->chunkmacs);
     r.chunkmacs.clear();
     transfer->progresscompleted += r.buf.datalen();
-    LOG_debug << "Cached data at: " << r.pos << "   Size: " << r.buf.datalen();
+    LOG_debug << "On write completed -> Cached data at: " << r.pos << "   Size: " << r.buf.datalen() << "   Progress completed: " << transfer->progresscompleted << "/" << transfer->size;
 }
 
 

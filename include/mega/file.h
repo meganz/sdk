@@ -26,6 +26,15 @@
 
 namespace mega {
 
+enum class CollisionResolution : uint8_t
+{
+    Begin = 1,
+    Overwrite = 1,
+    RenameNewWithN = 2,
+    RenameExistingToOldN = 3,
+    End = 4,
+};
+
 // File is the base class for an upload or download, as managed by the SDK core.
 // Each Transfer consists of a list of File that all have the same content and fingerprint
 struct MEGA_API File: public FileFingerprint
@@ -61,6 +70,10 @@ struct MEGA_API File: public FileFingerprint
                       putsource_t source, NodeHandle ovHandle,
                       std::function<void(const Error&, targettype_t, vector<NewNode>&, bool targetOverride, int tag)>&& completion,
                       bool canChangeVault);
+
+    void setCollisionResolution(CollisionResolution collisionResolution) { mCollisionResolution = collisionResolution; }
+
+    CollisionResolution getCollisionResolution() const { return mCollisionResolution; }
 
     // generic filename for this transfer
     void displayname(string*);
@@ -134,6 +147,9 @@ struct MEGA_API File: public FileFingerprint
 
     // set the token true to cause cancellation of this transfer (this file of the transfer)
     CancelToken cancelToken;
+
+private:
+    CollisionResolution mCollisionResolution;
 };
 
 struct MEGA_API SyncFileGet: public File

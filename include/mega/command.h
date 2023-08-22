@@ -244,6 +244,19 @@ public:
     CommandSetMasterKey(MegaClient*, const byte*, const byte *, int, const byte* clientrandomvalue = NULL, const char* = NULL, string* = NULL);
 };
 
+class MEGA_API CommandAccountVersionUpgrade : public Command
+{
+    vector<byte> mEncryptedMasterKey;
+    string mSalt;
+    std::function<void(error e)> mCompletion;
+
+public:
+    bool procresult(Result, JSON&) override;
+
+    CommandAccountVersionUpgrade(vector<byte>&& clRandValue, vector<byte>&&encMKey, string&& hashedAuthKey, string&& salt, int ctag,
+        std::function<void(error e)> completion);
+};
+
 class MEGA_API CommandCreateEphemeralSession : public Command
 {
     byte pw[SymmCipher::KEYLENGTH];
@@ -560,7 +573,7 @@ public:
 
 class MEGA_API CommandGetFile : public Command
 {
-    using Cb = std::function<bool(const Error &/*e*/, m_off_t /*size*/, m_time_t /*ts*/, m_time_t /*tm*/,
+    using Cb = std::function<bool(const Error &/*e*/, m_off_t /*size*/,
     dstime /*timeleft*/, std::string* /*filename*/, std::string* /*fingerprint*/, std::string* /*fileattrstring*/,
     const std::vector<std::string> &/*urls*/, const std::vector<std::string> &/*ips*/)>;
     Cb mCompletion;
@@ -719,6 +732,19 @@ public:
     bool procresult(Result, JSON&) override;
 
     CommandGetMiscFlags(MegaClient*);
+};
+
+class MEGA_API CommandABTestActive : public Command
+{
+public:
+    using Completion = std::function<void(error)>;
+
+    bool procresult(Result, JSON&) override;
+
+    CommandABTestActive(MegaClient*, const string& tag, Completion completion);
+
+private:
+    Completion mCompletion;
 };
 
 class MEGA_API CommandSetPendingContact : public Command
@@ -1496,6 +1522,7 @@ public:
         int syncSubstate = 0;
         string extra;
         string backupName;
+        string deviceUserAgent;
         uint64_t hbTimestamp = 0;
         int hbStatus = 0;
         int hbProgress = 0;
@@ -1507,10 +1534,10 @@ public:
 
     bool procresult(Result, JSON&) override;
 
-    CommandBackupSyncFetch(std::function<void(Error, vector<Data>&)>);
+    CommandBackupSyncFetch(std::function<void(const Error&, const vector<Data>&)>);
 
 private:
-    std::function<void(Error, vector<Data>&)> completion;
+    std::function<void(const Error&, const vector<Data>&)> completion;
 };
 
 
