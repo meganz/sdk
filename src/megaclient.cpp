@@ -561,7 +561,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
             // Sharekey is kept in KeyManager
             if (s->remove_key && !n->outshares && !n->pendingshares)
             {
-                rewriteforeignkeys(n.get());
+                rewriteforeignkeys(n);
                 n->sharekey.reset();
             }
         }
@@ -578,7 +578,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
             if (!n->parent || n->parent->changed.removed)
             {
                 TreeProcDel td;
-                proctree(n.get(), &td, true);
+                proctree(n, &td, true);
             }
             else if (notify)
             {
@@ -727,7 +727,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                 if (skreceived && notify)
                 {
                     TreeProcApplyKey td;
-                    proctree(n.get(), &td);
+                    proctree(n, &td);
                 }
             }
         }
@@ -8280,7 +8280,7 @@ std::shared_ptr<Node> MegaClient::sc_deltree()
                     int creqtag = reqtag;
                     reqtag = 0;
                     td.setOriginatingUser(originatingUser);
-                    proctree(n.get(), &td);
+                    proctree(n, &td);
                     reqtag = creqtag;
 
                     useralerts.stashDeletedNotedSharedNodes(originatingUser);
@@ -8625,7 +8625,7 @@ error MegaClient::rename(std::shared_ptr<Node> n, std::shared_ptr<Node> p, syncd
     if (p->firstancestor()->type == RUBBISHNODE)
     {
         // similar to the webclient, send `s2` along with `m` if the node is moving to the rubbish
-        removeOutSharesFromSubtree(n.get(), 0);
+        removeOutSharesFromSubtree(n, 0);
     }
 
     std::shared_ptr<Node> prevParent = NULL;
@@ -8683,12 +8683,12 @@ error MegaClient::rename(std::shared_ptr<Node> n, std::shared_ptr<Node> p, syncd
         setattr(n, std::move(attrUpdates), nullptr, canChangeVault);  // no completion function, result is after the move completes
     }
 
-    reqs.add(new CommandMoveNode(this, n.get(), p.get(), syncdel, prevparenthandle, move(c), canChangeVault));
+    reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparenthandle, move(c), canChangeVault));
 
     return API_OK;
 }
 
-void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
+void MegaClient::removeOutSharesFromSubtree(std::shared_ptr<Node> n, int tag)
 {
     if (n->pendingshares)
     {
@@ -8716,9 +8716,9 @@ void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
         }
     }
 
-    for (auto& c : getChildren(n))
+    for (auto& c : getChildren(n.get()))
     {
-        removeOutSharesFromSubtree(c.get(), tag);
+        removeOutSharesFromSubtree(c, tag);
     }
 }
 
@@ -11009,20 +11009,19 @@ void MegaClient::resetKeyring()
 }
 
 // process node tree (bottom up)
-void MegaClient::proctree(Node* n, TreeProc* tp, bool skipinshares, bool skipversions)
+void MegaClient::proctree(std::shared_ptr<Node> n, TreeProc* tp, bool skipinshares, bool skipversions)
 {
     if (!n) return;
 
     if (!skipversions || n->type != FILENODE)
     {
-        sharedNode_list children = getChildren(n);
+        sharedNode_list children = getChildren(n.get());
         for (sharedNode_list::iterator it = children.begin(); it != children.end(); )
         {
-            Node *child = it->get();
             it++;
-            if (!(skipinshares && child->inshare))
+            if (!(skipinshares && (*it)->inshare))
             {
-                proctree(child, tp, skipinshares);
+                proctree(*it, tp, skipinshares);
             }
         }
     }
@@ -11090,7 +11089,7 @@ void MegaClient::queuepubkeyreq(const char *uid, std::unique_ptr<PubKeyAction> p
 }
 
 // rewrite keys of foreign nodes due to loss of underlying shareufskey
-void MegaClient::rewriteforeignkeys(Node* n)
+void MegaClient::rewriteforeignkeys(std::shared_ptr<Node> n)
 {
     TreeProcForeignKeys rewrite;
     proctree(n, &rewrite);
@@ -11306,7 +11305,7 @@ void MegaClient::openShareDialog(Node* n, std::function<void(Error)> completion)
 // if user has a known public key, complete instantly
 // otherwise, queue and request public key if not already pending
 // `user` is null for creating folder links
-void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writable, const char* personal_representation, int tag, std::function<void(Error, bool writable)> completion)
+void MegaClient::setshare(std::shared_ptr<Node> n, const char* user, accesslevel_t a, bool writable, const char* personal_representation, int tag, std::function<void(Error, bool writable)> completion)
 {
     assert(completion);
 
@@ -11348,7 +11347,7 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
     }
 
     User *u = getUserForSharing(user);
-    setShareCompletion(n, u, a, writable, personal_representation, tag, std::move(completion)); // will release u, if temporary
+    setShareCompletion(n.get(), u, a, writable, personal_representation, tag, std::move(completion)); // will release u, if temporary
 }
 
 void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool writable, const char* personal_representation, int tag, std::function<void(Error, bool writable)> completion)
@@ -11412,7 +11411,7 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
             return;
         }
 
-        reqs.add(new CommandSetShare(this, n.get(), user, a, newshare, NULL, writable, msg.c_str(), tag,
+        reqs.add(new CommandSetShare(this, n, user, a, newshare, NULL, writable, msg.c_str(), tag,
         [user, completion](Error e, bool writable)
         {
             completion(e, writable);
@@ -12732,7 +12731,7 @@ void MegaClient::querytransferquota(m_off_t size)
 }
 
 // export node link
-error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable, bool megaHosted,
+error MegaClient::exportnode(std::shared_ptr<Node> n, int del, m_time_t ets, bool writable, bool megaHosted,
     int tag, std::function<void(Error, handle, handle)> completion)
 {
     if (n->plink && !del && !n->plink->takendown
@@ -12750,7 +12749,7 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable, bool
         return API_OK;
     }
 
-    if (!checkaccess(n, OWNER))
+    if (!checkaccess(n.get(), OWNER))
     {
         return API_EACCESS;
     }
@@ -12759,7 +12758,7 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable, bool
     switch (n->type)
     {
     case FILENODE:
-        requestPublicLink(n, del, ets, writable, false, tag, std::move(completion));
+        requestPublicLink(n.get(), del, ets, writable, false, tag, std::move(completion));
         break;
 
     case FOLDERNODE:
@@ -12768,7 +12767,7 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable, bool
             // deletion of outgoing share also deletes the link automatically
             // need to first remove the link and then the share
             NodeHandle h = n->nodeHandle();
-            requestPublicLink(n, del, ets, writable, false, tag, [this, completion, writable, tag, h](Error e, handle, handle){
+            requestPublicLink(n.get(), del, ets, writable, false, tag, [this, completion, writable, tag, h](Error e, handle, handle){
                 std::shared_ptr<Node> n = nodeByHandle(h);
                 if (e || !n)
                 {
@@ -12776,7 +12775,7 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable, bool
                 }
                 else
                 {
-                    setshare(n.get(), NULL, ACCESS_UNKNOWN, writable, nullptr, tag, [completion](Error e, bool) {
+                    setshare(n, NULL, ACCESS_UNKNOWN, writable, nullptr, tag, [completion](Error e, bool) {
                         completion(e, UNDEF, UNDEF);
                         });
                 }
@@ -16045,17 +16044,13 @@ std::shared_ptr<Node> MegaClient::getOrCreateSyncdebrisFolder()
     std::shared_ptr<Node> n;
     if ((n = childnodebynametype(binNode.get(), SYNCDEBRISFOLDERNAME, FOLDERNODE)))
     {
-        binNode = n->mNodePosition->second.getNodeInRam();
-        assert(binNode);
-        assert(n.get() == binNode.get());
+        binNode = n;
         foundDebris = true;
 
         // locate //bin/SyncDebris/yyyy-mm-dd
         if ((n = childnodebyname(binNode.get(), buf)) && n->type == FOLDERNODE)
         {
-            binNode = n->mNodePosition->second.getNodeInRam();
-            assert(binNode);
-            assert(n.get() == binNode.get());
+            binNode = n;
             return binNode; // all set to send node to this one
         }
     }

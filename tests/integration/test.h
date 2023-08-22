@@ -556,7 +556,7 @@ struct StandardClient : public MegaApp
     class TreeProcPrintTree : public TreeProc
     {
     public:
-        void proc(MegaClient* client, Node* n) override
+        void proc(MegaClient* client, std::shared_ptr<Node> n) override
         {
             //out() << "fetchnodes tree: " << n->displaypath();;
         }
@@ -736,7 +736,7 @@ struct StandardClient : public MegaApp
                   PromiseBoolSP result);
 
     void movenodetotrash(string path, PromiseBoolSP pb);
-    void exportnode(Node* n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb);
+    void exportnode(std::shared_ptr<Node> n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb);
     void getpubliclink(Node* n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb);
     void waitonsyncs(chrono::seconds d = chrono::seconds(2));
     bool conflictsDetected(list<NameConflict>& conflicts);

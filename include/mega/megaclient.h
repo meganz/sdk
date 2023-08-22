@@ -728,7 +728,7 @@ public:
     error rename(std::shared_ptr<Node>, std::shared_ptr<Node>, syncdel_t, NodeHandle prevparenthandle, const char *newName, bool canChangeVault, CommandMoveNode::Completion&& c);
 
     // Queue commands (if needed) to remvoe any outshares (or pending outshares) below the specified node
-    void removeOutSharesFromSubtree(Node* n, int tag);
+    void removeOutSharesFromSubtree(std::shared_ptr<Node> n, int tag);
 
     // start/stop/pause file transfer
     bool startxfer(direction_t, File*, TransferDbCommitter&, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption, error* cause, int tag);
@@ -839,7 +839,7 @@ public:
     void openShareDialog(Node* n, std::function<void (Error)> completion);
 
     // add/remove/update outgoing share
-    void setshare(Node*, const char*, accesslevel_t, bool writable, const char*,
+    void setshare(std::shared_ptr<Node>, const char*, accesslevel_t, bool writable, const char*,
         int tag, std::function<void(Error, bool writable)> completion);
 
     void setShareCompletion(Node*, User*, accesslevel_t, bool writable, const char*,
@@ -850,7 +850,7 @@ public:
     void updatepcr(handle, ipcactions_t, CommandUpdatePendingContact::Completion completion = nullptr);
 
     // export node link or remove existing exported link for this node
-    error exportnode(Node*, int, m_time_t, bool writable, bool megaHosted,
+    error exportnode(std::shared_ptr<Node>, int, m_time_t, bool writable, bool megaHosted,
         int tag, std::function<void(Error, handle, handle)> completion);
     void requestPublicLink(Node* n, int del, m_time_t ets, bool writable, bool megaHosted,
 	    int tag, std::function<void(Error, handle, handle)> completion); // auxiliar method to add req
@@ -2022,7 +2022,7 @@ public:
     void queuepubkeyreq(const char*, std::unique_ptr<PubKeyAction>);
 
     // rewrite foreign keys of the node (tree)
-    void rewriteforeignkeys(Node* n);
+    void rewriteforeignkeys(std::shared_ptr<Node> n);
 
     // simple string hash
     static void stringhash(const char*, byte*, SymmCipher*);
@@ -2064,7 +2064,7 @@ public:
     bool isForeignNode(NodeHandle h);
 
     // process node subtree
-    void proctree(Node*, TreeProc*, bool skipinshares = false, bool skipversions = false);
+    void proctree(std::shared_ptr<Node>, TreeProc*, bool skipinshares = false, bool skipversions = false);
 
     // hash password
     error pw_key(const char*, byte*) const;

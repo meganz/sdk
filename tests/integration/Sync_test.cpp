@@ -1699,12 +1699,12 @@ void StandardClient::copy(const CloudItem& source,
     TreeProcCopy proc;
 
     // Figure out how many nodes we need to copy.
-    client.proctree(sourceNode.get(), &proc, false, true);
+    client.proctree(sourceNode, &proc, false, true);
 
     // Allocate and populate nodes.
     proc.allocnodes();
 
-    client.proctree(sourceNode.get(), &proc, false, true);
+    client.proctree(sourceNode, &proc, false, true);
 
     // We need the original node's handle if we're using versioning.
     std::shared_ptr<Node> victimNode;
@@ -2120,7 +2120,7 @@ void StandardClient::fetchnodes(bool noCache, bool loadSyncs, bool reloadingMidS
             else
             {
                 TreeProcPrintTree tppt;
-                client.proctree(client.nodeByHandle(client.mNodeManager.getRootNodeFiles()).get(), &tppt);
+                client.proctree(client.nodeByHandle(client.mNodeManager.getRootNodeFiles()), &tppt);
 
                 if (onFetchNodes)
                 {
@@ -3605,7 +3605,7 @@ void StandardClient::movenodetotrash(string path, PromiseBoolSP pb)
     pb->set_value(false);
 }
 
-void StandardClient::exportnode(Node* n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb)
+void StandardClient::exportnode(std::shared_ptr<Node> n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb)
 {
     resultproc.prepresult(COMPLETION, ++next_request_tag,
         [&](){
@@ -4659,7 +4659,7 @@ void StandardClient::share(const CloudItem& item, const string& email, accesslev
                 {
                     if (osdErr == API_OK)
                     {
-                        client.setshare(node.get(),
+                        client.setshare(node,
                             email.c_str(),
                             permissions,
                             false,
@@ -4680,7 +4680,7 @@ void StandardClient::share(const CloudItem& item, const string& email, accesslev
         }
     };
 
-    client.setshare(node.get(),
+    client.setshare(node,
                     email.c_str(),
                     permissions,
                     false,
@@ -6722,7 +6722,7 @@ TEST_F(SyncTest, DISABLED_ExerciseCommands)
     ASSERT_EQ(API_EACCESS, pe1.get_future().get());
 
     // create on existing node
-    standardclient.exportnode(n2.get(), 0, 0, false, false, pe1a);
+    standardclient.exportnode(n2, 0, 0, false, false, pe1a);
     ASSERT_TRUE(debugTolerantWaitOnFuture(pe1a.get_future(), 45));
     ASSERT_EQ(API_OK, pe1a.get_future().get());
 
@@ -7160,7 +7160,6 @@ TEST_F(SyncTest, BasicSync_NewVersionsCreatedWhenFilesModified)
     ASSERT_TRUE(c->confirmModel_mainthread(model.root.get(), id));
 
     // Get our hands on f's node.
-    //TODO LRU chache convert f in shared pointer => drillchildnodebyname return drillchildnodebyname
     auto f = c->drillchildnodebyname(c->gettestbasenode(), "x/f");
     ASSERT_TRUE(f);
 
@@ -9615,9 +9614,9 @@ struct TwoWaySyncSymmetryCase
         if (reportaction) out() << name() << " action: remote copy " << n1->displaypath() << " to " << n2->displaypath();
 
         TreeProcCopy tc;
-        changeClient().client.proctree(n1.get(), &tc, false, true);
+        changeClient().client.proctree(n1, &tc, false, true);
         tc.allocnodes();
-        changeClient().client.proctree(n1.get(), &tc, false, true);
+        changeClient().client.proctree(n1, &tc, false, true);
         tc.nn[0].parenthandle = UNDEF;
 
         SymmCipher key;
@@ -9648,9 +9647,9 @@ struct TwoWaySyncSymmetryCase
         if (reportaction) out() << name() << " action: remote rename + copy " << n1->displaypath() << " to " << n2->displaypath() << " as " << newname;
 
         TreeProcCopy tc;
-        changeClient().client.proctree(n1.get(), &tc, false, true);
+        changeClient().client.proctree(n1, &tc, false, true);
         tc.allocnodes();
-        changeClient().client.proctree(n1.get(), &tc, false, true);
+        changeClient().client.proctree(n1, &tc, false, true);
         tc.nn[0].parenthandle = UNDEF;
 
         SymmCipher key;

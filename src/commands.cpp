@@ -1331,7 +1331,7 @@ bool CommandPutNodes::procresult(Result r, JSON& json)
 }
 
 
-CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t csyncdel, NodeHandle prevparent, Completion&& c, bool canChangeVault)
+CommandMoveNode::CommandMoveNode(MegaClient* client, std::shared_ptr<Node> n, std::shared_ptr<Node> t, syncdel_t csyncdel, NodeHandle prevparent, Completion&& c, bool canChangeVault)
 {
     h = n->nodeHandle();
     syncdel = csyncdel;
@@ -1382,7 +1382,7 @@ bool CommandMoveNode::procresult(Result r, JSON& json)
 
     if (shared_ptr<Node> n = client->nodeByHandle(h))
     {
-        client->rewriteforeignkeys(n.get());
+        client->rewriteforeignkeys(n);
     }
 
     if (completion) completion(h, r.errorOrOK());
@@ -1915,7 +1915,7 @@ CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient* client, handle_vector* 
 }
 
 // add/remove share; include node share keys if new share
-CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslevel_t a, bool newshare, const char* msg, bool writable, const char* personal_representation, int ctag, std::function<void(Error, bool writable)> f)
+CommandSetShare::CommandSetShare(MegaClient* client, std::shared_ptr<Node> n, User* u, accesslevel_t a, bool newshare, const char* msg, bool writable, const char* personal_representation, int ctag, std::function<void(Error, bool writable)> f)
 {
     byte auth[SymmCipher::BLOCKSIZE];
     byte key[SymmCipher::KEYLENGTH];

@@ -1561,7 +1561,7 @@ void NodeManager::checkOrphanNodes(MissingParentNodes& nodesWithMissingParent)
                 // This race condition should disappear when the local cache is exclusively driven via
                 // action packets and Speculative Instant Completion (SIC) is gone.
                 TreeProcDel td;
-                mClient.proctree(orphan.get(), &td);
+                mClient.proctree(orphan, &td);
 
                 // TODO: Change this warning to an error when Speculative Instant Completion (SIC) is gone
                LOG_warn << "Detected orphan node: " << toNodeHandle(orphan->nodehandle)

@@ -18064,9 +18064,9 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                             fireOnTransferStart(transfer);
 
                             TreeProcCopy tc;
-                            client->proctree(samenode.get(), &tc, false, true);
+                            client->proctree(samenode, &tc, false, true);
                             tc.allocnodes();
-                            client->proctree(samenode.get(), &tc, false, true);
+                            client->proctree(samenode, &tc, false, true);
                             tc.nn[0].parenthandle = UNDEF;
 
                             SymmCipher key;
@@ -19161,12 +19161,12 @@ void MegaApiImpl::moveNode(MegaNode* node, MegaNode* newParent, const char* newN
                 }
 
                 // determine number of nodes to be copied
-                client->proctree(node.get(), &tc, !ovhandle.isUndef());
+                client->proctree(node, &tc, !ovhandle.isUndef());
                 tc.allocnodes();
                 nc = tc.nc;
 
                 // build new nodes array
-                client->proctree(node.get(), &tc, !ovhandle.isUndef());
+                client->proctree(node, &tc, !ovhandle.isUndef());
                 if (!nc)
                 {
                     e = API_EARGS;
@@ -19371,11 +19371,11 @@ error MegaApiImpl::performRequest_copy(MegaRequestPrivate* request)
                 }
 
                 // determine number of nodes to be copied
-                client->proctree(node.get(), &tc, false, !ovhandle.isUndef());
+                client->proctree(node, &tc, false, !ovhandle.isUndef());
                 tc.allocnodes();
 
                 // build new nodes array
-                client->proctree(node.get(), &tc, false, !ovhandle.isUndef());
+                client->proctree(node, &tc, false, !ovhandle.isUndef());
                 tc.nn[0].parenthandle = UNDEF;
                 tc.nn[0].ovhandle = ovhandle;
 
@@ -19588,7 +19588,7 @@ void MegaApiImpl::share(MegaNode* node, const char* email, int access, MegaReque
 
             if (e == API_OK)
             {
-                client->setshare(node.get(), email, a, false, nullptr, request->getTag(), [this, request](Error e, bool){
+                client->setshare(node, email, a, false, nullptr, request->getTag(), [this, request](Error e, bool){
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
                 });
             }
@@ -19718,7 +19718,7 @@ error MegaApiImpl::performRequest_export(MegaRequestPrivate* request)
             bool writable = request->getFlag();
             bool megaHosted = request->getTransferTag() != 0;
             // exportnode() will take care of creating a share first, should it be a folder
-            return client->exportnode(node.get(), !request->getAccess(), request->getNumber(), writable, megaHosted, request->getTag(),
+            return client->exportnode(node, !request->getAccess(), request->getNumber(), writable, megaHosted, request->getTag(),
                 [this, request](Error e, handle h, handle ph)
             {
                 if (e || !request->getAccess()) // disable export doesn't return h and ph
@@ -25436,7 +25436,7 @@ void TreeProcCopy::allocnodes()
 }
 
 // determine node tree size (nn = NULL) or write node tree to new nodes array
-void TreeProcCopy::proc(MegaClient* client, Node* n)
+void TreeProcCopy::proc(MegaClient* client, std::shared_ptr<mega::Node> n)
 {
     if (allocated)
     {

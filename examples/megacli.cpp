@@ -1770,7 +1770,7 @@ static std::shared_ptr<Node> nodebypath(const char* ptr, string* user = NULL, st
                         return NULL;
                     }
 
-                    n = nn->mNodePosition->second.getNodeInRam();
+                    n = nn;
                 }
             }
         }
@@ -2169,7 +2169,7 @@ public:
     }
 
     // determine node tree size (nn = NULL) or write node tree to new nodes array
-    void proc(MegaClient* mc, Node* n)
+    void proc(MegaClient* mc, std::shared_ptr<Node> n)
     {
         if (populated)
         {
@@ -2865,7 +2865,7 @@ std::shared_ptr<Node> nodeFromRemotePath(const string& s)
     }
     else
     {
-        n = nodebypath(s.c_str())->mNodePosition->second.getNodeInRam();
+        n = nodebypath(s.c_str());
     }
     if (!n)
     {
@@ -4902,12 +4902,12 @@ void exec_cp(autocomplete::ACState& s)
             }
 
             // determine number of nodes to be copied
-            client->proctree(n.get(), &tc, false, !ovhandle.isUndef());
+            client->proctree(n, &tc, false, !ovhandle.isUndef());
 
             tc.allocnodes();
 
             // build new nodes array
-            client->proctree(n.get(), &tc, false, !ovhandle.isUndef());
+            client->proctree(n, &tc, false, !ovhandle.isUndef());
 
             // if specified target is a filename, use it
             if (newname.size())
@@ -5912,7 +5912,7 @@ void exec_share(autocomplete::ACState& s)
                         return;
                     }
 
-                    client->setshare(n.get(), s.words[2].s.c_str(), a, writable, personal_representation, gNextClientTag++, [](Error e, bool)
+                    client->setshare(n, s.words[2].s.c_str(), a, writable, personal_representation, gNextClientTag++, [](Error e, bool)
                     {
                         if (e)
                         {
@@ -6059,7 +6059,7 @@ void exec_mkdir(autocomplete::ACState& s)
         }
         else
         {
-            n = nodebypath(s.words[1].s.c_str(), NULL, &newname)->mNodePosition->second.getNodeInRam();
+            n = nodebypath(s.words[1].s.c_str(), NULL, &newname);
         }
 
         if (n)
@@ -7071,7 +7071,7 @@ void exec_export(autocomplete::ACState& s)
         cout << "Exporting..." << endl;
 
         error e;
-        if ((e = client->exportnode(n.get(), deltmp, etstmp, writable, megaHosted, gNextClientTag++, [](Error e, handle h, handle ph){
+        if ((e = client->exportnode(n, deltmp, etstmp, writable, megaHosted, gNextClientTag++, [](Error e, handle h, handle ph){
             exportnode_result(e, h, ph);
         })))
         {
@@ -11258,7 +11258,7 @@ void exec_numberofchildren(autocomplete::ACState &s)
 
     if (s.words.size() > 1)
     {
-        n = nodebypath(s.words[1].s.c_str())->mNodePosition->second.getNodeInRam();
+        n = nodebypath(s.words[1].s.c_str());
         if (!n)
         {
             cout << s.words[1].s << ": No such file or directory" << endl;
