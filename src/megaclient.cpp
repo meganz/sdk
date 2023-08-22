@@ -1941,6 +1941,7 @@ void MegaClient::exec()
     {
         if (disconnecttimestamp <= Waiter::ds)
         {
+            LOG_debug << "Timeout (server idle)";
             sendevent(99427, "Timeout (server idle)", 0);
 
             disconnect();

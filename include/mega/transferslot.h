@@ -126,7 +126,7 @@ struct MEGA_API TransferSlot
     m_off_t processRaidReq(size_t connection = 0);
 
     // Prepare a transfer request for POST
-    void prepareRequest(const std::shared_ptr<HttpReqXfer>&, const string& tempURL, m_off_t pos, m_off_t npos, bool setReqPreparedStatus = true);
+    void prepareRequest(const std::shared_ptr<HttpReqXfer>&, const string& tempURL, m_off_t pos, m_off_t npos);
 
     // Process a request in REQ_FAILURE state
     void processRequestFailure(MegaClient* client, TransferDbCommitter& committer, const std::shared_ptr<HttpReqXfer>& httpReq, dstime& backoff, int channel = 0);

@@ -300,10 +300,9 @@ namespace mega {
         bool balancedRequest(int connection, const std::vector<std::string> &tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, m_off_t cmaxRequestSize, int cskippart);
         bool removeRaidReq(int connection);
         bool resumeAllConnections();
-        bool pauseTransferSlotFunctionality();
-        bool resumeTransferSlotFunctionality();
+        bool raidReqDoio(int connection);
 
-        m_off_t read_data(int connection, byte* buf, m_off_t len);
+        m_off_t readData(int connection, byte* buf, m_off_t len);
     };
 
 } // namespace

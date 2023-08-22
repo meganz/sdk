@@ -369,6 +369,7 @@ int PartFetcher::io()
     }
     else if (rr->allconnected((int)part))
     {
+        std::cout << "Alert WTF" << std::endl;
         // we only need RAIDPARTS-1 connections, so shut down the slowest one
         closesocket(true);
         return -1;
@@ -646,8 +647,6 @@ RaidReq::RaidReq(const Params& p, RaidReqPool& rrp, const std::shared_ptr<CloudR
     reported = false;
     missingsource = false;
 
-    downloadStartTime = std::chrono::system_clock::now();
-
     int firstExcluded = 5; // Todo: get the unused source from raid.cpp
     std::vector<int> partOrder = { 5, 4, 3, 2, 1, 0 };
 
@@ -672,11 +671,6 @@ RaidReq::RaidReq(const Params& p, RaidReqPool& rrp, const std::shared_ptr<CloudR
 
 RaidReq::~RaidReq()
 {
-    {
-        lock_guard<recursive_mutex> g(pool.rrp_lock); // Let other operations end
-    }
-    const auto& downloadEndTime = std::chrono::system_clock::now();
-    auto downloadTime = std::chrono::duration_cast<std::chrono::milliseconds>(downloadEndTime - downloadStartTime).count();
 }
 
 int RaidReq::numPartsUnfinished()
@@ -716,7 +710,6 @@ void PartFetcher::resume(bool forceSetPosRem)
 // try to resume fetching on all sources
 void RaidReq::resumeall(int excludedPart)
 {
-    lock_guard<recursive_mutex> g(rr_lock);
     if (rem)
     {
         {
@@ -1083,7 +1076,6 @@ void RaidReq::dispatchio(const HttpReqPtr& httpReq)
 }
 
 // execute cont()-triggered io()s
-// must be called under lock
 void RaidReq::handlependingio()
 {
     while (!pendingio.empty())
@@ -1154,8 +1146,6 @@ void RaidReq::watchdog()
 
 m_off_t RaidReq::readdata(byte* buf, m_off_t len)
 {
-    lock_guard<recursive_mutex> g(rr_lock);
-
     watchdog();
 
     m_off_t lenCompleted = 0;
@@ -1221,7 +1211,6 @@ void RaidReq::disconnect()
 
 bool RaidReqPool::addScheduledio(raidTime scheduledFor, const HttpReqPtr& req)
 {
-    lock_guard<recursive_mutex> g(rrp_queuelock);
     auto it = directio_set.insert(req);
     if (it.second)
     {
@@ -1236,25 +1225,16 @@ bool RaidReqPool::addDirectio(const HttpReqPtr& req)
     return addScheduledio(0, req);
 }
 
-void RaidReqPool::raidproxyiothread()
+void RaidReqPool::raidproxyio()
 {
     directsocket_queue events;
 
-    const auto& raidThreadStartTime = std::chrono::system_clock::now();
-    while (isRunning.load())
+    if (isRunning.load())
     {
-        std::this_thread::sleep_for(std::chrono::microseconds(1));
-
-        if (!isRunning.load()) break;
-
         {
-            lock_guard<recursive_mutex> g(rrp_queuelock); // for directIo
-
             auto itScheduled = scheduledio.begin();
             while (itScheduled != scheduledio.end() && itScheduled->first <= currtime)
             {
-                //reqTypes[itScheduled->second->status]++;
-                //reqTypesMap[itScheduled->second][itScheduled->second->status]++;
                 if (itScheduled->second->status == REQ_INFLIGHT)
                 {
                     itScheduled++;
@@ -1269,35 +1249,18 @@ void RaidReqPool::raidproxyiothread()
         }
         if (!events.empty())
         {
-            for (int j = 2; j--; )
-            {
             auto itEvent = events.begin();
             while (isRunning.load() && itEvent != events.end())
             {
                 {
-                    lock_guard<recursive_mutex> g(rrp_lock); // this lock guarantees RaidReq will not be deleted between lookup and dispatch - locked for a while but only affects the main thread with new raidreqs being added or removed
                     const HttpReqPtr& httpReq = *itEvent;
                     RaidReq* rr;
                     if ((rr = socketrrs.lookup(httpReq)))  // retrieved under extremely brief lock.  RaidReqs can not be deleted until we unlock rrp_lock
                     {
-                        std::unique_lock<recursive_mutex> grr(rr->rr_lock, std::defer_lock);
-                        if (grr.try_lock())
-                        {
-                            rr->dispatchio(httpReq);
-                            itEvent = events.erase(itEvent);
-                        }
-                        else
-                        {
-                            itEvent++;
-                        }
+                        rr->dispatchio(httpReq);
                     }
-                    else
-                    {
-                        itEvent = events.erase(itEvent);
-                    }
+                    itEvent = events.erase(itEvent);
                 }
-            }
-            if (events.empty()) break;
             }
             while (!events.empty())
             {
@@ -1306,31 +1269,21 @@ void RaidReqPool::raidproxyiothread()
             }
         }
     }
-    const auto& raidThreadEndTime = std::chrono::system_clock::now();
-    auto raidThreadTime = std::chrono::duration_cast<std::chrono::milliseconds>(raidThreadEndTime - raidThreadStartTime).count();
-}
-
-void RaidReqPool::raidproxyiothreadstart(RaidReqPool* rrp)
-{
-    rrp->raidproxyiothread();
 }
 
 RaidReqPool::RaidReqPool()
 {
     isRunning.store(true);
-    rrp_thread = std::thread(raidproxyiothreadstart, this);
 }
 
 RaidReqPool::~RaidReqPool()
 {
-    raidReq.reset();
     isRunning.store(false);
-    rrp_thread.join();
+    raidReq.reset();
 }
 
 void RaidReqPool::request(const mega::SCCR::RaidReq::Params& p, const std::shared_ptr<CloudRaid>& cloudRaid)
 {
-    lock_guard<recursive_mutex> g(rrp_lock);
     RaidReq* rr = new RaidReq(p, *this, cloudRaid);
     raidReq.reset(rr);
 }

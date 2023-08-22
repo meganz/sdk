@@ -157,31 +157,24 @@ public:
 };
 
 template <class T1, class T2>
-class ts_ptr_map    // thread safe pointer map - needed in order to decouple socketrrs from RaidReq locks
+class ts_ptr_map // needed in order to decouple HttpReqs from RaidReq
 {
     map<T1, T2*> m;
     mutex x;
 public:
-    void set(T1 t1, T2* t2) { lock_guard<mutex> g(x); m[t1] = t2; }
-    void del(T1 t1) { lock_guard<mutex> g(x); m.erase(t1); }
-    T2* lookup(T1 t1) { lock_guard<mutex> g(x); auto it = m.find(t1); return it == m.end() ? nullptr : it->second; }
-    size_t size() { lock_guard<mutex> g(x); return m.size(); }
+    void set(T1 t1, T2* t2) { m[t1] = t2; }
+    void del(T1 t1) { m.erase(t1); }
+    T2* lookup(T1 t1) { auto it = m.find(t1); return it == m.end() ? nullptr : it->second; }
+    size_t size() { return m.size(); }
 };
 
 
 class RaidReqPool
 {
-    // runs a thread and manages all the RaidReq assigned to it on that thread
     friend class PartFetcher;
     friend class RaidReq;
-    ts_ptr_map<HttpReqPtr, RaidReq> socketrrs; // to be able to set up the handling of epoll events from any thread safely
-
-    recursive_mutex rrp_lock, rrp_queuelock;
-    std::thread rrp_thread;
     std::atomic<bool> isRunning;
-
-    void raidproxyiothread();
-    static void raidproxyiothreadstart(RaidReqPool* rrp);
+    ts_ptr_map<HttpReqPtr, RaidReq> socketrrs; // to be able to set up the handling of HttpReqs
 
     unique_ptr<RaidReq> raidReq;
     typedef set<pair<raidTime, HttpReqPtr>> timesocket_set;
@@ -193,6 +186,7 @@ class RaidReqPool
 public:
     RaidReqPool();
     ~RaidReqPool();
+    void raidproxyio();
     void request(const RaidReq::Params& p, const std::shared_ptr<CloudRaid>&);
     bool addScheduledio(raidTime, const HttpReqPtr&);
     bool addDirectio(const HttpReqPtr&);

@@ -1225,16 +1225,15 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                 }
                 if (transferbuf.isNewRaid())
                 {
-                    cloudRaid->resumeTransferSlotFunctionality();
                     if (reqs[i]->status == REQ_PREPARED || reqs[i]->status == REQ_INFLIGHT)
                     {
                         m_off_t reqProgress = processRaidReq(i);
-                        if (reqs[i]->status == REQ_SUCCESS)
+                        if (reqProgress > reqs[i]->size)
                         {
-                            cloudRaid->removeRaidReq(i);
+                            LOG_err << "[TransferSlot::doio] RaidReq progress (" << reqProgress << ") greater than its size (" << reqs[i]->size << ")";
                         }
+                        assert(reqProgress <= reqs[i]->size);
                     }
-                    cloudRaid->pauseTransferSlotFunctionality();
                 }
             }
         }
@@ -1336,23 +1335,22 @@ m_off_t TransferSlot::processRaidReq(size_t connection)
     assert(transfer->type == GET);
     assert(httpReq != nullptr);
     assert(cloudRaid && cloudRaid->isShown());
+
+    // Process internal RaidReq IO
+    cloudRaid->raidReqDoio(static_cast<int>(connection));
+
     if (httpReq->status == REQ_PREPARED)
     {
         httpReq->bufpos = 0;
         httpReq->status = REQ_INFLIGHT;
     }
-    if (httpReq->status != REQ_INFLIGHT)
-    {
-        return -1;
-    }
     m_off_t progress = -1;
     byte* buf = httpReq->buf + httpReq->bufpos;
     m_off_t len = httpReq->size - httpReq->bufpos;
     assert(len > 0);
-    if (transfer->type == GET)
-    {
-        progress = static_cast<m_off_t>(cloudRaid->read_data(static_cast<int>(connection), buf, len));
-    }
+
+    // Get raid-assembled data
+    progress = static_cast<m_off_t>(cloudRaid->readData(static_cast<int>(connection), buf, len));
     if (progress > 0)
     {
         httpReq->bufpos += progress;
@@ -1366,10 +1364,15 @@ m_off_t TransferSlot::processRaidReq(size_t connection)
         httpReq->status = REQ_FAILURE;
     }
     httpReq->lastdata = Waiter::ds;
+
+    if (httpReq->status == REQ_SUCCESS)
+    {
+        cloudRaid->removeRaidReq(static_cast<int>(connection));
+    }
     return progress;
 }
 
-void TransferSlot::prepareRequest(const std::shared_ptr<HttpReqXfer>& httpReq, const string& tempURL, m_off_t pos, m_off_t npos, bool setReqPreparedStatus)
+void TransferSlot::prepareRequest(const std::shared_ptr<HttpReqXfer>& httpReq, const string& tempURL, m_off_t pos, m_off_t npos)
 {
     size_t index = string::npos;
     if (((transfer->type == GET && transfer->client->usealtdownport) ||
@@ -1383,7 +1386,7 @@ void TransferSlot::prepareRequest(const std::shared_ptr<HttpReqXfer>& httpReq, c
         }
     }
 
-    const string& finaltempURL = (index == std::string::npos) ?
+    string finaltempURL = (index == std::string::npos) ?
                                     tempURL :
                                     string(tempURL).insert(index, ":8080");
 
@@ -1392,10 +1395,7 @@ void TransferSlot::prepareRequest(const std::shared_ptr<HttpReqXfer>& httpReq, c
                      transfer->ctriv,
                      pos, npos);
     httpReq->pos = pos;
-    if (setReqPreparedStatus)
-    {
-        httpReq->status = REQ_PREPARED;
-    }
+    httpReq->status = REQ_PREPARED;
 }
 
 void TransferSlot::processRequestFailure(MegaClient* client, TransferDbCommitter& committer, const std::shared_ptr<HttpReqXfer>& httpReq, dstime& backoff, int channel)

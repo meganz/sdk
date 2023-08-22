@@ -971,7 +971,9 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
     	assert(false);
     	return std::make_pair(0, 0);
     }
-
+        std::cout << std::string(transfer->type == PUT ? "Uploading" :
+                                transfer->type == GET ? "Downloading" : "?")
+                  << " chunk of size " << npos - transfer->pos << std::endl;
         LOG_debug << std::string(transfer->type == PUT ? "Uploading" :
                                 transfer->type == GET ? "Downloading" : "?")
                   << " chunk of size " << npos - transfer->pos;
@@ -1047,13 +1049,7 @@ private:
     TransferSlot* tslot;
     MegaClient* client;
     TransferDbCommitter& committer;
-
-    // Atomic and locks
-    std::atomic<bool> started;
-    std::atomic<bool> waitForTs;
-    std::condition_variable cvWaitForTS; // Wait for transferslot
-    std::mutex wfts_m;
-    std::recursive_mutex ts_m;
+    bool started;
 
 public:
     CloudRaidImpl(TransferSlot* tslot, MegaClient* client, TransferDbCommitter& committer, int connections)
@@ -1062,7 +1058,6 @@ public:
     , client(client)
     , committer(committer)
     , started(false)
-    , waitForTs(true)
     {
         assert(tslot != nullptr);
         assert(client != nullptr);
@@ -1071,76 +1066,34 @@ public:
 
     ~CloudRaidImpl()
     {
-        if (waitForTs)
-        {
-            stopWaitForTransferSlot();
-        }
         stop();
-    }
-
-    void waitForTransferSlot()
-    {
-        std::unique_lock<std::mutex> wftSLock(wfts_m);
-        cvWaitForTS.wait(wftSLock, [this]{ return !waitForTs.load(); });
-    }
-
-    bool addWaitForTransferSlot()
-    {
-        if (!started.load()) return false;
-        std::lock_guard<std::recursive_mutex> tSLock(ts_m);
-        {
-            std::lock_guard<std::mutex> wftSLock(wfts_m);
-            assert(waitForTs == false);
-            waitForTs.store(true);
-        }
-        return true;
-    }
-
-    bool stopWaitForTransferSlot()
-    {
-        if (!started.load()) return false;
-        {
-            std::lock_guard<std::mutex> wftSLock(wfts_m);
-            assert(waitForTs == true);
-            waitForTs.store(false);
-        }
-        cvWaitForTS.notify_all();
-        return true;
     }
 
     /* TransferSlot functionality */
     bool disconnect(std::shared_ptr<HttpReqXfer> req)
     {
-        if (!started.load()) return false;
-        std::lock_guard<std::recursive_mutex> tSLock(ts_m);
-        waitForTransferSlot();
+        if (!started) return false;
         tslot->disconnect(req);
         return true;
     }
 
     bool prepareRequest(std::shared_ptr<HttpReqXfer> req, const string& tempURL, m_off_t pos, m_off_t npos)
     {
-        if (!started.load()) return false;
-        std::lock_guard<std::recursive_mutex> tSLock(ts_m);
-        waitForTransferSlot();
+        if (!started) return false;
         tslot->prepareRequest(req, tempURL, pos, npos);
         return req->status == REQ_PREPARED;
     }
 
     bool post(std::shared_ptr<HttpReqXfer> req)
     {
-        if (!started.load()) return false;
-        std::lock_guard<std::recursive_mutex> tSLock(ts_m);
-        waitForTransferSlot();
+        if (!started) return false;
         req->post(client);
         return req->status == REQ_INFLIGHT;
     }
 
     bool onRequestFailure(std::shared_ptr<HttpReqXfer> req, int part, SCCR::raidTime& backoff)
     {
-        if (!started.load()) return false;
-        std::lock_guard<std::recursive_mutex> tSLock(ts_m);
-        waitForTransferSlot();
+        if (!started) return false;
         dstime tslot_backoff = 0;
         tslot->processRequestFailure(client, committer, req, tslot_backoff, part);
         backoff = static_cast<SCCR::raidTime>(tslot_backoff);
@@ -1149,7 +1102,7 @@ public:
 
     bool onTransferFailure()
     {
-        if (!started.load()) return false;
+        if (!started) return false;
         tslot->transfer->failed(API_EAGAIN, committer);
         return true;
     }
@@ -1157,7 +1110,7 @@ public:
     /* CloudRaid functionality */
     bool balancedRequest(int connection, const std::vector<std::string> &tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, m_off_t cmaxRequestSize, int cskippart)
     {
-        if (!started.load())
+        if (!started)
         {
             start();
         }
@@ -1170,38 +1123,34 @@ public:
 
     bool isStarted() const
     {
-        return started.load();
+        return started;
     }
 
     bool start()
     {
-        if (started.load())
+        if (started)
         {
             return false;
         }
         raidReqPoolArray.resize(connections);
-        started.store(true);
+        started = true;
         return true;
     }
 
     bool stop()
     {
-        if (!started.load())
+        if (!started)
         {
             return false;
         }
-        if (waitForTs)
-        {
-            stopWaitForTransferSlot();
-        }
         raidReqPoolArray.clear();
-        started.store(false);
+        started = false;
         return true;
     }
 
     bool removeRaidReq(int connection)
     {
-        if (started.load() && raidReqPoolArray[connection])
+        if (started && raidReqPoolArray[connection])
         {
             raidReqPoolArray[connection].reset();
             return true;
@@ -1211,7 +1160,7 @@ public:
 
     bool resumeAllConnections()
     {
-        if (started.load())
+        if (started)
         {
             int i = connections;
             while (i --> 0)
@@ -1223,15 +1172,25 @@ public:
         return false;
     }
 
-    m_off_t read_data(int connection, byte* buf, m_off_t len)
+    m_off_t readData(int connection, byte* buf, m_off_t len)
     {
         m_off_t readData = -1;
-        if (started.load())
+        if (started)
         {
             currtime = Waiter::ds;
             readData = static_cast<m_off_t>(raidReqPoolArray[connection]->rr()->readdata(buf, len));
         }
         return readData;
+    }
+
+    bool raidReqDoio(int connection)
+    {
+        if (started && raidReqPoolArray[connection])
+        {
+            raidReqPoolArray[connection]->raidproxyio();
+            return true;
+        }
+        return false;
     }
 };
 
@@ -1316,25 +1275,11 @@ bool CloudRaid::removeRaidReq(int connection)
     return Pimpl()->removeRaidReq(connection);
 }
 
-m_off_t CloudRaid::read_data(int connection, byte* buf, m_off_t len)
+m_off_t CloudRaid::readData(int connection, byte* buf, m_off_t len)
 {
     if (!shown.load())
         return -1;
-    return Pimpl()->read_data(connection, buf, len);
-}
-
-bool CloudRaid::pauseTransferSlotFunctionality()
-{
-    if (!shown.load())
-        return false;
-    return Pimpl()->addWaitForTransferSlot();
-}
-
-bool CloudRaid::resumeTransferSlotFunctionality()
-{
-    if (!shown.load())
-        return false;
-    return Pimpl()->stopWaitForTransferSlot();
+    return Pimpl()->readData(connection, buf, len);
 }
 
 bool CloudRaid::resumeAllConnections()
@@ -1342,6 +1287,13 @@ bool CloudRaid::resumeAllConnections()
     if (!shown.load())
         return -1;
     return Pimpl()->resumeAllConnections();
+}
+
+bool CloudRaid::raidReqDoio(int connection)
+{
+    if (!shown.load())
+        return -1;
+    return Pimpl()->raidReqDoio(connection);
 }
 
 }; // namespace
