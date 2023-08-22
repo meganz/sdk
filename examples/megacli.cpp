@@ -901,7 +901,7 @@ void DemoApp::chatlinkclose_result(error e)
     }
 }
 
-void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *ct, int, m_time_t ts, bool meetingRoom, handle callid, error e)
+void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *ct, int, m_time_t ts, bool meetingRoom, const bool waitingRoom, const std::vector<std::unique_ptr<ScheduledMeeting>>* smList, handle callid, error e)
 {
     if (e)
     {
@@ -915,6 +915,10 @@ void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *
         cout << "URL for chat-link: " << url->c_str() << endl;
         cout << "Encrypted chat-topic: " << ct->c_str() << endl;
         cout << "Creation timestamp: " << ts << endl;
+        cout << "Callid: " << Base64Str<MegaClient::CHATHANDLE>(callid) << endl;
+        cout << "Meeting room: " << meetingRoom << endl;
+        cout << "Waiting room: " << waitingRoom << endl;
+        cout << "Scheduled meeting: " << smList << endl;
     }
 }
 
@@ -958,39 +962,39 @@ void DemoApp::printChatInformation(TextChat *chat)
         return;
     }
 
-    cout << "Chat ID: " << Base64Str<sizeof(handle)>(chat->id) << endl;
-    cout << "\tOwn privilege level: " << DemoApp::getPrivilegeString(chat->priv) << endl;
-    cout << "\tCreation ts: " << chat->ts << endl;
-    cout << "\tChat shard: " << chat->shard << endl;
-    cout << "\tGroup chat: " << ((chat->group) ? "yes" : "no") << endl;
+    cout << "Chat ID: " << Base64Str<sizeof(handle)>(chat->getChatId()) << endl;
+    cout << "\tOwn privilege level: " << DemoApp::getPrivilegeString(chat->getOwnPrivileges()) << endl;
+    cout << "\tCreation ts: " << chat->getTs() << endl;
+    cout << "\tChat shard: " << chat->getShard() << endl;
+    cout << "\tGroup chat: " << ((chat->getGroup()) ? "yes" : "no") << endl;
     cout << "\tArchived chat: " << ((chat->isFlagSet(TextChat::FLAG_OFFSET_ARCHIVE)) ? "yes" : "no") << endl;
     cout << "\tPublic chat: " << ((chat->publicChat()) ? "yes" : "no") << endl;
     if (chat->publicChat())
     {
-        cout << "\tUnified key: " << chat->unifiedKey.c_str() << endl;
-        cout << "\tMeeting room: " << ((chat->meeting) ? "yes" : "no") << endl;
+        cout << "\tUnified key: " << chat->getUnifiedKey() << endl;
+        cout << "\tMeeting room: " << (chat->getMeeting() ? "yes" : "no") << endl;
     }
 
     cout << "\tPeers:";
 
-    if (chat->userpriv)
+    if (chat->getOwnPrivileges())
     {
         cout << "\t\t(userhandle)\t(privilege level)" << endl;
-        for (unsigned i = 0; i < chat->userpriv->size(); i++)
+        for (unsigned i = 0; i < chat->getUserPrivileges()->size(); i++)
         {
-            Base64Str<sizeof(handle)> hstr(chat->userpriv->at(i).first);
+            Base64Str<sizeof(handle)> hstr(chat->getUserPrivileges()->at(i).first);
             cout << "\t\t\t" << hstr;
-            cout << "\t" << DemoApp::getPrivilegeString(chat->userpriv->at(i).second) << endl;
+            cout << "\t" << DemoApp::getPrivilegeString(chat->getUserPrivileges()->at(i).second) << endl;
         }
     }
     else
     {
         cout << " no peers (only you as participant)" << endl;
     }
-    cout << "\tIs own change: " << ((chat->tag) ? "yes" : "no") << endl;
-    if (!chat->title.empty())
+    cout << "\tIs own change: " << (chat->getTag() ? "yes" : "no") << endl;
+    if (!chat->getTitle().empty())
     {
-        cout << "\tTitle: " << chat->title.c_str() << endl;
+        cout << "\tTitle: " << chat->getTitle() << endl;
     }
 }
 
@@ -3788,6 +3792,7 @@ void exec_backupcentre(autocomplete::ACState& s)
                         cout << "  root handle: " << toNodeHandle(d.rootNode) << endl;
                         cout << "  local folder: " << d.localFolder << endl;
                         cout << "  device id: " << d.deviceId << endl;
+                        cout << "  device user-agent: " << d.deviceUserAgent << endl;
                         cout << "  sync state: " << d.syncState << endl;
                         cout << "  sync substate: " << d.syncSubstate << endl;
                         cout << "  extra: " << d.extra << endl;
@@ -3991,10 +3996,10 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_smsverify, sequence(text("smsverify"), either(sequence(text("send"), param("phonenumber"), opt(param("reverifywhitelisted"))), sequence(text("code"), param("verificationcode")))));
     p->Add(exec_verifiedphonenumber, sequence(text("verifiedphone")));
     p->Add(exec_resetverifiedphonenumber, sequence(text("resetverifiedphone")));
-    p->Add(exec_mkdir, sequence(text("mkdir"), opt(flag("-allowduplicate")), opt(flag("-exactleafname")), remoteFSFolder(client, &cwd)));
+    p->Add(exec_mkdir, sequence(text("mkdir"), opt(flag("-allowduplicate")), opt(flag("-exactleafname")), opt(flag("-writevault")), remoteFSFolder(client, &cwd)));
     p->Add(exec_rm, sequence(text("rm"), remoteFSPath(client, &cwd), opt(sequence(flag("-regexchild"), param("regex")))));
     p->Add(exec_mv, sequence(text("mv"), remoteFSPath(client, &cwd, "src"), remoteFSPath(client, &cwd, "dst")));
-    p->Add(exec_cp, sequence(text("cp"), opt(flag("-noversion")), opt(flag("-version")), opt(flag("-versionreplace")), remoteFSPath(client, &cwd, "src"), either(remoteFSPath(client, &cwd, "dst"), param("dstemail"))));
+    p->Add(exec_cp, sequence(text("cp"), opt(flag("-noversion")), opt(flag("-version")), opt(flag("-versionreplace")), opt(flag("-allowduplicateversions")), remoteFSPath(client, &cwd, "src"), either(remoteFSPath(client, &cwd, "dst"), param("dstemail"))));
     p->Add(exec_du, sequence(text("du"), opt(flag("-listfolders")), opt(remoteFSPath(client, &cwd))));
     p->Add(exec_numberofnodes, sequence(text("nn")));
     p->Add(exec_numberofchildren, sequence(text("nc"), opt(remoteFSPath(client, &cwd))));
@@ -4261,6 +4266,9 @@ autocomplete::ACN autocompleteSyntax()
                         )));
 
     p->Add(exec_reqstat, sequence(text("reqstat"), opt(either(flag("-on"), flag("-off")))));
+    p->Add(exec_getABTestValue, sequence(text("getabflag"), param("flag")));
+    p->Add(exec_sendABTestActive, sequence(text("setabflag"), param("flag")));
+    p->Add(exec_contactVerificationWarning, sequence(text("verificationwarnings"), opt(either(flag("-on"), flag("-off")))));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -4792,6 +4800,8 @@ void exec_cp(autocomplete::ACState& s)
     if (s.extractflag("-version")) vo = ClaimOldVersion;
     if (s.extractflag("-versionreplace")) vo = ReplaceOldVersion;
 
+    bool allowDuplicateVersions = s.extractflag("-allowduplicateversions");
+
     if (s.words.size() > 2)
     {
         if ((n = nodebypath(s.words[1].s.c_str())))
@@ -4872,7 +4882,7 @@ void exec_cp(autocomplete::ACState& s)
                 }
             }
 
-            if (tn && n->type == FILENODE)
+            if (tn && n->type == FILENODE && !allowDuplicateVersions)
             {
                 Node *ovn = client->childnodebyname(tn, sname.c_str(), true);
                 if (ovn)
@@ -6019,6 +6029,7 @@ void exec_mkdir(autocomplete::ACState& s)
 {
     bool allowDuplicate = s.extractflag("-allowduplicate");
     bool exactLeafName = s.extractflag("-exactleafname");
+    bool writevault = s.extractflag("-writevault");
 
     if (s.words.size() > 1)
     {
@@ -6047,8 +6058,8 @@ void exec_mkdir(autocomplete::ACState& s)
             if (newname.size())
             {
                 vector<NewNode> nn(1);
-                client->putnodes_prepareOneFolder(&nn[0], newname, false);
-                client->putnodes(n->nodeHandle(), NoVersioning, std::move(nn), nullptr, gNextClientTag++, false);
+                client->putnodes_prepareOneFolder(&nn[0], newname, writevault);
+                client->putnodes(n->nodeHandle(), NoVersioning, std::move(nn), nullptr, gNextClientTag++, writevault);
             }
             else if (allowDuplicate && n->parent && n->parent->nodehandle != UNDEF)
             {
@@ -6057,8 +6068,8 @@ void exec_mkdir(autocomplete::ACState& s)
                 auto pos = leafname.find_last_of("/");
                 if (pos != string::npos) leafname.erase(0, pos + 1);
                 vector<NewNode> nn(1);
-                client->putnodes_prepareOneFolder(&nn[0], leafname, false);
-                client->putnodes(n->parent->nodeHandle(), NoVersioning, std::move(nn), nullptr, gNextClientTag++, false);
+                client->putnodes_prepareOneFolder(&nn[0], leafname, writevault);
+                client->putnodes(n->parent->nodeHandle(), NoVersioning, std::move(nn), nullptr, gNextClientTag++, writevault);
             }
             else
             {
@@ -8950,7 +8961,16 @@ void DemoApp::notify_confirmation(const char *email)
 {
     if (client->loggedin() == EPHEMERALACCOUNT || client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
     {
-        LOG_debug << "Account has been confirmed with email " << email << ". Proceed to login with credentials.";
+        LOG_debug << "Account has been confirmed with email " << email << ".";
+    }
+}
+
+void DemoApp::notify_confirm_user_email(handle user, const char *email)
+{
+    if (client->loggedin() == EPHEMERALACCOUNT || client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
+    {
+        LOG_debug << "Account has been confirmed with user " << user << " and email " << email << ". Proceed to login with credentials.";
+        cout << "Account has been confirmed with user " << toHandle(user) << " and email " << email << ". Proceed to login with credentials.";
     }
 }
 
@@ -9235,8 +9255,8 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
                 {
                     printf("\t* Current Session\n");
                 }
-                printf("\tSession ID: %s\n\tSession start: %s\n\tMost recent activity: %s\n\tIP: %s\n\tCountry: %.2s\n\tUser-Agent: %s\n\t-----\n",
-                        id.chars, timebuf, timebuf2, it->ip.c_str(), it->country, it->useragent.c_str());
+                printf("\tSession ID: %s\n\tSession start: %s\n\tMost recent activity: %s\n\tIP: %s\n\tCountry: %.2s\n\tUser-Agent: %s\n\tDevice ID: %s\n\t-----\n",
+                        id.chars, timebuf, timebuf2, it->ip.c_str(), it->country, it->useragent.c_str(), it->deviceid.c_str());
             }
         }
 
@@ -10950,6 +10970,65 @@ void exec_reqstat(autocomplete::ACState &s)
 void DemoApp::reqstat_progress(int permilprogress)
 {
     cout << "Progress (per mille) of request: " << permilprogress << endl;
+}
+
+void exec_getABTestValue(autocomplete::ACState &s)
+{
+    string flag = s.words[1].s;
+
+    auto it = client->mABTestFlags.find(flag);
+
+    string value = "0 (not set)";
+    if (it != client->mABTestFlags.end())
+    {
+        value = std::to_string(it->second);
+    }
+
+    cout << "[" << flag<< "]:" << value << endl;
+}
+
+void exec_sendABTestActive(autocomplete::ACState &s)
+{
+    string flag = s.words[1].s;
+
+    client->sendABTestActive(flag.c_str(), [](Error e)
+        {
+            if (e)
+            {
+                cout << "Error sending Ab Test flag: " << e << endl;
+            }
+            else
+            {
+                cout << "Flag has been correctly sent." << endl;
+            }
+        });
+}
+
+void exec_contactVerificationWarning(autocomplete::ACState& s)
+{
+    bool enable = s.extractflag("-on");
+    bool disable = s.extractflag("-off");
+
+    if (enable)
+    {
+        client->setContactVerificationWarning(true,
+          [](Error e)
+          {
+              if (!e) cout << "Warnings for unverified contacts: Enabled.";
+          });
+    }
+    else if (disable)
+    {
+        client->setContactVerificationWarning(false,
+          [](Error e)
+          {
+              if (!e) cout << "Warnings for unverified contacts: Disabled.";
+          });
+    }
+    else
+    {
+        cout << "Warnings for unverified contacts: " << (client->mKeyManager.getContactVerificationWarning() ? "Enabled" : "Disabled") << endl;
+    }
 }
 
 void exec_numberofnodes(autocomplete::ACState &s)

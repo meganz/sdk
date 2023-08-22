@@ -397,8 +397,6 @@ void MegaClient::mergenewshares(bool notify, bool skipWriteInDb)
         delete s;
         newshares.erase(it++);
     }
-
-    mNewKeyRepository.clear();
 }
 
 void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
@@ -479,9 +477,8 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                     {
                         sendevent(99428,"Replacing share key", 0);
                     }
-                    delete n->sharekey;
                 }
-                n->sharekey = new SymmCipher(s->key);
+                n->sharekey.reset(new SymmCipher(s->key));
                 skreceived = true;
 
                 // Save the new sharekey in mKeyManager
@@ -523,21 +520,18 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                 share_map::iterator shareit = n->outshares->find(s->peer);
                 if (shareit != n->outshares->end())
                 {
-                    Share *delshare = shareit->second;
                     n->outshares->erase(shareit);
                     found = true;
                     if (notify)
                     {
                         n->changed.outshares = true;
-                        notifynode(n);
+                        mNodeManager.notifyNode(n);
                     }
-                    delete delshare;
                 }
 
-                if (!n->outshares->size())
+                if (n->outshares->empty())
                 {
-                    delete n->outshares;
-                    n->outshares = NULL;
+                    n->outshares.reset();
                 }
             }
             if (n->pendingshares && !found && s->pending)
@@ -546,21 +540,18 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                 share_map::iterator shareit = n->pendingshares->find(s->pending);
                 if (shareit != n->pendingshares->end())
                 {
-                    Share *delshare = shareit->second;
                     n->pendingshares->erase(shareit);
                     found = true;
                     if (notify)
                     {
                         n->changed.pendingshares = true;
-                        notifynode(n);
+                        mNodeManager.notifyNode(n);
                     }
-                    delete delshare;
                 }
 
-                if (!n->pendingshares->size())
+                if (n->pendingshares->empty())
                 {
-                    delete n->pendingshares;
-                    n->pendingshares = NULL;
+                    n->pendingshares.reset();
                 }
             }
 
@@ -569,9 +560,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
             if (s->remove_key && !n->outshares && !n->pendingshares)
             {
                 rewriteforeignkeys(n);
-
-                delete n->sharekey;
-                n->sharekey = NULL;
+                n->sharekey.reset();
             }
         }
         else
@@ -580,8 +569,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
             {
                 n->inshare->user->sharing.erase(n->nodehandle);
                 notifyuser(n->inshare->user);
-                delete n->inshare;
-                n->inshare = NULL;
+                n->inshare.reset();
             }
 
             // incoming share deleted - remove tree
@@ -593,7 +581,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
             else if (notify)
             {
                 n->changed.inshare = true;
-                notifynode(n);
+                mNodeManager.notifyNode(n);
             }
         }
     }
@@ -608,13 +596,13 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                 // only on own nodes and signed unless read from cache
                 if (checkaccess(n, OWNERPRELOGIN))
                 {
-                    Share** sharep;
+                    unique_ptr<Share>* sharep;
                     if (!ISUNDEF(s->pending))
                     {
                         // Pending share
                         if (!n->pendingshares)
                         {
-                            n->pendingshares = new share_map();
+                            n->pendingshares.reset(new share_map());
                         }
 
                         if (s->upgrade_pending_to_full)
@@ -624,20 +612,17 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                             {
                                 // This is currently a pending share that needs to be upgraded to a full share
                                 // erase from pending shares & delete the pending share list if needed
-                                Share *delshare = shareit->second;
                                 n->pendingshares->erase(shareit);
                                 if (notify)
                                 {
                                     n->changed.pendingshares = true;
-                                    notifynode(n);
+                                    mNodeManager.notifyNode(n);
                                 }
-                                delete delshare;
                             }
 
-                            if (!n->pendingshares->size())
+                            if (n->pendingshares->empty())
                             {
-                                delete n->pendingshares;
-                                n->pendingshares = NULL;
+                                n->pendingshares.reset();
                             }
 
                             // clear this so we can fall through to below and have it re-create the share in
@@ -647,7 +632,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                             // create the outshares list if needed
                             if (!n->outshares)
                             {
-                                n->outshares = new share_map();
+                                n->outshares.reset(new share_map());
                             }
 
                             sharep = &((*n->outshares)[s->peer]);
@@ -662,7 +647,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                         // Normal outshare
                         if (!n->outshares)
                         {
-                            n->outshares = new share_map();
+                            n->outshares.reset(new share_map());
                         }
 
                         sharep = &((*n->outshares)[s->peer]);
@@ -675,7 +660,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                     }
                     else
                     {
-                        *sharep = new Share(ISUNDEF(s->peer) ? NULL : finduser(s->peer, 1), s->access, s->ts, findpcr(s->pending));
+                        sharep->reset(new Share(ISUNDEF(s->peer) ? NULL : finduser(s->peer, 1), s->access, s->ts, findpcr(s->pending)));
                     }
 
                     if (notify)
@@ -688,7 +673,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                         {
                             n->changed.outshares = true;
                         }
-                        notifynode(n);
+                        mNodeManager.notifyNode(n);
                     }
                 }
             }
@@ -715,14 +700,14 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                         }
                         else
                         {
-                            n->inshare = new Share(finduser(s->peer, 1), s->access, s->ts, NULL);
+                            n->inshare.reset(new Share(finduser(s->peer, 1), s->access, s->ts, NULL));
                             n->inshare->user->sharing.insert(n->nodehandle);
                         }
 
                         if (notify)
                         {
                             n->changed.inshare = true;
-                            notifynode(n);
+                            mNodeManager.notifyNode(n);
                         }
                     }
                     else
@@ -1113,6 +1098,7 @@ void SCSN::clear()
 {
     memset(scsn, 0, sizeof(scsn));
     stopsc = false;
+    LOG_debug << "scsn cleared";
 }
 
 // set server-client sequence number
@@ -1132,13 +1118,19 @@ bool SCSN::setScsn(JSON* j)
 
 void SCSN::setScsn(handle h)
 {
+    bool wasReady = ready();
     Base64::btoa((byte*)&h, sizeof h, scsn);
+    if (ready() != wasReady)
+    {
+        LOG_debug << "scsn now ready: " << ready();
+    }
 }
 
 void SCSN::stopScsn()
 {
     memset(scsn, 0, sizeof(scsn));
     stopsc = true;
+    LOG_debug << "scsn stopped";
 }
 
 bool SCSN::ready() const
@@ -3024,8 +3016,8 @@ void MegaClient::exec()
                 fsfp_t current = fsaccess->fsFingerprint(sync->getConfig().mLocalPath);
                 if (sync->fsfp != current)
                 {
-                    LOG_err << "Local filesystem mismatch. Previous fsfp: " << sync->fsfp
-                            << "  Current: " << current;
+                    LOG_err << "Local filesystem mismatch. Previous fsfp: " << sync->fsfp.id
+                            << "  Current: " << current.id;
                     syncs.disableSyncByBackupId(sync->getConfig().mBackupId, true, current ? LOCAL_FILESYSTEM_MISMATCH : LOCAL_PATH_UNAVAILABLE, false, nullptr);
                 }
             }
@@ -4410,6 +4402,7 @@ void MegaClient::dispatchTransfers()
                         openfinished = true;
                         nexttransfer->asyncopencontext.reset();
                         asyncfopens--;
+                        ts->fa->fopenSucceeded = openok;
                     }
 
                     assert(!asyncfopens);
@@ -4580,7 +4573,7 @@ void MegaClient::dispatchTransfers()
                                     if (n)
                                     {
                                         n->size = s;
-                                        notifynode(n);
+                                        mNodeManager.notifyNode(n);
                                     }
                                 }
 
@@ -4861,7 +4854,7 @@ void MegaClient::logout(bool keepSyncConfigsFile, CommandLogout::Completion comp
 
 void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 {
-    LOG_debug << clientname << "exectuing locallogout processing";  // track possible lack of logout callbacks
+    LOG_debug << clientname << "executing locallogout processing";  // track possible lack of logout callbacks
     executingLocalLogout = true;
 
     mAsyncQueue.clearDiscardable();
@@ -4899,6 +4892,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     aplvp_enabled = false;
     mNewLinkFormat = false;
     mCookieBannerEnabled = false;
+    mABTestFlags.clear();
     mProFlexi = false;
     mSmsVerificationState = SMS_STATE_UNKNOWN;
     mSmsVerifiedPhone.clear();
@@ -5230,6 +5224,7 @@ bool MegaClient::procsc()
                     LOG_debug << "Processing of action packets for " << string(sessionid, sizeof(sessionid)) << " finished.  More to follow: " << insca_notlast;
                     mergenewshares(1);
                     applykeys();
+                    mNewKeyRepository.clear();
 
                     if (!statecurrent && !insca_notlast)   // with actionpacket spoonfeeding, just finishing a batch does not mean we are up to date yet - keep going while "ir":1
                     {
@@ -5651,6 +5646,11 @@ bool MegaClient::procsc()
                                 // pending keys
                                 sc_pk();
                                 break;
+
+                            case MAKENAMEID3('u', 'e', 'c'):
+                                // User Email Confirm (uec)
+                                sc_uec();
+                                break;
                         }
                     }
                 }
@@ -5982,8 +5982,7 @@ void MegaClient::updatesc()
             // 6. write new or modified chats
             for (textchat_map::iterator it = chatnotify.begin(); it != chatnotify.end(); it++)
             {
-                char base64[12];
-                LOG_verbose << "Adding chat to database: " << (Base64::btoa((byte*)&(it->second->id),MegaClient::CHATHANDLE,base64) ? base64 : "");
+                LOG_verbose << "Adding chat to database: " << Base64Str<sizeof(handle)>(it->second->getChatId());
                 if (!(complete = sctable->put(CACHEDCHAT, it->second, &key)))
                 {
                     break;
@@ -6323,7 +6322,7 @@ void MegaClient::sc_updatenode()
 
                         if (notify)
                         {
-                            notifynode(n);
+                            mNodeManager.notifyNode(n);
                         }
                     }
                 }
@@ -6684,7 +6683,7 @@ bool MegaClient::sc_upgrade()
         switch (jsonsc.getnameid())
         {
             case MAKENAMEID2('i', 't'):
-                itemclass = int(jsonsc.getint()); // itemclass. For now, it's always 0.
+                itemclass = int(jsonsc.getint()); // itemclass
                 break;
 
             case 'p':
@@ -6700,7 +6699,7 @@ bool MegaClient::sc_upgrade()
                 break;
 
             case EOO:
-                if (itemclass == 0 && statecurrent)
+                if ((itemclass == 0 || itemclass == 1) && statecurrent)
                 {
                     useralerts.add(new UserAlert::Payment(success, proNumber, m_time(), useralerts.nextId()));
                 }
@@ -6854,7 +6853,7 @@ void MegaClient::sc_fileattr()
                 {
                     JSON::copystring(&n->fileattrstring, fa);
                     n->changed.fileattrstring = true;
-                    notifynode(n);
+                    mNodeManager.notifyNode(n);
                 }
                 return;
 
@@ -7440,11 +7439,7 @@ void MegaClient::sc_ph()
 
                 if (deleted)        // deletion
                 {
-                    if (n->plink)
-                    {
-                        delete n->plink;
-                        n->plink = NULL;
-                    }
+                    n->plink.reset();
                 }
                 else
                 {
@@ -7452,7 +7447,7 @@ void MegaClient::sc_ph()
                 }
 
                 n->changed.publiclink = true;
-                notifynode(n);
+                mNodeManager.notifyNode(n);
             }
             else
             {
@@ -7659,22 +7654,23 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                     else
                     {
                         chat = chats[chatid];
-                        oldPriv = chat->priv;
+                        oldPriv = chat->getOwnPrivileges();
                         if (readingPublicChat) { setChatMode(chat, publicchat); }
                     }
 
-                    chat->id = chatid;
-                    chat->shard = shard;
-                    chat->group = group;
-                    chat->priv = PRIV_UNKNOWN;
-                    chat->ou = ou;
-                    chat->title = title;
+                    chat->setChatId(chatid);
+                    chat->setShard(shard);
+                    chat->setGroup(group);
+                    chat->setOwnPrivileges(PRIV_UNKNOWN);
+                    chat->setOwnUser(ou);
+                    chat->setTitle(title);
+
                     // chat->flags = ?; --> flags are received in other AP: mcfc
                     if (ts != -1)
                     {
-                        chat->ts = ts;  // only in APs related to chat creation or when you're added to
+                        chat->setTs(ts);  // only in APs related to chat creation or when you're added to
                     }
-                    chat->meeting = meeting;
+                    chat->setMeeting(meeting);
 
                     if (group)
                     {
@@ -7692,7 +7688,7 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                             {
                                 found = true;
                                 mustHaveUK = (oldPriv <= PRIV_RM && upvit->second > PRIV_RM);
-                                chat->priv = upvit->second;
+                                chat->setOwnPrivileges(upvit->second);
                                 userpriv->erase(upvit);
                                 if (userpriv->empty())
                                 {
@@ -7712,13 +7708,13 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                             if (upvit->first == me)
                             {
                                 mustHaveUK = (oldPriv <= PRIV_RM && upvit->second > PRIV_RM);
-                                chat->priv = upvit->second;
+                                chat->setOwnPrivileges(upvit->second);
                                 break;
                             }
                         }
                     }
 
-                    if (chat->priv == PRIV_RM)
+                    if (chat->getOwnPrivileges() == PRIV_RM)
                     {
                         // clear the list of peers because API still includes peers in the
                         // actionpacket, but not in a fresh fetchnodes
@@ -7726,14 +7722,13 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                         userpriv = NULL;
                     }
 
-                    delete chat->userpriv;  // discard any existing `userpriv`
-                    chat->userpriv = userpriv;
+                    chat->setUserPrivileges(userpriv);
 
                     if (readingPublicChat)
                     {
                         if (!unifiedkey.empty())    // not all actionpackets include it
                         {
-                            chat->unifiedKey = unifiedkey;
+                            chat->setUnifiedKey(unifiedkey);
                         }
                         else if (mustHaveUK)
                         {
@@ -7910,9 +7905,7 @@ void MegaClient::sc_delscheduledmeeting()
                     {
                         // remove children scheduled meetings (API requirement)
                         handle_set deletedChildren = chat->removeChildSchedMeetings(schedId);
-                        handle chatid = chat->id;
-                        chat->setTag(0);    // external change
-                        notifychat(chat);
+                        handle chatid = chat->getChatId();
 
                         if (statecurrent)
                         {
@@ -7921,9 +7914,13 @@ void MegaClient::sc_delscheduledmeeting()
 
                             createDeletedSMAlert(ou, chatid, schedId);
                         }
-                        reqs.add(new CommandScheduledMeetingFetchEvents(this, chatid, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
+
+                        clearSchedOccurrences(*chat);
+                        chat->setTag(0);    // external change
+                        notifychat(chat);
                         break;
                     }
+
                 }
                 break;
             }
@@ -7966,7 +7963,7 @@ void MegaClient::sc_scheduledmeetings()
         handle schedId = sm->schedId();
         handle parentSchedId = sm->parentSchedId();
         m_time_t overrides = sm->overrides();
-        bool isNewSchedMeeting = chat->mScheduledMeetings.find(schedId) == end(chat->mScheduledMeetings);
+        bool isNewSchedMeeting = !chat->hasScheduledMeeting(schedId);
 
         // remove child scheduled meetings in cmd (child meetings deleted) array
         chat->removeSchedMeetingsList(childMeetingsDeleted);
@@ -7982,10 +7979,7 @@ void MegaClient::sc_scheduledmeetings()
             }
 
             // if we couldn't update scheduled meeting, but we have deleted it's children, we also need to notify apps
-            handle chatid = chat->id;
-            chat->setTag(0);    // external change
-            notifychat(chat);
-
+            handle chatid = chat->getChatId();
             if (statecurrent)
             {
                 // generate deleted scheduled meetings user alerts for each member in cmd (child meetings deleted) array
@@ -7994,14 +7988,15 @@ void MegaClient::sc_scheduledmeetings()
 
                 if (res)
                 {
-                    if (isNewSchedMeeting) createNewSMAlert(ou, chat->id, schedId, parentSchedId, overrides);
-                    else createUpdatedSMAlert(ou, chat->id, schedId, parentSchedId, overrides, std::move(cs));
+                    if (isNewSchedMeeting) createNewSMAlert(ou, chat->getChatId(), schedId, parentSchedId, overrides);
+                    else createUpdatedSMAlert(ou, chat->getChatId(), schedId, parentSchedId, overrides, std::move(cs));
                 }
             }
         }
 
-        // fetch for fresh scheduled meetings occurrences
-        reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
+        clearSchedOccurrences(*chat);
+        chat->setTag(0);    // external change
+        notifychat(chat);
     }
 }
 
@@ -8067,6 +8062,48 @@ void MegaClient::sc_uac()
                 if (!jsonsc.storeobject())
                 {
                     LOG_warn << "Failed to parse `uac` action packet";
+                    return;
+                }
+        }
+    }
+}
+
+void MegaClient::sc_uec()
+{
+    handle u = UNDEF;
+    string email;
+
+    for (;;)
+    {
+        switch (jsonsc.getnameid())
+        {
+            case 'm':
+                jsonsc.storeobject(&email);
+                break;
+
+            case 'u':
+                u = jsonsc.gethandle(USERHANDLE);
+                break;
+
+            case EOO:
+                if (email.empty())
+                {
+                    LOG_warn << "Missing email address in `uec` action packet";
+                }
+                if (u == UNDEF)
+                {
+                    LOG_warn << "Missing user handle in `uec` action packet";
+                }
+                app->account_updated();
+                app->notify_confirm_user_email(u, email.c_str());
+                ephemeralSession = false;
+                ephemeralSessionPlusPlus = false;
+                return;
+
+            default:
+                if (!jsonsc.storeobject())
+                {
+                    LOG_warn << "Failed to parse `uec` action packet";
                     return;
                 }
         }
@@ -8413,9 +8450,9 @@ void MegaClient::notifypurge(void)
 
             chat->notified = false;
             chat->resetTag();
-            memset(&(chat->changed), 0, sizeof(chat->changed));
-            chat->mSchedMeetingsChanged.clear();
-            chat->mUpdatedOcurrences.clear();
+            chat->changed = {};
+            chat->clearSchedMeetingsChanged();
+            chat->clearUpdatedSchedMeetingOccurrences();
         }
 
         chatnotify.clear();
@@ -8813,7 +8850,7 @@ error MegaClient::setattr(Node* n, attr_map&& updates, CommandSetAttr::Completio
 
     n->changed.attrs = true;
     n->changed.modifiedByThisClient = true;
-    notifynode(n);
+    mNodeManager.notifyNode(n);
 
     reqs.add(new CommandSetAttr(this, n, cipher, std::move(c), canChangeVault));
 
@@ -9143,7 +9180,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
 
         n->changed.parent = true;
         n->changed.modifiedByThisClient = true;
-        notifynode(n);
+        mNodeManager.notifyNode(n);
 
         // rewrite keys of foreign nodes that are moved out of an outbound share
         rewriteforeignkeys(n);
@@ -9288,7 +9325,7 @@ error MegaClient::unlink(Node* n, bool keepversions, int tag, bool canChangeVaul
             olderversion->setparent(newerversion);
             olderversion->changed.parent = true;
             olderversion->changed.modifiedByThisClient = true;
-            notifynode(olderversion);
+            mNodeManager.notifyNode(olderversion);
         }
     }
 
@@ -9492,6 +9529,9 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
     Node* n;
 
     handle previousHandleForAlert = UNDEF;
+
+    NodeManager::MissingParentNodes missingParentNodes;
+
     while (j->enterobject())
     {
         handle h = UNDEF, ph = UNDEF;
@@ -9646,7 +9686,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                     {
                         n->setparent(NULL);
                         n->parenthandle = ph;
-                        mNodeManager.addNodeWithMissingParent(n);
+                        missingParentNodes[n->parentHandle()].insert(n);
                     }
                 }
 
@@ -9728,13 +9768,13 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                         {
                             // If logged into writable folder, we need the sharekey set in the root node
                             // so as to include it in subsequent put nodes
-                            n->sharekey = new SymmCipher(key); //we use the "master key", in this case the secret share key
+                            n->sharekey.reset(new SymmCipher(key)); //we use the "master key", in this case the secret share key
                         }
                     }
                 }
 
                 // NodeManager takes n ownership
-                mNodeManager.addNode(n, notify,  fetchingnodes);
+                mNodeManager.addNode(n, notify,  fetchingnodes, missingParentNodes);
 
                 if (!ISUNDEF(su))   // node represents an incoming share
                 {
@@ -9819,7 +9859,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
             if (notify)
             {
                 // node is save in DB at notifypurge
-                notifynode(n);
+                mNodeManager.notifyNode(n);
             }
             else // Only need to save in DB if node is not notified
             {
@@ -9851,7 +9891,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
     }
 
     mergenewshares(notify);
-    mNodeManager.checkOrphanNodes();
+    mNodeManager.checkOrphanNodes(missingParentNodes);
 
     return j->leavearray();
 }
@@ -10203,6 +10243,7 @@ error MegaClient::readmiscflags(JSON *json)
     bool journeyIdFound = false;
     while (1)
     {
+        string fieldName = json->getnameWithoutAdvance();
         switch (json->getnameid())
         {
         // mcs:1 --> MegaChat enabled
@@ -10266,7 +10307,21 @@ error MegaClient::readmiscflags(JSON *json)
             }
             return API_OK;
         default:
-            if (!json->storeobject())
+            if (fieldName.rfind("ab_", 0) == 0) // Starting with "ab_"
+            {
+                string tag = fieldName.substr(3); // The string after "ab_" prefix
+                int64_t value = json->getint();
+                if (value >= 0)
+                {
+                    mABTestFlags[tag] = static_cast<uint32_t>(value);
+                }
+                else
+                {
+                    LOG_err << "[MegaClient::readmiscflags] Invalid value for A/B Test flag";
+                    assert(value >= 0 && "A/B test value must be greater or equal to 0");
+                }
+            }
+            else if (!json->storeobject())
             {
                 return API_EINTERNAL;
             }
@@ -11746,6 +11801,25 @@ void MegaClient::upgradeSecurity(std::function<void(Error)> completion)
     });
 }
 
+void MegaClient::setContactVerificationWarning(bool enabled, std::function<void(Error)> completion)
+{
+    if (mKeyManager.getContactVerificationWarning() == enabled)
+    {
+        if (completion) completion(API_OK);
+        return;
+    }
+
+    mKeyManager.commit(
+        [this, enabled]()
+        {
+            mKeyManager.setContactVerificationWarning(enabled);
+        },
+        [completion]()
+        {
+            if (completion) completion(API_OK);
+        });
+}
+
 // Creates a new share key for the node if there is no share key already created.
 void MegaClient::openShareDialog(Node* n, std::function<void(Error)> completion)
 {
@@ -11771,13 +11845,13 @@ void MegaClient::openShareDialog(Node* n, std::function<void(Error)> completion)
             LOG_debug << "Creating new share key for " << toHandle(n->nodehandle);
             byte key[SymmCipher::KEYLENGTH];
             rng.genblock(key, sizeof key);
-            n->sharekey = new SymmCipher(key);
+            n->sharekey.reset(new SymmCipher(key));
             updateKeys = true;
         }
         else
         {
             LOG_debug << "Setting node's sharekey from KeyManager (openShareDialog)";
-            n->sharekey = new SymmCipher((const byte*)previousKey.data());
+            n->sharekey.reset(new SymmCipher((const byte*)previousKey.data()));
         }
     }
     else assert(mKeyManager.getShareKey(n->nodehandle).size());
@@ -11831,9 +11905,27 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
     if (a == ACCESS_UNKNOWN)
     {
         User *u = getUserForSharing(user);
+        handle nodehandle = n->nodehandle;
         reqs.add(new CommandSetShare(this, n, u, a, 0, NULL, writable, personal_representation, tag,
-        [u, completion](Error e, bool writable)
+        [this, u, total, nodehandle, completion](Error e, bool writable)
         {
+            if (!e && total == 1)
+            {
+                if (mKeyManager.isShareKeyInUse(nodehandle))
+                {
+                    LOG_debug << "Last share: disabling in-use flag for the sharekey in KeyManager. nh: " << toNodeHandle(nodehandle);
+                    mKeyManager.commit(
+                    [this, nodehandle]()
+                    {
+                        mKeyManager.setSharekeyInUse(nodehandle, false);
+                    });
+                }
+                else if (mKeyManager.isShareKeyTrusted(nodehandle))
+                {
+                    LOG_warn << "in-use flag was already disabled for the sharekey in KeyManager when removing the last share. nh: " << toNodeHandle(nodehandle);
+                }
+            }
+
             if (u && u->isTemporary)
             {
                 delete u;
@@ -11881,13 +11973,13 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
             LOG_debug << "Creating new share key for folder link on " << toHandle(n->nodehandle);
             byte key[SymmCipher::KEYLENGTH];
             rng.genblock(key, sizeof key);
-            n->sharekey = new SymmCipher(key);
+            n->sharekey.reset(new SymmCipher(key));
             newShareKey = true;
         }
         else
         {
             LOG_debug << "Reusing node's sharekey from KeyManager for folder link on " << toHandle(n->nodehandle);
-            n->sharekey = new SymmCipher((const byte*)previousKey.data());
+            n->sharekey.reset(new SymmCipher((const byte*)previousKey.data()));
         }
     }
 
@@ -11915,8 +12007,40 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
         }
 
         reqs.add(new CommandSetShare(this, n, user, a, newshare, NULL, writable, msg.c_str(), tag,
-        [user, completion](Error e, bool writable)
+        [this, user, newshare, nodehandle, completion](Error e, bool writable)
         {
+            if (!e)
+            {
+                if (mKeyManager.isShareKeyTrusted(nodehandle) && !mKeyManager.isShareKeyInUse(nodehandle))
+                {
+                    if (!newshare)
+                    {
+                        LOG_warn << "in-use flag for the sharekey in KeyManager is not set but the node was already shared. nh: " << toNodeHandle(nodehandle);
+                    }
+
+                    LOG_debug << "Enabling in-use flag for the sharekey in KeyManager. nh: " << toNodeHandle(nodehandle);
+                    mKeyManager.commit(
+                    [this, nodehandle]()
+                    {
+                        mKeyManager.setSharekeyInUse(nodehandle, true);
+                    });
+                }
+                else
+                {
+                    if (!mKeyManager.isShareKeyTrusted(nodehandle)) // Legacy share
+                    {
+                        LOG_debug << "in-use flag for the sharekey in KeyManager not set. Share Key is not trusted. nh: " << toNodeHandle(nodehandle);
+                    }
+                    else if (newshare) // trusted, bit set but was not shared.
+                    {
+                        LOG_err << "in-use flag for the sharekey in KeyManager is already set but the node was not being shared before. nh: " << toNodeHandle(nodehandle);
+                        string msg = "in-use flag already set for a node with no previous active share";
+                        sendevent(99479, msg.c_str());
+                        assert(!newshare && msg.c_str());
+                    }
+                }
+            }
+
             completion(e, writable);
             if (user && user->isTemporary) delete user;
         }));
@@ -12453,12 +12577,6 @@ void MegaClient::senddevcommand(const char *command, const char *email, long lon
 }
 #endif
 
-// queue node for notification
-void MegaClient::notifynode(Node* n)
-{
-    mNodeManager.notifyNode(n);
-}
-
 void MegaClient::transfercacheadd(Transfer *transfer, TransferDbCommitter* committer)
 {
     if (tctable && !transfer->skipserialization)
@@ -12531,7 +12649,7 @@ void MegaClient::notifychat(TextChat *chat)
     if (!chat->notified)
     {
         chat->notified = true;
-        chatnotify[chat->id] = chat;
+        chatnotify[chat->getChatId()] = chat;
     }
 }
 #endif
@@ -12799,13 +12917,13 @@ void MegaClient::procmcf(JSON *j)
                                         if (readingPublicChats) { setChatMode(chat, publicchat); }
                                     }
 
-                                    chat->id = chatid;
-                                    chat->priv = priv;
-                                    chat->shard = shard;
-                                    chat->group = group;
-                                    chat->title = title;
-                                    chat->ts = (ts != -1) ? ts : 0;
-                                    chat->meeting = meeting;
+                                    chat->setChatId(chatid);
+                                    chat->setOwnPrivileges(priv);
+                                    chat->setShard(shard);
+                                    chat->setGroup(group);
+                                    chat->setTitle(title);
+                                    chat->setTs(ts != -1 ? ts : 0);
+                                    chat->setMeeting(meeting);
 
                                     if (group)
                                     {
@@ -12814,7 +12932,7 @@ void MegaClient::procmcf(JSON *j)
 
                                     if (readingPublicChats)
                                     {
-                                        chat->unifiedKey = unifiedKey;
+                                        chat->setUnifiedKey(unifiedKey);
 
                                         if (unifiedKey.empty())
                                         {
@@ -12825,7 +12943,7 @@ void MegaClient::procmcf(JSON *j)
                                     // remove yourself from the list of users (only peers matter)
                                     if (userpriv)
                                     {
-                                        if (chat->priv == PRIV_RM)
+                                        if (chat->getOwnPrivileges() == PRIV_RM)
                                         {
                                             // clear the list of peers because API still includes peers in the
                                             // actionpacket, but not in a fresh fetchnodes
@@ -12850,8 +12968,7 @@ void MegaClient::procmcf(JSON *j)
                                             }
                                         }
                                     }
-                                    delete chat->userpriv;  // discard any existing `userpriv`
-                                    chat->userpriv = userpriv;
+                                    chat->setUserPrivileges(userpriv);
                                 }
                                 else
                                 {
@@ -12919,7 +13036,7 @@ void MegaClient::procmcf(JSON *j)
                                     else
                                     {
                                         it->second->setFlags(flags);
-                                        assert(!readingPublicChats || !it->second->unifiedKey.empty());
+                                        assert(!readingPublicChats || !it->second->getUnifiedKey().empty());
                                     }
                                 }
                                 else
@@ -14419,7 +14536,7 @@ void MegaClient::fetchnodes(bool nocache)
                 // so as to include it in subsequent put nodes
                 if (Node* n = nodeByHandle(mNodeManager.getRootNodeFiles()))
                 {
-                    n->sharekey = new SymmCipher(key); //we use the "master key", in this case the secret share key
+                    n->sharekey.reset(new SymmCipher(key)); //we use the "master key", in this case the secret share key
                 }
             }
 
@@ -18264,8 +18381,10 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
         {
             if (!f->isvalid)
             {
+                LOG_warn << "Downloading a file with invalid fingerprint, was: " << f->fingerprintDebugString() << " name: " << f->getLocalname();
                 // no valid fingerprint: use filekey as its replacement
                 memcpy(f->crc.data(), f->filekey, sizeof f->crc);
+                LOG_warn << "Downloading a file with invalid fingerprint, adjusted to: " << f->fingerprintDebugString() << " name: " << f->getLocalname();
             }
         }
 
@@ -18767,6 +18886,31 @@ bool MegaClient::nodeIsDocument(const Node *n) const
     return n->getMimeType() == MimeType_t::MIME_TYPE_DOCUMENT;
 }
 
+bool MegaClient::nodeIsPdf(const Node *n) const
+{
+    return n->getMimeType() == MimeType_t::MIME_TYPE_PDF;
+}
+
+bool MegaClient::nodeIsPresentation(const Node *n) const
+{
+    return n->getMimeType() == MimeType_t::MIME_TYPE_PRESENTATION;
+}
+
+bool MegaClient::nodeIsArchive(const Node* n) const
+{
+    return n->getMimeType() == MimeType_t::MIME_TYPE_ARCHIVE;
+}
+
+bool MegaClient::nodeIsProgram(const Node* n) const
+{
+    return n->getMimeType() == MimeType_t::MIME_TYPE_PROGRAM;
+}
+
+bool MegaClient::nodeIsMiscellaneous(const Node* n) const
+{
+    return n->getMimeType() == MimeType_t::MIME_TYPE_MISC;
+}
+
 bool MegaClient::treatAsIfFileDataEqual(const FileFingerprint& node1, const LocalPath& file2, const string& filenameExtensionLowercaseNoDot)
 {
     // if equal, upload or download could be skipped
@@ -19058,7 +19202,7 @@ void MegaClient::setChatMode(TextChat* chat, bool pubChat)
     if (chat->setMode(pubChat) == API_EACCESS)
     {
         std::string msg = "setChatMode: trying to convert a chat from private into public. chatid: "
-                          + std::string(Base64Str<MegaClient::CHATHANDLE>(chat->id));
+                          + std::string(Base64Str<MegaClient::CHATHANDLE>(chat->getChatId()));
         sendevent(99476, msg.c_str(), 0);
         LOG_warn << msg;
     }
@@ -19737,6 +19881,12 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
     return e;
 }
 
+void MegaClient::clearSchedOccurrences(TextChat& chat)
+{
+    chat.clearUpdatedSchedMeetingOccurrences();
+    chat.changed.schedOcurrReplace = true;
+}
+
 #endif
 
 void MegaClient::getaccountachievements(AchievementsDetails *details)
@@ -20260,9 +20410,8 @@ size_t MegaClient::decryptAllSets(map<handle, Set>& newSets, map<handle, element
         error e = decryptSetData(itS->second);
         if (e != API_OK)
         {
-            assert(false); // failed to decrypt Set attributes
-
             // skip this Set and its Elements
+            // allow execution to continue, including the test for this scenario
             newElements.erase(itS->first);
             itS = newSets.erase(itS);
             continue;
@@ -20710,7 +20859,7 @@ bool MegaClient::decryptNodeMetadata(SetElement::NodeMetadata& nodeMeta, const s
     buf.reset(Node::decryptattr(cipher, nodeMeta.at.c_str(), nodeMeta.at.size()));
     if (!buf)
     {
-        LOG_err << "Decrypting node attributes failed. Node Handle = " << nodeMeta.h;
+        LOG_err << "Decrypting node attributes failed. Node Handle = " << toNodeHandle(nodeMeta.h);
         return false;
     }
 
@@ -20725,14 +20874,14 @@ bool MegaClient::decryptNodeMetadata(SetElement::NodeMetadata& nodeMeta, const s
         case 'c':
             if (!attrJson.storeobject(&nodeMeta.fingerprint))
             {
-                LOG_err << "Reading node fingerprint failed. Node Handle = " << nodeMeta.h;
+                LOG_err << "Reading node fingerprint failed. Node Handle = " << toNodeHandle(nodeMeta.h);
             }
             break;
 
         case 'n':
             if (!attrJson.storeobject(&nodeMeta.filename))
             {
-                LOG_err << "Reading node filename failed. Node Handle = " << nodeMeta.h;
+                LOG_err << "Reading node filename failed. Node Handle = " << toNodeHandle(nodeMeta.h);
             }
             break;
 
@@ -20743,7 +20892,7 @@ bool MegaClient::decryptNodeMetadata(SetElement::NodeMetadata& nodeMeta, const s
         default:
             if (!attrJson.storeobject())
             {
-                LOG_err << "Skipping unexpected node attribute failed. Node Handle = " << nodeMeta.h;
+                LOG_err << "Skipping unexpected node attribute failed. Node Handle = " << toNodeHandle(nodeMeta.h);
             }
         }
     }
@@ -20773,6 +20922,52 @@ const Set* MegaClient::addSet(Set&& a)
     }
 
     return &add.first->second;
+}
+
+void MegaClient::fixSetElementWithWrongKey(const Set& s)
+{
+    const auto els = getSetElements(s.id());
+    if (!els) return;
+
+    vector<SetElement> newEls;
+    vector<handle> taintedEls;
+    const auto hasWrongKey = [](const SetElement& el) { return el.key().size() != static_cast<size_t>(FILENODEKEYLENGTH); };
+    for (auto& p : *els) // candidate to paral in >C++17 via algorithms
+    {
+        const SetElement& e = p.second;
+        if (hasWrongKey(e))
+        {
+            LOG_warn << "Sets: SetElement " << toHandle(e.id()) << " from Set " << toHandle(s.id())
+                     << " contains invalid key of " << s.key().size() << " Bytes";
+            taintedEls.push_back(e.id());
+            newEls.emplace_back(e);
+        }
+    }
+
+    if (taintedEls.empty()) return;
+
+    const auto logResult = [this](Error e, const vector<int64_t>* results, const std::string& msg)
+    {
+        if (e == API_OK && (!results ||
+            std::all_of(begin(*results), end(*results), [](int64_t r) { return r == API_OK; })))
+        {
+            const std::string m = "Sets: SetElements with wrong key " + msg + " successfully";
+            LOG_debug << m;
+            sendevent(99477, m.c_str());
+        }
+        else
+        {
+            const std::string m = "Sets: Error: SetElements with wrong key failed to be " + msg;
+            LOG_warn << m;
+            sendevent(99478, m.c_str());
+        }
+    };
+    // removal must take place before because there can't be 2 SetElements with the same node
+    removeSetElements(s.id(), std::move(taintedEls),
+                      [logResult](Error e, const vector<int64_t>* results) { logResult(e, results, "removed"); });
+
+    putSetElements(std::move(newEls), [logResult](Error e, const vector<const SetElement*>*, const vector<int64_t>* results)
+        { logResult(e, results, "created"); });
 }
 
 bool MegaClient::updateSet(Set&& s)
@@ -21171,6 +21366,11 @@ void MegaClient::exportSet(handle sid, bool makePublic, std::function<void(Error
     const auto setToBeUpdated = getSet(sid);
     if (setToBeUpdated)
     {
+        if (makePublic) // legacy bug: some Element's key were set incorrectly -> repair
+        {
+            fixSetElementWithWrongKey(*setToBeUpdated);
+        }
+
         if (setToBeUpdated->isExported() == makePublic) completion(API_OK);
         else
         {
@@ -21509,6 +21709,11 @@ void MegaClient::clearsetelementnotify(handle sid)
     }
 }
 
+Error MegaClient::sendABTestActive(const char* flag, CommandABTestActive::Completion completion)
+{
+    reqs.add(new CommandABTestActive(this, flag, std::move(completion)));
+    return API_OK;
+}
 
 FetchNodesStats::FetchNodesStats()
 {
@@ -21848,8 +22053,9 @@ string KeyManager::serialize() const
     result.append(tagHeader(TAG_BACKUPS, backups.size()));
     result.append(backups);
 
-    result.append(tagHeader(TAG_WARNINGS, mWarnings.size()));
-    result.append(mWarnings);
+    string warnings = serializeWarnings();
+    result.append(tagHeader(TAG_WARNINGS, warnings.size()));
+    result.append(warnings);
 
     result.append(mOther);
 
@@ -21912,14 +22118,17 @@ bool KeyManager::removePendingInShare(std::string shareHandle)
 bool KeyManager::addShareKey(handle sharehandle, std::string shareKey, bool sharedSecurely)
 {
     auto it = mShareKeys.find(sharehandle);
-    if (it != mShareKeys.end() && it->second.second && it->second.first != shareKey)
+    if (it != mShareKeys.end() && it->second.second[ShareKeyFlagsId::TRUSTED] && it->second.first != shareKey)
     {
         LOG_warn << "Replacement of trusted sharekey for " << toNodeHandle(sharehandle);
         mClient.sendevent(99470, "KeyMgr / Replacing trusted sharekey");
         assert(false);
     }
 
-    mShareKeys[sharehandle] = pair<string, bool>(shareKey, sharedSecurely && isSecure());
+    ShareKeyFlags flags;
+    flags[ShareKeyFlagsId::TRUSTED] = sharedSecurely && isSecure();
+
+    mShareKeys[sharehandle] = pair<string, ShareKeyFlags>(shareKey, flags);
     return true;
 }
 
@@ -21936,7 +22145,28 @@ string KeyManager::getShareKey(handle sharehandle) const
 bool KeyManager::isShareKeyTrusted(handle sharehandle) const
 {
     auto it = mShareKeys.find(sharehandle);
-    return it != mShareKeys.end() && it->second.second;
+    return it != mShareKeys.end() && it->second.second[ShareKeyFlagsId::TRUSTED];
+}
+
+bool KeyManager::isShareKeyInUse(handle sharehandle) const
+{
+    auto it = mShareKeys.find(sharehandle);
+    return it != mShareKeys.end() && it->second.second[ShareKeyFlagsId::INUSE];
+}
+
+void KeyManager::setSharekeyInUse(handle sharehandle, bool sent)
+{
+    auto it = mShareKeys.find(sharehandle);
+    if (it != mShareKeys.end())
+    {
+        it->second.second[ShareKeyFlagsId::INUSE] = sent;
+    }
+    else
+    {
+        string msg = "Trying to set share key as in-use for non-existing share key";
+        LOG_err << msg;
+        assert(it != mShareKeys.end() && msg.c_str());
+    }
 }
 
 string KeyManager::encryptShareKeyTo(handle userhandle, std::string shareKey)
@@ -21977,9 +22207,8 @@ string KeyManager::decryptShareKeyFrom(handle userhandle, std::string key)
     std::string shareKey;
     shareKey.resize(CryptoPP::AES::BLOCKSIZE);
 
-    std::string encryptedKey = Base64::atob(key);
     CryptoPP::ECB_Mode<CryptoPP::AES>::Decryption aesencryption((byte *)sharedKey.data(), sharedKey.size());
-    aesencryption.ProcessData((byte *)shareKey.data(), (byte *)encryptedKey.data(), encryptedKey.size());
+    aesencryption.ProcessData((byte *)shareKey.data(), (byte *)key.data(), key.size());
 
     return shareKey;
 }
@@ -22062,10 +22291,19 @@ bool KeyManager::promotePendingShares()
         Base64::atob(it.first.c_str(), (byte*)&nodeHandle, MegaClient::NODEHANDLE);
 
         handle userHandle = it.second.first;
-        const std::string &encryptedShareKey = it.second.second;
+        std::string encryptedShareKey = it.second.second;
 
         if (!verificationRequired(userHandle))
         {
+            if (encryptedShareKey.size() > 16)
+            {
+                // Legacy bug: SDK used to store share keys in B64. If size > 16
+                // the share key should be converted first into binary data.
+                string msg = "KeyMgr / Pending inshare key from string to binary";
+                mClient.sendevent(99480, msg.c_str());
+                encryptedShareKey = Base64::atob(it.second.second);
+            }
+
             LOG_debug << "Promoting pending inshare of node " << toNodeHandle(nodeHandle) << " for " << toHandle(userHandle);
             std::string shareKey = decryptShareKeyFrom(userHandle, encryptedShareKey);
             if (shareKey.size())
@@ -22150,15 +22388,6 @@ bool KeyManager::isUnverifiedInShare(handle nodeHandle, handle userHandle)
     return false;
 }
 
-void KeyManager::cacheShareKeys()
-{
-    for (const auto& it : mShareKeys)
-    {
-        const string& k = it.second.first;
-        mClient.mNewKeyRepository[NodeHandle().set6byte(it.first)] = { k.begin(), k.end() };
-    }
-}
-
 void KeyManager::loadShareKeys()
 {
     for (const auto& it : mShareKeys)
@@ -22240,9 +22469,34 @@ string KeyManager::toString() const
     buf << pendingOutsharesToString(*this);
     buf << pendingInsharesToString(*this);
     buf << "Backups: " << Base64::btoa(mBackups) << "\n";
-    buf << "Warnings: " << Base64::btoa(mWarnings) << "\n";
+    buf << warningsToString(*this);
 
     return buf.str();
+}
+
+bool KeyManager::getContactVerificationWarning()
+{
+    auto it = mWarnings.find("cv");
+
+    if (it != mWarnings.end() && mWarnings["cv"].size())
+    {
+        char* endp;
+        long int res;
+        errno = 0;
+        res = strtol(mWarnings["cv"].c_str(), &endp, 10);
+        if (*endp != '\0' || endp == mWarnings["cv"].c_str() || errno == ERANGE)
+        {
+            LOG_err << "cv field in warnings is malformed";
+            return false;
+        }
+        return res;
+    }
+    return false;
+}
+
+void KeyManager::setContactVerificationWarning(bool enabled)
+{
+    mWarnings["cv"] = std::to_string(enabled);
 }
 
 string KeyManager::shareKeysToString(const KeyManager& km)
@@ -22256,9 +22510,10 @@ string KeyManager::shareKeysToString(const KeyManager& km)
         ++count;
         handle h = it.first;
         const string& shareKeyStr = it.second.first;
-        bool trust = it.second.second;
+        bool trust = it.second.second[ShareKeyFlagsId::TRUSTED];
+        bool inUse = it.second.second[ShareKeyFlagsId::INUSE];
         buf << "\t#" << count << "\t h: " << toNodeHandle(h) <<
-                       " sk: " << Base64::btoa(shareKeyStr) << " t: " << trust << "\n";
+                       " sk: " << Base64::btoa(shareKeyStr) << " t: " << trust << " used: " << inUse << "\n";
     }
 
     return buf.str();
@@ -22297,6 +22552,19 @@ string KeyManager::pendingInsharesToString(const KeyManager& km)
         const string& shareKey = it.second.second;
 
         buf << "\t#" << count << "\tn: " << nh << " uh: " << toHandle(uh) << " sk: " << Base64::btoa(shareKey) << "\n";
+    }
+
+    return buf.str();
+}
+
+string KeyManager::warningsToString(const KeyManager& km)
+{
+    ostringstream buf;
+    buf << "Warnings:\n";
+
+    for (const auto &it : km.mWarnings)
+    {
+        buf << "\ttag: \"" << it.first << "\" \tval: \"" << it.second << "\"\n";
     }
 
     return buf.str();
@@ -22548,10 +22816,11 @@ bool KeyManager::unserialize(KeyManager& km, const string &keysContainer)
         {
             string buf(blob + offset, len);
             if (!deserializePendingInshares(km, buf)) return false;
-            if (mDebugContents)
-            {
+            // Commented to trace possible issues with pending inshares.
+            //if (mDebugContents)
+            //{
                 LOG_verbose << pendingInsharesToString(km);
-            }
+            //}
             break;
         }
         case TAG_BACKUPS:
@@ -22565,14 +22834,15 @@ bool KeyManager::unserialize(KeyManager& km, const string &keysContainer)
             break;
         }
         case TAG_WARNINGS:
-            km.mWarnings.assign(blob + offset, len);
-            // TODO: deserialize it
+        {
+            string buf(blob + offset, len);
+            if (!deserializeWarnings(km, buf)) return false;
             if (mDebugContents)
             {
-                LOG_verbose << "Warnings: " << Base64::btoa(km.mWarnings);
+                LOG_verbose << warningsToString(km);
             }
             break;
-
+        }
         default:    // any other tag needs to be stored as well, and included in newer versions
             km.mOther.append(blob + offset - headerSize, headerSize + len);
             break;
@@ -22589,25 +22859,26 @@ bool KeyManager::deserializeShareKeys(KeyManager& km, const string &blob)
     // clean old data, so we don't left outdated sharekeys in place
     km.mShareKeys.clear();
 
-    // [nodeHandle.6 shareKey.16 trust.1]*
+    // [nodeHandle.6 shareKey.16 flags.1]*
     CacheableReader r(blob);
 
     while(r.hasdataleft())
     {
         handle h = UNDEF;
         byte shareKey[SymmCipher::KEYLENGTH];
-        byte trust = 0;
+        byte flagsBuf = 0;
 
         if (!r.unserializenodehandle(h)
                 || !r.unserializebinary(shareKey, sizeof(shareKey))
-                || !r.unserializebyte(trust))
+                || !r.unserializebyte(flagsBuf))
         {
             LOG_err << "Share keys is corrupt";
             return false;
         }
 
         string shareKeyStr((const char*)shareKey, sizeof(shareKey));
-        km.mShareKeys[h] = pair<string, bool>(shareKeyStr, trust ? true : false);
+        ShareKeyFlags flags(flagsBuf);
+        km.mShareKeys[h] = pair<string, ShareKeyFlags>(shareKeyStr, flags);
     }
 
     return true;
@@ -22628,8 +22899,8 @@ string KeyManager::serializeShareKeys() const
         byte *shareKey = (byte*)it.second.first.data();
         w.serializebinary(shareKey, shareKeyLen);
 
-        byte trust = it.second.second;
-        w.serializebyte(trust);
+        byte flagsBuf = static_cast<byte>(it.second.second.to_ulong());
+        w.serializebyte(flagsBuf);
     }
 
     return result;
@@ -22743,70 +23014,146 @@ string KeyManager::serializePendingOutshares() const
     return result;
 }
 
-bool KeyManager::deserializePendingInshares(KeyManager& km, const string &blob)
+bool KeyManager::deserializeFromLTLV(const string& blob, map<string, string>& data)
 {
-    // clean old data, so we don't left outdated pending inshares in place
-    km.mPendingInShares.clear();
-
-    // [len.1 name.len lenBlob.2|6 blob.lenBlob]*
-    // if lenBlob == 0xFFFF -> len is indicated by next 4 extra bytes
-    // if len < 0xFFFF      -> actual len (no extra bytes for length)
-    // blob includes the user's handle (8 bytes) and the encrypted share key
+    // blob format as follows:
+    // [len.1 tag.len lenValue.2|6 value.lenValue]*
+    // if lenValue == 0xFFFF  -> length is indicated by next 4 extra bytes
+    // if lenValue < 0xFFFF   -> actual length (no extra bytes present)
 
     CacheableReader r(blob);
 
     while(r.hasdataleft())
     {
-        // len of the "name"
+        // length of the tag
         byte len = 0;
         if (!r.unserializebyte(len))
         {
-            LOG_err << "Pending inshare is corrupt: len of name";
+            LOG_err << "Corrupt LTLV: len of tag";
             return false;
         }
 
-        // read the "name"
-        string name;
-        name.resize(len);
-        if (!r.unserializebinary((byte*)name.data(), name.size()))
+        // read the tag
+        string tag;
+        tag.resize(len);
+        if (!r.unserializebinary((byte*)tag.data(), tag.size()))
         {
-            LOG_err << "Pending inshare is corrupt: name";
+            LOG_err << "Corrupt LTLV: tag";
             return false;
         }
 
-        // len of the blob (pairs of uh+sk for this node handle)
-        uint32_t lenBlob = 0;
-        uint16_t lenBlob16 = 0;
-        bool success = r.unserializeu16(lenBlob16);
-        lenBlob16 = ntohs(lenBlob16); // Webclient sets length as BigEndian
-        if (lenBlob16 == 0xFFFF)
+        // len of the value
+        uint32_t lenValue = 0;
+        uint16_t lenValue16 = 0;
+        bool success = r.unserializeu16(lenValue16);
+        lenValue16 = ntohs(lenValue16); // Webclient sets length as BigEndian
+        if (lenValue16 == 0xFFFF)
         {
-            success = r.unserializeu32(lenBlob);
-            lenBlob = ntohl(lenBlob);
+            success = r.unserializeu32(lenValue);
+            lenValue = ntohl(lenValue);
         }
         else
         {
-            lenBlob = lenBlob16;
+            lenValue = lenValue16;
         }
 
-        if (!success || (lenBlob < sizeof(handle)))    // it may have only the user handle (no share key yet)
+        if (!success)
         {
-            LOG_err << "Pending inshare is corrupt: blob len";
+            LOG_err << "Corrupt LTLV: value len";
+            return false;
+        }
+
+        // read the value
+        string value;
+        value.resize(lenValue);
+        if (!r.unserializebinary((byte*)value.data(), value.size()))
+        {
+            LOG_err << "Corrupt LTLV: value";
+            return false;
+        }
+
+        data[tag] = value;
+    }
+
+    return true;
+}
+
+string KeyManager::serializeToLTLV(const map<string, string>& values)
+{
+    // Encoded format as follows:
+    // [len.1 tag.len lenValue.2|6 value.lenValue]*
+    // if length of value < 0xFFFF -> 2 bytes for lenValue
+    // else -> 2 bytes set as 0xFFFF and 4 extra bytes for actual length
+
+    string result;
+
+    CacheableWriter w(result);
+
+    for (const auto& it : values)
+    {
+        // write tag length
+        w.serializebyte(static_cast<byte>(it.first.size()));
+        // write tag
+        w.serializebinary((byte*)it.first.data(), it.first.size());
+
+        // write value length
+        if (it.second.size() < 0xFFFF)
+        {
+            uint16_t lenValue16 = static_cast<uint16_t>(it.second.size());
+            uint16_t lenValue16BE = htons(lenValue16); // Webclient sets length as BigEndian
+            w.serializeu16(lenValue16BE);
+        }
+        else // excess, 4 extra bytes
+        {
+            w.serializeu16(0xFFFF);
+            uint32_t lenValue32 = static_cast<uint32_t>(it.second.size());
+            uint32_t lenValue32BE = htonl(lenValue32);
+            w.serializeu32(lenValue32BE);
+        }
+
+        // write value
+        w.serializebinary((byte*)it.second.data(), it.second.size());
+    }
+
+    return result;
+}
+
+bool KeyManager::deserializePendingInshares(KeyManager& km, const string &blob)
+{
+    // clean old data, so we don't left outdated pending inshares in place
+    km.mPendingInShares.clear();
+
+    // key is the node handle, value includes the user's handle (8 bytes) and the encrypted share key
+    map<string, string> decodedBlob;
+    if (!deserializeFromLTLV(blob, decodedBlob))
+    {
+        LOG_err << "Pending inshare is corrupt";
+        return false;
+    }
+
+    for ( const auto& it : decodedBlob )
+    {
+
+        if (it.second.size() < sizeof(handle)) // it may have only the user handle (no share key yet)
+        {
+            LOG_err << "Pending inshare is corrupt: incorrect value size";
             return false;
         }
 
         // user handle (sharer) and share key
+        CacheableReader r(it.second);
+
         handle uh = UNDEF;
         string shareKey;
-        shareKey.resize(lenBlob - sizeof(uh));
+        shareKey.resize(it.second.size() - sizeof(uh));
         if (!r.unserializehandle(uh)
                 || !r.unserializebinary((byte*)shareKey.data(), shareKey.size()))
         {
-            LOG_err << "Pending inshare is corrupt: blob";
+            LOG_err << "Pending inshare is corrupt: incorrect sharer handle or sharekey";
             return false;
         }
 
-        km.mPendingInShares[name] = pair<handle, string>(uh, shareKey);
+        km.mPendingInShares[it.first] = pair<handle, string>(uh, shareKey);
     }
 
     return true;
@@ -22814,36 +23161,20 @@ bool KeyManager::deserializePendingInshares(KeyManager& km, const string &blob)
 
 string KeyManager::serializePendingInshares() const
 {
-    string result;
-
-    CacheableWriter w(result);
+    map<string, string> pendingInsharesToEncode;
 
     for (const auto& it : mPendingInShares)
     {
-        byte len = static_cast<byte>(it.first.size());
-        assert(len == 8); // node handle in B64
-        w.serializebyte(len);
-        w.serializebinary((byte*)it.first.data(), it.first.size());
-
-        uint32_t lenBlob = static_cast<uint32_t>(MegaClient::USERHANDLE + it.second.second.size());
-        if (lenBlob < 0xFFFF)
-        {
-            uint16_t lenBlob16 = static_cast<uint16_t>(lenBlob);
-            uint16_t lenBlob16BE = htons(lenBlob16); // Webclient sets length as BigEndian
-            w.serializeu16(lenBlob16BE);
-        }
-        else    // excess, 4 extra bytes
-        {
-            w.serializeu16(0xFFFF);
-            uint32_t lenBlobBE = htonl(lenBlob);
-            w.serializeu32(lenBlobBE);
-        }
+        string value;
+        CacheableWriter w(value);
 
         w.serializehandle(it.second.first); // share's owner user handle
         w.serializebinary((byte*)it.second.second.data(), it.second.second.size());
+
+        pendingInsharesToEncode[it.first] = value;
     }
 
-    return result;
+    return serializeToLTLV(pendingInsharesToEncode);
 }
 
 bool KeyManager::deserializeBackups(KeyManager& km, const string &blob)
@@ -22852,6 +23183,20 @@ bool KeyManager::deserializeBackups(KeyManager& km, const string &blob)
     km.mBackups = blob;
     return true;
 }
+
+string KeyManager::serializeWarnings() const
+{
+    return serializeToLTLV(mWarnings);
+}
+
+bool KeyManager::deserializeWarnings(KeyManager& km, const string &blob)
+{
+    // clean old data, so we don't left outdated warnings
+    km.mWarnings.clear();
+
+    return deserializeFromLTLV(blob, km.mWarnings);
+}
+
 
 string KeyManager::computeSymmetricKey(handle user)
 {
@@ -22939,7 +23284,7 @@ void KeyManager::updateAuthring(attr_t at, string& value)
     }
 }
 
-void KeyManager::updateShareKeys(map<handle, pair<string, bool>>& shareKeys)
+void KeyManager::updateShareKeys(map<handle, pair<string, ShareKeyFlags>>& shareKeys)
 {
     for (const auto& itNew : shareKeys)
     {
@@ -22951,13 +23296,32 @@ void KeyManager::updateShareKeys(map<handle, pair<string, bool>>& shareKeys)
             if (itNew.second.first != itOld->second.first)
             {
                 LOG_warn << "[keymgr] Sharekey for " << toNodeHandle(h) << " has changed. Updating...";
-                assert(!itOld->second.second);
+                assert(!itOld->second.second[ShareKeyFlagsId::TRUSTED]);
                 mClient.sendevent(99469, "KeyMgr / Replacing sharekey");
             }
             else
             {
-                LOG_warn << "[keymgr] Trust for " << toNodeHandle(h) << " has changed ("
-                         << itOld->second.second << " -> " << itNew.second.second << "). Updating...";
+                if (itNew.second.second[ShareKeyFlagsId::TRUSTED] != itOld->second.second[ShareKeyFlagsId::TRUSTED])
+                {
+                    LOG_warn << "[keymgr] Trust for " << toNodeHandle(h) << " share key has changed ("
+                             << static_cast<bool>(itOld->second.second[ShareKeyFlagsId::TRUSTED]) << " -> "
+                             << static_cast<bool>(itNew.second.second[ShareKeyFlagsId::TRUSTED]) << "). Updating...";
+                }
+                if (itNew.second.second[ShareKeyFlagsId::INUSE] != itOld->second.second[ShareKeyFlagsId::INUSE])
+                {
+                    LOG_debug << "[keymgr] In-use flag for " << toNodeHandle(h) << " share key has changed ("
+                             << static_cast<bool>(itOld->second.second[ShareKeyFlagsId::INUSE]) << " -> "
+                             << static_cast<bool>(itNew.second.second[ShareKeyFlagsId::INUSE]) << "). Updating...";
+
+                }
+                // Compare the remaining flags
+                ShareKeyFlags mask(0x03); // ShareKeyFlagsId::TRUSTED and ShareKeyFlagsId::INUSE
+                mask.flip();
+                if ((itNew.second.second & mask) != (itOld->second.second & mask))
+                {
+                    LOG_warn << "[keymgr] Flags for " << toNodeHandle(h) << " share key has changed ("
+                             << itOld->second.second.to_ulong() << " -> " << itNew.second.second.to_ulong() << "). Updating...";
+                }
             }
         }
     }

@@ -29,6 +29,7 @@
 #include <mega/db.h>
 #include <mega/db/sqlite.h>
 #include <mega/json.h>
+#include "../integration/process.h"
 
 TEST(utils, hashCombine_integer)
 {
@@ -564,30 +565,6 @@ TEST(Filesystem, isContainingPathOf)
 #undef SEP
 }
 
-
-TEST(Filesystem, isReservedName)
-{
-    using namespace mega;
-
-    bool expected = false;
-
-#ifdef _WIN32
-    expected = true;
-#endif // _WIN32
-
-    // Representative examples.
-    static const string reserved[] = {"AUX", "com1", "LPT4"};
-
-    for (auto& r : reserved)
-    {
-        EXPECT_EQ(isReservedName(r, FILENODE),   expected);
-        EXPECT_EQ(isReservedName(r, FOLDERNODE), expected);
-    }
-
-    EXPECT_EQ(isReservedName("a.", FILENODE),   false);
-    EXPECT_EQ(isReservedName("a.", FOLDERNODE), expected);
-}
-
 class SqliteDBTest
   : public ::testing::Test
 {
@@ -1043,6 +1020,82 @@ TEST_F(TooLongNameTest, Rename)
         ASSERT_FALSE(mFsAccess.renamelocal(source, target, false));
         ASSERT_FALSE(mFsAccess.target_name_too_long);
     }
+}
+
+class ProcessTest
+    : public ::testing::Test
+{
+public:
+    ProcessTest()
+        : Test()
+    {
+    }
+};
+
+#ifdef WIN32
+string dirCommand = "dir";
+string shellCommand = "cmd";
+#else
+string dirCommand = "ls";
+string shellCommand = "sh";
+#endif
+
+TEST_F(ProcessTest, Poll)
+{
+    Process p;
+    string out;
+    string error;
+    bool ok = p.run(vector<string>{dirCommand}, unordered_map<string, string>(), [&](const unsigned char* data, size_t len) {out.append((const char*)(data), len); }, [&](const unsigned char* data, size_t len) {error.append((const char*)(data), len); });
+    ASSERT_TRUE(ok) << "run failed" << endl;
+    while (p.isAlive()) {
+        if (!p.poll())
+            usleep(100000);
+    }
+    p.flush();
+    ASSERT_FALSE(out.empty()) << "no output received";
+    ASSERT_TRUE(error.empty()) << "error received";
+}
+
+TEST_F(ProcessTest, Wait)
+{
+    Process p;
+    string out;
+    string error;
+    bool ok = p.run(vector<string>{dirCommand}, unordered_map<string, string>(), [&](const unsigned char* data, size_t len) {out.append((const char*)(data), len); }, [&](const unsigned char* data, size_t len) {error.append((const char*)(data), len); });
+    ASSERT_TRUE(ok) << "run failed" << endl;
+    p.wait();
+    ASSERT_FALSE(out.empty()) << "no output received";
+    ASSERT_TRUE(error.empty()) << "error received";
+}
+
+TEST_F(ProcessTest, RunError)
+{
+    Process p;
+    string out;
+    string error;
+    bool ok = p.run(vector<string>{"this-command-does-not-exist", "tmp"}, unordered_map<string, string>(), [&](const unsigned char* data, size_t len) {out.append((const char*)(data), len); }, [&](const unsigned char* data, size_t len) {error.append((const char*)(data), len); });
+    // ok posix
+    // fails windows
+    ok = p.wait();
+    ASSERT_FALSE(ok) << "run ok!" << endl;
+}
+
+TEST_F(ProcessTest, WaitNonRedirect)
+{
+    Process p;
+    bool ok = p.run(vector<string>{dirCommand});
+    ASSERT_TRUE(ok) << "run failed" << endl;
+    ok = p.wait();
+    ASSERT_TRUE(ok) << "program failed" << endl;
+}
+
+TEST_F(ProcessTest, ErrorNonRedirect)
+{
+    Process p;
+    bool ok = p.run(vector<string>{dirCommand, "/file-does-not-exist"});
+    ASSERT_TRUE(ok) << "run failed" << endl;
+    ok = p.wait();
+    ASSERT_FALSE(ok) << "program ok" << endl;
 }
 
 class SprintfTest

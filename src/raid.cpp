@@ -866,6 +866,12 @@ m_off_t RaidBufferManager::progress() const
         }
     }
 
+    if (!leftoverchunk.buf.isNull())
+    {
+        // Need to count the valid data on the leftover chunk, if any.
+        reportPos += leftoverchunk.buf.datalen();
+    }
+
     return reportPos;
 }
 

@@ -40,8 +40,6 @@ Node::Node(MegaClient& cclient, NodeHandle h, NodeHandle ph,
            nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts)
     : client(&cclient)
 {
-    outshares = NULL;
-    pendingshares = NULL;
     appdata = NULL;
 
     nodehandle = h.as8byte();
@@ -66,11 +64,7 @@ Node::Node(MegaClient& cclient, NodeHandle h, NodeHandle ph,
 
     ctime = ts;
 
-    inshare = NULL;
-    sharekey = NULL;
     foreignkey = false;
-
-    plink = NULL;
 
     memset(&changed, 0, sizeof changed);
 
@@ -112,30 +106,6 @@ Node::~Node()
     }
 #endif
 
-    if (outshares)
-    {
-        // delete outshares, including pointers from users for this node
-        for (share_map::iterator it = outshares->begin(); it != outshares->end(); it++)
-        {
-            delete it->second;
-        }
-        delete outshares;
-    }
-
-    if (pendingshares)
-    {
-        // delete pending shares
-        for (share_map::iterator it = pendingshares->begin(); it != pendingshares->end(); it++)
-        {
-            delete it->second;
-        }
-        delete pendingshares;
-    }
-
-    delete plink;
-    delete inshare;
-    delete sharekey;
-
 #ifdef ENABLE_SYNC
     // sync: remove reference from local filesystem node
     if (localnode)
@@ -163,7 +133,7 @@ int Node::getShareType() const
         {
             for (share_map::iterator it = outshares->begin(); it != outshares->end(); it++)
             {
-                Share *share = it->second;
+                Share *share = it->second.get();
                 if (share->user)    // folder links are shares without user
                 {
                     shareType |= ShareType_t::OUT_SHARES;
@@ -241,10 +211,10 @@ uint64_t Node::getDBFlags(uint64_t oldFlags, bool isInRubbish, bool isVersion, b
     return flags.to_ulong();
 }
 
-bool Node::getExtension(std::string& ext) const
+bool Node::getExtension(std::string& ext, const string& nodeName)
 {
     ext.clear();
-    const char* name = displayname();
+    const char* name = nodeName.c_str();
     const size_t size = strlen(name);
 
     const char* ptr = name + size;
@@ -279,8 +249,24 @@ bool Node::getExtension(std::string& ext) const
 
 // these lists of file extensions (and the logic to use them) all come from the webclient - if updating here, please make sure the webclient is updated too, preferably webclient first.
 
-static const std::set<nameid> documentExtensions = {MAKENAMEID3('a','n','s'), MAKENAMEID5('a','s','c','i','i'), MAKENAMEID3('d','o','c'), MAKENAMEID4('d','o','c','x'), MAKENAMEID4('d','o','t', 'x'), MAKENAMEID4('j','s','o','n'),  MAKENAMEID3('l','o','g'), MAKENAMEID3('o','d','s'), MAKENAMEID3('o','d','t'), MAKENAMEID5('p','a','g','e','s'), MAKENAMEID3('p','d','f'), MAKENAMEID3('p','p','c'), MAKENAMEID3('p','p','s'), MAKENAMEID3('p','p','t'), MAKENAMEID4('p','p','t','x'), MAKENAMEID3('r','t','f'),
+static const std::set<nameid> documentExtensions = {MAKENAMEID3('a','n','s'), MAKENAMEID5('a','s','c','i','i'), MAKENAMEID3('d','o','c'), MAKENAMEID4('d','o','c','x'), MAKENAMEID4('d','o','t', 'x'), MAKENAMEID3('o','d','s'), MAKENAMEID3('o','d','t'), MAKENAMEID5('p','a','g','e','s'), MAKENAMEID3('p','p','c'), MAKENAMEID3('r','t','f'),
                                              MAKENAMEID3('s','t','c'), MAKENAMEID3('s','t','d'), MAKENAMEID3('s','t','w'), MAKENAMEID3('s','t','i'), MAKENAMEID3('s','x','c'), MAKENAMEID3('s','x','d'), MAKENAMEID3('s','x','i'), MAKENAMEID3('s','x','m'), MAKENAMEID3('s','x','w'), MAKENAMEID3('t','x','t'), MAKENAMEID3('w','p','d'), MAKENAMEID3('w','p','s'), MAKENAMEID3('x','l','s'), MAKENAMEID4('x','l','s','x'), MAKENAMEID3('x','l','t'), MAKENAMEID4('x','l','t','m')};
+
+static const std::set<nameid> pdfExtensions = {MAKENAMEID3('p','d','f')};
+
+static const std::set<nameid> presentationExtensions = {MAKENAMEID3('p','p','s'), MAKENAMEID3('p','p','t'), MAKENAMEID4('p','p','t','x'),
+                                                        MAKENAMEID3('o','d','p')};
+
+static const std::set<nameid> archiveExtensions = {MAKENAMEID3('z','i','p'), MAKENAMEID3('r','a','r'), MAKENAMEID3('t','a','r'),
+                                                   MAKENAMEID2('7','z'), MAKENAMEID2('g','z'), MAKENAMEID3('b','z','2')};
+
+static const std::set<nameid> programExtensions = {MAKENAMEID3('e','x','e'), MAKENAMEID3('b','a','t'), MAKENAMEID2('s','h'),
+                                                   MAKENAMEID4('j','a','v','a'), MAKENAMEID2('p','y'), MAKENAMEID3('c','p','p')};
+
+static const std::set<nameid> miscExtensions = {MAKENAMEID3('t','t','f'), MAKENAMEID3('o','t','f'), MAKENAMEID3('i','n','i'),
+                                                MAKENAMEID3('c','f','g'), MAKENAMEID3('c','s','v'), MAKENAMEID4('j','s','o','n'),
+                                                MAKENAMEID3('l','o','g'), MAKENAMEID3('b','a','k'), MAKENAMEID2('d','b'),
+                                                MAKENAMEID6('s','q','l','i','t','e')};
 
 static const std::set<nameid> audioExtensions = {MAKENAMEID3('a','c','3'), MAKENAMEID3('e','c','3'), MAKENAMEID3('3','g','a'), MAKENAMEID3('a','a','c'), MAKENAMEID3('a','d','p'), MAKENAMEID3('a','i','f'), MAKENAMEID4('a','i','f','c'), MAKENAMEID4('a','i','f','f'), MAKENAMEID2('a','u'), MAKENAMEID3('c','a','f'), MAKENAMEID3('d','r','a'), MAKENAMEID3('d','t','s'), MAKENAMEID5('d','t','s','h','d'), MAKENAMEID3('e','o','l'), MAKENAMEID4('f','l','a','c'), MAKENAMEID3('i','f','f'), MAKENAMEID3('k','a','r'), MAKENAMEID3('l','v','p'),
                                           MAKENAMEID3('m','2','a'), MAKENAMEID3('m','3','a'), MAKENAMEID3('m','3','u'), MAKENAMEID3('m','4','a'), MAKENAMEID3('m','i','d'), MAKENAMEID4('m','i','d','i'), MAKENAMEID3('m','k','a'), MAKENAMEID3('m','p','2'), MAKENAMEID4('m','p','2','a'), MAKENAMEID3('m','p','3'), MAKENAMEID4('m','p','4','a'), MAKENAMEID4('m','p','g','a'), MAKENAMEID3('o','g','a'), MAKENAMEID3('o','g','g'), MAKENAMEID4('o','p','u','s'), MAKENAMEID3('p','y','a'), MAKENAMEID2('r','a'),
@@ -304,19 +290,29 @@ static const std::set<nameid> photoRawExtensions = {MAKENAMEID3('3','f','r'), MA
 
 static const std::set<nameid> photoImageDefExtension = {MAKENAMEID3('j','p','g'), MAKENAMEID4('j','p','e','g'), MAKENAMEID3('g','i','f'), MAKENAMEID3('b','m','p'), MAKENAMEID3('p','n','g')};
 
-bool Node::isPhoto(const std::string& ext, bool checkPreview) const
+bool Node::isPhoto(const std::string& ext)
 {
     nameid extNameid = getExtensionNameId(ext);
-    // evaluate according to the webclient rules, so that we get exactly the same bucketing.
     return photoImageDefExtension.find(extNameid) != photoImageDefExtension.end() ||
         photoRawExtensions.find(extNameid) != photoRawExtensions.end() ||
-        (photoExtensions.find(extNameid) != photoExtensions.end()
-            && (!checkPreview || hasfileattribute(GfxProc::PREVIEW)));
+        photoExtensions.find(extNameid) != photoExtensions.end();
 }
 
-bool Node::isVideo(const std::string& ext) const
+bool Node::isPhotoWithFileAttributes(const string& ext, bool checkPreview) const
 {
-    if (hasfileattribute(fa_media) && nodekey().size() == FILENODEKEYLENGTH)
+    // evaluate according to the webclient rules, so that we get exactly the same bucketing.
+    return (isPhoto(ext)
+            && (!checkPreview || Node::hasfileattribute(&fileattrstring, GfxProc::PREVIEW)));
+}
+
+bool Node::isVideo(const std::string& ext)
+{
+    return videoExtensions.find(getExtensionNameId(ext)) != videoExtensions.end();
+}
+
+bool Node::isVideoWithFileAttributes(const std::string& ext) const
+{
+    if (Node::hasfileattribute(&fileattrstring, fa_media) && nodekey().size() == FILENODEKEYLENGTH)
     {
 #ifdef USE_MEDIAINFO
         if (client->mediaFileInfo.mediaCodecsReceived)
@@ -340,10 +336,10 @@ bool Node::isVideo(const std::string& ext) const
 #endif
     }
 
-    return videoExtensions.find(getExtensionNameId(ext)) != videoExtensions.end();
+    return isVideo(ext);
 }
 
-bool Node::isAudio(const std::string& ext) const
+bool Node::isAudio(const std::string& ext)
 {
     nameid extNameid = getExtensionNameId(ext);
     if (extNameid != 0)
@@ -355,9 +351,34 @@ bool Node::isAudio(const std::string& ext) const
     return longAudioExtension.find(ext) != longAudioExtension.end();
 }
 
-bool Node::isDocument(const std::string& ext) const
+bool Node::isDocument(const std::string& ext)
 {
     return documentExtensions.find(getExtensionNameId(ext)) != documentExtensions.end();
+}
+
+bool Node::isPdf(const std::string& ext)
+{
+    return pdfExtensions.find(getExtensionNameId(ext)) != pdfExtensions.end();
+}
+
+bool Node::isPresentation(const std::string& ext)
+{
+    return presentationExtensions.find(getExtensionNameId(ext)) != presentationExtensions.end();
+}
+
+bool Node::isArchive(const std::string& ext)
+{
+    return archiveExtensions.find(getExtensionNameId(ext)) != archiveExtensions.end();
+}
+
+bool Node::isProgram(const std::string& ext)
+{
+    return programExtensions.find(getExtensionNameId(ext)) != programExtensions.end();
+}
+
+bool Node::isMiscellaneous(const std::string& ext)
+{
+    return miscExtensions.find(getExtensionNameId(ext)) != miscExtensions.end();
 }
 
 nameid Node::getExtensionNameId(const std::string& ext)
@@ -607,7 +628,6 @@ Node *Node::unserialize(MegaClient& client, const std::string *d, bool fromOldCa
     }
     // else from new cache, names has been normalized before to store in DB
 
-    PublicLink *plink = NULL;
     if (isExported)
     {
         if (ptr + MegaClient::NODEHANDLE + sizeof(m_time_t) + sizeof(bool) > end)
@@ -630,9 +650,8 @@ Node *Node::unserialize(MegaClient& client, const std::string *d, bool fromOldCa
             ptr += sizeof(cts);
         }
 
-        plink = new PublicLink(ph, cts, ets, takendown, authKey ? authKey : "");
+        n->plink.reset(new PublicLink(ph, cts, ets, takendown, authKey ? authKey : ""));
     }
-    n->plink = plink;
 
     if (encrypted)
     {
@@ -1257,12 +1276,12 @@ MimeType_t Node::getMimeType(bool checkPreview) const
     }
 
     std::string extension;
-    if (!getExtension(extension))
+    if (!getExtension(extension, displayname()))
     {
         return MimeType_t::MIME_TYPE_UNKNOWN;
     }
 
-    if (isPhoto(extension, checkPreview))
+    if (isPhoto(extension))
     {
         return MimeType_t::MIME_TYPE_PHOTO;
     }
@@ -1277,6 +1296,26 @@ MimeType_t Node::getMimeType(bool checkPreview) const
     else if (isDocument(extension))
     {
         return MimeType_t::MIME_TYPE_DOCUMENT;
+    }
+    else if (isPdf(extension))
+    {
+        return MimeType_t::MIME_TYPE_PDF;
+    }
+    else if (isPresentation(extension))
+    {
+        return MimeType_t::MIME_TYPE_PRESENTATION;
+    }
+    else if (isArchive(extension))
+    {
+        return MimeType_t::MIME_TYPE_ARCHIVE;
+    }
+    else if (isProgram(extension))
+    {
+        return MimeType_t::MIME_TYPE_PROGRAM;
+    }
+    else if (isMiscellaneous(extension))
+    {
+        return MimeType_t::MIME_TYPE_MISC;
     }
 
     return MimeType_t::MIME_TYPE_UNKNOWN;
@@ -1333,7 +1372,7 @@ bool Node::applykey()
     handle h;
     const char* k = NULL;
     SymmCipher* sc = &client->key;
-    handle me = client->loggedin() ? client->me : client->mNodeManager.getRootNodeFiles().as8byte();
+    handle me = client->loggedIntoFolder() ? client->mNodeManager.getRootNodeFiles().as8byte() : client->me;
 
     while ((t = nodekeydata.find_first_of(':', t)) != string::npos)
     {
@@ -1356,22 +1395,36 @@ bool Node::applykey()
             // look for share key if not folder link access with folder master key
             if (h != me)
             {
-                // this is a share node handle - check if share key is available at key's repository
-                // if not available, check if the node already has the share key
-                auto it = client->mNewKeyRepository.find(NodeHandle().set6byte(h));
-                if (it == client->mNewKeyRepository.end())
+                // this is a share node handle - check if share key is available
+                if (client->mKeyManager.isSecure() && client->mKeyManager.generation())
                 {
-                    Node* n;
-                    if (!(n = client->nodebyhandle(h)) || !n->sharekey)
+                    std::string key = client->mKeyManager.getShareKey(h);
+                    if (key.size())
+                    {
+                        sc = client->getRecycledTemporaryNodeCipher(&key);
+                    }
+                    else
                     {
                         continue;
                     }
-
-                    sc = n->sharekey;
                 }
-                else
+                else // check at new keys repository and, if not found, at the root node of share
                 {
-                    sc = client->getRecycledTemporaryNodeCipher(it->second.data());
+                    auto it = client->mNewKeyRepository.find(NodeHandle().set6byte(h));
+                    if (it == client->mNewKeyRepository.end())
+                    {
+                        Node* n;
+                        if (!(n = client->nodebyhandle(h)) || !n->sharekey)
+                        {
+                            continue;
+                        }
+
+                        sc = n->sharekey.get();
+                    }
+                    else
+                    {
+                        sc = client->getRecycledTemporaryNodeCipher(it->second.data());
+                    }
                 }
 
                 // this key will be rewritten when the node leaves the outbound share
@@ -1482,15 +1535,9 @@ NodeCounter Node::getCounter() const
     return mCounter;
 }
 
-void Node::setCounter(const NodeCounter &counter, bool notify)
+void Node::setCounter(const NodeCounter &counter)
 {
     mCounter = counter;
-
-    if (notify)
-    {
-        changed.counter = true;
-        client->notifynode(this);
-    }
 }
 
 // returns whether node was moved
@@ -1638,7 +1685,7 @@ void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown, 
 {
     if (!plink) // creation
     {
-        plink = new PublicLink(ph, cts, ets, takendown, authKey.empty() ? nullptr : authKey.c_str());
+        plink.reset(new PublicLink(ph, cts, ets, takendown, authKey.empty() ? nullptr : authKey.c_str()));
     }
     else            // update
     {
@@ -1660,15 +1707,6 @@ PublicLink::PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown, co
     {
         this->mAuthKey = authKey;
     }
-}
-
-PublicLink::PublicLink(PublicLink *plink)
-{
-    this->ph = plink->ph;
-    this->cts = plink->cts;
-    this->ets = plink->ets;
-    this->takendown = plink->takendown;
-    this->mAuthKey = plink->mAuthKey;
 }
 
 bool PublicLink::isExpired()

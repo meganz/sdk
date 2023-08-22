@@ -392,4 +392,16 @@ class DelegateMegaListener extends MegaListener {
             });
         }
     }
+
+
+    @Override
+    public void onSyncDeleted(MegaApi api, MegaSync sync) {
+        if (listener != null) {
+            megaApi.runCallback(new Runnable() {
+                public void run() {
+                    listener.onSyncDeleted(megaApi, sync);
+                }
+            });
+        }
+    }
 }

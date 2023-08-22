@@ -42,6 +42,7 @@
 #import "DelegateMEGAListener.h"
 #import "DelegateMEGALoggerListener.h"
 #import "DelegateMEGATreeProcessorListener.h"
+#import "DelegateMEGAScheduledCopyListener.h"
 #import "MEGAFileInputStream.h"
 #import "MEGADataInputStream.h"
 #import "MEGACancelToken+init.h"
@@ -63,6 +64,7 @@ using namespace mega;
 @property (nonatomic, assign) std::set<DelegateMEGAGlobalListener *>activeGlobalListeners;
 @property (nonatomic, assign) std::set<DelegateMEGAListener *>activeMegaListeners;
 @property (nonatomic, assign) std::set<DelegateMEGALoggerListener *>activeLoggerListeners;
+@property (nonatomic, assign) std::set<DelegateMEGAScheduledCopyListener *>activeScheduledCopyListeners;
 
 - (MegaRequestListener *)createDelegateMEGARequestListener:(id<MEGARequestDelegate>)delegate singleListener:(BOOL)singleListener;
 - (MegaRequestListener *)createDelegateMEGARequestListener:(id<MEGARequestDelegate>)delegate singleListener:(BOOL)singleListener queueType:(ListenerQueueType)queueType;
@@ -71,6 +73,7 @@ using namespace mega;
 - (MegaGlobalListener *)createDelegateMEGAGlobalListener:(id<MEGAGlobalDelegate>)delegate  queueType:(ListenerQueueType)queueType;
 - (MegaListener *)createDelegateMEGAListener:(id<MEGADelegate>)delegate;
 - (MegaLogger *)createDelegateMegaLogger:(id<MEGALoggerDelegate>)delegate;
+- (MegaScheduledCopyListener *)createDelegateMEGAScheduledCopyListener:(id<MEGAScheduledCopyDelegate>)delegate queueType:(ListenerQueueType)queueType;
 
 @property (nonatomic, nullable) MegaApi *megaApi;
 
@@ -190,6 +193,11 @@ using namespace mega;
 - (BOOL)isAchievementsEnabled {
     if (self.megaApi == nil) return NO;
     return self.megaApi->isAchievementsEnabled();
+}
+
+- (BOOL)isContactVerificationWarningEnabled {
+    if (self.megaApi == nil) return NO;
+    return self.megaApi->contactVerificationWarningEnabled();
 }
 
 #pragma mark - Business
@@ -430,6 +438,44 @@ using namespace mega;
         MegaApi::removeLoggerObject(listenersToRemove[i]);
         delete listenersToRemove[i];
     }
+}
+
+- (void)addMEGAScheduledCopyDelegate:(id<MEGAScheduledCopyDelegate>)delegate {
+    [self addMEGAScheduledCopyDelegate:delegate queueType:ListenerQueueTypeMain];
+}
+
+- (void)addMEGAScheduledCopyDelegate:(id<MEGAScheduledCopyDelegate>)delegate queueType:(ListenerQueueType)queueType {
+    if (self.megaApi) {
+        self.megaApi->addScheduledCopyListener([self createDelegateMEGAScheduledCopyListener:delegate queueType:queueType]);
+    }
+}
+
+- (void)removeMEGAScheduledCopyDelegate:(id<MEGAScheduledCopyDelegate>)delegate {
+    std::vector<DelegateMEGAScheduledCopyListener *> listenersToRemove;
+    
+    pthread_mutex_lock(&listenerMutex);
+    std::set<DelegateMEGAScheduledCopyListener *>::iterator it = _activeScheduledCopyListeners.begin();
+    while (it != _activeScheduledCopyListeners.end()) {
+        DelegateMEGAScheduledCopyListener *delegateListener = *it;
+        if (delegateListener->getUserListener() == delegate) {
+            listenersToRemove.push_back(delegateListener);
+            _activeScheduledCopyListeners.erase(it++);
+        }
+        else {
+            it++;
+        }
+    }
+    pthread_mutex_unlock(&listenerMutex);
+    
+    
+    for (int i = 0; i < listenersToRemove.size(); i++)
+    {
+        if (self.megaApi) {
+            self.megaApi->removeScheduledCopyListener(listenersToRemove[i]);
+        }
+        delete listenersToRemove[i];
+    }
+    
 }
 
 #pragma mark - Utils
@@ -3681,10 +3727,30 @@ using namespace mega;
     }
 }
 
+- (void)getBackupInfo:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->getBackupInfo([self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
 - (void)sendBackupHeartbeat:(MEGAHandle)backupId status:(BackupHeartbeatStatus)status progress:(NSInteger)progress pendingUploadCount:(NSUInteger)pendingUploadCount lastActionDate:(nullable NSDate *)lastActionDate lastBackupNode:(nullable MEGANode *)lastBackupNode delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->sendBackupHeartbeat(backupId, (int)status, (int)progress, (int)pendingUploadCount, 0, lastActionDate != nil ? (long long)[lastActionDate timeIntervalSince1970] : (long long)0, lastBackupNode != nil ? lastBackupNode.handle : INVALID_HANDLE, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
     }
+}
+
+- (nullable NSString *)deviceId {
+    if (self.megaApi) {
+        const char *val = self.megaApi->getDeviceId();
+        
+        if (!val) return nil;
+        
+        NSString *ret = [[NSString alloc] initWithUTF8String:val];
+        
+        delete [] val;
+        return ret;
+    }
+    return nil;
 }
 
 - (void)getDeviceNameWithDelegate:(id<MEGARequestDelegate>)delegate {
@@ -3829,6 +3895,16 @@ using namespace mega;
     return delegateListener;
 }
 
+- (MegaScheduledCopyListener *)createDelegateMEGAScheduledCopyListener:(id<MEGAScheduledCopyDelegate>)delegate queueType:(ListenerQueueType)queueType {
+    if (delegate == nil) return nil;
+    
+    DelegateMEGAScheduledCopyListener *delegateListener = new DelegateMEGAScheduledCopyListener(self, delegate, queueType);
+    pthread_mutex_lock(&listenerMutex);
+    _activeScheduledCopyListeners.insert(delegateListener);
+    pthread_mutex_unlock(&listenerMutex);
+    return delegateListener;
+}
+
 - (MegaTreeProcessor *)createMegaTreeProcessor:(id<MEGATreeProcessorDelegate>)delegate {
     if (delegate == nil) return nil;
     
@@ -3886,5 +3962,10 @@ using namespace mega;
     return self.megaApi->cookieBannerEnabled();
 }
 
+#pragma mark - A/B Testing
+- (NSInteger)getABTestValue:(NSString*)flag {
+    if (self.megaApi == nil) return 0;
+    return self.megaApi->getABTestValue((const char *)flag.UTF8String);
+}
 
 @end

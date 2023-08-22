@@ -54,7 +54,7 @@ struct MEGA_API JSON
     double getfloat();
     const char* getvalue();
 
-    fsfp_t getfp();
+    fsfp_t getfsfp();
     uint64_t getuint64();
 
     nameid getnameid();

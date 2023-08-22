@@ -99,11 +99,13 @@ const char* cwd()
     // for windows and linux
     static char path[1024];
     const char* ret;
-    #ifdef _WIN32
+#ifdef _WIN32
+    #define getcwd _getcwd
     ret = _getcwd(path, sizeof path);
-    #else
+    #undef getcwd
+#else
     ret = getcwd(path, sizeof path);
-    #endif
+#endif
     assert(ret);
     return ret;
 }
@@ -191,11 +193,6 @@ enum { USERALERT_ARRIVAL_MILLISEC = 1000 };
 #ifdef _WIN32
 #include "mega/autocomplete.h"
 #include <filesystem>
-#define getcwd _getcwd
-void usleep(int n)
-{
-    Sleep(n / 1000);
-}
 #endif
 
 void cleanUp(::mega::MegaApi* megaApi, const fs::path &basePath);
@@ -260,6 +257,7 @@ std::map<size_t, std::string> gSessionIDs;
 
 void SdkTest::SetUp()
 {
+    SdkTestBase::SetUp();
 }
 
 void SdkTest::TearDown()
@@ -436,6 +434,48 @@ void SdkTest::Cleanup()
                     ASSERT_EQ(API_OK, rt.waitForResult(300)) << "unshare of file/folder failed or took more than 5 minutes";
                 }
             }
+
+
+            // Delete Sets and their public links
+            unique_ptr<MegaSetList> sets(megaApi[nApi]->getSets());
+            for (unsigned i = 0u; i < sets->size(); ++i)
+            {
+                const MegaSet* s = sets->get(i);
+                if (s->isExported())
+                {
+                    EXPECT_EQ(doDisableExportSet(nApi, s->id()), API_OK);
+                }
+                EXPECT_EQ(doRemoveSet(nApi, s->id()), API_OK);
+            }
+
+
+#ifdef ENABLE_CHAT
+            // Delete chat links
+            unique_ptr<MegaTextChatList> chats(megaApi[nApi]->getChatList());
+            for (int i = 0u; i < chats->size(); ++i)
+            {
+                const MegaTextChat* c = chats->get(i);
+                RequestTracker rt(megaApi[nApi].get());
+                megaApi[nApi]->chatLinkQuery(c->getHandle(), &rt);
+                auto e = rt.waitForResult();
+                EXPECT_TRUE(e == API_OK || e == API_ENOENT || e == API_EACCESS) << "e == " << e;
+                if (e == API_OK)
+                {
+                    RequestTracker rtD(megaApi[nApi].get());
+                    megaApi[nApi]->chatLinkDelete(c->getHandle(), &rtD);
+                    EXPECT_EQ(rtD.waitForResult(), API_OK);
+                }
+            }
+#endif
+
+
+            // Delete node links
+            unique_ptr<MegaNodeList> nodeLinks(megaApi[nApi]->getPublicLinks());
+            for (int i = 0; i < nodeLinks->size(); ++i)
+            {
+                EXPECT_EQ(doDisableExport(nApi, nodeLinks->get(i)), API_OK) << "Failed to disable node public link";
+            }
+
 
             // Remove nodes in Cloud & Rubbish
             purgeTree(nApi, std::unique_ptr<MegaNode>{megaApi[nApi]->getRootNode()}.get(), false);
@@ -1145,7 +1185,8 @@ void SdkTest::deleteFolder(string foldername)
 
 void SdkTest::getAccountsForTest(unsigned howMany)
 {
-    assert(howMany > 0 && howMany <= 3);
+    EXPECT_TRUE(howMany > 0) << "SdkTest::getAccountsForTest(): invalid number of test account to setup " << howMany << " is < 0";
+    EXPECT_TRUE(howMany <= (unsigned)gMaxAccounts) << "SdkTest::getAccountsForTest(): too many test accounts requested " << howMany << " is > " << gMaxAccounts;
     out() << "Test setting up for " << howMany << " accounts ";
 
     megaApi.resize(howMany);
@@ -1164,12 +1205,12 @@ void SdkTest::getAccountsForTest(unsigned howMany)
 
         if (!gResumeSessions || gSessionIDs[index].empty() || gSessionIDs[index] == "invalid")
         {
-            out() << "Logging into account " << index;
+            out() << "Logging into account #" << index << ": " << mApi[index].email;
             trackers[index] = asyncRequestLogin(index, mApi[index].email.c_str(), mApi[index].pwd.c_str());
         }
         else
         {
-            out() << "Resuming session for account " << index;
+            out() << "Resuming session for account #" << index;
             trackers[index] = asyncRequestFastLogin(index, gSessionIDs[index].c_str());
         }
     }
@@ -1179,7 +1220,7 @@ void SdkTest::getAccountsForTest(unsigned howMany)
     for (unsigned index = 0; index < howMany; ++index)
     {
         auto loginResult = trackers[index]->waitForResult();
-        EXPECT_EQ(API_OK, loginResult) << " Failed to establish a login/session for account " << index;
+        EXPECT_EQ(API_OK, loginResult) << " Failed to establish a login/session for account #" << index << ": " << mApi[index].email << ": " << MegaError::getErrorString(loginResult);
         if (loginResult != API_OK) anyLoginFailed = true;
         else {
             gSessionIDs[index] = "invalid"; // default
@@ -1824,9 +1865,9 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     // Make sure the new account details have been set up
     const char* bufRealEmail = getenv("MEGA_REAL_EMAIL"); // user@host.domain
     const char* bufRealPswd = getenv("MEGA_REAL_PWD"); // email password of user@host.domain
-    const char* bufScript = getenv("MEGA_LINK_EXTRACT_SCRIPT"); // full path to the link extraction script
-    ASSERT_TRUE(bufRealEmail && bufRealPswd && bufScript) <<
-        "MEGA_REAL_EMAIL, MEGA_REAL_PWD, MEGA_LINK_EXTRACT_SCRIPT env vars must all be defined";
+    fs::path bufScript = getLinkExtractSrciptPath();
+    ASSERT_TRUE(bufRealEmail && bufRealPswd) <<
+        "MEGA_REAL_EMAIL, MEGA_REAL_PWD env vars must all be defined";
 
     // test that Python 3 was installed
     string pyExe = "python";
@@ -1872,11 +1913,23 @@ TEST_F(SdkTest, SdkTestCreateAccount)
 
     // Get confirmation link from the email
     {
-        string conformLink = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, newTestAcc, MegaClient::confirmLinkPrefix(), timeOfConfirmEmail);
+        string conformLink = getLinkFromMailbox(pyExe, bufScript.string(), realAccount, bufRealPswd, newTestAcc, MegaClient::confirmLinkPrefix(), timeOfConfirmEmail);
         ASSERT_FALSE(conformLink.empty()) << "Confirmation link was not found.";
 
+        // create another connection to confirm the account
+        megaApi.resize(2);
+        mApi.resize(2);
+        ASSERT_NO_FATAL_FAILURE(configureTestInstance(1, bufRealEmail, bufRealPswd));
+
+        PerApi& initialConn = mApi[0];
+        initialConn.resetlastEvent();
+
         // Use confirmation link
-        ASSERT_EQ(API_OK, synchronousConfirmSignupLink(0, conformLink.c_str(), origTestPwd));
+        ASSERT_EQ(API_OK, synchronousConfirmSignupLink(1, conformLink.c_str(), origTestPwd));
+
+        // check for event triggered by 'uec' action packet received after the confirmation
+        EXPECT_TRUE(WaitFor([&initialConn]() { return initialConn.lastEventsContain(MegaEvent::EVENT_CONFIRM_USER_EMAIL); }, 10000))
+            << "EVENT_CONFIRM_USER_EMAIL event triggered by 'uec' action packet was not received";
     }
 
     // Login to the new account
@@ -1902,7 +1955,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     // Get cancel account link from the mailbox
     const char* newTestPwd = "PassAndGotHerPhoneNumber!#$**!";
     {
-        string recoverink = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, newTestAcc, MegaClient::recoverLinkPrefix(), timeOfResetEmail);
+        string recoverink = getLinkFromMailbox(pyExe, bufScript.string(), realAccount, bufRealPswd, newTestAcc, MegaClient::recoverLinkPrefix(), timeOfResetEmail);
         ASSERT_FALSE(recoverink.empty()) << "Recover account link was not found.";
 
         char* masterKey = megaApi[0]->exportMasterKey();
@@ -1931,7 +1984,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     ASSERT_EQ(synchronousChangeEmail(0, changedTestAcc.c_str()), MegaError::API_OK) << "changeEmail failed";
 
     {
-        string changelink = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, changedTestAcc, MegaClient::verifyLinkPrefix(), timeOfChangeEmail);
+        string changelink = getLinkFromMailbox(pyExe, bufScript.string(), realAccount, bufRealPswd, changedTestAcc, MegaClient::verifyLinkPrefix(), timeOfChangeEmail);
         ASSERT_FALSE(changelink.empty()) << "Change email account link was not found.";
 
         ASSERT_EQ(newTestAcc, megaApi[0]->getMyEmail()) << "email changed prematurely";
@@ -1969,7 +2022,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
 
     // Get cancel account link from the mailbox
     {
-        string deleteLink = getLinkFromMailbox(pyExe, bufScript, realAccount, bufRealPswd, changedTestAcc, MegaClient::cancelLinkPrefix(), timeOfDeleteEmail);
+        string deleteLink = getLinkFromMailbox(pyExe, bufScript.string(), realAccount, bufRealPswd, changedTestAcc, MegaClient::cancelLinkPrefix(), timeOfDeleteEmail);
         ASSERT_FALSE(deleteLink.empty()) << "Cancel account link was not found.";
 
         // Use cancel account link
@@ -2896,6 +2949,7 @@ TEST_F(SdkTest, SdkTestContacts)
     LOG_info << "___TEST Contacts___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
+    copyFileFromTestData(AVATARSRC);
 
     // --- Check my email and the email of the contact ---
 
@@ -4093,20 +4147,19 @@ TEST_F(SdkTest, SdkTestShares)
     long long nodeCountAfterShareN1 = megaApi[1]->getNumNodes();
     ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterShareN1);
 
-
     // remove nested share
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(dummyNode2->getHandle(), MegaNode::CHANGE_TYPE_OUTSHARE, check1);
+    mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(dummyNode2->getHandle(), MegaNode::CHANGE_TYPE_INSHARE, check2);
     ASSERT_NO_FATAL_FAILURE(shareFolder(dummyNode2.get(), mApi[1].email.data(), MegaShare::ACCESS_UNKNOWN));
     ASSERT_TRUE(waitForResponse(&check1))   // at the target side (main account)
         << "Node update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE(waitForResponse(&check2))   // at the target side (auxiliar account)
+        << "Node update not received after " << maxTimeout << " seconds";
+
     // important to reset
     resetOnNodeUpdateCompletionCBs();
     ASSERT_EQ(check1, true);
-
-//    TODO nested in shares aren't notified when they are removed (Ticket SDK-1912)
-//    ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated))   // at the target side (auxiliar account)
-//        << "Node update not received after " << maxTimeout << " seconds";
-    WaitMillisec(2000); // alternative attempt for mApi[1].nodeUpdated not being set
+    ASSERT_EQ(check2, true);
 
     // number of nodes should not change, because this node was a nested share
     long long nodeCountAfterInSharesRemovedNestedSubfolder = megaApi[1]->getNumNodes();
@@ -6905,6 +6958,7 @@ TEST_F(SdkTest, SdkHttpReqCommandPutFATest)
 {
     LOG_info << "___TEST SdkHttpReqCommandPutFATest___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    copyFileFromTestData(IMAGEFILE);
 
     // SCENARIO 1: Upload image file and check thumbnail and preview
     std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
@@ -6953,6 +7007,7 @@ TEST_F(SdkTest, SdkMediaImageUploadTest)
 {
     LOG_info << "___TEST MediaUploadRequestURL___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    copyFileFromTestData(IMAGEFILE);
 
     unsigned int apiIndex = 0;
     int64_t fileSize = 1304;
@@ -7071,11 +7126,19 @@ TEST_F(SdkTest, SdkSimpleCommands)
     ASSERT_EQ(API_OK, err) << "Fetch time zone failed (error: " << err << ")";
     ASSERT_TRUE(mApi[0].tzDetails && mApi[0].tzDetails->getNumTimeZones()) << "Invalid Time Zone details"; // some simple validation
 
-    // getMiscFlags() -- not logged in
+    // getABTestValue() -- logged in.
+    ASSERT_GE(megaApi[0]->getABTestValue("devtest"), 1u);
+    ASSERT_EQ(megaApi[0]->getABTestValue("devtest_inexistent_flag"), 0u);
+
     logout(0, false, maxTimeout);
     gSessionIDs[0] = "invalid";
+
+    // getMiscFlags() -- not logged in
     err = synchronousGetMiscFlags(0);
     ASSERT_EQ(API_OK, err) << "Get misc flags failed (error: " << err << ")";
+
+    // getABTestValue() -- not logged in
+    ASSERT_EQ(megaApi[0]->getABTestValue("devtest"), 0u);
 
     // getUserEmail() test
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -7085,6 +7148,9 @@ TEST_F(SdkTest, SdkSimpleCommands)
     err = synchronousGetUserEmail(0, user->getHandle());
     ASSERT_EQ(API_OK, err) << "Get user email failed (error: " << err << ")";
     ASSERT_NE(mApi[0].email.find('@'), std::string::npos); // some simple validation
+
+    // sendABTestActive()
+    ASSERT_EQ(API_OK, syncSendABTestActive(0, "devtest"));
 
     // cleanRubbishBin() test (accept both success and already empty statuses)
     err = synchronousCleanRubbishBin(0);
@@ -7253,8 +7319,10 @@ TEST_F(SdkTest, SdkFavouriteNodes)
 // includes tests of MegaApi::searchByType()
 TEST_F(SdkTest, SdkSensitiveNodes)
 {
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
     LOG_info << "___TEST SDKSensitive___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+
+    copyFileFromTestData(IMAGEFILE);
 
     unique_ptr<MegaNode> rootnodeA(megaApi[0]->getRootNode());
 
@@ -7485,10 +7553,16 @@ TEST_F(SdkTest, SdkDeviceNames)
 
     // test setter/getter
     string deviceName = string("SdkDeviceNamesTest_") + getCurrentTimestamp(true);
-    ASSERT_EQ(API_OK, doSetDeviceName(0, deviceName.c_str())) << "setDeviceName failed";
+    ASSERT_EQ(API_OK, doSetDeviceName(0, nullptr, deviceName.c_str())) << "setDeviceName failed";
     string deviceNameInCloud;
-    ASSERT_EQ(API_OK, doGetDeviceName(0, &deviceNameInCloud)) << "getDeviceName failed";
+    ASSERT_EQ(API_OK, doGetDeviceName(0, &deviceNameInCloud, nullptr)) << "getDeviceName failed";
     ASSERT_EQ(deviceNameInCloud, deviceName) << "getDeviceName returned incorrect value";
+
+    // test device name taken directly from user attribute
+    RequestTracker devNameTracker(megaApi[0].get());
+    megaApi[0]->getUserAttribute(MegaApi::USER_ATTR_DEVICE_NAMES, &devNameTracker);
+    ASSERT_EQ(API_OK, devNameTracker.waitForResult());
+    ASSERT_STREQ(devNameTracker.request->getName(), deviceName.c_str());
 }
 
 TEST_F(SdkTest, SdkBackupFolder)
@@ -7504,14 +7578,14 @@ TEST_F(SdkTest, SdkBackupFolder)
     // look for Device Name attr
     string deviceName;
     bool deviceNameWasSetByCurrentTest = false;
-    if (doGetDeviceName(0, &deviceName) != API_OK || deviceName.empty())
+    if (doGetDeviceName(0, &deviceName, nullptr) != API_OK || deviceName.empty())
     {
         deviceName = "Jenkins " + timestamp;
-        doSetDeviceName(0, deviceName.c_str());
+        doSetDeviceName(0, nullptr, deviceName.c_str());
 
         // make sure Device Name attr was set
         string deviceNameInCloud;
-        ASSERT_EQ(doGetDeviceName(0, &deviceNameInCloud), API_OK) << "Getting device name attr failed";
+        ASSERT_EQ(doGetDeviceName(0, &deviceNameInCloud, nullptr), API_OK) << "Getting device name attr failed";
         ASSERT_EQ(deviceName, deviceNameInCloud) << "Getting device name attr failed (wrong value)";
         deviceNameWasSetByCurrentTest = true;
     }
@@ -7686,12 +7760,12 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
 
     // Set device name if missing
     string deviceName;
-    if (doGetDeviceName(0, &deviceName) != API_OK || deviceName.empty())
+    if (doGetDeviceName(0, &deviceName, nullptr) != API_OK || deviceName.empty())
     {
         string newDeviceName = "Jenkins " + timestamp;
-        ASSERT_EQ(doSetDeviceName(0, newDeviceName.c_str()), API_OK) << "Setting device name failed";
+        ASSERT_EQ(doSetDeviceName(0, nullptr, newDeviceName.c_str()), API_OK) << "Setting device name failed";
         // make sure Device Name attr was set
-        ASSERT_EQ(doGetDeviceName(0, &deviceName), API_OK) << "Getting device name failed";
+        ASSERT_EQ(doGetDeviceName(0, &deviceName, nullptr), API_OK) << "Getting device name failed";
         ASSERT_EQ(deviceName, newDeviceName) << "Getting device name failed (wrong value)";
     }
     // Make sure My Backups folder was created
@@ -7732,7 +7806,7 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
     ASSERT_NE(backupId, INVALID_HANDLE) << "Backup could not be found";
 
     // Use another connection with the same credentials
-    megaApi.emplace_back(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
+    megaApi.emplace_back(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(1).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
     auto& differentApi = *megaApi.back();
     differentApi.addListener(this);
     PerApi pa; // make a copy
@@ -7801,6 +7875,14 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
     }
     ASSERT_NE(backupId, INVALID_HANDLE) << "2nd backup could not be found";
 
+    // Wait for other API to see the backup destination
+    auto bkpDestOK = [this, differentApiIdx, &moveDest]()
+    {
+        unique_ptr<MegaNode> bd(megaApi[differentApiIdx]->getNodeByHandle(moveDest));
+        return bd != nullptr;
+    };
+    ASSERT_TRUE(WaitFor(bkpDestOK, 60000)) << "Other API could not see the backup destination after 60 seconds";
+
     // Request backup removal (and move its contents) from a different connection
     RequestTracker removeBackupTracker2(megaApi[differentApiIdx].get());
     megaApi[differentApiIdx]->removeFromBC(backupId, moveDest, &removeBackupTracker2);
@@ -7865,7 +7947,7 @@ TEST_F(SdkTest, SdkExternalDriveFolder)
 
     // attempt to set the name of an external drive to the name of current device (if the latter was already set)
     string deviceName;
-    if (doGetDeviceName(0, &deviceName) == API_OK && !deviceName.empty())
+    if (doGetDeviceName(0, &deviceName, nullptr) == API_OK && !deviceName.empty())
     {
         ASSERT_EQ(API_EEXIST, doSetDriveName(0, pathToDriveStr.c_str(), deviceName.c_str()))
             << "Ext-drive name was set to current device name: " << deviceName;
@@ -9764,6 +9846,9 @@ TEST_F(SdkTest, SyncOQTransitions)
     ASSERT_EQ(nodeList->size(), 1);
     MegaNode* inshareNode = nodeList->get(0);
 
+    // Wait for the outshare to be added to the sharer's node by the action packets
+    ASSERT_TRUE(WaitFor([this, &remoteFillNode]() { return unique_ptr<MegaNode>(megaApi[0]->getNodeByHandle(remoteFillNode->getHandle()))->isOutShare(); }, 60*1000));
+
     // Make sure that search functionality finds them
     unique_ptr<MegaNodeList> outShares(megaApi[0]->searchOnOutShares(fillPath.u8string().c_str(), nullptr));
     ASSERT_TRUE(outShares);
@@ -10284,8 +10369,7 @@ TEST_F(SdkTest, SdkTargetOverwriteTest)
  * Tests extracting thumbnail for uploaded audio file.
  *
  * The file to be uploaded must exist or the test will fail.
- * If environment variable MEGA_DIR_PATH_TO_INPUT_FILES is defined, the file is expected to be in that folder. Otherwise,
- * a relative path will be checked. Currently, the relative path is dependent on the building tool
+ * File is expected at the directory returned by getTestDataDir().
  */
 #if !USE_FREEIMAGE || !USE_MEDIAINFO
 TEST_F(SdkTest, DISABLED_SdkTestAudioFileThumbnail)
@@ -10295,30 +10379,12 @@ TEST_F(SdkTest, SdkTestAudioFileThumbnail)
 {
     LOG_info << "___TEST Audio File Thumbnail___";
 
-    const char* bufPathToMp3 = getenv("MEGA_DIR_PATH_TO_INPUT_FILES"); // needs platform-specific path separators
     static const std::string AUDIO_FILENAME = "test_cover_png.mp3";
 
-    // Attempt to get the test audio file from these locations:
-    // 1. dedicated env var;
-    // 2. subtree location, like the one in the repo;
-    // 3. current working directory
     LocalPath mp3LP;
 
-    if (bufPathToMp3)
-    {
-        mp3LP = LocalPath::fromAbsolutePath(bufPathToMp3);
-        mp3LP.appendWithSeparator(LocalPath::fromRelativePath(AUDIO_FILENAME), false);
-    }
-    else
-    {
-        mp3LP.append(LocalPath::fromRelativePath("."));
-        mp3LP.appendWithSeparator(LocalPath::fromRelativePath("tests"), false);
-        mp3LP.appendWithSeparator(LocalPath::fromRelativePath("integration"), false);
-        mp3LP.appendWithSeparator(LocalPath::fromRelativePath(AUDIO_FILENAME), false);
-
-        if (!fileexists(mp3LP.toPath(false)))
-            mp3LP = LocalPath::fromRelativePath(AUDIO_FILENAME);
-    }
+    mp3LP = LocalPath::fromAbsolutePath(getTestDataDir().string());
+    mp3LP.appendWithSeparator(LocalPath::fromRelativePath(AUDIO_FILENAME), false);
 
     const std::string& mp3 = mp3LP.toPath(false);
 
@@ -11287,6 +11353,16 @@ TEST_F(SdkTest, SdkNodesOnDemandVersions)
     // important to reset
     resetOnNodeUpdateCompletionCBs();
 
+    // check no versions exist yet in either client
+    {
+        unique_ptr<MegaNode> n1(megaApi[0]->getNodeByPath(("/" + fileName).c_str()));
+        unique_ptr<MegaNode> n2(megaApi[1]->getNodeByPath(("/" + fileName).c_str()));
+        ASSERT_TRUE(n1 && !megaApi[0]->hasVersions(n1.get()));
+        ASSERT_TRUE(n2 && !megaApi[1]->hasVersions(n2.get()));
+        ASSERT_TRUE(n1 && 1 == megaApi[0]->getNumVersions(n1.get()));
+        ASSERT_TRUE(n2 && 1 == megaApi[1]->getNumVersions(n2.get()));
+    }
+
     // upload a file to replace the last one in the root of client 0
     // of course client 1 will see the same new file (and the old file becomes a version, if versioning is on.  Built with ENABLE_SYNC or not is irrelevant)
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check1);
@@ -11314,6 +11390,16 @@ TEST_F(SdkTest, SdkNodesOnDemandVersions)
     deleteFile(fileName);
     // important to reset
     resetOnNodeUpdateCompletionCBs();
+
+    // check both client now know the file has versons
+    {
+        unique_ptr<MegaNode> n1(megaApi[0]->getNodeByPath(("/" + fileName).c_str()));
+        unique_ptr<MegaNode> n2(megaApi[1]->getNodeByPath(("/" + fileName).c_str()));
+        ASSERT_TRUE(n1 && megaApi[0]->hasVersions(n1.get()));
+        ASSERT_TRUE(n2 && megaApi[1]->hasVersions(n2.get()));
+        ASSERT_TRUE(n1 && 2 == megaApi[0]->getNumVersions(n1.get()));
+        ASSERT_TRUE(n2 && 2 == megaApi[1]->getNumVersions(n2.get()));
+    }
 
     nodeFile.reset(megaApi[0]->getNodeByHandle(fh));
     unique_ptr<MegaNodeList> list(megaApi[0]->getChildren(nodeFile.get())); // null
@@ -11366,7 +11452,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     // 11. Remove all Sets
 
     // Use another connection with the same credentials
-    megaApi.emplace_back(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
+    megaApi.emplace_back(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(1).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
     auto& differentApi = *megaApi.back();
     differentApi.addListener(this);
     PerApi pa; // make a copy
@@ -11822,6 +11908,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     // U1: Get public Set URL
     // U1: Fetch Public Set and start Public Set preview mode
     // U1: Stop Public Set preview mode
+    // U2: Attempt to fetch public Set using wrong key
     // U2: Fetch public Set and start preview mode
     // U2: Download foreign Set Element in preview set mode
     // U2: Stop Public Set preview mode
@@ -12063,6 +12150,12 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     megaApi[userIdx]->stopPublicSetPreview();
     ASSERT_FALSE(megaApi[userIdx]->inPublicSetPreview());
     ASSERT_NO_FATAL_FAILURE(lFetchCurrentSetInPreviewMode(userIdx, false));
+
+
+    LOG_debug << "# U2: Attempt to fetch public Set using wrong key";
+    string exportedSetURL_wrongKey = exportedSetURL;
+    exportedSetURL_wrongKey.replace(exportedSetURL_wrongKey.find('#'), string::npos, "#aaaaaaaaaaaaaaaaaaaaaa");
+    ASSERT_EQ(doFetchPublicSet(1, nullptr, nullptr, exportedSetURL_wrongKey.c_str()), API_EKEY);
 
 
     LOG_debug << "# U2: Fetch public Set and start preview mode";
@@ -13987,7 +14080,21 @@ TEST_F(SdkTest, GetRecommendedProLevel)
     int level = -1;
     int err = synchronousGetRecommendedProLevel(0, level);
     ASSERT_EQ(err, API_OK) << "synchronousGetRecommendedProLevel() failed: " << err << ": " << MegaError::getErrorString(err);
-    ASSERT_EQ(level, MegaAccountDetails::ACCOUNT_TYPE_LITE);
+    err = synchronousGetPricing(0);
+    ASSERT_EQ(err, API_OK) << "synchronousGetPricing() failed: " << err << ": " << MegaError::getErrorString(err);
+
+    bool liteAvailable = false;
+    for (int i = 0; i < mApi[0].mMegaPricing->getNumProducts(); ++i)
+    {
+        if (mApi[0].mMegaPricing->getProLevel(i) == MegaAccountDetails::ACCOUNT_TYPE_LITE)
+        {
+            LOG_debug << "GetRecommendedProLevel: ACCOUNT_TYPE_LITE is available.";
+            liteAvailable = true;
+            break;
+        }
+    }
+
+    ASSERT_EQ(level, liteAvailable ? MegaAccountDetails::ACCOUNT_TYPE_LITE : MegaAccountDetails::ACCOUNT_TYPE_PROI);
 }
 
 /**
@@ -14165,4 +14272,76 @@ TEST_F(SdkTest, SdkTestDeleteListenerBeforeFinishingRequest)
         ASSERT_TRUE(rt->started);
         ASSERT_FALSE(rt->finished);
     }
+}
+
+/**
+ * SdkTestGetNodeByMimetype
+ * Steps:
+ * - Create three files (test.cpp, test.pdf, test.json)
+ * - Check number of files from type program
+ * - Check number of files from type pdf
+ * - Check number of files from type json
+ */
+TEST_F(SdkTest, SdkTestGetNodeByMimetype)
+{
+    LOG_info << "___TEST Get Node By Mimetypes___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_NE(rootnode.get(), nullptr);
+
+    std::string codeFile = "test.cpp";
+    ASSERT_TRUE(createFile(codeFile.c_str(), false)) << "Couldn't create " << PUBLICFILE.c_str();
+
+    MegaHandle handleCodeFile = UNDEF;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handleCodeFile, codeFile.c_str(),
+                                               rootnode.get(),
+                                               nullptr /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload a test file";
+
+    std::string pdfFile = "test.pdf";
+    ASSERT_TRUE(createFile(pdfFile.c_str(), false)) << "Couldn't create " << PUBLICFILE.c_str();
+
+    MegaHandle handlePdfFile = UNDEF;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handlePdfFile, pdfFile.c_str(),
+                                               rootnode.get(),
+                                               nullptr /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload a test file";
+
+    std::string jsonFile = "test.json";
+    ASSERT_TRUE(createFile(jsonFile.c_str(), false)) << "Couldn't create " << PUBLICFILE.c_str();
+
+    MegaHandle handleJsonFile = UNDEF;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handleJsonFile, jsonFile.c_str(),
+                                               rootnode.get(),
+                                               nullptr /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload a test file";
+
+    std::unique_ptr<MegaNodeList> nodeList(megaApi[0]->searchByType(nullptr, nullptr, nullptr, true, MegaApi::ORDER_NONE, MegaApi::FILE_TYPE_PROGRAM));
+    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), handleCodeFile);
+
+    nodeList.reset(megaApi[0]->searchByType(nullptr, nullptr, nullptr, true, MegaApi::ORDER_NONE, MegaApi::FILE_TYPE_PDF));
+    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), handlePdfFile);
+
+    nodeList.reset(megaApi[0]->searchByType(nullptr, nullptr, nullptr, true, MegaApi::ORDER_NONE, MegaApi::FILE_TYPE_MISC));
+    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), handleJsonFile);
+
+    deleteFile(codeFile);
+    deleteFile(pdfFile);
+    deleteFile(jsonFile);
 }

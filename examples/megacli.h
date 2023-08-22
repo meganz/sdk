@@ -140,6 +140,7 @@ struct DemoApp : public MegaApp
     void nodes_current() override;
     void account_updated() override;
     void notify_confirmation(const char *email) override;
+    void notify_confirm_user_email(handle user, const char *email) override;
     void sets_updated(Set**, int) override;
     void setelements_updated(SetElement**, int) override;
 
@@ -156,7 +157,7 @@ struct DemoApp : public MegaApp
     virtual void chatpresenceurl_result(string *, error) override;
     void chatlink_result(handle, error) override;
     void chatlinkclose_result(error) override;
-    void chatlinkurl_result(handle, int, string*, string*, int, m_time_t, bool, handle, error) override;
+    void chatlinkurl_result(handle, int, string*, string*, int, m_time_t, bool, const bool, const std::vector<std::unique_ptr<ScheduledMeeting>>*, handle, error) override;
     void chatlinkjoin_result(error) override;
 
     void chats_updated(textchat_map*, int) override;
@@ -404,6 +405,9 @@ void exec_banner(autocomplete::ACState& s);
 void exec_drivemonitor(autocomplete::ACState& s);
 void exec_driveid(autocomplete::ACState& s);
 void exec_randomfile(autocomplete::ACState& s);
+void exec_getABTestValue(autocomplete::ACState& s);
+void exec_sendABTestActive(autocomplete::ACState& s);
+void exec_contactVerificationWarning(autocomplete::ACState& s);
 
 #ifdef ENABLE_SYNC
 

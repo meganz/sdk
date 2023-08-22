@@ -87,7 +87,7 @@ struct MEGA_API PublicLink
     string mAuthKey;
 
     PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown, const char *authKey = nullptr);
-    PublicLink(PublicLink *plink);
+    PublicLink(const PublicLink& plink) = default;
 
     bool isExpired();
 };
@@ -215,16 +215,16 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
                           string& fingerprint, FileFingerprint& ffp);
 
     // inbound share
-    Share* inshare = nullptr;
+    unique_ptr<Share> inshare;
 
     // outbound shares by user
-    share_map* outshares = nullptr;
+    unique_ptr<share_map> outshares;
 
     // outbound pending shares
-    share_map* pendingshares = nullptr;
+    unique_ptr<share_map> pendingshares;
 
     // incoming/outgoing share key
-    SymmCipher* sharekey = nullptr;
+    unique_ptr<SymmCipher> sharekey;
 
     // app-private pointer
     void* appdata = nullptr;
@@ -269,7 +269,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     void faspec(string*);
 
     NodeCounter getCounter() const;
-    void setCounter(const NodeCounter &counter, bool notify);
+    void setCounter(const NodeCounter &counter);  // to only be called by mNodeManger::setNodeCounter
 
     // parent
     // nullptr if is root node or top node of an inshare
@@ -306,7 +306,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     bool isbelow(NodeHandle) const;
 
     // handle of public link for the node
-    PublicLink* plink = nullptr;
+    unique_ptr<PublicLink> plink;
 
     void setpubliclink(handle, m_time_t, m_time_t, bool, const string &authKey = {});
 
@@ -362,6 +362,20 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     static uint64_t getDBFlags(uint64_t oldFlags, bool isInRubbish, bool isVersion, bool isSensitive);
 
+    static bool getExtension(std::string& ext, const std::string& nodeName);
+    static bool isPhoto(const std::string& ext);
+    static bool isVideo(const std::string& ext);
+    static bool isAudio(const std::string& ext);
+    static bool isDocument(const std::string& ext);
+    static bool isPdf(const std::string& ext);
+    static bool isPresentation(const std::string& ext);
+    static bool isArchive(const std::string& ext);
+    static bool isProgram(const std::string& ext);
+    static bool isMiscellaneous(const std::string& ext);
+
+    bool isPhotoWithFileAttributes(const std::string& ext, bool checkPreview) const;
+    bool isVideoWithFileAttributes(const string& ext) const;
+
 private:
     // full folder/file key, symmetrically or asymmetrically encrypted
     // node crypto keys (raw or cooked -
@@ -370,12 +384,6 @@ private:
 
     // keeps track of counts of files, folder, versions, storage and version's storage
     NodeCounter mCounter;
-
-    bool getExtension(std::string& ext) const;
-    bool isPhoto(const std::string& ext, bool checkPreview) const;
-    bool isVideo(const std::string& ext) const;
-    bool isAudio(const std::string& ext) const;
-    bool isDocument(const std::string& ext) const;
 
     static nameid getExtensionNameId(const std::string& ext);
 };

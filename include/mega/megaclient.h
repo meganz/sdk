@@ -294,6 +294,8 @@ public:
     bool addShareKey(handle sharehandle, std::string shareKey, bool sharedSecurely = false);
     string getShareKey(handle sharehandle) const;
     bool isShareKeyTrusted(handle sharehandle) const;
+    bool isShareKeyInUse(handle sharehandle) const;
+    void setSharekeyInUse(handle sharehandle, bool sent);
 
     // return empty string if the user's credentials are not verified (or if fail to encrypt)
     std::string encryptShareKeyTo(handle userhandle, std::string shareKey);
@@ -309,7 +311,6 @@ public:
     bool isUnverifiedOutShare(handle nodeHandle, const string& uid);
     bool isUnverifiedInShare(handle nodeHandle, handle userHandle);
 
-    void cacheShareKeys();
     void loadShareKeys();
 
     void commit(std::function<void()> applyChanges, std::function<void()> completion = nullptr);
@@ -317,6 +318,12 @@ public:
 
     // returns a formatted string, for logging purposes
     string toString() const;
+
+    // Returns true if the warnings related to shares with non-verified contacts are enabled.
+    bool getContactVerificationWarning();
+
+    // Enable/disable the warnings for shares with non-verified contacts.
+    void setContactVerificationWarning(bool enabled);
 
     // this method allows to change the feature-flag for testing purposes
     void setSecureFlag(bool enabled) { mSecure = enabled; }
@@ -353,6 +360,17 @@ private:
         TAG_WARNINGS = 96,
     };
 
+    // Bit position for different flags for each sharekey. Bits 2 to 7 reserved for future usage.
+    enum ShareKeyFlagsId
+    {
+        TRUSTED = 0,    // If the sharekey is trusted
+        INUSE = 1,      // If there is an active outshare or folder-link using the sharekey
+    };
+
+    // Bitmap with flags for each sharekey. The field is 1 byte size in the attribute.
+    // See used bits and flag meaning in "ShareKeyFlagsId" enumeration.
+    typedef std::bitset<8> ShareKeyFlags;
+
     static const uint8_t IV_LEN = 12;
     static const std::string SVCRYPTO_PAIRWISE_KEY;
 
@@ -386,11 +404,10 @@ private:
     string mPrivEd25519, mPrivCu25519, mPrivRSA;
     string mAuthEd25519, mAuthCu25519;
     string mBackups;
-    string mWarnings;
     string mOther;
 
-    // maps node handle of the shared folder to a pair of sharekey bytes and trust flag
-    map<handle, pair<string, bool>> mShareKeys;
+    // maps node handle of the shared folder to a pair of sharekey bytes and sharekey flags.
+    map<handle, pair<string, ShareKeyFlags>> mShareKeys;
 
     // maps node handle to the target users (where value can be a user's handle in B64 or the email address)
     map<handle, set<string>> mPendingOutShares;
@@ -398,12 +415,20 @@ private:
     // maps base64 node handles to pairs of source user handle and share key
     map<string, pair<handle, string>> mPendingInShares;
 
+    // warnings as stored as a key-value map
+    map<string, string> mWarnings;
+
     // decode data from the decrypted ^!keys attribute and stores values in `km`
     // returns false in case of unserializatison isues
     static bool unserialize(KeyManager& km, const string& keysContainer);
 
     // prepares the header for a new serialized record of type 'tag' and 'len' bytes
     string tagHeader(const byte tag, size_t len) const;
+
+    // Serialize pairs of tags and values as Length+Tag+Lengh+Value.
+    // warnings and pending inshares are encoded like that when serialized.
+    static bool deserializeFromLTLV(const string& blob, map<string, string>& data);
+    static string serializeToLTLV(const map<string, string>& data);
 
     // encode data from the decrypted ^!keys attribute
     string serialize() const;
@@ -423,6 +448,10 @@ private:
     string serializeBackups() const;
     static bool deserializeBackups(KeyManager& km, const string& blob);
 
+    string serializeWarnings() const;
+    static bool deserializeWarnings(KeyManager& km, const string& blob);
+    static string warningsToString(const KeyManager& km);
+
     std::string computeSymmetricKey(handle user);
 
     // validates data in `km`: ie. downgrade attack, tampered keys...
@@ -438,7 +467,7 @@ private:
     void updateAuthring(attr_t at, std::string &value);
 
     // update sharekeys (incl. trust). It doesn't purge non-existing items
-    void updateShareKeys(map<handle, pair<std::string, bool> > &shareKeys);
+    void updateShareKeys(map<handle, pair<std::string, ShareKeyFlags> > &shareKeys);
 
     // true if the credentials of this user require verification
     bool verificationRequired(handle userHandle);
@@ -482,11 +511,16 @@ public:
     // Don't start showing the cookie banner until API says so
     bool mCookieBannerEnabled = false;
 
+    // AB Test flags
+    std::map<string, uint32_t> mABTestFlags;
+
 private:
     // Pro Flexi plan is enabled
     bool mProFlexi = false;
 public:
     bool isProFlexi() const { return mProFlexi; }
+
+    Error sendABTestActive(const char* flag, CommandABTestActive::Completion completion);
 
     // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed  -1 = flag was not received
     SmsVerificationState mSmsVerificationState;
@@ -581,7 +615,7 @@ public:
     // get the public key of an user
     void getpubkey(const char* user);
 
-    // check if logged in
+    // check if logged in (avoid repetitive calls <-- requires call to Cryptopp::InverseMod(), which is slow)
     sessiontype_t loggedin();
 
     // provide state by change callback
@@ -817,6 +851,9 @@ public:
 
     // Migrate the account to start using the new ^!keys attr.
     void upgradeSecurity(std::function<void(Error)> completion);
+
+    // Set the flag to enable/disable warnings when sharing with a non-verified contact.
+    void setContactVerificationWarning(bool enabled, std::function<void(Error)> completion = nullptr);
 
     // Creates a new share key for the node if there is no share key already created.
     void openShareDialog(Node* n, std::function<void (Error)> completion);
@@ -1430,8 +1467,10 @@ public:
     void createUpdatedSMAlert(const handle&, handle chatid, handle schedId, handle parentSchedId,
                                m_time_t startDateTime, UserAlert::UpdatedScheduledMeeting::Changeset&& cs);
     static error parseScheduledMeetingChangeset(JSON*, UserAlert::UpdatedScheduledMeeting::Changeset*);
+    void clearSchedOccurrences(TextChat& chat);
 #endif
     void sc_uac();
+    void sc_uec();
     void sc_la();
     void sc_ub();
     void sc_sqac();
@@ -1509,6 +1548,8 @@ public:
 
     // NodeManager instance to wrap all access to Node objects
     NodeManager mNodeManager;
+
+    mutex nodeTreeMutex;
 
     // there is data to commit to the database when possible
     bool pendingsccommit;
@@ -1722,8 +1763,6 @@ public:
     pcr_vector pcrnotify;
     void notifypcr(PendingContactRequest*);
 
-    void notifynode(Node*);
-
     // update transfer in the persistent cache
     void transfercacheadd(Transfer*, TransferDbCommitter*);
 
@@ -1780,6 +1819,21 @@ public:
 
     // determine if the file is a document.
     bool nodeIsDocument(const Node *n) const;
+
+    // determine if the file is a PDF.
+    bool nodeIsPdf(const Node *n) const;
+
+    // determine if the file is a presentation.
+    bool nodeIsPresentation(const Node *n) const;
+
+    // determine if the file is an archive.
+    bool nodeIsArchive(const Node* n) const;
+
+    // determine if the file is a program.
+    bool nodeIsProgram(const Node* n) const;
+
+    // determine if the file is miscellaneous.
+    bool nodeIsMiscellaneous(const Node* n) const;
 
     // functions for determining whether we can clone a node instead of upload
     // or whether two files are the same so we can just upload/download the data once
@@ -2470,6 +2524,7 @@ private:
     error readExportedSet(JSON& j, Set& s, pair<bool, m_off_t>& exportRemoved);
     error readSetsPublicHandles(JSON& j, map<handle, Set>& sets);
     error readSetPublicHandle(JSON& j, map<handle, Set>& sets);
+    void fixSetElementWithWrongKey(const Set& set);
     size_t decryptAllSets(map<handle, Set>& newSets, map<handle, elementsmap_t>& newElements, map<handle, SetElement::NodeMetadata>* nodeData);
     error decryptSetData(Set& s);
     error decryptElementData(SetElement& el, const string& setKey);

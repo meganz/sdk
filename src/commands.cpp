@@ -337,7 +337,7 @@ bool CommandAttachFA::procresult(Result r, JSON& json)
              {
                 n->fileattrstring = fa;
                 n->changed.fileattrstring = true;
-                client->notifynode(n);
+                client->mNodeManager.notifyNode(n);
              }
              client->app->putfa_result(h, type, API_OK);
              return true;
@@ -2278,7 +2278,7 @@ bool CommandPendingKeys::procresult(Result r, JSON& json)
         {
             string sharekey;
             JSON::copystring(&sharekey, json.getvalue());
-            (*keys)[userhandle][sharehandle] = sharekey;
+            (*keys)[userhandle][sharehandle] = Base64::atob(sharekey);
         }
 
         json.leaveobject();
@@ -4161,7 +4161,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
         case 'u':
 #ifndef NDEBUG
-            me = 
+            me =
 #endif
                  json.gethandle(MegaClient::USERHANDLE);
             break;
@@ -4321,7 +4321,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                                            break;
 
                                         case EOO:
-                                            if (status != BIZ_STATUS_UNKNOWN && ts != 0)
+                                            if (status != BIZ_STATUS_UNKNOWN && isValidTimeStamp(ts))
                                             {
                                                 sts.push_back(std::make_pair(status, ts));
                                             }
@@ -4979,6 +4979,26 @@ bool CommandGetMiscFlags::procresult(Result r, JSON& json)
     return error(e) != API_EINTERNAL;
 }
 
+CommandABTestActive::CommandABTestActive(MegaClient *client, const string& flag, Completion completion)
+    : mCompletion(completion)
+{
+    cmd("abta");
+    arg("c", flag.c_str());
+
+    tag = client->reqtag;
+}
+
+bool CommandABTestActive::procresult(Result r, JSON&)
+{
+    assert(r.wasErrorOrOK());
+    if (mCompletion)
+    {
+        mCompletion(r.errorOrOK());
+    }
+
+    return r.wasErrorOrOK();
+}
+
 CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, std::shared_ptr<AccountDetails> ad, bool storage, bool transfer, bool pro, int source)
 {
     details = ad;
@@ -5450,6 +5470,7 @@ CommandGetUserSessions::CommandGetUserSessions(MegaClient* client, std::shared_p
 {
     cmd("usl");
     arg("x", 1); // Request the additional id and alive information
+    arg("d", 1); // Request the additional device-id
 
     details = ad;
     tag = client->reqtag;
@@ -5477,6 +5498,7 @@ bool CommandGetUserSessions::procresult(Result r, JSON& json)
 
         details->sessions[t].id = json.gethandle(8);
         details->sessions[t].alive = (int)json.getint();
+        json.storeobject(&details->sessions[t].deviceid);
 
         if (!json.leavearray())
         {
@@ -5557,7 +5579,7 @@ bool CommandSetPH::procresult(Result r, JSON& json)
                     {
                         n->setpubliclink(ph, time(nullptr), ets, false, authKey);
                         n->changed.publiclink = true;
-                        client->notifynode(n);
+                        client->mNodeManager.notifyNode(n);
                     }
                     completion(API_OK, h, ph);
                     return true;
@@ -5586,7 +5608,7 @@ bool CommandSetPH::procresult(Result r, JSON& json)
             {
                 n->setpubliclink(ph, time(nullptr), ets, false, "");
                 n->changed.publiclink = true;
-                client->notifynode(n);
+                client->mNodeManager.notifyNode(n);
             }
 
             completion(API_OK, h, ph);
@@ -6090,8 +6112,6 @@ bool CommandFetchNodes::procresult(Result r, JSON& json)
         client->app->fetchnodes_result(r.errorOrOK());
         return true;
     }
-
-    client->mKeyManager.cacheShareKeys();
 
     for (;;)
     {
@@ -7138,14 +7158,13 @@ bool CommandChatCreate::procresult(Result r, JSON& json)
                             client->setChatMode(chat, mPublicChat);
                         }
 
-                        chat->id = chatid;
-                        chat->priv = PRIV_MODERATOR;
-                        chat->shard = shard;
-                        delete chat->userpriv;  // discard any existing `userpriv`
-                        chat->userpriv = this->chatPeers;
-                        chat->group = group;
-                        chat->ts = (ts != -1) ? ts : 0;
-                        chat->meeting = mMeeting;
+                        chat->setChatId(chatid);
+                        chat->setOwnPrivileges(PRIV_MODERATOR);
+                        chat->setShard(shard);
+                        chat->setUserPrivileges(chatPeers);
+                        chat->setGroup(group);
+                        chat->setTs(ts != -1 ? ts : 0);
+                        chat->setMeeting(mMeeting);
                         // no need to fetch scheduled meetings as we have just created the chat, so it doesn't have any
 
                         if (group) // we are creating a chat, so we need to initialize all chat options enabled/disabled
@@ -7154,25 +7173,24 @@ bool CommandChatCreate::procresult(Result r, JSON& json)
                         }
 
                         chat->setTag(tag ? tag : -1);
-                        if (chat->group && !mTitle.empty())
+                        if (chat->getGroup() && !mTitle.empty())
                         {
-                            chat->title = mTitle;
+                            chat->setTitle(mTitle);
                         }
                         if (mPublicChat)
                         {
-                            chat->unifiedKey = mUnifiedKey;
+                            chat->setUnifiedKey(mUnifiedKey);
                         }
 
                         if (schedId != UNDEF && mSchedMeeting)
                         {
-                            assert(chat->mScheduledMeetings.find(schedId) == end(chat->mScheduledMeetings));
+                            assert(!chat->hasScheduledMeeting(schedId));
                             mSchedMeeting->setSchedId(schedId);
                             mSchedMeeting->setChatid(chatid);
                             if (!chat->addOrUpdateSchedMeeting(std::move(mSchedMeeting)))
                             {
                                 LOG_err << "Error adding a new scheduled meeting with schedId [" <<  Base64Str<MegaClient::CHATHANDLE>(schedId) << "]";
                             }
-                            client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chat->id, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
                         }
 
                         client->notifychat(chat);
@@ -7287,16 +7305,11 @@ bool CommandChatInvite::procresult(Result r, JSON& json)
         }
 
         TextChat *chat = client->chats[chatid];
-        if (!chat->userpriv)
-        {
-            chat->userpriv = new userpriv_vector();
-        }
-
-        chat->userpriv->push_back(userpriv_pair(uh, priv));
+        chat->addUserPrivileges(uh, priv);
 
         if (!title.empty())  // only if title was set for this chatroom, update it
         {
-            chat->title = title;
+            chat->setTitle(title);
         }
 
         chat->setTag(tag ? tag : -1);
@@ -7339,24 +7352,7 @@ bool CommandChatRemove::procresult(Result r, JSON& json)
         }
 
         TextChat *chat = client->chats[chatid];
-        if (chat->userpriv)
-        {
-            userpriv_vector::iterator upvit;
-            for (upvit = chat->userpriv->begin(); upvit != chat->userpriv->end(); upvit++)
-            {
-                if (upvit->first == uh)
-                {
-                    chat->userpriv->erase(upvit);
-                    if (chat->userpriv->empty())
-                    {
-                        delete chat->userpriv;
-                        chat->userpriv = NULL;
-                    }
-                    break;
-                }
-            }
-        }
-        else
+        if (!chat->removeUserPrivileges(uh))
         {
             if (uh != client->me)
             {
@@ -7368,11 +7364,10 @@ bool CommandChatRemove::procresult(Result r, JSON& json)
 
         if (uh == client->me)
         {
-            chat->priv = PRIV_RM;
+            chat->setOwnPrivileges(PRIV_RM);
 
             // clear the list of peers (if re-invited, peers will be re-added)
-            delete chat->userpriv;
-            chat->userpriv = NULL;
+            chat->setUserPrivileges(nullptr);
         }
 
         chat->setTag(tag ? tag : -1);
@@ -7529,27 +7524,7 @@ bool CommandChatUpdatePermissions::procresult(Result r, JSON& json)
         TextChat *chat = client->chats[chatid];
         if (uh != client->me)
         {
-            if (!chat->userpriv)
-            {
-                // the update succeed, but that peer is not included in the chatroom
-                client->app->chatupdatepermissions_result(API_EINTERNAL);
-                return true;
-            }
-
-            bool found = false;
-            userpriv_vector::iterator upvit;
-            for (upvit = chat->userpriv->begin(); upvit != chat->userpriv->end(); upvit++)
-            {
-                if (upvit->first == uh)
-                {
-                    chat->userpriv->erase(upvit);
-                    chat->userpriv->push_back(userpriv_pair(uh, priv));
-                    found = true;
-                    break;
-                }
-            }
-
-            if (!found)
+            if (!chat->updateUserPrivileges(uh, priv))
             {
                 // the update succeed, but that peer is not included in the chatroom
                 client->app->chatupdatepermissions_result(API_EINTERNAL);
@@ -7558,7 +7533,7 @@ bool CommandChatUpdatePermissions::procresult(Result r, JSON& json)
         }
         else
         {
-            chat->priv = priv;
+            chat->setOwnPrivileges(priv);
         }
 
         chat->setTag(tag ? tag : -1);
@@ -7633,7 +7608,7 @@ bool CommandChatSetTitle::procresult(Result r, JSON& json)
         }
 
         TextChat *chat = client->chats[chatid];
-        chat->title = title;
+        chat->setTitle(title);
 
         chat->setTag(tag ? tag : -1);
         client->notifychat(chat);
@@ -7882,7 +7857,7 @@ bool CommandChatLinkURL::procresult(Result r, JSON& json)
 {
     if (r.wasErrorOrOK())
     {
-        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, UNDEF, r.errorOrOK());
+        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, false, nullptr, UNDEF, r.errorOrOK());
         return true;
     }
     else
@@ -7894,17 +7869,19 @@ bool CommandChatLinkURL::procresult(Result r, JSON& json)
         string ct;
         m_time_t ts = 0;
         bool meetingRoom = false;
+        bool waitingRoom = false;
+        std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
         handle callid = UNDEF;
 
         for (;;)
         {
             switch (json.getnameid())
             {
-                case MAKENAMEID2('i','d'):
+                case MAKENAMEID2('i','d'): // chatid
                     chatid = json.gethandle(MegaClient::CHATHANDLE);
                     break;
 
-                case MAKENAMEID2('c','s'):
+                case MAKENAMEID2('c','s'): // shard
                     shard = int(json.getint());
                     break;
 
@@ -7912,41 +7889,55 @@ bool CommandChatLinkURL::procresult(Result r, JSON& json)
                     json.storeobject(&ct);
                     break;
 
-                case MAKENAMEID3('u','r','l'):
+                case MAKENAMEID3('u','r','l'): // chaturl
                     json.storeobject(&url);
                     break;
 
-                case MAKENAMEID3('n','c','m'):
+                case MAKENAMEID3('n','c','m'): // number of members in the chat
                     numPeers = int(json.getint());
                     break;
 
-                case MAKENAMEID2('t', 's'):
+                case MAKENAMEID2('t', 's'): // chat creation timestamp
                     ts = json.getint();
                     break;
 
-                case MAKENAMEID6('c', 'a', 'l', 'l', 'I', 'd'):
+                case MAKENAMEID6('c', 'a', 'l', 'l', 'I', 'd'): //callId if there is an active call (just if mr == 1)
                     callid = json.gethandle(MegaClient::CHATHANDLE);
                     break;
 
-                case MAKENAMEID2('m', 'r'):
+                case MAKENAMEID2('m', 'r'): // meeting room
                     meetingRoom = json.getbool();
                     break;
 
+                case MAKENAMEID1('w'): // waiting room
+                    waitingRoom = json.getbool();
+                    break;
+
+                case MAKENAMEID2('s', 'm'): // scheduled meetings
+                {
+                    if (json.enterarray())
+                    {
+                        error err = client->parseScheduledMeetings(schedMeetings, false, &json);
+                        json.leavearray();
+                        if (err) { LOG_err << "Error parsing scheduled meetings array at mcphurl response"; }
+                    }
+                    break;
+                }
                 case EOO:
                     if (chatid != UNDEF && shard != -1 && !url.empty() && !ct.empty() && numPeers != -1)
                     {
-                        client->app->chatlinkurl_result(chatid, shard, &url, &ct, numPeers, ts, meetingRoom, callid, API_OK);
+                        client->app->chatlinkurl_result(chatid, shard, &url, &ct, numPeers, ts, meetingRoom, waitingRoom, &schedMeetings, callid, API_OK);
                     }
                     else
                     {
-                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, UNDEF, API_EINTERNAL);
+                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, false, nullptr, UNDEF, API_EINTERNAL);
                     }
                     return true;
 
                 default:
                     if (!json.storeobject())
                     {
-                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, UNDEF, API_EINTERNAL);
+                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, false, nullptr, UNDEF, API_EINTERNAL);
                         return false;
                     }
             }
@@ -7987,7 +7978,7 @@ bool CommandChatLinkClose::procresult(Result r, JSON& json)
         client->setChatMode(chat, false);
         if (!mTitle.empty())
         {
-            chat->title = mTitle;
+            chat->setTitle(mTitle);
         }
 
         chat->setTag(tag ? tag : -1);
@@ -9226,6 +9217,7 @@ bool CommandBackupSyncFetch::procresult(Result r, JSON& json)
                                                 d.localFolder = client->decypherTLVTextWithMasterKey("lf", d.localFolder);
                                                 break;
                 case MAKENAMEID1('d'):          json.storeobject(&d.deviceId); break;
+                case MAKENAMEID3('d', 'u', 'a'):json.storeobject(&d.deviceUserAgent); break;
                 case MAKENAMEID1('s'):          d.syncState = json.getint32(); break;
                 case MAKENAMEID2('s', 's'):     d.syncSubstate = json.getint32(); break;
                 case MAKENAMEID1('e'):          json.storeobject(&d.extra);
@@ -9638,11 +9630,20 @@ bool CommandFetchSet::procresult(Result r, JSON& json)
 
     if (mCompletion)
     {
-        Set* s = sets.empty() ? new Set() : (new Set(std::move(sets.begin()->second)));
-        elementsmap_t* els = elements.empty()
-                             ? new elementsmap_t()
-                             : new elementsmap_t(std::move(elements.begin()->second));
-        mCompletion(API_OK, s, els);
+        if (sets.empty())
+        {
+            LOG_err << "Sets: Failed to decrypt data from \"aft\" response";
+            mCompletion(API_EKEY, nullptr, nullptr);
+        }
+
+        else
+        {
+            Set* s = new Set(std::move(sets.begin()->second));
+            elementsmap_t* els = elements.empty()
+                                 ? new elementsmap_t()
+                                 : new elementsmap_t(std::move(elements.begin()->second));
+            mCompletion(API_OK, s, els);
+        }
     }
 
     return true;
@@ -10051,9 +10052,17 @@ CommandMeetingStart::CommandMeetingStart(MegaClient* client, handle chatid, hand
         arg("sfu", client->mSfuid);
     }
 
+    /**
+     * + If schedId is valid
+     *      - If Waiting room option is enabled : Call shouldn't ring and we'll be redirected to Waiting room
+     *      - If Waiting room option is disabled: Call shouldn't ring
+     *
+     * + If schedId is UNDEF
+     *      - If Waiting room option is enabled : Call should ring and we'll bypass waiting room
+     *      - If Waiting room option is disabled: Call should ring
+     */
     if (schedId != UNDEF)
     {
-        // sm param indicates that call is in the context of a scheduled meeting, so it won't ring
         arg("sm", (byte*)&schedId, MegaClient::CHATHANDLE);
     }
     tag = client->reqtag;
@@ -10202,11 +10211,12 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r, JSON& jso
     ScheduledMeeting* result = nullptr;
     error e = API_EINTERNAL;
     bool res = chat->addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting>(mScheduledMeeting->copy())); // add or update scheduled meeting if already exists
+    client->clearSchedOccurrences(*chat);
+    chat->setTag(tag ? tag : -1);
+    client->notifychat(chat);
+
     if (res)
     {
-        chat->setTag(tag ? tag : -1);
-        client->notifychat(chat);
-
         result = mScheduledMeeting.get();
         e = API_OK;
     }
@@ -10214,12 +10224,7 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r, JSON& jso
     {
         // if we couldn't update scheduled meeting, but we have deleted it's children, we also need to notify apps
         LOG_debug << "Error adding or updating a scheduled meeting schedId [" <<  Base64Str<MegaClient::CHATHANDLE>(schedId) << "]";
-        chat->setTag(tag ? tag : -1);
-        client->notifychat(chat);
     }
-
-    // fetch for fresh scheduled meetings occurrences
-    client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chat->id, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
 
     if (mCompletion) { mCompletion(e, result); }
     return res;
@@ -10257,12 +10262,11 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r, JSON& json)
         {
             // remove children scheduled meetings (API requirement)
             chat->removeChildSchedMeetings(mSchedId);
-            chat->setTag(tag ? tag : -1);
-            client->notifychat(chat);
-
-            // re-fetch scheduled meetings occurrences
-            client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chat->id, mega_invalid_timestamp, mega_invalid_timestamp, 0, false /*byDemand*/, nullptr));
         }
+
+        client->clearSchedOccurrences(*chat);
+        chat->setTag(tag ? tag : -1);
+        client->notifychat(chat);
     }
 
     if (mCompletion) { mCompletion(r.errorOrOK()); }
@@ -10313,9 +10317,9 @@ CommandScheduledMeetingFetchEvents::CommandScheduledMeetingFetchEvents(MegaClien
 {
     cmd("mcsmfo");
     arg("cid", (byte*) &chatid, MegaClient::CHATHANDLE);
-    if (since != mega_invalid_timestamp)      { arg("cf", since); }
-    if (until != mega_invalid_timestamp)      { arg("ct", until); }
-    if (count)                                { arg("cc", count); }
+    if (isValidTimeStamp(since))      { arg("cf", since); }
+    if (isValidTimeStamp(until))      { arg("ct", until); }
+    if (count)                        { arg("cc", count); }
     tag = client->reqtag;
 }
 

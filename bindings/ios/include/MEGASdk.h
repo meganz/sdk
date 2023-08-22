@@ -51,6 +51,10 @@
 #import "MEGALogLevel.h"
 #import "ListenerDispatch.h"
 #import "MEGAUserAlert.h"
+#import "MEGABackupInfo.h"
+#import "MEGABackupInfoList.h"
+#import "MEGAScheduledCopy.h"
+#import "MEGAScheduledCopyDelegate.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -518,6 +522,12 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
  */
 @property (readonly, nonatomic, getter=isAchievementsEnabled) BOOL achievementsEnabled;
 
+/**
+ * @brief Returns whether displaying contact verification warnings is enabled from the webclient
+ * YES if enabled, NO otherwise.
+ */
+@property (readonly, nonatomic, getter=isContactVerificationWarningEnabled) BOOL isContactVerificationWarningEnabled;
+
 #pragma mark - Business
 
 /**
@@ -742,6 +752,24 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
  * @param delegate Previously registered MegaLogger implementation
  */
 - (void)removeLoggerDelegate:(id<MEGALoggerDelegate>)delegate;
+
+/**
+ * @brief Add a MEGAScheduledCopyDelegate implementation to receive SDK logs
+ *
+ * This delegate receive backups events.
+ *
+ * @param delegate Delegate implementation
+ */
+- (void)addMEGAScheduledCopyDelegate:(id<MEGAScheduledCopyDelegate>)delegate;
+
+/**
+ * @brief Add a MEGAScheduledCopyDelegate implementation to receive SDK logs
+ *
+ * This delegate won't receive more events.
+ *
+ * @param delegate Delegate implementation
+ */
+- (void)removeMEGAScheduledCopyDelegate:(id<MEGAScheduledCopyDelegate>)delegate;
 
 #pragma mark - Utils
 
@@ -9883,6 +9911,20 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
 - (void)updateBackup:(MEGAHandle)backupId backupType:(BackUpType)type targetNode:(MEGANode *)node folderPath:(nullable NSString *)path backupName:(NSString *)name state:(BackUpState)state subState:(BackUpSubState)subState delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
+ * @brief Fetch information about all registered backups for Backup Centre
+ * The associated request type with this request is MEGARequestTypeBackupInfo
+ * Valid data in the MEGARequest object received on callbacks:
+ * - backupInfoList: to get the list of backups.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest backupInfoList] - Returns information about all registered backups
+ *
+ * @param delegate MEGARequestDelegate to track this request
+*/
+- (void)getBackupInfo:(id<MEGARequestDelegate>)delegate;
+
+/**
  * @brief Unregister a backup already registered for the Backup Centre
  *
  * This method allows to remove a backup from the list of backups displayed in the
@@ -9924,6 +9966,14 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
  * @param delegate MEGARequestDelegate to track this request
 */
 - (void)sendBackupHeartbeat:(MEGAHandle)backupId status:(BackupHeartbeatStatus)status progress:(NSInteger)progress pendingUploadCount:(NSUInteger)pendingUploadCount lastActionDate:(nullable NSDate *)lastActionDate lastBackupNode:(nullable MEGANode *)lastBackupNode delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Returns the device id stored as a Node attribute.
+ * It will be an empty string for other nodes than device folders related to backups.
+ *
+ * @return The device id associated with the Node of a Backup folder.
+ */
+- (nullable NSString *)deviceId;
 
 /**
  * @brief Returns the name set for this device
@@ -10051,6 +10101,18 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
  * @return YES if this feature is enabled. Otherwise, NO.
  */
 - (BOOL)cookieBannerEnabled;
+
+#pragma mark - A/B Testing
+/**
+ * @brief Get the value of an A/B Test flag
+ *
+ * Any value greater than 0 means the flag is active.
+ *
+ * @param flag Name or key of the value to be retrieved.
+ *
+ * @return An unsigned integer with the value of the flag.
+ */
+- (NSInteger)getABTestValue:(NSString*)flag;
 
 @end
 
