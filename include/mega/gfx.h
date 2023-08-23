@@ -125,11 +125,11 @@ class MEGA_API GfxProc
 
     std::vector<Dimension> getJobDimensions(GfxJob *job);
 
-    // Caller should give dimensions from low resolution to high resolution, as some implementation such as freeimages 
+    // Caller should give dimensions from high resolution to low resolution, as some implementation such as freeimages 
     // may cache a generated image for next one
     std::vector<std::string> generateImagesHelper(const LocalPath& localfilepath, const std::vector<Dimension>& dimensions);
 
-    // Caller should give dimensions from low resolution to high resolution
+    // Caller should give dimensions from high resolution to low resolution
     std::vector<std::string> generateImages(const LocalPath& localfilepath, const std::vector<Dimension>& dimensions);
 
     std::string generateOneImage(const LocalPath& localfilepath, const Dimension& dimension);
