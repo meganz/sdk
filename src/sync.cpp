@@ -7434,14 +7434,17 @@ bool Sync::syncItem_checkBackupCloudNameClash(SyncRow& row, SyncRow& parentRow, 
         // Since stall resolution at the app level won't work, as it can't alter the Vault, we have to address it here
         // Choose one to delete (to debris) - avoid the one that is marked as synced already, if there is one
 
-        if (auto& rn = row.syncNode->rare().removeNodeHere)
+        if (row.syncNode)
         {
-            if (!rn->failed && !rn->succeeded)
+            if (auto& rn = row.syncNode->rare().removeNodeHere)
             {
-                return true;  // concentrate on the delete until that is done
+                if (!rn->failed && !rn->succeeded)
+                {
+                    return true;  // concentrate on the delete until that is done
+                }
+                LOG_debug << syncname << "Completed duplicate backup cloud item to cloud sync debris but some dupes remain (" << rn->succeeded << "): " << fullPath.cloudPath << logTriplet(row, fullPath);
+                rn.reset();
             }
-            LOG_debug << syncname << "Completed duplicate backup cloud item to cloud sync debris but some dupes remain (" << rn->succeeded << "): " << fullPath.cloudPath << logTriplet(row, fullPath);
-            rn.reset();
         }
 
         // choose which one to remove

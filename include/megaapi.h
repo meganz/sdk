@@ -11156,6 +11156,13 @@ class MegaApi
         bool isAchievementsEnabled();
 
         /**
+         * @brief Check if the account is a Pro Flexi account.
+         *
+         * @return returns true if it's a Pro Flexi account, otherwise false
+         */
+        bool isProFlexiAccount();
+
+        /**
          * @brief Check if the account is a business account.
          *
          * For accounts under Pro Flexi plans, this method also returns true.
@@ -11724,6 +11731,16 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void upgradeSecurity(MegaRequestListener* listener = NULL);
+
+
+        /**
+         * @brief Get the contact verification warning flag status
+         *
+         * It returns if showing the warnings to verify contacts is enabled.
+         *
+         * @return True if showing the warnings are enabled, false otherwise.
+         */
+        bool contactVerificationWarningEnabled();
 
         /**
          * @brief Allows to change the hardcoded value of the "secure" flag
@@ -16008,6 +16025,12 @@ class MegaApi
                FILE_TYPE_AUDIO,
                FILE_TYPE_VIDEO,
                FILE_TYPE_DOCUMENT,
+               FILE_TYPE_PDF,
+               FILE_TYPE_PRESENTATION,
+               FILE_TYPE_ARCHIVE,
+               FILE_TYPE_PROGRAM,
+               FILE_TYPE_MISC,
+               FILE_TYPE_LAST = FILE_TYPE_MISC,
              };
 
         enum { SEARCH_TARGET_INSHARE = 0,

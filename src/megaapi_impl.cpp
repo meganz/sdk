@@ -1430,6 +1430,8 @@ void AddressedStallFilter::filterNameConfict(const string& cloudPath, const Loca
 
 void AddressedStallFilter::removeOldFilters(int completedPassCount)
 {
+    lock_guard<mutex> g(m);
+
     // when a filter was added, the sync code could already have started a new pass, and passed this node.
     // So, only after we are on a number greater than n+1 of the added n can we remove a filter
 
@@ -1466,6 +1468,17 @@ void AddressedStallFilter::removeOldFilters(int completedPassCount)
         else ++i;
     }
 }
+
+void AddressedStallFilter::clear()
+{
+    lock_guard<mutex> g(m);
+
+    addressedSyncCloudStalls.clear();
+    addressedSyncLocalStalls.clear();
+    addressedNameConflictCloudStalls.clear();
+    addressedNameConflictLocalStalls.clear();
+}
+
 
 void MegaApiImpl::getMegaSyncStallList(MegaRequestListener* listener)
 {
@@ -6034,6 +6047,11 @@ bool MegaApiImpl::isAchievementsEnabled()
     return client->achievements_enabled;
 }
 
+bool MegaApiImpl::isProFlexiAccount()
+{
+    return client->isProFlexi();
+}
+
 bool MegaApiImpl::isBusinessAccount()
 {
     return client->mBizStatus != BIZ_STATUS_INACTIVE
@@ -7081,6 +7099,12 @@ void MegaApiImpl::upgradeSecurity(MegaRequestListener* listener)
 
     requestQueue.push(request);
     waiter->notify();
+}
+
+bool MegaApiImpl::contactVerificationWarningEnabled()
+{
+    SdkMutexGuard m(sdkMutex);
+    return client->mKeyManager.getContactVerificationWarning();
 }
 
 void MegaApiImpl::setSecureFlag(bool enable)
@@ -9561,8 +9585,7 @@ bool MegaApiImpl::createThumbnail(const char *imagePath, const char *dstPath)
     LocalPath localDstPath = LocalPath::fromAbsolutePath(dstPath);
 
     SdkMutexGuard g(sdkMutex);
-    return gfxAccess->savefa(localImagePath, GfxProc::dimensions[GfxProc::THUMBNAIL][0],
-            GfxProc::dimensions[GfxProc::THUMBNAIL][1], localDstPath);
+    return gfxAccess->savefa(localImagePath, GfxProc::DIMENSIONS[GfxProc::THUMBNAIL], localDstPath);
 }
 
 bool MegaApiImpl::createPreview(const char *imagePath, const char *dstPath)
@@ -9576,8 +9599,7 @@ bool MegaApiImpl::createPreview(const char *imagePath, const char *dstPath)
     LocalPath localDstPath = LocalPath::fromAbsolutePath(dstPath);
 
     SdkMutexGuard g(sdkMutex);
-    return gfxAccess->savefa(localImagePath, GfxProc::dimensions[GfxProc::PREVIEW][0],
-            GfxProc::dimensions[GfxProc::PREVIEW][1], localDstPath);
+    return gfxAccess->savefa(localImagePath, GfxProc::DIMENSIONS[GfxProc::PREVIEW], localDstPath);
 }
 
 bool MegaApiImpl::createAvatar(const char *imagePath, const char *dstPath)
@@ -9591,8 +9613,7 @@ bool MegaApiImpl::createAvatar(const char *imagePath, const char *dstPath)
     LocalPath localDstPath = LocalPath::fromAbsolutePath(dstPath);
 
     SdkMutexGuard g(sdkMutex);
-    return gfxAccess->savefa(localImagePath, GfxProc::dimensionsavatar[GfxProc::AVATAR250X250][0],
-            GfxProc::dimensionsavatar[GfxProc::AVATAR250X250][1], localDstPath);
+    return gfxAccess->savefa(localImagePath, GfxProc::DIMENSIONS_AVATAR[GfxProc::AVATAR250X250], localDstPath);
 }
 
 void MegaApiImpl::getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener)
@@ -11717,6 +11738,16 @@ bool MegaApiImpl::isValidTypeNode(Node *node, int type)
             return client->nodeIsVideo(node);
         case MegaApi::FILE_TYPE_DOCUMENT:
             return client->nodeIsDocument(node);
+        case MegaApi::FILE_TYPE_PDF:
+            return client->nodeIsPdf(node);
+        case MegaApi::FILE_TYPE_PRESENTATION:
+            return client->nodeIsPdf(node);
+        case MegaApi::FILE_TYPE_ARCHIVE:
+            return client->nodeIsArchive(node);
+        case MegaApi::FILE_TYPE_PROGRAM:
+            return client->nodeIsProgram(node);
+        case MegaApi::FILE_TYPE_MISC:
+            return client->nodeIsMiscellaneous(node);
         case MegaApi::FILE_TYPE_DEFAULT:
         default:
             return true;
@@ -11826,7 +11857,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, CancelT
 
 MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString, CancelToken cancelToken, bool recursive, int order, int mimeType, int target, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags)
 {
-    if (!n && !searchString && (mimeType < MegaApi::FILE_TYPE_PHOTO || mimeType > MegaApi::FILE_TYPE_DOCUMENT))
+    if (!n && !searchString && (mimeType < MegaApi::FILE_TYPE_PHOTO || mimeType > MegaApi::FILE_TYPE_LAST))
     {
         // If node is not valid, and no search string, and mimeType is not valid
         return new MegaNodeListPrivate();
@@ -14470,6 +14501,9 @@ void MegaApiImpl::logout_result(error e, MegaRequestPrivate* request)
 
 #ifdef ENABLE_SYNC
         mCachedMegaSyncPrivate.reset();
+        receivedStallFlag = false;
+        receivedNameConflictsFlag = false;
+        mAddressedStallFilter.clear();
 #endif
 
         mLastReceivedLoggedInState = NOTLOGGEDIN;
