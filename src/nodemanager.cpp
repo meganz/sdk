@@ -1177,10 +1177,9 @@ void NodeManager::removeChanges_internal()
 
     for (auto& it : mNodes)
     {
-        if (it.second.getNodeInRam(false))
+        std::shared_ptr<Node> node = it.second.getNodeInRam(false);
+        if (node)
         {
-            // TODO remove
-            std::shared_ptr<Node> node = getNodeFromNodeManagerNode(it.second);
             memset(&(node->changed), 0, sizeof node->changed);
         }
     }
@@ -1586,10 +1585,10 @@ void NodeManager::initCompleted()
 
 std::shared_ptr<Node> NodeManager::getNodeFromNodeManagerNode(NodeManagerNode& nodeManagerNode)
 {
+    LockGuard g(mMutex);
     shared_ptr<Node> node = nodeManagerNode.getNodeInRam();
     if (!node)
     {
-        LockGuard g(mMutex);
         node = getNodeFromDataBase(nodeManagerNode.getNodeHandle());
     }
 
@@ -1877,8 +1876,7 @@ void NodeManager::addChild_internal(NodeHandle parent, NodeHandle child, Node* n
 
     auto pair = mNodes.emplace(parent, NodeManagerNode(*this, parent));
     // The NodeManagerNode could have been added in add node, only update the child
-    // TODO review LRU cache
-    //assert(!pair.first->second.mChildren || (*pair.first->second.mChildren)[child]);
+    assert(!pair.first->second.mChildren || (*pair.first->second.mChildren).find(child) == (*pair.first->second.mChildren).end() || !(*pair.first->second.mChildren).at(child));
     if (!pair.first->second.mChildren)
     {
         pair.first->second.mChildren = ::mega::make_unique<std::map<NodeHandle,  NodeManagerNode*>>();

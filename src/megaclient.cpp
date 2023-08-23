@@ -404,7 +404,7 @@ void MegaClient::mergenewshares(bool notify, bool skipWriteInDb)
 void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
 {
     bool skreceived = false;
-    std::shared_ptr<Node> n = mNodeManager.getNodeByHandle(NodeHandle().set6byte(s->h));
+    std::shared_ptr<Node> n = nodebyhandle(s->h);
     if (!n)
     {
         return;
@@ -779,7 +779,7 @@ sharedNode_vector MegaClient::getInShares()
     {
         for (auto &share : it.second.sharing)
         {
-            std::shared_ptr<Node> n = mNodeManager.getNodeByHandle(NodeHandle().set6byte(share));
+            std::shared_ptr<Node> n = nodebyhandle(share);
             if (n && !n->parent)    // top-level inshare have parent==nullptr
             {
                 nodes.push_back(n);
@@ -6361,7 +6361,7 @@ void MegaClient::sc_fileattr()
                 handle h;
                 if (!ISUNDEF(h = jsonsc.gethandle()))
                 {
-                    n = mNodeManager.getNodeByHandle(NodeHandle().set6byte(h));
+                    n = nodebyhandle(h);
                 }
                 break;
 
@@ -6946,7 +6946,7 @@ void MegaClient::sc_ph()
                 break;
             }
 
-            n = mNodeManager.getNodeByHandle(NodeHandle().set6byte(h));
+            n = nodebyhandle(h);
             if (n)
             {
                 if ((takendown || reinstated) && !ISUNDEF(h) && statecurrent)
@@ -9146,12 +9146,12 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
             // 'notify' is false only while processing fetchnodes command
             // In that case, we can skip the lookup, since nodes are all new ones,
             // (they will not be found in DB)
-            if (notify && (n = mNodeManager.getNodeByHandle(NodeHandle().set6byte(h))))
+            if (notify && (n = nodebyhandle(h)))
             {
                 std::shared_ptr<Node> p;
                 if (!ISUNDEF(ph))
                 {
-                    p = mNodeManager.getNodeByHandle(NodeHandle().set6byte(ph));
+                    p = nodebyhandle(ph);
                 }
 
                 if (n->changed.removed)
@@ -11018,10 +11018,11 @@ void MegaClient::proctree(std::shared_ptr<Node> n, TreeProc* tp, bool skipinshar
         sharedNode_list children = getChildren(n.get());
         for (sharedNode_list::iterator it = children.begin(); it != children.end(); )
         {
+            auto& node = *it;
             it++;
-            if (!(skipinshares && (*it)->inshare))
+            if (!(skipinshares && node->inshare))
             {
-                proctree(*it, tp, skipinshares);
+                proctree(node, tp, skipinshares);
             }
         }
     }
@@ -13388,7 +13389,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
                    bool rootNode = n->type == ROOTNODE || n->type == RUBBISHNODE || n->type == VAULTNODE;
                    if (rootNode)
                    {
-                        mNodeManager.setrootnode(n);
+                       mNodeManager.setrootnode(n);
                    }
                    else if (n->parent == nullptr)
                    {

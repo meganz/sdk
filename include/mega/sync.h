@@ -1254,7 +1254,7 @@ private:
     // - Necessary locks are acquired such that this function has exclusive
     //   access to both the local and remote node trees.
     // - The node specified by child is below root.
-    bool isDefinitelyExcluded(const pair<Node*, Sync*>& root, const Node* child);
+    bool isDefinitelyExcluded(const pair<std::shared_ptr<Node>, Sync*>& root, std::shared_ptr<const Node> child);
 
     template<typename Predicate>
     Sync* syncMatching(Predicate&& predicate, bool includePaused)

@@ -33,7 +33,7 @@ TreeProcShareKeys::TreeProcShareKeys(std::shared_ptr<Node> n, bool includeParent
 
 void TreeProcShareKeys::proc(MegaClient*, std::shared_ptr<Node> n)
 {
-    snk.add(n->mNodePosition->second.getNodeInRam(), sn->mNodePosition->second.getNodeInRam(), includeParentChain);
+    snk.add(n, sn, includeParentChain);
 }
 
 void TreeProcShareKeys::get(Command* c)

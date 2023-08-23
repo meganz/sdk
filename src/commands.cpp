@@ -5101,7 +5101,7 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
 #ifdef _DEBUG
                         // TODO: remove this debugging block once local count is confirmed to work correctly 100%
                         // verify the new local storage counters per root match server side (could fail if actionpackets are pending)
-                        shared_ptr<const Node> node = client->nodebyhandle(h);
+                        shared_ptr<Node> node = client->nodebyhandle(h);
                         if (node)
                         {
                             NodeCounter counter = node->getCounter();

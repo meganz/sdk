@@ -215,7 +215,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     const Node* firstancestor() const;
 
     // If this is a file, and has a file for a parent, it's not the latest version
-    const Node* latestFileVersion() const;
+    std::shared_ptr<Node> latestFileVersion() const;
 
     // Node's depth, counting from the cloud root.
     unsigned depth() const;

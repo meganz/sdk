@@ -11956,7 +11956,7 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
     if (h.isUndef()) return false;
 
     vector<pair<NodeHandle, Sync*>> activeSyncHandles;
-    vector<pair<Node*, Sync*>> activeSyncRoots;
+    vector<pair<std::shared_ptr<Node>, Sync*>> activeSyncRoots;
 
     if (nodeIsInActiveUnpausedSyncQuery)
     {
@@ -11977,14 +11977,14 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
     {
         for (auto & rh : activeSyncHandles)
         {
-            if (Node* rn = mClient.mNodeManager.getNodeByHandle(rh.first).get())
+            if (std::shared_ptr<Node> rn = mClient.mNodeManager.getNodeByHandle(rh.first))
             {
                 activeSyncRoots.emplace_back(rn, rh.second);
             }
         }
     }
 
-    if (const Node* n = mClient.mNodeManager.getNodeByHandle(h).get())
+    if (std::shared_ptr<Node> n = mClient.mNodeManager.getNodeByHandle(h))
     {
         switch (whichVersion)
         {
@@ -11993,7 +11993,7 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
 
             case LATEST_VERSION:
                 {
-                    const Node* m = n->latestFileVersion();
+                    std::shared_ptr<Node> m = n->latestFileVersion();
                     if (m != n)
                     {
                         auto& syncs = *this;
@@ -12033,7 +12033,7 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
         if (nodeIsInActiveUnpausedSyncQuery)
         {
             auto it = std::find_if(activeSyncRoots.begin(), activeSyncRoots.end(),
-                          [n](const pair<Node *, Sync *> &rn) { return n->isbelow(rn.first) && !rn.second->getConfig().mTemporarilyPaused; });
+                          [n](const pair<std::shared_ptr<Node>, Sync *> &rn) { return n->isbelow(rn.first.get()) && !rn.second->getConfig().mTemporarilyPaused; });
             if (it != activeSyncRoots.end()) {
                 *nodeIsInActiveUnpausedSyncQuery = true;
                 if (nodeIsDefinitelyExcluded) *nodeIsDefinitelyExcluded = isDefinitelyExcluded(*it, n);
@@ -12082,7 +12082,7 @@ bool Syncs::lookupCloudChildren(NodeHandle h, vector<CloudNode>& cloudChildren)
     return false;
 }
 
-bool Syncs::isDefinitelyExcluded(const pair<Node*, Sync*>& root, const Node* child)
+bool Syncs::isDefinitelyExcluded(const pair<std::shared_ptr<Node>, Sync*>& root, std::shared_ptr<const Node> child)
 {
     // Make sure we're on the sync thread.
     assert(onSyncThread());
@@ -12091,12 +12091,12 @@ bool Syncs::isDefinitelyExcluded(const pair<Node*, Sync*>& root, const Node* chi
     child = child->latestFileVersion();
 
     // Sanity.
-    assert(child->isbelow(root.first));
+    assert(child->isbelow(root.first.get()));
 
     // Determine the trail from root to child.
     vector<pair<NodeHandle, string>> trail;
 
-    for (auto* node = child; node != root.first; node = node->parent.get())
+    for (auto node = child; node != root.first; node = node->parent)
         trail.emplace_back(node->nodeHandle(), node->displayname());
 
     // Determine whether any step from root to child is definitely excluded.

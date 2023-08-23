@@ -1441,14 +1441,14 @@ const Node* Node::firstancestor() const
     return n;
 }
 
-const Node* Node::latestFileVersion() const
+std::shared_ptr<Node> Node::latestFileVersion() const
 {
-    const Node* n = this;
+    std::shared_ptr<Node> n = this->mNodePosition->second.getNodeInRam();
     if (type == FILENODE)
     {
         while (n->parent && n->parent->type == FILENODE)
         {
-            n = n->parent.get();
+            n = n->parent;
         }
     }
     return n;
@@ -1456,10 +1456,10 @@ const Node* Node::latestFileVersion() const
 
 unsigned Node::depth() const
 {
-    auto* node = latestFileVersion();
+    auto node = latestFileVersion();
     unsigned depth = 0u;
 
-    for ( ; node->parent.get(); node = node->parent.get())
+    for ( ; node->parent.get(); node = node->parent)
         ++depth;
 
     return depth;
