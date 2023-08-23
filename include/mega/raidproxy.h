@@ -20,7 +20,8 @@ using raidTime = ::mega::dstime;
 // number of readdata() requests until the next interval check is conducted
 #define LAGINTERVAL 256
 
-using raidsector_t = unsigned int;
+typedef unsigned int uint128_t __attribute__((mode(TI)));
+typedef uint128_t raidsector_t;
 using HttpReqType = HttpReqDL;
 using HttpReqPtr = std::shared_ptr<HttpReqType>;
 using HttpInputBuf = ::mega::HttpReq::http_buf_t;
@@ -84,7 +85,6 @@ class RaidReq
     friend class RaidReqPool;
     RaidReqPool& pool;
     std::shared_ptr<CloudRaid> cloudRaid;
-    recursive_mutex rr_lock;
     std::vector<HttpReqPtr> httpReqs;
     std::array<PartFetcher, RAIDPARTS> fetcher;
 
