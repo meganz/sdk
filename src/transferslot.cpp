@@ -29,7 +29,6 @@
 #include "mega/utils.h"
 #include "mega/logging.h"
 #include "mega/raid.h"
-//#include "mega/sccloudraid/mega.h"
 #include "mega/testhooks.h"
 
 namespace mega {
@@ -69,7 +68,7 @@ const dstime TransferSlot::PROGRESSTIMEOUT = 10;
     const m_off_t TransferSlot::MAX_REQ_SIZE = 16777216; // 16 MB [Previous value: 4194304 -> 4 MB]
 #endif
 
-const m_off_t TransferSlot::MAX_REQ_SIZE_NEW_RAID = 2 * 1024 * 1024;
+const m_off_t TransferSlot::MAX_REQ_SIZE_NEW_RAID = 2 * 1024 * 1024; // 2 MB for each raidpart
 #define NUM_CONNECTIONS_NEW_RAID 4 // Used as a temp fix for tests -until we have a way to change the value on megaCmd-
 
 const m_off_t TransferSlot::MAX_GAP_SIZE = 256 * 1024 * 1024; // 256 MB
@@ -1223,7 +1222,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                     if (transferbuf.isNewRaid())
                     {
                         assert(cloudRaid != nullptr);
-                        if (!cloudRaid->balancedRequest(i, transferbuf.tempUrlVector(), reqs[i]->size, reqs[i]->pos, reqs[i]->size, maxRequestSize, 0))
+                        if (!cloudRaid->balancedRequest(i, transferbuf.tempUrlVector(), reqs[i]->size, reqs[i]->pos, reqs[i]->size, maxRequestSize))
                         {
                             reqs[i]->status = REQ_FAILURE;
                         }

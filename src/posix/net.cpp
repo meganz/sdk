@@ -725,6 +725,7 @@ void CurlHttpIO::processcurlevents(direction_t d)
 #ifdef MEGA_MEASURE_CODE
     CodeCounter::ScopeTimer ccst(countProcessCurlEventsCode);
 #endif
+
 #ifdef WIN32
     mSocketsWaitEvent_curl_call_needed = false;
 #else
@@ -2552,7 +2553,6 @@ size_t CurlHttpIO::read_data(void* ptr, size_t size, size_t nmemb, void* source)
         buf = req->out->data();
         totalsize = req->out->size();
     }
-
 
     buf += req->outpos;
     size_t nread = totalsize - req->outpos;

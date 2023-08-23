@@ -27,8 +27,6 @@
 #include "node.h"
 #include "backofftimer.h"
 #include "raid.h"
-#include "sccloudraid/raidproxy.h"
-//#include "sccloudraid/mega.h"
 
 namespace mega {
 
@@ -109,7 +107,6 @@ struct MEGA_API TransferSlot
     // Manage download input buffers and file output buffers for file download.  Raid-aware, and automatically performs decryption and mac.
     TransferBufferManager transferbuf;
 
-    //bool initCloudRaid(const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, m_off_t cmaxRequestSize, int cskippart);
     bool initCloudRaid(MegaClient* client, TransferDbCommitter& committer);
     shared_ptr<CloudRaid> getcloudRaidPtr()
     {

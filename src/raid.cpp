@@ -24,6 +24,7 @@
 #include "mega/transfer.h"
 #include "mega/testhooks.h"
 #include "mega.h" // for thread definitions
+#include "mega/raidproxy.h"
 
 #undef min //avoids issues with std::min
 
@@ -962,10 +963,11 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
                 m_off_t nextChunk = ChunkedHash::chunkceil(transfer->pos + maxReqSize, transfer->size);
                 while ((nextChunk < transfer->size) && (((nextChunk - transfer->pos) % RAIDLINE) != 0))
                 {
-                    maxReqSize=ChunkedHash::chunkceil(maxReqSize, transfer->size);
+                    // Needed for expandUnprocessedPiece to return a chunk padded to raid-line (for chunks which are not the last one)
+                    maxReqSize = ChunkedHash::chunkceil(maxReqSize, transfer->size);
                     nextChunk = ChunkedHash::chunkceil(transfer->pos + maxReqSize, transfer->size);
                 }
-                maxReqSize += 1;
+                maxReqSize += 1; // Same as above, needed for expandUnProcessedPiece to return a chunk padded to raid-line
         }
 
     }
@@ -1097,12 +1099,12 @@ public:
         return req->status == REQ_INFLIGHT;
     }
 
-    bool onRequestFailure(std::shared_ptr<HttpReqXfer> req, int part, SCCR::raidTime& backoff)
+    bool onRequestFailure(std::shared_ptr<HttpReqXfer> req, int part, dstime& backoff)
     {
         if (!started) return false;
         dstime tslot_backoff = 0;
         tslot->processRequestFailure(client, committer, req, tslot_backoff, part);
-        backoff = static_cast<SCCR::raidTime>(tslot_backoff);
+        backoff = tslot_backoff;
         return true;
     }
 
@@ -1114,14 +1116,13 @@ public:
     }
 
     /* CloudRaid functionality */
-    bool balancedRequest(int connection, const std::vector<std::string> &tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, m_off_t cmaxRequestSize, int cskippart)
+    bool balancedRequest(int connection, const std::vector<std::string> &tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, m_off_t cmaxRequestSize)
     {
         if (!started)
         {
             start();
         }
-        currtime = Waiter::ds;
-        SCCR::RaidReq::Params raidReqParams(tempUrls, cfilesize, cstart, creqlen, cmaxRequestSize, cskippart);
+        SCCR::RaidReq::Params raidReqParams(tempUrls, cfilesize, cstart, creqlen, cmaxRequestSize);
         raidReqPoolArray[connection].reset(new SCCR::RaidReqPool());
         raidReqPoolArray[connection]->request(raidReqParams, tslot->getcloudRaidPtr());
         return raidReqPoolArray[connection]->rr() != nullptr;
@@ -1183,7 +1184,6 @@ public:
         m_off_t readData = -1;
         if (started)
         {
-            currtime = Waiter::ds;
             readData = static_cast<m_off_t>(raidReqPoolArray[connection]->rr()->readdata(buf, len));
         }
         return readData;
@@ -1239,7 +1239,7 @@ bool CloudRaid::post(const std::shared_ptr<HttpReqXfer>& req)
     return Pimpl()->post(req);
 }
 
-bool CloudRaid::onRequestFailure(const std::shared_ptr<HttpReqXfer>& req, int part, SCCR::raidTime& backoff)
+bool CloudRaid::onRequestFailure(const std::shared_ptr<HttpReqXfer>& req, int part, dstime& backoff)
 {
     if (!shown.load())
         return false;
@@ -1260,11 +1260,11 @@ bool CloudRaid::init(TransferSlot* tslot, MegaClient* client, TransferDbCommitte
     return shown.load();
 }
 
-bool CloudRaid::balancedRequest(int connection, const std::vector<std::string> &tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, m_off_t cmaxRequestSize, int cskippart)
+bool CloudRaid::balancedRequest(int connection, const std::vector<std::string> &tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, m_off_t cmaxRequestSize)
 {
     if (!shown.load())
         return false;
-    return Pimpl()->balancedRequest(connection, tempUrls, cfilesize, cstart, creqlen, cmaxRequestSize, cskippart);
+    return Pimpl()->balancedRequest(connection, tempUrls, cfilesize, cstart, creqlen, cmaxRequestSize);
 }
 
 bool CloudRaid::isStarted() const

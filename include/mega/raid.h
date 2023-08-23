@@ -26,8 +26,7 @@
 
 #include "http.h"
 #include "utils.h"
-#include "mega/db.h"
-#include "sccloudraid/system.h"
+#include "db.h"
 
 namespace mega {
 
@@ -161,7 +160,7 @@ namespace mega {
         m_off_t fullfilesize;      // end of the file
 
         // controls buffer sizes used
-        std::atomic<unsigned> raidLinesPerChunk;
+        unsigned raidLinesPerChunk;
 
         // of the six raid URLs, which 5 are we downloading from
         unsigned unusedRaidConnection;
@@ -292,12 +291,12 @@ namespace mega {
         bool disconnect(const std::shared_ptr<HttpReqXfer>& req);
         bool prepareRequest(const std::shared_ptr<HttpReqXfer>& req, const string& tempURL, m_off_t pos, m_off_t npos);
         bool post(const std::shared_ptr<HttpReqXfer>& req);
-        bool onRequestFailure(const std::shared_ptr<HttpReqXfer>& req, int part, SCCR::raidTime& backoff);
+        bool onRequestFailure(const std::shared_ptr<HttpReqXfer>& req, int part, dstime& backoff);
         bool onTransferFailure();
 
         /* RaidProxy functionality for TransferSlot */
         bool init(TransferSlot* tslot, MegaClient* client, TransferDbCommitter& committer, int connections);
-        bool balancedRequest(int connection, const std::vector<std::string> &tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, m_off_t cmaxRequestSize, int cskippart);
+        bool balancedRequest(int connection, const std::vector<std::string> &tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, m_off_t cmaxRequestSize);
         bool removeRaidReq(int connection);
         bool resumeAllConnections();
         bool raidReqDoio(int connection);

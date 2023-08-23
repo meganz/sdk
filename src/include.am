@@ -42,6 +42,7 @@ src_libmega_la_SOURCES += src/mediafileattribute.cpp
 src_libmega_la_SOURCES += src/node.cpp
 src_libmega_la_SOURCES += src/pubkeyaction.cpp
 src_libmega_la_SOURCES += src/raid.cpp
+src_libmega_la_SOURCES += src/raidproxy.cpp
 src_libmega_la_SOURCES += src/testhooks.cpp
 src_libmega_la_SOURCES += src/request.cpp
 src_libmega_la_SOURCES += src/serialize64.cpp
@@ -68,11 +69,6 @@ src_libmega_la_SOURCES += src/gfx/external.cpp
 src_libmega_la_SOURCES += src/pendingcontactrequest.cpp
 src_libmega_la_SOURCES += src/textchat.cpp
 src_libmega_la_SOURCES += src/mega_zxcvbn.cpp
-src_libmega_la_SOURCES += src/sccloudraid/base64_sccr.cpp
-src_libmega_la_SOURCES += src/sccloudraid/config.cpp
-src_libmega_la_SOURCES += src/sccloudraid/logger.cpp
-src_libmega_la_SOURCES += src/sccloudraid/pstats.cpp
-src_libmega_la_SOURCES += src/sccloudraid/raidproxy.cpp
 
 EXTRA_DIST = src/mega_utf8proc_data.c
 

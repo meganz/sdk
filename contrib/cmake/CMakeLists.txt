@@ -718,7 +718,6 @@ add_definitions( -DHAVE_CONFIG_H) #otherwise, it won't be included in Windows bu
 SET(Mega_CryptoFiles ${MegaDir}/src/crypto/cryptopp.cpp ${MegaDir}/src/crypto/sodium.cpp)
 SET(Mega_DbFiles ${MegaDir}/src/db/sqlite.cpp ${MegaDir}/src/db/sqlite.cpp )
 SET(Mega_GfxFiles ${MegaDir}/src/gfx/external.cpp ${MegaDir}/src/gfx/freeimage.cpp ${MegaDir}/src/gfx/gfx_pdfium.cpp)
-SET(Mega_SccrFiles ${MegaDir}/src/sccloudraid/base64_sccr.cpp ${MegaDir}/src/sccloudraid/config.cpp ${MegaDir}/src/sccloudraid/logger.cpp ${MegaDir}/src/sccloudraid/pstats.cpp ${MegaDir}/src/sccloudraid/raidproxy.cpp)
 
 add_library(Mega STATIC
             ${MegaDir}/include/megaapi.h
@@ -773,16 +772,7 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/mega_ccronexpr.h
             ${MegaDir}/include/mega/testhooks.h
             ${MegaDir}/include/mega/share.h
-            ${MegaDir}/include/mega/sccloudraid/aes.h
-            ${MegaDir}/include/mega/sccloudraid/base64.h
-            ${MegaDir}/include/mega/sccloudraid/chunkedhash.h
-            ${MegaDir}/include/mega/sccloudraid/config.h
-            ${MegaDir}/include/mega/sccloudraid/logger.h
-            ${MegaDir}/include/mega/sccloudraid/mega.h
-            ${MegaDir}/include/mega/sccloudraid/pstats.h
-            ${MegaDir}/include/mega/sccloudraid/raidproxy.h
-            ${MegaDir}/include/mega/sccloudraid/raidstub.h
-            ${MegaDir}/include/mega/sccloudraid/system.h
+            ${MegaDir}/include/mega/raidproxy.h
             ${MegaDir}/include/mega/win32/megafs.h
             ${MegaDir}/include/mega/win32/meganet.h
             ${MegaDir}/include/mega/win32/megaconsolewaiter.h
@@ -803,6 +793,7 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/filesystem.h
             ${MegaDir}/include/mega/backofftimer.h
             ${MegaDir}/include/mega/raid.h
+            ${MegaDir}/include/mega/raidproxy.h
             ${MegaDir}/include/mega/logging.h
             ${MegaDir}/include/mega/file.h
             ${MegaDir}/include/mega/sync.h
@@ -852,6 +843,7 @@ add_library(Mega STATIC
             ${MegaDir}/src/proxy.cpp
             ${MegaDir}/src/pubkeyaction.cpp
             ${MegaDir}/src/raid.cpp
+            ${MegaDir}/src/raidproxy.cpp
             ${MegaDir}/src/request.cpp
             ${MegaDir}/src/serialize64.cpp
             ${MegaDir}/src/nodemanager.cpp
@@ -868,7 +860,6 @@ add_library(Mega STATIC
             ${MegaDir}/src/useralerts.cpp
             ${MegaDir}/src/utils.cpp
             ${MegaDir}/src/waiterbase.cpp
-            ${Mega_SccrFiles}
             ${Mega_PlatformSpecificFiles} ${Mega_CryptoFiles} ${Mega_DbFiles} ${Mega_GfxFiles}
             ${WIN_EXTRA_INCLUDE}
             ${MACOS_EXTRA_INCLUDE}
