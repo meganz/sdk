@@ -310,9 +310,6 @@ TransferSlot::~TransferSlot()
     }
 
     delete[] asyncIO;
-
-    const auto& downloadEndTime = std::chrono::system_clock::now();
-    auto downloadTime = std::chrono::duration_cast<std::chrono::milliseconds>(downloadEndTime - downloadStartTime).count();
 }
 
 void TransferSlot::toggleport(HttpReqXfer *req)

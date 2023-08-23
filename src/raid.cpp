@@ -1052,7 +1052,7 @@ void DirectReadBufferManager::finalize(FilePiece& fp)
 class CloudRaid::CloudRaidImpl
 {
 private:
-    std::vector<std::unique_ptr<SCCR::RaidReqPool>> raidReqPoolArray;
+    std::vector<std::unique_ptr<RaidProxy::RaidReqPool>> raidReqPoolArray;
     int connections;
     TransferSlot* tslot;
     MegaClient* client;
@@ -1122,8 +1122,8 @@ public:
         {
             start();
         }
-        SCCR::RaidReq::Params raidReqParams(tempUrls, cfilesize, cstart, creqlen, cmaxRequestSize);
-        raidReqPoolArray[connection].reset(new SCCR::RaidReqPool());
+        RaidProxy::RaidReq::Params raidReqParams(tempUrls, cfilesize, cstart, creqlen, cmaxRequestSize);
+        raidReqPoolArray[connection].reset(new RaidProxy::RaidReqPool());
         raidReqPoolArray[connection]->request(raidReqParams, tslot->getcloudRaidPtr());
         return raidReqPoolArray[connection]->rr() != nullptr;
     }
