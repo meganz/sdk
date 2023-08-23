@@ -3715,6 +3715,7 @@ TEST_F(SdkTest, SdkTestShares2)
  * - Get a node from a file public link
  * - Remove a public link
  * - Create a folder public link
+ * - Import folder public link
  */
 TEST_F(SdkTest, SdkTestShares)
 {
@@ -3816,18 +3817,18 @@ TEST_F(SdkTest, SdkTestShares)
 
     mApi[1].contactRequestUpdated = false;
     ASSERT_NO_FATAL_FAILURE( inviteContact(0, mApi[1].email, message, MegaContactRequest::INVITE_ACTION_ADD) );
-    ASSERT_TRUE( waitForResponse(&mApi[1].contactRequestUpdated) )   // at the target side (auxiliar account)
-            << "Contact request creation not received after " << maxTimeout << " seconds";
+    EXPECT_TRUE( waitForResponse(&mApi[1].contactRequestUpdated, 10u) )   // at the target side (auxiliar account)
+            << "Contact request creation not received after 10 seconds";
 
 
-    ASSERT_NO_FATAL_FAILURE( getContactRequest(1, false) );
+    EXPECT_NO_FATAL_FAILURE( getContactRequest(1, false) );
 
     mApi[0].contactRequestUpdated = mApi[1].contactRequestUpdated = false;
-    ASSERT_NO_FATAL_FAILURE( replyContact(mApi[1].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT) );
-    ASSERT_TRUE( waitForResponse(&mApi[1].contactRequestUpdated) )   // at the target side (auxiliar account)
-            << "Contact request creation not received after " << maxTimeout << " seconds";
-    ASSERT_TRUE( waitForResponse(&mApi[0].contactRequestUpdated) )   // at the source side (main account)
-            << "Contact request creation not received after " << maxTimeout << " seconds";
+    EXPECT_NO_FATAL_FAILURE( replyContact(mApi[1].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT) );
+    EXPECT_TRUE( waitForResponse(&mApi[1].contactRequestUpdated, 10u) )   // at the target side (auxiliar account)
+            << "Contact request creation not received after 10 seconds";
+    EXPECT_TRUE( waitForResponse(&mApi[0].contactRequestUpdated, 10u) )   // at the source side (main account)
+            << "Contact request creation not received after 10 seconds";
 
     mApi[1].cr.reset();
 
@@ -3924,14 +3925,14 @@ TEST_F(SdkTest, SdkTestShares)
     MegaHandle copiedNodeHandle = INVALID_HANDLE;
     ASSERT_EQ(API_OK, doCopyNode(1, &copiedNodeHandle, std::unique_ptr<MegaNode>(megaApi[1]->getNodeByHandle(hfile2)).get(),
               std::unique_ptr<MegaNode>(megaApi[1]->getNodeByHandle(hfolder1)).get(), "copy")) << "Copying shared file (not owned) to same place failed";
-    ASSERT_TRUE( waitForResponse(&check1) )   // at the target side (main account)
-            << "Node update not received after " << maxTimeout << " seconds";
+    EXPECT_TRUE( waitForResponse(&check1, 10u) )   // at the target side (main account)
+            << "Node update not received after 10 seconds";
     ASSERT_TRUE( waitForResponse(&check2) )   // at the target side (auxiliar account)
             << "Node update not received after " << maxTimeout << " seconds";
 
     resetOnNodeUpdateCompletionCBs();
     ++inSharedNodeCount;
-    ASSERT_EQ(check1, true);
+    EXPECT_EQ(check1, true);
     ASSERT_EQ(check2, true);
 
 
@@ -3952,7 +3953,7 @@ TEST_F(SdkTest, SdkTestShares)
     MegaHandle copyAndDeleteNodeHandle = INVALID_HANDLE;
 
     copiedNode.reset(megaApi[0]->getNodeByHandle(copiedNodeHandle));
-    ASSERT_EQ(API_OK, doMoveNode(1, &copyAndDeleteNodeHandle, copiedNode.get(), rubbishNode.get())) << "Moving shared file, same name and fingerprint";
+    EXPECT_EQ(API_OK, doMoveNode(1, &copyAndDeleteNodeHandle, copiedNode.get(), rubbishNode.get())) << "Moving shared file, same name and fingerprint";
 
     ASSERT_EQ(megaApi[1]->getNodeByHandle(copiedNodeHandle), nullptr) << "Move didn't delete source file";
     ASSERT_TRUE( waitForResponse(&check1) )   // at the target side (main account)
@@ -4030,7 +4031,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterInSharesAddedDummyFolders);
 
     // check the corresponding user alert
-    ASSERT_TRUE(checkAlert(1, mApi[0].email + " added 2 folders", std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder2)}->getHandle(), 2, dummyhandle1));
+    EXPECT_TRUE(checkAlert(1, mApi[0].email + " added 2 folders", std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder2)}->getHandle(), 2, dummyhandle1));
 
     // add 2 more files to the share
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check1);
@@ -4366,6 +4367,34 @@ TEST_F(SdkTest, SdkTestShares)
     // Regenerate the same link should not trigger a new request
     string nodelink6 = createPublicLink(0, nfolder1.get(), 0, maxTimeout, mApi[0].accountDetails->getProLevel() == 0);
     ASSERT_STREQ(nodelink5.c_str(), nodelink6.c_str()) << "Wrong public link after link update";
+
+
+    // --- Import folder public link ---
+    const char* email = getenv(envVarAccount[2].c_str());
+    ASSERT_NE(email, nullptr);
+    const char* pass = getenv(envVarPass[2].c_str());
+    ASSERT_NE(pass, nullptr);
+    mApi.resize(3);
+    megaApi.resize(3);
+    configureTestInstance(2, email, pass);
+    auto loginFolderTracker = asyncRequestLoginToFolder(2, nodelink6.c_str());
+    ASSERT_EQ(loginFolderTracker->waitForResult(), API_OK) << "Failed to login to folder " << nodelink6;
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(2));
+    std::unique_ptr<MegaNode> folderNodeToImport(megaApi[2]->getRootNode());
+    ASSERT_TRUE(folderNodeToImport) << "Failed to get folder node to import from link " << nodelink6;
+    std::unique_ptr<MegaNode> authorizedFolderNode(megaApi[2]->authorizeNode(folderNodeToImport.get()));
+    ASSERT_TRUE(authorizedFolderNode) << "Failed to authorize folder node from link " << nodelink6;
+    logout(2, false, 20);
+
+    auto loginTracker = asyncRequestLogin(2, email, pass);
+    ASSERT_EQ(loginTracker->waitForResult(), API_OK) << "Failed to login with " << email;
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(2));
+    std::unique_ptr<MegaNode> rootNode2(megaApi[2]->getRootNode());
+    RequestTracker nodeCopyTracker(megaApi[2].get());
+    megaApi[2]->copyNode(authorizedFolderNode.get(), rootNode2.get(), nullptr, &nodeCopyTracker);
+    EXPECT_EQ(nodeCopyTracker.waitForResult(), API_OK) << "Failed to copy node to import";
+    std::unique_ptr<MegaNode> importedNode(megaApi[2]->getNodeByPath(authorizedFolderNode->getName(), rootNode2.get()));
+    EXPECT_TRUE(importedNode) << "Imported node not found";
 }
 
 
