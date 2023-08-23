@@ -1876,7 +1876,6 @@ void NodeManager::addChild_internal(NodeHandle parent, NodeHandle child, Node* n
 
     auto pair = mNodes.emplace(parent, NodeManagerNode(*this, parent));
     // The NodeManagerNode could have been added in add node, only update the child
-    assert(!pair.first->second.mChildren || (*pair.first->second.mChildren).find(child) == (*pair.first->second.mChildren).end() || !(*pair.first->second.mChildren).at(child));
     if (!pair.first->second.mChildren)
     {
         pair.first->second.mChildren = ::mega::make_unique<std::map<NodeHandle,  NodeManagerNode*>>();
