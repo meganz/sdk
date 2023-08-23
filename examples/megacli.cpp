@@ -8935,11 +8935,11 @@ void DemoApp::nodes_updated(sharedNode_vector* nodes, int count)
     }
     else
     {
-        sharedNode_vector nodes = client->mNodeManager.getRootNodes();
+        sharedNode_vector rootNodes = client->mNodeManager.getRootNodes();
 
         sharedNode_vector inshares = client->mNodeManager.getNodesWithInShares();
-        nodes.insert(nodes.end(), inshares.begin(), inshares.end());
-        for (auto& node : nodes)
+        rootNodes.insert(rootNodes.end(), inshares.begin(), inshares.end());
+        for (auto& node : rootNodes)
         {
             if (!node->parent) // No take account nested inshares
             {
