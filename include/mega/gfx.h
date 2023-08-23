@@ -123,11 +123,16 @@ class MEGA_API GfxProc
         int height;
     };
 
-    std::vector<std::string> GenerateImagesHelper(const LocalPath& localfilepath, const std::vector<Dimension>& dimensions);
+    std::vector<Dimension> getJobDimensions(GfxJob *job);
 
-    std::vector<std::string> GenerateImages(const LocalPath& localfilepath, const std::vector<Dimension>& dimensions);
+    // Caller should give dimensions from low resolution to high resolution, as some implementation such as freeimages 
+    // may cache a generated image for next one
+    std::vector<std::string> generateImagesHelper(const LocalPath& localfilepath, const std::vector<Dimension>& dimensions);
 
-    std::string GenerateOneImage(const LocalPath& localfilepath, const Dimension& dimension);
+    // Caller should give dimensions from low resolution to high resolution
+    std::vector<std::string> generateImages(const LocalPath& localfilepath, const std::vector<Dimension>& dimensions);
+
+    std::string generateOneImage(const LocalPath& localfilepath, const Dimension& dimension);
 
 public:
     // synchronously processes the results of gendimensionsputfa() (if any) in a thread safe manner

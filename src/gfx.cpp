@@ -24,6 +24,8 @@
 #include <numeric>
 
 namespace mega {
+
+// from low resolution to high resolution. gendimensionsputfa relies on this order.
 const std::vector<GfxProc::Dimension> GfxProc::DIMENSIONS = {
     { 200, 0 },     // THUMBNAIL: square thumbnail, cropped from near center
     { 1000, 1000 }  // PREVIEW: scaled version inside 1000x1000 bounding square
@@ -106,6 +108,18 @@ void *GfxProc::threadEntryPoint(void *param)
     return NULL;
 }
 
+std::vector<GfxProc::Dimension> GfxProc::getJobDimensions(GfxJob *job)
+{
+    std::vector<Dimension> jobDimensions;
+    for (auto i : job->imagetypes) 
+    {
+        assert(i < DIMENSIONS.size());
+        jobDimensions.push_back(DIMENSIONS[i]);
+    }
+
+    return jobDimensions;
+}
+
 void GfxProc::loop()
 {
     GfxJob *job = NULL;
@@ -123,7 +137,7 @@ void GfxProc::loop()
 
             LOG_debug << "Processing media file: " << job->h;
 
-            auto images = GenerateImages(job->localfilename, DIMENSIONS);
+            auto images = generateImages(job->localfilename, getJobDimensions(job));
             for (auto& image : images)
             {
                 string* jpeg = image.empty() ? nullptr : new string(std::move(image));
@@ -285,7 +299,7 @@ int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, const LocalPath& localfilena
     return generatingAttrs;
 }
 
-std::vector<std::string> GfxProc::GenerateImagesHelper(const LocalPath& localfilepath, const std::vector<Dimension>& dimensions)
+std::vector<std::string> GfxProc::generateImagesHelper(const LocalPath& localfilepath, const std::vector<Dimension>& dimensions)
 {
     std::vector<std::string> images(dimensions.size());
 
@@ -319,16 +333,16 @@ std::vector<std::string> GfxProc::GenerateImagesHelper(const LocalPath& localfil
     return images;
 }
 
-std::vector<std::string> GfxProc::GenerateImages(const LocalPath& localfilepath, const std::vector<Dimension>& dimensions)
+std::vector<std::string> GfxProc::generateImages(const LocalPath& localfilepath, const std::vector<Dimension>& dimensions)
 {
     std::lock_guard<std::mutex> g(mutex);
-    return GenerateImagesHelper(localfilepath, dimensions);
+    return generateImagesHelper(localfilepath, dimensions);
 }
 
-std::string GfxProc::GenerateOneImage(const LocalPath& localfilepath, const Dimension& dimension)
+std::string GfxProc::generateOneImage(const LocalPath& localfilepath, const Dimension& dimension)
 {
     std::lock_guard<std::mutex> g(mutex);
-    return GenerateImagesHelper(localfilepath, std::vector<Dimension>{ dimension })[0];
+    return generateImagesHelper(localfilepath, std::vector<Dimension>{ dimension })[0];
 }
 
 bool GfxProc::savefa(const LocalPath& localfilepath, const Dimension& dimension, LocalPath& localdstpath)
@@ -338,7 +352,7 @@ bool GfxProc::savefa(const LocalPath& localfilepath, const Dimension& dimension,
         return false;
     }
 
-    string jpeg = GenerateOneImage(localfilepath, dimension);
+    string jpeg = generateOneImage(localfilepath, dimension);
 
     if (jpeg.empty())
     {
