@@ -1204,15 +1204,25 @@ void RaidReqPool::raidproxyio()
         if (!scheduledio.empty())
         {
             auto itScheduled = scheduledio.begin();
-            while (isRunning && (itScheduled != scheduledio.end() && itScheduled->first <= Waiter::ds))
+            while (isRunning && (itScheduled != scheduledio.end() && (itScheduled->first <= Waiter::ds)))
             {
                 const HttpReqPtr& httpReq = itScheduled->second;
-                if ((setHttpReqs.find(httpReq) != setHttpReqs.end()))
+                if (httpReq->status != REQ_INFLIGHT)
                 {
-                    raidReq->dispatchio(httpReq);
+                    if ((setHttpReqs.find(httpReq) != setHttpReqs.end()))
+                    {
+                        raidReq->dispatchio(httpReq);
+                        itScheduled++;
+                    }
+                    else
+                    {
+                        itScheduled = scheduledio.erase(itScheduled);
+                    }
                 }
-                setHttpReqs.erase(httpReq);
-                itScheduled = scheduledio.erase(itScheduled);
+                else
+                {
+                    itScheduled++;
+                }
             }
         }
     }
