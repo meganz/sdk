@@ -11484,6 +11484,8 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
     ASSERT_TRUE(client1.confirmModel_mainthread(model.root.get(), id));
     ASSERT_TRUE(client2.waitFor(SyncRemoteMatch(sh, model.root.get()), DEFAULTWAIT));
 
+    // Release shared_ptr before logout (None node reference should be kept after logout)
+    r.reset();
     // Log out the sharing client so that it doesn't maintain keys.
     ASSERT_TRUE(client0.logout(false));
 
