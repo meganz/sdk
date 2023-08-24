@@ -21,14 +21,17 @@
 
 #include "mega.h"
 #include "mega/gfx.h"
+#include <numeric>
 
 namespace mega {
-const int GfxProc::dimensions[][2] = {
+
+// from low resolution to high resolution. gendimensionsputfa relies on this order.
+const std::vector<GfxProc::Dimension> GfxProc::DIMENSIONS = {
     { 200, 0 },     // THUMBNAIL: square thumbnail, cropped from near center
     { 1000, 1000 }  // PREVIEW: scaled version inside 1000x1000 bounding square
 };
 
-const int GfxProc::dimensionsavatar[][2] = {
+const std::vector<GfxProc::Dimension> GfxProc::DIMENSIONS_AVATAR = {
     { 250, 0 }      // AVATAR250X250: square thumbnail, cropped from near center
 };
 
@@ -105,6 +108,18 @@ void *GfxProc::threadEntryPoint(void *param)
     return NULL;
 }
 
+std::vector<GfxProc::Dimension> GfxProc::getJobDimensions(GfxJob *job)
+{
+    std::vector<Dimension> jobDimensions;
+    for (auto i : job->imagetypes) 
+    {
+        assert(i < DIMENSIONS.size());
+        jobDimensions.push_back(DIMENSIONS[i]);
+    }
+
+    return jobDimensions;
+}
+
 void GfxProc::loop()
 {
     GfxJob *job = NULL;
@@ -120,44 +135,15 @@ void GfxProc::loop()
                 break;
             }
 
-            mutex.lock();
             LOG_debug << "Processing media file: " << job->h;
 
-            // (this assumes that the width of the largest dimension is max)
-            if (mGfxProvider->readbitmap(client->fsaccess.get(), job->localfilename, dimensions[sizeof dimensions/sizeof dimensions[0]-1][0]))
+            auto images = generateImages(job->localfilename, getJobDimensions(job));
+            for (auto& image : images)
             {
-                for (unsigned i = 0; i < job->imagetypes.size(); i++)
-                {
-                    // successively downscale the original image
-                    string* jpeg = new string();
-                    int w = dimensions[job->imagetypes[i]][0];
-                    int h = dimensions[job->imagetypes[i]][1];
-
-                    if (mGfxProvider->width() < w && mGfxProvider->height() < h)
-                    {
-                        LOG_debug << "Skipping upsizing of preview or thumbnail";
-                        w = mGfxProvider->width();
-                        h = mGfxProvider->height();
-                    }
-
-                    if (!mGfxProvider->resizebitmap(w, h, jpeg))
-                    {
-                        delete jpeg;
-                        jpeg = NULL;
-                    }
-                    job->images.push_back(jpeg);
-                }
-                mGfxProvider->freebitmap();
-            }
-            else
-            {
-                for (unsigned i = 0; i < job->imagetypes.size(); i++)
-                {
-                    job->images.push_back(NULL);
-                }
+                string* jpeg = image.empty() ? nullptr : new string(std::move(image));
+                job->images.push_back(jpeg);
             }
 
-            mutex.unlock();
             responses.push(job);
             client->waiter->notify();
         }
@@ -285,10 +271,7 @@ void IGfxProvider::transform(int& w, int& h, int& rw, int& rh, int& px, int& py)
 // load bitmap image, generate all designated sizes, attach to specified upload/node handle
 int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, const LocalPath& localfilename, NodeOrUploadHandle th, SymmCipher* key, int missing)
 {
-    if (SimpleLogger::logCurrentLevel >= logDebug)
-    {
-        LOG_debug << "Creating thumb/preview for " << localfilename;
-    }
+    LOG_debug << "Creating thumb/preview for " << localfilename;
 
     GfxJob *job = new GfxJob();
     job->h = th;
@@ -296,7 +279,7 @@ int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, const LocalPath& localfilena
     job->localfilename = localfilename;
 
     int generatingAttrs = 0;
-    for (fatype i = sizeof dimensions/sizeof dimensions[0]; i--; )
+    for (fatype i = static_cast<fatype>(DIMENSIONS.size()); i--; )
     {
         if (missing & (1 << i))
         {
@@ -316,35 +299,62 @@ int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, const LocalPath& localfilena
     return generatingAttrs;
 }
 
-bool GfxProc::savefa(const LocalPath& localfilepath, int width, int height, LocalPath& localdstpath)
+std::vector<std::string> GfxProc::generateImagesHelper(const LocalPath& localfilepath, const std::vector<Dimension>& dimensions)
+{
+    std::vector<std::string> images(dimensions.size());
+
+    int maxDimension = std::accumulate(
+        dimensions.begin(),
+        dimensions.end(),
+        0, 
+        [](int max, const Dimension& d) { return std::max(max, std::max(d.width, d.height)); });
+
+    if (mGfxProvider->readbitmap(client->fsaccess.get(), localfilepath, maxDimension))
+    {
+        for (unsigned int i = 0; i < dimensions.size(); ++i)
+        {
+            string jpeg;
+            int width = dimensions[i].width, height = dimensions[i].height;
+            if (mGfxProvider->width() < width && mGfxProvider->height() < height)
+            {
+                LOG_debug << "Skipping upsizing of local preview";
+                width = mGfxProvider->width();
+                height = mGfxProvider->height();
+            }
+
+            if (mGfxProvider->resizebitmap(width, height, &jpeg))
+            {
+                images[i] = std::move(jpeg);
+            }
+        }
+        mGfxProvider->freebitmap();
+    }
+
+    return images;
+}
+
+std::vector<std::string> GfxProc::generateImages(const LocalPath& localfilepath, const std::vector<Dimension>& dimensions)
+{
+    std::lock_guard<std::mutex> g(mutex);
+    return generateImagesHelper(localfilepath, dimensions);
+}
+
+std::string GfxProc::generateOneImage(const LocalPath& localfilepath, const Dimension& dimension)
+{
+    std::lock_guard<std::mutex> g(mutex);
+    return generateImagesHelper(localfilepath, std::vector<Dimension>{ dimension })[0];
+}
+
+bool GfxProc::savefa(const LocalPath& localfilepath, const Dimension& dimension, LocalPath& localdstpath)
 {
     if (!isgfx(localfilepath))
     {
         return false;
     }
 
-    mutex.lock();
-    if (!mGfxProvider->readbitmap(client->fsaccess.get(), localfilepath, width > height ? width : height))
-    {
-        mutex.unlock();
-        return false;
-    }
+    string jpeg = generateOneImage(localfilepath, dimension);
 
-    int w = width;
-    int h = height;
-    if (mGfxProvider->width() < w && mGfxProvider->height() < h)
-    {
-        LOG_debug << "Skipping upsizing of local preview";
-        w = mGfxProvider->width();
-        h = mGfxProvider->height();
-    }
-
-    string jpeg;
-    bool success = mGfxProvider->resizebitmap(w, h, &jpeg);
-    mGfxProvider->freebitmap();
-    mutex.unlock();
-
-    if (!success)
+    if (jpeg.empty())
     {
         return false;
     }

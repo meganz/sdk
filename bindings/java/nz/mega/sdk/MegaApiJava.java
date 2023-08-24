@@ -254,6 +254,7 @@ public class MegaApiJava {
     public final static int BACKUP_TYPE_DOWN_SYNC = MegaApi.BACKUP_TYPE_DOWN_SYNC;
     public final static int BACKUP_TYPE_CAMERA_UPLOADS = MegaApi.BACKUP_TYPE_CAMERA_UPLOADS;
     public final static int BACKUP_TYPE_MEDIA_UPLOADS = MegaApi.BACKUP_TYPE_MEDIA_UPLOADS;
+    public final static int BACKUP_TYPE_BACKUP_UPLOAD = MegaApi.BACKUP_TYPE_BACKUP_UPLOAD;
 
 
     MegaApi getMegaApi() {
@@ -3169,6 +3170,17 @@ public class MegaApiJava {
      */
     public void upgradeSecurity(MegaRequestListenerInterface listener) {
         megaApi.upgradeSecurity(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get the contact verification warning flag status
+     *
+     * It returns if showing the warnings to verify contacts is enabled.
+     *
+     * @return True if showing the warnings are enabled, false otherwise.
+     */
+    public boolean contactVerificationWarningEnabled() {
+        return megaApi.contactVerificationWarningEnabled();
     }
 
     /**

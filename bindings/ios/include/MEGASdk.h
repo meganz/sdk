@@ -522,6 +522,12 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
  */
 @property (readonly, nonatomic, getter=isAchievementsEnabled) BOOL achievementsEnabled;
 
+/**
+ * @brief Returns whether displaying contact verification warnings is enabled from the webclient
+ * YES if enabled, NO otherwise.
+ */
+@property (readonly, nonatomic, getter=isContactVerificationWarningEnabled) BOOL isContactVerificationWarningEnabled;
+
 #pragma mark - Business
 
 /**
@@ -10095,6 +10101,18 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
  * @return YES if this feature is enabled. Otherwise, NO.
  */
 - (BOOL)cookieBannerEnabled;
+
+#pragma mark - A/B Testing
+/**
+ * @brief Get the value of an A/B Test flag
+ *
+ * Any value greater than 0 means the flag is active.
+ *
+ * @param flag Name or key of the value to be retrieved.
+ *
+ * @return An unsigned integer with the value of the flag.
+ */
+- (NSInteger)getABTestValue:(NSString*)flag;
 
 @end
 

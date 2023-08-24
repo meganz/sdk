@@ -2278,7 +2278,7 @@ bool CommandPendingKeys::procresult(Result r, JSON& json)
         {
             string sharekey;
             JSON::copystring(&sharekey, json.getvalue());
-            (*keys)[userhandle][sharehandle] = sharekey;
+            (*keys)[userhandle][sharehandle] = Base64::atob(sharekey);
         }
 
         json.leaveobject();
@@ -4321,7 +4321,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                                            break;
 
                                         case EOO:
-                                            if (status != BIZ_STATUS_UNKNOWN && ts != 0)
+                                            if (status != BIZ_STATUS_UNKNOWN && isValidTimeStamp(ts))
                                             {
                                                 sts.push_back(std::make_pair(status, ts));
                                             }
@@ -5470,6 +5470,7 @@ CommandGetUserSessions::CommandGetUserSessions(MegaClient* client, std::shared_p
 {
     cmd("usl");
     arg("x", 1); // Request the additional id and alive information
+    arg("d", 1); // Request the additional device-id
 
     details = ad;
     tag = client->reqtag;
@@ -5497,6 +5498,7 @@ bool CommandGetUserSessions::procresult(Result r, JSON& json)
 
         details->sessions[t].id = json.gethandle(8);
         details->sessions[t].alive = (int)json.getint();
+        json.storeobject(&details->sessions[t].deviceid);
 
         if (!json.leavearray())
         {
@@ -6110,8 +6112,6 @@ bool CommandFetchNodes::procresult(Result r, JSON& json)
         client->app->fetchnodes_result(r.errorOrOK());
         return true;
     }
-
-    client->mKeyManager.cacheShareKeys();
 
     for (;;)
     {
@@ -7857,7 +7857,7 @@ bool CommandChatLinkURL::procresult(Result r, JSON& json)
 {
     if (r.wasErrorOrOK())
     {
-        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, UNDEF, r.errorOrOK());
+        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, false, nullptr, UNDEF, r.errorOrOK());
         return true;
     }
     else
@@ -7869,17 +7869,19 @@ bool CommandChatLinkURL::procresult(Result r, JSON& json)
         string ct;
         m_time_t ts = 0;
         bool meetingRoom = false;
+        bool waitingRoom = false;
+        std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
         handle callid = UNDEF;
 
         for (;;)
         {
             switch (json.getnameid())
             {
-                case MAKENAMEID2('i','d'):
+                case MAKENAMEID2('i','d'): // chatid
                     chatid = json.gethandle(MegaClient::CHATHANDLE);
                     break;
 
-                case MAKENAMEID2('c','s'):
+                case MAKENAMEID2('c','s'): // shard
                     shard = int(json.getint());
                     break;
 
@@ -7887,41 +7889,55 @@ bool CommandChatLinkURL::procresult(Result r, JSON& json)
                     json.storeobject(&ct);
                     break;
 
-                case MAKENAMEID3('u','r','l'):
+                case MAKENAMEID3('u','r','l'): // chaturl
                     json.storeobject(&url);
                     break;
 
-                case MAKENAMEID3('n','c','m'):
+                case MAKENAMEID3('n','c','m'): // number of members in the chat
                     numPeers = int(json.getint());
                     break;
 
-                case MAKENAMEID2('t', 's'):
+                case MAKENAMEID2('t', 's'): // chat creation timestamp
                     ts = json.getint();
                     break;
 
-                case MAKENAMEID6('c', 'a', 'l', 'l', 'I', 'd'):
+                case MAKENAMEID6('c', 'a', 'l', 'l', 'I', 'd'): //callId if there is an active call (just if mr == 1)
                     callid = json.gethandle(MegaClient::CHATHANDLE);
                     break;
 
-                case MAKENAMEID2('m', 'r'):
+                case MAKENAMEID2('m', 'r'): // meeting room
                     meetingRoom = json.getbool();
                     break;
 
+                case MAKENAMEID1('w'): // waiting room
+                    waitingRoom = json.getbool();
+                    break;
+
+                case MAKENAMEID2('s', 'm'): // scheduled meetings
+                {
+                    if (json.enterarray())
+                    {
+                        error err = client->parseScheduledMeetings(schedMeetings, false, &json);
+                        json.leavearray();
+                        if (err) { LOG_err << "Error parsing scheduled meetings array at mcphurl response"; }
+                    }
+                    break;
+                }
                 case EOO:
                     if (chatid != UNDEF && shard != -1 && !url.empty() && !ct.empty() && numPeers != -1)
                     {
-                        client->app->chatlinkurl_result(chatid, shard, &url, &ct, numPeers, ts, meetingRoom, callid, API_OK);
+                        client->app->chatlinkurl_result(chatid, shard, &url, &ct, numPeers, ts, meetingRoom, waitingRoom, &schedMeetings, callid, API_OK);
                     }
                     else
                     {
-                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, UNDEF, API_EINTERNAL);
+                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, false, nullptr, UNDEF, API_EINTERNAL);
                     }
                     return true;
 
                 default:
                     if (!json.storeobject())
                     {
-                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, UNDEF, API_EINTERNAL);
+                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, false, nullptr, UNDEF, API_EINTERNAL);
                         return false;
                     }
             }
@@ -9201,6 +9217,7 @@ bool CommandBackupSyncFetch::procresult(Result r, JSON& json)
                                                 d.localFolder = client->decypherTLVTextWithMasterKey("lf", d.localFolder);
                                                 break;
                 case MAKENAMEID1('d'):          json.storeobject(&d.deviceId); break;
+                case MAKENAMEID3('d', 'u', 'a'):json.storeobject(&d.deviceUserAgent); break;
                 case MAKENAMEID1('s'):          d.syncState = json.getint32(); break;
                 case MAKENAMEID2('s', 's'):     d.syncSubstate = json.getint32(); break;
                 case MAKENAMEID1('e'):          json.storeobject(&d.extra);
@@ -9613,11 +9630,20 @@ bool CommandFetchSet::procresult(Result r, JSON& json)
 
     if (mCompletion)
     {
-        Set* s = sets.empty() ? new Set() : (new Set(std::move(sets.begin()->second)));
-        elementsmap_t* els = elements.empty()
-                             ? new elementsmap_t()
-                             : new elementsmap_t(std::move(elements.begin()->second));
-        mCompletion(API_OK, s, els);
+        if (sets.empty())
+        {
+            LOG_err << "Sets: Failed to decrypt data from \"aft\" response";
+            mCompletion(API_EKEY, nullptr, nullptr);
+        }
+
+        else
+        {
+            Set* s = new Set(std::move(sets.begin()->second));
+            elementsmap_t* els = elements.empty()
+                                 ? new elementsmap_t()
+                                 : new elementsmap_t(std::move(elements.begin()->second));
+            mCompletion(API_OK, s, els);
+        }
     }
 
     return true;
@@ -10291,9 +10317,9 @@ CommandScheduledMeetingFetchEvents::CommandScheduledMeetingFetchEvents(MegaClien
 {
     cmd("mcsmfo");
     arg("cid", (byte*) &chatid, MegaClient::CHATHANDLE);
-    if (since != mega_invalid_timestamp)      { arg("cf", since); }
-    if (until != mega_invalid_timestamp)      { arg("ct", until); }
-    if (count)                                { arg("cc", count); }
+    if (isValidTimeStamp(since))      { arg("cf", since); }
+    if (isValidTimeStamp(until))      { arg("ct", until); }
+    if (count)                        { arg("cc", count); }
     tag = client->reqtag;
 }
 

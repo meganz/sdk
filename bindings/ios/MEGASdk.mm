@@ -195,6 +195,11 @@ using namespace mega;
     return self.megaApi->isAchievementsEnabled();
 }
 
+- (BOOL)isContactVerificationWarningEnabled {
+    if (self.megaApi == nil) return NO;
+    return self.megaApi->contactVerificationWarningEnabled();
+}
+
 #pragma mark - Business
 
 - (BOOL)isBusinessAccount {
@@ -3957,5 +3962,10 @@ using namespace mega;
     return self.megaApi->cookieBannerEnabled();
 }
 
+#pragma mark - A/B Testing
+- (NSInteger)getABTestValue:(NSString*)flag {
+    if (self.megaApi == nil) return 0;
+    return self.megaApi->getABTestValue((const char *)flag.UTF8String);
+}
 
 @end
