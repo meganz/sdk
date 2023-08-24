@@ -8503,6 +8503,37 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
     ASSERT_EQ(true, megaApi[0]->setMaxDownloadSpeed(currentMaxDownloadSpeed)); // restore previous max download speed (bytes per second)
 }
 
+TEST_F(SdkTest, QueryAds)
+{
+    LOG_info << "___TEST QueryAds";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    std::unique_ptr<RequestTracker> tr = asyncQueryAds(0, MegaApi::ADS_FORCE_ADS, INVALID_HANDLE);
+    ASSERT_EQ(API_OK, tr->waitForResult()) << "Query Ads failed";
+}
+
+TEST_F(SdkTest, FetchAds)
+{
+    LOG_info << "___TEST FetchAds";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    std::unique_ptr<MegaStringList> stringList = std::unique_ptr<MegaStringList>(MegaStringList::createInstance());
+    std::unique_ptr<RequestTracker> tr = asyncFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get(), INVALID_HANDLE);
+    ASSERT_EQ(API_EARGS, tr->waitForResult()) << "Fetch Ads succeeded with invalid arguments";
+    stringList->add("dummyAdUnit");
+    tr = asyncFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get(), INVALID_HANDLE);
+    ASSERT_EQ(API_OK, tr->waitForResult()) << "Fetch Ads failed";
+    const MegaStringMap* ads = tr->request->getMegaStringMap();
+    ASSERT_TRUE(ads) << "Fetch Ads didn't copy ads to `request`";
+    ASSERT_EQ(ads->size(), 0) << "Fetch Ads found some dummy ads";
+    const char valiAdSlot[] = "ANDFB";
+    stringList->add(valiAdSlot);
+    tr = asyncFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get(), INVALID_HANDLE);
+    ASSERT_EQ(API_OK, tr->waitForResult()) << "Fetch Ads failed";
+    ads = tr->request->getMegaStringMap();
+    ASSERT_TRUE(ads) << "Fetch Ads didn't copy ads to `request`";
+    ASSERT_EQ(ads->size(), 1) << "Fetch Ads findings are incorrect";
+    ASSERT_NE(ads->get(valiAdSlot), nullptr) << "Fetch Ads didn't find " << valiAdSlot;
+}
+
 #ifdef ENABLE_SYNC
 
 void cleanUp(::mega::MegaApi* megaApi, const fs::path &basePath)

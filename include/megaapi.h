@@ -4257,8 +4257,8 @@ class MegaRequest
             TYPE_BACKUP_PUT                                                 = 133,
             TYPE_BACKUP_REMOVE                                              = 134,
             TYPE_BACKUP_PUT_HEART_BEAT                                      = 135,
-            TYPE_FETCH_GOOGLE_ADS                                           = 136,  // deprecated
-            TYPE_QUERY_GOOGLE_ADS                                           = 137,  // deprecated
+            TYPE_FETCH_ADS                                                  = 136,
+            TYPE_QUERY_ADS                                                  = 137,
             TYPE_GET_ATTR_NODE                                              = 138,
             TYPE_LOAD_EXTERNAL_DRIVE_BACKUPS                                = 139,
             TYPE_CLOSE_EXTERNAL_DRIVE_BACKUPS                               = 140,
@@ -4390,6 +4390,8 @@ class MegaRequest
          * - MegaApi::sendBackupHeartbeat - Returns the last node backed up
          * - MegaApi::getChatLinkURL - Returns the public handle
          * - MegaApi::sendChatLogs - Returns the user handle
+         * - MegaApi::fetchAds - Returns public handle that the user is visiting (optionally)
+         * - MegaApi::queryAds - Returns public handle that the user is visiting (optionally)
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -4740,6 +4742,8 @@ class MegaRequest
          * - MegaApi::dismissBanner - Returns the timestamp of the request
          * - MegaApi::sendBackupHeartbeat - Returns the time associated with the request
          * - MegaApi::createPublicChat - Returns if chat room is a meeting room
+         * - MegaApi::fetchAds - Returns a bitmap flag used to communicate with the API
+         * - MegaApi::queryAds - Returns a bitmap flag used to communicate with the API
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -4971,6 +4975,7 @@ class MegaRequest
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
          * - MegaApi::getUserAttribute - Returns the attribute value
+         * - MegaApi::fetchAds - Returns ads
          *
          * @return String map including the key-value pairs of the attribute
          */
@@ -5056,6 +5061,9 @@ class MegaRequest
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
+         *
+         * This value is valid for these requests:
+         * - MegaApi::fetchAds - A list of the adslot ids to fetch
          *
          * @return String list
          */
@@ -9162,13 +9170,13 @@ class MegaApi
         };
 
         enum {
-            GOOGLE_ADS_DEFAULT = 0x0,                        // If you don't want to set any overrides/flags, then please provide 0
-            GOOGLE_ADS_FORCE_ADS = 0x200,                    // Force enable ads regardless of any other factors.
-            GOOGLE_ADS_IGNORE_MEGA = 0x400,                  // Show ads even if the current user or file owner is a MEGA employee.
-            GOOGLE_ADS_IGNORE_COUNTRY = 0x800,               // Show ads even if the user is not within an enabled country.
-            GOOGLE_ADS_IGNORE_IP = 0x1000,                   // Show ads even if the user is on a blacklisted IP (MEGA ips).
-            GOOGLE_ADS_IGNORE_PRO = 0x2000,                  // Show ads even if the current user or file owner is a PRO user.
-            GOOGLE_ADS_FLAG_IGNORE_ROLLOUT = 0x4000,         // Ignore the rollout logic which only servers ads to 10% of users based on their IP.
+            ADS_DEFAULT = 0x0,                        // If you don't want to set any overrides/flags, then please provide 0
+            ADS_FORCE_ADS = 0x200,                    // Force enable ads regardless of any other factors.
+            ADS_IGNORE_MEGA = 0x400,                  // Show ads even if the current user or file owner is a MEGA employee.
+            ADS_IGNORE_COUNTRY = 0x800,               // Show ads even if the user is not within an enabled country.
+            ADS_IGNORE_IP = 0x1000,                   // Show ads even if the user is on a blacklisted IP (MEGA ips).
+            ADS_IGNORE_PRO = 0x2000,                  // Show ads even if the current user or file owner is a PRO user.
+            ADS_FLAG_IGNORE_ROLLOUT = 0x4000,         // Ignore the rollout logic which only servers ads to 10% of users based on their IP.
         };
 
         enum
@@ -20533,22 +20541,58 @@ class MegaApi
         void sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode, MegaRequestListener *listener = nullptr);
 
         /**
-         * @brief Fetch Google ads
+         * @brief Fetch ads
          *
-         * The associated request type with this request is MegaRequest::TYPE_FETCH_GOOGLE_ADS
+         * The associated request type with this request is MegaRequest::TYPE_FETCH_ADS
+         * Valid data in the MegaRequest object received on callbacks:
+         *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
+         *  - MegaRequest::getMegaStringList List of the adslot ids to fetch
+         *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
          *
-         * @deprecated It returns API_EEXPIRED at onRequestFinish
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaStringMap: map with relationship between ids and ius
+         *
+         * @param adFlags A bitmap flag used to communicate with the API
+         * Valid values are:
+         *      - ADS_DEFAULT = 0x0
+         *      - ADS_FORCE_ADS = 0x200
+         *      - ADS_IGNORE_MEGA = 0x400
+         *      - ADS_IGNORE_COUNTRY = 0x800
+         *      - ADS_IGNORE_IP = 0x1000
+         *      - ADS_IGNORE_PRO = 0x2000
+         *      - ADS_FLAG_IGNORE_ROLLOUT = 0x4000
+         * @param adUnits A list of the adslot ids to fetch; it cannot be null nor empty
+         * @param publicHandle Provide the public handle that the user is visiting
+         * @param listener MegaRequestListener to track this request
          */
-        void fetchGoogleAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle = INVALID_HANDLE, MegaRequestListener *listener = nullptr);
+        void fetchAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle = INVALID_HANDLE, MegaRequestListener *listener = nullptr);
 
         /**
-         * @brief Check if Google ads should show or not
+         * @brief Check if ads should show or not
          *
-         * The associated request type with this request is MegaRequest::TYPE_QUERY_GOOGLE_ADS
+         * The associated request type with this request is MegaRequest::TYPE_QUERY_ADS
+         * Valid data in the MegaRequest object received on callbacks:
+         *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
+         *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
          *
-         * @deprecated It returns API_EEXPIRED at onRequestFinish
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNumDetails Return if ads should be show or not
+         *
+         * @param adFlags A bitmap flag used to communicate with the API
+         * Valid values are:
+         *      - ADS_DEFAULT = 0x0
+         *      - ADS_FORCE_ADS = 0x200
+         *      - ADS_IGNORE_MEGA = 0x400
+         *      - ADS_IGNORE_COUNTRY = 0x800
+         *      - ADS_IGNORE_IP = 0x1000
+         *      - ADS_IGNORE_PRO = 0x2000
+         *      - ADS_FLAG_IGNORE_ROLLOUT = 0x4000
+         * @param publicHandle Provide the public handle that the user is visiting
+         * @param listener MegaRequestListener to track this request
          */
-        void queryGoogleAds(int adFlags, MegaHandle publicHandle = INVALID_HANDLE, MegaRequestListener *listener = nullptr);
+        void queryAds(int adFlags, MegaHandle publicHandle = INVALID_HANDLE, MegaRequestListener *listener = nullptr);
 
         /**
          * @brief Set a bitmap to indicate whether some cookies are enabled or not
