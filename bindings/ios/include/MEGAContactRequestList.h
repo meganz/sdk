@@ -22,6 +22,8 @@
 #import <Foundation/Foundation.h>
 #import "MEGAContactRequest.h"
 
+NS_ASSUME_NONNULL_BEGIN
+
 /**
  * @brief List of MEGAContactRequest objects
  *
@@ -34,21 +36,7 @@
 /**
  * @brief The number of MEGAContactRequest objects in the list.
  */
-@property (readonly, nonatomic) NSNumber *size;
-
-/**
- * @brief Creates a copy of this MEGAContactRequestList object.
- *
- * The resulting object is fully independent of the source MEGAContactRequestList,
- * it contains a copy of all internal attributes, so it will be valid after
- * the original object is deleted.
- *
- * You are the owner of the returned object.
- *
- * @return Copy of the MEGAContactRequestList object.
- */
-- (instancetype)clone;
-
+@property (readonly, nonatomic) NSInteger size;
 
 /**
  * @brief Returns the MEGAContactRequest at the position index in the MEGAContactRequestList.
@@ -58,6 +46,8 @@
  * @param index Position of the MEGAContactRequest that we want to get for the list.
  * @return MEGAContactRequest at the position index in the list.
  */
-- (MEGAContactRequest *)contactRequestAtIndex:(NSInteger)index;
+- (nullable MEGAContactRequest *)contactRequestAtIndex:(NSInteger)index;
 
 @end
+
+NS_ASSUME_NONNULL_END
