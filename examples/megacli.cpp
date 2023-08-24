@@ -9911,8 +9911,8 @@ void DemoAppFolder::nodes_updated(sharedNode_vector* nodes, int count)
     }
     else
     {
-        sharedNode_vector nodes = client->mNodeManager.getRootNodes();
-        for (auto& node : nodes)
+        sharedNode_vector rootNodes = client->mNodeManager.getRootNodes();
+        for (auto& node : rootNodes)
         {
             c[1][node->type] ++;
             c[1][FOLDERNODE] += static_cast<int>(node->getCounter().folders);
