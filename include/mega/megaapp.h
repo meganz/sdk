@@ -268,10 +268,10 @@ struct MEGA_API MegaApp
     virtual void chats_updated(textchat_map *, int) { }
     virtual void richlinkrequest_result(string*, error) { }
     virtual void chatlink_result(handle, error) { }
-    virtual void chatlinkurl_result (handle chatid, int shard, string* link, string* ct
-                 , int numPeers, m_time_t ts, bool meetingRoom, int chatOptions
-                 , const std::vector<std::unique_ptr<ScheduledMeeting>>* smList
-                 , handle callid, error e) { }
+    virtual void chatlinkurl_result (handle chatid, int shard, string* link, string* ct,
+                                     int numPeers, m_time_t ts, bool meetingRoom, int chatOptions,
+                                     const std::vector<std::unique_ptr<ScheduledMeeting>>* smList,
+                                     handle callid, error e) { }
 
     virtual void chatlinkclose_result(error) { }
     virtual void chatlinkjoin_result(error) { }
