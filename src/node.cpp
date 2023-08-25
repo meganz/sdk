@@ -72,8 +72,6 @@ Node::Node(MegaClient& cclient, NodeHandle h, NodeHandle ph,
     {
         mCounter.folders = 1;
     }
-
-    client->mNodeManager.increaseNumNodesInRam();
 }
 
 Node::~Node()
@@ -86,9 +84,8 @@ Node::~Node()
 
     // abort pending direct reads
     client->preadabort(this);
-
-    client->mNodeManager.decreaseNumNodesInRam();
 }
+
 int Node::getShareType() const
 {
     int shareType = ShareType_t::NO_SHARES;
@@ -3632,27 +3629,19 @@ bool CloudNode::isIgnoreFile() const
 }
 
 NodeManagerNode::NodeManagerNode(NodeManager& nodeManager, NodeHandle nodeHandle)
-    : mLRUPosition(nodeManager.invalidCacheLRUPos())
-    , mNodeHandle(nodeHandle)
+    : mNodeHandle(nodeHandle)
     , mNodeManager(nodeManager)
 {
 }
 
 void NodeManagerNode::setNode(shared_ptr<Node> node)
 {
-    assert(mNode.expired());
     mNode = node;
 }
 
-shared_ptr<Node> NodeManagerNode::getNodeInRam(bool updatePositionAtLRU)
+shared_ptr<Node> NodeManagerNode::getNodeInRam()
 {
-    shared_ptr<Node> node = mNode.lock();
-    if (node && updatePositionAtLRU)
-    {
-        mNodeManager.insertNodeCacheLRU(node);
-    }
-
-    return node;
+    return mNode;
 }
 
 NodeHandle NodeManagerNode::getNodeHandle() const

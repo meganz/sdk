@@ -31,7 +31,6 @@ namespace mega {
 
 NodeManager::NodeManager(MegaClient& client)
     : mClient(client)
-    , mNodesInRam(0)
 {
 }
 
@@ -301,8 +300,7 @@ sharedNode_list NodeManager::getChildren_internal(const Node *parent, CancelToke
 
             if (child.second)
             {
-                shared_ptr<Node> node = getNodeFromNodeManagerNode(*child.second);
-                childrenList.push_back(node);
+                childrenList.push_back(child.second->getNodeInRam());
             }
             else
             {
@@ -323,10 +321,7 @@ sharedNode_list NodeManager::getChildren_internal(const Node *parent, CancelToke
             {
                 if (child.second)
                 {
-                    if (shared_ptr<Node> node = child.second->getNodeInRam())
-                    {
-                        childrenList.push_back(node);
-                    }
+                    childrenList.push_back(child.second->getNodeInRam());
                 }
             }
         }
@@ -636,21 +631,12 @@ sharedNode_vector NodeManager::getNodesByFingerprint_internal(FileFingerprint &f
             // avoid to load already loaded nodes (found at mFingerPrints)
             if (fpLoaded.find(nodeIt.first) == fpLoaded.end())
             {
-                std::shared_ptr<Node> node;
-                auto it = mNodes.find(nodeIt.first);
-                if (it != mNodes.end())
-                {
-                    node = it->second.getNodeInRam();
-                }
+                std::shared_ptr<Node> node = getNodeFromNodeSerialized(nodeIt.second);
 
                 if (!node)
                 {
-                    node = getNodeFromNodeSerialized(nodeIt.second);
-                    if (!node)
-                    {
-                        nodes.clear();
-                        return nodes;
-                    }
+                    nodes.clear();
+                    return nodes;
                 }
 
                 nodes.push_back(node);
@@ -716,9 +702,8 @@ std::shared_ptr<Node> NodeManager::getNodeByFingerprint_internal(FileFingerprint
     fingerprint.FileFingerprint::serialize(&fingerprintString);
     NodeHandle handle;
     mTable->getNodeByFingerprint(fingerprintString, nodeSerialized, handle);
-    auto itNode = mNodes.find(handle);
-    std::shared_ptr<Node> node = itNode != mNodes.end() ? itNode->second.getNodeInRam() : nullptr;
-    if (!node && nodeSerialized.mNode.size()) // nodes with that fingerprint found in DB
+    std::shared_ptr<Node> node;
+    if (nodeSerialized.mNode.size()) // nodes with that fingerprint found in DB
     {
         node = getNodeFromNodeSerialized(nodeSerialized);
     }
@@ -1177,7 +1162,7 @@ void NodeManager::removeChanges_internal()
 
     for (auto& it : mNodes)
     {
-        std::shared_ptr<Node> node = it.second.getNodeInRam(false);
+        std::shared_ptr<Node> node = it.second.getNodeInRam();
         if (node)
         {
             memset(&(node->changed), 0, sizeof node->changed);
@@ -1197,7 +1182,6 @@ void NodeManager::cleanNodes_internal()
 
     mFingerPrints.clear();
     mNodes.clear();
-    mCacheLRU.clear();
     mNodesInRam = 0;
     mNodeToWriteInDb.reset();
     mNodeNotify.clear();
@@ -1233,11 +1217,10 @@ shared_ptr<Node> NodeManager::unserializeNode(const std::string *d, bool fromOld
         auto pair = mNodes.emplace(n->nodeHandle(), NodeManagerNode(*this, n->nodeHandle()));
         // The NodeManagerNode could have been added in the initial fetch nodes (without session)
         // Now, the node is loaded from DB, NodeManagerNode is updated with correct values
+        mNodesInRam++;
         auto& nodePosition = pair.first;
         nodePosition->second.setNode(n);
         n->mNodePosition = nodePosition;
-
-        insertNodeCacheLRU_internal(n);
 
         // setparent() skiping update of node counters, since they are already calculated in DB
         // In DB migration we have to calculate them as they aren't calculated previously
@@ -1269,7 +1252,7 @@ void NodeManager::applyKeys_internal(uint32_t appliedKeys)
     {
         for (auto& it : mNodes)
         {
-            if (shared_ptr<Node> node = it.second.getNodeInRam(false))
+            if (shared_ptr<Node> node = it.second.getNodeInRam())
             {
                node->applykey();
             }
@@ -1361,12 +1344,7 @@ void NodeManager::notifyPurge()
 
                 removeFingerprint(n.get());
 
-                // effectively delete node from RAM
-                if (n->mNodePosition->second.mLRUPosition != mCacheLRU.end())
-                {
-                    mCacheLRU.erase(n->mNodePosition->second.mLRUPosition);
-                }
-
+                mNodesInRam--;
                 mNodes.erase(n->mNodePosition);
                 n->mNodePosition = mNodes.end();
 
@@ -1448,12 +1426,11 @@ void NodeManager::saveNodeInRAM(std::shared_ptr<Node> node, bool isRootnode, Mis
 
     auto pair = mNodes.emplace(node->nodeHandle(), NodeManagerNode(*this, node->nodeHandle()));
     // The NodeManagerNode could have been added by NodeManager::addChild() but, in that case, mNode would be invalid
+    mNodesInRam++;
     auto& nodePosition = pair.first;
     nodePosition->second.setNode(node);
     nodePosition->second.mAllChildrenHandleLoaded = true; // Receive a new node, children aren't received yet or they are stored a mNodesWithMissingParents
     node->mNodePosition = nodePosition;
-
-    insertNodeCacheLRU_internal(node);
 
     // In case of rootnode, no need to add to missingParentNodes
     if (!isRootnode)
@@ -1587,43 +1564,9 @@ std::shared_ptr<Node> NodeManager::getNodeFromNodeManagerNode(NodeManagerNode& n
 {
     LockGuard g(mMutex);
     shared_ptr<Node> node = nodeManagerNode.getNodeInRam();
-    if (!node)
-    {
-        node = getNodeFromDataBase(nodeManagerNode.getNodeHandle());
-    }
+    assert(!node);
 
     return node;
-}
-
-void NodeManager::insertNodeCacheLRU(std::shared_ptr<Node> node)
-{
-    LockGuard g(mMutex);
-    insertNodeCacheLRU_internal(node);
-}
-
-void NodeManager::increaseNumNodesInRam()
-{
-    mNodesInRam++;
-}
-
-void NodeManager::decreaseNumNodesInRam()
-{
-    mNodesInRam--;
-}
-
-uint64_t NodeManager::getCacheLRUMaxSize() const
-{
-    return mCacheLRUMaxSize;
-}
-
-void NodeManager::setCacheLRUMaxSize(uint64_t cacheLRUMaxSize)
-{
-    mCacheLRUMaxSize = cacheLRUMaxSize;
-}
-
-uint64_t NodeManager::getNumNodesAtCacheLRU() const
-{
-    return mCacheLRU.size();
 }
 
 void NodeManager::initCompleted_internal()
@@ -1643,38 +1586,6 @@ void NodeManager::initCompleted_internal()
     }
 
     mTable->createIndexes();
-}
-
-void NodeManager::insertNodeCacheLRU_internal(std::shared_ptr<Node> node)
-{
-    assert(mMutex.locked());
-    if (node->mNodePosition->second.mLRUPosition != mCacheLRU.end())
-    {
-        mCacheLRU.erase(node->mNodePosition->second.mLRUPosition);
-    }
-
-    mCacheLRU.push_front(node);
-    node->mNodePosition->second.mLRUPosition = mCacheLRU.begin();
-    if (mCacheLRU.size() > mCacheLRUMaxSize)
-    {
-        unLoadNodeFromCacheLRU();
-    }
-
-    // setfingerprint again to force to insert into NodeManager::mFingerPrints
-    // only nodes in LRU are at NodeManager::mFingerPrints
-    if (node->mFingerPrintPosition == invalidFingerprintPos())
-    {
-        node->setfingerprint();
-    }
-}
-
-void NodeManager::unLoadNodeFromCacheLRU()
-{
-    assert(mMutex.locked());
-    std::shared_ptr<Node> node = mCacheLRU.back();
-    removeFingerprint(node.get(), true);
-    node->mNodePosition->second.mLRUPosition = invalidCacheLRUPos();
-    mCacheLRU.erase(std::prev(mCacheLRU.end()));
 }
 
 NodeCounter NodeManager::getCounterOfRootNodes()
@@ -1796,12 +1707,6 @@ FingerprintPosition NodeManager::invalidFingerprintPos()
 {
     // no locking for this one, it returns a constant
     return mFingerPrints.end();
-}
-
-std::list<std::shared_ptr<Node> >::iterator NodeManager::invalidCacheLRUPos()
-{
-    // no locking for this one, it returns a constant
-    return mCacheLRU.end();
 }
 
 void NodeManager::dumpNodes()

@@ -4467,11 +4467,6 @@ long long MegaApi::getNumNodes()
     return pImpl->getNumNodes();
 }
 
-void MegaApi::setLRUCacheSize(long long size)
-{
-    pImpl->setLRUCacheSize(size);
-}
-
 long long MegaApi::getTotalDownloadedBytes()
 {
     return pImpl->getTotalDownloadedBytes();

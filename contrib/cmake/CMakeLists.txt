@@ -1046,7 +1046,6 @@ add_executable(test_unit
     ${MegaDir}/tests/unit/utils.cpp
     ${MegaDir}/tests/unit/utils.h
     ${MegaDir}/tests/unit/utils_test.cpp
-    ${MegaDir}/tests/unit/CacheLRU_test.cpp
     ${MegaDir}/tests/integration/process.cpp
 )
 
