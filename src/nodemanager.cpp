@@ -1618,7 +1618,10 @@ uint64_t NodeManager::getCacheLRUMaxSize() const
 
 void NodeManager::setCacheLRUMaxSize(uint64_t cacheLRUMaxSize)
 {
+    LockGuard g(mMutex);
     mCacheLRUMaxSize = cacheLRUMaxSize;
+
+    unLoadNodeFromCacheLRU(); // check if it's necessary unload nodes
 }
 
 uint64_t NodeManager::getNumNodesAtCacheLRU() const
@@ -1655,10 +1658,7 @@ void NodeManager::insertNodeCacheLRU_internal(std::shared_ptr<Node> node)
 
     mCacheLRU.push_front(node);
     node->mNodePosition->second.mLRUPosition = mCacheLRU.begin();
-    if (mCacheLRU.size() > mCacheLRUMaxSize)
-    {
-        unLoadNodeFromCacheLRU();
-    }
+    unLoadNodeFromCacheLRU(); // check if it's necessary unload nodes
 
     // setfingerprint again to force to insert into NodeManager::mFingerPrints
     // only nodes in LRU are at NodeManager::mFingerPrints
@@ -1671,10 +1671,13 @@ void NodeManager::insertNodeCacheLRU_internal(std::shared_ptr<Node> node)
 void NodeManager::unLoadNodeFromCacheLRU()
 {
     assert(mMutex.locked());
-    std::shared_ptr<Node> node = mCacheLRU.back();
-    removeFingerprint(node.get(), true);
-    node->mNodePosition->second.mLRUPosition = invalidCacheLRUPos();
-    mCacheLRU.erase(std::prev(mCacheLRU.end()));
+    while (mCacheLRU.size() > mCacheLRUMaxSize)
+    {
+        std::shared_ptr<Node> node = mCacheLRU.back();
+        removeFingerprint(node.get(), true);
+        node->mNodePosition->second.mLRUPosition = invalidCacheLRUPos();
+        mCacheLRU.erase(std::prev(mCacheLRU.end()));
+    }
 }
 
 NodeCounter NodeManager::getCounterOfRootNodes()

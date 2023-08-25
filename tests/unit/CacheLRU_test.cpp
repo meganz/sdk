@@ -1,6 +1,6 @@
 /**
- * @file nodemanager.cpp
- * @brief Client access engine core logic
+ * @file CacheLRU_test.cpp
+ * @brief Unitary test for cache LRU
  *
  * (c) 2013-2023 by Mega Limited, Auckland, New Zealand
  *
@@ -760,4 +760,72 @@ TEST(CacheLRU, childNodeByNameType)
     //Found at LRU
     node = client->mNodeManager.childNodeByNameType(&folder, names.back().c_str(), mega::nodetype_t::FILENODE);
     ASSERT_NE(node, nullptr);
+}
+
+
+TEST(CacheLRU, reduceCacheLRUSize)
+{
+    mega::MegaApp app;
+    mega::SqliteDbAccess* dbAccess = new mega::SqliteDbAccess(mega::LocalPath::fromAbsolutePath("."));
+
+    uint32_t LRUsize = 20;
+
+    auto client = mt::makeClient(app, dbAccess);
+    client->sid = "AWA5YAbtb4JO-y2zWxmKZpSe5-6XM7CTEkA-3Nv7J4byQUpOazdfSC1ZUFlS-kah76gPKUEkTF9g7MeE";
+
+    client->opensctable();
+    client->mNodeManager.setCacheLRUMaxSize(LRUsize);
+
+    uint64_t index = 1;
+
+    mega::NodeManager::MissingParentNodes missingParentNodes;
+    auto& rootNode = mt::makeNode(*client, mega::nodetype_t::ROOTNODE, mega::NodeHandle().set6byte(index++), nullptr);
+    std::shared_ptr<mega::Node> auxiliarRootNode(&rootNode);
+    client->mNodeManager.addNode(auxiliarRootNode, false, true, missingParentNodes);
+    client->mNodeManager.saveNodeInDb(auxiliarRootNode.get());
+
+    auto& vaultNode = mt::makeNode(*client, mega::nodetype_t::VAULTNODE, mega::NodeHandle().set6byte(index++), nullptr);
+    std::shared_ptr<mega::Node>auxiliarNode(&vaultNode);
+    client->mNodeManager.addNode(auxiliarNode, false, true, missingParentNodes);
+    client->mNodeManager.saveNodeInDb(auxiliarNode.get());
+
+    auto& rubbishbin = mt::makeNode(*client, mega::nodetype_t::RUBBISHNODE, mega::NodeHandle().set6byte(index++), nullptr);
+    auxiliarNode.reset(&rubbishbin);
+    client->mNodeManager.addNode(auxiliarNode, false, true, missingParentNodes);
+    client->mNodeManager.saveNodeInDb(auxiliarNode.get());
+
+    ASSERT_EQ(client->mNodeManager.getNumberNodesInRam(), 3);
+
+    auto& folder = mt::makeNode(*client, mega::nodetype_t::FOLDERNODE, mega::NodeHandle().set6byte(index++), &rootNode);
+    auxiliarNode.reset(&folder);
+    client->mNodeManager.addNode(auxiliarNode, false, true, missingParentNodes);
+    client->mNodeManager.saveNodeInDb(auxiliarNode.get());
+
+    uint32_t numNodes = LRUsize;
+    for (uint32_t i = 0; i < numNodes; i++)
+    {
+        auto& file = mt::makeNode(*client, mega::nodetype_t::FILENODE, mega::NodeHandle().set6byte(index++), &folder);
+        file.size = index;
+        file.owner = 88;
+        file.ctime = 44;
+        std::string name = "name" + std::to_string(index);
+        file.attrs.map = std::map<mega::nameid, std::string>{{101, "foo"}, {102, "bar"},{110, name}};
+        client->mNodeManager.addNode(auxiliarNode, true, false, missingParentNodes);
+        client->mNodeManager.saveNodeInDb(auxiliarNode.get());
+    }
+
+    // Root node + rubbish + vault
+    ASSERT_EQ(client->mNodeManager.getNumberNodesInRam(), LRUsize + 3);
+    // Root node + rubbish + vault + folder
+    ASSERT_EQ(client->mNodeManager.getNodeCount(), numNodes + 4);
+
+    LRUsize = 8;
+
+    client->mNodeManager.setCacheLRUMaxSize(LRUsize);
+
+    // Root node + rubbish + vault
+    ASSERT_EQ(client->mNodeManager.getNumberNodesInRam(), LRUsize + 3);
+    // Root node + rubbish + vault + folder
+    ASSERT_EQ(client->mNodeManager.getNodeCount(), numNodes + 4);
+
 }
