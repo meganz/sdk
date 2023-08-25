@@ -893,6 +893,14 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
 */
 - (void)getSessionTransferURL:(NSString *)path;
 
+/**
+ * @brief Returns a new MEGAStringList that contains the given list of strings.
+ *
+ * @param stringList Array of string that will be converted to MEGAStringList.
+ * @return MEGAStringList from the given list of strings.
+ */
+- (MEGAStringList *)getMegaStringList:(NSArray<NSString *>*)stringList;
+
 #pragma mark - Login Requests
 
 /**

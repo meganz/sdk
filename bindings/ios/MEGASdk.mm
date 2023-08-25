@@ -547,6 +547,15 @@ using namespace mega;
     }
 }
 
+- (MEGAStringList *)getMegaStringList:(NSArray<NSString *>*)stringList {
+    MegaStringList* list = mega::MegaStringList::createInstance();
+    for (NSString* string in stringList) {
+        list->add([string UTF8String]);
+    }
+    
+    return [[MEGAStringList alloc] initWithMegaStringList:list cMemoryOwn:YES];
+}
+
 #pragma mark - Login Requests
 
 - (BOOL)multiFactorAuthAvailable {
