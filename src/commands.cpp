@@ -7916,11 +7916,11 @@ bool CommandChatLinkURL::procresult(Result r, JSON& json)
                     waitingRoom = json.getbool();
                     break;
 
-                case MAKENAMEID2('s','r'): // speak request
+                case MAKENAMEID2('s','r'):
                     speakRequest = json.getbool();
                     break;
 
-                case MAKENAMEID2('o','i'): // open invite
+                case MAKENAMEID2('o','i'):
                     openInvite = json.getbool();
                     break;
 
@@ -7937,9 +7937,9 @@ bool CommandChatLinkURL::procresult(Result r, JSON& json)
                 case EOO:
                     if (chatid != UNDEF && shard != -1 && !url.empty() && !ct.empty() && numPeers != -1)
                     {
-                        client->app->chatlinkurl_result(chatid, shard, &url, &ct, numPeers, ts, meetingRoom
-                                                            , ChatOptions(speakRequest, waitingRoom ,openInvite).value()
-                                                            , &schedMeetings, callid, API_OK);
+                        client->app->chatlinkurl_result(chatid, shard, &url, &ct, numPeers, ts, meetingRoom,
+							ChatOptions(speakRequest, waitingRoom, openInvite).value(),
+							&schedMeetings, callid, API_OK);
                     }
                     else
                     {
