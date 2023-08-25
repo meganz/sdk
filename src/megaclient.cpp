@@ -12023,7 +12023,7 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
 
                     LOG_debug << "Enabling in-use flag for the sharekey in KeyManager. nh: " << toNodeHandle(nodehandle);
                     mKeyManager.commit(
-                    [this, nodehandle, completion]()
+                    [this, nodehandle]()
                     {
                         mKeyManager.setSharekeyInUse(nodehandle, true);
                     },
