@@ -11917,6 +11917,11 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
                     [this, nodehandle]()
                     {
                         mKeyManager.setSharekeyInUse(nodehandle, false);
+
+                    },
+                    [completion, e, writable]()
+                    {
+                        completion(e, writable);
                     });
                 }
                 else if (mKeyManager.isShareKeyTrusted(nodehandle))
@@ -11929,7 +11934,6 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
             {
                 delete u;
             }
-            completion(e, writable);
         }));
         return;
     }
@@ -12019,9 +12023,13 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
 
                     LOG_debug << "Enabling in-use flag for the sharekey in KeyManager. nh: " << toNodeHandle(nodehandle);
                     mKeyManager.commit(
-                    [this, nodehandle]()
+                    [this, nodehandle, completion]()
                     {
                         mKeyManager.setSharekeyInUse(nodehandle, true);
+                    },
+                    [completion, e, writable]()
+                    {
+                        completion(e, writable);
                     });
                 }
                 else
@@ -12040,7 +12048,6 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
                 }
             }
 
-            completion(e, writable);
             if (user && user->isTemporary) delete user;
         }));
     };
