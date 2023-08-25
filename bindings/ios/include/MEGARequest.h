@@ -172,8 +172,8 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeBackupPut,
     MEGARequestTypeBackupRemove,
     MEGARequestTypeBackupPutHeartbeat,
-    MEGARequestTypeFetchGoogleAds, // Deprecated
-    MEGARequestTypeQueryGoogleAds, // Deprecated
+    MEGARequestTypeFetchAds,
+    MEGARequestTypeQueryAds,
     MEGARequestTypeGetAttrNode,
     MEGARequestTypeLoadExternalDriveBackups,
     MEGARequestTypeCloseExternalDriveBackups,

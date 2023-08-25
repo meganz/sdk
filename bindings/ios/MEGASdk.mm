@@ -30,6 +30,7 @@
 #import "MEGANodeList+init.h"
 #import "MEGAUserList+init.h"
 #import "MEGAUserAlertList+init.h"
+#import "MEGAStringList+init.h"
 #import "MEGAError+init.h"
 #import "MEGAShareList+init.h"
 #import "MEGAContactRequest+init.h"
@@ -3966,6 +3967,19 @@ using namespace mega;
 - (NSInteger)getABTestValue:(NSString*)flag {
     if (self.megaApi == nil) return 0;
     return self.megaApi->getABTestValue((const char *)flag.UTF8String);
+}
+
+#pragma mark - Ads
+- (void)fetchAds:(AdsFlag)adFlags adUnits:(MEGAStringList *)adUnits publicHandle:(MEGAHandle)publicHandle delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->fetchAds((int)adFlags, adUnits.getCPtr, publicHandle, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (void)queryAds:(AdsFlag)adFlags publicHandle:(MEGAHandle)publicHandle delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->queryAds((int)adFlags, publicHandle, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
 }
 
 @end
