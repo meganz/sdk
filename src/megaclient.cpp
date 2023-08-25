@@ -11924,10 +11924,18 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
                         completion(e, writable);
                     });
                 }
-                else if (mKeyManager.isShareKeyTrusted(nodehandle))
+                else
                 {
-                    LOG_warn << "in-use flag was already disabled for the sharekey in KeyManager when removing the last share. nh: " << toNodeHandle(nodehandle);
+                    if (mKeyManager.isShareKeyTrusted(nodehandle))
+                    {
+                        LOG_warn << "in-use flag was already disabled for the sharekey in KeyManager when removing the last share. nh: " << toNodeHandle(nodehandle);
+                    }
+                    completion(e, writable);
                 }
+            }
+            else
+            {
+                completion(e, writable);
             }
 
             if (u && u->isTemporary)
@@ -12045,7 +12053,12 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
                         sendevent(99479, msg.c_str());
                         assert(!newshare && msg.c_str());
                     }
+                    completion(e, writable);
                 }
+            }
+            else
+            {
+                completion(e, writable);
             }
 
             if (user && user->isTemporary) delete user;
