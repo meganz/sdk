@@ -16000,6 +16000,15 @@ class MegaApi
          */
         long long getNumNodes();
 
+        /**
+         * @brief Set LRU cache size
+         *
+         * By default it's defined at long long max value
+         *
+         * @param size LRU cache size (negative number means there isn't limit)
+         */
+        void setLRUCacheSize(long long size);
+
         enum { ORDER_NONE = 0, ORDER_DEFAULT_ASC, ORDER_DEFAULT_DESC,
             ORDER_SIZE_ASC, ORDER_SIZE_DESC,
             ORDER_CREATION_ASC, ORDER_CREATION_DESC,

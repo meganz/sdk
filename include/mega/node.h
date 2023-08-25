@@ -138,13 +138,15 @@ public:
     std::unique_ptr<std::map<NodeHandle, NodeManagerNode*>> mChildren;
     bool mAllChildrenHandleLoaded = false;
     void setNode(shared_ptr<Node> node);
-    shared_ptr<Node> getNodeInRam();
+    shared_ptr<Node> getNodeInRam(bool updatePositionAtLRU = true);
     NodeHandle getNodeHandle() const;
+
+    std::list<std::shared_ptr<Node> >::iterator mLRUPosition;
 
 private:
     NodeHandle mNodeHandle;
     NodeManager& mNodeManager;
-    shared_ptr<Node> mNode;
+    weak_ptr<Node> mNode;
 };
 typedef std::map<NodeHandle, NodeManagerNode>::iterator NodePosition;
 
