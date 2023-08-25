@@ -154,14 +154,27 @@ function setupEnv()
     local ABI="${1}"
 
     if [[ "$OSTYPE" == "darwin"* ]]; then
-        export TOOLCHAIN="${NDK_ROOT}/toolchains/llvm/prebuilt/darwin-x86_64"
+        export HOST_TYPE="darwin"
     else
-        export TOOLCHAIN="${NDK_ROOT}/toolchains/llvm/prebuilt/linux-x86_64"
+        export HOST_TYPE="linux"
     fi
-    export AR=$TOOLCHAIN/bin/llvm-ar
-    export LD=$TOOLCHAIN/bin/ld
-    export RANLIB=$TOOLCHAIN/bin/llvm-ranlib
-    export STRIP=$TOOLCHAIN/bin/llvm-strip
+    if [ "${ABI}" == "armeabi-v7a" ]; then
+        TARGET_HOST=arm-linux-androideabi
+    elif [ "${ABI}" == "arm64-v8a" ]; then
+        TARGET_HOST=aarch64-linux-android
+    elif [ "${ABI}" == "x86" ]; then
+        TARGET_HOST=x86
+    elif [ "${ABI}" == "x86_64" ]; then
+        TARGET_HOST=x86_64
+    fi
+
+    export LLVM_TOOL_CHAIN="${NDK_ROOT}/toolchains/llvm/prebuilt/${HOST_TYPE}-x86_64"
+    export CROSS_COMPILER_TOOLCHAIN="${NDK_ROOT}/toolchains/${TARGET_HOST}-4.9/prebuilt/${HOST_TYPE}-x86_64/bin"
+
+    export AR=$LLVM_TOOL_CHAIN/bin/llvm-ar
+    export LD=$LLVM_TOOL_CHAIN/bin/ld
+    export RANLIB=$LLVM_TOOL_CHAIN/bin/llvm-ranlib
+    export STRIP=$LLVM_TOOL_CHAIN/bin/llvm-strip
 
     if [ "${ABI}" == "armeabi-v7a" ]; then
         export TARGET_HOST="armv7a-linux-androideabi"
@@ -173,9 +186,9 @@ function setupEnv()
         export TARGET_HOST="x86_64-linux-android"
     fi
 
-    export CC=$TOOLCHAIN/bin/${TARGET_HOST}${API_LEVEL}-clang
+    export CC=$LLVM_TOOL_CHAIN/bin/${TARGET_HOST}${API_LEVEL}-clang
     export AS=$CC
-    export CXX=$TOOLCHAIN/bin/${TARGET_HOST}${API_LEVEL}-clang++
+    export CXX=$LLVM_TOOL_CHAIN/bin/${TARGET_HOST}${API_LEVEL}-clang++
 }
 
 function cleanEnv()
@@ -476,7 +489,7 @@ if [ ! -f ${OPENSSL}/${OPENSSL_SOURCE_FILE}.ready ]; then
         setupEnv "x86"
 
         #PATH=$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/:$ORIG_PATH\
-        PATH=${TOOLCHAIN}/bin/:$NDK_ROOT/toolchains/x86-4.9/prebuilt/darwin-x86_64/bin:$ORIG_PATH
+        PATH=${LLVM_TOOL_CHAIN}/bin:${CROSS_COMPILER_TOOLCHAIN}:$ORIG_PATH
 
         mkdir -p openssl-android-x86/
         ./Configure android-x86 -D__ANDROID_API__=${API_LEVEL} --openssldir=${PWD}/openssl-android-x86/ --prefix=${PWD}/openssl-android-x86/ &>> ${LOG_FILE}
@@ -489,7 +502,7 @@ if [ ! -f ${OPENSSL}/${OPENSSL_SOURCE_FILE}.ready ]; then
         echo "* Prebuilding OpenSSL for ARMv7"
         setupEnv "armeabi-v7a"
 #        PATH=$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/:$ORIG_PATH
-        PATH=$TOOLCHAIN/bin/:$NDK_ROOT/toolchains/arm-linux-androideabi-4.9/prebuilt/darwin-x86_64/bin:$ORIG_PATH
+        PATH=${LLVM_TOOL_CHAIN}/bin:${CROSS_COMPILER_TOOLCHAIN}:$ORIG_PATH
         mkdir -p openssl-android-armeabi-v7a
         ./Configure android-arm -latomic -D__ANDROID_API__=${API_LEVEL} --openssldir=${PWD}/openssl-android-armeabi-v7a/ --prefix=${PWD}/openssl-android-armeabi-v7a/ &>> ${LOG_FILE}
         make -j${JOBS} &>> ${LOG_FILE}
@@ -501,7 +514,7 @@ if [ ! -f ${OPENSSL}/${OPENSSL_SOURCE_FILE}.ready ]; then
         echo "* Prebuilding OpenSSL for x86_64"
         setupEnv "x86_64"
         # PATH=$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/:$ORIG_PATH
-        PATH=$TOOLCHAIN/bin/:$NDK_ROOT/toolchains/x86_64-4.9/prebuilt/darwin-x86_64/bin:$ORIG_PATH
+        PATH=${LLVM_TOOL_CHAIN}:${CROSS_COMPILER_TOOLCHAIN}:$ORIG_PATH
         mkdir -p openssl-android-x86_64/
         ./Configure android-x86_64 -D__ANDROID_API__=${API_LEVEL} --openssldir=${PWD}/openssl-android-x86_64/ --prefix=${PWD}/openssl-android-x86_64/ &>> ${LOG_FILE}
         make -j${JOBS} &>> ${LOG_FILE}
@@ -513,7 +526,7 @@ if [ ! -f ${OPENSSL}/${OPENSSL_SOURCE_FILE}.ready ]; then
         echo "* Prebuilding OpenSSL for ARMv8"
         setupEnv "arm64-v8a"
         # PATH=$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/:$ORIG_PATH
-        PATH=${TOOLCHAIN}/bin/:$NDK_ROOT/toolchains/aarch64-linux-android-4.9/prebuilt/darwin-x86_64/aarch64-linux-android/bin:$ORIG_PATH
+        PATH=${LLVM_TOOL_CHAIN}/bin:${CROSS_COMPILER_TOOLCHAIN}:$ORIG_PATH
 
         mkdir -p openssl-android-arm64-v8a
         ./Configure android-arm64 -latomic -D__ANDROID_API__=${API_LEVEL} --openssldir=${PWD}/openssl-android-arm64-v8a/ --prefix=${PWD}/openssl-android-arm64-v8a/ &>> ${LOG_FILE}
