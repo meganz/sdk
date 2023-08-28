@@ -60,7 +60,7 @@ API_LEVEL=`echo ${APP_PLATFORM} | cut -d'-' -f2`
 if [[ "$OSTYPE" == "darwin"* ]]; then
     JOBS=$(sysctl -n hw.ncpu)
 else
-    JOBS=8
+    JOBS=$(nproc)
 fi
 if [ -z "${LOG_FILE}" ]; then
     # If no build log variable is defined, use below value.
