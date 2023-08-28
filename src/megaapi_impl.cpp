@@ -3209,12 +3209,12 @@ void MegaTransferPrivate::setFileName(const char* fileName)
     this->fileName =  MegaApi::strdup(fileName);
 }
 
-void MegaTransferPrivate::setNodeHandle(uint64_t nodeHandle)
+void MegaTransferPrivate::setNodeHandle(MegaHandle nodeHandle)
 {
     this->nodeHandle = nodeHandle;
 }
 
-void MegaTransferPrivate::setParentHandle(uint64_t parentHandle)
+void MegaTransferPrivate::setParentHandle(MegaHandle parentHandle)
 {
     this->parentHandle = parentHandle;
 }

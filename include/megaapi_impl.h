@@ -1061,7 +1061,6 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
 		void setParentPath(const char* path);
         void setNodeHandle(MegaHandle nodeHandle);
         void setParentHandle(MegaHandle parentHandle);
-		void setNumConnections(int connections);
 		void setStartPos(long long startPos);
 		void setEndPos(long long endPos);
 		void setNumRetry(int retry);
@@ -1069,7 +1068,6 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
 		void setMaxRetries(int retry);
         void setTime(int64_t time);
 		void setFileName(const char* fileName);
-		void setSlot(int id);
 		void setTag(int tag);
 		void setSpeed(long long speed);
         void setMeanSpeed(long long meanSpeed);
