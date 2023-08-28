@@ -1293,6 +1293,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
     }
 }
 
+
 bool TransferSlot::tryRaidRecoveryFromHttpGetError(unsigned connectionNum, bool incrementErrors)
 {
     // If we are downloding a cloudraid file then we may be able to ignore one connection and download from the other 5.
@@ -1318,16 +1319,18 @@ bool TransferSlot::tryRaidRecoveryFromHttpGetError(unsigned connectionNum, bool 
     return false;
 }
 
+
 // transfer progress notification to app and related files
 void TransferSlot::progress()
 {
     transfer->client->app->transfer_update(transfer);
 
-    for (file_list::iterator it = transfer->files.begin(); it != transfer->files.end(); it++)
+    for (file_list::iterator it = transfer->files.begin(); it != transfer->files.end(); ++it)
     {
         (*it)->progress();
     }
 }
+
 
 m_off_t TransferSlot::updatecontiguousprogress()
 {
@@ -1347,6 +1350,7 @@ m_off_t TransferSlot::updatecontiguousprogress()
 
     return contiguousProgress;
 }
+
 
 void TransferSlot::prepareRequest(const std::shared_ptr<HttpReqXfer>& httpReq, const string& tempURL, m_off_t pos, m_off_t npos)
 {
