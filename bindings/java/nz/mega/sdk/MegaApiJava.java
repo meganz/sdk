@@ -256,6 +256,14 @@ public class MegaApiJava {
     public final static int BACKUP_TYPE_MEDIA_UPLOADS = MegaApi.BACKUP_TYPE_MEDIA_UPLOADS;
     public final static int BACKUP_TYPE_BACKUP_UPLOAD = MegaApi.BACKUP_TYPE_BACKUP_UPLOAD;
 
+    public final static int ADS_DEFAULT = MegaApi.ADS_DEFAULT;
+    public final static int ADS_FORCE_ADS = MegaApi.ADS_FORCE_ADS;
+    public final static int ADS_IGNORE_MEGA = MegaApi.ADS_IGNORE_MEGA;
+    public final static int ADS_IGNORE_COUNTRY = MegaApi.ADS_IGNORE_COUNTRY;
+    public final static int ADS_IGNORE_IP = MegaApi.ADS_IGNORE_IP;
+    public final static int ADS_IGNORE_PRO = MegaApi.ADS_IGNORE_PRO;
+    public final static int ADS_FLAG_IGNORE_ROLLOUT = MegaApi.ADS_FLAG_IGNORE_ROLLOUT;
+
 
     MegaApi getMegaApi() {
         return megaApi;
@@ -642,30 +650,12 @@ public class MegaApiJava {
      * <p>
      * Any value greater than 0 means he flag is active.
      *
-     * @param flag Name or key of the value to be retrieved.
+     * @param flag Name or key of the value to be retrieved, flag should not have ab_ prefix.
      *
      * @return A long with the value of the flag.
      */
     public long getABTestValue(String flag) {
         return megaApi.getABTestValue(flag);
-    }
-
-    /**
-     * Sends to the API an A/B Test flag activation.
-     * <p>
-     * Informs the API that a user has become relevant for an A/B Test flag.
-     * Can be called multiple times for the same account and flag.
-     * <p>
-     * The associated request type with this request is MegaRequest::TYPE_AB_TEST_ACTIVE
-     * <p>
-     * Valid data in the MegaRequest object received on all callbacks:
-     * - MegaRequest::getText - Returns the flag passed as parameter
-     *
-     * @param flag Name or key of the value to be retrieved.
-     * @param listener MegaRequestListener to track this request
-     */
-    public void sendABTestActive(String flag, MegaRequestListenerInterface listener) {
-        megaApi.sendABTestActive(flag, createDelegateRequestListener(listener));
     }
 
     /**
@@ -11621,6 +11611,65 @@ public class MegaApiJava {
                                     long ts, long lastNode, MegaRequestListenerInterface listener) {
         megaApi.sendBackupHeartbeat(backupId, status, progress, ups, downs, ts, lastNode,
                 createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Fetch ads
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_FETCH_ADS
+     * Valid data in the MegaRequest object received on callbacks:
+     *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
+     *  - MegaRequest::getMegaStringList List of the adslot ids to fetch
+     *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
+     * <p>
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaStringMap: map with relationship between ids and ius
+     *
+     * @param adFlags A bitmap flag used to communicate with the API
+     * Valid values are:
+     *      - ADS_DEFAULT = 0x0
+     *      - ADS_FORCE_ADS = 0x200
+     *      - ADS_IGNORE_MEGA = 0x400
+     *      - ADS_IGNORE_COUNTRY = 0x800
+     *      - ADS_IGNORE_IP = 0x1000
+     *      - ADS_IGNORE_PRO = 0x2000
+     *      - ADS_FLAG_IGNORE_ROLLOUT = 0x4000
+     * @param adUnits MegaStringList, a list of the adslot ids to fetch; it cannot be null nor empty
+     * @param publicHandle MegaHandle, provide the public handle that the user is visiting
+     * @param listener MegaRequestListener to track this request
+     */
+    public void fetchAds(int adFlags, MegaStringList adUnits, long publicHandle,
+                         MegaRequestListenerInterface listener) {
+        megaApi.fetchAds(adFlags, adUnits, publicHandle, createDelegateRequestListener(listener));
+    };
+
+    /**
+     * Check if ads should show or not
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_QUERY_ADS
+     * Valid data in the MegaRequest object received on callbacks:
+     *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
+     *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
+     * <p>
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNumDetails Return if ads should be show or not
+     *
+     * @param adFlags A bitmap flag used to communicate with the API
+     * Valid values are:
+     *      - ADS_DEFAULT = 0x0
+     *      - ADS_FORCE_ADS = 0x200
+     *      - ADS_IGNORE_MEGA = 0x400
+     *      - ADS_IGNORE_COUNTRY = 0x800
+     *      - ADS_IGNORE_IP = 0x1000
+     *      - ADS_IGNORE_PRO = 0x2000
+     *      - ADS_FLAG_IGNORE_ROLLOUT = 0x4000
+     * @param publicHandle MegaHandle, provide the public handle that the user is visiting
+     * @param listener MegaRequestListener to track this request
+     */
+    public void queryAds(int adFlags, long publicHandle, MegaRequestListenerInterface listener) {
+        megaApi.queryAds(adFlags, publicHandle, createDelegateRequestListener(listener));
     }
 
     /**
