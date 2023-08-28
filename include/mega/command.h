@@ -1773,6 +1773,26 @@ public:
 };
 #endif
 
+typedef std::function<void(Error, string_map)> CommandFetchAdsCompletion;
+class MEGA_API CommandFetchAds : public Command
+{
+    CommandFetchAdsCompletion mCompletion;
+public:
+    bool procresult(Result, JSON&) override;
+
+    CommandFetchAds(MegaClient*, int adFlags, const std::vector<std::string>& adUnits, handle publicHandle, CommandFetchAdsCompletion completion);
+};
+
+typedef std::function<void(Error, int)> CommandQueryAdsCompletion;
+class MEGA_API CommandQueryAds : public Command
+{
+    CommandQueryAdsCompletion mCompletion;
+public:
+    bool procresult(Result, JSON&) override;
+
+    CommandQueryAds(MegaClient*, int adFlags, handle publicHandle, CommandQueryAdsCompletion completion);
+};
+
 } // namespace
 
 #endif

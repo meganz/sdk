@@ -522,6 +522,12 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
  */
 @property (readonly, nonatomic, getter=isAchievementsEnabled) BOOL achievementsEnabled;
 
+/**
+ * @brief Returns whether displaying contact verification warnings is enabled from the webclient
+ * YES if enabled, NO otherwise.
+ */
+@property (readonly, nonatomic, getter=isContactVerificationWarningEnabled) BOOL isContactVerificationWarningEnabled;
+
 #pragma mark - Business
 
 /**

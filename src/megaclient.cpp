@@ -397,8 +397,6 @@ void MegaClient::mergenewshares(bool notify, bool skipWriteInDb)
         delete s;
         newshares.erase(it++);
     }
-
-    mNewKeyRepository.clear();
 }
 
 void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
@@ -4570,6 +4568,7 @@ bool MegaClient::procsc()
                     LOG_debug << "Processing of action packets for " << string(sessionid, sizeof(sessionid)) << " finished.  More to follow: " << insca_notlast;
                     mergenewshares(1);
                     applykeys();
+                    mNewKeyRepository.clear();
 
                     if (!statecurrent && !insca_notlast)   // with actionpacket spoonfeeding, just finishing a batch does not mean we are up to date yet - keep going while "ir":1
                     {
@@ -18768,7 +18767,7 @@ bool MegaClient::decryptNodeMetadata(SetElement::NodeMetadata& nodeMeta, const s
     buf.reset(Node::decryptattr(cipher, nodeMeta.at.c_str(), nodeMeta.at.size()));
     if (!buf)
     {
-        LOG_err << "Decrypting node attributes failed. Node Handle = " << nodeMeta.h;
+        LOG_err << "Decrypting node attributes failed. Node Handle = " << toNodeHandle(nodeMeta.h);
         return false;
     }
 
@@ -18783,14 +18782,14 @@ bool MegaClient::decryptNodeMetadata(SetElement::NodeMetadata& nodeMeta, const s
         case 'c':
             if (!attrJson.storeobject(&nodeMeta.fingerprint))
             {
-                LOG_err << "Reading node fingerprint failed. Node Handle = " << nodeMeta.h;
+                LOG_err << "Reading node fingerprint failed. Node Handle = " << toNodeHandle(nodeMeta.h);
             }
             break;
 
         case 'n':
             if (!attrJson.storeobject(&nodeMeta.filename))
             {
-                LOG_err << "Reading node filename failed. Node Handle = " << nodeMeta.h;
+                LOG_err << "Reading node filename failed. Node Handle = " << toNodeHandle(nodeMeta.h);
             }
             break;
 
@@ -18801,7 +18800,7 @@ bool MegaClient::decryptNodeMetadata(SetElement::NodeMetadata& nodeMeta, const s
         default:
             if (!attrJson.storeobject())
             {
-                LOG_err << "Skipping unexpected node attribute failed. Node Handle = " << nodeMeta.h;
+                LOG_err << "Skipping unexpected node attribute failed. Node Handle = " << toNodeHandle(nodeMeta.h);
             }
         }
     }
@@ -20297,15 +20296,6 @@ bool KeyManager::isUnverifiedInShare(handle nodeHandle, handle userHandle)
     return false;
 }
 
-void KeyManager::cacheShareKeys()
-{
-    for (const auto& it : mShareKeys)
-    {
-        const string& k = it.second.first;
-        mClient.mNewKeyRepository[NodeHandle().set6byte(it.first)] = { k.begin(), k.end() };
-    }
-}
-
 void KeyManager::loadShareKeys()
 {
     for (const auto& it : mShareKeys)
@@ -20734,10 +20724,11 @@ bool KeyManager::unserialize(KeyManager& km, const string &keysContainer)
         {
             string buf(blob + offset, len);
             if (!deserializePendingInshares(km, buf)) return false;
-            if (mDebugContents)
-            {
+            // Commented to trace possible issues with pending inshares.
+            //if (mDebugContents)
+            //{
                 LOG_verbose << pendingInsharesToString(km);
-            }
+            //}
             break;
         }
         case TAG_BACKUPS:
