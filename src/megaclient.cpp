@@ -18845,7 +18845,7 @@ bool MegaClient::nodeIsMedia(const Node *n, bool *isphoto, bool *isvideo) const
         return false;
     }
 
-    bool a = n->isFromMimetype(MimeType_t::MIME_TYPE_PHOTO, true);
+    bool a = n->isFromMimetype(MimeType_t::MIME_TYPE_PHOTO);
     if (isphoto)
     {
         *isphoto = a;
