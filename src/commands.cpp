@@ -10554,15 +10554,15 @@ bool CommandGetVpnCredentials::procresult(Command::Result r, JSON& json)
 
 CommandPutVpnCredential::CommandPutVpnCredential(MegaClient* client,
                                                 std::string&& region,
-                                                StringPair&& peerKeyPair,
+                                                StringPair&& userKeyPair,
                                                 Cb&& completion)
 {
     cmd("vpnp");
-    arg("k", (byte*)peerKeyPair.second.c_str(), static_cast<int>(peerKeyPair.second.size()));
+    arg("k", (byte*)userKeyPair.second.c_str(), static_cast<int>(userKeyPair.second.size()));
     tag = client->reqtag;
 
     mRegion = std::move(region);
-    mUserPrivKey = std::move(peerKeyPair.first);
+    mUserKeyPair = std::move(userKeyPair);
     mCompletion = std::move(completion);
 }
 
@@ -10570,13 +10570,13 @@ bool CommandPutVpnCredential::procresult(Command::Result r, JSON& json)
 {
     if (r.wasErrorOrOK())
     {
-        if (mCompletion) { mCompletion(r.errorOrOK(), -1, {}); }
+        if (mCompletion) { mCompletion(r.errorOrOK(), -1, {}, {}); }
         return true;
     }
 
     if (!r.hasJsonArray())
     {
-        if (mCompletion) { mCompletion(API_EINTERNAL, -1, {}); }
+        if (mCompletion) { mCompletion(API_EINTERNAL, -1, {}, {}); }
         return false;
     }
 
@@ -10592,7 +10592,7 @@ bool CommandPutVpnCredential::procresult(Command::Result r, JSON& json)
     std::string ipv4;
     if (!json.storeobject(&ipv4))
     {
-        if (mCompletion) { mCompletion(API_EINTERNAL, -1, {}); }
+        if (mCompletion) { mCompletion(API_EINTERNAL, -1, {}, {}); }
         return false;
     }
 
@@ -10600,7 +10600,7 @@ bool CommandPutVpnCredential::procresult(Command::Result r, JSON& json)
     std::string ipv6;
     if (!json.storeobject(&ipv6))
     {
-        if (mCompletion) { mCompletion(API_EINTERNAL, -1, {}); }
+        if (mCompletion) { mCompletion(API_EINTERNAL, -1, {}, {}); }
         return false;
     }
 
@@ -10608,7 +10608,7 @@ bool CommandPutVpnCredential::procresult(Command::Result r, JSON& json)
     std::string clusterPubKey;
     if (!json.storeobject(&clusterPubKey))
     {
-        if (mCompletion) { mCompletion(API_EINTERNAL, -1, {}); }
+        if (mCompletion) { mCompletion(API_EINTERNAL, -1, {}, {}); }
         return false;
     }
 
@@ -10621,9 +10621,11 @@ bool CommandPutVpnCredential::procresult(Command::Result r, JSON& json)
 
     if (mCompletion)
     {
-        auto peerKeyPair = std::make_pair(std::move(mUserPrivKey), std::move(clusterPubKey));
+        string peerPubKey = Base64::btoa(mUserKeyPair.second);
+        b64Standard(peerPubKey);
+        auto peerKeyPair = std::make_pair(std::move(mUserKeyPair.first), std::move(clusterPubKey));
         string newCredential = client->getVpnCredentialString(clusterID, std::move(mRegion), std::move(ipv4), std::move(ipv6), std::move(peerKeyPair));
-        mCompletion(API_OK, slotID, std::move(newCredential));
+        mCompletion(API_OK, slotID, std::move(peerPubKey), std::move(newCredential));
     }
     return true;
 }

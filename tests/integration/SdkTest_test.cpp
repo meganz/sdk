@@ -14248,7 +14248,10 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
  * If the testing account is FREE, the request results are adjusted to the API error expected in those cases.
  *
  * 1) GET the MEGA VPN regions.
- * 2) Choose one of the regions above to PUT a new VPN credential. A slotID should be returned.
+ * 2) Choose one of the regions above to PUT a new VPN credential. It should return:
+ *     - The SlotID where the credential has been created.
+ *     - The User Public Key.
+ *     - The credential string to be used for VPN connection.
  * 3) GET the MEGA VPN credentials. Check the related fields for the returned slotID:
  *      - IPv4 and IPv6
  *      - ClusterID
@@ -14281,19 +14284,25 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
 
         // Put VPN credential on the chosen region
         int slotID = -1;
-        std::string newCredential;
-        result = doPutVpnCredential(0, slotID, newCredential, vpnRegion);
+        std::unique_ptr<MegaStringList> credentialData;
+        result = doPutVpnCredential(0, slotID, credentialData, vpnRegion);
         if (isProAccount)
         {
             ASSERT_EQ(API_OK, result) << "adding a new VPN credential failed (error: " << result << ")";
             ASSERT_TRUE(slotID > 0) << "slotID should be greater than 0";
-            ASSERT_FALSE(newCredential.empty()) << "VPN Credential string is EMPTY";
+            ASSERT_TRUE(credentialData->size()) << "VPN Credential data is EMPTY";
+            ASSERT_TRUE(credentialData->size() == 2) << "VPN Credential data size is not valid (should be 2: user public key, credential string)";
+            for (int i = 0; i < credentialData->size(); ++i)
+            {
+                ASSERT_TRUE(credentialData->get(i)) << "VPN Credential data pos " << i << " is not valid";
+                ASSERT_TRUE(*credentialData->get(i)) << "VPN Credential data pos " << i << " is empty";
+            }
         }
         else
         {
             ASSERT_EQ(API_EACCESS, result) << "adding a new VPN credential on a free account didn't return the expected error value (error: " << result << ")";
-            ASSERT_TRUE(slotID < 0) << "slotID should be smaller than 0 on a free account";
-            ASSERT_TRUE(newCredential.empty()) << "VPN Credential string is NOT EMPTY on a free account";
+            ASSERT_TRUE(slotID <= 0) << "slotID should not be greater than 0 on a free account";
+            ASSERT_TRUE(credentialData == nullptr) << "VPN Credential data is NOT NULL on a free account";
         }
 
         // Get VPN credentials and search for the credential associated with the returned SlotID

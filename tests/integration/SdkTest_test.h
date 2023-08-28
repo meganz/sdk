@@ -629,13 +629,14 @@ public:
         vpnCredentials.reset(vpnCredentialsFromRequest);
         return e;
     }
-    template<typename ... requestArgs> int doPutVpnCredential(unsigned apiIndex, int& slotID, string& newCredential, requestArgs... args)
+    template<typename ... requestArgs> int doPutVpnCredential(unsigned apiIndex, int& slotID, unique_ptr<MegaStringList>& credentialData, requestArgs... args)
     {
         RequestTracker rt(megaApi[apiIndex].get());
         megaApi[apiIndex]->putVpnCredential(args..., &rt);
         auto e = rt.waitForResult();
         slotID = static_cast<int>(rt.request->getNumber());
-        newCredential = rt.request->getText() ? rt.request->getText() : ""; // Credential string for conf file
+        auto credentialDataFromRequest = rt.request->getMegaStringList() ? rt.request->getMegaStringList()->copy() : nullptr;
+        credentialData.reset(credentialDataFromRequest);
         return e;
     }
     template<typename ... requestArgs> int doDelVpnCredential(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->delVpnCredential(args..., &rt); return rt.waitForResult(); }

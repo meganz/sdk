@@ -25574,13 +25574,17 @@ void MegaApiImpl::putVpnCredential(const char* region, MegaRequestListener* list
         }
         client->putVpnCredential(vpnRegion,
             [this, request]
-            (const Error& e, int slotID, std::string&& newCredential)
+            (const Error& e, int slotID, std::string&& userPubKey, std::string&& newCredential)
             {
                 // SlotIDs are considered valid when greater than 0
-                if (e == API_OK && (slotID > 0) && !newCredential.empty())
+                if (e == API_OK && (slotID > 0) && !userPubKey.empty() && !newCredential.empty())
                 {
                     request->setNumber(slotID);
-                    request->setText(newCredential.c_str());
+                    string_vector credentialData;
+                    credentialData.emplace_back(std::move(userPubKey));
+                    credentialData.emplace_back(std::move(newCredential));
+                    auto credentialDataMegaStringList = ::mega::make_unique<MegaStringListPrivate>(std::move(credentialData));
+                    request->setMegaStringList(credentialDataMegaStringList.get());
                 }
 
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));

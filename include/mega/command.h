@@ -1784,6 +1784,7 @@ class MEGA_API CommandPutVpnCredential : public Command
 public:
     using Cb = std::function<void(const Error&  /* API error */,
                                 int             /* SlotID */,
+                                std::string&&   /* User Public Key */,
                                 std::string&&   /* New Credential */)>;
     CommandPutVpnCredential(MegaClient*,
                             std::string&& /* VPN Region */,
@@ -1793,7 +1794,7 @@ public:
 
 private:
     std::string mRegion;
-    std::string mUserPrivKey;
+    StringPair mUserKeyPair;
     Cb mCompletion;
 };
 

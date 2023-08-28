@@ -11302,11 +11302,12 @@ void exec_putvpncredential(autocomplete::ACState& s)
     }
     bool consoleoutput = !s.extractflag("-noconsole");
     client->putVpnCredential(std::move(vpnRegion),
-            [filename, consoleoutput] (const Error& e, int slotID, std::string&& newCredential)
+            [filename, consoleoutput] (const Error& e, int slotID, std::string&& userPubKey, std::string&& newCredential)
             {
-                if (e == API_OK && (slotID > 0) && !newCredential.empty())
+                if (e == API_OK && (slotID > 0) && !userPubKey.empty() && !newCredential.empty())
                 {
-                    std::cout << "\nNew MEGA VPN credential added successfully to slot " << slotID << endl;
+                    cout << "\nNew MEGA VPN credential added successfully to slot " << slotID << endl;
+                    cout << "User Public Key: " << userPubKey << endl;
                     if (consoleoutput || !filename.empty())
                     {
                         string credentialHeader;

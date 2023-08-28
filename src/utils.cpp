@@ -3209,5 +3209,12 @@ string connDirectionToStr(mega::direction_t directionType)
     }
 }
 
+void b64Standard(string& b64str)
+{
+    std::replace(b64str.begin(), b64str.end(), '-', '+');
+    std::replace(b64str.begin(), b64str.end(), '_', '/');
+    b64str.append("=");
+}
+
 } // namespace mega
 
