@@ -10645,6 +10645,25 @@ bool CommandDelVpnCredential::procresult(Command::Result r, JSON& json)
     }
     return r.wasErrorOrOK();
 }
+
+CommandCheckVpnCredential::CommandCheckVpnCredential(MegaClient* client, string&& userPubKey, Cb&& completion)
+{
+    cmd("vpnc");
+    string binaryUserPubKey = Base64::atob(userPubKey);
+    arg("k", (byte*)binaryUserPubKey.c_str(), static_cast<int>(binaryUserPubKey.size()));
+    tag = client->reqtag;
+
+    mCompletion = std::move(completion);
+}
+
+bool CommandCheckVpnCredential::procresult(Command::Result r, JSON& json)
+{
+    if (mCompletion)
+    {
+        mCompletion(r.errorOrOK());
+    }
+    return r.wasErrorOrOK();
+}
 /* MegaVPN Commands END*/
 
 } // namespace

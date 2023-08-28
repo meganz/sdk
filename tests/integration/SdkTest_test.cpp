@@ -14256,6 +14256,7 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
  * 4) DELETE the MEGA VPN credentials associated with the slotID used above.
  * 5) DELETE the MEGA VPN credentials from an unoccupied slot.
  * 6) DELETE the MEGA VPN credentials from an invalid slot.
+ * 7) CHECK the MEGA VPN credentials using an nonexistent User Public Key.
  */
 TEST_F(SdkTest, SdkTestMegaVpnCredentials)
 {
@@ -14363,6 +14364,13 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
         {
             result = doDelVpnCredential(0, -1);
             ASSERT_EQ(API_EARGS, result) << "deleting the VPN credentials failed for invalid slotID " << slotID << " (error: " << result << ")";
+        }
+
+        // CHECK the MEGA VPN credentials using an nonexistent User Public Key -expected EACCESS: Public Key is not valid-
+        {
+            string nonexistentUserPK = "obI7rW/m3qVQL5zOxHzv2XFHsP1kOOTR1mE7NluVjDM=";
+            result = doCheckVpnCredential(0, nonexistentUserPK.c_str());
+            ASSERT_EQ(API_EACCESS, result) << "checking the VPN credentials with a nonexistent User Public Key should have returned API_EACCESS (error: " << result << ")";
         }
     }
 }

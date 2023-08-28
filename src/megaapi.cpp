@@ -5950,6 +5950,11 @@ void MegaApi::delVpnCredential(int slotID, MegaRequestListener* listener)
     pImpl->delVpnCredential(slotID, listener);
 }
 
+void MegaApi::checkVpnCredential(const char* userPubKey, MegaRequestListener* listener)
+{
+    pImpl->checkVpnCredential(userPubKey, listener);
+}
+
 /* END MEGAAPI */
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)

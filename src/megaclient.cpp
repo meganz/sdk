@@ -21754,6 +21754,12 @@ void MegaClient::delVpnCredential(int slotID, CommandDelVpnCredential::Cb&& comp
     reqs.add(new CommandDelVpnCredential(this, slotID, std::move(completion)));
 }
 
+// Call "vpnc" command.
+void MegaClient::checkVpnCredential(std::string&& userPubKey, CommandDelVpnCredential::Cb&& completion)
+{
+    reqs.add(new CommandCheckVpnCredential(this, std::move(userPubKey), std::move(completion)));
+}
+
 // Get the credential string.
 string MegaClient::getVpnCredentialString(int clusterID,
                                           std::string&& vpnRegion,

@@ -4298,7 +4298,8 @@ class MegaRequest
             TYPE_GET_VPN_CREDENTIALS                                        = 173,
             TYPE_PUT_VPN_CREDENTIAL                                         = 174,
             TYPE_DEL_VPN_CREDENTIAL                                         = 175,
-            TOTAL_OF_REQUEST_TYPES                                          = 176
+            TYPE_CHECK_VPN_CREDENTIAL                                       = 176,
+            TOTAL_OF_REQUEST_TYPES                                          = 177
         };
 
         virtual ~MegaRequest();
@@ -21233,6 +21234,19 @@ class MegaApi
          * @param listener MegaRequestListener to track this request.
          */
         void delVpnCredential(int slotID, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Check the current status of MEGA VPN credentials using the User Public Key.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHECK_VPN_CREDENTIALS.
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EACCESS - Public Key is not valid.
+         *
+         * @param userPubKey The User Public Key used to register the VPN credentials.
+         * @param listener MegaRequestListener to track this request.
+         */
+        void checkVpnCredential(const char* userPubKey, MegaRequestListener* listener = nullptr);
         /* MegaVpnCredentials END */
 
  private:
