@@ -7402,8 +7402,8 @@ void MegaApiImpl::getDeviceName(const char* deviceId, MegaRequestListener *liste
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
     request->setParamType(MegaApi::USER_ATTR_DEVICE_NAMES);
-    string id = deviceId ? deviceId : client->getDeviceidHash();
-    request->setText(id.c_str());
+    request->setText(deviceId);
+    request->setNumDetails(1); // error out if deviceId not found
 
     request->performRequest = [this, request]()
     {
@@ -15276,7 +15276,6 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
             }
             case MegaApi::USER_ATTR_DEVICE_NAMES:
             {
-                bool errorForNameNotFound = true;
                 const char* buf = nullptr;
 
                 if (request->getFlag()) // external drive
@@ -15287,16 +15286,13 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                 }
                 else
                 {
-                    // getDeviceName() will set MegaRequestPrivate::text to the id of the requested device;
-                    // getUserAttr(USER_ATTR_DEVICE_NAMES) will not set that field, so use the id of the current device
+                    // The name of a particular device could have been requested, so extract that.
+                    // Otherwise, attempt to extract the name of current device.
                     buf = stringMap->get(request->getText() ? request->getText() : client->getDeviceidHash().c_str());
-                    errorForNameNotFound = request->getText() && client->getDeviceidHash() != request->getText();
                 }
 
-                // Searching for an external drive that is not there should end with error;
-                // specifying a device that is not there should end with error;
-                // but requesting the name of current device even if not set yet should still succeed (and
-                // along with it return the device list which is the purpose of getting USER_ATTR_DEVICE_NAMES attribute).
+                bool errorForNameNotFound = request->getFlag()       /*see getDriveName()*/ ||
+                                            request->getNumDetails() /*see getDeviceName()*/;
                 if (!buf && errorForNameNotFound)
                 {
                     e = API_ENOENT;

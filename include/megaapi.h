@@ -13748,8 +13748,8 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DEVICE_NAMES
-         * - MegaRequest::getText - Returns passed device id (or the value returned by getDeviceId()
-         * if deviceId was initially passed as null).
+         * - MegaRequest::getText - Returns passed device id.
+         * - MegaRequest::getNumDetails - Returns 1.
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
