@@ -92,9 +92,6 @@ class RaidReq
     unsigned feedlag[RAIDPARTS];                     // accumulated remfeed at shiftata() to identify slow sources
     int lagrounds;                                   // number of accumulated additions to feedlag[]
 
-    typedef deque<HttpReqPtr> socket_deque;
-    socket_deque pendingio;
-    void handlependingio();
     void dispatchio(const HttpReqPtr&);
     void shiftdata(m_off_t);
 

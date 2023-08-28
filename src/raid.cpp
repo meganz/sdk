@@ -1056,19 +1056,19 @@ private:
     int connections;
     TransferSlot* tslot;
     MegaClient* client;
-    TransferDbCommitter& committer;
     bool started;
+    std::pair<::mega::error, dstime> transferFailed; // Error and backoff to call transfer->failed()
 
 public:
-    CloudRaidImpl(TransferSlot* tslot, MegaClient* client, TransferDbCommitter& committer, int connections)
+    CloudRaidImpl(TransferSlot* tslot, MegaClient* client, int connections)
     : connections(connections)
     , tslot(tslot)
     , client(client)
-    , committer(committer)
     , started(false)
     {
         assert(tslot != nullptr);
         assert(client != nullptr);
+        transferFailed = std::make_pair(API_OK, 0);
         start();
     }
 
@@ -1103,16 +1103,32 @@ public:
     {
         if (!started) return false;
         dstime tslot_backoff = 0;
-        tslot->processRequestFailure(client, committer, req, tslot_backoff, part);
+        auto failValues = tslot->processRequestFailure(client, req, tslot_backoff, part);
         backoff = tslot_backoff;
+        if (failValues.first != API_OK)
+        {
+            setTransferFailure(failValues.first, failValues.second);
+        }
         return true;
     }
 
-    bool onTransferFailure()
+    bool setTransferFailure(::mega::error e, dstime backoff)
     {
         if (!started) return false;
-        tslot->transfer->failed(API_EAGAIN, committer);
+        if (transferFailed.first)
+        {
+            LOG_warn << "[CloudRaid::setTransferFailure] Transfer failed values are already set. Previous values: error = " << e << ", backoff = " << backoff;
+        }
+        LOG_debug << "[CloudRaid::setTransferFailure] Transfer failed values set to: error = " << e << ", backoff = " << backoff;
+        transferFailed.first = e;
+        transferFailed.second = backoff;
         return true;
+    }
+
+    std::pair<::mega::error, dstime> checkTransferFailure()
+    {
+        if (!started) return std::make_pair(API_OK, 0);
+        return std::make_pair(transferFailed.first, transferFailed.second);
     }
 
     /* CloudRaid functionality */
@@ -1205,9 +1221,9 @@ CloudRaid::CloudRaid()
     shown.store(false);
 }
 
-CloudRaid::CloudRaid(TransferSlot* tslot, MegaClient* client, TransferDbCommitter& committer, int connections)
+CloudRaid::CloudRaid(TransferSlot* tslot, MegaClient* client, int connections)
 {
-    init(tslot, client, committer, connections);
+    init(tslot, client, connections);
 }
 
 CloudRaid::~CloudRaid() { LOG_verbose << "[CloudRaid::~CloudRaid] destructor call"; }
@@ -1246,16 +1262,23 @@ bool CloudRaid::onRequestFailure(const std::shared_ptr<HttpReqXfer>& req, int pa
     return Pimpl()->onRequestFailure(req, part, backoff);
 }
 
-bool CloudRaid::onTransferFailure()
+bool CloudRaid::setTransferFailure(::mega::error e, dstime backoff)
 {
     if (!shown.load())
         return false;
-    return Pimpl()->onTransferFailure();
+    return Pimpl()->setTransferFailure(e, backoff);
 }
 
-bool CloudRaid::init(TransferSlot* tslot, MegaClient* client, TransferDbCommitter& committer, int connections)
+std::pair<::mega::error, dstime> CloudRaid::checkTransferFailure()
 {
-    m_pImpl = mega::make_unique<CloudRaidImpl>(tslot, client, committer, connections);
+    if (!shown.load())
+        return std::make_pair(API_OK, 0);
+    return Pimpl()->checkTransferFailure();
+}
+
+bool CloudRaid::init(TransferSlot* tslot, MegaClient* client, int connections)
+{
+    m_pImpl = mega::make_unique<CloudRaidImpl>(tslot, client, connections);
     shown.store(m_pImpl != nullptr);
     return shown.load();
 }

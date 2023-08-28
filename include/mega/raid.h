@@ -26,7 +26,6 @@
 
 #include "http.h"
 #include "utils.h"
-#include "db.h"
 
 namespace mega {
 
@@ -280,7 +279,7 @@ namespace mega {
 
     public:
         CloudRaid();
-        CloudRaid(TransferSlot* tslot, MegaClient* client, TransferDbCommitter& committer, int connections);
+        CloudRaid(TransferSlot* tslot, MegaClient* client, int connections);
         ~CloudRaid();
 
         /* Instance control functionality */
@@ -292,10 +291,11 @@ namespace mega {
         bool prepareRequest(const std::shared_ptr<HttpReqXfer>& req, const string& tempURL, m_off_t pos, m_off_t npos);
         bool post(const std::shared_ptr<HttpReqXfer>& req);
         bool onRequestFailure(const std::shared_ptr<HttpReqXfer>& req, int part, dstime& backoff);
-        bool onTransferFailure();
+        bool setTransferFailure(::mega::error e = API_EAGAIN, dstime backoff = 0);
+        std::pair<::mega::error, dstime> checkTransferFailure();
 
         /* RaidProxy functionality for TransferSlot */
-        bool init(TransferSlot* tslot, MegaClient* client, TransferDbCommitter& committer, int connections);
+        bool init(TransferSlot* tslot, MegaClient* client, int connections);
         bool balancedRequest(int connection, const std::vector<std::string> &tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, m_off_t cmaxRequestSize);
         bool removeRaidReq(int connection);
         bool resumeAllConnections();

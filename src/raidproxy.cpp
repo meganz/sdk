@@ -282,7 +282,7 @@ int PartFetcher::trigger(raidTime delay, bool disconnect)
 {
     if (delay == MAX_DELAY_IN_SECONDS)
     {
-        rr->cloudRaid->onTransferFailure();
+        rr->cloudRaid->setTransferFailure();
         return -1;
     }
     assert(!url.empty());
@@ -519,22 +519,20 @@ int PartFetcher::onFailure()
         {
             if (rr->cloudRaid->onRequestFailure(httpReq, part, backoff))
             {
-                assert(!backoff || httpReq->status == REQ_PREPARED);
+                if (httpReq->status == REQ_FAILURE)
+                {
+                    auto failValues = rr->cloudRaid->checkTransferFailure();
+                    if (!failValues.first)
+                    {
+                        LOG_warn << "[PartFetcher::onFailure] Request failure on part " << part << " with no transfer fail values";
+                        assert(false);
+                    }
+                    closesocket();
+                    return -1;
+                }
                 if (httpReq->status == REQ_PREPARED)
                 {
                     return trigger(backoff);
-                }
-                else if (httpReq->status == REQ_FAILURE)
-                {
-                    if (httpReq->httpstatus == 0)
-                    {
-                        httpReq->status = REQ_READY;
-                    }
-                    else
-                    {
-                        closesocket();
-                        return -1;
-                    }
                 }
             }
         }
@@ -1056,17 +1054,6 @@ void RaidReq::dispatchio(const HttpReqPtr& httpReq)
     }
 }
 
-// execute cont()-triggered io()s
-void RaidReq::handlependingio()
-{
-    while (!pendingio.empty())
-    {
-        auto httpReq = pendingio.front();
-        pendingio.pop_front();
-        dispatchio(httpReq);
-    }
-}
-
 // watchdog: resolve stuck connections
 void RaidReq::watchdog()
 {
@@ -1204,7 +1191,8 @@ void RaidReqPool::raidproxyio()
         if (!scheduledio.empty())
         {
             auto itScheduled = scheduledio.begin();
-            while (isRunning && (itScheduled != scheduledio.end() && (itScheduled->first <= Waiter::ds)))
+            bool transferFailed = false;
+            while (isRunning && !transferFailed && (itScheduled != scheduledio.end() && (itScheduled->first <= Waiter::ds)))
             {
                 const HttpReqPtr& httpReq = itScheduled->second;
                 if (httpReq->status != REQ_INFLIGHT)
@@ -1222,6 +1210,11 @@ void RaidReqPool::raidproxyio()
                 else
                 {
                     itScheduled++;
+                }
+                if (raidReq->cloudRaid->checkTransferFailure().first)
+                {
+                    LOG_debug << "[RaidReqPool::raidproxyio] Found transfer failed flag. Stop";
+                    transferFailed = true;
                 }
             }
         }

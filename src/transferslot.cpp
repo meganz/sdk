@@ -157,7 +157,7 @@ bool TransferSlot::createconnectionsonce(MegaClient* client, TransferDbCommitter
 
         if (transferbuf.isNewRaid())
         {
-            transfer->slot->initCloudRaid(client, committer);
+            transfer->slot->initCloudRaid(client);
         }
     }
     return true;
@@ -1050,7 +1050,16 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                     break;
 
                 case REQ_FAILURE:
-                    processRequestFailure(client, committer, reqs[i], backoff, i);
+                    {
+                        auto failValue = processRequestFailure(client, reqs[i], backoff, i);
+                        if (failValue.first != API_OK)
+                        {
+                            LOG_warn << "Conn " << i << " : Request Failed with code " << failValue.first << ". Transfer failed (backoff: " << failValue.second << ")";
+                            // Error: transfer fail
+                            return transfer->failed(failValue.first, committer, failValue.second);
+                        }
+                    }
+                    break;
 
                 default:
                     ;
@@ -1233,12 +1242,12 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                 {
                     if (reqs[i]->status == REQ_PREPARED || reqs[i]->status == REQ_INFLIGHT)
                     {
-                        m_off_t reqProgress = processRaidReq(i);
-                        if (reqProgress > reqs[i]->size)
+                        auto failValues = processRaidReq(i);
+                        if (failValues.first != API_OK)
                         {
-                            LOG_err << "[TransferSlot::doio] RaidReq progress (" << reqProgress << ") greater than its size (" << reqs[i]->size << ")";
+                            LOG_debug << "[TransferSlot::doio] Transfer fail after processing RaidReq. Error: " << failValues.first << ". Backoff: " << failValues.second;
+                            return transfer->failed(failValues.first, committer, failValues.second);
                         }
-                        assert(reqProgress <= reqs[i]->size);
                     }
                 }
             }
@@ -1334,7 +1343,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
     }
 }
 
-m_off_t TransferSlot::processRaidReq(size_t connection)
+std::pair<error, dstime> TransferSlot::processRaidReq(size_t connection)
 {
     assert(connection <= reqs.size());
     const std::shared_ptr<HttpReqXfer>& httpReq = reqs[connection];
@@ -1344,6 +1353,11 @@ m_off_t TransferSlot::processRaidReq(size_t connection)
 
     // Process internal RaidReq IO
     cloudRaid->raidReqDoio(static_cast<int>(connection));
+    auto failValues = cloudRaid->checkTransferFailure();
+    if (failValues.first != API_OK)
+    {
+        return failValues;
+    }
 
     if (httpReq->status == REQ_PREPARED)
     {
@@ -1353,7 +1367,7 @@ m_off_t TransferSlot::processRaidReq(size_t connection)
     m_off_t progress = -1;
     byte* buf = httpReq->buf + httpReq->bufpos;
     m_off_t len = httpReq->size - httpReq->bufpos;
-    assert(len > 0);
+    assert((len > 0) && "len is not 0 in processRaidReq");
 
     // Get raid-assembled data
     progress = static_cast<m_off_t>(cloudRaid->readData(static_cast<int>(connection), buf, len));
@@ -1375,7 +1389,7 @@ m_off_t TransferSlot::processRaidReq(size_t connection)
     {
         cloudRaid->removeRaidReq(static_cast<int>(connection));
     }
-    return progress;
+    return cloudRaid->checkTransferFailure();
 }
 
 void TransferSlot::prepareRequest(const std::shared_ptr<HttpReqXfer>& httpReq, const string& tempURL, m_off_t pos, m_off_t npos)
@@ -1404,7 +1418,7 @@ void TransferSlot::prepareRequest(const std::shared_ptr<HttpReqXfer>& httpReq, c
     httpReq->status = REQ_PREPARED;
 }
 
-void TransferSlot::processRequestFailure(MegaClient* client, TransferDbCommitter& committer, const std::shared_ptr<HttpReqXfer>& httpReq, dstime& backoff, int channel)
+std::pair<error, dstime> TransferSlot::processRequestFailure(MegaClient* client, const std::shared_ptr<HttpReqXfer>& httpReq, dstime& backoff, int channel)
 {
     LOG_warn << "Conn " << channel << " : Failed chunk. HTTP status: " << httpReq->httpstatus << " on channel " << channel;
 
@@ -1416,7 +1430,7 @@ void TransferSlot::processRequestFailure(MegaClient* client, TransferDbCommitter
 
         client->sendevent(99436, "Automatic change to HTTPS", 0);
 
-        return transfer->failed(API_EAGAIN, committer);
+        return std::make_pair(API_EAGAIN, 0);
     }
 
     if (httpReq->httpstatus == 509)
@@ -1425,7 +1439,7 @@ void TransferSlot::processRequestFailure(MegaClient* client, TransferDbCommitter
 
         dstime new_backoff = client->overTransferQuotaBackoff(httpReq.get());
 
-        return transfer->failed(API_EOVERQUOTA, committer, new_backoff);
+        return std::make_pair(API_EOVERQUOTA, new_backoff);
     }
     else if (httpReq->httpstatus == 429)
     {
@@ -1450,7 +1464,7 @@ void TransferSlot::processRequestFailure(MegaClient* client, TransferDbCommitter
         // for raid parts and 503, it's appropriate to try another raid source
         else if (!tryRaidRecoveryFromHttpGetError(channel, true))
         {
-            return transfer->failed(API_EAGAIN, committer);
+            return std::make_pair(API_EAGAIN, 0);
         }
     }
     else if (httpReq->httpstatus == 0 && (transferbuf.isNewRaid() || tryRaidRecoveryFromHttpGetError(channel, true)))
@@ -1493,6 +1507,7 @@ void TransferSlot::processRequestFailure(MegaClient* client, TransferDbCommitter
         }
         httpReq->status = REQ_PREPARED;
     }
+    return std::make_pair(API_OK, 0);
 }
 
 
@@ -1552,7 +1567,7 @@ m_off_t TransferSlot::updatecontiguousprogress()
     return contiguousProgress;
 }
 
-bool TransferSlot::initCloudRaid(MegaClient* client, TransferDbCommitter& committer)
+bool TransferSlot::initCloudRaid(MegaClient* client)
 {
     assert(transferbuf.isNewRaid());
     if (!transferbuf.isNewRaid())
@@ -1562,10 +1577,10 @@ bool TransferSlot::initCloudRaid(MegaClient* client, TransferDbCommitter& commit
 
     if (cloudRaid == nullptr)
     {
-        cloudRaid = std::make_shared<CloudRaid>(this, client, committer, static_cast<int>(reqs.size()));
+        cloudRaid = std::make_shared<CloudRaid>(this, client, static_cast<int>(reqs.size()));
         return cloudRaid->isShown();
     }
-    return cloudRaid->init(this, client, committer, static_cast<int>(reqs.size()));
+    return cloudRaid->init(this, client, static_cast<int>(reqs.size()));
 }
 
 } // namespace

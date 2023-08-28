@@ -107,7 +107,7 @@ struct MEGA_API TransferSlot
     // Manage download input buffers and file output buffers for file download.  Raid-aware, and automatically performs decryption and mac.
     TransferBufferManager transferbuf;
 
-    bool initCloudRaid(MegaClient* client, TransferDbCommitter& committer);
+    bool initCloudRaid(MegaClient* client);
     shared_ptr<CloudRaid> getcloudRaidPtr()
     {
         return cloudRaid;
@@ -119,14 +119,14 @@ struct MEGA_API TransferSlot
     // handle I/O for this slot
     void doio(MegaClient*, TransferDbCommitter&);
 
-    // Process CloudRaid Request
-    m_off_t processRaidReq(size_t connection = 0);
-
     // Prepare a transfer request for POST
     void prepareRequest(const std::shared_ptr<HttpReqXfer>&, const string& tempURL, m_off_t pos, m_off_t npos);
 
     // Process a request in REQ_FAILURE state
-    void processRequestFailure(MegaClient* client, TransferDbCommitter& committer, const std::shared_ptr<HttpReqXfer>& httpReq, dstime& backoff, int channel = 0);
+    std::pair<error, dstime> processRequestFailure(MegaClient* client, const std::shared_ptr<HttpReqXfer>& httpReq, dstime& backoff, int channel);
+
+    // Process CloudRaid Request
+    std::pair<error, dstime> processRaidReq(size_t connection = 0);
 
     // helper for doio to delay connection creation until we know if it's raid or non-raid
     bool createconnectionsonce(MegaClient* client, TransferDbCommitter& committer);
