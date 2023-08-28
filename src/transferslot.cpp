@@ -1350,24 +1350,20 @@ m_off_t TransferSlot::updatecontiguousprogress()
 
 void TransferSlot::prepareRequest(const std::shared_ptr<HttpReqXfer>& httpReq, const string& tempURL, m_off_t pos, m_off_t npos)
 {
-    size_t index = string::npos;
+    string finaltempURL = tempURL;
     if (((transfer->type == GET && transfer->client->usealtdownport) ||
         (transfer->type == PUT && transfer->client->usealtupport)) &&
-            !memcmp(tempURL.c_str(), "http:", 5))
+            !memcmp(finaltempURL.c_str(), "http:", 5))
     {
-        index = tempURL.find("/", 8);
-        if (index != string::npos && tempURL.find(":", 8) != string::npos)
+        size_t index = finaltempURL.find("/", 8);
+        if (index != string::npos && finaltempURL.find(":", 8) == string::npos)
         {
-            index = string::npos;
+            finaltempURL.insert(index, ":8080");
         }
     }
 
-    string finaltempURL = (index == std::string::npos) ?
-                                tempURL :
-                                string(tempURL).insert(index, ":8080");
-
-
-    httpReq->prepare(finaltempURL.empty() ? nullptr : finaltempURL.c_str(), transfer->transfercipher(),
+    httpReq->prepare(finaltempURL.c_str(),
+                     transfer->transfercipher(),
                      transfer->ctriv,
                      pos, npos);
     httpReq->pos = pos;
