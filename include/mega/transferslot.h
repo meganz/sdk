@@ -119,10 +119,13 @@ struct MEGA_API TransferSlot
     // handle I/O for this slot
     void doio(MegaClient*, TransferDbCommitter&);
 
-    // Prepare a transfer request for POST
+    // Prepare an HTTP request
     void prepareRequest(const std::shared_ptr<HttpReqXfer>&, const string& tempURL, m_off_t pos, m_off_t npos);
 
-    // Process a request in REQ_FAILURE state
+    // Process a request failure
+    // Return values:
+    // Error: the ErrorCode. If different from API_OK, it means that the transfer is considered as failed and transfer->failed() should be called.
+    // dstime: the backoff for the transfer->failed() call. This value doesn't shadow the backoff param, as it can be different and used on different parts of the code.
     std::pair<error, dstime> processRequestFailure(MegaClient* client, const std::shared_ptr<HttpReqXfer>& httpReq, dstime& backoff, int channel);
 
     // Process CloudRaid Request

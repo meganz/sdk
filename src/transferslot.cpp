@@ -1343,53 +1343,76 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
     }
 }
 
-std::pair<error, dstime> TransferSlot::processRaidReq(size_t connection)
+bool TransferSlot::tryRaidRecoveryFromHttpGetError(unsigned connectionNum, bool incrementErrors)
 {
-    assert(connection <= reqs.size());
-    const std::shared_ptr<HttpReqXfer>& httpReq = reqs[connection];
-    assert(transfer->type == GET);
-    assert(httpReq != nullptr);
-    assert(cloudRaid && cloudRaid->isShown());
-
-    // Process internal RaidReq IO
-    cloudRaid->raidReqDoio(static_cast<int>(connection));
-    auto failValues = cloudRaid->checkTransferFailure();
-    if (failValues.first != API_OK)
+    // If we are downloding a cloudraid file then we may be able to ignore one connection and download from the other 5.
+    if (transferbuf.isRaid())
     {
-        return failValues;
-    }
-
-    if (httpReq->status == REQ_PREPARED)
-    {
-        httpReq->bufpos = 0;
-        httpReq->status = REQ_INFLIGHT;
-    }
-    m_off_t progress = -1;
-    byte* buf = httpReq->buf + httpReq->bufpos;
-    m_off_t len = httpReq->size - httpReq->bufpos;
-    assert((len > 0) && "len is not 0 in processRaidReq");
-
-    // Get raid-assembled data
-    progress = static_cast<m_off_t>(cloudRaid->readData(static_cast<int>(connection), buf, len));
-    if (progress > 0)
-    {
-        httpReq->bufpos += progress;
-        if (httpReq->bufpos == httpReq->size)
+        if (transferbuf.tryRaidHttpGetErrorRecovery(connectionNum, incrementErrors))
         {
-            httpReq->status = REQ_SUCCESS;
-        }
-    }
-    else if (progress < 0)
-    {
-        httpReq->status = REQ_FAILURE;
-    }
-    httpReq->lastdata = Waiter::ds;
+            // transferbuf is now set up to try a new connection
+            reqs[connectionNum]->status = REQ_READY;
 
-    if (httpReq->status == REQ_SUCCESS)
-    {
-        cloudRaid->removeRaidReq(static_cast<int>(connection));
+            // if the file is nearly complete then some connections might have stopped, but need restarting as they could have skipped portions
+            for (unsigned j = connections; j--; )
+            {
+                if (reqs[j] && reqs[j]->status == REQ_DONE)
+                {
+                    reqs[j]->status = REQ_READY;
+                }
+            }
+            return true;
+        }
+        LOG_warn << "Cloudraid transfer failed, too many connection errors";
     }
-    return cloudRaid->checkTransferFailure();
+    return false;
+}
+
+
+// transfer progress notification to app and related files
+void TransferSlot::progress()
+{
+    transfer->client->app->transfer_update(transfer);
+
+    for (file_list::iterator it = transfer->files.begin(); it != transfer->files.end(); it++)
+    {
+        (*it)->progress();
+    }
+}
+
+m_off_t TransferSlot::updatecontiguousprogress()
+{
+    m_off_t contiguousProgress = transfer->chunkmacs.updateContiguousProgress(transfer->size);
+
+    // Since that is updated, we may have a chance to consolidate the macsmac calculation so far also
+    transfer->chunkmacs.updateMacsmacProgress(transfer->transfercipher());
+
+    if (!transferbuf.tempUrlVector().empty() && transferbuf.isRaid())
+    {
+        LOG_debug << "Contiguous progress: " << contiguousProgress;
+    }
+    else
+    {
+        LOG_debug << "Contiguous progress: " << contiguousProgress << " (" << (transfer->pos - contiguousProgress) << ")";
+    }
+
+    return contiguousProgress;
+}
+
+bool TransferSlot::initCloudRaid(MegaClient* client)
+{
+    assert(transferbuf.isNewRaid());
+    if (!transferbuf.isNewRaid())
+    {
+        return false;
+    }
+
+    if (cloudRaid == nullptr)
+    {
+        cloudRaid = std::make_shared<CloudRaid>(this, client, static_cast<int>(reqs.size()));
+        return cloudRaid->isShown();
+    }
+    return cloudRaid->init(this, client, static_cast<int>(reqs.size()));
 }
 
 void TransferSlot::prepareRequest(const std::shared_ptr<HttpReqXfer>& httpReq, const string& tempURL, m_off_t pos, m_off_t npos)
@@ -1407,8 +1430,8 @@ void TransferSlot::prepareRequest(const std::shared_ptr<HttpReqXfer>& httpReq, c
     }
 
     string finaltempURL = (index == std::string::npos) ?
-                                    tempURL :
-                                    string(tempURL).insert(index, ":8080");
+                                tempURL :
+                                string(tempURL).insert(index, ":8080");
 
 
     httpReq->prepare(finaltempURL.empty() ? nullptr : finaltempURL.c_str(), transfer->transfercipher(),
@@ -1510,77 +1533,53 @@ std::pair<error, dstime> TransferSlot::processRequestFailure(MegaClient* client,
     return std::make_pair(API_OK, 0);
 }
 
-
-bool TransferSlot::tryRaidRecoveryFromHttpGetError(unsigned connectionNum, bool incrementErrors)
+std::pair<error, dstime> TransferSlot::processRaidReq(size_t connection)
 {
-    // If we are downloding a cloudraid file then we may be able to ignore one connection and download from the other 5.
-    if (transferbuf.isRaid())
+    assert(connection <= reqs.size());
+    const std::shared_ptr<HttpReqXfer>& httpReq = reqs[connection];
+    assert(transfer->type == GET);
+    assert(httpReq != nullptr);
+    assert(cloudRaid && cloudRaid->isShown());
+
+    // Process internal RaidReq IO
+    cloudRaid->raidReqDoio(static_cast<int>(connection));
+    auto failValues = cloudRaid->checkTransferFailure();
+    if (failValues.first != API_OK)
     {
-        if (transferbuf.tryRaidHttpGetErrorRecovery(connectionNum, incrementErrors))
+        return failValues;
+    }
+
+    if (httpReq->status == REQ_PREPARED)
+    {
+        httpReq->bufpos = 0;
+        httpReq->status = REQ_INFLIGHT;
+    }
+    m_off_t progress = -1;
+    byte* buf = httpReq->buf + httpReq->bufpos;
+    m_off_t len = httpReq->size - httpReq->bufpos;
+    assert((len > 0) && "len is not 0 in processRaidReq");
+
+    // Get raid-assembled data
+    progress = static_cast<m_off_t>(cloudRaid->readData(static_cast<int>(connection), buf, len));
+    if (progress > 0)
+    {
+        httpReq->bufpos += progress;
+        if (httpReq->bufpos == httpReq->size)
         {
-            // transferbuf is now set up to try a new connection
-            reqs[connectionNum]->status = REQ_READY;
-
-            // if the file is nearly complete then some connections might have stopped, but need restarting as they could have skipped portions
-            for (unsigned j = connections; j--; )
-            {
-                if (reqs[j] && reqs[j]->status == REQ_DONE)
-                {
-                    reqs[j]->status = REQ_READY;
-                }
-            }
-            return true;
+            httpReq->status = REQ_SUCCESS;
         }
-        LOG_warn << "Cloudraid transfer failed, too many connection errors";
     }
-    return false;
-}
-
-
-// transfer progress notification to app and related files
-void TransferSlot::progress()
-{
-    transfer->client->app->transfer_update(transfer);
-
-    for (file_list::iterator it = transfer->files.begin(); it != transfer->files.end(); it++)
+    else if (progress < 0)
     {
-        (*it)->progress();
+        httpReq->status = REQ_FAILURE;
     }
-}
+    httpReq->lastdata = Waiter::ds;
 
-m_off_t TransferSlot::updatecontiguousprogress()
-{
-    m_off_t contiguousProgress = transfer->chunkmacs.updateContiguousProgress(transfer->size);
-
-    // Since that is updated, we may have a chance to consolidate the macsmac calculation so far also
-    transfer->chunkmacs.updateMacsmacProgress(transfer->transfercipher());
-
-    if (!transferbuf.tempUrlVector().empty() && transferbuf.isRaid())
+    if (httpReq->status == REQ_SUCCESS)
     {
-        LOG_debug << "Contiguous progress: " << contiguousProgress;
+        cloudRaid->removeRaidReq(static_cast<int>(connection));
     }
-    else
-    {
-        LOG_debug << "Contiguous progress: " << contiguousProgress << " (" << (transfer->pos - contiguousProgress) << ")";
-    }
-
-    return contiguousProgress;
-}
-
-bool TransferSlot::initCloudRaid(MegaClient* client)
-{
-    assert(transferbuf.isNewRaid());
-    if (!transferbuf.isNewRaid())
-    {
-        return false;
-    }
-
-    if (cloudRaid == nullptr)
-    {
-        cloudRaid = std::make_shared<CloudRaid>(this, client, static_cast<int>(reqs.size()));
-        return cloudRaid->isShown();
-    }
-    return cloudRaid->init(this, client, static_cast<int>(reqs.size()));
+    return cloudRaid->checkTransferFailure();
 }
 
 } // namespace
