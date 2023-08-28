@@ -689,7 +689,7 @@ fi
 
 if [ -n "`echo ${BUILD_ARCHS} | grep -w arm64-v8a`" ]; then
     echo "* Running ndk-build arm 64bits"
-    ${NDK_BUILD} NDK_LIBS_OUT=${TARGET_LIB_DIR} -j${JOBS} APP_ABI=arm64-v8a ENABLE_SYNC=0 USE_PDFIUM=0 USE_MEDIAINFO=0 USE_FREEIMAGE=0 HAVE_FFMPEG=0 USE_MEDIAINFO=0 &>> ${LOG_FILE}
+    ${NDK_BUILD} NDK_LIBS_OUT=${TARGET_LIB_DIR} -j${JOBS} APP_ABI=arm64-v8a &>> ${LOG_FILE}
     echo "* ndk-build finished for arm 64bits"
     mv ${TARGET_LIB_DIR}/arm64-v8a ../tmpLibs/
 fi
