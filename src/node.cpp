@@ -319,7 +319,10 @@ bool Node::isVideo(const std::string& ext)
 bool Node::isVideoWithFileAttributes() const
 {
     std::string ext;
-    Node::getExtension(ext, displayname());
+    if (!Node::getExtension(ext, displayname()))
+    {
+        return false;
+    }
 
     if (Node::hasfileattribute(&fileattrstring, fa_media) && nodekey().size() == FILENODEKEYLENGTH)
     {
