@@ -5158,6 +5158,7 @@ class MegaRequest
          *    · ClusterID.
          *    · IPv4.
          *    · IPv6.
+         *    . Device fingerprint. This value can be empty if there is no associated device fingerprint.
          * - For each ClusterID:
          *    · Cluster Public Key.
          * - List of VPN regions (as a MegaStringList).
@@ -22643,6 +22644,19 @@ public:
      * @return const char* with the IPv6 if the SlotID has a valid VPN credential, nullptr otherwise.
      */
     virtual const char* getIPv6(int slotID) const = 0;
+
+    /**
+     * @brief Get the device fingerprint associated with the VPN credentials of a SlotID.
+     *
+     * The string value can be empty if there is no associated device fingerprint.
+     *
+     * The caller does not take the ownership of the const char* object.
+     * The const char* object is valid as long as the current MegaVpnCredentials object is valid too.
+     *
+     * @param slotID The SlotID associated with the VPN credentials.
+     * @return const char* with the device fingerprint if the SlotID has a valid VPN credential, nullptr otherwise.
+     */
+    virtual const char* getDeviceFingerprint(int slotID) const = 0;
 
     /**
      * @brief Get the Cluster ID associated with the VPN credentials of a SlotID.

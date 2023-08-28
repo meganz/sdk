@@ -1765,11 +1765,17 @@ private:
 class MEGA_API CommandGetVpnCredentials : public Command
 {
 public:
-    using PairClusterIdAndIps = std::pair<int /* ClusterID */, StringPair /* <IPv4, IPv6> */ >;
-    using MapSlotIDToClusterIDAndIPs = std::map<int /* SlotID */, PairClusterIdAndIps>;
+    struct CredentialInfo
+    {
+        int clusterID;
+        std::string ipv4;
+        std::string ipv6;
+        std::string deviceFingerprint;
+    };
+    using MapSlotIDToCredentialInfo = std::map<int /* SlotID */, CredentialInfo>;
     using MapClusterPublicKeys = std::map<int /* ClusterID */, std::string /* Cluster Public Key */ >;
     using Cb = std::function<void(const Error& /* API error */,
-                                MapSlotIDToClusterIDAndIPs&& /* Map of SlotID: { ClusterID, IPv4 and IPv6 } */,
+                                MapSlotIDToCredentialInfo&& /* Map of SlotID: { ClusterID, IPv4, IPv6, Device Fingerprint } */,
                                 MapClusterPublicKeys&& /* Map of ClusterID: Cluster Public Key */,
                                 std::vector<std::string>&& /* VPN Regions */)>;
     CommandGetVpnCredentials(MegaClient*, Cb&& completion = nullptr);
