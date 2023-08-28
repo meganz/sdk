@@ -411,8 +411,6 @@ bool Node::isFromMimetype(MimeType_t mimetype, const string& ext)
     default:
         return false;
     }
-
-    return false;
 }
 
 nameid Node::getExtensionNameId(const std::string& ext)
