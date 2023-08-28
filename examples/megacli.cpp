@@ -5085,7 +5085,7 @@ void exec_get(autocomplete::ACState& s)
         {
             cout << "Checking link..." << endl;
 
-            client->reqs.add(new CommandGetFile(client, key, FILENODEKEYLENGTH, ph, false, nullptr, nullptr, nullptr, false,
+            client->reqs.add(new CommandGetFile(client, key, FILENODEKEYLENGTH, false, ph, false, nullptr, nullptr, nullptr, false,
                 [key, ph](const Error &e, m_off_t size, dstime /*timeleft*/,
                    std::string* filename, std::string* fingerprint, std::string* fileattrstring,
                    const std::vector<std::string> &/*tempurls*/, const std::vector<std::string> &/*ips*/)
