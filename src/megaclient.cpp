@@ -2713,13 +2713,14 @@ void MegaClient::exec()
                 {
                     // failure, repeat with capped exponential backoff
                     btsc.backoff();
+                    LOG_debug << clientname << "sc backing off with delay ds: " << btsc.retryin();
                 }
                 break;
 
             case REQ_INFLIGHT:
                 if (!pendingscTimedOut && Waiter::ds >= (pendingsc->lastdata + HttpIO::SCREQUESTTIMEOUT))
                 {
-                    LOG_debug << "sc timeout expired at ds: " << Waiter::ds << " and lastdata ds: " << pendingsc->lastdata;
+                    LOG_debug << clientname << "sc timeout expired at ds: " << Waiter::ds << " and lastdata ds: " << pendingsc->lastdata;
                     // In almost all cases the server won't take more than SCREQUESTTIMEOUT seconds.  But if it does, break the cycle of endless requests for the same thing
                     pendingscTimedOut = true;
                     pendingsc.reset();
