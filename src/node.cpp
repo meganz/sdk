@@ -301,7 +301,10 @@ bool Node::isPhoto(const std::string& ext)
 bool Node::isPhotoWithFileAttributes(bool checkPreview) const
 {
     std::string ext;
-    Node::getExtension(ext, displayname());
+    if (!Node::getExtension(ext, displayname()))
+    {
+        return false;
+    }
 
     // evaluate according to the webclient rules, so that we get exactly the same bucketing.
     return (isPhoto(ext)
@@ -387,7 +390,7 @@ bool Node::isMiscellaneous(const std::string& ext)
     return miscExtensions.find(getExtensionNameId(ext)) != miscExtensions.end();
 }
 
-bool Node::isFromMimetype(MimeType_t mimetype, const string& ext)
+bool Node::isOfMimetype(MimeType_t mimetype, const string& ext)
 {
     switch (mimetype) {
     case MimeType_t::MIME_TYPE_PHOTO:
@@ -1300,7 +1303,7 @@ string Node::displaypath() const
     return path;
 }
 
-bool Node::isFromMimetype(MimeType_t mimetype, bool checkPreview) const
+bool Node::isIncludedForMimetype(MimeType_t mimetype, bool checkPreview) const
 {
     if (type != FILENODE)
     {
@@ -1318,7 +1321,7 @@ bool Node::isFromMimetype(MimeType_t mimetype, bool checkPreview) const
         return false;
     }
 
-    return Node::isFromMimetype(mimetype, extension);
+    return Node::isOfMimetype(mimetype, extension);
 }
 
 bool isPhotoVideoAudioByName(const string& filenameExtensionLowercaseNoDot)

@@ -1996,7 +1996,7 @@ void SqliteAccountState::userIsMimetype(sqlite3_context* context, int argc, sqli
     {
         std::string ext;
         Node::getExtension(ext, name);
-        result = Node::isFromMimetype(static_cast<MimeType_t>(mimetype), ext);
+        result = Node::isOfMimetype(static_cast<MimeType_t>(mimetype), ext);
 
     }
 

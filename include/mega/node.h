@@ -178,7 +178,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     // match mimetype type
     // checkPreview flag is only compatible with MimeType_t::MIME_TYPE_PHOTO
-    bool isFromMimetype(MimeType_t mimetype, bool checkPreview = false) const;
+    bool isIncludedForMimetype(MimeType_t mimetype, bool checkPreview = false) const;
 
     // node attributes
     AttrMap attrs;
@@ -373,7 +373,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     static bool isArchive(const std::string& ext);
     static bool isProgram(const std::string& ext);
     static bool isMiscellaneous(const std::string& ext);
-    static bool isFromMimetype(MimeType_t mimetype, const std::string& ext);
+    static bool isOfMimetype(MimeType_t mimetype, const std::string& ext);
 
     bool isPhotoWithFileAttributes(bool checkPreview) const;
     bool isVideoWithFileAttributes() const;
