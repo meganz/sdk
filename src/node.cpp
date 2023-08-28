@@ -298,8 +298,11 @@ bool Node::isPhoto(const std::string& ext)
         photoExtensions.find(extNameid) != photoExtensions.end();
 }
 
-bool Node::isPhotoWithFileAttributes(const string& ext, bool checkPreview) const
+bool Node::isPhotoWithFileAttributes(bool checkPreview) const
 {
+    std::string ext;
+    Node::getExtension(ext, displayname());
+
     // evaluate according to the webclient rules, so that we get exactly the same bucketing.
     return (isPhoto(ext)
             && (!checkPreview || Node::hasfileattribute(&fileattrstring, GfxProc::PREVIEW)));
@@ -310,8 +313,11 @@ bool Node::isVideo(const std::string& ext)
     return videoExtensions.find(getExtensionNameId(ext)) != videoExtensions.end();
 }
 
-bool Node::isVideoWithFileAttributes(const std::string& ext) const
+bool Node::isVideoWithFileAttributes() const
 {
+    std::string ext;
+    Node::getExtension(ext, displayname());
+
     if (Node::hasfileattribute(&fileattrstring, fa_media) && nodekey().size() == FILENODEKEYLENGTH)
     {
 #ifdef USE_MEDIAINFO
@@ -353,7 +359,7 @@ bool Node::isAudio(const std::string& ext)
 
 bool Node::isDocument(const std::string& ext)
 {
-    return documentExtensions.find(getExtensionNameId(ext)) != documentExtensions.end();
+    return documentExtensions.find(getExtensionNameId(ext)) != documentExtensions.end() || isPdf(ext) || isPresentation(ext);
 }
 
 bool Node::isPdf(const std::string& ext)
@@ -379,6 +385,34 @@ bool Node::isProgram(const std::string& ext)
 bool Node::isMiscellaneous(const std::string& ext)
 {
     return miscExtensions.find(getExtensionNameId(ext)) != miscExtensions.end();
+}
+
+bool Node::isFromMimetype(MimeType_t mimetype, const string& ext)
+{
+    switch (mimetype) {
+    case MimeType_t::MIME_TYPE_PHOTO:
+        return Node::isPhoto(ext);
+    case MimeType_t::MIME_TYPE_AUDIO:
+        return Node::isAudio(ext);
+    case MimeType_t::MIME_TYPE_VIDEO:
+        return Node::isVideo(ext);
+    case MimeType_t::MIME_TYPE_DOCUMENT:
+        return Node::isDocument(ext);
+    case MimeType_t::MIME_TYPE_PDF:
+        return Node::isPdf(ext);
+    case MimeType_t::MIME_TYPE_PRESENTATION:
+        return Node::isPresentation(ext);
+    case MimeType_t::MIME_TYPE_ARCHIVE:
+        return Node::isArchive(ext);
+    case MimeType_t::MIME_TYPE_PROGRAM:
+        return Node::isProgram(ext);
+    case MimeType_t::MIME_TYPE_MISC:
+        return Node::isMiscellaneous(ext);
+    default:
+        return false;
+    }
+
+    return false;
 }
 
 nameid Node::getExtensionNameId(const std::string& ext)
@@ -1268,57 +1302,25 @@ string Node::displaypath() const
     return path;
 }
 
-MimeType_t Node::getMimeType(bool checkPreview) const
+bool Node::isFromMimetype(MimeType_t mimetype, bool checkPreview) const
 {
     if (type != FILENODE)
     {
-        return MimeType_t::MIME_TYPE_UNKNOWN;
+        return false;
+    }
+
+    if (mimetype == MimeType_t::MIME_TYPE_PHOTO)
+    {
+        return isPhotoWithFileAttributes(checkPreview);
     }
 
     std::string extension;
     if (!getExtension(extension, displayname()))
     {
-        return MimeType_t::MIME_TYPE_UNKNOWN;
+        return false;
     }
 
-    if (isPhoto(extension))
-    {
-        return MimeType_t::MIME_TYPE_PHOTO;
-    }
-    else if (isVideo(extension))
-    {
-        return MimeType_t::MIME_TYPE_VIDEO;
-    }
-    else if (isAudio(extension))
-    {
-        return MimeType_t::MIME_TYPE_AUDIO;
-    }
-    else if (isDocument(extension))
-    {
-        return MimeType_t::MIME_TYPE_DOCUMENT;
-    }
-    else if (isPdf(extension))
-    {
-        return MimeType_t::MIME_TYPE_PDF;
-    }
-    else if (isPresentation(extension))
-    {
-        return MimeType_t::MIME_TYPE_PRESENTATION;
-    }
-    else if (isArchive(extension))
-    {
-        return MimeType_t::MIME_TYPE_ARCHIVE;
-    }
-    else if (isProgram(extension))
-    {
-        return MimeType_t::MIME_TYPE_PROGRAM;
-    }
-    else if (isMiscellaneous(extension))
-    {
-        return MimeType_t::MIME_TYPE_MISC;
-    }
-
-    return MimeType_t::MIME_TYPE_UNKNOWN;
+    return Node::isFromMimetype(mimetype, extension);
 }
 
 bool isPhotoVideoAudioByName(const string& filenameExtensionLowercaseNoDot)

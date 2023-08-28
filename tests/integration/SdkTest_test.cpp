@@ -14273,6 +14273,10 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), handlePdfFile);
 
+    nodeList.reset(megaApi[0]->searchByType(nullptr, nullptr, nullptr, true, MegaApi::ORDER_NONE, MegaApi::FILE_TYPE_DOCUMENT));
+    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), handlePdfFile);
+
     nodeList.reset(megaApi[0]->searchByType(nullptr, nullptr, nullptr, true, MegaApi::ORDER_NONE, MegaApi::FILE_TYPE_MISC));
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), handleJsonFile);
