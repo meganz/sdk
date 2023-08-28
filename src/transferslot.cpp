@@ -1343,6 +1343,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
     }
 }
 
+
 bool TransferSlot::tryRaidRecoveryFromHttpGetError(unsigned connectionNum, bool incrementErrors)
 {
     // If we are downloding a cloudraid file then we may be able to ignore one connection and download from the other 5.
@@ -1374,11 +1375,12 @@ void TransferSlot::progress()
 {
     transfer->client->app->transfer_update(transfer);
 
-    for (file_list::iterator it = transfer->files.begin(); it != transfer->files.end(); it++)
+    for (file_list::iterator it = transfer->files.begin(); it != transfer->files.end(); ++it)
     {
         (*it)->progress();
     }
 }
+
 
 m_off_t TransferSlot::updatecontiguousprogress()
 {
@@ -1399,47 +1401,32 @@ m_off_t TransferSlot::updatecontiguousprogress()
     return contiguousProgress;
 }
 
-bool TransferSlot::initCloudRaid(MegaClient* client)
-{
-    assert(transferbuf.isNewRaid());
-    if (!transferbuf.isNewRaid())
-    {
-        return false;
-    }
-
-    if (cloudRaid == nullptr)
-    {
-        cloudRaid = std::make_shared<CloudRaid>(this, client, static_cast<int>(reqs.size()));
-        return cloudRaid->isShown();
-    }
-    return cloudRaid->init(this, client, static_cast<int>(reqs.size()));
-}
 
 void TransferSlot::prepareRequest(const std::shared_ptr<HttpReqXfer>& httpReq, const string& tempURL, m_off_t pos, m_off_t npos)
 {
-    size_t index = string::npos;
-    if (((transfer->type == GET && transfer->client->usealtdownport) ||
-        (transfer->type == PUT && transfer->client->usealtupport)) &&
-            !memcmp(tempURL.c_str(), "http:", 5))
+    string finaltempURL = tempURL;
+    if (!finaltempURL.empty())
     {
-        index = tempURL.find("/", 8);
-        if (index != string::npos && tempURL.find(":", 8) != string::npos)
+        if (((transfer->type == GET && transfer->client->usealtdownport) ||
+            (transfer->type == PUT && transfer->client->usealtupport)) &&
+                !memcmp(finaltempURL.c_str(), "http:", 5))
         {
-            index = string::npos;
+            size_t index = finaltempURL.find("/", 8);
+            if (index != string::npos && finaltempURL.find(":", 8) == string::npos)
+            {
+                finaltempURL.insert(index, ":8080");
+            }
         }
     }
 
-    string finaltempURL = (index == std::string::npos) ?
-                                tempURL :
-                                string(tempURL).insert(index, ":8080");
-
-
-    httpReq->prepare(finaltempURL.empty() ? nullptr : finaltempURL.c_str(), transfer->transfercipher(),
+    httpReq->prepare(finaltempURL.c_str(),
+                     transfer->transfercipher(),
                      transfer->ctriv,
                      pos, npos);
     httpReq->pos = pos;
     httpReq->status = REQ_PREPARED;
 }
+
 
 std::pair<error, dstime> TransferSlot::processRequestFailure(MegaClient* client, const std::shared_ptr<HttpReqXfer>& httpReq, dstime& backoff, int channel)
 {
@@ -1532,6 +1519,24 @@ std::pair<error, dstime> TransferSlot::processRequestFailure(MegaClient* client,
     }
     return std::make_pair(API_OK, 0);
 }
+
+
+bool TransferSlot::initCloudRaid(MegaClient* client)
+{
+    assert(transferbuf.isNewRaid());
+    if (!transferbuf.isNewRaid())
+    {
+        return false;
+    }
+
+    if (cloudRaid == nullptr)
+    {
+        cloudRaid = std::make_shared<CloudRaid>(this, client, static_cast<int>(reqs.size()));
+        return cloudRaid->isShown();
+    }
+    return cloudRaid->init(this, client, static_cast<int>(reqs.size()));
+}
+
 
 std::pair<error, dstime> TransferSlot::processRaidReq(size_t connection)
 {

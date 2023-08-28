@@ -692,10 +692,16 @@ void HttpReqDL::prepare(const char* tempurl, SymmCipher* /*key*/,
                         uint64_t /*ctriv*/, m_off_t pos,
                         m_off_t npos)
 {
-    char urlbuf[512];
-
-    snprintf(urlbuf, sizeof urlbuf, "%s/%" PRIu64 "-%" PRIu64, tempurl, pos, npos ? npos - 1 : 0);
-    setreq(urlbuf, REQ_BINARY);
+    if (tempurl && *tempurl)
+    {
+        char urlbuf[512];
+        snprintf(urlbuf, sizeof urlbuf, "%s/%" PRIu64 "-%" PRIu64, tempurl, pos, npos ? npos - 1 : 0);
+        setreq(urlbuf, REQ_BINARY);
+    }
+    else
+    {
+        setreq(nullptr, REQ_BINARY);
+    }
 
     dlpos = pos;
     size = (unsigned)(npos - pos);
