@@ -24752,15 +24752,9 @@ long long MegaApiImpl::getNumNodes()
     return client->totalNodes;
 }
 
-void MegaApiImpl::setLRUCacheSize(long long size)
+void MegaApiImpl::setLRUCacheSize(unsigned long long size)
 {
-    if (size < 0)
-    {
-        size = LLONG_MAX;
-    }
-
-    SdkMutexGuard g(sdkMutex);
-    client->mNodeManager.setCacheLRUMaxSize(static_cast<uint64_t>(size));
+    client->mNodeManager.setCacheLRUMaxSize(size);
 }
 
 long long MegaApiImpl::getTotalDownloadedBytes()

@@ -16003,11 +16003,11 @@ class MegaApi
         /**
          * @brief Set LRU cache size
          *
-         * By default it's defined at long long max value
+         * By default it's defined at unsigned long long max value
          *
-         * @param size LRU cache size (negative number means there isn't limit)
+         * @param size LRU cache size
          */
-        void setLRUCacheSize(long long size);
+        void setLRUCacheSize(unsigned long long size);
 
         enum { ORDER_NONE = 0, ORDER_DEFAULT_ASC, ORDER_DEFAULT_DESC,
             ORDER_SIZE_ASC, ORDER_SIZE_DESC,

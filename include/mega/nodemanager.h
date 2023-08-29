@@ -23,6 +23,7 @@
 #define NODEMANAGER_H 1
 
 #include <map>
+#include <limits>
 #include <set>
 #include "node.h"
 #include "types.h"
@@ -275,7 +276,7 @@ private:
     // Stores nodes that have been loaded in RAM from DB (not necessarily all of them)
     std::map<NodeHandle, NodeManagerNode> mNodes;
 
-    uint64_t mCacheLRUMaxSize = LLONG_MAX;
+    uint64_t mCacheLRUMaxSize = std::numeric_limits<uint64_t>::max();
     std::list<std::shared_ptr<Node> > mCacheLRU;
 
     std::atomic<uint64_t> mNodesInRam;

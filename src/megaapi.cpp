@@ -4467,7 +4467,7 @@ long long MegaApi::getNumNodes()
     return pImpl->getNumNodes();
 }
 
-void MegaApi::setLRUCacheSize(long long size)
+void MegaApi::setLRUCacheSize(unsigned long long size)
 {
     pImpl->setLRUCacheSize(size);
 }
