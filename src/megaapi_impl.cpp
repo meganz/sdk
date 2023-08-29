@@ -25583,6 +25583,10 @@ void MegaApiImpl::putVpnCredential(const char* region, MegaRequestListener* list
                     request->setNumber(slotID);
                     request->setText(newCredential.c_str());
                 }
+                else
+                {
+                    request->setText(nullptr); // Remove region used for request
+                }
 
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             });
