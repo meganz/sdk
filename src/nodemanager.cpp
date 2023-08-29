@@ -31,7 +31,7 @@ namespace mega {
 
 NodeManager::NodeManager(MegaClient& client)
     : mClient(client)
-    , mNodesInRam(0)
+    , mNodesInRam{0}
 {
 }
 
@@ -301,8 +301,7 @@ sharedNode_list NodeManager::getChildren_internal(const Node *parent, CancelToke
 
             if (child.second)
             {
-                shared_ptr<Node> node = getNodeFromNodeManagerNode(*child.second);
-                childrenList.push_back(node);
+                childrenList.push_back(getNodeFromNodeManagerNode(*child.second));
             }
             else
             {
@@ -310,7 +309,7 @@ sharedNode_list NodeManager::getChildren_internal(const Node *parent, CancelToke
                 assert(n);
                 if (n)
                 {
-                    childrenList.push_back(n);
+                    childrenList.push_back(std::move(n));
                 }
             }
         }
@@ -325,7 +324,7 @@ sharedNode_list NodeManager::getChildren_internal(const Node *parent, CancelToke
                 {
                     if (shared_ptr<Node> node = child.second->getNodeInRam())
                     {
-                        childrenList.push_back(node);
+                        childrenList.push_back(std::move(node));
                     }
                 }
             }
@@ -365,7 +364,7 @@ sharedNode_list NodeManager::getChildren_internal(const Node *parent, CancelToke
                         return childrenList;
                     }
 
-                    childrenList.push_back(n);
+                    childrenList.push_back(std::move(n));
                 }
                 else  // -> node loaded, but it isn't associated to the parent -> the node has been moved but DB isn't already updated
                 {
@@ -615,7 +614,7 @@ sharedNode_vector NodeManager::getNodesByFingerprint_internal(FileFingerprint &f
         fpLoaded.emplace(node->nodeHandle());
         std::shared_ptr<Node> sharedNode = node->mNodePosition->second.getNodeInRam();
         assert(sharedNode);
-        nodes.push_back(sharedNode);
+        nodes.push_back(std::move(sharedNode));
     }
 
     // If all fingerprints are loaded at DB, it isn't necessary search in DB
@@ -653,7 +652,7 @@ sharedNode_vector NodeManager::getNodesByFingerprint_internal(FileFingerprint &f
                     }
                 }
 
-                nodes.push_back(node);
+                nodes.push_back(std::move(node));
             }
         }
     }
@@ -811,17 +810,17 @@ sharedNode_vector NodeManager::getRootNodes_internal()
     {
         std::shared_ptr<Node> rootNode = rootnodes.mRootNodes[ROOTNODE];
         assert(rootNode);
-        nodes.push_back(rootNode);
+        nodes.push_back(std::move(rootNode));
 
         if (!mClient.loggedIntoFolder())
         {
             std::shared_ptr<Node> inBox = rootnodes.mRootNodes[VAULTNODE];
             assert(inBox);
-            nodes.push_back(inBox);
+            nodes.push_back(std::move(inBox));
 
             std::shared_ptr<Node> rubbish = rootnodes.mRootNodes[RUBBISHNODE];
             assert(rubbish);
-            nodes.push_back(rubbish);
+            nodes.push_back(std::move(rubbish));
         }
     }
     else    // nodes not loaded yet
@@ -836,8 +835,8 @@ sharedNode_vector NodeManager::getRootNodes_internal()
                 return nodes;
             }
 
-            nodes.push_back(n);
             setrootnode_internal(n);
+            nodes.push_back(std::move(n));
         }
         else
         {
@@ -854,9 +853,9 @@ sharedNode_vector NodeManager::getRootNodes_internal()
                     return nodes;
                 }
 
-                nodes.push_back(n);
-
                 setrootnode_internal(n);
+                nodes.push_back(std::move(n));
+
             }
         }
     }
@@ -1977,7 +1976,7 @@ sharedNode_vector NodeManager::processUnserializedNodes(const std::vector<std::p
             }
         }
 
-        nodes.push_back(n);
+        nodes.push_back(std::move(n));
     }
 
     return nodes;
