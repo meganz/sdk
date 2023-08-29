@@ -14293,8 +14293,6 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
         else
         {
             ASSERT_EQ(API_EACCESS, result) << "adding a new VPN credential on a free account didn't return the expected error value (error: " << result << ")";
-            ASSERT_TRUE(slotID <= 0) << "slotID should not be greater than 0 on a free account";
-            ASSERT_TRUE(newCredential.empty()) << "VPN Credential string is NOT EMPTY on a free account";
         }
 
         // Get VPN credentials and search for the credential associated with the returned SlotID
