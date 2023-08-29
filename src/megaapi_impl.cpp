@@ -7402,8 +7402,8 @@ void MegaApiImpl::getDeviceName(const char* deviceId, MegaRequestListener *liste
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
     request->setParamType(MegaApi::USER_ATTR_DEVICE_NAMES);
-    request->setText(deviceId);
-    request->setNumDetails(1); // error out if deviceId not found
+    string id = deviceId ? deviceId : client->getDeviceidHash();
+    request->setText(id.c_str());
 
     request->performRequest = [this, request]()
     {
@@ -15191,7 +15191,11 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
         // TLV data usually includes byte arrays with zeros in the middle, so values
         // must be converted into Base64 strings to avoid problems
         std::unique_ptr<MegaStringMap> stringMap(new MegaStringMapPrivate(tlv->getMap(), true));
-        request->setMegaStringMap(stringMap.get());
+        if (request->getParamType() != MegaApi::USER_ATTR_DEVICE_NAMES || !request->getText())
+        {
+            request->setMegaStringMap(stringMap.get());
+        }
+
         switch (request->getParamType())
         {
             // prepare request params to know if a warning should show or not
@@ -15276,6 +15280,11 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
             }
             case MegaApi::USER_ATTR_DEVICE_NAMES:
             {
+                if (!request->getFlag() && !request->getText()) // all devices and drives
+                {
+                    break;
+                }
+
                 const char* buf = nullptr;
 
                 if (request->getFlag()) // external drive
@@ -15284,21 +15293,19 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                     string key = User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true) + string(Base64Str<MegaClient::DRIVEHANDLE>(driveId));
                     buf = stringMap->get(key.c_str());
                 }
-                else
+                else if (request->getText()) // device
                 {
-                    // The name of a particular device could have been requested, so extract that.
-                    // Otherwise, attempt to extract the name of current device.
-                    buf = stringMap->get(request->getText() ? request->getText() : client->getDeviceidHash().c_str());
+                    buf = stringMap->get(request->getText());
                 }
 
-                bool errorForNameNotFound = request->getFlag()       /*see getDriveName()*/ ||
-                                            request->getNumDetails() /*see getDeviceName()*/;
-                if (!buf && errorForNameNotFound)
+                if (buf)
+                {
+                    request->setName(Base64::atob(buf).c_str());
+                }
+                else
                 {
                     e = API_ENOENT;
-                    break;
                 }
-                request->setName(Base64::atob(buf ? buf : "").c_str());
                 break;
             }
 
