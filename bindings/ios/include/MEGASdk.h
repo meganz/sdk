@@ -10146,7 +10146,7 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest megaStringDictionary] map with relationship between ids and ius
  *
- * @param AdsFlag A bitmap flag used to communicate with the API
+ * @param adFlags A bitmap flag used to communicate with the API
  * Valid values are:
  *      - AdsFlagDefault = 0x0
  *      - AdsFlagForceAds = 0x200
@@ -10173,7 +10173,7 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest numDetails] Return if ads should be show or not
  *
- * @param AdsFlag A bitmap flag used to communicate with the API
+ * @param adFlags A bitmap flag used to communicate with the API
  * Valid values are:
  *      - AdsFlagDefault = 0x0
  *      - AdsFlagForceAds = 0x200
