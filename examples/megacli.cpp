@@ -1163,10 +1163,10 @@ void DemoApp::putnodes_result(const Error& e, targettype_t t, vector<NewNode>& n
     {
         for (auto &newNode : nn)
         {
-            Node* n = client->nodebyhandle(newNode.mAddedHandle);
+            std::shared_ptr<Node> n = client->nodebyhandle(newNode.mAddedHandle);
             if (n)
             {
-                i->second(n);
+                i->second(n.get());
             }
         }
 
@@ -1210,7 +1210,7 @@ void DemoApp::updatepcr_result(error e, ipcactions_t action)
 void DemoApp::fa_complete(handle h, fatype type, const char* /*data*/, uint32_t len)
 {
     cout << "Got attribute of type " << type << " (" << len << " byte(s))";
-    Node *n = client->nodebyhandle(h);
+    std::shared_ptr<Node> n = client->nodebyhandle(h);
     if (n)
     {
         cout << " for " << n->displayname() << endl;
@@ -1493,7 +1493,7 @@ static void listtrees()
     for (user_map::iterator uit = client->users.begin(); uit != client->users.end(); uit++)
     {
         User* u = &uit->second;
-        Node* n;
+        std::shared_ptr<Node> n;
 
         if (u->show == VISIBLE || u->sharing.size())
         {
@@ -1510,7 +1510,7 @@ static void listtrees()
 
     if (clientFolder && !clientFolder->mNodeManager.getRootNodeFiles().isUndef())
     {
-        Node *n = clientFolder->nodeByHandle(clientFolder->mNodeManager.getRootNodeFiles());
+        std::shared_ptr<Node> n = clientFolder->nodeByHandle(clientFolder->mNodeManager.getRootNodeFiles());
         if (n)
         {
             cout << "FOLDERLINK on " << n->displayname() << ":" << endl;
@@ -1533,7 +1533,7 @@ bool showattrs = false;
 // * : and / filename components, as well as the \, must be escaped by \.
 // (correct UTF-8 encoding is assumed)
 // returns NULL if path malformed or not found
-static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart = NULL)
+static std::shared_ptr<Node> nodebypath(const char* ptr, string* user = NULL, string* namepart = NULL)
 {
     if (!ptr)
     {
@@ -1546,8 +1546,8 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
     const char* bptr = ptr;
     int remote = 0;
     int folderlink = 0;
-    Node* n = nullptr;
-    Node* nn;
+    std::shared_ptr<Node> n;
+    std::shared_ptr<Node> nn;
 
 
     // special case access by handle, same syntax as megacmd
@@ -1751,11 +1751,11 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
                 {
                     if (folderlink)
                     {
-                        nn = clientFolder->childnodebyname(n, c[l].c_str());
+                        nn = clientFolder->childnodebyname(n.get(), c[l].c_str());
                     }
                     else
                     {
-                        nn = client->childnodebyname(n, c[l].c_str());
+                        nn = client->childnodebyname(n.get(), c[l].c_str());
                     }
 
                     if (!nn)
@@ -1828,10 +1828,10 @@ static void listallshares()
 {
     cout << "Outgoing shared folders:" << endl;
 
-    node_vector outshares = client->mNodeManager.getNodesWithOutShares();
+    sharedNode_vector outshares = client->mNodeManager.getNodesWithOutShares();
     for (auto& share : outshares)
     {
-        listnodeshares(share, false);
+        listnodeshares(share.get(), false);
     }
 
     cout << "Incoming shared folders:" << endl;
@@ -1840,7 +1840,7 @@ static void listallshares()
         uit != client->users.end(); uit++)
     {
         User* u = &uit->second;
-        Node* n;
+        std::shared_ptr<Node> n;
 
         if (u->show == VISIBLE && u->sharing.size())
         {
@@ -1863,18 +1863,18 @@ static void listallshares()
     cout << "Pending outgoing shared folders:" << endl;
 
     // pending outgoing
-    node_vector pendingoutshares = client->mNodeManager.getNodesWithPendingOutShares();
+    sharedNode_vector pendingoutshares = client->mNodeManager.getNodesWithPendingOutShares();
     for (auto& share : pendingoutshares)
     {
-        listnodependingshares(share);
+        listnodependingshares(share.get());
     }
 
     cout << "Public folder links:" << endl;
 
-    node_vector links = client->mNodeManager.getNodesWithLinks();
+    sharedNode_vector links = client->mNodeManager.getNodesWithLinks();
     for (auto& share : links)
     {
-        listnodeshares(share, true);
+        listnodeshares(share.get(), true);
     }
 
 }
@@ -1935,12 +1935,12 @@ static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstre
                     }
                 }
 
-                node_list nodeChildren = client->mNodeManager.getChildren(n);
+                sharedNode_list nodeChildren = client->mNodeManager.getChildren(n);
                 if (nodeChildren.size())
                 {
                     Node *version = n;
                     int i = 0;
-                    while (nodeChildren.size() && (version = nodeChildren.back()))
+                    while (nodeChildren.size() && (version = nodeChildren.back().get()))
                     {
                         i++;
                         if (handles_on)
@@ -2054,9 +2054,9 @@ static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstre
 
     if (n->type != FILENODE)
     {
-        for (Node* node : client->getChildren(n))
+        for (auto& node : client->getChildren(n))
         {
-            dumptree(node, recurse, depth + 1, NULL, toFile);
+            dumptree(node.get(), recurse, depth + 1, NULL, toFile);
         }
     }
 }
@@ -2098,7 +2098,7 @@ static void local_dumptree(const fs::path& de, int recurse, int depth = 0)
 
 static void nodepath(NodeHandle h, string* path)
 {
-    Node* n = client->nodeByHandle(h);
+    std::shared_ptr<Node> n = client->nodeByHandle(h);
     *path = n ? n->displaypath() : "";
 }
 
@@ -2169,7 +2169,7 @@ public:
     }
 
     // determine node tree size (nn = NULL) or write node tree to new nodes array
-    void proc(MegaClient* mc, Node* n)
+    void proc(MegaClient* mc, std::shared_ptr<Node> n)
     {
         if (populated)
         {
@@ -2640,7 +2640,7 @@ public:
                         json.leavearray();
                         if (tempurls.size() == 6)
                         {
-                            if (Node* n = client->nodebyhandle(h))
+                            if (std::shared_ptr<Node> n = client->nodebyhandle(h))
                             {
                                 cout << n->displaypath() << endl;
 
@@ -2696,7 +2696,7 @@ void getDepthFirstFileHandles(Node* n, deque<handle>& q)
     {
         if (c->type > FILENODE)
         {
-            getDepthFirstFileHandles(c, q);
+            getDepthFirstFileHandles(c.get(), q);
         }
     }
 }
@@ -2705,10 +2705,10 @@ void exec_find(autocomplete::ACState& s)
 {
     if (s.words[1].s == "raided")
     {
-        if (Node* n = client->nodeByHandle(cwd))
+        if (std::shared_ptr<Node> n = client->nodeByHandle(cwd))
         {
             auto q = std::make_shared<FileFindCommand::Stack>();
-            getDepthFirstFileHandles(n, *q);
+            getDepthFirstFileHandles(n.get(), *q);
             q->filesLeft = q->size();
             cout << "<find checking " << q->size() << " files>" << endl;
             if (q->empty())
@@ -2733,12 +2733,13 @@ bool recurse_findemptysubfoldertrees(Node* n, bool moveToTrash)
         return false;
     }
 
-    std::vector<Node*> emptyFolders;
+    sharedNode_vector emptyFolders;
     bool empty = true;
-    Node* trash = client->nodeByHandle(client->mNodeManager.getRootNodeRubbish());
-    for (auto c : client->getChildren(n))
+    std::shared_ptr<Node> trash = client->nodeByHandle(client->mNodeManager.getRootNodeRubbish());
+    sharedNode_list children = client->getChildren(n);
+    for (auto& c : children)
     {
-        bool subfolderEmpty = recurse_findemptysubfoldertrees(c, moveToTrash);
+        bool subfolderEmpty = recurse_findemptysubfoldertrees(c.get(), moveToTrash);
         if (subfolderEmpty)
         {
             emptyFolders.push_back(c);
@@ -2747,7 +2748,7 @@ bool recurse_findemptysubfoldertrees(Node* n, bool moveToTrash)
     }
     if (!empty)
     {
-        for (auto c : emptyFolders)
+        for (auto& c : emptyFolders)
         {
             if (moveToTrash)
             {
@@ -2766,9 +2767,9 @@ bool recurse_findemptysubfoldertrees(Node* n, bool moveToTrash)
 void exec_findemptysubfoldertrees(autocomplete::ACState& s)
 {
     bool moveToTrash = s.extractflag("-movetotrash");
-    if (Node* n = client->nodeByHandle(cwd))
+    if (std::shared_ptr<Node> n = client->nodeByHandle(cwd))
     {
-        if (recurse_findemptysubfoldertrees(n, moveToTrash))
+        if (recurse_findemptysubfoldertrees(n.get(), moveToTrash))
         {
             cout << "the search root path only contains empty folders: " << n->displaypath() << endl;
         }
@@ -2811,7 +2812,7 @@ bool recursiveCompare(Node* mn, fs::path p)
 
     std::string path = p.u8string();
     auto fileSystemType = client->fsaccess->getlocalfstype(LocalPath::fromAbsolutePath(path));
-    multimap<string, Node*> ms;
+    multimap<string, shared_ptr<Node> > ms;
     multimap<string, fs::path> ps;
     for (auto& m : client->getChildren(mn))
     {
@@ -2833,7 +2834,7 @@ bool recursiveCompare(Node* mn, fs::path p)
         ++next_p;
         for (auto i = er.first; i != er.second; ++i)
         {
-            if (recursiveCompare(i->second, p_iter->second))
+            if (recursiveCompare(i->second.get(), p_iter->second))
             {
                 ms.erase(i);
                 ps.erase(p_iter);
@@ -2855,9 +2856,9 @@ bool recursiveCompare(Node* mn, fs::path p)
     };
 }
 #endif
-Node* nodeFromRemotePath(const string& s)
+std::shared_ptr<Node> nodeFromRemotePath(const string& s)
 {
-    Node* n;
+    std::shared_ptr<Node> n;
     if (s.empty())
     {
         n = client->nodeByHandle(cwd);
@@ -2925,7 +2926,7 @@ void setAppendAndUploadOnCompletedUploads(string local_path, int count, bool all
         TransferDbCommitter committer(client->tctable);
         int total = 0;
         auto lp = LocalPath::fromAbsolutePath(local_path);
-        uploadLocalPath(FILENODE, lp.leafName().toPath(false), lp, client->nodeByHandle(cwd), "", committer, total, false, ClaimOldVersion, nullptr, false, allowDuplicateVersions);
+        uploadLocalPath(FILENODE, lp.leafName().toPath(false), lp, client->nodeByHandle(cwd).get(), "", committer, total, false, ClaimOldVersion, nullptr, false, allowDuplicateVersions);
 
         if (count > 0)
         {
@@ -2955,10 +2956,10 @@ fs::path pathFromLocalPath(const string& s, bool mustexist)
 void exec_treecompare(autocomplete::ACState& s)
 {
     fs::path p = pathFromLocalPath(s.words[1].s, true);
-    Node* n = nodeFromRemotePath(s.words[2].s);
+    std::shared_ptr<Node> n = nodeFromRemotePath(s.words[2].s);
     if (n && !p.empty())
     {
-        recursiveCompare(n, p);
+        recursiveCompare(n.get(), p);
     }
 }
 
@@ -3032,7 +3033,7 @@ void checkReportCycleFails()
     for (auto& i : cycleUploadChunkFails) cout << i.first << " " << i.second;
 }
 
-Node* cycleUploadDownload_cloudWorkingFolder = nullptr;
+std::shared_ptr<Node> cycleUploadDownload_cloudWorkingFolder = nullptr;
 void cycleDownload(LocalPath lp, int count);
 void cycleUpload(LocalPath lp, int count)
 {
@@ -3044,7 +3045,7 @@ void cycleUpload(LocalPath lp, int count)
     string leaf = upload_lp.leafName().toPath(false);
 
     int total = 0;
-    uploadLocalPath(FILENODE, leaf, upload_lp, cycleUploadDownload_cloudWorkingFolder, "", committer, total, false, NoVersioning,
+    uploadLocalPath(FILENODE, leaf, upload_lp, cycleUploadDownload_cloudWorkingFolder.get(), "", committer, total, false, NoVersioning,
         [lp, count](LocalPath)
         {
             return [lp, count]()
@@ -3057,9 +3058,9 @@ void cycleUpload(LocalPath lp, int count)
     if (count > 0)
     {
         string leaf2 = lp.leafName().toPath(false) + "_" + std::to_string(count-1);
-        if (Node* lastuploaded = client->childnodebyname(cycleUploadDownload_cloudWorkingFolder, leaf2.c_str(), true))
+        if (std::shared_ptr<Node> lastuploaded = client->childnodebyname(cycleUploadDownload_cloudWorkingFolder.get(), leaf2.c_str(), true))
         {
-            client->unlink(lastuploaded, false, client->nextreqtag(), false, nullptr);
+            client->unlink(lastuploaded.get(), false, client->nextreqtag(), false, nullptr);
         }
     }
 
@@ -3071,7 +3072,7 @@ void cycleDownload(LocalPath lp, int count)
 
     string leaf = lp.leafName().toPath(false) + "_" + std::to_string(count);
 
-    Node* uploaded = client->childnodebyname(cycleUploadDownload_cloudWorkingFolder, leaf.c_str(), true);
+    std::shared_ptr<Node> uploaded = client->childnodebyname(cycleUploadDownload_cloudWorkingFolder.get(), leaf.c_str(), true);
 
     if (!uploaded)
     {
@@ -3086,7 +3087,7 @@ void cycleDownload(LocalPath lp, int count)
     string newleaf = lp.leafName().toPath(false);
     newleaf += "_" + std::to_string(count + 1);
 
-    auto f = new AppFileGet(uploaded, NodeHandle(), NULL, -1, 0, &newleaf, NULL, lp.parentPath().toPath(false));
+    auto f = new AppFileGet(uploaded.get(), NodeHandle(), NULL, -1, 0, &newleaf, NULL, lp.parentPath().toPath(false));
     f->noRetries = true;
 
     f->onCompleted = [lp, count]()
@@ -3336,7 +3337,7 @@ void exec_quit(ac::ACState&)
 
 void exec_showattributes(autocomplete::ACState& s)
 {
-    if (const Node* n = nodeFromRemotePath(s.words[1].s))
+    if (const std::shared_ptr<Node> n = nodeFromRemotePath(s.words[1].s))
     {
         for (auto pair : n->attrs.map)
         {
@@ -3738,7 +3739,7 @@ void exec_getmybackups(autocomplete::ACState&)
         return;
     }
 
-    Node* n = client->nodebyhandle(h);
+    std::shared_ptr<Node> n = client->nodebyhandle(h);
     if (!n)
     {
         cout << "\"My Backups\" folder could not be found." << toHandle(h) << endl;
@@ -3825,7 +3826,7 @@ void exec_backupcentre(autocomplete::ACState& s)
             Base64::atob(s.words[2].s.c_str(), (byte*)&hDest, MegaClient::NODEHANDLE);
 
             // validation
-            Node* targetDest = client->nodebyhandle(hDest);
+            std::shared_ptr<Node> targetDest = client->nodebyhandle(hDest);
             if (!targetDest)
             {
                 cout << "Backup Centre - Move destination " << s.words[2].s << " not found" << endl;
@@ -4305,9 +4306,9 @@ bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
                 return false;
             }
         }
-        for (Node* node : client->getChildren(n))
+        for (auto& node : client->getChildren(n))
         {
-            if (!recursiveget(std::move(newpath), node, folders, queued))
+            if (!recursiveget(std::move(newpath), node.get(), folders, queued))
             {
                 return false;
             }
@@ -4326,13 +4327,13 @@ bool regexget(const string& expression, Node* n, unsigned& queued)
         if (n->type == FOLDERNODE || n->type == ROOTNODE)
         {
             TransferDbCommitter committer(client->tctable);
-            for (Node* node : client->getChildren(n))
+            for (auto& node : client->getChildren(n))
             {
                 if (node->type == FILENODE)
                 {
                     if (regex_search(string(node->displayname()), re))
                     {
-                        auto file = ::mega::make_unique<AppFileGet>(node);
+                        auto file = ::mega::make_unique<AppFileGet>(node.get());
                         error result = startxfer(committer, std::move(file), *node, client->nextreqtag());
                         queued += result == API_OK ? 1 : 0;
                     }
@@ -4567,7 +4568,7 @@ static void process_line(char* l)
 
 void exec_ls(autocomplete::ACState& s)
 {
-    Node* n;
+    std::shared_ptr<Node> n;
     bool recursive = s.extractflag("-R");
     string toFilename;
     bool toFileFlag = s.extractflagparam("-tofile", toFilename);
@@ -4589,7 +4590,7 @@ void exec_ls(autocomplete::ACState& s)
 
     if (n)
     {
-        dumptree(n, recursive, 0, NULL, toFileFlag ? &toFile : nullptr);
+        dumptree(n.get(), recursive, 0, NULL, toFileFlag ? &toFile : nullptr);
     }
 }
 
@@ -4597,7 +4598,7 @@ void exec_cd(autocomplete::ACState& s)
 {
     if (s.words.size() > 1)
     {
-        if (Node* n = nodebypath(s.words[1].s.c_str()))
+        if (std::shared_ptr<Node> n = nodebypath(s.words[1].s.c_str()))
         {
             if (n->type == FILENODE)
             {
@@ -4624,13 +4625,15 @@ void exec_rm(autocomplete::ACState& s)
     string childregexstring;
     bool useregex = s.extractflagparam("-regexchild", childregexstring);
 
-    if (Node* n = nodebypath(s.words[1].s.c_str()))
+    if (std::shared_ptr<Node> n = nodebypath(s.words[1].s.c_str()))
     {
-        vector<Node*> v;
+        vector<std::shared_ptr<Node> > v;
+        sharedNode_list children;
         if (useregex)
         {
             std::regex re(childregexstring);
-            for (Node* c : client->getChildren(n))
+            children = client->getChildren(n.get());
+            for (auto& c : children)
             {
                 if (std::regex_match(c->displayname(), re))
                 {
@@ -4643,9 +4646,9 @@ void exec_rm(autocomplete::ACState& s)
             v.push_back(n);
         }
 
-        for (auto d : v)
+        for (auto& d : v)
         {
-            error e = client->unlink(d, false, 0, false);
+            error e = client->unlink(d.get(), false, 0, false);
 
             if (e)
             {
@@ -4661,7 +4664,7 @@ void exec_rm(autocomplete::ACState& s)
 
 void exec_mv(autocomplete::ACState& s)
 {
-    Node *n, *tn;
+    std::shared_ptr<Node> n, tn;
     string newname;
 
     if (s.words.size() > 2)
@@ -4688,9 +4691,9 @@ void exec_mv(autocomplete::ACState& s)
                     }
                     else
                     {
-                        if ((e = client->checkmove(n, tn)) == API_OK)
+                        if ((e = client->checkmove(n.get(), tn.get())) == API_OK)
                         {
-                            if (!client->checkaccess(n, RDWR))
+                            if (!client->checkaccess(n.get(), RDWR))
                             {
                                 cout << "Write access denied" << endl;
 
@@ -4721,9 +4724,9 @@ void exec_mv(autocomplete::ACState& s)
                             return;
                         }
 
-                        if ((e = client->checkmove(n, tn->parent)) == API_OK)
+                        if ((e = client->checkmove(n.get(), tn->parent.get())) == API_OK)
                         {
-                            if (!client->checkaccess(n, RDWR))
+                            if (!client->checkaccess(n.get(), RDWR))
                             {
                                 cout << "Write access denied" << endl;
 
@@ -4741,7 +4744,7 @@ void exec_mv(autocomplete::ACState& s)
                             if (n != tn)
                             {
                                 // ...delete target...
-                                e = client->unlink(tn, false, 0, false);
+                                e = client->unlink(tn.get(), false, 0, false);
 
                                 if (e)
                                 {
@@ -4755,7 +4758,7 @@ void exec_mv(autocomplete::ACState& s)
                     }
                     else
                     {
-                        e = client->checkmove(n, tn);
+                        e = client->checkmove(n.get(), tn.get());
                     }
                 }
 
@@ -4791,7 +4794,7 @@ void exec_mv(autocomplete::ACState& s)
 
 void exec_cp(autocomplete::ACState& s)
 {
-    Node *n, *tn;
+    std::shared_ptr<Node> n, tn;
     string targetuser;
     string newname;
     error e;
@@ -4810,7 +4813,7 @@ void exec_cp(autocomplete::ACState& s)
         {
             if ((tn = nodebypath(s.words[2].s.c_str(), &targetuser, &newname)))
             {
-                if (!client->checkaccess(tn, RDWR))
+                if (!client->checkaccess(tn.get(), RDWR))
                 {
                     cout << "Write access denied" << endl;
 
@@ -4830,7 +4833,7 @@ void exec_cp(autocomplete::ACState& s)
                         }
 
                         // ...delete target...
-                        e = client->unlink(tn, false, 0, false);
+                        e = client->unlink(tn.get(), false, 0, false);
 
                         if (e)
                         {
@@ -4886,10 +4889,10 @@ void exec_cp(autocomplete::ACState& s)
 
             if (tn && n->type == FILENODE && !allowDuplicateVersions)
             {
-                Node *ovn = client->childnodebyname(tn, sname.c_str(), true);
+                std::shared_ptr<Node> ovn = client->childnodebyname(tn.get(), sname.c_str(), true);
                 if (ovn)
                 {
-                    if (n->isvalid && ovn->isvalid && *(FileFingerprint*)n == *(FileFingerprint*)ovn)
+                    if (n->isvalid && ovn->isvalid && *(FileFingerprint*)n.get() == *(FileFingerprint*)ovn.get())
                     {
                         cout << "Skipping identical node" << endl;
                         return;
@@ -4961,11 +4964,12 @@ void exec_du(autocomplete::ACState &s)
 {
     bool listfolders = s.extractflag("-listfolders");
 
-    Node *n;
+    std::shared_ptr<Node> n;
 
     if (s.words.size() > 1)
     {
-        if (!(n = nodebypath(s.words[1].s.c_str())))
+        n = nodebypath(s.words[1].s.c_str());
+        if (!n)
         {
             cout << s.words[1].s << ": No such file or directory" << endl;
             return;
@@ -4983,12 +4987,12 @@ void exec_du(autocomplete::ACState &s)
 
     if (listfolders)
     {
-        auto list = client->getChildren(n);
-        vector<Node*> vec(list.begin(), list.end());
-        std::sort(vec.begin(), vec.end(), [](Node* a, Node* b){
+        auto list = client->getChildren(n.get());
+        vector<shared_ptr<Node> > vec(list.begin(), list.end());
+        std::sort(vec.begin(), vec.end(), [](shared_ptr<Node> & a, shared_ptr<Node> & b){
             return a->getCounter().files + a->getCounter().folders <
                    b->getCounter().files + b->getCounter().folders; });
-        for (Node* f : vec)
+        for (auto& f : vec)
         {
             if (f->type == FOLDERNODE)
             {
@@ -5012,7 +5016,7 @@ void exec_du(autocomplete::ACState &s)
 
 void exec_get(autocomplete::ACState& s)
 {
-    Node *n;
+    std::shared_ptr<Node> n;
     string regularexpression;
     if (s.extractflag("-r"))
     {
@@ -5032,12 +5036,12 @@ void exec_get(autocomplete::ACState& s)
         {
             unsigned queued = 0;
             cout << "creating folders: " << endl;
-            if (recursiveget(fs::current_path(), n, true, queued))
+            if (recursiveget(fs::current_path(), n.get(), true, queued))
             {
                 if (!foldersonly)
                 {
                     cout << "queueing files..." << endl;
-                    bool alldone = recursiveget(fs::current_path(), n, false, queued);
+                    bool alldone = recursiveget(fs::current_path(), n.get(), false, queued);
                     cout << "queued " << queued << " files for download" << (!alldone ? " before failure" : "") << endl;
                 }
             }
@@ -5059,7 +5063,7 @@ void exec_get(autocomplete::ACState& s)
         else
         {
             unsigned queued = 0;
-            if (regexget(regularexpression, n, queued))
+            if (regexget(regularexpression, n.get(), queued))
             {
                 cout << "queued " << queued << " files for download" << endl;
             }
@@ -5154,7 +5158,7 @@ void exec_get(autocomplete::ACState& s)
                     pread_file_end = offset + count;
                 }
 
-                client->pread(n, offset, count, NULL);
+                client->pread(n.get(), offset, count, NULL);
             }
             else
             {
@@ -5163,7 +5167,7 @@ void exec_get(autocomplete::ACState& s)
                 // queue specified file...
                 if (n->type == FILENODE)
                 {
-                    auto f = ::mega::make_unique<AppFileGet>(n);
+                    auto f = ::mega::make_unique<AppFileGet>(n.get());
 
                     string::size_type index = s.words[1].s.find(":");
                     // node from public folder link
@@ -5183,12 +5187,12 @@ void exec_get(autocomplete::ACState& s)
                 else
                 {
                     // ...or all files in the specified folder (non-recursive)
-                    for (Node* node : client->getChildren(n))
+                    for (auto& node : client->getChildren(n.get()))
                     {
                         if (node->type == FILENODE)
                         {
-                            auto f = ::mega::make_unique<AppFileGet>(node);
-                            startxfer(committer, std::move(f), *node, client->nextreqtag());
+                            auto f = ::mega::make_unique<AppFileGet>(node.get());
+                            startxfer(committer, std::move(f), *node.get(), client->nextreqtag());
                         }
                     }
                 }
@@ -5206,7 +5210,7 @@ void exec_get(autocomplete::ACState& s)
  * Node contents are fetched one page at a time, defaulting to 1KB of data.
  * Improvement: Get console layout and use width*height for precise pagination.
  */
-static Node    *more_node = nullptr; // Remote node that we are paging through
+static std::shared_ptr<Node> more_node = nullptr; // Remote node that we are paging through
 static m_off_t  more_offset = 0; // Current offset in the remote file
 static const m_off_t MORE_BYTES = 1024;
 
@@ -5222,7 +5226,7 @@ void exec_more(autocomplete::ACState& s)
         m_off_t count = (more_offset + MORE_BYTES <= more_node->size)
                 ? MORE_BYTES : (more_node->size - more_offset);
 
-        client->pread(more_node, more_offset, count, NULL);
+        client->pread(more_node.get(), more_offset, count, NULL);
     }
 }
 
@@ -5233,7 +5237,7 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
     std::function<std::function<void()>(LocalPath)> onCompletedGenerator, bool noRetries, bool allowDuplicateVersions)
 {
 
-    Node *previousNode = client->childnodebyname(parent, name.c_str(), false);
+    std::shared_ptr<Node> previousNode = client->childnodebyname(parent, name.c_str(), false);
 
     if (type == FILENODE)
     {
@@ -5247,7 +5251,7 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
             {
                 if (previousNode->type == FILENODE)
                 {
-                    if (!allowDuplicateVersions && fp.isvalid && previousNode->isvalid && fp == *((FileFingerprint *)previousNode))
+                    if (!allowDuplicateVersions && fp.isvalid && previousNode->isvalid && fp == *((FileFingerprint *)previousNode.get()))
                     {
                         cout << "Identical file already exist. Skipping transfer of " << name << endl;
                         return;
@@ -5288,7 +5292,7 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
             else
             {
                 // upload into existing folder with the same name
-                uploadLocalFolderContent(localname, previousNode, vo, true);
+                uploadLocalFolderContent(localname, previousNode.get(), vo, true);
             }
         }
         else
@@ -5392,7 +5396,7 @@ void exec_put(autocomplete::ACState& s)
     string targetuser;
     string newname;
     int total = 0;
-    Node* n = NULL;
+    std::shared_ptr<Node> n;
 
     VersioningOption vo = UseLocalVersioningFlag;
     if (s.extractflag("-noversion")) vo = NoVersioning;
@@ -5445,7 +5449,7 @@ void exec_put(autocomplete::ACState& s)
             {
                 cout << "Queueing " << leafNameUtf8 << "..." << endl;
             }
-            uploadLocalPath(type, leafNameUtf8, itemlocalname, n, targetuser, committer, total, recursive, vo, nullptr, false, allowDuplicateVersions);
+            uploadLocalPath(type, leafNameUtf8, itemlocalname, n.get(), targetuser, committer, total, recursive, vo, nullptr, false, allowDuplicateVersions);
         }
     }
 
@@ -5862,11 +5866,11 @@ void exec_share(autocomplete::ACState& s)
     case 3:	    // remove outgoing share to specified e-mail address
     case 4:	    // add outgoing share to specified e-mail address
     case 5:     // user specified a personal representation to appear as for the invitation
-        if (Node* n = nodebypath(s.words[1].s.c_str()))
+        if (std::shared_ptr<Node> n = nodebypath(s.words[1].s.c_str()))
         {
             if (s.words.size() == 2)
             {
-                listnodeshares(n, false);
+                listnodeshares(n.get(), false);
             }
             else
             {
@@ -5902,7 +5906,7 @@ void exec_share(autocomplete::ACState& s)
                 handle nodehandle = n->nodehandle;
                 std::function<void()> completeShare = [nodehandle, s, a, writable, personal_representation]()
                 {
-                    Node* n = client->nodebyhandle(nodehandle);
+                    std::shared_ptr<Node> n = client->nodebyhandle(nodehandle);
                     if (!n)
                     {
                         cout << "Node not found." << endl;
@@ -5924,7 +5928,7 @@ void exec_share(autocomplete::ACState& s)
 
                 if (a != ACCESS_UNKNOWN)
                 {
-                    client->openShareDialog(n, [completeShare](Error e)
+                    client->openShareDialog(n.get(), [completeShare](Error e)
                     {
                         if (e)
                         {
@@ -6048,7 +6052,7 @@ void exec_mkdir(autocomplete::ACState& s)
     {
         string newname;
 
-        Node* n;
+        std::shared_ptr<Node> n;
         if (exactLeafName)
         {
             n = client->nodeByHandle(cwd);
@@ -6061,7 +6065,7 @@ void exec_mkdir(autocomplete::ACState& s)
 
         if (n)
         {
-            if (!client->checkaccess(n, RDWR))
+            if (!client->checkaccess(n.get(), RDWR))
             {
                 cout << "Write access denied" << endl;
 
@@ -6098,7 +6102,7 @@ void exec_mkdir(autocomplete::ACState& s)
 
 void exec_getfa(autocomplete::ACState& s)
 {
-    Node* n;
+    std::shared_ptr<Node> n;
     int cancel = s.words.size() > 2 && s.words.back().s == "cancel";
 
     if (s.words.size() < 3)
@@ -6127,7 +6131,7 @@ void exec_getfa(autocomplete::ACState& s)
         }
         else
         {
-            for (Node* node : client->getChildren(n))
+            for (auto& node : client->getChildren(n.get()))
             {
                 if (node->type == FILENODE && node->hasfileattribute(type))
                 {
@@ -7045,7 +7049,7 @@ void exec_export(autocomplete::ACState& s)
 {
     void exportnode_result(Error e, handle h, handle ph);
 
-    Node* n;
+    std::shared_ptr<Node> n;
     int deltmp = 0;
     int etstmp = 0;
 
@@ -7770,12 +7774,12 @@ void exec_mediainfo(autocomplete::ACState& s)
     }
     else if (s.words.size() == 3 && s.words[1].s == "show")
     {
-        if (Node *n = nodebypath(s.words[2].s.c_str()))
+        if (std::shared_ptr<Node> n = nodebypath(s.words[2].s.c_str()))
         {
             switch (n->type)
             {
             case FILENODE:
-                cout << showMediaInfo(n, client->mediaFileInfo, false) << endl;
+                cout << showMediaInfo(n.get(), client->mediaFileInfo, false) << endl;
                 break;
 
             case FOLDERNODE:
@@ -7783,11 +7787,11 @@ void exec_mediainfo(autocomplete::ACState& s)
             case VAULTNODE:
             case RUBBISHNODE:
             {
-                for (Node* m : client->getChildren(n))
+                for (auto& m : client->getChildren(n.get()))
                 {
                     if (m->type == FILENODE && m->hasfileattribute(fa_media))
                     {
-                        cout << m->displayname() << "   " << showMediaInfo(m, client->mediaFileInfo, true) << endl;
+                        cout << m->displayname() << "   " << showMediaInfo(m.get(), client->mediaFileInfo, true) << endl;
                     }
                 }
                 break;
@@ -7868,7 +7872,7 @@ void exec_recentnodes(autocomplete::ACState& s)
 {
     if (s.words.size() == 3)
     {
-        node_vector nv = client->mNodeManager.getRecentNodes(atoi(s.words[2].s.c_str()), m_time() - 60 * 60 * atoi(s.words[1].s.c_str()));
+        sharedNode_vector nv = client->mNodeManager.getRecentNodes(atoi(s.words[2].s.c_str()), m_time() - 60 * 60 * atoi(s.words[1].s.c_str()));
         for (unsigned i = 0; i < nv.size(); ++i)
         {
             cout << nv[i]->displaypath() << endl;
@@ -8581,7 +8585,7 @@ void exportnode_result(Error e, handle h, handle ph)
         return;
     }
 
-    Node* n;
+    std::shared_ptr<Node> n;
 
     if ((n = client->nodebyhandle(h)))
     {
@@ -8658,7 +8662,7 @@ void DemoApp::openfilelink_result(const Error& e)
 void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
                                   string* a, string* /*fa*/, int)
 {
-    Node* n;
+    std::shared_ptr<Node> n;
 
     if (!key)
     {
@@ -8730,7 +8734,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
         attr_map::iterator it = attrs.map.find('n');
         if (it != attrs.map.end())
         {
-            Node *ovn = client->childnodebyname(n, it->second.c_str(), true);
+            std::shared_ptr<Node> ovn = client->childnodebyname(n.get(), it->second.c_str(), true);
             if (ovn)
             {
                 attr_map::iterator it2 = attrs.map.find('c');
@@ -8740,7 +8744,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
                     if (ffp.unserializefingerprint(&it2->second))
                     {
                         ffp.size = size;
-                        if (ffp.isvalid && ovn->isvalid && ffp == *(FileFingerprint*)ovn)
+                        if (ffp.isvalid && ovn->isvalid && ffp == *(FileFingerprint*)ovn.get())
                         {
                             cout << "Success. (identical node skipped)" << endl;
                             pdf_to_import = false;
@@ -8913,27 +8917,29 @@ void DemoApp::clearing()
 // nodes have been modified
 // (nodes with their removed flag set will be deleted immediately after returning from this call,
 // at which point their pointers will become invalid at that point.)
-void DemoApp::nodes_updated(Node** n, int count)
+void DemoApp::nodes_updated(sharedNode_vector* nodes, int count)
 {
     int c[2][6] = { { 0 } };
 
-    if (n)
+    if (nodes)
     {
+        auto it = nodes->begin();
         while (count--)
         {
-            if ((*n)->type < 6)
+            if ((*it)->type < 6)
             {
-                c[!(*n)->changed.removed][(*n)->type]++;
-                n++;
+                c[!(*it)->changed.removed][(*it)->type]++;
+                it++;
             }
         }
     }
     else
     {
-        node_vector nodes = client->mNodeManager.getRootNodes();
-        node_vector inshares = client->mNodeManager.getNodesWithInShares();
-        nodes.insert(nodes.end(), inshares.begin(), inshares.end());
-        for (auto& node : nodes)
+        sharedNode_vector rootNodes = client->mNodeManager.getRootNodes();
+
+        sharedNode_vector inshares = client->mNodeManager.getNodesWithInShares();
+        rootNodes.insert(rootNodes.end(), inshares.begin(), inshares.end());
+        for (auto& node : rootNodes)
         {
             if (!node->parent) // No take account nested inshares
             {
@@ -9887,25 +9893,26 @@ void DemoAppFolder::fetchnodes_result(const Error& e)
     }
 }
 
-void DemoAppFolder::nodes_updated(Node** n, int count)
+void DemoAppFolder::nodes_updated(sharedNode_vector* nodes, int count)
 {
     int c[2][6] = { { 0 } };
 
-    if (n)
+    if (nodes)
     {
+        auto it = nodes->begin();
         while (count--)
         {
-            if ((*n)->type < 6)
+            if ((*it)->type < 6)
             {
-                c[!(*n)->changed.removed][(*n)->type]++;
-                n++;
+                c[!(*it)->changed.removed][(*it)->type]++;
+                it++;
             }
         }
     }
     else
     {
-        node_vector nodes = client->mNodeManager.getRootNodes();
-        for (auto& node : nodes)
+        sharedNode_vector rootNodes = client->mNodeManager.getRootNodes();
+        for (auto& node : rootNodes)
         {
             c[1][node->type] ++;
             c[1][FOLDERNODE] += static_cast<int>(node->getCounter().folders);
@@ -9919,7 +9926,7 @@ void DemoAppFolder::nodes_updated(Node** n, int count)
 
 void exec_metamac(autocomplete::ACState& s)
 {
-    Node *node = nodebypath(s.words[2].s.c_str());
+    std::shared_ptr<Node> node = nodebypath(s.words[2].s.c_str());
     if (!node || node->type != FILENODE)
     {
         cerr << s.words[2].s
@@ -10077,7 +10084,7 @@ void exec_syncadd(autocomplete::ACState& s)
     {
         // Does the target node exist?
         const string& targetPath = s.words[3].s;
-        auto* targetNode = nodebypath(targetPath.c_str());
+        std::shared_ptr<Node> targetNode = nodebypath(targetPath.c_str());
 
         if (!targetNode)
         {
@@ -10471,7 +10478,7 @@ void exec_syncremove(autocomplete::ACState& s)
     if (s.words.size() > bkpDestPos)
     {
         // get final destination
-        Node* destination = nodebypath(s.words[bkpDestPos].s.c_str());
+        std::shared_ptr<Node> destination = nodebypath(s.words[bkpDestPos].s.c_str());
         if (destination)
         {
             bkpDest = destination->nodehandle;
@@ -11072,7 +11079,7 @@ void exec_setsandelements(autocomplete::ACState& s)
             {
                 cout << "\tElement found in owned Set\n";
 
-                std::unique_ptr<Node> mn(client->nodebyhandle(element->node()));
+                std::shared_ptr<Node> mn(client->nodebyhandle(element->node()));
 
                 if (!mn)
                 {
@@ -11275,11 +11282,12 @@ void exec_numberofnodes(autocomplete::ACState &s)
 
 void exec_numberofchildren(autocomplete::ACState &s)
 {
-    Node *n;
+    std::shared_ptr<Node> n;
 
     if (s.words.size() > 1)
     {
-        if (!(n = nodebypath(s.words[1].s.c_str())))
+        n = nodebypath(s.words[1].s.c_str());
+        if (!n)
         {
             cout << s.words[1].s << ": No such file or directory" << endl;
             return;
@@ -11323,7 +11331,7 @@ void exec_searchbyname(autocomplete::ACState &s)
         std::string searchString = s.words[1].s;
         Node::Flags exclusiveRecuriveFlags;
         exclusiveRecuriveFlags.set(Node::FLAGS_IS_MARKED_SENSTIVE, noSensitive);
-        node_vector nodes = client->mNodeManager.search(nodeHandle, searchString.c_str(), recursive, Node::Flags(), Node::Flags(), exclusiveRecuriveFlags, CancelToken());
+        sharedNode_vector nodes = client->mNodeManager.search(nodeHandle, searchString.c_str(), recursive, Node::Flags(), Node::Flags(), exclusiveRecuriveFlags, CancelToken());
 
         for (const auto& node : nodes)
         {

@@ -435,8 +435,7 @@ typedef enum { OPCA_ADD = 0, OPCA_DELETE, OPCA_REMIND} opcactions_t;
 // operations for incoming pending contacts
 typedef enum { IPCA_ACCEPT = 0, IPCA_DENY, IPCA_IGNORE} ipcactions_t;
 
-
-typedef vector<Node*> node_vector;
+typedef vector<std::shared_ptr<Node> > sharedNode_vector;
 
 // contact visibility:
 // HIDDEN - not shown
@@ -568,7 +567,7 @@ typedef set<Node*> node_set;
 
 // enumerates a node's children
 // FIXME: switch to forward_list once C++11 becomes more widely available
-typedef list<Node*> node_list;
+typedef list<std::shared_ptr<Node> > sharedNode_list;
 
 // undefined node handle
 const handle UNDEF = ~(handle)0;
@@ -828,7 +827,7 @@ struct recentaction
     handle parent;
     bool updated;
     bool media;
-    node_vector nodes;
+    sharedNode_vector nodes;
 };
 typedef vector<recentaction> recentactions_vector;
 

@@ -94,7 +94,7 @@ class SyncApp : public MegaApp, public Logger
     void syncupdate_treestate(const SyncConfig& config, const LocalPath& lp, treestate_t ts, nodetype_t) override;
 #endif
 
-    Node* nodebypath(const char* ptr, string* user, string* namepart);
+    std::shared_ptr<Node> nodebypath(const char* ptr, string* user, string* namepart);
 public:
     SyncApp(string local_folder_, string remote_folder_);
 
@@ -121,15 +121,15 @@ MegaClient* client;
 // : and / filename components, as well as the \, must be escaped by \.
 // (correct UTF-8 encoding is assumed)
 // returns NULL if path malformed or not found
-Node* SyncApp::nodebypath(const char* ptr, string* user = NULL, string* namepart = NULL)
+std::shared_ptr<Node> SyncApp::nodebypath(const char* ptr, string* user = NULL, string* namepart = NULL)
 {
     vector<string> c;
     string s;
     int l = 0;
     const char* bptr = ptr;
     int remote = 0;
-    Node* n = nullptr;
-    Node* nn;
+    std::shared_ptr<Node> n;
+    std::shared_ptr<Node> nn;
 
     // split path by / or :
     do
@@ -305,7 +305,7 @@ Node* SyncApp::nodebypath(const char* ptr, string* user = NULL, string* namepart
                 // implemented)
                 if (c[l].size())
                 {
-                    nn = client->childnodebyname(n, c[l].c_str());
+                    nn = client->childnodebyname(n.get(), c[l].c_str());
 
                     if (!nn)
                     {
@@ -415,8 +415,8 @@ void SyncApp::fetchnodes_result(const Error &e)
             cwd = client->mNodeManager.getRootNodeFiles().as8byte();
         }
 
-        Node* n = nodebypath(remote_folder.c_str());
-        if (client->checkaccess(n, FULL))
+        std::shared_ptr<Node> n = nodebypath(remote_folder.c_str());
+        if (client->checkaccess(n.get(), FULL))
         {
             if (!n)
             {

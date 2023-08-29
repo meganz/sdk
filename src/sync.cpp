@@ -2017,7 +2017,7 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
                             {
                                 if (auto n = mc.nodeByHandle(deleteHandle))
                                 {
-                                    mc.movetosyncdebris(n, inshareFlag, [deletePtr](NodeHandle, Error e){
+                                    mc.movetosyncdebris(n.get(), inshareFlag, [deletePtr](NodeHandle, Error e){
 
                                         // deletePtr must live until the operation is fully complete, and we get the actionpacket back indicating Nodes are adjusted already.
                                         // otherwise, we may see the node still present, no pending actions, and downsync it
@@ -4824,7 +4824,7 @@ void Syncs::exportSyncConfig(JSONWriter& writer, const SyncConfig& config) const
     const string& name = config.mName;
     const char* type = SyncConfig::synctypename(config.mSyncType);
 
-    if (const auto* node = mClient.nodeByHandle(config.mRemoteNode))
+    if (const auto node = mClient.nodeByHandle(config.mRemoteNode))
     {
         // Get an accurate remote path, if possible.
         remotePath = node->displaypath();
@@ -4965,7 +4965,7 @@ bool Syncs::importSyncConfig(JSON& reader, SyncConfig& config)
     config.mWarning = NO_SYNC_WARNING;
 
     // Set node handle if possible.
-    if (const auto* root = mClient.nodeByPath(remotePath.c_str()))
+    if (const auto root = mClient.nodeByPath(remotePath.c_str()))
     {
         config.mRemoteNode = root->nodeHandle();
     }
@@ -7477,7 +7477,7 @@ bool Sync::syncItem_checkBackupCloudNameClash(SyncRow& row, SyncRow& parentRow, 
                 {
                     if (auto n = mc.nodeByHandle(debrisNodeHandle))
                     {
-                        mc.movetosyncdebris(n, fromInshare, [deletePtr](NodeHandle, Error e){
+                        mc.movetosyncdebris(n.get(), fromInshare, [deletePtr](NodeHandle, Error e){
 
                             LOG_debug << "Sync backup duplicate delete to sync debris completed: " << e << " " << deletePtr->pathDeleting;
 
@@ -8907,11 +8907,11 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
             bool canChangeVault = threadSafeState->mCanChangeVault;
             syncs.queueClient([existingUpload, displaceHandle, noDebris, signalPutnodesBegin, canChangeVault](MegaClient& mc, TransferDbCommitter& committer)
                 {
-                    Node* displaceNode = mc.nodeByHandle(displaceHandle);
+                    std::shared_ptr<Node> displaceNode = mc.nodeByHandle(displaceHandle);
                     if (displaceNode && mc.versions_disabled)
                     {
                         MegaClient* c = &mc;
-                        mc.movetosyncdebris(displaceNode, noDebris,
+                        mc.movetosyncdebris(displaceNode.get(), noDebris,
 
                             // after the old node is out of the way, we wll putnodes
                             [c, existingUpload, signalPutnodesBegin](NodeHandle, Error){
@@ -9907,7 +9907,7 @@ bool Sync::resolve_fsNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& fullPa
                                     return;
                                 }
 
-                                mc.movetosyncdebris(n, fromInshare, [deletePtr](NodeHandle, Error e){
+                                mc.movetosyncdebris(n.get(), fromInshare, [deletePtr](NodeHandle, Error e){
 
                                     LOG_debug << "Sync delete to sync debris completed: " << e << " " << deletePtr->pathDeleting;
 
@@ -11113,7 +11113,7 @@ bool Syncs::checkSdsCommandsForDelete(UnifiedSync& us, vector<pair<handle, int>>
         auto boolsptr = us.sdsUpdateInProgress;
         clientRemoveSdsEntryFunction = [remoteNode, sdsCopy, boolsptr](MegaClient& mc, TransferDbCommitter& committer)
         {
-            if (Node* node = mc.nodeByHandle(remoteNode))
+            if (std::shared_ptr<Node> node = mc.nodeByHandle(remoteNode))
             {
                 mc.setattr(node,
                         attr_map(Node::sdsId(), Node::toSdsString(sdsCopy)),
@@ -11959,7 +11959,7 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
     if (h.isUndef()) return false;
 
     vector<pair<NodeHandle, Sync*>> activeSyncHandles;
-    vector<pair<Node*, Sync*>> activeSyncRoots;
+    vector<pair<std::shared_ptr<Node>, Sync*>> activeSyncRoots;
 
     if (nodeIsInActiveUnpausedSyncQuery)
     {
@@ -11980,14 +11980,14 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
     {
         for (auto & rh : activeSyncHandles)
         {
-            if (Node* rn = mClient.mNodeManager.getNodeByHandle(rh.first))
+            if (std::shared_ptr<Node> rn = mClient.mNodeManager.getNodeByHandle(rh.first))
             {
                 activeSyncRoots.emplace_back(rn, rh.second);
             }
         }
     }
 
-    if (const Node* n = mClient.mNodeManager.getNodeByHandle(h))
+    if (std::shared_ptr<Node> n = mClient.mNodeManager.getNodeByHandle(h))
     {
         switch (whichVersion)
         {
@@ -11996,7 +11996,7 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
 
             case LATEST_VERSION:
                 {
-                    const Node* m = n->latestFileVersion();
+                    std::shared_ptr<Node> m = n->latestFileVersion();
                     if (m != n)
                     {
                         auto& syncs = *this;
@@ -12036,7 +12036,7 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
         if (nodeIsInActiveUnpausedSyncQuery)
         {
             auto it = std::find_if(activeSyncRoots.begin(), activeSyncRoots.end(),
-                          [n](const pair<Node *, Sync *> &rn) { return n->isbelow(rn.first) && !rn.second->getConfig().mTemporarilyPaused; });
+                          [n](const pair<std::shared_ptr<Node>, Sync *> &rn) { return n->isbelow(rn.first.get()) && !rn.second->getConfig().mTemporarilyPaused; });
             if (it != activeSyncRoots.end()) {
                 *nodeIsInActiveUnpausedSyncQuery = true;
                 if (nodeIsDefinitelyExcluded) *nodeIsDefinitelyExcluded = isDefinitelyExcluded(*it, n);
@@ -12067,15 +12067,15 @@ bool Syncs::lookupCloudChildren(NodeHandle h, vector<CloudNode>& cloudChildren)
     assert(onSyncThread());
 
     lock_guard<mutex> g(mClient.nodeTreeMutex);
-    if (Node* n = mClient.mNodeManager.getNodeByHandle(h))
+    if (std::shared_ptr<Node> n = mClient.mNodeManager.getNodeByHandle(h))
     {
         assert(n->type > FILENODE);
         assert(!n->parent || n->parent->type > FILENODE);
 
-        node_list nl = mClient.mNodeManager.getChildren(n);
+        sharedNode_list nl = mClient.mNodeManager.getChildren(n.get());
         cloudChildren.reserve(nl.size());
 
-        for (auto c : nl)
+        for (auto& c : nl)
         {
             cloudChildren.push_back(*c);
             assert(cloudChildren.back().parentHandle == h);
@@ -12085,7 +12085,7 @@ bool Syncs::lookupCloudChildren(NodeHandle h, vector<CloudNode>& cloudChildren)
     return false;
 }
 
-bool Syncs::isDefinitelyExcluded(const pair<Node*, Sync*>& root, const Node* child)
+bool Syncs::isDefinitelyExcluded(const pair<std::shared_ptr<Node>, Sync*>& root, std::shared_ptr<const Node> child)
 {
     // Make sure we're on the sync thread.
     assert(onSyncThread());
@@ -12094,12 +12094,12 @@ bool Syncs::isDefinitelyExcluded(const pair<Node*, Sync*>& root, const Node* chi
     child = child->latestFileVersion();
 
     // Sanity.
-    assert(child->isbelow(root.first));
+    assert(child->isbelow(root.first.get()));
 
     // Determine the trail from root to child.
     vector<pair<NodeHandle, string>> trail;
 
-    for (auto* node = child; node != root.first; node = node->parent)
+    for (auto node = child; node != root.first; node = node->parent)
         trail.emplace_back(node->nodeHandle(), node->displayname());
 
     // Determine whether any step from root to child is definitely excluded.
@@ -12189,7 +12189,7 @@ bool Syncs::hasIgnoreFile(const SyncConfig& config)
         lock_guard<mutex> guard(mClient.nodeTreeMutex);
 
         // Get our hands on the sync root.
-        auto* root = mClient.mNodeManager.getNodeByHandle(config.mRemoteNode);
+        auto root = mClient.mNodeManager.getNodeByHandle(config.mRemoteNode);
 
         // The root can't contain anything if it doesn't exist.
         if (!root)

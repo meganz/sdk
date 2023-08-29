@@ -93,7 +93,7 @@ struct MEGA_API File: public FileFingerprint
     NodeHandle h;
 
     // previous node, if any
-    Node *previousNode = nullptr;
+    std::shared_ptr<Node> previousNode;
 
     struct
     {

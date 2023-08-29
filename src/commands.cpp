@@ -115,12 +115,12 @@ bool CommandPutFA::procresult(Result r, JSON& json)
         if (r.wasError(API_EACCESS))
         {
             // create a custom attribute indicating thumbnail can't be restored from this account
-            Node *n = client->nodeByHandle(th.nodeHandle());
+            shared_ptr<Node> n = client->nodeByHandle(th.nodeHandle());
 
             char me64[12];
             Base64::btoa((const byte*)&client->me, MegaClient::USERHANDLE, me64);
 
-            if (n && client->checkaccess(n, FULL) &&
+            if (n && client->checkaccess(n.get(), FULL) &&
                     (n->attrs.map.find('f') == n->attrs.map.end() || n->attrs.map['f'] != me64) )
             {
                 LOG_debug << "Restoration of file attributes is not allowed for current user (" << me64 << ").";
@@ -335,7 +335,7 @@ bool CommandAttachFA::procresult(Result r, JSON& json)
         if (json.storeobject(&fa))
         {
 #ifdef DEBUG
-            Node* n = client->nodebyhandle(h);
+            shared_ptr<Node> n = client->nodebyhandle(h);
             assert(!n || n->fileattrstring == fa);
 #endif
             client->app->putfa_result(h, type, API_OK);
@@ -369,7 +369,7 @@ CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
     {
         if (!file->h.isUndef())
         {
-            Node *node = client->nodeByHandle(file->h);
+            shared_ptr<Node> node = client->nodeByHandle(file->h);
             if (node)
             {
                 assert(node->type != FILENODE);
@@ -928,15 +928,16 @@ bool CommandGetFile::procresult(Result r, JSON& json)
     }
 }
 
-CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, attr_map&& attrMapUpdates, Completion&& c, bool canChangeVault)
+CommandSetAttr::CommandSetAttr(MegaClient* client, std::shared_ptr<Node> n, attr_map&& attrMapUpdates, Completion&& c, bool canChangeVault)
     : mAttrMapUpdates(attrMapUpdates)
     , mCanChangeVault(canChangeVault)
 {
     h = n->nodeHandle();
+    mNode = n;
     generationError = API_OK;
     completion = c;
 
-    addToNodePendingCommands(n);
+    addToNodePendingCommands(n.get());
 }
 
 const char* CommandSetAttr::getJSON(MegaClient* client)
@@ -949,8 +950,9 @@ const char* CommandSetAttr::getJSON(MegaClient* client)
     cmd("a");
 
     string at;
-    if (Node* n = client->nodeByHandle(h))
+    if (shared_ptr<Node> n = client->nodeByHandle(h))
     {
+        assert(n == mNode);
         AttrMap m = n->attrs;
 
         // apply these changes for sending, but also any earlier changes that are ahead in the queue
@@ -977,12 +979,14 @@ const char* CommandSetAttr::getJSON(MegaClient* client)
         else
         {
             h.setUndef();  // dummy command to generate an error, with no effect
+            mNode.reset();
             generationError = API_EKEY;
         }
     }
     else
     {
         h.setUndef();  // dummy command to generate an error, with no effect
+        mNode.reset();
         generationError = API_ENOENT;
     }
 
@@ -1163,7 +1167,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
     // add cr element for new nodes, if applicable
     if (type == NODE_HANDLE)
     {
-        Node* tn;
+        shared_ptr<Node> tn;
         if ((tn = client->nodeByHandle(th)))
         {
             assert(tn->type != FILENODE);
@@ -1303,9 +1307,9 @@ bool CommandPutNodes::procresult(Result r, JSON& json)
 #endif
 
 	    // when the target has been removed, the API automatically adds the new node/s
-	    // into the rubbish bin
-	    Node *tempNode = !nn.empty() ? client->nodebyhandle(nn.front().mAddedHandle) : nullptr;
-	    bool targetOverride = (tempNode && NodeHandle().set6byte(tempNode->parenthandle) != targethandle);
+        // into the rubbish bin
+        shared_ptr<Node> tempNode = !nn.empty() ? client->nodebyhandle(nn.front().mAddedHandle) : nullptr;
+        bool targetOverride = (tempNode.get() && NodeHandle().set6byte(tempNode->parenthandle) != targethandle);
 
         performAppCallback(emptyResponse ? API_ENOENT : API_OK, nn, targetOverride);
         return true;
@@ -1327,7 +1331,7 @@ bool CommandPutNodes::procresult(Result r, JSON& json)
 }
 
 
-CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t csyncdel, NodeHandle prevparent, Completion&& c, bool canChangeVault)
+CommandMoveNode::CommandMoveNode(MegaClient* client, std::shared_ptr<Node> n, std::shared_ptr<Node> t, syncdel_t csyncdel, NodeHandle prevparent, Completion&& c, bool canChangeVault)
 {
     h = n->nodeHandle();
     syncdel = csyncdel;
@@ -1376,7 +1380,7 @@ bool CommandMoveNode::procresult(Result r, JSON& json)
         }
     }
 
-    if (Node* n = client->nodeByHandle(h))
+    if (shared_ptr<Node> n = client->nodeByHandle(h))
     {
         client->rewriteforeignkeys(n);
     }
@@ -1887,7 +1891,7 @@ CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient*, handle sh, const char*
 
 CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient* client, handle_vector* v)
 {
-    Node* n;
+    shared_ptr<Node> n;
     byte sharekey[SymmCipher::KEYLENGTH];
 
     cmd("k");
@@ -1911,7 +1915,7 @@ CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient* client, handle_vector* 
 }
 
 // add/remove share; include node share keys if new share
-CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslevel_t a, bool newshare, const char* msg, bool writable, const char* personal_representation, int ctag, std::function<void(Error, bool writable)> f)
+CommandSetShare::CommandSetShare(MegaClient* client, std::shared_ptr<Node> n, User* u, accesslevel_t a, bool newshare, const char* msg, bool writable, const char* personal_representation, int ctag, std::function<void(Error, bool writable)> f)
 {
     byte auth[SymmCipher::BLOCKSIZE];
     byte key[SymmCipher::KEYLENGTH];
@@ -2293,8 +2297,8 @@ bool CommandSetPendingContact::procresult(Result r, JSON& json)
                 client->notifypcr(pcr);
 
                 // remove pending shares related to the deleted PCR
-                node_vector nodes = client->mNodeManager.getNodesWithPendingOutShares();
-                for (Node* n : nodes)
+                sharedNode_vector nodes = client->mNodeManager.getNodesWithPendingOutShares();
+                for (auto& n : nodes)
                 {
                     if (n->pendingshares && n->pendingshares->find(pcr->id) != n->pendingshares->end())
                     {
@@ -3786,7 +3790,7 @@ CommandNodeKeyUpdate::CommandNodeKeyUpdate(MegaClient* client, handle_vector* v)
     {
         handle h = (*v)[i];
 
-        Node* n;
+        shared_ptr<Node> n;
 
         if ((n = client->nodebyhandle(h)))
         {
@@ -3822,7 +3826,7 @@ CommandSingleKeyCR::CommandSingleKeyCR(handle sh, handle nh, const byte* key, si
     endarray();
 }
 
-CommandKeyCR::CommandKeyCR(MegaClient* /*client*/, node_vector* rshares, node_vector* rnodes, const char* keys)
+CommandKeyCR::CommandKeyCR(MegaClient* /*client*/, sharedNode_vector* rshares, sharedNode_vector* rnodes, const char* keys)
 {
     cmd("k");
     beginarray("cr");
@@ -5097,7 +5101,7 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
 #ifdef _DEBUG
                         // TODO: remove this debugging block once local count is confirmed to work correctly 100%
                         // verify the new local storage counters per root match server side (could fail if actionpackets are pending)
-                        const Node* node = client->nodebyhandle(h);
+                        shared_ptr<Node> node = client->nodebyhandle(h);
                         if (node)
                         {
                             NodeCounter counter = node->getCounter();
