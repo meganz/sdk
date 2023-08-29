@@ -10557,14 +10557,14 @@ CommandPutVpnCredential::CommandPutVpnCredential(MegaClient* client,
                                                 StringKeyPair&& userKeyPair,
                                                 Cb&& completion)
 :
-    mUserKeyPair(std::move(userKeyPair))
+    mRegion(std::move(region)),
+    mUserKeyPair(std::move(userKeyPair)),
+    mCompletion(std::move(completion))
+
 {
     cmd("vpnp");
     arg("k", (byte*)mUserKeyPair.pubKey.c_str(), static_cast<int>(mUserKeyPair.pubKey.size()));
     tag = client->reqtag;
-
-    mRegion = std::move(region);
-    mCompletion = std::move(completion);
 }
 
 bool CommandPutVpnCredential::procresult(Command::Result r, JSON& json)
