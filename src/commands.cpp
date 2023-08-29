@@ -10554,15 +10554,16 @@ bool CommandGetVpnCredentials::procresult(Command::Result r, JSON& json)
 
 CommandPutVpnCredential::CommandPutVpnCredential(MegaClient* client,
                                                 std::string&& region,
-                                                StringPair&& userKeyPair,
+                                                StringKeyPair&& userKeyPair,
                                                 Cb&& completion)
+:
+    mUserKeyPair(std::move(userKeyPair))
 {
     cmd("vpnp");
-    arg("k", (byte*)userKeyPair.second.c_str(), static_cast<int>(userKeyPair.second.size()));
+    arg("k", (byte*)mUserKeyPair.pubKey.c_str(), static_cast<int>(mUserKeyPair.pubKey.size()));
     tag = client->reqtag;
 
     mRegion = std::move(region);
-    mUserKeyPair = std::move(userKeyPair);
     mCompletion = std::move(completion);
 }
 
@@ -10621,9 +10622,9 @@ bool CommandPutVpnCredential::procresult(Command::Result r, JSON& json)
 
     if (mCompletion)
     {
-        std::string userPubKey = Base64::btoa(mUserKeyPair.second);
-        b64Standard(userPubKey);
-        auto peerKeyPair = std::make_pair(std::move(mUserKeyPair.first), std::move(clusterPubKey));
+        std::string userPubKey = Base64::btoa(mUserKeyPair.pubKey);
+        Base64::toStandard(userPubKey);
+        auto peerKeyPair = StringKeyPair(std::move(mUserKeyPair.privKey), std::move(clusterPubKey));
         std::string newCredential = client->getVpnCredentialString(clusterID, std::move(mRegion), std::move(ipv4), std::move(ipv6), std::move(peerKeyPair));
         mCompletion(API_OK, slotID, std::move(userPubKey), std::move(newCredential));
     }
