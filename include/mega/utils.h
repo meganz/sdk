@@ -1077,11 +1077,6 @@ void reportWindowsError(const std::string& message, DWORD error = 0xFFFFFFFF);
 // returns the direction type of a connection
 string connDirectionToStr(direction_t directionType);
 
-// modify a base64 string to standard conversion:
-// 1. Trailing '=' to have a "correct" length (ex: from 32 to 44)
-// 2. '+/' instead of '-_'
-void b64Standard(string& b64str);
-
 } // namespace mega
 
 #endif // MEGA_UTILS_H
