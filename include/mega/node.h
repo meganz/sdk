@@ -141,7 +141,7 @@ public:
     shared_ptr<Node> getNodeInRam(bool updatePositionAtLRU = true);
     NodeHandle getNodeHandle() const;
 
-    std::list<std::shared_ptr<Node> >::iterator mLRUPosition;
+    std::list<std::shared_ptr<Node> >::const_iterator mLRUPosition;
 
 private:
     NodeHandle mNodeHandle;

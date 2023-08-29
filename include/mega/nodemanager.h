@@ -171,7 +171,7 @@ public:
     // Remove fingerprint from mFingerprint
     void removeFingerprint(Node* node, bool unloadNode = false);
     FingerprintPosition invalidFingerprintPos();
-    std::list<std::shared_ptr<Node> >::iterator invalidCacheLRUPos();
+    std::list<std::shared_ptr<Node>>::const_iterator invalidCacheLRUPos() const;
 
     // Node has received last updates and it's ready to store in DB
     void saveNodeInDb(Node *node);

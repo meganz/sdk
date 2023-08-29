@@ -1800,7 +1800,7 @@ FingerprintPosition NodeManager::invalidFingerprintPos()
     return mFingerPrints.end();
 }
 
-std::list<std::shared_ptr<Node> >::iterator NodeManager::invalidCacheLRUPos()
+std::list<std::shared_ptr<Node> >::const_iterator NodeManager::invalidCacheLRUPos() const
 {
     // no locking for this one, it returns a constant
     return mCacheLRU.end();
