@@ -10621,11 +10621,11 @@ bool CommandPutVpnCredential::procresult(Command::Result r, JSON& json)
 
     if (mCompletion)
     {
-        string peerPubKey = Base64::btoa(mUserKeyPair.second);
-        b64Standard(peerPubKey);
+        std::string userPubKey = Base64::btoa(mUserKeyPair.second);
+        b64Standard(userPubKey);
         auto peerKeyPair = std::make_pair(std::move(mUserKeyPair.first), std::move(clusterPubKey));
-        string newCredential = client->getVpnCredentialString(clusterID, std::move(mRegion), std::move(ipv4), std::move(ipv6), std::move(peerKeyPair));
-        mCompletion(API_OK, slotID, std::move(peerPubKey), std::move(newCredential));
+        std::string newCredential = client->getVpnCredentialString(clusterID, std::move(mRegion), std::move(ipv4), std::move(ipv6), std::move(peerKeyPair));
+        mCompletion(API_OK, slotID, std::move(userPubKey), std::move(newCredential));
     }
     return true;
 }
