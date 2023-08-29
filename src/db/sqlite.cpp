@@ -1402,7 +1402,7 @@ bool SqliteAccountState::getNodesByFingerprint(const std::string &fingerprint, s
 
 }
 
-bool SqliteAccountState::getNodeByFingerprint(const std::string &fingerprint, mega::NodeSerialized &node)
+bool SqliteAccountState::getNodeByFingerprint(const std::string &fingerprint, mega::NodeSerialized &node, NodeHandle& handle)
 {
     if (!db)
     {
@@ -1425,6 +1425,7 @@ bool SqliteAccountState::getNodeByFingerprint(const std::string &fingerprint, me
             if (nodes.size())
             {
                 node = nodes.begin()->second;
+                handle = nodes.begin()->first;
             }
         }
     }

@@ -25,13 +25,13 @@
 
 namespace mega {
 // create share keys
-TreeProcShareKeys::TreeProcShareKeys(Node* n, bool includeParentChain) 
+TreeProcShareKeys::TreeProcShareKeys(std::shared_ptr<Node> n, bool includeParentChain)
     : sn(n)
     , includeParentChain(includeParentChain)
 {
 }
 
-void TreeProcShareKeys::proc(MegaClient*, Node* n)
+void TreeProcShareKeys::proc(MegaClient*, std::shared_ptr<Node> n)
 {
     snk.add(n, sn, includeParentChain);
 }
@@ -41,7 +41,7 @@ void TreeProcShareKeys::get(Command* c)
     snk.get(c);
 }
 
-void TreeProcForeignKeys::proc(MegaClient* client, Node* n)
+void TreeProcForeignKeys::proc(MegaClient* client, std::shared_ptr<Node> n)
 {
     if (n->foreignkey)
     {
@@ -52,7 +52,7 @@ void TreeProcForeignKeys::proc(MegaClient* client, Node* n)
 }
 
 // mark node as removed and notify
-void TreeProcDel::proc(MegaClient* client, Node* n)
+void TreeProcDel::proc(MegaClient* client, std::shared_ptr<Node> n)
 {
     n->changed.removed = true;
     client->mNodeManager.notifyNode(n);
@@ -60,7 +60,7 @@ void TreeProcDel::proc(MegaClient* client, Node* n)
 
     if (userHandle != client->me)
     {
-        client->useralerts.noteSharedNode(userHandle, n->type, 0, n);
+        client->useralerts.noteSharedNode(userHandle, n->type, 0, n.get());
     }
 }
 
@@ -69,7 +69,7 @@ void TreeProcDel::setOriginatingUser(const handle &handle)
     mOriginatingUser = handle;
 }
 
-void TreeProcApplyKey::proc(MegaClient *client, Node *n)
+void TreeProcApplyKey::proc(MegaClient *client, std::shared_ptr<Node> n)
 {
     if (n->attrstring)
     {

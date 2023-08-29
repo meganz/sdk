@@ -219,7 +219,7 @@ public:
 
     CloudItem(handle nodeHandle);
 
-    Node* resolve(StandardClient& client) const;
+    std::shared_ptr<Node> resolve(StandardClient& client) const;
 
 private:
     NodeHandle mNodeHandle;
@@ -316,7 +316,7 @@ struct StandardClient : public MegaApp
     bool received_node_actionpackets = false;
     std::condition_variable nodes_updated_cv;
 
-    void nodes_updated(Node** nodes, int numNodes) override;
+    void nodes_updated(sharedNode_vector* nodes, int numNodes) override;
     bool waitForNodesUpdated(unsigned numSeconds);
     void syncupdate_stateconfig(const SyncConfig& config) override;
 
@@ -556,7 +556,7 @@ struct StandardClient : public MegaApp
     class TreeProcPrintTree : public TreeProc
     {
     public:
-        void proc(MegaClient* client, Node* n) override
+        void proc(MegaClient* client, std::shared_ptr<Node> n) override
         {
             //out() << "fetchnodes tree: " << n->displaypath();;
         }
@@ -592,12 +592,12 @@ struct StandardClient : public MegaApp
     bool syncSet(handle backupId, SyncInfo& info) const;
     SyncInfo syncSet(handle backupId);
     SyncInfo syncSet(handle backupId) const;
-    Node* getcloudrootnode();
-    Node* gettestbasenode();
-    Node* getcloudrubbishnode();
-    Node* getsyncdebrisnode();
-    Node* drillchildnodebyname(Node* n, const string& path);
-    vector<Node*> drillchildnodesbyname(Node* n, const string& path);
+    std::shared_ptr<Node> getcloudrootnode();
+    std::shared_ptr<Node> gettestbasenode();
+    std::shared_ptr<Node> getcloudrubbishnode();
+    std::shared_ptr<Node> getsyncdebrisnode();
+    std::shared_ptr<Node> drillchildnodebyname(std::shared_ptr<Node> n, const string& path);
+    vector<std::shared_ptr<Node>> drillchildnodesbyname(Node* n, const string& path);
 
     // setupBackup is implicitly in Vault
     handle setupBackup_mainthread(const string& rootPath);
@@ -724,7 +724,7 @@ struct StandardClient : public MegaApp
 
     bool deleteremotedebris();
     void deleteremotedebris(PromiseBoolSP result);
-    void deleteremotenodes(vector<Node*> ns, PromiseBoolSP pb);
+    void deleteremotenodes(vector<std::shared_ptr<Node> > ns, PromiseBoolSP pb);
 
     bool movenode(const CloudItem& source,
                   const CloudItem& target,
@@ -736,7 +736,7 @@ struct StandardClient : public MegaApp
                   PromiseBoolSP result);
 
     void movenodetotrash(string path, PromiseBoolSP pb);
-    void exportnode(Node* n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb);
+    void exportnode(std::shared_ptr<Node> n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb);
     void getpubliclink(Node* n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb);
     void waitonsyncs(chrono::seconds d = chrono::seconds(2));
     bool conflictsDetected(list<NameConflict>& conflicts);

@@ -486,7 +486,7 @@ class MEGA_API CommandKeyCR : public Command
 {
     bool procresult(Result, JSON&) override { return true; }
 public:
-    CommandKeyCR(MegaClient*, node_vector*, node_vector*, const char*);
+    CommandKeyCR(MegaClient*, sharedNode_vector*, sharedNode_vector*, const char*);
 };
 
 class MEGA_API CommandMoveNode : public Command
@@ -506,7 +506,7 @@ private:
 public:
     bool procresult(Result, JSON&) override;
 
-    CommandMoveNode(MegaClient*, Node*, Node*, syncdel_t, NodeHandle prevParent, Completion&& c, bool canChangeVault = false);
+    CommandMoveNode(MegaClient*, std::shared_ptr<Node>, std::shared_ptr<Node>, syncdel_t, NodeHandle prevParent, Completion&& c, bool canChangeVault = false);
 };
 
 class MEGA_API CommandSingleKeyCR : public Command
@@ -680,6 +680,8 @@ public:
 
 private:
     NodeHandle h;
+    // It's defined here to avoid node will be destroyed and Node::mPendingChanges will be missed
+    std::shared_ptr<Node> mNode;
     attr_map mAttrMapUpdates;
     error generationError;
     bool mCanChangeVault;
@@ -691,7 +693,7 @@ private:
 public:
     bool procresult(Result, JSON&) override;
 
-    CommandSetAttr(MegaClient*, Node*, attr_map&& attrMapUpdates, Completion&& c, bool canChangeVault);
+    CommandSetAttr(MegaClient*, std::shared_ptr<Node>, attr_map&& attrMapUpdates, Completion&& c, bool canChangeVault);
 };
 
 class MEGA_API CommandSetShare : public Command
@@ -710,7 +712,7 @@ class MEGA_API CommandSetShare : public Command
 public:
     bool procresult(Result, JSON&) override;
 
-    CommandSetShare(MegaClient*, Node*, User*, accesslevel_t, bool, const char*, bool writable, const char*,
+    CommandSetShare(MegaClient*, std::shared_ptr<Node>, User*, accesslevel_t, bool, const char*, bool writable, const char*,
         int tag, std::function<void(Error, bool writable)> f);
 };
 

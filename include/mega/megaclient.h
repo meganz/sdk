@@ -732,7 +732,7 @@ public:
     void querytransferquota(m_off_t size);
 
     // update node attributes
-    error setattr(Node*, attr_map&& updates, CommandSetAttr::Completion&& c, bool canChangeVault);
+    error setattr(std::shared_ptr<Node>, attr_map&& updates, CommandSetAttr::Completion&& c, bool canChangeVault);
 
     // prefix and encrypt attribute json
     static void makeattr(SymmCipher*, string*, const char*, int = -1);
@@ -755,10 +755,10 @@ public:
     void unlinkversions();
 
     // move node to new parent folder
-    error rename(Node*, Node*, syncdel_t, NodeHandle prevparenthandle, const char *newName, bool canChangeVault, CommandMoveNode::Completion&& c);
+    error rename(std::shared_ptr<Node>, std::shared_ptr<Node>, syncdel_t, NodeHandle prevparenthandle, const char *newName, bool canChangeVault, CommandMoveNode::Completion&& c);
 
     // Queue commands (if needed) to remvoe any outshares (or pending outshares) below the specified node
-    void removeOutSharesFromSubtree(Node* n, int tag);
+    void removeOutSharesFromSubtree(std::shared_ptr<Node> n, int tag);
 
     // start/stop/pause file transfer
     bool startxfer(direction_t, File*, TransferDbCommitter&, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption, error* cause, int tag);
@@ -872,7 +872,7 @@ public:
     void openShareDialog(Node* n, std::function<void (Error)> completion);
 
     // add/remove/update outgoing share
-    void setshare(Node*, const char*, accesslevel_t, bool writable, const char*,
+    void setshare(std::shared_ptr<Node>, const char*, accesslevel_t, bool writable, const char*,
         int tag, std::function<void(Error, bool writable)> completion);
 
     void setShareCompletion(Node*, User*, accesslevel_t, bool writable, const char*,
@@ -883,7 +883,7 @@ public:
     void updatepcr(handle, ipcactions_t, CommandUpdatePendingContact::Completion completion = nullptr);
 
     // export node link or remove existing exported link for this node
-    error exportnode(Node*, int, m_time_t, bool writable, bool megaHosted,
+    error exportnode(std::shared_ptr<Node>, int, m_time_t, bool writable, bool megaHosted,
         int tag, std::function<void(Error, handle, handle)> completion);
     void requestPublicLink(Node* n, int del, m_time_t ets, bool writable, bool megaHosted,
 	    int tag, std::function<void(Error, handle, handle)> completion); // auxiliar method to add req
@@ -898,7 +898,7 @@ public:
      * @param syncError filled with SyncError with the sync error that makes the node unsyncable
      * @return API_OK if syncable. (regular) error otherwise
      */
-    error isnodesyncable(Node*, bool * isinshare = NULL, SyncError *syncError = nullptr);
+    error isnodesyncable(std::shared_ptr<Node>, bool * isinshare = NULL, SyncError *syncError = nullptr);
 
     /**
      * @brief is local path syncable
@@ -1203,10 +1203,10 @@ public:
     m_off_t getmaxuploadspeed();
 
     // get the handle of the older version for a NewNode
-    Node* getovnode(Node *parent, string *name);
+    std::shared_ptr<Node> getovnode(Node *parent, string *name);
 
     // Load from db node children at first level
-    node_list getChildren(const Node *parent, CancelToken cancelToken = CancelToken());
+    sharedNode_list getChildren(const Node *parent, CancelToken cancelToken = CancelToken());
 
     // Get number of children from a node
     size_t getNumberOfChildren(NodeHandle parentHandle);
@@ -1448,7 +1448,7 @@ public:
     bool sc_checkActionPacket(Node* lastAPDeletedNode);
 
     void sc_updatenode();
-    Node* sc_deltree();
+    std::shared_ptr<Node> sc_deltree();
     handle sc_newnodes(Node* priorActionpacketDeletedNode, bool& firstHandleMismatchedDelete);
     void sc_contacts();
     void sc_keys();
@@ -1488,10 +1488,10 @@ public:
     void removeCaches();
 
     // add node to vector and return index
-    unsigned addnode(node_vector*, Node*) const;
+    unsigned addnode(sharedNode_vector* v, std::shared_ptr<Node> n) const;
 
     // crypto request response
-    void cr_response(node_vector*, node_vector*, JSON*);
+    void cr_response(sharedNode_vector*, sharedNode_vector*, JSON*);
 
     // read node tree from JSON object
     void readtree(JSON*, Node* priorActionpacketDeletedNode, bool& firstHandleMatchedDelete);
@@ -1715,13 +1715,13 @@ public:
     void mergenewshare(NewShare *s, bool notify, bool skipWriteInDb);    // merge only the given share
 
     // return the list of incoming shared folder (only top level, nested inshares are skipped)
-    node_vector getInShares();
+    sharedNode_vector getInShares();
 
     // return the list of verified incoming shared folders (only top level, nested inshares are skipped)
-    node_vector getVerifiedInShares();
+    sharedNode_vector getVerifiedInShares();
 
     // return the list of unverified incoming shared folders (only top level, nested inshares are skipped)
-    node_vector getUnverifiedInShares();
+    sharedNode_vector getUnverifiedInShares();
 
     // transfer queues (PUT/GET)
     transfer_multimap multi_transfers[2];
@@ -1779,7 +1779,7 @@ public:
     long long totalNodes;
 
     // tracks how many nodes have had a successful applykey()
-    long long mAppliedKeyNodeCount = 0;
+    std::atomic<long long> mAppliedKeyNodeCount;
 
     // server-client request sequence number
     SCSN scsn;
@@ -1821,14 +1821,13 @@ public:
     void notifypurge();
 
     // If it's necessary, load nodes from data base
-    Node* nodeByHandle(NodeHandle);
-    Node* nodebyhandle(handle);
+    shared_ptr<Node> nodeByHandle(NodeHandle);
+    shared_ptr<Node> nodebyhandle(handle);
 
-    Node* nodeByPath(const char* path, Node* node = nullptr, nodetype_t type = TYPE_UNKNOWN);
+    shared_ptr<Node> nodeByPath(const char* path, std::shared_ptr<Node> node = nullptr, nodetype_t type = TYPE_UNKNOWN);
 
-    Node* nodebyfingerprint(FileFingerprint*);
-#ifdef ENABLE_SYNC
-    Node* nodebyfingerprint(LocalNode*);
+#if ENABLE_SYNC
+    std::shared_ptr<Node> nodebyfingerprint(LocalNode*);
 #endif /* ENABLE_SYNC */
 
     // get a vector of recent actions in the account
@@ -1893,7 +1892,7 @@ public:
     // move queued nodes to SyncDebris (for syncing into the user's own cloud drive)
     void execmovetosyncdebris(Node* n, std::function<void(NodeHandle, Error)>&& completion, bool canChangeVault);
 
-    Node* getOrCreateSyncdebrisFolder();
+    std::shared_ptr<Node> getOrCreateSyncdebrisFolder();
     struct pendingDebrisRecord {
         NodeHandle nodeHandle;
         std::function<void(NodeHandle, Error)> completion;
@@ -1965,10 +1964,10 @@ public:
     void warn(const char*);
     bool warnlevel();
 
-    Node *childnodebyname(const Node *parent, const char* name, bool skipFolders = false);
-    node_vector childnodesbyname(Node* parent, const char* name, bool skipFolders = false);
-    Node* childnodebynametype(Node* parent, const char* name, nodetype_t mustBeType);
-    Node* childnodebyattribute(Node* parent, nameid attrId, const char* attrValue);
+    std::shared_ptr<Node> childnodebyname(const Node *parent, const char* name, bool skipFolders = false);
+    sharedNode_vector childnodesbyname(Node* parent, const char* name, bool skipFolders = false);
+    std::shared_ptr<Node> childnodebynametype(Node* parent, const char* name, nodetype_t mustBeType);
+    std::shared_ptr<Node> childnodebyattribute(Node* parent, nameid attrId, const char* attrValue);
 
     static void honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs);
 
@@ -2071,7 +2070,7 @@ public:
     void queuepubkeyreq(const char*, std::unique_ptr<PubKeyAction>);
 
     // rewrite foreign keys of the node (tree)
-    void rewriteforeignkeys(Node* n);
+    void rewriteforeignkeys(std::shared_ptr<Node> n);
 
     // simple string hash
     static void stringhash(const char*, byte*, SymmCipher*);
@@ -2104,7 +2103,7 @@ public:
     bool isValidFolderLink();
 
     //returns the top-level node for a node
-    Node *getrootnode(Node*);
+    shared_ptr<Node> getrootnode(shared_ptr<Node>);
 
     //returns true if the node referenced by the handle belongs to the logged-in account
     bool isPrivateNode(NodeHandle h);
@@ -2113,7 +2112,7 @@ public:
     bool isForeignNode(NodeHandle h);
 
     // process node subtree
-    void proctree(Node*, TreeProc*, bool skipinshares = false, bool skipversions = false);
+    void proctree(std::shared_ptr<Node>, TreeProc*, bool skipinshares = false, bool skipversions = false);
 
     // hash password
     error pw_key(const char*, byte*) const;
