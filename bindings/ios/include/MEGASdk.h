@@ -899,7 +899,7 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * @param stringList Array of string that will be converted to MEGAStringList.
  * @return MEGAStringList from the given list of strings.
  */
-- (MEGAStringList *)getMegaStringList:(NSArray<NSString *>*)stringList;
+- (MEGAStringList *)megaStringListFor:(NSArray<NSString *>*)stringList;
 
 #pragma mark - Login Requests
 
@@ -10138,23 +10138,23 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  *
  * The associated request type with this request is MEGARequestTypeFetchAds
  * Valid data in the MegaRequest object received on callbacks:
- *  - [MEGARequest getNumber] A bitmap flag used to communicate with the API
- *  - [MegaRequest getMegaStringList] List of the adslot ids to fetch
- *  - [MegaRequest getNodeHandle] Public handle that the user is visiting
+ *  - [MEGARequest number] A bitmap flag used to communicate with the API
+ *  - [MEGASDK megaStringListFor:] List of the adslot ids to fetch
+ *  - [MEGARequest nodeHandle] Public handle that the user is visiting
  *
  * Valid data in the MegaRequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
- * - [MegaRequest getMegaStringMap] map with relationship between ids and ius
+ * - [MEGARequest megaStringDictionary] map with relationship between ids and ius
  *
- * @param adFlags A bitmap flag used to communicate with the API
+ * @param AdsFlag A bitmap flag used to communicate with the API
  * Valid values are:
- *      - ADS_DEFAULT = 0x0
- *      - ADS_FORCE_ADS = 0x200
- *      - ADS_IGNORE_MEGA = 0x400
- *      - ADS_IGNORE_COUNTRY = 0x800
- *      - ADS_IGNORE_IP = 0x1000
- *      - ADS_IGNORE_PRO = 0x2000
- *      - ADS_FLAG_IGNORE_ROLLOUT = 0x4000
+ *      - AdsFlagDefault = 0x0
+ *      - AdsFlagForceAds = 0x200
+ *      - AdsFlagIgnoreMega = 0x400
+ *      - AdsFlagIgnoreCountry = 0x800
+ *      - AdsFlagIgnoreIP = 0x1000
+ *      - AdsFlagIgnorePRO = 0x2000
+ *      - AdsFlagIgnoreRollout = 0x400
  * @param adUnits A list of the adslot ids to fetch; it cannot be null nor empty
  * @param publicHandle Provide the public handle that the user is visiting
  * @param delegate MEGARequestDelegate to track this request
@@ -10166,22 +10166,22 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  *
  * The associated request type with this request is MEGARequestTypeQueryAds
  * Valid data in the MegaRequest object received on callbacks:
- *  - [MEGARequest getNumber] A bitmap flag used to communicate with the API
- *  - [MEGARequest getNodeHandle] Public handle that the user is visiting
+ *  - [MEGARequest number] A bitmap flag used to communicate with the API
+ *  - [MEGARequest nodeHandle] Public handle that the user is visiting
  *
  * Valid data in the MegaRequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
- * - [MEGARequest getNumDetails] Return if ads should be show or not
+ * - [MEGARequest numDetails] Return if ads should be show or not
  *
- * @param adFlags A bitmap flag used to communicate with the API
+ * @param AdsFlag A bitmap flag used to communicate with the API
  * Valid values are:
- *      - ADS_DEFAULT = 0x0
- *      - ADS_FORCE_ADS = 0x200
- *      - ADS_IGNORE_MEGA = 0x400
- *      - ADS_IGNORE_COUNTRY = 0x800
- *      - ADS_IGNORE_IP = 0x1000
- *      - ADS_IGNORE_PRO = 0x2000
- *      - ADS_FLAG_IGNORE_ROLLOUT = 0x4000
+ *      - AdsFlagDefault = 0x0
+ *      - AdsFlagForceAds = 0x200
+ *      - AdsFlagIgnoreMega = 0x400
+ *      - AdsFlagIgnoreCountry = 0x800
+ *      - AdsFlagIgnoreIP = 0x1000
+ *      - AdsFlagIgnorePRO = 0x2000
+ *      - AdsFlagIgnoreRollout = 0x400
  * @param publicHandle Provide the public handle that the user is visiting
  * @param delegate MEGARequestDelegate to track this request
  */

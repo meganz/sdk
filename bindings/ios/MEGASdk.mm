@@ -547,7 +547,7 @@ using namespace mega;
     }
 }
 
-- (MEGAStringList *)getMegaStringList:(NSArray<NSString *>*)stringList {
+- (MEGAStringList *)megaStringListFor:(NSArray<NSString *>*)stringList {
     MegaStringList* list = mega::MegaStringList::createInstance();
     for (NSString* string in stringList) {
         list->add([string UTF8String]);
