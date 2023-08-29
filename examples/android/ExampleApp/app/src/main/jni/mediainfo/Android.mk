@@ -282,7 +282,7 @@ LOCAL_SRC_FILES := $(addprefix mediainfo/Source/, \
 	ThirdParty/hmac-gladman/hmac.c \
 	ThirdParty/tinyxml2/tinyxml2.cpp)
 
-LOCAL_EXPORT_CFLAGS := -DUNICODE
+LOCAL_EXPORT_CFLAGS := -DUSE_MEDIAINFO -DUNICODE
 LOCAL_STATIC_LIBRARIES := zenlib
 include $(BUILD_STATIC_LIBRARY)
 
