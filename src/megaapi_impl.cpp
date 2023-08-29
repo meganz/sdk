@@ -11912,7 +11912,7 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
                 {
                     return new MegaNodeListPrivate();
                 }
-                if (node->getMimeType() == mimeType &&
+                if (node->isIncludedForMimetype(static_cast<MimeType_t>(mimeType)) &&
                     strcasestr(node->displayname(), searchString) != NULL &&
                     node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags))
                     {
@@ -11921,7 +11921,7 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
 
                 node = client->nodeByHandle(client->mNodeManager.getRootNodeVault());
                 if (node &&
-                    node->getMimeType() == mimeType &&
+                    node->isIncludedForMimetype(static_cast<MimeType_t>(mimeType)) &&
                     strcasestr(node->displayname(), searchString) != NULL &&
                     node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags))
                     {
