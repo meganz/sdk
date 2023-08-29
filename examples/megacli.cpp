@@ -11180,7 +11180,7 @@ void exec_getvpncredentials(autocomplete::ACState& s)
     
     client->getVpnCredentials([slotID, showVpnRegions]
             (const Error& e,
-            CommandGetVpnCredentials::MapSlotIDToCredentialInfo&& mapSlotIDToCredentialInfo, /* Map of SlotID: { ClusterID, IPv4, IPv6, Device fingerprint } */
+            CommandGetVpnCredentials::MapSlotIDToCredentialInfo&& mapSlotIDToCredentialInfo, /* Map of SlotID: { ClusterID, IPv4, IPv6, DeviceID } */
             CommandGetVpnCredentials::MapClusterPublicKeys&& mapClusterPubKeys, /* Map of ClusterID: Cluster Public Key */
             std::vector<std::string>&& vpnRegions /* VPN Regions */)
             {
@@ -11208,7 +11208,7 @@ void exec_getvpncredentials(autocomplete::ACState& s)
                             }
                             cout << "IPv4: " << credentialInfo.ipv4 << endl;
                             cout << "IPv6: " << credentialInfo.ipv6 << endl;
-                            cout << "Device Fingerprint: " << credentialInfo.deviceFingerprint << endl;
+                            cout << "DeviceID: " << credentialInfo.deviceID << endl;
                             cout << "====================================================================" << endl;
                         }
                         else
@@ -11233,7 +11233,7 @@ void exec_getvpncredentials(autocomplete::ACState& s)
                                 cout << "ClusterID: " << credentialInfo.clusterID << endl;
                                 cout << "IPv4: " << credentialInfo.ipv4 << endl;
                                 cout << "IPv6: " << credentialInfo.ipv6 << endl;
-                                cout << "Device fingerprint: " << credentialInfo.deviceFingerprint << endl;
+                                cout << "DeviceID: " << credentialInfo.deviceID << endl;
                                 cout << "====================================================================" << endl;
                             }
                         }

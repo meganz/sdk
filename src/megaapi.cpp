@@ -7689,7 +7689,7 @@ const char* MegaVpnCredentials::getIPv6(int slotID) const
     return nullptr;
 }
 
-const char* MegaVpnCredentials::getDeviceFingerprint(int slotID) const
+const char* MegaVpnCredentials::getDeviceID(int slotID) const
 {
     return nullptr;
 }

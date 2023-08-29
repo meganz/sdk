@@ -4485,7 +4485,7 @@ public:
     MegaStringList* getVpnRegions() const override;
     const char* getIPv4(int slotID) const override;
     const char* getIPv6(int slotID) const override;
-    const char* getDeviceFingerprint(int slotID) const override;
+    const char* getDeviceID(int slotID) const override;
     int getClusterID(int slotID) const override;
     const char* getClusterPublicKey(int clusterID) const override;
     MegaVpnCredentials* copy() const override;

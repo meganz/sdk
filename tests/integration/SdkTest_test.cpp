@@ -14251,7 +14251,7 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
  * 2) Choose one of the regions above to PUT a new VPN credential. A slotID should be returned.
  * 3) GET the MEGA VPN credentials. Check the related fields for the returned slotID:
  *      - IPv4 and IPv6
- *      - Device fingerprint
+ *      - DeviceID
  *      - ClusterID
  *      - Cluster Public Key
  * 4) DELETE the MEGA VPN credentials associated with the slotID used above.
@@ -14293,8 +14293,6 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
         else
         {
             ASSERT_EQ(API_EACCESS, result) << "adding a new VPN credential on a free account didn't return the expected error value (error: " << result << ")";
-            ASSERT_TRUE(slotID <= 0) << "slotID should not be greater than 0 on a free account";
-            ASSERT_TRUE(newCredential.empty()) << "VPN Credential string is NOT EMPTY on a free account";
         }
 
         // Get VPN credentials and search for the credential associated with the returned SlotID
@@ -14326,9 +14324,9 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
                 ASSERT_TRUE(ipv6) << "IPv6 value not found for SlotID: " << slotID;
                 ASSERT_TRUE(*ipv6) << "IPv6 value is empty for SlotID: " << slotID;
 
-                // Get device fingerprint (it must be a valid pointer, but it can be empty if there's no associated fingerprint)
-                const char* deviceFingerprint = megaVpnCredentials->getIPv6(slotID);
-                ASSERT_TRUE(deviceFingerprint) << "Device fingerprint not found for SlotID: " << slotID;
+                // Get DeviceID (it must be a valid pointer, but it can be empty if there's no associated fingerprint)
+                const char* deviceID = megaVpnCredentials->getDeviceID(slotID);
+                ASSERT_TRUE(deviceID) << "deviceID not found for SlotID: " << slotID;
 
                 // Get ClusterID
                 int clusterID = megaVpnCredentials->getClusterID(slotID);

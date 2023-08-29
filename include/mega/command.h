@@ -1770,12 +1770,12 @@ public:
         int clusterID;
         std::string ipv4;
         std::string ipv6;
-        std::string deviceFingerprint;
+        std::string deviceID;
     };
     using MapSlotIDToCredentialInfo = std::map<int /* SlotID */, CredentialInfo>;
     using MapClusterPublicKeys = std::map<int /* ClusterID */, std::string /* Cluster Public Key */ >;
     using Cb = std::function<void(const Error& /* API error */,
-                                MapSlotIDToCredentialInfo&& /* Map of SlotID: { ClusterID, IPv4, IPv6, Device Fingerprint } */,
+                                MapSlotIDToCredentialInfo&& /* Map of SlotID: { ClusterID, IPv4, IPv6, DeviceID } */,
                                 MapClusterPublicKeys&& /* Map of ClusterID: Cluster Public Key */,
                                 std::vector<std::string>&& /* VPN Regions */)>;
     CommandGetVpnCredentials(MegaClient*, Cb&& completion = nullptr);

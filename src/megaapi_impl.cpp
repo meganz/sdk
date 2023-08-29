@@ -25540,7 +25540,7 @@ void MegaApiImpl::getVpnCredentials(MegaRequestListener* listener)
     {
         client->getVpnCredentials([this, request]
             (const Error& e,
-            CommandGetVpnCredentials::MapSlotIDToCredentialInfo&& mapSlotIDToCredentialInfo, /* Map of SlotID: { ClusterID, IPv4, IPv6, Device fingerprint } */
+            CommandGetVpnCredentials::MapSlotIDToCredentialInfo&& mapSlotIDToCredentialInfo, /* Map of SlotID: { ClusterID, IPv4, IPv6, DeviceID } */
             CommandGetVpnCredentials::MapClusterPublicKeys&& mapClusterPubKeys, /* Map of ClusterID: Cluster Public Key */
             std::vector<std::string>&& vpnRegions /* VPN Regions */)
             {
@@ -36708,13 +36708,13 @@ const char* MegaVpnCredentialsPrivate::getIPv6(int slotID) const
     return nullptr;
 }
 
-const char* MegaVpnCredentialsPrivate::getDeviceFingerprint(int slotID) const
+const char* MegaVpnCredentialsPrivate::getDeviceID(int slotID) const
 {
     auto slotInfo = mMapSlotIDToCredentialInfo.find(slotID);
     if (slotInfo != mMapSlotIDToCredentialInfo.end())
     {
         auto& credentialInfo = slotInfo->second;
-        return credentialInfo.deviceFingerprint.c_str();
+        return credentialInfo.deviceID.c_str();
     }
     return nullptr;
 }

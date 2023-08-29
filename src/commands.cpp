@@ -10459,7 +10459,7 @@ bool CommandGetVpnCredentials::procresult(Command::Result r, JSON& json)
                     parsedOk = credentialInfo.clusterID != -1;
                     parsedOk = parsedOk && json.storeobject(&credentialInfo.ipv4);
                     parsedOk = parsedOk && json.storeobject(&credentialInfo.ipv6);
-                    parsedOk = parsedOk && json.storeobject(&credentialInfo.deviceFingerprint);
+                    parsedOk = parsedOk && json.storeobject(&credentialInfo.deviceID);
                     if (parsedOk)
                     {
                         mapSlotIDToCredentialInfo.emplace(std::make_pair(slotID, std::move(credentialInfo)));
