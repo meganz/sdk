@@ -29208,16 +29208,12 @@ MegaTCPServer::~MegaTCPServer()
     LOG_verbose << "MegaTCPServer::~MegaTCPServer BEGIN";
     stop();
 
-    LOG_verbose << "MegaTCPServer::~MegaTCPServer joining uv thread";
     thread->join();
-    LOG_verbose << "MegaTCPServer::~MegaTCPServer deleting uv thread";
     delete thread;
 
-    LOG_verbose << "MegaTCPServer::~MegaTCPServer deleting semaphores";
     semaphoresdestroyed = true;
     uv_sem_destroy(&semaphoreStartup);
     uv_sem_destroy(&semaphoreEnd);
-    LOG_verbose << "MegaTCPServer::~MegaTCPServer deleting fsAccess";
     delete fsAccess;
     LOG_verbose << "MegaTCPServer::~MegaTCPServer END";
 }
@@ -29365,7 +29361,11 @@ void MegaTCPServer::run()
         uv_sem_post(&semaphoreStartup);
         uv_sem_post(&semaphoreEnd);
         uv_run(&uv_loop, UV_RUN_ONCE); // so that resources are cleaned peacefully
-        uv_loop_close(&uv_loop); // Clean up loop resources
+        int closeVal = uv_loop_close(&uv_loop); // Clean up loop resources
+        if (closeVal)
+        {
+            LOG_err << "[MegaTCPServer::run] Error closing uv_loop: " << uv_strerror(closeVal);
+        }
         return;
     }
 
@@ -29384,7 +29384,11 @@ void MegaTCPServer::run()
         SSL_CTX_free(evtctx.ctx);
     }
 #endif
-    uv_loop_close(&uv_loop);
+    int closeVal = uv_loop_close(&uv_loop); // Clean up loop resources
+    if (closeVal)
+    {
+        LOG_err << "[MegaTCPServer::run] Error closing uv_loop: " << uv_strerror(closeVal);
+    }
     started = false;
     port = 0;
     LOG_debug << "UV loop thread exit";
