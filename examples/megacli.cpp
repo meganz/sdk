@@ -11225,7 +11225,7 @@ void exec_getvpncredentials(autocomplete::ACState& s)
                         else
                         {
                             cout << "List of VPN slots:\n" << endl;
-                            cout << "===================================================" << endl;
+                            cout << "====================================================================" << endl;
                             for (auto& vpnSlot : mapSlotIDToCredentialInfo)
                             {
                                 cout << "SlotID: " << vpnSlot.first << endl;
@@ -11234,7 +11234,7 @@ void exec_getvpncredentials(autocomplete::ACState& s)
                                 cout << "IPv4: " << credentialInfo.ipv4 << endl;
                                 cout << "IPv6: " << credentialInfo.ipv6 << endl;
                                 cout << "Device fingerprint: " << credentialInfo.deviceFingerprint << endl;
-                                cout << "===================================================" << endl;
+                                cout << "====================================================================" << endl;
                             }
                         }
                         cout << endl;

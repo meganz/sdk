@@ -25582,6 +25582,10 @@ void MegaApiImpl::putVpnCredential(const char* region, MegaRequestListener* list
                     request->setNumber(slotID);
                     request->setText(newCredential.c_str());
                 }
+                else
+                {
+                    request->setText(nullptr); // Remove region used for request
+                }
 
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             });
@@ -36687,7 +36691,7 @@ const char* MegaVpnCredentialsPrivate::getIPv4(int slotID) const
     auto slotInfo = mMapSlotIDToCredentialInfo.find(slotID);
     if (slotInfo != mMapSlotIDToCredentialInfo.end())
     {
-        auto credentialInfo& = slotInfo->second;
+        auto& credentialInfo = slotInfo->second;
         return credentialInfo.ipv4.c_str();
     }
     return nullptr;
@@ -36698,7 +36702,7 @@ const char* MegaVpnCredentialsPrivate::getIPv6(int slotID) const
     auto slotInfo = mMapSlotIDToCredentialInfo.find(slotID);
     if (slotInfo != mMapSlotIDToCredentialInfo.end())
     {
-        auto credentialInfo& = slotInfo->second;
+        auto& credentialInfo = slotInfo->second;
         return credentialInfo.ipv6.c_str();
     }
     return nullptr;
@@ -36709,7 +36713,7 @@ const char* MegaVpnCredentialsPrivate::getDeviceFingerprint(int slotID) const
     auto slotInfo = mMapSlotIDToCredentialInfo.find(slotID);
     if (slotInfo != mMapSlotIDToCredentialInfo.end())
     {
-        auto credentialInfo& = slotInfo->second;
+        auto& credentialInfo = slotInfo->second;
         return credentialInfo.deviceFingerprint.c_str();
     }
     return nullptr;
@@ -36720,7 +36724,7 @@ int MegaVpnCredentialsPrivate::getClusterID(int slotID) const
     auto slotInfo = mMapSlotIDToCredentialInfo.find(slotID);
     if (slotInfo != mMapSlotIDToCredentialInfo.end())
     {
-        auto credentialInfo& = slotInfo->second;
+        auto& credentialInfo = slotInfo->second;
         return credentialInfo.clusterID;
     }
     return -1;
