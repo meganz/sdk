@@ -363,8 +363,8 @@ bool ScheduledMeeting::serialize(string& out) const
 {
     if (schedId() == UNDEF)
     {
-        assert(false);
         LOG_warn << "ScheduledMeeting::serialize: Invalid scheduled meeting with an UNDEF schedId";
+        assert(false);
         return false;
     }
 
@@ -1245,6 +1245,13 @@ bool TextChat::addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting> sm, boo
     if (!sm)
     {
         LOG_err << "addOrUpdateSchedMeeting: invalid scheduled meeting provided";
+        assert(false);
+        return false;
+    }
+
+    if (sm->schedId() == UNDEF)
+    {
+        LOG_err << "addOrUpdateSchedMeeting: invalid schedid";
         assert(false);
         return false;
     }

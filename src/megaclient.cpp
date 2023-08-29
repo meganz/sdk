@@ -1380,6 +1380,17 @@ void MegaClient::fetchtimezone()
     reqs.add(new CommandFetchTimeZone(this, "", timeoffset.c_str()));
 }
 
+void MegaClient::reportInvalidSchedMeeting(const ScheduledMeeting& sched)
+{
+    std::string errMsg = "Ill-formed sched meeting";
+    errMsg.append(" chatid:  ").append(Base64Str<MegaClient::CHATHANDLE>(sched.chatid()))
+        .append(" schedid: ").append(Base64Str<MegaClient::CHATHANDLE>(sched.schedId()));
+
+    sendevent(99471, errMsg.c_str());
+    LOG_err << errMsg;
+    assert(false);
+}
+
 void MegaClient::keepmealive(int type, bool enable)
 {
     reqs.add(new CommandKeepMeAlive(this, type, enable));
@@ -19661,14 +19672,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
 
                     if (!auxMeet->isValid() || schedParseErr)
                     {
-                        // this object is malformed, so we don't want to store it
-                        std::string errMsg = "Ill-formed sched meeting";
-                        errMsg.append(" chatid:  ").append(Base64Str<MegaClient::CHATHANDLE>(auxMeet->chatid()))
-                              .append(" schedid: ").append(Base64Str<MegaClient::CHATHANDLE>(auxMeet->schedId()));
-
-                        sendevent(99471, errMsg.c_str());
-                        LOG_err << errMsg;
-                        assert(false);
+                        reportInvalidSchedMeeting(auxMeet.get());
                     }
                     else
                     {
