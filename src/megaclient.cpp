@@ -11917,19 +11917,31 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
                     [this, nodehandle]()
                     {
                         mKeyManager.setSharekeyInUse(nodehandle, false);
+
+                    },
+                    [completion, e, writable]()
+                    {
+                        completion(e, writable);
                     });
                 }
-                else if (mKeyManager.isShareKeyTrusted(nodehandle))
+                else
                 {
-                    LOG_warn << "in-use flag was already disabled for the sharekey in KeyManager when removing the last share. nh: " << toNodeHandle(nodehandle);
+                    if (mKeyManager.isShareKeyTrusted(nodehandle))
+                    {
+                        LOG_warn << "in-use flag was already disabled for the sharekey in KeyManager when removing the last share. nh: " << toNodeHandle(nodehandle);
+                    }
+                    completion(e, writable);
                 }
+            }
+            else
+            {
+                completion(e, writable);
             }
 
             if (u && u->isTemporary)
             {
                 delete u;
             }
-            completion(e, writable);
         }));
         return;
     }
@@ -12022,6 +12034,10 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
                     [this, nodehandle]()
                     {
                         mKeyManager.setSharekeyInUse(nodehandle, true);
+                    },
+                    [completion, e, writable]()
+                    {
+                        completion(e, writable);
                     });
                 }
                 else
@@ -12037,10 +12053,14 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
                         sendevent(99479, msg.c_str());
                         assert(!newshare && msg.c_str());
                     }
+                    completion(e, writable);
                 }
             }
+            else
+            {
+                completion(e, writable);
+            }
 
-            completion(e, writable);
             if (user && user->isTemporary) delete user;
         }));
     };
@@ -18845,9 +18865,7 @@ bool MegaClient::nodeIsMedia(const Node *n, bool *isphoto, bool *isvideo) const
         return false;
     }
 
-    MimeType_t mimeType = n->getMimeType(true); // In case of photo type, check if it has preview
-
-    bool a = mimeType == MimeType_t::MIME_TYPE_PHOTO;
+    bool a = n->isIncludedForMimetype(MimeType_t::MIME_TYPE_PHOTO);
     if (isphoto)
     {
         *isphoto = a;
@@ -18856,7 +18874,7 @@ bool MegaClient::nodeIsMedia(const Node *n, bool *isphoto, bool *isvideo) const
     {
         return true;
     }
-    bool b = mimeType == MimeType_t::MIME_TYPE_VIDEO;
+    bool b = n->isIncludedForMimetype(MimeType_t::MIME_TYPE_VIDEO);
     if (isvideo)
     {
         *isvideo = b;
@@ -18867,47 +18885,47 @@ bool MegaClient::nodeIsMedia(const Node *n, bool *isphoto, bool *isvideo) const
 
 bool MegaClient::nodeIsVideo(const Node *n) const
 {
-    return n->getMimeType() == MimeType_t::MIME_TYPE_VIDEO;
+    return n->isIncludedForMimetype(MimeType_t::MIME_TYPE_VIDEO);
 }
 
 bool MegaClient::nodeIsPhoto(const Node *n, bool checkPreview) const
 {
-    return n->getMimeType(checkPreview) == MimeType_t::MIME_TYPE_PHOTO;
+    return n->isIncludedForMimetype(MimeType_t::MIME_TYPE_PHOTO, checkPreview);
 }
 
 bool MegaClient::nodeIsAudio(const Node *n) const
 {
-    return n->getMimeType() == MimeType_t::MIME_TYPE_AUDIO;
+    return n->isIncludedForMimetype(MimeType_t::MIME_TYPE_AUDIO);
 }
 
 bool MegaClient::nodeIsDocument(const Node *n) const
 {
-    return n->getMimeType() == MimeType_t::MIME_TYPE_DOCUMENT;
+    return n->isIncludedForMimetype(MimeType_t::MIME_TYPE_DOCUMENT);
 }
 
 bool MegaClient::nodeIsPdf(const Node *n) const
 {
-    return n->getMimeType() == MimeType_t::MIME_TYPE_PDF;
+    return n->isIncludedForMimetype(MimeType_t::MIME_TYPE_PDF);
 }
 
 bool MegaClient::nodeIsPresentation(const Node *n) const
 {
-    return n->getMimeType() == MimeType_t::MIME_TYPE_PRESENTATION;
+    return n->isIncludedForMimetype(MimeType_t::MIME_TYPE_PRESENTATION);
 }
 
 bool MegaClient::nodeIsArchive(const Node* n) const
 {
-    return n->getMimeType() == MimeType_t::MIME_TYPE_ARCHIVE;
+    return n->isIncludedForMimetype(MimeType_t::MIME_TYPE_ARCHIVE);
 }
 
 bool MegaClient::nodeIsProgram(const Node* n) const
 {
-    return n->getMimeType() == MimeType_t::MIME_TYPE_PROGRAM;
+    return n->isIncludedForMimetype(MimeType_t::MIME_TYPE_PROGRAM);
 }
 
 bool MegaClient::nodeIsMiscellaneous(const Node* n) const
 {
-    return n->getMimeType() == MimeType_t::MIME_TYPE_MISC;
+    return n->isIncludedForMimetype(MimeType_t::MIME_TYPE_MISC);
 }
 
 bool MegaClient::treatAsIfFileDataEqual(const FileFingerprint& node1, const LocalPath& file2, const string& filenameExtensionLowercaseNoDot)

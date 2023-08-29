@@ -11912,7 +11912,7 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
                 {
                     return new MegaNodeListPrivate();
                 }
-                if (node->getMimeType() == mimeType &&
+                if (node->isIncludedForMimetype(static_cast<MimeType_t>(mimeType)) &&
                     strcasestr(node->displayname(), searchString) != NULL &&
                     node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags))
                     {
@@ -11921,7 +11921,7 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
 
                 node = client->nodeByHandle(client->mNodeManager.getRootNodeVault());
                 if (node &&
-                    node->getMimeType() == mimeType &&
+                    node->isIncludedForMimetype(static_cast<MimeType_t>(mimeType)) &&
                     strcasestr(node->displayname(), searchString) != NULL &&
                     node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags))
                     {
@@ -29208,16 +29208,17 @@ MegaTCPServer::MegaTCPServer(MegaApiImpl *megaApi, string basePath, bool tls, st
 
 MegaTCPServer::~MegaTCPServer()
 {
+    LOG_verbose << "MegaTCPServer::~MegaTCPServer BEGIN";
     stop();
+
+    thread->join();
+    delete thread;
+
     semaphoresdestroyed = true;
     uv_sem_destroy(&semaphoreStartup);
     uv_sem_destroy(&semaphoreEnd);
     delete fsAccess;
-
-    LOG_verbose << " MegaTCPServer::~MegaTCPServer joining uv thread";
-    thread->join();
-    LOG_verbose << " MegaTCPServer::~MegaTCPServer deleting uv thread";
-    delete thread;
+    LOG_verbose << "MegaTCPServer::~MegaTCPServer END";
 }
 
 bool MegaTCPServer::start(int port, bool localOnly)
@@ -29363,6 +29364,11 @@ void MegaTCPServer::run()
         uv_sem_post(&semaphoreStartup);
         uv_sem_post(&semaphoreEnd);
         uv_run(&uv_loop, UV_RUN_ONCE); // so that resources are cleaned peacefully
+        int closeVal = uv_loop_close(&uv_loop); // Clean up loop resources
+        if (closeVal)
+        {
+            LOG_err << "[MegaTCPServer::run] Error closing uv_loop: " << uv_strerror(closeVal);
+        }
         return;
     }
 
@@ -29381,7 +29387,11 @@ void MegaTCPServer::run()
         SSL_CTX_free(evtctx.ctx);
     }
 #endif
-    uv_loop_close(&uv_loop);
+    int closeVal = uv_loop_close(&uv_loop); // Clean up loop resources
+    if (closeVal)
+    {
+        LOG_err << "[MegaTCPServer::run] Error closing uv_loop: " << uv_strerror(closeVal);
+    }
     started = false;
     port = 0;
     LOG_debug << "UV loop thread exit";
