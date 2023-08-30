@@ -7139,7 +7139,7 @@ bool CommandChatCreate::procresult(Result r, JSON& json)
                         client->app->chatcreate_result(NULL, API_EINTERNAL);
                         delete chatPeers; // unused, but might be set at creation
                         assert(false); // we don't want to add an ill-formed chatroom
-                        return false;
+                        return true;
                     }
                     break;
                 }
