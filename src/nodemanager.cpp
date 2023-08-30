@@ -1361,7 +1361,7 @@ void NodeManager::notifyPurge()
                 removeFingerprint(n.get());
 
                 // effectively delete node from RAM
-                if (n->mNodePosition->second.mLRUPosition != mCacheLRU.end())
+                if (n->mNodePosition->second.mLRUPosition != invalidCacheLRUPos())
                 {
                     mCacheLRU.erase(n->mNodePosition->second.mLRUPosition);
                 }
@@ -1655,8 +1655,7 @@ void NodeManager::insertNodeCacheLRU_internal(std::shared_ptr<Node> node)
         mCacheLRU.erase(node->mNodePosition->second.mLRUPosition);
     }
 
-    mCacheLRU.push_front(node);
-    node->mNodePosition->second.mLRUPosition = mCacheLRU.begin();
+    node->mNodePosition->second.mLRUPosition = mCacheLRU.insert(mCacheLRU.begin(), node);
     unLoadNodeFromCacheLRU(); // check if it's necessary unload nodes
 
     // setfingerprint again to force to insert into NodeManager::mFingerPrints
@@ -1675,7 +1674,7 @@ void NodeManager::unLoadNodeFromCacheLRU()
         std::shared_ptr<Node> node = mCacheLRU.back();
         removeFingerprint(node.get(), true);
         node->mNodePosition->second.mLRUPosition = invalidCacheLRUPos();
-        mCacheLRU.erase(std::prev(mCacheLRU.end()));
+        mCacheLRU.pop_back();
     }
 }
 
