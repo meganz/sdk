@@ -15278,7 +15278,12 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
             }
             case MegaApi::USER_ATTR_DEVICE_NAMES:
             {
-                bool errorForNameNotFound = true;
+                if (!request->getFlag() && !request->getText()) // all devices and drives
+                {
+                    // the list of device names is passed in the MegaStringMap of the MegaRequest
+                    break;
+                }
+
                 const char* buf = nullptr;
 
                 if (request->getFlag()) // external drive
@@ -15287,24 +15292,19 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                     string key = User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true) + string(Base64Str<MegaClient::DRIVEHANDLE>(driveId));
                     buf = stringMap->get(key.c_str());
                 }
-                else
+                else if (request->getText()) // device
                 {
-                    // getDeviceName() will set MegaRequestPrivate::text to the id of the requested device;
-                    // getUserAttr(USER_ATTR_DEVICE_NAMES) will not set that field, so use the id of the current device
-                    buf = stringMap->get(request->getText() ? request->getText() : client->getDeviceidHash().c_str());
-                    errorForNameNotFound = request->getText() && client->getDeviceidHash() != request->getText();
+                    buf = stringMap->get(request->getText());
                 }
 
-                // Searching for an external drive that is not there should end with error;
-                // specifying a device that is not there should end with error;
-                // but requesting the name of current device even if not set yet should still succeed (and
-                // along with it return the device list which is the purpose of getting USER_ATTR_DEVICE_NAMES attribute).
-                if (!buf && errorForNameNotFound)
+                if (buf)
+                {
+                    request->setName(Base64::atob(buf).c_str());
+                }
+                else
                 {
                     e = API_ENOENT;
-                    break;
                 }
-                request->setName(Base64::atob(buf ? buf : "").c_str());
                 break;
             }
 

@@ -7516,18 +7516,38 @@ TEST_F(SdkTest, SdkDeviceNames)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST SdkDeviceNames___";
 
-    // test setter/getter
+    // test setter/getter for current device name
     string deviceName = string("SdkDeviceNamesTest_") + getCurrentTimestamp(true);
     ASSERT_EQ(API_OK, doSetDeviceName(0, nullptr, deviceName.c_str())) << "setDeviceName failed";
-    string deviceNameInCloud;
-    ASSERT_EQ(API_OK, doGetDeviceName(0, &deviceNameInCloud, nullptr)) << "getDeviceName failed";
-    ASSERT_EQ(deviceNameInCloud, deviceName) << "getDeviceName returned incorrect value";
+    RequestTracker getDeviceNameTracker1(megaApi[0].get());
+    megaApi[0]->getDeviceName(nullptr, &getDeviceNameTracker1);
+    ASSERT_EQ(getDeviceNameTracker1.waitForResult(), API_OK);
+    ASSERT_TRUE(getDeviceNameTracker1.request->getName());
+    ASSERT_EQ(deviceName, getDeviceNameTracker1.request->getName());
+    ASSERT_TRUE(getDeviceNameTracker1.request->getMegaStringMap());
 
-    // test device name taken directly from user attribute
-    RequestTracker devNameTracker(megaApi[0].get());
-    megaApi[0]->getUserAttribute(MegaApi::USER_ATTR_DEVICE_NAMES, &devNameTracker);
-    ASSERT_EQ(API_OK, devNameTracker.waitForResult());
-    ASSERT_STREQ(devNameTracker.request->getName(), deviceName.c_str());
+    // test getting current device name when it was not set
+    ASSERT_EQ(API_OK, doSetDeviceName(0, nullptr, "")) << "removing current device name failed";
+    RequestTracker getDeviceNameTracker2(megaApi[0].get());
+    megaApi[0]->getDeviceName(nullptr, &getDeviceNameTracker2);
+    ASSERT_EQ(getDeviceNameTracker2.waitForResult(), API_ENOENT);
+    ASSERT_FALSE(getDeviceNameTracker2.request->getName());
+    ASSERT_TRUE(getDeviceNameTracker2.request->getMegaStringMap());
+
+    // test getting all device names, when current device name was not set
+    RequestTracker noNameTracker(megaApi[0].get());
+    megaApi[0]->getUserAttribute(MegaApi::USER_ATTR_DEVICE_NAMES, &noNameTracker);
+    ASSERT_EQ(API_OK, noNameTracker.waitForResult()) << "getUserAttribute failed when name of current device was not set";
+    ASSERT_FALSE(noNameTracker.request->getName()) << "getUserAttribute set some bogus name for current device";
+    ASSERT_TRUE(noNameTracker.request->getMegaStringMap());
+
+    // test getting all device names, when current device name was set
+    ASSERT_EQ(API_OK, doSetDeviceName(0, nullptr, deviceName.c_str())) << "setDeviceName failed";
+    RequestTracker getDeviceNameTracker3(megaApi[0].get());
+    megaApi[0]->getUserAttribute(MegaApi::USER_ATTR_DEVICE_NAMES, &getDeviceNameTracker3);
+    ASSERT_EQ(API_OK, getDeviceNameTracker3.waitForResult());
+    ASSERT_FALSE(getDeviceNameTracker3.request->getName());
+    ASSERT_TRUE(getDeviceNameTracker3.request->getMegaStringMap());
 }
 
 TEST_F(SdkTest, SdkBackupFolder)
