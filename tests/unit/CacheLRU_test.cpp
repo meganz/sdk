@@ -810,6 +810,7 @@ TEST(CacheLRU, reduceCacheLRUSize)
         file.ctime = 44;
         std::string name = "name" + std::to_string(index);
         file.attrs.map = std::map<mega::nameid, std::string>{{101, "foo"}, {102, "bar"},{110, name}};
+        auxiliarNode.reset(&file);
         client->mNodeManager.addNode(auxiliarNode, true, false, missingParentNodes);
         client->mNodeManager.saveNodeInDb(auxiliarNode.get());
     }
