@@ -10650,7 +10650,7 @@ CommandCheckVpnCredential::CommandCheckVpnCredential(MegaClient* client, string&
 {
     cmd("vpnc");
     string binaryUserPubKey = Base64::atob(userPubKey);
-    arg("k", binaryUserPubKey.c_str());
+    arg("k", (byte*)binaryUserPubKey.c_str(), static_cast<int>(binaryUserPubKey.size()));
     tag = client->reqtag;
 
     mCompletion = std::move(completion);
