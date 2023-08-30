@@ -1334,22 +1334,36 @@ bool Node::applykey()
             // look for share key if not folder link access with folder master key
             if (h != me)
             {
-                // this is a share node handle - check if share key is available at key's repository
-                // if not available, check if the node already has the share key
-                auto it = client->mNewKeyRepository.find(NodeHandle().set6byte(h));
-                if (it == client->mNewKeyRepository.end())
+                // this is a share node handle - check if share key is available
+                if (client->mKeyManager.isSecure() && client->mKeyManager.generation())
                 {
-                    std::shared_ptr<Node> n;
-                    if (!(n = client->nodebyhandle(h)) || !n->sharekey)
+                    std::string key = client->mKeyManager.getShareKey(h);
+                    if (key.size())
+                    {
+                        sc = client->getRecycledTemporaryNodeCipher(&key);
+                    }
+                    else
                     {
                         continue;
                     }
-
-                    sc = n->sharekey.get();
                 }
-                else
+                else // check at new keys repository and, if not found, at the root node of share
                 {
-                    sc = client->getRecycledTemporaryNodeCipher(it->second.data());
+                    auto it = client->mNewKeyRepository.find(NodeHandle().set6byte(h));
+                    if (it == client->mNewKeyRepository.end())
+                    {
+                        shared_ptr<Node> n;
+                        if (!(n = client->nodebyhandle(h)) || !n->sharekey)
+                        {
+                            continue;
+                        }
+
+                        sc = n->sharekey.get();
+                    }
+                    else
+                    {
+                        sc = client->getRecycledTemporaryNodeCipher(it->second.data());
+                    }
                 }
 
                 // this key will be rewritten when the node leaves the outbound share

@@ -4504,8 +4504,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_BACKUP_PUT: return "BACKUP_PUT";
         case TYPE_BACKUP_REMOVE: return "BACKUP_REMOVE";
         case TYPE_BACKUP_PUT_HEART_BEAT: return "BACKUP_PUT_HEART_BEAT";
-        case TYPE_FETCH_GOOGLE_ADS: return "FETCH_GOOGLE_ADS";
-        case TYPE_QUERY_GOOGLE_ADS: return "QUERY_GOOGLE_ADS";
+        case TYPE_FETCH_ADS: return "FETCH_ADS";
+        case TYPE_QUERY_ADS: return "QUERY_ADS";
         case TYPE_GET_ATTR_NODE: return "GET_ATTR_NODE";
         case TYPE_START_CHAT_CALL: return "START_CHAT_CALL";
         case TYPE_JOIN_CHAT_CALL: return "JOIN_CHAT_CALL";
@@ -18730,13 +18730,6 @@ void MegaApiImpl::sendPendingRequests()
             e = API_EINTERNAL;
             break;
         }
-        case MegaRequest::TYPE_FETCH_GOOGLE_ADS:    // fall-through
-        case MegaRequest::TYPE_QUERY_GOOGLE_ADS:
-        {
-            // deprecated
-            e = API_EEXPIRED;
-            break;
-        }
 #ifdef ENABLE_SYNC
         case MegaRequest::TYPE_REMOVE_SYNCS:
         {
@@ -24899,21 +24892,69 @@ void MegaApiImpl::updateBackup(MegaHandle backupId, int backupType, MegaHandle t
     waiter->notify();
 }
 
-void MegaApiImpl::fetchGoogleAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle, MegaRequestListener *listener)
+void MegaApiImpl::fetchAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle, MegaRequestListener *listener)
 {
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_GOOGLE_ADS, listener);
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_ADS, listener);
     request->setNumber(adFlags);
     request->setMegaStringList(adUnits);
     request->setNodeHandle(publicHandle);
+
+    request->performRequest = [this, request]()
+    {
+        int flags = int(request->getNumber());
+        MegaStringListPrivate* ads = static_cast<MegaStringListPrivate*>(request->getMegaStringList());
+        if (flags < MegaApi::ADS_DEFAULT || flags > MegaApi::ADS_FLAG_IGNORE_ROLLOUT ||
+            !ads || !ads->size())
+        {
+            return API_EARGS;
+        }
+
+        client->reqs.add(new CommandFetchAds(client, flags, ads->getVector(), request->getNodeHandle(), [request, this](Error e, string_map value)
+        {
+           if (e == API_OK)
+           {
+               std::unique_ptr<MegaStringMap> stringMap = std::unique_ptr<MegaStringMap>(MegaStringMap::createInstance());
+               for (const auto& itMap : value)
+               {
+                   stringMap->set(itMap.first.c_str(), itMap.second.c_str());
+               }
+
+               request->setMegaStringMap(stringMap.get());
+           }
+
+           fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+        }));
+
+        return API_OK;
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }
 
-void MegaApiImpl::queryGoogleAds(int adFlags, MegaHandle publicHandle, MegaRequestListener *listener)
+void MegaApiImpl::queryAds(int adFlags, MegaHandle publicHandle, MegaRequestListener *listener)
 {
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_QUERY_GOOGLE_ADS, listener);
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_QUERY_ADS, listener);
     request->setNumber(adFlags);
     request->setNodeHandle(publicHandle);
+
+    request->performRequest = [this, request]()
+    {
+        int flags = int(request->getNumber());
+        if (flags < MegaApi::ADS_DEFAULT || flags > MegaApi::ADS_FLAG_IGNORE_ROLLOUT)
+        {
+            return API_EARGS;
+        }
+
+        client->reqs.add(new CommandQueryAds(client, flags, request->getNodeHandle(), [request, this](Error e, int value)
+        {
+           if (e == API_OK) request->setNumDetails(value);
+           fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+        }));
+
+        return API_OK;
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }

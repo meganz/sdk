@@ -138,7 +138,7 @@ pipeline {
                         if %ERRORLEVEL% NEQ 0 exit 1
                         contrib\\\\cmake\\\\build_dir\\\\Debug\\\\test_integration.exe --CI --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${TESTS_PARALLEL}
                         if %ERRORLEVEL% NEQ 0 set ERROR_VAL=1
-                        gzip -c test_integration.log > test_integration_${BUILD_ID}.log.zip
+                        gzip -c test_integration.log > test_integration_${BUILD_ID}.log.gz
                         rm test_integration.log
                         exit %ERROR_VAL%
                         """
