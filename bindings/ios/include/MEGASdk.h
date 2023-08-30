@@ -337,6 +337,16 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
     CollisionResolutionExistingToOldN   = 3,
 };
 
+typedef NS_ENUM(NSInteger, AdsFlag) {
+    AdsFlagDefault          = 0x0,    // If you don't want to set any overrides/flags, then please provide 0
+    AdsFlagForceAds         = 0x200,  // Force enable ads regardless of any other factors.
+    AdsFlagIgnoreMega       = 0x400,  // Show ads even if the current user or file owner is a MEGA employee.
+    AdsFlagIgnoreCountry    = 0x800,  // Show ads even if the user is not within an enabled country.
+    AdsFlagIgnoreIP         = 0x1000, // Show ads even if the user is on a blacklisted IP (MEGA ips).
+    AdsFlagIgnorePRO        = 0x2000, // Show ads even if the current user or file owner is a PRO user.
+    AdsFlagIgnoreRollout    = 0x4000  // Ignore the rollout logic which only servers ads to 10% of users based on their IP.
+};
+
 /**
  * @brief Allows to control a MEGA account or a public folder.
  *
@@ -882,6 +892,14 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
 * For example, if you want to open https://mega.nz/#pro, the parameter of this function should be "pro".
 */
 - (void)getSessionTransferURL:(NSString *)path;
+
+/**
+ * @brief Returns a new MEGAStringList that contains the given list of strings.
+ *
+ * @param stringList Array of string that will be converted to MEGAStringList.
+ * @return MEGAStringList from the given list of strings.
+ */
+- (MEGAStringList *)megaStringListFor:(NSArray<NSString *>*)stringList;
 
 #pragma mark - Login Requests
 
@@ -10113,6 +10131,61 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
  * @return An unsigned integer with the value of the flag.
  */
 - (NSInteger)getABTestValue:(NSString*)flag;
+
+#pragma mark - Ads
+/**
+ * @brief Fetch ads
+ *
+ * The associated request type with this request is MEGARequestTypeFetchAds
+ * Valid data in the MegaRequest object received on callbacks:
+ *  - [MEGARequest number] A bitmap flag used to communicate with the API
+ *  - [MEGASDK megaStringListFor:] List of the adslot ids to fetch
+ *  - [MEGARequest nodeHandle] Public handle that the user is visiting
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaStringDictionary] map with relationship between ids and ius
+ *
+ * @param adFlags A bitmap flag used to communicate with the API
+ * Valid values are:
+ *      - AdsFlagDefault = 0x0
+ *      - AdsFlagForceAds = 0x200
+ *      - AdsFlagIgnoreMega = 0x400
+ *      - AdsFlagIgnoreCountry = 0x800
+ *      - AdsFlagIgnoreIP = 0x1000
+ *      - AdsFlagIgnorePRO = 0x2000
+ *      - AdsFlagIgnoreRollout = 0x400
+ * @param adUnits A list of the adslot ids to fetch; it cannot be null nor empty
+ * @param publicHandle Provide the public handle that the user is visiting
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)fetchAds:(AdsFlag)adFlags adUnits:(MEGAStringList *)adUnits publicHandle:(MEGAHandle)publicHandle delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Check if ads should show or not
+ *
+ * The associated request type with this request is MEGARequestTypeQueryAds
+ * Valid data in the MegaRequest object received on callbacks:
+ *  - [MEGARequest number] A bitmap flag used to communicate with the API
+ *  - [MEGARequest nodeHandle] Public handle that the user is visiting
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest numDetails] Return if ads should be show or not
+ *
+ * @param adFlags A bitmap flag used to communicate with the API
+ * Valid values are:
+ *      - AdsFlagDefault = 0x0
+ *      - AdsFlagForceAds = 0x200
+ *      - AdsFlagIgnoreMega = 0x400
+ *      - AdsFlagIgnoreCountry = 0x800
+ *      - AdsFlagIgnoreIP = 0x1000
+ *      - AdsFlagIgnorePRO = 0x2000
+ *      - AdsFlagIgnoreRollout = 0x400
+ * @param publicHandle Provide the public handle that the user is visiting
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)queryAds:(AdsFlag)adFlags publicHandle:(MEGAHandle)publicHandle delegate:(id<MEGARequestDelegate>)delegate;
 
 @end
 
