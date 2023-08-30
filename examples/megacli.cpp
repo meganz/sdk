@@ -901,7 +901,7 @@ void DemoApp::chatlinkclose_result(error e)
     }
 }
 
-void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *ct, int, m_time_t ts, bool meetingRoom, const bool waitingRoom, const std::vector<std::unique_ptr<ScheduledMeeting>>* smList, handle callid, error e)
+void DemoApp::chatlinkurl_result (handle chatid, int shard, string* url, string* ct, int numPeers, m_time_t ts, bool meetingRoom, int chatOptions, const std::vector<std::unique_ptr<ScheduledMeeting>>* smList, handle callid, error e)
 {
     if (e)
     {
@@ -909,15 +909,19 @@ void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *
     }
     else
     {
+        ::mega::ChatOptions opts(static_cast<::mega::ChatOptions_t>(chatOptions));
         char idstr[sizeof(handle) * 4 / 3 + 4];
         Base64::btoa((const byte *)&chatid, MegaClient::CHATHANDLE, idstr);
         cout << "Chatid: " << idstr << " (shard " << shard << ")" << endl;
         cout << "URL for chat-link: " << url->c_str() << endl;
         cout << "Encrypted chat-topic: " << ct->c_str() << endl;
         cout << "Creation timestamp: " << ts << endl;
+        cout << "Num peers: " << numPeers << endl;
         cout << "Callid: " << Base64Str<MegaClient::CHATHANDLE>(callid) << endl;
         cout << "Meeting room: " << meetingRoom << endl;
-        cout << "Waiting room: " << waitingRoom << endl;
+        cout << "Waiting room: " << opts.waitingRoom() << endl;
+        cout << "Open invite: " << opts.openInvite() << endl;
+        cout << "Speak request: " << opts.speakRequest() << endl;
         cout << "Scheduled meeting: " << smList << endl;
     }
 }

@@ -7857,7 +7857,7 @@ bool CommandChatLinkURL::procresult(Result r, JSON& json)
 {
     if (r.wasErrorOrOK())
     {
-        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, false, nullptr, UNDEF, r.errorOrOK());
+        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, ChatOptions::kEmpty, nullptr, UNDEF, r.errorOrOK());
         return true;
     }
     else
@@ -7870,6 +7870,9 @@ bool CommandChatLinkURL::procresult(Result r, JSON& json)
         m_time_t ts = 0;
         bool meetingRoom = false;
         bool waitingRoom = false;
+        bool openInvite = false;
+        bool speakRequest = false;
+
         std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
         handle callid = UNDEF;
 
@@ -7913,6 +7916,14 @@ bool CommandChatLinkURL::procresult(Result r, JSON& json)
                     waitingRoom = json.getbool();
                     break;
 
+                case MAKENAMEID2('s','r'):
+                    speakRequest = json.getbool();
+                    break;
+
+                case MAKENAMEID2('o','i'):
+                    openInvite = json.getbool();
+                    break;
+
                 case MAKENAMEID2('s', 'm'): // scheduled meetings
                 {
                     if (json.enterarray())
@@ -7926,18 +7937,20 @@ bool CommandChatLinkURL::procresult(Result r, JSON& json)
                 case EOO:
                     if (chatid != UNDEF && shard != -1 && !url.empty() && !ct.empty() && numPeers != -1)
                     {
-                        client->app->chatlinkurl_result(chatid, shard, &url, &ct, numPeers, ts, meetingRoom, waitingRoom, &schedMeetings, callid, API_OK);
+                        client->app->chatlinkurl_result(chatid, shard, &url, &ct, numPeers, ts, meetingRoom,
+							ChatOptions(speakRequest, waitingRoom, openInvite).value(),
+							&schedMeetings, callid, API_OK);
                     }
                     else
                     {
-                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, false, nullptr, UNDEF, API_EINTERNAL);
+                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, ChatOptions::kEmpty, nullptr, UNDEF, API_EINTERNAL);
                     }
                     return true;
 
                 default:
                     if (!json.storeobject())
                     {
-                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, false, nullptr, UNDEF, API_EINTERNAL);
+                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, ChatOptions::kEmpty, nullptr, UNDEF, API_EINTERNAL);
                         return false;
                     }
             }
