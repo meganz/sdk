@@ -10649,8 +10649,7 @@ bool CommandDelVpnCredential::procresult(Command::Result r, JSON& json)
 CommandCheckVpnCredential::CommandCheckVpnCredential(MegaClient* client, string&& userPubKey, Cb&& completion)
 {
     cmd("vpnc");
-    string binaryUserPubKey = Base64::atob(userPubKey);
-    arg("k", (byte*)binaryUserPubKey.c_str(), static_cast<int>(binaryUserPubKey.size()));
+    arg("k", userPubKey.c_str());
     tag = client->reqtag;
 
     mCompletion = std::move(completion);
