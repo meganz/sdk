@@ -7524,7 +7524,7 @@ TEST_F(SdkTest, SdkDeviceNames)
     ASSERT_EQ(getDeviceNameTracker1.waitForResult(), API_OK);
     ASSERT_TRUE(getDeviceNameTracker1.request->getName());
     ASSERT_EQ(deviceName, getDeviceNameTracker1.request->getName());
-    ASSERT_FALSE(getDeviceNameTracker1.request->getMegaStringMap());
+    ASSERT_TRUE(getDeviceNameTracker1.request->getMegaStringMap());
 
     // test getting current device name when it was not set
     ASSERT_EQ(API_OK, doSetDeviceName(0, nullptr, "")) << "removing current device name failed";
@@ -7532,7 +7532,7 @@ TEST_F(SdkTest, SdkDeviceNames)
     megaApi[0]->getDeviceName(nullptr, &getDeviceNameTracker2);
     ASSERT_EQ(getDeviceNameTracker2.waitForResult(), API_ENOENT);
     ASSERT_FALSE(getDeviceNameTracker2.request->getName());
-    ASSERT_FALSE(getDeviceNameTracker2.request->getMegaStringMap());
+    ASSERT_TRUE(getDeviceNameTracker2.request->getMegaStringMap());
 
     // test getting all device names, when current device name was not set
     RequestTracker noNameTracker(megaApi[0].get());

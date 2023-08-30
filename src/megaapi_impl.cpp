@@ -15191,11 +15191,7 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
         // TLV data usually includes byte arrays with zeros in the middle, so values
         // must be converted into Base64 strings to avoid problems
         std::unique_ptr<MegaStringMap> stringMap(new MegaStringMapPrivate(tlv->getMap(), true));
-        if (request->getParamType() != MegaApi::USER_ATTR_DEVICE_NAMES || !request->getText())
-        {
-            request->setMegaStringMap(stringMap.get());
-        }
-
+        request->setMegaStringMap(stringMap.get());
         switch (request->getParamType())
         {
             // prepare request params to know if a warning should show or not
@@ -15282,6 +15278,7 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
             {
                 if (!request->getFlag() && !request->getText()) // all devices and drives
                 {
+                    // the list of device names is passed in the MegaStringMap of the MegaRequest
                     break;
                 }
 
