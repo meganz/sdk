@@ -1412,14 +1412,6 @@ public:
     CommandSMSVerificationCheck(MegaClient*, const string& code);
 };
 
-class MEGA_API CommandGetRegisteredContacts : public Command
-{
-public:
-    bool procresult(Result, JSON&) override;
-
-    CommandGetRegisteredContacts(MegaClient* client, const map<const char*, const char*>& contacts);
-};
-
 class MEGA_API CommandGetCountryCallingCodes : public Command
 {
 public:

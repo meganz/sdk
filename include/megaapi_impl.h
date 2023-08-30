@@ -3179,8 +3179,6 @@ class MegaApiImpl : public MegaApp
         void sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener = NULL, bool reverifying_whitelisted = false);
         void checkSMSVerificationCode(const char* verificationCode, MegaRequestListener *listener = NULL);
 
-        void getRegisteredContacts(const MegaStringMap* contacts, MegaRequestListener *listener = NULL);
-
         void getCountryCallingCodes(MegaRequestListener *listener = NULL);
 
         void getBanners(MegaRequestListener *listener);
@@ -3409,9 +3407,6 @@ private:
         // account validation by txted verification code
         void smsverificationsend_result(error) override;
         void smsverificationcheck_result(error, std::string *phoneNumber) override;
-
-        // get registered contacts
-        void getregisteredcontacts_result(error, vector<tuple<string, string, string>>*) override;
 
         // get country calling codes
         void getcountrycallingcodes_result(error, map<string, vector<string>>*) override;

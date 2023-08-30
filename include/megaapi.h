@@ -4245,7 +4245,7 @@ class MegaRequest
             TYPE_GET_CLOUD_STORAGE_USED                                     = 119,
             TYPE_SEND_SMS_VERIFICATIONCODE                                  = 120,
             TYPE_CHECK_SMS_VERIFICATIONCODE                                 = 121,
-            TYPE_GET_REGISTERED_CONTACTS                                    = 122,
+            TYPE_GET_REGISTERED_CONTACTS                                    = 122,  // (obsolete)
             TYPE_GET_COUNTRY_CALLING_CODES                                  = 123,
             TYPE_VERIFY_CREDENTIALS                                         = 124,
             TYPE_GET_MISC_FLAGS                                             = 125,
@@ -20234,38 +20234,6 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void checkSMSVerificationCode(const char* verificationCode, MegaRequestListener *listener = NULL);
-
-        /**
-         * @brief Requests the contacts that are registered at MEGA (currently verified through SMS)
-         *
-         * The request will return any of the provided contacts that are registered at MEGA, i.e.,
-         * are verified through SMS (currently).
-         *
-         * The associated request type with this request is MegaRequest::TYPE_GET_REGISTERED_CONTACTS
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getMegaStringMap - Returns the contacts that are to be checked
-         * \c contacts is a MegaStringMap from 'user detail' to the user's name. For instance:
-         * {
-         *   "+0000000010": "John Smith",
-         *   "+0000000011": "Peter Smith",
-         * }
-         *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getMegaStringTable - Returns the information about the contacts with three columns:
-         *  1. entry user detail (the user detail as it was provided in the request)
-         *  2. identifier (the user's identifier)
-         *  3. user detail (the normalized user detail, e.g., +00 0000 0010)
-         *
-         * There is a limit on how many unique details can be looked up per account, to prevent
-         * abuse and iterating over the phone number space to find users in Mega.
-         * An API_ETOOMANY error will be returned if you hit one of these limits.
-         * An API_EARGS error will be returned if your contact details are invalid (malformed SMS number for example)
-         *
-         * @param contacts The map of contacts to get registered contacts from
-         * @param listener MegaRequestListener to track this request
-         */
-        void getRegisteredContacts(const MegaStringMap* contacts, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Requests the currently available country calling codes

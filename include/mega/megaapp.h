@@ -412,9 +412,6 @@ struct MEGA_API MegaApp
     virtual void smsverificationsend_result(error) { }
     virtual void smsverificationcheck_result(error, string*) { }
 
-    // result of get registered contacts command
-    virtual void getregisteredcontacts_result(error, vector<tuple<string, string, string>>*) { }
-
     // result of get country calling codes command
     virtual void getcountrycallingcodes_result(error, map<string, vector<string>>*) { }
 
