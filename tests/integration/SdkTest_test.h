@@ -629,12 +629,13 @@ public:
         vpnCredentials.reset(vpnCredentialsFromRequest);
         return e;
     }
-    template<typename ... requestArgs> int doPutVpnCredential(unsigned apiIndex, int& slotID, string& newCredential, requestArgs... args)
+    template<typename ... requestArgs> int doPutVpnCredential(unsigned apiIndex, int& slotID, std::string& userPubKey, std::string& newCredential, requestArgs... args)
     {
         RequestTracker rt(megaApi[apiIndex].get());
         megaApi[apiIndex]->putVpnCredential(args..., &rt);
         auto e = rt.waitForResult();
         slotID = static_cast<int>(rt.request->getNumber());
+        userPubKey = rt.request->getPassword() ? rt.request->getPassword() : ""; // User Public Key used to register the VPN credentials
         newCredential = rt.request->getText() ? rt.request->getText() : ""; // Credential string for conf file
         return e;
     }
