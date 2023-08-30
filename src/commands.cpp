@@ -10250,7 +10250,7 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r, JSON& json)
     if (!r.wasErrorOrOK())
     {
         if (mCompletion) { mCompletion(r.errorOrOK()); }
-        return false;
+        return true;
     }
 
     if (r.wasError(API_OK))
