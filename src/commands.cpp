@@ -10372,11 +10372,12 @@ bool CommandScheduledMeetingFetchEvents::procresult(Command::Result r, JSON& jso
 
 /* MegaVPN Commands BEGIN */
 CommandGetVpnRegions::CommandGetVpnRegions(MegaClient* client, Cb&& completion)
+:
+    mCompletion(std::move(completion))
 {
     cmd("vpnr");
-    tag = client->reqtag;
 
-    mCompletion = std::move(completion);
+    tag = client->reqtag;
 }
 
 void CommandGetVpnRegions::parseregions(JSON& json, std::vector<std::string>* vpnRegions)
@@ -10408,12 +10409,13 @@ bool CommandGetVpnRegions::procresult(Command::Result r, JSON& json)
 }
 
 CommandGetVpnCredentials::CommandGetVpnCredentials(MegaClient* client, Cb&& completion)
+:
+    mCompletion(std::move(completion))
 {
     cmd("vpng");
     arg("v", 2);
-    tag = client->reqtag;
 
-    mCompletion = std::move(completion);
+    tag = client->reqtag;
 }
 
 bool CommandGetVpnCredentials::procresult(Command::Result r, JSON& json)
@@ -10555,10 +10557,10 @@ CommandPutVpnCredential::CommandPutVpnCredential(MegaClient* client,
     mRegion(std::move(region)),
     mUserKeyPair(std::move(userKeyPair)),
     mCompletion(std::move(completion))
-
 {
     cmd("vpnp");
     arg("k", (byte*)mUserKeyPair.pubKey.c_str(), static_cast<int>(mUserKeyPair.pubKey.size()));
+
     tag = client->reqtag;
 }
 
@@ -10627,12 +10629,13 @@ bool CommandPutVpnCredential::procresult(Command::Result r, JSON& json)
 }
 
 CommandDelVpnCredential::CommandDelVpnCredential(MegaClient* client, int slotID, Cb&& completion)
+:
+    mCompletion(std::move(completion))
 {
     cmd("vpnd");
     arg("s", slotID); // SlotID to remove the credentials
-    tag = client->reqtag;
 
-    mCompletion = std::move(completion);
+    tag = client->reqtag;
 }
 
 bool CommandDelVpnCredential::procresult(Command::Result r, JSON& json)
