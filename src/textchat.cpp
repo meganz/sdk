@@ -1166,11 +1166,20 @@ const map<handle/*schedId*/, std::unique_ptr<ScheduledMeeting>>& TextChat::getSc
 
 bool TextChat::addSchedMeeting(std::unique_ptr<ScheduledMeeting> sm, bool notify)
 {
-    if (!sm || id != sm->chatid())
+    if (!sm)
     {
         assert(false);
         return false;
     }
+
+    if (id != sm->chatid())
+    {
+        LOG_err << "addSchedMeeting: scheduled meeting chatid: " << Base64Str<MegaClient::CHATHANDLE>(sm->chatid())
+                << " doesn't match with expected one: " << Base64Str<MegaClient::CHATHANDLE>(id);
+        assert(false);
+        return false;
+    }
+
     handle schedId = sm->schedId();
     if (mScheduledMeetings.find(schedId) != mScheduledMeetings.end())
     {
