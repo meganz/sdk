@@ -21760,12 +21760,12 @@ void MegaClient::checkVpnCredential(std::string&& userPubKey, CommandDelVpnCrede
     reqs.add(new CommandCheckVpnCredential(this, std::move(userPubKey), std::move(completion)));
 }
 
-// Get the credential string.
-string MegaClient::getVpnCredentialString(int clusterID,
-                                          std::string&& vpnRegion,
-                                          std::string&& ipv4,
-                                          std::string&& ipv6,
-                                          StringKeyPair&& peerKeyPair)
+// Generate the credential string.
+string MegaClient::generateVpnCredentialString(int clusterID,
+                                               std::string&& vpnRegion,
+                                               std::string&& ipv4,
+                                               std::string&& ipv6,
+                                               StringKeyPair&& peerKeyPair)
 {
     string peerPrivateKey = Base64::btoa(peerKeyPair.privKey);
     string peerPublicKey = std::move(peerKeyPair.pubKey);

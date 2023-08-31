@@ -14364,7 +14364,7 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
             ASSERT_EQ(API_OK, result) << "deleting the VPN credentials on the unused slotID " << slotID << " failed (error: " << result << ")";
         }
 
-        // Delete VPN credentials with an invalid slot -expected EARGS: Slot ID is not valid-
+        // Delete VPN credentials with an invalid slot -expected EARGS: SlotID is not valid-
         {
             result = doDelVpnCredential(0, -1);
             ASSERT_EQ(API_EARGS, result) << "deleting the VPN credentials failed for invalid slotID " << slotID << " (error: " << result << ")";
