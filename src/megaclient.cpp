@@ -19372,9 +19372,10 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                                          handle* ou, UserAlert::UpdatedScheduledMeeting::Changeset* cs,
                                          handle_set* childMeetingsDeleted)
 {
-    /* - if any parsing error occurs: this method returns API_EINTERNAL, and schedMeetings vector will contain those valid scheduled meetings already parsed
+    /* - if any parsing error occurs: this method returns API_EINTERNAL, and schedMeetings vector will
+     *   contain those valid scheduled meetings already parsed
      * - if no parsing error but any sched meeting is considered ill-formed by ScheduledMeeting::isValid():
-     *        that sched meeting won't be added added to schedMeetings vector, and we'll continue processing JSON
+     *   that sched meeting won't be added added to schedMeetings vector, and we'll continue processing JSON
      */
     JSON* auxJson = j;
     bool illFormedElems = false;
@@ -19710,6 +19711,14 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
     auto getOldNewTsValues = [&j](UserAlert::UpdatedScheduledMeeting::Changeset::TsChangeset& cs,
                 const char *fieldMsg)
     {
+        if (!j->enterarray())
+        {
+            LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
+                    << ". Array could not be accessed, ill-formed Json";
+            assert(false);
+            return API_EINTERNAL;
+        }
+
         auto getTsVal = [&j](m_time_t& out)
         {
             out = mega_invalid_timestamp;
@@ -19722,14 +19731,6 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
                 }
             }
         };
-
-        if (!j->enterarray())
-        {
-            LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
-                    << ". Array could not be accessed, ill-formed Json";
-            assert(false);
-            return API_EINTERNAL;
-        }
 
         getTsVal(cs.oldValue);
         getTsVal(cs.newValue);
