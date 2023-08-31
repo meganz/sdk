@@ -14292,7 +14292,7 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
         {
             ASSERT_EQ(API_OK, result) << "adding a new VPN credential failed (error: " << result << ")";
             ASSERT_TRUE(slotID > 0) << "slotID should be greater than 0";
-            size_t expectedPubKeyB64Size = 4 * ((ECDH::PUBLIC_KEY_LENGTH + 2) / 3);
+            size_t expectedPubKeyB64Size = ((ECDH::PUBLIC_KEY_LENGTH * 4) + 2) / 3; // URL-safe B64 length (no trailing '=')
             ASSERT_EQ(userPubKey.size(), expectedPubKeyB64Size) << "User Public Key does not have the expected size";
             ASSERT_FALSE(newCredential.empty()) << "VPN Credential data is EMPTY";
         }
