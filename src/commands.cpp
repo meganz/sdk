@@ -10410,6 +10410,7 @@ bool CommandGetVpnRegions::procresult(Command::Result r, JSON& json)
 CommandGetVpnCredentials::CommandGetVpnCredentials(MegaClient* client, Cb&& completion)
 {
     cmd("vpng");
+    arg("v", 2);
     tag = client->reqtag;
 
     mCompletion = std::move(completion);
@@ -10424,7 +10425,7 @@ bool CommandGetVpnCredentials::procresult(Command::Result r, JSON& json)
     }
 
     Error e(API_EINTERNAL);
-    MapSlotIDToClusterIDAndIPs mapSlotIDToClusterIDAndIPs;
+    MapSlotIDToCredentialInfo mapSlotIDToCredentialInfo;
     MapClusterPublicKeys mapClusterPubKeys;
     {
         // Parse ClusterID and IPs
@@ -10453,21 +10454,15 @@ bool CommandGetVpnCredentials::procresult(Command::Result r, JSON& json)
 
                 if (parsedOk && json.enterarray())
                 {
-                    int clusterID = static_cast<int>(json.getint());
-                    std::string ipv4, ipv6;
-                    if (!json.storeobject(&ipv4))
-                    {
-                        parsedOk = false;
-                    }
-                    if (parsedOk && !json.storeobject(&ipv6))
-                    {
-                        parsedOk = false;
-                    }
+                    CredentialInfo credentialInfo;
+                    credentialInfo.clusterID = static_cast<int>(json.getint());
+                    parsedOk = credentialInfo.clusterID != -1;
+                    parsedOk = parsedOk && json.storeobject(&credentialInfo.ipv4);
+                    parsedOk = parsedOk && json.storeobject(&credentialInfo.ipv6);
+                    parsedOk = parsedOk && json.storeobject(&credentialInfo.deviceID);
                     if (parsedOk)
                     {
-                        auto pairIPs = std::make_pair(ipv4, ipv6);
-                        auto pairClusterIDAndIPs = std::make_pair(clusterID, pairIPs);
-                        mapSlotIDToClusterIDAndIPs.emplace(std::make_pair(slotID, pairClusterIDAndIPs));
+                        mapSlotIDToCredentialInfo.emplace(std::make_pair(slotID, std::move(credentialInfo)));
                     }
                     json.leavearray();
                 }
@@ -10547,7 +10542,7 @@ bool CommandGetVpnCredentials::procresult(Command::Result r, JSON& json)
     }
 
     e.setErrorCode(API_OK);
-    mCompletion(e, std::move(mapSlotIDToClusterIDAndIPs), std::move(mapClusterPubKeys), std::move(vpnRegions));
+    mCompletion(e, std::move(mapSlotIDToCredentialInfo), std::move(mapClusterPubKeys), std::move(vpnRegions));
 
     return true;
 }

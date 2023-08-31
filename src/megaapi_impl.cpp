@@ -25541,14 +25541,14 @@ void MegaApiImpl::getVpnCredentials(MegaRequestListener* listener)
     {
         client->getVpnCredentials([this, request]
             (const Error& e,
-            CommandGetVpnCredentials::MapSlotIDToClusterIDAndIPs&& mapSlotIDToClusterIDAndIPs, /* Map of SlotID: { ClusterID, IPv4 and IPv6 } */
+            CommandGetVpnCredentials::MapSlotIDToCredentialInfo&& mapSlotIDToCredentialInfo, /* Map of SlotID: { ClusterID, IPv4, IPv6, DeviceID } */
             CommandGetVpnCredentials::MapClusterPublicKeys&& mapClusterPubKeys, /* Map of ClusterID: Cluster Public Key */
             std::vector<std::string>&& vpnRegions /* VPN Regions */)
             {
-                if (e == API_OK && !mapSlotIDToClusterIDAndIPs.empty() && !mapClusterPubKeys.empty() && !vpnRegions.empty())
+                if (e == API_OK && !mapSlotIDToCredentialInfo.empty() && !mapClusterPubKeys.empty() && !vpnRegions.empty())
                 {
                     auto vpnRegionsMegaStringList = ::mega::make_unique<MegaStringListPrivate>(std::move(vpnRegions));
-                    request->setMegaVpnCredentials(new MegaVpnCredentialsPrivate(std::move(mapSlotIDToClusterIDAndIPs), std::move(mapClusterPubKeys), vpnRegionsMegaStringList.get()));
+                    request->setMegaVpnCredentials(new MegaVpnCredentialsPrivate(std::move(mapSlotIDToCredentialInfo), std::move(mapClusterPubKeys), vpnRegionsMegaStringList.get()));
                 }
 
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
@@ -36674,10 +36674,10 @@ bool MegaCancelTokenPrivate::isCancelled() const
 }
 
 /* MegaVpnCredentialsPrivate BEGIN */
-MegaVpnCredentialsPrivate::MegaVpnCredentialsPrivate(MapSlotIDToClusterIDAndIPs&& mapSlotIDToClusterIDAndIPs,
+MegaVpnCredentialsPrivate::MegaVpnCredentialsPrivate(MapSlotIDToCredentialInfo&& mapSlotIDToCredentialInfo,
                                                     MapClusterPublicKeys&& mapClusterPubKeys,
                                                     MegaStringList* vpnRegions) :
-    mMapSlotIDToClusterIDAndIPs(std::move(mapSlotIDToClusterIDAndIPs)),
+    mMapSlotIDToCredentialInfo(std::move(mapSlotIDToCredentialInfo)),
     mMapClusterPubKeys(std::move(mapClusterPubKeys))
 {
     mVpnRegions.reset(vpnRegions->copy());
@@ -36685,7 +36685,7 @@ MegaVpnCredentialsPrivate::MegaVpnCredentialsPrivate(MapSlotIDToClusterIDAndIPs&
 
 MegaVpnCredentialsPrivate::MegaVpnCredentialsPrivate(const MegaVpnCredentialsPrivate& otherMegaVpnCredentialsPrivate)
 {
-    mMapSlotIDToClusterIDAndIPs = otherMegaVpnCredentialsPrivate.mMapSlotIDToClusterIDAndIPs;
+    mMapSlotIDToCredentialInfo = otherMegaVpnCredentialsPrivate.mMapSlotIDToCredentialInfo;
     mMapClusterPubKeys = otherMegaVpnCredentialsPrivate.mMapClusterPubKeys;
     mVpnRegions.reset(otherMegaVpnCredentialsPrivate.mVpnRegions->copy());
 }
@@ -36697,7 +36697,7 @@ MegaVpnCredentialsPrivate::~MegaVpnCredentialsPrivate()
 MegaIntegerList* MegaVpnCredentialsPrivate::getSlotIDs() const
 {
     vector<int64_t> slotIDs;
-    for (auto& it : mMapSlotIDToClusterIDAndIPs)
+    for (auto& it : mMapSlotIDToCredentialInfo)
     {
         slotIDs.emplace_back(it.first);
     }
@@ -36711,33 +36711,44 @@ MegaStringList* MegaVpnCredentialsPrivate::getVpnRegions() const
 
 const char* MegaVpnCredentialsPrivate::getIPv4(int slotID) const
 {
-    auto clusterIdAndIpsForSlotID = mMapSlotIDToClusterIDAndIPs.find(slotID);
-    if (clusterIdAndIpsForSlotID != mMapSlotIDToClusterIDAndIPs.end())
+    auto slotInfo = mMapSlotIDToCredentialInfo.find(slotID);
+    if (slotInfo != mMapSlotIDToCredentialInfo.end())
     {
-        auto ipPair = clusterIdAndIpsForSlotID->second.second; // Pair<ClusterID, pair<IPv4, IPv6>>
-        return ipPair.first.c_str();
+        auto& credentialInfo = slotInfo->second;
+        return credentialInfo.ipv4.c_str();
     }
     return nullptr;
 }
 
 const char* MegaVpnCredentialsPrivate::getIPv6(int slotID) const
 {
-    auto clusterIdAndIpsForSlotID = mMapSlotIDToClusterIDAndIPs.find(slotID);
-    if (clusterIdAndIpsForSlotID != mMapSlotIDToClusterIDAndIPs.end())
+    auto slotInfo = mMapSlotIDToCredentialInfo.find(slotID);
+    if (slotInfo != mMapSlotIDToCredentialInfo.end())
     {
-        auto ipPair = clusterIdAndIpsForSlotID->second.second; // Pair<ClusterID, pair<IPv4, IPv6>>
-        return ipPair.second.c_str();
+        auto& credentialInfo = slotInfo->second;
+        return credentialInfo.ipv6.c_str();
+    }
+    return nullptr;
+}
+
+const char* MegaVpnCredentialsPrivate::getDeviceID(int slotID) const
+{
+    auto slotInfo = mMapSlotIDToCredentialInfo.find(slotID);
+    if (slotInfo != mMapSlotIDToCredentialInfo.end())
+    {
+        auto& credentialInfo = slotInfo->second;
+        return credentialInfo.deviceID.c_str();
     }
     return nullptr;
 }
 
 int MegaVpnCredentialsPrivate::getClusterID(int slotID) const
 {
-    auto clusterIdAndIpsForSlotID = mMapSlotIDToClusterIDAndIPs.find(slotID);
-    if (clusterIdAndIpsForSlotID != mMapSlotIDToClusterIDAndIPs.end())
+    auto slotInfo = mMapSlotIDToCredentialInfo.find(slotID);
+    if (slotInfo != mMapSlotIDToCredentialInfo.end())
     {
-        auto clusterID = clusterIdAndIpsForSlotID->second.first; // Pair<ClusterID, pair<IPv4, IPv6>>
-        return clusterID;
+        auto& credentialInfo = slotInfo->second;
+        return credentialInfo.clusterID;
     }
     return -1;
 }
