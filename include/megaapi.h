@@ -5164,6 +5164,8 @@ class MegaRequest
          *    · ClusterID.
          *    · IPv4.
          *    · IPv6.
+         *    . DeviceID. This value can be empty if there is no associated device ID.
+         *                The current device ID can be retrieved via MegaApi::getDeviceId
          * - For each ClusterID:
          *    · Cluster Public Key.
          * - List of VPN regions (as a MegaStringList).
@@ -22652,7 +22654,21 @@ public:
     virtual const char* getIPv6(int slotID) const = 0;
 
     /**
-     * @brief Get the Cluster ID associated with the VPN credentials of a SlotID.
+     * @brief Get the DeviceID associated with the VPN credentials of a SlotID.
+     *
+     * The string value can be empty if there is no associated device ID.
+     * The current device ID can be retrieved via MegaApi::getDeviceId
+     *
+     * The caller does not take the ownership of the const char* object.
+     * The const char* object is valid as long as the current MegaVpnCredentials object is valid too.
+     *
+     * @param slotID The SlotID associated with the VPN credentials.
+     * @return const char* with the DeviceID if the SlotID has a valid VPN credential, nullptr otherwise.
+     */
+    virtual const char* getDeviceID(int slotID) const = 0;
+
+    /**
+     * @brief Get the ClusterID associated with the VPN credentials of a SlotID.
      * 
      * The caller does not take the ownership of the const char* object.
      * The const char* object is valid as long as the current MegaVpnCredentials object is valid too.

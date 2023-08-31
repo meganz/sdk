@@ -14254,6 +14254,7 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
  *     - The credential string to be used for VPN connection.
  * 3) GET the MEGA VPN credentials. Check the related fields for the returned slotID:
  *      - IPv4 and IPv6
+ *      - DeviceID
  *      - ClusterID
  *      - Cluster Public Key
  * 4) DELETE the MEGA VPN credentials associated with the slotID used above.
@@ -14320,14 +14321,27 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
                 }
 
                 // Get IPv4
-                string ipv4 = megaVpnCredentials->getIPv4(slotID);
-                ASSERT_FALSE(ipv4.empty()) << "IPv4 value not found for SlotID: " << slotID;
-                string ipv6 = megaVpnCredentials->getIPv6(slotID);
-                ASSERT_FALSE(ipv6.empty()) << "IPv6 value not found for SlotID: " << slotID;
+                const char* ipv4 = megaVpnCredentials->getIPv4(slotID);
+                ASSERT_TRUE(ipv4) << "IPv4 value not found for SlotID: " << slotID;
+                ASSERT_TRUE(*ipv4) << "IPv4 value is empty for SlotID: " << slotID;
+
+                // Get IPv6
+                const char* ipv6 = megaVpnCredentials->getIPv6(slotID);
+                ASSERT_TRUE(ipv6) << "IPv6 value not found for SlotID: " << slotID;
+                ASSERT_TRUE(*ipv6) << "IPv6 value is empty for SlotID: " << slotID;
+
+                // Get DeviceID (it must be a valid pointer, but it can be empty if there's no associated fingerprint)
+                const char* deviceID = megaVpnCredentials->getDeviceID(slotID);
+                ASSERT_TRUE(deviceID) << "deviceID not found for SlotID: " << slotID;
+
+                // Get ClusterID
                 int clusterID = megaVpnCredentials->getClusterID(slotID);
                 ASSERT_TRUE(clusterID >= 0) << "clusterID should be a positive value. SlotID: " << slotID;
-                string clusterPublicKey = megaVpnCredentials->getClusterPublicKey(clusterID);
-                ASSERT_FALSE(clusterPublicKey.empty()) << "Cluster Public Key not found for ClusterID: " << clusterID;
+
+                // Get Cluster Public Key
+                const char* clusterPublicKey = megaVpnCredentials->getClusterPublicKey(clusterID);
+                ASSERT_TRUE(clusterPublicKey) << "Cluster Public Key not found for ClusterID: " << clusterID;
+                ASSERT_TRUE(*clusterPublicKey) << "Cluster Public Key is empty for ClusterID: " << clusterID;
 
                 // Check VPN regions, they should not be empty
                 std::unique_ptr<MegaStringList> vpnRegionsFromCredentials;

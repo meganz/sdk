@@ -11172,7 +11172,7 @@ void exec_getvpncredentials(autocomplete::ACState& s)
         }
         catch (std::exception const &ex)
         {
-            std::cout << "Could not convert param SlotID(" << slotIDstr << ") to integer. Exception: " << ex.what() << std::endl;
+            cout << "Could not convert param SlotID(" << slotIDstr << ") to integer. Exception: " << ex.what() << endl;
             return;
         }
     }
@@ -11180,8 +11180,8 @@ void exec_getvpncredentials(autocomplete::ACState& s)
     
     client->getVpnCredentials([slotID, showVpnRegions]
             (const Error& e,
-            CommandGetVpnCredentials::MapSlotIDToClusterIDAndIPs&& mapSlotIDToClusterIDAndIPs, /* Map of SlotID: { ClusterID, IPv4 and IPv6 } */
-            CommandGetVpnCredentials::MapClusterPublicKeys mapClusterPubKeys, /* Map of ClusterID: Cluster Public Key */
+            CommandGetVpnCredentials::MapSlotIDToCredentialInfo&& mapSlotIDToCredentialInfo, /* Map of SlotID: { ClusterID, IPv4, IPv6, DeviceID } */
+            CommandGetVpnCredentials::MapClusterPublicKeys&& mapClusterPubKeys, /* Map of ClusterID: Cluster Public Key */
             std::vector<std::string>&& vpnRegions /* VPN Regions */)
             {
                 if (e == API_OK)
@@ -11189,26 +11189,26 @@ void exec_getvpncredentials(autocomplete::ACState& s)
                     cout << endl;
                     if (slotID > 0)
                     {
-                        auto clusterIdAndIpsForSlotID = mapSlotIDToClusterIDAndIPs.find(slotID);
-                        if (clusterIdAndIpsForSlotID != mapSlotIDToClusterIDAndIPs.end())
+                        auto slotInfo = mapSlotIDToCredentialInfo.find(slotID);
+                        if (slotInfo != mapSlotIDToCredentialInfo.end())
                         {
                             cout << "====================================================================" << endl;
-                            std::cout << "SlotID: " << clusterIdAndIpsForSlotID->first << endl;
-                            int clusterID = clusterIdAndIpsForSlotID->second.first;
-                            std::cout << "ClusterID: " << clusterID << endl;
-                            std::cout << "Cluster Public Key: ";
-                            auto clusterPublicKey = mapClusterPubKeys.find(clusterID);
+                            cout << "SlotID: " << slotInfo->first << endl;
+                            auto& credentialInfo = slotInfo->second;
+                            cout << "ClusterID: " << credentialInfo.clusterID << endl;
+                            cout << "Cluster Public Key: ";
+                            auto clusterPublicKey = mapClusterPubKeys.find(credentialInfo.clusterID);
                             if (clusterPublicKey != mapClusterPubKeys.end())
                             {
-                                std::cout << clusterPublicKey->second << endl;
+                                cout << clusterPublicKey->second << endl;
                             }
                             else
                             {
-                                std::cout << "Not found" << endl;
+                                cout << "Not found" << endl;
                             }
-                            auto& ipPair = clusterIdAndIpsForSlotID->second.second; // Pair<ClusterID, pair<IPv4, IPv6>>
-                            std::cout << "IPv4: " << ipPair.first << endl;
-                            std::cout << "IPv6: " << ipPair.second << endl;
+                            cout << "IPv4: " << credentialInfo.ipv4 << endl;
+                            cout << "IPv6: " << credentialInfo.ipv6 << endl;
+                            cout << "DeviceID: " << credentialInfo.deviceID << endl;
                             cout << "====================================================================" << endl;
                         }
                         else
@@ -11218,22 +11218,23 @@ void exec_getvpncredentials(autocomplete::ACState& s)
                     }
                     else
                     {
-                        if (mapSlotIDToClusterIDAndIPs.empty())
+                        if (mapSlotIDToCredentialInfo.empty())
                         {
                             cout << "List of VPN slots is EMPTY" << endl;
                         }
                         else
                         {
                             cout << "List of VPN slots:\n" << endl;
-                            cout << "===================================================" << endl;
-                            for (auto& vpnSlot : mapSlotIDToClusterIDAndIPs)
+                            cout << "====================================================================" << endl;
+                            for (auto& vpnSlot : mapSlotIDToCredentialInfo)
                             {
                                 cout << "SlotID: " << vpnSlot.first << endl;
-                                auto& pairClusterIDAndIps = vpnSlot.second;
-                                cout << "ClusterID: " << pairClusterIDAndIps.first << endl;
-                                cout << "IPv4: " << pairClusterIDAndIps.second.first << endl;
-                                cout << "IPv6: " << pairClusterIDAndIps.second.second << endl;
-                                cout << "===================================================" << endl;
+                                auto& credentialInfo = vpnSlot.second;
+                                cout << "ClusterID: " << credentialInfo.clusterID << endl;
+                                cout << "IPv4: " << credentialInfo.ipv4 << endl;
+                                cout << "IPv6: " << credentialInfo.ipv6 << endl;
+                                cout << "DeviceID: " << credentialInfo.deviceID << endl;
+                                cout << "====================================================================" << endl;
                             }
                         }
                         cout << endl;
