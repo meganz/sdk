@@ -14248,7 +14248,10 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
  * If the testing account is FREE, the request results are adjusted to the API error expected in those cases.
  *
  * 1) GET the MEGA VPN regions.
- * 2) Choose one of the regions above to PUT a new VPN credential. A slotID should be returned.
+ * 2) Choose one of the regions above to PUT a new VPN credential. It should return:
+ *     - The SlotID where the credential has been created.
+ *     - The User Public Key.
+ *     - The credential string to be used for VPN connection.
  * 3) GET the MEGA VPN credentials. Check the related fields for the returned slotID:
  *      - IPv4 and IPv6
  *      - ClusterID
@@ -14282,13 +14285,16 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
 
         // Put VPN credential on the chosen region
         int slotID = -1;
+        std::string userPubKey;
         std::string newCredential;
-        result = doPutVpnCredential(0, slotID, newCredential, vpnRegion);
+        result = doPutVpnCredential(0, slotID, userPubKey, newCredential, vpnRegion);
         if (isProAccount)
         {
             ASSERT_EQ(API_OK, result) << "adding a new VPN credential failed (error: " << result << ")";
             ASSERT_TRUE(slotID > 0) << "slotID should be greater than 0";
-            ASSERT_FALSE(newCredential.empty()) << "VPN Credential string is EMPTY";
+            size_t expectedPubKeyB64Size = 4 * ((ECDH::PUBLIC_KEY_LENGTH + 2) / 3);
+            ASSERT_EQ(userPubKey.size(), expectedPubKeyB64Size) << "User Public Key does not have the expected size";
+            ASSERT_FALSE(newCredential.empty()) << "VPN Credential data is EMPTY";
         }
         else
         {

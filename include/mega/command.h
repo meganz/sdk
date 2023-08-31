@@ -1784,16 +1784,17 @@ class MEGA_API CommandPutVpnCredential : public Command
 public:
     using Cb = std::function<void(const Error&  /* API error */,
                                 int             /* SlotID */,
+                                std::string&&   /* User Public Key */,
                                 std::string&&   /* New Credential */)>;
     CommandPutVpnCredential(MegaClient*,
                             std::string&& /* VPN Region */,
-                            StringPair&& /* User Key Pair <Private, Public> */,
+                            StringKeyPair&& /* User Key Pair <Private, Public> */,
                             Cb&& completion = nullptr);
     bool procresult(Result, JSON&) override;
 
 private:
     std::string mRegion;
-    std::string mUserPrivKey;
+    StringKeyPair mUserKeyPair;
     Cb mCompletion;
 };
 

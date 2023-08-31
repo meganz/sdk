@@ -21716,17 +21716,17 @@ Error MegaClient::sendABTestActive(const char* flag, CommandABTestActive::Comple
 }
 
 /* Mega VPN methods BEGIN */
-StringPair MegaClient::generateVpnKeyPair()
+StringKeyPair MegaClient::generateVpnKeyPair()
 {
     auto vpnKey = ::mega::make_unique<ECDH>();
     if (!vpnKey->initializationOK)
     {
         LOG_err << "Initialization of keys Cu25519 and/or Ed25519 failed";
-        return std::make_pair(std::string(), std::string());
+        return StringKeyPair(std::string(), std::string());
     }
     string privateKey = std::string((const char *)vpnKey->getPrivKey(), ECDH::PRIVATE_KEY_LENGTH);
     string publicKey = std::string((const char *)vpnKey->getPubKey(), ECDH::PUBLIC_KEY_LENGTH);
-    return std::make_pair(std::move(privateKey), std::move(publicKey));
+    return StringKeyPair(std::move(privateKey), std::move(publicKey));
 }
 
 // Call "vpnr" command.
@@ -21765,21 +21765,16 @@ string MegaClient::getVpnCredentialString(int clusterID,
                                           std::string&& vpnRegion,
                                           std::string&& ipv4,
                                           std::string&& ipv6,
-                                          StringPair&& peerKeyPair)
+                                          StringKeyPair&& peerKeyPair)
 {
-    string peerPrivateKey = Base64::btoa(peerKeyPair.first);
-    string peerPublicKey = peerKeyPair.second;
+    string peerPrivateKey = Base64::btoa(peerKeyPair.privKey);
+    string peerPublicKey = std::move(peerKeyPair.pubKey);
 
-    // Base64 standard format for Peer Key Pair:
-    // We need to replace chars "-_" (Base64::to64()) with "+/". And add the trailing "=" to have a "correct" length (from 32 to 44).
-    std::replace(peerPrivateKey.begin(), peerPrivateKey.end(), '-', '+');
-    std::replace(peerPrivateKey.begin(), peerPrivateKey.end(), '_', '/');
-    std::replace(peerPublicKey.begin(), peerPublicKey.end(), '-', '+');
-    std::replace(peerPublicKey.begin(), peerPublicKey.end(), '_', '/');
-    peerPrivateKey.append("=");
-    peerPublicKey.append("=");
+    // Base64 standard format for Peer Key Pair
+    Base64::toStandard(peerPrivateKey);
+    Base64::toStandard(peerPublicKey);
+    assert(peerPrivateKey.size() == 4 * ((ECDH::PUBLIC_KEY_LENGTH + 2) / 3)); // Check lengths as we have keys from different sources
     assert(peerPrivateKey.size() == peerPublicKey.size());
-    assert(peerPrivateKey.size() % 4 == 0);
 
     // Now they peer keys are valid for WireGuard and can be added to the credentials.
     string credential;

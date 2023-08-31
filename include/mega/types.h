@@ -1231,4 +1231,14 @@ static constexpr int sfu_invalid_id = -1;
 
 typedef std::pair<std::string, std::string> StringPair;
 
+struct StringKeyPair
+{
+    std::string privKey;
+    std::string pubKey;
+
+    StringKeyPair(std::string&& privKey, std::string&& pubKey)
+    : privKey(std::move(privKey)), pubKey(std::move(pubKey))
+    {}
+};
+
 #endif
