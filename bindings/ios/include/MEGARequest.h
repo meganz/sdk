@@ -570,6 +570,13 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
 @property (readonly, nonatomic) NSDictionary<NSString *, NSString*> *megaStringDictionary;
 
 /**
+ * @brief Gets the string table response from a request mapped into a collection of NSArray of NSStrings.
+ *
+ */
+@property (readonly, nonatomic) NSArray<NSArray<NSString *> *> *stringTableArray;
+
+
+/**
  * @brief Gets the banners response from a request mapped into MEGABannerList.
  *
  * This value is valid for these requests:
