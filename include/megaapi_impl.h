@@ -3216,6 +3216,7 @@ class MegaApiImpl : public MegaApp
         void getVpnCredentials(MegaRequestListener* listener = nullptr);
         void putVpnCredential(const char* region, MegaRequestListener* listener = nullptr);
         void delVpnCredential(int slotID, MegaRequestListener* listener = nullptr);
+        void checkVpnCredential(const char* userPubKey, MegaRequestListener* listener = nullptr);
         /* MegaVpnCredentials end */
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);

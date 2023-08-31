@@ -4275,6 +4275,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_getvpncredentials, sequence(text("getvpncredentials"), opt(sequence(flag("-s"), param("slotID"))), opt(flag("-noregions"))));
     p->Add(exec_putvpncredential, sequence(text("putvpncredential"), param("region"), opt(sequence(flag("-file"), param("credentialfilewithoutextension"))), opt(flag("-noconsole"))));
     p->Add(exec_delvpncredential, sequence(text("delvpncredential"), param("slotID")));
+    p->Add(exec_checkvpncredential, sequence(text("checkvpncredential"), param("userpublickey")));
     /* MEGA VPN commands END */
 
     return autocompleteTemplate = std::move(p);
@@ -11395,6 +11396,30 @@ void exec_delvpncredential(autocomplete::ACState& s)
                             cout << errorstring(e);
                     }
                     cout << "'";
+                }
+                cout << endl;
+            });
+}
+
+void exec_checkvpncredential(autocomplete::ACState& s)
+{
+    string userPubKey = s.words[1].s;
+    cout << "Checking MEGA VPN credentials. User Public Key: " << userPubKey << endl;
+    client->checkVpnCredential(userPubKey.c_str(), // To ensure a copy
+            [userPubKey] (const Error& e)
+            {
+                cout << "MEGA VPN credentials with User Public Key: '" << userPubKey << "' ";
+                if (e == API_OK)
+                {
+                    cout << "are valid";
+                }
+                else if (e == API_EACCESS)
+                {
+                    cout << "are not valid";
+                }
+                else
+                {
+                    cout << "could not be checked. Error value: " << e << ". Reason: '" << errorstring(e) << "'";
                 }
                 cout << endl;
             });

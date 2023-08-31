@@ -10620,9 +10620,8 @@ bool CommandPutVpnCredential::procresult(Command::Result r, JSON& json)
     if (mCompletion)
     {
         std::string userPubKey = Base64::btoa(mUserKeyPair.pubKey);
-        Base64::toStandard(userPubKey);
         auto peerKeyPair = StringKeyPair(std::move(mUserKeyPair.privKey), std::move(clusterPubKey));
-        std::string newCredential = client->getVpnCredentialString(clusterID, std::move(mRegion), std::move(ipv4), std::move(ipv6), std::move(peerKeyPair));
+        std::string newCredential = client->generateVpnCredentialString(clusterID, std::move(mRegion), std::move(ipv4), std::move(ipv6), std::move(peerKeyPair));
         mCompletion(API_OK, slotID, std::move(userPubKey), std::move(newCredential));
     }
     return true;
@@ -10639,6 +10638,24 @@ CommandDelVpnCredential::CommandDelVpnCredential(MegaClient* client, int slotID,
 }
 
 bool CommandDelVpnCredential::procresult(Command::Result r, JSON& json)
+{
+    if (mCompletion)
+    {
+        mCompletion(r.errorOrOK());
+    }
+    return r.wasErrorOrOK();
+}
+
+CommandCheckVpnCredential::CommandCheckVpnCredential(MegaClient* client, string&& userPubKey, Cb&& completion)
+{
+    cmd("vpnc");
+    arg("k", userPubKey.c_str()); // User Public Key is already in B64 format
+    tag = client->reqtag;
+
+    mCompletion = std::move(completion);
+}
+
+bool CommandCheckVpnCredential::procresult(Command::Result r, JSON& json)
 {
     if (mCompletion)
     {

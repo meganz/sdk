@@ -4401,6 +4401,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_VPN_CREDENTIALS: return "GET_VPN_CREDENTIALS";
         case TYPE_PUT_VPN_CREDENTIAL: return "PUT_VPN_CREDENTIAL";
         case TYPE_DEL_VPN_CREDENTIAL: return "DEL_VPN_CREDENTIAL";
+        case TYPE_CHECK_VPN_CREDENTIAL: return "CHECK_VPN_CREDENTIAL";
     }
     return "UNKNOWN";
 }
@@ -25581,11 +25582,7 @@ void MegaApiImpl::putVpnCredential(const char* region, MegaRequestListener* list
                 {
                     request->setNumber(slotID);
                     request->setPassword(userPubKey.c_str());
-                    request->setText(newCredential.c_str());
-                }
-                else
-                {
-                    request->setText(nullptr); // Remove region used for request
+                    request->setSessionKey(newCredential.c_str());
                 }
 
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
@@ -25606,6 +25603,31 @@ void MegaApiImpl::delVpnCredential(int slotID, MegaRequestListener* listener)
     {
         int slotID = static_cast<int>(request->getNumber());
         client->delVpnCredential(slotID,
+            [this, request] (const Error& e)
+            {
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            });
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::checkVpnCredential(const char* userPubKey, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CHECK_VPN_CREDENTIAL, listener);
+
+    request->setText(userPubKey);
+    request->performRequest = [this, request]()
+    {
+        const char* userPK = request->getText();
+        if (!userPK || !*userPK)
+        {
+            LOG_err << "[MegaApiImpl::checkVpnCredential] User Public Key is EMPTY!";
+            return API_EARGS;
+        }
+        client->checkVpnCredential(userPK,
             [this, request] (const Error& e)
             {
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));

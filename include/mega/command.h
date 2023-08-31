@@ -1808,7 +1808,18 @@ class MEGA_API CommandDelVpnCredential : public Command
 {
 public:
     using Cb = std::function<void(const Error& /*e*/)>;
-    CommandDelVpnCredential(MegaClient*, int /* Slot ID */, Cb&& completion = nullptr);
+    CommandDelVpnCredential(MegaClient*, int /* SlotID */, Cb&& completion = nullptr);
+    bool procresult(Result, JSON&) override;
+
+private:
+    Cb mCompletion;
+};
+
+class MEGA_API CommandCheckVpnCredential : public Command
+{
+public:
+    using Cb = std::function<void(const Error& /*e*/)>;
+    CommandCheckVpnCredential(MegaClient*, std::string&& /* User Public Key */, Cb&& completion = nullptr);
     bool procresult(Result, JSON&) override;
 
 private:

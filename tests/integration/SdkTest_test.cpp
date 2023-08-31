@@ -14252,14 +14252,16 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
  *     - The SlotID where the credential has been created.
  *     - The User Public Key.
  *     - The credential string to be used for VPN connection.
- * 3) GET the MEGA VPN credentials. Check the related fields for the returned slotID:
+ * 3-a) Check the MEGA VPN credentials. They should be valid.
+ * 3-b) Check nonexistent MEGA VPN credentials. They should be invalid.
+ * 4) GET the MEGA VPN credentials. Check the related fields for the returned slotID:
  *      - IPv4 and IPv6
  *      - DeviceID
  *      - ClusterID
  *      - Cluster Public Key
- * 4) DELETE the MEGA VPN credentials associated with the slotID used above.
- * 5) DELETE the MEGA VPN credentials from an unoccupied slot.
- * 6) DELETE the MEGA VPN credentials from an invalid slot.
+ * 5) DELETE the MEGA VPN credentials associated with the slotID used above.
+ * 6) DELETE the MEGA VPN credentials from an unoccupied slot.
+ * 7) DELETE the MEGA VPN credentials from an invalid slot.
  */
 TEST_F(SdkTest, SdkTestMegaVpnCredentials)
 {
@@ -14283,7 +14285,7 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
         ASSERT_EQ(API_OK, synchronousGetSpecificAccountDetails(0, true, true, true)) << "Cannot get account details";
         bool isProAccount = (mApi[0].accountDetails->getProLevel() != MegaAccountDetails::ACCOUNT_TYPE_FREE);
 
-        // Put VPN credential on the chosen region
+        // 2) Put VPN credential on the chosen region
         int slotID = -1;
         std::string userPubKey;
         std::string newCredential;
@@ -14292,16 +14294,27 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
         {
             ASSERT_EQ(API_OK, result) << "adding a new VPN credential failed (error: " << result << ")";
             ASSERT_TRUE(slotID > 0) << "slotID should be greater than 0";
-            size_t expectedPubKeyB64Size = 4 * ((ECDH::PUBLIC_KEY_LENGTH + 2) / 3);
+            size_t expectedPubKeyB64Size = ((ECDH::PUBLIC_KEY_LENGTH * 4) + 2) / 3; // URL-safe B64 length (no trailing '=')
             ASSERT_EQ(userPubKey.size(), expectedPubKeyB64Size) << "User Public Key does not have the expected size";
             ASSERT_FALSE(newCredential.empty()) << "VPN Credential data is EMPTY";
+
+            // 3-a) Check the VPN credentials
+            result = doCheckVpnCredential(0, userPubKey.c_str());
+            ASSERT_EQ(API_OK, result) << "checking the VPN credentials failed";
         }
         else
         {
             ASSERT_EQ(API_EACCESS, result) << "adding a new VPN credential on a free account didn't return the expected error value (error: " << result << ")";
         }
 
-        // Get VPN credentials and search for the credential associated with the returned SlotID
+        // 3-b) Check nonexistent VPN credentials
+        {
+            string nonexistentUserPK = "obI7rWzm3qVQL5zOxHzv2XFHsP1kOOTR1mE7NluVjDM";
+            result = doCheckVpnCredential(0, nonexistentUserPK.c_str());
+            ASSERT_EQ(API_EACCESS, result) << "checking the VPN credentials with a nonexistent User Public Key should have returned API_EACCESS";
+        }
+
+        // 4) Get VPN credentials and search for the credential associated with the returned SlotID
         {
             std::unique_ptr<MegaVpnCredentials> megaVpnCredentials;
             result = doGetVpnCredentials(0, megaVpnCredentials);
@@ -14356,12 +14369,16 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
             }
         }
 
-        // Delete VPN credentials on the used slot
+        // 5) Delete VPN credentials on the used slot
         {
             result = doDelVpnCredential(0, isProAccount ? slotID : 1);
             if (isProAccount)
             {
                 ASSERT_EQ(API_OK, result) << "deleting the VPN credentials on the slotID " << slotID << " failed (error: " << result << ")";
+
+                // Check again the VPN credentials, they should be invalid now
+                result = doCheckVpnCredential(0, userPubKey.c_str());
+                ASSERT_EQ(API_EACCESS, result) << "VPN credentials are still valid after being deleted";
             }
             else
             {
@@ -14370,14 +14387,14 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
             }
         }
 
-        // Delete VPN credentials on the same slotID - expected API_OK: despite it is empty now, it has been occupied before
+        // 6) Delete VPN credentials on the same slotID - expected API_OK: despite it is empty now, it has been occupied before
         if (isProAccount)
         {
             result = doDelVpnCredential(0, slotID);
             ASSERT_EQ(API_OK, result) << "deleting the VPN credentials on the unused slotID " << slotID << " failed (error: " << result << ")";
         }
 
-        // Delete VPN credentials with an invalid slot -expected EARGS: Slot ID is not valid-
+        // 7) Delete VPN credentials with an invalid slot -expected EARGS: SlotID is not valid-
         {
             result = doDelVpnCredential(0, -1);
             ASSERT_EQ(API_EARGS, result) << "deleting the VPN credentials failed for invalid slotID " << slotID << " (error: " << result << ")";

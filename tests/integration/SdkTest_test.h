@@ -636,9 +636,10 @@ public:
         auto e = rt.waitForResult();
         slotID = static_cast<int>(rt.request->getNumber());
         userPubKey = rt.request->getPassword() ? rt.request->getPassword() : ""; // User Public Key used to register the VPN credentials
-        newCredential = rt.request->getText() ? rt.request->getText() : ""; // Credential string for conf file
+        newCredential = rt.request->getSessionKey() ? rt.request->getSessionKey() : ""; // Credential string for conf file
         return e;
     }
     template<typename ... requestArgs> int doDelVpnCredential(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->delVpnCredential(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int doCheckVpnCredential(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->checkVpnCredential(args..., &rt); return rt.waitForResult(); }
     /* MegaVpnCredentials END */
 };
