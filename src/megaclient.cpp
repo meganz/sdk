@@ -13180,9 +13180,14 @@ void MegaClient::procmcsm(JSON *j)
         if (e != API_OK)
         {
             LOG_err << "Failed to parse 'mcsm' array at fetchnodes. Error: " << e;
-            return;
         }
-        j->leavearray();
+
+        if (!j->leavearray())
+        {
+            LOG_err << "Failed to leave array at procmcsm. Error: " << API_EINTERNAL;
+        }
+
+        if (e != API_OK) { return; }
     }
 
     for (auto &sm: schedMeetings)
