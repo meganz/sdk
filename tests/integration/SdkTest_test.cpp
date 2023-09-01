@@ -1437,7 +1437,7 @@ void SdkTest::createChatScheduledMeeting(const unsigned apiIndex, MegaHandle& ch
     {
         mApi[apiIndex].chatUpdated = false;
         std::unique_ptr<MegaTextChatPeerList> peers(MegaTextChatPeerList::createInstance());
-        peers->addPeer(megaApi[apiIndex + 1]->getMyUser()->getHandle(), PRIV_STANDARD);
+        peers->addPeer(megaApi[apiIndex + 1]->getMyUserHandleBinary(), PRIV_STANDARD);
 
         ASSERT_NO_FATAL_FAILURE(createChat(true, peers.get()));
         ASSERT_TRUE(waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_CHAT_CREATE])) << "Cannot create a new chat";
@@ -1469,7 +1469,7 @@ void SdkTest::createChatScheduledMeeting(const unsigned apiIndex, MegaHandle& ch
     smd.rules = rules;
 
     std::unique_ptr<MegaScheduledMeeting> sm(MegaScheduledMeeting::createInstance(auxChatid, UNDEF /*schedId*/, UNDEF /*parentSchedId*/,
-                                                                                  UNDEF /*organizerUserId*/, false /*cancelled*/, "Europe/Madrid",
+                                                                                  megaApi[apiIndex]->getMyUserHandleBinary() /*organizerUserId*/, false /*cancelled*/, "Europe/Madrid",
                                                                                   smd.startDate, smd.endDate, smd.title.c_str(), smd.description.c_str(),
                                                                                   nullptr /*attributes*/, MEGA_INVALID_TIMESTAMP /*overrides*/,
                                                                                   flags.get(), rules.get()));
