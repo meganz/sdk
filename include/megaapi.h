@@ -21678,6 +21678,8 @@ public:
      * The return value will show if the subscription will be montly or yearly renewed.
      * Example return values: "1 M", "1 Y".
      *
+     * You take the ownership of the returned value
+     *
      * @return Subscription cycle
      */
     virtual char* getSubscriptionCycle();
