@@ -14305,6 +14305,8 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
         else
         {
             ASSERT_EQ(API_EACCESS, result) << "adding a new VPN credential on a free account didn't return the expected error value (are you pointing to staging?)";
+            // NOTE: by Sep 2023, the API allows free accounts to create VPN credentials temporary, during development of the feature. 
+            // In production, it returns EACCESS (as it will in staging later on)
         }
 
         // 3-b) Check nonexistent VPN credentials
