@@ -176,8 +176,9 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // display path from its root in the cloud (UTF-8)
     string displaypath() const;
 
-    // return mimetype type
-    MimeType_t getMimeType(bool checkPreview = false) const;
+    // match mimetype type
+    // checkPreview flag is only compatible with MimeType_t::MIME_TYPE_PHOTO
+    bool isIncludedForMimetype(MimeType_t mimetype, bool checkPreview = false) const;
 
     // node attributes
     AttrMap attrs;
@@ -362,6 +363,21 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     static uint64_t getDBFlags(uint64_t oldFlags, bool isInRubbish, bool isVersion, bool isSensitive);
 
+    static bool getExtension(std::string& ext, const std::string& nodeName);
+    static bool isPhoto(const std::string& ext);
+    static bool isVideo(const std::string& ext);
+    static bool isAudio(const std::string& ext);
+    static bool isDocument(const std::string& ext);
+    static bool isPdf(const std::string& ext);
+    static bool isPresentation(const std::string& ext);
+    static bool isArchive(const std::string& ext);
+    static bool isProgram(const std::string& ext);
+    static bool isMiscellaneous(const std::string& ext);
+    static bool isOfMimetype(MimeType_t mimetype, const std::string& ext);
+
+    bool isPhotoWithFileAttributes(bool checkPreview) const;
+    bool isVideoWithFileAttributes() const;
+
 private:
     // full folder/file key, symmetrically or asymmetrically encrypted
     // node crypto keys (raw or cooked -
@@ -370,14 +386,6 @@ private:
 
     // keeps track of counts of files, folder, versions, storage and version's storage
     NodeCounter mCounter;
-
-public:
-    bool getExtension(std::string& ext) const;
-private:
-    bool isPhoto(const std::string& ext, bool checkPreview) const;
-    bool isVideo(const std::string& ext) const;
-    bool isAudio(const std::string& ext) const;
-    bool isDocument(const std::string& ext) const;
 
     static nameid getExtensionNameId(const std::string& ext);
 };

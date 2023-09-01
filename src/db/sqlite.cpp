@@ -139,7 +139,7 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     // Create specific table for handle nodes
     std::string sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle int64 PRIMARY KEY NOT NULL, "
                       "parenthandle int64, name text, fingerprint BLOB, origFingerprint BLOB, "
-                      "type tinyint, size int64, share tinyint, fav tinyint, mimetype tinyint, "
+                      "type tinyint, size int64, share tinyint, fav tinyint, "
                       "ctime int64, flags int64, counter BLOB NOT NULL, node BLOB NOT NULL)";
     int result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
     if (result)
@@ -164,7 +164,15 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     result = sqlite3_create_function(db, "regexp", 2, SQLITE_ANY,0, &SqliteAccountState::userRegexp, 0, 0);
     if (result)
     {
-        LOG_debug << "Data base error(sqlite3_create_function): " << sqlite3_errmsg(db);
+        LOG_debug << "Data base error(sqlite3_create_function userRegexp): " << sqlite3_errmsg(db);
+        sqlite3_close(db);
+        return nullptr;
+    }
+
+    result = sqlite3_create_function(db, "ismimetype", 2, SQLITE_ANY,0, &SqliteAccountState::userIsMimetype, 0, 0);
+    if (result)
+    {
+        LOG_debug << "Data base error(sqlite3_create_function userIsMimetype): " << sqlite3_errmsg(db);
         sqlite3_close(db);
         return nullptr;
     }
@@ -916,8 +924,8 @@ bool SqliteAccountState::put(Node *node)
     if (!mStmtPutNode)
     {
         sqlResult = sqlite3_prepare_v2(db, "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, "
-                                           "name, fingerprint, origFingerprint, type, size, share, fav, mimetype, ctime, flags, counter, node) "
-                                           "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &mStmtPutNode, NULL);
+                                           "name, fingerprint, origFingerprint, type, size, share, fav, ctime, flags, counter, node) "
+                                           "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &mStmtPutNode, NULL);
     }
 
     if (sqlResult == SQLITE_OK)
@@ -955,12 +963,11 @@ bool SqliteAccountState::put(Node *node)
         auto favIt = node->attrs.map.find(favId);
         bool fav = (favIt != node->attrs.map.end() && favIt->second == "1"); // test 'fav' attr value (only "1" is valid)
         sqlite3_bind_int(mStmtPutNode, 9, fav);
-        sqlite3_bind_int(mStmtPutNode, 10, node->getMimeType());
-        sqlite3_bind_int64(mStmtPutNode, 11, node->ctime);
-        sqlite3_bind_int64(mStmtPutNode, 12, node->getDBFlags());
+        sqlite3_bind_int64(mStmtPutNode, 10, node->ctime);
+        sqlite3_bind_int64(mStmtPutNode, 11, node->getDBFlags());
         std::string nodeCountersBlob = node->getCounter().serialize();
-        sqlite3_bind_blob(mStmtPutNode, 13, nodeCountersBlob.data(), static_cast<int>(nodeCountersBlob.size()), SQLITE_STATIC);
-        sqlite3_bind_blob(mStmtPutNode, 14, nodeSerialized.data(), static_cast<int>(nodeSerialized.size()), SQLITE_STATIC);
+        sqlite3_bind_blob(mStmtPutNode, 12, nodeCountersBlob.data(), static_cast<int>(nodeCountersBlob.size()), SQLITE_STATIC);
+        sqlite3_bind_blob(mStmtPutNode, 13, nodeSerialized.data(), static_cast<int>(nodeSerialized.size()), SQLITE_STATIC);
 
         sqlResult = sqlite3_step(mStmtPutNode);
     }
@@ -1735,8 +1742,11 @@ bool SqliteAccountState::getNodesByMimetype(MimeType_t mimeType, std::vector<std
     {
         // exclude previous versions <- parent handle is of type != FILENODE
         std::string query = "SELECT n1.nodehandle, n1.counter, n1.node FROM nodes n1 "
-            "INNER JOIN nodes n2 on n2.nodehandle = n1.parenthandle where n1.mimetype = ? AND n1.flags & ? = ? AND n1.flags & ? = 0 AND n2.type !=";
-        query.append(std::to_string(FILENODE));
+            "INNER JOIN nodes n2 on n2.nodehandle = n1.parenthandle where ismimetype(n1.name, ?) = 1 AND n1.flags & ? = ? AND n1.flags & ? = 0 AND n2.type !=";
+        query.append(std::to_string(FILENODE))
+            .append(" AND n1.type =")
+            .append(std::to_string(FILENODE));
+
         sqlResult = sqlite3_prepare_v2(db, query.c_str(), -1, &mStmtNodeByMimeType, nullptr);
     }
     if (sqlResult == SQLITE_OK)
@@ -1789,11 +1799,12 @@ bool SqliteAccountState::getNodesByMimetypeExclusiveRecursive(MimeType_t mimeTyp
         // exclude previous versions <- parent handle is of type != FILENODE
         //query = "SELECT nodehandle, counter, node FROM nodes";
 
-        std::string query = "WITH nodesCTE(nodehandle, parenthandle, flags, mimetype, counter, node) AS (SELECT nodehandle, parenthandle, flags, mimetype, counter, node "
-            "FROM nodes WHERE parenthandle = ? UNION ALL SELECT N.nodehandle, N.parenthandle, N.flags, N.mimetype, N.counter, N.node "
+        std::string query = "WITH nodesCTE(nodehandle, parenthandle, flags, name, type, counter, node) AS (SELECT nodehandle, parenthandle, flags, name, type, counter, node "
+            "FROM nodes WHERE parenthandle = ? UNION ALL SELECT N.nodehandle, N.parenthandle, N.flags, N.name, N.type, N.counter, N.node "
             "FROM nodes AS N INNER JOIN nodesCTE AS P ON (N.parenthandle = P.nodehandle AND N.flags & ? = 0)) "
             "SELECT node.nodehandle, node.counter, node.node "
-            "FROM nodesCTE AS node INNER JOIN nodes parent on node.parenthandle = parent.nodehandle AND node.mimetype = ? AND node.flags & ? = ? AND node.flags & ? = 0 AND parent.type != " + std::to_string(FILENODE);
+            "FROM nodesCTE AS node INNER JOIN nodes parent on node.parenthandle = parent.nodehandle AND ismimetype(node.name, ?) = 1 AND node.flags & ? = ? AND node.flags & ? = 0 AND parent.type != "
+                            + std::to_string(FILENODE) + " AND node.type = " + std::to_string(FILENODE);
 
         sqlResult = sqlite3_prepare_v2(db, query.c_str(), -1, &mStmtNodeByMimeTypeExcludeRecursiveFlags, nullptr);
     }
@@ -1966,6 +1977,30 @@ int SqliteAccountState::icuLikeCompare(
     }
 
     return *zString == 0;
+}
+
+void SqliteAccountState::userIsMimetype(sqlite3_context* context, int argc, sqlite3_value** argv)
+{
+    if (argc != 2)
+    {
+        LOG_err << "Invalid parameters for user isMimetype";
+        assert(false);
+        sqlite3_result_int(context, 0);
+        return;
+    }
+
+    int result = 0;
+    std::string name = argv[0] ? reinterpret_cast<const char*>(sqlite3_value_text(argv[0])) : "";
+    int mimetype = argv[1] ? sqlite3_value_int(argv[1]) : MimeType_t::MIME_TYPE_UNKNOWN;
+    if (name.size() && mimetype)
+    {
+        std::string ext;
+        result = Node::getExtension(ext, name) &&
+                 Node::isOfMimetype(static_cast<MimeType_t>(mimetype), ext);
+
+    }
+
+    sqlite3_result_int(context, result);
 }
 
 } // namespace
