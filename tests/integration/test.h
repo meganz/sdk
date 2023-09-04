@@ -382,7 +382,7 @@ struct StandardClient : public MegaApp
         }
     }
 
-    void getua_result(byte*, unsigned, attr_t attr) override
+    void getua_result(::mega::byte*, unsigned, attr_t attr) override
     {
         if (mOnGetUA)
         {

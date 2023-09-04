@@ -1074,10 +1074,10 @@ bool StandardClient::sync_syncable(Sync*, const char*, LocalPath&)
 bool StandardClient::isUserAttributeSet(attr_t attr, unsigned int numSeconds, error& err)
 {
     int tag = client.reqtag;
-    mutex attr_cv_mutex;
-    std::condition_variable user_attribute_updated_cv;
+    std::recursive_mutex attr_cv_mutex;
+    std::condition_variable_any user_attribute_updated_cv;
     bool attrIsSet = false;
-    bool replyReceived = false;
+    std::atomic_bool replyReceived{false};
     mOnGetUA = [&](const attr_t at, error e)
     {
         if (tag != client.restag)
@@ -1085,7 +1085,7 @@ bool StandardClient::isUserAttributeSet(attr_t attr, unsigned int numSeconds, er
             return;
         }
 
-        std::lock_guard<mutex> g(attr_cv_mutex);
+        std::lock_guard<std::recursive_mutex> g(attr_cv_mutex);
         err = e;
         if (err == API_OK)
         {
@@ -1095,13 +1095,13 @@ bool StandardClient::isUserAttributeSet(attr_t attr, unsigned int numSeconds, er
         }
 
         replyReceived = true;
-        user_attribute_updated_cv.notify_all();
+        user_attribute_updated_cv.notify_one();
     };
 
+    std::unique_lock<std::recursive_mutex> g(attr_cv_mutex);
     client.getua(client.ownuser(), attr);
 
-    std::unique_lock<mutex> g(attr_cv_mutex);
-    user_attribute_updated_cv.wait_for(g, std::chrono::seconds(numSeconds), [&replyReceived](){ return replyReceived; });
+    user_attribute_updated_cv.wait_for(g, std::chrono::seconds(numSeconds), [&replyReceived](){ return replyReceived.load(); });
 
     mOnGetUA = nullptr;
 
@@ -1139,14 +1139,15 @@ bool StandardClient::waitForAttrDeviceIdIsSet(unsigned int numSeconds)
 
         tlv->set(deviceIdHash, deviceName);
         bool attrDeviceNamePut = false;
-        mutex attrDeviceNamePut_mutex;
-        std::condition_variable attrDeviceNamePut_cv;
-        bool replyReceived = false;
+        std::recursive_mutex attrDeviceNamePut_mutex;
+        std::condition_variable_any attrDeviceNamePut_cv;
+        std::atomic_bool replyReceived{false};
         // serialize and encrypt the TLV container
         std::unique_ptr<string> container(tlv->tlvRecordsToContainer(client.rng, &client.key));
+        std::unique_lock<std::recursive_mutex> g(attrDeviceNamePut_mutex);
         client.putua(attr_t::ATTR_DEVICE_NAMES, (byte *)container->data(), unsigned(container->size()), -1, UNDEF, 0, 0, [&](Error e)
         {
-            std::lock_guard<mutex> g(attrDeviceNamePut_mutex);
+            std::lock_guard<std::recursive_mutex> g(attrDeviceNamePut_mutex);
             if (e == API_OK)
             {
                 attrDeviceNamePut = true;
@@ -1157,11 +1158,10 @@ bool StandardClient::waitForAttrDeviceIdIsSet(unsigned int numSeconds)
             }
 
             replyReceived = true;
-            attrDeviceNamePut_cv.notify_all();
+            attrDeviceNamePut_cv.notify_one();
         });
 
-        std::unique_lock<mutex> g(attrDeviceNamePut_mutex);
-        attrDeviceNamePut_cv.wait_for(g, std::chrono::seconds(numSeconds), [&replyReceived](){ return replyReceived; });
+        attrDeviceNamePut_cv.wait_for(g, std::chrono::seconds(numSeconds), [&replyReceived](){ return replyReceived.load(); });
 
 
         attrDeviceIsSet = isUserAttributeSet(attr_t::ATTR_DEVICE_NAMES, numSeconds, err);
@@ -1180,12 +1180,13 @@ bool StandardClient::waitForAttrMyBackupIsSet(unsigned int numSeconds)
     {
         const char* folderName = "My Backups";
         attrMyBackupFolderIsSet = false;
-        mutex attrMyBackup_cv_mutex;
-        std::condition_variable user_attribute_backup_updated_cv;
-        bool replyReceived = false;
+        std::recursive_mutex attrMyBackup_cv_mutex;
+        std::condition_variable_any user_attribute_backup_updated_cv;
+        std::atomic_bool replyReceived{false};
+        std::unique_lock<std::recursive_mutex> g(attrMyBackup_cv_mutex);
         client.setbackupfolder(folderName, client.reqtag, [&](Error e)
         {
-            std::lock_guard<mutex> g(attrMyBackup_cv_mutex);
+            std::lock_guard<std::recursive_mutex> g(attrMyBackup_cv_mutex);
             if (e == API_OK)
             {
                 attrMyBackupFolderIsSet = true;
@@ -1196,11 +1197,10 @@ bool StandardClient::waitForAttrMyBackupIsSet(unsigned int numSeconds)
             }
 
             replyReceived = true;
-            user_attribute_backup_updated_cv.notify_all();
+            user_attribute_backup_updated_cv.notify_one();
         });
 
-        std::unique_lock<mutex> g(attrMyBackup_cv_mutex);
-        user_attribute_backup_updated_cv.wait_for(g, std::chrono::seconds(numSeconds), [&replyReceived](){ return replyReceived; });
+        user_attribute_backup_updated_cv.wait_for(g, std::chrono::seconds(numSeconds), [&replyReceived](){ return replyReceived.load(); });
 
         // Check if attribute has been established properly
         // Re-initialize variables, mOnGetUA is used as getua_result callback
