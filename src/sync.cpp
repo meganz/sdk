@@ -157,7 +157,7 @@ bool SyncPath::appendRowNames(const SyncRow& row, FileSystemType filesystemType)
     }
 
     // add to cloudPath
-    cloudPath += "/";
+    if (cloudPath.empty() || cloudPath.back() != '/') cloudPath += "/";
     CloudNode cn;
     if (row.cloudNode)
     {
@@ -188,7 +188,7 @@ bool SyncPath::appendRowNames(const SyncRow& row, FileSystemType filesystemType)
     }
 
     // add to syncPath
-    syncPath += "/";
+    if (syncPath.empty() || syncPath.back() != '/') syncPath += "/";
     if (row.cloudNode)
     {
         syncPath += row.cloudNode->name;
