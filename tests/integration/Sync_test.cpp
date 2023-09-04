@@ -1071,7 +1071,7 @@ bool StandardClient::sync_syncable(Sync*, const char*, LocalPath&)
     return true;
 }
 
-bool StandardClient::istUsertAttributeSet(attr_t attr, unsigned int numSeconds, error& err)
+bool StandardClient::isUserAttributeSet(attr_t attr, unsigned int numSeconds, error& err)
 {
     int tag = client.reqtag;
     mutex attr_cv_mutex;
@@ -1111,7 +1111,7 @@ bool StandardClient::istUsertAttributeSet(attr_t attr, unsigned int numSeconds, 
 bool StandardClient::waitForAttrDeviceIdIsSet(unsigned int numSeconds)
 {
     error err;
-    bool attrDeviceIsSet = istUsertAttributeSet(attr_t::ATTR_DEVICE_NAMES, numSeconds, err);
+    bool attrDeviceIsSet = isUserAttributeSet(attr_t::ATTR_DEVICE_NAMES, numSeconds, err);
 
     bool deviceIdNoFound = false;
     std::unique_ptr<TLVstore> tlv;
@@ -1164,7 +1164,7 @@ bool StandardClient::waitForAttrDeviceIdIsSet(unsigned int numSeconds)
         attrDeviceNamePut_cv.wait_for(g, std::chrono::seconds(numSeconds), [&replyReceived](){ return replyReceived; });
 
 
-        attrDeviceIsSet = istUsertAttributeSet(attr_t::ATTR_DEVICE_NAMES, numSeconds, err);
+        attrDeviceIsSet = isUserAttributeSet(attr_t::ATTR_DEVICE_NAMES, numSeconds, err);
 
     }
 
@@ -1174,7 +1174,7 @@ bool StandardClient::waitForAttrDeviceIdIsSet(unsigned int numSeconds)
 bool StandardClient::waitForAttrMyBackupIsSet(unsigned int numSeconds)
 {
     error err;
-    bool attrMyBackupFolderIsSet = istUsertAttributeSet(attr_t::ATTR_MY_BACKUPS_FOLDER, numSeconds, err);
+    bool attrMyBackupFolderIsSet = isUserAttributeSet(attr_t::ATTR_MY_BACKUPS_FOLDER, numSeconds, err);
 
     if (err == API_ENOENT) // If attribute is not set, it's going to established
     {
@@ -1204,7 +1204,7 @@ bool StandardClient::waitForAttrMyBackupIsSet(unsigned int numSeconds)
 
         // Check if attribute has been established properly
         // Re-initialize variables, mOnGetUA is used as getua_result callback
-        attrMyBackupFolderIsSet = istUsertAttributeSet(attr_t::ATTR_MY_BACKUPS_FOLDER, numSeconds, err);
+        attrMyBackupFolderIsSet = isUserAttributeSet(attr_t::ATTR_MY_BACKUPS_FOLDER, numSeconds, err);
     }
 
     return attrMyBackupFolderIsSet;

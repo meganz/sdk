@@ -371,7 +371,7 @@ struct StandardClient : public MegaApp
     bool waitForAttrDeviceIdIsSet(unsigned numSeconds);
     bool waitForAttrMyBackupIsSet(unsigned numSeconds);
 
-    bool istUsertAttributeSet(attr_t attr, unsigned numSeconds, error& err);
+    bool isUserAttributeSet(attr_t attr, unsigned numSeconds, error& err);
 
     std::function<void(const attr_t at, error)> mOnGetUA;
     void getua_result(error e) override
