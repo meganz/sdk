@@ -4548,11 +4548,6 @@ void MegaApi::checkSMSVerificationCode(const char* verificationCode, MegaRequest
     pImpl->checkSMSVerificationCode(verificationCode, listener);
 }
 
-void MegaApi::getRegisteredContacts(const MegaStringMap* contacts, MegaRequestListener *listener)
-{
-    pImpl->getRegisteredContacts(contacts, listener);
-}
-
 void MegaApi::getCountryCallingCodes(MegaRequestListener *listener)
 {
     pImpl->getCountryCallingCodes(listener);

@@ -4334,7 +4334,6 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_CLOUD_STORAGE_USED: return "GET_CLOUD_STORAGE_USED";
         case TYPE_SEND_SMS_VERIFICATIONCODE: return "SEND_SMS_VERIFICATIONCODE";
         case TYPE_CHECK_SMS_VERIFICATIONCODE: return "CHECK_SMS_VERIFICATIONCODE";
-        case TYPE_GET_REGISTERED_CONTACTS: return "GET_REGISTERED_CONTACTS";
         case TYPE_GET_COUNTRY_CALLING_CODES: return "GET_COUNTRY_CALLING_CODES";
         case TYPE_VERIFY_CREDENTIALS: return "VERIFY_CREDENTIALS";
         case TYPE_GET_MISC_FLAGS: return "GET_MISC_FLAGS";
@@ -15797,33 +15796,6 @@ void MegaApiImpl::smsverificationcheck_result(error e, string* phoneNumber)
     }
 }
 
-void MegaApiImpl::getregisteredcontacts_result(error e, vector<tuple<string, string, string>>* data)
-{
-    auto it = requestMap.find(client->restag);
-    if (it != requestMap.end())
-    {
-        MegaRequestPrivate* request = it->second;
-        if (request && ((request->getType() == MegaRequest::TYPE_GET_REGISTERED_CONTACTS)))
-        {
-            if (data)
-            {
-                auto stringTable = std::unique_ptr<MegaStringTable>{MegaStringTable::createInstance()};
-                for (const auto& row : *data)
-                {
-                    string_vector list;
-                    list.emplace_back(std::get<0>(row));
-                    list.emplace_back(std::get<1>(row));
-                    list.emplace_back(std::get<2>(row));
-                    auto stringList = new MegaStringListPrivate(std::move(list));
-                    stringTable->append(stringList);
-                }
-                request->setMegaStringTable(stringTable.get());
-            }
-            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-        }
-    }
-}
-
 void MegaApiImpl::getcountrycallingcodes_result(error e, map<string, vector<string>>* data)
 {
     auto it = requestMap.find(client->restag);
@@ -24150,37 +24122,6 @@ void MegaApiImpl::checkSMSVerificationCode(const char* verificationCode, MegaReq
                 client->reqs.add(new CommandGetUserData(client, client->reqtag, nullptr));
             }
             return e;
-        };
-
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::getRegisteredContacts(const MegaStringMap* contacts, MegaRequestListener* listener)
-{
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_REGISTERED_CONTACTS, listener);
-    request->setMegaStringMap(contacts);
-
-    request->performRequest = [this, request]()
-        {
-            const auto contacts = request->getMegaStringMap();
-            if (contacts)
-            {
-                map<const char*, const char*> contactsMap; // non-owning
-                const auto contactsKeys = std::unique_ptr<MegaStringList>{ contacts->getKeys() };
-                for (int i = 0; i < contactsKeys->size(); ++i)
-                {
-                    const auto key = contactsKeys->get(i);
-                    contactsMap[key] = contacts->get(key);
-                }
-                client->reqs.add(new CommandGetRegisteredContacts{ client, contactsMap });
-            }
-            else
-            {
-                assert(false && "contacts must be valid");
-                return API_EARGS;
-            }
-            return API_OK;
         };
 
     requestQueue.push(request);

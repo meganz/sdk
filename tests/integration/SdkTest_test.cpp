@@ -732,13 +732,6 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         }
         break;
 
-    case MegaRequest::TYPE_GET_REGISTERED_CONTACTS:
-        if (mApi[apiIndex].lastError == API_OK)
-        {
-            mApi[apiIndex].setStringTable(request->getMegaStringTable()->copy());
-        }
-        break;
-
     case MegaRequest::TYPE_GET_COUNTRY_CALLING_CODES:
         if (mApi[apiIndex].lastError == API_OK)
         {
@@ -1693,19 +1686,6 @@ MegaHandle SdkTest::createFolder(unsigned int apiIndex, const char *name, MegaNo
     if (tracker.waitForResult() != API_OK) return UNDEF;
 
     return tracker.request->getNodeHandle();
-}
-
-void SdkTest::getRegisteredContacts(const std::map<std::string, std::string>& contacts)
-{
-    int apiIndex = 0;
-
-    auto contactsStringMap = std::unique_ptr<MegaStringMap>{MegaStringMap::createInstance()};
-    for  (const auto& pair : contacts)
-    {
-        contactsStringMap->set(pair.first.c_str(), pair.second.c_str());
-    }
-
-    ASSERT_EQ(API_OK, synchronousGetRegisteredContacts(apiIndex, contactsStringMap.get(), this)) << "Get registered contacts failed";
 }
 
 void SdkTest::getCountryCallingCodes(const int timeout)
@@ -8092,47 +8072,6 @@ TEST_F(SdkTest, SdkGetCountryCallingCodes)
     ASSERT_NE(nullptr, de);
     ASSERT_EQ(1, de->size());
     ASSERT_EQ(0, strcmp("49", de->get(0)));
-}
-
-TEST_F(SdkTest, SdkGetRegisteredContacts)
-{
-    LOG_info << "___TEST SdkGetRegisteredContacts___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-
-    const std::string js1 = "+0000000010";
-    const std::string js2 = "+0000000011";
-    const std::map<std::string, std::string> contacts{
-        {js1, "John Smith"}, // sms verified
-        {js2, "John Smith"}, // sms verified
-        {"+640", "John Smith"}, // not sms verified
-    };
-    getRegisteredContacts(contacts);
-    ASSERT_EQ(2, mApi[0].getStringTableSize());
-
-    // repacking and sorting result
-    using row_t = std::tuple<std::string, std::string, std::string>;
-    std::vector<row_t> table;
-    for (int i = 0; i < mApi[0].getStringTableSize(); ++i)
-    {
-        const MegaStringList* const stringList = mApi[0].getStringTableRow(i);
-        ASSERT_EQ(3, stringList->size());
-        table.emplace_back(stringList->get(0), stringList->get(1), stringList->get(2));
-    }
-
-    std::sort(table.begin(), table.end(), [](const row_t& lhs, const row_t& rhs)
-                                          {
-                                              return std::get<0>(lhs) < std::get<0>(rhs);
-                                          });
-
-    // Check johnsmith1
-    ASSERT_EQ(js1, std::get<0>(table[0])); // eud
-    ASSERT_GT(std::get<1>(table[0]).size(), 0u); // id
-    ASSERT_EQ(js1, std::get<2>(table[0])); // ud
-
-    // Check johnsmith2
-    ASSERT_EQ(js2, std::get<0>(table[1])); // eud
-    ASSERT_GT(std::get<1>(table[1]).size(), 0u); // id
-    ASSERT_EQ(js2, std::get<2>(table[1])); // ud
 }
 
 TEST_F(SdkTest, DISABLED_invalidFileNames)
