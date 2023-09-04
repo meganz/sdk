@@ -10307,21 +10307,8 @@ bool CommandScheduledMeetingFetch::procresult(Command::Result r, JSON& json)
 
     std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
     error err = client->parseScheduledMeetings(schedMeetings, false /*parsingOccurrences*/, &json);
-    if (err)
-    {
-        if (mCompletion) { mCompletion(err, nullptr); }
-        return false;
-    }
-
-    auto it = client->chats.find(mChatId);
-    if (it == client->chats.end())
-    {
-        if (mCompletion) { mCompletion(API_ENOENT, nullptr); }
-        return true;
-    }
-
-    if (mCompletion) { mCompletion(API_OK, &schedMeetings); }
-    return true;
+    if (mCompletion) { mCompletion(err, err == API_OK ? &schedMeetings : nullptr); }
+    return err == API_OK;
 }
 
 CommandScheduledMeetingFetchEvents::CommandScheduledMeetingFetchEvents(MegaClient* client, handle chatid, m_time_t since, m_time_t until, unsigned int count, bool byDemand, CommandScheduledMeetingFetchEventsCompletion completion)
