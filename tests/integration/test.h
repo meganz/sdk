@@ -367,6 +367,37 @@ struct StandardClient : public MegaApp
 
     std::function<void(Transfer*)> onTransferCompleted;
 
+
+    bool waitForAttrDeviceIdIsSet(unsigned numSeconds);
+    bool waitForAttrMyBackupIsSet(unsigned numSeconds);
+
+    bool istUsertAttributeSet(attr_t attr, unsigned numSeconds, error& err);
+
+    std::function<void(const attr_t at, error)> mOnGetUA;
+    void getua_result(error e) override
+    {
+        if (mOnGetUA)
+        {
+            mOnGetUA(attr_t::ATTR_UNKNOWN, e);
+        }
+    }
+
+    void getua_result(byte*, unsigned, attr_t attr) override
+    {
+        if (mOnGetUA)
+        {
+            mOnGetUA(attr, error::API_OK);
+        }
+    }
+
+    void getua_result(TLVstore *, attr_t attr) override
+    {
+        if (mOnGetUA)
+        {
+            mOnGetUA(attr, error::API_OK);
+        }
+    }
+
     void transfer_complete(Transfer* transfer) override
     {
         onCallback();

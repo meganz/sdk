@@ -42,6 +42,8 @@
 using namespace ::mega;
 using namespace ::std;
 
+std::string getCurrentTimestamp(bool includeDate);
+
 #ifdef ENABLE_SYNC
 
 template<typename T>
@@ -1067,6 +1069,145 @@ bool StandardClient::sync_syncable(Sync*, const char*, LocalPath&)
     onCallback();
 
     return true;
+}
+
+bool StandardClient::istUsertAttributeSet(attr_t attr, unsigned int numSeconds, error& err)
+{
+    int tag = client.reqtag;
+    mutex attr_cv_mutex;
+    std::condition_variable user_attribute_updated_cv;
+    bool attrIsSet = false;
+    bool replyReceived = false;
+    mOnGetUA = [&](const attr_t at, error e)
+    {
+        if (tag != client.restag)
+        {
+            return;
+        }
+
+        std::lock_guard<mutex> g(attr_cv_mutex);
+        err = e;
+        if (err == API_OK)
+        {
+            assert(at == attr);
+            LOG_debug << "attr: " << attr << " is set";
+                attrIsSet = true;
+        }
+
+        replyReceived = true;
+        user_attribute_updated_cv.notify_all();
+    };
+
+    client.getua(client.ownuser(), attr);
+
+    std::unique_lock<mutex> g(attr_cv_mutex);
+    user_attribute_updated_cv.wait_for(g, std::chrono::seconds(numSeconds), [&replyReceived](){ return replyReceived; });
+
+    mOnGetUA = nullptr;
+
+    return attrIsSet;
+}
+
+bool StandardClient::waitForAttrDeviceIdIsSet(unsigned int numSeconds)
+{
+    error err;
+    bool attrDeviceIsSet = istUsertAttributeSet(attr_t::ATTR_DEVICE_NAMES, numSeconds, err);
+
+    bool deviceIdNoFound = false;
+    std::unique_ptr<TLVstore> tlv;
+    std::string deviceIdHash = client.getDeviceidHash();
+    if (err == API_OK)
+    {
+        User* ownUser = client.ownuser();
+        tlv.reset(TLVstore::containerToTLVrecords(ownUser->getattr(attr_t::ATTR_DEVICE_NAMES), &client.key));
+        std::string buffer;
+        if (tlv->get(deviceIdHash, buffer))
+        {
+            deviceIdNoFound = true;
+        }
+    }
+    else
+    {
+        tlv.reset(new TLVstore);
+    }
+
+
+    if (err == API_ENOENT || !deviceIdNoFound)
+    {
+        std::string timestamp = getCurrentTimestamp(true);
+        std::string deviceName = "Jenkins " + timestamp;
+
+        tlv->set(deviceIdHash, deviceName);
+        bool attrDeviceNamePut = false;
+        mutex attrDeviceNamePut_mutex;
+        std::condition_variable attrDeviceNamePut_cv;
+        bool replyReceived = false;
+        // serialize and encrypt the TLV container
+        std::unique_ptr<string> container(tlv->tlvRecordsToContainer(client.rng, &client.key));
+        client.putua(attr_t::ATTR_DEVICE_NAMES, (byte *)container->data(), unsigned(container->size()), -1, UNDEF, 0, 0, [&](Error e)
+        {
+            std::lock_guard<mutex> g(attrDeviceNamePut_mutex);
+            if (e == API_OK)
+            {
+                attrDeviceNamePut = true;
+            }
+            else
+            {
+                LOG_err << "Error setting device id user attribute";
+            }
+
+            replyReceived = true;
+            attrDeviceNamePut_cv.notify_all();
+        });
+
+        std::unique_lock<mutex> g(attrDeviceNamePut_mutex);
+        attrDeviceNamePut_cv.wait_for(g, std::chrono::seconds(numSeconds), [&replyReceived](){ return replyReceived; });
+
+
+        attrDeviceIsSet = istUsertAttributeSet(attr_t::ATTR_DEVICE_NAMES, numSeconds, err);
+
+    }
+
+    return attrDeviceIsSet;
+}
+
+bool StandardClient::waitForAttrMyBackupIsSet(unsigned int numSeconds)
+{
+    error err;
+    bool attrMyBackupFolderIsSet = istUsertAttributeSet(attr_t::ATTR_MY_BACKUPS_FOLDER, numSeconds, err);
+
+    if (err == API_ENOENT) // If attribute is not set, it's going to established
+    {
+        const char* folderName = "My Backups";
+        attrMyBackupFolderIsSet = false;
+        mutex attrMyBackup_cv_mutex;
+        std::condition_variable user_attribute_backup_updated_cv;
+        bool replyReceived = false;
+        client.setbackupfolder(folderName, client.reqtag, [&](Error e)
+        {
+            std::lock_guard<mutex> g(attrMyBackup_cv_mutex);
+            if (e == API_OK)
+            {
+                attrMyBackupFolderIsSet = true;
+            }
+            else
+            {
+                LOG_err << "Error setting back folder user attribute";
+            }
+
+            replyReceived = true;
+            user_attribute_backup_updated_cv.notify_all();
+        });
+
+        std::unique_lock<mutex> g(attrMyBackup_cv_mutex);
+        user_attribute_backup_updated_cv.wait_for(g, std::chrono::seconds(numSeconds), [&replyReceived](){ return replyReceived; });
+
+        // Check if attribute has been established properly
+        // Re-initialize variables, mOnGetUA is used as getua_result callback
+        attrMyBackupFolderIsSet = istUsertAttributeSet(attr_t::ATTR_MY_BACKUPS_FOLDER, numSeconds, err);
+    }
+
+    return attrMyBackupFolderIsSet;
 }
 
 void StandardClient::file_added(File* file)
@@ -4980,6 +5121,14 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderBetweenSyncs)
     auto clientA1 = g_clientManager->getCleanStandardClient(0, localtestroot); // user 1 client 1
     auto clientA2 = g_clientManager->getCleanStandardClient(0, localtestroot); // user 1 client 2
     auto clientA3 = g_clientManager->getCleanStandardClient(0, localtestroot); // user 1 client 2
+
+    ASSERT_TRUE(clientA1->waitForAttrDeviceIdIsSet(60)) << "Error User attr device id isn't establised client1";
+    ASSERT_TRUE(clientA2->waitForAttrDeviceIdIsSet(60)) << "Error User attr device id isn't establised client2";
+    ASSERT_TRUE(clientA3->waitForAttrDeviceIdIsSet(60)) << "Error User attr device id isn't establised client3";
+
+    ASSERT_TRUE(clientA1->waitForAttrMyBackupIsSet(60)) << "Error User attr My Back Folder isn't establised client1";
+    ASSERT_TRUE(clientA2->waitForAttrMyBackupIsSet(60)) << "Error User attr My Back Folder isn't establised client2";
+    ASSERT_TRUE(clientA3->waitForAttrMyBackupIsSet(60)) << "Error User attr My Back Folder isn't establised client3";
 
     ASSERT_TRUE(clientA1->resetBaseFolderMulticlient(clientA2, clientA3));
     ASSERT_TRUE(clientA1->makeCloudSubdirs("f", 3, 3));
