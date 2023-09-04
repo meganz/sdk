@@ -127,7 +127,7 @@ pipeline {
                                     //Clean
                                     sh "./gradlew --no-daemon --max-workers=1 clean"
                                     dir("app/src/main/jni/"){
-                                        sh "sed -i 's#-j[0-9]##g' build.sh"
+                                        sh "sed -i 's#JOBS=.*#JOBS=1#' build.sh"
                                         sh "sed -i 's#LOG_FILE=/dev/null#LOG_FILE=/dev/stdout#g' build.sh"
                                         sh "bash -x ./build.sh clean"
                                         sh "rm -rf ../java/nz/mega/sdk"

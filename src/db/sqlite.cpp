@@ -1995,39 +1995,9 @@ void SqliteAccountState::userIsMimetype(sqlite3_context* context, int argc, sqli
     if (name.size() && mimetype)
     {
         std::string ext;
-        Node::getExtension(ext, name);
-        switch (mimetype) {
-            case MimeType_t::MIME_TYPE_PHOTO:
-                result = Node::isPhoto(ext);
-                break;
-            case MimeType_t::MIME_TYPE_AUDIO:
-                result = Node::isAudio(ext);
-                break;
-            case MimeType_t::MIME_TYPE_VIDEO:
-                result = Node::isVideo(ext);
-                break;
-            case MimeType_t::MIME_TYPE_DOCUMENT:
-                result = Node::isDocument(ext);
-                break;
-            case MimeType_t::MIME_TYPE_PDF:
-                result = Node::isPdf(ext);
-                break;
-            case MimeType_t::MIME_TYPE_PRESENTATION:
-                result = Node::isPresentation(ext);
-                break;
-            case MimeType_t::MIME_TYPE_ARCHIVE:
-                result = Node::isArchive(ext);
-                break;
-            case MimeType_t::MIME_TYPE_PROGRAM:
-                result = Node::isProgram(ext);
-                break;
-            case MimeType_t::MIME_TYPE_MISC:
-                result = Node::isMiscellaneous(ext);
-                break;
-            default:
-                result = 0;
-                break;
-        }
+        result = Node::getExtension(ext, name) &&
+                 Node::isOfMimetype(static_cast<MimeType_t>(mimetype), ext);
+
     }
 
     sqlite3_result_int(context, result);

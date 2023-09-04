@@ -4555,11 +4555,6 @@ void MegaApi::checkSMSVerificationCode(const char* verificationCode, MegaRequest
     pImpl->checkSMSVerificationCode(verificationCode, listener);
 }
 
-void MegaApi::getRegisteredContacts(const MegaStringMap* contacts, MegaRequestListener *listener)
-{
-    pImpl->getRegisteredContacts(contacts, listener);
-}
-
 void MegaApi::getCountryCallingCodes(MegaRequestListener *listener)
 {
     pImpl->getCountryCallingCodes(listener);
@@ -5747,14 +5742,14 @@ void MegaApi::sendBackupHeartbeat(MegaHandle backupId, int status, int progress,
     pImpl->sendBackupHeartbeat(backupId, status, progress, ups, downs, ts, lastNode, listener);
 }
 
-void MegaApi::fetchGoogleAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle, MegaRequestListener *listener)
+void MegaApi::fetchAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle, MegaRequestListener *listener)
 {
-    pImpl->fetchGoogleAds(adFlags, adUnits, publicHandle, listener);
+    pImpl->fetchAds(adFlags, adUnits, publicHandle, listener);
 }
 
-void MegaApi::queryGoogleAds(int adFlags, MegaHandle publicHandle, MegaRequestListener *listener)
+void MegaApi::queryAds(int adFlags, MegaHandle publicHandle, MegaRequestListener *listener)
 {
-    pImpl->queryGoogleAds(adFlags, publicHandle, listener);
+    pImpl->queryAds(adFlags, publicHandle, listener);
 }
 
 void MegaApi::setCookieSettings(int settings, MegaRequestListener *listener)

@@ -298,8 +298,14 @@ bool Node::isPhoto(const std::string& ext)
         photoExtensions.find(extNameid) != photoExtensions.end();
 }
 
-bool Node::isPhotoWithFileAttributes(const string& ext, bool checkPreview) const
+bool Node::isPhotoWithFileAttributes(bool checkPreview) const
 {
+    std::string ext;
+    if (!Node::getExtension(ext, displayname()))
+    {
+        return false;
+    }
+
     // evaluate according to the webclient rules, so that we get exactly the same bucketing.
     return (isPhoto(ext)
             && (!checkPreview || Node::hasfileattribute(&fileattrstring, GfxProc::PREVIEW)));
@@ -310,8 +316,14 @@ bool Node::isVideo(const std::string& ext)
     return videoExtensions.find(getExtensionNameId(ext)) != videoExtensions.end();
 }
 
-bool Node::isVideoWithFileAttributes(const std::string& ext) const
+bool Node::isVideoWithFileAttributes() const
 {
+    std::string ext;
+    if (!Node::getExtension(ext, displayname()))
+    {
+        return false;
+    }
+
     if (Node::hasfileattribute(&fileattrstring, fa_media) && nodekey().size() == FILENODEKEYLENGTH)
     {
 #ifdef USE_MEDIAINFO
@@ -353,7 +365,7 @@ bool Node::isAudio(const std::string& ext)
 
 bool Node::isDocument(const std::string& ext)
 {
-    return documentExtensions.find(getExtensionNameId(ext)) != documentExtensions.end();
+    return documentExtensions.find(getExtensionNameId(ext)) != documentExtensions.end() || isPdf(ext) || isPresentation(ext);
 }
 
 bool Node::isPdf(const std::string& ext)
@@ -379,6 +391,32 @@ bool Node::isProgram(const std::string& ext)
 bool Node::isMiscellaneous(const std::string& ext)
 {
     return miscExtensions.find(getExtensionNameId(ext)) != miscExtensions.end();
+}
+
+bool Node::isOfMimetype(MimeType_t mimetype, const string& ext)
+{
+    switch (mimetype) {
+    case MimeType_t::MIME_TYPE_PHOTO:
+        return Node::isPhoto(ext);
+    case MimeType_t::MIME_TYPE_AUDIO:
+        return Node::isAudio(ext);
+    case MimeType_t::MIME_TYPE_VIDEO:
+        return Node::isVideo(ext);
+    case MimeType_t::MIME_TYPE_DOCUMENT:
+        return Node::isDocument(ext);
+    case MimeType_t::MIME_TYPE_PDF:
+        return Node::isPdf(ext);
+    case MimeType_t::MIME_TYPE_PRESENTATION:
+        return Node::isPresentation(ext);
+    case MimeType_t::MIME_TYPE_ARCHIVE:
+        return Node::isArchive(ext);
+    case MimeType_t::MIME_TYPE_PROGRAM:
+        return Node::isProgram(ext);
+    case MimeType_t::MIME_TYPE_MISC:
+        return Node::isMiscellaneous(ext);
+    default:
+        return false;
+    }
 }
 
 nameid Node::getExtensionNameId(const std::string& ext)
@@ -1268,57 +1306,25 @@ string Node::displaypath() const
     return path;
 }
 
-MimeType_t Node::getMimeType(bool checkPreview) const
+bool Node::isIncludedForMimetype(MimeType_t mimetype, bool checkPreview) const
 {
     if (type != FILENODE)
     {
-        return MimeType_t::MIME_TYPE_UNKNOWN;
+        return false;
+    }
+
+    if (mimetype == MimeType_t::MIME_TYPE_PHOTO)
+    {
+        return isPhotoWithFileAttributes(checkPreview);
     }
 
     std::string extension;
     if (!getExtension(extension, displayname()))
     {
-        return MimeType_t::MIME_TYPE_UNKNOWN;
+        return false;
     }
 
-    if (isPhoto(extension))
-    {
-        return MimeType_t::MIME_TYPE_PHOTO;
-    }
-    else if (isVideo(extension))
-    {
-        return MimeType_t::MIME_TYPE_VIDEO;
-    }
-    else if (isAudio(extension))
-    {
-        return MimeType_t::MIME_TYPE_AUDIO;
-    }
-    else if (isDocument(extension))
-    {
-        return MimeType_t::MIME_TYPE_DOCUMENT;
-    }
-    else if (isPdf(extension))
-    {
-        return MimeType_t::MIME_TYPE_PDF;
-    }
-    else if (isPresentation(extension))
-    {
-        return MimeType_t::MIME_TYPE_PRESENTATION;
-    }
-    else if (isArchive(extension))
-    {
-        return MimeType_t::MIME_TYPE_ARCHIVE;
-    }
-    else if (isProgram(extension))
-    {
-        return MimeType_t::MIME_TYPE_PROGRAM;
-    }
-    else if (isMiscellaneous(extension))
-    {
-        return MimeType_t::MIME_TYPE_MISC;
-    }
-
-    return MimeType_t::MIME_TYPE_UNKNOWN;
+    return Node::isOfMimetype(mimetype, extension);
 }
 
 bool isPhotoVideoAudioByName(const string& filenameExtensionLowercaseNoDot)
@@ -1395,22 +1401,36 @@ bool Node::applykey()
             // look for share key if not folder link access with folder master key
             if (h != me)
             {
-                // this is a share node handle - check if share key is available at key's repository
-                // if not available, check if the node already has the share key
-                auto it = client->mNewKeyRepository.find(NodeHandle().set6byte(h));
-                if (it == client->mNewKeyRepository.end())
+                // this is a share node handle - check if share key is available
+                if (client->mKeyManager.isSecure() && client->mKeyManager.generation())
                 {
-                    Node* n;
-                    if (!(n = client->nodebyhandle(h)) || !n->sharekey)
+                    std::string key = client->mKeyManager.getShareKey(h);
+                    if (key.size())
+                    {
+                        sc = client->getRecycledTemporaryNodeCipher(&key);
+                    }
+                    else
                     {
                         continue;
                     }
-
-                    sc = n->sharekey.get();
                 }
-                else
+                else // check at new keys repository and, if not found, at the root node of share
                 {
-                    sc = client->getRecycledTemporaryNodeCipher(it->second.data());
+                    auto it = client->mNewKeyRepository.find(NodeHandle().set6byte(h));
+                    if (it == client->mNewKeyRepository.end())
+                    {
+                        Node* n;
+                        if (!(n = client->nodebyhandle(h)) || !n->sharekey)
+                        {
+                            continue;
+                        }
+
+                        sc = n->sharekey.get();
+                    }
+                    else
+                    {
+                        sc = client->getRecycledTemporaryNodeCipher(it->second.data());
+                    }
                 }
 
                 // this key will be rewritten when the node leaves the outbound share

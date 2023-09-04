@@ -6113,8 +6113,6 @@ bool CommandFetchNodes::procresult(Result r, JSON& json)
         return true;
     }
 
-    client->mKeyManager.cacheShareKeys();
-
     for (;;)
     {
         switch (json.getnameid())
@@ -7859,7 +7857,7 @@ bool CommandChatLinkURL::procresult(Result r, JSON& json)
 {
     if (r.wasErrorOrOK())
     {
-        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, false, nullptr, UNDEF, r.errorOrOK());
+        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, ChatOptions::kEmpty, nullptr, UNDEF, r.errorOrOK());
         return true;
     }
     else
@@ -7872,6 +7870,9 @@ bool CommandChatLinkURL::procresult(Result r, JSON& json)
         m_time_t ts = 0;
         bool meetingRoom = false;
         bool waitingRoom = false;
+        bool openInvite = false;
+        bool speakRequest = false;
+
         std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
         handle callid = UNDEF;
 
@@ -7915,6 +7916,14 @@ bool CommandChatLinkURL::procresult(Result r, JSON& json)
                     waitingRoom = json.getbool();
                     break;
 
+                case MAKENAMEID2('s','r'):
+                    speakRequest = json.getbool();
+                    break;
+
+                case MAKENAMEID2('o','i'):
+                    openInvite = json.getbool();
+                    break;
+
                 case MAKENAMEID2('s', 'm'): // scheduled meetings
                 {
                     if (json.enterarray())
@@ -7928,18 +7937,20 @@ bool CommandChatLinkURL::procresult(Result r, JSON& json)
                 case EOO:
                     if (chatid != UNDEF && shard != -1 && !url.empty() && !ct.empty() && numPeers != -1)
                     {
-                        client->app->chatlinkurl_result(chatid, shard, &url, &ct, numPeers, ts, meetingRoom, waitingRoom, &schedMeetings, callid, API_OK);
+                        client->app->chatlinkurl_result(chatid, shard, &url, &ct, numPeers, ts, meetingRoom,
+							ChatOptions(speakRequest, waitingRoom, openInvite).value(),
+							&schedMeetings, callid, API_OK);
                     }
                     else
                     {
-                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, false, nullptr, UNDEF, API_EINTERNAL);
+                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, ChatOptions::kEmpty, nullptr, UNDEF, API_EINTERNAL);
                     }
                     return true;
 
                 default:
                     if (!json.storeobject())
                     {
-                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, false, nullptr, UNDEF, API_EINTERNAL);
+                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, ChatOptions::kEmpty, nullptr, UNDEF, API_EINTERNAL);
                         return false;
                     }
             }
@@ -8762,101 +8773,6 @@ bool CommandSMSVerificationCheck::procresult(Result r, JSON& json)
 
     client->app->smsverificationcheck_result(API_EINTERNAL, nullptr);
     return false;
-}
-
-CommandGetRegisteredContacts::CommandGetRegisteredContacts(MegaClient* client, const map<const char*, const char*>& contacts)
-{
-    cmd("usabd");
-
-    arg("v", 1);
-
-    beginobject("e");
-    for (const auto& pair : contacts)
-    {
-        arg(Base64::btoa(pair.first).c_str(), // name is text-input from user, need conversion too
-            (byte *)pair.second, static_cast<int>(strlen(pair.second)));
-    }
-    endobject();
-
-    tag = client->reqtag;
-}
-
-bool CommandGetRegisteredContacts::procresult(Result r, JSON& json)
-{
-    if (r.wasErrorOrOK())
-    {
-        client->app->getregisteredcontacts_result(r.errorOrOK(), nullptr);
-        return true;
-    }
-
-    vector<tuple<string, string, string>> registeredContacts;
-
-    string entryUserDetail;
-    string id;
-    string userDetail;
-
-    bool success = true;
-    while (json.enterobject())
-    {
-        bool exit = false;
-        while (!exit)
-        {
-            switch (json.getnameid())
-            {
-                case MAKENAMEID3('e', 'u', 'd'):
-                {
-                    json.storeobject(&entryUserDetail);
-                    break;
-                }
-                case MAKENAMEID2('i', 'd'):
-                {
-                    json.storeobject(&id);
-                    break;
-                }
-                case MAKENAMEID2('u', 'd'):
-                {
-                    json.storeobject(&userDetail);
-                    break;
-                }
-                case EOO:
-                {
-                    if (entryUserDetail.empty() || id.empty() || userDetail.empty())
-                    {
-                        LOG_err << "Missing or empty field when parsing 'get registered contacts' response";
-                        success = false;
-                    }
-                    else
-                    {
-                        registeredContacts.emplace_back(
-                                    make_tuple(Base64::atob(entryUserDetail), std::move(id),
-                                               Base64::atob(userDetail)));
-                    }
-                    exit = true;
-                    break;
-                }
-                default:
-                {
-                    if (!json.storeobject())
-                    {
-                        LOG_err << "Failed to parse 'get registered contacts' response";
-                        client->app->getregisteredcontacts_result(API_EINTERNAL, nullptr);
-                        return false;
-                    }
-                }
-            }
-        }
-        json.leaveobject();
-    }
-    if (success)
-    {
-        client->app->getregisteredcontacts_result(API_OK, &registeredContacts);
-        return true;
-    }
-    else
-    {
-        client->app->getregisteredcontacts_result(API_EINTERNAL, nullptr);
-        return false;
-    }
 }
 
 CommandGetCountryCallingCodes::CommandGetCountryCallingCodes(MegaClient* client)
@@ -10369,6 +10285,122 @@ bool CommandScheduledMeetingFetchEvents::procresult(Command::Result r, JSON& jso
 }
 
 #endif
+
+bool CommandFetchAds::procresult(Command::Result r, JSON& json)
+{
+    string_map result;
+    if (r.wasStrictlyError())
+    {
+        mCompletion(r.errorOrOK(), result);
+        return true;
+    }
+
+    bool error = false;
+
+    while (json.enterobject() && !error)
+    {
+        std::string id;
+        std::string iu;
+        bool exit = false;
+        while (!exit)
+        {
+            switch (json.getnameid())
+            {
+                case MAKENAMEID2('i', 'd'):
+                    json.storeobject(&id);
+                    break;
+
+                case MAKENAMEID3('s', 'r', 'c'):
+                    json.storeobject(&iu);
+                    break;
+
+                case EOO:
+                    exit = true;
+                    if (!id.empty() && !iu.empty())
+                    {
+                        result[id] = iu;
+                    }
+                    else
+                    {
+                        error = true;
+                        result.clear();
+                    }
+                    break;
+
+                default:
+                    if (!json.storeobject())
+                    {
+                        result.clear();
+                        mCompletion(API_EINTERNAL, result);
+                        return false;
+                    }
+                    break;
+            }
+        }
+
+        json.leaveobject();
+    }
+
+    mCompletion((error ? API_EINTERNAL : API_OK), result);
+
+    return !error;
+}
+
+CommandFetchAds::CommandFetchAds(MegaClient* client, int adFlags, const std::vector<std::string> &adUnits, handle publicHandle, CommandFetchAdsCompletion completion)
+    : mCompletion(completion)
+{
+    cmd("adf");
+    arg("ad", adFlags);
+    arg("af", 1);   // ad format: URL
+
+    if (!ISUNDEF(publicHandle))
+    {
+        arg("p", publicHandle);
+    }
+
+    beginarray("au");
+    for (const std::string& adUnit : adUnits)
+    {
+        element(adUnit.c_str());
+    }
+    endarray();
+
+    tag = client->reqtag;
+}
+
+bool CommandQueryAds::procresult(Command::Result r, JSON &json)
+{
+    if (r.wasErrorOrOK())
+    {
+        mCompletion(r.errorOrOK(), 0);
+        return true;
+    }
+
+    if (!json.isnumeric())
+    {
+        // It's wrongly formatted, consume this one so the next command can be processed.
+        LOG_err << "Command response badly formatted";
+        mCompletion(API_EINTERNAL, 0);
+        return false;
+    }
+
+    int value = json.getint32();
+    mCompletion(API_OK, value);
+    return true;
+}
+
+CommandQueryAds::CommandQueryAds(MegaClient* client, int adFlags, handle publicHandle, CommandQueryAdsCompletion completion)
+    : mCompletion(completion)
+{
+    cmd("ads");
+    arg("ad", adFlags);
+    if (!ISUNDEF(publicHandle))
+    {
+        arg("ph", publicHandle);
+    }
+
+    tag = client->reqtag;
+}
 
 /* MegaVPN Commands BEGIN */
 CommandGetVpnRegions::CommandGetVpnRegions(MegaClient* client, Cb&& completion)
