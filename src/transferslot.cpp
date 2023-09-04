@@ -1376,7 +1376,7 @@ void TransferSlot::prepareRequest(const std::shared_ptr<HttpReqXfer>& httpReq, c
 
 std::pair<error, dstime> TransferSlot::processRequestFailure(MegaClient* client, const std::shared_ptr<HttpReqXfer>& httpReq, dstime& backoff, int channel)
 {
-    LOG_warn << "Conn " << channel << " : Failed chunk. HTTP status: " << httpReq->httpstatus << " on channel " << channel;
+    LOG_warn << "Conn " << channel << " : Failed chunk. HTTP status: " << httpReq->httpstatus;
 
     if (httpReq->httpstatus && httpReq->contenttype.find("text/html") != string::npos && !memcmp(httpReq->posturl.c_str(), "http:", 5))
     {
