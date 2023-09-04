@@ -7174,7 +7174,7 @@ bool CommandChatCreate::procresult(Result r, JSON& json)
                 else
                 {
                     LOG_err << "Scheduled meeting id received upon mcc command, but there's no local "
-                               "scheduled meeting data. chatId [" <<  Base64Str<MegaClient::CHATHANDLE>(chatid) << "]";
+                               "scheduled meeting data. chatId [" << toHandle(chatid) << "]";
                     addSchedMeeting = false;
                     assert(false);
                 }

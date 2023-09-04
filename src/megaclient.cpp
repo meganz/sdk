@@ -1383,8 +1383,8 @@ void MegaClient::fetchtimezone()
 void MegaClient::reportInvalidSchedMeeting(const ScheduledMeeting& sched)
 {
     std::string errMsg = "Ill-formed sched meeting";
-    errMsg.append(" chatid:  ").append(Base64Str<MegaClient::CHATHANDLE>(sched.chatid()))
-        .append(" schedid: ").append(Base64Str<MegaClient::CHATHANDLE>(sched.schedId()));
+    errMsg.append(" chatid:  ").append(toHandle(sched.chatid()))
+        .append(" schedid: ").append(toHandle(sched.schedId()));
 
     sendevent(99471, errMsg.c_str());
     LOG_err << errMsg;

@@ -1174,8 +1174,8 @@ bool TextChat::addSchedMeeting(std::unique_ptr<ScheduledMeeting> sm, bool notify
 
     if (id != sm->chatid())
     {
-        LOG_err << "addSchedMeeting: scheduled meeting chatid: " << Base64Str<MegaClient::CHATHANDLE>(sm->chatid())
-                << " doesn't match with expected one: " << Base64Str<MegaClient::CHATHANDLE>(id);
+        LOG_err << "addSchedMeeting: scheduled meeting chatid: " << toHandle(sm->chatid())
+                << " doesn't match with expected one: " << toHandle(id);
         assert(false);
         return false;
     }
