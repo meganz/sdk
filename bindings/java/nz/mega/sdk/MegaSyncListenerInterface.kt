@@ -17,4 +17,16 @@ interface MegaSyncListenerInterface {
      * @param sync MegaSync object representing a sync
      */
     fun onSyncDeleted(api: MegaApiJava, sync: MegaSync)
+
+    /**
+     * @brief This function is called when there is an update on
+     * the number of nodes or transfers in the sync
+     *
+     * The SDK retains the ownership of the MegaSyncStats.
+     * Don't use it after this functions returns. But you can copy it
+     *
+     * @param api MegaApi object that is synchronizing files
+     * @param syncStats Identifies the sync and provides the counts
+     */
+    fun onSyncStatsUpdated(api: MegaApiJava, syncStats: MegaSyncStats)
 }

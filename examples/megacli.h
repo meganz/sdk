@@ -157,7 +157,11 @@ struct DemoApp : public MegaApp
     virtual void chatpresenceurl_result(string *, error) override;
     void chatlink_result(handle, error) override;
     void chatlinkclose_result(error) override;
-    void chatlinkurl_result(handle, int, string*, string*, int, m_time_t, bool, const bool, const std::vector<std::unique_ptr<ScheduledMeeting>>*, handle, error) override;
+    void chatlinkurl_result(handle chatid, int shard, string* url, string* ct, int numPeers,
+                            m_time_t ts, bool meetingRoom, int chatOptions,
+                            const std::vector<std::unique_ptr<ScheduledMeeting>>* smList,
+                            handle callid, error e) override;
+
     void chatlinkjoin_result(error) override;
 
     void chats_updated(textchat_map*, int) override;
