@@ -108,7 +108,13 @@ using namespace mega;
 }
 
 - (NSString *)subscriptionCycle {
-    return self.accountDetails ? [[NSString alloc] initWithUTF8String:self.accountDetails->getSubscriptionCycle()] : nil;
+    const char *val = self.accountDetails ? self.accountDetails->getSubscriptionCycle() : nil;
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
 }
 
 - (NSInteger)numberUsageItems {

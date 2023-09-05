@@ -435,6 +435,48 @@ void SdkTest::Cleanup()
                 }
             }
 
+
+            // Delete Sets and their public links
+            unique_ptr<MegaSetList> sets(megaApi[nApi]->getSets());
+            for (unsigned i = 0u; i < sets->size(); ++i)
+            {
+                const MegaSet* s = sets->get(i);
+                if (s->isExported())
+                {
+                    EXPECT_EQ(doDisableExportSet(nApi, s->id()), API_OK);
+                }
+                EXPECT_EQ(doRemoveSet(nApi, s->id()), API_OK);
+            }
+
+
+#ifdef ENABLE_CHAT
+            // Delete chat links
+            unique_ptr<MegaTextChatList> chats(megaApi[nApi]->getChatList());
+            for (int i = 0u; i < chats->size(); ++i)
+            {
+                const MegaTextChat* c = chats->get(i);
+                RequestTracker rt(megaApi[nApi].get());
+                megaApi[nApi]->chatLinkQuery(c->getHandle(), &rt);
+                auto e = rt.waitForResult();
+                EXPECT_TRUE(e == API_OK || e == API_ENOENT || e == API_EACCESS) << "e == " << e;
+                if (e == API_OK)
+                {
+                    RequestTracker rtD(megaApi[nApi].get());
+                    megaApi[nApi]->chatLinkDelete(c->getHandle(), &rtD);
+                    EXPECT_EQ(rtD.waitForResult(), API_OK);
+                }
+            }
+#endif
+
+
+            // Delete node links
+            unique_ptr<MegaNodeList> nodeLinks(megaApi[nApi]->getPublicLinks());
+            for (int i = 0; i < nodeLinks->size(); ++i)
+            {
+                EXPECT_EQ(doDisableExport(nApi, nodeLinks->get(i)), API_OK) << "Failed to disable node public link";
+            }
+
+
             // Remove nodes in Cloud & Rubbish
             purgeTree(nApi, std::unique_ptr<MegaNode>{megaApi[nApi]->getRootNode()}.get(), false);
             purgeTree(nApi, std::unique_ptr<MegaNode>{megaApi[nApi]->getRubbishNode()}.get(), false);
@@ -687,13 +729,6 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         if (mApi[apiIndex].lastError == API_OK)
         {
             mApi[apiIndex].setSid(request->getSessionKey());
-        }
-        break;
-
-    case MegaRequest::TYPE_GET_REGISTERED_CONTACTS:
-        if (mApi[apiIndex].lastError == API_OK)
-        {
-            mApi[apiIndex].setStringTable(request->getMegaStringTable()->copy());
         }
         break;
 
@@ -1651,19 +1686,6 @@ MegaHandle SdkTest::createFolder(unsigned int apiIndex, const char *name, MegaNo
     if (tracker.waitForResult() != API_OK) return UNDEF;
 
     return tracker.request->getNodeHandle();
-}
-
-void SdkTest::getRegisteredContacts(const std::map<std::string, std::string>& contacts)
-{
-    int apiIndex = 0;
-
-    auto contactsStringMap = std::unique_ptr<MegaStringMap>{MegaStringMap::createInstance()};
-    for  (const auto& pair : contacts)
-    {
-        contactsStringMap->set(pair.first.c_str(), pair.second.c_str());
-    }
-
-    ASSERT_EQ(API_OK, synchronousGetRegisteredContacts(apiIndex, contactsStringMap.get(), this)) << "Get registered contacts failed";
 }
 
 void SdkTest::getCountryCallingCodes(const int timeout)
@@ -3673,6 +3695,7 @@ TEST_F(SdkTest, SdkTestShares2)
  * - Get a node from a file public link
  * - Remove a public link
  * - Create a folder public link
+ * - Import folder public link
  */
 TEST_F(SdkTest, SdkTestShares)
 {
@@ -3774,18 +3797,18 @@ TEST_F(SdkTest, SdkTestShares)
 
     mApi[1].contactRequestUpdated = false;
     ASSERT_NO_FATAL_FAILURE( inviteContact(0, mApi[1].email, message, MegaContactRequest::INVITE_ACTION_ADD) );
-    ASSERT_TRUE( waitForResponse(&mApi[1].contactRequestUpdated) )   // at the target side (auxiliar account)
-            << "Contact request creation not received after " << maxTimeout << " seconds";
+    EXPECT_TRUE( waitForResponse(&mApi[1].contactRequestUpdated, 10u) )   // at the target side (auxiliar account)
+            << "Contact request creation not received after 10 seconds";
 
 
-    ASSERT_NO_FATAL_FAILURE( getContactRequest(1, false) );
+    EXPECT_NO_FATAL_FAILURE( getContactRequest(1, false) );
 
     mApi[0].contactRequestUpdated = mApi[1].contactRequestUpdated = false;
-    ASSERT_NO_FATAL_FAILURE( replyContact(mApi[1].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT) );
-    ASSERT_TRUE( waitForResponse(&mApi[1].contactRequestUpdated) )   // at the target side (auxiliar account)
-            << "Contact request creation not received after " << maxTimeout << " seconds";
-    ASSERT_TRUE( waitForResponse(&mApi[0].contactRequestUpdated) )   // at the source side (main account)
-            << "Contact request creation not received after " << maxTimeout << " seconds";
+    EXPECT_NO_FATAL_FAILURE( replyContact(mApi[1].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT) );
+    EXPECT_TRUE( waitForResponse(&mApi[1].contactRequestUpdated, 10u) )   // at the target side (auxiliar account)
+            << "Contact request creation not received after 10 seconds";
+    EXPECT_TRUE( waitForResponse(&mApi[0].contactRequestUpdated, 10u) )   // at the source side (main account)
+            << "Contact request creation not received after 10 seconds";
 
     mApi[1].cr.reset();
 
@@ -3882,14 +3905,14 @@ TEST_F(SdkTest, SdkTestShares)
     MegaHandle copiedNodeHandle = INVALID_HANDLE;
     ASSERT_EQ(API_OK, doCopyNode(1, &copiedNodeHandle, std::unique_ptr<MegaNode>(megaApi[1]->getNodeByHandle(hfile2)).get(),
               std::unique_ptr<MegaNode>(megaApi[1]->getNodeByHandle(hfolder1)).get(), "copy")) << "Copying shared file (not owned) to same place failed";
-    ASSERT_TRUE( waitForResponse(&check1) )   // at the target side (main account)
-            << "Node update not received after " << maxTimeout << " seconds";
+    EXPECT_TRUE( waitForResponse(&check1, 10u) )   // at the target side (main account)
+            << "Node update not received after 10 seconds";
     ASSERT_TRUE( waitForResponse(&check2) )   // at the target side (auxiliar account)
             << "Node update not received after " << maxTimeout << " seconds";
 
     resetOnNodeUpdateCompletionCBs();
     ++inSharedNodeCount;
-    ASSERT_EQ(check1, true);
+    EXPECT_EQ(check1, true);
     ASSERT_EQ(check2, true);
 
 
@@ -3910,7 +3933,7 @@ TEST_F(SdkTest, SdkTestShares)
     MegaHandle copyAndDeleteNodeHandle = INVALID_HANDLE;
 
     copiedNode.reset(megaApi[0]->getNodeByHandle(copiedNodeHandle));
-    ASSERT_EQ(API_OK, doMoveNode(1, &copyAndDeleteNodeHandle, copiedNode.get(), rubbishNode.get())) << "Moving shared file, same name and fingerprint";
+    EXPECT_EQ(API_OK, doMoveNode(1, &copyAndDeleteNodeHandle, copiedNode.get(), rubbishNode.get())) << "Moving shared file, same name and fingerprint";
 
     ASSERT_EQ(megaApi[1]->getNodeByHandle(copiedNodeHandle), nullptr) << "Move didn't delete source file";
     ASSERT_TRUE( waitForResponse(&check1) )   // at the target side (main account)
@@ -3988,7 +4011,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterInSharesAddedDummyFolders);
 
     // check the corresponding user alert
-    ASSERT_TRUE(checkAlert(1, mApi[0].email + " added 2 folders", std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder2)}->getHandle(), 2, dummyhandle1));
+    EXPECT_TRUE(checkAlert(1, mApi[0].email + " added 2 folders", std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder2)}->getHandle(), 2, dummyhandle1));
 
     // add 2 more files to the share
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check1);
@@ -4324,6 +4347,34 @@ TEST_F(SdkTest, SdkTestShares)
     // Regenerate the same link should not trigger a new request
     string nodelink6 = createPublicLink(0, nfolder1.get(), 0, maxTimeout, mApi[0].accountDetails->getProLevel() == 0);
     ASSERT_STREQ(nodelink5.c_str(), nodelink6.c_str()) << "Wrong public link after link update";
+
+
+    // --- Import folder public link ---
+    const char* email = getenv(envVarAccount[2].c_str());
+    ASSERT_NE(email, nullptr);
+    const char* pass = getenv(envVarPass[2].c_str());
+    ASSERT_NE(pass, nullptr);
+    mApi.resize(3);
+    megaApi.resize(3);
+    configureTestInstance(2, email, pass);
+    auto loginFolderTracker = asyncRequestLoginToFolder(2, nodelink6.c_str());
+    ASSERT_EQ(loginFolderTracker->waitForResult(), API_OK) << "Failed to login to folder " << nodelink6;
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(2));
+    std::unique_ptr<MegaNode> folderNodeToImport(megaApi[2]->getRootNode());
+    ASSERT_TRUE(folderNodeToImport) << "Failed to get folder node to import from link " << nodelink6;
+    std::unique_ptr<MegaNode> authorizedFolderNode(megaApi[2]->authorizeNode(folderNodeToImport.get()));
+    ASSERT_TRUE(authorizedFolderNode) << "Failed to authorize folder node from link " << nodelink6;
+    logout(2, false, 20);
+
+    auto loginTracker = asyncRequestLogin(2, email, pass);
+    ASSERT_EQ(loginTracker->waitForResult(), API_OK) << "Failed to login with " << email;
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(2));
+    std::unique_ptr<MegaNode> rootNode2(megaApi[2]->getRootNode());
+    RequestTracker nodeCopyTracker(megaApi[2].get());
+    megaApi[2]->copyNode(authorizedFolderNode.get(), rootNode2.get(), nullptr, &nodeCopyTracker);
+    EXPECT_EQ(nodeCopyTracker.waitForResult(), API_OK) << "Failed to copy node to import";
+    std::unique_ptr<MegaNode> importedNode(megaApi[2]->getNodeByPath(authorizedFolderNode->getName(), rootNode2.get()));
+    EXPECT_TRUE(importedNode) << "Imported node not found";
 }
 
 
@@ -7445,18 +7496,38 @@ TEST_F(SdkTest, SdkDeviceNames)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST SdkDeviceNames___";
 
-    // test setter/getter
+    // test setter/getter for current device name
     string deviceName = string("SdkDeviceNamesTest_") + getCurrentTimestamp(true);
     ASSERT_EQ(API_OK, doSetDeviceName(0, nullptr, deviceName.c_str())) << "setDeviceName failed";
-    string deviceNameInCloud;
-    ASSERT_EQ(API_OK, doGetDeviceName(0, &deviceNameInCloud, nullptr)) << "getDeviceName failed";
-    ASSERT_EQ(deviceNameInCloud, deviceName) << "getDeviceName returned incorrect value";
+    RequestTracker getDeviceNameTracker1(megaApi[0].get());
+    megaApi[0]->getDeviceName(nullptr, &getDeviceNameTracker1);
+    ASSERT_EQ(getDeviceNameTracker1.waitForResult(), API_OK);
+    ASSERT_TRUE(getDeviceNameTracker1.request->getName());
+    ASSERT_EQ(deviceName, getDeviceNameTracker1.request->getName());
+    ASSERT_TRUE(getDeviceNameTracker1.request->getMegaStringMap());
 
-    // test device name taken directly from user attribute
-    RequestTracker devNameTracker(megaApi[0].get());
-    megaApi[0]->getUserAttribute(MegaApi::USER_ATTR_DEVICE_NAMES, &devNameTracker);
-    ASSERT_EQ(API_OK, devNameTracker.waitForResult());
-    ASSERT_STREQ(devNameTracker.request->getName(), deviceName.c_str());
+    // test getting current device name when it was not set
+    ASSERT_EQ(API_OK, doSetDeviceName(0, nullptr, "")) << "removing current device name failed";
+    RequestTracker getDeviceNameTracker2(megaApi[0].get());
+    megaApi[0]->getDeviceName(nullptr, &getDeviceNameTracker2);
+    ASSERT_EQ(getDeviceNameTracker2.waitForResult(), API_ENOENT);
+    ASSERT_FALSE(getDeviceNameTracker2.request->getName());
+    ASSERT_TRUE(getDeviceNameTracker2.request->getMegaStringMap());
+
+    // test getting all device names, when current device name was not set
+    RequestTracker noNameTracker(megaApi[0].get());
+    megaApi[0]->getUserAttribute(MegaApi::USER_ATTR_DEVICE_NAMES, &noNameTracker);
+    ASSERT_EQ(API_OK, noNameTracker.waitForResult()) << "getUserAttribute failed when name of current device was not set";
+    ASSERT_FALSE(noNameTracker.request->getName()) << "getUserAttribute set some bogus name for current device";
+    ASSERT_TRUE(noNameTracker.request->getMegaStringMap());
+
+    // test getting all device names, when current device name was set
+    ASSERT_EQ(API_OK, doSetDeviceName(0, nullptr, deviceName.c_str())) << "setDeviceName failed";
+    RequestTracker getDeviceNameTracker3(megaApi[0].get());
+    megaApi[0]->getUserAttribute(MegaApi::USER_ATTR_DEVICE_NAMES, &getDeviceNameTracker3);
+    ASSERT_EQ(API_OK, getDeviceNameTracker3.waitForResult());
+    ASSERT_FALSE(getDeviceNameTracker3.request->getName());
+    ASSERT_TRUE(getDeviceNameTracker3.request->getMegaStringMap());
 }
 
 TEST_F(SdkTest, SdkBackupFolder)
@@ -8003,47 +8074,6 @@ TEST_F(SdkTest, SdkGetCountryCallingCodes)
     ASSERT_EQ(0, strcmp("49", de->get(0)));
 }
 
-TEST_F(SdkTest, SdkGetRegisteredContacts)
-{
-    LOG_info << "___TEST SdkGetRegisteredContacts___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-
-    const std::string js1 = "+0000000010";
-    const std::string js2 = "+0000000011";
-    const std::map<std::string, std::string> contacts{
-        {js1, "John Smith"}, // sms verified
-        {js2, "John Smith"}, // sms verified
-        {"+640", "John Smith"}, // not sms verified
-    };
-    getRegisteredContacts(contacts);
-    ASSERT_EQ(2, mApi[0].getStringTableSize());
-
-    // repacking and sorting result
-    using row_t = std::tuple<std::string, std::string, std::string>;
-    std::vector<row_t> table;
-    for (int i = 0; i < mApi[0].getStringTableSize(); ++i)
-    {
-        const MegaStringList* const stringList = mApi[0].getStringTableRow(i);
-        ASSERT_EQ(3, stringList->size());
-        table.emplace_back(stringList->get(0), stringList->get(1), stringList->get(2));
-    }
-
-    std::sort(table.begin(), table.end(), [](const row_t& lhs, const row_t& rhs)
-                                          {
-                                              return std::get<0>(lhs) < std::get<0>(rhs);
-                                          });
-
-    // Check johnsmith1
-    ASSERT_EQ(js1, std::get<0>(table[0])); // eud
-    ASSERT_GT(std::get<1>(table[0]).size(), 0u); // id
-    ASSERT_EQ(js1, std::get<2>(table[0])); // ud
-
-    // Check johnsmith2
-    ASSERT_EQ(js2, std::get<0>(table[1])); // eud
-    ASSERT_GT(std::get<1>(table[1]).size(), 0u); // id
-    ASSERT_EQ(js2, std::get<2>(table[1])); // ud
-}
-
 TEST_F(SdkTest, DISABLED_invalidFileNames)
 {
     LOG_info << "___TEST invalidFileNames___";
@@ -8430,6 +8460,37 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
     auto tracker = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
     ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session for account " << 0;
     ASSERT_EQ(true, megaApi[0]->setMaxDownloadSpeed(currentMaxDownloadSpeed)); // restore previous max download speed (bytes per second)
+}
+
+TEST_F(SdkTest, QueryAds)
+{
+    LOG_info << "___TEST QueryAds";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    std::unique_ptr<RequestTracker> tr = asyncQueryAds(0, MegaApi::ADS_FORCE_ADS, INVALID_HANDLE);
+    ASSERT_EQ(API_OK, tr->waitForResult()) << "Query Ads failed";
+}
+
+TEST_F(SdkTest, FetchAds)
+{
+    LOG_info << "___TEST FetchAds";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    std::unique_ptr<MegaStringList> stringList = std::unique_ptr<MegaStringList>(MegaStringList::createInstance());
+    std::unique_ptr<RequestTracker> tr = asyncFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get(), INVALID_HANDLE);
+    ASSERT_EQ(API_EARGS, tr->waitForResult()) << "Fetch Ads succeeded with invalid arguments";
+    stringList->add("dummyAdUnit");
+    tr = asyncFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get(), INVALID_HANDLE);
+    ASSERT_EQ(API_OK, tr->waitForResult()) << "Fetch Ads failed";
+    const MegaStringMap* ads = tr->request->getMegaStringMap();
+    ASSERT_TRUE(ads) << "Fetch Ads didn't copy ads to `request`";
+    ASSERT_EQ(ads->size(), 0) << "Fetch Ads found some dummy ads";
+    const char valiAdSlot[] = "ANDFB";
+    stringList->add(valiAdSlot);
+    tr = asyncFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get(), INVALID_HANDLE);
+    ASSERT_EQ(API_OK, tr->waitForResult()) << "Fetch Ads failed";
+    ads = tr->request->getMegaStringMap();
+    ASSERT_TRUE(ads) << "Fetch Ads didn't copy ads to `request`";
+    ASSERT_EQ(ads->size(), 1) << "Fetch Ads findings are incorrect";
+    ASSERT_NE(ads->get(valiAdSlot), nullptr) << "Fetch Ads didn't find " << valiAdSlot;
 }
 
 #ifdef ENABLE_SYNC
@@ -14228,6 +14289,10 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
     ASSERT_EQ(nodeList->get(0)->getHandle(), handleCodeFile);
 
     nodeList.reset(megaApi[0]->searchByType(nullptr, nullptr, nullptr, true, MegaApi::ORDER_NONE, MegaApi::FILE_TYPE_PDF));
+    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), handlePdfFile);
+
+    nodeList.reset(megaApi[0]->searchByType(nullptr, nullptr, nullptr, true, MegaApi::ORDER_NONE, MegaApi::FILE_TYPE_DOCUMENT));
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), handlePdfFile);
 

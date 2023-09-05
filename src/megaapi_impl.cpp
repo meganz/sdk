@@ -4348,7 +4348,6 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_CLOUD_STORAGE_USED: return "GET_CLOUD_STORAGE_USED";
         case TYPE_SEND_SMS_VERIFICATIONCODE: return "SEND_SMS_VERIFICATIONCODE";
         case TYPE_CHECK_SMS_VERIFICATIONCODE: return "CHECK_SMS_VERIFICATIONCODE";
-        case TYPE_GET_REGISTERED_CONTACTS: return "GET_REGISTERED_CONTACTS";
         case TYPE_GET_COUNTRY_CALLING_CODES: return "GET_COUNTRY_CALLING_CODES";
         case TYPE_VERIFY_CREDENTIALS: return "VERIFY_CREDENTIALS";
         case TYPE_GET_MISC_FLAGS: return "GET_MISC_FLAGS";
@@ -4362,8 +4361,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_BACKUP_PUT: return "BACKUP_PUT";
         case TYPE_BACKUP_REMOVE: return "BACKUP_REMOVE";
         case TYPE_BACKUP_PUT_HEART_BEAT: return "BACKUP_PUT_HEART_BEAT";
-        case TYPE_FETCH_GOOGLE_ADS: return "FETCH_GOOGLE_ADS";
-        case TYPE_QUERY_GOOGLE_ADS: return "QUERY_GOOGLE_ADS";
+        case TYPE_FETCH_ADS: return "FETCH_ADS";
+        case TYPE_QUERY_ADS: return "QUERY_ADS";
         case TYPE_GET_ATTR_NODE: return "GET_ATTR_NODE";
         case TYPE_START_CHAT_CALL: return "START_CHAT_CALL";
         case TYPE_JOIN_CHAT_CALL: return "JOIN_CHAT_CALL";
@@ -9570,8 +9569,7 @@ bool MegaApiImpl::createThumbnail(const char *imagePath, const char *dstPath)
     LocalPath localDstPath = LocalPath::fromAbsolutePath(dstPath);
 
     SdkMutexGuard g(sdkMutex);
-    return gfxAccess->savefa(localImagePath, GfxProc::dimensions[GfxProc::THUMBNAIL][0],
-            GfxProc::dimensions[GfxProc::THUMBNAIL][1], localDstPath);
+    return gfxAccess->savefa(localImagePath, GfxProc::DIMENSIONS[GfxProc::THUMBNAIL], localDstPath);
 }
 
 bool MegaApiImpl::createPreview(const char *imagePath, const char *dstPath)
@@ -9585,8 +9583,7 @@ bool MegaApiImpl::createPreview(const char *imagePath, const char *dstPath)
     LocalPath localDstPath = LocalPath::fromAbsolutePath(dstPath);
 
     SdkMutexGuard g(sdkMutex);
-    return gfxAccess->savefa(localImagePath, GfxProc::dimensions[GfxProc::PREVIEW][0],
-            GfxProc::dimensions[GfxProc::PREVIEW][1], localDstPath);
+    return gfxAccess->savefa(localImagePath, GfxProc::DIMENSIONS[GfxProc::PREVIEW], localDstPath);
 }
 
 bool MegaApiImpl::createAvatar(const char *imagePath, const char *dstPath)
@@ -9600,8 +9597,7 @@ bool MegaApiImpl::createAvatar(const char *imagePath, const char *dstPath)
     LocalPath localDstPath = LocalPath::fromAbsolutePath(dstPath);
 
     SdkMutexGuard g(sdkMutex);
-    return gfxAccess->savefa(localImagePath, GfxProc::dimensionsavatar[GfxProc::AVATAR250X250][0],
-            GfxProc::dimensionsavatar[GfxProc::AVATAR250X250][1], localDstPath);
+    return gfxAccess->savefa(localImagePath, GfxProc::DIMENSIONS_AVATAR[GfxProc::AVATAR250X250], localDstPath);
 }
 
 void MegaApiImpl::getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener)
@@ -11934,7 +11930,7 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
                 {
                     return new MegaNodeListPrivate();
                 }
-                if (node->getMimeType() == mimeType &&
+                if (node->isIncludedForMimetype(static_cast<MimeType_t>(mimeType)) &&
                     strcasestr(node->displayname(), searchString) != NULL &&
                     node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags))
                     {
@@ -11943,7 +11939,7 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
 
                 node = client->nodeByHandle(client->mNodeManager.getRootNodeVault());
                 if (node &&
-                    node->getMimeType() == mimeType &&
+                    node->isIncludedForMimetype(static_cast<MimeType_t>(mimeType)) &&
                     strcasestr(node->displayname(), searchString) != NULL &&
                     node->areFlagsValid(requiredFlags, excludeFlags, excludeRecursiveFlags))
                     {
@@ -13144,8 +13140,10 @@ void MegaApiImpl::chatlink_result(handle h, error e)
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::chatlinkurl_result(handle chatid, int shard, string *link, string *ct, int numPeers, m_time_t ts
-                                     , bool meetingRoom, const bool waitingRoom, const std::vector<std::unique_ptr<ScheduledMeeting>>* smList, handle callid, error e)
+void MegaApiImpl::chatlinkurl_result(handle chatid, int shard, string *link, string *ct, int numPeers,
+				     m_time_t ts, bool meetingRoom, int chatOptions,
+				     const std::vector<std::unique_ptr<ScheduledMeeting>>* smList,
+				     handle callid, error e)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
@@ -13159,7 +13157,7 @@ void MegaApiImpl::chatlinkurl_result(handle chatid, int shard, string *link, str
         request->setText(ct->c_str());
         request->setNumDetails(numPeers);
         request->setNumber(ts);
-        request->setParamType(waitingRoom);
+        request->setParamType(chatOptions);
         request->setFlag(meetingRoom);
 
         if (smList && !smList->empty())
@@ -15298,7 +15296,12 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
             }
             case MegaApi::USER_ATTR_DEVICE_NAMES:
             {
-                bool errorForNameNotFound = true;
+                if (!request->getFlag() && !request->getText()) // all devices and drives
+                {
+                    // the list of device names is passed in the MegaStringMap of the MegaRequest
+                    break;
+                }
+
                 const char* buf = nullptr;
 
                 if (request->getFlag()) // external drive
@@ -15307,24 +15310,19 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                     string key = User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true) + string(Base64Str<MegaClient::DRIVEHANDLE>(driveId));
                     buf = stringMap->get(key.c_str());
                 }
-                else
+                else if (request->getText()) // device
                 {
-                    // getDeviceName() will set MegaRequestPrivate::text to the id of the requested device;
-                    // getUserAttr(USER_ATTR_DEVICE_NAMES) will not set that field, so use the id of the current device
-                    buf = stringMap->get(request->getText() ? request->getText() : client->getDeviceidHash().c_str());
-                    errorForNameNotFound = request->getText() && client->getDeviceidHash() != request->getText();
+                    buf = stringMap->get(request->getText());
                 }
 
-                // Searching for an external drive that is not there should end with error;
-                // specifying a device that is not there should end with error;
-                // but requesting the name of current device even if not set yet should still succeed (and
-                // along with it return the device list which is the purpose of getting USER_ATTR_DEVICE_NAMES attribute).
-                if (!buf && errorForNameNotFound)
+                if (buf)
+                {
+                    request->setName(Base64::atob(buf).c_str());
+                }
+                else
                 {
                     e = API_ENOENT;
-                    break;
                 }
-                request->setName(Base64::atob(buf ? buf : "").c_str());
                 break;
             }
 
@@ -15811,33 +15809,6 @@ void MegaApiImpl::smsverificationcheck_result(error e, string* phoneNumber)
             if (e == API_OK && phoneNumber)
             {
                 request->setName(phoneNumber->c_str());
-            }
-            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-        }
-    }
-}
-
-void MegaApiImpl::getregisteredcontacts_result(error e, vector<tuple<string, string, string>>* data)
-{
-    auto it = requestMap.find(client->restag);
-    if (it != requestMap.end())
-    {
-        MegaRequestPrivate* request = it->second;
-        if (request && ((request->getType() == MegaRequest::TYPE_GET_REGISTERED_CONTACTS)))
-        {
-            if (data)
-            {
-                auto stringTable = std::unique_ptr<MegaStringTable>{MegaStringTable::createInstance()};
-                for (const auto& row : *data)
-                {
-                    string_vector list;
-                    list.emplace_back(std::get<0>(row));
-                    list.emplace_back(std::get<1>(row));
-                    list.emplace_back(std::get<2>(row));
-                    auto stringList = new MegaStringListPrivate(std::move(list));
-                    stringTable->append(stringList);
-                }
-                request->setMegaStringTable(stringTable.get());
             }
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
         }
@@ -18771,13 +18742,6 @@ void MegaApiImpl::sendPendingRequests()
             // Keeping this at the top means we can convert the last case
             // to a performRequest while keeping the code in-place for diffs
             e = API_EINTERNAL;
-            break;
-        }
-        case MegaRequest::TYPE_FETCH_GOOGLE_ADS:    // fall-through
-        case MegaRequest::TYPE_QUERY_GOOGLE_ADS:
-        {
-            // deprecated
-            e = API_EEXPIRED;
             break;
         }
 #ifdef ENABLE_SYNC
@@ -24183,37 +24147,6 @@ void MegaApiImpl::checkSMSVerificationCode(const char* verificationCode, MegaReq
     waiter->notify();
 }
 
-void MegaApiImpl::getRegisteredContacts(const MegaStringMap* contacts, MegaRequestListener* listener)
-{
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_REGISTERED_CONTACTS, listener);
-    request->setMegaStringMap(contacts);
-
-    request->performRequest = [this, request]()
-        {
-            const auto contacts = request->getMegaStringMap();
-            if (contacts)
-            {
-                map<const char*, const char*> contactsMap; // non-owning
-                const auto contactsKeys = std::unique_ptr<MegaStringList>{ contacts->getKeys() };
-                for (int i = 0; i < contactsKeys->size(); ++i)
-                {
-                    const auto key = contactsKeys->get(i);
-                    contactsMap[key] = contacts->get(key);
-                }
-                client->reqs.add(new CommandGetRegisteredContacts{ client, contactsMap });
-            }
-            else
-            {
-                assert(false && "contacts must be valid");
-                return API_EARGS;
-            }
-            return API_OK;
-        };
-
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::getCountryCallingCodes(MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_COUNTRY_CALLING_CODES, listener);
@@ -24955,21 +24888,69 @@ void MegaApiImpl::updateBackup(MegaHandle backupId, int backupType, MegaHandle t
     waiter->notify();
 }
 
-void MegaApiImpl::fetchGoogleAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle, MegaRequestListener *listener)
+void MegaApiImpl::fetchAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle, MegaRequestListener *listener)
 {
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_GOOGLE_ADS, listener);
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_ADS, listener);
     request->setNumber(adFlags);
     request->setMegaStringList(adUnits);
     request->setNodeHandle(publicHandle);
+
+    request->performRequest = [this, request]()
+    {
+        int flags = int(request->getNumber());
+        MegaStringListPrivate* ads = static_cast<MegaStringListPrivate*>(request->getMegaStringList());
+        if (flags < MegaApi::ADS_DEFAULT || flags > MegaApi::ADS_FLAG_IGNORE_ROLLOUT ||
+            !ads || !ads->size())
+        {
+            return API_EARGS;
+        }
+
+        client->reqs.add(new CommandFetchAds(client, flags, ads->getVector(), request->getNodeHandle(), [request, this](Error e, string_map value)
+        {
+           if (e == API_OK)
+           {
+               std::unique_ptr<MegaStringMap> stringMap = std::unique_ptr<MegaStringMap>(MegaStringMap::createInstance());
+               for (const auto& itMap : value)
+               {
+                   stringMap->set(itMap.first.c_str(), itMap.second.c_str());
+               }
+
+               request->setMegaStringMap(stringMap.get());
+           }
+
+           fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+        }));
+
+        return API_OK;
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }
 
-void MegaApiImpl::queryGoogleAds(int adFlags, MegaHandle publicHandle, MegaRequestListener *listener)
+void MegaApiImpl::queryAds(int adFlags, MegaHandle publicHandle, MegaRequestListener *listener)
 {
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_QUERY_GOOGLE_ADS, listener);
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_QUERY_ADS, listener);
     request->setNumber(adFlags);
     request->setNodeHandle(publicHandle);
+
+    request->performRequest = [this, request]()
+    {
+        int flags = int(request->getNumber());
+        if (flags < MegaApi::ADS_DEFAULT || flags > MegaApi::ADS_FLAG_IGNORE_ROLLOUT)
+        {
+            return API_EARGS;
+        }
+
+        client->reqs.add(new CommandQueryAds(client, flags, request->getNodeHandle(), [request, this](Error e, int value)
+        {
+           if (e == API_OK) request->setNumDetails(value);
+           fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+        }));
+
+        return API_OK;
+    };
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -29320,16 +29301,17 @@ MegaTCPServer::MegaTCPServer(MegaApiImpl *megaApi, string basePath, bool tls, st
 
 MegaTCPServer::~MegaTCPServer()
 {
+    LOG_verbose << "MegaTCPServer::~MegaTCPServer BEGIN";
     stop();
+
+    thread->join();
+    delete thread;
+
     semaphoresdestroyed = true;
     uv_sem_destroy(&semaphoreStartup);
     uv_sem_destroy(&semaphoreEnd);
     delete fsAccess;
-
-    LOG_verbose << " MegaTCPServer::~MegaTCPServer joining uv thread";
-    thread->join();
-    LOG_verbose << " MegaTCPServer::~MegaTCPServer deleting uv thread";
-    delete thread;
+    LOG_verbose << "MegaTCPServer::~MegaTCPServer END";
 }
 
 bool MegaTCPServer::start(int port, bool localOnly)
@@ -29475,6 +29457,11 @@ void MegaTCPServer::run()
         uv_sem_post(&semaphoreStartup);
         uv_sem_post(&semaphoreEnd);
         uv_run(&uv_loop, UV_RUN_ONCE); // so that resources are cleaned peacefully
+        int closeVal = uv_loop_close(&uv_loop); // Clean up loop resources
+        if (closeVal)
+        {
+            LOG_err << "[MegaTCPServer::run] Error closing uv_loop: " << uv_strerror(closeVal);
+        }
         return;
     }
 
@@ -29493,7 +29480,11 @@ void MegaTCPServer::run()
         SSL_CTX_free(evtctx.ctx);
     }
 #endif
-    uv_loop_close(&uv_loop);
+    int closeVal = uv_loop_close(&uv_loop); // Clean up loop resources
+    if (closeVal)
+    {
+        LOG_err << "[MegaTCPServer::run] Error closing uv_loop: " << uv_strerror(closeVal);
+    }
     started = false;
     port = 0;
     LOG_debug << "UV loop thread exit";
