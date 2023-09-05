@@ -1175,7 +1175,6 @@ bool StandardClient::waitForAttrDeviceIdIsSet(unsigned int numSeconds)
 
     // Check if attribute has been established properly
     return isUserAttributeSet(attr_t::ATTR_DEVICE_NAMES, numSeconds, err);
-;
 }
 
 bool StandardClient::waitForAttrMyBackupIsSet(unsigned int numSeconds)
