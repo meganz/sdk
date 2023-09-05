@@ -7262,7 +7262,7 @@ bool CommandSetChatOptions::procresult(Result r, JSON& json)
         auto it = client->chats.find(mChatid);
         if (it == client->chats.end())
         {
-            mCompletion(API_ENOENT);
+            mCompletion(API_EINTERNAL);
             return true;
         }
 
@@ -7318,7 +7318,7 @@ bool CommandChatInvite::procresult(Result r, JSON& json)
         if (client->chats.find(chatid) == client->chats.end())
         {
             // the invitation succeed for a non-existing chatroom
-            client->app->chatinvite_result(API_ENOENT);
+            client->app->chatinvite_result(API_EINTERNAL);
             return true;
         }
 
@@ -7365,7 +7365,7 @@ bool CommandChatRemove::procresult(Result r, JSON& json)
         if (client->chats.find(chatid) == client->chats.end())
         {
             // the invitation succeed for a non-existing chatroom
-            client->app->chatremove_result(API_ENOENT);
+            client->app->chatremove_result(API_EINTERNAL);
             return true;
         }
 
@@ -7455,7 +7455,7 @@ bool CommandChatGrantAccess::procresult(Result r, JSON& json)
         if (client->chats.find(chatid) == client->chats.end())
         {
             // the action succeed for a non-existing chatroom??
-            client->app->chatgrantaccess_result(API_ENOENT);
+            client->app->chatgrantaccess_result(API_EINTERNAL);
             return true;
         }
 
@@ -7494,7 +7494,7 @@ bool CommandChatRemoveAccess::procresult(Result r, JSON& json)
     {
         if (client->chats.find(chatid) == client->chats.end())
         {
-            client->app->chatremoveaccess_result(API_ENOENT);
+            client->app->chatremoveaccess_result(API_EINTERNAL);
             return true;
         }
 
@@ -7533,7 +7533,7 @@ bool CommandChatUpdatePermissions::procresult(Result r, JSON& json)
     {
         if (client->chats.find(chatid) == client->chats.end())
         {
-            client->app->chatupdatepermissions_result(API_ENOENT);
+            client->app->chatupdatepermissions_result(API_EINTERNAL);
             return true;
         }
 
@@ -7583,7 +7583,7 @@ bool CommandChatTruncate::procresult(Result r, JSON& json)
         if (client->chats.find(chatid) == client->chats.end())
         {
             // the truncation succeed for a non-existing chatroom
-            client->app->chattruncate_result(API_ENOENT);
+            client->app->chattruncate_result(API_EINTERNAL);
             return true;
         }
 
@@ -7619,7 +7619,7 @@ bool CommandChatSetTitle::procresult(Result r, JSON& json)
         if (client->chats.find(chatid) == client->chats.end())
         {
             // the invitation succeed for a non-existing chatroom
-            client->app->chatsettitle_result(API_ENOENT);
+            client->app->chatsettitle_result(API_EINTERNAL);
             return true;
         }
 
@@ -10222,7 +10222,7 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r, JSON& jso
     auto it = client->chats.find(mScheduledMeeting->chatid());
     if (it == client->chats.end())
     {
-        if (mCompletion) { mCompletion(API_ENOENT, nullptr); }
+        if (mCompletion) { mCompletion(API_EINTERNAL, nullptr); }
         return true;
     }
     TextChat* chat = it->second;
@@ -10266,7 +10266,7 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r, JSON& json)
         auto it = client->chats.find(mChatId);
         if (it == client->chats.end())
         {
-            if (mCompletion) { mCompletion(API_ENOENT); }
+            if (mCompletion) { mCompletion(API_EINTERNAL); }
             return true;
         }
 
@@ -10343,7 +10343,7 @@ bool CommandScheduledMeetingFetchEvents::procresult(Command::Result r, JSON& jso
     auto it = client->chats.find(mChatId);
     if (it == client->chats.end())
     {
-        if (mCompletion) { mCompletion(API_ENOENT, nullptr); }
+        if (mCompletion) { mCompletion(API_EINTERNAL, nullptr); }
         return true;
     }
     TextChat* chat = it->second;
