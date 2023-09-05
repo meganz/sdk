@@ -12947,6 +12947,13 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_EQ(a->getUserHandle(), A1.getMyUserHandleBinary()) << "ContactChange  --  contact deleted";
     bkpAlerts.emplace_back(a->copy());
 
+    // create a dummy folder, just to trigger a local db commit before locallogout (which triggers a ROLLBACK)
+    std::unique_ptr<MegaNode> rootnodeB1{ B1.getRootNode() };
+    PerApi& target = mApi[B1idx];
+    target.resetlastEvent();
+    MegaHandle hDummyFolder = createFolder(B1idx, "DummyFolder_TriggerDbCommit", rootnodeB1.get());
+    ASSERT_NE(hDummyFolder, INVALID_HANDLE);
+    ASSERT_TRUE(WaitFor([&target]() { return target.lastEventsContain(MegaEvent::EVENT_COMMIT_DB); }, 8192));
 
     // save session for B1
     unique_ptr<char[]> B1session(B1.dumpSession());
