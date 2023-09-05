@@ -1078,32 +1078,37 @@ bool StandardClient::isUserAttributeSet(attr_t attr, unsigned int numSeconds, er
     std::condition_variable_any user_attribute_updated_cv;
     bool attrIsSet = false;
     std::atomic_bool replyReceived{false};
-    mOnGetUA = [&](const attr_t at, error e)
     {
-        if (tag != client.restag)
+        std::lock_guard<std::mutex> g(mUserAttributeMutex);
+        mOnGetUA = [&](const attr_t at, error e)
         {
-            return;
-        }
+            if (tag != client.restag)
+            {
+                return;
+            }
 
-        std::lock_guard<std::recursive_mutex> g(attr_cv_mutex);
-        err = e;
-        if (err == API_OK)
-        {
-            assert(at == attr);
-            LOG_debug << "attr: " << attr << " is set";
-            attrIsSet = true;
-        }
+            std::lock_guard<std::recursive_mutex> g(attr_cv_mutex);
+            err = e;
+            if (err == API_OK)
+            {
+                assert(at == attr);
+                LOG_debug << "attr: " << attr << " is set";
+                attrIsSet = true;
+            }
 
-        replyReceived = true;
-        user_attribute_updated_cv.notify_one();
-    };
+            replyReceived = true;
+            user_attribute_updated_cv.notify_one();
+        };
+    }
 
     std::unique_lock<std::recursive_mutex> g(attr_cv_mutex);
     client.getua(client.ownuser(), attr);
 
     user_attribute_updated_cv.wait_for(g, std::chrono::seconds(numSeconds), [&replyReceived](){ return replyReceived.load(); });
-
-    mOnGetUA = nullptr;
+    {
+        std::lock_guard<std::mutex> g(mUserAttributeMutex);
+        mOnGetUA = nullptr;
+    }
 
     return attrIsSet;
 }
