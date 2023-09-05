@@ -2248,7 +2248,7 @@ public:
     void fetchtimezone();
 
     // report invalid scheduled meeting by sending an event to stats server
-    void reportInvalidSchedMeeting(const ScheduledMeeting& sched);
+    void reportInvalidSchedMeeting(const ScheduledMeeting* sched = nullptr);
 
     void keepmealive(int, bool enable = true);
 

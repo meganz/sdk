@@ -1380,13 +1380,17 @@ void MegaClient::fetchtimezone()
     reqs.add(new CommandFetchTimeZone(this, "", timeoffset.c_str()));
 }
 
-void MegaClient::reportInvalidSchedMeeting(const ScheduledMeeting& sched)
+void MegaClient::reportInvalidSchedMeeting(const ScheduledMeeting* sched)
 {
-    std::string errMsg = "Ill-formed sched meeting";
-    errMsg.append(" chatid:  ").append(toHandle(sched.chatid()))
-        .append(" schedid: ").append(toHandle(sched.schedId()));
+    std::string errMsg = "Ill-formed sched meeting(s)";
 
-    sendevent(99471, errMsg.c_str());
+    sendevent(99481, errMsg.c_str());
+
+    if (sched)
+    {
+        errMsg.append(" chatid:  ").append(toHandle(sched->chatid()))
+            .append(" schedid: ").append(toHandle(sched->schedId()));
+    }
     LOG_err << errMsg;
     assert(false);
 }
@@ -19659,7 +19663,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
 
     if (illFormedElems)
     {
-        sendevent(99471, "Ill-formed scheduled meetings received from API");
+        reportInvalidSchedMeeting();
     }
     return API_OK;
 }
