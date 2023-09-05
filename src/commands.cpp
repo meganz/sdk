@@ -7934,13 +7934,9 @@ bool CommandChatLinkURL::procresult(Result r, JSON& json)
                     if (json.enterarray())
                     {
                         error err = client->parseScheduledMeetings(schedMeetings, false, &json);
-                        if (!json.leavearray())
+                        if (!json.leavearray() || err)
                         {
-                            LOG_err << "Failed to leave array at mcphurl::procresult. Error: " << API_EINTERNAL;
-                        }
-
-                        if (err)
-                        {
+                            LOG_err << "Failed to parse mcphurl respone. Error: " << err;
                             client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, false, nullptr, UNDEF, API_EINTERNAL);
                             return false;
                         }
