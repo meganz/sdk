@@ -14269,11 +14269,11 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     int result;
-    // Get VPN regions to choose one of them
+    // 1) Get VPN regions to choose one of them
     {
         std::unique_ptr<MegaStringList> vpnRegions;
         result = doGetVpnRegions(0, vpnRegions);
-        ASSERT_EQ(API_OK, result) << "getting the VPN regions failed (error: " << result << ")";
+        ASSERT_EQ(API_OK, result) << "getting the VPN regions failed";
         ASSERT_TRUE(vpnRegions) << "list of VPN regions is NULL";
         ASSERT_TRUE(vpnRegions->size()) << "list of VPN regions is empty";
 
@@ -14292,7 +14292,7 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
         result = doPutVpnCredential(0, slotID, userPubKey, newCredential, vpnRegion);
         if (isProAccount)
         {
-            ASSERT_EQ(API_OK, result) << "adding a new VPN credential failed (error: " << result << ")";
+            ASSERT_EQ(API_OK, result) << "adding a new VPN credential failed";
             ASSERT_TRUE(slotID > 0) << "slotID should be greater than 0";
             size_t expectedPubKeyB64Size = ((ECDH::PUBLIC_KEY_LENGTH * 4) + 2) / 3; // URL-safe B64 length (no trailing '=')
             ASSERT_EQ(userPubKey.size(), expectedPubKeyB64Size) << "User Public Key does not have the expected size";
@@ -14304,7 +14304,9 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
         }
         else
         {
-            ASSERT_EQ(API_EACCESS, result) << "adding a new VPN credential on a free account didn't return the expected error value (error: " << result << ")";
+            ASSERT_EQ(API_EACCESS, result) << "adding a new VPN credential on a free account didn't return the expected error value (are you pointing to staging?)";
+            // NOTE: by Sep 2023, the API allows free accounts to create VPN credentials temporary, during development of the feature. 
+            // In production, it returns EACCESS (as it will in staging later on)
         }
 
         // 3-b) Check nonexistent VPN credentials
@@ -14321,7 +14323,7 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
 
             if (isProAccount)
             {
-                ASSERT_EQ(API_OK, result) << "getting the VPN credentials failed (error: " << result << ")";
+                ASSERT_EQ(API_OK, result) << "getting the VPN credentials failed";
                 ASSERT_TRUE(megaVpnCredentials != nullptr) << "MegaVpnCredentials is NULL";
 
                 // Get SlotIDs - it should not be empty
@@ -14343,7 +14345,7 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
                 ASSERT_TRUE(ipv6) << "IPv6 value not found for SlotID: " << slotID;
                 ASSERT_TRUE(*ipv6) << "IPv6 value is empty for SlotID: " << slotID;
 
-                // Get DeviceID (it must be a valid pointer, but it can be empty if there's no associated fingerprint)
+                // Get DeviceID (it must be a valid pointer, but it can be empty if there's no associated deviceID)
                 const char* deviceID = megaVpnCredentials->getDeviceID(slotID);
                 ASSERT_TRUE(deviceID) << "deviceID not found for SlotID: " << slotID;
 
@@ -14364,40 +14366,29 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
             }
             else
             {
-                ASSERT_EQ(API_ENOENT, result) << "getting the VPN credentials for a free account didn't return the expected error value (error: " << result << ")";
+                ASSERT_EQ(API_ENOENT, result) << "getting the VPN credentials for a free account didn't return the expected error value";
                 ASSERT_TRUE(megaVpnCredentials == nullptr) << "MegaVpnCredentials is NOT NULL for a free account";
             }
         }
 
-        // 5) Delete VPN credentials on the used slot
-        {
-            result = doDelVpnCredential(0, isProAccount ? slotID : 1);
-            if (isProAccount)
-            {
-                ASSERT_EQ(API_OK, result) << "deleting the VPN credentials on the slotID " << slotID << " failed (error: " << result << ")";
-
-                // Check again the VPN credentials, they should be invalid now
-                result = doCheckVpnCredential(0, userPubKey.c_str());
-                ASSERT_EQ(API_EACCESS, result) << "VPN credentials are still valid after being deleted";
-            }
-            else
-            {
-                // Expected -9: the slot has never been occupied
-                ASSERT_EQ(API_ENOENT, result) << "deleting the VPN credentials on a never occupied slotID " << slotID << " didn't return the expected error value (error: " << result << ")";
-            }
-        }
-
-        // 6) Delete VPN credentials on the same slotID - expected API_OK: despite it is empty now, it has been occupied before
         if (isProAccount)
         {
+            // 5) Delete VPN credentials from an occupied slot
             result = doDelVpnCredential(0, slotID);
-            ASSERT_EQ(API_OK, result) << "deleting the VPN credentials on the unused slotID " << slotID << " failed (error: " << result << ")";
-        }
+            ASSERT_EQ(API_OK, result) << "deleting the VPN credentials from the slotID " << slotID << " failed";
 
-        // 7) Delete VPN credentials with an invalid slot -expected EARGS: SlotID is not valid-
-        {
-            result = doDelVpnCredential(0, -1);
-            ASSERT_EQ(API_EARGS, result) << "deleting the VPN credentials failed for invalid slotID " << slotID << " (error: " << result << ")";
+            // Check again the VPN credentials, they should be invalid now
+            result = doCheckVpnCredential(0, userPubKey.c_str());
+            ASSERT_EQ(API_EACCESS, result) << "VPN credentials are still valid after being deleted";
+
+            // Use the same slotID (it should be empty now) for the next test
         }
+        // 6) Delete VPN credentials from an unoccupied slot. Expecting ENOENT: SlotID is empty
+        result = doDelVpnCredential(0, isProAccount ? slotID : 1);
+        ASSERT_EQ(API_ENOENT, result) << "deleting the VPN credentials from the unused slotID " << slotID << " didn't return the expected error value";
+
+        // 7) Delete VPN credentials from an invalid slot. Expecting EARGS: SlotID is not valid
+        result = doDelVpnCredential(0, -1);
+        ASSERT_EQ(API_EARGS, result) << "deleting the VPN credential from the invalid slotID " << slotID << " didn't return the expected error value";
     }
 }
