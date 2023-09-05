@@ -1091,7 +1091,7 @@ bool StandardClient::isUserAttributeSet(attr_t attr, unsigned int numSeconds, er
         {
             assert(at == attr);
             LOG_debug << "attr: " << attr << " is set";
-                attrIsSet = true;
+            attrIsSet = true;
         }
 
         replyReceived = true;
@@ -1113,7 +1113,6 @@ bool StandardClient::waitForAttrDeviceIdIsSet(unsigned int numSeconds)
     error err;
     bool attrDeviceIsSet = isUserAttributeSet(attr_t::ATTR_DEVICE_NAMES, numSeconds, err);
 
-    bool deviceIdNoFound = false;
     std::unique_ptr<TLVstore> tlv;
     std::string deviceIdHash = client.getDeviceidHash();
     if (err == API_OK)
@@ -1123,50 +1122,50 @@ bool StandardClient::waitForAttrDeviceIdIsSet(unsigned int numSeconds)
         std::string buffer;
         if (tlv->get(deviceIdHash, buffer))
         {
-            deviceIdNoFound = true;
+            return true;  // Device id is found
         }
     }
-    else
+    else if (err == API_ENOENT)
     {
         tlv.reset(new TLVstore);
     }
-
-
-    if (err == API_ENOENT || !deviceIdNoFound)
+    else
     {
-        std::string timestamp = getCurrentTimestamp(true);
-        std::string deviceName = "Jenkins " + timestamp;
-
-        tlv->set(deviceIdHash, deviceName);
-        bool attrDeviceNamePut = false;
-        std::recursive_mutex attrDeviceNamePut_mutex;
-        std::condition_variable_any attrDeviceNamePut_cv;
-        std::atomic_bool replyReceived{false};
-        // serialize and encrypt the TLV container
-        std::unique_ptr<string> container(tlv->tlvRecordsToContainer(client.rng, &client.key));
-        std::unique_lock<std::recursive_mutex> g(attrDeviceNamePut_mutex);
-        client.putua(attr_t::ATTR_DEVICE_NAMES, (byte *)container->data(), unsigned(container->size()), -1, UNDEF, 0, 0, [&](Error e)
-        {
-            std::lock_guard<std::recursive_mutex> g(attrDeviceNamePut_mutex);
-            if (e == API_OK)
-            {
-                attrDeviceNamePut = true;
-            }
-            else
-            {
-                LOG_err << "Error setting device id user attribute";
-            }
-
-            replyReceived = true;
-            attrDeviceNamePut_cv.notify_one();
-        });
-
-        attrDeviceNamePut_cv.wait_for(g, std::chrono::seconds(numSeconds), [&replyReceived](){ return replyReceived.load(); });
-
-
-        attrDeviceIsSet = isUserAttributeSet(attr_t::ATTR_DEVICE_NAMES, numSeconds, err);
-
+        return false; // Unexpected error has been detected
     }
+
+    std::string timestamp = getCurrentTimestamp(true);
+    std::string deviceName = "Jenkins " + timestamp;
+
+    tlv->set(deviceIdHash, deviceName);
+    bool attrDeviceNamePut = false;
+    std::recursive_mutex attrDeviceNamePut_mutex;
+    std::condition_variable_any attrDeviceNamePut_cv;
+    std::atomic_bool replyReceived{false};
+    // serialize and encrypt the TLV container
+    std::unique_ptr<string> container(tlv->tlvRecordsToContainer(client.rng, &client.key));
+    std::unique_lock<std::recursive_mutex> g(attrDeviceNamePut_mutex);
+    client.putua(attr_t::ATTR_DEVICE_NAMES, (byte *)container->data(), unsigned(container->size()), -1, UNDEF, 0, 0, [&](Error e)
+    {
+        std::lock_guard<std::recursive_mutex> g(attrDeviceNamePut_mutex);
+        if (e == API_OK)
+        {
+            attrDeviceNamePut = true;
+        }
+        else
+        {
+            LOG_err << "Error setting device id user attribute";
+        }
+
+        replyReceived = true;
+        attrDeviceNamePut_cv.notify_one();
+    });
+
+    attrDeviceNamePut_cv.wait_for(g, std::chrono::seconds(numSeconds), [&replyReceived](){ return replyReceived.load(); });
+
+
+    attrDeviceIsSet = isUserAttributeSet(attr_t::ATTR_DEVICE_NAMES, numSeconds, err);
+
 
     return attrDeviceIsSet;
 }
