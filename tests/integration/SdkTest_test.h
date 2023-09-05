@@ -316,7 +316,6 @@ public:
         string attributeValue;
         string chatlink;  // not really used anywhere, should it be removed ?
         MegaHandle mBackupId = UNDEF;
-        m_off_t mNumber;
         shared_ptr<const MegaStringListMap> stringListMap;
         shared_ptr<const MegaHandleList> mMegaFavNodeList;
         shared_ptr<const MegaStringTable> stringTable;

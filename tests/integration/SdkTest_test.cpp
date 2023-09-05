@@ -14448,12 +14448,19 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
 
             // Use the same slotID (it should be empty now) for the next test
         }
+        else
+        {
+            slotID = 1; // Test the 1st slotID for a FREE account (must be empty)
+        }
+
         // 6) Delete VPN credentials from an unoccupied slot. Expecting ENOENT: SlotID is empty
-        result = doDelVpnCredential(0, isProAccount ? slotID : 1);
+        result = doDelVpnCredential(0, slotID);
+
         ASSERT_EQ(API_ENOENT, result) << "deleting the VPN credentials from the unused slotID " << slotID << " didn't return the expected error value";
 
         // 7) Delete VPN credentials from an invalid slot. Expecting EARGS: SlotID is not valid
-        result = doDelVpnCredential(0, -1);
+        slotID = -1;
+        result = doDelVpnCredential(0, slotID);
         ASSERT_EQ(API_EARGS, result) << "deleting the VPN credential from the invalid slotID " << slotID << " didn't return the expected error value";
     }
 }
