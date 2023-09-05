@@ -1152,6 +1152,11 @@ MegaBackupInfoList* MegaRequest::getMegaBackupInfoList() const
     return nullptr;
 }
 
+MegaVpnCredentials* MegaRequest::getMegaVpnCredentials() const
+{
+    return nullptr;
+}
+
 MegaTransfer::~MegaTransfer() { }
 
 MegaTransfer *MegaTransfer::copy()
@@ -1866,6 +1871,8 @@ bool MegaTreeProcessor::processMegaNode(MegaNode*)
 { return false; /* Stops the processing */ }
 MegaTreeProcessor::~MegaTreeProcessor()
 { }
+
+/* BEGIN MEGAAPI */
 
 MegaApi::MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned workerThreadCount)
 {
@@ -5918,6 +5925,33 @@ bool MegaApi::requestStatusMonitorEnabled()
     return pImpl->requestStatusMonitorEnabled();
 }
 
+void MegaApi::getVpnRegions(MegaRequestListener* listener)
+{
+    pImpl->getVpnRegions(listener);
+}
+
+void MegaApi::getVpnCredentials(MegaRequestListener* listener)
+{
+    pImpl->getVpnCredentials(listener);
+}
+
+void MegaApi::putVpnCredential(const char* region, MegaRequestListener* listener)
+{
+    pImpl->putVpnCredential(region, listener);
+}
+
+void MegaApi::delVpnCredential(int slotID, MegaRequestListener* listener)
+{
+    pImpl->delVpnCredential(slotID, listener);
+}
+
+void MegaApi::checkVpnCredential(const char* userPubKey, MegaRequestListener* listener)
+{
+    pImpl->checkVpnCredential(userPubKey, listener);
+}
+
+/* END MEGAAPI */
+
 MegaHashSignature::MegaHashSignature(const char *base64Key)
 {
     pImpl = new MegaHashSignatureImpl(base64Key);
@@ -7624,5 +7658,56 @@ MegaCurrency *MegaCurrency::copy()
 {
     return nullptr;
 }
+
+
+/* MegaVpnCredentials BEGIN */
+MegaVpnCredentials::MegaVpnCredentials()
+{
+}
+
+MegaVpnCredentials::~MegaVpnCredentials()
+{
+}
+
+MegaIntegerList* MegaVpnCredentials::getSlotIDs() const
+{
+    return nullptr;
+}
+
+MegaStringList* MegaVpnCredentials::getVpnRegions() const
+{
+    return nullptr;
+}
+
+const char* MegaVpnCredentials::getIPv4(int slotID) const
+{
+    return nullptr;
+}
+
+const char* MegaVpnCredentials::getIPv6(int slotID) const
+{
+    return nullptr;
+}
+
+const char* MegaVpnCredentials::getDeviceID(int slotID) const
+{
+    return nullptr;
+}
+
+int MegaVpnCredentials::getClusterID(int slotID) const
+{
+    return 0;
+}
+
+const char* MegaVpnCredentials::getClusterPublicKey(int clusterID) const
+{
+    return nullptr;
+}
+
+MegaVpnCredentials* MegaVpnCredentials::copy() const
+{
+    return nullptr;
+}
+/* MegaVpnCredentials END */
 
 }

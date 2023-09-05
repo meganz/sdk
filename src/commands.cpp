@@ -9567,7 +9567,7 @@ bool CommandFetchSet::procresult(Result r, JSON& json)
     return true;
 }
 
-CommandPutSetElements::CommandPutSetElements(MegaClient* cl, vector<SetElement>&& els, vector<pair<string, string>>&& encrDetails,
+CommandPutSetElements::CommandPutSetElements(MegaClient* cl, vector<SetElement>&& els, vector<StringPair>&& encrDetails,
                                                std::function<void(Error, const vector<const SetElement*>*, const vector<int64_t>*)> completion)
     : mElements(new vector<SetElement>(std::move(els))), mCompletion(completion)
 {
@@ -10401,5 +10401,300 @@ CommandQueryAds::CommandQueryAds(MegaClient* client, int adFlags, handle publicH
 
     tag = client->reqtag;
 }
+
+/* MegaVPN Commands BEGIN */
+CommandGetVpnRegions::CommandGetVpnRegions(MegaClient* client, Cb&& completion)
+:
+    mCompletion(std::move(completion))
+{
+    cmd("vpnr");
+
+    tag = client->reqtag;
+}
+
+void CommandGetVpnRegions::parseregions(JSON& json, std::vector<std::string>* vpnRegions)
+{
+    std::string vpnRegion;
+    while (json.storeobject(&vpnRegion))
+    {
+        if (vpnRegions)
+        {
+            vpnRegions->emplace_back(std::move(vpnRegion));
+        }
+    }
+}
+
+bool CommandGetVpnRegions::procresult(Command::Result r, JSON& json)
+{
+    if (!r.hasJsonArray())
+    {
+        if (mCompletion) { mCompletion(API_EINTERNAL, {}); }
+        return false;
+    }
+
+    // Parse regions
+    std::vector<std::string> vpnRegions;
+    parseregions(json, &vpnRegions);
+
+    mCompletion(API_OK, std::move(vpnRegions));
+    return true;
+}
+
+CommandGetVpnCredentials::CommandGetVpnCredentials(MegaClient* client, Cb&& completion)
+:
+    mCompletion(std::move(completion))
+{
+    cmd("vpng");
+    arg("v", 2);
+
+    tag = client->reqtag;
+}
+
+bool CommandGetVpnCredentials::procresult(Command::Result r, JSON& json)
+{
+    if (r.wasErrorOrOK())
+    {
+        if (mCompletion) { mCompletion(r.errorOrOK(), {}, {}, {}); }
+        return true;
+    }
+
+    Error e(API_EINTERNAL);
+    MapSlotIDToCredentialInfo mapSlotIDToCredentialInfo;
+    MapClusterPublicKeys mapClusterPubKeys;
+    {
+        // Parse ClusterID and IPs
+        if (json.enterobject())
+        {
+            string slotIDStr;
+            bool parsedOk = true;
+            while (parsedOk)
+            {
+                slotIDStr = json.getname();
+                if (slotIDStr.empty())
+                {
+                    break;
+                }
+
+                int slotID = -1;
+                try
+                {
+                    slotID = std::stoi(slotIDStr);
+                }
+                catch (std::exception const &ex)
+                {
+                    LOG_err << "[CommandGetVpnCredentials] Could not convert param SlotID(" << slotIDStr << ") to integer. Exception: " << ex.what();
+                    parsedOk = false;
+                }
+
+                if (parsedOk && json.enterarray())
+                {
+                    CredentialInfo credentialInfo;
+                    credentialInfo.clusterID = static_cast<int>(json.getint());
+                    parsedOk = credentialInfo.clusterID != -1;
+                    parsedOk = parsedOk && json.storeobject(&credentialInfo.ipv4);
+                    parsedOk = parsedOk && json.storeobject(&credentialInfo.ipv6);
+                    parsedOk = parsedOk && json.storeobject(&credentialInfo.deviceID);
+                    if (parsedOk)
+                    {
+                        mapSlotIDToCredentialInfo.emplace(std::make_pair(slotID, std::move(credentialInfo)));
+                    }
+                    json.leavearray();
+                }
+            }
+            if (!parsedOk)
+            {
+                // There were credentials, but something was wrong with the JSON
+                if (mCompletion) { mCompletion(e, {}, {}, {}); }
+                return false;
+            }
+            json.leaveobject();
+        }
+        else
+        {
+            // There should be a valid object at this point
+            if (mCompletion) { mCompletion(e, {}, {}, {}); }
+            return false;
+        }
+
+        // Parse Cluster Public Keys
+        if (json.enterobject())
+        {
+            bool parsedOk = true;
+            while (parsedOk)
+            {
+                std::string clusterIDStr = json.getname();
+                if (clusterIDStr.empty())
+                {
+                    break;
+                }
+
+                int clusterID = -1;
+                try
+                {
+                    clusterID = std::stoi(clusterIDStr);
+                }
+                catch (std::exception const &ex)
+                {
+                    LOG_err << "[CommandGetVpnCredentials] Could not convert param ClusterID(" << clusterIDStr << ") to integer. Exception: " << ex.what();
+                    parsedOk = false;
+                }
+
+                if (parsedOk)
+                {
+                    std::string clusterPubKey;
+                    if (!json.storeobject(&clusterPubKey))
+                    {
+                        parsedOk = false;
+                        break;
+                    }
+                    mapClusterPubKeys.emplace(std::make_pair(clusterID, clusterPubKey));
+                }
+            }
+            if (!parsedOk)
+            {
+                // There were credentials and a valid ClusterID, but something was wrong with the Cluster Public Key value
+                if (mCompletion) { mCompletion(e, {}, {}, {}); }
+                return false;
+            }
+            json.leaveobject();
+        }
+        else
+        {
+            // There were credentials, but there were no information regarding the Cluster Public Key(s)
+            if (mCompletion) { mCompletion(e, {}, {}, {}); }
+            return false;
+        }
+    }
+
+    // Finally, parse VPN regions
+    std::vector<std::string> vpnRegions;
+    if (json.enterarray())
+    {
+        // Parse regions
+        CommandGetVpnRegions::parseregions(json, &vpnRegions);
+        json.leavearray();
+    }
+
+    e.setErrorCode(API_OK);
+    mCompletion(e, std::move(mapSlotIDToCredentialInfo), std::move(mapClusterPubKeys), std::move(vpnRegions));
+
+    return true;
+}
+
+CommandPutVpnCredential::CommandPutVpnCredential(MegaClient* client,
+                                                std::string&& region,
+                                                StringKeyPair&& userKeyPair,
+                                                Cb&& completion)
+:
+    mRegion(std::move(region)),
+    mUserKeyPair(std::move(userKeyPair)),
+    mCompletion(std::move(completion))
+{
+    cmd("vpnp");
+    arg("k", (byte*)mUserKeyPair.pubKey.c_str(), static_cast<int>(mUserKeyPair.pubKey.size()));
+
+    tag = client->reqtag;
+}
+
+bool CommandPutVpnCredential::procresult(Command::Result r, JSON& json)
+{
+    if (r.wasErrorOrOK())
+    {
+        if (mCompletion) { mCompletion(r.errorOrOK(), -1, {}, {}); }
+        return true;
+    }
+
+    if (!r.hasJsonArray())
+    {
+        if (mCompletion) { mCompletion(API_EINTERNAL, -1, {}, {}); }
+        return false;
+    }
+
+    // We receive directly one array here (like in CommandGetVpnRegions), so we are inside the array already
+
+    // Parse SlotID
+    int slotID = static_cast<int>(json.getint());
+
+    // Parse ClusterID
+    int clusterID = static_cast<int>(json.getint());
+
+    // Parse IPv4
+    std::string ipv4;
+    if (!json.storeobject(&ipv4))
+    {
+        if (mCompletion) { mCompletion(API_EINTERNAL, -1, {}, {}); }
+        return false;
+    }
+
+    // Parse IPv6
+    std::string ipv6;
+    if (!json.storeobject(&ipv6))
+    {
+        if (mCompletion) { mCompletion(API_EINTERNAL, -1, {}, {}); }
+        return false;
+    }
+
+    // Parse Cluster Public Key
+    std::string clusterPubKey;
+    if (!json.storeobject(&clusterPubKey))
+    {
+        if (mCompletion) { mCompletion(API_EINTERNAL, -1, {}, {}); }
+        return false;
+    }
+
+    // Skip VPN regions
+    if (json.enterarray())
+    {
+        CommandGetVpnRegions::parseregions(json, nullptr);
+        json.leavearray();
+    }
+
+    if (mCompletion)
+    {
+        std::string userPubKey = Base64::btoa(mUserKeyPair.pubKey);
+        auto peerKeyPair = StringKeyPair(std::move(mUserKeyPair.privKey), std::move(clusterPubKey));
+        std::string newCredential = client->generateVpnCredentialString(clusterID, std::move(mRegion), std::move(ipv4), std::move(ipv6), std::move(peerKeyPair));
+        mCompletion(API_OK, slotID, std::move(userPubKey), std::move(newCredential));
+    }
+    return true;
+}
+
+CommandDelVpnCredential::CommandDelVpnCredential(MegaClient* client, int slotID, Cb&& completion)
+:
+    mCompletion(std::move(completion))
+{
+    cmd("vpnd");
+    arg("s", slotID); // SlotID to remove the credentials
+
+    tag = client->reqtag;
+}
+
+bool CommandDelVpnCredential::procresult(Command::Result r, JSON& json)
+{
+    if (mCompletion)
+    {
+        mCompletion(r.errorOrOK());
+    }
+    return r.wasErrorOrOK();
+}
+
+CommandCheckVpnCredential::CommandCheckVpnCredential(MegaClient* client, string&& userPubKey, Cb&& completion)
+{
+    cmd("vpnc");
+    arg("k", userPubKey.c_str()); // User Public Key is already in B64 format
+    tag = client->reqtag;
+
+    mCompletion = std::move(completion);
+}
+
+bool CommandCheckVpnCredential::procresult(Command::Result r, JSON& json)
+{
+    if (mCompletion)
+    {
+        mCompletion(r.errorOrOK());
+    }
+    return r.wasErrorOrOK();
+}
+/* MegaVPN Commands END*/
 
 } // namespace
