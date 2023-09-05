@@ -1116,7 +1116,7 @@ bool StandardClient::isUserAttributeSet(attr_t attr, unsigned int numSeconds, er
 bool StandardClient::waitForAttrDeviceIdIsSet(unsigned int numSeconds)
 {
     error err;
-    bool attrDeviceIsSet = isUserAttributeSet(attr_t::ATTR_DEVICE_NAMES, numSeconds, err);
+    isUserAttributeSet(attr_t::ATTR_DEVICE_NAMES, numSeconds, err);
 
     std::unique_ptr<TLVstore> tlv;
     std::string deviceIdHash = client.getDeviceidHash();
@@ -1168,11 +1168,14 @@ bool StandardClient::waitForAttrDeviceIdIsSet(unsigned int numSeconds)
 
     attrDeviceNamePut_cv.wait_for(g, std::chrono::seconds(numSeconds), [&replyReceived](){ return replyReceived.load(); });
 
+    if (!attrDeviceNamePut) // Error setting device id
+    {
+        return false;
+    }
 
-    attrDeviceIsSet = isUserAttributeSet(attr_t::ATTR_DEVICE_NAMES, numSeconds, err);
-
-
-    return attrDeviceIsSet;
+    // Check if attribute has been established properly
+    return isUserAttributeSet(attr_t::ATTR_DEVICE_NAMES, numSeconds, err);
+;
 }
 
 bool StandardClient::waitForAttrMyBackupIsSet(unsigned int numSeconds)
@@ -1180,38 +1183,43 @@ bool StandardClient::waitForAttrMyBackupIsSet(unsigned int numSeconds)
     error err;
     bool attrMyBackupFolderIsSet = isUserAttributeSet(attr_t::ATTR_MY_BACKUPS_FOLDER, numSeconds, err);
 
-    if (err == API_ENOENT) // If attribute is not set, it's going to established
+    if (err != API_ENOENT)
     {
-        const char* folderName = "My Backups";
-        attrMyBackupFolderIsSet = false;
-        std::recursive_mutex attrMyBackup_cv_mutex;
-        std::condition_variable_any user_attribute_backup_updated_cv;
-        std::atomic_bool replyReceived{false};
-        std::unique_lock<std::recursive_mutex> g(attrMyBackup_cv_mutex);
-        client.setbackupfolder(folderName, client.reqtag, [&](Error e)
-        {
-            std::lock_guard<std::recursive_mutex> g(attrMyBackup_cv_mutex);
-            if (e == API_OK)
-            {
-                attrMyBackupFolderIsSet = true;
-            }
-            else
-            {
-                LOG_err << "Error setting back folder user attribute";
-            }
-
-            replyReceived = true;
-            user_attribute_backup_updated_cv.notify_one();
-        });
-
-        user_attribute_backup_updated_cv.wait_for(g, std::chrono::seconds(numSeconds), [&replyReceived](){ return replyReceived.load(); });
-
-        // Check if attribute has been established properly
-        // Re-initialize variables, mOnGetUA is used as getua_result callback
-        attrMyBackupFolderIsSet = isUserAttributeSet(attr_t::ATTR_MY_BACKUPS_FOLDER, numSeconds, err);
+        return attrMyBackupFolderIsSet;
     }
 
-    return attrMyBackupFolderIsSet;
+    // If attribute is not set, it's going to established
+    const char* folderName = "My Backups";
+    attrMyBackupFolderIsSet = false;
+    std::recursive_mutex attrMyBackup_cv_mutex;
+    std::condition_variable_any user_attribute_backup_updated_cv;
+    std::atomic_bool replyReceived{false};
+    std::unique_lock<std::recursive_mutex> g(attrMyBackup_cv_mutex);
+    client.setbackupfolder(folderName, client.reqtag, [&](Error e)
+    {
+        std::lock_guard<std::recursive_mutex> g(attrMyBackup_cv_mutex);
+        if (e == API_OK)
+        {
+            attrMyBackupFolderIsSet = true;
+        }
+        else
+        {
+            LOG_err << "Error setting backup folder user attribute";
+        }
+
+        replyReceived = true;
+        user_attribute_backup_updated_cv.notify_one();
+    });
+
+    user_attribute_backup_updated_cv.wait_for(g, std::chrono::seconds(numSeconds), [&replyReceived](){ return replyReceived.load(); });
+
+    if (!attrMyBackupFolderIsSet) // Error setting backup folder
+    {
+        return false;
+    }
+
+    // Check if attribute has been established properly
+    return isUserAttributeSet(attr_t::ATTR_MY_BACKUPS_FOLDER, numSeconds, err);;
 }
 
 void StandardClient::file_added(File* file)
