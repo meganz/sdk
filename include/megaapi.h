@@ -19687,6 +19687,9 @@ class MegaApi
          * - MegaRequest::getNodeHandle - Returns the chat identifier
          * - MegaRequest::getParentHandle - Returns the message identifier to truncate from.
          *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT- If the chatroom doesn't exist.
+         *
          * @param chatid MegaHandle that identifies the chat room
          * @param messageid MegaHandle that identifies the message to truncate from
          * @param listener MegaRequestListener to track this request
@@ -19707,6 +19710,7 @@ class MegaApi
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EACCESS - If the logged in user doesn't have privileges to invite peers.
          * - MegaError::API_EARGS - If there's a title and it's not Base64url encoded.
+         * - MegaError::API_ENOENT- If the chatroom doesn't exist.
          *
          * @param chatid MegaHandle that identifies the chat room
          * @param title Byte array representing the title that wants to be set, already encrypted and
