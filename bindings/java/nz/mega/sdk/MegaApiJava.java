@@ -11369,16 +11369,6 @@ public class MegaApiJava {
     }
 
     /**
-     * Requests the contacts that are registered at MEGA (currently verified through SMS)
-     *
-     * @param contacts The map of contacts to get registered contacts from
-     * @param listener MegaRequestListener to track this request
-     */
-    public void getRegisteredContacts(MegaStringMap contacts, nz.mega.sdk.MegaRequestListenerInterface listener) {
-        megaApi.getRegisteredContacts(contacts, createDelegateRequestListener(listener));
-    }
-
-    /**
      * Requests the currently available country calling codes
      *
      * @param listener MegaRequestListener to track this request

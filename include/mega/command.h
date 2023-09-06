@@ -1434,14 +1434,6 @@ public:
     CommandSMSVerificationCheck(MegaClient*, const string& code);
 };
 
-class MEGA_API CommandGetRegisteredContacts : public Command
-{
-public:
-    bool procresult(Result, JSON&) override;
-
-    CommandGetRegisteredContacts(MegaClient* client, const map<const char*, const char*>& contacts);
-};
-
 class MEGA_API CommandGetCountryCallingCodes : public Command
 {
 public:
@@ -1638,7 +1630,7 @@ private:
 class MEGA_API CommandPutSetElements : public CommandSE
 {
 public:
-    CommandPutSetElements(MegaClient*, vector<SetElement>&& el, vector<pair<string, string>>&& encrDetails,
+    CommandPutSetElements(MegaClient*, vector<SetElement>&& el, vector<StringPair>&& encrDetails,
                          std::function<void(Error, const vector<const SetElement*>*, const vector<int64_t>*)> completion);
     bool procresult(Result, JSON&) override;
 
@@ -1794,6 +1786,85 @@ public:
 
     CommandQueryAds(MegaClient*, int adFlags, handle publicHandle, CommandQueryAdsCompletion completion);
 };
+
+/* MegaVPN Commands BEGIN */
+class MEGA_API CommandGetVpnRegions : public Command
+{
+public:
+    using Cb = std::function<void(const Error& /* API error */,
+                                std::vector<std::string>&& /* VPN regions */)>;
+    CommandGetVpnRegions(MegaClient*, Cb&& completion = nullptr);
+    bool procresult(Result, JSON&) override;
+    static void parseregions(JSON& json, std::vector<std::string>*);
+
+private:
+    Cb mCompletion;
+};
+
+class MEGA_API CommandGetVpnCredentials : public Command
+{
+public:
+    struct CredentialInfo
+    {
+        int clusterID;
+        std::string ipv4;
+        std::string ipv6;
+        std::string deviceID;
+    };
+    using MapSlotIDToCredentialInfo = std::map<int /* SlotID */, CredentialInfo>;
+    using MapClusterPublicKeys = std::map<int /* ClusterID */, std::string /* Cluster Public Key */ >;
+    using Cb = std::function<void(const Error& /* API error */,
+                                MapSlotIDToCredentialInfo&& /* Map of SlotID: { ClusterID, IPv4, IPv6, DeviceID } */,
+                                MapClusterPublicKeys&& /* Map of ClusterID: Cluster Public Key */,
+                                std::vector<std::string>&& /* VPN Regions */)>;
+    CommandGetVpnCredentials(MegaClient*, Cb&& completion = nullptr);
+    bool procresult(Result, JSON&) override;
+
+private:
+    Cb mCompletion;
+};
+
+class MEGA_API CommandPutVpnCredential : public Command
+{
+public:
+    using Cb = std::function<void(const Error&  /* API error */,
+                                int             /* SlotID */,
+                                std::string&&   /* User Public Key */,
+                                std::string&&   /* New Credential */)>;
+    CommandPutVpnCredential(MegaClient*,
+                            std::string&& /* VPN Region */,
+                            StringKeyPair&& /* User Key Pair <Private, Public> */,
+                            Cb&& completion = nullptr);
+    bool procresult(Result, JSON&) override;
+
+private:
+    std::string mRegion;
+    StringKeyPair mUserKeyPair;
+    Cb mCompletion;
+};
+
+class MEGA_API CommandDelVpnCredential : public Command
+{
+public:
+    using Cb = std::function<void(const Error& /*e*/)>;
+    CommandDelVpnCredential(MegaClient*, int /* SlotID */, Cb&& completion = nullptr);
+    bool procresult(Result, JSON&) override;
+
+private:
+    Cb mCompletion;
+};
+
+class MEGA_API CommandCheckVpnCredential : public Command
+{
+public:
+    using Cb = std::function<void(const Error& /*e*/)>;
+    CommandCheckVpnCredential(MegaClient*, std::string&& /* User Public Key */, Cb&& completion = nullptr);
+    bool procresult(Result, JSON&) override;
+
+private:
+    Cb mCompletion;
+};
+/* MegaVPN Commands END*/
 
 } // namespace
 

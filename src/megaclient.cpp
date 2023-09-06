@@ -1381,6 +1381,21 @@ void MegaClient::fetchtimezone()
     reqs.add(new CommandFetchTimeZone(this, "", timeoffset.c_str()));
 }
 
+void MegaClient::reportInvalidSchedMeeting(const ScheduledMeeting* sched)
+{
+    std::string errMsg = "Ill-formed sched meeting(s)";
+
+    sendevent(99481, errMsg.c_str());
+
+    if (sched)
+    {
+        errMsg.append(" chatid:  ").append(toHandle(sched->chatid()))
+            .append(" schedid: ").append(toHandle(sched->schedId()));
+    }
+    LOG_err << errMsg;
+    assert(false);
+}
+
 void MegaClient::keepmealive(int type, bool enable)
 {
     reqs.add(new CommandKeepMeAlive(this, type, enable));
@@ -4565,6 +4580,7 @@ bool MegaClient::procsc()
                 case EOO:
                     if (!useralerts.isDeletedSharedNodesStashEmpty())
                     {
+			useralerts.purgeNodeVersionsFromStash();
                         useralerts.convertStashedDeletedSharedNodes();
                     }
 
@@ -12609,9 +12625,18 @@ void MegaClient::procmcsm(JSON *j)
     std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
     if (j && j->enterarray())
     {
-        error err = parseScheduledMeetings(schedMeetings, false, j);
-        j->leavearray();
-        if (err || schedMeetings.empty()) { return; }
+        error e = parseScheduledMeetings(schedMeetings, false, j);
+        if (e != API_OK)
+        {
+            LOG_err << "Failed to parse 'mcsm' array at fetchnodes. Error: " << e;
+        }
+
+        if (!j->leavearray())
+        {
+            LOG_err << "Failed to leave array at procmcsm. Error: " << API_EINTERNAL;
+        }
+
+        if (e != API_OK) { return; }
     }
 
     for (auto &sm: schedMeetings)
@@ -16756,9 +16781,7 @@ bool MegaClient::nodeIsMedia(const Node *n, bool *isphoto, bool *isvideo) const
         return false;
     }
 
-    MimeType_t mimeType = n->getMimeType(true); // In case of photo type, check if it has preview
-
-    bool a = mimeType == MimeType_t::MIME_TYPE_PHOTO;
+    bool a = n->isIncludedForMimetype(MimeType_t::MIME_TYPE_PHOTO);
     if (isphoto)
     {
         *isphoto = a;
@@ -16767,7 +16790,7 @@ bool MegaClient::nodeIsMedia(const Node *n, bool *isphoto, bool *isvideo) const
     {
         return true;
     }
-    bool b = mimeType == MimeType_t::MIME_TYPE_VIDEO;
+    bool b = n->isIncludedForMimetype(MimeType_t::MIME_TYPE_VIDEO);
     if (isvideo)
     {
         *isvideo = b;
@@ -16778,47 +16801,47 @@ bool MegaClient::nodeIsMedia(const Node *n, bool *isphoto, bool *isvideo) const
 
 bool MegaClient::nodeIsVideo(const Node *n) const
 {
-    return n->getMimeType() == MimeType_t::MIME_TYPE_VIDEO;
+    return n->isIncludedForMimetype(MimeType_t::MIME_TYPE_VIDEO);
 }
 
 bool MegaClient::nodeIsPhoto(const Node *n, bool checkPreview) const
 {
-    return n->getMimeType(checkPreview) == MimeType_t::MIME_TYPE_PHOTO;
+    return n->isIncludedForMimetype(MimeType_t::MIME_TYPE_PHOTO, checkPreview);
 }
 
 bool MegaClient::nodeIsAudio(const Node *n) const
 {
-    return n->getMimeType() == MimeType_t::MIME_TYPE_AUDIO;
+    return n->isIncludedForMimetype(MimeType_t::MIME_TYPE_AUDIO);
 }
 
 bool MegaClient::nodeIsDocument(const Node *n) const
 {
-    return n->getMimeType() == MimeType_t::MIME_TYPE_DOCUMENT;
+    return n->isIncludedForMimetype(MimeType_t::MIME_TYPE_DOCUMENT);
 }
 
 bool MegaClient::nodeIsPdf(const Node *n) const
 {
-    return n->getMimeType() == MimeType_t::MIME_TYPE_PDF;
+    return n->isIncludedForMimetype(MimeType_t::MIME_TYPE_PDF);
 }
 
 bool MegaClient::nodeIsPresentation(const Node *n) const
 {
-    return n->getMimeType() == MimeType_t::MIME_TYPE_PRESENTATION;
+    return n->isIncludedForMimetype(MimeType_t::MIME_TYPE_PRESENTATION);
 }
 
 bool MegaClient::nodeIsArchive(const Node* n) const
 {
-    return n->getMimeType() == MimeType_t::MIME_TYPE_ARCHIVE;
+    return n->isIncludedForMimetype(MimeType_t::MIME_TYPE_ARCHIVE);
 }
 
 bool MegaClient::nodeIsProgram(const Node* n) const
 {
-    return n->getMimeType() == MimeType_t::MIME_TYPE_PROGRAM;
+    return n->isIncludedForMimetype(MimeType_t::MIME_TYPE_PROGRAM);
 }
 
 bool MegaClient::nodeIsMiscellaneous(const Node* n) const
 {
-    return n->getMimeType() == MimeType_t::MIME_TYPE_MISC;
+    return n->isIncludedForMimetype(MimeType_t::MIME_TYPE_MISC);
 }
 
 bool MegaClient::treatAsIfFileDataEqual(const FileFingerprint& node1, const LocalPath& file2, const string& filenameExtensionLowercaseNoDot)
@@ -17250,8 +17273,13 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                                          handle* ou, UserAlert::UpdatedScheduledMeeting::Changeset* cs,
                                          handle_set* childMeetingsDeleted)
 {
+    /* - if any parsing error occurs: this method returns API_EINTERNAL, and schedMeetings vector will
+     *   contain those valid scheduled meetings already parsed
+     * - if no parsing error but any sched meeting is considered ill-formed by ScheduledMeeting::isValid():
+     *   that sched meeting won't be added added to schedMeetings vector, and we'll continue processing JSON
+     */
     JSON* auxJson = j;
-
+    bool illFormedElems = false;
     bool parse = parseOnce
             ? true                      // parse a single object
             : auxJson->enterobject();   // parse an array of objects
@@ -17259,7 +17287,6 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
     while (parse)
     {
         bool exit = false;
-        bool schedParseErr = false;
         handle chatid = UNDEF;
         handle organizerUserId = UNDEF;
         handle schedId = UNDEF;
@@ -17351,44 +17378,18 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     flags.reset(new ScheduledFlags(static_cast<unsigned long>(auxJson->getint())));
                     break;
                 }
-                // there are no scheduled meeting rules
-                case MAKENAMEID1('r'):
+                case MAKENAMEID1('r'): // scheduled meeting rules
                 {
-                    if (parsingOccurrences)
+                    if (auxJson->enterobject())
                     {
-                       /* if parsingOccurrences is true, we are parsing meeting occurrences (meeting calls events generated due to a scheduled meeting information)
-                        * associated to a scheduled meeting. This meeting ocurrences shouldn't contain scheduled rules as it doesn't represent the scheduled meeting
-                        * but an event generated by this one.
-                        */
-                       schedParseErr = true;
-                       LOG_err << "scheduled meetings occurrence contain repetition rules";
-                       if (!auxJson->storeobject())
-                       {
-                           return API_EINTERNAL;
-                       }
-                       break;
-                    }
-
-                    string freq;
-                    m_time_t until = mega_invalid_timestamp;
-                    int interval = ScheduledRules::INTERVAL_INVALID;
-                    ScheduledRules::rules_vector vWeek;
-                    ScheduledRules::rules_vector vMonth;
-                    ScheduledRules::rules_map mMonth;
-
-                    if (!auxJson->enterobject())
-                    {
-                        schedParseErr = true;
-                        LOG_err << "scheduled meetings repetition rules ill-formed";
-                        if (!auxJson->storeobject())
-                        {
-                            return API_EINTERNAL;
-                        }
-                        break;
-                    }
-                    else
-                    {
+                        string freq;
+                        m_time_t until = mega_invalid_timestamp;
+                        int interval = ScheduledRules::INTERVAL_INVALID;
+                        ScheduledRules::rules_vector vWeek;
+                        ScheduledRules::rules_vector vMonth;
+                        ScheduledRules::rules_map mMonth;
                         bool exitRules = false;
+
                         while (!exitRules)
                         {
                             switch (auxJson->getnameid())
@@ -17418,15 +17419,6 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                                         }
                                         auxJson->leavearray();
                                     }
-                                    else
-                                    {
-                                        schedParseErr = true;
-                                        LOG_err << "scheduled meetings repetition rules ill-formed (wd)";
-                                        if (!auxJson->storeobject())
-                                        {
-                                            return API_EINTERNAL;
-                                        }
-                                    }
                                     break;
                                 }
                                 case MAKENAMEID2('m', 'd'):
@@ -17438,15 +17430,6 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                                             vMonth.emplace_back(static_cast<int8_t>(auxJson->getint()));
                                         }
                                         auxJson->leavearray();
-                                    }
-                                    else
-                                    {
-                                        schedParseErr = true;
-                                        LOG_err << "scheduled meetings repetition rules ill-formed (md)";
-                                        if (!auxJson->storeobject())
-                                        {
-                                            return API_EINTERNAL;
-                                        }
                                     }
                                     break;
                                 }
@@ -17479,15 +17462,6 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                                         }
                                         auxJson->leavearray();
                                     }
-                                    else
-                                    {
-                                        schedParseErr = true;
-                                        LOG_err << "scheduled meetings repetition rules ill-formed (mwd)";
-                                        if (!auxJson->storeobject())
-                                        {
-                                            return API_EINTERNAL;
-                                        }
-                                    }
                                     break;
                                 }
                                 case EOO:
@@ -17505,10 +17479,9 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                             }
                         }
                         auxJson->leaveobject();
+                        rules.reset(new ScheduledRules(ScheduledRules::stringToFreq(freq.c_str()), interval,
+                                                       until, &vWeek, &vMonth, &mMonth));
                     }
-
-                    rules.reset(new ScheduledRules(ScheduledRules::stringToFreq(freq.c_str()), interval,
-                                                                            until, &vWeek, &vMonth, &mMonth));
                     break;
                 }
                 case MAKENAMEID2('c', 's'):
@@ -17518,8 +17491,9 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     {
                         if (parseScheduledMeetingChangeset(auxJson, cs) != API_OK)
                         {
-                            assert(false);
                             LOG_err << "UpdatedScheduledMeeting user alert ctor: error parsing cs array";
+                            assert(false);
+                            return API_EINTERNAL;
                         }
                         auxJson->leaveobject();
                     }
@@ -17552,23 +17526,16 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                                          parentSchedId, cancelled, Base64::atob(attributes),
                                          overrides, flags.get(), rules.get()));
 
-                    if (!auxMeet->isValid() || schedParseErr)
+                    if ((parsingOccurrences && rules)
+                        || !auxMeet->isValid())
                     {
-                        // this object is malformed, so we don't want to store it
-                        std::string errMsg = "Ill-formed sched meeting";
-                        errMsg.append(" chatid:  ").append(Base64Str<MegaClient::CHATHANDLE>(auxMeet->chatid()))
-                              .append(" schedid: ").append(Base64Str<MegaClient::CHATHANDLE>(auxMeet->schedId()));
-
-                        sendevent(99471, errMsg.c_str());
-                        LOG_err << errMsg;
-                        assert(false);
+                        illFormedElems = true;
                     }
                     else
                     {
                         schedMeetings.emplace_back(std::move(auxMeet));
                         if (ou) *ou = originatingUser;
                     }
-
                     break;
                 }
                 default:
@@ -17585,6 +17552,11 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     ? false
                     : auxJson->enterobject();
     }
+
+    if (illFormedElems)
+    {
+        reportInvalidSchedMeeting();
+    }
     return API_OK;
 }
 
@@ -17594,7 +17566,7 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
     bool keepParsing = true;
     auto wasFieldUpdated = [&j]()
     {
-        bool updated = true;
+        bool updated = false;
         if (j->enterarray())
         {
             j->storeobject();
@@ -17604,27 +17576,30 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
         else
         {
             int v = static_cast<int>(j->getint());
-            if (v != 1)
+            if (v == 1)
+            {
+                //field has changed but don't receive old|new values due to size reasons
+                updated = true;
+            }
+            else
             {
                 LOG_err << "ScheduledMeetings: Expected a different flag to indicate updated "
                         << "field. Expected 1 received " << v;
                 assert(false);
             }
-            // else => field has changed but don't receive old|new values due to size reasons
         }
 
         return updated;
     };
 
-    auto getOldNewStrValues = [&j, &keepParsing](UserAlert::UpdatedScheduledMeeting::Changeset::StrChangeset& cs,
+    auto getOldNewStrValues = [&j](UserAlert::UpdatedScheduledMeeting::Changeset::StrChangeset& cs,
                 const char *fieldMsg)
     {
         if (!j->enterarray())
         {
-            assert(false);
             LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
                     << ". Array could not be accessed, ill-formed Json";
-            keepParsing = false;
+            assert(false);
             return API_EINTERNAL;
         }
 
@@ -17634,15 +17609,14 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
         return API_OK;
     };
 
-    auto getOldNewTsValues = [&j, &keepParsing](UserAlert::UpdatedScheduledMeeting::Changeset::TsChangeset& cs,
+    auto getOldNewTsValues = [&j](UserAlert::UpdatedScheduledMeeting::Changeset::TsChangeset& cs,
                 const char *fieldMsg)
     {
         if (!j->enterarray())
         {
-            assert(false);
             LOG_err << "ScheduledMeetings: Received updated SM with updated " << fieldMsg
                     << ". Array could not be accessed, ill-formed Json";
-            keepParsing = false;
+            assert(false);
             return API_EINTERNAL;
         }
 
@@ -17781,8 +17755,7 @@ error MegaClient::parseScheduledMeetingChangeset(JSON* j, UserAlert::UpdatedSche
             default:
                 if (!j->storeobject())
                 {
-                    keepParsing = false;
-                    e = API_EINTERNAL;
+                    return API_EINTERNAL;
                 }
             break;
         }
@@ -18085,7 +18058,7 @@ void MegaClient::putSetElements(vector<SetElement>&& els, std::function<void(Err
     }
 
     // build encrypted details
-    vector<pair<string, string>> encrDetails(els.size()); // vector < {encrypted attrs, encrypted key} >
+    vector<StringPair> encrDetails(els.size()); // vector < {encrypted attrs, encrypted key} >
     for (size_t i = 0u; i < els.size(); ++i)
     {
         SetElement& el = els[i];
@@ -19646,6 +19619,87 @@ Error MegaClient::sendABTestActive(const char* flag, CommandABTestActive::Comple
     reqs.add(new CommandABTestActive(this, flag, std::move(completion)));
     return API_OK;
 }
+
+/* Mega VPN methods BEGIN */
+StringKeyPair MegaClient::generateVpnKeyPair()
+{
+    auto vpnKey = ::mega::make_unique<ECDH>();
+    if (!vpnKey->initializationOK)
+    {
+        LOG_err << "Initialization of keys Cu25519 and/or Ed25519 failed";
+        return StringKeyPair(std::string(), std::string());
+    }
+    string privateKey = std::string((const char *)vpnKey->getPrivKey(), ECDH::PRIVATE_KEY_LENGTH);
+    string publicKey = std::string((const char *)vpnKey->getPubKey(), ECDH::PUBLIC_KEY_LENGTH);
+    return StringKeyPair(std::move(privateKey), std::move(publicKey));
+}
+
+// Call "vpnr" command.
+void MegaClient::getVpnRegions(CommandGetVpnRegions::Cb&& completion)
+{
+    reqs.add(new CommandGetVpnRegions(this, std::move(completion)));
+}
+
+// Call "vpng" command.
+void MegaClient::getVpnCredentials(CommandGetVpnCredentials::Cb&& completion)
+{
+    reqs.add(new CommandGetVpnCredentials(this, std::move(completion)));
+}
+
+// Call "vpnp" command.
+void MegaClient::putVpnCredential(std::string&& vpnRegion, CommandPutVpnCredential::Cb&& completion)
+{
+    auto vpnKeyPair = generateVpnKeyPair();
+    reqs.add(new CommandPutVpnCredential(this, std::move(vpnRegion), std::move(vpnKeyPair), std::move(completion)));
+}
+
+// Call "vpnd" command.
+void MegaClient::delVpnCredential(int slotID, CommandDelVpnCredential::Cb&& completion)
+{
+    reqs.add(new CommandDelVpnCredential(this, slotID, std::move(completion)));
+}
+
+// Call "vpnc" command.
+void MegaClient::checkVpnCredential(std::string&& userPubKey, CommandDelVpnCredential::Cb&& completion)
+{
+    reqs.add(new CommandCheckVpnCredential(this, std::move(userPubKey), std::move(completion)));
+}
+
+// Generate the credential string.
+string MegaClient::generateVpnCredentialString(int clusterID,
+                                               std::string&& vpnRegion,
+                                               std::string&& ipv4,
+                                               std::string&& ipv6,
+                                               StringKeyPair&& peerKeyPair)
+{
+    string peerPrivateKey = Base64::btoa(peerKeyPair.privKey);
+    string peerPublicKey = std::move(peerKeyPair.pubKey);
+
+    // Base64 standard format for Peer Key Pair
+    Base64::toStandard(peerPrivateKey);
+    Base64::toStandard(peerPublicKey);
+    assert(peerPrivateKey.size() == 4 * ((ECDH::PUBLIC_KEY_LENGTH + 2) / 3)); // Check lengths as we have keys from different sources
+    assert(peerPrivateKey.size() == peerPublicKey.size());
+
+    // Now they peer keys are valid for WireGuard and can be added to the credentials.
+    string credential;
+    credential.reserve(300);
+    credential.append("[Interface]\n")
+              .append("PrivateKey = ").append(peerPrivateKey).append("\n")
+              .append("Address = ").append(ipv4).append("/32").append(", ").append(ipv6).append("/128\n")
+              .append("DNS = 8.8.8.8, 2001:4860:4860::8888\n\n")
+              .append("[Peer]\n")
+              .append("PublicKey = ").append(peerPublicKey).append("\n")
+              .append("AllowedIPs = 0.0.0.0/0, ::/0\n")
+              .append("Endpoint = ").append(vpnRegion).append(".vpn");
+    if (clusterID > 1)
+    {
+        credential.append(std::to_string(clusterID));
+    }
+    credential.append(".mega.nz:51820");
+    return credential;
+}
+/* Mega VPN methods END */
 
 FetchNodesStats::FetchNodesStats()
 {

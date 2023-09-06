@@ -248,8 +248,9 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // display path from its root in the cloud (UTF-8)
     string displaypath() const;
 
-    // return mimetype type
-    MimeType_t getMimeType(bool checkPreview = false) const;
+    // match mimetype type
+    // checkPreview flag is only compatible with MimeType_t::MIME_TYPE_PHOTO
+    bool isIncludedForMimetype(MimeType_t mimetype, bool checkPreview = false) const;
 
     // node attributes
     AttrMap attrs;
@@ -424,9 +425,10 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     static bool isArchive(const std::string& ext);
     static bool isProgram(const std::string& ext);
     static bool isMiscellaneous(const std::string& ext);
+    static bool isOfMimetype(MimeType_t mimetype, const std::string& ext);
 
-    bool isPhotoWithFileAttributes(const std::string& ext, bool checkPreview) const;
-    bool isVideoWithFileAttributes(const string& ext) const;
+    bool isPhotoWithFileAttributes(bool checkPreview) const;
+    bool isVideoWithFileAttributes() const;
 
 private:
     // full folder/file key, symmetrically or asymmetrically encrypted
