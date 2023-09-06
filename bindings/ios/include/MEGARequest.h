@@ -158,7 +158,7 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeCloudStorageUsed,
     MEGARequestTypeSendSMSVerificationCode,
     MEGARequestTypeCheckSMSVerificationCode,
-    MEGARequestTypeGetRegisteredContacts,
+    MEGARequestTypeGetRegisteredContacts,  // Deprecated
     MEGARequestTypeGetCountryCallingCodes,
     MEGARequestTypeVerifyCredentials,
     MEGARequestTypeGetMiscFlags,
@@ -571,9 +571,6 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
 
 /**
  * @brief Gets the string table response from a request mapped into a collection of NSArray of NSStrings.
- *
- * This value is valid for these requests:
- * - [MEGASdk getRegisteredContacts:] - Obtains the user contacts registered in MEGA and verificated through SMS.
  *
  */
 @property (readonly, nonatomic) NSArray<NSArray<NSString *> *> *stringTableArray;

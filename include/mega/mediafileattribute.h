@@ -86,7 +86,7 @@ struct MEGA_API MediaProperties
 
     // get binary data and synthetic extension ("jpg" or "png") for cover data in ID3v2 tag
     template<class T>
-    static std::pair<std::string, std::string> getCoverFromId3v2(const T& file);
+    static StringPair getCoverFromId3v2(const T& file);
 #endif
 
     std::string serialize();

@@ -1624,6 +1624,9 @@ class MegaRequestPrivate : public MegaRequest
         MegaBackupInfoList* getMegaBackupInfoList() const override;
         void setMegaBackupInfoList(std::unique_ptr<MegaBackupInfoList> bkps);
 
+        MegaVpnCredentials* getMegaVpnCredentials() const override;
+        void setMegaVpnCredentials(MegaVpnCredentials* megaVpnCredentials);
+
 protected:
         std::shared_ptr<AccountDetails> accountDetails;
         MegaPricingPrivate *megaPricing;
@@ -1679,6 +1682,7 @@ protected:
         unique_ptr<MegaSetElementList> mMegaSetElementList;
         unique_ptr<MegaIntegerList> mMegaIntegerList;
         unique_ptr<MegaBackupInfoList> mMegaBackupInfoList;
+        unique_ptr<MegaVpnCredentials> mMegaVpnCredentials;
 
     public:
         shared_ptr<ExecuteOnce> functionToExecute;
@@ -3179,8 +3183,6 @@ class MegaApiImpl : public MegaApp
         void sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener = NULL, bool reverifying_whitelisted = false);
         void checkSMSVerificationCode(const char* verificationCode, MegaRequestListener *listener = NULL);
 
-        void getRegisteredContacts(const MegaStringMap* contacts, MegaRequestListener *listener = NULL);
-
         void getCountryCallingCodes(MegaRequestListener *listener = NULL);
 
         void getBanners(MegaRequestListener *listener);
@@ -3206,6 +3208,14 @@ class MegaApiImpl : public MegaApp
 
         void enableRequestStatusMonitor(bool enable);
         bool requestStatusMonitorEnabled();
+
+        /* MegaVpnCredentials */
+        void getVpnRegions(MegaRequestListener* listener = nullptr);
+        void getVpnCredentials(MegaRequestListener* listener = nullptr);
+        void putVpnCredential(const char* region, MegaRequestListener* listener = nullptr);
+        void delVpnCredential(int slotID, MegaRequestListener* listener = nullptr);
+        void checkVpnCredential(const char* userPubKey, MegaRequestListener* listener = nullptr);
+        /* MegaVpnCredentials end */
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
         void fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e); // deletes `transfer` !!
@@ -3409,9 +3419,6 @@ private:
         // account validation by txted verification code
         void smsverificationsend_result(error) override;
         void smsverificationcheck_result(error, std::string *phoneNumber) override;
-
-        // get registered contacts
-        void getregisteredcontacts_result(error, vector<tuple<string, string, string>>*) override;
 
         // get country calling codes
         void getcountrycallingcodes_result(error, map<string, vector<string>>*) override;
@@ -4459,6 +4466,31 @@ private:
     std::vector<std::unique_ptr<MegaScheduledMeeting>> mList;
 };
 #endif
+
+class MegaVpnCredentialsPrivate : public MegaVpnCredentials
+{
+public:
+    using MapSlotIDToCredentialInfo = CommandGetVpnCredentials::MapSlotIDToCredentialInfo;
+    using MapClusterPublicKeys = CommandGetVpnCredentials::MapClusterPublicKeys;
+
+    MegaVpnCredentialsPrivate(MapSlotIDToCredentialInfo&&, MapClusterPublicKeys&&, MegaStringList*);
+    MegaVpnCredentialsPrivate(const MegaVpnCredentialsPrivate&);
+    ~MegaVpnCredentialsPrivate();
+
+    MegaIntegerList* getSlotIDs() const override;
+    MegaStringList* getVpnRegions() const override;
+    const char* getIPv4(int slotID) const override;
+    const char* getIPv6(int slotID) const override;
+    const char* getDeviceID(int slotID) const override;
+    int getClusterID(int slotID) const override;
+    const char* getClusterPublicKey(int clusterID) const override;
+    MegaVpnCredentials* copy() const override;
+
+private:
+    MapSlotIDToCredentialInfo mMapSlotIDToCredentialInfo;
+    MapClusterPublicKeys mMapClusterPubKeys;
+    std::unique_ptr<MegaStringList> mVpnRegions;
+};
 
 }
 
