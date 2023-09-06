@@ -1380,21 +1380,6 @@ void MegaClient::fetchtimezone()
     reqs.add(new CommandFetchTimeZone(this, "", timeoffset.c_str()));
 }
 
-void MegaClient::reportInvalidSchedMeeting(const ScheduledMeeting* sched)
-{
-    std::string errMsg = "Ill-formed sched meeting(s)";
-
-    sendevent(99481, errMsg.c_str());
-
-    if (sched)
-    {
-        errMsg.append(" chatid:  ").append(toHandle(sched->chatid()))
-            .append(" schedid: ").append(toHandle(sched->schedId()));
-    }
-    LOG_err << errMsg;
-    assert(false);
-}
-
 void MegaClient::keepmealive(int type, bool enable)
 {
     reqs.add(new CommandKeepMeAlive(this, type, enable));
@@ -19877,6 +19862,21 @@ void MegaClient::clearSchedOccurrences(TextChat& chat)
 {
     chat.clearUpdatedSchedMeetingOccurrences();
     chat.changed.schedOcurrReplace = true;
+}
+
+void MegaClient::reportInvalidSchedMeeting(const ScheduledMeeting* sched)
+{
+    std::string errMsg = "Ill-formed sched meeting(s)";
+
+    sendevent(99481, errMsg.c_str());
+
+    if (sched)
+    {
+        errMsg.append(" chatid:  ").append(toHandle(sched->chatid()))
+            .append(" schedid: ").append(toHandle(sched->schedId()));
+    }
+    LOG_err << errMsg;
+    assert(false);
 }
 
 #endif
