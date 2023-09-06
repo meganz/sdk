@@ -58,8 +58,8 @@ using namespace mega;
     return self.megaContactRequestList;
 }
 
-- (NSNumber *)size {
-    return self.megaContactRequestList ? [[NSNumber alloc] initWithInt:self.megaContactRequestList->size()] : nil;
+- (NSInteger)size {
+    return self.megaContactRequestList ? self.megaContactRequestList->size() : -1;
 }
 
 - (MEGAContactRequest *)contactRequestAtIndex:(NSInteger)index {

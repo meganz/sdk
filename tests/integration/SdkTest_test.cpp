@@ -734,13 +734,6 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         }
         break;
 
-    case MegaRequest::TYPE_GET_REGISTERED_CONTACTS:
-        if (mApi[apiIndex].lastError == API_OK)
-        {
-            mApi[apiIndex].setStringTable(request->getMegaStringTable()->copy());
-        }
-        break;
-
     case MegaRequest::TYPE_GET_COUNTRY_CALLING_CODES:
         if (mApi[apiIndex].lastError == API_OK)
         {
@@ -1440,7 +1433,7 @@ void SdkTest::createChatScheduledMeeting(const unsigned apiIndex, MegaHandle& ch
     {
         mApi[apiIndex].chatUpdated = false;
         std::unique_ptr<MegaTextChatPeerList> peers(MegaTextChatPeerList::createInstance());
-        peers->addPeer(megaApi[apiIndex + 1]->getMyUser()->getHandle(), PRIV_STANDARD);
+        peers->addPeer(megaApi[apiIndex + 1]->getMyUserHandleBinary(), PRIV_STANDARD);
 
         ASSERT_NO_FATAL_FAILURE(createChat(true, peers.get()));
         ASSERT_TRUE(waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_CHAT_CREATE])) << "Cannot create a new chat";
@@ -1472,7 +1465,7 @@ void SdkTest::createChatScheduledMeeting(const unsigned apiIndex, MegaHandle& ch
     smd.rules = rules;
 
     std::unique_ptr<MegaScheduledMeeting> sm(MegaScheduledMeeting::createInstance(auxChatid, UNDEF /*schedId*/, UNDEF /*parentSchedId*/,
-                                                                                  UNDEF /*organizerUserId*/, false /*cancelled*/, "Europe/Madrid",
+                                                                                  megaApi[apiIndex]->getMyUserHandleBinary() /*organizerUserId*/, false /*cancelled*/, "Europe/Madrid",
                                                                                   smd.startDate, smd.endDate, smd.title.c_str(), smd.description.c_str(),
                                                                                   nullptr /*attributes*/, MEGA_INVALID_TIMESTAMP /*overrides*/,
                                                                                   flags.get(), rules.get()));
@@ -1696,19 +1689,6 @@ MegaHandle SdkTest::createFolder(unsigned int apiIndex, const char *name, MegaNo
     if (tracker.waitForResult() != API_OK) return UNDEF;
 
     return tracker.request->getNodeHandle();
-}
-
-void SdkTest::getRegisteredContacts(const std::map<std::string, std::string>& contacts)
-{
-    int apiIndex = 0;
-
-    auto contactsStringMap = std::unique_ptr<MegaStringMap>{MegaStringMap::createInstance()};
-    for  (const auto& pair : contacts)
-    {
-        contactsStringMap->set(pair.first.c_str(), pair.second.c_str());
-    }
-
-    ASSERT_EQ(API_OK, synchronousGetRegisteredContacts(apiIndex, contactsStringMap.get(), this)) << "Get registered contacts failed";
 }
 
 void SdkTest::getCountryCallingCodes(const int timeout)
@@ -7519,18 +7499,38 @@ TEST_F(SdkTest, SdkDeviceNames)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST SdkDeviceNames___";
 
-    // test setter/getter
+    // test setter/getter for current device name
     string deviceName = string("SdkDeviceNamesTest_") + getCurrentTimestamp(true);
     ASSERT_EQ(API_OK, doSetDeviceName(0, nullptr, deviceName.c_str())) << "setDeviceName failed";
-    string deviceNameInCloud;
-    ASSERT_EQ(API_OK, doGetDeviceName(0, &deviceNameInCloud, nullptr)) << "getDeviceName failed";
-    ASSERT_EQ(deviceNameInCloud, deviceName) << "getDeviceName returned incorrect value";
+    RequestTracker getDeviceNameTracker1(megaApi[0].get());
+    megaApi[0]->getDeviceName(nullptr, &getDeviceNameTracker1);
+    ASSERT_EQ(getDeviceNameTracker1.waitForResult(), API_OK);
+    ASSERT_TRUE(getDeviceNameTracker1.request->getName());
+    ASSERT_EQ(deviceName, getDeviceNameTracker1.request->getName());
+    ASSERT_TRUE(getDeviceNameTracker1.request->getMegaStringMap());
 
-    // test device name taken directly from user attribute
-    RequestTracker devNameTracker(megaApi[0].get());
-    megaApi[0]->getUserAttribute(MegaApi::USER_ATTR_DEVICE_NAMES, &devNameTracker);
-    ASSERT_EQ(API_OK, devNameTracker.waitForResult());
-    ASSERT_STREQ(devNameTracker.request->getName(), deviceName.c_str());
+    // test getting current device name when it was not set
+    ASSERT_EQ(API_OK, doSetDeviceName(0, nullptr, "")) << "removing current device name failed";
+    RequestTracker getDeviceNameTracker2(megaApi[0].get());
+    megaApi[0]->getDeviceName(nullptr, &getDeviceNameTracker2);
+    ASSERT_EQ(getDeviceNameTracker2.waitForResult(), API_ENOENT);
+    ASSERT_FALSE(getDeviceNameTracker2.request->getName());
+    ASSERT_TRUE(getDeviceNameTracker2.request->getMegaStringMap());
+
+    // test getting all device names, when current device name was not set
+    RequestTracker noNameTracker(megaApi[0].get());
+    megaApi[0]->getUserAttribute(MegaApi::USER_ATTR_DEVICE_NAMES, &noNameTracker);
+    ASSERT_EQ(API_OK, noNameTracker.waitForResult()) << "getUserAttribute failed when name of current device was not set";
+    ASSERT_FALSE(noNameTracker.request->getName()) << "getUserAttribute set some bogus name for current device";
+    ASSERT_TRUE(noNameTracker.request->getMegaStringMap());
+
+    // test getting all device names, when current device name was set
+    ASSERT_EQ(API_OK, doSetDeviceName(0, nullptr, deviceName.c_str())) << "setDeviceName failed";
+    RequestTracker getDeviceNameTracker3(megaApi[0].get());
+    megaApi[0]->getUserAttribute(MegaApi::USER_ATTR_DEVICE_NAMES, &getDeviceNameTracker3);
+    ASSERT_EQ(API_OK, getDeviceNameTracker3.waitForResult());
+    ASSERT_FALSE(getDeviceNameTracker3.request->getName());
+    ASSERT_TRUE(getDeviceNameTracker3.request->getMegaStringMap());
 }
 
 TEST_F(SdkTest, SdkBackupFolder)
@@ -8075,47 +8075,6 @@ TEST_F(SdkTest, SdkGetCountryCallingCodes)
     ASSERT_NE(nullptr, de);
     ASSERT_EQ(1, de->size());
     ASSERT_EQ(0, strcmp("49", de->get(0)));
-}
-
-TEST_F(SdkTest, SdkGetRegisteredContacts)
-{
-    LOG_info << "___TEST SdkGetRegisteredContacts___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-
-    const std::string js1 = "+0000000010";
-    const std::string js2 = "+0000000011";
-    const std::map<std::string, std::string> contacts{
-        {js1, "John Smith"}, // sms verified
-        {js2, "John Smith"}, // sms verified
-        {"+640", "John Smith"}, // not sms verified
-    };
-    getRegisteredContacts(contacts);
-    ASSERT_EQ(2, mApi[0].getStringTableSize());
-
-    // repacking and sorting result
-    using row_t = std::tuple<std::string, std::string, std::string>;
-    std::vector<row_t> table;
-    for (int i = 0; i < mApi[0].getStringTableSize(); ++i)
-    {
-        const MegaStringList* const stringList = mApi[0].getStringTableRow(i);
-        ASSERT_EQ(3, stringList->size());
-        table.emplace_back(stringList->get(0), stringList->get(1), stringList->get(2));
-    }
-
-    std::sort(table.begin(), table.end(), [](const row_t& lhs, const row_t& rhs)
-                                          {
-                                              return std::get<0>(lhs) < std::get<0>(rhs);
-                                          });
-
-    // Check johnsmith1
-    ASSERT_EQ(js1, std::get<0>(table[0])); // eud
-    ASSERT_GT(std::get<1>(table[0]).size(), 0u); // id
-    ASSERT_EQ(js1, std::get<2>(table[0])); // ud
-
-    // Check johnsmith2
-    ASSERT_EQ(js2, std::get<0>(table[1])); // eud
-    ASSERT_GT(std::get<1>(table[1]).size(), 0u); // id
-    ASSERT_EQ(js2, std::get<2>(table[1])); // ud
 }
 
 TEST_F(SdkTest, DISABLED_invalidFileNames)
@@ -13196,6 +13155,13 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_EQ(a->getUserHandle(), A1.getMyUserHandleBinary()) << "ContactChange  --  contact deleted";
     bkpAlerts.emplace_back(a->copy());
 
+    // create a dummy folder, just to trigger a local db commit before locallogout (which triggers a ROLLBACK)
+    std::unique_ptr<MegaNode> rootnodeB1{ B1.getRootNode() };
+    PerApi& target = mApi[B1idx];
+    target.resetlastEvent();
+    MegaHandle hDummyFolder = createFolder(B1idx, "DummyFolder_TriggerDbCommit", rootnodeB1.get());
+    ASSERT_NE(hDummyFolder, INVALID_HANDLE);
+    ASSERT_TRUE(WaitFor([&target]() { return target.lastEventsContain(MegaEvent::EVENT_COMMIT_DB); }, 8192));
 
     // save session for B1
     unique_ptr<char[]> B1session(B1.dumpSession());
@@ -14541,6 +14507,10 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), handlePdfFile);
 
+    nodeList.reset(megaApi[0]->searchByType(nullptr, nullptr, nullptr, true, MegaApi::ORDER_NONE, MegaApi::FILE_TYPE_DOCUMENT));
+    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), handlePdfFile);
+
     nodeList.reset(megaApi[0]->searchByType(nullptr, nullptr, nullptr, true, MegaApi::ORDER_NONE, MegaApi::FILE_TYPE_MISC));
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), handleJsonFile);
@@ -14548,4 +14518,164 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
     deleteFile(codeFile);
     deleteFile(pdfFile);
     deleteFile(jsonFile);
+}
+
+/**
+ * @brief TEST_F SdkTestMegaVpnCredentials
+ *
+ * Tests the MEGA VPN functionality.
+ * This test is valid for both FREE and PRO testing accounts.
+ * If the testing account is FREE, the request results are adjusted to the API error expected in those cases.
+ *
+ * 1) GET the MEGA VPN regions.
+ * 2) Choose one of the regions above to PUT a new VPN credential. It should return:
+ *     - The SlotID where the credential has been created.
+ *     - The User Public Key.
+ *     - The credential string to be used for VPN connection.
+ * 3-a) Check the MEGA VPN credentials. They should be valid.
+ * 3-b) Check nonexistent MEGA VPN credentials. They should be invalid.
+ * 4) GET the MEGA VPN credentials. Check the related fields for the returned slotID:
+ *      - IPv4 and IPv6
+ *      - DeviceID
+ *      - ClusterID
+ *      - Cluster Public Key
+ * 5) DELETE the MEGA VPN credentials associated with the slotID used above.
+ * 6) DELETE the MEGA VPN credentials from an unoccupied slot.
+ * 7) DELETE the MEGA VPN credentials from an invalid slot.
+ */
+TEST_F(SdkTest, SdkTestMegaVpnCredentials)
+{
+    LOG_info << "___TEST SdkTestMegaVpnCredentials";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    int result;
+    // 1) Get VPN regions to choose one of them
+    {
+        std::unique_ptr<MegaStringList> vpnRegions;
+        result = doGetVpnRegions(0, vpnRegions);
+        ASSERT_EQ(API_OK, result) << "getting the VPN regions failed";
+        ASSERT_TRUE(vpnRegions) << "list of VPN regions is NULL";
+        ASSERT_TRUE(vpnRegions->size()) << "list of VPN regions is empty";
+
+        const char* vpnRegion = vpnRegions->get(0); // Select the first vpn region
+        ASSERT_TRUE(vpnRegion) << "VPN region is NULL";
+        ASSERT_TRUE(*vpnRegion) << "VPN region is EMPTY";
+
+        // Get the PRO level for the testing account
+        ASSERT_EQ(API_OK, synchronousGetSpecificAccountDetails(0, true, true, true)) << "Cannot get account details";
+        bool isProAccount = (mApi[0].accountDetails->getProLevel() != MegaAccountDetails::ACCOUNT_TYPE_FREE);
+
+        // 2) Put VPN credential on the chosen region
+        int slotID = -1;
+        std::string userPubKey;
+        std::string newCredential;
+        result = doPutVpnCredential(0, slotID, userPubKey, newCredential, vpnRegion);
+        if (isProAccount)
+        {
+            ASSERT_EQ(API_OK, result) << "adding a new VPN credential failed";
+            ASSERT_TRUE(slotID > 0) << "slotID should be greater than 0";
+            size_t expectedPubKeyB64Size = ((ECDH::PUBLIC_KEY_LENGTH * 4) + 2) / 3; // URL-safe B64 length (no trailing '=')
+            ASSERT_EQ(userPubKey.size(), expectedPubKeyB64Size) << "User Public Key does not have the expected size";
+            ASSERT_FALSE(newCredential.empty()) << "VPN Credential data is EMPTY";
+
+            // 3-a) Check the VPN credentials
+            result = doCheckVpnCredential(0, userPubKey.c_str());
+            ASSERT_EQ(API_OK, result) << "checking the VPN credentials failed";
+        }
+        else
+        {
+            ASSERT_EQ(API_EACCESS, result) << "adding a new VPN credential on a free account didn't return the expected error value (are you pointing to staging?)";
+            // NOTE: by Sep 2023, the API allows free accounts to create VPN credentials temporary, during development of the feature. 
+            // In production, it returns EACCESS (as it will in staging later on)
+        }
+
+        // 3-b) Check nonexistent VPN credentials
+        {
+            string nonexistentUserPK = "obI7rWzm3qVQL5zOxHzv2XFHsP1kOOTR1mE7NluVjDM";
+            result = doCheckVpnCredential(0, nonexistentUserPK.c_str());
+            ASSERT_EQ(API_EACCESS, result) << "checking the VPN credentials with a nonexistent User Public Key should have returned API_EACCESS";
+        }
+
+        // 4) Get VPN credentials and search for the credential associated with the returned SlotID
+        {
+            std::unique_ptr<MegaVpnCredentials> megaVpnCredentials;
+            result = doGetVpnCredentials(0, megaVpnCredentials);
+
+            if (isProAccount)
+            {
+                ASSERT_EQ(API_OK, result) << "getting the VPN credentials failed";
+                ASSERT_TRUE(megaVpnCredentials != nullptr) << "MegaVpnCredentials is NULL";
+
+                // Get SlotIDs - it should not be empty
+                // We don't check whether there should be only ONE slotID, as we could have more slots on this account
+                {
+                    std::unique_ptr<MegaIntegerList> slotIDsList;
+                    slotIDsList.reset(megaVpnCredentials->getSlotIDs());
+                    ASSERT_TRUE(slotIDsList) << "MegaIntegerList of slotIDs is NULL";
+                    ASSERT_TRUE(slotIDsList->size()) << "slotIDs list is empty";
+                }
+
+                // Get IPv4
+                const char* ipv4 = megaVpnCredentials->getIPv4(slotID);
+                ASSERT_TRUE(ipv4) << "IPv4 value not found for SlotID: " << slotID;
+                ASSERT_TRUE(*ipv4) << "IPv4 value is empty for SlotID: " << slotID;
+
+                // Get IPv6
+                const char* ipv6 = megaVpnCredentials->getIPv6(slotID);
+                ASSERT_TRUE(ipv6) << "IPv6 value not found for SlotID: " << slotID;
+                ASSERT_TRUE(*ipv6) << "IPv6 value is empty for SlotID: " << slotID;
+
+                // Get DeviceID (it must be a valid pointer, but it can be empty if there's no associated deviceID)
+                const char* deviceID = megaVpnCredentials->getDeviceID(slotID);
+                ASSERT_TRUE(deviceID) << "deviceID not found for SlotID: " << slotID;
+
+                // Get ClusterID
+                int clusterID = megaVpnCredentials->getClusterID(slotID);
+                ASSERT_TRUE(clusterID >= 0) << "clusterID should be a positive value. SlotID: " << slotID;
+
+                // Get Cluster Public Key
+                const char* clusterPublicKey = megaVpnCredentials->getClusterPublicKey(clusterID);
+                ASSERT_TRUE(clusterPublicKey) << "Cluster Public Key not found for ClusterID: " << clusterID;
+                ASSERT_TRUE(*clusterPublicKey) << "Cluster Public Key is empty for ClusterID: " << clusterID;
+
+                // Check VPN regions, they should not be empty
+                std::unique_ptr<MegaStringList> vpnRegionsFromCredentials;
+                vpnRegionsFromCredentials.reset(megaVpnCredentials->getVpnRegions());
+                ASSERT_TRUE(vpnRegionsFromCredentials) << "list of VPN regions is NULL";
+                ASSERT_TRUE(vpnRegionsFromCredentials->size()) << "list of VPN regions is empty";
+            }
+            else
+            {
+                ASSERT_EQ(API_ENOENT, result) << "getting the VPN credentials for a free account didn't return the expected error value";
+                ASSERT_TRUE(megaVpnCredentials == nullptr) << "MegaVpnCredentials is NOT NULL for a free account";
+            }
+        }
+
+        if (isProAccount)
+        {
+            // 5) Delete VPN credentials from an occupied slot
+            result = doDelVpnCredential(0, slotID);
+            ASSERT_EQ(API_OK, result) << "deleting the VPN credentials from the slotID " << slotID << " failed";
+
+            // Check again the VPN credentials, they should be invalid now
+            result = doCheckVpnCredential(0, userPubKey.c_str());
+            ASSERT_EQ(API_EACCESS, result) << "VPN credentials are still valid after being deleted";
+
+            // Use the same slotID (it should be empty now) for the next test
+        }
+        else
+        {
+            slotID = 1; // Test the 1st slotID for a FREE account (must be empty)
+        }
+
+        // 6) Delete VPN credentials from an unoccupied slot. Expecting ENOENT: SlotID is empty
+        result = doDelVpnCredential(0, slotID);
+
+        ASSERT_EQ(API_ENOENT, result) << "deleting the VPN credentials from the unused slotID " << slotID << " didn't return the expected error value";
+
+        // 7) Delete VPN credentials from an invalid slot. Expecting EARGS: SlotID is not valid
+        slotID = -1;
+        result = doDelVpnCredential(0, slotID);
+        ASSERT_EQ(API_EARGS, result) << "deleting the VPN credential from the invalid slotID " << slotID << " didn't return the expected error value";
+    }
 }
