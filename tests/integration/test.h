@@ -326,6 +326,11 @@ struct StandardClient : public MegaApp
     void useralerts_updated(UserAlert::Base**, int) override;
     bool waitForUserAlertsUpdated(unsigned numSeconds);
 
+    bool received_user_actionpackets = false;
+    std::condition_variable user_updated_cv;
+    void users_updated(User**, int) override;
+    bool waitForUserUpdated(unsigned numSeconds);
+
     std::function<void(const SyncConfig&)> mOnSyncStateConfig;
 
     void syncupdate_scanning(bool b) override;
@@ -368,8 +373,8 @@ struct StandardClient : public MegaApp
     std::function<void(Transfer*)> onTransferCompleted;
 
 
-    bool waitForAttrDeviceIdIsSet(unsigned numSeconds);
-    bool waitForAttrMyBackupIsSet(unsigned numSeconds);
+    bool waitForAttrDeviceIdIsSet(unsigned numSeconds, bool& updated);
+    bool waitForAttrMyBackupIsSet(unsigned numSeconds, bool& updated);
 
     bool isUserAttributeSet(attr_t attr, unsigned numSeconds, error& err);
 

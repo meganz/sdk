@@ -1047,6 +1047,24 @@ bool StandardClient::waitForUserAlertsUpdated(unsigned numSeconds)
     return received_user_alerts;
 }
 
+void StandardClient::users_updated(User** , int)
+{
+    received_user_actionpackets = true;
+    user_updated_cv.notify_all();
+}
+
+bool StandardClient::waitForUserUpdated(unsigned int numSeconds)
+{
+    std::mutex mutex;
+    std::unique_lock<std::mutex> guard(mutex);
+
+    user_updated_cv.wait_for(guard, std::chrono::seconds(numSeconds), [&] {
+        return received_user_actionpackets;
+    });
+
+    return received_user_actionpackets;
+}
+
 void StandardClient::syncupdate_scanning(bool b) { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_scanning()" << b; } }
 
 #ifdef DEBUG
@@ -1113,7 +1131,7 @@ bool StandardClient::isUserAttributeSet(attr_t attr, unsigned int numSeconds, er
     return attrIsSet;
 }
 
-bool StandardClient::waitForAttrDeviceIdIsSet(unsigned int numSeconds)
+bool StandardClient::waitForAttrDeviceIdIsSet(unsigned int numSeconds, bool& updated)
 {
     error err;
     isUserAttributeSet(attr_t::ATTR_DEVICE_NAMES, numSeconds, err);
@@ -1173,11 +1191,12 @@ bool StandardClient::waitForAttrDeviceIdIsSet(unsigned int numSeconds)
         return false;
     }
 
+    updated = true;
     // Check if attribute has been established properly
     return isUserAttributeSet(attr_t::ATTR_DEVICE_NAMES, numSeconds, err);
 }
 
-bool StandardClient::waitForAttrMyBackupIsSet(unsigned int numSeconds)
+bool StandardClient::waitForAttrMyBackupIsSet(unsigned int numSeconds, bool& updated)
 {
     error err;
     bool attrMyBackupFolderIsSet = isUserAttributeSet(attr_t::ATTR_MY_BACKUPS_FOLDER, numSeconds, err);
@@ -1216,6 +1235,8 @@ bool StandardClient::waitForAttrMyBackupIsSet(unsigned int numSeconds)
     {
         return false;
     }
+
+    updated = true;
 
     // Check if attribute has been established properly
     return isUserAttributeSet(attr_t::ATTR_MY_BACKUPS_FOLDER, numSeconds, err);;
@@ -5133,13 +5154,37 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderBetweenSyncs)
     auto clientA2 = g_clientManager->getCleanStandardClient(0, localtestroot); // user 1 client 2
     auto clientA3 = g_clientManager->getCleanStandardClient(0, localtestroot); // user 1 client 2
 
-    ASSERT_TRUE(clientA1->waitForAttrDeviceIdIsSet(60)) << "Error User attr device id isn't establised client1";
-    ASSERT_TRUE(clientA2->waitForAttrDeviceIdIsSet(60)) << "Error User attr device id isn't establised client2";
-    ASSERT_TRUE(clientA3->waitForAttrDeviceIdIsSet(60)) << "Error User attr device id isn't establised client3";
+    bool deviceIdeUpdated = false;
+    clientA2->received_user_actionpackets = false;
+    clientA3->received_user_actionpackets = false;
+    ASSERT_TRUE(clientA1->waitForAttrDeviceIdIsSet(60, deviceIdeUpdated)) << "Error User attr device id isn't establised client1";
+    if (deviceIdeUpdated)  // only wait for action package if atribute has been updated
+    {
+        ASSERT_TRUE(clientA2->waitForUserUpdated(60)) << "User update doesn't arrive at client2 (device id)";
+        ASSERT_TRUE(clientA3->waitForUserUpdated(60)) << "User update doesn't arrive at client3 (device id)";
+        deviceIdeUpdated = false;
+        ASSERT_TRUE(clientA2->waitForAttrDeviceIdIsSet(60, deviceIdeUpdated)) << "Error User attr device id isn't establised client2";
+        ASSERT_EQ(deviceIdeUpdated, false); // It has already updated
+        ASSERT_TRUE(clientA3->waitForAttrDeviceIdIsSet(60, deviceIdeUpdated)) << "Error User attr device id isn't establised client3";
+        ASSERT_EQ(deviceIdeUpdated, false); // It has already updated
+    }
 
-    ASSERT_TRUE(clientA1->waitForAttrMyBackupIsSet(60)) << "Error User attr My Back Folder isn't establised client1";
-    ASSERT_TRUE(clientA2->waitForAttrMyBackupIsSet(60)) << "Error User attr My Back Folder isn't establised client2";
-    ASSERT_TRUE(clientA3->waitForAttrMyBackupIsSet(60)) << "Error User attr My Back Folder isn't establised client3";
+
+    bool backupFolderUpdated = false;
+    clientA2->received_user_actionpackets = false;
+    clientA3->received_user_actionpackets = false;
+    ASSERT_TRUE(clientA1->waitForAttrMyBackupIsSet(60, backupFolderUpdated)) << "Error User attr My Back Folder isn't establised client1";
+    if (backupFolderUpdated) // only wait for action package if atribute has been updated
+    {
+        ASSERT_TRUE(clientA2->waitForUserUpdated(60)) << "User update doesn't arrive at client2 (backup folder)";
+        ASSERT_TRUE(clientA3->waitForUserUpdated(60)) << "User update doesn't arrive at client3 (backup folder)";
+        backupFolderUpdated = false;
+        ASSERT_TRUE(clientA2->waitForAttrMyBackupIsSet(60, backupFolderUpdated)) << "Error User attr My Back Folder isn't establised client2";
+        ASSERT_EQ(backupFolderUpdated, false); // It has already updated
+        ASSERT_TRUE(clientA3->waitForAttrMyBackupIsSet(60, backupFolderUpdated)) << "Error User attr My Back Folder isn't establised client3";
+        ASSERT_EQ(backupFolderUpdated, false); // It has already updated
+    }
+
 
     ASSERT_TRUE(clientA1->resetBaseFolderMulticlient(clientA2, clientA3));
     ASSERT_TRUE(clientA1->makeCloudSubdirs("f", 3, 3));
