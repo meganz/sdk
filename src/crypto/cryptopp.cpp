@@ -761,16 +761,13 @@ int AsymmCipher::setkey(int numints, const byte* data, int len)
 {
     // Assume key material is invalid.
     padding = 0;
-    status  = S_INVALID;
+    status  = S_UNKNOWN;
 
-    // Try and deserialize key material.
+    // Deserialize key material.
     auto result = decodeintarray(key, numints, data, len);
 
-    // Can't deserialize key material.
     if (!result)
-        return 0;
-
-    status = S_UNKNOWN;
+        return result;
 
     // We've been provided a private key.
     if (numints > PUBKEY)
