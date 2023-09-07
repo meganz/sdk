@@ -759,10 +759,29 @@ auto AsymmCipher::getKey() const -> const Key&
 
 int AsymmCipher::setkey(int numints, const byte* data, int len)
 {
-    int ret = decodeintarray(key, numints, data, len);
-    if ((numints == PRIVKEY || numints == PRIVKEY_SHORT) && ret && !isvalid(numints)) return 0;
-    padding = (numints == PUBKEY && ret) ? (len - key[PUB_PQ].ByteCount() - key[PUB_E].ByteCount() - 4) : 0;
-    return ret;
+    // Assume key material is invalid.
+    padding = 0;
+
+    // Try and deserialize key material.
+    auto result = decodeintarray(key, numints, data, len);
+
+    // Can't deserialize key material.
+    if (!result)
+        return 0;
+
+    // We've been provided a private key.
+    if (numints > PUBKEY)
+        return isvalid(numints) ? result : 0;
+
+    // Convenience.
+    auto e  =  key[PUB_E].ByteCount();
+    auto pq = key[PUB_PQ].ByteCount();
+
+    // Compute number of padding bytes.
+    padding = static_cast<unsigned>(len) - pq - e - 4;
+
+    // Return result to caller.
+    return result;
 }
 
 void AsymmCipher::resetkey()
