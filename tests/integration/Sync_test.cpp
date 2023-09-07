@@ -1150,7 +1150,7 @@ bool StandardClient::waitForAttrDeviceIdIsSet(unsigned int numSeconds)
     // serialize and encrypt the TLV container
     std::unique_ptr<string> container(tlv->tlvRecordsToContainer(client.rng, &client.key));
     std::unique_lock<std::recursive_mutex> g(attrDeviceNamePut_mutex);
-    client.putua(attr_t::ATTR_DEVICE_NAMES, (byte *)container->data(), unsigned(container->size()), -1, UNDEF, 0, 0, [&](Error e)
+    client.putua(attr_t::ATTR_DEVICE_NAMES, (::mega::byte *)container->data(), unsigned(container->size()), -1, UNDEF, 0, 0, [&](Error e)
     {
         std::lock_guard<std::recursive_mutex> g(attrDeviceNamePut_mutex);
         if (e == API_OK)
