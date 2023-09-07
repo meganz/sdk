@@ -6227,7 +6227,10 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache)
     // Public links (one by one)
     mFilters.emplace("{[ph{", [client](JSON *json)
     {
-        client->procphelement(json);
+        if (client->procphelement(json) == 1)
+        {
+            json->leaveobject();
+        }
         return true;
     });
 
