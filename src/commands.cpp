@@ -3384,12 +3384,6 @@ CommandGetUA::CommandGetUA(MegaClient* /*client*/, const char* uid, attr_t at, c
     {
         cmd("mcuga");
         arg("ph", ph);
-
-
-        // cannot use v3, since the response is "<value>" and, if we have multiple `mcuga` in the
-        // same request -> first value will be taken as the sequence-tag, second value as the value
-        // for the first command
-        mV3 = false;
     }
     else
     {
