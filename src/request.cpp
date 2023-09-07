@@ -157,7 +157,7 @@ m_off_t Request::processChunk(const char* chunk, MegaClient *client)
         return 0;
     }
 
-    mChunkedProgress += consumed;
+    mChunkedProgress += static_cast<size_t>(consumed);
     json.begin(chunk + consumed);
     if (mJsonSplitter.hasFinished())
     {
@@ -181,7 +181,7 @@ m_off_t Request::processChunk(const char* chunk, MegaClient *client)
 
 m_off_t Request::totalChunkedProgress()
 {
-    return mChunkedProgress;
+    return static_cast<m_off_t>(mChunkedProgress);
 }
 
 void Request::process(MegaClient* client)
@@ -443,7 +443,7 @@ void RequestDispatcher::serverresponse(std::string&& movestring, MegaClient *cli
 size_t RequestDispatcher::serverChunk(const char *chunk, MegaClient *client)
 {
     processing = true;
-    size_t consumed = inflightreq.processChunk(chunk, client);
+    size_t consumed = static_cast<size_t>(inflightreq.processChunk(chunk, client));
     processing = false;
     if (clearWhenSafe)
     {
@@ -454,7 +454,7 @@ size_t RequestDispatcher::serverChunk(const char *chunk, MegaClient *client)
 
 size_t RequestDispatcher::chunkedProgress()
 {
-    return inflightreq.totalChunkedProgress();
+    return static_cast<size_t>(inflightreq.totalChunkedProgress());
 }
 
 void RequestDispatcher::servererror(const std::string& e, MegaClient *client)

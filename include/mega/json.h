@@ -182,7 +182,7 @@ private:
 
 // Class to process JSON in streaming
 // For performance reasons, these objects don't own the memory of the JSON buffer being parsed
-// nor the map of filters used to trigger callbacks for the different JSON elements, so the called
+// nor the map of filters used to trigger callbacks for the different JSON elements, so the caller
 // must ensure that the memory is alive during the processing of JSON chunks
 class MEGA_API JSONSplitter
 {
@@ -245,10 +245,10 @@ protected:
     // Called when there is a parsing error
     void parseError(std::map<std::string, std::function<bool(JSON *)>> *filters);
 
-    // Position of the character being processed (now owned by this object)
+    // Position of the character being processed (not owned by this object)
     const char* mPos = nullptr;
 
-    // Position after the last filtered JSON path (now owned by this object)
+    // Position after the last filtered JSON path (not owned by this object)
     const char *mLastPos = nullptr;
 
     // Name of the last JSON attribute name processed
