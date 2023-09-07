@@ -512,7 +512,7 @@ public:
      * @param buflen Length of the cipher text.
      * @return Number of bytes encrypted, 0 on failure.
      */
-    int encrypt(PrnGen &rng, const byte* plain, size_t plainlen, byte* buf, size_t buflen);
+    int encrypt(PrnGen &rng, const byte* plain, size_t plainlen, byte* buf, size_t buflen) const;
 
     /**
      * @brief Decrypts a cipher text into a buffer and strips random padding.
@@ -523,7 +523,7 @@ public:
      * @param buflen Length of the plain text.
      * @return Always returns 1.
      */
-    int decrypt(const byte* cipher, size_t cipherlen, byte* buf, size_t buflen);
+    int decrypt(const byte* cipher, size_t cipherlen, byte* buf, size_t buflen) const;
 
     /**
      * @brief Encrypts a plain text into a buffer.
@@ -534,7 +534,7 @@ public:
      * @param buflen Length of the cipher text.
      * @return Number of bytes encrypted, 0 on failure.
      */
-    unsigned rawencrypt(const byte* plain, size_t plainlen, byte* buf, size_t buflen);
+    unsigned rawencrypt(const byte* plain, size_t plainlen, byte* buf, size_t buflen) const;
 
     /**
      * @brief Decrypts a cipher text into a buffer.
@@ -545,7 +545,7 @@ public:
      * @param buflen Length of the plain text.
      * @return Always returns 1.
      */
-    unsigned rawdecrypt(const byte* cipher, size_t cipherlen, byte* buf, size_t buflen);
+    unsigned rawdecrypt(const byte* cipher, size_t cipherlen, byte* buf, size_t buflen) const;
 
     static void serializeintarray(const CryptoPP::Integer*, int, std::string*, bool headers = true);
 
@@ -566,7 +566,7 @@ public:
      *
      * @param d String to take the serialized key without size-headers
      */
-    void serializekeyforjs(std::string& d);
+    void serializekeyforjs(std::string& d) const;
 
     /**
      * @brief Generates an RSA key pair of a given key size.
@@ -592,7 +592,7 @@ private:
         S_VALID,
     }; // Status
 
-    int decodeintarray(CryptoPP::Integer*, int, const byte*, int);
+    static int decodeintarray(CryptoPP::Integer*, int, const byte*, int);
 
     auto isvalid(const Key& key, int type) const -> Status;
 

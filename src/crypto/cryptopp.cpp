@@ -613,12 +613,12 @@ void SymmCipher::ctr_crypt(byte* data, unsigned len, m_off_t pos, ctr_iv ctriv, 
     }
 }
 
-static void rsaencrypt(Integer* key, Integer* m)
+static void rsaencrypt(const Integer* key, Integer* m)
 {
     *m = a_exp_b_mod_c(*m, key[AsymmCipher::PUB_E], key[AsymmCipher::PUB_PQ]);
 }
 
-unsigned AsymmCipher::rawencrypt(const byte* plain, size_t plainlen, byte* buf, size_t buflen)
+unsigned AsymmCipher::rawencrypt(const byte* plain, size_t plainlen, byte* buf, size_t buflen) const
 {
     Integer t(plain, plainlen);
 
@@ -639,7 +639,7 @@ unsigned AsymmCipher::rawencrypt(const byte* plain, size_t plainlen, byte* buf, 
     return t.ByteCount();
 }
 
-int AsymmCipher::encrypt(PrnGen &rng, const byte* plain, size_t plainlen, byte* buf, size_t buflen)
+int AsymmCipher::encrypt(PrnGen &rng, const byte* plain, size_t plainlen, byte* buf, size_t buflen) const
 {
     if (key[PUB_PQ].ByteCount() + 2 > buflen)
     {
@@ -658,7 +658,7 @@ int AsymmCipher::encrypt(PrnGen &rng, const byte* plain, size_t plainlen, byte* 
 
     rsaencrypt(key, &t);
 
-    int i = t.BitCount();
+    unsigned int i = t.BitCount();
 
     byte* ptr = buf;
 
@@ -675,7 +675,7 @@ int AsymmCipher::encrypt(PrnGen &rng, const byte* plain, size_t plainlen, byte* 
     return int(ptr - buf);
 }
 
-static void rsadecrypt(Integer* key, Integer* m)
+static void rsadecrypt(const Integer* key, Integer* m)
 {
     Integer xp = a_exp_b_mod_c(*m % key[AsymmCipher::PRIV_P],
                                key[AsymmCipher::PRIV_D] % (key[AsymmCipher::PRIV_P] - Integer::One()),
@@ -696,7 +696,7 @@ static void rsadecrypt(Integer* key, Integer* m)
     *m = *m * key[AsymmCipher::PRIV_P] + xp;
 }
 
-unsigned AsymmCipher::rawdecrypt(const byte* cipher, size_t cipherlen, byte* buf, size_t buflen)
+unsigned AsymmCipher::rawdecrypt(const byte* cipher, size_t cipherlen, byte* buf, size_t buflen) const
 {
     Integer m(cipher, cipherlen);
 
@@ -717,7 +717,7 @@ unsigned AsymmCipher::rawdecrypt(const byte* cipher, size_t cipherlen, byte* buf
     return m.ByteCount();
 }
 
-int AsymmCipher::decrypt(const byte* cipher, size_t cipherlen, byte* out, size_t numbytes)
+int AsymmCipher::decrypt(const byte* cipher, size_t cipherlen, byte* out, size_t numbytes) const
 {
     Integer m;
 
@@ -792,7 +792,7 @@ void AsymmCipher::resetkey()
     status = S_INVALID;
 }
 
-void AsymmCipher::serializekeyforjs(string& d)
+void AsymmCipher::serializekeyforjs(string& d) const
 {
     unsigned sizePQ = key[PUB_PQ].ByteCount();
     unsigned sizeE = key[PUB_E].ByteCount();
@@ -801,9 +801,9 @@ void AsymmCipher::serializekeyforjs(string& d)
     d.clear();
     d.reserve(sizePQ + sizeE + padding);
 
-    for (int j = key[PUB_PQ].ByteCount(); j--;)
+    for (unsigned int j = key[PUB_PQ].ByteCount(); j--;)
     {
-        c = key[PUB_PQ].GetByte(j);
+        c = static_cast<char>(key[PUB_PQ].GetByte(j));
         d.append(&c, sizeof c);
     }
 
@@ -815,9 +815,9 @@ void AsymmCipher::serializekeyforjs(string& d)
         d.append(&c, sizeof c);
     }
 
-    for (int j = sizeE; j--;)
+    for (unsigned int j = sizeE; j--;)
     {
-        c = key[PUB_E].GetByte(j);  // returns 0 if out-of-range
+        c = static_cast<char>(key[PUB_E].GetByte(j));  // returns 0 if out-of-range
         d.append(&c, sizeof c);
     }
 }
