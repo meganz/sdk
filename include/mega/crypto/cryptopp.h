@@ -500,7 +500,7 @@ public:
      *     (AsymmCipher::PRIVKEY or AsymmCipher::PUBKEY).
      * @return 0 on an invalid key pair.
      */
-    int isvalid(int keytype = PUBKEY) const;
+    bool isvalid(int keytype = PUBKEY) const;
 
     /**
      * @brief Encrypts a randomly padded plain text into a buffer.
@@ -580,10 +580,25 @@ public:
     void genkeypair(PrnGen &rng, CryptoPP::Integer* pubk, int size);
 
 private:
+    enum Status : unsigned char
+    {
+        // Key's been checked and is invalid.
+        S_INVALID,
+
+        // Key has yet to be checked.
+        S_UNKNOWN,
+
+        // Key has been checked and is valid.
+        S_VALID,
+    }; // Status
+
     int decodeintarray(CryptoPP::Integer*, int, const byte*, int);
+
+    auto isvalid(const Key& key, int type) const -> Status;
 
     Key key;
     unsigned int padding;
+    mutable Status status;
 };
 
 class MEGA_API Hash

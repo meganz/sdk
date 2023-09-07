@@ -761,6 +761,7 @@ int AsymmCipher::setkey(int numints, const byte* data, int len)
 {
     // Assume key material is invalid.
     padding = 0;
+    status  = S_INVALID;
 
     // Try and deserialize key material.
     auto result = decodeintarray(key, numints, data, len);
@@ -768,6 +769,8 @@ int AsymmCipher::setkey(int numints, const byte* data, int len)
     // Can't deserialize key material.
     if (!result)
         return 0;
+
+    status = S_UNKNOWN;
 
     // We've been provided a private key.
     if (numints > PUBKEY)
@@ -789,6 +792,7 @@ void AsymmCipher::resetkey()
     std::fill(std::begin(key), std::end(key), Integer::Zero());
 
     padding = 0;
+    status = S_INVALID;
 }
 
 void AsymmCipher::serializekeyforjs(string& d)
@@ -898,24 +902,39 @@ int AsymmCipher::decodeintarray(Integer* t, int numints, const byte* data, int l
     return i == numints && len - p < 16;
 }
 
-int AsymmCipher::isvalid(int keytype) const
+bool AsymmCipher::isvalid(int type) const
 {
-    if (keytype == PUBKEY)
-    {
-        return key[PUB_PQ].BitCount() && key[PUB_E].BitCount();
-    }
+    if (status == S_UNKNOWN)
+        status = isvalid(key, type);
 
-    if (keytype == PRIVKEY || keytype == PRIVKEY_SHORT)
-    {
-        // detect private key blob corruption - prevent API-exploitable RSA oracle requiring 500+ logins
-        return key[PRIV_P].BitCount() > 1000 &&
-                key[PRIV_Q].BitCount() > 1000 &&
-                key[PRIV_D].BitCount() > 2000 &&
-                key[PRIV_U].BitCount() > 1000 &&
-                key[PRIV_U] == key[PRIV_P].InverseMod(key[PRIV_Q]);
-    }
+    return status == S_VALID;
+}
 
-    return 0;
+auto AsymmCipher::isvalid(const Key& key, int type) const -> Status
+{
+    assert(type >= PUBKEY && type <= PRIVKEY);
+
+    if (type == PUBKEY
+        && key[PUB_E].BitCount()
+        && key[PUB_PQ].BitCount())
+        return S_VALID;
+
+    // Convenience.
+    auto& d = key[PRIV_D];
+    auto& p = key[PRIV_P];
+    auto& u = key[PRIV_U];
+    auto& q = key[PRIV_Q];
+
+    // detect private key blob corruption.
+    // prevent API-exploitable RSA oracle requiring 500+ logins
+    if (d.BitCount() <= 2000
+        || p.BitCount() <= 1000
+        || q.BitCount() <= 1000
+        || u.BitCount() <= 1000
+        || u != p.InverseMod(q))
+        return S_INVALID;
+
+    return S_VALID;
 }
 
 // adapted from CryptoPP, rsa.cpp
@@ -955,6 +974,8 @@ void AsymmCipher::genkeypair(PrnGen &rng, Integer* pubk, int size)
     assert(pubk);
 
     genkeypair(rng, key, pubk, size);
+
+    status = S_UNKNOWN;
 }
 
 void Hash::add(const byte* data, unsigned len)
