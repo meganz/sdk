@@ -1461,10 +1461,10 @@ void JSONSplitter::parseError(std::map<string, std::function<bool (JSON *)> > *f
             JSON jsonData(mPos);
             auto& callback = filterit->second;
             callback(&jsonData);
-            assert(false);
         }
     }
     mFailed = true;
+    assert(false);
 }
 
 } // namespace
