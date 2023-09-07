@@ -786,11 +786,9 @@ int AsymmCipher::setkey(int numints, const byte* data, int len)
 
 void AsymmCipher::resetkey()
 {
-    for (int i = 0; i < PRIVKEY; i++)
-    {
-        key[i] = Integer::Zero();
-        padding = 0;
-    }
+    std::fill(std::begin(key), std::end(key), Integer::Zero());
+
+    padding = 0;
 }
 
 void AsymmCipher::serializekeyforjs(string& d)
