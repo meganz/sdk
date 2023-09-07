@@ -3760,6 +3760,12 @@ using namespace mega;
     }
 }
 
+- (void)renameDevice:(NSString *)deviceId newName:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->setDeviceName(deviceId.UTF8String, name.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
 #pragma mark - Debug
 
 + (void)setLogLevel:(MEGALogLevel)logLevel {
