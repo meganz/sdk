@@ -10004,6 +10004,21 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  */
 - (void)setDeviceName:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
 
+/**
+ * @brief Sets name for specific device
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - paramType - Returns the attribute type MEGAUserAttributeDeviceNames
+ * - deviceId - Returns the device id.
+ * - name - Returns device name.
+ *
+ * @param deviceId String with device id
+ * @param name String with device name
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)renameDevice:(NSString *)deviceId newName:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
+
 #pragma mark - Cookie Dialog
 
 /**

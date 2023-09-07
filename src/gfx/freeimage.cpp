@@ -123,7 +123,7 @@ GfxProviderFreeImage::~GfxProviderFreeImage()
 #ifdef USE_MEDIAINFO
 bool GfxProviderFreeImage::readbitmapMediaInfo(const LocalPath& imagePath)
 {
-    const pair<string, string>& cover = MediaProperties::getCoverFromId3v2(imagePath.localpath);
+    const StringPair& cover = MediaProperties::getCoverFromId3v2(imagePath.localpath);
     if (cover.first.empty())
     {
         return false;

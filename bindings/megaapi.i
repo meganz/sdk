@@ -339,7 +339,6 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %ignore mega::MegaNode::getPublicAuth;
 %ignore mega::MegaApi::createForeignFileNode;
 %ignore mega::MegaApi::createForeignFolderNode;
-%ignore mega::MegaListener::onSyncStateChanged;
 %ignore mega::MegaListener::onSyncFileStateChanged;
 %ignore mega::MegaTransfer::getListener;
 %ignore mega::MegaRequest::getListener;
@@ -358,6 +357,7 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaShareList::copy;
 %newobject mega::MegaUser::copy;
 %newobject mega::MegaUserList::copy;
+%newobject mega::MegaSync::copy;
 %newobject mega::MegaSyncStats::copy;
 %newobject mega::MegaContactRequest::copy;
 %newobject mega::MegaContactRequestList::copy;
