@@ -14239,7 +14239,7 @@ TEST_F(SdkTest, SdkTestDeleteListenerBeforeFinishingRequest)
 /**
  * SdkTestGetNodeByMimetype
  * Steps:
- * - Create three files (test.cpp, test.pdf, test.json)
+ * - Create three files (test.sh, test.pdf, test.json)
  * - Check number of files from type program
  * - Check number of files from type pdf
  * - Check number of files from type json
@@ -14252,11 +14252,11 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_NE(rootnode.get(), nullptr);
 
-    std::string codeFile = "test.cpp";
-    ASSERT_TRUE(createFile(codeFile.c_str(), false)) << "Couldn't create " << PUBLICFILE.c_str();
+    std::string progFile = "test.sh";
+    ASSERT_TRUE(createFile(progFile.c_str(), false)) << "Couldn't create " << PUBLICFILE.c_str();
 
     MegaHandle handleCodeFile = UNDEF;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handleCodeFile, codeFile.c_str(),
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handleCodeFile, progFile.c_str(),
                                                rootnode.get(),
                                                nullptr /*fileName*/,
                                                ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
@@ -14307,7 +14307,7 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), handleJsonFile);
 
-    deleteFile(codeFile);
+    deleteFile(progFile);
     deleteFile(pdfFile);
     deleteFile(jsonFile);
 }
