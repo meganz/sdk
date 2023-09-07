@@ -745,6 +745,18 @@ int AsymmCipher::decrypt(const byte* cipher, size_t cipherlen, byte* out, size_t
     return 1;
 }
 
+const Integer& AsymmCipher::getKey(unsigned component) const
+{
+    assert(component < PRIVKEY);
+
+    return key[component];
+}
+
+auto AsymmCipher::getKey() const -> const Key&
+{
+    return key;
+}
+
 int AsymmCipher::setkey(int numints, const byte* data, int len)
 {
     int ret = decodeintarray(key, numints, data, len);
@@ -904,7 +916,7 @@ public:
 };
 
 // generate RSA keypair
-void AsymmCipher::genkeypair(PrnGen &rng, Integer* privk, Integer* pubk, int size)
+void AsymmCipher::genkeypair(PrnGen &rng, Integer* privk, Integer* pubk, int size) const
 {
     pubk[PUB_E] = 17;
 
@@ -919,6 +931,13 @@ void AsymmCipher::genkeypair(PrnGen &rng, Integer* privk, Integer* pubk, int siz
     privk[PRIV_D] = pubk[PUB_E].InverseMod(LCM(privk[PRIV_P] - Integer::One(), privk[PRIV_Q] - Integer::One()));
     pubk[PUB_PQ] = privk[PRIV_P] * privk[PRIV_Q];
     privk[PRIV_U] = privk[PRIV_P].InverseMod(privk[PRIV_Q]);
+}
+
+void AsymmCipher::genkeypair(PrnGen &rng, Integer* pubk, int size)
+{
+    assert(pubk);
+
+    genkeypair(rng, key, pubk, size);
 }
 
 void Hash::add(const byte* data, unsigned len)

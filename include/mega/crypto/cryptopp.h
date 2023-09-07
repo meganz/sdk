@@ -443,8 +443,6 @@ public:
  */
 class MEGA_API AsymmCipher
 {
-    int decodeintarray(CryptoPP::Integer*, int, const byte*, int);
-
 public:
     enum { PRIV_P, PRIV_Q, PRIV_D, PRIV_U };
     enum { PUB_PQ, PUB_E };
@@ -453,11 +451,31 @@ public:
     static const int PRIVKEY_SHORT = 3;
     static const int PUBKEY = 2;
 
-    CryptoPP::Integer key[PRIVKEY];
-    unsigned int padding;
+    using Key = CryptoPP::Integer[PRIVKEY];
 
     static const int MAXKEYLENGTH = 1026;   // in bytes, allows for RSA keys up
                                             // to 8192 bits
+
+    /**
+     * @brief
+     * Retrieve a reference to the specified key component.
+     *
+     * @param component
+     * Identifies the key component you want to reference.
+     *
+     * @return
+     * A reference to the specified key component.
+     */
+    const CryptoPP::Integer& getKey(unsigned component) const;
+
+    /**
+     * @brief
+     * Retrieve a reference to this cipher's key material.
+     *
+     * @return
+     * A reference to this cipher's key material.
+     */
+    auto getKey() const -> const Key&;
 
     /**
      * @brief Sets a key from a buffer.
@@ -558,7 +576,14 @@ public:
      * @param pubk Public key.
      * @param size Size of key to generate in bits (key strength).
      */
-    void genkeypair(PrnGen &rng, CryptoPP::Integer* privk, CryptoPP::Integer* pubk, int size);
+    void genkeypair(PrnGen &rng, CryptoPP::Integer* privk, CryptoPP::Integer* pubk, int size) const;
+    void genkeypair(PrnGen &rng, CryptoPP::Integer* pubk, int size);
+
+private:
+    int decodeintarray(CryptoPP::Integer*, int, const byte*, int);
+
+    Key key;
+    unsigned int padding;
 };
 
 class MEGA_API Hash

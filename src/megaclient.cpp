@@ -13983,10 +13983,10 @@ void MegaClient::setkeypair()
 
     string privks, pubks;
 
-    asymkey.genkeypair(rng, asymkey.key, pubk, 2048);
+    asymkey.genkeypair(rng, pubk, 2048);
 
     AsymmCipher::serializeintarray(pubk, AsymmCipher::PUBKEY, &pubks);
-    AsymmCipher::serializeintarray(asymkey.key, AsymmCipher::PRIVKEY, &privks);
+    AsymmCipher::serializeintarray(asymkey.getKey(), AsymmCipher::PRIVKEY, &privks);
 
     // add random padding and ECB-encrypt with master key
     unsigned t = unsigned(privks.size());
