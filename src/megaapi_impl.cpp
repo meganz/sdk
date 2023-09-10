@@ -29058,12 +29058,7 @@ std::unique_ptr<TransferQueue> MegaFolderDownloadController::genDownloadTransfer
 		auto it = existingNodes.find(fileNode->getName());
 		if (it != existingNodes.end() && it->second.type == FILENODE)
 		{
-			auto fa = fsaccess->newfileaccess();
-			auto fap = fa.get();
-			auto faGetter = [fap, &fileLocalPath]() {
-				return fap->fopen(fileLocalPath, true, false, FSLogging::logExceptFileNotFound) && fap->type == FILENODE ? fap : nullptr;
-			};
-			decision = CollisionChecker::check(std::move(faGetter), fileNode.get(), transfer->getCollisionCheck());
+			decision = CollisionChecker::check(fsaccess.get(), fileLocalPath, fileNode.get(), transfer->getCollisionCheck());
 		}
 
 		MegaTransferPrivate* transferDownload = megaApi->createDownloadTransfer(
