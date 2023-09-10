@@ -18391,8 +18391,12 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         node
                             ? transfer->setCollisionCheckResult(CollisionChecker::check([fap]() { return fap; }, node, transfer->getCollisionCheck()))
                             : transfer->setCollisionCheckResult(CollisionChecker::check([fap]() { return fap; }, publicNode, transfer->getCollisionCheck()));
+                    } 
+                    else if (transfer->getCollisionCheckResult() == CollisionChecker::Result::NotYet) // no collision
+                    {
+                        transfer->setCollisionCheckResult(CollisionChecker::Result::Download);
                     }
-                    // decision check
+                    // decision check for early returns
                     {
                         auto decision = transfer->getCollisionCheckResult();
                         if (decision == CollisionChecker::Result::ReportError)
