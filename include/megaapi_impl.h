@@ -546,10 +546,13 @@ protected:
     bool IsStoppedOrCancelled(const std::string& name) const;
 
     // Create all local directories in one shot. This happens on the worker thread.
-    Error createFolder();
+    std::unique_ptr<TransferQueue> createFolderGenDownloadTransfersForFiles(FileSystemType fsType, Error& e);
 
-    // Iterate through all pending files, and start all download transfers
-    std::unique_ptr<TransferQueue> genDownloadTransfersForFiles(FileSystemType fsType);
+    // Iterate through all pending files, and adds all download transfers
+    std::unique_ptr<TransferQueue> genDownloadTransfersForFiles(std::unique_ptr<TransferQueue> transferQueue, 
+                                                                 LocalTree& folder,
+                                                                 FileSystemType fsType,
+                                                                 const std::unordered_map<std::string, FSNode>& existingNodes);
 };
 
 class MegaNodePrivate : public MegaNode, public Cacheable
@@ -1030,12 +1033,14 @@ public:
         Download    = 4,                // Download it
     };
 
-
-    static Result check(FileAccess* fa, MegaNode* fileNode, Option option);
-    static Result check(FileAccess* fa, Node* node, Option option);
+    // Use faGetter instead of a FileAcccess instance which delays the access to the file system and only does it based
+    // on demand by check. This helps in a network folder.
+    static Result check(FileSystemAccess* fsaccess, const LocalPath &fileLocalPath, MegaNode* fileNode, Option option);
+    static Result check(std::function<FileAccess* ()> faGetter, MegaNode* fileNode, Option option);
+    static Result check(std::function<FileAccess* ()> faGetter, Node* node, Option option);
 
 private:
-    static Result check(FileAccess* fa, std::function<FileFingerprint()> nodeFingerprintF, std::function<bool()> metamacEqualF, Option option);
+    static Result check(std::function<bool()> fingerprintEuqalF, std::function<bool()> metamacEqualF, Option option);
     static bool CompareLocalFileMetaMac(FileAccess* fa, MegaNode* fileNode);
 };
 

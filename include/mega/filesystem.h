@@ -897,6 +897,11 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     virtual ScanResult directoryScan(const LocalPath& path,
                                      handle expectedFsid,
+                                     std::unordered_map<std::string, FSNode>& results,
+                                     bool followSymlinks) = 0;
+
+    virtual ScanResult directoryScan(const LocalPath& path,
+                                     handle expectedFsid,
                                      map<LocalPath, FSNode>& known,
                                      std::vector<FSNode>& results,
                                      bool followSymLinks,
