@@ -327,6 +327,7 @@ struct StandardClient : public MegaApp
     bool waitForUserAlertsUpdated(unsigned numSeconds);
 
     bool received_user_actionpackets = false;
+    std::mutex user_actionpackets_mutex;
     std::condition_variable user_updated_cv;
     void users_updated(User**, int) override;
     bool waitForUserUpdated(unsigned numSeconds);

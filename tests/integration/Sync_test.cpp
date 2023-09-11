@@ -1049,14 +1049,14 @@ bool StandardClient::waitForUserAlertsUpdated(unsigned numSeconds)
 
 void StandardClient::users_updated(User** , int)
 {
+    lock_guard<mutex> g(user_actionpackets_mutex);
     received_user_actionpackets = true;
     user_updated_cv.notify_all();
 }
 
 bool StandardClient::waitForUserUpdated(unsigned int numSeconds)
 {
-    std::mutex mutex;
-    std::unique_lock<std::mutex> guard(mutex);
+    std::unique_lock<std::mutex> guard(user_actionpackets_mutex);
 
     user_updated_cv.wait_for(guard, std::chrono::seconds(numSeconds), [&] {
         return received_user_actionpackets;
