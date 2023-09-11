@@ -23,6 +23,7 @@
 #define MEGA_FILESYSTEM_H 1
 
 #include <atomic>
+#include <unordered_map>
 #include "types.h"
 #include "utils.h"
 #include "waiter.h"

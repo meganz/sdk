@@ -1728,12 +1728,13 @@ private:
     m_off_t mSize;
 }; // UnixStreamAccess
 
-ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
-                                                handle expectedFsid,
-                                                map<LocalPath, FSNode>& known,
-                                                std::vector<FSNode>& results,
-                                                bool followSymLinks,
-                                                unsigned& nFingerprinted)
+ScanResult PosixFileSystemAccess::directoryScanHelper(const LocalPath& targetPath,
+                                                      handle expectedFsid,
+                                                      map<LocalPath, FSNode>& known,
+                                                      std::function<void(FSNode&&)> returnResultFunc,
+                                                      bool followSymLinks,
+                                                      bool needFingerPrint,
+                                                      unsigned& nFingerprinted)
 {
     // Scan path should always be absolute.
     assert(targetPath.isAbsolute());
@@ -1819,8 +1820,8 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
         if (!strcmp(entry->d_name, ".."))
             continue;
 
-        // Push a new scan record.
-        auto& result = (results.emplace_back(), results.back());
+        // a new scan record.
+        FSNode result;
 
         result.fsid = (handle)entry->d_ino;
         result.localname = LocalPath::fromPlatformEncodedRelative(entry->d_name);
@@ -1841,6 +1842,7 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
 
             // Entry's unknown if we can't determine otherwise.
             result.type = TYPE_UNKNOWN;
+            returnResultFunc(std::move(result));
             continue;
         }
 
@@ -1853,6 +1855,7 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
             // Then no fingerprint is necessary.
             result.fingerprint.size = 0;
             result.type = FOLDERNODE;
+            returnResultFunc(std::move(result));
             continue;
         }
 
@@ -1869,6 +1872,7 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
 
             result.isSymlink = S_ISLNK(metadata.st_mode);
             result.type = TYPE_SPECIAL;
+            returnResultFunc(std::move(result));
             continue;
         }
 
@@ -1895,46 +1899,78 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
             LOG_warn << "directoryScan: "
                      << "Finder has marked this file as busy: "
                      << path;
+            returnResultFunc(std::move(result));
             continue;
         }
 #endif // __MACH__
 
-        // Have we processed this file before?
-        auto it = known.find(result.localname);
-
-        // Can we avoid recomputing this file's fingerprint?
-        if (it != known.end() && reuse(result, it->second))
+        if (needFingerPrint)
         {
-            result.fingerprint = std::move(it->second.fingerprint);
-            continue;
+            // Have we processed this file before?
+            auto it = known.find(result.localname);
+
+            // Can we avoid recomputing this file's fingerprint?
+            if (it != known.end() && reuse(result, it->second))
+            {
+                result.fingerprint = std::move(it->second.fingerprint);
+                returnResultFunc(std::move(result));
+                continue;
+            }
+
+            // Try and open the file for reading.
+            UnixStreamAccess isAccess(path.localpath.c_str(),
+                                    result.fingerprint.size);
+
+            // Only fingerprint the file if we could actually open it.
+            if (!isAccess)
+            {
+                LOG_warn << "directoryScan: "
+                        << "Unable to open file for fingerprinting: "
+                        << path
+                        << ". Error was: "
+                        << errno;
+                returnResultFunc(std::move(result));
+                continue;
+            }
+
+            // Fingerprint the file.
+            result.fingerprint.genfingerprint(
+                &isAccess, result.fingerprint.mtime);
+
+            ++nFingerprinted;
         }
-
-        // Try and open the file for reading.
-        UnixStreamAccess isAccess(path.localpath.c_str(),
-                                  result.fingerprint.size);
-
-        // Only fingerprint the file if we could actually open it.
-        if (!isAccess)
-        {
-            LOG_warn << "directoryScan: "
-                     << "Unable to open file for fingerprinting: "
-                     << path
-                     << ". Error was: "
-                     << errno;
-            continue;
-        }
-
-        // Fingerprint the file.
-        result.fingerprint.genfingerprint(
-          &isAccess, result.fingerprint.mtime);
-
-        ++nFingerprinted;
+        returnResultFunc(std::move(result));
     }
 
     // We're done iterating the directory.
     closedir(directory);
 
     return SCAN_SUCCESS;
+}
+
+ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& path, handle expectedFsid,
+    std::unordered_map<std::string, FSNode>& results, bool followSymlinks)
+{
+    auto resultProcess = [&results](FSNode&& node)
+    {
+        results.emplace(node.localname.toPath(false), std::move(node));
+        return;
+    };
+
+    map<LocalPath, FSNode> emptyKnown;
+    unsigned nFingerprinted = 0;
+    return directoryScanHelper(path, expectedFsid, emptyKnown, resultProcess, followSymlinks, false /*needFingerPrint*/, nFingerprinted);
+}
+
+ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& path, handle expectedFsid, map<LocalPath, FSNode>& known, std::vector<FSNode>& results, bool followSymlinks, unsigned& nFingerprinted)
+{
+    auto resultProcess = [&results](FSNode&& node)
+    {
+        results.emplace_back(std::move(node));
+        return;
+    };
+
+    return directoryScanHelper(path, expectedFsid, known, resultProcess, followSymlinks, true /*needFingerPrint*/, nFingerprinted);
 }
 
 #ifdef ENABLE_SYNC
