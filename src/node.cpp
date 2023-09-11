@@ -2366,11 +2366,14 @@ bool LocalNode::processBackgroundFolderScan(SyncRow& row, SyncPath& fullPath)
                 }
                 else if (n.type == TYPE_SPECIAL || n.type == TYPE_SYMLINK)
                 {
-                    if (ES_EXCLUDED == exclusionState(n.localname, n.type, n.fingerprint.size))
-                    {
-                        // no need to complain about this one anymore, the user excluded it
-                        n.type = TYPE_DONOTSYNC;
-                    }
+                    // we need to keep the type in case of the .megaignore rules being changed
+                    //    if (ES_EXCLUDED == exclusionState(n.localname, n.type, n.fingerprint.size))
+                    //    {
+                    //        // no need to complain about this one anymore, the user excluded it
+                    //        n.type = TYPE_DONOTSYNC;
+                    //    }
+                    // but let's at least compute the exclusion state and log it for these rare cases
+                    LOG_verbose << "Exclusion state for special/symlink " << n.localname << " is " << exclusionState(n.localname, n.type, n.fingerprint.size);
                 }
             }
 
