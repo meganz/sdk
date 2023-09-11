@@ -239,6 +239,7 @@ pipeline {
                                 DEFAULT_GOOGLE_MAPS_API_PATH = "/home/jenkins/android-default_google_maps_api" 
                                 ANDROID_WEBRTC="/home/jenkins/android-webrtc"
                                 USE_PREBUILT_SDK = false
+                                ARTIFACTORY_BASE_URL = "${env.REPOSITORY_URL}"
                             }
                             steps{
                                 sh "./gradlew --no-daemon --max-workers=1 data:testGmsDebugUnitTestCoverage"
