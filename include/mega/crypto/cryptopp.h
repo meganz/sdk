@@ -576,7 +576,24 @@ public:
      * @param pubk Public key.
      * @param size Size of key to generate in bits (key strength).
      */
-    void genkeypair(PrnGen &rng, CryptoPP::Integer* privk, CryptoPP::Integer* pubk, int size) const;
+    static void genkeypair(PrnGen &rng, CryptoPP::Integer* privk, CryptoPP::Integer* pubk, int size);
+
+    /**
+     * @brief
+     * Generates an RSA key pair of a given key size.
+     *
+     * @param rng
+     * Reference to the random block generator
+     *
+     * @param pubk
+     * Where should the public key be stored?
+     *
+     * @param size
+     * Size of key to generate in bits (key strength).
+     *
+     * @note
+     * After this call, the cipher will contain the private key.
+     */
     void genkeypair(PrnGen &rng, CryptoPP::Integer* pubk, int size);
 
 private:

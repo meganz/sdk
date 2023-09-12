@@ -952,7 +952,7 @@ public:
 };
 
 // generate RSA keypair
-void AsymmCipher::genkeypair(PrnGen &rng, Integer* privk, Integer* pubk, int size) const
+void AsymmCipher::genkeypair(PrnGen &rng, Integer* privk, Integer* pubk, int size)
 {
     pubk[PUB_E] = 17;
 
