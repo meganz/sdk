@@ -13428,13 +13428,14 @@ TEST_F(SdkTest, SdkVersionManagement)
 
     //  Delete a version by the API when limit was reached (chain must have 100 versions)
     doSetFileVersionsOption(0, false); // enable versioning
-    int verLimit = 100;
+    int verLimit = 102;
     ASSERT_NO_FATAL_FAILURE(upldVersions(UPFILE, verLimit, folder1Node.get(), &fileHandle));
     fileNode.reset(api->getNodeByHandle(fileHandle));
     allVersions.reset(api->getVersions(fileNode.get()));
     ASSERT_EQ(allVersions->size(), verLimit);
     // upload one more version
-    ASSERT_EQ(upldSingleVersion(UPFILE, verLimit + 1, folder1Node.get(), nullptr), API_OK);
+    ASSERT_EQ(upldSingleVersion(UPFILE, verLimit + 1, folder1Node.get(), &fileHandle), API_OK);
+    fileNode.reset(api->getNodeByHandle(fileHandle));
     allVersions.reset(api->getVersions(fileNode.get()));
     ASSERT_EQ(allVersions->size(), verLimit);
 }
