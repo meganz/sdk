@@ -239,7 +239,7 @@ static const std::set<nameid> videoExtensions = {MAKENAMEID3('3','g','2'), MAKEN
                                           MAKENAMEID3('m','x','u'), MAKENAMEID3('o','g','v'), MAKENAMEID3('p','y','v'), MAKENAMEID2('q','t'), MAKENAMEID3('s','m','v'), MAKENAMEID3('u','v','h'), MAKENAMEID3('u','v','m'), MAKENAMEID3('u','v','p'), MAKENAMEID3('u','v','s'), MAKENAMEID3('u','v','u'), MAKENAMEID3('u','v','v'), MAKENAMEID4('u','v','v','h'), MAKENAMEID4('u','v','v','m'), MAKENAMEID4('u','v','v','p'), MAKENAMEID4('u','v','v','s'), MAKENAMEID4('u','v','v','u'), MAKENAMEID4('u','v','v','v'),
                                           MAKENAMEID3('v','i','v'), MAKENAMEID3('v','o','b'), MAKENAMEID4('w','e','b','m'), MAKENAMEID2('w','m'), MAKENAMEID3('w','m','v'), MAKENAMEID3('w','m','x'), MAKENAMEID3('w','v','x')};
 
-static const std::set<nameid> photoExtensions = {MAKENAMEID3('3','d','s'), MAKENAMEID3('b','m','p'), MAKENAMEID4('b','t','i','f'), MAKENAMEID3('c','g','m'), MAKENAMEID3('c','m','x'), MAKENAMEID3('d','j','v'), MAKENAMEID4('d','j','v','u'), MAKENAMEID3('d','w','g'), MAKENAMEID3('d','x','f'), MAKENAMEID3('f','b','s'), MAKENAMEID2('f','h'), MAKENAMEID3('f','h','4'), MAKENAMEID3('f','h','5'), MAKENAMEID3('f','h','7'), MAKENAMEID3('f','h','c'), MAKENAMEID3('f','p','x'), MAKENAMEID3('f','s','t'), MAKENAMEID2('g','3'),
+static const std::set<nameid> photoExtensions = {MAKENAMEID3('3','d','s'), MAKENAMEID4('a','v','i','f'), MAKENAMEID3('b','m','p'), MAKENAMEID4('b','t','i','f'), MAKENAMEID3('c','g','m'), MAKENAMEID3('c','m','x'), MAKENAMEID3('d','j','v'), MAKENAMEID4('d','j','v','u'), MAKENAMEID3('d','w','g'), MAKENAMEID3('d','x','f'), MAKENAMEID3('f','b','s'), MAKENAMEID2('f','h'), MAKENAMEID3('f','h','4'), MAKENAMEID3('f','h','5'), MAKENAMEID3('f','h','7'), MAKENAMEID3('f','h','c'), MAKENAMEID3('f','p','x'), MAKENAMEID3('f','s','t'), MAKENAMEID2('g','3'),
                                           MAKENAMEID3('g','i','f'), MAKENAMEID4('h','e','i','c'), MAKENAMEID4('h','e','i','f'), MAKENAMEID3('i','c','o'), MAKENAMEID3('i','e','f'), MAKENAMEID3('j','p','e'), MAKENAMEID4('j','p','e','g'), MAKENAMEID3('j','p','g'), MAKENAMEID3('k','t','x'), MAKENAMEID3('m','d','i'), MAKENAMEID3('m','m','r'), MAKENAMEID3('n','p','x'), MAKENAMEID3('p','b','m'), MAKENAMEID3('p','c','t'), MAKENAMEID3('p','c','x'), MAKENAMEID3('p','g','m'), MAKENAMEID3('p','i','c'),
                                           MAKENAMEID3('p','n','g'), MAKENAMEID3('p','n','m'), MAKENAMEID3('p','p','m'), MAKENAMEID3('p','s','d'), MAKENAMEID3('r','a','s'), MAKENAMEID3('r','g','b'), MAKENAMEID3('r','l','c'), MAKENAMEID3('s','g','i'), MAKENAMEID3('s','i','d'), MAKENAMEID3('s','v','g'), MAKENAMEID4('s','v','g','z'), MAKENAMEID3('t','g','a'), MAKENAMEID3('t','i','f'), MAKENAMEID4('t','i','f','f'), MAKENAMEID3('u','v','g'), MAKENAMEID3('u','v','i'), MAKENAMEID4('u','v','v','g'),
                                           MAKENAMEID4('u','v','v','i'), MAKENAMEID4('w','b','m','p'), MAKENAMEID3('w','d','p'), MAKENAMEID4('w','e','b','p'), MAKENAMEID3('x','b','m'), MAKENAMEID3('x','i','f'), MAKENAMEID3('x','p','m'), MAKENAMEID3('x','w','d')};
@@ -257,8 +257,14 @@ bool Node::isPhoto(const std::string& ext)
         photoExtensions.find(extNameid) != photoExtensions.end();
 }
 
-bool Node::isPhotoWithFileAttributes(const string& ext, bool checkPreview) const
+bool Node::isPhotoWithFileAttributes(bool checkPreview) const
 {
+    std::string ext;
+    if (!Node::getExtension(ext, displayname()))
+    {
+        return false;
+    }
+
     // evaluate according to the webclient rules, so that we get exactly the same bucketing.
     return (isPhoto(ext)
             && (!checkPreview || Node::hasfileattribute(&fileattrstring, GfxProc::PREVIEW)));
@@ -269,8 +275,14 @@ bool Node::isVideo(const std::string& ext)
     return videoExtensions.find(getExtensionNameId(ext)) != videoExtensions.end();
 }
 
-bool Node::isVideoWithFileAttributes(const std::string& ext) const
+bool Node::isVideoWithFileAttributes() const
 {
+    std::string ext;
+    if (!Node::getExtension(ext, displayname()))
+    {
+        return false;
+    }
+
     if (Node::hasfileattribute(&fileattrstring, fa_media) && nodekey().size() == FILENODEKEYLENGTH)
     {
 #ifdef USE_MEDIAINFO
@@ -312,7 +324,7 @@ bool Node::isAudio(const std::string& ext)
 
 bool Node::isDocument(const std::string& ext)
 {
-    return documentExtensions.find(getExtensionNameId(ext)) != documentExtensions.end();
+    return documentExtensions.find(getExtensionNameId(ext)) != documentExtensions.end() || isPdf(ext) || isPresentation(ext);
 }
 
 bool Node::isPdf(const std::string& ext)
@@ -338,6 +350,32 @@ bool Node::isProgram(const std::string& ext)
 bool Node::isMiscellaneous(const std::string& ext)
 {
     return miscExtensions.find(getExtensionNameId(ext)) != miscExtensions.end();
+}
+
+bool Node::isOfMimetype(MimeType_t mimetype, const string& ext)
+{
+    switch (mimetype) {
+    case MimeType_t::MIME_TYPE_PHOTO:
+        return Node::isPhoto(ext);
+    case MimeType_t::MIME_TYPE_AUDIO:
+        return Node::isAudio(ext);
+    case MimeType_t::MIME_TYPE_VIDEO:
+        return Node::isVideo(ext);
+    case MimeType_t::MIME_TYPE_DOCUMENT:
+        return Node::isDocument(ext);
+    case MimeType_t::MIME_TYPE_PDF:
+        return Node::isPdf(ext);
+    case MimeType_t::MIME_TYPE_PRESENTATION:
+        return Node::isPresentation(ext);
+    case MimeType_t::MIME_TYPE_ARCHIVE:
+        return Node::isArchive(ext);
+    case MimeType_t::MIME_TYPE_PROGRAM:
+        return Node::isProgram(ext);
+    case MimeType_t::MIME_TYPE_MISC:
+        return Node::isMiscellaneous(ext);
+    default:
+        return false;
+    }
 }
 
 nameid Node::getExtensionNameId(const std::string& ext)
@@ -1210,57 +1248,25 @@ string Node::displaypath() const
     return path;
 }
 
-MimeType_t Node::getMimeType(bool checkPreview) const
+bool Node::isIncludedForMimetype(MimeType_t mimetype, bool checkPreview) const
 {
     if (type != FILENODE)
     {
-        return MimeType_t::MIME_TYPE_UNKNOWN;
+        return false;
+    }
+
+    if (mimetype == MimeType_t::MIME_TYPE_PHOTO)
+    {
+        return isPhotoWithFileAttributes(checkPreview);
     }
 
     std::string extension;
     if (!getExtension(extension, displayname()))
     {
-        return MimeType_t::MIME_TYPE_UNKNOWN;
+        return false;
     }
 
-    if (isPhoto(extension))
-    {
-        return MimeType_t::MIME_TYPE_PHOTO;
-    }
-    else if (isVideo(extension))
-    {
-        return MimeType_t::MIME_TYPE_VIDEO;
-    }
-    else if (isAudio(extension))
-    {
-        return MimeType_t::MIME_TYPE_AUDIO;
-    }
-    else if (isDocument(extension))
-    {
-        return MimeType_t::MIME_TYPE_DOCUMENT;
-    }
-    else if (isPdf(extension))
-    {
-        return MimeType_t::MIME_TYPE_PDF;
-    }
-    else if (isPresentation(extension))
-    {
-        return MimeType_t::MIME_TYPE_PRESENTATION;
-    }
-    else if (isArchive(extension))
-    {
-        return MimeType_t::MIME_TYPE_ARCHIVE;
-    }
-    else if (isProgram(extension))
-    {
-        return MimeType_t::MIME_TYPE_PROGRAM;
-    }
-    else if (isMiscellaneous(extension))
-    {
-        return MimeType_t::MIME_TYPE_MISC;
-    }
-
-    return MimeType_t::MIME_TYPE_UNKNOWN;
+    return Node::isOfMimetype(mimetype, extension);
 }
 
 bool isPhotoVideoAudioByName(const string& filenameExtensionLowercaseNoDot)
@@ -1337,22 +1343,36 @@ bool Node::applykey()
             // look for share key if not folder link access with folder master key
             if (h != me)
             {
-                // this is a share node handle - check if share key is available at key's repository
-                // if not available, check if the node already has the share key
-                auto it = client->mNewKeyRepository.find(NodeHandle().set6byte(h));
-                if (it == client->mNewKeyRepository.end())
+                // this is a share node handle - check if share key is available
+                if (client->mKeyManager.isSecure() && client->mKeyManager.generation())
                 {
-                    std::shared_ptr<Node> n;
-                    if (!(n = client->nodebyhandle(h)) || !n->sharekey)
+                    std::string key = client->mKeyManager.getShareKey(h);
+                    if (key.size())
+                    {
+                        sc = client->getRecycledTemporaryNodeCipher(&key);
+                    }
+                    else
                     {
                         continue;
                     }
-
-                    sc = n->sharekey.get();
                 }
-                else
+                else // check at new keys repository and, if not found, at the root node of share
                 {
-                    sc = client->getRecycledTemporaryNodeCipher(it->second.data());
+                    auto it = client->mNewKeyRepository.find(NodeHandle().set6byte(h));
+                    if (it == client->mNewKeyRepository.end())
+                    {
+                        shared_ptr<Node> n;
+                        if (!(n = client->nodebyhandle(h)) || !n->sharekey)
+                        {
+                            continue;
+                        }
+
+                        sc = n->sharekey.get();
+                    }
+                    else
+                    {
+                        sc = client->getRecycledTemporaryNodeCipher(it->second.data());
+                    }
                 }
 
                 // this key will be rewritten when the node leaves the outbound share
@@ -2349,11 +2369,14 @@ bool LocalNode::processBackgroundFolderScan(SyncRow& row, SyncPath& fullPath)
                 }
                 else if (n.type == TYPE_SPECIAL || n.type == TYPE_SYMLINK)
                 {
-                    if (ES_EXCLUDED == exclusionState(n.localname, n.type, n.fingerprint.size))
-                    {
-                        // no need to complain about this one anymore, the user excluded it
-                        n.type = TYPE_DONOTSYNC;
-                    }
+                    // we need to keep the type in case of the .megaignore rules being changed
+                    //    if (ES_EXCLUDED == exclusionState(n.localname, n.type, n.fingerprint.size))
+                    //    {
+                    //        // no need to complain about this one anymore, the user excluded it
+                    //        n.type = TYPE_DONOTSYNC;
+                    //    }
+                    // but let's at least compute the exclusion state and log it for these rare cases
+                    LOG_verbose << "Exclusion state for special/symlink " << n.localname << " is " << exclusionState(n.localname, n.type, n.fingerprint.size);
                 }
             }
 

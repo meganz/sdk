@@ -157,7 +157,7 @@ bool SyncPath::appendRowNames(const SyncRow& row, FileSystemType filesystemType)
     }
 
     // add to cloudPath
-    cloudPath += "/";
+    if (cloudPath.empty() || cloudPath.back() != '/') cloudPath += "/";
     CloudNode cn;
     if (row.cloudNode)
     {
@@ -188,7 +188,7 @@ bool SyncPath::appendRowNames(const SyncRow& row, FileSystemType filesystemType)
     }
 
     // add to syncPath
-    syncPath += "/";
+    if (syncPath.empty() || syncPath.back() != '/') syncPath += "/";
     if (row.cloudNode)
     {
         syncPath += row.cloudNode->name;
@@ -7041,8 +7041,10 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
 
                     if (childRow.syncNode)
                     {
-                        auto p = childRow.syncNode->getLocalPath();
-                        assert(0 == compareUtf(p, true, fullPath.localPath, true, mCaseInsensitive));
+                        #ifdef DEBUG
+                            auto p = childRow.syncNode->getLocalPath();
+                            assert(0 == compareUtf(p, true, fullPath.localPath, true, mCaseInsensitive));
+                        #endif
                         childRow.syncNode->reassignUnstableFsidsOnceOnly(childRow.fsNode);
                     }
 

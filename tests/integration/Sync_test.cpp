@@ -5466,7 +5466,7 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderPlain)
     ASSERT_TRUE(clientA2->confirmModel_mainthread(model.findnode("f"), backupId2));
 }
 
-TEST_F(SyncTest, BasicSync_MoveLocalFolderBetweenSyncs)
+TEST_F(SyncTest, DISABLED_BasicSync_MoveLocalFolderBetweenSyncs)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot();

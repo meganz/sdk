@@ -647,7 +647,7 @@ bool MediaProperties::isMediaFilenameExt(const std::string& ext)
 }
 
 template<class T>
-std::pair<std::string, std::string> MediaProperties::getCoverFromId3v2(const T& file)
+StringPair MediaProperties::getCoverFromId3v2(const T& file)
 {
     MediaInfoLib::MediaInfo mi;
     mi.Option(__T("Cover_Data"), __T("base64")); // set this _before_ opening the file
@@ -698,10 +698,10 @@ std::pair<std::string, std::string> MediaProperties::getCoverFromId3v2(const T& 
 // forward-declare this so the compiler will generate it (same conditional compilation as LocalPath::localpath)
 #if defined(_WIN32)
 template
-std::pair<std::string, std::string> MediaProperties::getCoverFromId3v2(const std::wstring&);
+StringPair MediaProperties::getCoverFromId3v2(const std::wstring&);
 #else
 template
-std::pair<std::string, std::string> MediaProperties::getCoverFromId3v2(const std::string&);
+StringPair MediaProperties::getCoverFromId3v2(const std::string&);
 #endif
 
 static inline uint32_t coalesce(uint32_t a, uint32_t b)

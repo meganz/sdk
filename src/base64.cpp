@@ -256,6 +256,21 @@ int Base64::btoa(const byte* b, int blen, char* a)
     return p;
 }
 
+void Base64::toStandard(string& b64str)
+{
+    std::replace(b64str.begin(), b64str.end(), '-', '+');
+    std::replace(b64str.begin(), b64str.end(), '_', '/');
+
+    // Calculate how many padding '=' chars are needed
+    size_t padChars = 4 - (b64str.size() % 4);
+    if (padChars < 4)
+    {
+        b64str.append(padChars, '=');
+    }
+
+    assert(b64str.size() % 4 == 0);
+}
+
 byte Base32::to32(byte c)
 {
     c &= 31;
