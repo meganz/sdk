@@ -911,10 +911,13 @@ auto AsymmCipher::isvalid(const Key& key, int type) const -> Status
 {
     assert(type >= PUBKEY && type <= PRIVKEY);
 
-    if (type == PUBKEY
-        && key[PUB_E].BitCount()
-        && key[PUB_PQ].BitCount())
-        return S_VALID;
+    if (type == PUBKEY)
+    {
+        if (key[PUB_E].BitCount() && key[PUB_PQ].BitCount())
+            return S_VALID;
+
+        return S_INVALID;
+    }
 
     // Convenience.
     auto& d = key[PRIV_D];
