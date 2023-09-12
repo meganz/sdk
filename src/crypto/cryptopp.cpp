@@ -975,7 +975,8 @@ void AsymmCipher::genkeypair(PrnGen &rng, Integer* pubk, int size)
 
     genkeypair(rng, key, pubk, size);
 
-    status = S_UNKNOWN;
+    // Consider the keys we generate as valid.
+    status = S_VALID;
 }
 
 void Hash::add(const byte* data, unsigned len)
