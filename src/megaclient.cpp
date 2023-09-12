@@ -16889,7 +16889,7 @@ recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t si
         }
 
         // sort the defined bucket by owner, parent folder, added/updated and ismedia
-        std::sort(i, bucketend, [this](std::shared_ptr<Node> & n1, std::shared_ptr<Node> & n2) { return action_bucket_compare::compare(n1.get(), n2.get(), this); });
+        std::sort(i, bucketend, [this](const std::shared_ptr<Node>& n1, const std::shared_ptr<Node>& n2) { return action_bucket_compare::compare(n1.get(), n2.get(), this); });
 
         // split the 6h-bucket in different buckets according to their content
         for (auto j = i; j != bucketend; ++j)
