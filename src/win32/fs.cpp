@@ -1253,10 +1253,23 @@ fsfp_t WinFileSystemAccess::fsFingerprint(const LocalPath& path) const
 bool WinFileSystemAccess::fsStableIDs(const LocalPath& path) const
 {
     TCHAR volume[MAX_PATH + 1];
-    if (GetVolumePathNameW(path.localpath.data(), volume, MAX_PATH + 1))
+    if (GetVolumePathNameW(path.localpath.c_str(), volume, MAX_PATH + 1))
     {
         TCHAR fs[MAX_PATH + 1] = { 0, };
-        if (GetVolumeInformation(volume, NULL, 0, NULL, NULL, NULL, fs, MAX_PATH + 1))
+        BOOL gotVolInfo = GetVolumeInformation(volume, NULL, 0, NULL, NULL, NULL, fs, MAX_PATH + 1);
+        if (!gotVolInfo)
+        {
+            // maybe it's a subst drive (see "subst a: c:\Source" DOS command), in which case let's try to work around it
+            wchar_t* volSep = wcsstr(volume, L":\\");
+            if (volSep && *(volSep + 2))
+            {
+                // volume did not end after ":\\" so let's end it there and try again
+                *(volSep + 2) = '\0';
+                gotVolInfo = GetVolumeInformation(volume, NULL, 0, NULL, NULL, NULL, fs, MAX_PATH + 1);
+            }
+        }
+
+        if (gotVolInfo)
         {
             LOG_info << "Filesystem type: " << LocalPath::fromPlatformEncodedRelative(std::wstring(fs));
             return _wcsicmp(fs, L"FAT")
