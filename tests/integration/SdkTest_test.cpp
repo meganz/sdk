@@ -7568,6 +7568,8 @@ TEST_F(SdkTest, SdkBackupFolder)
     // request to backup a folder
     fs::path localFolderPath = localBasePath / "LocalBackedUpFolder";
     fs::create_directories(localFolderPath);
+    const auto testFile = localFolderPath / UPFILE;
+    ASSERT_TRUE(createFile(testFile.string(), false)) << "Failed to create file " << testFile.string();
     const string backupNameStr = string("RemoteBackupFolder_") + timestamp;
     const char* backupName = backupNameStr.c_str();
     MegaHandle newSyncRootNodeHandle = UNDEF;
@@ -7642,6 +7644,17 @@ TEST_F(SdkTest, SdkBackupFolder)
     }
     ASSERT_TRUE(target.lastEventsContain(MegaEvent::EVENT_NODES_CURRENT))
         << "Timeout expired to receive actionpackets";
+
+    // disable backup
+    RequestTracker disableBkpTracker(megaApi[0].get());
+    megaApi[0]->setSyncRunState(bkpId, MegaSync::RUNSTATE_DISABLED, &disableBkpTracker);
+    ASSERT_EQ(API_OK, disableBkpTracker.waitForResult());
+    // remove local file from backup
+    EXPECT_TRUE(fs::remove(testFile)) << "Failed to remove file " << testFile.string();
+    // enable backup
+    RequestTracker enableBkpTracker(megaApi[0].get());
+    megaApi[0]->setSyncRunState(bkpId, MegaSync::RUNSTATE_RUNNING, &enableBkpTracker);
+    ASSERT_EQ(API_OK, enableBkpTracker.waitForResult());
 
     // Remove registered backup
     RequestTracker removeTracker(megaApi[0].get());
