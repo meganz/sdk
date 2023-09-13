@@ -64,7 +64,7 @@ int WinConsoleWaiter::wait()
     if (r)
     {
 
-#ifdef WIN32
+#ifdef NO_READLINE
         if (console)
         {
             // don't let console processing be locked out when the SDK core is busy
