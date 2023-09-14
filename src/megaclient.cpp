@@ -18355,12 +18355,17 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
 
         assert(f->size >= 0);
 
+        // How much space is available?
+        auto available = fsaccess->availableDiskSpace(targetPath);
+
         // Do we have enough space for the download?
-        if (fsaccess->availableDiskSpace(targetPath) <= f->size)
+        if (available <= f->size)
         {
             LOG_warn << "Insufficient space available for download: "
                      << f->getLocalname()
-                     << ": "
+                     << ": available: "
+                     << available
+                     << ", required: "
                      << f->size;
 
             *cause = LOCAL_ENOSPC;
