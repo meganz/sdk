@@ -462,6 +462,9 @@ public:
      *
      * @param component
      * Identifies the key component you want to reference.
+     * Possible values:
+     *  - For private keys: PRIV_P, PRIV_Q, PRIV_D, PRIV_U
+     *  - For public keys: PUB_PQ, PUB_E
      *
      * @return
      * A reference to the specified key component.
@@ -498,7 +501,7 @@ public:
      *
      * @param keytype Key type indication by number of integers for key type
      *     (AsymmCipher::PRIVKEY or AsymmCipher::PUBKEY).
-     * @return 0 on an invalid key pair.
+     * @return false on an invalid key pair, true if valid.
      */
     bool isvalid(int keytype = PUBKEY) const;
 
@@ -580,7 +583,8 @@ public:
 
     /**
      * @brief
-     * Generates an RSA key pair of a given key size.
+     * Generates an RSA key pair of a given key size and stores the new
+     * private key in this object
      *
      * @param rng
      * Reference to the random block generator
