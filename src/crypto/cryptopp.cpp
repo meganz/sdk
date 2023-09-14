@@ -770,7 +770,7 @@ int AsymmCipher::setkey(int numints, const byte* data, int len)
         return result;
 
     // We've been provided a private key.
-    if (numints > PUBKEY)
+    if (numints == PRIVKEY || numints == PRIVKEY_SHORT)
         return isvalid(numints) ? result : 0;
 
     // Convenience.
