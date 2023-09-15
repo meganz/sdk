@@ -7857,7 +7857,7 @@ bool CommandChatLinkURL::procresult(Result r, JSON& json)
 {
     if (r.wasErrorOrOK())
     {
-        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, false, nullptr, UNDEF, r.errorOrOK());
+        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, ChatOptions::kEmpty, nullptr, UNDEF, r.errorOrOK());
         return true;
     }
     else
@@ -7870,6 +7870,9 @@ bool CommandChatLinkURL::procresult(Result r, JSON& json)
         m_time_t ts = 0;
         bool meetingRoom = false;
         bool waitingRoom = false;
+        bool openInvite = false;
+        bool speakRequest = false;
+
         std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
         handle callid = UNDEF;
 
@@ -7913,6 +7916,14 @@ bool CommandChatLinkURL::procresult(Result r, JSON& json)
                     waitingRoom = json.getbool();
                     break;
 
+                case MAKENAMEID2('s','r'):
+                    speakRequest = json.getbool();
+                    break;
+
+                case MAKENAMEID2('o','i'):
+                    openInvite = json.getbool();
+                    break;
+
                 case MAKENAMEID2('s', 'm'): // scheduled meetings
                 {
                     if (json.enterarray())
@@ -7926,18 +7937,20 @@ bool CommandChatLinkURL::procresult(Result r, JSON& json)
                 case EOO:
                     if (chatid != UNDEF && shard != -1 && !url.empty() && !ct.empty() && numPeers != -1)
                     {
-                        client->app->chatlinkurl_result(chatid, shard, &url, &ct, numPeers, ts, meetingRoom, waitingRoom, &schedMeetings, callid, API_OK);
+                        client->app->chatlinkurl_result(chatid, shard, &url, &ct, numPeers, ts, meetingRoom,
+							ChatOptions(speakRequest, waitingRoom, openInvite).value(),
+							&schedMeetings, callid, API_OK);
                     }
                     else
                     {
-                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, false, nullptr, UNDEF, API_EINTERNAL);
+                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, ChatOptions::kEmpty, nullptr, UNDEF, API_EINTERNAL);
                     }
                     return true;
 
                 default:
                     if (!json.storeobject())
                     {
-                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, false, nullptr, UNDEF, API_EINTERNAL);
+                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, ChatOptions::kEmpty, nullptr, UNDEF, API_EINTERNAL);
                         return false;
                     }
             }
@@ -8762,101 +8775,6 @@ bool CommandSMSVerificationCheck::procresult(Result r, JSON& json)
     return false;
 }
 
-CommandGetRegisteredContacts::CommandGetRegisteredContacts(MegaClient* client, const map<const char*, const char*>& contacts)
-{
-    cmd("usabd");
-
-    arg("v", 1);
-
-    beginobject("e");
-    for (const auto& pair : contacts)
-    {
-        arg(Base64::btoa(pair.first).c_str(), // name is text-input from user, need conversion too
-            (byte *)pair.second, static_cast<int>(strlen(pair.second)));
-    }
-    endobject();
-
-    tag = client->reqtag;
-}
-
-bool CommandGetRegisteredContacts::procresult(Result r, JSON& json)
-{
-    if (r.wasErrorOrOK())
-    {
-        client->app->getregisteredcontacts_result(r.errorOrOK(), nullptr);
-        return true;
-    }
-
-    vector<tuple<string, string, string>> registeredContacts;
-
-    string entryUserDetail;
-    string id;
-    string userDetail;
-
-    bool success = true;
-    while (json.enterobject())
-    {
-        bool exit = false;
-        while (!exit)
-        {
-            switch (json.getnameid())
-            {
-                case MAKENAMEID3('e', 'u', 'd'):
-                {
-                    json.storeobject(&entryUserDetail);
-                    break;
-                }
-                case MAKENAMEID2('i', 'd'):
-                {
-                    json.storeobject(&id);
-                    break;
-                }
-                case MAKENAMEID2('u', 'd'):
-                {
-                    json.storeobject(&userDetail);
-                    break;
-                }
-                case EOO:
-                {
-                    if (entryUserDetail.empty() || id.empty() || userDetail.empty())
-                    {
-                        LOG_err << "Missing or empty field when parsing 'get registered contacts' response";
-                        success = false;
-                    }
-                    else
-                    {
-                        registeredContacts.emplace_back(
-                                    make_tuple(Base64::atob(entryUserDetail), std::move(id),
-                                               Base64::atob(userDetail)));
-                    }
-                    exit = true;
-                    break;
-                }
-                default:
-                {
-                    if (!json.storeobject())
-                    {
-                        LOG_err << "Failed to parse 'get registered contacts' response";
-                        client->app->getregisteredcontacts_result(API_EINTERNAL, nullptr);
-                        return false;
-                    }
-                }
-            }
-        }
-        json.leaveobject();
-    }
-    if (success)
-    {
-        client->app->getregisteredcontacts_result(API_OK, &registeredContacts);
-        return true;
-    }
-    else
-    {
-        client->app->getregisteredcontacts_result(API_EINTERNAL, nullptr);
-        return false;
-    }
-}
-
 CommandGetCountryCallingCodes::CommandGetCountryCallingCodes(MegaClient* client)
 {
     cmd("smslc");
@@ -9649,7 +9567,7 @@ bool CommandFetchSet::procresult(Result r, JSON& json)
     return true;
 }
 
-CommandPutSetElements::CommandPutSetElements(MegaClient* cl, vector<SetElement>&& els, vector<pair<string, string>>&& encrDetails,
+CommandPutSetElements::CommandPutSetElements(MegaClient* cl, vector<SetElement>&& els, vector<StringPair>&& encrDetails,
                                                std::function<void(Error, const vector<const SetElement*>*, const vector<int64_t>*)> completion)
     : mElements(new vector<SetElement>(std::move(els))), mCompletion(completion)
 {
@@ -10367,5 +10285,416 @@ bool CommandScheduledMeetingFetchEvents::procresult(Command::Result r, JSON& jso
 }
 
 #endif
+
+bool CommandFetchAds::procresult(Command::Result r, JSON& json)
+{
+    string_map result;
+    if (r.wasStrictlyError())
+    {
+        mCompletion(r.errorOrOK(), result);
+        return true;
+    }
+
+    bool error = false;
+
+    while (json.enterobject() && !error)
+    {
+        std::string id;
+        std::string iu;
+        bool exit = false;
+        while (!exit)
+        {
+            switch (json.getnameid())
+            {
+                case MAKENAMEID2('i', 'd'):
+                    json.storeobject(&id);
+                    break;
+
+                case MAKENAMEID3('s', 'r', 'c'):
+                    json.storeobject(&iu);
+                    break;
+
+                case EOO:
+                    exit = true;
+                    if (!id.empty() && !iu.empty())
+                    {
+                        result[id] = iu;
+                    }
+                    else
+                    {
+                        error = true;
+                        result.clear();
+                    }
+                    break;
+
+                default:
+                    if (!json.storeobject())
+                    {
+                        result.clear();
+                        mCompletion(API_EINTERNAL, result);
+                        return false;
+                    }
+                    break;
+            }
+        }
+
+        json.leaveobject();
+    }
+
+    mCompletion((error ? API_EINTERNAL : API_OK), result);
+
+    return !error;
+}
+
+CommandFetchAds::CommandFetchAds(MegaClient* client, int adFlags, const std::vector<std::string> &adUnits, handle publicHandle, CommandFetchAdsCompletion completion)
+    : mCompletion(completion)
+{
+    cmd("adf");
+    arg("ad", adFlags);
+    arg("af", 1);   // ad format: URL
+
+    if (!ISUNDEF(publicHandle))
+    {
+        arg("p", publicHandle);
+    }
+
+    beginarray("au");
+    for (const std::string& adUnit : adUnits)
+    {
+        element(adUnit.c_str());
+    }
+    endarray();
+
+    tag = client->reqtag;
+}
+
+bool CommandQueryAds::procresult(Command::Result r, JSON &json)
+{
+    if (r.wasErrorOrOK())
+    {
+        mCompletion(r.errorOrOK(), 0);
+        return true;
+    }
+
+    if (!json.isnumeric())
+    {
+        // It's wrongly formatted, consume this one so the next command can be processed.
+        LOG_err << "Command response badly formatted";
+        mCompletion(API_EINTERNAL, 0);
+        return false;
+    }
+
+    int value = json.getint32();
+    mCompletion(API_OK, value);
+    return true;
+}
+
+CommandQueryAds::CommandQueryAds(MegaClient* client, int adFlags, handle publicHandle, CommandQueryAdsCompletion completion)
+    : mCompletion(completion)
+{
+    cmd("ads");
+    arg("ad", adFlags);
+    if (!ISUNDEF(publicHandle))
+    {
+        arg("ph", publicHandle);
+    }
+
+    tag = client->reqtag;
+}
+
+/* MegaVPN Commands BEGIN */
+CommandGetVpnRegions::CommandGetVpnRegions(MegaClient* client, Cb&& completion)
+:
+    mCompletion(std::move(completion))
+{
+    cmd("vpnr");
+
+    tag = client->reqtag;
+}
+
+void CommandGetVpnRegions::parseregions(JSON& json, std::vector<std::string>* vpnRegions)
+{
+    std::string vpnRegion;
+    while (json.storeobject(&vpnRegion))
+    {
+        if (vpnRegions)
+        {
+            vpnRegions->emplace_back(std::move(vpnRegion));
+        }
+    }
+}
+
+bool CommandGetVpnRegions::procresult(Command::Result r, JSON& json)
+{
+    if (!r.hasJsonArray())
+    {
+        if (mCompletion) { mCompletion(API_EINTERNAL, {}); }
+        return false;
+    }
+
+    // Parse regions
+    std::vector<std::string> vpnRegions;
+    parseregions(json, &vpnRegions);
+
+    mCompletion(API_OK, std::move(vpnRegions));
+    return true;
+}
+
+CommandGetVpnCredentials::CommandGetVpnCredentials(MegaClient* client, Cb&& completion)
+:
+    mCompletion(std::move(completion))
+{
+    cmd("vpng");
+    arg("v", 2);
+
+    tag = client->reqtag;
+}
+
+bool CommandGetVpnCredentials::procresult(Command::Result r, JSON& json)
+{
+    if (r.wasErrorOrOK())
+    {
+        if (mCompletion) { mCompletion(r.errorOrOK(), {}, {}, {}); }
+        return true;
+    }
+
+    Error e(API_EINTERNAL);
+    MapSlotIDToCredentialInfo mapSlotIDToCredentialInfo;
+    MapClusterPublicKeys mapClusterPubKeys;
+    {
+        // Parse ClusterID and IPs
+        if (json.enterobject())
+        {
+            string slotIDStr;
+            bool parsedOk = true;
+            while (parsedOk)
+            {
+                slotIDStr = json.getname();
+                if (slotIDStr.empty())
+                {
+                    break;
+                }
+
+                int slotID = -1;
+                try
+                {
+                    slotID = std::stoi(slotIDStr);
+                }
+                catch (std::exception const &ex)
+                {
+                    LOG_err << "[CommandGetVpnCredentials] Could not convert param SlotID(" << slotIDStr << ") to integer. Exception: " << ex.what();
+                    parsedOk = false;
+                }
+
+                if (parsedOk && json.enterarray())
+                {
+                    CredentialInfo credentialInfo;
+                    credentialInfo.clusterID = static_cast<int>(json.getint());
+                    parsedOk = credentialInfo.clusterID != -1;
+                    parsedOk = parsedOk && json.storeobject(&credentialInfo.ipv4);
+                    parsedOk = parsedOk && json.storeobject(&credentialInfo.ipv6);
+                    parsedOk = parsedOk && json.storeobject(&credentialInfo.deviceID);
+                    if (parsedOk)
+                    {
+                        mapSlotIDToCredentialInfo.emplace(std::make_pair(slotID, std::move(credentialInfo)));
+                    }
+                    json.leavearray();
+                }
+            }
+            if (!parsedOk)
+            {
+                // There were credentials, but something was wrong with the JSON
+                if (mCompletion) { mCompletion(e, {}, {}, {}); }
+                return false;
+            }
+            json.leaveobject();
+        }
+        else
+        {
+            // There should be a valid object at this point
+            if (mCompletion) { mCompletion(e, {}, {}, {}); }
+            return false;
+        }
+
+        // Parse Cluster Public Keys
+        if (json.enterobject())
+        {
+            bool parsedOk = true;
+            while (parsedOk)
+            {
+                std::string clusterIDStr = json.getname();
+                if (clusterIDStr.empty())
+                {
+                    break;
+                }
+
+                int clusterID = -1;
+                try
+                {
+                    clusterID = std::stoi(clusterIDStr);
+                }
+                catch (std::exception const &ex)
+                {
+                    LOG_err << "[CommandGetVpnCredentials] Could not convert param ClusterID(" << clusterIDStr << ") to integer. Exception: " << ex.what();
+                    parsedOk = false;
+                }
+
+                if (parsedOk)
+                {
+                    std::string clusterPubKey;
+                    if (!json.storeobject(&clusterPubKey))
+                    {
+                        parsedOk = false;
+                        break;
+                    }
+                    mapClusterPubKeys.emplace(std::make_pair(clusterID, clusterPubKey));
+                }
+            }
+            if (!parsedOk)
+            {
+                // There were credentials and a valid ClusterID, but something was wrong with the Cluster Public Key value
+                if (mCompletion) { mCompletion(e, {}, {}, {}); }
+                return false;
+            }
+            json.leaveobject();
+        }
+        else
+        {
+            // There were credentials, but there were no information regarding the Cluster Public Key(s)
+            if (mCompletion) { mCompletion(e, {}, {}, {}); }
+            return false;
+        }
+    }
+
+    // Finally, parse VPN regions
+    std::vector<std::string> vpnRegions;
+    if (json.enterarray())
+    {
+        // Parse regions
+        CommandGetVpnRegions::parseregions(json, &vpnRegions);
+        json.leavearray();
+    }
+
+    e.setErrorCode(API_OK);
+    mCompletion(e, std::move(mapSlotIDToCredentialInfo), std::move(mapClusterPubKeys), std::move(vpnRegions));
+
+    return true;
+}
+
+CommandPutVpnCredential::CommandPutVpnCredential(MegaClient* client,
+                                                std::string&& region,
+                                                StringKeyPair&& userKeyPair,
+                                                Cb&& completion)
+:
+    mRegion(std::move(region)),
+    mUserKeyPair(std::move(userKeyPair)),
+    mCompletion(std::move(completion))
+{
+    cmd("vpnp");
+    arg("k", (byte*)mUserKeyPair.pubKey.c_str(), static_cast<int>(mUserKeyPair.pubKey.size()));
+
+    tag = client->reqtag;
+}
+
+bool CommandPutVpnCredential::procresult(Command::Result r, JSON& json)
+{
+    if (r.wasErrorOrOK())
+    {
+        if (mCompletion) { mCompletion(r.errorOrOK(), -1, {}, {}); }
+        return true;
+    }
+
+    if (!r.hasJsonArray())
+    {
+        if (mCompletion) { mCompletion(API_EINTERNAL, -1, {}, {}); }
+        return false;
+    }
+
+    // We receive directly one array here (like in CommandGetVpnRegions), so we are inside the array already
+
+    // Parse SlotID
+    int slotID = static_cast<int>(json.getint());
+
+    // Parse ClusterID
+    int clusterID = static_cast<int>(json.getint());
+
+    // Parse IPv4
+    std::string ipv4;
+    if (!json.storeobject(&ipv4))
+    {
+        if (mCompletion) { mCompletion(API_EINTERNAL, -1, {}, {}); }
+        return false;
+    }
+
+    // Parse IPv6
+    std::string ipv6;
+    if (!json.storeobject(&ipv6))
+    {
+        if (mCompletion) { mCompletion(API_EINTERNAL, -1, {}, {}); }
+        return false;
+    }
+
+    // Parse Cluster Public Key
+    std::string clusterPubKey;
+    if (!json.storeobject(&clusterPubKey))
+    {
+        if (mCompletion) { mCompletion(API_EINTERNAL, -1, {}, {}); }
+        return false;
+    }
+
+    // Skip VPN regions
+    if (json.enterarray())
+    {
+        CommandGetVpnRegions::parseregions(json, nullptr);
+        json.leavearray();
+    }
+
+    if (mCompletion)
+    {
+        std::string userPubKey = Base64::btoa(mUserKeyPair.pubKey);
+        auto peerKeyPair = StringKeyPair(std::move(mUserKeyPair.privKey), std::move(clusterPubKey));
+        std::string newCredential = client->generateVpnCredentialString(clusterID, std::move(mRegion), std::move(ipv4), std::move(ipv6), std::move(peerKeyPair));
+        mCompletion(API_OK, slotID, std::move(userPubKey), std::move(newCredential));
+    }
+    return true;
+}
+
+CommandDelVpnCredential::CommandDelVpnCredential(MegaClient* client, int slotID, Cb&& completion)
+:
+    mCompletion(std::move(completion))
+{
+    cmd("vpnd");
+    arg("s", slotID); // SlotID to remove the credentials
+
+    tag = client->reqtag;
+}
+
+bool CommandDelVpnCredential::procresult(Command::Result r, JSON& json)
+{
+    if (mCompletion)
+    {
+        mCompletion(r.errorOrOK());
+    }
+    return r.wasErrorOrOK();
+}
+
+CommandCheckVpnCredential::CommandCheckVpnCredential(MegaClient* client, string&& userPubKey, Cb&& completion)
+{
+    cmd("vpnc");
+    arg("k", userPubKey.c_str()); // User Public Key is already in B64 format
+    tag = client->reqtag;
+
+    mCompletion = std::move(completion);
+}
+
+bool CommandCheckVpnCredential::procresult(Command::Result r, JSON& json)
+{
+    if (mCompletion)
+    {
+        mCompletion(r.errorOrOK());
+    }
+    return r.wasErrorOrOK();
+}
+/* MegaVPN Commands END*/
 
 } // namespace

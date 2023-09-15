@@ -1152,6 +1152,11 @@ MegaBackupInfoList* MegaRequest::getMegaBackupInfoList() const
     return nullptr;
 }
 
+MegaVpnCredentials* MegaRequest::getMegaVpnCredentials() const
+{
+    return nullptr;
+}
+
 MegaTransfer::~MegaTransfer() { }
 
 MegaTransfer *MegaTransfer::copy()
@@ -1866,6 +1871,8 @@ bool MegaTreeProcessor::processMegaNode(MegaNode*)
 { return false; /* Stops the processing */ }
 MegaTreeProcessor::~MegaTreeProcessor()
 { }
+
+/* BEGIN MEGAAPI */
 
 MegaApi::MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned workerThreadCount)
 {
@@ -4548,11 +4555,6 @@ void MegaApi::checkSMSVerificationCode(const char* verificationCode, MegaRequest
     pImpl->checkSMSVerificationCode(verificationCode, listener);
 }
 
-void MegaApi::getRegisteredContacts(const MegaStringMap* contacts, MegaRequestListener *listener)
-{
-    pImpl->getRegisteredContacts(contacts, listener);
-}
-
 void MegaApi::getCountryCallingCodes(MegaRequestListener *listener)
 {
     pImpl->getCountryCallingCodes(listener);
@@ -5740,14 +5742,14 @@ void MegaApi::sendBackupHeartbeat(MegaHandle backupId, int status, int progress,
     pImpl->sendBackupHeartbeat(backupId, status, progress, ups, downs, ts, lastNode, listener);
 }
 
-void MegaApi::fetchGoogleAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle, MegaRequestListener *listener)
+void MegaApi::fetchAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle, MegaRequestListener *listener)
 {
-    pImpl->fetchGoogleAds(adFlags, adUnits, publicHandle, listener);
+    pImpl->fetchAds(adFlags, adUnits, publicHandle, listener);
 }
 
-void MegaApi::queryGoogleAds(int adFlags, MegaHandle publicHandle, MegaRequestListener *listener)
+void MegaApi::queryAds(int adFlags, MegaHandle publicHandle, MegaRequestListener *listener)
 {
-    pImpl->queryGoogleAds(adFlags, publicHandle, listener);
+    pImpl->queryAds(adFlags, publicHandle, listener);
 }
 
 void MegaApi::setCookieSettings(int settings, MegaRequestListener *listener)
@@ -5922,6 +5924,33 @@ bool MegaApi::requestStatusMonitorEnabled()
 {
     return pImpl->requestStatusMonitorEnabled();
 }
+
+void MegaApi::getVpnRegions(MegaRequestListener* listener)
+{
+    pImpl->getVpnRegions(listener);
+}
+
+void MegaApi::getVpnCredentials(MegaRequestListener* listener)
+{
+    pImpl->getVpnCredentials(listener);
+}
+
+void MegaApi::putVpnCredential(const char* region, MegaRequestListener* listener)
+{
+    pImpl->putVpnCredential(region, listener);
+}
+
+void MegaApi::delVpnCredential(int slotID, MegaRequestListener* listener)
+{
+    pImpl->delVpnCredential(slotID, listener);
+}
+
+void MegaApi::checkVpnCredential(const char* userPubKey, MegaRequestListener* listener)
+{
+    pImpl->checkVpnCredential(userPubKey, listener);
+}
+
+/* END MEGAAPI */
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)
 {
@@ -7629,5 +7658,56 @@ MegaCurrency *MegaCurrency::copy()
 {
     return nullptr;
 }
+
+
+/* MegaVpnCredentials BEGIN */
+MegaVpnCredentials::MegaVpnCredentials()
+{
+}
+
+MegaVpnCredentials::~MegaVpnCredentials()
+{
+}
+
+MegaIntegerList* MegaVpnCredentials::getSlotIDs() const
+{
+    return nullptr;
+}
+
+MegaStringList* MegaVpnCredentials::getVpnRegions() const
+{
+    return nullptr;
+}
+
+const char* MegaVpnCredentials::getIPv4(int slotID) const
+{
+    return nullptr;
+}
+
+const char* MegaVpnCredentials::getIPv6(int slotID) const
+{
+    return nullptr;
+}
+
+const char* MegaVpnCredentials::getDeviceID(int slotID) const
+{
+    return nullptr;
+}
+
+int MegaVpnCredentials::getClusterID(int slotID) const
+{
+    return 0;
+}
+
+const char* MegaVpnCredentials::getClusterPublicKey(int clusterID) const
+{
+    return nullptr;
+}
+
+MegaVpnCredentials* MegaVpnCredentials::copy() const
+{
+    return nullptr;
+}
+/* MegaVpnCredentials END */
 
 }

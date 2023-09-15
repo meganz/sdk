@@ -24,6 +24,7 @@
 
 #include "json.h"
 #include "utils.h"
+
 #include <bitset>
 
 namespace mega {
@@ -529,8 +530,15 @@ private:
             std::transform(alertTypePerFolderNode.begin(), alertTypePerFolderNode.end(), std::back_inserter(v), [](const pair<handle, nameid>& p) { return p.first; });
             return v;
         }
+
+        bool areNodeVersions() const { return mAreNodeVersions; }
+        void areNodeVersions(const bool theyAre) { mAreNodeVersions = areNodeVersions() || theyAre; }
+
+        void squash(const ff& rhs);
+    private:
+	bool mAreNodeVersions = false;
     };
-    using notedShNodesMap = map<pair<handle, handle>, ff>;
+    using notedShNodesMap = map<pair<handle, handle>, ff>; // <<userhandle, parenthandle>,ff>
     notedShNodesMap notedSharedNodes;
     notedShNodesMap deletedSharedNodesStash;
     bool notingSharedNodes;
@@ -603,6 +611,7 @@ public:
     bool unserializeAlert(string* d, uint32_t dbid);
 
     // stash removal-alert noted nodes
+    void purgeNodeVersionsFromStash();
     void convertStashedDeletedSharedNodes();
     bool isDeletedSharedNodesStashEmpty() const;
     void stashDeletedNotedSharedNodes(handle originatingUser);

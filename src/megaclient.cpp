@@ -5216,6 +5216,7 @@ bool MegaClient::procsc()
                 case EOO:
                     if (!useralerts.isDeletedSharedNodesStashEmpty())
                     {
+			useralerts.purgeNodeVersionsFromStash();
                         useralerts.convertStashedDeletedSharedNodes();
                     }
 
@@ -11917,19 +11918,31 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
                     [this, nodehandle]()
                     {
                         mKeyManager.setSharekeyInUse(nodehandle, false);
+
+                    },
+                    [completion, e, writable]()
+                    {
+                        completion(e, writable);
                     });
                 }
-                else if (mKeyManager.isShareKeyTrusted(nodehandle))
+                else
                 {
-                    LOG_warn << "in-use flag was already disabled for the sharekey in KeyManager when removing the last share. nh: " << toNodeHandle(nodehandle);
+                    if (mKeyManager.isShareKeyTrusted(nodehandle))
+                    {
+                        LOG_warn << "in-use flag was already disabled for the sharekey in KeyManager when removing the last share. nh: " << toNodeHandle(nodehandle);
+                    }
+                    completion(e, writable);
                 }
+            }
+            else
+            {
+                completion(e, writable);
             }
 
             if (u && u->isTemporary)
             {
                 delete u;
             }
-            completion(e, writable);
         }));
         return;
     }
@@ -12022,6 +12035,10 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
                     [this, nodehandle]()
                     {
                         mKeyManager.setSharekeyInUse(nodehandle, true);
+                    },
+                    [completion, e, writable]()
+                    {
+                        completion(e, writable);
                     });
                 }
                 else
@@ -12037,10 +12054,14 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
                         sendevent(99479, msg.c_str());
                         assert(!newshare && msg.c_str());
                     }
+                    completion(e, writable);
                 }
             }
+            else
+            {
+                completion(e, writable);
+            }
 
-            completion(e, writable);
             if (user && user->isTemporary) delete user;
         }));
     };
@@ -20150,7 +20171,7 @@ void MegaClient::putSetElements(vector<SetElement>&& els, std::function<void(Err
     }
 
     // build encrypted details
-    vector<pair<string, string>> encrDetails(els.size()); // vector < {encrypted attrs, encrypted key} >
+    vector<StringPair> encrDetails(els.size()); // vector < {encrypted attrs, encrypted key} >
     for (size_t i = 0u; i < els.size(); ++i)
     {
         SetElement& el = els[i];
@@ -21711,6 +21732,87 @@ Error MegaClient::sendABTestActive(const char* flag, CommandABTestActive::Comple
     reqs.add(new CommandABTestActive(this, flag, std::move(completion)));
     return API_OK;
 }
+
+/* Mega VPN methods BEGIN */
+StringKeyPair MegaClient::generateVpnKeyPair()
+{
+    auto vpnKey = ::mega::make_unique<ECDH>();
+    if (!vpnKey->initializationOK)
+    {
+        LOG_err << "Initialization of keys Cu25519 and/or Ed25519 failed";
+        return StringKeyPair(std::string(), std::string());
+    }
+    string privateKey = std::string((const char *)vpnKey->getPrivKey(), ECDH::PRIVATE_KEY_LENGTH);
+    string publicKey = std::string((const char *)vpnKey->getPubKey(), ECDH::PUBLIC_KEY_LENGTH);
+    return StringKeyPair(std::move(privateKey), std::move(publicKey));
+}
+
+// Call "vpnr" command.
+void MegaClient::getVpnRegions(CommandGetVpnRegions::Cb&& completion)
+{
+    reqs.add(new CommandGetVpnRegions(this, std::move(completion)));
+}
+
+// Call "vpng" command.
+void MegaClient::getVpnCredentials(CommandGetVpnCredentials::Cb&& completion)
+{
+    reqs.add(new CommandGetVpnCredentials(this, std::move(completion)));
+}
+
+// Call "vpnp" command.
+void MegaClient::putVpnCredential(std::string&& vpnRegion, CommandPutVpnCredential::Cb&& completion)
+{
+    auto vpnKeyPair = generateVpnKeyPair();
+    reqs.add(new CommandPutVpnCredential(this, std::move(vpnRegion), std::move(vpnKeyPair), std::move(completion)));
+}
+
+// Call "vpnd" command.
+void MegaClient::delVpnCredential(int slotID, CommandDelVpnCredential::Cb&& completion)
+{
+    reqs.add(new CommandDelVpnCredential(this, slotID, std::move(completion)));
+}
+
+// Call "vpnc" command.
+void MegaClient::checkVpnCredential(std::string&& userPubKey, CommandDelVpnCredential::Cb&& completion)
+{
+    reqs.add(new CommandCheckVpnCredential(this, std::move(userPubKey), std::move(completion)));
+}
+
+// Generate the credential string.
+string MegaClient::generateVpnCredentialString(int clusterID,
+                                               std::string&& vpnRegion,
+                                               std::string&& ipv4,
+                                               std::string&& ipv6,
+                                               StringKeyPair&& peerKeyPair)
+{
+    string peerPrivateKey = Base64::btoa(peerKeyPair.privKey);
+    string peerPublicKey = std::move(peerKeyPair.pubKey);
+
+    // Base64 standard format for Peer Key Pair
+    Base64::toStandard(peerPrivateKey);
+    Base64::toStandard(peerPublicKey);
+    assert(peerPrivateKey.size() == 4 * ((ECDH::PUBLIC_KEY_LENGTH + 2) / 3)); // Check lengths as we have keys from different sources
+    assert(peerPrivateKey.size() == peerPublicKey.size());
+
+    // Now they peer keys are valid for WireGuard and can be added to the credentials.
+    string credential;
+    credential.reserve(300);
+    credential.append("[Interface]\n")
+              .append("PrivateKey = ").append(peerPrivateKey).append("\n")
+              .append("Address = ").append(ipv4).append("/32").append(", ").append(ipv6).append("/128\n")
+              .append("DNS = 8.8.8.8, 2001:4860:4860::8888\n\n")
+              .append("[Peer]\n")
+              .append("PublicKey = ").append(peerPublicKey).append("\n")
+              .append("AllowedIPs = 0.0.0.0/0, ::/0\n")
+              .append("Endpoint = ").append(vpnRegion).append(".vpn");
+    if (clusterID > 1)
+    {
+        credential.append(std::to_string(clusterID));
+    }
+    credential.append(".mega.nz:51820");
+    return credential;
+}
+/* Mega VPN methods END */
 
 FetchNodesStats::FetchNodesStats()
 {

@@ -92,6 +92,7 @@ class MegaScheduledFlags;
 class MegaScheduledRules;
 class MegaIntegerMap;
 class MegaIntegerList;
+class MegaVpnCredentials;
 
 #if defined(SWIG)
     #define MEGA_DEPRECATED
@@ -3162,7 +3163,9 @@ public:
     virtual const mega::MegaIntegerList* byMonthDay() const;
 
     /**
-     * @brief Returns a MegaIntegerMap <offset, weekday> that allows to specify one or multiple weekday offset (ie: [5,4] event will occur every 5th Thursday of each month)
+     * @brief Returns a MegaIntegerMap <offset, weekday> that allows to specify one or multiple weekday offset
+     * + Positive offset: (ie: [5,4] event will occur every 5th Thursday of each month)
+     * + Negative offset: (ie: [-1,1] event will occur every last Monday of each month)
      *
      * @return A MegaIntegerMap <offset, weekday> that allows to specify one or multiple weekday offset
      */
@@ -4243,7 +4246,7 @@ class MegaRequest
             TYPE_GET_CLOUD_STORAGE_USED                                     = 119,
             TYPE_SEND_SMS_VERIFICATIONCODE                                  = 120,
             TYPE_CHECK_SMS_VERIFICATIONCODE                                 = 121,
-            TYPE_GET_REGISTERED_CONTACTS                                    = 122,
+            TYPE_GET_REGISTERED_CONTACTS                                    = 122,  // (obsolete)
             TYPE_GET_COUNTRY_CALLING_CODES                                  = 123,
             TYPE_VERIFY_CREDENTIALS                                         = 124,
             TYPE_GET_MISC_FLAGS                                             = 125,
@@ -4257,8 +4260,8 @@ class MegaRequest
             TYPE_BACKUP_PUT                                                 = 133,
             TYPE_BACKUP_REMOVE                                              = 134,
             TYPE_BACKUP_PUT_HEART_BEAT                                      = 135,
-            TYPE_FETCH_GOOGLE_ADS                                           = 136,  // deprecated
-            TYPE_QUERY_GOOGLE_ADS                                           = 137,  // deprecated
+            TYPE_FETCH_ADS                                                  = 136,
+            TYPE_QUERY_ADS                                                  = 137,
             TYPE_GET_ATTR_NODE                                              = 138,
             TYPE_LOAD_EXTERNAL_DRIVE_BACKUPS                                = 139,
             TYPE_CLOSE_EXTERNAL_DRIVE_BACKUPS                               = 140,
@@ -4293,7 +4296,12 @@ class MegaRequest
             TYPE_BACKUP_INFO                                                = 169,
             TYPE_BACKUP_REMOVE_MD                                           = 170,
             TYPE_AB_TEST_ACTIVE                                             = 171,
-            TOTAL_OF_REQUEST_TYPES                                          = 172,
+            TYPE_GET_VPN_REGIONS                                            = 172,
+            TYPE_GET_VPN_CREDENTIALS                                        = 173,
+            TYPE_PUT_VPN_CREDENTIAL                                         = 174,
+            TYPE_DEL_VPN_CREDENTIAL                                         = 175,
+            TYPE_CHECK_VPN_CREDENTIAL                                       = 176,
+            TOTAL_OF_REQUEST_TYPES                                          = 177
         };
 
         virtual ~MegaRequest();
@@ -4390,6 +4398,8 @@ class MegaRequest
          * - MegaApi::sendBackupHeartbeat - Returns the last node backed up
          * - MegaApi::getChatLinkURL - Returns the public handle
          * - MegaApi::sendChatLogs - Returns the user handle
+         * - MegaApi::fetchAds - Returns public handle that the user is visiting (optionally)
+         * - MegaApi::queryAds - Returns public handle that the user is visiting (optionally)
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -4740,6 +4750,8 @@ class MegaRequest
          * - MegaApi::dismissBanner - Returns the timestamp of the request
          * - MegaApi::sendBackupHeartbeat - Returns the time associated with the request
          * - MegaApi::createPublicChat - Returns if chat room is a meeting room
+         * - MegaApi::fetchAds - Returns a bitmap flag used to communicate with the API
+         * - MegaApi::queryAds - Returns a bitmap flag used to communicate with the API
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -4971,6 +4983,7 @@ class MegaRequest
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
          * - MegaApi::getUserAttribute - Returns the attribute value
+         * - MegaApi::fetchAds - Returns ads
          *
          * @return String map including the key-value pairs of the attribute
          */
@@ -5057,6 +5070,9 @@ class MegaRequest
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
          *
+         * This value is valid for these requests:
+         * - MegaApi::fetchAds - A list of the adslot ids to fetch
+         *
          * @return String list
          */
         virtual MegaStringList* getMegaStringList() const;
@@ -5138,6 +5154,33 @@ class MegaRequest
         virtual MegaSetElementList* getMegaSetElementList() const;
 
         virtual MegaBackupInfoList* getMegaBackupInfoList() const;
+
+        /**
+         * @brief Returns the VPN credentials registered by the user.
+         *
+         * Important consideration (as indicated on MegaApi::getVpnCredentials):
+         * These credentials do NOT contain the User Private Key.
+         * The credentials that include the User Private Key are generated by
+         * MegaApi::putVpnCredential and cannot be retrieved afterwards.
+         *
+         * The data stored in MegaVpnCredentials is the following:
+         * - List of occupied SlotIDs.
+         * - For each SlotID:
+         *    · ClusterID.
+         *    · IPv4.
+         *    · IPv6.
+         *    . DeviceID. This value can be empty if there is no associated device ID.
+         *                The current device ID can be retrieved via MegaApi::getDeviceId
+         * - For each ClusterID:
+         *    · Cluster Public Key.
+         * - List of VPN regions (as a MegaStringList).
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * @return MegaVpnCredentials* if there are any VPN credentials for the user, nullptr otherwise.
+         */
+        virtual MegaVpnCredentials* getMegaVpnCredentials() const;
 };
 
 /**
@@ -9162,13 +9205,13 @@ class MegaApi
         };
 
         enum {
-            GOOGLE_ADS_DEFAULT = 0x0,                        // If you don't want to set any overrides/flags, then please provide 0
-            GOOGLE_ADS_FORCE_ADS = 0x200,                    // Force enable ads regardless of any other factors.
-            GOOGLE_ADS_IGNORE_MEGA = 0x400,                  // Show ads even if the current user or file owner is a MEGA employee.
-            GOOGLE_ADS_IGNORE_COUNTRY = 0x800,               // Show ads even if the user is not within an enabled country.
-            GOOGLE_ADS_IGNORE_IP = 0x1000,                   // Show ads even if the user is on a blacklisted IP (MEGA ips).
-            GOOGLE_ADS_IGNORE_PRO = 0x2000,                  // Show ads even if the current user or file owner is a PRO user.
-            GOOGLE_ADS_FLAG_IGNORE_ROLLOUT = 0x4000,         // Ignore the rollout logic which only servers ads to 10% of users based on their IP.
+            ADS_DEFAULT = 0x0,                        // If you don't want to set any overrides/flags, then please provide 0
+            ADS_FORCE_ADS = 0x200,                    // Force enable ads regardless of any other factors.
+            ADS_IGNORE_MEGA = 0x400,                  // Show ads even if the current user or file owner is a MEGA employee.
+            ADS_IGNORE_COUNTRY = 0x800,               // Show ads even if the user is not within an enabled country.
+            ADS_IGNORE_IP = 0x1000,                   // Show ads even if the user is on a blacklisted IP (MEGA ips).
+            ADS_IGNORE_PRO = 0x2000,                  // Show ads even if the current user or file owner is a PRO user.
+            ADS_FLAG_IGNORE_ROLLOUT = 0x4000,         // Ignore the rollout logic which only servers ads to 10% of users based on their IP.
         };
 
         enum
@@ -20226,38 +20269,6 @@ class MegaApi
         void checkSMSVerificationCode(const char* verificationCode, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Requests the contacts that are registered at MEGA (currently verified through SMS)
-         *
-         * The request will return any of the provided contacts that are registered at MEGA, i.e.,
-         * are verified through SMS (currently).
-         *
-         * The associated request type with this request is MegaRequest::TYPE_GET_REGISTERED_CONTACTS
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getMegaStringMap - Returns the contacts that are to be checked
-         * \c contacts is a MegaStringMap from 'user detail' to the user's name. For instance:
-         * {
-         *   "+0000000010": "John Smith",
-         *   "+0000000011": "Peter Smith",
-         * }
-         *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getMegaStringTable - Returns the information about the contacts with three columns:
-         *  1. entry user detail (the user detail as it was provided in the request)
-         *  2. identifier (the user's identifier)
-         *  3. user detail (the normalized user detail, e.g., +00 0000 0010)
-         *
-         * There is a limit on how many unique details can be looked up per account, to prevent
-         * abuse and iterating over the phone number space to find users in Mega.
-         * An API_ETOOMANY error will be returned if you hit one of these limits.
-         * An API_EARGS error will be returned if your contact details are invalid (malformed SMS number for example)
-         *
-         * @param contacts The map of contacts to get registered contacts from
-         * @param listener MegaRequestListener to track this request
-         */
-        void getRegisteredContacts(const MegaStringMap* contacts, MegaRequestListener *listener = NULL);
-
-        /**
          * @brief Requests the currently available country calling codes
          *
          * The response value is stored as a MegaStringListMap mapping from two-letter country code
@@ -20533,22 +20544,58 @@ class MegaApi
         void sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode, MegaRequestListener *listener = nullptr);
 
         /**
-         * @brief Fetch Google ads
+         * @brief Fetch ads
          *
-         * The associated request type with this request is MegaRequest::TYPE_FETCH_GOOGLE_ADS
+         * The associated request type with this request is MegaRequest::TYPE_FETCH_ADS
+         * Valid data in the MegaRequest object received on callbacks:
+         *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
+         *  - MegaRequest::getMegaStringList List of the adslot ids to fetch
+         *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
          *
-         * @deprecated It returns API_EEXPIRED at onRequestFinish
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaStringMap: map with relationship between ids and ius
+         *
+         * @param adFlags A bitmap flag used to communicate with the API
+         * Valid values are:
+         *      - ADS_DEFAULT = 0x0
+         *      - ADS_FORCE_ADS = 0x200
+         *      - ADS_IGNORE_MEGA = 0x400
+         *      - ADS_IGNORE_COUNTRY = 0x800
+         *      - ADS_IGNORE_IP = 0x1000
+         *      - ADS_IGNORE_PRO = 0x2000
+         *      - ADS_FLAG_IGNORE_ROLLOUT = 0x4000
+         * @param adUnits A list of the adslot ids to fetch; it cannot be null nor empty
+         * @param publicHandle Provide the public handle that the user is visiting
+         * @param listener MegaRequestListener to track this request
          */
-        void fetchGoogleAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle = INVALID_HANDLE, MegaRequestListener *listener = nullptr);
+        void fetchAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle = INVALID_HANDLE, MegaRequestListener *listener = nullptr);
 
         /**
-         * @brief Check if Google ads should show or not
+         * @brief Check if ads should show or not
          *
-         * The associated request type with this request is MegaRequest::TYPE_QUERY_GOOGLE_ADS
+         * The associated request type with this request is MegaRequest::TYPE_QUERY_ADS
+         * Valid data in the MegaRequest object received on callbacks:
+         *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
+         *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
          *
-         * @deprecated It returns API_EEXPIRED at onRequestFinish
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNumDetails Return if ads should be show or not
+         *
+         * @param adFlags A bitmap flag used to communicate with the API
+         * Valid values are:
+         *      - ADS_DEFAULT = 0x0
+         *      - ADS_FORCE_ADS = 0x200
+         *      - ADS_IGNORE_MEGA = 0x400
+         *      - ADS_IGNORE_COUNTRY = 0x800
+         *      - ADS_IGNORE_IP = 0x1000
+         *      - ADS_IGNORE_PRO = 0x2000
+         *      - ADS_FLAG_IGNORE_ROLLOUT = 0x4000
+         * @param publicHandle Provide the public handle that the user is visiting
+         * @param listener MegaRequestListener to track this request
          */
-        void queryGoogleAds(int adFlags, MegaHandle publicHandle = INVALID_HANDLE, MegaRequestListener *listener = nullptr);
+        void queryAds(int adFlags, MegaHandle publicHandle = INVALID_HANDLE, MegaRequestListener *listener = nullptr);
 
         /**
          * @brief Set a bitmap to indicate whether some cookies are enabled or not
@@ -21112,6 +21159,119 @@ class MegaApi
          */
         bool requestStatusMonitorEnabled();
 
+        /* MegaVpnCredentials */
+        /**
+         * @brief Gets a list with the available regions for MEGA VPN.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_VPN_REGIONS.
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaStringList - Returns the list with the VPN regions.
+         *
+         * @param listener MegaRequestListener to track this request.
+         */
+        void getVpnRegions(MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Gets the MEGA VPN credentials currently active for the user.
+         *
+         * Important consideration:
+         * These credentials do NOT contain the User Private Key, which is required for VPN connection.
+         * Credentials containing the User Private Key are generated by
+         * MegaApi::putVpnCredential and cannot be retrieved afterwards.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_VPN_CREDENTIALS.
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaVpnCredentials - Returns the MegaVpnCredentials object.
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT - The user has no credentials registered.
+         *
+         * @see MegaApi::MegaVpnCredentials
+         *
+         * @param listener MegaRequestListener to track this request.
+         */
+        void getVpnCredentials(MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Adds new MEGA VPN credentials on an empty slot.
+         *
+         * A pair of private and public keys are generated for the user during this request.
+         * The User Public Key value is intented for use with MegaApi::checkVpnCredential.
+         * The User Private Key value is included in the VPN credentials.
+         * Once returned, neither of these keys can be retrieved, not even using MegaApi::getVpnCredentials.
+         *
+         * The user must be a PRO user and have unoccupied VPN slots in order to add new VPN credentials.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_PUT_VPN_CREDENTIAL.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getText - Returns the VPN region used for the VPN credentials.
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNumber     - Returns the SlotID attached to the new VPN credentials.
+         * - MegaRequest::getPassword   - Returns the User Public Key used to register the new VPN credentials.
+         * - MegaRequest::getSessionKey - Returns a string with the new VPN credentials.
+         *                                The content of this string is equivalent to the conf file generated by the webclient:
+         *                                 [Interface]
+         *                                 PrivateKey = User Private Key
+         *                                 Address = IPv4, IPv6
+         *                                 DNS = IPv4, IPv6
+         *
+         *                                 [Peer]
+         *                                 PublicKey = Cluster Public Key
+         *                                 AllowedIPs = 0.0.0.0/0, ::/0
+         *                                 Endpoint = host:port
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EARGS    - Public Key does not have a correct format/length.
+         * - MegaError::API_EACCESS  - User is not PRO.
+         *                           - User is not logged in.
+         *                           - Public Key is already taken.
+         * - MegaError::API_ETOOMANY - User has too many registered credentials.
+         *
+         * @param region The VPN region to be used on the new VPN credential.
+         * @param listener MegaRequestListener to track this request.
+         */
+        void putVpnCredential(const char* region, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Delete the current MEGA VPN credentials used on a slot.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_DEL_VPN_CREDENTIAL.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the SlotID used as a parameter for credential removal.
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EARGS  - SlotID is not valid.
+         * - MegaError::API_ENOENT - SlotID is not occupied.
+         *
+         * @param slotID The SlotID from which to remove the VPN credentials.
+         * @param listener MegaRequestListener to track this request.
+         */
+        void delVpnCredential(int slotID, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Check the current status of MEGA VPN credentials using the User Public Key.
+         *
+         * The User Public Key is obtained from MegaApi::putVpnCredential.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHECK_VPN_CREDENTIAL.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getText - Returns the User Public Key used as a parameter to verify the status of the VPN credentials.
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EACCESS - Public Key is not valid.
+         *
+         * @param userPubKey The User Public Key used to register the VPN credentials.
+         * @param listener MegaRequestListener to track this request.
+         */
+        void checkVpnCredential(const char* userPubKey, MegaRequestListener* listener = nullptr);
+        /* MegaVpnCredentials END */
+
  private:
         MegaApiImpl *pImpl = nullptr;
         friend class MegaApiImpl;
@@ -21631,6 +21791,8 @@ public:
      *
      * The return value will show if the subscription will be montly or yearly renewed.
      * Example return values: "1 M", "1 Y".
+     *
+     * You take the ownership of the returned value
      *
      * @return Subscription cycle
      */
@@ -22461,6 +22623,111 @@ public:
      * @return The state of the flag
      */
     virtual bool isCancelled() const = 0;
+};
+
+/**
+ * @brief Container class to store and load Mega VPN credentials data.
+ *
+ *  - SlotIDs occupied by VPN credentials.
+ *  - Full list of VPN regions.
+ *  - IPv4 and IPv6 used on each SlotID.
+ *  - ClusterID used on each SlotID.
+ *  - Cluster Public Key associated to each ClusterID.
+ */
+class MegaVpnCredentials
+{
+protected:
+    MegaVpnCredentials();
+
+public:
+    virtual ~MegaVpnCredentials();
+
+    /**
+     * @brief Get the SlotIDs occupied by the user.
+     * 
+     * The caller takes the ownership of the MegaIntegerList object.
+     * 
+     * @return A pointer to a MegaIntegerList with the SlotIDs. 
+     */
+    virtual MegaIntegerList* getSlotIDs() const = 0;
+
+    /**
+     * @brief Get the list of the available VPN regions.
+     * 
+     * This object is a copy of the one owned by the MegaVpnCredentials object.
+     * The caller takes the ownership of the MegaStringList object.
+     * 
+     * @return A pointer to a MegaStringList with the VPN regions. 
+     */
+    virtual MegaStringList* getVpnRegions() const = 0;
+
+    /**
+     * @brief Get the IPv4 associated with the VPN credentials of a SlotID.
+     * 
+     * The caller does not take the ownership of the const char* object.
+     * The const char* object is valid as long as the current MegaVpnCredentials object is valid too.
+     * 
+     * @param slotID The SlotID associated with the VPN credentials.
+     * @return const char* with the IPv4 if the SlotID has a valid VPN credential, nullptr otherwise.
+     */
+    virtual const char* getIPv4(int slotID) const = 0;
+
+    /**
+     * @brief Get the IPv6 associated with the VPN credentials of a SlotID.
+     * 
+     * The caller does not take the ownership of the const char* object.
+     * The const char* object is valid as long as the current MegaVpnCredentials object is valid too.
+     * 
+     * @param slotID The SlotID associated with the VPN credentials.
+     * @return const char* with the IPv6 if the SlotID has a valid VPN credential, nullptr otherwise.
+     */
+    virtual const char* getIPv6(int slotID) const = 0;
+
+    /**
+     * @brief Get the DeviceID associated with the VPN credentials of a SlotID.
+     *
+     * The string value can be empty if there is no associated device ID.
+     * The current device ID can be retrieved via MegaApi::getDeviceId
+     *
+     * The caller does not take the ownership of the const char* object.
+     * The const char* object is valid as long as the current MegaVpnCredentials object is valid too.
+     *
+     * @param slotID The SlotID associated with the VPN credentials.
+     * @return const char* with the DeviceID if the SlotID has a valid VPN credential, nullptr otherwise.
+     */
+    virtual const char* getDeviceID(int slotID) const = 0;
+
+    /**
+     * @brief Get the ClusterID associated with the VPN credentials of a SlotID.
+     * 
+     * The caller does not take the ownership of the const char* object.
+     * The const char* object is valid as long as the current MegaVpnCredentials object is valid too.
+     * 
+     * @param slotID The SlotID associated with the VPN credentials.
+     * @return int with the ClusterID if the SlotID has a valid VPN credential, -1 otherwise.
+     */
+    virtual int getClusterID(int slotID) const = 0;
+
+    /**
+     * @brief Get the Cluster Public Key associated with a ClusterID.
+     * 
+     * The caller does not take the ownership of the const char* object.
+     * The const char* object is valid as long as the current MegaVpnCredentials object is valid too.
+     * 
+     * @param clusterID The ClusterID used on any of the VPN credentials.
+     * @return const char* with the Cluster Public Key if the ClusterID exists, nullptr otherwise.
+     */
+    virtual const char* getClusterPublicKey(int clusterID) const = 0;
+
+    /**
+     * @brief Copy the MegaVpnCredentials object.
+     * 
+     * This copy is meant to be used from another scope which must survive the actual owner of this MegaVpnCredentials object.
+     * The caller takes the ownership of the new MegaVpnCredentials object.
+     * 
+     * @return MegaVpnCredentials* with the copied MegaVpnCredentials object.
+     */
+    virtual MegaVpnCredentials* copy() const = 0;
 };
 }
 
