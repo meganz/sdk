@@ -16399,7 +16399,7 @@ void MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<void
     string deviceIdHash = getDeviceidHash();
     if (deviceIdHash.empty())
     {
-        completion(API_EARGS, UNABLE_TO_RETRIEVE_ROOT_FSID, UNDEF);
+        completion(API_EARGS, UNABLE_TO_RETRIEVE_DEVICE_ID, UNDEF);
         return;
     }
 

@@ -719,6 +719,8 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Insufficient disk space.";
     case FAILURE_ACCESSING_PERSISTENT_STORAGE:
         return "Failure accessing to persistent storage";
+    case UNABLE_TO_RETRIEVE_DEVICE_ID:
+        return "Unable to retrieve the ID of current device";
     default:
         return "Undefined error";
     }
