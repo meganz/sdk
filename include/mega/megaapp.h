@@ -22,6 +22,8 @@
 #ifndef MEGA_APP_H
 #define MEGA_APP_H 1
 
+#include "types.h"
+
 namespace mega {
 
 struct Notification;
