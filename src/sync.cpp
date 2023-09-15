@@ -3369,6 +3369,12 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
     context->mConfigs = std::move(configs);
     context->mConfig = context->mConfigs.begin();
     context->mDeviceHash = mClient.getDeviceidHash();
+    if (context->mDeviceHash.empty())
+    {
+        LOG_err << "Failed to get Device ID while importing sync configs";
+        completion(API_EARGS);
+        return;
+    }
     context->mSyncs = this;
 
     LOG_debug << "Attempting to generate backup IDs for "
