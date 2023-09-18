@@ -6558,6 +6558,7 @@ public:
         MISMATCH_OF_ROOT_FSID = 44,             // The sync root's FSID changed.  So this is a different folder.  And, we can't identify the old sync db as the name depends on this
         FILESYSTEM_FILE_IDS_ARE_UNSTABLE = 45,  // On MAC in particular, the FSID of a file in an exFAT drive can and does change spontaneously and frequently
         FILESYSTEM_ID_UNAVAILABLE = 46,         // Could not get the filesystem's id
+        UNABLE_TO_RETRIEVE_DEVICE_ID = 47,      // Unable to retrieve the ID of current device
     };
 
     enum Warning

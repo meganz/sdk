@@ -24228,6 +24228,11 @@ error MegaApiImpl::performRequest_backupPut(MegaRequestPrivate* request)
             info.nodeHandle = remoteNode;
             info.localFolder = localFolder ? LocalPath::fromAbsolutePath(localFolder) : LocalPath();
             info.deviceId = client->getDeviceidHash();
+            if (info.deviceId.empty())
+            {
+                LOG_err << "Failed to get Device ID while handling backup " << info.backupName;
+                return API_EARGS;
+            }
             info.state = CommandBackupPut::SPState(request->getAccess());
             info.subState = request->getNumDetails();
 

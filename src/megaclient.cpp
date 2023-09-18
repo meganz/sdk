@@ -16396,6 +16396,13 @@ void MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<void
         return;
     }
 
+    string deviceIdHash = getDeviceidHash();
+    if (deviceIdHash.empty())
+    {
+        completion(API_EARGS, UNABLE_TO_RETRIEVE_DEVICE_ID, UNDEF);
+        return;
+    }
+
     // Are we adding an external backup?
     handle driveId = UNDEF;
     if (config.isExternal())
@@ -16411,7 +16418,6 @@ void MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<void
     }
 
     // Add the sync.
-    string deviceIdHash = getDeviceidHash();
     BackupInfoSync info(config, deviceIdHash, driveId, BackupInfoSync::getSyncState(config, xferpaused[GET], xferpaused[PUT]));
 
     reqs.add(new CommandBackupPut(this, info,
