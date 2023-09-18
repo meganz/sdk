@@ -2406,7 +2406,11 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     // exercise all the cases for 'l' command:
 
     // delete existing link on node
+    bool check = false;
+    mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(n2->getHandle(), MegaNode::CHANGE_TYPE_PUBLIC_LINK, check);
     ASSERT_EQ(API_OK, doDisableExport(0, n2.get()));
+    waitForResponse(&check);
+    resetOnNodeUpdateCompletionCBs();
 
     // create on existing node, no link yet
     ASSERT_EQ(API_OK, doExportNode(0, n2.get()));
