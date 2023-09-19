@@ -1202,8 +1202,19 @@ public:
 typedef std::map<NodeHandle, Node*> nodePtr_map;
 
 #ifdef ENABLE_CHAT
+
+class ScheduledFlags;
+class ScheduledMeeting;
+class ScheduledRules;
+class TextChat;
+
+using textchat_map = map<handle, TextChat*>;
+using textchat_vector = vector<TextChat*>;
+
 static constexpr int sfu_invalid_id = -1;
-#endif
+
+#endif // ENABLE_CHAT
+
 } // namespace mega
 
 #define MEGA_DISABLE_COPY(class_name) \
