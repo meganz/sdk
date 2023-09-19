@@ -186,7 +186,7 @@ struct CommandChain
 
 private:
     friend class CommandSetAttr;
-    friend class Transfer;
+    friend struct Transfer;
 
     // most nodes don't have commands in progress so keep representation super small
     std::unique_ptr<std::list<Command*>> chain;
