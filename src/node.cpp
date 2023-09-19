@@ -2355,8 +2355,9 @@ bool LocalNode::processBackgroundFolderScan(SyncRow& row, SyncPath& fullPath)
                 {
                     if (ES_EXCLUDED == exclusionState(n.localname, FILENODE, n.fingerprint.size))
                     {
-                        // no need to complain about this one anymore, the user excluded it
-                        n.type = TYPE_DONOTSYNC;
+                        // we need to keep the type in case of the .megaignore rules being changed
+                        // n.type = TYPE_DONOTSYNC;
+                        LOG_verbose << "Non-fingerprintable file is excluded: " << n.localname;
                     }
                     else
                     {
