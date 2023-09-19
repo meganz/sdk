@@ -929,8 +929,8 @@ bool CommandGetFile::procresult(Result r, JSON& json)
 }
 
 CommandSetAttr::CommandSetAttr(MegaClient* client, std::shared_ptr<Node> n, attr_map&& attrMapUpdates, Completion&& c, bool canChangeVault)
-    : mAttrMapUpdates(attrMapUpdates)
-    , mCanChangeVault(canChangeVault)
+    : mCanChangeVault(canChangeVault)
+    , mAttrMapUpdates(attrMapUpdates)
 {
     h = n->nodeHandle();
     mNode = n;
