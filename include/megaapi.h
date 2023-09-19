@@ -6576,6 +6576,7 @@ public:
         MISMATCH_OF_ROOT_FSID = 44,             // The sync root's FSID changed.  So this is a different folder.  And, we can't identify the old sync db as the name depends on this
         FILESYSTEM_FILE_IDS_ARE_UNSTABLE = 45,  // On MAC in particular, the FSID of a file in an exFAT drive can and does change spontaneously and frequently
         FILESYSTEM_ID_UNAVAILABLE = 46,         // Could not get the filesystem's id
+        UNABLE_TO_RETRIEVE_DEVICE_ID = 47,      // Unable to retrieve the ID of current device
     };
 
     enum Warning
@@ -9188,9 +9189,6 @@ private:
 /**
  * @brief Allows to control a MEGA account or a shared folder
  *
- * You must provide an appKey to use this SDK. You can generate an appKey for your app for free here:
- * - https://mega.nz/#sdk
- *
  * You can enable local node caching by passing a local path in the constructor of this class. That saves many data usage
  * and many time starting your app because the entire filesystem won't have to be downloaded each time. The persistent
  * node cache will only be loaded by logging in with a session key. To take advantage of this feature, apart of passing the
@@ -9425,8 +9423,7 @@ class MegaApi
         /**
          * @brief Constructor suitable for most applications
          * @param appKey AppKey of your application
-         * You can generate your AppKey for free here:
-         * - https://mega.nz/#sdk
+         * You can pass NULL to this parameter if you don't have one. AppKey is currently no longer required.
          *
          * @param basePath Base path to store the local cache
          * If you pass NULL to this parameter, the SDK won't use any local cache.
@@ -9450,8 +9447,7 @@ class MegaApi
          * read the documentation of MegaGfxProcessor carefully to ensure that your implementation is valid.
          *
          * @param appKey AppKey of your application
-         * You can generate your AppKey for free here:
-         * - https://mega.nz/#sdk
+         * You can pass NULL to this parameter if you don't have one. AppKey is currently no longer required.
          *
          * @param processor Image processor. The SDK will use it to generate previews and thumbnails
          * If you pass NULL to this parameter, the SDK will try to use the built-in image processors.
@@ -9750,7 +9746,7 @@ class MegaApi
          *
          * The SDK tries to automatically get and use DNS servers configured in the system at startup. This function can be used
          * to override that automatic detection and use a custom list of DNS servers. It is also useful to provide working
-         * DNS servers to the SDK in platforms in which it can't get them from the system (Windows Phone and Universal Windows Platform).
+         * DNS servers to the SDK in platforms in which it can't get them from the system.
          *
          * Since the usage of this function implies a change in DNS servers used by the SDK, all connections are
          * closed and restarted using the new list of new DNS servers, so calling this function too often can cause

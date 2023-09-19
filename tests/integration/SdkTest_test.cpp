@@ -2409,7 +2409,11 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     // exercise all the cases for 'l' command:
 
     // delete existing link on node
+    bool check = false;
+    mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(n2->getHandle(), MegaNode::CHANGE_TYPE_PUBLIC_LINK, check);
     ASSERT_EQ(API_OK, doDisableExport(0, n2.get()));
+    waitForResponse(&check);
+    resetOnNodeUpdateCompletionCBs();
 
     // create on existing node, no link yet
     ASSERT_EQ(API_OK, doExportNode(0, n2.get()));
@@ -7571,11 +7575,14 @@ TEST_F(SdkTest, SdkBackupFolder)
     // request to backup a folder
     fs::path localFolderPath = localBasePath / "LocalBackedUpFolder";
     fs::create_directories(localFolderPath);
+    const auto testFile = localFolderPath / UPFILE;
+    ASSERT_TRUE(createFile(testFile.string(), false)) << "Failed to create file " << testFile.string();
     const string backupNameStr = string("RemoteBackupFolder_") + timestamp;
     const char* backupName = backupNameStr.c_str();
     MegaHandle newSyncRootNodeHandle = UNDEF;
     int err = synchronousSyncFolder(0, &newSyncRootNodeHandle, MegaSync::TYPE_BACKUP, localFolderPath.u8string().c_str(), backupName, INVALID_HANDLE, nullptr);
     ASSERT_TRUE(err == API_OK) << "Backup folder failed (error: " << err << ")";
+    handle bkpId = mApi[0].lastSyncBackupId;
 
     // verify node attribute
     std::unique_ptr<MegaNode> backupNode(megaApi[0]->getNodeByHandle(newSyncRootNodeHandle));
@@ -7601,25 +7608,13 @@ TEST_F(SdkTest, SdkBackupFolder)
     target.resetlastEvent();
 
     // Verify that the sync was added
-    unique_ptr<MegaSyncList> allSyncs{ megaApi[0]->getSyncs() };
-    ASSERT_TRUE(allSyncs && allSyncs->size()) << "API reports 0 Sync instances";
-    bool found = false;
-    for (int i = 0; i < allSyncs->size(); ++i)
-    {
-        MegaSync* megaSync = allSyncs->get(i);
-        if (megaSync->getType() == MegaSync::TYPE_BACKUP &&
-            megaSync->getMegaHandle() == newSyncRootNodeHandle &&
-            !strcmp(megaSync->getName(), backupName) &&
-            !strcmp(megaSync->getLastKnownMegaFolder(), actualRemotePath.get()))
-        {
-            // Make sure the sync's actually active.
-            ASSERT_TRUE(megaSync->getRunState() == MegaSync::RUNSTATE_RUNNING) << "Sync instance found but not active.";
-
-            found = true;
-            break;
-        }
-    }
-    ASSERT_EQ(found, true) << "Sync instance could not be found";
+    unique_ptr<MegaSync> newBkp(megaApi[0]->getSyncByBackupId(bkpId));
+    ASSERT_TRUE(newBkp);
+    ASSERT_EQ(newBkp->getType(), MegaSync::TYPE_BACKUP);
+    ASSERT_EQ(newBkp->getMegaHandle(), newSyncRootNodeHandle);
+    ASSERT_STREQ(newBkp->getName(), backupName);
+    ASSERT_STREQ(newBkp->getLastKnownMegaFolder(), actualRemotePath.get());
+    ASSERT_TRUE(newBkp->getRunState() == MegaSync::RUNSTATE_RUNNING) << "Backup instance found but not active.";
 
     // Wait for the node database to be updated.
     // If nothing changed, there won't be an update
@@ -7638,26 +7633,14 @@ TEST_F(SdkTest, SdkBackupFolder)
     ASSERT_TRUE(WaitFor([&target](){ return target.lastEventsContain(MegaEvent::EVENT_SYNCS_RESTORED); }, 10000));
 
     // Verify the sync again
-    allSyncs.reset(megaApi[0]->getSyncs());
-    ASSERT_TRUE(allSyncs && allSyncs->size()) << "API reports 0 Sync instances, after relogin";
-    found = false;
+    newBkp.reset(megaApi[0]->getSyncByBackupId(bkpId));
+    ASSERT_TRUE(newBkp);
+    ASSERT_EQ(newBkp->getType(), MegaSync::TYPE_BACKUP);
+    ASSERT_EQ(newBkp->getMegaHandle(), newSyncRootNodeHandle);
+    ASSERT_STREQ(newBkp->getName(), backupName);
+    ASSERT_STREQ(newBkp->getLastKnownMegaFolder(), actualRemotePath.get());
+    ASSERT_TRUE(newBkp->getRunState() == MegaSync::RUNSTATE_RUNNING) << "Backup instance found but not active after logout & login.";
 
-    for (int i = 0; i < allSyncs->size(); ++i)
-    {
-        MegaSync* megaSync = allSyncs->get(i);
-        if (megaSync->getType() == MegaSync::TYPE_BACKUP &&
-            megaSync->getMegaHandle() == newSyncRootNodeHandle &&
-            !strcmp(megaSync->getName(), backupName) &&
-            !strcmp(megaSync->getLastKnownMegaFolder(), actualRemotePath.get()))
-        {
-            // Make sure the sync's actually active.
-            ASSERT_TRUE(megaSync->getRunState() == MegaSync::RUNSTATE_RUNNING) << "Sync instance found but not active.";
-
-            found = true;
-            break;
-        }
-    }
-    ASSERT_EQ(found, true) << "Sync instance could not be found, after logout & login";
     // make sure that client is up to date (upon logout, recent changes might not be committed to DB,
     // which may result on the new node not being available yet).
     size_t times = 10;
@@ -7669,17 +7652,28 @@ TEST_F(SdkTest, SdkBackupFolder)
     ASSERT_TRUE(target.lastEventsContain(MegaEvent::EVENT_NODES_CURRENT))
         << "Timeout expired to receive actionpackets";
 
+    // disable backup
+    RequestTracker disableBkpTracker(megaApi[0].get());
+    megaApi[0]->setSyncRunState(bkpId, MegaSync::RUNSTATE_DISABLED, &disableBkpTracker);
+    ASSERT_EQ(API_OK, disableBkpTracker.waitForResult());
+    // remove local file from backup
+    EXPECT_TRUE(fs::remove(testFile)) << "Failed to remove file " << testFile.string();
+    // enable backup
+    RequestTracker enableBkpTracker(megaApi[0].get());
+    megaApi[0]->setSyncRunState(bkpId, MegaSync::RUNSTATE_RUNNING, &enableBkpTracker);
+    ASSERT_EQ(API_OK, enableBkpTracker.waitForResult());
+
     // Remove registered backup
     RequestTracker removeTracker(megaApi[0].get());
-    megaApi[0]->removeSync(allSyncs->get(0)->getBackupId(), &removeTracker);
+    megaApi[0]->removeSync(bkpId, &removeTracker);
     ASSERT_EQ(API_OK, removeTracker.waitForResult());
 
     RequestTracker removeNodesTracker(megaApi[0].get());
-    megaApi[0]->moveOrRemoveDeconfiguredBackupNodes(allSyncs->get(0)->getMegaHandle(), INVALID_HANDLE, &removeNodesTracker);
+    megaApi[0]->moveOrRemoveDeconfiguredBackupNodes(newBkp->getMegaHandle(), INVALID_HANDLE, &removeNodesTracker);
     ASSERT_EQ(API_OK, removeNodesTracker.waitForResult());
 
-    allSyncs.reset(megaApi[0]->getSyncs());
-    ASSERT_TRUE(!allSyncs || !allSyncs->size()) << "Registered backup was not removed";
+    newBkp.reset(megaApi[0]->getSyncByBackupId(bkpId));
+    ASSERT_FALSE(newBkp) << "Registered backup was not removed";
 
     // Request to backup another folder
     // this time, the remote folder structure is already there
@@ -7689,8 +7683,9 @@ TEST_F(SdkTest, SdkBackupFolder)
     const char* backupName2 = backupName2Str.c_str();
     err = synchronousSyncFolder(0, nullptr, MegaSync::TYPE_BACKUP, localFolderPath2.u8string().c_str(), backupName2, INVALID_HANDLE, nullptr);
     ASSERT_TRUE(err == API_OK) << "Backup folder 2 failed (error: " << err << ")";
-    allSyncs.reset(megaApi[0]->getSyncs());
-    ASSERT_TRUE(allSyncs && allSyncs->size() == 1) << "Sync not found for second backup";
+    bkpId = mApi[0].lastSyncBackupId;
+    newBkp.reset(megaApi[0]->getSyncByBackupId(bkpId));
+    ASSERT_TRUE(newBkp) << "Sync not found for second backup";
 
     // Create remote folder to be used as destination when removing second backup
     std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
@@ -7703,15 +7698,15 @@ TEST_F(SdkTest, SdkBackupFolder)
 
     // Remove second backup, using the option to move the contents rather than delete them
     RequestTracker removeTracker2(megaApi[0].get());
-    megaApi[0]->removeSync(allSyncs->get(0)->getBackupId(), &removeTracker2);
+    megaApi[0]->removeSync(bkpId, &removeTracker2);
     ASSERT_EQ(API_OK, removeTracker2.waitForResult());
 
     RequestTracker moveNodesTracker(megaApi[0].get());
-    megaApi[0]->moveOrRemoveDeconfiguredBackupNodes(allSyncs->get(0)->getMegaHandle(), nhrb, &moveNodesTracker);
+    megaApi[0]->moveOrRemoveDeconfiguredBackupNodes(newBkp->getMegaHandle(), nhrb, &moveNodesTracker);
     ASSERT_EQ(API_OK, moveNodesTracker.waitForResult());
 
-    allSyncs.reset(megaApi[0]->getSyncs());
-    ASSERT_TRUE(!allSyncs || !allSyncs->size()) << "Sync not removed for second backup";
+    newBkp.reset(megaApi[0]->getSyncByBackupId(bkpId));
+    ASSERT_FALSE(newBkp) << "Sync not removed for second backup";
     destChildren.reset(megaApi[0]->getChildren(remoteDestNode.get()));
     ASSERT_TRUE(destChildren && destChildren->size() == 1);
     ASSERT_STREQ(destChildren->get(0)->getName(), backupName2);
@@ -14448,7 +14443,7 @@ TEST_F(SdkTest, SdkTestDeleteListenerBeforeFinishingRequest)
 /**
  * SdkTestGetNodeByMimetype
  * Steps:
- * - Create three files (test.cpp, test.pdf, test.json)
+ * - Create three files (test.sh, test.pdf, test.json)
  * - Check number of files from type program
  * - Check number of files from type pdf
  * - Check number of files from type json
@@ -14461,11 +14456,11 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_NE(rootnode.get(), nullptr);
 
-    std::string codeFile = "test.cpp";
-    ASSERT_TRUE(createFile(codeFile.c_str(), false)) << "Couldn't create " << PUBLICFILE.c_str();
+    std::string progFile = "test.sh";
+    ASSERT_TRUE(createFile(progFile.c_str(), false)) << "Couldn't create " << PUBLICFILE.c_str();
 
     MegaHandle handleCodeFile = UNDEF;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handleCodeFile, codeFile.c_str(),
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handleCodeFile, progFile.c_str(),
                                                rootnode.get(),
                                                nullptr /*fileName*/,
                                                ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
@@ -14516,7 +14511,7 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), handleJsonFile);
 
-    deleteFile(codeFile);
+    deleteFile(progFile);
     deleteFile(pdfFile);
     deleteFile(jsonFile);
 }
