@@ -730,7 +730,7 @@ void Transfer::complete(TransferDbCommitter& committer)
         {
             if (fingerprint.isvalid)
             {
-                // set FileFingerprint on source node(s) if missing
+                // set FileFingerprint on source node(s) if missing or invalid
                 set<handle> nodes;
                 for (file_list::iterator it = files.begin(); it != files.end(); it++)
                 {
@@ -743,12 +743,33 @@ void Transfer::complete(TransferDbCommitter& committer)
                                 && !(fingerprint == *(FileFingerprint*)n.get())
                                 && fingerprint.size == this->size)
                         {
-                            LOG_debug << "Fixing fingerprint";
-                            *(FileFingerprint*)n.get() = fingerprint;
-
                             attr_map attrUpdate;
-                            n->serializefingerprint(&attrUpdate['c']);
-                            client->setattr(n, std::move(attrUpdate), nullptr, false);
+                            fingerprint.serializefingerprint(&attrUpdate['c']);
+
+                            // the fingerprint is still wrong, but....
+                            // is it already being fixed?
+                            AttrMap pendingAttrs;
+                            if (n->mPendingChanges.chain)
+                            {
+                                pendingAttrs = n->attrs;
+                                for (auto& cmd : *n->mPendingChanges.chain)
+                                {
+                                    if (auto attrCmd = dynamic_cast<CommandSetAttr*>(cmd))
+                                    {
+                                        pendingAttrs.applyUpdates(attrCmd->mAttrMapUpdates);
+                                    }
+                                }
+                            }
+
+                            if (pendingAttrs.hasDifferentValue('c', attrUpdate))
+                            {
+                                LOG_debug << "Fixing fingerprint";
+                                client->setattr(n, std::move(attrUpdate), nullptr, false);
+                            }
+                            else
+                            {
+                                LOG_debug << "Fingerprint already being fixed";
+                            }
                         }
                     }
                 }
