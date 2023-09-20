@@ -945,6 +945,11 @@ public:
     typedef std::function<void(std::function<void()> continuation)> UndoFunction;
     void preparebackup(SyncConfig, std::function<void(Error, SyncConfig, UndoFunction revertOnError)>);
 
+    /**
+     * @brief Used to migrate all the sync's management data from MEGAsync to the SDK
+     *
+     * @deprecated This function is deprecated. Please don't use use it in new code.
+     */
     void copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion);
 
     /**
