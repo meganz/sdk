@@ -1133,7 +1133,7 @@ bool StandardClient::isUserAttributeSet(attr_t attr, unsigned int numSeconds, er
 
 bool StandardClient::waitForAttrDeviceIdIsSet(unsigned int numSeconds, bool& updated)
 {
-    error err;
+    error err = API_EINTERNAL;
     isUserAttributeSet(attr_t::ATTR_DEVICE_NAMES, numSeconds, err);
 
     std::unique_ptr<TLVstore> tlv;
@@ -1198,7 +1198,7 @@ bool StandardClient::waitForAttrDeviceIdIsSet(unsigned int numSeconds, bool& upd
 
 bool StandardClient::waitForAttrMyBackupIsSet(unsigned int numSeconds, bool& updated)
 {
-    error err;
+    error err  = API_EINTERNAL;
     bool attrMyBackupFolderIsSet = isUserAttributeSet(attr_t::ATTR_MY_BACKUPS_FOLDER, numSeconds, err);
 
     if (err != API_ENOENT)
@@ -5154,19 +5154,19 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderBetweenSyncs)
     auto clientA2 = g_clientManager->getCleanStandardClient(0, localtestroot); // user 1 client 2
     auto clientA3 = g_clientManager->getCleanStandardClient(0, localtestroot); // user 1 client 2
 
-    bool deviceIdeUpdated = false;
+    bool deviceIdUpdated = false;
     clientA2->received_user_actionpackets = false;
     clientA3->received_user_actionpackets = false;
-    ASSERT_TRUE(clientA1->waitForAttrDeviceIdIsSet(60, deviceIdeUpdated)) << "Error User attr device id isn't establised client1";
-    if (deviceIdeUpdated)  // only wait for action package if atribute has been updated
+    ASSERT_TRUE(clientA1->waitForAttrDeviceIdIsSet(60, deviceIdUpdated)) << "Error User attr device id isn't establised client1";
+    if (deviceIdUpdated)  // only wait for action package if atribute has been updated
     {
         ASSERT_TRUE(clientA2->waitForUserUpdated(60)) << "User update doesn't arrive at client2 (device id)";
         ASSERT_TRUE(clientA3->waitForUserUpdated(60)) << "User update doesn't arrive at client3 (device id)";
-        deviceIdeUpdated = false;
-        ASSERT_TRUE(clientA2->waitForAttrDeviceIdIsSet(60, deviceIdeUpdated)) << "Error User attr device id isn't establised client2";
-        ASSERT_EQ(deviceIdeUpdated, false); // It has already updated
-        ASSERT_TRUE(clientA3->waitForAttrDeviceIdIsSet(60, deviceIdeUpdated)) << "Error User attr device id isn't establised client3";
-        ASSERT_EQ(deviceIdeUpdated, false); // It has already updated
+        deviceIdUpdated = false;
+        ASSERT_TRUE(clientA2->waitForAttrDeviceIdIsSet(60, deviceIdUpdated)) << "Error User attr device id isn't establised client2";
+        ASSERT_EQ(deviceIdUpdated, false); // It has already updated
+        ASSERT_TRUE(clientA3->waitForAttrDeviceIdIsSet(60, deviceIdUpdated)) << "Error User attr device id isn't establised client3";
+        ASSERT_EQ(deviceIdUpdated, false); // It has already updated
     }
 
 
