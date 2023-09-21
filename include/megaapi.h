@@ -8160,8 +8160,8 @@ class MegaGlobalListener
          *
          * - MegaEvent::EVENT_DOWNGRADE_ATTACK: A downgrade attack has been detected. Removed shares may have reappeared. Please tread carefully.
          *
-         * - MegaEvent::EVENT_CREDIT_CARD_EXPIRY: Credit card is due to expire soon or when a new card is registered. After recive this event,
-         * app should call to MegaApi::fetchRegisterCreditCardInfo to recieve info about credit card
+         * - MegaEvent::EVENT_CREDIT_CARD_EXPIRY: Credit card is due to expire soon or a new card has been registered. After receiving this event,
+         * app should call to MegaApi::fetchRegisterCreditCardInfo to receive info about credit card
          *
          * @param api MegaApi object connected to the account
          * @param event Details about the event

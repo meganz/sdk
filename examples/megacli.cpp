@@ -11439,15 +11439,14 @@ void exec_fetchcregistercreditcardinfo(autocomplete::ACState& s)
         if (e == API_OK)
         {
             cout << "Credit card info: " << endl;
-            for (const auto& it :creditCardInfo)
+            for (const auto& it: creditCardInfo)
             {
                 cout << "   " << it.first << ": " << it.second << endl;
             }
-
         }
         else
         {
-            cout << "Error requesting register credit card info: " << e << endl;
+            cout << "Error requesting credit card info: " << e << endl;
         }
     });
 }
