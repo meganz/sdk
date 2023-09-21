@@ -15,6 +15,9 @@
  */
 package nz.mega.sdk;
 
+import static nz.mega.sdk.MegaSync.SyncRunningState.RUNSTATE_RUNNING;
+import static nz.mega.sdk.MegaSync.SyncRunningState.RUNSTATE_SUSPENDED;
+
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -255,6 +258,14 @@ public class MegaApiJava {
     public final static int BACKUP_TYPE_CAMERA_UPLOADS = MegaApi.BACKUP_TYPE_CAMERA_UPLOADS;
     public final static int BACKUP_TYPE_MEDIA_UPLOADS = MegaApi.BACKUP_TYPE_MEDIA_UPLOADS;
     public final static int BACKUP_TYPE_BACKUP_UPLOAD = MegaApi.BACKUP_TYPE_BACKUP_UPLOAD;
+
+    public final static int ADS_DEFAULT = MegaApi.ADS_DEFAULT;
+    public final static int ADS_FORCE_ADS = MegaApi.ADS_FORCE_ADS;
+    public final static int ADS_IGNORE_MEGA = MegaApi.ADS_IGNORE_MEGA;
+    public final static int ADS_IGNORE_COUNTRY = MegaApi.ADS_IGNORE_COUNTRY;
+    public final static int ADS_IGNORE_IP = MegaApi.ADS_IGNORE_IP;
+    public final static int ADS_IGNORE_PRO = MegaApi.ADS_IGNORE_PRO;
+    public final static int ADS_FLAG_IGNORE_ROLLOUT = MegaApi.ADS_FLAG_IGNORE_ROLLOUT;
 
 
     MegaApi getMegaApi() {
@@ -642,30 +653,12 @@ public class MegaApiJava {
      * <p>
      * Any value greater than 0 means he flag is active.
      *
-     * @param flag Name or key of the value to be retrieved.
+     * @param flag Name or key of the value to be retrieved, flag should not have ab_ prefix.
      *
      * @return A long with the value of the flag.
      */
     public long getABTestValue(String flag) {
         return megaApi.getABTestValue(flag);
-    }
-
-    /**
-     * Sends to the API an A/B Test flag activation.
-     * <p>
-     * Informs the API that a user has become relevant for an A/B Test flag.
-     * Can be called multiple times for the same account and flag.
-     * <p>
-     * The associated request type with this request is MegaRequest::TYPE_AB_TEST_ACTIVE
-     * <p>
-     * Valid data in the MegaRequest object received on all callbacks:
-     * - MegaRequest::getText - Returns the flag passed as parameter
-     *
-     * @param flag Name or key of the value to be retrieved.
-     * @param listener MegaRequestListener to track this request
-     */
-    public void sendABTestActive(String flag, MegaRequestListenerInterface listener) {
-        megaApi.sendABTestActive(flag, createDelegateRequestListener(listener));
     }
 
     /**
@@ -11377,16 +11370,6 @@ public class MegaApiJava {
     }
 
     /**
-     * Requests the contacts that are registered at MEGA (currently verified through SMS)
-     *
-     * @param contacts The map of contacts to get registered contacts from
-     * @param listener MegaRequestListener to track this request
-     */
-    public void getRegisteredContacts(MegaStringMap contacts, nz.mega.sdk.MegaRequestListenerInterface listener) {
-        megaApi.getRegisteredContacts(contacts, createDelegateRequestListener(listener));
-    }
-
-    /**
      * Requests the currently available country calling codes
      *
      * @param listener MegaRequestListener to track this request
@@ -11621,6 +11604,65 @@ public class MegaApiJava {
                                     long ts, long lastNode, MegaRequestListenerInterface listener) {
         megaApi.sendBackupHeartbeat(backupId, status, progress, ups, downs, ts, lastNode,
                 createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Fetch ads
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_FETCH_ADS
+     * Valid data in the MegaRequest object received on callbacks:
+     *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
+     *  - MegaRequest::getMegaStringList List of the adslot ids to fetch
+     *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
+     * <p>
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaStringMap: map with relationship between ids and ius
+     *
+     * @param adFlags A bitmap flag used to communicate with the API
+     * Valid values are:
+     *      - ADS_DEFAULT = 0x0
+     *      - ADS_FORCE_ADS = 0x200
+     *      - ADS_IGNORE_MEGA = 0x400
+     *      - ADS_IGNORE_COUNTRY = 0x800
+     *      - ADS_IGNORE_IP = 0x1000
+     *      - ADS_IGNORE_PRO = 0x2000
+     *      - ADS_FLAG_IGNORE_ROLLOUT = 0x4000
+     * @param adUnits MegaStringList, a list of the adslot ids to fetch; it cannot be null nor empty
+     * @param publicHandle MegaHandle, provide the public handle that the user is visiting
+     * @param listener MegaRequestListener to track this request
+     */
+    public void fetchAds(int adFlags, MegaStringList adUnits, long publicHandle,
+                         MegaRequestListenerInterface listener) {
+        megaApi.fetchAds(adFlags, adUnits, publicHandle, createDelegateRequestListener(listener));
+    };
+
+    /**
+     * Check if ads should show or not
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_QUERY_ADS
+     * Valid data in the MegaRequest object received on callbacks:
+     *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
+     *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
+     * <p>
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNumDetails Return if ads should be show or not
+     *
+     * @param adFlags A bitmap flag used to communicate with the API
+     * Valid values are:
+     *      - ADS_DEFAULT = 0x0
+     *      - ADS_FORCE_ADS = 0x200
+     *      - ADS_IGNORE_MEGA = 0x400
+     *      - ADS_IGNORE_COUNTRY = 0x800
+     *      - ADS_IGNORE_IP = 0x1000
+     *      - ADS_IGNORE_PRO = 0x2000
+     *      - ADS_FLAG_IGNORE_ROLLOUT = 0x4000
+     * @param publicHandle MegaHandle, provide the public handle that the user is visiting
+     * @param listener MegaRequestListener to track this request
+     */
+    public void queryAds(int adFlags, long publicHandle, MegaRequestListenerInterface listener) {
+        megaApi.queryAds(adFlags, publicHandle, createDelegateRequestListener(listener));
     }
 
     /**
@@ -12502,5 +12544,122 @@ public class MegaApiJava {
     @Nullable
     public String getPublicLinkForExportedSet(long sid) {
         return megaApi.getPublicLinkForExportedSet(sid);
+    }
+
+    /**
+     * @param syncType             Type of sync. Currently supported: TYPE_TWOWAY and TYPE_BACKUP.
+     * @param localSyncRootFolder  Path of the Local folder to sync/backup.
+     * @param name                 Name given to the sync. You can pass NULL, and the folder name will be used instead.
+     * @param remoteSyncRootFolder Handle of MEGA folder. If you have a MegaNode for that folder, use its getHandle()
+     * @param driveRootIfExternal  Only relevant for backups, and only if the backup is on an external disk. Otherwise use NULL.
+     * @param listener             MegaRequestListener to track this request
+     * @brief Start a Sync or Backup between a local folder and a folder in MEGA
+     * <p>
+     * This function should be used to add a new synchronization/backup task for the MegaApi.
+     * To resume a previously configured task folder, use MegaApi::enableSync.
+     * <p>
+     * Both TYPE_TWOWAY and TYPE_BACKUP are supported for the first parameter.
+     * <p>
+     * The sync/backup's name is optional. If not provided, it will take the name of the leaf folder of
+     * the local path. In example, for "/home/user/Documents", it will become "Documents".
+     * <p>
+     * The remote sync root folder should be INVALID_HANDLE for syncs of TYPE_BACKUP. The handle of the
+     * remote node, which is created as part of this request, will be set to the MegaRequest::getNodeHandle.
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_ADD_SYNC
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
+     * - MegaRequest::getFile - Returns the path of the local folder
+     * - MegaRequest::getName - Returns the name of the sync
+     * - MegaRequest::getParamType - Returns the type of the sync
+     * - MegaRequest::getLink - Returns the drive root if external backup
+     * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+     * - MegaRequest::getNumDetails - If different than NO_SYNC_ERROR, it returns additional info for
+     * the  specific sync error (MegaSync::Error). It could happen both when the request has succeeded (API_OK) and
+     * also in some cases of failure, when the request error is not accurate enough.
+     * <p>
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is other than MegaError::API_OK:
+     * - MegaRequest::getNumber - Fingerprint of the local folder. Note, fingerprint will only be valid
+     * if the sync was added with no errors
+     * - MegaRequest::getParentHandle - Returns the sync backupId
+     * <p>
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_EARGS - If the local folder was not set or is not a folder.
+     * - MegaError::API_EACCESS - If the user was invalid, or did not have an attribute for "My Backups" folder,
+     * or the attribute was invalid, or "My Backups"/`DEVICE_NAME` existed but was not a folder, or it had the
+     * wrong 'dev-id'/'drv-id' tag.
+     * - MegaError::API_EINTERNAL - If the user attribute for "My Backups" folder did not have a record containing
+     * the handle.
+     * - MegaError::API_ENOENT - If the handle of "My Backups" folder contained in the user attribute was invalid
+     * - or the node could not be found.
+     * - MegaError::API_EINCOMPLETE - If device id was not set, or if current user did not have an attribute for
+     * device name, or the attribute was invalid, or the attribute did not contain a record for the device name,
+     * or device name was empty.
+     * - MegaError::API_EEXIST - If this is a new device, but a folder with the same device-name already exists.
+     */
+    public void syncFolder(
+            MegaSync.SyncType syncType,
+            String localSyncRootFolder,
+            String name,
+            long remoteSyncRootFolder,
+            String driveRootIfExternal,
+            MegaRequestListenerInterface listener
+    ) {
+        megaApi.syncFolder(
+                syncType,
+                localSyncRootFolder,
+                name,
+                remoteSyncRootFolder,
+                driveRootIfExternal,
+                createDelegateRequestListener(listener, false)
+        );
+    }
+
+    /**
+     * @return List of MegaSync objects with all syncs
+     * @brief Get all configured syncs
+     * <p>
+     * You take the ownership of the returned value
+     */
+    public MegaSyncList getSyncs() {
+        return megaApi.getSyncs();
+    }
+
+    /**
+     * @param backupId Identifier of the Sync (unique per user, provided by API)
+     * @param listener MegaRequestListener to track this request
+     * @brief De-configure the sync/backup of a folder
+     * <p>
+     * The folder will stop being synced. No files in the local nor in the remote folder
+     * will be deleted due to the usage of this function.
+     * <p>
+     * The synchronization will stop and the local sync database will be deleted
+     * The backupId of this sync will be invalid going forward.
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns sync backupId
+     * - MegaRequest::getFlag - Returns true
+     * - MegaRequest::getFile - Returns the path of the local folder (for active syncs only)
+     */
+    public void removeSync(long backupId) {
+        megaApi.removeSync(backupId);
+    }
+
+    /**
+     * Resume a previously suspended sync
+     */
+    public void resumeSync(long backupId) {
+        megaApi.setSyncRunState(backupId, RUNSTATE_RUNNING);
+    }
+
+    /**
+     * Suspend a sync
+     * <p>
+     * Use this method to pause a running Sync. The sync can be resumed later by calling MegaApi::resumeSync.
+     */
+    public void pauseSync(long backupId) {
+        megaApi.setSyncRunState(backupId, RUNSTATE_SUSPENDED);
     }
 }

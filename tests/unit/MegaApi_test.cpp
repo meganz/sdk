@@ -204,10 +204,10 @@ TEST(MegaApi, getMimeType)
         {
             if (std::unique_ptr<char[]>{::mega::MegaApi::getMimeType("nosuch")} == nullptr) ++successCount;
             if (std::unique_ptr<char[]>{::mega::MegaApi::getMimeType(nullptr)} == nullptr) ++successCount;
-            if (std::unique_ptr<char[]>{::mega::MegaApi::getMimeType("323")}.get() == string("text/h323")) ++successCount;
-            if (std::unique_ptr<char[]>{::mega::MegaApi::getMimeType(".323")}.get() == string("text/h323")) ++successCount;
-            if (std::unique_ptr<char[]>{::mega::MegaApi::getMimeType("zip")}.get() == string("application/x-zip-compressed")) ++successCount;
-            if (std::unique_ptr<char[]>{::mega::MegaApi::getMimeType(".zip")}.get() == string("application/x-zip-compressed")) ++successCount;
+            if (std::unique_ptr<char[]>{::mega::MegaApi::getMimeType("3ds")}.get() == string("image/x-3ds")) ++successCount;
+            if (std::unique_ptr<char[]>{::mega::MegaApi::getMimeType(".3ds")}.get() == string("image/x-3ds")) ++successCount;
+            if (std::unique_ptr<char[]>{::mega::MegaApi::getMimeType("zip")}.get() == string("application/zip")) ++successCount;
+            if (std::unique_ptr<char[]>{::mega::MegaApi::getMimeType(".zip")}.get() == string("application/zip")) ++successCount;
         });
     }
 

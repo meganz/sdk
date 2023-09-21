@@ -30,9 +30,9 @@ CPP_SOURCES= sdk/src/attrmap.cpp \
     sdk/src/megaclient.cpp \
     sdk/src/node.cpp \
     sdk/src/pubkeyaction.cpp \
-    sdk/src/raid.cpp \
     sdk/src/request.cpp \
     sdk/src/serialize64.cpp \
+    sdk/src/nodemanager.cpp \
     sdk/src/share.cpp \
     sdk/src/sharenodekeys.cpp \
     sdk/src/sync.cpp \
@@ -44,7 +44,6 @@ CPP_SOURCES= sdk/src/attrmap.cpp \
     sdk/src/user.cpp \
     sdk/src/useralerts.cpp \
     sdk/src/utils.cpp \
-    sdk/src/useralerts.cpp \
     sdk/src/waiterbase.cpp  \
     sdk/src/crypto/cryptopp.cpp  \
     sdk/src/crypto/sodium.cpp  \
@@ -53,8 +52,6 @@ CPP_SOURCES= sdk/src/attrmap.cpp \
     sdk/src/posix/fs.cpp  \
     sdk/src/posix/waiter.cpp \
     sdk/src/mega_utf8proc.cpp \
-    sdk/src/mega_ccronexpr.cpp \
-    sdk/src/mega_evt_tls.cpp \
     sdk/src/gfx.cpp \
     sdk/src/gfx/external.cpp \
     sdk/src/thread/posixthread.cpp \
@@ -62,52 +59,55 @@ CPP_SOURCES= sdk/src/attrmap.cpp \
     sdk/src/mega_http_parser.cpp \
     sdk/src/mega_zxcvbn.cpp \
     sdk/src/mediafileattribute.cpp \
+    sdk/src/mega_evt_tls.cpp \
+    sdk/src/mega_ccronexpr.cpp\
+    sdk/src/raid.cpp \
     sdk/src/testhooks.cpp \
+    sdk/src/heartbeats.cpp \
     sdk/src/textchat.cpp \
-    sdk/src/nodemanager.cpp \
     sdk/src/setandelement.cpp
-
+    
 C_SOURCES = sdk/src/mega_glob.c
 
 HEADERS= sdk/include/mega.h \
-	    sdk/include/mega/account.h \
-	    sdk/include/mega/attrmap.h \
-	    sdk/include/mega/backofftimer.h \
-	    sdk/include/mega/base64.h \
-	    sdk/include/mega/command.h \
-	    sdk/include/mega/console.h \
-	    sdk/include/mega/db.h \
-	    sdk/include/mega/file.h \
-	    sdk/include/mega/fileattributefetch.h \
-	    sdk/include/mega/filefingerprint.h \
-	    sdk/include/mega/filesystem.h \
-	    sdk/include/mega/http.h \
-	    sdk/include/mega/json.h \
-	    sdk/include/mega/megaapp.h \
-	    sdk/include/mega/megaclient.h \
-	    sdk/include/mega/node.h \
-	    sdk/include/mega/pubkeyaction.h \
-	    sdk/include/mega/request.h \
-	    sdk/include/mega/serialize64.h \
-	    sdk/include/mega/share.h \
-	    sdk/include/mega/sharenodekeys.h \
-	    sdk/include/mega/sync.h \
-	    sdk/include/mega/heartbeats.h \
-	    sdk/include/mega/transfer.h \
-	    sdk/include/mega/transferslot.h \
-	    sdk/include/mega/proxy.h \
-	    sdk/include/mega/pendingcontactrequest.h \
-	    sdk/include/mega/treeproc.h \
-	    sdk/include/mega/types.h \
-	    sdk/include/mega/user.h \
-	    sdk/include/mega/utils.h \
-	    sdk/include/mega/useralerts.h \
-	    sdk/include/mega/waiter.h \
-	    sdk/include/mega/crypto/cryptopp.h  \
-	    sdk/include/mega/db/sqlite.h  \
-	    sdk/include/megaapi.h \
-	    sdk/include/megaapi_impl.h \
-	    sdk/include/mega/posix/meganet.h  \
+        sdk/include/mega/account.h \
+        sdk/include/mega/attrmap.h \
+        sdk/include/mega/backofftimer.h \
+        sdk/include/mega/base64.h \
+        sdk/include/mega/command.h \
+        sdk/include/mega/console.h \
+        sdk/include/mega/db.h \
+        sdk/include/mega/file.h \
+        sdk/include/mega/fileattributefetch.h \
+        sdk/include/mega/filefingerprint.h \
+        sdk/include/mega/filesystem.h \
+        sdk/include/mega/http.h \
+        sdk/include/mega/json.h \
+        sdk/include/mega/megaapp.h \
+        sdk/include/mega/megaclient.h \
+        sdk/include/mega/node.h \
+        sdk/include/mega/pubkeyaction.h \
+        sdk/include/mega/request.h \
+        sdk/include/mega/serialize64.h \
+        sdk/include/mega/nodemanager.h \
+        sdk/include/mega/share.h \
+        sdk/include/mega/sharenodekeys.h \
+        sdk/include/mega/sync.h \
+        sdk/include/mega/transfer.h \
+        sdk/include/mega/transferslot.h \
+        sdk/include/mega/proxy.h \
+        sdk/include/mega/pendingcontactrequest.h \
+        sdk/include/mega/treeproc.h \
+        sdk/include/mega/types.h \
+        sdk/include/mega/user.h \
+        sdk/include/mega/useralerts.h \
+        sdk/include/mega/utils.h \
+        sdk/include/mega/waiter.h \
+        sdk/include/mega/crypto/cryptopp.h  \
+        sdk/include/mega/db/sqlite.h  \
+        sdk/include/megaapi.h \
+        sdk/include/megaapi_impl.h \
+        sdk/include/mega/posix/meganet.h  \
         sdk/include/mega/posix/megasys.h  \
         sdk/include/mega/posix/megafs.h  \
         sdk/include/mega/posix/megawaiter.h \
@@ -116,15 +116,20 @@ HEADERS= sdk/include/mega.h \
         sdk/include/mega/gfx/external.h \
         sdk/include/mega/thread/posixthread.h \
         sdk/include/mega/logging.h \
+        sdk/include/mega/mega_http_parser.h \
         sdk/include/mega/mega_zxcvbn.h \
         sdk/include/mega/mediafileattribute.h \
+        sdk/include/mega/mega_evt_tls.h \
+        sdk/include/mega/mega_evt_queue.h \
+        sdk/include/mega/raid.h \
+        sdk/include/mega/testhooks.h \
+        sdk/include/mega/heartbeats.h \
         sdk/include/mega/textchat.h \
-        sdk/include/mega/nodemanager.h \
         sdk/include/mega/setandelement.h
 
 OBJECTS=$(CPP_SOURCES:.cpp=.o) $(C_SOURCES:.c=.o)
-C_WRAPPER_SOURCES = sdk/src/megaapi.cpp sdk/src/megaapi_impl.cpp sdk/src/heartbeats.cpp
-C_WRAPPER_OBJECTS = sdk/src/megaapi.o sdk/src/megaapi_impl.o sdk/src/heartbeats.o
+C_WRAPPER_SOURCES = sdk/src/megaapi.cpp sdk/src/megaapi_impl.cpp
+C_WRAPPER_OBJECTS = sdk/src/megaapi.o sdk/src/megaapi_impl.o
 
 PYTHON_WRAPS=python_wrap.cxx
 PYTHON_HEADERS=python_wrap.h 

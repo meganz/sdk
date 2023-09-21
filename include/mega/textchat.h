@@ -348,8 +348,6 @@ public:
     const map<handle/*schedId*/, std::unique_ptr<ScheduledMeeting>>& getSchedMeetings() const;
 };
 
-typedef vector<TextChat*> textchat_vector;
-typedef map<handle, TextChat*> textchat_map;
 #endif
 
 } //namespace

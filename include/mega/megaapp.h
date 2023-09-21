@@ -22,6 +22,8 @@
 #ifndef MEGA_APP_H
 #define MEGA_APP_H 1
 
+#include "types.h"
+
 namespace mega {
 
 struct Notification;
@@ -268,7 +270,11 @@ struct MEGA_API MegaApp
     virtual void chats_updated(textchat_map *, int) { }
     virtual void richlinkrequest_result(string*, error) { }
     virtual void chatlink_result(handle, error) { }
-    virtual void chatlinkurl_result(handle, int, string*, string*, int, m_time_t, bool, const bool, const std::vector<std::unique_ptr<ScheduledMeeting>>*, handle, error) { }
+    virtual void chatlinkurl_result (handle chatid, int shard, string* link, string* ct,
+                                     int numPeers, m_time_t ts, bool meetingRoom, int chatOptions,
+                                     const std::vector<std::unique_ptr<ScheduledMeeting>>* smList,
+                                     handle callid, error e) { }
+
     virtual void chatlinkclose_result(error) { }
     virtual void chatlinkjoin_result(error) { }
 #endif
@@ -407,9 +413,6 @@ struct MEGA_API MegaApp
     // result of sms verification commands
     virtual void smsverificationsend_result(error) { }
     virtual void smsverificationcheck_result(error, string*) { }
-
-    // result of get registered contacts command
-    virtual void getregisteredcontacts_result(error, vector<tuple<string, string, string>>*) { }
 
     // result of get country calling codes command
     virtual void getcountrycallingcodes_result(error, map<string, vector<string>>*) { }

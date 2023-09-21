@@ -249,57 +249,178 @@ bool Node::getExtension(std::string& ext, const string& nodeName)
 
 // these lists of file extensions (and the logic to use them) all come from the webclient - if updating here, please make sure the webclient is updated too, preferably webclient first.
 
-static const std::set<nameid> documentExtensions = {MAKENAMEID3('a','n','s'), MAKENAMEID5('a','s','c','i','i'), MAKENAMEID3('d','o','c'), MAKENAMEID4('d','o','c','x'), MAKENAMEID4('d','o','t', 'x'), MAKENAMEID3('o','d','s'), MAKENAMEID3('o','d','t'), MAKENAMEID5('p','a','g','e','s'), MAKENAMEID3('p','p','c'), MAKENAMEID3('r','t','f'),
-                                             MAKENAMEID3('s','t','c'), MAKENAMEID3('s','t','d'), MAKENAMEID3('s','t','w'), MAKENAMEID3('s','t','i'), MAKENAMEID3('s','x','c'), MAKENAMEID3('s','x','d'), MAKENAMEID3('s','x','i'), MAKENAMEID3('s','x','m'), MAKENAMEID3('s','x','w'), MAKENAMEID3('t','x','t'), MAKENAMEID3('w','p','d'), MAKENAMEID3('w','p','s'), MAKENAMEID3('x','l','s'), MAKENAMEID4('x','l','s','x'), MAKENAMEID3('x','l','t'), MAKENAMEID4('x','l','t','m')};
+const std::set<nameid>& documentExtensions()
+{
+    static const std::set<nameid> docs {MAKENAMEID3('a','b','w'), MAKENAMEID3('d','o','c'), MAKENAMEID4('d','o','c','m'),
+                                        MAKENAMEID4('d','o','c','x'), MAKENAMEID3('d','o','t'), MAKENAMEID4('d','o','t','m'),
+                                        MAKENAMEID4('d','o','t','x'), MAKENAMEID3('o','d','s'), MAKENAMEID3('o','d','t'),
+                                        MAKENAMEID3('s','x','c'), MAKENAMEID3('s','x','d'), MAKENAMEID3('s','x','i'),
+                                        MAKENAMEID4('t','e','x','t'), MAKENAMEID3('t','s','v'), MAKENAMEID3('t','t','l'),
+                                        MAKENAMEID3('t','x','t'), MAKENAMEID3('x','l','s'), MAKENAMEID4('x','l','s','x')};
+    return docs;
+}
 
-static const std::set<nameid> pdfExtensions = {MAKENAMEID3('p','d','f')};
+const std::set<nameid>& pdfExtensions()
+{
+    static const std::set<nameid> pdfs {MAKENAMEID3('p','d','f')};
+    return pdfs;
+}
 
-static const std::set<nameid> presentationExtensions = {MAKENAMEID3('p','p','s'), MAKENAMEID3('p','p','t'), MAKENAMEID4('p','p','t','x'),
-                                                        MAKENAMEID3('o','d','p')};
+const std::set<nameid>& presentationExtensions()
+{
+    static const std::set<nameid> pres {MAKENAMEID3('o','d','c'), MAKENAMEID3('o','d','p'), MAKENAMEID3('o','t','c'),
+                                        MAKENAMEID3('o','t','p'), MAKENAMEID3('p','o','t'), MAKENAMEID4('p','o','t','x'),
+                                        MAKENAMEID3('p','p','s'), MAKENAMEID4('p','p','s','x'), MAKENAMEID3('p','p','t'),
+                                        MAKENAMEID4('p','p','t','x'), MAKENAMEID4('s','l','d','x')};
+    return pres;
+}
 
-static const std::set<nameid> archiveExtensions = {MAKENAMEID3('z','i','p'), MAKENAMEID3('r','a','r'), MAKENAMEID3('t','a','r'),
-                                                   MAKENAMEID2('7','z'), MAKENAMEID2('g','z'), MAKENAMEID3('b','z','2')};
+const std::set<nameid>& archiveExtensions()
+{
+    static const std::set<nameid> acvs {MAKENAMEID2('7','z'), MAKENAMEID3('a','c','e'), MAKENAMEID3('b','z','2'),
+                                        MAKENAMEID2('g','z'), MAKENAMEID3('r','a','r'), MAKENAMEID3('t','a','r'),
+                                        MAKENAMEID3('z','i','p')};
+    return acvs;
+}
 
-static const std::set<nameid> programExtensions = {MAKENAMEID3('e','x','e'), MAKENAMEID3('b','a','t'), MAKENAMEID2('s','h'),
-                                                   MAKENAMEID4('j','a','v','a'), MAKENAMEID2('p','y'), MAKENAMEID3('c','p','p')};
+const std::set<nameid>& programExtensions()
+{
+    static const std::set<nameid> pgms {MAKENAMEID3('a','p','k'), MAKENAMEID3('b','a','t'), MAKENAMEID3('c','o','m'),
+                                        MAKENAMEID3('d','e','b'), MAKENAMEID3('e','x','e'), MAKENAMEID3('m','s','i'),
+                                        MAKENAMEID2('s','h')};
+    return pgms;
+}
 
-static const std::set<nameid> miscExtensions = {MAKENAMEID3('t','t','f'), MAKENAMEID3('o','t','f'), MAKENAMEID3('i','n','i'),
-                                                MAKENAMEID3('c','f','g'), MAKENAMEID3('c','s','v'), MAKENAMEID4('j','s','o','n'),
-                                                MAKENAMEID3('l','o','g'), MAKENAMEID3('b','a','k'), MAKENAMEID2('d','b'),
-                                                MAKENAMEID6('s','q','l','i','t','e')};
+const std::set<nameid>& miscExtensions()
+{
+    static const std::set<nameid> misc {MAKENAMEID3('c','s','v'), MAKENAMEID4('j','s','o','n'), MAKENAMEID3('l','o','g'),
+                                        MAKENAMEID3('o','t','f'), MAKENAMEID3('t','t','f')};
+    return misc;
+}
 
-static const std::set<nameid> audioExtensions = {MAKENAMEID3('a','c','3'), MAKENAMEID3('e','c','3'), MAKENAMEID3('3','g','a'), MAKENAMEID3('a','a','c'), MAKENAMEID3('a','d','p'), MAKENAMEID3('a','i','f'), MAKENAMEID4('a','i','f','c'), MAKENAMEID4('a','i','f','f'), MAKENAMEID2('a','u'), MAKENAMEID3('c','a','f'), MAKENAMEID3('d','r','a'), MAKENAMEID3('d','t','s'), MAKENAMEID5('d','t','s','h','d'), MAKENAMEID3('e','o','l'), MAKENAMEID4('f','l','a','c'), MAKENAMEID3('i','f','f'), MAKENAMEID3('k','a','r'), MAKENAMEID3('l','v','p'),
-                                          MAKENAMEID3('m','2','a'), MAKENAMEID3('m','3','a'), MAKENAMEID3('m','3','u'), MAKENAMEID3('m','4','a'), MAKENAMEID3('m','i','d'), MAKENAMEID4('m','i','d','i'), MAKENAMEID3('m','k','a'), MAKENAMEID3('m','p','2'), MAKENAMEID4('m','p','2','a'), MAKENAMEID3('m','p','3'), MAKENAMEID4('m','p','4','a'), MAKENAMEID4('m','p','g','a'), MAKENAMEID3('o','g','a'), MAKENAMEID3('o','g','g'), MAKENAMEID4('o','p','u','s'), MAKENAMEID3('p','y','a'), MAKENAMEID2('r','a'),
-                                          MAKENAMEID3('r','a','m'), MAKENAMEID3('r','i','p'), MAKENAMEID3('r','m','i'), MAKENAMEID3('r','m','p'), MAKENAMEID3('s','3','m'), MAKENAMEID3('s','i','l'), MAKENAMEID3('s','n','d'), MAKENAMEID3('s','p','x'), MAKENAMEID3('u','v','a'), MAKENAMEID4('u','v','v','a'), MAKENAMEID3('w','a','v'), MAKENAMEID3('w','a','x'), MAKENAMEID4('w','e','b','a'), MAKENAMEID3('w','m','a'), MAKENAMEID2('x','m')};
+const std::set<nameid>& audioExtensions()
+{
+    static const std::set<nameid> auds {MAKENAMEID3('a','a','c'), MAKENAMEID3('a','d','p'), MAKENAMEID3('a','i','f'),
+                                        MAKENAMEID4('a','i','f','c'), MAKENAMEID4('a','i','f','f'), MAKENAMEID2('a','u'),
+                                        MAKENAMEID3('c','a','f'), MAKENAMEID3('d','r','a'), MAKENAMEID3('d','t','s'),
+                                        MAKENAMEID5('d','t','s','h','d'), MAKENAMEID3('e','o','l'), MAKENAMEID4('f','l','a','c'),
+                                        MAKENAMEID3('k','a','r'), MAKENAMEID3('l','v','p'), MAKENAMEID3('m','2','a'),
+                                        MAKENAMEID3('m','3','a'), MAKENAMEID3('m','3','u'), MAKENAMEID3('m','4','a'),
+                                        MAKENAMEID3('m','i','d'), MAKENAMEID4('m','i','d','i'), MAKENAMEID3('m','k','a'),
+                                        MAKENAMEID3('m','p','2'), MAKENAMEID4('m','p','2','a'), MAKENAMEID3('m','p','3'),
+                                        MAKENAMEID4('m','p','4','a'), MAKENAMEID4('m','p','g','a'), MAKENAMEID3('o','g','a'),
+                                        MAKENAMEID3('o','g','g'), MAKENAMEID3('p','y','a'), MAKENAMEID2('r','a'),
+                                        MAKENAMEID3('r','a','m'), MAKENAMEID3('r','i','p'), MAKENAMEID3('r','m','i'),
+                                        MAKENAMEID3('r','m','p'), MAKENAMEID3('s','3','m'), MAKENAMEID3('s','i','l'),
+                                        MAKENAMEID3('s','n','d'), MAKENAMEID3('s','p','x'), MAKENAMEID3('u','v','a'),
+                                        MAKENAMEID4('u','v','v','a'), MAKENAMEID3('w','a','v'), MAKENAMEID3('w','a','x'),
+                                        MAKENAMEID4('w','e','b','a'), MAKENAMEID3('w','m','a'), MAKENAMEID2('x','m')};
+    return auds;
+}
 
 // Store extension than can't be stored in nameid due they have more than 8 characters
-static const std::set<std::string> longAudioExtension = {"ecelp4800", "ecelp7470", "ecelp9600"};
+const std::set<std::string>& longAudioExtension()
+{
+    static const std::set<std::string> laud {"ecelp4800", "ecelp7470", "ecelp9600"};
+    return laud;
+}
 
-static const std::set<nameid> videoExtensions = {MAKENAMEID3('3','g','2'), MAKENAMEID3('3','g','p'), MAKENAMEID3('a','s','f'), MAKENAMEID3('a','s','x'), MAKENAMEID3('a','v','i'), MAKENAMEID3('d','v','b'), MAKENAMEID3('f','4','v'), MAKENAMEID3('f','l','i'), MAKENAMEID3('f','l','v'), MAKENAMEID3('f','v','t'), MAKENAMEID4('h','2','6','1'), MAKENAMEID4('h','2','6','3'), MAKENAMEID4('h','2','6','4'), MAKENAMEID4('j','p','g','m'), MAKENAMEID4('j','p','g','v'), MAKENAMEID3('j','p','m'), MAKENAMEID3('m','1','v'),
-                                          MAKENAMEID3('m','2','v'), MAKENAMEID3('m','4','u'), MAKENAMEID3('m','4','v'), MAKENAMEID3('m','j','2'), MAKENAMEID4('m','j','p','2'), MAKENAMEID4('m','k','3','d'), MAKENAMEID3('m','k','s'), MAKENAMEID3('m','k','v'), MAKENAMEID3('m','n','g'), MAKENAMEID3('m','o','v'), MAKENAMEID5('m','o','v','i','e'), MAKENAMEID3('m','p','4'), MAKENAMEID4('m','p','4','v'), MAKENAMEID3('m','p','e'), MAKENAMEID4('m','p','e','g'), MAKENAMEID3('m','p','g'), MAKENAMEID4('m','p','g','4'),
-                                          MAKENAMEID3('m','x','u'), MAKENAMEID3('o','g','v'), MAKENAMEID3('p','y','v'), MAKENAMEID2('q','t'), MAKENAMEID3('s','m','v'), MAKENAMEID3('u','v','h'), MAKENAMEID3('u','v','m'), MAKENAMEID3('u','v','p'), MAKENAMEID3('u','v','s'), MAKENAMEID3('u','v','u'), MAKENAMEID3('u','v','v'), MAKENAMEID4('u','v','v','h'), MAKENAMEID4('u','v','v','m'), MAKENAMEID4('u','v','v','p'), MAKENAMEID4('u','v','v','s'), MAKENAMEID4('u','v','v','u'), MAKENAMEID4('u','v','v','v'),
-                                          MAKENAMEID3('v','i','v'), MAKENAMEID3('v','o','b'), MAKENAMEID4('w','e','b','m'), MAKENAMEID2('w','m'), MAKENAMEID3('w','m','v'), MAKENAMEID3('w','m','x'), MAKENAMEID3('w','v','x')};
+const std::set<nameid>& videoExtensions()
+{
+    static const std::set<nameid> vids {MAKENAMEID3('3','g','2'), MAKENAMEID3('3','g','p'), MAKENAMEID3('a','s','f'),
+                                        MAKENAMEID3('a','s','x'), MAKENAMEID3('a','v','i'), MAKENAMEID3('d','v','b'),
+                                        MAKENAMEID3('f','4','v'), MAKENAMEID3('f','l','i'), MAKENAMEID3('f','l','v'),
+                                        MAKENAMEID3('f','v','t'), MAKENAMEID4('h','2','6','1'), MAKENAMEID4('h','2','6','3'),
+                                        MAKENAMEID4('h','2','6','4'), MAKENAMEID4('j','p','g','m'), MAKENAMEID4('j','p','g','v'),
+                                        MAKENAMEID3('j','p','m'), MAKENAMEID3('m','1','v'), MAKENAMEID3('m','2','v'),
+                                        MAKENAMEID3('m','4','u'), MAKENAMEID3('m','4','v'), MAKENAMEID3('m','j','2'),
+                                        MAKENAMEID4('m','j','p','2'), MAKENAMEID4('m','k','3','d'), MAKENAMEID3('m','k','s'),
+                                        MAKENAMEID3('m','k','v'), MAKENAMEID3('m','n','g'), MAKENAMEID3('m','o','v'),
+                                        MAKENAMEID5('m','o','v','i','e'), MAKENAMEID3('m','p','4'), MAKENAMEID4('m','p','4','v'),
+                                        MAKENAMEID3('m','p','e'), MAKENAMEID4('m','p','e','g'), MAKENAMEID3('m','p','g'),
+                                        MAKENAMEID4('m','p','g','4'), MAKENAMEID3('m','x','u'), MAKENAMEID3('o','g','v'),
+                                        MAKENAMEID3('p','y','v'), MAKENAMEID2('q','t'), MAKENAMEID3('s','m','v'),
+                                        MAKENAMEID3('u','v','h'), MAKENAMEID3('u','v','m'), MAKENAMEID3('u','v','p'),
+                                        MAKENAMEID3('u','v','s'), MAKENAMEID3('u','v','u'), MAKENAMEID3('u','v','v'),
+                                        MAKENAMEID4('u','v','v','h'), MAKENAMEID4('u','v','v','m'), MAKENAMEID4('u','v','v','p'),
+                                        MAKENAMEID4('u','v','v','s'), MAKENAMEID4('u','v','v','u'), MAKENAMEID4('u','v','v','v'),
+                                        MAKENAMEID3('v','i','v'), MAKENAMEID3('v','o','b'), MAKENAMEID4('w','e','b','m'),
+                                        MAKENAMEID2('w','m'), MAKENAMEID3('w','m','v'), MAKENAMEID3('w','m','x'),
+                                        MAKENAMEID3('w','v','x')};
+    return vids;
+}
 
-static const std::set<nameid> photoExtensions = {MAKENAMEID3('3','d','s'), MAKENAMEID3('b','m','p'), MAKENAMEID4('b','t','i','f'), MAKENAMEID3('c','g','m'), MAKENAMEID3('c','m','x'), MAKENAMEID3('d','j','v'), MAKENAMEID4('d','j','v','u'), MAKENAMEID3('d','w','g'), MAKENAMEID3('d','x','f'), MAKENAMEID3('f','b','s'), MAKENAMEID2('f','h'), MAKENAMEID3('f','h','4'), MAKENAMEID3('f','h','5'), MAKENAMEID3('f','h','7'), MAKENAMEID3('f','h','c'), MAKENAMEID3('f','p','x'), MAKENAMEID3('f','s','t'), MAKENAMEID2('g','3'),
-                                          MAKENAMEID3('g','i','f'), MAKENAMEID4('h','e','i','c'), MAKENAMEID4('h','e','i','f'), MAKENAMEID3('i','c','o'), MAKENAMEID3('i','e','f'), MAKENAMEID3('j','p','e'), MAKENAMEID4('j','p','e','g'), MAKENAMEID3('j','p','g'), MAKENAMEID3('k','t','x'), MAKENAMEID3('m','d','i'), MAKENAMEID3('m','m','r'), MAKENAMEID3('n','p','x'), MAKENAMEID3('p','b','m'), MAKENAMEID3('p','c','t'), MAKENAMEID3('p','c','x'), MAKENAMEID3('p','g','m'), MAKENAMEID3('p','i','c'),
-                                          MAKENAMEID3('p','n','g'), MAKENAMEID3('p','n','m'), MAKENAMEID3('p','p','m'), MAKENAMEID3('p','s','d'), MAKENAMEID3('r','a','s'), MAKENAMEID3('r','g','b'), MAKENAMEID3('r','l','c'), MAKENAMEID3('s','g','i'), MAKENAMEID3('s','i','d'), MAKENAMEID3('s','v','g'), MAKENAMEID4('s','v','g','z'), MAKENAMEID3('t','g','a'), MAKENAMEID3('t','i','f'), MAKENAMEID4('t','i','f','f'), MAKENAMEID3('u','v','g'), MAKENAMEID3('u','v','i'), MAKENAMEID4('u','v','v','g'),
-                                          MAKENAMEID4('u','v','v','i'), MAKENAMEID4('w','b','m','p'), MAKENAMEID3('w','d','p'), MAKENAMEID4('w','e','b','p'), MAKENAMEID3('x','b','m'), MAKENAMEID3('x','i','f'), MAKENAMEID3('x','p','m'), MAKENAMEID3('x','w','d')};
+const std::set<nameid>& photoExtensions()
+{
+    static const std::set<nameid> phts {MAKENAMEID3('3','d','s'), MAKENAMEID4('a','v','i','f'), MAKENAMEID3('b','m','p'),
+                                        MAKENAMEID4('b','t','i','f'), MAKENAMEID3('c','g','m'), MAKENAMEID3('c','m','x'),
+                                        MAKENAMEID3('d','j','v'), MAKENAMEID4('d','j','v','u'), MAKENAMEID3('d','w','g'),
+                                        MAKENAMEID3('d','x','f'), MAKENAMEID3('f','b','s'), MAKENAMEID2('f','h'),
+                                        MAKENAMEID3('f','h','4'), MAKENAMEID3('f','h','5'), MAKENAMEID3('f','h','7'),
+                                        MAKENAMEID3('f','h','c'), MAKENAMEID3('f','p','x'), MAKENAMEID3('f','s','t'),
+                                        MAKENAMEID2('g','3'), MAKENAMEID3('g','i','f'), MAKENAMEID4('h','e','i','c'),
+                                        MAKENAMEID4('h','e','i','f'), MAKENAMEID3('i','c','o'), MAKENAMEID3('i','e','f'),
+                                        MAKENAMEID3('j','p','e'), MAKENAMEID4('j','p','e','g'), MAKENAMEID3('j','p','g'),
+                                        MAKENAMEID3('k','t','x'), MAKENAMEID3('m','d','i'), MAKENAMEID3('m','m','r'),
+                                        MAKENAMEID3('n','p','x'), MAKENAMEID3('p','b','m'), MAKENAMEID3('p','c','t'),
+                                        MAKENAMEID3('p','c','x'), MAKENAMEID3('p','g','m'), MAKENAMEID3('p','i','c'),
+                                        MAKENAMEID3('p','n','g'), MAKENAMEID3('p','n','m'), MAKENAMEID3('p','p','m'),
+                                        MAKENAMEID3('p','s','d'), MAKENAMEID3('r','a','s'), MAKENAMEID3('r','g','b'),
+                                        MAKENAMEID3('r','l','c'), MAKENAMEID3('s','g','i'), MAKENAMEID3('s','i','d'),
+                                        MAKENAMEID3('s','v','g'), MAKENAMEID4('s','v','g','z'), MAKENAMEID3('t','g','a'),
+                                        MAKENAMEID3('t','i','f'), MAKENAMEID4('t','i','f','f'), MAKENAMEID3('u','v','g'),
+                                        MAKENAMEID3('u','v','i'), MAKENAMEID4('u','v','v','g'), MAKENAMEID4('u','v','v','i'),
+                                        MAKENAMEID4('w','b','m','p'), MAKENAMEID3('w','d','p'), MAKENAMEID4('w','e','b','p'),
+                                        MAKENAMEID3('x','b','m'), MAKENAMEID3('x','i','f'), MAKENAMEID3('x','p','m'),
+                                        MAKENAMEID3('x','w','d')};
+    return phts;
+}
 
-static const std::set<nameid> photoRawExtensions = {MAKENAMEID3('3','f','r'), MAKENAMEID3('a','r','w'), MAKENAMEID3('c','r','2'), MAKENAMEID3('c','r','w'), MAKENAMEID4('c','i','f','f'), MAKENAMEID3('c','s','1'), MAKENAMEID3('d','c','r'), MAKENAMEID3('d','n','g'), MAKENAMEID3('e','r','f'), MAKENAMEID3('i','i','q'), MAKENAMEID3('k','2','5'), MAKENAMEID3('k','d','c'), MAKENAMEID3('m','e','f'), MAKENAMEID3('m','o','s'), MAKENAMEID3('m','r','w'), MAKENAMEID3('n','e','f'), MAKENAMEID3('n','r','w'),
-                                          MAKENAMEID3('o','r','f'), MAKENAMEID3('p','e','f'), MAKENAMEID3('r','a','f'), MAKENAMEID3('r','a','w'), MAKENAMEID3('r','w','2'), MAKENAMEID3('r','w','l'), MAKENAMEID3('s','r','2'), MAKENAMEID3('s','r','f'), MAKENAMEID3('s','r','w'), MAKENAMEID3('x','3','f')};
+const std::set<nameid>& photoRawExtensions()
+{
+    static const std::set<nameid> phrs {MAKENAMEID3('3','f','r'), MAKENAMEID3('a','r','i'), MAKENAMEID3('a','r','q'),
+                                        MAKENAMEID3('a','r','w'), MAKENAMEID3('b','a','y'), MAKENAMEID3('b','m','q'),
+                                        MAKENAMEID3('c','a','p'), MAKENAMEID4('c','i','f','f'), MAKENAMEID4('c','i','n','e'),
+                                        MAKENAMEID3('c','r','2'), MAKENAMEID3('c','r','3'), MAKENAMEID3('c','r','w'),
+                                        MAKENAMEID3('c','s','1'), MAKENAMEID3('d','c','2'), MAKENAMEID3('d','c','r'),
+                                        MAKENAMEID3('d','n','g'), MAKENAMEID3('d','r','f'), MAKENAMEID3('d','s','c'),
+                                        MAKENAMEID3('e','i','p'), MAKENAMEID3('e','r','f'), MAKENAMEID3('f','f','f'),
+                                        MAKENAMEID2('i','a'), MAKENAMEID3('i','i','q'), MAKENAMEID3('k','2','5'),
+                                        MAKENAMEID3('k','c','2'), MAKENAMEID3('k','d','c'), MAKENAMEID3('m','d','c'),
+                                        MAKENAMEID3('m','e','f'), MAKENAMEID3('m','o','s'), MAKENAMEID3('m','r','w'),
+                                        MAKENAMEID3('n','e','f'), MAKENAMEID3('n','r','w'), MAKENAMEID3('o','b','m'),
+                                        MAKENAMEID3('o','r','f'), MAKENAMEID3('o','r','i'), MAKENAMEID3('p','e','f'),
+                                        MAKENAMEID3('p','t','x'), MAKENAMEID3('p','x','n'), MAKENAMEID3('q','t','k'),
+                                        MAKENAMEID3('r','a','f'), MAKENAMEID3('r','a','w'), MAKENAMEID3('r','d','c'),
+                                        MAKENAMEID3('r','w','2'), MAKENAMEID3('r','w','l'), MAKENAMEID3('r','w','z'),
+                                        MAKENAMEID3('s','r','2'), MAKENAMEID3('s','r','f'), MAKENAMEID3('s','r','w'),
+                                        MAKENAMEID3('s','t','i'), MAKENAMEID3('x','3','f')};
+    return phrs;
+}
 
-static const std::set<nameid> photoImageDefExtension = {MAKENAMEID3('j','p','g'), MAKENAMEID4('j','p','e','g'), MAKENAMEID3('g','i','f'), MAKENAMEID3('b','m','p'), MAKENAMEID3('p','n','g')};
+const std::set<nameid>& photoImageDefExtension()
+{
+    static const std::set<nameid> phis {MAKENAMEID3('b','m','p'), MAKENAMEID3('g','i','f'), MAKENAMEID3('j','p','g'),
+                                        MAKENAMEID4('j','p','e','g'), MAKENAMEID3('p','n','g')};
+    return phis;
+}
 
 bool Node::isPhoto(const std::string& ext)
 {
     nameid extNameid = getExtensionNameId(ext);
-    return photoImageDefExtension.find(extNameid) != photoImageDefExtension.end() ||
-        photoRawExtensions.find(extNameid) != photoRawExtensions.end() ||
-        photoExtensions.find(extNameid) != photoExtensions.end();
+    return photoImageDefExtension().find(extNameid) != photoImageDefExtension().end() ||
+        photoRawExtensions().find(extNameid) != photoRawExtensions().end() ||
+        photoExtensions().find(extNameid) != photoExtensions().end();
 }
 
-bool Node::isPhotoWithFileAttributes(const string& ext, bool checkPreview) const
+bool Node::isPhotoWithFileAttributes(bool checkPreview) const
 {
+    std::string ext;
+    if (!Node::getExtension(ext, displayname()))
+    {
+        return false;
+    }
+
     // evaluate according to the webclient rules, so that we get exactly the same bucketing.
     return (isPhoto(ext)
             && (!checkPreview || Node::hasfileattribute(&fileattrstring, GfxProc::PREVIEW)));
@@ -307,11 +428,17 @@ bool Node::isPhotoWithFileAttributes(const string& ext, bool checkPreview) const
 
 bool Node::isVideo(const std::string& ext)
 {
-    return videoExtensions.find(getExtensionNameId(ext)) != videoExtensions.end();
+    return videoExtensions().find(getExtensionNameId(ext)) != videoExtensions().end();
 }
 
-bool Node::isVideoWithFileAttributes(const std::string& ext) const
+bool Node::isVideoWithFileAttributes() const
 {
+    std::string ext;
+    if (!Node::getExtension(ext, displayname()))
+    {
+        return false;
+    }
+
     if (Node::hasfileattribute(&fileattrstring, fa_media) && nodekey().size() == FILENODEKEYLENGTH)
     {
 #ifdef USE_MEDIAINFO
@@ -344,41 +471,67 @@ bool Node::isAudio(const std::string& ext)
     nameid extNameid = getExtensionNameId(ext);
     if (extNameid != 0)
     {
-        return audioExtensions.find(extNameid) != audioExtensions.end();
+        return audioExtensions().find(extNameid) != audioExtensions().end();
     }
 
     // Check longer extension
-    return longAudioExtension.find(ext) != longAudioExtension.end();
+    return longAudioExtension().find(ext) != longAudioExtension().end();
 }
 
 bool Node::isDocument(const std::string& ext)
 {
-    return documentExtensions.find(getExtensionNameId(ext)) != documentExtensions.end();
+    return documentExtensions().find(getExtensionNameId(ext)) != documentExtensions().end() || isPdf(ext) || isPresentation(ext);
 }
 
 bool Node::isPdf(const std::string& ext)
 {
-    return pdfExtensions.find(getExtensionNameId(ext)) != pdfExtensions.end();
+    return pdfExtensions().find(getExtensionNameId(ext)) != pdfExtensions().end();
 }
 
 bool Node::isPresentation(const std::string& ext)
 {
-    return presentationExtensions.find(getExtensionNameId(ext)) != presentationExtensions.end();
+    return presentationExtensions().find(getExtensionNameId(ext)) != presentationExtensions().end();
 }
 
 bool Node::isArchive(const std::string& ext)
 {
-    return archiveExtensions.find(getExtensionNameId(ext)) != archiveExtensions.end();
+    return archiveExtensions().find(getExtensionNameId(ext)) != archiveExtensions().end();
 }
 
 bool Node::isProgram(const std::string& ext)
 {
-    return programExtensions.find(getExtensionNameId(ext)) != programExtensions.end();
+    return programExtensions().find(getExtensionNameId(ext)) != programExtensions().end();
 }
 
 bool Node::isMiscellaneous(const std::string& ext)
 {
-    return miscExtensions.find(getExtensionNameId(ext)) != miscExtensions.end();
+    return miscExtensions().find(getExtensionNameId(ext)) != miscExtensions().end();
+}
+
+bool Node::isOfMimetype(MimeType_t mimetype, const string& ext)
+{
+    switch (mimetype) {
+    case MimeType_t::MIME_TYPE_PHOTO:
+        return Node::isPhoto(ext);
+    case MimeType_t::MIME_TYPE_AUDIO:
+        return Node::isAudio(ext);
+    case MimeType_t::MIME_TYPE_VIDEO:
+        return Node::isVideo(ext);
+    case MimeType_t::MIME_TYPE_DOCUMENT:
+        return Node::isDocument(ext);
+    case MimeType_t::MIME_TYPE_PDF:
+        return Node::isPdf(ext);
+    case MimeType_t::MIME_TYPE_PRESENTATION:
+        return Node::isPresentation(ext);
+    case MimeType_t::MIME_TYPE_ARCHIVE:
+        return Node::isArchive(ext);
+    case MimeType_t::MIME_TYPE_PROGRAM:
+        return Node::isProgram(ext);
+    case MimeType_t::MIME_TYPE_MISC:
+        return Node::isMiscellaneous(ext);
+    default:
+        return false;
+    }
 }
 
 nameid Node::getExtensionNameId(const std::string& ext)
@@ -1268,57 +1421,25 @@ string Node::displaypath() const
     return path;
 }
 
-MimeType_t Node::getMimeType(bool checkPreview) const
+bool Node::isIncludedForMimetype(MimeType_t mimetype, bool checkPreview) const
 {
     if (type != FILENODE)
     {
-        return MimeType_t::MIME_TYPE_UNKNOWN;
+        return false;
+    }
+
+    if (mimetype == MimeType_t::MIME_TYPE_PHOTO)
+    {
+        return isPhotoWithFileAttributes(checkPreview);
     }
 
     std::string extension;
     if (!getExtension(extension, displayname()))
     {
-        return MimeType_t::MIME_TYPE_UNKNOWN;
+        return false;
     }
 
-    if (isPhoto(extension))
-    {
-        return MimeType_t::MIME_TYPE_PHOTO;
-    }
-    else if (isVideo(extension))
-    {
-        return MimeType_t::MIME_TYPE_VIDEO;
-    }
-    else if (isAudio(extension))
-    {
-        return MimeType_t::MIME_TYPE_AUDIO;
-    }
-    else if (isDocument(extension))
-    {
-        return MimeType_t::MIME_TYPE_DOCUMENT;
-    }
-    else if (isPdf(extension))
-    {
-        return MimeType_t::MIME_TYPE_PDF;
-    }
-    else if (isPresentation(extension))
-    {
-        return MimeType_t::MIME_TYPE_PRESENTATION;
-    }
-    else if (isArchive(extension))
-    {
-        return MimeType_t::MIME_TYPE_ARCHIVE;
-    }
-    else if (isProgram(extension))
-    {
-        return MimeType_t::MIME_TYPE_PROGRAM;
-    }
-    else if (isMiscellaneous(extension))
-    {
-        return MimeType_t::MIME_TYPE_MISC;
-    }
-
-    return MimeType_t::MIME_TYPE_UNKNOWN;
+    return Node::isOfMimetype(mimetype, extension);
 }
 
 bool isPhotoVideoAudioByName(const string& filenameExtensionLowercaseNoDot)
@@ -1328,14 +1449,14 @@ bool isPhotoVideoAudioByName(const string& filenameExtensionLowercaseNoDot)
 
     if (id)
     {
-        if (photoImageDefExtension.find(id) != photoImageDefExtension.end()) return true;
-        if (photoRawExtensions.find(id) != photoRawExtensions.end()) return true;
-        if (photoExtensions.find(id) != photoExtensions.end()) return true;
-        if (videoExtensions.find(id) != videoExtensions.end()) return true;
-        if (audioExtensions.find(id) != audioExtensions.end()) return true;
+        if (photoImageDefExtension().find(id) != photoImageDefExtension().end()) return true;
+        if (photoRawExtensions().find(id) != photoRawExtensions().end()) return true;
+        if (photoExtensions().find(id) != photoExtensions().end()) return true;
+        if (videoExtensions().find(id) != videoExtensions().end()) return true;
+        if (audioExtensions().find(id) != audioExtensions().end()) return true;
     }
 
-    if (longAudioExtension.find(filenameExtensionLowercaseNoDot) != longAudioExtension.end()) return true;
+    if (longAudioExtension().find(filenameExtensionLowercaseNoDot) != longAudioExtension().end()) return true;
     return false;
 }
 
@@ -1395,22 +1516,36 @@ bool Node::applykey()
             // look for share key if not folder link access with folder master key
             if (h != me)
             {
-                // this is a share node handle - check if share key is available at key's repository
-                // if not available, check if the node already has the share key
-                auto it = client->mNewKeyRepository.find(NodeHandle().set6byte(h));
-                if (it == client->mNewKeyRepository.end())
+                // this is a share node handle - check if share key is available
+                if (client->mKeyManager.isSecure() && client->mKeyManager.generation())
                 {
-                    Node* n;
-                    if (!(n = client->nodebyhandle(h)) || !n->sharekey)
+                    std::string key = client->mKeyManager.getShareKey(h);
+                    if (key.size())
+                    {
+                        sc = client->getRecycledTemporaryNodeCipher(&key);
+                    }
+                    else
                     {
                         continue;
                     }
-
-                    sc = n->sharekey.get();
                 }
-                else
+                else // check at new keys repository and, if not found, at the root node of share
                 {
-                    sc = client->getRecycledTemporaryNodeCipher(it->second.data());
+                    auto it = client->mNewKeyRepository.find(NodeHandle().set6byte(h));
+                    if (it == client->mNewKeyRepository.end())
+                    {
+                        Node* n;
+                        if (!(n = client->nodebyhandle(h)) || !n->sharekey)
+                        {
+                            continue;
+                        }
+
+                        sc = n->sharekey.get();
+                    }
+                    else
+                    {
+                        sc = client->getRecycledTemporaryNodeCipher(it->second.data());
+                    }
                 }
 
                 // this key will be rewritten when the node leaves the outbound share

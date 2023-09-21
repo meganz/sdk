@@ -138,4 +138,10 @@ using namespace mega;
     return self.megaBackupInfo ? self.megaBackupInfo->lastSync() : ::mega::INVALID_HANDLE;
 }
 
+- (NSString *)userAgent {
+    if(!self.megaBackupInfo) return nil;
+    
+    return self.megaBackupInfo->deviceUserAgent() ? [[NSString alloc] initWithUTF8String:self.megaBackupInfo->deviceUserAgent()] : nil;
+}
+
 @end
