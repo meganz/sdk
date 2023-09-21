@@ -28908,8 +28908,6 @@ Error MegaFolderDownloadController::createFolder()
 
         LocalPath &localpath = it->localPath;
 
-        megaApi->fireOnFolderTransferUpdate(transfer, MegaTransfer::STAGE_CREATE_TREE, unsigned(mLocalTree.size()), created, 0, nullptr, nullptr);
-
         Error e = MegaApiImpl::createLocalFolder_unlocked(localpath, *fsaccess);
         if (e && e != API_EEXIST)
         {
@@ -28918,6 +28916,8 @@ Error MegaFolderDownloadController::createFolder()
         }
         ++it;
         ++created;
+        
+        megaApi->fireOnFolderTransferUpdate(transfer, MegaTransfer::STAGE_CREATE_TREE, unsigned(mLocalTree.size()), created, 0, nullptr, nullptr);
     }
     return API_OK;
 }
