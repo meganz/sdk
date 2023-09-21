@@ -2427,6 +2427,7 @@ MegaTransferPrivate::MegaTransferPrivate(int type, MegaTransferListener *listene
     : mCollisionCheck(CollisionChecker::Option::Fingerprint)
     , mCollisionResolution(CollisionResolution::RenameNewWithN)
     , mCollisionCheckResult(CollisionChecker::Result::NotYet)
+    , mFsType(FileSystemType::FS_UNKNOWN)
 {
     this->type = type;
     this->tag = -1;
@@ -2515,6 +2516,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->setCollisionCheck(transfer->getCollisionCheck());
     this->setCollisionResolution(transfer->getCollisionResolution());
     this->setCollisionCheckResult(transfer->getCollisionCheckResult());
+    this->setFileSystemType(transfer->getFileSystemType());
 }
 
 MegaTransfer* MegaTransferPrivate::copy()
@@ -8809,6 +8811,9 @@ MegaTransferPrivate* MegaApiImpl::createDownloadTransfer(bool startFirst, MegaNo
     transfer->setCancelToken(cancelToken);
     transfer->setCollisionCheck(collisionCheck);
     transfer->setCollisionResolution(collisionResolution);
+    
+    // cache fsType to transfer as get fsType on a network driver could be expensive
+    transfer->setFileSystemType(fsType);
 
     if (customName)
     {
@@ -18341,7 +18346,9 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         wLocalPath.appendWithSeparator(LocalPath::fromRelativePath(""), true);
                     }
 
-                    FileSystemType fsType = fsAccess->getlocalfstype(wLocalPath);
+                    FileSystemType fsType = transfer->getFileSystemType() != FileSystemType::FS_UNKNOWN 
+                                            ? transfer->getFileSystemType() 
+                                            : fsAccess->getlocalfstype(wLocalPath);
 
                     if (node)
                     {

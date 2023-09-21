@@ -1095,6 +1095,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         void setCollisionCheckResult(CollisionChecker::Result);
         void setCollisionResolution(CollisionResolution);
         void setCollisionResolution(int);
+        void setFileSystemType(FileSystemType fsType) { mFsType = fsType; }
 
         int getType() const override;
         const char * getTransferString() const override;
@@ -1162,7 +1163,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         CollisionChecker::Option    getCollisionCheck() const;
         CollisionChecker::Result    getCollisionCheckResult() const;
         CollisionResolution         getCollisionResolution() const;
-
+        FileSystemType              getFileSystemType() const { return mFsType; };
         // for uploads, we fingerprint the file before queueing
         // as that way, it can be done without the main mutex locked
         error fingerprint_error = API_OK;
@@ -1177,6 +1178,7 @@ protected:
         CollisionChecker::Option    mCollisionCheck;
         CollisionResolution         mCollisionResolution;
         CollisionChecker::Result    mCollisionCheckResult;
+        FileSystemType              mFsType;
 
         struct
         {
