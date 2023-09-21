@@ -10763,7 +10763,6 @@ bool CommandFetchRegisterCreditCard::procresult(Command::Result r, JSON& json)
     else
     {
         mCompletion(API_EINTERNAL, creditCardInfo);
-        return false;
     }
 
     return false;
