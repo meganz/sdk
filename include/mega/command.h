@@ -682,6 +682,7 @@ private:
     NodeHandle h;
     // It's defined here to avoid node will be destroyed and Node::mPendingChanges will be missed
     std::shared_ptr<Node> mNode;
+    attr_map mAttrMapUpdates;
     error generationError;
     bool mCanChangeVault;
 
@@ -690,8 +691,9 @@ private:
     Completion completion;
 
 public:
-    attr_map mAttrMapUpdates;
     bool procresult(Result, JSON&) override;
+    // Apply the internal attr_map updates to the provided attrMap
+    void applyUpdatesTo(AttrMap& attrMap) const;
 
     CommandSetAttr(MegaClient*, std::shared_ptr<Node>, attr_map&& attrMapUpdates, Completion&& c, bool canChangeVault);
 };

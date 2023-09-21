@@ -749,16 +749,16 @@ void Transfer::complete(TransferDbCommitter& committer)
                             // the fingerprint is still wrong, but....
                             // is it already being fixed?
                             AttrMap pendingAttrs;
-                            if (n->mPendingChanges.chain)
+                            if (!n->mPendingChanges.empty())
                             {
                                 pendingAttrs = n->attrs;
-                                for (auto& cmd : *n->mPendingChanges.chain)
+                                n->mPendingChanges.forEachCommand([&pendingAttrs](Command* cmd)
                                 {
-                                    if (auto attrCmd = dynamic_cast<CommandSetAttr*>(cmd))
+                                    if (auto cmdSetAttr = dynamic_cast<CommandSetAttr*>(cmd))
                                     {
-                                        pendingAttrs.applyUpdates(attrCmd->mAttrMapUpdates);
+                                        cmdSetAttr->applyUpdatesTo(pendingAttrs);
                                     }
-                                }
+                                });
                             }
 
                             if (pendingAttrs.hasDifferentValue('c', attrUpdate))
