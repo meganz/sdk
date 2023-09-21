@@ -330,8 +330,9 @@ public:
      * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
      * @param taglen Length of expected authentication tag.
      * @param result Encrypted data, including the authentication tag.
+     * @returns true if encryption proccess ends succesfully, otherwise returns false
      */
-    void gcm_encrypt(const std::string *data, const byte *iv, unsigned ivlen, unsigned taglen, std::string *result);
+    bool gcm_encrypt(const std::string *data, const byte *iv, unsigned ivlen, unsigned taglen, std::string *result);
 
     /**
      * @brief Authenticated symmetric encryption using AES in GCM mode with additional authenticated data.

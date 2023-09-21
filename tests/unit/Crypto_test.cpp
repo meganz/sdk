@@ -59,7 +59,7 @@ TEST(Crypto, AES_GCM)
 
     // Test AES_GCM_12_16 encryption
     result.clear();
-    key.gcm_encrypt(&plainText, ivBytes, ivLen, tagLen, &result);
+    ASSERT_TRUE(key.gcm_encrypt(&plainText, ivBytes, ivLen, tagLen, &result));
 
     ASSERT_STREQ(result.data(), cipherText.data()) << "GCM encryption: cipher text doesn't match the expected value";
 

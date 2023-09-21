@@ -1292,11 +1292,11 @@ string * TLVstore::tlvRecordsToContainer(PrnGen &rng, SymmCipher *key, encryptio
     }
 
     // serialize the TLV records
-    string *container = tlvRecordsToContainer();
+    std::unique_ptr<string> container(tlvRecordsToContainer());
 
     // generate IV array
-    byte *iv = new byte[ivlen];
-    rng.genblock(iv, ivlen);
+    std::vector<byte> iv(ivlen);
+    rng.genblock(iv.data(), ivlen);
 
     string cipherText;
 
@@ -1304,21 +1304,21 @@ string * TLVstore::tlvRecordsToContainer(PrnGen &rng, SymmCipher *key, encryptio
 
     if (encMode == AES_MODE_CCM)   // CCM or GCM_BROKEN (same than CCM)
     {
-        key->ccm_encrypt(container, iv, ivlen, taglen, &cipherText);
+        key->ccm_encrypt(container.get(), iv.data(), ivlen, taglen, &cipherText);
     }
     else if (encMode == AES_MODE_GCM)   // then use GCM
     {
-        key->gcm_encrypt(container, iv, ivlen, taglen, &cipherText);
+        if (!key->gcm_encrypt(container.get(), iv.data(), ivlen, taglen, &cipherText))
+        {
+            return nullptr;
+        }
     }
 
     string *result = new string;
     result->resize(1);
     result->at(0) = static_cast<char>(encSetting);
-    result->append((char*) iv, ivlen);
+    result->append((char*) iv.data(), ivlen);
     result->append((char*) cipherText.data(), cipherText.length()); // includes auth. tag
-
-    delete [] iv;
-    delete container;
 
     return result;
 }

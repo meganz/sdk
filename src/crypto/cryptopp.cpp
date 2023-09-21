@@ -289,10 +289,25 @@ bool SymmCipher::ccm_decrypt(const string *data, const byte *iv, unsigned ivlen,
     return true;
 }
 
-void SymmCipher::gcm_encrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
+bool SymmCipher::gcm_encrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
 {
-    aesgcm_e.Resynchronize(iv, ivlen);
-    StringSource(*data, true, new AuthenticatedEncryptionFilter(aesgcm_e, new StringSink(*result), false, taglen));
+    if (!data || !result)
+    {
+        return false;
+    }
+
+    try
+    {
+        aesgcm_e.Resynchronize(iv, ivlen);
+        StringSource(*data, true, new AuthenticatedEncryptionFilter(aesgcm_e, new StringSink(*result), false, taglen));
+    }
+    catch (CryptoPP::Exception const &e)
+    {
+        LOG_err << "Failed AES-GCM encryption with additional authenticated data: " << e.GetWhat();
+        return false;
+    }
+
+    return true;
 }
 
 

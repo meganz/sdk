@@ -22076,7 +22076,12 @@ string KeyManager::toKeysContainer()
     const string keysPlain = serialize();
 
     string keysCiphered;
-    mKey.gcm_encrypt(&keysPlain, (byte*)iv.data(), IV_LEN, 16, &keysCiphered);
+    if (!mKey.gcm_encrypt(&keysPlain, (byte*)iv.data(), IV_LEN, 16, &keysCiphered))
+    {
+        LOG_err << "Failed to encrypt keys attribute.";
+        assert(false);
+        return string();
+    }
 
 #ifndef NDEBUG
     byte header[2] = {20, 0};
