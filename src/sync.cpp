@@ -9064,8 +9064,8 @@ bool Sync::resolve_downsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath
                 SyncWaitReason::DownloadIssue, false, true,
                 {row.cloudNode->handle, fullPath.cloudPath, PathProblem::CloudNodeInvalidFingerprint},
                 {},
-                {},
-                {parentRow.fsNode ? fullPath.localPath : LocalPath()}));
+                {parentRow.fsNode ? fullPath.localPath : LocalPath()},
+                {}));
 
             return false;
         }
