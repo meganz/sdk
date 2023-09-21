@@ -3217,6 +3217,8 @@ class MegaApiImpl : public MegaApp
         void checkVpnCredential(const char* userPubKey, MegaRequestListener* listener = nullptr);
         /* MegaVpnCredentials end */
 
+        void fetchRegisterCreditCardInfo(MegaRequestListener* listener = nullptr);
+
         void fireOnTransferStart(MegaTransferPrivate *transfer);
         void fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e); // deletes `transfer` !!
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);
@@ -3663,6 +3665,9 @@ private:
 
         // notify about a finished timer
         void timer_result(error) override;
+
+        // notify credit card Expiry
+        void notify_creditCardExpiry() override;
 
         void sendPendingScRequest();
         void sendPendingRequests();

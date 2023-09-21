@@ -5743,6 +5743,11 @@ void MegaApi::checkVpnCredential(const char* userPubKey, MegaRequestListener* li
     pImpl->checkVpnCredential(userPubKey, listener);
 }
 
+void MegaApi::fetchRegisterCreditCardInfo(MegaRequestListener* listener)
+{
+    pImpl->fetchRegisterCreditCardInfo(listener);
+}
+
 /* END MEGAAPI */
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)

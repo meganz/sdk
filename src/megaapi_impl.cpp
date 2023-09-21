@@ -14329,6 +14329,12 @@ void MegaApiImpl::timer_result(error e)
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
+void MegaApiImpl::notify_creditCardExpiry()
+{
+    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_CREDIT_CARD_EXPIRY);
+    fireOnEvent(event);
+}
+
 // callback for non-EAGAIN request-level errors
 // retrying is futile
 // this can occur e.g. with syntactically malformed requests (due to a bug) or due to an invalid application key
@@ -25626,6 +25632,26 @@ void MegaApiImpl::checkVpnCredential(const char* userPubKey, MegaRequestListener
 }
 /* MegaApiImpl VPN commands END */
 
+void MegaApiImpl::fetchRegisterCreditCardInfo(MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_CREDIT_CARD_INFO, listener);
+    request->performRequest = [this, request]()
+    {
+        client->fetchRegisterCreditCardInfo(
+            [this, request](Error e, const std::map<std::string, std::string>& creditCardInfo)
+            {
+                std::unique_ptr<MegaStringMapPrivate> stringMap = mega::make_unique<MegaStringMapPrivate>(&creditCardInfo);
+                request->setMegaStringMap(stringMap.get());
+                fireOnRequestFinish(request, mega::make_unique<MegaErrorPrivate>(e));
+            });
+
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 /* END MEGAAPIIMPL */
 
 void TreeProcCopy::allocnodes()
@@ -35572,6 +35598,7 @@ const char *MegaEventPrivate::getEventString(int type)
         case MegaEvent::EVENT_FATAL_ERROR: return "FATAL_ERROR";
         case MegaEvent::EVENT_UPGRADE_SECURITY: return "UPGRADE_SECURITY";
         case MegaEvent::EVENT_DOWNGRADE_ATTACK: return "DOWNGRADE_ATTACK";
+        case MegaEvent::EVENT_CREDIT_CARD_EXPIRY: return "CREDIT_CARD_EXPIRY";
     }
 
     return "UNKNOWN";
