@@ -23,7 +23,6 @@
 #define MEGA_FILESYSTEM_H 1
 
 #include <atomic>
-#include <unordered_map>
 #include "types.h"
 #include "utils.h"
 #include "waiter.h"
@@ -895,11 +894,6 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     virtual bool initFilesystemNotificationSystem();
 #endif // ENABLE_SYNC
-
-    virtual ScanResult directoryScan(const LocalPath& path,
-                                     handle expectedFsid,
-                                     std::unordered_map<std::string, FSNode>& results,
-                                     bool followSymlinks) = 0;
 
     virtual ScanResult directoryScan(const LocalPath& path,
                                      handle expectedFsid,

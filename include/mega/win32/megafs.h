@@ -89,13 +89,6 @@ public:
 
     static void emptydirlocal(const LocalPath&, dev_t = 0);
 
-    ScanResult directoryScanHelper(const LocalPath& path, handle expectedFsid,
-        map<LocalPath, FSNode>& known, std::function<void(FSNode&&)> returnResultFunc, 
-        bool followSymlinks, bool needFingerPrint, unsigned& nFingerprinted);
-
-    ScanResult directoryScan(const LocalPath& path, handle expectedFsid,
-        std::unordered_map<std::string, FSNode>& results, bool followSymlinks) override;
-
     ScanResult directoryScan(const LocalPath& path, handle expectedFsid,
         map<LocalPath, FSNode>& known, std::vector<FSNode>& results, bool followSymlinks, unsigned& nFingerprinted) override;
 

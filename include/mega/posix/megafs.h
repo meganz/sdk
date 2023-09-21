@@ -130,19 +130,6 @@ public:
     static bool cwd_static(LocalPath& path);
     bool cwd(LocalPath& path) const override;
 
-    ScanResult directoryScanHelper(const LocalPath& path,
-                                   handle expectedFsid,
-                                   map<LocalPath, FSNode>& known,
-                                   std::function<void(FSNode&&)> returnResultFunc, 
-                                   bool followSymlinks,
-                                   bool needFingerPrint, 
-                                   unsigned& nFingerprinted);
-
-    ScanResult directoryScan(const LocalPath& path,
-                             handle expectedFsid,
-                             std::unordered_map<std::string, FSNode>& results,
-                             bool followSymlinks) override;
-
     ScanResult directoryScan(const LocalPath& path,
                              handle expectedFsid,
                              map<LocalPath, FSNode>& known,

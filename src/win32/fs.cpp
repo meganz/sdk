@@ -1732,9 +1732,7 @@ bool  WinFileSystemAccess::checkForSymlink(const LocalPath& lp)
     return false;
 }
 
-ScanResult WinFileSystemAccess::directoryScanHelper(const LocalPath& path, handle expectedFsid, 
-    map<LocalPath, FSNode>& known, std::function<void(FSNode&&)> returnResultFunc, bool followSymlinks, 
-    bool needFingerPrint, unsigned& nFingerprinted)
+ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path, handle expectedFsid, map<LocalPath, FSNode>& known, std::vector<FSNode>& results, bool followSymlinks, unsigned& nFingerprinted)
 {
     assert(path.isAbsolute());
     assert(!followSymlinks && "Symlinks are not supported on Windows!");
@@ -1823,7 +1821,7 @@ ScanResult WinFileSystemAccess::directoryScanHelper(const LocalPath& path, handl
                     }
 
 
-                    returnResultFunc(std::move(result));
+                    results.emplace_back(std::move(result));
 
                     // Process the next directory entry.
                     continue;
@@ -1874,7 +1872,7 @@ ScanResult WinFileSystemAccess::directoryScanHelper(const LocalPath& path, handl
                 {
                     memset(result.fingerprint.crc.data(), 0, sizeof(result.fingerprint.crc));
                 }
-                else if (result.type == FILENODE && needFingerPrint)
+                else if (result.type == FILENODE)
                 {
                     // Fingerprint the file if it's new or changed
                     // (caller has to not supply 'known' items we aready know changed in case mtime+size is still a match)
@@ -1902,7 +1900,7 @@ ScanResult WinFileSystemAccess::directoryScanHelper(const LocalPath& path, handl
                     }
                 }
 
-                returnResultFunc(std::move(result));
+                results.push_back(std::move(result));
             }
         }
         while (GetFileInformationByHandleEx( rightTypeHandle.get(),
@@ -1921,30 +1919,6 @@ ScanResult WinFileSystemAccess::directoryScanHelper(const LocalPath& path, handl
     return SCAN_SUCCESS;
 }
 
-ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path, handle expectedFsid,
-    std::unordered_map<std::string, FSNode>& results, bool followSymlinks)
-{
-    auto resultProcess = [&results](FSNode&& node)
-    {
-        results.emplace(node.localname.toPath(false), std::move(node));
-        return;
-    };
-
-    map<LocalPath, FSNode> emptyKnown;
-    unsigned nFingerprinted = 0;
-    return directoryScanHelper(path, expectedFsid, emptyKnown, resultProcess, followSymlinks, false /*needFingerPrint*/, nFingerprinted);
-}
-
-ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path, handle expectedFsid, map<LocalPath, FSNode>& known, std::vector<FSNode>& results, bool followSymlinks, unsigned& nFingerprinted)
-{
-    auto resultProcess = [&results](FSNode&& node)
-    {
-        results.emplace_back(std::move(node));
-        return;
-    };
-
-    return directoryScanHelper(path, expectedFsid, known, resultProcess, followSymlinks, true /*needFingerPrint*/, nFingerprinted);
-}
 
 bool WinDirAccess::dopen(LocalPath* nameArg, FileAccess* f, bool glob)
 {
