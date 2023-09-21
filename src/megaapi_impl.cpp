@@ -24774,7 +24774,7 @@ void MegaApiImpl::updateStats()
     }
 }
 
-long long MegaApiImpl::getNumNodes()
+unsigned long long MegaApiImpl::getNumNodes()
 {
     return client->totalNodes.load();
 }

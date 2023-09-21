@@ -1611,7 +1611,7 @@ void MegaClient::init()
     csretrying = false;
     chunkfailed = false;
     statecurrent = false;
-    totalNodes = 0;
+    totalNodes.store(0);
     mAppliedKeyNodeCount = 0;
     faretrying = false;
 
