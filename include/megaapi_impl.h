@@ -552,7 +552,7 @@ protected:
     std::unique_ptr<TransferQueue> genDownloadTransfersForFiles(std::unique_ptr<TransferQueue> transferQueue, 
                                                                  LocalTree& folder,
                                                                  FileSystemType fsType,
-                                                                 const std::unordered_map<std::string, FSNode>& existingNodes);
+                                                                 bool folderExists);
 };
 
 class MegaNodePrivate : public MegaNode, public Cacheable

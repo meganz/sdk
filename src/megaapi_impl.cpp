@@ -28994,31 +28994,19 @@ std::unique_ptr<TransferQueue> MegaFolderDownloadController::createFolderGenDown
 
         LocalPath &localpath = it->localPath;
 
-        Error e = MegaApiImpl::createLocalFolder_unlocked(localpath, *fsaccess);
+        // try to create the folder
+        e = MegaApiImpl::createLocalFolder_unlocked(localpath, *fsaccess);
+
+        // errors besides the folder already exists is an error
         if (e && e != API_EEXIST)
         {
             mLocalTree.clear();
             return nullptr;
         }
 
-        std::unordered_map<std::string, FSNode> existings;
+        auto folderAlreadyExist = (e && e == API_EEXIST);
 
-        // only when the desitnation directory exists, we need to scan its children
-        if (e && e == API_EEXIST)
-        {
-            // scanDirectory to get all existing direct children
-            auto fa = fsaccess->newfileaccess();
-            fa->fopen(localpath, true, false, FSLogging::logOnError);
-            auto ret = fsaccess->directoryScan(localpath, fa->fsid, existings, false/*followSymlinks*/);
-            if (ret != ScanResult::SCAN_SUCCESS)
-            {
-                LOG_err << "scan " << localpath.toPath(false) << " error:" << ret;
-                e = API_EINTERNAL;
-                return nullptr;
-            }
-        }
-
-        transferQueue = genDownloadTransfersForFiles(std::move(transferQueue), *it, fsType, existings);
+        transferQueue = genDownloadTransfersForFiles(std::move(transferQueue), *it, fsType, folderAlreadyExist);
         if (!transferQueue)
         {
             e = API_EINCOMPLETE;
@@ -29027,7 +29015,7 @@ std::unique_ptr<TransferQueue> MegaFolderDownloadController::createFolderGenDown
 
         ++it;
         ++created;
-        
+
         megaApi->fireOnFolderTransferUpdate(transfer, MegaTransfer::STAGE_CREATE_TREE, unsigned(mLocalTree.size()), created, 0, nullptr, nullptr);
     }
 
@@ -29039,7 +29027,7 @@ std::unique_ptr<TransferQueue> MegaFolderDownloadController::genDownloadTransfer
     std::unique_ptr<TransferQueue> transferQueue,
     LocalTree& folder,
     FileSystemType fsType,
-    const std::unordered_map<std::string, FSNode>& existingNodes)
+    bool folderExists)
 {
 	for (auto& fileNode : folder.childrenNodes)
 	{
@@ -29053,13 +29041,17 @@ std::unique_ptr<TransferQueue> MegaFolderDownloadController::genDownloadTransfer
 		ScopedLengthRestore restoreLen(fileLocalPath);
 		fileLocalPath.appendWithSeparator(LocalPath::fromRelativeName(fileNode->getName(), *fsaccess, fsType), true);
 
-		// make the download decision
 		auto decision = CollisionChecker::Result::Download;
-		auto it = existingNodes.find(fileNode->getName());
-		if (it != existingNodes.end() && it->second.type == FILENODE)
-		{
-			decision = CollisionChecker::check(fsaccess.get(), fileLocalPath, fileNode.get(), transfer->getCollisionCheck());
-		}
+
+        // collision might exist only if the folder already exists
+        if (folderExists)
+        {
+            auto fa = fsaccess->newfileaccess();
+            if (fa && fa->fopen(fileLocalPath, true, false, FSLogging::logExceptFileNotFound) && fa->type == FILENODE)
+            {
+                decision = CollisionChecker::check(fsaccess.get(), fileLocalPath, fileNode.get(), transfer->getCollisionCheck());
+            }
+        }
 
 		MegaTransferPrivate* transferDownload = megaApi->createDownloadTransfer(
 			false, fileNode.get(), fileLocalPath.toPath(false).c_str(), nullptr, tag, nullptr /*appData()*/,
