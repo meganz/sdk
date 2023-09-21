@@ -183,6 +183,21 @@ ECDH::~ECDH()
 {
 }
 
+ECDH::ECDH(const unsigned char *privk, const std::string &pubk)
+{
+    std::copy(privk, privk + PRIVATE_KEY_LENGTH, privKey);
+    std::copy(pubk.data(), pubk.data() + PUBLIC_KEY_LENGTH, pubKey);
+}
+
+int ECDH::doComputeSymmetricKey(const unsigned char* privk, const unsigned char* pubk, std::string& output) const
+{
+    output.resize(DERIVED_KEY_LENGTH);
+    unsigned char* outputPtr = reinterpret_cast<unsigned char*>(const_cast<char*>(output.data()));
+    int ret = crypto_scalarmult(outputPtr, privk, pubk); // 0: success
+
+    return ret;
+}
+
 int ECDH::encrypt(unsigned char *encmsg, const unsigned char *msg,
                   const unsigned long long msglen, const unsigned char *nonce,
                   const unsigned char *pubKey, const unsigned char *privKey)
@@ -211,11 +226,8 @@ bool ECDH::deriveSharedKeyWithSalt(const unsigned char* pubkey, const unsigned c
         return false;
     }
 
-    int err = 0;
     std::string sharedSecret;
-    sharedSecret.resize(::mega::ECDH::DERIVED_KEY_LENGTH);
-    auto ssPtr = reinterpret_cast<const unsigned char *>(sharedSecret.data());
-    err = crypto_scalarmult(const_cast<unsigned char*>(ssPtr), getPrivKey(), pubkey);
+    int err = doComputeSymmetricKey(privKey, pubkey, sharedSecret);
     if (err)
     {
         LOG_err << "derivePrivKeyWithSalt: crypto_scalarmult err: " << err;

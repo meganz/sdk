@@ -23322,10 +23322,8 @@ string KeyManager::computeSymmetricKey(handle user)
     }
 
     std::string sharedSecret;
-    sharedSecret.resize(::mega::ECDH::DERIVED_KEY_LENGTH);
-    if (crypto_scalarmult((unsigned char *)sharedSecret.data(),
-                          mClient.chatkey->getPrivKey(),
-                          (unsigned char *)cachedav->data()))
+    ECDH ecdh(mClient.chatkey->getPrivKey(), *cachedav);
+    if (!ecdh.computeSymmetricKey(sharedSecret))
     {
         return std::string();
     }

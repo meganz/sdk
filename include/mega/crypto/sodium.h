@@ -99,6 +99,7 @@ public:
 
     ECDH(); // constructs an instance of ECDH and generates a new x25519 key pair
     ECDH(const std::string &privKey); // initialize the private key (and derive public key)
+    ECDH(const unsigned char *privk, const std::string &pubk); // initialize the private key and public key
     ECDH(const ECDH& aux);
     ECDH* copy() const { return new ECDH(*this); }
     ECDH& operator=(const ECDH& aux) = delete;
@@ -109,6 +110,15 @@ public:
     const unsigned char* getPrivKey() const { return privKey; }
     const unsigned char* getPubKey()  const { return pubKey;  }
     bool deriveSharedKeyWithSalt(const unsigned char* pubkey, const unsigned char* salt, size_t saltSize, std::string& output) const;
+
+    /**
+     * @brief Compute symetric key using the stored private and public keys
+     *
+     * @param output Generated symetric key
+     *
+     * @return 1 on success, 0 on failure.
+     */
+    int computeSymmetricKey(std::string& output) const { return !doComputeSymmetricKey(privKey, pubKey, output); }
 
     /**
      * @brief encrypt Encrypt a message using the public key of recipient, the
@@ -151,6 +161,7 @@ public:
                  const unsigned char* pubKey, const unsigned char* privKey);
 
 private:
+    int doComputeSymmetricKey(const unsigned char* privk, const unsigned char* pubk, std::string& output) const;
     unsigned char privKey[PRIVATE_KEY_LENGTH];
     unsigned char pubKey[PUBLIC_KEY_LENGTH];
 };
