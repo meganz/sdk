@@ -28613,7 +28613,6 @@ void MegaFolderDownloadController::start(MegaNode *node)
             std::shared_ptr<TransferQueue> transferQueue;
             if (e == API_OK)
             {
-                // notifyStage(MegaTransfer::STAGE_GENERATE_TRANSFERS);
                 transferQueue = genDownloadTransfersForFiles(fsType);
             }
 
@@ -28652,7 +28651,6 @@ void MegaFolderDownloadController::start(MegaNode *node)
                         // the last callback of onFinish for one of these will also complete and destroy this MegaFolderUploadController
                         transfersTotalCount = transferQueue->size();
 
-                        // notifyStage(MegaTransfer::STAGE_PROCESS_PENDING_TRANSFERS);
                         megaApi->sendPendingTransfers(transferQueue.get(), this);
                         // no further code can be added here, this object may now be deleted (eg, due to cancel token activation)
 
