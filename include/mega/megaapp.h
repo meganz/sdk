@@ -429,6 +429,8 @@ struct MEGA_API MegaApp
     // provides the per mil progress of a long-running API operation or -1 if there isn't any operation in progress
     virtual void reqstat_progress(int) { }
 
+    virtual void notify_creditCardExpiry() { }
+
     virtual ~MegaApp() { }
 
     // External drive notifications

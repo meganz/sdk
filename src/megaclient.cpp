@@ -5651,6 +5651,11 @@ bool MegaClient::procsc()
                                 // User Email Confirm (uec)
                                 sc_uec();
                                 break;
+
+                            case MAKENAMEID3('c', 'c', 'e'):
+                                // credit card for this user is potentially expiring soon or new card is registered
+                                sc_cce();
+                                break;
                         }
                     }
                 }
@@ -8206,6 +8211,12 @@ void MegaClient::sc_pk()
             }));
         });
     }));
+}
+
+void MegaClient::sc_cce()
+{
+    LOG_debug << "Processing Credit Card Expiry";
+    app->notify_creditCardExpiry();
 }
 
 void MegaClient::sc_la()
@@ -21798,6 +21809,11 @@ string MegaClient::generateVpnCredentialString(int clusterID,
     return credential;
 }
 /* Mega VPN methods END */
+
+void MegaClient::fetchCreditCardInfo(CommandFetchCreditCardCompletion completion)
+{
+    reqs.add(new CommandFetchCreditCard(this, std::move(completion)));
+}
 
 FetchNodesStats::FetchNodesStats()
 {

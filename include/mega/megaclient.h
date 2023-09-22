@@ -1478,6 +1478,7 @@ public:
     void sc_ub();
     void sc_sqac();
     void sc_pk();
+    void sc_cce();
 
     void init();
 
@@ -2621,6 +2622,7 @@ public:
 
 /* Mega VPN methods END */
 
+    void fetchCreditCardInfo(CommandFetchCreditCardCompletion completion);
 };
 
 } // namespace
