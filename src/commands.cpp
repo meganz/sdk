@@ -957,17 +957,14 @@ const char* CommandSetAttr::getJSON(MegaClient* client)
 
         // apply these changes for sending, but also any earlier changes that are ahead in the queue
         assert(!n->mPendingChanges.empty());
-        if (n->mPendingChanges.chain)
+        n->mPendingChanges.forEachCommand([&m, this](Command* cmd)
         {
-            for (auto& cmd : *n->mPendingChanges.chain)
+            if (cmd == this) return;
+            if (auto cmdSetAttr = dynamic_cast<CommandSetAttr*>(cmd))
             {
-                if (cmd == this) break;
-                if (auto attrCmd = dynamic_cast<CommandSetAttr*>(cmd))
-                {
-                    m.applyUpdates(attrCmd->mAttrMapUpdates);
-                }
+                cmdSetAttr->applyUpdatesTo(m);
             }
-        }
+        });
 
         m.applyUpdates(mAttrMapUpdates);
 
@@ -1007,6 +1004,11 @@ bool CommandSetAttr::procresult(Result r, JSON& json)
     removeFromNodePendingCommands(h, client);
     if (completion) completion(h, generationError ? Error(generationError) : r.errorOrOK());
     return r.wasErrorOrOK();
+}
+
+void CommandSetAttr::applyUpdatesTo(AttrMap& attrMap) const
+{
+    attrMap.applyUpdates(mAttrMapUpdates);
 }
 
 // (the result is not processed directly - we rely on the server-client
