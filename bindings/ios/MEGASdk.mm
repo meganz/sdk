@@ -159,7 +159,7 @@ using namespace mega;
     return [[NSNumber alloc] initWithLongLong:self.megaApi->getTotalUploadedBytes()];
 }
 
-- (NSUInteger)totalNodes {
+- (unsigned long long)totalNodes {
     if (self.megaApi == nil) return 0;
     return self.megaApi->getNumNodes();
 }
@@ -3187,34 +3187,6 @@ using namespace mega;
 - (MEGANodeList *)nodeListSearchOnPublicLinksByString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken order:(MEGASortOrderType)order {
     if (self.megaApi == nil) return nil;
     return [MEGANodeList.alloc initWithNodeList:self.megaApi->searchOnPublicLinks(searchString.UTF8String, cancelToken.getCPtr, (int)order) cMemoryOwn:YES];
-}
-
-- (NSMutableArray *)recentActions {
-    if (self.megaApi == nil) return nil;
-    MegaRecentActionBucketList *megaRecentActionBucketList = self.megaApi->getRecentActions();
-    int count = megaRecentActionBucketList->size();
-    NSMutableArray *recentActionBucketMutableArray = [NSMutableArray.alloc initWithCapacity:(NSInteger)count];
-    for (int i = 0; i < count; i++) {
-        MEGARecentActionBucket *recentActionBucket = [MEGARecentActionBucket.alloc initWithMegaRecentActionBucket:megaRecentActionBucketList->get(i)->copy() cMemoryOwn:YES];
-        [recentActionBucketMutableArray addObject:recentActionBucket];
-    }
-    
-    delete megaRecentActionBucketList;
-    
-    return recentActionBucketMutableArray;
-}
-
-- (NSMutableArray *)recentActionsSinceDays:(NSInteger)days maxNodes:(NSInteger)maxNodes {
-    if (self.megaApi == nil) return nil;
-    MegaRecentActionBucketList *megaRecentActionBucketList = self.megaApi->getRecentActions((int)days, (int)maxNodes);
-    int count = megaRecentActionBucketList->size();
-    NSMutableArray *recentActionBucketMutableArray = [NSMutableArray.alloc initWithCapacity:(NSInteger)count];
-    for (int i = 0; i < count; i++) {
-        MEGARecentActionBucket *recentActionBucket = [MEGARecentActionBucket.alloc initWithMegaRecentActionBucket:megaRecentActionBucketList->get(i)->copy() cMemoryOwn:YES];
-        [recentActionBucketMutableArray addObject:recentActionBucket];
-    }
-    
-    return recentActionBucketMutableArray;
 }
 
 - (void)getRecentActionsAsyncSinceDays:(NSInteger)days maxNodes:(NSInteger)maxNodes delegate:(id<MEGARequestDelegate>)delegate {

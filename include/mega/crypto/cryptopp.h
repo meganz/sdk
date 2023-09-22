@@ -443,8 +443,6 @@ public:
  */
 class MEGA_API AsymmCipher
 {
-    int decodeintarray(CryptoPP::Integer*, int, const byte*, int);
-
 public:
     enum { PRIV_P, PRIV_Q, PRIV_D, PRIV_U };
     enum { PUB_PQ, PUB_E };
@@ -453,11 +451,34 @@ public:
     static const int PRIVKEY_SHORT = 3;
     static const int PUBKEY = 2;
 
-    CryptoPP::Integer key[PRIVKEY];
-    unsigned int padding;
+    using Key = CryptoPP::Integer[PRIVKEY];
 
     static const int MAXKEYLENGTH = 1026;   // in bytes, allows for RSA keys up
                                             // to 8192 bits
+
+    /**
+     * @brief
+     * Retrieve a reference to the specified key component.
+     *
+     * @param component
+     * Identifies the key component you want to reference.
+     * Possible values:
+     *  - For private keys: PRIV_P, PRIV_Q, PRIV_D, PRIV_U
+     *  - For public keys: PUB_PQ, PUB_E
+     *
+     * @return
+     * A reference to the specified key component.
+     */
+    const CryptoPP::Integer& getKey(unsigned component) const;
+
+    /**
+     * @brief
+     * Retrieve a reference to this cipher's key material.
+     *
+     * @return
+     * A reference to this cipher's key material.
+     */
+    auto getKey() const -> const Key&;
 
     /**
      * @brief Sets a key from a buffer.
@@ -480,9 +501,9 @@ public:
      *
      * @param keytype Key type indication by number of integers for key type
      *     (AsymmCipher::PRIVKEY or AsymmCipher::PUBKEY).
-     * @return 0 on an invalid key pair.
+     * @return false on an invalid key pair, true if valid.
      */
-    int isvalid(int keytype = PUBKEY) const;
+    bool isvalid(int keytype = PUBKEY) const;
 
     /**
      * @brief Encrypts a randomly padded plain text into a buffer.
@@ -494,7 +515,7 @@ public:
      * @param buflen Length of the cipher text.
      * @return Number of bytes encrypted, 0 on failure.
      */
-    int encrypt(PrnGen &rng, const byte* plain, size_t plainlen, byte* buf, size_t buflen);
+    int encrypt(PrnGen &rng, const byte* plain, size_t plainlen, byte* buf, size_t buflen) const;
 
     /**
      * @brief Decrypts a cipher text into a buffer and strips random padding.
@@ -505,7 +526,7 @@ public:
      * @param buflen Length of the plain text.
      * @return Always returns 1.
      */
-    int decrypt(const byte* cipher, size_t cipherlen, byte* buf, size_t buflen);
+    int decrypt(const byte* cipher, size_t cipherlen, byte* buf, size_t buflen) const;
 
     /**
      * @brief Encrypts a plain text into a buffer.
@@ -516,7 +537,7 @@ public:
      * @param buflen Length of the cipher text.
      * @return Number of bytes encrypted, 0 on failure.
      */
-    unsigned rawencrypt(const byte* plain, size_t plainlen, byte* buf, size_t buflen);
+    unsigned rawencrypt(const byte* plain, size_t plainlen, byte* buf, size_t buflen) const;
 
     /**
      * @brief Decrypts a cipher text into a buffer.
@@ -527,7 +548,7 @@ public:
      * @param buflen Length of the plain text.
      * @return Always returns 1.
      */
-    unsigned rawdecrypt(const byte* cipher, size_t cipherlen, byte* buf, size_t buflen);
+    unsigned rawdecrypt(const byte* cipher, size_t cipherlen, byte* buf, size_t buflen) const;
 
     static void serializeintarray(const CryptoPP::Integer*, int, std::string*, bool headers = true);
 
@@ -548,7 +569,7 @@ public:
      *
      * @param d String to take the serialized key without size-headers
      */
-    void serializekeyforjs(std::string& d);
+    void serializekeyforjs(std::string& d) const;
 
     /**
      * @brief Generates an RSA key pair of a given key size.
@@ -558,7 +579,47 @@ public:
      * @param pubk Public key.
      * @param size Size of key to generate in bits (key strength).
      */
-    void genkeypair(PrnGen &rng, CryptoPP::Integer* privk, CryptoPP::Integer* pubk, int size);
+    static void genkeypair(PrnGen &rng, CryptoPP::Integer* privk, CryptoPP::Integer* pubk, int size);
+
+    /**
+     * @brief
+     * Generates an RSA key pair of a given key size and stores the new
+     * private key in this object
+     *
+     * @param rng
+     * Reference to the random block generator
+     *
+     * @param pubk
+     * Where should the public key be stored?
+     *
+     * @param size
+     * Size of key to generate in bits (key strength).
+     *
+     * @note
+     * After this call, the cipher will contain the private key.
+     */
+    void genkeypair(PrnGen &rng, CryptoPP::Integer* pubk, int size);
+
+private:
+    enum Status : unsigned char
+    {
+        // Key's been checked and is invalid.
+        S_INVALID,
+
+        // Key has yet to be checked.
+        S_UNKNOWN,
+
+        // Key has been checked and is valid.
+        S_VALID,
+    }; // Status
+
+    static int decodeintarray(CryptoPP::Integer*, int, const byte*, int);
+
+    auto isvalid(const Key& key, int type) const -> Status;
+
+    Key key;
+    unsigned int padding;
+    mutable Status status;
 };
 
 class MEGA_API Hash

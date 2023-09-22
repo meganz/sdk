@@ -498,7 +498,7 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
 /**
  * @brief The total number of nodes in the account
  */
-@property (readonly, nonatomic) NSUInteger totalNodes;
+@property (readonly, nonatomic) unsigned long long totalNodes;
 
 /**
  * @brief The master key of the account.
@@ -8429,28 +8429,6 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * @return List of PublicLinks nodes that contain the desired string in their name.
  */
 - (MEGANodeList *)nodeListSearchOnPublicLinksByString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken order:(MEGASortOrderType)orderType;
-/**
- * @brief Return an array of buckets, each bucket containing a list of recently added/modified nodes
- *
- * Each bucket contains files that were added/modified in a set, by a single user.
- * This function, that takes no parameters, uses the defaults for the MEGA apps
- * which are (currently) within the last 30 days, and max 10000 nodes.
- *
- * @return Array of buckets containing nodes that were added/modifed as a set
- */
-- (NSMutableArray *)recentActions;
-
-/**
- * @brief Return an array of buckets, each bucket containing a list of recently added/modified nodes
- *
- * Each bucket contains files that were added/modified in a set, by a single user.
- *
- * @param days Age of actions since added/modified nodes will be considered (in days).
- * @param maxNodes Maximum amount of nodes to be considered.
- *
- * @return Array of buckets containing nodes that were added/modifed as a set
- */
-- (NSMutableArray *)recentActionsSinceDays:(NSInteger)days maxNodes:(NSInteger)maxNodes;
 
 /// Get a list of buckets, each bucket containing a list of recently added/modified nodes
 ///

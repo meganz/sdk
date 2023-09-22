@@ -613,12 +613,12 @@ void SymmCipher::ctr_crypt(byte* data, unsigned len, m_off_t pos, ctr_iv ctriv, 
     }
 }
 
-static void rsaencrypt(Integer* key, Integer* m)
+static void rsaencrypt(const Integer* key, Integer* m)
 {
     *m = a_exp_b_mod_c(*m, key[AsymmCipher::PUB_E], key[AsymmCipher::PUB_PQ]);
 }
 
-unsigned AsymmCipher::rawencrypt(const byte* plain, size_t plainlen, byte* buf, size_t buflen)
+unsigned AsymmCipher::rawencrypt(const byte* plain, size_t plainlen, byte* buf, size_t buflen) const
 {
     Integer t(plain, plainlen);
 
@@ -639,7 +639,7 @@ unsigned AsymmCipher::rawencrypt(const byte* plain, size_t plainlen, byte* buf, 
     return t.ByteCount();
 }
 
-int AsymmCipher::encrypt(PrnGen &rng, const byte* plain, size_t plainlen, byte* buf, size_t buflen)
+int AsymmCipher::encrypt(PrnGen &rng, const byte* plain, size_t plainlen, byte* buf, size_t buflen) const
 {
     if (key[PUB_PQ].ByteCount() + 2 > buflen)
     {
@@ -658,7 +658,7 @@ int AsymmCipher::encrypt(PrnGen &rng, const byte* plain, size_t plainlen, byte* 
 
     rsaencrypt(key, &t);
 
-    int i = t.BitCount();
+    unsigned int i = t.BitCount();
 
     byte* ptr = buf;
 
@@ -675,7 +675,7 @@ int AsymmCipher::encrypt(PrnGen &rng, const byte* plain, size_t plainlen, byte* 
     return int(ptr - buf);
 }
 
-static void rsadecrypt(Integer* key, Integer* m)
+static void rsadecrypt(const Integer* key, Integer* m)
 {
     Integer xp = a_exp_b_mod_c(*m % key[AsymmCipher::PRIV_P],
                                key[AsymmCipher::PRIV_D] % (key[AsymmCipher::PRIV_P] - Integer::One()),
@@ -696,7 +696,7 @@ static void rsadecrypt(Integer* key, Integer* m)
     *m = *m * key[AsymmCipher::PRIV_P] + xp;
 }
 
-unsigned AsymmCipher::rawdecrypt(const byte* cipher, size_t cipherlen, byte* buf, size_t buflen)
+unsigned AsymmCipher::rawdecrypt(const byte* cipher, size_t cipherlen, byte* buf, size_t buflen) const
 {
     Integer m(cipher, cipherlen);
 
@@ -717,7 +717,7 @@ unsigned AsymmCipher::rawdecrypt(const byte* cipher, size_t cipherlen, byte* buf
     return m.ByteCount();
 }
 
-int AsymmCipher::decrypt(const byte* cipher, size_t cipherlen, byte* out, size_t numbytes)
+int AsymmCipher::decrypt(const byte* cipher, size_t cipherlen, byte* out, size_t numbytes) const
 {
     Integer m;
 
@@ -745,24 +745,54 @@ int AsymmCipher::decrypt(const byte* cipher, size_t cipherlen, byte* out, size_t
     return 1;
 }
 
+const Integer& AsymmCipher::getKey(unsigned component) const
+{
+    assert(component < PRIVKEY);
+
+    return key[component];
+}
+
+auto AsymmCipher::getKey() const -> const Key&
+{
+    return key;
+}
+
 int AsymmCipher::setkey(int numints, const byte* data, int len)
 {
-    int ret = decodeintarray(key, numints, data, len);
-    if ((numints == PRIVKEY || numints == PRIVKEY_SHORT) && ret && !isvalid(numints)) return 0;
-    padding = (numints == PUBKEY && ret) ? (len - key[PUB_PQ].ByteCount() - key[PUB_E].ByteCount() - 4) : 0;
-    return ret;
+    // Assume key material is invalid.
+    padding = 0;
+    status  = S_UNKNOWN;
+
+    // Deserialize key material.
+    auto result = decodeintarray(key, numints, data, len);
+
+    if (!result)
+        return result;
+
+    // We've been provided a private key.
+    if (numints == PRIVKEY || numints == PRIVKEY_SHORT)
+        return isvalid(numints) ? result : 0;
+
+    // Convenience.
+    auto e  =  key[PUB_E].ByteCount();
+    auto pq = key[PUB_PQ].ByteCount();
+
+    // Compute number of padding bytes.
+    padding = static_cast<unsigned>(len) - pq - e - 4;
+
+    // Return result to caller.
+    return result;
 }
 
 void AsymmCipher::resetkey()
 {
-    for (int i = 0; i < PRIVKEY; i++)
-    {
-        key[i] = Integer::Zero();
-        padding = 0;
-    }
+    std::fill(std::begin(key), std::end(key), Integer::Zero());
+
+    padding = 0;
+    status = S_INVALID;
 }
 
-void AsymmCipher::serializekeyforjs(string& d)
+void AsymmCipher::serializekeyforjs(string& d) const
 {
     unsigned sizePQ = key[PUB_PQ].ByteCount();
     unsigned sizeE = key[PUB_E].ByteCount();
@@ -771,9 +801,9 @@ void AsymmCipher::serializekeyforjs(string& d)
     d.clear();
     d.reserve(sizePQ + sizeE + padding);
 
-    for (int j = key[PUB_PQ].ByteCount(); j--;)
+    for (unsigned int j = key[PUB_PQ].ByteCount(); j--;)
     {
-        c = key[PUB_PQ].GetByte(j);
+        c = static_cast<char>(key[PUB_PQ].GetByte(j));
         d.append(&c, sizeof c);
     }
 
@@ -785,9 +815,9 @@ void AsymmCipher::serializekeyforjs(string& d)
         d.append(&c, sizeof c);
     }
 
-    for (int j = sizeE; j--;)
+    for (unsigned int j = sizeE; j--;)
     {
-        c = key[PUB_E].GetByte(j);  // returns 0 if out-of-range
+        c = static_cast<char>(key[PUB_E].GetByte(j));  // returns 0 if out-of-range
         d.append(&c, sizeof c);
     }
 }
@@ -869,24 +899,42 @@ int AsymmCipher::decodeintarray(Integer* t, int numints, const byte* data, int l
     return i == numints && len - p < 16;
 }
 
-int AsymmCipher::isvalid(int keytype) const
+bool AsymmCipher::isvalid(int type) const
 {
-    if (keytype == PUBKEY)
+    if (status == S_UNKNOWN)
+        status = isvalid(key, type);
+
+    return status == S_VALID;
+}
+
+auto AsymmCipher::isvalid(const Key& key, int type) const -> Status
+{
+    assert(type >= PUBKEY && type <= PRIVKEY);
+
+    if (type == PUBKEY)
     {
-        return key[PUB_PQ].BitCount() && key[PUB_E].BitCount();
+        if (key[PUB_E].BitCount() && key[PUB_PQ].BitCount())
+            return S_VALID;
+
+        return S_INVALID;
     }
 
-    if (keytype == PRIVKEY || keytype == PRIVKEY_SHORT)
-    {
-        // detect private key blob corruption - prevent API-exploitable RSA oracle requiring 500+ logins
-        return key[PRIV_P].BitCount() > 1000 &&
-                key[PRIV_Q].BitCount() > 1000 &&
-                key[PRIV_D].BitCount() > 2000 &&
-                key[PRIV_U].BitCount() > 1000 &&
-                key[PRIV_U] == key[PRIV_P].InverseMod(key[PRIV_Q]);
-    }
+    // Convenience.
+    auto& d = key[PRIV_D];
+    auto& p = key[PRIV_P];
+    auto& u = key[PRIV_U];
+    auto& q = key[PRIV_Q];
 
-    return 0;
+    // detect private key blob corruption.
+    // prevent API-exploitable RSA oracle requiring 500+ logins
+    if (d.BitCount() <= 2000
+        || p.BitCount() <= 1000
+        || q.BitCount() <= 1000
+        || u.BitCount() <= 1000
+        || u != p.InverseMod(q))
+        return S_INVALID;
+
+    return S_VALID;
 }
 
 // adapted from CryptoPP, rsa.cpp
@@ -919,6 +967,16 @@ void AsymmCipher::genkeypair(PrnGen &rng, Integer* privk, Integer* pubk, int siz
     privk[PRIV_D] = pubk[PUB_E].InverseMod(LCM(privk[PRIV_P] - Integer::One(), privk[PRIV_Q] - Integer::One()));
     pubk[PUB_PQ] = privk[PRIV_P] * privk[PRIV_Q];
     privk[PRIV_U] = privk[PRIV_P].InverseMod(privk[PRIV_Q]);
+}
+
+void AsymmCipher::genkeypair(PrnGen &rng, Integer* pubk, int size)
+{
+    assert(pubk);
+
+    genkeypair(rng, key, pubk, size);
+
+    // Consider the keys we generate as valid.
+    status = S_VALID;
 }
 
 void Hash::add(const byte* data, unsigned len)
