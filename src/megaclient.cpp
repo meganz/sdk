@@ -18372,9 +18372,6 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
 
         assert(f->size >= 0);
 
-        // How much space is available?
-        auto available = fsaccess->availableDiskSpace(targetPath);
-
         // Do we have enough space for the download?
         // fsaccess->availableDiskSpace is expensive over network driver. 
         // Pass in a positive value, check will use this value. A use case is downloading a folder
