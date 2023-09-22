@@ -667,7 +667,7 @@ void Transfer::complete(TransferDbCommitter& committer)
             }
 
             if (!fixedfingerprint && (n = client->nodeByHandle((*it)->h))
-                 && !(dynamic_cast<FileFingerprint*>(this)->EqualExceptValidFlag(*dynamic_cast<FileFingerprint*>(n.get()))))
+                 && !(this->EqualExceptValidFlag(*n)))
             {
                 LOG_debug << "Wrong fingerprint already fixed";
                 fixedfingerprint = true;
