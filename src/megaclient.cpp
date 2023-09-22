@@ -18351,7 +18351,7 @@ void MegaClient::putnodes_syncdebris_result(error, vector<NewNode>& nn)
 // inject file into transfer subsystem
 // if file's fingerprint is not valid, it will be obtained from the local file
 // (PUT) or the file's key (GET)
-bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committer, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption vo, error* cause, int tag)
+bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committer, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption vo, error* cause, int tag, m_off_t availableDiskSpace)
 {
     //assert(f->getLocalname().isAbsolute());  // this will be true after we merge SRW, since LocalNodes are Files for now
     f->mVersioningOption = vo;
@@ -18376,6 +18376,9 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
         auto available = fsaccess->availableDiskSpace(targetPath);
 
         // Do we have enough space for the download?
+        // fsaccess->availableDiskSpace is expensive over network driver. 
+        // Pass in a positive value, check will use this value. A use case is downloading a folder
+        auto available = availableDiskSpace > 0 ? availableDiskSpace : fsaccess->availableDiskSpace(targetPath);
         if (available <= f->size)
         {
             LOG_warn << "Insufficient space available for download: "

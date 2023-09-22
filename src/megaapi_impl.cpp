@@ -18000,7 +18000,7 @@ CollisionChecker::Result CollisionChecker::check(std::function<FileAccess* ()> f
         option);
 }
 
-unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOperation* recursiveTransfer)
+unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOperation* recursiveTransfer, m_off_t availableDiskSpace)
 {
     CodeCounter::ScopeTimer ccst(client->performanceStats.megaapiSendPendingTransfers);
 
@@ -18439,7 +18439,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
 
                     bool skipDuplicates = transfer->getFolderTransferTag() <= 0; //Let folder subtransfer have duplicates, so that repeated downloads can co-exist and progress accordingly
                     mega::error cause;
-                    bool ok = client->startxfer(GET, f.release(), committer, skipDuplicates, startFirst, false, UseLocalVersioningFlag, &cause, nextTag);
+                    bool ok = client->startxfer(GET, f.release(), committer, skipDuplicates, startFirst, false, UseLocalVersioningFlag, &cause, nextTag, availableDiskSpace);
                     if (!ok)
                     {
                         //Already existing transfer
@@ -28840,7 +28840,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
         notifyStage(MegaTransfer::STAGE_CREATE_TREE);
 
         // start worker thread to create local folder tree
-        mWorkerThread = std::thread([this, fsType](){
+        mWorkerThread = std::thread([this, fsType, path](){
 
             // local folder creation runs on the download worker thread (and checks the cancelled flag)
             Error e;
@@ -28848,7 +28848,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
 
             // the thread always queues a function to execute on MegaApi thread for onFinish()
             // we keep a pointer to it in case we need to cancel()
-            mCompletionForMegaApiThread.reset(new ExecuteOnce([this, e, transferQueue]() {
+            mCompletionForMegaApiThread.reset(new ExecuteOnce([this, e, transferQueue, path]() {
 
                 // these next parts must run on MegaApiImpl's thread again, as
                 // genUploadTransfersForFiles or checkCompletion may call the fireOnXYZ() functions
@@ -28881,7 +28881,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
                         // the last callback of onFinish for one of these will also complete and destroy this MegaFolderUploadController
                         transfersTotalCount = transferQueue->size();
 
-                        megaApi->sendPendingTransfers(transferQueue.get(), this);
+                        megaApi->sendPendingTransfers(transferQueue.get(), this, megaapiThreadClient()->fsaccess->availableDiskSpace(path));
                         // no further code can be added here, this object may now be deleted (eg, due to cancel token activation)
 
                         // complete() will finally be called when the last sub-transfer finishes

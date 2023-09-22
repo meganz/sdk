@@ -3678,7 +3678,7 @@ private:
 
         void sendPendingScRequest();
         void sendPendingRequests();
-        unsigned sendPendingTransfers(TransferQueue *queue, MegaRecursiveOperation* = nullptr);
+        unsigned sendPendingTransfers(TransferQueue *queue, MegaRecursiveOperation* = nullptr, m_off_t availableDiskSpace = 0);
         void updateBackups();
 
         //Internal
