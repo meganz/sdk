@@ -948,7 +948,7 @@ public:
     /**
      * @brief Used to migrate all the sync's management data from MEGAsync to the SDK
      *
-     * @deprecated This function is deprecated. Please don't use use it in new code.
+     * @deprecated This function is deprecated. Please don't use it in new code.
      */
     void copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion);
 
