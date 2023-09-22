@@ -471,13 +471,13 @@ if (USE_THIRDPARTY_FROM_VCPKG)
         endif()
 
         IF(USE_LIBRAW OR USE_FREEIMAGE OR USE_PDFIUM)
-            ImportStdVcpkgLibrary(liblcms        lcmsd            lcms           liblcmsd            liblcms)
+            ImportStdVcpkgLibrary(liblcms        lcms2d            lcms2           liblcms2            liblcms2)
             ImportStdVcpkgLibrary(libturbojpeg   turbojpeg        turbojpeg      libturbojpeg        libturbojpeg       )
         ENDIF()
 
         IF(USE_LIBRAW OR USE_FREEIMAGE)
             # we might need libraw directly (eg MEGAsync) but also freeimage needs it
-            ImportStdVcpkgLibrary(libraw         raw_rd           raw_r          libraw_rd           libraw_r)
+            ImportStdVcpkgLibrary(libraw         raw_rd           raw_r          libraw_r           libraw_r)
 
             # libraw needs jasper and lcms and libjpeg-turbo (all also part of freeimage)
             ImportStdVcpkgLibrary(libjasper      jasperd          jasper         libjasperd          libjasper)
@@ -511,10 +511,11 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             ImportStdVcpkgLibrary(freeimage_jxrglue     jxrglued         jxrglue        libjxrglued         libjxrglue         )
             ImportStdVcpkgLibrary(freeimage_lzma        lzma             lzma           liblzma             liblzma            )
             ImportStdVcpkgLibrary(freeimage_tiff        tiffd            tiff           libtiffd            libtiff            )
-            ImportStdVcpkgLibrary(freeimage_webp        webpd            webp           libwebpd            libwebp            )
-            ImportStdVcpkgLibrary(freeimage_webpdecoder webpdecoderd     webpdecoder    libwebpdecoderd     libwebpdecoder     )
-            ImportStdVcpkgLibrary(freeimage_webpdemux   webpdemuxd       webpdemux      libwebpdemuxd       libwebpdemux       )
-            ImportStdVcpkgLibrary(freeimage_webpmux     libwebpmuxd      libwebpmux     libwebpmuxd         libwebpmux         )
+            ImportStdVcpkgLibrary(freeimage_webp        webpd            webp           libwebp             libwebp            )
+            ImportStdVcpkgLibrary(freeimage_webpdecoder webpdecoderd     webpdecoder    libwebpdecoder      libwebpdecoder     )
+            ImportStdVcpkgLibrary(freeimage_webpdemux   webpdemuxd       webpdemux      libwebpdemux        libwebpdemux       )
+            ImportStdVcpkgLibrary(freeimage_webpmux     libwebpmuxd      libwebpmux     libwebpmux          libwebpmux         )
+            ImportStdVcpkgLibrary(freeimage_sharpyuv    sharpyuvd        sharpyuv       libsharpyuv         libsharpyuv        )
 
             target_link_libraries(freeimage INTERFACE
                                             freeimage_Iex
@@ -528,6 +529,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
                                             freeimage_webpdecoder
                                             freeimage_webpdemux
                                             freeimage_webpmux
+                                            freeimage_sharpyuv
                                             freeimage_jpeg
                                             freeimage_Imath
                                             freeimage_lzma
@@ -585,7 +587,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
                 set(ENV{PKG_CONFIG_PATH} "${vcpkg_dir}/lib/pkgconfig")
                 include(FindPkgConfig)
                 pkg_check_modules(FTYPECONF freetype2)
-                set(freetype_deps ${FTYPECONF_STATIC_LIBRARIES})
+                #set(freetype_deps ${FTYPECONF_STATIC_LIBRARIES})
             ENDIF()
 
             set(pdfium_deps  ${pdfium_deps} freetype ${freetype_deps} liblcms libturbojpeg libopenjpeg bzip2 libpng)
