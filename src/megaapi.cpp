@@ -4460,7 +4460,7 @@ void MegaApi::updateStats()
     pImpl->updateStats();
 }
 
-long long MegaApi::getNumNodes()
+unsigned long long MegaApi::getNumNodes()
 {
     return pImpl->getNumNodes();
 }

@@ -1750,7 +1750,7 @@ public:
     static dstime USER_DATA_EXPIRATION_BACKOFF_SECS;
 
     // total number of Node objects
-    long long totalNodes;
+    std::atomic_ullong totalNodes;
 
     // tracks how many nodes have had a successful applykey()
     long long mAppliedKeyNodeCount = 0;

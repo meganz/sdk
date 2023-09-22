@@ -15847,7 +15847,7 @@ class MegaApi
          * @brief Get the total number of nodes in the account
          * @return Total number of nodes in the account
          */
-        long long getNumNodes();
+        unsigned long long getNumNodes();
 
         enum { ORDER_NONE = 0, ORDER_DEFAULT_ASC, ORDER_DEFAULT_DESC,
             ORDER_SIZE_ASC, ORDER_SIZE_DESC,

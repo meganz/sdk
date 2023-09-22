@@ -24734,10 +24734,9 @@ void MegaApiImpl::updateStats()
     }
 }
 
-long long MegaApiImpl::getNumNodes()
+unsigned long long MegaApiImpl::getNumNodes()
 {
-    SdkMutexGuard g(sdkMutex);
-    return client->totalNodes;
+    return client->totalNodes.load();
 }
 
 long long MegaApiImpl::getTotalDownloadedBytes()
@@ -28793,6 +28792,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
                         // once we call sendPendingTransfers, we are guaranteed start/finish callbacks for each file transfer
                         // the last callback of onFinish for one of these will also complete and destroy this MegaFolderUploadController
                         transfersTotalCount = transferQueue->size();
+
                         megaApi->sendPendingTransfers(transferQueue.get(), this);
                         // no further code can be added here, this object may now be deleted (eg, due to cancel token activation)
 
