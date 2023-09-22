@@ -1839,15 +1839,15 @@ private:
 };
 /* MegaVPN Commands END*/
 
-typedef std::function<void(const Error&, const std::map<std::string, std::string>& creditCardInfo)> CommandFetchRegisterCreditCardCompletion;
-class MEGA_API CommandFetchRegisterCreditCard : public Command
+typedef std::function<void(const Error&, const std::map<std::string, std::string>& creditCardInfo)> CommandFetchCreditCardCompletion;
+class MEGA_API CommandFetchCreditCard : public Command
 {
 public:
-    CommandFetchRegisterCreditCard(MegaClient* client, CommandFetchRegisterCreditCardCompletion completion);
+    CommandFetchCreditCard(MegaClient* client, CommandFetchCreditCardCompletion completion);
     bool procresult(Result r, JSON&json) override;
 
 private:
-    CommandFetchRegisterCreditCardCompletion mCompletion;
+    CommandFetchCreditCardCompletion mCompletion;
 };
 
 

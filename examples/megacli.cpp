@@ -4282,7 +4282,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_checkvpncredential, sequence(text("checkvpncredential"), param("userpublickey")));
     /* MEGA VPN commands END */
 
-    p->Add(exec_fetchregistercreditcardinfo, text("cci"));
+    p->Add(exec_fetchcreditcardinfo, text("cci"));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -11432,9 +11432,9 @@ void exec_checkvpncredential(autocomplete::ACState& s)
 }
 /* MEGA VPN commands */
 
-void exec_fetchregistercreditcardinfo(autocomplete::ACState& s)
+void exec_fetchcreditcardinfo(autocomplete::ACState&)
 {
-    client->fetchRegisterCreditCardInfo([](const Error& e, const std::map<std::string, std::string>& creditCardInfo)
+    client->fetchCreditCardInfo([](const Error& e, const std::map<std::string, std::string>& creditCardInfo)
     {
         if (e == API_OK)
         {

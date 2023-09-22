@@ -21810,9 +21810,9 @@ string MegaClient::generateVpnCredentialString(int clusterID,
 }
 /* Mega VPN methods END */
 
-void MegaClient::fetchRegisterCreditCardInfo(CommandFetchRegisterCreditCardCompletion completion)
+void MegaClient::fetchCreditCardInfo(CommandFetchCreditCardCompletion completion)
 {
-    reqs.add(new CommandFetchRegisterCreditCard(this, std::move(completion)));
+    reqs.add(new CommandFetchCreditCard(this, std::move(completion)));
 }
 
 FetchNodesStats::FetchNodesStats()

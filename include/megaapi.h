@@ -21294,7 +21294,7 @@ class MegaApi
          *
          * @param listener
          */
-        void fetchRegisterCreditCardInfo(MegaRequestListener* listener = nullptr);
+        void fetchCreditCardInfo(MegaRequestListener* listener = nullptr);
 
  private:
         MegaApiImpl *pImpl = nullptr;

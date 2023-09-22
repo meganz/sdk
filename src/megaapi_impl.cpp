@@ -25632,12 +25632,12 @@ void MegaApiImpl::checkVpnCredential(const char* userPubKey, MegaRequestListener
 }
 /* MegaApiImpl VPN commands END */
 
-void MegaApiImpl::fetchRegisterCreditCardInfo(MegaRequestListener* listener)
+void MegaApiImpl::fetchCreditCardInfo(MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_CREDIT_CARD_INFO, listener);
     request->performRequest = [this, request]()
     {
-        client->fetchRegisterCreditCardInfo(
+        client->fetchCreditCardInfo(
             [this, request](Error e, const std::map<std::string, std::string>& creditCardInfo)
             {
                 std::unique_ptr<MegaStringMapPrivate> stringMap = mega::make_unique<MegaStringMapPrivate>(&creditCardInfo);

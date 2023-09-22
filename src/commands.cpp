@@ -10698,7 +10698,7 @@ bool CommandCheckVpnCredential::procresult(Command::Result r, JSON& json)
 }
 /* MegaVPN Commands END*/
 
-CommandFetchRegisterCreditCard::CommandFetchRegisterCreditCard(MegaClient* client, CommandFetchRegisterCreditCardCompletion completion)
+CommandFetchCreditCard::CommandFetchCreditCard(MegaClient* client, CommandFetchCreditCardCompletion completion)
     : mCompletion(std::move(completion))
 {
     assert(mCompletion);
@@ -10706,7 +10706,7 @@ CommandFetchRegisterCreditCard::CommandFetchRegisterCreditCard(MegaClient* clien
     tag = client->reqtag;
 }
 
-bool CommandFetchRegisterCreditCard::procresult(Command::Result r, JSON& json)
+bool CommandFetchCreditCard::procresult(Command::Result r, JSON& json)
 {
     string_map creditCardInfo;
 
