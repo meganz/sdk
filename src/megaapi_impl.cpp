@@ -28990,6 +28990,13 @@ std::unique_ptr<TransferQueue> MegaFolderDownloadController::createFolderGenDown
  
     auto transferQueue = ::mega::make_unique<TransferQueue>();
 
+    // update stage to begin
+    if (!mLocalTree.empty())
+    {
+        megaApi->fireOnFolderTransferUpdate(transfer, MegaTransfer::STAGE_CREATE_TREE, unsigned(mLocalTree.size()), created, 0, nullptr, nullptr);
+    }
+
+    // creating folders and generate transfers for files
     auto it = mLocalTree.begin();
     while (it != mLocalTree.end())
     {
