@@ -299,8 +299,11 @@ public:
      * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
      * @param taglen Length of expected authentication tag. Allowed sizes are 8 and 16 bytes.
      * @param result Encrypted data, including the authentication tag.
+     *
+     * @return
+     * True if encryption was successful.
      */
-    void ccm_encrypt(const std::string *data, const byte *iv, unsigned ivlen, unsigned taglen, std::string *result);
+    bool ccm_encrypt(const std::string *data, const byte *iv, unsigned ivlen, unsigned taglen, std::string *result);
 
     /**
      * @brief Authenticated symmetric decryption using AES in CCM mode (counter with CBC-MAC).

@@ -148,7 +148,7 @@ TEST(Crypto, AES_CCM)
 
     // Test AES_CCM_12_16 encryption
     result.clear();
-    key.ccm_encrypt(&plainText, ivBytes, sizeof ivBytes, tagLen, &result);
+    ASSERT_TRUE(key.ccm_encrypt(&plainText, ivBytes, sizeof ivBytes, tagLen, &result)) << "CCM encryption failed";
 
     ASSERT_STREQ(result.data(), cipherText.data()) << "CCM encryption: cipher text doesn't match the expected value";
 

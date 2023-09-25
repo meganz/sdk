@@ -1304,7 +1304,10 @@ string * TLVstore::tlvRecordsToContainer(PrnGen &rng, SymmCipher *key, encryptio
 
     if (encMode == AES_MODE_CCM)   // CCM or GCM_BROKEN (same than CCM)
     {
-        key->ccm_encrypt(container.get(), iv.data(), ivlen, taglen, &cipherText);
+        if (!key->ccm_encrypt(container.get(), iv.data(), ivlen, taglen, &cipherText))
+        {
+            return nullptr;
+        }
     }
     else if (encMode == AES_MODE_GCM)   // then use GCM
     {

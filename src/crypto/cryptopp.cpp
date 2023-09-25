@@ -249,20 +249,35 @@ void SymmCipher::ecb_decrypt(byte* data, size_t len)
     aesecb_d.ProcessData(data, data, len);
 }
 
-void SymmCipher::ccm_encrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
+bool SymmCipher::ccm_encrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
 {
-    if (taglen == 16)
+    if (!data || !result)
     {
-        aesccm16_e.Resynchronize(iv, ivlen);
-        aesccm16_e.SpecifyDataLengths(0, data->size(), 0);
-        StringSource(*data, true, new AuthenticatedEncryptionFilter(aesccm16_e, new StringSink(*result)));
+        return false;
     }
-    else if (taglen == 8)
+
+    try
     {
-        aesccm8_e.Resynchronize(iv, ivlen);
-        aesccm8_e.SpecifyDataLengths(0, data->size(), 0);
-        StringSource(*data, true, new AuthenticatedEncryptionFilter(aesccm8_e, new StringSink(*result)));
+        if (taglen == 16)
+        {
+            aesccm16_e.Resynchronize(iv, ivlen);
+            aesccm16_e.SpecifyDataLengths(0, data->size(), 0);
+            StringSource(*data, true, new AuthenticatedEncryptionFilter(aesccm16_e, new StringSink(*result)));
+            return true;
+        }
+        else if (taglen == 8)
+        {
+            aesccm8_e.Resynchronize(iv, ivlen);
+            aesccm8_e.SpecifyDataLengths(0, data->size(), 0);
+            StringSource(*data, true, new AuthenticatedEncryptionFilter(aesccm8_e, new StringSink(*result)));
+            return true;
+        }
     }
+    catch (CryptoPP::Exception const& e)
+    {
+        LOG_err << "Failed AES-CCM encryption: " << e.GetWhat();
+    }
+    return false;
 }
 
 bool SymmCipher::ccm_decrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
