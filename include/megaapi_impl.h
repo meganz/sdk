@@ -549,10 +549,10 @@ protected:
     std::unique_ptr<TransferQueue> createFolderGenDownloadTransfersForFiles(FileSystemType fsType, Error& e);
 
     // Iterate through all pending files, and adds all download transfers
-    std::unique_ptr<TransferQueue> genDownloadTransfersForFiles(std::unique_ptr<TransferQueue> transferQueue, 
-                                                                 LocalTree& folder,
-                                                                 FileSystemType fsType,
-                                                                 bool folderExists);
+    bool genDownloadTransfersForFiles(TransferQueue* transferQueue,
+                                      LocalTree& folder,
+                                      FileSystemType fsType,
+                                      bool folderExists);
 };
 
 class MegaNodePrivate : public MegaNode, public Cacheable
@@ -1040,7 +1040,7 @@ public:
     static Result check(std::function<FileAccess* ()> faGetter, Node* node, Option option);
 
 private:
-    static Result check(std::function<bool()> fingerprintEuqalF, std::function<bool()> metamacEqualF, Option option);
+    static Result check(std::function<bool()> fingerprintEqualF, std::function<bool()> metamacEqualF, Option option);
     static bool CompareLocalFileMetaMac(FileAccess* fa, MegaNode* fileNode);
 };
 
