@@ -241,8 +241,10 @@ public:
      * @param data Data to be encrypted
      * @param iv Initialisation vector.
      * @param result Encrypted message
+     *
+     * @returns true if encryption proccess ends succesfully, otherwise returns false
      */
-    void cbc_encrypt_pkcs_padding(const std::string *data, const byte* iv, std::string *result);
+    bool cbc_encrypt_pkcs_padding(const std::string *data, const byte* iv, std::string *result);
 
     /**
      * @brief

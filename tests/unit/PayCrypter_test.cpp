@@ -81,7 +81,7 @@ TEST(PayCrypter, allFeatures)
     string result;
     string input = CONTENT;
     SymmCipher sym(enckey);
-    sym.cbc_encrypt_pkcs_padding(&input, iv, &result);
+    ASSERT_TRUE(sym.cbc_encrypt_pkcs_padding(&input, iv, &result));
 
     //Check result
     char* base64Result = new char[result.size()*4/3+4];

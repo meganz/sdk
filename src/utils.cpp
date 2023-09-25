@@ -1172,7 +1172,10 @@ bool PayCrypter::encryptPayload(const string *cleartext, string *result)
     //AES-CBC encryption
     string encResult;
     SymmCipher sym(encKey);
-    sym.cbc_encrypt_pkcs_padding(cleartext, iv, &encResult);
+    if (!sym.cbc_encrypt_pkcs_padding(cleartext, iv, &encResult))
+    {
+        return false;
+    }
 
     //Prepare the message to authenticate (IV + cipher text)
     string toAuthenticate((char *)iv, IV_BYTES);

@@ -160,28 +160,42 @@ bool SymmCipher::cbc_decrypt(byte* data, size_t len, const byte* iv)
     }
 }
 
-void SymmCipher::cbc_encrypt_pkcs_padding(const string *data, const byte *iv, string *result)
+bool SymmCipher::cbc_encrypt_pkcs_padding(const string *data, const byte *iv, string *result)
 {
+    if (!data || !result)
+    {
+        return false;
+    }
+
     using Transformation = StreamTransformationFilter;
 
-    // Update IV.
-    aescbc_e.Resynchronize(iv ? iv : zeroiv);
+    try
+    {
+        // Update IV.
+        aescbc_e.Resynchronize(iv ? iv : zeroiv);
 
-    // Create sink.
-    unique_ptr<StringSink> sink =
-      mega::make_unique<StringSink>(*result);
+        // Create sink.
+        unique_ptr<StringSink> sink =
+            mega::make_unique<StringSink>(*result);
 
-    // Create transform.
-    unique_ptr<Transformation> xfrm =
-      mega::make_unique<Transformation>(aescbc_e,
-                                        sink.get(),
-                                        Transformation::PKCS_PADDING);
+        // Create transform.
+        unique_ptr<Transformation> xfrm =
+            mega::make_unique<Transformation>(aescbc_e,
+                sink.get(),
+                Transformation::PKCS_PADDING);
 
-    // Transform now owns sink.
-    sink.release();
+        // Transform now owns sink.
+        sink.release();
 
-    // Encrypt.
-    StringSource(*data, true, xfrm.release());
+        // Encrypt.
+        StringSource(*data, true, xfrm.release());
+        return true;
+    }
+    catch (const CryptoPP::Exception& e)
+    {
+        LOG_err << "Failed AES-CBC pkcs encryption " << e.what();
+        return false;
+    }
 }
 
 bool SymmCipher::cbc_decrypt_pkcs_padding(const std::string* data, const byte* iv, string* result)

@@ -5248,7 +5248,11 @@ string SyncConfigIOContext::encrypt(const string& data)
     string d;
 
     // Encrypt file using IV.
-    mCipher.cbc_encrypt_pkcs_padding(&data, iv, &d);
+    if (!mCipher.cbc_encrypt_pkcs_padding(&data, iv, &d))
+    {
+        LOG_err << "Failed to encrypt file.";
+        return d;
+    }
 
     // Add IV to file.
     d.append(std::begin(iv), std::end(iv));
