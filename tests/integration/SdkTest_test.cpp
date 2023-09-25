@@ -14680,3 +14680,70 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
         ASSERT_EQ(API_EARGS, result) << "deleting the VPN credential from the invalid slotID " << slotID << " didn't return the expected error value";
     }
 }
+
+/**
+ * @brief TEST_F SdkTestMegaVpnCredentials
+ *   - add syncs with folder and file
+ *   - wait to check if file has been upload to cloud
+ *   - move file to sync debris folder
+ *   - wait to check file has been moved to sync debris cloud folder
+ *   - remove sync
+ */
+TEST_F(SdkTest, SdkTestMoveToSyncDebris)
+{
+    LOG_info << "___TEST SdkTestMoveToSyncDebris___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    fs::path base = "SdkTestMoveToSyncDebris";
+    std::string syncFolder = "sync1";
+    fs::path basePath = base / syncFolder;
+    const auto localPath = fs::current_path() / basePath;
+
+    ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), base));
+
+    // Create local directories and a files.
+    fs::create_directories(localPath);
+    std::string fileName = "fileTest1";
+    string filePath = localPath.u8string() + "/" + fileName;
+    ASSERT_TRUE(createFile(filePath, false));
+
+    LOG_verbose << "Creating the remote folders to be synced to.";
+    std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
+    ASSERT_NE(remoteRootNode.get(), nullptr);
+    auto nh = createFolder(0, syncFolder.c_str(), remoteRootNode.get());
+    ASSERT_NE(nh, UNDEF) << "Error creating remote folders";
+    std::unique_ptr<MegaNode> remoteBaseNode1(megaApi[0]->getNodeByHandle(nh));
+    ASSERT_NE(remoteBaseNode1.get(), nullptr);
+
+    LOG_verbose << "Add syncs";
+    bool check = false;
+    mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
+    const auto& lp = localPath.u8string();
+    ASSERT_EQ(API_OK, synchronousSyncFolder(0, nullptr, MegaSync::TYPE_TWOWAY, lp.c_str(), nullptr, remoteBaseNode1->getHandle(), nullptr)) << "API Error adding a new sync";
+    ASSERT_EQ(MegaSync::NO_SYNC_ERROR, mApi[0].lastSyncError);
+    std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(), remoteBaseNode1.get(), MegaSync::RUNSTATE_RUNNING, MegaSync::NO_SYNC_ERROR);
+    ASSERT_TRUE(sync && sync->getRunState() == MegaSync::RUNSTATE_RUNNING);
+    ASSERT_EQ(MegaSync::NO_SYNC_ERROR, sync->getError());
+    waitForResponse(&check);
+    resetOnNodeUpdateCompletionCBs();
+
+    std::unique_ptr<MegaNode> file(megaApi[0]->getChildNode(remoteBaseNode1.get(), fileName.c_str()));
+    ASSERT_NE(file, nullptr);
+
+    handle backupId = sync->getBackupId();
+
+    // Move file to local sync debris folder
+    ASSERT_EQ(API_OK, syncMoveToDebris(0, filePath.c_str(), backupId));
+
+    check = false;
+    mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(file->getHandle(), MegaNode::CHANGE_TYPE_PARENT, check);
+    waitForResponse(&check);
+    resetOnNodeUpdateCompletionCBs();
+
+    LOG_verbose << "SyncRemoveRemoteNode :  Remove Syncs that fail";
+    {
+        ASSERT_EQ(API_OK, synchronousRemoveSync(0, backupId)); // already removed.
+    }
+
+    ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), base));
+}
