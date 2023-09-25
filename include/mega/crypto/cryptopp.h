@@ -720,7 +720,7 @@ class MEGA_API PBKDF2_HMAC_SHA512
 public:
     PBKDF2_HMAC_SHA512();
 
-    void deriveKey(byte* derivedkey,
+    bool deriveKey(byte* derivedkey,
                    const size_t derivedkeyLen,
                    const byte* pwd,
                    const size_t pwdLen,

@@ -1128,7 +1128,7 @@ PBKDF2_HMAC_SHA512::PBKDF2_HMAC_SHA512()
 {
 }
 
-void PBKDF2_HMAC_SHA512::deriveKey(byte* derivedkey,
+bool PBKDF2_HMAC_SHA512::deriveKey(byte* derivedkey,
                                    const size_t derivedkeyLen,
                                    const byte* pwd,
                                    const size_t pwdLen,
@@ -1144,7 +1144,9 @@ void PBKDF2_HMAC_SHA512::deriveKey(byte* derivedkey,
     assert(saltLen > 0);
     assert(iterations > 0);
 
-    pbkdf2.DeriveKey(
+    try
+    {
+        pbkdf2.DeriveKey(
             // buffer that holds the derived key
             derivedkey, derivedkeyLen,
             // purpose byte. unused by this PBKDF implementation.
@@ -1156,7 +1158,15 @@ void PBKDF2_HMAC_SHA512::deriveKey(byte* derivedkey,
             // iteration count. See SP 800-132 for details. You want this as large as you can tolerate.
             // make sure to use the same iteration count on both sides...
             iterations
-            );
+        );
+        return true;
+    }
+    catch (const CryptoPP::Exception&)
+    {
+        // DeriveKey() should throw CryptoPP::InvalidDerivedLength, however that is not present in all
+        // versions of the lib, i.e. Linux system lib
+        return false;
+    }
 }
 
 } // namespace
