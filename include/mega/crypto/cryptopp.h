@@ -388,9 +388,18 @@ public:
      * @param resultSize size of Decrypted data, not including the authentication tag.
      * @returns true if decryption proccess ends succesfully, otherwise returns false
      */
-    bool gcm_decrypt_aad(const byte* data, const size_t datalen, const byte* additionalData,
+    bool gcm_decrypt_add(const byte* data, const size_t datalen, const byte* additionalData,
                          const size_t additionalDatalen, const byte* tag, const size_t taglen,
                          const byte* iv, const size_t ivlen, byte* result, const size_t resultSize);
+
+    // keep the alias with typo of the function above for backwards compatibility
+    bool gcm_decrypt_aad(const byte* data, const size_t datalen, const byte* additionalData,
+                         const size_t additionalDatalen, const byte* tag, const size_t taglen,
+                         const byte* iv, const size_t ivlen, byte* result, const size_t resultSize)
+    {
+        return gcm_decrypt_add(data, datalen, additionalData, additionalDatalen,
+                               tag, taglen, iv, ivlen, result, resultSize);
+    }
 
     /**
      * @brief Authenticated symmetric decryption using AES in GCM mode

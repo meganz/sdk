@@ -459,7 +459,7 @@ bool SymmCipher::gcm_decrypt(const byte* data, const size_t datalen, const byte*
     return true;
 }
 
-bool SymmCipher::gcm_decrypt_aad(const byte* data, const size_t datalen, const byte* additionalData,
+bool SymmCipher::gcm_decrypt_add(const byte* data, const size_t datalen, const byte* additionalData,
                                  const size_t additionalDatalen, const byte* tag, const size_t taglen,
                                  const byte* iv, const size_t ivlen, byte* result, const size_t resultSize)
 {
