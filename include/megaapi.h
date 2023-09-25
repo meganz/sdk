@@ -4303,8 +4303,9 @@ class MegaRequest
             TYPE_PUT_VPN_CREDENTIAL                                         = 174,
             TYPE_DEL_VPN_CREDENTIAL                                         = 175,
             TYPE_CHECK_VPN_CREDENTIAL                                       = 176,
-            TYPE_GET_SYNC_STALL_LIST                                        = 177,
-            TOTAL_OF_REQUEST_TYPES                                          = 178,
+            TYPE_FETCH_CREDIT_CARD_INFO                                     = 177,
+            TYPE_GET_SYNC_STALL_LIST                                        = 178,
+            TOTAL_OF_REQUEST_TYPES                                          = 179,
         };
 
         virtual ~MegaRequest();
@@ -5236,6 +5237,7 @@ public:
         EVENT_UPGRADE_SECURITY          = 18, // Account upgraded. Cryptography relies now on keys attribute information.
         EVENT_DOWNGRADE_ATTACK          = 19, // A downgrade attack has been detected. Removed shares may have reappeared. Please tread carefully.
         EVENT_CONFIRM_USER_EMAIL        = 20, // Ephemeral account confirmed the associated email
+        EVENT_CREDIT_CARD_EXPIRY        = 21, // Credit card is due to expire soon or when a new card is registered
     };
 
     enum
@@ -8339,6 +8341,9 @@ class MegaGlobalListener
          * attribute information. See MegaApi::upgradeSecurity
          *
          * - MegaEvent::EVENT_DOWNGRADE_ATTACK: A downgrade attack has been detected. Removed shares may have reappeared. Please tread carefully.
+         *
+         * - MegaEvent::EVENT_CREDIT_CARD_EXPIRY: Credit card is due to expire soon or a new card has been registered. After receiving this event,
+         * app should call to MegaApi::fetchCreditCardInfo to receive info about credit card
          *
          * @param api MegaApi object connected to the account
          * @param event Details about the event
@@ -16033,7 +16038,7 @@ class MegaApi
          * @brief Get the total number of nodes in the account
          * @return Total number of nodes in the account
          */
-        long long getNumNodes();
+        unsigned long long getNumNodes();
 
         enum { ORDER_NONE = 0, ORDER_DEFAULT_ASC, ORDER_DEFAULT_DESC,
             ORDER_SIZE_ASC, ORDER_SIZE_DESC,
@@ -21457,6 +21462,25 @@ class MegaApi
          */
         void checkVpnCredential(const char* userPubKey, MegaRequestListener* listener = nullptr);
         /* MegaVpnCredentials END */
+
+        /**
+         * @brief Fetch information about the registered credit card for the user
+         *
+         * The associated request type with this request is MegaRequest::TYPE_FETCH_CREDIT_CARD_INFO.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getMegaStringMap - map with following keys:
+         *    - gw (gateway)
+         *    - brand
+         *    - last4
+         *    - exp_month
+         *    - exp_year
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         *  - MegaError::ENOENT - No Registered Card
+         *
+         * @param listener
+         */
+        void fetchCreditCardInfo(MegaRequestListener* listener = nullptr);
 
  private:
         MegaApiImpl *pImpl = nullptr;

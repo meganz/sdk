@@ -498,7 +498,7 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
 /**
  * @brief The total number of nodes in the account
  */
-@property (readonly, nonatomic) NSUInteger totalNodes;
+@property (readonly, nonatomic) unsigned long long totalNodes;
 
 /**
  * @brief The master key of the account.

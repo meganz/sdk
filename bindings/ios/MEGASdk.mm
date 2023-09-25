@@ -159,7 +159,7 @@ using namespace mega;
     return [[NSNumber alloc] initWithLongLong:self.megaApi->getTotalUploadedBytes()];
 }
 
-- (NSUInteger)totalNodes {
+- (unsigned long long)totalNodes {
     if (self.megaApi == nil) return 0;
     return self.megaApi->getNumNodes();
 }

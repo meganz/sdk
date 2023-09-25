@@ -4469,7 +4469,7 @@ void MegaApi::updateStats()
     pImpl->updateStats();
 }
 
-long long MegaApi::getNumNodes()
+unsigned long long MegaApi::getNumNodes()
 {
     return pImpl->getNumNodes();
 }
@@ -5750,6 +5750,11 @@ void MegaApi::delVpnCredential(int slotID, MegaRequestListener* listener)
 void MegaApi::checkVpnCredential(const char* userPubKey, MegaRequestListener* listener)
 {
     pImpl->checkVpnCredential(userPubKey, listener);
+}
+
+void MegaApi::fetchCreditCardInfo(MegaRequestListener* listener)
+{
+    pImpl->fetchCreditCardInfo(listener);
 }
 
 /* END MEGAAPI */

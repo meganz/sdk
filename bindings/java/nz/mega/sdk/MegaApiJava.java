@@ -23,6 +23,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.OutputStream;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -7946,7 +7947,7 @@ public class MegaApiJava {
      *
      * @return Total number of nodes in the account
      */
-    public long getNumNodes() {
+    public BigInteger getNumNodes() {
         return megaApi.getNumNodes();
     }
 
