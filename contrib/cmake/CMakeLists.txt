@@ -547,6 +547,9 @@ if (USE_THIRDPARTY_FROM_VCPKG)
                 set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} -fopenmp )
             ENDIF()
 
+            # To be included in the config.h file if available.
+            CHECK_INCLUDE_FILE(${vcpkg_dir}/include/FreeImageConfig.h HAVE_FREEIMAGECONFIG_H)
+
         ENDIF(USE_FREEIMAGE)
 
         IF(HAVE_FFMPEG)

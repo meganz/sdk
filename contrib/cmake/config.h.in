@@ -15,7 +15,11 @@
 #cmakedefine USE_FREEIMAGE 
 #endif
 
-#ifdef USE_FREEIMAGE
+#ifndef HAVE_FREEIMAGECONFIG_H
+#cmakedefine HAVE_FREEIMAGECONFIG_H
+#endif
+
+#if defined(USE_FREEIMAGE) && defined(HAVE_FREEIMAGECONFIG_H)
 #include "FreeImageConfig.h"  // for FREEIMAGE_LIB setting
 #endif
 
