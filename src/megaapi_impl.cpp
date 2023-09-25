@@ -20468,12 +20468,11 @@ error MegaApiImpl::performRequest_setAttrFile(MegaRequestPrivate* request)
                 }
 
                 SymmCipher* cipher = bu ? bu->nodecipher(client) : node->nodecipher();
-                if (!cipher)
+                if (!cipher ||
+                    !client->putfa(NodeOrUploadHandle(node ? node->nodeHandle() : NodeHandle()), (fatype)type, cipher, request->getTag(), std::move(attributedata)))
                 {
                     return API_EKEY;
                 }
-
-                client->putfa(NodeOrUploadHandle(node ? node->nodeHandle() : NodeHandle()), (fatype)type, cipher, request->getTag(), std::move(attributedata));
             }
             return API_OK;
 }

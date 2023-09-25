@@ -130,10 +130,19 @@ bool SymmCipher::cbc_decrypt_with_key(const std::string& cipher, std::string& pl
     }
 }
 
-void SymmCipher::cbc_encrypt(byte* data, size_t len, const byte* iv)
+bool SymmCipher::cbc_encrypt(byte* data, size_t len, const byte* iv)
 {
-    aescbc_e.Resynchronize(iv ? iv : zeroiv);
-    aescbc_e.ProcessData(data, data, len);
+    try
+    {
+        aescbc_e.Resynchronize(iv ? iv : zeroiv);
+        aescbc_e.ProcessData(data, data, len);
+        return true;
+    }
+    catch (const CryptoPP::Exception& e)
+    {
+        LOG_err << "Failed AES-CBC encryption " << e.what();
+        return false;
+    }
 }
 
 void SymmCipher::cbc_decrypt(byte* data, size_t len, const byte* iv)

@@ -956,9 +956,9 @@ bool CacheableReader::unserializedirection(direction_t& field)
  * @param iv Optional initialisation vector for encryption. Will use a
  *     zero IV if not given. If `iv` is a zero length string, a new IV
  *     for encryption will be generated and available through the reference.
- * @return Void.
+ * @return true if encryption was successful.
  */
-void PaddedCBC::encrypt(PrnGen &rng, string* data, SymmCipher* key, string* iv)
+bool PaddedCBC::encrypt(PrnGen &rng, string* data, SymmCipher* key, string* iv)
 {
     if (iv)
     {
@@ -984,21 +984,17 @@ void PaddedCBC::encrypt(PrnGen &rng, string* data, SymmCipher* key, string* iv)
     // Pad to block size and encrypt.
     data->append("E");
     data->resize((data->size() + key->BLOCKSIZE - 1) & - key->BLOCKSIZE, 'P');
-    if (iv)
-    {
-        key->cbc_encrypt((byte*)data->data(), data->size(),
-                         (const byte*)iv->data());
-    }
-    else
-    {
+    bool encrypted = iv ?
+        key->cbc_encrypt((byte*)data->data(), data->size(), (const byte*)iv->data()) :
         key->cbc_encrypt((byte*)data->data(), data->size());
-    }
 
     // Truncate IV back to the first 8 bytes only..
     if (iv)
     {
         iv->resize(8);
     }
+
+    return encrypted;
 }
 
 /**

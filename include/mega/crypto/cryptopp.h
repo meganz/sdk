@@ -183,8 +183,10 @@ public:
      *
      * @param data Data to be encrypted (encryption in-place).
      * @param len Length of data to be encrypted in bytes.
-     * @param iv Initialisation vector to use. Choose randomly and never re-use.     */
-    void cbc_encrypt(byte* data, size_t len, const byte* iv = NULL);
+     * @param iv Initialisation vector to use. Choose randomly and never re-use.
+     * @returns true if encryption proccess ends succesfully, otherwise returns false
+     */
+    bool cbc_encrypt(byte* data, size_t len, const byte* iv = NULL);
 
     /**
      * @brief Encrypt symmetrically using AES in CBC mode.
