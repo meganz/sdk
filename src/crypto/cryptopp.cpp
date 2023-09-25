@@ -393,10 +393,17 @@ bool SymmCipher::gcm_encrypt(const byte* data, const size_t datasize, const byte
 
 bool SymmCipher::gcm_decrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
 {
-    aesgcm_d.Resynchronize(iv, ivlen);
-    try {
+    if (!data || !result)
+    {
+        return false;
+    }
+
+    try
+    {
+        aesgcm_d.Resynchronize(iv, ivlen);
         StringSource(*data, true, new AuthenticatedDecryptionFilter(aesgcm_d, new StringSink(*result), taglen));
-    } catch (HashVerificationFilter::HashVerificationFailed const &e)
+    }
+    catch (CryptoPP::Exception const& e)
     {
         result->clear();
         LOG_err << "Failed AES-GCM decryption: " << e.GetWhat();

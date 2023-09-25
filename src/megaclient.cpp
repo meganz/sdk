@@ -21943,7 +21943,11 @@ bool KeyManager::fromKeysContainer(const string &data)
 
             // Decrypt ^!keys attribute
             string keysPlain;
-            mKey.gcm_decrypt(&keysCiphered, (byte*)data.data() + 2, IV_LEN, 16, &keysPlain);
+            if (!mKey.gcm_decrypt(&keysCiphered, (byte*)data.data() + 2, IV_LEN, 16, &keysPlain))
+            {
+                LOG_err << "Failed to GCM decrypt ^!keys.";
+                return false;
+            }
 
             success = unserialize(km, keysPlain);
             if (!success)

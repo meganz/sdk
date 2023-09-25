@@ -66,7 +66,7 @@ TEST(Crypto, AES_GCM)
 
     // Test AES_GCM_12_16 decryption
     result.clear();
-    key.gcm_decrypt(&cipherText, ivBytes, ivLen, tagLen, &result);
+    ASSERT_TRUE(key.gcm_decrypt(&cipherText, ivBytes, ivLen, tagLen, &result)) << "GCM decryption failed";
 
     ASSERT_STREQ(result.data(), plainText.data()) << "GCM decryption: plain text doesn't match the expected value";
 
