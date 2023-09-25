@@ -324,26 +324,34 @@ bool SymmCipher::ccm_encrypt(const string *data, const byte *iv, unsigned ivlen,
 
 bool SymmCipher::ccm_decrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
 {
-    try {
+    if (!data || !result)
+    {
+        return false;
+    }
+
+    try
+    {
         if (taglen == 16)
         {
             aesccm16_d.Resynchronize(iv, ivlen);
             aesccm16_d.SpecifyDataLengths(0, data->size() - taglen, 0);
             StringSource(*data, true, new AuthenticatedDecryptionFilter(aesccm16_d, new StringSink(*result)));
+            return true;
         }
         else if (taglen == 8)
         {
             aesccm8_d.Resynchronize(iv, ivlen);
             aesccm8_d.SpecifyDataLengths(0, data->size() - taglen, 0);
             StringSource(*data, true, new AuthenticatedDecryptionFilter(aesccm8_d, new StringSink(*result)));
+            return true;
         }
-    } catch (HashVerificationFilter::HashVerificationFailed const &e)
+    }
+    catch (HashVerificationFilter::HashVerificationFailed const &e)
     {
         result->clear();
         LOG_err << "Failed AES-CCM decryption: " << e.GetWhat();
-        return false;
     }
-    return true;
+    return false;
 }
 
 bool SymmCipher::gcm_encrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)

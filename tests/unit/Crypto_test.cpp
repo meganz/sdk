@@ -155,7 +155,7 @@ TEST(Crypto, AES_CCM)
 
     // Test AES_CCM_12_16 decryption
     result.clear();
-    key.ccm_decrypt(&cipherText, ivBytes, sizeof ivBytes, tagLen, &result);
+    ASSERT_TRUE(key.ccm_decrypt(&cipherText, ivBytes, sizeof ivBytes, tagLen, &result)) << "CCM decryption failed";
 
     ASSERT_STREQ(result.data(), plainText.data()) << "CCM decryption: plain text doesn't match the expected value";
 }
