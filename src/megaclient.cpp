@@ -20588,7 +20588,11 @@ string MegaClient::decryptKey(const string& k, SymmCipher& cipher) const
 {
     unique_ptr<byte[]> decrKey(new byte[k.size()]{ 0 });
     std::copy_n(k.begin(), k.size(), decrKey.get());
-    cipher.cbc_decrypt(decrKey.get(), k.size());
+    if (!cipher.cbc_decrypt(decrKey.get(), k.size()))
+    {
+        LOG_err << "Failed to CBC decrypt key";
+        return string();
+    }
     return string((char*)decrKey.get(), k.size());
 }
 

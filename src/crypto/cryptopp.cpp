@@ -145,10 +145,19 @@ bool SymmCipher::cbc_encrypt(byte* data, size_t len, const byte* iv)
     }
 }
 
-void SymmCipher::cbc_decrypt(byte* data, size_t len, const byte* iv)
+bool SymmCipher::cbc_decrypt(byte* data, size_t len, const byte* iv)
 {
-    aescbc_d.Resynchronize(iv ? iv : zeroiv);
-    aescbc_d.ProcessData(data, data, len);
+    try
+    {
+        aescbc_d.Resynchronize(iv ? iv : zeroiv);
+        aescbc_d.ProcessData(data, data, len);
+        return true;
+    }
+    catch (const CryptoPP::Exception& e)
+    {
+        LOG_err << "Failed AES-CBC decryption " << e.what();
+        return false;
+    }
 }
 
 void SymmCipher::cbc_encrypt_pkcs_padding(const string *data, const byte *iv, string *result)

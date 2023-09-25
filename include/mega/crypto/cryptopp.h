@@ -212,8 +212,10 @@ public:
      * @param data Data to be decrypted (encryption in-place).
      * @param len Length of cipher text to be decrypted in bytes.
      * @param iv Initialisation vector.
+     *
+     * @returns true if decryption proccess ends succesfully, otherwise returns false
      */
-    void cbc_decrypt(byte* data, size_t len, const byte* iv = NULL);
+    bool cbc_decrypt(byte* data, size_t len, const byte* iv = NULL);
 
     /**
      * @brief Decrypt symmetrically using AES in CBC mode.

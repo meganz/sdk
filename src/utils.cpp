@@ -1007,7 +1007,7 @@ bool PaddedCBC::encrypt(PrnGen &rng, string* data, SymmCipher* key, string* iv)
  * @param key AES key for decryption.
  * @param iv Optional initialisation vector for encryption. Will use a
  *     zero IV if not given.
- * @return Void.
+ * @return true if decryption was successful.
  */
 bool PaddedCBC::decrypt(string* data, SymmCipher* key, string* iv)
 {
@@ -1029,14 +1029,12 @@ bool PaddedCBC::decrypt(string* data, SymmCipher* key, string* iv)
     }
 
     // Decrypt and unpad.
-    if (iv)
-    {
-        key->cbc_decrypt((byte*)data->data(), data->size(),
-                         (const byte*)iv->data());
-    }
-    else
-    {
+    bool encrypted = iv ?
+        key->cbc_decrypt((byte*)data->data(), data->size(), (const byte*)iv->data()) :
         key->cbc_decrypt((byte*)data->data(), data->size());
+    if (!encrypted)
+    {
+        return false;
     }
 
     size_t p = data->find_last_of('E');

@@ -102,7 +102,7 @@ struct MEGA_API PaddedCBC
      * @param key AES key for decryption.
      * @param iv Optional initialisation vector for encryption. Will use a
      *     zero IV if not given.
-     * @return Void.
+     * @return true if decryption was successful.
      */
     static bool decrypt(string* data, SymmCipher* key, string* iv = NULL);
 };
