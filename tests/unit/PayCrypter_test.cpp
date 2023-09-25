@@ -92,7 +92,7 @@ TEST(PayCrypter, allFeatures)
 
     //Test AES-CBC decryption
     string plain;
-    sym.cbc_decrypt_pkcs_padding(&result, iv, &plain);
+    ASSERT_TRUE(sym.cbc_decrypt_pkcs_padding(&result, iv, &plain));
 
     //Check result
     ASSERT_STREQ(input.c_str(), plain.c_str());

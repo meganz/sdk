@@ -200,7 +200,12 @@ bool SymmCipher::cbc_encrypt_pkcs_padding(const string *data, const byte *iv, st
 
 bool SymmCipher::cbc_decrypt_pkcs_padding(const std::string* data, const byte* iv, string* result)
 {
-    try 
+    if (!data || !result)
+    {
+        return false;
+    }
+
+    try
     {
         using Transformation = StreamTransformationFilter;
 
@@ -226,9 +231,9 @@ bool SymmCipher::cbc_decrypt_pkcs_padding(const std::string* data, const byte* i
         // Decrypt had correct padding.
         return true;
     }
-    catch (...)
+    catch (const CryptoPP::Exception& e)
     {
-        // Decrypt failed.
+        LOG_err << "Failed AES-CBC pkcs decryption " << e.what();
         return false;
     }
 }
@@ -238,7 +243,12 @@ bool SymmCipher::cbc_decrypt_pkcs_padding(const byte* data,
                                           const byte* iv,
                                           std::string* result)
 {
-    try 
+    if (!result)
+    {
+        return false;
+    }
+
+    try
     {
         using Transformation = StreamTransformationFilter;
 
@@ -264,9 +274,9 @@ bool SymmCipher::cbc_decrypt_pkcs_padding(const byte* data,
         // Decrypt had correct padding.
         return true;
     }
-    catch (...)
+    catch (const CryptoPP::Exception& e)
     {
-        // Decrypt failed.
+        LOG_err << "Failed AES-CBC pkcs decryption " << e.what();
         return false;
     }
 }
