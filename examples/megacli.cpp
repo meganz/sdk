@@ -7590,6 +7590,10 @@ void exec_version(autocomplete::ACState& s)
     cout << "* PDFium" << endl;
 #endif
 
+#ifdef HAVE_FFMPEG
+    cout << "* FFmpeg" << endl;
+#endif
+
 #ifdef ENABLE_SYNC
     cout << "* sync subsystem" << endl;
 #endif
