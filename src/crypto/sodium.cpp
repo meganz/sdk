@@ -145,7 +145,7 @@ ECDH::ECDH()
     }
 
     // create a new key pair
-    crypto_box_keypair(this->pubKey, this->privKey);
+    crypto_box_keypair(mPubKey, mPrivKey);
 
     initializationOK = true;
 }
@@ -153,8 +153,8 @@ ECDH::ECDH()
 
 ECDH::ECDH (const ECDH& aux)
 {
-    std::copy(aux.getPrivKey(), aux.getPrivKey() + ECDH::PRIVATE_KEY_LENGTH, privKey);
-    std::copy(aux.getPubKey(), aux.getPubKey() + ECDH::PUBLIC_KEY_LENGTH, pubKey);
+    std::copy(aux.getPrivKey(), aux.getPrivKey() + ECDH::PRIVATE_KEY_LENGTH, mPrivKey);
+    std::copy(aux.getPubKey(), aux.getPubKey() + ECDH::PUBLIC_KEY_LENGTH, mPubKey);
 }
 
 ECDH::ECDH(const string& privKey)
@@ -171,10 +171,10 @@ ECDH::ECDH(const string& privKey)
         return;
     }
 
-    memcpy(this->privKey, privKey.data(), PRIVATE_KEY_LENGTH);
+    memcpy(mPrivKey, privKey.data(), PRIVATE_KEY_LENGTH);
 
     // derive public key from privKey
-    crypto_scalarmult_base(this->pubKey, this->privKey);
+    crypto_scalarmult_base(mPubKey, mPrivKey);
 
     initializationOK = true;
 }
@@ -185,8 +185,8 @@ ECDH::~ECDH()
 
 ECDH::ECDH(const unsigned char *privk, const std::string &pubk)
 {
-    std::copy(privk, privk + PRIVATE_KEY_LENGTH, privKey);
-    std::copy(pubk.data(), pubk.data() + PUBLIC_KEY_LENGTH, pubKey);
+    std::copy(privk, privk + PRIVATE_KEY_LENGTH, mPrivKey);
+    std::copy(pubk.data(), pubk.data() + PUBLIC_KEY_LENGTH, mPubKey);
 }
 
 int ECDH::doComputeSymmetricKey(const unsigned char* privk, const unsigned char* pubk, std::string& output) const
@@ -227,7 +227,7 @@ bool ECDH::deriveSharedKeyWithSalt(const unsigned char* pubkey, const unsigned c
     }
 
     std::string sharedSecret;
-    int err = doComputeSymmetricKey(privKey, pubkey, sharedSecret);
+    int err = doComputeSymmetricKey(mPrivKey, pubkey, sharedSecret);
     if (err)
     {
         LOG_err << "derivePrivKeyWithSalt: crypto_scalarmult err: " << err;

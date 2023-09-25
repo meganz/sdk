@@ -107,8 +107,8 @@ public:
     ECDH& operator=(ECDH&& aux) = delete;
     ~ECDH();
 
-    const unsigned char* getPrivKey() const { return privKey; }
-    const unsigned char* getPubKey()  const { return pubKey;  }
+    const unsigned char* getPrivKey() const { return mPrivKey; }
+    const unsigned char* getPubKey()  const { return mPubKey;  }
     bool deriveSharedKeyWithSalt(const unsigned char* pubkey, const unsigned char* salt, size_t saltSize, std::string& output) const;
 
     /**
@@ -118,7 +118,7 @@ public:
      *
      * @return 1 on success, 0 on failure.
      */
-    int computeSymmetricKey(std::string& output) const { return !doComputeSymmetricKey(privKey, pubKey, output); }
+    int computeSymmetricKey(std::string& output) const { return !doComputeSymmetricKey(mPrivKey, mPubKey, output); }
 
     /**
      * @brief encrypt Encrypt a message using the public key of recipient, the
@@ -162,8 +162,8 @@ public:
 
 private:
     int doComputeSymmetricKey(const unsigned char* privk, const unsigned char* pubk, std::string& output) const;
-    unsigned char privKey[PRIVATE_KEY_LENGTH];
-    unsigned char pubKey[PUBLIC_KEY_LENGTH];
+    unsigned char mPrivKey[PRIVATE_KEY_LENGTH];
+    unsigned char mPubKey[PUBLIC_KEY_LENGTH];
 };
 } // namespace
 
