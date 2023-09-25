@@ -5962,6 +5962,11 @@ void MegaApi::checkVpnCredential(const char* userPubKey, MegaRequestListener* li
 
 /* END MEGAAPI */
 
+void MegaApi::moveToDebris(const char* path, MegaHandle syncBackupId, MegaRequestListener* listener)
+{
+    pImpl->moveToDebris(path, syncBackupId, listener);
+}
+
 MegaHashSignature::MegaHashSignature(const char *base64Key)
 {
     pImpl = new MegaHashSignatureImpl(base64Key);

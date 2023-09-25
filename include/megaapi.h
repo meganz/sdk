@@ -4304,7 +4304,8 @@ class MegaRequest
             TYPE_DEL_VPN_CREDENTIAL                                         = 175,
             TYPE_CHECK_VPN_CREDENTIAL                                       = 176,
             TYPE_GET_SYNC_STALL_LIST                                        = 177,
-            TOTAL_OF_REQUEST_TYPES                                          = 178,
+            TYPE_MOVE_TO_DEBRIS                                             = 179,
+            TOTAL_OF_REQUEST_TYPES                                          = 180,
         };
 
         virtual ~MegaRequest();
@@ -21461,6 +21462,25 @@ class MegaApi
          */
         void checkVpnCredential(const char* userPubKey, MegaRequestListener* listener = nullptr);
         /* MegaVpnCredentials END */
+
+        /**
+         * @brief Move local path to sync debris folder
+         *
+         * The associated request type with this request is MegaRequest::TYPE_MOVE_TO_DEBRIS.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getText - Returns local path.
+         * - MegaRequest::getNodeHandle - Returns sync backup Id
+         *
+         *  On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EARGS - Invalid path or backup id
+         * - MegaError::API_ENOENT - There is no sync with this id
+         * - MegaError::API_EINTERNAL - failure moving to sync debris
+         *
+         * @param path local path
+         * @param syncBackupId handle to the sync
+         * @param listener MegaRequestListener to track this request
+         */
+        void moveToDebris(const char* path, MegaHandle syncBackupId, MegaRequestListener* listener = nullptr);
 
  private:
         MegaApiImpl *pImpl = nullptr;

@@ -977,6 +977,7 @@ struct Syncs
 
     // only for use in tests; not really thread safe
     Sync* runningSyncByBackupIdForTests(handle backupId) const;
+    Sync* syncByBackupId(handle backupId) const;
 
     void transferPauseFlagsUpdated(bool downloadsPaused, bool uploadsPaused);
 

@@ -25585,7 +25585,46 @@ void MegaApiImpl::checkVpnCredential(const char* userPubKey, MegaRequestListener
     requestQueue.push(request);
     waiter->notify();
 }
+
 /* MegaApiImpl VPN commands END */
+
+void MegaApiImpl::moveToDebris(const char* path, MegaHandle syncBackupId, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_MOVE_TO_DEBRIS, listener);
+
+    request->setText(path);
+    request->setNodeHandle(syncBackupId);
+    request->performRequest = [this, request]()
+    {
+        const char* path = request->getText();
+        handle syncBackupId = request->getNodeHandle();
+        if (!path || syncBackupId == UNDEF)
+        {
+            return API_EARGS;
+        }
+
+        client->syncs.queueSync([this, request, path, syncBackupId]()
+        {
+            error e = API_ENOENT;
+            Sync* sync = client->syncs.syncByBackupId(syncBackupId);
+            if (sync)
+            {
+                e = sync->movetolocaldebris(LocalPath::fromAbsolutePath(path)) ? API_OK : API_EINTERNAL;
+            }
+
+            client->syncs.queueClient([this, request, e](MegaClient& , TransferDbCommitter&)
+            {
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            });
+
+        }, "Move to node to derbis");
+
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
 
 /* END MEGAAPIIMPL */
 
