@@ -52,7 +52,7 @@ libzen/0.4.37
 ffmpeg/7f59e0013648f0dd80377330b770b414032233cb all:on ios:off
 
 # freeimage and its dependencies (image preview/thumbnail generation)
-freeimage/7476f0d4e77d3333fbb249657df8251c28c4faae
+freeimage/7476f0d4e77d3333fbb249657df8251c28c4faae osx:freeimage-bool-typedef-xcode-compiler.patch
 libpng/7476f0d4e77d3333fbb249657df8251c28c4faae
 libjpeg-turbo/7476f0d4e77d3333fbb249657df8251c28c4faae
 tiff/7476f0d4e77d3333fbb249657df8251c28c4faae
