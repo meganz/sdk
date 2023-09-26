@@ -4584,7 +4584,9 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_PUT_VPN_CREDENTIAL: return "PUT_VPN_CREDENTIAL";
         case TYPE_DEL_VPN_CREDENTIAL: return "DEL_VPN_CREDENTIAL";
         case TYPE_CHECK_VPN_CREDENTIAL: return "CHECK_VPN_CREDENTIAL";
-        case TYPE_GET_SYNC_STALL_LIST: return "TYPE_GET_SYNC_STALL_LIST";
+        case TYPE_GET_SYNC_STALL_LIST: return "GET_SYNC_STALL_LIST";
+        case TYPE_FETCH_CREDIT_CARD_INFO: return "FETCH_CREDIT_CARD_INFO";
+        case TYPE_MOVE_TO_DEBRIS: return "MOVE_TO_DEBRIS";
     }
     return "UNKNOWN";
 }
