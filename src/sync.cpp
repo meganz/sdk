@@ -5430,22 +5430,6 @@ Sync* Syncs::runningSyncByBackupIdForTests(handle backupId) const
     return nullptr;
 }
 
-Sync* Syncs::syncByBackupId(handle backupId) const
-{
-    assert(onSyncThread());
-
-    lock_guard<mutex> g(mSyncVecMutex);
-    for (auto& s : mSyncVec)
-    {
-        if (s->mSync && s->mConfig.mBackupId == backupId)
-        {
-            return s->mSync.get();
-        }
-    }
-
-    return nullptr;
-}
-
 bool Syncs::syncConfigByBackupId(handle backupId, SyncConfig& c) const
 {
     // returns a copy for thread safety
