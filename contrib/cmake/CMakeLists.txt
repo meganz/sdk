@@ -1135,3 +1135,6 @@ else()
         message(STATUS, "CMAKE_CXX_FLAGS_DEBUG: ${CMAKE_CXX_FLAGS_DEBUG}")
     endif(ENABLE_WERROR)
 endif()
+
+# gfxworker support.
+include(${MegaDir}/gfxworker/CMakeLists.txt)
