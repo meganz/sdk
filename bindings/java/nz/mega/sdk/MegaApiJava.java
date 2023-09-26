@@ -17,11 +17,13 @@ package nz.mega.sdk;
 
 import static nz.mega.sdk.MegaSync.SyncRunningState.RUNSTATE_PAUSED;
 import static nz.mega.sdk.MegaSync.SyncRunningState.RUNSTATE_RUNNING;
+import static nz.mega.sdk.MegaSync.SyncRunningState.RUNSTATE_SUSPENDED;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.OutputStream;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -7945,7 +7947,7 @@ public class MegaApiJava {
      *
      * @return Total number of nodes in the account
      */
-    public long getNumNodes() {
+    public BigInteger getNumNodes() {
         return megaApi.getNumNodes();
     }
 
@@ -12673,5 +12675,21 @@ public class MegaApiJava {
     @Nullable
     public String getPublicLinkForExportedSet(long sid) {
         return megaApi.getPublicLinkForExportedSet(sid);
+    }
+
+    /**
+     * Resume a previously suspended sync
+     */
+    public void resumeSync(long backupId) {
+        megaApi.setSyncRunState(backupId, RUNSTATE_RUNNING);
+    }
+
+    /**
+     * Suspend a sync
+     * <p>
+     * Use this method to pause a running Sync. The sync can be resumed later by calling MegaApi::resumeSync.
+     */
+    public void pauseSync(long backupId) {
+        megaApi.setSyncRunState(backupId, RUNSTATE_SUSPENDED);
     }
 }

@@ -1028,85 +1028,16 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                     break;
 
                 case REQ_FAILURE:
-                    LOG_warn << "Conn " << i << " : Failed chunk. HTTP status: " << reqs[i]->httpstatus;
-                    if (reqs[i]->httpstatus && reqs[i]->contenttype.find("text/html") != string::npos
-                            && !memcmp(reqs[i]->posturl.c_str(), "http:", 5))
                     {
-                        LOG_warn << "Conn " << i << " : Invalid Content-Type detected on failed chunk: " << reqs[i]->contenttype;
-                        client->usehttps = true;
-                        client->app->notify_change_to_https();
-
-                        client->sendevent(99436, "Automatic change to HTTPS", 0);
-
-                        return transfer->failed(API_EAGAIN, committer);
-                    }
-
-                    if (reqs[i]->httpstatus == 509)
-                    {
-                        LOG_warn << "Conn " << i << " : Bandwidth overquota from storage server";
-
-                        dstime backoff = client->overTransferQuotaBackoff(reqs[i].get());
-
-                        return transfer->failed(API_EOVERQUOTA, committer, backoff);
-                    }
-                    else if (reqs[i]->httpstatus == 429)
-                    {
-                        // too many requests - back off a bit (may be added serverside at some point.  Added here 202020623)
-                        backoff = 5;
-                        reqs[i]->status = REQ_PREPARED;
-                    }
-                    else if (reqs[i]->httpstatus == 503 && !transferbuf.isRaid())
-                    {
-                        // for non-raid, if a file gets a 503 then back off as it may become available shortly
-                        backoff = 50;
-                        reqs[i]->status = REQ_PREPARED;
-                    }
-                    else if (reqs[i]->httpstatus == 403 || reqs[i]->httpstatus == 404 || (reqs[i]->httpstatus == 503 && transferbuf.isRaid()))
-                    {
-                        // - 404 means "malformed or expired URL" - can be immediately fixed by getting a fresh one from the API
-                        // - 503 means "the API gave you good information, but I don't have the file" - cannot be fixed (at least not immediately) by getting a fresh URL
-                        // for raid parts and 503, it's appropriate to try another raid source
-                        if (!tryRaidRecoveryFromHttpGetError(i, true))
+                        auto failValue = processRequestFailure(client, reqs[i], backoff, i);
+                        if (failValue.first != API_OK)
                         {
-                            return transfer->failed(API_EAGAIN, committer);
+                            LOG_warn << "Conn " << i << " : Request Failed with code " << failValue.first << ". Transfer failed (backoff: " << failValue.second << ")";
+                            // Error: transfer fail
+                            return transfer->failed(failValue.first, committer, failValue.second);
                         }
                     }
-                    else if (reqs[i]->httpstatus == 0 && tryRaidRecoveryFromHttpGetError(i, true))
-                    {
-                        // status 0 indicates network error or timeout; no headers recevied.
-                        // tryRaidRecoveryFromHttpGetError has switched to loading a different part instead of this one.
-                    }
-                    else
-                    {
-                        if (!failure)
-                        {
-                            failure = true;
-                            bool changeport = false;
-
-                            if (transfer->type == GET && client->autodownport && !memcmp(transferbuf.tempURL(i).c_str(), "http:", 5))
-                            {
-                                LOG_debug << "Conn " << i << " : Automatically changing download port";
-                                client->usealtdownport = !client->usealtdownport;
-                                changeport = true;
-                            }
-                            else if (transfer->type == PUT && client->autoupport && !memcmp(transferbuf.tempURL(i).c_str(), "http:", 5))
-                            {
-                                LOG_debug << "Conn " << i << " : Automatically changing upload port";
-                                client->usealtupport = !client->usealtupport;
-                                changeport = true;
-                            }
-
-                            client->app->transfer_failed(transfer, API_EFAILED);
-                            client->setchunkfailed(&reqs[i]->posturl);
-                            ++client->performanceStats.transferTempErrors;
-
-                            if (changeport)
-                            {
-                                toggleport(reqs[i].get());
-                            }
-                        }
-                        reqs[i]->status = REQ_PREPARED;
-                    }
+                    break;
 
                 default:
                     ;
@@ -1192,32 +1123,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
 
                     if (prepare)
                     {
-                        string finaltempurl = transferbuf.tempURL(i);
-                        if (transfer->type == GET && client->usealtdownport
-                                && !memcmp(finaltempurl.c_str(), "http:", 5))
-                        {
-                            size_t index = finaltempurl.find("/", 8);
-                            if(index != string::npos && finaltempurl.find(":", 8) == string::npos)
-                            {
-                                finaltempurl.insert(index, ":8080");
-                            }
-                        }
-
-                        if (transfer->type == PUT && client->usealtupport
-                                && !memcmp(finaltempurl.c_str(), "http:", 5))
-                        {
-                            size_t index = finaltempurl.find("/", 8);
-                            if(index != string::npos && finaltempurl.find(":", 8) == string::npos)
-                            {
-                                finaltempurl.insert(index, ":8080");
-                            }
-                        }
-
-                        reqs[i]->prepare(finaltempurl.c_str(), transfer->transfercipher(),
-                                                               transfer->ctriv,
-                                                               posrange.first, posrange.second);
-                        reqs[i]->pos = posrange.first;
-                        reqs[i]->status = REQ_PREPARED;
+                        prepareRequest(reqs[i], transferbuf.tempURL(i), posrange.first, posrange.second);
                     }
 
                     LOG_verbose << "Conn " << i << " : Request prepared. Pos: " << posrange.first << " to npos: " << posrange.second << ". Size: " << (posrange.second - posrange.first) << ""
@@ -1419,11 +1325,12 @@ void TransferSlot::progress()
 {
     transfer->client->app->transfer_update(transfer);
 
-    for (file_list::iterator it = transfer->files.begin(); it != transfer->files.end(); it++)
+    for (file_list::iterator it = transfer->files.begin(); it != transfer->files.end(); ++it)
     {
         (*it)->progress();
     }
 }
+
 
 m_off_t TransferSlot::updatecontiguousprogress()
 {
@@ -1442,6 +1349,113 @@ m_off_t TransferSlot::updatecontiguousprogress()
     }
 
     return contiguousProgress;
+}
+
+
+void TransferSlot::prepareRequest(const std::shared_ptr<HttpReqXfer>& httpReq, const string& tempURL, m_off_t pos, m_off_t npos)
+{
+    string finaltempURL = tempURL;
+    if (((transfer->type == GET && transfer->client->usealtdownport) ||
+        (transfer->type == PUT && transfer->client->usealtupport)) &&
+            !memcmp(finaltempURL.c_str(), "http:", 5))
+    {
+        size_t index = finaltempURL.find("/", 8);
+        if (index != string::npos && finaltempURL.find(":", 8) == string::npos)
+        {
+            finaltempURL.insert(index, ":8080");
+        }
+    }
+
+    httpReq->prepare(finaltempURL.c_str(),
+                     transfer->transfercipher(),
+                     transfer->ctriv,
+                     pos, npos);
+    httpReq->pos = pos;
+    httpReq->status = REQ_PREPARED;
+}
+
+std::pair<error, dstime> TransferSlot::processRequestFailure(MegaClient* client, const std::shared_ptr<HttpReqXfer>& httpReq, dstime& backoff, int channel)
+{
+    LOG_warn << "Conn " << channel << " : Failed chunk. HTTP status: " << httpReq->httpstatus;
+
+    if (httpReq->httpstatus && httpReq->contenttype.find("text/html") != string::npos && !memcmp(httpReq->posturl.c_str(), "http:", 5))
+    {
+        LOG_warn << "Conn " << channel << " : Invalid Content-Type detected on failed chunk: " << httpReq->contenttype;
+        client->usehttps = true;
+        client->app->notify_change_to_https();
+
+        client->sendevent(99436, "Automatic change to HTTPS", 0);
+
+        return std::make_pair(API_EAGAIN, 0);
+    }
+
+    if (httpReq->httpstatus == 509)
+    {
+        LOG_warn << "Conn " << channel << " : Bandwidth overquota from storage server";
+
+        dstime new_backoff = client->overTransferQuotaBackoff(httpReq.get());
+
+        return std::make_pair(API_EOVERQUOTA, new_backoff);
+    }
+    else if (httpReq->httpstatus == 429)
+    {
+        // too many requests - back off a bit (may be added serverside at some point.  Added here 202020623)
+        backoff = 5;
+        httpReq->status = REQ_PREPARED;
+    }
+    else if (httpReq->httpstatus == 503 && !transferbuf.isRaid())
+    {
+        // for non-raid, if a file gets a 503 then back off as it may become available shortly
+        backoff = 50;
+        httpReq->status = REQ_PREPARED;
+    }
+    else if (httpReq->httpstatus == 403 || httpReq->httpstatus == 404 || (httpReq->httpstatus == 503 && transferbuf.isRaid()))
+    {
+        // - 404 means "malformed or expired URL" - can be immediately fixed by getting a fresh one from the API
+        // - 503 means "the API gave you good information, but I don't have the file" - cannot be fixed (at least not immediately) by getting a fresh URL
+        // for raid parts and 503, it's appropriate to try another raid source
+        if (!tryRaidRecoveryFromHttpGetError(channel, true))
+        {
+            return std::make_pair(API_EAGAIN, 0);
+        }
+    }
+    else if (httpReq->httpstatus == 0 && tryRaidRecoveryFromHttpGetError(channel, true))
+    {
+        // status 0 indicates network error or timeout; no headers received.
+        // tryRaidRecoveryFromHttpGetError has switched to loading a different part instead of this one.
+    }
+    else
+    {
+        if (!failure)
+        {
+            failure = true;
+            bool changeport = false;
+
+            if (transfer->type == GET && client->autodownport && !memcmp(httpReq->posturl.c_str(), "http:", 5))
+            {
+                LOG_debug << "Conn " << channel << " : Automatically changing download port";
+                client->usealtdownport = !client->usealtdownport;
+                changeport = true;
+            }
+            else if (transfer->type == PUT && client->autoupport && !memcmp(httpReq->posturl.c_str(), "http:", 5))
+            {
+                LOG_debug << "Conn " << channel << " : Automatically changing upload port";
+                client->usealtupport = !client->usealtupport;
+                changeport = true;
+            }
+
+            client->app->transfer_failed(transfer, API_EFAILED);
+            client->setchunkfailed(&httpReq->posturl);
+            ++client->performanceStats.transferTempErrors;
+
+            if (changeport)
+            {
+                toggleport(httpReq.get());
+            }
+        }
+        httpReq->status = REQ_PREPARED;
+    }
+    return std::make_pair(API_OK, 0);
 }
 
 } // namespace

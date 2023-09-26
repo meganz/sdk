@@ -1868,6 +1868,18 @@ private:
 };
 /* MegaVPN Commands END*/
 
+typedef std::function<void(const Error&, const std::map<std::string, std::string>& creditCardInfo)> CommandFetchCreditCardCompletion;
+class MEGA_API CommandFetchCreditCard : public Command
+{
+public:
+    CommandFetchCreditCard(MegaClient* client, CommandFetchCreditCardCompletion completion);
+    bool procresult(Result r, JSON&json) override;
+
+private:
+    CommandFetchCreditCardCompletion mCompletion;
+};
+
+
 } // namespace
 
 #endif

@@ -1610,7 +1610,7 @@ void MegaClient::init()
     chunkfailed = false;
     statecurrent = false;
     actionpacketsCurrent = false;
-    totalNodes = 0;
+    totalNodes.store(0);
     mAppliedKeyNodeCount = 0;
     faretrying = false;
 
@@ -5011,6 +5011,11 @@ bool MegaClient::procsc()
                                 // User Email Confirm (uec)
                                 sc_uec();
                                 break;
+
+                            case MAKENAMEID3('c', 'c', 'e'):
+                                // credit card for this user is potentially expiring soon or new card is registered
+                                sc_cce();
+                                break;
                         }
                     }
                     else
@@ -7744,6 +7749,12 @@ void MegaClient::sc_pk()
     }));
 }
 
+void MegaClient::sc_cce()
+{
+    LOG_debug << "Processing Credit Card Expiry";
+    app->notify_creditCardExpiry();
+}
+
 void MegaClient::sc_la()
 {
     for (;;)
@@ -7988,7 +7999,7 @@ void MegaClient::notifypurge(void)
     }
 #endif
 
-    totalNodes = mNodeManager.getNodeCount();
+    totalNodes.store(mNodeManager.getNodeCount());
 }
 
 void MegaClient::persistAlert(UserAlert::Base* a)
@@ -13427,10 +13438,10 @@ void MegaClient::setkeypair()
 
     string privks, pubks;
 
-    asymkey.genkeypair(rng, asymkey.key, pubk, 2048);
+    asymkey.genkeypair(rng, pubk, 2048);
 
     AsymmCipher::serializeintarray(pubk, AsymmCipher::PUBKEY, &pubks);
-    AsymmCipher::serializeintarray(asymkey.key, AsymmCipher::PRIVKEY, &privks);
+    AsymmCipher::serializeintarray(asymkey.getKey(), AsymmCipher::PRIVKEY, &privks);
 
     // add random padding and ECB-encrypt with master key
     unsigned t = unsigned(privks.size());
@@ -15843,6 +15854,13 @@ void MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<void
         return;
     }
 
+    string deviceIdHash = getDeviceidHash();
+    if (deviceIdHash.empty())
+    {
+        completion(API_EARGS, UNABLE_TO_RETRIEVE_DEVICE_ID, UNDEF);
+        return;
+    }
+
     // Are we adding an external backup?
     handle driveId = UNDEF;
     if (config.isExternal())
@@ -15858,7 +15876,6 @@ void MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<void
     }
 
     // Add the sync.
-    string deviceIdHash = getDeviceidHash();
     BackupInfoSync info(config, deviceIdHash, driveId, BackupInfoSync::getSyncState(config, xferpaused[GET], xferpaused[PUT]));
 
     reqs.add(new CommandBackupPut(this, info,
@@ -16253,12 +16270,17 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
 
         assert(f->size >= 0);
 
+        // How much space is available?
+        auto available = fsaccess->availableDiskSpace(targetPath);
+
         // Do we have enough space for the download?
-        if (fsaccess->availableDiskSpace(targetPath) <= f->size)
+        if (available <= f->size)
         {
             LOG_warn << "Insufficient space available for download: "
                      << f->getLocalname()
-                     << ": "
+                     << ": available: "
+                     << available
+                     << ", required: "
                      << f->size;
 
             *cause = LOCAL_ENOSPC;
@@ -19700,6 +19722,11 @@ string MegaClient::generateVpnCredentialString(int clusterID,
     return credential;
 }
 /* Mega VPN methods END */
+
+void MegaClient::fetchCreditCardInfo(CommandFetchCreditCardCompletion completion)
+{
+    reqs.add(new CommandFetchCreditCard(this, std::move(completion)));
+}
 
 FetchNodesStats::FetchNodesStats()
 {

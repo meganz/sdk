@@ -1218,7 +1218,7 @@ bool PayCrypter::rsaEncryptKeys(const string *cleartext, const byte *pubkdata, i
     size_t keylen = keyString.size();
 
     //Resize to add padding
-    keyString.resize(asym.key[AsymmCipher::PUB_PQ].ByteCount() - 2);
+    keyString.resize(asym.getKey(AsymmCipher::PUB_PQ).ByteCount() - 2);
 
     //Add padding
     if(randompadding)

@@ -4285,6 +4285,8 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_checkvpncredential, sequence(text("checkvpncredential"), param("userpublickey")));
     /* MEGA VPN commands END */
 
+    p->Add(exec_fetchcreditcardinfo, text("cci"));
+
     return autocompleteTemplate = std::move(p);
 }
 
@@ -11665,3 +11667,22 @@ void exec_checkvpncredential(autocomplete::ACState& s)
             });
 }
 /* MEGA VPN commands */
+
+void exec_fetchcreditcardinfo(autocomplete::ACState&)
+{
+    client->fetchCreditCardInfo([](const Error& e, const std::map<std::string, std::string>& creditCardInfo)
+    {
+        if (e == API_OK)
+        {
+            cout << "Credit card info: " << endl;
+            for (const auto& it: creditCardInfo)
+            {
+                cout << "   " << it.first << ": " << it.second << endl;
+            }
+        }
+        else
+        {
+            cout << "Error requesting credit card info: " << e << endl;
+        }
+    });
+}

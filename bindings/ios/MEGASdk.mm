@@ -159,7 +159,7 @@ using namespace mega;
     return [[NSNumber alloc] initWithLongLong:self.megaApi->getTotalUploadedBytes()];
 }
 
-- (NSUInteger)totalNodes {
+- (unsigned long long)totalNodes {
     if (self.megaApi == nil) return 0;
     return self.megaApi->getNumNodes();
 }
@@ -3189,34 +3189,6 @@ using namespace mega;
     return [MEGANodeList.alloc initWithNodeList:self.megaApi->searchOnPublicLinks(searchString.UTF8String, cancelToken.getCPtr, (int)order) cMemoryOwn:YES];
 }
 
-- (NSMutableArray *)recentActions {
-    if (self.megaApi == nil) return nil;
-    MegaRecentActionBucketList *megaRecentActionBucketList = self.megaApi->getRecentActions();
-    int count = megaRecentActionBucketList->size();
-    NSMutableArray *recentActionBucketMutableArray = [NSMutableArray.alloc initWithCapacity:(NSInteger)count];
-    for (int i = 0; i < count; i++) {
-        MEGARecentActionBucket *recentActionBucket = [MEGARecentActionBucket.alloc initWithMegaRecentActionBucket:megaRecentActionBucketList->get(i)->copy() cMemoryOwn:YES];
-        [recentActionBucketMutableArray addObject:recentActionBucket];
-    }
-    
-    delete megaRecentActionBucketList;
-    
-    return recentActionBucketMutableArray;
-}
-
-- (NSMutableArray *)recentActionsSinceDays:(NSInteger)days maxNodes:(NSInteger)maxNodes {
-    if (self.megaApi == nil) return nil;
-    MegaRecentActionBucketList *megaRecentActionBucketList = self.megaApi->getRecentActions((int)days, (int)maxNodes);
-    int count = megaRecentActionBucketList->size();
-    NSMutableArray *recentActionBucketMutableArray = [NSMutableArray.alloc initWithCapacity:(NSInteger)count];
-    for (int i = 0; i < count; i++) {
-        MEGARecentActionBucket *recentActionBucket = [MEGARecentActionBucket.alloc initWithMegaRecentActionBucket:megaRecentActionBucketList->get(i)->copy() cMemoryOwn:YES];
-        [recentActionBucketMutableArray addObject:recentActionBucket];
-    }
-    
-    return recentActionBucketMutableArray;
-}
-
 - (void)getRecentActionsAsyncSinceDays:(NSInteger)days maxNodes:(NSInteger)maxNodes delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi != nil) {
         self.megaApi->getRecentActionsAsync((int)days, (unsigned int)maxNodes, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
@@ -3757,6 +3729,12 @@ using namespace mega;
 - (void)setDeviceName:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->setDeviceName(name.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (void)renameDevice:(NSString *)deviceId newName:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->setDeviceName(deviceId.UTF8String, name.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
     }
 }
 

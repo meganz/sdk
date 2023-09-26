@@ -4303,8 +4303,9 @@ class MegaRequest
             TYPE_PUT_VPN_CREDENTIAL                                         = 174,
             TYPE_DEL_VPN_CREDENTIAL                                         = 175,
             TYPE_CHECK_VPN_CREDENTIAL                                       = 176,
-            TYPE_GET_SYNC_STALL_LIST                                        = 177,
-            TOTAL_OF_REQUEST_TYPES                                          = 178,
+            TYPE_FETCH_CREDIT_CARD_INFO                                     = 177,
+            TYPE_GET_SYNC_STALL_LIST                                        = 178,
+            TOTAL_OF_REQUEST_TYPES                                          = 179,
         };
 
         virtual ~MegaRequest();
@@ -5236,6 +5237,7 @@ public:
         EVENT_UPGRADE_SECURITY          = 18, // Account upgraded. Cryptography relies now on keys attribute information.
         EVENT_DOWNGRADE_ATTACK          = 19, // A downgrade attack has been detected. Removed shares may have reappeared. Please tread carefully.
         EVENT_CONFIRM_USER_EMAIL        = 20, // Ephemeral account confirmed the associated email
+        EVENT_CREDIT_CARD_EXPIRY        = 21, // Credit card is due to expire soon or when a new card is registered
     };
 
     enum
@@ -6576,6 +6578,7 @@ public:
         MISMATCH_OF_ROOT_FSID = 44,             // The sync root's FSID changed.  So this is a different folder.  And, we can't identify the old sync db as the name depends on this
         FILESYSTEM_FILE_IDS_ARE_UNSTABLE = 45,  // On MAC in particular, the FSID of a file in an exFAT drive can and does change spontaneously and frequently
         FILESYSTEM_ID_UNAVAILABLE = 46,         // Could not get the filesystem's id
+        UNABLE_TO_RETRIEVE_DEVICE_ID = 47,      // Unable to retrieve the ID of current device
     };
 
     enum Warning
@@ -8339,6 +8342,9 @@ class MegaGlobalListener
          *
          * - MegaEvent::EVENT_DOWNGRADE_ATTACK: A downgrade attack has been detected. Removed shares may have reappeared. Please tread carefully.
          *
+         * - MegaEvent::EVENT_CREDIT_CARD_EXPIRY: Credit card is due to expire soon or a new card has been registered. After receiving this event,
+         * app should call to MegaApi::fetchCreditCardInfo to receive info about credit card
+         *
          * @param api MegaApi object connected to the account
          * @param event Details about the event
          */
@@ -9188,9 +9194,6 @@ private:
 /**
  * @brief Allows to control a MEGA account or a shared folder
  *
- * You must provide an appKey to use this SDK. You can generate an appKey for your app for free here:
- * - https://mega.nz/#sdk
- *
  * You can enable local node caching by passing a local path in the constructor of this class. That saves many data usage
  * and many time starting your app because the entire filesystem won't have to be downloaded each time. The persistent
  * node cache will only be loaded by logging in with a session key. To take advantage of this feature, apart of passing the
@@ -9425,8 +9428,7 @@ class MegaApi
         /**
          * @brief Constructor suitable for most applications
          * @param appKey AppKey of your application
-         * You can generate your AppKey for free here:
-         * - https://mega.nz/#sdk
+         * You can pass NULL to this parameter if you don't have one. AppKey is currently no longer required.
          *
          * @param basePath Base path to store the local cache
          * If you pass NULL to this parameter, the SDK won't use any local cache.
@@ -9450,8 +9452,7 @@ class MegaApi
          * read the documentation of MegaGfxProcessor carefully to ensure that your implementation is valid.
          *
          * @param appKey AppKey of your application
-         * You can generate your AppKey for free here:
-         * - https://mega.nz/#sdk
+         * You can pass NULL to this parameter if you don't have one. AppKey is currently no longer required.
          *
          * @param processor Image processor. The SDK will use it to generate previews and thumbnails
          * If you pass NULL to this parameter, the SDK will try to use the built-in image processors.
@@ -9750,7 +9751,7 @@ class MegaApi
          *
          * The SDK tries to automatically get and use DNS servers configured in the system at startup. This function can be used
          * to override that automatic detection and use a custom list of DNS servers. It is also useful to provide working
-         * DNS servers to the SDK in platforms in which it can't get them from the system (Windows Phone and Universal Windows Platform).
+         * DNS servers to the SDK in platforms in which it can't get them from the system.
          *
          * Since the usage of this function implies a change in DNS servers used by the SDK, all connections are
          * closed and restarted using the new list of new DNS servers, so calling this function too often can cause
@@ -16037,7 +16038,7 @@ class MegaApi
          * @brief Get the total number of nodes in the account
          * @return Total number of nodes in the account
          */
-        long long getNumNodes();
+        unsigned long long getNumNodes();
 
         enum { ORDER_NONE = 0, ORDER_DEFAULT_ASC, ORDER_DEFAULT_DESC,
             ORDER_SIZE_ASC, ORDER_SIZE_DESC,
@@ -21461,6 +21462,25 @@ class MegaApi
          */
         void checkVpnCredential(const char* userPubKey, MegaRequestListener* listener = nullptr);
         /* MegaVpnCredentials END */
+
+        /**
+         * @brief Fetch information about the registered credit card for the user
+         *
+         * The associated request type with this request is MegaRequest::TYPE_FETCH_CREDIT_CARD_INFO.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getMegaStringMap - map with following keys:
+         *    - gw (gateway)
+         *    - brand
+         *    - last4
+         *    - exp_month
+         *    - exp_year
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         *  - MegaError::ENOENT - No Registered Card
+         *
+         * @param listener
+         */
+        void fetchCreditCardInfo(MegaRequestListener* listener = nullptr);
 
  private:
         MegaApiImpl *pImpl = nullptr;
