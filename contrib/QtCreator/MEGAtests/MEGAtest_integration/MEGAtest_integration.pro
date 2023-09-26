@@ -61,7 +61,7 @@ HEADERS += \
 ../../../../tests/integration/process.h \
 ../../../../tests/integration/SdkTest_test.h
 
-copydata.commands = $(COPY_DIR) $$shell_path($$PWD/../../../../tests/integration/test-data/*) $$OUT_PWD
+copydata.commands = $(COPY_DIR) $$shell_path($$PWD/../../../../tests/integration/test-data/*) $$shell_path($$OUT_PWD)
 first.depends = $(first) copydata
 export(first.depends)
 export(copydata.commands)

@@ -103,7 +103,9 @@ CONFIG(USE_MEGAAPI) {
 }
 else {
     # flags synced with contrib/cmake/CMakeLists.txt
+    CONFIG += c++17
     QMAKE_CXXFLAGS_WARN_ON ~= s/-W3/-W4
+    QMAKE_CXXFLAGS_WARN_ON -= -w34100 -w44458 -w44456
     QMAKE_CXXFLAGS += /wd4201 /wd4100 /wd4706 /wd4458 /wd4324 /wd4456 /wd4266
 }
 
@@ -696,6 +698,8 @@ win32 {
     !vcpkg:LIBS += -lsodium -lcryptopp -lzlibstat
 
     DEFINES += NOMINMAX
+    # for inet_ntoa warning
+    DEFINES += _WINSOCK_DEPRECATED_NO_WARNINGS
 }
 
 unix:!macx {
@@ -816,7 +820,7 @@ CONFIG(USE_DRIVE_NOTIFICATIONS) {
         # Allegedly not supported by non-msvc compilers.
         HEADERS += include/mega/win32/drivenotifywin.h
         SOURCES += src/win32/drivenotifywin.cpp
-        LIBS += -lwbemuuid
+        LIBS += -lwbemuuid -lole32 -loleaut32
     }
     unix:!macx {
         HEADERS += include/mega/posix/drivenotifyposix.h
