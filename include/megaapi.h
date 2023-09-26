@@ -4303,9 +4303,10 @@ class MegaRequest
             TYPE_PUT_VPN_CREDENTIAL                                         = 174,
             TYPE_DEL_VPN_CREDENTIAL                                         = 175,
             TYPE_CHECK_VPN_CREDENTIAL                                       = 176,
-            TYPE_FETCH_CREDIT_CARD_INFO                                     = 177,
-            TYPE_GET_SYNC_STALL_LIST                                        = 178,
-            TOTAL_OF_REQUEST_TYPES                                          = 179,
+            TYPE_GET_SYNC_STALL_LIST                                        = 177,
+            TYPE_FETCH_CREDIT_CARD_INFO                                     = 178,
+            TYPE_MOVE_TO_DEBRIS                                             = 179,
+            TOTAL_OF_REQUEST_TYPES                                          = 180,
         };
 
         virtual ~MegaRequest();
@@ -15803,6 +15804,25 @@ class MegaApi
          * sync code might not have noticed yet.
          */
         void clearStalledPath(MegaSyncStall* originalStall);
+
+        /**
+         * @brief Move local path to sync debris folder
+         *
+         * The associated request type with this request is MegaRequest::TYPE_MOVE_TO_DEBRIS.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getText - Returns local path.
+         * - MegaRequest::getNodeHandle - Returns sync backup Id
+         *
+         *  On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EARGS - Invalid path or backup id
+         * - MegaError::API_ENOENT - There is no sync with this id
+         * - MegaError::API_EINTERNAL - failure moving to sync debris
+         *
+         * @param path local path
+         * @param syncBackupId handle to the sync
+         * @param listener MegaRequestListener to track this request
+         */
+        void moveToDebris(const char* path, MegaHandle syncBackupId, MegaRequestListener* listener = nullptr);
 
 #endif // ENABLE_SYNC
 

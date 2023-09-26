@@ -1536,6 +1536,33 @@ void MegaApiImpl::clearStalledPath(MegaSyncStall* stall)
     }
 }
 
+void MegaApiImpl::moveToDebris(const char* path, MegaHandle syncBackupId, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_MOVE_TO_DEBRIS, listener);
+
+    request->setText(path);
+    request->setNodeHandle(syncBackupId);
+    request->performRequest = [this, request]()
+    {
+        const char* path = request->getText();
+        handle syncBackupId = request->getNodeHandle();
+        if (!path || syncBackupId == UNDEF)
+        {
+            return API_EARGS;
+        }
+
+        client->syncs.moveToSyncDebrisByBackupID(path, syncBackupId, nullptr, [this, request](error e)
+                                                 {
+                                                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                                                 });
+
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 MegaSyncStallPrivate::MegaSyncStallPrivate(const SyncStallEntry& e)
 :info(e)
 {}
@@ -4557,7 +4584,9 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_PUT_VPN_CREDENTIAL: return "PUT_VPN_CREDENTIAL";
         case TYPE_DEL_VPN_CREDENTIAL: return "DEL_VPN_CREDENTIAL";
         case TYPE_CHECK_VPN_CREDENTIAL: return "CHECK_VPN_CREDENTIAL";
-        case TYPE_GET_SYNC_STALL_LIST: return "TYPE_GET_SYNC_STALL_LIST";
+        case TYPE_GET_SYNC_STALL_LIST: return "GET_SYNC_STALL_LIST";
+        case TYPE_FETCH_CREDIT_CARD_INFO: return "FETCH_CREDIT_CARD_INFO";
+        case TYPE_MOVE_TO_DEBRIS: return "MOVE_TO_DEBRIS";
     }
     return "UNKNOWN";
 }
@@ -25595,6 +25624,7 @@ void MegaApiImpl::checkVpnCredential(const char* userPubKey, MegaRequestListener
     requestQueue.push(request);
     waiter->notify();
 }
+
 /* MegaApiImpl VPN commands END */
 
 void MegaApiImpl::fetchCreditCardInfo(MegaRequestListener* listener)

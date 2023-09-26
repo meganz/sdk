@@ -3107,6 +3107,8 @@ class MegaApiImpl : public MegaApp
         void getMegaSyncStallList(MegaRequestListener* listener);
         void clearStalledPath(MegaSyncStall*);
 
+        void moveToDebris(const char* path, MegaHandle syncBackupId, MegaRequestListener* listener = nullptr);
+
         AddressedStallFilter mAddressedStallFilter;
 
 #endif // ENABLE_SYNC

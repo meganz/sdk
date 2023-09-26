@@ -3683,6 +3683,11 @@ void MegaApi::clearStalledPath(MegaSyncStall* stall)
     pImpl->clearStalledPath(stall);
 }
 
+void MegaApi::moveToDebris(const char* path, MegaHandle syncBackupId, MegaRequestListener* listener)
+{
+    pImpl->moveToDebris(path, syncBackupId, listener);
+}
+
 MegaSync *MegaApi::getSyncByBackupId(MegaHandle backupId)
 {
     return pImpl->getSyncByBackupId(backupId);

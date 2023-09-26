@@ -4357,6 +4357,55 @@ error Syncs::syncConfigStoreAdd(const SyncConfig& config)
     return result;
 }
 
+void Syncs::moveToSyncDebrisByBackupID(const string& path, handle backupId, std::function<void (Error)> completion, std::function<void (Error)> completionInClient)
+{
+    auto moveToDebris = [this, path, backupId, completion, completionInClient]()
+    {
+        assert(onSyncThread());
+
+        lock_guard<mutex> g(mSyncVecMutex);
+        Sync* sync = nullptr;
+        error e = API_ENOENT;
+        for (auto& s : mSyncVec)
+        {
+            if (s->mSync && s->mConfig.mBackupId == backupId)
+            {
+                sync = s->mSync.get();
+            }
+        }
+
+        if (sync)
+        {
+            e = sync->movetolocaldebris(LocalPath::fromAbsolutePath(path)) ? API_OK : API_EINTERNAL;
+        }
+
+        if (completion)
+        {
+            completion(e);
+        }
+
+        if (completionInClient)
+        {
+            queueClient([completionInClient, e](MegaClient& , TransferDbCommitter&)
+            {
+                completionInClient(e);
+            });
+        }
+    };
+
+    if (onSyncThread())
+    {
+        moveToDebris();
+    }
+    else
+    {
+        queueSync([moveToDebris]()
+        {
+            moveToDebris();
+        }, "Move to node to derbis");
+    }
+}
+
 void Syncs::syncConfigStoreAdd_inThread(const SyncConfig& config, std::function<void(error)> completion)
 {
     assert(onSyncThread());
