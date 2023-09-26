@@ -483,6 +483,8 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Insufficient disk space.";
     case FAILURE_ACCESSING_PERSISTENT_STORAGE:
         return "Failure accessing to persistent storage";
+    case UNABLE_TO_RETRIEVE_DEVICE_ID:
+        return "Unable to retrieve the ID of current device";
     case MISMATCH_OF_ROOT_FSID:
         return "Mismatch on sync root FSID.";
     case FILESYSTEM_FILE_IDS_ARE_UNSTABLE:
@@ -4848,6 +4850,13 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
     context->mDeviceHash = mClient.getDeviceidHash();
     context->mSyncs = this;
 
+    if (context->mDeviceHash.empty())
+    {
+        LOG_err << "Failed to get Device ID while importing sync configs";
+        completion(API_EARGS);
+        return;
+    }
+
     LOG_debug << "Attempting to generate backup IDs for "
               << context->mConfigs.size()
               << " imported config(s)...";
@@ -9113,7 +9122,7 @@ bool Sync::resolve_downsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath
                 SyncWaitReason::DownloadIssue, false, true,
                 {row.cloudNode->handle, fullPath.cloudPath, PathProblem::CloudNodeInvalidFingerprint},
                 {},
-                {},
+                {parentRow.fsNode ? fullPath.localPath : LocalPath()},
                 {}));
 
             return false;

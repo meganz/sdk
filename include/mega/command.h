@@ -692,6 +692,8 @@ private:
 
 public:
     bool procresult(Result, JSON&) override;
+    // Apply the internal attr_map updates to the provided attrMap
+    void applyUpdatesTo(AttrMap& attrMap) const;
 
     CommandSetAttr(MegaClient*, std::shared_ptr<Node>, attr_map&& attrMapUpdates, Completion&& c, bool canChangeVault);
 };
@@ -1865,6 +1867,18 @@ private:
     Cb mCompletion;
 };
 /* MegaVPN Commands END*/
+
+typedef std::function<void(const Error&, const std::map<std::string, std::string>& creditCardInfo)> CommandFetchCreditCardCompletion;
+class MEGA_API CommandFetchCreditCard : public Command
+{
+public:
+    CommandFetchCreditCard(MegaClient* client, CommandFetchCreditCardCompletion completion);
+    bool procresult(Result r, JSON&json) override;
+
+private:
+    CommandFetchCreditCardCompletion mCompletion;
+};
+
 
 } // namespace
 

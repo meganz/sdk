@@ -519,6 +519,7 @@ enum SyncError {
     MISMATCH_OF_ROOT_FSID = 44,             // The sync root's FSID changed.  So this is a different folder.  And, we can't identify the old sync db as the name depends on this
     FILESYSTEM_FILE_IDS_ARE_UNSTABLE = 45,  // On MAC in particular, the FSID of a file in an exFAT drive can and does change spontaneously and frequently
     FILESYSTEM_ID_UNAVAILABLE = 46,         // If we can't get a filesystem's id
+    UNABLE_TO_RETRIEVE_DEVICE_ID = 47,      // Unable to retrieve the ID of current device
 };
 
 enum SyncWarning {
@@ -1216,8 +1217,19 @@ enum ExclusionState : unsigned char
 
 
 #ifdef ENABLE_CHAT
+
+class ScheduledFlags;
+class ScheduledMeeting;
+class ScheduledRules;
+class TextChat;
+
+using textchat_map = map<handle, TextChat*>;
+using textchat_vector = vector<TextChat*>;
+
 static constexpr int sfu_invalid_id = -1;
-#endif
+
+#endif // ENABLE_CHAT
+
 } // namespace mega
 
 #define MEGA_DISABLE_COPY(class_name) \

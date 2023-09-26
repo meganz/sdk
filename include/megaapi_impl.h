@@ -3129,7 +3129,7 @@ class MegaApiImpl : public MegaApp
         void resetTotalDownloads();
         void resetTotalUploads();
         void updateStats();
-        long long getNumNodes();
+        unsigned long long getNumNodes();
         long long getTotalDownloadedBytes();
         long long getTotalUploadedBytes();
         long long getTotalDownloadBytes();
@@ -3498,6 +3498,7 @@ class MegaApiImpl : public MegaApp
         /* MegaVpnCredentials end */
 
         void moveToDebris(const char* path, MegaHandle syncBackupId, MegaRequestListener* listener = nullptr);
+        void fetchCreditCardInfo(MegaRequestListener* listener = nullptr);
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
         void fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e); // deletes `transfer` !!
@@ -3943,6 +3944,9 @@ private:
 
         // notify about a finished timer
         void timer_result(error) override;
+
+        // notify credit card Expiry
+        void notify_creditCardExpiry() override;
 
         void sendPendingScRequest();
         void sendPendingRequests();
