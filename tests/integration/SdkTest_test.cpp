@@ -14699,8 +14699,8 @@ TEST_F(SdkTest, SdkTestMoveToSyncDebris)
     // Create local directories and a files.
     fs::create_directories(localPath);
     std::string fileName = "fileTest1";
-    string filePath = localPath.u8string() + "/" + fileName;
-    ASSERT_TRUE(createFile(filePath, false));
+    const auto filePath = localPath / fs::path(fileName);
+    ASSERT_TRUE(createFile(filePath.u8string(), false));
 
     LOG_verbose << "Creating the remote folders to be synced to.";
     std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
