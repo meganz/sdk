@@ -14728,7 +14728,7 @@ TEST_F(SdkTest, SdkTestMoveToSyncDebris)
     handle backupId = sync->getBackupId();
 
     // Move file to local sync debris folder
-    ASSERT_EQ(API_OK, syncMoveToDebris(0, filePath.c_str(), backupId));
+    ASSERT_EQ(API_OK, syncMoveToDebris(0, filePath.u8string().c_str(), backupId));
 
     check = false;
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(file->getHandle(), MegaNode::CHANGE_TYPE_PARENT, check);
