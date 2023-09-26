@@ -15805,6 +15805,25 @@ class MegaApi
          */
         void clearStalledPath(MegaSyncStall* originalStall);
 
+        /**
+         * @brief Move local path to sync debris folder
+         *
+         * The associated request type with this request is MegaRequest::TYPE_MOVE_TO_DEBRIS.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getText - Returns local path.
+         * - MegaRequest::getNodeHandle - Returns sync backup Id
+         *
+         *  On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EARGS - Invalid path or backup id
+         * - MegaError::API_ENOENT - There is no sync with this id
+         * - MegaError::API_EINTERNAL - failure moving to sync debris
+         *
+         * @param path local path
+         * @param syncBackupId handle to the sync
+         * @param listener MegaRequestListener to track this request
+         */
+        void moveToDebris(const char* path, MegaHandle syncBackupId, MegaRequestListener* listener = nullptr);
+
 #endif // ENABLE_SYNC
 
         /**
@@ -21463,25 +21482,6 @@ class MegaApi
          */
         void checkVpnCredential(const char* userPubKey, MegaRequestListener* listener = nullptr);
         /* MegaVpnCredentials END */
-
-        /**
-         * @brief Move local path to sync debris folder
-         *
-         * The associated request type with this request is MegaRequest::TYPE_MOVE_TO_DEBRIS.
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getText - Returns local path.
-         * - MegaRequest::getNodeHandle - Returns sync backup Id
-         *
-         *  On the onRequestFinish error, the error code associated to the MegaError can be:
-         * - MegaError::API_EARGS - Invalid path or backup id
-         * - MegaError::API_ENOENT - There is no sync with this id
-         * - MegaError::API_EINTERNAL - failure moving to sync debris
-         *
-         * @param path local path
-         * @param syncBackupId handle to the sync
-         * @param listener MegaRequestListener to track this request
-         */
-        void moveToDebris(const char* path, MegaHandle syncBackupId, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Fetch information about the registered credit card for the user

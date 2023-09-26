@@ -1536,6 +1536,33 @@ void MegaApiImpl::clearStalledPath(MegaSyncStall* stall)
     }
 }
 
+void MegaApiImpl::moveToDebris(const char* path, MegaHandle syncBackupId, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_MOVE_TO_DEBRIS, listener);
+
+    request->setText(path);
+    request->setNodeHandle(syncBackupId);
+    request->performRequest = [this, request]()
+    {
+        const char* path = request->getText();
+        handle syncBackupId = request->getNodeHandle();
+        if (!path || syncBackupId == UNDEF)
+        {
+            return API_EARGS;
+        }
+
+        client->syncs.moveToSyncDebrisByBackupID(path, syncBackupId, nullptr, [this, request](error e)
+                                                 {
+                                                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                                                 });
+
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 MegaSyncStallPrivate::MegaSyncStallPrivate(const SyncStallEntry& e)
 :info(e)
 {}
@@ -25597,33 +25624,6 @@ void MegaApiImpl::checkVpnCredential(const char* userPubKey, MegaRequestListener
 }
 
 /* MegaApiImpl VPN commands END */
-
-void MegaApiImpl::moveToDebris(const char* path, MegaHandle syncBackupId, MegaRequestListener* listener)
-{
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_MOVE_TO_DEBRIS, listener);
-
-    request->setText(path);
-    request->setNodeHandle(syncBackupId);
-    request->performRequest = [this, request]()
-    {
-        const char* path = request->getText();
-        handle syncBackupId = request->getNodeHandle();
-        if (!path || syncBackupId == UNDEF)
-        {
-            return API_EARGS;
-        }
-
-        client->syncs.moveToSyncDebrisByBackupID(path, syncBackupId, nullptr, [this, request](error e)
-        {
-            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-        });
-
-        return API_OK;
-    };
-
-    requestQueue.push(request);
-    waiter->notify();
-}
 
 void MegaApiImpl::fetchCreditCardInfo(MegaRequestListener* listener)
 {

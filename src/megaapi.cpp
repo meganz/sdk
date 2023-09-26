@@ -3683,6 +3683,11 @@ void MegaApi::clearStalledPath(MegaSyncStall* stall)
     pImpl->clearStalledPath(stall);
 }
 
+void MegaApi::moveToDebris(const char* path, MegaHandle syncBackupId, MegaRequestListener* listener)
+{
+    pImpl->moveToDebris(path, syncBackupId, listener);
+}
+
 MegaSync *MegaApi::getSyncByBackupId(MegaHandle backupId)
 {
     return pImpl->getSyncByBackupId(backupId);
@@ -5758,11 +5763,6 @@ void MegaApi::fetchCreditCardInfo(MegaRequestListener* listener)
 }
 
 /* END MEGAAPI */
-
-void MegaApi::moveToDebris(const char* path, MegaHandle syncBackupId, MegaRequestListener* listener)
-{
-    pImpl->moveToDebris(path, syncBackupId, listener);
-}
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)
 {

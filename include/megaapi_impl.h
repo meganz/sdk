@@ -3107,6 +3107,8 @@ class MegaApiImpl : public MegaApp
         void getMegaSyncStallList(MegaRequestListener* listener);
         void clearStalledPath(MegaSyncStall*);
 
+        void moveToDebris(const char* path, MegaHandle syncBackupId, MegaRequestListener* listener = nullptr);
+
         AddressedStallFilter mAddressedStallFilter;
 
 #endif // ENABLE_SYNC
@@ -3497,7 +3499,6 @@ class MegaApiImpl : public MegaApp
         void checkVpnCredential(const char* userPubKey, MegaRequestListener* listener = nullptr);
         /* MegaVpnCredentials end */
 
-        void moveToDebris(const char* path, MegaHandle syncBackupId, MegaRequestListener* listener = nullptr);
         void fetchCreditCardInfo(MegaRequestListener* listener = nullptr);
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
