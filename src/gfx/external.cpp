@@ -64,22 +64,22 @@ bool GfxProviderExternal::readbitmap(FileSystemAccess* /*fa*/, const LocalPath& 
 {
     if(!processor) return false;
 
-	bool result = processor->readBitmap(localname.platformEncoded().c_str());
-	if(!result) return false;
+    bool result = processor->readBitmap(localname.platformEncoded().c_str());
+    if(!result) return false;
 
-	w = processor->getWidth();
+    w = processor->getWidth();
     if(w <= 0)
     {
         return false;
     }
 
-	h = processor->getHeight();
+    h = processor->getHeight();
     if(h <= 0)
     {
         return false;
     }
 
-	return true;
+    return true;
 }
 
 bool GfxProviderExternal::resizebitmap(int rw, int rh, string* jpegout)
@@ -99,7 +99,7 @@ bool GfxProviderExternal::resizebitmap(int rw, int rh, string* jpegout)
 
 void GfxProviderExternal::freebitmap()
 {
-	processor->freeBitmap();
+    processor->freeBitmap();
 }
 
 const char *GfxProviderExternal::supportedformats()

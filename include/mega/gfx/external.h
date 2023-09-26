@@ -30,7 +30,7 @@
 namespace mega {
 
 // bitmap graphics processor
-class GfxProviderExternal : public IGfxProvider
+class GfxProviderExternal : public IGfxLocalProvider
 {
     MegaGfxProcessor *processor;
 

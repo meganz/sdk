@@ -26,7 +26,7 @@
 #include "mega.h"
 
 // bitmap graphics processor
-class MEGA_API GfxProviderCG : public mega::IGfxProvider
+class MEGA_API GfxProviderCG : public mega::IGfxLocalProvider
 {
     dispatch_semaphore_t semaphore;
     CFURLRef sourceURL;

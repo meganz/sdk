@@ -25,13 +25,15 @@
 
 namespace mega {
 
+using Dimension = IGfxProvider::Dimension;
+
 // from low resolution to high resolution. gendimensionsputfa relies on this order.
-const std::vector<GfxProc::Dimension> GfxProc::DIMENSIONS = {
+const std::vector<Dimension> GfxProc::DIMENSIONS = {
     { 200, 0 },     // THUMBNAIL: square thumbnail, cropped from near center
     { 1000, 1000 }  // PREVIEW: scaled version inside 1000x1000 bounding square
 };
 
-const std::vector<GfxProc::Dimension> GfxProc::DIMENSIONS_AVATAR = {
+const std::vector<Dimension> GfxProc::DIMENSIONS_AVATAR = {
     { 250, 0 }      // AVATAR250X250: square thumbnail, cropped from near center
 };
 
@@ -108,7 +110,7 @@ void *GfxProc::threadEntryPoint(void *param)
     return NULL;
 }
 
-std::vector<GfxProc::Dimension> GfxProc::getJobDimensions(GfxJob *job)
+std::vector<Dimension> GfxProc::getJobDimensions(GfxJob *job)
 {
     std::vector<Dimension> jobDimensions;
     for (auto i : job->imagetypes) 
@@ -224,11 +226,43 @@ int GfxProc::checkevents(Waiter *)
     return needexec ? Waiter::NEEDEXEC : 0;
 }
 
-IGfxProvider::~IGfxProvider()
+std::vector<std::string> IGfxLocalProvider::generateImages(FileSystemAccess* fa,
+                                                           const LocalPath& localfilepath,
+                                                           const std::vector<Dimension>& dimensions)
 {
+    std::vector<std::string> images(dimensions.size());
+
+    int maxDimension = std::accumulate(
+        dimensions.begin(),
+        dimensions.end(),
+        0,
+        [](int max, const Dimension& d) { return std::max(max, std::max(d.width, d.height)); });
+
+    if (readbitmap(fa, localfilepath, maxDimension))
+    {
+        for (unsigned int i = 0; i < dimensions.size(); ++i)
+        {
+            string jpeg;
+            int targetWidth = dimensions[i].width, targetHeight = dimensions[i].height;
+            if (width() < targetWidth && height() < targetHeight)
+            {
+                LOG_debug << "Skipping upsizing of local preview";
+                targetWidth = width();
+                targetHeight = height();
+            }
+
+            if (resizebitmap(targetWidth, targetHeight, &jpeg))
+            {
+                images[i] = std::move(jpeg);
+            }
+        }
+        freebitmap();
+    }
+
+    return images;
 }
 
-void IGfxProvider::transform(int& w, int& h, int& rw, int& rh, int& px, int& py)
+void IGfxLocalProvider::transform(int& w, int& h, int& rw, int& rh, int& px, int& py)
 {
     if (rh)
     {
@@ -302,50 +336,17 @@ int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, const LocalPath& localfilena
     return generatingAttrs;
 }
 
-std::vector<std::string> GfxProc::generateImagesHelper(const LocalPath& localfilepath, const std::vector<Dimension>& dimensions)
-{
-    std::vector<std::string> images(dimensions.size());
-
-    int maxDimension = std::accumulate(
-        dimensions.begin(),
-        dimensions.end(),
-        0, 
-        [](int max, const Dimension& d) { return std::max(max, std::max(d.width, d.height)); });
-
-    if (mGfxProvider->readbitmap(client->fsaccess.get(), localfilepath, maxDimension))
-    {
-        for (unsigned int i = 0; i < dimensions.size(); ++i)
-        {
-            string jpeg;
-            int width = dimensions[i].width, height = dimensions[i].height;
-            if (mGfxProvider->width() < width && mGfxProvider->height() < height)
-            {
-                LOG_debug << "Skipping upsizing of local preview";
-                width = mGfxProvider->width();
-                height = mGfxProvider->height();
-            }
-
-            if (mGfxProvider->resizebitmap(width, height, &jpeg))
-            {
-                images[i] = std::move(jpeg);
-            }
-        }
-        mGfxProvider->freebitmap();
-    }
-
-    return images;
-}
-
 std::vector<std::string> GfxProc::generateImages(const LocalPath& localfilepath, const std::vector<Dimension>& dimensions)
 {
     std::lock_guard<std::mutex> g(mutex);
-    return generateImagesHelper(localfilepath, dimensions);
+    return mGfxProvider->generateImages(client->fsaccess.get(), localfilepath, dimensions);
 }
 
 std::string GfxProc::generateOneImage(const LocalPath& localfilepath, const Dimension& dimension)
 {
     std::lock_guard<std::mutex> g(mutex);
-    return generateImagesHelper(localfilepath, std::vector<Dimension>{ dimension })[0];
+    auto images = mGfxProvider->generateImages(client->fsaccess.get(), localfilepath, std::vector<Dimension>{ dimension });
+    return images[0];
 }
 
 bool GfxProc::savefa(const LocalPath& localfilepath, const Dimension& dimension, LocalPath& localdstpath)
