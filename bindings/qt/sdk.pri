@@ -243,7 +243,7 @@ CONFIG(USE_MEDIAINFO) {
 CONFIG(USE_LIBRAW) {
     DEFINES += HAVE_LIBRAW
 
-    vcpkg:LIBS += -lraw_r -ljasper$$DEBUG_SUFFIX
+    vcpkg:LIBS += -lraw_r$$DEBUG_SUFFIX_WO -ljasper$$DEBUG_SUFFIX
     vcpkg:win32:LIBS += -ljpeg
     vcpkg:!win32:LIBS += -ljpeg
     vcpkg:unix:!macx:LIBS += -lgomp
@@ -539,17 +539,17 @@ else {
     SOURCES += src/gfx/freeimage.cpp
 
     vcpkg {
-        win32:LIBS += -llibpng16$$DEBUG_SUFFIX -llibwebpmux$$DEBUG_SUFFIX
-        else {
-            LIBS += -lpng16$$DEBUG_SUFFIX -lwebpmux
+        LIBS += -lfreeimage$$DEBUG_SUFFIX_WO -llibpng16$$DEBUG_SUFFIX -ljxrglue$$DEBUG_SUFFIX \
+            -ljpeg -ltiff$$DEBUG_SUFFIX \
+            -lIex-3_1$$UNDERSCORE_DEBUG_SUFFIX -lIlmThread-3_1$$UNDERSCORE_DEBUG_SUFFIX \
+            -lImath-3_1$$UNDERSCORE_DEBUG_SUFFIX -lOpenEXR-3_1$$UNDERSCORE_DEBUG_SUFFIX
+        win32 {
+            LIBS += -llibwebpmux -llibwebpdecoder -llibwebpdemux -llibwebp -llibwebpmux -llibsharpyuv
         }
-
-        LIBS += -lfreeimage -ljxrglue$$DEBUG_SUFFIX -ljpeg -ltiff$$DEBUG_SUFFIX \
-        -lIex-3_1$$UNDERSCORE_DEBUG_SUFFIX -lIlmThread-3_1$$UNDERSCORE_DEBUG_SUFFIX \
-        -lImath-3_1$$UNDERSCORE_DEBUG_SUFFIX -lOpenEXR-3_1$$UNDERSCORE_DEBUG_SUFFIX \
-        -lwebpdecoder -lwebpdemux -lwebp -lwebpmux -lsharpyuv \
-        -ljpegxr$$DEBUG_SUFFIX  \
-        -llzma -ljasper$$DEBUG_SUFFIX -lraw_r -lopenjp2 -llcms2
+        else {
+            LIBS += -lwebpmux -lwebpdecoder -lwebpdemux -lwebp -lwebpmux -lsharpyuv
+        }
+        LIBS += -ljpegxr$$DEBUG_SUFFIX -llzma -ljasper$$DEBUG_SUFFIX -lraw_r$$DEBUG_SUFFIX_WO -lopenjp2 -llcms2
     }
     else {
         macx{
@@ -835,4 +835,6 @@ unix {
     for(incpath, INCLUDEPATH_EXTERNAL) {
         QMAKE_CXXFLAGS += -isystem "$$incpath"
     }
+} else {
+    INCLUDEPATH += $$INCLUDEPATH_EXTERNAL
 }
