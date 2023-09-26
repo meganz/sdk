@@ -1059,6 +1059,11 @@ struct Syncs
     // That is, they are added directly to the JSON DB on disk.
     error syncConfigStoreAdd(const SyncConfig& config);
 
+    // Move path to .debris folder associated to the backupId
+    // Note: This method is thread safe.
+    // completion is executed in sync thread, completionInClient is executed in client thread
+    void moveToSyncDebrisByBackupID(const string& path, handle backupId, std::function<void(Error)> completion, std::function<void (Error)> completionInClient);
+
 private:  // anything to do with loading/saving/storing configs etc is done on the sync thread
 
     // Returns a reference to this user's internal configuration database.

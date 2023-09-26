@@ -25603,21 +25603,10 @@ void MegaApiImpl::moveToDebris(const char* path, MegaHandle syncBackupId, MegaRe
             return API_EARGS;
         }
 
-        client->syncs.queueSync([this, request, path, syncBackupId]()
+        client->syncs.moveToSyncDebrisByBackupID(path, syncBackupId, nullptr, [this, request](error e)
         {
-            error e = API_ENOENT;
-            Sync* sync = client->syncs.syncByBackupId(syncBackupId);
-            if (sync)
-            {
-                e = sync->movetolocaldebris(LocalPath::fromAbsolutePath(path)) ? API_OK : API_EINTERNAL;
-            }
-
-            client->syncs.queueClient([this, request, e](MegaClient& , TransferDbCommitter&)
-            {
-                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-            });
-
-        }, "Move to node to derbis");
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+        });
 
         return API_OK;
     };
