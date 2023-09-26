@@ -205,6 +205,60 @@ public:
 private:
     MegaClient& mClient;
 
+    class CheckableMutex
+    {
+        // How many times has a given thread acquired this mutex?
+        std::uint32_t mCount = 0;
+
+        // Serializes access to mCount and mOwner.
+        mutable Spinlock mLock;
+
+        // The actual mutex providing mutual exclusion.
+        std::recursive_mutex mMutex;
+
+        // What thread currently owns this mutex?
+        std::thread::id mOwner;
+
+    public:
+        // Acquire exclusive ownership of this mutex.
+        void lock()
+        {
+            // Acquire the mutex.
+            mMutex.lock();
+
+            // Update owenrship details.
+            std::lock_guard<Spinlock> guard(mLock);
+
+            mCount = mCount + 1;
+            mOwner = std::this_thread::get_id();
+        }
+
+        // Check if the calling thread currently owns this mutex.
+        bool locked() const
+        {
+            std::lock_guard<Spinlock> guard(mLock);
+
+            return mCount && mOwner == std::this_thread::get_id();
+        }
+
+        // Release exclusive ownership of this mutex.
+        void unlock()
+        {
+            std::lock_guard<Spinlock> guard(mLock);
+
+            // Make sure the calling thread actually owns this mutex.
+            assert(mCount);
+            assert(mOwner == std::this_thread::get_id());
+
+            // Release the mutex.
+            mMutex.unlock();
+
+            // Clear ownership details if necessary.
+            if (!--mCount)
+                mOwner = std::thread::id();
+        }
+    }; // CheckableMutex
+
     // NodeManager needs to be thread safe so that it can be accessed
     // from the sync thread, and even directly by impl functions on
     // behalf of the app, without locking sdkMutex (in future)
