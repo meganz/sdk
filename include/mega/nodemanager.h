@@ -19,6 +19,7 @@
  * program.
  */
 
+#include <thread>
 #ifndef NODEMANAGER_H
 #define NODEMANAGER_H 1
 
@@ -237,6 +238,9 @@ private:
         // Acquire exclusive ownership of this mutex.
         void lock()
         {
+            // Determine thread ID here to reduce spinlock time.
+            auto id = std::this_thread::get_id();
+
             // Acquire the mutex.
             mMutex.lock();
 
@@ -244,25 +248,31 @@ private:
             std::lock_guard<Spinlock> guard(mLock);
 
             mCount = mCount + 1;
-            mOwner = std::this_thread::get_id();
+            mOwner = id;
         }
 
         // Check if the calling thread currently owns this mutex.
         bool locked() const
         {
+            // Determine thread ID here to reduce spinlock time.
+            auto id = std::this_thread::get_id();
+
             std::lock_guard<Spinlock> guard(mLock);
 
-            return mCount && mOwner == std::this_thread::get_id();
+            return mCount && mOwner == id;
         }
 
         // Release exclusive ownership of this mutex.
         void unlock()
         {
+            // Determine thread ID here to reduce spinlock time.
+            auto id = std::this_thread::get_id();
+
             std::lock_guard<Spinlock> guard(mLock);
 
             // Make sure the calling thread actually owns this mutex.
             assert(mCount);
-            assert(mOwner == std::this_thread::get_id());
+            assert(mOwner == id);
 
             // Release the mutex.
             mMutex.unlock();
@@ -270,6 +280,9 @@ private:
             // Clear ownership details if necessary.
             if (!--mCount)
                 mOwner = std::thread::id();
+
+            // Silence compiler.
+            static_cast<void>(id);
         }
     }; // CheckableMutex
 
