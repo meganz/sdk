@@ -1253,10 +1253,24 @@ fsfp_t WinFileSystemAccess::fsFingerprint(const LocalPath& path) const
 bool WinFileSystemAccess::fsStableIDs(const LocalPath& path) const
 {
     TCHAR volume[MAX_PATH + 1];
-    if (GetVolumePathNameW(path.localpath.data(), volume, MAX_PATH + 1))
+    if (GetVolumePathNameW(path.localpath.c_str(), volume, MAX_PATH + 1))
     {
         TCHAR fs[MAX_PATH + 1] = { 0, };
-        if (GetVolumeInformation(volume, NULL, 0, NULL, NULL, NULL, fs, MAX_PATH + 1))
+        BOOL gotVolInfo = GetVolumeInformation(volume, NULL, 0, NULL, NULL, NULL, fs, MAX_PATH + 1);
+        if (!gotVolInfo)
+        {
+            // Maybe it's a subst drive (created using something like "subst a: c:\Source" DOS command).
+            // In such cases, the volume path might include additional characters after ":\\", e.g. "C:\\SomeFolder".
+            // To resolve that, we truncate the volume path to end after ":\\" and retry.
+            wchar_t* volSep = wcsstr(volume, L":\\");
+            if (volSep && *(volSep + 2))
+            {
+                *(volSep + 2) = L'\0'; // Truncate the volume path
+                gotVolInfo = GetVolumeInformation(volume, NULL, 0, NULL, NULL, NULL, fs, MAX_PATH + 1);
+            }
+        }
+
+        if (gotVolInfo)
         {
             LOG_info << "Filesystem type: " << LocalPath::fromPlatformEncodedRelative(std::wstring(fs));
             return _wcsicmp(fs, L"FAT")
@@ -1264,7 +1278,7 @@ bool WinFileSystemAccess::fsStableIDs(const LocalPath& path) const
                 && _wcsicmp(fs, L"exFAT");
         }
     }
-    LOG_err << "Failed to get filesystem type. Error code: " << GetLastError();
+    LOG_err << "Failed to get filesystem type for path: '" << path << "'. Error code: " << GetLastError();
     assert(false);
     return true;
 }
