@@ -1259,12 +1259,13 @@ bool WinFileSystemAccess::fsStableIDs(const LocalPath& path) const
         BOOL gotVolInfo = GetVolumeInformation(volume, NULL, 0, NULL, NULL, NULL, fs, MAX_PATH + 1);
         if (!gotVolInfo)
         {
-            // maybe it's a subst drive (see "subst a: c:\Source" DOS command), in which case let's try to work around it
+            // Maybe it's a subst drive (created using something like "subst a: c:\Source" DOS command).
+            // In such cases, the volume path might include additional characters after ":\\", e.g. "C:\\SomeFolder".
+            // To resolve that, we truncate the volume path to end after ":\\" and retry.
             wchar_t* volSep = wcsstr(volume, L":\\");
             if (volSep && *(volSep + 2))
             {
-                // volume did not end after ":\\" so let's end it there and try again
-                *(volSep + 2) = '\0';
+                *(volSep + 2) = L'\0'; // Truncate the volume path
                 gotVolInfo = GetVolumeInformation(volume, NULL, 0, NULL, NULL, NULL, fs, MAX_PATH + 1);
             }
         }
@@ -1277,7 +1278,7 @@ bool WinFileSystemAccess::fsStableIDs(const LocalPath& path) const
                 && _wcsicmp(fs, L"exFAT");
         }
     }
-    LOG_err << "Failed to get filesystem type. Error code: " << GetLastError();
+    LOG_err << "Failed to get filesystem type for path: '" << path << "'. Error code: " << GetLastError();
     assert(false);
     return true;
 }
