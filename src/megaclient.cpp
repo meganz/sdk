@@ -20951,16 +20951,19 @@ void MegaClient::fixSetElementWithWrongKey(const Set& s)
     vector<handle> taintedEls;
     const auto hasWrongKey = [](const SetElement& el)
     {
+        // Elements created by Webclient prior to a certain ts had invalid keys.
+        // Some had keys of wrong size, others had keys of correct size but still invalid.
+        // A criteria deemed good enough to spot the latter was to check for ts prior to a known value
+        // and having no name - Webclient would create Elements without 'name' attribute being set.
         return el.key().size() != static_cast<size_t>(FILENODEKEYLENGTH) ||
-               (el.ts() <= 1695340800 && !el.hasAttrs()); // prior to a certain ts, keys set by Webclient were invalid
+               (el.ts() <= 1695340800 && !el.hasAttrs());
     };
     for (auto& p : *els) // candidate to paral in >C++17 via algorithms
     {
         const SetElement& e = p.second;
         if (hasWrongKey(e))
         {
-            LOG_warn << "Sets: SetElement " << toHandle(e.id()) << " from Set " << toHandle(s.id())
-                     << " contains invalid key of " << s.key().size() << " Bytes";
+            LOG_warn << "Sets: SetElement " << toHandle(e.id()) << " from Set " << toHandle(s.id()) << " has invalid key";
             taintedEls.push_back(e.id());
             newEls.emplace_back(e);
         }
