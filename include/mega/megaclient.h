@@ -2628,6 +2628,7 @@ public:
 /* Mega VPN methods END */
 
     void fetchCreditCardInfo(CommandFetchCreditCardCompletion completion);
+    void setProFlexi(bool newProFlexi);
 };
 
 } // namespace

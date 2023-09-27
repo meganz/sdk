@@ -10279,9 +10279,9 @@ error MegaClient::readmiscflags(JSON *json)
         case MAKENAMEID4('c', 's', 'p', 'e'):   // cookie banner enabled
             mCookieBannerEnabled = bool(json->getint());
             break;
-        case MAKENAMEID2('p', 'f'): // pro flexi plan
-            mProFlexi = bool(json->getint());
-            break;
+//        case MAKENAMEID2('p', 'f'): // is this account able to subscribe a pro flexi plan?
+//            json->getint();
+//            break;
         case MAKENAMEID3('j', 'i', 'd'):   // JourneyID value (16-char hex value)
             {
                 string jid;
@@ -21721,6 +21721,11 @@ void MegaClient::clearsetelementnotify(handle sid)
             setelementnotify.erase(setelementnotify.begin() + i - 1);
         }
     }
+}
+
+void MegaClient::setProFlexi(bool newProFlexi)
+{
+    mProFlexi = newProFlexi;
 }
 
 Error MegaClient::sendABTestActive(const char* flag, CommandABTestActive::Completion completion)
