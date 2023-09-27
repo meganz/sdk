@@ -20956,7 +20956,7 @@ void MegaClient::fixSetElementWithWrongKey(const Set& s)
         // A criteria deemed good enough to spot the latter was to check for ts prior to a known value
         // and having no name - Webclient would create Elements without 'name' attribute being set.
         return el.key().size() != static_cast<size_t>(FILENODEKEYLENGTH) ||
-               (el.ts() <= 1695340800 && !el.hasAttrs());
+               (el.ts() <= 1695340800 && el.name().empty());
     };
     for (auto& p : *els) // candidate to paral in >C++17 via algorithms
     {
