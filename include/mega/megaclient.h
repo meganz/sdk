@@ -2621,6 +2621,7 @@ public:
 
 /* Mega VPN methods END */
 
+    void setProFlexi(bool newProFlexi);
 };
 
 } // namespace
