@@ -40,8 +40,6 @@ public:
     int h() const { return mHeight; }
     void setW(const int width) { mWidth = width; }
     void setH(const int height) { mHeight = height; }
-    std::string toString() const { return std::to_string(mWidth) + "x" + std::to_string(mHeight); }
-    static GfxSize fromString(const std::string& sizeStr);
 };
 
 enum class GfxSerializeVersion

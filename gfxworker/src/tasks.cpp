@@ -22,45 +22,4 @@
 
 namespace gfx {
 
-GfxSize GfxSize::fromString(const std::string &sizeStr)
-{
-    GfxSize size;
-    auto xPos = sizeStr.find("x");
-    if (xPos == std::string::npos || xPos == sizeStr.size() - 1)
-    {
-        return size;
-    }
-    std::string widthStr = sizeStr.substr(0, xPos);
-    try
-    {
-        size.mWidth = std::stoi(widthStr);
-    }
-    catch(std::invalid_argument const& ex)
-    {
-        LOG_err << "Failed to parse size width, invalid argument: " << ex.what();
-        return size;
-    }
-    catch(std::out_of_range const& ex)
-    {
-        LOG_err << "Failed to parse size width, out of range: " << ex.what();
-        return size;
-    }
-    std::string heightStr = sizeStr.substr(xPos + 1);
-    try
-    {
-        size.mHeight = std::stoi(heightStr);
-    }
-    catch(std::invalid_argument const& ex)
-    {
-        LOG_err << "Failed to parse size height, invalid argument: " << ex.what();
-        return size;
-    }
-    catch(std::out_of_range const& ex)
-    {
-        LOG_err << "Failed to parse size height, out of range: " << ex.what();
-        return size;
-    }
-    return size;
-}
-
 }
