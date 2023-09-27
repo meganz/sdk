@@ -1329,7 +1329,7 @@ public:
     {
         auto id = std::this_thread::get_id();
 
-        assert(mOwner == id);
+        assert(mOwner != id);
 
         mMutex.lock();
         mOwner = id;
