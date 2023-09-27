@@ -20,7 +20,6 @@
  */
 
 #import <Foundation/Foundation.h>
-#import <AssetsLibrary/AssetsLibrary.h>
 
 #import "MEGAAccountDetails.h"
 #import "MEGAAchievementsDetails.h"
