@@ -4260,6 +4260,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             break;
 
         case MAKENAMEID2('p', 'f'):  // Pro Flexi plan (similar to business)
+            client->setProFlexi(true);
             [[fallthrough]];
         case 'b':   // business account's info
             assert(!b);
