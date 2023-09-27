@@ -824,8 +824,15 @@ freeimage_pkg() {
     #Fix issue with powf64 redefined in mathcalls.h in glibc 2.27
     find $freeimage_dir_extract/FreeImage/ -type f -print0 | xargs -0 sed -i "s#powf64#powf64freeimage#g"
 
-    #patch to fix problem with raw strings
-    find $freeimage_dir_extract/FreeImage/Source/LibWebP -type f -exec sed -i -e 's/"#\([A-X]\)"/" #\1 "/g' {} \;
+    # Remove libewbp support in FreeImage
+    rm -r $freeimage_dir_extract/FreeImage/Source/LibWebP
+    rm -r $freeimage_dir_extract/FreeImage/Source/FreeImage/PluginWebP.cpp
+    pushd $freeimage_dir_extract/FreeImage
+    sh gensrclist.sh
+    popd
+    sed -i "s#./Source/FreeImage/PluginWebP.cpp##" $freeimage_dir_extract/FreeImage/Makefile.srcs
+    sed -i -e '141d' $freeimage_dir_extract/FreeImage/Source/Plugin.h
+    sed -i -e '274d' $freeimage_dir_extract/FreeImage/Source/FreeImage/Plugin.cpp
 
     sed -i "s#CFLAGS ?=#CFLAGS +=#g" $freeimage_dir_extract/FreeImage/Makefile.gnu
     #patch to fix problem with newest compilers
