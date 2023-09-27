@@ -1329,20 +1329,15 @@ public:
     {
         auto id = std::this_thread::get_id();
 
-        assert(!locked(id));
+        assert(mOwner == id);
 
         mMutex.lock();
         mOwner = id;
     }
 
-    bool locked(const std::thread::id& id) const
-    {
-        return mOwner == id;
-    }
-
     bool locked() const
     {
-        return locked(std::this_thread::get_id());
+        return mOwner == std::this_thread::get_id();
     }
 
     bool try_lock()
@@ -1357,10 +1352,14 @@ public:
 
     void unlock()
     {
-        assert(locked());
+        auto id = std::this_thread::get_id();
+
+        assert(mOwner == id);
 
         mOwner = std::thread::id();
         mMutex.unlock();
+
+        static_cast<void>(id);
     }
 }; // CheckableMutex<T, false>
 
@@ -1397,16 +1396,13 @@ public:
         mOwner = id;
     }
 
-    bool locked(const std::thread::id& id) const
+    bool locked() const
     {
+        auto id = std::this_thread::get_id();
+
         std::lock_guard<Spinlock> guard(mLock);
 
         return mOwner == id && mCount > 0;
-    }
-
-    bool locked() const
-    {
-        return locked(std::this_thread::get_id());
     }
 
     bool try_lock()
