@@ -401,6 +401,12 @@ NS_ASSUME_NONNULL_BEGIN
  */
 @property (readonly, nonatomic) uint64_t lastSync;
 
+/**
+ * @brief Returns the user-agent associated with the device where the backup originated.
+ *
+ */
+@property (readonly, nonatomic, nullable) NSString *userAgent;
+
 @end
 
 NS_ASSUME_NONNULL_END

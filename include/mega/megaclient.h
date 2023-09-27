@@ -748,7 +748,7 @@ public:
     void removeOutSharesFromSubtree(Node* n, int tag);
 
     // start/stop/pause file transfer
-    bool startxfer(direction_t, File*, TransferDbCommitter&, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption, error* cause, int tag);
+    bool startxfer(direction_t, File*, TransferDbCommitter&, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption, error* cause, int tag, m_off_t availableDiskSpace = 0);
     void stopxfer(File* f, TransferDbCommitter* committer);
     void pausexfers(direction_t, bool pause, bool hard, TransferDbCommitter& committer);
 
@@ -945,6 +945,11 @@ public:
     typedef std::function<void(std::function<void()> continuation)> UndoFunction;
     void preparebackup(SyncConfig, std::function<void(Error, SyncConfig, UndoFunction revertOnError)>);
 
+    /**
+     * @brief Used to migrate all the sync's management data from MEGAsync to the SDK
+     *
+     * @deprecated This function is deprecated. Please don't use it in new code.
+     */
     void copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion);
 
     /**
@@ -1478,6 +1483,7 @@ public:
     void sc_ub();
     void sc_sqac();
     void sc_pk();
+    void sc_cce();
 
     void init();
 
@@ -1750,7 +1756,7 @@ public:
     static dstime USER_DATA_EXPIRATION_BACKOFF_SECS;
 
     // total number of Node objects
-    long long totalNodes;
+    std::atomic_ullong totalNodes;
 
     // tracks how many nodes have had a successful applykey()
     long long mAppliedKeyNodeCount = 0;
@@ -2621,6 +2627,7 @@ public:
 
 /* Mega VPN methods END */
 
+    void fetchCreditCardInfo(CommandFetchCreditCardCompletion completion);
     void setProFlexi(bool newProFlexi);
 };
 

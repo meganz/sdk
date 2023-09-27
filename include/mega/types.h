@@ -1202,8 +1202,19 @@ public:
 typedef std::map<NodeHandle, Node*> nodePtr_map;
 
 #ifdef ENABLE_CHAT
+
+class ScheduledFlags;
+class ScheduledMeeting;
+class ScheduledRules;
+class TextChat;
+
+using textchat_map = map<handle, TextChat*>;
+using textchat_vector = vector<TextChat*>;
+
 static constexpr int sfu_invalid_id = -1;
-#endif
+
+#endif // ENABLE_CHAT
+
 } // namespace mega
 
 #define MEGA_DISABLE_COPY(class_name) \
@@ -1241,5 +1252,44 @@ struct StringKeyPair
     : privKey(std::move(privKey)), pubKey(std::move(pubKey))
     {}
 };
+
+// A simple busy-wait lock for lightweight mutual exclusion.
+class Spinlock
+{
+    // Is the spinlock currently locked?
+    std::atomic_flag mLocked;
+
+public:
+    Spinlock()
+      : mLocked()
+    {
+        // Necessary until C++20.
+        mLocked.clear();
+    }
+
+    Spinlock(const Spinlock& other) = delete;
+
+    Spinlock& operator=(const Spinlock& rhs) = delete;
+
+    // Acquire exclusive ownership of this lock.
+    void lock()
+    {
+        // Poll until the loop is acquired.
+        while (!try_lock())
+            ;
+    }
+
+    // Try and acquire exclusive ownership of this lock.
+    bool try_lock()
+    {
+        return !mLocked.test_and_set();
+    }
+
+    // Release exclusive ownership of this lock.
+    void unlock()
+    {
+        mLocked.clear();
+    }
+}; // Spinlock
 
 #endif
