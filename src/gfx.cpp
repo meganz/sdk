@@ -258,6 +258,10 @@ std::vector<std::string> IGfxLocalProvider::generateImages(FileSystemAccess* fa,
         }
         freebitmap();
     }
+    else
+    {
+        LOG_err << "Error reading bitmap for " << localfilepath;
+    }
 
     return images;
 }

@@ -23,6 +23,11 @@
 #include "gfxworker/commands.h"
 #include "gfxworker/utils.h"
 #include "gfxworker/threadpool.h"
+#include "mega/gfx.h"
+
+#include <iterator>
+#include <numeric>
+#include <algorithm>
 
 using gfx::comms::CommandType;
 using gfx::comms::ProtocolReader;
@@ -33,82 +38,51 @@ using gfx::comms::CommandShutDown;
 using gfx::comms::CommandShutDownResponse;
 using gfx::ThreadPool;
 using mega::LocalPath;
-
+using Dimension = mega::IGfxProvider::Dimension;
 namespace gfx {
 namespace server {
 
 GfxTaskResult GfxProcessor::process(const GfxTask& task)
 {
-    struct GfxTaskDataRef
-    {
-        GfxTaskDataRef(std::string& imageRef, const GfxSize& sizeRef)
-            : mImgRef(&imageRef), mSizeRef(&sizeRef) {}
-        std::string* mImgRef;
-        const GfxSize* mSizeRef;
-    };
+    std::vector<std::string> outputImages(task.Sizes.size());
 
-    GfxTaskProcessStatus status = GfxTaskProcessStatus::SUCCESS;
-
-    const std::vector<GfxSize>& sizes = task.Sizes;
-    using sizes_t = decltype(sizes.size());
-    const sizes_t numSizes = sizes.size();
-    std::vector<std::string> outputImages;
-    outputImages.resize(numSizes);
-    if (numSizes == 0)
+    if (task.Sizes.empty())
     {
         LOG_err << "Received empty sizes for " << task.Path;
         return GfxTaskResult(std::move(outputImages), GfxTaskProcessStatus::ERR);
     }
 
-    // order from largest to smallest width
-    std::vector<GfxTaskDataRef> orderedTaskData;
-    orderedTaskData.reserve(numSizes);
-    for (sizes_t i = 0; i < numSizes; i++)
+    // descending sort Sizes index for its width
+    using SizeType = decltype(task.Sizes.size());
+    auto& Sizes = task.Sizes;
+    std::vector<SizeType> indices(task.Sizes.size());
+    std::iota(std::begin(indices), std::end(indices), 0);
+    std::sort(std::begin(indices),
+              std::end(indices),
+              [&Sizes](SizeType i1, SizeType i2)
+              { 
+                  return Sizes[i1].w() > Sizes[i2].w();
+              });
+
+    // new Dimensions based on sorted indices
+    std::vector<Dimension> dimensions;
+    std::transform(std::begin(indices),
+                   std::end(indices),
+                   std::back_insert_iterator<std::vector<Dimension>>(dimensions),
+                   [&Sizes](SizeType i){ return Dimension{ Sizes[i].w(), Sizes[i].h()}; });
+
+    // generate thumbnails
+    auto images = mGfxProvider->generateImages(&mFaccess, 
+                                               LocalPath::fromPlatformEncodedAbsolute(task.Path),
+                                               dimensions);
+
+    // assign back to original order
+    for (int i = 0; i < images.size(); ++i)
     {
-        const GfxSize& size = sizes[i];
-        // note height can be zero
-        if (size.w() <= 0 || size.h() < 0)
-        {
-            LOG_err << "Received zero or negative sizes for " << task.Path;
-            return GfxTaskResult(std::move(outputImages), GfxTaskProcessStatus::ERR);
-        }
-        orderedTaskData.emplace_back(outputImages[i], size);
+        outputImages[indices[i]] = std::move(images[i]);
     }
 
-    std::sort(orderedTaskData.begin(), orderedTaskData.end(),
-        [](const GfxTaskDataRef& td1, const GfxTaskDataRef& td2)
-        {
-            return td1.mSizeRef->w() > td2.mSizeRef->w();
-        });
-
-    LocalPath localPath = LocalPath::fromPlatformEncodedAbsolute(task.Path);
-
-    if (mGfxProvider->readbitmap(&mFaccess, localPath, orderedTaskData[0].mSizeRef->w()))
-    {
-        for (sizes_t i = 0; i < numSizes; i++)
-        {
-            int w = orderedTaskData[i].mSizeRef->w();
-            int h = orderedTaskData[i].mSizeRef->h();
-            if (mGfxProvider->width() < w && mGfxProvider->height() < h)
-            {
-                LOG_debug << "Skipping upsizing of preview or thumbnail for " << localPath;
-                w = mGfxProvider->width();
-                h = mGfxProvider->height();
-            }
-            if (!mGfxProvider->resizebitmap(w, h, orderedTaskData[i].mImgRef))
-            {
-                LOG_err << "Error resizing bitmap for " << localPath;
-                status = GfxTaskProcessStatus::ERR;
-            }
-        }
-        mGfxProvider->freebitmap();
-    }
-    else
-    {
-        LOG_err << "Error reading bitmap for " << localPath;
-        status = GfxTaskProcessStatus::ERR;
-    }
-    return GfxTaskResult(std::move(outputImages), status);
+    return GfxTaskResult(std::move(outputImages), GfxTaskProcessStatus::SUCCESS);
 }
 
 RequestProcessor::RequestProcessor(std::unique_ptr<IGfxProcessor> processor) : mGfxProcessor(std::move(processor))
