@@ -1335,7 +1335,7 @@ public:
         mOwner = id;
     }
 
-    bool locked() const
+    bool owns_lock() const
     {
         return mOwner == std::this_thread::get_id();
     }
@@ -1396,7 +1396,7 @@ public:
         mOwner = id;
     }
 
-    bool locked() const
+    bool owns_lock() const
     {
         auto id = std::this_thread::get_id();
 
