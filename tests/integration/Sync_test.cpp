@@ -1091,12 +1091,7 @@ void StandardClient::notify_retry(dstime when, retryreason_t reason)
 
     lock_guard<mutex> guard(om);
 
-    out() << clientname
-          << "notify_retry: reason: "
-          << toString(reason)
-          << ", when: "
-          << when
-          << "ds";
+    mRetryTracker.retry(clientname, reason);
 }
 
 void StandardClient::request_error(error e)

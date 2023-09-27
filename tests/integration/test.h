@@ -2,6 +2,7 @@
 #ifndef TEST_H
 #define TEST_H 1
 
+#include <chrono>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -236,6 +237,62 @@ struct SyncOptions
     bool uploadIgnoreFile = false;
 }; // SyncOptions
 
+class RequestRetryTracker
+{
+    // Convenience.
+    using HRClock = std::chrono::high_resolution_clock;
+    using HRTimePoint = HRClock::time_point;
+
+    // Why did our request need to be retried?
+    retryreason_t mReason = RETRY_NONE;
+
+    // When were we notified that the request was retried?
+    HRTimePoint mWhen = HRTimePoint::max();
+
+public:
+    // Signal that a request is being retried.
+    void retry(const std::string& clientName, retryreason_t reason)
+    {
+        // Coalesce contiguous retries of the same class.
+        if (mReason == reason)
+            return;
+
+        // Convenience.
+        auto now = HRClock::now();
+
+        // We were already tracking an existing retry.
+        if (mReason != RETRY_NONE)
+        {
+            // Convenience.
+            using std::chrono::duration_cast;
+            using std::chrono::milliseconds;
+
+            // How long did it take until our request succeeded?
+            auto elapsed = duration_cast<milliseconds>(now - mWhen);
+
+            // Log how long the request took.
+            out() << clientName
+                  << ": request retry completed: reason: "
+                  << toString(mReason)
+                  << ", duration: "
+                  << elapsed.count()
+                  << "ms";
+        }
+
+        // Latch new reason and timestamp.
+        mReason = reason;
+        mWhen = now;
+
+        // No request is being retried.
+        if (mReason == RETRY_NONE)
+            return;
+
+        out() << clientName
+              << ": request retry begun: reason: "
+              << toString(mReason);
+    }
+}; // RequestRetryTracker
+
 struct StandardClient : public MegaApp
 {
     shared_ptr<WAIT_CLASS> waiter;
@@ -376,6 +433,8 @@ struct StandardClient : public MegaApp
 
         ++transfersComplete;
     }
+
+    RequestRetryTracker mRetryTracker;
 
     void notify_retry(dstime t, retryreason_t r) override;
     void request_error(error e) override;
