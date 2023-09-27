@@ -24,14 +24,9 @@
 
 namespace initutils
 {
-    // TODO : update in PRX-312
-    std::string getHomeFolder();
-
     bool extractArg(std::vector<const char*>& args, const char* what);
 
     bool extractArgParam(std::vector<const char*>& args, const char* what, std::string& param);
-
-    std::string getSanitizedTestFilter(std::vector<const char*>& args);
 }
 
 // TODO GSL finally

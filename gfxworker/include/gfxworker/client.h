@@ -29,8 +29,6 @@ using ::gfx::comms::IGfxCommunicationsClient;
 
 /**
  * @brief The GfxClient class.
- * This is a facade that uses the received Gfx Communications to
- * provide the adding and aborting functionality.
  */
 class GfxClient
 {
@@ -46,11 +44,6 @@ public:
      */
     GfxClient(std::unique_ptr<IGfxCommunicationsClient> &&comms) : mComms{std::move(comms)}
     {
-        //NOTE: While we could to move the instantiation of the actual IGfxCommunicationsClient here
-        // and have it pragma dependent. It will require parameterization.
-        // e.g. is not enough to know that we need a PosixGfxCommunications, but
-        // it is the client the one that shall pass the path to the socket based on
-        // the configuration it wants to use.
         assert(mComms);
     }
 

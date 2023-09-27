@@ -2,13 +2,6 @@
 
 #include <cassert>
 
-// TODO
-std::string initutils::getHomeFolder()
-{
-    assert(false);
-    return std::string();
-}
-
 bool initutils::extractArg(std::vector<const char *>& args, const char* what)
 {
     for (auto i = args.size(); i--; )
@@ -37,20 +30,4 @@ bool initutils::extractArgParam(std::vector<const char *>& args, const char* wha
         }
     }
     return false;
-}
-
-std::string initutils::getSanitizedTestFilter(std::vector<const char*>& args)
-{
-    std::string gtestFilter;
-    initutils::extractArgParam(args, "--gtest_filter", gtestFilter);
-    // strip surrounding quotes if any
-    if (gtestFilter.size() && gtestFilter.back() == '"' && gtestFilter.front() == '"')
-    {
-        gtestFilter = gtestFilter.substr(1, gtestFilter.length() - 2);
-    }
-    if (gtestFilter.empty())
-    {
-        gtestFilter = "*";
-    }
-    return gtestFilter;
 }

@@ -69,10 +69,10 @@ Win32NamedPipeEndpoint::~Win32NamedPipeEndpoint()
 }
 
 bool Win32NamedPipeEndpoint::do_write(void* data, size_t n, DWORD milliseconds)
-{ 
+{
     if (mPipeHandle == INVALID_HANDLE_VALUE)
     {
-        return false; 
+        return false;
     }
 
     WinOverlap overlap;
@@ -123,28 +123,20 @@ bool Win32NamedPipeEndpoint::do_write(void* data, size_t n, DWORD milliseconds)
 
 bool Win32NamedPipeEndpoint::do_read(void* out, size_t n, DWORD milliseconds)
 {
-    //do
-    //{
     WinOverlap overlap;
     if (!overlap.isValid())
     {
         return false;
     }
 
-        // Read from the pipe.
-        DWORD cbRead = 0;
-        auto success = ReadFile(
-            mPipeHandle,                // pipe handle
-            out,                    // buffer to receive reply
-            static_cast<DWORD>(n),  // size of buffer
-            &cbRead,                // number of bytes read
-            overlap.data());                  // not overlapped
-
-        //if (!fSuccess && GetLastError() != ERROR_MORE_DATA)
-        //    break;
-
-        //_tprintf(TEXT("\"%s\"\n"), chBuf);
-    //} while (!fSuccess);  // repeat loop if ERROR_MORE_DATA
+    // Read from the pipe.
+    DWORD cbRead = 0;
+    auto success = ReadFile(
+        mPipeHandle,            // pipe handle
+        out,                    // buffer to receive reply
+        static_cast<DWORD>(n),  // size of buffer
+        &cbRead,                // number of bytes read
+        overlap.data());        // not overlapped
 
     if (success)
     {
@@ -279,7 +271,7 @@ bool WinGfxCommunicationsServer::waitForClient(HANDLE hPipe, OVERLAPPED* overlap
     assert(hPipe != INVALID_HANDLE_VALUE);
     assert(overlap);
 
-    // Wait for the client to connect; if it succeeds, 
+    // Wait for the client to connect; if it succeeds,
     // the function returns a nonzero value. If the function
     // returns zero, GetLastError returns ERROR_PIPE_CONNECTED.
     bool success = ConnectNamedPipe(hPipe, overlap);
@@ -325,17 +317,17 @@ void WinGfxCommunicationsServer::serverListeningLoop()
         LOG_verbose << "server awaiting client connection";
 
         auto hPipe = CreateNamedPipe(
-            L"\\\\.\\pipe\\mynamedpipe",             // pipe name 
-            PIPE_ACCESS_DUPLEX |      // read/write access 
+            L"\\\\.\\pipe\\mynamedpipe",             // pipe name
+            PIPE_ACCESS_DUPLEX |      // read/write access
             FILE_FLAG_OVERLAPPED,     // overlapped
-            PIPE_TYPE_MESSAGE |       // message type pipe 
-            PIPE_READMODE_BYTE |      // message-read mode 
-            PIPE_WAIT,                // blocking mode 
-            PIPE_UNLIMITED_INSTANCES, // max. instances  
-            BUFSIZE,                  // output buffer size 
-            BUFSIZE,                  // input buffer size 
-            0,                        // client time-out 
-            NULL);                    // default security attribute 
+            PIPE_TYPE_MESSAGE |       // message type pipe
+            PIPE_READMODE_BYTE |      // message-read mode
+            PIPE_WAIT,                // blocking mode
+            PIPE_UNLIMITED_INSTANCES, // max. instances
+            BUFSIZE,                  // output buffer size
+            BUFSIZE,                  // input buffer size
+            0,                        // client time-out
+            NULL);                    // default security attribute
 
         if (hPipe == INVALID_HANDLE_VALUE)
         {

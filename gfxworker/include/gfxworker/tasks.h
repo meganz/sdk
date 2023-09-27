@@ -70,7 +70,7 @@ enum class GfxTaskProcessStatus
 
 struct GfxTaskResult final
 {
-    GfxTaskResult(std::vector<std::string>&& outputImages, const GfxTaskProcessStatus processStatus) 
+    GfxTaskResult(std::vector<std::string>&& outputImages, const GfxTaskProcessStatus processStatus)
         : ProcessStatus(processStatus)
         , OutputImages(std::move(outputImages)) {}
 
