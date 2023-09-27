@@ -20440,7 +20440,9 @@ size_t MegaClient::decryptAllSets(map<handle, Set>& newSets, map<handle, element
                 e = decryptElementData(itE->second, itS->second.key());
                 if (e != API_OK)
                 {
-                    LOG_err << "Failed to decrypt element attributes. itE Handle = " << itE->first << ", itE Key << " << itE->second.key() << ", itS Handle = " << itS->first << ", itS Key = " << itS->second.key() << ", e = " << e;
+                    LOG_err << "Failed to decrypt element attributes. "
+                            << "Element id = " << toHandle(itE->first) << ", Element key << " << Base64::btoa(itE->second.key())
+                            << ", Set id = " << toHandle(itS->first) << ", Set key = " << Base64::btoa(itS->second.key()) << ", e = " << e;
                     assert(false && "failed to decrypt Element attributes"); // failed to decrypt Element attributes
 
                     itE = itEls->second.erase(itE);
@@ -20465,7 +20467,9 @@ size_t MegaClient::decryptAllSets(map<handle, Set>& newSets, map<handle, element
 
                     if (!itE->second.nodeMetadata())
                     {
-                        LOG_err << "Invalid node for element. itE Handle = " << itE->first << ", itE Key << " << itE->second.key() << ", itS Handle = " << itS->first << ", itS Key = " << itS->second.key();
+                        LOG_err << "Invalid node for element. "
+                                << "Element id = " << toHandle(itE->first) << ", Element key << " << Base64::btoa(itE->second.key())
+                                << ", Set id = " << toHandle(itS->first) << ", Set key = " << Base64::btoa(itS->second.key());
                         itE = itEls->second.erase(itE);
                         continue;
                     }
@@ -20945,7 +20949,11 @@ void MegaClient::fixSetElementWithWrongKey(const Set& s)
 
     vector<SetElement> newEls;
     vector<handle> taintedEls;
-    const auto hasWrongKey = [](const SetElement& el) { return el.key().size() != static_cast<size_t>(FILENODEKEYLENGTH); };
+    const auto hasWrongKey = [](const SetElement& el)
+    {
+        return el.key().size() != static_cast<size_t>(FILENODEKEYLENGTH) ||
+               (el.ts() <= 1695340800 && !el.hasAttrs()); // prior to a certain ts, keys set by Webclient were invalid
+    };
     for (auto& p : *els) // candidate to paral in >C++17 via algorithms
     {
         const SetElement& e = p.second;
