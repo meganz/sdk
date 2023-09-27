@@ -8695,6 +8695,9 @@ error MegaClient::rename(std::shared_ptr<Node> n, std::shared_ptr<Node> p, syncd
         setattr(n, std::move(attrUpdates), nullptr, canChangeVault);  // no completion function, result is after the move completes
     }
 
+    // rewrite keys of foreign nodes that are moved out of an outbound share
+    rewriteforeignkeys(n);
+
     reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparenthandle, move(c), canChangeVault));
 
     return API_OK;

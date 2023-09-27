@@ -1382,11 +1382,6 @@ bool CommandMoveNode::procresult(Result r, JSON& json)
         }
     }
 
-    if (shared_ptr<Node> n = client->nodeByHandle(h))
-    {
-        client->rewriteforeignkeys(n);
-    }
-
     if (completion) completion(h, r.errorOrOK());
     return r.wasErrorOrOK();
 }
