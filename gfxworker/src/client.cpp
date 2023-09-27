@@ -1,10 +1,11 @@
 #include "gfxworker/client.h"
 #include "gfxworker/commands.h"
 #include "gfxworker/command_serializer.h"
+#include "gfxworker/comms.h"
 #include "mega/logging.h"
 
 #include <thread>
-#include <fstream>   
+#include <fstream>
 
 namespace gfx {
 namespace client {
@@ -15,6 +16,7 @@ using gfx::comms::CommandShutDown;
 using gfx::comms::CommandShutDownResponse;
 using gfx::comms::ProtocolWriter;
 using gfx::comms::ProtocolReader;
+using gfx::comms::TimeoutMs;
 using mega::LocalPath;
 
 bool GfxClient::runShutDown()
@@ -32,11 +34,11 @@ bool GfxClient::runShutDown()
 
 	// send a request
 	ProtocolWriter writer(endpoint.get());
-	writer.writeCommand(&command, 5000);
+	writer.writeCommand(&command, TimeoutMs(5000));
 
 	// get the response
 	ProtocolReader reader(endpoint.get());
-	auto response = reader.readCommand(5000);
+	auto response = reader.readCommand(TimeoutMs(5000));
 	if (!dynamic_cast<CommandShutDownResponse*>(response.get()))
 	{
 		LOG_err << "GfxClient couldn't get response";
@@ -69,11 +71,11 @@ bool GfxClient::runGfxTask(const std::string& localpath)
 
 	// send a request
 	ProtocolWriter writer(endpoint.get());
-	writer.writeCommand(&command, 5000);
+	writer.writeCommand(&command, TimeoutMs(5000));
 
 	// get the response
 	ProtocolReader reader(endpoint.get());
-	auto response = reader.readCommand(5000);
+	auto response = reader.readCommand(TimeoutMs(5000));
 	CommandNewGfxResponse* addReponse = dynamic_cast<CommandNewGfxResponse*>(response.get());
 	if (!addReponse)
 	{

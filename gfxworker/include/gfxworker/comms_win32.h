@@ -32,9 +32,9 @@ protected:
     std::string mName;
 
 private:
-    bool do_write(void* data, size_t n, DWORD milliseconds) override;
+    bool do_write(void* data, size_t n, TimeoutMs timeout) override;
 
-    bool do_read(void* data, size_t n, DWORD milliseconds) override;
+    bool do_read(void* data, size_t n, TimeoutMs timeout) override;
 
     virtual Type type() const = 0;
 };
@@ -91,7 +91,7 @@ private:
 class WinGfxCommunicationsServer
 {
 public:
-    WinGfxCommunicationsServer(std::unique_ptr<gfx::server::IRequestProcessor> requestProcessor) 
+    WinGfxCommunicationsServer(std::unique_ptr<gfx::server::IRequestProcessor> requestProcessor)
         : mRequestProcessor(std::move(requestProcessor))
     {
 

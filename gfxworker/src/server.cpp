@@ -36,6 +36,7 @@ using gfx::comms::CommandNewGfx;
 using gfx::comms::CommandNewGfxResponse;
 using gfx::comms::CommandShutDown;
 using gfx::comms::CommandShutDownResponse;
+using gfx::comms::TimeoutMs;
 using gfx::ThreadPool;
 using mega::LocalPath;
 using Dimension = mega::IGfxProvider::Dimension;
@@ -60,7 +61,7 @@ GfxTaskResult GfxProcessor::process(const GfxTask& task)
     std::sort(std::begin(indices),
               std::end(indices),
               [&Sizes](SizeType i1, SizeType i2)
-              { 
+              {
                   return Sizes[i1].w() > Sizes[i2].w();
               });
 
@@ -72,7 +73,7 @@ GfxTaskResult GfxProcessor::process(const GfxTask& task)
                    [&Sizes](SizeType i){ return Dimension{ Sizes[i].w(), Sizes[i].h()}; });
 
     // generate thumbnails
-    auto images = mGfxProvider->generateImages(&mFaccess, 
+    auto images = mGfxProvider->generateImages(&mFaccess,
                                                LocalPath::fromPlatformEncodedAbsolute(task.Path),
                                                dimensions);
 
@@ -96,7 +97,7 @@ bool RequestProcessor::process(std::unique_ptr<gfx::comms::IEndpoint> endpoint)
 
     // read command
     ProtocolReader reader{ endpoint.get() };
-    std::shared_ptr<gfx::comms::ICommand> command = reader.readCommand(5000);
+    std::shared_ptr<gfx::comms::ICommand> command = reader.readCommand(TimeoutMs(5000));
     if (!command)
     {
         LOG_err << "command couldn't be unserialized";
@@ -135,7 +136,7 @@ void RequestProcessor::processShutDown(gfx::comms::IEndpoint* endpoint)
 {
     CommandShutDownResponse response;
     ProtocolWriter writer{ endpoint };
-    writer.writeCommand(&response, 5000);
+    writer.writeCommand(&response, TimeoutMs(5000));
 }
 
 void RequestProcessor::processGfx(gfx::comms::IEndpoint* endpoint, CommandNewGfx* request)
@@ -148,11 +149,11 @@ void RequestProcessor::processGfx(gfx::comms::IEndpoint* endpoint, CommandNewGfx
     CommandNewGfxResponse response;
     response.ErrorCode = static_cast<uint32_t>(result.ProcessStatus);
     response.ErrorText = result.ProcessStatus == GfxTaskProcessStatus::SUCCESS ? "OK" : "ERROR";
-    
+
     response.Images = std::move(result.OutputImages);
 
     ProtocolWriter writer{ endpoint };
-    writer.writeCommand(&response, 5000);
+    writer.writeCommand(&response, TimeoutMs(5000));
 }
 } //namespace server
 } //namespace gfx

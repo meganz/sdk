@@ -3,6 +3,7 @@
 #include <memory>
 #include <string>
 #include "gfxworker/commands.h"
+#include "gfxworker/comms.h"
 
 namespace gfx
 {
@@ -17,7 +18,7 @@ class ProtocolWriter
 public:
     ProtocolWriter(IWriter* writer) : mWriter(writer) {}
 
-    bool writeCommand(ICommand* command, DWORD milliseconds) const;
+    bool writeCommand(ICommand* command, TimeoutMs timeout) const;
 private:
     IWriter* mWriter;
 };
@@ -27,7 +28,7 @@ class ProtocolReader
 public:
     ProtocolReader(IReader* reader) : mReader(reader) {}
 
-    std::unique_ptr<ICommand> readCommand(DWORD milliseconds) const;
+    std::unique_ptr<ICommand> readCommand(TimeoutMs timeout) const;
 
 private:
 
@@ -38,13 +39,13 @@ struct CommandSerializer
 {
     static std::unique_ptr<std::string> serialize(ICommand* command);
 
-    static std::unique_ptr<ICommand> unserialize(IReader& reader, DWORD milliseconds);
+    static std::unique_ptr<ICommand> unserialize(IReader& reader, TimeoutMs timeout);
 
 private:
 
-    static bool unserializeHelper(IReader& reader, uint32_t& data, DWORD milliseconds);
+    static bool unserializeHelper(IReader& reader, uint32_t& data, TimeoutMs timeout);
 
-    static bool unserializeHelper(IReader& reader, std::string& data, DWORD milliseconds);
+    static bool unserializeHelper(IReader& reader, std::string& data, TimeoutMs timeout);
 
     static std::unique_ptr<ICommand> unserializeHelper(CommandType type, const std::string& data);
 

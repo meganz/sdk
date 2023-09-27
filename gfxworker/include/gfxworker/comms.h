@@ -25,6 +25,30 @@
 namespace gfx {
 namespace comms {
 
+// TimeoutMS hides the platform API's timeout data type
+class TimeoutMs
+{
+public:
+    explicit TimeoutMs(int milliseconds) : mValue(milliseconds) { }
+
+    static const TimeoutMs forever()
+    {
+        static TimeoutMs period(-1);
+        return period;
+    }
+
+#ifdef _WIN32
+    explicit operator DWORD() const
+    {
+        return isForever() ? INFINITE : static_cast<DWORD>(mValue);
+    }
+#endif
+private:
+
+    bool isForever() const { return mValue == -1;}
+
+    unsigned int mValue;
+};
 class IReader
 {
 public:
@@ -36,10 +60,10 @@ public:
         * @param n the n BYTEs to read
         * @return true: successfully read n BYTEs, false: there is either an error or EOF
         */
-    bool read(void* out, size_t n, DWORD milliseconds) { return do_read(out, n, milliseconds); };
+    bool read(void* out, size_t n, TimeoutMs timeout) { return do_read(out, n, timeout); };
 
 private:
-    virtual bool do_read(void* out, size_t n, DWORD milliseconds) = 0;
+    virtual bool do_read(void* out, size_t n, TimeoutMs timeout) = 0;
 };
 
 class IWriter
@@ -47,10 +71,10 @@ class IWriter
 public:
     virtual ~IWriter() = default;
 
-    bool write(void* in, size_t n, DWORD milliseconds) { return do_write(in, n, milliseconds); };
+    bool write(void* in, size_t n, TimeoutMs timeout) { return do_write(in, n, timeout); };
 
 private:
-    virtual bool do_write(void* in, size_t n, DWORD milliseconds) = 0;
+    virtual bool do_write(void* in, size_t n, TimeoutMs timeout) = 0;
 };
 
 class IEndpoint : public IReader, public IWriter

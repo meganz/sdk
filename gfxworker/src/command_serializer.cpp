@@ -396,7 +396,7 @@ enum class CommandProtocolVersion
 };
 
 
-bool ProtocolWriter::writeCommand(ICommand* command, DWORD milliseconds) const
+bool ProtocolWriter::writeCommand(ICommand* command, TimeoutMs timeout) const
 {
     auto dataToWrite = CommandSerializer::serialize(command);
     if (!dataToWrite)
@@ -404,7 +404,7 @@ bool ProtocolWriter::writeCommand(ICommand* command, DWORD milliseconds) const
         return false;
     }
 
-    if (!mWriter->write(dataToWrite->data(), dataToWrite->length(), milliseconds))
+    if (!mWriter->write(dataToWrite->data(), dataToWrite->length(), timeout))
     {
         return false;
     }
@@ -412,9 +412,9 @@ bool ProtocolWriter::writeCommand(ICommand* command, DWORD milliseconds) const
     return true;
 }
 
-std::unique_ptr<ICommand> ProtocolReader::readCommand(DWORD milliseconds) const
+std::unique_ptr<ICommand> ProtocolReader::readCommand(TimeoutMs timeout) const
 {
-    return CommandSerializer::unserialize(*mReader, milliseconds);
+    return CommandSerializer::unserialize(*mReader, timeout);
 }
 
 std::unique_ptr<std::string> CommandSerializer::serialize(ICommand* command)
@@ -472,15 +472,15 @@ bool CommandSerializer::serializeHelper(ICommand* command, std::string& data)
     return false;
 }
 
-bool CommandSerializer::unserializeHelper(IReader& reader, uint32_t& data, DWORD milliseconds)
+bool CommandSerializer::unserializeHelper(IReader& reader, uint32_t& data, TimeoutMs timeout)
 {
-    return reader.read(&data, sizeof(uint32_t), milliseconds);
+    return reader.read(&data, sizeof(uint32_t), timeout);
 }
 
-bool CommandSerializer::unserializeHelper(IReader& reader, std::string& data, DWORD milliseconds)
+bool CommandSerializer::unserializeHelper(IReader& reader, std::string& data, TimeoutMs timeout)
 {
     uint32_t len;
-    if (!unserializeHelper(reader, len, milliseconds))
+    if (!unserializeHelper(reader, len, timeout))
     {
         return false;
     }
@@ -489,14 +489,14 @@ bool CommandSerializer::unserializeHelper(IReader& reader, std::string& data, DW
         return true;
     }
     data.resize(len);
-    return reader.read(data.data(), len, milliseconds);
+    return reader.read(data.data(), len, timeout);
 }
 
-std::unique_ptr<ICommand> CommandSerializer::unserialize(IReader& reader, DWORD milliseconds)
+std::unique_ptr<ICommand> CommandSerializer::unserialize(IReader& reader, TimeoutMs timeout)
 {
     // proto version unit32_t
     uint32_t protoVer;
-    if (!reader.read(&protoVer, sizeof(protoVer), milliseconds))
+    if (!reader.read(&protoVer, sizeof(protoVer), timeout))
     {
         return nullptr;
     }
@@ -507,7 +507,7 @@ std::unique_ptr<ICommand> CommandSerializer::unserialize(IReader& reader, DWORD 
 
     // command type
     uint32_t type;
-    if (!reader.read(&type, sizeof(type), milliseconds))
+    if (!reader.read(&type, sizeof(type), timeout))
     {
         return nullptr;
     }
@@ -519,7 +519,7 @@ std::unique_ptr<ICommand> CommandSerializer::unserialize(IReader& reader, DWORD 
 
     // command data
     std::string data;
-    if (!unserializeHelper(reader, data, milliseconds))
+    if (!unserializeHelper(reader, data, timeout))
     {
         return nullptr;
     }

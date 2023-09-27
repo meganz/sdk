@@ -8,6 +8,7 @@ using gfx::comms::CommandNewGfx;
 using gfx::comms::CommandNewGfxResponse;
 using gfx::comms::CommandShutDown;
 using gfx::comms::CommandShutDownResponse;
+using gfx::comms::TimeoutMs;
 
 namespace gfx
 {
@@ -40,13 +41,13 @@ class StringReader : public gfx::comms::IReader
 public:
 	StringReader(std::string&& value) : mValue(std::move(value)), mIndex{0} {}
 private:
-	bool do_read(void* out, size_t n, DWORD milliseconds) override;
+	bool do_read(void* out, size_t n, TimeoutMs timeout) override;
 
 	std::string mValue;
 	size_t      mIndex;
 };
 
-bool StringReader::do_read(void* out, size_t n, DWORD /*milliseconds*/)
+bool StringReader::do_read(void* out, size_t n, TimeoutMs /*timeout*/)
 {
 	if (mIndex > mValue.size()) return false;
 
@@ -64,12 +65,12 @@ TEST(CommandSerializer, CommandNewGfxSerializeAndUnserializeSuccessfully)
 	CommandNewGfx sourceCommand;
 	sourceCommand.Task.Path = "c:\\path\\image.png";
 	sourceCommand.Task.Sizes = std::vector<gfx::GfxSize>{ {250, 0} };
-	
+
 	auto data = CommandSerializer::serialize(&sourceCommand);
 	ASSERT_NE(data, nullptr);
 
 	StringReader reader(std::move(*data));
-	auto command = CommandSerializer::unserialize(reader, 5000);
+	auto command = CommandSerializer::unserialize(reader, TimeoutMs(5000));
 	ASSERT_NE(command, nullptr);
 	auto targetCommand = dynamic_cast<CommandNewGfx*>(command.get());
 	ASSERT_NE(targetCommand, nullptr);
@@ -87,7 +88,7 @@ TEST(CommandSerializer, CommandNewGfxResponseSerializeAndUnserializeSuccessfully
 	ASSERT_NE(data, nullptr);
 
 	StringReader reader(std::move(*data));
-	auto command = CommandSerializer::unserialize(reader, 5000);
+	auto command = CommandSerializer::unserialize(reader, TimeoutMs(5000));
 	ASSERT_NE(command, nullptr);
 	auto targetCommand = dynamic_cast<CommandNewGfxResponse*>(command.get());
 	ASSERT_NE(targetCommand, nullptr);
@@ -102,7 +103,7 @@ TEST(CommandSerializer, CommandShutdownSerializeAndUnserializeSuccessfully)
 	ASSERT_NE(data, nullptr);
 
 	StringReader reader(std::move(*data));
-	auto command = CommandSerializer::unserialize(reader, 5000);
+	auto command = CommandSerializer::unserialize(reader, TimeoutMs(5000));
 	ASSERT_NE(command, nullptr);
 	auto targetCommand = dynamic_cast<CommandShutDown*>(command.get());
 	ASSERT_NE(targetCommand, nullptr);
@@ -117,7 +118,7 @@ TEST(CommandSerializer, CommandShutdownResponseSerializeAndUnserializeSuccessful
 	ASSERT_NE(data, nullptr);
 
 	StringReader reader(std::move(*data));
-	auto command = CommandSerializer::unserialize(reader, 5000);
+	auto command = CommandSerializer::unserialize(reader, TimeoutMs(5000));
 	ASSERT_NE(command, nullptr);
 	auto targetCommand = dynamic_cast<CommandShutDownResponse*>(command.get());
 	ASSERT_NE(targetCommand, nullptr);

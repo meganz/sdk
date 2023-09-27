@@ -68,7 +68,7 @@ Win32NamedPipeEndpoint::~Win32NamedPipeEndpoint()
     }
 }
 
-bool Win32NamedPipeEndpoint::do_write(void* data, size_t n, DWORD milliseconds)
+bool Win32NamedPipeEndpoint::do_write(void* data, size_t n, TimeoutMs timeout)
 {
     if (mPipeHandle == INVALID_HANDLE_VALUE)
     {
@@ -101,6 +101,7 @@ bool Win32NamedPipeEndpoint::do_write(void* data, size_t n, DWORD milliseconds)
         return false;
     }
 
+    DWORD milliseconds = static_cast<DWORD>(timeout);
     DWORD numberOfBytesTransferred = 0;
     success = GetOverlappedResultEx(
         mPipeHandle,
@@ -121,7 +122,7 @@ bool Win32NamedPipeEndpoint::do_write(void* data, size_t n, DWORD milliseconds)
     return true;
 }
 
-bool Win32NamedPipeEndpoint::do_read(void* out, size_t n, DWORD milliseconds)
+bool Win32NamedPipeEndpoint::do_read(void* out, size_t n, TimeoutMs timeout)
 {
     WinOverlap overlap;
     if (!overlap.isValid())
@@ -151,6 +152,7 @@ bool Win32NamedPipeEndpoint::do_read(void* out, size_t n, DWORD milliseconds)
         return false;
     }
 
+    DWORD milliseconds = static_cast<DWORD>(timeout);
     DWORD numberOfBytesTransferred = 0;
     success = GetOverlappedResultEx(
         mPipeHandle,
