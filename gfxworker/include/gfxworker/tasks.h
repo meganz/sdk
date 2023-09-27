@@ -61,18 +61,11 @@ struct GfxTask final
 
 /**
  * @brief Defines the possible result status of IGfxProcessor::process
- * This status can only be set during GfxTaskResult construction
- * This status is also used for the overall task lifecycle in the GfxServer:
- * - PENDING : when a new task is added to the list of pending tasks and has not
- *   yet been processed by IGfxProcessor::process
- * - SUCCESS/ERROR : once the task has been processed by IGfxProcessor::process
- * Note that there are no retrials
  */
 enum class GfxTaskProcessStatus
 {
     SUCCESS = 0,
     ERR     = 1,
-    PENDING
 };
 
 struct GfxTaskResult final
