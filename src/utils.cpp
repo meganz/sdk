@@ -3209,5 +3209,19 @@ string connDirectionToStr(mega::direction_t directionType)
     }
 }
 
+const char* toString(retryreason_t reason)
+{
+    switch (reason)
+    {
+#define DEFINE_RETRY_CLAUSE(index, name) case name: return #name;
+        DEFINE_RETRY_REASONS(DEFINE_RETRY_CLAUSE)
+#undef DEFINE_RETRY_CLAUSE
+    }
+
+    assert(false && "Unknown retry reason");
+
+    return "RETRY_UNKNOWN";
+}
+
 } // namespace mega
 

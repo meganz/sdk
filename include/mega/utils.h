@@ -1067,6 +1067,9 @@ void reportWindowsError(const std::string& message, DWORD error = 0xFFFFFFFF);
 // returns the direction type of a connection
 string connDirectionToStr(direction_t directionType);
 
+// Translate retry reason into a human-friendly string.
+const char* toString(retryreason_t reason);
+
 } // namespace mega
 
 #endif // MEGA_UTILS_H
