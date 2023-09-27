@@ -1,7 +1,6 @@
 #include <iostream>
 #include <memory>
 #include "megaapi.h"
-#include "gfxworker/megaproxytasks.h"
 #include "gfxworker/server.h"
 #include "gfxworker/comms_win32.h"
 #include "gfxworker/logger.h"

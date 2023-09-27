@@ -1,7 +1,6 @@
 #include "gtest/gtest.h"
 #include "gfxworker/comms_win32.h"
 #include "gfxworker/tasks.h"
-#include "gfxworker/megaproxytasks.h"
 #include "gfxworker/logger.h"
 #include "gfxworker/command_serializer.h"
 #include "gfxworker/commands.h"
