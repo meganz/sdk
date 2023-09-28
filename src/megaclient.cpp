@@ -20092,7 +20092,7 @@ void MegaClient::putSet(Set&& s, std::function<void(Error, const Set*)> completi
         {
             LOG_err << "Sets: Failed to encrypt Set key with master key.";
             if (completion)
-                completion(API_EINTERNAL, nullptr);
+                completion(API_EKEY, nullptr);
             return;
         }
 
@@ -20206,7 +20206,7 @@ void MegaClient::putSetElements(vector<SetElement>&& els, std::function<void(Err
                 LOG_err << "Sets: Failed to CBC encrypt Element key with Set key";
                 if (completion)
                 {
-                    completion(API_EINTERNAL, nullptr, nullptr);
+                    completion(API_EKEY, nullptr, nullptr);
                 }
                 return;
             }
@@ -20269,7 +20269,7 @@ void MegaClient::putSetElement(SetElement&& el, std::function<void(Error, const 
         {
             LOG_err << "Sets: Failed to CBC encrypt Element key with Set key";
             if (completion)
-                completion(API_EINTERNAL, nullptr);
+                completion(API_EKEY, nullptr);
             return;
         }
         encrKey.assign((char*)encryptBuffer, sizeof(encryptBuffer));
