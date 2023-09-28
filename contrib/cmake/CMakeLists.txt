@@ -585,15 +585,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             # pdfium will use bzip2 if present
             ImportStdVcpkgLibrary(bzip2       bz2d bz2 libbz2d libbz2)
 
-            # pkgconfig might not be needed anymore? - suppressed by our build3rdparty project
-            IF (CMAKE_HOST_UNIX AND NOT CMAKE_HOST_APPLE)
-                set(ENV{PKG_CONFIG_PATH} "${vcpkg_dir}/lib/pkgconfig")
-                include(FindPkgConfig)
-                pkg_check_modules(FTYPECONF freetype2)
-                #set(freetype_deps ${FTYPECONF_STATIC_LIBRARIES})
-            ENDIF()
-
-            set(pdfium_deps  ${pdfium_deps} freetype ${freetype_deps} liblcms libturbojpeg libopenjpeg bzip2 libpng)
+            set(pdfium_deps ${pdfium_deps} freetype liblcms libturbojpeg libopenjpeg bzip2 libpng)
         ENDIF(USE_PDFIUM)
 
 endif(USE_THIRDPARTY_FROM_VCPKG)
