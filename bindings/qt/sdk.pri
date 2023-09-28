@@ -546,10 +546,10 @@ else {
             -lIex-3_1$$UNDERSCORE_DEBUG_SUFFIX -lIlmThread-3_1$$UNDERSCORE_DEBUG_SUFFIX \
             -lImath-3_1$$UNDERSCORE_DEBUG_SUFFIX -lOpenEXR-3_1$$UNDERSCORE_DEBUG_SUFFIX
         win32 {
-            LIBS += -llibwebpmux -llibwebpdecoder -llibwebpdemux -llibwebp -llibwebpmux -llibsharpyuv
+            LIBS += -llibwebpdecoder -llibwebpdemux -llibwebp -llibwebpmux -llibsharpyuv
         }
         else {
-            LIBS += -lwebpmux -lwebpdecoder -lwebpdemux -lwebp -lwebpmux -lsharpyuv
+            LIBS += -lwebpdecoder -lwebpdemux -lwebp -lwebpmux -lsharpyuv
         }
         LIBS += -ljpegxr$$DEBUG_SUFFIX -llzma -ljasper$$DEBUG_SUFFIX -lraw_r$$DEBUG_SUFFIX_WO -lopenjp2 -llcms2
     }
