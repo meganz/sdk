@@ -1,4 +1,4 @@
-sed -i 's,#include "megaapi.h",#include "../../../include/megaapi.h",' megasdk/mega_wrap.cpp
+sed -i 's,#include "megaapi.h",#include "../../../include/megaapi.h",' megasdk/megaapi_wrap.cpp
 
 
 #$(LIBRARY_PATH): $(GO_SOURCE)
