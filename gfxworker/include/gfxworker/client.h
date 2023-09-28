@@ -19,13 +19,11 @@
 #pragma once
 
 #include <memory>
-#include "gfxworker/tasks.h"
+#include <assert.h>
 #include "gfxworker/comms.h"
 
+namespace mega {
 namespace gfx {
-namespace client {
-
-using ::gfx::comms::IGfxCommunicationsClient;
 
 /**
  * @brief The GfxClient class.
@@ -61,6 +59,6 @@ public:
 };
 
 
-} //namespace client
 } //namespace gfx
+} //namespace mega
 

@@ -1,6 +1,8 @@
 #include "gfxworker/threadpool.h"
 #include "mega/logging.h"
 
+namespace mega
+{
 namespace gfx
 {
 
@@ -93,3 +95,4 @@ void ThreadPool::asyncThreadLoop()
 }
 
 } // end namespace gfx
+} // end namespace mega

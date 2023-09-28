@@ -4,8 +4,8 @@
 #include "gfxworker/comms_win32.h"
 #include <windows.h>
 
+namespace mega {
 namespace gfx {
-namespace comms {
 
 class WinOverlap final
 {
@@ -248,7 +248,7 @@ Win32NamedPipeEndpointServer::~Win32NamedPipeEndpointServer()
     }
 }
 
-std::unique_ptr<gfx::comms::IEndpoint> WinGfxCommunicationsClient::connect()
+std::unique_ptr<mega::gfx::IEndpoint> WinGfxCommunicationsClient::connect()
 {
     HANDLE hPipe = connect(TEXT("\\\\.\\pipe\\mynamedpipe"));
 

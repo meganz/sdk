@@ -16,8 +16,3 @@
  * program.
  */
 
-#include "gfxworker/tasks.h"
-
-namespace gfx {
-
-}

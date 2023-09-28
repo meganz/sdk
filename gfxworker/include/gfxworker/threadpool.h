@@ -4,6 +4,8 @@
 #include <mutex>
 #include <deque>
 
+namespace mega
+{
 namespace gfx
 {
 
@@ -25,5 +27,5 @@ private:
     void asyncThreadLoop();
 };
 
+} // end of namespace
 }
-

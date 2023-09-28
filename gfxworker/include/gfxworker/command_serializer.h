@@ -5,9 +5,9 @@
 #include "gfxworker/commands.h"
 #include "gfxworker/comms.h"
 
-namespace gfx
+namespace mega
 {
-namespace comms
+namespace gfx
 {
 
 class IReader;

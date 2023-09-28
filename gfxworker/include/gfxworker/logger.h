@@ -2,8 +2,8 @@
 
 #include "megaapi.h"
 
+namespace mega {
 namespace gfx {
-namespace log {
 
 
 class Logger : public mega::MegaLogger {

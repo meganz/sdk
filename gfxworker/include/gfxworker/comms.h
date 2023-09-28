@@ -26,8 +26,8 @@
     #include <windows.h>
 #endif
 
+namespace mega {
 namespace gfx {
-namespace comms {
 
 // TimeoutMS hides the platform API's timeout data type
 class TimeoutMs
@@ -95,8 +95,8 @@ class IGfxCommunicationsClient
 public:
     virtual ~IGfxCommunicationsClient() = default;
 
-    virtual std::unique_ptr<gfx::comms::IEndpoint> connect() = 0;
+    virtual std::unique_ptr<mega::gfx::IEndpoint> connect() = 0;
 };
 
-} //namespace comms
 } //namespace gfx
+} //namespace mega

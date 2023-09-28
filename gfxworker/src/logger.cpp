@@ -2,8 +2,8 @@
 
 #include <iostream>
 
+namespace mega {
 namespace gfx {
-namespace log {
 
 
 

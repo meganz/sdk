@@ -23,8 +23,7 @@
 #include <limits>
 #include <memory>
 
-#include "mega/filesystem.h"
-
+namespace mega {
 namespace gfx {
 
 class GfxSize
@@ -79,4 +78,5 @@ struct GfxTaskResult final
 };
 
 } //namespace gfx
+} //namespace mega
 

@@ -28,19 +28,10 @@
 #include <numeric>
 #include <algorithm>
 
-using gfx::comms::CommandType;
-using gfx::comms::ProtocolReader;
-using gfx::comms::ProtocolWriter;
-using gfx::comms::CommandNewGfx;
-using gfx::comms::CommandNewGfxResponse;
-using gfx::comms::CommandShutDown;
-using gfx::comms::CommandShutDownResponse;
-using gfx::comms::TimeoutMs;
-using gfx::ThreadPool;
 using mega::LocalPath;
 using Dimension = mega::IGfxProvider::Dimension;
+namespace mega {
 namespace gfx {
-namespace server {
 
 GfxTaskResult GfxProcessor::process(const GfxTask& task)
 {
@@ -90,13 +81,13 @@ RequestProcessor::RequestProcessor(std::unique_ptr<IGfxProcessor> processor) : m
     mThreadPool.initialize(5, 10);
 }
 
-bool RequestProcessor::process(std::unique_ptr<gfx::comms::IEndpoint> endpoint)
+bool RequestProcessor::process(std::unique_ptr<mega::gfx::IEndpoint> endpoint)
 {
     bool keepRunning = true;
 
     // read command
     ProtocolReader reader{ endpoint.get() };
-    std::shared_ptr<gfx::comms::ICommand> command = reader.readCommand(TimeoutMs(5000));
+    std::shared_ptr<mega::gfx::ICommand> command = reader.readCommand(TimeoutMs(5000));
     if (!command)
     {
         LOG_err << "command couldn't be unserialized";
@@ -107,7 +98,7 @@ bool RequestProcessor::process(std::unique_ptr<gfx::comms::IEndpoint> endpoint)
     // execute command
     LOG_info << "execute the command: " << static_cast<int>(command->type());
 
-    std::shared_ptr<gfx::comms::IEndpoint> sharedEndpoint = std::move(endpoint);
+    std::shared_ptr<mega::gfx::IEndpoint> sharedEndpoint = std::move(endpoint);
 
     mThreadPool.push(
         [sharedEndpoint, command, this]() {
@@ -131,14 +122,14 @@ bool RequestProcessor::process(std::unique_ptr<gfx::comms::IEndpoint> endpoint)
     return keepRunning;
 }
 
-void RequestProcessor::processShutDown(gfx::comms::IEndpoint* endpoint)
+void RequestProcessor::processShutDown(mega::gfx::IEndpoint* endpoint)
 {
     CommandShutDownResponse response;
     ProtocolWriter writer{ endpoint };
     writer.writeCommand(&response, TimeoutMs(5000));
 }
 
-void RequestProcessor::processGfx(gfx::comms::IEndpoint* endpoint, CommandNewGfx* request)
+void RequestProcessor::processGfx(mega::gfx::IEndpoint* endpoint, CommandNewGfx* request)
 {
     assert(endpoint);
     assert(request);

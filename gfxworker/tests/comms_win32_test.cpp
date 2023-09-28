@@ -1,9 +1,6 @@
 #include "gtest/gtest.h"
 #include "gfxworker/comms_win32.h"
-#include "gfxworker/tasks.h"
 #include "gfxworker/logger.h"
-#include "gfxworker/command_serializer.h"
-#include "gfxworker/commands.h"
 #include "gfxworker/server.h"
 #include "gfxworker/client.h"
 #include <memory>
@@ -11,17 +8,17 @@
 #include <chrono>
 
 
-using gfx::comms::WinGfxCommunicationsServer;
-using gfx::comms::WinGfxCommunicationsClient;
-using gfx::server::RequestProcessor;
-using gfx::server::GfxProcessorFactory;
-using gfx::client::GfxClient;
-using gfx::comms::IEndpoint;
+using mega::gfx::WinGfxCommunicationsServer;
+using mega::gfx::WinGfxCommunicationsClient;
+using mega::gfx::RequestProcessor;
+using mega::gfx::GfxProcessorFactory;
+using mega::gfx::GfxClient;
+using mega::gfx::IEndpoint;
 
 //TEST(CommsWin32, DISABLED_init)
 TEST(CommsWin32, init)
 {
-    std::unique_ptr<mega::MegaLogger> logInstance(new gfx::log::Logger());
+    std::unique_ptr<mega::MegaLogger> logInstance(new mega::gfx::Logger());
     mega::MegaApi::addLoggerObject(logInstance.get(), false);
     mega::MegaApi::setLogLevel(mega::MegaApi::LOG_LEVEL_MAX);
 

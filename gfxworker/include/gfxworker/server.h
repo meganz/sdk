@@ -30,8 +30,8 @@
 #include "mega/gfx/freeimage.h"
 #include "megafs.h"
 
+namespace mega {
 namespace gfx {
-namespace server {
 
 struct IGfxProcessor
 {
@@ -77,7 +77,7 @@ class IRequestProcessor
 {
 public:
     virtual ~IRequestProcessor() = default;
-    virtual bool process(std::unique_ptr<gfx::comms::IEndpoint> endpoint) = 0;
+    virtual bool process(std::unique_ptr<mega::gfx::IEndpoint> endpoint) = 0;
 };
 
 class RequestProcessor : public IRequestProcessor
@@ -85,16 +85,16 @@ class RequestProcessor : public IRequestProcessor
 public:
     RequestProcessor(std::unique_ptr<IGfxProcessor> processor);
 
-    bool process(std::unique_ptr<gfx::comms::IEndpoint> endpoint);
+    bool process(std::unique_ptr<mega::gfx::IEndpoint> endpoint);
 
 private:
-    void processShutDown(gfx::comms::IEndpoint* endpoint);
+    void processShutDown(mega::gfx::IEndpoint* endpoint);
 
-    void processGfx(gfx::comms::IEndpoint* endpoint, gfx::comms::CommandNewGfx* request);
+    void processGfx(mega::gfx::IEndpoint* endpoint, mega::gfx::CommandNewGfx* request);
 
-    gfx::ThreadPool mThreadPool;
+    ThreadPool mThreadPool;
     std::unique_ptr<IGfxProcessor> mGfxProcessor;
 };
 
-} //namespace server
 } //namespace gfx
+} //namespace mega

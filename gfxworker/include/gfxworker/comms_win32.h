@@ -5,8 +5,8 @@
 
 #include <windows.h>
 
+namespace mega {
 namespace gfx {
-namespace comms {
 
 class Win32NamedPipeEndpoint : public IEndpoint
 {
@@ -79,7 +79,7 @@ public:
 
     bool initialize();
 
-    std::unique_ptr<gfx::comms::IEndpoint> connect() override;
+    std::unique_ptr<mega::gfx::IEndpoint> connect() override;
 
 private:
     HANDLE connect(LPCTSTR pipeName);
@@ -91,7 +91,7 @@ private:
 class WinGfxCommunicationsServer
 {
 public:
-    WinGfxCommunicationsServer(std::unique_ptr<gfx::server::IRequestProcessor> requestProcessor)
+    WinGfxCommunicationsServer(std::unique_ptr<mega::gfx::IRequestProcessor> requestProcessor)
         : mRequestProcessor(std::move(requestProcessor))
     {
 
@@ -103,9 +103,9 @@ private:
     void serverListeningLoop();
     bool waitForClient(HANDLE hPipe, OVERLAPPED* overlap);
     OnServerConnectedFunc mOnConnected;
-    std::unique_ptr<gfx::server::IRequestProcessor> mRequestProcessor;
+    std::unique_ptr<mega::gfx::IRequestProcessor> mRequestProcessor;
     std::unique_ptr<std::thread> mListeningThread;
 };
 
-} //namespace comms
 } //namespace gfx
+} //namespace mega

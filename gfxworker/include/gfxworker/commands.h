@@ -21,8 +21,8 @@
 #include <memory>
 #include "gfxworker/tasks.h"
 
+namespace mega {
 namespace gfx {
-namespace comms {
 
 enum class CommandType
 {
@@ -67,5 +67,5 @@ struct CommandNewGfxResponse : public ICommand
     CommandType type() const override { return CommandType::NEW_GFX_RESPONSE; }
 };
 
-} //namespace comms
 } //namespace gfx
+} //namespace mega

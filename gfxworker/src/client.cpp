@@ -3,20 +3,21 @@
 #include "gfxworker/command_serializer.h"
 #include "gfxworker/comms.h"
 #include "mega/logging.h"
+#include "mega/filesystem.h"
 
 #include <thread>
 #include <fstream>
 
+namespace mega {
 namespace gfx {
-namespace client {
 
-using gfx::comms::CommandNewGfx;
-using gfx::comms::CommandNewGfxResponse;
-using gfx::comms::CommandShutDown;
-using gfx::comms::CommandShutDownResponse;
-using gfx::comms::ProtocolWriter;
-using gfx::comms::ProtocolReader;
-using gfx::comms::TimeoutMs;
+using mega::gfx::CommandNewGfx;
+using mega::gfx::CommandNewGfxResponse;
+using mega::gfx::CommandShutDown;
+using mega::gfx::CommandShutDownResponse;
+using mega::gfx::ProtocolWriter;
+using mega::gfx::ProtocolReader;
+using mega::gfx::TimeoutMs;
 using mega::LocalPath;
 
 bool GfxClient::runShutDown()

@@ -3,40 +3,40 @@
 #include "gfxworker/commands.h"
 #include "gfxworker/comms.h"
 
-using gfx::comms::CommandSerializer;
-using gfx::comms::CommandNewGfx;
-using gfx::comms::CommandNewGfxResponse;
-using gfx::comms::CommandShutDown;
-using gfx::comms::CommandShutDownResponse;
-using gfx::comms::TimeoutMs;
+using mega::gfx::CommandSerializer;
+using mega::gfx::CommandNewGfx;
+using mega::gfx::CommandNewGfxResponse;
+using mega::gfx::CommandShutDown;
+using mega::gfx::CommandShutDownResponse;
+using mega::gfx::TimeoutMs;
 
+namespace mega
+{
 namespace gfx
 {
-namespace comms
-{
-	bool operator==(const gfx::comms::CommandNewGfx& lhs, const gfx::comms::CommandNewGfx& rhs)
+	bool operator==(const mega::gfx::CommandNewGfx& lhs, const mega::gfx::CommandNewGfx& rhs)
 	{
 		return lhs.Task.Path == rhs.Task.Path && lhs.Task.Sizes == rhs.Task.Sizes;
 	}
 
-	bool operator==(const gfx::comms::CommandNewGfxResponse& lhs, const gfx::comms::CommandNewGfxResponse& rhs)
+	bool operator==(const mega::gfx::CommandNewGfxResponse& lhs, const mega::gfx::CommandNewGfxResponse& rhs)
 	{
 		return lhs.ErrorCode == rhs.ErrorCode && lhs.ErrorText == rhs.ErrorText && lhs.Images == rhs.Images;
 	}
 
-	bool operator==(const gfx::comms::CommandShutDown& /*lhs*/, const gfx::comms::CommandShutDown& /*rhs*/)
+	bool operator==(const mega::gfx::CommandShutDown& /*lhs*/, const mega::gfx::CommandShutDown& /*rhs*/)
 	{
 		return true;
 	}
 
-	bool operator==(const gfx::comms::CommandShutDownResponse& /*lhs*/, const gfx::comms::CommandShutDownResponse& /*rhs*/)
+	bool operator==(const mega::gfx::CommandShutDownResponse& /*lhs*/, const mega::gfx::CommandShutDownResponse& /*rhs*/)
 	{
 		return true;
 	}
 }
 }
 
-class StringReader : public gfx::comms::IReader
+class StringReader : public mega::gfx::IReader
 {
 public:
 	StringReader(std::string&& value) : mValue(std::move(value)), mIndex{0} {}
@@ -64,7 +64,7 @@ TEST(CommandSerializer, CommandNewGfxSerializeAndUnserializeSuccessfully)
 {
 	CommandNewGfx sourceCommand;
 	sourceCommand.Task.Path = "c:\\path\\image.png";
-	sourceCommand.Task.Sizes = std::vector<gfx::GfxSize>{ {250, 0} };
+	sourceCommand.Task.Sizes = std::vector<mega::gfx::GfxSize>{ {250, 0} };
 
 	auto data = CommandSerializer::serialize(&sourceCommand);
 	ASSERT_NE(data, nullptr);
