@@ -20,8 +20,5 @@ func getAuth() (username string, password string) {
 
 	fmt.Print("Enter your password: ")
 	fmt.Scan(&password)
-
-	fmt.Printf("Username: %s\n", username)
-	fmt.Printf("Password: %s\n", password)
 	return
 }

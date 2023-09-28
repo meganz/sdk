@@ -11,26 +11,33 @@ GOPACKAGE = mega
 SWIG_GO_FLAGS = -go -cgo -intgosize 64 -c++
 
 # SWIG generated Go source file
-GO_SOURCE = $(GOBINDIR)/mega_wrap.cpp
+GO_SOURCE = $(GOBINDIR)/megaapi_wrap.cpp
+
+# Shared library name
+LIBRARY_NAME = libmega_go.so
+
+# Full path to the shared library
+LIBRARY_PATH = $(GOBINDIR)/$(LIBRARY_NAME)
 
 # Clean Go bindings files
 CLEANFILES += $(GO_SOURCE)
-CLEANFILES += $(GOBINDIR)/mega_wrap.h
+CLEANFILES += $(GOBINDIR)/megaapi_wrap.h
 CLEANFILES += $(GOBINDIR)/mega.go
+CLEANFILES += $(LIBRARY_PATH)
 
 # Sources for SWIG Go wrapper
 nodist_bindings_go__mega_la_SOURCES = $(GO_SOURCE)
 bindings_go__mega_la_SOURCES = $(top_srcdir)/bindings/megaapi.i
 
 bindings_go__mega_la_CPPFLAGS = -I$(top_srcdir)/include
-bindings_go__mega_la_LDFLAGS =
-bindings_go__mega_la_LIBADD = $(top_builddir)/src/libmega.la
+bindings_go__mega_la_LDFLAGS = -shared -shrext .so -L$(GOBINDIR) -lmega_go
+bindings_go__mega_la_LIBADD = $(top_builddir)/src/$(LIBRARY_NAME)
 
 $(GO_SOURCE): $(top_srcdir)/bindings/megaapi.i
 	$(SWIG_GO) $(SWIG_GO_FLAGS) -o $@ -outdir $(GOBINDIR) -package $(GOPACKAGE) -I$(top_srcdir)/include $<
 
 .PHONY: go-bindings
-go-bindings: $(GO_SOURCE)
+go-bindings: $(GO_SOURCE) $(LIBRARY_PATH)
 
-# Ensure that the Go bindings are built when requested
+# Ensure that the Go bindings and the shared library are built when requested
 all-local: go-bindings
