@@ -1345,7 +1345,10 @@ public:
         auto id = std::this_thread::get_id();
 
         if (mMutex.try_lock())
-            return mOwner = id, true;
+        {
+            mOwner = id;
+            return true;
+        }
 
         return false;
     }
