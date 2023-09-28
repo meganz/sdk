@@ -237,6 +237,91 @@ struct SyncOptions
     bool uploadIgnoreFile = false;
 }; // SyncOptions
 
+class RequestRetryRecorder
+{
+    // Convenience.
+    using Milliseconds = std::chrono::milliseconds;
+
+    // Describes a particular class of retry.
+    struct RetryEntry
+    {
+        // How many times did this class of retry occur?
+        std::size_t mCount = 0;
+
+        // What was the longest time we spent performing this retry?
+        Milliseconds mLongest = Milliseconds::min();
+
+        // And the shortest time?
+        Milliseconds mShortest = Milliseconds::max();
+    }; // Entry
+
+    // Maps retry class to retry entry.
+    using RetryEntryMap = std::map<retryreason_t, RetryEntry>;
+
+    // Tracks statistics about a specific retry class.
+    RetryEntryMap mEntries;
+
+    // Serializes access to mEnties.
+    mutable std::mutex mEntriesLock;
+
+    // Who's the current recorder?
+    static RequestRetryRecorder* mInstance;
+
+public:
+    RequestRetryRecorder()
+      : mEntries()
+      , mEntriesLock()
+    {
+        // Only one instance should ever exist at a time.
+        assert(!mInstance);
+
+        mInstance = this;
+    }
+
+    RequestRetryRecorder(const RequestRetryRecorder&) = delete;
+
+    ~RequestRetryRecorder()
+    {
+        assert(mInstance == this);
+
+        mInstance = nullptr;
+    }
+
+    RequestRetryRecorder& operator=(const RequestRetryRecorder&) = delete;
+
+    // Obtain a reference to the current recorder.
+    static RequestRetryRecorder& instance()
+    {
+        assert(mInstance);
+
+        return *mInstance;
+    }
+
+    // Record a retry period.
+    void record(retryreason_t reason, Milliseconds duration)
+    {
+        // Acquire lock.
+        std::lock_guard<std::mutex> guard(mEntriesLock);
+
+        // Get our hands on the specified entry.
+        auto& entry = mEntries[reason];
+
+        // Populate entry.
+        entry.mCount = entry.mCount + 1;
+        entry.mLongest = std::max(entry.mLongest, duration);
+        entry.mShortest = std::min(entry.mShortest, duration);
+    }
+
+    void reset()
+    {
+        // Acquire lock.
+        std::lock_guard<std::mutex> guard(mEntriesLock);
+
+        // Clear recorded request retries.
+        mEntries.clear();
+    }
+}; // RequestRetryRecorder
+
 class RequestRetryTracker
 {
     // Convenience.
@@ -251,7 +336,7 @@ class RequestRetryTracker
 
 public:
     // Signal that a request is being retried.
-    void retry(const std::string& clientName, retryreason_t reason)
+    void track(const std::string& clientName, retryreason_t reason)
     {
         // Coalesce contiguous retries of the same class.
         if (mReason == reason)
@@ -277,6 +362,9 @@ public:
                   << ", duration: "
                   << elapsed.count()
                   << "ms";
+
+            // Record statistics about the retry.
+            RequestRetryRecorder::instance().record(mReason, elapsed);
         }
 
         // Latch new reason and timestamp.

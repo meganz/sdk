@@ -512,8 +512,13 @@ TestMegaLogger megaLogger;
 ClientManager* g_clientManager = nullptr;
 #endif // ENABLE_SYNC
 
+RequestRetryRecorder* RequestRetryRecorder::mInstance = nullptr;
+
 int main (int argc, char *argv[])
 {
+    // So we can track how often requests are retried.
+    RequestRetryRecorder retryRecorder;
+
     try { // @todo: try/catch not indented to avoid merge conflict
 
 #ifdef ENABLE_SYNC
@@ -1664,14 +1669,20 @@ int launchMultipleProcesses(const string& argv0, const vector<string>& subproces
 
 bool SdkTestBase::clearProcessFolderEachTest = false;
 
-void SdkTestBase::SetUp() {
+void SdkTestBase::SetUp()
+{
     Test::SetUp();
+
     TestFS::ChangeToProcessFolder();
+
     if (clearProcessFolderEachTest)
     {
         // for testing that tests are independent, slow as NOD database deleted
         TestFS::ClearProcessFolder();
     }
+
+    // Reset request retry statistics.
+    RequestRetryRecorder::instance().reset();
 }
 
 void copyFileFromTestData(fs::path filename, fs::path destination)
