@@ -40,7 +40,7 @@ public:
      * ownership of the provided object.
      *
      */
-    GfxClient(std::unique_ptr<IGfxCommunicationsClient> &&comms) : mComms{std::move(comms)}
+    GfxClient(std::unique_ptr<IGfxCommunicationsClient> comms) : mComms{std::move(comms)}
     {
         assert(mComms);
     }

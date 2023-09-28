@@ -47,7 +47,7 @@ public:
 
     GfxProcessor(const GfxProcessor&) = delete;
 
-    GfxProcessor(std::unique_ptr<::mega::IGfxProvider> &&gfxProvider) :
+    GfxProcessor(std::unique_ptr<::mega::IGfxProvider> gfxProvider) :
         mGfxProvider{std::move(gfxProvider)}
     {
         assert(mGfxProvider);
