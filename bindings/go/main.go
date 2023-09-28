@@ -1,5 +1,8 @@
 package main
 
+/*
+#cgo LDFLAGS: -L ./megasdk -linvoke -ldl
+*/
 import (
 	"fmt"
 	mega "megasdk/megasdk"

@@ -1,0 +1,6 @@
+%module megasdk
+%{
+#include "megaapi_wrap.h"
+%}
+
+%include "megaapi_wrap.h"

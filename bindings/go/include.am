@@ -1,11 +1,13 @@
 # Output directory for Go bindings
 GOBINDIR = bindings/go/megasdk
+pkggoexec_LTLIBRARIES = bindings/go/lib_mega.la
+pkggoexecdir = $(GOBINDIR)
 
 # SWIG command for generating Go bindings
 SWIG_GO = swig
 
 # Go package name
-GOPACKAGE = mega
+GOPACKAGE = megasdk
 
 # SWIG flags for Go bindings
 SWIG_GO_FLAGS = -go -cgo -intgosize 64 -c++
@@ -26,12 +28,11 @@ CLEANFILES += $(GOBINDIR)/mega.go
 CLEANFILES += $(LIBRARY_PATH)
 
 # Sources for SWIG Go wrapper
-nodist_bindings_go__mega_la_SOURCES = $(GO_SOURCE)
-bindings_go__mega_la_SOURCES = $(top_srcdir)/bindings/megaapi.i
+nodist_bindings_go_lib_mega_la_SOURCES = $(GO_SOURCE)
+bindings_go_lib_mega_la_SOURCES = $(top_srcdir)/bindings/megaapi.i
 
-bindings_go__mega_la_CPPFLAGS = -I$(top_srcdir)/include
-bindings_go__mega_la_LDFLAGS = -shared -shrext .so -L$(GOBINDIR) -lmega_go
-bindings_go__mega_la_LIBADD = $(top_builddir)/src/$(LIBRARY_NAME)
+bindings_go_lib_mega_la_CPPFLAGS = -I$(top_srcdir)/include
+bindings_go_lib_mega_la_LIBADD = $(top_builddir)/src/$(LIBRARY_NAME)
 
 $(GO_SOURCE): $(top_srcdir)/bindings/megaapi.i
 	$(SWIG_GO) $(SWIG_GO_FLAGS) -o $@ -outdir $(GOBINDIR) -package $(GOPACKAGE) -I$(top_srcdir)/include $<

@@ -1,0 +1,3 @@
+package megasdk
+
+import "C"
