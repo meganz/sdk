@@ -293,13 +293,13 @@ fi
 AC_ARG_ENABLE(sync,
     AS_HELP_STRING([--enable-sync], [include sync subsystem [default=yes]]),
     [enable_sync=$enableval
-    if test "x$enable_sync" = "xyes" && (test "x$enable_java" = "xyes" || test "x$enable_python" = "xyes" || test "x$enable_php" = "xyes"); then
+    if test "x$enable_sync" = "xyes" && (test "x$enable_java" = "xyes" || test "x$enable_python" = "xyes" || test "x$enable_go" = "xyes" || test "x$enable_php" = "xyes"); then
         AC_MSG_ERROR([--enable-sync not allowed when building bindings (php/python/java)!])
     fi
     ],
     [enable_sync=yes])
 
-if test "x$enable_java" = "xyes" || test "x$enable_python" = "xyes" || test "x$enable_php" = "xyes" ; then
+if test "x$enable_java" = "xyes" || test "x$enable_python" = "xyes" || test "x$enable_go" = "xyes" || test "x$enable_php" = "xyes" ; then
     enable_sync=no
 fi
 
@@ -433,7 +433,7 @@ AM_CONDITIONAL([BUILD_JAVA], [test "$enable_java" = "yes"])
 AC_ARG_ENABLE(chat,
     AS_HELP_STRING([--enable-chat], [enable chat support]),
     [], [enable_chat=no])
-if test "x$enable_chat" = "xyes" || test "x$enable_java" = "xyes" || test "x$enable_python" = "xyes" || test "x$enable_php" = "xyes" ; then
+if test "x$enable_chat" = "xyes" || test "x$enable_java" = "xyes" || test "x$enable_python" = "xyes" || test "x$enable_go" = "xyes" || test "x$enable_php" = "xyes" ; then
     enable_chat=yes
     AC_DEFINE(ENABLE_CHAT, 1, [Define to enable chat])
 fi
@@ -2172,6 +2172,30 @@ if test "x$enable_python" = "xyes" ; then
 fi
 AM_CONDITIONAL([BUILD_PYTHON], [test "$enable_python" = "yes"])
 
+# GO Lang
+AC_MSG_CHECKING([if building Go bindings])
+AC_ARG_ENABLE(go,
+    AS_HELP_STRING([--enable-go], [build Go language bindings]),
+    [AC_MSG_RESULT([$enableval])],
+    [
+     AC_MSG_RESULT([$enableval])
+     enable_go=no]
+)
+
+if test "x$enable_go" = "xyes" ; then
+    AX_PKG_SWIG(2.0.0, [], [
+        AC_MSG_ERROR([SWIG executable not found!])
+    ])
+    AX_SWIG_ENABLE_CXX
+    AX_SWIG_MULTI_MODULE_SUPPORT
+
+    if test -z "$SWIG"; then
+        AC_MSG_ERROR([SWIG executable not found!])
+    fi
+
+fi
+AM_CONDITIONAL([BUILD_GO], [test "$enable_go" = "yes"])
+
 # PHP
 AC_MSG_CHECKING([if building PHP bindings])
 AC_ARG_ENABLE(php,
@@ -2288,6 +2312,7 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
 
   Python bindings:  $enable_python
   Python3 bindings: $USE_PYTHON3
+  Go bindings::     $enable_go
   PHP bindings:     $enable_php
   SWIG_FLAGS_PHP:   $SWIG_FLAGS_PHP
   

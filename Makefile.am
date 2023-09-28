@@ -63,6 +63,10 @@ if BUILD_PYTHON
 include bindings/python/include.am
 endif
 
+if BUILD_GO
+include bindings/go/include.am
+endif
+
 if BUILD_PHP
 include bindings/php/include.am
 endif
