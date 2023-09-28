@@ -95,7 +95,7 @@ class IGfxCommunicationsClient
 public:
     virtual ~IGfxCommunicationsClient() = default;
 
-    virtual std::unique_ptr<mega::gfx::IEndpoint> connect() = 0;
+    virtual std::unique_ptr<IEndpoint> connect() = 0;
 };
 
 } //namespace gfx

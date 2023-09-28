@@ -11,15 +11,6 @@
 namespace mega {
 namespace gfx {
 
-using mega::gfx::CommandNewGfx;
-using mega::gfx::CommandNewGfxResponse;
-using mega::gfx::CommandShutDown;
-using mega::gfx::CommandShutDownResponse;
-using mega::gfx::ProtocolWriter;
-using mega::gfx::ProtocolReader;
-using mega::gfx::TimeoutMs;
-using mega::LocalPath;
-
 bool GfxClient::runShutDown()
 {
 	// connect

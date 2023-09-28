@@ -13,6 +13,7 @@ namespace
     using mega::gfx::CommandNewGfxResponse;
     using mega::gfx::CommandShutDown;
     using mega::gfx::CommandShutDownResponse;
+    using mega::gfx::CommandType;
 
     class GfxTaskSerializationHelper
     {
@@ -68,7 +69,7 @@ namespace
 
         static void serialize(std::string& target, const GfxSerializeVersion source);
 
-        static void serialize(std::string& target, const mega::gfx::CommandType source);
+        static void serialize(std::string& target, const CommandType source);
 
         template<typename T>
         static size_t unserialize(std::vector<T>& target, const char* source, const size_t len, const size_t maxVectSize = MAX_VECT_SIZE)
@@ -177,7 +178,7 @@ namespace
         GfxTaskSerializationHelper::serialize_as_uint32_t(target, source);
     }
 
-    void GfxTaskSerializationHelper::serialize(std::string& target, const mega::gfx::CommandType source)
+    void GfxTaskSerializationHelper::serialize(std::string& target, const CommandType source)
     {
         GfxTaskSerializationHelper::serialize_as_uint32_t(target, source);
     }

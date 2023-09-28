@@ -77,7 +77,7 @@ class IRequestProcessor
 {
 public:
     virtual ~IRequestProcessor() = default;
-    virtual bool process(std::unique_ptr<mega::gfx::IEndpoint> endpoint) = 0;
+    virtual bool process(std::unique_ptr<IEndpoint> endpoint) = 0;
 };
 
 class RequestProcessor : public IRequestProcessor
@@ -85,12 +85,12 @@ class RequestProcessor : public IRequestProcessor
 public:
     RequestProcessor(std::unique_ptr<IGfxProcessor> processor);
 
-    bool process(std::unique_ptr<mega::gfx::IEndpoint> endpoint);
+    bool process(std::unique_ptr<IEndpoint> endpoint);
 
 private:
-    void processShutDown(mega::gfx::IEndpoint* endpoint);
+    void processShutDown(IEndpoint* endpoint);
 
-    void processGfx(mega::gfx::IEndpoint* endpoint, mega::gfx::CommandNewGfx* request);
+    void processGfx(IEndpoint* endpoint, CommandNewGfx* request);
 
     ThreadPool mThreadPool;
     std::unique_ptr<IGfxProcessor> mGfxProcessor;

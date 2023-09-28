@@ -9,34 +9,36 @@ using mega::gfx::CommandNewGfxResponse;
 using mega::gfx::CommandShutDown;
 using mega::gfx::CommandShutDownResponse;
 using mega::gfx::TimeoutMs;
+using mega::gfx::IReader;
+using mega::gfx::GfxSize;
 
 namespace mega
 {
 namespace gfx
 {
-	bool operator==(const mega::gfx::CommandNewGfx& lhs, const mega::gfx::CommandNewGfx& rhs)
+	bool operator==(const CommandNewGfx& lhs, const CommandNewGfx& rhs)
 	{
 		return lhs.Task.Path == rhs.Task.Path && lhs.Task.Sizes == rhs.Task.Sizes;
 	}
 
-	bool operator==(const mega::gfx::CommandNewGfxResponse& lhs, const mega::gfx::CommandNewGfxResponse& rhs)
+	bool operator==(const CommandNewGfxResponse& lhs, const CommandNewGfxResponse& rhs)
 	{
 		return lhs.ErrorCode == rhs.ErrorCode && lhs.ErrorText == rhs.ErrorText && lhs.Images == rhs.Images;
 	}
 
-	bool operator==(const mega::gfx::CommandShutDown& /*lhs*/, const mega::gfx::CommandShutDown& /*rhs*/)
+	bool operator==(const CommandShutDown& /*lhs*/, const CommandShutDown& /*rhs*/)
 	{
 		return true;
 	}
 
-	bool operator==(const mega::gfx::CommandShutDownResponse& /*lhs*/, const mega::gfx::CommandShutDownResponse& /*rhs*/)
+	bool operator==(const CommandShutDownResponse& /*lhs*/, const CommandShutDownResponse& /*rhs*/)
 	{
 		return true;
 	}
 }
 }
 
-class StringReader : public mega::gfx::IReader
+class StringReader : public IReader
 {
 public:
 	StringReader(std::string&& value) : mValue(std::move(value)), mIndex{0} {}
@@ -64,7 +66,7 @@ TEST(CommandSerializer, CommandNewGfxSerializeAndUnserializeSuccessfully)
 {
 	CommandNewGfx sourceCommand;
 	sourceCommand.Task.Path = "c:\\path\\image.png";
-	sourceCommand.Task.Sizes = std::vector<mega::gfx::GfxSize>{ {250, 0} };
+	sourceCommand.Task.Sizes = std::vector<GfxSize>{ {250, 0} };
 
 	auto data = CommandSerializer::serialize(&sourceCommand);
 	ASSERT_NE(data, nullptr);

@@ -248,7 +248,7 @@ Win32NamedPipeEndpointServer::~Win32NamedPipeEndpointServer()
     }
 }
 
-std::unique_ptr<mega::gfx::IEndpoint> WinGfxCommunicationsClient::connect()
+std::unique_ptr<IEndpoint> WinGfxCommunicationsClient::connect()
 {
     HANDLE hPipe = connect(TEXT("\\\\.\\pipe\\mynamedpipe"));
 

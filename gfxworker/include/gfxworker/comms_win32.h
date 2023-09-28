@@ -79,7 +79,7 @@ public:
 
     bool initialize();
 
-    std::unique_ptr<mega::gfx::IEndpoint> connect() override;
+    std::unique_ptr<IEndpoint> connect() override;
 
 private:
     HANDLE connect(LPCTSTR pipeName);
@@ -91,7 +91,7 @@ private:
 class WinGfxCommunicationsServer
 {
 public:
-    WinGfxCommunicationsServer(std::unique_ptr<mega::gfx::IRequestProcessor> requestProcessor)
+    WinGfxCommunicationsServer(std::unique_ptr<IRequestProcessor> requestProcessor)
         : mRequestProcessor(std::move(requestProcessor))
     {
 
@@ -103,7 +103,7 @@ private:
     void serverListeningLoop();
     bool waitForClient(HANDLE hPipe, OVERLAPPED* overlap);
     OnServerConnectedFunc mOnConnected;
-    std::unique_ptr<mega::gfx::IRequestProcessor> mRequestProcessor;
+    std::unique_ptr<IRequestProcessor> mRequestProcessor;
     std::unique_ptr<std::thread> mListeningThread;
 };
 
