@@ -1,3 +1,20 @@
+# mega/megasdk
+megaapi_wrap.h:18: Warning 401: Nothing known about base class 'mega::MegaGfxProcessor'. Ignored.
+megaapi_wrap.h:60: Warning 401: Nothing known about base class 'mega::MegaLogger'. Ignored.
+megaapi_wrap.h:74: Warning 401: Nothing known about base class 'mega::MegaTreeProcessor'. Ignored.
+megaapi_wrap.h:88: Warning 401: Nothing known about base class 'mega::MegaRequestListener'. Ignored.
+megaapi_wrap.h:114: Warning 401: Nothing known about base class 'mega::MegaTransferListener'. Ignored.
+megaapi_wrap.h:148: Warning 401: Nothing known about base class 'mega::MegaGlobalListener'. Ignored.
+megaapi_wrap.h:202: Warning 401: Nothing known about base class 'mega::MegaListener'. Ignored.
+# mega/megasdk
+cgo: inconsistent definitions for C.swig_type_4
+cgo: inconsistent definitions for C.swig_type_2
+cgo: inconsistent definitions for C.swig_type_26
+cgo: inconsistent definitions for C.swig_type_3
+cgo: inconsistent definitions for C.swig_type_22
+cgo: inconsistent definitions for C.swig_type_24
+
+
 $ cat b043/_mega_swig.go | grep swig_type_24                                                                                                                                                                                                  
 typedef long long swig_type_24;
 extern _Bool _wrap_SwigDirector_MegaTransferListener_onTransferData_mega_140d19983b5f0e49(uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, swig_type_23 arg4, swig_type_24 arg5);
