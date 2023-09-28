@@ -20069,11 +20069,10 @@ class MegaApi
         /**
          * @brief Allows to start chat call in a chat room
          *
-         * - If schedId param is INVALID_HANDLE:
-         *      + If Waiting room option is enabled : Call should ring and we'll bypass waiting room
-         *      + If Waiting room option is disabled: Call should ring
+         * - If schedId param is INVALID_HANDLE, waiting room will be enabled for the call, just if waiting room flag
+         *   is enabled for the chatroom. Call will ring or not depending on the value of notRinging param
          *
-         * - If schedId param is valid:
+         * - If schedId param is valid (Legacy):
          *      + If Waiting room option is enabled : Call shouldn't ring and we'll be redirected to Waiting room
          *      + If Waiting room option is disabled: Call shouldn't ring
          *
@@ -20091,13 +20090,15 @@ class MegaApi
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EARGS - If the chatid is invalid
+         * - MegaError::API_EARGS - If schedId is not INVALID_HANDLE and notRinging is true
          * - MegaError::API_EEXIST - If there is a call in the chatroom
          *
          * @param chatid MegaHandle that identifies the chat room
          * @param schedId MegaHandle scheduled meeting id that identifies the scheduled meeting context in which we will start the call
+         * @param notRinging if true call won't ring for participants when it's started
          * @param listener MegaRequestListener to track this request
          */
-        void startChatCall(MegaHandle chatid, MegaHandle schedId = INVALID_HANDLE, MegaRequestListener* listener = nullptr);
+        void startChatCall(MegaHandle chatid, MegaHandle schedId = INVALID_HANDLE, bool notRinging = false, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Allow to join chat call

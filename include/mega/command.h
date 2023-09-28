@@ -1670,7 +1670,7 @@ class MEGA_API CommandMeetingStart : public Command
 public:
     bool procresult(Result, JSON&) override;
 
-    CommandMeetingStart(MegaClient*, handle chatid, handle schedId, CommandMeetingStartCompletion completion);
+    CommandMeetingStart(MegaClient*, const handle chatid, const handle schedId, const bool notRinging, CommandMeetingStartCompletion completion);
 };
 
 typedef std::function<void(Error, std::string)> CommandMeetingJoinCompletion;
