@@ -1,6 +1,7 @@
 ﻿#include "mega.h"
 #include "gtest/gtest.h"
 #include "mega/filesystem.h"
+#include <gtest/gtest.h>
 #include <stdio.h>
 #include <fstream>
 #ifdef WIN32
@@ -444,6 +445,11 @@ bool TestMegaLogger::writeCout = true;
 class GTestLogger
   : public ::testing::EmptyTestEventListener
 {
+    static void toLog(const std::string& message)
+    {
+        out() << "GTEST: " << message;
+    }
+
 public:
     void OnTestEnd(const ::testing::TestInfo& info) override
     {
@@ -460,6 +466,8 @@ public:
               << info.test_case_name()
               << "."
               << info.name();
+
+        RequestRetryRecorder::instance().report(toLog);
     }
 
     void OnTestPartResult(const ::testing::TestPartResult& result) override
@@ -493,6 +501,8 @@ public:
         {
             out() << "GTEST: " << s;
         }
+
+        RequestRetryRecorder::instance().report(toLog);
     }
 
     void OnTestStart(const ::testing::TestInfo& info) override
@@ -503,6 +513,30 @@ public:
               << info.name();
     }
 }; // GTestLogger
+
+class RequestRetryReporter
+  : public ::testing::EmptyTestEventListener
+{
+    static void toStandardOutput(const std::string& message)
+    {
+        std::cout << message << std::endl;
+    }
+
+public:
+    void OnTestEnd(const ::testing::TestInfo& info) override
+    {
+        RequestRetryRecorder::instance().report(toStandardOutput);
+    }
+
+    void OnTestPartResult(const ::testing::TestPartResult& result) override
+    {
+        using ::testing::TestPartResult;
+
+        // Only write report if the test failed.
+        if (result.type() == TestPartResult::kSuccess)
+            RequestRetryRecorder::instance().report(toStandardOutput);
+    }
+}; // RequestRetryReporter
 
 // Let us log even during post-test shutdown
 TestMegaLogger megaLogger;
@@ -862,10 +896,17 @@ int main (int argc, char *argv[])
         cerr << endl;
     }
 
-    if (gWriteLog)
+    // Add listeners.
     {
         auto& listeners = testing::UnitTest::GetInstance()->listeners();
-        listeners.Append(new GTestLogger());
+
+        // Emit request retries to screen when appropriate.
+        if (!gOutputToCout)
+            listeners.Append(new RequestRetryReporter());
+
+        // Emit test events to a log file.
+        if (gWriteLog)
+            listeners.Append(new GTestLogger());
     }
 
     bool exitFlag = false;

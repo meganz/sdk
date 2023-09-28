@@ -258,6 +258,24 @@ class RequestRetryRecorder
     // Maps retry class to retry entry.
     using RetryEntryMap = std::map<retryreason_t, RetryEntry>;
 
+    // Translates a retry entry into a human-readable string.
+    std::string report(const RetryEntryMap::value_type& entry) const
+    {
+        std::ostringstream ostream;
+
+        ostream << "Requests retried due to "
+                << toString(entry.first)
+                << " "
+                << entry.second.mCount
+                << " time(s) [duration "
+                << entry.second.mShortest.count()
+                << "ms-"
+                << entry.second.mLongest.count()
+                << "ms]";
+
+        return ostream.str();
+    }
+
     // Tracks statistics about a specific retry class.
     RetryEntryMap mEntries;
 
@@ -310,6 +328,18 @@ public:
         entry.mCount = entry.mCount + 1;
         entry.mLongest = std::max(entry.mLongest, duration);
         entry.mShortest = std::min(entry.mShortest, duration);
+    }
+
+    // Transform recorded retry entries to a human-readable string.
+    template<typename Printer>
+    void report(Printer&& printer) const
+    {
+        // Acquire lock.
+        std::lock_guard<std::mutex> guard(mEntriesLock);
+
+        // Print entries.
+        for (auto& i : mEntries)
+            printer(report(i));
     }
 
     void reset()
