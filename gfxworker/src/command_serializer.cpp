@@ -15,7 +15,7 @@ namespace
     using mega::gfx::CommandShutDownResponse;
     using mega::gfx::CommandType;
 
-    class GfxTaskSerializationHelper
+    class GfxSerializationHelper
     {
         template<typename T>
         static void serialize_as_uint32_t(std::string& target, const T source)
@@ -48,10 +48,10 @@ namespace
 
             auto vecSize = source.size();
             assert(vecSize < std::numeric_limits<uint32_t>::max());
-            GfxTaskSerializationHelper::serialize_as_uint32_t(target, vecSize);
+            GfxSerializationHelper::serialize_as_uint32_t(target, vecSize);
             for (const auto& entry : source)
             {
-                GfxTaskSerializationHelper::serialize(target, entry);
+                GfxSerializationHelper::serialize(target, entry);
             }
         }
 
@@ -76,7 +76,7 @@ namespace
         {
             size_t count = 0;
             typename std::vector<T>::size_type vecSize = 0;
-            size_t consumed = GfxTaskSerializationHelper::unserialize_as_uint32_t(vecSize, source, len);
+            size_t consumed = GfxSerializationHelper::unserialize_as_uint32_t(vecSize, source, len);
             if (!consumed)
             {
                 return 0;
@@ -89,7 +89,7 @@ namespace
             target.resize(vecSize);
             for (auto& entry : target)
             {
-                consumed = GfxTaskSerializationHelper::unserialize(entry, source + count, len - count);
+                consumed = GfxSerializationHelper::unserialize(entry, source + count, len - count);
                 if (!consumed)
                 {
                     return 0;
@@ -138,56 +138,56 @@ namespace
         static bool unserialize(const std::string& data, CommandShutDownResponse& command);
     };
 
-    void GfxTaskSerializationHelper::serialize(std::string& target, const std::string& source)
+    void GfxSerializationHelper::serialize(std::string& target, const std::string& source)
     {
         auto strSize = source.size();
         assert(strSize < std::numeric_limits<uint32_t>::max());
-        GfxTaskSerializationHelper::serialize_as_uint32_t(target, strSize);
+        GfxSerializationHelper::serialize_as_uint32_t(target, strSize);
         target.append(reinterpret_cast<const char*>(source.data()), strSize);
     }
 
-    void GfxTaskSerializationHelper::serialize(std::string& target, const bool source)
+    void GfxSerializationHelper::serialize(std::string& target, const bool source)
     {
         uint8_t boolean = source ? 1 : 0;
         target.append(reinterpret_cast<const char*>(&boolean), sizeof(uint8_t));
     }
 
-    void GfxTaskSerializationHelper::serialize(std::string& target, const uint32_t source)
+    void GfxSerializationHelper::serialize(std::string& target, const uint32_t source)
     {
         target.append(reinterpret_cast<const char*>(&source), sizeof(uint32_t));
     }
 
-    void GfxTaskSerializationHelper::serialize(std::string& target, const uint64_t source)
+    void GfxSerializationHelper::serialize(std::string& target, const uint64_t source)
     {
         target.append(reinterpret_cast<const char*>(&source), sizeof(uint64_t));
     }
 
-    void GfxTaskSerializationHelper::serialize(std::string& target, const GfxSize& source)
+    void GfxSerializationHelper::serialize(std::string& target, const GfxSize& source)
     {
-        GfxTaskSerializationHelper::serialize_as_uint32_t(target, source.w());
-        GfxTaskSerializationHelper::serialize_as_uint32_t(target, source.h());
+        GfxSerializationHelper::serialize_as_uint32_t(target, source.w());
+        GfxSerializationHelper::serialize_as_uint32_t(target, source.h());
     }
 
-    void GfxTaskSerializationHelper::serialize(std::string& target, const GfxTaskProcessStatus source)
+    void GfxSerializationHelper::serialize(std::string& target, const GfxTaskProcessStatus source)
     {
-        GfxTaskSerializationHelper::serialize_as_uint32_t(target, source);
+        GfxSerializationHelper::serialize_as_uint32_t(target, source);
     }
 
-    void GfxTaskSerializationHelper::serialize(std::string& target, const GfxSerializeVersion source)
+    void GfxSerializationHelper::serialize(std::string& target, const GfxSerializeVersion source)
     {
-        GfxTaskSerializationHelper::serialize_as_uint32_t(target, source);
+        GfxSerializationHelper::serialize_as_uint32_t(target, source);
     }
 
-    void GfxTaskSerializationHelper::serialize(std::string& target, const CommandType source)
+    void GfxSerializationHelper::serialize(std::string& target, const CommandType source)
     {
-        GfxTaskSerializationHelper::serialize_as_uint32_t(target, source);
+        GfxSerializationHelper::serialize_as_uint32_t(target, source);
     }
 
-    size_t GfxTaskSerializationHelper::unserialize(std::string& target, const char* source, const size_t len, const size_t maxStringSize)
+    size_t GfxSerializationHelper::unserialize(std::string& target, const char* source, const size_t len, const size_t maxStringSize)
     {
         size_t count = 0;
         std::string::size_type strSize;
-        size_t consumed = GfxTaskSerializationHelper::unserialize_as_uint32_t(strSize, source, len);
+        size_t consumed = GfxSerializationHelper::unserialize_as_uint32_t(strSize, source, len);
         if (!consumed)
         {
             return 0;
@@ -206,7 +206,7 @@ namespace
         return count;
     }
 
-    size_t GfxTaskSerializationHelper::unserialize(bool& target, const char* source, const size_t len)
+    size_t GfxSerializationHelper::unserialize(bool& target, const char* source, const size_t len)
     {
         uint8_t boolean = 0;
         size_t consume = sizeof(uint8_t);
@@ -219,7 +219,7 @@ namespace
         return consume;
     }
 
-    size_t GfxTaskSerializationHelper::unserialize(uint32_t& target, const char* source, const size_t len)
+    size_t GfxSerializationHelper::unserialize(uint32_t& target, const char* source, const size_t len)
     {
         size_t consume = sizeof(uint32_t);
         if (consume > len)
@@ -230,7 +230,7 @@ namespace
         return consume;
     }
 
-    size_t GfxTaskSerializationHelper::unserialize(uint64_t& target, const char* source, const size_t len)
+    size_t GfxSerializationHelper::unserialize(uint64_t& target, const char* source, const size_t len)
     {
         size_t consume = sizeof(uint64_t);
         if (consume > len)
@@ -241,18 +241,18 @@ namespace
         return consume;
     }
 
-    size_t GfxTaskSerializationHelper::unserialize(GfxSize& target, const char* source, const size_t len)
+    size_t GfxSerializationHelper::unserialize(GfxSize& target, const char* source, const size_t len)
     {
         size_t count = 0;
         int w = 0;
-        size_t consumed = GfxTaskSerializationHelper::unserialize_as_uint32_t(w, source, len);
+        size_t consumed = GfxSerializationHelper::unserialize_as_uint32_t(w, source, len);
         if (!consumed)
         {
             return 0;
         }
         count += consumed;
         int h = 0;
-        consumed = GfxTaskSerializationHelper::unserialize_as_uint32_t(h, source + count, len - count);
+        consumed = GfxSerializationHelper::unserialize_as_uint32_t(h, source + count, len - count);
         if (!consumed)
         {
             return 0;
@@ -263,21 +263,21 @@ namespace
         return count;
     }
 
-    size_t GfxTaskSerializationHelper::unserialize(GfxTaskProcessStatus& target, const char* source, const size_t len)
+    size_t GfxSerializationHelper::unserialize(GfxTaskProcessStatus& target, const char* source, const size_t len)
     {
-        return GfxTaskSerializationHelper::unserialize_as_uint32_t(target, source, len);
+        return GfxSerializationHelper::unserialize_as_uint32_t(target, source, len);
     }
 
-    size_t GfxTaskSerializationHelper::unserialize(GfxSerializeVersion& target, const char* source, const size_t len)
+    size_t GfxSerializationHelper::unserialize(GfxSerializeVersion& target, const char* source, const size_t len)
     {
-        return GfxTaskSerializationHelper::unserialize_as_uint32_t(target, source, len);
+        return GfxSerializationHelper::unserialize_as_uint32_t(target, source, len);
     }
 
     std::string CommandNewGfxSerializer::serialize(const CommandNewGfx& command)
     {
         std::string toret;
-        GfxTaskSerializationHelper::serialize(toret, command.Task.Path);
-        GfxTaskSerializationHelper::serialize(toret, command.Task.Sizes);
+        GfxSerializationHelper::serialize(toret, command.Task.Path);
+        GfxSerializationHelper::serialize(toret, command.Task.Sizes);
         return toret;
     }
 
@@ -290,7 +290,7 @@ namespace
 
         // path
         std::string path;
-        if (!(consumed = GfxTaskSerializationHelper::unserialize(path, source, len)))
+        if (!(consumed = GfxSerializationHelper::unserialize(path, source, len)))
         {
             return false;
         }
@@ -298,7 +298,7 @@ namespace
 
         // sizes
         std::vector<GfxSize> sizes;
-        if (!(consumed = GfxTaskSerializationHelper::unserialize(sizes, source + count, len - count)))
+        if (!(consumed = GfxSerializationHelper::unserialize(sizes, source + count, len - count)))
         {
             return false;
         }
@@ -319,9 +319,9 @@ namespace
     std::string CommandNewGfxResponseSerializer::serialize(const CommandNewGfxResponse& command)
     {
         std::string toret;
-        GfxTaskSerializationHelper::serialize(toret, command.ErrorCode);
-        GfxTaskSerializationHelper::serialize(toret, command.ErrorText);
-        GfxTaskSerializationHelper::serialize(toret, command.Images);
+        GfxSerializationHelper::serialize(toret, command.ErrorCode);
+        GfxSerializationHelper::serialize(toret, command.ErrorText);
+        GfxSerializationHelper::serialize(toret, command.Images);
         return toret;
     }
 
@@ -333,14 +333,14 @@ namespace
         auto len = data.size();
 
         // ErrorCode
-        if (!(consumed = GfxTaskSerializationHelper::unserialize(command.ErrorCode, source, len)))
+        if (!(consumed = GfxSerializationHelper::unserialize(command.ErrorCode, source, len)))
         {
             return false;
         }
         count += consumed;
 
         // ErrorText
-        if (!(consumed = GfxTaskSerializationHelper::unserialize(command.ErrorText, source + count, len - count)))
+        if (!(consumed = GfxSerializationHelper::unserialize(command.ErrorText, source + count, len - count)))
         {
             return false;
         }
@@ -348,7 +348,7 @@ namespace
 
         // images
         std::vector<std::string> images;
-        if (!(consumed = GfxTaskSerializationHelper::unserialize(command.Images, source + count, len - count)))
+        if (!(consumed = GfxSerializationHelper::unserialize(command.Images, source + count, len - count)))
         {
             return false;
         }
@@ -423,10 +423,10 @@ std::unique_ptr<std::string> CommandSerializer::serialize(ICommand* command)
     std::string dataToReturn;
 
     // proto version unit32_t
-    GfxTaskSerializationHelper::serialize(dataToReturn, GfxSerializeVersion::V_1);
+    GfxSerializationHelper::serialize(dataToReturn, GfxSerializeVersion::V_1);
 
     // command type
-    GfxTaskSerializationHelper::serialize(dataToReturn, command->type());
+    GfxSerializationHelper::serialize(dataToReturn, command->type());
 
     // length and command
     std::string commandData;
@@ -434,7 +434,7 @@ std::unique_ptr<std::string> CommandSerializer::serialize(ICommand* command)
     {
         return nullptr;
     }
-    GfxTaskSerializationHelper::serialize(dataToReturn, commandData);
+    GfxSerializationHelper::serialize(dataToReturn, commandData);
 
     return ::mega::make_unique<std::string>(std::move(dataToReturn));
 }
