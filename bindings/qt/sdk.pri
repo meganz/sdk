@@ -71,6 +71,7 @@ SOURCES += src/attrmap.cpp \
     src/crypto/sodium.cpp  \
     src/db/sqlite.cpp  \
     src/gfx/external.cpp \
+    src/gfx/isolatedprocess.cpp \
     src/mega_utf8proc.cpp \
     src/mega_ccronexpr.cpp \
     src/mega_evt_tls.cpp \
@@ -480,6 +481,8 @@ HEADERS  += include/mega.h \
             include/mega/gfx/freeimage.h \
             include/mega/gfx/gfx_pdfium.h \
             include/mega/gfx/external.h \
+            include/mega/gfx/isolatedprocess.h \
+            include/mega/gfx/worker/tasks.h \
             include/mega/thread.h \
             include/mega/thread/cppthread.h \
             include/megaapi.h \
@@ -698,7 +701,7 @@ win32 {
      LIBS += -lpcre
     }
 
-    LIBS += -lshlwapi -lws2_32 -luser32 
+    LIBS += -lshlwapi -lws2_32 -luser32
     !vcpkg:LIBS += -lsodium -lcryptopp -lzlibstat
 
     DEFINES += NOMINMAX
@@ -736,7 +739,7 @@ unix:!macx {
     LIBS +=  $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcrypto.a
    }
    else {
-    LIBS += -lcrypto 
+    LIBS += -lcrypto
    }
 
    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcryptopp.a) {
@@ -787,7 +790,7 @@ macx {
    SOURCES += $$MEGASDK_BASE_PATH/src/osx/fs.cpp
 
    INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/osx
-   INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/posix   
+   INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/posix
 
    OBJECTIVE_SOURCES += $$MEGASDK_BASE_PATH/src/osx/osxutils.mm
 
@@ -811,15 +814,15 @@ macx {
    !vcpkg:LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a \
                     $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsodium.a -lcryptopp
    LIBS += -lz
-   
+
    !vcpkg:CONFIG(USE_OPENSSL) {
     INCLUDEPATH_EXTERNAL += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/openssl
     LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libssl.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcrypto.a
    }
 
    LIBS += -framework SystemConfiguration
-   
-   vcpkg:LIBS += -liconv -framework CoreServices -framework CoreFoundation -framework AudioUnit -framework AudioToolbox -framework CoreAudio -framework CoreMedia -framework VideoToolbox -framework ImageIO -framework CoreVideo 
+
+   vcpkg:LIBS += -liconv -framework CoreServices -framework CoreFoundation -framework AudioUnit -framework AudioToolbox -framework CoreAudio -framework CoreMedia -framework VideoToolbox -framework ImageIO -framework CoreVideo
 
     clang {
         COMPILER_VERSION = $$system("$$QMAKE_CXX -dumpversion | cut -d'.' -f1")

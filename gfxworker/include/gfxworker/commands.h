@@ -19,7 +19,7 @@
 #pragma once
 
 #include <memory>
-#include "gfxworker/tasks.h"
+#include "mega/gfx/worker/tasks.h"
 
 namespace mega {
 namespace gfx {

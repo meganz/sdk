@@ -1,6 +1,5 @@
 add_library(libgfxworker STATIC
             ${GFXWORKER_DIR}/include/gfxworker/logger.h
-            ${GFXWORKER_DIR}/include/gfxworker/tasks.h
             ${GFXWORKER_DIR}/include/gfxworker/utils.h
             ${GFXWORKER_DIR}/include/gfxworker/commands.h
             ${GFXWORKER_DIR}/include/gfxworker/comms.h
@@ -10,7 +9,6 @@ add_library(libgfxworker STATIC
             ${GFXWORKER_DIR}/include/gfxworker/command_serializer.h
             ${GFXWORKER_DIR}/include/gfxworker/client.h
             ${GFXWORKER_DIR}/src/logger.cpp
-            ${GFXWORKER_DIR}/src/tasks.cpp
             ${GFXWORKER_DIR}/src/utils.cpp
             ${GFXWORKER_DIR}/src/comms_win32.cpp
             ${GFXWORKER_DIR}/src/server.cpp

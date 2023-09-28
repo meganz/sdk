@@ -56,6 +56,8 @@ nobase_libmegainclude_HEADERS = \
 	mega/gfx/gfx_pdfium.h \
 	mega/gfx/freeimage.h \
 	mega/gfx/GfxProcCG.h \
+	mega/gfx/isolatedprocess.h \
+	mega/gfx/worker/tasks.h \
 	mega/raid.h \
 	mega/mediafileattribute.h
 

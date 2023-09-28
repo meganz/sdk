@@ -1,7 +1,7 @@
 #include "mega/logging.h"
+#include "mega/gfx/worker/tasks.h"
 #include "gfxworker/command_serializer.h"
 #include "gfxworker/comms.h"
-#include "gfxworker/tasks.h"
 #include <stdint.h>
 
 namespace
