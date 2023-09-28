@@ -21,7 +21,6 @@
 #include "gfxworker/comms.h"
 #include "gfxworker/command_serializer.h"
 #include "gfxworker/commands.h"
-#include "gfxworker/utils.h"
 #include "gfxworker/threadpool.h"
 #include "mega/gfx.h"
 

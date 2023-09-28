@@ -18,8 +18,6 @@
 
 #include "gfxworker/tasks.h"
 
-#include "mega/logging.h"
-
 namespace gfx {
 
 }

@@ -19,8 +19,12 @@
 #pragma once
 
 #include <memory>
-#include "gfxworker/tasks.h"
-#include "gfxworker/commands.h"
+#include <functional>
+#include <limits>
+
+#ifdef _WIN32
+    #include <windows.h>
+#endif
 
 namespace gfx {
 namespace comms {
@@ -29,11 +33,13 @@ namespace comms {
 class TimeoutMs
 {
 public:
-    explicit TimeoutMs(int milliseconds) : mValue(milliseconds) { }
+    using Type = unsigned int;
+
+    explicit TimeoutMs(Type milliseconds) : mValue(milliseconds) { }
 
     static const TimeoutMs forever()
     {
-        static TimeoutMs period(-1);
+        static TimeoutMs period(std::numeric_limits<Type>::max());
         return period;
     }
 
@@ -44,10 +50,9 @@ public:
     }
 #endif
 private:
+    bool isForever() const { return mValue == std::numeric_limits<Type>::max();}
 
-    bool isForever() const { return mValue == -1;}
-
-    unsigned int mValue;
+    Type mValue;
 };
 class IReader
 {

@@ -1,9 +1,7 @@
 #include "mega/logging.h"
 #include "mega/utils.h"
-#include "gfxworker/commands.h"
 #include "gfxworker/comms.h"
 #include "gfxworker/comms_win32.h"
-#include "gfxworker/utils.h"
 #include <windows.h>
 
 namespace gfx {
