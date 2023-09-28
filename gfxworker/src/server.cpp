@@ -32,6 +32,13 @@ using Dimension = mega::IGfxProvider::Dimension;
 namespace mega {
 namespace gfx {
 
+std::unique_ptr<IGfxProcessor> GfxProcessor::create()
+{
+    return ::mega::make_unique<GfxProcessor>(
+        ::mega::make_unique<GfxProviderFreeImage>()
+    );
+}
+
 GfxTaskResult GfxProcessor::process(const GfxTask& task)
 {
     std::vector<std::string> outputImages(task.Sizes.size());

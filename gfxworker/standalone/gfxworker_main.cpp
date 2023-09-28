@@ -5,8 +5,7 @@
 #include "gfxworker/comms_win32.h"
 #include "gfxworker/logger.h"
 
-using mega::gfx::IGfxProcessorFactory;
-using mega::gfx::GfxProcessorFactory;
+using mega::gfx::GfxProcessor;
 using mega::gfx::RequestProcessor;
 using mega::gfx::WinGfxCommunicationsServer;
 using mega::LocalPath;
@@ -22,7 +21,7 @@ int main(int argc, char** argv)
     LOG_info << "Gfxworker server starting...";
 
     WinGfxCommunicationsServer server(
-        ::mega::make_unique<RequestProcessor>(GfxProcessorFactory().processor())
+        ::mega::make_unique<RequestProcessor>(GfxProcessor::create())
     );
 
     std::thread serverThread(&WinGfxCommunicationsServer::initialize, &server);

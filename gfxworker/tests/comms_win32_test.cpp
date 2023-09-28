@@ -11,7 +11,7 @@
 using mega::gfx::WinGfxCommunicationsServer;
 using mega::gfx::WinGfxCommunicationsClient;
 using mega::gfx::RequestProcessor;
-using mega::gfx::GfxProcessorFactory;
+using mega::gfx::GfxProcessor;
 using mega::gfx::GfxClient;
 using mega::gfx::IEndpoint;
 
@@ -23,7 +23,7 @@ TEST(CommsWin32, init)
     mega::MegaApi::setLogLevel(mega::MegaApi::LOG_LEVEL_MAX);
 
     WinGfxCommunicationsServer server(
-        ::mega::make_unique<RequestProcessor>(GfxProcessorFactory().processor())
+        ::mega::make_unique<RequestProcessor>(GfxProcessor::create())
     );
 
     std::thread serverThread(&WinGfxCommunicationsServer::initialize, &server);

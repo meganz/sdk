@@ -36,39 +36,33 @@ namespace gfx {
 struct IGfxProcessor
 {
     virtual ~IGfxProcessor() = default;
-    virtual GfxTaskResult process(const GfxTask& task) = 0;
-};
 
-struct IGfxProcessorFactory
-{
-    virtual ~IGfxProcessorFactory() = default;
-    virtual std::unique_ptr<IGfxProcessor> processor() = 0;
+    virtual GfxTaskResult process(const GfxTask& task) = 0;
 };
 
 class GfxProcessor : public IGfxProcessor
 {
-    mega::FSACCESS_CLASS mFaccess;
-    std::unique_ptr<::mega::IGfxProvider> mGfxProvider;
 public:
     GfxProcessor() = delete;
+
     GfxProcessor(const GfxProcessor&) = delete;
+
     GfxProcessor(std::unique_ptr<::mega::IGfxProvider> &&gfxProvider) :
         mGfxProvider{std::move(gfxProvider)}
     {
         assert(mGfxProvider);
     }
-    GfxTaskResult process(const GfxTask& task) override;
-    virtual ~GfxProcessor() = default;
-};
 
-struct GfxProcessorFactory : public IGfxProcessorFactory
-{
-    std::unique_ptr<IGfxProcessor> processor() override
-    {
-        return std::unique_ptr<IGfxProcessor>(new GfxProcessor(
-            std::unique_ptr<::mega::IGfxProvider>(new mega::GfxProviderFreeImage)
-        ));
-    }
+    GfxTaskResult process(const GfxTask& task) override;
+
+    virtual ~GfxProcessor() = default;
+
+    static std::unique_ptr<IGfxProcessor> create();
+private:
+
+    mega::FSACCESS_CLASS mFaccess;
+
+    std::unique_ptr<::mega::IGfxProvider> mGfxProvider;
 };
 
 using TaskIndex = long long int;
@@ -77,6 +71,7 @@ class IRequestProcessor
 {
 public:
     virtual ~IRequestProcessor() = default;
+
     virtual bool process(std::unique_ptr<IEndpoint> endpoint) = 0;
 };
 
@@ -93,6 +88,7 @@ private:
     void processGfx(IEndpoint* endpoint, CommandNewGfx* request);
 
     ThreadPool mThreadPool;
+
     std::unique_ptr<IGfxProcessor> mGfxProcessor;
 };
 
