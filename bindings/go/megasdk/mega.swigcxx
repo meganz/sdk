@@ -1,0 +1,10 @@
+%module mega
+%{
+#include "megaapi_wrap.h"
+%}
+
+%include "megaapi_wrap.h"
+
+%feature("notfeature") MegaGfxProcessor;
+%feature("notfeature") MegaTransferListener;
+%feature("notfeature") MegaGlobalListener;

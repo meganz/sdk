@@ -7,7 +7,7 @@ pkggoexecdir = $(GOBINDIR)
 SWIG_GO = swig
 
 # Go package name
-GOPACKAGE = megasdk
+GOPACKAGE = mega
 
 # SWIG flags for Go bindings
 SWIG_GO_FLAGS = -go -cgo -intgosize 64 -c++
