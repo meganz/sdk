@@ -20203,7 +20203,7 @@ void MegaClient::putSetElements(vector<SetElement>&& els, std::function<void(Err
             tmpnodecipher.setkey(&existingSet->key());
             if (!tmpnodecipher.cbc_encrypt(encryptBuffer, sizeof(encryptBuffer)))
             {
-                LOG_err << "Sets: Failed to CBC encrypt Element key with Set key";
+                LOG_err << "Sets: Failed to CBC encrypt an Element key with Set key";
                 if (completion)
                 {
                     completion(API_EKEY, nullptr, nullptr);

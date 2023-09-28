@@ -164,6 +164,7 @@ bool SymmCipher::cbc_encrypt_pkcs_padding(const string *data, const byte *iv, st
 {
     if (!data || !result)
     {
+        assert(data && result);
         return false;
     }
 
@@ -202,6 +203,7 @@ bool SymmCipher::cbc_decrypt_pkcs_padding(const std::string* data, const byte* i
 {
     if (!data || !result)
     {
+        assert(data && result);
         return false;
     }
 
@@ -245,6 +247,7 @@ bool SymmCipher::cbc_decrypt_pkcs_padding(const byte* data,
 {
     if (!result)
     {
+        assert(result);
         return false;
     }
 
@@ -295,6 +298,7 @@ bool SymmCipher::ccm_encrypt(const string *data, const byte *iv, unsigned ivlen,
 {
     if (!data || !result)
     {
+        assert(data && result);
         return false;
     }
 
@@ -326,6 +330,7 @@ bool SymmCipher::ccm_decrypt(const string *data, const byte *iv, unsigned ivlen,
 {
     if (!data || !result)
     {
+        assert(data && result);
         return false;
     }
 
@@ -358,6 +363,7 @@ bool SymmCipher::gcm_encrypt(const string *data, const byte *iv, unsigned ivlen,
 {
     if (!data || !result)
     {
+        assert(data && result);
         return false;
     }
 
@@ -445,6 +451,7 @@ bool SymmCipher::gcm_decrypt(const string *data, const byte *iv, unsigned ivlen,
 {
     if (!data || !result)
     {
+        assert(data && result);
         return false;
     }
 

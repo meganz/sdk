@@ -143,8 +143,12 @@ void FileAttributeFetchChannel::parse(int /*fac*/, bool final)
             if (!(falen & (SymmCipher::BLOCKSIZE - 1)))
             {
                 SymmCipher *cipher = client->getRecycledTemporaryNodeCipher(&it->second->nodekey);
-                if (cipher && cipher->cbc_decrypt((byte*)ptr, falen))
+                if (cipher)
                 {
+                    if (!cipher->cbc_decrypt((byte*)ptr, falen))
+                    {
+                        LOG_err << "Failed to decrypt file attributes";
+                    }
                     client->app->fa_complete(it->second->nodehandle, it->second->type, ptr, falen);
                 }
 
