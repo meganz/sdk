@@ -981,7 +981,7 @@ void DemoApp::printChatInformation(TextChat *chat)
 
     cout << "\tPeers:";
 
-    if (chat->getOwnPrivileges())
+    if (chat->getUserPrivileges())
     {
         cout << "\t\t(userhandle)\t(privilege level)" << endl;
         for (unsigned i = 0; i < chat->getUserPrivileges()->size(); i++)
