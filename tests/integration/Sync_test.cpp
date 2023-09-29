@@ -1047,11 +1047,34 @@ bool StandardClient::waitForUserAlertsUpdated(unsigned numSeconds)
     return received_user_alerts;
 }
 
-void StandardClient::users_updated(User** , int)
+void StandardClient::users_updated(User** users , int size)
 {
-    lock_guard<mutex> g(user_actionpackets_mutex);
-    received_user_actionpackets = true;
-    user_updated_cv.notify_all();
+    if (!users) // All users have changed, notification just after fetchnodes
+    {
+        return;
+    }
+
+    //  If none lambda is register with createsOnUserUpdateLamda, any user action package generate and event for stop waiting period
+    if (!mCheckUserChange)
+    {
+        lock_guard<mutex> g(user_actionpackets_mutex);
+        received_user_actionpackets = true;
+        user_updated_cv.notify_all();
+    }
+    else
+    {
+        std::lock_guard<std::mutex> g(mUserActionPackageMutex);
+        for (int i = 0; i < size; i++)
+        {
+            if (mCheckUserChange(users[i]))
+            {
+                lock_guard<mutex> g(user_actionpackets_mutex);
+                received_user_actionpackets = true;
+                user_updated_cv.notify_all();
+            }
+        }
+    }
+
 }
 
 bool StandardClient::waitForUserUpdated(unsigned int numSeconds)
@@ -1063,6 +1086,20 @@ bool StandardClient::waitForUserUpdated(unsigned int numSeconds)
     });
 
     return received_user_actionpackets;
+}
+
+void StandardClient::createsOnUserUpdateLamda(std::function<bool(User*)> onUserUpdateLambda)
+{
+    std::lock_guard<std::mutex> g(mUserActionPackageMutex);
+    mCheckUserChange = onUserUpdateLambda;
+    received_user_actionpackets = false;
+}
+
+void StandardClient::removeOnUserUpdateLamda()
+{
+    std::lock_guard<std::mutex> g(mUserActionPackageMutex);
+    mCheckUserChange = nullptr;
+    received_user_actionpackets = false;
 }
 
 void StandardClient::syncupdate_scanning(bool b) { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_scanning()" << b; } }
@@ -1196,7 +1233,7 @@ bool StandardClient::waitForAttrDeviceIdIsSet(unsigned int numSeconds, bool& upd
     return isUserAttributeSet(attr_t::ATTR_DEVICE_NAMES, numSeconds, err);
 }
 
-bool StandardClient::waitForAttrMyBackupIsSet(unsigned int numSeconds, bool& updated)
+bool StandardClient::waitForAttrMyBackupIsSet(unsigned int numSeconds)
 {
     error err  = API_EINTERNAL;
     bool attrMyBackupFolderIsSet = isUserAttributeSet(attr_t::ATTR_MY_BACKUPS_FOLDER, numSeconds, err);
@@ -1235,8 +1272,6 @@ bool StandardClient::waitForAttrMyBackupIsSet(unsigned int numSeconds, bool& upd
     {
         return false;
     }
-
-    updated = true;
 
     // Check if attribute has been established properly
     return isUserAttributeSet(attr_t::ATTR_MY_BACKUPS_FOLDER, numSeconds, err);;
@@ -5154,9 +5189,31 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderBetweenSyncs)
     auto clientA2 = g_clientManager->getCleanStandardClient(0, localtestroot); // user 1 client 2
     auto clientA3 = g_clientManager->getCleanStandardClient(0, localtestroot); // user 1 client 2
 
+    auto receivedDeviceName = [](User* actionPackageUser, User* ownUser)
+    {
+        assert(actionPackageUser && ownUser);
+        if (actionPackageUser->userhandle == ownUser->userhandle && actionPackageUser->changed.devicenames)
+        {
+            return true;
+        }
+
+        return false;
+    };
+
+    User* ownUserClient2 = clientA2->client.ownuser();
+
+    clientA2->createsOnUserUpdateLamda([ownUserClient2, receivedDeviceName](User* user)
+    {
+        return receivedDeviceName(user, ownUserClient2);
+    });
+
+    User* ownUserClient3 = clientA3->client.ownuser();
+    clientA3->createsOnUserUpdateLamda([ownUserClient3, receivedDeviceName](User* user)
+    {
+       return receivedDeviceName(user, ownUserClient3);
+    });
+
     bool deviceIdUpdated = false;
-    clientA2->received_user_actionpackets = false;
-    clientA3->received_user_actionpackets = false;
     ASSERT_TRUE(clientA1->waitForAttrDeviceIdIsSet(60, deviceIdUpdated)) << "Error User attr device id isn't establised client1";
     if (deviceIdUpdated)  // only wait for action package if atribute has been updated
     {
@@ -5169,21 +5226,13 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderBetweenSyncs)
         ASSERT_EQ(deviceIdUpdated, false); // It has already updated
     }
 
+    clientA2->removeOnUserUpdateLamda();
+    clientA3->removeOnUserUpdateLamda();
 
-    bool backupFolderUpdated = false;
-    clientA2->received_user_actionpackets = false;
-    clientA3->received_user_actionpackets = false;
-    ASSERT_TRUE(clientA1->waitForAttrMyBackupIsSet(60, backupFolderUpdated)) << "Error User attr My Back Folder isn't establised client1";
-    if (backupFolderUpdated) // only wait for action package if atribute has been updated
-    {
-        ASSERT_TRUE(clientA2->waitForUserUpdated(60)) << "User update doesn't arrive at client2 (backup folder)";
-        ASSERT_TRUE(clientA3->waitForUserUpdated(60)) << "User update doesn't arrive at client3 (backup folder)";
-        backupFolderUpdated = false;
-        ASSERT_TRUE(clientA2->waitForAttrMyBackupIsSet(60, backupFolderUpdated)) << "Error User attr My Back Folder isn't establised client2";
-        ASSERT_EQ(backupFolderUpdated, false); // It has already updated
-        ASSERT_TRUE(clientA3->waitForAttrMyBackupIsSet(60, backupFolderUpdated)) << "Error User attr My Back Folder isn't establised client3";
-        ASSERT_EQ(backupFolderUpdated, false); // It has already updated
-    }
+    // ATTR_MY_BACKUPS_FOLDER is only set once, if it exists, it shouldn't be modified
+    ASSERT_TRUE(clientA1->waitForAttrMyBackupIsSet(60)) << "Error User attr My Back Folder isn't establised client1";
+    ASSERT_TRUE(clientA2->waitForAttrMyBackupIsSet(60)) << "Error User attr My Back Folder isn't establised client2";
+    ASSERT_TRUE(clientA3->waitForAttrMyBackupIsSet(60)) << "Error User attr My Back Folder isn't establised client3";
 
 
     ASSERT_TRUE(clientA1->resetBaseFolderMulticlient(clientA2, clientA3));

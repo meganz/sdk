@@ -329,8 +329,17 @@ struct StandardClient : public MegaApp
     bool received_user_actionpackets = false;
     std::mutex user_actionpackets_mutex;
     std::condition_variable user_updated_cv;
-    void users_updated(User**, int) override;
+    void users_updated(User**users, int size) override;
+
+    // If none lambda is register with createsOnUserUpdateLamda, any user action package generates an event for stop waiting period.
+    // If a lambda is register, waiting period only finished if lambda returns true when it is called
+    // Once waiting period is finised, removeOnUserUpdateLamda should be called
     bool waitForUserUpdated(unsigned numSeconds);
+    std::mutex mUserActionPackageMutex;
+    std::function<bool(User*)> mCheckUserChange;
+    void createsOnUserUpdateLamda(std::function<bool(User*)> onUserUpdateLambda);
+    // Should be called to remove registered lamda
+    void removeOnUserUpdateLamda();
 
     std::function<void(const SyncConfig&)> mOnSyncStateConfig;
 
@@ -375,7 +384,7 @@ struct StandardClient : public MegaApp
 
 
     bool waitForAttrDeviceIdIsSet(unsigned numSeconds, bool& updated);
-    bool waitForAttrMyBackupIsSet(unsigned numSeconds, bool& updated);
+    bool waitForAttrMyBackupIsSet(unsigned numSeconds);
 
     bool isUserAttributeSet(attr_t attr, unsigned numSeconds, error& err);
 
