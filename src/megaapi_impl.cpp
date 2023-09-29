@@ -27253,9 +27253,17 @@ void MegaFolderUploadController::start(MegaNode*)
         LocalPath lp = path;
         scanFolder_result scanResult = scanFolder(*mUploadTree.subtrees.front(), lp, foldercount, filecount);
 
+        // mCompletionForMegaApiThread lambda will be executed on the MegaApiImpl's thread
+        // use a weak_ptr in case this 'this' object doesn't exist anymore when lambda starts executing
+        weak_ptr<MegaFolderUploadController> weak_this = shared_from_this();
+
         // if the thread runs, we always queue a function to execute on MegaApi thread for onFinish()
         // we keep a pointer to it in case we need to execute it early and directly on cancel()
-        mCompletionForMegaApiThread.reset(new ExecuteOnce([this, scanResult]() {
+        mCompletionForMegaApiThread.reset(new ExecuteOnce([this, scanResult, weak_this]() {
+
+            // double check our object still exists when completion function starts executing
+            if (!weak_this.lock()) return;
+            assert(weak_this.lock().get() == this);
 
             // these next parts must run on MegaApiImpl's thread again, as
             // genUploadTransfersForFiles or checkCompletion may call the fireOnXYZ() functions
@@ -28859,9 +28867,17 @@ void MegaFolderDownloadController::start(MegaNode *node)
             Error e;
             std::shared_ptr<TransferQueue> transferQueue = createFolderGenDownloadTransfersForFiles(fsType, e);
 
+            // mCompletionForMegaApiThread lambda will be executed on the MegaApiImpl's thread
+            // use a weak_ptr in case this 'this' object doesn't exist anymore when lambda starts executing
+            weak_ptr<MegaFolderDownloadController> weak_this = shared_from_this();
+
             // the thread always queues a function to execute on MegaApi thread for onFinish()
             // we keep a pointer to it in case we need to cancel()
-            mCompletionForMegaApiThread.reset(new ExecuteOnce([this, e, transferQueue, path]() {
+            mCompletionForMegaApiThread.reset(new ExecuteOnce([this, e, transferQueue, path, weak_this]() {
+
+                // double check our object still exists when completion function starts executing
+                if (!weak_this.lock()) return;
+                assert(weak_this.lock().get() == this);
 
                 // these next parts must run on MegaApiImpl's thread again, as
                 // genUploadTransfersForFiles or checkCompletion may call the fireOnXYZ() functions

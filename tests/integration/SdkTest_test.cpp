@@ -14314,6 +14314,7 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
  * This test is valid for both FREE and PRO testing accounts.
  * If the testing account is FREE, the request results are adjusted to the API error expected in those cases.
  *
+ * 0) DELETE existing credentials. Generally, none should be present.
  * 1) GET the MEGA VPN regions.
  * 2) Choose one of the regions above to PUT a new VPN credential. It should return:
  *     - The SlotID where the credential has been created.
@@ -14336,6 +14337,38 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     int result;
+
+    // 0) Delete any existing credentials (most times there won't be any)
+    {
+        std::unique_ptr<MegaVpnCredentials> megaVpnCredentials;
+        result = doGetVpnCredentials(0, megaVpnCredentials);
+
+        if (result == API_OK)
+        {
+            ASSERT_NE(megaVpnCredentials, nullptr);
+
+            // Get SlotIDs
+            {
+                std::unique_ptr<MegaIntegerList> slotIDsList;
+                slotIDsList.reset(megaVpnCredentials->getSlotIDs());
+                ASSERT_NE(slotIDsList, nullptr);
+                ASSERT_NE(slotIDsList->size(), 0);
+
+                for (int i = 0; i < slotIDsList->size(); ++i)
+                {
+                    int slotID = static_cast<int>(slotIDsList->get(i));
+                    result = doDelVpnCredential(0, slotID);
+                    ASSERT_EQ(API_OK, result) << "deleting the VPN credentials from the slotID " << slotID << " failed";
+                }
+            }
+
+            // Check credentials again
+            result = doGetVpnCredentials(0, megaVpnCredentials);
+            ASSERT_EQ(API_ENOENT, result) << "there should not be any credentials left after deleting them";
+            ASSERT_EQ(megaVpnCredentials, nullptr) << "credentials have been deleted, but MegaVpnCredentials object is not NULL";
+        }
+    }
+
     // 1) Get VPN regions to choose one of them
     {
         std::unique_ptr<MegaStringList> vpnRegions;
@@ -14394,12 +14427,11 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
                 ASSERT_TRUE(megaVpnCredentials != nullptr) << "MegaVpnCredentials is NULL";
 
                 // Get SlotIDs - it should not be empty
-                // We don't check whether there should be only ONE slotID, as we could have more slots on this account
                 {
                     std::unique_ptr<MegaIntegerList> slotIDsList;
                     slotIDsList.reset(megaVpnCredentials->getSlotIDs());
                     ASSERT_TRUE(slotIDsList) << "MegaIntegerList of slotIDs is NULL";
-                    ASSERT_TRUE(slotIDsList->size()) << "slotIDs list is empty";
+                    ASSERT_EQ(slotIDsList->size(), 1) << "slotIDs list should have 1 credential";
                 }
 
                 // Get IPv4
