@@ -624,11 +624,14 @@ void HttpReq::purge(size_t numbytes)
 {
     inpurge += numbytes;
 
-    // Immediate purge because there are several places
-    // in the code directly accesing HttpReq::in instead
-    // of HttpReq::data() and HttpReq::size()
-    in.erase(0, inpurge);
-    inpurge = 0;
+    if (mChunked)
+    {
+        // Immediate purge because there are several places
+        // in the code directly accesing HttpReq::in instead
+        // of HttpReq::data() and HttpReq::size()
+        in.erase(0, inpurge);
+        inpurge = 0;
+    }
 }
 
 // set total response size

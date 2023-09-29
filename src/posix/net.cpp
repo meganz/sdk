@@ -2358,7 +2358,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                 req->status = ((req->httpstatus == 200 || (req->mExpectRedirect && req->isRedirection() && req->mRedirectURL.size()))
                                && errorCode != CURLE_PARTIAL_FILE
                                && (req->contentlength < 0
-                                   || req->contentlength == req->bufpos))
+                                   || req->contentlength == ((req->buf || req->mChunked) ? req->bufpos : (int)req->in.size())))
                         ? REQ_SUCCESS : REQ_FAILURE;
 
                 if (req->status == REQ_SUCCESS)
