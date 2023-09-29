@@ -88,8 +88,6 @@ public:
     virtual ~IEndpoint() = default;
 };
 
-using FinishCallback = std::function<void(bool)>;
-
 class IGfxCommunicationsClient
 {
 public:
