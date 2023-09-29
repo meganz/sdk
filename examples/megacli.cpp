@@ -984,11 +984,11 @@ void DemoApp::printChatInformation(TextChat *chat)
     if (chat->getUserPrivileges())
     {
         cout << "\t\t(userhandle)\t(privilege level)" << endl;
-        for (unsigned i = 0; i < chat->getUserPrivileges()->size(); i++)
+        for (const auto& up : *chat->getUserPrivileges())
         {
-            Base64Str<sizeof(handle)> hstr(chat->getUserPrivileges()->at(i).first);
+            Base64Str<sizeof(handle)> hstr(up.first);
             cout << "\t\t\t" << hstr;
-            cout << "\t" << DemoApp::getPrivilegeString(chat->getUserPrivileges()->at(i).second) << endl;
+            cout << "\t" << DemoApp::getPrivilegeString(up.second) << endl;
         }
     }
     else
