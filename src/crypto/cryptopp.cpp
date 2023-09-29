@@ -374,7 +374,7 @@ bool SymmCipher::gcm_encrypt(const string *data, const byte *iv, unsigned ivlen,
     }
     catch (CryptoPP::Exception const &e)
     {
-        LOG_err << "Failed AES-GCM encryption with additional authenticated data: " << e.GetWhat();
+        LOG_err << "Failed AES-GCM encryption: " << e.GetWhat();
         return false;
     }
 
@@ -1168,10 +1168,11 @@ bool PBKDF2_HMAC_SHA512::deriveKey(byte* derivedkey,
         );
         return true;
     }
-    catch (const CryptoPP::Exception&)
+    catch (const CryptoPP::Exception& e)
     {
         // DeriveKey() should throw CryptoPP::InvalidDerivedLength, however that is not present in all
         // versions of the lib, i.e. Linux system lib
+        LOG_err << "PKCS5_PBKDF2_HMAC<T>::DeriveKey() exception: " << e.what();
         return false;
     }
 }

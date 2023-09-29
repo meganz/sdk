@@ -984,9 +984,10 @@ bool PaddedCBC::encrypt(PrnGen &rng, string* data, SymmCipher* key, string* iv)
     // Pad to block size and encrypt.
     data->append("E");
     data->resize((data->size() + key->BLOCKSIZE - 1) & - key->BLOCKSIZE, 'P');
+    byte* dd = reinterpret_cast<byte*>(data->data());
     bool encrypted = iv ?
-        key->cbc_encrypt((byte*)data->data(), data->size(), (const byte*)iv->data()) :
-        key->cbc_encrypt((byte*)data->data(), data->size());
+        key->cbc_encrypt(dd, data->size(), reinterpret_cast<byte*>(iv->data())) :
+        key->cbc_encrypt(dd, data->size());
 
     // Truncate IV back to the first 8 bytes only..
     if (iv)
@@ -1029,9 +1030,10 @@ bool PaddedCBC::decrypt(string* data, SymmCipher* key, string* iv)
     }
 
     // Decrypt and unpad.
+    byte* dd = reinterpret_cast<byte*>(data->data());
     bool encrypted = iv ?
-        key->cbc_decrypt((byte*)data->data(), data->size(), (const byte*)iv->data()) :
-        key->cbc_decrypt((byte*)data->data(), data->size());
+        key->cbc_decrypt(dd, data->size(), reinterpret_cast<byte*>(iv->data())) :
+        key->cbc_decrypt(dd, data->size());
     if (!encrypted)
     {
         return false;

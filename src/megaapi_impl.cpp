@@ -20469,7 +20469,7 @@ error MegaApiImpl::performRequest_setAttrFile(MegaRequestPrivate* request)
 
                 SymmCipher* cipher = bu ? bu->nodecipher(client) : node->nodecipher();
                 if (!cipher ||
-                    !client->putfa(NodeOrUploadHandle(node ? node->nodeHandle() : NodeHandle()), (fatype)type, cipher, request->getTag(), std::move(attributedata)))
+                    !client->putfa(NodeOrUploadHandle(node ? node->nodeHandle() : NodeHandle()), static_cast<fatype>(type), cipher, request->getTag(), std::move(attributedata)))
                 {
                     return API_EKEY;
                 }

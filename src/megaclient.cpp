@@ -8809,7 +8809,8 @@ void MegaClient::makeattr(SymmCipher* key, string* attrstring, const char* json,
 
     if (!key->cbc_encrypt(buf, ll))
     {
-        LOG_err << "Failed to CBC encrypt attribute";  // Refactoring needed to add return value for current function?
+        LOG_err << "Failed to CBC encrypt attribute";  // Is refactoring needed to add return value for current function?
+        assert(false);
     }
 
     attrstring->assign((char*)buf, ll);
@@ -20092,7 +20093,9 @@ void MegaClient::putSet(Set&& s, std::function<void(Error, const Set*)> completi
         {
             LOG_err << "Sets: Failed to encrypt Set key with master key.";
             if (completion)
+            {
                 completion(API_EKEY, nullptr);
+            }
             return;
         }
 
@@ -20269,7 +20272,9 @@ void MegaClient::putSetElement(SetElement&& el, std::function<void(Error, const 
         {
             LOG_err << "Sets: Failed to CBC encrypt Element key with Set key";
             if (completion)
+            {
                 completion(API_EKEY, nullptr);
+            }
             return;
         }
         encrKey.assign((char*)encryptBuffer, sizeof(encryptBuffer));

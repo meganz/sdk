@@ -147,7 +147,7 @@ void FileAttributeFetchChannel::parse(int /*fac*/, bool final)
                 {
                     if (!cipher->cbc_decrypt((byte*)ptr, falen))
                     {
-                        LOG_err << "Failed to decrypt file attributes";
+                        LOG_err << "Failed to CBC decrypt file attributes";
                     }
                     client->app->fa_complete(it->second->nodehandle, it->second->type, ptr, falen);
                 }

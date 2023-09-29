@@ -185,12 +185,18 @@ ECDH::~ECDH()
 
 ECDH::ECDH(const unsigned char *privk, const std::string &pubk)
 {
+    assert(privk);
+    if (!privk) return;
+
     std::copy(privk, privk + PRIVATE_KEY_LENGTH, mPrivKey);
     std::copy(pubk.data(), pubk.data() + PUBLIC_KEY_LENGTH, mPubKey);
 }
 
 int ECDH::doComputeSymmetricKey(const unsigned char* privk, const unsigned char* pubk, std::string& output) const
 {
+    assert(privk && pubk);
+    if (!privk || !pubk) return -1; // return some non-0 value
+
     output.resize(DERIVED_KEY_LENGTH);
     unsigned char* outputPtr = reinterpret_cast<unsigned char*>(const_cast<char*>(output.data()));
     int ret = crypto_scalarmult(outputPtr, privk, pubk); // 0: success
