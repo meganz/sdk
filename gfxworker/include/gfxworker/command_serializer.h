@@ -2,7 +2,7 @@
 
 #include <memory>
 #include <string>
-#include "gfxworker/commands.h"
+#include "mega/gfx/worker/commands.h"
 #include "gfxworker/comms.h"
 
 namespace mega

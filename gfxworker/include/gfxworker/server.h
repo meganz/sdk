@@ -24,8 +24,8 @@
 
 #include "gfxworker/comms.h"
 #include "gfxworker/threadpool.h"
-#include "gfxworker/commands.h"
 
+#include "mega/gfx/worker/commands.h"
 #include "mega/gfx/freeimage.h"
 #include "mega/gfx/worker/tasks.h"
 #include "megafs.h"

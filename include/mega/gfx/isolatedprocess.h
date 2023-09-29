@@ -1,5 +1,4 @@
-#ifndef MEGA_ISOLATEDPROCESS_H
-#define MEGA_ISOLATEDPROCESS_H 1
+#pragma once
 
 #include "mega.h"
 #include "mega/gfx.h"
@@ -22,5 +21,3 @@ private:
 };
 
 }
-
-#endif

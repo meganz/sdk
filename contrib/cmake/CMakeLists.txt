@@ -790,6 +790,7 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/gfx/external.h
             ${MegaDir}/include/mega/gfx/isolatedprocess.h
             ${MegaDir}/include/mega/gfx/worker/tasks.h
+            ${MegaDir}/include/mega/gfx/worker/commands.h
             ${MegaDir}/include/mega/pubkeyaction.h
             ${MegaDir}/include/mega/mega_http_parser.h
             ${MegaDir}/include/mega/waiter.h

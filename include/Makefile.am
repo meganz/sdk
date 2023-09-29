@@ -58,6 +58,7 @@ nobase_libmegainclude_HEADERS = \
 	mega/gfx/GfxProcCG.h \
 	mega/gfx/isolatedprocess.h \
 	mega/gfx/worker/tasks.h \
+	mega/gfx/worker/commands.h \
 	mega/raid.h \
 	mega/mediafileattribute.h
 
