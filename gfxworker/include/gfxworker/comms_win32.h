@@ -1,6 +1,6 @@
 #pragma once
 
-#include "gfxworker/comms.h"
+#include "mega/gfx/worker/comms.h"
 #include "gfxworker/server.h"
 
 #include <windows.h>

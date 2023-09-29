@@ -18,11 +18,11 @@
 
 #include "gfxworker/server.h"
 #include "mega/filesystem.h"
-#include "gfxworker/comms.h"
 #include "gfxworker/command_serializer.h"
 #include "gfxworker/threadpool.h"
 #include "mega/gfx.h"
 #include "mega/gfx/worker/commands.h"
+#include "mega/gfx/worker/comms.h"
 
 #include <iterator>
 #include <numeric>

@@ -3,7 +3,7 @@
 #include <memory>
 #include <string>
 #include "mega/gfx/worker/commands.h"
-#include "gfxworker/comms.h"
+#include "mega/gfx/worker/comms.h"
 
 namespace mega
 {

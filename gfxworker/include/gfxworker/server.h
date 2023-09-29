@@ -22,9 +22,9 @@
 #include <unordered_map>
 #include <mutex>
 
-#include "gfxworker/comms.h"
 #include "gfxworker/threadpool.h"
 
+#include "mega/gfx/worker/comms.h"
 #include "mega/gfx/worker/commands.h"
 #include "mega/gfx/freeimage.h"
 #include "mega/gfx/worker/tasks.h"

@@ -484,6 +484,7 @@ HEADERS  += include/mega.h \
             include/mega/gfx/isolatedprocess.h \
             include/mega/gfx/worker/tasks.h \
             include/mega/gfx/worker/commands.h \
+            include/mega/gfx/worker/comms.h \
             include/mega/thread.h \
             include/mega/thread/cppthread.h \
             include/megaapi.h \

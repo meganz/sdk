@@ -20,7 +20,7 @@
 
 #include <memory>
 #include <assert.h>
-#include "gfxworker/comms.h"
+#include "mega/gfx/worker/comms.h"
 
 namespace mega {
 namespace gfx {

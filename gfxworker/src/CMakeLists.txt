@@ -1,7 +1,6 @@
 add_library(libgfxworker STATIC
             ${GFXWORKER_DIR}/include/gfxworker/logger.h
             ${GFXWORKER_DIR}/include/gfxworker/utils.h
-            ${GFXWORKER_DIR}/include/gfxworker/comms.h
             ${GFXWORKER_DIR}/include/gfxworker/comms_win32.h
             ${GFXWORKER_DIR}/include/gfxworker/server.h
             ${GFXWORKER_DIR}/include/gfxworker/threadpool.h

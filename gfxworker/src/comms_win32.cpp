@@ -1,6 +1,6 @@
 #include "mega/logging.h"
 #include "mega/utils.h"
-#include "gfxworker/comms.h"
+#include "mega/gfx/worker/comms.h"
 #include "gfxworker/comms_win32.h"
 #include <windows.h>
 
