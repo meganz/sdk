@@ -29,10 +29,6 @@ ABS_TOP_SRCDIR := $(realpath $(top_srcdir))
 $(GO_SOURCE): $(top_srcdir)/bindings/megaapi.i
 	$(SWIG_GO) $(SWIG_GO_FLAGS) -o $@ -outdir $(GOBINDIR) -package $(GOPACKAGE) -I$(top_srcdir)/include $<
 	@sed -i 's,#include "megaapi.h",#include "../../../include/megaapi.h",' $(top_srcdir)/bindings/go/megasdk/megaapi_wrap.cpp
-	@echo 'package mega' > $(top_srcdir)/bindings/go/megasdk/package.go
-	@echo '' >> $(top_srcdir)/bindings/go/megasdk/package.go
-	@echo '// #cgo LDFLAGS: -L$(ABS_TOP_SRCDIR)/src/.libs -lmega' >> $(top_srcdir)/bindings/go/megasdk/package.go
-	@echo 'import "C"' >> $(top_srcdir)/bindings/go/megasdk/package.go
 
 .PHONY: go-bindings
 go-bindings: $(GO_SOURCE) $(LIBRARY_PATH)
