@@ -4,3 +4,4 @@ megasdk/.libs
 megasdk/mega.go
 megasdk/megaapi_wrap.cpp
 megasdk/megaapi_wrap.h
+megasdk/package.go
