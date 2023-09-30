@@ -1,4 +1,5 @@
 // LD_LIBRARY_PATH=$LD_LIBRARY_PATH:../../src/.libs go run ./main.go
+// You need libmega.so.VERSION
 package main
 
 import (
@@ -12,8 +13,9 @@ type MyMegaListener struct {
 }
 
 func (l *MyMegaListener) OnRequestFinish(api mega.MegaApi, request mega.MegaRequest, e mega.MegaError) {
-	fmt.Printf("Request finished (%v); Result: %v\n", request.ToString(), e)
+	fmt.Printf("Request finished (%v); Result: %v\n", request.ToString(), e.ToString())
 
+	// TODO: Mutex lock this for return values
 	switch request.GetType() {
 	case mega.MegaRequestTYPE_LOGIN:
 		api.FetchNodes()
@@ -31,7 +33,7 @@ func (l *MyMegaListener) OnRequestFinish(api mega.MegaApi, request mega.MegaRequ
 }
 
 func (l *MyMegaListener) OnRequestStart(api mega.MegaApi, request mega.MegaRequest) {
-	fmt.Printf("Request start: (%v)\n", request)
+	fmt.Printf("Request start: (%v)\n", request.ToString())
 }
 
 func main() {
@@ -43,9 +45,12 @@ func main() {
 
 	user, pass := getAuth()
 	api.Login(user, pass)
+	defer api.Logout()
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 	fmt.Println("Email: " + api.GetMyEmail())
+	api.GetAccountDetails()
+	time.Sleep(5 * time.Second)
 }
 
 func getAuth() (username string, password string) {
