@@ -4,8 +4,9 @@ package main
 
 import (
 	"fmt"
-	mega "mega/megasdk"
 	"time"
+
+	mega "mega/megasdk"
 )
 
 type MyMegaListener struct {

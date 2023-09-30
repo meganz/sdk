@@ -1,6 +1,4 @@
 # binding Python: only SWIG auto-generated files
-megasdk/.deps
-megasdk/.libs
-megasdk/mega.go
-megasdk/megaapi_wrap.cpp
-megasdk/megaapi_wrap.h
+mega.go
+megaapi_wrap.cpp
+megaapi_wrap.h
