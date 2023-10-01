@@ -795,8 +795,8 @@ struct StandardClient : public MegaApp
     void  opensharedialog(const CloudItem& item, PromiseErrorSP result);
     Error opensharedialog(const CloudItem& item);
 
-    void share(const CloudItem& item, const string& email, accesslevel_t permissions, PromiseBoolSP result);
-    bool share(const CloudItem& item, const string& email, accesslevel_t permissions);
+    void  share(const CloudItem& item, const string& email, accesslevel_t permissions, PromiseErrorSP result);
+    Error share(const CloudItem& item, const string& email, accesslevel_t permissions);
 
     void upgradeSecurity(PromiseBoolSP result);
 
