@@ -10,17 +10,23 @@ package main
 
 import (
 	"fmt"
-	"time"
+	"sync"
 
 	mega "example_project/mega"
 )
 
 type MyMegaListener struct {
 	mega.SwigDirector_MegaListener
+	notified bool
+	m        sync.Mutex
+	cv       *sync.Cond
 }
 
 func (l *MyMegaListener) OnRequestFinish(api mega.MegaApi, request mega.MegaRequest, e mega.MegaError) {
 	fmt.Printf("Request finished (%v); Result: %v\n", request.ToString(), e.ToString())
+
+	l.m.Lock()
+	defer l.m.Unlock()
 
 	// TODO: Mutex lock this for return values
 	switch request.GetType() {
@@ -37,14 +43,36 @@ func (l *MyMegaListener) OnRequestFinish(api mega.MegaApi, request mega.MegaRequ
 			100*account_details.GetStorageUsed()/account_details.GetStorageMax())
 		fmt.Printf("Pro level: %v\n", account_details.GetProLevel())
 	}
+
+	l.notified = true
+	l.cv.Broadcast()
 }
 
 func (l *MyMegaListener) OnRequestStart(api mega.MegaApi, request mega.MegaRequest) {
 	fmt.Printf("Request start: (%v)\n", request.ToString())
 }
 
+func (l *MyMegaListener) Wait() {
+	// Wait until notified becomes true
+	l.m.Lock()
+	defer l.m.Unlock()
+
+	for !l.notified {
+		l.cv.Wait()
+	}
+}
+
+func (l *MyMegaListener) Reset() {
+	l.m.Lock()
+	defer l.m.Unlock()
+
+	l.notified = false
+}
+
 func main() {
-	listener := mega.NewDirectorMegaListener(&MyMegaListener{})
+	myListener := MyMegaListener{}
+	myListener.cv = sync.NewCond(&myListener.m)
+	listener := mega.NewDirectorMegaListener(&myListener)
 
 	fmt.Println("Hello, World!")
 	api := mega.NewMegaApi("ox8xnQZL")
@@ -53,11 +81,12 @@ func main() {
 	user, pass := getAuth()
 	api.Login(user, pass)
 	defer api.Logout()
-
-	time.Sleep(5 * time.Second)
+	myListener.Wait()
+	myListener.Reset()
 	fmt.Println("Email: " + api.GetMyEmail())
 	api.GetAccountDetails()
-	time.Sleep(5 * time.Second)
+	myListener.Wait()
+	fmt.Println("Done!")
 }
 
 func getAuth() (username string, password string) {
