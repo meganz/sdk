@@ -26,7 +26,7 @@ bindings_go_lib_mega_la_CPPFLAGS = -I$(top_srcdir)/include
 
 $(GO_SOURCE): $(top_srcdir)/bindings/megaapi.i
 	$(SWIG_GO) $(SWIG_GO_FLAGS) -o $@ -outdir $(GOBINDIR) -package $(GOPACKAGE) -I$(top_srcdir)/include $<
-	@sed -i 's,#include "megaapi.h",#include "../../include/megaapi.h",' $(top_srcdir)/$(GOBINDIR)/megaapi_wrap.cpp
+	@sed -i 's,#include "megaapi.h",#include "include/megaapi.h",' $(top_srcdir)/$(GOBINDIR)/megaapi_wrap.cpp
 
 .PHONY: go-bindings
 go-bindings: $(GO_SOURCE) $(LIBRARY_PATH)

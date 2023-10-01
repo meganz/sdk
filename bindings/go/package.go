@@ -1,4 +1,4 @@
 package mega
 
-// #cgo LDFLAGS: -L../../src/.libs -lmega
+// #cgo LDFLAGS: -L. -L../ -L./libs/ -L../libs/ -lmega
 import "C"

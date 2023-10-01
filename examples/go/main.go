@@ -1,12 +1,18 @@
-// LD_LIBRARY_PATH=$LD_LIBRARY_PATH:../../src/.libs go run ./main.go
-// You need libmega.so.VERSION
 package main
+
+// To build:
+// ./autogen.sh && ./configure --disable-silent-rules --enable-go --disable-examples && make -j16
+// cd examples/go
+// ./prep.sh
+// LD_LIBRARY_PATH=$LD_LIBRARY_PATH:./libs go run -x ./main.go
+
+// TODO: ./configure --enable-static results in sqlite3 issues with libmega.a?
 
 import (
 	"fmt"
 	"time"
 
-	mega "mega/megasdk"
+	mega "example_project/mega"
 )
 
 type MyMegaListener struct {
