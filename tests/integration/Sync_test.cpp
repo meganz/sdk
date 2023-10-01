@@ -4254,6 +4254,33 @@ bool StandardClient::rmcontact(const string& email)
     return result.get();
 }
 
+void StandardClient::opensharedialog(const CloudItem& item, PromiseErrorSP result)
+{
+    auto* node = item.resolve(*this);
+
+    if (!node)
+        return result->set_value(API_ENOENT);
+
+    client.openShareDialog(node, [result](Error e) {
+        result->set_value(e);
+    });
+}
+
+Error StandardClient::opensharedialog(const CloudItem& item)
+{
+    auto result = thread_do<Error>([&](StandardClient& client, PromiseErrorSP result) {
+        client.opensharedialog(item, std::move(result));
+    }, __FILE__, __LINE__);
+
+    auto status = result.wait_for(DEFAULTWAIT);
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
+        return LOCAL_ETIMEOUT;
+
+    return result.get();
+}
+
 void StandardClient::share(const CloudItem& item, const string& email, accesslevel_t permissions, PromiseBoolSP result)
 {
     auto* node = item.resolve(*this);

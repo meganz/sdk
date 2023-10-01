@@ -135,6 +135,7 @@ template<typename T>
 using shared_promise = std::shared_ptr<promise<T>>;
 
 using PromiseBoolSP     = shared_promise<bool>;
+using PromiseErrorSP    = shared_promise<Error>;
 using PromiseHandleSP   = shared_promise<handle>;
 using PromiseStringSP   = shared_promise<string>;
 using PromiseUnsignedSP = shared_promise<unsigned>;
@@ -790,6 +791,9 @@ struct StandardClient : public MegaApp
 
     void rmcontact(const string& email, PromiseBoolSP result);
     bool rmcontact(const string& email);
+
+    void  opensharedialog(const CloudItem& item, PromiseErrorSP result);
+    Error opensharedialog(const CloudItem& item);
 
     void share(const CloudItem& item, const string& email, accesslevel_t permissions, PromiseBoolSP result);
     bool share(const CloudItem& item, const string& email, accesslevel_t permissions);
