@@ -727,7 +727,8 @@ SET(Mega_DbFiles ${MegaDir}/src/db/sqlite.cpp ${MegaDir}/src/db/sqlite.cpp )
 SET(Mega_GfxFiles ${MegaDir}/src/gfx/external.cpp
                   ${MegaDir}/src/gfx/freeimage.cpp
                   ${MegaDir}/src/gfx/gfx_pdfium.cpp
-                  ${MegaDir}/src/gfx/isolatedprocess.cpp)
+                  ${MegaDir}/src/gfx/isolatedprocess.cpp
+                  ${MegaDir}/src/gfx/worker/command_serializer.cpp)
 
 add_library(Mega STATIC
             ${MegaDir}/include/megaapi.h
@@ -792,6 +793,7 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/gfx/worker/tasks.h
             ${MegaDir}/include/mega/gfx/worker/commands.h
             ${MegaDir}/include/mega/gfx/worker/comms.h
+            ${MegaDir}/include/mega/gfx/worker/command_serializer.h
             ${MegaDir}/include/mega/pubkeyaction.h
             ${MegaDir}/include/mega/mega_http_parser.h
             ${MegaDir}/include/mega/waiter.h

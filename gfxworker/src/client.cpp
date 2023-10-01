@@ -1,5 +1,5 @@
 #include "gfxworker/client.h"
-#include "gfxworker/command_serializer.h"
+#include "mega/gfx/worker/command_serializer.h"
 #include "mega/gfx/worker/commands.h"
 #include "mega/gfx/worker/comms.h"
 #include "mega/logging.h"

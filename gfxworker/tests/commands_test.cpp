@@ -1,7 +1,7 @@
 #include "gtest/gtest.h"
-#include "gfxworker/command_serializer.h"
 #include "mega/gfx/worker/comms.h"
 #include "mega/gfx/worker/commands.h"
+#include "mega/gfx/worker/command_serializer.h"
 
 using mega::gfx::CommandSerializer;
 using mega::gfx::CommandNewGfx;
