@@ -4,7 +4,7 @@ package main
 // ./autogen.sh && ./configure --disable-silent-rules --enable-go --disable-examples && make -j16
 // cd examples/go
 // ./prep.sh
-// LD_LIBRARY_PATH=$LD_LIBRARY_PATH:./libs go run -x ./main.go
+// go run -ldflags="-linkmode external -extldflags '-Wl,-rpath=./libs'" ./main.go
 
 // TODO: ./configure --enable-static results in sqlite3 issues with libmega.a?
 
@@ -36,7 +36,6 @@ func (l *MyMegaRequestListener) OnRequestFinish(api mega.MegaApi, request mega.M
 	l.m.Lock()
 	defer l.m.Unlock()
 
-	// TODO: Mutex lock this for return values
 	switch request.GetType() {
 	case mega.MegaRequestTYPE_FETCH_NODES:
 		api.GetRootNode()

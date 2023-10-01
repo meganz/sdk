@@ -127,7 +127,7 @@ func main() {
 	fmt.Printf("Number of children: %d\n", children.Size())
 	for i := 0; i < children.Size(); i++ {
 		node := children.Get(i)
-		fmt.Printf("%s -> %t\n", node.GetName(), node.IsFile())
+		fmt.Printf("%s -> IsFile: %t\n", node.GetName(), node.IsFile())
 	}
 
 	fmt.Println("Done!")
