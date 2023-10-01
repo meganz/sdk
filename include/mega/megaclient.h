@@ -1166,6 +1166,9 @@ public:
                                  handle* originatingUser = nullptr,
                                  UserAlert::UpdatedScheduledMeeting::Changeset* cs = nullptr,
                                  handle_set* childMeetingsDeleted = nullptr);
+
+    // report invalid scheduled meeting by sending an event to stats server
+    void reportInvalidSchedMeeting(const ScheduledMeeting* sched = nullptr);
 #endif
 
     // get mega achievements
@@ -2618,6 +2621,7 @@ public:
 
 /* Mega VPN methods END */
 
+    void setProFlexi(bool newProFlexi);
 };
 
 } // namespace

@@ -4260,6 +4260,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             break;
 
         case MAKENAMEID2('p', 'f'):  // Pro Flexi plan (similar to business)
+            client->setProFlexi(true);
             [[fallthrough]];
         case 'b':   // business account's info
             assert(!b);
@@ -7106,8 +7107,10 @@ bool CommandChatCreate::procresult(Result r, JSON& json)
         m_time_t ts = -1;
         std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
         UserAlert::UpdatedScheduledMeeting::Changeset cs;
+        bool exit = false;
+        bool addSchedMeeting = false;
 
-        for (;;)
+        while (!exit)
         {
             switch (json.getnameid())
             {
@@ -7129,79 +7132,21 @@ bool CommandChatCreate::procresult(Result r, JSON& json)
 
                 case MAKENAMEID2('s', 'm'):
                 {
-                    if (!json.isnumeric())
+                    addSchedMeeting = !json.isnumeric();
+                    if (addSchedMeeting)
                     {
                         schedId = json.gethandle(MegaClient::CHATHANDLE);
                     }
                     else
                     {
-                        assert(false); // we don't won't to add an ill-formed chatroom
                         LOG_err << "Error creating a scheduled meeting along with chat. chatId [" <<  Base64Str<MegaClient::CHATHANDLE>(chatid) << "]";
-                        client->app->chatcreate_result(NULL, API_EINTERNAL);
-                        delete chatPeers; // unused, but might be set at creation
-                        return false;
+                        assert(false);
                     }
                     break;
                 }
                 case EOO:
-                    if (chatid != UNDEF && shard != -1)
-                    {
-                        TextChat* chat = nullptr;
-                        if (client->chats.find(chatid) == client->chats.end())
-                        {
-                            chat = new TextChat(mPublicChat);
-                            client->chats[chatid] = chat;
-                        }
-                        else
-                        {
-                            chat = client->chats[chatid];
-                            client->setChatMode(chat, mPublicChat);
-                        }
-
-                        chat->setChatId(chatid);
-                        chat->setOwnPrivileges(PRIV_MODERATOR);
-                        chat->setShard(shard);
-                        chat->setUserPrivileges(chatPeers);
-                        chat->setGroup(group);
-                        chat->setTs(ts != -1 ? ts : 0);
-                        chat->setMeeting(mMeeting);
-                        // no need to fetch scheduled meetings as we have just created the chat, so it doesn't have any
-
-                        if (group) // we are creating a chat, so we need to initialize all chat options enabled/disabled
-                        {
-                            chat->addOrUpdateChatOptions(mChatOptions.speakRequest(), mChatOptions.waitingRoom(), mChatOptions.openInvite());
-                        }
-
-                        chat->setTag(tag ? tag : -1);
-                        if (chat->getGroup() && !mTitle.empty())
-                        {
-                            chat->setTitle(mTitle);
-                        }
-                        if (mPublicChat)
-                        {
-                            chat->setUnifiedKey(mUnifiedKey);
-                        }
-
-                        if (schedId != UNDEF && mSchedMeeting)
-                        {
-                            assert(!chat->hasScheduledMeeting(schedId));
-                            mSchedMeeting->setSchedId(schedId);
-                            mSchedMeeting->setChatid(chatid);
-                            if (!chat->addOrUpdateSchedMeeting(std::move(mSchedMeeting)))
-                            {
-                                LOG_err << "Error adding a new scheduled meeting with schedId [" <<  Base64Str<MegaClient::CHATHANDLE>(schedId) << "]";
-                            }
-                        }
-
-                        client->notifychat(chat);
-                        client->app->chatcreate_result(chat, API_OK);
-                    }
-                    else
-                    {
-                        client->app->chatcreate_result(NULL, API_EINTERNAL);
-                        delete chatPeers;   // unused, but might be set at creation
-                    }
-                    return true;
+                    exit = true;
+                    break;
 
                 default:
                     if (!json.storeobject())
@@ -7212,6 +7157,80 @@ bool CommandChatCreate::procresult(Result r, JSON& json)
                     }
             }
         }
+
+        if (chatid != UNDEF && shard != -1)
+        {
+            if (addSchedMeeting)
+            {
+                if (mSchedMeeting)
+                {
+                    mSchedMeeting->setSchedId(schedId);
+                    mSchedMeeting->setChatid(chatid);
+                    if (!mSchedMeeting->isValid())
+                    {
+                        client->reportInvalidSchedMeeting(mSchedMeeting.get());
+                        addSchedMeeting = false;
+                    }
+                }
+                else
+                {
+                    LOG_err << "Scheduled meeting id received upon mcc command, but there's no local "
+                               "scheduled meeting data. chatId [" << toHandle(chatid) << "]";
+                    addSchedMeeting = false;
+                    assert(false);
+                }
+            }
+
+            TextChat* chat = nullptr;
+            if (client->chats.find(chatid) == client->chats.end())
+            {
+                chat = new TextChat(mPublicChat);
+                client->chats[chatid] = chat;
+            }
+            else
+            {
+                chat = client->chats[chatid];
+                client->setChatMode(chat, mPublicChat);
+            }
+
+            chat->setChatId(chatid);
+            chat->setOwnPrivileges(PRIV_MODERATOR);
+            chat->setShard(shard);
+            chat->setUserPrivileges(chatPeers);
+            chat->setGroup(group);
+            chat->setTs(ts != -1 ? ts : 0);
+            chat->setMeeting(mMeeting);
+            // no need to fetch scheduled meetings as we have just created the chat, so it doesn't have any
+
+            if (group) // we are creating a chat, so we need to initialize all chat options enabled/disabled
+            {
+                chat->addOrUpdateChatOptions(mChatOptions.speakRequest(), mChatOptions.waitingRoom(), mChatOptions.openInvite());
+            }
+
+            chat->setTag(tag ? tag : -1);
+            if (chat->getGroup() && !mTitle.empty())
+            {
+                chat->setTitle(mTitle);
+            }
+            if (mPublicChat)
+            {
+                chat->setUnifiedKey(mUnifiedKey);
+            }
+
+            if (addSchedMeeting && !chat->addOrUpdateSchedMeeting(std::move(mSchedMeeting)))
+            {
+                LOG_err << "Error adding a new scheduled meeting with schedId [" <<  Base64Str<MegaClient::CHATHANDLE>(schedId) << "]";
+            }
+
+            client->notifychat(chat);
+            client->app->chatcreate_result(chat, API_OK);
+        }
+        else
+        {
+            client->app->chatcreate_result(NULL, API_EINTERNAL);
+            delete chatPeers;   // unused, but might be set at creation
+        }
+        return true;
     }
 }
 
@@ -7245,7 +7264,7 @@ bool CommandSetChatOptions::procresult(Result r, JSON& json)
         if (it == client->chats.end())
         {
             mCompletion(API_EINTERNAL);
-            return false;
+            return true;
         }
 
         // chat options: [-1 (not updated) | 0 (remove) | 1 (add)]
@@ -7476,7 +7495,6 @@ bool CommandChatRemoveAccess::procresult(Result r, JSON& json)
     {
         if (client->chats.find(chatid) == client->chats.end())
         {
-            // the action succeed for a non-existing chatroom??
             client->app->chatremoveaccess_result(API_EINTERNAL);
             return true;
         }
@@ -7516,7 +7534,6 @@ bool CommandChatUpdatePermissions::procresult(Result r, JSON& json)
     {
         if (client->chats.find(chatid) == client->chats.end())
         {
-            // the invitation succeed for a non-existing chatroom
             client->app->chatupdatepermissions_result(API_EINTERNAL);
             return true;
         }
@@ -7716,7 +7733,7 @@ CommandSetChatRetentionTime::CommandSetChatRetentionTime(MegaClient *client, han
 bool CommandSetChatRetentionTime::procresult(Result r, JSON& json)
 {
     client->app->setchatretentiontime_result(r.errorOrOK());
-    return true;
+    return r.wasErrorOrOK();
 }
 
 CommandRichLink::CommandRichLink(MegaClient *client, const char *url)
@@ -7929,8 +7946,12 @@ bool CommandChatLinkURL::procresult(Result r, JSON& json)
                     if (json.enterarray())
                     {
                         error err = client->parseScheduledMeetings(schedMeetings, false, &json);
-                        json.leavearray();
-                        if (err) { LOG_err << "Error parsing scheduled meetings array at mcphurl response"; }
+                        if (!json.leavearray() || err)
+                        {
+                            LOG_err << "Failed to parse mcphurl respone. Error: " << err;
+                            client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, false, nullptr, UNDEF, API_EINTERNAL);
+                            return false;
+                        }
                     }
                     break;
                 }
@@ -10031,14 +10052,8 @@ CommandMeetingJoin::CommandMeetingJoin(MegaClient *client, handle chatid, handle
 
 bool CommandMeetingEnd::procresult(Command::Result r, JSON& json)
 {
-    if (r.wasErrorOrOK())
-    {
-        mCompletion(r.errorOrOK());
-        return true;
-    }
-
-    mCompletion(API_EINTERNAL);
-    return false;
+    mCompletion(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 CommandMeetingEnd::CommandMeetingEnd(MegaClient *client, handle chatid, handle callid, int reason, CommandMeetingEndCompletion completion)
@@ -10073,14 +10088,6 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r, JSON& jso
         return true;
     }
 
-    auto it = client->chats.find(mScheduledMeeting->chatid());
-    if (it == client->chats.end())
-    {
-        if (mCompletion) { mCompletion(API_EINTERNAL, nullptr); }
-        return false;
-    }
-
-    TextChat* chat = it->second;
     bool exit = false;
     handle schedId = UNDEF;
     handle_set childMeetingsDeleted;
@@ -10098,14 +10105,11 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r, JSON& jso
                     }
                     json.leavearray();
                 }
-                else if (mCompletion)
+                else
                 {
-                    mCompletion(API_EINTERNAL, nullptr);
+                    if (mCompletion) { mCompletion(API_EINTERNAL, nullptr); }
                     return false;
                 }
-
-                // remove child scheduled meetings in cmd (child meetings deleted) array
-                chat->removeSchedMeetingsList(childMeetingsDeleted);
                 break;
             }
             case MAKENAMEID2('i', 'd'):
@@ -10126,26 +10130,37 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r, JSON& jso
         }
     }
 
-    ScheduledMeeting* result = nullptr;
-    error e = API_EINTERNAL;
-    bool res = chat->addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting>(mScheduledMeeting->copy())); // add or update scheduled meeting if already exists
+    // sanity checks for scheduled meeting
+    if (!mScheduledMeeting || !mScheduledMeeting->isValid())
+    {
+        if (mScheduledMeeting) { client->reportInvalidSchedMeeting(mScheduledMeeting.get()); }
+        if (mCompletion)       { mCompletion(API_EINTERNAL, nullptr); }
+        return true;
+    }
+
+    auto it = client->chats.find(mScheduledMeeting->chatid());
+    if (it == client->chats.end())
+    {
+        if (mCompletion) { mCompletion(API_EINTERNAL, nullptr); }
+        return true;
+    }
+    TextChat* chat = it->second;
+
+    // remove child scheduled meetings in cmd (child meetings deleted) array
+    chat->removeSchedMeetingsList(childMeetingsDeleted);
+
+    // clear scheduled meeting occurrences for the chat
     client->clearSchedOccurrences(*chat);
+
+    // add scheduled meeting
+    const bool added = chat->addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting>(mScheduledMeeting->copy())); // add or update scheduled meeting if already exists
+
+    // notify chat
     chat->setTag(tag ? tag : -1);
     client->notifychat(chat);
 
-    if (res)
-    {
-        result = mScheduledMeeting.get();
-        e = API_OK;
-    }
-    else if (!childMeetingsDeleted.empty())
-    {
-        // if we couldn't update scheduled meeting, but we have deleted it's children, we also need to notify apps
-        LOG_debug << "Error adding or updating a scheduled meeting schedId [" <<  Base64Str<MegaClient::CHATHANDLE>(schedId) << "]";
-    }
-
-    if (mCompletion) { mCompletion(e, result); }
-    return res;
+    if (mCompletion) { mCompletion(added ? API_OK : API_EINTERNAL, mScheduledMeeting.get()); }
+    return true;
 }
 
 CommandScheduledMeetingRemove::CommandScheduledMeetingRemove(MegaClient* client, handle chatid, handle schedMeeting, CommandScheduledMeetingRemoveCompletion completion)
@@ -10171,7 +10186,7 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r, JSON& json)
         if (it == client->chats.end())
         {
             if (mCompletion) { mCompletion(API_EINTERNAL); }
-            return false;
+            return true;
         }
 
         // remove scheduled meeting and all it's children
@@ -10209,23 +10224,10 @@ bool CommandScheduledMeetingFetch::procresult(Command::Result r, JSON& json)
         return true;
     }
 
-    auto it = client->chats.find(mChatId);
-    if (it == client->chats.end() || !r.hasJsonArray())
-    {
-        if (mCompletion) { mCompletion(API_EINTERNAL, nullptr); }
-        return false;
-    }
-
     std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
     error err = client->parseScheduledMeetings(schedMeetings, false /*parsingOccurrences*/, &json);
-    if (err)
-    {
-        if (mCompletion) { mCompletion(err, nullptr); }
-        return false;
-    }
-
-    if (mCompletion) { mCompletion(API_OK, &schedMeetings); }
-    return true;
+    if (mCompletion) { mCompletion(err, err == API_OK ? &schedMeetings : nullptr); }
+    return err == API_OK;
 }
 
 CommandScheduledMeetingFetchEvents::CommandScheduledMeetingFetchEvents(MegaClient* client, handle chatid, m_time_t since, m_time_t until, unsigned int count, bool byDemand, CommandScheduledMeetingFetchEventsCompletion completion)
@@ -10249,13 +10251,6 @@ bool CommandScheduledMeetingFetchEvents::procresult(Command::Result r, JSON& jso
         return true;
     }
 
-    auto it = client->chats.find(mChatId);
-    if (it == client->chats.end() || !r.hasJsonArray())
-    {
-        if (mCompletion) { mCompletion(API_EINTERNAL, nullptr); }
-        return false;
-    }
-    TextChat* chat = it->second;
     std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
     error err = client->parseScheduledMeetings(schedMeetings, true /*parsingOccurrences*/, &json);
     if (err)
@@ -10264,6 +10259,13 @@ bool CommandScheduledMeetingFetchEvents::procresult(Command::Result r, JSON& jso
         return false;
     }
 
+    auto it = client->chats.find(mChatId);
+    if (it == client->chats.end())
+    {
+        if (mCompletion) { mCompletion(API_EINTERNAL, nullptr); }
+        return true;
+    }
+    TextChat* chat = it->second;
     // clear list in case it contains any element
     chat->clearUpdatedSchedMeetingOccurrences();
 
