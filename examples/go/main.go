@@ -11,27 +11,33 @@ package main
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	mega "example_project/mega"
 )
 
-type MyMegaListener struct {
-	mega.SwigDirector_MegaListener
+type MyMegaRequestListener struct {
+	mega.SwigDirector_MegaRequestListener
 	notified bool
+	err      *mega.MegaError
+	request  *mega.MegaRequest
 	m        sync.Mutex
 	cv       *sync.Cond
 }
 
-func (l *MyMegaListener) OnRequestFinish(api mega.MegaApi, request mega.MegaRequest, e mega.MegaError) {
+func (l *MyMegaRequestListener) OnRequestFinish(api mega.MegaApi, request mega.MegaRequest, e mega.MegaError) {
 	fmt.Printf("Request finished (%v); Result: %v\n", request.ToString(), e.ToString())
+
+	req := request.Copy()
+	err := e.Copy()
+	l.request = &req
+	l.err = &err
 
 	l.m.Lock()
 	defer l.m.Unlock()
 
 	// TODO: Mutex lock this for return values
 	switch request.GetType() {
-	case mega.MegaRequestTYPE_LOGIN:
-		api.FetchNodes()
 	case mega.MegaRequestTYPE_FETCH_NODES:
 		api.GetRootNode()
 	case mega.MegaRequestTYPE_ACCOUNT_DETAILS:
@@ -48,11 +54,19 @@ func (l *MyMegaListener) OnRequestFinish(api mega.MegaApi, request mega.MegaRequ
 	l.cv.Broadcast()
 }
 
-func (l *MyMegaListener) OnRequestStart(api mega.MegaApi, request mega.MegaRequest) {
+func (l *MyMegaRequestListener) OnRequestStart(api mega.MegaApi, request mega.MegaRequest) {
 	fmt.Printf("Request start: (%v)\n", request.ToString())
 }
 
-func (l *MyMegaListener) Wait() {
+func (l *MyMegaRequestListener) GetError() *mega.MegaError {
+	return l.err
+}
+
+func (l *MyMegaRequestListener) GetRequest() *mega.MegaRequest {
+	return l.request
+}
+
+func (l *MyMegaRequestListener) Wait() {
 	// Wait until notified becomes true
 	l.m.Lock()
 	defer l.m.Unlock()
@@ -62,7 +76,7 @@ func (l *MyMegaListener) Wait() {
 	}
 }
 
-func (l *MyMegaListener) Reset() {
+func (l *MyMegaRequestListener) Reset() {
 	l.m.Lock()
 	defer l.m.Unlock()
 
@@ -70,22 +84,42 @@ func (l *MyMegaListener) Reset() {
 }
 
 func main() {
-	myListener := MyMegaListener{}
+	myListener := MyMegaRequestListener{}
 	myListener.cv = sync.NewCond(&myListener.m)
-	listener := mega.NewDirectorMegaListener(&myListener)
+	listener := mega.NewDirectorMegaRequestListener(&myListener)
 
 	fmt.Println("Hello, World!")
 	api := mega.NewMegaApi("ox8xnQZL")
-	api.AddListener(listener)
+	api.AddRequestListener(listener)
 
 	user, pass := getAuth()
 	api.Login(user, pass)
 	defer api.Logout()
 	myListener.Wait()
+
+	if (*myListener.GetError()).GetErrorCode() != mega.MegaErrorAPI_OK {
+		fmt.Println("Login error")
+		return
+	}
+
 	myListener.Reset()
+	api.FetchNodes(listener)
+	myListener.Wait()
+
+	if (*myListener.GetError()).GetErrorCode() != mega.MegaErrorAPI_OK {
+		fmt.Println("Error fetchning nodes")
+		return
+	}
+
 	fmt.Println("Email: " + api.GetMyEmail())
+
+	myListener.Reset()
 	api.GetAccountDetails()
 	myListener.Wait()
+
+	// Give the terminal a chance to print the stuff it wants
+	time.Sleep(1 * time.Second)
+
 	fmt.Println("Done!")
 }
 
