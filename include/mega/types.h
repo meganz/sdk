@@ -84,6 +84,7 @@ typedef unsigned char byte;
 #include <string>
 #include <chrono>
 #include <mutex>
+#include <thread>
 
 namespace mega {
 
@@ -1291,5 +1292,157 @@ public:
         mLocked.clear();
     }
 }; // Spinlock
+
+namespace detail
+{
+
+template<typename T>
+struct IsRecursiveMutex
+  : std::false_type
+{
+}; // IsRecursiveMutex<T>
+
+template<>
+struct IsRecursiveMutex<std::recursive_mutex>
+  : std::true_type
+{
+}; // IsRecursiveMutex<std::recursive_mutex>
+
+template<typename T, bool IsRecursive = IsRecursiveMutex<T>::value>
+class CheckableMutex
+{
+    T mMutex;
+    std::atomic<std::thread::id> mOwner;
+
+public:
+    CheckableMutex()
+      : mMutex()
+      , mOwner(std::thread::id())
+    {
+    }
+
+    CheckableMutex(const CheckableMutex& other) = delete;
+
+    CheckableMutex& operator=(const CheckableMutex& rhs) = delete;
+
+    void lock()
+    {
+        auto id = std::this_thread::get_id();
+
+        assert(mOwner != id);
+
+        mMutex.lock();
+        mOwner = id;
+    }
+
+    bool owns_lock() const
+    {
+        return mOwner == std::this_thread::get_id();
+    }
+
+    bool try_lock()
+    {
+        auto id = std::this_thread::get_id();
+
+        if (mMutex.try_lock())
+        {
+            mOwner = id;
+            return true;
+        }
+
+        return false;
+    }
+
+    void unlock()
+    {
+        auto id = std::this_thread::get_id();
+
+        assert(mOwner == id);
+
+        mOwner = std::thread::id();
+        mMutex.unlock();
+
+        static_cast<void>(id);
+    }
+}; // CheckableMutex<T, false>
+
+template<typename T>
+class CheckableMutex<T, true>
+{
+    std::uint32_t mCount;
+    mutable Spinlock mLock;
+    T mMutex;
+    std::thread::id mOwner;
+
+public:
+    CheckableMutex()
+      : mCount(0)
+      , mLock()
+      , mMutex()
+      , mOwner()
+    {
+    }
+
+    CheckableMutex(const CheckableMutex& other) = delete;
+
+    CheckableMutex& operator=(const CheckableMutex& rhs) = delete;
+
+    void lock()
+    {
+        auto id = std::this_thread::get_id();
+
+        mMutex.lock();
+
+        std::lock_guard<Spinlock> guard(mLock);
+
+        mCount = mCount + 1;
+        mOwner = id;
+    }
+
+    bool owns_lock() const
+    {
+        auto id = std::this_thread::get_id();
+
+        std::lock_guard<Spinlock> guard(mLock);
+
+        return mOwner == id && mCount > 0;
+    }
+
+    bool try_lock()
+    {
+        auto id = std::this_thread::get_id();
+
+        if (!mMutex.try_lock())
+            return false;
+
+        std::lock_guard<Spinlock> guard(mLock);
+
+        mCount = mCount + 1;
+        mOwner = id;
+
+        return true;
+    }
+
+    void unlock()
+    {
+        auto id = std::this_thread::get_id();
+
+        std::lock_guard<Spinlock> guard(mLock);
+
+        assert(mCount);
+        assert(mOwner == id);
+
+        if (!--mCount)
+            mOwner = std::thread::id();
+
+        mMutex.unlock();
+
+        static_cast<void>(id);
+    }
+}; // CheckableMutex<T, true>
+
+} // detail
+
+using detail::CheckableMutex;
 
 #endif

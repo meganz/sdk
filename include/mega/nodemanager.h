@@ -206,88 +206,8 @@ public:
 private:
     MegaClient& mClient;
 
-    // NodeManager needs to be thread safe so that it can be accessed from
-    // the sync thread, and even directly by impl functions on behalf of the
-    // app, without locking sdkMutex (in future)
-    //
-    // This class is for making sure the public functions of NodeManager
-    // lock the mutex whereas the internal functions operate with it already
-    // locked, and we check that. 
-    //
-    // This should be based on mutex, but we still have high dependency on
-    // MegaClient, sometimes we call functions there, and it then calls back
-    // into NodeManager.
-    //
-    // So, it has to be recursive for now.  We can work towards tidying that
-    // up, and eventually swap to plain `mutex`.
-    class CheckableMutex
-    {
-        // How many times has a given thread acquired this mutex?
-        std::uint32_t mCount = 0;
-
-        // Serializes access to mCount and mOwner.
-        mutable Spinlock mLock;
-
-        // The actual mutex providing mutual exclusion.
-        std::recursive_mutex mMutex;
-
-        // What thread currently owns this mutex?
-        std::thread::id mOwner;
-
-    public:
-        // Acquire exclusive ownership of this mutex.
-        void lock()
-        {
-            // Determine thread ID here to reduce spinlock time.
-            auto id = std::this_thread::get_id();
-
-            // Acquire the mutex.
-            mMutex.lock();
-
-            // Update owenrship details.
-            std::lock_guard<Spinlock> guard(mLock);
-
-            mCount = mCount + 1;
-            mOwner = id;
-        }
-
-        // Check if the calling thread currently owns this mutex.
-        bool locked() const
-        {
-            // Determine thread ID here to reduce spinlock time.
-            auto id = std::this_thread::get_id();
-
-            std::lock_guard<Spinlock> guard(mLock);
-
-            return mCount && mOwner == id;
-        }
-
-        // Release exclusive ownership of this mutex.
-        void unlock()
-        {
-            // Determine thread ID here to reduce spinlock time.
-            auto id = std::this_thread::get_id();
-
-            std::lock_guard<Spinlock> guard(mLock);
-
-            // Make sure the calling thread actually owns this mutex.
-            assert(mCount);
-            assert(mOwner == id);
-
-            // Release the mutex.
-            mMutex.unlock();
-
-            // Clear ownership details if necessary.
-            if (!--mCount)
-                mOwner = std::thread::id();
-
-            // Silence compiler.
-            static_cast<void>(id);
-        }
-    }; // CheckableMutex
-
 #if defined(DEBUG)
-    using MutexType = CheckableMutex;
+    using MutexType = CheckableMutex<std::recursive_mutex>;
 #else // DEBUG
     using MutexType = std::recursive_mutex;
 #endif // ! DEBUG
