@@ -25,12 +25,6 @@
 ../../include/mega/win32/meganet.h
 ../../include/mega/win32/megasys.h
 ../../include/mega/win32/megawaiter.h
-../../include/mega/wp8/megaconsole.h
-../../include/mega/wp8/megaconsolewaiter.h
-../../include/mega/wp8/megafs.h
-../../include/mega/wp8/meganet.h
-../../include/mega/wp8/megasys.h
-../../include/mega/wp8/megawaiter.h
 ../../include/mega/account.h
 ../../include/mega/attrmap.h
 ../../include/mega/backofftimer.h
@@ -99,7 +93,6 @@
 ../../src/win32/fs.cpp
 ../../src/win32/net.cpp
 ../../src/win32/waiter.cpp
-../../src/wp8/waiter.cpp
 ../../src/attrmap.cpp
 ../../src/autocomplete.cpp
 ../../src/backofftimer.cpp

@@ -21,6 +21,8 @@
 
 #import <Foundation/Foundation.h>
 
+NS_ASSUME_NONNULL_BEGIN
+
 @class MEGANodeList;
 
 /**
@@ -53,14 +55,14 @@
  *
  * @return Timestamp indicating when the changes occurred
  */
-@property (readonly, nonatomic) NSDate *timestamp;
+@property (readonly, nonatomic, nullable) NSDate *timestamp;
 
 /**
  * @brief Returns the email of the user who made the changes
  *
  * @return the associated user's email
  */
-@property (readonly, nonatomic) NSString *userEmail;
+@property (readonly, nonatomic, nullable) NSString *userEmail;
 
 /**
  * @brief Returns the handle of the parent folder these changes occurred in
@@ -88,6 +90,8 @@
  *
  * @return A list of the files in the bucket. The bucket retains ownership.
  */
-@property (readonly, nonatomic) MEGANodeList *nodesList;
+@property (readonly, nonatomic, nullable) MEGANodeList *nodesList;
 
 @end
+
+NS_ASSUME_NONNULL_END

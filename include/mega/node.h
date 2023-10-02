@@ -153,7 +153,7 @@ typedef std::map<NodeHandle, NodeManagerNode>::iterator NodePosition;
 struct CommandChain
 {
     // convenience functions, hides the unique_ptr aspect, removes it when empty
-    bool empty()
+    bool empty() const
     {
         return !chain || chain->empty();
     }
@@ -186,9 +186,18 @@ struct CommandChain
         }
     }
 
-private:
-    friend class CommandSetAttr;
+    void forEachCommand(const std::function<void(Command*)>& cmdFunction) const
+    {
+        if (chain)
+        {
+            for (auto& cmd : *chain)
+            {
+                cmdFunction(cmd);
+            }
+        }
+    }
 
+private:
     // most nodes don't have commands in progress so keep representation super small
     std::unique_ptr<std::list<Command*>> chain;
 };

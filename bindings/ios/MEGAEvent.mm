@@ -50,10 +50,6 @@ using namespace mega;
     }
 }
 
-- (instancetype)clone {
-    return self.megaEvent ? [[MEGAEvent alloc] initWithMegaEvent:self.megaEvent->copy() cMemoryOwn:YES] : nil;
-}
-
 - (MegaEvent *)getCPtr {
     return self.megaEvent;
 }

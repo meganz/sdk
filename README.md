@@ -17,7 +17,7 @@ SDK Contents
 
 In this SDK, you can find our low level SDK, that was already released few months after the MEGA launch,
 a new intermediate layer to make it easier to use and to bind with other programming languages, and
-example apps for all our currently supported platforms (Windows, Linux, OSX, Android, iOS and Windows Phone).
+example apps for all our currently supported platforms (Windows, Linux, OSX, Android and iOS).
 
 In the `examples` folder you can find example apps using:
 
@@ -29,7 +29,6 @@ In the `examples` folder you can find example apps using:
   - An example app for Visual Studio in `examples/win32`
   - An example app for Android (using Java bindings based on SWIG) in `examples/android`
   - An example app for iOS (using Objective-C bindings) in `examples/iOS`
-  - An example app for Windows Phone (using Windows Phone bindings) in `examples/wp8`
 
 [MEGAcmd](examples/megacmd), a higher level command line application that uses the SDK to provide interactive and scriptable access to MEGA, can be found [here](https://github.com/meganz/megacmd).
 

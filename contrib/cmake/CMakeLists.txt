@@ -732,12 +732,6 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/thread.h
             ${MegaDir}/include/mega/json.h
             ${MegaDir}/include/mega/base64.h
-            ${MegaDir}/include/mega/wp8/megafs.h
-            ${MegaDir}/include/mega/wp8/meganet.h
-            ${MegaDir}/include/mega/wp8/megaconsolewaiter.h
-            ${MegaDir}/include/mega/wp8/megasys.h
-            ${MegaDir}/include/mega/wp8/megaconsole.h
-            ${MegaDir}/include/mega/wp8/megawaiter.h
             ${MegaDir}/include/mega/mega_utf8proc.h
             ${MegaDir}/include/mega/gfx.h
             ${MegaDir}/include/mega/proxy.h

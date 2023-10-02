@@ -483,6 +483,8 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Insufficient disk space.";
     case FAILURE_ACCESSING_PERSISTENT_STORAGE:
         return "Failure accessing to persistent storage";
+    case UNABLE_TO_RETRIEVE_DEVICE_ID:
+        return "Unable to retrieve the ID of current device";
     case MISMATCH_OF_ROOT_FSID:
         return "Mismatch on sync root FSID.";
     case FILESYSTEM_FILE_IDS_ARE_UNSTABLE:
@@ -4355,6 +4357,55 @@ error Syncs::syncConfigStoreAdd(const SyncConfig& config)
     return result;
 }
 
+void Syncs::moveToSyncDebrisByBackupID(const string& path, handle backupId, std::function<void (Error)> completion, std::function<void (Error)> completionInClient)
+{
+    auto moveToDebris = [this, path, backupId, completion, completionInClient]()
+    {
+        assert(onSyncThread());
+
+        lock_guard<mutex> g(mSyncVecMutex);
+        Sync* sync = nullptr;
+        error e = API_ENOENT;
+        for (auto& s : mSyncVec)
+        {
+            if (s->mSync && s->mConfig.mBackupId == backupId)
+            {
+                sync = s->mSync.get();
+            }
+        }
+
+        if (sync)
+        {
+            e = sync->movetolocaldebris(LocalPath::fromAbsolutePath(path)) ? API_OK : API_EINTERNAL;
+        }
+
+        if (completion)
+        {
+            completion(e);
+        }
+
+        if (completionInClient)
+        {
+            queueClient([completionInClient, e](MegaClient& , TransferDbCommitter&)
+            {
+                completionInClient(e);
+            });
+        }
+    };
+
+    if (onSyncThread())
+    {
+        moveToDebris();
+    }
+    else
+    {
+        queueSync([moveToDebris]()
+        {
+            moveToDebris();
+        }, "Move to node to derbis");
+    }
+}
+
 void Syncs::syncConfigStoreAdd_inThread(const SyncConfig& config, std::function<void(error)> completion)
 {
     assert(onSyncThread());
@@ -4798,6 +4849,13 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
     context->mConfig = context->mConfigs.begin();
     context->mDeviceHash = mClient.getDeviceidHash();
     context->mSyncs = this;
+
+    if (context->mDeviceHash.empty())
+    {
+        LOG_err << "Failed to get Device ID while importing sync configs";
+        completion(API_EARGS);
+        return;
+    }
 
     LOG_debug << "Attempting to generate backup IDs for "
               << context->mConfigs.size()
@@ -9064,7 +9122,7 @@ bool Sync::resolve_downsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath
                 SyncWaitReason::DownloadIssue, false, true,
                 {row.cloudNode->handle, fullPath.cloudPath, PathProblem::CloudNodeInvalidFingerprint},
                 {},
-                {},
+                {parentRow.fsNode ? fullPath.localPath : LocalPath()},
                 {}));
 
             return false;

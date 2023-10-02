@@ -1536,6 +1536,33 @@ void MegaApiImpl::clearStalledPath(MegaSyncStall* stall)
     }
 }
 
+void MegaApiImpl::moveToDebris(const char* path, MegaHandle syncBackupId, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_MOVE_TO_DEBRIS, listener);
+
+    request->setText(path);
+    request->setNodeHandle(syncBackupId);
+    request->performRequest = [this, request]()
+    {
+        const char* path = request->getText();
+        handle syncBackupId = request->getNodeHandle();
+        if (!path || syncBackupId == UNDEF)
+        {
+            return API_EARGS;
+        }
+
+        client->syncs.moveToSyncDebrisByBackupID(path, syncBackupId, nullptr, [this, request](error e)
+                                                 {
+                                                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                                                 });
+
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 MegaSyncStallPrivate::MegaSyncStallPrivate(const SyncStallEntry& e)
 :info(e)
 {}
@@ -4557,7 +4584,9 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_PUT_VPN_CREDENTIAL: return "PUT_VPN_CREDENTIAL";
         case TYPE_DEL_VPN_CREDENTIAL: return "DEL_VPN_CREDENTIAL";
         case TYPE_CHECK_VPN_CREDENTIAL: return "CHECK_VPN_CREDENTIAL";
-        case TYPE_GET_SYNC_STALL_LIST: return "TYPE_GET_SYNC_STALL_LIST";
+        case TYPE_GET_SYNC_STALL_LIST: return "GET_SYNC_STALL_LIST";
+        case TYPE_FETCH_CREDIT_CARD_INFO: return "FETCH_CREDIT_CARD_INFO";
+        case TYPE_MOVE_TO_DEBRIS: return "MOVE_TO_DEBRIS";
     }
     return "UNKNOWN";
 }
@@ -14308,6 +14337,12 @@ void MegaApiImpl::timer_result(error e)
     }
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+}
+
+void MegaApiImpl::notify_creditCardExpiry()
+{
+    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_CREDIT_CARD_EXPIRY);
+    fireOnEvent(event);
 }
 
 // callback for non-EAGAIN request-level errors
@@ -24200,6 +24235,11 @@ error MegaApiImpl::performRequest_backupPut(MegaRequestPrivate* request)
             info.nodeHandle = remoteNode;
             info.localFolder = localFolder ? LocalPath::fromAbsolutePath(localFolder) : LocalPath();
             info.deviceId = client->getDeviceidHash();
+            if (info.deviceId.empty())
+            {
+                LOG_err << "Failed to get Device ID while handling backup " << info.backupName;
+                return API_EARGS;
+            }
             info.state = CommandBackupPut::SPState(request->getAccess());
             info.subState = request->getNumDetails();
 
@@ -24701,10 +24741,9 @@ void MegaApiImpl::updateStats()
     }
 }
 
-long long MegaApiImpl::getNumNodes()
+unsigned long long MegaApiImpl::getNumNodes()
 {
-    SdkMutexGuard g(sdkMutex);
-    return client->totalNodes;
+    return client->totalNodes.load();
 }
 
 void MegaApiImpl::setLRUCacheSize(unsigned long long size)
@@ -25590,7 +25629,28 @@ void MegaApiImpl::checkVpnCredential(const char* userPubKey, MegaRequestListener
     requestQueue.push(request);
     waiter->notify();
 }
+
 /* MegaApiImpl VPN commands END */
+
+void MegaApiImpl::fetchCreditCardInfo(MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_CREDIT_CARD_INFO, listener);
+    request->performRequest = [this, request]()
+    {
+        client->fetchCreditCardInfo(
+            [this, request](Error e, const std::map<std::string, std::string>& creditCardInfo)
+            {
+                std::unique_ptr<MegaStringMapPrivate> stringMap = mega::make_unique<MegaStringMapPrivate>(&creditCardInfo);
+                request->setMegaStringMap(stringMap.get());
+                fireOnRequestFinish(request, mega::make_unique<MegaErrorPrivate>(e));
+            });
+
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
 
 /* END MEGAAPIIMPL */
 
@@ -28759,6 +28819,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
                         // once we call sendPendingTransfers, we are guaranteed start/finish callbacks for each file transfer
                         // the last callback of onFinish for one of these will also complete and destroy this MegaFolderUploadController
                         transfersTotalCount = transferQueue->size();
+
                         megaApi->sendPendingTransfers(transferQueue.get(), this);
                         // no further code can be added here, this object may now be deleted (eg, due to cancel token activation)
 
@@ -28874,8 +28935,6 @@ Error MegaFolderDownloadController::createFolder()
 
         LocalPath &localpath = it->localPath;
 
-        megaApi->fireOnFolderTransferUpdate(transfer, MegaTransfer::STAGE_CREATE_TREE, unsigned(mLocalTree.size()), created, 0, nullptr, nullptr);
-
         Error e = MegaApiImpl::createLocalFolder_unlocked(localpath, *fsaccess);
         if (e && e != API_EEXIST)
         {
@@ -28884,6 +28943,8 @@ Error MegaFolderDownloadController::createFolder()
         }
         ++it;
         ++created;
+        
+        megaApi->fireOnFolderTransferUpdate(transfer, MegaTransfer::STAGE_CREATE_TREE, unsigned(mLocalTree.size()), created, 0, nullptr, nullptr);
     }
     return API_OK;
 }
@@ -35538,6 +35599,7 @@ const char *MegaEventPrivate::getEventString(int type)
         case MegaEvent::EVENT_FATAL_ERROR: return "FATAL_ERROR";
         case MegaEvent::EVENT_UPGRADE_SECURITY: return "UPGRADE_SECURITY";
         case MegaEvent::EVENT_DOWNGRADE_ATTACK: return "DOWNGRADE_ATTACK";
+        case MegaEvent::EVENT_CREDIT_CARD_EXPIRY: return "CREDIT_CARD_EXPIRY";
     }
 
     return "UNKNOWN";

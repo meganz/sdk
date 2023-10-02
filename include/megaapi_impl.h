@@ -3107,6 +3107,8 @@ class MegaApiImpl : public MegaApp
         void getMegaSyncStallList(MegaRequestListener* listener);
         void clearStalledPath(MegaSyncStall*);
 
+        void moveToDebris(const char* path, MegaHandle syncBackupId, MegaRequestListener* listener = nullptr);
+
         AddressedStallFilter mAddressedStallFilter;
 
 #endif // ENABLE_SYNC
@@ -3131,6 +3133,7 @@ class MegaApiImpl : public MegaApp
         void updateStats();
         long long getNumNodes();
         void setLRUCacheSize(unsigned long long size);
+        unsigned long long getNumNodes();
         long long getTotalDownloadedBytes();
         long long getTotalUploadedBytes();
         long long getTotalDownloadBytes();
@@ -3497,6 +3500,8 @@ class MegaApiImpl : public MegaApp
         void delVpnCredential(int slotID, MegaRequestListener* listener = nullptr);
         void checkVpnCredential(const char* userPubKey, MegaRequestListener* listener = nullptr);
         /* MegaVpnCredentials end */
+
+        void fetchCreditCardInfo(MegaRequestListener* listener = nullptr);
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
         void fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e); // deletes `transfer` !!
@@ -3942,6 +3947,9 @@ private:
 
         // notify about a finished timer
         void timer_result(error) override;
+
+        // notify credit card Expiry
+        void notify_creditCardExpiry() override;
 
         void sendPendingScRequest();
         void sendPendingRequests();

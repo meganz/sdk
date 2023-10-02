@@ -957,17 +957,14 @@ const char* CommandSetAttr::getJSON(MegaClient* client)
 
         // apply these changes for sending, but also any earlier changes that are ahead in the queue
         assert(!n->mPendingChanges.empty());
-        if (n->mPendingChanges.chain)
+        n->mPendingChanges.forEachCommand([&m, this](Command* cmd)
         {
-            for (auto& cmd : *n->mPendingChanges.chain)
+            if (cmd == this) return;
+            if (auto cmdSetAttr = dynamic_cast<CommandSetAttr*>(cmd))
             {
-                if (cmd == this) break;
-                if (auto attrCmd = dynamic_cast<CommandSetAttr*>(cmd))
-                {
-                    m.applyUpdates(attrCmd->mAttrMapUpdates);
-                }
+                cmdSetAttr->applyUpdatesTo(m);
             }
-        }
+        });
 
         m.applyUpdates(mAttrMapUpdates);
 
@@ -1007,6 +1004,11 @@ bool CommandSetAttr::procresult(Result r, JSON& json)
     removeFromNodePendingCommands(h, client);
     if (completion) completion(h, generationError ? Error(generationError) : r.errorOrOK());
     return r.wasErrorOrOK();
+}
+
+void CommandSetAttr::applyUpdatesTo(AttrMap& attrMap) const
+{
+    attrMap.applyUpdates(mAttrMapUpdates);
 }
 
 // (the result is not processed directly - we rely on the server-client
@@ -1378,11 +1380,6 @@ bool CommandMoveNode::procresult(Result r, JSON& json)
         {
             client->sendevent(99439, "Unexpected move error", 0);
         }
-    }
-
-    if (shared_ptr<Node> n = client->nodeByHandle(h))
-    {
-        client->rewriteforeignkeys(n);
     }
 
     if (completion) completion(h, r.errorOrOK());
@@ -10741,5 +10738,75 @@ bool CommandCheckVpnCredential::procresult(Command::Result r, JSON& json)
     return r.wasErrorOrOK();
 }
 /* MegaVPN Commands END*/
+
+CommandFetchCreditCard::CommandFetchCreditCard(MegaClient* client, CommandFetchCreditCardCompletion completion)
+    : mCompletion(std::move(completion))
+{
+    assert(mCompletion);
+    cmd("cci");
+    tag = client->reqtag;
+}
+
+bool CommandFetchCreditCard::procresult(Command::Result r, JSON& json)
+{
+    string_map creditCardInfo;
+
+    if (r.wasStrictlyError())
+    {
+        mCompletion(r.errorOrOK(), creditCardInfo);
+        return true;
+    }
+
+    if (r.hasJsonObject())
+    {
+        for (;;)
+        {
+            string name = json.getnameWithoutAdvance();
+            switch (json.getnameid())
+            {
+            case MAKENAMEID2('g', 'w'):
+                creditCardInfo[name] = std::to_string(json.getint());
+                break;
+
+            case MAKENAMEID5('b', 'r', 'a', 'n', 'd'):
+                creditCardInfo[name] = json.getname();
+                break;
+
+            case MAKENAMEID5('l', 'a', 's', 't', '4'):
+                creditCardInfo[name] = json.getname();
+                break;
+
+            case MAKENAMEID8('e', 'x', 'p', '_', 'y', 'e', 'a', 'r'):
+                creditCardInfo[name] = std::to_string(json.getint());
+                break;
+
+            case EOO:
+                assert(creditCardInfo.size() == 5);
+                mCompletion(API_OK, creditCardInfo);
+                return true;
+
+            default:
+                if (name == "exp_month")
+                {
+                    creditCardInfo[name] = std::to_string(json.getint());
+                }
+                else if (!json.storeobject())
+                {
+                    creditCardInfo.clear();
+                    mCompletion(API_EINTERNAL, creditCardInfo);
+                    return false;
+                }
+
+                break;
+            }
+        }
+    }
+    else
+    {
+        mCompletion(API_EINTERNAL, creditCardInfo);
+    }
+
+    return false;
+}
 
 } // namespace
