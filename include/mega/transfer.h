@@ -160,6 +160,9 @@ struct MEGA_API Transfer : public FileFingerprint
     // whether the Transfer needs to remove itself from the list it's in (for quick shutdown we can skip)
     bool mOptimizedDelete = false;
 
+    // whether it is a Transfer for support (i.e., an upload for the Support team)
+    bool isForSupport() const;
+
 private:
     FileDistributor::TargetNameExistsResolution toTargetNameExistsResolution(CollisionResolution resolution);
 };
