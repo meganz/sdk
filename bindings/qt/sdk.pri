@@ -864,7 +864,9 @@ CONFIG(USE_DRIVE_NOTIFICATIONS) {
 # gfx worker platform settings
 win32 {
     HEADERS += include/mega/win32/gfx/worker/comms.h
+    HEADERS += include/mega/win32/gfx/worker/comms_client.h
     SOURCES += src/win32/gfx/worker/comms.cpp
+    SOURCES += src/win32/gfx/worker/comms_client.cpp
 }
 
 # Add include paths as system libs to avoid warnings from external libraries.

@@ -2,7 +2,7 @@
 #include <memory>
 #include "megaapi.h"
 #include "gfxworker/server.h"
-#include "gfxworker/comms_win32.h"
+#include "gfxworker/comms_server_win32.h"
 #include "gfxworker/logger.h"
 
 using mega::gfx::GfxProcessor;

@@ -86,7 +86,8 @@ nobase_libmegainclude_HEADERS += \
 	mega/win32/megawaiter.h \
 	mega/win32/megaconsole.h \
 	mega/win32/megaconsolewaiter.h \
-	mega/win32/gfx/worker/comms.h
+	mega/win32/gfx/worker/comms.h \
+	mega/win32/gfx/worker/comms_client.h
 else
 nobase_libmegainclude_HEADERS += \
 	mega/posix/megasys.h \

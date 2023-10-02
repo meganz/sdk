@@ -635,7 +635,9 @@ if(WIN32)
     # gfx worker related
     SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles}
                                    ${MegaDir}/include/mega/win32/gfx/worker/comms.h
-                                   ${MegaDir}/src/win32/gfx/worker/comms.cpp)
+                                   ${MegaDir}/include/mega/win32/gfx/worker/comms_client.h
+                                   ${MegaDir}/src/win32/gfx/worker/comms.cpp
+                                   ${MegaDir}/src/win32/gfx/worker/comms_client.cpp)
 
 ELSE(WIN32)
 
