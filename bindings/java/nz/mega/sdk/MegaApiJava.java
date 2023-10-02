@@ -12678,6 +12678,28 @@ public class MegaApiJava {
     }
 
     /**
+     * Initiate an asynchronous request to receive stalled issues.
+     *
+     * Use MegaRequestListenerInterface to subscribe for result.
+     * Result is of MegaRequest.TYPE_GET_SYNC_STALL_LIST type.
+     */
+    public void requestMegaSyncStallList(MegaRequestListenerInterface listener) {
+        megaApi.getMegaSyncStallList(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * @brief Find out if the syncs need User intervention for some files/folders
+     *
+     * use getMegaSyncStallList() to find out what needs attention.
+     *
+     * @return true if the User is needs to intervene.
+     *
+     */
+    public boolean isSyncStalled() {
+        return megaApi.isSyncStalled();
+    }
+
+    /**
      * Resume a previously suspended sync
      */
     public void resumeSync(long backupId) {
