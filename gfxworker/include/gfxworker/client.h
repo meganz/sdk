@@ -49,12 +49,6 @@ public:
 
     bool runShutDown();
 
-    template<typename Cb>
-    void shutdownCommand(Cb&& cb)
-    {
-        mComms->shutdownCommand(std::forward<Cb>(cb));
-
-    }
     virtual ~GfxClient() = default;
 };
 
