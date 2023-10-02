@@ -6145,17 +6145,22 @@ void MegaClient::pendingattrstring(UploadHandle h, string* fa)
 // Upload file attribute data to fa servers. node handle can be UNDEF if we are giving fa handle back to the app
 // Used for attaching file attribute to a Node, or prepping for Node creation after upload, or getting fa handle for app.
 // FIXME: to avoid unnecessary roundtrips to the attribute servers, also cache locally
-void MegaClient::putfa(NodeOrUploadHandle th, fatype t, SymmCipher* key, int tag, std::unique_ptr<string> data)
+bool MegaClient::putfa(NodeOrUploadHandle th, fatype t, SymmCipher* key, int tag, std::unique_ptr<string> data)
 {
     // CBC-encrypt attribute data (padded to next multiple of BLOCKSIZE)
     data->resize((data->size() + SymmCipher::BLOCKSIZE - 1) & -SymmCipher::BLOCKSIZE);
-    key->cbc_encrypt((byte*)data->data(), data->size());
+    if (!key->cbc_encrypt((byte*)data->data(), data->size()))
+    {
+        LOG_err << "Failed to CBC encrypt Node attribute data.";
+        return false;
+    }
 
     queuedfa.emplace_back(new HttpReqFA(th, t, usehttps, tag, std::move(data), true, this));
     LOG_debug << "File attribute added to queue - " << th << " : " << queuedfa.size() << " queued, " << activefa.size() << " active";
 
     // no other file attribute storage request currently in progress? POST this one.
     activatefa();
+    return true;
 }
 
 void MegaClient::activatefa()
@@ -8802,7 +8807,11 @@ void MegaClient::makeattr(SymmCipher* key, string* attrstring, const char* json,
     buf[l + 5] = '}';
     memset(buf + 6 + l, 0, ll - l - 6);
 
-    key->cbc_encrypt(buf, ll);
+    if (!key->cbc_encrypt(buf, ll))
+    {
+        LOG_err << "Failed to CBC encrypt attribute";  // Is refactoring needed to add return value for current function?
+        assert(false);
+    }
 
     attrstring->assign((char*)buf, ll);
 
@@ -20080,7 +20089,15 @@ void MegaClient::putSet(Set&& s, std::function<void(Error, const Set*)> completi
         s.setKey(encrSetKey);
 
         // encrypt Set key with master key
-        key.cbc_encrypt((byte*)&encrSetKey[0], encrSetKey.size()); // in c++17 and beyond it should use encrSetKey.data()
+        if (!key.cbc_encrypt((byte*)&encrSetKey[0], encrSetKey.size())) // in c++17 and beyond it should use encrSetKey.data()
+        {
+            LOG_err << "Sets: Failed to encrypt Set key with master key.";
+            if (completion)
+            {
+                completion(API_EKEY, nullptr);
+            }
+            return;
+        }
 
         if (s.hasAttrs())
         {
@@ -20187,7 +20204,15 @@ void MegaClient::putSetElements(vector<SetElement>&& els, std::function<void(Err
             byte encryptBuffer[FILENODEKEYLENGTH];
             std::copy_n(el.key().begin(), sizeof(encryptBuffer), encryptBuffer);
             tmpnodecipher.setkey(&existingSet->key());
-            tmpnodecipher.cbc_encrypt(encryptBuffer, sizeof(encryptBuffer));
+            if (!tmpnodecipher.cbc_encrypt(encryptBuffer, sizeof(encryptBuffer)))
+            {
+                LOG_err << "Sets: Failed to CBC encrypt an Element key with Set key";
+                if (completion)
+                {
+                    completion(API_EKEY, nullptr, nullptr);
+                }
+                return;
+            }
 
             auto& ed = encrDetails[i];
             ed.second.assign(reinterpret_cast<char*>(encryptBuffer), sizeof(encryptBuffer));
@@ -20243,7 +20268,15 @@ void MegaClient::putSetElement(SetElement&& el, std::function<void(Error, const 
         byte encryptBuffer[FILENODEKEYLENGTH];
         std::copy_n(el.key().begin(), sizeof(encryptBuffer), encryptBuffer);
         tmpnodecipher.setkey(&existingSet->key());
-        tmpnodecipher.cbc_encrypt(encryptBuffer, sizeof(encryptBuffer));
+        if (!tmpnodecipher.cbc_encrypt(encryptBuffer, sizeof(encryptBuffer)))
+        {
+            LOG_err << "Sets: Failed to CBC encrypt Element key with Set key";
+            if (completion)
+            {
+                completion(API_EKEY, nullptr);
+            }
+            return;
+        }
         encrKey.assign((char*)encryptBuffer, sizeof(encryptBuffer));
     }
     // get element.key from existing element (only when updating attributes)
@@ -20564,7 +20597,11 @@ string MegaClient::decryptKey(const string& k, SymmCipher& cipher) const
 {
     unique_ptr<byte[]> decrKey(new byte[k.size()]{ 0 });
     std::copy_n(k.begin(), k.size(), decrKey.get());
-    cipher.cbc_decrypt(decrKey.get(), k.size());
+    if (!cipher.cbc_decrypt(decrKey.get(), k.size()))
+    {
+        LOG_err << "Failed to CBC decrypt key";
+        return string();
+    }
     return string((char*)decrKey.get(), k.size());
 }
 
@@ -21959,7 +21996,11 @@ bool KeyManager::fromKeysContainer(const string &data)
 
             // Decrypt ^!keys attribute
             string keysPlain;
-            mKey.gcm_decrypt(&keysCiphered, (byte*)data.data() + 2, IV_LEN, 16, &keysPlain);
+            if (!mKey.gcm_decrypt(&keysCiphered, (byte*)data.data() + 2, IV_LEN, 16, &keysPlain))
+            {
+                LOG_err << "Failed to GCM decrypt ^!keys.";
+                return false;
+            }
 
             success = unserialize(km, keysPlain);
             if (!success)
@@ -22092,7 +22133,12 @@ string KeyManager::toKeysContainer()
     const string keysPlain = serialize();
 
     string keysCiphered;
-    mKey.gcm_encrypt(&keysPlain, (byte*)iv.data(), IV_LEN, 16, &keysCiphered);
+    if (!mKey.gcm_encrypt(&keysPlain, (byte*)iv.data(), IV_LEN, 16, &keysCiphered))
+    {
+        LOG_err << "Failed to encrypt keys attribute.";
+        assert(false);
+        return string();
+    }
 
 #ifndef NDEBUG
     byte header[2] = {20, 0};
@@ -23338,10 +23384,8 @@ string KeyManager::computeSymmetricKey(handle user)
     }
 
     std::string sharedSecret;
-    sharedSecret.resize(::mega::ECDH::DERIVED_KEY_LENGTH);
-    if (crypto_scalarmult((unsigned char *)sharedSecret.data(),
-                          mClient.chatkey->getPrivKey(),
-                          (unsigned char *)cachedav->data()))
+    ECDH ecdh(mClient.chatkey->getPrivKey(), *cachedav);
+    if (!ecdh.computeSymmetricKey(sharedSecret))
     {
         return std::string();
     }
