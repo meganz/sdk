@@ -15839,7 +15839,7 @@ void MegaClient::importSyncConfigs(const char* configs, std::function<void(error
     ensureSyncUserAttributes(std::move(onUserAttributesCompleted));
 }
 
-void MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath)
+void MegaClient::addsync(SyncConfig&& config, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath)
 {
     assert(completion);
     assert(config.mExternalDrivePath.empty() || config.mExternalDrivePath.isAbsolute());
@@ -15882,7 +15882,7 @@ void MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<void
     BackupInfoSync info(config, deviceIdHash, driveId, BackupInfoSync::getSyncState(config, xferpaused[GET], xferpaused[PUT]));
 
     reqs.add(new CommandBackupPut(this, info,
-        [this, config, completion, notifyApp, logname, excludedPath](Error e, handle backupId) mutable {
+        [this, config, completion, logname, excludedPath](Error e, handle backupId) mutable {
         if (ISUNDEF(backupId) && !e)
         {
             LOG_debug << "Request for backupId failed for sync add";
@@ -15899,7 +15899,7 @@ void MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<void
             // if we got this far, the syncConfig is kept (in db and in memory)
             config.mBackupId = backupId;
 
-            syncs.appendNewSync(config, true, notifyApp, completion, true, logname, excludedPath);
+            syncs.appendNewSync(config, true, true, completion, true, logname, excludedPath);
         }
     }));
 }

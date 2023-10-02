@@ -2522,7 +2522,7 @@ void StandardClient::setupBackup_inThread(const string& rootPath,
         }
         else
         {
-            client.addsync(std::move(sc), false, [revertOnError, result, this](error e, SyncError se, handle h){
+            client.addsync(std::move(sc), [revertOnError, result, this](error e, SyncError se, handle h){
                 if (e && revertOnError) revertOnError(nullptr);
                 result->set_value(e ? UNDEF : h);
 
@@ -2708,7 +2708,6 @@ void StandardClient::setupSync_inThread(const string& rootPath,
         }
 
         client.addsync(std::move(config),
-                       true,
                        std::move(completion),
                        rootPath + " ",
                        excludePath_.u8string());

@@ -24684,7 +24684,7 @@ void MegaApiImpl::fetchScheduledMeetingEvents(MegaHandle chatid, MegaTimeStamp s
 #ifdef ENABLE_SYNC
 void MegaApiImpl::addSyncByRequest(MegaRequestPrivate* request, SyncConfig syncConfig, MegaClient::UndoFunction revertOnError)
 {
-    client->addsync(std::move(syncConfig), false,
+    client->addsync(std::move(syncConfig),
         [this, request, revertOnError](error e, SyncError se, handle backupId)
         {
             request->setNumDetails(se);

@@ -923,13 +923,12 @@ public:
      * @brief add sync. Will fill syncError/syncWarning in the SyncConfig in case there are any.
      * It will persist the sync configuration if its call to checkSyncConfig succeeds
      * @param syncConfig the Config to attempt to add (takes ownership)
-     * @param notifyApp whether the syncupdate_stateconfig callback should be called at this stage or not
      * @param completion Completion function
      * @exludedPath: in sync rework, use this to specify a folder within the sync to exclude (eg, working folder with sync db in it)
      * @return API_OK if added to active syncs. (regular) error otherwise (with detail in syncConfig's SyncError field).
      * Completion is used to signal success/failure.  That may occur during this call, or in future (after server request/reply etc)
      */
-    void addsync(SyncConfig&& syncConfig, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath);
+    void addsync(SyncConfig&& syncConfig, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath);
 
     /**
      * @brief
