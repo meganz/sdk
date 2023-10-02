@@ -1,9 +1,9 @@
 #include "gtest/gtest.h"
 #include "mega/win32/gfx/worker/comms_client.h"
+#include "mega/gfx/worker/client.h"
 #include "gfxworker/comms_server_win32.h"
 #include "gfxworker/logger.h"
 #include "gfxworker/server.h"
-#include "gfxworker/client.h"
 #include <memory>
 #include <thread>
 #include <chrono>

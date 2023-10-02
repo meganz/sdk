@@ -73,6 +73,7 @@ SOURCES += src/attrmap.cpp \
     src/gfx/external.cpp \
     src/gfx/isolatedprocess.cpp \
     src/gfx/worker/command_serializer.cpp \
+    src/gfx/worker/client.cpp \
     src/mega_utf8proc.cpp \
     src/mega_ccronexpr.cpp \
     src/mega_evt_tls.cpp \
@@ -487,6 +488,7 @@ HEADERS  += include/mega.h \
             include/mega/gfx/worker/commands.h \
             include/mega/gfx/worker/comms.h \
             include/mega/gfx/worker/command_serializer.h \
+            include/mega/gfx/worker/client.h \
             include/mega/thread.h \
             include/mega/thread/cppthread.h \
             include/megaapi.h \

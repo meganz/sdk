@@ -61,6 +61,7 @@ nobase_libmegainclude_HEADERS = \
 	mega/gfx/worker/commands.h \
 	mega/gfx/worker/comms.h \
 	mega/gfx/worker/command_serializer.h \
+	mega/gfx/worker/client.h \
 	mega/raid.h \
 	mega/mediafileattribute.h
 
