@@ -1085,15 +1085,13 @@ void StandardClient::file_complete(File* file)
     }
 }
 
-void StandardClient::notify_retry(dstime t, retryreason_t r)
+void StandardClient::notify_retry(dstime when, retryreason_t reason)
 {
     onCallback();
 
-    if (!logcb) return;
-
     lock_guard<mutex> guard(om);
 
-    out() << clientname << " notify_retry: " << t << " " << r;
+    mRetryTracker.track(clientname, reason);
 }
 
 void StandardClient::request_error(error e)

@@ -2429,6 +2429,10 @@ void MegaClient::exec()
                                     block();
                                 }
 
+                                // A failed request implies any retry in progress has ended.
+                                if (csretrying)
+                                    app->notify_retry(0, RETRY_NONE);
+
                                 app->request_error(e);
                                 delete pendingcs;
                                 pendingcs = NULL;

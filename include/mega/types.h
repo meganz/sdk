@@ -785,7 +785,20 @@ typedef enum { RECOVER_WITH_MASTERKEY = 9, RECOVER_WITHOUT_MASTERKEY = 10, CANCE
 
 typedef enum { EMAIL_REMOVED = 0, EMAIL_PENDING_REMOVED = 1, EMAIL_PENDING_ADDED = 2, EMAIL_FULLY_ACCEPTED = 3 } emailstatus_t;
 
-typedef enum { RETRY_NONE = 0, RETRY_CONNECTIVITY = 1, RETRY_SERVERS_BUSY = 2, RETRY_API_LOCK = 3, RETRY_RATE_LIMIT = 4, RETRY_LOCAL_LOCK = 5, RETRY_UNKNOWN = 6} retryreason_t;
+#define DEFINE_RETRY_REASONS(expander) \
+    expander(0, RETRY_NONE) \
+    expander(1, RETRY_CONNECTIVITY) \
+    expander(2, RETRY_SERVERS_BUSY) \
+    expander(3, RETRY_API_LOCK) \
+    expander(4, RETRY_RATE_LIMIT) \
+    expander(5, RETRY_LOCAL_LOCK) \
+    expander(6, RETRY_UNKNOWN)
+
+typedef enum {
+#define DEFINE_RETRY_REASON(index, name) name = index,
+    DEFINE_RETRY_REASONS(DEFINE_RETRY_REASON)
+#undef DEFINE_RETRY_REASON
+} retryreason_t;
 
 typedef enum {
     STORAGE_UNKNOWN = -9,
