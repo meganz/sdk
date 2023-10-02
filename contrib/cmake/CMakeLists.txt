@@ -632,6 +632,11 @@ if(WIN32)
         SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles} ${MegaDir}/include/mega/win32/drivenotifywin.h ${MegaDir}/src/win32/drivenotifywin.cpp)
     ENDIF(USE_DRIVE_NOTIFICATIONS)
 
+    # gfx worker related
+    SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles}
+                                   ${MegaDir}/include/mega/win32/gfx/worker/comms.h
+                                   ${MegaDir}/src/win32/gfx/worker/comms.cpp)
+
 ELSE(WIN32)
 
     set(USE_PTHREAD 1)

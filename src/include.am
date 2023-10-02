@@ -134,6 +134,7 @@ src_libmega_la_SOURCES+= src/win32/console.cpp
 src_libmega_la_SOURCES+= src/win32/net.cpp
 src_libmega_la_SOURCES+= src/win32/waiter.cpp
 src_libmega_la_SOURCES+= src/win32/consolewaiter.cpp
+src_libmega_la_SOURCES+= src/win32/gfx/worker/comms.cpp
 
 if HAVE_PTHREAD
 src_libmega_la_SOURCES += src/thread/posixthread.cpp
