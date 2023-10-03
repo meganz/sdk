@@ -203,6 +203,9 @@ public:
     // Initialize node counters and create indexes at DB
     void initCompleted();
 
+    // true when the filesystem has been initialized
+    bool ready();
+
 private:
     MegaClient& mClient;
 
@@ -295,6 +298,9 @@ private:
 
     // Stores (or updates) the node in the DB. It also tries to decrypt it for the last time before storing it.
     void putNodeInDb(Node* node) const;
+
+    // true when the NodeManager has been inicialized and contains a valid filesystem
+    bool mInitialized = false;
 
     // These are all the "internal" versions of the public interfaces.
     // This is to avoid confusion where public functions used to call other public functions

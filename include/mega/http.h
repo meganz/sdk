@@ -323,6 +323,7 @@ struct MEGA_API HttpReq
     bool protect; // check pinned public key
     bool minspeed;
     bool mExpectRedirect = false;
+    bool mChunked = false;
 
     bool sslcheckfailed;
     string sslfakeissuer;

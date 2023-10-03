@@ -2338,6 +2338,15 @@ void MegaClient::exec()
 
                             if (pendingcs->bufpos > pendingcs->notifiedbufpos)
                             {
+                                if (pendingcs->mChunked)
+                                {
+                                    size_t consumedBytes = reqs.serverChunk(pendingcs->data(), this);
+                                    LOG_verbose << "Consumed a chunk of " << consumedBytes << " bytes. "
+                                                << "Total: " << reqs.chunkedProgress() << " of "
+                                                << pendingcs->contentlength;
+                                    pendingcs->purge(consumedBytes);
+                                }
+
                                 abortlockrequest();
                                 app->request_response_progress(pendingcs->bufpos, pendingcs->contentlength);
                                 pendingcs->notifiedbufpos = pendingcs->bufpos;
@@ -2349,9 +2358,11 @@ void MegaClient::exec()
                         abortlockrequest();
                         app->request_response_progress(pendingcs->bufpos, -1);
 
-                        if (pendingcs->in != "-3" && pendingcs->in != "-4")
+                        if ((!pendingcs->mChunked && pendingcs->in != "-3" && pendingcs->in != "-4")
+                            || (pendingcs->mChunked && (reqs.chunkedProgress() || (pendingcs->in != "-3" && pendingcs->in != "-4"))))
                         {
-                            if (*pendingcs->in.c_str() == '[')
+                            if ((!pendingcs->mChunked && *pendingcs->in.c_str() == '[')
+                                || (pendingcs->mChunked && (reqs.chunkedProgress() || *pendingcs->in.c_str() == '[')))
                             {
                                 CodeCounter::ScopeTimer ccst(performanceStats.csSuccessProcessingTime);
 
@@ -2367,8 +2378,22 @@ void MegaClient::exec()
                                     csretrying = false;
                                 }
 
-                                // request succeeded, process result array
-                                reqs.serverresponse(std::move(pendingcs->in), this);
+                                if (!pendingcs->mChunked)
+                                {
+                                    // request succeeded, process result array
+                                    reqs.serverresponse(std::move(pendingcs->in), this);
+                                }
+                                else
+                                {
+                                    size_t consumedBytes = reqs.serverChunk(pendingcs->data(), this);
+                                    if (consumedBytes)
+                                    {
+                                        LOG_verbose << "Consumed the last chunk of " << consumedBytes << " bytes";
+                                    }
+
+                                    // The requests should be already terminated
+                                    assert(!reqs.chunkedProgress());
+                                }
 
                                 WAIT_CLASS::bumpds();
 
@@ -2565,6 +2590,12 @@ void MegaClient::exec()
                         pendingcs->posturl.append(mJourneyId.getValue());
                     }
                     pendingcs->type = REQ_JSON;
+
+                    if (pendingcs->includesFetchingNodes && !mNodeManager.hasCacheLoaded())
+                    {
+                        // Currently only fetchnodes requests can take advantage of chunked processing
+                        pendingcs->mChunked = true;
+                    }
 
                     performanceStats.csRequestWaitTime.start();
                     pendingcs->post(this);
@@ -3690,12 +3721,15 @@ void MegaClient::exec()
     } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.readyToSend() && btcs.armed()) || looprequested);
 
 
-    NodeCounter nc = mNodeManager.getCounterOfRootNodes();
-    m_off_t sum = nc.storage + nc.versionStorage;
-    if (mNotifiedSumSize != sum)
+    if (!fetchingnodes)
     {
-        mNotifiedSumSize = sum;
-        app->storagesum_changed(mNotifiedSumSize);
+        NodeCounter nc = mNodeManager.getCounterOfRootNodes();
+        m_off_t sum = nc.storage + nc.versionStorage;
+        if (mNotifiedSumSize != sum)
+        {
+            mNotifiedSumSize = sum;
+            app->storagesum_changed(mNotifiedSumSize);
+        }
     }
 
 #ifdef MEGA_MEASURE_CODE
@@ -8349,6 +8383,12 @@ void MegaClient::sc_ub()
 // purge removed nodes after notification
 void MegaClient::notifypurge(void)
 {
+    if (!mNodeManager.ready())
+    {
+        // the filesystem is being initialized
+        return;
+    }
+
     int i, t;
 
     handle tscsn = cachedscsn;
@@ -9550,13 +9590,31 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
         return 0;
     }
 
-    Node* n;
-
     handle previousHandleForAlert = UNDEF;
 
     NodeManager::MissingParentNodes missingParentNodes;
+    while (int e = readnode(j, notify, source, nn, modifiedByThisClient, applykeys, missingParentNodes, previousHandleForAlert))
+    {
+        if (e != 1)
+        {
+            LOG_err << "Parsing error in readnodes: " << e;
+            return 0;
+        }
+    }
 
-    while (j->enterobject())
+    mergenewshares(notify);
+    mNodeManager.checkOrphanNodes(missingParentNodes);
+
+    return j->leavearray();
+}
+
+
+int MegaClient::readnode(JSON* j, int notify, putsource_t source, vector<NewNode>* nn, bool modifiedByThisClient, bool applykeys,
+                         mega::NodeManager::MissingParentNodes &missingParentNodes, handle &previousHandleForAlert)
+{
+    Node* n;
+
+    if (j->enterobject())
     {
         handle h = UNDEF, ph = UNDEF;
         handle u = 0, su = UNDEF;
@@ -9635,7 +9693,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 default:
                     if (!j->storeobject())
                     {
-                        return 0;
+                        return 2;
                     }
             }
         }
@@ -9912,12 +9970,11 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 }
             }
         }
+
+        return 1;
     }
 
-    mergenewshares(notify);
-    mNodeManager.checkOrphanNodes(missingParentNodes);
-
-    return j->leavearray();
+    return 0;
 }
 
 // decrypt and set encrypted sharekey
@@ -10353,12 +10410,29 @@ error MegaClient::readmiscflags(JSON *json)
     }
 }
 
-void MegaClient::procph(JSON *j)
+bool MegaClient::procph(JSON *j)
 {
-    // fields: h, ph, ets
-    if (j->enterarray())
+    if (!j->enterarray())
     {
-        while (j->enterobject())
+        return false;
+    }
+
+    while (int e = procphelement(j))
+    {
+        if (e != 1)
+        {
+            LOG_err << "Parsing error in procph: " << e;
+            return false;
+        }
+    }
+
+    return j->leavearray();
+}
+
+int MegaClient::procphelement(JSON *j)
+{
+        // fields: h, ph, ets
+        if (j->enterobject())
         {
             handle h = UNDEF;
             handle ph = UNDEF;
@@ -10424,14 +10498,13 @@ void MegaClient::procph(JSON *j)
                     default:
                        if (!j->storeobject())
                        {
-                            return;
+                            return 2;
                        }
                 }
             }
+            return 1;
         }
-
-        j->leavearray();
-    }
+        return 0;
 }
 
 void MegaClient::applykeys()
@@ -10479,10 +10552,24 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
 {
     if (!j->enterarray())
     {
-        return 0;
+        return false;
     }
 
-    while (j->enterobject())
+    while (int e = readuser(j, actionpackets))
+    {
+        if (e != 1)
+        {
+            LOG_err << "Parsing error in readusers: " << e;
+            return false;
+        }
+    }
+
+    return j->leavearray();
+}
+
+int MegaClient::readuser(JSON* j, bool actionpackets)
+{
+    if (j->enterobject())
     {
         handle uh = 0;
         visibility_t v = VISIBILITY_UNKNOWN;    // new share objects do not override existing visibility
@@ -10529,7 +10616,7 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
                                     break;
                                 default:
                                     if (!j->storeobject())
-                                        return false;
+                                        return 2;
                                     break;
                             }
                         }
@@ -10570,7 +10657,7 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
                         default:
                             if (!j->storeobject())
                             {
-                                return false;
+                                return 3;
                             }
                             break;
                     }
@@ -10668,9 +10755,11 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
                 }
             }
         }
+
+        return 1;
     }
 
-    return j->leavearray();
+    return 0;
 }
 
 // Supported formats:
