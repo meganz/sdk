@@ -19,8 +19,11 @@
 #pragma once
 
 #include <memory>
+#include <vector>
+#include <string>
 #include <assert.h>
 #include "mega/gfx/worker/comms.h"
+#include "mega/gfx/worker/tasks.h"
 
 namespace mega {
 namespace gfx {
@@ -45,11 +48,11 @@ public:
         assert(mComms);
     }
 
-    bool runGfxTask(const std::string& localpath);
+    bool runGfxTask(const std::string& localpath, std::vector<GfxSize> sizes, std::vector<std::string>& images);
 
     bool runShutDown();
 
-    virtual ~GfxClient() = default;
+    static GfxClient create();
 };
 
 
