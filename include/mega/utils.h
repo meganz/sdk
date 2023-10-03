@@ -32,16 +32,6 @@
 #include "mega/mega_utf8proc.h"
 #undef SSIZE_MAX
 
-// Needed for Windows Phone (MSVS 2013 - C++ version 9.8)
-#if defined(_WIN32) && _MSC_VER <= 1800 && __cplusplus < 201103L && !defined(_TIMESPEC_DEFINED) && ! __struct_timespec_defined
-struct timespec
-{
-    long long	tv_sec; 	/* seconds */
-    long        tv_nsec;	/* nanoseconds */
-};
-# define __struct_timespec_defined  1
-#endif
-
 namespace mega {
 // convert 1...8 character ID to int64 integer (endian agnostic)
 #define MAKENAMEID1(a) (nameid)(a)

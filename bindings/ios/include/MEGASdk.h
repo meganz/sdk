@@ -8429,28 +8429,6 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * @return List of PublicLinks nodes that contain the desired string in their name.
  */
 - (MEGANodeList *)nodeListSearchOnPublicLinksByString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken order:(MEGASortOrderType)orderType;
-/**
- * @brief Return an array of buckets, each bucket containing a list of recently added/modified nodes
- *
- * Each bucket contains files that were added/modified in a set, by a single user.
- * This function, that takes no parameters, uses the defaults for the MEGA apps
- * which are (currently) within the last 30 days, and max 10000 nodes.
- *
- * @return Array of buckets containing nodes that were added/modifed as a set
- */
-- (NSMutableArray *)recentActions;
-
-/**
- * @brief Return an array of buckets, each bucket containing a list of recently added/modified nodes
- *
- * Each bucket contains files that were added/modified in a set, by a single user.
- *
- * @param days Age of actions since added/modified nodes will be considered (in days).
- * @param maxNodes Maximum amount of nodes to be considered.
- *
- * @return Array of buckets containing nodes that were added/modifed as a set
- */
-- (NSMutableArray *)recentActionsSinceDays:(NSInteger)days maxNodes:(NSInteger)maxNodes;
 
 /// Get a list of buckets, each bucket containing a list of recently added/modified nodes
 ///
@@ -10003,6 +9981,21 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * @param delegate MEGARequestDelegate to track this request
  */
 - (void)setDeviceName:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Sets name for specific device
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - paramType - Returns the attribute type MEGAUserAttributeDeviceNames
+ * - deviceId - Returns the device id.
+ * - name - Returns device name.
+ *
+ * @param deviceId String with device id
+ * @param name String with device name
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)renameDevice:(NSString *)deviceId newName:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
 
 #pragma mark - Cookie Dialog
 
