@@ -3358,7 +3358,7 @@ void Syncs::confirmOrCreateDefaultMegaignore(bool transitionToMegaignore, unique
     }
 }
 
-void Syncs::enableSyncByBackupId(handle backupId, bool paused, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname)
+void Syncs::enableSyncByBackupId(handle backupId, bool paused, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname)
 {
     assert(!onSyncThread());
 
@@ -3372,11 +3372,11 @@ void Syncs::enableSyncByBackupId(handle backupId, bool paused, bool notifyApp, b
 
     queueSync([=]()
         {
-            enableSyncByBackupId_inThread(backupId, paused, notifyApp, setOriginalPath, completionInClient ? clientCompletion : completion, logname);
+            enableSyncByBackupId_inThread(backupId, paused, setOriginalPath, completionInClient ? clientCompletion : completion, logname);
         }, "enableSyncByBackupId");
 }
 
-void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath)
+void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath)
 {
     assert(onSyncThread());
 
@@ -3412,7 +3412,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool not
         us.mConfig.mTemporarilyPaused = paused;
         us.mConfig.mRunState = paused ? SyncRunState::Pause : SyncRunState::Run;
 
-        if (changed && notifyApp)
+        if (changed)
             mClient.app->syncupdate_stateconfig(us.mConfig);
 
         if (completion) completion(API_OK, NO_SYNC_ERROR, backupId);
@@ -3480,7 +3480,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool not
 
         us.mConfig.mRunState = us.mConfig.mDatabaseExists ? SyncRunState::Suspend : SyncRunState::Disable;
 
-        us.changedConfigState(true, notifyApp);
+        us.changedConfigState(true, true);
         if (completion) completion(e, us.mConfig.mError, backupId);
         return;
     }
@@ -3571,7 +3571,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool not
                 us.mConfig.mEnabled = false;
                 us.mConfig.mRunState = us.mConfig.mDatabaseExists ? SyncRunState::Suspend : SyncRunState::Disable;
 
-                us.changedConfigState(true, notifyApp);
+                us.changedConfigState(true, true);
 
                 if (completion)
                     completion(API_EWRITE, us.mConfig.mError, backupId);
@@ -3605,7 +3605,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool not
     string debris = DEBRISFOLDER;
     auto localdebris = LocalPath();
 
-    us.changedConfigState(true, notifyApp);
+    us.changedConfigState(true, true);
     mHeartBeatMonitor->updateOrRegisterSync(us);
 
     startSync_inThread(us, debris, localdebris, inshare, isnetwork, rootpath, completion, logname);
@@ -4734,7 +4734,6 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
                     // Add the new sync, optionally enabling it.
                     syncs.appendNewSync(config,
                                         false,
-                                        false,
                                         std::move(completion),
                                         false,
                                         config.mName);
@@ -5329,7 +5328,7 @@ void Syncs::clear_inThread()
     mSyncsResumed = false;
 }
 
-void Syncs::appendNewSync(const SyncConfig& c, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname, const string& excludedPath)
+void Syncs::appendNewSync(const SyncConfig& c, bool startSync, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname, const string& excludedPath)
 {
     assert(!onSyncThread());
     assert(c.mBackupId != UNDEF);
@@ -5344,11 +5343,11 @@ void Syncs::appendNewSync(const SyncConfig& c, bool startSync, bool notifyApp, s
 
     queueSync([=]()
     {
-        appendNewSync_inThread(c, startSync, notifyApp, completionInClient ? clientCompletion : completion, logname, excludedPath);
+        appendNewSync_inThread(c, startSync, completionInClient ? clientCompletion : completion, logname, excludedPath);
     }, "appendNewSync");
 }
 
-void Syncs::appendNewSync_inThread(const SyncConfig& c, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath)
+void Syncs::appendNewSync_inThread(const SyncConfig& c, bool startSync, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath)
 {
     assert(onSyncThread());
 
@@ -5420,7 +5419,7 @@ void Syncs::appendNewSync_inThread(const SyncConfig& c, bool startSync, bool not
         return;
     }
 
-    enableSyncByBackupId_inThread(c.mBackupId, false, notifyApp, true, completion, logname, excludedPath);
+    enableSyncByBackupId_inThread(c.mBackupId, false, true, completion, logname, excludedPath);
 }
 
 Sync* Syncs::runningSyncByBackupIdForTests(handle backupId) const
@@ -6036,7 +6035,7 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
 #endif
                 LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint.id << " error = " << unifiedSync->mConfig.mError;
 
-                enableSyncByBackupId_inThread(unifiedSync->mConfig.mBackupId, false, true, false, [&unifiedSync](error e, SyncError se, handle backupId)
+                enableSyncByBackupId_inThread(unifiedSync->mConfig.mBackupId, false, false, [&unifiedSync](error e, SyncError se, handle backupId)
                     {
                         LOG_debug << "Sync autoresumed: " << toHandle(backupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint.id << " error = " << se;
                     }, "");
@@ -11414,7 +11413,7 @@ void Syncs::syncLoop()
                     else
                     {
                         LOG_debug << "Auto-starting sync that was suspended when the local path was unavailable: " << us->mConfig.mLocalPath;
-                        enableSyncByBackupId_inThread(us->mConfig.mBackupId, false, true, false, nullptr, "", "");
+                        enableSyncByBackupId_inThread(us->mConfig.mBackupId, false, false, nullptr, "", "");
                     }
                 }
             }

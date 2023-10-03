@@ -15899,7 +15899,7 @@ void MegaClient::addsync(SyncConfig&& config, std::function<void(error, SyncErro
             // if we got this far, the syncConfig is kept (in db and in memory)
             config.mBackupId = backupId;
 
-            syncs.appendNewSync(config, true, true, completion, true, logname, excludedPath);
+            syncs.appendNewSync(config, true, completion, true, logname, excludedPath);
         }
     }));
 }

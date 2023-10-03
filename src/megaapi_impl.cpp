@@ -9243,7 +9243,7 @@ void MegaApiImpl::setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningStat
             case MegaSync::RUNSTATE_RUNNING:
             case MegaSync::RUNSTATE_PAUSED:
             {
-                client->syncs.enableSyncByBackupId(backupId, targetState == MegaSync::RUNSTATE_PAUSED, true, true, [this, request](error err, SyncError serr, handle)
+                client->syncs.enableSyncByBackupId(backupId, targetState == MegaSync::RUNSTATE_PAUSED, true, [this, request](error err, SyncError serr, handle)
                     {
                         request->setNumDetails(serr);
                         fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(err, serr), true);
