@@ -2,6 +2,7 @@
 
 #include "mega.h"
 #include "mega/gfx.h"
+#include "mega/gfx/worker/tasks.h"
 
 namespace mega {
 
@@ -17,6 +18,9 @@ public:
     const char* supportedvideoformats() override;
 
 private:
+
+    std::vector<gfx::GfxSize> toGfxSize(const std::vector<Dimension>& dimensions);
+
     std::string mformats;
 };
 

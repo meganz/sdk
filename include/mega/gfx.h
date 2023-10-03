@@ -80,6 +80,9 @@ public:
 
     virtual ~IGfxProvider() = default;
 
+    // It generates thumbnails for the file by localfilepath according to the dimensions
+    // The function should always return the number of thumbnails as the dimensions. The
+    // vector of empty strings should be return on error cases.
     virtual std::vector<std::string> generateImages(FileSystemAccess* fa,
                                                     const LocalPath& localfilepath,
                                                     const std::vector<Dimension>& dimensions) = 0;
@@ -175,7 +178,7 @@ public:
     // - w*h: resize to fit inside w*h bounding box
     static const std::vector<IGfxProvider::Dimension> DIMENSIONS;
     static const std::vector<IGfxProvider::Dimension> DIMENSIONS_AVATAR;
-    
+
     MegaClient* client;
 
     // start a thread that will do the processing

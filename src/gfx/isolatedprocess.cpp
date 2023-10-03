@@ -1,14 +1,38 @@
 #include "mega/gfx/isolatedprocess.h"
+#include "mega/gfx/worker/client.h"
+#include "mega/gfx/worker/tasks.h"
+#include <algorithm>
+#include <iterator>
+#include <vector>
 
+using mega::gfx::GfxClient;
+using mega::gfx::GfxSize;
 namespace mega {
+
+std::vector<GfxSize> GfxProviderIsolatedProcess::toGfxSize(const std::vector<Dimension>& dimensions)
+{
+    std::vector<GfxSize> sizes;
+    std::transform(std::begin(dimensions),
+                   std::end(dimensions),
+                   std::back_insert_iterator<std::vector<GfxSize>>(sizes),
+                   [](const Dimension &d){ return GfxSize(d.width, d.height);});
+    return sizes;
+}
 
 std::vector<std::string> GfxProviderIsolatedProcess::generateImages(
     FileSystemAccess* fa,
     const LocalPath& localfilepath,
     const std::vector<Dimension>& dimensions)
 {
-    std::vector<std::string> result;
-    return result;
+    auto sizes = toGfxSize(dimensions);
+
+    // default return
+    std::vector<std::string> images(dimensions.size());
+
+    auto gfxclient = GfxClient::create();
+    gfxclient.runGfxTask(localfilepath.toPath(false), std::move(sizes), images);
+
+    return images;
 }
 
 const char* GfxProviderIsolatedProcess::supportedformats()
