@@ -30,7 +30,7 @@ protected:
     std::string mName;
 
 private:
-    bool do_write(void* data, size_t n, TimeoutMs timeout) override;
+    bool do_write(const void* data, size_t n, TimeoutMs timeout) override;
 
     bool do_read(void* data, size_t n, TimeoutMs timeout) override;
 

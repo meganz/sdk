@@ -76,10 +76,10 @@ class IWriter
 public:
     virtual ~IWriter() = default;
 
-    bool write(void* in, size_t n, TimeoutMs timeout) { return do_write(in, n, timeout); };
+    bool write(const void* in, size_t n, TimeoutMs timeout) { return do_write(in, n, timeout); };
 
 private:
-    virtual bool do_write(void* in, size_t n, TimeoutMs timeout) = 0;
+    virtual bool do_write(const void* in, size_t n, TimeoutMs timeout) = 0;
 };
 
 class IEndpoint : public IReader, public IWriter

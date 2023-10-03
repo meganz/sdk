@@ -49,7 +49,7 @@ Win32NamedPipeEndpoint::~Win32NamedPipeEndpoint()
     }
 }
 
-bool Win32NamedPipeEndpoint::do_write(void* data, size_t n, TimeoutMs timeout)
+bool Win32NamedPipeEndpoint::do_write(const void* data, size_t n, TimeoutMs timeout)
 {
     if (mPipeHandle == INVALID_HANDLE_VALUE)
     {
