@@ -3131,7 +3131,6 @@ class MegaApiImpl : public MegaApp
         void resetTotalDownloads();
         void resetTotalUploads();
         void updateStats();
-        long long getNumNodes();
         void setLRUCacheSize(unsigned long long size);
         unsigned long long getNumNodes();
         long long getTotalDownloadedBytes();
