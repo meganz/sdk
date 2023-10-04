@@ -79,8 +79,10 @@ void WinGfxCommunicationsServer::serverListeningLoop()
     {
         LOG_verbose << "server awaiting client connection";
 
+        std::string pipename = "\\\\.\\pipe\\" + mPipename;
+        std::wstring wpipename = std::wstring(pipename.begin(), pipename.end());
         auto hPipe = CreateNamedPipe(
-            L"\\\\.\\pipe\\mynamedpipe",             // pipe name
+            wpipename.c_str(),             // pipe name
             PIPE_ACCESS_DUPLEX |      // read/write access
             FILE_FLAG_OVERLAPPED,     // overlapped
             PIPE_TYPE_MESSAGE |       // message type pipe

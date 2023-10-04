@@ -1,5 +1,6 @@
 #include <iostream>
 #include <memory>
+#include <cxxopts.hpp>
 #include "megaapi.h"
 #include "gfxworker/server.h"
 #include "gfxworker/comms_server_win32.h"
@@ -9,10 +10,13 @@ using mega::gfx::GfxProcessor;
 using mega::gfx::RequestProcessor;
 using mega::gfx::WinGfxCommunicationsServer;
 using mega::LocalPath;
+using cxxopts::Options;
 
 int main(int argc, char** argv)
 {
-    std::string logFileName = "gfxworker.log";
+    Options options("gfxworker", "GFX processing server");
+    options.add_options()
+        ("n,name", "Pipe name", cxxopts::value<std::string>()->default_value("MEGA_GFXWORKER"));
 
     std::unique_ptr<mega::MegaLogger> logInstance(new mega::gfx::Logger());
     mega::MegaApi::addLoggerObject(logInstance.get(), false);

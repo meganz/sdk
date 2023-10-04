@@ -54,25 +54,12 @@ HANDLE  WinGfxCommunicationsClient::connect(LPCTSTR pipeName)
     return hPipe;
 }
 
-bool WinGfxCommunicationsClient::initialize()
-{
-    HANDLE hPipe = connect(TEXT("\\\\.\\pipe\\mynamedpipe"));
-
-    bool connected = hPipe != INVALID_HANDLE_VALUE;
-    if (connected)
-    {
-        if (mOnConnected)
-        {
-            mOnConnected(mega::make_unique<Win32NamedPipeEndpointClient>(hPipe, "client"));
-        }
-    }
-
-    return connected;
-}
-
 std::unique_ptr<IEndpoint> WinGfxCommunicationsClient::connect()
 {
-    HANDLE hPipe = connect(TEXT("\\\\.\\pipe\\mynamedpipe"));
+    std::string pipename = "\\\\.\\pipe\\" + mPipename;
+    std::wstring wpipename = std::wstring(pipename.begin(), pipename.end());
+
+    HANDLE hPipe = connect(wpipename.c_str());
 
     return hPipe == INVALID_HANDLE_VALUE ? nullptr : mega::make_unique<Win32NamedPipeEndpointClient>(hPipe, "client");
 }

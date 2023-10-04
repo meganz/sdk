@@ -33,8 +33,9 @@ using OnServerConnectedFunc = std::function<bool(std::unique_ptr<IEndpoint> endp
 class WinGfxCommunicationsServer
 {
 public:
-    WinGfxCommunicationsServer(std::unique_ptr<IRequestProcessor> requestProcessor)
+    WinGfxCommunicationsServer(std::unique_ptr<IRequestProcessor> requestProcessor, const std::string& pipename = "mega_gfxworker")
         : mRequestProcessor(std::move(requestProcessor))
+        , mPipename(pipename)
     {
 
     }
@@ -47,6 +48,7 @@ private:
     OnServerConnectedFunc mOnConnected;
     std::unique_ptr<IRequestProcessor> mRequestProcessor;
     std::unique_ptr<std::thread> mListeningThread;
+    std::string mPipename;
 };
 
 } //namespace gfx

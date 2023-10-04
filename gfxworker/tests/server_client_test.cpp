@@ -21,6 +21,7 @@ using mega::gfx::IEndpoint;
 using mega::gfx::GfxSize;
 using mega::LocalPath;
 
+
 class ServerClientTest : public ::testing::Test
 {
 protected:
@@ -28,16 +29,19 @@ protected:
     {
         auto s = std::getenv("MEGA_TESTDATA_FOLDER");
         mDataFolder = s ? LocalPath::fromAbsolutePath(s) : LocalPath::fromAbsolutePath(".");
+        mPipename = "MEGA_GFXWOKER_UNIT_TEST";
     }
 
     LocalPath mDataFolder;
+    std::string mPipename;
 };
 
 //TEST(ServerClientTest, DISABLED_init)
 TEST_F(ServerClientTest, init)
 {
     WinGfxCommunicationsServer server(
-        ::mega::make_unique<RequestProcessor>(GfxProcessor::create())
+        ::mega::make_unique<RequestProcessor>(GfxProcessor::create()),
+        mPipename
     );
 
     std::thread serverThread(&WinGfxCommunicationsServer::initialize, &server);
@@ -55,7 +59,7 @@ TEST_F(ServerClientTest, init)
 
     EXPECT_TRUE(
         GfxClient(
-            mega::make_unique<WinGfxCommunicationsClient>([](std::unique_ptr<IEndpoint> _) {})
+            mega::make_unique<WinGfxCommunicationsClient>([](std::unique_ptr<IEndpoint> _) {}, mPipename)
         ).runGfxTask(jpgImage.toPath(false), sizes, images)
     );
     EXPECT_EQ(images.size(), 2);
@@ -66,13 +70,13 @@ TEST_F(ServerClientTest, init)
     pngImage.appendWithSeparator(LocalPath::fromRelativePath("Screenshot.png"), false);
     EXPECT_TRUE(
         GfxClient(
-            mega::make_unique<WinGfxCommunicationsClient>([](std::unique_ptr<IEndpoint> _) {})
+            mega::make_unique<WinGfxCommunicationsClient>([](std::unique_ptr<IEndpoint> _) {}, mPipename)
         ).runGfxTask(jpgImage.toPath(false), sizes, images)
     );
 
     EXPECT_TRUE(
         GfxClient(
-            mega::make_unique<WinGfxCommunicationsClient>([](std::unique_ptr<IEndpoint> _) {})
+            mega::make_unique<WinGfxCommunicationsClient>([](std::unique_ptr<IEndpoint> _) {}, mPipename)
         ).runShutDown()
     );
 
@@ -92,7 +96,7 @@ TEST_F(ServerClientTest, ServerIsNotRunning)
 
     EXPECT_FALSE(
         GfxClient(
-            mega::make_unique<WinGfxCommunicationsClient>([](std::unique_ptr<IEndpoint> _) {})
+            mega::make_unique<WinGfxCommunicationsClient>([](std::unique_ptr<IEndpoint> _) {}, mPipename)
         ).runGfxTask("anyimagename.jpg", sizes, images)
     );
 }
