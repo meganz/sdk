@@ -5189,7 +5189,7 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderBetweenSyncs)
     auto clientA2 = g_clientManager->getCleanStandardClient(0, localtestroot); // user 1 client 2
     auto clientA3 = g_clientManager->getCleanStandardClient(0, localtestroot); // user 1 client 2
 
-    auto receivedDeviceName = [](User* actionPackageUser, User* ownUser)
+    auto receivedDeviceIdName = [](User* actionPackageUser, User* ownUser)
     {
         assert(actionPackageUser && ownUser);
         if (actionPackageUser->userhandle == ownUser->userhandle && actionPackageUser->changed.devicenames)
@@ -5201,22 +5201,26 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderBetweenSyncs)
     };
 
     User* ownUserClient2 = clientA2->client.ownuser();
-
-    clientA2->createsOnUserUpdateLamda([ownUserClient2, receivedDeviceName](User* user)
+    // Register a callback to be used when users_updated is called. This callBack is used to stop waiting period at waitForUserUpdated
+    // removeOnUserUpdateLamda should be called to unregister
+    clientA2->createsOnUserUpdateLamda([ownUserClient2, receivedDeviceIdName](User* user)
     {
-        return receivedDeviceName(user, ownUserClient2);
+        return receivedDeviceIdName(user, ownUserClient2);
     });
 
     User* ownUserClient3 = clientA3->client.ownuser();
-    clientA3->createsOnUserUpdateLamda([ownUserClient3, receivedDeviceName](User* user)
+    // Register a callback to be used when users_updated is called. This callBack is used to stop waiting period at waitForUserUpdated
+    // removeOnUserUpdateLamda should be called to unregister
+    clientA3->createsOnUserUpdateLamda([ownUserClient3, receivedDeviceIdName](User* user)
     {
-       return receivedDeviceName(user, ownUserClient3);
+       return receivedDeviceIdName(user, ownUserClient3);
     });
 
     bool deviceIdUpdated = false;
     ASSERT_TRUE(clientA1->waitForAttrDeviceIdIsSet(60, deviceIdUpdated)) << "Error User attr device id isn't establised client1";
     if (deviceIdUpdated)  // only wait for action package if atribute has been updated
     {
+        // Waiting period finished when callback register at createsOnUserUpdateLamda returns true
         ASSERT_TRUE(clientA2->waitForUserUpdated(60)) << "User update doesn't arrive at client2 (device id)";
         ASSERT_TRUE(clientA3->waitForUserUpdated(60)) << "User update doesn't arrive at client3 (device id)";
         deviceIdUpdated = false;
