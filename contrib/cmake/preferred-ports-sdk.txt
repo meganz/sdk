@@ -104,6 +104,9 @@ bzip2/7476f0d4e77d3333fbb249657df8251c28c4faae
 # tests and tools
 gtest/c303dd024e2dc03a0665ddffbb12a1077933e649 all:gtest-warnings-are-not-errors.patch
 
+# gfxworker
+cxxopts/9edb1b8e590cc086563301d735cae4b6e732d2d2
+
 # previously listed - possibly for mega chat,sync,cmd.  Re-add with comment if the SDK alone needs them
 #x264/c303dd024e2dc03a0665ddffbb12a1077933e649
 #giflib/c303dd024e2dc03a0665ddffbb12a1077933e649

@@ -61,6 +61,7 @@ bool Win32NamedPipeEndpoint::do_write(const void* data, size_t n, TimeoutMs time
     {
         return false;
     }
+
     DWORD written;
     auto success = WriteFile(
         mPipeHandle,                // pipe handle
@@ -97,7 +98,6 @@ bool Win32NamedPipeEndpoint::do_write(const void* data, size_t n, TimeoutMs time
         return false;
     }
 
-    // IO PENDING, wait for completion
     LOG_verbose << mName << ": Written " << n << "/" << written << "/" << numberOfBytesTransferred;
 
     return true;
