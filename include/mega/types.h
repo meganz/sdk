@@ -84,6 +84,7 @@ typedef unsigned char byte;
 #include <string>
 #include <chrono>
 #include <mutex>
+#include <thread>
 
 namespace mega {
 
@@ -792,7 +793,20 @@ typedef enum { RECOVER_WITH_MASTERKEY = 9, RECOVER_WITHOUT_MASTERKEY = 10, CANCE
 
 typedef enum { EMAIL_REMOVED = 0, EMAIL_PENDING_REMOVED = 1, EMAIL_PENDING_ADDED = 2, EMAIL_FULLY_ACCEPTED = 3 } emailstatus_t;
 
-typedef enum { RETRY_NONE = 0, RETRY_CONNECTIVITY = 1, RETRY_SERVERS_BUSY = 2, RETRY_API_LOCK = 3, RETRY_RATE_LIMIT = 4, RETRY_LOCAL_LOCK = 5, RETRY_UNKNOWN = 6} retryreason_t;
+#define DEFINE_RETRY_REASONS(expander) \
+    expander(0, RETRY_NONE) \
+    expander(1, RETRY_CONNECTIVITY) \
+    expander(2, RETRY_SERVERS_BUSY) \
+    expander(3, RETRY_API_LOCK) \
+    expander(4, RETRY_RATE_LIMIT) \
+    expander(5, RETRY_LOCAL_LOCK) \
+    expander(6, RETRY_UNKNOWN)
+
+typedef enum {
+#define DEFINE_RETRY_REASON(index, name) name = index,
+    DEFINE_RETRY_REASONS(DEFINE_RETRY_REASON)
+#undef DEFINE_RETRY_REASON
+} retryreason_t;
 
 typedef enum {
     STORAGE_UNKNOWN = -9,
@@ -1267,5 +1281,196 @@ struct StringKeyPair
     : privKey(std::move(privKey)), pubKey(std::move(pubKey))
     {}
 };
+
+// A simple busy-wait lock for lightweight mutual exclusion.
+class Spinlock
+{
+    // Is the spinlock currently locked?
+    std::atomic_flag mLocked;
+
+public:
+    Spinlock()
+      : mLocked()
+    {
+        // Necessary until C++20.
+        mLocked.clear();
+    }
+
+    Spinlock(const Spinlock& other) = delete;
+
+    Spinlock& operator=(const Spinlock& rhs) = delete;
+
+    // Acquire exclusive ownership of this lock.
+    void lock()
+    {
+        // Poll until the loop is acquired.
+        while (!try_lock())
+            ;
+    }
+
+    // Try and acquire exclusive ownership of this lock.
+    bool try_lock()
+    {
+        return !mLocked.test_and_set();
+    }
+
+    // Release exclusive ownership of this lock.
+    void unlock()
+    {
+        mLocked.clear();
+    }
+}; // Spinlock
+
+namespace detail
+{
+
+template<typename T>
+struct IsRecursiveMutex
+  : std::false_type
+{
+}; // IsRecursiveMutex<T>
+
+template<>
+struct IsRecursiveMutex<std::recursive_mutex>
+  : std::true_type
+{
+}; // IsRecursiveMutex<std::recursive_mutex>
+
+template<typename T, bool IsRecursive = IsRecursiveMutex<T>::value>
+class CheckableMutex
+{
+    T mMutex;
+    std::atomic<std::thread::id> mOwner;
+
+public:
+    CheckableMutex()
+      : mMutex()
+      , mOwner(std::thread::id())
+    {
+    }
+
+    CheckableMutex(const CheckableMutex& other) = delete;
+
+    CheckableMutex& operator=(const CheckableMutex& rhs) = delete;
+
+    void lock()
+    {
+        auto id = std::this_thread::get_id();
+
+        assert(mOwner != id);
+
+        mMutex.lock();
+        mOwner = id;
+    }
+
+    bool owns_lock() const
+    {
+        return mOwner == std::this_thread::get_id();
+    }
+
+    bool try_lock()
+    {
+        auto id = std::this_thread::get_id();
+
+        if (mMutex.try_lock())
+        {
+            mOwner = id;
+            return true;
+        }
+
+        return false;
+    }
+
+    void unlock()
+    {
+        auto id = std::this_thread::get_id();
+
+        assert(mOwner == id);
+
+        mOwner = std::thread::id();
+        mMutex.unlock();
+
+        static_cast<void>(id);
+    }
+}; // CheckableMutex<T, false>
+
+template<typename T>
+class CheckableMutex<T, true>
+{
+    std::uint32_t mCount;
+    mutable Spinlock mLock;
+    T mMutex;
+    std::thread::id mOwner;
+
+public:
+    CheckableMutex()
+      : mCount(0)
+      , mLock()
+      , mMutex()
+      , mOwner()
+    {
+    }
+
+    CheckableMutex(const CheckableMutex& other) = delete;
+
+    CheckableMutex& operator=(const CheckableMutex& rhs) = delete;
+
+    void lock()
+    {
+        auto id = std::this_thread::get_id();
+
+        mMutex.lock();
+
+        std::lock_guard<Spinlock> guard(mLock);
+
+        mCount = mCount + 1;
+        mOwner = id;
+    }
+
+    bool owns_lock() const
+    {
+        auto id = std::this_thread::get_id();
+
+        std::lock_guard<Spinlock> guard(mLock);
+
+        return mOwner == id && mCount > 0;
+    }
+
+    bool try_lock()
+    {
+        auto id = std::this_thread::get_id();
+
+        if (!mMutex.try_lock())
+            return false;
+
+        std::lock_guard<Spinlock> guard(mLock);
+
+        mCount = mCount + 1;
+        mOwner = id;
+
+        return true;
+    }
+
+    void unlock()
+    {
+        auto id = std::this_thread::get_id();
+
+        std::lock_guard<Spinlock> guard(mLock);
+
+        assert(mCount);
+        assert(mOwner == id);
+
+        if (!--mCount)
+            mOwner = std::thread::id();
+
+        mMutex.unlock();
+
+        static_cast<void>(id);
+    }
+}; // CheckableMutex<T, true>
+
+} // detail
+
+using detail::CheckableMutex;
 
 #endif

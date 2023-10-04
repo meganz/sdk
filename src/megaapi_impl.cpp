@@ -2592,6 +2592,7 @@ MegaTransferPrivate::MegaTransferPrivate(int type, MegaTransferListener *listene
     : mCollisionCheck(CollisionChecker::Option::Fingerprint)
     , mCollisionResolution(CollisionResolution::RenameNewWithN)
     , mCollisionCheckResult(CollisionChecker::Result::NotYet)
+    , mFsType(FileSystemType::FS_UNKNOWN)
 {
     this->type = type;
     this->tag = -1;
@@ -2680,6 +2681,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->setCollisionCheck(transfer->getCollisionCheck());
     this->setCollisionResolution(transfer->getCollisionResolution());
     this->setCollisionCheckResult(transfer->getCollisionCheckResult());
+    this->setFileSystemType(transfer->getFileSystemType());
 }
 
 MegaTransfer* MegaTransferPrivate::copy()
@@ -9017,6 +9019,9 @@ MegaTransferPrivate* MegaApiImpl::createDownloadTransfer(bool startFirst, MegaNo
     transfer->setCancelToken(cancelToken);
     transfer->setCollisionCheck(collisionCheck);
     transfer->setCollisionResolution(collisionResolution);
+    
+    // cache fsType to transfer as get fsType on a network driver could be expensive
+    transfer->setFileSystemType(fsType);
 
     if (customName)
     {
@@ -13183,9 +13188,9 @@ void MegaApiImpl::chatlink_result(handle h, error e)
 }
 
 void MegaApiImpl::chatlinkurl_result(handle chatid, int shard, string *link, string *ct, int numPeers,
-				     m_time_t ts, bool meetingRoom, int chatOptions,
-				     const std::vector<std::unique_ptr<ScheduledMeeting>>* smList,
-				     handle callid, error e)
+                     m_time_t ts, bool meetingRoom, int chatOptions,
+                     const std::vector<std::unique_ptr<ScheduledMeeting>>* smList,
+                     handle callid, error e)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
@@ -17879,7 +17884,7 @@ bool CollisionChecker::CompareLocalFileMetaMac(FileAccess* fa, MegaNode* fileNod
     return CompareLocalFileMetaMacWithNodeKey(fa, *fileNode->getNodeKey(), fileNode->getType());
 }
 
-CollisionChecker::Result CollisionChecker::check(FileAccess* fa, std::function<FileFingerprint()> nodeFingerprintF, std::function<bool()> metamacEqualF, Option option)
+CollisionChecker::Result CollisionChecker::check(std::function<bool()> fingerprintEqualF, std::function<bool()> metamacEqualF, Option option)
 {
     auto decision = CollisionChecker::Result::Download;
 
@@ -17897,9 +17902,7 @@ CollisionChecker::Result CollisionChecker::check(FileAccess* fa, std::function<F
     }
     case Option::Fingerprint:
     {
-        FileFingerprint nodeFp = nodeFingerprintF();
-        FileFingerprint fp;
-        if (nodeFp.isvalid && fp.genfingerprint(fa) && fp.isvalid && fp == nodeFp)
+        if (fingerprintEqualF())
         {
             decision = Result::Skip;
         }
@@ -17926,35 +17929,89 @@ CollisionChecker::Result CollisionChecker::check(FileAccess* fa, std::function<F
 
 }
 
-CollisionChecker::Result CollisionChecker::check(FileAccess* fa, MegaNode* fileNode, Option option)
+CollisionChecker::Result CollisionChecker::check(std::function<FileAccess*()> faGetter, MegaNode* fileNode, Option option)
 {
+    auto fingerprintEqualF = [fileNode, faGetter]() {
+
+        auto fa = faGetter();
+        if (!fa)
+        {
+            return false;
+        }
+
+        unique_ptr<FileFingerprint> ff(MegaApiImpl::getFileFingerprintInternal(fileNode->getFingerprint()));
+        if (!ff)
+        {
+            return false;
+        }
+
+        FileFingerprint fp;
+        return (ff->isvalid && fp.genfingerprint(fa) && fp.isvalid && fp == *ff);
+    };
+
+    auto metaMacFunc = [fileNode, faGetter]() {
+
+        auto fa = faGetter();
+        if (!fa)
+        {
+            return false;
+        }
+
+        return CompareLocalFileMetaMac(fa, fileNode);
+    };
+
     return check(
-        fa,
-        [fileNode]() {
-            unique_ptr<FileFingerprint> ff(MegaApiImpl::getFileFingerprintInternal(fileNode->getFingerprint()));
-            return ff ? *ff : FileFingerprint();  // if not available, !isvalid
-        },
-        [fileNode, fa]() {
-            return CompareLocalFileMetaMac(fa, fileNode);
-        },
+        fingerprintEqualF,
+        metaMacFunc,
         option);
 }
 
-CollisionChecker::Result CollisionChecker::check(FileAccess* fa, Node* node, Option option)
+CollisionChecker::Result CollisionChecker::check(FileSystemAccess* fsaccess, const LocalPath& fileLocalPath, MegaNode* fileNode, Option option)
 {
+    auto fa = fsaccess->newfileaccess();
+    auto fap = fa.get();
+    auto faGetter = [fap, &fileLocalPath]() {
+        return fap->fopen(fileLocalPath,
+                          true/*read*/,
+                          false/*write*/,
+                          FSLogging::logExceptFileNotFound) && fap->type == FILENODE ? fap : nullptr;
+    };
+    return CollisionChecker::check(std::move(faGetter), fileNode, option);
+}
+
+CollisionChecker::Result CollisionChecker::check(std::function<FileAccess* ()> faGetter, Node* node, Option option)
+{
+    auto fingerprintEqualF = [node, faGetter]() {
+
+        auto fa = faGetter();
+        if (!fa)
+        {
+            return false;
+        }
+
+        FileFingerprint nodeFp = *node;
+        FileFingerprint fp;
+        return (nodeFp.isvalid && fp.genfingerprint(fa) && fp.isvalid && fp == nodeFp);
+    };
+
+    auto metaMacFunc = [node, faGetter]() {
+
+        auto fa = faGetter();
+        if (!fa)
+        {
+            return false;
+        }
+
+        return CompareLocalFileMetaMacWithNode(fa, node);
+    };
+
     return check(
-        fa,
-        [node]() {
-            FileFingerprint nodeFp = *node;
-            return nodeFp;
-        },
-        [node, fa]() {
-            return CompareLocalFileMetaMacWithNode(fa, node);
-        },
+        fingerprintEqualF,
+        metaMacFunc,
         option);
 }
 
-unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOperation* recursiveTransfer)
+unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOperation* recursiveTransfer, m_off_t availableDiskSpace)
 {
     CodeCounter::ScopeTimer ccst(client->performanceStats.megaapiSendPendingTransfers);
 
@@ -18300,7 +18357,9 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         wLocalPath.appendWithSeparator(LocalPath::fromRelativePath(""), true);
                     }
 
-                    FileSystemType fsType = fsAccess->getlocalfstype(wLocalPath);
+                    FileSystemType fsType = transfer->getFileSystemType() != FileSystemType::FS_UNKNOWN 
+                                            ? transfer->getFileSystemType() 
+                                            : fsAccess->getlocalfstype(wLocalPath);
 
                     if (node)
                     {
@@ -18339,16 +18398,37 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                     wLocalPath.appendWithSeparator(name, true);
                     transfer->setPath(wLocalPath.toPath(false).c_str()); // retry requires path set
 
+                    // collision check if hasn't been checked yet
                     auto fa = fsAccess->newfileaccess();
-                    if (fa->fopen(wLocalPath, true, false, FSLogging::logExceptFileNotFound) && fa->type == FILENODE) // a local file exists
+                    if (fa
+                        && (transfer->getCollisionCheckResult() == CollisionChecker::Result::NotYet)
+                        && fa->fopen(wLocalPath, true, false, FSLogging::logExceptFileNotFound)
+                        && fa->type == FILENODE)
                     {
-                        if (transfer->getCollisionCheckResult() == CollisionChecker::Result::NotYet)
+                        auto fap = fa.get();
+                        if (node)
                         {
-                            node
-                                ?  transfer->setCollisionCheckResult(CollisionChecker::check(fa.get(), node.get(), transfer->getCollisionCheck()))
-                                :  transfer->setCollisionCheckResult(CollisionChecker::check(fa.get(), publicNode, transfer->getCollisionCheck()));
+                            transfer->setCollisionCheckResult(
+                                CollisionChecker::check(
+                                    [fap]() { return fap; }
+                                    , node.get()
+                                    , transfer->getCollisionCheck()));
                         }
-
+                        else
+                        {
+                            transfer->setCollisionCheckResult(
+                                CollisionChecker::check(
+                                    [fap]() { return fap; }
+                                    , publicNode
+                                    , transfer->getCollisionCheck()));
+                        }
+                    }
+                    else if (transfer->getCollisionCheckResult() == CollisionChecker::Result::NotYet) // no collision
+                    {
+                        transfer->setCollisionCheckResult(CollisionChecker::Result::Download);
+                    }
+                    // decision check for early returns
+                    {
                         auto decision = transfer->getCollisionCheckResult();
                         if (decision == CollisionChecker::Result::ReportError)
                         {
@@ -18383,7 +18463,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
 
                     bool skipDuplicates = transfer->getFolderTransferTag() <= 0; //Let folder subtransfer have duplicates, so that repeated downloads can co-exist and progress accordingly
                     mega::error cause;
-                    bool ok = client->startxfer(GET, f.release(), committer, skipDuplicates, startFirst, false, UseLocalVersioningFlag, &cause, nextTag);
+                    bool ok = client->startxfer(GET, f.release(), committer, skipDuplicates, startFirst, false, UseLocalVersioningFlag, &cause, nextTag, availableDiskSpace);
                     if (!ok)
                     {
                         //Already existing transfer
@@ -20463,12 +20543,11 @@ error MegaApiImpl::performRequest_setAttrFile(MegaRequestPrivate* request)
                 }
 
                 SymmCipher* cipher = bu ? bu->nodecipher(client) : node->nodecipher();
-                if (!cipher)
+                if (!cipher ||
+                    !client->putfa(NodeOrUploadHandle(node ? node->nodeHandle() : NodeHandle()), static_cast<fatype>(type), cipher, request->getTag(), std::move(attributedata)))
                 {
                     return API_EKEY;
                 }
-
-                client->putfa(NodeOrUploadHandle(node ? node->nodeHandle() : NodeHandle()), (fatype)type, cipher, request->getTag(), std::move(attributedata));
             }
             return API_OK;
 }
@@ -27169,9 +27248,17 @@ void MegaFolderUploadController::start(MegaNode*)
         LocalPath lp = path;
         scanFolder_result scanResult = scanFolder(*mUploadTree.subtrees.front(), lp, foldercount, filecount);
 
+        // mCompletionForMegaApiThread lambda will be executed on the MegaApiImpl's thread
+        // use a weak_ptr in case this 'this' object doesn't exist anymore when lambda starts executing
+        weak_ptr<MegaFolderUploadController> weak_this = shared_from_this();
+
         // if the thread runs, we always queue a function to execute on MegaApi thread for onFinish()
         // we keep a pointer to it in case we need to execute it early and directly on cancel()
-        mCompletionForMegaApiThread.reset(new ExecuteOnce([this, scanResult]() {
+        mCompletionForMegaApiThread.reset(new ExecuteOnce([this, scanResult, weak_this]() {
+
+            // double check our object still exists when completion function starts executing
+            if (!weak_this.lock()) return;
+            assert(weak_this.lock().get() == this);
 
             // these next parts must run on MegaApiImpl's thread again, as
             // genUploadTransfersForFiles or checkCompletion may call the fireOnXYZ() functions
@@ -28769,20 +28856,23 @@ void MegaFolderDownloadController::start(MegaNode *node)
         notifyStage(MegaTransfer::STAGE_CREATE_TREE);
 
         // start worker thread to create local folder tree
-        mWorkerThread = std::thread([this, fsType](){
+        mWorkerThread = std::thread([this, fsType, path](){
 
             // local folder creation runs on the download worker thread (and checks the cancelled flag)
-            Error e = createFolder();
+            Error e;
+            std::shared_ptr<TransferQueue> transferQueue = createFolderGenDownloadTransfersForFiles(fsType, e);
 
-            std::shared_ptr<TransferQueue> transferQueue;
-            if (e == API_OK)
-            {
-                transferQueue = genDownloadTransfersForFiles(fsType);
-            }
+            // mCompletionForMegaApiThread lambda will be executed on the MegaApiImpl's thread
+            // use a weak_ptr in case this 'this' object doesn't exist anymore when lambda starts executing
+            weak_ptr<MegaFolderDownloadController> weak_this = shared_from_this();
 
             // the thread always queues a function to execute on MegaApi thread for onFinish()
             // we keep a pointer to it in case we need to cancel()
-            mCompletionForMegaApiThread.reset(new ExecuteOnce([this, e, transferQueue]() {
+            mCompletionForMegaApiThread.reset(new ExecuteOnce([this, e, transferQueue, path, weak_this]() {
+
+                // double check our object still exists when completion function starts executing
+                if (!weak_this.lock()) return;
+                assert(weak_this.lock().get() == this);
 
                 // these next parts must run on MegaApiImpl's thread again, as
                 // genUploadTransfersForFiles or checkCompletion may call the fireOnXYZ() functions
@@ -28815,7 +28905,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
                         // the last callback of onFinish for one of these will also complete and destroy this MegaFolderUploadController
                         transfersTotalCount = transferQueue->size();
 
-                        megaApi->sendPendingTransfers(transferQueue.get(), this);
+                        megaApi->sendPendingTransfers(transferQueue.get(), this, megaapiThreadClient()->fsaccess->availableDiskSpace(path));
                         // no further code can be added here, this object may now be deleted (eg, due to cancel token activation)
 
                         // complete() will finally be called when the last sub-transfer finishes
@@ -28915,75 +29005,106 @@ bool MegaFolderDownloadController::IsStoppedOrCancelled(const std::string& name)
     return false;
 }
 
-Error MegaFolderDownloadController::createFolder()
+// Create all local directories in one shot (on the download worker thread)
+// for performance and reducing UI waiting time, we combine createFolder and transferQueue generating in one loop
+std::unique_ptr<TransferQueue> MegaFolderDownloadController::createFolderGenDownloadTransfersForFiles(FileSystemType fsType, Error &e)
 {
-    // Create all local directories in one shot (on the download worker thread)
     unsigned created = 0;
     assert(mMainThreadId != std::this_thread::get_id());
+ 
+    auto transferQueue = ::mega::make_unique<TransferQueue>();
+
+    // update stage to begin
+    if (!mLocalTree.empty())
+    {
+        megaApi->fireOnFolderTransferUpdate(transfer, MegaTransfer::STAGE_CREATE_TREE, unsigned(mLocalTree.size()), created, 0, nullptr, nullptr);
+    }
+
+    // creating folders and generate transfers for files
     auto it = mLocalTree.begin();
     while (it != mLocalTree.end())
     {
-        if (IsStoppedOrCancelled("MegaFolderDownloadController::createFolder"))
+        if (IsStoppedOrCancelled("MegaFolderDownloadController::createFolderGenDownloadTransfersForFiles"))
         {
-            return API_EINCOMPLETE;
+            e = API_EINCOMPLETE;
+            return nullptr;
         }
 
         LocalPath &localpath = it->localPath;
 
-        Error e = MegaApiImpl::createLocalFolder_unlocked(localpath, *fsaccess);
+        // try to create the folder
+        e = MegaApiImpl::createLocalFolder_unlocked(localpath, *fsaccess);
+
+        // errors besides the folder already exists is an error
         if (e && e != API_EEXIST)
         {
             mLocalTree.clear();
-            return e;
+            return nullptr;
         }
+
+        auto folderAlreadyExist = (e && e == API_EEXIST);
+
+        if (!genDownloadTransfersForFiles(transferQueue.get(), *it, fsType, folderAlreadyExist))
+        {
+            e = API_EINCOMPLETE;
+            return nullptr;
+        }
+
         ++it;
         ++created;
-        
+
         megaApi->fireOnFolderTransferUpdate(transfer, MegaTransfer::STAGE_CREATE_TREE, unsigned(mLocalTree.size()), created, 0, nullptr, nullptr);
     }
-    return API_OK;
-}
 
-std::unique_ptr<TransferQueue> MegaFolderDownloadController::genDownloadTransfersForFiles(FileSystemType fsType)
-{
-    auto transferQueue = ::mega::make_unique<TransferQueue>();
-
-    // Add all download transfers in one shot
-    for (auto &folder : mLocalTree)
-    {
-        for (auto& fileNode : folder.childrenNodes)
-        {
-            if (IsStoppedOrCancelled("MegaFolderDownloadController::genDownloadTransfersForFiles"))
-            {
-                return nullptr;
-            }
-
-            // get file local path
-            auto& fileLocalPath = folder.localPath;
-            ScopedLengthRestore restoreLen(fileLocalPath);
-            fileLocalPath.appendWithSeparator(LocalPath::fromRelativeName(fileNode->getName(), *fsaccess, fsType), true);
-
-            // make the download decision
-            auto fa = fsaccess->newfileaccess();
-            auto decision = CollisionChecker::Result::Download;
-            if (fa->fopen(fileLocalPath, true, false, FSLogging::logExceptFileNotFound) && fa->type == FILENODE)
-            {
-                decision = CollisionChecker::check(fa.get(), fileNode.get(), transfer->getCollisionCheck());
-            }
-
-            MegaTransferPrivate* transferDownload = megaApi->createDownloadTransfer(
-                false, fileNode.get(), fileLocalPath.toPath(false).c_str(), nullptr, tag, nullptr /*appData()*/,
-                transfer->accessCancelToken(), static_cast<int>(transfer->getCollisionCheck()),
-                static_cast<int>(transfer->getCollisionResolution()), this, fsType);
-
-            transferDownload->setCollisionCheckResult(decision);
-
-            transferQueue->push(transferDownload);
-        }
-    }
-
+    e = API_OK;
     return transferQueue;
 }
+
+bool MegaFolderDownloadController::genDownloadTransfersForFiles(
+    TransferQueue* transferQueue,
+    LocalTree& folder,
+    FileSystemType fsType,
+    bool folderExists)
+{
+    assert(transferQueue);
+
+    for (auto& fileNode : folder.childrenNodes)
+    {
+        if (IsStoppedOrCancelled("MegaFolderDownloadController::genDownloadTransfersForFiles"))
+        {
+            return false;
+        }
+
+        // get file local path
+        auto& fileLocalPath = folder.localPath;
+        ScopedLengthRestore restoreLen(fileLocalPath);
+        fileLocalPath.appendWithSeparator(LocalPath::fromRelativeName(fileNode->getName(), *fsaccess, fsType), true);
+
+        auto decision = CollisionChecker::Result::Download;
+
+        // collision might exist only if the folder already exists
+        if (folderExists)
+        {
+            auto fa = fsaccess->newfileaccess();
+            if (fa && fa->fopen(fileLocalPath, true, false, FSLogging::logExceptFileNotFound) && fa->type == FILENODE)
+            {
+                decision = CollisionChecker::check(fsaccess.get(), fileLocalPath, fileNode.get(), transfer->getCollisionCheck());
+            }
+        }
+
+        MegaTransferPrivate* transferDownload = megaApi->createDownloadTransfer(
+            false, fileNode.get(), fileLocalPath.toPath(false).c_str(), nullptr, tag, nullptr /*appData()*/,
+            transfer->accessCancelToken(), static_cast<int>(transfer->getCollisionCheck()),
+            static_cast<int>(transfer->getCollisionResolution()), this, fsType);
+
+        transferDownload->setCollisionCheckResult(decision);
+
+        transferQueue->push(transferDownload);
+    }
+
+    return true;
+}
+
 
 #ifdef HAVE_LIBUV
 StreamingBuffer::StreamingBuffer()

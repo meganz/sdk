@@ -2,6 +2,7 @@
 #ifndef TEST_H
 #define TEST_H 1
 
+#include <chrono>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -236,6 +237,180 @@ struct SyncOptions
     bool uploadIgnoreFile = false;
 }; // SyncOptions
 
+class RequestRetryRecorder
+{
+    // Convenience.
+    using Milliseconds = std::chrono::milliseconds;
+
+    // Describes a particular class of retry.
+    struct RetryEntry
+    {
+        // How many times did this class of retry occur?
+        std::size_t mCount = 0;
+
+        // What was the longest time we spent performing this retry?
+        Milliseconds mLongest = Milliseconds::min();
+
+        // And the shortest time?
+        Milliseconds mShortest = Milliseconds::max();
+    }; // Entry
+
+    // Maps retry class to retry entry.
+    using RetryEntryMap = std::map<retryreason_t, RetryEntry>;
+
+    // Translates a retry entry into a human-readable string.
+    std::string report(const RetryEntryMap::value_type& entry) const
+    {
+        std::ostringstream ostream;
+
+        ostream << "Requests retried due to "
+                << toString(entry.first)
+                << " "
+                << entry.second.mCount
+                << " time(s) [duration "
+                << entry.second.mShortest.count()
+                << "ms-"
+                << entry.second.mLongest.count()
+                << "ms]";
+
+        return ostream.str();
+    }
+
+    // Tracks statistics about a specific retry class.
+    RetryEntryMap mEntries;
+
+    // Serializes access to mEnties.
+    mutable std::mutex mEntriesLock;
+
+    // Who's the current recorder?
+    static RequestRetryRecorder* mInstance;
+
+public:
+    RequestRetryRecorder()
+      : mEntries()
+      , mEntriesLock()
+    {
+        // Only one instance should ever exist at a time.
+        assert(!mInstance);
+
+        mInstance = this;
+    }
+
+    RequestRetryRecorder(const RequestRetryRecorder&) = delete;
+
+    ~RequestRetryRecorder()
+    {
+        assert(mInstance == this);
+
+        mInstance = nullptr;
+    }
+
+    RequestRetryRecorder& operator=(const RequestRetryRecorder&) = delete;
+
+    // Obtain a reference to the current recorder.
+    static RequestRetryRecorder& instance()
+    {
+        assert(mInstance);
+
+        return *mInstance;
+    }
+
+    // Record a retry period.
+    void record(retryreason_t reason, Milliseconds duration)
+    {
+        // Acquire lock.
+        std::lock_guard<std::mutex> guard(mEntriesLock);
+
+        // Get our hands on the specified entry.
+        auto& entry = mEntries[reason];
+
+        // Populate entry.
+        entry.mCount = entry.mCount + 1;
+        entry.mLongest = std::max(entry.mLongest, duration);
+        entry.mShortest = std::min(entry.mShortest, duration);
+    }
+
+    // Transform recorded retry entries to a human-readable string.
+    template<typename Printer>
+    void report(Printer&& printer) const
+    {
+        // Acquire lock.
+        std::lock_guard<std::mutex> guard(mEntriesLock);
+
+        // Print entries.
+        for (auto& i : mEntries)
+            printer(report(i));
+    }
+
+    void reset()
+    {
+        // Acquire lock.
+        std::lock_guard<std::mutex> guard(mEntriesLock);
+
+        // Clear recorded request retries.
+        mEntries.clear();
+    }
+}; // RequestRetryRecorder
+
+class RequestRetryTracker
+{
+    // Convenience.
+    using HRClock = std::chrono::high_resolution_clock;
+    using HRTimePoint = HRClock::time_point;
+
+    // Why did our request need to be retried?
+    retryreason_t mReason = RETRY_NONE;
+
+    // When were we notified that the request was retried?
+    HRTimePoint mWhen = HRTimePoint::max();
+
+public:
+    // Signal that a request is being retried.
+    void track(const std::string& clientName, retryreason_t reason)
+    {
+        // Coalesce contiguous retries of the same class.
+        if (mReason == reason)
+            return;
+
+        // Convenience.
+        auto now = HRClock::now();
+
+        // We were already tracking an existing retry.
+        if (mReason != RETRY_NONE)
+        {
+            // Convenience.
+            using std::chrono::duration_cast;
+            using std::chrono::milliseconds;
+
+            // How long did it take until our request succeeded?
+            auto elapsed = duration_cast<milliseconds>(now - mWhen);
+
+            // Log how long the request took.
+            out() << clientName
+                  << ": request retry completed: reason: "
+                  << toString(mReason)
+                  << ", duration: "
+                  << elapsed.count()
+                  << "ms";
+
+            // Record statistics about the retry.
+            RequestRetryRecorder::instance().record(mReason, elapsed);
+        }
+
+        // Latch new reason and timestamp.
+        mReason = reason;
+        mWhen = now;
+
+        // No request is being retried.
+        if (mReason == RETRY_NONE)
+            return;
+
+        out() << clientName
+              << ": request retry begun: reason: "
+              << toString(mReason);
+    }
+}; // RequestRetryTracker
+
 struct StandardClient : public MegaApp
 {
     shared_ptr<WAIT_CLASS> waiter;
@@ -379,6 +554,8 @@ struct StandardClient : public MegaApp
 
         ++transfersComplete;
     }
+
+    RequestRetryTracker mRetryTracker;
 
     void notify_retry(dstime t, retryreason_t r) override;
     void request_error(error e) override;

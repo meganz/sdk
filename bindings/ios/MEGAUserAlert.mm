@@ -122,9 +122,13 @@ using namespace mega;
     return self.megaUserAlert ? self.megaUserAlert->isOwnChange() : NO;
 }
 
+#ifdef ENABLE_CHAT
+
 - (uint64_t)scheduledMeetingId {
     return self.megaUserAlert ? self.megaUserAlert->getSchedId() : ::mega::INVALID_HANDLE;
 }
+
+#endif
 
 - (instancetype)clone {
     return self.megaUserAlert ? [[MEGAUserAlert alloc] initWithMegaUserAlert:self.megaUserAlert->copy() cMemoryOwn:YES] : nil;
@@ -143,6 +147,8 @@ using namespace mega;
     
     return self.megaUserAlert->getString((unsigned int)index) ? [[NSString alloc] initWithUTF8String:self.megaUserAlert->getString((unsigned int)index)] : nil;
 }
+
+#ifdef ENABLE_CHAT
 
 - (BOOL)hasScheduledMeetingChangeType:(MEGAUserAlertScheduledMeetingChangeType)changeType {
     if (!self.megaUserAlert) return NO;
@@ -193,5 +199,7 @@ using namespace mega;
     delete integerList;
     return dateArray;
 }
+
+#endif
 
 @end

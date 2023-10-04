@@ -65,11 +65,9 @@ public:
     uint32_t genuint32(uint64_t max);
 
     /**
-     * @brief
-     * Generates a string of len random bytes.
+     * @brief Generates a string of len random bytes.
      *
-     * @return
-     * A string of len random bytes.
+     * @return A string of len random bytes.
      */
     std::string genstring(const size_t len);
 };
@@ -113,7 +111,7 @@ private:
      * @param taglen Length of expected authentication tag.
      * @param result outputData data, including the authentication tag.
      * @param expectedSize expected size for the encrypted data
-     * @returns true if encryption proccess ends succesfully, otherwise returns false
+     * @return true if encryption proccess ends succesfully, otherwise returns false
      */
     bool gcm_encrypt(const byte* data, const size_t datasize, const byte* key, const size_t keylen,
                      const byte* additionalData, const size_t additionalDatalen, const byte* iv,
@@ -136,7 +134,7 @@ private:
      * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
      * @param result Decrypted data, not including the authentication tag.
      * @param resultSize size of Decrypted data, not including the authentication tag.
-     * @returns true if decryption proccess ends succesfully, otherwise returns false
+     * @return true if decryption proccess ends succesfully, otherwise returns false
      */
     bool gcm_decrypt(const byte* data, const size_t datalen, const byte* additionalData, const size_t additionalDatalen,
                      const byte* key, const size_t keylength, const byte* tag, const size_t taglen, const byte* iv,
@@ -183,8 +181,10 @@ public:
      *
      * @param data Data to be encrypted (encryption in-place).
      * @param len Length of data to be encrypted in bytes.
-     * @param iv Initialisation vector to use. Choose randomly and never re-use.     */
-    void cbc_encrypt(byte* data, size_t len, const byte* iv = NULL);
+     * @param iv Initialisation vector to use. Choose randomly and never re-use.
+     * @return true if encryption proccess ends succesfully, otherwise returns false
+     */
+    bool cbc_encrypt(byte* data, size_t len, const byte* iv = NULL);
 
     /**
      * @brief Encrypt symmetrically using AES in CBC mode.
@@ -198,7 +198,7 @@ public:
      * @param key Encryption key
      * @param keylength Length of encryption key
      * @param iv Initialization vector to use.
-     * @returns true if encryption proccess ends succesfully, otherwise returns false
+     * @return true if encryption proccess ends succesfully, otherwise returns false
      */
     bool cbc_encrypt_with_key(const std::string& plain, std::string& cipher, const byte* key, const size_t keylen, const byte* iv = nullptr);
 
@@ -210,8 +210,10 @@ public:
      * @param data Data to be decrypted (encryption in-place).
      * @param len Length of cipher text to be decrypted in bytes.
      * @param iv Initialisation vector.
+     *
+     * @return true if decryption proccess ends succesfully, otherwise returns false
      */
-    void cbc_decrypt(byte* data, size_t len, const byte* iv = NULL);
+    bool cbc_decrypt(byte* data, size_t len, const byte* iv = NULL);
 
     /**
      * @brief Decrypt symmetrically using AES in CBC mode.
@@ -225,7 +227,7 @@ public:
      * @param key Decryption key
      * @param keylength Length of encryption key
      * @param iv Initialization vector to use.
-     * @returns true if decryption proccess ends succesfully, otherwise returns false
+     * @return true if decryption proccess ends succesfully, otherwise returns false
      */
     bool cbc_decrypt_with_key(const std::string& cipher, std::string& plain, const byte* key, const size_t keylen, const byte* iv = nullptr);
 
@@ -237,49 +239,35 @@ public:
      * @param data Data to be encrypted
      * @param iv Initialisation vector.
      * @param result Encrypted message
+     *
+     * @return true if encryption proccess ends succesfully, otherwise returns false
      */
-    void cbc_encrypt_pkcs_padding(const std::string *data, const byte* iv, std::string *result);
+    bool cbc_encrypt_pkcs_padding(const std::string *data, const byte* iv, std::string *result);
 
     /**
-     * @brief
-     * Decrypt symmetrically using AES in CBC mode and pkcs padding
+     * @brief Decrypt symmetrically using AES in CBC mode and pkcs padding
      *
      * The size of the IV is one block in AES-128 (16 bytes).
      *
-     * @param data
-     * Data to be decrypted
+     * @param data Data to be decrypted
+     * @param iv Initialisation vector.
+     * @param result Where we should write the decrypted message.
      *
-     * @param iv
-     * Initialisation vector.
-     *
-     * @param result
-     * Where we should write the decrypted message.
-     *
-     * @return
-     * True if decryption was successful.
+     * @return true if decryption was successful.
      */
     bool cbc_decrypt_pkcs_padding(const std::string* data, const byte* iv, std::string* result);
 
     /**
-     * @brief
-     * Decrypt symmetrically using AES in CBC mode and pkcs padding
+     * @brief Decrypt symmetrically using AES in CBC mode and pkcs padding
      *
      * The size of the IV is one block in AES-128 (16 bytes).
      *
-     * @param data
-     * Data to be decrypted
+     * @param data Data to be decrypted
+     * @param dataLength Length of data to be decryped.
+     * @param iv Initialisation vector.
+     * @param result Where we should write the decrypted message.
      *
-     * @param dataLength
-     * Length of data to be decryped.
-     *
-     * @param iv
-     * Initialisation vector.
-     *
-     * @param result
-     * Where we should write the decrypted message.
-     *
-     * @return
-     * True if decryption was successful.
+     * @return true if decryption was successful.
      */
     bool cbc_decrypt_pkcs_padding(const byte* data,
                                   const size_t dataLength,
@@ -287,7 +275,7 @@ public:
                                   std::string* result);
 
     /**
-     * Authenticated symmetric encryption using AES in CCM mode (counter with CBC-MAC).
+     * @brief Authenticated symmetric encryption using AES in CCM mode (counter with CBC-MAC).
      *
      * The size of the IV limits the maximum length of data. A length of 12 bytes
      * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
@@ -299,8 +287,10 @@ public:
      * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
      * @param taglen Length of expected authentication tag. Allowed sizes are 8 and 16 bytes.
      * @param result Encrypted data, including the authentication tag.
+     *
+     * @return true if encryption was successful.
      */
-    void ccm_encrypt(const std::string *data, const byte *iv, unsigned ivlen, unsigned taglen, std::string *result);
+    bool ccm_encrypt(const std::string *data, const byte *iv, unsigned ivlen, unsigned taglen, std::string *result);
 
     /**
      * @brief Authenticated symmetric decryption using AES in CCM mode (counter with CBC-MAC).
@@ -314,6 +304,8 @@ public:
      * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
      * @param taglen Length of expected authentication tag. Allowed sizes are 8 and 16 bytes.
      * @param result Decrypted data, not including the authentication tag.
+     *
+     * @return true if decryption was successful.
      */
     bool ccm_decrypt(const std::string *data, const byte *iv, unsigned ivlen, unsigned taglen, std::string *result);
 
@@ -330,8 +322,9 @@ public:
      * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
      * @param taglen Length of expected authentication tag.
      * @param result Encrypted data, including the authentication tag.
+     * @return true if encryption proccess ends succesfully, otherwise returns false
      */
-    void gcm_encrypt(const std::string *data, const byte *iv, unsigned ivlen, unsigned taglen, std::string *result);
+    bool gcm_encrypt(const std::string *data, const byte *iv, unsigned ivlen, unsigned taglen, std::string *result);
 
     /**
      * @brief Authenticated symmetric encryption using AES in GCM mode with additional authenticated data.
@@ -349,7 +342,7 @@ public:
      * @param taglen Length of expected authentication tag.
      * @param result outputData data, including the authentication tag.
      * @param expectedSize expected size for the encrypted data
-     * @returns true if encryption proccess ends succesfully, otherwise returns false
+     * @return true if encryption proccess ends succesfully, otherwise returns false
      */
     bool gcm_encrypt_add(const byte* data, const size_t datasize, const byte* additionalData, const size_t additionalDatalen, const byte* iv,
                          const size_t ivlen, const size_t taglen, std::string& result, const size_t expectedSize);
@@ -366,7 +359,7 @@ public:
      * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
      * @param taglen Length of expected authentication tag. Allowed sizes are 8 and 16 bytes.
      * @param result Decrypted data, not including the authentication tag.
-     * @returns true if decryption proccess ends succesfully, otherwise returns false
+     * @return true if decryption proccess ends succesfully, otherwise returns false
      */
     bool gcm_decrypt(const std::string *data, const byte *iv, unsigned ivlen, unsigned taglen, std::string *result);
 
@@ -385,11 +378,20 @@ public:
      * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
      * @param result Decrypted data, not including the authentication tag.
      * @param resultSize size of Decrypted data, not including the authentication tag.
-     * @returns true if decryption proccess ends succesfully, otherwise returns false
+     * @return true if decryption proccess ends succesfully, otherwise returns false
      */
-    bool gcm_decrypt_aad(const byte* data, const size_t datalen, const byte* additionalData,
+    bool gcm_decrypt_add(const byte* data, const size_t datalen, const byte* additionalData,
                          const size_t additionalDatalen, const byte* tag, const size_t taglen,
                          const byte* iv, const size_t ivlen, byte* result, const size_t resultSize);
+
+    // keep the alias with typo of the function above for backwards compatibility
+    bool gcm_decrypt_aad(const byte* data, const size_t datalen, const byte* additionalData,
+                         const size_t additionalDatalen, const byte* tag, const size_t taglen,
+                         const byte* iv, const size_t ivlen, byte* result, const size_t resultSize)
+    {
+        return gcm_decrypt_add(data, datalen, additionalData, additionalDatalen,
+                               tag, taglen, iv, ivlen, result, resultSize);
+    }
 
     /**
      * @brief Authenticated symmetric decryption using AES in GCM mode
@@ -407,7 +409,7 @@ public:
      * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
      * @param result Decrypted data, not including the authentication tag.
      * @param resultSize size of Decrypted data, not including the authentication tag.
-     * @returns true if decryption proccess ends succesfully, otherwise returns false
+     * @return true if decryption proccess ends succesfully, otherwise returns false
      */
     bool gcm_decrypt_with_key(const byte* data, const size_t datalen, const byte* key, const size_t keylength,
                               const byte* tag, const size_t taglen, const byte* iv, const size_t ivlen, byte* result,
@@ -457,26 +459,21 @@ public:
                                             // to 8192 bits
 
     /**
-     * @brief
-     * Retrieve a reference to the specified key component.
+     * @brief Retrieve a reference to the specified key component.
      *
-     * @param component
-     * Identifies the key component you want to reference.
+     * @param component Identifies the key component you want to reference.
      * Possible values:
      *  - For private keys: PRIV_P, PRIV_Q, PRIV_D, PRIV_U
      *  - For public keys: PUB_PQ, PUB_E
      *
-     * @return
-     * A reference to the specified key component.
+     * @return A reference to the specified key component.
      */
     const CryptoPP::Integer& getKey(unsigned component) const;
 
     /**
-     * @brief
-     * Retrieve a reference to this cipher's key material.
+     * @brief Retrieve a reference to this cipher's key material.
      *
-     * @return
-     * A reference to this cipher's key material.
+     * @return A reference to this cipher's key material.
      */
     auto getKey() const -> const Key&;
 
@@ -582,21 +579,14 @@ public:
     static void genkeypair(PrnGen &rng, CryptoPP::Integer* privk, CryptoPP::Integer* pubk, int size);
 
     /**
-     * @brief
-     * Generates an RSA key pair of a given key size and stores the new
+     * @brief Generates an RSA key pair of a given key size and stores the new
      * private key in this object
      *
-     * @param rng
-     * Reference to the random block generator
+     * @param rng Reference to the random block generator
+     * @param pubk Where should the public key be stored?
+     * @param size Size of key to generate in bits (key strength).
      *
-     * @param pubk
-     * Where should the public key be stored?
-     *
-     * @param size
-     * Size of key to generate in bits (key strength).
-     *
-     * @note
-     * After this call, the cipher will contain the private key.
+     * @note After this call, the cipher will contain the private key.
      */
     void genkeypair(PrnGen &rng, CryptoPP::Integer* pubk, int size);
 
@@ -679,14 +669,10 @@ public:
     void get(byte *out);
 
     /**
-     * @brief
-     * Set the HMAC's key.
+     * @brief Set the HMAC's key.
      *
-     * @param key
-     * HMAC key.
-     *
-     * @param length
-     * Length of HMAC key.
+     * @param key HMAC key.
+     * @param length Length of HMAC key.
      */
     void setkey(const byte* key, const size_t length);
 };
@@ -701,7 +687,7 @@ class MEGA_API PBKDF2_HMAC_SHA512
 public:
     PBKDF2_HMAC_SHA512();
 
-    void deriveKey(byte* derivedkey,
+    bool deriveKey(byte* derivedkey,
                    const size_t derivedkeyLen,
                    const byte* pwd,
                    const size_t pwdLen,

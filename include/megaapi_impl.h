@@ -542,10 +542,13 @@ protected:
     bool IsStoppedOrCancelled(const std::string& name) const;
 
     // Create all local directories in one shot. This happens on the worker thread.
-    Error createFolder();
+    std::unique_ptr<TransferQueue> createFolderGenDownloadTransfersForFiles(FileSystemType fsType, Error& e);
 
-    // Iterate through all pending files, and start all download transfers
-    std::unique_ptr<TransferQueue> genDownloadTransfersForFiles(FileSystemType fsType);
+    // Iterate through all pending files, and adds all download transfers
+    bool genDownloadTransfersForFiles(TransferQueue* transferQueue,
+                                      LocalTree& folder,
+                                      FileSystemType fsType,
+                                      bool folderExists);
 };
 
 class MegaNodePrivate : public MegaNode, public Cacheable
@@ -1026,12 +1029,14 @@ public:
         Download    = 4,                // Download it
     };
 
-
-    static Result check(FileAccess* fa, MegaNode* fileNode, Option option);
-    static Result check(FileAccess* fa, Node* node, Option option);
+    // Use faGetter instead of a FileAcccess instance which delays the access to the file system and only does it based
+    // on demand by check. This helps in a network folder.
+    static Result check(FileSystemAccess* fsaccess, const LocalPath &fileLocalPath, MegaNode* fileNode, Option option);
+    static Result check(std::function<FileAccess* ()> faGetter, MegaNode* fileNode, Option option);
+    static Result check(std::function<FileAccess* ()> faGetter, Node* node, Option option);
 
 private:
-    static Result check(FileAccess* fa, std::function<FileFingerprint()> nodeFingerprintF, std::function<bool()> metamacEqualF, Option option);
+    static Result check(std::function<bool()> fingerprintEqualF, std::function<bool()> metamacEqualF, Option option);
     static bool CompareLocalFileMetaMac(FileAccess* fa, MegaNode* fileNode);
 };
 
@@ -1086,6 +1091,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         void setCollisionCheckResult(CollisionChecker::Result);
         void setCollisionResolution(CollisionResolution);
         void setCollisionResolution(int);
+        void setFileSystemType(FileSystemType fsType) { mFsType = fsType; }
 
         int getType() const override;
         const char * getTransferString() const override;
@@ -1153,7 +1159,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         CollisionChecker::Option    getCollisionCheck() const;
         CollisionChecker::Result    getCollisionCheckResult() const;
         CollisionResolution         getCollisionResolution() const;
-
+        FileSystemType              getFileSystemType() const { return mFsType; };
         // for uploads, we fingerprint the file before queueing
         // as that way, it can be done without the main mutex locked
         error fingerprint_error = API_OK;
@@ -1168,6 +1174,7 @@ protected:
         CollisionChecker::Option    mCollisionCheck;
         CollisionResolution         mCollisionResolution;
         CollisionChecker::Result    mCollisionCheckResult;
+        FileSystemType              mFsType;
 
         struct
         {
@@ -3951,7 +3958,7 @@ private:
 
         void sendPendingScRequest();
         void sendPendingRequests();
-        unsigned sendPendingTransfers(TransferQueue *queue, MegaRecursiveOperation* = nullptr);
+        unsigned sendPendingTransfers(TransferQueue *queue, MegaRecursiveOperation* = nullptr, m_off_t availableDiskSpace = 0);
         void updateBackups();
 
         //Internal

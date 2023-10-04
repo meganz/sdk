@@ -30,6 +30,7 @@
 #include "http.h"
 #include "json.h"
 #include "textchat.h"
+#include "nodemanager.h"
 
 namespace mega {
 
@@ -67,6 +68,9 @@ public:
 
     // some commands are guaranteed to work if we query without specifying a SID (eg. gmf)
     bool suppressSID;
+
+    // filters for JSON parsing in streaming
+    std::map<std::string, std::function<bool(JSON *)>> mFilters;
 
     void cmd(const char*);
     void notself(MegaClient*);
@@ -460,8 +464,19 @@ class MEGA_API CommandFetchNodes : public Command
 
 public:
     bool procresult(Result, JSON&) override;
+    bool parsingFinished();
 
     CommandFetchNodes(MegaClient*, int tag, bool nocache, bool loadSyncs);
+
+protected:
+    handle mPreviousHandleForAlert = UNDEF;
+    NodeManager::MissingParentNodes mMissingParentNodes;
+#ifdef ENABLE_SYNC
+    set<NodeHandle> mAllParents;
+#endif
+
+    // Field to temporarily save the received scsn
+    handle mScsn;
 };
 
 // update own node keys
