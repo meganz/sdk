@@ -14,15 +14,30 @@ using cxxopts::Options;
 
 int main(int argc, char** argv)
 {
+    std::string pipename;
     Options options("gfxworker", "GFX processing server");
     options.add_options()
-        ("n,name", "Pipe name", cxxopts::value<std::string>()->default_value("MEGA_GFXWORKER"));
+        ("h,help", "Show help")
+        ("n,name", "Pipe name", cxxopts::value(pipename)->default_value("MEGA_GFXWORKER"));
+
+    try {
+        auto result = options.parse(argc, argv);
+
+        if (result["help"].as<bool>()) {
+            std::cout << options.help() << std::endl;
+            return 0;
+        }
+
+    } catch (cxxopts::exceptions::exception& e) {
+        std::cerr << e.what() << std::endl;
+        return -1;
+    }
 
     std::unique_ptr<mega::MegaLogger> logInstance(new mega::gfx::Logger());
     mega::MegaApi::addLoggerObject(logInstance.get(), false);
     mega::MegaApi::setLogLevel(mega::MegaApi::LOG_LEVEL_MAX);
 
-    LOG_info << "Gfxworker server starting...";
+    LOG_info << "Gfxworker server starting, pipe name: " << pipename;
 
     WinGfxCommunicationsServer server(
         ::mega::make_unique<RequestProcessor>(GfxProcessor::create())
