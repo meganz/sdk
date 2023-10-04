@@ -332,6 +332,12 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 
 #endif
 
+#ifdef SWIGGO
+%include <typemaps.i>
+%apply (char *STRING, size_t LENGTH) {(char *buffer, size_t size)};
+%apply (char *STRING, size_t LENGTH) {(char *bitmapData, size_t size)};
+#endif
+
 %ignore mega::MegaApi::MEGA_DEBRIS_FOLDER;
 %ignore mega::MegaNode::getNodeKey;
 %ignore mega::MegaNode::getAttrString;
