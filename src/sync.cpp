@@ -3421,6 +3421,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool set
 
 
 
+    auto previousConfigError = us.mConfig.mError;
     us.mConfig.mError = NO_SYNC_ERROR;
     us.mConfig.mRunState = SyncRunState::Loading;
     us.mConfig.mTemporarilyPaused = paused;
@@ -3593,7 +3594,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool set
 
         auto firstTime = config.mBackupState == SYNC_BACKUP_NONE;
         auto isExternal = config.isExternal();
-        auto wasDisabled = config.knownError() == BACKUP_MODIFIED;
+        auto wasDisabled = previousConfigError == BACKUP_MODIFIED; // Using previousConfigError as config.mError is reset earlier on this method
 
         if (firstTime || isExternal || wasDisabled)
         {
