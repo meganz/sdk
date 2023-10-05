@@ -15,10 +15,12 @@ using cxxopts::Options;
 int main(int argc, char** argv)
 {
     std::string pipename;
+    unsigned short aliveSeconds = 0;
     Options options("gfxworker", "GFX processing server");
     options.add_options()
         ("h,help", "Show help")
-        ("n,name", "Pipe name", cxxopts::value(pipename)->default_value("MEGA_GFXWORKER"));
+        ("l,live", "Keep alive in seconds without receiving any requests, 0 is INFINITE", cxxopts::value(aliveSeconds)->default_value("60"))
+        ("n,name", "Pipe name", cxxopts::value(pipename)->default_value("mega_gfxworker"));
 
     try {
         auto result = options.parse(argc, argv);
@@ -37,10 +39,14 @@ int main(int argc, char** argv)
     mega::MegaApi::addLoggerObject(logInstance.get(), false);
     mega::MegaApi::setLogLevel(mega::MegaApi::LOG_LEVEL_MAX);
 
-    LOG_info << "Gfxworker server starting, pipe name: " << pipename;
+    LOG_info << "Gfxworker server starting"
+             << "\n pipe name:       " << pipename
+             << "\n live in seconds: " << aliveSeconds;
 
     WinGfxCommunicationsServer server(
-        ::mega::make_unique<RequestProcessor>(GfxProcessor::create())
+        ::mega::make_unique<RequestProcessor>(GfxProcessor::create()),
+        pipename,
+        aliveSeconds
     );
 
     std::thread serverThread(&WinGfxCommunicationsServer::initialize, &server);

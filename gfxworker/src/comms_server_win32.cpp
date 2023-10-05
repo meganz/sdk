@@ -2,10 +2,13 @@
 #include "mega/utils.h"
 #include "gfxworker/comms_server_win32.h"
 #include "gfxworker/server.h"
+#include <system_error>
 #include <windows.h>
 
 namespace mega {
 namespace gfx {
+
+std::error_code WinGfxCommunicationsServer::OK;
 
 Win32NamedPipeEndpointServer::~Win32NamedPipeEndpointServer()
 {
@@ -29,25 +32,33 @@ void WinGfxCommunicationsServer::shutdown()
     return;
 }
 
-bool WinGfxCommunicationsServer::waitForClient(HANDLE hPipe, OVERLAPPED* overlap)
+std::error_code WinGfxCommunicationsServer::waitForClient(HANDLE hPipe, OVERLAPPED* overlap)
 {
     assert(hPipe != INVALID_HANDLE_VALUE);
     assert(overlap);
 
-    // Wait for the client to connect; if it succeeds,
-    // the function returns a nonzero value. If the function
-    // returns zero, GetLastError returns ERROR_PIPE_CONNECTED.
+    // Wait for the client to connect asynchronous; if it succeeds,
+    // the function returns a nonzero value.
+    // If the function returns zero,
+    //         GetLastError returns ERROR_IO_PENDING, the IO is connected
+    //         GetLastError returns ERROR_PIPE_CONNECTED, the IO is pending
     bool success = ConnectNamedPipe(hPipe, overlap);
     if (success)
     {
         LOG_verbose << "Client connected";
-        return true;
+        return OK;
+    }
+
+    if (!success && GetLastError() == ERROR_PIPE_CONNECTED)
+    {
+        LOG_verbose << "Client connected";
+        return OK;
     }
 
     if (!success && GetLastError() != ERROR_IO_PENDING)
     {
         LOG_verbose << "Client couldn't connect, error=" << GetLastError() << " " << mega::winErrorMessage(GetLastError());
-        return false;
+        return std::make_error_code(std::errc::not_connected);
     }
 
     // IO_PENDING
@@ -56,15 +67,23 @@ bool WinGfxCommunicationsServer::waitForClient(HANDLE hPipe, OVERLAPPED* overlap
         hPipe,
         overlap,
         &numberOfBytesTransferred,
-        INFINITE, // INFINITE wait
+        mWaitMs, // INFINITE wait
         false))
     {
         LOG_verbose << "Client connected";
-        return true;
+        return OK;
     }
 
-    LOG_verbose << "Client couldn't connect";
-    return false;
+    if (GetLastError() == WAIT_TIMEOUT)
+    {
+        LOG_verbose << "Wait client connecting Timeout";
+        return std::make_error_code(std::errc::timed_out);
+    }
+    else
+    {
+        LOG_verbose << "Client couldn't connect, error=" << GetLastError() << " " << mega::winErrorMessage(GetLastError());
+        return std::make_error_code(std::errc::not_connected);
+    }
 }
 
 void WinGfxCommunicationsServer::serverListeningLoop()
@@ -74,6 +93,7 @@ void WinGfxCommunicationsServer::serverListeningLoop()
     {
         return;
     }
+
     const DWORD BUFSIZE = 512;
     for (;;)
     {
@@ -100,20 +120,20 @@ void WinGfxCommunicationsServer::serverListeningLoop()
             break;
         }
 
-        bool keepRunning = true;
-        if (waitForClient(hPipe, overlap.data())) // connected
+        bool stopRunning = false;
+        auto err_code = waitForClient(hPipe, overlap.data());
+        if (err_code)
         {
-            if (mRequestProcessor)
-            {
-                keepRunning = mRequestProcessor->process(mega::make_unique<Win32NamedPipeEndpointServer>(hPipe, "server"));
-            }
-        }
-        else // not connected
-        {
+            // if has timeout and expires, we'll stop running
+            stopRunning = (mWaitMs != INFINITE && err_code == std::make_error_code(std::errc::timed_out));
             CloseHandle(hPipe);
         }
+        else if (mRequestProcessor)
+        {
+            stopRunning = mRequestProcessor->process(mega::make_unique<Win32NamedPipeEndpointServer>(hPipe, "server"));
+        }
 
-        if (!keepRunning)
+        if (stopRunning)
         {
             LOG_info << "Exiting listening loop";
             break;

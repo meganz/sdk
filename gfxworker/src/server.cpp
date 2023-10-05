@@ -89,7 +89,7 @@ RequestProcessor::RequestProcessor(std::unique_ptr<IGfxProcessor> processor) : m
 
 bool RequestProcessor::process(std::unique_ptr<IEndpoint> endpoint)
 {
-    bool keepRunning = true;
+    bool stopRunning = false;
 
     // read command
     ProtocolReader reader{ endpoint.get() };
@@ -97,9 +97,9 @@ bool RequestProcessor::process(std::unique_ptr<IEndpoint> endpoint)
     if (!command)
     {
         LOG_err << "command couldn't be unserialized";
-        return keepRunning;
+        return stopRunning;
     }
-    keepRunning = command->type() != CommandType::SHUTDOWN;
+    stopRunning = command->type() == CommandType::SHUTDOWN;
 
     // execute command
     LOG_info << "execute the command: " << static_cast<int>(command->type());
@@ -125,7 +125,7 @@ bool RequestProcessor::process(std::unique_ptr<IEndpoint> endpoint)
             }
         });
 
-    return keepRunning;
+    return stopRunning;
 }
 
 void RequestProcessor::processShutDown(IEndpoint* endpoint)

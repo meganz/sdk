@@ -1,8 +1,11 @@
 #pragma once
 
 #include "mega/win32/gfx/worker/comms.h"
+#include <minwindef.h>
+#include <winbase.h>
 #include <windows.h>
 #include <thread>
+#include <system_error>
 
 namespace mega {
 namespace gfx {
@@ -33,22 +36,35 @@ using OnServerConnectedFunc = std::function<bool(std::unique_ptr<IEndpoint> endp
 class WinGfxCommunicationsServer
 {
 public:
-    WinGfxCommunicationsServer(std::unique_ptr<IRequestProcessor> requestProcessor, const std::string& pipename = "mega_gfxworker")
+
+    /**
+     * @brief A server listening on the named pipe for alive seconds
+     *
+     * @param requestProcessor the request processor
+     * @param pipename the name of the pipe
+     * @param aliveSeconds keep alive if the sever hasn't receive any request for
+     *                     the given seconds. 0 mean keeping infinitely running even
+     *                     if there is no request coming.
+     */
+    WinGfxCommunicationsServer(std::unique_ptr<IRequestProcessor> requestProcessor, const std::string& pipename = "mega_gfxworker", unsigned short aliveSeconds = 60)
         : mRequestProcessor(std::move(requestProcessor))
         , mPipename(pipename)
     {
-
+        mWaitMs = aliveSeconds == 0 ? INFINITE : static_cast<DWORD>(aliveSeconds * 1000);
     }
 
     bool initialize();
     void shutdown();
 private:
+    static std::error_code OK;
+
     void serverListeningLoop();
-    bool waitForClient(HANDLE hPipe, OVERLAPPED* overlap);
+    std::error_code waitForClient(HANDLE hPipe, OVERLAPPED* overlap);
     OnServerConnectedFunc mOnConnected;
     std::unique_ptr<IRequestProcessor> mRequestProcessor;
     std::unique_ptr<std::thread> mListeningThread;
     std::string mPipename;
+    DWORD       mWaitMs;
 };
 
 } //namespace gfx

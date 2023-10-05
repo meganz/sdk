@@ -72,6 +72,8 @@ class IRequestProcessor
 public:
     virtual ~IRequestProcessor() = default;
 
+    // process the request. return true if processsing should
+    // be stopped such as received a shutdown request
     virtual bool process(std::unique_ptr<IEndpoint> endpoint) = 0;
 };
 
