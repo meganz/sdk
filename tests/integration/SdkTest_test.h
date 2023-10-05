@@ -471,7 +471,16 @@ public:
     template<typename ... requestArgs> int doOpenShareDialog(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->openShareDialog(args..., &rt); rt.waitForResult(); return rt.result; }
     template<typename ... requestArgs> int synchronousDoUpgradeSecurity(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->upgradeSecurity(args..., &rt); rt.waitForResult(); return rt.result; }
 #ifdef ENABLE_SYNC
-    template<typename ... requestArgs> int synchronousSyncFolder(unsigned apiIndex, MegaHandle* newSyncRootNodeResult, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->syncFolder(args..., &rt); rt.waitForResult(); mApi[apiIndex].lastSyncError = rt.request->getNumDetails(); mApi[apiIndex].lastSyncBackupId = rt.request->getParentHandle(); if (newSyncRootNodeResult) *newSyncRootNodeResult = rt.getNodeHandle(); return rt.result; }
+    template<typename ... requestArgs> int synchronousSyncFolder(unsigned apiIndex, MegaHandle* newSyncRootNodeResult, requestArgs... args)
+    {
+        RequestTracker rt(megaApi[apiIndex].get());
+        megaApi[apiIndex]->syncFolder(args..., &rt);
+        rt.waitForResult();
+        mApi[apiIndex].lastSyncError = rt.request ? rt.request->getNumDetails() : -888; // request was not set ???
+        mApi[apiIndex].lastSyncBackupId = rt.request ? rt.request->getParentHandle() : UNDEF;
+        if (newSyncRootNodeResult) *newSyncRootNodeResult = rt.getNodeHandle();
+        return rt.result;
+    }
     template<typename ... requestArgs> int synchronousRemoveSync(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->removeSync(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousRemoveBackupNodes(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->moveOrRemoveDeconfiguredBackupNodes(args..., INVALID_HANDLE, &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousSetSyncRunState(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setSyncRunState(args..., &rt); rt.waitForResult(); mApi[apiIndex].lastSyncError = rt.request->getNumDetails(); return rt.result; }
