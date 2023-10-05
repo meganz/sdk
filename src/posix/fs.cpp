@@ -931,7 +931,7 @@ int LinuxFileSystemAccess::checkevents(Waiter* waiter)
                 | IN_MOVED_TO | IN_CLOSE_WRITE | IN_EXCL_UNLINK)))
             {
                 LOG_verbose << "Filesystem notification:"
-                    << "event: " << std::hex << in->mask;
+                    << " event " << in->name << ": " << std::hex << in->mask;
                 it = mWatches.find(in->wd);
 
                 if (it != mWatches.end())
