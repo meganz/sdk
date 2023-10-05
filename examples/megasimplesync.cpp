@@ -432,7 +432,7 @@ void SyncApp::fetchnodes_result(const Error &e)
             {
 #ifdef ENABLE_SYNC
                 SyncConfig syncConfig(LocalPath::fromAbsolutePath(local_folder), local_folder, NodeHandle().set6byte(n->nodehandle), remote_folder, fsfp_t(), LocalPath());
-                client->addsync(std::move(syncConfig), false,
+                client->addsync(std::move(syncConfig),
                                 [](error err, const SyncError& serr, handle backupId) {
                     if (err)
                     {

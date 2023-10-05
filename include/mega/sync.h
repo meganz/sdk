@@ -972,7 +972,7 @@ struct Syncs
     handle getSyncIdContainingActivePath(const LocalPath& lp) const;
 
     // Add new sync setups
-    void appendNewSync(const SyncConfig&, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname, const string& excludedPath = string());
+    void appendNewSync(const SyncConfig&, bool startSync, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname, const string& excludedPath = string());
 
 
     // only for use in tests; not really thread safe
@@ -987,7 +987,7 @@ struct Syncs
     void loadSyncConfigsOnFetchnodesComplete(bool resetSyncConfigStore);
     void resumeSyncsOnStateCurrent();
 
-    void enableSyncByBackupId(handle backupId, bool paused, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname);
+    void enableSyncByBackupId(handle backupId, bool paused, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname);
     void disableSyncByBackupId(handle backupId, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void()> completion);
 
     // disable all active syncs.  Cache is kept
@@ -1212,9 +1212,9 @@ private:
     void locallogout_inThread(bool removecaches, bool keepSyncsConfigFile, bool reopenStoreAfter);
     void loadSyncConfigsOnFetchnodesComplete_inThread(bool resetSyncConfigStore);
     void resumeSyncsOnStateCurrent_inThread();
-    void enableSyncByBackupId_inThread(handle backupId, bool paused, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath = string());
+    void enableSyncByBackupId_inThread(handle backupId, bool paused, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath = string());
     void disableSyncByBackupId_inThread(handle backupId, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void()> completion);
-    void appendNewSync_inThread(const SyncConfig&, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath = string());
+    void appendNewSync_inThread(const SyncConfig&, bool startSync, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath = string());
     void removeSyncAfterDeregistration_inThread(handle backupId, std::function<void(Error)> clientCompletion, std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction);
     void syncConfigStoreAdd_inThread(const SyncConfig& config, std::function<void(error)> completion);
     void clear_inThread();
