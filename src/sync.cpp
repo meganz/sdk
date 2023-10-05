@@ -1062,8 +1062,12 @@ void UnifiedSync::changeState(SyncError newSyncError, bool newEnableFlag, bool n
             {
                 string dbname = mConfig.getSyncDbStateCacheName(fas->fsid, mConfig.mRemoteNode, syncs.mClient.me);
 
+                // If the user is upgrading from NO SRW to SRW, we rename the DB files to the new SRW version.
+                // However, if there are db files from a previous SRW version (i.e., the user downgraded from SRW to NO SRW and then upgraded again to SRW)
+                // we need to remove the SRW db files. The flag DB_OPEN_FLAG_RECYCLE is used for this purpose.
+                const int dbFlags = (DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_SRW) ? DB_OPEN_FLAG_RECYCLE : 0;
                 LocalPath dbPath;
-                syncs.mClient.dbaccess->checkDbFileAndAdjustLegacy(*syncs.fsaccess, dbname, DB_OPEN_FLAG_TRANSACTED, dbPath);
+                syncs.mClient.dbaccess->checkDbFileAndAdjustLegacy(*syncs.fsaccess, dbname, dbFlags, dbPath);
 
                 LOG_debug << "Deleting sync database at: " << dbPath;
                 syncs.fsaccess->unlinklocal(dbPath);
@@ -4577,8 +4581,13 @@ error Syncs::syncConfigStoreLoad(SyncConfigVector& configs)
                     string dbname = c.getSyncDbStateCacheName(root_fsid, c.mRemoteNode, mClient.me);
 
                     // Note, we opened dbaccess in thread-safe mode
+
+                    // If the user is upgrading from NO SRW to SRW, we rename the DB files to the new SRW version.
+                    // However, if there are db files from a previous SRW version (i.e., the user downgraded from SRW to NO SRW and then upgraded again to SRW)
+                    // we need to remove the SRW db files. The flag DB_OPEN_FLAG_RECYCLE is used for this purpose.
+                    const int dbFlags = (DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_SRW) ? DB_OPEN_FLAG_RECYCLE : 0;
                     LocalPath dbPath;
-                    c.mDatabaseExists = mClient.dbaccess->checkDbFileAndAdjustLegacy(*fsaccess, dbname, DB_OPEN_FLAG_TRANSACTED, dbPath);
+                    c.mDatabaseExists = mClient.dbaccess->checkDbFileAndAdjustLegacy(*fsaccess, dbname, dbFlags, dbPath);
                 }
 
                 if (c.mEnabled)
