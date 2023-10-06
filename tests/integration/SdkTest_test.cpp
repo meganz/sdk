@@ -9719,8 +9719,8 @@ TEST_F(SdkTest, SyncPaths)
         remoteNode.reset(megaApi[0]->getNodeByPath(remoteFile.c_str()));
         return (remoteNode.get() != nullptr);
     },50*1000);
-    ASSERT_NE(remoteNode.get(), nullptr) << "Failed (1) to get node for " << remoteFile << ", uploaded from " << filePath;
-    LOG_verbose << "SyncPaths :  File " << filePath << " is successfully synced to " << remoteFile << ". Downloading the remote file";
+    ASSERT_NE(remoteNode.get(), nullptr) << "Failed (1) to get node for " << remoteFile << ", uploaded from " << filePath.u8string();
+    LOG_verbose << "SyncPaths :  File " << filePath.u8string() << " is successfully synced to " << remoteFile << ". Downloading the remote file";
     ASSERT_EQ(MegaError::API_OK, doStartDownload(0, remoteNode.get(),
                                                          fileDownloadPath.u8string().c_str(),
                                                          nullptr  /*customName*/,
@@ -9780,8 +9780,8 @@ TEST_F(SdkTest, SyncPaths)
         remoteNode.reset(megaApi[0]->getNodeByPath(remoteFile.c_str()));
         return (remoteNode.get() != nullptr);
     },50*1000);
-    ASSERT_TRUE(remoteNode) << "Failed (2) to get remote node for " << remoteFile << " uploaded from " << fileToCreate;
-    LOG_verbose << "SyncPaths :  File " << fileToCreate << " is successfully synced to " << remoteFile << ". Downloading the remote file";
+    ASSERT_TRUE(remoteNode) << "Failed (2) to get remote node for " << remoteFile << " uploaded from " << fileToCreate.u8string();
+    LOG_verbose << "SyncPaths :  File " << fileToCreate.u8string() << " is successfully synced to " << remoteFile << ". Downloading the remote file";
     ASSERT_EQ(MegaError::API_OK, doStartDownload(0,remoteNode.get(),
                                                          fileDownloadPath.u8string().c_str(),
                                                          nullptr  /*customName*/,
