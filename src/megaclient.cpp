@@ -10644,7 +10644,11 @@ void MegaClient::opensctable()
             // NOD is a special case where existing DB can be upgraded by renaming the existing
             // file and migrating data to the new DB scheme. In consequence, we just want to
             // recycle it (hence the flag DB_OPEN_FLAG_RECYCLE)
-            int recycleDBVersion = (DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_NOD) ? DB_OPEN_FLAG_RECYCLE : 0;
+            // Similarly, for SRW, we just need to rename the existing legacy DB, and only delete the DB if there is a downgrade (SRW to NO SRW),
+            // hence why we need to increase the DB version, but without affecting the upgrade from NO SRW to SRW.
+            int recycleDBVersion = (DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_NOD || DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_SRW) ?
+                                            DB_OPEN_FLAG_RECYCLE :
+                                            0;
             sctable.reset(dbaccess->openTableWithNodes(rng, *fsaccess, dbname, recycleDBVersion, [this](DBError error)
             {
                 handleDbError(error);
