@@ -31,7 +31,7 @@ prepare() {
 
 build() {
     cd "$pkgname-$pkgver"
-    ./depot_tools/ninja ${BUILD_PARALLEL_JOBS} -C out pdfium
+    ./third_party/depot_tools/ninja ${BUILD_PARALLEL_JOBS} -C out pdfium
     #clean all unrequired stuff
     rm -rf `ls | grep -v "out\|public"`
 }
@@ -44,4 +44,6 @@ package() {
     cd "$pkgname-$pkgver"
     for i in `find out/obj -name "libpdfium.a" -type f`; do install -D $i $pkgdir/usr/lib/${i/out\/obj\//}; done
     for i in `find public -type f`; do install -D -m 444 $i $pkgdir/usr/include/${i/public\//}; done
+    sed -i "s#@PREFIX@#/usr#" pdfium.pc.in
+    install -D -m 644 pdfium.pc.in $pkgdir/usr/lib/pkgconfig/pdfium.pc
 }
