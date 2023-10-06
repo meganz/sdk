@@ -8677,20 +8677,15 @@ std::unique_ptr<::mega::MegaSync> waitForSyncState(::mega::MegaApi* megaApi, ::m
         return (sync && sync->getRunState() == runState && sync->getError() == err);
     }, 30*1000);
 
-    if (sync && sync->getRunState() == runState && sync->getError() == err)
+    if (sync)
     {
-        if (!sync)
-        {
-            LOG_debug << "sync is now null";
-        }
-        else
-        {
-            LOG_debug << "sync exists but state is " << sync->getRunState() << " and error is " << sync->getError();
-        }
-        return sync;
+        bool areTheExpectedStateAndError = sync->getRunState() == runState && sync->getError() == err;
+        LOG_debug << "sync exists with the " << (areTheExpectedStateAndError ? "expected" : "UNEXPECTED") << " state: " << sync->getRunState() << " and error: " << sync->getError();
+        return areTheExpectedStateAndError ? std::move(sync) : nullptr;
     }
     else
     {
+        LOG_debug << "sync is null";
         return nullptr; // signal that the sync never reached the expected/required state
     }
 }
@@ -9725,6 +9720,7 @@ TEST_F(SdkTest, SyncPaths)
         return (remoteNode.get() != nullptr);
     },50*1000);
     ASSERT_NE(remoteNode.get(), nullptr) << "Failed (1) to get node for " << remoteFile << ", uploaded from " << filePath;
+    LOG_verbose << "SyncPaths :  File " << filePath << " is successfully synced to " << remoteFile << ". Downloading the remote file";
     ASSERT_EQ(MegaError::API_OK, doStartDownload(0, remoteNode.get(),
                                                          fileDownloadPath.u8string().c_str(),
                                                          nullptr  /*customName*/,
@@ -9738,7 +9734,7 @@ TEST_F(SdkTest, SyncPaths)
     deleteFile(fileDownloadPath.u8string());
 
 #if !defined(__APPLE__)
-    LOG_verbose << "SyncPaths :  Check that symlinks are not synced.";
+    LOG_verbose << "SyncPaths :  Check that symlinks are not synced";
     const string remotePathOfSymlink("/" + string(remoteBaseNode->getName()) + "/symlink_1A");
     std::unique_ptr<MegaNode> remoteNodeSym(megaApi[0]->getNodeByPath(remotePathOfSymlink.c_str()));
     ASSERT_FALSE(remoteNodeSym) << "Remote node found for symlink, at " << remotePathOfSymlink;
@@ -9751,7 +9747,7 @@ TEST_F(SdkTest, SyncPaths)
 
 #ifndef WIN32
     {
-        LOG_verbose << "SyncPaths :  Check that symlinks are considered when creating a sync.";
+        LOG_verbose << "SyncPaths :  Check that symlinks are considered when creating a sync";
         ASSERT_EQ(API_EARGS, synchronousSyncFolder(0, nullptr, MegaSync::TYPE_TWOWAY, (fs::current_path() / "symlink_1A").u8string().c_str(), nullptr, remoteNodeSym->getHandle(), nullptr))
                 << "Sync with local path being a symlink to a folder already synced should have failed";
         ASSERT_EQ(MegaSync::LOCAL_PATH_SYNC_COLLISION, mApi[0].lastSyncError) << "Sync with local path in another sync should have ended with " << MegaSync::LOCAL_PATH_SYNC_COLLISION;
@@ -9759,6 +9755,7 @@ TEST_F(SdkTest, SyncPaths)
 #endif
 
     // Disable the first one, create again the one with the symlink, check that it is working and check if the first fails when enabled.
+    LOG_verbose << "SyncPaths :  Disable sync with local path " << localPath.u8string() << " and remote " << basePath.u8string();
     auto tagID = sync->getBackupId();
     ASSERT_EQ(API_OK, synchronousSetSyncRunState(0, tagID, MegaSync::RUNSTATE_DISABLED)) << "API Error disabling sync";
     sync = waitForSyncState(megaApi[0].get(), tagID, MegaSync::RUNSTATE_DISABLED, MegaSync::NO_SYNC_ERROR);
@@ -9766,14 +9763,16 @@ TEST_F(SdkTest, SyncPaths)
     ASSERT_EQ(sync->getRunState(), MegaSync::RUNSTATE_DISABLED);
 
     string localSymlinkToSync((fs::current_path() / "symlink_1A").u8string());
+    LOG_verbose << "SyncPaths :  Create sync from: " << localSymlinkToSync << " to remote path: " << remoteNodeSym->getName();
     ASSERT_EQ(API_OK, synchronousSyncFolder(0, nullptr, MegaSync::TYPE_TWOWAY, localSymlinkToSync.c_str(), nullptr, remoteNodeSym->getHandle(), nullptr))
             << "Error adding sync with local path " << localSymlinkToSync << " and remote " << folderNamedLikeSymlink;
     std::unique_ptr<MegaSync> syncSym = waitForSyncState(megaApi[0].get(), remoteNodeSym.get(), MegaSync::RUNSTATE_RUNNING, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(syncSym) << "Error getting sync in RUNNING state; local path " << localSymlinkToSync << " and remote " << folderNamedLikeSymlink;;
     ASSERT_EQ(syncSym->getRunState(), MegaSync::RUNSTATE_RUNNING);
 
-    LOG_verbose << "SyncPaths :  Adding a file and checking if it is synced,";
+    // Now that we have a sync whose root folder is a symlink, add a file to the path that the symlink points to, and check if it is synced
     auto fileToCreate = localPath / "level_1A" / fs::u8path(fileNameStr.c_str());
+    LOG_verbose << "SyncPaths :  Adding a file and checking if it is synced: " << fileToCreate.u8string();
     ASSERT_TRUE(createFile(fileToCreate.u8string(), false)) << "failed to create local file " << fileToCreate;
     remoteFile = "/" + string(remoteNodeSym->getName()) + "/" + fileNameStr;
     WaitFor([this, &remoteNode, &remoteFile]() -> bool
@@ -9782,6 +9781,7 @@ TEST_F(SdkTest, SyncPaths)
         return (remoteNode.get() != nullptr);
     },50*1000);
     ASSERT_TRUE(remoteNode) << "Failed (2) to get remote node for " << remoteFile << " uploaded from " << fileToCreate;
+    LOG_verbose << "SyncPaths :  File " << fileToCreate << " is successfully synced to " << remoteFile << ". Downloading the remote file";
     ASSERT_EQ(MegaError::API_OK, doStartDownload(0,remoteNode.get(),
                                                          fileDownloadPath.u8string().c_str(),
                                                          nullptr  /*customName*/,
@@ -9795,7 +9795,8 @@ TEST_F(SdkTest, SyncPaths)
     deleteFile(fileDownloadPath.u8string());
 
 #ifndef WIN32
-{
+    {
+        LOG_verbose << "SyncPaths :  Check that we cannot enable again the no-symlink sync with local path " << localPath.u8string() << " and remote " << basePath.u8string();
         ASSERT_EQ(API_EARGS, synchronousSetSyncRunState(0, tagID, MegaSync::RUNSTATE_RUNNING)) << "API Error enabling a sync";
         ASSERT_EQ(MegaSync::LOCAL_PATH_SYNC_COLLISION, mApi[0].lastSyncError);
     }
@@ -9803,6 +9804,7 @@ TEST_F(SdkTest, SyncPaths)
 
 #endif
 
+    LOG_verbose << "SyncPaths :  All done. Cleaning up";
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), "symlink_1A"));
 }
