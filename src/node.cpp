@@ -2209,7 +2209,7 @@ bool LocalNode::checkForScanBlocked(FSNode* fsNode)
     {
         // We were not able to get details of the filesystem item when scanning the directory.
         // Consider it a blocked file, and we'll rescan the folder from time to time.
-        LOG_verbose << sync->syncname << "File/folder was blocked when reading directory, retry later: " << getLocalPath();
+        LOG_verbose << sync->syncname << "File/folder was blocked when reading directory, retry later: " << getLocalPath() << " [fsNode->type = " << fsNode->type << ", fsNode->isBlocked = " << fsNode->isBlocked << "]";
 
         // Setting node as scan-blocked. The main loop will check it regularly by weak_ptr
         initiateScanBlocked(true, false);

@@ -1838,10 +1838,13 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
     };
 
     // So we don't duplicate link chasing logic.
-    auto stat = [&](const char* path, struct stat& metadata) {
+    auto stat = [&](const char* path, struct stat& metadata, bool* followSymLinkHere = nullptr) {
         auto result = !lstat(path, &metadata);
 
-        if (!result || !followSymLinks || !S_ISLNK(metadata.st_mode))
+        if (!result) return false;
+
+        bool followSymLink = followSymLinkHere ? *followSymLinkHere : followSymLinks;
+        if (!followSymLink || !S_ISLNK(metadata.st_mode))
             return result;
 
         return !::stat(path, &metadata);
@@ -1851,7 +1854,8 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
     struct stat metadata;
 
     // Try and get information about the scan target.
-    if (!stat(targetPath.localpath.c_str(), metadata))
+    bool scanTarget_followSymLink = true; // Follow symlink for the parent directory, so we retrieve the stats of the path that the symlinks points to
+    if (!stat(targetPath.localpath.c_str(), metadata, &scanTarget_followSymLink))
     {
         LOG_warn << "Failed to directoryScan: "
                  << "Unable to stat(...) scan target: "

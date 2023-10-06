@@ -677,7 +677,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
 #endif
     }
 
-    auto fas = syncs.fsaccess->newfileaccess(false);
+    auto fas = syncs.fsaccess->newfileaccess();
 
     // we do allow, eg. mounting an exFAT drive over an NTFS folder, and making a sync at that path
     bool reparsePointOkAtRoot = true;
