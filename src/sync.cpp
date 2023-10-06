@@ -1065,7 +1065,11 @@ void UnifiedSync::changeState(SyncError newSyncError, bool newEnableFlag, bool n
                 // If the user is upgrading from NO SRW to SRW, we rename the DB files to the new SRW version.
                 // However, if there are db files from a previous SRW version (i.e., the user downgraded from SRW to NO SRW and then upgraded again to SRW)
                 // we need to remove the SRW db files. The flag DB_OPEN_FLAG_RECYCLE is used for this purpose.
-                const int dbFlags = (DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_SRW) ? DB_OPEN_FLAG_RECYCLE : 0;
+                int dbFlags = DB_OPEN_FLAG_TRANSACTED; // Unused
+                if (DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_SRW)
+                {
+                    dbFlags |= DB_OPEN_FLAG_RECYCLE;
+                }
                 LocalPath dbPath;
                 syncs.mClient.dbaccess->checkDbFileAndAdjustLegacy(*syncs.fsaccess, dbname, dbFlags, dbPath);
 
@@ -4586,7 +4590,11 @@ error Syncs::syncConfigStoreLoad(SyncConfigVector& configs)
                     // If the user is upgrading from NO SRW to SRW, we rename the DB files to the new SRW version.
                     // However, if there are db files from a previous SRW version (i.e., the user downgraded from SRW to NO SRW and then upgraded again to SRW)
                     // we need to remove the SRW db files. The flag DB_OPEN_FLAG_RECYCLE is used for this purpose.
-                    const int dbFlags = (DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_SRW) ? DB_OPEN_FLAG_RECYCLE : 0;
+                    int dbFlags = DB_OPEN_FLAG_TRANSACTED; // Unused
+                    if (DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_SRW)
+                    {
+                        dbFlags |= DB_OPEN_FLAG_RECYCLE;
+                    }
                     LocalPath dbPath;
                     c.mDatabaseExists = mClient.dbaccess->checkDbFileAndAdjustLegacy(*fsaccess, dbname, dbFlags, dbPath);
                 }
