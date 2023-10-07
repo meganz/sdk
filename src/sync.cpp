@@ -1062,8 +1062,16 @@ void UnifiedSync::changeState(SyncError newSyncError, bool newEnableFlag, bool n
             {
                 string dbname = mConfig.getSyncDbStateCacheName(fas->fsid, mConfig.mRemoteNode, syncs.mClient.me);
 
+                // If the user is upgrading from NO SRW to SRW, we rename the DB files to the new SRW version.
+                // However, if there are db files from a previous SRW version (i.e., the user downgraded from SRW to NO SRW and then upgraded again to SRW)
+                // we need to remove the SRW db files. The flag DB_OPEN_FLAG_RECYCLE is used for this purpose.
+                int dbFlags = DB_OPEN_FLAG_TRANSACTED; // Unused
+                if (DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_SRW)
+                {
+                    dbFlags |= DB_OPEN_FLAG_RECYCLE;
+                }
                 LocalPath dbPath;
-                syncs.mClient.dbaccess->checkDbFileAndAdjustLegacy(*syncs.fsaccess, dbname, DB_OPEN_FLAG_TRANSACTED, dbPath);
+                syncs.mClient.dbaccess->checkDbFileAndAdjustLegacy(*syncs.fsaccess, dbname, dbFlags, dbPath);
 
                 LOG_debug << "Deleting sync database at: " << dbPath;
                 syncs.fsaccess->unlinklocal(dbPath);
@@ -3421,6 +3429,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool set
 
 
 
+    auto previousConfigError = us.mConfig.mError;
     us.mConfig.mError = NO_SYNC_ERROR;
     us.mConfig.mRunState = SyncRunState::Loading;
     us.mConfig.mTemporarilyPaused = paused;
@@ -3593,7 +3602,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool set
 
         auto firstTime = config.mBackupState == SYNC_BACKUP_NONE;
         auto isExternal = config.isExternal();
-        auto wasDisabled = config.knownError() == BACKUP_MODIFIED;
+        auto wasDisabled = previousConfigError == BACKUP_MODIFIED; // Using previousConfigError as config.mError is reset earlier on this method
 
         if (firstTime || isExternal || wasDisabled)
         {
@@ -4577,8 +4586,17 @@ error Syncs::syncConfigStoreLoad(SyncConfigVector& configs)
                     string dbname = c.getSyncDbStateCacheName(root_fsid, c.mRemoteNode, mClient.me);
 
                     // Note, we opened dbaccess in thread-safe mode
+
+                    // If the user is upgrading from NO SRW to SRW, we rename the DB files to the new SRW version.
+                    // However, if there are db files from a previous SRW version (i.e., the user downgraded from SRW to NO SRW and then upgraded again to SRW)
+                    // we need to remove the SRW db files. The flag DB_OPEN_FLAG_RECYCLE is used for this purpose.
+                    int dbFlags = DB_OPEN_FLAG_TRANSACTED; // Unused
+                    if (DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_SRW)
+                    {
+                        dbFlags |= DB_OPEN_FLAG_RECYCLE;
+                    }
                     LocalPath dbPath;
-                    c.mDatabaseExists = mClient.dbaccess->checkDbFileAndAdjustLegacy(*fsaccess, dbname, DB_OPEN_FLAG_TRANSACTED, dbPath);
+                    c.mDatabaseExists = mClient.dbaccess->checkDbFileAndAdjustLegacy(*fsaccess, dbname, dbFlags, dbPath);
                 }
 
                 if (c.mEnabled)
