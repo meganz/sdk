@@ -1,3 +1,4 @@
+#include "mega/gfx/worker/commands.h"
 #include "mega/logging.h"
 #include "mega/gfx/worker/tasks.h"
 #include "mega/gfx/worker/comms.h"
@@ -13,6 +14,8 @@ namespace
     using mega::gfx::CommandNewGfxResponse;
     using mega::gfx::CommandShutDown;
     using mega::gfx::CommandShutDownResponse;
+    using mega::gfx::CommandHello;
+    using mega::gfx::CommandHelloResponse;
     using mega::gfx::CommandType;
 
     class GfxSerializationHelper
@@ -136,6 +139,18 @@ namespace
     {
         static std::string serialize(const CommandShutDownResponse& command);
         static bool unserialize(const std::string& data, CommandShutDownResponse& command);
+    };
+
+    struct CommandHelloSerializer
+    {
+        static std::string serialize(const CommandHello& command);
+        static bool unserialize(const std::string& data, CommandHello& command);
+    };
+
+    struct CommandHelloResponseSerializer
+    {
+        static std::string serialize(const CommandHelloResponse& command);
+        static bool unserialize(const std::string& data, CommandHelloResponse& command);
     };
 
     void GfxSerializationHelper::serialize(std::string& target, const std::string& source)
@@ -377,6 +392,55 @@ namespace
         return true;
     }
 
+    std::string CommandHelloSerializer::serialize(const CommandHello& command)
+    {
+        std::string toret;
+        GfxSerializationHelper::serialize(toret, command.Text);
+        return toret;
+    }
+
+    bool CommandHelloSerializer::unserialize(const std::string& data, CommandHello& command)
+    {
+        size_t consumed = 0;
+        auto source = data.data();
+        auto len = data.size();
+
+        // Text
+        std::string text;
+        if (!(consumed = GfxSerializationHelper::unserialize(text, source, len)))
+        {
+            return false;
+        }
+
+        command.Text = std::move(text);
+
+        return true;
+    }
+
+    std::string CommandHelloResponseSerializer::serialize(const CommandHelloResponse& command)
+    {
+        std::string toret;
+        GfxSerializationHelper::serialize(toret, command.Text);
+        return toret;
+    }
+
+    bool CommandHelloResponseSerializer::unserialize(const std::string& data, CommandHelloResponse& command)
+    {
+        size_t consumed = 0;
+        auto source = data.data();
+        auto len = data.size();
+
+        // Text
+        std::string text;
+        if (!(consumed = GfxSerializationHelper::unserialize(text, source, len)))
+        {
+            return false;
+        }
+
+        command.Text = std::move(text);
+
+        return true;
+    }
 
     template<typename T>
     bool isInOpenEndRange(const T& value, const T& low, const T& high)
@@ -465,6 +529,18 @@ bool CommandSerializer::serializeHelper(ICommand* command, std::string& data)
         if (auto c = dynamic_cast<CommandShutDownResponse*>(command))
         {
             data = CommandShutDownResponseSerializer::serialize(*c);
+            return true;
+        }
+    case CommandType::HELLO:
+        if (auto c = dynamic_cast<CommandHello*>(command))
+        {
+            data = CommandHelloSerializer::serialize(*c);
+            return true;
+        }
+    case CommandType::HELLO_RESPONSE:
+        if (auto c = dynamic_cast<CommandHelloResponse*>(command))
+        {
+            data = CommandHelloResponseSerializer::serialize(*c);
             return true;
         }
     default:
@@ -563,6 +639,22 @@ std::unique_ptr<ICommand> CommandSerializer::unserializeHelper(CommandType type,
         if (CommandShutDownResponseSerializer::unserialize(data, command))
         {
             return mega::make_unique<CommandShutDownResponse>(std::move(command));
+        }
+    }
+    case CommandType::HELLO:
+    {
+        CommandHello command;
+        if (CommandHelloSerializer::unserialize(data, command))
+        {
+            return mega::make_unique<CommandHello>(std::move(command));
+        }
+    }
+    case CommandType::HELLO_RESPONSE:
+    {
+        CommandHelloResponse command;
+        if (CommandHelloResponseSerializer::unserialize(data, command))
+        {
+            return mega::make_unique<CommandHelloResponse>(std::move(command));
         }
     }
     default:

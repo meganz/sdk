@@ -33,8 +33,6 @@ namespace gfx {
  */
 class GfxClient
 {
-private:
-    std::unique_ptr<IGfxCommunicationsClient> mComms;
 public:
 
     /**
@@ -48,13 +46,21 @@ public:
         assert(mComms);
     }
 
-    bool runGfxTask(const std::string& localpath, std::vector<GfxSize> sizes, std::vector<std::string>& images);
+    bool runHello(const std::string& text);
 
     bool runShutDown();
 
-    static GfxClient create();
-};
+    bool runGfxTask(const std::string& localpath, std::vector<GfxSize> sizes, std::vector<std::string>& images);
 
+    static GfxClient create();
+
+private:
+
+    template<typename ResponseT, typename RequestT>
+    std::unique_ptr<ResponseT> sendAndReceive(RequestT command);
+
+    std::unique_ptr<IGfxCommunicationsClient> mComms;
+};
 
 } //namespace gfx
 } //namespace mega

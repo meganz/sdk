@@ -85,6 +85,8 @@ public:
     bool process(std::unique_ptr<IEndpoint> endpoint);
 
 private:
+    void processHello(IEndpoint* endpoint);
+
     void processShutDown(IEndpoint* endpoint);
 
     void processGfx(IEndpoint* endpoint, CommandNewGfx* request);

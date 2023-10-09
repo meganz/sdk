@@ -19,6 +19,7 @@
 #pragma once
 
 #include <memory>
+#include <openssl/ssl.h>
 #include "mega/gfx/worker/tasks.h"
 
 namespace mega {
@@ -32,7 +33,9 @@ enum class CommandType
     ABORT               = 3,
     SHUTDOWN            = 4,
     SHUTDOWN_RESPONSE   = 5,
-    END                 = 6
+    HELLO               = 6,
+    HELLO_RESPONSE      = 7,
+    END                 = 8  // 1 more than the last valid one
 };
 
 class ICommand
@@ -65,6 +68,18 @@ struct CommandNewGfxResponse : public ICommand
     std::string ErrorText;
     std::vector<std::string> Images;
     CommandType type() const override { return CommandType::NEW_GFX_RESPONSE; }
+};
+
+struct CommandHello : public ICommand
+{
+    std::string Text;
+    CommandType type() const override { return CommandType::HELLO; }
+};
+
+struct CommandHelloResponse : public ICommand
+{
+    std::string Text;
+    CommandType type() const override { return CommandType::HELLO_RESPONSE; }
 };
 
 } //namespace gfx

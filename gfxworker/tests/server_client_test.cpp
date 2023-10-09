@@ -5,6 +5,7 @@
 #include "mega/gfx/worker/client.h"
 #include "gfxworker/comms_server_win32.h"
 #include "gfxworker/server.h"
+#include "mega/gfx/isolatedprocess.h"
 #include <memory>
 #include <thread>
 #include <chrono>
@@ -20,6 +21,7 @@ using mega::gfx::GfxClient;
 using mega::gfx::IEndpoint;
 using mega::gfx::GfxSize;
 using mega::LocalPath;
+using namespace std::chrono_literals;
 
 
 class ServerClientTest : public ::testing::Test
@@ -37,7 +39,7 @@ protected:
 };
 
 //TEST(ServerClientTest, DISABLED_init)
-TEST_F(ServerClientTest, init)
+TEST_F(ServerClientTest, gfxTask)
 {
     WinGfxCommunicationsServer server(
         ::mega::make_unique<RequestProcessor>(GfxProcessor::create()),
@@ -46,7 +48,6 @@ TEST_F(ServerClientTest, init)
 
     std::thread serverThread(&WinGfxCommunicationsServer::initialize, &server);
 
-    using namespace std::chrono_literals;
     std::this_thread::sleep_for(100ms);
 
     auto sizes = std::vector<GfxSize> {
@@ -86,6 +87,36 @@ TEST_F(ServerClientTest, init)
     }
 }
 
+TEST_F(ServerClientTest, hello)
+{
+    WinGfxCommunicationsServer server(
+        ::mega::make_unique<RequestProcessor>(GfxProcessor::create()),
+        mPipename
+    );
+
+    std::thread serverThread(&WinGfxCommunicationsServer::initialize, &server);
+
+    std::this_thread::sleep_for(100ms);
+
+
+    EXPECT_TRUE(
+        GfxClient(
+            mega::make_unique<WinGfxCommunicationsClient>([](std::unique_ptr<IEndpoint> _) {}, mPipename)
+        ).runHello("")
+    );
+
+    EXPECT_TRUE(
+        GfxClient(
+            mega::make_unique<WinGfxCommunicationsClient>([](std::unique_ptr<IEndpoint> _) {}, mPipename)
+        ).runShutDown()
+    );
+
+    if (serverThread.joinable())
+    {
+        serverThread.join();
+    }
+}
+
 TEST_F(ServerClientTest, ServerIsNotRunning)
 {
     auto sizes = std::vector<GfxSize> {
@@ -99,4 +130,17 @@ TEST_F(ServerClientTest, ServerIsNotRunning)
             mega::make_unique<WinGfxCommunicationsClient>([](std::unique_ptr<IEndpoint> _) {}, mPipename)
         ).runGfxTask("anyimagename.jpg", sizes, images)
     );
+}
+
+TEST_F(ServerClientTest, DISABLED_KeepLaunch)
+{
+    std::vector<std::string> argv {
+        "C:\\Users\\mega-cjr\\dev\\gitlab\\sdk\\build-x64-windows-mega\\Debug\\gfxworker.exe",
+        "-l10" // keep alive for 10 seconds
+    };
+
+    mega::AutoStartLauncher runner{std::move(argv)};
+
+    runner.launch();
+    runner.wait();
 }

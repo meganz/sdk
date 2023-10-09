@@ -110,6 +110,11 @@ bool RequestProcessor::process(std::unique_ptr<IEndpoint> endpoint)
         [sharedEndpoint, command, this]() {
             switch (command->type())
             {
+            case CommandType::HELLO:
+            {
+                processHello(sharedEndpoint.get());
+                break;
+            }
             case CommandType::SHUTDOWN:
             {
                 processShutDown(sharedEndpoint.get());
@@ -126,6 +131,13 @@ bool RequestProcessor::process(std::unique_ptr<IEndpoint> endpoint)
         });
 
     return stopRunning;
+}
+
+void RequestProcessor::processHello(IEndpoint* endpoint)
+{
+    CommandHelloResponse response;
+    ProtocolWriter writer{ endpoint };
+    writer.writeCommand(&response, TimeoutMs(5000));
 }
 
 void RequestProcessor::processShutDown(IEndpoint* endpoint)
