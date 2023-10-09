@@ -2642,6 +2642,10 @@ void MegaClient::exec()
                     {
                         LOG_warn << "Too many pending updates - reloading local state";
 
+                        // Stop the sc channel to prevent the reception of multiple
+                        // API_ETOOMANY errors causing multiple consecutive reloads
+                        scsn.stopScsn();
+
                         app->reloading();
                         int creqtag = reqtag;
                         reqtag = fetchnodestag; // associate with ongoing request, if any
