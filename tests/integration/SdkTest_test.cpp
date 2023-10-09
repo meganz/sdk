@@ -9362,7 +9362,9 @@ TEST_F(SdkTest, MidSessionEtoomanyWithSync)
         LOG_verbose << "Devcommand succeeded";
         ASSERT_TRUE(WaitFor([&target](){ return target.lastEventsContain(MegaEvent::EVENT_RELOADING); }, 10000));
     }
-    ASSERT_TRUE(WaitFor([&target](){ return target.lastEventsContain(MegaEvent::EVENT_NODES_CURRENT); }, 10000));
+
+    // The standard timeout for a fetchnodes is currently 5 minutes (see SdkTest::fetchnodes)
+    ASSERT_TRUE(WaitFor([&target](){ return target.lastEventsContain(MegaEvent::EVENT_NODES_CURRENT); }, 300000));
 
     // Check that the synced node is still there after the reload
     std::unique_ptr<MegaNode> previousFolder(megaApi[0]->getNodeByHandle(nh));
