@@ -33,7 +33,7 @@ build() {
     cd "$pkgname-$pkgver"
     ./third_party/depot_tools/ninja ${BUILD_PARALLEL_JOBS} -C out pdfium
     #clean all unrequired stuff
-    rm -rf `ls | grep -v "out\|public"`
+    rm -rf `ls | grep -v "out\|public\|pdfium.pc.in"`
 }
 
 check() {

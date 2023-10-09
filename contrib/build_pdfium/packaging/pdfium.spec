@@ -20,7 +20,7 @@ BuildRequires: libatomic
 BuildRequires: python36
 %else
 %if 0%{?suse_version} > 1500
-BuildRequires: python
+BuildRequires: python311
 %else
 BuildRequires: python3
 %endif
@@ -43,7 +43,7 @@ TODO
 ./third_party/depot_tools/ninja %{?_smp_mflags} -C out pdfium
 
 #clean all unrequired stuff
-rm -rf `ls | grep -v "out\|public"`
+rm -rf `ls | grep -v "out\|public\|pdfium.pc.in"`
 
 %install
 pwd
