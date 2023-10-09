@@ -30,7 +30,7 @@ void GfxWorkerHelloBeater::beat()
 {
     while(!mShuttingDown)
     {
-        bool isCancelled = mSleeper.sleep_for(std::chrono::duration_cast<std::chrono::milliseconds>(mPeriod));
+        bool isCancelled = mSleeper.sleep(std::chrono::duration_cast<std::chrono::milliseconds>(mPeriod));
         if (!isCancelled)
         {
             auto gfxclient = GfxClient::create();
@@ -118,7 +118,7 @@ const char* GfxProviderIsolatedProcess::supportedvideoformats()
 
 bool AutoStartLauncher::startUntilSuccess(reproc::process& process)
 {
-    int backOff = 100;
+    std::chrono::milliseconds backOff(100);
     while (!mShuttingDown)
     {
         auto ec = process.start(mArgv);
@@ -129,8 +129,8 @@ bool AutoStartLauncher::startUntilSuccess(reproc::process& process)
         }
 
         LOG_err << "couldn't not start error code: " << ec.value() << " message: " << ec.message();
-        mSleeper.sleep_for(std::chrono::milliseconds(backOff));
-        backOff = std::min(backOff * 2, 60 * 1000); // double it and 60 seconds at most
+        mSleeper.sleep(backOff);
+        backOff = std::min(backOff * 2, std::chrono::milliseconds(60 * 1000)); // double it and 60 seconds at most
     }
 
     // ends due to shutdown
@@ -140,7 +140,8 @@ bool AutoStartLauncher::startUntilSuccess(reproc::process& process)
 bool AutoStartLauncher::launch()
 {
     auto launcher = [this]() {
-        do {
+        mThreadIsRunning = true;
+        while(!mShuttingDown) {
             reproc::process process;
             if (startUntilSuccess(process))
             {
@@ -152,12 +153,30 @@ bool AutoStartLauncher::launch()
                     LOG_err << "wait error code: " << ec.value() << " message: " << ec.message();
                 }
             }
-        }while (!mShuttingDown);
+        };
+        mThreadIsRunning = false;
     };
 
     mThread = std::thread{launcher};
 
     return true;
+}
+
+//
+// there is racing that mShutdowner() signal will be lost while the process
+// is just starting. so we'll retry in the loop, but there is no reason it
+// couldn't be shut down in 15 seconds
+//
+void AutoStartLauncher::exitLaunch()
+{
+    std::chrono::milliseconds backOff(10);
+    while (mThreadIsRunning && backOff < std::chrono::seconds(15))
+    {
+        // shutdown the started process
+        if (mShutdowner) mShutdowner();
+        std::this_thread::sleep_for(backOff);
+        backOff += std::chrono::milliseconds(10);
+    }
 }
 
 void AutoStartLauncher::shutDownOnce()
@@ -168,13 +187,15 @@ void AutoStartLauncher::shutDownOnce()
         return;
     }
 
+    LOG_info << "AutoStartLauncher is shutting down";
+
     // cancel sleeper, thread in sleep is woken up if it is
     mSleeper.cancel();
 
-    // shutdown the started process
-    if (mShutdowner) mShutdowner();
-
+    exitLaunch();
     if (mThread.joinable()) mThread.join();
+
+    LOG_info << "AutoStartLauncher is down";
 }
 
 AutoStartLauncher::~AutoStartLauncher()
@@ -182,7 +203,7 @@ AutoStartLauncher::~AutoStartLauncher()
     shutDownOnce();
 }
 
-bool CancellableSleeper::sleep_for(const std::chrono::milliseconds& period)
+bool CancellableSleeper::sleep(const std::chrono::milliseconds& period)
 {
     std::unique_lock<std::mutex> l{mMutex};
 

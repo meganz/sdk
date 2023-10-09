@@ -23,7 +23,7 @@ public:
     CancellableSleeper() : mCancelled(false) {}
 
     // true if sleeping is cancelled, otherwise, false
-    bool sleep_for(const std::chrono::milliseconds& period);
+    bool sleep(const std::chrono::milliseconds& period);
 
     void cancel();
 private:
@@ -45,6 +45,7 @@ public:
     AutoStartLauncher(std::vector<std::string>&& argv, std::function<void()> shutdowner) :
         mArgv(std::move(argv)),
         mShuttingDown(false),
+        mThreadIsRunning(true),
         mShutdowner(std::move(shutdowner))
     {
 
@@ -60,11 +61,15 @@ private:
 
     bool startUntilSuccess(reproc::process& process);
 
+    void exitLaunch();
+
     std::vector<std::string> mArgv;
 
     std::thread mThread;
 
     std::atomic<bool> mShuttingDown;
+
+    std::atomic<bool> mThreadIsRunning;
 
     CancellableSleeper mSleeper;
 
