@@ -9370,7 +9370,7 @@ TEST_F(SdkTest, MidSessionEtoomanyWithSync)
 
     // Delete the local folder and wait for the propagation of the change
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(nh, MegaNode::CHANGE_TYPE_PARENT, mApi[0].nodeUpdated);
-    deleteFolder(folderPath);
+    deleteFolder(folderPath.u8string());
     ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds";
     resetOnNodeUpdateCompletionCBs();
     mApi[0].nodeUpdated = false;
