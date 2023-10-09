@@ -9287,6 +9287,104 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
 }
 
+TEST_F(SdkTest, MidSessionEtoomanyWithSync)
+{
+    LOG_info << "___TEST MidSessionEtoomanyWithSync___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    fs::path basePath = "MidSessionEtoomanyWithSync";
+    std::string syncFolder = "sync";
+    fs::path syncPath = basePath / syncFolder;
+    const auto localPath = fs::current_path() / syncPath;
+    fs::create_directories(localPath);
+
+    // Creating the remote folder to be synced to
+    std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
+    ASSERT_NE(remoteRootNode.get(), nullptr);
+    auto nh = createFolder(0, syncFolder.c_str(), remoteRootNode.get());
+    ASSERT_NE(nh, UNDEF) << "Error creating remote folder";
+    std::unique_ptr<MegaNode> remoteSyncNode(megaApi[0]->getNodeByHandle(nh));
+    ASSERT_NE(remoteSyncNode.get(), nullptr);
+
+    // Start the sync
+    const auto& lp = localPath.u8string();
+    ASSERT_EQ(API_OK, synchronousSyncFolder(0, nullptr, MegaSync::TYPE_TWOWAY, lp.c_str(), nullptr, remoteSyncNode->getHandle(), nullptr)) << "API Error adding a new sync";
+    ASSERT_EQ(MegaSync::NO_SYNC_ERROR, mApi[0].lastSyncError);
+    std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(), remoteSyncNode.get(), MegaSync::RUNSTATE_RUNNING, MegaSync::NO_SYNC_ERROR);
+    ASSERT_TRUE(sync && sync->getRunState() == MegaSync::RUNSTATE_RUNNING);
+    ASSERT_EQ(MegaSync::NO_SYNC_ERROR, sync->getError());
+
+    // Create a local folder and wait for the propagation of the change
+    mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, mApi[0].nodeUpdated);
+    std::string folderName = "new-folder-for-test";
+    const auto folderPath = fs::current_path() / syncPath / folderName;
+    fs::create_directories(folderPath);
+    ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds";
+    resetOnNodeUpdateCompletionCBs();
+    mApi[0].nodeUpdated = false;
+
+    // Check that the new remote folder has been created
+    std::unique_ptr<MegaNode> remoteFolderNode(megaApi[0]->getNodeByPath(folderName.c_str(), remoteSyncNode.get()));
+    ASSERT_NE(remoteFolderNode.get(), nullptr);
+    nh = remoteFolderNode->getHandle();
+    fs::path localFolderPath = syncPath / folderName;
+    ASSERT_EQ(fs::exists(localFolderPath), true);
+
+    // Secondary instance with the same account to force an ETOOMANY action packet
+    const char *email = getenv(envVarAccount[0].c_str());
+    ASSERT_NE(email, nullptr);
+    const char *pass = getenv(envVarPass[0].c_str());
+    ASSERT_NE(pass, nullptr);
+    mApi.resize(2);
+    megaApi.resize(2);
+    configureTestInstance(1, email, pass);
+
+    // The secondary instance needs to use staging to send a devcommand
+    megaApi[1]->changeApiUrl("https://staging.api.mega.co.nz/");
+    auto loginTracker = ::mega::make_unique<RequestTracker>(megaApi[1].get());
+    megaApi[1]->login(email, pass, loginTracker.get());
+    ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account " << email;
+
+    PerApi& target = mApi[0];
+    target.resetlastEvent();
+
+    auto devCommandTracker = ::mega::make_unique<RequestTracker>(megaApi[1].get());
+    megaApi[1]->sendDevCommand("fr", nullptr, devCommandTracker.get());
+    auto errorCode = devCommandTracker->waitForResult();
+    ASSERT_TRUE(errorCode == API_OK || errorCode == API_EACCESS) << " Error in devcommand " << errorCode;
+    if (errorCode == API_EACCESS)
+    {
+        LOG_warn << "Devcommand not authorized for your IP, using fetchnodes() instead";
+        megaApi[0]->fetchNodes();
+    }
+    else
+    {
+        LOG_verbose << "Devcommand succeeded";
+        ASSERT_TRUE(WaitFor([&target](){ return target.lastEventsContain(MegaEvent::EVENT_RELOADING); }, 10000));
+    }
+    ASSERT_TRUE(WaitFor([&target](){ return target.lastEventsContain(MegaEvent::EVENT_NODES_CURRENT); }, 10000));
+
+    // Check that the synced node is still there after the reload
+    std::unique_ptr<MegaNode> previousFolder(megaApi[0]->getNodeByHandle(nh));
+    ASSERT_TRUE(previousFolder != nullptr);
+
+    // Delete the local folder and wait for the propagation of the change
+    mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(nh, MegaNode::CHANGE_TYPE_PARENT, mApi[0].nodeUpdated);
+    deleteFolder(folderPath);
+    ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds";
+    resetOnNodeUpdateCompletionCBs();
+    mApi[0].nodeUpdated = false;
+
+    // Check that the sync is still active
+    sync = waitForSyncState(megaApi[0].get(), remoteSyncNode.get(), MegaSync::RUNSTATE_RUNNING, MegaSync::NO_SYNC_ERROR);
+    ASSERT_TRUE(sync && sync->getRunState() == MegaSync::RUNSTATE_RUNNING);
+    ASSERT_EQ(MegaSync::NO_SYNC_ERROR, sync->getError());
+
+    // Check that the deletion of the node has been propagated to the remote filesystem
+    std::unique_ptr<MegaNode> remoteFolderNodeCheck(megaApi[0]->getNodeByPath(folderName.c_str(), remoteSyncNode.get()));
+    ASSERT_EQ(remoteFolderNodeCheck.get(), nullptr);
+}
+
 /**
  * @brief TEST_F SyncRemoteNode
  *
