@@ -36,32 +36,31 @@ class ILauncher
 {
 public:
     virtual ~ILauncher() = default;
-
-    virtual bool launch() = 0;
 };
+
 class AutoStartLauncher : public ILauncher
 {
 public:
     AutoStartLauncher(std::vector<std::string>&& argv, std::function<void()> shutdowner) :
         mArgv(std::move(argv)),
         mShuttingDown(false),
-        mThreadIsRunning(true),
+        mThreadIsRunning(false),
         mShutdowner(std::move(shutdowner))
     {
-
+        startlaunchLoopThread();
     }
 
     ~AutoStartLauncher();
 
     void shutDownOnce();
 
-    bool launch();
-
 private:
 
     bool startUntilSuccess(reproc::process& process);
 
-    void exitLaunch();
+    bool startlaunchLoopThread();
+
+    void exitLaunchLoopThread();
 
     std::vector<std::string> mArgv;
 
@@ -81,22 +80,23 @@ class IHelloBeater
 {
 public:
     virtual ~IHelloBeater() = default;
-
-    virtual void start() = 0;
 };
+
+// This class creates a thread sending hello command to
+// gfxworker in mPeriod interval. The purpose is to keep
+// the gfxworker running.
 class GfxWorkerHelloBeater : public IHelloBeater
 {
 public:
-    GfxWorkerHelloBeater(const std::chrono::seconds& period) : mPeriod(period) {}
+    GfxWorkerHelloBeater(const std::chrono::seconds& period) : mPeriod(period)
+    {
+        mThread = std::thread(&GfxWorkerHelloBeater::beat, this);
+    }
 
     ~GfxWorkerHelloBeater();
 
-    void start() override;
-
     void shutdownOnce();
 
-    // extend the beat to next period
-    void extend();
 private:
     void beat();
 

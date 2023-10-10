@@ -16,16 +16,6 @@ using mega::gfx::GfxClient;
 using mega::gfx::GfxSize;
 namespace mega {
 
-void GfxWorkerHelloBeater::extend()
-{
-
-}
-
-void GfxWorkerHelloBeater::start()
-{
-    mThread = std::thread(&GfxWorkerHelloBeater::beat, this);
-}
-
 void GfxWorkerHelloBeater::beat()
 {
     while(!mShuttingDown)
@@ -65,8 +55,7 @@ GfxProviderIsolatedProcess::GfxProviderIsolatedProcess(
     , mBeater(std::move(beater))
 {
     assert(mLauncher);
-    mLauncher->launch();
-    mBeater->start();
+    assert(mBeater);
 }
 
 std::vector<GfxSize> GfxProviderIsolatedProcess::toGfxSize(const std::vector<Dimension>& dimensions)
@@ -137,7 +126,7 @@ bool AutoStartLauncher::startUntilSuccess(reproc::process& process)
     return false;
 }
 
-bool AutoStartLauncher::launch()
+bool AutoStartLauncher::startlaunchLoopThread()
 {
     auto launcher = [this]() {
         mThreadIsRunning = true;
@@ -157,7 +146,7 @@ bool AutoStartLauncher::launch()
         mThreadIsRunning = false;
     };
 
-    mThread = std::thread{launcher};
+    mThread = std::thread(launcher);
 
     return true;
 }
@@ -167,7 +156,7 @@ bool AutoStartLauncher::launch()
 // is just starting. so we'll retry in the loop, but there is no reason it
 // couldn't be shut down in 15 seconds
 //
-void AutoStartLauncher::exitLaunch()
+void AutoStartLauncher::exitLaunchLoopThread()
 {
     std::chrono::milliseconds backOff(10);
     while (mThreadIsRunning && backOff < std::chrono::seconds(15))
@@ -192,7 +181,7 @@ void AutoStartLauncher::shutDownOnce()
     // cancel sleeper, thread in sleep is woken up if it is
     mSleeper.cancel();
 
-    exitLaunch();
+    exitLaunchLoopThread();
     if (mThread.joinable()) mThread.join();
 
     LOG_info << "AutoStartLauncher is down";
@@ -205,7 +194,7 @@ AutoStartLauncher::~AutoStartLauncher()
 
 bool CancellableSleeper::sleep(const std::chrono::milliseconds& period)
 {
-    std::unique_lock<std::mutex> l{mMutex};
+    std::unique_lock<std::mutex> l(mMutex);
 
     if (mCancelled) return true;
 
@@ -214,7 +203,7 @@ bool CancellableSleeper::sleep(const std::chrono::milliseconds& period)
 
 void CancellableSleeper::cancel()
 {
-    std::lock_guard<std::mutex> l{mMutex};
+    std::lock_guard<std::mutex> l(mMutex);
 
     mCancelled = true;
 
