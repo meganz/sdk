@@ -1101,6 +1101,20 @@ m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)>
         return 0;
     }
 
+    if (filters)
+    {
+        auto filterit = filters->find("<");
+        if (filterit != filters->end())
+        {
+            JSON jsonData("");
+            auto& callback = filterit->second;
+            if (!callback(&jsonData))
+            {
+                LOG_err << "Error starting the processing of a chunk";
+            }
+        }
+    }
+
     mPos = data;
     mLastPos = data;
 
@@ -1389,6 +1403,20 @@ m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)>
         }
     }
 
+    if (filters)
+    {
+        auto filterit = filters->find(">");
+        if (filterit != filters->end())
+        {
+            JSON jsonData("");
+            auto& callback = filterit->second;
+            if (!callback(&jsonData))
+            {
+                LOG_err << "Error finishing the processing of a chunk";
+            }
+        }
+    }
+
     mProcessedBytes = mPos - mLastPos;
     m_off_t consumedBytes = mLastPos - data;
 
@@ -1461,6 +1489,17 @@ void JSONSplitter::parseError(std::map<string, std::function<bool (JSON *)> > *f
             JSON jsonData(mPos);
             auto& callback = filterit->second;
             callback(&jsonData);
+        }
+
+        filterit = filters->find(">");
+        if (filterit != filters->end())
+        {
+            JSON jsonData("");
+            auto& callback = filterit->second;
+            if (!callback(&jsonData))
+            {
+                LOG_err << "Error finishing the processing of a chunk after error";
+            }
         }
     }
     mFailed = true;

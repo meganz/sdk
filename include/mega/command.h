@@ -467,16 +467,18 @@ public:
     bool parsingFinished();
 
     CommandFetchNodes(MegaClient*, int tag, bool nocache, bool loadSyncs);
+    ~CommandFetchNodes();
 
 protected:
     handle mPreviousHandleForAlert = UNDEF;
     NodeManager::MissingParentNodes mMissingParentNodes;
-#ifdef ENABLE_SYNC
-    set<NodeHandle> mAllParents;
-#endif
 
     // Field to temporarily save the received scsn
     handle mScsn;
+    string mSt;
+
+    std::unique_lock<mutex> mNodeTreeIsChanging;
+    bool mFirstChunkProcessed = false;
 };
 
 // update own node keys
