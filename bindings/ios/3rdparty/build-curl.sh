@@ -66,10 +66,12 @@ build_arch_platform() {
   export CXXFLAGS="${CPPFLAGS}"
 
   if [ "${ARCH}" == "arm64" ]; then
-    ./configure --prefix="${CURRENTPATH}/bin/libcurl/${PLATFORM}${SDKVERSION}-${ARCH}.sdk" --host=arm-apple-darwin --enable-static --disable-shared --with-secure-transport --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb
+    HOST="arm-apple-darwin"
   else
-    ./configure --prefix="${CURRENTPATH}/bin/libcurl/${PLATFORM}${SDKVERSION}-${ARCH}.sdk" --host=${ARCH}-apple-darwin --enable-static --disable-shared --with-secure-transport --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb
+    HOST="${ARCH}-apple-darwin"
   fi
+  
+  ./configure --prefix="${CURRENTPATH}/bin/libcurl/${PLATFORM}${SDKVERSION}-${ARCH}.sdk" --host=${HOST} --enable-static --disable-shared --with-secure-transport --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb
 
   make -j${CORES}
   make install
@@ -79,7 +81,7 @@ build_arch_platform() {
 }
 
 # Build Catalyst (macOS) targets for arm64 and x86_64
-buildCatalyst() {
+build_catalyst() {
   build_arch_platform "arm64" "MacOSX"
   build_arch_platform "x86_64" "MacOSX"
   
@@ -91,12 +93,12 @@ buildCatalyst() {
 }
 
 # Build iOS target for arm64
-buildIOS() {
+build_iOS() {
   build_arch_platform "arm64" "iPhoneOS"
 }
 
 # Build iOS Simulator targets for arm64 and x86_64
-buildIOSSim() {
+build_iOS_simulator() {
   build_arch_platform "arm64" "iPhoneSimulator"
   build_arch_platform "x86_64" "iPhoneSimulator"
   
@@ -107,18 +109,22 @@ buildIOSSim() {
   lipo -create "${CURRENTPATH}/bin/libcurl/iPhoneSimulator${SDKVERSION}-x86_64.sdk/lib/libcurl.a" "${CURRENTPATH}/bin/libcurl/iPhoneSimulator${SDKVERSION}-arm64.sdk/lib/libcurl.a" -output "${CURRENTPATH}/bin/libcurl/iPhoneSimulator/libcurl.a"
 }
 
-createXCFramework() {
+create_XCFramework() {
   mkdir -p xcframework || true
   
   echo "${bold}Creating xcframework ${normal}"
   
-  xcodebuild -create-xcframework -library "${CURRENTPATH}/bin/libcurl/iPhoneSimulator/libcurl.a" -headers "${CURRENTPATH}/bin/libcurl/iPhoneSimulator${SDKVERSION}-arm64.sdk/include" \
-    -library "${CURRENTPATH}/bin/libcurl/iPhoneOS${SDKVERSION}-arm64.sdk/lib/libcurl.a" -headers "${CURRENTPATH}/bin/libcurl/iPhoneOS${SDKVERSION}-arm64.sdk/include" \
-        -library "${CURRENTPATH}/bin/libcurl/catalyst/libcurl.a" -headers "${CURRENTPATH}/bin/libcurl/MacOSX${SDKVERSION}-arm64.sdk/include" \
-        -output "${CURRENTPATH}/xcframework/libcurl.xcframework"
+  xcodebuild -create-xcframework \
+    -library "${CURRENTPATH}/bin/libcurl/iPhoneSimulator/libcurl.a" \
+    -headers "${CURRENTPATH}/bin/libcurl/iPhoneSimulator${SDKVERSION}-arm64.sdk/include" \
+    -library "${CURRENTPATH}/bin/libcurl/iPhoneOS${SDKVERSION}-arm64.sdk/lib/libcurl.a" \
+    -headers "${CURRENTPATH}/bin/libcurl/iPhoneOS${SDKVERSION}-arm64.sdk/include" \
+    -library "${CURRENTPATH}/bin/libcurl/catalyst/libcurl.a" \
+    -headers "${CURRENTPATH}/bin/libcurl/MacOSX${SDKVERSION}-arm64.sdk/include" \
+    -output "${CURRENTPATH}/xcframework/libcurl.xcframework"
 }
 
-cleanUp() {
+clean_up() {
   echo "${bold}Cleaning up ${normal}"
 
   rm -rf "curl-${CURL_VERSION}"
@@ -137,12 +143,12 @@ main() {
     curl -LO "https://curl.haxx.se/download/curl-${CURL_VERSION}.tar.gz"
   fi
 
-  buildCatalyst
-  buildIOS
-  buildIOSSim
+  build_catalyst
+  build_iOS
+  build_iOS_simulator
   
-  createXCFramework
-  cleanUp
+  create_XCFramework
+  clean_up
 }
 
 # Run the main build process
