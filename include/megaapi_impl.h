@@ -546,7 +546,7 @@ protected:
     bool IsStoppedOrCancelled(const std::string& name) const;
 
     // Create all local directories in one shot. This happens on the worker thread.
-    std::unique_ptr<TransferQueue> createFolderGenDownloadTransfersForFiles(FileSystemType fsType, uint32_t filesCount, Error& e);
+    std::unique_ptr<TransferQueue> createFolderGenDownloadTransfersForFiles(FileSystemType fsType, uint32_t fileCount, Error& e);
 
     // Iterate through all pending files, and adds all download transfers
     bool genDownloadTransfersForFiles(TransferQueue* transferQueue,
