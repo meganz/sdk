@@ -2362,7 +2362,7 @@ void MegaClient::exec()
                             || (pendingcs->mChunked && (reqs.chunkedProgress() || (pendingcs->in != "-3" && pendingcs->in != "-4"))))
                         {
                             if ((!pendingcs->mChunked && *pendingcs->in.c_str() == '[')
-                                || (pendingcs->mChunked && (reqs.chunkedProgress() || *pendingcs->in.c_str() == '[')))
+                                || (pendingcs->mChunked && (reqs.chunkedProgress() || *pendingcs->in.c_str() == '[' || pendingcs->in.empty())))
                             {
                                 CodeCounter::ScopeTimer ccst(performanceStats.csSuccessProcessingTime);
 
