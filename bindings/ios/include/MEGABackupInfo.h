@@ -90,6 +90,7 @@ typedef NS_ENUM (NSInteger, MEGABackupSubstate) {
     MEGABackupSubstateFailureAccessingPersistentStorage = 43,
     MEGABackupSubstateMismatchOfRootRSID = 44,
     MEGABackupSubstateFilesystemFileIdsAreUnstable = 45,
+    MEGABackupSubstateFilesystemIDUnavailable = 46
 };
 
 typedef NS_ENUM(NSUInteger, MEGABackupHeartbeatStatus) {
@@ -333,6 +334,9 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * - MEGABackupSubstateFilesystemFileIdsAreUnstable           = 45,
  *   On MAC, the FSID of a file in an exFAT drive can change frequently.
+ *
+ * - MEGABackupSubstateFilesystemIDUnavailable          = 46,
+ *   Could not get the filesystem's id
  *
  */
 @property (readonly, nonatomic) MEGABackupSubstate substate;
