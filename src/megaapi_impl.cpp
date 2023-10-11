@@ -27474,7 +27474,7 @@ MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFo
     return scanFolder_succeeded;
 }
 
-MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNode>& newnodes, int filecount, bool isBatchRootLevel)
+MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNode>& newnodes, uint32_t filecount, bool isBatchRootLevel)
 {
     assert(mMainThreadId == std::this_thread::get_id());
 
@@ -29011,7 +29011,7 @@ bool MegaFolderDownloadController::IsStoppedOrCancelled(const std::string& name)
 
 // Create all local directories in one shot (on the download worker thread)
 // for performance and reducing UI waiting time, we combine createFolder and transferQueue generating in one loop
-std::unique_ptr<TransferQueue> MegaFolderDownloadController::createFolderGenDownloadTransfersForFiles(FileSystemType fsType, int fileCount, Error &e)
+std::unique_ptr<TransferQueue> MegaFolderDownloadController::createFolderGenDownloadTransfersForFiles(FileSystemType fsType, uint32_t fileCount, Error &e)
 {
     unsigned created = 0;
     assert(mMainThreadId != std::this_thread::get_id());
