@@ -372,7 +372,7 @@ MegaNode *MegaNode::copy()
     return NULL;
 }
 
-int MegaNode::getType()
+int MegaNode::getType() const
 {
     return 0;
 }
@@ -472,7 +472,7 @@ int64_t MegaNode::getModificationTime()
     return 0;
 }
 
-MegaHandle MegaNode::getHandle()
+MegaHandle MegaNode::getHandle() const
 {
     return INVALID_HANDLE;
 }
