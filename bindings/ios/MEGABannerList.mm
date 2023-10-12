@@ -51,10 +51,6 @@ using namespace mega;
     }
 }
 
-- (instancetype)clone {
-    return self.megaBannerList ? [[MEGABannerList alloc] initWithMegaBannerList:self.megaBannerList->copy() cMemoryOwn:YES] : nil;
-}
-
 - (MEGABanner *)bannerAtIndex:(NSInteger)index {
     return self.megaBannerList ?
         [[MEGABanner alloc] initWithMegaBanner:self.megaBannerList->get((int)index)->copy() cMemoryOwn:YES] : nil;
