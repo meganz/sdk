@@ -677,7 +677,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
 #endif
     }
 
-    auto fas = syncs.fsaccess->newfileaccess(false);
+    auto fas = syncs.fsaccess->newfileaccess();
 
     // we do allow, eg. mounting an exFAT drive over an NTFS folder, and making a sync at that path
     bool reparsePointOkAtRoot = true;
@@ -11352,7 +11352,8 @@ void Syncs::syncLoop()
                     }
                     else if (fa->fsid != sync->localroot->fsid_lastSynced)
                     {
-                        LOG_err << "Sync local root folder fsid has changed: " << fa->fsid << " was: " << sync->localroot->fsid_lastSynced;
+                        LOG_err << "Sync local root folder fsid has changed for " << sync->localroot->localname << ": "
+                                << fa->fsid << " was: " << sync->localroot->fsid_lastSynced;
                         sync->changestate(MISMATCH_OF_ROOT_FSID, false, true, true);
                         continue;
                     }
