@@ -7801,4 +7801,11 @@ MegaCompleteUploadData* MegaCompleteUploadData::createInstance(const char* finge
                                              string64UploadToken ? string64UploadToken : "",
                                              string64FileKey ? string64FileKey : "");
 }
+MegaDimensionList::~MegaDimensionList() = default;
+
+MegaDimensionList* MegaDimensionList::createInstance(size_t n)
+{
+    return new MegaDimensionListPrivate(n);
+}
+
 }

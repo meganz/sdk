@@ -284,7 +284,7 @@ protected:
 
     // called from onTransferFinish for the last sub-transfer
     void complete(Error e, bool cancelledByUser = false);
-    
+
     // return true if thread is stopped or canceled by transfer token
     bool isStoppedOrCancelled(const std::string& name) const;
 
@@ -2793,6 +2793,18 @@ class MegaSyncStallListPrivate : public MegaSyncStallList
 };
 
 #endif // ENABLE_SYNC
+class MegaDimensionListPrivate : public MegaDimensionList
+{
+public:
+
+    MegaDimensionListPrivate(size_t n) : mDimensions(n) {}
+
+    void setDimension(size_t index, int width, int height) override;
+
+private:
+
+    std::vector<IGfxProvider::Dimension> mDimensions;
+};
 
 class MegaSearchFilterPrivate : public MegaSearchFilter
 {
@@ -2837,6 +2849,7 @@ class MegaApiImpl : public MegaApp
 {
     public:
         MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType);
+        MegaApiImpl(MegaApi *api, const char *appKey, std::unique_ptr<GfxProc> gfxproc, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType);
         virtual ~MegaApiImpl();
 
         static MegaApiImpl* ImplOf(MegaApi*);
@@ -3671,6 +3684,8 @@ public:
 
 private:
         void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, unsigned clientWorkerThreadCount /*= 1*/, int clientType);
+
+        void init(MegaApi *api, const char *appKey, std::unique_ptr<GfxProc> gfxproc, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, unsigned clientWorkerThreadCount /*= 1*/, int clientType);
 
         static void *threadEntryPoint(void *param);
 

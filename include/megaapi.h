@@ -253,6 +253,17 @@ public:
     virtual ~MegaGfxProcessor();
 };
 
+class MegaDimensionList
+{
+public:
+    virtual ~MegaDimensionList();
+
+    virtual void setDimension(size_t index, int width, int height) = 0;
+
+    static MegaDimensionList* createInstance(size_t n);
+};
+
+
 /**
  * @brief Contains the information related to a proxy server.
  *
@@ -9863,7 +9874,7 @@ class MegaApi
          */
         MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1, int clientType = CLIENT_TYPE_DEFAULT);
 
-#ifdef HAVE_MEGAAPI_RPC
+        #ifdef HAVE_MEGAAPI_RPC
         MegaApi();
 #endif
         virtual ~MegaApi();
@@ -23751,29 +23762,29 @@ public:
 
     /**
      * @brief Get the SlotIDs occupied by the user.
-     * 
+     *
      * The caller takes the ownership of the MegaIntegerList object.
-     * 
-     * @return A pointer to a MegaIntegerList with the SlotIDs. 
+     *
+     * @return A pointer to a MegaIntegerList with the SlotIDs.
      */
     virtual MegaIntegerList* getSlotIDs() const = 0;
 
     /**
      * @brief Get the list of the available VPN regions.
-     * 
+     *
      * This object is a copy of the one owned by the MegaVpnCredentials object.
      * The caller takes the ownership of the MegaStringList object.
-     * 
-     * @return A pointer to a MegaStringList with the VPN regions. 
+     *
+     * @return A pointer to a MegaStringList with the VPN regions.
      */
     virtual MegaStringList* getVpnRegions() const = 0;
 
     /**
      * @brief Get the IPv4 associated with the VPN credentials of a SlotID.
-     * 
+     *
      * The caller does not take the ownership of the const char* object.
      * The const char* object is valid as long as the current MegaVpnCredentials object is valid too.
-     * 
+     *
      * @param slotID The SlotID associated with the VPN credentials.
      * @return const char* with the IPv4 if the SlotID has a valid VPN credential, nullptr otherwise.
      */
@@ -23781,10 +23792,10 @@ public:
 
     /**
      * @brief Get the IPv6 associated with the VPN credentials of a SlotID.
-     * 
+     *
      * The caller does not take the ownership of the const char* object.
      * The const char* object is valid as long as the current MegaVpnCredentials object is valid too.
-     * 
+     *
      * @param slotID The SlotID associated with the VPN credentials.
      * @return const char* with the IPv6 if the SlotID has a valid VPN credential, nullptr otherwise.
      */
@@ -23806,10 +23817,10 @@ public:
 
     /**
      * @brief Get the ClusterID associated with the VPN credentials of a SlotID.
-     * 
+     *
      * The caller does not take the ownership of the const char* object.
      * The const char* object is valid as long as the current MegaVpnCredentials object is valid too.
-     * 
+     *
      * @param slotID The SlotID associated with the VPN credentials.
      * @return int with the ClusterID if the SlotID has a valid VPN credential, -1 otherwise.
      */
@@ -23817,10 +23828,10 @@ public:
 
     /**
      * @brief Get the Cluster Public Key associated with a ClusterID.
-     * 
+     *
      * The caller does not take the ownership of the const char* object.
      * The const char* object is valid as long as the current MegaVpnCredentials object is valid too.
-     * 
+     *
      * @param clusterID The ClusterID used on any of the VPN credentials.
      * @return const char* with the Cluster Public Key if the ClusterID exists, nullptr otherwise.
      */
@@ -23828,10 +23839,10 @@ public:
 
     /**
      * @brief Copy the MegaVpnCredentials object.
-     * 
+     *
      * This copy is meant to be used from another scope which must survive the actual owner of this MegaVpnCredentials object.
      * The caller takes the ownership of the new MegaVpnCredentials object.
-     * 
+     *
      * @return MegaVpnCredentials* with the copied MegaVpnCredentials object.
      */
     virtual MegaVpnCredentials* copy() const = 0;

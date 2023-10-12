@@ -113,7 +113,7 @@ void *GfxProc::threadEntryPoint(void *param)
 std::vector<Dimension> GfxProc::getJobDimensions(GfxJob *job)
 {
     std::vector<Dimension> jobDimensions;
-    for (auto i : job->imagetypes) 
+    for (auto i : job->imagetypes)
     {
         assert(i < DIMENSIONS.size());
         jobDimensions.push_back(DIMENSIONS[i]);

@@ -41,7 +41,8 @@ class GfxProviderExternal : public IGfxLocalProvider
     const char* supportedformats() override;
     const char* supportedvideoformats() override;
 public:
-    GfxProviderExternal();
+    GfxProviderExternal() : processor(nullptr) { };
+    GfxProviderExternal(MegaGfxProcessor *processor) : processor(processor) {};
     bool isgfx(string*);
     void setProcessor(MegaGfxProcessor *processor);
 };

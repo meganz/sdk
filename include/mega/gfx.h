@@ -74,7 +74,11 @@ public:
     struct Dimension final
     {
         Dimension(int w, int h) : width(w), height(h) {};
+
+        Dimension() : width(0), height(0) {};
+
         int width;
+
         int height;
     };
 

@@ -6026,6 +6026,13 @@ MegaSearchFilterPrivate* MegaSearchFilterPrivate::copy() const
 }
 
 
+void MegaDimensionListPrivate::setDimension(size_t index, int width, int height)
+{
+    auto& d = mDimensions.at(index);
+    d.width = width;
+    d.height = height;
+}
+
 //Entry point for the blocking thread
 void *MegaApiImpl::threadEntryPoint(void *param)
 {
@@ -6056,7 +6063,12 @@ MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* pro
     init(api, appKey, processor, basePath, userAgent, workerThreadCount, clientType);
 }
 
-void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned clientWorkerThreadCount, int clientType)
+MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, std::unique_ptr<GfxProc> gfxproc, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType)
+{
+    init(api, appKey, std::move(gfxproc), basePath, userAgent, workerThreadCount, int clientType);
+}
+
+void MegaApiImpl::init(MegaApi *api, const char *appKey, std::unique_ptr<GfxProc> gfxproc, const char *basePath, const char *userAgent, unsigned clientWorkerThreadCount, int clientType)
 {
     this->api = api;
 
@@ -6109,19 +6121,7 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
         this->basePath = basePath;
     }
 
-    gfxAccess = NULL;
-    if(processor)
-    {
-        auto externalGfx = ::mega::make_unique<GfxProviderExternal>();
-        externalGfx->setProcessor(processor);
-        gfxAccess = new GfxProc(std::move(externalGfx));
-        gfxAccess->startProcessingThread();
-    }
-    else
-    {
-        gfxAccess = new GfxProc(::mega::make_unique<MegaGfxProvider>());
-        gfxAccess->startProcessingThread();
-    }
+    gfxAccess = gfxproc.release();
 
     if(!userAgent)
     {
@@ -6143,6 +6143,18 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     threadExit = 0;
     thread = std::thread([this](){ threadEntryPoint(this); } );
     threadId = thread.get_id();
+}
+
+static std::unique_ptr<GfxProc> CreateGfxProc(MegaGfxProcessor* processor)
+{
+    return processor ?
+           ::mega::make_unique<GfxProc>(::mega::make_unique<GfxProviderExternal>(processor)) :
+           ::mega::make_unique<GfxProc>(::mega::make_unique<MegaGfxProvider>());
+}
+
+void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned clientWorkerThreadCount, int clientType)
+{
+    init(api, appKey, CreateGfxProc(processor), basePath, userAgent, clientWorkerThreadCount, clientType);
 }
 
 MegaApiImpl::~MegaApiImpl()
@@ -9231,7 +9243,7 @@ MegaTransferPrivate* MegaApiImpl::createDownloadTransfer(bool startFirst, MegaNo
     transfer->setCancelToken(cancelToken);
     transfer->setCollisionCheck(collisionCheck);
     transfer->setCollisionResolution(collisionResolution);
-    
+
     // cache fsType to transfer as get fsType on a network driver could be expensive
     transfer->setFileSystemType(fsType);
 
@@ -18694,8 +18706,8 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         wLocalPath.appendWithSeparator(LocalPath::fromRelativePath(""), true);
                     }
 
-                    FileSystemType fsType = transfer->getFileSystemType() != FileSystemType::FS_UNKNOWN 
-                                            ? transfer->getFileSystemType() 
+                    FileSystemType fsType = transfer->getFileSystemType() != FileSystemType::FS_UNKNOWN
+                                            ? transfer->getFileSystemType()
                                             : fsAccess->getlocalfstype(wLocalPath);
 
                     if (node)
