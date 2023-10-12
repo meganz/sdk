@@ -397,7 +397,7 @@ node_list NodeManager::getChildren_internal(const Node *parent, CancelToken canc
             parent->mNodePosition->second.mChildren = ::mega::make_unique<std::map<NodeHandle, Node*>>();
         }
 
-        for (auto nodeSerializedIt : nodesFromTable)
+        for (const auto& nodeSerializedIt : nodesFromTable)
         {
             if (cancelToken.isCancelled())
             {
@@ -433,13 +433,13 @@ node_list NodeManager::getChildren_internal(const Node *parent, CancelToken canc
     return childrenList;
 }
 
-node_vector NodeManager::getChildrenFromType(const Node* parent, nodetype_t type, CancelToken cancelToken)
+node_vector NodeManager::getChildrenFromType(const NodeHandle& parent, nodetype_t type, CancelToken cancelToken)
 {
     LockGuard g(mMutex);
     return getChildrenFromType_internal(parent, type, cancelToken);
 }
 
-node_vector NodeManager::getChildrenFromType_internal(const Node* parent, nodetype_t type, CancelToken cancelToken)
+node_vector NodeManager::getChildrenFromType_internal(const NodeHandle& parent, nodetype_t type, CancelToken cancelToken)
 {
     assert(mMutex.owns_lock());
 
@@ -449,7 +449,7 @@ node_vector NodeManager::getChildrenFromType_internal(const Node* parent, nodety
     }
 
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
-    mTable->getChildrenFromType(parent->nodeHandle(), type, nodesFromTable, cancelToken);
+    mTable->getChildrenFromType(parent, type, nodesFromTable, cancelToken);
 
     if (cancelToken.isCancelled())
     {

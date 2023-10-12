@@ -17622,16 +17622,11 @@ MegaNodeList* MegaApiImpl::getChildrenFromType(MegaNode* p, int type, int order,
 
     SdkMutexGuard guard(sdkMutex);
 
-    node_vector childrenNodes;
-    Node *parent = client->nodebyhandle(p->getHandle());
-    if (parent && parent->type != FILENODE)
-    {
-        childrenNodes = client->mNodeManager.getChildrenFromType(parent, static_cast<nodetype_t>(type), cancelToken);
+    node_vector childrenNodes = client->mNodeManager.getChildrenFromType(NodeHandle().set6byte(p->getHandle()), static_cast<nodetype_t>(type), cancelToken);
 
-        if (std::function<bool(Node*, Node*)> comparatorFunction = getComparatorFunction(order, *client))
-        {
-            std::sort(childrenNodes.begin(), childrenNodes.end(), comparatorFunction);
-        }
+    if (std::function<bool(Node*, Node*)> comparatorFunction = getComparatorFunction(order, *client))
+    {
+        std::sort(childrenNodes.begin(), childrenNodes.end(), comparatorFunction);
     }
 
     return new MegaNodeListPrivate(childrenNodes.data(), int(childrenNodes.size()));
