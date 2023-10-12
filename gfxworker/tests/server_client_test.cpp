@@ -132,15 +132,22 @@ TEST_F(ServerClientTest, ServerIsNotRunning)
     );
 }
 
-TEST_F(ServerClientTest, DISABLED_KeepLaunch)
+TEST_F(ServerClientTest, KeepLaunch)
 {
     std::vector<std::string> argv {
         "C:\\Users\\mega-cjr\\dev\\gitlab\\sdk\\build-x64-windows-mega\\Debug\\gfxworker.exe",
         "-l10" // keep alive for 10 seconds
     };
 
-    mega::AutoStartLauncher runner{std::move(argv)};
+    mega::AutoStartLauncher runner(
+        std::move(argv),
+        [](){
+            ::mega::gfx::GfxClient::create().runShutDown();
+        }
+    );
 
-    runner.launch();
-    runner.wait();
+    mega::GfxWorkerHelloBeater beater(std::chrono::seconds(5));
+
+    //std::this_thread::sleep_for(std::chrono::seconds(100000));
+    runner.shutDownOnce();
 }

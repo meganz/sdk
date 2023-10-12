@@ -20,7 +20,9 @@
  */
 
 #include "mega.h"
+#include "mega/gfx/worker/client.h"
 #include "megacli.h"
+#include <chrono>
 #include <fstream>
 #include <bitset>
 #include "mega/testhooks.h"
@@ -59,6 +61,7 @@
 #ifdef USE_FREEIMAGE
 #include "mega/gfx/freeimage.h"
 #endif
+#include "mega/gfx/isolatedprocess.h"
 
 #ifdef WIN32
 #include <winioctl.h>
@@ -9835,7 +9838,21 @@ int main(int argc, char* argv[])
     console = new CONSOLE_CLASS;
 
 #ifdef GFX_CLASS
-    auto gfx = new GfxProc(::mega::make_unique<GFX_CLASS>());
+    //auto gfx = new GfxProc(::mega::make_unique<GFX_CLASS>());
+    std::vector<std::string> arguments {
+        "C:\\Users\\mega-cjr\\dev\\gitlab\\sdk\\build-x64-windows-mega\\Debug\\gfxworker.exe",
+        "-l100" // keep alive for 10 seconds
+    };
+
+    auto gfx = new GfxProc(
+        ::mega::make_unique<::mega::GfxProviderIsolatedProcess>(
+            ::mega::make_unique<::mega::AutoStartLauncher>(
+                std::move(arguments),
+                [](){ ::mega::gfx::GfxClient::create().runShutDown();}
+            ),
+            ::mega::make_unique<::mega::GfxWorkerHelloBeater>(std::chrono::seconds(5))
+        )
+    );
     gfx->startProcessingThread();
 #else
     mega::GfxProc* gfx = nullptr;
@@ -11516,7 +11533,7 @@ void exec_getvpncredentials(autocomplete::ACState& s)
         }
     }
     bool showVpnRegions = !s.extractflag("-noregions");
-    
+
     client->getVpnCredentials([slotID, showVpnRegions]
             (const Error& e,
             CommandGetVpnCredentials::MapSlotIDToCredentialInfo&& mapSlotIDToCredentialInfo, /* Map of SlotID: { ClusterID, IPv4, IPv6, DeviceID } */
@@ -11626,7 +11643,7 @@ void exec_getvpncredentials(autocomplete::ACState& s)
                     }
                     cout << "'" << endl;
                 }
-                
+
             });
 }
 
