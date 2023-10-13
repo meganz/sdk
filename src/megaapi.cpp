@@ -4170,6 +4170,11 @@ char *MegaApi::base32ToBase64(const char *base32)
     return result;
 }
 
+MegaNodeList* MegaApi::search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
+{
+    return pImpl->search(filter, order, convertToCancelToken(cancelToken));
+}
+
 MegaNodeList* MegaApi::search(MegaNode* n, const char* searchString, bool recursive, int order)
 {
     return pImpl->search(n, searchString, CancelToken(), recursive, order);

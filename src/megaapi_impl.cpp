@@ -11883,6 +11883,190 @@ char* strcasestr(const char* string, const char* substring)
 
 #endif
 
+MegaNodeList* MegaApiImpl::search(const MegaSearchFilter* filter, int order, CancelToken cancelToken)
+{
+    if (!filter)
+    {
+        return new MegaNodeListPrivate();
+    }
+
+    node_vector searchResults;
+
+    // search
+    {
+        SdkMutexGuard g(sdkMutex);
+
+        switch (filter->byLocation())
+        {
+        case MegaApi::SEARCH_TARGET_ALL:
+            searchResults = searchInNodeManager(filter, cancelToken);
+            break;
+        case MegaApi::SEARCH_TARGET_ROOTNODE:
+            searchResults = searchTopLevelNodesExclRubbish(filter, cancelToken);
+            break;
+        case MegaApi::SEARCH_TARGET_INSHARE:
+            searchResults = searchInshares(filter, cancelToken);
+            break;
+        case MegaApi::SEARCH_TARGET_OUTSHARE:
+            searchResults = searchOutshares(filter, cancelToken);
+            break;
+        case MegaApi::SEARCH_TARGET_PUBLICLINK:
+            searchResults = searchPublicLinks(filter, cancelToken);
+            break;
+        default:
+            LOG_err << "Search not implemented for Location " << filter->byLocation();
+        }
+    } // end scope for mutex guard
+
+    // order
+    sortByComparatorFunction(searchResults, order, *client);
+    MegaNodeListPrivate* nodeList = new MegaNodeListPrivate(searchResults.data(), int(searchResults.size()));
+
+    return nodeList;
+}
+
+node_vector MegaApiImpl::searchTopLevelNodesExclRubbish(const MegaSearchFilter* filter, CancelToken cancelToken)
+{
+    // Search on rootnodes (Cloud and Vault, excluding Rubbish)
+    if (client->mNodeManager.getRootNodeFiles().isUndef())
+    {
+        return node_vector();
+    }
+
+    // make a copy as it will need to be modified
+    std::unique_ptr<MegaSearchFilter> f(filter->copy());
+    f->byLocationHandle(client->mNodeManager.getRootNodeFiles().as8byte());
+
+    node_vector searchResults = searchInNodeManager(f.get(), cancelToken);
+
+    if (!client->mNodeManager.getRootNodeVault().isUndef())
+    {
+        f->byLocationHandle(client->mNodeManager.getRootNodeVault().as8byte());
+        node_vector vaultResults = searchInNodeManager(f.get(), cancelToken);
+        searchResults.insert(searchResults.end(), vaultResults.begin(), vaultResults.end());
+    }
+
+    return searchResults;
+}
+
+node_vector MegaApiImpl::searchInshares(const MegaSearchFilter* filter, CancelToken cancelToken)
+{
+    // make a copy as it will need to be modified
+    std::unique_ptr<MegaSearchFilter> f(filter->copy());
+
+    // find in-shares themselves
+    node_vector results = client->mNodeManager.getInSharesWithName(f->byName(), cancelToken);
+
+    // Search in each inshare
+    unique_ptr<MegaShareList> shares(getInSharesList(MegaApi::ORDER_NONE));
+    for (int i = 0; i < shares->size() && !cancelToken.isCancelled(); i++)
+    {
+        Node* node = client->nodebyhandle(shares->get(i)->getNodeHandle());
+        assert(node);
+        if (node)
+        {
+            f->byLocationHandle(node->nodehandle);
+            node_vector inEachShare = searchInNodeManager(f.get(), cancelToken);
+            results.insert(results.end(), inEachShare.begin(), inEachShare.end());
+        }
+    }
+
+    return results;
+}
+
+node_vector MegaApiImpl::searchOutshares(const MegaSearchFilter* filter, CancelToken cancelToken)
+{
+    // make a copy as it will need to be modified
+    std::unique_ptr<MegaSearchFilter> f(filter->copy());
+
+    // find out-shares themselves
+    node_vector results = client->mNodeManager.getOutSharesWithName(f->byName(), cancelToken);
+
+    // Search in each outshare
+    std::set<MegaHandle> outsharesHandles;
+    unique_ptr<MegaShareList> shares(getOutShares(MegaApi::ORDER_NONE));
+    for (int i = 0; i < shares->size() && !cancelToken.isCancelled(); i++)
+    {
+        handle h = shares->get(i)->getNodeHandle();
+        if (outsharesHandles.find(h) != outsharesHandles.end())
+        {
+            // shares list includes an item per outshare AND per sharee/user
+            continue;   // avoid duplicates
+        }
+        outsharesHandles.insert(h);
+        Node* node = client->nodebyhandle(shares->get(i)->getNodeHandle());
+        assert(node);
+        if (node)
+        {
+            f->byLocationHandle(node->nodehandle);
+            node_vector inEachShare = searchInNodeManager(f.get(), cancelToken);
+            results.insert(results.end(), inEachShare.begin(), inEachShare.end());
+        }
+    }
+
+    return results;
+}
+
+node_vector MegaApiImpl::searchPublicLinks(const MegaSearchFilter* filter, CancelToken cancelToken)
+{
+    // make a copy as it will need to be modified
+    std::unique_ptr<MegaSearchFilter> f(filter->copy());
+
+    // find public links themselves
+    node_vector results = client->mNodeManager.getPublicLinksWithName(f->byName(), cancelToken);
+
+    // Search under each public link
+    node_vector publicLinks = client->mNodeManager.getNodesWithLinks();
+    for (const auto& p : publicLinks)
+    {
+        Node* node = client->nodebyhandle(p->nodehandle);
+        assert(node);
+        if (node)
+        {
+            f->byLocationHandle(node->nodehandle);
+            node_vector underEachLink = searchInNodeManager(f.get(), cancelToken);
+            results.insert(results.end(), underEachLink.begin(), underEachLink.end());
+        }
+    }
+
+    return results;
+}
+
+node_vector MegaApiImpl::searchInNodeManager(const MegaSearchFilter* filter, CancelToken cancelToken)
+{
+    bool hasNameFilter = filter->byName() && *filter->byName();
+    Node::Flags excludeRecursiveFlags = Node::Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE, filter->bySensitivity());
+
+    if (!hasNameFilter && filter->byCategory() == MegaApi::FILE_TYPE_DEFAULT)
+    {
+        return client->mNodeManager.getNodesByMimeType(static_cast<MimeType_t>(filter->byCategory()),
+                                                       NodeHandle().set6byte(filter->byLocationHandle()),
+                                                       Node::Flags(), Node::Flags(), excludeRecursiveFlags, cancelToken);
+    }
+    else
+    {
+        // when no name filter was used, search all nodes
+        static const char searchAll[] = "*";
+        const char* nameFilter = hasNameFilter ? filter->byName() : searchAll;
+
+        node_vector results = client->mNodeManager.search(NodeHandle().set6byte(filter->byLocationHandle()), nameFilter, true,
+                                                          Node::Flags(), Node::Flags(), excludeRecursiveFlags, cancelToken);
+
+        // filter further
+        node_vector filtered;
+        filtered.reserve(results.size());
+        for (auto it = results.begin(); it != results.end() && !cancelToken.isCancelled(); ++it)
+        {
+            if (isValidTypeNode(*it, filter->byCategory()))
+            {
+                filtered.push_back(*it);
+            }
+        }
+
+        return filtered;
+    }
+}
+
 MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, CancelToken cancelToken, bool recursive, int order, int mimeType, int target, bool includeSensitive)
 {
     Node::Flags requiredFlags;
@@ -12005,7 +12189,6 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
         {
             // always recursive
             assert(recursive);
-            // ignores mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags
 
             // find in-shares themselves
             node_vector nodeVector = client->mNodeManager.getInSharesWithName(searchString, cancelToken);
@@ -12028,7 +12211,6 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
         {
             // always recursive
             assert(recursive);
-            // ignores mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags
 
             // find out-shares themselves
             node_vector nodeVector = client->mNodeManager.getOutSharesWithName(searchString, cancelToken);
@@ -12059,7 +12241,6 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
         {
             // always recursive
             assert(recursive);
-            // ignores mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags
 
             // find public links themselves
             node_vector nodeVector = client->mNodeManager.getPublicLinksWithName(searchString, cancelToken);

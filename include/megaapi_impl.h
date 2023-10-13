@@ -2975,9 +2975,22 @@ class MegaApiImpl : public MegaApp
         MegaRecentActionBucketList* getRecentActions(unsigned days = 90, unsigned maxnodes = 500);
         void getRecentActionsAsync(unsigned days, unsigned maxnodes, MegaRequestListener *listener = NULL);
 
+        MegaNodeList* search(const MegaSearchFilter* filter, int order, CancelToken cancelToken);
+
+        // deprecated
         MegaNodeList* search(MegaNode *node, const char *searchString, CancelToken cancelToken, bool recursive = true, int order = MegaApi::ORDER_NONE, int mimeType = MegaApi::FILE_TYPE_DEFAULT, int target = MegaApi::SEARCH_TARGET_ALL, bool includeSensitive = true);
+
+    private:
+        node_vector searchTopLevelNodesExclRubbish(const MegaSearchFilter* filter, CancelToken cancelToken);
+        node_vector searchInshares(const MegaSearchFilter* filter, CancelToken cancelToken);
+        node_vector searchOutshares(const MegaSearchFilter* filter, CancelToken cancelToken);
+        node_vector searchPublicLinks(const MegaSearchFilter* filter, CancelToken cancelToken);
+        node_vector searchInNodeManager(const MegaSearchFilter* filter, CancelToken cancelToken);
+
+        // deprecated
         MegaNodeList* searchWithFlags(MegaNode* node, const char* searchString, CancelToken cancelToken, bool recursive, int order, int mimeType = MegaApi::FILE_TYPE_DEFAULT, int target = MegaApi::SEARCH_TARGET_ALL, Node::Flags requiredFlags = Node::Flags(), Node::Flags excludeFlags = Node::Flags(), Node::Flags excludeRecursiveFlags = Node::Flags());
 
+    public:
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
 
         MegaNode *createForeignFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime, const char* fingerprintCrc,
@@ -3315,6 +3328,7 @@ private:
         void processTransferFailed(Transfer *tr, MegaTransferPrivate *transfer, const Error &e, dstime timeleft);
         void processTransferRemoved(Transfer *tr, MegaTransferPrivate *transfer, const Error &e);
 
+        // deprecated
         // if seachString == "" type must not be default
         node_vector searchInNodeManager(MegaHandle nodeHandle, const char* searchString, int mimeType, bool recursive, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelToken);
 
