@@ -8949,6 +8949,132 @@ public:
     virtual ~MegaInputStream();
 };
 
+/**
+ * @brief Store filtering options used in searches @see MegaApi::search, MegaApi::getChildren.
+ *
+ */
+class MegaSearchFilter
+{
+protected:
+    MegaSearchFilter();
+
+public:
+    /**
+     * @brief Creates a new instance of MegaSearchFilter
+     * @return A pointer of current type, a superclass of the private object
+     */
+    static MegaSearchFilter* createInstance();
+
+    /**
+     * @brief Create a copy of this instance.
+     *
+     * The resulted instance is fully independent of the source instance,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original instance was deleted.
+     *
+     * You are the owner of the returned instance
+     *
+     * @return Copy of the current instance
+     */
+    virtual MegaSearchFilter* copy() const;
+
+    virtual ~MegaSearchFilter();
+
+    /**
+     * @brief Set option for filtering by name.
+     *
+     * @param searchString Contains a name or an expression using wildcards.
+     */
+    virtual void byName(const char* searchString);
+
+    /**
+     * @brief Set option for filtering by predefined node types.
+     * If not set, it will behave as FILE_TYPE_DEFAULT was used.
+     *
+     * @param mimeType Type of nodes requested in the search
+     * Valid values for this parameter are (invalid values will be ignored):
+     * - MegaApi::FILE_TYPE_DEFAULT = 0  --> all types
+     * - MegaApi::FILE_TYPE_PHOTO = 1
+     * - MegaApi::FILE_TYPE_AUDIO = 2
+     * - MegaApi::FILE_TYPE_VIDEO = 3
+     * - MegaApi::FILE_TYPE_PDF = 4
+     * - MegaApi::FILE_TYPE_PRESENTATION = 5
+     * - MegaApi::FILE_TYPE_ARCHIVE = 6
+     * - MegaApi::FILE_TYPE_PROGRAM = 7
+     * - MegaApi::FILE_TYPE_MISC = 8
+     */
+    virtual void byCategory(int mimeType);
+
+    /**
+     * @brief Set option for filtering out sensitive nodes.
+     * If not set, sensitive nodes will also be considered in searches.
+     *
+     * @param excludeSensitive Set to true to filter out sensitive nodes
+     */
+    virtual void bySensitivity(bool excludeSensitive);
+
+    /**
+     * @brief Set option for retrieving nodes below a particular ancestor.
+     * If not set, nodes will not be restricted to a particular ancestor.
+     *
+     * @note When called, it will cancel any previous setting done by calling byLocation().
+     *
+     * @param ancestorHandle Handle of an acestor to which the search will be restricted to
+     */
+    virtual void byLocationHandle(MegaHandle ancestorHandle);
+
+    /**
+     * @brief Set option for retrieving nodes below a particular predefined location.
+     * If not set, nodes will not be restricted to a particular location and it will behave like using SEARCH_TARGET_ALL.
+     *
+     * @note When called, it will cancel any previous setting done by calling byLocationHandle().
+     *
+     * @param locationType Location to which the search will be restricted to
+     * Valid values for this parameter are (invalid values will be ignored):
+     * - SEARCH_TARGET_INSHARE = 0
+     * - SEARCH_TARGET_OUTSHARE = 1
+     * - SEARCH_TARGET_PUBLICLINK = 2
+     * - SEARCH_TARGET_ROOTNODE = 3 --> search in Cloud and Vault rootnodes
+     * - SEARCH_TARGET_ALL = 4
+     */
+    virtual void byLocation(int locationType);
+
+    /**
+     * @brief Return the string used for filtering by name.
+     *
+     * @return string set for filtering by name, or empty string ("") if not set
+     */
+    virtual const char* byName() const;
+
+    /**
+     * @brief Return predefined category used for filtering.
+     *
+     * @return predefined category set for filtering, or FILE_TYPE_DEFAULT if not set
+     */
+    virtual int byCategory() const;
+
+    /**
+     * @brief Return the option for filtering out sensitive nodes.
+     *
+     * @return option set for filtering out sensitive nodes, or false if not set
+     */
+    virtual bool bySensitivity() const;
+
+    /**
+     * @brief Return ancestor handle set for restricting node search to.
+     *
+     * @return ancestor handle set for restricting node search to, or INVALID_HANDLE if not set
+     */
+    virtual MegaHandle byLocationHandle() const;
+
+    /**
+     * @brief Return predefined location set for restricting node search to.
+     *
+     * @return predefined location set for restricting node search to, or SEARCH_TARGET_ALL if not set
+     */
+    virtual int byLocation() const;
+};
+
 class MegaApiImpl;
 
 /**

@@ -6570,6 +6570,70 @@ MegaInputStream::~MegaInputStream()
 
 }
 
+
+MegaSearchFilter::MegaSearchFilter()
+{
+}
+
+MegaSearchFilter* MegaSearchFilter::createInstance()
+{
+    return new MegaSearchFilterPrivate();
+}
+
+MegaSearchFilter* MegaSearchFilter::copy() const
+{
+    return nullptr;
+}
+
+MegaSearchFilter::~MegaSearchFilter()
+{
+}
+
+void MegaSearchFilter::byName(const char* /*searchString*/)
+{
+}
+
+void MegaSearchFilter::byCategory(int /*mimeType*/)
+{
+}
+
+void MegaSearchFilter::bySensitivity(bool /*excludeSensitive*/)
+{
+}
+
+void MegaSearchFilter::byLocationHandle(MegaHandle /*ancestorHandle*/)
+{
+}
+
+void MegaSearchFilter::byLocation(int /*locationType*/)
+{
+}
+
+const char* MegaSearchFilter::byName() const
+{
+    return nullptr;
+}
+
+int MegaSearchFilter::byCategory() const
+{
+    return MegaApi::FILE_TYPE_DEFAULT;
+}
+
+bool MegaSearchFilter::bySensitivity() const
+{
+    return false;
+}
+
+MegaHandle MegaSearchFilter::byLocationHandle() const
+{
+    return INVALID_HANDLE;
+}
+
+int MegaSearchFilter::byLocation() const
+{
+    return MegaApi::SEARCH_TARGET_ALL;
+}
+
 MegaApiLock::MegaApiLock(MegaApiImpl* ptr, bool lock) : api(ptr)
 {
     if (lock)

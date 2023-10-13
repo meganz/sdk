@@ -5673,6 +5673,54 @@ void MegaFilePut::terminated(error e)
     delete this;
 }
 
+
+void MegaSearchFilterPrivate::byName(const char* searchString)
+{
+    mNameFilter = searchString ? searchString : string();
+}
+
+void MegaSearchFilterPrivate::byCategory(int mimeType)
+{
+    assert(MegaApi::FILE_TYPE_DEFAULT <= mimeType && mimeType <= MegaApi::FILE_TYPE_LAST);
+    if (mimeType < MegaApi::FILE_TYPE_DEFAULT || MegaApi::FILE_TYPE_LAST < mimeType)
+    {
+        LOG_warn << "Invalid mimeType for SearchFilter: " << mimeType << ". Ignored.";
+        return;
+    }
+
+    mMimeCategory = mimeType;
+}
+
+void MegaSearchFilterPrivate::bySensitivity(bool excludeSensitive)
+{
+    mExcludeSensitive = excludeSensitive;
+}
+
+void MegaSearchFilterPrivate::byLocationHandle(MegaHandle ancestorHandle)
+{
+    mLocationHandle = ancestorHandle;
+    mLocationType = MegaApi::SEARCH_TARGET_ALL;
+}
+
+void MegaSearchFilterPrivate::byLocation(int locationType)
+{
+    assert(MegaApi::SEARCH_TARGET_INSHARE <= locationType && locationType <= MegaApi::SEARCH_TARGET_ALL);
+    if (locationType < MegaApi::SEARCH_TARGET_INSHARE || MegaApi::SEARCH_TARGET_ALL < locationType)
+    {
+        LOG_warn << "Invalid locationType for SearchFilter: " << locationType << ". Ignored.";
+        return;
+    }
+
+    mLocationType = locationType;
+    mLocationHandle = INVALID_HANDLE;
+}
+
+MegaSearchFilterPrivate* MegaSearchFilterPrivate::copy() const
+{
+    return new MegaSearchFilterPrivate(*this);
+}
+
+
 //Entry point for the blocking thread
 void *MegaApiImpl::threadEntryPoint(void *param)
 {

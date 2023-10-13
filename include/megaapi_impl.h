@@ -2475,6 +2475,32 @@ class TransferQueue
 };
 
 
+class MegaSearchFilterPrivate : public MegaSearchFilter
+{
+public:
+    MegaSearchFilterPrivate* copy() const override;
+
+    void byName(const char* searchString) override;
+    void byCategory(int mimeType) override;
+    void bySensitivity(bool excludeSensitive) override;
+    void byLocationHandle(MegaHandle ancestorHandle) override;
+    void byLocation(int locationType) override;
+
+    const char* byName() const override { return mNameFilter.c_str(); }
+    int byCategory() const override { return mMimeCategory; }
+    bool bySensitivity() const override { return mExcludeSensitive; }
+    MegaHandle byLocationHandle() const override { return mLocationHandle; }
+    int byLocation() const override { return mLocationType; }
+
+private:
+    std::string mNameFilter;
+    int mMimeCategory = MegaApi::FILE_TYPE_DEFAULT;
+    bool mExcludeSensitive = false;
+    MegaHandle mLocationHandle = INVALID_HANDLE;
+    int mLocationType = MegaApi::SEARCH_TARGET_ALL;
+};
+
+
 class MegaApiImpl : public MegaApp
 {
     public:
