@@ -17727,6 +17727,52 @@ int MegaApiImpl::getNumChildFolders(MegaNode* p)
 }
 
 
+MegaNodeList *MegaApiImpl::getChildren(const MegaSearchFilter* filter, int order, CancelToken cancelToken)
+{
+    // validations
+    if (!filter || filter->byLocationHandle() == INVALID_HANDLE)
+    {
+        assert(filter && filter->byLocationHandle() != INVALID_HANDLE);
+        return new MegaNodeListPrivate();
+    }
+
+    // NodeManager::getChildrenFromType() is probably more efficient, but it cannot be used with complex filters,
+    // fallback to NodeManager::search() for name filters
+    bool lookupUsingGetChildrenFromType = !(filter->byName() && *filter->byName());
+
+    node_vector children;
+    { // scope for mutex guard
+        SdkMutexGuard guard(sdkMutex);
+        if (lookupUsingGetChildrenFromType)
+        {
+            // file children of a particular parent, without name filter --> then filter by Category and Sensitivity
+            children = client->mNodeManager.getChildrenFromType(NodeHandle().set6byte(filter->byLocationHandle()), FILENODE, cancelToken);
+        }
+        else
+        {
+            // file children under various locations, and/or filtered by name --> then filter by Category
+            Node::Flags excludeRecursiveFlags = Node::Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE, filter->bySensitivity());
+            children = client->mNodeManager.search(NodeHandle().set6byte(filter->byLocationHandle()), filter->byName(), false,
+                                                   Node::Flags(), Node::Flags(), excludeRecursiveFlags, cancelToken);
+        }
+    }
+
+    node_vector results;
+    // apply the extra filters
+    for (auto it = children.begin(); it != children.end(); ++it)
+    {
+        Node* child = *it;
+        if (isValidTypeNode(child, filter->byCategory()) && // filter by category
+            (!lookupUsingGetChildrenFromType || (!child->isSensitiveInherited() || !filter->bySensitivity()))) // filter by sensitivity
+        {
+            results.push_back(child);
+        }
+    }
+
+    sortByComparatorFunction(results, order, *client);
+    return new MegaNodeListPrivate(results.data(), int(results.size()));
+}
+
 MegaNodeList *MegaApiImpl::getChildren(const MegaNode* p, int order, CancelToken cancelToken)
 {
     if (!p || p->getType() == MegaNode::TYPE_FILE)
