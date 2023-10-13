@@ -29,6 +29,7 @@
 #include "megaapi_impl.h"
 #include "megaapi.h"
 #include "mega/mediafileattribute.h"
+#include "mega/gfx/isolatedprocess.h"
 
 #include <iomanip>
 #include <algorithm>
@@ -60,6 +61,35 @@
 
 #include "mega/mega_zxcvbn.h"
 
+namespace {
+
+using ::mega::IGfxProvider;
+using ::mega::MegaGfxProcessor;
+using ::mega::GfxProc;
+using ::mega::GfxProviderExternal;
+
+std::unique_ptr<IGfxProvider> createInternalGfxProvider()
+{
+#if USE_FREEIMAGE
+    return ::mega::make_unique<::mega::GfxProviderFreeImage>();
+#elif TARGET_OS_IPHONE
+    return ::mega::make_unique<::mega::GfxProviderCG>();
+#else
+    return nullptr;
+#endif
+}
+
+std::unique_ptr<GfxProc> createGfxProc(MegaGfxProcessor* processor)
+{
+    // createInternalGfxProvider could return nullptr
+    std::unique_ptr<IGfxProvider> provider = processor ?
+                                             ::mega::make_unique<GfxProviderExternal>(processor) :
+                                             createInternalGfxProvider();
+
+    return provider ? ::mega::make_unique<GfxProc>(std::move(provider)) : nullptr;
+}
+
+}
 namespace mega {
 
 MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, uint64_t nodehandle,
@@ -4965,7 +4995,7 @@ void MegaStringListPrivate::add(const char *value)
     }
 }
 
-const string_vector& MegaStringListPrivate::getVector()
+const string_vector& MegaStringListPrivate::getVector() const
 {
     return mList;
 }
@@ -6033,6 +6063,26 @@ void MegaDimensionListPrivate::setDimension(size_t index, int width, int height)
     d.height = height;
 }
 
+const std::vector<IGfxProvider::Dimension>& MegaDimensionListPrivate::getDimensions() const
+{
+    return mDimensions;
+}
+
+std::unique_ptr<MegaGfxProviderPrivate> MegaGfxProviderPrivate::createIsolatedInstance(const std::vector<std::string>& arguments)
+{
+    return ::mega::make_unique<MegaGfxProviderPrivate>(::mega::GfxProviderIsolatedProcess::create(arguments));
+}
+
+std::unique_ptr<MegaGfxProviderPrivate> MegaGfxProviderPrivate::createExternalInstance(MegaGfxProcessor* processor)
+{
+    return ::mega::make_unique<MegaGfxProviderPrivate>(::mega::make_unique<GfxProviderExternal>(processor));
+}
+
+std::unique_ptr<MegaGfxProviderPrivate> MegaGfxProviderPrivate::createInternalInstance()
+{
+    return ::mega::make_unique<MegaGfxProviderPrivate>(createInternalGfxProvider());
+}
+
 //Entry point for the blocking thread
 void *MegaApiImpl::threadEntryPoint(void *param)
 {
@@ -6063,9 +6113,17 @@ MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* pro
     init(api, appKey, processor, basePath, userAgent, workerThreadCount, clientType);
 }
 
+MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProvider* provider, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType)
+{
+    auto p = dynamic_cast<MegaGfxProviderPrivate*>(provider);
+    auto iProvider = p ? p->takeProvider() : nullptr;
+    auto gfxproc = iProvider ? ::mega::make_unique<GfxProc>(std::move(iProvider)) : nullptr;
+    init(api, appKey, std::move(gfxproc), basePath, userAgent, workerThreadCount, clientType);
+}
+
 MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, std::unique_ptr<GfxProc> gfxproc, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType)
 {
-    init(api, appKey, std::move(gfxproc), basePath, userAgent, workerThreadCount, int clientType);
+    init(api, appKey, std::move(gfxproc), basePath, userAgent, workerThreadCount, clientType);
 }
 
 void MegaApiImpl::init(MegaApi *api, const char *appKey, std::unique_ptr<GfxProc> gfxproc, const char *basePath, const char *userAgent, unsigned clientWorkerThreadCount, int clientType)
@@ -6145,16 +6203,9 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, std::unique_ptr<GfxProc
     threadId = thread.get_id();
 }
 
-static std::unique_ptr<GfxProc> CreateGfxProc(MegaGfxProcessor* processor)
-{
-    return processor ?
-           ::mega::make_unique<GfxProc>(::mega::make_unique<GfxProviderExternal>(processor)) :
-           ::mega::make_unique<GfxProc>(::mega::make_unique<MegaGfxProvider>());
-}
-
 void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned clientWorkerThreadCount, int clientType)
 {
-    init(api, appKey, CreateGfxProc(processor), basePath, userAgent, clientWorkerThreadCount, clientType);
+    init(api, appKey, createGfxProc(processor), basePath, userAgent, clientWorkerThreadCount, clientType);
 }
 
 MegaApiImpl::~MegaApiImpl()

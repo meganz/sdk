@@ -263,6 +263,18 @@ public:
     static MegaDimensionList* createInstance(size_t n);
 };
 
+class MegaGfxProvider
+{
+public:
+
+    virtual ~MegaGfxProvider();
+
+    static MegaGfxProvider* createIsolatedInstance(const MegaStringList* arguments);
+
+    static MegaGfxProvider* createExternalInstance(MegaGfxProcessor* processor);
+
+    static MegaGfxProvider* createInternalInstance();
+};
 
 /**
  * @brief Contains the information related to a proxy server.
@@ -9873,6 +9885,8 @@ class MegaApi
          *
          */
         MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1, int clientType = CLIENT_TYPE_DEFAULT);
+
+        MegaApi(const char *appKey, MegaGfxProvider* provider, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1, int clientType = CLIENT_TYPE_DEFAULT);
 
         #ifdef HAVE_MEGAAPI_RPC
         MegaApi();

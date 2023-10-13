@@ -105,6 +105,22 @@ const char* GfxProviderIsolatedProcess::supportedvideoformats()
     return nullptr;
 }
 
+std::unique_ptr<GfxProviderIsolatedProcess> GfxProviderIsolatedProcess::create(const std::vector<string>& arguments) {
+
+    // a function to shutdown the isolated process
+    auto shutdowner = []() { ::mega::gfx::GfxClient::create().runShutDown(); };
+
+    auto launcher = ::mega::make_unique<::mega::AutoStartLauncher>(
+        arguments,
+        shutdowner);
+
+    auto beater = ::mega::make_unique<::mega::GfxWorkerHelloBeater>(std::chrono::seconds(5));
+
+    return ::mega::make_unique<::mega::GfxProviderIsolatedProcess>(
+                std::move(launcher),
+                std::move(beater));
+}
+
 bool AutoStartLauncher::startUntilSuccess(reproc::process& process)
 {
     std::chrono::milliseconds backOff(100);

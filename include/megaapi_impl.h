@@ -2176,7 +2176,7 @@ public:
     const char* get(int i) const override;
     int size() const override;
     void add(const char* value) override;
-    const string_vector& getVector();
+    const string_vector& getVector() const;
 protected:
     MegaStringListPrivate(const MegaStringListPrivate& stringList) = default;
     string_vector mList;
@@ -2801,6 +2801,8 @@ public:
 
     void setDimension(size_t index, int width, int height) override;
 
+    const std::vector<IGfxProvider::Dimension>& getDimensions() const;
+
 private:
 
     std::vector<IGfxProvider::Dimension> mDimensions;
@@ -2845,10 +2847,35 @@ private:
 };
 
 
+class MegaGfxProviderPrivate : public MegaGfxProvider
+{
+public:
+    MegaGfxProviderPrivate(std::unique_ptr<::mega::IGfxProvider> provider) : mProvider(std::move(provider)) {}
+
+    // MegaStringList* generateImages(const char* localPath,
+    //                                const MegaDimensionList* dimensionList) override;
+
+    // const char* supportedformats() override;
+
+    // const char* supportedvideoformats() override;
+
+    std::unique_ptr<::mega::IGfxProvider> takeProvider() { return std::move(mProvider); }
+
+    static std::unique_ptr<MegaGfxProviderPrivate> createIsolatedInstance(const std::vector<std::string>& arguments);
+
+    static std::unique_ptr<MegaGfxProviderPrivate> createExternalInstance(MegaGfxProcessor* processor);
+
+    static std::unique_ptr<MegaGfxProviderPrivate> createInternalInstance();
+
+private:
+    std::unique_ptr<::mega::IGfxProvider> mProvider;
+};
+
 class MegaApiImpl : public MegaApp
 {
     public:
         MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType);
+        MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProvider* provider, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType);
         MegaApiImpl(MegaApi *api, const char *appKey, std::unique_ptr<GfxProc> gfxproc, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType);
         virtual ~MegaApiImpl();
 

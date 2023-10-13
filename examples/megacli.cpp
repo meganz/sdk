@@ -9843,16 +9843,7 @@ int main(int argc, char* argv[])
         "C:\\Users\\mega-cjr\\dev\\gitlab\\sdk\\build-x64-windows-mega\\Debug\\gfxworker.exe",
         "-l100" // keep alive for 10 seconds
     };
-
-    auto gfx = new GfxProc(
-        ::mega::make_unique<::mega::GfxProviderIsolatedProcess>(
-            ::mega::make_unique<::mega::AutoStartLauncher>(
-                std::move(arguments),
-                [](){ ::mega::gfx::GfxClient::create().runShutDown();}
-            ),
-            ::mega::make_unique<::mega::GfxWorkerHelloBeater>(std::chrono::seconds(5))
-        )
-    );
+    auto gfx = new GfxProc(::mega::GfxProviderIsolatedProcess::create(arguments));
     gfx->startProcessingThread();
 #else
     mega::GfxProc* gfx = nullptr;

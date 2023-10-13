@@ -41,8 +41,8 @@ public:
 class AutoStartLauncher : public ILauncher
 {
 public:
-    AutoStartLauncher(std::vector<std::string>&& argv, std::function<void()> shutdowner) :
-        mArgv(std::move(argv)),
+    AutoStartLauncher(const std::vector<std::string>& argv, std::function<void()> shutdowner) :
+        mArgv(argv),
         mShuttingDown(false),
         mThreadIsRunning(false),
         mShutdowner(std::move(shutdowner))
@@ -123,6 +123,8 @@ public:
     const char* supportedformats() override;
 
     const char* supportedvideoformats() override;
+
+    static std::unique_ptr<GfxProviderIsolatedProcess> create(const std::vector<string>& arguments);
 
 private:
 
