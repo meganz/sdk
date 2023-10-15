@@ -37,12 +37,6 @@ public:
 
     explicit TimeoutMs(Type milliseconds) : mValue(milliseconds) { }
 
-    static const TimeoutMs forever()
-    {
-        static TimeoutMs period(std::numeric_limits<Type>::max());
-        return period;
-    }
-
 #ifdef _WIN32
     explicit operator DWORD() const
     {
@@ -54,6 +48,7 @@ private:
 
     Type mValue;
 };
+
 class IReader
 {
 public:
