@@ -37,6 +37,17 @@ const std::vector<Dimension> GfxProc::DIMENSIONS_AVATAR = {
     { 250, 0 }      // AVATAR250X250: square thumbnail, cropped from near center
 };
 
+std::unique_ptr<IGfxProvider> IGfxProvider::createInternalGfxProvider()
+{
+#if USE_FREEIMAGE
+    return ::mega::make_unique<::mega::GfxProviderFreeImage>();
+#elif TARGET_OS_IPHONE
+    return ::mega::make_unique<::mega::GfxProviderCG>();
+#else
+    return nullptr;
+#endif
+}
+
 bool GfxProc::isgfx(const LocalPath& localfilename)
 {
     const char* supported;

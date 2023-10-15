@@ -96,6 +96,8 @@ public:
 
     // list of supported video extensions (NULL if no pre-filtering is needed)
     virtual const char* supportedvideoformats() = 0;
+
+    static std::unique_ptr<IGfxProvider> createInternalGfxProvider();
 };
 
 // Interface for the local graphic processor provider

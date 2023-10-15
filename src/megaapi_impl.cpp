@@ -68,23 +68,12 @@ using ::mega::MegaGfxProcessor;
 using ::mega::GfxProc;
 using ::mega::GfxProviderExternal;
 
-std::unique_ptr<IGfxProvider> createInternalGfxProvider()
-{
-#if USE_FREEIMAGE
-    return ::mega::make_unique<::mega::GfxProviderFreeImage>();
-#elif TARGET_OS_IPHONE
-    return ::mega::make_unique<::mega::GfxProviderCG>();
-#else
-    return nullptr;
-#endif
-}
-
 std::unique_ptr<GfxProc> createGfxProc(MegaGfxProcessor* processor)
 {
     // createInternalGfxProvider could return nullptr
     std::unique_ptr<IGfxProvider> provider = processor ?
                                              ::mega::make_unique<GfxProviderExternal>(processor) :
-                                             createInternalGfxProvider();
+                                             IGfxProvider::createInternalGfxProvider();
 
     return provider ? ::mega::make_unique<GfxProc>(std::move(provider)) : nullptr;
 }
@@ -6080,7 +6069,7 @@ std::unique_ptr<MegaGfxProviderPrivate> MegaGfxProviderPrivate::createExternalIn
 
 std::unique_ptr<MegaGfxProviderPrivate> MegaGfxProviderPrivate::createInternalInstance()
 {
-    return ::mega::make_unique<MegaGfxProviderPrivate>(createInternalGfxProvider());
+    return ::mega::make_unique<MegaGfxProviderPrivate>(IGfxProvider::createInternalGfxProvider());
 }
 
 //Entry point for the blocking thread
