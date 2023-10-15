@@ -5703,10 +5703,10 @@ void exec_open(autocomplete::ACState& s)
         if (!clientFolder)
         {
             using namespace mega;
-#ifdef GFX_CLASS
-            auto gfx = new GfxProc(::mega::make_unique<GFX_CLASS>());
-            gfx->startProcessingThread();
-#endif
+
+            auto provider = IGfxProvider::createInternalGfxProvider();
+            GfxProc* gfx = provider ? new GfxProc(std::move(provider)) : nullptr;
+            if (gfx) gfx->startProcessingThread();
 
             // create a new MegaClient with a different MegaApp to process callbacks
             // from the client logged into a folder. Reuse the waiter and httpio
@@ -5718,11 +5718,7 @@ void exec_open(autocomplete::ACState& s)
                 #else
                                           NULL,
                 #endif
-                #ifdef GFX_CLASS
                                           gfx,
-                #else
-                                          NULL,
-                #endif
                                           "Gk8DyQBS",
                                           "megacli_folder/" TOSTRING(MEGA_MAJOR_VERSION)
                                           "." TOSTRING(MEGA_MINOR_VERSION)
@@ -9837,17 +9833,9 @@ int main(int argc, char* argv[])
 
     console = new CONSOLE_CLASS;
 
-#ifdef GFX_CLASS
-    //auto gfx = new GfxProc(::mega::make_unique<GFX_CLASS>());
-    std::vector<std::string> arguments {
-        "C:\\Users\\mega-cjr\\dev\\gitlab\\sdk\\build-x64-windows-mega\\Debug\\gfxworker.exe",
-        "-l100" // keep alive for 10 seconds
-    };
-    auto gfx = new GfxProc(::mega::GfxProviderIsolatedProcess::create(arguments));
-    gfx->startProcessingThread();
-#else
-    mega::GfxProc* gfx = nullptr;
-#endif
+    auto provider = IGfxProvider::createInternalGfxProvider();
+    mega::GfxProc* gfx = provider ? new GfxProc(std::move(provider)) : nullptr;
+    if (gfx) gfx->startProcessingThread();
 
     // Needed so we can get the cwd.
     auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
