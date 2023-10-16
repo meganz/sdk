@@ -3726,7 +3726,7 @@ TEST_F(SdkTest, SdkTestShares)
 
     std::unique_ptr<MegaNode> n1(megaApi[0]->getNodeByHandle(hfolder1));
     ASSERT_NE(n1.get(), nullptr);
-    long long inSharedNodeCount = 1;
+    unsigned long long inSharedNodeCount = 1;
 
     char foldername2[64] = "subfolder";
     MegaHandle hfolder2 = createFolder(0, foldername2, std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder1)}.get());
@@ -3822,7 +3822,7 @@ TEST_F(SdkTest, SdkTestShares)
         if (!areCredentialsVerified(1, mApi[0].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));}
     }
 
-    long long ownedNodeCount = megaApi[1]->getNumNodes();
+    auto ownedNodeCount = megaApi[1]->getNumNodes();
 
     // upload a file, just to test node counters
     bool check1;
@@ -3838,7 +3838,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_TRUE(waitForResponse(&check1)) << "Node update not received after " << maxTimeout << " seconds";
     // important to reset
     resetOnNodeUpdateCompletionCBs();
-    long long nodeCountAfterNewOwnedFile = megaApi[1]->getNumNodes();
+    auto nodeCountAfterNewOwnedFile = megaApi[1]->getNumNodes();
     ASSERT_EQ(ownedNodeCount + 1, nodeCountAfterNewOwnedFile);
     ownedNodeCount = nodeCountAfterNewOwnedFile;
     ASSERT_EQ(check1, true);
@@ -3896,7 +3896,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_TRUE(n->isInShare()) << "Wrong sharing information at incoming share";
     ASSERT_TRUE(n->isShared()) << "Wrong sharing information at incoming share";
 
-    long long nodeCountAfterInShares = megaApi[1]->getNumNodes();
+    auto nodeCountAfterInShares = megaApi[1]->getNumNodes();
     ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterInShares);
 
     // --- Move share file from different subtree, same file and fingerprint ---
@@ -4006,12 +4006,12 @@ TEST_F(SdkTest, SdkTestShares)
     // important to reset
     resetOnNodeUpdateCompletionCBs();
     inSharedNodeCount += 2;
-    long long nodesAtFolderDummyname2 = 1; // Take account own node
+    unsigned long long nodesAtFolderDummyname2 = 1; // Take account own node
     ASSERT_EQ(check1, true);
     ASSERT_EQ(check2, true);
 
 
-    long long nodeCountAfterInSharesAddedDummyFolders = megaApi[1]->getNumNodes();
+    auto nodeCountAfterInSharesAddedDummyFolders = megaApi[1]->getNumNodes();
     ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterInSharesAddedDummyFolders);
 
     // check the corresponding user alert
@@ -4059,7 +4059,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(check1, true);
     ASSERT_EQ(check2, true);
 
-    long long nodeCountAfterInSharesAddedDummyFile = megaApi[1]->getNumNodes();
+    auto nodeCountAfterInSharesAddedDummyFile = megaApi[1]->getNumNodes();
     ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterInSharesAddedDummyFile);
 
     // move a folder outside share
@@ -4077,7 +4077,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(check1, true);
     ASSERT_EQ(check2, true);
 
-    long long nodeCountAfterInSharesRemovedDummyFolder1 = megaApi[1]->getNumNodes();
+    auto nodeCountAfterInSharesRemovedDummyFolder1 = megaApi[1]->getNumNodes();
     ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterInSharesRemovedDummyFolder1);
 
     // add a nested share
@@ -4095,7 +4095,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(check2, true);
 
     // number of nodes should not change, because this node is a nested share
-    long long nodeCountAfterInSharesAddedNestedSubfolder = megaApi[1]->getNumNodes();
+    auto nodeCountAfterInSharesAddedNestedSubfolder = megaApi[1]->getNumNodes();
     ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterInSharesAddedNestedSubfolder);
 
     // Stop share main folder (Shared-folder)
@@ -4112,7 +4112,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(check2, true);
 
     // number of nodes own cloud + nodes at nested in-share
-    long long nodeCountAfterRemoveMainInshare = megaApi[1]->getNumNodes();
+    auto nodeCountAfterRemoveMainInshare = megaApi[1]->getNumNodes();
     ASSERT_EQ(ownedNodeCount + nodesAtFolderDummyname2, nodeCountAfterRemoveMainInshare);
 
     // Share again main folder (Shared-folder)
@@ -4129,7 +4129,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(check2, true);
 
     // number of nodes own cloud + nodes at nested in-share
-    long long nodeCountAfterShareN1 = megaApi[1]->getNumNodes();
+    auto nodeCountAfterShareN1 = megaApi[1]->getNumNodes();
     ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterShareN1);
 
     // remove nested share
@@ -4147,7 +4147,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(check2, true);
 
     // number of nodes should not change, because this node was a nested share
-    long long nodeCountAfterInSharesRemovedNestedSubfolder = megaApi[1]->getNumNodes();
+    auto nodeCountAfterInSharesRemovedNestedSubfolder = megaApi[1]->getNumNodes();
     ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterInSharesRemovedNestedSubfolder);
 
     // --- Modify the access level of an outgoing share ---
@@ -4212,7 +4212,7 @@ TEST_F(SdkTest, SdkTestShares)
         delete list;
     }
 
-    long long nodeCountAfterRevokedSharesAccess = megaApi[1]->getNumNodes();
+    auto nodeCountAfterRevokedSharesAccess = megaApi[1]->getNumNodes();
     ASSERT_EQ(ownedNodeCount, nodeCountAfterRevokedSharesAccess);
 
     // --- Get pending outgoing shares ---
@@ -14314,6 +14314,7 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
  * This test is valid for both FREE and PRO testing accounts.
  * If the testing account is FREE, the request results are adjusted to the API error expected in those cases.
  *
+ * 0) DELETE existing credentials. Generally, none should be present.
  * 1) GET the MEGA VPN regions.
  * 2) Choose one of the regions above to PUT a new VPN credential. It should return:
  *     - The SlotID where the credential has been created.
@@ -14336,6 +14337,38 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     int result;
+
+    // 0) Delete any existing credentials (most times there won't be any)
+    {
+        std::unique_ptr<MegaVpnCredentials> megaVpnCredentials;
+        result = doGetVpnCredentials(0, megaVpnCredentials);
+
+        if (result == API_OK)
+        {
+            ASSERT_NE(megaVpnCredentials, nullptr);
+
+            // Get SlotIDs
+            {
+                std::unique_ptr<MegaIntegerList> slotIDsList;
+                slotIDsList.reset(megaVpnCredentials->getSlotIDs());
+                ASSERT_NE(slotIDsList, nullptr);
+                ASSERT_NE(slotIDsList->size(), 0);
+
+                for (int i = 0; i < slotIDsList->size(); ++i)
+                {
+                    int slotID = static_cast<int>(slotIDsList->get(i));
+                    result = doDelVpnCredential(0, slotID);
+                    ASSERT_EQ(API_OK, result) << "deleting the VPN credentials from the slotID " << slotID << " failed";
+                }
+            }
+
+            // Check credentials again
+            result = doGetVpnCredentials(0, megaVpnCredentials);
+            ASSERT_EQ(API_ENOENT, result) << "there should not be any credentials left after deleting them";
+            ASSERT_EQ(megaVpnCredentials, nullptr) << "credentials have been deleted, but MegaVpnCredentials object is not NULL";
+        }
+    }
+
     // 1) Get VPN regions to choose one of them
     {
         std::unique_ptr<MegaStringList> vpnRegions;
@@ -14394,12 +14427,11 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
                 ASSERT_TRUE(megaVpnCredentials != nullptr) << "MegaVpnCredentials is NULL";
 
                 // Get SlotIDs - it should not be empty
-                // We don't check whether there should be only ONE slotID, as we could have more slots on this account
                 {
                     std::unique_ptr<MegaIntegerList> slotIDsList;
                     slotIDsList.reset(megaVpnCredentials->getSlotIDs());
                     ASSERT_TRUE(slotIDsList) << "MegaIntegerList of slotIDs is NULL";
-                    ASSERT_TRUE(slotIDsList->size()) << "slotIDs list is empty";
+                    ASSERT_EQ(slotIDsList->size(), 1) << "slotIDs list should have 1 credential";
                 }
 
                 // Get IPv4

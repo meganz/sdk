@@ -145,7 +145,10 @@ void FileAttributeFetchChannel::parse(int /*fac*/, bool final)
                 SymmCipher *cipher = client->getRecycledTemporaryNodeCipher(&it->second->nodekey);
                 if (cipher)
                 {
-                    cipher->cbc_decrypt((byte*)ptr, falen);
+                    if (!cipher->cbc_decrypt((byte*)ptr, falen))
+                    {
+                        LOG_err << "Failed to CBC decrypt file attributes";
+                    }
                     client->app->fa_complete(it->second->nodehandle, it->second->type, ptr, falen);
                 }
 
