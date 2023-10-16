@@ -58,7 +58,7 @@ void QTMegaTransferListener::onTransferTemporaryError(MegaApi *api, MegaTransfer
 
 void mega::QTMegaTransferListener::onFolderTransferUpdate(mega::MegaApi* api, mega::MegaTransfer* transfer, int stage, uint32_t foldercount, uint32_t createdfoldercount, uint32_t filecount, const char*, const char*)
 {
-    QtMegaFolderEvent* event = new QtMegaFolderEvent(api, (QEvent::Type)QTMegaEvent::onTransferFolderUpdate);
+    QtMegaFolderEvent* event = new QtMegaFolderEvent(api, (QEvent::Type)QTMegaEvent::OnTransferFolderUpdate);
     event->setTransfer(transfer->copy());
     event->stage = stage;
     event->foldercount = foldercount;
@@ -81,7 +81,7 @@ void QTMegaTransferListener::customEvent(QEvent *e)
         case QTMegaEvent::OnTransferUpdate:
             if(listener) listener->onTransferUpdate(event->getMegaApi(), event->getTransfer());
             break;
-        case QTMegaEvent::onTransferFolderUpdate:
+        case QTMegaEvent::OnTransferFolderUpdate:
             if (listener)
             {
                 if (auto folderEvent = dynamic_cast<QtMegaFolderEvent*>(e))
