@@ -2861,7 +2861,8 @@ public:
 
     std::unique_ptr<::mega::IGfxProvider> takeProvider() { return std::move(mProvider); }
 
-    static std::unique_ptr<MegaGfxProviderPrivate> createIsolatedInstance(const std::vector<std::string>& arguments);
+    static std::unique_ptr<MegaGfxProviderPrivate> createIsolatedInstance(const std::vector<std::string>& arguments,
+                                                                          const std::string& pipename);
 
     static std::unique_ptr<MegaGfxProviderPrivate> createExternalInstance(MegaGfxProcessor* processor);
 

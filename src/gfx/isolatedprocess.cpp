@@ -23,7 +23,7 @@ void GfxWorkerHelloBeater::beat()
         bool isCancelled = mSleeper.sleep(std::chrono::duration_cast<std::chrono::milliseconds>(mPeriod));
         if (!isCancelled)
         {
-            auto gfxclient = GfxClient::create();
+            auto gfxclient = GfxClient::create(mPipename);
             gfxclient.runHello("beat");
         }
     }
@@ -50,9 +50,11 @@ GfxWorkerHelloBeater::~GfxWorkerHelloBeater()
 
 GfxProviderIsolatedProcess::GfxProviderIsolatedProcess(
     std::unique_ptr<ILauncher> launcher,
-    std::unique_ptr<IHelloBeater> beater)
+    std::unique_ptr<IHelloBeater> beater,
+    const std::string& pipename)
     : mLauncher(std::move(launcher))
     , mBeater(std::move(beater))
+    , mPipename(pipename)
 {
     assert(mLauncher);
     assert(mBeater);
@@ -78,7 +80,7 @@ std::vector<std::string> GfxProviderIsolatedProcess::generateImages(
     // default return
     std::vector<std::string> images(dimensions.size());
 
-    auto gfxclient = GfxClient::create();
+    auto gfxclient = GfxClient::create(mPipename);
     gfxclient.runGfxTask(localfilepath.toPath(false), std::move(sizes), images);
 
     return images;
@@ -105,20 +107,24 @@ const char* GfxProviderIsolatedProcess::supportedvideoformats()
     return nullptr;
 }
 
-std::unique_ptr<GfxProviderIsolatedProcess> GfxProviderIsolatedProcess::create(const std::vector<string>& arguments) {
+std::unique_ptr<GfxProviderIsolatedProcess> GfxProviderIsolatedProcess::create(
+    const std::vector<string>& arguments,
+    const std::string& pipename)
+{
 
     // a function to shutdown the isolated process
-    auto shutdowner = []() { ::mega::gfx::GfxClient::create().runShutDown(); };
+    auto shutdowner = [pipename]() { ::mega::gfx::GfxClient::create(pipename).runShutDown(); };
 
     auto launcher = ::mega::make_unique<::mega::AutoStartLauncher>(
         arguments,
         shutdowner);
 
-    auto beater = ::mega::make_unique<::mega::GfxWorkerHelloBeater>(std::chrono::seconds(5));
+    auto beater = ::mega::make_unique<::mega::GfxWorkerHelloBeater>(std::chrono::seconds(5), pipename);
 
     return ::mega::make_unique<::mega::GfxProviderIsolatedProcess>(
                 std::move(launcher),
-                std::move(beater));
+                std::move(beater),
+                pipename);
 }
 
 bool AutoStartLauncher::startUntilSuccess(reproc::process& process)

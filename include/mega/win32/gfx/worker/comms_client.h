@@ -21,9 +21,9 @@ using OnClientConnectedFunc = std::function<void(std::unique_ptr<IEndpoint> endp
 class WinGfxCommunicationsClient : public IGfxCommunicationsClient
 {
 public:
-    WinGfxCommunicationsClient(OnClientConnectedFunc onConnected, const std::string& pipename = "mega_gfxworker")
-        : mOnConnected(std::move(onConnected))
-        , mPipename(pipename)
+    WinGfxCommunicationsClient(const std::string& pipename, OnClientConnectedFunc onConnected)
+        : mPipename(pipename)
+        , mOnConnected(std::move(onConnected))
     {
 
     }
@@ -33,9 +33,9 @@ public:
 private:
     HANDLE connect(LPCTSTR pipeName);
 
-    OnClientConnectedFunc mOnConnected;
-
     std::string mPipename;
+
+    OnClientConnectedFunc mOnConnected;
 };
 
 } // end of namespace

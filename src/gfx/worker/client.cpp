@@ -71,12 +71,12 @@ bool GfxClient::runGfxTask(const std::string& localpath, std::vector<GfxSize> si
     }
 }
 
-GfxClient GfxClient::create()
+GfxClient GfxClient::create(const std::string& pipename)
 {
 #ifdef _WIN32
-    return GfxClient(mega::make_unique<WinGfxCommunicationsClient>([](std::unique_ptr<IEndpoint> _) {}));
+    return GfxClient(mega::make_unique<WinGfxCommunicationsClient>(pipename, [](std::unique_ptr<IEndpoint> _) {}));
 #else
-    return GfxClient(nullptr);
+    return GfxClient(pipename, nullptr);
 #endif
 }
 

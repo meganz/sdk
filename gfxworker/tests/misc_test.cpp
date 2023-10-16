@@ -19,5 +19,5 @@ TEST(Misc, CancelableSleeperCanBecancelledInNoTime)
 
 TEST(Misc, GfxWorkerHelloBeaterCanGracefullyShutdownInNoTime)
 {
-    mega::GfxWorkerHelloBeater beater(std::chrono::seconds(24*60*60)); //absolute long
+    mega::GfxWorkerHelloBeater beater(std::chrono::seconds(24*60*60), "__"); //absolute long
 }

@@ -60,7 +60,7 @@ TEST_F(ServerClientTest, gfxTask)
 
     EXPECT_TRUE(
         GfxClient(
-            mega::make_unique<WinGfxCommunicationsClient>([](std::unique_ptr<IEndpoint> _) {}, mPipename)
+            mega::make_unique<WinGfxCommunicationsClient>(mPipename, [](std::unique_ptr<IEndpoint> _) {})
         ).runGfxTask(jpgImage.toPath(false), sizes, images)
     );
     EXPECT_EQ(images.size(), 2);
@@ -71,13 +71,13 @@ TEST_F(ServerClientTest, gfxTask)
     pngImage.appendWithSeparator(LocalPath::fromRelativePath("Screenshot.png"), false);
     EXPECT_TRUE(
         GfxClient(
-            mega::make_unique<WinGfxCommunicationsClient>([](std::unique_ptr<IEndpoint> _) {}, mPipename)
+            mega::make_unique<WinGfxCommunicationsClient>(mPipename, [](std::unique_ptr<IEndpoint> _) {})
         ).runGfxTask(jpgImage.toPath(false), sizes, images)
     );
 
     EXPECT_TRUE(
         GfxClient(
-            mega::make_unique<WinGfxCommunicationsClient>([](std::unique_ptr<IEndpoint> _) {}, mPipename)
+            mega::make_unique<WinGfxCommunicationsClient>(mPipename, [](std::unique_ptr<IEndpoint> _) {})
         ).runShutDown()
     );
 
@@ -101,13 +101,13 @@ TEST_F(ServerClientTest, hello)
 
     EXPECT_TRUE(
         GfxClient(
-            mega::make_unique<WinGfxCommunicationsClient>([](std::unique_ptr<IEndpoint> _) {}, mPipename)
+            mega::make_unique<WinGfxCommunicationsClient>(mPipename, [](std::unique_ptr<IEndpoint> _) {})
         ).runHello("")
     );
 
     EXPECT_TRUE(
         GfxClient(
-            mega::make_unique<WinGfxCommunicationsClient>([](std::unique_ptr<IEndpoint> _) {}, mPipename)
+            mega::make_unique<WinGfxCommunicationsClient>(mPipename, [](std::unique_ptr<IEndpoint> _) {})
         ).runShutDown()
     );
 
@@ -127,7 +127,7 @@ TEST_F(ServerClientTest, ServerIsNotRunning)
 
     EXPECT_FALSE(
         GfxClient(
-            mega::make_unique<WinGfxCommunicationsClient>([](std::unique_ptr<IEndpoint> _) {}, mPipename)
+            mega::make_unique<WinGfxCommunicationsClient>(mPipename, [](std::unique_ptr<IEndpoint> _) {})
         ).runGfxTask("anyimagename.jpg", sizes, images)
     );
 }
@@ -136,17 +136,18 @@ TEST_F(ServerClientTest, KeepLaunch)
 {
     std::vector<std::string> argv {
         "C:\\Users\\mega-cjr\\dev\\gitlab\\sdk\\build-x64-windows-mega\\Debug\\gfxworker.exe",
-        "-l10" // keep alive for 10 seconds
+        "-l10",             // keep alive for 10 seconds
+        "-n" + mPipename,   // pipe name
     };
 
     mega::AutoStartLauncher runner(
         std::move(argv),
-        [](){
-            ::mega::gfx::GfxClient::create().runShutDown();
+        [this](){
+            ::mega::gfx::GfxClient::create(this->mPipename).runShutDown();
         }
     );
 
-    mega::GfxWorkerHelloBeater beater(std::chrono::seconds(5));
+    mega::GfxWorkerHelloBeater beater(std::chrono::seconds(5), mPipename);
 
     //std::this_thread::sleep_for(std::chrono::seconds(100000));
     runner.shutDownOnce();

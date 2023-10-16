@@ -6057,9 +6057,11 @@ const std::vector<IGfxProvider::Dimension>& MegaDimensionListPrivate::getDimensi
     return mDimensions;
 }
 
-std::unique_ptr<MegaGfxProviderPrivate> MegaGfxProviderPrivate::createIsolatedInstance(const std::vector<std::string>& arguments)
+std::unique_ptr<MegaGfxProviderPrivate> MegaGfxProviderPrivate::createIsolatedInstance(
+    const std::vector<std::string>& arguments,
+    const std::string& pipename)
 {
-    return ::mega::make_unique<MegaGfxProviderPrivate>(::mega::GfxProviderIsolatedProcess::create(arguments));
+    return ::mega::make_unique<MegaGfxProviderPrivate>(::mega::GfxProviderIsolatedProcess::create(arguments, pipename));
 }
 
 std::unique_ptr<MegaGfxProviderPrivate> MegaGfxProviderPrivate::createExternalInstance(MegaGfxProcessor* processor)

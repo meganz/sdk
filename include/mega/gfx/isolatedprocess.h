@@ -88,7 +88,9 @@ public:
 class GfxWorkerHelloBeater : public IHelloBeater
 {
 public:
-    GfxWorkerHelloBeater(const std::chrono::seconds& period) : mPeriod(period)
+    GfxWorkerHelloBeater(const std::chrono::seconds& period, const std::string& pipename)
+        : mPeriod(period)
+        , mPipename(pipename)
     {
         mThread = std::thread(&GfxWorkerHelloBeater::beat, this);
     }
@@ -107,6 +109,8 @@ private:
     CancellableSleeper mSleeper;
 
     std::chrono::seconds mPeriod;
+
+    std::string mPipename;
 };
 
 class GfxProviderIsolatedProcess : public IGfxProvider
@@ -114,7 +118,8 @@ class GfxProviderIsolatedProcess : public IGfxProvider
 public:
 
     GfxProviderIsolatedProcess(std::unique_ptr<ILauncher> launcher,
-                               std::unique_ptr<IHelloBeater> beater);
+                               std::unique_ptr<IHelloBeater> beater,
+                               const std::string& pipename);
 
     std::vector<std::string> generateImages(FileSystemAccess* fa,
                                             const LocalPath& localfilepath,
@@ -124,7 +129,8 @@ public:
 
     const char* supportedvideoformats() override;
 
-    static std::unique_ptr<GfxProviderIsolatedProcess> create(const std::vector<string>& arguments);
+    static std::unique_ptr<GfxProviderIsolatedProcess> create(const std::vector<string>& arguments,
+                                                              const std::string& pipename);
 
 private:
 
@@ -135,6 +141,8 @@ private:
     std::unique_ptr<ILauncher> mLauncher;
 
     std::unique_ptr<IHelloBeater> mBeater;
+
+    std::string mPipename;
 };
 
 

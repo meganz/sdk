@@ -269,7 +269,8 @@ public:
 
     virtual ~MegaGfxProvider();
 
-    static MegaGfxProvider* createIsolatedInstance(const MegaStringList* arguments);
+    static MegaGfxProvider* createIsolatedInstance(const MegaStringList* arguments,
+                                                   const char* pipename);
 
     static MegaGfxProvider* createExternalInstance(MegaGfxProcessor* processor);
 
