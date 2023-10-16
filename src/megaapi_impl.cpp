@@ -18204,6 +18204,10 @@ CollisionChecker::Result CollisionChecker::check(std::function<FileAccess*()> fa
         return CompareLocalFileMetaMac(fa, fileNode);
     };
 
+    if (!fileNode) {
+        return CollisionChecker::Result::NotYet;
+    }
+
     return check(
         fingerprintEqualF,
         metaMacFunc,
