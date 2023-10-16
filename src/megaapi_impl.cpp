@@ -6168,7 +6168,10 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, std::unique_ptr<GfxProc
         this->basePath = basePath;
     }
 
-    gfxAccess = gfxproc.release();
+    if (gfxAccess = gfxproc.release())
+    {
+        gfxAccess->startProcessingThread();
+    }
 
     if(!userAgent)
     {
