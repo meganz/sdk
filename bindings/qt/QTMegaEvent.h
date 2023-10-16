@@ -26,6 +26,7 @@ public:
         OnTransferStart,
         OnTransferTemporaryError,
         OnTransferUpdate,
+        onTransferFolderUpdate,
         OnTransferFinish,
         OnUsersUpdate,
         OnUserAlertsUpdate,
