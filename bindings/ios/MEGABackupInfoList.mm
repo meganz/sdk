@@ -57,8 +57,8 @@ using namespace mega;
     return self.backupInfoList ? [[MEGABackupInfo alloc] initWithMegaBackupInfo:self.backupInfoList->get((int)index)->copy() cMemoryOwn:YES] : nil;
 }
 
-- (NSNumber *)size {
-    return self.backupInfoList ? [[NSNumber alloc] initWithInt:self.backupInfoList->size()] : nil;
+- (NSInteger)size {
+    return self.backupInfoList ? self.backupInfoList->size() : -1;
 }
 
 @end
