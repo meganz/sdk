@@ -3954,4 +3954,39 @@ using namespace mega;
     }
 }
 
+#pragma mark - VPN
+
+- (void)getVpnRegionsWithDelegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->getVpnRegions([self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (void)getVpnCredentialsWithDelegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->getVpnCredentials([self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (void)putVpnCredentialWithRegion:(NSString *)region delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        const char *cRegion = [region UTF8String];
+        self.megaApi->putVpnCredential(cRegion, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (void)delVpnCredentialWithSlotID:(NSInteger)slotID delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->delVpnCredential((int)slotID, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (void)checkVpnCredentialWithUserPubKey:(NSString *)userPubKey delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        const char *cUserPubKey = [userPubKey UTF8String];
+        self.megaApi->checkVpnCredential(cUserPubKey, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+
 @end
