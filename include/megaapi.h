@@ -270,7 +270,8 @@ public:
     virtual ~MegaGfxProvider();
 
     static MegaGfxProvider* createIsolatedInstance(const MegaStringList* arguments,
-                                                   const char* pipename);
+                                                   const char* pipename,
+                                                   unsigned int beatIntervalSeconds);
 
     static MegaGfxProvider* createExternalInstance(MegaGfxProcessor* processor);
 

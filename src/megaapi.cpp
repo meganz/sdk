@@ -7816,12 +7816,19 @@ MegaDimensionList* MegaDimensionList::createInstance(size_t n)
 MegaGfxProvider::~MegaGfxProvider() = default;
 
 
-MegaGfxProvider* MegaGfxProvider::createIsolatedInstance(const MegaStringList* arguments, const char* pipename)
+MegaGfxProvider* MegaGfxProvider::createIsolatedInstance(
+    const MegaStringList* arguments,
+    const char* pipename,
+    unsigned int beatIntervalSeconds)
 {
     auto p = dynamic_cast<const MegaStringListPrivate*>(arguments);
     if (!p) return nullptr;
 
-    auto provider = MegaGfxProviderPrivate::createIsolatedInstance(p->getVector(), std::string(pipename));
+    auto provider = MegaGfxProviderPrivate::createIsolatedInstance(
+        p->getVector(),
+        std::string(pipename),
+        beatIntervalSeconds);
+
     return provider.release();
 }
 

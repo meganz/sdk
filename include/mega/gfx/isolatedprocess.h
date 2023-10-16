@@ -130,7 +130,8 @@ public:
     const char* supportedvideoformats() override;
 
     static std::unique_ptr<GfxProviderIsolatedProcess> create(const std::vector<string>& arguments,
-                                                              const std::string& pipename);
+                                                              const std::string& pipename,
+                                                              unsigned int beatIntervalSeconds);
 
 private:
 

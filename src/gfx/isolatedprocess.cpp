@@ -109,7 +109,8 @@ const char* GfxProviderIsolatedProcess::supportedvideoformats()
 
 std::unique_ptr<GfxProviderIsolatedProcess> GfxProviderIsolatedProcess::create(
     const std::vector<string>& arguments,
-    const std::string& pipename)
+    const std::string& pipename,
+    unsigned int beatIntervalSeconds)
 {
 
     // a function to shutdown the isolated process
@@ -119,7 +120,7 @@ std::unique_ptr<GfxProviderIsolatedProcess> GfxProviderIsolatedProcess::create(
         arguments,
         shutdowner);
 
-    auto beater = ::mega::make_unique<::mega::GfxWorkerHelloBeater>(std::chrono::seconds(5), pipename);
+    auto beater = ::mega::make_unique<::mega::GfxWorkerHelloBeater>(std::chrono::seconds(beatIntervalSeconds), pipename);
 
     return ::mega::make_unique<::mega::GfxProviderIsolatedProcess>(
                 std::move(launcher),

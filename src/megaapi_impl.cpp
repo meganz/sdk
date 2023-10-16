@@ -6059,9 +6059,10 @@ const std::vector<IGfxProvider::Dimension>& MegaDimensionListPrivate::getDimensi
 
 std::unique_ptr<MegaGfxProviderPrivate> MegaGfxProviderPrivate::createIsolatedInstance(
     const std::vector<std::string>& arguments,
-    const std::string& pipename)
+    const std::string& pipename,
+    unsigned int beatIntervalSeconds)
 {
-    return ::mega::make_unique<MegaGfxProviderPrivate>(::mega::GfxProviderIsolatedProcess::create(arguments, pipename));
+    return ::mega::make_unique<MegaGfxProviderPrivate>(::mega::GfxProviderIsolatedProcess::create(arguments, pipename, beatIntervalSeconds));
 }
 
 std::unique_ptr<MegaGfxProviderPrivate> MegaGfxProviderPrivate::createExternalInstance(MegaGfxProcessor* processor)
