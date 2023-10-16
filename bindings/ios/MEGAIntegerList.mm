@@ -50,10 +50,6 @@ using namespace mega;
     }
 }
 
-- (instancetype)clone {
-    return self.megaIntegerList ? [[MEGAIntegerList alloc] initWithMegaIntegerList:self.megaIntegerList->copy() cMemoryOwn:YES] : nil;
-}
-
 - (mega::MegaIntegerList *)getCPtr {
     return self.megaIntegerList;
 }

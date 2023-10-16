@@ -25,13 +25,6 @@
 @interface MEGAVPNCredentials : NSObject
 
 /**
- * @brief Creates a copy of this MEGAVPNCredentials object.
- *
- * @return A copy of the MEGAVPNCredentials object.
- */
-- (MEGAVPNCredentials *)clone;
-
-/**
  * @brief Gets the list of SlotIDs.
  *
  * @return A MEGAIntegerList containing the SlotIDs.

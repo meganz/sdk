@@ -39,13 +39,9 @@
 }
 
 - (void)dealloc {
-    if (_cMemoryOwn) {
+    if (self.cMemoryOwn) {
         delete _megaVpnCredentials;
     }
-}
-
-- (MEGAVPNCredentials *)clone {
-    return [[MEGAVPNCredentials alloc] initWithMegaVpnCredentials:_megaVpnCredentials->copy() cMemoryOwn:YES];
 }
 
 - (mega::MegaVpnCredentials *)getCPtr {
@@ -53,34 +49,34 @@
 }
 
 - (MEGAIntegerList *)slotIDs {
-    return [[MEGAIntegerList alloc] initWithMegaIntegerList:_megaVpnCredentials->getSlotIDs() cMemoryOwn:YES];
+    return [[MEGAIntegerList alloc] initWithMegaIntegerList:self.megaVpnCredentials->getSlotIDs() cMemoryOwn:YES];
 }
 
 - (MEGAStringList *)vpnRegions {
-    return [[MEGAStringList alloc] initWithMegaStringList:_megaVpnCredentials->getVpnRegions() cMemoryOwn:YES];
+    return [[MEGAStringList alloc] initWithMegaStringList:self.megaVpnCredentials->getVpnRegions() cMemoryOwn:YES];
 }
 
 - (NSString *)ipv4ForSlotID:(NSInteger)slotID {
-    const char *ipv4 = _megaVpnCredentials->getIPv4((int)slotID);
+    const char *ipv4 = self.megaVpnCredentials->getIPv4((int)slotID);
     return ipv4 ? [[NSString alloc] initWithUTF8String:ipv4] : nil;
 }
 
 - (NSString *)ipv6ForSlotID:(NSInteger)slotID {
-    const char *ipv6 = _megaVpnCredentials->getIPv6((int)slotID);
+    const char *ipv6 = self.megaVpnCredentials->getIPv6((int)slotID);
     return ipv6 ? [[NSString alloc] initWithUTF8String:ipv6] : nil;
 }
 
 - (NSString *)deviceIDForSlotID:(NSInteger)slotID {
-    const char *deviceID = _megaVpnCredentials->getDeviceID((int)slotID);
+    const char *deviceID = self.megaVpnCredentials->getDeviceID((int)slotID);
     return deviceID ? [[NSString alloc] initWithUTF8String:deviceID] : nil;
 }
 
 - (NSInteger)clusterIDForSlotID:(NSInteger)slotID {
-    return _megaVpnCredentials->getClusterID((int)slotID);
+    return self.megaVpnCredentials->getClusterID((int)slotID);
 }
 
 - (NSString *)clusterPublicKeyForClusterID:(NSInteger)clusterID {
-    const char *publicKey = _megaVpnCredentials->getClusterPublicKey((int)clusterID);
+    const char *publicKey = self.megaVpnCredentials->getClusterPublicKey((int)clusterID);
     return publicKey ? [[NSString alloc] initWithUTF8String:publicKey] : nil;
 }
 

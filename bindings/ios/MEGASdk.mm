@@ -3970,8 +3970,7 @@ using namespace mega;
 
 - (void)putVpnCredentialWithRegion:(NSString *)region delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
-        const char *cRegion = [region UTF8String];
-        self.megaApi->putVpnCredential(cRegion, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+        self.megaApi->putVpnCredential(region.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
     }
 }
 
@@ -3983,8 +3982,7 @@ using namespace mega;
 
 - (void)checkVpnCredentialWithUserPubKey:(NSString *)userPubKey delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
-        const char *cUserPubKey = [userPubKey UTF8String];
-        self.megaApi->checkVpnCredential(cUserPubKey, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+        self.megaApi->checkVpnCredential(userPubKey.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
     }
 }
 

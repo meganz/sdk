@@ -641,7 +641,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * @brief Returns the string list
  *
  * This value is valid for these requests:
- * - [MEGASdk fetchAds:delegate]] - A list of the adslot ids to fetch
+ * - [MEGASdk fetchAds:delegate] - A list of the adslot ids to fetch
  *
  *  @return an object of MEGAStringList
  */

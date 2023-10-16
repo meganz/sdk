@@ -34,12 +34,6 @@
 @property (nonatomic, readonly) NSInteger size;
 
 /**
- * @brief Creates a copy of the current MEGAIntegerList instance
- * @return A new MEGAIntegerList instance with a copy of the current data
- */
-- (instancetype)clone;
-
-/**
  * @brief Returns the integer at the position index in the MEGAIntegerList
  *
  * If the index is >= the size of the list, this function returns -1.
