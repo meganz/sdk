@@ -139,8 +139,6 @@
 
 #define USE_PTHREAD 1
 
-#define USE_ARES 1
-
 #define USE_IOS 1
 
 #define HAVE_LIBUV 1
@@ -151,14 +149,8 @@
 
 #define UNICODE 1
 
-/* Define to use Berkeley DB */
-#define USE_DB 0
-
 /* Use inotify API
 #define USE_INOTIFY 1*/
-
-/* Define to use OpenSSL */
-#define USE_OPENSSL 1
 
 /* Define to use SQLite */
 #define USE_SQLITE 1
