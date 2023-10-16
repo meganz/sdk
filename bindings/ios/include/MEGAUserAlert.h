@@ -212,6 +212,9 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertScheduledMeetingChangeType) {
  *
  * @return the relevant scheduled meeting id, or UNDEF.
  */
+
+#ifdef ENABLE_CHAT
+
 @property (readonly, nonatomic) uint64_t scheduledMeetingId;
 
 /**
@@ -243,6 +246,8 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertScheduledMeetingChangeType) {
  * @return Array of dates that contains old and new EndDateTime for ther scheduled meeting
  */
 @property (readonly, nonatomic) NSArray<NSDate *> *EndDateList;
+
+#endif
 
 /**
  * @brief Creates a copy of this MEGAUserAlert object.
@@ -287,6 +292,8 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertScheduledMeetingChangeType) {
  */
 - (NSString *)stringAtIndex:(NSUInteger)index;
 
+#ifdef ENABLE_CHAT
+
 /**
  * @brief Returns true if the scheduled meeting associated to this alert has an specific change
  *
@@ -304,5 +311,7 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertScheduledMeetingChangeType) {
  * @return a pointer to the string if index is valid; otherwise nil
  */
 - (BOOL)hasScheduledMeetingChangeType:(MEGAUserAlertScheduledMeetingChangeType)changeType;
+
+#endif
 
 @end

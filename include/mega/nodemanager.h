@@ -19,6 +19,7 @@
  * program.
  */
 
+#include <thread>
 #ifndef NODEMANAGER_H
 #define NODEMANAGER_H 1
 
@@ -202,31 +203,21 @@ public:
     // Initialize node counters and create indexes at DB
     void initCompleted();
 
+    // true when the filesystem has been initialized
+    bool ready();
+
 private:
     MegaClient& mClient;
 
-    // NodeManager needs to be thread safe so that it can be accessed
-    // from the sync thread, and even directly by impl functions on
-    // behalf of the app, without locking sdkMutex (in future)
-    struct checkableMutex : recursive_mutex
-    {
-#ifdef DEBUG
-        // This class is for making sure the public functions of NodeManager lock the mutex
-        // whereas the internal functions operate with it already locked, and we check that.
-        // This should be based on mutex, but we still have high dependency on MegaClient,
-        // sometimes we call functions there, and it then calls back into NodeManager.
-        // So, it has to be recursive for now.  We can work towards tidying that up, and
-        // eventually swap to plain `mutex`.
-        void lock() { recursive_mutex::lock(); lockedBy = std::this_thread::get_id(); ++lockCount; }
-        void unlock() { --lockCount; recursive_mutex::unlock();  }
-        bool locked() { return lockedBy == std::this_thread::get_id() && lockCount > 0; }
-    private:
-        std::thread::id lockedBy;
-        uint32_t lockCount = 0;
-#endif
-    };
-    mutable checkableMutex mMutex;
-    using LockGuard = lock_guard<checkableMutex>;
+#if defined(DEBUG)
+    using MutexType = CheckableMutex<std::recursive_mutex>;
+#else // DEBUG
+    using MutexType = std::recursive_mutex;
+#endif // ! DEBUG
+
+    using LockGuard = std::lock_guard<MutexType>;
+
+    mutable MutexType mMutex;
 
     // interface to handle accesses to "nodes" table
     DBTableNodes* mTable = nullptr;
@@ -307,6 +298,9 @@ private:
 
     // Stores (or updates) the node in the DB. It also tries to decrypt it for the last time before storing it.
     void putNodeInDb(Node* node) const;
+
+    // true when the NodeManager has been inicialized and contains a valid filesystem
+    bool mInitialized = false;
 
     // These are all the "internal" versions of the public interfaces.
     // This is to avoid confusion where public functions used to call other public functions

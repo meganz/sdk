@@ -179,6 +179,107 @@ private:
     signed char mLevel;
 }; // JSONWriter
 
+
+// Class to process JSON in streaming
+// For performance reasons, these objects don't own the memory of the JSON buffer being parsed
+// nor the map of filters used to trigger callbacks for the different JSON elements, so the caller
+// must ensure that the memory is alive during the processing of JSON chunks
+class MEGA_API JSONSplitter
+{
+public:
+    JSONSplitter();
+
+    // Reinitializes the object to start parsing a new JSON stream
+    void clear();
+
+    // Process a new chunk of JSON data and triggers callbacks in the filters map.
+    // Returns the number of consumed bytes.
+    //
+    // The "filters" map allows to process the different JSON elements when they are complete
+    //
+    // The keys can be composed of these elements:
+    // { or [ -> unnamed object or array
+    // {name or [name -> object or array with the name "name"
+    // "name -> string value for an attribute with name "name"
+    // These alements can be appended to specify full paths, for example:
+    // {[f{ -> unnamed objects, inside an array with the name "f", inside an unnamed object
+    // {[ipc -> array with the name "ipc" inside an unnamed object
+    //
+    // The JSON object passed to the callback will contain the whole requested element,
+    // except if anything was filtered inside. In that case, only the remaining data
+    // would be passed to the callback.
+    //
+    // There are also special keys for specific purposes:
+    // (empty string) -> Called when the parsing starts. An empty string is passed to the callback.
+    // E -> A parsing error was detected. The callback will receive the current data in the stream
+    // # -> An error was received, either a number or an error object {"err":XXX}
+    // { -> The end of a JSON object. This is a normal case, but with the exception that
+    //      if an error object is received, this callback won't be called.
+    //
+    // Callbacks in the map should return true on success and false if there was a parsing error, If
+    // false is returned, the "E" callback will be triggered and the parsing will be aborted.
+    //
+    // "data" is the next chunk of JSON data to process. Initially it must be the beginning of the
+    // JSON stream. The next chunk must start from the first non-consumed byte in the previous
+    // call, which is at "data" + consumed_bytes (the return value of the previous call).
+    // It is allowed to pass a different buffer for the next call, but it must
+    // start with the same data that was not consumed during the previous call.
+    m_off_t processChunk(std::map<std::string, std::function<bool(JSON *)>> *filters, const char* data);
+
+    // Check if the parsing has finished
+    bool hasFinished();
+
+    // Check if the parsing has failed
+    bool hasFailed();
+
+    // Check if the parsing is starting
+    bool isStarting();
+
+protected:
+    // Returns the position (in bytes) to the end of the current JSON string, or -1 if it's not found
+    int strEnd();
+
+    // Returns the position (in bytes) to the end of the current number, or -1 if it's not found
+    int numEnd();
+
+    // Called when there is a parsing error
+    void parseError(std::map<std::string, std::function<bool(JSON *)>> *filters);
+
+    // Position of the character being processed (not owned by this object)
+    const char* mPos = nullptr;
+
+    // Position after the last filtered JSON path (not owned by this object)
+    const char *mLastPos = nullptr;
+
+    // Name of the last JSON attribute name processed
+    std::string mLastName;
+
+    // Stack with accessed paths in the JSON stream
+    std::vector<std::string> mStack;
+
+    // Current path in the processing of the JSON stream
+    std::string mCurrentPath;
+
+    // Bytes processed since the last discarded byte.
+    // Despite those bytes were already processed, they are not discarded yet
+    // because they belong to a JSON element that hasn't been totally
+    // received nor filtered yet.
+    m_off_t mProcessedBytes = 0;
+
+    // 0: no value expected, 1: optional value expected, -1: compulsory value expected
+    int mExpectValue = 1;
+
+    // the parsing is starting
+    bool mStarting = true;
+
+    // the parsing has finished
+    bool mFinished = false;
+
+    // the parsing has failed
+    bool mFailed = false;
+
+}; // JSONSplitter
+
 } // namespace
 
 #endif

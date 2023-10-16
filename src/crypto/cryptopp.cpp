@@ -130,45 +130,84 @@ bool SymmCipher::cbc_decrypt_with_key(const std::string& cipher, std::string& pl
     }
 }
 
-void SymmCipher::cbc_encrypt(byte* data, size_t len, const byte* iv)
+bool SymmCipher::cbc_encrypt(byte* data, size_t len, const byte* iv)
 {
-    aescbc_e.Resynchronize(iv ? iv : zeroiv);
-    aescbc_e.ProcessData(data, data, len);
+    try
+    {
+        aescbc_e.Resynchronize(iv ? iv : zeroiv);
+        aescbc_e.ProcessData(data, data, len);
+        return true;
+    }
+    catch (const CryptoPP::Exception& e)
+    {
+        LOG_err << "Failed AES-CBC encryption " << e.what();
+        return false;
+    }
 }
 
-void SymmCipher::cbc_decrypt(byte* data, size_t len, const byte* iv)
+bool SymmCipher::cbc_decrypt(byte* data, size_t len, const byte* iv)
 {
-    aescbc_d.Resynchronize(iv ? iv : zeroiv);
-    aescbc_d.ProcessData(data, data, len);
+    try
+    {
+        aescbc_d.Resynchronize(iv ? iv : zeroiv);
+        aescbc_d.ProcessData(data, data, len);
+        return true;
+    }
+    catch (const CryptoPP::Exception& e)
+    {
+        LOG_err << "Failed AES-CBC decryption " << e.what();
+        return false;
+    }
 }
 
-void SymmCipher::cbc_encrypt_pkcs_padding(const string *data, const byte *iv, string *result)
+bool SymmCipher::cbc_encrypt_pkcs_padding(const string *data, const byte *iv, string *result)
 {
+    if (!data || !result)
+    {
+        assert(data && result);
+        return false;
+    }
+
     using Transformation = StreamTransformationFilter;
 
-    // Update IV.
-    aescbc_e.Resynchronize(iv ? iv : zeroiv);
+    try
+    {
+        // Update IV.
+        aescbc_e.Resynchronize(iv ? iv : zeroiv);
 
-    // Create sink.
-    unique_ptr<StringSink> sink =
-      mega::make_unique<StringSink>(*result);
+        // Create sink.
+        unique_ptr<StringSink> sink =
+            mega::make_unique<StringSink>(*result);
 
-    // Create transform.
-    unique_ptr<Transformation> xfrm =
-      mega::make_unique<Transformation>(aescbc_e,
-                                        sink.get(),
-                                        Transformation::PKCS_PADDING);
+        // Create transform.
+        unique_ptr<Transformation> xfrm =
+            mega::make_unique<Transformation>(aescbc_e,
+                sink.get(),
+                Transformation::PKCS_PADDING);
 
-    // Transform now owns sink.
-    sink.release();
+        // Transform now owns sink.
+        sink.release();
 
-    // Encrypt.
-    StringSource(*data, true, xfrm.release());
+        // Encrypt.
+        StringSource(*data, true, xfrm.release());
+        return true;
+    }
+    catch (const CryptoPP::Exception& e)
+    {
+        LOG_err << "Failed AES-CBC pkcs encryption " << e.what();
+        return false;
+    }
 }
 
 bool SymmCipher::cbc_decrypt_pkcs_padding(const std::string* data, const byte* iv, string* result)
 {
-    try 
+    if (!data || !result)
+    {
+        assert(data && result);
+        return false;
+    }
+
+    try
     {
         using Transformation = StreamTransformationFilter;
 
@@ -194,9 +233,9 @@ bool SymmCipher::cbc_decrypt_pkcs_padding(const std::string* data, const byte* i
         // Decrypt had correct padding.
         return true;
     }
-    catch (...)
+    catch (const CryptoPP::Exception& e)
     {
-        // Decrypt failed.
+        LOG_err << "Failed AES-CBC pkcs decryption " << e.what();
         return false;
     }
 }
@@ -206,7 +245,13 @@ bool SymmCipher::cbc_decrypt_pkcs_padding(const byte* data,
                                           const byte* iv,
                                           std::string* result)
 {
-    try 
+    if (!result)
+    {
+        assert(result);
+        return false;
+    }
+
+    try
     {
         using Transformation = StreamTransformationFilter;
 
@@ -232,9 +277,9 @@ bool SymmCipher::cbc_decrypt_pkcs_padding(const byte* data,
         // Decrypt had correct padding.
         return true;
     }
-    catch (...)
+    catch (const CryptoPP::Exception& e)
     {
-        // Decrypt failed.
+        LOG_err << "Failed AES-CBC pkcs decryption " << e.what();
         return false;
     }
 }
@@ -249,50 +294,91 @@ void SymmCipher::ecb_decrypt(byte* data, size_t len)
     aesecb_d.ProcessData(data, data, len);
 }
 
-void SymmCipher::ccm_encrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
+bool SymmCipher::ccm_encrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
 {
-    if (taglen == 16)
+    if (!data || !result)
     {
-        aesccm16_e.Resynchronize(iv, ivlen);
-        aesccm16_e.SpecifyDataLengths(0, data->size(), 0);
-        StringSource(*data, true, new AuthenticatedEncryptionFilter(aesccm16_e, new StringSink(*result)));
+        assert(data && result);
+        return false;
     }
-    else if (taglen == 8)
+
+    try
     {
-        aesccm8_e.Resynchronize(iv, ivlen);
-        aesccm8_e.SpecifyDataLengths(0, data->size(), 0);
-        StringSource(*data, true, new AuthenticatedEncryptionFilter(aesccm8_e, new StringSink(*result)));
+        if (taglen == 16)
+        {
+            aesccm16_e.Resynchronize(iv, ivlen);
+            aesccm16_e.SpecifyDataLengths(0, data->size(), 0);
+            StringSource(*data, true, new AuthenticatedEncryptionFilter(aesccm16_e, new StringSink(*result)));
+            return true;
+        }
+        else if (taglen == 8)
+        {
+            aesccm8_e.Resynchronize(iv, ivlen);
+            aesccm8_e.SpecifyDataLengths(0, data->size(), 0);
+            StringSource(*data, true, new AuthenticatedEncryptionFilter(aesccm8_e, new StringSink(*result)));
+            return true;
+        }
     }
+    catch (CryptoPP::Exception const& e)
+    {
+        LOG_err << "Failed AES-CCM encryption: " << e.GetWhat();
+    }
+    return false;
 }
 
 bool SymmCipher::ccm_decrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
 {
-    try {
+    if (!data || !result)
+    {
+        assert(data && result);
+        return false;
+    }
+
+    try
+    {
         if (taglen == 16)
         {
             aesccm16_d.Resynchronize(iv, ivlen);
             aesccm16_d.SpecifyDataLengths(0, data->size() - taglen, 0);
             StringSource(*data, true, new AuthenticatedDecryptionFilter(aesccm16_d, new StringSink(*result)));
+            return true;
         }
         else if (taglen == 8)
         {
             aesccm8_d.Resynchronize(iv, ivlen);
             aesccm8_d.SpecifyDataLengths(0, data->size() - taglen, 0);
             StringSource(*data, true, new AuthenticatedDecryptionFilter(aesccm8_d, new StringSink(*result)));
+            return true;
         }
-    } catch (HashVerificationFilter::HashVerificationFailed const &e)
+    }
+    catch (HashVerificationFilter::HashVerificationFailed const &e)
     {
         result->clear();
         LOG_err << "Failed AES-CCM decryption: " << e.GetWhat();
-        return false;
     }
-    return true;
+    return false;
 }
 
-void SymmCipher::gcm_encrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
+bool SymmCipher::gcm_encrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
 {
-    aesgcm_e.Resynchronize(iv, ivlen);
-    StringSource(*data, true, new AuthenticatedEncryptionFilter(aesgcm_e, new StringSink(*result), false, taglen));
+    if (!data || !result)
+    {
+        assert(data && result);
+        return false;
+    }
+
+    try
+    {
+        aesgcm_e.Resynchronize(iv, ivlen);
+        StringSource(*data, true, new AuthenticatedEncryptionFilter(aesgcm_e, new StringSink(*result), false, taglen));
+    }
+    catch (CryptoPP::Exception const &e)
+    {
+        LOG_err << "Failed AES-GCM encryption: " << e.GetWhat();
+        return false;
+    }
+
+    return true;
 }
 
 
@@ -363,10 +449,18 @@ bool SymmCipher::gcm_encrypt(const byte* data, const size_t datasize, const byte
 
 bool SymmCipher::gcm_decrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
 {
-    aesgcm_d.Resynchronize(iv, ivlen);
-    try {
+    if (!data || !result)
+    {
+        assert(data && result);
+        return false;
+    }
+
+    try
+    {
+        aesgcm_d.Resynchronize(iv, ivlen);
         StringSource(*data, true, new AuthenticatedDecryptionFilter(aesgcm_d, new StringSink(*result), taglen));
-    } catch (HashVerificationFilter::HashVerificationFailed const &e)
+    }
+    catch (CryptoPP::Exception const& e)
     {
         result->clear();
         LOG_err << "Failed AES-GCM decryption: " << e.GetWhat();
@@ -444,7 +538,7 @@ bool SymmCipher::gcm_decrypt(const byte* data, const size_t datalen, const byte*
     return true;
 }
 
-bool SymmCipher::gcm_decrypt_aad(const byte* data, const size_t datalen, const byte* additionalData,
+bool SymmCipher::gcm_decrypt_add(const byte* data, const size_t datalen, const byte* additionalData,
                                  const size_t additionalDatalen, const byte* tag, const size_t taglen,
                                  const byte* iv, const size_t ivlen, byte* result, const size_t resultSize)
 {
@@ -1041,7 +1135,7 @@ PBKDF2_HMAC_SHA512::PBKDF2_HMAC_SHA512()
 {
 }
 
-void PBKDF2_HMAC_SHA512::deriveKey(byte* derivedkey,
+bool PBKDF2_HMAC_SHA512::deriveKey(byte* derivedkey,
                                    const size_t derivedkeyLen,
                                    const byte* pwd,
                                    const size_t pwdLen,
@@ -1057,7 +1151,9 @@ void PBKDF2_HMAC_SHA512::deriveKey(byte* derivedkey,
     assert(saltLen > 0);
     assert(iterations > 0);
 
-    pbkdf2.DeriveKey(
+    try
+    {
+        pbkdf2.DeriveKey(
             // buffer that holds the derived key
             derivedkey, derivedkeyLen,
             // purpose byte. unused by this PBKDF implementation.
@@ -1069,7 +1165,16 @@ void PBKDF2_HMAC_SHA512::deriveKey(byte* derivedkey,
             // iteration count. See SP 800-132 for details. You want this as large as you can tolerate.
             // make sure to use the same iteration count on both sides...
             iterations
-            );
+        );
+        return true;
+    }
+    catch (const CryptoPP::Exception& e)
+    {
+        // DeriveKey() should throw CryptoPP::InvalidDerivedLength, however that is not present in all
+        // versions of the lib, i.e. Linux system lib
+        LOG_err << "PKCS5_PBKDF2_HMAC<T>::DeriveKey() exception: " << e.what();
+        return false;
+    }
 }
 
 } // namespace

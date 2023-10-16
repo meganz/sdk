@@ -748,7 +748,7 @@ public:
     void removeOutSharesFromSubtree(Node* n, int tag);
 
     // start/stop/pause file transfer
-    bool startxfer(direction_t, File*, TransferDbCommitter&, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption, error* cause, int tag);
+    bool startxfer(direction_t, File*, TransferDbCommitter&, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption, error* cause, int tag, m_off_t availableDiskSpace = 0);
     void stopxfer(File* f, TransferDbCommitter* committer);
     void pausexfers(direction_t, bool pause, bool hard, TransferDbCommitter& committer);
 
@@ -798,7 +798,7 @@ public:
     void putnodes(const char*, vector<NewNode>&&, int tag, CommandPutNodes::Completion&& completion = nullptr);
 
     // attach file attribute to upload or node handle
-    void putfa(NodeOrUploadHandle, fatype, SymmCipher*, int tag, std::unique_ptr<string>);
+    bool putfa(NodeOrUploadHandle, fatype, SymmCipher*, int tag, std::unique_ptr<string>);
 
     // move as many as possible from pendingfa to activefa
     void activatefa();
@@ -945,6 +945,11 @@ public:
     typedef std::function<void(std::function<void()> continuation)> UndoFunction;
     void preparebackup(SyncConfig, std::function<void(Error, SyncConfig, UndoFunction revertOnError)>);
 
+    /**
+     * @brief Used to migrate all the sync's management data from MEGAsync to the SDK
+     *
+     * @deprecated This function is deprecated. Please don't use it in new code.
+     */
     void copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion);
 
     /**
@@ -1759,7 +1764,15 @@ public:
     // server-client request sequence number
     SCSN scsn;
 
+    // process an array of users from the API server
     bool readusers(JSON*, bool actionpackets);
+
+    // process a JSON user object
+    // possible results:
+    // 0 -> no object found
+    // 1 -> successful parsing
+    // any other number -> parsing error
+    int readuser(JSON*, bool actionpackets);
 
     user_vector usernotify;
     void notifyuser(User*);
@@ -2014,6 +2027,14 @@ public:
     // process object arrays by the API server
     int readnodes(JSON*, int, putsource_t, vector<NewNode>*, bool modifiedByThisClient, bool applykeys);
 
+    // process a JSON node object
+    // possible results:
+    // 0 -> no object found
+    // 1 -> successful parsing
+    // any other number -> parsing error
+    int readnode(JSON*, int, putsource_t, vector<NewNode>*, bool modifiedByThisClient, bool applykeys,
+                 NodeManager::MissingParentNodes& missingParentNodes, handle &previousHandleForAlert);
+
     void readok(JSON*);
     void readokelement(JSON*);
     void readoutshares(JSON*);
@@ -2024,7 +2045,14 @@ public:
 
     error readmiscflags(JSON*);
 
-    void procph(JSON*);
+    bool procph(JSON*);
+
+    // process a JSON ph object
+    // possible results:
+    // 0 -> no object found
+    // 1 -> successful parsing
+    // any other number -> parsing error
+    int procphelement(JSON*);
 
     void procsnk(JSON*);
     void procsuk(JSON*);
@@ -2623,6 +2651,7 @@ public:
 /* Mega VPN methods END */
 
     void fetchCreditCardInfo(CommandFetchCreditCardCompletion completion);
+    void setProFlexi(bool newProFlexi);
 };
 
 } // namespace

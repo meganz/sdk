@@ -42,6 +42,8 @@
 using namespace ::mega;
 using namespace ::std;
 
+std::string getCurrentTimestamp(bool includeDate);
+
 #ifdef ENABLE_SYNC
 
 template<typename T>
@@ -1045,6 +1047,61 @@ bool StandardClient::waitForUserAlertsUpdated(unsigned numSeconds)
     return received_user_alerts;
 }
 
+void StandardClient::users_updated(User** users , int size)
+{
+    if (!users) // All users have changed, notification just after fetchnodes
+    {
+        return;
+    }
+
+    //  If none lambda is register with createsOnUserUpdateLamda, any user action package generate and event for stop waiting period
+    if (!mCheckUserChange)
+    {
+        lock_guard<mutex> g(user_actionpackets_mutex);
+        received_user_actionpackets = true;
+        user_updated_cv.notify_all();
+    }
+    else
+    {
+        std::lock_guard<std::mutex> g(mUserActionPackageMutex);
+        for (int i = 0; i < size; i++)
+        {
+            if (mCheckUserChange(users[i]))
+            {
+                lock_guard<mutex> g(user_actionpackets_mutex);
+                received_user_actionpackets = true;
+                user_updated_cv.notify_all();
+            }
+        }
+    }
+
+}
+
+bool StandardClient::waitForUserUpdated(unsigned int numSeconds)
+{
+    std::unique_lock<std::mutex> guard(user_actionpackets_mutex);
+
+    user_updated_cv.wait_for(guard, std::chrono::seconds(numSeconds), [&] {
+        return received_user_actionpackets;
+    });
+
+    return received_user_actionpackets;
+}
+
+void StandardClient::createsOnUserUpdateLamda(std::function<bool(User*)> onUserUpdateLambda)
+{
+    std::lock_guard<std::mutex> g(mUserActionPackageMutex);
+    mCheckUserChange = onUserUpdateLambda;
+    received_user_actionpackets = false;
+}
+
+void StandardClient::removeOnUserUpdateLamda()
+{
+    std::lock_guard<std::mutex> g(mUserActionPackageMutex);
+    mCheckUserChange = nullptr;
+    received_user_actionpackets = false;
+}
+
 void StandardClient::syncupdate_scanning(bool b) { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_scanning()" << b; } }
 
 #ifdef DEBUG
@@ -1069,6 +1126,157 @@ bool StandardClient::sync_syncable(Sync*, const char*, LocalPath&)
     return true;
 }
 
+bool StandardClient::isUserAttributeSet(attr_t attr, unsigned int numSeconds, error& err)
+{
+    int tag = client.reqtag;
+    std::recursive_mutex attr_cv_mutex;
+    std::condition_variable_any user_attribute_updated_cv;
+    bool attrIsSet = false;
+    std::atomic_bool replyReceived{false};
+    {
+        std::lock_guard<std::mutex> g(mUserAttributeMutex);
+        mOnGetUA = [&](const attr_t at, error e)
+        {
+            if (tag != client.restag)
+            {
+                return;
+            }
+
+            std::lock_guard<std::recursive_mutex> g(attr_cv_mutex);
+            err = e;
+            if (err == API_OK)
+            {
+                assert(at == attr);
+                LOG_debug << "attr: " << attr << " is set";
+                attrIsSet = true;
+            }
+
+            replyReceived = true;
+            user_attribute_updated_cv.notify_one();
+        };
+    }
+
+    std::unique_lock<std::recursive_mutex> g(attr_cv_mutex);
+    client.getua(client.ownuser(), attr);
+
+    user_attribute_updated_cv.wait_for(g, std::chrono::seconds(numSeconds), [&replyReceived](){ return replyReceived.load(); });
+    {
+        std::lock_guard<std::mutex> g(mUserAttributeMutex);
+        mOnGetUA = nullptr;
+    }
+
+    return attrIsSet;
+}
+
+bool StandardClient::waitForAttrDeviceIdIsSet(unsigned int numSeconds, bool& updated)
+{
+    error err = API_EINTERNAL;
+    isUserAttributeSet(attr_t::ATTR_DEVICE_NAMES, numSeconds, err);
+
+    std::unique_ptr<TLVstore> tlv;
+    std::string deviceIdHash = client.getDeviceidHash();
+    if (err == API_OK)
+    {
+        User* ownUser = client.ownuser();
+        tlv.reset(TLVstore::containerToTLVrecords(ownUser->getattr(attr_t::ATTR_DEVICE_NAMES), &client.key));
+        std::string buffer;
+        if (tlv->get(deviceIdHash, buffer))
+        {
+            return true;  // Device id is found
+        }
+    }
+    else if (err == API_ENOENT)
+    {
+        tlv.reset(new TLVstore);
+    }
+    else
+    {
+        return false; // Unexpected error has been detected
+    }
+
+    std::string timestamp = getCurrentTimestamp(true);
+    std::string deviceName = "Jenkins " + timestamp;
+
+    tlv->set(deviceIdHash, deviceName);
+    bool attrDeviceNamePut = false;
+    std::recursive_mutex attrDeviceNamePut_mutex;
+    std::condition_variable_any attrDeviceNamePut_cv;
+    std::atomic_bool replyReceived{false};
+    // serialize and encrypt the TLV container
+    std::unique_ptr<string> container(tlv->tlvRecordsToContainer(client.rng, &client.key));
+    std::unique_lock<std::recursive_mutex> g(attrDeviceNamePut_mutex);
+    client.putua(attr_t::ATTR_DEVICE_NAMES, (::mega::byte *)container->data(), unsigned(container->size()), -1, UNDEF, 0, 0, [&](Error e)
+    {
+        std::lock_guard<std::recursive_mutex> g(attrDeviceNamePut_mutex);
+        if (e == API_OK)
+        {
+            attrDeviceNamePut = true;
+        }
+        else
+        {
+            LOG_err << "Error setting device id user attribute";
+        }
+
+        replyReceived = true;
+        attrDeviceNamePut_cv.notify_one();
+    });
+
+    attrDeviceNamePut_cv.wait_for(g, std::chrono::seconds(numSeconds), [&replyReceived](){ return replyReceived.load(); });
+
+    if (!attrDeviceNamePut) // Error setting device id
+    {
+        return false;
+    }
+
+    updated = true;
+    // Check if attribute has been established properly
+    return isUserAttributeSet(attr_t::ATTR_DEVICE_NAMES, numSeconds, err);
+}
+
+bool StandardClient::waitForAttrMyBackupIsSet(unsigned int numSeconds)
+{
+    error err  = API_EINTERNAL;
+    bool attrMyBackupFolderIsSet = isUserAttributeSet(attr_t::ATTR_MY_BACKUPS_FOLDER, numSeconds, err);
+
+    if (err != API_ENOENT)
+    {
+        return attrMyBackupFolderIsSet;
+    }
+
+    // If attribute is not set, it's going to established
+    const char* folderName = "My Backups";
+    attrMyBackupFolderIsSet = false;
+    std::recursive_mutex attrMyBackup_cv_mutex;
+    std::condition_variable_any user_attribute_backup_updated_cv;
+    std::atomic_bool replyReceived{false};
+    std::unique_lock<std::recursive_mutex> g(attrMyBackup_cv_mutex);
+    client.setbackupfolder(folderName, client.reqtag, [&](Error e)
+    {
+        std::lock_guard<std::recursive_mutex> g(attrMyBackup_cv_mutex);
+        if (e == API_OK)
+        {
+            attrMyBackupFolderIsSet = true;
+        }
+        else
+        {
+            LOG_err << "Error setting backup folder user attribute";
+        }
+
+        replyReceived = true;
+        user_attribute_backup_updated_cv.notify_one();
+    });
+
+    user_attribute_backup_updated_cv.wait_for(g, std::chrono::seconds(numSeconds), [&replyReceived](){ return replyReceived.load(); });
+
+    if (!attrMyBackupFolderIsSet) // Error setting backup folder
+    {
+        return false;
+    }
+
+    // Check if attribute has been established properly
+    return isUserAttributeSet(attr_t::ATTR_MY_BACKUPS_FOLDER, numSeconds, err);;
+}
+
 void StandardClient::file_added(File* file)
 {
     if (mOnFileAdded)
@@ -1085,15 +1293,13 @@ void StandardClient::file_complete(File* file)
     }
 }
 
-void StandardClient::notify_retry(dstime t, retryreason_t r)
+void StandardClient::notify_retry(dstime when, retryreason_t reason)
 {
     onCallback();
 
-    if (!logcb) return;
-
     lock_guard<mutex> guard(om);
 
-    out() << clientname << " notify_retry: " << t << " " << r;
+    mRetryTracker.track(clientname, reason);
 }
 
 void StandardClient::request_error(error e)
@@ -4972,7 +5178,7 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderPlain)
     ASSERT_TRUE(clientA2->confirmModel_mainthread(model.findnode("f"), backupId2));
 }
 
-TEST_F(SyncTest, DISABLED_BasicSync_MoveLocalFolderBetweenSyncs)
+TEST_F(SyncTest, BasicSync_MoveLocalFolderBetweenSyncs)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot();
@@ -4980,6 +5186,56 @@ TEST_F(SyncTest, DISABLED_BasicSync_MoveLocalFolderBetweenSyncs)
     auto clientA1 = g_clientManager->getCleanStandardClient(0, localtestroot); // user 1 client 1
     auto clientA2 = g_clientManager->getCleanStandardClient(0, localtestroot); // user 1 client 2
     auto clientA3 = g_clientManager->getCleanStandardClient(0, localtestroot); // user 1 client 2
+
+    auto receivedDeviceIdName = [](User* actionPackageUser, User* ownUser)
+    {
+        assert(actionPackageUser && ownUser);
+        if (actionPackageUser->userhandle == ownUser->userhandle && actionPackageUser->changed.devicenames)
+        {
+            return true;
+        }
+
+        return false;
+    };
+
+    User* ownUserClient2 = clientA2->client.ownuser();
+    // Register a callback to be used when users_updated is called. This callBack is used to stop waiting period at waitForUserUpdated
+    // removeOnUserUpdateLamda should be called to unregister
+    clientA2->createsOnUserUpdateLamda([ownUserClient2, receivedDeviceIdName](User* user)
+    {
+        return receivedDeviceIdName(user, ownUserClient2);
+    });
+
+    User* ownUserClient3 = clientA3->client.ownuser();
+    // Register a callback to be used when users_updated is called. This callBack is used to stop waiting period at waitForUserUpdated
+    // removeOnUserUpdateLamda should be called to unregister
+    clientA3->createsOnUserUpdateLamda([ownUserClient3, receivedDeviceIdName](User* user)
+    {
+       return receivedDeviceIdName(user, ownUserClient3);
+    });
+
+    bool deviceIdUpdated = false;
+    ASSERT_TRUE(clientA1->waitForAttrDeviceIdIsSet(60, deviceIdUpdated)) << "Error User attr device id isn't establised client1";
+    if (deviceIdUpdated)  // only wait for action package if atribute has been updated
+    {
+        // Waiting period finished when callback register at createsOnUserUpdateLamda returns true
+        ASSERT_TRUE(clientA2->waitForUserUpdated(60)) << "User update doesn't arrive at client2 (device id)";
+        ASSERT_TRUE(clientA3->waitForUserUpdated(60)) << "User update doesn't arrive at client3 (device id)";
+        deviceIdUpdated = false;
+        ASSERT_TRUE(clientA2->waitForAttrDeviceIdIsSet(60, deviceIdUpdated)) << "Error User attr device id isn't establised client2";
+        ASSERT_EQ(deviceIdUpdated, false); // It has already updated
+        ASSERT_TRUE(clientA3->waitForAttrDeviceIdIsSet(60, deviceIdUpdated)) << "Error User attr device id isn't establised client3";
+        ASSERT_EQ(deviceIdUpdated, false); // It has already updated
+    }
+
+    clientA2->removeOnUserUpdateLamda();
+    clientA3->removeOnUserUpdateLamda();
+
+    // ATTR_MY_BACKUPS_FOLDER is only set once, if it exists, it shouldn't be modified
+    ASSERT_TRUE(clientA1->waitForAttrMyBackupIsSet(60)) << "Error User attr My Back Folder isn't establised client1";
+    ASSERT_TRUE(clientA2->waitForAttrMyBackupIsSet(60)) << "Error User attr My Back Folder isn't establised client2";
+    ASSERT_TRUE(clientA3->waitForAttrMyBackupIsSet(60)) << "Error User attr My Back Folder isn't establised client3";
+
 
     ASSERT_TRUE(clientA1->resetBaseFolderMulticlient(clientA2, clientA3));
     ASSERT_TRUE(clientA1->makeCloudSubdirs("f", 3, 3));
