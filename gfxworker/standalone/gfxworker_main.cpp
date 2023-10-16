@@ -30,7 +30,7 @@ int main(int argc, char** argv)
             return 0;
         }
 
-    } catch (cxxopts::exceptions::exception& e) {
+    } catch (cxxopts::OptionException& e) {
         std::cerr << e.what() << std::endl;
         return -1;
     }
