@@ -32,7 +32,7 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  * @brief The number of MEGABackupInfo objects in the list.
  */
-@property (readonly, nonatomic) NSInteger size;
+@property (readonly, nonatomic) NSUInteger size;
 
 /**
  * @brief The MEGABackupInfo at the position index in the MEGABackupInfoList.
