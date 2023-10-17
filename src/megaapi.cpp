@@ -2162,6 +2162,11 @@ bool MegaApi::newLinkFormatEnabled()
     return pImpl->newLinkFormatEnabled();
 }
 
+bool MegaApi::accountIsNew() const
+{
+    return pImpl->accountIsNew();
+}
+
 unsigned int MegaApi::getABTestValue(const char* flag)
 {
     return pImpl->getABTestValue(flag);

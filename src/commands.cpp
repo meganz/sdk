@@ -4159,6 +4159,10 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             }
             break;
 
+        case MAKENAMEID2('n', 'a'): // should have probably been part of '"flags":{}'
+            client->accountIsNew = bool(json.getint());
+            break;
+
         case 'u':
 #ifndef NDEBUG
             me =

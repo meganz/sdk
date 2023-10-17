@@ -9754,6 +9754,15 @@ class MegaApi
         bool newLinkFormatEnabled();
 
         /**
+         * @brief Check if the logged in account is considered new
+         *
+         * This function will return valid value after getUserData() has been executed for the logged account.
+         *
+         * @return True if account is considered new. Otherwise, false.
+         */
+        bool accountIsNew() const;
+
+        /**
          * @brief Get the value of an A/B Test flag
          *
          * Any value greater than 0 means the flag is active.

@@ -2544,6 +2544,7 @@ class MegaApiImpl : public MegaApp
         bool serverSideRubbishBinAutopurgeEnabled();
         bool appleVoipPushEnabled();
         bool newLinkFormatEnabled();
+        bool accountIsNew() const;
         unsigned int getABTestValue(const char* flag);
         void sendABTestActive(const char* flag, MegaRequestListener* listener);
         int smsAllowedState();
