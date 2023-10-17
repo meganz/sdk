@@ -135,9 +135,32 @@ public:
 
 private:
 
+    // thread safe formats accessor
+    class Formats
+    {
+    public:
+        // whether has valie formats
+        bool isValid() const;
+
+        // return formats if it is valid and not empty, otherwise nullptr
+        const char* formats() const;
+
+        // return videoformats if it is valid and not empty, otherwise nullptr
+        const char* videoformats() const;
+
+        // set the formats and videoformats once
+        void setOnce(const std::string& formats, const std::string& videoformats);
+
+    private:
+        std::string         mFormats;
+        std::string         mVideoformats;
+        std::atomic<bool>   mIsValid;
+        std::mutex          mMutex;
+    };
+
     std::vector<gfx::GfxSize> toGfxSize(const std::vector<Dimension>& dimensions);
 
-    std::string mformats;
+    Formats mFormats;
 
     std::unique_ptr<ILauncher> mLauncher;
 

@@ -48,6 +48,31 @@ GfxWorkerHelloBeater::~GfxWorkerHelloBeater()
     shutdownOnce();
 }
 
+bool GfxProviderIsolatedProcess::Formats::isValid() const
+{
+    return mIsValid;
+}
+
+const char* GfxProviderIsolatedProcess::Formats::formats() const
+{
+    return (mIsValid && !mFormats.empty()) ? mFormats.c_str() : nullptr;
+}
+
+const char* GfxProviderIsolatedProcess::Formats::videoformats() const
+{
+    return (mIsValid && !mVideoformats.empty()) ? mVideoformats.c_str() : nullptr;
+}
+
+void GfxProviderIsolatedProcess::Formats::setOnce(const std::string& formats, const std::string& videoformats)
+{
+    const std::scoped_lock<std::mutex> l(mMutex);
+     // guard: never update twice
+    if (mIsValid) return;
+    mFormats = formats;
+    mVideoformats = videoformats;
+    mIsValid = true;
+}
+
 GfxProviderIsolatedProcess::GfxProviderIsolatedProcess(
     std::unique_ptr<ILauncher> launcher,
     std::unique_ptr<IHelloBeater> beater,
@@ -88,23 +113,44 @@ std::vector<std::string> GfxProviderIsolatedProcess::generateImages(
 
 const char* GfxProviderIsolatedProcess::supportedformats()
 {
-    if (mformats.empty())
+    // already fetched from the server
+    if (mFormats.isValid())
     {
-        // hard coded at moment, need to get from isolated process once
-        mformats+=".jpg.png.bmp.jpeg.cut.dds.g3.gif.hdr.ico.iff.ilbm"
-           ".jbig.jng.jif.koala.pcd.mng.pcx.pbm.pgm.ppm.pfm.pds.raw.3fr.ari"
-           ".arw.bay.crw.cr2.cap.dcs.dcr.dng.drf.eip.erf.fff.iiq.k25.kdc.mdc.mef.mos.mrw"
-           ".nef.nrw.obm.orf.pef.ptx.pxn.r3d.raf.raw.rwl.rw2.rwz.sr2.srf.srw.x3f.ras.tga"
-           ".xbm.xpm.jp2.j2k.jpf.jpx.";
+        return mFormats.formats();
     }
 
-    return mformats.c_str();
+    // do fetching
+    std::string formats, videoformats;
+    if (!GfxClient::create(mPipename).runSupportFormats(formats, videoformats))
+    {
+        return nullptr;
+    }
+    else
+    {
+        mFormats.setOnce(formats, videoformats);
+        return mFormats.formats();
+    }
 }
 
-// video formats are not supported at moment.
 const char* GfxProviderIsolatedProcess::supportedvideoformats()
 {
-    return nullptr;
+    // already fetched from the server
+    if (mFormats.isValid())
+    {
+        return mFormats.videoformats();
+    }
+
+    // do fetching
+    std::string formats, videoformats;
+    if (!GfxClient::create(mPipename).runSupportFormats(formats, videoformats))
+    {
+        return nullptr;
+    }
+    else
+    {
+        mFormats.setOnce(formats, videoformats);
+        return mFormats.videoformats();
+    }
 }
 
 std::unique_ptr<GfxProviderIsolatedProcess> GfxProviderIsolatedProcess::create(
