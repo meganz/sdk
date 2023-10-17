@@ -12034,10 +12034,11 @@ node_vector MegaApiImpl::searchPublicLinks(const MegaSearchFilter* filter, Cance
 
 node_vector MegaApiImpl::searchInNodeManager(const MegaSearchFilter* filter, CancelToken cancelToken)
 {
-    bool hasNameFilter = filter->byName() && *filter->byName();
+    bool filterByCategory = filter->byCategory() != MegaApi::FILE_TYPE_DEFAULT;
+    bool filterByName = filter->byName() && *filter->byName();
     Node::Flags excludeRecursiveFlags = Node::Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE, filter->bySensitivity());
 
-    if (!hasNameFilter && filter->byCategory() == MegaApi::FILE_TYPE_DEFAULT)
+    if (filterByCategory && !filterByName)
     {
         return client->mNodeManager.getNodesByMimeType(static_cast<MimeType_t>(filter->byCategory()),
                                                        NodeHandle().set6byte(filter->byLocationHandle()),
@@ -12047,7 +12048,7 @@ node_vector MegaApiImpl::searchInNodeManager(const MegaSearchFilter* filter, Can
     {
         // when no name filter was used, search all nodes
         static const char searchAll[] = "*";
-        const char* nameFilter = hasNameFilter ? filter->byName() : searchAll;
+        const char* nameFilter = filterByName ? filter->byName() : searchAll;
 
         node_vector results = client->mNodeManager.search(NodeHandle().set6byte(filter->byLocationHandle()), nameFilter, true,
                                                           Node::Flags(), Node::Flags(), excludeRecursiveFlags, cancelToken);
