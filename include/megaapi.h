@@ -16130,7 +16130,7 @@ class MegaApi
         MegaNodeList* getChildren(MegaNode *parent, int order = 1, MegaCancelToken *cancelToken = nullptr);
 
         /**
-         * @brief Get file children of a particular parent or a predefined location, and allow filtering
+         * @brief Get children of a particular parent or a predefined location, and allow filtering
          * the results. @see MegaSearchFilter
          * The look-up is case-insensitive.
          * For invalid filtering options, this function returns an empty list.
@@ -16139,9 +16139,6 @@ class MegaApi
          *
          * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
          * to MegaCancelToken::setCancelFlag(true).
-         *
-         * @note A major difference between this function and its other overloads is that it only includes files
-         * in the returned list of results.
          *
          * @param filter Container for filtering options. In order to be considered valid it must
          * - be not null
@@ -16211,7 +16208,7 @@ class MegaApi
          *
          * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
          *
-         * @return List with found child files as MegaNode objects
+         * @return List with found children as MegaNode objects
          */
         MegaNodeList* getChildren(const MegaSearchFilter *filter, int order = ORDER_NONE, MegaCancelToken *cancelToken = nullptr);
 
@@ -17266,7 +17263,7 @@ class MegaApi
         long long getBandwidthOverquotaDelay();
 
         /**
-         * @brief Search file nodes and allow filtering the results.
+         * @brief Search nodes and allow filtering the results.
          * The search is case-insensitive.
          *
          * You take the ownership of the returned value.
@@ -17337,7 +17334,7 @@ class MegaApi
          *
          * @param cancelToken MegaCancelToken to be able to cancel the search at any time.
          *
-         * @return List with found files as MegaNode objects
+         * @return List with found nodes as MegaNode objects
          */
         MegaNodeList* search(const MegaSearchFilter* filter, int order = ORDER_NONE, MegaCancelToken* cancelToken = nullptr);
 
