@@ -372,7 +372,7 @@ MegaNode *MegaNode::copy()
     return NULL;
 }
 
-int MegaNode::getType()
+int MegaNode::getType() const
 {
     return 0;
 }
@@ -472,7 +472,7 @@ int64_t MegaNode::getModificationTime()
     return 0;
 }
 
-MegaHandle MegaNode::getHandle()
+MegaHandle MegaNode::getHandle() const
 {
     return INVALID_HANDLE;
 }
@@ -4170,6 +4170,11 @@ char *MegaApi::base32ToBase64(const char *base32)
     return result;
 }
 
+MegaNodeList* MegaApi::search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
+{
+    return pImpl->search(filter, order, convertToCancelToken(cancelToken));
+}
+
 MegaNodeList* MegaApi::search(MegaNode* n, const char* searchString, bool recursive, int order)
 {
     return pImpl->search(n, searchString, CancelToken(), recursive, order);
@@ -4368,6 +4373,11 @@ int MegaApi::getNumChildFiles(MegaNode* parent)
 int MegaApi::getNumChildFolders(MegaNode* parent)
 {
 	return pImpl->getNumChildFolders(parent);
+}
+
+MegaNodeList *MegaApi::getChildren(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
+{
+    return pImpl->getChildren(filter, order, convertToCancelToken(cancelToken));
 }
 
 MegaNodeList *MegaApi::getChildren(MegaNode* p, int order, MegaCancelToken* cancelToken)
@@ -6568,6 +6578,70 @@ bool MegaInputStream::read(char* /*buffer*/, size_t /*size*/)
 MegaInputStream::~MegaInputStream()
 {
 
+}
+
+
+MegaSearchFilter::MegaSearchFilter()
+{
+}
+
+MegaSearchFilter* MegaSearchFilter::createInstance()
+{
+    return new MegaSearchFilterPrivate();
+}
+
+MegaSearchFilter* MegaSearchFilter::copy() const
+{
+    return nullptr;
+}
+
+MegaSearchFilter::~MegaSearchFilter()
+{
+}
+
+void MegaSearchFilter::byName(const char* /*searchString*/)
+{
+}
+
+void MegaSearchFilter::byCategory(int /*mimeType*/)
+{
+}
+
+void MegaSearchFilter::bySensitivity(bool /*excludeSensitive*/)
+{
+}
+
+void MegaSearchFilter::byLocationHandle(MegaHandle /*ancestorHandle*/)
+{
+}
+
+void MegaSearchFilter::byLocation(int /*locationType*/)
+{
+}
+
+const char* MegaSearchFilter::byName() const
+{
+    return nullptr;
+}
+
+int MegaSearchFilter::byCategory() const
+{
+    return MegaApi::FILE_TYPE_DEFAULT;
+}
+
+bool MegaSearchFilter::bySensitivity() const
+{
+    return false;
+}
+
+MegaHandle MegaSearchFilter::byLocationHandle() const
+{
+    return INVALID_HANDLE;
+}
+
+int MegaSearchFilter::byLocation() const
+{
+    return MegaApi::SEARCH_TARGET_ALL;
 }
 
 MegaApiLock::MegaApiLock(MegaApiImpl* ptr, bool lock) : api(ptr)

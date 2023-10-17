@@ -566,7 +566,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
 
         MegaNodePrivate(MegaNode *node);
         ~MegaNodePrivate() override;
-        int getType() override;
+        int getType() const override;
         const char* getName() override;
         const char* getFingerprint() override;
         const char* getOriginalFingerprint() override;
@@ -587,7 +587,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         int64_t getSize() override;
         int64_t getCreationTime() override;
         int64_t getModificationTime() override;
-        MegaHandle getHandle() override;
+        MegaHandle getHandle() const override;
         MegaHandle getRestoreHandle() override;
         MegaHandle getParentHandle() override;
         std::string* getNodeKey() override;
@@ -2475,6 +2475,32 @@ class TransferQueue
 };
 
 
+class MegaSearchFilterPrivate : public MegaSearchFilter
+{
+public:
+    MegaSearchFilterPrivate* copy() const override;
+
+    void byName(const char* searchString) override;
+    void byCategory(int mimeType) override;
+    void bySensitivity(bool excludeSensitive) override;
+    void byLocationHandle(MegaHandle ancestorHandle) override;
+    void byLocation(int locationType) override;
+
+    const char* byName() const override { return mNameFilter.c_str(); }
+    int byCategory() const override { return mMimeCategory; }
+    bool bySensitivity() const override { return mExcludeSensitive; }
+    MegaHandle byLocationHandle() const override { return mLocationHandle; }
+    int byLocation() const override { return mLocationType; }
+
+private:
+    std::string mNameFilter;
+    int mMimeCategory = MegaApi::FILE_TYPE_DEFAULT;
+    bool mExcludeSensitive = false;
+    MegaHandle mLocationHandle = INVALID_HANDLE;
+    int mLocationType = MegaApi::SEARCH_TARGET_ALL;
+};
+
+
 class MegaApiImpl : public MegaApp
 {
     public:
@@ -2866,7 +2892,8 @@ class MegaApiImpl : public MegaApp
 		int getNumChildren(MegaNode* parent);
 		int getNumChildFiles(MegaNode* parent);
         int getNumChildFolders(MegaNode* parent);
-        MegaNodeList* getChildren(MegaNode *parent, int order, CancelToken cancelToken = CancelToken());
+        MegaNodeList* getChildren(const MegaSearchFilter* filter, int order, CancelToken cancelToken = CancelToken());
+        MegaNodeList* getChildren(const MegaNode *parent, int order, CancelToken cancelToken = CancelToken());
         MegaNodeList* getChildren(MegaNodeList *parentNodes, int order);
         MegaNodeList* getVersions(MegaNode *node);
         int getNumVersions(MegaNode *node);
@@ -2949,9 +2976,22 @@ class MegaApiImpl : public MegaApp
         MegaRecentActionBucketList* getRecentActions(unsigned days = 90, unsigned maxnodes = 500);
         void getRecentActionsAsync(unsigned days, unsigned maxnodes, MegaRequestListener *listener = NULL);
 
+        MegaNodeList* search(const MegaSearchFilter* filter, int order, CancelToken cancelToken);
+
+        // deprecated
         MegaNodeList* search(MegaNode *node, const char *searchString, CancelToken cancelToken, bool recursive = true, int order = MegaApi::ORDER_NONE, int mimeType = MegaApi::FILE_TYPE_DEFAULT, int target = MegaApi::SEARCH_TARGET_ALL, bool includeSensitive = true);
+
+    private:
+        node_vector searchTopLevelNodesExclRubbish(const MegaSearchFilter* filter, CancelToken cancelToken);
+        node_vector searchInshares(const MegaSearchFilter* filter, CancelToken cancelToken);
+        node_vector searchOutshares(const MegaSearchFilter* filter, CancelToken cancelToken);
+        node_vector searchPublicLinks(const MegaSearchFilter* filter, CancelToken cancelToken);
+        node_vector searchInNodeManager(const MegaSearchFilter* filter, CancelToken cancelToken);
+
+        // deprecated
         MegaNodeList* searchWithFlags(MegaNode* node, const char* searchString, CancelToken cancelToken, bool recursive, int order, int mimeType = MegaApi::FILE_TYPE_DEFAULT, int target = MegaApi::SEARCH_TARGET_ALL, Node::Flags requiredFlags = Node::Flags(), Node::Flags excludeFlags = Node::Flags(), Node::Flags excludeRecursiveFlags = Node::Flags());
 
+    public:
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
 
         MegaNode *createForeignFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime, const char* fingerprintCrc,
@@ -3289,10 +3329,11 @@ private:
         void processTransferFailed(Transfer *tr, MegaTransferPrivate *transfer, const Error &e, dstime timeleft);
         void processTransferRemoved(Transfer *tr, MegaTransferPrivate *transfer, const Error &e);
 
+        // deprecated
         // if seachString == "" type must not be default
         node_vector searchInNodeManager(MegaHandle nodeHandle, const char* searchString, int mimeType, bool recursive, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelToken);
 
-        bool isValidTypeNode(Node *node, int type);
+        bool isValidTypeNode(const Node *node, int type) const;
 
         MegaApi *api;
         std::thread thread;

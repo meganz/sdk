@@ -631,7 +631,7 @@ char *MegaNodePrivate::getBase64Handle()
     return base64Handle;
 }
 
-int MegaNodePrivate::getType()
+int MegaNodePrivate::getType() const
 {
     return type;
 }
@@ -855,7 +855,7 @@ MegaHandle MegaNodePrivate::getParentHandle()
     return parenthandle;
 }
 
-uint64_t MegaNodePrivate::getHandle()
+uint64_t MegaNodePrivate::getHandle() const
 {
     return nodehandle;
 }
@@ -5672,6 +5672,54 @@ void MegaFilePut::terminated(error e)
 {
     delete this;
 }
+
+
+void MegaSearchFilterPrivate::byName(const char* searchString)
+{
+    mNameFilter = searchString ? searchString : string();
+}
+
+void MegaSearchFilterPrivate::byCategory(int mimeType)
+{
+    assert(MegaApi::FILE_TYPE_DEFAULT <= mimeType && mimeType <= MegaApi::FILE_TYPE_LAST);
+    if (mimeType < MegaApi::FILE_TYPE_DEFAULT || MegaApi::FILE_TYPE_LAST < mimeType)
+    {
+        LOG_warn << "Invalid mimeType for SearchFilter: " << mimeType << ". Ignored.";
+        return;
+    }
+
+    mMimeCategory = mimeType;
+}
+
+void MegaSearchFilterPrivate::bySensitivity(bool excludeSensitive)
+{
+    mExcludeSensitive = excludeSensitive;
+}
+
+void MegaSearchFilterPrivate::byLocationHandle(MegaHandle ancestorHandle)
+{
+    mLocationHandle = ancestorHandle;
+    mLocationType = MegaApi::SEARCH_TARGET_ALL;
+}
+
+void MegaSearchFilterPrivate::byLocation(int locationType)
+{
+    assert(MegaApi::SEARCH_TARGET_INSHARE <= locationType && locationType <= MegaApi::SEARCH_TARGET_ALL);
+    if (locationType < MegaApi::SEARCH_TARGET_INSHARE || MegaApi::SEARCH_TARGET_ALL < locationType)
+    {
+        LOG_warn << "Invalid locationType for SearchFilter: " << locationType << ". Ignored.";
+        return;
+    }
+
+    mLocationType = locationType;
+    mLocationHandle = INVALID_HANDLE;
+}
+
+MegaSearchFilterPrivate* MegaSearchFilterPrivate::copy() const
+{
+    return new MegaSearchFilterPrivate(*this);
+}
+
 
 //Entry point for the blocking thread
 void *MegaApiImpl::threadEntryPoint(void *param)
@@ -11708,7 +11756,7 @@ node_vector MegaApiImpl::searchInNodeManager(MegaHandle ancestorHandle, const ch
     return nodeVector;
 }
 
-bool MegaApiImpl::isValidTypeNode(Node *node, int type)
+bool MegaApiImpl::isValidTypeNode(const Node *node, int type) const
 {
     assert(node);
     if (!client)
@@ -11835,6 +11883,191 @@ char* strcasestr(const char* string, const char* substring)
 
 #endif
 
+MegaNodeList* MegaApiImpl::search(const MegaSearchFilter* filter, int order, CancelToken cancelToken)
+{
+    if (!filter)
+    {
+        return new MegaNodeListPrivate();
+    }
+
+    node_vector searchResults;
+
+    // search
+    {
+        SdkMutexGuard g(sdkMutex);
+
+        switch (filter->byLocation())
+        {
+        case MegaApi::SEARCH_TARGET_ALL:
+            searchResults = searchInNodeManager(filter, cancelToken);
+            break;
+        case MegaApi::SEARCH_TARGET_ROOTNODE:
+            searchResults = searchTopLevelNodesExclRubbish(filter, cancelToken);
+            break;
+        case MegaApi::SEARCH_TARGET_INSHARE:
+            searchResults = searchInshares(filter, cancelToken);
+            break;
+        case MegaApi::SEARCH_TARGET_OUTSHARE:
+            searchResults = searchOutshares(filter, cancelToken);
+            break;
+        case MegaApi::SEARCH_TARGET_PUBLICLINK:
+            searchResults = searchPublicLinks(filter, cancelToken);
+            break;
+        default:
+            LOG_err << "Search not implemented for Location " << filter->byLocation();
+        }
+    } // end scope for mutex guard
+
+    // order
+    sortByComparatorFunction(searchResults, order, *client);
+    MegaNodeListPrivate* nodeList = new MegaNodeListPrivate(searchResults.data(), int(searchResults.size()));
+
+    return nodeList;
+}
+
+node_vector MegaApiImpl::searchTopLevelNodesExclRubbish(const MegaSearchFilter* filter, CancelToken cancelToken)
+{
+    // Search on rootnodes (Cloud and Vault, excluding Rubbish)
+    if (client->mNodeManager.getRootNodeFiles().isUndef())
+    {
+        return node_vector();
+    }
+
+    // make a copy as it will need to be modified
+    std::unique_ptr<MegaSearchFilter> f(filter->copy());
+    f->byLocationHandle(client->mNodeManager.getRootNodeFiles().as8byte());
+
+    node_vector searchResults = searchInNodeManager(f.get(), cancelToken);
+
+    if (!client->mNodeManager.getRootNodeVault().isUndef())
+    {
+        f->byLocationHandle(client->mNodeManager.getRootNodeVault().as8byte());
+        node_vector vaultResults = searchInNodeManager(f.get(), cancelToken);
+        searchResults.insert(searchResults.end(), vaultResults.begin(), vaultResults.end());
+    }
+
+    return searchResults;
+}
+
+node_vector MegaApiImpl::searchInshares(const MegaSearchFilter* filter, CancelToken cancelToken)
+{
+    // make a copy as it will need to be modified
+    std::unique_ptr<MegaSearchFilter> f(filter->copy());
+
+    // find in-shares themselves
+    node_vector results = client->mNodeManager.getInSharesWithName(f->byName(), cancelToken);
+
+    // Search in each inshare
+    unique_ptr<MegaShareList> shares(getInSharesList(MegaApi::ORDER_NONE));
+    for (int i = 0; i < shares->size() && !cancelToken.isCancelled(); i++)
+    {
+        Node* node = client->nodebyhandle(shares->get(i)->getNodeHandle());
+        assert(node);
+        if (node)
+        {
+            f->byLocationHandle(node->nodehandle);
+            node_vector inEachShare = searchInNodeManager(f.get(), cancelToken);
+            results.insert(results.end(), inEachShare.begin(), inEachShare.end());
+        }
+    }
+
+    return results;
+}
+
+node_vector MegaApiImpl::searchOutshares(const MegaSearchFilter* filter, CancelToken cancelToken)
+{
+    // make a copy as it will need to be modified
+    std::unique_ptr<MegaSearchFilter> f(filter->copy());
+
+    // find out-shares themselves
+    node_vector results = client->mNodeManager.getOutSharesWithName(f->byName(), cancelToken);
+
+    // Search in each outshare
+    std::set<MegaHandle> outsharesHandles;
+    unique_ptr<MegaShareList> shares(getOutShares(MegaApi::ORDER_NONE));
+    for (int i = 0; i < shares->size() && !cancelToken.isCancelled(); i++)
+    {
+        handle h = shares->get(i)->getNodeHandle();
+        if (outsharesHandles.find(h) != outsharesHandles.end())
+        {
+            // shares list includes an item per outshare AND per sharee/user
+            continue;   // avoid duplicates
+        }
+        outsharesHandles.insert(h);
+        Node* node = client->nodebyhandle(shares->get(i)->getNodeHandle());
+        assert(node);
+        if (node)
+        {
+            f->byLocationHandle(node->nodehandle);
+            node_vector inEachShare = searchInNodeManager(f.get(), cancelToken);
+            results.insert(results.end(), inEachShare.begin(), inEachShare.end());
+        }
+    }
+
+    return results;
+}
+
+node_vector MegaApiImpl::searchPublicLinks(const MegaSearchFilter* filter, CancelToken cancelToken)
+{
+    // make a copy as it will need to be modified
+    std::unique_ptr<MegaSearchFilter> f(filter->copy());
+
+    // find public links themselves
+    node_vector results = client->mNodeManager.getPublicLinksWithName(f->byName(), cancelToken);
+
+    // Search under each public link
+    node_vector publicLinks = client->mNodeManager.getNodesWithLinks();
+    for (const auto& p : publicLinks)
+    {
+        Node* node = client->nodebyhandle(p->nodehandle);
+        assert(node);
+        if (node)
+        {
+            f->byLocationHandle(node->nodehandle);
+            node_vector underEachLink = searchInNodeManager(f.get(), cancelToken);
+            results.insert(results.end(), underEachLink.begin(), underEachLink.end());
+        }
+    }
+
+    return results;
+}
+
+node_vector MegaApiImpl::searchInNodeManager(const MegaSearchFilter* filter, CancelToken cancelToken)
+{
+    bool filterByCategory = filter->byCategory() != MegaApi::FILE_TYPE_DEFAULT;
+    bool filterByName = filter->byName() && *filter->byName();
+    Node::Flags excludeRecursiveFlags = Node::Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE, filter->bySensitivity());
+
+    if (filterByCategory && !filterByName)
+    {
+        return client->mNodeManager.getNodesByMimeType(static_cast<MimeType_t>(filter->byCategory()),
+                                                       NodeHandle().set6byte(filter->byLocationHandle()),
+                                                       Node::Flags(), Node::Flags(), excludeRecursiveFlags, cancelToken);
+    }
+    else
+    {
+        // when no name filter was used, search all nodes
+        static const char searchAll[] = "*";
+        const char* nameFilter = filterByName ? filter->byName() : searchAll;
+
+        node_vector results = client->mNodeManager.search(NodeHandle().set6byte(filter->byLocationHandle()), nameFilter, true,
+                                                          Node::Flags(), Node::Flags(), excludeRecursiveFlags, cancelToken);
+
+        // filter further
+        node_vector filtered;
+        filtered.reserve(results.size());
+        for (auto it = results.begin(); it != results.end() && !cancelToken.isCancelled(); ++it)
+        {
+            if (isValidTypeNode(*it, filter->byCategory()))
+            {
+                filtered.push_back(*it);
+            }
+        }
+
+        return filtered;
+    }
+}
+
 MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, CancelToken cancelToken, bool recursive, int order, int mimeType, int target, bool includeSensitive)
 {
     Node::Flags requiredFlags;
@@ -11957,7 +12190,6 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
         {
             // always recursive
             assert(recursive);
-            // ignores mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags
 
             // find in-shares themselves
             node_vector nodeVector = client->mNodeManager.getInSharesWithName(searchString, cancelToken);
@@ -11980,7 +12212,6 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
         {
             // always recursive
             assert(recursive);
-            // ignores mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags
 
             // find out-shares themselves
             node_vector nodeVector = client->mNodeManager.getOutSharesWithName(searchString, cancelToken);
@@ -12011,7 +12242,6 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
         {
             // always recursive
             assert(recursive);
-            // ignores mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags
 
             // find public links themselves
             node_vector nodeVector = client->mNodeManager.getPublicLinksWithName(searchString, cancelToken);
@@ -17498,7 +17728,58 @@ int MegaApiImpl::getNumChildFolders(MegaNode* p)
 }
 
 
-MegaNodeList *MegaApiImpl::getChildren(MegaNode* p, int order, CancelToken cancelToken)
+MegaNodeList *MegaApiImpl::getChildren(const MegaSearchFilter* filter, int order, CancelToken cancelToken)
+{
+    // validations
+    if (!filter || filter->byLocationHandle() == INVALID_HANDLE)
+    {
+        assert(filter && filter->byLocationHandle() != INVALID_HANDLE);
+        return new MegaNodeListPrivate();
+    }
+
+    // NodeManager::getChildren() is probably more efficient, but it cannot be used with complex filters,
+    // fallback to NodeManager::search() for name filters
+    bool lookupUsingGetChildren = !(filter->byName() && *filter->byName());
+
+    node_vector children;
+    { // scope for mutex guard
+        SdkMutexGuard guard(sdkMutex);
+        if (lookupUsingGetChildren)
+        {
+            Node* parent = client->nodebyhandle(filter->byLocationHandle());
+            if (parent)
+            {
+                // children of a particular parent, without name filter --> then filter by Category and Sensitivity
+                node_list list = client->mNodeManager.getChildren(parent, cancelToken);
+                children.insert(children.end(), list.begin(), list.end());
+            }
+        }
+        else
+        {
+            // children under various locations, and/or filtered by name --> then filter by Category
+            Node::Flags excludeRecursiveFlags = Node::Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE, filter->bySensitivity());
+            children = client->mNodeManager.search(NodeHandle().set6byte(filter->byLocationHandle()), filter->byName(), false,
+                                                   Node::Flags(), Node::Flags(), excludeRecursiveFlags, cancelToken);
+        }
+    }
+
+    node_vector results;
+    // apply the extra filters
+    for (auto it = children.begin(); it != children.end(); ++it)
+    {
+        Node* child = *it;
+        if (isValidTypeNode(child, filter->byCategory()) && // filter by category
+            (!lookupUsingGetChildren || (!child->isSensitiveInherited() || !filter->bySensitivity()))) // filter by sensitivity
+        {
+            results.push_back(child);
+        }
+    }
+
+    sortByComparatorFunction(results, order, *client);
+    return new MegaNodeListPrivate(results.data(), int(results.size()));
+}
+
+MegaNodeList *MegaApiImpl::getChildren(const MegaNode* p, int order, CancelToken cancelToken)
 {
     if (!p || p->getType() == MegaNode::TYPE_FILE)
     {
@@ -17622,16 +17903,11 @@ MegaNodeList* MegaApiImpl::getChildrenFromType(MegaNode* p, int type, int order,
 
     SdkMutexGuard guard(sdkMutex);
 
-    node_vector childrenNodes;
-    Node *parent = client->nodebyhandle(p->getHandle());
-    if (parent && parent->type != FILENODE)
-    {
-        childrenNodes = client->mNodeManager.getChildrenFromType(parent, static_cast<nodetype_t>(type), cancelToken);
+    node_vector childrenNodes = client->mNodeManager.getChildrenFromType(NodeHandle().set6byte(p->getHandle()), static_cast<nodetype_t>(type), cancelToken);
 
-        if (std::function<bool(Node*, Node*)> comparatorFunction = getComparatorFunction(order, *client))
-        {
-            std::sort(childrenNodes.begin(), childrenNodes.end(), comparatorFunction);
-        }
+    if (std::function<bool(Node*, Node*)> comparatorFunction = getComparatorFunction(order, *client))
+    {
+        std::sort(childrenNodes.begin(), childrenNodes.end(), comparatorFunction);
     }
 
     return new MegaNodeListPrivate(childrenNodes.data(), int(childrenNodes.size()));
