@@ -10,6 +10,8 @@ using mega::gfx::CommandShutDown;
 using mega::gfx::CommandShutDownResponse;
 using mega::gfx::CommandHello;
 using mega::gfx::CommandHelloResponse;
+using mega::gfx::CommandSupportFormats;
+using mega::gfx::CommandSupportFormatsResponse;
 using mega::gfx::TimeoutMs;
 using mega::gfx::IReader;
 using mega::gfx::GfxSize;
@@ -46,6 +48,16 @@ namespace gfx
     bool operator==(const CommandHelloResponse& lhs, const CommandHelloResponse& rhs)
     {
         return lhs.Text == rhs.Text;
+    }
+
+    bool operator==(const CommandSupportFormats& /*lhs*/, const CommandSupportFormats& /*rhs*/)
+    {
+        return true;
+    }
+
+    bool operator==(const CommandSupportFormatsResponse& lhs, const CommandSupportFormatsResponse& rhs)
+    {
+        return lhs.formats == rhs.formats && lhs.videoformats == rhs.videoformats;
     }
 }
 }
@@ -165,6 +177,36 @@ TEST(CommandSerializer, CommandHelloResponseSerializeAndUnserializeSuccessfully)
     auto command = CommandSerializer::unserialize(reader, TimeoutMs(5000));
     ASSERT_NE(command, nullptr);
     auto targetCommand = dynamic_cast<CommandHelloResponse*>(command.get());
+    ASSERT_NE(targetCommand, nullptr);
+    ASSERT_EQ(sourceCommand, *targetCommand);
+}
+
+TEST(CommandSerializer, CommandSupportFormatsSerializeAndUnserializeSuccessfully)
+{
+    CommandSupportFormats sourceCommand;
+
+    auto data = CommandSerializer::serialize(&sourceCommand);
+    ASSERT_NE(data, nullptr);
+
+    StringReader reader(std::move(*data));
+    auto command = CommandSerializer::unserialize(reader, TimeoutMs(5000));
+    ASSERT_NE(command, nullptr);
+    auto targetCommand = dynamic_cast<CommandSupportFormats*>(command.get());
+    ASSERT_NE(targetCommand, nullptr);
+    ASSERT_EQ(sourceCommand, *targetCommand);
+}
+
+TEST(CommandSerializer, CommandSupportFormatsResponseSerializeAndUnserializeSuccessfully)
+{
+    CommandSupportFormatsResponse sourceCommand;
+
+    auto data = CommandSerializer::serialize(&sourceCommand);
+    ASSERT_NE(data, nullptr);
+
+    StringReader reader(std::move(*data));
+    auto command = CommandSerializer::unserialize(reader, TimeoutMs(5000));
+    ASSERT_NE(command, nullptr);
+    auto targetCommand = dynamic_cast<CommandSupportFormatsResponse*>(command.get());
     ASSERT_NE(targetCommand, nullptr);
     ASSERT_EQ(sourceCommand, *targetCommand);
 }

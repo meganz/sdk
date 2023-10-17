@@ -27,15 +27,17 @@ namespace gfx {
 
 enum class CommandType
 {
-    BEGIN               = 1,
-    NEW_GFX             = 1,
-    NEW_GFX_RESPONSE    = 2,
-    ABORT               = 3,
-    SHUTDOWN            = 4,
-    SHUTDOWN_RESPONSE   = 5,
-    HELLO               = 6,
-    HELLO_RESPONSE      = 7,
-    END                 = 8  // 1 more than the last valid one
+    BEGIN                       = 1,
+    NEW_GFX                     = 1,
+    NEW_GFX_RESPONSE            = 2,
+    ABORT                       = 3,
+    SHUTDOWN                    = 4,
+    SHUTDOWN_RESPONSE           = 5,
+    HELLO                       = 6,
+    HELLO_RESPONSE              = 7,
+    SUPPORT_FORMATS             = 8,
+    SUPPORT_FORMATS_RESPONSE    = 9,
+    END                         = 10  // 1 more than the last valid one
 };
 
 class ICommand
@@ -80,6 +82,18 @@ struct CommandHelloResponse : public ICommand
 {
     std::string Text;
     CommandType type() const override { return CommandType::HELLO_RESPONSE; }
+};
+
+struct CommandSupportFormats : public ICommand
+{
+    CommandType type() const override { return CommandType::SUPPORT_FORMATS; }
+};
+
+struct CommandSupportFormatsResponse : public ICommand
+{
+    std::string formats;
+    std::string videoformats;
+    CommandType type() const override { return CommandType::SUPPORT_FORMATS_RESPONSE; }
 };
 
 } //namespace gfx

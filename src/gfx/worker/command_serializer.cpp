@@ -16,6 +16,8 @@ namespace
     using mega::gfx::CommandShutDownResponse;
     using mega::gfx::CommandHello;
     using mega::gfx::CommandHelloResponse;
+    using mega::gfx::CommandSupportFormats;
+    using mega::gfx::CommandSupportFormatsResponse;
     using mega::gfx::CommandType;
 
     class GfxSerializationHelper
@@ -151,6 +153,18 @@ namespace
     {
         static std::string serialize(const CommandHelloResponse& command);
         static bool unserialize(const std::string& data, CommandHelloResponse& command);
+    };
+
+    struct CommandSupportFormatsSerializer
+    {
+        static std::string serialize(const CommandSupportFormats& command);
+        static bool unserialize(const std::string& data, CommandSupportFormats& command);
+    };
+
+    struct CommandSupportFormatsResponseSerializer
+    {
+        static std::string serialize(const CommandSupportFormatsResponse& command);
+        static bool unserialize(const std::string& data, CommandSupportFormatsResponse& command);
     };
 
     void GfxSerializationHelper::serialize(std::string& target, const std::string& source)
@@ -442,6 +456,48 @@ namespace
         return true;
     }
 
+    std::string CommandSupportFormatsSerializer::serialize(const CommandSupportFormats& /*command*/)
+    {
+        return "";
+    }
+
+    bool CommandSupportFormatsSerializer::unserialize(const std::string& /*data*/, CommandSupportFormats& /*command*/)
+    {
+        return true;
+    }
+
+    std::string CommandSupportFormatsResponseSerializer::serialize(const CommandSupportFormatsResponse& command)
+    {
+        std::string toret;
+        GfxSerializationHelper::serialize(toret, command.formats);
+        GfxSerializationHelper::serialize(toret, command.videoformats);
+        return toret;
+    }
+
+    bool CommandSupportFormatsResponseSerializer::unserialize(const std::string& data, CommandSupportFormatsResponse& command)
+    {
+        size_t count = 0;
+        size_t consumed = 0;
+        auto source = data.data();
+        auto len = data.size();
+
+        // formats
+        if (!(consumed = GfxSerializationHelper::unserialize(command.formats, source, len)))
+        {
+            return false;
+        }
+        count += consumed;
+
+        // videoformats
+        if (!(consumed = GfxSerializationHelper::unserialize(command.videoformats, source + count, len - count)))
+        {
+            return false;
+        }
+        count += consumed;
+
+        return true;
+    }
+
     template<typename T>
     bool isInOpenEndRange(const T& value, const T& low, const T& high)
     {
@@ -541,6 +597,18 @@ bool CommandSerializer::serializeHelper(ICommand* command, std::string& data)
         if (auto c = dynamic_cast<CommandHelloResponse*>(command))
         {
             data = CommandHelloResponseSerializer::serialize(*c);
+            return true;
+        }
+    case CommandType::SUPPORT_FORMATS:
+        if (auto c = dynamic_cast<CommandSupportFormats*>(command))
+        {
+            data = CommandSupportFormatsSerializer::serialize(*c);
+            return true;
+        }
+    case CommandType::SUPPORT_FORMATS_RESPONSE:
+        if (auto c = dynamic_cast<CommandSupportFormatsResponse*>(command))
+        {
+            data = CommandSupportFormatsResponseSerializer::serialize(*c);
             return true;
         }
     default:
@@ -655,6 +723,22 @@ std::unique_ptr<ICommand> CommandSerializer::unserializeHelper(CommandType type,
         if (CommandHelloResponseSerializer::unserialize(data, command))
         {
             return mega::make_unique<CommandHelloResponse>(std::move(command));
+        }
+    }
+    case CommandType::SUPPORT_FORMATS:
+    {
+        CommandSupportFormats command;
+        if (CommandSupportFormatsSerializer::unserialize(data, command))
+        {
+            return mega::make_unique<CommandSupportFormats>(std::move(command));
+        }
+    }
+    case CommandType::SUPPORT_FORMATS_RESPONSE:
+    {
+        CommandSupportFormatsResponse command;
+        if (CommandSupportFormatsResponseSerializer::unserialize(data, command))
+        {
+            return mega::make_unique<CommandSupportFormatsResponse>(std::move(command));
         }
     }
     default:
