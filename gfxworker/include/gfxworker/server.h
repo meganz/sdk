@@ -38,6 +38,10 @@ struct IGfxProcessor
     virtual ~IGfxProcessor() = default;
 
     virtual GfxTaskResult process(const GfxTask& task) = 0;
+
+    virtual std::string supportedformats() const = 0;
+
+    virtual std::string supportedvideoformats() const = 0;
 };
 
 class GfxProcessor : public IGfxProcessor
@@ -54,6 +58,10 @@ public:
     }
 
     GfxTaskResult process(const GfxTask& task) override;
+
+    std::string supportedformats() const override;
+
+    std::string supportedvideoformats() const override;
 
     virtual ~GfxProcessor() = default;
 
@@ -90,6 +98,8 @@ private:
     void processShutDown(IEndpoint* endpoint);
 
     void processGfx(IEndpoint* endpoint, CommandNewGfx* request);
+
+    void processSupportFormats(IEndpoint* endpoint);
 
     ThreadPool mThreadPool;
 

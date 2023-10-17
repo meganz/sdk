@@ -1,4 +1,6 @@
 #include "gtest/gtest.h"
+#include "mega.h"
+#include "mega/gfx.h"
 #include "mega/gfx/worker/tasks.h"
 #include "mega/utils.h"
 #include "mega/win32/gfx/worker/comms_client.h"
@@ -104,6 +106,40 @@ TEST_F(ServerClientTest, hello)
             mega::make_unique<WinGfxCommunicationsClient>(mPipename, [](std::unique_ptr<IEndpoint> _) {})
         ).runHello("")
     );
+
+    EXPECT_TRUE(
+        GfxClient(
+            mega::make_unique<WinGfxCommunicationsClient>(mPipename, [](std::unique_ptr<IEndpoint> _) {})
+        ).runShutDown()
+    );
+
+    if (serverThread.joinable())
+    {
+        serverThread.join();
+    }
+}
+
+TEST_F(ServerClientTest, supportformats)
+{
+    WinGfxCommunicationsServer server(
+        ::mega::make_unique<RequestProcessor>(GfxProcessor::create()),
+        mPipename
+    );
+
+    std::thread serverThread(&WinGfxCommunicationsServer::initialize, &server);
+
+    std::this_thread::sleep_for(100ms);
+
+    std::string formats, videoformats;
+    EXPECT_TRUE(
+        GfxClient(
+            mega::make_unique<WinGfxCommunicationsClient>(mPipename, [](std::unique_ptr<IEndpoint> _) {})
+        ).runSupportFormats(formats, videoformats)
+    );
+
+    auto provider = mega::IGfxProvider::createInternalGfxProvider();
+    EXPECT_EQ(formats, provider->supportedformats() ? std::string(provider->supportedformats()) : std::string());
+    EXPECT_EQ(videoformats, provider->supportedvideoformats() ? std::string(provider->supportedvideoformats()) : std::string());
 
     EXPECT_TRUE(
         GfxClient(

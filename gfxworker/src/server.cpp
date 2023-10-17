@@ -82,6 +82,18 @@ GfxTaskResult GfxProcessor::process(const GfxTask& task)
     return GfxTaskResult(std::move(outputImages), GfxTaskProcessStatus::SUCCESS);
 }
 
+std::string GfxProcessor::supportedformats() const
+{
+    auto formats = mGfxProvider->supportedformats();
+    return formats ? std::string(formats) : "";
+}
+
+std::string GfxProcessor::supportedvideoformats() const
+{
+    auto videoformats = mGfxProvider->supportedvideoformats();
+    return videoformats ? std::string(videoformats) : "";
+}
+
 RequestProcessor::RequestProcessor(std::unique_ptr<IGfxProcessor> processor) : mGfxProcessor(std::move(processor))
 {
     mThreadPool.initialize(5, 10);
@@ -125,6 +137,11 @@ bool RequestProcessor::process(std::unique_ptr<IEndpoint> endpoint)
                 processGfx(sharedEndpoint.get(), dynamic_cast<CommandNewGfx*>(command.get()));
                 break;
             }
+            case CommandType::SUPPORT_FORMATS:
+            {
+                processSupportFormats(sharedEndpoint.get());
+                break;
+            }
             default:
                 break;
             }
@@ -163,5 +180,18 @@ void RequestProcessor::processGfx(IEndpoint* endpoint, CommandNewGfx* request)
     ProtocolWriter writer{ endpoint };
     writer.writeCommand(&response, TimeoutMs(5000));
 }
+
+void RequestProcessor::processSupportFormats(IEndpoint* endpoint)
+{
+    assert(endpoint);
+
+    CommandSupportFormatsResponse response;
+    response.formats = mGfxProcessor->supportedformats();
+    response.videoformats = mGfxProcessor->supportedvideoformats();
+
+    ProtocolWriter writer{ endpoint };
+    writer.writeCommand(&response, TimeoutMs(5000));
+}
+
 } //namespace server
 } //namespace gfx

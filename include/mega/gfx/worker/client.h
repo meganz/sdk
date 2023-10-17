@@ -52,6 +52,8 @@ public:
 
     bool runGfxTask(const std::string& localpath, std::vector<GfxSize> sizes, std::vector<std::string>& images);
 
+    bool runSupportFormats(std::string& formats, std::string& videoformats);
+
     static GfxClient create(const std::string& pipename);
 
 private:

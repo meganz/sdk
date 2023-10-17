@@ -33,7 +33,8 @@ bool GfxClient::runHello(const std::string& text)
 
 bool GfxClient::runShutDown()
 {
-    if (sendAndReceive<CommandShutDownResponse>(CommandShutDown{}))
+    CommandShutDown command;
+    if (sendAndReceive<CommandShutDownResponse>(command))
     {
         LOG_verbose << "GfxClient gets shutdown response";
         return true;
@@ -67,6 +68,25 @@ bool GfxClient::runGfxTask(const std::string& localpath, std::vector<GfxSize> si
     {
         LOG_verbose << "GfxClient gets gfxTask response successfully";
         images = std::move(addReponse->Images);
+        return true;
+    }
+}
+
+bool GfxClient::runSupportFormats(std::string& formats, std::string& videoformats)
+{
+    // command
+    CommandSupportFormats command;
+
+    auto reponse = sendAndReceive<CommandSupportFormatsResponse>(command);
+    if (!reponse)
+    {
+        LOG_err << "GfxClient couldn't get supportformats response";
+        return false;
+    }
+    else
+    {
+        formats = std::move(reponse->formats);
+        videoformats = std::move(reponse->videoformats);
         return true;
     }
 }
