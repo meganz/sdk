@@ -367,7 +367,7 @@ protected:
     // and can be created in a single operation.
     // Called from the main thread just before we send the next set of folder creation commands.
     enum batchResult { batchResult_cancelled, batchResult_requestSent, batchResult_batchesComplete, batchResult_stillRecursing };
-    batchResult createNextFolderBatch(Tree& tree, vector<NewNode>& newnodes, bool isBatchRootLevel);
+    batchResult createNextFolderBatch(Tree& tree, vector<NewNode>& newnodes, uint32_t filecount, bool isBatchRootLevel);
 
     // Iterate through all pending files of each uploaded folder, and start all upload transfers
     bool genUploadTransfersForFiles(Tree& tree, TransferQueue& transferQueue);
@@ -546,7 +546,7 @@ protected:
     bool IsStoppedOrCancelled(const std::string& name) const;
 
     // Create all local directories in one shot. This happens on the worker thread.
-    std::unique_ptr<TransferQueue> createFolderGenDownloadTransfersForFiles(FileSystemType fsType, Error& e);
+    std::unique_ptr<TransferQueue> createFolderGenDownloadTransfersForFiles(FileSystemType fsType, uint32_t fileCount, Error& e);
 
     // Iterate through all pending files, and adds all download transfers
     bool genDownloadTransfersForFiles(TransferQueue* transferQueue,
