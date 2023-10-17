@@ -19422,6 +19422,8 @@ class MegaApi
         /**
          * @brief Creates or updates a scheduled meeting
          *
+         * @note If chatTitle is provided, this method will also update chatroom title.
+         *
          * The associated request type with this request is MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getMegaScheduledMeetingList - returns a MegaScheduledMeetingList (with a MegaScheduledMeeting with data introduced by user)
@@ -19435,9 +19437,10 @@ class MegaApi
          * - MegaError::API_ENOENT - if the chatroom does not exists
          *
          * @param scheduledMeeting MegaScheduledMeeting with data introduced by user
+         * @param chatTitle Byte array representing the chatroom title, already encrypted and converted to Base64url encoding.
          * @param listener MegaRequestListener to track this request
          */
-        void createOrUpdateScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting, MegaRequestListener* listener = NULL);
+        void createOrUpdateScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting, const char *chatTitle,  MegaRequestListener* listener = NULL);
 
         /**
          * @brief Removes a scheduled meeting by scheduled meeting id and chatid

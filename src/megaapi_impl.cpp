@@ -24607,7 +24607,7 @@ void MegaApiImpl::getRecentActionsAsync(unsigned days, unsigned maxnodes, MegaRe
 }
 
 #ifdef ENABLE_CHAT
-void MegaApiImpl::createOrUpdateScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting, MegaRequestListener* listener)
+void MegaApiImpl::createOrUpdateScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting, const char* chatTitle, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING, listener);
     assert(scheduledMeeting);
@@ -24617,6 +24617,7 @@ void MegaApiImpl::createOrUpdateScheduledMeeting(const MegaScheduledMeeting* sch
         l->insert(scheduledMeeting->copy());
         request->setMegaScheduledMeetingList(l.get());
     }
+    request->setText(chatTitle);
 
     request->performRequest = [this, request]()
         {
@@ -24633,7 +24634,8 @@ void MegaApiImpl::createOrUpdateScheduledMeeting(const MegaScheduledMeeting* sch
                 return API_ENOENT;
             }
 
-            client->reqs.add(new CommandScheduledMeetingAddOrUpdate(client, schedMeeting->scheduledMeeting(), [request, this] (Error e, const ScheduledMeeting* sm)
+            const char* chatTitle = request->getText();
+            client->reqs.add(new CommandScheduledMeetingAddOrUpdate(client, schedMeeting->scheduledMeeting(), chatTitle, [request, this] (Error e, const ScheduledMeeting* sm)
             {
                 if (sm)
                 {
