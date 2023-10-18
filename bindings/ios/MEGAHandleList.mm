@@ -71,10 +71,6 @@ using namespace mega;
     }
 }
 
-- (instancetype)clone {
-    return self.megaHandleList ? [[MEGAHandleList alloc] initWithMegaHandleList:self.megaHandleList cMemoryOwn:YES] : nil;
-}
-
 - (MegaHandleList *)getCPtr {
     return self.megaHandleList;
 }
