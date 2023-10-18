@@ -186,10 +186,11 @@ bool SymmCipher::cbc_encrypt_pkcs_padding(const string *data, const byte *iv, st
                 Transformation::PKCS_PADDING);
 
         // Transform now owns sink.
-        sink.release();
+        static_cast<void>(sink.release());
 
         // Encrypt.
-        StringSource(*data, true, xfrm.release());
+        StringSource ss(*data, true, xfrm.release());
+
         return true;
     }
     catch (const CryptoPP::Exception& e)
@@ -225,10 +226,10 @@ bool SymmCipher::cbc_decrypt_pkcs_padding(const std::string* data, const byte* i
                                             Transformation::PKCS_PADDING);
 
         // Transform now owns sink.
-        sink.release();
+        static_cast<void>(sink.release());
 
         // Attempt decrypt.
-        StringSource(*data, true, xfrm.release());
+        StringSource ss(*data, true, xfrm.release());
 
         // Decrypt had correct padding.
         return true;
@@ -308,14 +309,14 @@ bool SymmCipher::ccm_encrypt(const string *data, const byte *iv, unsigned ivlen,
         {
             aesccm16_e.Resynchronize(iv, ivlen);
             aesccm16_e.SpecifyDataLengths(0, data->size(), 0);
-            StringSource(*data, true, new AuthenticatedEncryptionFilter(aesccm16_e, new StringSink(*result)));
+            StringSource ss(*data, true, new AuthenticatedEncryptionFilter(aesccm16_e, new StringSink(*result)));
             return true;
         }
         else if (taglen == 8)
         {
             aesccm8_e.Resynchronize(iv, ivlen);
             aesccm8_e.SpecifyDataLengths(0, data->size(), 0);
-            StringSource(*data, true, new AuthenticatedEncryptionFilter(aesccm8_e, new StringSink(*result)));
+            StringSource ss(*data, true, new AuthenticatedEncryptionFilter(aesccm8_e, new StringSink(*result)));
             return true;
         }
     }
@@ -340,14 +341,14 @@ bool SymmCipher::ccm_decrypt(const string *data, const byte *iv, unsigned ivlen,
         {
             aesccm16_d.Resynchronize(iv, ivlen);
             aesccm16_d.SpecifyDataLengths(0, data->size() - taglen, 0);
-            StringSource(*data, true, new AuthenticatedDecryptionFilter(aesccm16_d, new StringSink(*result)));
+            StringSource ss(*data, true, new AuthenticatedDecryptionFilter(aesccm16_d, new StringSink(*result)));
             return true;
         }
         else if (taglen == 8)
         {
             aesccm8_d.Resynchronize(iv, ivlen);
             aesccm8_d.SpecifyDataLengths(0, data->size() - taglen, 0);
-            StringSource(*data, true, new AuthenticatedDecryptionFilter(aesccm8_d, new StringSink(*result)));
+            StringSource ss(*data, true, new AuthenticatedDecryptionFilter(aesccm8_d, new StringSink(*result)));
             return true;
         }
     }
@@ -370,7 +371,7 @@ bool SymmCipher::gcm_encrypt(const string *data, const byte *iv, unsigned ivlen,
     try
     {
         aesgcm_e.Resynchronize(iv, ivlen);
-        StringSource(*data, true, new AuthenticatedEncryptionFilter(aesgcm_e, new StringSink(*result), false, taglen));
+        StringSource ss(*data, true, new AuthenticatedEncryptionFilter(aesgcm_e, new StringSink(*result), false, taglen));
     }
     catch (CryptoPP::Exception const &e)
     {
@@ -458,7 +459,7 @@ bool SymmCipher::gcm_decrypt(const string *data, const byte *iv, unsigned ivlen,
     try
     {
         aesgcm_d.Resynchronize(iv, ivlen);
-        StringSource(*data, true, new AuthenticatedDecryptionFilter(aesgcm_d, new StringSink(*result), taglen));
+        StringSource ss(*data, true, new AuthenticatedDecryptionFilter(aesgcm_d, new StringSink(*result), taglen));
     }
     catch (CryptoPP::Exception const& e)
     {
