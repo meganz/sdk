@@ -548,7 +548,8 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             ENDIF()
 
             # To be included in the config.h file if available.
-            CHECK_INCLUDE_FILE(${vcpkg_dir}/include/FreeImageConfig.h HAVE_FREEIMAGECONFIG_H)
+            file(TO_CMAKE_PATH "${vcpkg_dir}/include/FreeImageConfig.h" FREEIMAGECONFIG_PATH)
+            CHECK_INCLUDE_FILE(${FREEIMAGECONFIG_PATH} HAVE_FREEIMAGECONFIG_H)
 
         ENDIF(USE_FREEIMAGE)
 
