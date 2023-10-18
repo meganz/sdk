@@ -21,6 +21,8 @@
 #import <Foundation/Foundation.h>
 #import "MEGABackupInfo.h"
 
+NS_ASSUME_NONNULL_BEGIN
+
 /**
  * @brief List of MEGABackupInfo objects.
  *
@@ -30,7 +32,7 @@
 /**
  * @brief The number of MEGABackupInfo objects in the list.
  */
-@property (readonly, nonatomic) NSNumber *size;
+@property (readonly, nonatomic) NSUInteger size;
 
 /**
  * @brief The MEGABackupInfo at the position index in the MEGABackupInfoList.
@@ -40,6 +42,8 @@
  * @param index Position of the MEGABackupInfo that we want to get for the list.
  * @return MEGABackupInfo at the position index in the list.
  */
-- (MEGABackupInfo *)backupInfoAtIndex:(NSInteger)index;
+- (nullable MEGABackupInfo *)backupInfoAtIndex:(NSInteger)index;
 
 @end
+
+NS_ASSUME_NONNULL_END
