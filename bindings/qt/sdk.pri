@@ -541,15 +541,15 @@ else {
     SOURCES += src/gfx/freeimage.cpp
 
     vcpkg {
-        LIBS += -lfreeimage$$DEBUG_SUFFIX_WO -llibpng16$$DEBUG_SUFFIX -ljxrglue$$DEBUG_SUFFIX \
+        LIBS += -lfreeimage$$DEBUG_SUFFIX_WO -ljxrglue$$DEBUG_SUFFIX \
             -ljpeg -ltiff$$DEBUG_SUFFIX \
             -lIex-3_1$$UNDERSCORE_DEBUG_SUFFIX -lIlmThread-3_1$$UNDERSCORE_DEBUG_SUFFIX \
             -lImath-3_1$$UNDERSCORE_DEBUG_SUFFIX -lOpenEXR-3_1$$UNDERSCORE_DEBUG_SUFFIX
         win32 {
-            LIBS += -llibwebpdecoder -llibwebpdemux -llibwebp -llibwebpmux -llibsharpyuv
+            LIBS += -llibpng16$$DEBUG_SUFFIX -llibwebpdecoder -llibwebpdemux -llibwebp -llibwebpmux -llibsharpyuv
         }
         else {
-            LIBS += -lwebpdecoder -lwebpdemux -lwebp -lwebpmux -lsharpyuv
+            LIBS += -lpng16$$DEBUG_SUFFIX -lwebpdecoder -lwebpdemux -lwebp -lwebpmux -lsharpyuv
         }
         LIBS += -ljpegxr$$DEBUG_SUFFIX -llzma -ljasper$$DEBUG_SUFFIX -lraw_r$$DEBUG_SUFFIX_WO -lopenjp2 -llcms2
     }
