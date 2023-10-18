@@ -1,8 +1,8 @@
 diff --git a/portfile.cmake b/portfile.cmake
-index ce1b868..fd57c3e 100644
+index 6409d7485..f99f3dd9e 100644
 --- a/portfile.cmake
 +++ b/portfile.cmake
-@@ -48,4 +48,22 @@ vcpkg_fixup_cmake_targets()
+@@ -53,4 +53,21 @@ vcpkg_cmake_config_fixup()
  
  vcpkg_copy_pdbs()
  
@@ -21,7 +21,6 @@ index ce1b868..fd57c3e 100644
 +    _header_data
 +    "${_header_data}"
 +)
-+
 +file(WRITE "${CURRENT_PACKAGES_DIR}/include/FreeImage.h" "${_header_data}")
 +
- file(INSTALL ${SOURCE_PATH}/license-fi.txt DESTINATION ${CURRENT_PACKAGES_DIR}/share/${PORT} RENAME copyright)
+ vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/license-fi.txt")
