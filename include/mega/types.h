@@ -225,6 +225,7 @@ typedef enum ErrorCodes : int
     API_EBUSINESSPASTDUE = -28,     ///< Business account expired
     API_EPAYWALL = -29,             ///< Over Disk Quota Paywall
     LOCAL_ENOSPC = -1000,           ///< Insufficient space
+    LOCAL_ETIMEOUT = -1001,         ///< A request timed out.
 } error;
 
 class Error
