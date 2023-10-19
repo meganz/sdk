@@ -94,6 +94,8 @@ void WinGfxCommunicationsServer::serverListeningLoop()
         return;
     }
 
+    // first instance to prevent two processes create the same pipe
+    DWORD first_instance = FILE_FLAG_FIRST_PIPE_INSTANCE;
     const DWORD BUFSIZE = 512;
     for (;;)
     {
@@ -104,7 +106,8 @@ void WinGfxCommunicationsServer::serverListeningLoop()
         auto hPipe = CreateNamedPipe(
             wpipename.c_str(),             // pipe name
             PIPE_ACCESS_DUPLEX |      // read/write access
-            FILE_FLAG_OVERLAPPED,     // overlapped
+            FILE_FLAG_OVERLAPPED |    // overlapped
+            first_instance,           // first instance or not
             PIPE_TYPE_MESSAGE |       // message type pipe
             PIPE_READMODE_BYTE |      // message-read mode
             PIPE_WAIT,                // blocking mode
@@ -119,6 +122,9 @@ void WinGfxCommunicationsServer::serverListeningLoop()
             LOG_err << "CreateNamedPipe failed, Error=" << GetLastError() << " " << mega::winErrorMessage(GetLastError());
             break;
         }
+
+        // not first instance for next iteration
+        first_instance = 0;
 
         bool stopRunning = false;
         auto err_code = waitForClient(hPipe, overlap.data());
