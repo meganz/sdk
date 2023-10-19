@@ -113,13 +113,28 @@ private:
     std::string mPipename;
 };
 
+// This lauches the process and keep it running using beater
+class GfxIsolatedProcess
+{
+public:
+    GfxIsolatedProcess(const std::vector<string>& arguments,
+                       const std::string& pipename,
+                       unsigned int beatIntervalSeconds);
+
+    const std::string& pipename() const { return mPipename; }
+private:
+    std::unique_ptr<ILauncher> mLauncher;
+
+    std::unique_ptr<IHelloBeater> mBeater;
+
+    std::string mPipename;
+};
+
 class GfxProviderIsolatedProcess : public IGfxProvider
 {
 public:
 
-    GfxProviderIsolatedProcess(std::unique_ptr<ILauncher> launcher,
-                               std::unique_ptr<IHelloBeater> beater,
-                               const std::string& pipename);
+    GfxProviderIsolatedProcess(std::shared_ptr<GfxIsolatedProcess> process);
 
     std::vector<std::string> generateImages(FileSystemAccess* fa,
                                             const LocalPath& localfilepath,
@@ -162,12 +177,9 @@ private:
 
     Formats mFormats;
 
-    std::unique_ptr<ILauncher> mLauncher;
-
-    std::unique_ptr<IHelloBeater> mBeater;
+    std::shared_ptr<GfxIsolatedProcess> mProcess;
 
     std::string mPipename;
 };
-
 
 }

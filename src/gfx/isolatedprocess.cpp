@@ -73,16 +73,11 @@ void GfxProviderIsolatedProcess::Formats::setOnce(const std::string& formats, co
     mIsValid = true;
 }
 
-GfxProviderIsolatedProcess::GfxProviderIsolatedProcess(
-    std::unique_ptr<ILauncher> launcher,
-    std::unique_ptr<IHelloBeater> beater,
-    const std::string& pipename)
-    : mLauncher(std::move(launcher))
-    , mBeater(std::move(beater))
-    , mPipename(pipename)
+GfxProviderIsolatedProcess::GfxProviderIsolatedProcess(std::shared_ptr<GfxIsolatedProcess> process)
+    : mProcess(process)
+    , mPipename(process->pipename())
 {
-    assert(mLauncher);
-    assert(mBeater);
+    assert(mProcess);
 }
 
 std::vector<GfxSize> GfxProviderIsolatedProcess::toGfxSize(const std::vector<Dimension>& dimensions)
@@ -158,20 +153,12 @@ std::unique_ptr<GfxProviderIsolatedProcess> GfxProviderIsolatedProcess::create(
     const std::string& pipename,
     unsigned int beatIntervalSeconds)
 {
-
-    // a function to shutdown the isolated process
-    auto shutdowner = [pipename]() { ::mega::gfx::GfxClient::create(pipename).runShutDown(); };
-
-    auto launcher = ::mega::make_unique<::mega::AutoStartLauncher>(
-        arguments,
-        shutdowner);
-
-    auto beater = ::mega::make_unique<::mega::GfxWorkerHelloBeater>(std::chrono::seconds(beatIntervalSeconds), pipename);
-
     return ::mega::make_unique<::mega::GfxProviderIsolatedProcess>(
-                std::move(launcher),
-                std::move(beater),
-                pipename);
+        std::make_shared<GfxIsolatedProcess>(
+            arguments,
+            pipename,
+            beatIntervalSeconds
+    ));
 }
 
 bool AutoStartLauncher::startUntilSuccess(reproc::process& process)
@@ -277,6 +264,21 @@ void CancellableSleeper::cancel()
     mCancelled = true;
 
     mCv.notify_all();
+}
+
+GfxIsolatedProcess:: GfxIsolatedProcess(const std::vector<string>& arguments,
+                                        const std::string& pipename,
+                                        unsigned int beatIntervalSeconds)
+                                        : mPipename(pipename)
+{
+    // a function to shutdown the isolated process
+    auto shutdowner = [pipename]() { ::mega::gfx::GfxClient::create(pipename).runShutDown(); };
+
+    auto mLauncher = ::mega::make_unique<::mega::AutoStartLauncher>(
+        arguments,
+        shutdowner);
+
+    auto mBeater = ::mega::make_unique<::mega::GfxWorkerHelloBeater>(std::chrono::seconds(beatIntervalSeconds), pipename);
 }
 
 }
