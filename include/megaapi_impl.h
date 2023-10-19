@@ -2988,9 +2988,6 @@ class MegaApiImpl : public MegaApp
         node_vector searchPublicLinks(const MegaSearchFilter* filter, CancelToken cancelToken);
         node_vector searchInNodeManager(const MegaSearchFilter* filter, CancelToken cancelToken);
 
-        // deprecated
-        MegaNodeList* searchWithFlags(MegaNode* node, const char* searchString, CancelToken cancelToken, bool recursive, int order, int mimeType = MegaApi::FILE_TYPE_DEFAULT, int target = MegaApi::SEARCH_TARGET_ALL, Node::Flags requiredFlags = Node::Flags(), Node::Flags excludeFlags = Node::Flags(), Node::Flags excludeRecursiveFlags = Node::Flags());
-
     public:
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
 
@@ -3328,10 +3325,6 @@ private:
         void processTransferComplete(Transfer *tr, MegaTransferPrivate *transfer);
         void processTransferFailed(Transfer *tr, MegaTransferPrivate *transfer, const Error &e, dstime timeleft);
         void processTransferRemoved(Transfer *tr, MegaTransferPrivate *transfer, const Error &e);
-
-        // deprecated
-        // if seachString == "" type must not be default
-        node_vector searchInNodeManager(MegaHandle nodeHandle, const char* searchString, int mimeType, bool recursive, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelToken);
 
         bool isValidTypeNode(const Node *node, int type) const;
 

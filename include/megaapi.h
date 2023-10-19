@@ -17414,7 +17414,7 @@ class MegaApi
          *
          * @return List of nodes that contain the desired string in their name
          *
-         * @deprecated use alternatives instead:
+         * @obsolete use alternatives instead:
          * - for recursive searches use search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
          * - for non-recursive searches use getChildren(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
          */
@@ -17501,7 +17501,7 @@ class MegaApi
          *
          * @return List of nodes that contain the desired string in their name
          *
-         * @deprecated use alternatives instead:
+         * @obsolete use alternatives instead:
          * - for recursive searches use search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
          * - for non-recursive searches use getChildren(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
          */
@@ -17586,7 +17586,7 @@ class MegaApi
          *
          * @return List of nodes that contain the desired string in their name
          *
-         * @deprecated use search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
+         * @obsolete use search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
          */
         MegaNodeList* search(const char* searchString, int order = ORDER_NONE);
 
@@ -17674,7 +17674,7 @@ class MegaApi
          *
          * @return List of nodes that contain the desired string in their name
          *
-         * @deprecated use search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
+         * @obsolete use search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
          */
         MegaNodeList* search(const char* searchString, MegaCancelToken *cancelToken, int order = ORDER_NONE);
 
@@ -17758,7 +17758,7 @@ class MegaApi
          *
          * @return List of nodes that contain the desired string in their name
          *
-         * @deprecated use search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
+         * @obsolete use search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
          */
         MegaNodeList* searchOnInShares(const char *searchString, MegaCancelToken *cancelToken, int order = ORDER_NONE);
 
@@ -17842,7 +17842,7 @@ class MegaApi
          *
          * @return List of nodes that contain the desired string in their name
          *
-         * @deprecated use search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
+         * @obsolete use search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
          */
         MegaNodeList* searchOnOutShares(const char *searchString, MegaCancelToken *cancelToken, int order = ORDER_NONE);
 
@@ -17926,7 +17926,7 @@ class MegaApi
          *
          * @return List of nodes that contain the desired string in their name
          *
-         * @deprecated use search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
+         * @obsolete use search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
          */
         MegaNodeList* searchOnPublicLinks(const char *searchString, MegaCancelToken *cancelToken, int order = ORDER_NONE);
 
@@ -18038,7 +18038,7 @@ class MegaApi
          *
          * @return List of nodes that match with the search parameters
          *
-         * @deprecated use alternatives instead:
+         * @obsolete use alternatives instead:
          * - for recursive searches use search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
          * - for non-recursive searches use getChildren(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
          */
