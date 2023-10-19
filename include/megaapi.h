@@ -19434,10 +19434,12 @@ class MegaApi
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EARGS  - if no scheduled meeting is provided
+         * - MegaError::API_EARGS  - if chatTitle length is zero
          * - MegaError::API_ENOENT - if the chatroom does not exists
          *
          * @param scheduledMeeting MegaScheduledMeeting with data introduced by user
-         * @param chatTitle Byte array representing the chatroom title, already encrypted and converted to Base64url encoding.
+         * @param chatTitle Byte array representing the chatroom title, already encrypted for all participants,
+         * and converted to Base64url encoding.
          * @param listener MegaRequestListener to track this request
          */
         void createOrUpdateScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting, const char *chatTitle,  MegaRequestListener* listener = NULL);

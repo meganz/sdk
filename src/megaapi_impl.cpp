@@ -24635,6 +24635,11 @@ void MegaApiImpl::createOrUpdateScheduledMeeting(const MegaScheduledMeeting* sch
             }
 
             const char* chatTitle = request->getText();
+            if (chatTitle && !strlen(chatTitle))
+            {
+                return API_EARGS;
+            }
+
             client->reqs.add(new CommandScheduledMeetingAddOrUpdate(client, schedMeeting->scheduledMeeting(), chatTitle, [request, this] (Error e, const ScheduledMeeting* sm)
             {
                 if (sm)
