@@ -50,10 +50,6 @@ using namespace mega;
     }
 }
 
-- (instancetype)clone {
-    return self.megaStringList ? [[MEGAStringList alloc] initWithMegaStringList:self.megaStringList->copy() cMemoryOwn:YES] : nil;
-}
-
 - (mega::MegaStringList *)getCPtr {
     return self.megaStringList;
 }
@@ -62,7 +58,7 @@ using namespace mega;
     return self.megaStringList ? self.megaStringList->size() : 0;
 }
 
-- (NSString *)stringAtIndex:(NSInteger)index {
+- (nullable NSString *)stringAtIndex:(NSInteger)index {
     return self.megaStringList ? [[NSString alloc] initWithUTF8String:self.megaStringList->get((int)index)] : nil;
 }
 
