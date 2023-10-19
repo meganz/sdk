@@ -35,9 +35,8 @@ int main(int argc, char** argv)
         return -1;
     }
 
-    std::unique_ptr<mega::MegaLogger> logInstance(new mega::gfx::Logger());
-    mega::MegaApi::addLoggerObject(logInstance.get(), false);
-    mega::MegaApi::setLogLevel(mega::MegaApi::LOG_LEVEL_MAX);
+    mega::gfx::MegaFileLogger logger;
+    logger.initialize(".", "mega.gfxworker.log", false);
 
     LOG_info << "Gfxworker server starting"
              << "\n pipe name:       " << pipename
