@@ -25,7 +25,6 @@ let package = Package(
                            "libuv",
                            "libcurl",
                            "libsodium",
-                           "libwebrtc",
                            "libzen"],
             path: "./",
             exclude: ["examples",
@@ -41,8 +40,6 @@ let package = Package(
             cxxSettings: [
                 .headerSearchPath("bindings/ios"),
                 .headerSearchPath("include/mega/posix"),
-                .define("ENABLE_CHAT"),
-                .define("HAVE_LIBUV"),
                 .define("NDEBUG", .when(configuration: .release))
             ],
             linkerSettings: [
@@ -70,9 +67,7 @@ let package = Package(
             path: "bindings/ios",
             cxxSettings: [
                 .headerSearchPath("../../include"),
-                .headerSearchPath("Private"),
-                .define("ENABLE_CHAT"),
-                .define("HAVE_LIBUV")
+                .headerSearchPath("Private")
             ]
         ),
         .binaryTarget(
@@ -99,11 +94,6 @@ let package = Package(
             name: "libsodium",
             url: "https://s3.g.s4.mega.io/010996547823786/ios-xcframeworks/libsodium_xcframework.zip",
             checksum: "2d8d325921110ba7175573623095f56fb3ed2f8044ad6053a966b825710b853d"
-        ),
-        .binaryTarget(
-            name: "libwebrtc",
-            url: "https://s3.g.s4.mega.io/010996547823786/ios-xcframeworks/libwebrtc_xcframework.zip",
-            checksum: "ee61b35cd31522c51dc693a30feefcbb05cac273b0bec9455b986ed8950a7e29"
         ),
         .binaryTarget(
             name: "libzen",
