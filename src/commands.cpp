@@ -6081,7 +6081,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache, 
             client->actionpacketsCurrent = false;
 #ifdef ENABLE_SYNC
             // this just makes sure syncs exit any current tree iteration
-            client->syncs.syncRun([&](){}, "fetchnodes ready");
+            client->syncs.syncRun([]{}, "fetchnodes ready");
 #endif
 
             assert(!mNodeTreeIsChanging.owns_lock());
@@ -6141,7 +6141,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache, 
         client->mNodeManager.checkOrphanNodes(mMissingParentNodes);
 
         // No need to call Syncs::triggerSync here like in MegaClient::readnodes
-        // because it it does nothing when MegaClient::fetchingnodes is true
+        // because it does nothing when MegaClient::fetchingnodes is true
 
         mPreviousHandleForAlert = UNDEF;
         mMissingParentNodes.clear();
@@ -6230,21 +6230,13 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache, 
         // Not applying the scsn until the end of the parsing
         // because it could arrive before nodes
         // (despite at the moment it is arriving at the end)
-        if (json->storebinary((byte*)&mScsn, sizeof mScsn) != sizeof mScsn)
-        {
-            return false;
-        }
-        return true;
+        return json->storebinary((byte*)&mScsn, sizeof mScsn) == sizeof mScsn;
     });
 
     // st tag
     mFilters.emplace("{\"st", [this, client](JSON *json)
     {
-        if (!json->storeobject(&mSt))
-        {
-            return false;
-        }
-        return true;
+        return json->storeobject(&mSt);
     });
 
     // Incoming contact requests
