@@ -103,7 +103,9 @@ CONFIG(USE_MEGAAPI) {
 }
 else {
     # flags synced with contrib/cmake/CMakeLists.txt
+    CONFIG += c++17
     QMAKE_CXXFLAGS_WARN_ON ~= s/-W3/-W4
+    QMAKE_CXXFLAGS_WARN_ON -= -w34100 -w44458 -w44456
     QMAKE_CXXFLAGS += /wd4201 /wd4100 /wd4706 /wd4458 /wd4324 /wd4456 /wd4266
 }
 
@@ -185,8 +187,8 @@ CONFIG(ENABLE_CHAT) {
 CONFIG(USE_LIBUV) {
     SOURCES += src/mega_http_parser.cpp
     DEFINES += HAVE_LIBUV
-    vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/libuv
-    !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libuv
+    vcpkg:INCLUDEPATH_EXTERNAL += $$THIRDPARTY_VCPKG_PATH/include/libuv
+    !vcpkg:INCLUDEPATH_EXTERNAL += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libuv
     win32 {
         LIBS += -llibuv -lIphlpapi -lUserenv -lpsapi
     }
@@ -243,11 +245,11 @@ CONFIG(USE_MEDIAINFO) {
 CONFIG(USE_LIBRAW) {
     DEFINES += HAVE_LIBRAW
 
-    vcpkg:LIBS += -lraw_r$$DEBUG_SUFFIX -ljasper$$DEBUG_SUFFIX
+    vcpkg:LIBS += -lraw_r$$DEBUG_SUFFIX_WO -ljasper$$DEBUG_SUFFIX
     vcpkg:win32:LIBS += -ljpeg
     vcpkg:!win32:LIBS += -ljpeg
     vcpkg:unix:!macx:LIBS += -lgomp
-    vcpkg:!CONFIG(USE_PDFIUM):LIBS += -llcms$$DEBUG_SUFFIX
+    vcpkg:!CONFIG(USE_PDFIUM):LIBS += -llcms2
 
     win32 {
         DEFINES += LIBRAW_NODLL
@@ -272,11 +274,10 @@ CONFIG(USE_PDFIUM) {
 
     SOURCES += src/gfx/gfx_pdfium.cpp
 
-    vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/pdfium
-    vcpkg:LIBS += -lpdfium -lfreetype$$DEBUG_SUFFIX -ljpeg -lopenjp2  -llcms$$DEBUG_SUFFIX 
+    vcpkg:INCLUDEPATH_EXTERNAL += $$THIRDPARTY_VCPKG_PATH/include/pdfium
+    vcpkg:LIBS += -lpdfium -lfreetype$$DEBUG_SUFFIX -ljpeg -lopenjp2 -llcms2
 
-    vcpkg:unix:!macx:LIBS += -lharfbuzz #freetype dependencies. ideally we could use pkg-config to get these
-    vcpkg:unix:LIBS += -lpng
+    vcpkg:unix:LIBS += -lpng -lbz2$$DEBUG_SUFFIX
     # is it needed? win has it, mac does not -licuin$$DEBUG_SUFFIX_WO
     vcpkg:win32:LIBS += -lGdi32  -llibpng16$$DEBUG_SUFFIX
     vcpkg:DEFINES += HAVE_PDFIUM
@@ -285,7 +286,7 @@ CONFIG(USE_PDFIUM) {
         unix:!macx {
             exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/lib/libpdfium.a) {
                 DEFINES += HAVE_PDFIUM
-                INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pdfium
+                INCLUDEPATH_EXTERNAL += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pdfium
                 LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/lib/libpdfium.a
             }
             else:exists(/usr/include/fpdfview.h) {
@@ -295,7 +296,7 @@ CONFIG(USE_PDFIUM) {
         }
         else {#win/mac
             DEFINES += HAVE_PDFIUM
-            INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pdfium
+            INCLUDEPATH_EXTERNAL += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pdfium
             LIBS += -lpdfium
         }
     }
@@ -304,17 +305,16 @@ CONFIG(USE_PDFIUM) {
 CONFIG(USE_FFMPEG) {
 
     unix:!macx {
-        # On Linux, vcpkg provides libavresample instead of libswresample
-        vcpkg:LIBS += -lavformat -lavcodec -lavutil -lswscale -lavresample
+        vcpkg:LIBS += -lavformat -lavcodec -lavutil -lswscale
         else {
             exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg):exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/lib/libavcodec.a) {
             DEFINES += HAVE_FFMPEG
-                INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg
+                INCLUDEPATH_EXTERNAL += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg
                 FFMPEGLIBPATH = $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/lib
             }
             else:exists(/usr/include/ffmpeg-mega) {
                 DEFINES += HAVE_FFMPEG
-                INCLUDEPATH += /usr/include/ffmpeg-mega
+                INCLUDEPATH_EXTERNAL += /usr/include/ffmpeg-mega
                 exists(/usr/lib64/libavcodec.a) {
                     FFMPEGLIBPATH = /usr/lib64
                 }
@@ -353,8 +353,8 @@ CONFIG(USE_FFMPEG) {
     }
     else { #win/mac
         DEFINES += HAVE_FFMPEG
-        vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/ffmpeg
-        else:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg
+        vcpkg:INCLUDEPATH_EXTERNAL += $$THIRDPARTY_VCPKG_PATH/include/ffmpeg
+        else:INCLUDEPATH_EXTERNAL += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg
         LIBS += -lavcodec -lavformat -lavutil -lswscale
         vcpkg:macx {
             debug:LIBS += $$THIRDPARTY_VCPKG_PATH/debug/lib/libbz2d.a
@@ -377,7 +377,7 @@ CONFIG(USE_WEBRTC) {
         DEFINES += WEBRTC_POSIX WEBRTC_LINUX WEBRTC_BUILD_LIBEVENT
     }
 
-    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/webrtc/include \
+    INCLUDEPATH_EXTERNAL += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/webrtc/include \
                    $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/webrtc/include/webrtc \
                    $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/webrtc/include/third_party/boringssl/src/include \
                    $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/webrtc/include/third_party/libyuv/include \
@@ -541,21 +541,21 @@ else {
     SOURCES += src/gfx/freeimage.cpp
 
     vcpkg {
-        win32:LIBS += -llibpng16$$DEBUG_SUFFIX -llibwebpmux$$DEBUG_SUFFIX
-        else {
-            LIBS += -lpng16$$DEBUG_SUFFIX -lwebpmux$$DEBUG_SUFFIX
+        LIBS += -lfreeimage$$DEBUG_SUFFIX_WO -ljxrglue$$DEBUG_SUFFIX \
+            -ljpeg -ltiff$$DEBUG_SUFFIX \
+            -lIex-3_1$$UNDERSCORE_DEBUG_SUFFIX -lIlmThread-3_1$$UNDERSCORE_DEBUG_SUFFIX \
+            -lImath-3_1$$UNDERSCORE_DEBUG_SUFFIX -lOpenEXR-3_1$$UNDERSCORE_DEBUG_SUFFIX
+        win32 {
+            LIBS += -llibpng16$$DEBUG_SUFFIX -llibwebpdecoder -llibwebpdemux -llibwebp -llibwebpmux -llibsharpyuv
         }
-
-        LIBS += -lfreeimage$$DEBUG_SUFFIX -ljpeg -ltiff$$DEBUG_SUFFIX \
-        -lIex-3_1$$UNDERSCORE_DEBUG_SUFFIX -lIlmThread-3_1$$UNDERSCORE_DEBUG_SUFFIX \
-        -lImath-3_1$$UNDERSCORE_DEBUG_SUFFIX -lOpenEXR-3_1$$UNDERSCORE_DEBUG_SUFFIX \
-        -lwebpdecoder$$DEBUG_SUFFIX -lwebpdemux$$DEBUG_SUFFIX -lwebp$$DEBUG_SUFFIX \
-        -ljpegxr$$DEBUG_SUFFIX -ljxrglue$$DEBUG_SUFFIX \
-        -llzma -ljasper$$DEBUG_SUFFIX -lraw_r$$DEBUG_SUFFIX -lopenjp2
+        else {
+            LIBS += -lpng16$$DEBUG_SUFFIX -lwebpdecoder -lwebpdemux -lwebp -lwebpmux -lsharpyuv
+        }
+        LIBS += -ljpegxr$$DEBUG_SUFFIX -llzma -ljasper$$DEBUG_SUFFIX -lraw_r$$DEBUG_SUFFIX_WO -lopenjp2 -llcms2
     }
     else {
         macx{
-            INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/FreeImage/Source
+            INCLUDEPATH_EXTERNAL += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/FreeImage/Source
             LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libfreeimage.a
         }
         else {
@@ -577,8 +577,8 @@ else {
 DEFINES += USE_SQLITE USE_CRYPTOPP ENABLE_SYNC
 INCLUDEPATH += $$MEGASDK_BASE_PATH/include
 INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt
-vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include
-else:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include
+vcpkg:INCLUDEPATH_EXTERNAL += $$THIRDPARTY_VCPKG_PATH/include
+else:INCLUDEPATH_EXTERNAL += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include
 
 !release {
     DEFINES += SQLITE_DEBUG DEBUG
@@ -588,12 +588,12 @@ else {
 }
 
 vcpkg {
-    INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/zlib
-    INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/libsodium
+    INCLUDEPATH_EXTERNAL += $$THIRDPARTY_VCPKG_PATH/include/zlib
+    INCLUDEPATH_EXTERNAL += $$THIRDPARTY_VCPKG_PATH/include/libsodium
 
     CONFIG(USE_CURL) {
-        !macx:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/openssl
-        INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/cares
+        !macx:INCLUDEPATH_EXTERNAL += $$THIRDPARTY_VCPKG_PATH/include/openssl
+        INCLUDEPATH_EXTERNAL += $$THIRDPARTY_VCPKG_PATH/include/cares
         win32:LIBS +=  -llibcurl$$DASH_DEBUG_SUFFIX -lcares -llibcrypto -llibssl
         else {
             LIBS +=  -lcurl$$DASH_DEBUG_SUFFIX -lcares
@@ -602,12 +602,10 @@ vcpkg {
     }
 
     CONFIG(USE_PCRE) {
-        INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/pcre
+        INCLUDEPATH_EXTERNAL += $$THIRDPARTY_VCPKG_PATH/include/pcre
         DEFINES += PCRE_STATIC
         LIBS += -lpcre
     }
-
-    CONFIG(USE_PDFIUM):INCLUDEPATH += $$THIRDPARTY_VCPKG_BASE_PATH/pdfium/pdfium/public
 
     release:LIBS += -L"$$THIRDPARTY_VCPKG_PATH/lib"
     debug:LIBS += -L"$$THIRDPARTY_VCPKG_PATH/debug/lib"
@@ -660,13 +658,13 @@ else {
 }
 
 win32 {
-    !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/zlib
-    !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libsodium
+    !vcpkg:INCLUDEPATH_EXTERNAL += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/zlib
+    !vcpkg:INCLUDEPATH_EXTERNAL += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libsodium
 
     CONFIG(USE_CURL) {
         INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/wincurl
-        !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/openssl
-        !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/cares
+        !vcpkg:INCLUDEPATH_EXTERNAL += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/openssl
+        !vcpkg:INCLUDEPATH_EXTERNAL += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/cares
     }
     else {
         INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/win32
@@ -691,7 +689,7 @@ win32 {
     }
 
     CONFIG(USE_PCRE) {
-     INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pcre
+     INCLUDEPATH_EXTERNAL += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pcre
      DEFINES += PCRE_STATIC
      LIBS += -lpcre
     }
@@ -700,6 +698,8 @@ win32 {
     !vcpkg:LIBS += -lsodium -lcryptopp -lzlibstat
 
     DEFINES += NOMINMAX
+    # for inet_ntoa warning
+    DEFINES += _WINSOCK_DEPRECATED_NO_WARNINGS
 }
 
 unix:!macx {
@@ -782,15 +782,15 @@ macx {
 
    !vcpkg:SOURCES += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/sqlite3.c
 
-   !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/curl
-   !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libsodium
-   !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/cares
-   !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/mediainfo
-   !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/zenlib
-   !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pdfium
+   !vcpkg:INCLUDEPATH_EXTERNAL += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/curl
+   !vcpkg:INCLUDEPATH_EXTERNAL += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libsodium
+   !vcpkg:INCLUDEPATH_EXTERNAL += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/cares
+   !vcpkg:INCLUDEPATH_EXTERNAL += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/mediainfo
+   !vcpkg:INCLUDEPATH_EXTERNAL += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/zenlib
+   !vcpkg:INCLUDEPATH_EXTERNAL += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pdfium
 
    !vcpkg:CONFIG(USE_PCRE) {
-    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pcre
+    INCLUDEPATH_EXTERNAL += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pcre
     DEFINES += PCRE_STATIC
     LIBS += -lpcre
    }
@@ -802,7 +802,7 @@ macx {
    LIBS += -lz
    
    !vcpkg:CONFIG(USE_OPENSSL) {
-    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/openssl
+    INCLUDEPATH_EXTERNAL += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/openssl
     LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libssl.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcrypto.a
    }
 
@@ -820,7 +820,7 @@ CONFIG(USE_DRIVE_NOTIFICATIONS) {
         # Allegedly not supported by non-msvc compilers.
         HEADERS += include/mega/win32/drivenotifywin.h
         SOURCES += src/win32/drivenotifywin.cpp
-        LIBS += -lwbemuuid
+        LIBS += -lwbemuuid -lole32 -loleaut32
     }
     unix:!macx {
         HEADERS += include/mega/posix/drivenotifyposix.h
@@ -832,4 +832,13 @@ CONFIG(USE_DRIVE_NOTIFICATIONS) {
         SOURCES += src/osx/drivenotifyosx.cpp
         LIBS += -framework DiskArbitration -framework CoreFoundation
     }
+}
+
+# Add include paths as system libs to avoid warnings from external libraries.
+unix {
+    for(incpath, INCLUDEPATH_EXTERNAL) {
+        QMAKE_CXXFLAGS += -isystem "$$incpath"
+    }
+} else {
+    INCLUDEPATH += $$INCLUDEPATH_EXTERNAL
 }
