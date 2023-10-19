@@ -34,6 +34,7 @@
 #import "MEGABackupInfo.h"
 #import "MEGASet.h"
 #import "MEGASetElement.h"
+#import "MEGAVPNCredentials.h"
 
 typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeLogin,
@@ -206,6 +207,13 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeExportedSetElement,
     MEGARequestTypeGetRecommenedProPlan,
     MEGARequestTypeBackupInfo,
+    MEGARequestTypeBackupRemoveMD,
+    MEGARequestTypeABTestActive,
+    MEGARequestTypeGetVPNRegions,
+    MEGARequestTypeGetVPNCredentials,
+    MEGARequestTypePutVPNCredentials,
+    MEGARequestTypeDeleteVPNCredentials,
+    MEGARequestTypeCheckVPNCredentials,
     TotalOfRequestTypes
 };
 
@@ -628,6 +636,29 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * @return list of elements in the requested MEGASet, or nil if Set not found
  */
 @property (readonly, nonatomic) NSArray<MEGASetElement *> *elementsInSet;
+
+/**
+ * @brief Returns the string list
+ *
+ * This value is valid for these requests:
+ * - [MEGASdk fetchAds:delegate] - A list of the adslot ids to fetch
+ *
+ *  @return an object of MEGAStringList
+ */
+@property (readonly, nonatomic) MEGAStringList *megaStringList;
+
+/**
+ * @brief Container class to store and load Mega VPN credentials data.
+ *
+ *  - SlotIDs occupied by VPN credentials.
+ *  - Full list of VPN regions.
+ *  - IPv4 and IPv6 used on each SlotID.
+ *  - ClusterID used on each SlotID.
+ *  - Cluster Public Key associated to each ClusterID.
+ *
+ *  @return an object of MEGAVPNCredentials
+ */
+@property (readonly, nonatomic) MEGAVPNCredentials *megaVpnCredentials;
 
 /**
  * @brief Creates a copy of this MEGARequest object

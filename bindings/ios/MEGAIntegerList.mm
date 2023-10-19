@@ -1,6 +1,6 @@
 /**
- * @file MEGAStringList.mm
- * @brief List of strings
+ * @file MEGAIntegerList.mm
+ * @brief List of integers
  *
  * (c) 2017- by Mega Limited, Auckland, New Zealand
  *
@@ -19,47 +19,47 @@
  * program.
  */
 
-#import "MEGAStringList.h"
-#import "MEGAStringList+init.h"
+#import "MEGAIntegerList.h"
+#import "MEGAIntegerList+init.h"
 
 using namespace mega;
 
-@interface MEGAStringList ()
+@interface MEGAIntegerList ()
 
-@property MegaStringList *megaStringList;
+@property MegaIntegerList *megaIntegerList;
 @property BOOL cMemoryOwn;
 
 @end
 
-@implementation MEGAStringList
+@implementation MEGAIntegerList
 
-- (instancetype)initWithMegaStringList:(mega::MegaStringList *)megaStringList cMemoryOwn:(BOOL)cMemoryOwn {
+- (instancetype)initWithMegaIntegerList:(mega::MegaIntegerList *)megaIntegerList cMemoryOwn:(BOOL)cMemoryOwn {
     self = [super init];
-    
+
     if (self) {
-        _megaStringList = megaStringList;
+        _megaIntegerList = megaIntegerList;
         _cMemoryOwn = cMemoryOwn;
     }
-    
+
     return self;
 }
 
 - (void)dealloc {
     if (self.cMemoryOwn) {
-        delete _megaStringList;
+        delete _megaIntegerList;
     }
 }
 
-- (mega::MegaStringList *)getCPtr {
-    return self.megaStringList;
+- (mega::MegaIntegerList *)getCPtr {
+    return self.megaIntegerList;
 }
 
 - (NSInteger)size {
-    return self.megaStringList ? self.megaStringList->size() : 0;
+    return self.megaIntegerList ? self.megaIntegerList->size() : 0;
 }
 
-- (nullable NSString *)stringAtIndex:(NSInteger)index {
-    return self.megaStringList ? [[NSString alloc] initWithUTF8String:self.megaStringList->get((int)index)] : nil;
+- (int64_t)integerAtIndex:(NSInteger)index {
+    return self.megaIntegerList ? self.megaIntegerList->get((int)index) : -1;
 }
 
 @end

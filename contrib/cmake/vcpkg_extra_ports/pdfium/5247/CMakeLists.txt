@@ -55,8 +55,9 @@ endif()
 set(ANDROID 0)
 
 
-add_library(pdfium STATIC
+add_library(pdfium STATIC)
 
+target_sources(pdfium PRIVATE
 third_party/abseil-cpp/absl/strings/internal/str_format/output.cc
 third_party/abseil-cpp/absl/strings/internal/str_format/parser.cc
 third_party/abseil-cpp/absl/strings/internal/ostringstream.cc
@@ -604,7 +605,30 @@ third_party/abseil-cpp/absl/strings/internal/cord_rep_btree_reader.cc
 third_party/abseil-cpp/absl/strings/internal/cordz_functions.cc
 third_party/abseil-cpp/absl/strings/internal/cordz_handle.cc
 third_party/abseil-cpp/absl/strings/internal/cordz_info.cc
-
 )
 
-install(TARGETS pdfium)
+target_include_directories(pdfium
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/public> # For the top level projects.
+        $<INSTALL_INTERFACE:include> # For the external projects.
+    )
+
+file(GLOB_RECURSE PUB_HEADERS "public/*.h" "public/cpp/*.h")
+
+set_property(TARGET pdfium
+    PROPERTY PUBLIC_HEADER ${PUB_HEADERS})
+
+install(
+    TARGETS pdfium
+    EXPORT pdfiumTargets
+    RUNTIME DESTINATION bin
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+    PUBLIC_HEADER DESTINATION include
+    )
+
+install(EXPORT pdfiumTargets
+        FILE "pdfiumTargets.cmake"
+        NAMESPACE PDFIUM::
+        DESTINATION share/pdfium
+        )

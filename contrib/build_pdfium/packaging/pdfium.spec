@@ -20,7 +20,7 @@ BuildRequires: libatomic
 BuildRequires: python36
 %else
 %if 0%{?suse_version} > 1500
-BuildRequires: python
+BuildRequires: python311
 %else
 BuildRequires: python3
 %endif
@@ -40,15 +40,18 @@ TODO
 %define debug_package %{nil}
 
 %build
-./depot_tools/ninja %{?_smp_mflags} -C out pdfium
+./third_party/depot_tools/ninja %{?_smp_mflags} -C out pdfium
 
 #clean all unrequired stuff
-rm -rf `ls | grep -v "out\|public"`
+rm -rf `ls | grep -v "out\|public\|pdfium.pc.in"`
 
 %install
 pwd
 %{__install} -D out/obj/libpdfium.a $RPM_BUILD_ROOT%{_libdir}/libpdfium.a
 for i in `find public -type f -name "*.h"`; do %{__install} -D -m 444 $i $RPM_BUILD_ROOT%{_includedir}/${i/public\//}; done
+sed -i "s#@PREFIX@#%{_exec_prefix}#" pdfium.pc.in
+sed -i "s#/lib#%{_lib}#" pdfium.pc.in
+%{__install} -D -m 644 pdfium.pc.in $RPM_BUILD_ROOT%{_libdir}/pkgconfig/pdfium.pc
 
 (cd $RPM_BUILD_ROOT; for i in `find ./%{_libdir} -type f`; do echo $i | sed "s#^./#/#g"; done) >> %{_topdir}/ExtraFiles.list
 (cd $RPM_BUILD_ROOT; for i in `find ./%{_includedir}`; do echo $i | sed "s#^./#/#g"; done) >> %{_topdir}/ExtraFiles.list
