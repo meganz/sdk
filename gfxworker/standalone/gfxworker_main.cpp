@@ -35,8 +35,9 @@ int main(int argc, char** argv)
         return -1;
     }
 
+    std::string logfilename = "mega.gfxworker." + pipename + ".log";
     mega::gfx::MegaFileLogger logger;
-    logger.initialize(".", "mega.gfxworker.log", false);
+    logger.initialize(".", logfilename.c_str(), false);
 
     LOG_info << "Gfxworker server starting"
              << "\n pipe name:       " << pipename
