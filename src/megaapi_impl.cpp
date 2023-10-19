@@ -6411,6 +6411,11 @@ bool MegaApiImpl::newLinkFormatEnabled()
     return client->mNewLinkFormat;
 }
 
+bool MegaApiImpl::accountIsNew() const
+{
+    return client->accountIsNew;
+}
+
 unsigned int MegaApiImpl::getABTestValue(const char* flag)
 {
     if (!flag) return 0;

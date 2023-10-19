@@ -511,6 +511,9 @@ public:
     // Don't start showing the cookie banner until API says so
     bool mCookieBannerEnabled = false;
 
+    // Consider an account as new if it was created less than X days earlier (right now it's 30days; received in "ug":"na")
+    bool accountIsNew = false;
+
     // AB Test flags
     std::map<string, uint32_t> mABTestFlags;
 
