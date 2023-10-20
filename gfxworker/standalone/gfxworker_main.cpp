@@ -1,7 +1,6 @@
 #include <iostream>
 #include <memory>
 #include <cxxopts.hpp>
-#include "megaapi.h"
 #include "gfxworker/server.h"
 #include "gfxworker/comms_server_win32.h"
 #include "gfxworker/logger.h"
@@ -40,8 +39,8 @@ int main(int argc, char** argv)
     logger.initialize(".", logfilename.c_str(), false);
 
     LOG_info << "Gfxworker server starting"
-             << "\n pipe name:       " << pipename
-             << "\n live in seconds: " << aliveSeconds;
+             << ", pipe name: " << pipename
+             << ", live in seconds: " << aliveSeconds;
 
     WinGfxCommunicationsServer server(
         ::mega::make_unique<RequestProcessor>(GfxProcessor::create()),

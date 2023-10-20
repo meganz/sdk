@@ -114,7 +114,10 @@ bool RequestProcessor::process(std::unique_ptr<IEndpoint> endpoint)
     stopRunning = command->type() == CommandType::SHUTDOWN;
 
     // execute command
-    LOG_info << "execute the command: " << static_cast<int>(command->type());
+    LOG_info << "execute the command: "
+             << static_cast<int>(command->type())
+             << "/"
+             << command->typeStr();
 
     std::shared_ptr<IEndpoint> sharedEndpoint = std::move(endpoint);
 

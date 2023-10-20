@@ -46,22 +46,31 @@ public:
     virtual ~ICommand() = default;
 
     virtual CommandType type() const = 0;
+
+    virtual std::string typeStr() const = 0;
 };
 
 struct CommandShutDown : public ICommand
 {
     CommandType type() const override { return CommandType::SHUTDOWN; }
+
+    std::string typeStr() const override { return "SHUTDOWN"; };
 };
 
 struct CommandShutDownResponse : public ICommand
 {
     CommandType type() const override { return CommandType::SHUTDOWN_RESPONSE; }
+
+    std::string typeStr() const override { return "SHUTDOWN_RESPONSE"; };
 };
 
 struct CommandNewGfx : public ICommand
 {
     GfxTask Task;
+
     CommandType type() const override { return CommandType::NEW_GFX; }
+
+    std::string typeStr() const override { return "NEW_GFX"; };
 };
 
 struct CommandNewGfxResponse : public ICommand
@@ -69,31 +78,45 @@ struct CommandNewGfxResponse : public ICommand
     uint32_t    ErrorCode;
     std::string ErrorText;
     std::vector<std::string> Images;
+
     CommandType type() const override { return CommandType::NEW_GFX_RESPONSE; }
+
+    std::string typeStr() const override { return "NEW_GFX_RESPONSE"; };
 };
 
 struct CommandHello : public ICommand
 {
     std::string Text;
+
     CommandType type() const override { return CommandType::HELLO; }
+
+    std::string typeStr() const override { return "HELLO"; };
 };
 
 struct CommandHelloResponse : public ICommand
 {
     std::string Text;
+
     CommandType type() const override { return CommandType::HELLO_RESPONSE; }
+
+    std::string typeStr() const override { return "HELLO_RESPONSE"; };
 };
 
 struct CommandSupportFormats : public ICommand
 {
     CommandType type() const override { return CommandType::SUPPORT_FORMATS; }
+
+    std::string typeStr() const override { return "SUPPORT_FORMATS"; };
 };
 
 struct CommandSupportFormatsResponse : public ICommand
 {
     std::string formats;
     std::string videoformats;
+
     CommandType type() const override { return CommandType::SUPPORT_FORMATS_RESPONSE; }
+
+    std::string typeStr() const override { return "SUPPORT_FORMATS_RESPONSE"; };
 };
 
 } //namespace gfx
