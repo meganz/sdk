@@ -1468,7 +1468,7 @@ void SdkTest::createChatScheduledMeeting(const unsigned apiIndex, MegaHandle& ch
                                                                                   flags.get(), rules.get()));
     mApi[apiIndex].schedUpdated = false;
     mApi[apiIndex].schedId = UNDEF;
-    megaApi[apiIndex]->createOrUpdateScheduledMeeting(sm.get());
+    megaApi[apiIndex]->createOrUpdateScheduledMeeting(sm.get(), nullptr/*chatTitle*/);
     ASSERT_TRUE(waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING]))
             << "Cannot create a new scheduled meeting";
 
@@ -1528,7 +1528,7 @@ void SdkTest::updateScheduledMeeting(const unsigned apiIndex, MegaHandle& chatid
 
 
     std::unique_ptr<RequestTracker>tracker (new RequestTracker(megaApi[apiIndex].get()));
-    megaApi[apiIndex]->createOrUpdateScheduledMeeting(sm.get(), tracker.get());
+    megaApi[apiIndex]->createOrUpdateScheduledMeeting(sm.get(), nullptr/*chatTitle*/, tracker.get());
     tracker->waitForResult();
 }
 
