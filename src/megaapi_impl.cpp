@@ -6062,7 +6062,9 @@ std::unique_ptr<MegaGfxProviderPrivate> MegaGfxProviderPrivate::createIsolatedIn
     const std::string& pipename,
     unsigned int beatIntervalSeconds)
 {
-    return ::mega::make_unique<MegaGfxProviderPrivate>(::mega::GfxProviderIsolatedProcess::create(arguments, pipename, beatIntervalSeconds));
+    auto process = std::make_shared<GfxIsolatedProcess>(arguments, pipename, beatIntervalSeconds);
+    auto provider = ::mega::make_unique<::mega::GfxProviderIsolatedProcess>(process);
+    return ::mega::make_unique<MegaGfxProviderPrivate>(std::move(provider));
 }
 
 std::unique_ptr<MegaGfxProviderPrivate> MegaGfxProviderPrivate::createExternalInstance(MegaGfxProcessor* processor)
@@ -6073,6 +6075,42 @@ std::unique_ptr<MegaGfxProviderPrivate> MegaGfxProviderPrivate::createExternalIn
 std::unique_ptr<MegaGfxProviderPrivate> MegaGfxProviderPrivate::createInternalInstance()
 {
     return ::mega::make_unique<MegaGfxProviderPrivate>(IGfxProvider::createInternalGfxProvider());
+}
+
+void MegaGfxProviderListPrivate::add(MegaGfxProviderPrivate&& elem)
+{
+    mProviders.push_back(std::move(elem));
+}
+
+MegaGfxProviderPrivate* MegaGfxProviderListPrivate::get(size_t index)
+{
+    if (index >= mProviders.size()) return nullptr;
+
+    return &mProviders[index];
+}
+
+std::unique_ptr<MegaGfxProviderListPrivate> MegaGfxProviderListPrivate::createIsolatedInstances(
+    const std::vector<std::string>& arguments,
+    const std::string& pipename,
+    unsigned int beatIntervalSeconds,
+    unsigned int numberOfInstances)
+{
+    if (numberOfInstances == 0) return nullptr;
+
+    // only one process is started
+    auto process = std::make_shared<GfxIsolatedProcess>(arguments,
+                                                        pipename,
+                                                        beatIntervalSeconds);
+
+    // all share the same process
+    auto result = ::mega::make_unique<MegaGfxProviderListPrivate>();
+    for (unsigned int i = 0; i < numberOfInstances; ++i)
+    {
+        MegaGfxProviderPrivate provider( ::mega::make_unique<::mega::GfxProviderIsolatedProcess>(process));
+        result->add(std::move(provider));
+    }
+
+    return result;
 }
 
 //Entry point for the blocking thread

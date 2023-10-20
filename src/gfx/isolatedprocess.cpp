@@ -157,8 +157,7 @@ std::unique_ptr<GfxProviderIsolatedProcess> GfxProviderIsolatedProcess::create(
         std::make_shared<GfxIsolatedProcess>(
             arguments,
             pipename,
-            beatIntervalSeconds
-    ));
+            beatIntervalSeconds));
 }
 
 bool AutoStartLauncher::startUntilSuccess(reproc::process& process)
@@ -274,11 +273,9 @@ GfxIsolatedProcess:: GfxIsolatedProcess(const std::vector<string>& arguments,
     // a function to shutdown the isolated process
     auto shutdowner = [pipename]() { ::mega::gfx::GfxClient::create(pipename).runShutDown(); };
 
-    auto mLauncher = ::mega::make_unique<::mega::AutoStartLauncher>(
-        arguments,
-        shutdowner);
+    mLauncher = ::mega::make_unique<::mega::AutoStartLauncher>(arguments, shutdowner);
 
-    auto mBeater = ::mega::make_unique<::mega::GfxWorkerHelloBeater>(std::chrono::seconds(beatIntervalSeconds), pipename);
+    mBeater = ::mega::make_unique<::mega::GfxWorkerHelloBeater>(std::chrono::seconds(beatIntervalSeconds), pipename);
 }
 
 }

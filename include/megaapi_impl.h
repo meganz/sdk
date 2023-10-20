@@ -2850,14 +2850,9 @@ private:
 class MegaGfxProviderPrivate : public MegaGfxProvider
 {
 public:
-    MegaGfxProviderPrivate(std::unique_ptr<::mega::IGfxProvider> provider) : mProvider(std::move(provider)) {}
+    explicit MegaGfxProviderPrivate(std::unique_ptr<::mega::IGfxProvider> provider) : mProvider(std::move(provider)) {}
 
-    // MegaStringList* generateImages(const char* localPath,
-    //                                const MegaDimensionList* dimensionList) override;
-
-    // const char* supportedformats() override;
-
-    // const char* supportedvideoformats() override;
+    explicit MegaGfxProviderPrivate(MegaGfxProviderPrivate&& other) : mProvider(std::move(other.mProvider)) {}
 
     std::unique_ptr<::mega::IGfxProvider> takeProvider() { return std::move(mProvider); }
 
@@ -2871,6 +2866,21 @@ public:
 
 private:
     std::unique_ptr<::mega::IGfxProvider> mProvider;
+};
+
+class MegaGfxProviderListPrivate : public MegaGfxProviderList
+{
+public:
+    static std::unique_ptr<MegaGfxProviderListPrivate> createIsolatedInstances(const std::vector<std::string>& arguments,
+                                                                               const std::string& pipename,
+                                                                               unsigned int beatIntervalSeconds,
+                                                                               unsigned int numberOfInstances);
+    void add(MegaGfxProviderPrivate&& elem);
+
+    MegaGfxProviderPrivate* get(size_t index) override;
+
+private:
+    std::vector<MegaGfxProviderPrivate> mProviders;
 };
 
 class MegaApiImpl : public MegaApp

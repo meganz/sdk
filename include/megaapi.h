@@ -278,6 +278,19 @@ public:
     static MegaGfxProvider* createInternalInstance();
 };
 
+class MegaGfxProviderList
+{
+public:
+    virtual ~MegaGfxProviderList();
+
+    virtual MegaGfxProvider* get(size_t index) = 0;
+
+    static MegaGfxProviderList* createIsolatedInstance(const MegaStringList* arguments,
+                                                       const char* pipename,
+                                                       unsigned int beatIntervalSeconds,
+                                                       unsigned int numberOfInstances);
+};
+
 /**
  * @brief Contains the information related to a proxy server.
  *

@@ -7842,4 +7842,19 @@ MegaGfxProvider* MegaGfxProvider::createInternalInstance()
     return MegaGfxProviderPrivate::createInternalInstance().release();
 }
 
+MegaGfxProviderList::~MegaGfxProviderList() = default;
+
+MegaGfxProviderList* MegaGfxProviderList::createIsolatedInstance(const MegaStringList* arguments,
+                                                                 const char* pipename,
+                                                                 unsigned int beatIntervalSeconds,
+                                                                 unsigned int numberOfInstances)
+{
+    auto args = dynamic_cast<const MegaStringListPrivate*>(arguments);
+    if (!args) return nullptr;
+
+    auto list = MegaGfxProviderListPrivate::createIsolatedInstances(args->getVector(), pipename, beatIntervalSeconds, numberOfInstances);
+    return list.release();
+}
+
+
 }
