@@ -285,10 +285,10 @@ public:
 
     virtual MegaGfxProvider* get(size_t index) = 0;
 
-    static MegaGfxProviderList* createIsolatedInstance(const MegaStringList* arguments,
-                                                       const char* pipename,
-                                                       unsigned int beatIntervalSeconds,
-                                                       unsigned int numberOfInstances);
+    static MegaGfxProviderList* createIsolatedInstances(const MegaStringList* arguments,
+                                                        const char* pipename,
+                                                        unsigned int beatIntervalSeconds,
+                                                        unsigned int numberOfInstances);
 };
 
 /**

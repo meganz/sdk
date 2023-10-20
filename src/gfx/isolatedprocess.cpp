@@ -148,18 +148,6 @@ const char* GfxProviderIsolatedProcess::supportedvideoformats()
     }
 }
 
-std::unique_ptr<GfxProviderIsolatedProcess> GfxProviderIsolatedProcess::create(
-    const std::vector<string>& arguments,
-    const std::string& pipename,
-    unsigned int beatIntervalSeconds)
-{
-    return ::mega::make_unique<::mega::GfxProviderIsolatedProcess>(
-        std::make_shared<GfxIsolatedProcess>(
-            arguments,
-            pipename,
-            beatIntervalSeconds));
-}
-
 bool AutoStartLauncher::startUntilSuccess(reproc::process& process)
 {
     std::chrono::milliseconds backOff(100);
