@@ -5715,6 +5715,12 @@ void MegaSearchFilterPrivate::byLocation(int locationType)
     mLocationHandle = INVALID_HANDLE;
 }
 
+void MegaSearchFilterPrivate::byCreationTime(int64_t lowerLimit, int64_t upperLimit)
+{
+    mCreationLowerLimit = lowerLimit;
+    mCreationUpperLimit = upperLimit;
+}
+
 MegaSearchFilterPrivate* MegaSearchFilterPrivate::copy() const
 {
     return new MegaSearchFilterPrivate(*this);

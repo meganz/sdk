@@ -9039,6 +9039,8 @@ public:
      */
     virtual void byLocation(int locationType);
 
+    virtual void byCreationTime(int64_t lowerLimit, int64_t upperLimit);
+
     /**
      * @brief Return the string used for filtering by name.
      *
@@ -9073,6 +9075,9 @@ public:
      * @return predefined location set for restricting node search to, or SEARCH_TARGET_ALL if not set
      */
     virtual int byLocation() const;
+
+    virtual int64_t byCreationTimeLowerLimit() const;
+    virtual int64_t byCreationTimeUpperLimit() const;
 };
 
 class MegaApiImpl;
