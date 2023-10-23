@@ -6061,8 +6061,6 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache, 
     ///////////////////////////////////
     // Filters for parsing in streaming
 
-    mFirstChunkProcessed = false;
-
     // Parsing of chunk started
     mFilters.emplace("<", [this, client](JSON *)
     {
@@ -6276,6 +6274,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache, 
         WAIT_CLASS::bumpds();
         client->fnstats.timeToLastByte = Waiter::ds - client->fnstats.startTime;
 
+        assert(mScsn && "scsn must be received in response to `f` command always");
         if (mScsn)
         {
             client->scsn.setScsn(mScsn);

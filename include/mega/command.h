@@ -475,6 +475,7 @@ protected:
 
     // Field to temporarily save the received scsn
     handle mScsn;
+    // sequence-tag, saved temporary while processing the response (it's received before nodes)
     string mSt;
 
     std::unique_lock<mutex> mNodeTreeIsChanging;
