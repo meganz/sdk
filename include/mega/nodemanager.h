@@ -125,6 +125,8 @@ public:
     // If a cancelFlag is passed, it must be kept alive until this method returns
     node_vector search(NodeHandle ancestorHandle, const char* searchString, bool recursive, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelFlag);
 
+    node_vector searchNodes(const NodeSearchFilter& filter, CancelToken cancelFlag);
+
     node_vector getInSharesWithName(const char *searchString, CancelToken cancelFlag);
     node_vector getOutSharesWithName(const char *searchString, CancelToken cancelFlag);
     node_vector getPublicLinksWithName(const char *searchString, CancelToken cancelFlag);
@@ -334,6 +336,8 @@ private:
     // If a valid cancelFlag is passed and takes true value, this method returns without complete operation
     // If a valid object is passed, it must be kept alive until this method returns.
     node_vector processUnserializedNodes(const std::vector<std::pair<NodeHandle, NodeSerialized>>& nodesFromTable, NodeHandle ancestorHandle = NodeHandle(), CancelToken cancelFlag = CancelToken());
+
+    node_vector processUnserializedNodes(const std::vector<std::pair<NodeHandle, NodeSerialized>>& nodesFromTable, const NodeSearchFilter& filter, CancelToken cancelFlag = CancelToken());
 
     // node temporary in memory, which will be removed upon write to DB
     unique_ptr<Node> mNodeToWriteInDb;

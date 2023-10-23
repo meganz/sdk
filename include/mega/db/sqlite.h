@@ -23,6 +23,8 @@
 #ifndef DBACCESS_CLASS
 #define DBACCESS_CLASS SqliteDbAccess
 
+#include "mega/db.h"
+
 #include <sqlite3.h>
 
 // Include ICU headers
@@ -79,6 +81,7 @@ public:
     bool getChildrenFromType(NodeHandle parentHandle, nodetype_t nodeType, std::vector<std::pair<NodeHandle, NodeSerialized>>& children, mega::CancelToken cancelFlag) override;
     uint64_t getNumberOfChildren(NodeHandle parentHandle) override;
     // If a cancelFlag is passed, it must be kept alive until this method returns.
+    bool searchNodes(const mega::NodeSearchFilter& filter, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag) override;
     bool searchForNodesByName(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes, CancelToken cancelFlag) override;
     bool searchForNodesByNameNoRecursive(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, NodeHandle parentHandle, CancelToken cancelFlag) override;
     bool searchInShareOrOutShareByName(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, ShareType_t shareType, CancelToken cancelFlag) override;
@@ -133,6 +136,7 @@ private:
     sqlite3_stmt* mStmtChildren = nullptr;
     sqlite3_stmt* mStmtChildrenFromType = nullptr;
     sqlite3_stmt* mStmtNumChildren = nullptr;
+    sqlite3_stmt* mStmtSearchNodes = nullptr;
     sqlite3_stmt* mStmtNodeByName = nullptr;
     sqlite3_stmt* mStmtNodeByNameNoRecursive = nullptr;
     sqlite3_stmt* mStmtInShareOutShareByName = nullptr;

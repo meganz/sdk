@@ -874,6 +874,9 @@ void SqliteAccountState::finalise()
     sqlite3_finalize(mStmtNumChildren);
     mStmtNumChildren = nullptr;
 
+    sqlite3_finalize(mStmtSearchNodes);
+    mStmtSearchNodes = nullptr;
+
     sqlite3_finalize(mStmtNodeByName);
     mStmtNodeByName = nullptr;
 
@@ -1218,6 +1221,68 @@ uint64_t SqliteAccountState::getNumberOfChildren(NodeHandle parentHandle)
     sqlite3_reset(mStmtNumChildren);
 
     return numChildren;
+}
+
+bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, vector<pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    if (cancelFlag.exists())
+    {
+        sqlite3_progress_handler(db, NUM_VIRTUAL_MACHINE_INSTRUCTIONS, SqliteAccountState::progressHandler, static_cast<void*>(&cancelFlag));
+    }
+
+    uint64_t excludeFlags = (1 << Node::FLAGS_IS_VERSION) | // exclude file versions
+                            (filter.bySensitivity() ? (1 << Node::FLAGS_IS_MARKED_SENSTIVE) : 0); // filter by sensitivity
+
+    int sqlResult = SQLITE_OK;
+    if (!mStmtSearchNodes)
+    {
+        std::string sqlQuery = "SELECT n1.nodehandle, n1.counter, n1.node "
+                               "FROM nodes n1 "
+                               "WHERE (n1.flags & ? = 0) "
+                                 "AND (? = 0 OR ? < n1.ctime) "
+                                 "AND (? = 0 OR n1.ctime < ?) "
+                                 "AND (? = 0 OR n1.share = ?) "
+                                 "AND (? = 0 OR (n1.type = " + std::to_string(FILENODE) + " AND ismimetype(n1.name, ?))) "
+                                 "AND (n1.name REGEXP ?) ";
+        // Leading and trailing '*' will be added to argument '?' so we are looking for a substring of name
+        // Our REGEXP implementation is case insensitive
+
+        sqlResult = sqlite3_prepare_v2(db, sqlQuery.c_str(), -1, &mStmtSearchNodes, NULL);
+    }
+
+    bool result = false;
+    if (sqlResult == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(mStmtSearchNodes, 1, excludeFlags)) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(mStmtSearchNodes, 2, filter.byCreationTimeLowerLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(mStmtSearchNodes, 3, filter.byCreationTimeLowerLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(mStmtSearchNodes, 4, filter.byCreationTimeUpperLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(mStmtSearchNodes, 5, filter.byCreationTimeUpperLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int(mStmtSearchNodes, 6, filter.byShareType())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int(mStmtSearchNodes, 7, filter.byShareType())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int(mStmtSearchNodes, 8, filter.byCategory())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int(mStmtSearchNodes, 9, filter.byCategory())) == SQLITE_OK)
+    {
+        string wildCardName = '*' + filter.byName() + '*';
+        if ((sqlResult = sqlite3_bind_text(mStmtSearchNodes, 10, wildCardName.c_str(), static_cast<int>(wildCardName.length()), SQLITE_STATIC)) == SQLITE_OK)
+        {
+            result = processSqlQueryNodes(mStmtSearchNodes, nodes);
+        }
+    }
+
+    // unregister the handler (no-op if not registered)
+    sqlite3_progress_handler(db, -1, nullptr, nullptr);
+
+    string errMsg(filter.byShareType() == NO_SHARES ? "Search nodes with filter" : "Search shares or links with filter");
+    errorHandler(sqlResult, errMsg, true);
+
+    sqlite3_reset(mStmtSearchNodes);
+
+    return result;
 }
 
 bool SqliteAccountState::searchForNodesByName(const std::string &name, std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes, CancelToken cancelFlag)

@@ -2929,6 +2929,9 @@ class MegaApiImpl : public MegaApp
         bool isPendingShare(MegaNode *node);
         MegaShareList *getOutShares(int order);
         MegaShareList *getOutShares(MegaNode *node);
+private:
+        node_vector getOutShares();
+public:
         MegaShareList *getPendingOutShares();
         MegaShareList *getPendingOutShares(MegaNode *megaNode);
         MegaShareList *getUnverifiedOutShares(int order);

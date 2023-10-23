@@ -526,6 +526,28 @@ uint64_t NodeManager::getNodeCount_internal()
     return count;
 }
 
+node_vector NodeManager::searchNodes(const NodeSearchFilter& filter, CancelToken cancelFlag)
+{
+    LockGuard g(mMutex);
+
+    if (!mTable || mNodes.empty())
+    {
+        assert(mTable && !mNodes.empty());
+        return node_vector();
+    }
+
+    vector<pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    if (!mTable->searchNodes(filter, nodesFromTable, cancelFlag))
+    {
+        return node_vector();
+    }
+
+    // filtering by ancestor should ideally be done as part of searchNodes() above
+    node_vector nodes = processUnserializedNodes(nodesFromTable, filter, cancelFlag);
+
+    return nodes;
+}
+
 node_vector NodeManager::search(NodeHandle ancestorHandle, const char* searchString, bool recursive, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelFlag)
 {
     LockGuard g(mMutex);
@@ -2057,6 +2079,48 @@ node_vector NodeManager::getRootNodesAndInshares()
     }
 
     return rootnodes;
+}
+
+node_vector NodeManager::processUnserializedNodes(const vector<pair<NodeHandle, NodeSerialized>>& nodesFromTable, const NodeSearchFilter& filter, CancelToken cancelFlag)
+{
+    assert(mMutex.owns_lock());
+
+    node_vector nodes;
+
+    for (const auto& nodeIt : nodesFromTable)
+    {
+        // Check pointer and value
+        if (cancelFlag.isCancelled()) break;
+
+        Node* n = getNodeInRAM(nodeIt.first);
+        NodeHandle ancestorHandle = NodeHandle().set6byte(filter.byLocationHandle());
+
+        if (!ancestorHandle.isUndef())  // filter results by subtree (nodeHandle)
+        {
+            bool skip = n ? !n->isAncestor(ancestorHandle)
+                          : !isAncestor(nodeIt.first, ancestorHandle, cancelFlag);
+
+            if (skip) continue;
+        }
+
+        if (!n)
+        {
+            n = getNodeFromNodeSerialized(nodeIt.second);
+            if (!n)
+            {
+                nodes.clear();
+                return nodes;
+            }
+        }
+
+        // filter by sensitivity when it was inherited  --  should probably
+        // be [part of] a function passed to the sql query
+        if (filter.bySensitivity() && n->isSensitiveInherited()) continue;
+
+        nodes.push_back(n);
+    }
+
+    return nodes;
 }
 
 node_vector NodeManager::processUnserializedNodes(const std::vector<std::pair<NodeHandle, NodeSerialized> >& nodesFromTable, NodeHandle ancestorHandle, CancelToken cancelFlag)
