@@ -2,7 +2,6 @@
 
 #include "mega.h"
 #include "mega/gfx.h"
-#include "mega/gfx/isolatedprocess.h"
 #include "mega/gfx/worker/tasks.h"
 #include "mega/types.h"
 

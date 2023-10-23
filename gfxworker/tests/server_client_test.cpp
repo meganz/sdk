@@ -62,7 +62,7 @@ TEST_F(ServerClientTest, gfxTask)
 
     EXPECT_TRUE(
         GfxClient(
-            mega::make_unique<WinGfxCommunicationsClient>(mPipename, [](std::unique_ptr<IEndpoint> _) {})
+            mega::make_unique<WinGfxCommunicationsClient>(mPipename)
         ).runGfxTask(jpgImage.toPath(false), sizes, images)
     );
     EXPECT_EQ(images.size(), 2);
@@ -73,13 +73,13 @@ TEST_F(ServerClientTest, gfxTask)
     pngImage.appendWithSeparator(LocalPath::fromRelativePath("Screenshot.png"), false);
     EXPECT_TRUE(
         GfxClient(
-            mega::make_unique<WinGfxCommunicationsClient>(mPipename, [](std::unique_ptr<IEndpoint> _) {})
+            mega::make_unique<WinGfxCommunicationsClient>(mPipename)
         ).runGfxTask(jpgImage.toPath(false), sizes, images)
     );
 
     EXPECT_TRUE(
         GfxClient(
-            mega::make_unique<WinGfxCommunicationsClient>(mPipename, [](std::unique_ptr<IEndpoint> _) {})
+            mega::make_unique<WinGfxCommunicationsClient>(mPipename)
         ).runShutDown()
     );
 
@@ -103,13 +103,13 @@ TEST_F(ServerClientTest, hello)
 
     EXPECT_TRUE(
         GfxClient(
-            mega::make_unique<WinGfxCommunicationsClient>(mPipename, [](std::unique_ptr<IEndpoint> _) {})
+            mega::make_unique<WinGfxCommunicationsClient>(mPipename)
         ).runHello("")
     );
 
     EXPECT_TRUE(
         GfxClient(
-            mega::make_unique<WinGfxCommunicationsClient>(mPipename, [](std::unique_ptr<IEndpoint> _) {})
+            mega::make_unique<WinGfxCommunicationsClient>(mPipename)
         ).runShutDown()
     );
 
@@ -133,7 +133,7 @@ TEST_F(ServerClientTest, supportformats)
     std::string formats, videoformats;
     EXPECT_TRUE(
         GfxClient(
-            mega::make_unique<WinGfxCommunicationsClient>(mPipename, [](std::unique_ptr<IEndpoint> _) {})
+            mega::make_unique<WinGfxCommunicationsClient>(mPipename)
         ).runSupportFormats(formats, videoformats)
     );
 
@@ -143,7 +143,7 @@ TEST_F(ServerClientTest, supportformats)
 
     EXPECT_TRUE(
         GfxClient(
-            mega::make_unique<WinGfxCommunicationsClient>(mPipename, [](std::unique_ptr<IEndpoint> _) {})
+            mega::make_unique<WinGfxCommunicationsClient>(mPipename)
         ).runShutDown()
     );
 
@@ -163,7 +163,7 @@ TEST_F(ServerClientTest, ServerIsNotRunning)
 
     EXPECT_FALSE(
         GfxClient(
-            mega::make_unique<WinGfxCommunicationsClient>(mPipename, [](std::unique_ptr<IEndpoint> _) {})
+            mega::make_unique<WinGfxCommunicationsClient>(mPipename)
         ).runGfxTask("anyimagename.jpg", sizes, images)
     );
 }

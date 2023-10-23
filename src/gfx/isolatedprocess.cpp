@@ -21,12 +21,12 @@ const std::chrono::milliseconds AutoStartLauncher::START_BACKOFF(100);
 
 void GfxWorkerHelloBeater::beat()
 {
+    auto gfxclient = GfxClient::create(mPipename);
     while(!mShuttingDown)
     {
         bool isCancelled = mSleeper.sleep(std::chrono::duration_cast<std::chrono::milliseconds>(mPeriod));
         if (!isCancelled)
         {
-            auto gfxclient = GfxClient::create(mPipename);
             gfxclient.runHello("beat");
         }
     }
