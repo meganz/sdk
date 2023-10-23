@@ -1091,6 +1091,7 @@ bool SqliteAccountState::getRootNodes(std::vector<std::pair<NodeHandle, NodeSeri
     return result;
 }
 
+/** @deprecated */
 bool SqliteAccountState::getNodesWithSharesOrLink(std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes, ShareType_t shareType)
 {
     if (!db)
@@ -1116,6 +1117,7 @@ bool SqliteAccountState::getNodesWithSharesOrLink(std::vector<std::pair<NodeHand
     return result;
 }
 
+/** @deprecated */
 bool SqliteAccountState::getChildren(NodeHandle parentHandle, std::vector<std::pair<NodeHandle, NodeSerialized>>& children, CancelToken cancelFlag)
 {
     if (!db)
@@ -1299,9 +1301,6 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, vector<pair
         sqlite3_progress_handler(db, NUM_VIRTUAL_MACHINE_INSTRUCTIONS, SqliteAccountState::progressHandler, static_cast<void*>(&cancelFlag));
     }
 
-    uint64_t excludeFlags = (1 << Node::FLAGS_IS_VERSION) | // exclude file versions
-                            (filter.bySensitivity() ? (1 << Node::FLAGS_IS_MARKED_SENSTIVE) : 0); // filter by sensitivity
-
     int sqlResult = SQLITE_OK;
     if (!mStmtSearchNodes)
     {
@@ -1320,6 +1319,9 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, vector<pair
     }
 
     bool result = false;
+    uint64_t excludeFlags = (1 << Node::FLAGS_IS_VERSION) | // exclude file versions
+                            (filter.bySensitivity() ? (1 << Node::FLAGS_IS_MARKED_SENSTIVE) : 0); // filter by sensitivity
+
     if (sqlResult == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int64(mStmtSearchNodes, 1, excludeFlags)) == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int64(mStmtSearchNodes, 2, filter.byCreationTimeLowerLimit())) == SQLITE_OK &&
@@ -1349,6 +1351,7 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, vector<pair
     return result;
 }
 
+/** @deprecated */
 bool SqliteAccountState::searchForNodesByName(const std::string &name, std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes, CancelToken cancelFlag)
 {
     if (!db)
@@ -1396,6 +1399,7 @@ bool SqliteAccountState::searchForNodesByName(const std::string &name, std::vect
     return result;
 }
 
+/** @deprecated */
 bool SqliteAccountState::searchForNodesByNameNoRecursive(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized> >& nodes, NodeHandle parentHandle, CancelToken cancelFlag)
 {
     if (!db)
@@ -1445,6 +1449,7 @@ bool SqliteAccountState::searchForNodesByNameNoRecursive(const std::string& name
     return result;
 }
 
+/** @deprecated */
 bool SqliteAccountState::searchInShareOrOutShareByName(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized> >& nodes, ShareType_t shareType, CancelToken cancelFlag)
 {
     if (!db)
@@ -1853,6 +1858,7 @@ uint64_t SqliteAccountState::getNumberOfChildrenByType(NodeHandle parentHandle, 
     return count;
 }
 
+/** @deprecated */
 bool SqliteAccountState::getNodesByMimetype(MimeType_t mimeType, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, Node::Flags requiredFlags, Node::Flags excludeFlags, CancelToken cancelFlag)
 {
     if (!db)
@@ -1902,6 +1908,8 @@ bool SqliteAccountState::getNodesByMimetype(MimeType_t mimeType, std::vector<std
     return result;
 }
 
+
+/** @deprecated */
 bool SqliteAccountState::getNodesByMimetypeExclusiveRecursive(MimeType_t mimeType, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, NodeHandle ancestorHandle, CancelToken cancelFlag)
 {
     assert(!ancestorHandle.isUndef());

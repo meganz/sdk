@@ -324,12 +324,14 @@ Node* NodeManager::getNodeByHandle_internal(NodeHandle handle)
     return node;
 }
 
+/** @deprecated Use getChildren(const NodeSearchFilter...) instead */
 node_list NodeManager::getChildren(const Node *parent, CancelToken cancelToken)
 {
     LockGuard g(mMutex);
     return getChildren_internal(parent, cancelToken);
 }
 
+/** @deprecated */
 node_list NodeManager::getChildren_internal(const Node *parent, CancelToken cancelToken)
 {
     assert(mMutex.owns_lock());
@@ -569,12 +571,14 @@ node_vector NodeManager::searchNodes(const NodeSearchFilter& filter, CancelToken
     return nodes;
 }
 
+/** @deprecated Use searchNodes(const NodeSearchFilter...) instead */
 node_vector NodeManager::search(NodeHandle ancestorHandle, const char* searchString, bool recursive, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelFlag)
 {
     LockGuard g(mMutex);
     return search_internal(ancestorHandle, searchString, recursive, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelFlag);
 }
 
+/** @deprecated */
 node_vector NodeManager::search_internal(NodeHandle ancestorHandle, const char* searchString, bool recursive, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelFlag)
 {
     assert(mMutex.owns_lock());
@@ -613,12 +617,14 @@ node_vector NodeManager::search_internal(NodeHandle ancestorHandle, const char* 
     return nodes;
 }
 
+/** @deprecated Use searchNodes(const NodeSearchFilter...) instead */
 node_vector NodeManager::getInSharesWithName(const char* searchString, CancelToken cancelFlag)
 {
     LockGuard g(mMutex);
     return getInSharesWithName_internal(searchString, cancelFlag);
 }
 
+/** @deprecated */
 node_vector NodeManager::getInSharesWithName_internal(const char* searchString, CancelToken cancelFlag)
 {
     assert(mMutex.owns_lock());
@@ -637,12 +643,14 @@ node_vector NodeManager::getInSharesWithName_internal(const char* searchString, 
     return nodes;
 }
 
+/** @deprecated Use searchNodes(const NodeSearchFilter...) instead */
 node_vector NodeManager::getOutSharesWithName(const char* searchString, CancelToken cancelFlag)
 {
     LockGuard g(mMutex);
     return getOutSharesWithName_internal(searchString, cancelFlag);
 }
 
+/** @deprecated */
 node_vector NodeManager::getOutSharesWithName_internal(const char* searchString, CancelToken cancelFlag)
 {
     assert(mMutex.owns_lock());
@@ -661,12 +669,14 @@ node_vector NodeManager::getOutSharesWithName_internal(const char* searchString,
     return nodes;
 }
 
+/** @deprecated Use searchNodes(const NodeSearchFilter...) instead */
 node_vector NodeManager::getPublicLinksWithName(const char* searchString, CancelToken cancelFlag)
 {
     LockGuard g(mMutex);
     return getPublicLinksWithName_internal(searchString, cancelFlag);
 }
 
+/** @deprecated */
 node_vector NodeManager::getPublicLinksWithName_internal(const char* searchString, CancelToken cancelFlag)
 {
     assert(mMutex.owns_lock());
@@ -939,6 +949,7 @@ node_vector NodeManager::getRootNodes_internal()
     return nodes;
 }
 
+/** @deprecated Use searchNodes(const NodeSearchFilter...) instead */
 node_vector NodeManager::getNodesWithInShares()
 {
     LockGuard g(mMutex);
@@ -975,6 +986,7 @@ node_vector NodeManager::getNodesByMimeType(MimeType_t mimeType, NodeHandle ance
     return getNodesByMimeType_internal(mimeType, ancestorHandle, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelFlag);
 }
 
+/** @deprecated */
 node_vector NodeManager::getNodesByMimeType_internal(MimeType_t mimeType, NodeHandle ancestorHandle, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelFlag)
 {
     assert(mMutex.owns_lock());
@@ -998,6 +1010,7 @@ node_vector NodeManager::getNodesByMimeType_internal(MimeType_t mimeType, NodeHa
     return processUnserializedNodes(nodesFromTable, ancestorHandle, cancelFlag);
 }
 
+/** @deprecated */
 node_vector NodeManager::getNodesWithSharesOrLink_internal(ShareType_t shareType)
 {
     assert(mMutex.owns_lock());

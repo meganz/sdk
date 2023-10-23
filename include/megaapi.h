@@ -9009,6 +9009,8 @@ public:
      * @brief Set option for filtering out sensitive nodes.
      * If not set, sensitive nodes will also be considered in searches.
      *
+     * @note Nodes are considered sensitive if they hve that property set, or one of their ancestors has it.
+     *
      * @param excludeSensitive Set to true to filter out sensitive nodes
      */
     virtual void bySensitivity(bool excludeSensitive);
@@ -9039,6 +9041,14 @@ public:
      */
     virtual void byLocation(int locationType);
 
+    /**
+     * @brief Set option for filtering out nodes created outside a defined time interval.
+     * If any of the passed values is 0 it will be ignored, and no filtering will be
+     * performed based on it.
+     *
+     * @param lowerLimit timestamp lower than any of the considered nodes.
+     * @param upperLimit timestamp greater than any of the considered nodes.
+     */
     virtual void byCreationTime(int64_t lowerLimit, int64_t upperLimit);
 
     /**
@@ -9076,7 +9086,18 @@ public:
      */
     virtual int byLocation() const;
 
+    /**
+     * @brief Return lower limit creation timestamp set for restricting node search to.
+     *
+     * @return lower limit creation timestamp set for restricting node search to, or 0 if not set
+     */
     virtual int64_t byCreationTimeLowerLimit() const;
+
+    /**
+     * @brief Return upper limit creation timestamp set for restricting node search to.
+     *
+     * @return upper limit creation timestamp set for restricting node search to, or 0 if not set
+     */
     virtual int64_t byCreationTimeUpperLimit() const;
 };
 
