@@ -17738,43 +17738,9 @@ MegaNodeList *MegaApiImpl::getChildren(const MegaSearchFilter* filter, int order
         return new MegaNodeListPrivate();
     }
 
-    // NodeManager::getChildren() is probably more efficient, but it cannot be used with complex filters,
-    // fallback to NodeManager::search() for name filters
-    bool lookupUsingGetChildren = !(filter->byName() && *filter->byName());
-
-    node_vector children;
-    { // scope for mutex guard
-        SdkMutexGuard guard(sdkMutex);
-        if (lookupUsingGetChildren)
-        {
-            Node* parent = client->nodebyhandle(filter->byLocationHandle());
-            if (parent)
-            {
-                // children of a particular parent, without name filter --> then filter by Category and Sensitivity
-                node_list list = client->mNodeManager.getChildren(parent, cancelToken);
-                children.insert(children.end(), list.begin(), list.end());
-            }
-        }
-        else
-        {
-            // children under various locations, and/or filtered by name --> then filter by Category
-            Node::Flags excludeRecursiveFlags = Node::Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE, filter->bySensitivity());
-            children = client->mNodeManager.search(NodeHandle().set6byte(filter->byLocationHandle()), filter->byName(), false,
-                                                   Node::Flags(), Node::Flags(), excludeRecursiveFlags, cancelToken);
-        }
-    }
-
-    node_vector results;
-    // apply the extra filters
-    for (auto it = children.begin(); it != children.end(); ++it)
-    {
-        Node* child = *it;
-        if (isValidTypeNode(child, filter->byCategory()) && // filter by category
-            (!lookupUsingGetChildren || (!child->isSensitiveInherited() || !filter->bySensitivity()))) // filter by sensitivity
-        {
-            results.push_back(child);
-        }
-    }
+    NodeSearchFilter nf;
+    nf.copyFrom(*filter);
+    node_vector results = client->mNodeManager.getChildren(nf, cancelToken);
 
     sortByComparatorFunction(results, order, *client);
     return new MegaNodeListPrivate(results.data(), int(results.size()));

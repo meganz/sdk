@@ -526,6 +526,27 @@ uint64_t NodeManager::getNodeCount_internal()
     return count;
 }
 
+node_vector NodeManager::getChildren(const NodeSearchFilter& filter, CancelToken cancelFlag)
+{
+    LockGuard g(mMutex);
+
+    if (filter.byLocationHandle() == UNDEF || !mTable || mNodes.empty())
+    {
+        assert(filter.byLocationHandle() != UNDEF && mTable && !mNodes.empty());
+        return node_vector();
+    }
+
+    vector<pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    if (!mTable->getChildren(filter, nodesFromTable, cancelFlag))
+    {
+        return node_vector();
+    }
+
+    node_vector nodes = processUnserializedChildren(nodesFromTable, filter, cancelFlag);
+
+    return nodes;
+}
+
 node_vector NodeManager::searchNodes(const NodeSearchFilter& filter, CancelToken cancelFlag)
 {
     LockGuard g(mMutex);
@@ -2106,6 +2127,38 @@ node_vector NodeManager::processUnserializedNodes(const vector<pair<NodeHandle, 
         if (!n)
         {
             n = getNodeFromNodeSerialized(nodeIt.second);
+            if (!n)
+            {
+                nodes.clear();
+                return nodes;
+            }
+        }
+
+        // filter by sensitivity when it was inherited  --  should probably
+        // be [part of] a function passed to the sql query
+        if (filter.bySensitivity() && n->isSensitiveInherited()) continue;
+
+        nodes.push_back(n);
+    }
+
+    return nodes;
+}
+
+node_vector NodeManager::processUnserializedChildren(const vector<pair<NodeHandle, NodeSerialized>>& childrenFromTable, const NodeSearchFilter& filter, CancelToken cancelFlag)
+{
+    assert(mMutex.owns_lock());
+
+    node_vector nodes;
+
+    for (const auto& child : childrenFromTable)
+    {
+        // Check pointer and value
+        if (cancelFlag.isCancelled()) break;
+
+        Node* n = getNodeInRAM(child.first);
+        if (!n)
+        {
+            n = getNodeFromNodeSerialized(child.second);
             if (!n)
             {
                 nodes.clear();

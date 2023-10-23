@@ -874,6 +874,9 @@ void SqliteAccountState::finalise()
     sqlite3_finalize(mStmtNumChildren);
     mStmtNumChildren = nullptr;
 
+    sqlite3_finalize(mStmtGetChildren);
+    mStmtGetChildren = nullptr;
+
     sqlite3_finalize(mStmtSearchNodes);
     mStmtSearchNodes = nullptr;
 
@@ -1221,6 +1224,67 @@ uint64_t SqliteAccountState::getNumberOfChildren(NodeHandle parentHandle)
     sqlite3_reset(mStmtNumChildren);
 
     return numChildren;
+}
+
+bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, vector<pair<NodeHandle, NodeSerialized>>& children, CancelToken cancelFlag)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    if (cancelFlag.exists())
+    {
+        sqlite3_progress_handler(db, NUM_VIRTUAL_MACHINE_INSTRUCTIONS, SqliteAccountState::progressHandler, static_cast<void*>(&cancelFlag));
+    }
+
+    int sqlResult = SQLITE_OK;
+    if (!mStmtGetChildren)
+    {
+        std::string sqlQuery = "SELECT n1.nodehandle, n1.counter, n1.node "
+                               "FROM nodes n1 "
+                               "WHERE (n1.flags & ? = 0) "
+                                 "AND (n1.parenthandle = ?) "
+                                 "AND (? = 0 OR ? < n1.ctime) "
+                                 "AND (? = 0 OR n1.ctime < ?) "
+                                 "AND (? = 0 OR (n1.type = " + std::to_string(FILENODE) + " AND ismimetype(n1.name, ?))) "
+                                 "AND (n1.name REGEXP ?) ";
+        // Leading and trailing '*' will be added to argument '?' so we are looking for a substring of name
+        // Our REGEXP implementation is case insensitive
+
+        sqlResult = sqlite3_prepare_v2(db, sqlQuery.c_str(), -1, &mStmtGetChildren, NULL);
+    }
+
+    bool result = false;
+    uint64_t flags = (1 << Node::FLAGS_IS_VERSION) | // exclude file versions
+                     (filter.bySensitivity() ? (1 << Node::FLAGS_IS_MARKED_SENSTIVE) : 0); // filter by sensitivity
+
+    if (sqlResult == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 1, flags)) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 2, filter.byLocationHandle())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 3, filter.byCreationTimeLowerLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 4, filter.byCreationTimeLowerLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 5, filter.byCreationTimeUpperLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 6, filter.byCreationTimeUpperLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int(mStmtGetChildren, 7, filter.byCategory())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int(mStmtGetChildren, 8, filter.byCategory())) == SQLITE_OK)
+    {
+        string wildCardName = '*' + filter.byName() + '*';
+        if ((sqlResult = sqlite3_bind_text(mStmtGetChildren, 9, wildCardName.c_str(), static_cast<int>(wildCardName.length()), SQLITE_STATIC)) == SQLITE_OK)
+        {
+            result = processSqlQueryNodes(mStmtGetChildren, children);
+        }
+    }
+
+    // unregister the handler (no-op if not registered)
+    sqlite3_progress_handler(db, -1, nullptr, nullptr);
+
+    string errMsg("Get children with filter");
+    errorHandler(sqlResult, errMsg, true);
+
+    sqlite3_reset(mStmtGetChildren);
+
+    return result;
 }
 
 bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, vector<pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag)

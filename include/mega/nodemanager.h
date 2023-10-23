@@ -112,6 +112,8 @@ public:
     // read children from DB and load them in memory
     node_list getChildren(const Node *parent, CancelToken cancelToken = CancelToken());
 
+    node_vector getChildren(const NodeSearchFilter& filter, CancelToken cancelFlag);
+
     // read children from type (folder or file) from DB and load them in memory
     node_vector getChildrenFromType(const NodeHandle &parent, nodetype_t type, CancelToken cancelToken);
 
@@ -338,6 +340,7 @@ private:
     node_vector processUnserializedNodes(const std::vector<std::pair<NodeHandle, NodeSerialized>>& nodesFromTable, NodeHandle ancestorHandle = NodeHandle(), CancelToken cancelFlag = CancelToken());
 
     node_vector processUnserializedNodes(const std::vector<std::pair<NodeHandle, NodeSerialized>>& nodesFromTable, const NodeSearchFilter& filter, CancelToken cancelFlag = CancelToken());
+    node_vector processUnserializedChildren(const std::vector<std::pair<NodeHandle, NodeSerialized>>& childrenFromTable, const NodeSearchFilter& filter, CancelToken cancelFlag = CancelToken());
 
     // node temporary in memory, which will be removed upon write to DB
     unique_ptr<Node> mNodeToWriteInDb;
