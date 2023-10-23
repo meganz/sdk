@@ -110,6 +110,8 @@ public:
     DBTableTransactionCommitter *getTransactionCommitter() const;
 };
 
+class NodeSearchFilter;
+
 class MEGA_API DBTableNodes
 {
 public:

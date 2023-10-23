@@ -36,6 +36,48 @@ class FingerprintContainer;
 class MegaClient;
 class NodeSerialized;
 
+class NodeSearchFilter
+{
+public:
+    NodeSearchFilter(ShareType_t st = NO_SHARES) : mShareType(st) {}
+
+    template<class T>
+    void copyFrom(const T& f, ShareType_t shareType = NO_SHARES)
+    {
+        mNameFilter = f.byName() ? f.byName() : std::string(); // get it as const char*
+        mMimeCategory = static_cast<MimeType_t>(f.byCategory()); // get it as int
+        mExcludeSensitive = f.bySensitivity();
+        mLocationHandle = f.byLocationHandle();
+        mShareType = shareType;
+        mCreationLowerLimit = f.byCreationTimeLowerLimit();
+        mCreationUpperLimit = f.byCreationTimeUpperLimit();
+    }
+
+    const std::string& byName() const { return mNameFilter; }
+    MimeType_t byCategory() const { return mMimeCategory; }
+    bool bySensitivity() const { return mExcludeSensitive; }
+
+    // recursive look-ups (searchNodes): represents 'ancestor';
+    // non-recursive look-ups (getChildren): represents 'parent'.
+    handle byLocationHandle() const { return mLocationHandle; }
+
+    // recursive look-ups (searchNodes): type of share where search is restricted to;
+    // non-recursive look-ups (getChildren): ignored.
+    ShareType_t byShareType() const { return mShareType; }
+
+    int64_t byCreationTimeLowerLimit() const { return mCreationLowerLimit; }
+    int64_t byCreationTimeUpperLimit() const { return mCreationUpperLimit; }
+
+private:
+    std::string mNameFilter;
+    MimeType_t mMimeCategory = MIME_TYPE_UNKNOWN;
+    bool mExcludeSensitive = false;
+    handle mLocationHandle = UNDEF;
+    ShareType_t mShareType = NO_SHARES;
+    int64_t mCreationLowerLimit = 0;
+    int64_t mCreationUpperLimit = 0;
+};
+
 /**
  * @brief The NodeManager class
  *
