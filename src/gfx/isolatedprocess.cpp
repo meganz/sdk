@@ -16,6 +16,9 @@ using mega::gfx::GfxClient;
 using mega::gfx::GfxSize;
 namespace mega {
 
+const std::chrono::milliseconds AutoStartLauncher::MAX_BACKOFF(15 * 1000);
+const std::chrono::milliseconds AutoStartLauncher::START_BACKOFF(100);
+
 void GfxWorkerHelloBeater::beat()
 {
     while(!mShuttingDown)
@@ -150,7 +153,7 @@ const char* GfxProviderIsolatedProcess::supportedvideoformats()
 
 bool AutoStartLauncher::startUntilSuccess(reproc::process& process)
 {
-    std::chrono::milliseconds backOff(100);
+    std::chrono::milliseconds backOff = START_BACKOFF;
     while (!mShuttingDown)
     {
         auto ec = process.start(mArgv);
@@ -162,7 +165,7 @@ bool AutoStartLauncher::startUntilSuccess(reproc::process& process)
 
         LOG_err << "couldn't not start error code: " << ec.value() << " message: " << ec.message();
         mSleeper.sleep(backOff);
-        backOff = std::min(backOff * 2, std::chrono::milliseconds(60 * 1000)); // double it and 60 seconds at most
+        backOff = std::min(backOff * 2, MAX_BACKOFF); // double it and MAX_BACKOFF at most
     }
 
     // ends due to shutdown
@@ -171,9 +174,32 @@ bool AutoStartLauncher::startUntilSuccess(reproc::process& process)
 
 bool AutoStartLauncher::startlaunchLoopThread()
 {
-    auto launcher = [this]() {
-        mThreadIsRunning = true;
+    auto backoffForFastFailure = [this](std::function<void()> f) {
+        std::chrono::milliseconds backOff = START_BACKOFF;
         while(!mShuttingDown) {
+                const std::chrono::time_point<std::chrono::steady_clock> start = std::chrono::steady_clock::now();
+                f();
+                auto usedSeconds = (std::chrono::steady_clock::now() - start) / std::chrono::seconds(1);
+
+                // less than 2 seconds, it fails right after startup.
+                // such as lacking some dll, it is started successfully and exists shortly
+                if ((usedSeconds < 2) && !mShuttingDown)
+                {
+                    LOG_err << "process existed too fast: " << usedSeconds << " backoff" << backOff.count() << "ms";
+                    mSleeper.sleep(backOff);
+                    backOff = std::min(backOff * 2, MAX_BACKOFF); // double it and MAX_BACKOFF at most
+                }
+                else
+                {
+                    backOff = START_BACKOFF;
+                }
+        }
+    };
+
+    auto launcher = [this, backoffForFastFailure]() {
+        mThreadIsRunning = true;
+
+        backoffForFastFailure([this](){
             reproc::process process;
             if (startUntilSuccess(process))
             {
@@ -185,7 +211,8 @@ bool AutoStartLauncher::startlaunchLoopThread()
                     LOG_err << "wait error code: " << ec.value() << " message: " << ec.message();
                 }
             }
-        };
+        });
+
         mThreadIsRunning = false;
     };
 

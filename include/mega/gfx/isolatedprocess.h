@@ -74,6 +74,10 @@ private:
 
     // function to shutdown the started process if any
     std::function<void()> mShutdowner;
+
+    const static std::chrono::milliseconds MAX_BACKOFF;
+
+    const static std::chrono::milliseconds START_BACKOFF;
 };
 
 class IHelloBeater
