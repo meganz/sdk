@@ -4399,7 +4399,7 @@ bool StandardClient::verifyCredentials(const string& email)
     auto result = thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
         User* u = client.client.finduser(email.c_str());
         if (u) {
-            result->set_value(client.client.verifyCredentials(u->userhandle) == API_OK);
+            result->set_value(client.client.verifyCredentials(u->userhandle, nullptr) == API_OK);
         }
         else
         {
@@ -4421,7 +4421,7 @@ bool StandardClient::resetCredentials(const string& email)
     auto result = thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
         User* u = client.client.finduser(email.c_str());
         if (u) {
-            result->set_value(client.client.resetCredentials(u->userhandle) == API_OK);
+            result->set_value(client.client.resetCredentials(u->userhandle, nullptr) == API_OK);
         }
         else
         {

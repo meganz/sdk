@@ -13890,12 +13890,12 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
             if (!firstname.empty())
             {
                 client->putua(ATTR_FIRSTNAME, (const byte*) request->getName(), int(strlen(request->getName())), -1,
-                              request->getNodeHandle(), request->getAccess(), request->getTransferredBytes());
+                              request->getNodeHandle(), request->getAccess(), request->getTransferredBytes(), [](Error){});
             }
             string lastname = request->getText() ? request->getText() : "";
             if (!lastname.empty())
             {
-                client->putua(ATTR_LASTNAME, (const byte*) request->getText(), int(strlen(request->getText())), -1);
+                client->putua(ATTR_LASTNAME, (const byte*) request->getText(), int(strlen(request->getText())), -1, UNDEF, 0, 0, [](Error){});
             }
             client->reqtag = creqtag;   // restore current reqtag, for future requests
 
@@ -15103,13 +15103,7 @@ void MegaApiImpl::putua_result(error e)
         return;
     }
 
-    // if user just set the preferred language... change the GET param to the new language
-    if (request->getParamType() == MegaApi::USER_ATTR_LANGUAGE && e == API_OK)
-    {
-        setLanguage(request->getText());
-    }
-
-    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+    assert(false);
 }
 
 void MegaApiImpl::getua_result(error e)
@@ -15131,7 +15125,10 @@ void MegaApiImpl::getua_result(error e)
                 request->setText(newValue.c_str());
 
                 // set the attribute using same request tag
-                client->putua(ATTR_PWD_REMINDER, (byte*) newValue.data(), unsigned(newValue.size()), client->restag);
+                client->putua(ATTR_PWD_REMINDER, (byte*) newValue.data(), unsigned(newValue.size()), client->restag, UNDEF, 0, 0, [this, request](Error e)
+                {
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                });
                 return;
             }
             else if (request->getType() == MegaRequest::TYPE_GET_ATTR_USER)
@@ -15178,7 +15175,10 @@ void MegaApiImpl::getua_result(error e)
 
             // serialize and encrypt the TLV container
             std::unique_ptr<string> container(tlv.tlvRecordsToContainer(client->rng, &client->key));
-            client->putua(type, (byte *)container->data(), unsigned(container->size()), client->restag);
+            client->putua(type, (byte *)container->data(), unsigned(container->size()), client->restag, UNDEF, 0, 0, [this, request](Error e)
+            {
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            });
             return;
         }
     }
@@ -15232,7 +15232,10 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
             if (changed)
             {
                 // set the attribute using same request tag
-                client->putua(ATTR_PWD_REMINDER, (byte*) newValue.data(), unsigned(newValue.size()), client->restag);
+                client->putua(ATTR_PWD_REMINDER, (byte*) newValue.data(), unsigned(newValue.size()), client->restag, UNDEF, 0, 0, [this, request](Error e)
+                {
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                });
             }
             else
             {
@@ -15443,7 +15446,10 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
             {
                 // serialize and encrypt the TLV container
                 std::unique_ptr<string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
-                client->putua(type, (byte *)container->data(), unsigned(container->size()), client->restag);
+                client->putua(type, (byte *)container->data(), unsigned(container->size()), client->restag, UNDEF, 0, 0, [this, request](Error e)
+                {
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                });
             }
             else
             {
@@ -20526,6 +20532,17 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                 return API_EACCESS;
             }
 
+            std::function<void(Error)> putuaCompletion = [this, request](Error e)
+            {
+                // if user just set the preferred language... change the GET param to the new language
+                if (request->getParamType() == MegaApi::USER_ATTR_LANGUAGE && e == API_OK)
+                {
+                    setLanguage(request->getText());
+                }
+
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            };
+
             string attrvalue;
 
             if (type == ATTR_KEYRING                ||
@@ -20562,12 +20579,12 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                     }
                     f.reset();
 
-                    client->putua(type, (byte *)attrvalue.data(), unsigned(attrvalue.size()));
+                    client->putua(type, (byte *)attrvalue.data(), unsigned(attrvalue.size()), -1, UNDEF, 0, 0, std::move(putuaCompletion));
                     return API_OK;
                 }
                 else    // removing current attribute's value
                 {
-                    client->putua(type);
+                    client->putua(type, nullptr, 0, -1, UNDEF, 0, 0, std::move(putuaCompletion));
                     return API_OK;
                 }
             }
@@ -20660,7 +20677,7 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                 {
                     // serialize and encrypt the TLV container
                     std::unique_ptr<string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
-                    client->putua(type, (byte *)container->data(), unsigned(container->size()));
+                    client->putua(type, (byte *)container->data(), unsigned(container->size()), -1, UNDEF, 0, 0, std::move(putuaCompletion));
                 }
                 else
                 {
@@ -20685,7 +20702,7 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                         return API_ENOENT;
                     }
 
-                    client->putua(type, (byte *)code.data(), unsigned(code.length()));
+                    client->putua(type, (byte *)code.data(), unsigned(code.length()), -1, UNDEF, 0, 0, std::move(putuaCompletion));
                     return API_OK;
                 }
                 else if (type == ATTR_PWD_REMINDER)
@@ -20708,7 +20725,7 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                         return API_EARGS;
                     }
 
-                    client->putua(type, (byte*)value, 1);
+                    client->putua(type, (byte*)value, 1, -1, UNDEF, 0, 0, std::move(putuaCompletion));
                 }
                 else if (type == ATTR_RUBBISH_TIME || type == ATTR_LAST_PSA)
                 {
@@ -20725,7 +20742,7 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                     }
 
                     string tmp(value);
-                    client->putua(type, (byte *)tmp.data(), unsigned(tmp.size()));
+                    client->putua(type, (byte *)tmp.data(), unsigned(tmp.size()), -1, UNDEF, 0, 0, std::move(putuaCompletion));
                 }
                 else if (type == ATTR_COOKIE_SETTINGS)
                 {
@@ -20745,7 +20762,7 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                         return API_EARGS;
                     }
 
-                    client->putua(type, (byte *)settingsJson.data(), unsigned(settingsJson.size()));
+                    client->putua(type, (byte *)settingsJson.data(), unsigned(settingsJson.size()), -1, UNDEF, 0, 0, std::move(putuaCompletion));
                 }
                 else
                 {
@@ -20759,7 +20776,7 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                     return API_EARGS;
                 }
 
-                client->putua(type, (byte *)value, unsigned(strlen(value)));
+                client->putua(type, (byte *)value, unsigned(strlen(value)), -1, UNDEF, 0, 0, std::move(putuaCompletion));
                 return API_OK;
             }
 
@@ -24463,13 +24480,18 @@ error MegaApiImpl::performRequest_verifyCredentials(MegaRequestPrivate* request)
 {
             handle uh = request->getNodeHandle();
             bool isReset = request->getFlag();
+            std::function<void(Error)> completion = [this, request](Error e)
+            {
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            };
+
             if (isReset)
             {
-                return client->resetCredentials(uh);
+                return client->resetCredentials(uh, std::move(completion));
             }
             else
             {
-                return client->verifyCredentials(uh);
+                return client->verifyCredentials(uh, std::move(completion));
             }
 }
 
@@ -25343,7 +25365,10 @@ void MegaApiImpl::setCookieSettings(int settings, MegaRequestListener *listener)
 void MegaApiImpl::setCookieSettings_sendPendingRequests(MegaRequestPrivate* request)
 {
     auto tmp = std::to_string(request->getNumDetails());
-    client->putua(ATTR_COOKIE_SETTINGS, (byte *)tmp.data(), unsigned(tmp.size()));
+    client->putua(ATTR_COOKIE_SETTINGS, (byte *)tmp.data(), unsigned(tmp.size()), -1, UNDEF, 0, 0, [this, request](Error e)
+    {
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+    });
 }
 
 void MegaApiImpl::getCookieSettings(MegaRequestListener *listener)
