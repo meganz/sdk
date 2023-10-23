@@ -2612,13 +2612,13 @@ TEST_F(SdkTest, SdkTestNodeOperations)
 
 
     // --- Search for a node ---
-    MegaNodeList *nlist;
-    nlist = megaApi[0]->search(rootnode, "copy");
+    std::unique_ptr<MegaSearchFilter> filterResults(MegaSearchFilter::createInstance());
+    filterResults->byName("copy");
+    filterResults->byLocationHandle(rootnode->getHandle());
+    std::unique_ptr<MegaNodeList> nlist(megaApi[0]->search(filterResults.get()));
 
     ASSERT_EQ(1, nlist->size());
     EXPECT_EQ(n4->getHandle(), nlist->get(0)->getHandle()) << "Search node by pattern failed";
-
-    delete nlist;
 
 
     // --- Move a node ---
@@ -3589,7 +3589,9 @@ TEST_F(SdkTest, SdkTestShares2)
 
     // --- Search by file name for User2 ---
 
-    unique_ptr<MegaNodeList> searchList(megaApi[1]->search(fileNameToSearch));
+    std::unique_ptr<MegaSearchFilter> filterResults(MegaSearchFilter::createInstance());
+    filterResults->byName(fileNameToSearch);
+    std::unique_ptr<MegaNodeList> searchList(megaApi[1]->search(filterResults.get()));
     ASSERT_EQ(searchList->size(), 2) << "Node count by file name is wrong"; // the same file was uploaded twice, to differernt paths
     ASSERT_TRUE((searchList->get(0)->getHandle() == hfile1 && searchList->get(1)->getHandle() == hfile2) ||
                 (searchList->get(0)->getHandle() == hfile2 && searchList->get(1)->getHandle() == hfile1))
@@ -4282,7 +4284,10 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_FALSE(nfile1->isTakenDown()) << "Public link is taken down, it mustn't";
 
     // Make sure that search functionality finds it
-    std::unique_ptr<MegaNodeList>foundByLink{ megaApi[0]->searchOnPublicLinks(nfile1->getName(), nullptr) };
+    std::unique_ptr<MegaSearchFilter> filterResults(MegaSearchFilter::createInstance());
+    filterResults->byName(nfile1->getName());
+    filterResults->byLocation(MegaApi::SEARCH_TARGET_PUBLICLINK);
+    std::unique_ptr<MegaNodeList> foundByLink(megaApi[0]->search(filterResults.get()));
     ASSERT_TRUE(foundByLink);
     ASSERT_EQ(foundByLink->size(), 1);
     ASSERT_EQ(foundByLink->get(0)->getHandle(), nfile1->getHandle());
@@ -4346,7 +4351,10 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_STREQ(nodelink5.c_str(), std::unique_ptr<char[]>(nfolder1->getPublicLink()).get()) << "Wrong public link from MegaNode";
 
     // Make sure that search functionality finds it
-    foundByLink.reset(megaApi[0]->searchOnPublicLinks(nfolder1->getName(), nullptr));
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byName(nfolder1->getName());
+    filterResults->byLocation(MegaApi::SEARCH_TARGET_PUBLICLINK);
+    foundByLink.reset(megaApi[0]->search(filterResults.get()));
     ASSERT_TRUE(foundByLink);
     ASSERT_EQ(foundByLink->size(), 1);
     ASSERT_EQ(foundByLink->get(0)->getHandle(), nfolder1->getHandle());
@@ -7268,7 +7276,7 @@ TEST_F(SdkTest, SdkFavouriteNodes)
 }
 
 // tests for Sensntive files flag on files and folders
-// includes tests of MegaApi::searchByType()
+// includes tests of MegaApi::search() with filters
 TEST_F(SdkTest, SdkSensitiveNodes)
 {
     LOG_info << "___TEST SDKSensitive___";
@@ -7415,82 +7423,161 @@ TEST_F(SdkTest, SdkSensitiveNodes)
 
     // inherited sensitive flag
     // specifeid searh string
-    unique_ptr<MegaNodeList> list(megaApi[0]->searchByType(rootnodeA.get(), "logo", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_ALL, true));
+    std::unique_ptr<MegaSearchFilter> filterResults(MegaSearchFilter::createInstance());
+    filterResults->byName("logo");
+    filterResults->byLocationHandle(rootnodeA->getHandle());
+    std::unique_ptr<MegaNodeList> list(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 1);
-    list.reset(megaApi[0]->searchByType(rootnodeA.get(), "logo", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_ALL, false));
+
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byName("logo");
+    filterResults->byLocationHandle(rootnodeA->getHandle());
+    filterResults->bySensitivity(true);
+    list.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 0);
 
     // inherited sensitive flag
     // no specifeid searh string
-    list.reset(megaApi[0]->searchByType(rootnodeA.get(), "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, true));
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byLocationHandle(rootnodeA->getHandle());
+    filterResults->byCategory(MegaApi::FILE_TYPE_PHOTO);
+    list.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 3);
     ASSERT_EQ(list->get(0)->getName(), filename1);
     ASSERT_EQ(list->get(1)->getName(), nsfilename);
     ASSERT_EQ(list->get(2)->getName(), sfilename);
-    list.reset(megaApi[0]->searchByType(rootnodeA.get(), "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, false));
+
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byLocationHandle(rootnodeA->getHandle());
+    filterResults->byCategory(MegaApi::FILE_TYPE_PHOTO);
+    filterResults->bySensitivity(true);
+    list.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 1);
     ASSERT_EQ(list->get(0)->getName(), nsfilename);
 
     // no node, specifeid searh string: SEARCH_TARGET_ALL: getNodesByMimeType()
-    list.reset(megaApi[0]->searchByType(nullptr, "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, true));
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byLocation(MegaApi::SEARCH_TARGET_ROOTNODE);
+    filterResults->byCategory(MegaApi::FILE_TYPE_PHOTO);
+    list.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 3);
     ASSERT_EQ(list->get(0)->getName(), filename1);
     ASSERT_EQ(list->get(1)->getName(), nsfilename);
     ASSERT_EQ(list->get(2)->getName(), sfilename);
-    list.reset(megaApi[0]->searchByType(nullptr, "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, false));
+
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byLocation(MegaApi::SEARCH_TARGET_ROOTNODE);
+    filterResults->byCategory(MegaApi::FILE_TYPE_PHOTO);
+    filterResults->bySensitivity(true);
+    list.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 1); // non sensitive files (recursive exclude)
     ASSERT_EQ(list->get(0)->getName(), nsfilename);
-    list.reset(megaApi[0]->searchByType(nullptr, "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_AUDIO, MegaApi::SEARCH_TARGET_ROOTNODE, false));
+
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byLocation(MegaApi::SEARCH_TARGET_ROOTNODE);
+    filterResults->byCategory(MegaApi::FILE_TYPE_AUDIO);
+    filterResults->bySensitivity(true);
+    list.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 0);
 
-    // no node, specifid search string: SEARCH_TARGET_ROOTNODE: getNodesByName()
-    list.reset(megaApi[0]->searchByType(nullptr, "a", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, true));
+    // no node, specifid search string: SEARCH_TARGET_ROOTNODE
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byName("a");
+    filterResults->byLocation(MegaApi::SEARCH_TARGET_ROOTNODE);
+    filterResults->byCategory(MegaApi::FILE_TYPE_PHOTO);
+    list.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 3);
     ASSERT_EQ(list->get(0)->getName(), filename1);
     ASSERT_EQ(list->get(1)->getName(), nsfilename);
     ASSERT_EQ(list->get(2)->getName(), sfilename);
-    list.reset(megaApi[0]->searchByType(nullptr, "a", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ROOTNODE, false));
+
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byName("a");
+    filterResults->byLocation(MegaApi::SEARCH_TARGET_ROOTNODE);
+    filterResults->byCategory(MegaApi::FILE_TYPE_PHOTO);
+    filterResults->bySensitivity(true);
+    list.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 1); // non sensitive files (recursive exclude)
     ASSERT_EQ(list->get(0)->getName(), nsfilename);
 
     // no node, specified search string: SEARCH_TARGET_ALL main non recursive
     // folderA
-    list.reset(megaApi[0]->searchByType(folderA.get(), "a", nullptr, false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, true));
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byName("a");
+    filterResults->byLocationHandle(folderA->getHandle());
+    filterResults->byCategory(MegaApi::FILE_TYPE_PHOTO);
+    list.reset(megaApi[0]->getChildren(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 2);
     ASSERT_EQ(list->get(0)->getName(), nsfilename);
     ASSERT_EQ(list->get(1)->getName(), sfilename);
-    list.reset(megaApi[0]->searchByType(folderA.get(), "a", nullptr, false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, false));
+
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byName("a");
+    filterResults->byLocationHandle(folderA->getHandle());
+    filterResults->byCategory(MegaApi::FILE_TYPE_PHOTO);
+    filterResults->bySensitivity(true);
+    list.reset(megaApi[0]->getChildren(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 1); // non sensitive files (recursive exclude)
     ASSERT_EQ(list->get(0)->getName(), nsfilename);
 
-    // no node, specifeid search string: main non recursive
+    // no node, specified search string: main non recursive
     // subfolderA
-    list.reset(megaApi[0]->searchByType(subFolderA.get(), "a", nullptr, false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, true));
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byName("a");
+    filterResults->byLocationHandle(subFolderA->getHandle());
+    filterResults->byCategory(MegaApi::FILE_TYPE_PHOTO);
+    list.reset(megaApi[0]->getChildren(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 1);
     ASSERT_EQ(list->get(0)->getName(), filename1);
-    list.reset(megaApi[0]->searchByType(subFolderA.get(), "a", nullptr, false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_ALL, false));
+
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byName("a");
+    filterResults->byLocationHandle(subFolderA->getHandle());
+    filterResults->byCategory(MegaApi::FILE_TYPE_PHOTO);
+    filterResults->bySensitivity(true);
+    list.reset(megaApi[0]->getChildren(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 0); // non sensitive files (recursive exclude)
 
-    // no node, specifid search string: SEARCH_TARGET_INSHARE: getNodesByName()
-    list.reset(megaApi[1]->searchByType(nullptr, "a", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_INSHARE, true));
+    // no node, specifid search string: SEARCH_TARGET_INSHARE
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byName("a");
+    filterResults->byLocation(MegaApi::SEARCH_TARGET_INSHARE);
+    filterResults->byCategory(MegaApi::FILE_TYPE_PHOTO);
+    list.reset(megaApi[1]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 4);
     ASSERT_EQ(list->get(0)->getName(), folderAName);
     ASSERT_EQ(list->get(1)->getName(), filename1);
     ASSERT_EQ(list->get(2)->getName(), nsfilename);
     ASSERT_EQ(list->get(3)->getName(), sfilename);
-    list.reset(megaApi[1]->searchByType(nullptr, "a", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_INSHARE, false));
+
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byName("a");
+    filterResults->byLocation(MegaApi::SEARCH_TARGET_INSHARE);
+    filterResults->byCategory(MegaApi::FILE_TYPE_PHOTO);
+    filterResults->bySensitivity(true);
+    list.reset(megaApi[1]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 2); // non sensitive files (recursive exclude)
     ASSERT_EQ(list->get(0)->getName(), folderAName);
     ASSERT_EQ(list->get(1)->getName(), nsfilename);
 
-    // no node, specifid search string: SEARCH_TARGET_OUTSHARE: getNodesByName()
-    list.reset(megaApi[0]->searchByType(nullptr, "a", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_OUTSHARE, true));
+    // no node, specifid search string: SEARCH_TARGET_OUTSHARE
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byName("a");
+    filterResults->byLocation(MegaApi::SEARCH_TARGET_OUTSHARE);
+    filterResults->byCategory(MegaApi::FILE_TYPE_PHOTO);
+    list.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 4);
     ASSERT_EQ(list->get(0)->getName(), folderAName);
     ASSERT_EQ(list->get(1)->getName(), filename1);
     ASSERT_EQ(list->get(2)->getName(), nsfilename);
     ASSERT_EQ(list->get(3)->getName(), sfilename);
-    list.reset(megaApi[0]->searchByType(nullptr, "a", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_PHOTO, MegaApi::SEARCH_TARGET_OUTSHARE, false));
+
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byName("a");
+    filterResults->byLocation(MegaApi::SEARCH_TARGET_OUTSHARE);
+    filterResults->byCategory(MegaApi::FILE_TYPE_PHOTO);
+    filterResults->bySensitivity(true);
+    list.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 2); // non sensitive files (recursive exclude)
     ASSERT_EQ(list->get(0)->getName(), folderAName);
     ASSERT_EQ(list->get(1)->getName(), nsfilename);
@@ -10008,11 +10095,18 @@ TEST_F(SdkTest, SyncOQTransitions)
     ASSERT_TRUE(WaitFor([this, &remoteFillNode]() { return unique_ptr<MegaNode>(megaApi[0]->getNodeByHandle(remoteFillNode->getHandle()))->isOutShare(); }, 60*1000));
 
     // Make sure that search functionality finds them
-    unique_ptr<MegaNodeList> outShares(megaApi[0]->searchOnOutShares(fillPath.u8string().c_str(), nullptr));
+    std::unique_ptr<MegaSearchFilter> filterResults(MegaSearchFilter::createInstance());
+    filterResults->byName(fillPath.u8string().c_str());
+    filterResults->byLocation(MegaApi::SEARCH_TARGET_OUTSHARE);
+    std::unique_ptr<MegaNodeList> outShares(megaApi[0]->search(filterResults.get()));
     ASSERT_TRUE(outShares);
     ASSERT_EQ(outShares->size(), 1);
     ASSERT_EQ(outShares->get(0)->getHandle(), remoteFillNode->getHandle());
-    unique_ptr<MegaNodeList> inShares(megaApi[1]->searchOnInShares(fillPath.u8string().c_str(), nullptr));
+
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byName(fillPath.u8string().c_str());
+    filterResults->byLocation(MegaApi::SEARCH_TARGET_INSHARE);
+    std::unique_ptr<MegaNodeList> inShares(megaApi[1]->search(filterResults.get()));
     ASSERT_TRUE(inShares);
     ASSERT_EQ(inShares->size(), 1);
     ASSERT_EQ(inShares->get(0)->getHandle(), remoteFillNode->getHandle());
@@ -11224,7 +11318,9 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     ASSERT_NE(nodeSameFingerPrint.get(), nullptr);
 
     // --- UserA get node by name ---
-    unique_ptr<MegaNodeList> searchList(megaApi[0]->search(fileNameToSearch.c_str()));
+    std::unique_ptr<MegaSearchFilter> filterResults(MegaSearchFilter::createInstance());
+    filterResults->byName(fileNameToSearch.c_str());
+    std::unique_ptr<MegaNodeList> searchList(megaApi[0]->search(filterResults.get()));
     ASSERT_EQ(searchList->size(), 1);
     ASSERT_EQ(searchList->get(0)->getHandle(), nodeHandle);
 
@@ -11244,7 +11340,9 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     ASSERT_TRUE(found);
 
     // --- UserB get node by name ---
-    searchList.reset(megaApi[1]->search(fileNameToSearch.c_str()));
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byName(fileNameToSearch.c_str());
+    searchList.reset(megaApi[1]->search(filterResults.get()));
     ASSERT_EQ(searchList->size(), 1);
     ASSERT_EQ(searchList->get(0)->getHandle(), nodeHandle);
 
@@ -13469,7 +13567,9 @@ TEST_F(SdkTest, SdkGetNodesByName)
 
     // Check if exists nodes with that name in the cloud
     std::string stringSearch = "check";
-    std::unique_ptr<MegaNodeList> nodeList(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr));
+    std::unique_ptr<MegaSearchFilter> filterResults(MegaSearchFilter::createInstance());
+    filterResults->byName("check");
+    std::unique_ptr<MegaNodeList> nodeList(megaApi[0]->search(filterResults.get()));
     int nodesWithTest = nodeList->size();
 
     bool check = false;
@@ -13678,47 +13778,72 @@ TEST_F(SdkTest, SdkGetNodesByName)
     //   - file6Test
 
     stringSearch = file1;
-    nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr));
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byName(stringSearch.c_str());
+    nodeList.reset(megaApi[0]->search(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), file1Handle);
 
-    nodeList.reset(megaApi[0]->searchByType(nullptr, "FILE2CHECK", nullptr));
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byName("FILE2CHECK");
+    nodeList.reset(megaApi[0]->search(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), file2Handle);
 
     stringSearch = "file*Check";
-    nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr));
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byName(stringSearch.c_str());
+    nodeList.reset(megaApi[0]->search(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 8);
 
     stringSearch = "file*check";
-    nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr));
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byName(stringSearch.c_str());
+    nodeList.reset(megaApi[0]->search(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 8);
 
     stringSearch = "*check";
-    nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr));
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byName(stringSearch.c_str());
+    nodeList.reset(megaApi[0]->search(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 9 + nodesWithTest);
 
     stringSearch = file1;
-    nodeList.reset(megaApi[0]->searchByType(folder1.get(), stringSearch.c_str(), nullptr));
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byLocationHandle(folder1->getHandle());
+    filterResults->byName(stringSearch.c_str());
+    nodeList.reset(megaApi[0]->search(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), file1Handle);
 
     stringSearch = file1;
-    nodeList.reset(megaApi[0]->searchByType(folder1.get(), stringSearch.c_str(), nullptr, false));
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byName(stringSearch.c_str());
+    filterResults->byLocationHandle(folder1->getHandle());
+    nodeList.reset(megaApi[0]->getChildren(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), file1Handle);
 
     stringSearch = file7;
-    nodeList.reset(megaApi[0]->searchByType(folder1.get(), stringSearch.c_str(), nullptr, false));
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byLocationHandle(folder1->getHandle());
+    filterResults->byName(stringSearch.c_str());
+    nodeList.reset(megaApi[0]->getChildren(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 0);
 
     stringSearch = folder1_1;
-    nodeList.reset(megaApi[0]->searchByType(folder1.get(), stringSearch.c_str(), nullptr, false));
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byLocationHandle(folder1->getHandle());
+    filterResults->byName(stringSearch.c_str());
+    nodeList.reset(megaApi[0]->getChildren(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), folder1_1Handle);
 
     stringSearch = std::string("file*check");
-    nodeList.reset(megaApi[0]->searchByType(folder1.get(), stringSearch.c_str(), nullptr, false));
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byLocationHandle(folder1->getHandle());
+    filterResults->byName(stringSearch.c_str());
+    nodeList.reset(megaApi[0]->getChildren(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 5);
 
     // --- Create contact relationship ---
@@ -13765,68 +13890,92 @@ TEST_F(SdkTest, SdkGetNodesByName)
 
     // --- Test search in shares ---
     stringSearch = file8;
-    nodeList.reset(megaApi[1]->searchByType(nullptr, stringSearch.c_str(), nullptr, true, MegaApi::ORDER_NONE,
-                                            MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_INSHARE));
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byName(stringSearch.c_str());
+    filterResults->byLocation(MegaApi::SEARCH_TARGET_INSHARE);
+    nodeList.reset(megaApi[1]->search(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 1);
 
     stringSearch = "FILE*check";
-    nodeList.reset(megaApi[1]->searchByType(nullptr, stringSearch.c_str(), nullptr, true, MegaApi::ORDER_NONE,
-                                            MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_INSHARE));
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byName(stringSearch.c_str());
+    filterResults->byLocation(MegaApi::SEARCH_TARGET_INSHARE);
+    nodeList.reset(megaApi[1]->search(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 7);
 
     stringSearch = folder1_1;
-    nodeList.reset(megaApi[1]->searchByType(nullptr, stringSearch.c_str(), nullptr, true, MegaApi::ORDER_NONE,
-                                            MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_INSHARE));
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byName(stringSearch.c_str());
+    filterResults->byLocation(MegaApi::SEARCH_TARGET_INSHARE);
+    nodeList.reset(megaApi[1]->search(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), folder1_1Handle);
 
     stringSearch = "folder*";
-    nodeList.reset(megaApi[1]->searchByType(nullptr, stringSearch.c_str(), nullptr, true, MegaApi::ORDER_NONE,
-                                            MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_INSHARE));
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byName(stringSearch.c_str());
+    filterResults->byLocation(MegaApi::SEARCH_TARGET_INSHARE);
+    nodeList.reset(megaApi[1]->search(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 2);
 
     // --- Test search out shares ---
     stringSearch = file8;
-    nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr, true, MegaApi::ORDER_NONE,
-                                            MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_OUTSHARE));
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byName(stringSearch.c_str());
+    filterResults->byLocation(MegaApi::SEARCH_TARGET_OUTSHARE);
+    nodeList.reset(megaApi[0]->search(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 1);
 
     stringSearch = "FILE*check";
-    nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr, true, MegaApi::ORDER_NONE,
-                                            MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_OUTSHARE));
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byName(stringSearch.c_str());
+    filterResults->byLocation(MegaApi::SEARCH_TARGET_OUTSHARE);
+    nodeList.reset(megaApi[0]->search(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 7);
 
     stringSearch = folder1_1;
-    nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr, true, MegaApi::ORDER_NONE,
-                                            MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_OUTSHARE));
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byName(stringSearch.c_str());
+    filterResults->byLocation(MegaApi::SEARCH_TARGET_OUTSHARE);
+    nodeList.reset(megaApi[0]->search(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), folder1_1Handle);
 
     stringSearch = "folder*";
-    nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr, true, MegaApi::ORDER_NONE,
-                                            MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_OUTSHARE));
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byName(stringSearch.c_str());
+    filterResults->byLocation(MegaApi::SEARCH_TARGET_OUTSHARE);
+    nodeList.reset(megaApi[0]->search(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 2);
 
     // --- Test strings with UTF-8 characters
     stringSearch = "Ñ";
-    nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr, true));
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byName(stringSearch.c_str());
+    nodeList.reset(megaApi[0]->search(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), fileUtf8Handle);
 
     stringSearch = "ñ";
-    nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr, true, MegaApi::ORDER_NONE));
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byName(stringSearch.c_str());
+    nodeList.reset(megaApi[0]->search(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), fileUtf8Handle);
 
     // No recursive search
     stringSearch = "Ñ";
-    nodeList.reset(megaApi[0]->searchByType(folder1.get(), stringSearch.c_str(), nullptr, false, MegaApi::ORDER_NONE));
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byName(stringSearch.c_str());
+    filterResults->byLocationHandle(folder1->getHandle());
+    nodeList.reset(megaApi[0]->getChildren(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), fileUtf8Handle);
 
-
     stringSearch = "ú";
-    nodeList.reset(megaApi[0]->searchByType(nullptr, stringSearch.c_str(), nullptr, true, MegaApi::ORDER_NONE));
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byName(stringSearch.c_str());
+    nodeList.reset(megaApi[0]->search(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), fileUtf8Handle);
 }

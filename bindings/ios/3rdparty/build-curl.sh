@@ -1,12 +1,11 @@
-#!/bin/sh
+#!/bin/bash
 
 CURL_VERSION="8.1.2"
-SDKVERSION=`xcrun -sdk iphoneos --show-sdk-version`
+SDKVERSION=$(xcrun -sdk iphoneos --show-sdk-version)
 
 ##############################################
-CURRENTPATH=`pwd`
-ARCHS="x86_64 arm64 arm64-simulator"
-DEVELOPER=`xcode-select -print-path`
+CURRENTPATH=$(pwd)
+DEVELOPER=$(xcode-select -print-path)
 
 CORES=$(sysctl -n hw.ncpu)
 
@@ -15,102 +14,144 @@ green="\033[32m"
 bold="\033[0m${green}\033[1m"
 normal="\033[0m"
 
-if [ ! -d "$DEVELOPER" ]; then
-  echo "xcode path is not set correctly $DEVELOPER does not exist (most likely because of xcode > 4.3)"
-  echo "run"
-  echo "sudo xcode-select -switch <xcode path>"
-  echo "for default installation:"
-  echo "sudo xcode-select -switch /Applications/Xcode.app/Contents/Developer"
+# Function to print error messages and exit
+print_error() {
+  echo -e "\033[31mError: $1\033[0m" >&2
   exit 1
-fi
+}
 
-case $DEVELOPER in
-     *\ * )
-           echo "Your Xcode path contains whitespaces, which is not supported."
-           exit 1
-          ;;
-esac
+# Check if Xcode path is correctly set
+check_xcode_path() {
+  if [ ! -d "$DEVELOPER" ]; then
+    print_error "Xcode path is not set correctly: $DEVELOPER does not exist."
+  fi
+}
 
-case $CURRENTPATH in
-     *\ * )
-           echo "Your path contains whitespaces, which is not supported by 'make install'."
-           exit 1
-          ;;
-esac
+# Check for spaces in paths
+check_for_spaces() {
+  if [[ "$DEVELOPER" == *" "* || "$CURRENTPATH" == *" "* ]]; then
+    print_error "Paths with spaces are not supported."
+  fi
+}
 
-set -e
+# Build libcurl for a specific architecture and platform
+build_arch_platform() {
+  ARCH="$1"
+  PLATFORM="$2"
 
-if [ ! -e "curl-${CURL_VERSION}.tar.gz" ]
-then
-curl -LO "https://curl.haxx.se/download/curl-${CURL_VERSION}.tar.gz"
-fi
+  rm -rf "curl-${CURL_VERSION}"
+  tar zxf "curl-${CURL_VERSION}.tar.gz"
+  pushd "curl-${CURL_VERSION}"
 
-for ARCH in ${ARCHS}
-do
-if [[ "${ARCH}" == "x86_64" || "${ARCH}" == "arm64-simulator" ]];
-then
-PLATFORM="iPhoneSimulator"
-if [ "${ARCH}" == "arm64-simulator" ];
-then
-ARCH="arm64"
-fi
-else
-PLATFORM="iPhoneOS"
-fi
+  export BUILD_TOOLS="${DEVELOPER}"
+  export BUILD_DEVROOT="${DEVELOPER}/Platforms/${PLATFORM}.platform/Developer"
+  export BUILD_SDKROOT="${BUILD_DEVROOT}/SDKs/${PLATFORM}${SDKVERSION}.sdk"
 
-rm -rf curl-${CURL_VERSION}
-tar zxf curl-${CURL_VERSION}.tar.gz
-pushd "curl-${CURL_VERSION}"
+  RUNTARGET=""
+  if [[ "${ARCH}" == "arm64" && "$PLATFORM" == "iPhoneSimulator" ]]; then
+    RUNTARGET="-target ${ARCH}-apple-ios15.0-simulator"
+  elif [[ "$PLATFORM" == "MacOSX" ]]; then
+    RUNTARGET="-target ${ARCH}-apple-ios15.0-macabi"
+    BUILD_SDKROOT="${BUILD_DEVROOT}/SDKs/${PLATFORM}.sdk"
+  fi
 
-echo "${bold}Building CURL for $PLATFORM $ARCH ${normal}"
+  echo "${bold}Building CURL for $PLATFORM $ARCH $BUILD_SDKROOT ${normal}"
+  
+  export CC="${BUILD_TOOLS}/usr/bin/gcc -arch ${ARCH}"
+  mkdir -p "${CURRENTPATH}/bin/libcurl/${PLATFORM}${SDKVERSION}-${ARCH}.sdk"
 
-export BUILD_TOOLS="${DEVELOPER}"
-export BUILD_DEVROOT="${DEVELOPER}/Platforms/${PLATFORM}.platform/Developer"
-export BUILD_SDKROOT="${BUILD_DEVROOT}/SDKs/${PLATFORM}${SDKVERSION}.sdk"
+  export LDFLAGS="-Os -arch ${ARCH} -Wl,-dead_strip -miphoneos-version-min=15.0"
+  export CFLAGS="-Os -arch ${ARCH} -pipe -no-cpp-precomp -isysroot ${BUILD_SDKROOT} -miphoneos-version-min=15.0 ${RUNTARGET}"
+  export CPPFLAGS="${CFLAGS} -DNDEBUG"
+  export CXXFLAGS="${CPPFLAGS}"
 
-RUNTARGET=""
-if [[ "${ARCH}" == "arm64"  && "$PLATFORM" == "iPhoneSimulator" ]];
-then
-RUNTARGET="-target ${ARCH}-apple-ios14.0-simulator"
-fi
-export CC="${BUILD_TOOLS}/usr/bin/gcc -arch ${ARCH}"
-mkdir -p "${CURRENTPATH}/bin/libcurl/${PLATFORM}${SDKVERSION}-${ARCH}.sdk"
+  if [ "${ARCH}" == "arm64" ]; then
+    HOST="arm-apple-darwin"
+  else
+    HOST="${ARCH}-apple-darwin"
+  fi
+  
+  ./configure --prefix="${CURRENTPATH}/bin/libcurl/${PLATFORM}${SDKVERSION}-${ARCH}.sdk" --host=${HOST} --enable-static --disable-shared --with-secure-transport --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb
 
-# Build
-export LDFLAGS="-Os -arch ${ARCH} -Wl,-dead_strip -miphoneos-version-min=14.0"
-export CFLAGS="-Os -arch ${ARCH} -pipe -no-cpp-precomp -isysroot ${BUILD_SDKROOT} -miphoneos-version-min=14.0 ${RUNTARGET}"
-export CPPFLAGS="${CFLAGS} -DNDEBUG"
-export CXXFLAGS="${CPPFLAGS}"
+  make -j${CORES}
+  make install
+  make clean
 
-if [ "${ARCH}" == "arm64" ]; then
-./configure --prefix="${CURRENTPATH}/bin/libcurl/${PLATFORM}${SDKVERSION}-${ARCH}.sdk" --host=arm-apple-darwin --enable-static --disable-shared --with-secure-transport --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb
-else
-./configure --prefix="${CURRENTPATH}/bin/libcurl/${PLATFORM}${SDKVERSION}-${ARCH}.sdk" --host=${ARCH}-apple-darwin --enable-static --disable-shared --with-secure-transport --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb
-fi
+  popd
+}
 
-make -j${CORES}
-make install
-make clean
+# Build Catalyst (macOS) targets for arm64 and x86_64
+build_catalyst() {
+  build_arch_platform "arm64" "MacOSX"
+  build_arch_platform "x86_64" "MacOSX"
+  
+  echo "${bold}Lipo library for x86_64 and arm64 catalyst ${normal}"
+  
+  mkdir -p "${CURRENTPATH}/bin/libcurl/catalyst"
+  
+  lipo -create "${CURRENTPATH}/bin/libcurl/MacOSX${SDKVERSION}-x86_64.sdk/lib/libcurl.a" "${CURRENTPATH}/bin/libcurl/MacOSX${SDKVERSION}-arm64.sdk/lib/libcurl.a" -output "${CURRENTPATH}/bin/libcurl/catalyst/libcurl.a"
+}
 
-popd
+# Build iOS target for arm64
+build_iOS() {
+  build_arch_platform "arm64" "iPhoneOS"
+}
 
-done
+# Build iOS Simulator targets for arm64 and x86_64
+build_iOS_simulator() {
+  build_arch_platform "arm64" "iPhoneSimulator"
+  build_arch_platform "x86_64" "iPhoneSimulator"
+  
+  echo "${bold}Lipo library for x86_64 and arm64 simulators ${normal}"
+  
+  mkdir -p "${CURRENTPATH}/bin/libcurl/iPhoneSimulator"
+  
+  lipo -create "${CURRENTPATH}/bin/libcurl/iPhoneSimulator${SDKVERSION}-x86_64.sdk/lib/libcurl.a" "${CURRENTPATH}/bin/libcurl/iPhoneSimulator${SDKVERSION}-arm64.sdk/lib/libcurl.a" -output "${CURRENTPATH}/bin/libcurl/iPhoneSimulator/libcurl.a"
+}
 
-mkdir xcframework || true
+create_XCFramework() {
+  mkdir -p xcframework || true
+  
+  echo "${bold}Creating xcframework ${normal}"
+  
+  xcodebuild -create-xcframework \
+    -library "${CURRENTPATH}/bin/libcurl/iPhoneSimulator/libcurl.a" \
+    -headers "${CURRENTPATH}/bin/libcurl/iPhoneSimulator${SDKVERSION}-arm64.sdk/include" \
+    -library "${CURRENTPATH}/bin/libcurl/iPhoneOS${SDKVERSION}-arm64.sdk/lib/libcurl.a" \
+    -headers "${CURRENTPATH}/bin/libcurl/iPhoneOS${SDKVERSION}-arm64.sdk/include" \
+    -library "${CURRENTPATH}/bin/libcurl/catalyst/libcurl.a" \
+    -headers "${CURRENTPATH}/bin/libcurl/MacOSX${SDKVERSION}-arm64.sdk/include" \
+    -output "${CURRENTPATH}/xcframework/libcurl.xcframework"
+}
 
-echo "${bold}Lipo library for x86_64 and arm64 simulators ${normal}"
+clean_up() {
+  echo "${bold}Cleaning up ${normal}"
 
-lipo -create ${CURRENTPATH}/bin/libcurl/iPhoneSimulator${SDKVERSION}-x86_64.sdk/lib/libcurl.a ${CURRENTPATH}/bin/libcurl/iPhoneSimulator${SDKVERSION}-arm64.sdk/lib/libcurl.a -output ${CURRENTPATH}/bin/libcurl/libcurl.a
+  rm -rf "curl-${CURL_VERSION}"
+  rm -rf "curl-${CURL_VERSION}.tar.gz"
+  rm -rf bin
 
-echo "${bold}Creating xcframework ${normal}"
+  echo "${bold}Done.${normal}"
+}
 
-xcodebuild -create-xcframework -library ${CURRENTPATH}/bin/libcurl/libcurl.a -headers ${CURRENTPATH}/bin/libcurl/iPhoneSimulator${SDKVERSION}-arm64.sdk/include -library ${CURRENTPATH}/bin/libcurl/iPhoneOS${SDKVERSION}-arm64.sdk/lib/libcurl.a -headers ${CURRENTPATH}/bin/libcurl/iPhoneOS${SDKVERSION}-arm64.sdk/include -output ${CURRENTPATH}/xcframework/libcurl.xcframework
- 
-echo "${bold}Cleaning up ${normal}"
+# Main build process
+main() {
+  check_xcode_path
+  check_for_spaces
 
-rm -rf curl-${CURL_VERSION}
-rm -rf curl-${CURL_VERSION}.tar.gz
-rm -rf bin
+  if [ ! -e "curl-${CURL_VERSION}.tar.gz" ]; then
+    curl -LO "https://curl.haxx.se/download/curl-${CURL_VERSION}.tar.gz"
+  fi
 
-echo "${bold}Done.${normal}"
+  build_catalyst
+  build_iOS
+  build_iOS_simulator
+  
+  create_XCFramework
+  clean_up
+}
+
+# Run the main build process
+main
+
 

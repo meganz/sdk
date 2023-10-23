@@ -1,8 +1,8 @@
 /**
- * @file MEGAStringList.h
- * @brief List of strings
+ * @file MEGAIntegerList.h
+ * @brief List of integers
  *
- * (c) 2017- by Mega Limited, Auckland, New Zealand
+ * (c) 2023- by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -21,31 +21,26 @@
 
 #import <Foundation/Foundation.h>
 
-NS_ASSUME_NONNULL_BEGIN
-
 /**
- * @brief List of strings
+ * @brief List of integers
  *
  * Objects of this class are immutable.
  */
-
-@interface MEGAStringList : NSObject
+@interface MEGAIntegerList : NSObject
 
 /**
- * @brief The number of strings in the list
+ * @brief The number of integers in the list
  */
 @property (nonatomic, readonly) NSInteger size;
 
 /**
- * @brief Returns the string at the position i in the MEGAStringList
+ * @brief Returns the integer at the position index in the MEGAIntegerList
  *
- * If the index is >= the size of the list, this function returns nil.
+ * If the index is >= the size of the list, this function returns -1.
  *
- * @param index Position of the string that we want to get for the list
- * @return string at the position index in the list
+ * @param index Position of the integer that we want to get for the list
+ * @return Integer at the position index in the list
  */
-- (nullable NSString *)stringAtIndex:(NSInteger)index;
-
-NS_ASSUME_NONNULL_END
+- (int64_t)integerAtIndex:(NSInteger)index;
 
 @end
