@@ -10887,6 +10887,98 @@ TEST_F(SdkTest, TestSharesContactVerification)
 
 
 /**
+ * @brief TEST_F SearchNodesByCreationTime
+ *
+ * Test filtering nodes by ctime in search() and getChildren()
+ *
+ */
+TEST_F(SdkTest, SearchNodesByCreationTime)
+{
+    LOG_info << "___TEST SearchNodesByCreationTime___";
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootnode);
+
+    string folderName = "TestCTime_Folder.Foo";
+    MegaHandle folderHandle = createFolder(0, folderName.c_str(), rootnode.get());
+    ASSERT_NE(folderHandle, INVALID_HANDLE);
+    unique_ptr<MegaNode> folderNode(megaApi[0]->getNodeByHandle(folderHandle));
+    ASSERT_TRUE(folderNode);
+    int64_t folderCTime = folderNode->getCreationTime();
+
+    std::this_thread::sleep_for(std::chrono::milliseconds{1500}); // avoid nodes having identical CTime
+
+    string fileName = "TestCTime_File.bar";
+    ASSERT_TRUE(createFile(fileName, false));
+    MegaHandle fileHandle = 0;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &fileHandle, fileName.c_str(), folderNode.get(),
+                                               nullptr /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload " << fileName;
+    ASSERT_NE(fileHandle, INVALID_HANDLE);
+    unique_ptr<MegaNode> fileNode(megaApi[0]->getNodeByHandle(fileHandle));
+    ASSERT_TRUE(fileNode);
+    int64_t fileCTime = fileNode->getCreationTime();
+
+    ASSERT_NE(folderCTime, fileCTime) << "Test file and folder have the same creation time";
+
+    // getChildren()
+    unique_ptr<MegaSearchFilter> f(MegaSearchFilter::createInstance());
+    f->byName("TestCTime_*");
+    f->byLocationHandle(folderHandle);
+    unique_ptr<MegaNodeList> results(megaApi[0]->getChildren(f.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getName(), fileName);
+
+    f->byCreationTime(fileCTime, fileCTime);
+    results.reset(megaApi[0]->getChildren(f.get()));
+    ASSERT_EQ(results->size(), 0) << results->get(0)->getName();
+
+    f->byCreationTime(fileCTime - 1, fileCTime + 1);
+    results.reset(megaApi[0]->getChildren(f.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getName(), fileName);
+
+    // cope with time differences in remote FS and local FS
+    const int64_t& olderCTime = folderCTime < fileCTime ? folderCTime : fileCTime;
+    const string& olderName = folderCTime < fileCTime ? folderName : fileName;
+    const int64_t& newerCTime = folderCTime > fileCTime ? folderCTime : fileCTime;
+    const string& newerName = folderCTime > fileCTime ? folderName : fileName;
+
+    // search()
+    f->byLocationHandle(INVALID_HANDLE);
+    f->byCreationTime(0, 0);
+    results.reset(megaApi[0]->search(f.get()));
+    ASSERT_EQ(results->size(), 2);
+
+    f->byCreationTime(olderCTime, newerCTime);
+    results.reset(megaApi[0]->search(f.get()));
+    ASSERT_EQ(results->size(), 0);
+
+    f->byCreationTime(olderCTime - 1, newerCTime + 1);
+    results.reset(megaApi[0]->search(f.get()));
+    ASSERT_EQ(results->size(), 2);
+
+    f->byCreationTime(0, newerCTime);
+    results.reset(megaApi[0]->search(f.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getName(), olderName);
+
+    f->byCreationTime(olderCTime, 0);
+    results.reset(megaApi[0]->search(f.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getName(), newerName);
+
+    deleteFile(fileName);
+}
+
+
+/**
  * ___SdkNodesOnDemand___
  * Steps:
  *  - Configure variables to set Account2 data equal to Account1
