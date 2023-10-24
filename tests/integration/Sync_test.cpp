@@ -1074,6 +1074,54 @@ void ClientManager::clear()
     LOG_debug << "ClientManager shutdown complete";
 }
 
+bool StandardSyncController::call(const Callback& callback,
+                                  const LocalPath& path) const
+{
+    std::lock_guard<std::mutex> guard(mLock);
+
+    if (callback)
+        return callback(fs::u8path(path.toPath(false)));
+
+    return false;
+}
+
+void StandardSyncController::set(Callback& callback, Callback value)
+{
+    std::lock_guard<std::mutex> guard(mLock);
+
+    callback = std::move(value);
+}
+
+bool StandardSyncController::deferPutnode(const LocalPath& path) const
+{
+    return call(mDeferPutnode, path);
+}
+
+void StandardSyncController::deferPutnode(Callback callback)
+{
+    set(mDeferPutnode, std::move(callback));
+}
+
+bool StandardSyncController::deferPutnodeCompletion(const LocalPath& path) const
+{
+    return call(mDeferPutnodeCompletion, path);
+}
+
+void StandardSyncController::deferPutnodeCompletion(Callback callback)
+{
+    set(mDeferPutnodeCompletion, std::move(callback));
+}
+
+bool StandardSyncController::deferUpload(const LocalPath& path) const
+{
+    return call(mDeferUpload, path);
+}
+
+void StandardSyncController::deferUpload(Callback callback)
+{
+    set(mDeferUpload, std::move(callback));
+}
+
 void StandardClient::ResultProc::prepresult(resultprocenum rpe, int tag, std::function<void()>&& requestfunc, std::function<bool(error)>&& f, handle h)
 {
     if (rpe != COMPLETION)
@@ -4919,6 +4967,13 @@ void StandardClient::upgradeSecurity(PromiseBoolSP result)
     client.upgradeSecurity([=](error e) {
         result->set_value(!e);
     });
+}
+
+void StandardClient::syncController(SyncControllerPtr controller)
+{
+    std::lock_guard<std::recursive_mutex> guard(clientMutex);
+
+    client.syncs.syncController(std::move(controller));
 }
 
 using SyncWaitPredicate = std::function<bool(StandardClient&)>;

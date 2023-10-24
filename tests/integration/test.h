@@ -412,6 +412,36 @@ public:
     }
 }; // RequestRetryTracker
 
+class StandardSyncController
+  : public SyncController
+{
+    using Callback = std::function<bool(const fs::path&)>;
+
+    bool call(const Callback& callback, const LocalPath& path) const;
+
+    void set(Callback& callback, Callback value);
+
+    Callback mDeferPutnode;
+    Callback mDeferPutnodeCompletion;
+    Callback mDeferUpload;
+    mutable std::mutex mLock;
+
+public:
+    StandardSyncController() = default;
+
+    bool deferPutnode(const LocalPath& path) const override;
+
+    void deferPutnode(Callback callback);
+
+    bool deferPutnodeCompletion(const LocalPath& path) const override;
+
+    void deferPutnodeCompletion(Callback callback);
+
+    bool deferUpload(const LocalPath& path) const override;
+
+    void deferUpload(Callback callback);
+}; // StandardSyncController
+
 struct StandardClient : public MegaApp
 {
     shared_ptr<WAIT_CLASS> waiter;
@@ -1048,6 +1078,8 @@ struct StandardClient : public MegaApp
     function<void(File&)> mOnFileComplete;
     function<void(bool)> mOnStall;
     function<void(bool)> mOnConflictsDetected;
+
+    void syncController(SyncControllerPtr controller);
 };
 
 struct ScopedSyncPauser
