@@ -9009,7 +9009,7 @@ public:
      * @brief Set option for filtering out sensitive nodes.
      * If not set, sensitive nodes will also be considered in searches.
      *
-     * @note Nodes are considered sensitive if they hve that property set, or one of their ancestors has it.
+     * @note Nodes are considered sensitive if they have that property set, or one of their ancestors has it.
      *
      * @param excludeSensitive Set to true to filter out sensitive nodes
      */

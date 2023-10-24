@@ -324,14 +324,12 @@ Node* NodeManager::getNodeByHandle_internal(NodeHandle handle)
     return node;
 }
 
-/** @deprecated Use getChildren(const NodeSearchFilter...) instead */
 node_list NodeManager::getChildren(const Node *parent, CancelToken cancelToken)
 {
     LockGuard g(mMutex);
     return getChildren_internal(parent, cancelToken);
 }
 
-/** @deprecated */
 node_list NodeManager::getChildren_internal(const Node *parent, CancelToken cancelToken)
 {
     assert(mMutex.owns_lock());

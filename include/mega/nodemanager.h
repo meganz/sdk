@@ -110,7 +110,6 @@ public:
     Node *getNodeByHandle(NodeHandle handle);
 
     // read children from DB and load them in memory
-    /** @deprecated Use getChildren(const NodeSearchFilter...) instead */
     node_list getChildren(const Node *parent, CancelToken cancelToken = CancelToken());
 
     node_vector getChildren(const NodeSearchFilter& filter, CancelToken cancelFlag);
@@ -377,10 +376,7 @@ private:
     bool addNode_internal(Node* node, bool notify, bool isFetching, MissingParentNodes& missingParentNodes);
     bool updateNode_internal(Node* node);
     Node *getNodeByHandle_internal(NodeHandle handle);
-
-    /** @deprecated */
     node_list getChildren_internal(const Node *parent, CancelToken cancelToken = CancelToken());
-
     node_vector getChildrenFromType_internal(const NodeHandle& parent, nodetype_t type, CancelToken cancelToken);
     node_vector getRecentNodes_internal(unsigned maxcount, m_time_t since);
 
