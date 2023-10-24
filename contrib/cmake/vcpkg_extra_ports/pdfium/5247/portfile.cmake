@@ -55,12 +55,28 @@ vcpkg_check_linkage(ONLY_STATIC_LIBRARY)
 
 file(COPY ${CMAKE_CURRENT_LIST_DIR}/CMakeLists.txt DESTINATION ${SOURCE_PATH})
 
-vcpkg_configure_cmake(
-  SOURCE_PATH ${SOURCE_PATH}
-  PREFER_NINJA
+vcpkg_cmake_configure(
+  SOURCE_PATH "${SOURCE_PATH}"
 )
 
-vcpkg_install_cmake()
+vcpkg_cmake_install()
+vcpkg_cmake_config_fixup(PACKAGE_NAME pdfium CONFIG_PATH share/pdfium)
 
-file(INSTALL ${SOURCE_PATH}/public/ DESTINATION "${CURRENT_PACKAGES_DIR}/" RENAME "include")
+set(PDFIUM_PREFIX ${CURRENT_PACKAGES_DIR})
+configure_file("${CMAKE_CURRENT_LIST_DIR}/pdfium.pc.in" "${CURRENT_PACKAGES_DIR}/lib/pkgconfig/pdfium.pc" @ONLY)
+if(NOT VCPKG_BUILD_TYPE)
+  set(PDFIUM_PREFIX ${CURRENT_PACKAGES_DIR}/debug)
+  configure_file("${CMAKE_CURRENT_LIST_DIR}/pdfium.pc.in" "${PDFIUM_PREFIX}/lib/pkgconfig/pdfium.pc" @ONLY)
+  vcpkg_replace_string("${PDFIUM_PREFIX}/lib/pkgconfig/pdfium.pc" "-lbz2" " -lbz2d")
+  vcpkg_replace_string("${PDFIUM_PREFIX}/lib/pkgconfig/pdfium.pc" "-lpng16" " -lpng16d")
+  vcpkg_replace_string("${PDFIUM_PREFIX}/lib/pkgconfig/pdfium.pc" "-lfreetype" " -lfreetyped")
+endif()
+
+include(CMakePackageConfigHelpers)
+configure_package_config_file(${CMAKE_CURRENT_LIST_DIR}/Config.cmake.in
+    "${CURRENT_PACKAGES_DIR}/share/pdfium/pdfiumConfig.cmake"
+    INSTALL_DESTINATION share/pdfium
+    )
+
+file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
 file(INSTALL ${SOURCE_PATH}/LICENSE DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}/" RENAME copyright)

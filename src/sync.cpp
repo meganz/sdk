@@ -10953,6 +10953,13 @@ bool SyncConfigIOContext::decrypt(const string& in, string& out)
     // Is the file too short to be valid?
     if (in.size() <= METADATA_LENGTH)
     {
+        LOG_err << "Unable to decrypt JSON sync config: "
+                << "File's too small ("
+                << in.size()
+                << " vs. "
+                << METADATA_LENGTH
+                << ")";
+
         return false;
     }
 
@@ -10970,6 +10977,9 @@ bool SyncConfigIOContext::decrypt(const string& in, string& out)
     // Is the file corrupt?
     if (memcmp(cmac, mac, MAC_LENGTH))
     {
+        LOG_err << "Unable to decrypt JSON sync config: "
+                << "HMAC mismatch";
+
         return false;
     }
 
@@ -11110,7 +11120,11 @@ string SyncConfigIOContext::encrypt(const string& data)
     string d;
 
     // Encrypt file using IV.
-    mCipher.cbc_encrypt_pkcs_padding(&data, iv, &d);
+    if (!mCipher.cbc_encrypt_pkcs_padding(&data, iv, &d))
+    {
+        LOG_err << "Failed to encrypt file.";
+        return d;
+    }
 
     // Add IV to file.
     d.append(std::begin(iv), std::end(iv));

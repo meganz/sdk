@@ -1017,21 +1017,22 @@ byte* Node::decryptattr(SymmCipher* key, const char* attrstring, size_t attrstrl
     if (attrstrlen)
     {
         int l = int(attrstrlen * 3 / 4 + 3);
-        byte* buf = new byte[l];
+        std::unique_ptr<byte[]> buf(new byte[l]); // ::mega::make_unique<> does not support T[] specialisation
 
-        l = Base64::atob(attrstring, buf, l);
+        l = Base64::atob(attrstring, buf.get(), l);
 
         if (!(l & (SymmCipher::BLOCKSIZE - 1)))
         {
-            key->cbc_decrypt(buf, l);
-
-            if (!memcmp(buf, "MEGA{\"", 6))
+            if (!key->cbc_decrypt(buf.get(), l))
             {
-                return buf;
+                return nullptr;
+            }
+
+            if (!memcmp(buf.get(), "MEGA{\"", 6))
+            {
+                return buf.release();
             }
         }
-
-        delete[] buf;
     }
 
     return NULL;

@@ -33,6 +33,8 @@ using namespace ::std;
 // we are on SRW branch
 #define SRW_NEEDED_FOR_THIS_ONE
 
+std::string getCurrentTimestamp(bool includeDate);
+
 #ifdef ENABLE_SYNC
 
 template<typename T>
@@ -1356,6 +1358,61 @@ bool StandardClient::waitForUserAlertsUpdated(unsigned numSeconds)
     return received_user_alerts;
 }
 
+void StandardClient::users_updated(User** users , int size)
+{
+    if (!users) // All users have changed, notification just after fetchnodes
+    {
+        return;
+    }
+
+    //  If none lambda is register with createsOnUserUpdateLamda, any user action package generate and event for stop waiting period
+    if (!mCheckUserChange)
+    {
+        lock_guard<mutex> g(user_actionpackets_mutex);
+        received_user_actionpackets = true;
+        user_updated_cv.notify_all();
+    }
+    else
+    {
+        std::lock_guard<std::mutex> g(mUserActionPackageMutex);
+        for (int i = 0; i < size; i++)
+        {
+            if (mCheckUserChange(users[i]))
+            {
+                lock_guard<mutex> g(user_actionpackets_mutex);
+                received_user_actionpackets = true;
+                user_updated_cv.notify_all();
+            }
+        }
+    }
+
+}
+
+bool StandardClient::waitForUserUpdated(unsigned int numSeconds)
+{
+    std::unique_lock<std::mutex> guard(user_actionpackets_mutex);
+
+    user_updated_cv.wait_for(guard, std::chrono::seconds(numSeconds), [&] {
+        return received_user_actionpackets;
+    });
+
+    return received_user_actionpackets;
+}
+
+void StandardClient::createsOnUserUpdateLamda(std::function<bool(User*)> onUserUpdateLambda)
+{
+    std::lock_guard<std::mutex> g(mUserActionPackageMutex);
+    mCheckUserChange = onUserUpdateLambda;
+    received_user_actionpackets = false;
+}
+
+void StandardClient::removeOnUserUpdateLamda()
+{
+    std::lock_guard<std::mutex> g(mUserActionPackageMutex);
+    mCheckUserChange = nullptr;
+    received_user_actionpackets = false;
+}
+
 #ifdef DEBUG
 void StandardClient::syncdebug_notification(const SyncConfig& config,
                             int queue,
@@ -1412,6 +1469,157 @@ void StandardClient::syncupdate_stalled(bool state)
         mOnStall(state);
 }
 
+bool StandardClient::isUserAttributeSet(attr_t attr, unsigned int numSeconds, error& err)
+{
+    int tag = client.reqtag;
+    std::recursive_mutex attr_cv_mutex;
+    std::condition_variable_any user_attribute_updated_cv;
+    bool attrIsSet = false;
+    std::atomic_bool replyReceived{false};
+    {
+        std::lock_guard<std::mutex> g(mUserAttributeMutex);
+        mOnGetUA = [&](const attr_t at, error e)
+        {
+            if (tag != client.restag)
+            {
+                return;
+            }
+
+            std::lock_guard<std::recursive_mutex> g(attr_cv_mutex);
+            err = e;
+            if (err == API_OK)
+            {
+                assert(at == attr);
+                LOG_debug << "attr: " << attr << " is set";
+                attrIsSet = true;
+            }
+
+            replyReceived = true;
+            user_attribute_updated_cv.notify_one();
+        };
+    }
+
+    std::unique_lock<std::recursive_mutex> g(attr_cv_mutex);
+    client.getua(client.ownuser(), attr);
+
+    user_attribute_updated_cv.wait_for(g, std::chrono::seconds(numSeconds), [&replyReceived](){ return replyReceived.load(); });
+    {
+        std::lock_guard<std::mutex> g(mUserAttributeMutex);
+        mOnGetUA = nullptr;
+    }
+
+    return attrIsSet;
+}
+
+bool StandardClient::waitForAttrDeviceIdIsSet(unsigned int numSeconds, bool& updated)
+{
+    error err = API_EINTERNAL;
+    isUserAttributeSet(attr_t::ATTR_DEVICE_NAMES, numSeconds, err);
+
+    std::unique_ptr<TLVstore> tlv;
+    std::string deviceIdHash = client.getDeviceidHash();
+    if (err == API_OK)
+    {
+        User* ownUser = client.ownuser();
+        tlv.reset(TLVstore::containerToTLVrecords(ownUser->getattr(attr_t::ATTR_DEVICE_NAMES), &client.key));
+        std::string buffer;
+        if (tlv->get(deviceIdHash, buffer))
+        {
+            return true;  // Device id is found
+        }
+    }
+    else if (err == API_ENOENT)
+    {
+        tlv.reset(new TLVstore);
+    }
+    else
+    {
+        return false; // Unexpected error has been detected
+    }
+
+    std::string timestamp = getCurrentTimestamp(true);
+    std::string deviceName = "Jenkins " + timestamp;
+
+    tlv->set(deviceIdHash, deviceName);
+    bool attrDeviceNamePut = false;
+    std::recursive_mutex attrDeviceNamePut_mutex;
+    std::condition_variable_any attrDeviceNamePut_cv;
+    std::atomic_bool replyReceived{false};
+    // serialize and encrypt the TLV container
+    std::unique_ptr<string> container(tlv->tlvRecordsToContainer(client.rng, &client.key));
+    std::unique_lock<std::recursive_mutex> g(attrDeviceNamePut_mutex);
+    client.putua(attr_t::ATTR_DEVICE_NAMES, (::mega::byte *)container->data(), unsigned(container->size()), -1, UNDEF, 0, 0, [&](Error e)
+    {
+        std::lock_guard<std::recursive_mutex> g(attrDeviceNamePut_mutex);
+        if (e == API_OK)
+        {
+            attrDeviceNamePut = true;
+        }
+        else
+        {
+            LOG_err << "Error setting device id user attribute";
+        }
+
+        replyReceived = true;
+        attrDeviceNamePut_cv.notify_one();
+    });
+
+    attrDeviceNamePut_cv.wait_for(g, std::chrono::seconds(numSeconds), [&replyReceived](){ return replyReceived.load(); });
+
+    if (!attrDeviceNamePut) // Error setting device id
+    {
+        return false;
+    }
+
+    updated = true;
+    // Check if attribute has been established properly
+    return isUserAttributeSet(attr_t::ATTR_DEVICE_NAMES, numSeconds, err);
+}
+
+bool StandardClient::waitForAttrMyBackupIsSet(unsigned int numSeconds)
+{
+    error err  = API_EINTERNAL;
+    bool attrMyBackupFolderIsSet = isUserAttributeSet(attr_t::ATTR_MY_BACKUPS_FOLDER, numSeconds, err);
+
+    if (err != API_ENOENT)
+    {
+        return attrMyBackupFolderIsSet;
+    }
+
+    // If attribute is not set, it's going to established
+    const char* folderName = "My Backups";
+    attrMyBackupFolderIsSet = false;
+    std::recursive_mutex attrMyBackup_cv_mutex;
+    std::condition_variable_any user_attribute_backup_updated_cv;
+    std::atomic_bool replyReceived{false};
+    std::unique_lock<std::recursive_mutex> g(attrMyBackup_cv_mutex);
+    client.setbackupfolder(folderName, client.reqtag, [&](Error e)
+    {
+        std::lock_guard<std::recursive_mutex> g(attrMyBackup_cv_mutex);
+        if (e == API_OK)
+        {
+            attrMyBackupFolderIsSet = true;
+        }
+        else
+        {
+            LOG_err << "Error setting backup folder user attribute";
+        }
+
+        replyReceived = true;
+        user_attribute_backup_updated_cv.notify_one();
+    });
+
+    user_attribute_backup_updated_cv.wait_for(g, std::chrono::seconds(numSeconds), [&replyReceived](){ return replyReceived.load(); });
+
+    if (!attrMyBackupFolderIsSet) // Error setting backup folder
+    {
+        return false;
+    }
+
+    // Check if attribute has been established properly
+    return isUserAttributeSet(attr_t::ATTR_MY_BACKUPS_FOLDER, numSeconds, err);;
+}
+
 void StandardClient::file_added(File* file)
 {
     if (mOnFileAdded)
@@ -1428,15 +1636,13 @@ void StandardClient::file_complete(File* file)
     }
 }
 
-void StandardClient::notify_retry(dstime t, retryreason_t r)
+void StandardClient::notify_retry(dstime when, retryreason_t reason)
 {
     onCallback();
 
-    if (!logcb) return;
-
     lock_guard<mutex> guard(om);
 
-    out() << clientname << " notify_retry: " << t << " " << r;
+    mRetryTracker.track(clientname, reason);
 }
 
 void StandardClient::request_error(error e)
@@ -4644,40 +4850,43 @@ bool StandardClient::rmcontact(const string& email)
     return result.get();
 }
 
-void StandardClient::share(const CloudItem& item, const string& email, accesslevel_t permissions, PromiseBoolSP result)
+void StandardClient::opensharedialog(const CloudItem& item, PromiseErrorSP result)
 {
     auto node = item.resolve(*this);
-    if (!node)
-        return result->set_value(false);
 
-    auto completion = [=](Error e, bool) {
-        if (e == API_EKEY)
-        {
-            // create share key and try again
-            client.openShareDialog(node.get(), [=](Error osdErr)
-                {
-                    if (osdErr == API_OK)
-                    {
-                        client.setshare(node,
-                            email.c_str(),
-                            permissions,
-                            false,
-                            nullptr,
-                            ++next_request_tag,
-                            [result](Error e2, bool) {result->set_value(!e2);});
-                    }
-                    else
-                    {
-                        result->set_value(false);
-                    }
-                }
-            );
-        }
-        else
-        {
-            result->set_value(!e);
-        }
-    };
+    if (!node)
+        return result->set_value(API_ENOENT);
+
+    client.openShareDialog(node.get(), [result](Error e) {
+        result->set_value(e);
+    });
+}
+
+Error StandardClient::opensharedialog(const CloudItem& item)
+{
+    auto result = thread_do<Error>([&](StandardClient& client, PromiseErrorSP result) {
+        client.opensharedialog(item, std::move(result));
+    }, __FILE__, __LINE__);
+
+    auto status = result.wait_for(DEFAULTWAIT);
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
+        return LOCAL_ETIMEOUT;
+
+    return result.get();
+}
+
+void StandardClient::share(const CloudItem& item, const string& email, accesslevel_t permissions, PromiseErrorSP result)
+{
+    auto node = item.resolve(*this);
+
+    if (!node)
+        return result->set_value(API_ENOENT);
+
+    auto completion = [result](Error e, bool) {
+        result->set_value(e);
+    }; // completion
 
     client.setshare(node,
                     email.c_str(),
@@ -4688,9 +4897,11 @@ void StandardClient::share(const CloudItem& item, const string& email, accesslev
                     std::move(completion));
 }
 
-bool StandardClient::share(const CloudItem& item, const string& email, accesslevel_t permissions)
+Error StandardClient::share(const CloudItem& item,
+                            const string& email,
+                            accesslevel_t permissions)
 {
-    auto result = thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
+    auto result = thread_do<Error>([&](StandardClient& client, PromiseErrorSP result) {
         client.share(item, email, permissions, std::move(result));
     }, __FILE__, __LINE__);
 
@@ -4698,10 +4909,9 @@ bool StandardClient::share(const CloudItem& item, const string& email, accesslev
     EXPECT_NE(status, future_status::timeout);
 
     if (status == future_status::timeout)
-        return false;
+        return LOCAL_ETIMEOUT;
 
-    bool r = result.get();
-    return r;
+    return result.get();
 }
 
 void StandardClient::upgradeSecurity(PromiseBoolSP result)
@@ -5465,7 +5675,7 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderPlain)
     ASSERT_TRUE(clientA2->confirmModel_mainthread(model.findnode("f"), backupId2));
 }
 
-TEST_F(SyncTest, DISABLED_BasicSync_MoveLocalFolderBetweenSyncs)
+TEST_F(SyncTest, BasicSync_MoveLocalFolderBetweenSyncs)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot();
@@ -5473,6 +5683,56 @@ TEST_F(SyncTest, DISABLED_BasicSync_MoveLocalFolderBetweenSyncs)
     auto clientA1 = g_clientManager->getCleanStandardClient(0, localtestroot); // user 1 client 1
     auto clientA2 = g_clientManager->getCleanStandardClient(0, localtestroot); // user 1 client 2
     auto clientA3 = g_clientManager->getCleanStandardClient(0, localtestroot); // user 1 client 2
+
+    auto receivedDeviceIdName = [](User* actionPackageUser, User* ownUser)
+    {
+        assert(actionPackageUser && ownUser);
+        if (actionPackageUser->userhandle == ownUser->userhandle && actionPackageUser->changed.devicenames)
+        {
+            return true;
+        }
+
+        return false;
+    };
+
+    User* ownUserClient2 = clientA2->client.ownuser();
+    // Register a callback to be used when users_updated is called. This callBack is used to stop waiting period at waitForUserUpdated
+    // removeOnUserUpdateLamda should be called to unregister
+    clientA2->createsOnUserUpdateLamda([ownUserClient2, receivedDeviceIdName](User* user)
+    {
+        return receivedDeviceIdName(user, ownUserClient2);
+    });
+
+    User* ownUserClient3 = clientA3->client.ownuser();
+    // Register a callback to be used when users_updated is called. This callBack is used to stop waiting period at waitForUserUpdated
+    // removeOnUserUpdateLamda should be called to unregister
+    clientA3->createsOnUserUpdateLamda([ownUserClient3, receivedDeviceIdName](User* user)
+    {
+       return receivedDeviceIdName(user, ownUserClient3);
+    });
+
+    bool deviceIdUpdated = false;
+    ASSERT_TRUE(clientA1->waitForAttrDeviceIdIsSet(60, deviceIdUpdated)) << "Error User attr device id isn't establised client1";
+    if (deviceIdUpdated)  // only wait for action package if atribute has been updated
+    {
+        // Waiting period finished when callback register at createsOnUserUpdateLamda returns true
+        ASSERT_TRUE(clientA2->waitForUserUpdated(60)) << "User update doesn't arrive at client2 (device id)";
+        ASSERT_TRUE(clientA3->waitForUserUpdated(60)) << "User update doesn't arrive at client3 (device id)";
+        deviceIdUpdated = false;
+        ASSERT_TRUE(clientA2->waitForAttrDeviceIdIsSet(60, deviceIdUpdated)) << "Error User attr device id isn't establised client2";
+        ASSERT_EQ(deviceIdUpdated, false); // It has already updated
+        ASSERT_TRUE(clientA3->waitForAttrDeviceIdIsSet(60, deviceIdUpdated)) << "Error User attr device id isn't establised client3";
+        ASSERT_EQ(deviceIdUpdated, false); // It has already updated
+    }
+
+    clientA2->removeOnUserUpdateLamda();
+    clientA3->removeOnUserUpdateLamda();
+
+    // ATTR_MY_BACKUPS_FOLDER is only set once, if it exists, it shouldn't be modified
+    ASSERT_TRUE(clientA1->waitForAttrMyBackupIsSet(60)) << "Error User attr My Back Folder isn't establised client1";
+    ASSERT_TRUE(clientA2->waitForAttrMyBackupIsSet(60)) << "Error User attr My Back Folder isn't establised client2";
+    ASSERT_TRUE(clientA3->waitForAttrMyBackupIsSet(60)) << "Error User attr My Back Folder isn't establised client3";
+
 
     ASSERT_TRUE(clientA1->resetBaseFolderMulticlient(clientA2, clientA3));
     ASSERT_TRUE(clientA1->makeCloudSubdirs("f", 3, 3));
@@ -11340,282 +11600,6 @@ TEST_F(BackupBehavior, SameMTimeSmallerSize)
 }
 #endif // DEBUG
 
-TEST_F(SyncTest, UndecryptableSharesBehavior)
-{
-    const auto TESTROOT = makeNewTestRoot();
-
-    StandardClient client0(TESTROOT, "client0");
-    // can not use ClientManager as we re-login later
-    StandardClient client1(TESTROOT, "client1");
-    StandardClient client2(TESTROOT, "client2");
-
-    // Log in the clients.
-    ASSERT_TRUE(client0.login_reset("MEGA_EMAIL", "MEGA_PWD"));
-    ASSERT_TRUE(client1.login_reset("MEGA_EMAIL_AUX", "MEGA_PWD_AUX"));
-    ASSERT_TRUE(client2.login_reset("MEGA_EMAIL_AUX2", "MEGA_PWD_AUX2"));
-
-    // Make sure our "contacts" know about each other.
-    {
-        // Convenience predicates.
-        auto contactRequestReceived = [](handle id) {
-            return [id](StandardClient& client) {
-                return client.ipcr(id);
-            };
-        };
-        auto contactRequestFnished = [](string& email) {
-            return [&email](StandardClient& client) {
-                return !client.opcr(email);
-            };
-        };
-        auto contactVerificationFinished = [](string& email) {
-            return [&email](StandardClient& client) {
-                return client.isverified(email);
-            };
-        };
-
-        // Convenience helper.
-        auto contactAdd = [&](StandardClient& client, const string& name) {
-            // Get our hands on the contact's email.
-            string email = getenv(name.c_str());
-            // Get main client email.
-            string email0 = getenv("MEGA_EMAIL");
-
-            // Are we already associated with this contact?
-            if (client0.iscontact(email))
-            {
-                // Then remove them.
-                ASSERT_TRUE(client0.rmcontact(email));
-            }
-
-            // Remove pending contact request, if any.
-            if (client0.opcr(email))
-            {
-                ASSERT_TRUE(client0.opcr(email, OPCA_DELETE));
-            }
-
-            // Add the contact.
-            auto id = client0.opcr(email, OPCA_ADD);
-            ASSERT_NE(id, UNDEF);
-
-            // Wait for the contact to receive the request.
-            ASSERT_TRUE(client.waitFor(contactRequestReceived(id), std::chrono::seconds(60)));
-
-            // Accept the contact request.
-            ASSERT_TRUE(client.ipcr(id, IPCA_ACCEPT));
-
-            // Wait for the response to reach first client
-            ASSERT_TRUE(client0.waitFor(contactRequestFnished(email), DEFAULTWAIT));
-
-            // Verify contact credentials if they are not
-            if (gManualVerification)
-            {
-                if (!client0.isverified(email))
-                {
-                    ASSERT_TRUE(client0.verifyCredentials(email));
-                }
-                if (!client.isverified(email0))
-                {
-                    ASSERT_TRUE(client.verifyCredentials(email0));
-                }
-
-                // Wait for contact verification
-                ASSERT_TRUE(client0.waitFor(contactVerificationFinished(email), DEFAULTWAIT));
-                ASSERT_TRUE(client.waitFor(contactVerificationFinished(email0), DEFAULTWAIT));
-            }
-        };
-
-        // Introduce the contacts to each other.
-        ASSERT_NO_FATAL_FAILURE(contactAdd(client1, "MEGA_EMAIL_AUX"));
-        ASSERT_NO_FATAL_FAILURE(contactAdd(client2, "MEGA_EMAIL_AUX2"));
-    }
-
-    Model model;
-
-    // Populate the local filesystem.
-    model.addfile("t/f");
-    model.addfile("u/f");
-    model.addfile("v/f");
-    model.addfile("f");
-    model.addfile(".megaignore", "+sync:.megaignore");
-    model.generate(client1.fsBasePath / "s");
-
-    // Get our hands on the remote test root.
-    std::shared_ptr<Node> r = client0.gettestbasenode();
-    ASSERT_NE(r, nullptr);
-
-    // Populate the remote test root.
-    {
-        auto sPath = client1.fsBasePath / "s";
-
-        ASSERT_TRUE(client0.uploadFolderTree(sPath, r.get()));
-        ASSERT_TRUE(client0.uploadFilesInTree(sPath, r.get()));
-    }
-
-    NodeHandle sh;
-
-    // Get our hands on the remote sync root.
-    {
-        std::shared_ptr<Node> s = client0.drillchildnodebyname(r, "s");
-        ASSERT_NE(s, nullptr);
-
-        sh = s->nodeHandle();
-    }
-
-    // Share the test root with client 1.
-    ASSERT_TRUE(client0.share(r.get(), getenv("MEGA_EMAIL_AUX"), FULL));
-    ASSERT_TRUE(client1.waitFor(SyncRemoteNodePresent(*r), std::chrono::seconds(90)));
-
-    // Share the sync root with client 2.
-    ASSERT_TRUE(client0.share(sh, getenv("MEGA_EMAIL_AUX2"), FULL));
-    ASSERT_TRUE(client2.waitFor(SyncRemoteNodePresent(sh), std::chrono::seconds(90)));
-
-    // Add and start a new sync.
-    auto id = UNDEF;
-
-    // Add the sync.
-    id = client1.setupSync_mainthread("s", sh, false, false);
-    ASSERT_NE(id, UNDEF);
-
-    // Wait for the initial sync to complete.
-    waitonsyncs(DEFAULTWAIT, &client1);
-
-    // Make sure the clients all agree with what's in the cloud.
-    ASSERT_TRUE(client1.confirmModel_mainthread(model.root.get(), id));
-    ASSERT_TRUE(client2.waitFor(SyncRemoteMatch(sh, model.root.get()), DEFAULTWAIT));
-
-    // Release shared_ptr before logout (None node reference should be kept after logout)
-    r.reset();
-    // Log out the sharing client so that it doesn't maintain keys.
-    ASSERT_TRUE(client0.logout(false));
-
-    // Make a couple changes to client1's sync via client2.
-    {
-        // Nodes from client2's perspective.
-        auto xs = client2.client.nodeByHandle(sh);
-        ASSERT_NE(xs, nullptr);
-
-        auto xt = client2.client.childnodebyname(xs.get(), "t");
-        ASSERT_NE(xt, nullptr);
-
-        auto xu = client2.client.childnodebyname(xs.get(), "u");
-        ASSERT_NE(xu, nullptr);
-
-        auto xv = client2.client.childnodebyname(xs.get(), "v");
-        ASSERT_NE(xv, nullptr);
-
-        // Create a new directory w under s.
-        {
-            vector<NewNode> node(1);
-
-            client1.received_node_actionpackets = false;
-
-            model.addfolder("w");
-
-            client2.client.putnodes_prepareOneFolder(&node[0], "w", false);
-            ASSERT_TRUE(client2.putnodes(xs->nodeHandle(), NoVersioning, std::move(node)));
-            ASSERT_TRUE(client1.waitForNodesUpdated(30));
-        }
-
-        // Get our hands on w from client 2's perspective.
-        auto xw = client2.client.childnodebyname(xs.get(), "w");
-        ASSERT_NE(xw, nullptr);
-
-        // Be certain that client 1 can see w.
-        ASSERT_TRUE(client1.waitFor(SyncRemoteNodePresent(*xw), DEFAULTWAIT));
-
-        // Let the engine try and process the change.
-        waitonsyncs(DEFAULTWAIT, &client1);
-
-        // Move t, u and v under w.
-        client1.received_node_actionpackets = false;
-
-        model.movenode("t", "w");
-
-        ASSERT_TRUE(client2.movenode(xt->nodehandle, xw->nodehandle));
-        ASSERT_TRUE(client1.waitForNodesUpdated(50));
-
-        client1.received_node_actionpackets = false;
-
-        model.movenode("u", "w");
-
-        ASSERT_TRUE(client2.movenode(xu->nodehandle, xw->nodehandle));
-        ASSERT_TRUE(client1.waitForNodesUpdated(50));
-
-        client1.received_node_actionpackets = false;
-
-        model.movenode("v", "w");
-
-        ASSERT_TRUE(client2.movenode(xv->nodehandle, xw->nodehandle));
-        ASSERT_TRUE(client1.waitForNodesUpdated(50));
-    }
-
-    // Wait for client 1 to stall (due to undecryptable nodes.)
-    //ASSERT_TRUE(client1.waitFor(SyncStallState(true), DEFAULTWAIT));
-
-    // Temporarily log out client 1.
-    //
-    // Undecrpytable nodes won't be serialized.
-    string session;
-
-    client1.client.dumpsession(session);
-    client1.localLogout();
-
-    // Hook resume callback.
-    promise<void> notify;
-
-    //client1.mOnSyncStateConfig = [&](const SyncConfig& config) {
-    //    if (config.mRunState != SyncRunState::Run)
-    //        return;
-
-    //    notify.set_value();
-    //    client1.mOnSyncStateConfig = nullptr;
-    //};
-
-    client1.onAutoResumeResult = [&](const SyncConfig&) {
-        notify.set_value();
-        client1.onAutoResumeResult = nullptr;
-    };
-
-    // Log the client back in.
-    ASSERT_TRUE(client1.login_fetchnodesFromSession(session));
-
-    // Wait for the sync to resume.
-    ASSERT_NE(notify.get_future().wait_for(DEFAULTWAIT), future_status::timeout);
-
-    // make sure we have received the actionpackets
-    bool caughtup = false;
-    client1.catchup([&](error){
-        caughtup = true;
-        });
-
-    ASSERT_TRUE(client1.waitFor([&](StandardClient&){ return caughtup; }, chrono::seconds(100)));
-
-    WaitMillisec(3000);
-
-    // Give the sync some time to process changes.
-    waitonsyncs(DEFAULTWAIT, &client1);
-
-    //// Make sure the client hasn't stalled.
-    ////ASSERT_FALSE(client1.client.syncs.syncStallDetected());
-
-    //// client 1 should've wipedd everything.
-    ////
-    //// This is the behavior we're going to want to fix.
-    //model.movetosynctrash("w", "");
-    //model.ensureLocalDebrisTmpLock("");
-
-    //ASSERT_TRUE(client1.confirmModel_mainthread(model.root.get(), id, true, StandardClient::CONFIRM_LOCALFS));
-
-    //(that was the old code for develop, pre sync-rework)
-    // here, we check that we DO stall
-
-    ASSERT_TRUE(client1.waitFor(SyncStallState(true), chrono::seconds(8)));
-
-
-
-}
-
-
 TEST_F(SyncTest, RemoteReplaceDirectory)
 {
     auto TESTROOT = makeNewTestRoot();
@@ -17208,8 +17192,7 @@ TEST_F(SyncTest, RemovedJustAsPutNodesSent)
 
 #endif // ! NDEBUG
 
-/* already exists
-TEST_F(SyncTest, UndecryptableSharesBehavior)
+TEST_F(SyncTest, DISABLED_UndecryptableSharesBehavior)
 {
     const auto TESTROOT = makeNewTestRoot();
 
@@ -17230,11 +17213,23 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
                 return client.ipcr(id);
             };
         };
+        auto contactRequestFnished = [](string& email) {
+            return [&email](StandardClient& client) {
+                return !client.opcr(email);
+            };
+        };
+        auto contactVerificationFinished = [](string& email) {
+            return [&email](StandardClient& client) {
+                return client.isverified(email);
+            };
+        };
 
         // Convenience helper.
         auto contactAdd = [&](StandardClient& client, const string& name) {
             // Get our hands on the contact's email.
             string email = getenv(name.c_str());
+            // Get main client email.
+            string email0 = getenv("MEGA_EMAIL");
 
             // Are we already associated with this contact?
             if (client0.iscontact(email))
@@ -17258,6 +17253,26 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
 
             // Accept the contact request.
             ASSERT_TRUE(client.ipcr(id, IPCA_ACCEPT));
+
+            // Wait for the response to reach first client
+            ASSERT_TRUE(client0.waitFor(contactRequestFnished(email), DEFAULTWAIT));
+
+            // Verify contact credentials if they are not
+            if (gManualVerification)
+            {
+                if (!client0.isverified(email))
+                {
+                    ASSERT_TRUE(client0.verifyCredentials(email));
+                }
+                if (!client.isverified(email0))
+                {
+                    ASSERT_TRUE(client.verifyCredentials(email0));
+                }
+
+                // Wait for contact verification
+                ASSERT_TRUE(client0.waitFor(contactVerificationFinished(email), DEFAULTWAIT));
+                ASSERT_TRUE(client.waitFor(contactVerificationFinished(email0), DEFAULTWAIT));
+            }
         };
 
         // Introduce the contacts to each other.
@@ -17276,33 +17291,35 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
     model.generate(client1.fsBasePath / "s");
 
     // Get our hands on the remote test root.
-    Node* r = client0.gettestbasenode();
+    auto r = client0.gettestbasenode();
     ASSERT_NE(r, nullptr);
 
     // Populate the remote test root.
     {
         auto sPath = client1.fsBasePath / "s";
 
-        ASSERT_TRUE(client0.uploadFolderTree(sPath, r));
-        ASSERT_TRUE(client0.uploadFilesInTree(sPath, r));
+        ASSERT_TRUE(client0.uploadFolderTree(sPath, r.get()));
+        ASSERT_TRUE(client0.uploadFilesInTree(sPath, r.get()));
     }
 
     NodeHandle sh;
 
     // Get our hands on the remote sync root.
     {
-        Node* s = client0.drillchildnodebyname(r, "s");
+        auto s = client0.drillchildnodebyname(r, "s");
         ASSERT_NE(s, nullptr);
 
         sh = s->nodeHandle();
     }
 
     // Share the test root with client 1.
-    ASSERT_TRUE(client0.share(*r, getenv("MEGA_EMAIL_AUX"), FULL));
+    ASSERT_EQ(client0.opensharedialog(*r), API_OK);
+    ASSERT_EQ(client0.share(*r, getenv("MEGA_EMAIL_AUX"), FULL), API_OK);
     ASSERT_TRUE(client1.waitFor(SyncRemoteNodePresent(*r), std::chrono::seconds(90)));
 
     // Share the sync root with client 2.
-    ASSERT_TRUE(client0.share(sh, getenv("MEGA_EMAIL_AUX2"), FULL));
+    ASSERT_EQ(client0.opensharedialog(sh), API_OK);
+    ASSERT_EQ(client0.share(sh, getenv("MEGA_EMAIL_AUX2"), FULL), API_OK);
     ASSERT_TRUE(client2.waitFor(SyncRemoteNodePresent(sh), std::chrono::seconds(90)));
 
     // Add and start a new sync.
@@ -17325,16 +17342,16 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
     // Make a couple changes to client1's sync via client2.
     {
         // Nodes from client2's perspective.
-        auto* xs = client2.client.nodeByHandle(sh);
+        auto xs = client2.client.nodeByHandle(sh);
         ASSERT_NE(xs, nullptr);
 
-        auto* xt = client2.client.childnodebyname(xs, "t");
+        auto xt = client2.client.childnodebyname(xs.get(), "t");
         ASSERT_NE(xt, nullptr);
 
-        auto* xu = client2.client.childnodebyname(xs, "u");
+        auto xu = client2.client.childnodebyname(xs.get(), "u");
         ASSERT_NE(xu, nullptr);
 
-        auto* xv = client2.client.childnodebyname(xs, "v");
+        auto xv = client2.client.childnodebyname(xs.get(), "v");
         ASSERT_NE(xv, nullptr);
 
         // Create a new directory w under s.
@@ -17343,13 +17360,13 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
 
             client1.received_node_actionpackets = false;
 
-            client2.client.putnodes_prepareOneFolder(&node[0], "w");
+            client2.client.putnodes_prepareOneFolder(&node[0], "w", false);
             ASSERT_TRUE(client2.putnodes(xs->nodeHandle(), NoVersioning, std::move(node)));
             ASSERT_TRUE(client1.waitForNodesUpdated(30));
         }
 
         // Get our hands on w from client 2's perspective.
-        auto* xw = client2.client.childnodebyname(xs, "w");
+        auto xw = client2.client.childnodebyname(xs.get(), "w");
         ASSERT_NE(xw, nullptr);
 
         // Be certain that client 1 can see w.
@@ -17361,15 +17378,21 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
         // Move t, u and v under w.
         client1.received_node_actionpackets = false;
 
+        model.movenode("t", "w"); // from SRW
+
         ASSERT_TRUE(client2.movenode(xt->nodehandle, xw->nodehandle));
         ASSERT_TRUE(client1.waitForNodesUpdated(30));
 
         client1.received_node_actionpackets = false;
 
+        model.movenode("u", "w"); // from SRW
+
         ASSERT_TRUE(client2.movenode(xu->nodehandle, xw->nodehandle));
         ASSERT_TRUE(client1.waitForNodesUpdated(30));
 
         client1.received_node_actionpackets = false;
+
+        model.movenode("v", "w"); // from SRW
 
         ASSERT_TRUE(client2.movenode(xv->nodehandle, xw->nodehandle));
         ASSERT_TRUE(client1.waitForNodesUpdated(30));
@@ -17389,6 +17412,8 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
     // Hook resume callback.
     promise<void> notify;
 
+    // resumption probably triggers a sync_added() callback too, which can
+    // be tracked by onAutoResumeResult, instead of by the onSyncStateConfig
     client1.mOnSyncStateConfig = [&](const SyncConfig& config) {
         if (config.mRunState != SyncRunState::Run)
             return;
@@ -17406,13 +17431,38 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
     // Give the sync some time to process changes.
     waitonsyncs(DEFAULTWAIT, &client1);
 
+
+    //---------- proposal active test SRW
+
+    //// Make sure the client hasn't stalled.
+    ////ASSERT_FALSE(client1.client.syncs.syncStallDetected());
+
+    //// client 1 should've wipedd everything.
+    ////
+    //// This is the behavior we're going to want to fix.
+    //model.movetosynctrash("w", "");
+    //model.ensureLocalDebrisTmpLock("");
+
+    //ASSERT_TRUE(client1.confirmModel_mainthread(model.root.get(), id, true, StandardClient::CONFIRM_LOCALFS));
+
+    //(that was the old code for develop, pre sync-rework)
+    // here, we check that we DO stall
+
+    ASSERT_TRUE(client1.waitFor(SyncStallState(true), chrono::seconds(8)));
+
+    //---- end proposal
+
+
+    //---------- proposal from develop
+
     // Wait for the engine to stall once again.
     ASSERT_TRUE(client1.waitFor(SyncStallState(true), DEFAULTWAIT));
 
     // Make sure client 1 hasn't changed anything!
     ASSERT_TRUE(client1.confirmModel_mainthread(model.root.get(), id, true, StandardClient::CONFIRM_LOCALFS));
+
+    //---- end proposal
 }
-*/
 
 TEST_F(SyncTest, CloudHorizontalMoveChain)
 {

@@ -42,7 +42,7 @@ void NodeManager::setTable(DBTableNodes *table)
 
 void NodeManager::setTable_internal(DBTableNodes *table)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
     mTable = table;
 }
 
@@ -54,7 +54,7 @@ void NodeManager::reset()
 
 void NodeManager::reset_internal()
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
     setTable_internal(nullptr);
     cleanNodes_internal();
 }
@@ -67,7 +67,7 @@ bool NodeManager::setrootnode(std::shared_ptr<Node> node)
 
 bool NodeManager::setrootnode_internal(std::shared_ptr<Node> node)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
     switch (node->type)
     {
         case ROOTNODE:
@@ -108,7 +108,7 @@ void NodeManager::notifyNode(std::shared_ptr<Node> n, sharedNode_vector* nodesTo
 
 void NodeManager::notifyNode_internal(std::shared_ptr<Node> n, sharedNode_vector* nodesToReport)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
     n->applykey();
 
     if (!mClient.fetchingnodes)
@@ -175,7 +175,7 @@ bool NodeManager::addNode(std::shared_ptr<Node> node, bool notify, bool isFetchi
 
 bool NodeManager::addNode_internal(std::shared_ptr<Node> node, bool notify, bool isFetching, MissingParentNodes& missingParentNodes)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
     // ownership of 'node' is taken by NodeManager::mNodes if node is kept in memory,
     // and by NodeManager::mNodeToWriteInDB if node is only written to DB. In the latter,
     // the 'node' is deleted upon saveNodeInDb()
@@ -228,7 +228,7 @@ bool NodeManager::updateNode(Node *node)
 
 bool NodeManager::updateNode_internal(Node *node)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     if (!mTable)
     {
@@ -249,7 +249,7 @@ std::shared_ptr<Node> NodeManager::getNodeByHandle(NodeHandle handle)
 
 std::shared_ptr<Node> NodeManager::getNodeByHandle_internal(NodeHandle handle)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
     if (handle.isUndef()) return nullptr;
 
     if (mNodes.empty())
@@ -274,7 +274,7 @@ sharedNode_list NodeManager::getChildren(const Node *parent, CancelToken cancelT
 
 sharedNode_list NodeManager::getChildren_internal(const Node *parent, CancelToken cancelToken)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     sharedNode_list childrenList;
     if (!parent || !mTable || mNodes.empty())
@@ -339,7 +339,7 @@ sharedNode_list NodeManager::getChildren_internal(const Node *parent, CancelToke
             parent->mNodePosition->second.mChildren = ::mega::make_unique<std::map<NodeHandle, NodeManagerNode*>>();
         }
 
-        for (auto &nodeSerializedIt : nodesFromTable)
+        for (const auto& nodeSerializedIt : nodesFromTable)
         {
             if (cancelToken.isCancelled())
             {
@@ -375,15 +375,15 @@ sharedNode_list NodeManager::getChildren_internal(const Node *parent, CancelToke
     return childrenList;
 }
 
-sharedNode_vector NodeManager::getChildrenFromType(const Node* parent, nodetype_t type, CancelToken cancelToken)
+sharedNode_vector NodeManager::getChildrenFromType(const NodeHandle& parent, nodetype_t type, CancelToken cancelToken)
 {
     LockGuard g(mMutex);
     return getChildrenFromType_internal(parent, type, cancelToken);
 }
 
-sharedNode_vector NodeManager::getChildrenFromType_internal(const Node* parent, nodetype_t type, CancelToken cancelToken)
+sharedNode_vector NodeManager::getChildrenFromType_internal(const NodeHandle& parent, nodetype_t type, CancelToken cancelToken)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     if (!mTable || mNodes.empty())
     {
@@ -391,7 +391,7 @@ sharedNode_vector NodeManager::getChildrenFromType_internal(const Node* parent, 
     }
 
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
-    mTable->getChildrenFromType(parent->nodeHandle(), type, nodesFromTable, cancelToken);
+    mTable->getChildrenFromType(parent, type, nodesFromTable, cancelToken);
 
     if (cancelToken.isCancelled())
     {
@@ -409,7 +409,7 @@ sharedNode_vector NodeManager::getRecentNodes(unsigned maxcount, m_time_t since)
 
 sharedNode_vector NodeManager::getRecentNodes_internal(unsigned maxcount, m_time_t since)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     if (!mTable || mNodes.empty())
     {
@@ -430,7 +430,7 @@ uint64_t NodeManager::getNodeCount()
 
 uint64_t NodeManager::getNodeCount_internal()
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     if (mNodes.empty())
     {
@@ -476,7 +476,7 @@ sharedNode_vector NodeManager::search(NodeHandle ancestorHandle, const char* sea
 
 sharedNode_vector NodeManager::search_internal(NodeHandle ancestorHandle, const char* searchString, bool recursive, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelFlag)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     sharedNode_vector nodes;
     if (!mTable || mNodes.empty())
@@ -520,7 +520,7 @@ sharedNode_vector NodeManager::getInSharesWithName(const char* searchString, Can
 
 sharedNode_vector NodeManager::getInSharesWithName_internal(const char* searchString, CancelToken cancelFlag)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     sharedNode_vector nodes;
     if (!mTable || mNodes.empty())
@@ -544,7 +544,7 @@ sharedNode_vector NodeManager::getOutSharesWithName(const char* searchString, Ca
 
 sharedNode_vector NodeManager::getOutSharesWithName_internal(const char* searchString, CancelToken cancelFlag)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     sharedNode_vector nodes;
     if (!mTable || mNodes.empty())
@@ -568,7 +568,7 @@ sharedNode_vector NodeManager::getPublicLinksWithName(const char* searchString, 
 
 sharedNode_vector NodeManager::getPublicLinksWithName_internal(const char* searchString, CancelToken cancelFlag)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     sharedNode_vector nodes;
     if (!mTable || mNodes.empty())
@@ -592,7 +592,7 @@ sharedNode_vector NodeManager::getNodesByFingerprint(FileFingerprint &fingerprin
 
 sharedNode_vector NodeManager::getNodesByFingerprint_internal(FileFingerprint &fingerprint)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     sharedNode_vector nodes;
     if (!mTable || mNodes.empty())
@@ -657,7 +657,7 @@ sharedNode_vector NodeManager::getNodesByOrigFingerprint(const std::string &fing
 
 sharedNode_vector NodeManager::getNodesByOrigFingerprint_internal(const std::string &fingerprint, Node *parent)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     sharedNode_vector nodes;
     if (!mTable || mNodes.empty())
@@ -681,7 +681,7 @@ std::shared_ptr<Node> NodeManager::getNodeByFingerprint(FileFingerprint &fingerp
 
 std::shared_ptr<Node> NodeManager::getNodeByFingerprint_internal(FileFingerprint &fingerprint)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     if (!mTable || mNodes.empty())
     {
@@ -719,7 +719,7 @@ std::shared_ptr<Node> NodeManager::childNodeByNameType(const Node* parent, const
 
 std::shared_ptr<Node> NodeManager::childNodeByNameType_internal(const Node* parent, const std::string &name, nodetype_t nodeType)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     if (!mTable || mNodes.empty())
     {
@@ -783,7 +783,7 @@ sharedNode_vector NodeManager::getRootNodes()
 
 sharedNode_vector NodeManager::getRootNodes_internal()
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     sharedNode_vector nodes;
     if (!mTable)
@@ -857,7 +857,7 @@ sharedNode_vector NodeManager::getNodesWithInShares()
 
 sharedNode_vector NodeManager::getNodesWithInShares_internal()
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
     return getNodesWithSharesOrLink_internal(ShareType_t::IN_SHARES);
 }
 
@@ -887,7 +887,7 @@ sharedNode_vector NodeManager::getNodesByMimeType(MimeType_t mimeType, NodeHandl
 
 sharedNode_vector NodeManager::getNodesByMimeType_internal(MimeType_t mimeType, NodeHandle ancestorHandle, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelFlag)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     if (!mTable || mNodes.empty())
     {
@@ -910,7 +910,7 @@ sharedNode_vector NodeManager::getNodesByMimeType_internal(MimeType_t mimeType, 
 
 sharedNode_vector NodeManager::getNodesWithSharesOrLink_internal(ShareType_t shareType)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     if (!mTable || mNodes.empty())
     {
@@ -926,7 +926,7 @@ sharedNode_vector NodeManager::getNodesWithSharesOrLink_internal(ShareType_t sha
 
 shared_ptr<Node> NodeManager::getNodeFromNodeSerialized(const NodeSerialized &nodeSerialized)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     shared_ptr<Node> node = unserializeNode(&nodeSerialized.mNode, false);
     if (!node)
@@ -953,7 +953,7 @@ shared_ptr<Node> NodeManager::getNodeFromNodeSerialized(const NodeSerialized &no
 
 void NodeManager::setNodeCounter(std::shared_ptr<Node> n, const NodeCounter &counter, bool notify, sharedNode_vector* nodesToReport)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     n->setCounter(counter);
 
@@ -966,7 +966,7 @@ void NodeManager::setNodeCounter(std::shared_ptr<Node> n, const NodeCounter &cou
 
 void NodeManager::updateTreeCounter(std::shared_ptr<Node> origin, NodeCounter nc, OperationType operation, sharedNode_vector* nodesToReport)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     while (origin)
     {
@@ -989,7 +989,7 @@ void NodeManager::updateTreeCounter(std::shared_ptr<Node> origin, NodeCounter nc
 
 NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, nodetype_t parentType, std::shared_ptr<Node> node, bool isInRubbish)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     NodeCounter nc;
     if (!mTable)
@@ -1072,7 +1072,7 @@ std::vector<NodeHandle> NodeManager::getFavouritesNodeHandles(NodeHandle node, u
 
 std::vector<NodeHandle> NodeManager::getFavouritesNodeHandles_internal(NodeHandle node, uint32_t count)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     std::vector<NodeHandle> nodeHandles;
     if (!mTable || mNodes.empty())
@@ -1093,7 +1093,7 @@ size_t NodeManager::getNumberOfChildrenFromNode(NodeHandle parentHandle)
 
 size_t NodeManager::getNumberOfChildrenFromNode_internal(NodeHandle parentHandle)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     if (!mTable || mNodes.empty())
     {
@@ -1118,7 +1118,7 @@ size_t NodeManager::getNumberOfChildrenByType(NodeHandle parentHandle, nodetype_
 
 size_t NodeManager::getNumberOfChildrenByType_internal(NodeHandle parentHandle, nodetype_t nodeType)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     if (!mTable || mNodes.empty())
     {
@@ -1139,7 +1139,7 @@ bool NodeManager::isAncestor(NodeHandle nodehandle, NodeHandle ancestor, CancelT
 
 bool NodeManager::isAncestor_internal(NodeHandle nodehandle, NodeHandle ancestor, CancelToken cancelFlag)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     if (!mTable)
     {
@@ -1158,7 +1158,7 @@ void NodeManager::removeChanges()
 
 void NodeManager::removeChanges_internal()
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     for (auto& it : mNodes)
     {
@@ -1178,7 +1178,7 @@ void NodeManager::cleanNodes()
 
 void NodeManager::cleanNodes_internal()
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     mFingerPrints.clear();
     mNodes.clear();
@@ -1189,6 +1189,8 @@ void NodeManager::cleanNodes_internal()
     rootnodes.clear();
 
     if (mTable) mTable->removeNodes();
+
+    mInitialized = false;
 }
 
 std::shared_ptr<Node> NodeManager::getNodeFromBlob(const std::string* nodeSerialized)
@@ -1199,7 +1201,7 @@ std::shared_ptr<Node> NodeManager::getNodeFromBlob(const std::string* nodeSerial
 
 std::shared_ptr<Node> NodeManager::getNodeFromBlob_internal(const std::string* nodeSerialized)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
     return unserializeNode(nodeSerialized, true);
 }
 
@@ -1207,7 +1209,7 @@ std::shared_ptr<Node> NodeManager::getNodeFromBlob_internal(const std::string* n
 // mismatch vector
 shared_ptr<Node> NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     std::list<std::unique_ptr<NewShare>> ownNewshares;
 
@@ -1246,7 +1248,7 @@ void NodeManager::applyKeys(uint32_t appliedKeys)
 
 void NodeManager::applyKeys_internal(uint32_t appliedKeys)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     if (mNodes.size() > appliedKeys)
     {
@@ -1277,7 +1279,7 @@ void NodeManager::notifyPurge()
 
         if (!mClient.fetchingnodes)
         {
-            assert(!mMutex.locked());
+            assert(!mMutex.owns_lock());
             mClient.app->nodes_updated(&nodesToReport, static_cast<int>(nodesToReport.size()));
         }
 
@@ -1385,7 +1387,7 @@ bool NodeManager::loadNodes()
 
 bool NodeManager::loadNodes_internal()
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     if (!mTable)
     {
@@ -1402,12 +1404,13 @@ bool NodeManager::loadNodes_internal()
         getChildren_internal(node.get());
     }
 
+    mInitialized = true;
     return true;
 }
 
 shared_ptr<Node> NodeManager::getNodeInRAM(NodeHandle handle)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     auto itNode = mNodes.find(handle);
 
@@ -1422,7 +1425,7 @@ shared_ptr<Node> NodeManager::getNodeInRAM(NodeHandle handle)
 
 void NodeManager::saveNodeInRAM(std::shared_ptr<Node> node, bool isRootnode, MissingParentNodes& missingParentNodes)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     auto pair = mNodes.emplace(node->nodeHandle(), NodeManagerNode(*this, node->nodeHandle()));
     // The NodeManagerNode could have been added by NodeManager::addChild() but, in that case, mNode would be invalid
@@ -1517,7 +1520,7 @@ void NodeManager::setRootNodeRubbish(NodeHandle h)
 void NodeManager::checkOrphanNodes(MissingParentNodes& nodesWithMissingParent)
 {
     // we don't actually use any members here, so no need to lock.  (well, just mClient, not part of our data structure)
-    assert(!mMutex.locked());
+    assert(!mMutex.owns_lock());
 
     // detect if there's any orphan node and report to API
     for (const auto& it : nodesWithMissingParent)
@@ -1571,7 +1574,7 @@ std::shared_ptr<Node> NodeManager::getNodeFromNodeManagerNode(NodeManagerNode& n
 
 void NodeManager::initCompleted_internal()
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     if (!mTable)
     {
@@ -1586,6 +1589,12 @@ void NodeManager::initCompleted_internal()
     }
 
     mTable->createIndexes();
+    mInitialized = true;
+}
+
+bool NodeManager::ready()
+{
+    return mInitialized;
 }
 
 NodeCounter NodeManager::getCounterOfRootNodes()
@@ -1596,7 +1605,7 @@ NodeCounter NodeManager::getCounterOfRootNodes()
 
 NodeCounter NodeManager::getCounterOfRootNodes_internal()
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     NodeCounter c;
 
@@ -1628,7 +1637,7 @@ void NodeManager::updateCounter(std::shared_ptr<Node> n, std::shared_ptr<Node> o
 
 void NodeManager::updateCounter_internal(std::shared_ptr<Node> n, std::shared_ptr<Node> oldParent)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     NodeCounter nc = n->getCounter();
     updateTreeCounter(oldParent, nc, DECREASE, nullptr);
@@ -1668,7 +1677,7 @@ FingerprintPosition NodeManager::insertFingerprint(Node *node)
 
 FingerprintPosition NodeManager::insertFingerprint_internal(Node *node)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     // if node is not to be kept in memory, don't save the pointer in the set
     // since it will be invalid once node is written to DB
@@ -1688,7 +1697,7 @@ void NodeManager::removeFingerprint(Node *node, bool unloadNode)
 
 void NodeManager::removeFingerprint_internal(Node *node, bool unloadNode)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     if (node->type == FILENODE && node->mFingerPrintPosition != mFingerPrints.end())  // remove from mFingerPrints
     {
@@ -1717,7 +1726,7 @@ void NodeManager::dumpNodes()
 
 void NodeManager::dumpNodes_internal()
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     if (!mTable)
     {
@@ -1735,6 +1744,7 @@ void NodeManager::dumpNodes_internal()
     }
 
     mTable->createIndexes();
+    mInitialized = true;
 }
 
 void NodeManager::saveNodeInDb(Node *node)
@@ -1745,7 +1755,7 @@ void NodeManager::saveNodeInDb(Node *node)
 
 void NodeManager::saveNodeInDb_internal(Node *node)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     if (!mTable)
     {
@@ -1777,7 +1787,7 @@ void NodeManager::addChild(NodeHandle parent, NodeHandle child, Node* node)
 
 void NodeManager::addChild_internal(NodeHandle parent, NodeHandle child, Node* node)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     auto pair = mNodes.emplace(parent, NodeManagerNode(*this, parent));
     // The NodeManagerNode could have been added in add node, only update the child
@@ -1804,7 +1814,7 @@ void NodeManager::removeChild(Node* parent, NodeHandle child)
 
 void NodeManager::removeChild_internal(Node* parent, NodeHandle child)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     assert(parent->mNodePosition->second.mChildren);
     if (parent->mNodePosition->second.mChildren)
@@ -1815,7 +1825,7 @@ void NodeManager::removeChild_internal(Node* parent, NodeHandle child)
 
 shared_ptr<Node> NodeManager::getNodeFromDataBase(NodeHandle handle)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     if (!mTable)
     {
@@ -1835,7 +1845,7 @@ shared_ptr<Node> NodeManager::getNodeFromDataBase(NodeHandle handle)
 
 sharedNode_vector NodeManager::getRootNodesAndInshares()
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
     sharedNode_vector rootnodes;
 
     rootnodes = getRootNodes_internal();
@@ -1850,7 +1860,7 @@ sharedNode_vector NodeManager::getRootNodesAndInshares()
 
 sharedNode_vector NodeManager::processUnserializedNodes(const std::vector<std::pair<NodeHandle, NodeSerialized> >& nodesFromTable, NodeHandle ancestorHandle, CancelToken cancelFlag)
 {
-    assert(mMutex.locked());
+    assert(mMutex.owns_lock());
 
     sharedNode_vector nodes;
 

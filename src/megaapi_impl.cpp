@@ -631,7 +631,7 @@ char *MegaNodePrivate::getBase64Handle()
     return base64Handle;
 }
 
-int MegaNodePrivate::getType()
+int MegaNodePrivate::getType() const
 {
     return type;
 }
@@ -855,7 +855,7 @@ MegaHandle MegaNodePrivate::getParentHandle()
     return parenthandle;
 }
 
-uint64_t MegaNodePrivate::getHandle()
+uint64_t MegaNodePrivate::getHandle() const
 {
     return nodehandle;
 }
@@ -2592,6 +2592,7 @@ MegaTransferPrivate::MegaTransferPrivate(int type, MegaTransferListener *listene
     : mCollisionCheck(CollisionChecker::Option::Fingerprint)
     , mCollisionResolution(CollisionResolution::RenameNewWithN)
     , mCollisionCheckResult(CollisionChecker::Result::NotYet)
+    , mFsType(FileSystemType::FS_UNKNOWN)
 {
     this->type = type;
     this->tag = -1;
@@ -2680,6 +2681,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->setCollisionCheck(transfer->getCollisionCheck());
     this->setCollisionResolution(transfer->getCollisionResolution());
     this->setCollisionCheckResult(transfer->getCollisionCheckResult());
+    this->setFileSystemType(transfer->getFileSystemType());
 }
 
 MegaTransfer* MegaTransferPrivate::copy()
@@ -5873,6 +5875,54 @@ void MegaFilePut::terminated(error e)
     delete this;
 }
 
+
+void MegaSearchFilterPrivate::byName(const char* searchString)
+{
+    mNameFilter = searchString ? searchString : string();
+}
+
+void MegaSearchFilterPrivate::byCategory(int mimeType)
+{
+    assert(MegaApi::FILE_TYPE_DEFAULT <= mimeType && mimeType <= MegaApi::FILE_TYPE_LAST);
+    if (mimeType < MegaApi::FILE_TYPE_DEFAULT || MegaApi::FILE_TYPE_LAST < mimeType)
+    {
+        LOG_warn << "Invalid mimeType for SearchFilter: " << mimeType << ". Ignored.";
+        return;
+    }
+
+    mMimeCategory = mimeType;
+}
+
+void MegaSearchFilterPrivate::bySensitivity(bool excludeSensitive)
+{
+    mExcludeSensitive = excludeSensitive;
+}
+
+void MegaSearchFilterPrivate::byLocationHandle(MegaHandle ancestorHandle)
+{
+    mLocationHandle = ancestorHandle;
+    mLocationType = MegaApi::SEARCH_TARGET_ALL;
+}
+
+void MegaSearchFilterPrivate::byLocation(int locationType)
+{
+    assert(MegaApi::SEARCH_TARGET_INSHARE <= locationType && locationType <= MegaApi::SEARCH_TARGET_ALL);
+    if (locationType < MegaApi::SEARCH_TARGET_INSHARE || MegaApi::SEARCH_TARGET_ALL < locationType)
+    {
+        LOG_warn << "Invalid locationType for SearchFilter: " << locationType << ". Ignored.";
+        return;
+    }
+
+    mLocationType = locationType;
+    mLocationHandle = INVALID_HANDLE;
+}
+
+MegaSearchFilterPrivate* MegaSearchFilterPrivate::copy() const
+{
+    return new MegaSearchFilterPrivate(*this);
+}
+
+
 //Entry point for the blocking thread
 void *MegaApiImpl::threadEntryPoint(void *param)
 {
@@ -6559,6 +6609,11 @@ bool MegaApiImpl::appleVoipPushEnabled()
 bool MegaApiImpl::newLinkFormatEnabled()
 {
     return client->mNewLinkFormat;
+}
+
+bool MegaApiImpl::accountIsNew() const
+{
+    return client->accountIsNew;
 }
 
 unsigned int MegaApiImpl::getABTestValue(const char* flag)
@@ -9017,6 +9072,9 @@ MegaTransferPrivate* MegaApiImpl::createDownloadTransfer(bool startFirst, MegaNo
     transfer->setCancelToken(cancelToken);
     transfer->setCollisionCheck(collisionCheck);
     transfer->setCollisionResolution(collisionResolution);
+    
+    // cache fsType to transfer as get fsType on a network driver could be expensive
+    transfer->setFileSystemType(fsType);
 
     if (customName)
     {
@@ -11767,7 +11825,7 @@ sharedNode_vector MegaApiImpl::searchInNodeManager(MegaHandle ancestorHandle, co
     return nodeVector;
 }
 
-bool MegaApiImpl::isValidTypeNode(Node *node, int type)
+bool MegaApiImpl::isValidTypeNode(const Node *node, int type) const
 {
     assert(node);
     if (!client)
@@ -11894,6 +11952,191 @@ char* strcasestr(const char* string, const char* substring)
 
 #endif
 
+MegaNodeList* MegaApiImpl::search(const MegaSearchFilter* filter, int order, CancelToken cancelToken)
+{
+    if (!filter)
+    {
+        return new MegaNodeListPrivate();
+    }
+
+    sharedNode_vector searchResults;
+
+    // search
+    {
+        SdkMutexGuard g(sdkMutex);
+
+        switch (filter->byLocation())
+        {
+        case MegaApi::SEARCH_TARGET_ALL:
+            searchResults = searchInNodeManager(filter, cancelToken);
+            break;
+        case MegaApi::SEARCH_TARGET_ROOTNODE:
+            searchResults = searchTopLevelNodesExclRubbish(filter, cancelToken);
+            break;
+        case MegaApi::SEARCH_TARGET_INSHARE:
+            searchResults = searchInshares(filter, cancelToken);
+            break;
+        case MegaApi::SEARCH_TARGET_OUTSHARE:
+            searchResults = searchOutshares(filter, cancelToken);
+            break;
+        case MegaApi::SEARCH_TARGET_PUBLICLINK:
+            searchResults = searchPublicLinks(filter, cancelToken);
+            break;
+        default:
+            LOG_err << "Search not implemented for Location " << filter->byLocation();
+        }
+    } // end scope for mutex guard
+
+    // order
+    sortByComparatorFunction(searchResults, order, *client);
+    MegaNodeListPrivate* nodeList = new MegaNodeListPrivate(searchResults);
+
+    return nodeList;
+}
+
+sharedNode_vector MegaApiImpl::searchTopLevelNodesExclRubbish(const MegaSearchFilter* filter, CancelToken cancelToken)
+{
+    // Search on rootnodes (Cloud and Vault, excluding Rubbish)
+    if (client->mNodeManager.getRootNodeFiles().isUndef())
+    {
+        return sharedNode_vector();
+    }
+
+    // make a copy as it will need to be modified
+    std::unique_ptr<MegaSearchFilter> f(filter->copy());
+    f->byLocationHandle(client->mNodeManager.getRootNodeFiles().as8byte());
+
+    sharedNode_vector searchResults = searchInNodeManager(f.get(), cancelToken);
+
+    if (!client->mNodeManager.getRootNodeVault().isUndef())
+    {
+        f->byLocationHandle(client->mNodeManager.getRootNodeVault().as8byte());
+        sharedNode_vector vaultResults = searchInNodeManager(f.get(), cancelToken);
+        searchResults.insert(searchResults.end(), vaultResults.begin(), vaultResults.end());
+    }
+
+    return searchResults;
+}
+
+sharedNode_vector MegaApiImpl::searchInshares(const MegaSearchFilter* filter, CancelToken cancelToken)
+{
+    // make a copy as it will need to be modified
+    std::unique_ptr<MegaSearchFilter> f(filter->copy());
+
+    // find in-shares themselves
+    sharedNode_vector results = client->mNodeManager.getInSharesWithName(f->byName(), cancelToken);
+
+    // Search in each inshare
+    unique_ptr<MegaShareList> shares(getInSharesList(MegaApi::ORDER_NONE));
+    for (int i = 0; i < shares->size() && !cancelToken.isCancelled(); i++)
+    {
+        shared_ptr<Node> node = client->nodebyhandle(shares->get(i)->getNodeHandle());
+        assert(node);
+        if (node)
+        {
+            f->byLocationHandle(node->nodehandle);
+            sharedNode_vector inEachShare = searchInNodeManager(f.get(), cancelToken);
+            results.insert(results.end(), inEachShare.begin(), inEachShare.end());
+        }
+    }
+
+    return results;
+}
+
+sharedNode_vector MegaApiImpl::searchOutshares(const MegaSearchFilter* filter, CancelToken cancelToken)
+{
+    // make a copy as it will need to be modified
+    std::unique_ptr<MegaSearchFilter> f(filter->copy());
+
+    // find out-shares themselves
+    sharedNode_vector results = client->mNodeManager.getOutSharesWithName(f->byName(), cancelToken);
+
+    // Search in each outshare
+    std::set<MegaHandle> outsharesHandles;
+    unique_ptr<MegaShareList> shares(getOutShares(MegaApi::ORDER_NONE));
+    for (int i = 0; i < shares->size() && !cancelToken.isCancelled(); i++)
+    {
+        handle h = shares->get(i)->getNodeHandle();
+        if (outsharesHandles.find(h) != outsharesHandles.end())
+        {
+            // shares list includes an item per outshare AND per sharee/user
+            continue;   // avoid duplicates
+        }
+        outsharesHandles.insert(h);
+        shared_ptr<Node> node = client->nodebyhandle(shares->get(i)->getNodeHandle());
+        assert(node);
+        if (node)
+        {
+            f->byLocationHandle(node->nodehandle);
+            sharedNode_vector inEachShare = searchInNodeManager(f.get(), cancelToken);
+            results.insert(results.end(), inEachShare.begin(), inEachShare.end());
+        }
+    }
+
+    return results;
+}
+
+sharedNode_vector MegaApiImpl::searchPublicLinks(const MegaSearchFilter* filter, CancelToken cancelToken)
+{
+    // make a copy as it will need to be modified
+    std::unique_ptr<MegaSearchFilter> f(filter->copy());
+
+    // find public links themselves
+    sharedNode_vector results = client->mNodeManager.getPublicLinksWithName(f->byName(), cancelToken);
+
+    // Search under each public link
+    sharedNode_vector publicLinks = client->mNodeManager.getNodesWithLinks();
+    for (const auto& p : publicLinks)
+    {
+        shared_ptr<Node> node = client->nodebyhandle(p->nodehandle);
+        assert(node);
+        if (node)
+        {
+            f->byLocationHandle(node->nodehandle);
+            sharedNode_vector underEachLink = searchInNodeManager(f.get(), cancelToken);
+            results.insert(results.end(), underEachLink.begin(), underEachLink.end());
+        }
+    }
+
+    return results;
+}
+
+sharedNode_vector MegaApiImpl::searchInNodeManager(const MegaSearchFilter* filter, CancelToken cancelToken)
+{
+    bool filterByCategory = filter->byCategory() != MegaApi::FILE_TYPE_DEFAULT;
+    bool filterByName = filter->byName() && *filter->byName();
+    Node::Flags excludeRecursiveFlags = Node::Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE, filter->bySensitivity());
+
+    if (filterByCategory && !filterByName)
+    {
+        return client->mNodeManager.getNodesByMimeType(static_cast<MimeType_t>(filter->byCategory()),
+                                                       NodeHandle().set6byte(filter->byLocationHandle()),
+                                                       Node::Flags(), Node::Flags(), excludeRecursiveFlags, cancelToken);
+    }
+    else
+    {
+        // when no name filter was used, search all nodes
+        static const char searchAll[] = "*";
+        const char* nameFilter = filterByName ? filter->byName() : searchAll;
+
+        sharedNode_vector results = client->mNodeManager.search(NodeHandle().set6byte(filter->byLocationHandle()), nameFilter, true,
+                                                          Node::Flags(), Node::Flags(), excludeRecursiveFlags, cancelToken);
+
+        // filter further
+        sharedNode_vector filtered;
+        filtered.reserve(results.size());
+        for (auto it = results.begin(); it != results.end() && !cancelToken.isCancelled(); ++it)
+        {
+            if (isValidTypeNode(it->get(), filter->byCategory()))
+            {
+                filtered.push_back(*it);
+            }
+        }
+
+        return filtered;
+    }
+}
+
 MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, CancelToken cancelToken, bool recursive, int order, int mimeType, int target, bool includeSensitive)
 {
     Node::Flags requiredFlags;
@@ -12016,7 +12259,6 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
         {
             // always recursive
             assert(recursive);
-            // ignores mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags
 
             // find in-shares themselves
             sharedNode_vector nodeVector = client->mNodeManager.getInSharesWithName(searchString, cancelToken);
@@ -12039,7 +12281,6 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
         {
             // always recursive
             assert(recursive);
-            // ignores mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags
 
             // find out-shares themselves
             sharedNode_vector nodeVector = client->mNodeManager.getOutSharesWithName(searchString, cancelToken);
@@ -12070,7 +12311,6 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
         {
             // always recursive
             assert(recursive);
-            // ignores mimeType, requiredFlags, excludeFlags, excludeRecursiveFlags
 
             // find public links themselves
             sharedNode_vector nodeVector = client->mNodeManager.getPublicLinksWithName(searchString, cancelToken);
@@ -13183,9 +13423,9 @@ void MegaApiImpl::chatlink_result(handle h, error e)
 }
 
 void MegaApiImpl::chatlinkurl_result(handle chatid, int shard, string *link, string *ct, int numPeers,
-				     m_time_t ts, bool meetingRoom, int chatOptions,
-				     const std::vector<std::unique_ptr<ScheduledMeeting>>* smList,
-				     handle callid, error e)
+                     m_time_t ts, bool meetingRoom, int chatOptions,
+                     const std::vector<std::unique_ptr<ScheduledMeeting>>* smList,
+                     handle callid, error e)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
@@ -17513,7 +17753,58 @@ int MegaApiImpl::getNumChildFolders(MegaNode* p)
 }
 
 
-MegaNodeList *MegaApiImpl::getChildren(MegaNode* p, int order, CancelToken cancelToken)
+MegaNodeList *MegaApiImpl::getChildren(const MegaSearchFilter* filter, int order, CancelToken cancelToken)
+{
+    // validations
+    if (!filter || filter->byLocationHandle() == INVALID_HANDLE)
+    {
+        assert(filter && filter->byLocationHandle() != INVALID_HANDLE);
+        return new MegaNodeListPrivate();
+    }
+
+    // NodeManager::getChildren() is probably more efficient, but it cannot be used with complex filters,
+    // fallback to NodeManager::search() for name filters
+    bool lookupUsingGetChildren = !(filter->byName() && *filter->byName());
+
+    sharedNode_vector children;
+    { // scope for mutex guard
+        SdkMutexGuard guard(sdkMutex);
+        if (lookupUsingGetChildren)
+        {
+            shared_ptr<Node> parent = client->nodebyhandle(filter->byLocationHandle());
+            if (parent)
+            {
+                // children of a particular parent, without name filter --> then filter by Category and Sensitivity
+                sharedNode_list list = client->mNodeManager.getChildren(parent.get(), cancelToken);
+                children.insert(children.end(), list.begin(), list.end());
+            }
+        }
+        else
+        {
+            // children under various locations, and/or filtered by name --> then filter by Category
+            Node::Flags excludeRecursiveFlags = Node::Flags().set(Node::FLAGS_IS_MARKED_SENSTIVE, filter->bySensitivity());
+            children = client->mNodeManager.search(NodeHandle().set6byte(filter->byLocationHandle()), filter->byName(), false,
+                                                   Node::Flags(), Node::Flags(), excludeRecursiveFlags, cancelToken);
+        }
+    }
+
+    sharedNode_vector results;
+    // apply the extra filters
+    for (auto it = children.begin(); it != children.end(); ++it)
+    {
+        shared_ptr<Node> child = *it;
+        if (isValidTypeNode(child.get(), filter->byCategory()) && // filter by category
+            (!lookupUsingGetChildren || (!child->isSensitiveInherited() || !filter->bySensitivity()))) // filter by sensitivity
+        {
+            results.push_back(child);
+        }
+    }
+
+    sortByComparatorFunction(results, order, *client);
+    return new MegaNodeListPrivate(results);
+}
+
+MegaNodeList *MegaApiImpl::getChildren(const MegaNode* p, int order, CancelToken cancelToken)
 {
     if (!p || p->getType() == MegaNode::TYPE_FILE)
     {
@@ -17632,13 +17923,8 @@ MegaNodeList* MegaApiImpl::getChildrenFromType(MegaNode* p, int type, int order,
 
     SdkMutexGuard guard(sdkMutex);
 
-    sharedNode_vector childrenNodes;
-    std::shared_ptr<Node> parent = client->nodebyhandle(p->getHandle());
-    if (parent && parent->type != FILENODE)
-    {
-        childrenNodes = client->mNodeManager.getChildrenFromType(parent.get(), static_cast<nodetype_t>(type), cancelToken);
-        sortByComparatorFunction(childrenNodes, order, *client);
-    }
+    sharedNode_vector childrenNodes = client->mNodeManager.getChildrenFromType(NodeHandle().set6byte(p->getHandle()), static_cast<nodetype_t>(type), cancelToken);
+    sortByComparatorFunction(childrenNodes, order, *client);
 
     return new MegaNodeListPrivate(childrenNodes);
 }
@@ -17879,7 +18165,7 @@ bool CollisionChecker::CompareLocalFileMetaMac(FileAccess* fa, MegaNode* fileNod
     return CompareLocalFileMetaMacWithNodeKey(fa, *fileNode->getNodeKey(), fileNode->getType());
 }
 
-CollisionChecker::Result CollisionChecker::check(FileAccess* fa, std::function<FileFingerprint()> nodeFingerprintF, std::function<bool()> metamacEqualF, Option option)
+CollisionChecker::Result CollisionChecker::check(std::function<bool()> fingerprintEqualF, std::function<bool()> metamacEqualF, Option option)
 {
     auto decision = CollisionChecker::Result::Download;
 
@@ -17897,9 +18183,7 @@ CollisionChecker::Result CollisionChecker::check(FileAccess* fa, std::function<F
     }
     case Option::Fingerprint:
     {
-        FileFingerprint nodeFp = nodeFingerprintF();
-        FileFingerprint fp;
-        if (nodeFp.isvalid && fp.genfingerprint(fa) && fp.isvalid && fp == nodeFp)
+        if (fingerprintEqualF())
         {
             decision = Result::Skip;
         }
@@ -17926,35 +18210,89 @@ CollisionChecker::Result CollisionChecker::check(FileAccess* fa, std::function<F
 
 }
 
-CollisionChecker::Result CollisionChecker::check(FileAccess* fa, MegaNode* fileNode, Option option)
+CollisionChecker::Result CollisionChecker::check(std::function<FileAccess*()> faGetter, MegaNode* fileNode, Option option)
 {
+    auto fingerprintEqualF = [fileNode, faGetter]() {
+
+        auto fa = faGetter();
+        if (!fa)
+        {
+            return false;
+        }
+
+        unique_ptr<FileFingerprint> ff(MegaApiImpl::getFileFingerprintInternal(fileNode->getFingerprint()));
+        if (!ff)
+        {
+            return false;
+        }
+
+        FileFingerprint fp;
+        return (ff->isvalid && fp.genfingerprint(fa) && fp.isvalid && fp == *ff);
+    };
+
+    auto metaMacFunc = [fileNode, faGetter]() {
+
+        auto fa = faGetter();
+        if (!fa)
+        {
+            return false;
+        }
+
+        return CompareLocalFileMetaMac(fa, fileNode);
+    };
+
     return check(
-        fa,
-        [fileNode]() {
-            unique_ptr<FileFingerprint> ff(MegaApiImpl::getFileFingerprintInternal(fileNode->getFingerprint()));
-            return ff ? *ff : FileFingerprint();  // if not available, !isvalid
-        },
-        [fileNode, fa]() {
-            return CompareLocalFileMetaMac(fa, fileNode);
-        },
+        fingerprintEqualF,
+        metaMacFunc,
         option);
 }
 
-CollisionChecker::Result CollisionChecker::check(FileAccess* fa, Node* node, Option option)
+CollisionChecker::Result CollisionChecker::check(FileSystemAccess* fsaccess, const LocalPath& fileLocalPath, MegaNode* fileNode, Option option)
 {
+    auto fa = fsaccess->newfileaccess();
+    auto fap = fa.get();
+    auto faGetter = [fap, &fileLocalPath]() {
+        return fap->fopen(fileLocalPath,
+                          true/*read*/,
+                          false/*write*/,
+                          FSLogging::logExceptFileNotFound) && fap->type == FILENODE ? fap : nullptr;
+    };
+    return CollisionChecker::check(std::move(faGetter), fileNode, option);
+}
+
+CollisionChecker::Result CollisionChecker::check(std::function<FileAccess* ()> faGetter, Node* node, Option option)
+{
+    auto fingerprintEqualF = [node, faGetter]() {
+
+        auto fa = faGetter();
+        if (!fa)
+        {
+            return false;
+        }
+
+        FileFingerprint nodeFp = *node;
+        FileFingerprint fp;
+        return (nodeFp.isvalid && fp.genfingerprint(fa) && fp.isvalid && fp == nodeFp);
+    };
+
+    auto metaMacFunc = [node, faGetter]() {
+
+        auto fa = faGetter();
+        if (!fa)
+        {
+            return false;
+        }
+
+        return CompareLocalFileMetaMacWithNode(fa, node);
+    };
+
     return check(
-        fa,
-        [node]() {
-            FileFingerprint nodeFp = *node;
-            return nodeFp;
-        },
-        [node, fa]() {
-            return CompareLocalFileMetaMacWithNode(fa, node);
-        },
+        fingerprintEqualF,
+        metaMacFunc,
         option);
 }
 
-unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOperation* recursiveTransfer)
+unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOperation* recursiveTransfer, m_off_t availableDiskSpace)
 {
     CodeCounter::ScopeTimer ccst(client->performanceStats.megaapiSendPendingTransfers);
 
@@ -18300,7 +18638,9 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         wLocalPath.appendWithSeparator(LocalPath::fromRelativePath(""), true);
                     }
 
-                    FileSystemType fsType = fsAccess->getlocalfstype(wLocalPath);
+                    FileSystemType fsType = transfer->getFileSystemType() != FileSystemType::FS_UNKNOWN 
+                                            ? transfer->getFileSystemType() 
+                                            : fsAccess->getlocalfstype(wLocalPath);
 
                     if (node)
                     {
@@ -18339,16 +18679,37 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                     wLocalPath.appendWithSeparator(name, true);
                     transfer->setPath(wLocalPath.toPath(false).c_str()); // retry requires path set
 
+                    // collision check if hasn't been checked yet
                     auto fa = fsAccess->newfileaccess();
-                    if (fa->fopen(wLocalPath, true, false, FSLogging::logExceptFileNotFound) && fa->type == FILENODE) // a local file exists
+                    if (fa
+                        && (transfer->getCollisionCheckResult() == CollisionChecker::Result::NotYet)
+                        && fa->fopen(wLocalPath, true, false, FSLogging::logExceptFileNotFound)
+                        && fa->type == FILENODE)
                     {
-                        if (transfer->getCollisionCheckResult() == CollisionChecker::Result::NotYet)
+                        auto fap = fa.get();
+                        if (node)
                         {
-                            node
-                                ?  transfer->setCollisionCheckResult(CollisionChecker::check(fa.get(), node.get(), transfer->getCollisionCheck()))
-                                :  transfer->setCollisionCheckResult(CollisionChecker::check(fa.get(), publicNode, transfer->getCollisionCheck()));
+                            transfer->setCollisionCheckResult(
+                                CollisionChecker::check(
+                                    [fap]() { return fap; }
+                                    , node.get()
+                                    , transfer->getCollisionCheck()));
                         }
-
+                        else
+                        {
+                            transfer->setCollisionCheckResult(
+                                CollisionChecker::check(
+                                    [fap]() { return fap; }
+                                    , publicNode
+                                    , transfer->getCollisionCheck()));
+                        }
+                    }
+                    else if (transfer->getCollisionCheckResult() == CollisionChecker::Result::NotYet) // no collision
+                    {
+                        transfer->setCollisionCheckResult(CollisionChecker::Result::Download);
+                    }
+                    // decision check for early returns
+                    {
                         auto decision = transfer->getCollisionCheckResult();
                         if (decision == CollisionChecker::Result::ReportError)
                         {
@@ -18383,7 +18744,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
 
                     bool skipDuplicates = transfer->getFolderTransferTag() <= 0; //Let folder subtransfer have duplicates, so that repeated downloads can co-exist and progress accordingly
                     mega::error cause;
-                    bool ok = client->startxfer(GET, f.release(), committer, skipDuplicates, startFirst, false, UseLocalVersioningFlag, &cause, nextTag);
+                    bool ok = client->startxfer(GET, f.release(), committer, skipDuplicates, startFirst, false, UseLocalVersioningFlag, &cause, nextTag, availableDiskSpace);
                     if (!ok)
                     {
                         //Already existing transfer
@@ -20463,12 +20824,11 @@ error MegaApiImpl::performRequest_setAttrFile(MegaRequestPrivate* request)
                 }
 
                 SymmCipher* cipher = bu ? bu->nodecipher(client) : node->nodecipher();
-                if (!cipher)
+                if (!cipher ||
+                    !client->putfa(NodeOrUploadHandle(node ? node->nodeHandle() : NodeHandle()), static_cast<fatype>(type), cipher, request->getTag(), std::move(attributedata)))
                 {
                     return API_EKEY;
                 }
-
-                client->putfa(NodeOrUploadHandle(node ? node->nodeHandle() : NodeHandle()), (fatype)type, cipher, request->getTag(), std::move(attributedata));
             }
             return API_OK;
 }
@@ -27169,9 +27529,17 @@ void MegaFolderUploadController::start(MegaNode*)
         LocalPath lp = path;
         scanFolder_result scanResult = scanFolder(*mUploadTree.subtrees.front(), lp, foldercount, filecount);
 
+        // mCompletionForMegaApiThread lambda will be executed on the MegaApiImpl's thread
+        // use a weak_ptr in case this 'this' object doesn't exist anymore when lambda starts executing
+        weak_ptr<MegaFolderUploadController> weak_this = shared_from_this();
+
         // if the thread runs, we always queue a function to execute on MegaApi thread for onFinish()
         // we keep a pointer to it in case we need to execute it early and directly on cancel()
-        mCompletionForMegaApiThread.reset(new ExecuteOnce([this, scanResult]() {
+        mCompletionForMegaApiThread.reset(new ExecuteOnce([this, scanResult, weak_this, filecount]() {
+
+            // double check our object still exists when completion function starts executing
+            if (!weak_this.lock()) return;
+            assert(weak_this.lock().get() == this);
 
             // these next parts must run on MegaApiImpl's thread again, as
             // genUploadTransfersForFiles or checkCompletion may call the fireOnXYZ() functions
@@ -27202,7 +27570,7 @@ void MegaFolderUploadController::start(MegaNode*)
 #ifndef NDEBUG
             batchResult r =
 #endif
-            createNextFolderBatch(mUploadTree, newnodes, true);
+            createNextFolderBatch(mUploadTree, newnodes, filecount, true);
 
             assert(r == batchResult_cancelled ||
                    r == batchResult_requestSent ||
@@ -27383,7 +27751,7 @@ MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFo
     return scanFolder_succeeded;
 }
 
-MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNode>& newnodes, bool isBatchRootLevel)
+MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNode>& newnodes, uint32_t filecount, bool isBatchRootLevel)
 {
     assert(mMainThreadId == std::this_thread::get_id());
 
@@ -27426,7 +27794,7 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
         }
 
         // if newnodes contains at least one newNode, isBatchRootLevel will be false
-        batchResult br = createNextFolderBatch(*t, newnodes, newnodes.empty());
+        batchResult br = createNextFolderBatch(*t, newnodes, filecount, newnodes.empty());
         if (br != batchResult_stillRecursing)
         {
             return br;
@@ -27446,7 +27814,7 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
         // anymore when the request completes
         weak_ptr<MegaFolderUploadController> weak_this = shared_from_this();
         megaapiThreadClient()->putnodes(NodeHandle().set6byte(tree.megaNode->getHandle()), UseLocalVersioningFlag, std::move(newnodes), nullptr, megaapiThreadClient()->nextreqtag(), false,
-            [this, weak_this](const Error& e, targettype_t, vector<NewNode>&, bool, int tag)
+            [this, weak_this, filecount](const Error& e, targettype_t, vector<NewNode>&, bool, int tag)
             {
                 // double check our object still exists on request completion
                 if (!weak_this.lock()) return;
@@ -27465,7 +27833,7 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
 #ifndef NDEBUG
                     batchResult r =
 #endif
-                    createNextFolderBatch(mUploadTree, newnodes, true);
+                    createNextFolderBatch(mUploadTree, newnodes, filecount, true);
 
                     assert(r == batchResult_cancelled ||
                            r == batchResult_requestSent ||
@@ -27476,7 +27844,7 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
 
         unsigned existing = 0, total = 0;
         mUploadTree.recursiveCountFolders(existing, total);
-        megaApi->fireOnFolderTransferUpdate(transfer, MegaTransfer::STAGE_CREATE_TREE, total, existing, 0, nullptr, nullptr);
+        megaApi->fireOnFolderTransferUpdate(transfer, MegaTransfer::STAGE_CREATE_TREE, total, existing, filecount, nullptr, nullptr);
 
         return batchResult_requestSent;
     }
@@ -28769,20 +29137,23 @@ void MegaFolderDownloadController::start(MegaNode *node)
         notifyStage(MegaTransfer::STAGE_CREATE_TREE);
 
         // start worker thread to create local folder tree
-        mWorkerThread = std::thread([this, fsType](){
+        mWorkerThread = std::thread([this, fsType, path, fileAddedCount](){
 
             // local folder creation runs on the download worker thread (and checks the cancelled flag)
-            Error e = createFolder();
+            Error e;
+            std::shared_ptr<TransferQueue> transferQueue = createFolderGenDownloadTransfersForFiles(fsType, fileAddedCount, e);
 
-            std::shared_ptr<TransferQueue> transferQueue;
-            if (e == API_OK)
-            {
-                transferQueue = genDownloadTransfersForFiles(fsType);
-            }
+            // mCompletionForMegaApiThread lambda will be executed on the MegaApiImpl's thread
+            // use a weak_ptr in case this 'this' object doesn't exist anymore when lambda starts executing
+            weak_ptr<MegaFolderDownloadController> weak_this = shared_from_this();
 
             // the thread always queues a function to execute on MegaApi thread for onFinish()
             // we keep a pointer to it in case we need to cancel()
-            mCompletionForMegaApiThread.reset(new ExecuteOnce([this, e, transferQueue]() {
+            mCompletionForMegaApiThread.reset(new ExecuteOnce([this, e, transferQueue, path, weak_this]() {
+
+                // double check our object still exists when completion function starts executing
+                if (!weak_this.lock()) return;
+                assert(weak_this.lock().get() == this);
 
                 // these next parts must run on MegaApiImpl's thread again, as
                 // genUploadTransfersForFiles or checkCompletion may call the fireOnXYZ() functions
@@ -28815,7 +29186,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
                         // the last callback of onFinish for one of these will also complete and destroy this MegaFolderUploadController
                         transfersTotalCount = transferQueue->size();
 
-                        megaApi->sendPendingTransfers(transferQueue.get(), this);
+                        megaApi->sendPendingTransfers(transferQueue.get(), this, megaapiThreadClient()->fsaccess->availableDiskSpace(path));
                         // no further code can be added here, this object may now be deleted (eg, due to cancel token activation)
 
                         // complete() will finally be called when the last sub-transfer finishes
@@ -28915,75 +29286,106 @@ bool MegaFolderDownloadController::IsStoppedOrCancelled(const std::string& name)
     return false;
 }
 
-Error MegaFolderDownloadController::createFolder()
+// Create all local directories in one shot (on the download worker thread)
+// for performance and reducing UI waiting time, we combine createFolder and transferQueue generating in one loop
+std::unique_ptr<TransferQueue> MegaFolderDownloadController::createFolderGenDownloadTransfersForFiles(FileSystemType fsType, uint32_t fileCount, Error &e)
 {
-    // Create all local directories in one shot (on the download worker thread)
     unsigned created = 0;
     assert(mMainThreadId != std::this_thread::get_id());
+ 
+    auto transferQueue = ::mega::make_unique<TransferQueue>();
+
+    // update stage to begin
+    if (!mLocalTree.empty())
+    {
+        megaApi->fireOnFolderTransferUpdate(transfer, MegaTransfer::STAGE_CREATE_TREE, unsigned(mLocalTree.size()), created, fileCount, nullptr, nullptr);
+    }
+
+    // creating folders and generate transfers for files
     auto it = mLocalTree.begin();
     while (it != mLocalTree.end())
     {
-        if (IsStoppedOrCancelled("MegaFolderDownloadController::createFolder"))
+        if (IsStoppedOrCancelled("MegaFolderDownloadController::createFolderGenDownloadTransfersForFiles"))
         {
-            return API_EINCOMPLETE;
+            e = API_EINCOMPLETE;
+            return nullptr;
         }
 
         LocalPath &localpath = it->localPath;
 
-        Error e = MegaApiImpl::createLocalFolder_unlocked(localpath, *fsaccess);
+        // try to create the folder
+        e = MegaApiImpl::createLocalFolder_unlocked(localpath, *fsaccess);
+
+        // errors besides the folder already exists is an error
         if (e && e != API_EEXIST)
         {
             mLocalTree.clear();
-            return e;
+            return nullptr;
         }
+
+        auto folderAlreadyExist = (e && e == API_EEXIST);
+
+        if (!genDownloadTransfersForFiles(transferQueue.get(), *it, fsType, folderAlreadyExist))
+        {
+            e = API_EINCOMPLETE;
+            return nullptr;
+        }
+
         ++it;
         ++created;
-        
-        megaApi->fireOnFolderTransferUpdate(transfer, MegaTransfer::STAGE_CREATE_TREE, unsigned(mLocalTree.size()), created, 0, nullptr, nullptr);
-    }
-    return API_OK;
-}
 
-std::unique_ptr<TransferQueue> MegaFolderDownloadController::genDownloadTransfersForFiles(FileSystemType fsType)
-{
-    auto transferQueue = ::mega::make_unique<TransferQueue>();
-
-    // Add all download transfers in one shot
-    for (auto &folder : mLocalTree)
-    {
-        for (auto& fileNode : folder.childrenNodes)
-        {
-            if (IsStoppedOrCancelled("MegaFolderDownloadController::genDownloadTransfersForFiles"))
-            {
-                return nullptr;
-            }
-
-            // get file local path
-            auto& fileLocalPath = folder.localPath;
-            ScopedLengthRestore restoreLen(fileLocalPath);
-            fileLocalPath.appendWithSeparator(LocalPath::fromRelativeName(fileNode->getName(), *fsaccess, fsType), true);
-
-            // make the download decision
-            auto fa = fsaccess->newfileaccess();
-            auto decision = CollisionChecker::Result::Download;
-            if (fa->fopen(fileLocalPath, true, false, FSLogging::logExceptFileNotFound) && fa->type == FILENODE)
-            {
-                decision = CollisionChecker::check(fa.get(), fileNode.get(), transfer->getCollisionCheck());
-            }
-
-            MegaTransferPrivate* transferDownload = megaApi->createDownloadTransfer(
-                false, fileNode.get(), fileLocalPath.toPath(false).c_str(), nullptr, tag, nullptr /*appData()*/,
-                transfer->accessCancelToken(), static_cast<int>(transfer->getCollisionCheck()),
-                static_cast<int>(transfer->getCollisionResolution()), this, fsType);
-
-            transferDownload->setCollisionCheckResult(decision);
-
-            transferQueue->push(transferDownload);
-        }
+        megaApi->fireOnFolderTransferUpdate(transfer, MegaTransfer::STAGE_CREATE_TREE, unsigned(mLocalTree.size()), created, fileCount, nullptr, nullptr);
     }
 
+    e = API_OK;
     return transferQueue;
 }
+
+bool MegaFolderDownloadController::genDownloadTransfersForFiles(
+    TransferQueue* transferQueue,
+    LocalTree& folder,
+    FileSystemType fsType,
+    bool folderExists)
+{
+    assert(transferQueue);
+
+    for (auto& fileNode : folder.childrenNodes)
+    {
+        if (IsStoppedOrCancelled("MegaFolderDownloadController::genDownloadTransfersForFiles"))
+        {
+            return false;
+        }
+
+        // get file local path
+        auto& fileLocalPath = folder.localPath;
+        ScopedLengthRestore restoreLen(fileLocalPath);
+        fileLocalPath.appendWithSeparator(LocalPath::fromRelativeName(fileNode->getName(), *fsaccess, fsType), true);
+
+        auto decision = CollisionChecker::Result::Download;
+
+        // collision might exist only if the folder already exists
+        if (folderExists)
+        {
+            auto fa = fsaccess->newfileaccess();
+            if (fa && fa->fopen(fileLocalPath, true, false, FSLogging::logExceptFileNotFound) && fa->type == FILENODE)
+            {
+                decision = CollisionChecker::check(fsaccess.get(), fileLocalPath, fileNode.get(), transfer->getCollisionCheck());
+            }
+        }
+
+        MegaTransferPrivate* transferDownload = megaApi->createDownloadTransfer(
+            false, fileNode.get(), fileLocalPath.toPath(false).c_str(), nullptr, tag, nullptr /*appData()*/,
+            transfer->accessCancelToken(), static_cast<int>(transfer->getCollisionCheck()),
+            static_cast<int>(transfer->getCollisionResolution()), this, fsType);
+
+        transferDownload->setCollisionCheckResult(decision);
+
+        transferQueue->push(transferDownload);
+    }
+
+    return true;
+}
+
 
 #ifdef HAVE_LIBUV
 StreamingBuffer::StreamingBuffer()

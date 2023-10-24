@@ -4117,6 +4117,10 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             }
             break;
 
+        case MAKENAMEID2('n', 'a'):
+            client->accountIsNew = bool(json.getint());
+            break;
+
         case 'u':
 #ifndef NDEBUG
             me =
@@ -4218,6 +4222,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             break;
 
         case MAKENAMEID2('p', 'f'):  // Pro Flexi plan (similar to business)
+            client->setProFlexi(true);
             [[fallthrough]];
         case 'b':   // business account's info
             assert(!b);
@@ -6056,6 +6061,295 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache, 
     mLoadSyncs = loadSyncs;
 
     this->tag = tag;
+
+    ///////////////////////////////////
+    // Filters for parsing in streaming
+
+    // Parsing of chunk started
+    mFilters.emplace("<", [this, client](JSON *)
+    {
+        if (!mFirstChunkProcessed)
+        {
+            mScsn = 0;
+            mSt.clear();
+            mPreviousHandleForAlert = UNDEF;
+            mMissingParentNodes.clear();
+
+            // make sure the syncs don't see Nodes disappearing
+            // they should only look at the nodes again once
+            // everything is reloaded and caught up
+            // (in case we are reloading mid-session)
+            client->statecurrent = false;
+            client->actionpacketsCurrent = false;
+#ifdef ENABLE_SYNC
+            // this just makes sure syncs exit any current tree iteration
+            client->syncs.syncRun([]{}, "fetchnodes ready");
+#endif
+
+            assert(!mNodeTreeIsChanging.owns_lock());
+            mNodeTreeIsChanging = std::unique_lock<mutex>(client->nodeTreeMutex);
+            client->purgenodesusersabortsc(true);
+
+            if (client->sctable)
+            {
+                // reset sc database for brand new node tree (note that we may be reloading mid-session)
+                LOG_debug << "Resetting sc database";
+                client->sctable->truncate();
+                client->sctable->commit();
+                assert(!client->sctable->inTransaction());
+                client->sctable->begin();
+                client->pendingsccommit = false;
+            }
+
+            mFirstChunkProcessed = true;
+        }
+        else
+        {
+            assert(!mNodeTreeIsChanging.owns_lock());
+            mNodeTreeIsChanging = std::unique_lock<mutex>(client->nodeTreeMutex);
+        }
+        return true;
+    });
+
+    // Parsing of chunk finished
+    mFilters.emplace(">", [this, client](JSON *)
+    {
+        assert(mNodeTreeIsChanging.owns_lock());
+        mNodeTreeIsChanging.unlock();
+        return true;
+    });
+
+    // Node objects (one by one)
+    auto f = mFilters.emplace("{[f{", [this, client](JSON *json)
+    {
+        if (client->readnode(json, 0, PUTNODES_APP, nullptr, false, true,
+                             mMissingParentNodes, mPreviousHandleForAlert,
+                             nullptr, // allParents disabled because Syncs::triggerSync
+                             // does nothing when MegaClient::fetchingnodes is true
+                             nullptr, nullptr) != 1)
+        {
+            return false;
+        }
+        return json->leaveobject();
+    });
+
+    // Node versions (one by one)
+    mFilters.emplace("{[f2{", f.first->second);
+
+    // End of node array
+    f = mFilters.emplace("{[f", [this, client](JSON *json)
+    {
+        client->mergenewshares(0);
+        client->mNodeManager.checkOrphanNodes(mMissingParentNodes);
+
+        // No need to call Syncs::triggerSync here like in MegaClient::readnodes
+        // because it does nothing when MegaClient::fetchingnodes is true
+
+        mPreviousHandleForAlert = UNDEF;
+        mMissingParentNodes.clear();
+
+        // This is intended to consume the '[' character if the array
+        // was empty and an empty array arrives here "[]".
+        // If the array was not empty, we receive here only the remaining
+        // character ']' and this call doesn't have any effect.
+        json->enterarray();
+
+        return json->leavearray();
+    });
+
+    // End of node versions array
+    mFilters.emplace("{[f2", f.first->second);
+
+    // Legacy keys (one by one)
+    mFilters.emplace("{[ok0{", [client](JSON *json)
+    {
+        if (!json->enterobject())
+        {
+            return false;
+        }
+
+        client->readokelement(json);
+        return json->leaveobject();
+    });
+
+    // Outgoing shares (one by one)
+    f = mFilters.emplace("{[s{", [client](JSON *json)
+    {
+        if (!json->enterobject())
+        {
+            return false;
+        }
+
+        client->readoutshareelement(json);
+        return json->leaveobject();
+    });
+
+    // Pending shares (one by one)
+    mFilters.emplace("{[ps{", f.first->second);
+
+    // End of outgoing shares array
+    f = mFilters.emplace("{[s", [client](JSON *json)
+    {
+        client->mergenewshares(0);
+
+        json->enterarray();
+        return json->leavearray();
+    });
+
+    // End of pending shares array
+    mFilters.emplace("{[ps", f.first->second);
+
+    // Users (one by one)
+    mFilters.emplace("{[u{", [client](JSON *json)
+    {
+        if (client->readuser(json, false) != 1)
+        {
+            return false;
+        }
+        return json->leaveobject();
+    });
+
+    // Legacy node key requests (array)
+    f = mFilters.emplace("{[cr", [client](JSON *json)
+    {
+        client->proccr(json);
+        return true;
+    });
+
+    // Legacy node key requests (object)
+    mFilters.emplace("{{cr", f.first->second);
+
+    // Legacy share key requests
+    mFilters.emplace("{[sr", [client](JSON *json)
+    {
+        client->procsr(json);
+        return true;
+    });
+
+    // sn tag
+    mFilters.emplace("{\"sn", [this, client](JSON *json)
+    {
+        // Not applying the scsn until the end of the parsing
+        // because it could arrive before nodes
+        // (despite at the moment it is arriving at the end)
+        return json->storebinary((byte*)&mScsn, sizeof mScsn) == sizeof mScsn;
+    });
+
+    // st tag
+    mFilters.emplace("{\"st", [this, client](JSON *json)
+    {
+        return json->storeobject(&mSt);
+    });
+
+    // Incoming contact requests
+    mFilters.emplace("{[ipc", [client](JSON *json)
+    {
+        client->readipc(json);
+        return true;
+    });
+
+    // Outgoing contact requests
+    mFilters.emplace("{[opc", [client](JSON *json)
+    {
+        client->readopc(json);
+        return true;
+    });
+
+    // Public links (one by one)
+    mFilters.emplace("{[ph{", [client](JSON *json)
+    {
+        if (client->procphelement(json) == 1)
+        {
+            json->leaveobject();
+        }
+        return true;
+    });
+
+    // Sets and Elements
+    mFilters.emplace("{{aesp", [client](JSON *json)
+    {
+        client->procaesp(*json); // continue even if it failed, it's not critical
+        return true;
+    });
+
+    // Parsing finished
+    mFilters.emplace("{", [this, client](JSON *)
+    {
+        WAIT_CLASS::bumpds();
+        client->fnstats.timeToLastByte = Waiter::ds - client->fnstats.startTime;
+
+        assert(mScsn && "scsn must be received in response to `f` command always");
+        if (mScsn)
+        {
+            client->scsn.setScsn(mScsn);
+        }
+
+        if (!mSt.empty())
+        {
+            client->app->sequencetag_update(mSt);
+            client->mScDbStateRecord.seqTag = mSt;
+        }
+
+        return parsingFinished();
+    });
+
+    // Numeric error, either a number or an error object {"err":XXX}
+    mFilters.emplace("#", [this, client](JSON *json)
+    {
+        // like CommandFetchNodes::procresult when r.wasErrorOrOK() is true but
+        // parsing the specific error code here instead of directly receiving it
+        WAIT_CLASS::bumpds();
+        client->fnstats.timeToLastByte = Waiter::ds - client->fnstats.startTime;
+
+        Error e;
+        checkError(e, *json);
+        client->fetchingnodes = false;
+        client->app->fetchnodes_result(e);
+        return true;
+    });
+
+    // Parsing error
+    mFilters.emplace("E", [this, client](JSON *)
+    {
+        WAIT_CLASS::bumpds();
+        client->fnstats.timeToLastByte = Waiter::ds - client->fnstats.startTime;
+        client->purgenodesusersabortsc(true);
+
+        client->fetchingnodes = false;
+        client->mNodeManager.cleanNodes();
+        client->app->fetchnodes_result(API_EINTERNAL);
+        return true;
+    });
+
+#ifdef ENABLE_CHAT
+    // Chat-related callbacks
+    mFilters.emplace("{{mcf", [client](JSON *json)
+    {
+        // List of chatrooms
+        client->procmcf(json);
+        return true;
+    });
+
+    f = mFilters.emplace("{[mcpna", [client](JSON *json)
+    {
+        // nodes shared in chatrooms
+        client->procmcna(json);
+        return true;
+    });
+    mFilters.emplace("{[mcna", f.first->second);
+
+    mFilters.emplace("{[mcsm", [client](JSON *json)
+    {
+        // scheduled meetings
+        client->procmcsm(json);
+        return true;
+    });
+#endif
+}
+
+CommandFetchNodes::~CommandFetchNodes()
+{
+    assert(!mNodeTreeIsChanging.owns_lock());
 }
 
 const char* CommandFetchNodes::getJSON(MegaClient* client)
@@ -6224,30 +6518,7 @@ bool CommandFetchNodes::procresult(Result r, JSON& json)
 #endif
             case EOO:
             {
-                if (!client->scsn.ready())
-                {
-                    client->fetchingnodes = false;
-                    client->mNodeManager.cleanNodes();
-                    client->app->fetchnodes_result(API_EINTERNAL);
-                    return false;
-                }
-
-                client->mergenewshares(0);
-
-                client->mNodeManager.initCompleted();  // (nodes already written into DB)
-
-                client->initsc();
-                client->pendingsccommit = false;
-                client->fetchnodestag = tag;
-
-                WAIT_CLASS::bumpds();
-                client->fnstats.timeToCached = Waiter::ds - client->fnstats.startTime;
-                client->fnstats.nodesCached = client->mNodeManager.getNodeCount();
-#ifdef ENABLE_SYNC
-                if (mLoadSyncs)
-                    client->syncs.loadSyncConfigsOnFetchnodesComplete(true);
-#endif
-                return true;
+                return parsingFinished();
             }
             default:
                 if (!json.storeobject())
@@ -6259,6 +6530,34 @@ bool CommandFetchNodes::procresult(Result r, JSON& json)
                 }
         }
     }
+}
+
+bool CommandFetchNodes::parsingFinished()
+{
+    if (!client->scsn.ready())
+    {
+        client->fetchingnodes = false;
+        client->mNodeManager.cleanNodes();
+        client->app->fetchnodes_result(API_EINTERNAL);
+        return false;
+    }
+
+    client->mergenewshares(0);
+
+    client->mNodeManager.initCompleted();  // (nodes already written into DB)
+
+    client->initsc();
+    client->pendingsccommit = false;
+    client->fetchnodestag = tag;
+
+    WAIT_CLASS::bumpds();
+    client->fnstats.timeToCached = Waiter::ds - client->fnstats.startTime;
+    client->fnstats.nodesCached = client->mNodeManager.getNodeCount();
+#ifdef ENABLE_SYNC
+    if (mLoadSyncs)
+        client->syncs.loadSyncConfigsOnFetchnodesComplete(true);
+#endif
+    return true;
 }
 
 CommandSubmitPurchaseReceipt::CommandSubmitPurchaseReceipt(MegaClient *client, int type, const char *receipt, handle lph, int phtype, int64_t ts)

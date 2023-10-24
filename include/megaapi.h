@@ -520,7 +520,7 @@ class MegaNode
          *
          * @return Type of the node
          */
-        virtual int getType();
+        virtual int getType() const;
 
         /**
          * @brief Returns the name of the node
@@ -733,7 +733,7 @@ class MegaNode
          *
          * @return Handle that identifies this MegaNode
          */
-        virtual MegaHandle getHandle();
+        virtual MegaHandle getHandle() const;
 
         /**
          * @brief Returns the handle of the previous parent of this node.
@@ -9132,6 +9132,132 @@ public:
     virtual ~MegaInputStream();
 };
 
+/**
+ * @brief Store filtering options used in searches @see MegaApi::search, MegaApi::getChildren.
+ *
+ */
+class MegaSearchFilter
+{
+protected:
+    MegaSearchFilter();
+
+public:
+    /**
+     * @brief Creates a new instance of MegaSearchFilter
+     * @return A pointer of current type, a superclass of the private object
+     */
+    static MegaSearchFilter* createInstance();
+
+    /**
+     * @brief Create a copy of this instance.
+     *
+     * The resulted instance is fully independent of the source instance,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original instance was deleted.
+     *
+     * You are the owner of the returned instance
+     *
+     * @return Copy of the current instance
+     */
+    virtual MegaSearchFilter* copy() const;
+
+    virtual ~MegaSearchFilter();
+
+    /**
+     * @brief Set option for filtering by name.
+     *
+     * @param searchString Contains a name or an expression using wildcards.
+     */
+    virtual void byName(const char* searchString);
+
+    /**
+     * @brief Set option for filtering by predefined node types.
+     * If not set, it will behave as FILE_TYPE_DEFAULT was used.
+     *
+     * @param mimeType Type of nodes requested in the search
+     * Valid values for this parameter are (invalid values will be ignored):
+     * - MegaApi::FILE_TYPE_DEFAULT = 0  --> all types
+     * - MegaApi::FILE_TYPE_PHOTO = 1
+     * - MegaApi::FILE_TYPE_AUDIO = 2
+     * - MegaApi::FILE_TYPE_VIDEO = 3
+     * - MegaApi::FILE_TYPE_PDF = 4
+     * - MegaApi::FILE_TYPE_PRESENTATION = 5
+     * - MegaApi::FILE_TYPE_ARCHIVE = 6
+     * - MegaApi::FILE_TYPE_PROGRAM = 7
+     * - MegaApi::FILE_TYPE_MISC = 8
+     */
+    virtual void byCategory(int mimeType);
+
+    /**
+     * @brief Set option for filtering out sensitive nodes.
+     * If not set, sensitive nodes will also be considered in searches.
+     *
+     * @param excludeSensitive Set to true to filter out sensitive nodes
+     */
+    virtual void bySensitivity(bool excludeSensitive);
+
+    /**
+     * @brief Set option for retrieving nodes below a particular ancestor.
+     * If not set, nodes will not be restricted to a particular ancestor.
+     *
+     * @note When called, it will cancel any previous setting done by calling byLocation().
+     *
+     * @param ancestorHandle Handle of an acestor to which the search will be restricted to
+     */
+    virtual void byLocationHandle(MegaHandle ancestorHandle);
+
+    /**
+     * @brief Set option for retrieving nodes below a particular predefined location.
+     * If not set, nodes will not be restricted to a particular location and it will behave like using SEARCH_TARGET_ALL.
+     *
+     * @note When called, it will cancel any previous setting done by calling byLocationHandle().
+     *
+     * @param locationType Location to which the search will be restricted to
+     * Valid values for this parameter are (invalid values will be ignored):
+     * - SEARCH_TARGET_INSHARE = 0
+     * - SEARCH_TARGET_OUTSHARE = 1
+     * - SEARCH_TARGET_PUBLICLINK = 2
+     * - SEARCH_TARGET_ROOTNODE = 3 --> search in Cloud and Vault rootnodes
+     * - SEARCH_TARGET_ALL = 4
+     */
+    virtual void byLocation(int locationType);
+
+    /**
+     * @brief Return the string used for filtering by name.
+     *
+     * @return string set for filtering by name, or empty string ("") if not set
+     */
+    virtual const char* byName() const;
+
+    /**
+     * @brief Return predefined category used for filtering.
+     *
+     * @return predefined category set for filtering, or FILE_TYPE_DEFAULT if not set
+     */
+    virtual int byCategory() const;
+
+    /**
+     * @brief Return the option for filtering out sensitive nodes.
+     *
+     * @return option set for filtering out sensitive nodes, or false if not set
+     */
+    virtual bool bySensitivity() const;
+
+    /**
+     * @brief Return ancestor handle set for restricting node search to.
+     *
+     * @return ancestor handle set for restricting node search to, or INVALID_HANDLE if not set
+     */
+    virtual MegaHandle byLocationHandle() const;
+
+    /**
+     * @brief Return predefined location set for restricting node search to.
+     *
+     * @return predefined location set for restricting node search to, or SEARCH_TARGET_ALL if not set
+     */
+    virtual int byLocation() const;
+};
+
 class MegaApiImpl;
 
 /**
@@ -9777,8 +9903,7 @@ class MegaApi
          *
          * This function will NOT return a valid value until the callback onEvent with
          * type MegaApi::EVENT_MISC_FLAGS_READY is received. You can also rely on the completion of
-         * a fetchnodes to check this value, but only when it follows a login with user and password,
-         * not when an existing session is resumed.
+         * a fetchnodes to check this value.
          *
          * @return True if this feature is enabled. Otherwise false.
          */
@@ -9789,8 +9914,7 @@ class MegaApi
          *
          * This function will NOT return a valid value until the callback onEvent with
          * type MegaApi::EVENT_MISC_FLAGS_READY is received. You can also rely on the completion of
-         * a fetchnodes to check this value, but only when it follows a login with user and password,
-         * not when an existing session is resumed.
+         * a fetchnodes to check this value.
          *
          * @return True if this feature is enabled. Otherwise false.
          */
@@ -9801,14 +9925,24 @@ class MegaApi
          *
          * This function will NOT return a valid value until the callback onEvent with
          * type MegaApi::EVENT_MISC_FLAGS_READY is received. You can also rely on the completion of
-         * a fetchnodes to check this value, but only when it follows a login with user and password,
-         * not when an existing session is resumed.
+         * a fetchnodes to check this value.
          *
          * For not logged-in mode, you need to call MegaApi::getMiscFlags first.
          *
          * @return True if this feature is enabled. Otherwise, false.
          */
         bool newLinkFormatEnabled();
+
+        /**
+         * @brief Check if the logged in account is considered new
+         *
+         * This function will NOT return a valid value until the callback onEvent with
+         * type MegaApi::EVENT_MISC_FLAGS_READY is received. You can also rely on the completion of
+         * a fetchnodes to check this value.
+         *
+         * @return True if account is considered new. Otherwise, false.
+         */
+        bool accountIsNew() const;
 
         /**
          * @brief Get the value of an A/B Test flag
@@ -9847,8 +9981,7 @@ class MegaApi
          *
          * This function will NOT return a valid value until the callback onEvent with
          * type MegaApi::EVENT_MISC_FLAGS_READY is received. You can also rely on the completion of
-         * a fetchnodes to check this value, but only when it follows a login with user and password,
-         * not when an existing session is resumed.
+         * a fetchnodes to check this value.
          *
          * For not logged-in mode, you need to call MegaApi::getMiscFlags first.
          *
@@ -9873,8 +10006,7 @@ class MegaApi
          *
          * This function will NOT return a valid value until the callback onEvent with
          * type MegaApi::EVENT_MISC_FLAGS_READY is received. You can also rely on the completion of
-         * a fetchnodes to check this value, but only when it follows a login with user and password,
-         * not when an existing session is resumed.
+         * a fetchnodes to check this value.
          *
          * For not logged-in mode, you need to call MegaApi::getMiscFlags first.
          *
@@ -16210,6 +16342,89 @@ class MegaApi
         MegaNodeList* getChildren(MegaNode *parent, int order = 1, MegaCancelToken *cancelToken = nullptr);
 
         /**
+         * @brief Get children of a particular parent or a predefined location, and allow filtering
+         * the results. @see MegaSearchFilter
+         * The look-up is case-insensitive.
+         * For invalid filtering options, this function returns an empty list.
+         *
+         * You take the ownership of the returned value
+         *
+         * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+         * to MegaCancelToken::setCancelFlag(true).
+         *
+         * @param filter Container for filtering options. In order to be considered valid it must
+         * - be not null
+         * - have valid ancestor handle (different than INVALID_HANDLE)
+         * @param order Order for the returned list
+         * Valid values for this parameter are:
+         * - MegaApi::ORDER_NONE = 0
+         * Undefined order
+         *
+         * - MegaApi::ORDER_DEFAULT_ASC = 1
+         * Folders first in alphabetical order, then files in the same order
+         *
+         * - MegaApi::ORDER_DEFAULT_DESC = 2
+         * Files first in reverse alphabetical order, then folders in the same order
+         *
+         * - MegaApi::ORDER_SIZE_ASC = 3
+         * Sort by size, ascending
+         *
+         * - MegaApi::ORDER_SIZE_DESC = 4
+         * Sort by size, descending
+         *
+         * - MegaApi::ORDER_CREATION_ASC = 5
+         * Sort by creation time in MEGA, ascending
+         *
+         * - MegaApi::ORDER_CREATION_DESC = 6
+         * Sort by creation time in MEGA, descending
+         *
+         * - MegaApi::ORDER_MODIFICATION_ASC = 7
+         * Sort by modification time of the original file, ascending
+         *
+         * - MegaApi::ORDER_MODIFICATION_DESC = 8
+         * Sort by modification time of the original file, descending
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * Sort with photos first, then by date ascending
+         *
+         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * Sort with photos first, then by date descending
+         *
+         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * Sort with videos first, then by date ascending
+         *
+         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * Sort with videos first, then by date descending
+         *
+         * - MegaApi::ORDER_LABEL_ASC = 17
+         * Sort by color label, ascending. With this order, folders are returned first, then files
+         *
+         * - MegaApi::ORDER_LABEL_DESC = 18
+         * Sort by color label, descending. With this order, folders are returned first, then files
+         *
+         * - MegaApi::ORDER_FAV_ASC = 19
+         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
+         *
+         * - MegaApi::ORDER_FAV_DESC = 20
+         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
+         *
+         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
+         *
+         * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+         *
+         * @return List with found children as MegaNode objects
+         */
+        MegaNodeList* getChildren(const MegaSearchFilter *filter, int order = ORDER_NONE, MegaCancelToken *cancelToken = nullptr);
+
+        /**
          * @brief Get all children of a list of MegaNodes
          *
          * If any parent node doesn't exist or it isn't a folder, that parent
@@ -17260,6 +17475,82 @@ class MegaApi
         long long getBandwidthOverquotaDelay();
 
         /**
+         * @brief Search nodes and allow filtering the results.
+         * The search is case-insensitive.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param filter Container for filtering options, cannot be null
+         * @param order Order for the returned list
+         * Valid values for this parameter are:
+         * - MegaApi::ORDER_NONE = 0
+         * Undefined order
+         *
+         * - MegaApi::ORDER_DEFAULT_ASC = 1
+         * Folders first in alphabetical order, then files in the same order
+         *
+         * - MegaApi::ORDER_DEFAULT_DESC = 2
+         * Files first in reverse alphabetical order, then folders in the same order
+         *
+         * - MegaApi::ORDER_SIZE_ASC = 3
+         * Sort by size, ascending
+         *
+         * - MegaApi::ORDER_SIZE_DESC = 4
+         * Sort by size, descending
+         *
+         * - MegaApi::ORDER_CREATION_ASC = 5
+         * Sort by creation time in MEGA, ascending
+         *
+         * - MegaApi::ORDER_CREATION_DESC = 6
+         * Sort by creation time in MEGA, descending
+         *
+         * - MegaApi::ORDER_MODIFICATION_ASC = 7
+         * Sort by modification time of the original file, ascending
+         *
+         * - MegaApi::ORDER_MODIFICATION_DESC = 8
+         * Sort by modification time of the original file, descending
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
+         *
+         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * Sort with photos first, then by date ascending
+         *
+         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * Sort with photos first, then by date descending
+         *
+         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * Sort with videos first, then by date ascending
+         *
+         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * Sort with videos first, then by date descending
+         *
+         * - MegaApi::ORDER_LABEL_ASC = 17
+         * Sort by color label, ascending. With this order, folders are returned first, then files
+         *
+         * - MegaApi::ORDER_LABEL_DESC = 18
+         * Sort by color label, descending. With this order, folders are returned first, then files
+         *
+         * - MegaApi::ORDER_FAV_ASC = 19
+         * Sort nodes with favourite attr first. With this order, folders are returned first, then files
+         *
+         * - MegaApi::ORDER_FAV_DESC = 20
+         * Sort nodes with favourite attr last. With this order, folders are returned first, then files
+         *
+         * @param cancelToken MegaCancelToken to be able to cancel the search at any time.
+         *
+         * @return List with found nodes as MegaNode objects
+         */
+        MegaNodeList* search(const MegaSearchFilter* filter, int order = ORDER_NONE, MegaCancelToken* cancelToken = nullptr);
+
+        /**
          * @brief Search nodes containing a search string in their name
          *
          * The search is case-insensitive.
@@ -17334,6 +17625,10 @@ class MegaApi
          * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @return List of nodes that contain the desired string in their name
+         *
+         * @deprecated use alternatives instead:
+         * - for recursive searches use search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
+         * - for non-recursive searches use getChildren(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
          */
         MegaNodeList* search(MegaNode* node, const char* searchString, bool recursive = 1, int order = ORDER_NONE);
 
@@ -17417,6 +17712,10 @@ class MegaApi
          * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @return List of nodes that contain the desired string in their name
+         *
+         * @deprecated use alternatives instead:
+         * - for recursive searches use search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
+         * - for non-recursive searches use getChildren(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
          */
         MegaNodeList* search(MegaNode* node, const char* searchString, MegaCancelToken *cancelToken, bool recursive = 1, int order = ORDER_NONE);
 
@@ -17498,6 +17797,8 @@ class MegaApi
          * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @return List of nodes that contain the desired string in their name
+         *
+         * @deprecated use search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
          */
         MegaNodeList* search(const char* searchString, int order = ORDER_NONE);
 
@@ -17584,6 +17885,8 @@ class MegaApi
          * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @return List of nodes that contain the desired string in their name
+         *
+         * @deprecated use search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
          */
         MegaNodeList* search(const char* searchString, MegaCancelToken *cancelToken, int order = ORDER_NONE);
 
@@ -17666,6 +17969,8 @@ class MegaApi
          * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @return List of nodes that contain the desired string in their name
+         *
+         * @deprecated use search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
          */
         MegaNodeList* searchOnInShares(const char *searchString, MegaCancelToken *cancelToken, int order = ORDER_NONE);
 
@@ -17748,6 +18053,8 @@ class MegaApi
          * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @return List of nodes that contain the desired string in their name
+         *
+         * @deprecated use search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
          */
         MegaNodeList* searchOnOutShares(const char *searchString, MegaCancelToken *cancelToken, int order = ORDER_NONE);
 
@@ -17830,6 +18137,8 @@ class MegaApi
          * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @return List of nodes that contain the desired string in their name
+         *
+         * @deprecated use search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
          */
         MegaNodeList* searchOnPublicLinks(const char *searchString, MegaCancelToken *cancelToken, int order = ORDER_NONE);
 
@@ -17940,6 +18249,10 @@ class MegaApi
          * - SEARCH_TARGET_ALL = 4
          *
          * @return List of nodes that match with the search parameters
+         *
+         * @deprecated use alternatives instead:
+         * - for recursive searches use search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
+         * - for non-recursive searches use getChildren(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
          */
         MegaNodeList* searchByType(MegaNode *node, const char *searchString, MegaCancelToken *cancelToken, bool recursive = true, int order = ORDER_NONE, int mimeType = FILE_TYPE_DEFAULT, int target = SEARCH_TARGET_ALL, bool includeSensitive = true);
 
@@ -20858,8 +21171,7 @@ class MegaApi
          *
          * This function will NOT return a valid value until the callback onEvent with
          * type MegaApi::EVENT_MISC_FLAGS_READY is received. You can also rely on the completion of
-         * a fetchnodes to check this value, but only when it follows a login with user and password,
-         * not when an existing session is resumed.
+         * a fetchnodes to check this value.
          *
          * For not logged-in mode, you need to call MegaApi::getMiscFlags first.
          *

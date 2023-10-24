@@ -477,6 +477,7 @@ HttpReq::HttpReq(bool b)
     buflen = 0;
     protect = false;
     minspeed = false;
+    mChunked = false;
 
     init();
 }
@@ -622,12 +623,21 @@ size_t HttpReq::size()
 void HttpReq::purge(size_t numbytes)
 {
     inpurge += numbytes;
+
+    if (mChunked)
+    {
+        // Immediate purge because there are several places
+        // in the code directly accesing HttpReq::in instead
+        // of HttpReq::data() and HttpReq::size()
+        in.erase(0, inpurge);
+        inpurge = 0;
+    }
 }
 
 // set total response size
 void HttpReq::setcontentlength(m_off_t len)
 {
-    if (!buf && type != REQ_BINARY)
+    if (!buf && type != REQ_BINARY && !mChunked)
     {
         in.reserve(static_cast<size_t>(len));
     }
