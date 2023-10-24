@@ -18204,7 +18204,8 @@ CollisionChecker::Result CollisionChecker::check(std::function<FileAccess*()> fa
         return CompareLocalFileMetaMac(fa, fileNode);
     };
 
-    if (!fileNode) {
+    if (!fileNode)
+    {
         return CollisionChecker::Result::NotYet;
     }
 
