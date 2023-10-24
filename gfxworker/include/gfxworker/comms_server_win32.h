@@ -39,6 +39,7 @@ public:
         : mRequestProcessor(std::move(requestProcessor))
         , mPipename(pipename)
     {
+        // wait for client to connect timeout is set accordingly
         mWaitMs = aliveSeconds == 0 ? INFINITE : static_cast<DWORD>(aliveSeconds * 1000);
     }
 
@@ -51,8 +52,6 @@ private:
     std::error_code waitForClient(HANDLE hPipe, OVERLAPPED* overlap);
 
     std::unique_ptr<IRequestProcessor> mRequestProcessor;
-
-    std::unique_ptr<std::thread> mListeningThread;
 
     std::string mPipename;
 
