@@ -4016,6 +4016,25 @@ SyncConfigVector Syncs::configsForDrive(const LocalPath& drive) const
     return v;
 }
 
+SyncController::SyncController() = default;
+
+SyncController::~SyncController() = default;
+
+bool SyncController::deferPutnode(const LocalPath&) const
+{
+    return true;
+}
+
+bool SyncController::deferPutnodeCompletion(const LocalPath&) const
+{
+    return true;
+}
+
+bool SyncController::deferUpload(const LocalPath& path) const
+{
+    return true;
+}
+
 SyncConfigVector Syncs::getConfigs(bool onlyActive) const
 {
     assert(onSyncThread() || !onSyncThread());
@@ -5277,6 +5296,54 @@ SyncConfigIOContext* Syncs::syncConfigIOContext()
 
     // Return a reference to the new IO context.
     return mSyncConfigIOContext.get();
+}
+
+template<typename... Arguments, typename... Parameters>
+bool Syncs::defer(bool (SyncController::*predicate)(Parameters...) const,
+                  Arguments&&... arguments) const
+{
+    // Consult controller if available.
+    if (auto controller = syncController())
+        return (*controller.*predicate)(std::forward<Arguments>(arguments)...);
+
+    // Otherwise assume we shouldn't defer any activity.
+    return false;
+}
+
+bool Syncs::deferPutnode(const LocalPath& path) const
+{
+    return defer(&SyncController::deferPutnode, path);
+}
+
+bool Syncs::deferPutnodeCompletion(const LocalPath& path) const
+{
+    return defer(&SyncController::deferPutnodeCompletion, path);
+}
+
+bool Syncs::deferUpload(const LocalPath& path) const
+{
+    return defer(&SyncController::deferUpload, path);
+}
+
+void Syncs::syncController(SyncControllerPtr controller)
+{
+    std::lock_guard<std::mutex> guard(mSyncControllerLock);
+
+    mSyncController = controller;
+}
+
+SyncControllerPtr Syncs::syncController() const
+{
+    std::lock_guard<std::mutex> guard(mSyncControllerLock);
+
+    // Return controller if it's still alive.
+    if (auto controller = mSyncController.lock())
+        return controller;
+
+    // Clear controller if it's stale.
+    mSyncController.reset();
+
+    return nullptr;
 }
 
 LocalNode* Syncs::findMoveFromLocalNode(const shared_ptr<LocalNode::RareFields::MoveInProgress>& moveTo)
