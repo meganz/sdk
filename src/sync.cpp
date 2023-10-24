@@ -677,7 +677,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
 #endif
     }
 
-    auto fas = syncs.fsaccess->newfileaccess(false);
+    auto fas = syncs.fsaccess->newfileaccess();
 
     // we do allow, eg. mounting an exFAT drive over an NTFS folder, and making a sync at that path
     bool reparsePointOkAtRoot = true;
@@ -1062,8 +1062,16 @@ void UnifiedSync::changeState(SyncError newSyncError, bool newEnableFlag, bool n
             {
                 string dbname = mConfig.getSyncDbStateCacheName(fas->fsid, mConfig.mRemoteNode, syncs.mClient.me);
 
+                // If the user is upgrading from NO SRW to SRW, we rename the DB files to the new SRW version.
+                // However, if there are db files from a previous SRW version (i.e., the user downgraded from SRW to NO SRW and then upgraded again to SRW)
+                // we need to remove the SRW db files. The flag DB_OPEN_FLAG_RECYCLE is used for this purpose.
+                int dbFlags = DB_OPEN_FLAG_TRANSACTED; // Unused
+                if (DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_SRW)
+                {
+                    dbFlags |= DB_OPEN_FLAG_RECYCLE;
+                }
                 LocalPath dbPath;
-                syncs.mClient.dbaccess->checkDbFileAndAdjustLegacy(*syncs.fsaccess, dbname, DB_OPEN_FLAG_TRANSACTED, dbPath);
+                syncs.mClient.dbaccess->checkDbFileAndAdjustLegacy(*syncs.fsaccess, dbname, dbFlags, dbPath);
 
                 LOG_debug << "Deleting sync database at: " << dbPath;
                 syncs.fsaccess->unlinklocal(dbPath);
@@ -3358,7 +3366,7 @@ void Syncs::confirmOrCreateDefaultMegaignore(bool transitionToMegaignore, unique
     }
 }
 
-void Syncs::enableSyncByBackupId(handle backupId, bool paused, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname)
+void Syncs::enableSyncByBackupId(handle backupId, bool paused, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname)
 {
     assert(!onSyncThread());
 
@@ -3372,11 +3380,11 @@ void Syncs::enableSyncByBackupId(handle backupId, bool paused, bool notifyApp, b
 
     queueSync([=]()
         {
-            enableSyncByBackupId_inThread(backupId, paused, notifyApp, setOriginalPath, completionInClient ? clientCompletion : completion, logname);
+            enableSyncByBackupId_inThread(backupId, paused, setOriginalPath, completionInClient ? clientCompletion : completion, logname);
         }, "enableSyncByBackupId");
 }
 
-void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath)
+void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath)
 {
     assert(onSyncThread());
 
@@ -3412,7 +3420,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool not
         us.mConfig.mTemporarilyPaused = paused;
         us.mConfig.mRunState = paused ? SyncRunState::Pause : SyncRunState::Run;
 
-        if (changed && notifyApp)
+        if (changed)
             mClient.app->syncupdate_stateconfig(us.mConfig);
 
         if (completion) completion(API_OK, NO_SYNC_ERROR, backupId);
@@ -3421,6 +3429,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool not
 
 
 
+    auto previousConfigError = us.mConfig.mError;
     us.mConfig.mError = NO_SYNC_ERROR;
     us.mConfig.mRunState = SyncRunState::Loading;
     us.mConfig.mTemporarilyPaused = paused;
@@ -3480,7 +3489,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool not
 
         us.mConfig.mRunState = us.mConfig.mDatabaseExists ? SyncRunState::Suspend : SyncRunState::Disable;
 
-        us.changedConfigState(true, notifyApp);
+        us.changedConfigState(true, true);
         if (completion) completion(e, us.mConfig.mError, backupId);
         return;
     }
@@ -3571,7 +3580,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool not
                 us.mConfig.mEnabled = false;
                 us.mConfig.mRunState = us.mConfig.mDatabaseExists ? SyncRunState::Suspend : SyncRunState::Disable;
 
-                us.changedConfigState(true, notifyApp);
+                us.changedConfigState(true, true);
 
                 if (completion)
                     completion(API_EWRITE, us.mConfig.mError, backupId);
@@ -3593,7 +3602,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool not
 
         auto firstTime = config.mBackupState == SYNC_BACKUP_NONE;
         auto isExternal = config.isExternal();
-        auto wasDisabled = config.knownError() == BACKUP_MODIFIED;
+        auto wasDisabled = previousConfigError == BACKUP_MODIFIED; // Using previousConfigError as config.mError is reset earlier on this method
 
         if (firstTime || isExternal || wasDisabled)
         {
@@ -3605,7 +3614,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool not
     string debris = DEBRISFOLDER;
     auto localdebris = LocalPath();
 
-    us.changedConfigState(true, notifyApp);
+    us.changedConfigState(true, true);
     mHeartBeatMonitor->updateOrRegisterSync(us);
 
     startSync_inThread(us, debris, localdebris, inshare, isnetwork, rootpath, completion, logname);
@@ -4577,8 +4586,17 @@ error Syncs::syncConfigStoreLoad(SyncConfigVector& configs)
                     string dbname = c.getSyncDbStateCacheName(root_fsid, c.mRemoteNode, mClient.me);
 
                     // Note, we opened dbaccess in thread-safe mode
+
+                    // If the user is upgrading from NO SRW to SRW, we rename the DB files to the new SRW version.
+                    // However, if there are db files from a previous SRW version (i.e., the user downgraded from SRW to NO SRW and then upgraded again to SRW)
+                    // we need to remove the SRW db files. The flag DB_OPEN_FLAG_RECYCLE is used for this purpose.
+                    int dbFlags = DB_OPEN_FLAG_TRANSACTED; // Unused
+                    if (DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_SRW)
+                    {
+                        dbFlags |= DB_OPEN_FLAG_RECYCLE;
+                    }
                     LocalPath dbPath;
-                    c.mDatabaseExists = mClient.dbaccess->checkDbFileAndAdjustLegacy(*fsaccess, dbname, DB_OPEN_FLAG_TRANSACTED, dbPath);
+                    c.mDatabaseExists = mClient.dbaccess->checkDbFileAndAdjustLegacy(*fsaccess, dbname, dbFlags, dbPath);
                 }
 
                 if (c.mEnabled)
@@ -4733,7 +4751,6 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
 
                     // Add the new sync, optionally enabling it.
                     syncs.appendNewSync(config,
-                                        false,
                                         false,
                                         std::move(completion),
                                         false,
@@ -5329,7 +5346,7 @@ void Syncs::clear_inThread()
     mSyncsResumed = false;
 }
 
-void Syncs::appendNewSync(const SyncConfig& c, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname, const string& excludedPath)
+void Syncs::appendNewSync(const SyncConfig& c, bool startSync, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname, const string& excludedPath)
 {
     assert(!onSyncThread());
     assert(c.mBackupId != UNDEF);
@@ -5344,11 +5361,11 @@ void Syncs::appendNewSync(const SyncConfig& c, bool startSync, bool notifyApp, s
 
     queueSync([=]()
     {
-        appendNewSync_inThread(c, startSync, notifyApp, completionInClient ? clientCompletion : completion, logname, excludedPath);
+        appendNewSync_inThread(c, startSync, completionInClient ? clientCompletion : completion, logname, excludedPath);
     }, "appendNewSync");
 }
 
-void Syncs::appendNewSync_inThread(const SyncConfig& c, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath)
+void Syncs::appendNewSync_inThread(const SyncConfig& c, bool startSync, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath)
 {
     assert(onSyncThread());
 
@@ -5420,7 +5437,7 @@ void Syncs::appendNewSync_inThread(const SyncConfig& c, bool startSync, bool not
         return;
     }
 
-    enableSyncByBackupId_inThread(c.mBackupId, false, notifyApp, true, completion, logname, excludedPath);
+    enableSyncByBackupId_inThread(c.mBackupId, false, true, completion, logname, excludedPath);
 }
 
 Sync* Syncs::runningSyncByBackupIdForTests(handle backupId) const
@@ -6036,7 +6053,7 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
 #endif
                 LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint.id << " error = " << unifiedSync->mConfig.mError;
 
-                enableSyncByBackupId_inThread(unifiedSync->mConfig.mBackupId, false, true, false, [&unifiedSync](error e, SyncError se, handle backupId)
+                enableSyncByBackupId_inThread(unifiedSync->mConfig.mBackupId, false, false, [&unifiedSync](error e, SyncError se, handle backupId)
                     {
                         LOG_debug << "Sync autoresumed: " << toHandle(backupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint.id << " error = " << se;
                     }, "");
@@ -11335,7 +11352,8 @@ void Syncs::syncLoop()
                     }
                     else if (fa->fsid != sync->localroot->fsid_lastSynced)
                     {
-                        LOG_err << "Sync local root folder fsid has changed: " << fa->fsid << " was: " << sync->localroot->fsid_lastSynced;
+                        LOG_err << "Sync local root folder fsid has changed for " << sync->localroot->localname << ": "
+                                << fa->fsid << " was: " << sync->localroot->fsid_lastSynced;
                         sync->changestate(MISMATCH_OF_ROOT_FSID, false, true, true);
                         continue;
                     }
@@ -11414,7 +11432,7 @@ void Syncs::syncLoop()
                     else
                     {
                         LOG_debug << "Auto-starting sync that was suspended when the local path was unavailable: " << us->mConfig.mLocalPath;
-                        enableSyncByBackupId_inThread(us->mConfig.mBackupId, false, true, false, nullptr, "", "");
+                        enableSyncByBackupId_inThread(us->mConfig.mBackupId, false, false, nullptr, "", "");
                     }
                 }
             }

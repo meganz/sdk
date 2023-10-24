@@ -2642,6 +2642,10 @@ void MegaClient::exec()
                     {
                         LOG_warn << "Too many pending updates - reloading local state";
 
+                        // Stop the sc channel to prevent the reception of multiple
+                        // API_ETOOMANY errors causing multiple consecutive reloads
+                        scsn.stopScsn();
+
                         app->reloading();
                         int creqtag = reqtag;
                         reqtag = fetchnodestag; // associate with ongoing request, if any
@@ -10644,7 +10648,11 @@ void MegaClient::opensctable()
             // NOD is a special case where existing DB can be upgraded by renaming the existing
             // file and migrating data to the new DB scheme. In consequence, we just want to
             // recycle it (hence the flag DB_OPEN_FLAG_RECYCLE)
-            int recycleDBVersion = (DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_NOD) ? DB_OPEN_FLAG_RECYCLE : 0;
+            // Similarly, for SRW, we just need to rename the existing legacy DB, and only delete the DB if there is a downgrade (SRW to NO SRW),
+            // hence why we need to increase the DB version, but without affecting the upgrade from NO SRW to SRW.
+            int recycleDBVersion = (DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_NOD || DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_SRW) ?
+                                            DB_OPEN_FLAG_RECYCLE :
+                                            0;
             sctable.reset(dbaccess->openTableWithNodes(rng, *fsaccess, dbname, recycleDBVersion, [this](DBError error)
             {
                 handleDbError(error);
@@ -15839,7 +15847,7 @@ void MegaClient::importSyncConfigs(const char* configs, std::function<void(error
     ensureSyncUserAttributes(std::move(onUserAttributesCompleted));
 }
 
-void MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath)
+void MegaClient::addsync(SyncConfig&& config, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath)
 {
     assert(completion);
     assert(config.mExternalDrivePath.empty() || config.mExternalDrivePath.isAbsolute());
@@ -15882,7 +15890,7 @@ void MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<void
     BackupInfoSync info(config, deviceIdHash, driveId, BackupInfoSync::getSyncState(config, xferpaused[GET], xferpaused[PUT]));
 
     reqs.add(new CommandBackupPut(this, info,
-        [this, config, completion, notifyApp, logname, excludedPath](Error e, handle backupId) mutable {
+        [this, config, completion, logname, excludedPath](Error e, handle backupId) mutable {
         if (ISUNDEF(backupId) && !e)
         {
             LOG_debug << "Request for backupId failed for sync add";
@@ -15899,7 +15907,7 @@ void MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<void
             // if we got this far, the syncConfig is kept (in db and in memory)
             config.mBackupId = backupId;
 
-            syncs.appendNewSync(config, true, notifyApp, completion, true, logname, excludedPath);
+            syncs.appendNewSync(config, true, completion, true, logname, excludedPath);
         }
     }));
 }
