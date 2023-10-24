@@ -35,6 +35,8 @@
 #import "MEGACurrency+init.h"
 #import "MEGARecentActionBucket+init.h"
 #import "MEGABackupInfo+init.h"
+#import "MEGAVPNCredentials.h"
+#import "MEGAVPNCredentials+init.h"
 
 using namespace mega;
 
@@ -306,6 +308,14 @@ using namespace mega;
     }
     
     return [setElements copy];
+}
+
+- (MEGAStringList *)megaStringList {
+    return self.megaRequest ? [[MEGAStringList alloc] initWithMegaStringList:self.megaRequest->getMegaStringList()->copy() cMemoryOwn:YES] : nil;
+}
+
+- (MEGAVPNCredentials *)megaVpnCredentials {
+    return self.megaRequest ? [[MEGAVPNCredentials alloc] initWithMegaVpnCredentials:self.megaRequest->getMegaVpnCredentials()->copy() cMemoryOwn:YES] : nil;
 }
 
 @end

@@ -20,16 +20,17 @@ function printUsage() {
     echo " -p <work_path>: Optional working directory. Defines where to download, build sources and left the tarball. It defaults to the current path."
     echo " -d: Only download sources and create tarball."
     echo " -b: Builds pdfium. Implies -d if not executed previously."
-    echo " -i [<path>]: Installs pdfium in the desired path. /usr is the default one if no <path> is indicated. Ensure you have permissions to install in the destination path."
+    echo " -i [<path>]: Installs pdfium in the desired path. /usr/local is the default one if no <path> is indicated. Ensure you have permissions to install in the destination path."
     echo "              Implies -b if not executed previously."
     echo ""
 }
 
 PDFium_BRANCH=chromium/5247
+depot_tools_commit=f90b3b035c31a13a08922ff0270dfc55fe5a176c
 download_pdfium=0
 build_pdfium=0
 install_pdfium=0
-install_path=/usr
+install_path=/usr/local
 BASEDIR="$PWD"
 
 while getopts ':hp:dbi' OPTION; do
@@ -117,6 +118,9 @@ if [ $download_pdfium -eq 1 ];then
         echo
         rm -rf "${DEPOT_TOOLS_DIR}"
         git clone --depth=1 "$DepotTools_URL" "${DEPOT_TOOLS_DIR}"
+        git -C "${DEPOT_TOOLS_DIR}" fetch --depth=1 origin ${depot_tools_commit}
+        git -C "${DEPOT_TOOLS_DIR}" checkout FETCH_HEAD
+        "${DEPOT_TOOLS_DIR}"/update_depot_tools_toggle.py --disable
         touch "${BASEDIR}"/depot_tools.success
     else
         echo " Already downloaded."
@@ -138,10 +142,8 @@ if [ $download_pdfium -eq 1 ];then
         git -C pdfium checkout "${PDFium_BRANCH}"
         gclient sync -D
 
-        # Generate Ninja files
-        echo "** Generating Ninja files..."
-        cd "${PDFIUMDIR}"
-        gn gen "out" --args='is_debug=false use_sysroot=false use_custom_libcxx=false pdf_is_complete_lib=true pdf_is_standalone=true pdf_enable_v8=false pdf_enable_xfa=false pdf_use_skia=false pdf_use_skia_paths=false pdf_bundle_freetype=true symbol_level=0 use_goma=false is_component_build=false clang_use_chrome_plugins=false'
+        # Patch for gcc>=13
+        sed -i '/define CONSTANTS_ANNOTATION_FLAGS_H_/a #include<cstdint>' "${PDFIUMDIR}"/constants/annotation_flags.h
 
         echo "${PDFium_BRANCH}" > "${BASEDIR}"/pdfium.success
 
@@ -149,12 +151,13 @@ if [ $download_pdfium -eq 1 ];then
         echo " Already downloaded."
     fi
 
+    # Generate Ninja files
+    echo "** Generating Ninja files..."
+    cd "${PDFIUMDIR}"
+    gn gen "out" --args='is_debug=false use_sysroot=false use_custom_libcxx=false use_custom_libcxx_for_host=false pdf_is_complete_lib=true pdf_is_standalone=true pdf_enable_v8=false pdf_enable_xfa=false pdf_use_skia=false pdf_use_skia_paths=false pdf_bundle_freetype=true symbol_level=0 use_goma=false is_component_build=false clang_use_chrome_plugins=false'
+
     echo "** Preparing sources package..."
     mkdir -p "${TARBALL_SRCS_DIR}"
-    cd "${BASEDIR}"
-    cp  -p --parents depot_tools/gn* ${TARBALL_SRCS_DIR}/
-    cp  -p --parents depot_tools/*.py ${TARBALL_SRCS_DIR}/
-    cp  -p --parents depot_tools/ninja* ${TARBALL_SRCS_DIR}/
     cd ${PDFIUMDIR}
     cp -rp --parents fxjs ${TARBALL_SRCS_DIR}/
     cp -rp --parents fxbarcode ${TARBALL_SRCS_DIR}/
@@ -175,6 +178,9 @@ if [ $download_pdfium -eq 1 ];then
     cp  -p --parents build/*.h ${TARBALL_SRCS_DIR}/
     cp  -p --parents build/BUILD.gn ${TARBALL_SRCS_DIR}/
 
+    cp  -p --parents third_party/depot_tools/gn* ${TARBALL_SRCS_DIR}/
+    cp  -p --parents third_party/depot_tools/*.py ${TARBALL_SRCS_DIR}/
+    cp  -p --parents third_party/depot_tools/ninja* ${TARBALL_SRCS_DIR}/
     cp -rp --parents third_party/libopenjpeg ${TARBALL_SRCS_DIR}/
     cp -rp --parents third_party/agg23 ${TARBALL_SRCS_DIR}/
     cp -rp --parents third_party/libpng16 ${TARBALL_SRCS_DIR}/
@@ -202,6 +208,11 @@ if [ $download_pdfium -eq 1 ];then
     cp  -p --parents skia/BUILD.gn ${TARBALL_SRCS_DIR}/
 
     cp  -p --parents pdfium.gni BUILD.gn .gn ${TARBALL_SRCS_DIR}/
+
+    cd "${SCRIPTDIR}"
+    version=${PDFium_BRANCH/chromium\//}
+    cp  -p --parents pdfium.pc.in ${TARBALL_SRCS_DIR}/
+    sed -i "s/@VERSION@/${version}/" "${TARBALL_SRCS_DIR}"/pdfium.pc.in
 
     cd "${TARBALL_PKG_DIR}"
     tar czf "${outputTAR_NAME}.tar.gz" --exclude-vcs "${outputDIR_NAME}"
@@ -238,10 +249,9 @@ if [ $build_pdfium -eq 1 ];then
     cd "${outputDIR_NAME}"
 
     echo "** Start building pdfium..."
-    ./depot_tools/ninja -C out pdfium
-
+    ./third_party/depot_tools/ninja -C out pdfium
     echo "** Cleaning after build..."
-    rm -rf `ls | grep -v "out\|public"`
+    rm -rf `ls | grep -v "out\|public\|pdfium.pc.in"`
     touch "${BASEDIR}"/build.success
 
     echo "** PDFium built in ${BUILD_DIR}/${outputDIR_NAME}/${outputDIR_NAME}"
@@ -254,8 +264,11 @@ if [ $install_pdfium -eq 1 ];then
     echo "* Install pdfium"
     echo
 
-    install -D "${BUILD_DIR}/${outputDIR_NAME}/${outputDIR_NAME}/out/obj/libpdfium.a" "${install_path}"/lib/libpdfium.a
-    for i in `find "${BUILD_DIR}/${outputDIR_NAME}/${outputDIR_NAME}/public" -type f`; do install -D $i "${install_path}"/include/"${i#*public}" ;done
+    install -v -D -m644 "${BUILD_DIR}/${outputDIR_NAME}/${outputDIR_NAME}/out/obj/libpdfium.a" "${install_path}"/lib/libpdfium.a
+    install -v -D -m644 "${BUILD_DIR}/${outputDIR_NAME}/${outputDIR_NAME}"/pdfium.pc.in "${install_path}"/lib/pkgconfig/pdfium.pc
+    sed -i "s#@PREFIX@#${install_path}#" "${install_path}"/lib/pkgconfig/pdfium.pc
+
+    for i in `find "${BUILD_DIR}/${outputDIR_NAME}/${outputDIR_NAME}/public" -type f`; do install -v -D -m644 $i "${install_path}"/include/"${i#*public}" ;done
 
     echo "** PDFium installed in ${install_path}"
 

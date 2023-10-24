@@ -558,7 +558,7 @@ const char* GfxProviderFreeImage::supportedformats()
            ".jbig.jng.jif.koala.pcd.mng.pcx.pbm.pgm.ppm.pfm.pds.raw.3fr.ari"
            ".arw.bay.crw.cr2.cap.dcs.dcr.dng.drf.eip.erf.fff.iiq.k25.kdc.mdc.mef.mos.mrw"
            ".nef.nrw.obm.orf.pef.ptx.pxn.r3d.raf.raw.rwl.rw2.rwz.sr2.srf.srw.x3f.ras.tga"
-           ".xbm.xpm.jp2.j2k.jpf.jpx.";
+           ".xbm.xpm.jp2.j2k.jpf.jpx.webp.";
 #ifdef HAVE_FFMPEG
         sformats.append(supportedformatsFfmpeg());
 #endif
