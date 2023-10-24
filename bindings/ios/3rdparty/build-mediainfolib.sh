@@ -63,8 +63,8 @@ build_arch_platform() {
   mkdir -p "${CURRENTPATH}/bin/mediainfo/${PLATFORM}${SDKVERSION}-${ARCH}.sdk"
   
   # Build
-  export LDFLAGS="-Os -arch ${ARCH} -Wl,-dead_strip -miphoneos-version-min=14.0"
-  export CFLAGS="-Os -arch ${ARCH} -pipe -no-cpp-precomp -isysroot ${BUILD_SDKROOT} -miphoneos-version-min=14.0 -DMEDIAINFO_ADVANCED_NO ${RUNTARGET}"
+  export LDFLAGS="-Os -arch ${ARCH} -Wl,-dead_strip -miphoneos-version-min=15.0"
+  export CFLAGS="-Os -arch ${ARCH} -pipe -no-cpp-precomp -isysroot ${BUILD_SDKROOT} -miphoneos-version-min=15.0 -DMEDIAINFO_ADVANCED_NO ${RUNTARGET}"
   export CPPFLAGS="${CFLAGS} -I${BUILD_SDKROOT}/usr/include -DNDEBUG"
   export CXXFLAGS="${CPPFLAGS}"
   
