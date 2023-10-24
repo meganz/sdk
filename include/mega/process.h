@@ -40,6 +40,9 @@
 #include <unordered_map>
 #include <set>
 
+namespace mega
+{
+
 
 /**
  * @brief The Process class
@@ -385,5 +388,7 @@ inline std::ostream& operator<<(std::ostream& os, const ConsoleProgressBar& bar)
 {
     return bar.put(os);
 }
+
+} // namespace mega
 
 #endif
