@@ -65,15 +65,13 @@ public:
 
     virtual ~GfxProcessor() = default;
 
-    static std::unique_ptr<IGfxProcessor> create();
+    static std::unique_ptr<GfxProcessor> create();
 private:
 
     mega::FSACCESS_CLASS mFaccess;
 
     std::unique_ptr<::mega::IGfxProvider> mGfxProvider;
 };
-
-using TaskIndex = long long int;
 
 class IRequestProcessor
 {
@@ -104,6 +102,10 @@ private:
     ThreadPool mThreadPool;
 
     std::unique_ptr<IGfxProcessor> mGfxProcessor;
+
+    const static TimeoutMs READ_TIMEOUT;
+
+    const static TimeoutMs WRITE_TIMEOUT;
 };
 
 } //namespace gfx

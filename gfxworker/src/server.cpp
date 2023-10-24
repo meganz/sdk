@@ -32,7 +32,11 @@ using Dimension = mega::IGfxProvider::Dimension;
 namespace mega {
 namespace gfx {
 
-std::unique_ptr<IGfxProcessor> GfxProcessor::create()
+const TimeoutMs RequestProcessor::READ_TIMEOUT(5000);
+
+const TimeoutMs RequestProcessor::WRITE_TIMEOUT(5000);
+
+std::unique_ptr<GfxProcessor> GfxProcessor::create()
 {
     return ::mega::make_unique<GfxProcessor>(
         ::mega::make_unique<GfxProviderFreeImage>()
@@ -105,7 +109,7 @@ bool RequestProcessor::process(std::unique_ptr<IEndpoint> endpoint)
 
     // read command
     ProtocolReader reader{ endpoint.get() };
-    std::shared_ptr<ICommand> command = reader.readCommand(TimeoutMs(5000));
+    std::shared_ptr<ICommand> command = reader.readCommand(READ_TIMEOUT);
     if (!command)
     {
         LOG_err << "command couldn't be unserialized";
@@ -114,7 +118,7 @@ bool RequestProcessor::process(std::unique_ptr<IEndpoint> endpoint)
     stopRunning = command->type() == CommandType::SHUTDOWN;
 
     // execute command
-    LOG_info << "execute the command: "
+    LOG_info << "execute the command in the thread pool: "
              << static_cast<int>(command->type())
              << "/"
              << command->typeStr();
@@ -157,14 +161,14 @@ void RequestProcessor::processHello(IEndpoint* endpoint)
 {
     CommandHelloResponse response;
     ProtocolWriter writer{ endpoint };
-    writer.writeCommand(&response, TimeoutMs(5000));
+    writer.writeCommand(&response, WRITE_TIMEOUT);
 }
 
 void RequestProcessor::processShutDown(IEndpoint* endpoint)
 {
     CommandShutDownResponse response;
     ProtocolWriter writer{ endpoint };
-    writer.writeCommand(&response, TimeoutMs(5000));
+    writer.writeCommand(&response, WRITE_TIMEOUT);
 }
 
 void RequestProcessor::processGfx(IEndpoint* endpoint, CommandNewGfx* request)
@@ -177,11 +181,10 @@ void RequestProcessor::processGfx(IEndpoint* endpoint, CommandNewGfx* request)
     CommandNewGfxResponse response;
     response.ErrorCode = static_cast<uint32_t>(result.ProcessStatus);
     response.ErrorText = result.ProcessStatus == GfxTaskProcessStatus::SUCCESS ? "OK" : "ERROR";
-
     response.Images = std::move(result.OutputImages);
 
     ProtocolWriter writer{ endpoint };
-    writer.writeCommand(&response, TimeoutMs(5000));
+    writer.writeCommand(&response, WRITE_TIMEOUT);
 }
 
 void RequestProcessor::processSupportFormats(IEndpoint* endpoint)
@@ -193,7 +196,7 @@ void RequestProcessor::processSupportFormats(IEndpoint* endpoint)
     response.videoformats = mGfxProcessor->supportedvideoformats();
 
     ProtocolWriter writer{ endpoint };
-    writer.writeCommand(&response, TimeoutMs(5000));
+    writer.writeCommand(&response, WRITE_TIMEOUT);
 }
 
 } //namespace server
