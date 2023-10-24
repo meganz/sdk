@@ -17536,22 +17536,22 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
     model.generate(client1.fsBasePath / "s");
 
     // Get our hands on the remote test root.
-    Node* r = client0.gettestbasenode();
+    auto r = client0.gettestbasenode();
     ASSERT_NE(r, nullptr);
 
     // Populate the remote test root.
     {
         auto sPath = client1.fsBasePath / "s";
 
-        ASSERT_TRUE(client0.uploadFolderTree(sPath, r));
-        ASSERT_TRUE(client0.uploadFilesInTree(sPath, r));
+        ASSERT_TRUE(client0.uploadFolderTree(sPath, r.get()));
+        ASSERT_TRUE(client0.uploadFilesInTree(sPath, r.get()));
     }
 
     NodeHandle sh;
 
     // Get our hands on the remote sync root.
     {
-        Node* s = client0.drillchildnodebyname(r, "s");
+        auto s = client0.drillchildnodebyname(r, "s");
         ASSERT_NE(s, nullptr);
 
         sh = s->nodeHandle();
@@ -17587,16 +17587,16 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
     // Make a couple changes to client1's sync via client2.
     {
         // Nodes from client2's perspective.
-        auto* xs = client2.client.nodeByHandle(sh);
+        auto xs = client2.client.nodeByHandle(sh);
         ASSERT_NE(xs, nullptr);
 
-        auto* xt = client2.client.childnodebyname(xs, "t");
+        auto xt = client2.client.childnodebyname(xs.get(), "t");
         ASSERT_NE(xt, nullptr);
 
-        auto* xu = client2.client.childnodebyname(xs, "u");
+        auto xu = client2.client.childnodebyname(xs.get(), "u");
         ASSERT_NE(xu, nullptr);
 
-        auto* xv = client2.client.childnodebyname(xs, "v");
+        auto xv = client2.client.childnodebyname(xs.get(), "v");
         ASSERT_NE(xv, nullptr);
 
         // Create a new directory w under s.
@@ -17605,13 +17605,13 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
 
             client1.received_node_actionpackets = false;
 
-            client2.client.putnodes_prepareOneFolder(&node[0], "w");
+            client2.client.putnodes_prepareOneFolder(&node[0], "w", false);
             ASSERT_TRUE(client2.putnodes(xs->nodeHandle(), NoVersioning, std::move(node)));
             ASSERT_TRUE(client1.waitForNodesUpdated(30));
         }
 
         // Get our hands on w from client 2's perspective.
-        auto* xw = client2.client.childnodebyname(xs, "w");
+        auto xw = client2.client.childnodebyname(xs.get(), "w");
         ASSERT_NE(xw, nullptr);
 
         // Be certain that client 1 can see w.
