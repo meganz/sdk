@@ -9833,7 +9833,7 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * @param subState BackUpState type backup sub-state
  * @param delegate MEGARequestDelegate to track this request
 */
-- (void)updateBackup:(MEGAHandle)backupId backupType:(BackUpType)type targetNode:(MEGANode *)node folderPath:(nullable NSString *)path backupName:(NSString *)name state:(BackUpState)state subState:(BackUpSubState)subState delegate:(id<MEGARequestDelegate>)delegate;
+- (void)updateBackup:(MEGAHandle)backupId backupType:(BackUpType)type targetNode:(nullable MEGANode *)node folderPath:(nullable NSString *)path backupName:(nullable NSString *)name state:(BackUpState)state subState:(BackUpSubState)subState delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Fetch information about all registered backups for Backup Centre
