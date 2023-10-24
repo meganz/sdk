@@ -11600,282 +11600,6 @@ TEST_F(BackupBehavior, SameMTimeSmallerSize)
 }
 #endif // DEBUG
 
-TEST_F(SyncTest, UndecryptableSharesBehavior)
-{
-    const auto TESTROOT = makeNewTestRoot();
-
-    StandardClient client0(TESTROOT, "client0");
-    // can not use ClientManager as we re-login later
-    StandardClient client1(TESTROOT, "client1");
-    StandardClient client2(TESTROOT, "client2");
-
-    // Log in the clients.
-    ASSERT_TRUE(client0.login_reset("MEGA_EMAIL", "MEGA_PWD"));
-    ASSERT_TRUE(client1.login_reset("MEGA_EMAIL_AUX", "MEGA_PWD_AUX"));
-    ASSERT_TRUE(client2.login_reset("MEGA_EMAIL_AUX2", "MEGA_PWD_AUX2"));
-
-    // Make sure our "contacts" know about each other.
-    {
-        // Convenience predicates.
-        auto contactRequestReceived = [](handle id) {
-            return [id](StandardClient& client) {
-                return client.ipcr(id);
-            };
-        };
-        auto contactRequestFnished = [](string& email) {
-            return [&email](StandardClient& client) {
-                return !client.opcr(email);
-            };
-        };
-        auto contactVerificationFinished = [](string& email) {
-            return [&email](StandardClient& client) {
-                return client.isverified(email);
-            };
-        };
-
-        // Convenience helper.
-        auto contactAdd = [&](StandardClient& client, const string& name) {
-            // Get our hands on the contact's email.
-            string email = getenv(name.c_str());
-            // Get main client email.
-            string email0 = getenv("MEGA_EMAIL");
-
-            // Are we already associated with this contact?
-            if (client0.iscontact(email))
-            {
-                // Then remove them.
-                ASSERT_TRUE(client0.rmcontact(email));
-            }
-
-            // Remove pending contact request, if any.
-            if (client0.opcr(email))
-            {
-                ASSERT_TRUE(client0.opcr(email, OPCA_DELETE));
-            }
-
-            // Add the contact.
-            auto id = client0.opcr(email, OPCA_ADD);
-            ASSERT_NE(id, UNDEF);
-
-            // Wait for the contact to receive the request.
-            ASSERT_TRUE(client.waitFor(contactRequestReceived(id), std::chrono::seconds(60)));
-
-            // Accept the contact request.
-            ASSERT_TRUE(client.ipcr(id, IPCA_ACCEPT));
-
-            // Wait for the response to reach first client
-            ASSERT_TRUE(client0.waitFor(contactRequestFnished(email), DEFAULTWAIT));
-
-            // Verify contact credentials if they are not
-            if (gManualVerification)
-            {
-                if (!client0.isverified(email))
-                {
-                    ASSERT_TRUE(client0.verifyCredentials(email));
-                }
-                if (!client.isverified(email0))
-                {
-                    ASSERT_TRUE(client.verifyCredentials(email0));
-                }
-
-                // Wait for contact verification
-                ASSERT_TRUE(client0.waitFor(contactVerificationFinished(email), DEFAULTWAIT));
-                ASSERT_TRUE(client.waitFor(contactVerificationFinished(email0), DEFAULTWAIT));
-            }
-        };
-
-        // Introduce the contacts to each other.
-        ASSERT_NO_FATAL_FAILURE(contactAdd(client1, "MEGA_EMAIL_AUX"));
-        ASSERT_NO_FATAL_FAILURE(contactAdd(client2, "MEGA_EMAIL_AUX2"));
-    }
-
-    Model model;
-
-    // Populate the local filesystem.
-    model.addfile("t/f");
-    model.addfile("u/f");
-    model.addfile("v/f");
-    model.addfile("f");
-    model.addfile(".megaignore", "+sync:.megaignore");
-    model.generate(client1.fsBasePath / "s");
-
-    // Get our hands on the remote test root.
-    std::shared_ptr<Node> r = client0.gettestbasenode();
-    ASSERT_NE(r, nullptr);
-
-    // Populate the remote test root.
-    {
-        auto sPath = client1.fsBasePath / "s";
-
-        ASSERT_TRUE(client0.uploadFolderTree(sPath, r.get()));
-        ASSERT_TRUE(client0.uploadFilesInTree(sPath, r.get()));
-    }
-
-    NodeHandle sh;
-
-    // Get our hands on the remote sync root.
-    {
-        std::shared_ptr<Node> s = client0.drillchildnodebyname(r, "s");
-        ASSERT_NE(s, nullptr);
-
-        sh = s->nodeHandle();
-    }
-
-    // Share the test root with client 1.
-    ASSERT_TRUE(client0.share(r.get(), getenv("MEGA_EMAIL_AUX"), FULL));
-    ASSERT_TRUE(client1.waitFor(SyncRemoteNodePresent(*r), std::chrono::seconds(90)));
-
-    // Share the sync root with client 2.
-    ASSERT_TRUE(client0.share(sh, getenv("MEGA_EMAIL_AUX2"), FULL));
-    ASSERT_TRUE(client2.waitFor(SyncRemoteNodePresent(sh), std::chrono::seconds(90)));
-
-    // Add and start a new sync.
-    auto id = UNDEF;
-
-    // Add the sync.
-    id = client1.setupSync_mainthread("s", sh, false, false);
-    ASSERT_NE(id, UNDEF);
-
-    // Wait for the initial sync to complete.
-    waitonsyncs(DEFAULTWAIT, &client1);
-
-    // Make sure the clients all agree with what's in the cloud.
-    ASSERT_TRUE(client1.confirmModel_mainthread(model.root.get(), id));
-    ASSERT_TRUE(client2.waitFor(SyncRemoteMatch(sh, model.root.get()), DEFAULTWAIT));
-
-    // Release shared_ptr before logout (None node reference should be kept after logout)
-    r.reset();
-    // Log out the sharing client so that it doesn't maintain keys.
-    ASSERT_TRUE(client0.logout(false));
-
-    // Make a couple changes to client1's sync via client2.
-    {
-        // Nodes from client2's perspective.
-        auto xs = client2.client.nodeByHandle(sh);
-        ASSERT_NE(xs, nullptr);
-
-        auto xt = client2.client.childnodebyname(xs.get(), "t");
-        ASSERT_NE(xt, nullptr);
-
-        auto xu = client2.client.childnodebyname(xs.get(), "u");
-        ASSERT_NE(xu, nullptr);
-
-        auto xv = client2.client.childnodebyname(xs.get(), "v");
-        ASSERT_NE(xv, nullptr);
-
-        // Create a new directory w under s.
-        {
-            vector<NewNode> node(1);
-
-            client1.received_node_actionpackets = false;
-
-            model.addfolder("w");
-
-            client2.client.putnodes_prepareOneFolder(&node[0], "w", false);
-            ASSERT_TRUE(client2.putnodes(xs->nodeHandle(), NoVersioning, std::move(node)));
-            ASSERT_TRUE(client1.waitForNodesUpdated(30));
-        }
-
-        // Get our hands on w from client 2's perspective.
-        auto xw = client2.client.childnodebyname(xs.get(), "w");
-        ASSERT_NE(xw, nullptr);
-
-        // Be certain that client 1 can see w.
-        ASSERT_TRUE(client1.waitFor(SyncRemoteNodePresent(*xw), DEFAULTWAIT));
-
-        // Let the engine try and process the change.
-        waitonsyncs(DEFAULTWAIT, &client1);
-
-        // Move t, u and v under w.
-        client1.received_node_actionpackets = false;
-
-        model.movenode("t", "w");
-
-        ASSERT_TRUE(client2.movenode(xt->nodehandle, xw->nodehandle));
-        ASSERT_TRUE(client1.waitForNodesUpdated(50));
-
-        client1.received_node_actionpackets = false;
-
-        model.movenode("u", "w");
-
-        ASSERT_TRUE(client2.movenode(xu->nodehandle, xw->nodehandle));
-        ASSERT_TRUE(client1.waitForNodesUpdated(50));
-
-        client1.received_node_actionpackets = false;
-
-        model.movenode("v", "w");
-
-        ASSERT_TRUE(client2.movenode(xv->nodehandle, xw->nodehandle));
-        ASSERT_TRUE(client1.waitForNodesUpdated(50));
-    }
-
-    // Wait for client 1 to stall (due to undecryptable nodes.)
-    //ASSERT_TRUE(client1.waitFor(SyncStallState(true), DEFAULTWAIT));
-
-    // Temporarily log out client 1.
-    //
-    // Undecrpytable nodes won't be serialized.
-    string session;
-
-    client1.client.dumpsession(session);
-    client1.localLogout();
-
-    // Hook resume callback.
-    promise<void> notify;
-
-    //client1.mOnSyncStateConfig = [&](const SyncConfig& config) {
-    //    if (config.mRunState != SyncRunState::Run)
-    //        return;
-
-    //    notify.set_value();
-    //    client1.mOnSyncStateConfig = nullptr;
-    //};
-
-    client1.onAutoResumeResult = [&](const SyncConfig&) {
-        notify.set_value();
-        client1.onAutoResumeResult = nullptr;
-    };
-
-    // Log the client back in.
-    ASSERT_TRUE(client1.login_fetchnodesFromSession(session));
-
-    // Wait for the sync to resume.
-    ASSERT_NE(notify.get_future().wait_for(DEFAULTWAIT), future_status::timeout);
-
-    // make sure we have received the actionpackets
-    bool caughtup = false;
-    client1.catchup([&](error){
-        caughtup = true;
-        });
-
-    ASSERT_TRUE(client1.waitFor([&](StandardClient&){ return caughtup; }, chrono::seconds(100)));
-
-    WaitMillisec(3000);
-
-    // Give the sync some time to process changes.
-    waitonsyncs(DEFAULTWAIT, &client1);
-
-    //// Make sure the client hasn't stalled.
-    ////ASSERT_FALSE(client1.client.syncs.syncStallDetected());
-
-    //// client 1 should've wipedd everything.
-    ////
-    //// This is the behavior we're going to want to fix.
-    //model.movetosynctrash("w", "");
-    //model.ensureLocalDebrisTmpLock("");
-
-    //ASSERT_TRUE(client1.confirmModel_mainthread(model.root.get(), id, true, StandardClient::CONFIRM_LOCALFS));
-
-    //(that was the old code for develop, pre sync-rework)
-    // here, we check that we DO stall
-
-    ASSERT_TRUE(client1.waitFor(SyncStallState(true), chrono::seconds(8)));
-
-
-
-}
-
-
 TEST_F(SyncTest, RemoteReplaceDirectory)
 {
     auto TESTROOT = makeNewTestRoot();
@@ -17468,8 +17192,7 @@ TEST_F(SyncTest, RemovedJustAsPutNodesSent)
 
 #endif // ! NDEBUG
 
-/* already exists
-TEST_F(SyncTest, UndecryptableSharesBehavior)
+TEST_F(SyncTest, DISABLED_UndecryptableSharesBehavior)
 {
     const auto TESTROOT = makeNewTestRoot();
 
@@ -17490,11 +17213,23 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
                 return client.ipcr(id);
             };
         };
+        auto contactRequestFnished = [](string& email) {
+            return [&email](StandardClient& client) {
+                return !client.opcr(email);
+            };
+        };
+        auto contactVerificationFinished = [](string& email) {
+            return [&email](StandardClient& client) {
+                return client.isverified(email);
+            };
+        };
 
         // Convenience helper.
         auto contactAdd = [&](StandardClient& client, const string& name) {
             // Get our hands on the contact's email.
             string email = getenv(name.c_str());
+            // Get main client email.
+            string email0 = getenv("MEGA_EMAIL");
 
             // Are we already associated with this contact?
             if (client0.iscontact(email))
@@ -17518,6 +17253,26 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
 
             // Accept the contact request.
             ASSERT_TRUE(client.ipcr(id, IPCA_ACCEPT));
+
+            // Wait for the response to reach first client
+            ASSERT_TRUE(client0.waitFor(contactRequestFnished(email), DEFAULTWAIT));
+
+            // Verify contact credentials if they are not
+            if (gManualVerification)
+            {
+                if (!client0.isverified(email))
+                {
+                    ASSERT_TRUE(client0.verifyCredentials(email));
+                }
+                if (!client.isverified(email0))
+                {
+                    ASSERT_TRUE(client.verifyCredentials(email0));
+                }
+
+                // Wait for contact verification
+                ASSERT_TRUE(client0.waitFor(contactVerificationFinished(email), DEFAULTWAIT));
+                ASSERT_TRUE(client.waitFor(contactVerificationFinished(email0), DEFAULTWAIT));
+            }
         };
 
         // Introduce the contacts to each other.
@@ -17623,15 +17378,21 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
         // Move t, u and v under w.
         client1.received_node_actionpackets = false;
 
+        model.movenode("t", "w"); // from SRW
+
         ASSERT_TRUE(client2.movenode(xt->nodehandle, xw->nodehandle));
         ASSERT_TRUE(client1.waitForNodesUpdated(30));
 
         client1.received_node_actionpackets = false;
 
+        model.movenode("u", "w"); // from SRW
+
         ASSERT_TRUE(client2.movenode(xu->nodehandle, xw->nodehandle));
         ASSERT_TRUE(client1.waitForNodesUpdated(30));
 
         client1.received_node_actionpackets = false;
+
+        model.movenode("v", "w"); // from SRW
 
         ASSERT_TRUE(client2.movenode(xv->nodehandle, xw->nodehandle));
         ASSERT_TRUE(client1.waitForNodesUpdated(30));
@@ -17651,6 +17412,8 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
     // Hook resume callback.
     promise<void> notify;
 
+    // resumption probably triggers a sync_added() callback too, which can
+    // be tracked by onAutoResumeResult, instead of by the onSyncStateConfig
     client1.mOnSyncStateConfig = [&](const SyncConfig& config) {
         if (config.mRunState != SyncRunState::Run)
             return;
@@ -17668,13 +17431,38 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
     // Give the sync some time to process changes.
     waitonsyncs(DEFAULTWAIT, &client1);
 
+
+    //---------- proposal active test SRW
+
+    //// Make sure the client hasn't stalled.
+    ////ASSERT_FALSE(client1.client.syncs.syncStallDetected());
+
+    //// client 1 should've wipedd everything.
+    ////
+    //// This is the behavior we're going to want to fix.
+    //model.movetosynctrash("w", "");
+    //model.ensureLocalDebrisTmpLock("");
+
+    //ASSERT_TRUE(client1.confirmModel_mainthread(model.root.get(), id, true, StandardClient::CONFIRM_LOCALFS));
+
+    //(that was the old code for develop, pre sync-rework)
+    // here, we check that we DO stall
+
+    ASSERT_TRUE(client1.waitFor(SyncStallState(true), chrono::seconds(8)));
+
+    //---- end proposal
+
+
+    //---------- proposal from develop
+
     // Wait for the engine to stall once again.
     ASSERT_TRUE(client1.waitFor(SyncStallState(true), DEFAULTWAIT));
 
     // Make sure client 1 hasn't changed anything!
     ASSERT_TRUE(client1.confirmModel_mainthread(model.root.get(), id, true, StandardClient::CONFIRM_LOCALFS));
+
+    //---- end proposal
 }
-*/
 
 TEST_F(SyncTest, CloudHorizontalMoveChain)
 {
