@@ -809,6 +809,15 @@ macx {
    LIBS += -framework SystemConfiguration
    
    vcpkg:LIBS += -liconv -framework CoreServices -framework CoreFoundation -framework AudioUnit -framework AudioToolbox -framework CoreAudio -framework CoreMedia -framework VideoToolbox -framework ImageIO -framework CoreVideo 
+
+    clang {
+        COMPILER_VERSION = $$system("$$QMAKE_CXX -dumpversion | cut -d'.' -f1")
+        message($$COMPILER_VERSION)
+        greaterThan(COMPILER_VERSION, 14) {
+            message("Using Xcode 15 or above. Switching to ld_classic linking.")
+            LIBS += -Wl,-ld_classic
+        }
+    }
 }
 
 # DriveNotify settings
