@@ -28,17 +28,26 @@ namespace gfx {
 
 class GfxSize
 {
-    int mWidth;
-    int mHeight;
 public:
     GfxSize() : mWidth(0), mHeight(0) {}
+
     GfxSize(int w, int h) : mWidth(w), mHeight(h) {}
+
     bool operator==(const GfxSize& other) const { return mWidth == other.mWidth && mHeight == other.mHeight; }
+
     bool operator!=(const GfxSize& other) const { return !(*this == other); }
+
     int w() const { return mWidth; }
+
     int h() const { return mHeight; }
+
     void setW(const int width) { mWidth = width; }
+
     void setH(const int height) { mHeight = height; }
+private:
+    int mWidth;
+
+    int mHeight;
 };
 
 enum class GfxSerializeVersion
@@ -46,11 +55,6 @@ enum class GfxSerializeVersion
     V_1 = 1,
     UNSUPPORTED
 };
-
-enum class GfxTaskProcessStatus;
-
-constexpr const GfxSerializeVersion LATEST_SERIALIZE_VERSION =
-        static_cast<GfxSerializeVersion>(static_cast<size_t>(GfxSerializeVersion::UNSUPPORTED) - 1);
 
 struct GfxTask final
 {

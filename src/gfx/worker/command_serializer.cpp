@@ -1,5 +1,5 @@
-#include "mega/gfx/worker/commands.h"
 #include "mega/logging.h"
+#include "mega/gfx/worker/commands.h"
 #include "mega/gfx/worker/tasks.h"
 #include "mega/gfx/worker/comms.h"
 #include "mega/gfx/worker/command_serializer.h"

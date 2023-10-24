@@ -46,12 +46,11 @@ bool GfxClient::runShutDown()
     }
 }
 
-bool GfxClient::runGfxTask(const std::string& localpath, std::vector<GfxSize> sizes, std::vector<std::string>& images)
+bool GfxClient::runGfxTask(const std::string& localpath, const std::vector<GfxSize>& sizes, std::vector<std::string>& images)
 {
-    // command
     CommandNewGfx command;
     command.Task.Path =  LocalPath::fromAbsolutePath(localpath).platformEncoded();
-    command.Task.Sizes = std::move(sizes);
+    command.Task.Sizes = sizes;
 
     auto addReponse = sendAndReceive<CommandNewGfxResponse>(command);
     if (!addReponse)
@@ -74,7 +73,6 @@ bool GfxClient::runGfxTask(const std::string& localpath, std::vector<GfxSize> si
 
 bool GfxClient::runSupportFormats(std::string& formats, std::string& videoformats)
 {
-    // command
     CommandSupportFormats command;
 
     auto reponse = sendAndReceive<CommandSupportFormatsResponse>(command);
@@ -96,12 +94,13 @@ GfxClient GfxClient::create(const std::string& pipename)
 #ifdef _WIN32
     return GfxClient(mega::make_unique<WinGfxCommunicationsClient>(pipename));
 #else
+    // To implement
     return GfxClient(pipename, nullptr);
 #endif
 }
 
 template<typename ResponseT, typename RequestT>
-std::unique_ptr<ResponseT> GfxClient::sendAndReceive(RequestT command)
+std::unique_ptr<ResponseT> GfxClient::sendAndReceive(RequestT command, TimeoutMs sendTimeout, TimeoutMs receiveTimeout)
 {
     // connect
     auto endpoint = mComms->connect();
@@ -113,11 +112,11 @@ std::unique_ptr<ResponseT> GfxClient::sendAndReceive(RequestT command)
 
     // send a request
     ProtocolWriter writer(endpoint.get());
-    writer.writeCommand(&command, TimeoutMs(5000));
+    writer.writeCommand(&command, sendTimeout);
 
     // get the response
     ProtocolReader reader(endpoint.get());
-    auto response = reader.readCommand(TimeoutMs(5000));
+    auto response = reader.readCommand(receiveTimeout);
     if (!dynamic_cast<ResponseT*>(response.get()))
     {
         LOG_err << "GfxClient couldn't get response";

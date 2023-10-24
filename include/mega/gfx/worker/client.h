@@ -50,7 +50,7 @@ public:
 
     bool runShutDown();
 
-    bool runGfxTask(const std::string& localpath, std::vector<GfxSize> sizes, std::vector<std::string>& images);
+    bool runGfxTask(const std::string& localpath, const std::vector<GfxSize>& sizes, std::vector<std::string>& images);
 
     bool runSupportFormats(std::string& formats, std::string& videoformats);
 
@@ -59,7 +59,7 @@ public:
 private:
 
     template<typename ResponseT, typename RequestT>
-    std::unique_ptr<ResponseT> sendAndReceive(RequestT command);
+    std::unique_ptr<ResponseT> sendAndReceive(RequestT command, TimeoutMs sendTimeout = TimeoutMs(5000), TimeoutMs receiveTimeout = TimeoutMs(5000));
 
     std::unique_ptr<IGfxCommunicationsClient> mComms;
 };
