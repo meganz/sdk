@@ -48,7 +48,7 @@ int main(int argc, char** argv)
         aliveSeconds
     );
 
-    std::thread serverThread(&WinGfxCommunicationsServer::initialize, &server);
+    std::thread serverThread(&WinGfxCommunicationsServer::run, &server);
 
     if (serverThread.joinable())
     {

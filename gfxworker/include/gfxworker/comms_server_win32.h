@@ -22,17 +22,6 @@ private:
     Type type() const { return Type::Server; }
 };
 
-enum class PosixGfxProtocolVersion
-{
-    V_1 = 1,
-    UNSUPPORTED
-};
-
-constexpr const PosixGfxProtocolVersion LATEST_PROTOCOL_VERSION =
-        static_cast<PosixGfxProtocolVersion>(static_cast<size_t>(PosixGfxProtocolVersion::UNSUPPORTED) - 1);
-
-using OnServerConnectedFunc = std::function<bool(std::unique_ptr<IEndpoint> endpoint)>;
-
 class WinGfxCommunicationsServer
 {
 public:
@@ -53,17 +42,20 @@ public:
         mWaitMs = aliveSeconds == 0 ? INFINITE : static_cast<DWORD>(aliveSeconds * 1000);
     }
 
-    bool initialize();
-    void shutdown();
+    void run();
 private:
-    static std::error_code OK;
+    const static std::error_code OK;
 
     void serverListeningLoop();
+
     std::error_code waitForClient(HANDLE hPipe, OVERLAPPED* overlap);
-    OnServerConnectedFunc mOnConnected;
+
     std::unique_ptr<IRequestProcessor> mRequestProcessor;
+
     std::unique_ptr<std::thread> mListeningThread;
+
     std::string mPipename;
+
     DWORD       mWaitMs;
 };
 
