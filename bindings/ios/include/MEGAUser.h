@@ -20,6 +20,8 @@
  */
 #import <Foundation/Foundation.h>
 
+NS_ASSUME_NONNULL_BEGIN
+
 typedef NS_ENUM (NSInteger, MEGAUserVisibility) {
     MEGAUserVisibilityUnknown  = -1,
     MEGAUserVisibilityHidden   = 0,
@@ -82,7 +84,7 @@ typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
  * The email can be used to recover the MEGAUser object later using [MEGASdk contactForEmail:]
  *
  */
-@property (readonly, nonatomic) NSString *email;
+@property (readonly, nonatomic, nullable) NSString *email;
 
 /**
  * @brief The handle associated with the contact.
@@ -231,7 +233,7 @@ typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
 /**
  * @brief The timestamp when the contact was added to the contact list (in seconds since the epoch).
  */
-@property (readonly, nonatomic) NSDate *timestamp;
+@property (readonly, nonatomic, nullable) NSDate *timestamp;
 
 /**
  * @brief Returns YES if this user has an specific change
@@ -337,17 +339,6 @@ typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
  */
 - (BOOL)hasChangedType:(MEGAUserChangeType)changeType;
 
-/**
- * @brief Creates a copy of this MEGAUser object.
- *
- * The resulting object is fully independent of the source MEGAUser,
- * it contains a copy of all internal attributes, so it will be valid after
- * the original object is deleted.
- *
- * You are the owner of the returned object.
- *
- * @return Copy of the MEGAUser object.
- */
-- (instancetype)clone;
+NS_ASSUME_NONNULL_END
 
 @end
