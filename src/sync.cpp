@@ -2382,40 +2382,6 @@ bool Sync::processCompletedUploadFromHere(SyncRow& row, SyncRow& parentRow, Sync
     // we already checked that the upload including putnodes completed before calling here.
     assert(row.syncNode && upload && upload->wasPutnodesCompleted);
 
-    // Should we complete the putnodes later?
-    if (syncs.deferPutnodeCompletion(fullPath.localPath))
-    {
-        // Let debuggers know why we haven't completed the putnodes request.
-        LOG_debug << syncname
-                  << "Putnode completion deferred by controller "
-                  << fullPath.localPath
-                  << logTriplet(row, fullPath);
-
-        // Don't process this row any further.
-        row.itemProcessed = true;
-
-        // File isn't synchronized.
-        rowResult = false;
-
-        // Emit a special stall for observers to detect.
-        ProgressingMonitor monitor(*this, row, fullPath);
-
-        // Convenience.
-        auto problem = PathProblem::PutnodeCompletionDeferredByController;
-
-        monitor.waitingLocal(fullPath.localPath,
-                             SyncStallEntry(SyncWaitReason::UploadIssue,
-                                            true,
-                                            false,
-                                            {NodeHandle(), fullPath.cloudPath, problem},
-                                            {},
-                                            {fullPath.localPath, problem},
-                                            {}));
-
-        // The upload is still in progress.
-        return true;
-    }
-
     if (upload->putnodesResultHandle.isUndef())
     {
         assert(upload->putnodesFailed);
@@ -2425,6 +2391,40 @@ bool Sync::processCompletedUploadFromHere(SyncRow& row, SyncRow& parentRow, Sync
     else
     {
         assert(!upload->putnodesFailed);
+
+        // Should we complete the putnodes later?
+        if (syncs.deferPutnodeCompletion(fullPath.localPath))
+        {
+            // Let debuggers know why we haven't completed the putnodes request.
+            LOG_debug << syncname
+                      << "Putnode completion deferred by controller "
+                      << fullPath.localPath
+                      << logTriplet(row, fullPath);
+
+            // Don't process this row any further.
+            row.itemProcessed = true;
+
+            // File isn't synchronized.
+            rowResult = false;
+
+            // Emit a special stall for observers to detect.
+            ProgressingMonitor monitor(*this, row, fullPath);
+
+            // Convenience.
+            auto problem = PathProblem::PutnodeCompletionDeferredByController;
+
+            monitor.waitingLocal(fullPath.localPath,
+                                 SyncStallEntry(SyncWaitReason::UploadIssue,
+                                                true,
+                                                false,
+                                                {NodeHandle(), fullPath.cloudPath, problem},
+                                                {},
+                                                {fullPath.localPath, problem},
+                                                {}));
+
+            // The upload is still in progress.
+            return true;
+        }
 
         // connect up the original cloud-sync-fs triplet, so that we can detect any
         // further moves that happened in the meantime.
