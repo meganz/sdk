@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <iostream>
 #include <memory>
 #include <cxxopts.hpp>
@@ -15,10 +16,14 @@ int main(int argc, char** argv)
 {
     std::string pipename;
     unsigned short aliveSeconds = 0;
+    size_t threadCount = 0;
+    size_t queueSize = 0;
     Options options("gfxworker", "GFX processing server");
     options.add_options()
         ("h,help", "Show help")
         ("l,live", "Keep alive in seconds without receiving any requests, 0 is INFINITE", cxxopts::value(aliveSeconds)->default_value("60"))
+        ("t,threads", "Request processing thread pool size, minimum 1", cxxopts::value(threadCount)->default_value("5"))
+        ("q,queue", "The size of this queue determines the capacity for pending requests when all threads in the pool are busy. Minimum 1", cxxopts::value(queueSize)->default_value("10"))
         ("n,name", "Pipe name", cxxopts::value(pipename)->default_value("mega_gfxworker"));
 
     try {
@@ -34,16 +39,21 @@ int main(int argc, char** argv)
         return -1;
     }
 
+    threadCount = std::max<size_t>(1, threadCount);
+    queueSize = std::max<size_t>(1, queueSize);
+
     std::string logfilename = "mega.gfxworker." + pipename + ".log";
     mega::gfx::MegaFileLogger logger;
     logger.initialize(".", logfilename.c_str(), false);
 
     LOG_info << "Gfxworker server starting"
              << ", pipe name: " << pipename
+             << ", threads: " << threadCount
+             << ", queue size: " << queueSize
              << ", live in seconds: " << aliveSeconds;
 
     WinGfxCommunicationsServer server(
-        ::mega::make_unique<RequestProcessor>(GfxProcessor::create()),
+        ::mega::make_unique<RequestProcessor>(GfxProcessor::create(), threadCount, queueSize),
         pipename,
         aliveSeconds
     );

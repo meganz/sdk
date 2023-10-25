@@ -86,7 +86,7 @@ public:
 class RequestProcessor : public IRequestProcessor
 {
 public:
-    RequestProcessor(std::unique_ptr<IGfxProcessor> processor);
+    RequestProcessor(std::unique_ptr<IGfxProcessor> processor, size_t threadCount = 6, size_t maxQueueSize = 12);
 
     bool process(std::unique_ptr<IEndpoint> endpoint);
 

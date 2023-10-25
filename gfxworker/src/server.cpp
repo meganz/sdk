@@ -27,6 +27,7 @@
 #include <iterator>
 #include <numeric>
 #include <algorithm>
+#include <vcruntime.h>
 
 using Dimension = mega::IGfxProvider::Dimension;
 namespace mega {
@@ -98,9 +99,12 @@ std::string GfxProcessor::supportedvideoformats() const
     return videoformats ? std::string(videoformats) : "";
 }
 
-RequestProcessor::RequestProcessor(std::unique_ptr<IGfxProcessor> processor) : mGfxProcessor(std::move(processor))
+RequestProcessor::RequestProcessor(std::unique_ptr<IGfxProcessor> processor,
+                                   size_t threadCount,
+                                   size_t maxQueueSize)
+                                   : mGfxProcessor(std::move(processor))
 {
-    mThreadPool.initialize(5, 10);
+    mThreadPool.initialize(threadCount, maxQueueSize);
 }
 
 bool RequestProcessor::process(std::unique_ptr<IEndpoint> endpoint)
