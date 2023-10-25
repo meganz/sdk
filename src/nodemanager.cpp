@@ -529,13 +529,29 @@ uint64_t NodeManager::getNodeCount_internal()
 node_vector NodeManager::getChildren(const NodeSearchFilter& filter, CancelToken cancelFlag)
 {
     LockGuard g(mMutex);
+    return getChildren_internal(filter, cancelFlag);
+}
 
+node_vector NodeManager::getChildren_internal(const NodeSearchFilter& filter, CancelToken cancelFlag)
+{
+    // validation
     if (filter.byLocationHandle() == UNDEF || !mTable || mNodes.empty())
     {
         assert(filter.byLocationHandle() != UNDEF && mTable && !mNodes.empty());
         return node_vector();
     }
 
+    // small optimization to possibly skip the db look-up
+    if (filter.bySensitivity())
+    {
+        Node* node = getNodeByHandle_internal(NodeHandle().set6byte(filter.byLocationHandle()));
+        if (!node || node->isSensitiveInherited())
+        {
+            return node_vector();
+        }
+    }
+
+    // db look-up
     vector<pair<NodeHandle, NodeSerialized>> nodesFromTable;
     if (!mTable->getChildren(filter, nodesFromTable, cancelFlag))
     {
@@ -550,20 +566,35 @@ node_vector NodeManager::getChildren(const NodeSearchFilter& filter, CancelToken
 node_vector NodeManager::searchNodes(const NodeSearchFilter& filter, CancelToken cancelFlag)
 {
     LockGuard g(mMutex);
+    return searchNodes_internal(filter, cancelFlag);
+}
 
+node_vector NodeManager::searchNodes_internal(const NodeSearchFilter& filter, CancelToken cancelFlag)
+{
+    // validation
     if (!mTable || mNodes.empty())
     {
         assert(mTable && !mNodes.empty());
         return node_vector();
     }
 
+    // small optimization to possibly skip the db look-up
+    if (filter.bySensitivity() && filter.byLocationHandle() != UNDEF)
+    {
+        Node* node = getNodeByHandle_internal(NodeHandle().set6byte(filter.byLocationHandle()));
+        if (!node || node->isSensitiveInherited())
+        {
+            return node_vector();
+        }
+    }
+
+    // db look-up
     vector<pair<NodeHandle, NodeSerialized>> nodesFromTable;
     if (!mTable->searchNodes(filter, nodesFromTable, cancelFlag))
     {
         return node_vector();
     }
 
-    // filtering by ancestor should ideally be done as part of searchNodes() above
     node_vector nodes = processUnserializedNodes(nodesFromTable, filter, cancelFlag);
 
     return nodes;

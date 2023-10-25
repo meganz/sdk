@@ -350,7 +350,9 @@ private:
     // If a valid object is passed, it must be kept alive until this method returns.
     node_vector processUnserializedNodes(const std::vector<std::pair<NodeHandle, NodeSerialized>>& nodesFromTable, NodeHandle ancestorHandle = NodeHandle(), CancelToken cancelFlag = CancelToken());
 
+    node_vector searchNodes_internal(const NodeSearchFilter& filter, CancelToken cancelFlag);
     node_vector processUnserializedNodes(const std::vector<std::pair<NodeHandle, NodeSerialized>>& nodesFromTable, const NodeSearchFilter& filter, CancelToken cancelFlag = CancelToken());
+    node_vector getChildren_internal(const NodeSearchFilter& filter, CancelToken cancelFlag);
     node_vector processUnserializedChildren(const std::vector<std::pair<NodeHandle, NodeSerialized>>& childrenFromTable, const NodeSearchFilter& filter, CancelToken cancelFlag = CancelToken());
 
     // node temporary in memory, which will be removed upon write to DB
