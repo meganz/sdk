@@ -6044,19 +6044,6 @@ MegaSearchFilterPrivate* MegaSearchFilterPrivate::copy() const
     return new MegaSearchFilterPrivate(*this);
 }
 
-
-void MegaDimensionListPrivate::setDimension(size_t index, int width, int height)
-{
-    auto& d = mDimensions.at(index);
-    d.width = width;
-    d.height = height;
-}
-
-const std::vector<IGfxProvider::Dimension>& MegaDimensionListPrivate::getDimensions() const
-{
-    return mDimensions;
-}
-
 std::unique_ptr<MegaGfxProviderPrivate> MegaGfxProviderPrivate::createIsolatedInstance(
     const std::vector<std::string>& arguments,
     const std::string& pipename,

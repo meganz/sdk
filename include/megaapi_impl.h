@@ -2793,20 +2793,6 @@ class MegaSyncStallListPrivate : public MegaSyncStallList
 };
 
 #endif // ENABLE_SYNC
-class MegaDimensionListPrivate : public MegaDimensionList
-{
-public:
-
-    MegaDimensionListPrivate(size_t n) : mDimensions(n) {}
-
-    void setDimension(size_t index, int width, int height) override;
-
-    const std::vector<IGfxProvider::Dimension>& getDimensions() const;
-
-private:
-
-    std::vector<IGfxProvider::Dimension> mDimensions;
-};
 
 class MegaSearchFilterPrivate : public MegaSearchFilter
 {

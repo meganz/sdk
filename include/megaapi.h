@@ -253,16 +253,6 @@ public:
     virtual ~MegaGfxProcessor();
 };
 
-class MegaDimensionList
-{
-public:
-    virtual ~MegaDimensionList();
-
-    virtual void setDimension(size_t index, int width, int height) = 0;
-
-    static MegaDimensionList* createInstance(size_t n);
-};
-
 class MegaGfxProvider
 {
 public:
