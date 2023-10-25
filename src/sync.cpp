@@ -2415,7 +2415,7 @@ bool Sync::processCompletedUploadFromHere(SyncRow& row, SyncRow& parentRow, Sync
 
             monitor.waitingLocal(fullPath.localPath,
                                  SyncStallEntry(SyncWaitReason::UploadIssue,
-                                                true,
+                                                false,
                                                 false,
                                                 {NodeHandle(), fullPath.cloudPath, problem},
                                                 {},
@@ -8996,7 +8996,7 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
         // Emit a special stall for observers to detect.
         monitor.waitingLocal(fullPath.localPath,
                              SyncStallEntry(SyncWaitReason::UploadIssue,
-                                            true,
+                                            false,
                                             false,
                                             {NodeHandle(), fullPath.cloudPath, problem},
                                             {},

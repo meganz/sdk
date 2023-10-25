@@ -43,6 +43,24 @@ shared_promise<T> makeSharedPromise()
     return shared_promise<T>(new promise<T>());
 }
 
+// Convenience.
+class ScopedStallPredicateResetter
+{
+    StandardClient& mClient;
+
+public:
+    ScopedStallPredicateResetter(StandardClient& client)
+      : mClient(client)
+    {
+    }
+    
+    ~ScopedStallPredicateResetter()
+    {
+        mClient.hasImmediateStall(nullptr);
+        mClient.isImmediateStall(nullptr);
+    }
+}; // ScopedStallPredicateResetter
+
 bool suppressfiles = false;
 
 // dgw: TODO: Perhaps make this a runtime parameter?
@@ -17127,6 +17145,29 @@ SyncWaitPredicate SyncHasLocalStallMatching(SyncWaitReason reason,
     });
 }
 
+static bool isDeferredPathProblem(PathProblem problem)
+{
+    return problem >= PathProblem::PutnodeDeferredByController
+           && problem <= PathProblem::UploadDeferredByController;
+}
+
+static bool isDeferredStall(const SyncStallEntry& entry)
+{
+    return isDeferredPathProblem(entry.localPath1.problem)
+           || isDeferredPathProblem(entry.localPath2.problem);
+}
+
+static bool hasDeferredStall(const SyncStallInfo& stalls)
+{
+    for (const auto& record : stalls.local)
+    {
+        if (isDeferredStall(record.second))
+            return true;
+    }
+
+    return false;
+}
+
 TEST_F(SyncTest, MoveJustAsPutNodesSent)
 {
     auto TIMEOUT = std::chrono::seconds(16);
@@ -17163,6 +17204,13 @@ TEST_F(SyncTest, MoveJustAsPutNodesSent)
 
     // Inject controller.
     client->syncController(controller);
+
+    // Signal "deferred" stalls immediately.
+    client->isImmediateStall(isDeferredStall);
+    client->hasImmediateStall(hasDeferredStall);
+
+    // Make sure original stall predicates are restored, no matter what.
+    ScopedStallPredicateResetter resetter(*client);
 
     // Inhibit completion of s/f's putnodes.
     controller->deferPutnodeCompletion([&](const fs::path& path) {
@@ -17302,6 +17350,13 @@ TEST_F(SyncTest, RemovedJustAsPutNodesSent)
 
     // Inject controller.
     client->syncController(controller);
+
+    // Signal "deferred" stalls immediately.
+    client->isImmediateStall(isDeferredStall);
+    client->hasImmediateStall(hasDeferredStall);
+
+    // Make sure original stall predicates are restored, no matter what.
+    ScopedStallPredicateResetter resetter(*client);
 
     // Inhibit completion of s/f's putnodes.
     controller->deferPutnodeCompletion([&](const fs::path& path) {
