@@ -14,7 +14,10 @@ using cxxopts::Options;
 
 int main(int argc, char** argv)
 {
+    // parse arguments
     std::string pipename;
+    std::string logdirectory;
+    std::string logfilename;
     unsigned short aliveSeconds = 0;
     size_t threadCount = 0;
     size_t queueSize = 0;
@@ -24,7 +27,9 @@ int main(int argc, char** argv)
         ("l,live", "Keep alive in seconds without receiving any requests, 0 is INFINITE", cxxopts::value(aliveSeconds)->default_value("60"))
         ("t,threads", "Request processing thread pool size, minimum 1", cxxopts::value(threadCount)->default_value("5"))
         ("q,queue", "The size of this queue determines the capacity for pending requests when all threads in the pool are busy. Minimum 1", cxxopts::value(queueSize)->default_value("10"))
-        ("n,name", "Pipe name", cxxopts::value(pipename)->default_value("mega_gfxworker"));
+        ("n,name", "Pipe name", cxxopts::value(pipename)->default_value("mega_gfxworker"))
+        ("d,directory", "Log directory", cxxopts::value(logdirectory)->default_value("."))
+        ("f,file", "File name (default mega.gfxworker.<pipename>.log)", cxxopts::value(logfilename));
 
     try {
         auto result = options.parse(argc, argv);
@@ -41,17 +46,25 @@ int main(int argc, char** argv)
 
     threadCount = std::max<size_t>(1, threadCount);
     queueSize = std::max<size_t>(1, queueSize);
+    if (logdirectory.empty())
+    {
+        logdirectory = ".";
+    }
+    if (logfilename.empty())
+    {
+        logfilename = "mega.gfxworker." + pipename + ".log";
+    }
 
-    std::string logfilename = "mega.gfxworker." + pipename + ".log";
+    // init logger
     mega::gfx::MegaFileLogger logger;
-    logger.initialize(".", logfilename.c_str(), false);
-
+    logger.initialize(logdirectory.c_str(), logfilename.c_str(), false);
     LOG_info << "Gfxworker server starting"
              << ", pipe name: " << pipename
              << ", threads: " << threadCount
              << ", queue size: " << queueSize
              << ", live in seconds: " << aliveSeconds;
 
+    // start server
     WinGfxCommunicationsServer server(
         ::mega::make_unique<RequestProcessor>(GfxProcessor::create(), threadCount, queueSize),
         pipename,
@@ -60,6 +73,7 @@ int main(int argc, char** argv)
 
     std::thread serverThread(&WinGfxCommunicationsServer::run, &server);
 
+    // run forever until server thread stops
     if (serverThread.joinable())
     {
         serverThread.join();
