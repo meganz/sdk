@@ -17282,46 +17282,87 @@ TEST_F(SyncTest, RemovedJustAsPutNodesSent)
     // Check if the cloud is as we expect.
     ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
 
-    // So we can wait for the putnodes to be sent.
-    promise<void> notifier;
+    // Instantiate controller.
+    auto controller = std::make_shared<StandardSyncController>();
 
-    // Signal the waiter when putnodes is sent.
-    auto putnodesBeginHandler = [&](const LocalPath&) {
-        LOG_info << "test detected putnodes begin";
-        notifier.set_value();
-        client->mOnPutnodesBegin = nullptr;
-    };
+    // Inject controller.
+    client->syncController(controller);
 
-    client->mOnPutnodesBegin = putnodesBeginHandler;
+    // Inhibit completion of s/f's putnodes.
+    controller->deferPutnodeCompletion([&](const fs::path& path) {
+        return client->fsBasePath / "s" / "f" == path;
+    });
 
     LOG_info << "test replaces local file content s/f (with y. was: x)";
+
     model.addfile("f", "y");
     model.generate(client->fsBasePath / "s");
-    ASSERT_NE(notifier.get_future().wait_for(TIMEOUT), future_status::timeout);
+
+    // Wait for the engine to detect our intentional stall.
+    auto predicate =
+      SyncHasLocalStallMatching(SyncWaitReason::UploadIssue,
+                                client->fsBasePath / "s" / "f",
+                                PathProblem::PutnodeCompletionDeferredByController);
+
+    ASSERT_TRUE(client->waitFor(std::move(predicate), TIMEOUT));
 
     LOG_info << "test deletes local file s/f";
+
+    // Remove s/f while its putnodes is still in progress.
     model.removenode("f");
+
     fs::remove(client->fsBasePath / "s" / "f");
+
+    // Give the engine a little time to recognize the change.
+    WaitMillisec(2 * 1000);
+
+    // Let s/f's putnodes complete.
+    controller->deferPutnodeCompletion(nullptr);
+
+    // Wait for the stall to be resolved.
+    ASSERT_TRUE(client->waitFor(SyncStallState(false), TIMEOUT));
+
+    // Wait for the engine to finish syncing.
     waitonsyncs(TIMEOUT, client);
 
     // Check if the cloud is as we expect.
     ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
 
     // Try the same scenario when the file hasn't previously been synchronized.
-    client->mOnPutnodesBegin = putnodesBeginHandler;
+
+    // Inhibit completion of s/g's putnodes.
+    controller->deferPutnodeCompletion([&](const fs::path& path) {
+        return client->fsBasePath / "s" / "g" == path;
+    });
 
     LOG_info << "test adds local file s/g (content: x)";
+
     model.addfile("g", "x");
     model.generate(client->fsBasePath / "s");
 
-    // Wait for the engine to send the putnodes request.
-    notifier = promise<void>();
+    // Wait for the engine to stall.
+    predicate =
+      SyncHasLocalStallMatching(SyncWaitReason::UploadIssue,
+                                client->fsBasePath / "s" / "g",
+                                PathProblem::PutnodeCompletionDeferredByController);
 
-    ASSERT_NE(notifier.get_future().wait_for(TIMEOUT), future_status::timeout);
+    ASSERT_TRUE(client->waitFor(std::move(predicate), TIMEOUT));
 
     LOG_info << "test removes local file s/g (content: x)";
+
+    // Remove g.
     model.removenode("g");
+
     fs::remove(client->fsBasePath / "s" / "g");
+
+    // Give the engine a little time to detect the change.
+    WaitMillisec(2 * 1000);
+
+    // Remove the block on s/g's putnodes.
+    controller->deferPutnodeCompletion(nullptr);
+
+    // Wait for the stall to be resolved.
+    ASSERT_TRUE(client->waitFor(SyncStallState(false), TIMEOUT));
 
     // Wait for the engine to synchronize our changes.
     waitonsyncs(TIMEOUT, client);
