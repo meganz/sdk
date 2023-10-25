@@ -20,11 +20,14 @@
  */
 
 #include "mega.h"
+#include "mega/gfx.h"
 #include "mega/gfx/worker/client.h"
 #include "megacli.h"
+#include <algorithm>
 #include <chrono>
 #include <fstream>
 #include <bitset>
+#include <string>
 #include "mega/testhooks.h"
 
 #if defined(_WIN32) && defined(_DEBUG)
@@ -4291,6 +4294,14 @@ autocomplete::ACN autocompleteSyntax()
     /* MEGA VPN commands END */
 
     p->Add(exec_fetchcreditcardinfo, text("cci"));
+    p->Add(exec_gfx,
+           sequence(text("gfx"),
+                    text("set"),
+                    either(text("internal"),
+                           sequence(text("isolated"),
+                                    sequence(flag("-executable"), localFSFile()),
+                                    opt(sequence(flag("-pipe"), param("name"))),
+                                    opt(sequence(flag("-live"), param("seconds")))))));
 
     p->Add(exec_passwordmanager,
         sequence(text("pwdman"),
@@ -4327,7 +4338,6 @@ autocomplete::ACN autocompleteSyntax()
 
     return autocompleteTemplate = std::move(p);
 }
-
 
 #ifdef USE_FILESYSTEM
 bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
@@ -11946,7 +11956,7 @@ void exec_passwordmanager(autocomplete::ACState& s)
     else if (command == "newfolder")
     {
         if (!moreParamsThan(3)) return;
-        
+
         auto ph = getNodeHandleFromParam(2);
         auto name = s.words[3].s.c_str();
         auto n = client->nodeByHandle(ph);
@@ -11955,7 +11965,7 @@ void exec_passwordmanager(autocomplete::ACState& s)
             cout << "Parent node with handle " << toNodeHandle(ph) << " not found\n";
             return;
         }
-        
+
         client->createFolder(n, name, 0);
     }
     else if (command == "renamefolder" || command == "renameentry")
@@ -11969,13 +11979,13 @@ void exec_passwordmanager(autocomplete::ACState& s)
             if (e == API_OK) cout << "Node " << toNodeHandle(nh) << " renamed successfully\n";
             else cout << "Error renaming the node." << errorstring(e) << "\n";
         };
-        
+
         client->renameNode(nh, newName, std::move(cb));
     }
     else if (command == "removefolder" || command == "removeentry")
     {
         if (!moreParamsThan(2)) return;
-        
+
         auto nh = getNodeHandleFromParam(2);
         client->removeNode(nh, false, 0);
     }
@@ -11989,7 +11999,7 @@ void exec_passwordmanager(autocomplete::ACState& s)
         {
             cout << "Wrong parent handle provided " << toNodeHandle(ph) << "\n";
         }
-        
+
         auto name = s.words[3].s.c_str();
         auto pwd = s.words[4].s.c_str();
         assert(*name && *pwd);
@@ -12058,7 +12068,6 @@ void exec_passwordmanager(autocomplete::ACState& s)
         cout << command << " not recognized. Ignoring it\n";
     }
 }
-
 void exec_generatepassword(autocomplete::ACState& s)
 {
     const auto command = s.words[1].s;
@@ -12080,5 +12089,42 @@ void exec_generatepassword(autocomplete::ACState& s)
 
         if (pwd.empty()) cout << "Error generating the password. Please check the logs (if active)\n";
         else cout << "Characers-based password successfully generated: " << pwd << "\n";
+    }
+}
+
+void exec_gfx(autocomplete::ACState& s)
+{
+    if (s.words.size() < 3) return;
+
+    if (s.words[1].s != "set") return;
+
+    if (s.words[2].s == "internal")
+    {
+        auto provider = IGfxProvider::createInternalGfxProvider();
+        client->gfx->setGfxProvider(std::move(provider));
+        return;
+    }
+    else if (s.words[2].s == "isolated")
+    {
+        std::string executable;
+        bool executableFlag = s.extractflagparam("-executable", executable);
+        if (!executableFlag) return;
+
+        std::string pipename = "MegaPipeCli";
+        s.extractflagparam("-pipe", pipename);
+        std::string live = "10";
+        s.extractflagparam("-live", live);
+        unsigned int seconds = std::max(5u, static_cast<unsigned int>(std::atoi(live.c_str()))); // at least 5
+        std::vector<std::string> arguments {
+            executable,
+            "-l"+ std::to_string(seconds),
+            "-n" + pipename
+        };
+        auto process = std::make_shared<GfxIsolatedProcess>(arguments,
+                                                            pipename,
+                                                            seconds/2);
+        auto provider = ::mega::make_unique<::mega::GfxProviderIsolatedProcess>(std::move(process));
+        client->gfx->setGfxProvider(std::move(provider));
+        return;
     }
 }

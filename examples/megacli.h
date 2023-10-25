@@ -413,6 +413,7 @@ void exec_randomfile(autocomplete::ACState& s);
 void exec_getABTestValue(autocomplete::ACState& s);
 void exec_sendABTestActive(autocomplete::ACState& s);
 void exec_contactVerificationWarning(autocomplete::ACState& s);
+void exec_gfx(autocomplete::ACState& s);
 
 #ifdef ENABLE_SYNC
 

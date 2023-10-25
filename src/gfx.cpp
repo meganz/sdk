@@ -50,9 +50,9 @@ std::unique_ptr<IGfxProvider> IGfxProvider::createInternalGfxProvider()
 
 bool GfxProc::isgfx(const LocalPath& localfilename)
 {
-    const char* supported;
-
-    if (!(supported = mGfxProvider->supportedformats()))
+    auto provider = mGfxProvider.getCopy();
+    const char* supported = nullptr;
+    if (!(supported = provider->supportedformats()))
     {
         // We don't have supported formats, so the build was without FREEIMAGE or other graphics processing libraries
         // Therefore we cannot graphics process any file, so return false so that we don't try.
@@ -84,9 +84,10 @@ bool GfxProc::isgfx(const LocalPath& localfilename)
 
 bool GfxProc::isvideo(const LocalPath& localfilename)
 {
-    const char* supported;
+    auto provider = mGfxProvider.getCopy();
+    const char* supported = nullptr;
 
-    if (!(supported = mGfxProvider->supportedvideoformats()))
+    if (!(supported = provider->supportedvideoformats()))
     {
         return false;
     }
@@ -354,13 +355,15 @@ int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, const LocalPath& localfilena
 std::vector<std::string> GfxProc::generateImages(const LocalPath& localfilepath, const std::vector<Dimension>& dimensions)
 {
     std::lock_guard<std::mutex> g(mutex);
-    return mGfxProvider->generateImages(client->fsaccess.get(), localfilepath, dimensions);
+    return mGfxProvider.getCopy()->generateImages(client->fsaccess.get(), localfilepath, dimensions);
 }
 
 std::string GfxProc::generateOneImage(const LocalPath& localfilepath, const Dimension& dimension)
 {
     std::lock_guard<std::mutex> g(mutex);
-    auto images = mGfxProvider->generateImages(client->fsaccess.get(), localfilepath, std::vector<Dimension>{ dimension });
+    auto images = mGfxProvider.getCopy()->generateImages(client->fsaccess.get(),
+                                                         localfilepath,
+                                                         std::vector<Dimension>{ dimension });
     return images[0];
 }
 
@@ -393,6 +396,11 @@ bool GfxProc::savefa(const LocalPath& localfilepath, const Dimension& dimension,
     return true;
 }
 
+void GfxProc::setGfxProvider(std::unique_ptr<IGfxProvider> provider)
+{
+    mGfxProvider.set(std::move(provider));
+}
+
 GfxProc::GfxProc(std::unique_ptr<IGfxProvider> middleware)
     : mGfxProvider(std::move(middleware))
 {
@@ -415,6 +423,18 @@ GfxProc::~GfxProc()
     {
         thread.join();
     }
+}
+
+std::shared_ptr<IGfxProvider> GfxProc::ProviderAccessor::getCopy() const
+{
+    const std::lock_guard<std::mutex> l(mMutex);
+    return mProvider;
+}
+
+void GfxProc::ProviderAccessor::set(std::unique_ptr<IGfxProvider> provider)
+{
+    const std::lock_guard<std::mutex> l(mMutex);
+    mProvider = std::move(provider);
 }
 
 GfxJobQueue::GfxJobQueue()
