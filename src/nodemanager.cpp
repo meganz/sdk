@@ -534,6 +534,8 @@ node_vector NodeManager::getChildren(const NodeSearchFilter& filter, CancelToken
 
 node_vector NodeManager::getChildren_internal(const NodeSearchFilter& filter, CancelToken cancelFlag)
 {
+    assert(mMutex.owns_lock());
+
     // validation
     if (filter.byLocationHandle() == UNDEF || !mTable || mNodes.empty())
     {
@@ -571,6 +573,8 @@ node_vector NodeManager::searchNodes(const NodeSearchFilter& filter, CancelToken
 
 node_vector NodeManager::searchNodes_internal(const NodeSearchFilter& filter, CancelToken cancelFlag)
 {
+    assert(mMutex.owns_lock());
+
     // validation
     if (!mTable || mNodes.empty())
     {
