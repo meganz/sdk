@@ -4165,7 +4165,6 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
 
 #ifdef DEBUG
     mOnMoveBegin = nullptr;
-    mOnPutnodesBegin = nullptr;
     mOnSyncDebugNotification = nullptr;
 #endif // DEBUG
 
@@ -17073,6 +17072,8 @@ TEST_F(SyncTest, MovedSyncedFileWhileDownloadInProgress)
     }
 }
 
+#endif // ! NDEBUG
+
 using StallEntryPredicate =
   std::function<bool(const SyncStallEntry&)>;
 
@@ -17370,8 +17371,6 @@ TEST_F(SyncTest, RemovedJustAsPutNodesSent)
     // Make sure the cloud is as we expect.
     ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
 }
-
-#endif // ! NDEBUG
 
 TEST_F(SyncTest, UndecryptableSharesBehavior)
 {

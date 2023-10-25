@@ -9117,18 +9117,6 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
 
             std::function<void(MegaClient&)> signalPutnodesBegin;
 
-#ifndef NDEBUG
-            {
-                // So we can capture the local path.
-                auto localPath = fullPath.localPath;
-
-                // Signal the putnodes_begin(...) event.
-                signalPutnodesBegin = [localPath](MegaClient& client) {
-                    client.app->putnodes_begin(localPath);
-                };
-            }
-#endif // ! NDEBUG
-
             if (parentRow.cloudNode &&
                 existingUpload->h != parentRow.cloudNode->handle)
             {

@@ -1038,14 +1038,6 @@ struct StandardClient : public MegaApp
     }
 
     function<void(const LocalPath&, const LocalPath&)> mOnMoveBegin;
-
-    void putnodes_begin(const LocalPath& path) override
-    {
-        if (mOnPutnodesBegin)
-            mOnPutnodesBegin(path);
-    }
-
-    std::function<void(const LocalPath&)> mOnPutnodesBegin;
 #endif // ! NDEBUG
 
     void backupOpenDrive(const fs::path& drivePath, PromiseBoolSP result);
