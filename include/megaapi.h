@@ -253,28 +253,78 @@ public:
     virtual ~MegaGfxProcessor();
 };
 
+/**
+ * @brief Represents a GFX provider with a hidden implementation and interfaces for creating different GFX providers.
+ *
+ * There are three interfaces available for creating various GFX providers:
+ * - @see MegaGfxProvider::createIsolatedInstance
+ * - @see MegaGfxProvider::createExternalInstance
+ * - @see MegaGfxProvider::createInternalInstance
+ *
+ * You can use one of these interfaces to create a GFX provider and provide it to the SDK within the MegaApi::MegaApi
+ * constructor. Subsequently, the SDK will utilize the GFX provider for generating thumbnails and previews when needed.
+ * For more details, refer to @see MegaApi::MegaApi.
+ */
 class MegaGfxProvider
 {
 public:
-
     virtual ~MegaGfxProvider();
 
+    /**
+    * @brief Create a graphics processor that implemented and run in an isolated process.
+    *
+    * Note: Currently, only Windows is supported.
+    *
+    * @param arguments The executable command to run the isolated process.
+                       @see MegaStringList
+    * @param pipename The named pipe's name used for communicating with the isolated process.
+    * @param beatIntervalSeconds The interval in seconds for sending heartbeats to the isolated process.
+    */
     static MegaGfxProvider* createIsolatedInstance(const MegaStringList* arguments,
                                                    const char* pipename,
                                                    unsigned int beatIntervalSeconds);
 
+    /**
+    * @brief Create a graphics processor that use your implementations @see MegaGfxProcessor.
+    *
+    * @param processor Your own implementation
+    */
     static MegaGfxProvider* createExternalInstance(MegaGfxProcessor* processor);
 
+    /**
+    * @brief Create a graphics processor that utilizes the SDK's implementation and runs in the same
+    * process as the caller.
+    */
     static MegaGfxProvider* createInternalInstance();
 };
 
+/**
+ * @brief Represents a list of GFX providers and provides an interface for creating a list of isolated GFX providers
+ * that share the same isolated process. You can use these GFX providers with the SDK to create multiple instances
+ * of MegaApi::MegaApi. These instances will utilize the same isolated process for graphics processing.
+ */
 class MegaGfxProviderList
 {
 public:
     virtual ~MegaGfxProviderList();
 
+    /**
+    * @brief Access the specified GFX provider instance.
+    *
+    * @param index The position of the GFX provider instance to return.
+    */
     virtual MegaGfxProvider* get(size_t index) = 0;
 
+    /**
+    * @brief Create multiple isolated graphics processor instances.
+    *        @see MegaGfxProvider::createIsolatedInstance for create one isolated graphics processor instance.
+    *
+    * @param arguments The executable command to run the isolated process.
+                       @see MegaStringList
+    * @param pipename The named pipe's name used for communicating with the isolated process.
+    * @param beatIntervalSeconds The interval in seconds for sending heartbeats to the isolated process.
+    * @param numberOfInstances The number of instances to create.
+    */
     static MegaGfxProviderList* createIsolatedInstances(const MegaStringList* arguments,
                                                         const char* pipename,
                                                         unsigned int beatIntervalSeconds,
@@ -9891,6 +9941,32 @@ class MegaApi
          */
         MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1, int clientType = CLIENT_TYPE_DEFAULT);
 
+        /**
+         * @brief MegaApi Constructor that uses a given GFX provider
+         *
+         * The SDK attach thumbnails and previews to all uploaded images. To generate them, it needs a graphics provider.
+         * @see MegaGfxProvider
+         * @see MegaGfxProviderList
+         *
+         * @param appKey AppKey of your application
+         * You can pass NULL to this parameter if you don't have one. AppKey is currently no longer required.
+         *
+         * @param provider Graphics processing provider. The SDK will use it to generate previews and thumbnails. Once MegaApi returns, the provider
+         * couldn't be reused and the caller should release it.
+         *
+         * @param basePath Base path to store the local cache
+         * If you pass NULL to this parameter, the SDK won't use any local cache.
+         *
+         * @param userAgent User agent to use in network requests
+         * If you pass NULL to this parameter, a default user agent will be used
+         *
+         * @param workerThreadCount The number of worker threads for encryption or other operations
+         * Using worker threads means that synchronous function calls on MegaApi will be blocked less,
+         * and uploads and downloads can proceed more quickly on very fast connections.
+         *
+         * @param clientType Client type (default, VPN or Password Manager) enables SDK to function differently
+         *
+         */
         MegaApi(const char *appKey, MegaGfxProvider* provider, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1, int clientType = CLIENT_TYPE_DEFAULT);
 
         #ifdef HAVE_MEGAAPI_RPC
