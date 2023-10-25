@@ -6624,6 +6624,10 @@ void MegaSearchFilter::byLocation(int /*locationType*/)
 {
 }
 
+void MegaSearchFilter::byCreationTime(int64_t /*lowerLimit*/, int64_t /*upperLimit*/)
+{
+}
+
 const char* MegaSearchFilter::byName() const
 {
     return nullptr;
@@ -6647,6 +6651,16 @@ MegaHandle MegaSearchFilter::byLocationHandle() const
 int MegaSearchFilter::byLocation() const
 {
     return MegaApi::SEARCH_TARGET_ALL;
+}
+
+int64_t MegaSearchFilter::byCreationTimeLowerLimit() const
+{
+    return 0;
+}
+
+int64_t MegaSearchFilter::byCreationTimeUpperLimit() const
+{
+    return 0;
 }
 
 MegaApiLock::MegaApiLock(MegaApiImpl* ptr, bool lock) : api(ptr)
