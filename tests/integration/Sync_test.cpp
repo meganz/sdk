@@ -17073,6 +17073,45 @@ TEST_F(SyncTest, MovedSyncedFileWhileDownloadInProgress)
     }
 }
 
+using StallEntryPredicate =
+  std::function<bool(const SyncStallEntry&)>;
+
+SyncWaitPredicate SyncHasLocalStallMatching(StallEntryPredicate predicate)
+{
+    return [predicate](StandardClient& client) {
+        SyncStallInfo stalls;
+
+        // Engine hasn't signalled any stalls.
+        if (!client.client.syncs.syncStallDetected(stalls))
+            return false;
+
+        // Search for a matching local stall.
+        for (const auto& record : stalls.local)
+        {
+            if (predicate(record.second))
+                return true;
+        }
+
+        // Couldn't find a matching local stall.
+        return false;
+    };
+}
+
+SyncWaitPredicate SyncHasLocalStallMatching(SyncWaitReason reason,
+                                            const fs::path& path0,
+                                            PathProblem problem0,
+                                            const fs::path& path1 = fs::path(),
+                                            PathProblem problem1 = PathProblem::NoProblem)
+{
+    return SyncHasLocalStallMatching([=](const SyncStallEntry& entry) {
+        return entry.reason == reason
+               && entry.localPath1.problem == problem0
+               && entry.localPath2.problem == problem1
+               && entry.localPath1.localPath.toPath(false) == path0.u8string()
+               && entry.localPath2.localPath.toPath(false) == path1.u8string();
+    });
+}
+
 TEST_F(SyncTest, MoveJustAsPutNodesSent)
 {
     auto TIMEOUT = std::chrono::seconds(16);
@@ -17104,38 +17143,62 @@ TEST_F(SyncTest, MoveJustAsPutNodesSent)
     // Make sure our hierarchy made it into the cloud.
     ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
 
-    // So we can wait for the putnodes to begin.
-    promise<void> notifier;
+    // Instantiate controller.
+    auto controller = std::make_shared<StandardSyncController>();
 
-    // Signal the waiter when the putnodes request is sent.
-    auto putnodesBeginHandler = [&](const LocalPath&) {
+    // Inject controller.
+    client->syncController(controller);
 
-        LOG_info << "test detected putnodes begin";
-
-        // Let the test thread know it can continue.
-        notifier.set_value();
-
-        // Disconnect the callback as our work is done.
-        client->mOnPutnodesBegin = nullptr;
-    };
-
-    // Hook the putnodes callback.
-    client->mOnPutnodesBegin = putnodesBeginHandler;
+    // Inhibit completion of s/f's putnodes.
+    controller->deferPutnodeCompletion([&](const fs::path& path) {
+        return client->fsBasePath / "s" / "f" == path;
+    });
 
     LOG_info << "test updates file f, content 'y'.  Will cause upload";
+
+    // Make a change to s/f.
     model.addfile("f", "y");
     model.generate(client->fsBasePath / "s");
 
-    // Wait for the engine to process our changes.
-    ASSERT_NE(notifier.get_future().wait_for(TIMEOUT), future_status::timeout);
+    // Wait for the engine to detect our intentional stall.
+    auto predicate =
+      SyncHasLocalStallMatching(SyncWaitReason::UploadIssue,
+                                client->fsBasePath / "s" / "f",
+                                PathProblem::PutnodeCompletionDeferredByController);
+
+    ASSERT_TRUE(client->waitFor(std::move(predicate), DEFAULTWAIT));
 
     LOG_info << "test Move the file elsewhere locally : s/f to s/d/f";
+
+    // Move s/f to s/d/f while the putnode's completion is pending.
     fs::rename(client->fsBasePath / "s" / "f",
                client->fsBasePath / "s" / "d" / "f");
 
     model.movenode("f", "d");
 
-    // Wait for the engine to process our changes.
+    // Wait for the engine to signal a stall due to the move.
+    //
+    // The move can't complete because the move-source has an outstanding
+    // putnodes request.
+    //
+    // The rationale behind this behavior is simply that we can't really
+    // "rewind" a putnodes that we've sent. We have to let it complete.
+    predicate =
+      SyncHasLocalStallMatching(SyncWaitReason::MoveOrRenameCannotOccur,
+                                client->fsBasePath / "s" / "f",
+                                PathProblem::PutnodeCompletionPending,
+                                client->fsBasePath / "s" / "d" / "f");
+
+    ASSERT_TRUE(client->waitFor(std::move(predicate), DEFAULTWAIT));
+
+    // Now that we know the move has been detected, we can allow the
+    // engine to complete the pending putnode request.
+    controller->deferPutnodeCompletion(nullptr);
+
+    // Wait for the engine to return to normal operation.
+    ASSERT_TRUE(client->waitFor(SyncStallState(false), DEFAULTWAIT));
+
+    // Wait for syncing to complete.
     waitonsyncs(TIMEOUT, client);
 
     // Make sure everything's as we expect.
@@ -17144,17 +17207,24 @@ TEST_F(SyncTest, MoveJustAsPutNodesSent)
     // Try the same test in reverse.
     //
     // That is, process the move target first.
-    notifier = promise<void>();
 
-    // Hook the putnodes callback.
-    client->mOnPutnodesBegin = putnodesBeginHandler;
+    // Inhibit completion of s/d/f's putnodes.
+    controller->deferPutnodeCompletion([&](const fs::path& path) {
+        return client->fsBasePath / "s" / "d" / "f" == path;
+    });
 
     LOG_info << "test File d/f already exists - update content from `y` to `z`.  Sync will upload, ending in putnodes";
+
     model.addfile("d/f", "z");
     model.generate(client->fsBasePath / "s");
 
-    // Wait for the engine to send the putnodes request.
-    ASSERT_NE(notifier.get_future().wait_for(TIMEOUT), future_status::timeout);
+    // Wait for the engine to detect our intentional stall.
+    predicate =
+      SyncHasLocalStallMatching(SyncWaitReason::UploadIssue,
+                                client->fsBasePath / "s" / "d" / "f",
+                                PathProblem::PutnodeCompletionDeferredByController);
+
+    ASSERT_TRUE(client->waitFor(std::move(predicate), DEFAULTWAIT));
 
     LOG_info << "test Moves d/f into its parent folder. Sync will generate another putnodes, somewhat contrary to the other";
     model.movenode("d/f", "");
@@ -17162,7 +17232,22 @@ TEST_F(SyncTest, MoveJustAsPutNodesSent)
     fs::rename(client->fsBasePath / "s" / "d" / "f",
                client->fsBasePath / "s" / "f");
 
-    // Wait for the engine to process our changes.
+    // Wait for the engine to signal a stall due to the move.
+    predicate =
+      SyncHasLocalStallMatching(SyncWaitReason::MoveOrRenameCannotOccur,
+                                client->fsBasePath / "s" / "d" / "f",
+                                PathProblem::PutnodeCompletionPending,
+                                client->fsBasePath / "s" / "f");
+
+    ASSERT_TRUE(client->waitFor(std::move(predicate), DEFAULTWAIT));
+
+    // Now that the move's been recognized, allow the putnodes to complete.
+    controller->deferPutnodeCompletion(nullptr);
+
+    // Wait for the engine to return to normal operation.
+    ASSERT_TRUE(client->waitFor(SyncStallState(false), DEFAULTWAIT));
+
+    // Wait for syncing to complete.
     waitonsyncs(TIMEOUT, client);
 
     // Check that the client is as we expect.
