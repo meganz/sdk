@@ -15091,21 +15091,6 @@ void MegaApiImpl::removecontact_result(error e)
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::putua_result(error e)
-{
-    MegaRequestPrivate* request = NULL;
-    auto it = requestMap.find(client->restag);
-    if (it == requestMap.end() || !(request = it->second)
-        || (request->getType() != MegaRequest::TYPE_SET_ATTR_USER &&
-            request->getType() != MegaRequest::TYPE_SET_MY_BACKUPS &&
-            request->getType() != MegaRequest::TYPE_VERIFY_CREDENTIALS))
-    {
-        return;
-    }
-
-    assert(false);
-}
-
 void MegaApiImpl::getua_result(error e)
 {
     MegaRequestPrivate* request = NULL;
