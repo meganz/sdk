@@ -1763,6 +1763,16 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
                     LOG_debug << "Move-source has outstanding putnodes: "
                               << logTriplet(row, fullPath);
 
+                    // Signal a stall that observers can easily detect.
+                    monitor.waitingLocal(fullPath.localPath,
+                                         SyncStallEntry(SyncWaitReason::MoveOrRenameCannotOccur,
+                                                        true,
+                                                        false,
+                                                        {},
+                                                        {},
+                                                        {sourceSyncNode->getLocalPath(), PathProblem::PutnodeCompletionPending},
+                                                        {fullPath.localPath, PathProblem::NoProblem}));
+
                     // Make sure we visit the source again.
                     sourceSyncNode->setSyncAgain(false, true, false);
 
@@ -2371,6 +2381,40 @@ bool Sync::processCompletedUploadFromHere(SyncRow& row, SyncRow& parentRow, Sync
 {
     // we already checked that the upload including putnodes completed before calling here.
     assert(row.syncNode && upload && upload->wasPutnodesCompleted);
+
+    // Should we complete the putnodes later?
+    if (syncs.deferPutnodeCompletion(fullPath.localPath))
+    {
+        // Let debuggers know why we haven't completed the putnodes request.
+        LOG_debug << syncname
+                  << "Putnode completion deferred by controller "
+                  << fullPath.localPath
+                  << logTriplet(row, fullPath);
+
+        // Don't process this row any further.
+        row.itemProcessed = true;
+
+        // File isn't synchronized.
+        rowResult = false;
+
+        // Emit a special stall for observers to detect.
+        ProgressingMonitor monitor(*this, row, fullPath);
+
+        // Convenience.
+        auto problem = PathProblem::PutnodeCompletionDeferredByController;
+
+        monitor.waitingLocal(fullPath.localPath,
+                             SyncStallEntry(SyncWaitReason::UploadIssue,
+                                            true,
+                                            false,
+                                            {NodeHandle(), fullPath.cloudPath, problem},
+                                            {},
+                                            {fullPath.localPath, problem},
+                                            {}));
+
+        // The upload is still in progress.
+        return true;
+    }
 
     if (upload->putnodesResultHandle.isUndef())
     {
@@ -8897,6 +8941,38 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
         }
     }
 
+    // Convenience.
+    auto deferred = [&](const char* message,
+                        bool (Syncs::*predicate)(const LocalPath&) const,
+                        PathProblem problem) {
+        // Activity isn't deferred.
+        if (!(syncs.*predicate)(fullPath.localPath))
+            return false;
+
+        // Let debuggers know why weren't not performing the activity.
+        LOG_debug << syncname
+                  << message
+                  << " "
+                  << fullPath.localPath
+                  << logTriplet(row, fullPath);
+
+        // Try and attempt the action later.
+        row.syncNode->setSyncAgain(false, true, false);
+
+        // Emit a special stall for observers to detect.
+        monitor.waitingLocal(fullPath.localPath,
+                             SyncStallEntry(SyncWaitReason::UploadIssue,
+                                            true,
+                                            false,
+                                            {NodeHandle(), fullPath.cloudPath, problem},
+                                            {},
+                                            {fullPath.localPath, problem},
+                                            {}));
+
+        // Activity's been deferred.
+        return true;
+    }; // deferred
+
     if (row.fsNode->type == FILENODE)
     {
         // upload the file if we're not already uploading it
@@ -8976,6 +9052,12 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
                 //    return false;
                 //}
 
+                // Ask the controller if we should defer uploading this file.
+                if (deferred("Upload deferred by controller",
+                             &Syncs::deferUpload,
+                             PathProblem::UploadDeferredByController))
+                    return false;
+
                 LOG_debug << syncname << "Uploading file " << fullPath.localPath << logTriplet(row, fullPath);
                 assert(row.syncNode->scannedFingerprint.isvalid); // LocalNodes for files always have a valid fingerprint
                 assert(row.syncNode->scannedFingerprint == row.fsNode->fingerprint);
@@ -9017,6 +9099,12 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
         {
             // We issue putnodes from the sync thread like this because localnodes may have moved/renamed in the meantime
             // And consider that the old target parent node may not even exist anymore
+
+            // Should we defer the putnodes until later?
+            if (deferred("Putnode deferred by controller",
+                         &Syncs::deferPutnode,
+                         PathProblem::PutnodeDeferredByController))
+                return false;
 
             existingUpload->putnodesStarted = true;
 
@@ -9079,8 +9167,14 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
         }
         else if (existingUpload->wasPutnodesCompleted)
         {
+            // Only reset the transfer if the putnode's completion hasn't been deferred.
+            // This is necessary to prevent an infinite upload-loop in some cases.
+            if (syncs.deferPutnodeCompletion(fullPath.localPath))
+                return false;
+
             SYNC_verbose << syncname << "Putnodes complete. Detaching upload in resolve_upsync." << logTriplet(row, fullPath);
             row.syncNode->resetTransfer(nullptr);
+
             return false; // revisit in case of further changes
         }
         else if (existingUpload->putnodesStarted)
