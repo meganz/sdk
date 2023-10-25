@@ -990,6 +990,12 @@ public:
 }; // SyncController
 
 // Convenience.
+using HasImmediateStallPredicate =
+  std::function<bool(const SyncStallInfo&)>;
+
+using IsImmediateStallPredicate =
+  std::function<bool(const SyncStallEntry& entry)>;
+
 using SyncControllerPtr = std::shared_ptr<SyncController>;
 using SyncControllerWeakPtr = std::weak_ptr<SyncController>;
 
@@ -1506,6 +1512,21 @@ private:
     bool defer(bool (SyncController::*predicate)(Parameters...) const,
                Arguments&&... arguments) const;
 
+    // How does the engine know when an immediate stall has been reported?
+    HasImmediateStallPredicate mHasImmediateStall;
+
+    // How does the engine know that a specific stall is immediate?
+    IsImmediateStallPredicate mIsImmediateStall;
+
+    // Serializes access to *ImmediateStall predicates.
+    mutable std::mutex mImmediateStallLock;
+
+    // Check whether any immediate stalls have been reported.
+    bool hasImmediateStall(const SyncStallInfo& stalls) const;
+
+    // Check whether a specified stall is "immediate."
+    bool isImmediateStall(const SyncStallEntry& entry) const;
+
 public:
     // Should we defer sending a putnodes for the specified file?
     bool deferPutnode(const LocalPath& path) const;
@@ -1515,6 +1536,12 @@ public:
 
     // Should we defer uploading of the specified file?
     bool deferUpload(const LocalPath& path) const;
+
+    // Specify how the engine should determine whether there are any immediate stalls.
+    void hasImmediateStall(HasImmediateStallPredicate predicate);
+
+    // Specify how the engine can determine whether a given stall is "immediate."
+    void isImmediateStall(IsImmediateStallPredicate predicate);
 
     // Specify a controller who should guide the engine's activities.
     void syncController(SyncControllerPtr controller);

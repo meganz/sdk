@@ -4968,6 +4968,20 @@ void StandardClient::upgradeSecurity(PromiseBoolSP result)
     });
 }
 
+void StandardClient::hasImmediateStall(HasImmediateStallPredicate predicate)
+{
+    std::lock_guard<std::recursive_mutex> guard(clientMutex);
+
+    client.syncs.hasImmediateStall(std::move(predicate));
+}
+
+void StandardClient::isImmediateStall(IsImmediateStallPredicate predicate)
+{
+    std::lock_guard<std::recursive_mutex> guard(clientMutex);
+
+    client.syncs.isImmediateStall(std::move(predicate));
+}
+
 void StandardClient::syncController(SyncControllerPtr controller)
 {
     std::lock_guard<std::recursive_mutex> guard(clientMutex);

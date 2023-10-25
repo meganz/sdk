@@ -1071,6 +1071,10 @@ struct StandardClient : public MegaApp
     function<void(bool)> mOnStall;
     function<void(bool)> mOnConflictsDetected;
 
+    void hasImmediateStall(HasImmediateStallPredicate predicate);
+
+    void isImmediateStall(IsImmediateStallPredicate predicate);
+
     void syncController(SyncControllerPtr controller);
 };
 

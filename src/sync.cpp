@@ -5354,6 +5354,26 @@ bool Syncs::defer(bool (SyncController::*predicate)(Parameters...) const,
     return false;
 }
 
+bool Syncs::hasImmediateStall(const SyncStallInfo& stalls) const
+{
+    std::lock_guard<std::mutex> guard(mImmediateStallLock);
+
+    if (mHasImmediateStall)
+        return mHasImmediateStall(stalls);
+
+    return stalls.hasImmediateStallReason();
+}
+
+bool Syncs::isImmediateStall(const SyncStallEntry& entry) const
+{
+    std::lock_guard<std::mutex> guard(mImmediateStallLock);
+
+    if (mIsImmediateStall)
+        return mIsImmediateStall(entry);
+
+    return entry.alertUserImmediately;
+}
+
 bool Syncs::deferPutnode(const LocalPath& path) const
 {
     return defer(&SyncController::deferPutnode, path);
@@ -5367,6 +5387,20 @@ bool Syncs::deferPutnodeCompletion(const LocalPath& path) const
 bool Syncs::deferUpload(const LocalPath& path) const
 {
     return defer(&SyncController::deferUpload, path);
+}
+
+void Syncs::hasImmediateStall(HasImmediateStallPredicate predicate)
+{
+    std::lock_guard<std::mutex> guard(mImmediateStallLock);
+
+    mHasImmediateStall = std::move(predicate);
+}
+
+void Syncs::isImmediateStall(IsImmediateStallPredicate predicate)
+{
+    std::lock_guard<std::mutex> guard(mImmediateStallLock);
+
+    mIsImmediateStall = std::move(predicate);
 }
 
 void Syncs::syncController(SyncControllerPtr controller)
@@ -11962,7 +11996,7 @@ void Syncs::syncLoop()
                 mSyncFlags->stall.cloud.clear();
                 mSyncFlags->stall.local.clear();
 
-                bool immediateStall = stallReport.hasImmediateStallReason();
+                bool immediateStall = hasImmediateStall(stallReport);
                 bool progressLackStall = mSyncFlags->noProgressCount > 10
                                       && mSyncFlags->reachableNodesAllScannedThisPass;
 
@@ -11976,12 +12010,12 @@ void Syncs::syncLoop()
                         // only report immediates, otherwise the volume of reports can be a bit scary, and they will probably come right later anyway after parent nodes are made etc
                         for (auto it = stallReport.cloud.begin(); it != stallReport.cloud.end(); )
                         {
-                            if (it->second.alertUserImmediately) ++it;
+                            if (isImmediateStall(it->second)) ++it;
                             else it = stallReport.cloud.erase(it);
                         }
                         for (auto it = stallReport.local.begin(); it != stallReport.local.end(); )
                         {
-                            if (it->second.alertUserImmediately) ++it;
+                            if (isImmediateStall(it->second)) ++it;
                             else it = stallReport.local.erase(it);
                         }
                     }
