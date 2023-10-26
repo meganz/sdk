@@ -2110,6 +2110,9 @@ public:
 
     KeyManager mKeyManager;
 
+    // Shares left by sharee, to review in-use bit in ^!keys before statecurrent
+    std::set<handle> mSharesToReview;
+
     // account access: master key
     // folder link access: folder key
     SymmCipher key;
