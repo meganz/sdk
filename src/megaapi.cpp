@@ -5187,9 +5187,9 @@ void MegaApi::setChatOption(MegaHandle chatid, int option, bool enabled, MegaReq
      pImpl->setChatOption(chatid, option, enabled, listener);
 }
 
-void MegaApi::createOrUpdateScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting, MegaRequestListener* listener)
+void MegaApi::createOrUpdateScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting, const char* chatTitle, MegaRequestListener* listener)
 {
-   pImpl->createOrUpdateScheduledMeeting(scheduledMeeting, listener);
+   pImpl->createOrUpdateScheduledMeeting(scheduledMeeting, chatTitle, listener);
 }
 
 void MegaApi::removeScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener)

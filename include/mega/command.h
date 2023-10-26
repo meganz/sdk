@@ -1708,12 +1708,13 @@ public:
 typedef std::function<void(Error, const ScheduledMeeting*)> CommandScheduledMeetingAddOrUpdateCompletion;
 class MEGA_API CommandScheduledMeetingAddOrUpdate : public Command
 {
+    std::string mChatTitle;
     std::unique_ptr<ScheduledMeeting> mScheduledMeeting;
     CommandScheduledMeetingAddOrUpdateCompletion mCompletion;
 
 public:
     bool procresult(Result, JSON&) override;
-    CommandScheduledMeetingAddOrUpdate(MegaClient *, const ScheduledMeeting*, CommandScheduledMeetingAddOrUpdateCompletion completion);
+    CommandScheduledMeetingAddOrUpdate(MegaClient *, const ScheduledMeeting*, const char*, CommandScheduledMeetingAddOrUpdateCompletion);
 };
 
 typedef std::function<void(Error)> CommandScheduledMeetingRemoveCompletion;
