@@ -17192,7 +17192,7 @@ TEST_F(SyncTest, RemovedJustAsPutNodesSent)
 
 #endif // ! NDEBUG
 
-TEST_F(SyncTest, DISABLED_UndecryptableSharesBehavior)
+TEST_F(SyncTest, UndecryptableSharesBehavior)
 {
     const auto TESTROOT = makeNewTestRoot();
 
@@ -17317,6 +17317,10 @@ TEST_F(SyncTest, DISABLED_UndecryptableSharesBehavior)
     ASSERT_EQ(client0.share(*r, getenv("MEGA_EMAIL_AUX"), FULL), API_OK);
     ASSERT_TRUE(client1.waitFor(SyncRemoteNodePresent(*r), std::chrono::seconds(90)));
 
+    // Reset to avoid keeping a shared_ptr<Node>
+    // All shared_ptr<Node> have to be reseted before logout (avoid assert failure at Node::~Node)
+    r.reset();
+
     // Share the sync root with client 2.
     ASSERT_EQ(client0.opensharedialog(sh), API_OK);
     ASSERT_EQ(client0.share(sh, getenv("MEGA_EMAIL_AUX2"), FULL), API_OK);
@@ -17431,37 +17435,8 @@ TEST_F(SyncTest, DISABLED_UndecryptableSharesBehavior)
     // Give the sync some time to process changes.
     waitonsyncs(DEFAULTWAIT, &client1);
 
-
-    //---------- proposal active test SRW
-
-    //// Make sure the client hasn't stalled.
-    ////ASSERT_FALSE(client1.client.syncs.syncStallDetected());
-
-    //// client 1 should've wipedd everything.
-    ////
-    //// This is the behavior we're going to want to fix.
-    //model.movetosynctrash("w", "");
-    //model.ensureLocalDebrisTmpLock("");
-
-    //ASSERT_TRUE(client1.confirmModel_mainthread(model.root.get(), id, true, StandardClient::CONFIRM_LOCALFS));
-
-    //(that was the old code for develop, pre sync-rework)
-    // here, we check that we DO stall
-
-    ASSERT_TRUE(client1.waitFor(SyncStallState(true), chrono::seconds(8)));
-
-    //---- end proposal
-
-
-    //---------- proposal from develop
-
     // Wait for the engine to stall once again.
     ASSERT_TRUE(client1.waitFor(SyncStallState(true), DEFAULTWAIT));
-
-    // Make sure client 1 hasn't changed anything!
-    ASSERT_TRUE(client1.confirmModel_mainthread(model.root.get(), id, true, StandardClient::CONFIRM_LOCALFS));
-
-    //---- end proposal
 }
 
 TEST_F(SyncTest, CloudHorizontalMoveChain)

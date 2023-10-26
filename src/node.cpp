@@ -80,6 +80,13 @@ Node::~Node()
     {
         client->mAppliedKeyNodeCount--;
         assert(client->mAppliedKeyNodeCount >= 0);
+        // if the assert above fails, the reason could be that the client is
+        // already logged-out, but the Node survived because the app kept a
+        // shared pointer, so the object is destroyed after the logout and
+        // the MegaClient::mAppliedKeyNodeCount is already reset to 0, which
+        // results on a negative (-1) count.
+        // If that is the case, the app should reset the shared pointer before
+        // the logout.
     }
 
     // abort pending direct reads
