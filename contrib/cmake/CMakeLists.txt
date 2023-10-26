@@ -143,6 +143,14 @@ else()
     message(STATUS "Building 64 bit")
 endif()
 
+if(APPLE AND NOT IOS)
+    if(NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS "15.0")
+        message("Building with ${CMAKE_CXX_COMPILER_ID} with version ${CMAKE_CXX_COMPILER_VERSION}")
+        add_link_options("-Wl,-ld_classic")
+    endif()
+endif()
+
+
 if(APPLE)
     set(CMAKE_CXX_STANDARD 11)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -321,8 +329,8 @@ if (WIN32)
     add_definitions( -D_WINSOCK_DEPRECATED_NO_WARNINGS )
 ENDIF(WIN32)
 
+include(CheckIncludeFile)
 if (NOT WIN32)
-    include(CheckIncludeFile)
     include(CheckFunctionExists)
     check_include_file(inttypes.h HAVE_INTTYPES_H)
     check_include_file(dirent.h HAVE_DIRENT_H)
@@ -471,13 +479,13 @@ if (USE_THIRDPARTY_FROM_VCPKG)
         endif()
 
         IF(USE_LIBRAW OR USE_FREEIMAGE OR USE_PDFIUM)
-            ImportStdVcpkgLibrary(liblcms        lcmsd            lcms           liblcmsd            liblcms)
+            ImportStdVcpkgLibrary(liblcms        lcms2            lcms2          liblcms2            liblcms2)
             ImportStdVcpkgLibrary(libturbojpeg   turbojpeg        turbojpeg      libturbojpeg        libturbojpeg       )
         ENDIF()
 
         IF(USE_LIBRAW OR USE_FREEIMAGE)
             # we might need libraw directly (eg MEGAsync) but also freeimage needs it
-            ImportStdVcpkgLibrary(libraw         raw_rd           raw_r          libraw_rd           libraw_r)
+            ImportStdVcpkgLibrary(libraw         raw_rd           raw_r          libraw_r           libraw_r)
 
             # libraw needs jasper and lcms and libjpeg-turbo (all also part of freeimage)
             ImportStdVcpkgLibrary(libjasper      jasperd          jasper         libjasperd          libjasper)
@@ -511,10 +519,11 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             ImportStdVcpkgLibrary(freeimage_jxrglue     jxrglued         jxrglue        libjxrglued         libjxrglue         )
             ImportStdVcpkgLibrary(freeimage_lzma        lzma             lzma           liblzma             liblzma            )
             ImportStdVcpkgLibrary(freeimage_tiff        tiffd            tiff           libtiffd            libtiff            )
-            ImportStdVcpkgLibrary(freeimage_webp        webpd            webp           libwebpd            libwebp            )
-            ImportStdVcpkgLibrary(freeimage_webpdecoder webpdecoderd     webpdecoder    libwebpdecoderd     libwebpdecoder     )
-            ImportStdVcpkgLibrary(freeimage_webpdemux   webpdemuxd       webpdemux      libwebpdemuxd       libwebpdemux       )
-            ImportStdVcpkgLibrary(freeimage_webpmux     libwebpmuxd      libwebpmux     libwebpmuxd         libwebpmux         )
+            ImportStdVcpkgLibrary(freeimage_webp        libwebp          libwebp        libwebp             libwebp            )
+            ImportStdVcpkgLibrary(freeimage_webpdecoder libwebpdecoder   libwebpdecoder libwebpdecoder      libwebpdecoder     )
+            ImportStdVcpkgLibrary(freeimage_webpdemux   libwebpdemux     libwebpdemux   libwebpdemux        libwebpdemux       )
+            ImportStdVcpkgLibrary(freeimage_webpmux     libwebpmux       libwebpmux     libwebpmux          libwebpmux         )
+            ImportStdVcpkgLibrary(freeimage_sharpyuv    libsharpyuv      libsharpyuv    libsharpyuv         libsharpyuv        )
 
             target_link_libraries(freeimage INTERFACE
                                             freeimage_Iex
@@ -528,6 +537,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
                                             freeimage_webpdecoder
                                             freeimage_webpdemux
                                             freeimage_webpmux
+                                            freeimage_sharpyuv
                                             freeimage_jpeg
                                             freeimage_Imath
                                             freeimage_lzma
@@ -544,6 +554,10 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             IF(NOT CMAKE_HOST_APPLE AND NOT CMAKE_HOST_WIN32)
                 set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} -fopenmp )
             ENDIF()
+
+            # To be included in the config.h file if available.
+            file(TO_CMAKE_PATH "${vcpkg_dir}/include/FreeImageConfig.h" FREEIMAGECONFIG_PATH)
+            CHECK_INCLUDE_FILE(${FREEIMAGECONFIG_PATH} HAVE_FREEIMAGECONFIG_H)
 
         ENDIF(USE_FREEIMAGE)
 
@@ -580,15 +594,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             # pdfium will use bzip2 if present
             ImportStdVcpkgLibrary(bzip2       bz2d bz2 libbz2d libbz2)
 
-            # pkgconfig might not be needed anymore? - suppressed by our build3rdparty project
-            IF (CMAKE_HOST_UNIX AND NOT CMAKE_HOST_APPLE)
-                set(ENV{PKG_CONFIG_PATH} "${vcpkg_dir}/lib/pkgconfig")
-                include(FindPkgConfig)
-                pkg_check_modules(FTYPECONF freetype2)
-                set(freetype_deps ${FTYPECONF_STATIC_LIBRARIES})
-            ENDIF()
-
-            set(pdfium_deps  ${pdfium_deps} freetype ${freetype_deps} liblcms libturbojpeg libopenjpeg bzip2 libpng)
+            set(pdfium_deps ${pdfium_deps} freetype liblcms libturbojpeg libopenjpeg bzip2 libpng)
         ENDIF(USE_PDFIUM)
 
 endif(USE_THIRDPARTY_FROM_VCPKG)

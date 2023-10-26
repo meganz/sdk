@@ -1,8 +1,8 @@
 /**
- * @file MEGABannerList.mm
- * @brief List of MEGABanner objects
+ * @file MEGAIntegerList.mm
+ * @brief List of integers
  *
- * (c) 2018-Present by Mega Limited, Auckland, New Zealand
+ * (c) 2017- by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -18,47 +18,48 @@
  * You should have received a copy of the license along with this
  * program.
  */
-#import "megaapi.h"
-#import "MEGABanner.h"
-#import "MEGABanner+init.h"
-#import "MEGABannerList.h"
+
+#import "MEGAIntegerList.h"
+#import "MEGAIntegerList+init.h"
 
 using namespace mega;
 
-@interface MEGABannerList ()
+@interface MEGAIntegerList ()
 
-@property MegaBannerList *megaBannerList;
+@property MegaIntegerList *megaIntegerList;
 @property BOOL cMemoryOwn;
 
 @end
 
-@implementation MEGABannerList
+@implementation MEGAIntegerList
 
-- (instancetype)initWithMegaBannerList:(MegaBannerList *)megaBannerList cMemoryOwn:(BOOL)cMemoryOwn {
+- (instancetype)initWithMegaIntegerList:(mega::MegaIntegerList *)megaIntegerList cMemoryOwn:(BOOL)cMemoryOwn {
     self = [super init];
-    
+
     if (self) {
-        _megaBannerList = megaBannerList;
+        _megaIntegerList = megaIntegerList;
         _cMemoryOwn = cMemoryOwn;
     }
-    
+
     return self;
 }
 
 - (void)dealloc {
     if (self.cMemoryOwn) {
-        delete _megaBannerList;
+        delete _megaIntegerList;
     }
 }
 
-- (MEGABanner *)bannerAtIndex:(NSInteger)index {
-    return self.megaBannerList ?
-        [[MEGABanner alloc] initWithMegaBanner:self.megaBannerList->get((int)index)->copy() cMemoryOwn:YES] : nil;
+- (mega::MegaIntegerList *)getCPtr {
+    return self.megaIntegerList;
 }
 
 - (NSInteger)size {
-    return self.megaBannerList ? self.megaBannerList->size() : 0;
+    return self.megaIntegerList ? self.megaIntegerList->size() : 0;
+}
+
+- (int64_t)integerAtIndex:(NSInteger)index {
+    return self.megaIntegerList ? self.megaIntegerList->get((int)index) : -1;
 }
 
 @end
-

@@ -27258,7 +27258,7 @@ void MegaFolderUploadController::start(MegaNode*)
 
         // if the thread runs, we always queue a function to execute on MegaApi thread for onFinish()
         // we keep a pointer to it in case we need to execute it early and directly on cancel()
-        mCompletionForMegaApiThread.reset(new ExecuteOnce([this, scanResult, weak_this]() {
+        mCompletionForMegaApiThread.reset(new ExecuteOnce([this, scanResult, weak_this, filecount]() {
 
             // double check our object still exists when completion function starts executing
             if (!weak_this.lock()) return;
@@ -27293,7 +27293,7 @@ void MegaFolderUploadController::start(MegaNode*)
 #ifndef NDEBUG
             batchResult r =
 #endif
-            createNextFolderBatch(mUploadTree, newnodes, true);
+            createNextFolderBatch(mUploadTree, newnodes, filecount, true);
 
             assert(r == batchResult_cancelled ||
                    r == batchResult_requestSent ||
@@ -27474,7 +27474,7 @@ MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFo
     return scanFolder_succeeded;
 }
 
-MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNode>& newnodes, bool isBatchRootLevel)
+MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNode>& newnodes, uint32_t filecount, bool isBatchRootLevel)
 {
     assert(mMainThreadId == std::this_thread::get_id());
 
@@ -27517,7 +27517,7 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
         }
 
         // if newnodes contains at least one newNode, isBatchRootLevel will be false
-        batchResult br = createNextFolderBatch(*t, newnodes, newnodes.empty());
+        batchResult br = createNextFolderBatch(*t, newnodes, filecount, newnodes.empty());
         if (br != batchResult_stillRecursing)
         {
             return br;
@@ -27537,7 +27537,7 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
         // anymore when the request completes
         weak_ptr<MegaFolderUploadController> weak_this = shared_from_this();
         megaapiThreadClient()->putnodes(NodeHandle().set6byte(tree.megaNode->getHandle()), UseLocalVersioningFlag, std::move(newnodes), nullptr, megaapiThreadClient()->nextreqtag(), false,
-            [this, weak_this](const Error& e, targettype_t, vector<NewNode>&, bool, int tag)
+            [this, weak_this, filecount](const Error& e, targettype_t, vector<NewNode>&, bool, int tag)
             {
                 // double check our object still exists on request completion
                 if (!weak_this.lock()) return;
@@ -27556,7 +27556,7 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
 #ifndef NDEBUG
                     batchResult r =
 #endif
-                    createNextFolderBatch(mUploadTree, newnodes, true);
+                    createNextFolderBatch(mUploadTree, newnodes, filecount, true);
 
                     assert(r == batchResult_cancelled ||
                            r == batchResult_requestSent ||
@@ -27567,7 +27567,7 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
 
         unsigned existing = 0, total = 0;
         mUploadTree.recursiveCountFolders(existing, total);
-        megaApi->fireOnFolderTransferUpdate(transfer, MegaTransfer::STAGE_CREATE_TREE, total, existing, 0, nullptr, nullptr);
+        megaApi->fireOnFolderTransferUpdate(transfer, MegaTransfer::STAGE_CREATE_TREE, total, existing, filecount, nullptr, nullptr);
 
         return batchResult_requestSent;
     }
@@ -28860,11 +28860,11 @@ void MegaFolderDownloadController::start(MegaNode *node)
         notifyStage(MegaTransfer::STAGE_CREATE_TREE);
 
         // start worker thread to create local folder tree
-        mWorkerThread = std::thread([this, fsType, path](){
+        mWorkerThread = std::thread([this, fsType, path, fileAddedCount](){
 
             // local folder creation runs on the download worker thread (and checks the cancelled flag)
             Error e;
-            std::shared_ptr<TransferQueue> transferQueue = createFolderGenDownloadTransfersForFiles(fsType, e);
+            std::shared_ptr<TransferQueue> transferQueue = createFolderGenDownloadTransfersForFiles(fsType, fileAddedCount, e);
 
             // mCompletionForMegaApiThread lambda will be executed on the MegaApiImpl's thread
             // use a weak_ptr in case this 'this' object doesn't exist anymore when lambda starts executing
@@ -29011,7 +29011,7 @@ bool MegaFolderDownloadController::IsStoppedOrCancelled(const std::string& name)
 
 // Create all local directories in one shot (on the download worker thread)
 // for performance and reducing UI waiting time, we combine createFolder and transferQueue generating in one loop
-std::unique_ptr<TransferQueue> MegaFolderDownloadController::createFolderGenDownloadTransfersForFiles(FileSystemType fsType, Error &e)
+std::unique_ptr<TransferQueue> MegaFolderDownloadController::createFolderGenDownloadTransfersForFiles(FileSystemType fsType, uint32_t fileCount, Error &e)
 {
     unsigned created = 0;
     assert(mMainThreadId != std::this_thread::get_id());
@@ -29021,7 +29021,7 @@ std::unique_ptr<TransferQueue> MegaFolderDownloadController::createFolderGenDown
     // update stage to begin
     if (!mLocalTree.empty())
     {
-        megaApi->fireOnFolderTransferUpdate(transfer, MegaTransfer::STAGE_CREATE_TREE, unsigned(mLocalTree.size()), created, 0, nullptr, nullptr);
+        megaApi->fireOnFolderTransferUpdate(transfer, MegaTransfer::STAGE_CREATE_TREE, unsigned(mLocalTree.size()), created, fileCount, nullptr, nullptr);
     }
 
     // creating folders and generate transfers for files
@@ -29057,7 +29057,7 @@ std::unique_ptr<TransferQueue> MegaFolderDownloadController::createFolderGenDown
         ++it;
         ++created;
 
-        megaApi->fireOnFolderTransferUpdate(transfer, MegaTransfer::STAGE_CREATE_TREE, unsigned(mLocalTree.size()), created, 0, nullptr, nullptr);
+        megaApi->fireOnFolderTransferUpdate(transfer, MegaTransfer::STAGE_CREATE_TREE, unsigned(mLocalTree.size()), created, fileCount, nullptr, nullptr);
     }
 
     e = API_OK;
