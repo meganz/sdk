@@ -29,7 +29,6 @@
 #include <algorithm>
 #include <vcruntime.h>
 
-using Dimension = mega::IGfxProvider::Dimension;
 namespace mega {
 namespace gfx {
 
@@ -46,37 +45,37 @@ std::unique_ptr<GfxProcessor> GfxProcessor::create()
 
 GfxTaskResult GfxProcessor::process(const GfxTask& task)
 {
-    std::vector<std::string> outputImages(task.Sizes.size());
+    std::vector<std::string> outputImages(task.Dimensions.size());
 
-    if (task.Sizes.empty())
+    if (task.Dimensions.empty())
     {
-        LOG_err << "Received empty sizes for " << task.Path;
+        LOG_err << "Received empty dimensions for " << task.Path;
         return GfxTaskResult(std::move(outputImages), GfxTaskProcessStatus::ERR);
     }
 
-    // descending sort Sizes index for its width
-    using SizeType = decltype(task.Sizes.size());
-    auto& Sizes = task.Sizes;
-    std::vector<SizeType> indices(task.Sizes.size());
+    // descending sort Dimensions index for its width
+    using SizeType = decltype(task.Dimensions.size());
+    auto& dimensions = task.Dimensions;
+    std::vector<SizeType> indices(task.Dimensions.size());
     std::iota(std::begin(indices), std::end(indices), 0);
     std::sort(std::begin(indices),
               std::end(indices),
-              [&Sizes](SizeType i1, SizeType i2)
+              [&dimensions](SizeType i1, SizeType i2)
               {
-                  return Sizes[i1].w() > Sizes[i2].w();
+                  return dimensions[i1].w() > dimensions[i2].w();
               });
 
-    // new Dimensions based on sorted indices
-    std::vector<Dimension> dimensions;
+    // new sorted dimensions based on sorted indices
+    std::vector<GfxDimension> sortedDimensions;
     std::transform(std::begin(indices),
                    std::end(indices),
-                   std::back_insert_iterator<std::vector<Dimension>>(dimensions),
-                   [&Sizes](SizeType i){ return Dimension{ Sizes[i].w(), Sizes[i].h()}; });
+                   std::back_insert_iterator<std::vector<GfxDimension>>(sortedDimensions),
+                   [&dimensions](SizeType i){ return GfxDimension{ dimensions[i].w(), dimensions[i].h()}; });
 
     // generate thumbnails
     auto images = mGfxProvider->generateImages(&mFaccess,
                                                LocalPath::fromPlatformEncodedAbsolute(task.Path),
-                                               dimensions);
+                                               sortedDimensions);
 
     // assign back to original order
     for (int i = 0; i < images.size(); ++i)

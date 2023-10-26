@@ -46,11 +46,13 @@ bool GfxClient::runShutDown()
     }
 }
 
-bool GfxClient::runGfxTask(const std::string& localpath, const std::vector<GfxSize>& sizes, std::vector<std::string>& images)
+bool GfxClient::runGfxTask(const std::string& localpath,
+                           const std::vector<GfxDimension>& dimensions,
+                           std::vector<std::string>& images)
 {
     CommandNewGfx command;
     command.Task.Path =  LocalPath::fromAbsolutePath(localpath).platformEncoded();
-    command.Task.Sizes = sizes;
+    command.Task.Dimensions = dimensions;
 
     auto addReponse = sendAndReceive<CommandNewGfxResponse>(command);
     if (!addReponse)

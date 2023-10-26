@@ -17,6 +17,7 @@
  */
 
 #pragma once
+#include "mega/gfx.h"
 
 #include <string>
 #include <vector>
@@ -25,30 +26,6 @@
 
 namespace mega {
 namespace gfx {
-
-class GfxSize
-{
-public:
-    GfxSize() : mWidth(0), mHeight(0) {}
-
-    GfxSize(int w, int h) : mWidth(w), mHeight(h) {}
-
-    bool operator==(const GfxSize& other) const { return mWidth == other.mWidth && mHeight == other.mHeight; }
-
-    bool operator!=(const GfxSize& other) const { return !(*this == other); }
-
-    int w() const { return mWidth; }
-
-    int h() const { return mHeight; }
-
-    void setW(const int width) { mWidth = width; }
-
-    void setH(const int height) { mHeight = height; }
-private:
-    int mWidth;
-
-    int mHeight;
-};
 
 enum class GfxSerializeVersion
 {
@@ -59,7 +36,7 @@ enum class GfxSerializeVersion
 struct GfxTask final
 {
     std::string          Path;
-    std::vector<GfxSize> Sizes;
+    std::vector<GfxDimension> Dimensions;
 };
 
 /**

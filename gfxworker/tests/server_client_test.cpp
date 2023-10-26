@@ -21,7 +21,7 @@ using mega::gfx::RequestProcessor;
 using mega::gfx::GfxProcessor;
 using mega::gfx::GfxClient;
 using mega::gfx::IEndpoint;
-using mega::gfx::GfxSize;
+using mega::GfxDimension;
 using mega::LocalPath;
 using namespace std::chrono_literals;
 
@@ -52,7 +52,7 @@ TEST_F(ServerClientTest, gfxTask)
 
     std::this_thread::sleep_for(100ms);
 
-    auto sizes = std::vector<GfxSize> {
+    auto dimensions = std::vector<GfxDimension> {
         { 200, 0 },     // THUMBNAIL: square thumbnail, cropped from near center
         { 1000, 1000 }  // PREVIEW: scaled version inside 1000x1000 bounding square
     };
@@ -63,7 +63,7 @@ TEST_F(ServerClientTest, gfxTask)
     EXPECT_TRUE(
         GfxClient(
             mega::make_unique<WinGfxCommunicationsClient>(mPipename)
-        ).runGfxTask(jpgImage.toPath(false), sizes, images)
+        ).runGfxTask(jpgImage.toPath(false), dimensions, images)
     );
     EXPECT_EQ(images.size(), 2);
     EXPECT_EQ(images[0].size(), 8146);
@@ -74,7 +74,7 @@ TEST_F(ServerClientTest, gfxTask)
     EXPECT_TRUE(
         GfxClient(
             mega::make_unique<WinGfxCommunicationsClient>(mPipename)
-        ).runGfxTask(jpgImage.toPath(false), sizes, images)
+        ).runGfxTask(jpgImage.toPath(false), dimensions, images)
     );
 
     EXPECT_TRUE(
@@ -155,7 +155,7 @@ TEST_F(ServerClientTest, supportformats)
 
 TEST_F(ServerClientTest, ServerIsNotRunning)
 {
-    auto sizes = std::vector<GfxSize> {
+    auto dimensions = std::vector<GfxDimension> {
         { 200, 0 },     // THUMBNAIL: square thumbnail, cropped from near center
         { 1000, 1000 }  // PREVIEW: scaled version inside 1000x1000 bounding square
     };
@@ -164,7 +164,7 @@ TEST_F(ServerClientTest, ServerIsNotRunning)
     EXPECT_FALSE(
         GfxClient(
             mega::make_unique<WinGfxCommunicationsClient>(mPipename)
-        ).runGfxTask("anyimagename.jpg", sizes, images)
+        ).runGfxTask("anyimagename.jpg", dimensions, images)
     );
 }
 

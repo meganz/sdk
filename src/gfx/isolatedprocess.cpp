@@ -13,7 +13,6 @@
 #include <chrono>
 
 using mega::gfx::GfxClient;
-using mega::gfx::GfxSize;
 namespace mega {
 
 const std::chrono::milliseconds AutoStartLauncher::MAX_BACKOFF(15 * 1000);
@@ -83,28 +82,16 @@ GfxProviderIsolatedProcess::GfxProviderIsolatedProcess(std::shared_ptr<GfxIsolat
     assert(mProcess);
 }
 
-std::vector<GfxSize> GfxProviderIsolatedProcess::toGfxSize(const std::vector<Dimension>& dimensions)
-{
-    std::vector<GfxSize> sizes;
-    std::transform(std::begin(dimensions),
-                   std::end(dimensions),
-                   std::back_insert_iterator<std::vector<GfxSize>>(sizes),
-                   [](const Dimension &d){ return GfxSize(d.width, d.height);});
-    return sizes;
-}
-
 std::vector<std::string> GfxProviderIsolatedProcess::generateImages(
     FileSystemAccess* fa,
     const LocalPath& localfilepath,
-    const std::vector<Dimension>& dimensions)
+    const std::vector<GfxDimension>& dimensions)
 {
-    auto sizes = toGfxSize(dimensions);
-
     // default return
     std::vector<std::string> images(dimensions.size());
 
     auto gfxclient = GfxClient::create(mPipename);
-    gfxclient.runGfxTask(localfilepath.toPath(false), std::move(sizes), images);
+    gfxclient.runGfxTask(localfilepath.toPath(false), dimensions, images);
 
     return images;
 }

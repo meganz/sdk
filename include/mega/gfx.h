@@ -24,6 +24,8 @@
 
 #include <mutex>
 
+#include "mega/types.h"
+#include "mega/filesystem.h"
 #ifdef USE_IOS
 #include "mega/posix/megawaiter.h"
 #else
@@ -67,21 +69,34 @@ class MEGA_API GfxJobQueue
         GfxJob *pop();
 };
 
+class MEGA_API GfxDimension
+{
+public:
+    GfxDimension() : mWidth(0), mHeight(0) {}
+
+    GfxDimension(int w, int h) : mWidth(w), mHeight(h) {}
+
+    bool operator==(const GfxDimension& other) const { return mWidth == other.mWidth && mHeight == other.mHeight; }
+
+    bool operator!=(const GfxDimension& other) const { return !(*this == other); }
+
+    int w() const { return mWidth; }
+
+    int h() const { return mHeight; }
+
+    void setW(const int width) { mWidth = width; }
+
+    void setH(const int height) { mHeight = height; }
+private:
+    int mWidth;
+
+    int mHeight;
+};
+
 // Interface for graphic processor provider used by GfxProc
 class MEGA_API IGfxProvider
 {
 public:
-    struct Dimension final
-    {
-        Dimension(int w, int h) : width(w), height(h) {};
-
-        Dimension() : width(0), height(0) {};
-
-        int width;
-
-        int height;
-    };
-
     virtual ~IGfxProvider() = default;
 
     // It generates thumbnails for the file by localfilepath according to the dimensions
@@ -89,7 +104,7 @@ public:
     // vector of empty strings should be return on error cases.
     virtual std::vector<std::string> generateImages(FileSystemAccess* fa,
                                                     const LocalPath& localfilepath,
-                                                    const std::vector<Dimension>& dimensions) = 0;
+                                                    const std::vector<GfxDimension>& dimensions) = 0;
 
     // list of supported extensions (NULL if no pre-filtering is needed)
     virtual const char* supportedformats() = 0;
@@ -110,7 +125,7 @@ public: // read and store bitmap
 
     virtual std::vector<std::string> generateImages(FileSystemAccess* fa,
                                                     const LocalPath& localfilepath,
-                                                    const std::vector<Dimension>& dimensions) override;
+                                                    const std::vector<GfxDimension>& dimensions) override;
 
 private:
     virtual bool readbitmap(FileSystemAccess*, const LocalPath&, int) = 0;
@@ -161,12 +176,12 @@ class MEGA_API GfxProc
     static void *threadEntryPoint(void *param);
     void loop();
 
-    std::vector<IGfxProvider::Dimension> getJobDimensions(GfxJob *job);
+    std::vector<GfxDimension> getJobDimensions(GfxJob *job);
 
     // Caller should give dimensions from high resolution to low resolution
-    std::vector<std::string> generateImages(const LocalPath& localfilepath, const std::vector<IGfxProvider::Dimension>& dimensions);
+    std::vector<std::string> generateImages(const LocalPath& localfilepath, const std::vector<GfxDimension>& dimensions);
 
-    std::string generateOneImage(const LocalPath& localfilepath, const IGfxProvider::Dimension& dimension);
+    std::string generateOneImage(const LocalPath& localfilepath, const GfxDimension& dimension);
 
 public:
     // synchronously processes the results of gendimensionsputfa() (if any) in a thread safe manner
@@ -178,7 +193,7 @@ public:
     // synchronously check whether the filename looks like a video
     bool isvideo(const LocalPath&);
 
-    // synchronously generate all dimensions and returns the count
+    // synchronously generate all gfx sizes and returns the count
     // asynchronously write to metadata server and attach to PUT transfer or existing node,
     // upon finalization the job is stored in responses object in a thread safe manner, and client waiter is notified
     // The results can be processed by calling checkevents()
@@ -192,12 +207,12 @@ public:
     typedef enum { AVATAR250X250 } avatar_t;
 
     // synchronously generate and save a fa to a file
-    bool savefa(const LocalPath& source, const IGfxProvider::Dimension& dimension, LocalPath& destination);
+    bool savefa(const LocalPath& source, const GfxDimension& dimension, LocalPath& destination);
 
     // - w*0: largest square crop at the center (landscape) or at 1/6 of the height above center (portrait)
     // - w*h: resize to fit inside w*h bounding box
-    static const std::vector<IGfxProvider::Dimension> DIMENSIONS;
-    static const std::vector<IGfxProvider::Dimension> DIMENSIONS_AVATAR;
+    static const std::vector<GfxDimension> DIMENSIONS;
+    static const std::vector<GfxDimension> DIMENSIONS_AVATAR;
 
     MegaClient* client;
 

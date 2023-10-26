@@ -14,7 +14,7 @@ using mega::gfx::CommandSupportFormats;
 using mega::gfx::CommandSupportFormatsResponse;
 using mega::gfx::TimeoutMs;
 using mega::gfx::IReader;
-using mega::gfx::GfxSize;
+using mega::GfxDimension;
 
 namespace mega
 {
@@ -22,7 +22,7 @@ namespace gfx
 {
     bool operator==(const CommandNewGfx& lhs, const CommandNewGfx& rhs)
     {
-        return lhs.Task.Path == rhs.Task.Path && lhs.Task.Sizes == rhs.Task.Sizes;
+        return lhs.Task.Path == rhs.Task.Path && lhs.Task.Dimensions == rhs.Task.Dimensions;
     }
 
     bool operator==(const CommandNewGfxResponse& lhs, const CommandNewGfxResponse& rhs)
@@ -90,7 +90,7 @@ TEST(CommandSerializer, CommandNewGfxSerializeAndUnserializeSuccessfully)
 {
     CommandNewGfx sourceCommand;
     sourceCommand.Task.Path = "c:\\path\\image.png";
-    sourceCommand.Task.Sizes = std::vector<GfxSize>{ {250, 0} };
+    sourceCommand.Task.Dimensions = std::vector<GfxDimension>{ {250, 0} };
 
     auto data = CommandSerializer::serialize(&sourceCommand);
     ASSERT_NE(data, nullptr);

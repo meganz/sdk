@@ -50,7 +50,9 @@ public:
 
     bool runShutDown();
 
-    bool runGfxTask(const std::string& localpath, const std::vector<GfxSize>& sizes, std::vector<std::string>& images);
+    bool runGfxTask(const std::string& localpath,
+                    const std::vector<GfxDimension>& dimensions,
+                    std::vector<std::string>& images);
 
     bool runSupportFormats(std::string& formats, std::string& videoformats);
 

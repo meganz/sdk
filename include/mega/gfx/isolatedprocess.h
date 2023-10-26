@@ -141,7 +141,7 @@ public:
 
     std::vector<std::string> generateImages(FileSystemAccess* fa,
                                             const LocalPath& localfilepath,
-                                            const std::vector<Dimension>& dimensions) override;
+                                            const std::vector<GfxDimension>& dimensions) override;
 
     const char* supportedformats() override;
 
@@ -171,8 +171,6 @@ private:
         std::atomic<bool>   mIsValid;
         std::mutex          mMutex;
     };
-
-    std::vector<gfx::GfxSize> toGfxSize(const std::vector<Dimension>& dimensions);
 
     Formats mFormats;
 

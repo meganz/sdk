@@ -7,7 +7,7 @@
 
 namespace
 {
-    using mega::gfx::GfxSize;
+    using mega::GfxDimension;
     using mega::gfx::GfxTaskProcessStatus;
     using mega::gfx::GfxSerializeVersion;
     using mega::gfx::CommandNewGfx;
@@ -68,7 +68,7 @@ namespace
 
         static void serialize(std::string& target, const uint32_t source);
 
-        static void serialize(std::string& target, const GfxSize& source);
+        static void serialize(std::string& target, const GfxDimension& source);
 
         static void serialize(std::string& target, const GfxTaskProcessStatus source);
 
@@ -112,7 +112,7 @@ namespace
 
         static size_t unserialize(uint64_t& target, const char* source, const size_t len);
 
-        static size_t unserialize(GfxSize& target, const char* source, const size_t len);
+        static size_t unserialize(GfxDimension& target, const char* source, const size_t len);
 
         static size_t unserialize(GfxTaskProcessStatus& target, const char* source, const size_t len);
 
@@ -191,7 +191,7 @@ namespace
         target.append(reinterpret_cast<const char*>(&source), sizeof(uint64_t));
     }
 
-    void GfxSerializationHelper::serialize(std::string& target, const GfxSize& source)
+    void GfxSerializationHelper::serialize(std::string& target, const GfxDimension& source)
     {
         GfxSerializationHelper::serialize_as_uint32_t(target, source.w());
         GfxSerializationHelper::serialize_as_uint32_t(target, source.h());
@@ -270,7 +270,7 @@ namespace
         return consume;
     }
 
-    size_t GfxSerializationHelper::unserialize(GfxSize& target, const char* source, const size_t len)
+    size_t GfxSerializationHelper::unserialize(GfxDimension& target, const char* source, const size_t len)
     {
         size_t count = 0;
         int w = 0;
@@ -306,7 +306,7 @@ namespace
     {
         std::string toret;
         GfxSerializationHelper::serialize(toret, command.Task.Path);
-        GfxSerializationHelper::serialize(toret, command.Task.Sizes);
+        GfxSerializationHelper::serialize(toret, command.Task.Dimensions);
         return toret;
     }
 
@@ -325,22 +325,22 @@ namespace
         }
         count += consumed;
 
-        // sizes
-        std::vector<GfxSize> sizes;
-        if (!(consumed = GfxSerializationHelper::unserialize(sizes, source + count, len - count)))
+        // dimensions
+        std::vector<GfxDimension> dimensions;
+        if (!(consumed = GfxSerializationHelper::unserialize(dimensions, source + count, len - count)))
         {
             return false;
         }
         count += consumed;
 
-        // empty sizes considered an invalid task
-        if (sizes.size() == 0)
+        // empty dimensions considered an invalid task
+        if (dimensions.size() == 0)
         {
             return false;
         }
 
         command.Task.Path = std::move(path);
-        command.Task.Sizes = std::move(sizes);
+        command.Task.Dimensions = std::move(dimensions);
 
         return true;
     }
