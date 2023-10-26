@@ -20,7 +20,6 @@
  */
 
 #import <Foundation/Foundation.h>
-#import <AssetsLibrary/AssetsLibrary.h>
 
 #import "MEGAAccountDetails.h"
 #import "MEGAAchievementsDetails.h"
@@ -55,6 +54,8 @@
 #import "MEGABackupInfoList.h"
 #import "MEGAScheduledCopy.h"
 #import "MEGAScheduledCopyDelegate.h"
+#import "BackUpState.h"
+#import "BackUpSubState.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -250,61 +251,6 @@ typedef NS_ENUM(NSInteger, BackUpType) {
     BackUpTypeDownSync = 2,
     BackUpTypeCameraUploads = 3,
     BackUpTypeMediaUploads = 4
-};
-
-typedef NS_ENUM(NSUInteger, BackUpState) {
-    BackUpStateActive = 1,
-    BackUpStateFailed = 2,
-    BackUpStateTemporaryDisabled = 3,
-    BackUpStateDisabled = 4,
-    BackUpStatePauseUp = 5,
-    BackUpStatePauseDown = 6,
-    BackUpStatePauseFull = 7
-};
-
-typedef NS_ENUM(NSUInteger, BackUpSubState) {
-    BackUpSubStateNoSyncError = 0,
-    BackUpSubStateUnknownError = 1,
-    BackUpSubStateUnsupportedFileSystem = 2, //File system type is not supported
-    BackUpSubStateInvalidRemoteType = 3, //Remote type is not a folder that can be synced
-    BackUpSubStateInvalidLocalType = 4, //Local path does not refer to a folder
-    BackUpSubStateInitialScanFailed = 5, //The initial scan failed
-    BackUpSubStateLocalPathTemporaryUnavailable = 6, //Local path is temporarily unavailable: this is fatal when adding a sync
-    BackUpSubStateLocalPathUnavailable = 7, //Local path is not available (can't be open)
-    BackUpSubStateRemoteNodeNotFound = 8, //Remote node does no longer exists
-    BackUpSubStateStorageOverquota = 9, //Account reached storage overquota
-    BackUpSubStateAccountExpired = 10, //Account expired (business or pro flexi)
-    BackUpSubStateForeignTargetOverstorage = 11, //Sync transfer fails (upload into an inshare whose account is overquota)
-    BackUpSubStateRemotePathHasChanged = 12, // Remote path has changed (currently unused: not an error)
-    BackUpSubStateShareNonFullAccess = 14, //Existing inbound share sync or part thereof lost full access
-    BackUpSubStateLocalFilesystemMismatch = 15, //Filesystem fingerprint does not match the one stored for the synchronization
-    BackUpSubStatePutNodesError = 16, // Error processing put nodes result
-    BackUpSubStateActiveSyncBelowPath = 17, // There's a synced node below the path to be synced
-    BackUpSubStateActiveSyncAbovePath = 18, // There's a synced node above the path to be synced
-    BackUpSubStateRemoteNodeMovedToRubbish = 19, // Moved to rubbish
-    BackUpSubStateRremoteNodeInsideRubbish = 20, // Attempted to be added in rubbish
-    BackUpSubStateVBoxSharedFolderUnsupported = 21, // Found unsupported VBoxSharedFolderFS
-    BackUpSubStateLocalPathSyncCollision = 22, //Local path includes a synced path or is included within one
-    BackUpSubStateAccountBlocked = 23, // Account blocked
-    BackUpSubStateUnknownTemporaryError = 24, // unknown temporary error
-    BackUpSubStateTooManyActionPackets = 25, // Too many changes in account, local state discarded
-    BackUpSubStateLoggedOut = 26, // Logged out
-    BackUpSubStateWholeAccountRefetched = 27, // The whole account was reloaded, missed actionpacket changes could not have been applied
-    BackUpSubStateMissingParentNode = 28, // Setting a new parent to a parent whose LocalNode is missing its corresponding Node crossref
-    BackUpSubStateBackupModified = 29, // Backup has been externally modified.
-    BackUpSubStateBackupSourceNotBelowDrive = 30,     // Backup source path not below drive path.
-    BackUpSubStateSyncConfigWriteFailure = 31,         // Unable to write sync config to disk.
-    BackUpSubStateActiveSyncSamePath = 32,             // There's a synced node at the path to be synced
-    BackUpSubStateCouldNotMoveCloudNodes = 33,        // rename() failed
-    BackUpSubStateCouldNotCreateIgnoreFile = 34,      // Couldn't create a sync's initial ignore file.
-    BackUpSubStateSyncConfigReadFailure = 35,          // Couldn't read sync configs from disk.
-    BackUpSubStateUnknownDrivePath = 36,                // Sync's drive path isn't known.
-    BackUpSubStateInvalidScanInterval = 37,             // The user's specified an invalid scan interval.
-    BackUpSubStateNotificationSystemUnavailable = 38,   // Filesystem notification subsystem has encountered an unrecoverable error.
-    BackUpSubStateUnableToAddWatch = 39,               // Unable to add a filesystem watch.
-    BackUpSubStateUnableToRetrieveRootFSID = 40,      // Unable to retrieve a sync root's FSID.
-    BackUpSubStateUnableToOpenDatabase = 41,           // Unable to open state cache database.
-    BackUpSubStateInsufficientDiskSpace = 42,
 };
 
 typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
@@ -9887,7 +9833,7 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * @param subState BackUpState type backup sub-state
  * @param delegate MEGARequestDelegate to track this request
 */
-- (void)updateBackup:(MEGAHandle)backupId backupType:(BackUpType)type targetNode:(MEGANode *)node folderPath:(nullable NSString *)path backupName:(NSString *)name state:(BackUpState)state subState:(BackUpSubState)subState delegate:(id<MEGARequestDelegate>)delegate;
+- (void)updateBackup:(MEGAHandle)backupId backupType:(BackUpType)type targetNode:(nullable MEGANode *)node folderPath:(nullable NSString *)path backupName:(nullable NSString *)name state:(BackUpState)state subState:(BackUpSubState)subState delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Fetch information about all registered backups for Backup Centre
@@ -10162,6 +10108,109 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * @param delegate MEGARequestDelegate to track this request
  */
 - (void)queryAds:(AdsFlag)adFlags publicHandle:(MEGAHandle)publicHandle delegate:(id<MEGARequestDelegate>)delegate;
+
+#pragma mark - VPN
+
+/**
+ * @brief Gets a list with the available regions for MEGA VPN.
+ *
+ * The associated request type with this request is MEGARequestTypeGetVPNRegions.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaStringList] - Returns the list with the VPN regions.
+ *
+ * @param delegate MEGARequestDelegate to track this request.
+ */
+- (void)getVpnRegionsWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Gets the MEGA VPN credentials currently active for the user.
+ *
+ * Important consideration:
+ * These credentials do NOT contain the User Private Key, which is required for VPN connection.
+ * Credentials containing the User Private Key are generated by
+ * [MEGASdk putVpnCredentialWithRegion] and cannot be retrieved afterwards.
+ *
+ * The associated request type with this request is MEGARequestTypeGetVPNCredentials.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaVpnCredentials] - Returns the MEGAVPNCredentials object.
+ *
+ * On the onRequestFinish error, the error code associated to the MEGAError can be:
+ * - MEGAErrorTypeApiENoent - The user has no credentials registered.
+ *
+ * @param delegate MEGARequestDelegate to track this request.
+ */
+- (void)getVpnCredentialsWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Adds new MEGA VPN credentials on an empty slot.
+ *
+ * A pair of private and public keys are generated for the user during this request.
+ * The User Public Key value is intended for use with [MEGASdk checkVpnCredentialWithUserPubKey].
+ * The User Private Key value is included in the VPN credentials.
+ * Once returned, neither of these keys can be retrieved, not even using [MEGASdk getVpnCredentialsWithDelegate].
+ *
+ * The user must be a PRO user and have unoccupied VPN slots in order to add new VPN credentials.
+ *
+ * The associated request type with this request is MEGARequestTypePutVPNCredential.
+ *
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest text] - Returns the VPN region used for the VPN credentials.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest number] - Returns the SlotID attached to the new VPN credentials.
+ * - [MEGARequest password] - Returns the User Public Key used to register the new VPN credentials.
+ * - [MEGARequest sessionKey] - Returns a string with the new VPN credentials.
+ *
+ * On the onRequestFinish error, the error code associated to the MEGAError can be:
+ * - MEGAErrorTypeApiEArgs - Public Key does not have a correct format/length.
+ * - MEGAErrorTypeApiEAccess - User is not PRO.
+ *                            - User is not logged in.
+ *                            - Public Key is already taken.
+ * - MEGAErrorTypeApiETooMany - User has too many registered credentials.
+ *
+ * @param region The VPN region to be used on the new VPN credential.
+ * @param delegate MEGARequestDelegate to track this request.
+ */
+- (void)putVpnCredentialWithRegion:(NSString *)region delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Delete the current MEGA VPN credentials used on a slot.
+ *
+ * The associated request type with this request is MEGARequestTypeDeleteVPNCredential.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest number] - Returns the SlotID used as a parameter for credential removal.
+ *
+ * On the onRequestFinish error, the error code associated to the MEGAError can be:
+ * - MEGAErrorTypeApiEArgs - SlotID is not valid.
+ * - MEGAErrorTypeApiENoEnt - SlotID is not occupied.
+ *
+ * @param slotID The SlotID from which to remove the VPN credentials.
+ * @param delegate MEGARequestDelegate to track this request.
+ */
+- (void)delVpnCredentialWithSlotID:(NSInteger)slotID delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Check the current status of MEGA VPN credentials using the User Public Key.
+ *
+ * The User Public Key is obtained from [MEGASdk putVpnCredentialWithRegion].
+ *
+ * The associated request type with this request is MEGARequestTypeCheckVPNCredential.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest text] - Returns the User Public Key used as a parameter to verify the status of the VPN credentials.
+ *
+ * On the onRequestFinish error, the error code associated to the MEGAError can be:
+ * - MEGAErrorTypeApiEAccess - Public Key is not valid.
+ *
+ * @param userPubKey The User Public Key used to register the VPN credentials.
+ * @param delegate MEGARequestDelegate to track this request.
+ */
+- (void)checkVpnCredentialWithUserPubKey:(NSString *)userPubKey delegate:(id<MEGARequestDelegate>)delegate;
+
 
 @end
 

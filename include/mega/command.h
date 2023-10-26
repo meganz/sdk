@@ -30,6 +30,7 @@
 #include "http.h"
 #include "json.h"
 #include "textchat.h"
+#include "nodemanager.h"
 
 namespace mega {
 
@@ -61,6 +62,9 @@ public:
 
     // some commands are guaranteed to work if we query without specifying a SID (eg. gmf)
     bool suppressSID;
+
+    // filters for JSON parsing in streaming
+    std::map<std::string, std::function<bool(JSON *)>> mFilters;
 
     void cmd(const char*);
     void notself(MegaClient*);
@@ -446,8 +450,16 @@ class MEGA_API CommandFetchNodes : public Command
 {
 public:
     bool procresult(Result, JSON&) override;
+    bool parsingFinished();
 
     CommandFetchNodes(MegaClient*, int tag, bool nocache);
+
+protected:
+    handle mPreviousHandleForAlert = UNDEF;
+    NodeManager::MissingParentNodes mMissingParentNodes;
+
+    // Field to temporarily save the received scsn
+    handle mScsn;
 };
 
 // update own node keys
@@ -1696,12 +1708,13 @@ public:
 typedef std::function<void(Error, const ScheduledMeeting*)> CommandScheduledMeetingAddOrUpdateCompletion;
 class MEGA_API CommandScheduledMeetingAddOrUpdate : public Command
 {
+    std::string mChatTitle;
     std::unique_ptr<ScheduledMeeting> mScheduledMeeting;
     CommandScheduledMeetingAddOrUpdateCompletion mCompletion;
 
 public:
     bool procresult(Result, JSON&) override;
-    CommandScheduledMeetingAddOrUpdate(MegaClient *, const ScheduledMeeting*, CommandScheduledMeetingAddOrUpdateCompletion completion);
+    CommandScheduledMeetingAddOrUpdate(MegaClient *, const ScheduledMeeting*, const char*, CommandScheduledMeetingAddOrUpdateCompletion);
 };
 
 typedef std::function<void(Error)> CommandScheduledMeetingRemoveCompletion;

@@ -2338,6 +2338,15 @@ void MegaClient::exec()
 
                             if (pendingcs->bufpos > pendingcs->notifiedbufpos)
                             {
+                                if (pendingcs->mChunked)
+                                {
+                                    size_t consumedBytes = reqs.serverChunk(pendingcs->data(), this);
+                                    LOG_verbose << "Consumed a chunk of " << consumedBytes << " bytes. "
+                                                << "Total: " << reqs.chunkedProgress() << " of "
+                                                << pendingcs->contentlength;
+                                    pendingcs->purge(consumedBytes);
+                                }
+
                                 abortlockrequest();
                                 app->request_response_progress(pendingcs->bufpos, pendingcs->contentlength);
                                 pendingcs->notifiedbufpos = pendingcs->bufpos;
@@ -2349,9 +2358,11 @@ void MegaClient::exec()
                         abortlockrequest();
                         app->request_response_progress(pendingcs->bufpos, -1);
 
-                        if (pendingcs->in != "-3" && pendingcs->in != "-4")
+                        if ((!pendingcs->mChunked && pendingcs->in != "-3" && pendingcs->in != "-4")
+                            || (pendingcs->mChunked && (reqs.chunkedProgress() || (pendingcs->in != "-3" && pendingcs->in != "-4"))))
                         {
-                            if (*pendingcs->in.c_str() == '[')
+                            if ((!pendingcs->mChunked && *pendingcs->in.c_str() == '[')
+                                || (pendingcs->mChunked && (reqs.chunkedProgress() || *pendingcs->in.c_str() == '[' || pendingcs->in.empty())))
                             {
                                 CodeCounter::ScopeTimer ccst(performanceStats.csSuccessProcessingTime);
 
@@ -2367,8 +2378,22 @@ void MegaClient::exec()
                                     csretrying = false;
                                 }
 
-                                // request succeeded, process result array
-                                reqs.serverresponse(std::move(pendingcs->in), this);
+                                if (!pendingcs->mChunked)
+                                {
+                                    // request succeeded, process result array
+                                    reqs.serverresponse(std::move(pendingcs->in), this);
+                                }
+                                else
+                                {
+                                    size_t consumedBytes = reqs.serverChunk(pendingcs->data(), this);
+                                    if (consumedBytes)
+                                    {
+                                        LOG_verbose << "Consumed the last chunk of " << consumedBytes << " bytes";
+                                    }
+
+                                    // The requests should be already terminated
+                                    assert(!reqs.chunkedProgress());
+                                }
 
                                 WAIT_CLASS::bumpds();
 
@@ -2428,6 +2453,10 @@ void MegaClient::exec()
                                 {
                                     block();
                                 }
+
+                                // A failed request implies any retry in progress has ended.
+                                if (csretrying)
+                                    app->notify_retry(0, RETRY_NONE);
 
                                 app->request_error(e);
                                 delete pendingcs;
@@ -2561,6 +2590,12 @@ void MegaClient::exec()
                         pendingcs->posturl.append(mJourneyId.getValue());
                     }
                     pendingcs->type = REQ_JSON;
+
+                    if (pendingcs->includesFetchingNodes && !mNodeManager.hasCacheLoaded())
+                    {
+                        // Currently only fetchnodes requests can take advantage of chunked processing
+                        pendingcs->mChunked = true;
+                    }
 
                     performanceStats.csRequestWaitTime.start();
                     pendingcs->post(this);
@@ -3686,12 +3721,15 @@ void MegaClient::exec()
     } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.readyToSend() && btcs.armed()) || looprequested);
 
 
-    NodeCounter nc = mNodeManager.getCounterOfRootNodes();
-    m_off_t sum = nc.storage + nc.versionStorage;
-    if (mNotifiedSumSize != sum)
+    if (!fetchingnodes)
     {
-        mNotifiedSumSize = sum;
-        app->storagesum_changed(mNotifiedSumSize);
+        NodeCounter nc = mNodeManager.getCounterOfRootNodes();
+        m_off_t sum = nc.storage + nc.versionStorage;
+        if (mNotifiedSumSize != sum)
+        {
+            mNotifiedSumSize = sum;
+            app->storagesum_changed(mNotifiedSumSize);
+        }
     }
 
 #ifdef MEGA_MEASURE_CODE
@@ -6145,17 +6183,22 @@ void MegaClient::pendingattrstring(UploadHandle h, string* fa)
 // Upload file attribute data to fa servers. node handle can be UNDEF if we are giving fa handle back to the app
 // Used for attaching file attribute to a Node, or prepping for Node creation after upload, or getting fa handle for app.
 // FIXME: to avoid unnecessary roundtrips to the attribute servers, also cache locally
-void MegaClient::putfa(NodeOrUploadHandle th, fatype t, SymmCipher* key, int tag, std::unique_ptr<string> data)
+bool MegaClient::putfa(NodeOrUploadHandle th, fatype t, SymmCipher* key, int tag, std::unique_ptr<string> data)
 {
     // CBC-encrypt attribute data (padded to next multiple of BLOCKSIZE)
     data->resize((data->size() + SymmCipher::BLOCKSIZE - 1) & -SymmCipher::BLOCKSIZE);
-    key->cbc_encrypt((byte*)data->data(), data->size());
+    if (!key->cbc_encrypt((byte*)data->data(), data->size()))
+    {
+        LOG_err << "Failed to CBC encrypt Node attribute data.";
+        return false;
+    }
 
     queuedfa.emplace_back(new HttpReqFA(th, t, usehttps, tag, std::move(data), true, this));
     LOG_debug << "File attribute added to queue - " << th << " : " << queuedfa.size() << " queued, " << activefa.size() << " active";
 
     // no other file attribute storage request currently in progress? POST this one.
     activatefa();
+    return true;
 }
 
 void MegaClient::activatefa()
@@ -8340,6 +8383,12 @@ void MegaClient::sc_ub()
 // purge removed nodes after notification
 void MegaClient::notifypurge(void)
 {
+    if (!mNodeManager.ready())
+    {
+        // the filesystem is being initialized
+        return;
+    }
+
     int i, t;
 
     handle tscsn = cachedscsn;
@@ -8802,7 +8851,11 @@ void MegaClient::makeattr(SymmCipher* key, string* attrstring, const char* json,
     buf[l + 5] = '}';
     memset(buf + 6 + l, 0, ll - l - 6);
 
-    key->cbc_encrypt(buf, ll);
+    if (!key->cbc_encrypt(buf, ll))
+    {
+        LOG_err << "Failed to CBC encrypt attribute";  // Is refactoring needed to add return value for current function?
+        assert(false);
+    }
 
     attrstring->assign((char*)buf, ll);
 
@@ -9537,13 +9590,31 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
         return 0;
     }
 
-    Node* n;
-
     handle previousHandleForAlert = UNDEF;
 
     NodeManager::MissingParentNodes missingParentNodes;
+    while (int e = readnode(j, notify, source, nn, modifiedByThisClient, applykeys, missingParentNodes, previousHandleForAlert))
+    {
+        if (e != 1)
+        {
+            LOG_err << "Parsing error in readnodes: " << e;
+            return 0;
+        }
+    }
 
-    while (j->enterobject())
+    mergenewshares(notify);
+    mNodeManager.checkOrphanNodes(missingParentNodes);
+
+    return j->leavearray();
+}
+
+
+int MegaClient::readnode(JSON* j, int notify, putsource_t source, vector<NewNode>* nn, bool modifiedByThisClient, bool applykeys,
+                         mega::NodeManager::MissingParentNodes &missingParentNodes, handle &previousHandleForAlert)
+{
+    Node* n;
+
+    if (j->enterobject())
     {
         handle h = UNDEF, ph = UNDEF;
         handle u = 0, su = UNDEF;
@@ -9622,7 +9693,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 default:
                     if (!j->storeobject())
                     {
-                        return 0;
+                        return 2;
                     }
             }
         }
@@ -9899,12 +9970,11 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 }
             }
         }
+
+        return 1;
     }
 
-    mergenewshares(notify);
-    mNodeManager.checkOrphanNodes(missingParentNodes);
-
-    return j->leavearray();
+    return 0;
 }
 
 // decrypt and set encrypted sharekey
@@ -10279,9 +10349,9 @@ error MegaClient::readmiscflags(JSON *json)
         case MAKENAMEID4('c', 's', 'p', 'e'):   // cookie banner enabled
             mCookieBannerEnabled = bool(json->getint());
             break;
-        case MAKENAMEID2('p', 'f'): // pro flexi plan
-            mProFlexi = bool(json->getint());
-            break;
+//        case MAKENAMEID2('p', 'f'): // is this account able to subscribe a pro flexi plan?
+//            json->getint();
+//            break;
         case MAKENAMEID3('j', 'i', 'd'):   // JourneyID value (16-char hex value)
             {
                 string jid;
@@ -10340,12 +10410,29 @@ error MegaClient::readmiscflags(JSON *json)
     }
 }
 
-void MegaClient::procph(JSON *j)
+bool MegaClient::procph(JSON *j)
 {
-    // fields: h, ph, ets
-    if (j->enterarray())
+    if (!j->enterarray())
     {
-        while (j->enterobject())
+        return false;
+    }
+
+    while (int e = procphelement(j))
+    {
+        if (e != 1)
+        {
+            LOG_err << "Parsing error in procph: " << e;
+            return false;
+        }
+    }
+
+    return j->leavearray();
+}
+
+int MegaClient::procphelement(JSON *j)
+{
+        // fields: h, ph, ets
+        if (j->enterobject())
         {
             handle h = UNDEF;
             handle ph = UNDEF;
@@ -10411,14 +10498,13 @@ void MegaClient::procph(JSON *j)
                     default:
                        if (!j->storeobject())
                        {
-                            return;
+                            return 2;
                        }
                 }
             }
+            return 1;
         }
-
-        j->leavearray();
-    }
+        return 0;
 }
 
 void MegaClient::applykeys()
@@ -10466,10 +10552,24 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
 {
     if (!j->enterarray())
     {
-        return 0;
+        return false;
     }
 
-    while (j->enterobject())
+    while (int e = readuser(j, actionpackets))
+    {
+        if (e != 1)
+        {
+            LOG_err << "Parsing error in readusers: " << e;
+            return false;
+        }
+    }
+
+    return j->leavearray();
+}
+
+int MegaClient::readuser(JSON* j, bool actionpackets)
+{
+    if (j->enterobject())
     {
         handle uh = 0;
         visibility_t v = VISIBILITY_UNKNOWN;    // new share objects do not override existing visibility
@@ -10516,7 +10616,7 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
                                     break;
                                 default:
                                     if (!j->storeobject())
-                                        return false;
+                                        return 2;
                                     break;
                             }
                         }
@@ -10557,7 +10657,7 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
                         default:
                             if (!j->storeobject())
                             {
-                                return false;
+                                return 3;
                             }
                             break;
                     }
@@ -10655,9 +10755,11 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
                 }
             }
         }
+
+        return 1;
     }
 
-    return j->leavearray();
+    return 0;
 }
 
 // Supported formats:
@@ -20080,7 +20182,15 @@ void MegaClient::putSet(Set&& s, std::function<void(Error, const Set*)> completi
         s.setKey(encrSetKey);
 
         // encrypt Set key with master key
-        key.cbc_encrypt((byte*)&encrSetKey[0], encrSetKey.size()); // in c++17 and beyond it should use encrSetKey.data()
+        if (!key.cbc_encrypt((byte*)&encrSetKey[0], encrSetKey.size())) // in c++17 and beyond it should use encrSetKey.data()
+        {
+            LOG_err << "Sets: Failed to encrypt Set key with master key.";
+            if (completion)
+            {
+                completion(API_EKEY, nullptr);
+            }
+            return;
+        }
 
         if (s.hasAttrs())
         {
@@ -20187,7 +20297,15 @@ void MegaClient::putSetElements(vector<SetElement>&& els, std::function<void(Err
             byte encryptBuffer[FILENODEKEYLENGTH];
             std::copy_n(el.key().begin(), sizeof(encryptBuffer), encryptBuffer);
             tmpnodecipher.setkey(&existingSet->key());
-            tmpnodecipher.cbc_encrypt(encryptBuffer, sizeof(encryptBuffer));
+            if (!tmpnodecipher.cbc_encrypt(encryptBuffer, sizeof(encryptBuffer)))
+            {
+                LOG_err << "Sets: Failed to CBC encrypt an Element key with Set key";
+                if (completion)
+                {
+                    completion(API_EKEY, nullptr, nullptr);
+                }
+                return;
+            }
 
             auto& ed = encrDetails[i];
             ed.second.assign(reinterpret_cast<char*>(encryptBuffer), sizeof(encryptBuffer));
@@ -20243,7 +20361,15 @@ void MegaClient::putSetElement(SetElement&& el, std::function<void(Error, const 
         byte encryptBuffer[FILENODEKEYLENGTH];
         std::copy_n(el.key().begin(), sizeof(encryptBuffer), encryptBuffer);
         tmpnodecipher.setkey(&existingSet->key());
-        tmpnodecipher.cbc_encrypt(encryptBuffer, sizeof(encryptBuffer));
+        if (!tmpnodecipher.cbc_encrypt(encryptBuffer, sizeof(encryptBuffer)))
+        {
+            LOG_err << "Sets: Failed to CBC encrypt Element key with Set key";
+            if (completion)
+            {
+                completion(API_EKEY, nullptr);
+            }
+            return;
+        }
         encrKey.assign((char*)encryptBuffer, sizeof(encryptBuffer));
     }
     // get element.key from existing element (only when updating attributes)
@@ -20440,7 +20566,9 @@ size_t MegaClient::decryptAllSets(map<handle, Set>& newSets, map<handle, element
                 e = decryptElementData(itE->second, itS->second.key());
                 if (e != API_OK)
                 {
-                    LOG_err << "Failed to decrypt element attributes. itE Handle = " << itE->first << ", itE Key << " << itE->second.key() << ", itS Handle = " << itS->first << ", itS Key = " << itS->second.key() << ", e = " << e;
+                    LOG_err << "Failed to decrypt element attributes. "
+                            << "Element id = " << toHandle(itE->first) << ", Element key << " << Base64::btoa(itE->second.key())
+                            << ", Set id = " << toHandle(itS->first) << ", Set key = " << Base64::btoa(itS->second.key()) << ", e = " << e;
                     assert(false && "failed to decrypt Element attributes"); // failed to decrypt Element attributes
 
                     itE = itEls->second.erase(itE);
@@ -20465,7 +20593,9 @@ size_t MegaClient::decryptAllSets(map<handle, Set>& newSets, map<handle, element
 
                     if (!itE->second.nodeMetadata())
                     {
-                        LOG_err << "Invalid node for element. itE Handle = " << itE->first << ", itE Key << " << itE->second.key() << ", itS Handle = " << itS->first << ", itS Key = " << itS->second.key();
+                        LOG_err << "Invalid node for element. "
+                                << "Element id = " << toHandle(itE->first) << ", Element key << " << Base64::btoa(itE->second.key())
+                                << ", Set id = " << toHandle(itS->first) << ", Set key = " << Base64::btoa(itS->second.key());
                         itE = itEls->second.erase(itE);
                         continue;
                     }
@@ -20560,7 +20690,11 @@ string MegaClient::decryptKey(const string& k, SymmCipher& cipher) const
 {
     unique_ptr<byte[]> decrKey(new byte[k.size()]{ 0 });
     std::copy_n(k.begin(), k.size(), decrKey.get());
-    cipher.cbc_decrypt(decrKey.get(), k.size());
+    if (!cipher.cbc_decrypt(decrKey.get(), k.size()))
+    {
+        LOG_err << "Failed to CBC decrypt key";
+        return string();
+    }
     return string((char*)decrKey.get(), k.size());
 }
 
@@ -20945,14 +21079,21 @@ void MegaClient::fixSetElementWithWrongKey(const Set& s)
 
     vector<SetElement> newEls;
     vector<handle> taintedEls;
-    const auto hasWrongKey = [](const SetElement& el) { return el.key().size() != static_cast<size_t>(FILENODEKEYLENGTH); };
+    const auto hasWrongKey = [](const SetElement& el)
+    {
+        // Elements created by Webclient prior to a certain ts had invalid keys.
+        // Some had keys of wrong size, others had keys of correct size but still invalid.
+        // A criteria deemed good enough to spot the latter was to check for ts prior to a known value
+        // and having no name - Webclient would create Elements without 'name' attribute being set.
+        return el.key().size() != static_cast<size_t>(FILENODEKEYLENGTH) ||
+               (el.ts() <= 1695340800 && el.name().empty());
+    };
     for (auto& p : *els) // candidate to paral in >C++17 via algorithms
     {
         const SetElement& e = p.second;
         if (hasWrongKey(e))
         {
-            LOG_warn << "Sets: SetElement " << toHandle(e.id()) << " from Set " << toHandle(s.id())
-                     << " contains invalid key of " << s.key().size() << " Bytes";
+            LOG_warn << "Sets: SetElement " << toHandle(e.id()) << " from Set " << toHandle(s.id()) << " has invalid key";
             taintedEls.push_back(e.id());
             newEls.emplace_back(e);
         }
@@ -21723,6 +21864,11 @@ void MegaClient::clearsetelementnotify(handle sid)
     }
 }
 
+void MegaClient::setProFlexi(bool newProFlexi)
+{
+    mProFlexi = newProFlexi;
+}
+
 Error MegaClient::sendABTestActive(const char* flag, CommandABTestActive::Completion completion)
 {
     reqs.add(new CommandABTestActive(this, flag, std::move(completion)));
@@ -21943,7 +22089,11 @@ bool KeyManager::fromKeysContainer(const string &data)
 
             // Decrypt ^!keys attribute
             string keysPlain;
-            mKey.gcm_decrypt(&keysCiphered, (byte*)data.data() + 2, IV_LEN, 16, &keysPlain);
+            if (!mKey.gcm_decrypt(&keysCiphered, (byte*)data.data() + 2, IV_LEN, 16, &keysPlain))
+            {
+                LOG_err << "Failed to GCM decrypt ^!keys.";
+                return false;
+            }
 
             success = unserialize(km, keysPlain);
             if (!success)
@@ -22076,7 +22226,12 @@ string KeyManager::toKeysContainer()
     const string keysPlain = serialize();
 
     string keysCiphered;
-    mKey.gcm_encrypt(&keysPlain, (byte*)iv.data(), IV_LEN, 16, &keysCiphered);
+    if (!mKey.gcm_encrypt(&keysPlain, (byte*)iv.data(), IV_LEN, 16, &keysCiphered))
+    {
+        LOG_err << "Failed to encrypt keys attribute.";
+        assert(false);
+        return string();
+    }
 
 #ifndef NDEBUG
     byte header[2] = {20, 0};
@@ -23322,10 +23477,8 @@ string KeyManager::computeSymmetricKey(handle user)
     }
 
     std::string sharedSecret;
-    sharedSecret.resize(::mega::ECDH::DERIVED_KEY_LENGTH);
-    if (crypto_scalarmult((unsigned char *)sharedSecret.data(),
-                          mClient.chatkey->getPrivKey(),
-                          (unsigned char *)cachedav->data()))
+    ECDH ecdh(mClient.chatkey->getPrivKey(), *cachedav);
+    if (!ecdh.computeSymmetricKey(sharedSecret))
     {
         return std::string();
     }

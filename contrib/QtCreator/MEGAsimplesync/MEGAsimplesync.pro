@@ -33,7 +33,7 @@ include(../../../bindings/qt/sdk.pri)
 
 macx {
     contains(QT_ARCH, arm64):QMAKE_MACOSX_DEPLOYMENT_TARGET = 11.0
-    else:QMAKE_MACOSX_DEPLOYMENT_TARGET = 10.12
+    else:QMAKE_MACOSX_DEPLOYMENT_TARGET = 10.13
     LIBS += -framework Cocoa
     LIBS += -framework Security
 }
