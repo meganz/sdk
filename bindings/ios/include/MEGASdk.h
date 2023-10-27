@@ -9912,8 +9912,29 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * - name - Returns device name.
  *
  * @param delegate MEGARequestDelegate to track this request
+ *
+ * @deprecated This version of the function is deprecated. Please use the non-deprecated one below.
  */
 - (void)getDeviceNameWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Returns the name previously set for a device
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - paramType - Returns the attribute type MEGAUserAttributeDeviceNames
+ * - text - Returns passed device id (or the value returned by deviceId()
+ * if deviceId was initially passed as null).
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - name - Returns device name.
+ *
+ * @param deviceId The id of the device to get the name for. If null, the value returned
+ * by deviceId() will be used instead.
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getDeviceName:(NSString *)deviceId delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Sets device name
