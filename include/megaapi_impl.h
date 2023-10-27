@@ -2485,12 +2485,15 @@ public:
     void bySensitivity(bool excludeSensitive) override;
     void byLocationHandle(MegaHandle ancestorHandle) override;
     void byLocation(int locationType) override;
+    void byCreationTime(int64_t lowerLimit, int64_t upperLimit) override;
 
     const char* byName() const override { return mNameFilter.c_str(); }
     int byCategory() const override { return mMimeCategory; }
     bool bySensitivity() const override { return mExcludeSensitive; }
     MegaHandle byLocationHandle() const override { return mLocationHandle; }
     int byLocation() const override { return mLocationType; }
+    int64_t byCreationTimeLowerLimit() const override { return mCreationLowerLimit; }
+    int64_t byCreationTimeUpperLimit() const override { return mCreationUpperLimit; }
 
 private:
     std::string mNameFilter;
@@ -2498,6 +2501,8 @@ private:
     bool mExcludeSensitive = false;
     MegaHandle mLocationHandle = INVALID_HANDLE;
     int mLocationType = MegaApi::SEARCH_TARGET_ALL;
+    int64_t mCreationLowerLimit = 0;
+    int64_t mCreationUpperLimit = 0;
 };
 
 
@@ -2544,6 +2549,7 @@ class MegaApiImpl : public MegaApp
         bool serverSideRubbishBinAutopurgeEnabled();
         bool appleVoipPushEnabled();
         bool newLinkFormatEnabled();
+        bool accountIsNew() const;
         unsigned int getABTestValue(const char* flag);
         void sendABTestActive(const char* flag, MegaRequestListener* listener);
         int smsAllowedState();
@@ -2923,6 +2929,9 @@ class MegaApiImpl : public MegaApp
         bool isPendingShare(MegaNode *node);
         MegaShareList *getOutShares(int order);
         MegaShareList *getOutShares(MegaNode *node);
+private:
+        node_vector getOutShares();
+public:
         MegaShareList *getPendingOutShares();
         MegaShareList *getPendingOutShares(MegaNode *megaNode);
         MegaShareList *getUnverifiedOutShares(int order);
@@ -3197,7 +3206,7 @@ class MegaApiImpl : public MegaApp
         void joinChatCall(MegaHandle chatid, MegaHandle callid, MegaRequestListener* listener = nullptr);
         void endChatCall(MegaHandle chatid, MegaHandle callid, int reason = 0, MegaRequestListener *listener = nullptr);
         void setSFUid(int sfuid);
-        void createOrUpdateScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting, MegaRequestListener* listener = NULL);
+        void createOrUpdateScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting, const char* chatTitle,  MegaRequestListener* listener = NULL);
         void removeScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener = NULL);
         void fetchScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener = NULL);
         void fetchScheduledMeetingEvents(MegaHandle chatid, MegaTimeStamp since, MegaTimeStamp until, unsigned int count, MegaRequestListener* listener = NULL);

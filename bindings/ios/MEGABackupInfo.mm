@@ -90,12 +90,12 @@ using namespace mega;
     return nil;
 }
 
-- (MEGASyncState)state {
-    return (MEGASyncState) (self.megaBackupInfo ? self.megaBackupInfo->state() : MEGASyncStateUnknown);
+- (BackUpState)state {
+    return (BackUpState) (self.megaBackupInfo ? self.megaBackupInfo->state() : BackUpStateUnknown);
 }
 
-- (MEGABackupSubstate)substate {
-    return (MEGABackupSubstate) (self.megaBackupInfo ? self.megaBackupInfo->substate() : MEGABackupSubstateNoSyncError);
+- (BackUpSubState)substate {
+    return (BackUpSubState) (self.megaBackupInfo ? self.megaBackupInfo->substate() : BackUpSubStateNoSyncError);
 }
 
 - (NSString *)extra {
