@@ -10979,6 +10979,121 @@ TEST_F(SdkTest, SearchNodesByCreationTime)
 
 
 /**
+ * @brief TEST_F SearchNodesByNodeType
+ *
+ * Test filtering nodes by node type in search() and getChildren()
+ *
+ */
+TEST_F(SdkTest, SearchNodesByNodeType)
+{
+    LOG_info << "___TEST SearchNodesByNodeType___";
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootnode);
+
+    string folderName = "SearchByNodeType_Folder.Foo";
+    MegaHandle folderHandle = createFolder(0, folderName.c_str(), rootnode.get());
+    ASSERT_NE(folderHandle, INVALID_HANDLE);
+    unique_ptr<MegaNode> folderNode(megaApi[0]->getNodeByHandle(folderHandle));
+    ASSERT_TRUE(folderNode);
+
+    string fileName = "SearchByNodeType_File.bar";
+    ASSERT_TRUE(createFile(fileName, false));
+    MegaHandle fileHandle1 = 0;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &fileHandle1, fileName.c_str(), rootnode.get(),
+                                               nullptr /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload " << fileName << " to root";
+    ASSERT_NE(fileHandle1, INVALID_HANDLE);
+    unique_ptr<MegaNode> fileNode1(megaApi[0]->getNodeByHandle(fileHandle1));
+    ASSERT_TRUE(fileNode1);
+
+    MegaHandle fileHandle2 = 0;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &fileHandle2, fileName.c_str(), folderNode.get(),
+                                               nullptr /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload " << fileName << " to " << folderName;
+    ASSERT_NE(fileHandle2, INVALID_HANDLE);
+    unique_ptr<MegaNode> fileNode2(megaApi[0]->getNodeByHandle(fileHandle2));
+    ASSERT_TRUE(fileNode2);
+
+    // getChildren()
+    unique_ptr<MegaSearchFilter> f(MegaSearchFilter::createInstance());
+    f->byName("SearchByNodeType_*");
+    f->byLocationHandle(rootnode->getHandle());
+    unique_ptr<MegaNodeList> results(megaApi[0]->getChildren(f.get()));
+    ASSERT_EQ(results->size(), 2);
+
+    f->byNodeType(MegaNode::TYPE_FOLDER);
+    results.reset(megaApi[0]->getChildren(f.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getName(), folderName);
+
+    f->byNodeType(MegaNode::TYPE_FILE);
+    results.reset(megaApi[0]->getChildren(f.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getHandle(), fileHandle1);
+
+    f->byLocationHandle(folderHandle);
+    f->byNodeType(MegaNode::TYPE_UNKNOWN);
+    results.reset(megaApi[0]->getChildren(f.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getHandle(), fileHandle2);
+
+    f->byNodeType(MegaNode::TYPE_FOLDER);
+    results.reset(megaApi[0]->getChildren(f.get()));
+    ASSERT_EQ(results->size(), 0);
+
+    f->byNodeType(MegaNode::TYPE_FILE);
+    results.reset(megaApi[0]->getChildren(f.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getHandle(), fileHandle2);
+
+    // search()
+    f->byLocationHandle(INVALID_HANDLE);
+    f->byNodeType(MegaNode::TYPE_UNKNOWN);
+    results.reset(megaApi[0]->search(f.get()));
+    ASSERT_EQ(results->size(), 3);
+
+    f->byNodeType(MegaNode::TYPE_FOLDER);
+    results.reset(megaApi[0]->search(f.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getName(), folderName);
+
+    f->byNodeType(MegaNode::TYPE_FILE);
+    results.reset(megaApi[0]->search(f.get()));
+    ASSERT_EQ(results->size(), 2);
+    ASSERT_EQ(results->get(0)->getName(), fileName);
+    ASSERT_EQ(results->get(1)->getName(), fileName);
+
+    f->byLocationHandle(folderHandle);
+    f->byNodeType(MegaNode::TYPE_UNKNOWN);
+    results.reset(megaApi[0]->search(f.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getHandle(), fileHandle2);
+
+    f->byNodeType(MegaNode::TYPE_FOLDER);
+    results.reset(megaApi[0]->search(f.get()));
+    ASSERT_EQ(results->size(), 0);
+
+    f->byNodeType(MegaNode::TYPE_FILE);
+    results.reset(megaApi[0]->search(f.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getHandle(), fileHandle2);
+
+    deleteFile(fileName);
+}
+
+
+/**
  * ___SdkNodesOnDemand___
  * Steps:
  *  - Configure variables to set Account2 data equal to Account1
