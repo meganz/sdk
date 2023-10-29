@@ -5389,21 +5389,21 @@ bool Syncs::deferUpload(const LocalPath& path) const
     return defer(&SyncController::deferUpload, path);
 }
 
-void Syncs::hasImmediateStall(HasImmediateStallPredicate predicate)
+void Syncs::setHasImmediateStall(HasImmediateStallPredicate predicate)
 {
     std::lock_guard<std::mutex> guard(mImmediateStallLock);
 
     mHasImmediateStall = std::move(predicate);
 }
 
-void Syncs::isImmediateStall(IsImmediateStallPredicate predicate)
+void Syncs::setIsImmediateStall(IsImmediateStallPredicate predicate)
 {
     std::lock_guard<std::mutex> guard(mImmediateStallLock);
 
     mIsImmediateStall = std::move(predicate);
 }
 
-void Syncs::syncController(SyncControllerPtr controller)
+void Syncs::setSyncController(SyncControllerPtr controller)
 {
     std::lock_guard<std::mutex> guard(mSyncControllerLock);
 

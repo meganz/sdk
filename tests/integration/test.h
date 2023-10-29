@@ -431,15 +431,15 @@ public:
 
     bool deferPutnode(const LocalPath& path) const override;
 
-    void deferPutnode(Callback callback);
-
     bool deferPutnodeCompletion(const LocalPath& path) const override;
-
-    void deferPutnodeCompletion(Callback callback);
 
     bool deferUpload(const LocalPath& path) const override;
 
-    void deferUpload(Callback callback);
+    void setDeferPutnodeCallback(Callback callback);
+
+    void setDeferPutnodeCompletionCallback(Callback callback);
+
+    void setDeferUploadCallback(Callback callback);
 }; // StandardSyncController
 
 struct StandardClient : public MegaApp
@@ -1071,11 +1071,11 @@ struct StandardClient : public MegaApp
     function<void(bool)> mOnStall;
     function<void(bool)> mOnConflictsDetected;
 
-    void hasImmediateStall(HasImmediateStallPredicate predicate);
+    void setHasImmediateStall(HasImmediateStallPredicate predicate);
 
-    void isImmediateStall(IsImmediateStallPredicate predicate);
+    void setIsImmediateStall(IsImmediateStallPredicate predicate);
 
-    void syncController(SyncControllerPtr controller);
+    void setSyncController(SyncControllerPtr controller);
 };
 
 struct ScopedSyncPauser

@@ -56,8 +56,8 @@ public:
     
     ~ScopedStallPredicateResetter()
     {
-        mClient.hasImmediateStall(nullptr);
-        mClient.isImmediateStall(nullptr);
+        mClient.setHasImmediateStall(nullptr);
+        mClient.setIsImmediateStall(nullptr);
     }
 }; // ScopedStallPredicateResetter
 
@@ -1115,19 +1115,9 @@ bool StandardSyncController::deferPutnode(const LocalPath& path) const
     return call(mDeferPutnode, path);
 }
 
-void StandardSyncController::deferPutnode(Callback callback)
-{
-    set(mDeferPutnode, std::move(callback));
-}
-
 bool StandardSyncController::deferPutnodeCompletion(const LocalPath& path) const
 {
     return call(mDeferPutnodeCompletion, path);
-}
-
-void StandardSyncController::deferPutnodeCompletion(Callback callback)
-{
-    set(mDeferPutnodeCompletion, std::move(callback));
 }
 
 bool StandardSyncController::deferUpload(const LocalPath& path) const
@@ -1135,7 +1125,17 @@ bool StandardSyncController::deferUpload(const LocalPath& path) const
     return call(mDeferUpload, path);
 }
 
-void StandardSyncController::deferUpload(Callback callback)
+void StandardSyncController::setDeferPutnodeCallback(Callback callback)
+{
+    set(mDeferPutnode, std::move(callback));
+}
+
+void StandardSyncController::setDeferPutnodeCompletionCallback(Callback callback)
+{
+    set(mDeferPutnodeCompletion, std::move(callback));
+}
+
+void StandardSyncController::setDeferUploadCallback(Callback callback)
 {
     set(mDeferUpload, std::move(callback));
 }
@@ -4986,25 +4986,25 @@ void StandardClient::upgradeSecurity(PromiseBoolSP result)
     });
 }
 
-void StandardClient::hasImmediateStall(HasImmediateStallPredicate predicate)
+void StandardClient::setHasImmediateStall(HasImmediateStallPredicate predicate)
 {
     std::lock_guard<std::recursive_mutex> guard(clientMutex);
 
-    client.syncs.hasImmediateStall(std::move(predicate));
+    client.syncs.setHasImmediateStall(std::move(predicate));
 }
 
-void StandardClient::isImmediateStall(IsImmediateStallPredicate predicate)
+void StandardClient::setIsImmediateStall(IsImmediateStallPredicate predicate)
 {
     std::lock_guard<std::recursive_mutex> guard(clientMutex);
 
-    client.syncs.isImmediateStall(std::move(predicate));
+    client.syncs.setIsImmediateStall(std::move(predicate));
 }
 
-void StandardClient::syncController(SyncControllerPtr controller)
+void StandardClient::setSyncController(SyncControllerPtr controller)
 {
     std::lock_guard<std::recursive_mutex> guard(clientMutex);
 
-    client.syncs.syncController(std::move(controller));
+    client.syncs.setSyncController(std::move(controller));
 }
 
 using SyncWaitPredicate = std::function<bool(StandardClient&)>;
@@ -17203,17 +17203,17 @@ TEST_F(SyncTest, MoveJustAsPutNodesSent)
     auto controller = std::make_shared<StandardSyncController>();
 
     // Inject controller.
-    client->syncController(controller);
+    client->setSyncController(controller);
 
     // Signal "deferred" stalls immediately.
-    client->isImmediateStall(isDeferredStall);
-    client->hasImmediateStall(hasDeferredStall);
+    client->setIsImmediateStall(isDeferredStall);
+    client->setHasImmediateStall(hasDeferredStall);
 
     // Make sure original stall predicates are restored, no matter what.
     ScopedStallPredicateResetter resetter(*client);
 
     // Inhibit completion of s/f's putnodes.
-    controller->deferPutnodeCompletion([&](const fs::path& path) {
+    controller->setDeferPutnodeCompletionCallback([&](const fs::path& path) {
         return client->fsBasePath / "s" / "f" == path;
     });
 
@@ -17256,7 +17256,7 @@ TEST_F(SyncTest, MoveJustAsPutNodesSent)
 
     // Now that we know the move has been detected, we can allow the
     // engine to complete the pending putnode request.
-    controller->deferPutnodeCompletion(nullptr);
+    controller->setDeferPutnodeCompletionCallback(nullptr);
 
     // Wait for the engine to return to normal operation.
     ASSERT_TRUE(client->waitFor(SyncStallState(false), DEFAULTWAIT));
@@ -17272,7 +17272,7 @@ TEST_F(SyncTest, MoveJustAsPutNodesSent)
     // That is, process the move target first.
 
     // Inhibit completion of s/d/f's putnodes.
-    controller->deferPutnodeCompletion([&](const fs::path& path) {
+    controller->setDeferPutnodeCompletionCallback([&](const fs::path& path) {
         return client->fsBasePath / "s" / "d" / "f" == path;
     });
 
@@ -17305,7 +17305,7 @@ TEST_F(SyncTest, MoveJustAsPutNodesSent)
     ASSERT_TRUE(client->waitFor(std::move(predicate), DEFAULTWAIT));
 
     // Now that the move's been recognized, allow the putnodes to complete.
-    controller->deferPutnodeCompletion(nullptr);
+    controller->setDeferPutnodeCompletionCallback(nullptr);
 
     // Wait for the engine to return to normal operation.
     ASSERT_TRUE(client->waitFor(SyncStallState(false), DEFAULTWAIT));
@@ -17349,17 +17349,17 @@ TEST_F(SyncTest, RemovedJustAsPutNodesSent)
     auto controller = std::make_shared<StandardSyncController>();
 
     // Inject controller.
-    client->syncController(controller);
+    client->setSyncController(controller);
 
     // Signal "deferred" stalls immediately.
-    client->isImmediateStall(isDeferredStall);
-    client->hasImmediateStall(hasDeferredStall);
+    client->setIsImmediateStall(isDeferredStall);
+    client->setHasImmediateStall(hasDeferredStall);
 
     // Make sure original stall predicates are restored, no matter what.
     ScopedStallPredicateResetter resetter(*client);
 
     // Inhibit completion of s/f's putnodes.
-    controller->deferPutnodeCompletion([&](const fs::path& path) {
+    controller->setDeferPutnodeCompletionCallback([&](const fs::path& path) {
         return client->fsBasePath / "s" / "f" == path;
     });
 
@@ -17387,7 +17387,7 @@ TEST_F(SyncTest, RemovedJustAsPutNodesSent)
     WaitMillisec(2 * 1000);
 
     // Let s/f's putnodes complete.
-    controller->deferPutnodeCompletion(nullptr);
+    controller->setDeferPutnodeCompletionCallback(nullptr);
 
     // Wait for the stall to be resolved.
     ASSERT_TRUE(client->waitFor(SyncStallState(false), TIMEOUT));
@@ -17401,7 +17401,7 @@ TEST_F(SyncTest, RemovedJustAsPutNodesSent)
     // Try the same scenario when the file hasn't previously been synchronized.
 
     // Inhibit completion of s/g's putnodes.
-    controller->deferPutnodeCompletion([&](const fs::path& path) {
+    controller->setDeferPutnodeCompletionCallback([&](const fs::path& path) {
         return client->fsBasePath / "s" / "g" == path;
     });
 
@@ -17429,7 +17429,7 @@ TEST_F(SyncTest, RemovedJustAsPutNodesSent)
     WaitMillisec(2 * 1000);
 
     // Remove the block on s/g's putnodes.
-    controller->deferPutnodeCompletion(nullptr);
+    controller->setDeferPutnodeCompletionCallback(nullptr);
 
     // Wait for the stall to be resolved.
     ASSERT_TRUE(client->waitFor(SyncStallState(false), TIMEOUT));

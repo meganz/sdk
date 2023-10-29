@@ -1538,13 +1538,13 @@ public:
     bool deferUpload(const LocalPath& path) const;
 
     // Specify how the engine should determine whether there are any immediate stalls.
-    void hasImmediateStall(HasImmediateStallPredicate predicate);
+    void setHasImmediateStall(HasImmediateStallPredicate predicate);
 
     // Specify how the engine can determine whether a given stall is "immediate."
-    void isImmediateStall(IsImmediateStallPredicate predicate);
+    void setIsImmediateStall(IsImmediateStallPredicate predicate);
 
     // Specify a controller who should guide the engine's activities.
-    void syncController(SyncControllerPtr controller);
+    void setSyncController(SyncControllerPtr controller);
 
     // Retrieve the engine's current controller.
     SyncControllerPtr syncController() const;
