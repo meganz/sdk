@@ -27,12 +27,6 @@
 namespace mega {
 namespace gfx {
 
-enum class GfxSerializeVersion
-{
-    V_1 = 1,
-    UNSUPPORTED
-};
-
 struct GfxTask final
 {
     std::string          Path;
