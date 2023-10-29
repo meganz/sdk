@@ -40,7 +40,6 @@ protected:
     std::string mPipename;
 };
 
-//TEST(ServerClientTest, DISABLED_init)
 TEST_F(ServerClientTest, gfxTask)
 {
     WinGfxCommunicationsServer server(
@@ -56,6 +55,8 @@ TEST_F(ServerClientTest, gfxTask)
         { 200, 0 },     // THUMBNAIL: square thumbnail, cropped from near center
         { 1000, 1000 }  // PREVIEW: scaled version inside 1000x1000 bounding square
     };
+
+    // JPG
     std::vector<std::string> images;
     LocalPath jpgImage = mDataFolder;
     jpgImage.appendWithSeparator(LocalPath::fromRelativePath("Screenshot.jpg"), false);
@@ -69,6 +70,7 @@ TEST_F(ServerClientTest, gfxTask)
     EXPECT_EQ(images[0].size(), 8146);
     EXPECT_EQ(images[1].size(), 63012);
 
+    // PNG
     LocalPath pngImage = mDataFolder;
     pngImage.appendWithSeparator(LocalPath::fromRelativePath("Screenshot.png"), false);
     EXPECT_TRUE(
@@ -76,6 +78,7 @@ TEST_F(ServerClientTest, gfxTask)
             mega::make_unique<WinGfxCommunicationsClient>(mPipename)
         ).runGfxTask(jpgImage.toPath(false), dimensions, images)
     );
+    EXPECT_EQ(images.size(), 2);
 
     EXPECT_TRUE(
         GfxClient(
@@ -130,6 +133,7 @@ TEST_F(ServerClientTest, supportformats)
 
     std::this_thread::sleep_for(100ms);
 
+    // Get from isolated process
     std::string formats, videoformats;
     EXPECT_TRUE(
         GfxClient(
@@ -137,6 +141,7 @@ TEST_F(ServerClientTest, supportformats)
         ).runSupportFormats(formats, videoformats)
     );
 
+    // compare with local
     auto provider = mega::IGfxProvider::createInternalGfxProvider();
     EXPECT_EQ(formats, provider->supportedformats() ? std::string(provider->supportedformats()) : std::string());
     EXPECT_EQ(videoformats, provider->supportedvideoformats() ? std::string(provider->supportedvideoformats()) : std::string());
@@ -166,25 +171,4 @@ TEST_F(ServerClientTest, ServerIsNotRunning)
             mega::make_unique<WinGfxCommunicationsClient>(mPipename)
         ).runGfxTask("anyimagename.jpg", dimensions, images)
     );
-}
-
-TEST_F(ServerClientTest, KeepLaunch)
-{
-    std::vector<std::string> argv {
-        "C:\\Users\\mega-cjr\\dev\\gitlab\\sdk\\build-x64-windows-mega\\Debug\\gfxworker.exe",
-        "-l10",             // keep alive for 10 seconds
-        "-n" + mPipename,   // pipe name
-    };
-
-    mega::AutoStartLauncher runner(
-        std::move(argv),
-        [this](){
-            ::mega::gfx::GfxClient::create(this->mPipename).runShutDown();
-        }
-    );
-
-    mega::GfxWorkerHelloBeater beater(std::chrono::seconds(5), mPipename);
-
-    //std::this_thread::sleep_for(std::chrono::seconds(100000));
-    runner.shutDownOnce();
 }
