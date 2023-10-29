@@ -1766,7 +1766,7 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
                     // Signal a stall that observers can easily detect.
                     monitor.waitingLocal(fullPath.localPath,
                                          SyncStallEntry(SyncWaitReason::MoveOrRenameCannotOccur,
-                                                        true,
+                                                        false,
                                                         false,
                                                         {},
                                                         {},
