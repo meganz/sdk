@@ -543,10 +543,10 @@ else {
     SOURCES += src/gfx/freeimage.cpp
 
     vcpkg {
-        LIBS += -lfreeimage$$DEBUG_SUFFIX_WO -ljxrglue$$DEBUG_SUFFIX \
+        LIBS += -lFreeImage$$DEBUG_SUFFIX -ljxrglue$$DEBUG_SUFFIX \
             -ljpeg -ltiff$$DEBUG_SUFFIX \
-            -lIex-3_1$$UNDERSCORE_DEBUG_SUFFIX -lIlmThread-3_1$$UNDERSCORE_DEBUG_SUFFIX \
-            -lImath-3_1$$UNDERSCORE_DEBUG_SUFFIX -lOpenEXR-3_1$$UNDERSCORE_DEBUG_SUFFIX
+            -lIex-3_1$$UNDERSCORE_DEBUG_SUFFIX -lOpenEXR-3_1$$UNDERSCORE_DEBUG_SUFFIX \
+            -lIlmThread-3_1$$UNDERSCORE_DEBUG_SUFFIX -lImath-3_1$$UNDERSCORE_DEBUG_SUFFIX
         win32 {
             LIBS += -llibpng16$$DEBUG_SUFFIX -llibwebpdecoder -llibwebpdemux -llibwebp -llibwebpmux -llibsharpyuv
         }
