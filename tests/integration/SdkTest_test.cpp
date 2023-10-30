@@ -1471,7 +1471,7 @@ void SdkTest::createChatScheduledMeeting(const unsigned apiIndex, MegaHandle& ch
                                                                                   flags.get(), rules.get()));
     mApi[apiIndex].schedUpdated = false;
     mApi[apiIndex].schedId = UNDEF;
-    megaApi[apiIndex]->createOrUpdateScheduledMeeting(sm.get());
+    megaApi[apiIndex]->createOrUpdateScheduledMeeting(sm.get(), nullptr/*chatTitle*/);
     ASSERT_TRUE(waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING]))
             << "Cannot create a new scheduled meeting";
 
@@ -1531,7 +1531,7 @@ void SdkTest::updateScheduledMeeting(const unsigned apiIndex, MegaHandle& chatid
 
 
     std::unique_ptr<RequestTracker>tracker (new RequestTracker(megaApi[apiIndex].get()));
-    megaApi[apiIndex]->createOrUpdateScheduledMeeting(sm.get(), tracker.get());
+    megaApi[apiIndex]->createOrUpdateScheduledMeeting(sm.get(), nullptr/*chatTitle*/, tracker.get());
     tracker->waitForResult();
 }
 
@@ -7544,11 +7544,10 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     filterResults->byLocation(MegaApi::SEARCH_TARGET_INSHARE);
     filterResults->byCategory(MegaApi::FILE_TYPE_PHOTO);
     list.reset(megaApi[1]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
-    ASSERT_EQ(list->size(), 4);
-    ASSERT_EQ(list->get(0)->getName(), folderAName);
-    ASSERT_EQ(list->get(1)->getName(), filename1);
-    ASSERT_EQ(list->get(2)->getName(), nsfilename);
-    ASSERT_EQ(list->get(3)->getName(), sfilename);
+    ASSERT_EQ(list->size(), 3);
+    ASSERT_EQ(list->get(0)->getName(), filename1);
+    ASSERT_EQ(list->get(1)->getName(), nsfilename);
+    ASSERT_EQ(list->get(2)->getName(), sfilename);
 
     filterResults.reset(MegaSearchFilter::createInstance());
     filterResults->byName("a");
@@ -7556,9 +7555,8 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     filterResults->byCategory(MegaApi::FILE_TYPE_PHOTO);
     filterResults->bySensitivity(true);
     list.reset(megaApi[1]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
-    ASSERT_EQ(list->size(), 2); // non sensitive files (recursive exclude)
-    ASSERT_EQ(list->get(0)->getName(), folderAName);
-    ASSERT_EQ(list->get(1)->getName(), nsfilename);
+    ASSERT_EQ(list->size(), 1); // non sensitive files (recursive exclude)
+    ASSERT_EQ(list->get(0)->getName(), nsfilename);
 
     // no node, specifid search string: SEARCH_TARGET_OUTSHARE
     filterResults.reset(MegaSearchFilter::createInstance());
@@ -7566,11 +7564,10 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     filterResults->byLocation(MegaApi::SEARCH_TARGET_OUTSHARE);
     filterResults->byCategory(MegaApi::FILE_TYPE_PHOTO);
     list.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
-    ASSERT_EQ(list->size(), 4);
-    ASSERT_EQ(list->get(0)->getName(), folderAName);
-    ASSERT_EQ(list->get(1)->getName(), filename1);
-    ASSERT_EQ(list->get(2)->getName(), nsfilename);
-    ASSERT_EQ(list->get(3)->getName(), sfilename);
+    ASSERT_EQ(list->size(), 3);
+    ASSERT_EQ(list->get(0)->getName(), filename1);
+    ASSERT_EQ(list->get(1)->getName(), nsfilename);
+    ASSERT_EQ(list->get(2)->getName(), sfilename);
 
     filterResults.reset(MegaSearchFilter::createInstance());
     filterResults->byName("a");
@@ -7578,9 +7575,8 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     filterResults->byCategory(MegaApi::FILE_TYPE_PHOTO);
     filterResults->bySensitivity(true);
     list.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
-    ASSERT_EQ(list->size(), 2); // non sensitive files (recursive exclude)
-    ASSERT_EQ(list->get(0)->getName(), folderAName);
-    ASSERT_EQ(list->get(1)->getName(), nsfilename);
+    ASSERT_EQ(list->size(), 1); // non sensitive files (recursive exclude)
+    ASSERT_EQ(list->get(0)->getName(), nsfilename);
 }
 
 TEST_F(SdkTest, SdkDeviceNames)
@@ -11209,6 +11205,98 @@ TEST_F(SdkTest, TestSharesContactVerification)
     user.reset(megaApi[0]->getContact(mApi[1].email.c_str()));
     ASSERT_FALSE(user == nullptr) << "Not user for contact email: " << mApi[1].email;
     ASSERT_EQ(MegaUser::VISIBILITY_HIDDEN, user->getVisibility()) << "Contact is still visible after removing it." << mApi[1].email;
+}
+
+
+/**
+ * @brief TEST_F SearchNodesByCreationTime
+ *
+ * Test filtering nodes by ctime in search() and getChildren()
+ *
+ */
+TEST_F(SdkTest, SearchNodesByCreationTime)
+{
+    LOG_info << "___TEST SearchNodesByCreationTime___";
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootnode);
+
+    string folderName = "TestCTime_Folder.Foo";
+    MegaHandle folderHandle = createFolder(0, folderName.c_str(), rootnode.get());
+    ASSERT_NE(folderHandle, INVALID_HANDLE);
+    unique_ptr<MegaNode> folderNode(megaApi[0]->getNodeByHandle(folderHandle));
+    ASSERT_TRUE(folderNode);
+    int64_t folderCTime = folderNode->getCreationTime();
+
+    std::this_thread::sleep_for(std::chrono::milliseconds{1500}); // avoid nodes having identical CTime
+
+    string fileName = "TestCTime_File.bar";
+    ASSERT_TRUE(createFile(fileName, false));
+    MegaHandle fileHandle = 0;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &fileHandle, fileName.c_str(), folderNode.get(),
+                                               nullptr /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload " << fileName;
+    ASSERT_NE(fileHandle, INVALID_HANDLE);
+    unique_ptr<MegaNode> fileNode(megaApi[0]->getNodeByHandle(fileHandle));
+    ASSERT_TRUE(fileNode);
+    int64_t fileCTime = fileNode->getCreationTime();
+
+    ASSERT_NE(folderCTime, fileCTime) << "Test file and folder have the same creation time";
+
+    // getChildren()
+    unique_ptr<MegaSearchFilter> f(MegaSearchFilter::createInstance());
+    f->byName("TestCTime_*");
+    f->byLocationHandle(folderHandle);
+    unique_ptr<MegaNodeList> results(megaApi[0]->getChildren(f.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getName(), fileName);
+
+    f->byCreationTime(fileCTime, fileCTime);
+    results.reset(megaApi[0]->getChildren(f.get()));
+    ASSERT_EQ(results->size(), 0) << results->get(0)->getName();
+
+    f->byCreationTime(fileCTime - 1, fileCTime + 1);
+    results.reset(megaApi[0]->getChildren(f.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getName(), fileName);
+
+    // cope with time differences in remote FS and local FS
+    const int64_t& olderCTime = folderCTime < fileCTime ? folderCTime : fileCTime;
+    const string& olderName = folderCTime < fileCTime ? folderName : fileName;
+    const int64_t& newerCTime = folderCTime > fileCTime ? folderCTime : fileCTime;
+    const string& newerName = folderCTime > fileCTime ? folderName : fileName;
+
+    // search()
+    f->byLocationHandle(INVALID_HANDLE);
+    f->byCreationTime(0, 0);
+    results.reset(megaApi[0]->search(f.get()));
+    ASSERT_EQ(results->size(), 2);
+
+    f->byCreationTime(olderCTime, newerCTime);
+    results.reset(megaApi[0]->search(f.get()));
+    ASSERT_EQ(results->size(), 0);
+
+    f->byCreationTime(olderCTime - 1, newerCTime + 1);
+    results.reset(megaApi[0]->search(f.get()));
+    ASSERT_EQ(results->size(), 2);
+
+    f->byCreationTime(0, newerCTime);
+    results.reset(megaApi[0]->search(f.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getName(), olderName);
+
+    f->byCreationTime(olderCTime, 0);
+    results.reset(megaApi[0]->search(f.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getName(), newerName);
+
+    deleteFile(fileName);
 }
 
 

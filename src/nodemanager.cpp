@@ -468,12 +468,53 @@ uint64_t NodeManager::getNodeCount_internal()
     return count;
 }
 
+sharedNode_vector NodeManager::searchNodes(const NodeSearchFilter& filter, CancelToken cancelFlag)
+{
+    LockGuard g(mMutex);
+    return searchNodes_internal(filter, cancelFlag);
+}
+
+sharedNode_vector NodeManager::searchNodes_internal(const NodeSearchFilter& filter, CancelToken cancelFlag)
+{
+    assert(mMutex.owns_lock());
+
+    // validation
+    if (!mTable || mNodes.empty())
+    {
+        assert(mTable && !mNodes.empty());
+        return sharedNode_vector();
+    }
+
+    // small optimization to possibly skip the db look-up
+    if (filter.bySensitivity() && filter.byLocationHandle() != UNDEF)
+    {
+        shared_ptr<Node> node = getNodeByHandle_internal(NodeHandle().set6byte(filter.byLocationHandle()));
+        if (!node || node->isSensitiveInherited())
+        {
+            return sharedNode_vector();
+        }
+    }
+
+    // db look-up
+    vector<pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    if (!mTable->searchNodes(filter, nodesFromTable, cancelFlag))
+    {
+        return sharedNode_vector();
+    }
+
+    sharedNode_vector nodes = processUnserializedNodes(nodesFromTable, filter, cancelFlag);
+
+    return nodes;
+}
+
+
 sharedNode_vector NodeManager::search(NodeHandle ancestorHandle, const char* searchString, bool recursive, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelFlag)
 {
     LockGuard g(mMutex);
     return search_internal(ancestorHandle, searchString, recursive, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelFlag);
 }
 
+/** @deprecated */
 sharedNode_vector NodeManager::search_internal(NodeHandle ancestorHandle, const char* searchString, bool recursive, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelFlag)
 {
     assert(mMutex.owns_lock());
@@ -512,12 +553,14 @@ sharedNode_vector NodeManager::search_internal(NodeHandle ancestorHandle, const 
     return nodes;
 }
 
+/** @deprecated Use searchNodes(const NodeSearchFilter...) instead */
 sharedNode_vector NodeManager::getInSharesWithName(const char* searchString, CancelToken cancelFlag)
 {
     LockGuard g(mMutex);
     return getInSharesWithName_internal(searchString, cancelFlag);
 }
 
+/** @deprecated */
 sharedNode_vector NodeManager::getInSharesWithName_internal(const char* searchString, CancelToken cancelFlag)
 {
     assert(mMutex.owns_lock());
@@ -536,12 +579,14 @@ sharedNode_vector NodeManager::getInSharesWithName_internal(const char* searchSt
     return nodes;
 }
 
+/** @deprecated Use searchNodes(const NodeSearchFilter...) instead */
 sharedNode_vector NodeManager::getOutSharesWithName(const char* searchString, CancelToken cancelFlag)
 {
     LockGuard g(mMutex);
     return getOutSharesWithName_internal(searchString, cancelFlag);
 }
 
+/** @deprecated */
 sharedNode_vector NodeManager::getOutSharesWithName_internal(const char* searchString, CancelToken cancelFlag)
 {
     assert(mMutex.owns_lock());
@@ -560,12 +605,14 @@ sharedNode_vector NodeManager::getOutSharesWithName_internal(const char* searchS
     return nodes;
 }
 
+/** @deprecated Use searchNodes(const NodeSearchFilter...) instead */
 sharedNode_vector NodeManager::getPublicLinksWithName(const char* searchString, CancelToken cancelFlag)
 {
     LockGuard g(mMutex);
     return getPublicLinksWithName_internal(searchString, cancelFlag);
 }
 
+/** @deprecated */
 sharedNode_vector NodeManager::getPublicLinksWithName_internal(const char* searchString, CancelToken cancelFlag)
 {
     assert(mMutex.owns_lock());
@@ -849,6 +896,7 @@ sharedNode_vector NodeManager::getRootNodes_internal()
     return nodes;
 }
 
+/** @deprecated Use searchNodes(const NodeSearchFilter...) instead */
 sharedNode_vector NodeManager::getNodesWithInShares()
 {
     LockGuard g(mMutex);
@@ -884,7 +932,7 @@ sharedNode_vector NodeManager::getNodesByMimeType(MimeType_t mimeType, NodeHandl
     LockGuard g(mMutex);
     return getNodesByMimeType_internal(mimeType, ancestorHandle, requiredFlags, excludeFlags, excludeRecursiveFlags, cancelFlag);
 }
-
+/** @deprecated */
 sharedNode_vector NodeManager::getNodesByMimeType_internal(MimeType_t mimeType, NodeHandle ancestorHandle, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelFlag)
 {
     assert(mMutex.owns_lock());
@@ -908,6 +956,7 @@ sharedNode_vector NodeManager::getNodesByMimeType_internal(MimeType_t mimeType, 
     return processUnserializedNodes(nodesFromTable, ancestorHandle, cancelFlag);
 }
 
+/** @deprecated */
 sharedNode_vector NodeManager::getNodesWithSharesOrLink_internal(ShareType_t shareType)
 {
     assert(mMutex.owns_lock());
@@ -1856,6 +1905,80 @@ sharedNode_vector NodeManager::getRootNodesAndInshares()
     }
 
     return rootnodes;
+}
+
+sharedNode_vector NodeManager::processUnserializedNodes(const vector<pair<NodeHandle, NodeSerialized>>& nodesFromTable, const NodeSearchFilter& filter, CancelToken cancelFlag)
+{
+    assert(mMutex.owns_lock());
+
+    sharedNode_vector nodes;
+
+    for (const auto& nodeIt : nodesFromTable)
+    {
+        // Check pointer and value
+        if (cancelFlag.isCancelled()) break;
+
+        shared_ptr<Node> n = getNodeInRAM(nodeIt.first);
+        NodeHandle ancestorHandle = NodeHandle().set6byte(filter.byLocationHandle());
+
+        if (!ancestorHandle.isUndef())  // filter results by subtree (nodeHandle)
+        {
+            bool skip = n ? !n->isAncestor(ancestorHandle)
+                          : !isAncestor(nodeIt.first, ancestorHandle, cancelFlag);
+
+            if (skip) continue;
+        }
+
+        if (!n)
+        {
+            n = getNodeFromNodeSerialized(nodeIt.second);
+            if (!n)
+            {
+                nodes.clear();
+                return nodes;
+            }
+        }
+
+        // filter by sensitivity when it was inherited  --  should probably
+        // be [part of] a function passed to the sql query
+        if (filter.bySensitivity() && n->isSensitiveInherited()) continue;
+
+        nodes.push_back(n);
+    }
+
+    return nodes;
+}
+
+sharedNode_vector NodeManager::processUnserializedChildren(const vector<pair<NodeHandle, NodeSerialized>>& childrenFromTable, const NodeSearchFilter& filter, CancelToken cancelFlag)
+{
+    assert(mMutex.owns_lock());
+
+    sharedNode_vector nodes;
+
+    for (const auto& child : childrenFromTable)
+    {
+        // Check pointer and value
+        if (cancelFlag.isCancelled()) break;
+
+        shared_ptr<Node> n = getNodeInRAM(child.first);
+        if (!n)
+        {
+            n = getNodeFromNodeSerialized(child.second);
+            if (!n)
+            {
+                nodes.clear();
+                return nodes;
+            }
+        }
+
+        // filter by sensitivity when it was inherited  --  should probably
+        // be [part of] a function passed to the sql query
+        if (filter.bySensitivity() && n->isSensitiveInherited()) continue;
+
+        nodes.push_back(n);
+    }
+
+    return nodes;
 }
 
 sharedNode_vector NodeManager::processUnserializedNodes(const std::vector<std::pair<NodeHandle, NodeSerialized> >& nodesFromTable, NodeHandle ancestorHandle, CancelToken cancelFlag)

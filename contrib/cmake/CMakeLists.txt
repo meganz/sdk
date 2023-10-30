@@ -143,6 +143,14 @@ else()
     message(STATUS "Building 64 bit")
 endif()
 
+if(APPLE AND NOT IOS)
+    if(NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS "15.0")
+        message("Building with ${CMAKE_CXX_COMPILER_ID} with version ${CMAKE_CXX_COMPILER_VERSION}")
+        add_link_options("-Wl,-ld_classic")
+    endif()
+endif()
+
+
 if(APPLE)
     set(CMAKE_CXX_STANDARD 11)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
