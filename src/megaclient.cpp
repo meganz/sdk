@@ -2734,6 +2734,11 @@ void MegaClient::exec()
                         app->request_error(API_EBLOCKED);
                         block(true);
                     }
+                    else if (e == API_ENOENT && loggedIntoFolder())
+                    {
+                        LOG_err << "Logged into a folder link removed";
+                        app->request_error(API_ENOENT);
+                    }
                     else
                     {
                         LOG_err << "Unexpected sc response: " << pendingsc->in;
