@@ -83,12 +83,20 @@ public:
     virtual ~IEndpoint() = default;
 };
 
+enum class CommError: BYTE
+{
+    OK              = 0,
+    ERR             = 1, // an generic error
+    NOT_EXIST       = 2,
+    TIMEOUT         = 3,
+};
+
 class IGfxCommunicationsClient
 {
 public:
     virtual ~IGfxCommunicationsClient() = default;
 
-    virtual std::unique_ptr<IEndpoint> connect() = 0;
+    virtual CommError connect(std::unique_ptr<IEndpoint>& endpoint) = 0;
 };
 
 } //namespace gfx

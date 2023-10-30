@@ -1,5 +1,6 @@
 #pragma once
 
+#include "mega/gfx/worker/comms.h"
 #include "mega/win32/gfx/worker/comms.h"
 #include <windows.h>
 
@@ -27,10 +28,12 @@ public:
 
     }
 
-    std::unique_ptr<IEndpoint> connect() override;
+    CommError connect(std::unique_ptr<IEndpoint>& endpoint) override;
 
 private:
-    HANDLE connect(LPCTSTR pipeName);
+    CommError do_connect(LPCTSTR pipeName, HANDLE &hPipe);
+
+    CommError toCommError(DWORD winError) const;
 
     std::string mPipename;
 };

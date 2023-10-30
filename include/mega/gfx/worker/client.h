@@ -60,8 +60,15 @@ public:
 
 private:
 
+    bool isRetryError(CommError error) const;
+
+    // it retries on some errors
+    std::unique_ptr<IEndpoint> connectWithRetry(std::chrono::milliseconds backoff, unsigned int maxRetries);
+
+    std::unique_ptr<IEndpoint> connect();
+
     template<typename ResponseT, typename RequestT>
-    std::unique_ptr<ResponseT> sendAndReceive(RequestT command, TimeoutMs sendTimeout = TimeoutMs(5000), TimeoutMs receiveTimeout = TimeoutMs(5000));
+    std::unique_ptr<ResponseT> sendAndReceive(IEndpoint* endpoint, RequestT command, TimeoutMs sendTimeout = TimeoutMs(5000), TimeoutMs receiveTimeout = TimeoutMs(5000));
 
     std::unique_ptr<IGfxCommunicationsClient> mComms;
 };

@@ -1,10 +1,15 @@
 #include "mega/gfx/worker/client.h"
 #include "mega/gfx/worker/command_serializer.h"
 #include "mega/gfx/worker/commands.h"
+#include "mega/gfx/worker/comms.h"
 #include "mega/logging.h"
 #include "mega/filesystem.h"
 #include "mega/types.h"
+#include <chrono>
 #include <memory>
+#include <thread>
+#include <tuple>
+#include <unordered_set>
 
 #ifdef _WIN32
 #include "mega/win32/gfx/worker/comms_client.h"
@@ -15,10 +20,17 @@ namespace gfx {
 
 bool GfxClient::runHello(const std::string& text)
 {
+    auto endpoint = connect();
+    if (!endpoint)
+    {
+        LOG_err << "runHello Couldn't connect";
+        return false;
+    }
+
     CommandHello command;
     command.Text = text;
 
-    auto response = sendAndReceive<CommandHelloResponse>(command);
+    auto response = sendAndReceive<CommandHelloResponse>(endpoint.get(), command);
     if (response)
     {
         LOG_verbose << "GfxClient gets hello response: " << response->Text;
@@ -33,8 +45,15 @@ bool GfxClient::runHello(const std::string& text)
 
 bool GfxClient::runShutDown()
 {
+    auto endpoint = connect();
+    if (!endpoint)
+    {
+        LOG_err << "runShutDown Couldn't connect";
+        return false;
+    }
+
     CommandShutDown command;
-    if (sendAndReceive<CommandShutDownResponse>(command))
+    if (sendAndReceive<CommandShutDownResponse>(endpoint.get(), command))
     {
         LOG_verbose << "GfxClient gets shutdown response";
         return true;
@@ -50,11 +69,19 @@ bool GfxClient::runGfxTask(const std::string& localpath,
                            const std::vector<GfxDimension>& dimensions,
                            std::vector<std::string>& images)
 {
+     // 3 seconds at most
+    auto endpoint = connectWithRetry(std::chrono::milliseconds(100), 30);
+    if (!endpoint)
+    {
+        LOG_err << "runGfxTask Couldn't connect";
+        return false;
+    }
+
     CommandNewGfx command;
     command.Task.Path =  LocalPath::fromAbsolutePath(localpath).platformEncoded();
     command.Task.Dimensions = dimensions;
 
-    auto addReponse = sendAndReceive<CommandNewGfxResponse>(command);
+    auto addReponse = sendAndReceive<CommandNewGfxResponse>(endpoint.get(), command);
     if (!addReponse)
     {
         LOG_err << "GfxClient couldn't get gfxTask response, " << localpath;
@@ -78,9 +105,16 @@ bool GfxClient::runGfxTask(const std::string& localpath,
 
 bool GfxClient::runSupportFormats(std::string& formats, std::string& videoformats)
 {
+    auto endpoint = connectWithRetry(std::chrono::milliseconds(100), 30); // 3 seconds at most
+    if (!endpoint)
+    {
+        LOG_err << "runSupportFormats Couldn't connect";
+        return false;
+    }
+
     CommandSupportFormats command;
 
-    auto reponse = sendAndReceive<CommandSupportFormatsResponse>(command);
+    auto reponse = sendAndReceive<CommandSupportFormatsResponse>(endpoint.get(), command);
     if (!reponse)
     {
         LOG_err << "GfxClient couldn't get supportformats response";
@@ -104,23 +138,62 @@ GfxClient GfxClient::create(const std::string& pipename)
 #endif
 }
 
-template<typename ResponseT, typename RequestT>
-std::unique_ptr<ResponseT> GfxClient::sendAndReceive(RequestT command, TimeoutMs sendTimeout, TimeoutMs receiveTimeout)
+//
+// CommError::NOT_EXIST is returned when server is not running, this could due to server is restarted
+//
+bool GfxClient::isRetryError(CommError error) const
 {
-    // connect
-    auto endpoint = mComms->connect();
-    if (!endpoint)
-    {
-        LOG_err << "GfxClient couldn't connect";
-        return nullptr;
-    }
+    static const std::unordered_set<CommError> retryErrors = {
+        CommError::NOT_EXIST
+    };
 
+    return retryErrors.find(error) != retryErrors.end();
+}
+
+std::unique_ptr<IEndpoint> GfxClient::connectWithRetry(std::chrono::milliseconds backoff, unsigned int maxRetries)
+{
+    unsigned int loop = 0;
+    std::unique_ptr<IEndpoint> endpoint;
+    do {
+        CommError error = mComms->connect(endpoint);
+
+        // connected
+        if (endpoint)
+        {
+            return endpoint;
+        }
+
+        if (++loop > maxRetries)
+        {
+            return nullptr;
+        }
+
+        if (!isRetryError(error))
+        {
+            std::this_thread::sleep_for(backoff);
+            continue;
+        }
+        else
+        {
+            return nullptr;
+        }
+    }while (true);
+}
+
+std::unique_ptr<IEndpoint> GfxClient::connect()
+{
+    return connectWithRetry(std::chrono::milliseconds(0), 0);
+}
+
+template<typename ResponseT, typename RequestT>
+std::unique_ptr<ResponseT> GfxClient::sendAndReceive(IEndpoint* endpoint, RequestT command, TimeoutMs sendTimeout, TimeoutMs receiveTimeout)
+{
     // send a request
-    ProtocolWriter writer(endpoint.get());
+    ProtocolWriter writer(endpoint);
     writer.writeCommand(&command, sendTimeout);
 
     // get the response
-    ProtocolReader reader(endpoint.get());
+    ProtocolReader reader(endpoint);
     auto response = reader.readCommand(receiveTimeout);
     if (!dynamic_cast<ResponseT*>(response.get()))
     {
