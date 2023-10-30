@@ -2,21 +2,29 @@
 
 /* Define to enable chat */
 #ifndef ENABLE_CHAT
-#cmakedefine ENABLE_CHAT
+#cmakedefine ENABLE_CHAT 1
 #endif
 
 /* Defined if sync subsystem is enabled */
 #ifndef ENABLE_SYNC
-#cmakedefine ENABLE_SYNC
+#cmakedefine ENABLE_SYNC 1
+#endif
+
+#ifndef ENABLE_LOG_PERFORMANCE
+#cmakedefine ENABLE_LOG_PERFORMANCE 1
+#endif
+
+#ifndef ENABLE_DRIVE_NOTIFICATIONS
+#cmakedefine ENABLE_DRIVE_NOTIFICATIONS 1
 #endif
 
 /* Define to use FreeImage library. */
-#ifndef USE_FREEIMAGE 
-#cmakedefine USE_FREEIMAGE 
+#ifndef USE_FREEIMAGE
+#cmakedefine USE_FREEIMAGE 1
 #endif
 
 #ifndef HAVE_FREEIMAGECONFIG_H
-#cmakedefine HAVE_FREEIMAGECONFIG_H
+#cmakedefine HAVE_FREEIMAGECONFIG_H 1
 #endif
 
 #if defined(USE_FREEIMAGE) && defined(HAVE_FREEIMAGECONFIG_H)
@@ -24,10 +32,10 @@
 #endif
 
 /* Define to indicate AIO presence in librt */
-#cmakedefine HAVE_AIO_RT
+#cmakedefine HAVE_AIO_RT 1
 
 /* Define to 1 if you have the <dirent.h> header file, and it defines `DIR'. */
-#cmakedefine HAVE_DIRENT_H
+#cmakedefine HAVE_DIRENT_H 1
 
 #if !defined(_WIN32) && !defined(__APPLE__)
 /* Define to 1 if you have the `fdopendir' function. */
@@ -36,14 +44,14 @@
 
 /* Define to use FFMPEG */
 #ifndef HAVE_FFMPEG
-#cmakedefine HAVE_FFMPEG 
+#cmakedefine HAVE_FFMPEG 1
 #endif
 
 /* Define to 1 if you have the <inttypes.h> header file. */
-#cmakedefine HAVE_INTTYPES_H
+#cmakedefine HAVE_INTTYPES_H 1
 
 /* Define to 1 if you have the <glob.h> header file. */
-#cmakedefine HAVE_GLOB_H
+#cmakedefine HAVE_GLOB_H 1
 
 /* Define to use libraw */
 #cmakedefine HAVE_LIBRAW 1
