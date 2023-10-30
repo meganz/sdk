@@ -74,7 +74,7 @@ GfxTaskResult GfxProcessor::process(const GfxTask& task)
                    [&dimensions](SizeType i){ return GfxDimension{ dimensions[i].w(), dimensions[i].h()}; });
 
     // generate thumbnails
-    LOG_err << "generate for, " << path;
+    LOG_info << "generate for, " << path;
     auto images = mGfxProvider->generateImages(&mFaccess,
                                                path,
                                                sortedDimensions);

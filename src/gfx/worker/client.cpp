@@ -57,7 +57,7 @@ bool GfxClient::runGfxTask(const std::string& localpath,
     auto addReponse = sendAndReceive<CommandNewGfxResponse>(command);
     if (!addReponse)
     {
-        LOG_err << "GfxClient couldn't get gfxTask response, " << command.Task.Path;
+        LOG_err << "GfxClient couldn't get gfxTask response, " << localpath;
         return false;
     }
     else if (addReponse->ErrorCode == static_cast<uint32_t>(GfxTaskProcessStatus::ERR))
@@ -65,12 +65,12 @@ bool GfxClient::runGfxTask(const std::string& localpath,
         LOG_info << "GfxClient gets gfxTask response with error: "
                  << addReponse->ErrorText
                  << ", "
-                 <<  command.Task.Path;
+                 <<  localpath;
         return false;
     }
     else
     {
-        LOG_verbose << "GfxClient gets gfxTask response successfully, " << command.Task.Path;
+        LOG_verbose << "GfxClient gets gfxTask response successfully, " << localpath;
         images = std::move(addReponse->Images);
         return true;
     }
