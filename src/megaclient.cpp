@@ -11847,7 +11847,8 @@ void MegaClient::upgradeSecurity(std::function<void(Error)> completion)
         }
     }
 
-    shares = mNodeManager.getNodesWithOutShares();
+    NodeSearchFilter outsharesNf(OUT_SHARES);
+    shares = mNodeManager.searchNodes(outsharesNf, CancelToken());
     for (auto &n : shares)
     {
         ++totalOutShares;
@@ -11858,7 +11859,8 @@ void MegaClient::upgradeSecurity(std::function<void(Error)> completion)
         }
     }
 
-    shares = mNodeManager.getNodesWithPendingOutShares();
+    NodeSearchFilter pendingOutSharesNf(PENDING_OUTSHARES);
+    shares = mNodeManager.searchNodes(pendingOutSharesNf, CancelToken());
     for (auto &n : shares)
     {
         ++totalOutShares;
@@ -11869,7 +11871,8 @@ void MegaClient::upgradeSecurity(std::function<void(Error)> completion)
         }
     }
 
-    shares = mNodeManager.getNodesWithLinks();
+    NodeSearchFilter publicLinkNf(LINK);
+    shares = mNodeManager.searchNodes(publicLinkNf, CancelToken());
     for (auto &n : shares)
     {
         ++totalOutShares;

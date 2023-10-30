@@ -1839,7 +1839,8 @@ static void listallshares()
 {
     cout << "Outgoing shared folders:" << endl;
 
-    node_vector outshares = client->mNodeManager.getNodesWithOutShares();
+    NodeSearchFilter outsharesNf(OUT_SHARES);
+    node_vector outshares = client->mNodeManager.searchNodes(outsharesNf, CancelToken());
     for (auto& share : outshares)
     {
         listnodeshares(share, false);
@@ -1874,7 +1875,8 @@ static void listallshares()
     cout << "Pending outgoing shared folders:" << endl;
 
     // pending outgoing
-    node_vector pendingoutshares = client->mNodeManager.getNodesWithPendingOutShares();
+    NodeSearchFilter pendingOutSharesNf(PENDING_OUTSHARES);
+    node_vector pendingoutshares = client->mNodeManager.searchNodes(pendingOutSharesNf, CancelToken());
     for (auto& share : pendingoutshares)
     {
         listnodependingshares(share);
@@ -1882,7 +1884,8 @@ static void listallshares()
 
     cout << "Public folder links:" << endl;
 
-    node_vector links = client->mNodeManager.getNodesWithLinks();
+    NodeSearchFilter publicLinkNf(LINK);
+    node_vector links = client->mNodeManager.searchNodes(publicLinkNf, CancelToken());
     for (auto& share : links)
     {
         listnodeshares(share, true);
@@ -8935,7 +8938,8 @@ void DemoApp::nodes_updated(Node** n, int count)
     else
     {
         node_vector nodes = client->mNodeManager.getRootNodes();
-        node_vector inshares = client->mNodeManager.getNodesWithInShares();
+        NodeSearchFilter insharesNf(IN_SHARES);
+        node_vector inshares = client->mNodeManager.searchNodes(insharesNf, CancelToken());
         nodes.insert(nodes.end(), inshares.begin(), inshares.end());
         for (auto& node : nodes)
         {
@@ -11060,7 +11064,8 @@ void exec_numberofnodes(autocomplete::ACState &s)
     cout << "Total nodes: " << numberOfNodes << endl;
     cout << "Total nodes in RAM: " << client->mNodeManager.getNumberNodesInRam() << endl << endl;
 
-    cout << "Number of outShares: " << client->mNodeManager.getNodesWithOutShares().size();
+    NodeSearchFilter outsharesNf(OUT_SHARES);
+    cout << "Number of outShares: " << client->mNodeManager.searchNodes(outsharesNf, CancelToken()).size();
 }
 
 void exec_numberofchildren(autocomplete::ACState &s)
@@ -11110,10 +11115,20 @@ void exec_searchbyname(autocomplete::ACState &s)
             return;
         }
 
-        std::string searchString = s.words[1].s;
-        Node::Flags exclusiveRecuriveFlags;
-        exclusiveRecuriveFlags.set(Node::FLAGS_IS_MARKED_SENSTIVE, noSensitive);
-        node_vector nodes = client->mNodeManager.search(nodeHandle, searchString.c_str(), recursive, Node::Flags(), Node::Flags(), exclusiveRecuriveFlags, CancelToken());
+        NodeSearchFilter filter;
+        filter.byLocationHandle(nodeHandle);
+        filter.byName(s.words[1].s);
+        filter.bySensitivity(!noSensitive);
+
+        node_vector nodes;
+        if (recursive)
+        {
+            nodes = client->mNodeManager.searchNodes(filter, CancelToken());
+        }
+        else
+        {
+            nodes = client->mNodeManager.getChildren(filter, CancelToken());
+        }
 
         for (const auto& node : nodes)
         {

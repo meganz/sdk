@@ -7069,10 +7069,12 @@ MegaShareList *MegaApiImpl::getUnverifiedOutShares(int order)
 {
     SdkMutexGuard guard(sdkMutex);
 
-    node_vector outshares = client->mNodeManager.getNodesWithOutShares();
-
+    MegaSearchFilterPrivate filter;
+    filter.byLocation(MegaApi::SEARCH_TARGET_OUTSHARE);
+    node_vector outshares = searchInNodeManager(&filter, CancelToken());
     // Avoid duplicate nodes present in both outshares and pending shares
-    node_vector pendingShares = client->mNodeManager.getNodesWithPendingOutShares();
+    filter.byLocation(MegaApi::SEARCH_TARGET_PENDING_OUTSHARE);
+    node_vector pendingShares = searchInNodeManager(&filter, CancelToken());
     for (Node* pendingShare : pendingShares)
     {
         bool found = false;
@@ -11001,10 +11003,13 @@ bool MegaApiImpl::isPendingShare(MegaNode *megaNode)
 
 node_vector MegaApiImpl::getOutShares()
 {
-    node_vector outshares = client->mNodeManager.getNodesWithOutShares();
+    MegaSearchFilterPrivate filter;
+    filter.byLocation(MegaApi::SEARCH_TARGET_OUTSHARE);
+    node_vector outshares = searchInNodeManager(&filter, CancelToken());
 
     // Avoid duplicate nodes present in both outshares and pending shares
-    node_vector pendingShares = client->mNodeManager.getNodesWithPendingOutShares();
+    NodeSearchFilter nf(PENDING_OUTSHARES);
+    node_vector pendingShares = client->mNodeManager.searchNodes(nf, CancelToken());
     for (Node* pendingShare : pendingShares)
     {
         bool found = false;
@@ -11144,7 +11149,8 @@ MegaShareList *MegaApiImpl::getPendingOutShares()
 {
     SdkMutexGuard guard(sdkMutex);
 
-    node_vector nodes = client->mNodeManager.getNodesWithPendingOutShares();
+    NodeSearchFilter nf(PENDING_OUTSHARES);
+    node_vector nodes = client->mNodeManager.searchNodes(nf, CancelToken());
     vector<handle> handles;
     vector<Share *> shares;
     vector<byte> verified;
@@ -11210,7 +11216,9 @@ MegaNodeList *MegaApiImpl::getPublicLinks(int order)
 {
     SdkMutexGuard g(sdkMutex);
 
-    node_vector nodes = client->mNodeManager.getNodesWithLinks();
+    MegaSearchFilterPrivate filter;
+    filter.byLocation(MegaApi::SEARCH_TARGET_PUBLICLINK);
+    node_vector nodes = searchInNodeManager(&filter, CancelToken());
     sortByComparatorFunction(nodes, order, *client);
     return new MegaNodeListPrivate(nodes.data(), int(nodes.size()));
 }
@@ -12031,7 +12039,9 @@ node_vector MegaApiImpl::searchInNodeManager(const MegaSearchFilter* filter, Can
 {
     ShareType_t shareType = filter->byLocation() == MegaApi::SEARCH_TARGET_INSHARE ? IN_SHARES :
                             (filter->byLocation() == MegaApi::SEARCH_TARGET_OUTSHARE ? OUT_SHARES :
-                            (filter->byLocation() == MegaApi::SEARCH_TARGET_PUBLICLINK ? LINK : NO_SHARES));
+                            (filter->byLocation() == MegaApi::SEARCH_TARGET_PUBLICLINK ? LINK :
+                            (filter->byLocation() == MegaApi::SEARCH_TARGET_PENDING_OUTSHARE ? PENDING_OUTSHARES : NO_SHARES)));
+
     NodeSearchFilter nf;
     nf.copyFrom(*filter, shareType);
     node_vector results = client->mNodeManager.searchNodes(nf, cancelToken);
