@@ -18175,6 +18175,11 @@ CollisionChecker::Result CollisionChecker::check(std::function<bool()> fingerpri
 
 CollisionChecker::Result CollisionChecker::check(std::function<FileAccess*()> faGetter, MegaNode* fileNode, Option option)
 {
+    if (!fileNode)
+    {
+        return CollisionChecker::Result::NotYet;
+    }
+
     auto fingerprintEqualF = [fileNode, faGetter]() {
 
         auto fa = faGetter();
@@ -18204,11 +18209,6 @@ CollisionChecker::Result CollisionChecker::check(std::function<FileAccess*()> fa
         return CompareLocalFileMetaMac(fa, fileNode);
     };
 
-    if (!fileNode)
-    {
-        return CollisionChecker::Result::NotYet;
-    }
-
     return check(
         fingerprintEqualF,
         metaMacFunc,
@@ -18230,6 +18230,11 @@ CollisionChecker::Result CollisionChecker::check(FileSystemAccess* fsaccess, con
 
 CollisionChecker::Result CollisionChecker::check(std::function<FileAccess* ()> faGetter, Node* node, Option option)
 {
+    if (!node)
+    {
+        return CollisionChecker::Result::NotYet;
+    }
+
     auto fingerprintEqualF = [node, faGetter]() {
 
         auto fa = faGetter();
