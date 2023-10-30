@@ -23,6 +23,9 @@
 #include "stdfs.h"
 #include "SdkTest_test.h"
 #include "mega/testhooks.h"
+
+#include "gmock/gmock-matchers.h"
+
 #include <algorithm>
 
 #define SSTR( x ) static_cast< const std::ostringstream & >( \
@@ -598,7 +601,11 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
 
     switch(type)
     {
-
+    case MegaRequest::TYPE_LOGOUT:
+    {
+        mApi[apiIndex].mLogoutReceived = true;
+        break;
+    }
     case MegaRequest::TYPE_GET_ATTR_USER:
         if (mApi[apiIndex].lastError == API_OK)
         {
@@ -14738,4 +14745,68 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
         result = doDelVpnCredential(0, slotID);
         ASSERT_EQ(API_EARGS, result) << "deleting the VPN credential from the invalid slotID " << slotID << " didn't return the expected error value";
     }
+}
+
+/**
+ * @brief SdkTesResumeSessionInFolderLinkDeleted
+ *
+ * Resume session in a folder link deleted and expect to be logged out.
+ */
+TEST_F(SdkTest, SdkTesResumeSessionInFolderLinkDeleted)
+{
+    // Configure folder owner test instance
+    unsigned int numberOfTestInstances{1};
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfTestInstances));
+
+    // Create folder
+    const unsigned int folderOwnerApiIndex{0};
+    std::unique_ptr<MegaNode> rootNode{megaApi[folderOwnerApiIndex]->getRootNode()};
+    ASSERT_THAT(rootNode, ::testing::NotNull());
+
+    const std::string folderName{"Test"};
+    auto folderNodeHandle{createFolder(folderOwnerApiIndex, folderName.c_str(), rootNode.get())};
+    ASSERT_NE(folderNodeHandle, UNDEF);
+
+    std::unique_ptr<MegaNode> folderNode{megaApi[folderOwnerApiIndex]->getNodeByHandle(folderNodeHandle)};
+    ASSERT_THAT(folderNode, ::testing::NotNull());
+
+    // Create folder link
+    const auto folderLink{createPublicLink(folderOwnerApiIndex, folderNode.get(), 0, maxTimeout, false)};
+
+    // Configure folder visitor test instance
+    numberOfTestInstances = 2;
+    mApi.resize(numberOfTestInstances);
+    megaApi.resize(numberOfTestInstances);
+
+    unsigned int folderVisitorApiIndex{1};
+    const bool checkCredentials{false};
+    configureTestInstance(folderVisitorApiIndex, "", "", checkCredentials);
+
+    // Login into folder link
+    auto requestTracker{asyncRequestLoginToFolder(folderVisitorApiIndex, folderLink.c_str())};
+    ASSERT_EQ(requestTracker->waitForResult(), API_OK) << "Failed to login to folder " << folderLink;
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(folderVisitorApiIndex));
+
+    // Get session
+    std::string session{megaApi[folderVisitorApiIndex]->dumpSession()};
+
+    // Local logout
+    locallogout(folderVisitorApiIndex);
+
+    // Remove folder link
+    removePublicLink(folderOwnerApiIndex, folderNode.get());
+
+    // Login into folder link
+    mApi[folderVisitorApiIndex].mLogoutReceived = false;
+
+    ASSERT_EQ(synchronousFastLogin(static_cast<unsigned int>(folderVisitorApiIndex), session.c_str(), this), API_OK);
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(static_cast<unsigned int>(folderVisitorApiIndex)));
+
+    // Wait some time to be logged out
+    unsigned int timeoutInSeconds{5};
+    ASSERT_TRUE(WaitFor([&]()
+                        {
+                            return mApi[folderVisitorApiIndex].mLogoutReceived;
+                        },
+                        timeoutInSeconds * 1000));
 }

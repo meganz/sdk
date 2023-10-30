@@ -246,6 +246,8 @@ public:
         int lastSyncError;
         handle lastSyncBackupId = 0;
 
+        bool mLogoutReceived{};
+
 #ifdef ENABLE_CHAT
         bool chatUpdated;        // flags to monitor the updates of chats due to actionpackets
         bool schedUpdated;       // flags to monitor the updates of scheduled meetings due to actionpackets
