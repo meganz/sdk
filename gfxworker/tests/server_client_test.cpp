@@ -169,6 +169,12 @@ TEST_F(ServerClientTest, ServerIsNotRunning)
     EXPECT_FALSE(
         GfxClient(
             mega::make_unique<WinGfxCommunicationsClient>(mPipename)
+        ).runShutDown()
+    );
+
+    EXPECT_FALSE(
+        GfxClient(
+            mega::make_unique<WinGfxCommunicationsClient>(mPipename)
         ).runGfxTask("anyimagename.jpg", dimensions, images)
     );
 }

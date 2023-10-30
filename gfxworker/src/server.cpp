@@ -23,6 +23,7 @@
 #include "mega/gfx/worker/commands.h"
 #include "mega/gfx/worker/comms.h"
 #include "mega/gfx/worker/command_serializer.h"
+#include "mega/logging.h"
 
 #include <iterator>
 #include <numeric>
@@ -86,10 +87,16 @@ GfxTaskResult GfxProcessor::process(const GfxTask& task)
     return GfxTaskResult(std::move(outputImages), GfxTaskProcessStatus::SUCCESS);
 }
 
+//
+// Put more probmatic format (likely crash) by freeimage here in extraFormatsByWorker
+// note order by length of ext. If we has this order: .tiff.tif, the match with .tif fails
+// see how GfxProc::isgfx is implemented.
+//
 std::string GfxProcessor::supportedformats() const
 {
+    std::string extraFormatsByWorker = ".tif.exr.pic.pct.tiff.pict";
     auto formats = mGfxProvider->supportedformats();
-    return formats ? std::string(formats) : "";
+    return formats ? std::string(formats) + extraFormatsByWorker : "";
 }
 
 std::string GfxProcessor::supportedvideoformats() const
@@ -179,12 +186,15 @@ void RequestProcessor::processGfx(IEndpoint* endpoint, CommandNewGfx* request)
     assert(endpoint);
     assert(request);
 
+    LOG_info << "gfx processing, " << request->Task.Path;
     auto result = mGfxProcessor->process(request->Task);
 
     CommandNewGfxResponse response;
     response.ErrorCode = static_cast<uint32_t>(result.ProcessStatus);
     response.ErrorText = result.ProcessStatus == GfxTaskProcessStatus::SUCCESS ? "OK" : "ERROR";
     response.Images = std::move(result.OutputImages);
+
+    LOG_info << "gfx result, " << response.ErrorText;
 
     ProtocolWriter writer{ endpoint };
     writer.writeCommand(&response, WRITE_TIMEOUT);
