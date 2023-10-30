@@ -569,7 +569,7 @@ public:
     void deleteFolder(string foldername);
 
     void getAccountsForTest(unsigned howMany = 1);
-    void configureTestInstance(unsigned index, const std::string& email, const std::string pass);
+    void configureTestInstance(unsigned index, const std::string& email, const std::string pass, bool checkCredentials = true);
     void releaseMegaApi(unsigned int apiIndex);
 
     void inviteTestAccount(const unsigned invitorIndex, const unsigned inviteIndex, const string &message);
