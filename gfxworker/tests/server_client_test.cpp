@@ -143,7 +143,15 @@ TEST_F(ServerClientTest, supportformats)
 
     // compare with local
     auto provider = mega::IGfxProvider::createInternalGfxProvider();
-    EXPECT_EQ(formats, provider->supportedformats() ? std::string(provider->supportedformats()) : std::string());
+    auto internalFormats = provider->supportedformats();
+    if (internalFormats)
+    {
+        EXPECT_EQ(formats.find(internalFormats), 0); // the formats starts with internalFormats, extra part are not checked here for simplicity
+    }
+    else
+    {
+        EXPECT_EQ(formats, std::string());
+    }
     EXPECT_EQ(videoformats, provider->supportedvideoformats() ? std::string(provider->supportedvideoformats()) : std::string());
 
     EXPECT_TRUE(

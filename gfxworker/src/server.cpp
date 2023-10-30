@@ -47,10 +47,10 @@ std::unique_ptr<GfxProcessor> GfxProcessor::create()
 GfxTaskResult GfxProcessor::process(const GfxTask& task)
 {
     std::vector<std::string> outputImages(task.Dimensions.size());
-
+    auto path = LocalPath::fromPlatformEncodedAbsolute(task.Path);
     if (task.Dimensions.empty())
     {
-        LOG_err << "Received empty dimensions for " << task.Path;
+        LOG_err << "Received empty dimensions for " << path;
         return GfxTaskResult(std::move(outputImages), GfxTaskProcessStatus::ERR);
     }
 
@@ -74,8 +74,9 @@ GfxTaskResult GfxProcessor::process(const GfxTask& task)
                    [&dimensions](SizeType i){ return GfxDimension{ dimensions[i].w(), dimensions[i].h()}; });
 
     // generate thumbnails
+    LOG_err << "generate for, " << path;
     auto images = mGfxProvider->generateImages(&mFaccess,
-                                               LocalPath::fromPlatformEncodedAbsolute(task.Path),
+                                               path,
                                                sortedDimensions);
 
     // assign back to original order
@@ -186,7 +187,7 @@ void RequestProcessor::processGfx(IEndpoint* endpoint, CommandNewGfx* request)
     assert(endpoint);
     assert(request);
 
-    LOG_info << "gfx processing, " << request->Task.Path;
+    LOG_info << "gfx processing";
     auto result = mGfxProcessor->process(request->Task);
 
     CommandNewGfxResponse response;
