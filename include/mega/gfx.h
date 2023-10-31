@@ -163,7 +163,7 @@ class MEGA_API GfxProc
     public:
         ProviderAccessor(std::unique_ptr<IGfxProvider> provider) : mProvider(std::move(provider)) {}
 
-        std::shared_ptr<IGfxProvider> getCopy() const;
+        std::shared_ptr<IGfxProvider> get() const;
 
         void set(std::unique_ptr<IGfxProvider> provider);
     private:

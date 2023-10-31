@@ -49,7 +49,7 @@ std::unique_ptr<IGfxProvider> IGfxProvider::createInternalGfxProvider()
 
 bool GfxProc::isgfx(const LocalPath& localfilename)
 {
-    auto provider = mGfxProvider.getCopy();
+    auto provider = mGfxProvider.get();
     const char* supported = nullptr;
     if (!(supported = provider->supportedformats()))
     {
@@ -83,7 +83,7 @@ bool GfxProc::isgfx(const LocalPath& localfilename)
 
 bool GfxProc::isvideo(const LocalPath& localfilename)
 {
-    auto provider = mGfxProvider.getCopy();
+    auto provider = mGfxProvider.get();
     const char* supported = nullptr;
 
     if (!(supported = provider->supportedvideoformats()))
@@ -354,13 +354,13 @@ int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, const LocalPath& localfilena
 std::vector<std::string> GfxProc::generateImages(const LocalPath& localfilepath, const std::vector<GfxDimension>& dimensions)
 {
     std::lock_guard<std::mutex> g(mutex);
-    return mGfxProvider.getCopy()->generateImages(client->fsaccess.get(), localfilepath, dimensions);
+    return mGfxProvider.get()->generateImages(client->fsaccess.get(), localfilepath, dimensions);
 }
 
 std::string GfxProc::generateOneImage(const LocalPath& localfilepath, const GfxDimension& dimension)
 {
     std::lock_guard<std::mutex> g(mutex);
-    auto images = mGfxProvider.getCopy()->generateImages(client->fsaccess.get(),
+    auto images = mGfxProvider.get()->generateImages(client->fsaccess.get(),
                                                          localfilepath,
                                                          std::vector<GfxDimension>{ dimension });
     return images[0];
@@ -424,7 +424,7 @@ GfxProc::~GfxProc()
     }
 }
 
-std::shared_ptr<IGfxProvider> GfxProc::ProviderAccessor::getCopy() const
+std::shared_ptr<IGfxProvider> GfxProc::ProviderAccessor::get() const
 {
     const std::lock_guard<std::mutex> l(mMutex);
     return mProvider;
