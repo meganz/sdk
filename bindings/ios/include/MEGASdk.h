@@ -9915,7 +9915,7 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  *
  * @deprecated This version of the function is deprecated. Please use the non-deprecated one below.
  */
-- (void)getDeviceNameWithDelegate:(id<MEGARequestDelegate>)delegate;
+- (void)getDeviceNameWithDelegate:(id<MEGARequestDelegate>)delegate __attribute__((deprecated("Use [MEGASdk getDeviceName:delegate] instead of this function.")));
 
 /**
  * @brief Returns the name previously set for a device
