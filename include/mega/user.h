@@ -111,6 +111,9 @@ private:
     // source tag
     int tag;
 
+    const string NO_VERSION = "N";
+    const string NO_EXISTS = "-9";
+
 public:
     void set(visibility_t, m_time_t);
 
@@ -127,6 +130,11 @@ public:
     bool isattrvalid(attr_t at);
     void removeattr(attr_t at, const string *version = nullptr);
     int updateattr(attr_t at, string *av, string *v);
+
+    // Returns if attribute doesn't exist. Avoid requesting it to server
+    bool attributeNoExists(attr_t at) const;
+    // Only mark own attributes that it doesn't exist
+    void setAttributeNoExists(attr_t at);
 
     static string attr2string(attr_t at);
     static string attr2longname(attr_t at);

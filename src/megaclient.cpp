@@ -12537,6 +12537,11 @@ bool MegaClient::getua(User* u, const attr_t at, int ctag)
                 return true;
             }
         }
+        else if (u->attributeNoExists(at))
+        {
+            assert(u->userhandle == me);
+            app->getua_result(API_ENOENT);
+        }
         else
         {
             reqs.add(new CommandGetUA(this, u->uid.c_str(), at, NULL, tag, nullptr, nullptr, nullptr));

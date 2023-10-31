@@ -402,7 +402,7 @@ void User::setattr(attr_t at, string *av, string *v)
         attrs[at] = *av;
     }
 
-    attrsv[at] = v ? *v : "N";
+    attrsv[at] = v ? *v : NO_VERSION;
 }
 
 void User::invalidateattr(attr_t at)
@@ -439,6 +439,25 @@ int User::updateattr(attr_t at, std::string *av, std::string *v)
 
     setattr(at, av, v);
     return 1;
+}
+
+bool User::attributeNoExists(attr_t at) const
+{
+    auto it = attrsv.find(at);
+    if (it != attrsv.end() && it->second == NO_EXISTS)
+    {
+        assert(attrs.find(at) == attrs.end());
+        return true;
+    }
+
+    return false;
+}
+
+void User::setAttributeNoExists(attr_t at)
+{
+    // Set special value (-9) at attrsv map to indicate that attribute doesn't exist
+    assert(attrs.find(at) == attrs.end());
+    attrsv[at] = NO_EXISTS;
 }
 
 // returns the value if there is value (even if it's invalid by now)

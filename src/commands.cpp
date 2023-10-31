@@ -3458,6 +3458,10 @@ bool CommandGetUA::procresult(Result r, JSON& json)
         if (r.wasError(API_ENOENT) && u)
         {
             u->removeattr(at);
+            if (u->userhandle == client->me)
+            {
+                u->setAttributeNoExists(at);
+            }
         }
 
         mCompletionErr(r.errorOrOK());
@@ -4500,30 +4504,54 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 {
                     changes += u->updateattr(ATTR_LANGUAGE, &language, &versionLanguage);
                 }
+                else
+                {
+                    u->setAttributeNoExists(ATTR_LANGUAGE);
+                }
 
                 if (birthday.size())
                 {
                     changes += u->updateattr(ATTR_BIRTHDAY, &birthday, &versionBirthday);
+                }
+                else
+                {
+                    u->setAttributeNoExists(ATTR_BIRTHDAY);
                 }
 
                 if (birthmonth.size())
                 {
                     changes += u->updateattr(ATTR_BIRTHMONTH, &birthmonth, &versionBirthmonth);
                 }
+                else
+                {
+                    u->setAttributeNoExists(ATTR_BIRTHMONTH);
+                }
 
                 if (birthyear.size())
                 {
                     changes += u->updateattr(ATTR_BIRTHYEAR, &birthyear, &versionBirthyear);
+                }
+                else
+                {
+                    u->setAttributeNoExists(ATTR_BIRTHYEAR);
                 }
 
                 if (country.size())
                 {
                     changes += u->updateattr(ATTR_COUNTRY, &country, &versionCountry);
                 }
+                else
+                {
+                    u->setAttributeNoExists(ATTR_COUNTRY);
+                }
 
                 if (pwdReminderDialog.size())
                 {
                     changes += u->updateattr(ATTR_PWD_REMINDER, &pwdReminderDialog, &versionPwdReminderDialog);
+                }
+                else
+                {
+                    u->setAttributeNoExists(ATTR_PWD_REMINDER);
                 }
 
                 if (pushSetting.size())
@@ -4533,10 +4561,18 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                     // initialize the settings for the intermediate layer by simulating there was a getua()
                     client->app->getua_result((byte*) pushSetting.data(), (unsigned) pushSetting.size(), ATTR_PUSH_SETTINGS);
                 }
+                else
+                {
+                    u->setAttributeNoExists(ATTR_PUSH_SETTINGS);
+                }
 
                 if (contactLinkVerification.size())
                 {
                     changes += u->updateattr(ATTR_CONTACT_LINK_VERIFICATION, &contactLinkVerification, &versionContactLinkVerification);
+                }
+                else
+                {
+                    u->setAttributeNoExists(ATTR_CONTACT_LINK_VERIFICATION);
                 }
 
                 if (disableVersions.size())
@@ -4558,6 +4594,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 {
                     LOG_info << "File versioning is enabled";
                     client->versions_disabled = false;
+                    u->setAttributeNoExists(ATTR_DISABLE_VERSIONS);
                 }
 
                 if (noCallKit.size())
@@ -4568,6 +4605,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 else
                 {
                     LOG_info << "CallKit is enabled [noCallKit.size() == 0]";
+                    u->setAttributeNoExists(ATTR_NO_CALLKIT);
                 }
 
                 if (chatFolder.size())
@@ -4584,6 +4622,10 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                         LOG_err << "Cannot extract TLV records for ATTR_MY_CHAT_FILES_FOLDER";
                     }
                 }
+                else
+                {
+                    u->setAttributeNoExists(ATTR_MY_CHAT_FILES_FOLDER);
+                }
 
                 if (cameraUploadFolder.size())
                 {
@@ -4599,20 +4641,36 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                         LOG_err << "Cannot extract TLV records for ATTR_CAMERA_UPLOADS_FOLDER";
                     }
                 }
+                else
+                {
+                    u->setAttributeNoExists(ATTR_CAMERA_UPLOADS_FOLDER);
+                }
 
                 if (!myBackupsFolder.empty())
                 {
                     changes += u->updateattr(ATTR_MY_BACKUPS_FOLDER, &myBackupsFolder, &versionMyBackupsFolder);
+                }
+                else
+                {
+                    u->setAttributeNoExists(ATTR_MY_BACKUPS_FOLDER);
                 }
 
                 if (!appPrefs.empty())
                 {
                     changes += u->updateattr(ATTR_APPS_PREFS, &appPrefs, &versionAppPrefs);
                 }
+                else
+                {
+                    u->setAttributeNoExists(ATTR_APPS_PREFS);
+                }
 
                 if (!ccPrefs.empty())
                 {
                     changes += u->updateattr(ATTR_CC_PREFS, &ccPrefs, &versionCcPrefs);
+                }
+                else
+                {
+                    u->setAttributeNoExists(ATTR_CC_PREFS);
                 }
 
                 if (aliases.size())
@@ -4668,10 +4726,18 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                         LOG_err << "Cannot extract TLV records for ATTR_DEVICE_NAMES";
                     }
                 }
+                else
+                {
+                    u->setAttributeNoExists(ATTR_DEVICE_NAMES);
+                }
 
                 if (!cookieSettings.empty())
                 {
                     changes += u->updateattr(ATTR_COOKIE_SETTINGS, &cookieSettings, &versionCookieSettings);
+                }
+                else
+                {
+                    u->setAttributeNoExists(ATTR_COOKIE_SETTINGS);
                 }
 
 #ifdef ENABLE_SYNC
