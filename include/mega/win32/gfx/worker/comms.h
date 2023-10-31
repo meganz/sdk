@@ -34,6 +34,10 @@ private:
 
     bool do_read(void* data, size_t n, TimeoutMs timeout) override;
 
+    bool do_overlapOp(std::function<bool(OVERLAPPED*)>op,
+                      TimeoutMs timeout,
+                      const std::string& opStr);
+
     virtual Type type() const = 0;
 };
 

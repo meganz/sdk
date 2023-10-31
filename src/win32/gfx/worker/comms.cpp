@@ -51,6 +51,43 @@ Win32NamedPipeEndpoint::~Win32NamedPipeEndpoint()
 
 bool Win32NamedPipeEndpoint::do_write(const void* data, size_t n, TimeoutMs timeout)
 {
+    auto writeOp = [this, n, data](OVERLAPPED* overlap){
+        DWORD written;
+        auto result = WriteFile(
+            mPipeHandle,            // pipe handle
+            data,                   // message
+            static_cast<DWORD>(n),  // message length
+            &written,               // bytes written
+            overlap);               // overlapped
+        //if (result) LOG_verbose << "write " << written << " bytes OK";
+        return result;
+
+    };
+
+    return do_overlapOp(writeOp, timeout, "write");
+}
+
+bool Win32NamedPipeEndpoint::do_read(void* out, size_t n, TimeoutMs timeout)
+{
+    auto readOp = [this, n, out](OVERLAPPED* overlap){
+        DWORD cbRead = 0;
+        bool result = ReadFile(
+            mPipeHandle,            // pipe handle
+            out,                    // buffer to receive reply
+            static_cast<DWORD>(n),  // size of buffer
+            &cbRead,                // number of bytes read
+            overlap);               // overlapped
+        //if (result) LOG_verbose << "read " << cbRead << " bytes OK";
+        return result;
+    };
+
+    return do_overlapOp(readOp, timeout, "read");
+}
+
+bool Win32NamedPipeEndpoint::do_overlapOp(std::function<bool(OVERLAPPED*)>op,
+                                          TimeoutMs timeout,
+                                          const std::string& opStr)
+{
     if (mPipeHandle == INVALID_HANDLE_VALUE)
     {
         return false;
@@ -62,30 +99,24 @@ bool Win32NamedPipeEndpoint::do_write(const void* data, size_t n, TimeoutMs time
         return false;
     }
 
-    DWORD written;
-    auto success = WriteFile(
-        mPipeHandle,            // pipe handle
-        data,                   // message
-        static_cast<DWORD>(n),  // message length
-        &written,               // bytes written
-        overlap.data());        // overlapped
-
-    if (success)
+    // call Op.
+    if (op(overlap.data()))
     {
-        LOG_verbose << mName << ": Written " << n << "/" << written;
         return true;
     }
 
     // error
-    if (!success && GetLastError() != ERROR_IO_PENDING)
+    auto lastError = GetLastError();
+    if (lastError!= ERROR_IO_PENDING)
     {
-        LOG_err << mName << ": WriteFile to pipe failed. error=" << GetLastError() << " " << mega::winErrorMessage(GetLastError());
+        LOG_err << mName << ": " << opStr << " pipe failed. error=" << lastError << " " << mega::winErrorMessage(lastError);
         return false;
     }
 
+    // wait op to complete
     DWORD milliseconds = static_cast<DWORD>(timeout);
     DWORD numberOfBytesTransferred = 0;
-    success = GetOverlappedResultEx(
+    bool success = GetOverlappedResultEx(
         mPipeHandle,
         overlap.data(),
         &numberOfBytesTransferred,
@@ -94,63 +125,13 @@ bool Win32NamedPipeEndpoint::do_write(const void* data, size_t n, TimeoutMs time
 
     if (!success)
     {
-        LOG_err << mName << ": Write to pipe fail to complete error=" << GetLastError() << " " << mega::winErrorMessage(GetLastError());
+        lastError = GetLastError();
+        LOG_err << mName << ": " << opStr << " pipe fail to complete error=" << lastError << " " << mega::winErrorMessage(lastError);
         return false;
     }
 
-    LOG_verbose << mName << ": Written " << n << "/" << written << "/" << numberOfBytesTransferred;
-
-    return true;
-}
-
-bool Win32NamedPipeEndpoint::do_read(void* out, size_t n, TimeoutMs timeout)
-{
-    WinOverlap overlap;
-    if (!overlap.isValid())
-    {
-        return false;
-    }
-
-    // Read from the pipe.
-    DWORD cbRead = 0;
-    auto success = ReadFile(
-        mPipeHandle,            // pipe handle
-        out,                    // buffer to receive reply
-        static_cast<DWORD>(n),  // size of buffer
-        &cbRead,                // number of bytes read
-        overlap.data());        // overlapped
-
-    if (success)
-    {
-        LOG_verbose << mName << ": do_read bytes " << cbRead;
-        return true;
-    }
-
-    // error
-    if (!success && GetLastError() != ERROR_IO_PENDING)
-    {
-        LOG_err << mName << ": read from pipe failed. error=" << GetLastError() << " " << mega::winErrorMessage(GetLastError());
-        return false;
-    }
-
-    DWORD milliseconds = static_cast<DWORD>(timeout);
-    DWORD numberOfBytesTransferred = 0;
-    success = GetOverlappedResultEx(
-        mPipeHandle,
-        overlap.data(),
-        &numberOfBytesTransferred,
-        milliseconds,
-        false);
-
-    if (!success)
-    {
-        LOG_err << mName << ": read from pipe fail to complete error=" << GetLastError() << " " << mega::winErrorMessage(GetLastError());
-        return false;
-    }
-
-    // IO PENDING, wait for completion
-    LOG_verbose << mName << ": read " << n << "/" << cbRead << "/" << numberOfBytesTransferred;
-
+    // IO completed
+    // LOG_verbose << mName << ": " << opStr << " complete bytes transferred: " << numberOfBytesTransferred;
     return true;
 }
 
