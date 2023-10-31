@@ -109,8 +109,8 @@ RequestProcessor::RequestProcessor(std::unique_ptr<IGfxProcessor> processor,
                                    size_t threadCount,
                                    size_t maxQueueSize)
                                    : mGfxProcessor(std::move(processor))
+                                   , mThreadPool(threadCount, maxQueueSize)
 {
-    mThreadPool.initialize(threadCount, maxQueueSize);
 }
 
 bool RequestProcessor::process(std::unique_ptr<IEndpoint> endpoint)

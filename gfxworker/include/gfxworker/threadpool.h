@@ -12,19 +12,34 @@ namespace gfx
 class ThreadPool
 {
 public:
-    bool initialize(const size_t threadCount, const size_t maxQueueSize = 0, const std::string& ownerName = std::string());
-    void shutdown();
+    using Entry = std::function<void()>;
+
+    ThreadPool(size_t threadCount, size_t maxQueueSize);
+
+    ThreadPool(const ThreadPool&) = delete;
+
+    ThreadPool& operator=(const ThreadPool&) = delete;
+
     ~ThreadPool();
 
-    using Entry = std::function<void()>;
     bool push(Entry&& entry, const bool bypassMaxQueueSize = false);
 private:
-    std::mutex mMutex;
-    std::condition_variable mConditionVariable;
-    size_t mMaxQueueSize;
-    std::deque<Entry> mQueue;
-    std::vector<std::thread> mThreads;
+    void shutdown();
+
     void asyncThreadLoop();
+
+    std::mutex mMutex;
+
+    std::condition_variable mConditionVariable;
+
+    size_t mMaxQueueSize;
+
+    std::vector<std::thread> mThreads;
+
+    // mQueue and mDone is condition should be protected with mMutex and notify by mConditionVariable
+    std::deque<Entry> mQueue;
+
+    bool mDone;
 };
 
 } // end of namespace
