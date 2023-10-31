@@ -9,8 +9,6 @@ add_library(libgfxworker STATIC
             ${GFXWORKER_DIR}/src/threadpool.cpp
             )
 
-target_include_directories(libgfxworker PRIVATE ${GFXWORKER_DIR}/include)
 target_include_directories(libgfxworker PUBLIC ${GFXWORKER_DIR}/include)
-## target_include_directories(Mega PUBLIC ${MegaDir}/include)
 
 target_link_libraries(libgfxworker Mega)
