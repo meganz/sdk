@@ -488,7 +488,7 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
     case MISMATCH_OF_ROOT_FSID:
         return "Mismatch on sync root FSID.";
     case FILESYSTEM_FILE_IDS_ARE_UNSTABLE:
-        return "File IDs on this filesystem on this platform are too unstable.";
+        return "Syncing of exFAT, FAT32, FUSE and LIFS file systems is not supported by MEGA on macOS.";
     case FILESYSTEM_ID_UNAVAILABLE:
         return "Could not get the filesystem's ID.";
     default:
