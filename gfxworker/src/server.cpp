@@ -28,7 +28,6 @@
 #include <iterator>
 #include <numeric>
 #include <algorithm>
-#include <vcruntime.h>
 
 namespace mega {
 namespace gfx {
