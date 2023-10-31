@@ -104,31 +104,20 @@ std::vector<std::string> GfxProviderIsolatedProcess::generateImages(
 
 const char* GfxProviderIsolatedProcess::supportedformats()
 {
-    // already fetched from the server
-    if (mFormats.isValid())
-    {
-        return mFormats.formats();
-    }
-
-    // do fetching
-    std::string formats, videoformats;
-    if (!GfxClient::create(mPipename).runSupportFormats(formats, videoformats))
-    {
-        return nullptr;
-    }
-    else
-    {
-        mFormats.setOnce(formats, videoformats);
-        return mFormats.formats();
-    }
+    return getformats(&Formats::formats);
 }
 
 const char* GfxProviderIsolatedProcess::supportedvideoformats()
 {
+    return getformats(&Formats::videoformats);
+}
+
+const char* GfxProviderIsolatedProcess::getformats(const char* (Formats::*formatsFn)() const)
+{
     // already fetched from the server
     if (mFormats.isValid())
     {
-        return mFormats.videoformats();
+        return (mFormats.*formatsFn)();
     }
 
     // do fetching
@@ -140,7 +129,7 @@ const char* GfxProviderIsolatedProcess::supportedvideoformats()
     else
     {
         mFormats.setOnce(formats, videoformats);
-        return mFormats.videoformats();
+        return (mFormats.*formatsFn)();
     }
 }
 

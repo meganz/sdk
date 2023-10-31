@@ -172,6 +172,8 @@ private:
         std::mutex          mMutex;
     };
 
+    const char* getformats(const char* (Formats::*formatsFunc)() const);
+
     Formats mFormats;
 
     std::shared_ptr<GfxIsolatedProcess> mProcess;
