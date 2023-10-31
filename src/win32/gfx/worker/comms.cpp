@@ -64,11 +64,11 @@ bool Win32NamedPipeEndpoint::do_write(const void* data, size_t n, TimeoutMs time
 
     DWORD written;
     auto success = WriteFile(
-        mPipeHandle,                // pipe handle
+        mPipeHandle,            // pipe handle
         data,                   // message
         static_cast<DWORD>(n),  // message length
         &written,               // bytes written
-        overlap.data());                  // not overlapped
+        overlap.data());        // overlapped
 
     if (success)
     {
@@ -118,7 +118,7 @@ bool Win32NamedPipeEndpoint::do_read(void* out, size_t n, TimeoutMs timeout)
         out,                    // buffer to receive reply
         static_cast<DWORD>(n),  // size of buffer
         &cbRead,                // number of bytes read
-        overlap.data());        // not overlapped
+        overlap.data());        // overlapped
 
     if (success)
     {
