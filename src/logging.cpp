@@ -46,6 +46,9 @@ thread_local std::array<char, LOGGER_CHUNKS_SIZE> SimpleLogger::mBuffer;
 #else
 __thread std::array<char, LOGGER_CHUNKS_SIZE> SimpleLogger::mBuffer;
 #endif
+#ifndef NDEBUG
+thread_local const SimpleLogger* SimpleLogger::mBufferOwner = nullptr;
+#endif
 
 #else
 

@@ -207,6 +207,16 @@ private:
     static __thread std::array<char, LOGGER_CHUNKS_SIZE> mBuffer;
 #endif
     std::array<char, LOGGER_CHUNKS_SIZE>::iterator mBufferIt;
+#ifndef NDEBUG
+    // Detect and warn against multiple instances of this class created in the same thread.
+    // If multiple instances are used in the same thread, the messages from the last created one will
+    // overwrite and corrupt the messages of others, by overwriting mBuffer.
+    //
+    // An alternative approach aiming to allow such cases, would be to overload operator,(), but that will
+    // require to no longer use LoggerVoidify(), and create a "null logger" for the cases when requested
+    // log level needs to be ignored. That would also incur a small performance penalty for the latter case.
+    static thread_local const SimpleLogger* mBufferOwner;
+#endif
 
     using DiffType = std::array<char, LOGGER_CHUNKS_SIZE>::difference_type;
     using NumBuf = char[24];
@@ -395,7 +405,16 @@ public:
     {
         if (mThreadLocalLoggingDisabled) return;
 
-#ifndef ENABLE_LOG_PERFORMANCE
+#ifdef ENABLE_LOG_PERFORMANCE
+#ifndef NDEBUG
+        // Multiple instances in the same thread will lead to message corruption!
+        if (!mBufferOwner)
+        {
+            mBufferOwner = this;
+        }
+        assert(mBufferOwner == this);
+#endif
+#else
         if (!logger)
         {
             return;
@@ -449,6 +468,13 @@ public:
         {
             delete s;
         }
+
+#ifndef NDEBUG
+        if (mBufferOwner == this)
+        {
+            mBufferOwner = nullptr;
+        }
+#endif
 #else
         if (logger)
             logger->log(t.c_str(), level, fname.c_str(), ostr.str().c_str());
@@ -623,6 +649,9 @@ public:
 
     // Log messages forwarded from the client app though the configured logging mechanisms.
     // These do not go through the LOG_<level> macros.
+    //
+    // When ENABLE_LOG_PERFORMANCE is on, this must not be called during the lifetime of an
+    // existing instance, because it will overwrite the message of that instance.
     static void postLog(LogLevel logLevel, const char *message, const char *filename, int line)
     {
         if (logCurrentLevel < logLevel) return;
