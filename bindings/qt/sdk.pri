@@ -72,6 +72,7 @@ SOURCES += src/attrmap.cpp \
     src/db/sqlite.cpp  \
     src/gfx/external.cpp \
     src/gfx/isolatedprocess.cpp \
+    src/gfx/worker/commands.cpp \
     src/gfx/worker/command_serializer.cpp \
     src/gfx/worker/client.cpp \
     src/mega_utf8proc.cpp \

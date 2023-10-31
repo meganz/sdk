@@ -737,6 +737,7 @@ SET(Mega_GfxFiles ${MegaDir}/src/gfx/external.cpp
                   ${MegaDir}/src/gfx/freeimage.cpp
                   ${MegaDir}/src/gfx/gfx_pdfium.cpp
                   ${MegaDir}/src/gfx/isolatedprocess.cpp
+                  ${MegaDir}/src/gfx/worker/commands.cpp
                   ${MegaDir}/src/gfx/worker/command_serializer.cpp
                   ${MegaDir}/src/gfx/worker/client.cpp)
 

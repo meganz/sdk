@@ -48,6 +48,12 @@ public:
     virtual CommandType type() const = 0;
 
     virtual std::string typeStr() const = 0;
+
+    virtual std::string serialize() const = 0;
+
+    virtual bool unserialize(const std::string& data) = 0;
+
+    static std::unique_ptr<ICommand> factory(CommandType type);
 };
 
 struct CommandShutDown : public ICommand
@@ -55,6 +61,10 @@ struct CommandShutDown : public ICommand
     CommandType type() const override { return CommandType::SHUTDOWN; }
 
     std::string typeStr() const override { return "SHUTDOWN"; };
+
+    std::string serialize() const override;
+
+    bool unserialize(const std::string& data) override;
 };
 
 struct CommandShutDownResponse : public ICommand
@@ -62,6 +72,10 @@ struct CommandShutDownResponse : public ICommand
     CommandType type() const override { return CommandType::SHUTDOWN_RESPONSE; }
 
     std::string typeStr() const override { return "SHUTDOWN_RESPONSE"; };
+
+    std::string serialize() const override;
+
+    bool unserialize(const std::string& data) override;
 };
 
 struct CommandNewGfx : public ICommand
@@ -71,6 +85,10 @@ struct CommandNewGfx : public ICommand
     CommandType type() const override { return CommandType::NEW_GFX; }
 
     std::string typeStr() const override { return "NEW_GFX"; };
+
+    std::string serialize() const override;
+
+    bool unserialize(const std::string& data) override;
 };
 
 struct CommandNewGfxResponse : public ICommand
@@ -82,6 +100,10 @@ struct CommandNewGfxResponse : public ICommand
     CommandType type() const override { return CommandType::NEW_GFX_RESPONSE; }
 
     std::string typeStr() const override { return "NEW_GFX_RESPONSE"; };
+
+    std::string serialize() const override;
+
+    bool unserialize(const std::string& data) override;
 };
 
 struct CommandHello : public ICommand
@@ -91,6 +113,10 @@ struct CommandHello : public ICommand
     CommandType type() const override { return CommandType::HELLO; }
 
     std::string typeStr() const override { return "HELLO"; };
+
+    std::string serialize() const override;
+
+    bool unserialize(const std::string& data) override;
 };
 
 struct CommandHelloResponse : public ICommand
@@ -100,6 +126,10 @@ struct CommandHelloResponse : public ICommand
     CommandType type() const override { return CommandType::HELLO_RESPONSE; }
 
     std::string typeStr() const override { return "HELLO_RESPONSE"; };
+
+    std::string serialize() const override;
+
+    bool unserialize(const std::string& data) override;
 };
 
 struct CommandSupportFormats : public ICommand
@@ -107,6 +137,10 @@ struct CommandSupportFormats : public ICommand
     CommandType type() const override { return CommandType::SUPPORT_FORMATS; }
 
     std::string typeStr() const override { return "SUPPORT_FORMATS"; };
+
+    std::string serialize() const override;
+
+    bool unserialize(const std::string& data) override;
 };
 
 struct CommandSupportFormatsResponse : public ICommand
@@ -117,6 +151,10 @@ struct CommandSupportFormatsResponse : public ICommand
     CommandType type() const override { return CommandType::SUPPORT_FORMATS_RESPONSE; }
 
     std::string typeStr() const override { return "SUPPORT_FORMATS_RESPONSE"; };
+
+    std::string serialize() const override;
+
+    bool unserialize(const std::string& data) override;
 };
 
 } //namespace gfx
