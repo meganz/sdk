@@ -186,11 +186,9 @@ public:
 
 class SimpleLogger
 {
-public:
     // flag to turn off logging on the log-output thread, to prevent possible deadlock cycles.
     static thread_local bool mThreadLocalLoggingDisabled;
 
-private:
     enum LogLevel level;
 
 #ifndef ENABLE_LOG_PERFORMANCE
@@ -200,12 +198,8 @@ private:
 
     std::string getTime();
 #else
-
-#ifdef WIN32
     static thread_local std::array<char, LOGGER_CHUNKS_SIZE> mBuffer;
-#else
-    static __thread std::array<char, LOGGER_CHUNKS_SIZE> mBuffer;
-#endif
+    // no need to keep using __thread for gcc, as thread_local was already used for a member var above
     std::array<char, LOGGER_CHUNKS_SIZE>::iterator mBufferIt;
 #ifndef NDEBUG
     // Detect and warn against multiple instances of this class created in the same thread.
@@ -388,13 +382,13 @@ private:
     }
 #endif
 
-public:
     static Logger *logger;
 
     static enum LogLevel logCurrentLevel;
 
     static long long maxPayloadLogSize; //above this, the msg will be truncated by [ ... ]
 
+public:
     SimpleLogger(const enum LogLevel ll, const char* filename, const int line)
     : level{ll}
 #ifdef ENABLE_LOG_PERFORMANCE
@@ -638,13 +632,21 @@ public:
     // set the current log level. all logs which are higher than this level won't be handled
     static void setLogLevel(enum LogLevel ll)
     {
-        SimpleLogger::logCurrentLevel = ll;
+        logCurrentLevel = ll;
+    }
+    inline static const LogLevel& getLogLevel()
+    {
+        return logCurrentLevel;
     }
 
     // set the limit of size to requests payload
     static void setMaxPayloadLogSize(long long size)
     {
         maxPayloadLogSize = size;
+    }
+    inline static const long long& getMaxPayloadLogSize()
+    {
+        return maxPayloadLogSize;
     }
 
     // Log messages forwarded from the client app though the configured logging mechanisms.
@@ -680,23 +682,23 @@ struct LoggerVoidify
 };
 
 #define LOG_verbose \
-    ::mega::SimpleLogger::logCurrentLevel < ::mega::logMax ? (void)0 : \
+    ::mega::SimpleLogger::getLogLevel() < ::mega::logMax ? (void)0 : \
         ::mega::LoggerVoidify() & ::mega::SimpleLogger(::mega::logMax, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_debug \
-    ::mega::SimpleLogger::logCurrentLevel < ::mega::logDebug ? (void)0 : \
+    ::mega::SimpleLogger::getLogLevel() < ::mega::logDebug ? (void)0 : \
         ::mega::LoggerVoidify() & ::mega::SimpleLogger(::mega::logDebug, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_info \
-    ::mega::SimpleLogger::logCurrentLevel < ::mega::logInfo ? (void)0 : \
+    ::mega::SimpleLogger::getLogLevel() < ::mega::logInfo ? (void)0 : \
         ::mega::LoggerVoidify() & ::mega::SimpleLogger(::mega::logInfo, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_warn \
-    ::mega::SimpleLogger::logCurrentLevel < ::mega::logWarning ? (void)0 : \
+    ::mega::SimpleLogger::getLogLevel() < ::mega::logWarning ? (void)0 : \
         ::mega::LoggerVoidify() & ::mega::SimpleLogger(::mega::logWarning, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_err \
-    ::mega::SimpleLogger::logCurrentLevel < ::mega::logError ? (void)0 : \
+    ::mega::SimpleLogger::getLogLevel() < ::mega::logError ? (void)0 : \
         ::mega::LoggerVoidify() & ::mega::SimpleLogger(::mega::logError, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_fatal \

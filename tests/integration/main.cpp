@@ -403,7 +403,7 @@ public:
 
         lock_guard<mutex> g(logMutex);
 
-        if (loglevel <= SimpleLogger::logCurrentLevel)
+        if (loglevel <= SimpleLogger::getLogLevel())
         {
             if (gWriteLog)
             {
