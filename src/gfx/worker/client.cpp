@@ -15,6 +15,7 @@
 #include "mega/win32/gfx/worker/comms_client.h"
 #endif
 
+using std::chrono::milliseconds;
 namespace mega {
 namespace gfx {
 
@@ -70,7 +71,7 @@ bool GfxClient::runGfxTask(const std::string& localpath,
                            std::vector<std::string>& images)
 {
      // 3 seconds at most
-    auto endpoint = connectWithRetry(std::chrono::milliseconds(100), 30);
+    auto endpoint = connectWithRetry(milliseconds(100), 30);
     if (!endpoint)
     {
         LOG_err << "runGfxTask Couldn't connect";
@@ -105,7 +106,7 @@ bool GfxClient::runGfxTask(const std::string& localpath,
 
 bool GfxClient::runSupportFormats(std::string& formats, std::string& videoformats)
 {
-    auto endpoint = connectWithRetry(std::chrono::milliseconds(100), 30); // 3 seconds at most
+    auto endpoint = connectWithRetry(milliseconds(100), 30); // 3 seconds at most
     if (!endpoint)
     {
         LOG_err << "runSupportFormats Couldn't connect";
@@ -150,7 +151,7 @@ bool GfxClient::isRetryError(CommError error) const
     return retryErrors.find(error) != retryErrors.end();
 }
 
-std::unique_ptr<IEndpoint> GfxClient::connectWithRetry(std::chrono::milliseconds backoff, unsigned int maxRetries)
+std::unique_ptr<IEndpoint> GfxClient::connectWithRetry(milliseconds backoff, unsigned int maxRetries)
 {
     unsigned int loop = 0;
     std::unique_ptr<IEndpoint> endpoint;
@@ -182,7 +183,7 @@ std::unique_ptr<IEndpoint> GfxClient::connectWithRetry(std::chrono::milliseconds
 
 std::unique_ptr<IEndpoint> GfxClient::connect()
 {
-    return connectWithRetry(std::chrono::milliseconds(0), 0);
+    return connectWithRetry(milliseconds(0), 0);
 }
 
 template<typename ResponseT, typename RequestT>

@@ -13,17 +13,23 @@
 #include <chrono>
 
 using mega::gfx::GfxClient;
+using std::chrono::milliseconds;
+using std::chrono::seconds;
+using std::chrono::duration_cast;
+using std::chrono::time_point;
+using std::chrono::steady_clock;
 namespace mega {
 
-const std::chrono::milliseconds AutoStartLauncher::MAX_BACKOFF(15 * 1000);
-const std::chrono::milliseconds AutoStartLauncher::START_BACKOFF(100);
+const milliseconds AutoStartLauncher::MAX_BACKOFF(15 * 1000);
+const milliseconds AutoStartLauncher::START_BACKOFF(100);
 
 void GfxWorkerHelloBeater::beat()
 {
     auto gfxclient = GfxClient::create(mPipename);
+    auto intervalMs = duration_cast<milliseconds>(mPeriod);
     while(!mShuttingDown)
     {
-        bool isCancelled = mSleeper.sleep(std::chrono::duration_cast<std::chrono::milliseconds>(mPeriod));
+        bool isCancelled = mSleeper.sleep(intervalMs);
         if (!isCancelled)
         {
             gfxclient.runHello("beat");
@@ -140,7 +146,7 @@ const char* GfxProviderIsolatedProcess::supportedvideoformats()
 
 bool AutoStartLauncher::startUntilSuccess(reproc::process& process)
 {
-    std::chrono::milliseconds backOff = START_BACKOFF;
+    milliseconds backOff = START_BACKOFF;
     while (!mShuttingDown)
     {
         auto ec = process.start(mArgv);
@@ -162,11 +168,11 @@ bool AutoStartLauncher::startUntilSuccess(reproc::process& process)
 bool AutoStartLauncher::startlaunchLoopThread()
 {
     auto backoffForFastFailure = [this](std::function<void()> f) {
-        std::chrono::milliseconds backOff = START_BACKOFF;
+        milliseconds backOff = START_BACKOFF;
         while(!mShuttingDown) {
-                const std::chrono::time_point<std::chrono::steady_clock> start = std::chrono::steady_clock::now();
+                const time_point<steady_clock> start = steady_clock::now();
                 f();
-                auto usedSeconds = (std::chrono::steady_clock::now() - start) / std::chrono::seconds(1);
+                auto usedSeconds = (steady_clock::now() - start) / seconds(1);
 
                 // less than 2 seconds, it fails right after startup.
                 // such as lacking some dll, it is started successfully and exists shortly
@@ -215,13 +221,13 @@ bool AutoStartLauncher::startlaunchLoopThread()
 //
 void AutoStartLauncher::exitLaunchLoopThread()
 {
-    std::chrono::milliseconds backOff(10);
-    while (mThreadIsRunning && backOff < std::chrono::seconds(15))
+    milliseconds backOff(10);
+    while (mThreadIsRunning && backOff < seconds(15))
     {
         // shutdown the started process
         if (mShutdowner) mShutdowner();
         std::this_thread::sleep_for(backOff);
-        backOff += std::chrono::milliseconds(10);
+        backOff += milliseconds(10);
     }
 }
 
@@ -249,7 +255,7 @@ AutoStartLauncher::~AutoStartLauncher()
     shutDownOnce();
 }
 
-bool CancellableSleeper::sleep(const std::chrono::milliseconds& period)
+bool CancellableSleeper::sleep(const milliseconds& period)
 {
     std::unique_lock<std::mutex> l(mMutex);
 
@@ -277,7 +283,7 @@ GfxIsolatedProcess:: GfxIsolatedProcess(const std::vector<string>& arguments,
 
     mLauncher = ::mega::make_unique<::mega::AutoStartLauncher>(arguments, shutdowner);
 
-    mBeater = ::mega::make_unique<::mega::GfxWorkerHelloBeater>(std::chrono::seconds(beatIntervalSeconds), pipename);
+    mBeater = ::mega::make_unique<::mega::GfxWorkerHelloBeater>(seconds(beatIntervalSeconds), pipename);
 }
 
 }
