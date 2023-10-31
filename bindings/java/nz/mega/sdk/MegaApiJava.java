@@ -8359,6 +8359,16 @@ public class MegaApiJava {
     }
 
     /**
+     * Get a boolean value that represent whether the user account is new or not, this is based on
+     * if the account was created in less than 30 days, then it returns true, otherwise, it returns false
+     *
+     * @return if the account is new or not
+     */
+    public Boolean accountIsNew() {
+        return megaApi.accountIsNew();
+    }
+
+    /**
      * Get the MegaContactRequest that has a specific handle
      * <p>
      * You can get the handle of a MegaContactRequest using MegaContactRequest::getHandle.
