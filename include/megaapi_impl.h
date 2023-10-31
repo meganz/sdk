@@ -748,13 +748,14 @@ public:
 
     MegaSetPrivate(const Set& s)
         : mId(s.id()), mPublicId(s.publicId()), mUser(s.user()), mTs(s.ts()), mCTs(s.cts()),
-          mName(s.name()), mCover(s.cover()), mChanges(s.changes()) {}
+          mName(s.name()), mCover(s.cover()), mChanges(s.changes()), mType(s.type()) {}
 
     MegaHandle id() const override { return mId; }
     MegaHandle publicId() const override { return mPublicId; }
     MegaHandle user() const override { return mUser; }
     int64_t ts() const override { return mTs; }
     int64_t cts() const override { return mCTs; }
+    Set::SetType type() const override { return mType; }
     const char* name() const override { return mName.c_str(); }
     MegaHandle cover() const override { return mCover; }
 
@@ -773,6 +774,7 @@ private:
     string mName;
     MegaHandle mCover;
     std::bitset<Set::CH_SIZE> mChanges;
+    Set::SetType mType;
 };
 
 
@@ -2800,7 +2802,8 @@ class MegaApiImpl : public MegaApp
         MegaTransferList *getTansfersByFolderTag(int folderTransferTag);
 
         //Sets and Elements
-        void putSet(MegaHandle sid, int optionFlags, const char* name, MegaHandle cover, MegaRequestListener* listener = nullptr);
+        void putSet(MegaHandle sid, int optionFlags, const char* name, MegaHandle cover,
+                    Set::SetType type, MegaRequestListener* listener = nullptr);
         void removeSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
         void putSetElements(MegaHandle sid, const MegaHandleList* nodes, const MegaStringList* names, MegaRequestListener* listener = nullptr);
         void putSetElement(MegaHandle sid, MegaHandle eid, MegaHandle node, int optionFlags, int64_t order, const char* name, MegaRequestListener* listener = nullptr);

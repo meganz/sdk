@@ -1271,6 +1271,13 @@ public:
     virtual int64_t cts() const { return 0; }
 
     /**
+     * @brief Returns type of current Set according to defined enum.
+     *
+     * @return type value.
+     */
+    virtual uint8_t type() const { return 0; }
+
+    /**
      * @brief Returns name of current Set.
      *
      * The MegaSet object retains the ownership of the returned string, it will be valid until
@@ -1350,6 +1357,13 @@ public:
         CHANGE_TYPE_REMOVED = 0x08,
         CHANGE_TYPE_EXPORT  = 0x10,
     };
+
+    enum : uint8_t // 1:1 with Set::TYPE_YYY values (<255)
+    {
+        SET_TYPE_PHOTOS = 0,
+        SET_TYPE_VIDEOS = 1,
+    };
+
 };
 
 /**
@@ -21045,9 +21059,11 @@ class MegaApi
          * - MegaError::API_EACCESS - Permissions Error (from API).
          *
          * @param name the name that should be given to the new Set
+         * @param type the type of the Set (see MegaSet for possible types)
          * @param listener MegaRequestListener to track this request
          */
-        void createSet(const char* name = nullptr, MegaRequestListener* listener = nullptr);
+        void createSet(const char* name = nullptr, uint8_t type = MegaSet::SET_TYPE_PHOTOS,
+                       MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Request to update the name of a Set

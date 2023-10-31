@@ -9544,7 +9544,8 @@ bool CommandDismissBanner::procresult(Result r, JSON& json)
 // Sets and Elements
 //
 
-bool CommandSE::procjsonobject(JSON& json, handle& id, m_time_t& ts, handle* u, m_time_t* cts, handle* s, int64_t* o, handle* ph) const
+bool CommandSE::procjsonobject(JSON& json, handle& id, m_time_t& ts, handle* u, m_time_t* cts,
+                               handle* s, int64_t* o, handle* ph, uint8_t* t) const
 {
     for (;;)
     {
@@ -9593,6 +9594,13 @@ bool CommandSE::procjsonobject(JSON& json, handle& id, m_time_t& ts, handle* u, 
             }
             break;
 
+        case MAKENAMEID1('t'):
+            {
+                const auto setType = static_cast<uint8_t>(json.getint());
+                if (t) *t = setType;
+            }
+            break;
+
         default:
             if (!json.storeobject())
             {
@@ -9606,9 +9614,10 @@ bool CommandSE::procjsonobject(JSON& json, handle& id, m_time_t& ts, handle* u, 
     }
 }
 
-bool CommandSE::procresultid(JSON& json, const Result& r, handle& id, m_time_t& ts, handle* u, m_time_t* cts, handle* s, int64_t* o, handle* ph) const
+bool CommandSE::procresultid(JSON& json, const Result& r, handle& id, m_time_t& ts, handle* u,
+                             m_time_t* cts, handle* s, int64_t* o, handle* ph, uint8_t* t) const
 {
-    return r.hasJsonObject() && procjsonobject(json, id, ts, u, cts, s, o, ph);
+    return r.hasJsonObject() && procjsonobject(json, id, ts, u, cts, s, o, ph, t);
 }
 
 bool CommandSE::procerrorcode(const Result& r, Error& e) const
@@ -9659,6 +9668,7 @@ CommandPutSet::CommandPutSet(MegaClient* cl, Set&& s, unique_ptr<string> encrAtt
     if (mSet->id() == UNDEF) // create new
     {
         arg("k", (byte*)encrKey.c_str(), (int)encrKey.size());
+        arg("t", static_cast<m_off_t>(mSet->type()));
     }
     else // update
     {
@@ -9679,6 +9689,7 @@ bool CommandPutSet::procresult(Result r, JSON& json)
     handle user = 0;
     m_time_t ts = 0;
     m_time_t cts = 0;
+    Set::SetType t = Set::TYPE_PHOTOS;
     const Set* s = nullptr;
     Error e = API_OK;
     bool parsedOk = procerrorcode(r, e) || procresultid(json, r, sId, ts, &user, &cts);

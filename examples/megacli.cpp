@@ -4253,7 +4253,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_setsandelements,
         sequence(text("setsandelements"),
                  either(text("list"),
-                        sequence(text("newset"), opt(param("name"))),
+                        sequence(text("newset"), param("type"), opt(param("name"))),
                         sequence(text("updateset"), param("id"), opt(sequence(flag("-n"), opt(param("name")))), opt(sequence(flag("-c"), opt(param("cover"))))),
                         sequence(text("removeset"), param("id")),
                         sequence(text("newelement"), param("setid"), param("nodehandle"),
@@ -10553,6 +10553,17 @@ void exec_syncxable(autocomplete::ACState& s)
 
 #endif // ENABLE_SYNC
 
+std::string setTypeToString(Set::SetType t)
+{
+    const std::string tStr = std::to_string(t);
+    switch (t)
+    {
+    case Set::TYPE_PHOTOS: return "Photo Album (" + tStr + ")";
+    case Set::TYPE_VIDEOS: return "Video Playlist (" + tStr + ")";
+    default:               return "Unexpected Set Type with value " + tStr;
+    }
+}
+
 void printSet(const Set* s)
 {
     if (!s)
@@ -10562,6 +10573,7 @@ void printSet(const Set* s)
     }
 
     cout << "Set " << toHandle(s->id()) << endl;
+    cout << "\ttype: " << setTypeToString(s->type()) << endl;
     cout << "\tpublic id: " << toHandle(s->publicId()) << endl;
     cout << "\tkey: " << Base64::btoa(s->key()) << endl;
     cout << "\tuser: " << toHandle(s->user()) << endl;
@@ -10641,12 +10653,20 @@ void exec_setsandelements(autocomplete::ACState& s)
 
     else if (command == "newset")
     {
-        const char* name = (s.words.size() == 3) ? s.words[2].s.c_str() : nullptr;
+        if (s.words.size() < 3)
+        {
+            cout << "Wrong number of parameters. Try again\n";
+            return;
+        }
+
+        const char* name = (s.words.size() == 4) ? s.words[3].s.c_str() : nullptr;
         Set newset;
         if (name)
         {
             newset.setName(name);
         }
+        Set::SetType t = static_cast<Set::SetType>(stoi(s.words[2].s));
+        newset.setType(t);
 
         client->putSet(std::move(newset), [](Error e, const Set* s)
             {

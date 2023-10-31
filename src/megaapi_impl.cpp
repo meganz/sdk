@@ -19105,13 +19105,15 @@ void MegaApiImpl::sendPendingRequests()
     }
 }
 
-void MegaApiImpl::putSet(MegaHandle sid, int optionFlags, const char* name, MegaHandle cover, MegaRequestListener* listener)
+void MegaApiImpl::putSet(MegaHandle sid, int optionFlags, const char* name, MegaHandle cover,
+                         Set::SetType type, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_PUT_SET, listener);
     request->setParentHandle(sid);
     request->setParamType(optionFlags);
     request->setText(name);
     request->setNodeHandle(cover);
+    request->setAccess(static_cast<int>(type));
 
     request->performRequest = [this, request]()
         {
@@ -19124,6 +19126,10 @@ void MegaApiImpl::putSet(MegaHandle sid, int optionFlags, const char* name, Mega
             if (request->getParamType() & MegaApi::OPTION_SET_COVER)
             {
                 s.setCover(request->getNodeHandle());
+            }
+            if (request->getParamType() & MegaApi::CREATE_SET)
+            {
+                s.setType(static_cast<Set::SetType>(request->getAccess()));
             }
             client->putSet(std::move(s),
                 [this, request](Error e, const Set* s)
