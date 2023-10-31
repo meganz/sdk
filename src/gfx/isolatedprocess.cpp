@@ -73,8 +73,8 @@ const char* GfxProviderIsolatedProcess::Formats::videoformats() const
 
 void GfxProviderIsolatedProcess::Formats::setOnce(const std::string& formats, const std::string& videoformats)
 {
-    const std::scoped_lock<std::mutex> l(mMutex);
-     // guard: never update twice
+    const std::lock_guard<std::mutex> l(mMutex);
+     // do not set again if it has been set
     if (mIsValid) return;
     mFormats = formats;
     mVideoformats = videoformats;
