@@ -9934,7 +9934,7 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * by deviceId() will be used instead.
  * @param delegate MEGARequestDelegate to track this request
  */
-- (void)getDeviceName:(NSString *)deviceId delegate:(id<MEGARequestDelegate>)delegate;
+- (void)getDeviceName:(nullable NSString *)deviceId delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Sets device name

@@ -3726,7 +3726,7 @@ using namespace mega;
     }
 }
 
-- (void)getDeviceName:(NSString *)deviceId delegate:(id<MEGARequestDelegate>)delegate {
+- (void)getDeviceName:(nullable NSString *)deviceId delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->getDeviceName(deviceId.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
     }
