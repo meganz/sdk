@@ -1,5 +1,6 @@
 #include "mega/logging.h"
 #include "mega/utils.h"
+#include "mega/filesystem.h"
 #include "gfxworker/comms_server_win32.h"
 #include "gfxworker/server.h"
 #include <system_error>
@@ -88,6 +89,10 @@ void WinGfxCommunicationsServer::serverListeningLoop()
         return;
     }
 
+    std::string pipename = "\\\\.\\pipe\\" + mPipename;
+    std::wstring wpipename;
+    LocalPath::path2local(&pipename, &wpipename);
+
     // first instance to prevent two processes create the same pipe
     DWORD first_instance = FILE_FLAG_FIRST_PIPE_INSTANCE;
     const DWORD BUFSIZE = 512;
@@ -95,10 +100,8 @@ void WinGfxCommunicationsServer::serverListeningLoop()
     {
         LOG_verbose << "server awaiting client connection";
 
-        std::string pipename = "\\\\.\\pipe\\" + mPipename;
-        std::wstring wpipename = std::wstring(pipename.begin(), pipename.end());
         auto hPipe = CreateNamedPipe(
-            wpipename.c_str(),             // pipe name
+            wpipename.c_str(),        // pipe name
             PIPE_ACCESS_DUPLEX |      // read/write access
             FILE_FLAG_OVERLAPPED |    // overlapped
             first_instance,           // first instance or not

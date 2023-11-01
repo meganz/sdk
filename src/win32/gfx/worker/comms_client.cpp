@@ -1,4 +1,5 @@
 #include "mega/logging.h"
+#include "mega/filesystem.h"
 #include "mega/win32/gfx/worker/comms_client.h"
 #include "mega/gfx/worker/comms.h"
 
@@ -54,7 +55,8 @@ CommError WinGfxCommunicationsClient::do_connect(LPCTSTR pipeName, HANDLE &hPipe
 CommError WinGfxCommunicationsClient::connect(std::unique_ptr<IEndpoint>& endpoint)
 {
     std::string pipename = "\\\\.\\pipe\\" + mPipename;
-    std::wstring wpipename = std::wstring(pipename.begin(), pipename.end());
+    std::wstring wpipename;
+    LocalPath::path2local(&pipename, &wpipename);
 
     HANDLE hPipe = INVALID_HANDLE_VALUE;
     CommError error  = do_connect(wpipename.c_str(), hPipe);
