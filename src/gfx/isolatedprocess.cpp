@@ -156,6 +156,11 @@ bool AutoStartLauncher::startUntilSuccess(reproc::process& process)
 
 bool AutoStartLauncher::startlaunchLoopThread()
 {
+    // There are permanent startup failure such as missing DLL
+    // We want to have some long backOff for these scenario
+    // There are program crash due to gfx processing such as missing DLL
+    // We want to have some short backOff for these scenario
+    // This is a naive way to use check used seconds as the judgement
     auto backoffForFastFailure = [this](std::function<void()> f) {
         milliseconds backOff = START_BACKOFF;
         while(!mShuttingDown) {
@@ -163,9 +168,8 @@ bool AutoStartLauncher::startlaunchLoopThread()
                 f();
                 auto usedSeconds = (steady_clock::now() - start) / seconds(1);
 
-                // less than 2 seconds, it fails right after startup.
-                // such as lacking some dll, it is started successfully and exists shortly
-                if ((usedSeconds < 2) && !mShuttingDown)
+                // <= 1 seconds, it fails right after startup.
+                if ((usedSeconds <= 1) && !mShuttingDown)
                 {
                     LOG_err << "process existed too fast: " << usedSeconds << " backoff" << backOff.count() << "ms";
                     mSleeper.sleep(backOff);
