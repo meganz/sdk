@@ -1,6 +1,5 @@
 #include "mega/gfx/isolatedprocess.h"
 #include "mega/gfx/worker/client.h"
-#include "mega/gfx/worker/tasks.h"
 #include "mega/logging.h"
 #include <algorithm>
 #include <iterator>
@@ -156,11 +155,14 @@ bool AutoStartLauncher::startUntilSuccess(reproc::process& process)
 
 bool AutoStartLauncher::startlaunchLoopThread()
 {
-    // There are permanent startup failure such as missing DLL
-    // We want to have some long backOff for these scenario
-    // There are program crash due to gfx processing such as missing DLL
-    // We want to have some short backOff for these scenario
-    // This is a naive way to use check used seconds as the judgement
+    static const milliseconds MAX_FAST_FAILURE_BACKOFF(2*1000);
+
+    // There are permanent startup failure such as missing DLL. This is not likey to happen
+    // at customer's side as it will be installed properly. It is more likely during development
+    // and testing phases. We want to implement some backOff to reduce CPU usage if it does happen
+    // There are program crash due to gfx processing. We don't want to have backOff for this scenario
+    // and here assume the continuously gfx processing crash is so few.
+    // This is a naive way checking used seconds as the judgement
     auto backoffForFastFailure = [this](std::function<void()> f) {
         milliseconds backOff = START_BACKOFF;
         while(!mShuttingDown) {
@@ -173,7 +175,7 @@ bool AutoStartLauncher::startlaunchLoopThread()
                 {
                     LOG_err << "process existed too fast: " << usedSeconds << " backoff" << backOff.count() << "ms";
                     mSleeper.sleep(backOff);
-                    backOff = std::min(backOff * 2, MAX_BACKOFF); // double it and MAX_BACKOFF at most
+                    backOff = std::min(backOff * 2, MAX_FAST_FAILURE_BACKOFF); // double it and MAX_FAST_FAILURE_BACKOFF at most
                 }
                 else
                 {
