@@ -20413,12 +20413,12 @@ class MegaApi
         /**
          * @brief Allows to start chat call in a chat room
          *
-         * - If schedId param is INVALID_HANDLE, waiting room will be enabled for the call, just if waiting room flag
-         *   is enabled for the chatroom. Call will ring or not depending on the value of notRinging param
+         * - Waiting room will be enabled for the call, just if waiting room flag is enabled for the chatroom.
+         *   + If notRinging param is false, all participants that answers the call, will bypass the waiting room.
+         *   + If notRinging param is true, all participants will be redirected to waiting room,
+         *     as soon as they answer the call
          *
-         * - If schedId param is valid (Legacy):
-         *      + If Waiting room option is enabled : Call shouldn't ring and we'll be redirected to Waiting room
-         *      + If Waiting room option is disabled: Call shouldn't ring
+         * - Call will ring or not depending on the value of notRinging param
          *
          * The associated request type with this request is MegaRequest::TYPE_START_CHAT_CALL
          *
@@ -20434,15 +20434,13 @@ class MegaApi
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EARGS - If the chatid is invalid
-         * - MegaError::API_EARGS - If schedId is not INVALID_HANDLE and notRinging is true
          * - MegaError::API_EEXIST - If there is a call in the chatroom
          *
          * @param chatid MegaHandle that identifies the chat room
-         * @param schedId MegaHandle scheduled meeting id that identifies the scheduled meeting context in which we will start the call
          * @param notRinging if true call won't ring for participants when it's started
          * @param listener MegaRequestListener to track this request
          */
-        void startChatCall(MegaHandle chatid, MegaHandle schedId = INVALID_HANDLE, bool notRinging = false, MegaRequestListener* listener = nullptr);
+        void startChatCall(MegaHandle chatid, bool notRinging = false, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Allow to join chat call
