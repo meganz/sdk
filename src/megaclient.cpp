@@ -2693,9 +2693,9 @@ void MegaClient::exec()
                 else
                 {
                     error e = (error)atoi(pendingsc->in.c_str());
-                    if (e == API_ESID)
+                    if ((e == API_ESID) || (e == API_ENOENT && loggedIntoFolder()))
                     {
-                        app->request_error(API_ESID);
+                        app->request_error(e);
                         scsn.stopScsn();
                     }
                     else if (e == API_ETOOMANY)
@@ -2733,11 +2733,6 @@ void MegaClient::exec()
                     {
                         app->request_error(API_EBLOCKED);
                         block(true);
-                    }
-                    else if (e == API_ENOENT && loggedIntoFolder())
-                    {
-                        LOG_err << "Logged into a folder link removed";
-                        app->request_error(API_ENOENT);
                     }
                     else
                     {
