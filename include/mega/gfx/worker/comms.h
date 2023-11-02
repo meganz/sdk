@@ -83,7 +83,7 @@ public:
     virtual ~IEndpoint() = default;
 };
 
-enum class CommError: BYTE
+enum class CommError: uint8_t
 {
     OK              = 0,
     ERR             = 1, // an generic error

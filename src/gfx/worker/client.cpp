@@ -135,7 +135,8 @@ GfxClient GfxClient::create(const std::string& pipename)
     return GfxClient(mega::make_unique<WinGfxCommunicationsClient>(pipename));
 #else
     // To implement
-    return GfxClient(pipename, nullptr);
+    (void)pipename;
+    return GfxClient(nullptr);
 #endif
 }
 

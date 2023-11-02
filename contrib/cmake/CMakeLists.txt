@@ -926,7 +926,7 @@ target_link_libraries(Mega PUBLIC
                         $<${HAVE_FFMPEG}:avfilter> $<${HAVE_FFMPEG}:avdevice> $<${HAVE_FFMPEG}:avformat> $<${HAVE_FFMPEG}:avcodec> $<${HAVE_FFMPEG}:avutil> $<${HAVE_FFMPEG}:swscale>  $<${HAVE_FFMPEG}:swresample>
                         z
                         icuuc icudata
-                        reproc reproc++
+                        reproc++ reproc
                         ${Mega_PlatformSpecificLibs})
 
 target_compile_definitions(Mega PUBLIC

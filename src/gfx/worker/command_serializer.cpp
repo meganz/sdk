@@ -80,7 +80,7 @@ bool CommandSerializer::unserializeHelper(IReader& reader, std::string& data, Ti
         return true;
     }
     data.resize(len);
-    return reader.read(data.data(), len, timeout);
+    return reader.read(const_cast<char *>(data.data()), len, timeout);
 }
 
 std::unique_ptr<ICommand> CommandSerializer::unserialize(IReader& reader, TimeoutMs timeout)
