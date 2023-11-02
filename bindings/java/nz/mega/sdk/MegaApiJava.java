@@ -650,6 +650,19 @@ public class MegaApiJava {
     }
 
     /**
+     * @brief Check if the logged in account is considered new
+     *
+     * This function will NOT return a valid value until the callback onEvent with
+     * type MegaApi::EVENT_MISC_FLAGS_READY is received. You can also rely on the completion of
+     * a fetchnodes to check this value.
+     *
+     * @return True if account is considered new. Otherwise, false.
+     */
+    public Boolean accountIsNew() {
+        return megaApi.accountIsNew();
+    }
+
+    /**
      * Get the value of an A/B Test flag
      * <p>
      * Any value greater than 0 means he flag is active.
