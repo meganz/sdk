@@ -450,9 +450,17 @@ if(VCPKG_ROOT)
     find_package(CURL REQUIRED)
     target_link_libraries(SDKlib PRIVATE CURL::libcurl)
 
+    find_package(ICU COMPONENTS uc data REQUIRED)
+    target_link_libraries(SDKlib PRIVATE ICU::uc ICU::data)
+
     if(USE_MEDIAINFO)
         find_package(MediaInfoLib REQUIRED)
         target_link_libraries(SDKlib PRIVATE mediainfo)
+    endif()
+
+    if(USE_FREEIMAGE)
+        find_package(freeimage REQUIRED)
+        target_link_libraries(SDKlib PRIVATE freeimage::FreeImage)
     endif()
 
     if(USE_FFMPEG)
@@ -501,9 +509,19 @@ else() # No VCPKG usage. Use pkg-config
     pkg_check_modules(curl REQUIRED IMPORTED_TARGET libcurl)
     target_link_libraries(SDKlib PRIVATE PkgConfig::curl)
 
+    find_package(ICU COMPONENTS uc data REQUIRED)
+    target_link_libraries(SDKlib PRIVATE ICU::uc ICU::data)
+
     if(USE_MEDIAINFO)
         pkg_check_modules(mediainfo REQUIRED IMPORTED_TARGET libmediainfo)
         target_link_libraries(SDKlib PRIVATE PkgConfig::mediainfo)
+    endif()
+
+    if(USE_FREEIMAGE)
+        # FreeImage has no pkg-config file. Use out own FindFreeImage.cmake to find the library.
+        set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/contrib/cmake")
+        find_package(FreeImage REQUIRED)
+        target_link_libraries(SDKlib PRIVATE FreeImage::FreeImage)
     endif()
 
     if(USE_FFMPEG)
