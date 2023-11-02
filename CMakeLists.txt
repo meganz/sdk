@@ -512,6 +512,11 @@ else() # No VCPKG usage. Use pkg-config
     find_package(ICU COMPONENTS uc data REQUIRED)
     target_link_libraries(SDKlib PRIVATE ICU::uc ICU::data)
 
+    if(USE_OPENSSL)
+        find_package(OpenSSL REQUIRED)
+        target_link_libraries(SDKlib PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+    endif()
+
     if(USE_MEDIAINFO)
         pkg_check_modules(mediainfo REQUIRED IMPORTED_TARGET libmediainfo)
         target_link_libraries(SDKlib PRIVATE PkgConfig::mediainfo)
