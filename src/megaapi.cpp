@@ -5598,12 +5598,12 @@ void MegaApi::createSet(const char* name, uint8_t type, MegaRequestListener* lis
 
 void MegaApi::updateSetName(MegaHandle sid, const char* name, MegaRequestListener* listener)
 {
-    pImpl->putSet(sid, OPTION_SET_NAME, name, INVALID_HANDLE, MegaSet::SET_TYPE_PHOTOS, listener);
+    pImpl->putSet(sid, OPTION_SET_NAME, name, INVALID_HANDLE, MegaSet::SET_TYPE_ALBUM, listener);
 }
 
 void MegaApi::putSetCover(MegaHandle sid, MegaHandle eid, MegaRequestListener* listener)
 {
-    pImpl->putSet(sid, OPTION_SET_COVER, nullptr, eid, MegaSet::SET_TYPE_PHOTOS, listener);
+    pImpl->putSet(sid, OPTION_SET_COVER, nullptr, eid, MegaSet::SET_TYPE_ALBUM, listener);
 }
 
 void MegaApi::removeSet(MegaHandle sid, MegaRequestListener* listener)

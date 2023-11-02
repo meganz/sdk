@@ -11608,7 +11608,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     string name = u8"Set name ideograms: 讓我們打破這個"; // "讓我們打破這個"
     differentApiDtls.setUpdated = false;
     MegaSet* newSet = nullptr;
-    int err = doCreateSet(0, &newSet, name.c_str(), MegaSet::SET_TYPE_PHOTOS);
+    int err = doCreateSet(0, &newSet, name.c_str(), MegaSet::SET_TYPE_ALBUM);
     ASSERT_EQ(err, API_OK);
 
     unique_ptr<MegaSet> s1p(newSet);
@@ -12082,7 +12082,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     const string name = u8"qq-001";
     MegaSet* newSet = nullptr;
     differentApiDtlsPtr->setUpdated = false;
-    ASSERT_EQ(API_OK, doCreateSet(0, &newSet, name.c_str(), MegaSet::SET_TYPE_PHOTOS));
+    ASSERT_EQ(API_OK, doCreateSet(0, &newSet, name.c_str(), MegaSet::SET_TYPE_ALBUM));
     ASSERT_NE(newSet, nullptr);
     const unique_ptr<MegaSet> s1p(newSet);
     const MegaHandle sh = s1p->id();
@@ -12460,7 +12460,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsSetTypes)
     const string albumName = u8"qq-001";
     MegaSet* newSet = nullptr;
     differentApiDtlsPtr->setUpdated = false;
-    ASSERT_EQ(API_OK, doCreateSet(0, &newSet, albumName.c_str(), MegaSet::SET_TYPE_PHOTOS));
+    ASSERT_EQ(API_OK, doCreateSet(0, &newSet, albumName.c_str(), MegaSet::SET_TYPE_ALBUM));
     ASSERT_NE(newSet, nullptr);
     const unique_ptr<MegaSet> setAsPhotoAlbum(newSet);
     const MegaHandle albumHandle = setAsPhotoAlbum->id();
@@ -12474,7 +12474,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsSetTypes)
     differentApiDtlsPtr->setUpdated = false;
     PerApi& target = mApi[userIdx];
     target.resetlastEvent();     // So we can detect when the node database has been committed.
-    ASSERT_EQ(API_OK, doCreateSet(0, &newSet, playlistName.c_str(), MegaSet::SET_TYPE_VIDEOS));
+    ASSERT_EQ(API_OK, doCreateSet(0, &newSet, playlistName.c_str(), MegaSet::SET_TYPE_PLAYLIST));
     ASSERT_NE(newSet, nullptr);
     const unique_ptr<MegaSet> setAsVideoPlaylist(newSet);
     const MegaHandle playlistHandle = setAsVideoPlaylist->id();

@@ -234,7 +234,7 @@ namespace mega {
 
         unsigned char expansionsS[8];
         m_time_t cts = 0;
-        SetType t = 0;
+        SetType t = TYPE_ALBUM; // by default, for migration of existing Sets
         if (!r.unserializeexpansionflags(expansionsS, 2) ||
             (expansionsS[0] && !r.unserializecompressedi64(cts)) || // creation timestamp
             (expansionsS[1] && !r.unserializeu8(t)))  // type

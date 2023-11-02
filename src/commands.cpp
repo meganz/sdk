@@ -9689,7 +9689,7 @@ bool CommandPutSet::procresult(Result r, JSON& json)
     handle user = 0;
     m_time_t ts = 0;
     m_time_t cts = 0;
-    Set::SetType t = Set::TYPE_PHOTOS;
+    Set::SetType t = Set::TYPE_ALBUM;
     const Set* s = nullptr;
     Error e = API_OK;
     bool parsedOk = procerrorcode(r, e) || procresultid(json, r, sId, ts, &user, &cts);

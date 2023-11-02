@@ -10558,8 +10558,8 @@ std::string setTypeToString(Set::SetType t)
     const std::string tStr = std::to_string(t);
     switch (t)
     {
-    case Set::TYPE_PHOTOS: return "Photo Album (" + tStr + ")";
-    case Set::TYPE_VIDEOS: return "Video Playlist (" + tStr + ")";
+    case Set::TYPE_ALBUM: return "Photo Album (" + tStr + ")";
+    case Set::TYPE_PLAYLIST: return "Video Playlist (" + tStr + ")";
     default:               return "Unexpected Set Type with value " + tStr;
     }
 }

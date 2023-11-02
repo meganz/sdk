@@ -245,7 +245,7 @@ namespace mega {
 
         Set() = default;
         Set(handle id, handle publicId, std::string&& key, handle user, string_map&& attrs,
-            SetType type = TYPE_PHOTOS)
+            SetType type = TYPE_ALBUM)
             : CommonSE(id, std::move(key), std::move(attrs)), mPublicId(publicId), mUser(user),
               mType(type) {}
 
@@ -315,8 +315,8 @@ namespace mega {
 
         enum : SetType
         {
-            TYPE_PHOTOS = 0,
-            TYPE_VIDEOS,
+            TYPE_ALBUM = 0,
+            TYPE_PLAYLIST,
 
             TYPE_SIZE
         };
@@ -325,7 +325,7 @@ namespace mega {
         handle mPublicId = UNDEF;
         handle mUser = UNDEF;
         m_time_t mCTs = 0; // creation timestamp
-        SetType mType = TYPE_PHOTOS;
+        SetType mType = TYPE_ALBUM;
 
         std::bitset<CH_SIZE> mChanges;
 

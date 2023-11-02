@@ -1360,8 +1360,8 @@ public:
 
     enum : uint8_t // 1:1 with Set::TYPE_YYY values (<255)
     {
-        SET_TYPE_PHOTOS = 0,
-        SET_TYPE_VIDEOS = 1,
+        SET_TYPE_ALBUM = 0,
+        SET_TYPE_PLAYLIST = 1,
     };
 
 };
@@ -21062,7 +21062,7 @@ class MegaApi
          * @param type the type of the Set (see MegaSet for possible types)
          * @param listener MegaRequestListener to track this request
          */
-        void createSet(const char* name = nullptr, uint8_t type = MegaSet::SET_TYPE_PHOTOS,
+        void createSet(const char* name = nullptr, uint8_t type = MegaSet::SET_TYPE_ALBUM,
                        MegaRequestListener* listener = nullptr);
 
         /**
