@@ -327,6 +327,8 @@ target_sources(SDKlib
 )
 
 # Files by platform and/or feature
+# Files should appear only once.
+# If the FLAG is not true for a file, it will be added as non-buildable source despite then the file is added again as a buildable one.
 target_sources_conditional(SDKlib
     FLAG WIN32
     PRIVATE
@@ -339,7 +341,6 @@ target_sources_conditional(SDKlib
     ${CMAKE_CURRENT_LIST_DIR}/src/win32/consolewaiter.cpp
     ${CMAKE_CURRENT_LIST_DIR}/src/win32/fs.cpp
     # ${CMAKE_CURRENT_LIST_DIR}/src/win32/net.cpp # when not using curl. # TODO Remove support for winhttp?
-    ${CMAKE_CURRENT_LIST_DIR}/src/posix/net.cpp # When using curl.
     ${CMAKE_CURRENT_LIST_DIR}/src/win32/waiter.cpp
 )
 
@@ -359,9 +360,14 @@ target_sources_conditional(SDKlib
     ${CMAKE_CURRENT_LIST_DIR}/src/posix/console.cpp
     ${CMAKE_CURRENT_LIST_DIR}/src/posix/consolewaiter.cpp
     ${CMAKE_CURRENT_LIST_DIR}/src/posix/fs.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/src/posix/net.cpp
     ${CMAKE_CURRENT_LIST_DIR}/src/posix/waiter.cpp
     ${CMAKE_CURRENT_LIST_DIR}/src/thread/posixthread.cpp
+)
+
+target_sources_conditional(SDKlib
+    FLAG NOT APPLE
+    PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}/src/posix/net.cpp # Windows when not using CURL and Linux always.
 )
 
 target_sources_conditional(SDKlib
