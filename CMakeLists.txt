@@ -106,7 +106,7 @@ else()
     message(STATUS "Using system dependencies")
 endif()
 
-# Get SDK version
+# Get SDK library version
 include(${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/load_sdk_version.cmake)
 read_sdk_version(MEGA_SDK_VERSION)
 
@@ -188,12 +188,6 @@ add_compile_definitions(
     $<$<CONFIG:DEBUG>:DEBUG>
     $<$<CONFIG:DEBUG>:_DEBUG>
 )
-
-## Generate config.h ##
-configure_file(
-    ${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/config.h.in
-    ${PROJECT_BINARY_DIR}/mega/config.h
-    )
 
 ## SDKlib target ##
 
@@ -572,6 +566,12 @@ endif()
 
 # TODO SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} pthread z dl termcap) Linux
 # TODO SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} crypto rt stdc++fs) Linux
+
+## Generate config.h ##
+configure_file(
+    ${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/config.h.in
+    ${PROJECT_BINARY_DIR}/mega/config.h
+    )
 
 ## Adjust compilation flags for warnigns and errors
 if(WIN32)
