@@ -111,8 +111,8 @@ private:
     // source tag
     int tag;
 
-    const string NO_VERSION = "N";
-    const string NO_EXISTS = "-9";
+    static constexpr char NO_VERSION[] = "N";
+    static constexpr char NON_EXISTING[] = "-9";
 
 public:
     void set(visibility_t, m_time_t);
@@ -132,9 +132,9 @@ public:
     int updateattr(attr_t at, string *av, string *v);
 
     // Returns if attribute doesn't exist. Avoid requesting it to server
-    bool attributeNoExists(attr_t at) const;
+    bool nonExistingAttribute(attr_t at) const;
     // Only mark own attributes that it doesn't exist
-    void setAttributeNoExists(attr_t at);
+    void setNonExistingAttribute(attr_t at);
 
     static string attr2string(attr_t at);
     static string attr2longname(attr_t at);

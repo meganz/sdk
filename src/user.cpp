@@ -25,6 +25,10 @@
 #include "mega/base64.h"
 
 namespace mega {
+
+constexpr char User::NO_VERSION[];
+constexpr char User::NON_EXISTING[];
+
 User::User(const char* cemail)
 {
     userhandle = UNDEF;
@@ -441,10 +445,10 @@ int User::updateattr(attr_t at, std::string *av, std::string *v)
     return 1;
 }
 
-bool User::attributeNoExists(attr_t at) const
+bool User::nonExistingAttribute(attr_t at) const
 {
     auto it = attrsv.find(at);
-    if (it != attrsv.end() && it->second == NO_EXISTS)
+    if (it != attrsv.end() && it->second == NON_EXISTING)
     {
         assert(attrs.find(at) == attrs.end());
         return true;
@@ -453,11 +457,11 @@ bool User::attributeNoExists(attr_t at) const
     return false;
 }
 
-void User::setAttributeNoExists(attr_t at)
+void User::setNonExistingAttribute(attr_t at)
 {
     // Set special value (-9) at attrsv map to indicate that attribute doesn't exist
     assert(attrs.find(at) == attrs.end());
-    attrsv[at] = NO_EXISTS;
+    attrsv[at] = NON_EXISTING;
 }
 
 // returns the value if there is value (even if it's invalid by now)
