@@ -90,9 +90,11 @@ else()
     message(STATUS "Using system dependencies")
 endif()
 
-# Get SDK library version
-include(${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/load_sdk_version.cmake)
-read_sdk_version(MEGA_SDK_VERSION)
+# Get SDK library version to use it as the CMake project version.
+if(NOT MEGA_SDK_VERSION)
+    include(${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules/load_sdk_version.cmake)
+    read_sdk_version(MEGA_SDK_VERSION ${CMAKE_CURRENT_LIST_DIR}/include/mega/version.h)
+endif()
 
 project(SDKlib
     VERSION ${MEGA_SDK_VERSION}

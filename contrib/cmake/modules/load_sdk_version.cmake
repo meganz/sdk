@@ -1,5 +1,5 @@
-function(read_sdk_version out_var)
-    file(READ "${CMAKE_CURRENT_LIST_DIR}/include/mega/version.h" FILE_CONTENTS)
+function(read_sdk_version out_var version_file)
+    file(READ ${version_file} FILE_CONTENTS)
     string(REGEX MATCH "define MEGA_MAJOR_VERSION ([0-9]*)" _ ${FILE_CONTENTS})
     set(VER_STRING ${CMAKE_MATCH_1})
     string(REGEX MATCH "define MEGA_MINOR_VERSION ([0-9]*)" _ ${FILE_CONTENTS})
