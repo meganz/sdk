@@ -491,7 +491,7 @@ bool Process::readStderr()
 #endif
 }
 
-std::string Process::getExitSignalDescription()
+std::string Process::getExitSignalDescription() const
 {
     // Unix only
     // returns SIG* description
@@ -510,7 +510,7 @@ string Process::describeSignal(int sig)
 #endif
 }
 
-string Process::getExitMessage()
+string Process::getExitMessage() const
 {
     // return description of exit
     // "Exited ok"
