@@ -199,7 +199,6 @@ class SimpleLogger
     std::string getTime();
 #else
     static thread_local std::array<char, LOGGER_CHUNKS_SIZE> mBuffer;
-    // no need to keep using __thread for gcc, as thread_local was already used for a member var above
     std::array<char, LOGGER_CHUNKS_SIZE>::iterator mBufferIt;
 #ifndef NDEBUG
     // Detect and warn against multiple instances of this class created in the same thread.
@@ -653,9 +652,18 @@ public:
     // These do not go through the LOG_<level> macros.
     //
     // When ENABLE_LOG_PERFORMANCE is on, this must not be called during the lifetime of an
-    // existing instance, because it will overwrite the message of that instance.
+    // existing instance created in the same thread. Otherwise this will overwrite the message
+    // of the existing instance. That would be a rare case, but could be achieved by writing
+    // LOG_info << "foo", SimpleLogger::postLog(logInfo, "bar", filename, line);
     static void postLog(LogLevel logLevel, const char *message, const char *filename, int line)
     {
+#ifdef ENABLE_LOG_PERFORMANCE
+#ifndef NDEBUG
+        assert(!mBufferOwner);
+        if (mBufferOwner) return;
+#endif
+#endif
+
         if (logCurrentLevel < logLevel) return;
         SimpleLogger logger(logLevel, filename ? filename : "", line);
         if (message) logger << message;
