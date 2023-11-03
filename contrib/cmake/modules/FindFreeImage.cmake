@@ -7,7 +7,7 @@ find_path(FreeImage_INCLUDE_DIR
 )
 mark_as_advanced(FreeImage_INCLUDE_DIR)
 
-# Try to fnid the library
+# Try to find the library
 find_library(FreeImage_LIBRARY
     NAMES freeimage libfreeimage
 )

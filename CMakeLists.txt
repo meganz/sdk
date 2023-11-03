@@ -130,7 +130,7 @@ message(STATUS "Building SDKlib v${PROJECT_VERSION}")
 
 include(GNUInstallDirs) # Values for installation directories. All platforms
 include(CMakePackageConfigHelpers) # For the CMake package
-include(${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/target_sources_conditional.cmake) # To add files to the project without building them
+include(${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules/target_sources_conditional.cmake) # To add files to the project without building them
 find_package(PkgConfig REQUIRED) # For libraries not using find_package
 
 # Use folders in the IDE.
@@ -582,12 +582,6 @@ endif()
 # TODO SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} pthread z dl termcap) Linux
 # TODO SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} crypto rt stdc++fs) Linux
 
-## Generate config.h ##
-configure_file(
-    ${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/config.h.in
-    ${PROJECT_BINARY_DIR}/mega/config.h
-    )
-
 ## Adjust compilation flags for warnigns and errors
 if(WIN32)
     if (ENABLE_WERROR)
@@ -633,7 +627,12 @@ else()
 endif()
 
 ## Create config files ##
-configure_package_config_file(${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/Config.cmake.in
+configure_file(
+    ${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/config.h.in
+    ${PROJECT_BINARY_DIR}/mega/config.h
+    )
+
+configure_package_config_file(${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules/Config.cmake.in
     ${CMAKE_CURRENT_BINARY_DIR}/sdklibConfig.cmake
     INSTALL_DESTINATION cmake
     )
@@ -644,7 +643,7 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 endif()
 
 configure_file(
-    ${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/sdklib.pc.in
+    ${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules/sdklib.pc.in
     ${CMAKE_CURRENT_BINARY_DIR}/sdklib.pc @ONLY
     )
 
