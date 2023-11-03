@@ -579,6 +579,7 @@ public:
     void replyContact(MegaContactRequest *cr, int action);
     int removeContact(unsigned apiIndex, string email);
     void getUserAttribute(MegaUser *u, int type, int timeout = maxTimeout, int accountIndex = 1);
+    bool getUserAvatar(int apiIndex, MegaUser* user, const char* dstFilePath, int timeout = maxTimeout);
 
     void verifyCredentials(unsigned apiIndex, string email);
     void resetCredentials(unsigned apiIndex, string email);

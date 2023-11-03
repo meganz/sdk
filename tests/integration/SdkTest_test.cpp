@@ -1722,6 +1722,15 @@ void SdkTest::getUserAttribute(MegaUser *u, int type, int timeout, int apiIndex)
     ASSERT_TRUE(result) << "User attribute retrieval failed (error: " << err << ")";
 }
 
+bool SdkTest::getUserAvatar(int apiIndex, MegaUser* user, const char* dstFilePath, int timeout)
+{
+    mApi[apiIndex].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
+
+    const auto error{synchronousGetUserAvatar(apiIndex, user, dstFilePath)};
+
+    return (error == API_OK) || (error == API_ENOENT);
+}
+
 void SdkTest::synchronousMediaUpload(unsigned int apiIndex, int64_t fileSize, const char* filename, const char* fileEncrypted, const char* fileOutput, const char* fileThumbnail = nullptr, const char* filePreview = nullptr)
 {
     // Create a "media upload" instance
@@ -14924,4 +14933,125 @@ TEST_F(SdkTest, SdkTesResumeSessionInFolderLinkDeleted)
                             return mApi[folderVisitorApiIndex].mLogoutReceived;
                         },
                         timeoutInSeconds * 1000));
+}
+
+class SdkTestAvatar : public SdkTest
+{
+protected:
+    unsigned int mApiIndex{0};
+    std::unique_ptr<MegaUser> mUser;
+    fs::path mDstAvatarPath{getTestDataDir()/AVATARDST};
+
+public:
+    void SetUp() override
+    {
+        // Configure test instance
+        unsigned int numberOfTestInstances{1};
+        ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfTestInstances));
+
+        // Get user
+        mUser = std::unique_ptr<MegaUser>{megaApi[mApiIndex]->getMyUser()};
+        ASSERT_THAT(mUser, ::testing::NotNull());
+
+        // Set avatar
+        const auto srcAvatarPath{getTestDataDir()/AVATARSRC};
+        ASSERT_EQ(API_OK, synchronousSetAvatar(mApiIndex, srcAvatarPath.string().c_str()));
+        ASSERT_TRUE(waitForResponse(&mApi[mApiIndex].userUpdated))
+            << "User avatar update not received after " << maxTimeout << " seconds";
+    }
+
+    void TearDown() override
+    {
+        // Remove avatar
+        ASSERT_EQ(API_OK, synchronousSetAvatar(mApiIndex, nullptr));
+        ASSERT_TRUE(waitForResponse(&mApi[mApiIndex].userUpdated))
+            << "User avatar update not received after " << maxTimeout << " seconds";
+
+        // Check the avatar was removed
+        ASSERT_TRUE(getUserAvatar(mApiIndex, mUser.get(), mDstAvatarPath.string().c_str()));
+        ASSERT_EQ("Avatar not found", mApi[mApiIndex].getAttributeValue());
+    }
+};
+
+/**
+ * @brief SdkTestGetAvatarIntoAFile
+ *
+ * Get avatar into a file.
+ */
+TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoAFile)
+{
+    // Get avatar
+    ASSERT_TRUE(getUserAvatar(mApiIndex, mUser.get(), mDstAvatarPath.string().c_str()));
+
+    // Check avatar in local filesystem
+    ASSERT_TRUE(fs::exists(mDstAvatarPath));
+
+    // Remove avatar from local filesystem
+    ASSERT_TRUE(fs::remove(mDstAvatarPath));
+}
+
+/**
+ * @brief SdkTestGetAvatarIntoADirectoryEndingWithSlash
+ *
+ * Get avatar into a directory ending with slash.
+ */
+TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoADirectoryEndingWithSlash)
+{
+    // Get avatar
+    std::string dstAvatarPath{getTestDataDir().string()};
+#ifdef _WIN32
+    dstAvatarPath.append("\\");
+    ASSERT_THAT(dstAvatarPath, ::testing::EndsWith("\\"));
+#else
+    dstAvatarPath.append("/");
+    ASSERT_THAT(dstAvatarPath, ::testing::EndsWith("/"));
+#endif
+    ASSERT_TRUE(getUserAvatar(mApiIndex, mUser.get(), dstAvatarPath.c_str()));
+
+    // Check avatar in local filesystem
+    dstAvatarPath.append(mUser->getEmail());
+    dstAvatarPath.append("0.jpg");
+    ASSERT_TRUE(fs::exists(dstAvatarPath));
+
+    // Remove avatar from local filesystem
+    ASSERT_TRUE(fs::remove(dstAvatarPath));
+}
+
+/**
+ * @brief SdkTestGetAvatarIntoADirectoryNotEndingWithSlash
+ *
+ * Get avatar into a directory not ending with slash.
+ */
+TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoADirectoryNotEndingWithSlash)
+{
+    // Get avatar
+    std::string dstAvatarPath{getTestDataDir().string()};
+#ifdef _WIN32
+    ASSERT_THAT(dstAvatarPath, ::testing::Not(::testing::EndsWith("\\")));
+#else
+    ASSERT_THAT(dstAvatarPath, ::testing::Not(::testing::EndsWith("/")));
+#endif
+    ASSERT_FALSE(getUserAvatar(mApiIndex, mUser.get(), dstAvatarPath.c_str()));
+}
+
+/**
+ * @brief SdkTestGetAvatarIntoAnEmptyPath
+ *
+ * Get avatar into an empty path.
+ */
+TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoAnEmptyPath)
+{
+    // Get avatar
+    ASSERT_FALSE(getUserAvatar(mApiIndex, mUser.get(), ""));
+}
+
+/**
+ * @brief SdkTestGetAvatarIntoANullPath
+ *
+ * Get avatar into a null path.
+ */
+TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoANullPath)
+{
+    // Get avatar
+    ASSERT_FALSE(getUserAvatar(mApiIndex, mUser.get(), nullptr));
 }
