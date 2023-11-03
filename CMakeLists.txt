@@ -30,7 +30,7 @@ endif()
 cmake_minimum_required(VERSION 3.19)
 
 # Qt Creator configures VCPKG automatically. Disable it, we may want to use different tripplets, paths...
-set(QT_CREATOR_SKIP_VCPKG_SETUP TRUE)
+set(QT_CREATOR_SKIP_VCPKG_SETUP TRUE CACHE BOOL "")
 
 ## Configurable options ##
 
@@ -103,16 +103,16 @@ project(SDKlib
 
 # In-source build not allowed
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
-    message(FATAL_ERROR "In-source build is not allowed. Remove CMakeCache.txt and the CMakeFiles directory and set a new binary directory out of the source tree.")
+    message(FATAL_ERROR "In-source build is not allowed. Remove CMakeCache.txt and the CMakeFiles directory and set a new binary directory different than the source tree.")
 endif()
 
 # Detect if building standalone or nested in another project
 if(NOT CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     message(STATUS "[${PROJECT_NAME}] is building under project [${CMAKE_PROJECT_NAME}] Install target will NOT be available.")
-    set(SDKLIB_INSTALL_LIB 0)
+    set(SDKLIB_STANDALONE 0)
 else()
     message(STATUS "[${PROJECT_NAME}] is a top-level project. Install target will be available.")
-    set(SDKLIB_INSTALL_LIB 1)
+    set(SDKLIB_STANDALONE 1)
 endif()
 
 if (NOT CMAKE_BUILD_TYPE)
@@ -125,7 +125,6 @@ if(USE_READLINE AND WIN32)
     message(FATAL_ERROR "Readline is not available in Windows builds. Disable USE_READLINE to continue.")
 endif()
 
-## General configuration
 message(STATUS "Building SDKlib v${PROJECT_VERSION}")
 
 include(GNUInstallDirs) # Values for installation directories. All platforms
@@ -133,9 +132,6 @@ include(CMakePackageConfigHelpers) # For the CMake package
 include(${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules/target_sources_conditional.cmake) # To add files to the project without building them
 include(${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules/sdklib_libraries.cmake) # A macro to load the dependencies, both the VCPKG or the system ones.
 find_package(PkgConfig REQUIRED) # For libraries not using find_package
-
-# Use folders in the IDE.
-set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 if (WIN32)
     # Build the SDKlib with C++17 for Windows
@@ -153,7 +149,6 @@ if (WIN32)
     set (CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /Zi")
 
     add_compile_definitions(HAVE_CONFIG_H) # To include the config.h file in Windows builds
-
 else()
     # The SDK library should be built with C++11
     set(CMAKE_CXX_STANDARD 11)
@@ -308,7 +303,7 @@ target_sources(SDKlib
     PRIVATE ${SDKLIB_HEADERS} ${SDKLIB_SOURCES} ${SDKLIB_PUB_HEADERS}
 )
 
-## Add generated config.h file
+# Add generated config.h file
 target_sources(SDKlib
     PRIVATE ${PROJECT_BINARY_DIR}/mega/config.h
 )
@@ -462,7 +457,8 @@ endif()
 # TODO SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} pthread z dl termcap) Linux
 # TODO SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} crypto rt stdc++fs) Linux
 
-## Adjust compilation flags for warnigns and errors
+
+## Adjust compilation flags for warnigns and errors ##
 if(WIN32)
     if (ENABLE_WERROR)
         # Enable warnings as errors in debug mode for Windows
@@ -480,7 +476,7 @@ if(WIN32)
     #TODO: remove some of those gradually.  also consider: /wd4503 /wd4996 /wd4702
 
     # TODO
-    set_property(TARGET Mega PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
+    #set_property(TARGET Mega PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
 
 else()
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb3")
@@ -528,7 +524,7 @@ configure_file(
     )
 
 ## Installation ##
-if(SDKLIB_INSTALL_LIB)
+if(SDKLIB_STANDALONE)
 
     message(STATUS "Current installation path for SDKlib files: ${CMAKE_INSTALL_PREFIX}")
 
@@ -556,6 +552,4 @@ if(SDKLIB_INSTALL_LIB)
         FILE "${CMAKE_CURRENT_BINARY_DIR}/cmake/sdklibTargets.cmake"
         NAMESPACE MEGA::
         )
-
 endif()
-
