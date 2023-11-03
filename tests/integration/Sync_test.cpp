@@ -3722,9 +3722,11 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
     mOnTransferAdded = nullptr;
     onTransferCompleted = nullptr;
 
-#ifdef DEBUG
+#ifndef NDEBUG // match the conditon in the header
     mOnMoveBegin = nullptr;
     mOnPutnodesBegin = nullptr;
+#endif
+#ifdef DEBUG
     mOnSyncDebugNotification = nullptr;
 #endif // DEBUG
 

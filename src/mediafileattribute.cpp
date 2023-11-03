@@ -903,7 +903,7 @@ void MediaProperties::extractMediaPropertyFileAttributes(LocalPath& localFilenam
                     fps = vro.To_int32u();
                 }
 
-                if (SimpleLogger::logCurrentLevel >= logDebug)
+                if (SimpleLogger::getLogLevel() >= logDebug)
                 {
                     LOG_debug << "MediaInfo on " << localFilename << " | " << vw.To_Local() << " " << vh.To_Local() << " " << vd.To_Local() << " " << vr.To_Local() << " |\"" << gci.To_Local() << "\",\"" << gf.To_Local() << "\",\"" << vci.To_Local() << "\",\"" << vcf.To_Local() << "\",\"" << aci.To_Local() << "\",\"" << acf.To_Local() << "\"";
                 }
