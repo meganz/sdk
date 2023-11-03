@@ -4979,6 +4979,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     freeq(PUT);
 
     purgenodesusersabortsc(false);
+    userid = 0;
     mNodeManager.reset();
 
     reqs.clear();
