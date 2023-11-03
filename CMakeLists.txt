@@ -81,27 +81,11 @@ else()
     set(USE_CPPTHREAD 1)
 endif()
 
-## TODO: If  VCPKG_ROOT path is in CMAKE_TOOLCHAIN_FILE the upper project should be in charge of building libraries.
-if(VCPKG_ROOT AND NOT CMAKE_TOOLCHAIN_FILE)
-    # Use internal VCPKG tools
-    set(VCPKG_BOOTSTRAP_OPTIONS "-disableMetrics")
-    list(APPEND VCPKG_OVERLAY_TRIPLETS "${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/vcpkg_overlay_triplets")
-    list(APPEND VCPKG_OVERLAY_PORTS "${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/vcpkg_overlay_ports")
-
-    if(NOT VCPKG_TARGET_TRIPLET)
-        # Try to guess the triplet if it not set yet.
-        if(APPLE AND NOT IOS)
-            set(VCPKG_TARGET_TRIPLET "arm64-osx-mega")
-        elseif(WIN32)
-            set(VCPKG_TARGET_TRIPLET "x64-windows-mega")
-        else()
-            set(VCPKG_TARGET_TRIPLET "x64-linux")
-        endif()
-    endif()
-
-    # Load the VCPKG toolchain
-    set(CMAKE_TOOLCHAIN_FILE ${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake)
-    message(STATUS "Using VCPKG dependencies. VCPKG base path: ${VCPKG_ROOT} and tripplet ${VCPKG_TARGET_TRIPLET}")
+## General configuration
+if(VCPKG_ROOT)
+    # Include VCPKG management tools.
+    include(${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules/vcpkg_management.cmake)
+    process_vcpkg_libraries()
 else()
     message(STATUS "Using system dependencies")
 endif()
