@@ -131,6 +131,7 @@ message(STATUS "Building SDKlib v${PROJECT_VERSION}")
 include(GNUInstallDirs) # Values for installation directories. All platforms
 include(CMakePackageConfigHelpers) # For the CMake package
 include(${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules/target_sources_conditional.cmake) # To add files to the project without building them
+include(${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules/sdklib_libraries.cmake) # A macro to load the dependencies, both the VCPKG or the system ones.
 find_package(PkgConfig REQUIRED) # For libraries not using find_package
 
 # Use folders in the IDE.
@@ -423,131 +424,11 @@ set_target_properties(SDKlib PROPERTIES
 )
 
 ## Load and link needed libraries for the SDKlib target ##
-if(VCPKG_ROOT)
-    find_package(cryptopp CONFIG REQUIRED)
-    target_link_libraries(SDKlib PRIVATE cryptopp::cryptopp)
 
-    find_package(unofficial-sodium REQUIRED)
-    target_link_libraries(SDKlib PRIVATE unofficial-sodium::sodium unofficial-sodium::sodium_config_public)
+# Load 3rd parties
+load_sdklib_libraries()
 
-    find_package(unofficial-sqlite3 REQUIRED)
-    target_link_libraries(SDKlib PRIVATE unofficial::sqlite3::sqlite3)
-
-    find_package(CURL REQUIRED)
-    target_link_libraries(SDKlib PRIVATE CURL::libcurl)
-
-    find_package(ICU COMPONENTS uc data REQUIRED)
-    target_link_libraries(SDKlib PRIVATE ICU::uc ICU::data)
-
-    if(USE_MEDIAINFO)
-        find_package(MediaInfoLib REQUIRED)
-        target_link_libraries(SDKlib PRIVATE mediainfo)
-    endif()
-
-    if(USE_FREEIMAGE)
-        find_package(freeimage REQUIRED)
-        target_link_libraries(SDKlib PRIVATE freeimage::FreeImage)
-    endif()
-
-    if(USE_FFMPEG)
-        find_package(FFMPEG REQUIRED)
-        target_include_directories(SDKlib PRIVATE ${FFMPEG_INCLUDE_DIRS})
-        target_link_directories(SDKlib PRIVATE ${FFMPEG_LIBRARY_DIRS})
-        target_link_libraries(SDKlib PRIVATE ${FFMPEG_LIBRARIES})
-        set(HAVE_FFMPEG 1)
-    endif()
-
-    if(USE_LIBUV)
-        find_package(libuv REQUIRED)
-        target_link_libraries(SDKlib PRIVATE $<IF:$<TARGET_EXISTS:libuv::uv_a>,libuv::uv_a,libuv::uv>)
-        set(HAVE_LIBUV 1)
-    endif()
-
-    if(USE_PDFIUM)
-        find_package(pdfium REQUIRED)
-        target_link_libraries(SDKlib PRIVATE PDFIUM::pdfium)
-        set(HAVE_PDFIUM 1)
-    endif()
-
-    if(USE_C_ARES)
-        find_package(c-ares REQUIRED)
-        target_link_libraries(SDKlib PRIVATE c-ares::cares)
-        set(MEGA_USE_C_ARES 1)
-    endif()
-
-    if(USE_READLINE)
-        pkg_check_modules(readline REQUIRED IMPORTED_TARGET readline)
-        target_link_libraries(SDKlib PRIVATE PkgConfig::readline)
-    else()
-        set(NO_READLINE 1)
-    endif()
-
-else() # No VCPKG usage. Use pkg-config
-    pkg_check_modules(cryptopp REQUIRED IMPORTED_TARGET libcrypto++)
-    target_link_libraries(SDKlib PRIVATE PkgConfig::cryptopp)
-
-    pkg_check_modules(sodium REQUIRED IMPORTED_TARGET libsodium)
-    target_link_libraries(SDKlib PRIVATE PkgConfig::sodium)
-
-    pkg_check_modules(sqlite3 REQUIRED IMPORTED_TARGET sqlite3)
-    target_link_libraries(SDKlib PRIVATE PkgConfig::sqlite3)
-
-    pkg_check_modules(curl REQUIRED IMPORTED_TARGET libcurl)
-    target_link_libraries(SDKlib PRIVATE PkgConfig::curl)
-
-    find_package(ICU COMPONENTS uc data REQUIRED)
-    target_link_libraries(SDKlib PRIVATE ICU::uc ICU::data)
-
-    if(USE_OPENSSL)
-        find_package(OpenSSL REQUIRED)
-        target_link_libraries(SDKlib PRIVATE OpenSSL::SSL OpenSSL::Crypto)
-    endif()
-
-    if(USE_MEDIAINFO)
-        pkg_check_modules(mediainfo REQUIRED IMPORTED_TARGET libmediainfo)
-        target_link_libraries(SDKlib PRIVATE PkgConfig::mediainfo)
-    endif()
-
-    if(USE_FREEIMAGE)
-        # FreeImage has no pkg-config file. Use out own FindFreeImage.cmake to find the library.
-        set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/contrib/cmake")
-        find_package(FreeImage REQUIRED)
-        target_link_libraries(SDKlib PRIVATE FreeImage::FreeImage)
-    endif()
-
-    if(USE_FFMPEG)
-        pkg_check_modules(ffmpeg REQUIRED IMPORTED_TARGET libavformat libavutil libavcodec libavfilter libavdevice libswscale libswresample)
-        target_link_libraries(SDKlib PRIVATE PkgConfig::ffmpeg)
-        set(HAVE_FFMPEG 1)
-    endif()
-
-    if(USE_LIBUV)
-        pkg_check_modules(uv REQUIRED IMPORTED_TARGET libuv)
-        target_link_libraries(SDKlib PRIVATE PkgConfig::uv)
-        set(HAVE_LIBUV 1)
-    endif()
-
-    if(USE_PDFIUM)
-        pkg_check_modules(pdfium REQUIRED IMPORTED_TARGET pdfium)
-        target_link_libraries(SDKlib PRIVATE PkgConfig::pdfium)
-        set(HAVE_PDFIUM 1)
-    endif()
-
-    if(USE_C_ARES)
-        pkg_check_modules(cares REQUIRED IMPORTED_TARGET libcares)
-        target_link_libraries(SDKlib PRIVATE PkgConfig::cares)
-        set(MEGA_USE_C_ARES 1)
-    endif()
-
-    if(USE_READLINE)
-        pkg_check_modules(readline REQUIRED IMPORTED_TARGET readline)
-        target_link_libraries(SDKlib PRIVATE PkgConfig::readline)
-    else()
-        set(NO_READLINE 1)
-    endif()
-
-endif()
-
+# System libraries
 if(ENABLE_DRIVE_NOTIFICATIONS)
     if(WIN32)
         target_link_libraries(SDKlib PRIVATE wbemuuid)
@@ -559,7 +440,6 @@ if(ENABLE_DRIVE_NOTIFICATIONS)
     set(USE_DRIVE_NOTIFICATIONS 1)
 endif()
 
-# System libraries
 if(WIN32)
     target_link_libraries(SDKlib PRIVATE
         ws2_32 winhttp Shlwapi Secur32.lib crypt32.lib
