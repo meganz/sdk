@@ -428,8 +428,11 @@ if (USE_THIRDPARTY_FROM_VCPKG)
         ImportStdVcpkgLibrary(z               zlibd zlib libz libz)
         ImportStdVcpkgLibrary(icuuc           icuucd icuuc libicuuc libicuuc)
         ImportStdVcpkgLibrary(icudata         icudtd icudt libicudata libicudata)
-        ImportStdVcpkgLibrary(reproc          reproc reproc libreproc libreproc)
-        ImportStdVcpkgLibrary(reproc++        reproc++ reproc++ libreproc++ libreproc++)
+
+        if (WIN32)
+            ImportStdVcpkgLibrary(reproc          reproc reproc libreproc libreproc)
+            ImportStdVcpkgLibrary(reproc++        reproc++ reproc++ libreproc++ libreproc++)
+        ENDIF(WIN32)
 
         IF(USE_CURL)
             IF(USE_WEBRTC)
@@ -635,6 +638,8 @@ if(WIN32)
     ENDIF(USE_DRIVE_NOTIFICATIONS)
 
     # gfx worker related
+    SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} reproc++ reproc)
+
     SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles}
                                    ${MegaDir}/include/mega/win32/gfx/worker/comms.h
                                    ${MegaDir}/include/mega/win32/gfx/worker/comms_client.h
@@ -926,7 +931,6 @@ target_link_libraries(Mega PUBLIC
                         $<${HAVE_FFMPEG}:avfilter> $<${HAVE_FFMPEG}:avdevice> $<${HAVE_FFMPEG}:avformat> $<${HAVE_FFMPEG}:avcodec> $<${HAVE_FFMPEG}:avutil> $<${HAVE_FFMPEG}:swscale>  $<${HAVE_FFMPEG}:swresample>
                         z
                         icuuc icudata
-                        reproc++ reproc
                         ${Mega_PlatformSpecificLibs})
 
 target_compile_definitions(Mega PUBLIC
