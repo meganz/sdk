@@ -1,4 +1,6 @@
 
+CONFIG += object_parallel_to_source
+
 MEGASDK_BASE_PATH = $$PWD/../../
 
 # Define MEGA_USE_C_ARES by default. Allow disabling c-ares code
