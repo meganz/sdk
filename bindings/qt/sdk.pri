@@ -71,7 +71,6 @@ SOURCES += src/attrmap.cpp \
     src/crypto/sodium.cpp  \
     src/db/sqlite.cpp  \
     src/gfx/external.cpp \
-    src/gfx/isolatedprocess.cpp \
     src/gfx/worker/commands.cpp \
     src/gfx/worker/command_serializer.cpp \
     src/gfx/worker/client.cpp \
@@ -870,6 +869,7 @@ win32 {
     HEADERS += include/mega/win32/gfx/worker/comms_client.h
     SOURCES += src/win32/gfx/worker/comms.cpp
     SOURCES += src/win32/gfx/worker/comms_client.cpp
+    SOURCES += src/gfx/isolatedprocess.cpp
 }
 
 # Add include paths as system libs to avoid warnings from external libraries.

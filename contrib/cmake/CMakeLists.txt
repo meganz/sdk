@@ -638,6 +638,7 @@ if(WIN32)
     SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles}
                                    ${MegaDir}/include/mega/win32/gfx/worker/comms.h
                                    ${MegaDir}/include/mega/win32/gfx/worker/comms_client.h
+                                   ${MegaDir}/src/gfx/isolatedprocess.cpp # only windows ATM
                                    ${MegaDir}/src/win32/gfx/worker/comms.cpp
                                    ${MegaDir}/src/win32/gfx/worker/comms_client.cpp)
 
@@ -736,7 +737,6 @@ SET(Mega_DbFiles ${MegaDir}/src/db/sqlite.cpp ${MegaDir}/src/db/sqlite.cpp )
 SET(Mega_GfxFiles ${MegaDir}/src/gfx/external.cpp
                   ${MegaDir}/src/gfx/freeimage.cpp
                   ${MegaDir}/src/gfx/gfx_pdfium.cpp
-                  ${MegaDir}/src/gfx/isolatedprocess.cpp
                   ${MegaDir}/src/gfx/worker/commands.cpp
                   ${MegaDir}/src/gfx/worker/command_serializer.cpp
                   ${MegaDir}/src/gfx/worker/client.cpp)

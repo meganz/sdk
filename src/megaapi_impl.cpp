@@ -6049,9 +6049,14 @@ std::unique_ptr<MegaGfxProviderPrivate> MegaGfxProviderPrivate::createIsolatedIn
     const std::string& pipename,
     unsigned int beatIntervalSeconds)
 {
+#ifdef _WIN32
     auto process = std::make_shared<GfxIsolatedProcess>(arguments, pipename, beatIntervalSeconds);
     auto provider = ::mega::make_unique<::mega::GfxProviderIsolatedProcess>(process);
     return ::mega::make_unique<MegaGfxProviderPrivate>(std::move(provider));
+#else
+    (void)arguments, (void)pipename, (void)beatIntervalSeconds;
+    return nullptr;
+#endif
 }
 
 std::unique_ptr<MegaGfxProviderPrivate> MegaGfxProviderPrivate::createExternalInstance(MegaGfxProcessor* processor)
@@ -6082,6 +6087,7 @@ std::unique_ptr<MegaGfxProviderListPrivate> MegaGfxProviderListPrivate::createIs
     unsigned int beatIntervalSeconds,
     unsigned int numberOfInstances)
 {
+#ifdef _WIN32
     if (numberOfInstances == 0) return nullptr;
 
     // only one process is started
@@ -6098,6 +6104,10 @@ std::unique_ptr<MegaGfxProviderListPrivate> MegaGfxProviderListPrivate::createIs
     }
 
     return result;
+#else
+    (void)arguments, (void)pipename, (void)beatIntervalSeconds, (void) numberOfInstances;
+    return nullptr;
+#endif
 }
 
 //Entry point for the blocking thread

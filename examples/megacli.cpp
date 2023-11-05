@@ -4294,6 +4294,7 @@ autocomplete::ACN autocompleteSyntax()
     /* MEGA VPN commands END */
 
     p->Add(exec_fetchcreditcardinfo, text("cci"));
+#ifdef _WIN32
     p->Add(exec_gfx,
            sequence(text("gfx"),
                     text("set"),
@@ -4302,6 +4303,7 @@ autocomplete::ACN autocompleteSyntax()
                                     sequence(flag("-executable"), localFSFile()),
                                     opt(sequence(flag("-pipe"), param("name"))),
                                     opt(sequence(flag("-live"), param("seconds")))))));
+#endif
 
     p->Add(exec_passwordmanager,
         sequence(text("pwdman"),
@@ -12092,6 +12094,7 @@ void exec_generatepassword(autocomplete::ACState& s)
     }
 }
 
+#ifdef _WIN32
 void exec_gfx(autocomplete::ACState& s)
 {
     if (s.words.size() < 3) return;
@@ -12128,3 +12131,4 @@ void exec_gfx(autocomplete::ACState& s)
         return;
     }
 }
+#endif
