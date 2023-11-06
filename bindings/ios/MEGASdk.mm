@@ -201,6 +201,11 @@ using namespace mega;
     return self.megaApi->contactVerificationWarningEnabled();
 }
 
+- (BOOL)isNewAccount {
+    if (self.megaApi == nil) return NO;
+    return self.megaApi->accountIsNew();
+}
+
 #pragma mark - Business
 
 - (BOOL)isBusinessAccount {
