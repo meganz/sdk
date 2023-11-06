@@ -484,6 +484,17 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  */
 @property (readonly, nonatomic, getter=isContactVerificationWarningEnabled) BOOL isContactVerificationWarningEnabled;
 
+/**
+ * @brief Check if the logged in account is considered new
+ *
+ * This will NOT return a valid value until the callback onEvent with
+ * type EventMiscFlagsReady is received. You can also rely on the completion of
+ * a fetchnodes to check this value.
+ *
+ * YES if account is considered new. Otherwise, NO.
+ */
+@property (readonly, nonatomic, getter=isNewAccount) BOOL newAccount;
+
 #pragma mark - Business
 
 /**
