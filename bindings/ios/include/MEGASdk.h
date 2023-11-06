@@ -98,7 +98,7 @@ typedef NS_ENUM (NSInteger, MEGANodeFormatType) {
     MEGANodeFormatTypePresentation,
     MEGANodeFormatTypeArchive,
     MEGANodeFormatTypeProgram,
-    MEGANodeFormatTypeProgramMisc
+    MEGANodeFormatTypeMisc
 };
 
 typedef NS_ENUM (NSInteger, MEGAFolderTargetType) {
