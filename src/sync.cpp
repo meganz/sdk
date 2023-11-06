@@ -1763,15 +1763,21 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
                     LOG_debug << "Move-source has outstanding putnodes: "
                               << logTriplet(row, fullPath);
 
-                    // Signal a stall that observers can easily detect.
-                    monitor.waitingLocal(fullPath.localPath,
-                                         SyncStallEntry(SyncWaitReason::MoveOrRenameCannotOccur,
-                                                        false,
-                                                        false,
-                                                        {},
-                                                        {},
-                                                        {sourceSyncNode->getLocalPath(), PathProblem::PutnodeCompletionPending},
-                                                        {fullPath.localPath, PathProblem::NoProblem}));
+                    // Only emit a stall for this case if:
+                    // - A sync controller has been injected into the engine.
+                    // - The reference to that controller is still "live."
+                    if (syncs.hasSyncController())
+                    {
+                        // Signal a stall that observers can easily detect.
+                        monitor.waitingLocal(fullPath.localPath,
+                                             SyncStallEntry(SyncWaitReason::MoveOrRenameCannotOccur,
+                                                            false,
+                                                            false,
+                                                            {},
+                                                            {},
+                                                            {sourceSyncNode->getLocalPath(), PathProblem::PutnodeCompletionPending},
+                                                            {fullPath.localPath, PathProblem::NoProblem}));
+                    }
 
                     // Make sure we visit the source again.
                     sourceSyncNode->setSyncAgain(false, true, false);
