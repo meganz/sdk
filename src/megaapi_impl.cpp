@@ -7972,16 +7972,18 @@ void MegaApiImpl::getUserAttr(const char *email_or_handle, int type, const char 
     if (type == MegaApi::USER_ATTR_AVATAR && dstFilePath)
     {
         string path(dstFilePath);
-
-        int c = path[path.size()-1];
-        if((c=='/') || (c == '\\'))
+        if(!path.empty())
         {
-            path.append(email_or_handle);
-            path.push_back(static_cast<char>('0' + type));
-            path.append(".jpg");
-        }
+            int c = path[path.size()-1];
+            if((c=='/') || (c == '\\'))
+            {
+                path.append(email_or_handle);
+                path.push_back(static_cast<char>('0' + type));
+                path.append(".jpg");
+            }
 
-        request->setFile(path.c_str());
+            request->setFile(path.c_str());
+        }
     }
 
     request->setParamType(type);
