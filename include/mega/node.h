@@ -368,6 +368,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     static bool isVideo(const std::string& ext);
     static bool isAudio(const std::string& ext);
     static bool isDocument(const std::string& ext);
+    static bool isSpreadsheet(const std::string& ext);
     static bool isPdf(const std::string& ext);
     static bool isPresentation(const std::string& ext);
     static bool isArchive(const std::string& ext);

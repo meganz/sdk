@@ -14597,11 +14597,12 @@ TEST_F(SdkTest, SdkTestDeleteListenerBeforeFinishingRequest)
 /**
  * SdkTestGetNodeByMimetype
  * Steps:
- * - Create files (test.sh, test.pdf, test.json)
+ * - Create files (test.sh, test.pdf, test.json, test.ods)
  * - Search for files of type program
  * - Search for files of type pdf
  * - Search for files of type document
  * - Search for files of type misc
+ * - Search for files of type spreadsheet
  */
 TEST_F(SdkTest, SdkTestGetNodeByMimetype)
 {
@@ -14646,6 +14647,17 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
                                                false   /*startFirst*/,
                                                nullptr /*cancelToken*/)) << "Cannot upload " << PUBLICFILE << " as " << jsonFile;
 
+    const char spreadsheetFile[] = "test.ods";
+    MegaHandle handleSpreadsheetFile = UNDEF;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handleSpreadsheetFile, PUBLICFILE.c_str(),
+                                               rootnode.get(),
+                                               spreadsheetFile /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload " << PUBLICFILE << " as " << spreadsheetFile;
+
     std::unique_ptr<MegaSearchFilter> filterResults(MegaSearchFilter::createInstance());
 
     filterResults->byCategory(MegaApi::FILE_TYPE_PROGRAM);
@@ -14659,14 +14671,20 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
     ASSERT_EQ(nodeList->get(0)->getHandle(), handlePdfFile);
 
     filterResults->byCategory(MegaApi::FILE_TYPE_DOCUMENT);
-    nodeList.reset(megaApi[0]->search(filterResults.get()));
-    ASSERT_EQ(nodeList->size(), 1);
+    nodeList.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_ALPHABETICAL_DESC));
+    ASSERT_EQ(nodeList->size(), 2);
     ASSERT_EQ(nodeList->get(0)->getHandle(), handlePdfFile);
+    ASSERT_EQ(nodeList->get(1)->getHandle(), handleSpreadsheetFile);
 
     filterResults->byCategory(MegaApi::FILE_TYPE_MISC);
     nodeList.reset(megaApi[0]->search(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), handleJsonFile);
+
+    filterResults->byCategory(MegaApi::FILE_TYPE_SPREADSHEET);
+    nodeList.reset(megaApi[0]->search(filterResults.get()));
+    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), handleSpreadsheetFile);
 
     deleteFile(PUBLICFILE);
 }
