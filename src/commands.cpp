@@ -11004,4 +11004,75 @@ bool CommandFetchCreditCard::procresult(Command::Result r, JSON& json)
     return false;
 }
 
+CommandCreatePasswordManagerBase::CommandCreatePasswordManagerBase(MegaClient* cl, std::unique_ptr<NewNode> nn, int ctag,
+                                                                   CommandCreatePasswordManagerBase::Completion&& cb)
+    : mNewNode(std::move(nn)), mCompletion(std::move(cb))
+{
+    cmd("pwmp");
+    // APs "t" (for the new node/folder) and "ua" (for the new user attribute) triggered
+
+    if (mNewNode)
+    {
+        arg("k", reinterpret_cast<const byte*>(mNewNode->nodekey.data()),
+            static_cast<int>(mNewNode->nodekey.size()));
+        if (mNewNode->attrstring)
+        {
+            arg("at", reinterpret_cast<const byte*>(mNewNode->attrstring->data()),
+                static_cast<int>(mNewNode->attrstring->size()));
+        }
+    }
+
+    tag = ctag;  // although it won't be used, it is updated for integrity
+};
+
+bool CommandCreatePasswordManagerBase::procresult(Result r, JSON &json)
+{
+    // APs will update user data (in v3: wait for APs before returning)
+
+    if (r.wasErrorOrOK())
+    {
+        if (mCompletion) mCompletion(r.errorOrOK(), nullptr);
+        return true;
+    }
+
+    NodeHandle folderHandle;
+    NodeHandle parentHandle;
+    for (;;)
+    {
+        // not interested in already-known "k" (user:key), "t", "at", "u", "ts"
+        switch (json.getnameid())
+        {
+        case 'h':
+            folderHandle.set6byte(json.gethandle(MegaClient::NODEHANDLE));
+            break;
+        case 'p':
+            parentHandle.set6byte(json.gethandle(MegaClient::NODEHANDLE));
+            break;
+        case 't':  // sanity check
+        {
+            auto t = json.getint();
+            if (FOLDERNODE != t)
+            {
+                LOG_err << "Password Manager: wrong node type received in command response. Received "
+                        << t << " expected " << FOLDERNODE;
+                return false;
+            }
+            break;
+        }
+        case EOO:
+            mNewNode->nodehandle = folderHandle.as8byte();
+            mNewNode->parenthandle = parentHandle.as8byte();
+
+            if (mCompletion) mCompletion(API_OK, std::move(mNewNode));
+
+            return true;
+        default:
+            if (!json.storeobject()) {
+                LOG_err << "Password Manager: error parsing param";
+                return false;
+            }
+        }
+    }
+}
+
 } // namespace

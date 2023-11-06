@@ -14925,3 +14925,58 @@ TEST_F(SdkTest, SdkTesResumeSessionInFolderLinkDeleted)
                         },
                         timeoutInSeconds * 1000));
 }
+
+/**
+ * @brief TEST_F SdkTestGetPasswordNodeBase
+ *
+ * Tests MEGA Password Manager functionality. In particular the retrieval of folder node at base of
+ * Password Manager tree
+ *
+ * Notes:
+ * - The folder created hangs from Vault root node, and it cannot be deleted
+ *
+ * Test description:
+ * - U1: logging in
+ * - U1: get Password Manager node handle; it will be created if it didn't exist
+ * - U1: get Password Manager Base via get user's attribute command
+ * - U1: get Password Manager Base node again; no further get user attribute requests expected
+ */
+TEST_F(SdkTest, DISABLED_SdkTestGetPasswordNodeBase)
+{
+    LOG_info << "___TEST SdkTestGetPasswordNodeBase";
+
+    LOG_info << "# U1: logging in";
+    const unsigned userIdx = 0;
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+
+    LOG_debug << "# U1: get Password Manager Base node handle; it will be created if it didn't exist";
+    RequestTracker rt2 {megaApi[userIdx].get()};
+    megaApi[userIdx]->getPasswordManagerBase(&rt2);
+    ASSERT_EQ(API_OK, rt2.waitForResult()) << "Getting Password Manager Base node failed";
+    ASSERT_NE(nullptr, rt2.request) << "Missing getPasswordManagerBase request data after finish";
+    const MegaHandle nhBase = rt2.request->getNodeHandle();
+    ASSERT_NE(UNDEF, nhBase) << "Password Manager Base node not set";
+
+
+    // race condition with AP notifying new node/folder and user attribute when creation required (pwmp command); waiting for sn-tag (v3)
+    LOG_debug << "# U1: get Password Manager Base via get user's attribute command";
+    RequestTracker rt3 {megaApi[userIdx].get()};
+    megaApi[userIdx]->getUserAttribute(MegaApi::USER_ATTR_PWM_BASE, &rt3);
+    ASSERT_EQ(API_OK, rt3.waitForResult()) << "Unexpected error retrieving pwmh user attribute";
+    ASSERT_NE(nullptr, rt3.request) << "Missing get user attribute pwmh request data after finish";
+    ASSERT_EQ(nhBase, rt3.request->getNodeHandle()) << "Mismatch in user attribute pwmh retrieved";
+
+
+    LOG_debug << "# U1: get Password Manager Base node again; no further get user attribute requests expected";
+    RequestTracker rt4 {megaApi[userIdx].get()};
+    megaApi[userIdx]->getPasswordManagerBase(&rt4);
+    ASSERT_EQ(API_OK, rt4.waitForResult()) << "Getting Password Manager Base node through shortcut failed";
+    ASSERT_NE(nullptr, rt4.request);
+    ASSERT_EQ(nhBase, rt4.request->getNodeHandle()) << "Wrong Password Manager Base node retrieved through shortcut";
+
+
+    LOG_info << "# Verifying that Password Manager Base node cannot be deleted";
+    std::unique_ptr<MegaNode> n {megaApi[userIdx]->getNodeByHandle(nhBase)};
+    ASSERT_EQ(API_EACCESS, doDeleteNode(userIdx, n.get())) << toNodeHandle(nhBase) << " could not be deleted";
+}

@@ -9030,6 +9030,11 @@ void MegaClient::putnodes(NodeHandle h, VersioningOption vo, vector<NewNode>&& n
     reqs.add(new CommandPutNodes(this, h, NULL, vo, std::move(newnodes), tag, PUTNODES_APP, cauth, std::move(resultFunction), canChangeVault));
 }
 
+void MegaClient::createpwmbase(std::unique_ptr<NewNode> nn, int tag, CommandCreatePasswordManagerBase::Completion&& cb)
+{
+    reqs.add(new CommandCreatePasswordManagerBase(this, std::move(nn), tag, std::move(cb)));
+}
+
 // drop nodes into a user's inbox (must have RSA keypair) - obsolete feature, kept for sending logs to helpdesk
 void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes, int tag, CommandPutNodes::Completion&& completion)
 {
@@ -12513,7 +12518,8 @@ void MegaClient::putua(userattr_map *attrs, int ctag, std::function<void (Error)
  *
  * @return False when attribute requires a request to server. False otherwise (if cached, or unknown)
  */
-bool MegaClient::getua(User* u, const attr_t at, int ctag)
+bool MegaClient::getua(User* u, const attr_t at, int ctag, CommandGetUA::CompletionErr ce,
+                       CommandGetUA::CompletionBytes cb, CommandGetUA::CompletionTLV ctlv)
 {
     if (at != ATTR_UNKNOWN)
     {
@@ -12540,7 +12546,7 @@ bool MegaClient::getua(User* u, const attr_t at, int ctag)
         }
         else
         {
-            reqs.add(new CommandGetUA(this, u->uid.c_str(), at, NULL, tag, nullptr, nullptr, nullptr));
+            reqs.add(new CommandGetUA(this, u->uid.c_str(), at, NULL, tag, ce, cb, ctlv));
             return false;
         }
     }

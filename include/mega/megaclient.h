@@ -797,6 +797,8 @@ public:
     // folders)
     void putnodes(NodeHandle, VersioningOption vo, vector<NewNode>&&, const char *, int tag, bool canChangeVault, CommandPutNodes::Completion&& completion = nullptr);
 
+    void createpwmbase(std::unique_ptr<NewNode>, int tag, CommandCreatePasswordManagerBase::Completion&& c = nullptr);
+
     // send files/folders to user
     void putnodes(const char*, vector<NewNode>&&, int tag, CommandPutNodes::Completion&& completion = nullptr);
 
@@ -820,7 +822,10 @@ public:
     void putua(userattr_map *attrs, int ctag = -1, std::function<void(Error)> completion = nullptr);
 
     // queue a user attribute retrieval
-    bool getua(User* u, const attr_t at = ATTR_UNKNOWN, int ctag = -1);
+    bool getua(User* u, const attr_t at = ATTR_UNKNOWN, int ctag = -1,
+               CommandGetUA::CompletionErr ce = nullptr,
+               CommandGetUA::CompletionBytes cb = nullptr,
+               CommandGetUA::CompletionTLV ctlv = nullptr);
 
     // queue a user attribute retrieval (for non-contacts)
     void getua(const char* email_handle, const attr_t at = ATTR_UNKNOWN, const char *ph = NULL, int ctag = -1);

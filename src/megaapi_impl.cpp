@@ -4403,6 +4403,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_PUT_VPN_CREDENTIAL: return "PUT_VPN_CREDENTIAL";
         case TYPE_DEL_VPN_CREDENTIAL: return "DEL_VPN_CREDENTIAL";
         case TYPE_CHECK_VPN_CREDENTIAL: return "CHECK_VPN_CREDENTIAL";
+        case TYPE_CREATE_PASSWORD_MANAGER_BASE: return "CREATE_PASSWORD_MANAGER_BASE";
     }
     return "UNKNOWN";
 }
@@ -6402,6 +6403,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_PUSH_SETTINGS:
         case MegaApi::USER_ATTR_COOKIE_SETTINGS:
         case MegaApi::USER_ATTR_MY_BACKUPS_FOLDER:
+        case MegaApi::USER_ATTR_PWM_BASE:
             scope = '^';
             break;
 
@@ -15378,6 +15380,13 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
             {
                 request->setNodeHandle(h);
             }
+        }
+        break;
+
+        case MegaApi::USER_ATTR_PWM_BASE:
+        {
+            e = setPasswordManagerBase(data, len);
+            request->setNodeHandle(mPasswordManagerBase.as8byte());
         }
         break;
 
@@ -25973,6 +25982,150 @@ void MegaApiImpl::checkVpnCredential(const char* userPubKey, MegaRequestListener
     waiter->notify();
 }
 /* MegaApiImpl VPN commands END */
+
+void MegaApiImpl::getPasswordManagerBase(MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_PASSWORD_MANAGER_BASE, listener);
+    request->setNodeHandle(UNDEF);
+
+    request->performRequest = [this, request]()
+    {
+        // 1. Shortcut: if already present, nothing to be done
+        if (!mPasswordManagerBase.isUndef())
+        {
+            request->setNodeHandle(mPasswordManagerBase.as8byte());
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+            return API_OK;
+        }
+
+        // 2. Check node existance (pwmh user attribute)
+        CommandGetUA::CompletionErr ce = [this, request](error e) -> void
+        {
+            if (API_ENOENT == e)
+            {
+                LOG_debug << "Password Manager: pwmh user attribute not found. Requesting creation";
+                // 3. Create the node (via pwmp) if user attribute doesn't exist
+                createPasswordManagerBase(request);  // it will trigger onRequestFinish
+            }
+            else
+            {
+                LOG_err << "Password Manager: pwmh user attribute request failed unexpectedly with "
+                        << "error " << e << ". Finishing request";
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            }
+        };
+        CommandGetUA::CompletionBytes cb = [this, request](byte* data, unsigned len, attr_t type) -> void
+        {
+
+            error e = setPasswordManagerBase(data, len);
+
+            request->setNodeHandle(mPasswordManagerBase.as8byte());
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+        };
+        CommandGetUA::CompletionTLV ctlv = [this, request](TLVstore*, attr_t) -> void
+        {
+            LOG_err << "Password Manager: ERROR CompletionTLV callback evaluated from CommandGetUA";
+            assert(false);
+
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_EINTERNAL));
+        };
+        bool reqToServer = client->getua(client->finduser(client->me), ATTR_PWM_BASE, request->getTag(),
+                                         std::move(ce), std::move(cb), std::move(ctlv));
+
+        if (reqToServer)
+        {
+            LOG_debug << "Password Manager: requesting pwmh user attribute to server";
+        }
+        else
+        {
+            LOG_debug << "Password Manager: pwmh user attribute found in cache";
+        }
+
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::createPasswordManagerBase(MegaRequestPrivate* request)
+{
+    LOG_info << "Password Manager: Requesting pwmh creation to server";
+
+    auto newNode = make_unique<NewNode>();
+    std::array<byte, FOLDERNODEKEYLENGTH> buf;
+
+    client->rng.genblock(buf.data(), buf.size());
+    SymmCipher key;
+    key.setkey(buf.data());
+    newNode->nodekey.assign(reinterpret_cast<char*>(buf.data()), buf.size());
+
+    newNode->source = NEW_NODE;
+    newNode->type = FOLDERNODE;
+    newNode->nodehandle = UNDEF;
+    if (mLastKnownVaultNode) newNode->parenthandle = mLastKnownVaultNode->getHandle();
+
+    AttrMap attrs;
+    string name {"Password Manager Base"};  // completely arbitrary default name
+    LocalPath::utf8_normalize(&name);
+    attrs.map['n'] = name;
+    string attrString;
+    attrs.getjson(&attrString);
+    newNode->attrstring.reset(new string);
+    client->makeattr(&key, newNode->attrstring, attrString.c_str());
+
+    CommandCreatePasswordManagerBase::Completion cb = [this, request](Error e, std::unique_ptr<NewNode> nn) -> void
+    {
+        if (!nn && API_OK == e)
+        {
+            e = API_EINTERNAL;
+            LOG_err << "Password Manager: unexpected error processing pwmp";
+        }
+        if (API_OK == e && mLastKnownRubbishNode
+            && nn->parentHandle() != mLastKnownRubbishNode->getHandle())
+        {
+            e = API_EINTERNAL;
+            LOG_err << "Password Manager: internal error, Password Manager Base node parent ("
+                    << toNodeHandle(nn->parentHandle()) << ") different than user's Vault ("
+                    << toNodeHandle(mLastKnownVaultNode->getHandle()) << ")";
+        }
+        if (API_OK != e) fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+
+
+        mPasswordManagerBase = nn->nodeHandle();
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+    };
+
+    client->createpwmbase(std::move(newNode), request->getTag(), std::move(cb));
+}
+
+error MegaApiImpl::setPasswordManagerBase(byte* data, unsigned len)
+{
+    if (len != MegaClient::NODEHANDLE)
+    {
+        LOG_err << "PasswordManager: wrong received data size for Base node handle: " << len
+                << ", expected: " << MegaClient::NODEHANDLE;
+        assert(false);
+        return API_EINTERNAL;
+    }
+
+    if (mPasswordManagerBase.isUndef())
+    {
+        NodeHandle nh = toNodeHandle(data);
+        if (!client->nodeByHandle(nh))
+        {
+            LOG_err << "PasswordManager: Base node missing or invalid handle: " << toNodeHandle(nh);
+            return API_ENOENT;
+        }
+        mPasswordManagerBase = nh;
+    }
+    else
+    {
+        assert(mPasswordManagerBase == toNodeHandle(data));
+    }
+
+    return API_OK;
+}
 
 void MegaApiImpl::fetchCreditCardInfo(MegaRequestListener* listener)
 {

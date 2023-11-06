@@ -45,6 +45,7 @@ namespace mega {
 
 std::string toNodeHandle(handle nodeHandle);
 std::string toNodeHandle(NodeHandle nodeHandle);
+NodeHandle toNodeHandle(const byte* data);  // consider moving functionality to NodeHandle
 std::string toHandle(handle h);
 std::pair<bool, TypeOfLink> toTypeOfLink (nodetype_t type);
 #define LOG_NODEHANDLE(x) toNodeHandle(x)
