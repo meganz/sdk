@@ -8989,11 +8989,24 @@ public:
 
     /**
      * @brief Set option for filtering by predefined node types.
-     * If not set, it will behave as FILE_TYPE_DEFAULT was used.
+     * If not set, it will behave as MegaNode::TYPE_UNKNOWN was used.
      *
-     * @param mimeType Type of nodes requested in the search
+     * @param nodeType Type of nodes requested in the search
      * Valid values for this parameter are (invalid values will be ignored):
-     * - MegaApi::FILE_TYPE_DEFAULT = 0  --> all types
+     * - MegaNode::TYPE_UNKNOWN = -1  --> all types
+     * - MegaNode::TYPE_FILE = 0
+     * - MegaNode::TYPE_FOLDER = 1
+     */
+    virtual void byNodeType(int nodeType);
+
+    /**
+     * @brief Set option for filtering by predefined file categories.
+     * If not set, it will behave as FILE_TYPE_DEFAULT was used.
+     * When set to a valus different than FILE_TYPE_DEFAULT it will search only for files.
+     *
+     * @param mimeType Category of files requested in the search
+     * Valid values for this parameter are (invalid values will be ignored):
+     * - MegaApi::FILE_TYPE_DEFAULT = 0  --> no particular category, include folders too
      * - MegaApi::FILE_TYPE_PHOTO = 1
      * - MegaApi::FILE_TYPE_AUDIO = 2
      * - MegaApi::FILE_TYPE_VIDEO = 3
@@ -9057,6 +9070,13 @@ public:
      * @return string set for filtering by name, or empty string ("") if not set
      */
     virtual const char* byName() const;
+
+    /**
+     * @brief Return predefined node type used for filtering.
+     *
+     * @return predefined node type set for filtering, or MegaNode::TYPE_UNKNOWN if not set
+     */
+    virtual int byNodeType() const;
 
     /**
      * @brief Return predefined category used for filtering.

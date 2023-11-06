@@ -21,6 +21,8 @@
 #import <Foundation/Foundation.h>
 #import "MEGAPaymentMethod.h"
 
+NS_ASSUME_NONNULL_BEGIN
+
 typedef NS_ENUM (NSInteger, MEGAAccountType) {
     MEGAAccountTypeFree = 0,
     MEGAAccountTypeProI = 1,
@@ -45,7 +47,7 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
 /**
  * @brief Used storage for the account (in bytes).
  */
-@property (readonly, nonatomic) NSNumber *storageUsed;
+@property (readonly, nonatomic) long long storageUsed;
 
 /**
  * @brief The used storage by versions (in bytes)
@@ -55,17 +57,17 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
 /**
  * @brief Maximum storage for the account (in bytes).
  */
-@property (readonly, nonatomic) NSNumber *storageMax;
+@property (readonly, nonatomic) long long storageMax;
 
 /**
  * @brief Used bandwidth for the account (in bytes).
  */
-@property (readonly, nonatomic) NSNumber *transferOwnUsed;
+@property (readonly, nonatomic) long long transferOwnUsed;
 
 /**
  * @brief Maximum available bandwidth for the account (in bytes).
  */
-@property (readonly, nonatomic) NSNumber *transferMax;
+@property (readonly, nonatomic) long long transferMax;
 
 /**
  * @brief PRO level of the MEGA account.
@@ -117,7 +119,7 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
  * @brief The subscription method. For example "Credit Card".
  *
  */
-@property (readonly, nonatomic) NSString *subscriptionMethod;
+@property (readonly, nonatomic, nullable) NSString *subscriptionMethod;
 
 /**
  * @brief The subscription method. For example 16.
@@ -132,7 +134,7 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
  * Example return values: "1 M", "1 Y".
  *
  */
-@property (readonly, nonatomic) NSString *subscriptionCycle;
+@property (readonly, nonatomic, nullable) NSString *subscriptionCycle;
 
 /**
  * @brief The number of nodes with account usage info
@@ -152,19 +154,6 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
 @property (readonly, nonatomic) NSInteger numberUsageItems;
 
 /**
- * @brief Creates a copy of this MEGAAccountDetails object.
- *
- * The resulting object is fully independent of the source MEGAAccountDetails,
- * it contains a copy of all internal attributes, so it will be valid after
- * the original object is deleted.
- *
- * You are the owner of the returned object.
- *
- * @return Copy of the MEGAAccountDetails object.
- */
-- (instancetype)clone;
-
-/**
  * @brief Get the used storage in for a node.
  *
  * Only root nodes are supported.
@@ -173,7 +162,7 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
  * @return Used storage (in bytes).
  * @see [MEGASdk rootNode], [MEGASdk rubbishNode], [MEGASdk inboxNode].
  */
-- (NSNumber *)storageUsedForHandle:(uint64_t)handle;
+- (long long)storageUsedForHandle:(uint64_t)handle;
 
 /**
  * @brief Get the number of files in a node.
@@ -184,7 +173,7 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
  * @return Number of files in the node.
  * @see [MEGASdk rootNode], [MEGASdk rubbishNode], [MEGASdk inboxNode].
  */
-- (NSNumber *)numberFilesForHandle:(uint64_t)handle;
+- (long long)numberFilesForHandle:(uint64_t)handle;
 
 /**
  * @brief Get the number of folders in a node.
@@ -195,7 +184,7 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
  * @return Number of folders in the node.
  * @see [MEGASdk rootNode], [MEGASdk rubbishNode], [MEGASdk inboxNode].
  */
-- (NSNumber *)numberFoldersForHandle:(uint64_t)handle;
+- (long long)numberFoldersForHandle:(uint64_t)handle;
 
 /**
  * @brief Get the used storage by versions in for a node
@@ -219,6 +208,8 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
  */
 - (long long)numberOfVersionFilesForHandle:(uint64_t)handle;
 
-+ (NSString *)stringForAccountType:(MEGAAccountType)accountType;
++ (nullable NSString *)stringForAccountType:(MEGAAccountType)accountType;
+
+NS_ASSUME_NONNULL_END
 
 @end

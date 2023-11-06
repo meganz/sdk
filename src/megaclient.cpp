@@ -2693,9 +2693,9 @@ void MegaClient::exec()
                 else
                 {
                     error e = (error)atoi(pendingsc->in.c_str());
-                    if (e == API_ESID)
+                    if ((e == API_ESID) || (e == API_ENOENT && loggedIntoFolder()))
                     {
-                        app->request_error(API_ESID);
+                        app->request_error(e);
                         scsn.stopScsn();
                     }
                     else if (e == API_ETOOMANY)
@@ -4979,6 +4979,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     freeq(PUT);
 
     purgenodesusersabortsc(false);
+    userid = 0;
     mNodeManager.reset();
 
     reqs.clear();
