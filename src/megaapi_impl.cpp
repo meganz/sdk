@@ -25986,7 +25986,6 @@ void MegaApiImpl::checkVpnCredential(const char* userPubKey, MegaRequestListener
 void MegaApiImpl::getPasswordManagerBase(MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_PASSWORD_MANAGER_BASE, listener);
-    request->setNodeHandle(UNDEF);
 
     request->performRequest = [this, request]()
     {
@@ -26029,18 +26028,8 @@ void MegaApiImpl::getPasswordManagerBase(MegaRequestListener* listener)
 
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_EINTERNAL));
         };
-        bool reqToServer = client->getua(client->finduser(client->me), ATTR_PWM_BASE, request->getTag(),
-                                         std::move(ce), std::move(cb), std::move(ctlv));
-
-        if (reqToServer)
-        {
-            LOG_debug << "Password Manager: requesting pwmh user attribute to server";
-        }
-        else
-        {
-            LOG_debug << "Password Manager: pwmh user attribute found in cache";
-        }
-
+        client->getua(client->finduser(client->me), ATTR_PWM_BASE, request->getTag(),
+                      std::move(ce), std::move(cb), std::move(ctlv));
         return API_OK;
     };
 
@@ -26053,26 +26042,25 @@ void MegaApiImpl::createPasswordManagerBase(MegaRequestPrivate* request)
     LOG_info << "Password Manager: Requesting pwmh creation to server";
 
     auto newNode = make_unique<NewNode>();
-    std::array<byte, FOLDERNODEKEYLENGTH> buf;
+    std::array<byte, FOLDERNODEKEYLENGTH> key;
 
-    client->rng.genblock(buf.data(), buf.size());
-    SymmCipher key;
-    key.setkey(buf.data());
-    newNode->nodekey.assign(reinterpret_cast<char*>(buf.data()), buf.size());
+    client->rng.genblock(key.data(), key.size());
+    SymmCipher cipher;
+    cipher.setkey(key.data());
+    newNode->nodekey.assign(reinterpret_cast<char*>(key.data()), key.size());
 
     newNode->source = NEW_NODE;
     newNode->type = FOLDERNODE;
     newNode->nodehandle = UNDEF;
-    if (mLastKnownVaultNode) newNode->parenthandle = mLastKnownVaultNode->getHandle();
 
     AttrMap attrs;
-    string name {"Password Manager Base"};  // completely arbitrary default name
+    string name {"My Passwords"};  // arbitrary default name, eventually updatable by client apps
     LocalPath::utf8_normalize(&name);
     attrs.map['n'] = name;
     string attrString;
     attrs.getjson(&attrString);
     newNode->attrstring.reset(new string);
-    client->makeattr(&key, newNode->attrstring, attrString.c_str());
+    client->makeattr(&cipher, newNode->attrstring, attrString.c_str());
 
     CommandCreatePasswordManagerBase::Completion cb = [this, request](Error e, std::unique_ptr<NewNode> nn) -> void
     {
@@ -26111,13 +26099,10 @@ error MegaApiImpl::setPasswordManagerBase(byte* data, unsigned len)
 
     if (mPasswordManagerBase.isUndef())
     {
-        NodeHandle nh = toNodeHandle(data);
-        if (!client->nodeByHandle(nh))
-        {
-            LOG_err << "PasswordManager: Base node missing or invalid handle: " << toNodeHandle(nh);
-            return API_ENOENT;
-        }
-        mPasswordManagerBase = nh;
+        // Not checking that the node is already lodaded since we could be retrieving
+        // the user attribute before fetching nodes
+        mPasswordManagerBase = toNodeHandle(data);
+        assert(!mPasswordManagerBase.isUndef());
     }
     else
     {

@@ -11037,6 +11037,7 @@ bool CommandCreatePasswordManagerBase::procresult(Result r, JSON &json)
 
     NodeHandle folderHandle;
     NodeHandle parentHandle;
+    m_off_t t = 0;
     for (;;)
     {
         // not interested in already-known "k" (user:key), "t", "at", "u", "ts"
@@ -11048,26 +11049,28 @@ bool CommandCreatePasswordManagerBase::procresult(Result r, JSON &json)
         case 'p':
             parentHandle.set6byte(json.gethandle(MegaClient::NODEHANDLE));
             break;
-        case 't':  // sanity check
+        case 't':
         {
-            auto t = json.getint();
-            if (FOLDERNODE != t)
-            {
-                LOG_err << "Password Manager: wrong node type received in command response. Received "
-                        << t << " expected " << FOLDERNODE;
-                return false;
-            }
+            t = json.getint();
             break;
         }
         case EOO:
+            if (FOLDERNODE != static_cast<nodetype_t>(t))  // sanity check
+            {
+                LOG_err << "Password Manager: wrong node type received in command response. "
+                        <<" Received " << t << " expected " << FOLDERNODE << " received "
+                        << t;
+                return false;
+            }
+
             mNewNode->nodehandle = folderHandle.as8byte();
             mNewNode->parenthandle = parentHandle.as8byte();
 
             if (mCompletion) mCompletion(API_OK, std::move(mNewNode));
-
             return true;
         default:
-            if (!json.storeobject()) {
+            if (!json.storeobject())
+            {
                 LOG_err << "Password Manager: error parsing param";
                 return false;
             }
