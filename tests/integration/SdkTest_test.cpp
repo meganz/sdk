@@ -14597,10 +14597,12 @@ TEST_F(SdkTest, SdkTestDeleteListenerBeforeFinishingRequest)
 /**
  * SdkTestGetNodeByMimetype
  * Steps:
- * - Create three files (test.sh, test.pdf, test.json)
- * - Check number of files from type program
- * - Check number of files from type pdf
- * - Check number of files from type json
+ * - Create files (test.sh, test.pdf, test.json, test.ods)
+ * - Search for files of type program
+ * - Search for files of type pdf
+ * - Search for files of type document
+ * - Search for files of type misc
+ * - Search for files of type spreadsheet
  */
 TEST_F(SdkTest, SdkTestGetNodeByMimetype)
 {
@@ -14610,64 +14612,81 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_NE(rootnode.get(), nullptr);
 
-    std::string progFile = "test.sh";
-    ASSERT_TRUE(createFile(progFile.c_str(), false)) << "Couldn't create " << PUBLICFILE.c_str();
+    ASSERT_TRUE(createFile(PUBLICFILE.c_str(), false)) << "Couldn't create " << PUBLICFILE;
 
+    const char progFile[] = "test.sh";
     MegaHandle handleCodeFile = UNDEF;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handleCodeFile, progFile.c_str(),
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handleCodeFile, PUBLICFILE.c_str(),
                                                rootnode.get(),
-                                               nullptr /*fileName*/,
+                                               progFile /*fileName*/,
                                                ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
                                                nullptr /*appData*/,
                                                false   /*isSourceTemporary*/,
                                                false   /*startFirst*/,
-                                               nullptr /*cancelToken*/)) << "Cannot upload a test file";
+                                               nullptr /*cancelToken*/)) << "Cannot upload " << PUBLICFILE << " as " << progFile;
 
-    std::string pdfFile = "test.pdf";
-    ASSERT_TRUE(createFile(pdfFile.c_str(), false)) << "Couldn't create " << PUBLICFILE.c_str();
-
+    const char pdfFile[] = "test.pdf";
     MegaHandle handlePdfFile = UNDEF;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handlePdfFile, pdfFile.c_str(),
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handlePdfFile, PUBLICFILE.c_str(),
                                                rootnode.get(),
-                                               nullptr /*fileName*/,
+                                               pdfFile /*fileName*/,
                                                ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
                                                nullptr /*appData*/,
                                                false   /*isSourceTemporary*/,
                                                false   /*startFirst*/,
-                                               nullptr /*cancelToken*/)) << "Cannot upload a test file";
+                                               nullptr /*cancelToken*/)) << "Cannot upload " << PUBLICFILE << " as " << pdfFile;
 
-    std::string jsonFile = "test.json";
-    ASSERT_TRUE(createFile(jsonFile.c_str(), false)) << "Couldn't create " << PUBLICFILE.c_str();
-
+    const char jsonFile[] = "test.json";
     MegaHandle handleJsonFile = UNDEF;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handleJsonFile, jsonFile.c_str(),
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handleJsonFile, PUBLICFILE.c_str(),
                                                rootnode.get(),
-                                               nullptr /*fileName*/,
+                                               jsonFile /*fileName*/,
                                                ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
                                                nullptr /*appData*/,
                                                false   /*isSourceTemporary*/,
                                                false   /*startFirst*/,
-                                               nullptr /*cancelToken*/)) << "Cannot upload a test file";
+                                               nullptr /*cancelToken*/)) << "Cannot upload " << PUBLICFILE << " as " << jsonFile;
 
-    std::unique_ptr<MegaNodeList> nodeList(megaApi[0]->searchByType(nullptr, nullptr, nullptr, true, MegaApi::ORDER_NONE, MegaApi::FILE_TYPE_PROGRAM));
+    const char spreadsheetFile[] = "test.ods";
+    MegaHandle handleSpreadsheetFile = UNDEF;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handleSpreadsheetFile, PUBLICFILE.c_str(),
+                                               rootnode.get(),
+                                               spreadsheetFile /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload " << PUBLICFILE << " as " << spreadsheetFile;
+
+    std::unique_ptr<MegaSearchFilter> filterResults(MegaSearchFilter::createInstance());
+
+    filterResults->byCategory(MegaApi::FILE_TYPE_PROGRAM);
+    std::unique_ptr<MegaNodeList> nodeList(megaApi[0]->search(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), handleCodeFile);
 
-    nodeList.reset(megaApi[0]->searchByType(nullptr, nullptr, nullptr, true, MegaApi::ORDER_NONE, MegaApi::FILE_TYPE_PDF));
+    filterResults->byCategory(MegaApi::FILE_TYPE_PDF);
+    nodeList.reset(megaApi[0]->search(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), handlePdfFile);
 
-    nodeList.reset(megaApi[0]->searchByType(nullptr, nullptr, nullptr, true, MegaApi::ORDER_NONE, MegaApi::FILE_TYPE_DOCUMENT));
-    ASSERT_EQ(nodeList->size(), 1);
+    filterResults->byCategory(MegaApi::FILE_TYPE_DOCUMENT);
+    nodeList.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_ALPHABETICAL_DESC));
+    ASSERT_EQ(nodeList->size(), 2);
     ASSERT_EQ(nodeList->get(0)->getHandle(), handlePdfFile);
+    ASSERT_EQ(nodeList->get(1)->getHandle(), handleSpreadsheetFile);
 
-    nodeList.reset(megaApi[0]->searchByType(nullptr, nullptr, nullptr, true, MegaApi::ORDER_NONE, MegaApi::FILE_TYPE_MISC));
+    filterResults->byCategory(MegaApi::FILE_TYPE_MISC);
+    nodeList.reset(megaApi[0]->search(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), handleJsonFile);
 
-    deleteFile(progFile);
-    deleteFile(pdfFile);
-    deleteFile(jsonFile);
+    filterResults->byCategory(MegaApi::FILE_TYPE_SPREADSHEET);
+    nodeList.reset(megaApi[0]->search(filterResults.get()));
+    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), handleSpreadsheetFile);
+
+    deleteFile(PUBLICFILE);
 }
 
 /**
@@ -14768,7 +14787,7 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
         else
         {
             ASSERT_EQ(API_EACCESS, result) << "adding a new VPN credential on a free account didn't return the expected error value (are you pointing to staging?)";
-            // NOTE: by Sep 2023, the API allows free accounts to create VPN credentials temporary, during development of the feature. 
+            // NOTE: by Sep 2023, the API allows free accounts to create VPN credentials temporary, during development of the feature.
             // In production, it returns EACCESS (as it will in staging later on)
         }
 
