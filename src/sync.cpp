@@ -5384,6 +5384,18 @@ bool Syncs::deferPutnodeCompletion(const LocalPath& path) const
     return defer(&SyncController::deferPutnodeCompletion, path);
 }
 
+bool Syncs::hasSyncController() const
+{
+    std::lock_guard<std::mutex> guard(mSyncControllerLock);
+
+    // Reference to controller has grown stale.
+    if (mSyncController.expired())
+        return mSyncController.reset(), false;
+
+    // Reference to controller is still live.
+    return true;
+}
+
 bool Syncs::deferUpload(const LocalPath& path) const
 {
     return defer(&SyncController::deferUpload, path);

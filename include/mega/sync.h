@@ -1537,6 +1537,12 @@ public:
     // Should we defer uploading of the specified file?
     bool deferUpload(const LocalPath& path) const;
 
+    // Check if the engine is being controlled by a sync controller.
+    //
+    // Pretty much the same as the syncController() function below but
+    // better expresses intent.
+    bool hasSyncController() const;
+
     // Specify how the engine should determine whether there are any immediate stalls.
     void setHasImmediateStall(HasImmediateStallPredicate predicate);
 
