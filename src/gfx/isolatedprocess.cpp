@@ -17,6 +17,8 @@ using std::chrono::seconds;
 using std::chrono::duration_cast;
 using std::chrono::time_point;
 using std::chrono::steady_clock;
+using reproc::process;
+
 namespace mega {
 
 const milliseconds AutoStartLauncher::MAX_BACKOFF(15 * 1000);
@@ -132,7 +134,7 @@ const char* GfxProviderIsolatedProcess::getformats(const char* (Formats::*format
     }
 }
 
-bool AutoStartLauncher::startUntilSuccess(reproc::process& process)
+bool AutoStartLauncher::startUntilSuccess(process& process)
 {
     milliseconds backOff = START_BACKOFF;
     while (!mShuttingDown)
@@ -188,7 +190,7 @@ bool AutoStartLauncher::startlaunchLoopThread()
         mThreadIsRunning = true;
 
         backoffForFastFailure([this](){
-            reproc::process process;
+            process process;
             if (startUntilSuccess(process))
             {
                 int status = 0;

@@ -11,7 +11,10 @@
 #include <thread>
 #include <condition_variable>
 #include <mutex>
-#include <reproc++/reproc.hpp>
+
+namespace reproc {
+    class process;
+}
 
 namespace mega {
 
