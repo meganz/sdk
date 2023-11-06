@@ -601,11 +601,6 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
 
     switch(type)
     {
-    case MegaRequest::TYPE_LOGOUT:
-    {
-        mApi[apiIndex].mLogoutReceived = true;
-        break;
-    }
     case MegaRequest::TYPE_GET_ATTR_USER:
         if (mApi[apiIndex].lastError == API_OK)
         {
@@ -14912,16 +14907,14 @@ TEST_F(SdkTest, SdkTesResumeSessionInFolderLinkDeleted)
     removePublicLink(folderOwnerApiIndex, folderNode.get());
 
     // Login into folder link
-    mApi[folderVisitorApiIndex].mLogoutReceived = false;
+    const auto requestFlagType{MegaRequest::TYPE_LOGOUT};
+    auto& requestFlag{mApi[folderVisitorApiIndex].requestFlags[requestFlagType]};
+    requestFlag = false;
 
     ASSERT_EQ(synchronousFastLogin(static_cast<unsigned int>(folderVisitorApiIndex), session.c_str(), this), API_OK);
     ASSERT_NO_FATAL_FAILURE(fetchnodes(static_cast<unsigned int>(folderVisitorApiIndex)));
 
-    // Wait some time to be logged out
-    unsigned int timeoutInSeconds{5};
-    ASSERT_TRUE(WaitFor([&]()
-                        {
-                            return mApi[folderVisitorApiIndex].mLogoutReceived;
-                        },
-                        timeoutInSeconds * 1000));
+    const unsigned int timeoutInSeconds{5};
+    ASSERT_TRUE(waitForResponse(&requestFlag, timeoutInSeconds))
+        << "Logout did not happen after " << timeoutInSeconds  << " seconds";
 }
