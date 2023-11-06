@@ -19,7 +19,6 @@
 #pragma once
 
 #include <memory>
-#include <openssl/ssl.h>
 #include "mega/gfx/worker/tasks.h"
 
 namespace mega {
