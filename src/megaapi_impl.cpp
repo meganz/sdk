@@ -20519,12 +20519,6 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
 
             std::function<void(Error)> putuaCompletion = [this, request](Error e)
             {
-                // if user just set the preferred language... change the GET param to the new language
-                if (request->getParamType() == MegaApi::USER_ATTR_LANGUAGE && e == API_OK)
-                {
-                    setLanguage(request->getText());
-                }
-
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             };
 
@@ -20687,7 +20681,16 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                         return API_ENOENT;
                     }
 
-                    client->putua(type, (byte *)code.data(), unsigned(code.length()), -1, UNDEF, 0, 0, std::move(putuaCompletion));
+                    client->putua(type, (byte *)code.data(), unsigned(code.length()), -1, UNDEF, 0, 0, [putuaCompletion, request, this](Error e)
+                    {
+                        // if user just set the preferred language... change the GET param to the new language
+                        if (e == API_OK)
+                        {
+                            setLanguage(request->getText());
+                        }
+
+                        putuaCompletion(e);
+                    });
                     return API_OK;
                 }
                 else if (type == ATTR_PWD_REMINDER)
