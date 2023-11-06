@@ -20,13 +20,14 @@
 */
 
 import UIKit
+import MEGASdk
 
 class ContactsTableViewController: UITableViewController, MEGARequestDelegate {
 
     var users : MEGAUserList!
     var filterUsers = [MEGAUser]()
     
-    let megaapi : MEGASdk! = (UIApplication.shared.delegate as! AppDelegate).megaapi
+    let megaapi = (UIApplication.shared.delegate as! AppDelegate).megaapi
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -90,7 +91,7 @@ class ContactsTableViewController: UITableViewController, MEGARequestDelegate {
 
     // MARK: - MEGA Request delegate
     
-    func onRequestFinish(_ api: MEGASdk!, request: MEGARequest!, error: MEGAError!) {
+    func onRequestFinish(_ api: MEGASdk, request: MEGARequest, error: MEGAError) {
         if error.type != MEGAErrorType.apiOk {
             return
         }
@@ -98,7 +99,7 @@ class ContactsTableViewController: UITableViewController, MEGARequestDelegate {
         switch request.type {
         case MEGARequestType.MEGARequestTypeGetAttrUser:
             guard let cells = tableView.visibleCells as? [ContactTableViewCell] else { break }
-            for tableViewCell in cells where request?.email == tableViewCell.nameLabel.text {
+            for tableViewCell in cells where request.email == tableViewCell.nameLabel.text {
                 let filename = request.email
                 let avatarURL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
                 let avatarFilePath = avatarURL.appendingPathComponent("thumbs").appendingPathComponent(filename!)

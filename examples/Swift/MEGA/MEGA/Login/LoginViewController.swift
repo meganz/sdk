@@ -20,6 +20,7 @@
 */
 
 import UIKit
+import MEGASdk
 
 class LoginViewController: UIViewController, MEGARequestDelegate {
     
@@ -29,7 +30,7 @@ class LoginViewController: UIViewController, MEGARequestDelegate {
     @IBOutlet weak var loginButton: UIButton!
     @IBOutlet weak var informationLabel: UILabel!
     
-    let megaapi : MEGASdk! = (UIApplication.shared.delegate as! AppDelegate).megaapi
+    let megaapi = (UIApplication.shared.delegate as! AppDelegate).megaapi
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -47,7 +48,7 @@ class LoginViewController: UIViewController, MEGARequestDelegate {
         if validateForm() {
             passwordTextField.resignFirstResponder()
             emailTextField.resignFirstResponder()
-            megaapi.login(withEmail: emailTextField.text, password: passwordTextField.text, delegate: self)
+            megaapi.login(withEmail: emailTextField.text ?? "", password: passwordTextField.text ?? "", delegate: self)
         }
     }
     
@@ -88,7 +89,7 @@ class LoginViewController: UIViewController, MEGARequestDelegate {
     
     // MARK: - MEGA Request delegate
     
-    func onRequestStart(_ api: MEGASdk!, request: MEGARequest!) {
+    func onRequestStart(_ api: MEGASdk, request: MEGARequest) {
         if request.type == MEGARequestType.MEGARequestTypeLogin {
             loginButton.isEnabled = false
             loginProgressView.isHidden = false
@@ -96,7 +97,7 @@ class LoginViewController: UIViewController, MEGARequestDelegate {
         
     }
     
-    func onRequestFinish(_ api: MEGASdk!, request: MEGARequest!, error: MEGAError!) {
+    func onRequestFinish(_ api: MEGASdk, request: MEGARequest, error: MEGAError) {
         if error.type != MEGAErrorType.apiOk {
             loginButton.isEnabled = true
             loginProgressView.isHidden = true
@@ -134,7 +135,7 @@ class LoginViewController: UIViewController, MEGARequestDelegate {
         }
     }
     
-    func onRequestUpdate(_ api: MEGASdk!, request: MEGARequest!) {
+    func onRequestUpdate(_ api: MEGASdk, request: MEGARequest) {
         if request.type == MEGARequestType.MEGARequestTypeFetchNodes {
             let progress = request.transferredBytes.floatValue / request.totalBytes.floatValue
             if progress > 0 && progress < 0.99 {
