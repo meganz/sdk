@@ -201,6 +201,11 @@ using namespace mega;
     return self.megaApi->contactVerificationWarningEnabled();
 }
 
+- (BOOL)isNewAccount {
+    if (self.megaApi == nil) return NO;
+    return self.megaApi->accountIsNew();
+}
+
 #pragma mark - Business
 
 - (BOOL)isBusinessAccount {
@@ -3723,6 +3728,12 @@ using namespace mega;
 - (void)getDeviceNameWithDelegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->getDeviceName([self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (void)getDeviceName:(nullable NSString *)deviceId delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->getDeviceName(deviceId.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
     }
 }
 

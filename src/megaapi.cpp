@@ -6608,6 +6608,10 @@ void MegaSearchFilter::byName(const char* /*searchString*/)
 {
 }
 
+void MegaSearchFilter::byNodeType(int /*nodeType*/)
+{
+}
+
 void MegaSearchFilter::byCategory(int /*mimeType*/)
 {
 }
@@ -6631,6 +6635,11 @@ void MegaSearchFilter::byCreationTime(int64_t /*lowerLimit*/, int64_t /*upperLim
 const char* MegaSearchFilter::byName() const
 {
     return nullptr;
+}
+
+int MegaSearchFilter::byNodeType() const
+{
+    return MegaNode::TYPE_UNKNOWN;
 }
 
 int MegaSearchFilter::byCategory() const

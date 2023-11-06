@@ -23,6 +23,9 @@
 #include "stdfs.h"
 #include "SdkTest_test.h"
 #include "mega/testhooks.h"
+
+#include "gmock/gmock-matchers.h"
+
 #include <algorithm>
 
 #define SSTR( x ) static_cast< const std::ostringstream & >( \
@@ -598,7 +601,11 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
 
     switch(type)
     {
-
+    case MegaRequest::TYPE_LOGOUT:
+    {
+        mApi[apiIndex].mLogoutReceived = true;
+        break;
+    }
     case MegaRequest::TYPE_GET_ATTR_USER:
         if (mApi[apiIndex].lastError == API_OK)
         {
@@ -1256,15 +1263,19 @@ void SdkTest::getAccountsForTest(unsigned howMany)
     out() << "Test setup done, test starts";
 }
 
-void SdkTest::configureTestInstance(unsigned index, const string &email, const string pass)
+void SdkTest::configureTestInstance(unsigned index, const string &email, const string pass, bool checkCredentials)
 {
     ASSERT_GT(mApi.size(), index) << "Invalid mApi size";
     ASSERT_GT(megaApi.size(), index) << "Invalid megaApi size";
-    mApi[index].email = email;
-    mApi[index].pwd = pass;
 
-    ASSERT_FALSE(mApi[index].email.empty()) << "Set test account " << index << " username at the environment variable $" << envVarAccount[index];
-    ASSERT_FALSE(mApi[index].pwd.empty()) << "Set test account " << index << " password at the environment variable $" << envVarPass[index];
+    if(checkCredentials)
+    {
+        mApi[index].email = email;
+        mApi[index].pwd = pass;
+
+        ASSERT_FALSE(mApi[index].email.empty()) << "Set test account " << index << " username at the environment variable $" << envVarAccount[index];
+        ASSERT_FALSE(mApi[index].pwd.empty()) << "Set test account " << index << " password at the environment variable $" << envVarPass[index];
+    }
 
     megaApi[index].reset(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(index).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
     mApi[index].megaApi = megaApi[index].get();
@@ -10979,6 +10990,121 @@ TEST_F(SdkTest, SearchNodesByCreationTime)
 
 
 /**
+ * @brief TEST_F SearchNodesByNodeType
+ *
+ * Test filtering nodes by node type in search() and getChildren()
+ *
+ */
+TEST_F(SdkTest, SearchNodesByNodeType)
+{
+    LOG_info << "___TEST SearchNodesByNodeType___";
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootnode);
+
+    string folderName = "SearchByNodeType_Folder.Foo";
+    MegaHandle folderHandle = createFolder(0, folderName.c_str(), rootnode.get());
+    ASSERT_NE(folderHandle, INVALID_HANDLE);
+    unique_ptr<MegaNode> folderNode(megaApi[0]->getNodeByHandle(folderHandle));
+    ASSERT_TRUE(folderNode);
+
+    string fileName = "SearchByNodeType_File.bar";
+    ASSERT_TRUE(createFile(fileName, false));
+    MegaHandle fileHandle1 = 0;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &fileHandle1, fileName.c_str(), rootnode.get(),
+                                               nullptr /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload " << fileName << " to root";
+    ASSERT_NE(fileHandle1, INVALID_HANDLE);
+    unique_ptr<MegaNode> fileNode1(megaApi[0]->getNodeByHandle(fileHandle1));
+    ASSERT_TRUE(fileNode1);
+
+    MegaHandle fileHandle2 = 0;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &fileHandle2, fileName.c_str(), folderNode.get(),
+                                               nullptr /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload " << fileName << " to " << folderName;
+    ASSERT_NE(fileHandle2, INVALID_HANDLE);
+    unique_ptr<MegaNode> fileNode2(megaApi[0]->getNodeByHandle(fileHandle2));
+    ASSERT_TRUE(fileNode2);
+
+    // getChildren()
+    unique_ptr<MegaSearchFilter> f(MegaSearchFilter::createInstance());
+    f->byName("SearchByNodeType_*");
+    f->byLocationHandle(rootnode->getHandle());
+    unique_ptr<MegaNodeList> results(megaApi[0]->getChildren(f.get()));
+    ASSERT_EQ(results->size(), 2);
+
+    f->byNodeType(MegaNode::TYPE_FOLDER);
+    results.reset(megaApi[0]->getChildren(f.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getName(), folderName);
+
+    f->byNodeType(MegaNode::TYPE_FILE);
+    results.reset(megaApi[0]->getChildren(f.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getHandle(), fileHandle1);
+
+    f->byLocationHandle(folderHandle);
+    f->byNodeType(MegaNode::TYPE_UNKNOWN);
+    results.reset(megaApi[0]->getChildren(f.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getHandle(), fileHandle2);
+
+    f->byNodeType(MegaNode::TYPE_FOLDER);
+    results.reset(megaApi[0]->getChildren(f.get()));
+    ASSERT_EQ(results->size(), 0);
+
+    f->byNodeType(MegaNode::TYPE_FILE);
+    results.reset(megaApi[0]->getChildren(f.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getHandle(), fileHandle2);
+
+    // search()
+    f->byLocationHandle(INVALID_HANDLE);
+    f->byNodeType(MegaNode::TYPE_UNKNOWN);
+    results.reset(megaApi[0]->search(f.get()));
+    ASSERT_EQ(results->size(), 3);
+
+    f->byNodeType(MegaNode::TYPE_FOLDER);
+    results.reset(megaApi[0]->search(f.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getName(), folderName);
+
+    f->byNodeType(MegaNode::TYPE_FILE);
+    results.reset(megaApi[0]->search(f.get()));
+    ASSERT_EQ(results->size(), 2);
+    ASSERT_EQ(results->get(0)->getName(), fileName);
+    ASSERT_EQ(results->get(1)->getName(), fileName);
+
+    f->byLocationHandle(folderHandle);
+    f->byNodeType(MegaNode::TYPE_UNKNOWN);
+    results.reset(megaApi[0]->search(f.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getHandle(), fileHandle2);
+
+    f->byNodeType(MegaNode::TYPE_FOLDER);
+    results.reset(megaApi[0]->search(f.get()));
+    ASSERT_EQ(results->size(), 0);
+
+    f->byNodeType(MegaNode::TYPE_FILE);
+    results.reset(megaApi[0]->search(f.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getHandle(), fileHandle2);
+
+    deleteFile(fileName);
+}
+
+
+/**
  * ___SdkNodesOnDemand___
  * Steps:
  *  - Configure variables to set Account2 data equal to Account1
@@ -14734,4 +14860,68 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
         result = doDelVpnCredential(0, slotID);
         ASSERT_EQ(API_EARGS, result) << "deleting the VPN credential from the invalid slotID " << slotID << " didn't return the expected error value";
     }
+}
+
+/**
+ * @brief SdkTesResumeSessionInFolderLinkDeleted
+ *
+ * Resume session in a folder link deleted and expect to be logged out.
+ */
+TEST_F(SdkTest, SdkTesResumeSessionInFolderLinkDeleted)
+{
+    // Configure folder owner test instance
+    unsigned int numberOfTestInstances{1};
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfTestInstances));
+
+    // Create folder
+    const unsigned int folderOwnerApiIndex{0};
+    std::unique_ptr<MegaNode> rootNode{megaApi[folderOwnerApiIndex]->getRootNode()};
+    ASSERT_THAT(rootNode, ::testing::NotNull());
+
+    const std::string folderName{"Test"};
+    auto folderNodeHandle{createFolder(folderOwnerApiIndex, folderName.c_str(), rootNode.get())};
+    ASSERT_NE(folderNodeHandle, UNDEF);
+
+    std::unique_ptr<MegaNode> folderNode{megaApi[folderOwnerApiIndex]->getNodeByHandle(folderNodeHandle)};
+    ASSERT_THAT(folderNode, ::testing::NotNull());
+
+    // Create folder link
+    const auto folderLink{createPublicLink(folderOwnerApiIndex, folderNode.get(), 0, maxTimeout, false)};
+
+    // Configure folder visitor test instance
+    numberOfTestInstances = 2;
+    mApi.resize(numberOfTestInstances);
+    megaApi.resize(numberOfTestInstances);
+
+    unsigned int folderVisitorApiIndex{1};
+    const bool checkCredentials{false};
+    configureTestInstance(folderVisitorApiIndex, "", "", checkCredentials);
+
+    // Login into folder link
+    auto requestTracker{asyncRequestLoginToFolder(folderVisitorApiIndex, folderLink.c_str())};
+    ASSERT_EQ(requestTracker->waitForResult(), API_OK) << "Failed to login to folder " << folderLink;
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(folderVisitorApiIndex));
+
+    // Get session
+    std::string session{megaApi[folderVisitorApiIndex]->dumpSession()};
+
+    // Local logout
+    locallogout(folderVisitorApiIndex);
+
+    // Remove folder link
+    removePublicLink(folderOwnerApiIndex, folderNode.get());
+
+    // Login into folder link
+    mApi[folderVisitorApiIndex].mLogoutReceived = false;
+
+    ASSERT_EQ(synchronousFastLogin(static_cast<unsigned int>(folderVisitorApiIndex), session.c_str(), this), API_OK);
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(static_cast<unsigned int>(folderVisitorApiIndex)));
+
+    // Wait some time to be logged out
+    unsigned int timeoutInSeconds{5};
+    ASSERT_TRUE(WaitFor([&]()
+                        {
+                            return mApi[folderVisitorApiIndex].mLogoutReceived;
+                        },
+                        timeoutInSeconds * 1000));
 }

@@ -2481,6 +2481,7 @@ public:
     MegaSearchFilterPrivate* copy() const override;
 
     void byName(const char* searchString) override;
+    void byNodeType(int nodeType) override;
     void byCategory(int mimeType) override;
     void bySensitivity(bool excludeSensitive) override;
     void byLocationHandle(MegaHandle ancestorHandle) override;
@@ -2488,6 +2489,7 @@ public:
     void byCreationTime(int64_t lowerLimit, int64_t upperLimit) override;
 
     const char* byName() const override { return mNameFilter.c_str(); }
+    int byNodeType() const override { return mNodeType; }
     int byCategory() const override { return mMimeCategory; }
     bool bySensitivity() const override { return mExcludeSensitive; }
     MegaHandle byLocationHandle() const override { return mLocationHandle; }
@@ -2497,6 +2499,7 @@ public:
 
 private:
     std::string mNameFilter;
+    int mNodeType = MegaNode::TYPE_UNKNOWN;
     int mMimeCategory = MegaApi::FILE_TYPE_DEFAULT;
     bool mExcludeSensitive = false;
     MegaHandle mLocationHandle = INVALID_HANDLE;

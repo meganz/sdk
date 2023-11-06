@@ -6398,7 +6398,7 @@ void exec_debug(autocomplete::ACState& s)
         }
     }
 
-    cout << "Debug level set to " << SimpleLogger::logCurrentLevel << endl;
+    cout << "Debug level set to " << SimpleLogger::getLogLevel() << endl;
     cout << "Log to console: " << (gLogger.logToConsole ? "on" : "off") << endl;
     cout << "Log to file: " << (gLogger.mLogFile.is_open() ? gLogger.mLogFileName : "<off>") << endl;
 
@@ -7939,7 +7939,7 @@ void exec_setmaxloglinesize(autocomplete::ACState& s)
 {
     if (s.words.size() > 1)
     {
-        SimpleLogger::maxPayloadLogSize = atoi(s.words[1].s.c_str());
+        SimpleLogger::setMaxPayloadLogSize(atoll(s.words[1].s.c_str()));
     }
 }
 

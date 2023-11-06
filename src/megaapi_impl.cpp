@@ -5679,6 +5679,18 @@ void MegaSearchFilterPrivate::byName(const char* searchString)
     mNameFilter = searchString ? searchString : string();
 }
 
+void MegaSearchFilterPrivate::byNodeType(int nodeType)
+{
+    assert(MegaNode::TYPE_UNKNOWN <= nodeType && nodeType <= MegaNode::TYPE_FOLDER);
+    if (nodeType < MegaNode::TYPE_UNKNOWN || MegaNode::TYPE_FOLDER < nodeType)
+    {
+        LOG_warn << "Invalid nodeType for SearchFilter: " << nodeType << ". Ignored.";
+        return;
+    }
+
+    mNodeType = nodeType;
+}
+
 void MegaSearchFilterPrivate::byCategory(int mimeType)
 {
     assert(MegaApi::FILE_TYPE_DEFAULT <= mimeType && mimeType <= MegaApi::FILE_TYPE_LAST);
@@ -11903,7 +11915,8 @@ char* strcasestr(const char* string, const char* substring)
 
 MegaNodeList* MegaApiImpl::search(const MegaSearchFilter* filter, int order, CancelToken cancelToken)
 {
-    if (!filter)
+    if (!filter ||
+        (filter->byNodeType() == MegaNode::TYPE_FOLDER && filter->byCategory() != MegaApi::FILE_TYPE_DEFAULT))
     {
         return new MegaNodeListPrivate();
     }
@@ -17732,7 +17745,8 @@ int MegaApiImpl::getNumChildFolders(MegaNode* p)
 MegaNodeList *MegaApiImpl::getChildren(const MegaSearchFilter* filter, int order, CancelToken cancelToken)
 {
     // validations
-    if (!filter || filter->byLocationHandle() == INVALID_HANDLE)
+    if (!filter || filter->byLocationHandle() == INVALID_HANDLE ||
+        (filter->byNodeType() == MegaNode::TYPE_FOLDER && filter->byCategory() != MegaApi::FILE_TYPE_DEFAULT))
     {
         assert(filter && filter->byLocationHandle() != INVALID_HANDLE);
         return new MegaNodeListPrivate();

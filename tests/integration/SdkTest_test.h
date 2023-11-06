@@ -246,6 +246,8 @@ public:
         int lastSyncError;
         handle lastSyncBackupId = 0;
 
+        bool mLogoutReceived{};
+
 #ifdef ENABLE_CHAT
         bool chatUpdated;        // flags to monitor the updates of chats due to actionpackets
         bool schedUpdated;       // flags to monitor the updates of scheduled meetings due to actionpackets
@@ -569,7 +571,7 @@ public:
     void deleteFolder(string foldername);
 
     void getAccountsForTest(unsigned howMany = 1);
-    void configureTestInstance(unsigned index, const std::string& email, const std::string pass);
+    void configureTestInstance(unsigned index, const std::string& email, const std::string pass, bool checkCredentials = true);
     void releaseMegaApi(unsigned int apiIndex);
 
     void inviteTestAccount(const unsigned invitorIndex, const unsigned inviteIndex, const string &message);
