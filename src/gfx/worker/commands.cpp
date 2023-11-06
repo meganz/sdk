@@ -12,7 +12,6 @@ using mega::GfxDimension;
 class GfxSerializationHelper
 {
     static constexpr size_t MAX_VECT_SIZE = 100;
-    static constexpr size_t MAX_STRING_SIZE = 5 * 1024 * 1024;
 public:
     static void serialize(CacheableWriter& writer, const GfxDimension& source)
     {
