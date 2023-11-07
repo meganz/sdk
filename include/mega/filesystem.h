@@ -628,10 +628,6 @@ struct MEGA_API FileAccess
     AsyncIOContext* asyncfread(string*, unsigned, unsigned, m_off_t, FSLogging fsl);
     AsyncIOContext* asyncfwrite(const byte *, unsigned, m_off_t);
 
-    // return a description of OS error,
-    // errno on unix. Defaults to the number itself.
-    virtual std::string getErrorMessage(int error) const;
-
 protected:
     virtual AsyncIOContext* newasynccontext();
     static void asyncopfinished(void *param);
@@ -907,6 +903,10 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // Specify the minimum permissions for newly created files.
     static void setMinimumFilePermissions(int permissions);
+
+    // return a description of OS error,
+    // errno on unix. Defaults to the number itself.
+    static std::string getErrorMessage(int error);
 
 protected:
     // Specifies the minimum permissions allowed for directories.

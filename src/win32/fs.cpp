@@ -268,7 +268,7 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size, FSLogging fsl)
         DWORD e = GetLastError();
         if (fsl.doLog(e))
         {
-            LOG_warn << "Unable to stat: GetFileAttributesExW('" << nonblocking_localname << "'): error code: " << e << ": " << getErrorMessage(e);
+            LOG_warn << "Unable to stat: GetFileAttributesExW('" << nonblocking_localname << "'): error code: " << e << ": " << WinFileSystemAccess::getErrorMessage(e);
         }
         errorcode = e;
         retry = WinFileSystemAccess::istransient(e);
@@ -316,7 +316,7 @@ bool WinFileAccess::sysopen(bool async, FSLogging fsl)
         errorcode = e;
         if (fsl.doLog(errorcode))
         {
-            LOG_err << "Unable to open file '" << nonblocking_localname << "': (CreateFileW). Error code: " << e << ": " << getErrorMessage(e);
+            LOG_err << "Unable to open file '" << nonblocking_localname << "': (CreateFileW). Error code: " << e << ": " << WinFileSystemAccess::getErrorMessage(e);
         }
         retry = WinFileSystemAccess::istransient(e);
         return false;
@@ -662,7 +662,7 @@ bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write,
         DWORD e = GetLastError();
         if (fsl.doLog(e))
         {
-            LOG_err << "Unable to open file. '" << namePath << "' error code : " << e << " : " << getErrorMessage(e);
+            LOG_err << "Unable to open file. '" << namePath << "' error code : " << e << " : " << WinFileSystemAccess::getErrorMessage(e);
         }
         errorcode = e;
         retry = WinFileSystemAccess::istransient(e);
@@ -2065,7 +2065,7 @@ m_off_t WinFileSystemAccess::availableDiskSpace(const LocalPath& drivePath)
     return (m_off_t)numBytes.QuadPart;
 }
 
-std::string WinFileAccess::getErrorMessage(int error) const
+std::string FileSystemAccess::getErrorMessage(int error)
 {
     return winErrorMessage(error);
 }

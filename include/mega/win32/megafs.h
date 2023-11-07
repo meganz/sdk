@@ -198,8 +198,6 @@ public:
     WinFileAccess(Waiter *w);
     ~WinFileAccess();
 
-    std::string getErrorMessage(int error) const override;
-
 protected:
     AsyncIOContext* newasynccontext() override;
     static VOID CALLBACK asyncopfinished(
