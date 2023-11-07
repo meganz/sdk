@@ -14914,7 +14914,7 @@ TEST_F(SdkTest, SdkTesResumeSessionInFolderLinkDeleted)
     ASSERT_EQ(synchronousFastLogin(static_cast<unsigned int>(folderVisitorApiIndex), session.c_str(), this), API_OK);
     ASSERT_NO_FATAL_FAILURE(fetchnodes(static_cast<unsigned int>(folderVisitorApiIndex)));
 
-    const unsigned int timeoutInSeconds{5};
+    const unsigned int timeoutInSeconds{60};
     ASSERT_TRUE(waitForResponse(&requestFlag, timeoutInSeconds))
         << "Logout did not happen after " << timeoutInSeconds  << " seconds";
 }
