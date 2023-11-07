@@ -14950,7 +14950,7 @@ public:
         ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfTestInstances));
 
         // Get user
-        mUser = std::unique_ptr<MegaUser>{megaApi[mApiIndex]->getMyUser()};
+        mUser.reset(megaApi[mApiIndex]->getMyUser());
         ASSERT_THAT(mUser, ::testing::NotNull());
 
         // Set avatar
