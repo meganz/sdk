@@ -33,7 +33,8 @@ debug:macx:MI_DEBUG_SUFFIX = "_debug"
 debug:win32:MI_DEBUG_SUFFIX = "d"
 
 VPATH += $$MEGASDK_BASE_PATH
-SOURCES += src/attrmap.cpp \
+SOURCES += src/arguments.cpp \
+    src/attrmap.cpp \
     src/backofftimer.cpp \
     src/base64.cpp \
     src/command.cpp \
@@ -440,6 +441,7 @@ SOURCES += src/posix/net.cpp  \
 
 HEADERS  += include/mega.h \
             include/mega/account.h \
+            include/mega/arguments.h \
             include/mega/attrmap.h \
             include/mega/backofftimer.h \
             include/mega/base64.h \

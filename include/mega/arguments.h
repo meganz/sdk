@@ -5,9 +5,9 @@
 #include <unordered_map>
 
 namespace mega {
-namespace gfx {
 
-// A simple arguments parser
+// A simple arguments parser that only supports name=value or name
+// See unit test for the usage
 class Arguments
 {
 public:
@@ -30,5 +30,4 @@ private:
     std::unordered_map<std::string, std::string> mValues;
 };
 
-}
 }

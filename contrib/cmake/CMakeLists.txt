@@ -755,6 +755,7 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/thread/posixthread.h
             ${MegaDir}/include/mega/thread/libuvthread.h
             ${MegaDir}/include/mega/process.h
+            ${MegaDir}/include/mega/arguments.h
             ${MegaDir}/include/mega/command.h
             ${MegaDir}/include/mega/config.h
             ${MegaDir}/include/mega/thread.h
@@ -841,6 +842,7 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/mega_glob.h
             ${MegaDir}/include/mega/drivenotify.h
             ${MegaDir}/include/mega.h
+            ${MegaDir}/src/arguments.cpp
             ${MegaDir}/src/attrmap.cpp
             ${MegaDir}/src/autocomplete.cpp
             ${MegaDir}/src/backofftimer.cpp
@@ -1045,6 +1047,7 @@ endif()
 if (NOT IOS)
 #test apps
 add_executable(test_unit
+    ${MegaDir}/tests/unit/Arguments_test.cpp
     ${MegaDir}/tests/unit/AttrMap_test.cpp
     ${MegaDir}/tests/unit/ChunkMacMap_test.cpp
     ${MegaDir}/tests/unit/Commands_test.cpp

@@ -1,8 +1,8 @@
 #include "gtest/gtest.h"
 #include <vector>
-#include "gfxworker/arguments.h"
+#include "mega/arguments.h"
 
-using mega::gfx::Arguments;
+using mega::Arguments;
 
 TEST(Argumenmts, ParseNoArgumentsSuccessfully)
 {

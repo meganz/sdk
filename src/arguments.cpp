@@ -1,7 +1,6 @@
-#include "gfxworker/arguments.h"
+#include "mega/arguments.h"
 
 namespace mega {
-namespace gfx {
 
 std::string Arguments::getValue(const std::string& name, const std::string& defaultValue) const
 {
@@ -37,5 +36,4 @@ Arguments::size_type Arguments::size() const
     return mValues.size();
 }
 
-}
 }

@@ -3,7 +3,7 @@
 #include <memory>
 #include <unordered_map>
 #include <utility>
-#include "gfxworker/arguments.h"
+#include "mega/arguments.h"
 #include "gfxworker/server.h"
 #include "gfxworker/comms_server_win32.h"
 #include "gfxworker/logger.h"
@@ -11,7 +11,7 @@
 using mega::gfx::GfxProcessor;
 using mega::gfx::RequestProcessor;
 using mega::gfx::WinGfxCommunicationsServer;
-using mega::gfx::Arguments;
+using mega::Arguments;
 using mega::LocalPath;
 
 namespace

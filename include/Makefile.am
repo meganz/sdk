@@ -3,6 +3,7 @@ libmegaincludedir=$(includedir)
 nobase_libmegainclude_HEADERS = \
 	mega.h \
 	mega/account.h \
+	mega/arguments.h \
 	mega/attrmap.h \
 	mega/backofftimer.h \
 	mega/base64.h \
