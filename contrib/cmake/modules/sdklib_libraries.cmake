@@ -33,7 +33,11 @@ macro(load_sdklib_libraries)
         target_link_libraries(SDKlib PRIVATE cryptopp::cryptopp)
 
         find_package(unofficial-sodium REQUIRED)
-        target_link_libraries(SDKlib PRIVATE unofficial-sodium::sodium unofficial-sodium::sodium_config_public)
+        if(WIN32)
+            target_link_libraries(SDKlib PRIVATE unofficial-sodium::sodium)
+        else()
+            target_link_libraries(SDKlib PRIVATE unofficial-sodium::sodium unofficial-sodium::sodium_config_public)
+        endif()
 
         find_package(unofficial-sqlite3 REQUIRED)
         target_link_libraries(SDKlib PRIVATE unofficial::sqlite3::sqlite3)
