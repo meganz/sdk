@@ -161,6 +161,7 @@ typedef NS_ENUM(NSInteger, MEGALinkErrorCode) {
  */
 - (instancetype)clone;
 
+
 /**
  * @brief Provides the error description associated with an error code.
  *
