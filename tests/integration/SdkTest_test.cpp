@@ -14941,6 +14941,7 @@ protected:
     unsigned int mApiIndex{0};
     std::unique_ptr<MegaUser> mUser;
     fs::path mDstAvatarPath{getTestDataDir()/AVATARDST};
+    const std::string PATH_SEPARATOR{LocalPath::localPathSeparator_utf8};
 
 public:
     void SetUp() override
@@ -14999,13 +15000,8 @@ TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoADirectoryEndingWithSlash)
 {
     // Get avatar
     std::string dstAvatarPath{getTestDataDir().string()};
-#ifdef _WIN32
-    dstAvatarPath.append("\\");
-    ASSERT_THAT(dstAvatarPath, ::testing::EndsWith("\\"));
-#else
-    dstAvatarPath.append("/");
-    ASSERT_THAT(dstAvatarPath, ::testing::EndsWith("/"));
-#endif
+    dstAvatarPath.append(PATH_SEPARATOR);
+    ASSERT_THAT(dstAvatarPath, ::testing::EndsWith(PATH_SEPARATOR));
     ASSERT_TRUE(getUserAvatar(mApiIndex, mUser.get(), dstAvatarPath.c_str()));
 
     // Check avatar in local filesystem
@@ -15026,11 +15022,7 @@ TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoADirectoryNotEndingWithSlash)
 {
     // Get avatar
     std::string dstAvatarPath{getTestDataDir().string()};
-#ifdef _WIN32
-    ASSERT_THAT(dstAvatarPath, ::testing::Not(::testing::EndsWith("\\")));
-#else
-    ASSERT_THAT(dstAvatarPath, ::testing::Not(::testing::EndsWith("/")));
-#endif
+    ASSERT_THAT(dstAvatarPath, ::testing::Not(::testing::EndsWith(PATH_SEPARATOR)));
     ASSERT_FALSE(getUserAvatar(mApiIndex, mUser.get(), dstAvatarPath.c_str()));
 }
 
