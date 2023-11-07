@@ -7969,21 +7969,19 @@ void MegaApiImpl::getUserAttr(const char *email_or_handle, int type, const char 
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
 
-    if (type == MegaApi::USER_ATTR_AVATAR && dstFilePath)
+    if (type == MegaApi::USER_ATTR_AVATAR && dstFilePath && *dstFilePath)
     {
         string path(dstFilePath);
-        if(!path.empty())
-        {
-            int c = path[path.size()-1];
-            if((c=='/') || (c == '\\'))
-            {
-                path.append(email_or_handle);
-                path.push_back(static_cast<char>('0' + type));
-                path.append(".jpg");
-            }
 
-            request->setFile(path.c_str());
+        int c = path[path.size()-1];
+        if((c=='/') || (c == '\\'))
+        {
+            path.append(email_or_handle);
+            path.push_back(static_cast<char>('0' + type));
+            path.append(".jpg");
         }
+
+        request->setFile(path.c_str());
     }
 
     request->setParamType(type);
