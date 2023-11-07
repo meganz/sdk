@@ -908,6 +908,35 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // errno on unix. Defaults to the number itself.
     static std::string getErrorMessage(int error);
 
+    // Check if the specified file is "hidden."
+    //
+    // On UNIX systems, this function will only return true if the
+    // file specified by path begins with the period character.
+    //
+    // That is, "a" would not be hidden but ".a" would be.
+    //
+    // On Windows systems, this function will only return true if the
+    // file specified by the path has its "hidden" attribute set.
+    //
+    // Returns:
+    // >0 if the file is hidden.
+    // =0 if the file is not hidden.
+    // <0 if the file cannot be accessed.
+    static int isFileHidden(const LocalPath& path,
+                            FSLogging logWhen = FSLogging::logOnError);
+
+    // Mark the specified file as "hidden."
+    //
+    // On UNIX systems, this function is a no-op and always returns true.
+    //
+    // On Windows systems, this function will set the file's "hidden"
+    // attribute.
+    //
+    // Returns:
+    // True if the file's hidden attribute was set.
+    static bool setFileHidden(const LocalPath& path,
+                              FSLogging logWhen = FSLogging::logOnError);
+
 protected:
     // Specifies the minimum permissions allowed for directories.
     static std::atomic<int> mMinimumDirectoryPermissions;

@@ -104,6 +104,66 @@ void FileSystemAccess::setMinimumFilePermissions(int)
 {
 }
 
+int FileSystemAccess::isFileHidden(const LocalPath& path, FSLogging logWhen)
+{
+    // Try and determine the file's current attributes.
+    auto attributes = GetFileAttributesW(path.localpath.c_str());
+
+    // Successfully retrieved the file's attributes.
+    if (attributes != INVALID_FILE_ATTRIBUTES)
+        return (attributes & FILE_ATTRIBUTE_HIDDEN) > 0;
+
+    // Why couldn't we get the file's attributes?
+    auto error = GetLastError();
+
+    // Log the error, if necessary.
+    if (logWhen.doLog(error))
+    {
+        LOG_warn << "Unable to retrieve file attributes: path: "
+                 << path
+                 << ", error code: "
+                 << error
+                 << ", error message: "
+                 << getErrorMessage(error);
+    }
+
+    // Couldn't retrieve the file's attributes.
+    return -1;
+}
+
+bool FileSystemAccess::setFileHidden(const LocalPath& path, FSLogging logWhen)
+{
+    // Try and retrieve the file's current attributes.
+    auto attributes = GetFileAttributesW(path.localpath.c_str());
+
+    // File's already marked as hidden.
+    if ((attributes & FILE_ATTRIBUTE_HIDDEN))
+        return true;
+
+    // File's now marked as hidden.
+    if (attributes != INVALID_FILE_ATTRIBUTES
+        && SetFileAttributesW(path.localpath.c_str(),
+                              attributes | FILE_ATTRIBUTE_HIDDEN))
+        return true;
+
+    // Why couldn't we get (or set) the file's attributes?
+    auto error = GetLastError();
+
+    // Log error, if necessary.
+    if (logWhen.doLog(error))
+    {
+        LOG_warn << "Unable to set file attributes: path: "
+                 << path
+                 << ", error code: "
+                 << error
+                 << ", error message: "
+                 << getErrorMessage(error);
+    }
+
+    // Couldn't set the file's hidden attribute.
+    return false;
+}
+
 int platformCompareUtf(const string& p1, bool unescape1, const string& p2, bool unescape2)
 {
     return compareUtf(p1, unescape1, p2, unescape2, true);
