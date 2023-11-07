@@ -4342,7 +4342,7 @@ void MegaClient::dispatchTransfers()
                     // locate suitable template file
                     for (file_list::iterator it = nexttransfer->files.begin(); it != nexttransfer->files.end(); it++)
                     {
-                        if ((*it)->hprivate && !(*it)->hforeign)
+                        if ((*it)->hprivate && !(*it)->hforeign && !(*it)->undelete())
                         {
                             // Make sure we have the size field
                             Node* n = nodeByHandle((*it)->h);
@@ -4552,7 +4552,7 @@ void MegaClient::dispatchTransfers()
                         for (file_list::iterator it = nexttransfer->files.begin();
                             it != nexttransfer->files.end(); it++)
                         {
-                            if (!(*it)->hprivate || (*it)->hforeign || nodeByHandle((*it)->h))
+                            if ((*it)->undelete() || !(*it)->hprivate || (*it)->hforeign || nodeByHandle((*it)->h))
                             {
                                 h = (*it)->h;
                                 hprivate = (*it)->hprivate;
@@ -4579,6 +4579,7 @@ void MegaClient::dispatchTransfers()
                         reqs.add((ts->pendingcmd = (nexttransfer->type == PUT)
                             ? (Command*)new CommandPutFile(this, ts, putmbpscap)
                             : new CommandGetFile(this, ts->transfer->transferkey.data(), SymmCipher::KEYLENGTH,
+                                                 (!ts->transfer->files.empty() && ts->transfer->files.front()->undelete()),
                                                  h.as8byte(), hprivate, privauth, pubauth, chatauth, false,
                             [this, ts, hprivate, h](const Error &e, m_off_t s, dstime tl /*timeleft*/,
                                std::string* filename, std::string* /*fingerprint*/, std::string* /*fileattrstring*/,

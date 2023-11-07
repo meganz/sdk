@@ -1061,7 +1061,6 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
 		void setParentPath(const char* path);
         void setNodeHandle(MegaHandle nodeHandle);
         void setParentHandle(MegaHandle parentHandle);
-		void setNumConnections(int connections);
 		void setStartPos(long long startPos);
 		void setEndPos(long long endPos);
 		void setNumRetry(int retry);
@@ -1069,13 +1068,13 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
 		void setMaxRetries(int retry);
         void setTime(int64_t time);
 		void setFileName(const char* fileName);
-		void setSlot(int id);
 		void setTag(int tag);
 		void setSpeed(long long speed);
         void setMeanSpeed(long long meanSpeed);
 		void setDeltaSize(long long deltaSize);
         void setUpdateTime(int64_t updateTime);
         void setPublicNode(MegaNode *publicNode, bool copyChildren = false);
+        void setNodeToUndelete(MegaNode* toUndelete);
         void setSyncTransfer(bool syncTransfer);
         void setSourceFileTemporary(bool temporary);
         void setStartFirst(bool startFirst);
@@ -1164,9 +1163,13 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         CollisionChecker::Result    getCollisionCheckResult() const;
         CollisionResolution         getCollisionResolution() const;
         FileSystemType              getFileSystemType() const { return mFsType; };
+
+        MegaNode* getNodeToUndelete() const;
+
         // for uploads, we fingerprint the file before queueing
         // as that way, it can be done without the main mutex locked
         error fingerprint_error = API_OK;
+
         nodetype_t fingerprint_filetype = TYPE_UNKNOWN;
         FileFingerprint fingerprint_onDisk;
 
@@ -1207,6 +1210,7 @@ protected:
         const char* fileName;
         char *lastBytes;
         MegaNode *publicNode;
+        std::unique_ptr<MegaNode> nodeToUndelete;
         long long startPos;
         long long endPos;
         int retry;
@@ -2397,6 +2401,8 @@ struct MegaFileGet : public MegaFile
     void progress() override;
     void completed(Transfer*, putsource_t source) override;
     void terminated(error e) override;
+    bool undelete() const override { return mUndelete; }
+    void setUndelete(bool u = true) { mUndelete = u; }
     MegaFileGet(MegaClient *client, Node* n, const LocalPath& dstPath, FileSystemType fsType, CollisionResolution collisionResolution);
     MegaFileGet(MegaClient *client, MegaNode* n, const LocalPath& dstPath, CollisionResolution collisionResolution);
     ~MegaFileGet() {}
@@ -2406,6 +2412,8 @@ struct MegaFileGet : public MegaFile
 
 private:
     MegaFileGet() {}
+
+    bool mUndelete = false;
 };
 
 struct MegaFilePut : public MegaFile
@@ -2763,8 +2771,8 @@ class MegaApiImpl : public MegaApp
         void startUploadForSupport(const char* localPath, bool isSourceFileTemporary, FileSystemType fsType, MegaTransferListener* listener);
         void startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, const char* targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char* appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, CancelToken cancelToken, MegaTransferListener* listener);
         MegaTransferPrivate* createUploadTransfer(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, const char *targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, CancelToken cancelToken, MegaTransferListener *listener, const FileFingerprint* preFingerprintedFile = nullptr);
-        void startDownload (bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, CancelToken cancelToken, int collisionCheck, int collisionResolution, MegaTransferListener *listener);
-        MegaTransferPrivate* createDownloadTransfer(bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, CancelToken cancelToken, int collisionCheck, int collisionResolution, MegaTransferListener *listener, FileSystemType fsType);
+        void startDownload (bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, CancelToken cancelToken, int collisionCheck, int collisionResolution, bool undelete, MegaTransferListener *listener);
+        MegaTransferPrivate* createDownloadTransfer(bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, CancelToken cancelToken, int collisionCheck, int collisionResolution, bool undelete, MegaTransferListener *listener, FileSystemType fsType);
         void startStreaming(MegaNode* node, m_off_t startPos, m_off_t size, MegaTransferListener *listener);
         void setStreamingMinimumRate(int bytesPerSecond);
         void retryTransfer(MegaTransfer *transfer, MegaTransferListener *listener = NULL);

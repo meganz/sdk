@@ -14505,9 +14505,12 @@ class MegaApi
          *      - MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N                     = 2,
          *      - MegaTransfer::COLLISION_RESOLUTION_EXISTING_TO_OLDN               = 3,
          *
+         * @param undelete Indicates a special request for a node that has been completely deleted
+         * (even from Rubbish Bin); allowed only for accounts with PRO level
+         *
          * @param listener MegaTransferListener to track this transfer
          */
-        void startDownload(MegaNode* node, const char* localPath, const char *customName, const char *appData, bool startFirst, MegaCancelToken *cancelToken, int collisionCheck, int collisionResolution, MegaTransferListener *listener = NULL);
+        void startDownload(MegaNode* node, const char* localPath, const char *customName, const char *appData, bool startFirst, MegaCancelToken *cancelToken, int collisionCheck, int collisionResolution, bool undelete, MegaTransferListener *listener = NULL);
 
         /**
          * @brief Start an streaming download for a file in MEGA
