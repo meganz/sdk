@@ -3561,7 +3561,6 @@ private:
 
         // user invites/attributes
         void removecontact_result(error) override;
-        void putua_result(error) override;
         void getua_result(error) override;
         void getua_result(byte*, unsigned, attr_t) override;
         void getua_result(TLVstore *, attr_t) override;

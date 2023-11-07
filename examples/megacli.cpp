@@ -7025,7 +7025,7 @@ void exec_verifycredentials(autocomplete::ACState& s)
     else if (s.words[1].s == "verify")
     {
         error e;
-        if ((e = client->verifyCredentials(u->userhandle)))
+        if ((e = client->verifyCredentials(u->userhandle, nullptr)))
         {
             cout << "Verification failed. Error: " << errorstring(e) << endl;
             return;
@@ -7034,7 +7034,7 @@ void exec_verifycredentials(autocomplete::ACState& s)
     else if (s.words[1].s == "reset")
     {
         error e;
-        if ((e = client->resetCredentials(u->userhandle)))
+        if ((e = client->resetCredentials(u->userhandle, nullptr)))
         {
             cout << "Reset verification failed. Error: " << errorstring(e) << endl;
             return;

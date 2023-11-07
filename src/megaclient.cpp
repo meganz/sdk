@@ -15500,7 +15500,7 @@ error MegaClient::updateAuthring(AuthRing *authring, attr_t authringType, bool t
     return API_OK;
 }
 
-error MegaClient::verifyCredentials(handle uh)
+error MegaClient::verifyCredentials(handle uh, std::function<void (Error)> completion)
 {
     if (!mKeyManager.generation())
     {
@@ -15568,7 +15568,6 @@ error MegaClient::verifyCredentials(handle uh)
     }
     }
 
-    int tag = reqtag;
     mKeyManager.commit(
     [this, uh, uid]()
     {
@@ -15625,16 +15624,15 @@ error MegaClient::verifyCredentials(handle uh)
         std::string serializedAuthring = authring.serializeForJS();
         mKeyManager.setAuthRing(serializedAuthring);
     },
-    [this, tag]()
+    [completion]()
     {
-        restag = tag;
-        app->putua_result(API_OK);
+        completion(API_OK);
     });
 
     return API_OK;
 }
 
-error MegaClient::resetCredentials(handle uh)
+error MegaClient::resetCredentials(handle uh, std::function<void(Error)> completion)
 {
     if (!mKeyManager.generation())
     {
@@ -15664,7 +15662,6 @@ error MegaClient::resetCredentials(handle uh)
     assert(authMethod == AUTH_METHOD_FINGERPRINT); // Ed25519 authring cannot be at AUTH_METHOD_SIGNATURE
     LOG_debug << "Reseting credentials for user " << uid << "...";
 
-    int tag = reqtag;
     mKeyManager.commit(
     [this, uh, uid]()
     {
@@ -15691,10 +15688,12 @@ error MegaClient::resetCredentials(handle uh)
         // Changes to apply in the commit
         mKeyManager.setAuthRing(serializedAuthring);
     },
-    [this, tag]()
+    [completion]()
     {
-        restag = tag;
-        app->putua_result(API_OK);
+        if (completion)
+        {
+            completion(API_OK);
+        }
         return;
     });
 
