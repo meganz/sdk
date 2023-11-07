@@ -20,6 +20,8 @@
  */
 #import <Foundation/Foundation.h>
 
+NS_ASSUME_NONNULL_BEGIN
+
 /**
  * @brief Declaration of API error codes.
  */
@@ -98,7 +100,7 @@ typedef NS_ENUM(NSInteger, MEGALinkErrorCode) {
 /**
  * @brief Readable description of the error.
  */
-@property (readonly, nonatomic) NSString *name;
+@property (readonly, nonatomic, nullable) NSString *name;
 
 /**
  * @brief Value associated with the error
@@ -157,7 +159,7 @@ typedef NS_ENUM(NSInteger, MEGALinkErrorCode) {
  * @param errorCode Error code for which the description will be returned.
  * @return Description associated with the error code.
  */
-- (NSString *)nameWithErrorCode:(NSInteger)errorCode;
+- (nullable NSString *)nameWithErrorCode:(NSInteger)errorCode;
 
 /**
  * @brief Provides the error description associated with an error code
@@ -167,6 +169,8 @@ typedef NS_ENUM(NSInteger, MEGALinkErrorCode) {
  * @param context Context to provide a more accurate description (MEGAErrorContext)
  * @return Description associated with the error code
  */
-+ (NSString *)errorStringWithErrorCode:(NSInteger)errorCode context:(MEGAErrorContext)context;
++ (nullable NSString *)errorStringWithErrorCode:(NSInteger)errorCode context:(MEGAErrorContext)context;
+
+NS_ASSUME_NONNULL_END
 
 @end

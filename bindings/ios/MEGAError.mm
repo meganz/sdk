@@ -57,7 +57,7 @@ using namespace mega;
     return (MEGAErrorType) (self.megaError ? self.megaError->getErrorCode() : 0);
 }
 
-- (NSString *)name {
+- (nullable NSString *)name {
     return [[NSString alloc] initWithUTF8String:self.megaError->getErrorString()];
 }
 
@@ -77,11 +77,11 @@ using namespace mega;
     return self.megaError ? MEGALinkErrorCode(self.megaError->getLinkStatus()) : MEGALinkErrorCodeUnknown;
 }
 
-- (NSString *)nameWithErrorCode:(NSInteger)errorCode {
+- (nullable NSString *)nameWithErrorCode:(NSInteger)errorCode {
     return MegaError::getErrorString((int)errorCode) ? [[NSString alloc] initWithUTF8String:MegaError::getErrorString((int)errorCode)] : nil;
 }
 
-+ (NSString *)errorStringWithErrorCode:(NSInteger)errorCode context:(MEGAErrorContext)context {
++ (nullable NSString *)errorStringWithErrorCode:(NSInteger)errorCode context:(MEGAErrorContext)context {
     return MegaError::getErrorString((int)errorCode, (MegaError::ErrorContexts)context) ? [[NSString alloc] initWithUTF8String:MegaError::getErrorString((int)errorCode, (MegaError::ErrorContexts)context)] : nil;
 }
 
