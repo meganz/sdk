@@ -4387,6 +4387,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_REMOVE_SET_ELEMENT: return "REMOVE_SET_ELEMENT";
         case TYPE_REMOVE_SET_ELEMENTS: return "REMOVE_SET_ELEMENTS";
         case TYPE_REMOVE_OLD_BACKUP_NODES: return "REMOVE_OLD_BACKUP_NODES";
+        case TYPE_SET_SYNC_RUNSTATE: return "SET_SYNC_RUNSTATE";
         case TYPE_ADD_UPDATE_SCHEDULED_MEETING: return "ADD_SCHEDULED_MEETING";
         case TYPE_DEL_SCHEDULED_MEETING: return "DEL_SCHEDULED_MEETING";
         case TYPE_FETCH_SCHEDULED_MEETING: return "FETCH_SCHEDULED_MEETING";
@@ -4403,6 +4404,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_PUT_VPN_CREDENTIAL: return "PUT_VPN_CREDENTIAL";
         case TYPE_DEL_VPN_CREDENTIAL: return "DEL_VPN_CREDENTIAL";
         case TYPE_CHECK_VPN_CREDENTIAL: return "CHECK_VPN_CREDENTIAL";
+        case TYPE_FETCH_CREDIT_CARD_INFO: return "FETCH_CREDIT_CARD_INFO";
     }
     return "UNKNOWN";
 }
