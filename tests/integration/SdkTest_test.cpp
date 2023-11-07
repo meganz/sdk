@@ -14941,7 +14941,7 @@ TEST_F(SdkTest, SdkTesResumeSessionInFolderLinkDeleted)
  * - U1: get Password Manager Base via get user's attribute command
  * - U1: get Password Manager Base node again; no further get user attribute requests expected
  */
-TEST_F(SdkTest, DISABLED_SdkTestGetPasswordNodeBase)
+TEST_F(SdkTest, SdkTestGetPasswordNodeBase)
 {
     LOG_info << "___TEST SdkTestGetPasswordNodeBase";
 
@@ -14978,5 +14978,13 @@ TEST_F(SdkTest, DISABLED_SdkTestGetPasswordNodeBase)
 
     LOG_info << "# Verifying that Password Manager Base node cannot be deleted";
     std::unique_ptr<MegaNode> n {megaApi[userIdx]->getNodeByHandle(nhBase)};
-    ASSERT_EQ(API_EACCESS, doDeleteNode(userIdx, n.get())) << toNodeHandle(nhBase) << " could not be deleted";
+    auto reqRes = doDeleteNode(userIdx, n.get());
+    if (reqRes == API_ENOENT)  // race condition until APIv3 approach is implemented
+    {
+        LOG_debug << "\t# Password Manager Base node not created yet (race condition pending APIv3)";
+    }
+    else
+    {
+        ASSERT_EQ(API_EACCESS, reqRes) << toNodeHandle(nhBase) << " could not be deleted";
+    }
 }

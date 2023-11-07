@@ -26064,24 +26064,19 @@ void MegaApiImpl::createPasswordManagerBase(MegaRequestPrivate* request)
 
     CommandCreatePasswordManagerBase::Completion cb = [this, request](Error e, std::unique_ptr<NewNode> nn) -> void
     {
-        if (!nn && API_OK == e)
+        if (!nn && e == API_OK)
         {
             e = API_EINTERNAL;
             LOG_err << "Password Manager: unexpected error processing pwmp";
         }
-        if (API_OK == e && mLastKnownRubbishNode
-            && nn->parentHandle() != mLastKnownRubbishNode->getHandle())
+
+        if (e == API_OK)
         {
-            e = API_EINTERNAL;
-            LOG_err << "Password Manager: internal error, Password Manager Base node parent ("
-                    << toNodeHandle(nn->parentHandle()) << ") different than user's Vault ("
-                    << toNodeHandle(mLastKnownVaultNode->getHandle()) << ")";
+            mPasswordManagerBase = nn->nodeHandle();
+            request->setNodeHandle(mPasswordManagerBase.as8byte());
         }
-        if (API_OK != e) fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 
-
-        mPasswordManagerBase = nn->nodeHandle();
-        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
     };
 
     client->createpwmbase(std::move(newNode), request->getTag(), std::move(cb));
