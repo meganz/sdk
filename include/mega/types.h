@@ -1152,6 +1152,11 @@ enum class PathProblem : unsigned short {
     FilesystemCannotStoreThisName,
     CloudNodeInvalidFingerprint,
 
+    PutnodeDeferredByController,
+    PutnodeCompletionDeferredByController,
+    PutnodeCompletionPending,
+    UploadDeferredByController,
+
     PathProblem_LastPlusOne
 };
 

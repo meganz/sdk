@@ -19,6 +19,7 @@
  * program.
  */
 
+#include "types.h"
 #ifndef MEGA_SYNC_H
 #define MEGA_SYNC_H 1
 
@@ -961,6 +962,42 @@ struct SyncFlags
     SyncStallInfo stall;
 };
 
+// This interface exists to give tests a little more control over how the
+// sync engine behaves.
+//
+// The basic idea is that the sync will will ask an outside entity whether
+// it should proceed with a certain action. Say, whether it should upload a
+// particular file or complete a putnodes request (binding.)
+//
+// This is necessary as some tests require very specific sequencing in order
+// to pass reliably.
+class SyncController
+{
+protected:
+    SyncController();
+
+public:
+    virtual ~SyncController();
+
+    // Should we defer sending a putnodes for the specified file?
+    virtual bool deferPutnode(const LocalPath& path) const;
+
+    // Should we defer the completion of a putnodes sent for the specified file?
+    virtual bool deferPutnodeCompletion(const LocalPath& path) const;
+
+    // Should we defer uploading of the specified file?
+    virtual bool deferUpload(const LocalPath& path) const;
+}; // SyncController
+
+// Convenience.
+using HasImmediateStallPredicate =
+  std::function<bool(const SyncStallInfo&)>;
+
+using IsImmediateStallPredicate =
+  std::function<bool(const SyncStallEntry& entry)>;
+
+using SyncControllerPtr = std::shared_ptr<SyncController>;
+using SyncControllerWeakPtr = std::weak_ptr<SyncController>;
 
 struct Syncs
 {
@@ -1463,6 +1500,60 @@ private:
     friend class BackupInfoSync;
     friend class BackupMonitor;
     friend struct ProgressingMonitor;
+
+    // Helps guide the engine's activities.
+    mutable SyncControllerWeakPtr mSyncController;
+
+    // Serializes access to mSyncController.
+    mutable std::mutex mSyncControllerLock;
+
+    // Convenience helper.
+    template<typename... Arguments, typename... Parameters>
+    bool defer(bool (SyncController::*predicate)(Parameters...) const,
+               Arguments&&... arguments) const;
+
+    // How does the engine know when an immediate stall has been reported?
+    HasImmediateStallPredicate mHasImmediateStall;
+
+    // How does the engine know that a specific stall is immediate?
+    IsImmediateStallPredicate mIsImmediateStall;
+
+    // Serializes access to *ImmediateStall predicates.
+    mutable std::mutex mImmediateStallLock;
+
+    // Check whether any immediate stalls have been reported.
+    bool hasImmediateStall(const SyncStallInfo& stalls) const;
+
+    // Check whether a specified stall is "immediate."
+    bool isImmediateStall(const SyncStallEntry& entry) const;
+
+public:
+    // Should we defer sending a putnodes for the specified file?
+    bool deferPutnode(const LocalPath& path) const;
+
+    // Should we defer the completion of a putnodes sent for the specified file?
+    bool deferPutnodeCompletion(const LocalPath& path) const;
+
+    // Should we defer uploading of the specified file?
+    bool deferUpload(const LocalPath& path) const;
+
+    // Check if the engine is being controlled by a sync controller.
+    //
+    // Pretty much the same as the syncController() function below but
+    // better expresses intent.
+    bool hasSyncController() const;
+
+    // Specify how the engine should determine whether there are any immediate stalls.
+    void setHasImmediateStall(HasImmediateStallPredicate predicate);
+
+    // Specify how the engine can determine whether a given stall is "immediate."
+    void setIsImmediateStall(IsImmediateStallPredicate predicate);
+
+    // Specify a controller who should guide the engine's activities.
+    void setSyncController(SyncControllerPtr controller);
+
+    // Retrieve the engine's current controller.
+    SyncControllerPtr syncController() const;
 };
 
 class OverlayIconCachedPaths

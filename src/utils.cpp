@@ -2947,6 +2947,11 @@ const char* syncPathProblemDebugString(PathProblem r)
     case PathProblem::FilesystemCannotStoreThisName: return "FilesystemCannotStoreThisName";
     case PathProblem::CloudNodeInvalidFingerprint: return "CloudNodeInvalidFingerprint";
 
+    case PathProblem::PutnodeDeferredByController: return "PutnodeDeferredByController";
+    case PathProblem::PutnodeCompletionDeferredByController: return "PutnodeCompletionDeferredByController";
+    case PathProblem::PutnodeCompletionPending: return "PutnodeCompletionPending";
+    case PathProblem::UploadDeferredByController: return "UploadDeferredByController";
+
     case PathProblem::PathProblem_LastPlusOne: break;
     }
     return "<out of range>";

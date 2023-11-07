@@ -412,6 +412,36 @@ public:
     }
 }; // RequestRetryTracker
 
+class StandardSyncController
+  : public SyncController
+{
+    using Callback = std::function<bool(const fs::path&)>;
+
+    bool call(const Callback& callback, const LocalPath& path) const;
+
+    void set(Callback& callback, Callback value);
+
+    Callback mDeferPutnode;
+    Callback mDeferPutnodeCompletion;
+    Callback mDeferUpload;
+    mutable std::mutex mLock;
+
+public:
+    StandardSyncController() = default;
+
+    bool deferPutnode(const LocalPath& path) const override;
+
+    bool deferPutnodeCompletion(const LocalPath& path) const override;
+
+    bool deferUpload(const LocalPath& path) const override;
+
+    void setDeferPutnodeCallback(Callback callback);
+
+    void setDeferPutnodeCompletionCallback(Callback callback);
+
+    void setDeferUploadCallback(Callback callback);
+}; // StandardSyncController
+
 struct StandardClient : public MegaApp
 {
     shared_ptr<WAIT_CLASS> waiter;
@@ -1008,14 +1038,6 @@ struct StandardClient : public MegaApp
     }
 
     function<void(const LocalPath&, const LocalPath&)> mOnMoveBegin;
-
-    void putnodes_begin(const LocalPath& path) override
-    {
-        if (mOnPutnodesBegin)
-            mOnPutnodesBegin(path);
-    }
-
-    std::function<void(const LocalPath&)> mOnPutnodesBegin;
 #endif // ! NDEBUG
 
     void backupOpenDrive(const fs::path& drivePath, PromiseBoolSP result);
@@ -1048,6 +1070,12 @@ struct StandardClient : public MegaApp
     function<void(File&)> mOnFileComplete;
     function<void(bool)> mOnStall;
     function<void(bool)> mOnConflictsDetected;
+
+    void setHasImmediateStall(HasImmediateStallPredicate predicate);
+
+    void setIsImmediateStall(IsImmediateStallPredicate predicate);
+
+    void setSyncController(SyncControllerPtr controller);
 };
 
 struct ScopedSyncPauser

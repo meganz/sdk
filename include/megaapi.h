@@ -6922,6 +6922,11 @@ class MegaSyncStall
             FilesystemCannotStoreThisName,
             CloudNodeInvalidFingerprint,
 
+            PutnodeDeferredByController,
+            PutnodeCompletionDeferredByController,
+            PutnodeCompletionPending,
+            UploadDeferredByController,
+
             SyncPathProblem_LastPlusOne
         };
 

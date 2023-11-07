@@ -1623,6 +1623,10 @@ MegaSyncStallPrivate::pathProblemDebugString(MegaSyncStall::SyncPathProblem reas
     static_assert((int)PathProblem::SourceWasMovedElsewhere == (int)MegaSyncStall::SyncPathProblem::SourceWasMovedElsewhere, "");
     static_assert((int)PathProblem::FilesystemCannotStoreThisName == (int)MegaSyncStall::SyncPathProblem::FilesystemCannotStoreThisName, "");
     static_assert((int)PathProblem::CloudNodeInvalidFingerprint == (int)MegaSyncStall::SyncPathProblem::CloudNodeInvalidFingerprint, "");
+    static_assert((int)PathProblem::PutnodeDeferredByController == (int)MegaSyncStall::SyncPathProblem::PutnodeDeferredByController, "");
+    static_assert((int)PathProblem::PutnodeCompletionDeferredByController == (int)MegaSyncStall::SyncPathProblem::PutnodeCompletionDeferredByController, "");
+    static_assert((int)PathProblem::PutnodeCompletionPending == (int)MegaSyncStall::SyncPathProblem::PutnodeCompletionPending, "");
+    static_assert((int)PathProblem::UploadDeferredByController == (int)MegaSyncStall::SyncPathProblem::UploadDeferredByController, "");
     static_assert((int)PathProblem::PathProblem_LastPlusOne == (int)MegaSyncStall::SyncPathProblem::SyncPathProblem_LastPlusOne, "");
 
     return syncPathProblemDebugString(PathProblem(reason));
