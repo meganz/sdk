@@ -2098,7 +2098,7 @@ void StandardClient::uploadFolderTree_recurse(handle parent, handle& h, const fs
     }
 }
 
-void StandardClient::uploadFolderTree(fs::path p, Node* n2, PromiseBoolSP pb)
+void StandardClient::uploadFolderTree(fs::path p, CloudItem item, PromiseBoolSP pb)
 {
     auto completion = BasicPutNodesCompletion([pb](const Error& e) {
         pb->set_value(!e);
@@ -2106,10 +2106,17 @@ void StandardClient::uploadFolderTree(fs::path p, Node* n2, PromiseBoolSP pb)
 
     resultproc.prepresult(COMPLETION, ++next_request_tag,
         [&](){
+            // Resolve target node.
+            auto target = item.resolve(*this);
+
+            // Couldn't locate target node.
+            if (!target)
+                return pb->set_value(false);
+
             vector<NewNode> newnodes;
             handle h = 1;
             uploadFolderTree_recurse(UNDEF, h, p, newnodes);
-            client.putnodes(n2->nodeHandle(), NoVersioning, std::move(newnodes), nullptr, 0, false, std::move(completion));
+            client.putnodes(target->nodeHandle(), NoVersioning, std::move(newnodes), nullptr, 0, false, std::move(completion));
         },
         nullptr);
 }
@@ -2161,12 +2168,12 @@ bool StandardClient::downloadFile(const CloudItem& item, const fs::path& destina
     return result.get();
 }
 
-bool StandardClient::uploadFolderTree(fs::path p, Node* n2)
+bool StandardClient::uploadFolderTree(fs::path p, const CloudItem& item)
 {
     auto promise = makeSharedPromise<bool>();
     auto future = promise->get_future();
 
-    uploadFolderTree(p, n2, std::move(promise));
+    uploadFolderTree(p, item, std::move(promise));
 
     return future.get();
 }
