@@ -2,7 +2,7 @@ macro(check_mediainfo_unicode)
 # Check if MediaInfo requires UNICODE defined.
 # Used in load_sdklib_libraries macro.
 
-    if(USE_MEDIAINFO AND NOT UNICODE)
+    if(NOT WIN32 AND USE_MEDIAINFO AND NOT UNICODE)
         include(CheckCXXSourceCompiles)
         set(CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES} mediainfo)
         set(test_code_mediainfo
