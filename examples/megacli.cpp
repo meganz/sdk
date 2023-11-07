@@ -12120,8 +12120,8 @@ void exec_gfx(autocomplete::ACState& s)
         unsigned int seconds = std::max(5u, static_cast<unsigned int>(std::atoi(live.c_str()))); // at least 5
         std::vector<std::string> arguments {
             executable,
-            "-l"+ std::to_string(seconds),
-            "-n" + pipename
+            "-l="+ std::to_string(seconds),
+            "-n=" + pipename
         };
         auto process = std::make_shared<GfxIsolatedProcess>(arguments,
                                                             pipename,

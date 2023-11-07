@@ -1,7 +1,9 @@
 #include <algorithm>
 #include <iostream>
 #include <memory>
-#include <cxxopts.hpp>
+#include <unordered_map>
+#include <utility>
+#include "gfxworker/arguments.h"
 #include "gfxworker/server.h"
 #include "gfxworker/comms_server_win32.h"
 #include "gfxworker/logger.h"
@@ -9,66 +11,115 @@
 using mega::gfx::GfxProcessor;
 using mega::gfx::RequestProcessor;
 using mega::gfx::WinGfxCommunicationsServer;
+using mega::gfx::Arguments;
 using mega::LocalPath;
-using cxxopts::Options;
+
+namespace
+{
+
+std::string USAGE = R"--(
+GFX processing server
+Usage:
+  gfxworker [OPTION...]
+
+  -h                   Show help
+  -l=arg               Keep alive in seconds without receiving any
+                       requests, 0 is INFINITE (default: 60)
+  -t=arg               Request processing thread pool size, minimum 1
+                       (default: 5)
+  -q=arg               The size of this queue determines the capacity for
+                       pending requests when all threads in the pool are
+                       busy. Minimum 1 (default: 10)
+  -n=arg               Pipe name (default: mega_gfxworker)
+  -d=arg               Log directory (default: .)
+  -f=arg               File name (default mega.gfxworker.<pipename>.log)
+)--";
+
+struct Config
+{
+    unsigned short aliveSeconds;
+
+    size_t threadCount;
+
+    size_t queueSize;
+
+    std::string pipename;
+
+    std::string logdirectory;
+
+    std::string logfilename;
+
+    static Config fromArguments(const Arguments& arguments);
+};
+
+Config Config::fromArguments(const Arguments& arguments)
+{
+    Config config;
+    // live
+    config.aliveSeconds = static_cast<unsigned short>(std::stoi(arguments.getValue("-l", "60")));
+
+    // thread count, minimum 1
+    config.threadCount = static_cast<size_t>(std::stoi(arguments.getValue("-t", "5")));
+    config.threadCount = std::max<size_t>(1, config.threadCount);
+
+    // queue size, minimum 1
+    config.queueSize = static_cast<size_t>(std::stoi(arguments.getValue("-q", "10")));
+    config.queueSize = std::max<size_t>(1, config.queueSize);
+
+    // pipe name
+    config.pipename  = arguments.getValue("-n", "mega_gfxworker");
+
+    // log directory
+    config.logdirectory = arguments.getValue("-d", ".");
+
+    // log file name
+    config.logfilename = arguments.getValue("-f", "mega.gfxworker." + config.pipename + ".log");
+
+    return config;
+}
+
+}
 
 int main(int argc, char** argv)
 {
     // parse arguments
-    std::string pipename;
-    std::string logdirectory;
-    std::string logfilename;
-    unsigned short aliveSeconds = 0;
-    size_t threadCount = 0;
-    size_t queueSize = 0;
-    Options options("gfxworker", "GFX processing server");
-    options.add_options()
-        ("h,help", "Show help")
-        ("l,live", "Keep alive in seconds without receiving any requests, 0 is INFINITE", cxxopts::value(aliveSeconds)->default_value("60"))
-        ("t,threads", "Request processing thread pool size, minimum 1", cxxopts::value(threadCount)->default_value("5"))
-        ("q,queue", "The size of this queue determines the capacity for pending requests when all threads in the pool are busy. Minimum 1", cxxopts::value(queueSize)->default_value("10"))
-        ("n,name", "Pipe name", cxxopts::value(pipename)->default_value("mega_gfxworker"))
-        ("d,directory", "Log directory", cxxopts::value(logdirectory)->default_value("."))
-        ("f,file", "File name (default mega.gfxworker.<pipename>.log)", cxxopts::value(logfilename));
+    std::vector<std::string> argVec;
+    std::copy(argv + 1, argv + argc, std::back_inserter(argVec));
+    Arguments arguments(argVec);
 
-    try {
-        auto result = options.parse(argc, argv);
-
-        if (result["help"].as<bool>()) {
-            std::cout << options.help() << std::endl;
-            return 0;
-        }
-
-    } catch (cxxopts::OptionException& e) {
-        std::cerr << e.what() << std::endl;
-        return -1;
+    // help
+    if (arguments.contains("-h"))
+    {
+        std::cout << USAGE << std::endl;
+        return 0;
     }
 
-    threadCount = std::max<size_t>(1, threadCount);
-    queueSize = std::max<size_t>(1, queueSize);
-    if (logdirectory.empty())
+    // config from arguments
+    Config config;
+    try
     {
-        logdirectory = ".";
+        config = Config::fromArguments(arguments);
     }
-    if (logfilename.empty())
+    catch(...)
     {
-        logfilename = "mega.gfxworker." + pipename + ".log";
+        std::cout << USAGE << std::endl;
+        return 0;
     }
 
     // init logger
     mega::gfx::MegaFileLogger logger;
-    logger.initialize(logdirectory.c_str(), logfilename.c_str(), false);
+    logger.initialize(config.logdirectory.c_str(), config.logfilename.c_str(), false);
     LOG_info << "Gfxworker server starting"
-             << ", pipe name: " << pipename
-             << ", threads: " << threadCount
-             << ", queue size: " << queueSize
-             << ", live in seconds: " << aliveSeconds;
+             << ", pipe name: " << config.pipename
+             << ", threads: " << config.threadCount
+             << ", queue size: " << config.queueSize
+             << ", live in seconds: " << config.aliveSeconds;
 
     // start server
     WinGfxCommunicationsServer server(
-        ::mega::make_unique<RequestProcessor>(GfxProcessor::create(), threadCount, queueSize),
-        pipename,
-        aliveSeconds
+        ::mega::make_unique<RequestProcessor>(GfxProcessor::create(), config.threadCount, config.queueSize),
+        config.pipename,
+        config.aliveSeconds
     );
 
     std::thread serverThread(&WinGfxCommunicationsServer::run, &server);
