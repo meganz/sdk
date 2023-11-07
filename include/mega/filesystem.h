@@ -526,11 +526,14 @@ struct FSLogging
 
     FSLogging(Setting s) : setting(s) {}
 
-    bool doLog(int os_errorcode, FileAccess& fsaccess);
+    bool doLog(int os_errorcode);
 
     static FSLogging noLogging;
     static FSLogging logOnError;
     static FSLogging logExceptFileNotFound;
+
+private:
+    static bool isFileNotFound(int error);
 };
 
 
@@ -628,9 +631,6 @@ struct MEGA_API FileAccess
     // return a description of OS error,
     // errno on unix. Defaults to the number itself.
     virtual std::string getErrorMessage(int error) const;
-
-    // error is errno on unix or a DWORD on windows
-    virtual bool isErrorFileNotFound(int error) const = 0;
 
 protected:
     virtual AsyncIOContext* newasynccontext();

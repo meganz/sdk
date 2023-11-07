@@ -266,7 +266,7 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size, FSLogging fsl)
     if (!GetFileAttributesExW(nonblocking_localname.localpath.c_str(), GetFileExInfoStandard, (LPVOID)&fad))
     {
         DWORD e = GetLastError();
-        if (fsl.doLog(e, *this))
+        if (fsl.doLog(e))
         {
             LOG_warn << "Unable to stat: GetFileAttributesExW('" << nonblocking_localname << "'): error code: " << e << ": " << getErrorMessage(e);
         }
@@ -314,7 +314,7 @@ bool WinFileAccess::sysopen(bool async, FSLogging fsl)
     {
         DWORD e = GetLastError();
         errorcode = e;
-        if (fsl.doLog(errorcode, *this))
+        if (fsl.doLog(errorcode))
         {
             LOG_err << "Unable to open file '" << nonblocking_localname << "': (CreateFileW). Error code: " << e << ": " << getErrorMessage(e);
         }
@@ -660,7 +660,7 @@ bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write,
     if (hFile == INVALID_HANDLE_VALUE)
     {
         DWORD e = GetLastError();
-        if (fsl.doLog(e, *this))
+        if (fsl.doLog(e))
         {
             LOG_err << "Unable to open file. '" << namePath << "' error code : " << e << " : " << getErrorMessage(e);
         }
@@ -2070,7 +2070,8 @@ std::string WinFileAccess::getErrorMessage(int error) const
     return winErrorMessage(error);
 }
 
-bool WinFileAccess::isErrorFileNotFound(int error) const {
+bool FSLogging::isFileNotFound(int error)
+{
     return error == ERROR_FILE_NOT_FOUND;
 }
 

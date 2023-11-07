@@ -284,7 +284,7 @@ bool PosixFileAccess::sysopen(bool, FSLogging fsl)
     if (fd < 0)
     {
         errorcode = errno;
-        if (fsl.doLog(errorcode, *this))
+        if (fsl.doLog(errorcode))
         {
             LOG_err << "Failed to open('" << adjustBasePath(nonblocking_localname) << "'): error " << errorcode << ": " << getErrorMessage(errorcode);
         }
@@ -671,7 +671,7 @@ bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, FSLogging
     if (fd < 0)
     {
         errorcode = errno; // streaming may set errno
-        if (fsl.doLog(errorcode, *this))
+        if (fsl.doLog(errorcode))
         {
             LOG_err << "Failed to open('" << fstr << "'): error " << errorcode << ": " << getErrorMessage(errorcode) << (statok ? " (statok so may still open ok)" : "");
         }
@@ -728,7 +728,7 @@ std::string PosixFileAccess::getErrorMessage(int error) const
     return strerror(error);
 }
 
-bool PosixFileAccess::isErrorFileNotFound(int error) const
+bool FSLogging::isErrorFileNotFound(int error)
 {
     return error == ENOENT;
 }

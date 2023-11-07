@@ -199,7 +199,6 @@ public:
     ~WinFileAccess();
 
     std::string getErrorMessage(int error) const override;
-    bool isErrorFileNotFound(int error) const override;
 
 protected:
     AsyncIOContext* newasynccontext() override;
