@@ -59,6 +59,9 @@
 /* Define to use libuv */
 #cmakedefine HAVE_LIBUV 1
 
+/* Define to use CURL */
+#cmakedefine USE_CURL 1
+
 /* Define to 1 if you have the <malloc.h> header file. */
 #define HAVE_MALLOC_H 1
 
@@ -240,6 +243,9 @@
 
 /* Defined if pthreads are available */
 #cmakedefine USE_PTHREAD 1
+
+/* Defined if cppthreads are available */
+#cmakedefine USE_CPPTHREAD 1
 
 /* Define to use libsodium */
 #cmakedefine USE_SODIUM 1

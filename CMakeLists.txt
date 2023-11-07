@@ -135,10 +135,12 @@ find_package(PkgConfig REQUIRED) # For libraries not using find_package
 
 if (WIN32)
     # Build the SDKlib with C++17 for Windows
-    # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zc:__cplusplus /std:c++17")
-    # add_definitions( -DNOMINMAX )
     set(CMAKE_CXX_STANDARD 17)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
+    if (MSVC)
+        # https://gitlab.kitware.com/cmake/cmake/-/issues/18837
+        add_compile_options(/Zc:__cplusplus) # Enable updated __cplusplus macro
+    endif()
 
     # Enable build with multiple processes.
     set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
@@ -149,6 +151,13 @@ if (WIN32)
     set (CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /Zi")
 
     add_compile_definitions(HAVE_CONFIG_H) # To include the config.h file in Windows builds
+    add_compile_definitions(_CRT_SECURE_NO_WARNINGS) # warning in mega_ccronexpr
+    add_compile_definitions(
+        $<$<BOOL:${USE_CPPTHREAD}>:USE_CPPTHREAD>
+        UNICODE
+        NOMINMAX # TODO Fix locally
+    )
+
 else()
     # The SDK library should be built with C++11
     set(CMAKE_CXX_STANDARD 11)
@@ -312,13 +321,28 @@ target_sources(SDKlib
 # Files should appear only once.
 # If the FLAG is not true for a file, it will be added as non-buildable source despite then the file is added again as a buildable one.
 target_sources_conditional(SDKlib
-    FLAG WIN32
+    FLAG WIN32 AND USE_CURL
+    PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}/include/mega/wincurl/megafs.h # win32/megafs.h
+    ${CMAKE_CURRENT_LIST_DIR}/include/mega/wincurl/megaconsolewaiter.h # win32/megaconsolewaiter.h
+    ${CMAKE_CURRENT_LIST_DIR}/include/mega/wincurl/megaconsole.h # win32/megaconsole.h
+    ${CMAKE_CURRENT_LIST_DIR}/include/mega/wincurl/megawaiter.h # win32/megawaiter.h
+    ${CMAKE_CURRENT_LIST_DIR}/include/mega/wincurl/meganet.h # posix/meganet.h
+)
+
+target_sources_conditional(SDKlib
+    FLAG WIN32 AND NOT USE_CURL
     PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/include/mega/win32/megafs.h
     ${CMAKE_CURRENT_LIST_DIR}/include/mega/win32/megaconsolewaiter.h
     ${CMAKE_CURRENT_LIST_DIR}/include/mega/win32/megaconsole.h
     ${CMAKE_CURRENT_LIST_DIR}/include/mega/win32/megawaiter.h
+    ${CMAKE_CURRENT_LIST_DIR}/include/mega/win32/meganet.h
+)
 
+target_sources_conditional(SDKlib
+    FLAG WIN32
+    PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/src/win32/console.cpp
     ${CMAKE_CURRENT_LIST_DIR}/src/win32/consolewaiter.cpp
     ${CMAKE_CURRENT_LIST_DIR}/src/win32/fs.cpp
@@ -339,6 +363,12 @@ target_sources_conditional(SDKlib
 target_sources_conditional(SDKlib
     FLAG NOT APPLE AND NOT WIN32
     PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}/include/mega/posix/megafs.h
+    ${CMAKE_CURRENT_LIST_DIR}/include/mega/posix/megaconsolewaiter.h
+    ${CMAKE_CURRENT_LIST_DIR}/include/mega/posix/megaconsole.h
+    ${CMAKE_CURRENT_LIST_DIR}/include/mega/posix/megawaiter.h
+    ${CMAKE_CURRENT_LIST_DIR}/include/mega/posix/meganet.h
+
     ${CMAKE_CURRENT_LIST_DIR}/src/posix/console.cpp
     ${CMAKE_CURRENT_LIST_DIR}/src/posix/consolewaiter.cpp
     ${CMAKE_CURRENT_LIST_DIR}/src/posix/fs.cpp
@@ -349,7 +379,7 @@ target_sources_conditional(SDKlib
 target_sources_conditional(SDKlib
     FLAG NOT APPLE
     PRIVATE
-    ${CMAKE_CURRENT_LIST_DIR}/src/posix/net.cpp # Windows when not using CURL and Linux always.
+    ${CMAKE_CURRENT_LIST_DIR}/src/posix/net.cpp # Windows when using CURL and Linux always.
 )
 
 target_sources_conditional(SDKlib
@@ -407,6 +437,7 @@ target_include_directories(SDKlib
         ${CMAKE_CURRENT_LIST_DIR}/include
         ${CMAKE_CURRENT_BINARY_DIR}
         $<$<BOOL:${APPLE}>:${CMAKE_CURRENT_LIST_DIR}/include/mega/osx>
+        $<$<BOOL:${WIN32}>:${CMAKE_CURRENT_LIST_DIR}/include/mega/$<IF:${USE_CURL},wincurl,win32>>
         $<$<NOT:$<OR:$<BOOL:${WIN32}>,$<BOOL:${APPLE}>>>:${CMAKE_CURRENT_LIST_DIR}/include/mega/posix>
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include> # For the top level projects.
