@@ -49,10 +49,6 @@ using namespace mega;
     }
 }
 
-- (instancetype)clone {
-    return self.megaError ? [[MEGAError alloc] initWithMegaError:self.megaError->copy() cMemoryOwn:YES] : nil;
-}
-
 - (MegaError *)getCPtr {
     return self.megaError;
 }

@@ -149,20 +149,6 @@ typedef NS_ENUM(NSInteger, MEGALinkErrorCode) {
 @property (readonly, nonatomic) MEGALinkErrorCode linkStatus;
 
 /**
- * @brief Creates a copy of this MEGAError object.
- *
- * The resulting object is fully independent of the source MEGAError,
- * it contains a copy of all internal attributes, so it will be valid after
- * the original object is deleted.
- *
- * You are the owner of the returned object.
- *
- * @return Copy of the MEGAError object.
- */
-- (instancetype)clone;
-
-
-/**
  * @brief Provides the error description associated with an error code.
  *
  * This function returns a pointer to a statically allocated buffer.
