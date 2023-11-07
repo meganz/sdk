@@ -1722,15 +1722,6 @@ void SdkTest::getUserAttribute(MegaUser *u, int type, int timeout, int apiIndex)
     ASSERT_TRUE(result) << "User attribute retrieval failed (error: " << err << ")";
 }
 
-bool SdkTest::getUserAvatar(int apiIndex, MegaUser* user, const char* dstFilePath, int timeout)
-{
-    mApi[apiIndex].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
-
-    const auto error{synchronousGetUserAvatar(apiIndex, user, dstFilePath)};
-
-    return (error == API_OK) || (error == API_ENOENT);
-}
-
 void SdkTest::synchronousMediaUpload(unsigned int apiIndex, int64_t fileSize, const char* filename, const char* fileEncrypted, const char* fileOutput, const char* fileThumbnail = nullptr, const char* filePreview = nullptr)
 {
     // Create a "media upload" instance
@@ -14957,20 +14948,16 @@ public:
         // Set avatar
         const auto srcAvatarPath{getTestDataDir()/AVATARSRC};
         ASSERT_EQ(API_OK, synchronousSetAvatar(mApiIndex, srcAvatarPath.string().c_str()));
-        ASSERT_TRUE(waitForResponse(&mApi[mApiIndex].userUpdated))
-            << "User avatar update not received after " << maxTimeout << " seconds";
     }
 
     void TearDown() override
     {
         // Remove avatar
         ASSERT_EQ(API_OK, synchronousSetAvatar(mApiIndex, nullptr));
-        ASSERT_TRUE(waitForResponse(&mApi[mApiIndex].userUpdated))
-            << "User avatar update not received after " << maxTimeout << " seconds";
 
         // Check the avatar was removed
-        ASSERT_TRUE(getUserAvatar(mApiIndex, mUser.get(), mDstAvatarPath.string().c_str()));
-        ASSERT_EQ("Avatar not found", mApi[mApiIndex].getAttributeValue());
+        mApi[mApiIndex].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
+        ASSERT_EQ(API_ENOENT, synchronousGetUserAvatar(mApiIndex, mUser.get(), mDstAvatarPath.string().c_str()));
     }
 };
 
@@ -14982,7 +14969,8 @@ public:
 TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoAFile)
 {
     // Get avatar
-    ASSERT_TRUE(getUserAvatar(mApiIndex, mUser.get(), mDstAvatarPath.string().c_str()));
+    mApi[mApiIndex].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
+    ASSERT_EQ(API_OK, synchronousGetUserAvatar(mApiIndex, mUser.get(), mDstAvatarPath.string().c_str()));
 
     // Check avatar in local filesystem
     ASSERT_TRUE(fs::exists(mDstAvatarPath));
@@ -15002,7 +14990,8 @@ TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoADirectoryEndingWithSlash)
     std::string dstAvatarPath{getTestDataDir().string()};
     dstAvatarPath.append(PATH_SEPARATOR);
     ASSERT_THAT(dstAvatarPath, ::testing::EndsWith(PATH_SEPARATOR));
-    ASSERT_TRUE(getUserAvatar(mApiIndex, mUser.get(), dstAvatarPath.c_str()));
+    mApi[mApiIndex].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
+    ASSERT_EQ(API_OK, synchronousGetUserAvatar(mApiIndex, mUser.get(), dstAvatarPath.c_str()));
 
     // Check avatar in local filesystem
     dstAvatarPath.append(mUser->getEmail());
@@ -15023,7 +15012,8 @@ TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoADirectoryNotEndingWithSlash)
     // Get avatar
     std::string dstAvatarPath{getTestDataDir().string()};
     ASSERT_THAT(dstAvatarPath, ::testing::Not(::testing::EndsWith(PATH_SEPARATOR)));
-    ASSERT_FALSE(getUserAvatar(mApiIndex, mUser.get(), dstAvatarPath.c_str()));
+    mApi[mApiIndex].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
+    ASSERT_EQ(API_EWRITE, synchronousGetUserAvatar(mApiIndex, mUser.get(), dstAvatarPath.c_str()));
 }
 
 /**
@@ -15034,7 +15024,8 @@ TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoADirectoryNotEndingWithSlash)
 TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoAnEmptyPath)
 {
     // Get avatar
-    ASSERT_FALSE(getUserAvatar(mApiIndex, mUser.get(), ""));
+    mApi[mApiIndex].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
+    ASSERT_EQ(API_EARGS, synchronousGetUserAvatar(mApiIndex, mUser.get(), ""));
 }
 
 /**
@@ -15045,5 +15036,6 @@ TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoAnEmptyPath)
 TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoANullPath)
 {
     // Get avatar
-    ASSERT_FALSE(getUserAvatar(mApiIndex, mUser.get(), nullptr));
+    mApi[mApiIndex].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
+    ASSERT_EQ(API_EARGS, synchronousGetUserAvatar(mApiIndex, mUser.get(), nullptr));
 }
