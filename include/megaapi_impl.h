@@ -3376,9 +3376,6 @@ private:
         unique_ptr<MegaNode> mLastKnownVaultNode;
         unique_ptr<MegaNode> mLastKnownRubbishNode;
 
-        // Password Manager - private members
-        NodeHandle mPasswordManagerBase;
-
 #ifdef HAVE_LIBUV
         MegaHTTPServer *httpServer;
         int httpServerMaxBufferSize;
@@ -3765,7 +3762,6 @@ private:
 
         // Password Manager - private
         void createPasswordManagerBase(MegaRequestPrivate*);
-        error setPasswordManagerBase(byte* data, unsigned len);  // std::span is C++20
 
         friend class MegaBackgroundMediaUploadPrivate;
         friend class MegaFolderDownloadController;

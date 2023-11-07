@@ -9030,11 +9030,6 @@ void MegaClient::putnodes(NodeHandle h, VersioningOption vo, vector<NewNode>&& n
     reqs.add(new CommandPutNodes(this, h, NULL, vo, std::move(newnodes), tag, PUTNODES_APP, cauth, std::move(resultFunction), canChangeVault));
 }
 
-void MegaClient::createpwmbase(std::unique_ptr<NewNode> nn, int tag, CommandCreatePasswordManagerBase::Completion&& cb)
-{
-    reqs.add(new CommandCreatePasswordManagerBase(this, std::move(nn), tag, std::move(cb)));
-}
-
 // drop nodes into a user's inbox (must have RSA keypair) - obsolete feature, kept for sending logs to helpdesk
 void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes, int tag, CommandPutNodes::Completion&& completion)
 {
@@ -21966,6 +21961,77 @@ string MegaClient::generateVpnCredentialString(int clusterID,
 void MegaClient::fetchCreditCardInfo(CommandFetchCreditCardCompletion completion)
 {
     reqs.add(new CommandFetchCreditCard(this, std::move(completion)));
+}
+
+void MegaClient::createPasswordManagerBase(int rtag, CommandCreatePasswordManagerBase::Completion cbRequest)
+{
+    LOG_info << "Password Manager: Requesting pwmh creation to server";
+
+    auto newNode = make_unique<NewNode>();
+    std::array<byte, FOLDERNODEKEYLENGTH> key;
+
+    rng.genblock(key.data(), key.size());
+    SymmCipher cipher;
+    cipher.setkey(key.data());
+    newNode->nodekey.assign(reinterpret_cast<char *>(key.data()),
+                            key.size());
+
+    newNode->source = NEW_NODE;
+    newNode->type = FOLDERNODE;
+    newNode->nodehandle = UNDEF;
+
+    AttrMap attrs;
+    string name{"My Passwords"}; // arbitrary default name, eventually
+                                 // updatable by client apps
+    LocalPath::utf8_normalize(&name);
+    attrs.map['n'] = name;
+    string attrString;
+    attrs.getjson(&attrString);
+    newNode->attrstring.reset(new string);
+    makeattr(&cipher, newNode->attrstring, attrString.c_str());
+
+    CommandCreatePasswordManagerBase::Completion cb =
+        [this, cbRequest](Error e, std::unique_ptr<NewNode> nn) -> void
+    {
+       if (!nn && e == API_OK)
+       {
+           e = API_EINTERNAL;
+           LOG_err << "Password Manager: unexpected error processing pwmp";
+       }
+
+       if (e == API_OK)
+       {
+           mPasswordManagerBase = nn->nodeHandle();
+       }
+       if (cbRequest) cbRequest(e, std::move(nn));
+   };
+
+   reqs.add(new CommandCreatePasswordManagerBase(this, std::move(newNode), rtag, std::move(cb)));
+}
+
+error MegaClient::setPasswordManagerBase(byte* data, unsigned len)
+{
+    if (len != NODEHANDLE)
+    {
+        LOG_err << "PasswordManager: wrong received data size for Base node handle: " << len
+                << ", expected: " << NODEHANDLE;
+        assert(false);
+        return API_EINTERNAL;
+    }
+
+    if (getPasswordManagerBase().isUndef())
+    {
+        // Not checking that the node is already lodaded since we could be retrieving
+        // the user attribute before fetching nodes
+        mPasswordManagerBase = toNodeHandle(data);
+        assert(!getPasswordManagerBase().isUndef());
+    }
+    else
+    {
+        assert(getPasswordManagerBase() == toNodeHandle(data));
+    }
+
+    return API_OK;
 }
 
 FetchNodesStats::FetchNodesStats()

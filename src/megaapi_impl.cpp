@@ -15385,8 +15385,8 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
 
         case MegaApi::USER_ATTR_PWM_BASE:
         {
-            e = setPasswordManagerBase(data, len);
-            request->setNodeHandle(mPasswordManagerBase.as8byte());
+            e = client->setPasswordManagerBase(data, len);
+            request->setNodeHandle(client->getPasswordManagerBase().as8byte());
         }
         break;
 
@@ -25990,9 +25990,9 @@ void MegaApiImpl::getPasswordManagerBase(MegaRequestListener* listener)
     request->performRequest = [this, request]()
     {
         // 1. Shortcut: if already present, nothing to be done
-        if (!mPasswordManagerBase.isUndef())
+        if (!client->getPasswordManagerBase().isUndef())
         {
-            request->setNodeHandle(mPasswordManagerBase.as8byte());
+            request->setNodeHandle(client->getPasswordManagerBase().as8byte());
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             return API_OK;
         }
@@ -26016,9 +26016,9 @@ void MegaApiImpl::getPasswordManagerBase(MegaRequestListener* listener)
         CommandGetUA::CompletionBytes cb = [this, request](byte* data, unsigned len, attr_t type) -> void
         {
 
-            error e = setPasswordManagerBase(data, len);
+            error e = client->setPasswordManagerBase(data, len);
 
-            request->setNodeHandle(mPasswordManagerBase.as8byte());
+            request->setNodeHandle(client->getPasswordManagerBase().as8byte());
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
         };
         CommandGetUA::CompletionTLV ctlv = [this, request](TLVstore*, attr_t) -> void
@@ -26039,72 +26039,17 @@ void MegaApiImpl::getPasswordManagerBase(MegaRequestListener* listener)
 
 void MegaApiImpl::createPasswordManagerBase(MegaRequestPrivate* request)
 {
-    LOG_info << "Password Manager: Requesting pwmh creation to server";
-
-    auto newNode = make_unique<NewNode>();
-    std::array<byte, FOLDERNODEKEYLENGTH> key;
-
-    client->rng.genblock(key.data(), key.size());
-    SymmCipher cipher;
-    cipher.setkey(key.data());
-    newNode->nodekey.assign(reinterpret_cast<char*>(key.data()), key.size());
-
-    newNode->source = NEW_NODE;
-    newNode->type = FOLDERNODE;
-    newNode->nodehandle = UNDEF;
-
-    AttrMap attrs;
-    string name {"My Passwords"};  // arbitrary default name, eventually updatable by client apps
-    LocalPath::utf8_normalize(&name);
-    attrs.map['n'] = name;
-    string attrString;
-    attrs.getjson(&attrString);
-    newNode->attrstring.reset(new string);
-    client->makeattr(&cipher, newNode->attrstring, attrString.c_str());
-
     CommandCreatePasswordManagerBase::Completion cb = [this, request](Error e, std::unique_ptr<NewNode> nn) -> void
     {
-        if (!nn && e == API_OK)
-        {
-            e = API_EINTERNAL;
-            LOG_err << "Password Manager: unexpected error processing pwmp";
-        }
-
         if (e == API_OK)
         {
-            mPasswordManagerBase = nn->nodeHandle();
-            request->setNodeHandle(mPasswordManagerBase.as8byte());
+            request->setNodeHandle(nn->nodeHandle().as8byte());
         }
 
         fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
     };
 
-    client->createpwmbase(std::move(newNode), request->getTag(), std::move(cb));
-}
-
-error MegaApiImpl::setPasswordManagerBase(byte* data, unsigned len)
-{
-    if (len != MegaClient::NODEHANDLE)
-    {
-        LOG_err << "PasswordManager: wrong received data size for Base node handle: " << len
-                << ", expected: " << MegaClient::NODEHANDLE;
-        assert(false);
-        return API_EINTERNAL;
-    }
-
-    if (mPasswordManagerBase.isUndef())
-    {
-        // Not checking that the node is already lodaded since we could be retrieving
-        // the user attribute before fetching nodes
-        mPasswordManagerBase = toNodeHandle(data);
-        assert(!mPasswordManagerBase.isUndef());
-    }
-    else
-    {
-        assert(mPasswordManagerBase == toNodeHandle(data));
-    }
-
-    return API_OK;
+    client->createPasswordManagerBase(request->getTag(), std::move(cb));
 }
 
 void MegaApiImpl::fetchCreditCardInfo(MegaRequestListener* listener)

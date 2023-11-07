@@ -797,8 +797,6 @@ public:
     // folders)
     void putnodes(NodeHandle, VersioningOption vo, vector<NewNode>&&, const char *, int tag, bool canChangeVault, CommandPutNodes::Completion&& completion = nullptr);
 
-    void createpwmbase(std::unique_ptr<NewNode>, int tag, CommandCreatePasswordManagerBase::Completion&& c = nullptr);
-
     // send files/folders to user
     void putnodes(const char*, vector<NewNode>&&, int tag, CommandPutNodes::Completion&& completion = nullptr);
 
@@ -2612,6 +2610,9 @@ private:
     // Generates a key pair (x25519 (Cu) key pair) to use for Vpn Credentials (MegaClient::putVpnCredential)
     StringKeyPair generateVpnKeyPair();
 
+    // Password Manager - private members
+    NodeHandle mPasswordManagerBase;
+
 public:
 
 /* Mega VPN methods */
@@ -2660,6 +2661,12 @@ public:
 
     void fetchCreditCardInfo(CommandFetchCreditCardCompletion completion);
     void setProFlexi(bool newProFlexi);
+
+    // Password Manager
+    NodeHandle getPasswordManagerBase() const { return mPasswordManagerBase; }
+    void createPasswordManagerBase(int rtag, CommandCreatePasswordManagerBase::Completion cbRequest);
+    error setPasswordManagerBase(byte* data, unsigned len);
+
 };
 
 } // namespace
