@@ -198,13 +198,14 @@ static std::unique_ptr<IGfxProvider> createGfxProvider(const Config& config)
 #if defined(_WIN32)
     if (!config.executable.empty())
     {
-        unsigned short aliveSeconds = 60;
+        unsigned short aliveSeconds = 15;
+        auto fullpath = LocalPath::fromAbsolutePath(config.executable);
         std::vector<std::string> commandArgs = {
-            config.executable,
+            fullpath.toPath(false),
             "-n=" + config.pipename,
             "-l=" + std::to_string(aliveSeconds)
         };
-        auto process = std::make_shared<GfxIsolatedProcess>(commandArgs, config.pipename, aliveSeconds);
+        auto process = std::make_shared<GfxIsolatedProcess>(commandArgs, config.pipename, aliveSeconds / 3);
         return ::mega::make_unique<::mega::GfxProviderIsolatedProcess>(process);
     }
     else
