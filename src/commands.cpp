@@ -3458,6 +3458,10 @@ bool CommandGetUA::procresult(Result r, JSON& json)
         if (r.wasError(API_ENOENT) && u)
         {
             u->removeattr(at);
+            if (u->userhandle == client->me)
+            {
+                u->setNonExistingAttribute(at);
+            }
         }
 
         mCompletionErr(r.errorOrOK());
@@ -4500,30 +4504,54 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 {
                     changes += u->updateattr(ATTR_LANGUAGE, &language, &versionLanguage);
                 }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_LANGUAGE);
+                }
 
                 if (birthday.size())
                 {
                     changes += u->updateattr(ATTR_BIRTHDAY, &birthday, &versionBirthday);
+                }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_BIRTHDAY);
                 }
 
                 if (birthmonth.size())
                 {
                     changes += u->updateattr(ATTR_BIRTHMONTH, &birthmonth, &versionBirthmonth);
                 }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_BIRTHMONTH);
+                }
 
                 if (birthyear.size())
                 {
                     changes += u->updateattr(ATTR_BIRTHYEAR, &birthyear, &versionBirthyear);
+                }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_BIRTHYEAR);
                 }
 
                 if (country.size())
                 {
                     changes += u->updateattr(ATTR_COUNTRY, &country, &versionCountry);
                 }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_COUNTRY);
+                }
 
                 if (pwdReminderDialog.size())
                 {
                     changes += u->updateattr(ATTR_PWD_REMINDER, &pwdReminderDialog, &versionPwdReminderDialog);
+                }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_PWD_REMINDER);
                 }
 
                 if (pushSetting.size())
@@ -4533,10 +4561,18 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                     // initialize the settings for the intermediate layer by simulating there was a getua()
                     client->app->getua_result((byte*) pushSetting.data(), (unsigned) pushSetting.size(), ATTR_PUSH_SETTINGS);
                 }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_PUSH_SETTINGS);
+                }
 
                 if (contactLinkVerification.size())
                 {
                     changes += u->updateattr(ATTR_CONTACT_LINK_VERIFICATION, &contactLinkVerification, &versionContactLinkVerification);
+                }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_CONTACT_LINK_VERIFICATION);
                 }
 
                 if (disableVersions.size())
@@ -4558,6 +4594,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 {
                     LOG_info << "File versioning is enabled";
                     client->versions_disabled = false;
+                    u->setNonExistingAttribute(ATTR_DISABLE_VERSIONS);
                 }
 
                 if (noCallKit.size())
@@ -4568,6 +4605,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 else
                 {
                     LOG_info << "CallKit is enabled [noCallKit.size() == 0]";
+                    u->setNonExistingAttribute(ATTR_NO_CALLKIT);
                 }
 
                 if (chatFolder.size())
@@ -4584,6 +4622,10 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                         LOG_err << "Cannot extract TLV records for ATTR_MY_CHAT_FILES_FOLDER";
                     }
                 }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_MY_CHAT_FILES_FOLDER);
+                }
 
                 if (cameraUploadFolder.size())
                 {
@@ -4599,20 +4641,36 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                         LOG_err << "Cannot extract TLV records for ATTR_CAMERA_UPLOADS_FOLDER";
                     }
                 }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_CAMERA_UPLOADS_FOLDER);
+                }
 
                 if (!myBackupsFolder.empty())
                 {
                     changes += u->updateattr(ATTR_MY_BACKUPS_FOLDER, &myBackupsFolder, &versionMyBackupsFolder);
+                }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_MY_BACKUPS_FOLDER);
                 }
 
                 if (!appPrefs.empty())
                 {
                     changes += u->updateattr(ATTR_APPS_PREFS, &appPrefs, &versionAppPrefs);
                 }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_APPS_PREFS);
+                }
 
                 if (!ccPrefs.empty())
                 {
                     changes += u->updateattr(ATTR_CC_PREFS, &ccPrefs, &versionCcPrefs);
+                }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_CC_PREFS);
                 }
 
                 if (aliases.size())
@@ -4628,6 +4686,10 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                     {
                         LOG_err << "Cannot extract TLV records for ATTR_ALIAS";
                     }
+                }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_ALIAS);
                 }
 
                 if (unshareableKey.size() == Base64Str<SymmCipher::BLOCKSIZE>::STRLEN)
@@ -4668,10 +4730,18 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                         LOG_err << "Cannot extract TLV records for ATTR_DEVICE_NAMES";
                     }
                 }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_DEVICE_NAMES);
+                }
 
                 if (!cookieSettings.empty())
                 {
                     changes += u->updateattr(ATTR_COOKIE_SETTINGS, &cookieSettings, &versionCookieSettings);
+                }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_COOKIE_SETTINGS);
                 }
 
 #ifdef ENABLE_SYNC
@@ -4682,25 +4752,30 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                                              &jsonSyncConfigData,
                                              &jsonSyncConfigDataVersion);
                 }
-                else if (client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
-                {
-                    // cannot configure any sync/backupp yet, so it's not needed at this stage.
-                    // It will be created when the account gets confirmed.
-                    // (motivation: speed up the E++ account's setup)
-                    LOG_info << "Skip creation of *~jscd key for E++ account";
-                }
                 else
                 {
                     // This attribute is set only once. If not received from API,
                     // it should not exist locally either
                     assert(u->getattr(ATTR_JSON_SYNC_CONFIG_DATA) == nullptr);
+                    u->setNonExistingAttribute(ATTR_JSON_SYNC_CONFIG_DATA);
 
-                    client->ensureSyncUserAttributes([](Error e){
-                        if (e != API_OK)
-                        {
-                            LOG_err << "Couldn't create *~jscd user's attribute";
-                        }
-                    });
+                    if (client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
+                    {
+                        // cannot configure any sync/backupp yet, so it's not needed at this stage.
+                        // It will be created when the account gets confirmed.
+                        // (motivation: speed up the E++ account's setup)
+                        LOG_info << "Skip creation of *~jscd key for E++ account";
+                    }
+                    else
+                    {
+                        client->ensureSyncUserAttributes([](Error e){
+                            if (e != API_OK)
+                            {
+                                LOG_err << "Couldn't create *~jscd user's attribute";
+                            }
+                        });
+                    }
+
                 }
 #endif
                 if (keys.size())
