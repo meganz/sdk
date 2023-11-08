@@ -100,7 +100,7 @@ typedef NS_ENUM(NSInteger, MEGALinkErrorCode) {
 /**
  * @brief Readable description of the error.
  */
-@property (readonly, nonatomic, nullable) NSString *name;
+@property (readonly, nonatomic) NSString *name;
 
 /**
  * @brief Value associated with the error

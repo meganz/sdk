@@ -57,7 +57,7 @@ using namespace mega;
     return (MEGAErrorType) (self.megaError ? self.megaError->getErrorCode() : 0);
 }
 
-- (nullable NSString *)name {
+- (NSString *)name {
     return [[NSString alloc] initWithUTF8String:self.megaError->getErrorString()];
 }
 
