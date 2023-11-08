@@ -157,21 +157,7 @@ class MEGA_API GfxProc
     SymmCipher mCheckEventsKey;
     GfxJobQueue requests;
     GfxJobQueue responses;
-
-    class ProviderAccessor
-    {
-    public:
-        ProviderAccessor(std::unique_ptr<IGfxProvider> provider) : mProvider(std::move(provider)) {}
-
-        std::shared_ptr<IGfxProvider> get() const;
-
-        void set(std::unique_ptr<IGfxProvider> provider);
-    private:
-        std::shared_ptr<IGfxProvider>  mProvider;
-        mutable std::mutex  mMutex;
-    };
-
-    ProviderAccessor mGfxProvider;
+    std::unique_ptr<IGfxProvider>  mGfxProvider;
 
     static void *threadEntryPoint(void *param);
     void loop();
@@ -218,13 +204,6 @@ public:
 
     // start a thread that will do the processing
     void startProcessingThread();
-
-    // Please note that changing the gfx settings at runtime while the gfx system is
-    // in use can lead to a race condition:
-    // - A call to isGfx uses the old provider.
-    // - A subsequent call to generateOneImage uses the new provider, which may not support the same image format.
-    // This can cause the generateOneImage function to fail. Only utilize this interface if you can tolerate temporary failures.
-    void setGfxProvider(std::unique_ptr<IGfxProvider> provider);
 
     // The provided IGfxProvider implements library specific image processing
     // Thread safety among IGfxProvider methods is guaranteed by GfxProc

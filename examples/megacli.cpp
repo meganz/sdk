@@ -25,7 +25,6 @@
 #include "mega/gfx.h"
 #include "mega/gfx/worker/client.h"
 #include "megacli.h"
-#include <algorithm>
 #include <chrono>
 #include <exception>
 #include <fstream>
@@ -4375,16 +4374,6 @@ autocomplete::ACN autocompleteSyntax()
     /* MEGA VPN commands END */
 
     p->Add(exec_fetchcreditcardinfo, text("cci"));
-#ifdef _WIN32
-    p->Add(exec_gfx,
-           sequence(text("gfx"),
-                    text("set"),
-                    either(text("internal"),
-                           sequence(text("isolated"),
-                                    sequence(flag("-executable"), localFSFile()),
-                                    opt(sequence(flag("-pipe"), param("name"))),
-                                    opt(sequence(flag("-live"), param("seconds")))))));
-#endif
 
     p->Add(exec_passwordmanager,
         sequence(text("pwdman"),
@@ -4421,6 +4410,7 @@ autocomplete::ACN autocompleteSyntax()
 
     return autocompleteTemplate = std::move(p);
 }
+
 
 #ifdef USE_FILESYSTEM
 bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
@@ -12167,6 +12157,7 @@ void exec_passwordmanager(autocomplete::ACState& s)
         cout << command << " not recognized. Ignoring it\n";
     }
 }
+
 void exec_generatepassword(autocomplete::ACState& s)
 {
     const auto command = s.words[1].s;
@@ -12190,42 +12181,3 @@ void exec_generatepassword(autocomplete::ACState& s)
         else cout << "Characers-based password successfully generated: " << pwd << "\n";
     }
 }
-
-#ifdef _WIN32
-void exec_gfx(autocomplete::ACState& s)
-{
-    if (s.words.size() < 3) return;
-
-    if (s.words[1].s != "set") return;
-
-    if (s.words[2].s == "internal")
-    {
-        auto provider = IGfxProvider::createInternalGfxProvider();
-        client->gfx->setGfxProvider(std::move(provider));
-        return;
-    }
-    else if (s.words[2].s == "isolated")
-    {
-        std::string executable;
-        bool executableFlag = s.extractflagparam("-executable", executable);
-        if (!executableFlag) return;
-
-        std::string pipename = "MegaPipeCli";
-        s.extractflagparam("-pipe", pipename);
-        std::string live = "10";
-        s.extractflagparam("-live", live);
-        unsigned int seconds = std::max(5u, static_cast<unsigned int>(std::atoi(live.c_str()))); // at least 5
-        std::vector<std::string> arguments {
-            executable,
-            "-l="+ std::to_string(seconds),
-            "-n=" + pipename
-        };
-        auto process = std::make_shared<GfxIsolatedProcess>(arguments,
-                                                            pipename,
-                                                            seconds/2);
-        auto provider = ::mega::make_unique<::mega::GfxProviderIsolatedProcess>(std::move(process));
-        client->gfx->setGfxProvider(std::move(provider));
-        return;
-    }
-}
-#endif

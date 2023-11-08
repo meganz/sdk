@@ -49,9 +49,9 @@ std::unique_ptr<IGfxProvider> IGfxProvider::createInternalGfxProvider()
 
 bool GfxProc::isgfx(const LocalPath& localfilename)
 {
-    auto provider = mGfxProvider.get();
     const char* supported = nullptr;
-    if (!(supported = provider->supportedformats()))
+
+    if (!(supported = mGfxProvider->supportedformats()))
     {
         // We don't have supported formats, so the build was without FREEIMAGE or other graphics processing libraries
         // Therefore we cannot graphics process any file, so return false so that we don't try.
@@ -83,10 +83,9 @@ bool GfxProc::isgfx(const LocalPath& localfilename)
 
 bool GfxProc::isvideo(const LocalPath& localfilename)
 {
-    auto provider = mGfxProvider.get();
     const char* supported = nullptr;
 
-    if (!(supported = provider->supportedvideoformats()))
+    if (!(supported = mGfxProvider->supportedvideoformats()))
     {
         return false;
     }
@@ -354,15 +353,13 @@ int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, const LocalPath& localfilena
 std::vector<std::string> GfxProc::generateImages(const LocalPath& localfilepath, const std::vector<GfxDimension>& dimensions)
 {
     std::lock_guard<std::mutex> g(mutex);
-    return mGfxProvider.get()->generateImages(client->fsaccess.get(), localfilepath, dimensions);
+    return mGfxProvider->generateImages(client->fsaccess.get(), localfilepath, dimensions);
 }
 
 std::string GfxProc::generateOneImage(const LocalPath& localfilepath, const GfxDimension& dimension)
 {
     std::lock_guard<std::mutex> g(mutex);
-    auto images = mGfxProvider.get()->generateImages(client->fsaccess.get(),
-                                                         localfilepath,
-                                                         std::vector<GfxDimension>{ dimension });
+    auto images = mGfxProvider->generateImages(client->fsaccess.get(), localfilepath, std::vector<GfxDimension>{ dimension });
     return images[0];
 }
 
@@ -395,11 +392,6 @@ bool GfxProc::savefa(const LocalPath& localfilepath, const GfxDimension& dimensi
     return true;
 }
 
-void GfxProc::setGfxProvider(std::unique_ptr<IGfxProvider> provider)
-{
-    mGfxProvider.set(std::move(provider));
-}
-
 GfxProc::GfxProc(std::unique_ptr<IGfxProvider> middleware)
     : mGfxProvider(std::move(middleware))
 {
@@ -422,18 +414,6 @@ GfxProc::~GfxProc()
     {
         thread.join();
     }
-}
-
-std::shared_ptr<IGfxProvider> GfxProc::ProviderAccessor::get() const
-{
-    const std::lock_guard<std::mutex> l(mMutex);
-    return mProvider;
-}
-
-void GfxProc::ProviderAccessor::set(std::unique_ptr<IGfxProvider> provider)
-{
-    const std::lock_guard<std::mutex> l(mMutex);
-    mProvider = std::move(provider);
 }
 
 GfxJobQueue::GfxJobQueue()
