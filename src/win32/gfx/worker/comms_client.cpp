@@ -47,7 +47,7 @@ CommError WinGfxCommunicationsClient::do_connect(LPCTSTR pipeName, HANDLE &hPipe
         }
     }
 
-    LOG_verbose << "Connected Handle:" << hPipe << "error: " << static_cast<BYTE>(error);
+    LOG_verbose << "Connected Handle:" << hPipe << " error: " << static_cast<int>(error);
 
     return error;
 }

@@ -12,11 +12,9 @@
 #include <condition_variable>
 #include <mutex>
 
-namespace reproc {
-    class process;
-}
-
 namespace mega {
+
+class Process;
 
 // a simple sleeper can be only cancelled for once and forever
 class CancellableSleeper
@@ -58,7 +56,7 @@ public:
 
 private:
 
-    bool startUntilSuccess(reproc::process& process);
+    bool startUntilSuccess(Process& process);
 
     bool startlaunchLoopThread();
 

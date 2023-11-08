@@ -1,11 +1,12 @@
 #include "mega/gfx/isolatedprocess.h"
 #include "mega/gfx/worker/client.h"
 #include "mega/logging.h"
+#include "mega/process.h"
 #include <algorithm>
 #include <iterator>
 #include <mutex>
 #include <ratio>
-#include <reproc++/reproc.hpp>
+#include <string>
 #include <system_error>
 #include <thread>
 #include <vector>
@@ -17,7 +18,6 @@ using std::chrono::seconds;
 using std::chrono::duration_cast;
 using std::chrono::time_point;
 using std::chrono::steady_clock;
-using reproc::process;
 
 namespace mega {
 
@@ -134,19 +134,18 @@ const char* GfxProviderIsolatedProcess::getformats(const char* (Formats::*format
     }
 }
 
-bool AutoStartLauncher::startUntilSuccess(process& process)
+bool AutoStartLauncher::startUntilSuccess(Process& process)
 {
     milliseconds backOff = START_BACKOFF;
     while (!mShuttingDown)
     {
-        auto ec = process.start(mArgv);
-        if (!ec) // the process is started successfully
+        if (process.run(mArgv))
         {
             LOG_verbose << "process is started";
             return true;
         }
 
-        LOG_err << "couldn't not start error code: " << ec.value() << " message: " << ec.message();
+        LOG_err << "couldn't not start: " << mArgv[0];
         mSleeper.sleep(backOff);
         backOff = std::min(backOff * 2, MAX_BACKOFF); // double it and MAX_BACKOFF at most
     }
@@ -190,16 +189,15 @@ bool AutoStartLauncher::startlaunchLoopThread()
         mThreadIsRunning = true;
 
         backoffForFastFailure([this](){
-            process process;
+            Process process;
             if (startUntilSuccess(process))
             {
-                int status = 0;
-                std::error_code ec;
-                std::tie(status, ec) = process.wait(reproc::infinite);
-                if (ec)
-                {
-                    LOG_err << "wait error code: " << ec.value() << " message: " << ec.message();
-                }
+                bool ret = process.wait();
+                LOG_debug << "wait: " << ret
+                          << " hasSignal: " << process.hasTerminateBySignal()
+                          << " " << (process.hasTerminateBySignal() ? std::to_string(process.getTerminatingSignal()) : "")
+                          << " hasExited: " << process.hasExited()
+                          << " " << (process.hasExited() ? std::to_string(process.getExitCode()) : "");
             }
         });
 

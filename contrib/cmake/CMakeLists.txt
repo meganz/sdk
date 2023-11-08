@@ -429,11 +429,6 @@ if (USE_THIRDPARTY_FROM_VCPKG)
         ImportStdVcpkgLibrary(icuuc           icuucd icuuc libicuuc libicuuc)
         ImportStdVcpkgLibrary(icudata         icudtd icudt libicudata libicudata)
 
-        if (WIN32)
-            ImportStdVcpkgLibrary(reproc          reproc reproc libreproc libreproc)
-            ImportStdVcpkgLibrary(reproc++        reproc++ reproc++ libreproc++ libreproc++)
-        ENDIF(WIN32)
-
         IF(USE_CURL)
             IF(USE_WEBRTC)
                 ImportStdVcpkgLibrary(curl         "${Mega3rdPartyDir}/curl/include" "${Mega3rdPartyDir}/curl/build32/lib/Debug/libcurl-d.lib" "${Mega3rdPartyDir}/curl/build32/lib/Release/libcurl.lib")
@@ -638,8 +633,6 @@ if(WIN32)
     ENDIF(USE_DRIVE_NOTIFICATIONS)
 
     # gfx worker related
-    SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} reproc++ reproc)
-
     SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles}
                                    ${MegaDir}/include/mega/win32/gfx/worker/comms.h
                                    ${MegaDir}/include/mega/win32/gfx/worker/comms_client.h
