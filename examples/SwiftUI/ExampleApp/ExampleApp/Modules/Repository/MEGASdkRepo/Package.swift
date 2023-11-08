@@ -21,10 +21,6 @@ let package = Package(
         .target(
             name: "MEGASdkRepo",
             dependencies: ["MEGASdk", "MEGADomain"]
-        ),
-        .testTarget(
-            name: "MEGASdkRepoTests",
-            dependencies: ["MEGASdkRepo"]
-        ),
+        )
     ]
 )

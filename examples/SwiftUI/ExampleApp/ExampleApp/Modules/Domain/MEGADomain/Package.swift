@@ -14,9 +14,6 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "MEGADomain"),
-        .testTarget(
-            name: "MEGADomainTests",
-            dependencies: ["MEGADomain"]),
+            name: "MEGADomain")
     ]
 )

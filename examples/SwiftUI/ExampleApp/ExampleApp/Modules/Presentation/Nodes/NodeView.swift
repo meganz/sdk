@@ -12,7 +12,7 @@ struct NodeView: View {
                 Text(viewModel.creationString)
                     .font(.subheadline)
             }
-            Spacer()
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }
