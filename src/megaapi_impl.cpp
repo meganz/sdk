@@ -15385,7 +15385,6 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
 
         case MegaApi::USER_ATTR_PWM_BASE:
         {
-            e = client->setPasswordManagerBase(data, len);
             request->setNodeHandle(client->getPasswordManagerBase().as8byte());
         }
         break;
@@ -26015,10 +26014,8 @@ void MegaApiImpl::getPasswordManagerBase(MegaRequestListener* listener)
         };
         CommandGetUA::CompletionBytes cb = [this, request](byte* data, unsigned len, attr_t type) -> void
         {
-
-            error e = client->setPasswordManagerBase(data, len);
-
             request->setNodeHandle(client->getPasswordManagerBase().as8byte());
+            error e = request->getNodeHandle() == UNDEF ? API_EINTERNAL : API_OK;
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
         };
         CommandGetUA::CompletionTLV ctlv = [this, request](TLVstore*, attr_t) -> void

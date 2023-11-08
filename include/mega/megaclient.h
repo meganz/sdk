@@ -2610,9 +2610,6 @@ private:
     // Generates a key pair (x25519 (Cu) key pair) to use for Vpn Credentials (MegaClient::putVpnCredential)
     StringKeyPair generateVpnKeyPair();
 
-    // Password Manager - private members
-    NodeHandle mPasswordManagerBase;
-
 public:
 
 /* Mega VPN methods */
@@ -2663,9 +2660,8 @@ public:
     void setProFlexi(bool newProFlexi);
 
     // Password Manager
-    NodeHandle getPasswordManagerBase() const { return mPasswordManagerBase; }
+    NodeHandle getPasswordManagerBase();
     void createPasswordManagerBase(int rtag, CommandCreatePasswordManagerBase::Completion cbRequest);
-    error setPasswordManagerBase(byte* data, unsigned len);
 
 };
 

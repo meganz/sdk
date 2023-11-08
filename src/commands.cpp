@@ -4095,6 +4095,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     string sigCu255, versionSigCu255;
     string authringEd255, versionAuthringEd255;
     string authringCu255, versionAuthringCu255;
+    string pwmh, pwmhVersion;
 
     bool uspw = false;
     vector<m_time_t> warningTs;
@@ -4430,6 +4431,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 //                int proPlan = json.getint32();
 //            }
 //            break;
+        case MAKENAMEID4('p', 'w', 'm', 'h'):
+            parseUserAttribute(json, pwmh, pwmhVersion);
+            break;
         case EOO:
         {
             assert(me == client->me);
@@ -4767,6 +4771,11 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 if (sigCu255.size())
                 {
                     changes += u->updateattr(ATTR_SIG_CU255_PUBK, &sigCu255, &versionSigCu255);
+                }
+
+                if (!pwmh.empty())
+                {
+                    changes += u->updateattr(ATTR_PWM_BASE, &pwmh, &pwmhVersion);
                 }
 
                 if (changes > 0)

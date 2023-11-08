@@ -73,6 +73,13 @@ NodeHandle toNodeHandle(const byte* data)
     return ret;
 }
 
+NodeHandle toNodeHandle(const std::string* data)
+{
+    if(data) return toNodeHandle(reinterpret_cast<const byte*>(data->c_str()));
+
+    return NodeHandle{};
+}
+
 string toHandle(handle h)
 {
     char base64Handle[14];

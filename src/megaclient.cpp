@@ -21965,6 +21965,11 @@ void MegaClient::fetchCreditCardInfo(CommandFetchCreditCardCompletion completion
     reqs.add(new CommandFetchCreditCard(this, std::move(completion)));
 }
 
+NodeHandle MegaClient::getPasswordManagerBase() //const
+{
+    return toNodeHandle(ownuser()->getattr(ATTR_PWM_BASE));
+}
+
 void MegaClient::createPasswordManagerBase(int rtag, CommandCreatePasswordManagerBase::Completion cbRequest)
 {
     LOG_info << "Password Manager: Requesting pwmh creation to server";
@@ -21992,48 +21997,7 @@ void MegaClient::createPasswordManagerBase(int rtag, CommandCreatePasswordManage
     newNode->attrstring.reset(new string);
     makeattr(&cipher, newNode->attrstring, attrString.c_str());
 
-    CommandCreatePasswordManagerBase::Completion cb =
-        [this, cbRequest](Error e, std::unique_ptr<NewNode> nn) -> void
-    {
-       if (!nn && e == API_OK)
-       {
-           e = API_EINTERNAL;
-           LOG_err << "Password Manager: unexpected error processing pwmp";
-       }
-
-       if (e == API_OK)
-       {
-           mPasswordManagerBase = nn->nodeHandle();
-       }
-       if (cbRequest) cbRequest(e, std::move(nn));
-   };
-
-   reqs.add(new CommandCreatePasswordManagerBase(this, std::move(newNode), rtag, std::move(cb)));
-}
-
-error MegaClient::setPasswordManagerBase(byte* data, unsigned len)
-{
-    if (len != NODEHANDLE)
-    {
-        LOG_err << "PasswordManager: wrong received data size for Base node handle: " << len
-                << ", expected: " << NODEHANDLE;
-        assert(false);
-        return API_EINTERNAL;
-    }
-
-    if (getPasswordManagerBase().isUndef())
-    {
-        // Not checking that the node is already lodaded since we could be retrieving
-        // the user attribute before fetching nodes
-        mPasswordManagerBase = toNodeHandle(data);
-        assert(!getPasswordManagerBase().isUndef());
-    }
-    else
-    {
-        assert(getPasswordManagerBase() == toNodeHandle(data));
-    }
-
-    return API_OK;
+   reqs.add(new CommandCreatePasswordManagerBase(this, std::move(newNode), rtag, std::move(cbRequest)));
 }
 
 FetchNodesStats::FetchNodesStats()
