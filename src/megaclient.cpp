@@ -12528,14 +12528,16 @@ bool MegaClient::getua(User* u, const attr_t at, int ctag, CommandGetUA::Complet
             {
                 TLVstore *tlv = TLVstore::containerToTLVrecords(cachedav, &key);
                 restag = tag;
-                app->getua_result(tlv, at);
+                if (ctlv) ctlv(tlv, at);
+                else      app->getua_result(tlv, at);
                 delete tlv;
                 return true;
             }
             else
             {
                 restag = tag;
-                app->getua_result((byte*) cachedav->data(), unsigned(cachedav->size()), at);
+                if (cb) cb((byte*) cachedav->data(), unsigned(cachedav->size()), at);
+                else    app->getua_result((byte*) cachedav->data(), unsigned(cachedav->size()), at);
                 return true;
             }
         }
