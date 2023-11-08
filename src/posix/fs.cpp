@@ -728,7 +728,21 @@ std::string FileSystemAccess::getErrorMessage(int error)
     return strerror(error);
 }
 
-bool FSLogging::isErrorFileNotFound(int error)
+int FileSystemAccess::isFileHidden(const LocalPath& path, FSLogging)
+{
+    // What file are we actually referencing?
+    auto name = path.leafName().toPath(false);
+
+    // Only consider dotfiles hidden.
+    return name.size() > 1 && name.front() == '.';
+}
+
+bool FileSystemAccess::setFileHidden(const LocalPath& path, FSLogging logWhen)
+{
+    return isFileHidden(path, logWhen);
+}
+
+bool FSLogging::isFileNotFound(int error)
 {
     return error == ENOENT;
 }
