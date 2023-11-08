@@ -10202,7 +10202,7 @@ bool CommandMeetingStart::procresult(Command::Result r, JSON& json)
     }
 }
 
-CommandMeetingStart::CommandMeetingStart(MegaClient* client, handle chatid, handle schedId, CommandMeetingStartCompletion completion)
+CommandMeetingStart::CommandMeetingStart(MegaClient* client, const handle chatid, const bool notRinging, CommandMeetingStartCompletion completion)
     : mCompletion(completion)
 {
     cmd("mcms");
@@ -10213,18 +10213,9 @@ CommandMeetingStart::CommandMeetingStart(MegaClient* client, handle chatid, hand
         arg("sfu", client->mSfuid);
     }
 
-    /**
-     * + If schedId is valid
-     *      - If Waiting room option is enabled : Call shouldn't ring and we'll be redirected to Waiting room
-     *      - If Waiting room option is disabled: Call shouldn't ring
-     *
-     * + If schedId is UNDEF
-     *      - If Waiting room option is enabled : Call should ring and we'll bypass waiting room
-     *      - If Waiting room option is disabled: Call should ring
-     */
-    if (schedId != UNDEF)
+    if (notRinging)
     {
-        arg("sm", (byte*)&schedId, MegaClient::CHATHANDLE);
+        arg("nr", 1);
     }
     tag = client->reqtag;
 }

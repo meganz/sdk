@@ -24737,11 +24737,11 @@ void MegaApiImpl::sendBackupHeartbeat(MegaHandle backupId, int status, int progr
 }
 
 #ifdef ENABLE_CHAT
-void MegaApiImpl::startChatCall(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener)
+void MegaApiImpl::startChatCall(MegaHandle chatid, bool notRinging, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_START_CHAT_CALL, listener);
     request->setNodeHandle(chatid);
-    request->setParentHandle(schedId);
+    request->setFlag(notRinging);
 
     request->performRequest = [this, request]()
         {
@@ -24751,9 +24751,8 @@ void MegaApiImpl::startChatCall(MegaHandle chatid, MegaHandle schedId, MegaReque
                 return API_EARGS;
             }
 
-            handle schedId = request->getParentHandle();
-
-            client->reqs.add(new CommandMeetingStart(client, chatid, schedId, [request, this](Error e, std::string sfuUrl, handle callid)
+            const bool notRinging = request->getFlag();
+            client->reqs.add(new CommandMeetingStart(client, chatid, notRinging, [request, this](Error e, std::string sfuUrl, handle callid)
             {
                 if (e == API_OK)
                 {
