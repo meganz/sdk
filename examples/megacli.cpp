@@ -20,14 +20,20 @@
  */
 
 #include "mega.h"
+#include "mega/arguments.h"
+#include "mega/filesystem.h"
 #include "mega/gfx.h"
 #include "mega/gfx/worker/client.h"
 #include "megacli.h"
 #include <algorithm>
 #include <chrono>
+#include <exception>
 #include <fstream>
 #include <bitset>
+#include <iostream>
+#include <stdexcept>
 #include <string>
+#include <vector>
 #include "mega/testhooks.h"
 
 #if defined(_WIN32) && defined(_DEBUG)
@@ -141,6 +147,81 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
     TransferDbCommitter& committer, int& total, bool recursive, VersioningOption vo,
     std::function<std::function<void()>(LocalPath)> onCompletedGenerator, bool noRetries, bool allowDuplicateVersions);
 
+
+static std::string USAGE = R"--(
+Mega command line
+Usage:
+  megacli [OPTION...]
+
+  -h                   Show help
+)--"
+#if defined(WIN32)
+R"--(
+  -e=arg               Use the isolated gfx processor. This gives executable binary path
+  -n=arg               Pipe name (default: mega_gfxworker_megacli)
+)--";
+#endif
+struct Config
+{
+    std::string executable;
+
+    std::string pipename;
+
+    static Config fromArguments(const Arguments& arguments);
+};
+
+Config Config::fromArguments(const Arguments& arguments)
+{
+    Config config;
+
+#if defined(WIN32)
+    // executable
+    config.executable = arguments.getValue("-e", "");
+
+    FSACCESS_CLASS fsAccess;
+    if (!config.executable.empty() && !fsAccess.fileExistsAt(LocalPath::fromAbsolutePath(config.executable)))
+    {
+        throw std::runtime_error("Couldn't find Executable: " + config.executable);
+    }
+
+    // pipename
+    config.pipename  = arguments.getValue("-n", "mega_gfxworker_megacli");
+#else
+    (void)arguments;
+#endif
+
+    return config;
+}
+
+static std::unique_ptr<IGfxProvider> createGfxProvider(const Config& config)
+{
+#if defined(_WIN32)
+    if (!config.executable.empty())
+    {
+        unsigned short aliveSeconds = 60;
+        std::vector<std::string> commandArgs = {
+            config.executable,
+            "-n=" + config.pipename,
+            "-l=" + std::to_string(aliveSeconds)
+        };
+        auto process = std::make_shared<GfxIsolatedProcess>(commandArgs, config.pipename, aliveSeconds);
+        return ::mega::make_unique<::mega::GfxProviderIsolatedProcess>(process);
+    }
+    else
+#endif
+    {
+        (void) config;
+        return IGfxProvider::createInternalGfxProvider();
+    }
+}
+
+static Arguments toArguments(int argc, char* argv[])
+{
+    std::vector<std::string> argVec;
+    std::copy(argv + 1, argv + argc, std::back_inserter(argVec));
+    Arguments arguments(argVec);
+    return arguments;
+}
 
 #ifdef ENABLE_SYNC
 
@@ -9821,13 +9902,29 @@ int main(int argc, char* argv[])
     registerSignalHandlers();
 #endif // NO_READLINE
 
-    // On Mac, we need to be passed a special file descriptor that has permissions allowing filesystem notifications.
-    // This is how MEGAsync and the integration tests work.  (running a sudo also works but then the program has too much power)
-    // The program megacli_fsloader in CMakeLists is the one that gets the special descriptor and starts megacli (mac only).
-    std::vector<char*> myargv1(argv, argv + argc);
+    Arguments arguments = toArguments(argc, argv);
+
+    // help
+    if (arguments.contains("-h"))
+    {
+        std::cout << USAGE << std::endl;
+        return 0;
+    }
+
+    // config from arguments
+    Config config;
+    try
+    {
+        config = Config::fromArguments(arguments);
+    }
+    catch(const std::exception& e)
+    {
+        std::cout << "Error: " << e.what() << std::endl;
+        std::cout << USAGE << std::endl;
+        return -1;
+    }
 
     SimpleLogger::setLogLevel(logMax);
-    //SimpleLogger::setOutputClass(&gLogger);
     auto gLoggerAddr = &gLogger;
     g_externalLogger.addMegaLogger(&gLogger,
 
@@ -9845,7 +9942,7 @@ int main(int argc, char* argv[])
 
     console = new CONSOLE_CLASS;
 
-    auto provider = IGfxProvider::createInternalGfxProvider();
+    std::unique_ptr<IGfxProvider> provider = createGfxProvider(config);
     mega::GfxProc* gfx = provider ? new GfxProc(std::move(provider)) : nullptr;
     if (gfx) gfx->startProcessingThread();
 
