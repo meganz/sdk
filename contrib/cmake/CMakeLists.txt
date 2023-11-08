@@ -733,6 +733,7 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/thread/cppthread.h
             ${MegaDir}/include/mega/thread/posixthread.h
             ${MegaDir}/include/mega/thread/libuvthread.h
+            ${MegaDir}/include/mega/process.h
             ${MegaDir}/include/mega/command.h
             ${MegaDir}/include/mega/config.h
             ${MegaDir}/include/mega/thread.h
@@ -838,6 +839,7 @@ add_library(Mega STATIC
             ${MegaDir}/src/node.cpp
             ${MegaDir}/src/pendingcontactrequest.cpp
             ${MegaDir}/src/textchat.cpp
+            ${MegaDir}/src/process.cpp
             ${MegaDir}/src/proxy.cpp
             ${MegaDir}/src/pubkeyaction.cpp
             ${MegaDir}/src/raid.cpp
@@ -1041,12 +1043,10 @@ add_executable(test_unit
     ${MegaDir}/tests/unit/utils.cpp
     ${MegaDir}/tests/unit/utils.h
     ${MegaDir}/tests/unit/utils_test.cpp
-    ${MegaDir}/tests/integration/process.cpp
 )
 
 add_executable(test_integration
     ${MegaDir}/tests/integration/main.cpp
-    ${MegaDir}/tests/integration/process.cpp
     ${MegaDir}/tests/integration/SdkTest_test.cpp
     ${MegaDir}/tests/integration/Sync_test.cpp
 )

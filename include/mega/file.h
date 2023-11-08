@@ -148,6 +148,9 @@ struct MEGA_API File: public FileFingerprint
     // set the token true to cause cancellation of this transfer (this file of the transfer)
     CancelToken cancelToken;
 
+    // relevant only for downloads (GET); do not override anywhere else
+    virtual bool undelete() const { return false; }
+
 private:
     CollisionResolution mCollisionResolution;
 };
