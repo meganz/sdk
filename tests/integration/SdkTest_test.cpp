@@ -15053,3 +15053,117 @@ TEST_F(SdkTest, SdkTesResumeSessionInFolderLinkDeleted)
     ASSERT_TRUE(waitForResponse(&requestFlag, timeoutInSeconds))
         << "Logout did not happen after " << timeoutInSeconds  << " seconds";
 }
+
+class SdkTestAvatar : public SdkTest
+{
+protected:
+    unsigned int mApiIndex{0};
+    std::unique_ptr<MegaUser> mUser;
+    fs::path mDstAvatarPath{getTestDataDir()/AVATARDST};
+    const std::string PATH_SEPARATOR{LocalPath::localPathSeparator_utf8};
+
+public:
+    void SetUp() override
+    {
+        // Configure test instance
+        unsigned int numberOfTestInstances{1};
+        ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfTestInstances));
+
+        // Get user
+        mUser.reset(megaApi[mApiIndex]->getMyUser());
+        ASSERT_THAT(mUser, ::testing::NotNull());
+
+        // Set avatar
+        const auto srcAvatarPath{getTestDataDir()/AVATARSRC};
+        ASSERT_EQ(API_OK, synchronousSetAvatar(mApiIndex, srcAvatarPath.string().c_str()));
+    }
+
+    void TearDown() override
+    {
+        // Remove avatar
+        ASSERT_EQ(API_OK, synchronousSetAvatar(mApiIndex, nullptr));
+
+        // Check the avatar was removed
+        mApi[mApiIndex].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
+        ASSERT_EQ(API_ENOENT, synchronousGetUserAvatar(mApiIndex, mUser.get(), mDstAvatarPath.string().c_str()));
+    }
+};
+
+/**
+ * @brief SdkTestGetAvatarIntoAFile
+ *
+ * Get avatar into a file.
+ */
+TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoAFile)
+{
+    // Get avatar
+    mApi[mApiIndex].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
+    ASSERT_EQ(API_OK, synchronousGetUserAvatar(mApiIndex, mUser.get(), mDstAvatarPath.string().c_str()));
+
+    // Check avatar in local filesystem
+    ASSERT_TRUE(fs::exists(mDstAvatarPath));
+
+    // Remove avatar from local filesystem
+    ASSERT_TRUE(fs::remove(mDstAvatarPath));
+}
+
+/**
+ * @brief SdkTestGetAvatarIntoADirectoryEndingWithSlash
+ *
+ * Get avatar into a directory ending with slash.
+ */
+TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoADirectoryEndingWithSlash)
+{
+    // Get avatar
+    std::string dstAvatarPath{getTestDataDir().string()};
+    dstAvatarPath.append(PATH_SEPARATOR);
+    ASSERT_THAT(dstAvatarPath, ::testing::EndsWith(PATH_SEPARATOR));
+    mApi[mApiIndex].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
+    ASSERT_EQ(API_OK, synchronousGetUserAvatar(mApiIndex, mUser.get(), dstAvatarPath.c_str()));
+
+    // Check avatar in local filesystem
+    dstAvatarPath.append(mUser->getEmail());
+    dstAvatarPath.append("0.jpg");
+    ASSERT_TRUE(fs::exists(dstAvatarPath));
+
+    // Remove avatar from local filesystem
+    ASSERT_TRUE(fs::remove(dstAvatarPath));
+}
+
+/**
+ * @brief SdkTestGetAvatarIntoADirectoryNotEndingWithSlash
+ *
+ * Get avatar into a directory not ending with slash.
+ */
+TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoADirectoryNotEndingWithSlash)
+{
+    // Get avatar
+    std::string dstAvatarPath{getTestDataDir().string()};
+    ASSERT_THAT(dstAvatarPath, ::testing::Not(::testing::EndsWith(PATH_SEPARATOR)));
+    mApi[mApiIndex].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
+    ASSERT_EQ(API_EWRITE, synchronousGetUserAvatar(mApiIndex, mUser.get(), dstAvatarPath.c_str()));
+}
+
+/**
+ * @brief SdkTestGetAvatarIntoAnEmptyPath
+ *
+ * Get avatar into an empty path.
+ */
+TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoAnEmptyPath)
+{
+    // Get avatar
+    mApi[mApiIndex].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
+    ASSERT_EQ(API_EARGS, synchronousGetUserAvatar(mApiIndex, mUser.get(), ""));
+}
+
+/**
+ * @brief SdkTestGetAvatarIntoANullPath
+ *
+ * Get avatar into a null path.
+ */
+TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoANullPath)
+{
+    // Get avatar
+    mApi[mApiIndex].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
+    ASSERT_EQ(API_EARGS, synchronousGetUserAvatar(mApiIndex, mUser.get(), nullptr));
+}
