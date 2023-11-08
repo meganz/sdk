@@ -186,9 +186,6 @@ public:
 
 class SimpleLogger
 {
-    // flag to turn off logging on the log-output thread, to prevent possible deadlock cycles.
-    static thread_local bool mThreadLocalLoggingDisabled;
-
     enum LogLevel level;
 
 #ifndef ENABLE_LOG_PERFORMANCE
@@ -388,6 +385,9 @@ class SimpleLogger
     static long long maxPayloadLogSize; //above this, the msg will be truncated by [ ... ]
 
 public:
+    // flag to turn off logging on the log-output thread, to prevent possible deadlock cycles.
+    static thread_local bool mThreadLocalLoggingDisabled;
+
     SimpleLogger(const enum LogLevel ll, const char* filename, const int line)
     : level{ll}
 #ifdef ENABLE_LOG_PERFORMANCE
