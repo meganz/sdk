@@ -4852,6 +4852,10 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 {
                     changes += u->updateattr(ATTR_PWM_BASE, &pwmh, &pwmhVersion);
                 }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_PWM_BASE);
+                }
 
                 if (changes > 0)
                 {
