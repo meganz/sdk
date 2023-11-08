@@ -94,6 +94,11 @@ typedef NS_ENUM (NSInteger, MEGANodeFormatType) {
     MEGANodeFormatTypeAudio,
     MEGANodeFormatTypeVideo,
     MEGANodeFormatTypeDocument,
+    MEGANodeFormatTypePdf,
+    MEGANodeFormatTypePresentation,
+    MEGANodeFormatTypeArchive,
+    MEGANodeFormatTypeProgram,
+    MEGANodeFormatTypeMisc
 };
 
 typedef NS_ENUM (NSInteger, MEGAFolderTargetType) {
