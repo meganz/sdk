@@ -170,7 +170,7 @@ std::unique_ptr<IEndpoint> GfxClient::connectWithRetry(milliseconds backoff, uns
             return nullptr;
         }
 
-        if (!isRetryError(error))
+        if (isRetryError(error))
         {
             std::this_thread::sleep_for(backoff);
             continue;
