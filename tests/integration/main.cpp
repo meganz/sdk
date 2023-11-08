@@ -1740,3 +1740,14 @@ void copyFileFromTestData(fs::path filename, fs::path destination)
 fs::path getLinkExtractSrciptPath() {
     return executableDir / LINK_EXTRACT_SCRIPT;
 }
+
+bool isFileHidden(const LocalPath& path)
+{
+    return FileSystemAccess::isFileHidden(path);
+}
+
+bool isFileHidden(const fs::path& path)
+{
+    return isFileHidden(LocalPath::fromAbsolutePath(path.u8string()));
+}
+

@@ -1206,5 +1206,9 @@ void copyFileFromTestData(fs::path filename, fs::path destination = ".");
 
 fs::path getLinkExtractSrciptPath();
 
+// Convenience.
+bool isFileHidden(const LocalPath& path);
+bool isFileHidden(const fs::path& path);
+
 #endif // TEST_H
 

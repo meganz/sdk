@@ -18428,6 +18428,129 @@ TEST_F(SyncTest, SyncUtf8DifferentlyNormalized1)
 
 }
 
+#ifdef _WIN32
+
+TEST_F(SyncTest, IgnoreFilesShouldBeHidden)
+{
+    // Get our hands on a new client.
+    auto client = g_clientManager->getCleanStandardClient(0, makeNewTestRoot());
+
+    // Make sure the cloud's clean.
+    ASSERT_TRUE(client->resetBaseFolderMulticlient());
+
+    Model model;
+
+    // Compute sync path for convenience.
+    auto rootPath = client->fsBasePath / "s";
+
+    // Populate the model with a couple ignore files.
+    model.addfile(".megaignore", "#s\n+sync:.megaignore");
+    model.addfile("sd0/sd0d0/.megaignore", "#sd0d0\n+sync:.megaignore");
+
+    // Populate the local disk.
+    model.generate(rootPath);
+
+    // Upload test tree to the cloud.
+    ASSERT_TRUE(client->uploadFolderTree(rootPath, ""));
+    ASSERT_TRUE(client->uploadFilesInTree(rootPath, ""));
+
+    // Add a couple more ignore files.
+    //
+    // We'll consider these files to have been created by the user.
+    model.addfile("sd1/sd1d0/.megaignore", "#sd1d0\n+sync:.megaignore");
+    model.generate(rootPath);
+
+    // Remove .megaignore and sd0/.megaignore.
+    //
+    // We want these to be created by the sync engine.
+    std::error_code error;
+
+    ASSERT_TRUE(fs::remove(rootPath / ".megaignore", error));
+    ASSERT_FALSE(error);
+
+    ASSERT_TRUE(fs::remove(rootPath / "sd0" / "sd0d0" / ".megaignore", error));
+    ASSERT_FALSE(error);
+
+    // Synchronize our local directory with the cloud.
+    auto id = client->setupSync_mainthread("s", "s", false, false);
+    ASSERT_NE(id, UNDEF);
+
+    // Wait for the sync to complete.
+    waitonsyncs(DEFAULTWAIT, client);
+
+    // For convenience: Make sure we check ignore files, too.
+    auto confirm = [&]() {
+        return client->confirmModel_mainthread(model.root.get(),
+                                               id,
+                                               false,
+                                               StandardClient::CONFIRM_ALL,
+                                               false,
+                                               false);
+    }; // confirm
+
+    // Make sure everything's where it should be.
+    ASSERT_TRUE(confirm());
+
+    // Verify that .megaignore and sd0/.megaignore are marked as hidden.
+    //
+    // These files were created directly by the sync engine so it has the
+    // right to mark them as it pleases.
+    EXPECT_TRUE(isFileHidden(rootPath / ".megaignore"));
+    EXPECT_TRUE(isFileHidden(rootPath / "sd0" / "sd0d0" / ".megaignore"));
+
+    // sd1/.megaignore should remain unchanged.
+    //
+    // As the sync engine didn't create this file, we have to assume that
+    // the user themselves did and if so, that they may have explicitly
+    // marked that file as being visible.
+    EXPECT_FALSE(isFileHidden(rootPath / "sd1" / "sd1d0" / ".megaignore"));
+
+    // Moving an ignore file should not change whether it is hidden.
+    model.copynode("sd0/sd0d0/.megaignore", "sd0/.megaignore");
+    model.movetosynctrash("sd0/sd0d0/.megaignore", "");
+
+    model.movenode("sd1/sd1d0/.megaignore", "sd1");
+
+    // Regardless of whether the file was moved in the cloud...
+    ASSERT_TRUE(client->movenode("s/sd0/sd0d0/.megaignore", "s/sd0"));
+
+    // Or on the local disk.
+    fs::rename(rootPath / "sd1" / "sd1d0" / ".megaignore",
+               rootPath / "sd1" / ".megaignore",
+               error);
+
+    ASSERT_FALSE(error);
+
+    // Wait for the engine to recognize and process our changes.
+    waitonsyncs(DEFAULTWAIT, client);
+
+    // Make sure everything is as it should be.
+    ASSERT_TRUE(confirm());
+
+    // Should remain hidden as the engine created it.
+    EXPECT_TRUE(isFileHidden(rootPath / "sd0" / ".megaignore"));
+
+    // Should remain visible as the user created it.
+    EXPECT_FALSE(isFileHidden(rootPath / "sd1" / ".megaignore"));
+
+    // Downloading a new version of an ignore file shouldn't change whether it is visible.
+    ASSERT_TRUE(client->uploadFile(rootPath / "sd1" / ".megaignore",
+                                   ".megaignore",
+                                   "s/sd1",
+                                   static_cast<int>(DEFAULTWAIT.count()),
+                                   ClaimOldVersion));
+
+    // Wait for the engine to synchronize our changes.
+    waitonsyncs(DEFAULTWAIT, client);
+
+    // Make sure everything is as we expect.
+    ASSERT_TRUE(confirm());
+
+    // Ignore file's visibility shouldn't have changed.
+    EXPECT_FALSE(isFileHidden(rootPath / "sd1" / ".megaignore"));
+}
+
+#endif // _WIN32
 
 class ContradictoryMoveFixture
   : public ::testing::Test
