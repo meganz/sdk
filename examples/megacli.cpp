@@ -158,8 +158,9 @@ Usage:
 R"--(
   -e=arg               Use the isolated gfx processor. This gives executable binary path
   -n=arg               Pipe name (default: mega_gfxworker_megacli)
-)--";
+)--"
 #endif
+;
 struct Config
 {
     std::string executable;
