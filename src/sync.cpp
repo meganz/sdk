@@ -3638,6 +3638,18 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool set
                 return;
             }
         }
+
+        // Engine-generated ignore files should be invisible.
+        if (!writeMegaignoreFailed)
+        {
+            // Generate path to ignore file.
+            auto path = us.mConfig.mLocalPath;
+
+            path.appendWithSeparator(IGNORE_FILE_NAME, false);
+
+            // Try and make the ignore file invisible.
+            fsaccess->setFileHidden(path);
+        }
     }
 
     us.mConfig.mError = NO_SYNC_ERROR;
@@ -7861,9 +7873,27 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
             }
         }
 
+        std::function<void()> afterDistributed = []() { };
+
+        // Have we downloaded an ignore file?
+        if (row.isIgnoreFile())
+        {
+            // Convenience.
+            auto noLogging = FSLogging::noLogging;
+
+            // Was the existing ignore file (if any) hidden?
+            if (syncs.fsaccess->isFileHidden(targetPath, noLogging))
+                afterDistributed = std::bind(FileSystemAccess::setFileHidden,
+                                             std::cref(targetPath),
+                                             noLogging);
+        }
+
         if (downloadPtr->downloadDistributor->distributeTo(targetPath, fsAccess, FileDistributor::MoveReplacedFileToSyncDebris, transientError, nameTooLong, this))
         {
             assert(FSNode::debugConfirmOnDiskFingerprintOrLogWhy(fsAccess, targetPath, *downloadPtr));
+
+            // Perform after-distribution task.
+            afterDistributed();
 
             // Move was successful.
             SYNC_verbose << syncname << "Download complete, moved file to final destination." << logTriplet(row, fullPath);
