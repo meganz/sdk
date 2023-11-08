@@ -59,6 +59,16 @@ struct TransferTracker : public ::mega::MegaTransferListener
     {
 
     }
+
+    ~TransferTracker() override
+    {
+        if (!finished)
+        {
+            assert(mApi);
+            mApi->removeTransferListener(this);
+        }
+    }
+
     void onTransferStart(MegaApi *api, MegaTransfer *transfer) override
     {
         // called back on a different thread
