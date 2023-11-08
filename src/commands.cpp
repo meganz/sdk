@@ -702,12 +702,12 @@ bool CommandDirectRead::procresult(Result r, JSON& json)
 }
 
 // request temporary source URL for full-file access (p == private node)
-CommandGetFile::CommandGetFile(MegaClient *client, const byte* key, size_t keySize,
+CommandGetFile::CommandGetFile(MegaClient *client, const byte* key, size_t keySize, bool undelete,
                                handle h, bool p, const char *privateauth,
                                const char *publicauth, const char *chatauth,
                                bool singleUrl, Cb &&completion)
 {
-    cmd("g");
+    cmd(undelete ? "gd" : "g");
     arg(p ? "n" : "p", (byte*)&h, MegaClient::NODEHANDLE);
     arg("g", 1); // server will provide download URL(s)/token(s) (if skipped, only information about the file)
     if (!singleUrl)

@@ -6811,7 +6811,7 @@ public class MegaApiJava {
                               boolean startFirst, MegaCancelToken cancelToken, int collisionCheck, int collisionResolution,
                               MegaTransferListenerInterface listener) {
         megaApi.startDownload(node, localPath, fileName, appData, startFirst, cancelToken, collisionCheck, collisionResolution,
-                createDelegateTransferListener(listener));
+                false, createDelegateTransferListener(listener));
     }
 
     /**
@@ -6858,7 +6858,8 @@ public class MegaApiJava {
      */
     public void startDownload(MegaNode node, String localPath, String fileName, String appData,
                               boolean startFirst, MegaCancelToken cancelToken, int collisionCheck, int collisionResolution) {
-        megaApi.startDownload(node, localPath, fileName, appData, startFirst, cancelToken, collisionCheck, collisionResolution);
+        megaApi.startDownload(node, localPath, fileName, appData, startFirst, cancelToken, collisionCheck, collisionResolution,
+                false);
     }
 
     /**

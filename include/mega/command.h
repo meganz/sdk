@@ -600,7 +600,7 @@ public:
     void cancel() override;
     bool procresult(Result, JSON&) override;
 
-    CommandGetFile(MegaClient *client, const byte* key, size_t keySize,
+    CommandGetFile(MegaClient *client, const byte* key, size_t keySize, bool undelete,
                        handle h, bool p, const char *privateauth = nullptr,
                        const char *publicauth = nullptr, const char *chatauth = nullptr,
                        bool singleUrl = false, Cb &&completion = nullptr);

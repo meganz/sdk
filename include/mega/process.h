@@ -40,6 +40,9 @@
 #include <unordered_map>
 #include <set>
 
+namespace mega
+{
+
 
 /**
  * @brief The Process class
@@ -164,12 +167,11 @@ private:
     // 'status' contains the signal that terminated the subvproceess
     bool hasSignalStatus = false;
 
-    bool hasStatus()
+public:
+    bool hasStatus() const
     {
         return hasExitStatus || hasSignalStatus;
     }
-
-public:
 
     // unsigned char as these are bytes not text
     //
@@ -185,30 +187,30 @@ public:
         }
     };
 
-    bool hasExited()
+    bool hasExited() const
     {
         return hasExitStatus;
     }
-    bool hasTerminateBySignal()
+    bool hasTerminateBySignal() const
     {
         return hasSignalStatus;
     }
 
     // need to flush() after exited
-    bool hasExitedOk()
+    bool hasExitedOk() const
     {
         return hasExitStatus && getExitCode() == 0;
     }
 
     // 0..255 on Unix, or -1 on internal error
     // DWORD on Windows
-    int getExitCode()
+    int getExitCode() const
     {
         assert(hasExitStatus);
         return status;
     }
 
-    int getTerminatingSignal()
+    int getTerminatingSignal() const
     {
         assert(hasSignalStatus);
         return status;
@@ -233,7 +235,7 @@ public:
              const std::unordered_map<std::string, std::string>& env = std::unordered_map<std::string, std::string>(),
              DataReaderFunc ireader = nullptr,
              DataReaderFunc istderrReader = nullptr);
-     
+
 #ifdef WIN32
     static std::string windowsQuoteArg(const std::string& str);
 #endif
@@ -276,7 +278,7 @@ public:
         
     // Unix only
     // returns description
-    std::string getExitSignalDescription();
+    std::string getExitSignalDescription() const;
 
     // return "SIGTERM - Termination Signal"
     static std::string describeSignal(int sig);
@@ -285,7 +287,7 @@ public:
     // "Exited ok"
     // "Exited with status 3"
     // "Exited with signal: SIGTERM - Termination Signal"
-    std::string getExitMessage();
+    std::string getExitMessage() const;
 
     // Return the current process ID
     // Value returned is valid only if the process has been run
@@ -385,5 +387,7 @@ inline std::ostream& operator<<(std::ostream& os, const ConsoleProgressBar& bar)
 {
     return bar.put(os);
 }
+
+} // namespace mega
 
 #endif

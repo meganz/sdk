@@ -10,7 +10,7 @@
 #include <regex>
 
 #include "test.h"
-#include "process.h"
+#include "mega/process.h"
 
 // If running in Jenkins, we use its working folder.  But for local manual testing, use a convenient location
 #define LOCAL_TEST_FOLDER_NAME "mega_tests"
