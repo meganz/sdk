@@ -702,12 +702,12 @@ bool CommandDirectRead::procresult(Result r, JSON& json)
 }
 
 // request temporary source URL for full-file access (p == private node)
-CommandGetFile::CommandGetFile(MegaClient *client, const byte* key, size_t keySize,
+CommandGetFile::CommandGetFile(MegaClient *client, const byte* key, size_t keySize, bool undelete,
                                handle h, bool p, const char *privateauth,
                                const char *publicauth, const char *chatauth,
                                bool singleUrl, Cb &&completion)
 {
-    cmd("g");
+    cmd(undelete ? "gd" : "g");
     arg(p ? "n" : "p", (byte*)&h, MegaClient::NODEHANDLE);
     arg("g", 1); // server will provide download URL(s)/token(s) (if skipped, only information about the file)
     if (!singleUrl)
@@ -3458,6 +3458,10 @@ bool CommandGetUA::procresult(Result r, JSON& json)
         if (r.wasError(API_ENOENT) && u)
         {
             u->removeattr(at);
+            if (u->userhandle == client->me)
+            {
+                u->setNonExistingAttribute(at);
+            }
         }
 
         mCompletionErr(r.errorOrOK());
@@ -4500,30 +4504,54 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 {
                     changes += u->updateattr(ATTR_LANGUAGE, &language, &versionLanguage);
                 }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_LANGUAGE);
+                }
 
                 if (birthday.size())
                 {
                     changes += u->updateattr(ATTR_BIRTHDAY, &birthday, &versionBirthday);
+                }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_BIRTHDAY);
                 }
 
                 if (birthmonth.size())
                 {
                     changes += u->updateattr(ATTR_BIRTHMONTH, &birthmonth, &versionBirthmonth);
                 }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_BIRTHMONTH);
+                }
 
                 if (birthyear.size())
                 {
                     changes += u->updateattr(ATTR_BIRTHYEAR, &birthyear, &versionBirthyear);
+                }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_BIRTHYEAR);
                 }
 
                 if (country.size())
                 {
                     changes += u->updateattr(ATTR_COUNTRY, &country, &versionCountry);
                 }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_COUNTRY);
+                }
 
                 if (pwdReminderDialog.size())
                 {
                     changes += u->updateattr(ATTR_PWD_REMINDER, &pwdReminderDialog, &versionPwdReminderDialog);
+                }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_PWD_REMINDER);
                 }
 
                 if (pushSetting.size())
@@ -4533,10 +4561,18 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                     // initialize the settings for the intermediate layer by simulating there was a getua()
                     client->app->getua_result((byte*) pushSetting.data(), (unsigned) pushSetting.size(), ATTR_PUSH_SETTINGS);
                 }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_PUSH_SETTINGS);
+                }
 
                 if (contactLinkVerification.size())
                 {
                     changes += u->updateattr(ATTR_CONTACT_LINK_VERIFICATION, &contactLinkVerification, &versionContactLinkVerification);
+                }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_CONTACT_LINK_VERIFICATION);
                 }
 
                 if (disableVersions.size())
@@ -4558,6 +4594,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 {
                     LOG_info << "File versioning is enabled";
                     client->versions_disabled = false;
+                    u->setNonExistingAttribute(ATTR_DISABLE_VERSIONS);
                 }
 
                 if (noCallKit.size())
@@ -4568,6 +4605,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 else
                 {
                     LOG_info << "CallKit is enabled [noCallKit.size() == 0]";
+                    u->setNonExistingAttribute(ATTR_NO_CALLKIT);
                 }
 
                 if (chatFolder.size())
@@ -4584,6 +4622,10 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                         LOG_err << "Cannot extract TLV records for ATTR_MY_CHAT_FILES_FOLDER";
                     }
                 }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_MY_CHAT_FILES_FOLDER);
+                }
 
                 if (cameraUploadFolder.size())
                 {
@@ -4599,20 +4641,36 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                         LOG_err << "Cannot extract TLV records for ATTR_CAMERA_UPLOADS_FOLDER";
                     }
                 }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_CAMERA_UPLOADS_FOLDER);
+                }
 
                 if (!myBackupsFolder.empty())
                 {
                     changes += u->updateattr(ATTR_MY_BACKUPS_FOLDER, &myBackupsFolder, &versionMyBackupsFolder);
+                }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_MY_BACKUPS_FOLDER);
                 }
 
                 if (!appPrefs.empty())
                 {
                     changes += u->updateattr(ATTR_APPS_PREFS, &appPrefs, &versionAppPrefs);
                 }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_APPS_PREFS);
+                }
 
                 if (!ccPrefs.empty())
                 {
                     changes += u->updateattr(ATTR_CC_PREFS, &ccPrefs, &versionCcPrefs);
+                }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_CC_PREFS);
                 }
 
                 if (aliases.size())
@@ -4628,6 +4686,10 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                     {
                         LOG_err << "Cannot extract TLV records for ATTR_ALIAS";
                     }
+                }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_ALIAS);
                 }
 
                 if (unshareableKey.size() == Base64Str<SymmCipher::BLOCKSIZE>::STRLEN)
@@ -4668,10 +4730,18 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                         LOG_err << "Cannot extract TLV records for ATTR_DEVICE_NAMES";
                     }
                 }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_DEVICE_NAMES);
+                }
 
                 if (!cookieSettings.empty())
                 {
                     changes += u->updateattr(ATTR_COOKIE_SETTINGS, &cookieSettings, &versionCookieSettings);
+                }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_COOKIE_SETTINGS);
                 }
 
 #ifdef ENABLE_SYNC
@@ -4682,25 +4752,30 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                                              &jsonSyncConfigData,
                                              &jsonSyncConfigDataVersion);
                 }
-                else if (client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
-                {
-                    // cannot configure any sync/backupp yet, so it's not needed at this stage.
-                    // It will be created when the account gets confirmed.
-                    // (motivation: speed up the E++ account's setup)
-                    LOG_info << "Skip creation of *~jscd key for E++ account";
-                }
                 else
                 {
                     // This attribute is set only once. If not received from API,
                     // it should not exist locally either
                     assert(u->getattr(ATTR_JSON_SYNC_CONFIG_DATA) == nullptr);
+                    u->setNonExistingAttribute(ATTR_JSON_SYNC_CONFIG_DATA);
 
-                    client->ensureSyncUserAttributes([](Error e){
-                        if (e != API_OK)
-                        {
-                            LOG_err << "Couldn't create *~jscd user's attribute";
-                        }
-                    });
+                    if (client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
+                    {
+                        // cannot configure any sync/backupp yet, so it's not needed at this stage.
+                        // It will be created when the account gets confirmed.
+                        // (motivation: speed up the E++ account's setup)
+                        LOG_info << "Skip creation of *~jscd key for E++ account";
+                    }
+                    else
+                    {
+                        client->ensureSyncUserAttributes([](Error e){
+                            if (e != API_OK)
+                            {
+                                LOG_err << "Couldn't create *~jscd user's attribute";
+                            }
+                        });
+                    }
+
                 }
 #endif
                 if (keys.size())
@@ -10202,7 +10277,7 @@ bool CommandMeetingStart::procresult(Command::Result r, JSON& json)
     }
 }
 
-CommandMeetingStart::CommandMeetingStart(MegaClient* client, handle chatid, handle schedId, CommandMeetingStartCompletion completion)
+CommandMeetingStart::CommandMeetingStart(MegaClient* client, const handle chatid, const bool notRinging, CommandMeetingStartCompletion completion)
     : mCompletion(completion)
 {
     cmd("mcms");
@@ -10213,18 +10288,9 @@ CommandMeetingStart::CommandMeetingStart(MegaClient* client, handle chatid, hand
         arg("sfu", client->mSfuid);
     }
 
-    /**
-     * + If schedId is valid
-     *      - If Waiting room option is enabled : Call shouldn't ring and we'll be redirected to Waiting room
-     *      - If Waiting room option is disabled: Call shouldn't ring
-     *
-     * + If schedId is UNDEF
-     *      - If Waiting room option is enabled : Call should ring and we'll bypass waiting room
-     *      - If Waiting room option is disabled: Call should ring
-     */
-    if (schedId != UNDEF)
+    if (notRinging)
     {
-        arg("sm", (byte*)&schedId, MegaClient::CHATHANDLE);
+        arg("nr", 1);
     }
     tag = client->reqtag;
 }
@@ -10290,12 +10356,19 @@ CommandMeetingEnd::CommandMeetingEnd(MegaClient *client, handle chatid, handle c
     tag = client->reqtag;
 }
 
-CommandScheduledMeetingAddOrUpdate::CommandScheduledMeetingAddOrUpdate(MegaClient* client, const ScheduledMeeting *schedMeeting, CommandScheduledMeetingAddOrUpdateCompletion completion)
+CommandScheduledMeetingAddOrUpdate::CommandScheduledMeetingAddOrUpdate(MegaClient* client, const ScheduledMeeting *schedMeeting, const char* chatTitle, CommandScheduledMeetingAddOrUpdateCompletion completion)
     : mScheduledMeeting(schedMeeting->copy()), mCompletion(completion)
 {
     assert(schedMeeting);
     cmd("mcsmp");
     arg("v", 1); // add version to receive cmd array
+
+    if (chatTitle && strlen(chatTitle))
+    {
+        // update chatroom title along with sm title
+        mChatTitle.assign(chatTitle, strlen(chatTitle));
+        arg("ct", mChatTitle.c_str());
+    }
     createSchedMeetingJson(mScheduledMeeting.get());
     notself(client); // set i param to ignore action packet generated by our own action
     tag = client->reqtag;
@@ -10373,6 +10446,12 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r, JSON& jso
 
     // clear scheduled meeting occurrences for the chat
     client->clearSchedOccurrences(*chat);
+
+    // update chat title
+    if (!mChatTitle.empty())
+    {
+        chat->setTitle(mChatTitle.c_str());
+    }
 
     // add scheduled meeting
     const bool added = chat->addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting>(mScheduledMeeting->copy())); // add or update scheduled meeting if already exists

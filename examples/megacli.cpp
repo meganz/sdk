@@ -5085,7 +5085,7 @@ void exec_get(autocomplete::ACState& s)
         {
             cout << "Checking link..." << endl;
 
-            client->reqs.add(new CommandGetFile(client, key, FILENODEKEYLENGTH, ph, false, nullptr, nullptr, nullptr, false,
+            client->reqs.add(new CommandGetFile(client, key, FILENODEKEYLENGTH, false, ph, false, nullptr, nullptr, nullptr, false,
                 [key, ph](const Error &e, m_off_t size, dstime /*timeleft*/,
                    std::string* filename, std::string* fingerprint, std::string* fileattrstring,
                    const std::vector<std::string> &/*tempurls*/, const std::vector<std::string> &/*ips*/)
@@ -6398,7 +6398,7 @@ void exec_debug(autocomplete::ACState& s)
         }
     }
 
-    cout << "Debug level set to " << SimpleLogger::logCurrentLevel << endl;
+    cout << "Debug level set to " << SimpleLogger::getLogLevel() << endl;
     cout << "Log to console: " << (gLogger.logToConsole ? "on" : "off") << endl;
     cout << "Log to file: " << (gLogger.mLogFile.is_open() ? gLogger.mLogFileName : "<off>") << endl;
 
@@ -7025,7 +7025,7 @@ void exec_verifycredentials(autocomplete::ACState& s)
     else if (s.words[1].s == "verify")
     {
         error e;
-        if ((e = client->verifyCredentials(u->userhandle)))
+        if ((e = client->verifyCredentials(u->userhandle, nullptr)))
         {
             cout << "Verification failed. Error: " << errorstring(e) << endl;
             return;
@@ -7034,7 +7034,7 @@ void exec_verifycredentials(autocomplete::ACState& s)
     else if (s.words[1].s == "reset")
     {
         error e;
-        if ((e = client->resetCredentials(u->userhandle)))
+        if ((e = client->resetCredentials(u->userhandle, nullptr)))
         {
             cout << "Reset verification failed. Error: " << errorstring(e) << endl;
             return;
@@ -7939,7 +7939,7 @@ void exec_setmaxloglinesize(autocomplete::ACState& s)
 {
     if (s.words.size() > 1)
     {
-        SimpleLogger::maxPayloadLogSize = atoi(s.words[1].s.c_str());
+        SimpleLogger::setMaxPayloadLogSize(atoll(s.words[1].s.c_str()));
     }
 }
 
