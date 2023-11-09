@@ -1,4 +1,5 @@
 #include "mega/gfx/isolatedprocess.h"
+#include "mega/filesystem.h"
 #include "mega/gfx/worker/client.h"
 #include "mega/logging.h"
 #include "mega/process.h"
@@ -23,6 +24,7 @@ namespace mega {
 
 const milliseconds AutoStartLauncher::MAX_BACKOFF(15 * 1000);
 const milliseconds AutoStartLauncher::START_BACKOFF(100);
+const unsigned int GfxIsolatedProcess::MIN_ALIVE_SECONDS = 3;
 
 void GfxWorkerHelloBeater::beat()
 {
@@ -131,6 +133,26 @@ const char* GfxProviderIsolatedProcess::getformats(const char* (Formats::*format
     {
         mFormats.setOnce(formats, videoformats);
         return (mFormats.*formatsFn)();
+    }
+}
+
+AutoStartLauncher::AutoStartLauncher(const std::vector<std::string>& argv, std::function<void()> shutdowner) :
+    mArgv(argv),
+    mShuttingDown(false),
+    mThreadIsRunning(false),
+    mShutdowner(std::move(shutdowner))
+{
+    assert(!mArgv.empty());
+
+    // preventive check: at least one element (executable)
+    if (!mArgv.empty())
+    {
+        // launch loop thread
+        startlaunchLoopThread();
+    }
+    else
+    {
+        LOG_fatal << "AutoStartLauncher argv is empty";
     }
 }
 
@@ -268,17 +290,46 @@ void CancellableSleeper::cancel()
     mCv.notify_all();
 }
 
-GfxIsolatedProcess:: GfxIsolatedProcess(const std::vector<string>& arguments,
-                                        const std::string& pipename,
-                                        unsigned int beatIntervalSeconds)
+GfxIsolatedProcess:: GfxIsolatedProcess(const std::string& pipename,
+                                        const std::string& executable,
+                                        unsigned int aliveSeconds)
                                         : mPipename(pipename)
 {
     // a function to shutdown the isolated process
     auto shutdowner = [pipename]() { ::mega::gfx::GfxClient::create(pipename).runShutDown(); };
 
-    mLauncher = ::mega::make_unique<::mega::AutoStartLauncher>(arguments, shutdowner);
+    auto arguments = formatArguments(pipename, executable, aliveSeconds);
 
-    mBeater = ::mega::make_unique<::mega::GfxWorkerHelloBeater>(seconds(beatIntervalSeconds), pipename);
+    mLauncher = ::mega::make_unique<::mega::AutoStartLauncher>(
+        formatArguments(pipename, executable, std::max(MIN_ALIVE_SECONDS, aliveSeconds)),
+        shutdowner);
+
+    // allow two beats by divide 3
+    seconds beatInterval = seconds(aliveSeconds / 3);
+
+    mBeater = ::mega::make_unique<::mega::GfxWorkerHelloBeater>(beatInterval, pipename);
+}
+
+GfxIsolatedProcess::GfxIsolatedProcess(const std::string& pipename,
+                                       const std::string& executable)
+                                       : GfxIsolatedProcess(pipename, executable, 15)
+{
+
+}
+
+std::vector<std::string> GfxIsolatedProcess::formatArguments(const std::string& pipename,
+                                                             const std::string& executable,
+                                                             unsigned int aliveSeconds) const
+{
+    LocalPath absolutePath = LocalPath::fromAbsolutePath(executable);
+
+    std::vector<std::string> commandArgs = {
+        absolutePath.toPath(false),
+        "-n=" + pipename,
+        "-l=" + std::to_string(aliveSeconds)
+    };
+
+    return commandArgs;
 }
 
 }

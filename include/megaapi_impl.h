@@ -2842,9 +2842,8 @@ public:
 
     std::unique_ptr<::mega::IGfxProvider> takeProvider() { return std::move(mProvider); }
 
-    static std::unique_ptr<MegaGfxProviderPrivate> createIsolatedInstance(const std::vector<std::string>& arguments,
-                                                                          const std::string& pipename,
-                                                                          unsigned int beatIntervalSeconds);
+    static std::unique_ptr<MegaGfxProviderPrivate> createIsolatedInstance(const std::string& pipename,
+                                                                          const std::string& executable);
 
     static std::unique_ptr<MegaGfxProviderPrivate> createExternalInstance(MegaGfxProcessor* processor);
 
@@ -2857,9 +2856,8 @@ private:
 class MegaGfxProviderListPrivate : public MegaGfxProviderList
 {
 public:
-    static std::unique_ptr<MegaGfxProviderListPrivate> createIsolatedInstances(const std::vector<std::string>& arguments,
-                                                                               const std::string& pipename,
-                                                                               unsigned int beatIntervalSeconds,
+    static std::unique_ptr<MegaGfxProviderListPrivate> createIsolatedInstances(const std::string& pipename,
+                                                                               const std::string& executable,
                                                                                unsigned int numberOfInstances);
     void add(MegaGfxProviderPrivate&& elem);
 

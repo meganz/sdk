@@ -6045,16 +6045,15 @@ MegaSearchFilterPrivate* MegaSearchFilterPrivate::copy() const
 }
 
 std::unique_ptr<MegaGfxProviderPrivate> MegaGfxProviderPrivate::createIsolatedInstance(
-    const std::vector<std::string>& arguments,
     const std::string& pipename,
-    unsigned int beatIntervalSeconds)
+    const std::string& executable)
 {
 #ifdef _WIN32
-    auto process = std::make_shared<GfxIsolatedProcess>(arguments, pipename, beatIntervalSeconds);
+    auto process = std::make_shared<GfxIsolatedProcess>(pipename, executable);
     auto provider = ::mega::make_unique<::mega::GfxProviderIsolatedProcess>(process);
     return ::mega::make_unique<MegaGfxProviderPrivate>(std::move(provider));
 #else
-    (void)arguments, (void)pipename, (void)beatIntervalSeconds;
+    (void)arguments, (void)executable;
     return nullptr;
 #endif
 }
@@ -6082,18 +6081,15 @@ MegaGfxProviderPrivate* MegaGfxProviderListPrivate::get(size_t index)
 }
 
 std::unique_ptr<MegaGfxProviderListPrivate> MegaGfxProviderListPrivate::createIsolatedInstances(
-    const std::vector<std::string>& arguments,
     const std::string& pipename,
-    unsigned int beatIntervalSeconds,
+    const std::string& executable,
     unsigned int numberOfInstances)
 {
 #ifdef _WIN32
     if (numberOfInstances == 0) return nullptr;
 
     // only one process is started
-    auto process = std::make_shared<GfxIsolatedProcess>(arguments,
-                                                        pipename,
-                                                        beatIntervalSeconds);
+    auto process = std::make_shared<GfxIsolatedProcess>(pipename, executable);
 
     // all share the same process
     auto result = ::mega::make_unique<MegaGfxProviderListPrivate>();
@@ -6105,7 +6101,7 @@ std::unique_ptr<MegaGfxProviderListPrivate> MegaGfxProviderListPrivate::createIs
 
     return result;
 #else
-    (void)arguments, (void)pipename, (void)beatIntervalSeconds, (void) numberOfInstances;
+    (void)pipename, (void)executable, (void) numberOfInstances;
     return nullptr;
 #endif
 }

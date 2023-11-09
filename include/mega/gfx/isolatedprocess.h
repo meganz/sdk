@@ -41,14 +41,7 @@ public:
 class AutoStartLauncher : public ILauncher
 {
 public:
-    AutoStartLauncher(const std::vector<std::string>& argv, std::function<void()> shutdowner) :
-        mArgv(argv),
-        mShuttingDown(false),
-        mThreadIsRunning(false),
-        mShutdowner(std::move(shutdowner))
-    {
-        startlaunchLoopThread();
-    }
+    AutoStartLauncher(const std::vector<std::string>& argv, std::function<void()> shutdowner);
 
     ~AutoStartLauncher();
 
@@ -121,12 +114,24 @@ private:
 class GfxIsolatedProcess
 {
 public:
-    GfxIsolatedProcess(const std::vector<string>& arguments,
-                       const std::string& pipename,
+    // Notes: beatIntervalSeconds would be set to minimum 3 if not
+    GfxIsolatedProcess(const std::string& pipename,
+                       const std::string& executable,
                        unsigned int beatIntervalSeconds);
+
+    GfxIsolatedProcess(const std::string& pipename,
+                       const std::string& executable);
 
     const std::string& pipename() const { return mPipename; }
 private:
+    // this hide the detail of the isolated process command options and also provides the default value that callers
+    // don't need to supply
+    std::vector<std::string> formatArguments(const std::string& pipename,
+                                             const std::string& executable,
+                                             unsigned int aliveSeconds) const;
+
+    static const unsigned int MIN_ALIVE_SECONDS;
+
     std::unique_ptr<ILauncher> mLauncher;
 
     std::unique_ptr<IHelloBeater> mBeater;

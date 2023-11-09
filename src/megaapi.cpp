@@ -7810,17 +7810,12 @@ MegaCompleteUploadData* MegaCompleteUploadData::createInstance(const char* finge
 MegaGfxProvider::~MegaGfxProvider() = default;
 
 MegaGfxProvider* MegaGfxProvider::createIsolatedInstance(
-    const MegaStringList* arguments,
     const char* pipename,
-    unsigned int beatIntervalSeconds)
+    const char* executable)
 {
-    auto p = dynamic_cast<const MegaStringListPrivate*>(arguments);
-    if (!p) return nullptr;
-
     auto provider = MegaGfxProviderPrivate::createIsolatedInstance(
-        p->getVector(),
         std::string(pipename),
-        beatIntervalSeconds);
+        std::string(executable));
 
     return provider.release();
 }
@@ -7837,17 +7832,12 @@ MegaGfxProvider* MegaGfxProvider::createInternalInstance()
 
 MegaGfxProviderList::~MegaGfxProviderList() = default;
 
-MegaGfxProviderList* MegaGfxProviderList::createIsolatedInstances(const MegaStringList* arguments,
-                                                                  const char* pipename,
-                                                                  unsigned int beatIntervalSeconds,
+MegaGfxProviderList* MegaGfxProviderList::createIsolatedInstances(const char* pipename,
+                                                                  const char* executable,
                                                                   unsigned int numberOfInstances)
 {
-    auto args = dynamic_cast<const MegaStringListPrivate*>(arguments);
-    if (!args) return nullptr;
-
-    auto list = MegaGfxProviderListPrivate::createIsolatedInstances(args->getVector(),
-                                                                    pipename,
-                                                                    beatIntervalSeconds,
+    auto list = MegaGfxProviderListPrivate::createIsolatedInstances(std::string(pipename),
+                                                                    std::string(executable),
                                                                     numberOfInstances);
     return list.release();
 }

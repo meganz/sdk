@@ -275,14 +275,11 @@ public:
     *
     * Note: Currently, only Windows is supported.
     *
-    * @param arguments The executable command to run the isolated process.
-                       @see MegaStringList
-    * @param pipename The named pipe's name used for communicating with the isolated process.
-    * @param beatIntervalSeconds The interval in seconds for sending heartbeats to the isolated process.
+    * @param pipename The unique named pipe's name used for communicating with the isolated process.
+    * @param executable The executable path.
     */
-    static MegaGfxProvider* createIsolatedInstance(const MegaStringList* arguments,
-                                                   const char* pipename,
-                                                   unsigned int beatIntervalSeconds);
+    static MegaGfxProvider* createIsolatedInstance(const char* pipename,
+                                                   const char* executable);
 
     /**
     * @brief Create a graphics processor that use your implementations @see MegaGfxProcessor.
@@ -319,15 +316,12 @@ public:
     * @brief Create multiple isolated graphics processor instances.
     *        @see MegaGfxProvider::createIsolatedInstance for create one isolated graphics processor instance.
     *
-    * @param arguments The executable command to run the isolated process.
-                       @see MegaStringList
-    * @param pipename The named pipe's name used for communicating with the isolated process.
-    * @param beatIntervalSeconds The interval in seconds for sending heartbeats to the isolated process.
+    * @param pipename The unique named pipe's name used for communicating with the isolated process.
+    * @param executable The executable path.
     * @param numberOfInstances The number of instances to create.
     */
-    static MegaGfxProviderList* createIsolatedInstances(const MegaStringList* arguments,
-                                                        const char* pipename,
-                                                        unsigned int beatIntervalSeconds,
+    static MegaGfxProviderList* createIsolatedInstances(const char* pipename,
+                                                        const char* executable,
                                                         unsigned int numberOfInstances);
 };
 
