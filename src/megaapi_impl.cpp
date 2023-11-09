@@ -11126,6 +11126,7 @@ MegaShareList *MegaApiImpl::getOutShares(int order)
         }
     }
 
+    MegaApiImpl::sortByComparatorFunction(outshares, order, *client);
     vector<handle> handles;
     vector<Share *> shares;
     vector<byte> verified;
