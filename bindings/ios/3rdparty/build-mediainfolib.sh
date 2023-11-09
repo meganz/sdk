@@ -94,7 +94,17 @@ build_arch_platform() {
   
   sh autogen.sh
   
-  ./configure --prefix="${CURRENTPATH}/bin/mediainfo/${PLATFORM}${SDKVERSION}-${ARCH}.sdk" --host=${HOST} --disable-shared --enable-minimize-size --enable-minimal --disable-archive --disable-image --disable-tag --disable-text --disable-swf --disable-flv --disable-hdsf4m --disable-cdxa --disable-dpg --disable-pmp --disable-rm --disable-wtv --disable-mxf --disable-dcp --disable-aaf --disable-bdav --disable-bdmv --disable-dvdv --disable-gxf --disable-mixml --disable-skm --disable-nut --disable-tsp --disable-hls --disable-dxw --disable-dvdif --disable-dashmpd --disable-aic --disable-avsv --disable-canopus --disable-ffv1 --disable-flic --disable-huffyuv --disable-prores --disable-y4m --disable-adpcm --disable-amr --disable-amv --disable-ape --disable-au --disable-la --disable-celt --disable-midi --disable-mpc --disable-openmg --disable-pcm --disable-ps2a --disable-rkau --disable-speex --disable-tak --disable-tta --disable-twinvq --disable-references
+  ./configure --prefix="${CURRENTPATH}/bin/mediainfo/${PLATFORM}${SDKVERSION}-${ARCH}.sdk" \
+    --host=${HOST} --disable-shared --enable-minimize-size --enable-minimal --disable-archive \
+    --disable-image --disable-tag --disable-text --disable-swf --disable-flv --disable-hdsf4m \
+    --disable-cdxa --disable-dpg --disable-pmp --disable-rm --disable-wtv --disable-mxf \
+    --disable-dcp --disable-aaf --disable-bdav --disable-bdmv --disable-dvdv --disable-gxf \
+    --disable-mixml --disable-skm --disable-nut --disable-tsp --disable-hls --disable-dxw \
+    --disable-dvdif --disable-dashmpd --disable-aic --disable-avsv --disable-canopus \
+    --disable-ffv1 --disable-flic --disable-huffyuv --disable-prores --disable-y4m \
+    --disable-adpcm --disable-amr --disable-amv --disable-ape --disable-au --disable-la \
+    --disable-celt --disable-midi --disable-mpc --disable-openmg --disable-pcm --disable-ps2a \
+    --disable-rkau --disable-speex --disable-tak --disable-tta --disable-twinvq --disable-references
   
   make -j${CORES}
   make install
@@ -113,9 +123,13 @@ build_catalyst() {
   mkdir -p "${CURRENTPATH}/bin/zenlib/catalyst"
   mkdir -p "${CURRENTPATH}/bin/mediainfo/catalyst"
   
-  lipo -create "${CURRENTPATH}/bin/zenlib/MacOSX${SDKVERSION}-x86_64.sdk/lib/libzen.a" "${CURRENTPATH}/bin/zenlib/MacOSX${SDKVERSION}-arm64.sdk/lib/libzen.a" -output "${CURRENTPATH}/bin/zenlib/catalyst/libzen.a"
+  lipo -create "${CURRENTPATH}/bin/zenlib/MacOSX${SDKVERSION}-x86_64.sdk/lib/libzen.a" \
+    "${CURRENTPATH}/bin/zenlib/MacOSX${SDKVERSION}-arm64.sdk/lib/libzen.a" \
+    -output "${CURRENTPATH}/bin/zenlib/catalyst/libzen.a"
   
-  lipo -create "${CURRENTPATH}/bin/mediainfo/MacOSX${SDKVERSION}-x86_64.sdk/lib/libmediainfo.a" "${CURRENTPATH}/bin/mediainfo/MacOSX${SDKVERSION}-arm64.sdk/lib/libmediainfo.a" -output "${CURRENTPATH}/bin/mediainfo/catalyst/libmediainfo.a"
+  lipo -create "${CURRENTPATH}/bin/mediainfo/MacOSX${SDKVERSION}-x86_64.sdk/lib/libmediainfo.a" \
+    "${CURRENTPATH}/bin/mediainfo/MacOSX${SDKVERSION}-arm64.sdk/lib/libmediainfo.a" \
+    -output "${CURRENTPATH}/bin/mediainfo/catalyst/libmediainfo.a"
 }
 
 # Build iOS target for arm64
@@ -133,9 +147,13 @@ build_iOS_simulator() {
   mkdir -p "${CURRENTPATH}/bin/zenlib/iPhoneSimulator"
   mkdir -p "${CURRENTPATH}/bin/mediainfo/iPhoneSimulator"
   
-  lipo -create "${CURRENTPATH}/bin/zenlib/iPhoneSimulator${SDKVERSION}-x86_64.sdk/lib/libzen.a" "${CURRENTPATH}/bin/zenlib/iPhoneSimulator${SDKVERSION}-arm64.sdk/lib/libzen.a" -output "${CURRENTPATH}/bin/zenlib/iPhoneSimulator/libzen.a"
+  lipo -create "${CURRENTPATH}/bin/zenlib/iPhoneSimulator${SDKVERSION}-x86_64.sdk/lib/libzen.a" \
+    "${CURRENTPATH}/bin/zenlib/iPhoneSimulator${SDKVERSION}-arm64.sdk/lib/libzen.a" \
+    -output "${CURRENTPATH}/bin/zenlib/iPhoneSimulator/libzen.a"
   
-  lipo -create "${CURRENTPATH}/bin/mediainfo/iPhoneSimulator${SDKVERSION}-x86_64.sdk/lib/libmediainfo.a" "${CURRENTPATH}/bin/mediainfo/iPhoneSimulator${SDKVERSION}-arm64.sdk/lib/libmediainfo.a" -output "${CURRENTPATH}/bin/mediainfo/iPhoneSimulator/libmediainfo.a"
+  lipo -create "${CURRENTPATH}/bin/mediainfo/iPhoneSimulator${SDKVERSION}-x86_64.sdk/lib/libmediainfo.a" \
+    "${CURRENTPATH}/bin/mediainfo/iPhoneSimulator${SDKVERSION}-arm64.sdk/lib/libmediainfo.a" \
+    -output "${CURRENTPATH}/bin/mediainfo/iPhoneSimulator/libmediainfo.a"
 }
 
 create_XCFramework() {
@@ -175,18 +193,25 @@ clean_up() {
   echo "${bold}Done.${normal}"
 }
 
+download_zenlib() {
+  if [ ! -e "${ZENLIB_VERSION}.tar.gz" ]; then
+    curl -LO "https://github.com/MediaArea/ZenLib/archive/${ZENLIB_VERSION}.tar.gz"
+  fi
+}
+
+download_mediainfo() {
+  if [ ! -e "${MEDIAINFO_VERSION}.tar.gz" ]; then
+    curl -LO "https://github.com/meganz/MediaInfoLib/archive/${MEDIAINFO_VERSION}.tar.gz"
+  fi
+}
+
 # Main build process
 main() {
   check_xcode_path
   check_for_spaces
-
-  if [ ! -e "${ZENLIB_VERSION}.tar.gz" ]; then
-    curl -LO "https://github.com/MediaArea/ZenLib/archive/${ZENLIB_VERSION}.tar.gz"
-  fi
   
-  if [ ! -e "${MEDIAINFO_VERSION}.tar.gz" ]; then
-    curl -LO "https://github.com/meganz/MediaInfoLib/archive/${MEDIAINFO_VERSION}.tar.gz"
-  fi
+  download_zenlib
+  download_mediainfo
 
   build_catalyst
   build_iOS
