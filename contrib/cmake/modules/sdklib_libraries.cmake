@@ -48,7 +48,16 @@ macro(load_sdklib_libraries)
         find_package(ICU COMPONENTS uc data REQUIRED)
         target_link_libraries(SDKlib PRIVATE ICU::uc ICU::data)
 
+        if(USE_OPENSSL)
+            find_package(OpenSSL REQUIRED)
+            target_link_libraries(SDKlib PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+        endif()
+
         if(USE_MEDIAINFO)
+            # TODO MediaInfo is not linking with zen correctly. Preload it.
+            find_package(ZenLib CONFIG REQUIRED)
+            target_link_libraries(SDKlib PRIVATE zen)
+
             find_package(MediaInfoLib REQUIRED)
             target_link_libraries(SDKlib PRIVATE mediainfo)
         endif()
