@@ -1063,7 +1063,7 @@ AC_ARG_WITH(ffmpeg,
      ;;
    yes)
     #ffmpeg-mega
-    AC_CHECK_HEADERS([ffmpeg-mega/libavutil/macros.h],
+    AC_CHECK_FILE([/usr/include/ffmpeg-mega/libavutil/macros.h],
        # LDFLAGS="-L$with_ffmpeg/lib $LDFLAGS"
         CXXFLAGS="-I/usr/include/ffmpeg-mega $CXXFLAGS"
         CPPFLAGS="-I/usr/include/ffmpeg-mega $CPPFLAGS"
@@ -1096,7 +1096,7 @@ AC_ARG_WITH(ffmpeg,
   ],
   [AC_MSG_RESULT([--with-ffmpeg not specified])
 
-    AC_CHECK_HEADERS([ffmpeg-mega/libavutil/macros.h],
+    AC_CHECK_FILE([/usr/include/ffmpeg-mega/libavutil/macros.h],
        # LDFLAGS="-L$with_ffmpeg/lib $LDFLAGS"
         CXXFLAGS="-I/usr/include/ffmpeg-mega $CXXFLAGS"
         CPPFLAGS="-I/usr/include/ffmpeg-mega $CPPFLAGS"

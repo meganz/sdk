@@ -53,10 +53,6 @@ using namespace mega;
     }
 }
 
-- (instancetype)clone {
-    return self.pricing ? [[MEGAPricing alloc] initWithMegaPricing:self.pricing->copy() cMemoryOwn:YES] : nil;
-}
-
 - (NSInteger)products {
     return self.pricing ? self.pricing->getNumProducts() : 0;
 }
