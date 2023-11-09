@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 #include <unordered_map>
+#include <ostream>
 
 namespace mega {
 
@@ -22,12 +23,17 @@ public:
     bool empty() const;
 
     size_type size() const;
+
 private:
+    friend std::ostream& operator<<(std::ostream& os, const Arguments& arguments);
+
     static std::unordered_map<std::string, std::string> parse(const std::vector<std::string>& arguments);
 
     static std::pair<std::string, std::string> parseOneArgument(const std::string& argument);
 
     std::unordered_map<std::string, std::string> mValues;
 };
+
+std::ostream& operator<<(std::ostream& os, const Arguments& arguments);
 
 }

@@ -36,4 +36,13 @@ Arguments::size_type Arguments::size() const
     return mValues.size();
 }
 
+std::ostream& operator<<(std::ostream& os, const Arguments& arguments)
+{
+    for (auto& argument : arguments.mValues)
+    {
+        os << "  " << argument.first << "=" << argument.second << std::endl;
+    }
+    return os;
+}
+
 }

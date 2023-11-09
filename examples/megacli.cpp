@@ -153,6 +153,7 @@ Usage:
   megacli [OPTION...]
 
   -h                   Show help
+  -v                   Verbose
 )--"
 #if defined(WIN32)
 R"--(
@@ -213,6 +214,7 @@ static Arguments toArguments(int argc, char* argv[])
 {
     std::vector<std::string> argVec;
     std::copy(argv + 1, argv + argc, std::back_inserter(argVec));
+
     Arguments arguments(argVec);
     return arguments;
 }
@@ -9894,6 +9896,12 @@ int main(int argc, char* argv[])
     {
         std::cout << USAGE << std::endl;
         return 0;
+    }
+
+    if (arguments.contains("-v"))
+    {
+        std::cout << "Arguments: \n"
+                  << arguments;
     }
 
     // config from arguments
