@@ -40,6 +40,8 @@ let package = Package(
             cxxSettings: [
                 .headerSearchPath("bindings/ios"),
                 .headerSearchPath("include/mega/posix"),
+                .define("ENABLE_CHAT"),
+                .define("HAVE_LIBUV"),
                 .define("NDEBUG", .when(configuration: .release))
             ],
             linkerSettings: [
@@ -67,6 +69,8 @@ let package = Package(
             path: "bindings/ios",
             cxxSettings: [
                 .headerSearchPath("../../include"),
+                .define("ENABLE_CHAT"),
+                .define("HAVE_LIBUV"),
                 .headerSearchPath("Private")
             ]
         ),

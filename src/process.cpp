@@ -19,7 +19,7 @@
  * program.
  */
 
-#include "process.h"
+#include "mega/process.h"
 
 #include "mega.h"
 
@@ -417,9 +417,9 @@ bool Process::readStdout()
         {
             stdoutReader(buf, (size_t)len);
         }
-        else
+        else if (::write(STDOUT_FILENO, buf, (size_t)len) < 0)
         {
-            ::write(STDOUT_FILENO, buf, (size_t)len);
+            reportError("Process::readStdout() -> ::write() error: " + std::to_string(errno));
         }
         return true;
     }
@@ -482,16 +482,16 @@ bool Process::readStderr()
         {
             stderrReader(buf, (size_t)len);
         }
-        else
+        else if (::write(STDOUT_FILENO, buf, (size_t)len) < 0)
         {
-            ::write(STDOUT_FILENO, buf, (size_t)len);
+            reportError("Process::readStderr() -> ::write() error: " + std::to_string(errno));
         }
         return true;
     }
 #endif
 }
 
-std::string Process::getExitSignalDescription()
+std::string Process::getExitSignalDescription() const
 {
     // Unix only
     // returns SIG* description
@@ -510,7 +510,7 @@ string Process::describeSignal(int sig)
 #endif
 }
 
-string Process::getExitMessage()
+string Process::getExitMessage() const
 {
     // return description of exit
     // "Exited ok"

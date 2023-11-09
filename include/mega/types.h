@@ -225,6 +225,7 @@ typedef enum ErrorCodes : int
     API_EBUSINESSPASTDUE = -28,     ///< Business account expired
     API_EPAYWALL = -29,             ///< Over Disk Quota Paywall
     LOCAL_ENOSPC = -1000,           ///< Insufficient space
+    LOCAL_ETIMEOUT = -1001,         ///< A request timed out.
 } error;
 
 class Error
@@ -377,6 +378,7 @@ typedef enum { MIME_TYPE_UNKNOWN    = 0,
                MIME_TYPE_ARCHIVE    = 7,    // archiveExtensions
                MIME_TYPE_PROGRAM    = 8,    // programExtensions
                MIME_TYPE_MISC       = 9,    // miscExtensions
+               MIME_TYPE_SPREADSHEET = 10,  // spreadsheetExtensions
              } MimeType_t;
 
 typedef enum { LBL_UNKNOWN = 0, LBL_RED = 1, LBL_ORANGE = 2, LBL_YELLOW = 3, LBL_GREEN = 4,

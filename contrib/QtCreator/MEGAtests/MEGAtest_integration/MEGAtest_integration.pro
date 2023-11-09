@@ -52,13 +52,11 @@ QMAKE_CXXFLAGS+=-std=c++17
 
 SOURCES += \
 ../../../../tests/integration/main.cpp \
-../../../../tests/integration/process.cpp \
 ../../../../tests/integration/SdkTest_test.cpp \
 ../../../../tests/integration/Sync_test.cpp
 
 HEADERS += \
 ../../../../tests/integration/test.h \
-../../../../tests/integration/process.h \
 ../../../../tests/integration/SdkTest_test.h
 
 copydata.commands = $(COPY_DIR) $$shell_path($$PWD/../../../../tests/integration/test-data/*) $$shell_path($$OUT_PWD)

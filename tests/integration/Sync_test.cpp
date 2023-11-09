@@ -3722,9 +3722,11 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
     mOnTransferAdded = nullptr;
     onTransferCompleted = nullptr;
 
-#ifdef DEBUG
+#ifndef NDEBUG // match the conditon in the header
     mOnMoveBegin = nullptr;
     mOnPutnodesBegin = nullptr;
+#endif
+#ifdef DEBUG
     mOnSyncDebugNotification = nullptr;
 #endif // DEBUG
 
@@ -4399,7 +4401,7 @@ bool StandardClient::verifyCredentials(const string& email)
     auto result = thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
         User* u = client.client.finduser(email.c_str());
         if (u) {
-            result->set_value(client.client.verifyCredentials(u->userhandle) == API_OK);
+            result->set_value(client.client.verifyCredentials(u->userhandle, nullptr) == API_OK);
         }
         else
         {
@@ -4421,7 +4423,7 @@ bool StandardClient::resetCredentials(const string& email)
     auto result = thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
         User* u = client.client.finduser(email.c_str());
         if (u) {
-            result->set_value(client.client.resetCredentials(u->userhandle) == API_OK);
+            result->set_value(client.client.resetCredentials(u->userhandle, nullptr) == API_OK);
         }
         else
         {
@@ -4460,40 +4462,43 @@ bool StandardClient::rmcontact(const string& email)
     return result.get();
 }
 
-void StandardClient::share(const CloudItem& item, const string& email, accesslevel_t permissions, PromiseBoolSP result)
+void StandardClient::opensharedialog(const CloudItem& item, PromiseErrorSP result)
 {
     auto* node = item.resolve(*this);
-    if (!node)
-        return result->set_value(false);
 
-    auto completion = [=](Error e, bool) {
-        if (e == API_EKEY)
-        {
-            // create share key and try again
-            client.openShareDialog(node, [=](Error osdErr)
-                {
-                    if (osdErr == API_OK)
-                    {
-                        client.setshare(node,
-                            email.c_str(),
-                            permissions,
-                            false,
-                            nullptr,
-                            ++next_request_tag,
-                            [result](Error e2, bool) {result->set_value(!e2);});
-                    }
-                    else
-                    {
-                        result->set_value(false);
-                    }
-                }
-            );
-        }
-        else
-        {
-            result->set_value(!e);
-        }
-    };
+    if (!node)
+        return result->set_value(API_ENOENT);
+
+    client.openShareDialog(node, [result](Error e) {
+        result->set_value(e);
+    });
+}
+
+Error StandardClient::opensharedialog(const CloudItem& item)
+{
+    auto result = thread_do<Error>([&](StandardClient& client, PromiseErrorSP result) {
+        client.opensharedialog(item, std::move(result));
+    }, __FILE__, __LINE__);
+
+    auto status = result.wait_for(DEFAULTWAIT);
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
+        return LOCAL_ETIMEOUT;
+
+    return result.get();
+}
+
+void StandardClient::share(const CloudItem& item, const string& email, accesslevel_t permissions, PromiseErrorSP result)
+{
+    auto* node = item.resolve(*this);
+
+    if (!node)
+        return result->set_value(API_ENOENT);
+
+    auto completion = [result](Error e, bool) {
+        result->set_value(e);
+    }; // completion
 
     client.setshare(node,
                     email.c_str(),
@@ -4504,9 +4509,11 @@ void StandardClient::share(const CloudItem& item, const string& email, accesslev
                     std::move(completion));
 }
 
-bool StandardClient::share(const CloudItem& item, const string& email, accesslevel_t permissions)
+Error StandardClient::share(const CloudItem& item,
+                            const string& email,
+                            accesslevel_t permissions)
 {
-    auto result = thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
+    auto result = thread_do<Error>([&](StandardClient& client, PromiseErrorSP result) {
         client.share(item, email, permissions, std::move(result));
     }, __FILE__, __LINE__);
 
@@ -4514,10 +4521,9 @@ bool StandardClient::share(const CloudItem& item, const string& email, accesslev
     EXPECT_NE(status, future_status::timeout);
 
     if (status == future_status::timeout)
-        return false;
+        return LOCAL_ETIMEOUT;
 
-    bool r = result.get();
-    return r;
+    return result.get();
 }
 
 void StandardClient::upgradeSecurity(PromiseBoolSP result)
@@ -10979,11 +10985,13 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
     }
 
     // Share the test root with client 1.
-    ASSERT_TRUE(client0.share(*r, getenv("MEGA_EMAIL_AUX"), FULL));
+    ASSERT_EQ(client0.opensharedialog(*r), API_OK);
+    ASSERT_EQ(client0.share(*r, getenv("MEGA_EMAIL_AUX"), FULL), API_OK);
     ASSERT_TRUE(client1.waitFor(SyncRemoteNodePresent(*r), std::chrono::seconds(90)));
 
     // Share the sync root with client 2.
-    ASSERT_TRUE(client0.share(sh, getenv("MEGA_EMAIL_AUX2"), FULL));
+    ASSERT_EQ(client0.opensharedialog(sh), API_OK);
+    ASSERT_EQ(client0.share(sh, getenv("MEGA_EMAIL_AUX2"), FULL), API_OK);
     ASSERT_TRUE(client2.waitFor(SyncRemoteNodePresent(sh), std::chrono::seconds(90)));
 
     // Add and start a new sync.
