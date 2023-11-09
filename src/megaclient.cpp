@@ -12542,6 +12542,7 @@ bool MegaClient::getua(User* u, const attr_t at, int ctag)
         else if (u->nonExistingAttribute(at))  // only own user attrs get marked as "no exits"
         {
             assert(u->userhandle == me);
+            restag = tag;
             app->getua_result(API_ENOENT);
         }
         else
