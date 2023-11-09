@@ -46,6 +46,7 @@ SOURCES += src/attrmap.cpp \
     src/json.cpp \
     src/megaclient.cpp \
     src/node.cpp \
+    src/process.cpp \
     src/pubkeyaction.cpp \
     src/request.cpp \
     src/serialize64.cpp \
@@ -449,6 +450,7 @@ HEADERS  += include/mega.h \
             include/mega/megaapp.h \
             include/mega/megaclient.h \
             include/mega/node.h \
+            include/mega/process.h \
             include/mega/pubkeyaction.h \
             include/mega/request.h \
             include/mega/serialize64.h \
@@ -541,10 +543,10 @@ else {
     SOURCES += src/gfx/freeimage.cpp
 
     vcpkg {
-        LIBS += -lfreeimage$$DEBUG_SUFFIX_WO -ljxrglue$$DEBUG_SUFFIX \
+        LIBS += -lFreeImage$$DEBUG_SUFFIX -ljxrglue$$DEBUG_SUFFIX \
             -ljpeg -ltiff$$DEBUG_SUFFIX \
-            -lIex-3_1$$UNDERSCORE_DEBUG_SUFFIX -lIlmThread-3_1$$UNDERSCORE_DEBUG_SUFFIX \
-            -lImath-3_1$$UNDERSCORE_DEBUG_SUFFIX -lOpenEXR-3_1$$UNDERSCORE_DEBUG_SUFFIX
+            -lIex-3_1$$UNDERSCORE_DEBUG_SUFFIX -lOpenEXR-3_1$$UNDERSCORE_DEBUG_SUFFIX \
+            -lIlmThread-3_1$$UNDERSCORE_DEBUG_SUFFIX -lImath-3_1$$UNDERSCORE_DEBUG_SUFFIX
         win32 {
             LIBS += -llibpng16$$DEBUG_SUFFIX -llibwebpdecoder -llibwebpdemux -llibwebp -llibwebpmux -llibsharpyuv
         }
@@ -809,6 +811,15 @@ macx {
    LIBS += -framework SystemConfiguration
    
    vcpkg:LIBS += -liconv -framework CoreServices -framework CoreFoundation -framework AudioUnit -framework AudioToolbox -framework CoreAudio -framework CoreMedia -framework VideoToolbox -framework ImageIO -framework CoreVideo 
+
+    clang {
+        COMPILER_VERSION = $$system("$$QMAKE_CXX -dumpversion | cut -d'.' -f1")
+        message($$COMPILER_VERSION)
+        greaterThan(COMPILER_VERSION, 14) {
+            message("Using Xcode 15 or above. Switching to ld_classic linking.")
+            LIBS += -Wl,-ld_classic
+        }
+    }
 }
 
 # DriveNotify settings

@@ -1,8 +1,8 @@
 /**
- * @file OfflineTableViewController.h
- * @brief View controller that show offline files
+ * @file BackUpState.h
+ * @brief Backup sync states
  *
- * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
+ * (c) 2023- by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -18,9 +18,17 @@
  * You should have received a copy of the license along with this
  * program.
  */
-#import <UIKit/UIKit.h>
-#import "MEGASdkManager.h"
 
-@interface OfflineTableViewController : UITableViewController <MEGATransferDelegate>
-
-@end
+typedef NS_ENUM(NSInteger, BackUpState) {
+    BackUpStateInvalid = -1,
+    BackUpStateNotInitialized = 0,
+    BackUpStateActive = 1,
+    BackUpStateFailed = 2,
+    BackUpStateTemporaryDisabled = 3,
+    BackUpStateDisabled = 4,
+    BackUpStatePauseUp = 5,
+    BackUpStatePauseDown = 6,
+    BackUpStatePauseFull = 7,
+    BackUpStateDeleted = 8,
+    BackUpStateUnknown = 9
+};

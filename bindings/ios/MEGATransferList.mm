@@ -53,12 +53,12 @@ using namespace mega;
     return self.transferList;
 }
 
-- (MEGATransfer *)transferAtIndex:(NSInteger)index {
+- (nullable MEGATransfer *)transferAtIndex:(NSInteger)index {
     return self.transferList ? [[MEGATransfer alloc] initWithMegaTransfer:self.transferList->get((int)index)->copy() cMemoryOwn:YES] : nil;
 }
 
-- (NSNumber *)size {
-    return self.transferList ? [[NSNumber alloc] initWithInt:self.transferList->size()] : nil;
+- (NSInteger)size {
+    return self.transferList ? self.transferList->size() : 0;
 }
 
 @end
