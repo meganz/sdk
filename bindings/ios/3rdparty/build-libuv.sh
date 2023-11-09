@@ -136,14 +136,18 @@ clean_up() {
   echo "${bold}Done.${normal}"
 }
 
+download_libuv() {
+  if [ ! -e "libuv-v${UV_VERSION}.tar.gz" ]; then
+    curl -LO "http://dist.libuv.org/dist/v${UV_VERSION}/libuv-v${UV_VERSION}.tar.gz"
+  fi
+}
+
 # Main build process
 main() {
   check_xcode_path
   check_for_spaces
-
-  if [ ! -e "libuv-v${UV_VERSION}.tar.gz" ]; then
-    curl -LO "http://dist.libuv.org/dist/v${UV_VERSION}/libuv-v${UV_VERSION}.tar.gz"
-  fi
+  
+  download_libuv
 
   build_catalyst
   build_iOS
