@@ -8,6 +8,7 @@ pipeline {
 
     environment {
         BUILD_OPTIONS = ' '
+        PROJECT_ID = '186'
     }
 
     stages {
@@ -229,6 +230,14 @@ pipeline {
                               sh "cp -r ${DEFAULT_GOOGLE_MAPS_API_PATH}/* app/src/"
                               sh "./gradlew --no-daemon --max-workers=1 assembleGms"
                             }
+                            post {
+                                failure {
+                                    script {
+                                        utils = load('jenkinsfile/utils.groovy')
+                                        utils.commentErrorInMr(env.PROJECT_ID)
+                                    }
+                                }
+                            }
                         }
 
                         stage ('Android Unit Tests'){
@@ -243,6 +252,14 @@ pipeline {
                             }
                             steps{
                                 sh "./gradlew --no-daemon --max-workers=1 data:testGmsDebugUnitTestCoverage"
+                            }
+                            post {
+                                failure {
+                                    script {
+                                        utils = load('jenkinsfile/utils.groovy')
+                                        utils.commentErrorInMr(env.PROJECT_ID)
+                                    }
+                                }
                             }
                         }
                     }

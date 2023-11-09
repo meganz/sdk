@@ -12,6 +12,7 @@ pipeline {
 
     environment {
         BUILD_OPTIONS = ' '
+        PROJECT_ID = '186'
     }
 
     stages {
@@ -167,6 +168,14 @@ pipeline {
                 withCredentials([gitUsernamePassword(credentialsId: 'jenkins_sdk_token_with_user', gitToolName: 'Default')]) {
                         sh "bundle exec fastlane update_plugins"
                         sh "bundle exec fastlane build_simulator"
+                }
+            }
+            post {
+                failure {
+                    script {
+                        utils = load('Modules/DataSource/MEGASDK/Sources/MEGASDK/jenkinsfile/utils.groovy')
+                        utils.commentErrorInMr(env.PROJECT_ID)
+                    }
                 }
             }
         }
