@@ -1178,7 +1178,34 @@ void SdkTest::deleteFolder(string foldername)
     fs::remove_all(p, ignoredEc);
 }
 
-void SdkTest::getAccountsForTest(unsigned howMany)
+void SdkTest::fetchNodesForAccounts(const unsigned howMany)
+{
+    std::vector<std::unique_ptr<RequestTracker>> trackers(howMany);
+    // perform parallel fetchnodes for each
+    for (unsigned index = 0; index < howMany; ++index)
+    {
+        out() << "Fetching nodes for account " << index;
+        trackers[index] = asyncRequestFetchnodes(index);
+    }
+
+    // wait for fetchnodes to complete:
+    bool anyFetchnodesFailed = false;
+    for (unsigned index = 0; index < howMany; ++index)
+    {
+        auto fetchnodesResult = trackers[index]->waitForResult();
+        EXPECT_EQ(API_OK, fetchnodesResult) << " Failed to fetchnodes for account " << index;
+        anyFetchnodesFailed = anyFetchnodesFailed || (fetchnodesResult != API_OK);
+    }
+    ASSERT_FALSE(anyFetchnodesFailed);
+
+    // Ensure all accounts are migrated.
+    for (unsigned index = 0; index < howMany; ++index)
+    {
+        EXPECT_EQ(MegaError::API_OK, synchronousDoUpgradeSecurity(index));
+    }
+}
+
+void SdkTest::getAccountsForTest(unsigned howMany, bool fetchNodes)
 {
     EXPECT_TRUE(howMany > 0) << "SdkTest::getAccountsForTest(): invalid number of test account to setup " << howMany << " is < 0";
     EXPECT_TRUE(howMany <= (unsigned)gMaxAccounts) << "SdkTest::getAccountsForTest(): too many test accounts requested " << howMany << " is > " << gMaxAccounts;
@@ -1230,28 +1257,7 @@ void SdkTest::getAccountsForTest(unsigned howMany)
     }
     ASSERT_FALSE(anyLoginFailed);
 
-    // perform parallel fetchnodes for each
-    for (unsigned index = 0; index < howMany; ++index)
-    {
-        out() << "Fetching nodes for account " << index;
-        trackers[index] = asyncRequestFetchnodes(index);
-    }
-
-    // wait for fetchnodes to complete:
-    bool anyFetchnodesFailed = false;
-    for (unsigned index = 0; index < howMany; ++index)
-    {
-        auto fetchnodesResult = trackers[index]->waitForResult();
-        EXPECT_EQ(API_OK, fetchnodesResult) << " Failed to fetchnodes for account " << index;
-        anyFetchnodesFailed = anyFetchnodesFailed || (fetchnodesResult != API_OK);
-    }
-    ASSERT_FALSE(anyFetchnodesFailed);
-
-    // Ensure all accounts are migrated.
-    for (unsigned index = 0; index < howMany; ++index)
-    {
-        EXPECT_EQ(MegaError::API_OK, synchronousDoUpgradeSecurity(index));
-    }
+    if (fetchNodes) fetchNodesForAccounts(howMany);
 
     // In case the last test exited without cleaning up (eg, debugging etc)
     Cleanup();
@@ -15166,4 +15172,64 @@ TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoANullPath)
     // Get avatar
     mApi[mApiIndex].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
     ASSERT_EQ(API_EARGS, synchronousGetUserAvatar(mApiIndex, mUser.get(), nullptr));
+}
+
+/**
+ * @brief TEST_F SdkTestGetPasswordNodeBase
+ *
+ * Tests MEGA Password Manager functionality. In particular the retrieval of folder node at base of
+ * Password Manager tree
+ *
+ * Notes:
+ * - The folder created hangs from Vault root node, and it cannot be deleted
+ *
+ * Test description:
+ * - U1: special logging in sequence
+ *     + 1) plain login
+ *     + 2) get Password Manager node handle; it will be created if it didn't exist
+       + 3) fetch nodes
+ * - U1: get Password Manager Base via get user's attribute command
+ * - U1: get Password Manager Base node again; no get user attribute requests expected
+ */
+TEST_F(SdkTest, SdkTestGetPasswordNodeBase)
+{
+    LOG_info << "___TEST SdkTestGetPasswordNodeBase";
+
+    LOG_debug << "# U1: special logging in sequence";
+    const unsigned userIdx = 0, totalAccounts = 1;
+    LOG_debug << "\t# log in without fetching nodes";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(totalAccounts, false));
+
+    LOG_debug << "\t# get Password Manager Base node handle; it will be created if it didn't exist";
+    RequestTracker rt2 {megaApi[userIdx].get()};
+    megaApi[userIdx]->getPasswordManagerBase(&rt2);
+    ASSERT_EQ(API_OK, rt2.waitForResult()) << "Getting Password Manager Base node failed";
+    ASSERT_NE(nullptr, rt2.request) << "Missing getPasswordManagerBase request data after finish";
+    const MegaHandle nhBase = rt2.request->getNodeHandle();
+    ASSERT_NE(UNDEF, nhBase) << "Password Manager Base node not set";
+
+    LOG_debug << "\t# fetch nodes";
+    fetchNodesForAccounts(totalAccounts);
+
+
+    LOG_debug << "# U1: get Password Manager Base via get user's attribute command";
+    RequestTracker rt3 {megaApi[userIdx].get()};
+    megaApi[userIdx]->getUserAttribute(MegaApi::USER_ATTR_PWM_BASE, &rt3);
+    ASSERT_EQ(API_OK, rt3.waitForResult()) << "Unexpected error retrieving pwmh user attribute";
+    ASSERT_NE(nullptr, rt3.request) << "Missing get user attribute pwmh request data after finish";
+    ASSERT_EQ(nhBase, rt3.request->getNodeHandle()) << "Mismatch in user attribute pwmh retrieved";
+
+
+    LOG_debug << "# U1: get Password Manager Base node again; no get user attribute requests expected";
+    RequestTracker rt4 {megaApi[userIdx].get()};
+    megaApi[userIdx]->getPasswordManagerBase(&rt4);
+    ASSERT_EQ(API_OK, rt4.waitForResult()) << "Getting Password Manager Base node through shortcut failed";
+    ASSERT_NE(nullptr, rt4.request);
+    ASSERT_EQ(nhBase, rt4.request->getNodeHandle()) << "Wrong Password Manager Base node retrieved through shortcut";
+
+
+    LOG_info << "# Verifying that Password Manager Base node cannot be deleted";
+    std::unique_ptr<MegaNode> n {megaApi[userIdx]->getNodeByHandle(nhBase)};
+    ASSERT_EQ(API_EACCESS, doDeleteNode(userIdx, n.get()))
+        << toNodeHandle(nhBase) << " could not be deleted";
 }

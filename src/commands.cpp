@@ -4099,6 +4099,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     string sigCu255, versionSigCu255;
     string authringEd255, versionAuthringEd255;
     string authringCu255, versionAuthringCu255;
+    string pwmh, pwmhVersion;
 
     bool uspw = false;
     vector<m_time_t> warningTs;
@@ -4434,6 +4435,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 //                int proPlan = json.getint32();
 //            }
 //            break;
+        case MAKENAMEID4('p', 'w', 'm', 'h'):
+            parseUserAttribute(json, pwmh, pwmhVersion);
+            break;
         case EOO:
         {
             assert(me == client->me);
@@ -4842,6 +4846,15 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 if (sigCu255.size())
                 {
                     changes += u->updateattr(ATTR_SIG_CU255_PUBK, &sigCu255, &versionSigCu255);
+                }
+
+                if (!pwmh.empty())
+                {
+                    changes += u->updateattr(ATTR_PWM_BASE, &pwmh, &pwmhVersion);
+                }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_PWM_BASE);
                 }
 
                 if (changes > 0)
@@ -11068,6 +11081,77 @@ bool CommandFetchCreditCard::procresult(Command::Result r, JSON& json)
     }
 
     return false;
+}
+
+CommandCreatePasswordManagerBase::CommandCreatePasswordManagerBase(MegaClient* cl, std::unique_ptr<NewNode> nn, int ctag,
+                                                                   CommandCreatePasswordManagerBase::Completion&& cb)
+    : mNewNode(std::move(nn)), mCompletion(std::move(cb))
+{
+    cmd("pwmp");
+    // APs "t" (for the new node/folder) and "ua" (for the new user attribute) triggered
+
+    if (mNewNode)
+    {
+        arg("k", reinterpret_cast<const byte*>(mNewNode->nodekey.data()),
+            static_cast<int>(mNewNode->nodekey.size()));
+        if (mNewNode->attrstring)
+        {
+            arg("at", reinterpret_cast<const byte*>(mNewNode->attrstring->data()),
+                static_cast<int>(mNewNode->attrstring->size()));
+        }
+    }
+
+    tag = ctag;  // although it won't be used, it is updated for integrity
+};
+
+bool CommandCreatePasswordManagerBase::procresult(Result r, JSON &json)
+{
+    // APs will update user data (in v3: wait for APs before returning)
+
+    if (r.wasErrorOrOK())
+    {
+        if (mCompletion) mCompletion(r.errorOrOK(), nullptr);
+        return true;
+    }
+
+    NodeHandle folderHandle;
+    m_off_t t = 0;
+    for (;;)
+    {
+        // not interested in already-known "k" (user:key), "t", "at", "u", "ts"
+        switch (json.getnameid())
+        {
+        case 'h':
+            folderHandle.set6byte(json.gethandle(MegaClient::NODEHANDLE));
+            break;
+        case 't':
+        {
+            t = json.getint();
+            break;
+        }
+        case EOO:
+            if (FOLDERNODE != static_cast<nodetype_t>(t))  // sanity check
+            {
+                LOG_err << "Password Manager: wrong node type received in command response. "
+                        <<" Received " << t << " expected " << FOLDERNODE << " received "
+                        << t;
+                if (mCompletion) mCompletion(API_EINTERNAL, nullptr);
+                return false;
+            }
+
+            mNewNode->nodehandle = folderHandle.as8byte();
+
+            if (mCompletion) mCompletion(API_OK, std::move(mNewNode));
+            return true;
+        default:
+            if (!json.storeobject())
+            {
+                LOG_err << "Password Manager: error parsing param";
+                if (mCompletion) mCompletion(API_EINTERNAL, nullptr);
+                return false;
+            }
+        }
+    }
 }
 
 } // namespace

@@ -820,7 +820,10 @@ public:
     void putua(userattr_map *attrs, int ctag = -1, std::function<void(Error)> completion = nullptr);
 
     // queue a user attribute retrieval
-    bool getua(User* u, const attr_t at = ATTR_UNKNOWN, int ctag = -1);
+    bool getua(User* u, const attr_t at = ATTR_UNKNOWN, int ctag = -1,
+               CommandGetUA::CompletionErr ce = nullptr,
+               CommandGetUA::CompletionBytes cb = nullptr,
+               CommandGetUA::CompletionTLV ctlv = nullptr);
 
     // queue a user attribute retrieval (for non-contacts)
     void getua(const char* email_handle, const attr_t at = ATTR_UNKNOWN, const char *ph = NULL, int ctag = -1);
@@ -2655,6 +2658,11 @@ public:
 
     void fetchCreditCardInfo(CommandFetchCreditCardCompletion completion);
     void setProFlexi(bool newProFlexi);
+
+    // Password Manager
+    NodeHandle getPasswordManagerBase();
+    void createPasswordManagerBase(int rtag, CommandCreatePasswordManagerBase::Completion cbRequest);
+
 };
 
 } // namespace

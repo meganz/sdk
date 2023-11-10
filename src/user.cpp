@@ -646,6 +646,10 @@ string User::attr2string(attr_t type)
             attrname = "*!ccPref";
             break;
 
+        case ATTR_PWM_BASE:
+            attrname = "pwmh";
+            break;
+
         case ATTR_UNKNOWN:  // empty string
             break;
     }
@@ -808,6 +812,9 @@ string User::attr2longname(attr_t type)
         break;
     case ATTR_CC_PREFS:
         longname = "CC_PREFS";
+        break;
+    case ATTR_PWM_BASE:
+        longname = "PWM_BASE";
         break;
     }
 
@@ -1061,6 +1068,7 @@ char User::scope(attr_t at)
         case ATTR_COOKIE_SETTINGS:
         case ATTR_MY_BACKUPS_FOLDER:
         case ATTR_KEYS:
+        case ATTR_PWM_BASE:
             return '^';
 
         default:

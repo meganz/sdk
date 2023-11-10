@@ -12514,7 +12514,8 @@ void MegaClient::putua(userattr_map *attrs, int ctag, std::function<void (Error)
  *
  * @return False when attribute requires a request to server. False otherwise (if cached, or unknown)
  */
-bool MegaClient::getua(User* u, const attr_t at, int ctag)
+bool MegaClient::getua(User* u, const attr_t at, int ctag, CommandGetUA::CompletionErr ce,
+                       CommandGetUA::CompletionBytes cb, CommandGetUA::CompletionTLV ctlv)
 {
     if (at != ATTR_UNKNOWN)
     {
@@ -12528,14 +12529,16 @@ bool MegaClient::getua(User* u, const attr_t at, int ctag)
             {
                 TLVstore *tlv = TLVstore::containerToTLVrecords(cachedav, &key);
                 restag = tag;
-                app->getua_result(tlv, at);
+                if (ctlv) ctlv(tlv, at);
+                else      app->getua_result(tlv, at);
                 delete tlv;
                 return true;
             }
             else
             {
                 restag = tag;
-                app->getua_result((byte*) cachedav->data(), unsigned(cachedav->size()), at);
+                if (cb) cb((byte*) cachedav->data(), unsigned(cachedav->size()), at);
+                else    app->getua_result((byte*) cachedav->data(), unsigned(cachedav->size()), at);
                 return true;
             }
         }
@@ -12543,11 +12546,12 @@ bool MegaClient::getua(User* u, const attr_t at, int ctag)
         {
             assert(u->userhandle == me);
             restag = tag;
-            app->getua_result(API_ENOENT);
+            if (ce) ce(API_ENOENT);
+            else    app->getua_result(API_ENOENT);
         }
         else
         {
-            reqs.add(new CommandGetUA(this, u->uid.c_str(), at, NULL, tag, nullptr, nullptr, nullptr));
+            reqs.add(new CommandGetUA(this, u->uid.c_str(), at, NULL, tag, ce, cb, ctlv));
             return false;
         }
     }
@@ -21966,6 +21970,41 @@ string MegaClient::generateVpnCredentialString(int clusterID,
 void MegaClient::fetchCreditCardInfo(CommandFetchCreditCardCompletion completion)
 {
     reqs.add(new CommandFetchCreditCard(this, std::move(completion)));
+}
+
+NodeHandle MegaClient::getPasswordManagerBase() //const
+{
+    return toNodeHandle(ownuser()->getattr(ATTR_PWM_BASE));
+}
+
+void MegaClient::createPasswordManagerBase(int rtag, CommandCreatePasswordManagerBase::Completion cbRequest)
+{
+    LOG_info << "Password Manager: Requesting pwmh creation to server";
+
+    auto newNode = make_unique<NewNode>();
+    std::array<byte, FOLDERNODEKEYLENGTH> key;
+
+    rng.genblock(key.data(), key.size());
+    SymmCipher cipher;
+    cipher.setkey(key.data());
+    newNode->nodekey.assign(reinterpret_cast<char *>(key.data()),
+                            key.size());
+
+    newNode->source = NEW_NODE;
+    newNode->type = FOLDERNODE;
+    newNode->nodehandle = UNDEF;
+
+    AttrMap attrs;
+    string name{"My Passwords"}; // arbitrary default name, eventually
+                                 // updatable by client apps
+    LocalPath::utf8_normalize(&name);
+    attrs.map['n'] = name;
+    string attrString;
+    attrs.getjson(&attrString);
+    newNode->attrstring.reset(new string);
+    makeattr(&cipher, newNode->attrstring, attrString.c_str());
+
+   reqs.add(new CommandCreatePasswordManagerBase(this, std::move(newNode), rtag, std::move(cbRequest)));
 }
 
 FetchNodesStats::FetchNodesStats()

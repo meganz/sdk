@@ -4302,7 +4302,8 @@ class MegaRequest
             TYPE_DEL_VPN_CREDENTIAL                                         = 175,
             TYPE_CHECK_VPN_CREDENTIAL                                       = 176,
             TYPE_FETCH_CREDIT_CARD_INFO                                     = 177,
-            TOTAL_OF_REQUEST_TYPES                                          = 178
+            TYPE_CREATE_PASSWORD_MANAGER_BASE                               = 178,
+            TOTAL_OF_REQUEST_TYPES                                          = 179
         };
 
         virtual ~MegaRequest();
@@ -4407,6 +4408,7 @@ class MegaRequest
          * - MegaApi::createFolder - Returns the handle of the new folder
          * - MegaApi::copyNode - Returns the handle of the new node
          * - MegaApi::importFileLink - Returns the handle of the new node
+         * - MegaApi::getPasswordManagerBase - Returns the handle of the base folder node
          *
          * @return Handle of a node related to the request
          */
@@ -9261,6 +9263,7 @@ class MegaApi
             USER_ATTR_NO_CALLKIT = 36,           // private - byte array
             USER_ATTR_APPS_PREFS = 38,           // private - byte array - versioned
             USER_ATTR_CC_PREFS   = 39,           // private - byte array - versioned
+            USER_ATTR_PWM_BASE = 40,             // private non-encrypted (fully controlled by API) - char array in B64
         };
 
         enum {
@@ -11493,6 +11496,23 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get Password Manager Base folder node from the MEGA account
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CREATE_PASSWORD_MANAGER_BASE
+         * Valid data in the MegaRequest object received on callbacks:
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNodeHandle - Handle of the folder
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getPasswordManagerBase(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Create a new empty folder in your local file system

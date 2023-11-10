@@ -3284,6 +3284,9 @@ public:
         void checkVpnCredential(const char* userPubKey, MegaRequestListener* listener = nullptr);
         /* MegaVpnCredentials end */
 
+        // Password Manager
+        void getPasswordManagerBase(MegaRequestListener *listener = nullptr);
+
         void fetchCreditCardInfo(MegaRequestListener* listener = nullptr);
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
@@ -3763,6 +3766,9 @@ private:
         bool hasToForceUpload(const Node &node, const MegaTransferPrivate &transfer) const;
 
         void exportSet(MegaHandle sid, bool create, MegaRequestListener* listener = nullptr);
+
+        // Password Manager - private
+        void createPasswordManagerBase(MegaRequestPrivate*);
 
         friend class MegaBackgroundMediaUploadPrivate;
         friend class MegaFolderDownloadController;

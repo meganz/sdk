@@ -60,6 +60,26 @@ string toNodeHandle(NodeHandle nodeHandle)
     return toNodeHandle(nodeHandle.as8byte());
 }
 
+NodeHandle toNodeHandle(const byte* data)
+{
+    NodeHandle ret;
+    if (data)
+    {
+        handle h = 0;  // most significant non-used-for-the-handle bytes must be zeroed
+        memcpy(&h, data, MegaClient::NODEHANDLE);
+        ret.set6byte(h);
+    }
+
+    return ret;
+}
+
+NodeHandle toNodeHandle(const std::string* data)
+{
+    if(data) return toNodeHandle(reinterpret_cast<const byte*>(data->c_str()));
+
+    return NodeHandle{};
+}
+
 string toHandle(handle h)
 {
     char base64Handle[14];
