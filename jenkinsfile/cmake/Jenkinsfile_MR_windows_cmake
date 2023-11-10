@@ -85,7 +85,7 @@ pipeline {
         }
         stage('Build Windows'){
             environment{
-                VCPKGPATH  = "${windows_sources_workspace}\\..\\3rdparty"
+                VCPKGPATH  = "${windows_sources_workspace}\\..\\..\\3rdparty"
             }
             options{
                 timeout(time: 150, unit: 'MINUTES')
@@ -119,7 +119,7 @@ pipeline {
                 timeout(time: 250, unit: 'MINUTES')
             }
             environment {
-                PATH = "${windows_sources_workspace}\\\\..\\\\3rdparty\\\\vcpkg\\\\installed\\\\x64-windows-mega\\\\debug\\\\bin;${env.PATH}"
+                PATH = "${windows_sources_workspace}\\\\..\\\\..\\\\3rdparty\\\\vcpkg\\\\installed\\\\x64-windows-mega\\\\debug\\\\bin;${env.PATH}"
                 MEGA_PWD = credentials('MEGA_PWD_DEFAULT')
                 MEGA_PWD_AUX = credentials('MEGA_PWD_DEFAULT')
                 MEGA_PWD_AUX2 = credentials('MEGA_PWD_DEFAULT')
