@@ -20095,7 +20095,6 @@ void MegaApiImpl::getDownloadUrl(MegaNode* node, bool singleUrl, MegaRequestList
     request->performRequest = [this, request]()
         {
             std::shared_ptr<Node> node = client->nodebyhandle(request->getNodeHandle());
-            bool singleUrl = request->getFlag();
             if(!node) // works only for existing nodes, not the ones that need to be undeleted (see "gd" command)
             {
                 return API_EARGS;
