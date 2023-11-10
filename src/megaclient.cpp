@@ -5318,36 +5318,10 @@ bool MegaClient::procsc()
                         uint64_t numNodes = mNodeManager.getNodeCount();
                         fnstats.nodesCurrent = numNodes;
 
-                        if(mSharesToReview.size() && mKeyManager.generation())
+                        if (mKeyManager.generation())
                         {
-                            // Ensure in-use bit in ^!keys is up to date for the not shared nodes.
-                            for(handle nh : mSharesToReview)
-                            {
-                                Node *n = nodebyhandle(nh);
-                                // Skip the nodes which are shared and the ones which are already cleared in ^!keys.
-                                if((n && n->isShared()) || !mKeyManager.isShareKeyInUse(nh))
-                                {
-                                    mSharesToReview.erase(nh);
-                                }
-                            }
-
-                            if(mSharesToReview.size())
-                            {
-                                mKeyManager.commit(
-                                    [this]()
-                                    {
-                                        string handles;
-                                        for(const handle nh : mSharesToReview)
-                                        {
-                                            mKeyManager.setSharekeyInUse(nh, false);
-                                            handles += toNodeHandle(nh);
-                                        }
-                                        LOG_debug << "Clearing in-use bit of the share-keys. Applied to: " << handles;
-                                    },[this]()
-                                    {
-                                        mSharesToReview.clear();
-                                    });
-                            }
+                            // Clear in-use bit if needed for the shared nodes in ^!keys.
+                            mKeyManager.syncSharekeyInUseBit();
                         }
 
                         statecurrent = true;
@@ -6690,11 +6664,6 @@ bool MegaClient::sc_shares()
                                     }
                                 }
                             }
-                        }
-                        else
-                        {
-                            // Store in the list to check status in ^!keys just before reaching statecurrent.
-                            mSharesToReview.insert(h);
                         }
                     }
 
