@@ -29,7 +29,7 @@
 #include <mega/db.h>
 #include <mega/db/sqlite.h>
 #include <mega/json.h>
-#include "../integration/process.h"
+#include <mega/process.h>
 
 TEST(utils, hashCombine_integer)
 {
