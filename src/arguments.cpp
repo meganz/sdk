@@ -2,6 +2,14 @@
 
 namespace mega {
 
+Arguments::Arguments(int argc, char* argv[])
+{
+    std::vector<std::string> argVec;
+    std::copy(argv + 1, argv + argc, std::back_inserter(argVec));
+
+    mValues = parse(argVec);
+}
+
 std::string Arguments::getValue(const std::string& name, const std::string& defaultValue) const
 {
     auto it = mValues.find(name);
@@ -34,6 +42,11 @@ bool Arguments::empty() const
 Arguments::size_type Arguments::size() const
 {
     return mValues.size();
+}
+
+bool Arguments::contains(const std::string& name) const
+{
+    return mValues.count(name) > 0;
 }
 
 std::ostream& operator<<(std::ostream& os, const Arguments& arguments)

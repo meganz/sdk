@@ -82,10 +82,7 @@ Config Config::fromArguments(const Arguments& arguments)
 
 int main(int argc, char** argv)
 {
-    // parse arguments
-    std::vector<std::string> argVec;
-    std::copy(argv + 1, argv + argc, std::back_inserter(argVec));
-    Arguments arguments(argVec);
+    Arguments arguments(argc, argv);
 
     // help
     if (arguments.contains("-h"))

@@ -14,9 +14,9 @@ class Arguments
 public:
     using size_type = std::unordered_map<std::string, std::string>::size_type;
 
-    explicit Arguments(std::vector<std::string> arguments) : mValues(parse(arguments)) {};
+    Arguments(int argc, char* argv[]);
 
-    bool contains(const std::string& name) const { return mValues.count(name) > 0;}
+    bool contains(const std::string& name) const;
 
     std::string getValue(const std::string& name, const std::string& defaultValue = "") const;
 

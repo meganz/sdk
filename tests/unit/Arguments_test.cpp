@@ -1,4 +1,5 @@
 #include "gtest/gtest.h"
+#include <array>
 #include <vector>
 #include "mega/arguments.h"
 
@@ -6,15 +7,20 @@ using mega::Arguments;
 
 TEST(Argumenmts, ParseNoArgumentsSuccessfully)
 {
-    std::vector<std::string> argv;
-    Arguments arguments(argv);
+    std::array<char*, 2> argv = { "executable.exe",
+                                   nullptr
+                                };
+    Arguments arguments(static_cast<int>(argv.size() - 1), argv.data());
     ASSERT_TRUE(arguments.empty());
 }
 
 TEST(Argumenmts, ParseOneNoValueArgumentSuccessfully)
 {
-    std::vector<std::string> argv = { std::string("-h")};
-    Arguments arguments(argv);
+    std::array<char*, 3> argv = { "executable.exe",
+                                  "-h",
+                                   nullptr
+                                };
+    Arguments arguments(static_cast<int>(argv.size() - 1), argv.data());
     ASSERT_TRUE(!arguments.empty());
     ASSERT_TRUE(arguments.contains("-h"));
     ASSERT_EQ("", arguments.getValue("-h"));
@@ -22,8 +28,11 @@ TEST(Argumenmts, ParseOneNoValueArgumentSuccessfully)
 
 TEST(Argumenmts, ParseOneHasValueArgumentSuccessfully)
 {
-    std::vector<std::string> argv = { std::string("-t=10")};
-    Arguments arguments(argv);
+    std::array<char*, 3> argv = { "executable.exe",
+                                  "-t=10",
+                                   nullptr
+                                };
+    Arguments arguments(static_cast<int>(argv.size() - 1), argv.data());
     ASSERT_FALSE(arguments.empty());
     ASSERT_TRUE(arguments.contains("-t"));
     ASSERT_EQ("10", arguments.getValue("-t"));
@@ -31,10 +40,15 @@ TEST(Argumenmts, ParseOneHasValueArgumentSuccessfully)
 
 TEST(Argumenmts, ParseOneListOfArgumentsSuccessfully)
 {
-    std::vector<std::string> argv = { std::string("-h"), std::string("-t=10"), std::string("-n=the name")};
-    Arguments arguments(argv);
+    std::array<char*, 5> argv = { "executable.exe",
+                                  "-h",
+                                  "-t=10",
+                                  "-n=the name",
+                                   nullptr
+                                };
+    Arguments arguments(static_cast<int>(argv.size() - 1), argv.data());
     ASSERT_FALSE(arguments.empty());
-    ASSERT_EQ(argv.size(), arguments.size());
+    ASSERT_EQ(3, arguments.size());
     ASSERT_EQ("", arguments.getValue("-h"));
     ASSERT_EQ("10", arguments.getValue("-t"));
     ASSERT_EQ("the name", arguments.getValue("-n"));
@@ -44,14 +58,20 @@ TEST(Argumenmts, ParseOneListOfArgumentsSuccessfully)
 
 TEST(Argumenmts, getValueDefaultIsNotReturnDefaultIfValueIsEmpty)
 {
-    std::vector<std::string> argv = { std::string("-h")};
-    Arguments arguments(argv);
+    std::array<char*, 3> argv = { "executable.exe",
+                                  "-h",
+                                   nullptr
+                                };
+    Arguments arguments(static_cast<int>(argv.size() - 1), argv.data());
     ASSERT_EQ("", arguments.getValue("-h", "default"));
 }
 
 TEST(Argumenmts, getValueDefaultReturnedDefaultIfNameNotExist)
 {
-    std::vector<std::string> argv = { std::string("-h")};
-    Arguments arguments(argv);
+    std::array<char*, 3> argv = { "executable.exe",
+                                  "-h",
+                                   nullptr
+                                };
+    Arguments arguments(static_cast<int>(argv.size() - 1), argv.data());
     ASSERT_EQ("default", arguments.getValue("-x", "default"));
 }

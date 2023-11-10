@@ -210,15 +210,6 @@ static std::unique_ptr<IGfxProvider> createGfxProvider(const Config& config)
     }
 }
 
-static Arguments toArguments(int argc, char* argv[])
-{
-    std::vector<std::string> argVec;
-    std::copy(argv + 1, argv + argc, std::back_inserter(argVec));
-
-    Arguments arguments(argVec);
-    return arguments;
-}
-
 #ifdef ENABLE_SYNC
 
 // converts the given sync configuration to a string
@@ -9889,7 +9880,7 @@ int main(int argc, char* argv[])
     registerSignalHandlers();
 #endif // NO_READLINE
 
-    Arguments arguments = toArguments(argc, argv);
+    Arguments arguments(argc, argv);
 
     // help
     if (arguments.contains("-h"))
