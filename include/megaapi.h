@@ -9263,7 +9263,7 @@ class MegaApi
             USER_ATTR_NO_CALLKIT = 36,           // private - byte array
             USER_ATTR_APPS_PREFS = 38,           // private - byte array - versioned
             USER_ATTR_CC_PREFS   = 39,           // private - byte array - versioned
-            USER_ATTR_PWM_BASE = 40,             // public (fully controlled by API) - char array in B64
+            USER_ATTR_PWM_BASE = 40,             // private non-encrypted (fully controlled by API) - char array in B64
         };
 
         enum {
@@ -12364,7 +12364,6 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getText - Returns the value for public attributes
          * - MegaRequest::getMegaStringMap - Returns the value for private attributes
-         * - MegaRequest::getNodeHandle - Returns the handle for USER_ATTR_PWM_BASE request
          *
          * @param type Attribute type
          *
@@ -12404,8 +12403,6 @@ class MegaApi
          * Get whether the user has enabled send geolocation messages (private)
          * MegaApi::USER_ATTR_PUSH_SETTINGS = 23
          * Get the settings for push notifications (private non-encrypted)
-         * MegaApi::USER_ATTR_PWM_BASE = 40
-         * Get the MegaNode handle for Password Manager Base folder
          *
          * @param listener MegaRequestListener to track this request
          */

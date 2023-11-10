@@ -22004,18 +22004,7 @@ void MegaClient::createPasswordManagerBase(int rtag, CommandCreatePasswordManage
     newNode->attrstring.reset(new string);
     makeattr(&cipher, newNode->attrstring, attrString.c_str());
 
-    CommandCreatePasswordManagerBase::Completion cb =
-        [this, cbRequest](Error e, std::unique_ptr<NewNode> nn) -> void
-    {
-        User* u = ownuser();
-        // invalidating ATTR_PWM_BASE to avoid an error in case a get user attribute
-        // request arrives before the APs for creation Password Manganer arrive and are processed
-        if (u->nonExistingAttribute(ATTR_PWM_BASE)) u->invalidateattr(ATTR_PWM_BASE);
-
-        cbRequest(e, std::move(nn));
-    };
-
-   reqs.add(new CommandCreatePasswordManagerBase(this, std::move(newNode), rtag, std::move(cb)));
+   reqs.add(new CommandCreatePasswordManagerBase(this, std::move(newNode), rtag, std::move(cbRequest)));
 }
 
 FetchNodesStats::FetchNodesStats()

@@ -26057,8 +26057,8 @@ void MegaApiImpl::getPasswordManagerBase(MegaRequestListener* listener)
         CommandGetUA::CompletionBytes cb = [this, request](byte* data, unsigned len, attr_t type) -> void
         {
             request->setNodeHandle(client->getPasswordManagerBase().as8byte());
-            error e = request->getNodeHandle() == UNDEF ? API_EINTERNAL : API_OK;
-            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            assert(!ISUNDEF(request->getNodeHandle()));
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
         };
         CommandGetUA::CompletionTLV ctlv = [this, request](TLVstore*, attr_t) -> void
         {
