@@ -6640,28 +6640,28 @@ bool MegaClient::sc_shares()
                         return false;
                     }
 
-                    if(outbound && ou != me && r == ACCESS_UNKNOWN) // Sharee abandoned the share.
+                    if(outbound && ou != me && r == ACCESS_UNKNOWN // Sharee abandoned the share.
+                        && mKeyManager.isSecure() && mKeyManager.generation() // ^!keys in use
+                        && statecurrent)
                     {
-                        if(statecurrent)
+                        // Clear the in-use bit for the share key in ^!keys if it was the last sharee
+                        if (mKeyManager.isShareKeyInUse(h))
                         {
-                            // Clear the in-use bit for the share key in ^!keys if it is the last share.
-                            if (mKeyManager.isSecure() && mKeyManager.generation() && mKeyManager.isShareKeyInUse(h))
+                            Node *n = nodebyhandle(h);
+                            assert(n); // Share removals are received before node deletion.
+                            if (n)
                             {
-                                Node *n = nodebyhandle(h);
-                                if (n)
+                                size_t total = n->outshares ? n->outshares->size() : 0;
+                                total += n->pendingshares ? n->pendingshares->size() : 0;
+                                if (total == 1)
                                 {
-                                    size_t total = n->outshares ? n->outshares->size() : 0;
-                                    total += n->pendingshares ? n->pendingshares->size() : 0;
-                                    if (total == 1)
-                                    {
-                                        // Commit to clear the bit.
-                                        LOG_debug << "Last sharee has left the share. uh: " << toHandle(uh) << ". Disabling in-use flag for the sharekey in KeyManager. nh: " << toNodeHandle(h);
-                                        mKeyManager.commit(
-                                            [this, h]()
-                                            {
-                                                mKeyManager.setSharekeyInUse(h, false);
-                                            });
-                                    }
+                                    // Commit to clear the bit.
+                                    LOG_debug << "Last sharee has left the share. uh: " << toHandle(uh) << ". Disabling in-use flag for the sharekey in KeyManager. nh: " << toNodeHandle(h);
+                                    mKeyManager.commit(
+                                        [this, h]()
+                                        {
+                                            mKeyManager.setSharekeyInUse(h, false);
+                                        });
                                 }
                             }
                         }
