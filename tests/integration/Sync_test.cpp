@@ -138,6 +138,67 @@ string parentpath(const string& p)
 struct StandardClient;
 bool CatchupClients(StandardClient* c1, StandardClient* c2 = nullptr, StandardClient* c3 = nullptr);
 
+#ifdef _WIN32
+
+bool createFile(const fs::path& path, const void* data, const size_t data_length)
+{
+    // Convenience.
+    auto create = [&](DWORD disposition, DWORD flags) {
+        return CreateFileW(path.c_str(),
+                           GENERIC_WRITE,
+                           0,
+                           nullptr,
+                           disposition,
+                           flags,
+                           nullptr);
+    }; // create
+
+    auto invalid = INVALID_HANDLE_VALUE;
+
+    // Try and truncate any existing file.
+    auto handle = create(TRUNCATE_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT);
+
+    // File doesn't already exist.
+    if (handle == invalid)
+    {
+        // Try creating the file directly.
+        handle = create(CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL);
+
+        // Couldn't create the file.
+        if (handle == invalid)
+            return false;
+    }
+
+    // Convenience.
+    auto* m = static_cast<const char*>(data);
+    auto* n = m + data_length;
+
+    // Try and write the file's data to disk.
+    while (m != n)
+    {
+        auto remaining = static_cast<DWORD>(n - m);
+        auto written = 0ul;
+
+        // Couldn't write the file's data to disk.
+        if (!WriteFile(handle, m, remaining, &written, nullptr))
+            return CloseHandle(handle), false;
+
+        // Move buffer position forward.
+        m += written;
+    }
+
+    // Try and flush changes to disk.
+    auto result = FlushFileBuffers(handle);
+
+    // Release handle.
+    CloseHandle(handle);
+
+    // Return result to caller.
+    return result;
+}
+
+#else // _WIN32
+
 bool createFile(const fs::path &path, const void *data, const size_t data_length)
 {
 #if (__cplusplus >= 201700L)
@@ -152,6 +213,8 @@ bool createFile(const fs::path &path, const void *data, const size_t data_length
 
     return ostream.good();
 }
+
+#endif // ! _WIN32
 
 bool createDataFile(const fs::path &path, const std::string &data)
 {
