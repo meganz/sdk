@@ -22488,6 +22488,39 @@ void KeyManager::setSharekeyInUse(handle sharehandle, bool sent)
     }
 }
 
+void KeyManager::syncSharekeyInUseBit()
+{
+    vector<NodeHandle> sharesToClear;
+    for(const auto &it : mShareKeys)
+    {
+        // Store the handle of the existing nodes which are no longer shared and with the in-use bit still set.
+        if(it.second.second[ShareKeyFlagsId::INUSE])
+        {
+            NodeHandle nh = NodeHandle().set6byte(it.first);
+            Node *n = mClient.nodeByHandle(nh);
+            if (n && !n->isShared())
+            {
+                sharesToClear.emplace_back(nh);
+            }
+        }
+    }
+
+    if(sharesToClear.size())
+    {
+        commit(
+            [this, sharesToClear]()
+            {
+                string handles;
+                for(const auto &nh : sharesToClear)
+                {
+                    setSharekeyInUse(nh.as8byte(), false);
+                    handles += " " + toNodeHandle(nh);
+                }
+                LOG_debug << "Clearing in-use bit of the share-keys no longer in use. Applied to:" << handles;
+            });
+    }
+}
+
 string KeyManager::encryptShareKeyTo(handle userhandle, std::string shareKey)
 {
     if (verificationRequired(userhandle))
