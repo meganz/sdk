@@ -21,6 +21,7 @@ nobase_libmegainclude_HEADERS = \
 	mega/megaapp.h \
 	mega/megaclient.h \
 	mega/node.h \
+	mega/process.h \
 	mega/pubkeyaction.h \
 	mega/request.h \
 	mega/serialize64.h \

@@ -336,7 +336,7 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size, FSLogging fsl)
     }
 
     errorcode = 0;
-    if (SimpleLogger::logCurrentLevel >= logDebug && skipattributes(fad.dwFileAttributes))
+    if (SimpleLogger::getLogLevel() >= logDebug && skipattributes(fad.dwFileAttributes))
     {
         LOG_debug << "Incompatible attributes (" << fad.dwFileAttributes << ") for file " << nonblocking_localname;
     }
@@ -684,7 +684,7 @@ bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write,
         // also, ignore some other obscure filesystem object categories
         if (!ignoreAttributes && skipattributes(fad.dwFileAttributes))
         {
-            if (SimpleLogger::logCurrentLevel >= logDebug)
+            if (SimpleLogger::getLogLevel() >= logDebug)
             {
                 LOG_debug << "Excluded: " << namePath << "   Attributes: " << fad.dwFileAttributes;
             }
@@ -2074,7 +2074,7 @@ bool WinDirAccess::dnext(LocalPath& /*path*/, LocalPath& nameArg, bool /*follows
         }
         else
         {
-            if (ffdvalid && SimpleLogger::logCurrentLevel >= logDebug)
+            if (ffdvalid && SimpleLogger::getLogLevel() >= logDebug)
             {
                 if (*ffd.cFileName != '.' && (ffd.cFileName[1] && ((ffd.cFileName[1] != '.') || ffd.cFileName[2])))
                     LOG_debug << "Excluded: " << ffd.cFileName << "   Attributes: " << ffd.dwFileAttributes;

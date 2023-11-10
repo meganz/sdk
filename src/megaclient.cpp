@@ -2668,9 +2668,9 @@ void MegaClient::exec()
                 else
                 {
                     error e = (error)atoi(pendingsc->in.c_str());
-                    if (e == API_ESID)
+                    if ((e == API_ESID) || (e == API_ENOENT && loggedIntoFolder()))
                     {
-                        app->request_error(API_ESID);
+                        app->request_error(e);
                         scsn.stopScsn();
                     }
                     else if (e == API_ETOOMANY)
@@ -3686,7 +3686,7 @@ void MegaClient::dispatchTransfers()
                     // locate suitable template file
                     for (file_list::iterator it = nexttransfer->files.begin(); it != nexttransfer->files.end(); it++)
                     {
-                        if ((*it)->hprivate && !(*it)->hforeign)
+                        if ((*it)->hprivate && !(*it)->hforeign && !(*it)->undelete())
                         {
                             // Make sure we have the size field
                             std::shared_ptr<Node> n = nodeByHandle((*it)->h);
@@ -3896,7 +3896,7 @@ void MegaClient::dispatchTransfers()
                         for (file_list::iterator it = nexttransfer->files.begin();
                             it != nexttransfer->files.end(); it++)
                         {
-                            if (!(*it)->hprivate || (*it)->hforeign || nodeByHandle((*it)->h))
+                            if ((*it)->undelete() || !(*it)->hprivate || (*it)->hforeign || nodeByHandle((*it)->h))
                             {
                                 h = (*it)->h;
                                 hprivate = (*it)->hprivate;
@@ -3923,6 +3923,7 @@ void MegaClient::dispatchTransfers()
                         reqs.add((ts->pendingcmd = (nexttransfer->type == PUT)
                             ? (Command*)new CommandPutFile(this, ts, putmbpscap)
                             : new CommandGetFile(this, ts->transfer->transferkey.data(), SymmCipher::KEYLENGTH,
+                                                 (!ts->transfer->files.empty() && ts->transfer->files.front()->undelete()),
                                                  h.as8byte(), hprivate, privauth, pubauth, chatauth, false,
                             [this, ts, hprivate, h](const Error &e, m_off_t s, dstime tl /*timeleft*/,
                                std::string* filename, std::string* /*fingerprint*/, std::string* /*fileattrstring*/,
@@ -4335,6 +4336,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     freeq(PUT);
 
     purgenodesusersabortsc(false);
+    userid = 0;
     mNodeManager.reset();
 
     reqs.clear();
@@ -11998,6 +12000,12 @@ bool MegaClient::getua(User* u, const attr_t at, int ctag)
                 return true;
             }
         }
+        else if (u->nonExistingAttribute(at))  // only own user attrs get marked as "no exits"
+        {
+            assert(u->userhandle == me);
+            restag = tag;
+            app->getua_result(API_ENOENT);
+        }
         else
         {
             reqs.add(new CommandGetUA(this, u->uid.c_str(), at, NULL, tag, nullptr, nullptr, nullptr));
@@ -14983,7 +14991,7 @@ error MegaClient::updateAuthring(AuthRing *authring, attr_t authringType, bool t
     return API_OK;
 }
 
-error MegaClient::verifyCredentials(handle uh)
+error MegaClient::verifyCredentials(handle uh, std::function<void (Error)> completion)
 {
     if (!mKeyManager.generation())
     {
@@ -15051,7 +15059,6 @@ error MegaClient::verifyCredentials(handle uh)
     }
     }
 
-    int tag = reqtag;
     mKeyManager.commit(
     [this, uh, uid]()
     {
@@ -15108,16 +15115,15 @@ error MegaClient::verifyCredentials(handle uh)
         std::string serializedAuthring = authring.serializeForJS();
         mKeyManager.setAuthRing(serializedAuthring);
     },
-    [this, tag]()
+    [completion]()
     {
-        restag = tag;
-        app->putua_result(API_OK);
+        completion(API_OK);
     });
 
     return API_OK;
 }
 
-error MegaClient::resetCredentials(handle uh)
+error MegaClient::resetCredentials(handle uh, std::function<void(Error)> completion)
 {
     if (!mKeyManager.generation())
     {
@@ -15147,7 +15153,6 @@ error MegaClient::resetCredentials(handle uh)
     assert(authMethod == AUTH_METHOD_FINGERPRINT); // Ed25519 authring cannot be at AUTH_METHOD_SIGNATURE
     LOG_debug << "Reseting credentials for user " << uid << "...";
 
-    int tag = reqtag;
     mKeyManager.commit(
     [this, uh, uid]()
     {
@@ -15174,10 +15179,12 @@ error MegaClient::resetCredentials(handle uh)
         // Changes to apply in the commit
         mKeyManager.setAuthRing(serializedAuthring);
     },
-    [this, tag]()
+    [completion]()
     {
-        restag = tag;
-        app->putua_result(API_OK);
+        if (completion)
+        {
+            completion(API_OK);
+        }
         return;
     });
 

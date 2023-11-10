@@ -46,6 +46,7 @@ SOURCES += src/attrmap.cpp \
     src/json.cpp \
     src/megaclient.cpp \
     src/node.cpp \
+    src/process.cpp \
     src/pubkeyaction.cpp \
     src/request.cpp \
     src/serialize64.cpp \
@@ -450,6 +451,7 @@ HEADERS  += include/mega.h \
             include/mega/megaapp.h \
             include/mega/megaclient.h \
             include/mega/node.h \
+            include/mega/process.h \
             include/mega/pubkeyaction.h \
             include/mega/request.h \
             include/mega/serialize64.h \

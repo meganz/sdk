@@ -719,10 +719,10 @@ public:
     error updateAuthring(AuthRing *authring, attr_t authringType, bool temporalAuthring, handle updateduh);
 
     // set the Ed25519 public key as verified for a given user in the authring (done by user manually by comparing hash of keys)
-    error verifyCredentials(handle uh);
+    error verifyCredentials(handle uh, std::function<void(Error)>);
 
     // reset the authentication method of Ed25519 key from Fingerprint-verified to Seen for a given user
-    error resetCredentials(handle uh);
+    error resetCredentials(handle uh, std::function<void (Error)>);
 
     // check credentials are verified for a given user
     bool areCredentialsVerified(handle uh);

@@ -45,6 +45,7 @@ public:
     void copyFrom(const T& f, ShareType_t shareType = NO_SHARES)
     {
         mNameFilter = f.byName() ? f.byName() : std::string(); // get it as const char*
+        mNodeType = static_cast<nodetype_t>(f.byNodeType()); // get it as int
         mMimeCategory = static_cast<MimeType_t>(f.byCategory()); // get it as int
         mExcludeSensitive = f.bySensitivity();
         mLocationHandle = f.byLocationHandle();
@@ -54,6 +55,7 @@ public:
     }
 
     const std::string& byName() const { return mNameFilter; }
+    nodetype_t byNodeType() const { return mNodeType; }
     MimeType_t byCategory() const { return mMimeCategory; }
     bool bySensitivity() const { return mExcludeSensitive; }
 
@@ -70,6 +72,7 @@ public:
 
 private:
     std::string mNameFilter;
+    nodetype_t mNodeType = TYPE_UNKNOWN;
     MimeType_t mMimeCategory = MIME_TYPE_UNKNOWN;
     bool mExcludeSensitive = false;
     handle mLocationHandle = UNDEF;

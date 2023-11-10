@@ -10,6 +10,8 @@
 /bindings/qt/ @desktop
 /src/gfx/GfxProcCG.mm @mobile/iOS
 /src/osx/osxutils.mm @mobile/iOS @desktop
+/Package.swift @mobile/iOS
+/examples/SwiftUI @mobile/iOS
 
 # Changes to Jenkinsfiles need approval by sdk_devops
 /jenkinsfile/ @SDK/sdk_devops
