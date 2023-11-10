@@ -526,11 +526,14 @@ struct FSLogging
 
     FSLogging(Setting s) : setting(s) {}
 
-    bool doLog(int os_errorcode, FileAccess& fsaccess);
+    bool doLog(int os_errorcode);
 
     static FSLogging noLogging;
     static FSLogging logOnError;
     static FSLogging logExceptFileNotFound;
+
+private:
+    static bool isFileNotFound(int error);
 };
 
 
@@ -624,13 +627,6 @@ struct MEGA_API FileAccess
     AsyncIOContext *asyncfopen(const LocalPath&, bool, bool, m_off_t = 0);
     AsyncIOContext* asyncfread(string*, unsigned, unsigned, m_off_t, FSLogging fsl);
     AsyncIOContext* asyncfwrite(const byte *, unsigned, m_off_t);
-
-    // return a description of OS error,
-    // errno on unix. Defaults to the number itself.
-    virtual std::string getErrorMessage(int error) const;
-
-    // error is errno on unix or a DWORD on windows
-    virtual bool isErrorFileNotFound(int error) const = 0;
 
 protected:
     virtual AsyncIOContext* newasynccontext();
@@ -907,6 +903,39 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // Specify the minimum permissions for newly created files.
     static void setMinimumFilePermissions(int permissions);
+
+    // return a description of OS error,
+    // errno on unix. Defaults to the number itself.
+    static std::string getErrorMessage(int error);
+
+    // Check if the specified file is "hidden."
+    //
+    // On UNIX systems, this function will only return true if the
+    // file specified by path begins with the period character.
+    //
+    // That is, "a" would not be hidden but ".a" would be.
+    //
+    // On Windows systems, this function will only return true if the
+    // file specified by the path has its "hidden" attribute set.
+    //
+    // Returns:
+    // >0 if the file is hidden.
+    // =0 if the file is not hidden.
+    // <0 if the file cannot be accessed.
+    static int isFileHidden(const LocalPath& path,
+                            FSLogging logWhen = FSLogging::logOnError);
+
+    // Mark the specified file as "hidden."
+    //
+    // On UNIX systems, this function is a no-op and always returns true.
+    //
+    // On Windows systems, this function will set the file's "hidden"
+    // attribute.
+    //
+    // Returns:
+    // True if the file's hidden attribute was set.
+    static bool setFileHidden(const LocalPath& path,
+                              FSLogging logWhen = FSLogging::logOnError);
 
 protected:
     // Specifies the minimum permissions allowed for directories.

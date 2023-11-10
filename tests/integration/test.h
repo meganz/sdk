@@ -735,7 +735,7 @@ struct StandardClient : public MegaApp
                   PromiseBoolSP result);
 
     void uploadFolderTree_recurse(handle parent, handle& h, const fs::path& p, vector<NewNode>& newnodes);
-    void uploadFolderTree(fs::path p, Node* n2, PromiseBoolSP pb);
+    void uploadFolderTree(fs::path p, CloudItem n2, PromiseBoolSP pb);
 
     // Necessary to make sure we release the file once we're done with it.
     struct FileGet : public File {
@@ -788,7 +788,7 @@ struct StandardClient : public MegaApp
         }
     }; // FilePut
 
-    bool uploadFolderTree(fs::path p, Node* n2);
+    bool uploadFolderTree(fs::path p, const CloudItem& item);
 
     void uploadFile(const fs::path& path, const string& name, const Node* parent, TransferDbCommitter& committer, std::function<void(bool)>&& completion, VersioningOption vo = NoVersioning);
     void uploadFile(const fs::path& path, const string& name, const Node* parent, std::function<void(bool)>&& completion, VersioningOption vo = NoVersioning);
@@ -1205,6 +1205,10 @@ public:
 void copyFileFromTestData(fs::path filename, fs::path destination = ".");
 
 fs::path getLinkExtractSrciptPath();
+
+// Convenience.
+bool isFileHidden(const LocalPath& path);
+bool isFileHidden(const fs::path& path);
 
 #endif // TEST_H
 

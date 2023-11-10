@@ -104,6 +104,66 @@ void FileSystemAccess::setMinimumFilePermissions(int)
 {
 }
 
+int FileSystemAccess::isFileHidden(const LocalPath& path, FSLogging logWhen)
+{
+    // Try and determine the file's current attributes.
+    auto attributes = GetFileAttributesW(path.localpath.c_str());
+
+    // Successfully retrieved the file's attributes.
+    if (attributes != INVALID_FILE_ATTRIBUTES)
+        return (attributes & FILE_ATTRIBUTE_HIDDEN) > 0;
+
+    // Why couldn't we get the file's attributes?
+    auto error = GetLastError();
+
+    // Log the error, if necessary.
+    if (logWhen.doLog(error))
+    {
+        LOG_warn << "Unable to retrieve file attributes: path: "
+                 << path
+                 << ", error code: "
+                 << error
+                 << ", error message: "
+                 << getErrorMessage(error);
+    }
+
+    // Couldn't retrieve the file's attributes.
+    return -1;
+}
+
+bool FileSystemAccess::setFileHidden(const LocalPath& path, FSLogging logWhen)
+{
+    // Try and retrieve the file's current attributes.
+    auto attributes = GetFileAttributesW(path.localpath.c_str());
+
+    // File's already marked as hidden.
+    if ((attributes & FILE_ATTRIBUTE_HIDDEN))
+        return true;
+
+    // File's now marked as hidden.
+    if (attributes != INVALID_FILE_ATTRIBUTES
+        && SetFileAttributesW(path.localpath.c_str(),
+                              attributes | FILE_ATTRIBUTE_HIDDEN))
+        return true;
+
+    // Why couldn't we get (or set) the file's attributes?
+    auto error = GetLastError();
+
+    // Log error, if necessary.
+    if (logWhen.doLog(error))
+    {
+        LOG_warn << "Unable to set file attributes: path: "
+                 << path
+                 << ", error code: "
+                 << error
+                 << ", error message: "
+                 << getErrorMessage(error);
+    }
+
+    // Couldn't set the file's hidden attribute.
+    return false;
+}
+
 int platformCompareUtf(const string& p1, bool unescape1, const string& p2, bool unescape2)
 {
     return compareUtf(p1, unescape1, p2, unescape2, true);
@@ -266,9 +326,9 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size, FSLogging fsl)
     if (!GetFileAttributesExW(nonblocking_localname.localpath.c_str(), GetFileExInfoStandard, (LPVOID)&fad))
     {
         DWORD e = GetLastError();
-        if (fsl.doLog(e, *this))
+        if (fsl.doLog(e))
         {
-            LOG_warn << "Unable to stat: GetFileAttributesExW('" << nonblocking_localname << "'): error code: " << e << ": " << getErrorMessage(e);
+            LOG_warn << "Unable to stat: GetFileAttributesExW('" << nonblocking_localname << "'): error code: " << e << ": " << WinFileSystemAccess::getErrorMessage(e);
         }
         errorcode = e;
         retry = WinFileSystemAccess::istransient(e);
@@ -314,9 +374,9 @@ bool WinFileAccess::sysopen(bool async, FSLogging fsl)
     {
         DWORD e = GetLastError();
         errorcode = e;
-        if (fsl.doLog(errorcode, *this))
+        if (fsl.doLog(errorcode))
         {
-            LOG_err << "Unable to open file '" << nonblocking_localname << "': (CreateFileW). Error code: " << e << ": " << getErrorMessage(e);
+            LOG_err << "Unable to open file '" << nonblocking_localname << "': (CreateFileW). Error code: " << e << ": " << WinFileSystemAccess::getErrorMessage(e);
         }
         retry = WinFileSystemAccess::istransient(e);
         return false;
@@ -660,9 +720,9 @@ bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write,
     if (hFile == INVALID_HANDLE_VALUE)
     {
         DWORD e = GetLastError();
-        if (fsl.doLog(e, *this))
+        if (fsl.doLog(e))
         {
-            LOG_err << "Unable to open file. '" << namePath << "' error code : " << e << " : " << getErrorMessage(e);
+            LOG_err << "Unable to open file. '" << namePath << "' error code : " << e << " : " << WinFileSystemAccess::getErrorMessage(e);
         }
         errorcode = e;
         retry = WinFileSystemAccess::istransient(e);
@@ -2065,12 +2125,13 @@ m_off_t WinFileSystemAccess::availableDiskSpace(const LocalPath& drivePath)
     return (m_off_t)numBytes.QuadPart;
 }
 
-std::string WinFileAccess::getErrorMessage(int error) const
+std::string FileSystemAccess::getErrorMessage(int error)
 {
     return winErrorMessage(error);
 }
 
-bool WinFileAccess::isErrorFileNotFound(int error) const {
+bool FSLogging::isFileNotFound(int error)
+{
     return error == ERROR_FILE_NOT_FOUND;
 }
 

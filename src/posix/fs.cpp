@@ -284,9 +284,9 @@ bool PosixFileAccess::sysopen(bool, FSLogging fsl)
     if (fd < 0)
     {
         errorcode = errno;
-        if (fsl.doLog(errorcode, *this))
+        if (fsl.doLog(errorcode))
         {
-            LOG_err << "Failed to open('" << adjustBasePath(nonblocking_localname) << "'): error " << errorcode << ": " << getErrorMessage(errorcode);
+            LOG_err << "Failed to open('" << adjustBasePath(nonblocking_localname) << "'): error " << errorcode << ": " << PosixFileSystemAccess::getErrorMessage(errorcode);
         }
     }
 
@@ -364,7 +364,7 @@ void PosixFileAccess::asyncsysopen(AsyncIOContext *context)
                              context->access & AsyncIOContext::ACCESS_WRITE, FSLogging::logOnError);
     if (context->failed)
     {
-        LOG_err << "Failed to fopen('" << context->openPath << "'): error " << errorcode << ": " << getErrorMessage(errorcode);
+        LOG_err << "Failed to fopen('" << context->openPath << "'): error " << errorcode << ": " << PosixFileSystemAccess::getErrorMessage(errorcode);
     }
     context->retry = retry;
     context->finished = true;
@@ -671,9 +671,9 @@ bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, FSLogging
     if (fd < 0)
     {
         errorcode = errno; // streaming may set errno
-        if (fsl.doLog(errorcode, *this))
+        if (fsl.doLog(errorcode))
         {
-            LOG_err << "Failed to open('" << fstr << "'): error " << errorcode << ": " << getErrorMessage(errorcode) << (statok ? " (statok so may still open ok)" : "");
+            LOG_err << "Failed to open('" << fstr << "'): error " << errorcode << ": " << PosixFileSystemAccess::getErrorMessage(errorcode) << (statok ? " (statok so may still open ok)" : "");
         }
     }
     if (fd >= 0 || statok)
@@ -723,12 +723,26 @@ bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, FSLogging
     return false;
 }
 
-std::string PosixFileAccess::getErrorMessage(int error) const
+std::string FileSystemAccess::getErrorMessage(int error)
 {
     return strerror(error);
 }
 
-bool PosixFileAccess::isErrorFileNotFound(int error) const
+int FileSystemAccess::isFileHidden(const LocalPath& path, FSLogging)
+{
+    // What file are we actually referencing?
+    auto name = path.leafName().toPath(false);
+
+    // Only consider dotfiles hidden.
+    return name.size() > 1 && name.front() == '.';
+}
+
+bool FileSystemAccess::setFileHidden(const LocalPath& path, FSLogging logWhen)
+{
+    return isFileHidden(path, logWhen);
+}
+
+bool FSLogging::isFileNotFound(int error)
 {
     return error == ENOENT;
 }

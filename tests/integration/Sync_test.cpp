@@ -138,6 +138,67 @@ string parentpath(const string& p)
 struct StandardClient;
 bool CatchupClients(StandardClient* c1, StandardClient* c2 = nullptr, StandardClient* c3 = nullptr);
 
+#ifdef _WIN32
+
+bool createFile(const fs::path& path, const void* data, const size_t data_length)
+{
+    // Convenience.
+    auto create = [&](DWORD disposition, DWORD flags) {
+        return CreateFileW(path.c_str(),
+                           GENERIC_WRITE,
+                           0,
+                           nullptr,
+                           disposition,
+                           flags,
+                           nullptr);
+    }; // create
+
+    auto invalid = INVALID_HANDLE_VALUE;
+
+    // Try and truncate any existing file.
+    auto handle = create(TRUNCATE_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT);
+
+    // File doesn't already exist.
+    if (handle == invalid)
+    {
+        // Try creating the file directly.
+        handle = create(CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL);
+
+        // Couldn't create the file.
+        if (handle == invalid)
+            return false;
+    }
+
+    // Convenience.
+    auto* m = static_cast<const char*>(data);
+    auto* n = m + data_length;
+
+    // Try and write the file's data to disk.
+    while (m != n)
+    {
+        auto remaining = static_cast<DWORD>(n - m);
+        auto written = 0ul;
+
+        // Couldn't write the file's data to disk.
+        if (!WriteFile(handle, m, remaining, &written, nullptr))
+            return CloseHandle(handle), false;
+
+        // Move buffer position forward.
+        m += written;
+    }
+
+    // Try and flush changes to disk.
+    auto result = FlushFileBuffers(handle);
+
+    // Release handle.
+    CloseHandle(handle);
+
+    // Return result to caller.
+    return result;
+}
+
+#else // _WIN32
+
 bool createFile(const fs::path &path, const void *data, const size_t data_length)
 {
 #if (__cplusplus >= 201700L)
@@ -152,6 +213,8 @@ bool createFile(const fs::path &path, const void *data, const size_t data_length
 
     return ostream.good();
 }
+
+#endif // ! _WIN32
 
 bool createDataFile(const fs::path &path, const std::string &data)
 {
@@ -2098,7 +2161,7 @@ void StandardClient::uploadFolderTree_recurse(handle parent, handle& h, const fs
     }
 }
 
-void StandardClient::uploadFolderTree(fs::path p, Node* n2, PromiseBoolSP pb)
+void StandardClient::uploadFolderTree(fs::path p, CloudItem item, PromiseBoolSP pb)
 {
     auto completion = BasicPutNodesCompletion([pb](const Error& e) {
         pb->set_value(!e);
@@ -2106,10 +2169,17 @@ void StandardClient::uploadFolderTree(fs::path p, Node* n2, PromiseBoolSP pb)
 
     resultproc.prepresult(COMPLETION, ++next_request_tag,
         [&](){
+            // Resolve target node.
+            auto target = item.resolve(*this);
+
+            // Couldn't locate target node.
+            if (!target)
+                return pb->set_value(false);
+
             vector<NewNode> newnodes;
             handle h = 1;
             uploadFolderTree_recurse(UNDEF, h, p, newnodes);
-            client.putnodes(n2->nodeHandle(), NoVersioning, std::move(newnodes), nullptr, 0, false, std::move(completion));
+            client.putnodes(target->nodeHandle(), NoVersioning, std::move(newnodes), nullptr, 0, false, std::move(completion));
         },
         nullptr);
 }
@@ -2161,12 +2231,12 @@ bool StandardClient::downloadFile(const CloudItem& item, const fs::path& destina
     return result.get();
 }
 
-bool StandardClient::uploadFolderTree(fs::path p, Node* n2)
+bool StandardClient::uploadFolderTree(fs::path p, const CloudItem& item)
 {
     auto promise = makeSharedPromise<bool>();
     auto future = promise->get_future();
 
-    uploadFolderTree(p, n2, std::move(promise));
+    uploadFolderTree(p, item, std::move(promise));
 
     return future.get();
 }
@@ -18421,6 +18491,129 @@ TEST_F(SyncTest, SyncUtf8DifferentlyNormalized1)
 
 }
 
+#ifdef _WIN32
+
+TEST_F(SyncTest, IgnoreFilesShouldBeHidden)
+{
+    // Get our hands on a new client.
+    auto client = g_clientManager->getCleanStandardClient(0, makeNewTestRoot());
+
+    // Make sure the cloud's clean.
+    ASSERT_TRUE(client->resetBaseFolderMulticlient());
+
+    Model model;
+
+    // Compute sync path for convenience.
+    auto rootPath = client->fsBasePath / "s";
+
+    // Populate the model with a couple ignore files.
+    model.addfile(".megaignore", "#s\n+sync:.megaignore");
+    model.addfile("sd0/sd0d0/.megaignore", "#sd0d0\n+sync:.megaignore");
+
+    // Populate the local disk.
+    model.generate(rootPath);
+
+    // Upload test tree to the cloud.
+    ASSERT_TRUE(client->uploadFolderTree(rootPath, ""));
+    ASSERT_TRUE(client->uploadFilesInTree(rootPath, ""));
+
+    // Add a couple more ignore files.
+    //
+    // We'll consider these files to have been created by the user.
+    model.addfile("sd1/sd1d0/.megaignore", "#sd1d0\n+sync:.megaignore");
+    model.generate(rootPath);
+
+    // Remove .megaignore and sd0/.megaignore.
+    //
+    // We want these to be created by the sync engine.
+    std::error_code error;
+
+    ASSERT_TRUE(fs::remove(rootPath / ".megaignore", error));
+    ASSERT_FALSE(error);
+
+    ASSERT_TRUE(fs::remove(rootPath / "sd0" / "sd0d0" / ".megaignore", error));
+    ASSERT_FALSE(error);
+
+    // Synchronize our local directory with the cloud.
+    auto id = client->setupSync_mainthread("s", "s", false, false);
+    ASSERT_NE(id, UNDEF);
+
+    // Wait for the sync to complete.
+    waitonsyncs(DEFAULTWAIT, client);
+
+    // For convenience: Make sure we check ignore files, too.
+    auto confirm = [&]() {
+        return client->confirmModel_mainthread(model.root.get(),
+                                               id,
+                                               false,
+                                               StandardClient::CONFIRM_ALL,
+                                               false,
+                                               false);
+    }; // confirm
+
+    // Make sure everything's where it should be.
+    ASSERT_TRUE(confirm());
+
+    // Verify that .megaignore and sd0/.megaignore are marked as hidden.
+    //
+    // These files were created directly by the sync engine so it has the
+    // right to mark them as it pleases.
+    EXPECT_TRUE(isFileHidden(rootPath / ".megaignore"));
+    EXPECT_TRUE(isFileHidden(rootPath / "sd0" / "sd0d0" / ".megaignore"));
+
+    // sd1/.megaignore should remain unchanged.
+    //
+    // As the sync engine didn't create this file, we have to assume that
+    // the user themselves did and if so, that they may have explicitly
+    // marked that file as being visible.
+    EXPECT_FALSE(isFileHidden(rootPath / "sd1" / "sd1d0" / ".megaignore"));
+
+    // Moving an ignore file should not change whether it is hidden.
+    model.copynode("sd0/sd0d0/.megaignore", "sd0/.megaignore");
+    model.movetosynctrash("sd0/sd0d0/.megaignore", "");
+
+    model.movenode("sd1/sd1d0/.megaignore", "sd1");
+
+    // Regardless of whether the file was moved in the cloud...
+    ASSERT_TRUE(client->movenode("s/sd0/sd0d0/.megaignore", "s/sd0"));
+
+    // Or on the local disk.
+    fs::rename(rootPath / "sd1" / "sd1d0" / ".megaignore",
+               rootPath / "sd1" / ".megaignore",
+               error);
+
+    ASSERT_FALSE(error);
+
+    // Wait for the engine to recognize and process our changes.
+    waitonsyncs(DEFAULTWAIT, client);
+
+    // Make sure everything is as it should be.
+    ASSERT_TRUE(confirm());
+
+    // Should remain hidden as the engine created it.
+    EXPECT_TRUE(isFileHidden(rootPath / "sd0" / ".megaignore"));
+
+    // Should remain visible as the user created it.
+    EXPECT_FALSE(isFileHidden(rootPath / "sd1" / ".megaignore"));
+
+    // Downloading a new version of an ignore file shouldn't change whether it is visible.
+    ASSERT_TRUE(client->uploadFile(rootPath / "sd1" / ".megaignore",
+                                   ".megaignore",
+                                   "s/sd1",
+                                   static_cast<int>(DEFAULTWAIT.count()),
+                                   ClaimOldVersion));
+
+    // Wait for the engine to synchronize our changes.
+    waitonsyncs(DEFAULTWAIT, client);
+
+    // Make sure everything is as we expect.
+    ASSERT_TRUE(confirm());
+
+    // Ignore file's visibility shouldn't have changed.
+    EXPECT_FALSE(isFileHidden(rootPath / "sd1" / ".megaignore"));
+}
+
+#endif // _WIN32
 
 class ContradictoryMoveFixture
   : public ::testing::Test

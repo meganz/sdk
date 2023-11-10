@@ -48,10 +48,10 @@ FSLogging FSLogging::noLogging(eNoLogging);
 FSLogging FSLogging::logOnError(eLogOnError);
 FSLogging FSLogging::logExceptFileNotFound(eLogExceptFileNotFound);
 
-bool FSLogging::doLog(int os_errorcode, FileAccess& fsaccess)
+bool FSLogging::doLog(int os_errorcode)
 {
     return setting == eLogOnError ||
-          (setting == eLogExceptFileNotFound && !fsaccess.isErrorFileNotFound(os_errorcode));
+          (setting == eLogExceptFileNotFound && !isFileNotFound(os_errorcode));
 }
 
 namespace detail {
@@ -949,9 +949,9 @@ bool FileAccess::fopen(const LocalPath& name, FSLogging fsl)
     updatelocalname(name, true);
 
     fopenSucceeded = sysstat(&mtime, &size, FSLogging::noLogging);
-    if (!fopenSucceeded && fsl.doLog(errorcode, *this))
+    if (!fopenSucceeded && fsl.doLog(errorcode))
     {
-        LOG_err << "Unable to FileAccess::fopen('" << name << "'): sysstat() failed: error code: " << errorcode << ": " << getErrorMessage(errorcode);
+        LOG_err << "Unable to FileAccess::fopen('" << name << "'): sysstat() failed: error code: " << errorcode << ": " << FileSystemAccess::getErrorMessage(errorcode);
     }
     return fopenSucceeded;
 }
@@ -981,10 +981,10 @@ bool FileAccess::openf(FSLogging fsl)
     m_off_t curr_size;
     if (!sysstat(&curr_mtime, &curr_size, FSLogging::noLogging))
     {
-        if (fsl.doLog(errorcode, *this))
+        if (fsl.doLog(errorcode))
         {
             LOG_err << "Error opening file handle (sysstat) '"
-                << nonblocking_localname << "': errorcode " << errorcode << ": " << getErrorMessage(errorcode);
+                << nonblocking_localname << "': errorcode " << errorcode << ": " << FileSystemAccess::getErrorMessage(errorcode);
         }
         return false;
     }
@@ -998,10 +998,10 @@ bool FileAccess::openf(FSLogging fsl)
     }
 
     bool r = sysopen(false, FSLogging::noLogging);
-    if (!r && fsl.doLog(errorcode, *this)) {
+    if (!r && fsl.doLog(errorcode)) {
         // file may have been deleted just now
         LOG_err << "Error opening file handle (sysopen) '"
-                << nonblocking_localname << "': errorcode " << errorcode << ": " << getErrorMessage(errorcode);
+                << nonblocking_localname << "': errorcode " << errorcode << ": " << FileSystemAccess::getErrorMessage(errorcode);
     }
     return r;
 }
@@ -1062,9 +1062,9 @@ bool FileAccess::asyncopenf(FSLogging fsl)
     m_off_t curr_size = 0;
     if (!sysstat(&curr_mtime, &curr_size, FSLogging::noLogging))
     {
-        if (fsl.doLog(errorcode, *this))
+        if (fsl.doLog(errorcode))
         {
-            LOG_err << "Error opening async file handle (sysstat): '" << nonblocking_localname << "': " << errorcode << ": " << getErrorMessage(errorcode);
+            LOG_err << "Error opening async file handle (sysstat): '" << nonblocking_localname << "': " << errorcode << ": " << FileSystemAccess::getErrorMessage(errorcode);
         }
         return false;
     }
@@ -1083,9 +1083,9 @@ bool FileAccess::asyncopenf(FSLogging fsl)
     {
         isAsyncOpened = true;
     }
-    else if (fsl.doLog(errorcode, *this))
+    else if (fsl.doLog(errorcode))
     {
-        LOG_err << "Error opening async file handle (sysopen): '" << nonblocking_localname << "': " << errorcode << ": " << getErrorMessage(errorcode);
+        LOG_err << "Error opening async file handle (sysopen): '" << nonblocking_localname << "': " << errorcode << ": " << FileSystemAccess::getErrorMessage(errorcode);
     }
     return result;
 }
@@ -1254,11 +1254,6 @@ AsyncIOContext::~AsyncIOContext()
     {
         fa->asyncclosef();
     }
-}
-
-std::string FileAccess::getErrorMessage(int error) const
-{
-    return std::to_string(error);
 }
 
 void AsyncIOContext::finish()
