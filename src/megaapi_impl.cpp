@@ -6053,7 +6053,7 @@ std::unique_ptr<MegaGfxProviderPrivate> MegaGfxProviderPrivate::createIsolatedIn
     auto provider = ::mega::make_unique<::mega::GfxProviderIsolatedProcess>(process);
     return ::mega::make_unique<MegaGfxProviderPrivate>(std::move(provider));
 #else
-    (void)arguments, (void)executable;
+    (void)pipename, (void)executable;
     return nullptr;
 #endif
 }
