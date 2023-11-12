@@ -47,7 +47,7 @@ TEST_F(ServerClientTest, gfxTask)
         mPipename
     );
 
-    std::thread serverThread(&WinGfxCommunicationsServer::run, &server);
+    std::thread serverThread(std::ref(server));
 
     std::this_thread::sleep_for(100ms);
 
@@ -99,7 +99,7 @@ TEST_F(ServerClientTest, hello)
         mPipename
     );
 
-    std::thread serverThread(&WinGfxCommunicationsServer::run, &server);
+    std::thread serverThread(std::ref(server));
 
     std::this_thread::sleep_for(100ms);
 
@@ -129,7 +129,7 @@ TEST_F(ServerClientTest, supportformats)
         mPipename
     );
 
-    std::thread serverThread(&WinGfxCommunicationsServer::run, &server);
+    std::thread serverThread(std::ref(server));
 
     std::this_thread::sleep_for(100ms);
 

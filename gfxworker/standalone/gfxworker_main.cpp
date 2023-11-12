@@ -119,7 +119,7 @@ int main(int argc, char** argv)
         config.aliveSeconds
     );
 
-    std::thread serverThread(&WinGfxCommunicationsServer::run, &server);
+    std::thread serverThread(std::ref(server));
 
     // run forever until server thread stops
     if (serverThread.joinable())

@@ -43,7 +43,7 @@ public:
         mWaitMs = aliveSeconds == 0 ? INFINITE : static_cast<DWORD>(aliveSeconds * 1000);
     }
 
-    void run();
+    void operator()();
 private:
     const static std::error_code OK;
 

@@ -22,7 +22,7 @@ Win32NamedPipeEndpointServer::~Win32NamedPipeEndpointServer()
     }
 }
 
-void WinGfxCommunicationsServer::run()
+void WinGfxCommunicationsServer::operator()()
 {
     serverListeningLoop();
 }
