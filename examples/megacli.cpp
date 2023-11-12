@@ -9880,7 +9880,7 @@ int main(int argc, char* argv[])
     registerSignalHandlers();
 #endif // NO_READLINE
 
-    Arguments arguments(argc, argv);
+    auto arguments = ArgumentsParser::parse(argc, argv);
 
     // help
     if (arguments.contains("-h"))

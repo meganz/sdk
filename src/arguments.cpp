@@ -2,36 +2,10 @@
 
 namespace mega {
 
-Arguments::Arguments(int argc, char* argv[])
-{
-    std::vector<std::string> argVec;
-    std::copy(argv + 1, argv + argc, std::back_inserter(argVec));
-
-    mValues = parse(argVec);
-}
-
 std::string Arguments::getValue(const std::string& name, const std::string& defaultValue) const
 {
     auto it = mValues.find(name);
     return it == mValues.end() ? defaultValue : it->second;
-}
-
-std::unordered_map<std::string, std::string> Arguments::parse(const std::vector<std::string>& arguments)
-{
-    std::unordered_map<std::string, std::string> result;
-    for (const auto& argument : arguments)
-    {
-        result.emplace(parseOneArgument(argument));
-    }
-    return result;
-}
-
-std::pair<std::string, std::string> Arguments::parseOneArgument(const std::string& argument)
-{
-    const auto pos = argument.find('=');
-    return pos == argument.npos ?
-                  std::make_pair(argument, "") :
-                  std::make_pair(argument.substr(0, pos), argument.substr(pos + 1));
 }
 
 bool Arguments::empty() const
@@ -56,6 +30,28 @@ std::ostream& operator<<(std::ostream& os, const Arguments& arguments)
         os << "  " << argument.first << "=" << argument.second << std::endl;
     }
     return os;
+}
+
+Arguments ArgumentsParser::parse(int argc, char* argv[])
+{
+    std::vector<std::string> argVec;
+    std::copy(argv + 1, argv + argc, std::back_inserter(argVec));
+
+    Arguments arguments;
+    for (const auto& arg : argVec)
+    {
+        arguments.mValues.emplace(parseOneArgument(arg));
+    }
+    return arguments;
+
+}
+
+std::pair<std::string, std::string> ArgumentsParser::parseOneArgument(const std::string& argument)
+{
+    const auto pos = argument.find('=');
+    return pos == argument.npos ?
+                  std::make_pair(argument, "") :
+                  std::make_pair(argument.substr(0, pos), argument.substr(pos + 1));
 }
 
 }

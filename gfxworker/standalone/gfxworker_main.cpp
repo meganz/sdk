@@ -11,6 +11,7 @@
 using mega::gfx::GfxProcessor;
 using mega::gfx::RequestProcessor;
 using mega::gfx::WinGfxCommunicationsServer;
+using mega::ArgumentsParser;
 using mega::Arguments;
 using mega::LocalPath;
 
@@ -82,7 +83,7 @@ Config Config::fromArguments(const Arguments& arguments)
 
 int main(int argc, char** argv)
 {
-    Arguments arguments(argc, argv);
+    auto arguments = ArgumentsParser::parse(argc, argv);
 
     // help
     if (arguments.contains("-h"))

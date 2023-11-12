@@ -3,14 +3,14 @@
 #include <vector>
 #include "mega/arguments.h"
 
-using mega::Arguments;
+using mega::ArgumentsParser;
 
 TEST(Argumenmts, ParseNoArgumentsSuccessfully)
 {
     std::array<char*, 2> argv = { "executable.exe",
                                    nullptr
                                 };
-    Arguments arguments(static_cast<int>(argv.size() - 1), argv.data());
+    auto arguments = ArgumentsParser::parse(static_cast<int>(argv.size() - 1), argv.data());
     ASSERT_TRUE(arguments.empty());
 }
 
@@ -20,7 +20,7 @@ TEST(Argumenmts, ParseOneNoValueArgumentSuccessfully)
                                   "-h",
                                    nullptr
                                 };
-    Arguments arguments(static_cast<int>(argv.size() - 1), argv.data());
+    auto arguments = ArgumentsParser::parse(static_cast<int>(argv.size() - 1), argv.data());
     ASSERT_TRUE(!arguments.empty());
     ASSERT_TRUE(arguments.contains("-h"));
     ASSERT_EQ("", arguments.getValue("-h"));
@@ -32,7 +32,7 @@ TEST(Argumenmts, ParseOneHasValueArgumentSuccessfully)
                                   "-t=10",
                                    nullptr
                                 };
-    Arguments arguments(static_cast<int>(argv.size() - 1), argv.data());
+    auto arguments = ArgumentsParser::parse(static_cast<int>(argv.size() - 1), argv.data());
     ASSERT_FALSE(arguments.empty());
     ASSERT_TRUE(arguments.contains("-t"));
     ASSERT_EQ("10", arguments.getValue("-t"));
@@ -46,7 +46,7 @@ TEST(Argumenmts, ParseOneListOfArgumentsSuccessfully)
                                   "-n=the name",
                                    nullptr
                                 };
-    Arguments arguments(static_cast<int>(argv.size() - 1), argv.data());
+    auto arguments = ArgumentsParser::parse(static_cast<int>(argv.size() - 1), argv.data());
     ASSERT_FALSE(arguments.empty());
     ASSERT_EQ(3, arguments.size());
     ASSERT_EQ("", arguments.getValue("-h"));
@@ -62,7 +62,7 @@ TEST(Argumenmts, getValueDefaultIsNotReturnDefaultIfValueIsEmpty)
                                   "-h",
                                    nullptr
                                 };
-    Arguments arguments(static_cast<int>(argv.size() - 1), argv.data());
+    auto arguments = ArgumentsParser::parse(static_cast<int>(argv.size() - 1), argv.data());
     ASSERT_EQ("", arguments.getValue("-h", "default"));
 }
 
@@ -72,6 +72,6 @@ TEST(Argumenmts, getValueDefaultReturnedDefaultIfNameNotExist)
                                   "-h",
                                    nullptr
                                 };
-    Arguments arguments(static_cast<int>(argv.size() - 1), argv.data());
+    auto arguments = ArgumentsParser::parse(static_cast<int>(argv.size() - 1), argv.data());
     ASSERT_EQ("default", arguments.getValue("-x", "default"));
 }

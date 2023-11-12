@@ -14,8 +14,6 @@ class Arguments
 public:
     using size_type = std::unordered_map<std::string, std::string>::size_type;
 
-    Arguments(int argc, char* argv[]);
-
     bool contains(const std::string& name) const;
 
     std::string getValue(const std::string& name, const std::string& defaultValue = "") const;
@@ -25,15 +23,24 @@ public:
     size_type size() const;
 
 private:
+    friend class ArgumentsParser;
+
     friend std::ostream& operator<<(std::ostream& os, const Arguments& arguments);
-
-    static std::unordered_map<std::string, std::string> parse(const std::vector<std::string>& arguments);
-
-    static std::pair<std::string, std::string> parseOneArgument(const std::string& argument);
 
     std::unordered_map<std::string, std::string> mValues;
 };
 
 std::ostream& operator<<(std::ostream& os, const Arguments& arguments);
+
+
+class ArgumentsParser
+{
+public:
+    static Arguments parse(int argc, char* argv[]);
+
+private:
+    static std::pair<std::string, std::string> parseOneArgument(const std::string& argument);
+};
+
 
 }
