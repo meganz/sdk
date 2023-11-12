@@ -21,7 +21,7 @@ std::unordered_map<std::string, std::string> Arguments::parse(const std::vector<
     std::unordered_map<std::string, std::string> result;
     for (const auto& argument : arguments)
     {
-        result.emplace(Arguments::parseOneArgument(argument));
+        result.emplace(parseOneArgument(argument));
     }
     return result;
 }
