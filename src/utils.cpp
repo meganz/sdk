@@ -252,11 +252,6 @@ void CacheableWriter::serializeNodeHandle(NodeHandle field)
     serializenodehandle(field.as8byte());
 }
 
-void CacheableWriter::serializefsfp(fsfp_t field)
-{
-    dest.append((char*)&field.id, sizeof(field.id));
-}
-
 void CacheableWriter::serializebool(bool field)
 {
     dest.append((char*)&field, sizeof(field));
@@ -857,18 +852,6 @@ bool CacheableReader::unserializeNodeHandle(NodeHandle& field)
     handle h;
     if (!unserializenodehandle(h)) return false;
     field.set6byte(h);
-    return true;
-}
-
-bool CacheableReader::unserializefsfp(fsfp_t& field)
-{
-    if (ptr + sizeof(fsfp_t) > end)
-    {
-        return false;
-    }
-    field.id = MemAccess::get<uint64_t>(ptr);
-    ptr += sizeof(uint64_t);
-    fieldnum += 1;
     return true;
 }
 

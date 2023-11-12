@@ -1422,8 +1422,6 @@ public:
     void setName(const char*name);
     const char* getLastKnownMegaFolder() const override;
     void setLastKnownMegaFolder(const char *path);
-    long long getLocalFingerprint() const override;
-    void setLocalFingerprint(long long fingerprint);
     MegaHandle getBackupId() const override;
     void setBackupId(MegaHandle backupId);
 
@@ -1444,7 +1442,6 @@ protected:
     char *localFolder;
     char *mName;
     char *lastKnownMegaFolder;
-    long long fingerprint;
 
     SyncType mType = TYPE_UNKNOWN;
 

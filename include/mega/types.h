@@ -54,15 +54,6 @@ typedef int64_t m_off_t;
 
 namespace mega {
 
-// opaque filesystem fingerprint (eg on windows, volume serial number).  Let's make it a proper type so the compiler helps us not mix it up with other IDs
-struct fsfp_t
-{
-    uint64_t id = 0;
-    fsfp_t() {}
-    fsfp_t(uint64_t i) : id(i) {}
-    operator bool() { return id != 0; }
-};
-
 // within ::mega namespace, byte is unsigned char (avoids ambiguity when std::byte from c++17 and perhaps other defined ::byte are available)
 #if defined(USE_CRYPTOPP) && (CRYPTOPP_VERSION >= 600) && ((__cplusplus >= 201103L) || (__RPCNDR_H_VERSION__ == 500))
 using byte = CryptoPP::byte;
@@ -1250,6 +1241,12 @@ using textchat_vector = vector<TextChat*>;
 static constexpr int sfu_invalid_id = -1;
 
 #endif // ENABLE_CHAT
+
+// Opaque filesystem fingerprint.
+class fsfp_t;
+
+// Convenience.
+using fsfp_ptr_t = std::shared_ptr<fsfp_t>;
 
 } // namespace mega
 
