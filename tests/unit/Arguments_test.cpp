@@ -32,7 +32,7 @@ Argv::Argv(std::initializer_list<std::string> init)
                    std::end(mInit),
                    std::begin(mArgv),
                    [](const std::string& elem) {
-                        return (char*)elem.data();
+                        return const_cast<char*>(elem.data());
                    });
 }
 
