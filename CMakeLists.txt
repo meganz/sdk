@@ -133,7 +133,7 @@ include(${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules/sdklib_libraries.cmake) 
 find_package(PkgConfig REQUIRED) # For libraries loaded using pkg-config
 
 if (WIN32)
-    # Build the SDKlib with C++17 for Windows
+    # Build the project with C++17 for Windows
     set(CMAKE_CXX_STANDARD 17)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
     if (MSVC)
@@ -142,23 +142,13 @@ if (WIN32)
     endif()
 
     # Enable build with multiple processes.
-    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
-    set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP")
+    add_compile_options(/MP)
 
     # Create a separated PDB file with debug symbols.
-    set (CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Zi")
-    set (CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /Zi")
-
-    add_compile_definitions(HAVE_CONFIG_H) # To include the config.h file in Windows builds
-    add_compile_definitions(_CRT_SECURE_NO_WARNINGS) # warning in mega_ccronexpr
-    add_compile_definitions(
-        $<$<BOOL:${USE_CPPTHREAD}>:USE_CPPTHREAD>
-        UNICODE
-        NOMINMAX # TODO Fix locally
-    )
+    add_compile_options($<$<CONFIG:Release>:/Zi>)
 
 else()
-    # The SDK library should be built with C++11
+    # Build the project with C++11
     set(CMAKE_CXX_STANDARD 11)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -172,8 +162,8 @@ endif()
 
 # Define debug symbols covering all platforms.
 add_compile_definitions(
-    $<$<CONFIG:DEBUG>:DEBUG>
-    $<$<CONFIG:DEBUG>:_DEBUG>
+    $<$<CONFIG:Debug>:DEBUG>
+    $<$<CONFIG:Debug>:_DEBUG>
 )
 
 ## SDKlib target ##
@@ -441,6 +431,17 @@ target_include_directories(SDKlib
         $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include> # For the top level projects.
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}> # For the external projects.
     )
+
+if (WIN32)
+    target_compile_definitions(SDKLib
+        PRIVATE
+        HAVE_CONFIG_H # To include the config.h file in Windows builds
+        _CRT_SECURE_NO_WARNINGS # warning in mega_ccronexpr
+        $<$<BOOL:${USE_CPPTHREAD}>:USE_CPPTHREAD>
+        UNICODE
+        NOMINMAX # TODO Fix locally
+    )
+endif()
 
 set_target_properties(SDKlib PROPERTIES
     VERSION ${PROJECT_VERSION}
