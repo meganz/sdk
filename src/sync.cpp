@@ -1411,7 +1411,7 @@ bool Sync::scan(LocalPath localpath, FileAccess* fa)
         string name;
         bool success;
 
-        if (SimpleLogger::logCurrentLevel >= logDebug)
+        if (SimpleLogger::getLogLevel() >= logDebug)
         {
             LOG_debug << "Scanning folder: " << localpath;
         }

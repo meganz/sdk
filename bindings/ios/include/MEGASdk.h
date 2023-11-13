@@ -94,6 +94,11 @@ typedef NS_ENUM (NSInteger, MEGANodeFormatType) {
     MEGANodeFormatTypeAudio,
     MEGANodeFormatTypeVideo,
     MEGANodeFormatTypeDocument,
+    MEGANodeFormatTypePdf,
+    MEGANodeFormatTypePresentation,
+    MEGANodeFormatTypeArchive,
+    MEGANodeFormatTypeProgram,
+    MEGANodeFormatTypeMisc
 };
 
 typedef NS_ENUM (NSInteger, MEGAFolderTargetType) {
@@ -483,6 +488,17 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * YES if enabled, NO otherwise.
  */
 @property (readonly, nonatomic, getter=isContactVerificationWarningEnabled) BOOL isContactVerificationWarningEnabled;
+
+/**
+ * @brief Check if the logged in account is considered new
+ *
+ * This will NOT return a valid value until the callback onEvent with
+ * type EventMiscFlagsReady is received. You can also rely on the completion of
+ * a fetchnodes to check this value.
+ *
+ * YES if account is considered new. Otherwise, NO.
+ */
+@property (readonly, nonatomic, getter=isNewAccount) BOOL newAccount;
 
 #pragma mark - Business
 
@@ -9915,7 +9931,7 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  *
  * @deprecated This version of the function is deprecated. Please use the non-deprecated one below.
  */
-- (void)getDeviceNameWithDelegate:(id<MEGARequestDelegate>)delegate;
+- (void)getDeviceNameWithDelegate:(id<MEGARequestDelegate>)delegate __attribute__((deprecated("Use [MEGASdk getDeviceName:delegate] instead of this function.")));
 
 /**
  * @brief Returns the name previously set for a device
@@ -9934,7 +9950,7 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * by deviceId() will be used instead.
  * @param delegate MEGARequestDelegate to track this request
  */
-- (void)getDeviceName:(NSString *)deviceId delegate:(id<MEGARequestDelegate>)delegate;
+- (void)getDeviceName:(nullable NSString *)deviceId delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Sets device name
