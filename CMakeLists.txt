@@ -39,12 +39,6 @@ option(ENABLE_SYNC "Turns on sync functionality" ON)
 option(ENABLE_CHAT "Turns on chat management functionality" OFF)
 option(ENABLE_LOG_PERFORMANCE "Faster log message generation" OFF)
 option(ENABLE_DRIVE_NOTIFICATIONS "Allows to monitor (external) drives being [dis]connected to the computer" OFF)
-if (WIN32)
-    option(ENABLE_WERROR "Enable warnings as errors" ON)
-else()
-    option(ENABLE_WERROR "Enable warnings as errors. This flag only works for Debug builds" OFF)
-endif()
-
 option(USE_MEDIAINFO "Used to determine media properties and set those as node attributes" ON)
 option(USE_FREEIMAGE "Used to create previews/thumbnails for photos/pictures" ON)
 option(USE_FFMPEG "Used to create previews/thumbnails for video files" ON)
@@ -110,9 +104,15 @@ endif()
 if(NOT CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     message(STATUS "[${PROJECT_NAME}] is building under project [${CMAKE_PROJECT_NAME}] Install target will NOT be available.")
     set(SDKLIB_STANDALONE 0)
+    option(ENABLE_SDKLIB_WERROR "Enable warnings as errors." OFF)
 else()
     message(STATUS "[${PROJECT_NAME}] is a top-level project. Install target will be available.")
     set(SDKLIB_STANDALONE 1)
+    if (WIN32)
+        option(ENABLE_SDKLIB_WERROR "Enable warnings as errors" ON)
+    else()
+        option(ENABLE_SDKLIB_WERROR "Enable warnings as errors when building in debug mode." OFF)
+    endif()
 endif()
 
 if (NOT CMAKE_BUILD_TYPE)
@@ -489,46 +489,48 @@ endif()
 
 ## Adjust compilation flags for warnigns and errors ##
 if(WIN32)
-    if (ENABLE_WERROR)
-        # Enable warnings as errors in debug mode for Windows
-        set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /WX")
+    if(ENABLE_SDKLIB_WERROR)
+        target_compile_options(SDKlib PRIVATE /WX)
     endif()
 
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4201")  # nameless struct/union (nonstandard)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4100")  # unreferenced formal parameter
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4706")  # assignment within conditional
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4458")  # identifier hides class member
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4324")  # structure was padded due to alignment specifier (common in Sodium)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4456")  # declaration hides previous local declaration
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4266")  # derived class did not override all overloads of a virtual function
+    target_compile_options(SDKlib
+        PRIVATE
+        /W4
+        /wd4201 # nameless struct/union (nonstandard)
+        /wd4100 # unreferenced formal parameter
+        /wd4706 # assignment within conditional
+        /wd4458 # identifier hides class member
+        /wd4324 # structure was padded due to alignment specifier (common in Sodium)
+        /wd4456 # declaration hides previous local declaration
+        /wd4266 # derived class did not override all overloads of a virtual function
+    )
     #TODO: remove some of those gradually.  also consider: /wd4503 /wd4996 /wd4702
 
-    # TODO
-    #set_property(TARGET Mega PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
-
 else()
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb3")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wconversion -Wno-unused-parameter")
 
-    if (ENABLE_WERROR)
-        if (CMAKE_BUILD_TYPE STREQUAL "Debug" )
-            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
-            # Warnings which should not be promoted to errors, but still appear as warnings
-            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=deprecated-declarations")
-            if (APPLE)
-              set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}
-                  -Wno-sign-conversion -Wno-overloaded-virtual
-                  -Wno-inconsistent-missing-override -Wno-unused-variable
-                  -Wno-unused-private-field -Wno-string-conversion
-                  -Wno-unused-lambda-capture -Wno-implicit-int-conversion
-                  -Wno-shorten-64-to-32 -Wno-unused-value"
-              )
-            endif()
+    if(ENABLE_SDKLIB_WERROR AND CMAKE_BUILD_TYPE STREQUAL "Debug")
+        target_compile_options(SDKlib PRIVATE -Werror)
+        # Warnings which should not be promoted to errors, but still appear as warnings
+        target_compile_options(SDKlib PRIVATE -Wno-error=deprecated-declarations)
+        if(APPLE)
+            target_compile_options(SDKlib
+                PRIVATE
+                -Wno-sign-conversion                 -Wno-overloaded-virtual
+                -Wno-inconsistent-missing-override   -Wno-unused-variable
+                -Wno-unused-private-field            -Wno-string-conversion
+                -Wno-unused-lambda-capture           -Wno-implicit-int-conversion
+                -Wno-shorten-64-to-32                -Wno-unused-value
+            )
         endif()
-        message(STATUS, "CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
-        message(STATUS, "CMAKE_CXX_FLAGS_DEBUG: ${CMAKE_CXX_FLAGS_DEBUG}")
-    endif(ENABLE_WERROR)
+    endif()
+
+    target_compile_options(SDKlib
+        PRIVATE
+        $<$<CONFIG:Debug>:-ggdb3>
+        -Wall         -Wextra
+        -Wconversion  -Wno-unused-parameter
+    )
+
 endif()
 
 ## Create config files ##
