@@ -35,7 +35,7 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  * @brief The number of MEGANode objects in the list.
  */
-@property (readonly, nonatomic, nullable) NSNumber *size;
+@property (readonly, nonatomic) NSInteger size;
 
 /**
  * @brief Add new node to nodeList

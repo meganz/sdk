@@ -83,8 +83,8 @@ using namespace mega;
     }
 }
 
-- (nullable NSNumber *)size {
-    return self.nodeList ? [[NSNumber alloc] initWithInt:self.nodeList->size()] : nil;
+- (NSInteger)size {
+    return self.nodeList ? self.nodeList->size() : 0;
 }
 
 @end
