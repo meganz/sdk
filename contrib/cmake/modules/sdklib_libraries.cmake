@@ -1,31 +1,3 @@
-macro(check_mediainfo_unicode)
-# Check if MediaInfo requires UNICODE defined.
-# Used in load_sdklib_libraries macro.
-
-    if(NOT WIN32 AND USE_MEDIAINFO AND NOT UNICODE)
-        include(CheckCXXSourceCompiles)
-        set(CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES} mediainfo)
-        set(test_code_mediainfo
-            "#include \"MediaInfo/MediaInfo.h\"
-            int main() {
-                MediaInfoLib::MediaInfo::Option_Static(__T(\"Info_Version\"));
-            }"
-        )
-
-        check_cxx_source_compiles("${test_code_mediainfo}" MEDIAINFO_LINK_RESULT)
-
-        if(NOT MEDIAINFO_LINK_RESULT)
-            set(CMAKE_REQUIRED_DEFINITIONS ${CMAKE_REQUIRED_DEFINITIONS} -DUNICODE)
-            check_cxx_source_compiles("${test_code_mediainfo}" MEDIAINFO_LINK_UNICODE_RESULT)
-            if(MEDIAINFO_LINK_UNICODE_RESULT)
-                message(STATUS "UNICODE enabled in config.h. Required by MediaInfo library.")
-                set(UNICODE ON)
-            endif()
-        endif()
-    endif()
-
-endmacro()
-
 macro(load_sdklib_libraries)
 
     if(VCPKG_ROOT)
@@ -54,7 +26,7 @@ macro(load_sdklib_libraries)
         endif()
 
         if(USE_MEDIAINFO)
-            # TODO MediaInfo is not linking with zen correctly. Preload it.
+            # MediaInfo is not setting libzen dependency correctly. Preload it.
             find_package(ZenLib CONFIG REQUIRED)
             target_link_libraries(SDKlib PRIVATE zen)
 
@@ -165,7 +137,5 @@ macro(load_sdklib_libraries)
         endif()
 
     endif()
-
-    check_mediainfo_unicode()
 
 endmacro()
