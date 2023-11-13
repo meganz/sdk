@@ -21,6 +21,8 @@
 #import <Foundation/Foundation.h>
 #import "MEGANode.h"
 
+NS_ASSUME_NONNULL_BEGIN
+
 /**
  * @brief List of MEGANode objects.
  *
@@ -33,7 +35,7 @@
 /**
  * @brief The number of MEGANode objects in the list.
  */
-@property (readonly, nonatomic) NSNumber *size;
+@property (readonly, nonatomic, nullable) NSNumber *size;
 
 /**
  * @brief Add new node to nodeList
@@ -49,6 +51,8 @@
  * @param index Position of the MEGANode that we want to get for the list.
  * @return MEGANode at the position index in the list.
  */
-- (MEGANode *)nodeAtIndex:(NSInteger)index;
+- (nullable MEGANode *)nodeAtIndex:(NSInteger)index;
+
+NS_ASSUME_NONNULL_END
 
 @end

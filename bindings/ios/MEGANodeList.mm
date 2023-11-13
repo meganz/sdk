@@ -70,7 +70,7 @@ using namespace mega;
     self.nodeList->addNode([node getCPtr]);
 }
 
-- (MEGANode *)nodeAtIndex:(NSInteger)index {
+- (nullable MEGANode *)nodeAtIndex:(NSInteger)index {
     if (self.nodeList == NULL) {
         return nil;
     }
@@ -83,7 +83,7 @@ using namespace mega;
     }
 }
 
-- (NSNumber *)size {
+- (nullable NSNumber *)size {
     return self.nodeList ? [[NSNumber alloc] initWithInt:self.nodeList->size()] : nil;
 }
 
