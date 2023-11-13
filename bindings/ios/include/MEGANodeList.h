@@ -36,20 +36,6 @@
 @property (readonly, nonatomic) NSNumber *size;
 
 /**
- * @brief Creates a copy of this MEGANodeList object.
- *
- * The resulting object is fully independent of the source MEGANodeList,
- * it contains a copy of all internal attributes, so it will be valid after
- * the original object is deleted.
- *
- * You are the owner of the returned object.
- *
- * @return Copy of the MEGANodeList object.
- */
-- (instancetype)clone;
-
-
-/**
  * @brief Add new node to nodeList
  * @param node to be added. The node inserted is a copy from 'node'
  */
