@@ -84,7 +84,7 @@ TEST(Argumenmts, ParseOneListOfArgumentsSuccessfully)
                 };
     auto arguments = ArgumentsParser::parse(argv.argc(), argv.argv());
     ASSERT_FALSE(arguments.empty());
-    ASSERT_EQ(3, arguments.size());
+    ASSERT_EQ(3, static_cast<int>(arguments.size()));
     ASSERT_EQ("", arguments.getValue("-h"));
     ASSERT_EQ("10", arguments.getValue("-t"));
     ASSERT_EQ("the name", arguments.getValue("-n"));
