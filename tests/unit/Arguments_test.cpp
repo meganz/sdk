@@ -1,26 +1,64 @@
 #include "gtest/gtest.h"
 #include <array>
+#include <iterator>
 #include <vector>
+#include <algorithm>
+#include <initializer_list>
 #include "mega/arguments.h"
 
 using mega::ArgumentsParser;
 
+//
+// Provides argc and argv like parameters in int main(int argc, char** argv)
+//
+class Argv
+{
+public:
+    Argv(std::initializer_list<std::string> init);
+
+    char** argv();
+
+    int argc();
+private:
+    std::vector<std::string> mInit;
+    std::vector<char*> mArgv;
+};
+
+Argv::Argv(std::initializer_list<std::string> init)
+    : mInit(init)
+    , mArgv(init.size() + 1 , nullptr) // extra 1 for nullptr ending
+{
+    std::transform(std::begin(mInit),
+                   std::end(mInit),
+                   std::begin(mArgv),
+                   [](const std::string& elem) {
+                        return (char*)elem.data();
+                   });
+}
+
+char** Argv::argv()
+{
+    return mArgv.data();
+}
+
+int Argv::argc()
+{
+    return static_cast<int>(mInit.size());
+}
+
 TEST(Argumenmts, ParseNoArgumentsSuccessfully)
 {
-    std::array<char*, 2> argv = { "executable.exe",
-                                   nullptr
-                                };
-    auto arguments = ArgumentsParser::parse(static_cast<int>(argv.size() - 1), argv.data());
+    Argv argv = { "executable.exe" };
+    auto arguments = ArgumentsParser::parse(argv.argc(), argv.argv());
     ASSERT_TRUE(arguments.empty());
 }
 
 TEST(Argumenmts, ParseOneNoValueArgumentSuccessfully)
 {
-    std::array<char*, 3> argv = { "executable.exe",
-                                  "-h",
-                                   nullptr
-                                };
-    auto arguments = ArgumentsParser::parse(static_cast<int>(argv.size() - 1), argv.data());
+    Argv argv = { "executable.exe",
+                  "-h",
+                };
+    auto arguments = ArgumentsParser::parse(argv.argc(), argv.argv());
     ASSERT_TRUE(!arguments.empty());
     ASSERT_TRUE(arguments.contains("-h"));
     ASSERT_EQ("", arguments.getValue("-h"));
@@ -28,11 +66,10 @@ TEST(Argumenmts, ParseOneNoValueArgumentSuccessfully)
 
 TEST(Argumenmts, ParseOneHasValueArgumentSuccessfully)
 {
-    std::array<char*, 3> argv = { "executable.exe",
-                                  "-t=10",
-                                   nullptr
-                                };
-    auto arguments = ArgumentsParser::parse(static_cast<int>(argv.size() - 1), argv.data());
+    Argv argv = { "executable.exe",
+                  "-t=10",
+                };
+    auto arguments = ArgumentsParser::parse(argv.argc(), argv.argv());
     ASSERT_FALSE(arguments.empty());
     ASSERT_TRUE(arguments.contains("-t"));
     ASSERT_EQ("10", arguments.getValue("-t"));
@@ -40,13 +77,12 @@ TEST(Argumenmts, ParseOneHasValueArgumentSuccessfully)
 
 TEST(Argumenmts, ParseOneListOfArgumentsSuccessfully)
 {
-    std::array<char*, 5> argv = { "executable.exe",
-                                  "-h",
-                                  "-t=10",
-                                  "-n=the name",
-                                   nullptr
-                                };
-    auto arguments = ArgumentsParser::parse(static_cast<int>(argv.size() - 1), argv.data());
+    Argv argv = { "executable.exe",
+                  "-h",
+                  "-t=10",
+                  "-n=the name",
+                };
+    auto arguments = ArgumentsParser::parse(argv.argc(), argv.argv());
     ASSERT_FALSE(arguments.empty());
     ASSERT_EQ(3, arguments.size());
     ASSERT_EQ("", arguments.getValue("-h"));
@@ -58,20 +94,18 @@ TEST(Argumenmts, ParseOneListOfArgumentsSuccessfully)
 
 TEST(Argumenmts, getValueDefaultIsNotReturnDefaultIfValueIsEmpty)
 {
-    std::array<char*, 3> argv = { "executable.exe",
-                                  "-h",
-                                   nullptr
-                                };
-    auto arguments = ArgumentsParser::parse(static_cast<int>(argv.size() - 1), argv.data());
+    Argv argv = { "executable.exe",
+                  "-h",
+                };
+    auto arguments = ArgumentsParser::parse(argv.argc(), argv.argv());
     ASSERT_EQ("", arguments.getValue("-h", "default"));
 }
 
 TEST(Argumenmts, getValueDefaultReturnedDefaultIfNameNotExist)
 {
-    std::array<char*, 3> argv = { "executable.exe",
-                                  "-h",
-                                   nullptr
-                                };
-    auto arguments = ArgumentsParser::parse(static_cast<int>(argv.size() - 1), argv.data());
+    Argv argv = { "executable.exe",
+                  "-h",
+                };
+    auto arguments = ArgumentsParser::parse(argv.argc(), argv.argv());
     ASSERT_EQ("default", arguments.getValue("-x", "default"));
 }
