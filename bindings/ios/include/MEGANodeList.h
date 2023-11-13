@@ -48,6 +48,7 @@
  */
 - (instancetype)clone;
 
+
 /**
  * @brief Add new node to nodeList
  * @param node to be added. The node inserted is a copy from 'node'
