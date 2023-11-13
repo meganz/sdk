@@ -247,6 +247,7 @@ set(SDKLIB_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/include/mega/version.h
     ${CMAKE_CURRENT_LIST_DIR}/include/mega/node.h
     ${CMAKE_CURRENT_LIST_DIR}/include/mega/mediafileattribute.h
+    ${CMAKE_CURRENT_LIST_DIR}/include/mega/process.h
 )
 
 set(SDKLIB_SOURCES
@@ -301,6 +302,7 @@ set(SDKLIB_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/src/crypto/cryptopp.cpp
     ${CMAKE_CURRENT_LIST_DIR}/src/crypto/sodium.cpp
     ${CMAKE_CURRENT_LIST_DIR}/src/db/sqlite.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/src/process.cpp
 )
 
 target_sources(SDKlib
