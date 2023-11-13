@@ -193,7 +193,6 @@ set(SDKLIB_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/include/mega.h
     ${CMAKE_CURRENT_LIST_DIR}/include/megaapi_impl.h
     ${CMAKE_CURRENT_LIST_DIR}/include/mega/transferslot.h
-    ${CMAKE_CURRENT_LIST_DIR}/include/mega/thread/posixthread.h
     ${CMAKE_CURRENT_LIST_DIR}/include/mega/thread/libuvthread.h
     ${CMAKE_CURRENT_LIST_DIR}/include/mega/command.h
     ${CMAKE_CURRENT_LIST_DIR}/include/mega/thread.h
@@ -351,6 +350,29 @@ target_sources_conditional(SDKlib
 )
 
 target_sources_conditional(SDKlib
+    FLAG UNIX
+    PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}/include/mega/posix/megawaiter.h
+    ${CMAKE_CURRENT_LIST_DIR}/include/mega/thread/posixthread.h
+    ${CMAKE_CURRENT_LIST_DIR}/include/mega/posix/megaconsole.h
+    ${CMAKE_CURRENT_LIST_DIR}/include/mega/posix/megafs.h
+    ${CMAKE_CURRENT_LIST_DIR}/include/mega/posix/megaconsolewaiter.h
+    ${CMAKE_CURRENT_LIST_DIR}/include/mega/posix/meganet.h
+
+    ${CMAKE_CURRENT_LIST_DIR}/src/posix/waiter.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/src/thread/posixthread.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/src/posix/console.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/src/posix/fs.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/src/posix/consolewaiter.cpp
+)
+
+target_sources_conditional(SDKlib
+    FLAG UNIX OR (WIN32 AND USE_CURL)
+    PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}/src/posix/net.cpp
+)
+
+target_sources_conditional(SDKlib
     FLAG APPLE
     PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/include/mega/osx/osxutils.h
@@ -358,28 +380,6 @@ target_sources_conditional(SDKlib
 
     ${CMAKE_CURRENT_LIST_DIR}/src/osx/osxutils.mm
     ${CMAKE_CURRENT_LIST_DIR}/src/osx/fs.cpp
-)
-
-target_sources_conditional(SDKlib
-    FLAG NOT APPLE AND NOT WIN32
-    PRIVATE
-    ${CMAKE_CURRENT_LIST_DIR}/include/mega/posix/megafs.h
-    ${CMAKE_CURRENT_LIST_DIR}/include/mega/posix/megaconsolewaiter.h
-    ${CMAKE_CURRENT_LIST_DIR}/include/mega/posix/megaconsole.h
-    ${CMAKE_CURRENT_LIST_DIR}/include/mega/posix/megawaiter.h
-    ${CMAKE_CURRENT_LIST_DIR}/include/mega/posix/meganet.h
-
-    ${CMAKE_CURRENT_LIST_DIR}/src/posix/console.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/src/posix/consolewaiter.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/src/posix/fs.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/src/posix/waiter.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/src/thread/posixthread.cpp
-)
-
-target_sources_conditional(SDKlib
-    FLAG NOT APPLE
-    PRIVATE
-    ${CMAKE_CURRENT_LIST_DIR}/src/posix/net.cpp # Windows when using CURL and Linux always.
 )
 
 target_sources_conditional(SDKlib
@@ -438,7 +438,7 @@ target_include_directories(SDKlib
         ${CMAKE_CURRENT_BINARY_DIR}
         $<$<BOOL:${APPLE}>:${CMAKE_CURRENT_LIST_DIR}/include/mega/osx>
         $<$<BOOL:${WIN32}>:${CMAKE_CURRENT_LIST_DIR}/include/mega/$<IF:${USE_CURL},wincurl,win32>>
-        $<$<NOT:$<OR:$<BOOL:${WIN32}>,$<BOOL:${APPLE}>>>:${CMAKE_CURRENT_LIST_DIR}/include/mega/posix>
+        $<$<BOOL:${UNIX}>:${CMAKE_CURRENT_LIST_DIR}/include/mega/posix>
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include> # For the top level projects.
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}> # For the external projects.
@@ -478,9 +478,7 @@ else()
     if(APPLE)
         target_link_libraries(SDKlib PRIVATE
             "-framework CoreServices"
-            "-framework SystemConfiguration -framework Security"
             "-framework Cocoa"
-            $<$<BOOL:${USE_FFMPEG}>:-liconv>
         )
     endif()
 endif()
