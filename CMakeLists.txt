@@ -15,16 +15,16 @@ endif()
 #
 # It can be used to build a standalone library or to be included via add_subdirectory.
 #
+# To include the project in your application use the following:
+#    add_subdirectory(path/to/sdk)
+#    target_link_libraries(<target> PRIVATE MEGA::SDKlib)
+#
 # To use it as a standalone library, once compiled and installed:
 #    find_package(SDKlib REQUIRED)
 #    target_link_libraries(<target> PRIVATE MEGA::SDKlib)
 # If you prefer to use pkg-config, use the following instead:
 #    pkg_check_modules(SDKlib REQUIRED IMPORTED_TARGET SDKlib)
 #    target_link_libraries(<target> PRIVATE PkgConfig::SDKlib)
-#
-# To include the project in your application use the following:
-#    add_subdirectory(path/to/sdk)
-#    target_link_libraries(<target> PRIVATE MEGA::SDKlib)
 #
 
 cmake_minimum_required(VERSION 3.19)
@@ -46,16 +46,15 @@ option(USE_LIBUV "Includes the library and turns on internal web and ftp server 
 option(USE_PDFIUM "Used to create previews/thumbnails for PDF files" ON)
 option(USE_C_ARES "If set, the SDK will manage DNS lookups and ipv4/ipv6 itself, using the c-ares library.  Otherwise we rely on cURL" ON)
 if (WIN32 OR IOS)
-    option(USE_READLINE "Use the readline library for the console" OFF) # TODO
+    option(USE_READLINE "Use the readline library for the console" OFF)
 else()
-    option(USE_READLINE "Use the readline library for the console" ON) # TODO
+    option(USE_READLINE "Use the readline library for the console" ON)
 endif()
 if (APPLE AND NOT IOS)
-    option(USE_OPENSSL "Use the OpenSSL library or a compatible one" OFF) # TODO
+    option(USE_OPENSSL "Use the OpenSSL library or a compatible one" OFF)
 else()
-    option(USE_OPENSSL "Use the OpenSSL library or a compatible one" ON) # TODO
+    option(USE_OPENSSL "Use the OpenSSL library or a compatible one" ON)
 endif()
-option(ENABLE_CODECOVERAGE "Enable code coverage testing support") # TODO
 
 # Old USE_XXX not needed in the SDK library.
 # set (USE_ASIO 1 CACHE STRING "Only needed For tcprelay test tool")
@@ -131,7 +130,7 @@ include(GNUInstallDirs) # Values for installation directories. All platforms
 include(CMakePackageConfigHelpers) # For the CMake package
 include(${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules/target_sources_conditional.cmake) # To add files to the project without building them
 include(${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules/sdklib_libraries.cmake) # A macro to load the dependencies, both the VCPKG or the system ones.
-find_package(PkgConfig REQUIRED) # For libraries not using find_package
+find_package(PkgConfig REQUIRED) # For libraries loaded using pkg-config
 
 if (WIN32)
     # Build the SDKlib with C++17 for Windows
@@ -170,9 +169,6 @@ else()
     check_include_file(glob.h HAVE_GLOB_H)
     check_function_exists(aio_write, HAVE_AIO_RT)
 endif()
-
-# TODO Review MEGA_LINK_DYNAMIC_CRT
-set(MEGA_LINK_DYNAMIC_CRT ON)
 
 # Define debug symbols covering all platforms.
 add_compile_definitions(
@@ -482,10 +478,6 @@ else()
         )
     endif()
 endif()
-
-# TODO SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} pthread z dl termcap) Linux
-# TODO SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} crypto rt stdc++fs) Linux
-
 
 ## Adjust compilation flags for warnigns and errors ##
 if(WIN32)

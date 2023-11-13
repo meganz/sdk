@@ -1,6 +1,7 @@
 # It allows to add sources which will be built only if the FLAG is true. Otherwise, the
 # files will be visible in the IDE but will not be part of the target build.
 # Useful for sources for different platforms, configuration files, .md files, ...
+# Except for the "FLAG <condition>" field, syntax is similar to target_sources().
 #      target_sources_conditional(<target> FLAG <condition>
 #                                <INTERFACE|PUBLIC|PRIVATE> [items1...]
 #                                [<INTERFACE|PUBLIC|PRIVATE> [items2...] ...])
