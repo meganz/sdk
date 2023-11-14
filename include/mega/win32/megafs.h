@@ -59,7 +59,7 @@ public:
     unique_ptr<DirAccess>  newdiraccess() override;
 
 #ifdef ENABLE_SYNC
-    DirNotify* newdirnotify(const LocalPath&, const LocalPath&, Waiter*, LocalNode* syncroot) override;
+    DirNotify* newdirnotify(LocalNode& root, const LocalPath& rootPath, Waiter* waiter) override;
 #endif
 
     bool issyncsupported(const LocalPath&, bool&, SyncError&, SyncWarning&) override;
@@ -146,10 +146,11 @@ private:
     static void notifierThreadFunction();
 
 public:
+    WinDirNotify(LocalNode& root,
+                 const LocalPath& rootPath,
+                 WinFileSystemAccess* owner,
+                 Waiter* waiter);
 
-    void addnotify(LocalNode*, const LocalPath&) override;
-
-    WinDirNotify(const LocalPath&, const LocalPath&, WinFileSystemAccess* owner, Waiter* waiter, LocalNode* syncroot);
     ~WinDirNotify();
 };
 #endif
@@ -196,9 +197,6 @@ public:
 
     WinFileAccess(Waiter *w);
     ~WinFileAccess();
-
-    std::string getErrorMessage(int error) const override;
-    bool isErrorFileNotFound(int error) const override;
 
 protected:
     AsyncIOContext* newasynccontext() override;

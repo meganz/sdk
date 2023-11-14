@@ -57,6 +57,8 @@ public:
 
     void process(MegaClient* client);
     bool processCmdJSON(Command* cmd, bool couldBeError, JSON& json);
+    bool processSeqTag(Command* cmd, bool withJSON, bool& parsedOk, bool inSeqTagArray, JSON& processingJson);
+
     m_off_t processChunk(const char* chunk, MegaClient*);
     m_off_t totalChunkedProgress();
 
@@ -64,6 +66,8 @@ public:
     bool empty() const;
     void swap(Request&);
     bool stopProcessing = false;
+
+    bool mV3 = true;
 
     // if contains only one command and that command is FetchNodes
     bool isFetchNodes() const;
@@ -131,6 +135,8 @@ public:
     // If the server itself reports failure, use this one to resolve (commands are all failed)
     // and we will move to the next Request
     void servererror(const std::string &e, MegaClient*);
+
+    void continueProcessing(MegaClient* client);
 
     void clear();
 
