@@ -130,6 +130,53 @@ void ProcessWithInterceptedOutput::intercept(const unsigned char* data, size_t l
 }
 
 
+/// class GTestListProc
+///
+/// extend ProcessWithInterceptedOutput to build a list of GTest-s (a.k.a. googletests) to run
+
+void GTestListProc::onOutLine(string&& line)
+{
+    // react to lines like:
+    //
+    // SuiteFoo.
+    //   TestBar
+    //   DISABLED_TestBazz
+
+    if (Utils::startswith(line, '[')) return; // skip lines with other info
+
+    // test suite
+    if (!Utils::startswith(line, ' '))
+    {
+        // name of test suite
+        if (!line.empty() && !isalpha(line.front()))
+        {
+            std::cerr << "ERROR: Test suite name was invalid: " << line << std::endl;
+            return;
+        }
+        mCurrentSuite = line;
+        ++mTestSuiteCount;
+        return;
+    }
+
+    if (mCurrentSuite.empty())
+    {
+        std::cerr << "ERROR: Test suite name should have been present until now" << std::endl;
+        return;
+    }
+
+    string testCase = Utils::trim(line);
+
+    // count of disabled tests
+    if (Utils::startswith(testCase, "DISABLED_"))
+    {
+        ++mDisabledTestCount;
+        return;
+    }
+
+    mTestsToRun.push_back(mCurrentSuite + testCase);
+}
+
+
 std::string getCurrentTimestamp(bool includeDate)
 {
     using std::chrono::system_clock;
