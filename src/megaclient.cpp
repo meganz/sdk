@@ -1610,7 +1610,7 @@ void MegaClient::init()
     chunkfailed = false;
     statecurrent = false;
     actionpacketsCurrent = false;
-    totalNodes.store(0);
+    totalNodes = 0;
     mAppliedKeyNodeCount = 0;
     faretrying = false;
 
@@ -8054,7 +8054,7 @@ void MegaClient::notifypurge(void)
     }
 #endif
 
-    totalNodes.store(mNodeManager.getNodeCount());
+    totalNodes = mNodeManager.getNodeCount();
 }
 
 void MegaClient::persistAlert(UserAlert::Base* a)
