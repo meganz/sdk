@@ -223,6 +223,7 @@ set(SDKLIB_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/include/mega/logging.h
     ${CMAKE_CURRENT_LIST_DIR}/include/mega/file.h
     ${CMAKE_CURRENT_LIST_DIR}/include/mega/sync.h
+    ${CMAKE_CURRENT_LIST_DIR}/include/mega/syncfilter.h
     ${CMAKE_CURRENT_LIST_DIR}/include/mega/heartbeats.h
     ${CMAKE_CURRENT_LIST_DIR}/include/mega/utils.h
     ${CMAKE_CURRENT_LIST_DIR}/include/mega/account.h
@@ -280,6 +281,7 @@ set(SDKLIB_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/src/share.cpp
     ${CMAKE_CURRENT_LIST_DIR}/src/sharenodekeys.cpp
     ${CMAKE_CURRENT_LIST_DIR}/src/sync.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/src/syncfilter.cpp
     ${CMAKE_CURRENT_LIST_DIR}/src/heartbeats.cpp
     ${CMAKE_CURRENT_LIST_DIR}/src/testhooks.cpp
     ${CMAKE_CURRENT_LIST_DIR}/src/transfer.cpp
