@@ -3659,7 +3659,7 @@ bool CommandGetUA::procresult(Result r, JSON& json)
                     if (!json.storeobject())
                     {
                         LOG_err << "Error in CommandGetUA. Parse error";
-                        client->app->getua_result(API_EINTERNAL);
+                        mCompletionErr(API_EINTERNAL);
                         return false;
                     }
                 }
@@ -4515,9 +4515,6 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 if (pushSetting.size())
                 {
                     changes += u->updateattr(ATTR_PUSH_SETTINGS, &pushSetting, &versionPushSetting);
-
-                    // initialize the settings for the intermediate layer by simulating there was a getua()
-                    client->app->getua_result((byte*) pushSetting.data(), (unsigned) pushSetting.size(), ATTR_PUSH_SETTINGS);
                 }
                 else
                 {
