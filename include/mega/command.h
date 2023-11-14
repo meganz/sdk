@@ -1705,6 +1705,16 @@ public:
     CommandMeetingEnd(MegaClient*, handle chatid, handle callid, int reason, CommandMeetingEndCompletion completion);
 };
 
+typedef std::function<void(Error)> CommandRingUserCompletion;
+class MEGA_API CommandRingUser : public Command
+{
+    CommandRingUserCompletion mCompletion;
+public:
+    bool procresult(Result, JSON&) override;
+
+    CommandRingUser(MegaClient*, handle chatid, handle userid, CommandRingUserCompletion completion);
+};
+
 typedef std::function<void(Error, const ScheduledMeeting*)> CommandScheduledMeetingAddOrUpdateCompletion;
 class MEGA_API CommandScheduledMeetingAddOrUpdate : public Command
 {

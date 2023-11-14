@@ -4415,6 +4415,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_DEL_VPN_CREDENTIAL: return "DEL_VPN_CREDENTIAL";
         case TYPE_CHECK_VPN_CREDENTIAL: return "CHECK_VPN_CREDENTIAL";
         case TYPE_FETCH_CREDIT_CARD_INFO: return "FETCH_CREDIT_CARD_INFO";
+        case TYPE_RING_INDIVIDUAL_IN_CALL: return "RING_INDIVIDUAL_IN_CALL";
     }
     return "UNKNOWN";
 }
@@ -24837,6 +24838,37 @@ void MegaApiImpl::endChatCall(MegaHandle chatid, MegaHandle callid, int reason, 
             }));
             return API_OK;
         };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::ringIndividualInACall(MegaHandle chatid, MegaHandle userid, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_RING_INDIVIDUAL_IN_CALL, listener);
+    request->setNodeHandle(chatid);
+    request->setParentHandle(userid);
+    request->performRequest = [this, request]()
+    {
+        const handle chatid = request->getNodeHandle();
+        const handle userid = request->getParentHandle();
+        if (chatid == INVALID_HANDLE || userid == INVALID_HANDLE)
+        {
+            return API_EARGS;
+        }
+
+        textchat_map::iterator it = client->chats.find(chatid);
+        if (it == client->chats.end())
+        {
+            return API_ENOENT;
+        }
+
+        client->reqs.add(new CommandRingUser(client, chatid, userid, [request, this](Error e)
+        {
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+        }));
+        return API_OK;
+    };
 
     requestQueue.push(request);
     waiter->notify();

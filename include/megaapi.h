@@ -4302,7 +4302,8 @@ class MegaRequest
             TYPE_DEL_VPN_CREDENTIAL                                         = 175,
             TYPE_CHECK_VPN_CREDENTIAL                                       = 176,
             TYPE_FETCH_CREDIT_CARD_INFO                                     = 177,
-            TOTAL_OF_REQUEST_TYPES                                          = 178
+            TYPE_RING_INDIVIDUAL_IN_CALL                                    = 178,
+            TOTAL_OF_REQUEST_TYPES                                          = 179
         };
 
         virtual ~MegaRequest();
@@ -20507,6 +20508,34 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void endChatCall(MegaHandle chatid, MegaHandle callid, int reason = 0, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief This function allows a user in an existing call, to send an incoming call push notification to another user in the chat
+         * to notify that call is ringing..
+         *
+         * When a call is started and one user doesn't pick it up, ringing stops for that user/participant after a given time.
+         * This function can be used to force another ringing event at said user/participant.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_RING_INDIVIDUAL_IN_CALL
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaChatRequest::getNodeHandle - Returns the chat identifier
+         * - MegaChatRequest::getParentHandle - Returns the user's id to ring again
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::ERROR_OK:
+         *
+         * The request will fail with MegaChatError::ERROR_ARGS
+         * - if chat id provided as param is invalid
+         * - if user id to ring again provided as param is invalid
+         *
+         * The request will fail with MegaChatError::ERROR_NOENT
+         * - if the chatroom doesn't exists.
+         *
+         * @param chatId MegaChatHandle that identifies the chat room
+         * @param userId MegaChatHandle that identifies the user to ring again
+         * @param listener MegaRequestListener to track this request
+         */
+        void ringIndividualInACall(MegaHandle chatid, MegaHandle userid, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Change the SFU id

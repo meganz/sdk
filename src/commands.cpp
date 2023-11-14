@@ -10356,6 +10356,21 @@ CommandMeetingEnd::CommandMeetingEnd(MegaClient *client, handle chatid, handle c
     tag = client->reqtag;
 }
 
+bool CommandRingUser::procresult(Command::Result r, JSON&)
+{
+    mCompletion(r.errorOrOK());
+    return r.wasErrorOrOK();
+}
+
+CommandRingUser::CommandRingUser(MegaClient* client, handle chatid, handle userid, CommandRingUserCompletion completion)
+    : mCompletion(completion)
+{
+    cmd("mcru");
+    arg("u", reinterpret_cast<byte*>(&userid), MegaClient::CHATHANDLE);
+    arg("cid", reinterpret_cast<byte*>(&chatid), MegaClient::CHATHANDLE);
+    tag = client->reqtag;
+}
+
 CommandScheduledMeetingAddOrUpdate::CommandScheduledMeetingAddOrUpdate(MegaClient* client, const ScheduledMeeting *schedMeeting, const char* chatTitle, CommandScheduledMeetingAddOrUpdateCompletion completion)
     : mScheduledMeeting(schedMeeting->copy()), mCompletion(completion)
 {
