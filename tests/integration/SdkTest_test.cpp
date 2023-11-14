@@ -15210,6 +15210,10 @@ TEST_F(SdkTest, SdkTestGetPasswordNodeBase)
 
     LOG_debug << "\t# fetch nodes";
     fetchNodesForAccounts(totalAccounts);
+    LOG_debug << "\t# get Password Manager Base node by handle";
+    std::unique_ptr<MegaNode> mnBase {megaApi[userIdx]->getNodeByHandle(nhBase)};
+    ASSERT_NE(nullptr, mnBase.get())
+        << "Error retrieving MegaNode for Password Base with handle " << toNodeHandle(nhBase);
 
 
     LOG_debug << "# U1: get Password Manager Base via get user's attribute command";

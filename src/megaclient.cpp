@@ -22004,7 +22004,13 @@ void MegaClient::createPasswordManagerBase(int rtag, CommandCreatePasswordManage
     newNode->attrstring.reset(new string);
     makeattr(&cipher, newNode->attrstring, attrString.c_str());
 
-   reqs.add(new CommandCreatePasswordManagerBase(this, std::move(newNode), rtag, std::move(cbRequest)));
+    // encrypt node password with user's master key to be sent to backend/API for storage
+    std::array<byte, FILENODEKEYLENGTH> encryptedKey;
+    this->key.ecb_encrypt(const_cast<byte*>(reinterpret_cast<const byte*>(newNode->nodekey.data())),
+                          encryptedKey.data(), newNode->nodekey.size());
+    newNode->nodekey.assign(reinterpret_cast<char*>(encryptedKey.data()), encryptedKey.size());
+
+    reqs.add(new CommandCreatePasswordManagerBase(this, std::move(newNode), rtag, std::move(cbRequest)));
 }
 
 FetchNodesStats::FetchNodesStats()
