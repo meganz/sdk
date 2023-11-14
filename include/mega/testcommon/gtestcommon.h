@@ -53,6 +53,44 @@ private:
 };
 
 
+class GTestProc : public ProcessWithInterceptedOutput
+{
+public:
+    bool run(const std::vector<std::string>& args, const std::unordered_map<std::string, std::string>& env, size_t workerIdx, std::string&& name);
+    bool passed() const { return mStatus == TestStatus::TEST_PASSED; }
+    std::string getRelevantOutput() { return finishedRunning() ? mRelevantOutput : std::string(); }
+    const std::string& getTestName() const { return mTestName; }
+
+private:
+    void clearBeforeRun() override { mRelevantOutput.clear(); mOutputIsRelevant = false; }
+    void onOutLine(std::string&& line) override;
+    void onErrLine(std::string&& line) override;
+    void onExit() override;
+    void printToScreen(std::ostream& screen, const std::string& msg) const;
+
+    std::string mTestName;
+    size_t mWorkerIdx = 0u;
+
+    enum class TestStatus
+    {
+        NOT_STARTED,
+        RUNNING,
+        TEST_PASSED,
+        TEST_FAILED,
+        CRASHED,
+    };
+    TestStatus mStatus = TestStatus::NOT_STARTED;
+
+    std::string mRelevantOutput;
+    bool mOutputIsRelevant = false;
+
+    bool mSkipUnwantedTestOutput = true; // set this to false to include mem leaks in printouts
+    bool mPrintingMemLeaks = false;
+};
+
+
+std::string getLogFileName(size_t useIdx = SIZE_MAX, const std::string& useDescription = std::string());
+
 std::string getCurrentTimestamp(bool includeDate = false);
 
 } // namespace mega

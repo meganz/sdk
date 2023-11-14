@@ -1,5 +1,7 @@
 #include "mega/testcommon/gtestcommon.h"
 
+#include <fstream>
+
 using namespace std;
 
 namespace mega
@@ -176,6 +178,142 @@ void GTestListProc::onOutLine(string&& line)
     mTestsToRun.push_back(mCurrentSuite + testCase);
 }
 
+
+/// class GTestProc
+///
+/// extend ProcessWithInterceptedOutput to interpret the output of a GTest (a.k.a. googletest)
+
+bool GTestProc::run(const vector<string>& args, const unordered_map<string, string>& env, size_t workerIdx, string&& name)
+{
+    mWorkerIdx = workerIdx;
+    mTestName = std::move(name);
+    mStatus = TestStatus::NOT_STARTED;
+
+    if (ProcessWithInterceptedOutput::run(args, env))
+    {
+        mStatus = TestStatus::RUNNING;
+        return true;
+    }
+
+    return false;
+}
+
+void GTestProc::onOutLine(std::string&& line)
+{
+    // show lines between
+    // [ RUN      ]
+    // and
+    // [       OK ] or [  FAILED  ]
+
+    // completely ignore some lines as it's supposed to run only a single test
+    if (line.empty() ||
+        line.find("[LOGGER] ========== Application startup ===========") != string::npos ||
+        Utils::startswith(line, "[========]") ||
+        Utils::startswith(line, "Note: Google Test filter = ") ||
+        Utils::startswith(line, "[----------]") ||
+        Utils::startswith(line, "[==========]") ||
+        Utils::startswith(line, "[  PASSED  ]") ||
+        (Utils::startswith(line, "[  FAILED  ]") && !mOutputIsRelevant) ||
+        line == " 1 FAILED TEST")
+    {
+        return;
+    }
+
+    printToScreen(std::cout, line);
+
+    if (Utils::startswith(line, "[ RUN      ]"))
+    {
+        mOutputIsRelevant = true;
+        mRelevantOutput += line + '\n';
+    }
+
+    else if (mOutputIsRelevant)
+    {
+        mRelevantOutput += line + '\n';
+
+        if (Utils::startswith(line, "[       OK ]"))
+        {
+            mStatus = TestStatus::TEST_PASSED;
+            mOutputIsRelevant = false;
+        }
+        else if (Utils::startswith(line, "[  FAILED  ]"))
+        {
+            mStatus = TestStatus::TEST_FAILED;
+            mOutputIsRelevant = false;
+        }
+    }
+}
+
+void GTestProc::onErrLine(std::string&& line)
+{
+    if (Utils::startswith(line, "================") ||
+        line.find("W: rops_pt_init_destroy_netlink: netlink bind failed") != string::npos) // skip annoying but harmless LWS warning
+    {
+        return;
+    }
+
+    if (mSkipUnwantedTestOutput)
+    {
+        // attempt to hide [false-positive] memory leaks, as they make the output unusable
+        if (line.find("==ERROR: LeakSanitizer: detected memory leaks") != string::npos)
+        {
+            mPrintingMemLeaks = true;
+            return;
+        }
+
+        if (Utils::startswith(line, "SUMMARY: AddressSanitizer:"))
+        {
+            mPrintingMemLeaks = false;
+            return;
+        }
+
+        if (mPrintingMemLeaks || line.empty())
+        {
+            return;
+        }
+    }
+
+    mRelevantOutput += line + '\n';
+    printToScreen(std::cerr, line);
+}
+
+void GTestProc::onExit()
+{
+    if (mStatus != TestStatus::RUNNING)
+    {
+        // test reported when it finished, as it should have, no need to augument the log for possible crashes
+        return;
+    }
+
+    mStatus = TestStatus::CRASHED;
+
+    string msg("[  FAILED  ] " + mTestName + " CRASHED");
+    printToScreen(std::cout, msg);
+
+    ofstream testLog(getLogFileName(mWorkerIdx, mTestName), ios_base::app);
+    if (testLog.is_open())
+    {
+        testLog << mRelevantOutput << msg << std::endl;
+    }
+    else
+    {
+        printToScreen(std::cout, "Could not open " + getLogFileName(mWorkerIdx, mTestName) + " to append relevant output after crash.");
+    }
+}
+
+void GTestProc::printToScreen(std::ostream& screen, const std::string& msg) const
+{
+    screen << getCurrentTimestamp(true) << " #" << mWorkerIdx << ' ' << msg << std::endl;
+}
+
+
+std::string getLogFileName(size_t useIdx, const std::string& useDescription)
+{
+    static string defaultName("test.log");
+
+    return useDescription.empty() ? defaultName :
+           Utils::replace(defaultName, ".", '.' + std::to_string(useIdx) + '.' + useDescription + '.');
+}
 
 std::string getCurrentTimestamp(bool includeDate)
 {
