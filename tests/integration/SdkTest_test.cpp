@@ -22,6 +22,7 @@
 #include "test.h"
 #include "stdfs.h"
 #include "SdkTest_test.h"
+#include "mega/testcommon/gtestcommon.h"
 #include "mega/testhooks.h"
 
 #include "gmock/gmock-matchers.h"
@@ -1826,7 +1827,6 @@ string getUniqueAlias()
     return alias;
 }
 
-std::string getCurrentTimestamp(bool includeDate);
 
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
 
