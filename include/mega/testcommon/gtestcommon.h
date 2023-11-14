@@ -1,6 +1,7 @@
 #include <chrono>
 #include <functional>
 #include <queue>
+#include <map>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -134,6 +135,35 @@ private:
 
     static constexpr size_t emailsPerInstance = 3u;
     static constexpr size_t maxWorkerCount = 256u; // reasonable limit used for validation only, not really a constraint
+};
+
+
+class GTestParallelRunner
+{
+public:
+    GTestParallelRunner(RuntimeArgValues&& commonArgs) : mCommonArgs(std::move(commonArgs)) {}
+
+    int run();
+
+private:
+    bool findTests();
+    size_t getNexatAvailableInstance();
+    bool runTest(size_t workerIdx, std::string&& name);
+    void processFinishedTest(GTestProc& test, const std::string& logFile);
+    void summary();
+
+    RuntimeArgValues mCommonArgs;
+    std::deque<std::string> mTestsToRun;
+    std::map<size_t, GTestProc> mRunningGTests;
+    int mFinalResult = 0;
+
+    // summary
+    std::chrono::time_point<std::chrono::system_clock> mStartTime;
+    size_t mTestSuiteCount = 0u;
+    size_t mTotalTestCount = 0u;
+    size_t mPassedTestCount = 0u;
+    std::vector<std::string> mFailedTests;
+    size_t mDisabledTestCount = 0u;
 };
 
 

@@ -506,6 +506,178 @@ string RuntimeArgValues::getLog() const
 }
 
 
+/// class GTestParallelRunner
+///
+/// launch worker processes and collect their final status
+
+int GTestParallelRunner::run()
+{
+    mFinalResult = 0;
+    mPassedTestCount = 0u;
+    mFailedTests.clear();
+
+    assert(mCommonArgs.isMainProcWithWorkers());
+    if (!mCommonArgs.isMainProcWithWorkers() || !findTests())
+    {
+        return 1;
+    }
+
+    mStartTime = chrono::system_clock::now();
+    std::cout << "[==========] Running " << mTestsToRun.size() << " tests from " << mTestSuiteCount << " test suites." << std::endl;
+
+    // assign 1 test to 1 subprocess
+    size_t procIdx = SIZE_MAX;
+    while (!mTestsToRun.empty())
+    {
+        if (procIdx == SIZE_MAX)
+        {
+            for (procIdx = getNexatAvailableInstance(); procIdx == SIZE_MAX; procIdx = getNexatAvailableInstance())
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(500)); // not for too long, to collect output
+            }
+        }
+
+        string testName(std::move(mTestsToRun.front()));
+        mTestsToRun.pop_front();
+
+        if (runTest(procIdx, std::move(testName)))
+        {
+            procIdx = SIZE_MAX; // get new value in next loop
+        }
+    }
+
+    // wait for remaining tests to finish
+    for (auto& i : mRunningGTests)
+    {
+        GTestProc& testProcess = i.second;
+        const string& logFile = getLogFileName(i.first, testProcess.getTestName());
+        processFinishedTest(testProcess, logFile);
+    }
+
+    summary();
+
+    return mFinalResult;
+}
+
+bool GTestParallelRunner::findTests()
+{
+    vector<string> args = { mCommonArgs.getExecutable(), "--gtest_list_tests", mCommonArgs.getFilter(), "--gtest_print_time=0", "--no-log-cout" };
+    GTestListProc proc;
+    if (!proc.run(args, {}) || proc.getExitCode())
+    {
+        std::cerr << mCommonArgs.getExecutable() << " --gtest_list_tests " << mCommonArgs.getFilter() << " failed" << std::endl;
+        return false;
+    }
+
+    mTestsToRun = proc.getTestsToRun();
+    mTestSuiteCount = proc.getTestSuiteCount();
+    mTotalTestCount = mTestsToRun.size();
+    mDisabledTestCount = proc.getDisabledTestCount();
+
+    return true;
+}
+
+size_t GTestParallelRunner::getNexatAvailableInstance()
+{
+    if (mRunningGTests.size() < mCommonArgs.getInstanceCount())
+    {
+        return mRunningGTests.size();
+    }
+
+    for (auto& i : mRunningGTests)
+    {
+        GTestProc& testProcess = i.second;
+        if (testProcess.finishedRunning())
+        {
+            const string& logFile = getLogFileName(i.first, testProcess.getTestName());
+            processFinishedTest(testProcess, logFile);
+
+            return i.first;
+        }
+    }
+
+    return SIZE_MAX; // invalid
+}
+
+bool GTestParallelRunner::runTest(size_t workerIdx, string&& name)
+{
+    auto procArgs = mCommonArgs.getArgsForWorker(name, workerIdx);
+    auto envVars = mCommonArgs.getEnvVarsForWorker(workerIdx);
+
+    GTestProc& testProcess = mRunningGTests[workerIdx];
+    bool running = testProcess.run(procArgs, envVars, workerIdx, std::move(name));
+
+    if (!running)
+    {
+        std::cout << "Failed to run " << name << std::endl;
+    }
+    return running;
+}
+
+void GTestParallelRunner::processFinishedTest(GTestProc& test, const std::string& logFile)
+{
+    int err = test.getExitCode(); // waits if not finished yet
+
+    if (!err || test.passed())
+    {
+        // Unfortunately the underlying process can return 1 even if it actually ran fine.
+        // That will happen when running under debugger and reporting memory leaks (LeakSanitizer
+        // reports false-positive mem leaks when secondary processes are forked during execution).
+        ++mPassedTestCount;
+    }
+    else
+    {
+        mFailedTests.push_back(test.getTestName());
+        mFinalResult = 1;
+    }
+
+    // concatenate test log to main log
+    ifstream infile(logFile);
+    ofstream outfile(getLogFileName(), ios_base::app);
+    outfile << infile.rdbuf();
+}
+
+void GTestParallelRunner::summary()
+{
+    /*
+     * Example:
+     *
+     * [==========] 26 tests from 2 test suites ran. (5820142 ms total)
+     * [  PASSED  ] 24 tests.
+     * [  FAILED  ] 2 tests, listed below:
+     * [  FAILED  ] SuiteFoo.TestBar
+     * [  FAILED  ] SuiteBazz.TestFred
+     *
+     *  2 FAILED TESTS
+     *
+     *   YOU HAVE 3 DISABLED TESTS
+     */
+
+    using namespace std::chrono;
+    auto timeSpent = duration_cast<milliseconds>(system_clock::now() - mStartTime).count();
+    std::cout << "[==========] " << (mPassedTestCount + mFailedTests.size()) << " tests from "
+              << mTestSuiteCount << " test suites ran. (" << timeSpent << " ms total)\n"
+              << "[  PASSED  ] " << mPassedTestCount << " tests.\n";
+
+    if (!mFailedTests.empty())
+    {
+        std::cout << "[  FAILED  ] " << mFailedTests.size() << " tests, listed below:\n";
+        for (const auto& t : mFailedTests)
+        {
+            std::cout << "[  FAILED  ] " << t << '\n';
+        }
+        std::cout << "\n " << mFailedTests.size() << " FAILED TESTS\n";
+    }
+
+    std::cout << '\n';
+    if (mDisabledTestCount)
+    {
+        std::cout << "  YOU HAVE " << mDisabledTestCount << " DISABLED TESTS\n";
+    }
+    std::cout << std::endl;
+}
+
+
 std::string getLogFileName(size_t useIdx, const std::string& useDescription)
 {
     static string defaultName("test.log");
