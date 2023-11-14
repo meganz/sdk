@@ -1,6 +1,7 @@
 #include "mega/testcommon/gtestcommon.h"
 
 #include <fstream>
+#include <regex>
 
 using namespace std;
 
@@ -304,6 +305,204 @@ void GTestProc::onExit()
 void GTestProc::printToScreen(std::ostream& screen, const std::string& msg) const
 {
     screen << getCurrentTimestamp(true) << " #" << mWorkerIdx << ' ' << msg << std::endl;
+}
+
+
+/// class RuntimeArgValues
+///
+/// parse and normalize runtime arguments
+
+RuntimeArgValues::RuntimeArgValues(vector<string>&& args)
+{
+    for (auto it = args.begin(); it != args.end();)
+    {
+        string arg = Utils::toUpperUtf8(*it);
+
+        if (Utils::startswith(arg, "--EMAIL-POOL:"))
+        {
+            mEmailTemplate = it->substr(13); // keep original string, not in CAPS
+            it = args.erase(it); // not passed to subprocesses
+            continue;
+        }
+
+        else if (Utils::startswith(arg, "--INSTANCES:"))
+        {
+            assert(mRunMode == TestRunMode::INVALID);
+
+            mInstanceCount = atoi(arg.substr(12).c_str()); // valid interval: [0, maxWorkerCount]
+            if (mInstanceCount > maxWorkerCount || (!mInstanceCount && arg != "--INSTANCES:0"))
+            {
+                std::cerr << "Invalid runtime parameter: " << *it << "\nMaximum allowed value: " << maxWorkerCount << std::endl;
+                return; // leave current instance as invalid
+            }
+
+            mRunMode = mInstanceCount ? TestRunMode::MAIN_PROCESS_WITH_WORKERS : TestRunMode::MAIN_PROCESS_ONLY;
+            it = args.erase(it); // not passed to subprocesses
+            continue;
+        }
+
+        else if (Utils::startswith(arg, "--INSTANCE:"))  // used only internally by subprocesses
+        {
+            assert(mRunMode == TestRunMode::INVALID);
+
+            mCurrentInstance = atoi(arg.substr(11).c_str()); // valid interval: [0, maxWorkerCount)
+            if (mCurrentInstance >= maxWorkerCount || (!mCurrentInstance && arg != "--INSTANCE:0"))
+            {
+                std::cerr << "Invalid runtime parameter: " << *it << std::endl;
+                return; // leave current instance as invalid
+            }
+            mRunMode = TestRunMode::WORKER_PROCESS;
+        }
+
+        else if (Utils::startswith(arg, "--APIURL:"))
+        {
+            mApiUrl = it->substr(9); // keep original string, not in CAPS
+            if (!mApiUrl.empty() && mApiUrl.back() != '/')
+                mApiUrl += '/';
+        }
+
+        else if (Utils::startswith(arg, "--USERAGENT:"))
+        {
+            mUserAgent = it->substr(12); // keep original string, not in CAPS
+        }
+
+        else if (Utils::startswith(arg, "--GTEST_FILTER="))
+        {
+            mGtestFilterIdx = it - args.begin();
+        }
+
+        else if (arg == "--GTEST_LIST_TESTS")
+        {
+            assert(mRunMode == TestRunMode::INVALID);
+
+            mRunMode = TestRunMode::LIST_ONLY;
+            return;
+        }
+
+        ++it;
+    }
+
+    // finish set up for main process
+    if (isMainProcWithWorkers())
+    {
+        if (mEmailTemplate.empty())
+        {
+            const char* teplt = getenv("MEGA_PWD0");
+            if (!teplt)
+            {
+                std::cerr << "Missing both --EMAIL-POOL runtime parameter and MEGA_PWD0 env var" << std::endl;
+                mRunMode = TestRunMode::INVALID;
+                return;
+            }
+            mEmailTemplate = teplt;
+        }
+
+        // if it received --INSTANCES but not an email template, then it will run tests in a single worker process
+        if (mEmailTemplate.find('{') == string::npos)
+        {
+            mEmailTemplate.clear();
+            mInstanceCount = 1u;
+        }
+
+        // save args that will be passed to subprocesses
+        mArgs = std::move(args);
+    }
+
+    // finish set up for worker process
+    else if (isWorker())
+    {
+        if (mGtestFilterIdx == SIZE_MAX)
+        {
+            std::cerr << "Missing --gtest_filter runtime parameter for instance " << mCurrentInstance << std::endl;
+            mRunMode = TestRunMode::INVALID;
+            return;
+        }
+
+        mTestName = args[mGtestFilterIdx].substr(15);
+    }
+
+    else
+    {
+        mRunMode = TestRunMode::MAIN_PROCESS_ONLY;
+    }
+}
+
+vector<string> RuntimeArgValues::getArgsForWorker(const string& test, size_t spIdx) const
+{
+    assert(isMainProcWithWorkers());
+    if (!isMainProcWithWorkers()) return {};
+
+    if (test.empty()) return mArgs; // remove?
+
+    auto args = mArgs;
+
+    string gtestFilter = "--gtest_filter=" + test;
+    if (mGtestFilterIdx < args.size())
+    {
+        args[mGtestFilterIdx] = std::move(gtestFilter);
+    }
+    else
+    {
+        args.emplace_back(std::move(gtestFilter));
+    }
+
+    args.emplace_back("--INSTANCE:" + std::to_string(spIdx));
+
+    return args;
+}
+
+unordered_map<string, string> RuntimeArgValues::getEnvVarsForWorker(size_t idx) const
+{
+    assert(isMainProcWithWorkers());
+    // when it did not receive an email template don't overwrite env vars
+    if (mEmailTemplate.empty() || !isMainProcWithWorkers()) return {};
+
+    tuple<string, size_t, size_t, string> templateValues = breakTemplate();
+    size_t first = std::get<1>(templateValues) + emailsPerInstance * idx;
+    size_t last = first + emailsPerInstance - 1u;
+    if (last > std::get<2>(templateValues)) return {};
+
+    unordered_map<string, string> envVars(emailsPerInstance);
+    for (size_t i = 0; i < emailsPerInstance; ++i)
+    {
+        static const char* pswd = nullptr;
+        if (!i)
+        {
+            pswd = getenv("MEGA_PWD0");
+            if (!pswd) return envVars;
+        }
+        else
+        {
+            envVars["MEGA_PWD" + std::to_string(i)] = pswd;
+        }
+
+        envVars["MEGA_EMAIL" + std::to_string(i)] = std::get<0>(templateValues) + std::to_string(first + i) + std::get<3>(templateValues);
+    }
+
+    return envVars;
+}
+
+tuple<string, size_t, size_t, string> RuntimeArgValues::breakTemplate() const
+{
+    static regex emailRegex("(.*)[{](\\d+)-(\\d+)[}](.*)"); // "(prefix){(first)-(last)}(suffix)"
+    smatch matches;
+    if (regex_search(mEmailTemplate, matches, emailRegex) && matches.size() >= 5)
+    {
+        size_t first = atoi(matches[2].str().c_str()); // only digits, e.g. 1
+        size_t last = atoi(matches[3].str().c_str());  // only digits, e.g. 100
+
+        if (first > 0u && last >= first)
+        {
+            return tuple<string, size_t, size_t, string>(matches[1].str(), first, last, matches[4].str());
+        }
+    }
+
+    return tuple<string, size_t, size_t, string>();
+}
+
+string RuntimeArgValues::getLog() const
+{
+    return getLogFileName(mCurrentInstance, mTestName);
 }
 
 

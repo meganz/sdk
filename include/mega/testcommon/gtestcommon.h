@@ -89,6 +89,54 @@ private:
 };
 
 
+class RuntimeArgValues
+{
+public:
+    RuntimeArgValues(std::vector<std::string>&& args);
+
+    bool isValid() const { return mRunMode != TestRunMode::INVALID; }
+    bool isListOnly() const { return mRunMode == TestRunMode::LIST_ONLY; }
+    bool isMainProcOnly() const { return mRunMode == TestRunMode::MAIN_PROCESS_ONLY; }
+    bool isMainProcWithWorkers() const { return mRunMode == TestRunMode::MAIN_PROCESS_WITH_WORKERS; }
+    bool isWorker() const { return mRunMode == TestRunMode::WORKER_PROCESS; }
+
+    std::string getLog() const;
+    size_t getInstanceCount() const { return mInstanceCount; }
+    const std::string& getCustomApiUrl() const { return mApiUrl; }
+    const std::string& getCustomUserAget() const { return mUserAgent; }
+    std::vector<std::string> getArgsForWorker(const std::string& testToRun, size_t subprocIdx) const;
+    std::unordered_map<std::string, std::string> getEnvVarsForWorker(size_t subprocIdx) const;
+    std::string getExecutable() const { return mArgs.empty() ? std::string() : mArgs[0]; }
+    std::string getFilter() const { return mGtestFilterIdx < mArgs.size() ? mArgs[mGtestFilterIdx] : std::string(); }
+
+private:
+    std::tuple<std::string, size_t, size_t, std::string> breakTemplate() const;
+
+    std::vector<std::string> mArgs; // filled only in main process
+    size_t mInstanceCount = 0u;
+    size_t mCurrentInstance = SIZE_MAX;
+    std::string mTestName;
+    std::string mApiUrl;
+    std::string mUserAgent;
+    std::string mEmailTemplate; // "foo+bar-{1-100}@mega.co.nz"
+    size_t mGtestFilterIdx = SIZE_MAX; // avoid a search
+
+    enum class TestRunMode
+    {
+        INVALID,
+        LIST_ONLY,
+        MAIN_PROCESS_ONLY,
+        MAIN_PROCESS_WITH_WORKERS, // pass --INSTANCES and use an email template
+        WORKER_PROCESS, // spawned by the main process, ran with --INSTANCE
+    };
+
+    TestRunMode mRunMode = TestRunMode::INVALID;
+
+    static constexpr size_t emailsPerInstance = 3u;
+    static constexpr size_t maxWorkerCount = 256u; // reasonable limit used for validation only, not really a constraint
+};
+
+
 std::string getLogFileName(size_t useIdx = SIZE_MAX, const std::string& useDescription = std::string());
 
 std::string getCurrentTimestamp(bool includeDate = false);
