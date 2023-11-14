@@ -25124,8 +25124,7 @@ void MegaApiImpl::updateStats()
 
 unsigned long long MegaApiImpl::getNumNodes()
 {
-    SdkMutexGuard g(sdkMutex);
-    return client->totalNodes;
+    return client->totalNodes.load();
 }
 
 long long MegaApiImpl::getTotalDownloadedBytes()
