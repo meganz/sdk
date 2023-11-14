@@ -22,6 +22,8 @@
 #import "MEGANode.h"
 #import "MEGAError.h"
 
+NS_ASSUME_NONNULL_BEGIN
+
 typedef NS_ENUM (NSInteger, MEGATransferType) {
     MEGATransferTypeDownload,
     MEGATransferTypeUpload,
@@ -71,22 +73,22 @@ typedef NS_ENUM (NSUInteger, MEGATransferStage) {
 /**
  * @brief A readable string showing the type of transfer (UPLOAD, DOWNLOAD).
  */
-@property (readonly, nonatomic) NSString *transferString;
+@property (readonly, nonatomic, nullable) NSString *transferString;
 
 /**
  * @brief The starting time of the transfer.
  */
-@property (readonly, nonatomic) NSDate *startTime;
+@property (readonly, nonatomic, nullable) NSDate *startTime;
 
 /**
  * @brief Transferred bytes during this transfer.
  */
-@property (readonly, nonatomic) NSNumber *transferredBytes;
+@property (readonly, nonatomic) long long transferredBytes;
 
 /**
  * @brief Total bytes to be transferred to complete the transfer.
  */
-@property (readonly, nonatomic) NSNumber *totalBytes;
+@property (readonly, nonatomic) long long totalBytes;
 
 /**
  * @brief Local path related to this transfer.
@@ -95,7 +97,7 @@ typedef NS_ENUM (NSUInteger, MEGATransferStage) {
  * is the path of the destination file.
  *
  */
-@property (readonly, nonatomic) NSString *path;
+@property (readonly, nonatomic, nullable) NSString *path;
 
 /**
  * @brief The parent path related to this transfer.
@@ -104,7 +106,7 @@ typedef NS_ENUM (NSUInteger, MEGATransferStage) {
  * For downloads, it is that path to the folder containing the destination file.
  *
  */
-@property (readonly, nonatomic) NSString *parentPath;
+@property (readonly, nonatomic, nullable) NSString *parentPath;
 
 /**
  * @brief Handle related to this transfer.
@@ -132,7 +134,7 @@ typedef NS_ENUM (NSUInteger, MEGATransferStage) {
  * The value of this fuction will be 0 if the transfer isn't a streaming
  * download ([MEGASdk startStreamingNode:startPos:size:])
  */
-@property (readonly, nonatomic) NSNumber *startPos;
+@property (readonly, nonatomic) long long startPos;
 
 /**
  * @brief The end position of the transfer for streaming downloads
@@ -140,7 +142,7 @@ typedef NS_ENUM (NSUInteger, MEGATransferStage) {
  * The value of this fuction will be 0 if the transfer isn't a streaming
  * download ([MEGASdk startStreamingNode:startPos:size:])
  */
-@property (readonly, nonatomic) NSNumber *endPos;
+@property (readonly, nonatomic) long long endPos;
 
 /**
  * @brief Name of the file that is being transferred.
@@ -149,7 +151,7 @@ typedef NS_ENUM (NSUInteger, MEGATransferStage) {
  * this property is the destination name.
  *
  */
-@property (readonly, nonatomic) NSString *fileName;
+@property (readonly, nonatomic, nullable) NSString *fileName;
 
 /**
  * @brief Number of times that a transfer has temporarily failed.
@@ -169,13 +171,13 @@ typedef NS_ENUM (NSUInteger, MEGATransferStage) {
 /**
  * @brief The average speed of this transfer.
  */
-@property (readonly, nonatomic) NSNumber *speed;
+@property (readonly, nonatomic) long long speed;
 
 /**
  * @brief Number of bytes transferred since the previous callback.
  * @see [MEGADelegate onTransferUpdate:transfer:], [MEGATransferDelegate onTransferUpdate:transfer:]
  */
-@property (readonly, nonatomic) NSNumber *deltaSize;
+@property (readonly, nonatomic) long long deltaSize;
 
 /**
  * @brief Timestamp when the last data was received
@@ -185,7 +187,7 @@ typedef NS_ENUM (NSUInteger, MEGATransferStage) {
  * much time the transfer has been running.
  *
  */
-@property (readonly, nonatomic) NSDate *updateTime;
+@property (readonly, nonatomic, nullable) NSDate *updateTime;
 
 /**
  * @brief A public node related to the transfer
@@ -193,7 +195,7 @@ typedef NS_ENUM (NSUInteger, MEGATransferStage) {
  * The value is only valid for downloads of public nodes.
  *
  */
-@property (readonly, nonatomic) MEGANode *publicNode;
+@property (readonly, nonatomic, nullable) MEGANode *publicNode;
 
 /**
  * @brief YES if this is a streaming transfer, NO otherwise
@@ -219,7 +221,7 @@ typedef NS_ENUM (NSUInteger, MEGATransferStage) {
  * @brief The last error related to the transfer with extra info
  *
  */
-@property (readonly, nonatomic) MEGAError *lastErrorExtended;
+@property (readonly, nonatomic, nullable) MEGAError *lastErrorExtended;
 
 /**
  * @brief YES if it's a folder transfer, otherwise (file transfer) it returns NO
@@ -244,20 +246,7 @@ typedef NS_ENUM (NSUInteger, MEGATransferStage) {
  * [MEGASdk startDownloadNode:localPath:delegate:]
  *
  */
-@property (readonly, nonatomic) NSString *appData;
-
-/**
- * @brief Creates a copy of this MEGATransfer object
- *
- * The resulting object is fully independent of the source MEGATransfer,
- * it contains a copy of all internal attributes, so it will be valid after
- * the original object is deleted.
- *
- * You are the owner of the returned object.
- *
- * @return Copy of the MEGATransfer object
- */
-- (instancetype)clone;
+@property (readonly, nonatomic, nullable) NSString *appData;
 
 /**
  * @brief State of the transfer
@@ -327,7 +316,7 @@ typedef NS_ENUM (NSUInteger, MEGATransferStage) {
  *
  * @return A string that identify the recursive operation stage
  */
-+ (NSString *)stringForTransferStage:(MEGATransferStage)stage;
++ (nullable NSString *)stringForTransferStage:(MEGATransferStage)stage;
 
 /**
  * @brief Returns the notification number of the SDK when this MEGATransfer was generated
@@ -348,5 +337,7 @@ typedef NS_ENUM (NSUInteger, MEGATransferStage) {
  * @return YES if target folder was overriden (apps can check the final parent)
  */
 @property (readonly, nonatomic) BOOL targetOverride;
+
+NS_ASSUME_NONNULL_END
 
 @end
