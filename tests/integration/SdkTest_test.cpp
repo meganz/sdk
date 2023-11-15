@@ -193,7 +193,13 @@ MegaApiTest* newMegaApi(const char* appKey,
                         const char* userAgent,
                         unsigned workerThreadCount)
 {
+#ifdef WIN32
+    auto gfxworkerPath = getTestDataDir() / "gfxworker.exe";
+    auto provider = std::unique_ptr<MegaGfxProvider>(MegaGfxProvider::createIsolatedInstance("mega_sdk_test", gfxworkerPath.string().c_str()));
+    return new MegaApiTest(appKey, provider.get(), basePath, userAgent, workerThreadCount);
+#else
     return new MegaApiTest(appKey, basePath, userAgent, workerThreadCount);
+#endif
 }
 
 enum { USERALERT_ARRIVAL_MILLISEC = 1000 };
@@ -16203,6 +16209,58 @@ TEST_F(SdkTest, SdkTesResumeSessionInFolderLinkDeleted)
     const unsigned int timeoutInSeconds{60};
     ASSERT_TRUE(waitForResponse(&requestFlag, timeoutInSeconds))
         << "Logout did not happen after " << timeoutInSeconds  << " seconds";
+}
+
+/**
+ * @brief SdkGfxProcessSuccessfully
+ *
+ */
+TEST_F(SdkTest, SdkGfxProcessSuccessfully)
+{
+    LOG_info << "___TEST SdkGfxProcessSuccessfully___";
+
+    // setup
+    unsigned int numberOfAccounts = 1;
+    unsigned int apiIndex = 0;
+    auto imageFile = IMAGEFILE;
+    //auto imageFile = UPFILE;
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfAccounts));
+    copyFileFromTestData(imageFile);
+    //ASSERT_TRUE(createFile(imageFile)) << "Couldn't create " << imageFile;
+
+    // upload a image and thumbnail, preview should generate successfully
+    std::unique_ptr<MegaNode> rootnode(megaApi[apiIndex]->getRootNode());
+    MegaHandle uploadedNode = UNDEF;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(apiIndex,
+                                               &uploadedNode,
+                                               imageFile.c_str(),
+                                               rootnode.get(),
+                                               nullptr /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload a test file";
+
+    std::unique_ptr<MegaNode> n1(megaApi[apiIndex]->getNodeByHandle(uploadedNode));
+    ASSERT_NE(n1, nullptr);
+    ASSERT_STREQ(imageFile.c_str(), n1->getName()) << "Uploaded file with wrong name (error: " << mApi[apiIndex].lastError << ")";
+
+    // Get the thumbnail of the uploaded image
+    std::string thumbnailPath = "gfx_thumbnail.png";
+    ASSERT_EQ(API_OK, doGetThumbnail(0, n1.get(), thumbnailPath.c_str()));
+    ASSERT_EQ(fs::file_size(fs::path(thumbnailPath)), 4544);
+    // Get the preview of the uploaded image
+    std::string previewPath = "gfx_preview.png";
+    ASSERT_EQ(API_OK, doGetPreview(0, n1.get(), previewPath.c_str()));
+    ASSERT_EQ(fs::file_size(fs::path(previewPath)), 832);
+
+    // download a image. Missing thumbnail, preview are generated
+
+
+
+    LOG_info << "___TEST SdkGfxProcessSuccessfully end___";
 }
 
 class SdkTestAvatar : public SdkTest
