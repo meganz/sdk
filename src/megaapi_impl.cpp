@@ -10727,7 +10727,7 @@ void MegaApiImpl::isGeolocationEnabled(MegaRequestListener *listener)
 
 bool MegaApiImpl::isChatNotifiable(MegaHandle chatid)
 {
-    std::unique_ptr<MegaPushNotificationSettingsPrivate> pushSettings = std::move(getMegaPushNotificationSetting());
+    std::unique_ptr<MegaPushNotificationSettingsPrivate> pushSettings = getMegaPushNotificationSetting();
     if (pushSettings)
     {
         if (pushSettings->isChatAlwaysNotifyEnabled(chatid))
@@ -10911,13 +10911,13 @@ void MegaApiImpl::setPushNotificationSettings(MegaPushNotificationSettings *sett
 
 bool MegaApiImpl::isSharesNotifiable()
 {
-    std::unique_ptr<MegaPushNotificationSettingsPrivate> pushSettings = std::move(getMegaPushNotificationSetting());
+    std::unique_ptr<MegaPushNotificationSettingsPrivate> pushSettings = getMegaPushNotificationSetting();
     return !pushSettings || (pushSettings->isSharesEnabled() && isScheduleNotifiable(pushSettings.get()));
 }
 
 bool MegaApiImpl::isContactsNotifiable()
 {
-    std::unique_ptr<MegaPushNotificationSettingsPrivate> pushSettings = std::move(getMegaPushNotificationSetting());
+    std::unique_ptr<MegaPushNotificationSettingsPrivate> pushSettings = getMegaPushNotificationSetting();
     return !pushSettings || (pushSettings->isContactsEnabled() && isScheduleNotifiable(pushSettings.get()));
 }
 
@@ -13634,7 +13634,7 @@ std::unique_ptr<MegaPushNotificationSettingsPrivate> MegaApiImpl::getMegaPushNot
         return nullptr;
     }
 
-    std::unique_ptr<MegaPushNotificationSettingsPrivate> pushSettings = std::make_unique<MegaPushNotificationSettingsPrivate>(*settingsJson);
+    std::unique_ptr<MegaPushNotificationSettingsPrivate> pushSettings = ::mega::make_unique<MegaPushNotificationSettingsPrivate>(*settingsJson);
     if (pushSettings->isValid())
     {
         return pushSettings;
@@ -15405,8 +15405,7 @@ void MegaApiImpl::getua_completion(byte* data, unsigned len, attr_t type, MegaRe
 
         case MegaApi::USER_ATTR_PUSH_SETTINGS:
         {
-            std::unique_ptr<MegaPushNotificationSettingsPrivate> pushSettings = std::move(getMegaPushNotificationSetting());
-            request->setMegaPushNotificationSettings(pushSettings.get());
+            request->setMegaPushNotificationSettings(getMegaPushNotificationSetting().get());
         }
         break;
 
