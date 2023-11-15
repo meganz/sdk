@@ -15160,6 +15160,11 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
     LOG_info << "___TEST SdkTestMegaVpnCredentials";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
+    ASSERT_EQ(API_ENOENT, doDelVpnCredential(0, 149))  << "Wrong error when deleting VPN credentials from unused slotID 149";
+    ASSERT_EQ(API_ENOENT, doDelVpnCredential(0, 200))  << "Wrong error when deleting VPN credentials from unused slotID 200";
+    ASSERT_EQ(API_ENOENT, doDelVpnCredential(0, 3000)) << "Wrong error when deleting VPN credentials from unused slotID 3000";
+    bool usingProductionServer = g_APIURL_default.find("staging") == string::npos;
+
     int result;
 
     // 0) Delete any existing credentials (most times there won't be any)
@@ -15228,9 +15233,16 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
         }
         else
         {
-            ASSERT_EQ(API_EACCESS, result) << "adding a new VPN credential on a free account didn't return the expected error value (are you pointing to staging?)";
-            // NOTE: by Sep 2023, the API allows free accounts to create VPN credentials temporary, during development of the feature.
-            // In production, it returns EACCESS (as it will in staging later on)
+            if (usingProductionServer)
+            {
+                ASSERT_EQ(API_EACCESS, result) << "adding a new VPN credential on a free account return wrong error (using production)";
+            }
+            else
+            {
+                // NOTE: by Sep 2023, the API allows free accounts to create VPN credentials temporary, during development of the feature.
+                // In production, it returns EACCESS (as it will in staging later on)
+                ASSERT_EQ(API_OK, result) << "adding a new VPN credential on a free account failed (using staging)";
+            }
         }
 
         // 3-b) Check nonexistent VPN credentials
@@ -15289,8 +15301,16 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
             }
             else
             {
-                ASSERT_EQ(API_ENOENT, result) << "getting the VPN credentials for a free account didn't return the expected error value";
-                ASSERT_TRUE(megaVpnCredentials == nullptr) << "MegaVpnCredentials is NOT NULL for a free account";
+                if (usingProductionServer)
+                {
+                    ASSERT_EQ(API_ENOENT, result) << "getting the VPN credentials for a free account returned wrong error (using production)";
+                    ASSERT_FALSE(megaVpnCredentials) << "MegaVpnCredentials is NOT NULL for a free account (using production)";
+                }
+                else
+                {
+                    ASSERT_EQ(API_OK, result) << "getting the VPN credentials for a free account failed (using staging)";
+                    ASSERT_TRUE(megaVpnCredentials) << "MegaVpnCredentials is NULL for a free account (using staging)";
+                }
             }
         }
 
@@ -15314,7 +15334,14 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
         // 6) Delete VPN credentials from an unoccupied slot. Expecting ENOENT: SlotID is empty
         result = doDelVpnCredential(0, slotID);
 
-        ASSERT_EQ(API_ENOENT, result) << "deleting the VPN credentials from the unused slotID " << slotID << " didn't return the expected error value";
+        if (usingProductionServer)
+        {
+            ASSERT_EQ(API_ENOENT, result) << "deleting the VPN credentials from unused slotID " << slotID << " returned wrong error (using production)";
+        }
+        else
+        {
+            ASSERT_EQ(API_OK, result) << "deleting the VPN credentials from slotID " << slotID << " failed (using staging)";
+        }
 
         // 7) Delete VPN credentials from an invalid slot. Expecting EARGS: SlotID is not valid
         slotID = -1;
