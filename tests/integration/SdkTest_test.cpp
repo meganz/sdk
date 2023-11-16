@@ -10016,6 +10016,9 @@ TEST_F(SdkTest, SyncPaths)
     ASSERT_TRUE(sync)<< "SyncPaths :  Error reaching RUNNING state for sync with local path " << localPath.u8string() << " and remote " << basePath.u8string();
     ASSERT_EQ(sync->getRunState(), MegaSync::RUNSTATE_RUNNING);
 
+    LOG_verbose << "SyncPaths : Give the sync a few seconds before adding a new file (1)";
+    WaitMillisec(waitForSyncsMs);
+
     LOG_verbose << "SyncPaths :  Adding a file and checking if it is synced: " << filePath.u8string();
     ASSERT_TRUE(createFile(filePath.u8string(), false)) << "Couldn't create " << filePath.u8string();
     auto remoteFile = "/" + string(remoteBaseNode->getName()) + "/" + fileNameStr;
@@ -10076,6 +10079,9 @@ TEST_F(SdkTest, SyncPaths)
     std::unique_ptr<MegaSync> syncSym = waitForSyncState(megaApi[0].get(), remoteNodeSym.get(), MegaSync::RUNSTATE_RUNNING, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(syncSym) << "Error getting sync in RUNNING state; local path " << localSymlinkToSync << " and remote " << folderNamedLikeSymlink;;
     ASSERT_EQ(syncSym->getRunState(), MegaSync::RUNSTATE_RUNNING);
+
+    LOG_verbose << "SyncPaths : Give the sync a few seconds before adding a new file (2)";
+    WaitMillisec(waitForSyncsMs);
 
     // Now that we have a sync whose root folder is a symlink, add a file to the path that the symlink points to, and check if it is synced
     auto fileToCreate = localPath / "level_1A" / fs::u8path(fileNameStr.c_str());
@@ -10419,6 +10425,9 @@ TEST_F(SdkTest, SyncImage)
     std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), MegaSync::RUNSTATE_RUNNING, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync)<< "SyncImage :  Error reaching RUNNING state for sync with local path " << localPath.u8string() << " and remote " << basePath.u8string();
     ASSERT_EQ(sync->getRunState(), MegaSync::RUNSTATE_RUNNING);
+
+    LOG_verbose << "SyncImage :  Give the sync a few seconds before adding a new file";
+    WaitMillisec(waitForSyncsMs);
 
     LOG_verbose << "SyncImage :  Adding the image file and checking if it is synced: " << filePath.u8string();
     copyFileFromTestData(fileNameStr, filePath.u8string());
