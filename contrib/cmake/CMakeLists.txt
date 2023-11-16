@@ -469,6 +469,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
                 set(DEBUG_SUFIX _debug)
             endif()
             ImportStdVcpkgLibrary(zen        zend zen libzen${DEBUG_SUFIX} libzen)
+            ImportStdVcpkgLibrary(tinyxml2   tinyxml2 tinyxml2 libtinyxml2 libtinyxml2)
             ImportStdVcpkgLibrary(mediainfo  mediainfod mediainfo libmediainfo${DEBUG_SUFIX} libmediainfo)
         ENDIF(USE_MEDIAINFO)
 
@@ -891,7 +892,7 @@ target_link_libraries(Mega PUBLIC
                         $<${USE_CRYPTOPP}:cryptopp>
                         sodium
                         $<${USE_WEBRTC}:webrtc>
-                        $<${USE_MEDIAINFO}:mediainfo> $<${USE_MEDIAINFO}:zen>
+                        $<${USE_MEDIAINFO}:mediainfo> $<${USE_MEDIAINFO}:zen> $<${USE_MEDIAINFO}:tinyxml2>
                         $<${USE_CURL}:curl>
                         $<${MEGA_USE_C_ARES}:cares>
                         $<$<AND:${USE_OPENSSL},$<NOT:${USE_WEBRTC}>>:ssl>

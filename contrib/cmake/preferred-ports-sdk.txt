@@ -46,7 +46,8 @@ zlib/e0a9559a9b24af116388eae242d675bf9fde025c
 libuv/c303dd024e2dc03a0665ddffbb12a1077933e649 ios:off
 
 # mediainfo, customized with constrained functionality (determine media properties such as track length, codec, etc)
-libmediainfo/19.09
+libmediainfo/23.4
+tinyxml2/7476f0d4e77d3333fbb249657df8251c28c4faae
 libzen/7476f0d4e77d3333fbb249657df8251c28c4faae
 
 # ffmpeg (video preview/thumbnail generation)
