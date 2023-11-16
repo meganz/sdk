@@ -7026,8 +7026,11 @@ TEST_F(SdkTest, SdkRecentsTest)
                 (n_1_0->getCreationTime() == n_1_1->getCreationTime() && filename1bkp1 == n_1_0->getName()));
 }
 
-#ifdef USE_FREEIMAGE
+#if !USE_FREEIMAGE
+TEST_F(SdkTest, DISABLED_SdkHttpReqCommandPutFATest)
+#else
 TEST_F(SdkTest, SdkHttpReqCommandPutFATest)
+#endif
 {
     LOG_info << "___TEST SdkHttpReqCommandPutFATest___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -7073,7 +7076,6 @@ TEST_F(SdkTest, SdkHttpReqCommandPutFATest)
     ASSERT_EQ(API_OK, doGetPreviewUploadURL(0, previewURL, n1->getHandle(), fileSize_preview, true)) << "Cannot request preview upload URL";
     ASSERT_FALSE(previewURL.empty()) << "Got empty preview upload URL";
 }
-#endif
 
 #ifndef __APPLE__ // todo: enable for Mac (needs work in synchronousMediaUploadComplete)
 TEST_F(SdkTest, SdkMediaImageUploadTest)
@@ -9966,7 +9968,6 @@ TEST_F(SdkTest, SyncPersistence)
  *
  * Testing non ascii paths and symlinks
  */
-
 TEST_F(SdkTest, SyncPaths)
 {
     // What we are going to test here:
@@ -10115,66 +10116,6 @@ TEST_F(SdkTest, SyncPaths)
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), "symlink_1A"));
 }
-
-#ifdef USE_FREEIMAGE
-/**
- * @brief TEST_F SyncImage
- *
- * Testing upsyncing an image and checking that we can successfully retrieve the thumbnail and preview.
- */
-TEST_F(SdkTest, SyncImage)
-{
-    LOG_info << "___TEST SyncImage___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-
-    string basePathStr = "SyncImage";
-    string fileNameStr = IMAGEFILE;
-
-    fs::path basePath = fs::u8path(basePathStr.c_str());
-    const auto localPath = fs::current_path() / basePath;
-    fs::path filePath = localPath / fs::u8path(fileNameStr.c_str());
-    ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
-
-    // Create local directories
-    std::error_code ignoredEc;
-    fs::remove_all(localPath, ignoredEc);
-    fs::create_directory(localPath);
-
-    LOG_verbose << "SyncImage :  Creating remote folder " << basePath.u8string();
-    std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
-    ASSERT_NE(remoteRootNode.get(), nullptr);
-    auto nh = createFolder(0, basePath.u8string().c_str(), remoteRootNode.get());
-    ASSERT_NE(nh, UNDEF) << "Error creating remote folder " << basePath.u8string();
-    std::unique_ptr<MegaNode> remoteBaseNode(megaApi[0]->getNodeByHandle(nh));
-    ASSERT_NE(remoteBaseNode.get(), nullptr) << "Error getting node for remote folder " << basePath.u8string();
-
-    LOG_verbose << "SyncImage :  Creating sync with local path " << localPath.u8string() << " and remote " << basePath.u8string();
-    ASSERT_EQ(API_OK, synchronousSyncFolder(0, nullptr, MegaSync::TYPE_TWOWAY, localPath.u8string().c_str(), nullptr, remoteBaseNode->getHandle(), nullptr))
-            << "SyncImage :  Error creating sync with local path " << localPath.u8string() << " and remote " << basePath.u8string();
-    std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), MegaSync::RUNSTATE_RUNNING, MegaSync::NO_SYNC_ERROR);
-    ASSERT_TRUE(sync)<< "SyncImage :  Error reaching RUNNING state for sync with local path " << localPath.u8string() << " and remote " << basePath.u8string();
-    ASSERT_EQ(sync->getRunState(), MegaSync::RUNSTATE_RUNNING);
-
-    LOG_verbose << "SyncImage :  Adding the image file and checking if it is synced: " << filePath.u8string();
-    copyFileFromTestData(fileNameStr, filePath.u8string());
-    auto remoteFile = "/" + string(remoteBaseNode->getName()) + "/" + fileNameStr;
-    std::unique_ptr<MegaNode> remoteNode;
-    WaitFor([this, &remoteNode, &remoteFile]() -> bool
-    {
-        remoteNode.reset(megaApi[0]->getNodeByPath(remoteFile.c_str()));
-        return (remoteNode.get() != nullptr);
-    },50*1000);
-    ASSERT_NE(remoteNode.get(), nullptr) << "Failed to get node for " << remoteFile << ", uploaded from " << filePath.u8string();
-
-    // Get the thumbnail and preview of the uploaded image
-    LOG_verbose << "SyncImage :  Image file " << filePath.u8string() << " is successfully synced to " << remoteFile << ". Checking the thumbnail and preview";
-    ASSERT_EQ(API_OK, doGetThumbnail(0, remoteNode.get(), THUMBNAIL.c_str()));
-    ASSERT_EQ(API_OK, doGetPreview(0, remoteNode.get(), PREVIEW.c_str()));
-
-    LOG_verbose << "SyncImage :  All done. Cleaning up";
-    ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
-}
-#endif
 
 /**
  * @brief TEST_F SearchByPathOfType
@@ -10436,6 +10377,69 @@ TEST_F(SdkTest, SyncOQTransitions)
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), fillPath));
 }
+
+/**
+ * @brief TEST_F SyncImage
+ *
+ * Testing the upsync of an image and verifying that we can successfully retrieve the thumbnail and preview.
+ */
+#if !USE_FREEIMAGE
+TEST_F(SdkTest, DISABLED_SyncImage)
+#else
+TEST_F(SdkTest, SyncImage)
+#endif
+{
+    LOG_info << "___TEST SyncImage___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    string basePathStr = "SyncImage";
+    string fileNameStr = IMAGEFILE;
+
+    fs::path basePath = fs::u8path(basePathStr.c_str());
+    const auto localPath = fs::current_path() / basePath;
+    fs::path filePath = localPath / fs::u8path(fileNameStr.c_str());
+    ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
+
+    // Create local directories
+    std::error_code ignoredEc;
+    fs::remove_all(localPath, ignoredEc);
+    fs::create_directory(localPath);
+
+    LOG_verbose << "SyncImage :  Creating remote folder " << basePath.u8string();
+    std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
+    ASSERT_NE(remoteRootNode.get(), nullptr);
+    auto nh = createFolder(0, basePath.u8string().c_str(), remoteRootNode.get());
+    ASSERT_NE(nh, UNDEF) << "Error creating remote folder " << basePath.u8string();
+    std::unique_ptr<MegaNode> remoteBaseNode(megaApi[0]->getNodeByHandle(nh));
+    ASSERT_NE(remoteBaseNode.get(), nullptr) << "Error getting node for remote folder " << basePath.u8string();
+
+    LOG_verbose << "SyncImage :  Creating sync with local path " << localPath.u8string() << " and remote " << basePath.u8string();
+    ASSERT_EQ(API_OK, synchronousSyncFolder(0, nullptr, MegaSync::TYPE_TWOWAY, localPath.u8string().c_str(), nullptr, remoteBaseNode->getHandle(), nullptr))
+            << "SyncImage :  Error creating sync with local path " << localPath.u8string() << " and remote " << basePath.u8string();
+    std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), MegaSync::RUNSTATE_RUNNING, MegaSync::NO_SYNC_ERROR);
+    ASSERT_TRUE(sync)<< "SyncImage :  Error reaching RUNNING state for sync with local path " << localPath.u8string() << " and remote " << basePath.u8string();
+    ASSERT_EQ(sync->getRunState(), MegaSync::RUNSTATE_RUNNING);
+
+    LOG_verbose << "SyncImage :  Adding the image file and checking if it is synced: " << filePath.u8string();
+    copyFileFromTestData(fileNameStr, filePath.u8string());
+    auto remoteFile = "/" + string(remoteBaseNode->getName()) + "/" + fileNameStr;
+    std::unique_ptr<MegaNode> remoteNode;
+    WaitFor([this, &remoteNode, &remoteFile]() -> bool
+    {
+        remoteNode.reset(megaApi[0]->getNodeByPath(remoteFile.c_str()));
+        return (remoteNode.get() != nullptr);
+    },50*1000);
+    ASSERT_NE(remoteNode.get(), nullptr) << "Failed to get node for " << remoteFile << ", uploaded from " << filePath.u8string();
+
+    // Get the thumbnail and preview of the uploaded image
+    LOG_verbose << "SyncImage :  Image file " << filePath.u8string() << " is successfully synced to " << remoteFile << ". Checking the thumbnail and preview";
+    ASSERT_EQ(API_OK, doGetThumbnail(0, remoteNode.get(), THUMBNAIL.c_str()));
+    ASSERT_EQ(API_OK, doGetPreview(0, remoteNode.get(), PREVIEW.c_str()));
+
+    LOG_verbose << "SyncImage :  All done. Cleaning up";
+    ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
+}
+#endif // ENABLE_SYNC
 
 /**
  * @brief TEST_F StressTestSDKInstancesOverWritableFolders
@@ -10950,7 +10954,6 @@ TEST_F(SdkTest, SdkTestAudioFileThumbnail)
     std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByPath(AUDIO_FILENAME.c_str(), rootnode.get()));
     ASSERT_TRUE(node->hasPreview() && node->hasThumbnail());
 }
-#endif
 
 
 /**

@@ -96,7 +96,7 @@ Transfer::~Transfer()
         assert(committer);
     }
 
-    if (!uploadhandle.isUndef() && !mIsSyncUpload) // For sync uploads, we will delete the attributes upon SyncUpload_inClient destructor
+    if (!uploadhandle.isUndef() && !mIsSyncUpload) // For sync uploads, we will delete the attributes upon SyncUpload_inClient destruction
     {
         client->fileAttributesUploading.erase(uploadhandle);
     }
@@ -1056,7 +1056,7 @@ void Transfer::completefiles()
                 // then we must inform the app of the final transfer outcome.
                 client->transferBackstop.remember(put->tag, put->selfKeepAlive);
                 wakeSyncs = true;
-                mIsSyncUpload = true; // This will avoid the deletion of file attributes on Transfer destruction
+                mIsSyncUpload = true; // This will prevent the deletion of file attributes upon Transfer destruction
             }
         }
 #endif // ENABLE_SYNC
