@@ -4480,6 +4480,11 @@ unsigned long long MegaApi::getNumNodes()
     return pImpl->getNumNodes();
 }
 
+unsigned long long MegaApi::getAccurateNumNodes()
+{
+    return pImpl->getAccurateNumNodes();
+}
+
 long long MegaApi::getTotalDownloadedBytes()
 {
     return pImpl->getTotalDownloadedBytes();
