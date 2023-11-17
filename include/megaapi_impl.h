@@ -3290,6 +3290,7 @@ public:
         void getPasswordManagerBase(MegaRequestListener *listener = nullptr);
         void createPasswordNode(const char *name, const char *pwd, MegaNode* parent,
                                 MegaRequestListener *listener = nullptr);
+        MegaNode *getPasswordNodeByHandle(handle h);
 
         void fetchCreditCardInfo(MegaRequestListener* listener = nullptr);
 

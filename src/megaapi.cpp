@@ -2473,6 +2473,11 @@ void MegaApi::createPasswordNode(const char *name, const char *pwd, MegaNode *pa
     pImpl->createPasswordNode(name, pwd, parent, listener);
 }
 
+MegaNode* MegaApi::getPasswordNodeByHandle(uint64_t h)
+{
+    return pImpl->getPasswordNodeByHandle(h);
+}
+
 bool MegaApi::createLocalFolder(const char *localPath)
 {
     return pImpl->createLocalFolder(localPath);

@@ -26138,6 +26138,16 @@ void MegaApiImpl::createPasswordNode(const char* name, const char* pwd, MegaNode
     requestQueue.push(request);
     waiter->notify();
 }
+
+MegaNode* MegaApiImpl::getPasswordNodeByHandle(handle h)
+{
+    std::unique_ptr<MegaNode> ret {getNodeByHandle(h)};
+
+    if (ret && ret->isPasswordNode()) return ret.release();
+
+    return NULL;
+}
+
 void MegaApiImpl::fetchCreditCardInfo(MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_CREDIT_CARD_INFO, listener);

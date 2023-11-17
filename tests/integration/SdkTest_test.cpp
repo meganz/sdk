@@ -15264,6 +15264,14 @@ TEST_F(SdkTest, SdkTestPasswordManager)
     megaApi[userIdx]->createPasswordNode(nullptr, nullptr, nullptr, &rtCError);
     ASSERT_EQ(API_EARGS, rtCError.waitForResult());
 
+
+    LOG_debug << "# U1: retrieve Password Node by NodeHandle";
+    std::unique_ptr<MegaNode> retrievedPwdNode {megaApi[userIdx]->getPasswordNodeByHandle(newPwdNodeHandle)};
+    ASSERT_NE(nullptr, retrievedPwdNode.get());
+    retrievedPwdNode.reset(megaApi[userIdx]->getPasswordNodeByHandle(nhBase));
+    ASSERT_EQ(nullptr, retrievedPwdNode.get());
+
+
     LOG_info << "# Verifying that Password Manager Base node cannot be deleted";
     std::unique_ptr<MegaNode> n {megaApi[userIdx]->getNodeByHandle(nhBase)};
     ASSERT_EQ(API_EACCESS, doDeleteNode(userIdx, n.get()))
