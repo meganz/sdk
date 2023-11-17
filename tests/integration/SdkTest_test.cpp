@@ -15175,25 +15175,34 @@ TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoANullPath)
 }
 
 /**
- * @brief TEST_F SdkTestGetPasswordNodeBase
+ * @brief TEST_F SdkTestPasswordManager
  *
- * Tests MEGA Password Manager functionality. In particular the retrieval of folder node at base of
- * Password Manager tree
+ * Tests MEGA Password Manager functionality.
  *
  * Notes:
- * - The folder created hangs from Vault root node, and it cannot be deleted
+ * - Base folder created hangs from Vault root node, and it cannot be deleted
  *
  * Test description:
+ * #1 Get Password Manager Base node
  * - U1: special logging in sequence
  *     + 1) plain login
  *     + 2) get Password Manager node handle; it will be created if it didn't exist
        + 3) fetch nodes
  * - U1: get Password Manager Base via get user's attribute command
  * - U1: get Password Manager Base node again; no get user attribute requests expected
+ *
+ * #2 Password Node CRUD operations
+ * - U1: create a Password Node
+ * - U1: retrieve an existing Password Node
+ * - U1: update an existing Password Node
+ * - U1: delete an existing Password Node
+ *
+ * #3 Attempt deletion of Password Manager Base node
+ * - U1: try to delete Password Manager Base node
  */
-TEST_F(SdkTest, SdkTestGetPasswordNodeBase)
+TEST_F(SdkTest, SdkTestPasswordManager)
 {
-    LOG_info << "___TEST SdkTestGetPasswordNodeBase";
+    LOG_info << "___TEST SdkTestPasswordManager";
 
     LOG_debug << "# U1: special logging in sequence";
     const unsigned userIdx = 0, totalAccounts = 1;
@@ -15229,8 +15238,31 @@ TEST_F(SdkTest, SdkTestGetPasswordNodeBase)
     megaApi[userIdx]->getPasswordManagerBase(&rt4);
     ASSERT_EQ(API_OK, rt4.waitForResult()) << "Getting Password Manager Base node through shortcut failed";
     ASSERT_NE(nullptr, rt4.request);
-    ASSERT_EQ(nhBase, rt4.request->getNodeHandle()) << "Wrong Password Manager Base node retrieved through shortcut";
+    ASSERT_EQ(nhBase, rt4.request->getNodeHandle())
+        << "Wrong Password Manager Base node retrieved through shortcut";
 
+
+    LOG_debug << "# U1: create a new Password Node under Password Manager Base";
+    RequestTracker rtC {megaApi[userIdx].get()};
+    const std::string pwdNodeName = "FirstPwd", pwdNodePassword = "1234";
+    megaApi[userIdx]->createPasswordNode(pwdNodeName.c_str(), pwdNodePassword.c_str(),
+                                         mnBase.get(), &rtC);
+    ASSERT_EQ(API_OK, rtC.waitForResult()) << "Failure creating Password Node";
+    ASSERT_NE(nullptr, rtC.request);
+    const auto newPwdNodeHandle = rtC.request->getNodeHandle();
+    ASSERT_NE(UNDEF, newPwdNodeHandle) << "Wrong MegaHandle for new Password Node";
+    std::unique_ptr<MegaNode> newPwdNode {megaApi[userIdx]->getNodeByHandle(newPwdNodeHandle)};
+    ASSERT_NE(newPwdNode.get(), nullptr) << "New node could not be retrieved";
+    auto aux = newPwdNode->getName(); ASSERT_NE(aux, nullptr);
+    ASSERT_EQ(std::string{aux}, pwdNodeName);
+    aux = newPwdNode->getPasswordNodeValue(); ASSERT_NE(aux, nullptr);
+    ASSERT_EQ(std::string{aux}, pwdNodePassword);
+    ASSERT_TRUE(newPwdNode->isPasswordNode());
+
+    LOG_debug << "\t# U1: attempts creation of new Password Node with wrong parameters";
+    RequestTracker rtCError {megaApi[userIdx].get()};
+    megaApi[userIdx]->createPasswordNode(nullptr, nullptr, nullptr, &rtCError);
+    ASSERT_EQ(API_EARGS, rtCError.waitForResult());
 
     LOG_info << "# Verifying that Password Manager Base node cannot be deleted";
     std::unique_ptr<MegaNode> n {megaApi[userIdx]->getNodeByHandle(nhBase)};

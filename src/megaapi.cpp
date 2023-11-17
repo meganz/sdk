@@ -602,6 +602,16 @@ bool MegaNode::isForeign()
     return false;
 }
 
+bool MegaNode::isPasswordNode()
+{
+    return false;
+}
+
+const char* MegaNode::getPasswordNodeValue()
+{
+    return NULL;
+}
+
 string *MegaNode::getNodeKey()
 {
     return NULL;
@@ -2455,6 +2465,12 @@ void MegaApi::createFolder(const char *name, MegaNode *parent, MegaRequestListen
 void MegaApi::getPasswordManagerBase(MegaRequestListener *listener)
 {
     pImpl->getPasswordManagerBase(listener);
+}
+
+void MegaApi::createPasswordNode(const char *name, const char *pwd, MegaNode *parent,
+                                 MegaRequestListener *listener)
+{
+    pImpl->createPasswordNode(name, pwd, parent, listener);
 }
 
 bool MegaApi::createLocalFolder(const char *localPath)
