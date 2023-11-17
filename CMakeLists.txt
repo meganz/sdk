@@ -75,19 +75,20 @@ else()
 endif()
 
 ## General configuration
+# Modules location
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules)
+
 if(VCPKG_ROOT)
     # Include VCPKG management tools.
-    include(${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules/vcpkg_management.cmake)
+    include(vcpkg_management)
     process_vcpkg_libraries()
 else()
     message(STATUS "Using system dependencies")
 endif()
 
 # Get SDK library version to use it as the CMake project version.
-if(NOT MEGA_SDK_VERSION)
-    include(${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules/load_sdk_version.cmake)
-    read_sdk_version(MEGA_SDK_VERSION ${CMAKE_CURRENT_LIST_DIR}/include/mega/version.h)
-endif()
+include(load_sdk_version)
+read_sdk_version(MEGA_SDK_VERSION ${CMAKE_CURRENT_LIST_DIR}/include/mega/version.h)
 
 project(SDKlib
     VERSION ${MEGA_SDK_VERSION}
@@ -128,9 +129,8 @@ message(STATUS "Building SDKlib v${PROJECT_VERSION}")
 
 include(GNUInstallDirs) # Values for installation directories. All platforms
 include(CMakePackageConfigHelpers) # For the CMake package
-include(${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules/target_sources_conditional.cmake) # To add files to the project without building them
-include(${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules/sdklib_libraries.cmake) # A macro to load the dependencies, both the VCPKG or the system ones.
-find_package(PkgConfig REQUIRED) # For libraries loaded using pkg-config
+include(target_sources_conditional) # To add files to the project without building them
+include(sdklib_libraries) # Includes a macro to load the dependencies, both the VCPKG or the system ones.
 
 if (WIN32)
     # Build the project with C++17 for Windows

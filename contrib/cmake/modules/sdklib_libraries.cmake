@@ -1,5 +1,7 @@
 macro(load_sdklib_libraries)
 
+    find_package(PkgConfig REQUIRED) # For libraries loaded using pkg-config
+
     if(VCPKG_ROOT)
         find_package(cryptopp CONFIG REQUIRED)
         target_link_libraries(SDKlib PRIVATE cryptopp::cryptopp)
@@ -100,7 +102,6 @@ macro(load_sdklib_libraries)
 
         if(USE_FREEIMAGE)
             # FreeImage has no pkg-config file. Use out own FindFreeImage.cmake to find the library.
-            set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules")
             find_package(FreeImage REQUIRED)
             target_link_libraries(SDKlib PRIVATE FreeImage::FreeImage)
         endif()
