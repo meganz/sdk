@@ -20,12 +20,13 @@
 */
 
 import UIKit
+import MEGASdk
 
 class OfflineTableViewController: UITableViewController, MEGATransferDelegate {
     
     var offlineDocuments = [MEGANode]()
     
-    let megaapi : MEGASdk! = (UIApplication.shared.delegate as! AppDelegate).megaapi
+    let megaapi = (UIApplication.shared.delegate as! AppDelegate).megaapi
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -98,7 +99,7 @@ class OfflineTableViewController: UITableViewController, MEGATransferDelegate {
         
         
         if node.isFile() {
-            cell.subtitleLabel.text = ByteCountFormatter().string(fromByteCount: node.size.int64Value)
+            cell.subtitleLabel.text = ByteCountFormatter().string(fromByteCount: node.size?.int64Value ?? 0)
         } else {
             let files = megaapi.numberChildFiles(forParent: node)
             let folders = megaapi.numberChildFolders(forParent: node)
@@ -112,7 +113,7 @@ class OfflineTableViewController: UITableViewController, MEGATransferDelegate {
     
     // MARK: - MEGA Transfer delegate
     
-    func onTransferFinish(_ api: MEGASdk!, transfer: MEGATransfer!, error: MEGAError!) {
+    func onTransferFinish(_ api: MEGASdk, transfer: MEGATransfer, error: MEGAError) {
         reloadUI()
     }
     

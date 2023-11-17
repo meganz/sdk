@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 46;
+	objectVersion = 60;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -20,8 +20,6 @@
 		41AB404F1A52D66500E5E16E /* LoginViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41AB404D1A52D66500E5E16E /* LoginViewController.swift */; };
 		41ABAEA11A63DD410026CEAD /* ContactsTableViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41ABAEA01A63DD410026CEAD /* ContactsTableViewController.swift */; };
 		41ABAEA31A63DD710026CEAD /* ContactTableViewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41ABAEA21A63DD710026CEAD /* ContactTableViewCell.swift */; };
-		41ABFDEF1CBB93F700CC9D71 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41ABFDEE1CBB93F700CC9D71 /* AVFoundation.framework */; };
-		41ABFDF11CBB942D00CC9D71 /* CoreMedia.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41ABFDF01CBB942D00CC9D71 /* CoreMedia.framework */; };
 		41B4A5B51A5E94B8008B6E73 /* Helper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41B4A5B41A5E94B8008B6E73 /* Helper.swift */; };
 		41B4A5BA1A5EF067008B6E73 /* DetailsNodeInfoViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41B4A5B91A5EF067008B6E73 /* DetailsNodeInfoViewController.swift */; };
 		41C6A0441A5FD13300865971 /* Offline.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 41C6A0431A5FD13300865971 /* Offline.storyboard */; };
@@ -31,22 +29,7 @@
 		41F1756F1A51E22500570E30 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41F1756E1A51E22500570E30 /* AppDelegate.swift */; };
 		41F175761A51E22500570E30 /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 41F175751A51E22500570E30 /* Images.xcassets */; };
 		41F175791A51E22500570E30 /* LaunchScreen.xib in Resources */ = {isa = PBXBuildFile; fileRef = 41F175771A51E22500570E30 /* LaunchScreen.xib */; };
-		41F175A01A51F17E00570E30 /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41F1759F1A51F17E00570E30 /* ImageIO.framework */; };
-		41F175A21A51F18B00570E30 /* MobileCoreServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41F175A11A51F18B00570E30 /* MobileCoreServices.framework */; };
-		A8BF109621ED0BD8006B283A /* libsodium.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A8BF108D21ED0BD7006B283A /* libsodium.a */; };
-		A8BF109721ED0BD8006B283A /* libuv.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A8BF108E21ED0BD7006B283A /* libuv.a */; };
-		A8BF109821ED0BD8006B283A /* libcrypto.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A8BF108F21ED0BD7006B283A /* libcrypto.a */; };
-		A8BF109921ED0BD8006B283A /* libcryptopp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A8BF109021ED0BD7006B283A /* libcryptopp.a */; };
-		A8BF109A21ED0BD8006B283A /* libcurl.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A8BF109121ED0BD8006B283A /* libcurl.a */; };
-		A8BF109B21ED0BD8006B283A /* libssl.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A8BF109221ED0BD8006B283A /* libssl.a */; };
-		A8BF109C21ED0BD8006B283A /* libzen.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A8BF109321ED0BD8006B283A /* libzen.a */; };
-		A8BF109D21ED0BD8006B283A /* libmediainfo.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A8BF109421ED0BD8006B283A /* libmediainfo.a */; };
-		A8BF109E21ED0BD8006B283A /* libcares.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A8BF109521ED0BD8006B283A /* libcares.a */; };
-		A8BF10A021ED0BF7006B283A /* libMEGASDK.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A8BF109F21ED0BF7006B283A /* libMEGASDK.a */; };
-		A8BF10A221ED0CF9006B283A /* libc++.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = A8BF10A121ED0CF9006B283A /* libc++.tbd */; };
-		A8BF10A421ED0D04006B283A /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = A8BF10A321ED0D04006B283A /* libsqlite3.tbd */; };
-		A8BF10A621ED0D0D006B283A /* libz.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = A8BF10A521ED0D0D006B283A /* libz.tbd */; };
-		A8BF10A821ED0D15006B283A /* libresolv.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = A8BF10A721ED0D15006B283A /* libresolv.tbd */; };
+		A8CCCFF42AE18B3300E3CCAB /* MEGASdk in Frameworks */ = {isa = PBXBuildFile; productRef = A8CCCFF32AE18B3300E3CCAB /* MEGASdk */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -104,24 +87,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A8BF10A821ED0D15006B283A /* libresolv.tbd in Frameworks */,
-				A8BF10A621ED0D0D006B283A /* libz.tbd in Frameworks */,
-				A8BF10A421ED0D04006B283A /* libsqlite3.tbd in Frameworks */,
-				A8BF10A221ED0CF9006B283A /* libc++.tbd in Frameworks */,
-				A8BF10A021ED0BF7006B283A /* libMEGASDK.a in Frameworks */,
-				A8BF109621ED0BD8006B283A /* libsodium.a in Frameworks */,
-				A8BF109721ED0BD8006B283A /* libuv.a in Frameworks */,
-				A8BF109821ED0BD8006B283A /* libcrypto.a in Frameworks */,
-				A8BF109921ED0BD8006B283A /* libcryptopp.a in Frameworks */,
-				A8BF109A21ED0BD8006B283A /* libcurl.a in Frameworks */,
-				A8BF109B21ED0BD8006B283A /* libssl.a in Frameworks */,
-				A8BF109C21ED0BD8006B283A /* libzen.a in Frameworks */,
-				A8BF109D21ED0BD8006B283A /* libmediainfo.a in Frameworks */,
-				A8BF109E21ED0BD8006B283A /* libcares.a in Frameworks */,
-				41ABFDF11CBB942D00CC9D71 /* CoreMedia.framework in Frameworks */,
-				41ABFDEF1CBB93F700CC9D71 /* AVFoundation.framework in Frameworks */,
-				41F175A21A51F18B00570E30 /* MobileCoreServices.framework in Frameworks */,
-				41F175A01A51F17E00570E30 /* ImageIO.framework in Frameworks */,
+				A8CCCFF42AE18B3300E3CCAB /* MEGASdk in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -303,6 +269,9 @@
 			dependencies = (
 			);
 			name = MEGA;
+			packageProductDependencies = (
+				A8CCCFF32AE18B3300E3CCAB /* MEGASdk */,
+			);
 			productName = MEGA;
 			productReference = 41F175691A51E22500570E30 /* MEGA.app */;
 			productType = "com.apple.product-type.application";
@@ -313,28 +282,32 @@
 		41F175611A51E22500570E30 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
+				BuildIndependentTargetsInParallel = YES;
 				CLASSPREFIX = "";
 				LastSwiftMigration = 0710;
 				LastSwiftUpdateCheck = 0710;
-				LastUpgradeCheck = 0730;
+				LastUpgradeCheck = 1500;
 				ORGANIZATIONNAME = "Mega Limited";
 				TargetAttributes = {
 					41F175681A51E22500570E30 = {
 						CreatedOnToolsVersion = 6.1.1;
 						DevelopmentTeam = T9RH74Y7L9;
-						LastSwiftMigration = 1010;
+						LastSwiftMigration = 1500;
 					};
 				};
 			};
 			buildConfigurationList = 41F175641A51E22500570E30 /* Build configuration list for PBXProject "MEGA" */;
 			compatibilityVersion = "Xcode 3.2";
-			developmentRegion = English;
+			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
 				Base,
 			);
 			mainGroup = 41F175601A51E22500570E30;
+			packageReferences = (
+				A8CCCFF22AE18B3300E3CCAB /* XCLocalSwiftPackageReference "../../.." */,
+			);
 			productRefGroup = 41F1756A1A51E22500570E30 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -406,13 +379,24 @@
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
 				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
 				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
 				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
 				CLANG_WARN_EMPTY_BODY = YES;
 				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
@@ -420,8 +404,10 @@
 				ENABLE_BITCODE = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"DEBUG=1",
@@ -434,7 +420,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 9.3;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
@@ -451,13 +437,24 @@
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
 				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
 				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
 				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
 				CLANG_WARN_EMPTY_BODY = YES;
 				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
@@ -465,16 +462,19 @@
 				ENABLE_BITCODE = NO;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
 				GCC_WARN_UNDECLARED_SELECTOR = YES;
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 9.3;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VALIDATE_PRODUCT = YES;
 			};
@@ -486,8 +486,11 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				DEVELOPMENT_TEAM = T9RH74Y7L9;
 				INFOPLIST_FILE = MEGA/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/../../../bindings/ios/3rdparty/lib",
@@ -496,8 +499,11 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/MEGA/MEGA-Bridging-Header.h";
 				SWIFT_SWIFT3_OBJC_INFERENCE = Default;
-				SWIFT_VERSION = 4.2;
-				USER_HEADER_SEARCH_PATHS = "../../../bindings/ios ../../../include";
+				SWIFT_VERSION = 5.0;
+				USER_HEADER_SEARCH_PATHS = (
+					../../../bindings/ios,
+					../../../include,
+				);
 			};
 			name = Debug;
 		};
@@ -507,8 +513,11 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				DEVELOPMENT_TEAM = T9RH74Y7L9;
 				INFOPLIST_FILE = MEGA/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/../../../bindings/ios/3rdparty/lib",
@@ -517,8 +526,11 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/MEGA/MEGA-Bridging-Header.h";
 				SWIFT_SWIFT3_OBJC_INFERENCE = Default;
-				SWIFT_VERSION = 4.2;
-				USER_HEADER_SEARCH_PATHS = "../../../bindings/ios ../../../include";
+				SWIFT_VERSION = 5.0;
+				USER_HEADER_SEARCH_PATHS = (
+					../../../bindings/ios,
+					../../../include,
+				);
 			};
 			name = Release;
 		};
@@ -544,6 +556,20 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		A8CCCFF22AE18B3300E3CCAB /* XCLocalSwiftPackageReference "../../.." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../../..;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A8CCCFF32AE18B3300E3CCAB /* MEGASdk */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = MEGASdk;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 41F175611A51E22500570E30 /* Project object */;
 }

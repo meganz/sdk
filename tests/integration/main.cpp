@@ -10,7 +10,7 @@
 #include <regex>
 
 #include "test.h"
-#include "process.h"
+#include "mega/process.h"
 
 // If running in Jenkins, we use its working folder.  But for local manual testing, use a convenient location
 #define LOCAL_TEST_FOLDER_NAME "mega_tests"
@@ -403,7 +403,7 @@ public:
 
         lock_guard<mutex> g(logMutex);
 
-        if (loglevel <= SimpleLogger::logCurrentLevel)
+        if (loglevel <= SimpleLogger::getLogLevel())
         {
             if (gWriteLog)
             {
@@ -1740,3 +1740,14 @@ void copyFileFromTestData(fs::path filename, fs::path destination)
 fs::path getLinkExtractSrciptPath() {
     return executableDir / LINK_EXTRACT_SCRIPT;
 }
+
+bool isFileHidden(const LocalPath& path)
+{
+    return FileSystemAccess::isFileHidden(path);
+}
+
+bool isFileHidden(const fs::path& path)
+{
+    return isFileHidden(LocalPath::fromAbsolutePath(path.u8string()));
+}
+

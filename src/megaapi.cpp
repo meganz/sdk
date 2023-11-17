@@ -1152,6 +1152,15 @@ MegaBackupInfoList* MegaRequest::getMegaBackupInfoList() const
     return nullptr;
 }
 
+#ifdef ENABLE_SYNC
+
+MegaSyncStallList* MegaRequest::getMegaSyncStallList() const
+{
+    return nullptr;
+}
+
+#endif // ENABLE_SYNC
+
 MegaVpnCredentials* MegaRequest::getMegaVpnCredentials() const
 {
     return nullptr;
@@ -1791,6 +1800,8 @@ void MegaGlobalListener::onEvent(MegaApi *api, MegaEvent *event)
 { }
 void MegaGlobalListener::onDrivePresenceChanged(MegaApi* api, bool present, const char* rootPathInUtf8)
 { }
+void MegaGlobalListener::onSeqTagUpdate(MegaApi* api, const std::string* seqTag)
+{ }
 MegaGlobalListener::~MegaGlobalListener()
 { }
 
@@ -2320,6 +2331,11 @@ char *MegaApi::dumpSession()
 char *MegaApi::getSequenceNumber()
 {
     return pImpl->getSequenceNumber();
+}
+
+char *MegaApi::getSequenceTag()
+{
+    return pImpl->getSequenceTag();
 }
 
 char *MegaApi::getAccountAuth()
@@ -3471,9 +3487,9 @@ void MegaApi::startUploadForChat(const char *localPath, MegaNode *parent, const 
                        true /*forceNewUpload*/, FS_UNKNOWN, CancelToken(), listener);
 }
 
-void MegaApi::startDownload(MegaNode* node, const char* localPath, const char *customName, const char *appData, bool startFirst, MegaCancelToken *cancelToken, int collisionCheck, int collisionResolution, MegaTransferListener *listener)
+void MegaApi::startDownload(MegaNode* node, const char* localPath, const char *customName, const char *appData, bool startFirst, MegaCancelToken *cancelToken, int collisionCheck, int collisionResolution, bool undelete, MegaTransferListener *listener)
 {
-    pImpl->startDownload(startFirst, node, localPath, customName, 0 /*folderTransferTag*/, appData, convertToCancelToken(cancelToken), collisionCheck, collisionResolution, listener);
+    pImpl->startDownload(startFirst, node, localPath, customName, 0 /*folderTransferTag*/, appData, convertToCancelToken(cancelToken), collisionCheck, collisionResolution, undelete, listener);
 }
 
 void MegaApi::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
@@ -3558,12 +3574,6 @@ void MegaApi::setStreamingMinimumRate(int bytesPerSecond)
 
 #ifdef ENABLE_SYNC
 
-//Move local files inside synced folders to the "Rubbish" folder.
-bool MegaApi::moveToLocalDebris(const char *path)
-{
-    return pImpl->moveToLocalDebris(path);
-}
-
 int MegaApi::syncPathState(string* path)
 {
     return pImpl->syncPathState(path);
@@ -3577,33 +3587,32 @@ MegaNode *MegaApi::getSyncedNode(string *path)
 void MegaApi::syncFolder(const char *localFolder, const char *name, MegaNode *megaFolder, MegaRequestListener *listener)
 {
     // deprecated
-    pImpl->syncFolder(localFolder, name, megaFolder ? megaFolder->getHandle() : INVALID_HANDLE, SyncConfig::TYPE_TWOWAY, nullptr, listener);
+    pImpl->syncFolder(localFolder, name, megaFolder ? megaFolder->getHandle() : INVALID_HANDLE, SyncConfig::TYPE_TWOWAY, nullptr, nullptr, listener);
 }
 
 void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener)
 {
     // deprecated
-    pImpl->syncFolder(localFolder, nullptr, megaFolder ? megaFolder->getHandle() : INVALID_HANDLE, SyncConfig::TYPE_TWOWAY, nullptr, listener);
+    pImpl->syncFolder(localFolder, nullptr, megaFolder ? megaFolder->getHandle() : INVALID_HANDLE, SyncConfig::TYPE_TWOWAY, nullptr, nullptr, listener);
 }
 
 void MegaApi::syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, MegaRequestListener *listener)
 {
     // deprecated
-    pImpl->syncFolder(localFolder, name, megaHandle, SyncConfig::TYPE_TWOWAY, nullptr, listener);
+    pImpl->syncFolder(localFolder, name, megaHandle, SyncConfig::TYPE_TWOWAY, nullptr, nullptr, listener);
 }
 
 void MegaApi::syncFolder(const char *localFolder, MegaHandle megaHandle, MegaRequestListener *listener)
 {
     // deprecated
-    pImpl->syncFolder(localFolder, nullptr, megaHandle, SyncConfig::TYPE_TWOWAY, nullptr, listener);
+    pImpl->syncFolder(localFolder, nullptr, megaHandle, SyncConfig::TYPE_TWOWAY, nullptr, nullptr, listener);
 }
 
 
-void MegaApi::syncFolder(MegaSync::SyncType syncType, const char* localFolder, const char* name, MegaHandle megaHandle,
-    const char* driveRootIfExternal,
-    MegaRequestListener* listener)
+void MegaApi::syncFolder(MegaSync::SyncType syncType, const char* localFolder, const char* name, MegaHandle megaHandle, const char* driveRootIfExternal, MegaRequestListener* listener,
+                         const char* excludePath)
 {
-    pImpl->syncFolder(localFolder, name, megaHandle, SyncConfig::Type(syncType), driveRootIfExternal, listener);
+    pImpl->syncFolder(localFolder, name, megaHandle, SyncConfig::Type(syncType), driveRootIfExternal, excludePath, listener);
 }
 
 
@@ -3644,6 +3653,11 @@ void MegaApi::setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningState ta
     pImpl->setSyncRunState(backupId, targetState, listener);
 }
 
+void MegaApi::rescanSync(MegaHandle backupId, bool reFingerprint)
+{
+    pImpl->rescanSync(backupId, reFingerprint);
+}
+
 void MegaApi::importSyncConfigs(const char* configs, MegaRequestListener* listener)
 {
     pImpl->importSyncConfigs(configs, listener);
@@ -3664,9 +3678,19 @@ long long MegaApi::getNumLocalNodes()
     return pImpl->getNumLocalNodes();
 }
 
-char *MegaApi::getBlockedPath()
+void MegaApi::getMegaSyncStallList(MegaRequestListener* listener)
 {
-    return pImpl->getBlockedPath();
+    pImpl->getMegaSyncStallList(listener);
+}
+
+void MegaApi::clearStalledPath(MegaSyncStall* stall)
+{
+    pImpl->clearStalledPath(stall);
+}
+
+void MegaApi::moveToDebris(const char* path, MegaHandle syncBackupId, MegaRequestListener* listener)
+{
+    pImpl->moveToDebris(path, syncBackupId, listener);
 }
 
 MegaSync *MegaApi::getSyncByBackupId(MegaHandle backupId)
@@ -3686,22 +3710,12 @@ MegaSync *MegaApi::getSyncByPath(const char *localPath)
 
 bool MegaApi::isScanning()
 {
-    return pImpl->isIndexing();
+    return pImpl->isScanning();
 }
 
 bool MegaApi::isSyncing()
 {
     return pImpl->isSyncing();
-}
-
-bool MegaApi::isSynced(MegaNode *n)
-{
-    return pImpl->isSynced(n);
-}
-
-bool MegaApi::isSyncable(const char *path, long long size)
-{
-    return pImpl->isSyncable(path, size);
 }
 
 int MegaApi::isNodeSyncable(MegaNode *node)
@@ -3713,24 +3727,24 @@ MegaError *MegaApi::isNodeSyncableWithError(MegaNode* node) {
     return pImpl->isNodeSyncableWithError(node);
 }
 
-void MegaApi::setExcludedNames(vector<string> *excludedNames)
+void MegaApi::setLegacyExcludedNames(vector<string> *excludedNames)
 {
-    pImpl->setExcludedNames(excludedNames);
+    pImpl->setLegacyExcludedNames(excludedNames);
 }
 
-void MegaApi::setExcludedPaths(vector<string> *excludedPaths)
+void MegaApi::setLegacyExcludedPaths(vector<string> *excludedPaths)
 {
-    pImpl->setExcludedPaths(excludedPaths);
+    pImpl->setLegacyExcludedPaths(excludedPaths);
 }
 
-void MegaApi::setExclusionLowerSizeLimit(long long limit)
+void MegaApi::setLegacyExclusionLowerSizeLimit(unsigned long long limit)
 {
-    pImpl->setExclusionLowerSizeLimit(limit);
+    pImpl->setLegacyExclusionLowerSizeLimit(limit);
 }
 
-void MegaApi::setExclusionUpperSizeLimit(long long limit)
+void MegaApi::setLegacyExclusionUpperSizeLimit(unsigned long long limit)
 {
-    pImpl->setExclusionUpperSizeLimit(limit);
+    pImpl->setLegacyExclusionUpperSizeLimit(limit);
 }
 #endif
 
@@ -4480,6 +4494,11 @@ unsigned long long MegaApi::getNumNodes()
     return pImpl->getNumNodes();
 }
 
+unsigned long long MegaApi::getAccurateNumNodes()
+{
+    return pImpl->getAccurateNumNodes();
+}
+
 long long MegaApi::getTotalDownloadedBytes()
 {
     return pImpl->getTotalDownloadedBytes();
@@ -4510,9 +4529,9 @@ int MegaApi::isWaiting()
     return pImpl->isWaiting();
 }
 
-int MegaApi::areServersBusy()
+bool MegaApi::isSyncStalled()
 {
-    return pImpl->areServersBusy();
+    return pImpl->isSyncStalled();
 }
 
 void MegaApi::removeRecursively(const char *path)
@@ -5187,9 +5206,9 @@ void MegaApi::setChatOption(MegaHandle chatid, int option, bool enabled, MegaReq
      pImpl->setChatOption(chatid, option, enabled, listener);
 }
 
-void MegaApi::createOrUpdateScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting, MegaRequestListener* listener)
+void MegaApi::createOrUpdateScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting, const char* chatTitle, MegaRequestListener* listener)
 {
-   pImpl->createOrUpdateScheduledMeeting(scheduledMeeting, listener);
+   pImpl->createOrUpdateScheduledMeeting(scheduledMeeting, chatTitle, listener);
 }
 
 void MegaApi::removeScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener)
@@ -5342,9 +5361,9 @@ bool MegaApi::isChatNotifiable(MegaHandle chatid)
     return pImpl->isChatNotifiable(chatid);
 }
 
-void MegaApi::startChatCall(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener)
+void MegaApi::startChatCall(MegaHandle chatid, bool notRinging, MegaRequestListener* listener)
 {
-    pImpl->startChatCall(chatid, schedId, listener);
+    pImpl->startChatCall(chatid, notRinging, listener);
 }
 
 void MegaApi::joinChatCall(MegaHandle chatid, MegaHandle callid, MegaRequestListener *listener)
@@ -6273,6 +6292,21 @@ void MegaSyncList::addSync(MegaSync *sync)
 
 }
 
+MegaSyncStallList* MegaSyncStallList::copy() const
+{
+    return nullptr;
+}
+
+size_t MegaSyncStallList::size() const
+{
+    return 0;
+}
+
+const MegaSyncStall* MegaSyncStallList::get(size_t i) const
+{
+    return nullptr;
+}
+
 #endif
 
 
@@ -6608,6 +6642,10 @@ void MegaSearchFilter::byName(const char* /*searchString*/)
 {
 }
 
+void MegaSearchFilter::byNodeType(int /*nodeType*/)
+{
+}
+
 void MegaSearchFilter::byCategory(int /*mimeType*/)
 {
 }
@@ -6624,9 +6662,18 @@ void MegaSearchFilter::byLocation(int /*locationType*/)
 {
 }
 
+void MegaSearchFilter::byCreationTime(int64_t /*lowerLimit*/, int64_t /*upperLimit*/)
+{
+}
+
 const char* MegaSearchFilter::byName() const
 {
     return nullptr;
+}
+
+int MegaSearchFilter::byNodeType() const
+{
+    return MegaNode::TYPE_UNKNOWN;
 }
 
 int MegaSearchFilter::byCategory() const
@@ -6647,6 +6694,16 @@ MegaHandle MegaSearchFilter::byLocationHandle() const
 int MegaSearchFilter::byLocation() const
 {
     return MegaApi::SEARCH_TARGET_ALL;
+}
+
+int64_t MegaSearchFilter::byCreationTimeLowerLimit() const
+{
+    return 0;
+}
+
+int64_t MegaSearchFilter::byCreationTimeUpperLimit() const
+{
+    return 0;
 }
 
 MegaApiLock::MegaApiLock(MegaApiImpl* ptr, bool lock) : api(ptr)

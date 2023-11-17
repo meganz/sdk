@@ -60,6 +60,12 @@ public:
     // some commands can only succeed if they are in their own batch.  eg. smss, when the account is blocked pending validation
     bool batchSeparately;
 
+    // true if the command processing has been updated to use the URI v3 system, where successful state updates arrive via actionpackets.
+    bool mV3 = true;
+
+    // true if the command returns strings, arrays or objects, but a seqtag is (optionally) also required. In example: ["seqtag"/error, <JSON from before v3>]
+    bool mSeqtagArray = false;
+
     // some commands are guaranteed to work if we query without specifying a SID (eg. gmf)
     bool suppressSID;
 
@@ -91,6 +97,7 @@ public:
     void openobject();
     void closeobject();
 
+    // `st` seqtags are always extracted before the command's procresult() is called
     enum Outcome {  CmdError,            // The reply was an error, already extracted from the JSON.  The error code may have been 0 (API_OK)
                     CmdArray,            // The reply was an array, and we have already entered it
                     CmdObject,           // the reply was an object, and we have already entered it
@@ -157,6 +164,9 @@ public:
     virtual ~Command();
 
     bool checkError(Error &errorDetails, JSON &json);
+
+    void addToNodePendingCommands(Node* n);
+    void removeFromNodePendingCommands(NodeHandle h, MegaClient* client);
 
 #ifdef ENABLE_CHAT
     // create json structure for scheduled meetings (mcsmp command)
@@ -448,11 +458,16 @@ public:
 // reload nodes/shares/contacts
 class MEGA_API CommandFetchNodes : public Command
 {
+    bool mLoadSyncs = false;
+
+    const char* getJSON(MegaClient* client) override;
+
 public:
     bool procresult(Result, JSON&) override;
     bool parsingFinished();
 
-    CommandFetchNodes(MegaClient*, int tag, bool nocache);
+    CommandFetchNodes(MegaClient*, int tag, bool nocache, bool loadSyncs);
+    ~CommandFetchNodes();
 
 protected:
     handle mPreviousHandleForAlert = UNDEF;
@@ -460,6 +475,11 @@ protected:
 
     // Field to temporarily save the received scsn
     handle mScsn;
+    // sequence-tag, saved temporary while processing the response (it's received before nodes)
+    string mSt;
+
+    std::unique_lock<mutex> mNodeTreeIsChanging;
+    bool mFirstChunkProcessed = false;
 };
 
 // update own node keys
@@ -484,7 +504,7 @@ class MEGA_API CommandKeyCR : public Command
 {
     bool procresult(Result, JSON&) override { return true; }
 public:
-    CommandKeyCR(MegaClient*, node_vector*, node_vector*, const char*);
+    CommandKeyCR(MegaClient*, sharedNode_vector*, sharedNode_vector*, const char*);
 };
 
 class MEGA_API CommandMoveNode : public Command
@@ -504,7 +524,7 @@ private:
 public:
     bool procresult(Result, JSON&) override;
 
-    CommandMoveNode(MegaClient*, Node*, Node*, syncdel_t, NodeHandle prevParent, Completion&& c, bool canChangeVault = false);
+    CommandMoveNode(MegaClient*, std::shared_ptr<Node>, std::shared_ptr<Node>, syncdel_t, NodeHandle prevParent, Completion&& c, bool canChangeVault = false);
 };
 
 class MEGA_API CommandSingleKeyCR : public Command
@@ -600,7 +620,7 @@ public:
     void cancel() override;
     bool procresult(Result, JSON&) override;
 
-    CommandGetFile(MegaClient *client, const byte* key, size_t keySize,
+    CommandGetFile(MegaClient *client, const byte* key, size_t keySize, bool undelete,
                        handle h, bool p, const char *privateauth = nullptr,
                        const char *publicauth = nullptr, const char *chatauth = nullptr,
                        bool singleUrl = false, Cb &&completion = nullptr);
@@ -678,12 +698,22 @@ public:
 
 private:
     NodeHandle h;
+    // It's defined here to avoid node will be destroyed and Node::mPendingChanges will be missed
+    std::shared_ptr<Node> mNode;
+    attr_map mAttrMapUpdates;
+    error generationError;
+    bool mCanChangeVault;
+
+    const char* getJSON(MegaClient* client) override;
 
     Completion completion;
+
 public:
     bool procresult(Result, JSON&) override;
+    // Apply the internal attr_map updates to the provided attrMap
+    void applyUpdatesTo(AttrMap& attrMap) const;
 
-    CommandSetAttr(MegaClient*, Node*, SymmCipher*, Completion&& c, bool canChangeVault);
+    CommandSetAttr(MegaClient*, std::shared_ptr<Node>, attr_map&& attrMapUpdates, Completion&& c, bool canChangeVault);
 };
 
 class MEGA_API CommandSetShare : public Command
@@ -702,7 +732,7 @@ class MEGA_API CommandSetShare : public Command
 public:
     bool procresult(Result, JSON&) override;
 
-    CommandSetShare(MegaClient*, Node*, User*, accesslevel_t, bool, const char*, bool writable, const char*,
+    CommandSetShare(MegaClient*, std::shared_ptr<Node>, User*, accesslevel_t, bool, const char*, bool writable, const char*,
         int tag, std::function<void(Error, bool writable)> f);
 };
 
@@ -1507,6 +1537,9 @@ public:
         PENDING = 3, // The sync engine is working, e.g: scanning local folders
         INACTIVE = 4, // Sync is not active. A state != ACTIVE should have been sent through '''sp'''
         UNKNOWN = 5, // Unknown status
+
+        // TODO: can this be added to the Backup Centre
+        STALLED = 6, // a folder is scan-blocked, or some contradictory changes occured between local and remote folders, user must pick one
     };
 
     CommandBackupPutHeartBeat(MegaClient* client, handle backupId, SPHBStatus status, int8_t progress, uint32_t uploads, uint32_t downloads, m_time_t ts, handle lastNode, std::function<void(Error)>);
@@ -1568,6 +1601,8 @@ public:
 
 class CommandSE : public Command // intermediary class to avoid code duplication
 {
+public:
+    CommandSE() { mV3 = false; }
 protected:
     bool procjsonobject(JSON& json, handle& id, m_time_t& ts, handle* u, m_time_t* cts = nullptr, handle* s = nullptr, int64_t* o = nullptr, handle* ph = nullptr) const;
     bool procresultid(JSON& json, const Result& r, handle& id, m_time_t& ts, handle* u, m_time_t* cts = nullptr, handle* s = nullptr, int64_t* o = nullptr, handle* ph = nullptr) const;
@@ -1682,7 +1717,7 @@ class MEGA_API CommandMeetingStart : public Command
 public:
     bool procresult(Result, JSON&) override;
 
-    CommandMeetingStart(MegaClient*, handle chatid, handle schedId, CommandMeetingStartCompletion completion);
+    CommandMeetingStart(MegaClient*, const handle chatid, const bool notRinging, CommandMeetingStartCompletion completion);
 };
 
 typedef std::function<void(Error, std::string)> CommandMeetingJoinCompletion;
@@ -1708,12 +1743,13 @@ public:
 typedef std::function<void(Error, const ScheduledMeeting*)> CommandScheduledMeetingAddOrUpdateCompletion;
 class MEGA_API CommandScheduledMeetingAddOrUpdate : public Command
 {
+    std::string mChatTitle;
     std::unique_ptr<ScheduledMeeting> mScheduledMeeting;
     CommandScheduledMeetingAddOrUpdateCompletion mCompletion;
 
 public:
     bool procresult(Result, JSON&) override;
-    CommandScheduledMeetingAddOrUpdate(MegaClient *, const ScheduledMeeting*, CommandScheduledMeetingAddOrUpdateCompletion completion);
+    CommandScheduledMeetingAddOrUpdate(MegaClient *, const ScheduledMeeting*, const char*, CommandScheduledMeetingAddOrUpdateCompletion);
 };
 
 typedef std::function<void(Error)> CommandScheduledMeetingRemoveCompletion;

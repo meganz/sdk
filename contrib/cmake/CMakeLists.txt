@@ -143,6 +143,14 @@ else()
     message(STATUS "Building 64 bit")
 endif()
 
+if(APPLE AND NOT IOS)
+    if(NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS "15.0")
+        message("Building with ${CMAKE_CXX_COMPILER_ID} with version ${CMAKE_CXX_COMPILER_VERSION}")
+        add_link_options("-Wl,-ld_classic")
+    endif()
+endif()
+
+
 if(APPLE)
     set(CMAKE_CXX_STANDARD 11)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -725,6 +733,7 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/thread/cppthread.h
             ${MegaDir}/include/mega/thread/posixthread.h
             ${MegaDir}/include/mega/thread/libuvthread.h
+            ${MegaDir}/include/mega/process.h
             ${MegaDir}/include/mega/command.h
             ${MegaDir}/include/mega/config.h
             ${MegaDir}/include/mega/thread.h
@@ -787,6 +796,7 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/logging.h
             ${MegaDir}/include/mega/file.h
             ${MegaDir}/include/mega/sync.h
+            ${MegaDir}/include/mega/syncfilter.h
             ${MegaDir}/include/mega/heartbeats.h
             ${MegaDir}/include/mega/utils.h
             ${MegaDir}/include/mega/account.h
@@ -830,6 +840,7 @@ add_library(Mega STATIC
             ${MegaDir}/src/node.cpp
             ${MegaDir}/src/pendingcontactrequest.cpp
             ${MegaDir}/src/textchat.cpp
+            ${MegaDir}/src/process.cpp
             ${MegaDir}/src/proxy.cpp
             ${MegaDir}/src/pubkeyaction.cpp
             ${MegaDir}/src/raid.cpp
@@ -840,6 +851,7 @@ add_library(Mega STATIC
             ${MegaDir}/src/share.cpp
             ${MegaDir}/src/sharenodekeys.cpp
             ${MegaDir}/src/sync.cpp
+            ${MegaDir}/src/syncfilter.cpp
             ${MegaDir}/src/heartbeats.cpp
             ${MegaDir}/src/testhooks.cpp
             ${MegaDir}/src/transfer.cpp
@@ -859,6 +871,8 @@ add_library(Mega STATIC
 
 target_include_directories(Mega PRIVATE ${MegaDir}/include ${Mega_PlatformSpecificIncludes})
 target_include_directories(Mega PUBLIC ${MegaDir}/include ${Mega_PlatformSpecificIncludes})
+
+MESSAGE(STATUS "ID: ${Mega_PlatformSpecificIncludes}")
 
 if (WIN32)
     set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} $<${HAVE_FFMPEG}:Mfplat.lib> $<${HAVE_FFMPEG}:Strmiids.lib> $<${HAVE_FFMPEG}:Mfuuid.lib>)
@@ -1026,6 +1040,7 @@ add_executable(test_unit
     ${MegaDir}/tests/unit/PendingContactRequest_test.cpp
     ${MegaDir}/tests/unit/Serialization_test.cpp
     ${MegaDir}/tests/unit/Share_test.cpp
+    ${MegaDir}/tests/unit/Sync_conflict_test.cpp
     ${MegaDir}/tests/unit/Sync_test.cpp
     ${MegaDir}/tests/unit/TextChat_test.cpp
     ${MegaDir}/tests/unit/Transfer_test.cpp
@@ -1033,12 +1048,10 @@ add_executable(test_unit
     ${MegaDir}/tests/unit/utils.cpp
     ${MegaDir}/tests/unit/utils.h
     ${MegaDir}/tests/unit/utils_test.cpp
-    ${MegaDir}/tests/integration/process.cpp
 )
 
 add_executable(test_integration
     ${MegaDir}/tests/integration/main.cpp
-    ${MegaDir}/tests/integration/process.cpp
     ${MegaDir}/tests/integration/SdkTest_test.cpp
     ${MegaDir}/tests/integration/Sync_test.cpp
 )
@@ -1136,7 +1149,7 @@ if (WIN32)
 
 else()
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb3")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Wextra -Wconversion -Wno-unused-parameter")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Wextra -Wconversion -Wno-unused-parameter -Wno-unqualified-std-cast-call -Wno-deprecated-declarations -Wno-unqualified-std-cast-call")  #no-deprecated-declarations because of FSEventStreamScheduleWithRunLoop
 
     if (ENABLE_WERROR)
         if (CMAKE_BUILD_TYPE STREQUAL "Debug" )
