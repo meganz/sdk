@@ -60,10 +60,6 @@ using namespace mega;
     }
 }
 
-- (instancetype)clone {
-    return self.nodeList ? [[MEGANodeList alloc] initWithNodeList:self.nodeList->copy() cMemoryOwn:YES] : nil;
-}
-
 - (MegaNodeList *)getCPtr {
     return self.nodeList;
 }
@@ -74,7 +70,7 @@ using namespace mega;
     self.nodeList->addNode([node getCPtr]);
 }
 
-- (MEGANode *)nodeAtIndex:(NSInteger)index {
+- (nullable MEGANode *)nodeAtIndex:(NSInteger)index {
     if (self.nodeList == NULL) {
         return nil;
     }
@@ -87,8 +83,8 @@ using namespace mega;
     }
 }
 
-- (NSNumber *)size {
-    return self.nodeList ? [[NSNumber alloc] initWithInt:self.nodeList->size()] : nil;
+- (NSInteger)size {
+    return self.nodeList ? self.nodeList->size() : 0;
 }
 
 @end
