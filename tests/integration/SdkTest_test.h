@@ -59,6 +59,16 @@ struct TransferTracker : public ::mega::MegaTransferListener
     {
 
     }
+
+    ~TransferTracker() override
+    {
+        if (!finished)
+        {
+            assert(mApi);
+            mApi->removeTransferListener(this);
+        }
+    }
+
     void onTransferStart(MegaApi *api, MegaTransfer *transfer) override
     {
         // called back on a different thread
@@ -579,7 +589,7 @@ public:
     void deleteFolder(string foldername);
 
     void getAccountsForTest(unsigned howMany = 1);
-    void configureTestInstance(unsigned index, const std::string& email, const std::string pass);
+    void configureTestInstance(unsigned index, const std::string& email, const std::string pass, bool checkCredentials = true);
     void releaseMegaApi(unsigned int apiIndex);
 
     void inviteTestAccount(const unsigned invitorIndex, const unsigned inviteIndex, const string &message);

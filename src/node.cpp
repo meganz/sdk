@@ -82,6 +82,13 @@ Node::~Node()
     {
         client->mAppliedKeyNodeCount--;
         assert(client->mAppliedKeyNodeCount >= 0);
+        // if the assert above fails, the reason could be that the client is
+        // already logged-out, but the Node survived because the app kept a
+        // shared pointer, so the object is destroyed after the logout and
+        // the MegaClient::mAppliedKeyNodeCount is already reset to 0, which
+        // results on a negative (-1) count.
+        // If that is the case, the app should reset the shared pointer before
+        // the logout.
     }
 
     // abort pending direct reads
@@ -212,11 +219,17 @@ const std::set<nameid>& documentExtensions()
 {
     static const std::set<nameid> docs {MAKENAMEID3('a','b','w'), MAKENAMEID3('d','o','c'), MAKENAMEID4('d','o','c','m'),
                                         MAKENAMEID4('d','o','c','x'), MAKENAMEID3('d','o','t'), MAKENAMEID4('d','o','t','m'),
-                                        MAKENAMEID4('d','o','t','x'), MAKENAMEID3('o','d','s'), MAKENAMEID3('o','d','t'),
+                                        MAKENAMEID4('d','o','t','x'), MAKENAMEID3('o','d','t'),
                                         MAKENAMEID3('s','x','c'), MAKENAMEID3('s','x','d'), MAKENAMEID3('s','x','i'),
-                                        MAKENAMEID4('t','e','x','t'), MAKENAMEID3('t','s','v'), MAKENAMEID3('t','t','l'),
-                                        MAKENAMEID3('t','x','t'), MAKENAMEID3('x','l','s'), MAKENAMEID4('x','l','s','x')};
+                                        MAKENAMEID4('t','e','x','t'), MAKENAMEID3('t','s','v'), MAKENAMEID3('t','t','l')};
     return docs;
+}
+
+const std::set<nameid>& spreadsheetExtensions()
+{
+    static const std::set<nameid> spds {MAKENAMEID3('c','s','v'), MAKENAMEID3('o','d','s'), MAKENAMEID3('t','x','t'),
+                                        MAKENAMEID3('x','l','s'), MAKENAMEID4('x','l','s','m'), MAKENAMEID4('x','l','s','x')};
+    return spds;
 }
 
 const std::set<nameid>& pdfExtensions()
@@ -439,7 +452,13 @@ bool Node::isAudio(const std::string& ext)
 
 bool Node::isDocument(const std::string& ext)
 {
-    return documentExtensions().find(getExtensionNameId(ext)) != documentExtensions().end() || isPdf(ext) || isPresentation(ext);
+    return documentExtensions().find(getExtensionNameId(ext)) != documentExtensions().end() ||
+           isPdf(ext) || isPresentation(ext) || isSpreadsheet(ext);
+}
+
+bool Node::isSpreadsheet(const std::string& ext)
+{
+    return spreadsheetExtensions().find(getExtensionNameId(ext)) != spreadsheetExtensions().end();
 }
 
 bool Node::isPdf(const std::string& ext)
@@ -488,6 +507,8 @@ bool Node::isOfMimetype(MimeType_t mimetype, const string& ext)
         return Node::isProgram(ext);
     case MimeType_t::MIME_TYPE_MISC:
         return Node::isMiscellaneous(ext);
+    case MimeType_t::MIME_TYPE_SPREADSHEET:
+        return Node::isSpreadsheet(ext);
     default:
         return false;
     }
@@ -1020,21 +1041,22 @@ byte* Node::decryptattr(SymmCipher* key, const char* attrstring, size_t attrstrl
     if (attrstrlen)
     {
         int l = int(attrstrlen * 3 / 4 + 3);
-        byte* buf = new byte[l];
+        std::unique_ptr<byte[]> buf(new byte[l]); // ::mega::make_unique<> does not support T[] specialisation
 
-        l = Base64::atob(attrstring, buf, l);
+        l = Base64::atob(attrstring, buf.get(), l);
 
         if (!(l & (SymmCipher::BLOCKSIZE - 1)))
         {
-            key->cbc_decrypt(buf, l);
-
-            if (!memcmp(buf, "MEGA{\"", 6))
+            if (!key->cbc_decrypt(buf.get(), l))
             {
-                return buf;
+                return nullptr;
+            }
+
+            if (!memcmp(buf.get(), "MEGA{\"", 6))
+            {
+                return buf.release();
             }
         }
-
-        delete[] buf;
     }
 
     return NULL;

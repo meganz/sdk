@@ -488,7 +488,7 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
     case MISMATCH_OF_ROOT_FSID:
         return "Mismatch on sync root FSID.";
     case FILESYSTEM_FILE_IDS_ARE_UNSTABLE:
-        return "File IDs on this filesystem on this platform are too unstable.";
+        return "Syncing of exFAT, FAT32, FUSE and LIFS file systems is not supported by MEGA on macOS.";
     case FILESYSTEM_ID_UNAVAILABLE:
         return "Could not get the filesystem's ID.";
     default:
@@ -1763,6 +1763,22 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
                     LOG_debug << "Move-source has outstanding putnodes: "
                               << logTriplet(row, fullPath);
 
+                    // Only emit a stall for this case if:
+                    // - A sync controller has been injected into the engine.
+                    // - The reference to that controller is still "live."
+                    if (syncs.hasSyncController())
+                    {
+                        // Signal a stall that observers can easily detect.
+                        monitor.waitingLocal(fullPath.localPath,
+                                             SyncStallEntry(SyncWaitReason::MoveOrRenameCannotOccur,
+                                                            false,
+                                                            false,
+                                                            {},
+                                                            {},
+                                                            {sourceSyncNode->getLocalPath(), PathProblem::PutnodeCompletionPending},
+                                                            {fullPath.localPath, PathProblem::NoProblem}));
+                    }
+
                     // Make sure we visit the source again.
                     sourceSyncNode->setSyncAgain(false, true, false);
 
@@ -2381,6 +2397,40 @@ bool Sync::processCompletedUploadFromHere(SyncRow& row, SyncRow& parentRow, Sync
     else
     {
         assert(!upload->putnodesFailed);
+
+        // Should we complete the putnodes later?
+        if (syncs.deferPutnodeCompletion(fullPath.localPath))
+        {
+            // Let debuggers know why we haven't completed the putnodes request.
+            LOG_debug << syncname
+                      << "Putnode completion deferred by controller "
+                      << fullPath.localPath
+                      << logTriplet(row, fullPath);
+
+            // Don't process this row any further.
+            row.itemProcessed = true;
+
+            // File isn't synchronized.
+            rowResult = false;
+
+            // Emit a special stall for observers to detect.
+            ProgressingMonitor monitor(*this, row, fullPath);
+
+            // Convenience.
+            auto problem = PathProblem::PutnodeCompletionDeferredByController;
+
+            monitor.waitingLocal(fullPath.localPath,
+                                 SyncStallEntry(SyncWaitReason::UploadIssue,
+                                                false,
+                                                false,
+                                                {NodeHandle(), fullPath.cloudPath, problem},
+                                                {},
+                                                {fullPath.localPath, problem},
+                                                {}));
+
+            // The upload is still in progress.
+            return true;
+        }
 
         // connect up the original cloud-sync-fs triplet, so that we can detect any
         // further moves that happened in the meantime.
@@ -3588,6 +3638,18 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool set
                 return;
             }
         }
+
+        // Engine-generated ignore files should be invisible.
+        if (!writeMegaignoreFailed)
+        {
+            // Generate path to ignore file.
+            auto path = us.mConfig.mLocalPath;
+
+            path.appendWithSeparator(IGNORE_FILE_NAME, false);
+
+            // Try and make the ignore file invisible.
+            fsaccess->setFileHidden(path);
+        }
     }
 
     us.mConfig.mError = NO_SYNC_ERROR;
@@ -4014,6 +4076,25 @@ SyncConfigVector Syncs::configsForDrive(const LocalPath& drive) const
         }
     }
     return v;
+}
+
+SyncController::SyncController() = default;
+
+SyncController::~SyncController() = default;
+
+bool SyncController::deferPutnode(const LocalPath&) const
+{
+    return true;
+}
+
+bool SyncController::deferPutnodeCompletion(const LocalPath&) const
+{
+    return true;
+}
+
+bool SyncController::deferUpload(const LocalPath& path) const
+{
+    return true;
 }
 
 SyncConfigVector Syncs::getConfigs(bool onlyActive) const
@@ -5277,6 +5358,100 @@ SyncConfigIOContext* Syncs::syncConfigIOContext()
 
     // Return a reference to the new IO context.
     return mSyncConfigIOContext.get();
+}
+
+template<typename... Arguments, typename... Parameters>
+bool Syncs::defer(bool (SyncController::*predicate)(Parameters...) const,
+                  Arguments&&... arguments) const
+{
+    // Consult controller if available.
+    if (auto controller = syncController())
+        return (*controller.*predicate)(std::forward<Arguments>(arguments)...);
+
+    // Otherwise assume we shouldn't defer any activity.
+    return false;
+}
+
+bool Syncs::hasImmediateStall(const SyncStallInfo& stalls) const
+{
+    std::lock_guard<std::mutex> guard(mImmediateStallLock);
+
+    if (mHasImmediateStall)
+        return mHasImmediateStall(stalls);
+
+    return stalls.hasImmediateStallReason();
+}
+
+bool Syncs::isImmediateStall(const SyncStallEntry& entry) const
+{
+    std::lock_guard<std::mutex> guard(mImmediateStallLock);
+
+    if (mIsImmediateStall)
+        return mIsImmediateStall(entry);
+
+    return entry.alertUserImmediately;
+}
+
+bool Syncs::deferPutnode(const LocalPath& path) const
+{
+    return defer(&SyncController::deferPutnode, path);
+}
+
+bool Syncs::deferPutnodeCompletion(const LocalPath& path) const
+{
+    return defer(&SyncController::deferPutnodeCompletion, path);
+}
+
+bool Syncs::hasSyncController() const
+{
+    std::lock_guard<std::mutex> guard(mSyncControllerLock);
+
+    // Reference to controller has grown stale.
+    if (mSyncController.expired())
+        return mSyncController.reset(), false;
+
+    // Reference to controller is still live.
+    return true;
+}
+
+bool Syncs::deferUpload(const LocalPath& path) const
+{
+    return defer(&SyncController::deferUpload, path);
+}
+
+void Syncs::setHasImmediateStall(HasImmediateStallPredicate predicate)
+{
+    std::lock_guard<std::mutex> guard(mImmediateStallLock);
+
+    mHasImmediateStall = std::move(predicate);
+}
+
+void Syncs::setIsImmediateStall(IsImmediateStallPredicate predicate)
+{
+    std::lock_guard<std::mutex> guard(mImmediateStallLock);
+
+    mIsImmediateStall = std::move(predicate);
+}
+
+void Syncs::setSyncController(SyncControllerPtr controller)
+{
+    std::lock_guard<std::mutex> guard(mSyncControllerLock);
+
+    mSyncController = controller;
+}
+
+SyncControllerPtr Syncs::syncController() const
+{
+    std::lock_guard<std::mutex> guard(mSyncControllerLock);
+
+    // Return controller if it's still alive.
+    if (auto controller = mSyncController.lock())
+        return controller;
+
+    // Clear controller if it's stale.
+    mSyncController.reset();
+
+    return nullptr;
 }
 
 LocalNode* Syncs::findMoveFromLocalNode(const shared_ptr<LocalNode::RareFields::MoveInProgress>& moveTo)
@@ -7698,9 +7873,27 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
             }
         }
 
+        std::function<void()> afterDistributed = []() { };
+
+        // Have we downloaded an ignore file?
+        if (row.isIgnoreFile())
+        {
+            // Convenience.
+            auto noLogging = FSLogging::noLogging;
+
+            // Was the existing ignore file (if any) hidden?
+            if (syncs.fsaccess->isFileHidden(targetPath, noLogging))
+                afterDistributed = std::bind(FileSystemAccess::setFileHidden,
+                                             std::cref(targetPath),
+                                             noLogging);
+        }
+
         if (downloadPtr->downloadDistributor->distributeTo(targetPath, fsAccess, FileDistributor::MoveReplacedFileToSyncDebris, transientError, nameTooLong, this))
         {
             assert(FSNode::debugConfirmOnDiskFingerprintOrLogWhy(fsAccess, targetPath, *downloadPtr));
+
+            // Perform after-distribution task.
+            afterDistributed();
 
             // Move was successful.
             SYNC_verbose << syncname << "Download complete, moved file to final destination." << logTriplet(row, fullPath);
@@ -8830,6 +9023,38 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
         }
     }
 
+    // Convenience.
+    auto deferred = [&](const char* message,
+                        bool (Syncs::*predicate)(const LocalPath&) const,
+                        PathProblem problem) {
+        // Activity isn't deferred.
+        if (!(syncs.*predicate)(fullPath.localPath))
+            return false;
+
+        // Let debuggers know why weren't not performing the activity.
+        LOG_debug << syncname
+                  << message
+                  << " "
+                  << fullPath.localPath
+                  << logTriplet(row, fullPath);
+
+        // Try and attempt the action later.
+        row.syncNode->setSyncAgain(false, true, false);
+
+        // Emit a special stall for observers to detect.
+        monitor.waitingLocal(fullPath.localPath,
+                             SyncStallEntry(SyncWaitReason::UploadIssue,
+                                            false,
+                                            false,
+                                            {NodeHandle(), fullPath.cloudPath, problem},
+                                            {},
+                                            {fullPath.localPath, problem},
+                                            {}));
+
+        // Activity's been deferred.
+        return true;
+    }; // deferred
+
     if (row.fsNode->type == FILENODE)
     {
         // upload the file if we're not already uploading it
@@ -8909,6 +9134,12 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
                 //    return false;
                 //}
 
+                // Ask the controller if we should defer uploading this file.
+                if (deferred("Upload deferred by controller",
+                             &Syncs::deferUpload,
+                             PathProblem::UploadDeferredByController))
+                    return false;
+
                 LOG_debug << syncname << "Uploading file " << fullPath.localPath << logTriplet(row, fullPath);
                 assert(row.syncNode->scannedFingerprint.isvalid); // LocalNodes for files always have a valid fingerprint
                 assert(row.syncNode->scannedFingerprint == row.fsNode->fingerprint);
@@ -8951,6 +9182,12 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
             // We issue putnodes from the sync thread like this because localnodes may have moved/renamed in the meantime
             // And consider that the old target parent node may not even exist anymore
 
+            // Should we defer the putnodes until later?
+            if (deferred("Putnode deferred by controller",
+                         &Syncs::deferPutnode,
+                         PathProblem::PutnodeDeferredByController))
+                return false;
+
             existingUpload->putnodesStarted = true;
 
             SYNC_verbose << syncname << "Queueing putnodes for completed upload" << logTriplet(row, fullPath);
@@ -8961,18 +9198,6 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
             auto noDebris = inshare;
 
             std::function<void(MegaClient&)> signalPutnodesBegin;
-
-#ifndef NDEBUG
-            {
-                // So we can capture the local path.
-                auto localPath = fullPath.localPath;
-
-                // Signal the putnodes_begin(...) event.
-                signalPutnodesBegin = [localPath](MegaClient& client) {
-                    client.app->putnodes_begin(localPath);
-                };
-            }
-#endif // ! NDEBUG
 
             if (parentRow.cloudNode &&
                 existingUpload->h != parentRow.cloudNode->handle)
@@ -9012,8 +9237,14 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
         }
         else if (existingUpload->wasPutnodesCompleted)
         {
+            // Only reset the transfer if the putnode's completion hasn't been deferred.
+            // This is necessary to prevent an infinite upload-loop in some cases.
+            if (syncs.deferPutnodeCompletion(fullPath.localPath))
+                return false;
+
             SYNC_verbose << syncname << "Putnodes complete. Detaching upload in resolve_upsync." << logTriplet(row, fullPath);
             row.syncNode->resetTransfer(nullptr);
+
             return false; // revisit in case of further changes
         }
         else if (existingUpload->putnodesStarted)
@@ -10953,6 +11184,13 @@ bool SyncConfigIOContext::decrypt(const string& in, string& out)
     // Is the file too short to be valid?
     if (in.size() <= METADATA_LENGTH)
     {
+        LOG_err << "Unable to decrypt JSON sync config: "
+                << "File's too small ("
+                << in.size()
+                << " vs. "
+                << METADATA_LENGTH
+                << ")";
+
         return false;
     }
 
@@ -10970,6 +11208,9 @@ bool SyncConfigIOContext::decrypt(const string& in, string& out)
     // Is the file corrupt?
     if (memcmp(cmac, mac, MAC_LENGTH))
     {
+        LOG_err << "Unable to decrypt JSON sync config: "
+                << "HMAC mismatch";
+
         return false;
     }
 
@@ -11110,7 +11351,11 @@ string SyncConfigIOContext::encrypt(const string& data)
     string d;
 
     // Encrypt file using IV.
-    mCipher.cbc_encrypt_pkcs_padding(&data, iv, &d);
+    if (!mCipher.cbc_encrypt_pkcs_padding(&data, iv, &d))
+    {
+        LOG_err << "Failed to encrypt file.";
+        return d;
+    }
 
     // Add IV to file.
     d.append(std::begin(iv), std::end(iv));
@@ -11799,7 +12044,7 @@ void Syncs::syncLoop()
                 mSyncFlags->stall.cloud.clear();
                 mSyncFlags->stall.local.clear();
 
-                bool immediateStall = stallReport.hasImmediateStallReason();
+                bool immediateStall = hasImmediateStall(stallReport);
                 bool progressLackStall = mSyncFlags->noProgressCount > 10
                                       && mSyncFlags->reachableNodesAllScannedThisPass;
 
@@ -11813,12 +12058,12 @@ void Syncs::syncLoop()
                         // only report immediates, otherwise the volume of reports can be a bit scary, and they will probably come right later anyway after parent nodes are made etc
                         for (auto it = stallReport.cloud.begin(); it != stallReport.cloud.end(); )
                         {
-                            if (it->second.alertUserImmediately) ++it;
+                            if (isImmediateStall(it->second)) ++it;
                             else it = stallReport.cloud.erase(it);
                         }
                         for (auto it = stallReport.local.begin(); it != stallReport.local.end(); )
                         {
-                            if (it->second.alertUserImmediately) ++it;
+                            if (isImmediateStall(it->second)) ++it;
                             else it = stallReport.local.erase(it);
                         }
                     }

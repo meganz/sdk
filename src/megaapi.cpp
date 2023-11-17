@@ -372,7 +372,7 @@ MegaNode *MegaNode::copy()
     return NULL;
 }
 
-int MegaNode::getType()
+int MegaNode::getType() const
 {
     return 0;
 }
@@ -472,7 +472,7 @@ int64_t MegaNode::getModificationTime()
     return 0;
 }
 
-MegaHandle MegaNode::getHandle()
+MegaHandle MegaNode::getHandle() const
 {
     return INVALID_HANDLE;
 }
@@ -2173,6 +2173,11 @@ bool MegaApi::newLinkFormatEnabled()
     return pImpl->newLinkFormatEnabled();
 }
 
+bool MegaApi::accountIsNew() const
+{
+    return pImpl->accountIsNew();
+}
+
 unsigned int MegaApi::getABTestValue(const char* flag)
 {
     return pImpl->getABTestValue(flag);
@@ -3482,9 +3487,9 @@ void MegaApi::startUploadForChat(const char *localPath, MegaNode *parent, const 
                        true /*forceNewUpload*/, FS_UNKNOWN, CancelToken(), listener);
 }
 
-void MegaApi::startDownload(MegaNode* node, const char* localPath, const char *customName, const char *appData, bool startFirst, MegaCancelToken *cancelToken, int collisionCheck, int collisionResolution, MegaTransferListener *listener)
+void MegaApi::startDownload(MegaNode* node, const char* localPath, const char *customName, const char *appData, bool startFirst, MegaCancelToken *cancelToken, int collisionCheck, int collisionResolution, bool undelete, MegaTransferListener *listener)
 {
-    pImpl->startDownload(startFirst, node, localPath, customName, 0 /*folderTransferTag*/, appData, convertToCancelToken(cancelToken), collisionCheck, collisionResolution, listener);
+    pImpl->startDownload(startFirst, node, localPath, customName, 0 /*folderTransferTag*/, appData, convertToCancelToken(cancelToken), collisionCheck, collisionResolution, undelete, listener);
 }
 
 void MegaApi::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
@@ -4184,6 +4189,11 @@ char *MegaApi::base32ToBase64(const char *base32)
     return result;
 }
 
+MegaNodeList* MegaApi::search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
+{
+    return pImpl->search(filter, order, convertToCancelToken(cancelToken));
+}
+
 MegaNodeList* MegaApi::search(MegaNode* n, const char* searchString, bool recursive, int order)
 {
     return pImpl->search(n, searchString, CancelToken(), recursive, order);
@@ -4384,6 +4394,11 @@ int MegaApi::getNumChildFolders(MegaNode* parent)
 	return pImpl->getNumChildFolders(parent);
 }
 
+MegaNodeList *MegaApi::getChildren(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
+{
+    return pImpl->getChildren(filter, order, convertToCancelToken(cancelToken));
+}
+
 MegaNodeList *MegaApi::getChildren(MegaNode* p, int order, MegaCancelToken* cancelToken)
 {
     return pImpl->getChildren(p, order, convertToCancelToken(cancelToken));
@@ -4477,6 +4492,11 @@ void MegaApi::updateStats()
 unsigned long long MegaApi::getNumNodes()
 {
     return pImpl->getNumNodes();
+}
+
+unsigned long long MegaApi::getAccurateNumNodes()
+{
+    return pImpl->getAccurateNumNodes();
 }
 
 void MegaApi::setLRUCacheSize(unsigned long long size)
@@ -5191,9 +5211,9 @@ void MegaApi::setChatOption(MegaHandle chatid, int option, bool enabled, MegaReq
      pImpl->setChatOption(chatid, option, enabled, listener);
 }
 
-void MegaApi::createOrUpdateScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting, MegaRequestListener* listener)
+void MegaApi::createOrUpdateScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting, const char* chatTitle, MegaRequestListener* listener)
 {
-   pImpl->createOrUpdateScheduledMeeting(scheduledMeeting, listener);
+   pImpl->createOrUpdateScheduledMeeting(scheduledMeeting, chatTitle, listener);
 }
 
 void MegaApi::removeScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener)
@@ -5346,9 +5366,9 @@ bool MegaApi::isChatNotifiable(MegaHandle chatid)
     return pImpl->isChatNotifiable(chatid);
 }
 
-void MegaApi::startChatCall(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener)
+void MegaApi::startChatCall(MegaHandle chatid, bool notRinging, MegaRequestListener* listener)
 {
-    pImpl->startChatCall(chatid, schedId, listener);
+    pImpl->startChatCall(chatid, notRinging, listener);
 }
 
 void MegaApi::joinChatCall(MegaHandle chatid, MegaHandle callid, MegaRequestListener *listener)
@@ -6602,6 +6622,93 @@ bool MegaInputStream::read(char* /*buffer*/, size_t /*size*/)
 MegaInputStream::~MegaInputStream()
 {
 
+}
+
+
+MegaSearchFilter::MegaSearchFilter()
+{
+}
+
+MegaSearchFilter* MegaSearchFilter::createInstance()
+{
+    return new MegaSearchFilterPrivate();
+}
+
+MegaSearchFilter* MegaSearchFilter::copy() const
+{
+    return nullptr;
+}
+
+MegaSearchFilter::~MegaSearchFilter()
+{
+}
+
+void MegaSearchFilter::byName(const char* /*searchString*/)
+{
+}
+
+void MegaSearchFilter::byNodeType(int /*nodeType*/)
+{
+}
+
+void MegaSearchFilter::byCategory(int /*mimeType*/)
+{
+}
+
+void MegaSearchFilter::bySensitivity(bool /*excludeSensitive*/)
+{
+}
+
+void MegaSearchFilter::byLocationHandle(MegaHandle /*ancestorHandle*/)
+{
+}
+
+void MegaSearchFilter::byLocation(int /*locationType*/)
+{
+}
+
+void MegaSearchFilter::byCreationTime(int64_t /*lowerLimit*/, int64_t /*upperLimit*/)
+{
+}
+
+const char* MegaSearchFilter::byName() const
+{
+    return nullptr;
+}
+
+int MegaSearchFilter::byNodeType() const
+{
+    return MegaNode::TYPE_UNKNOWN;
+}
+
+int MegaSearchFilter::byCategory() const
+{
+    return MegaApi::FILE_TYPE_DEFAULT;
+}
+
+bool MegaSearchFilter::bySensitivity() const
+{
+    return false;
+}
+
+MegaHandle MegaSearchFilter::byLocationHandle() const
+{
+    return INVALID_HANDLE;
+}
+
+int MegaSearchFilter::byLocation() const
+{
+    return MegaApi::SEARCH_TARGET_ALL;
+}
+
+int64_t MegaSearchFilter::byCreationTimeLowerLimit() const
+{
+    return 0;
+}
+
+int64_t MegaSearchFilter::byCreationTimeUpperLimit() const
+{
+    return 0;
 }
 
 MegaApiLock::MegaApiLock(MegaApiImpl* ptr, bool lock) : api(ptr)

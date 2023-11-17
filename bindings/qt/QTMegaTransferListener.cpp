@@ -4,6 +4,15 @@
 
 using namespace mega;
 
+struct QtMegaFolderEvent : public QTMegaEvent
+{
+    QtMegaFolderEvent(MegaApi* megaApi, Type type) :QTMegaEvent(megaApi, type) {}
+    int stage;
+    uint32_t foldercount;
+    uint32_t createdfoldercount;
+    uint32_t filecount;
+};
+
 QTMegaTransferListener::QTMegaTransferListener(MegaApi *megaApi, MegaTransferListener *listener) : QObject()
 {
     this->megaApi = megaApi;
@@ -47,6 +56,17 @@ void QTMegaTransferListener::onTransferTemporaryError(MegaApi *api, MegaTransfer
     QCoreApplication::postEvent(this, event, INT_MIN);
 }
 
+void mega::QTMegaTransferListener::onFolderTransferUpdate(mega::MegaApi* api, mega::MegaTransfer* transfer, int stage, uint32_t foldercount, uint32_t createdfoldercount, uint32_t filecount, const char*, const char*)
+{
+    QtMegaFolderEvent* event = new QtMegaFolderEvent(api, (QEvent::Type)QTMegaEvent::OnTransferFolderUpdate);
+    event->setTransfer(transfer->copy());
+    event->stage = stage;
+    event->foldercount = foldercount;
+    event->createdfoldercount = createdfoldercount;
+    event->filecount = filecount;
+    QCoreApplication::postEvent(this, event, INT_MIN);
+}
+
 void QTMegaTransferListener::customEvent(QEvent *e)
 {
     QTMegaEvent *event = (QTMegaEvent *)e;
@@ -60,6 +80,15 @@ void QTMegaTransferListener::customEvent(QEvent *e)
             break;
         case QTMegaEvent::OnTransferUpdate:
             if(listener) listener->onTransferUpdate(event->getMegaApi(), event->getTransfer());
+            break;
+        case QTMegaEvent::OnTransferFolderUpdate:
+            if (listener)
+            {
+                if (auto folderEvent = dynamic_cast<QtMegaFolderEvent*>(e))
+                {
+                    listener->onFolderTransferUpdate(folderEvent->getMegaApi(), folderEvent->getTransfer(), folderEvent->stage, folderEvent->foldercount, folderEvent->createdfoldercount, folderEvent->filecount, nullptr, nullptr);
+                }
+            }
             break;
         case QTMegaEvent::OnTransferFinish:
             if(listener) listener->onTransferFinish(event->getMegaApi(), event->getTransfer(), event->getError());

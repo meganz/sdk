@@ -88,8 +88,9 @@ struct MEGA_API PaddedCBC
      * @param iv Optional initialisation vector for encryption. Will use a
      *     zero IV if not given. If `iv` is a zero length string, a new IV
      *     for encryption will be generated and available through the reference.
+     * @return true if encryption was successful.
      */
-    static void encrypt(PrnGen &rng, string* data, SymmCipher* key, string* iv = NULL);
+    static bool encrypt(PrnGen &rng, string* data, SymmCipher* key, string* iv = NULL);
 
     /**
      * @brief Decrypts a string and strips the padding.
@@ -101,7 +102,7 @@ struct MEGA_API PaddedCBC
      * @param key AES key for decryption.
      * @param iv Optional initialisation vector for encryption. Will use a
      *     zero IV if not given.
-     * @return Void.
+     * @return true if decryption was successful.
      */
     static bool decrypt(string* data, SymmCipher* key, string* iv = NULL);
 };
@@ -1066,6 +1067,9 @@ void reportWindowsError(const std::string& message, DWORD error = 0xFFFFFFFF);
 
 // returns the direction type of a connection
 string connDirectionToStr(direction_t directionType);
+
+// Translate retry reason into a human-friendly string.
+const char* toString(retryreason_t reason);
 
 } // namespace mega
 
