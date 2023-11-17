@@ -61,7 +61,11 @@ endif()
 # set (USE_LIBRAW 0 CACHE STRING "Just includes the library (used by MEGAsync)")
 # set (USE_PCRE 0 CACHE STRING "Can be used by client apps. The SDK does not use it itself anymore")
 
-## No configurable values.
+## General configuration
+# Modules location
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules)
+
+# No configurable values.
 set(USE_CURL 1)
 set(USE_SQLITE 1)
 set(USE_SODIUM 1)
@@ -73,10 +77,6 @@ if (NOT WIN32)
 else()
     set(USE_CPPTHREAD 1)
 endif()
-
-## General configuration
-# Modules location
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules)
 
 if(VCPKG_ROOT)
     # Include VCPKG management tools.
@@ -132,39 +132,9 @@ include(CMakePackageConfigHelpers) # For the CMake package
 include(target_sources_conditional) # To add files to the project without building them
 include(sdklib_libraries) # Includes a macro to load the dependencies, both the VCPKG or the system ones.
 
-if (WIN32)
-    # Build the project with C++17 for Windows
-    set(CMAKE_CXX_STANDARD 17)
-    set(CMAKE_CXX_STANDARD_REQUIRED ON)
-    if (MSVC)
-        # https://gitlab.kitware.com/cmake/cmake/-/issues/18837
-        add_compile_options(/Zc:__cplusplus) # Enable updated __cplusplus macro
-    endif()
+# Load common and per platform configuration for the project
+include(configuration)
 
-    # Enable build with multiple processes.
-    add_compile_options(/MP)
-
-    # Create a separated PDB file with debug symbols.
-    add_compile_options($<$<CONFIG:Release>:/Zi>)
-
-else()
-    # Build the project with C++11
-    set(CMAKE_CXX_STANDARD 11)
-    set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-    include(CheckIncludeFile)
-    include(CheckFunctionExists)
-    check_include_file(inttypes.h HAVE_INTTYPES_H)
-    check_include_file(dirent.h HAVE_DIRENT_H)
-    check_include_file(glob.h HAVE_GLOB_H)
-    check_function_exists(aio_write, HAVE_AIO_RT)
-endif()
-
-# Define debug symbols covering all platforms.
-add_compile_definitions(
-    $<$<CONFIG:Debug>:DEBUG>
-    $<$<CONFIG:Debug>:_DEBUG>
-)
 
 ## SDKlib target ##
 
