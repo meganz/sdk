@@ -6171,7 +6171,7 @@ bool MegaClient::sc_shares()
                         // Clear the in-use bit for the share key in ^!keys if it was the last sharee
                         if (mKeyManager.isShareKeyInUse(h))
                         {
-                            Node *n = nodebyhandle(h);
+                            std::shared_ptr<Node> n = nodebyhandle(h);
                             assert(n); // Share removals are received before node deletion.
                             if (n)
                             {
@@ -20403,7 +20403,7 @@ void KeyManager::syncSharekeyInUseBit()
         if(it.second.second[ShareKeyFlagsId::INUSE])
         {
             NodeHandle nh = NodeHandle().set6byte(it.first);
-            Node *n = mClient.nodeByHandle(nh);
+            std::shared_ptr<Node> n = mClient.nodeByHandle(nh);
             if (n && !n->isShared())
             {
                 sharesToClear.emplace_back(nh);
