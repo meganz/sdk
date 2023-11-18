@@ -1633,7 +1633,7 @@ bool MegaNodePrivate::isForeign()
 
 bool MegaNodePrivate::isPasswordNode()
 {
-    return getPasswordNodeValue() != nullptr;
+    return (type == FOLDERNODE && getPasswordNodeValue() != nullptr);
 }
 
 const char* MegaNodePrivate::getPasswordNodeValue()
@@ -4434,6 +4434,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_FETCH_CREDIT_CARD_INFO: return "FETCH_CREDIT_CARD_INFO";
         case TYPE_CREATE_PASSWORD_MANAGER_BASE: return "CREATE_PASSWORD_MANAGER_BASE";
         case TYPE_CREATE_PASSWORD_NODE: return "CREATE_PASSWORD_NODE";
+        case TYPE_REMOVE_PASSWORD_NODE: return "REMOVE_PASSWORD_NODE";
     }
     return "UNKNOWN";
 }
@@ -13812,6 +13813,7 @@ void MegaApiImpl::unlink_result(handle h, error e)
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || ((request->getType() != MegaRequest::TYPE_REMOVE) &&
+                    (request->getType() != MegaRequest::TYPE_REMOVE_PASSWORD_NODE) &&
                     (request->getType() != MegaRequest::TYPE_MOVE)))
     {
         return;
@@ -26146,6 +26148,20 @@ MegaNode* MegaApiImpl::getPasswordNodeByHandle(handle h)
     if (ret && ret->isPasswordNode()) return ret.release();
 
     return NULL;
+}
+
+void MegaApiImpl::removePasswordNode(MegaNode* node, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_PASSWORD_NODE, listener);
+    request->setNodeHandle(node ? node->getHandle() : UNDEF);
+
+    request->performRequest = [this, request]()
+    {
+        return client->removePasswordNode(request->getNodeHandle(), request->getTag());
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void MegaApiImpl::fetchCreditCardInfo(MegaRequestListener* listener)

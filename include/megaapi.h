@@ -4320,7 +4320,8 @@ class MegaRequest
             TYPE_FETCH_CREDIT_CARD_INFO                                     = 177,
             TYPE_CREATE_PASSWORD_MANAGER_BASE                               = 178,
             TYPE_CREATE_PASSWORD_NODE                                       = 179,
-            TOTAL_OF_REQUEST_TYPES                                          = 180
+            TYPE_REMOVE_PASSWORD_NODE                                       = 180,
+            TOTAL_OF_REQUEST_TYPES                                          = 181
         };
 
         virtual ~MegaRequest();
@@ -11573,6 +11574,23 @@ class MegaApi
          */
         void createPasswordNode(const char *name, const char *pwd, MegaNode* parent,
                                 MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Remove a Password Node from the MEGA account
+         *
+         * This function doesn't move the node to the Rubbish Bin, it fully removes the node.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_REMOVE_PASSWORD_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the removed Password Node
+         *
+         * If the MEGA account is a sub-user business account, onRequestFinish will
+         * be called with the error code MegaError::API_EMASTERONLY.
+         *
+         * @param node Node to remove
+         * @param listener MegaRequestListener to track this request
+         */
+        void removePasswordNode(MegaNode* node, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Create a new empty folder in your local file system

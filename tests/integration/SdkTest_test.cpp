@@ -15259,7 +15259,7 @@ TEST_F(SdkTest, SdkTestPasswordManager)
     ASSERT_EQ(std::string{aux}, pwdNodePassword);
     ASSERT_TRUE(newPwdNode->isPasswordNode());
 
-    LOG_debug << "\t# U1: attempts creation of new Password Node with wrong parameters";
+    LOG_debug << "\t# U1: attempt creation of new Password Node with wrong parameters";
     RequestTracker rtCError {megaApi[userIdx].get()};
     megaApi[userIdx]->createPasswordNode(nullptr, nullptr, nullptr, &rtCError);
     ASSERT_EQ(API_EARGS, rtCError.waitForResult());
@@ -15270,6 +15270,17 @@ TEST_F(SdkTest, SdkTestPasswordManager)
     ASSERT_NE(nullptr, retrievedPwdNode.get());
     retrievedPwdNode.reset(megaApi[userIdx]->getPasswordNodeByHandle(nhBase));
     ASSERT_EQ(nullptr, retrievedPwdNode.get());
+
+
+    LOG_debug << "# U1: delete Password Node";
+    RequestTracker rtDelete {megaApi[userIdx].get()};
+    megaApi[userIdx]->removePasswordNode(newPwdNode.get(), &rtDelete);
+    ASSERT_EQ(API_OK, rtDelete.waitForResult());
+
+    LOG_debug << "\t# U1: attempt removal with wrong parameters (non Password Node provided)";
+    RequestTracker rtDError {megaApi[userIdx].get()};
+    megaApi[userIdx]->removePasswordNode(mnBase.get(), &rtDError);
+    ASSERT_EQ(API_EARGS, rtDError.waitForResult());
 
 
     LOG_info << "# Verifying that Password Manager Base node cannot be deleted";

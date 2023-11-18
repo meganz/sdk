@@ -2478,6 +2478,11 @@ MegaNode* MegaApi::getPasswordNodeByHandle(uint64_t h)
     return pImpl->getPasswordNodeByHandle(h);
 }
 
+void MegaApi::removePasswordNode(MegaNode* node, MegaRequestListener *listener)
+{
+    pImpl->removePasswordNode(node, listener);
+}
+
 bool MegaApi::createLocalFolder(const char *localPath)
 {
     return pImpl->createLocalFolder(localPath);

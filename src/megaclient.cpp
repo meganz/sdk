@@ -22048,6 +22048,36 @@ void MegaClient::createPasswordNode(const char* name, const char* pwd, NodeHandl
     putnodes(nhParent, VersioningOption::NoVersioning, std::move(nn), cauth, rtag, canChangeVault);
 }
 
+error MegaClient::removePasswordNode(handle h, int rTag)
+{
+    static const char* pref = "Password Manager: ";
+    Node* node = nodebyhandle(h);
+    if (!node)
+    {
+        LOG_err << pref << "Password Node provided to be removed couldn't be found";
+        return API_ENOENT;
+    }
+
+    if (!node->isPasswordNode())
+    {
+        LOG_err << pref << "Node provided is not a Password Node";
+        return API_EARGS;
+    }
+
+    const auto& t = node->type;
+    if (t == ROOTNODE || t == VAULTNODE || t == RUBBISHNODE)
+    {
+        LOG_err << pref << "Node provided is a root node and cannot be deleted";
+        return API_EARGS;
+    }
+
+    const bool keepVersions = false;
+    const bool canChangeVault = true;
+    // use default callback function app->unlink_result
+    unlink(node, keepVersions, rTag, canChangeVault);
+    return API_OK;
+}
+
 FetchNodesStats::FetchNodesStats()
 {
     init();

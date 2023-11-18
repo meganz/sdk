@@ -2667,6 +2667,7 @@ public:
     NodeHandle getPasswordManagerBase();
     void createPasswordManagerBase(int rtag, CommandCreatePasswordManagerBase::Completion cbRequest);
     void createPasswordNode(const char* name, const char* pwd, NodeHandle nhParent, int rtag);
+    error removePasswordNode(handle h, int rTag);
 };
 
 } // namespace

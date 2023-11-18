@@ -3291,6 +3291,7 @@ public:
         void createPasswordNode(const char *name, const char *pwd, MegaNode* parent,
                                 MegaRequestListener *listener = nullptr);
         MegaNode *getPasswordNodeByHandle(handle h);
+        void removePasswordNode(MegaNode* node, MegaRequestListener *listener = nullptr);
 
         void fetchCreditCardInfo(MegaRequestListener* listener = nullptr);
 
