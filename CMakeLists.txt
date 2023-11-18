@@ -140,7 +140,7 @@ include(sdklib_libraries) # Includes a macro to load the dependencies, both the 
 include(configuration)
 
 ## Start loading targets
-include(SDKlibTarget)
+include(sdklib_target)
 
 ## Load examples and tests
 if(ENABLE_EXAMPLES)
