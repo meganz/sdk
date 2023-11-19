@@ -340,6 +340,7 @@ typedef list<struct File*> file_list;
 
 // node types:
 typedef enum {
+    TYPE_NESTED_MOUNT = -5,
     TYPE_SYMLINK = -4,
     TYPE_DONOTSYNC = -3,
     TYPE_SPECIAL = -2, // but not include SYMLINK
