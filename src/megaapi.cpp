@@ -2467,13 +2467,13 @@ void MegaApi::getPasswordManagerBase(MegaRequestListener *listener)
     pImpl->getPasswordManagerBase(listener);
 }
 
-void MegaApi::createPasswordNode(const char *name, const char *pwd, MegaNode *parent,
+void MegaApi::createPasswordNode(const char *name, const char *pwd, MegaHandle parent,
                                  MegaRequestListener *listener)
 {
     pImpl->createPasswordNode(name, pwd, parent, listener);
 }
 
-void MegaApi::updatePasswordNode(MegaNode* node, const char* newName, const char* newPwd,
+void MegaApi::updatePasswordNode(MegaHandle node, const char* newName, const char* newPwd,
                                 MegaRequestListener *listener)
 {
     pImpl->updatePasswordNode(node, newName, newPwd, listener);
@@ -2484,7 +2484,7 @@ MegaNode* MegaApi::getPasswordNodeByHandle(uint64_t h)
     return pImpl->getPasswordNodeByHandle(h);
 }
 
-void MegaApi::removePasswordNode(MegaNode* node, MegaRequestListener *listener)
+void MegaApi::removePasswordNode(MegaHandle node, MegaRequestListener *listener)
 {
     pImpl->removePasswordNode(node, listener);
 }

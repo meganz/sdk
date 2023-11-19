@@ -11565,7 +11565,7 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParentHandle - Handle of the parent provided as an argument
          * - MegaRequest::getName - name for the new Password Node provided as an argument
-         * - MegaRequest::getText - password value in base 64 for the new Password Node provided as
+         * - MegaRequest::getText - password value for the new Password Node provided as
          *   an argument
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
@@ -11576,11 +11576,11 @@ class MegaApi
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
          * @param name Name for the new Password Node
-         * @param pwd Password value in base 64 for the Password Node
+         * @param pwd Password value for the Password Node
          * @param parent Parent folder for the new Password Node
          * @param listener MegaRequestListener to track this request
          */
-        void createPasswordNode(const char *name, const char *pwd, MegaNode* parent,
+        void createPasswordNode(const char *name, const char *pwd, MegaHandle parent,
                                 MegaRequestListener *listener = NULL);
 
         /**
@@ -11600,7 +11600,7 @@ class MegaApi
          * @param newPwd New passwod value in base 64 for the Password Node
          * @param listener MegaRequestListener to track this request
          */
-        void updatePasswordNode(MegaNode* node, const char* newName, const char* newPwd,
+        void updatePasswordNode(MegaHandle node, const char* newName, const char* newPwd,
                                 MegaRequestListener *listener = NULL);
 
         /**
@@ -11618,7 +11618,7 @@ class MegaApi
          * @param node Node to remove
          * @param listener MegaRequestListener to track this request
          */
-        void removePasswordNode(MegaNode* node, MegaRequestListener *listener = NULL);
+        void removePasswordNode(MegaHandle node, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Create a new empty folder in your local file system

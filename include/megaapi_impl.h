@@ -3288,12 +3288,12 @@ public:
 
         // Password Manager
         void getPasswordManagerBase(MegaRequestListener *listener = nullptr);
-        void createPasswordNode(const char *name, const char *pwd, MegaNode* parent,
+        void createPasswordNode(const char *name, const char *pwd, MegaHandle parent,
                                 MegaRequestListener *listener = nullptr);
-        void updatePasswordNode(MegaNode* node, const char* newName, const char* newPwd,
+        void updatePasswordNode(MegaHandle node, const char* newName, const char* newPwd,
                                 MegaRequestListener *listener = NULL);
         MegaNode *getPasswordNodeByHandle(handle h);
-        void removePasswordNode(MegaNode* node, MegaRequestListener *listener = nullptr);
+        void removePasswordNode(MegaHandle node, MegaRequestListener *listener = nullptr);
 
         void fetchCreditCardInfo(MegaRequestListener* listener = nullptr);
 

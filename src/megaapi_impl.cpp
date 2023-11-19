@@ -26117,24 +26117,27 @@ void MegaApiImpl::createPasswordManagerBase(MegaRequestPrivate* request)
     client->createPasswordManagerBase(request->getTag(), std::move(cb));
 }
 
-void MegaApiImpl::createPasswordNode(const char* name, const char* pwd, MegaNode* parent,
+void MegaApiImpl::createPasswordNode(const char* name, const char* pwd, MegaHandle parentHandle,
                                      MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_PASSWORD_NODE, listener);
+    request->setParentHandle(parentHandle);
+    request->setName(name);
+    request->setText(pwd);
 
-    request->performRequest = [this, request, name, pwd, parent]()
+    request->performRequest = [this, request]()
     {
-        if (!name || !pwd || !parent)
+        auto name = request->getName();
+        auto pwd = request->getText();
+        const auto nhParent = NodeHandle{}.set6byte(request->getParentHandle());
+
+        if (!name || !pwd || nhParent.isUndef())
         {
             LOG_err << "Password Manager: failed Password Node creation missing "
-                    << (name ? "" : "name ") <<  (pwd ? "" : "password ") << (parent ? "" : "parent node");
+                    << (name ? "" : "name ") <<  (pwd ? "" : "password ")
+                    << (nhParent.isUndef() ? "parent node" : "");
             return API_EARGS;
         }
-
-        const NodeHandle nhParent = NodeHandle{}.set6byte(parent->getHandle());
-        request->setParentHandle(parent->getHandle());
-        request->setName(name);
-        request->setText(pwd);
 
         // using default this->putnodes_result as callback
         client->createPasswordNode(name, pwd, nhParent, request->getTag());
@@ -26146,11 +26149,11 @@ void MegaApiImpl::createPasswordNode(const char* name, const char* pwd, MegaNode
     waiter->notify();
 }
 
-void MegaApiImpl::updatePasswordNode(MegaNode* node, const char* newName, const char* newPwd,
+void MegaApiImpl::updatePasswordNode(MegaHandle h, const char* newName, const char* newPwd,
                                      MegaRequestListener *listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_UPDATE_PASSWORD_NODE, listener);
-    if (node) request->setNodeHandle(node->getHandle());
+    request->setNodeHandle(h);
     request->setName(newName);
     request->setText(newPwd);
 
@@ -26185,17 +26188,17 @@ void MegaApiImpl::updatePasswordNode(MegaNode* node, const char* newName, const 
 
 MegaNode* MegaApiImpl::getPasswordNodeByHandle(handle h)
 {
-    std::unique_ptr<MegaNode> ret {getNodeByHandle(h)};
+    std::unique_ptr<MegaNode> mn {getNodeByHandle(h)};
 
-    if (ret && ret->isPasswordNode()) return ret.release();
+    if (mn && mn->isPasswordNode()) return mn.release();
 
     return NULL;
 }
 
-void MegaApiImpl::removePasswordNode(MegaNode* node, MegaRequestListener* listener)
+void MegaApiImpl::removePasswordNode(MegaHandle h, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_PASSWORD_NODE, listener);
-    request->setNodeHandle(node ? node->getHandle() : UNDEF);
+    request->setNodeHandle(h);
 
     request->performRequest = [this, request]()
     {

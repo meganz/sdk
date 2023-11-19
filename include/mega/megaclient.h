@@ -2611,7 +2611,9 @@ private:
     StringKeyPair generateVpnKeyPair();
 
     // Password Manager - private
-    NewNode createBasicPasswordNode(AttrMap &attrs, std::string name);
+    NewNode createBasicPasswordNode(AttrMap &attrs, const char* name);
+    void preparePasswordNodeName(attr_map& attrs, const char* name);
+    void preparePasswordNodePwdValue(attr_map& attrs, const char* pwd);
 
 public:
 
