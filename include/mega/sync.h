@@ -533,6 +533,8 @@ public:
     bool syncEqual(const CloudNode&, const LocalNode&);
     bool syncEqual(const FSNode&, const LocalNode&);
 
+    bool checkSpecialFile(SyncRow& child, SyncRow& parent, SyncPath& path);
+
     bool checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult, bool belowRemovedCloudNode);
     bool checkCloudPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult, bool belowRemovedFsNode);
     bool checkForCompletedCloudMoveToHere(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult);

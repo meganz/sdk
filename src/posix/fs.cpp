@@ -31,6 +31,7 @@
 #include <sys/ioctl.h>
 #include <sys/statvfs.h>
 #include <sys/resource.h>
+#include <sys/types.h>
 #ifdef TARGET_OS_MAC
 #include "mega/osx/osxutils.h"
 #endif
@@ -50,6 +51,7 @@ extern JavaVM *MEGAjvm;
 #include <linux/magic.h>
 #endif /* ! __ANDROID__ */
 
+#include <sys/sysmacros.h>
 #include <sys/vfs.h>
 
 #ifndef FUSEBLK_SUPER_MAGIC
@@ -1919,6 +1921,9 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
         return SCAN_INACCESSIBLE;
     }
 
+    // What device is this directory on?
+    auto device = metadata.st_dev;
+
     // Iterate over the directory's children.
     auto entry = readdir(directory);
     auto path = targetPath;
@@ -1965,7 +1970,30 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
         {
             // Then no fingerprint is necessary.
             result.fingerprint.size = 0;
+
+            // Assume this directory isn't a mount point.
             result.type = FOLDERNODE;
+
+            // Directory's a mount point.
+            if (device != metadata.st_dev)
+            {
+                // Mark directory as a mount so we can emit a stall.
+                result.type = TYPE_NESTED_MOUNT;
+
+                // Leave a trail for debuggers.
+                LOG_warn << "directoryScan: "
+                         << "Encountered a nested mount: "
+                         << path
+                         << ". Expected device "
+                         << major(device)
+                         << ":"
+                         << minor(device)
+                         << ", got device "
+                         << major(metadata.st_dev)
+                         << ":"
+                         << minor(metadata.st_dev);
+            }
+
             continue;
         }
 
