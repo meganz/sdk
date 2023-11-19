@@ -79,10 +79,37 @@ Config Config::fromArguments(const Arguments& arguments)
     return config;
 }
 
+//
+// We'll use a debug version and test gfx prcessing crashing in jenkins
+// this prevents from presenting dialog with "Debug Error! abort()..." on
+// windows
+//
+void set_abort_behaviour()
+{
+#if defined(WIN32) && defined(DEBUG)
+    SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOALIGNMENTFAULTEXCEPT |
+                 SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);
+
+    _CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_FILE);
+    _CrtSetReportFile(_CRT_WARN, _CRTDBG_FILE_STDERR);
+
+    _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE);
+    _CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR);
+
+    _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE);
+    _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+
+    _set_abort_behavior(0, _WRITE_ABORT_MSG);
+    _set_error_mode(_OUT_TO_STDERR);
+#endif
+}
+
 }
 
 int main(int argc, char** argv)
 {
+    set_abort_behaviour();
+
     auto arguments = ArgumentsParser::parse(argc, argv);
 
     // help
