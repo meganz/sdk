@@ -285,6 +285,17 @@ namespace
             #endif
         }
     }
+
+    MegaClient* getMegaClientFromMegaApi(MegaApi* api)
+    {
+        // This UGLY cast is used so we can access the MegaClient.
+        // We need to access the MegaClient to test JourneyID functionality according to specifications.
+        // JID values from ug/gmf commands affect the behavior (set/unset tracking flag, update JourneyID::mJidValue if it's empty, etc.)
+        // We don't have TestInstruments or any other mechanism to change the command response results, so we cannot test this just with regular requests on the intermmediate layer.
+        // Finally, JourneyID is used internally on the MegaClient, it's never shared with the apps, so we need to check its value directly from MegaClient.
+        MegaApiImpl* impl = *((MegaApiImpl**)(((char*)api) + sizeof(*api)) - 1);
+        return impl->getMegaClient();
+    }
 }
 
 std::map<size_t, std::string> gSessionIDs;
@@ -16212,26 +16223,24 @@ TEST_F(SdkTest, SdkTesResumeSessionInFolderLinkDeleted)
 }
 
 /**
- * @brief SdkGfxProcessSuccessfully
+ * @brief SdkGfxProcessForUpload
  *
  */
-TEST_F(SdkTest, SdkGfxProcessSuccessfully)
+TEST_F(SdkTest, SdkGfxProcessForUpload)
 {
-    LOG_info << "___TEST SdkGfxProcessSuccessfully___";
+    LOG_info << "___TEST SdkGfxProcessForUpload___";
 
     // setup
     unsigned int numberOfAccounts = 1;
     unsigned int apiIndex = 0;
-    auto imageFile = IMAGEFILE;
-    //auto imageFile = UPFILE;
 
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfAccounts));
-    copyFileFromTestData(imageFile);
-    //ASSERT_TRUE(createFile(imageFile)) << "Couldn't create " << imageFile;
-
-    // upload a image and thumbnail, preview should generate successfully
     std::unique_ptr<MegaNode> rootnode(megaApi[apiIndex]->getRootNode());
+
+    out() << "Upload a bad file that we know the generation fails.";
+    std::string imageFile = "notvalid.jpg";
     MegaHandle uploadedNode = UNDEF;
+    copyFileFromTestData(imageFile);
     ASSERT_EQ(MegaError::API_OK, doStartUpload(apiIndex,
                                                &uploadedNode,
                                                imageFile.c_str(),
@@ -16247,20 +16256,91 @@ TEST_F(SdkTest, SdkGfxProcessSuccessfully)
     ASSERT_NE(n1, nullptr);
     ASSERT_STREQ(imageFile.c_str(), n1->getName()) << "Uploaded file with wrong name (error: " << mApi[apiIndex].lastError << ")";
 
+    // Get the thumbnail of the uploaded image and should fail
+    std::string thumbnailPath = "notvalid_gfx_thumbnail.png";
+    ASSERT_EQ(API_ENOENT, doGetThumbnail(0, n1.get(), thumbnailPath.c_str()));
+    // Get the preview of the uploaded image and should fail
+    std::string previewPath = "notvalid_gfx_preview.png";
+    ASSERT_EQ(API_ENOENT, doGetPreview(0, n1.get(), previewPath.c_str()));
+
+    int expectedTotalJobs = 1, expectedOkResults = 0, expectedNoResults = 2; // one job, two not ok images
+    int totalJobs = 0, okResults = 0, noResults = 0;
+    MegaClient* client = getMegaClientFromMegaApi(megaApi[0].get());
+    std::tie(totalJobs, okResults, noResults) = client->gfx->getCounters();
+    ASSERT_EQ(totalJobs, expectedTotalJobs);
+    ASSERT_EQ(okResults, expectedOkResults);
+    ASSERT_EQ(noResults, expectedNoResults);
+
+#if defined(WIN32)
+    out() << "Upload a bad file that results in gfx crashing";
+    imageFile = "crash_1.tif";
+    uploadedNode = UNDEF;
+    copyFileFromTestData(imageFile);
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(apiIndex,
+                                               &uploadedNode,
+                                               imageFile.c_str(),
+                                               rootnode.get(),
+                                               nullptr /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload a test file";
+
+    n1.reset(megaApi[apiIndex]->getNodeByHandle(uploadedNode));
+    ASSERT_NE(n1, nullptr);
+    ASSERT_STREQ(imageFile.c_str(), n1->getName()) << "Uploaded file with wrong name (error: " << mApi[apiIndex].lastError << ")";
+
+    // Get the thumbnail of the uploaded image and should be none
+    thumbnailPath = "crash_1_gfx_thumbnail.png";
+    ASSERT_EQ(API_ENOENT, doGetThumbnail(0, n1.get(), thumbnailPath.c_str()));
+    // Get the preview of the uploaded image and should be none
+    previewPath = "crash_1_gfx_preview.png";
+    ASSERT_EQ(API_ENOENT, doGetPreview(0, n1.get(), previewPath.c_str()));
+
+    expectedTotalJobs += 1; expectedOkResults += 0; expectedNoResults += 2; // one more job, two more not ok images
+    std::tie(totalJobs, okResults, noResults) = client->gfx->getCounters();
+    ASSERT_EQ(totalJobs, expectedTotalJobs);
+    ASSERT_EQ(okResults, expectedOkResults);
+    ASSERT_EQ(noResults, expectedNoResults);
+
+#endif
+
+    out() << "upload an image. Thumbnail, preview should be generated successfully";
+    imageFile = IMAGEFILE;
+    uploadedNode = UNDEF;
+    copyFileFromTestData(imageFile);
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(apiIndex,
+                                               &uploadedNode,
+                                               imageFile.c_str(),
+                                               rootnode.get(),
+                                               nullptr /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload a test file";
+
+    n1.reset(megaApi[apiIndex]->getNodeByHandle(uploadedNode));
+    ASSERT_NE(n1, nullptr);
+    ASSERT_STREQ(imageFile.c_str(), n1->getName()) << "Uploaded file with wrong name (error: " << mApi[apiIndex].lastError << ")";
+
     // Get the thumbnail of the uploaded image
-    std::string thumbnailPath = "gfx_thumbnail.png";
+    thumbnailPath = "logo_gfx_thumbnail.png";
     ASSERT_EQ(API_OK, doGetThumbnail(0, n1.get(), thumbnailPath.c_str()));
     ASSERT_EQ(fs::file_size(fs::path(thumbnailPath)), 4544);
     // Get the preview of the uploaded image
-    std::string previewPath = "gfx_preview.png";
+    previewPath = "logo_gfx_preview.png";
     ASSERT_EQ(API_OK, doGetPreview(0, n1.get(), previewPath.c_str()));
     ASSERT_EQ(fs::file_size(fs::path(previewPath)), 832);
 
-    // download a image. Missing thumbnail, preview are generated
+    expectedTotalJobs += 1; expectedOkResults += 2; expectedNoResults += 0; // one more job, two more ok images
+    std::tie(totalJobs, okResults, noResults) = client->gfx->getCounters();
+    ASSERT_EQ(totalJobs, expectedTotalJobs);
+    ASSERT_EQ(okResults, expectedOkResults);
+    ASSERT_EQ(noResults, expectedNoResults);
 
-
-
-    LOG_info << "___TEST SdkGfxProcessSuccessfully end___";
+    LOG_info << "___TEST SdkGfxProcessForUpload end___";
 }
 
 class SdkTestAvatar : public SdkTest

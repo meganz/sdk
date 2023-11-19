@@ -23,6 +23,7 @@
 #include "mega/gfx.h"
 #include "mega/logging.h"
 #include <numeric>
+#include <tuple>
 
 namespace mega {
 
@@ -141,6 +142,7 @@ void GfxProc::loop()
         waiter.wait();
         while ((job = requests.pop()))
         {
+            ++mJobCounter;
             if (finished)
             {
                 delete job;
@@ -192,6 +194,7 @@ int GfxProc::checkevents(Waiter *)
             if (job->images[i])
             {
                 LOG_debug << "Media file correctly processed. Attaching file attribute: " << job->h;
+                ++mOkResultCounter;
 
                 // thumbnail/preview has been extracted from the main image.
                 // Now we upload those to the file attribute servers
@@ -206,6 +209,7 @@ int GfxProc::checkevents(Waiter *)
             else
             {
                 LOG_debug << "Unable to process media file: " << job->h;
+                ++mNoResultCounter;
 
                 if (job->h.isNodeHandle())
                 {
@@ -234,6 +238,11 @@ int GfxProc::checkevents(Waiter *)
     }
 
     return needexec ? Waiter::NEEDEXEC : 0;
+}
+
+std::tuple<int, int, int> GfxProc::getCounters() const
+{
+    return std::make_tuple(mJobCounter.load(), mOkResultCounter.load(), mNoResultCounter.load());
 }
 
 std::vector<std::string> IGfxLocalProvider::generateImages(FileSystemAccess* fa,
