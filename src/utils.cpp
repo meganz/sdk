@@ -2935,6 +2935,8 @@ const char* syncPathProblemDebugString(PathProblem r)
     case PathProblem::PutnodeCompletionPending: return "PutnodeCompletionPending";
     case PathProblem::UploadDeferredByController: return "UploadDeferredByController";
 
+    case PathProblem::DetectedNestedMount: return "DetectedNestedMount";
+
     case PathProblem::PathProblem_LastPlusOne: break;
     }
     return "<out of range>";

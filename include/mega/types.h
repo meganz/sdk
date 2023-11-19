@@ -1150,6 +1150,8 @@ enum class PathProblem : unsigned short {
     PutnodeCompletionPending,
     UploadDeferredByController,
 
+    DetectedNestedMount,
+
     PathProblem_LastPlusOne
 };
 

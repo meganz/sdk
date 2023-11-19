@@ -6921,6 +6921,8 @@ class MegaSyncStall
             PutnodeCompletionPending,
             UploadDeferredByController,
 
+            DetectedNestedMount,
+
             SyncPathProblem_LastPlusOne
         };
 
