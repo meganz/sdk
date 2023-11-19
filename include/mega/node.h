@@ -258,6 +258,8 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
         // this field also only used internally, for reporting new NO_KEY occurrences
         bool modifiedByThisClient : 1;
 
+        bool pwdValue : 1;
+
     } changed;
 
 

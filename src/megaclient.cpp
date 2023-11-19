@@ -8911,6 +8911,8 @@ error MegaClient::setattr(Node* n, attr_map&& updates, CommandSetAttr::Completio
 
     n->changed.sensitive = n->attrs.hasUpdate(AttrMap::string2nameid("sen"), updates);
 
+    n->changed.pwdValue = n->attrs.hasUpdate(AttrMap::string2nameid(NODE_ATTR_PASSWORD_VALUE), updates);
+
     // when we merge SIC removal, the local object won't be changed unless/until the command succeeds
     n->attrs.applyUpdates(updates);
 
@@ -21994,8 +21996,11 @@ NewNode MegaClient::createBasicPasswordNode(AttrMap& attrs, std::string name)
     newNode.nodehandle = UNDEF;
     newNode.parenthandle = UNDEF;
 
-    LocalPath::utf8_normalize(&name);
-    attrs.map['n'] = name;
+    if (!name.empty())
+    {
+        LocalPath::utf8_normalize(&name);
+        attrs.map['n'] = name;
+    }
     string attrString;
     attrs.getjson(&attrString);
     newNode.attrstring.reset(new string);
@@ -22046,6 +22051,44 @@ void MegaClient::createPasswordNode(const char* name, const char* pwd, NodeHandl
     // newNode.nodekey will be encrypted with user's MK in Command construction
     // using existing logic with default client->app->putnodes_result as callback for completion
     putnodes(nhParent, VersioningOption::NoVersioning, std::move(nn), cauth, rtag, canChangeVault);
+}
+
+error MegaClient::updatePasswordNode(Node* pwdNode, const char* newName, const char* newPwd,
+                                     CommandSetAttr::Completion&& cb)
+{
+    const auto somethingToUpdate = [newName, newPwd]() { return newName || newPwd; };
+    const auto validParams = [pwdNode, newName, &somethingToUpdate] ()
+    {
+        return (pwdNode &&
+                pwdNode->isPasswordNode() &&
+                somethingToUpdate() &&
+                (!newName || (newName && *newName)));
+    };
+
+    if (!validParams())
+    {
+        LOG_err << "Password Manager: failed Password Node update wrong parameters "
+                << (pwdNode ? "" : "Password Node not provided ")
+                << (pwdNode && pwdNode->isPasswordNode() ? "" : "Node provided is not Password Node ")
+                << (somethingToUpdate() ? "" : "nothing to update ")
+                << (newName && !(*newName) ? "newName cannot be empty " : "");
+        return API_EARGS;
+    }
+
+    attr_map updates;
+    if (newName)
+    {
+        std::string name {newName};
+        LocalPath::utf8_normalize(&name);
+        updates['n'] = name;
+    }
+    if (newPwd)
+    {
+        updates[AttrMap::string2nameid(NODE_ATTR_PASSWORD_VALUE)] = newPwd;
+    }
+
+    const bool canChangeVault = true;
+    return setattr(pwdNode, std::move(updates), std::move(cb), canChangeVault);
 }
 
 error MegaClient::removePasswordNode(handle h, int rTag)

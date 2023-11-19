@@ -2473,6 +2473,12 @@ void MegaApi::createPasswordNode(const char *name, const char *pwd, MegaNode *pa
     pImpl->createPasswordNode(name, pwd, parent, listener);
 }
 
+void MegaApi::updatePasswordNode(MegaNode* node, const char* newName, const char* newPwd,
+                                MegaRequestListener *listener)
+{
+    pImpl->updatePasswordNode(node, newName, newPwd, listener);
+}
+
 MegaNode* MegaApi::getPasswordNodeByHandle(uint64_t h)
 {
     return pImpl->getPasswordNodeByHandle(h);

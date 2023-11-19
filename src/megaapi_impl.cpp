@@ -502,6 +502,10 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     {
         this->changed |= MegaNode::CHANGE_TYPE_SENSITIVE;
     }
+    if (node->changed.pwdValue)
+    {
+        this->changed |= MegaNode::CHANGE_TYPE_PWD_VALUE;
+    }
 
     this->thumbnailAvailable = (node->hasfileattribute(0) != 0);
     this->previewAvailable = (node->hasfileattribute(1) != 0);
@@ -4435,6 +4439,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CREATE_PASSWORD_MANAGER_BASE: return "CREATE_PASSWORD_MANAGER_BASE";
         case TYPE_CREATE_PASSWORD_NODE: return "CREATE_PASSWORD_NODE";
         case TYPE_REMOVE_PASSWORD_NODE: return "REMOVE_PASSWORD_NODE";
+        case TYPE_UPDATE_PASSWORD_NODE: return "UPDATE_PASSWORD_NODE";
     }
     return "UNKNOWN";
 }
@@ -26135,6 +26140,43 @@ void MegaApiImpl::createPasswordNode(const char* name, const char* pwd, MegaNode
         client->createPasswordNode(name, pwd, nhParent, request->getTag());
 
         return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::updatePasswordNode(MegaNode* node, const char* newName, const char* newPwd,
+                                     MegaRequestListener *listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_UPDATE_PASSWORD_NODE, listener);
+    if (node) request->setNodeHandle(node->getHandle());
+    request->setName(newName);
+    request->setText(newPwd);
+
+    request->performRequest = [this, request]()
+    {
+        if (client->ststatus == STORAGE_PAYWALL)
+        {
+            LOG_err << "Password Manager: failed Password Node update. Storage paywall";
+            return API_EPAYWALL;
+        }
+        Node* node = client->nodebyhandle(request->getNodeHandle());
+        if (!node)
+        {
+            LOG_err << "Password Manager: failed Password Node update missing Password Node";
+            return API_EARGS;
+        }
+
+        CommandSetAttr::Completion cbRequest = [this, request](NodeHandle nh, Error e)
+        {
+            assert(request->getNodeHandle() == nh.as8byte());
+            request->setNodeHandle(nh.as8byte());
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+        };
+
+        return client->updatePasswordNode(node, request->getName(), request->getText(),
+                                          std::move(cbRequest));
     };
 
     requestQueue.push(request);

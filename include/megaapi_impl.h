@@ -3290,6 +3290,8 @@ public:
         void getPasswordManagerBase(MegaRequestListener *listener = nullptr);
         void createPasswordNode(const char *name, const char *pwd, MegaNode* parent,
                                 MegaRequestListener *listener = nullptr);
+        void updatePasswordNode(MegaNode* node, const char* newName, const char* newPwd,
+                                MegaRequestListener *listener = NULL);
         MegaNode *getPasswordNodeByHandle(handle h);
         void removePasswordNode(MegaNode* node, MegaRequestListener *listener = nullptr);
 

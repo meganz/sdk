@@ -473,7 +473,8 @@ class MegaNode
             CHANGE_TYPE_NAME            = 0x800,
             CHANGE_TYPE_FAVOURITE       = 0x1000,
             CHANGE_TYPE_COUNTER         = 0x2000,
-            CHANGE_TYPE_SENSITIVE       = 0x4000
+            CHANGE_TYPE_SENSITIVE       = 0x4000,
+            CHANGE_TYPE_PWD_VALUE       = 0x8000,
         };
 
         static const int INVALID_DURATION = -1;
@@ -889,6 +890,9 @@ class MegaNode
          * - MegaNode::CHANGE_TYPE_NEW             = 0x400
          * Check if the node is new
          *
+         * - MegaNode::CHANGE_TYPE_PWD_VALUE       = 0x8000
+         * Check if Password Node password value for this node has changed
+         *
          * @return true if this node has an specific change
          */
         virtual bool hasChanged(uint64_t changeType);
@@ -942,6 +946,9 @@ class MegaNode
          *
          * - MegaNode::CHANGE_TYPE_COUNTER         = 0x2000
          * Check if counter for this node (its subtree) has changed
+         *
+         * - MegaNode::CHANGE_TYPE_PWD_VALUE       = 0x8000
+         * Check if Password Node password value for this node has changed
          *
          */
         virtual uint64_t getChanges();
@@ -4321,7 +4328,8 @@ class MegaRequest
             TYPE_CREATE_PASSWORD_MANAGER_BASE                               = 178,
             TYPE_CREATE_PASSWORD_NODE                                       = 179,
             TYPE_REMOVE_PASSWORD_NODE                                       = 180,
-            TOTAL_OF_REQUEST_TYPES                                          = 181
+            TYPE_UPDATE_PASSWORD_NODE                                       = 181,
+            TOTAL_OF_REQUEST_TYPES                                          = 182
         };
 
         virtual ~MegaRequest();
@@ -11573,6 +11581,26 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void createPasswordNode(const char *name, const char *pwd, MegaNode* parent,
+                                MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Rename a node in the MEGA account
+         *
+         * The associated request type with this request is MegaRequest::TYPE_UPDATE_PASSWORD_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - handle provided of the Password Node to update
+         * - MegaRequest::getName - new name provided for the Password Node to update
+         * - MegaRequest::getText - new password provided for the Password Node to update
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param node Node to modify
+         * @param newName New name for the node
+         * @param newPwd New passwod value in base 64 for the Password Node
+         * @param listener MegaRequestListener to track this request
+         */
+        void updatePasswordNode(MegaNode* node, const char* newName, const char* newPwd,
                                 MegaRequestListener *listener = NULL);
 
         /**
