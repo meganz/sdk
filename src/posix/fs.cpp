@@ -2060,7 +2060,7 @@ static std::string deviceOf(const std::string& path)
     using FilePtr     = std::unique_ptr<FILE, FileDeleter>;
 
     // Try and open mount database.
-    FilePtr mounts(setmntent("/etc/mtab", "r"), endmntent);
+    FilePtr mounts(setmntent("/proc/mounts", "r"), endmntent);
 
     // Couldn't open mount database.
     if (!mounts)
