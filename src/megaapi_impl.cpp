@@ -424,7 +424,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
                 if (!customAttrs) customAttrs = new attr_map();
 
                 nameid id = AttrMap::string2nameid(buf);
-                (*customAttrs)[id] = it->second;
+                (*customAttrs)[id] = Base64::atob(it->second);
             }
         }
     }

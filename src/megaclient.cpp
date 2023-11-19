@@ -21996,7 +21996,7 @@ void MegaClient::preparePasswordNodePwdValue(attr_map& attrs, const char* pwd)
     if (pwd)
     {
         const auto id = AttrMap::string2nameid(NODE_ATTR_PASSWORD_VALUE);
-        attrs[id] = pwd;
+        attrs[id] = Base64::btoa(pwd);
     }
 }
 
