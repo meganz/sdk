@@ -1129,6 +1129,8 @@ void Node::setattr()
         changed.name = attrs.hasDifferentValue('n', oldAttrs.map);
         changed.favourite = attrs.hasDifferentValue(AttrMap::string2nameid("fav"), oldAttrs.map);
         changed.sensitive = attrs.hasDifferentValue(AttrMap::string2nameid("sen"), oldAttrs.map);
+        changed.pwdValue = attrs.hasDifferentValue(AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_VALUE),
+                                                   oldAttrs.map);
 
         setfingerprint();
 
@@ -1743,6 +1745,13 @@ void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown, 
         plink->takendown = takendown;
         plink->mAuthKey = authKey;
     }
+}
+
+bool Node::isPasswordNode() const
+{
+    return ((type == FOLDERNODE) &&
+            (attrs.map.find(AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_VALUE))
+             != std::end(attrs.map)));
 }
 
 PublicLink::PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown, const char *authKey)

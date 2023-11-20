@@ -135,6 +135,7 @@ void NodeManager::notifyNode_internal(std::shared_ptr<Node> n, sharedNode_vector
             changed |= n->changed.name << 11;
             changed |= n->changed.favourite << 12;
             changed |= n->changed.sensitive << 13;
+            changed |= n->changed.pwdValue << 14;
 
             int attrlen = int(n->attrstring->size());
             string base64attrstring;

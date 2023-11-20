@@ -610,6 +610,8 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         bool isExpired() override;
         bool isTakenDown() override;
         bool isForeign() override;
+        bool isPasswordNode() override;
+        const char* getPasswordNodeValue() override;
         std::string* getPrivateAuth() override;
         MegaNodeList *getChildren() override;
         void setPrivateAuth(const char *privateAuth) override;
@@ -3569,6 +3571,12 @@ public:
 
         // Password Manager
         void getPasswordManagerBase(MegaRequestListener *listener = nullptr);
+        void createPasswordNode(const char *name, const char *pwd, MegaHandle parent,
+                                MegaRequestListener *listener = nullptr);
+        void updatePasswordNode(MegaHandle node, const char* newName, const char* newPwd,
+                                MegaRequestListener *listener = NULL);
+        MegaNode *getPasswordNodeByHandle(handle h);
+        void removePasswordNode(MegaHandle node, MegaRequestListener *listener = nullptr);
 
         void fetchCreditCardInfo(MegaRequestListener* listener = nullptr);
 

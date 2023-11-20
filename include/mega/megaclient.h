@@ -2549,6 +2549,11 @@ private:
     // Generates a key pair (x25519 (Cu) key pair) to use for Vpn Credentials (MegaClient::putVpnCredential)
     StringKeyPair generateVpnKeyPair();
 
+    // Password Manager - private
+    NewNode createBasicPasswordNode(AttrMap &attrs, const char* name);
+    void preparePasswordNodeName(attr_map& attrs, const char* name);
+    void preparePasswordNodePwdValue(attr_map& attrs, const char* pwd);
+
 public:
 
 /* Mega VPN methods */
@@ -2599,9 +2604,13 @@ public:
     void setProFlexi(bool newProFlexi);
 
     // Password Manager
+    static const char* const NODE_ATTR_PASSWORD_VALUE;
     NodeHandle getPasswordManagerBase();
     void createPasswordManagerBase(int rtag, CommandCreatePasswordManagerBase::Completion cbRequest);
-
+    void createPasswordNode(const char* name, const char* pwd, NodeHandle nhParent, int rtag);
+    error updatePasswordNode(std::shared_ptr<Node> pwdNode, const char* newName, const char* newPwd,
+                             CommandSetAttr::Completion&& cb);
+    error removePasswordNode(handle h, int rTag);
 };
 
 } // namespace

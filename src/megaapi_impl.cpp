@@ -419,6 +419,13 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
             {
                 mS4 = it->second;
             }
+            else if (it->first == AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_VALUE))
+            {
+                if (!customAttrs) customAttrs = new attr_map();
+
+                nameid id = AttrMap::string2nameid(buf);
+                (*customAttrs)[id] = Base64::atob(it->second);
+            }
         }
     }
 
@@ -494,6 +501,10 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     if (node->changed.sensitive)
     {
         this->changed |= MegaNode::CHANGE_TYPE_SENSITIVE;
+    }
+    if (node->changed.pwdValue)
+    {
+        this->changed |= MegaNode::CHANGE_TYPE_PWD_VALUE;
     }
 
     this->thumbnailAvailable = (node->hasfileattribute(0) != 0);
@@ -1791,6 +1802,16 @@ bool MegaNodePrivate::isTakenDown()
 bool MegaNodePrivate::isForeign()
 {
     return foreign;
+}
+
+bool MegaNodePrivate::isPasswordNode()
+{
+    return (type == FOLDERNODE && getPasswordNodeValue() != nullptr);
+}
+
+const char* MegaNodePrivate::getPasswordNodeValue()
+{
+    return getCustomAttr(MegaClient::NODE_ATTR_PASSWORD_VALUE);
 }
 
 string *MegaNodePrivate::getPrivateAuth()
@@ -4605,6 +4626,9 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_FETCH_CREDIT_CARD_INFO: return "FETCH_CREDIT_CARD_INFO";
         case TYPE_MOVE_TO_DEBRIS: return "MOVE_TO_DEBRIS";
         case TYPE_CREATE_PASSWORD_MANAGER_BASE: return "CREATE_PASSWORD_MANAGER_BASE";
+        case TYPE_CREATE_PASSWORD_NODE: return "CREATE_PASSWORD_NODE";
+        case TYPE_REMOVE_PASSWORD_NODE: return "REMOVE_PASSWORD_NODE";
+        case TYPE_UPDATE_PASSWORD_NODE: return "UPDATE_PASSWORD_NODE";
     }
     return "UNKNOWN";
 }
@@ -13825,6 +13849,7 @@ void MegaApiImpl::unlink_result(handle h, error e)
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || ((request->getType() != MegaRequest::TYPE_REMOVE) &&
+                    (request->getType() != MegaRequest::TYPE_REMOVE_PASSWORD_NODE) &&
                     (request->getType() != MegaRequest::TYPE_MOVE)))
     {
         return;
@@ -14058,6 +14083,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
     MegaRequestPrivate* request = reqIt == requestMap.end() ? nullptr : reqIt->second;
     if(!request || ((request->getType() != MegaRequest::TYPE_IMPORT_LINK) &&
                     (request->getType() != MegaRequest::TYPE_CREATE_FOLDER) &&
+                    (request->getType() != MegaRequest::TYPE_CREATE_PASSWORD_NODE) &&
                     (request->getType() != MegaRequest::TYPE_COPY) &&
                     (request->getType() != MegaRequest::TYPE_MOVE) &&
                     (request->getType() != MegaRequest::TYPE_RESTORE) &&
@@ -26135,6 +26161,98 @@ void MegaApiImpl::createPasswordManagerBase(MegaRequestPrivate* request)
     };
 
     client->createPasswordManagerBase(request->getTag(), std::move(cb));
+}
+
+void MegaApiImpl::createPasswordNode(const char* name, const char* pwd, MegaHandle parentHandle,
+                                     MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_PASSWORD_NODE, listener);
+    request->setParentHandle(parentHandle);
+    request->setName(name);
+    request->setText(pwd);
+
+    request->performRequest = [this, request]()
+    {
+        auto name = request->getName();
+        auto pwd = request->getText();
+        const auto nhParent = NodeHandle{}.set6byte(request->getParentHandle());
+
+        if (!name || !pwd || nhParent.isUndef())
+        {
+            LOG_err << "Password Manager: failed Password Node creation missing "
+                    << (name ? "" : "name ") <<  (pwd ? "" : "password ")
+                    << (nhParent.isUndef() ? "parent node" : "");
+            return API_EARGS;
+        }
+
+        // using default this->putnodes_result as callback
+        client->createPasswordNode(name, pwd, nhParent, request->getTag());
+
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::updatePasswordNode(MegaHandle h, const char* newName, const char* newPwd,
+                                     MegaRequestListener *listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_UPDATE_PASSWORD_NODE, listener);
+    request->setNodeHandle(h);
+    request->setName(newName);
+    request->setText(newPwd);
+
+    request->performRequest = [this, request]()
+    {
+        if (client->ststatus == STORAGE_PAYWALL)
+        {
+            LOG_err << "Password Manager: failed Password Node update. Storage paywall";
+            return API_EPAYWALL;
+        }
+        auto node = client->nodebyhandle(request->getNodeHandle());
+        if (!node)
+        {
+            LOG_err << "Password Manager: failed Password Node update missing Password Node";
+            return API_EARGS;
+        }
+
+        CommandSetAttr::Completion cbRequest = [this, request](NodeHandle nh, Error e)
+        {
+            assert(request->getNodeHandle() == nh.as8byte());
+            request->setNodeHandle(nh.as8byte());
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+        };
+
+        return client->updatePasswordNode(node, request->getName(), request->getText(),
+                                          std::move(cbRequest));
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+MegaNode* MegaApiImpl::getPasswordNodeByHandle(handle h)
+{
+    std::unique_ptr<MegaNode> mn {getNodeByHandle(h)};
+
+    if (mn && mn->isPasswordNode()) return mn.release();
+
+    return NULL;
+}
+
+void MegaApiImpl::removePasswordNode(MegaHandle h, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_PASSWORD_NODE, listener);
+    request->setNodeHandle(h);
+
+    request->performRequest = [this, request]()
+    {
+        return client->removePasswordNode(request->getNodeHandle(), request->getTag());
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void MegaApiImpl::fetchCreditCardInfo(MegaRequestListener* listener)
