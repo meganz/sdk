@@ -1124,6 +1124,10 @@ void Node::setattr()
             {
                 LocalPath::utf8_normalize(t);
             }
+            else if (name == AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_VALUE))
+            {
+                *t = Base64::atob(*t);
+            }
         }
 
         changed.name = attrs.hasDifferentValue('n', oldAttrs.map);
