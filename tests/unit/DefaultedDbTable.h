@@ -55,7 +55,7 @@ public:
     {
         return false;
     }
-    bool getNodeByFingerprint(const std::string& fingerprint, mega::NodeSerialized&) override
+    bool getNodeByFingerprint(const std::string&, mega::NodeSerialized&, mega::NodeHandle&) override
     {
         return false;
     }

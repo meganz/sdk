@@ -381,6 +381,7 @@ protected:
     void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, string* filePath, int newState) override {}
     void onSyncStateChanged(MegaApi *api,  MegaSync *sync) override {}
     void onGlobalSyncStateChanged(MegaApi* api) override {}
+    void purgeVaultTree(unsigned int apiIndex, MegaNode *vault);
 #endif
 #ifdef ENABLE_CHAT
     void onChatsUpdate(MegaApi *api, MegaTextChatList *chats) override;
@@ -400,7 +401,6 @@ public:
     void resumeSession(const char *session, int timeout = maxTimeout);
 
     void purgeTree(unsigned int apiIndex, MegaNode *p, bool depthfirst = true);
-    void purgeVaultTree(unsigned int apiIndex, MegaNode *vault);
 
     bool waitForResponse(bool *responseReceived, unsigned int timeout = maxTimeout);
 
@@ -481,7 +481,16 @@ public:
     template<typename ... requestArgs> int doOpenShareDialog(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->openShareDialog(args..., &rt); rt.waitForResult(); return rt.result; }
     template<typename ... requestArgs> int synchronousDoUpgradeSecurity(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->upgradeSecurity(args..., &rt); rt.waitForResult(); return rt.result; }
 #ifdef ENABLE_SYNC
-    template<typename ... requestArgs> int synchronousSyncFolder(unsigned apiIndex, MegaHandle* newSyncRootNodeResult, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->syncFolder(args..., &rt); rt.waitForResult(); mApi[apiIndex].lastSyncError = rt.request->getNumDetails(); mApi[apiIndex].lastSyncBackupId = rt.request->getParentHandle(); if (newSyncRootNodeResult) *newSyncRootNodeResult = rt.getNodeHandle(); return rt.result; }
+    template<typename ... requestArgs> int synchronousSyncFolder(unsigned apiIndex, MegaHandle* newSyncRootNodeResult, requestArgs... args)
+    {
+        RequestTracker rt(megaApi[apiIndex].get());
+        megaApi[apiIndex]->syncFolder(args..., &rt);
+        rt.waitForResult();
+        mApi[apiIndex].lastSyncError = rt.request ? rt.request->getNumDetails() : -888; // request was not set ???
+        mApi[apiIndex].lastSyncBackupId = rt.request ? rt.request->getParentHandle() : UNDEF;
+        if (newSyncRootNodeResult) *newSyncRootNodeResult = rt.getNodeHandle();
+        return rt.result;
+    }
     template<typename ... requestArgs> int synchronousRemoveSync(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->removeSync(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousRemoveBackupNodes(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->moveOrRemoveDeconfiguredBackupNodes(args..., INVALID_HANDLE, &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousSetSyncRunState(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setSyncRunState(args..., &rt); rt.waitForResult(); mApi[apiIndex].lastSyncError = rt.request->getNumDetails(); return rt.result; }
@@ -569,6 +578,7 @@ public:
     template<typename ... requestArgs> int synchronousChangeEmail(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->changeEmail(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousConfirmChangeEmail(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->confirmChangeEmail(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int syncSendABTestActive(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->sendABTestActive(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int syncMoveToDebris(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->moveToDebris(args..., &rt); return rt.waitForResult(); }
 
     // Checkup methods called from MegaApi callbacks
     void onNodesUpdateCheck(size_t apiIndex, MegaHandle target, MegaNodeList* nodes, int change, bool& flag);

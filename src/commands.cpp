@@ -107,8 +107,6 @@ HttpReqFA::HttpReqFA(NodeOrUploadHandle cth, fatype ctype, bool usehttps, int ct
 
 bool CommandPutFA::procresult(Result r, JSON& json)
 {
-    client->looprequested = true;
-
     if (r.wasErrorOrOK())
     {
         assert(!r.wasError(API_EAGAIN)); // these would not occur here, we would retry after backoff
@@ -117,12 +115,12 @@ bool CommandPutFA::procresult(Result r, JSON& json)
         if (r.wasError(API_EACCESS))
         {
             // create a custom attribute indicating thumbnail can't be restored from this account
-            Node *n = client->nodeByHandle(th.nodeHandle());
+            shared_ptr<Node> n = client->nodeByHandle(th.nodeHandle());
 
             char me64[12];
             Base64::btoa((const byte*)&client->me, MegaClient::USERHANDLE, me64);
 
-            if (n && client->checkaccess(n, FULL) &&
+            if (n && client->checkaccess(n.get(), FULL) &&
                     (n->attrs.map.find('f') == n->attrs.map.end() || n->attrs.map['f'] != me64) )
             {
                 LOG_debug << "Restoration of file attributes is not allowed for current user (" << me64 << ").";
@@ -217,7 +215,6 @@ CommandGetFA::CommandGetFA(MegaClient *client, int p, handle fahref)
 bool CommandGetFA::procresult(Result r, JSON& json)
 {
     fafc_map::iterator it = client->fafcs.find(part);
-    client->looprequested = true;
 
     if (r.wasErrorOrOK())
     {
@@ -295,8 +292,8 @@ bool CommandGetFA::procresult(Result r, JSON& json)
 
 CommandAttachFA::CommandAttachFA(MegaClient *client, handle nh, fatype t, handle ah, int ctag)
 {
+    mSeqtagArray = true;
     cmd("pfa");
-    notself(client);
 
     arg("n", (byte*)&nh, MegaClient::NODEHANDLE);
 
@@ -313,8 +310,8 @@ CommandAttachFA::CommandAttachFA(MegaClient *client, handle nh, fatype t, handle
 
 CommandAttachFA::CommandAttachFA(MegaClient *client, handle nh, fatype t, const std::string& encryptedAttributes, int ctag)
 {
+    mSeqtagArray = true;
     cmd("pfa");
-    notself(client);
 
     arg("n", (byte*)&nh, MegaClient::NODEHANDLE);
 
@@ -327,25 +324,26 @@ CommandAttachFA::CommandAttachFA(MegaClient *client, handle nh, fatype t, const 
 
 bool CommandAttachFA::procresult(Result r, JSON& json)
 {
-    if (!r.wasErrorOrOK())
+    if (r.wasErrorOrOK())
     {
-         string fa;
-         if (json.storeobject(&fa))
-         {
-             Node* n = client->nodebyhandle(h);
-             if (n)
-             {
-                n->fileattrstring = fa;
-                n->changed.fileattrstring = true;
-                client->mNodeManager.notifyNode(n);
-             }
-             client->app->putfa_result(h, type, API_OK);
-             return true;
-         }
+        client->app->putfa_result(h, type, r.errorOrOK());
+        return true;
     }
-
-    client->app->putfa_result(h, type, r.errorOrOK());
-    return r.wasErrorOrOK();
+    else
+    {
+        string fa;
+        if (json.storeobject(&fa))
+        {
+#ifdef DEBUG
+            shared_ptr<Node> n = client->nodebyhandle(h);
+            assert(!n || n->fileattrstring == fa);
+#endif
+            client->app->putfa_result(h, type, API_OK);
+            return true;
+        }
+    }
+    client->app->putfa_result(h, type, API_EINTERNAL);
+    return false;
 }
 
 // request upload target URL
@@ -371,7 +369,7 @@ CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
     {
         if (!file->h.isUndef())
         {
-            Node *node = client->nodeByHandle(file->h);
+            shared_ptr<Node> node = client->nodeByHandle(file->h);
             if (node)
             {
                 assert(node->type != FILENODE);
@@ -930,34 +928,87 @@ bool CommandGetFile::procresult(Result r, JSON& json)
     }
 }
 
-CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher, Completion&& c, bool canChangeVault)
+CommandSetAttr::CommandSetAttr(MegaClient* client, std::shared_ptr<Node> n, attr_map&& attrMapUpdates, Completion&& c, bool canChangeVault)
+    : mAttrMapUpdates(attrMapUpdates)
+    , mCanChangeVault(canChangeVault)
 {
+    h = n->nodeHandle();
+    mNode = n;
+    generationError = API_OK;
+    completion = c;
+
+    addToNodePendingCommands(n.get());
+}
+
+const char* CommandSetAttr::getJSON(MegaClient* client)
+{
+    // We generate the command just before sending, so it's up to date for any external changes that occured in the meantime
+    // And we can also take into account any changes we have sent for this node that have not yet been applied by actionpackets
+    jsonWriter.clear();
+    generationError = API_OK;
+
     cmd("a");
-    notself(client);
 
     string at;
+    if (shared_ptr<Node> n = client->nodeByHandle(h))
+    {
+        assert(n == mNode);
+        AttrMap m = n->attrs;
 
-    n->attrs.getjson(&at);
-    client->makeattr(cipher, &at, at.c_str(), int(at.size()));
+        // apply these changes for sending, but also any earlier changes that are ahead in the queue
+        assert(!n->mPendingChanges.empty());
+        n->mPendingChanges.forEachCommand([&m, this](Command* cmd)
+        {
+            if (cmd == this) return;
+            if (auto cmdSetAttr = dynamic_cast<CommandSetAttr*>(cmd))
+            {
+                cmdSetAttr->applyUpdatesTo(m);
+            }
+        });
 
-    arg("n", (byte*)&n->nodehandle, MegaClient::NODEHANDLE);
+        m.applyUpdates(mAttrMapUpdates);
+
+        if (SymmCipher* cipher = n->nodecipher())
+        {
+            m.getjson(&at);
+            client->makeattr(cipher, &at, at.c_str(), int(at.size()));
+        }
+        else
+        {
+            h.setUndef();  // dummy command to generate an error, with no effect
+            mNode.reset();
+            generationError = API_EKEY;
+        }
+    }
+    else
+    {
+        h.setUndef();  // dummy command to generate an error, with no effect
+        mNode.reset();
+        generationError = API_ENOENT;
+    }
+
+    arg("n", (byte*)&h, MegaClient::NODEHANDLE);
     arg("at", (byte*)at.c_str(), int(at.size()));
 
-    if (canChangeVault)
+    if (mCanChangeVault)
     {
         arg("vw", 1);
     }
 
-    h = n->nodeHandle();
-    tag = 0;
-
-    completion = std::move(c);
+    return jsonWriter.getstring().c_str();
 }
+
 
 bool CommandSetAttr::procresult(Result r, JSON& json)
 {
-    if (completion) completion(h, r.errorOrOK());
+    removeFromNodePendingCommands(h, client);
+    if (completion) completion(h, generationError ? Error(generationError) : r.errorOrOK());
     return r.wasErrorOrOK();
+}
+
+void CommandSetAttr::applyUpdatesTo(AttrMap& attrMap) const
+{
+    attrMap.applyUpdates(mAttrMapUpdates);
 }
 
 // (the result is not processed directly - we rely on the server-client
@@ -978,8 +1029,8 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
     nn = std::move(newnodes);
     type = userhandle ? USER_HANDLE : NODE_HANDLE;
     source = csource;
+    mSeqtagArray = true;
     cmd("p");
-    notself(client);
 
     if (userhandle)
     {
@@ -1118,7 +1169,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
     // add cr element for new nodes, if applicable
     if (type == NODE_HANDLE)
     {
-        Node* tn;
+        shared_ptr<Node> tn;
         if ((tn = client->nodeByHandle(th)))
         {
             assert(tn->type != FILENODE);
@@ -1131,11 +1182,11 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
                 {
                     case NEW_PUBLIC:
                     case NEW_NODE:
-                        snk.add(nn[i].nodekey, nn[i].nodehandle, tn, 0);
+                        snk.add(nn[i].nodekey, nn[i].nodehandle, tn, true);
                         break;
 
                     case NEW_UPLOAD:
-                        snk.add(nn[i].nodekey, nn[i].nodehandle, tn, 0, nn[i].uploadtoken.data(), (int)sizeof nn[i].uploadtoken);
+                        snk.add(nn[i].nodekey, nn[i].nodehandle, tn, true, nn[i].uploadtoken.data(), (int)sizeof nn[i].uploadtoken);
                         break;
                 }
             }
@@ -1189,7 +1240,83 @@ bool CommandPutNodes::procresult(Result r, JSON& json)
 {
     removePendingDBRecordsAndTempFiles();
 
-    if (r.wasErrorOrOK())
+    if (r.hasJsonArray() || r.hasJsonObject())
+    {
+        // The response is a sparse array indicating the nodes that failed, and the corresponding error code.
+        // If the first three nodes failed, the response would be e.g. [-9,-9,-9].  Success is []
+        // If the second and third node failed, the response would change to {"1":-9,"2":-9}.
+
+        unsigned arrayIndex = 0;
+        for (;;)
+        {
+            if (r.hasJsonArray())
+            {
+                if (*json.pos == ']')
+                {
+                    break;
+                }
+
+                if (!json.isnumeric())
+                {
+                    performAppCallback(API_EINTERNAL, nn, false);
+                    return false;
+                }
+
+                assert(arrayIndex < nn.size());
+                if (arrayIndex < nn.size())
+                {
+                    nn[arrayIndex++].mError = error(json.getint());
+                }
+            }
+            else
+            {
+                string index, errorCode;
+                if (json.storeobject(&index) && *json.pos == ':')
+                {
+                    ++json.pos;
+                    if (json.storeobject(&errorCode))
+                    {
+                        arrayIndex = unsigned(atoi(index.c_str()));
+                        if (arrayIndex < nn.size())
+                        {
+                            nn[arrayIndex].mError = error(atoi(errorCode.c_str()));
+                            continue;
+                        }
+                    }
+                }
+                if (*json.pos != '}')
+                {
+                    performAppCallback(API_EINTERNAL, nn, false);
+                    return false;
+                }
+                break;
+            }
+        }
+
+#ifdef DEBUG
+        if (type != USER_HANDLE)
+        {
+            for (auto& n : nn)
+            {
+                // double check we got a node, or know the error why it didn't get created
+                if (!((n.added && n.mAddedHandle != UNDEF && !n.mError) ||
+                     (!n.added && n.mAddedHandle == UNDEF && n.mError)))
+                {
+                    assert(false);
+                }
+            }
+        }
+#endif
+
+	    // when the target has been removed, the API automatically adds the new node/s
+        // into the rubbish bin
+        shared_ptr<Node> tempNode = !nn.empty() ? client->nodebyhandle(nn.front().mAddedHandle) : nullptr;
+        bool targetOverride = (tempNode.get() && NodeHandle().set6byte(tempNode->parenthandle) != targethandle);
+
+        performAppCallback(emptyResponse ? API_ENOENT : API_OK, nn, targetOverride);
+        return true;
+    }
+    else
     {
         LOG_debug << "Putnodes error " << r.errorOrOK();
         if (r.wasError(API_EOVERQUOTA))
@@ -1198,143 +1325,15 @@ bool CommandPutNodes::procresult(Result r, JSON& json)
             {
                 client->activateoverquota(0, false);
             }
-#ifdef ENABLE_SYNC
-            else    // the target's account is overquota
-            {
-                if (source == PUTNODES_SYNC)
-                {
-                    client->disableSyncContainingNode(targethandle, FOREIGN_TARGET_OVERSTORAGE, false);
-                }
-            }
-#endif
         }
-#ifdef ENABLE_SYNC
-        if (source == PUTNODES_SYNC)
-        {
-            if (r.wasError(API_EACCESS))
-            {
-                client->sendevent(99402, "API_EACCESS putting node in sync transfer", 0);
-            }
 
-            vector<NewNode> emptyVec;
-
-            performAppCallback(r.errorOrOK(), emptyVec, false);
-
-            for (size_t i = 0; i < nn.size(); i++)
-            {
-                nn[i].localnode.reset();
-            }
-
-            client->putnodes_sync_result(r.errorOrOK(), nn);
-            return true;
-        }
-        else
-        {
-#endif
-            if (source == PUTNODES_APP)
-            {
-                performAppCallback(r.errorOrOK(), nn, false);
-                return true;
-            }
-#ifdef ENABLE_SYNC
-            else
-            {
-                client->putnodes_syncdebris_result(r.errorOrOK(), nn);
-                return true;
-            }
-        }
-#endif
+        performAppCallback(r.errorOrOK(), nn, false);
+        return r.wasErrorOrOK();
     }
-
-    Error e = API_EINTERNAL;
-    bool noexit = true;
-    bool empty = false;
-    while (noexit)
-    {
-        switch (json.getnameid())
-        {
-            case 'f':
-                empty = !memcmp(json.pos, "[]", 2);
-                if (client->readnodes(&json, 1, source, &nn, true, true))  // do apply keys to received nodes only as we go for command response, much much faster for many small responses
-                {
-                    e = API_OK;
-                }
-                else
-                {
-                    LOG_err << "Parse error (readnodes)";
-                    e = API_EINTERNAL;
-                    noexit = false;
-                }
-                break;
-
-            case MAKENAMEID2('f', '2'):
-                if (!client->readnodes(&json, 1, PUTNODES_APP, nullptr, false, true))  // do apply keys to received nodes only as we go for command response, much much faster for many small responses
-                {
-                    LOG_err << "Parse error (readversions)";
-                    e = API_EINTERNAL;
-                    noexit = false;
-                }
-                break;
-
-            default:
-                if (json.storeobject())
-                {
-                    continue;
-                }
-
-                e = API_EINTERNAL;
-                LOG_err << "Parse error (PutNodes)";
-
-                // fall through
-            case EOO:
-                noexit = false;
-                break;
-        }
-    }
-
-    client->sendkeyrewrites();
-
-    // when the target has been removed, the API automatically adds the new node/s
-    // into the rubbish bin
-    Node *tempNode = !nn.empty() ? client->nodebyhandle(nn.front().mAddedHandle) : nullptr;
-    bool targetOverride = (tempNode && tempNode->parenthandle != targethandle.as8byte());
-
-#ifdef ENABLE_SYNC
-    if (source == PUTNODES_SYNC)
-    {
-        performAppCallback(e, nn, targetOverride);
-        client->putnodes_sync_result(e, nn);
-    }
-    else
-#endif
-    if (source == PUTNODES_APP)
-    {
-#ifdef ENABLE_SYNC
-        if (!targethandle.isUndef())
-        {
-            Node *parent = client->nodeByHandle(targethandle);
-            if (parent && parent->localnode)
-            {
-                // A node has been added by a regular (non sync) putnodes
-                // inside a synced folder, so force a syncdown to detect
-                // and sync the changes.
-                client->syncdownrequired = true;
-            }
-        }
-#endif
-        auto ec = (!e && empty) ? API_ENOENT : static_cast<error>(e);
-        performAppCallback(ec, nn, targetOverride);
-    }
-#ifdef ENABLE_SYNC
-    else
-    {
-        client->putnodes_syncdebris_result(e, nn);
-    }
-#endif
-    return true;
 }
 
-CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t csyncdel, NodeHandle prevparent, Completion&& c, bool canChangeVault)
+
+CommandMoveNode::CommandMoveNode(MegaClient* client, std::shared_ptr<Node> n, std::shared_ptr<Node> t, syncdel_t csyncdel, NodeHandle prevparent, Completion&& c, bool canChangeVault)
 {
     h = n->nodeHandle();
     syncdel = csyncdel;
@@ -1359,12 +1358,12 @@ CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t
     arg("t", t->nodeHandle());
     assert(t->type != FILENODE);
 
-    TreeProcShareKeys tpsk;
+    TreeProcShareKeys tpsk(t, true);
     client->proctree(n, &tpsk);
     tpsk.get(this);
 
-    tag = 0;
-    completion = std::move(c);
+    tag = client->reqtag;
+    completion = move(c);
 }
 
 bool CommandMoveNode::procresult(Result r, JSON& json)
@@ -1376,83 +1375,13 @@ bool CommandMoveNode::procresult(Result r, JSON& json)
             client->activateoverquota(0, false);
         }
 
-#ifdef ENABLE_SYNC
-        if (syncdel != SYNCDEL_NONE)
-        {
-            Node* syncn = client->nodeByHandle(h);
-
-            if (syncn)
-            {
-                if (r.wasError(API_OK))
-                {
-                    // update all todebris records in the subtree
-                    for (auto it = client->toDebris.begin(); it != client->toDebris.end(); it++)
-                    {
-                        Node* toDebrisNode = it->first;
-                        Node* n = it->first;
-
-                        do {
-                            if (n == syncn)
-                            {
-                                if (syncop)
-                                {
-                                    // After speculative instant completion removal, this is not needed (always sent via actionpacket code)
-                                    client->syncs.forEachRunningSyncContainingNode(n, [&](Sync* s) {
-                                        if (toDebrisNode->type == FOLDERNODE)
-                                        {
-                                            LOG_debug << "Sync - remote folder deletion detected " << n->displayname();
-                                        }
-                                        else
-                                        {
-                                            LOG_debug << "Sync - remote file deletion detected " << n->displayname() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
-                                        }
-                                    });
-                                }
-
-                                toDebrisNode->syncdeleted = syncdel;
-                                break;
-                            }
-                        } while ((n = n->parent));
-                    }
-                }
-                else
-                {
-                    Node *tn = NULL;
-                    if (syncdel == SYNCDEL_BIN || syncdel == SYNCDEL_FAILED
-                            || !(tn = client->nodeByHandle(client->mNodeManager.getRootNodeRubbish())))
-                    {
-                        LOG_err << "Error moving node to the Rubbish Bin";
-                        syncn->syncdeleted = SYNCDEL_NONE;
-                        client->toDebris.erase(syncn->todebris_it);
-                        syncn->todebris_it = client->toDebris.end();
-                    }
-                    else
-                    {
-                        LOG_warn << "Move to Syncdebris failed. Moving to the Rubbish Bin instead.";
-                        client->rename(syncn, tn, SYNCDEL_FAILED, pp, nullptr, mCanChangeVault, nullptr);
-                    }
-                }
-            }
-        }
-        else if(syncop)
-        {
-            Node *n = client->nodeByHandle(h);
-            if(n)
-            {
-                // After speculative instant completion removal, this is not needed (always sent via actionpacket code)
-                Node* prevparent = client->nodeByHandle(pp);
-                LOG_debug << "Sync - remote move detected: " << n->displayname() <<
-                    " from " << (prevparent ? prevparent->displayname() : "?") <<
-                    " to " << (n->parent ? n->parent->displayname() : "?");
-            }
-        }
-#endif
         // Movement of shares and pending shares into Rubbish should remove them
         if (r.wasStrictlyError() && syncdel == SYNCDEL_NONE)
         {
             client->sendevent(99439, "Unexpected move error", 0);
         }
     }
+
     if (completion) completion(h, r.errorOrOK());
     return r.wasErrorOrOK();
 }
@@ -1461,7 +1390,6 @@ CommandDelNode::CommandDelNode(MegaClient* client, NodeHandle th, bool keepversi
     : mResultFunction(std::move(f))
 {
     cmd("d");
-    notself(client);
 
     arg("n", (byte*)&th, MegaClient::NODEHANDLE);
 
@@ -1960,7 +1888,7 @@ CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient*, handle sh, const char*
 
 CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient* client, handle_vector* v)
 {
-    Node* n;
+    shared_ptr<Node> n;
     byte sharekey[SymmCipher::KEYLENGTH];
 
     cmd("k");
@@ -1984,7 +1912,7 @@ CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient* client, handle_vector* 
 }
 
 // add/remove share; include node share keys if new share
-CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslevel_t a, bool newshare, const char* msg, bool writable, const char* personal_representation, int ctag, std::function<void(Error, bool writable)> f)
+CommandSetShare::CommandSetShare(MegaClient* client, std::shared_ptr<Node> n, User* u, accesslevel_t a, bool newshare, const char* msg, bool writable, const char* personal_representation, int ctag, std::function<void(Error, bool writable)> f)
 {
     byte auth[SymmCipher::BLOCKSIZE];
     byte key[SymmCipher::KEYLENGTH];
@@ -2000,6 +1928,7 @@ CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslev
     completion = std::move(f);
     assert(completion);
 
+    mSeqtagArray = true;
     cmd("s2");
     arg("n", (byte*)&sh, MegaClient::NODEHANDLE);
 
@@ -2073,7 +2002,7 @@ CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslev
     if (newshare)
     {
         // the new share's nodekeys for this user: generate node list
-        TreeProcShareKeys tpsk(n);
+        TreeProcShareKeys tpsk(n, false);
         client->proctree(n, &tpsk);
         tpsk.get(this);
     }
@@ -2291,6 +2220,7 @@ bool CommandPendingKeys::procresult(Result r, JSON& json)
 
 CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const char* temail, opcactions_t action, const char* msg, const char* oemail, handle contactLink, Completion completion)
 {
+    mV3 = false;
     cmd("upc");
 
     if (oemail != NULL)
@@ -2364,8 +2294,8 @@ bool CommandSetPendingContact::procresult(Result r, JSON& json)
                 client->notifypcr(pcr);
 
                 // remove pending shares related to the deleted PCR
-                node_vector nodes = client->mNodeManager.getNodesWithPendingOutShares();
-                for (Node* n : nodes)
+                sharedNode_vector nodes = client->mNodeManager.getNodesWithPendingOutShares();
+                for (auto& n : nodes)
                 {
                     if (n->pendingshares && n->pendingshares->find(pcr->id) != n->pendingshares->end())
                     {
@@ -3031,6 +2961,8 @@ bool CommandPurchaseCheckout::procresult(Result r, JSON& json)
 
 CommandRemoveContact::CommandRemoveContact(MegaClient* client, const char* m, visibility_t show, Completion completion)
 {
+    mV3 = false;
+
     this->email = m ? m : "";
     this->v = show;
 
@@ -3075,6 +3007,8 @@ void CommandRemoveContact::doComplete(error result)
 
 CommandPutMultipleUAVer::CommandPutMultipleUAVer(MegaClient *client, const userattr_map *attrs, int ctag, std::function<void (Error)> completion)
 {
+    mV3 = false;
+
     this->attrs = *attrs;
 
     mCompletion = completion ? std::move(completion) :
@@ -3198,6 +3132,8 @@ bool CommandPutMultipleUAVer::procresult(Result r, JSON& json)
 CommandPutUAVer::CommandPutUAVer(MegaClient* client, attr_t at, const byte* av, unsigned avl, int ctag,
                                  std::function<void(Error)> completion)
 {
+    mV3 = false;
+
     this->at = at;
     this->av.assign((const char*)av, avl);
 
@@ -3310,6 +3246,8 @@ bool CommandPutUAVer::procresult(Result r, JSON& json)
 CommandPutUA::CommandPutUA(MegaClient* /*client*/, attr_t at, const byte* av, unsigned avl, int ctag, handle lph, int phtype, int64_t ts,
                            std::function<void(Error)> completion)
 {
+    mV3 = false;
+
     this->at = at;
     this->av.assign((const char*)av, avl);
 
@@ -3414,6 +3352,12 @@ bool CommandPutUA::procresult(Result r, JSON& json)
 CommandGetUA::CommandGetUA(MegaClient* /*client*/, const char* uid, attr_t at, const char* ph, int ctag,
                            CompletionErr completionErr, CompletionBytes completionBytes, CompletionTLV compltionTLV)
 {
+    // It's important for this one to be v3, as the phone apps send huge numbers of alternating uga/uge
+    // and so we need those to go out in a single batch, rather than a batch per request
+    mV3 = true;
+    // we probably don't need to set mSeqtagArray, becuase the API doco says the (successful) response is always a { JSON object }
+    // And from experimentation, a failed response is just a raw error, eg -9
+
     this->uid = uid;
     this->at = at;
     this->ph = ph ? string(ph) : "";
@@ -3437,6 +3381,12 @@ CommandGetUA::CommandGetUA(MegaClient* /*client*/, const char* uid, attr_t at, c
     {
         cmd("mcuga");
         arg("ph", ph);
+
+
+        // cannot use v3, since the response is "<value>" and, if we have multiple `mcuga` in the
+        // same request -> first value will be taken as the sequence-tag, second value as the value
+        // for the first command
+        mV3 = false;
     }
     else
     {
@@ -3725,6 +3675,8 @@ bool CommandGetUA::procresult(Result r, JSON& json)
 #ifdef DEBUG
 CommandDelUA::CommandDelUA(MegaClient *client, const char *an)
 {
+    mV3 = false;
+
     this->an = an;
 
     cmd("upr");
@@ -3803,6 +3755,8 @@ bool CommandSendDevCommand::procresult(Result r, JSON& json)
 
 CommandGetUserEmail::CommandGetUserEmail(MegaClient *client, const char *uid)
 {
+    mSeqtagArray = true;
+
     cmd("uge");
     arg("u", uid);
 
@@ -3843,7 +3797,7 @@ CommandNodeKeyUpdate::CommandNodeKeyUpdate(MegaClient* client, handle_vector* v)
     {
         handle h = (*v)[i];
 
-        Node* n;
+        shared_ptr<Node> n;
 
         if ((n = client->nodebyhandle(h)))
         {
@@ -3879,7 +3833,7 @@ CommandSingleKeyCR::CommandSingleKeyCR(handle sh, handle nh, const byte* key, si
     endarray();
 }
 
-CommandKeyCR::CommandKeyCR(MegaClient* /*client*/, node_vector* rshares, node_vector* rnodes, const char* keys)
+CommandKeyCR::CommandKeyCR(MegaClient* /*client*/, sharedNode_vector* rshares, sharedNode_vector* rnodes, const char* keys)
 {
     cmd("k");
     beginarray("cr");
@@ -3913,6 +3867,8 @@ CommandKeyCR::CommandKeyCR(MegaClient* /*client*/, node_vector* rshares, node_ve
 // for node sn to user u with access a
 CommandPubKeyRequest::CommandPubKeyRequest(MegaClient* client, User* user)
 {
+    mV3 = false;
+
     cmd("uk");
     arg("u", user->uid.c_str());
 
@@ -4013,6 +3969,8 @@ void CommandPubKeyRequest::invalidateUser()
 
 CommandGetUserData::CommandGetUserData(MegaClient *client, int tag, std::function<void(string*, string*, string*, error)> completion)
 {
+    mV3 = false;
+
     cmd("ug");
     arg("v", 1);
 
@@ -5041,6 +4999,8 @@ void CommandGetUserData::parseUserAttribute(JSON& json, std::string &value, std:
 
 CommandGetMiscFlags::CommandGetMiscFlags(MegaClient *client)
 {
+    mV3 = false;
+
     cmd("gmf");
 
     // this one can get the smsve flag when the account is blocked (if it's in a batch by itself)
@@ -5094,6 +5054,8 @@ bool CommandABTestActive::procresult(Result r, JSON&)
 
 CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, std::shared_ptr<AccountDetails> ad, bool storage, bool transfer, bool pro, int source)
 {
+    mV3 = false;
+
     details = ad;
     mStorage = storage;
     mTransfer = transfer;
@@ -5235,7 +5197,7 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
 #ifdef _DEBUG
                         // TODO: remove this debugging block once local count is confirmed to work correctly 100%
                         // verify the new local storage counters per root match server side (could fail if actionpackets are pending)
-                        const Node* node = client->nodebyhandle(h);
+                        shared_ptr<Node> node = client->nodebyhandle(h);
                         if (node)
                         {
                             NodeCounter counter = node->getCounter();
@@ -5607,6 +5569,8 @@ bool CommandGetUserSessions::procresult(Result r, JSON& json)
 CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t cets, bool writable, bool megaHosted,
     int ctag, std::function<void(Error, handle, handle)> f)
 {
+    mSeqtagArray = true;
+
     h = n->nodehandle;
     ets = cets;
     tag = ctag;
@@ -5667,13 +5631,6 @@ bool CommandSetPH::procresult(Result r, JSON& json)
             {
                 if (!authKey.empty() && !ISUNDEF(ph))
                 {
-                    Node *n = client->nodebyhandle(h);
-                    if (n)
-                    {
-                        n->setpubliclink(ph, time(nullptr), ets, false, authKey);
-                        n->changed.publiclink = true;
-                        client->mNodeManager.notifyNode(n);
-                    }
                     completion(API_OK, h, ph);
                     return true;
                 }
@@ -5696,14 +5653,6 @@ bool CommandSetPH::procresult(Result r, JSON& json)
         handle ph = json.gethandle();
         if (!ISUNDEF(ph))
         {
-            Node *n = client->nodebyhandle(h);
-            if (n)
-            {
-                n->setpubliclink(ph, time(nullptr), ets, false, "");
-                n->changed.publiclink = true;
-                client->mNodeManager.notifyNode(n);
-            }
-
             completion(API_OK, h, ph);
             return true;
         }
@@ -5817,6 +5766,8 @@ bool CommandGetPH::procresult(Result r, JSON& json)
 
 CommandSetMasterKey::CommandSetMasterKey(MegaClient* client, const byte* newkey, const byte *hash, int hashsize, const byte *clientrandomvalue, const char *pin, string *salt)
 {
+    mSeqtagArray = true;
+
     memcpy(this->newkey, newkey, SymmCipher::KEYLENGTH);
 
     cmd("up");
@@ -5912,6 +5863,8 @@ CommandCreateEphemeralSession::CommandCreateEphemeralSession(MegaClient* client,
                                                              const byte* cpw,
                                                              const byte* ssc)
 {
+    mSeqtagArray = true;
+
     memcpy(pw, cpw, sizeof pw);
 
     cmd("up");
@@ -6093,6 +6046,8 @@ CommandConfirmSignupLink2::CommandConfirmSignupLink2(MegaClient* client,
                                                    const byte* code,
                                                    unsigned len)
 {
+    mSeqtagArray = true;
+
     cmd("ud2");
     arg("c", code, len);
 
@@ -6137,6 +6092,8 @@ CommandSetKeyPair::CommandSetKeyPair(MegaClient* client, const byte* privk,
                                      unsigned privklen, const byte* pubk,
                                      unsigned pubklen)
 {
+    mSeqtagArray = true;
+
     cmd("up");
     arg("privk", privk, privklen);
     arg("pubk", pubk, pubklen);
@@ -6174,7 +6131,7 @@ bool CommandSetKeyPair::procresult(Result r, JSON& json)
 }
 
 // fetch full node tree
-CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache)
+CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache, bool loadSyncs)
 {
     cmd("f");
     arg("c", 1);
@@ -6188,18 +6145,65 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache)
     // The servers are more efficient with this command when it's the only one in the batch
     batchSeparately = true;
 
+    // Whether we should (re)load the sync config database on request completion.
+    mLoadSyncs = loadSyncs;
+
     this->tag = tag;
 
     ///////////////////////////////////
     // Filters for parsing in streaming
 
-    // Parsing started
-    mFilters.emplace("", [this, client](JSON *)
+    // Parsing of chunk started
+    mFilters.emplace("<", [this, client](JSON *)
     {
-        mScsn = 0;
-        mPreviousHandleForAlert = UNDEF;
-        mMissingParentNodes.clear();
-        client->purgenodesusersabortsc(true);
+        if (!mFirstChunkProcessed)
+        {
+            mScsn = 0;
+            mSt.clear();
+            mPreviousHandleForAlert = UNDEF;
+            mMissingParentNodes.clear();
+
+            // make sure the syncs don't see Nodes disappearing
+            // they should only look at the nodes again once
+            // everything is reloaded and caught up
+            // (in case we are reloading mid-session)
+            client->statecurrent = false;
+            client->actionpacketsCurrent = false;
+#ifdef ENABLE_SYNC
+            // this just makes sure syncs exit any current tree iteration
+            client->syncs.syncRun([]{}, "fetchnodes ready");
+#endif
+
+            assert(!mNodeTreeIsChanging.owns_lock());
+            mNodeTreeIsChanging = std::unique_lock<mutex>(client->nodeTreeMutex);
+            client->purgenodesusersabortsc(true);
+
+            if (client->sctable)
+            {
+                // reset sc database for brand new node tree (note that we may be reloading mid-session)
+                LOG_debug << "Resetting sc database";
+                client->sctable->truncate();
+                client->sctable->commit();
+                assert(!client->sctable->inTransaction());
+                client->sctable->begin();
+                client->pendingsccommit = false;
+            }
+
+            mFirstChunkProcessed = true;
+        }
+        else
+        {
+            assert(!mNodeTreeIsChanging.owns_lock());
+            mNodeTreeIsChanging = std::unique_lock<mutex>(client->nodeTreeMutex);
+        }
+        return true;
+    });
+
+    // Parsing of chunk finished
+    mFilters.emplace(">", [this, client](JSON *)
+    {
+        assert(mNodeTreeIsChanging.owns_lock());
+        mNodeTreeIsChanging.unlock();
         return true;
     });
 
@@ -6207,7 +6211,10 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache)
     auto f = mFilters.emplace("{[f{", [this, client](JSON *json)
     {
         if (client->readnode(json, 0, PUTNODES_APP, nullptr, false, true,
-                             mMissingParentNodes, mPreviousHandleForAlert) != 1)
+                             mMissingParentNodes, mPreviousHandleForAlert,
+                             nullptr, // allParents disabled because Syncs::triggerSync
+                             // does nothing when MegaClient::fetchingnodes is true
+                             nullptr, nullptr) != 1)
         {
             return false;
         }
@@ -6222,6 +6229,10 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache)
     {
         client->mergenewshares(0);
         client->mNodeManager.checkOrphanNodes(mMissingParentNodes);
+
+        // No need to call Syncs::triggerSync here like in MegaClient::readnodes
+        // because it does nothing when MegaClient::fetchingnodes is true
+
         mPreviousHandleForAlert = UNDEF;
         mMissingParentNodes.clear();
 
@@ -6303,6 +6314,21 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache)
         return true;
     });
 
+    // sn tag
+    mFilters.emplace("{\"sn", [this, client](JSON *json)
+    {
+        // Not applying the scsn until the end of the parsing
+        // because it could arrive before nodes
+        // (despite at the moment it is arriving at the end)
+        return json->storebinary((byte*)&mScsn, sizeof mScsn) == sizeof mScsn;
+    });
+
+    // st tag
+    mFilters.emplace("{\"st", [this, client](JSON *json)
+    {
+        return json->storeobject(&mSt);
+    });
+
     // Incoming contact requests
     mFilters.emplace("{[ipc", [client](JSON *json)
     {
@@ -6330,17 +6356,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache)
     // Sets and Elements
     mFilters.emplace("{{aesp", [client](JSON *json)
     {
-        client->procaesp(*json);
-        return true;
-    });
-
-    // sn tag
-    mFilters.emplace("{\"sn", [this, client](JSON *json)
-    {
-        if (json->storebinary((byte*)&mScsn, sizeof mScsn) != sizeof mScsn)
-        {
-            return false;
-        }
+        client->procaesp(*json); // continue even if it failed, it's not critical
         return true;
     });
 
@@ -6349,15 +6365,27 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache)
     {
         WAIT_CLASS::bumpds();
         client->fnstats.timeToLastByte = Waiter::ds - client->fnstats.startTime;
-        client->scsn.setScsn(mScsn);
+
+        assert(mScsn && "scsn must be received in response to `f` command always");
+        if (mScsn)
+        {
+            client->scsn.setScsn(mScsn);
+        }
+
+        if (!mSt.empty())
+        {
+            client->app->sequencetag_update(mSt);
+            client->mScDbStateRecord.seqTag = mSt;
+        }
+
         return parsingFinished();
     });
 
     // Numeric error, either a number or an error object {"err":XXX}
     mFilters.emplace("#", [this, client](JSON *json)
     {
-        client->mNewKeyRepository.clear();
-
+        // like CommandFetchNodes::procresult when r.wasErrorOrOK() is true but
+        // parsing the specific error code here instead of directly receiving it
         WAIT_CLASS::bumpds();
         client->fnstats.timeToLastByte = Waiter::ds - client->fnstats.startTime;
 
@@ -6385,12 +6413,14 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache)
     // Chat-related callbacks
     mFilters.emplace("{{mcf", [client](JSON *json)
     {
+        // List of chatrooms
         client->procmcf(json);
         return true;
     });
 
     f = mFilters.emplace("{[mcpna", [client](JSON *json)
     {
+        // nodes shared in chatrooms
         client->procmcna(json);
         return true;
     });
@@ -6398,10 +6428,27 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache)
 
     mFilters.emplace("{[mcsm", [client](JSON *json)
     {
+        // scheduled meetings
         client->procmcsm(json);
         return true;
     });
 #endif
+}
+
+CommandFetchNodes::~CommandFetchNodes()
+{
+    assert(!mNodeTreeIsChanging.owns_lock());
+}
+
+const char* CommandFetchNodes::getJSON(MegaClient* client)
+{
+    // reset all the sc channel state, prevent sending sc requests while fetchnodes is sent
+    // we wait until this moment, because when `f` is queued, there may be
+    // other commands queued ahead of it, and those may need sc responses in order
+    // to fully complete, and so we can't reset these members at that time.
+    client->resetScForFetchnodes();
+
+    return Command::getJSON(client);
 }
 
 // purge and rebuild node/user tree
@@ -6410,13 +6457,35 @@ bool CommandFetchNodes::procresult(Result r, JSON& json)
     WAIT_CLASS::bumpds();
     client->fnstats.timeToLastByte = Waiter::ds - client->fnstats.startTime;
 
-    client->purgenodesusersabortsc(true);
-
     if (r.wasErrorOrOK())
     {
         client->fetchingnodes = false;
         client->app->fetchnodes_result(r.errorOrOK());
         return true;
+    }
+
+    // make sure the syncs don't see Nodes disappearing
+    // they should only look at the nodes again once
+    // everything is reloaded and caught up
+    // (in case we are reloading mid-session)
+    client->statecurrent = false;
+    client->actionpacketsCurrent = false;
+#ifdef ENABLE_SYNC
+    // this just makes sure syncs exit any current tree iteration
+    client->syncs.syncRun([&](){}, "fetchnodes ready");
+#endif
+    std::unique_lock<mutex> nodeTreeIsChanging(client->nodeTreeMutex);
+    client->purgenodesusersabortsc(true);
+
+    if (client->sctable)
+    {
+        // reset sc database for brand new node tree (note that we may be reloading mid-session)
+        LOG_debug << "Resetting sc database";
+        client->sctable->truncate();
+        client->sctable->commit();
+        assert(!client->sctable->inTransaction());
+        client->sctable->begin();
+        client->pendingsccommit = false;
     }
 
     for (;;)
@@ -6425,7 +6494,7 @@ bool CommandFetchNodes::procresult(Result r, JSON& json)
         {
             case 'f':
                 // nodes
-                if (!client->readnodes(&json, 0, PUTNODES_APP, nullptr, false, true))
+                if (!client->readnodes(&json, 0, PUTNODES_APP, nullptr, false, true, nullptr, nullptr))
                 {
                     client->fetchingnodes = false;
                     client->mNodeManager.cleanNodes();
@@ -6436,7 +6505,7 @@ bool CommandFetchNodes::procresult(Result r, JSON& json)
 
             case MAKENAMEID2('f', '2'):
                 // old versions
-                if (!client->readnodes(&json, 0, PUTNODES_APP, nullptr, false, true))
+                if (!client->readnodes(&json, 0, PUTNODES_APP, nullptr, false, true, nullptr, nullptr))
                 {
                     client->fetchingnodes = false;
                     client->mNodeManager.cleanNodes();
@@ -6486,6 +6555,15 @@ bool CommandFetchNodes::procresult(Result r, JSON& json)
                     client->mNodeManager.cleanNodes();
                     client->app->fetchnodes_result(API_EINTERNAL);
                     return false;
+                }
+                break;
+
+            case MAKENAMEID2('s', 't'):
+                {
+                    string st;
+                    if (!json.storeobject(&st)) return false;
+                    client->app->sequencetag_update(st);
+                    client->mScDbStateRecord.seqTag = st;
                 }
                 break;
 
@@ -6563,6 +6641,10 @@ bool CommandFetchNodes::parsingFinished()
     WAIT_CLASS::bumpds();
     client->fnstats.timeToCached = Waiter::ds - client->fnstats.startTime;
     client->fnstats.nodesCached = client->mNodeManager.getNodeCount();
+#ifdef ENABLE_SYNC
+    if (mLoadSyncs)
+        client->syncs.loadSyncConfigsOnFetchnodesComplete(true);
+#endif
     return true;
 }
 
@@ -6973,6 +7055,7 @@ bool CommandQueryRecoveryLink::procresult(Result r, JSON& json)
 
 CommandGetPrivateKey::CommandGetPrivateKey(MegaClient *client, const char *code)
 {
+    mSeqtagArray = true;
     cmd("erx");
     arg("r", "gk");
     arg("c", code);
@@ -7009,6 +7092,7 @@ bool CommandGetPrivateKey::procresult(Result r, JSON& json)
 CommandConfirmRecoveryLink::CommandConfirmRecoveryLink(MegaClient *client, const char *code, const byte *hash, int hashsize, const byte *clientrandomvalue, const byte *encMasterKey, const byte *initialSession)
 {
     cmd("erx");
+    mSeqtagArray = true;
 
     if (!initialSession)
     {
@@ -7135,8 +7219,6 @@ CommandGetEmailLink::CommandGetEmailLink(MegaClient *client, const char *email, 
         arg("mfa", pin);
     }
 
-    notself(client);
-
     tag = client->reqtag;
 }
 
@@ -7148,6 +7230,7 @@ bool CommandGetEmailLink::procresult(Result r, JSON& json)
 
 CommandConfirmEmailLink::CommandConfirmEmailLink(MegaClient *client, const char *code, const char *email, const byte *newLoginHash, bool replace)
 {
+    mV3 = false;
     this->email = email;
     this->replace = replace;
 
@@ -7309,6 +7392,8 @@ bool CommandGetLocalSSLCertificate::procresult(Result r, JSON& json)
 #ifdef ENABLE_CHAT
 CommandChatCreate::CommandChatCreate(MegaClient* client, bool group, bool publicchat, const userpriv_vector* upl, const string_map* ukm, const char* title, bool meetingRoom, int chatOptions, const ScheduledMeeting* schedMeeting)
 {
+    mV3 = false;
+
     this->client = client;
     this->chatPeers = new userpriv_vector(*upl);
     this->mPublicChat = publicchat;
@@ -7594,6 +7679,8 @@ bool CommandSetChatOptions::procresult(Result r, JSON& json)
 
 CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, handle uh, privilege_t priv, const char *unifiedkey, const char* title)
 {
+    mV3 = false;
+
     this->client = client;
     this->chatid = chatid;
     this->uh = uh;
@@ -7651,6 +7738,8 @@ bool CommandChatInvite::procresult(Result r, JSON& json)
 
 CommandChatRemove::CommandChatRemove(MegaClient *client, handle chatid, handle uh)
 {
+    mV3 = false;
+
     this->client = client;
     this->chatid = chatid;
     this->uh = uh;
@@ -7709,13 +7798,14 @@ bool CommandChatRemove::procresult(Result r, JSON& json)
 
 CommandChatURL::CommandChatURL(MegaClient *client, handle chatid)
 {
+    mSeqtagArray = true;
+
     this->client = client;
 
     cmd("mcurl");
 
     arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
     arg("v", 1);
-    notself(client);
 
     tag = client->reqtag;
 }
@@ -7743,6 +7833,8 @@ bool CommandChatURL::procresult(Result r, JSON& json)
 
 CommandChatGrantAccess::CommandChatGrantAccess(MegaClient *client, handle chatid, handle h, const char *uid)
 {
+    mV3 = false;
+
     this->client = client;
     this->chatid = chatid;
     this->h = h;
@@ -7783,6 +7875,8 @@ bool CommandChatGrantAccess::procresult(Result r, JSON& json)
 
 CommandChatRemoveAccess::CommandChatRemoveAccess(MegaClient *client, handle chatid, handle h, const char *uid)
 {
+    mV3 = false;
+
     this->client = client;
     this->chatid = chatid;
     this->h = h;
@@ -7822,6 +7916,8 @@ bool CommandChatRemoveAccess::procresult(Result r, JSON& json)
 
 CommandChatUpdatePermissions::CommandChatUpdatePermissions(MegaClient *client, handle chatid, handle uh, privilege_t priv)
 {
+    mV3 = false;
+
     this->client = client;
     this->chatid = chatid;
     this->uh = uh;
@@ -7874,6 +7970,8 @@ bool CommandChatUpdatePermissions::procresult(Result r, JSON& json)
 
 CommandChatTruncate::CommandChatTruncate(MegaClient *client, handle chatid, handle messageid)
 {
+    mV3 = false;
+
     this->client = client;
     this->chatid = chatid;
 
@@ -7909,6 +8007,8 @@ bool CommandChatTruncate::procresult(Result r, JSON& json)
 
 CommandChatSetTitle::CommandChatSetTitle(MegaClient *client, handle chatid, const char *title)
 {
+    mV3 = false;
+
     this->client = client;
     this->chatid = chatid;
     this->title = title ? string(title) : "";
@@ -7947,9 +8047,9 @@ bool CommandChatSetTitle::procresult(Result r, JSON& json)
 
 CommandChatPresenceURL::CommandChatPresenceURL(MegaClient *client)
 {
+    mSeqtagArray = true;
     this->client = client;
     cmd("pu");
-    notself(client);
     tag = client->reqtag;
 }
 
@@ -7992,6 +8092,8 @@ bool CommandRegisterPushNotification::procresult(Result r, JSON& json)
 
 CommandArchiveChat::CommandArchiveChat(MegaClient *client, handle chatid, bool archive)
 {
+    mV3 = false;
+
     this->mChatid = chatid;
     this->mArchive = archive;
 
@@ -8129,6 +8231,8 @@ bool CommandRichLink::procresult(Result r, JSON& json)
 
 CommandChatLink::CommandChatLink(MegaClient *client, handle chatid, bool del, bool createifmissing)
 {
+    mSeqtagArray = true;
+
     mDelete = del;
 
     cmd("mcph");
@@ -8144,7 +8248,6 @@ CommandChatLink::CommandChatLink(MegaClient *client, handle chatid, bool del, bo
         arg("cim", (m_off_t)0);
     }
 
-    notself(client);
     tag = client->reqtag;
 }
 
@@ -8176,13 +8279,12 @@ CommandChatLinkURL::CommandChatLinkURL(MegaClient *client, handle publichandle)
     cmd("mcphurl");
     arg("ph", (byte*)&publichandle, MegaClient::CHATLINKHANDLE);
 
-    notself(client);
     tag = client->reqtag;
 }
 
 bool CommandChatLinkURL::procresult(Result r, JSON& json)
 {
-    if (r.wasErrorOrOK())
+    if (r.wasStrictlyError())
     {
         client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, ChatOptions::kEmpty, nullptr, UNDEF, r.errorOrOK());
         return true;
@@ -8291,6 +8393,8 @@ bool CommandChatLinkURL::procresult(Result r, JSON& json)
 
 CommandChatLinkClose::CommandChatLinkClose(MegaClient *client, handle chatid, const char *title)
 {
+    mV3 = false;
+
     mChatid = chatid;
     mTitle = title ? string(title) : "";
 
@@ -8647,6 +8751,8 @@ bool CommandMediaCodecs::procresult(Result r, JSON& json)
 
 CommandContactLinkCreate::CommandContactLinkCreate(MegaClient *client, bool renew)
 {
+    mSeqtagArray = true;
+
     if (renew)
     {
         cmd("clr");
@@ -8774,6 +8880,8 @@ bool CommandKeepMeAlive::procresult(Result r, JSON& json)
 
 CommandMultiFactorAuthSetup::CommandMultiFactorAuthSetup(MegaClient *client, const char *pin)
 {
+    mSeqtagArray = true;
+
     cmd("mfas");
     if (pin)
     {
@@ -9008,8 +9116,9 @@ bool CommandFetchTimeZone::procresult(Result r, JSON& json)
 
 CommandSetLastAcknowledged::CommandSetLastAcknowledged(MegaClient* client)
 {
+    mV3 = false;  // just until we figure out why this started returning `st` for v3
+
     cmd("sla");
-    notself(client);
     tag = client->reqtag;
 }
 
@@ -9060,6 +9169,8 @@ bool CommandSMSVerificationSend::procresult(Result r, JSON& json)
 
 CommandSMSVerificationCheck::CommandSMSVerificationCheck(MegaClient* client, const string& verificationcode)
 {
+    mSeqtagArray = true;
+
     cmd("smsv");
     batchSeparately = true;  // don't let any other commands that might get batched with it cause the whole batch to fail
 
@@ -9288,6 +9399,8 @@ bool CommandFolderLinkInfo::procresult(Result r, JSON& json)
 CommandBackupPut::CommandBackupPut(MegaClient* client, const BackupInfo& fields, std::function<void(Error, handle /*backup id*/)> completion)
     : mCompletion(completion)
 {
+    mSeqtagArray = true;
+
     cmd("sp");
 
     if (!ISUNDEF(fields.backupId))
@@ -10376,12 +10489,16 @@ CommandScheduledMeetingAddOrUpdate::CommandScheduledMeetingAddOrUpdate(MegaClien
     cmd("mcsmp");
     arg("v", 1); // add version to receive cmd array
 
+    // this one does produce an `st`, with a json {object} after
+    mSeqtagArray = true;
+
     if (chatTitle && strlen(chatTitle))
     {
         // update chatroom title along with sm title
         mChatTitle.assign(chatTitle, strlen(chatTitle));
         arg("ct", mChatTitle.c_str());
     }
+
     createSchedMeetingJson(mScheduledMeeting.get());
     notself(client); // set i param to ignore action packet generated by our own action
     tag = client->reqtag;
@@ -11087,6 +11204,8 @@ CommandCreatePasswordManagerBase::CommandCreatePasswordManagerBase(MegaClient* c
                                                                    CommandCreatePasswordManagerBase::Completion&& cb)
     : mNewNode(std::move(nn)), mCompletion(std::move(cb))
 {
+    mSeqtagArray = true;
+
     cmd("pwmp");
     // APs "t" (for the new node/folder) and "ua" (for the new user attribute) triggered
 

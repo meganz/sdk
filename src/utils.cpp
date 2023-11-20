@@ -2913,6 +2913,70 @@ bool wildcardMatch(const char *pszString, const char *pszMatch)
     return !*pszMatch;
 }
 
+const char* syncWaitReasonDebugString(SyncWaitReason r)
+{
+    switch(r)
+    {
+        case SyncWaitReason::NoReason:                                      return "NoReason";
+        case SyncWaitReason::FileIssue:                                     return "FileIssue";
+        case SyncWaitReason::MoveOrRenameCannotOccur:                       return "MoveOrRenameCannotOccur";
+        case SyncWaitReason::DeleteOrMoveWaitingOnScanning:                 return "DeleteOrMoveWaitingOnScanning";
+        case SyncWaitReason::DeleteWaitingOnMoves:                          return "DeleteWaitingOnMoves";
+        case SyncWaitReason::UploadIssue:                                   return "UploadIssue";
+        case SyncWaitReason::DownloadIssue:                                 return "DownloadIssue";
+        case SyncWaitReason::CannotCreateFolder:                            return "CannotCreateFolder";
+        case SyncWaitReason::CannotPerformDeletion:                         return "CannotPerformDeletion";
+        case SyncWaitReason::SyncItemExceedsSupportedTreeDepth:             return "SyncItemExceedsSupportedTreeDepth";
+        case SyncWaitReason::FolderMatchedAgainstFile:                      return "FolderMatchedAgainstFile";
+        case SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose: return "BothChangedSinceLastSynced";
+        case SyncWaitReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose: return "LocalAndRemotePreviouslyUnsyncedDiffer";
+        case SyncWaitReason::NamesWouldClashWhenSynced:                     return "NamesWouldClashWhenSynced";
+
+        case SyncWaitReason::SyncWaitReason_LastPlusOne: break;
+    }
+    return "<out of range>";
+}
+
+const char* syncPathProblemDebugString(PathProblem r)
+{
+    switch (r)
+    {
+    case PathProblem::NoProblem: return "NoProblem";
+    case PathProblem::FileChangingFrequently: return "FileChangingFrequently";
+    case PathProblem::IgnoreRulesUnknown: return "IgnoreRulesUnknown";
+    case PathProblem::DetectedHardLink: return "DetectedHardLink";
+    case PathProblem::DetectedSymlink: return "DetectedSymlink";
+    case PathProblem::DetectedSpecialFile: return "DetectedSpecialFile";
+    case PathProblem::DifferentFileOrFolderIsAlreadyPresent: return "DifferentFileOrFolderIsAlreadyPresent";
+    case PathProblem::ParentFolderDoesNotExist: return "ParentFolderDoesNotExist";
+    case PathProblem::FilesystemErrorDuringOperation: return "FilesystemErrorDuringOperation";
+    case PathProblem::NameTooLongForFilesystem: return "NameTooLongForFilesystem";
+    case PathProblem::CannotFingerprintFile: return "CannotFingerprintFile";
+    case PathProblem::DestinationPathInUnresolvedArea: return "DestinationPathInUnresolvedArea";
+    case PathProblem::MACVerificationFailure: return "MACVerificationFailure";
+    case PathProblem::DeletedOrMovedByUser: return "DeletedOrMovedByUser";
+    case PathProblem::FileFolderDeletedByUser: return "FileFolderDeletedByUser";
+    case PathProblem::MoveToDebrisFolderFailed: return "MoveToDebrisFolderFailed";
+    case PathProblem::IgnoreFileMalformed: return "IgnoreFileMalformed";
+    case PathProblem::FilesystemErrorListingFolder: return "FilesystemErrorListingFolder";
+    case PathProblem::FilesystemErrorIdentifyingFolderContent: return "FilesystemErrorIdentifyingFolderContent";
+    case PathProblem::UndecryptedCloudNode: return "UndecryptedCloudNode";
+    case PathProblem::WaitingForScanningToComplete: return "WaitingForScanningToComplete";
+    case PathProblem::WaitingForAnotherMoveToComplete: return "WaitingForAnotherMoveToComplete";
+    case PathProblem::SourceWasMovedElsewhere: return "SourceWasMovedElsewhere";
+    case PathProblem::FilesystemCannotStoreThisName: return "FilesystemCannotStoreThisName";
+    case PathProblem::CloudNodeInvalidFingerprint: return "CloudNodeInvalidFingerprint";
+
+    case PathProblem::PutnodeDeferredByController: return "PutnodeDeferredByController";
+    case PathProblem::PutnodeCompletionDeferredByController: return "PutnodeCompletionDeferredByController";
+    case PathProblem::PutnodeCompletionPending: return "PutnodeCompletionPending";
+    case PathProblem::UploadDeferredByController: return "UploadDeferredByController";
+
+    case PathProblem::PathProblem_LastPlusOne: break;
+    }
+    return "<out of range>";
+};
+
 UploadHandle UploadHandle::next()
 {
     do

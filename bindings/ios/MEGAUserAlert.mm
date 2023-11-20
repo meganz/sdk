@@ -70,7 +70,7 @@ using namespace mega;
     return (MEGAUserAlertType)(self.megaUserAlert ? self.megaUserAlert->getType() : 0);
 }
 
-- (NSString *)typeString {
+- (nullable NSString *)typeString {
     if (!self.megaUserAlert) return nil;
     
     return self.megaUserAlert->getTypeString() ? [[NSString alloc] initWithUTF8String:self.megaUserAlert->getTypeString()] : nil;
@@ -88,31 +88,31 @@ using namespace mega;
     return self.megaUserAlert ? self.megaUserAlert->getPcrHandle() : ::mega::INVALID_HANDLE;
 }
 
-- (NSString *)email {
+- (nullable NSString *)email {
     if (!self.megaUserAlert) return nil;
     
     return self.megaUserAlert->getEmail() ? [[NSString alloc] initWithUTF8String:self.megaUserAlert->getEmail()] : nil;
 }
 
-- (NSString *)path {
+- (nullable NSString *)path {
     if (!self.megaUserAlert) return nil;
     
     return self.megaUserAlert->getPath()? [[NSString alloc] initWithUTF8String:self.megaUserAlert->getPath()] : nil;
 }
 
-- (NSString *)name {
+- (nullable NSString *)name {
     if (!self.megaUserAlert) return nil;
     
     return self.megaUserAlert->getName() ? [[NSString alloc] initWithUTF8String:self.megaUserAlert->getName()] : nil;
 }
 
-- (NSString *)heading {
+- (nullable NSString *)heading {
     if (!self.megaUserAlert) return nil;
     
     return self.megaUserAlert->getHeading() ? [[NSString alloc] initWithUTF8String:self.megaUserAlert->getHeading()] : nil;
 }
 
-- (NSString *)title {
+- (nullable NSString *)title {
     if (!self.megaUserAlert) return nil;
     
     return self.megaUserAlert->getTitle() ? [[NSString alloc] initWithUTF8String:self.megaUserAlert->getTitle()] : nil;
@@ -130,10 +130,6 @@ using namespace mega;
 
 #endif
 
-- (instancetype)clone {
-    return self.megaUserAlert ? [[MEGAUserAlert alloc] initWithMegaUserAlert:self.megaUserAlert->copy() cMemoryOwn:YES] : nil;
-}
-
 - (int64_t)numberAtIndex:(NSUInteger)index {
     return self.megaUserAlert ? self.megaUserAlert->getNumber((unsigned int) index) : -1;
 }
@@ -142,7 +138,7 @@ using namespace mega;
     return self.megaUserAlert ? self.megaUserAlert->getTimestamp((unsigned int) index) : -1;
 }
 
-- (NSString *)stringAtIndex:(NSUInteger)index {
+- (nullable NSString *)stringAtIndex:(NSUInteger)index {
     if (!self.megaUserAlert) return nil;
     
     return self.megaUserAlert->getString((unsigned int)index) ? [[NSString alloc] initWithUTF8String:self.megaUserAlert->getString((unsigned int)index)] : nil;
@@ -156,11 +152,11 @@ using namespace mega;
     return self.megaUserAlert->hasSchedMeetingChanged(int(changeType));
 }
 
-- (MEGAStringList *)titleList {
+- (nullable MEGAStringList *)titleList {
     return self.megaUserAlert ? [MEGAStringList.alloc initWithMegaStringList:self.megaUserAlert->getUpdatedTitle() cMemoryOwn:YES] : nil;
 }
 
-- (NSArray<NSDate *> *)startDateList {
+- (nullable NSArray<NSDate *> *)startDateList {
     if (!self.megaUserAlert || !self.megaUserAlert->getUpdatedStartDate()) { return nil; }
     
     MegaIntegerList *integerList = self.megaUserAlert->getUpdatedStartDate()->copy();
@@ -180,7 +176,7 @@ using namespace mega;
     return dateArray;
 }
 
-- (NSArray<NSDate *> *)EndDateList {
+- (nullable NSArray<NSDate *> *)endDateList {
     if (!self.megaUserAlert || !self.megaUserAlert->getUpdatedEndDate()) { return nil; }
     
     MegaIntegerList *integerList = self.megaUserAlert->getUpdatedEndDate()->copy();

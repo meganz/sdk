@@ -104,6 +104,66 @@ void FileSystemAccess::setMinimumFilePermissions(int)
 {
 }
 
+int FileSystemAccess::isFileHidden(const LocalPath& path, FSLogging logWhen)
+{
+    // Try and determine the file's current attributes.
+    auto attributes = GetFileAttributesW(path.localpath.c_str());
+
+    // Successfully retrieved the file's attributes.
+    if (attributes != INVALID_FILE_ATTRIBUTES)
+        return (attributes & FILE_ATTRIBUTE_HIDDEN) > 0;
+
+    // Why couldn't we get the file's attributes?
+    auto error = GetLastError();
+
+    // Log the error, if necessary.
+    if (logWhen.doLog(error))
+    {
+        LOG_warn << "Unable to retrieve file attributes: path: "
+                 << path
+                 << ", error code: "
+                 << error
+                 << ", error message: "
+                 << getErrorMessage(error);
+    }
+
+    // Couldn't retrieve the file's attributes.
+    return -1;
+}
+
+bool FileSystemAccess::setFileHidden(const LocalPath& path, FSLogging logWhen)
+{
+    // Try and retrieve the file's current attributes.
+    auto attributes = GetFileAttributesW(path.localpath.c_str());
+
+    // File's already marked as hidden.
+    if ((attributes & FILE_ATTRIBUTE_HIDDEN))
+        return true;
+
+    // File's now marked as hidden.
+    if (attributes != INVALID_FILE_ATTRIBUTES
+        && SetFileAttributesW(path.localpath.c_str(),
+                              attributes | FILE_ATTRIBUTE_HIDDEN))
+        return true;
+
+    // Why couldn't we get (or set) the file's attributes?
+    auto error = GetLastError();
+
+    // Log error, if necessary.
+    if (logWhen.doLog(error))
+    {
+        LOG_warn << "Unable to set file attributes: path: "
+                 << path
+                 << ", error code: "
+                 << error
+                 << ", error message: "
+                 << getErrorMessage(error);
+    }
+
+    // Couldn't set the file's hidden attribute.
+    return false;
+}
+
 int platformCompareUtf(const string& p1, bool unescape1, const string& p2, bool unescape2)
 {
     return compareUtf(p1, unescape1, p2, unescape2, true);
@@ -266,9 +326,9 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size, FSLogging fsl)
     if (!GetFileAttributesExW(nonblocking_localname.localpath.c_str(), GetFileExInfoStandard, (LPVOID)&fad))
     {
         DWORD e = GetLastError();
-        if (fsl.doLog(e, *this))
+        if (fsl.doLog(e))
         {
-            LOG_warn << "Unable to stat: GetFileAttributesExW('" << nonblocking_localname << "'): error code: " << e << ": " << getErrorMessage(e);
+            LOG_warn << "Unable to stat: GetFileAttributesExW('" << nonblocking_localname << "'): error code: " << e << ": " << WinFileSystemAccess::getErrorMessage(e);
         }
         errorcode = e;
         retry = WinFileSystemAccess::istransient(e);
@@ -314,9 +374,9 @@ bool WinFileAccess::sysopen(bool async, FSLogging fsl)
     {
         DWORD e = GetLastError();
         errorcode = e;
-        if (fsl.doLog(errorcode, *this))
+        if (fsl.doLog(errorcode))
         {
-            LOG_err << "Unable to open file '" << nonblocking_localname << "': (CreateFileW). Error code: " << e << ": " << getErrorMessage(e);
+            LOG_err << "Unable to open file '" << nonblocking_localname << "': (CreateFileW). Error code: " << e << ": " << WinFileSystemAccess::getErrorMessage(e);
         }
         retry = WinFileSystemAccess::istransient(e);
         return false;
@@ -660,9 +720,9 @@ bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write,
     if (hFile == INVALID_HANDLE_VALUE)
     {
         DWORD e = GetLastError();
-        if (fsl.doLog(e, *this))
+        if (fsl.doLog(e))
         {
-            LOG_err << "Unable to open file. '" << namePath << "' error code : " << e << " : " << getErrorMessage(e);
+            LOG_err << "Unable to open file. '" << namePath << "' error code : " << e << " : " << WinFileSystemAccess::getErrorMessage(e);
         }
         errorcode = e;
         retry = WinFileSystemAccess::istransient(e);
@@ -707,10 +767,6 @@ bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write,
 
 WinFileSystemAccess::WinFileSystemAccess()
 {
-#ifdef ENABLE_SYNC
-    notifyerr = false;
-    notifyfailed = false;
-#endif  // ENABLE_SYNC
 }
 
 WinFileSystemAccess::~WinFileSystemAccess()
@@ -1211,7 +1267,7 @@ void WinFileSystemAccess::statsid(string *id) const
         {
             std::wstring localdata(pszData);
             string utf8data;
-            LocalPath::local2path(&localdata, &utf8data, true);  // true becuase that was the case historically
+            LocalPath::local2path(&localdata, &utf8data, true);  // true because that was the case historically
             id->append(utf8data);
         }
         RegCloseKey(hKey);
@@ -1219,11 +1275,6 @@ void WinFileSystemAccess::statsid(string *id) const
 }
 
 #ifdef ENABLE_SYNC
-
-// set DirNotify's root LocalNode
-void WinDirNotify::addnotify(LocalNode* l, const LocalPath&)
-{
-}
 
 fsfp_t WinFileSystemAccess::fsFingerprint(const LocalPath& path) const
 {
@@ -1236,18 +1287,21 @@ fsfp_t WinFileSystemAccess::fsFingerprint(const LocalPath& path) const
                     FILE_FLAG_BACKUP_SEMANTICS,
                     NULL);
 
+    fsfp_t result;
+
     if (!hDirectory)
-        return 0;
+        return result;
 
     BY_HANDLE_FILE_INFORMATION fi;
 
 	if (!GetFileInformationByHandle(hDirectory.get(), &fi))
     {
         LOG_err << "Unable to get fsfingerprint. Error code: " << GetLastError();
-        return 0;
+        return result;
     }
 
-    return fi.dwVolumeSerialNumber + 1;
+    result.id = fi.dwVolumeSerialNumber + 1;
+    return result;
 }
 
 bool WinFileSystemAccess::fsStableIDs(const LocalPath& path) const
@@ -1303,17 +1357,22 @@ void WinDirNotify::process(DWORD dwBytes)
 
     if (!dwBytes)
     {
-#ifdef ENABLE_SYNC
+        // No bytes delivered indicates the OS could not deliver some notifications.
+        // Maybe it ran out of buffer (maybe we were too slow)
+        // Incrementing mErrorCount will cause a full rescan of the sync
+        // We used to send an additional notification with localnode and empty path to
+        // trigger it but that is not needed anymore
+
         int errCount = ++mErrorCount;
-        LOG_err << "Empty filesystem notification: " << (localrootnode ? localrootnode->name.c_str() : "NULL")
+        LOG_err << "Empty filesystem notification: " << (localrootnode ? localrootnode->localname.toPath(false).c_str() : "NULL")
                 << " errors: " << errCount;
+
+        // reissue request for notifications
         readchanges();
-        notify(DIREVENTS, localrootnode, LocalPath(), false, false);
-#endif
     }
     else
     {
-        assert(dwBytes >= offsetof(FILE_NOTIFY_INFORMATION, FileName) + sizeof(wchar_t));
+        assert(dwBytes >= offsetof(FILE_NOTIFY_INFORMATION, FileName)); // 3 uint32_t.  The filename can be entirely absent, with the filename length field 0  (via samba share from qnap device)
 
         string processbuf;
         if (dwBytes <= 4096)
@@ -1336,18 +1395,17 @@ void WinDirNotify::process(DWORD dwBytes)
         {
             FILE_NOTIFY_INFORMATION* fni = (FILE_NOTIFY_INFORMATION*)ptr;
 
-            // skip the local debris folder
-            // also, we skip the old name in case of renames
-            if (fni->Action != FILE_ACTION_RENAMED_OLD_NAME
-                && (fni->FileNameLength < ignore.localpath.size()
-                    || memcmp(fni->FileName, ignore.localpath.data(), ignore.localpath.size() * sizeof(wchar_t))
-                    || (fni->FileNameLength > ignore.localpath.size()
-                        && fni->FileName[ignore.localpath.size() - 1] == L'\\')))
-            {
 #ifdef ENABLE_SYNC
-                notify(DIREVENTS, localrootnode, LocalPath::fromPlatformEncodedRelative(std::wstring(fni->FileName, fni->FileNameLength / sizeof(fni->FileName[0]))), false, false);
+            //LOG_verbose << "FS notification: " << fni->Action << " " << LocalPath::fromPlatformEncoded(std::wstring(fni->FileName, fni->FileNameLength / sizeof(fni->FileName[0]))).toPath();
+
+            //FILE_ACTION_RENAMED_OLD_NAME: we let this one through now.  Eg for move of folder out of the sync.  Though, we should also get FILE_ACTION_MODIFIED for its containing folder.  Belt & braces.
+
+            auto scanRequirement = fni->Action == FILE_ACTION_MODIFIED  // FILE_ACTION_MODIFIED: for directories, if an entry was added or removed.  Or if accessibilty permissions of this folder changed.
+                ? Notification::FOLDER_NEEDS_SELF_SCAN
+                : Notification::NEEDS_PARENT_SCAN;
+            notify(fsEventq, localrootnode, scanRequirement,
+                LocalPath::fromPlatformEncodedRelative(std::wstring(fni->FileName, fni->FileNameLength / sizeof(fni->FileName[0]))));
 #endif
-            }
 
             if (!fni->NextEntryOffset)
             {
@@ -1378,7 +1436,8 @@ void WinDirNotify::readchanges()
                             | FILE_NOTIFY_CHANGE_DIR_NAME
                             | FILE_NOTIFY_CHANGE_LAST_WRITE
                             | FILE_NOTIFY_CHANGE_SIZE
-                            | FILE_NOTIFY_CHANGE_CREATION,
+                            | FILE_NOTIFY_CHANGE_CREATION
+                            | FILE_NOTIFY_CHANGE_SECURITY,  // so we can know if we lose/gain access to a scan-blocked folder
                               &dwBytes, &overlapped, completion);
 
     if (readRet)
@@ -1443,14 +1502,20 @@ void WinDirNotify::notifierThreadFunction()
     LOG_debug << "Filesystem notify thread stopped";
 }
 
-WinDirNotify::WinDirNotify(const LocalPath& localbasepathParam, const LocalPath& ignore, WinFileSystemAccess* owner, Waiter* waiter, LocalNode* syncroot)
-    : DirNotify(localbasepathParam, ignore, syncroot->sync)
-    , localrootnode(syncroot)
+WinDirNotify::WinDirNotify(LocalNode& root,
+                           const LocalPath& rootPath,
+                           WinFileSystemAccess* owner,
+                           Waiter* waiter)
+  : DirNotify(rootPath)
 {
-    assert(localbasepathParam.isAbsolute());
+    assert(rootPath.isAbsolute());
     fsaccess = owner;
     fsaccess->dirnotifys.insert(this);
     clientWaiter = waiter;
+
+#ifdef ENABLE_SYNC
+    localrootnode = &root;
+#endif // ENABLE_SYNC
 
     {
         // If this is the first Notifier created, start the thread that queries the OS for notifications.
@@ -1474,12 +1539,12 @@ WinDirNotify::WinDirNotify(const LocalPath& localbasepathParam, const LocalPath&
     std::wstring longname;
     auto r = localbasepath.localpath.size() + 20;
     longname.resize(r);
-    auto rr = GetLongPathNameW(localbasepathParam.localpath.data(), const_cast<wchar_t*>(longname.data()), DWORD(r));
+    auto rr = GetLongPathNameW(localbasepath.localpath.data(), const_cast<wchar_t*>(longname.data()), DWORD(r));
 
     longname.resize(rr);
     if (rr >= r)
     {
-        rr = GetLongPathNameW(localbasepathParam.localpath.data(), const_cast<wchar_t*>(longname.data()), rr);
+        rr = GetLongPathNameW(localbasepath.localpath.data(), const_cast<wchar_t*>(longname.data()), rr);
         longname.resize(rr);
     }
 
@@ -1613,9 +1678,9 @@ unique_ptr<DirAccess> WinFileSystemAccess::newdiraccess()
 }
 
 #ifdef ENABLE_SYNC
-DirNotify* WinFileSystemAccess::newdirnotify(const LocalPath& localpath, const LocalPath& ignore, Waiter* waiter, LocalNode* syncroot)
+DirNotify* WinFileSystemAccess::newdirnotify(LocalNode& root, const LocalPath& rootPath, Waiter* waiter)
 {
-    return new WinDirNotify(localpath, ignore, this, waiter, syncroot);
+    return new WinDirNotify(root, rootPath, this, waiter);
 }
 #endif
 
@@ -1746,10 +1811,10 @@ bool  WinFileSystemAccess::checkForSymlink(const LocalPath& lp)
     return false;
 }
 
-ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path, handle expectedFsid, map<LocalPath, FSNode>& known, std::vector<FSNode>& results, bool followSymlinks, unsigned& nFingerprinted)
+ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path, handle expectedFsid, map<LocalPath, FSNode>& known, std::vector<FSNode>& results, bool followSymLinks, unsigned& nFingerprinted)
 {
     assert(path.isAbsolute());
-    assert(!followSymlinks && "Symlinks are not supported on Windows!");
+    assert(!followSymLinks && "Symlinks are not supported on Windows!");
 
     ScopedFileHandle rightTypeHandle = CreateFileW(path.localpath.c_str(),
         GENERIC_READ,
@@ -1827,12 +1892,8 @@ ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path, handle expe
                     result.fingerprint.mtime = FileTime_to_POSIX((FILETIME*)&info->LastWriteTime);
                     result.fingerprint.size = (m_off_t)info->EndOfFile.QuadPart;
                     result.fsid = (handle)info->FileId.QuadPart;
-                    result.type = TYPE_SPECIAL;
-
-                    if (checkForSymlink(filePath))
-                    {
-                        result.isSymlink = true;
-                    }
+                    result.isSymlink = checkForSymlink(filePath);
+                    result.type = result.isSymlink ? TYPE_SYMLINK : TYPE_SPECIAL;
 
 
                     results.emplace_back(std::move(result));
@@ -2041,38 +2102,6 @@ WinDirAccess::~WinDirAccess()
     }
 }
 
-bool isReservedName(const string& name, nodetype_t type)
-{
-    if (name.empty()) return false;
-
-    if (type == FOLDERNODE && name.back() == '.') return true;
-
-    if (name.size() == 3)
-    {
-        static const string reserved[] = {"AUX", "CON", "NUL", "PRN"};
-
-        for (auto& r : reserved)
-        {
-            if (!_stricmp(name.c_str(), r.c_str())) return true;
-        }
-
-        return false;
-    }
-
-    if (name.size() != 4) return false;
-
-    if (!std::isdigit(name.back())) return false;
-
-    static const string reserved[] = {"COM", "LPT"};
-
-    for (auto& r : reserved)
-    {
-        if (!_strnicmp(name.c_str(), r.c_str(), 3)) return true;
-    }
-
-    return false;
-}
-
 m_off_t WinFileSystemAccess::availableDiskSpace(const LocalPath& drivePath)
 {
     m_off_t maximumBytes = std::numeric_limits<m_off_t>::max();
@@ -2096,12 +2125,13 @@ m_off_t WinFileSystemAccess::availableDiskSpace(const LocalPath& drivePath)
     return (m_off_t)numBytes.QuadPart;
 }
 
-std::string WinFileAccess::getErrorMessage(int error) const
+std::string FileSystemAccess::getErrorMessage(int error)
 {
     return winErrorMessage(error);
 }
 
-bool WinFileAccess::isErrorFileNotFound(int error) const {
+bool FSLogging::isFileNotFound(int error)
+{
     return error == ERROR_FILE_NOT_FOUND;
 }
 

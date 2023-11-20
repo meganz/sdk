@@ -44,7 +44,7 @@ mega::handle nextFsId()
     return fsId++;
 }
 
-std::shared_ptr<mega::MegaClient> makeClient(mega::MegaApp& app)
+std::shared_ptr<mega::MegaClient> makeClient(mega::MegaApp& app, mega::DbAccess* dbAccess)
 {
     struct HttpIo : mega::HttpIO
     {
@@ -68,7 +68,7 @@ std::shared_ptr<mega::MegaClient> makeClient(mega::MegaApp& app)
     auto waiter = std::make_shared<WAIT_CLASS>();
 
     std::shared_ptr<mega::MegaClient> client{new mega::MegaClient{
-            &app, waiter, httpio, nullptr, nullptr, "XXX", "unit_test", 0
+            &app, waiter, httpio, dbAccess, nullptr, "XXX", "unit_test", 0
         }, deleter};
 
     return client;
@@ -79,10 +79,13 @@ mega::Node& makeNode(mega::MegaClient& client, const mega::nodetype_t type, mega
     assert(client.nodeByHandle(handle) == nullptr);
     const auto ph = parent ? parent->nodeHandle() : ::mega::NodeHandle();
     auto n = new mega::Node{client, handle, ph, type, -1, mega::UNDEF, nullptr, 0}; // owned by the client
-    n->setkey(reinterpret_cast<const mega::byte*>(std::string((type == mega::FILENODE) ? mega::FILENODEKEYLENGTH : mega::FOLDERNODEKEYLENGTH, 'X').c_str()));
+    if (type == mega::FILENODE || type == mega::FOLDERNODE || type == mega::TYPE_UNKNOWN)
+    {
+        n->setkey(reinterpret_cast<const mega::byte*>(std::string((type == mega::FILENODE) ? mega::FILENODEKEYLENGTH : mega::FOLDERNODEKEYLENGTH, 'X').c_str()));
+    }
+
     return *n;
 }
-
 
 std::uint16_t nextRandomInt()
 {
