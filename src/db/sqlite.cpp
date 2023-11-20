@@ -55,6 +55,7 @@ LocalPath SqliteDbAccess::databasePath(const FileSystemAccess& fsAccess,
     return path;
 }
 
+
 bool SqliteDbAccess::checkDbFileAndAdjustLegacy(FileSystemAccess& fsAccess, const string& name, const int flags, LocalPath& dbPath)
 {
     dbPath = databasePath(fsAccess, name, DB_VERSION);
@@ -68,8 +69,8 @@ bool SqliteDbAccess::checkDbFileAndAdjustLegacy(FileSystemAccess& fsAccess, cons
         {
             LOG_debug << "Found legacy database at: " << legacyPath;
 
-            // if current version, use that one... unless migration to NoD is required
-            if (currentDbVersion == LEGACY_DB_VERSION && LEGACY_DB_VERSION != LAST_DB_VERSION_WITHOUT_NOD)
+            // if current version, use that one... unless migration to NoD or renaming to adapt the version to SRW are required
+            if (currentDbVersion == LEGACY_DB_VERSION && LEGACY_DB_VERSION != LAST_DB_VERSION_WITHOUT_NOD && LEGACY_DB_VERSION != LAST_DB_VERSION_WITHOUT_SRW)
             {
                 LOG_debug << "Using a legacy database.";
                 dbPath = std::move(legacyPath);
@@ -1541,7 +1542,7 @@ bool SqliteAccountState::getNodesByFingerprint(const std::string &fingerprint, s
 
 }
 
-bool SqliteAccountState::getNodeByFingerprint(const std::string &fingerprint, mega::NodeSerialized &node)
+bool SqliteAccountState::getNodeByFingerprint(const std::string &fingerprint, mega::NodeSerialized &node, NodeHandle& handle)
 {
     if (!db)
     {
@@ -1564,6 +1565,7 @@ bool SqliteAccountState::getNodeByFingerprint(const std::string &fingerprint, me
             if (nodes.size())
             {
                 node = nodes.begin()->second;
+                handle = nodes.begin()->first;
             }
         }
     }

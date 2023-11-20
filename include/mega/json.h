@@ -245,6 +245,9 @@ protected:
     // Called when there is a parsing error
     void parseError(std::map<std::string, std::function<bool(JSON *)>> *filters);
 
+    // Check if there are any pending filter markers indicating that processing failed
+    bool chunkProcessingFinishedSuccessfully(std::map<std::string, std::function<bool(JSON*)>>* filters);
+
     // Position of the character being processed (not owned by this object)
     const char* mPos = nullptr;
 
