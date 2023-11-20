@@ -4671,6 +4671,12 @@ bool MegaClient::procsc()
                         uint64_t numNodes = mNodeManager.getNodeCount();
                         fnstats.nodesCurrent = numNodes;
 
+                        if (mKeyManager.generation())
+                        {
+                            // Clear in-use bit if needed for the shared nodes in ^!keys.
+                            mKeyManager.syncSharekeyInUseBit();
+                        }
+
                         statecurrent = true;
                         app->nodes_current();
                         LOG_debug << "Cloud node tree up to date";
@@ -6156,6 +6162,33 @@ bool MegaClient::sc_shares()
                     if (!(!ISUNDEF(oh) && (!ISUNDEF(uh) || !ISUNDEF(p))))
                     {
                         return false;
+                    }
+
+                    if(outbound && ou != me && r == ACCESS_UNKNOWN // Sharee abandoned the share.
+                        && mKeyManager.isSecure() && mKeyManager.generation() // ^!keys in use
+                        && statecurrent)
+                    {
+                        // Clear the in-use bit for the share key in ^!keys if it was the last sharee
+                        if (mKeyManager.isShareKeyInUse(h))
+                        {
+                            std::shared_ptr<Node> n = nodebyhandle(h);
+                            assert(n); // Share removals are received before node deletion.
+                            if (n)
+                            {
+                                size_t total = n->outshares ? n->outshares->size() : 0;
+                                total += n->pendingshares ? n->pendingshares->size() : 0;
+                                if (total == 1)
+                                {
+                                    // Commit to clear the bit.
+                                    LOG_debug << "Last sharee has left the share. uh: " << toHandle(uh) << ". Disabling in-use flag for the sharekey in KeyManager. nh: " << toNodeHandle(h);
+                                    mKeyManager.commit(
+                                        [this, h]()
+                                        {
+                                            mKeyManager.setSharekeyInUse(h, false);
+                                        });
+                                }
+                            }
+                        }
                     }
 
                     if (r == ACCESS_UNKNOWN)
@@ -20358,6 +20391,39 @@ void KeyManager::setSharekeyInUse(handle sharehandle, bool sent)
         string msg = "Trying to set share key as in-use for non-existing share key";
         LOG_err << msg;
         assert(it != mShareKeys.end() && msg.c_str());
+    }
+}
+
+void KeyManager::syncSharekeyInUseBit()
+{
+    vector<NodeHandle> sharesToClear;
+    for(const auto &it : mShareKeys)
+    {
+        // Store the handle of the existing nodes which are no longer shared and with the in-use bit still set.
+        if(it.second.second[ShareKeyFlagsId::INUSE])
+        {
+            NodeHandle nh = NodeHandle().set6byte(it.first);
+            std::shared_ptr<Node> n = mClient.nodeByHandle(nh);
+            if (n && !n->isShared())
+            {
+                sharesToClear.emplace_back(nh);
+            }
+        }
+    }
+
+    if(sharesToClear.size())
+    {
+        commit(
+            [this, sharesToClear]()
+            {
+                string handles;
+                for(const auto &nh : sharesToClear)
+                {
+                    setSharekeyInUse(nh.as8byte(), false);
+                    handles += " " + toNodeHandle(nh);
+                }
+                LOG_debug << "Clearing in-use bit of the share-keys no longer in use. Applied to:" << handles;
+            });
     }
 }
 

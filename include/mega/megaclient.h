@@ -306,6 +306,9 @@ public:
     bool isShareKeyInUse(handle sharehandle) const;
     void setSharekeyInUse(handle sharehandle, bool sent);
 
+    // Clears, if set, the in-use bit of the sharekeys no longer used.
+    void syncSharekeyInUseBit();
+
     // return empty string if the user's credentials are not verified (or if fail to encrypt)
     std::string encryptShareKeyTo(handle userhandle, std::string shareKey);
 
