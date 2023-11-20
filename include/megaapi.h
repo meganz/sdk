@@ -11584,7 +11584,7 @@ class MegaApi
                                 MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Rename a node in the MEGA account
+         * @brief Update a Password Node in the MEGA account according to the parameters
          *
          * The associated request type with this request is MegaRequest::TYPE_UPDATE_PASSWORD_NODE
          * Valid data in the MegaRequest object received on callbacks:
@@ -11597,7 +11597,7 @@ class MegaApi
          *
          * @param node Node to modify
          * @param newName New name for the node
-         * @param newPwd New passwod value in base 64 for the Password Node
+         * @param newPwd New passwod value for the Password Node
          * @param listener MegaRequestListener to track this request
          */
         void updatePasswordNode(MegaHandle node, const char* newName, const char* newPwd,

@@ -22113,13 +22113,6 @@ error MegaClient::removePasswordNode(handle h, int rTag)
         return API_EARGS;
     }
 
-    const auto& t = node->type;
-    if (t == ROOTNODE || t == VAULTNODE || t == RUBBISHNODE)
-    {
-        LOG_err << pref << "Node provided is a root node and cannot be deleted";
-        return API_EARGS;
-    }
-
     const bool keepVersions = false;
     const bool canChangeVault = true;
     // use default callback function app->unlink_result
