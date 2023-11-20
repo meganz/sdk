@@ -1084,12 +1084,12 @@ public:
 
     // getters
     ChatOptions_t value() const             { return mChatOptions; }
-    bool areEqual(ChatOptions_t val)        { return mChatOptions == val; }
+    bool areEqual(ChatOptions_t val) const  { return mChatOptions == val; }
     bool speakRequest() const               { return mChatOptions & kSpeakRequest; }
     bool waitingRoom() const                { return mChatOptions & kWaitingRoom; }
     bool openInvite() const                 { return mChatOptions & kOpenInvite; }
-    bool isValid()                          { return static_cast<unsigned int>(mChatOptions) <= static_cast<unsigned int>(maxValidValue); }
-    bool isEmpty()                          { return mChatOptions == kEmpty; }
+    bool isValid() const                    { return static_cast<unsigned int>(mChatOptions) <= static_cast<unsigned int>(maxValidValue); }
+    bool isEmpty() const                    { return mChatOptions == kEmpty; }
 
 protected:
     ChatOptions_t mChatOptions = kEmpty;
