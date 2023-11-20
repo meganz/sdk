@@ -1403,6 +1403,13 @@ using namespace mega;
     }
 }
 
+
+- (void)getDownloadUrl:(MEGANode *)node singleUrl:(BOOL)singleURL delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->getDownloadUrl(node.getCPtr, singleURL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
+
 - (void)publicNodeForMegaFileLink:(NSString *)megaFileLink {
     if (self.megaApi) {
         self.megaApi->getPublicNode(megaFileLink.UTF8String);
