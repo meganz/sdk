@@ -3333,7 +3333,7 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * @param singleUrl Always return one URL (even for raided files)
  * @param delegate MEGARequestDelegate to track this request
  */
-- (void)getDownloadUrl:(MEGANode *)node singleUrl:(BOOL)singleURL delegate:(id<MEGARequestDelegate>)delegate;
+- (void)getDownloadUrl:(MEGANode *)node singleUrl:(BOOL)singleUrl delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Get a MEGANode from a public link to a file.

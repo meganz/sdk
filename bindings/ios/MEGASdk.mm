@@ -1404,9 +1404,9 @@ using namespace mega;
 }
 
 
-- (void)getDownloadUrl:(MEGANode *)node singleUrl:(BOOL)singleURL delegate:(id<MEGARequestDelegate>)delegate {
+- (void)getDownloadUrl:(MEGANode *)node singleUrl:(BOOL)singleUrl delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
-        self.megaApi->getDownloadUrl(node.getCPtr, singleURL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+        self.megaApi->getDownloadUrl(node.getCPtr, singleUrl, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
     }
 }
 
