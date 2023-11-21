@@ -1636,6 +1636,9 @@ class MegaRequestPrivate : public MegaRequest
         MegaVpnCredentials* getMegaVpnCredentials() const override;
         void setMegaVpnCredentials(MegaVpnCredentials* megaVpnCredentials);
 
+        const MegaNodeTree* getNodeTree() const override;
+        void setNodeTree(MegaNodeTree* nodeTree);
+
 protected:
         std::shared_ptr<AccountDetails> accountDetails;
         MegaPricingPrivate *megaPricing;
@@ -1696,6 +1699,9 @@ protected:
 #ifdef ENABLE_SYNC
         unique_ptr<MegaSyncStallList> mSyncStallList;
 #endif // ENABLE_SYNC
+
+        unique_ptr<MegaNodeTree> mNodeTree;
+
     public:
         shared_ptr<ExecuteOnce> functionToExecute;
 };
@@ -3600,6 +3606,10 @@ public:
 
         void setVisibleWelcomeDialog(bool visible, MegaRequestListener* listener);
 
+        void createNodeTree(const MegaNode* parentNode,
+                            const MegaNodeTree* nodeTree,
+                            MegaRequestListener* listener);
+
 private:
         void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, unsigned clientWorkerThreadCount /*= 1*/);
 
@@ -4856,6 +4866,49 @@ private:
     std::unique_ptr<MegaStringList> mVpnRegions;
 };
 
+class MegaNodeTreePrivate: public MegaNodeTree
+{
+public:
+    MegaNodeTreePrivate(const MegaNodeTree* nodeTreeChild,
+                        const std::string& name,
+                        const std::string& s4AttributeValue,
+                        const MegaCompleteUploadData* completeUploadData,
+                        MegaHandle nodeHandle);
+    MegaNodeTreePrivate(const MegaNodeTreePrivate& other);
+    ~MegaNodeTreePrivate() override = default;
+    const MegaNodeTree* getNodeTreeChild() const override;
+    const std::string& getName() const;
+    const std::string& getS4AttributeValue() const;
+    const MegaCompleteUploadData* getCompleteUploadData() const;
+    MegaHandle getNodeHandle() const override;
+    MegaNodeTreePrivate* copy() const override;
+
+private:
+    std::unique_ptr<MegaNodeTree> mNodeTreeChild;
+    std::string mName;
+    std::string mS4AttributeValue;
+    std::unique_ptr<MegaCompleteUploadData> mCompleteUploadData;
+    MegaHandle mNodeHandle;
+};
+
+class MegaCompleteUploadDataPrivate: public MegaCompleteUploadData
+{
+public:
+    MegaCompleteUploadDataPrivate(const std::string& fingerprint,
+                                  const std::string& string64UploadToken,
+                                  const std::string& string64FileKey);
+    MegaCompleteUploadDataPrivate(const MegaCompleteUploadDataPrivate& other);
+    ~MegaCompleteUploadDataPrivate() override = default;
+    const std::string& getFingerprint() const;
+    const std::string& getString64UploadToken() const;
+    const std::string& getString64FileKey() const;
+    MegaCompleteUploadDataPrivate* copy() const override;
+
+private:
+    std::string mFingerprint;
+    std::string mString64UploadToken;
+    std::string mString64FileKey;
+};
 }
 
 #endif //MEGAAPI_IMPL_H

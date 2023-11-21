@@ -3783,6 +3783,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
 #endif // ENABLE_SYNC
     this->mStringList.reset(request->mStringList ? request->mStringList->copy() : nullptr);
     this->mMegaVpnCredentials.reset(request->mMegaVpnCredentials ? request->mMegaVpnCredentials->copy() : nullptr);
+    this->mNodeTree.reset(request->mNodeTree ? request->mNodeTree->copy() : nullptr);
 }
 
 std::shared_ptr<AccountDetails> MegaRequestPrivate::getAccountDetails() const
@@ -4423,6 +4424,16 @@ void MegaRequestPrivate::setMegaVpnCredentials(MegaVpnCredentials* megaVpnCreden
     mMegaVpnCredentials.reset(megaVpnCredentials);
 }
 
+const MegaNodeTree* MegaRequestPrivate::getNodeTree() const
+{
+    return mNodeTree.get();
+}
+
+void MegaRequestPrivate::setNodeTree(MegaNodeTree* nodeTree)
+{
+    mNodeTree.reset(nodeTree);
+}
+
 const char *MegaRequestPrivate::getRequestString() const
 {
     switch(type)
@@ -4606,6 +4617,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_FETCH_CREDIT_CARD_INFO: return "FETCH_CREDIT_CARD_INFO";
         case TYPE_MOVE_TO_DEBRIS: return "MOVE_TO_DEBRIS";
         case TYPE_RING_INDIVIDUAL_IN_CALL: return "RING_INDIVIDUAL_IN_CALL";
+        case TYPE_CREATE_NODE_TREE: return "CREATE_NODE_TREE";
     }
     return "UNKNOWN";
 }
@@ -14130,10 +14142,34 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
                     (request->getType() != MegaRequest::TYPE_MOVE) &&
                     (request->getType() != MegaRequest::TYPE_RESTORE) &&
                     (request->getType() != MegaRequest::TYPE_ADD_SYNC) &&
-                    (request->getType() != MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD))) return;
+                    (request->getType() != MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD) &&
+                    (request->getType() != MegaRequest::TYPE_CREATE_NODE_TREE))) return;
 
     if (request->getType() == MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD)
     {
+        request->setNodeHandle(h);
+        request->setFlag(targetOverride);
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+        return;
+    }
+
+    if (request->getType() == MegaRequest::TYPE_CREATE_NODE_TREE)
+    {
+        MegaNodeTreePrivate* lastNodeTree{nullptr};
+        for (auto it{nn.rbegin()}; nn.rend() != it; ++it)
+        {
+            if (const auto node{client->nodebyhandle(it->mAddedHandle)})
+            {
+                const auto newNodeTree{new MegaNodeTreePrivate(lastNodeTree,
+                                                               "",
+                                                               "",
+                                                               nullptr,
+                                                               node->nodehandle)};
+                delete lastNodeTree;
+                lastNodeTree = newNodeTree;
+            }
+        }
+        request->setNodeTree(lastNodeTree);
         request->setNodeHandle(h);
         request->setFlag(targetOverride);
         fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
@@ -26163,6 +26199,127 @@ void MegaApiImpl::setVisibleWelcomeDialog(bool visible, MegaRequestListener* lis
     setUserAttr(MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG, attributeValue.c_str(), listener);
 }
 
+void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
+                                 const MegaNodeTree* nodeTree,
+                                 MegaRequestListener* listener)
+{
+    auto request{new MegaRequestPrivate(MegaRequest::TYPE_CREATE_NODE_TREE, listener)};
+    request->performRequest = [this, parentNode, nodeTree, request]()
+    {
+        if (!parentNode || !nodeTree)
+        {
+            return API_EARGS;
+        }
+
+        NodeHandle parentNodeHandle;
+        parentNodeHandle.set6byte(parentNode->getHandle());
+
+        std::vector<NewNode> newNodes;
+
+        handle tmpNodeHandle{1};
+        handle tmpParentNodeHandle{UNDEF};
+        for (auto tmpNodeTree{dynamic_cast<const MegaNodeTreePrivate*>(nodeTree)}; tmpNodeTree;
+             tmpNodeTree =
+                 dynamic_cast<const MegaNodeTreePrivate*>(tmpNodeTree->getNodeTreeChild()))
+        {
+            const auto completeUploadData{dynamic_cast<const MegaCompleteUploadDataPrivate*>(
+                tmpNodeTree->getCompleteUploadData())};
+
+            if (tmpNodeTree->getNodeTreeChild() && completeUploadData)
+            {
+                return API_EARGS;
+            }
+
+            NewNode newNode{};
+            newNode.source = completeUploadData ? NEW_UPLOAD : NEW_NODE;
+            newNode.type = completeUploadData ? FILENODE : FOLDERNODE;
+            newNode.nodehandle = tmpNodeHandle++;
+            newNode.parenthandle = tmpParentNodeHandle;
+            newNode.fileattributes.reset(new string);
+            tmpParentNodeHandle = newNode.nodehandle;
+
+            // Set node key
+            if (completeUploadData)
+            {
+                byte* nodeKey;
+                size_t nodeKeyLength{FILENODEKEYLENGTH};
+                base64ToBinary(completeUploadData->getString64FileKey().c_str(),
+                               &nodeKey,
+                               &nodeKeyLength);
+                newNode.nodekey.assign(reinterpret_cast<char*>(nodeKey), nodeKeyLength);
+                delete nodeKey;
+            }
+            else
+            {
+                constexpr size_t nodeKeyLength{FOLDERNODEKEYLENGTH};
+                byte nodeKey[nodeKeyLength];
+                client->rng.genblock(nodeKey, nodeKeyLength);
+                newNode.nodekey.assign(reinterpret_cast<char*>(nodeKey), nodeKeyLength);
+            }
+            SymmCipher::xorblock(
+                reinterpret_cast<const byte*>(newNode.nodekey.data()) + SymmCipher::KEYLENGTH,
+                const_cast<byte*>(reinterpret_cast<const byte*>(newNode.nodekey.data())));
+
+            // Set name
+            std::string name{tmpNodeTree->getName()};
+            if (name.empty())
+            {
+                return API_EARGS;
+            }
+            LocalPath::utf8_normalize(&name);
+            AttrMap attributes;
+            attributes.map['n'] = name;
+
+            // Set S4 attribute
+            attributes.map[AttrMap::string2nameid("s4")] = tmpNodeTree->getS4AttributeValue();
+
+            // Set fingerprint
+            if (completeUploadData)
+            {
+                attributes.map['c'] = completeUploadData->getFingerprint();
+            }
+
+            // Set attributes
+            std::string attrstring;
+            attributes.getjson(&attrstring);
+            newNode.attrstring.reset(new std::string);
+
+            SymmCipher cipher;
+            cipher.setkey(&newNode.nodekey);
+            client->makeattr(&cipher, newNode.attrstring, attrstring.c_str());
+
+            // Set upload
+            if (completeUploadData)
+            {
+                UploadToken uploadToken{};
+                const size_t uploadTokenSize{static_cast<size_t>(
+                    Base64::atob(completeUploadData->getString64UploadToken().c_str(),
+                                 &uploadToken[0],
+                                 sizeof(uploadToken)))};
+                if ((uploadTokenSize != UPLOADTOKENLEN) || (uploadTokenSize != sizeof(uploadToken)))
+                {
+                    return API_EARGS;
+                }
+                newNode.uploadtoken = uploadToken;
+                newNode.uploadhandle = client->mUploadHandle.next();
+            }
+
+            newNodes.push_back(std::move(newNode));
+        }
+
+        client->putnodes(parentNodeHandle,
+                         NoVersioning,
+                         std::move(newNodes),
+                         nullptr,
+                         request->getTag(),
+                         false);
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 /* END MEGAAPIIMPL */
 
 void TreeProcCopy::allocnodes()
@@ -37332,5 +37489,90 @@ MegaVpnCredentials* MegaVpnCredentialsPrivate::copy() const
     return new MegaVpnCredentialsPrivate(*this);
 }
 /* MegaVpnCredentials END */
+
+MegaNodeTreePrivate::MegaNodeTreePrivate(const MegaNodeTree* nodeTreeChild,
+                                         const std::string& name,
+                                         const std::string& s4AttributeValue,
+                                         const MegaCompleteUploadData* completeUploadData,
+                                         MegaHandle nodeHandle):
+    mNodeTreeChild{nodeTreeChild ? nodeTreeChild->copy() : nullptr},
+    mName{name},
+    mS4AttributeValue{s4AttributeValue},
+    mCompleteUploadData{completeUploadData ? completeUploadData->copy() : nullptr},
+    mNodeHandle{nodeHandle}
+{}
+
+MegaNodeTreePrivate::MegaNodeTreePrivate(const MegaNodeTreePrivate& other):
+    MegaNodeTreePrivate{other.getNodeTreeChild(),
+                        other.getName(),
+                        other.getS4AttributeValue(),
+                        other.getCompleteUploadData(),
+                        other.getNodeHandle()}
+{}
+
+const MegaNodeTree* MegaNodeTreePrivate::getNodeTreeChild() const
+{
+    return mNodeTreeChild.get();
+}
+
+const std::string& MegaNodeTreePrivate::getName() const
+{
+    return mName;
+}
+
+const std::string& MegaNodeTreePrivate::getS4AttributeValue() const
+{
+    return mS4AttributeValue;
+}
+
+const MegaCompleteUploadData* MegaNodeTreePrivate::getCompleteUploadData() const
+{
+    return mCompleteUploadData.get();
+}
+
+MegaHandle MegaNodeTreePrivate::getNodeHandle() const
+{
+    return mNodeHandle;
+}
+
+MegaNodeTreePrivate* MegaNodeTreePrivate::copy() const
+{
+    return new MegaNodeTreePrivate(*this);
+}
+
+MegaCompleteUploadDataPrivate::MegaCompleteUploadDataPrivate(const std::string& fingerprint,
+                                                             const std::string& string64UploadToken,
+                                                             const std::string& string64FileKey):
+    mFingerprint{fingerprint},
+    mString64UploadToken{string64UploadToken},
+    mString64FileKey{string64FileKey}
+{}
+
+MegaCompleteUploadDataPrivate::MegaCompleteUploadDataPrivate(
+    const MegaCompleteUploadDataPrivate& other):
+    MegaCompleteUploadDataPrivate{other.getFingerprint(),
+                                  other.getString64UploadToken(),
+                                  other.getString64FileKey()}
+{}
+
+const std::string& MegaCompleteUploadDataPrivate::getFingerprint() const
+{
+    return mFingerprint;
+}
+
+const std::string& MegaCompleteUploadDataPrivate::getString64UploadToken() const
+{
+    return mString64UploadToken;
+}
+
+const std::string& MegaCompleteUploadDataPrivate::getString64FileKey() const
+{
+    return mString64FileKey;
+}
+
+MegaCompleteUploadDataPrivate* MegaCompleteUploadDataPrivate::copy() const
+{
+    return new MegaCompleteUploadDataPrivate(*this);
+}
 
 } // namespace mega

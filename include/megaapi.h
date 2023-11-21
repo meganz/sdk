@@ -95,6 +95,8 @@ class MegaIntegerList;
 class MegaSyncStall;
 class MegaSyncStallList;
 class MegaVpnCredentials;
+class MegaNodeTree;
+class MegaCompleteUploadData;
 
 #if defined(SWIG)
     #define MEGA_DEPRECATED
@@ -4307,7 +4309,8 @@ class MegaRequest
             TYPE_FETCH_CREDIT_CARD_INFO                                     = 178,
             TYPE_MOVE_TO_DEBRIS                                             = 179,
             TYPE_RING_INDIVIDUAL_IN_CALL                                    = 180,
-            TOTAL_OF_REQUEST_TYPES                                          = 181,
+            TYPE_CREATE_NODE_TREE                                           = 181,
+            TOTAL_OF_REQUEST_TYPES                                          = 182,
         };
 
         virtual ~MegaRequest();
@@ -5203,6 +5206,14 @@ class MegaRequest
          * @return MegaVpnCredentials* if there are any VPN credentials for the user, nullptr otherwise.
          */
         virtual MegaVpnCredentials* getMegaVpnCredentials() const;
+
+        /**
+         * @brief Returns the node tree created with MegaApi::createNodeTree from which to obtain
+         * the handles of all nested nodes.
+         *
+         * @return node tree created.
+         */
+        virtual const MegaNodeTree* getNodeTree() const = 0;
 };
 
 /**
@@ -9332,6 +9343,35 @@ public:
      * @return upper limit modification timestamp set for restricting node search to, or 0 if not set
      */
     virtual int64_t byModificationTimeUpperLimit() const;
+};
+
+class MegaNodeTree
+{
+protected:
+    MegaNodeTree() = default;
+
+public:
+    virtual ~MegaNodeTree() = default;
+    static MegaNodeTree* createInstance(const MegaNodeTree* nodeTreeChild,
+                                        const char* name,
+                                        const char* s4AttributeValue,
+                                        MegaCompleteUploadData* completeUploadData);
+    virtual const MegaNodeTree* getNodeTreeChild() const = 0;
+    virtual MegaHandle getNodeHandle() const = 0;
+    virtual MegaNodeTree* copy() const = 0;
+};
+
+class MegaCompleteUploadData
+{
+protected:
+    MegaCompleteUploadData() = default;
+
+public:
+    virtual ~MegaCompleteUploadData() = default;
+    static MegaCompleteUploadData* createInstance(const char* fingerprint,
+                                                  const char* string64UploadToken,
+                                                  const char* string64FileKey);
+    virtual MegaCompleteUploadData* copy() const = 0;
 };
 
 class MegaApiImpl;
@@ -21994,6 +22034,26 @@ class MegaApi
          * @param listener MegaRequestListener to track this request.
          */
         virtual void setVisibleWelcomeDialog(bool visible, MegaRequestListener* listener);
+
+        /**
+         * @brief Creates a node tree.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CREATE_NODE_TREE.
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeTree - Returns the node tree created from which to obtain the
+         * handles of all nested nodes.
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EARGS - Parameters are incorrect.
+         *
+         * @param parentNode Parent node from which to create the node tree.
+         * @param nodeTree Node tree to create.
+         * @param listener Listener to track the request.
+         */
+        void createNodeTree(const MegaNode* parentNode,
+                            const MegaNodeTree* nodeTree,
+                            MegaRequestListener* listener);
 
  private:
         MegaApiImpl *pImpl = nullptr;
