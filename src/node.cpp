@@ -1758,6 +1758,13 @@ bool Node::isPasswordNode() const
              != std::end(attrs.map)));
 }
 
+bool Node::isPasswordNodeFolder() const
+{
+    assert(client);
+    const auto nhBase = client->getPasswordManagerBase();
+    return ((type == FOLDERNODE) && (nodeHandle() == nhBase || isAncestor(nhBase)));
+}
+
 PublicLink::PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown, const char *authKey)
 {
     this->ph = ph;

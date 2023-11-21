@@ -15595,7 +15595,13 @@ TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoANullPath)
  * - U1: update an existing Password Node
  * - U1: delete an existing Password Node
  *
- * #3 Attempt deletion of Password Manager Base node
+ * #3 Password Node Folder CRUD operations
+ * - U1: create a Password Node Folder
+ * - U1: retrieve an existing Password Node Folder
+ * - U1: update an existing Password Node Folder
+ * - U1: delete an existing Password Node Folder
+ *
+ * #4 Attempt deletion of Password Manager Base node
  * - U1: try to delete Password Manager Base node
  */
 TEST_F(SdkTest, SdkTestPasswordManager)
@@ -15709,6 +15715,28 @@ TEST_F(SdkTest, SdkTestPasswordManager)
     RequestTracker rtDError {megaApi[userIdx].get()};
     megaApi[userIdx]->removePasswordNode(nhBase, &rtDError);
     ASSERT_EQ(API_EARGS, rtDError.waitForResult());
+
+
+    LOG_debug << "# U1: create a new Password Node Folder";
+    RequestTracker rtCreatePNF {megaApi[userIdx].get()};
+    const char* newFolderName = "NewPasswordNodeFolder";
+    megaApi[userIdx]->createPasswordNodeFolder(newFolderName, nhBase, &rtCreatePNF);
+    ASSERT_EQ(API_OK, rtCreatePNF.waitForResult());
+    ASSERT_NE(nullptr, rtCreatePNF.request.get());
+    const MegaHandle nhPNFolder = rtCreatePNF.request->getNodeHandle();
+    ASSERT_NE(INVALID_HANDLE, nhPNFolder);
+
+    LOG_debug << "\t# create attempt with wrong parameters";
+    RequestTracker rtCFError {megaApi[userIdx].get()};
+    megaApi[userIdx]->createPasswordNodeFolder(newFolderName, INVALID_HANDLE, &rtCFError);
+    ASSERT_EQ(API_EARGS, rtCFError.waitForResult());
+
+
+    LOG_debug << "# U1: retrieve newly created Password Node Folder";
+    std::unique_ptr<MegaNode> mnPNFolder {megaApi[userIdx]->getPasswordNodeFolderByHandle(nhPNFolder)};
+    ASSERT_NE(nullptr, mnPNFolder);
+    ASSERT_TRUE(mnPNFolder->isPasswordNodeFolder());
+    ASSERT_STREQ(newFolderName, mnPNFolder->getName());
 
 
     LOG_info << "# Verifying that Password Manager Base node cannot be deleted";

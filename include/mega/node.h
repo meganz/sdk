@@ -443,6 +443,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     bool isVideoWithFileAttributes() const;
 
     bool isPasswordNode() const;
+    bool isPasswordNodeFolder() const;
 
 private:
     // full folder/file key, symmetrically or asymmetrically encrypted

@@ -63,8 +63,10 @@
 namespace mega {
 
 MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, uint64_t nodehandle,
-                                 const string *nodekey, const string *fileattrstring, const char *fingerprint, const char *originalFingerprint, MegaHandle owner, MegaHandle parentHandle,
-                                 const char *privateauth, const char *publicauth, bool ispublic, bool isForeign, const char *chatauth, bool isNodeKeyDecrypted)
+                                 const string *nodekey, const string *fileattrstring, const char *fingerprint,
+                                 const char *originalFingerprint, MegaHandle owner, MegaHandle parentHandle,
+                                 const char *privateauth, const char *publicauth, bool ispublic, bool isForeign,
+                                 bool isNodePasswordNodeFolder, const char *chatauth, bool isNodeKeyDecrypted)
 : MegaNode()
 {
     this->name = MegaApi::strdup(name);
@@ -97,6 +99,7 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->mNewLinkFormat = false;
     this->sharekey = NULL;
     this->foreign = isForeign;
+    this->mIsPasswordNodeFolder = isNodePasswordNodeFolder;
     this->children = NULL;
     this->owner = owner;
     this->mFavourite = false;
@@ -176,6 +179,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->outShares = node->isOutShare();
     this->inShare = node->isInShare();
     this->foreign = node->isForeign();
+    this->mIsPasswordNodeFolder = node->isPasswordNodeFolder();
     this->sharekey = NULL;
     this->children = NULL;
     this->owner = node->getOwner();
@@ -510,6 +514,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->previewAvailable = (node->hasfileattribute(1) != 0);
     this->isPublicNode = false;
     this->foreign = false;
+    this->mIsPasswordNodeFolder = node->isPasswordNodeFolder();
 
     // if there's only one share and it has no user --> public link
     this->outShares = (node->outshares) ? (node->outshares->size() > 1 || node->outshares->begin()->second->user) : false;
@@ -568,6 +573,7 @@ bool MegaNodePrivate::serialize(string *d) const
     w.serializestring(publicAuth);
     w.serializebool(isPublicNode);
     w.serializebool(foreign);
+    w.serializebool(mIsPasswordNodeFolder);
 
     bool hasChatAuth = chatAuth && chatAuth[0];
     bool hasOwner = true;
@@ -599,7 +605,7 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
     string name, fingerprint, originalfingerprint, attrstring, nodekey, privauth, pubauth, chatauth;
     int64_t size, ctime, mtime;
     MegaHandle nodehandle, parenthandle, owner = INVALID_HANDLE;
-    bool isPublicNode, foreign, isNodeKeyDecrypted;
+    bool isPublicNode, foreign, isNodeKeyDecrypted, isNodePasswordNodeFolder;
     unsigned char expansions[8];
     string fileattrstring; // fileattrstring is not serialized
     if (!r.unserializecstr(name, true) ||
@@ -615,6 +621,7 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
         !r.unserializestring(pubauth) ||
         !r.unserializebool(isPublicNode) ||
         !r.unserializebool(foreign) ||
+        !r.unserializebool(isNodePasswordNodeFolder) ||
         !r.unserializeexpansionflags(expansions, 4) ||
         (expansions[0] && !r.unserializecstr(chatauth, false)) ||
         (expansions[1] && !r.unserializehandle(owner)) ||
@@ -631,7 +638,8 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
                                mtime, nodehandle, &nodekey, &fileattrstring,
                                fingerprint.empty() ? NULL : fingerprint.c_str(), originalfingerprint.empty() ? NULL : originalfingerprint.c_str(),
                                owner, parenthandle, privauth.c_str(), pubauth.c_str(),
-                               isPublicNode, foreign, chatauth.empty() ? NULL : chatauth.c_str(), isNodeKeyDecrypted);
+                               isPublicNode, foreign, isNodePasswordNodeFolder,
+                               chatauth.empty() ? NULL : chatauth.c_str(), isNodeKeyDecrypted);
 }
 
 char *MegaNodePrivate::getBase64Handle()
@@ -1801,6 +1809,11 @@ bool MegaNodePrivate::isTakenDown()
 bool MegaNodePrivate::isForeign()
 {
     return foreign;
+}
+
+bool MegaNodePrivate::isPasswordNodeFolder()
+{
+    return mIsPasswordNodeFolder;
 }
 
 bool MegaNodePrivate::isPasswordNode()
@@ -11517,7 +11530,7 @@ MegaNode *MegaApiImpl::createForeignFileNode(MegaHandle handle, const char *key,
 
     return new MegaNodePrivate(name, FILENODE, size, mtime, mtime, handle, &nodekey, &fileattrsting,
                                sdkFingerprintStr.empty() ? nullptr : sdkFingerprintStr.c_str(), NULL, INVALID_HANDLE,
-                               parentHandle, privateauth, publicauth, false, true, chatauth, true);
+                               parentHandle, privateauth, publicauth, false, true, false, chatauth, true);
 }
 
 MegaNode *MegaApiImpl::createForeignFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *privateauth, const char *publicauth)
@@ -11525,7 +11538,7 @@ MegaNode *MegaApiImpl::createForeignFolderNode(MegaHandle handle, const char *na
     string nodekey;
     string fileattrsting;
     return new MegaNodePrivate(name, FOLDERNODE, 0, 0, 0, handle, &nodekey, &fileattrsting, NULL, NULL, INVALID_HANDLE, parentHandle,
-                               privateauth, publicauth, false, true, nullptr, true);
+                               privateauth, publicauth, false, true);
 }
 
 MegaNode *MegaApiImpl::authorizeNode(MegaNode *node)
@@ -15057,9 +15070,10 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
     else
     {
         MegaNodePrivate *megaNodePrivate = new MegaNodePrivate(fileName.c_str(), FILENODE, size, 0, mtime, ph, &keystring,
-                                                           fa, fingerprint.size() ? fingerprint.c_str() : NULL,
-                                                           originalfingerprint.size() ? originalfingerprint.c_str() : NULL, INVALID_HANDLE, INVALID_HANDLE,
-                                                               nullptr, nullptr, true, false, nullptr, isNodeKeyDecrypted);
+                                                               fa, fingerprint.size() ? fingerprint.c_str() : NULL,
+                                                               originalfingerprint.size() ? originalfingerprint.c_str() : NULL,
+                                                               INVALID_HANDLE, INVALID_HANDLE, nullptr, nullptr, true,
+                                                               false, false, nullptr, isNodeKeyDecrypted);
         request->setPublicNode(megaNodePrivate);
         delete megaNodePrivate;
         fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(MegaError::API_OK));
@@ -26174,17 +26188,9 @@ void MegaApiImpl::createPasswordNode(const char* name, const char* pwd, MegaHand
     {
         auto name = request->getName();
         auto pwd = request->getText();
-        const auto nhParent = NodeHandle{}.set6byte(request->getParentHandle());
-
-        if (!name || !pwd || nhParent.isUndef())
-        {
-            LOG_err << "Password Manager: failed Password Node creation missing "
-                    << (name ? "" : "name ") <<  (pwd ? "" : "password ")
-                    << (nhParent.isUndef() ? "parent node" : "");
-            return API_EARGS;
-        }
-
+        auto nhParent = NodeHandle{}.set6byte(request->getParentHandle());
         // using default this->putnodes_result as callback
+
         client->createPasswordNode(name, pwd, nhParent, request->getTag());
 
         return API_OK;
@@ -26252,6 +26258,40 @@ void MegaApiImpl::removePasswordNode(MegaHandle h, MegaRequestListener* listener
 
     requestQueue.push(request);
     waiter->notify();
+}
+
+void MegaApiImpl::createPasswordNodeFolder(const char* name, MegaHandle parentHandle,
+                                           MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_FOLDER, listener);
+    request->setParentHandle(parentHandle);
+    request->setName(name);
+
+    request->performRequest = [this, request]()
+    {
+        auto name = request->getName();
+        auto nhParent = NodeHandle{}.set6byte(request->getParentHandle());
+        // using default this->putnodes_result as callback
+
+        client->createPasswordNodeFolder(name, nhParent, request->getTag());
+
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+MegaNode* MegaApiImpl::getPasswordNodeFolderByHandle(handle h)
+{
+    std::unique_ptr<MegaNode> mn {getNodeByHandle(h)};
+
+    if (mn && (h == client->getPasswordManagerBase().as8byte() || mn->isPasswordNodeFolder()))
+    {
+        return mn.release();
+    }
+
+    return NULL;
 }
 
 void MegaApiImpl::fetchCreditCardInfo(MegaRequestListener* listener)

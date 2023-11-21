@@ -2611,6 +2611,7 @@ public:
     error updatePasswordNode(std::shared_ptr<Node> pwdNode, const char* newName, const char* newPwd,
                              CommandSetAttr::Completion&& cb);
     error removePasswordNode(handle h, int rTag);
+    void createPasswordNodeFolder(const char* name, NodeHandle nhParent, int rTag);
 };
 
 } // namespace

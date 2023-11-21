@@ -1049,6 +1049,15 @@ class MegaNode
         virtual bool isForeign();
 
         /**
+         * @brief Returns true if this MegaNode is a Password Node Folder
+         *
+         * Only MegaNodes created with MegaApi::createPasswordNodeFolder return true in this function.
+         *
+         * @return true if this node is a Password Node Folder
+         */
+        virtual bool isPasswordNodeFolder();
+
+        /**
          * @brief Returns true if this MegaNode is a Password Node
          *
          * Only MegaNodes created with MegaApi::createPasswordNode return true in this function.
@@ -11823,6 +11832,44 @@ class MegaApi
          */
         void removePasswordNode(MegaHandle node, MegaRequestListener *listener = NULL);
 
+        /**
+         * @brief Get the MegaNode that has a specific handle if it is a Password Node Folder
+         *
+         * You can get the handle of a MegaNode using MegaNode::getHandle. The same handle
+         * can be got in a Base64-encoded string using MegaNode::getBase64Handle. Conversions
+         * between these formats can be done using MegaApi::base64ToHandle and MegaApi::handleToBase64
+         *
+         * It is required to be logged in and to have successfully completed a fetch nodes (complete
+         * or partial) request before calling this function. Otherwise, it will return NULL.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param h Node handle to check
+         * @return MegaNode object with the handle, otherwise NULL
+         */
+        MegaNode *getPasswordNodeFolderByHandle(MegaHandle h);
+
+        /**
+         * @brief Create a new Password Node Folder in your Password Manager tree
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CREATE_FOLDER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Handle of the parent provided as an argument
+         * - MegaRequest::getName - name for the new Password Node Folder provided as an argument
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNodeHandle - Handle of the folder
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param name Name for the new Password Node Folder
+         * @param parent Parent folder for the new Password Node Folder
+         * @param listener MegaRequestListener to track this request
+         */
+        void createPasswordNodeFolder(const char *name, MegaHandle parent,
+                                      MegaRequestListener *listener = NULL);
         /**
          * @brief Create a new empty folder in your local file system
          *

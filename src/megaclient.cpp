@@ -19972,11 +19972,12 @@ void MegaClient::createPasswordManagerBase(int rTag, CommandCreatePasswordManage
 void MegaClient::createPasswordNode(const char* name, const char* pwd, NodeHandle nhParent, int rTag)
 {
     std::vector<NewNode> nn(1);
-    if (!name || !pwd || nhParent.isUndef())
+    auto nParent = nodeByHandle(nhParent);
+    if (!name || !pwd || !nParent || !nParent->isPasswordNodeFolder())
     {
         LOG_err << "Password Manager: failed Password Node creation wrong paramenters "
                 << (name ? "" : "name ") << (pwd ? "" : "password ")
-                << (nhParent.isUndef() ? "UNDEF parent handle " : "");
+                << (nParent && nParent->isPasswordNodeFolder() ? "" : "Password Node Folder parent handle");
         app->putnodes_result(API_EARGS, NODE_HANDLE, nn, false, rTag);
         return;
     }
@@ -20046,6 +20047,32 @@ error MegaClient::removePasswordNode(handle h, int rTag)
     // use default callback function app->unlink_result
     unlink(node.get(), keepVersions, rTag, canChangeVault);
     return API_OK;
+}
+
+void MegaClient::createPasswordNodeFolder(const char* name, NodeHandle nhParent, int rTag)
+{
+    std::vector<NewNode> nn(1);
+    auto nParent = nodeByHandle(nhParent);
+    if (!name || !nParent || !nParent->isPasswordNodeFolder())
+    {
+        LOG_err << "Password Manager: failed Password Node Folder creation wrong paramenters "
+                << (name ? "" : "name ")
+                << (nParent && nParent->isPasswordNodeFolder() ? "" : "Password Node Folder parent handle");
+        app->putnodes_result(API_EARGS, NODE_HANDLE, nn, false, rTag);
+        return;
+    }
+
+    AttrMap attrs;
+    NewNode& newPasswordNode = nn.front();
+    newPasswordNode = createBasicPasswordNode(attrs, name);
+    newPasswordNode.canChangeVault = true;
+    // setting newPasswordNode.parenthandle will cause API_EARGS on request response
+
+    const char* cauth = nullptr;
+    const bool canChangeVault = newPasswordNode.canChangeVault;
+    // newNode.nodekey will be encrypted with user's MK in Command construction
+    // using existing logic with default client->app->putnodes_result as callback for completion
+    putnodes(nhParent, VersioningOption::NoVersioning, std::move(nn), cauth, rTag, canChangeVault);
 }
 
 FetchNodesStats::FetchNodesStats()
