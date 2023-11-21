@@ -197,6 +197,11 @@ struct RequestTracker : public ::mega::MegaRequestListener
     {
         return request ? request->getFlag() : false;
     }
+
+    const MegaNodeTree* getNodeTree() const
+    {
+        return request ? request->getNodeTree() : nullptr;
+    }
 };
 
 
@@ -587,6 +592,7 @@ public:
     template<typename ... requestArgs> int syncSendABTestActive(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->sendABTestActive(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int syncMoveToDebris(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->moveToDebris(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousSetVisibleWelcomeDialog(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setVisibleWelcomeDialog(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int synchronousCreateNodeTree(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->createNodeTree(args..., &rt); return rt.waitForResult(); }
 
     // Checkup methods called from MegaApi callbacks
     void onNodesUpdateCheck(size_t apiIndex, MegaHandle target, MegaNodeList* nodes, int change, bool& flag);
@@ -630,6 +636,7 @@ public:
     void explorePath(int account, MegaNode* node, int& files, int& folders);
 
     void synchronousMediaUpload(unsigned int apiIndex, int64_t fileSize, const char* filename, const char* fileEncrypted, const char* fileOutput, const char* fileThumbnail, const char* filePreview);
+    void synchronousMediaUploadIncomplete(unsigned int apiIndex, int64_t fileSize, const char* filename, const char* fileEncrypted, std::string& fingerprint, std::string& string64UploadToken, std::string& string64FileKey);
 
 #ifdef ENABLE_CHAT
     void createChat(bool group, MegaTextChatPeerList *peers, int timeout = maxTimeout);
