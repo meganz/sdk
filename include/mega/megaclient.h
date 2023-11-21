@@ -2612,6 +2612,8 @@ public:
                              CommandSetAttr::Completion&& cb);
     error removePasswordNode(handle h, int rTag);
     void createPasswordNodeFolder(const char* name, NodeHandle nhParent, int rTag);
+    error renamePasswordNodeFolder(NodeHandle nh, const char *newName, CommandSetAttr::Completion &&cb);
+    error removePasswordNodeFolder(NodeHandle nh, int rTag);
 };
 
 } // namespace

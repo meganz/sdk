@@ -2520,6 +2520,16 @@ void MegaApi::createPasswordNodeFolder(const char *name, MegaHandle parent, Mega
     pImpl->createPasswordNodeFolder(name, parent, listener);
 }
 
+void MegaApi::renamePasswordNodeFolder(MegaHandle node, const char* newName, MegaRequestListener *listener)
+{
+    pImpl->renamePasswordNodeFolder(node, newName, listener);
+}
+
+void MegaApi::removePasswordNodeFolder(MegaHandle node, MegaRequestListener *listener)
+{
+    pImpl->removePasswordNodeFolder(node, listener);
+}
+
 bool MegaApi::createLocalFolder(const char *localPath)
 {
     return pImpl->createLocalFolder(localPath);

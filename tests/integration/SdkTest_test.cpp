@@ -15585,7 +15585,7 @@ TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoANullPath)
  * - U1: special logging in sequence
  *     + 1) plain login
  *     + 2) get Password Manager node handle; it will be created if it didn't exist
-       + 3) fetch nodes
+ *     + 3) fetch nodes
  * - U1: get Password Manager Base via get user's attribute command
  * - U1: get Password Manager Base node again; no get user attribute requests expected
  *
@@ -15737,6 +15737,47 @@ TEST_F(SdkTest, SdkTestPasswordManager)
     ASSERT_NE(nullptr, mnPNFolder);
     ASSERT_TRUE(mnPNFolder->isPasswordNodeFolder());
     ASSERT_STREQ(newFolderName, mnPNFolder->getName());
+
+
+    LOG_debug << "# U1: update (rename) an existing Password Node Folder";
+    RequestTracker rtUpdatePNF {megaApi[userIdx].get()};
+    const char* updatedFolderName = "UpdatedPNF";
+    megaApi[userIdx]->renamePasswordNodeFolder(nhPNFolder, updatedFolderName, &rtUpdatePNF);
+    ASSERT_EQ(API_OK, rtUpdatePNF.waitForResult());
+    ASSERT_NE(nullptr, rtUpdatePNF.request);
+    ASSERT_EQ(nhPNFolder, rtUpdatePNF.request->getNodeHandle());
+    mnPNFolder.reset(megaApi[userIdx]->getPasswordNodeFolderByHandle(nhPNFolder));
+    ASSERT_NE(nullptr, mnPNFolder);
+    ASSERT_STREQ(updatedFolderName, mnPNFolder->getName());
+
+    LOG_debug << "\t# rename attempted with wrong parameters";
+    RequestTracker rtUFError {megaApi[userIdx].get()};
+    megaApi[userIdx]->renamePasswordNodeFolder(nhPNFolder, nullptr, &rtUFError);
+    ASSERT_EQ(API_EARGS, rtUFError.waitForResult());
+
+
+    LOG_debug << "# U1: delete an existing Password Node Folder";
+    RequestTracker rtDeletePNF {megaApi[userIdx].get()};
+    megaApi[userIdx]->removePasswordNodeFolder(nhPNFolder, &rtDeletePNF);
+    ASSERT_EQ(API_OK, rtDeletePNF.waitForResult());
+    mnPNFolder.reset(megaApi[userIdx]->getPasswordNodeFolderByHandle(nhPNFolder));
+    ASSERT_EQ(nullptr, mnPNFolder);
+
+    LOG_debug << "\t# deletion attempted with invalid handle provided";
+    RequestTracker rtDFError1 {megaApi[userIdx].get()};
+    megaApi[userIdx]->removePasswordNodeFolder(INVALID_HANDLE, &rtDFError1);
+    ASSERT_EQ(API_ENOENT, rtDFError1.waitForResult());
+    LOG_debug << "\t# deletion attempted with non-Password Node Folder handle provided";
+    const std::unique_ptr<MegaNode> rootNode {megaApi[userIdx]->getRootNode()};
+    ASSERT_NE(nullptr, rootNode);
+    RequestTracker rtDFError2 {megaApi[userIdx].get()};
+    megaApi[userIdx]->removePasswordNodeFolder(rootNode->getHandle(), &rtDFError2);
+    ASSERT_EQ(API_EARGS, rtDFError2.waitForResult());
+    LOG_debug << "\t# deletion attempted with Password Manager Base as handle";
+    RequestTracker rtDFError3 {megaApi[userIdx].get()};
+    megaApi[userIdx]->removePasswordNodeFolder(nhBase, &rtDFError3);
+    ASSERT_EQ(API_EARGS, rtDFError3.waitForResult());
+
 
 
     LOG_info << "# Verifying that Password Manager Base node cannot be deleted";

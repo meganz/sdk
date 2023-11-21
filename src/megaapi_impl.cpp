@@ -26294,6 +26294,52 @@ MegaNode* MegaApiImpl::getPasswordNodeFolderByHandle(handle h)
     return NULL;
 }
 
+void MegaApiImpl::renamePasswordNodeFolder(MegaHandle h, const char* newName, MegaRequestListener *listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_RENAME, listener);
+    request->setNodeHandle(h);
+    request->setName(newName);
+
+    request->performRequest = [this, request]()
+    {
+        if (client->ststatus == STORAGE_PAYWALL)
+        {
+            LOG_err << "Password Manager: failed Password Node update. Storage paywall";
+            return API_EPAYWALL;
+        }
+
+        auto newName = request->getName();
+        auto nh = NodeHandle{}.set6byte(request->getNodeHandle());
+        CommandSetAttr::Completion cbRequest = [this, request](NodeHandle nh, Error e)
+        {
+            assert(request->getNodeHandle() == nh.as8byte());
+            request->setNodeHandle(nh.as8byte());
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+        };
+
+        return client->renamePasswordNodeFolder(nh, newName, std::move(cbRequest));
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::removePasswordNodeFolder(MegaHandle h, MegaRequestListener *listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE, listener);
+    request->setNodeHandle(h);
+
+    request->performRequest = [this, request]()
+    {
+        auto nh = NodeHandle{}.set6byte(request->getNodeHandle());
+
+        return client->removePasswordNodeFolder(nh, request->getTag());
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::fetchCreditCardInfo(MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_CREDIT_CARD_INFO, listener);

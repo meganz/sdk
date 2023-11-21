@@ -3582,6 +3582,10 @@ public:
         MegaNode *getPasswordNodeFolderByHandle(handle h);
         void createPasswordNodeFolder(const char *name, MegaHandle parent,
                                       MegaRequestListener *listener = nullptr);
+        void renamePasswordNodeFolder(MegaHandle node, const char* newName,
+                                      MegaRequestListener *listener = NULL);
+        void removePasswordNodeFolder(MegaHandle node, MegaRequestListener *listener = NULL);
+
 
         void fetchCreditCardInfo(MegaRequestListener* listener = nullptr);
 

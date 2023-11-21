@@ -11870,6 +11870,42 @@ class MegaApi
          */
         void createPasswordNodeFolder(const char *name, MegaHandle parent,
                                       MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Rename a Password Node Folder in the MEGA account according to the parameter
+         *
+         * The associated request type with this request is MegaRequest::TYPE_RENAME
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - handle provided of the Password Node to update
+         * - MegaRequest::getName - new name provided for the Password Node to update
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param node Node to modify
+         * @param newName New name for the node
+         * @param listener MegaRequestListener to track this request
+         */
+        void renamePasswordNodeFolder(MegaHandle node, const char* newName,
+                                      MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Remove a Password Node Folder from the MEGA account
+         *
+         * This function doesn't move the node to the Rubbish Bin, it fully removes the node.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_REMOVE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the removed Password Node
+         *
+         * If the MEGA account is a sub-user business account, onRequestFinish will
+         * be called with the error code MegaError::API_EMASTERONLY.
+         *
+         * @param node Node to remove
+         * @param listener MegaRequestListener to track this request
+         */
+        void removePasswordNodeFolder(MegaHandle node, MegaRequestListener *listener = NULL);
+
         /**
          * @brief Create a new empty folder in your local file system
          *

@@ -20075,6 +20075,52 @@ void MegaClient::createPasswordNodeFolder(const char* name, NodeHandle nhParent,
     putnodes(nhParent, VersioningOption::NoVersioning, std::move(nn), cauth, rTag, canChangeVault);
 }
 
+error MegaClient::renamePasswordNodeFolder(NodeHandle nh, const char* newName,
+                                           CommandSetAttr::Completion&& cb)
+{
+    auto node = nodeByHandle(nh);
+    if (!(node && node->isPasswordNodeFolder() && newName && *newName))
+    {
+        LOG_err << "Password Manager: failed Password Node update wrong parameters "
+                << (node ? "" : "Password Node not provided ")
+                << (!node || (node && node->isPasswordNodeFolder()) ?
+                    "" : "Node provided is not Password Node ")
+                << (newName && !(*newName) ? "newName cannot be empty " : "");
+        return API_EARGS;
+    }
+
+    attr_map updates;
+    preparePasswordNodeName(updates, newName);
+    const bool canChangeVault = true;
+
+    return setattr(node, std::move(updates), std::move(cb), canChangeVault);
+}
+
+error MegaClient::removePasswordNodeFolder(NodeHandle nh, int rTag)
+{
+    auto node = nodeByHandle(nh);
+    if (!node)
+    {
+        LOG_err << "Password Manager: NodeHandle provided to be removed couldn't be found";
+        return API_ENOENT;
+    }
+
+    if (!node->isPasswordNodeFolder() || nh == getPasswordManagerBase())
+    {
+        LOG_err << "Password Manager: NodeHandle provided is "
+                << (node->isPasswordNodeFolder() ? "" : "not a Password Node Folder")
+                << (nh == getPasswordManagerBase() ? "Password Manager Base cannot be deleted" : "");
+        return API_EARGS;
+    }
+
+    const bool keepVersions = false;
+    const bool canChangeVault = true;
+    // use default callback function app->unlink_result
+    unlink(node.get(), keepVersions, rTag, canChangeVault);
+
+    return API_OK;
+}
+
 FetchNodesStats::FetchNodesStats()
 {
     init();
