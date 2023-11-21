@@ -12008,7 +12008,7 @@ void MegaClient::putua(userattr_map *attrs, int ctag, std::function<void (Error)
  *
  * @return False when attribute requires a request to server. False otherwise (if cached, or unknown)
  */
-bool MegaClient::getua(User* u, const attr_t at, int ctag)
+bool MegaClient::getua(User* u, const attr_t at, int ctag, mega::CommandGetUA::CompletionErr completionErr, mega::CommandGetUA::CompletionBytes completionBytes, mega::CommandGetUA::CompletionTLV completionTLV)
 {
     if (at != ATTR_UNKNOWN)
     {
@@ -12022,14 +12022,15 @@ bool MegaClient::getua(User* u, const attr_t at, int ctag)
             {
                 TLVstore *tlv = TLVstore::containerToTLVrecords(cachedav, &key);
                 restag = tag;
-                app->getua_result(tlv, at);
+                completionTLV ? completionTLV(tlv, at) : app->getua_result(tlv, at);
                 delete tlv;
                 return true;
             }
             else
             {
                 restag = tag;
-                app->getua_result((byte*) cachedav->data(), unsigned(cachedav->size()), at);
+                completionBytes ? completionBytes((byte*) cachedav->data(), unsigned(cachedav->size()), at)
+                                : app->getua_result((byte*) cachedav->data(), unsigned(cachedav->size()), at);
                 return true;
             }
         }
@@ -12037,22 +12038,22 @@ bool MegaClient::getua(User* u, const attr_t at, int ctag)
         {
             assert(u->userhandle == me);
             restag = tag;
-            app->getua_result(API_ENOENT);
+            completionErr ? completionErr(API_ENOENT) : app->getua_result(API_ENOENT);
         }
         else
         {
-            reqs.add(new CommandGetUA(this, u->uid.c_str(), at, NULL, tag, nullptr, nullptr, nullptr));
+            reqs.add(new CommandGetUA(this, u->uid.c_str(), at, NULL, tag, completionErr, completionBytes, completionTLV));
             return false;
         }
     }
     return true;
 }
 
-void MegaClient::getua(const char *email_handle, const attr_t at, const char *ph, int ctag)
+void MegaClient::getua(const char *email_handle, const attr_t at, const char *ph, int ctag, mega::CommandGetUA::CompletionErr ce, mega::CommandGetUA::CompletionBytes cb, mega::CommandGetUA::CompletionTLV ctlv)
 {
     if (email_handle && at != ATTR_UNKNOWN)
     {
-        reqs.add(new CommandGetUA(this, email_handle, at, ph,(ctag != -1) ? ctag : reqtag, nullptr, nullptr, nullptr));
+        reqs.add(new CommandGetUA(this, email_handle, at, ph, (ctag != -1) ? ctag : reqtag, ce, cb, ctlv));
     }
 }
 
