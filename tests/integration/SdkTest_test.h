@@ -192,6 +192,11 @@ struct RequestTracker : public ::mega::MegaRequestListener
         if (request) return unique_ptr<MegaNode>(request->getPublicMegaNode());
         return nullptr;
     }
+
+    bool getFlag()
+    {
+        return request ? request->getFlag() : false;
+    }
 };
 
 

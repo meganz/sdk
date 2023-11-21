@@ -6619,6 +6619,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_PUSH_SETTINGS:
         case MegaApi::USER_ATTR_COOKIE_SETTINGS:
         case MegaApi::USER_ATTR_MY_BACKUPS_FOLDER:
+        case MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG:
             scope = '^';
             break;
 
@@ -15272,6 +15273,11 @@ void MegaApiImpl::getua_completion(error e, MegaRequestPrivate* request)
             });
             return;
         }
+        else if ((request->getType() == MegaRequest::TYPE_GET_ATTR_USER) &&
+                 (request->getParamType() == MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG))
+        {
+            request->setFlag(true);
+        }
     }
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
@@ -15348,6 +15354,7 @@ void MegaApiImpl::getua_completion(byte* data, unsigned len, attr_t type, MegaRe
         case MegaApi::USER_ATTR_PWD_REMINDER:
         case MegaApi::USER_ATTR_DISABLE_VERSIONS:
         case MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION:
+        case MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG:
             {
                 string str((const char*)data,len);
                 request->setText(str.c_str());
@@ -15355,9 +15362,11 @@ void MegaApiImpl::getua_completion(byte* data, unsigned len, attr_t type, MegaRe
                 static_assert(int(MegaApi::USER_ATTR_DISABLE_VERSIONS) == ATTR_DISABLE_VERSIONS, "User Attribute Enum Mismatch");
                 static_assert(int(MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION) == ATTR_CONTACT_LINK_VERIFICATION, "User Attribute Enum Mismatch");
                 static_assert(int(MegaApi::USER_ATTR_PWD_REMINDER) == ATTR_PWD_REMINDER, "User Attribute Enum Mismatch");
+                static_assert(int(MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG) == ATTR_VISIBLE_WELCOME_DIALOG, "User Attribute Enum Mismatch");
 
                 if (int(type) == MegaApi::USER_ATTR_DISABLE_VERSIONS
-                        || int(type) == MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION)
+                        || int(type) == MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION
+                        || int(type) == MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG)
                 {
                     request->setFlag(str == "1");
                 }
@@ -15404,7 +15413,6 @@ void MegaApiImpl::getua_completion(byte* data, unsigned len, attr_t type, MegaRe
                 }
             }
             break;
-
         case MegaApi::USER_ATTR_COOKIE_SETTINGS:
             {
                 e = getCookieSettings_getua_result(data, len, request);
@@ -20785,7 +20793,8 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                 }
                 else if ((type == ATTR_DISABLE_VERSIONS)
                          || (type == ATTR_NO_CALLKIT)
-                         || (type == ATTR_CONTACT_LINK_VERIFICATION))
+                         || (type == ATTR_CONTACT_LINK_VERIFICATION)
+                         || (type == ATTR_VISIBLE_WELCOME_DIALOG))
                 {
                     if (!value || strlen(value) != 1 || (value[0] != '0' && value[0] != '1'))
                     {
@@ -26141,6 +26150,17 @@ void MegaApiImpl::fetchCreditCardInfo(MegaRequestListener* listener)
 
     requestQueue.push(request);
     waiter->notify();
+}
+
+void MegaApiImpl::getVisibleWelcomeDialog(MegaRequestListener* listener)
+{
+    getUserAttr(nullptr, MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG, nullptr, 0, listener);
+}
+
+void MegaApiImpl::setVisibleWelcomeDialog(bool visible, MegaRequestListener* listener)
+{
+    const auto attributeValue{std::to_string(visible)};
+    setUserAttr(MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG, attributeValue.c_str(), listener);
 }
 
 /* END MEGAAPIIMPL */
