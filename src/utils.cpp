@@ -2807,7 +2807,7 @@ bool readLines(const std::string& input, string_vector& destination)
         while (delim < end && *delim != '\r' && *delim != '\n')
         {
             ++delim;
-            whitespace += std::isspace(*whitespace) > 0;
+            whitespace += std::isspace(static_cast<unsigned char>(*whitespace)) > 0;
         }
 
         if (delim != whitespace)

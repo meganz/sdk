@@ -1191,7 +1191,7 @@ bool add(const string& text, StringFilterPtrVector& filters, bool& syncThisMegai
 
     // Ignore trailing whitespace.
     const char* n = text.c_str() + text.size();
-    while (n > m && std::isspace(*(n-1)))
+    while (n > m && std::isspace(static_cast<unsigned char>(*(n-1))))
         --n;
 
     // Is the pattern effectively empty?

@@ -17140,7 +17140,7 @@ bool MegaApiImpl::isFilesystemAvailable()
 
 bool isDigit(const char *c)
 {
-    return (*c >= '0' && *c <= '9');
+    return std::isdigit(static_cast<unsigned char>(*c));
 }
 
 // returns 0 if i==j, +1 if i goes first, -1 if j goes first.

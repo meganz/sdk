@@ -10941,7 +10941,7 @@ error SyncConfigIOContext::getSlotsInOrder(const LocalPath& dbPath,
         const char suffix = filePath.toPath(false).back();
 
         // Skip invalid suffixes.
-        if (!isdigit(suffix))
+        if (!isdigit(static_cast<unsigned char>(suffix)))
         {
             continue;
         }
