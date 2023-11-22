@@ -258,22 +258,22 @@ void GTestProc::onErrLine(std::string&& line)
         return;
     }
 
-    if (mSkipUnwantedTestOutput)
+    if (mHideMemLeaks)
     {
         // attempt to hide [false-positive] memory leaks, as they make the output unusable
         if (line.find("==ERROR: LeakSanitizer: detected memory leaks") != string::npos)
         {
-            mPrintingMemLeaks = true;
+            mIncomingMemLeaks = true;
             return;
         }
 
         if (Utils::startswith(line, "SUMMARY: AddressSanitizer:"))
         {
-            mPrintingMemLeaks = false;
+            mIncomingMemLeaks = false;
             return;
         }
 
-        if (mPrintingMemLeaks || line.empty())
+        if (mIncomingMemLeaks || line.empty())
         {
             return;
         }
@@ -382,6 +382,13 @@ RuntimeArgValues::RuntimeArgValues(vector<string>&& args)
 
             mRunMode = TestRunMode::LIST_ONLY;
             return;
+        }
+
+        else if (arg == "--HIDE_WORKER_MEM_LEAKS")
+        {
+            mHideWorkerMemLeaks = true;
+            it = args.erase(it); // not passed to subprocesses
+            continue;
         }
 
         ++it;
@@ -611,6 +618,7 @@ bool GTestParallelRunner::runTest(size_t workerIdx, string&& name)
     auto envVars = mCommonArgs.getEnvVarsForWorker(workerIdx);
 
     GTestProc& testProcess = mRunningGTests[workerIdx];
+    testProcess.hideMemLeaks(mCommonArgs.hidingWorkerMemLeaks());
     bool running = testProcess.run(procArgs, envVars, workerIdx, std::move(name));
 
     if (!running)

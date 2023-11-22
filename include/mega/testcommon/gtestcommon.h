@@ -64,6 +64,8 @@ public:
     std::string getRelevantOutput() { return finishedRunning() ? mRelevantOutput : std::string(); }
     const std::string& getTestName() const { return mTestName; }
 
+    void hideMemLeaks(bool hide) { mHideMemLeaks = hide; }
+
 private:
     void clearBeforeRun() override { mRelevantOutput.clear(); mOutputIsRelevant = false; }
     void onOutLine(std::string&& line) override;
@@ -87,8 +89,8 @@ private:
     std::string mRelevantOutput;
     bool mOutputIsRelevant = false;
 
-    bool mSkipUnwantedTestOutput = true; // set this to false to include mem leaks in printouts
-    bool mPrintingMemLeaks = false;
+    bool mHideMemLeaks = false; // leave memory leaks in printouts or filter them out
+    bool mIncomingMemLeaks = false;
 };
 
 
@@ -112,6 +114,8 @@ public:
     std::string getExecutable() const { return mArgs.empty() ? std::string() : mArgs[0]; }
     std::string getFilter() const { return mGtestFilterIdx < mArgs.size() ? mArgs[mGtestFilterIdx] : std::string(); }
 
+    bool hidingWorkerMemLeaks() const { return mHideWorkerMemLeaks; }
+
 private:
     std::tuple<std::string, size_t, size_t, std::string> breakTemplate() const;
 
@@ -123,6 +127,7 @@ private:
     std::string mUserAgent;
     std::string mEmailTemplate; // "foo+bar-{1-100}@mega.co.nz"
     size_t mGtestFilterIdx = SIZE_MAX; // avoid a search
+    bool mHideWorkerMemLeaks = false;
 
     enum class TestRunMode
     {
