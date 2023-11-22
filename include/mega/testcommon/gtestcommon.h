@@ -164,7 +164,7 @@ private:
 
     TestRunMode mRunMode = TestRunMode::INVALID;
 
-    static inline size_t emailsPerInstance = 3u; // default value at the time of writing this code
+    static size_t emailsPerInstance;
     static constexpr size_t maxWorkerCount = 256u; // reasonable limit used for validation only, not really a constraint
 };
 

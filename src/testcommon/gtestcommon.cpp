@@ -8,6 +8,9 @@ using namespace std;
 namespace mega
 {
 
+size_t RuntimeArgValues::emailsPerInstance = 3u; // default value at the time of writing this code
+
+
 /// class ProcessWithInterceptedOutput
 ///
 
