@@ -323,6 +323,33 @@ RuntimeArgValues::RuntimeArgValues(vector<string>&& args)
     {
         string arg = Utils::toUpperUtf8(*it);
 
+        if (arg == "--HELP")
+        {
+            cout << "Options are case insensitive." << endl;
+            cout << endl;
+            cout << "--INSTANCES:<n>             Run n tests in parallel, each in its own process. In order to achieve that, an email pattern" << endl;
+            cout << "                            will be required and will be looked up in --EMAIL-POOL argument or $MEGA_EMAIL0 env var. If" << endl;
+            cout << "                            no email pattern was found, it will behave as if n==1, thus run with a single worker process" << endl;
+            cout << "                            and use credentials from the same env vars required by a run without this arg." << endl;
+            cout << endl;
+            cout << "--EMAIL-POOL:<pattern>      Email address pattern used when running tests in parallel. Igenored when --INSTANCES was not" << endl;
+            cout << "                            passed. Must be of the form foo+bar-{1-20}@mega.co.nz." << endl;
+            cout << endl;
+            cout << "--APIURL:<url>              Custom base URL to use for contacting the server; overwrites default url." << endl;
+            cout << endl;
+            cout << "--USERAGENT:<uag>           Custom HTTP User-Agent" << endl;
+            cout << endl;
+            cout << "--GTEST_FILTER=<filter>     Set tests to execute; can be ':'-separated list, with * or other wildcards" << endl;
+            cout << "                            e.g. --GTEST_FILTER=SdkFoo.SdkTestBar:*TestBazz" << endl;
+            cout << endl;
+            cout << "--GTEST_LIST_TESTS          List tests compiled with this executable; consider --GTEST_FILTER if received." << endl;
+            cout << endl;
+            cout << "--HIDE_WORKER_MEM_LEAKS     Hide memory leaks printed by debugger while running with --INSTANCES." << endl;
+
+            mRunMode = TestRunMode::HELP;
+            return;
+        }
+
         if (Utils::startswith(arg, "--EMAIL-POOL:"))
         {
             mEmailTemplate = it->substr(13); // keep original string, not in CAPS

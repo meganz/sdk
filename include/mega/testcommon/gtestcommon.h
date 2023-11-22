@@ -104,6 +104,7 @@ public:
     bool isMainProcOnly() const { return mRunMode == TestRunMode::MAIN_PROCESS_ONLY; }
     bool isMainProcWithWorkers() const { return mRunMode == TestRunMode::MAIN_PROCESS_WITH_WORKERS; }
     bool isWorker() const { return mRunMode == TestRunMode::WORKER_PROCESS; }
+    bool isHelp() const { return mRunMode == TestRunMode::HELP; }
 
     std::string getLog() const;
     size_t getInstanceCount() const { return mInstanceCount; }
@@ -139,6 +140,7 @@ private:
         MAIN_PROCESS_ONLY,
         MAIN_PROCESS_WITH_WORKERS, // pass --INSTANCES and use an email template
         WORKER_PROCESS, // spawned by the main process, ran with --INSTANCE
+        HELP, // show Help only
     };
 
     TestRunMode mRunMode = TestRunMode::INVALID;
