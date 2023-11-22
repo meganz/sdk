@@ -67,6 +67,8 @@ struct MEGA_API FileFingerprint : public Cacheable
     const FileFingerprint& fingerprint() const { return *this; }
 
     string fingerprintDebugString() const;
+
+    bool EqualExceptValidFlag(const FileFingerprint& rhs) const;
 };
 
 // orders transfers by file fingerprints, ordered by size / mtime / sparse CRC
@@ -79,26 +81,5 @@ struct MEGA_API FileFingerprintCmp
 bool operator==(const FileFingerprint& lhs, const FileFingerprint& rhs);
 bool operator!=(const FileFingerprint& lhs, const FileFingerprint& rhs);
 
-// A light-weight fingerprint only based on size and mtime
-struct MEGA_API LightFileFingerprint
-{
-    m_off_t size = -1;
-    m_time_t mtime = 0;
-
-    LightFileFingerprint() = default;
-
-    MEGA_DEFAULT_COPY_MOVE(LightFileFingerprint)
-
-    // Establishes a new fingerprint not involving I/O
-    bool genfingerprint(m_off_t filesize, m_time_t filemtime);
-};
-
-// Orders light file fingerprints by size and mtime in terms of "<"
-struct MEGA_API LightFileFingerprintCmp
-{
-    bool operator()(const LightFileFingerprint* a, const LightFileFingerprint* b) const;
-};
-
-bool operator==(const LightFileFingerprint& lhs, const LightFileFingerprint& rhs);
 
 } // mega

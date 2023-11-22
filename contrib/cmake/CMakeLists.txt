@@ -661,13 +661,14 @@ ELSE(WIN32)
     ENDIF()
 
     IF (APPLE)
+        set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs}
+                                      "-framework CoreFoundation"
+                                      "-framework DiskArbitration")
+
         IF (USE_DRIVE_NOTIFICATIONS)
             SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles}
                                            ${MegaDir}/include/mega/osx/drivenotifyosx.h
                                            ${MegaDir}/src/osx/drivenotifyosx.cpp)
-            SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs}
-                                          "-framework DiskArbitration"
-                                          "-framework CoreFoundation")
         ENDIF()
     ENDIF ()
 
@@ -796,6 +797,7 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/logging.h
             ${MegaDir}/include/mega/file.h
             ${MegaDir}/include/mega/sync.h
+            ${MegaDir}/include/mega/syncfilter.h
             ${MegaDir}/include/mega/heartbeats.h
             ${MegaDir}/include/mega/utils.h
             ${MegaDir}/include/mega/account.h
@@ -850,6 +852,7 @@ add_library(Mega STATIC
             ${MegaDir}/src/share.cpp
             ${MegaDir}/src/sharenodekeys.cpp
             ${MegaDir}/src/sync.cpp
+            ${MegaDir}/src/syncfilter.cpp
             ${MegaDir}/src/heartbeats.cpp
             ${MegaDir}/src/testhooks.cpp
             ${MegaDir}/src/transfer.cpp
@@ -869,6 +872,8 @@ add_library(Mega STATIC
 
 target_include_directories(Mega PRIVATE ${MegaDir}/include ${Mega_PlatformSpecificIncludes})
 target_include_directories(Mega PUBLIC ${MegaDir}/include ${Mega_PlatformSpecificIncludes})
+
+MESSAGE(STATUS "ID: ${Mega_PlatformSpecificIncludes}")
 
 if (WIN32)
     set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} $<${HAVE_FFMPEG}:Mfplat.lib> $<${HAVE_FFMPEG}:Strmiids.lib> $<${HAVE_FFMPEG}:Mfuuid.lib>)
@@ -1036,6 +1041,7 @@ add_executable(test_unit
     ${MegaDir}/tests/unit/PendingContactRequest_test.cpp
     ${MegaDir}/tests/unit/Serialization_test.cpp
     ${MegaDir}/tests/unit/Share_test.cpp
+    ${MegaDir}/tests/unit/Sync_conflict_test.cpp
     ${MegaDir}/tests/unit/Sync_test.cpp
     ${MegaDir}/tests/unit/TextChat_test.cpp
     ${MegaDir}/tests/unit/Transfer_test.cpp
@@ -1144,7 +1150,7 @@ if (WIN32)
 
 else()
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb3")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Wextra -Wconversion -Wno-unused-parameter")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Wextra -Wconversion -Wno-unused-parameter -Wno-unqualified-std-cast-call -Wno-deprecated-declarations -Wno-unqualified-std-cast-call")  #no-deprecated-declarations because of FSEventStreamScheduleWithRunLoop
 
     if (ENABLE_WERROR)
         if (CMAKE_BUILD_TYPE STREQUAL "Debug" )

@@ -1582,7 +1582,6 @@ int launchMultipleProcesses(const string& argv0, const vector<string>& subproces
                 ifstream in(test.outputFilename);
                 copyStream(cout, in);
             }
-            fs::remove(test.outputFilename);
             cout << "----------------------------------------------------------------------------------------------------" << endl;
         }
 
@@ -1689,6 +1688,7 @@ int launchMultipleProcesses(const string& argv0, const vector<string>& subproces
                     copyStream(out, in);
                 }
                 fs::remove(test.logFilename);
+                fs::remove(test.outputFilename); // remove this here as well, after the process instance has been destroyed
             }
         }
 
@@ -1740,3 +1740,14 @@ void copyFileFromTestData(fs::path filename, fs::path destination)
 fs::path getLinkExtractSrciptPath() {
     return executableDir / LINK_EXTRACT_SCRIPT;
 }
+
+bool isFileHidden(const LocalPath& path)
+{
+    return FileSystemAccess::isFileHidden(path);
+}
+
+bool isFileHidden(const fs::path& path)
+{
+    return isFileHidden(LocalPath::fromAbsolutePath(path.u8string()));
+}
+

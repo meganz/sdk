@@ -22,6 +22,9 @@
  * You should have received a copy of the license along with this
  * program.
  */
+#ifndef __APPLE__
+#include <mntent.h>
+#endif // ! __APPLE__
 
 #include "mega.h"
 #include <sys/utsname.h>
@@ -284,9 +287,9 @@ bool PosixFileAccess::sysopen(bool, FSLogging fsl)
     if (fd < 0)
     {
         errorcode = errno;
-        if (fsl.doLog(errorcode, *this))
+        if (fsl.doLog(errorcode))
         {
-            LOG_err << "Failed to open('" << adjustBasePath(nonblocking_localname) << "'): error " << errorcode << ": " << getErrorMessage(errorcode);
+            LOG_err << "Failed to open('" << adjustBasePath(nonblocking_localname) << "'): error " << errorcode << ": " << PosixFileSystemAccess::getErrorMessage(errorcode);
         }
     }
 
@@ -364,7 +367,7 @@ void PosixFileAccess::asyncsysopen(AsyncIOContext *context)
                              context->access & AsyncIOContext::ACCESS_WRITE, FSLogging::logOnError);
     if (context->failed)
     {
-        LOG_err << "Failed to fopen('" << context->openPath << "'): error " << errorcode << ": " << getErrorMessage(errorcode);
+        LOG_err << "Failed to fopen('" << context->openPath << "'): error " << errorcode << ": " << PosixFileSystemAccess::getErrorMessage(errorcode);
     }
     context->retry = retry;
     context->finished = true;
@@ -671,9 +674,9 @@ bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, FSLogging
     if (fd < 0)
     {
         errorcode = errno; // streaming may set errno
-        if (fsl.doLog(errorcode, *this))
+        if (fsl.doLog(errorcode))
         {
-            LOG_err << "Failed to open('" << fstr << "'): error " << errorcode << ": " << getErrorMessage(errorcode) << (statok ? " (statok so may still open ok)" : "");
+            LOG_err << "Failed to open('" << fstr << "'): error " << errorcode << ": " << PosixFileSystemAccess::getErrorMessage(errorcode) << (statok ? " (statok so may still open ok)" : "");
         }
     }
     if (fd >= 0 || statok)
@@ -723,12 +726,26 @@ bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, FSLogging
     return false;
 }
 
-std::string PosixFileAccess::getErrorMessage(int error) const
+std::string FileSystemAccess::getErrorMessage(int error)
 {
     return strerror(error);
 }
 
-bool PosixFileAccess::isErrorFileNotFound(int error) const
+int FileSystemAccess::isFileHidden(const LocalPath& path, FSLogging)
+{
+    // What file are we actually referencing?
+    auto name = path.leafName().toPath(false);
+
+    // Only consider dotfiles hidden.
+    return name.size() > 1 && name.front() == '.';
+}
+
+bool FileSystemAccess::setFileHidden(const LocalPath& path, FSLogging logWhen)
+{
+    return isFileHidden(path, logWhen);
+}
+
+bool FSLogging::isFileNotFound(int error)
 {
     return error == ENOENT;
 }
@@ -736,12 +753,6 @@ bool PosixFileAccess::isErrorFileNotFound(int error) const
 PosixFileSystemAccess::PosixFileSystemAccess()
 {
     assert(sizeof(off_t) == 8);
-
-#ifdef ENABLE_SYNC
-    notifyerr = false;
-    notifyfailed = false;
-#endif
-    notifyfd = -1;
 
     defaultfilepermissions = 0600;
     defaultfolderpermissions = 0700;
@@ -758,20 +769,39 @@ PosixFileSystemAccess::PosixFileSystemAccess()
         }
     }
 #endif
-
-#ifdef USE_INOTIFY
-    lastcookie = 0;
-    lastlocalnode = NULL;
-#endif
 }
 
-PosixFileSystemAccess::~PosixFileSystemAccess()
+#ifdef __linux__
+#ifdef ENABLE_SYNC
+
+bool LinuxFileSystemAccess::initFilesystemNotificationSystem()
 {
-    if (notifyfd >= 0)
-    {
-        close(notifyfd);
-    }
+    mNotifyFd = inotify_init1(IN_NONBLOCK);
+
+    if (mNotifyFd < 0)
+        return mNotifyFd = -errno, false;
+
+    return true;
 }
+#endif // ENABLE_SYNC
+
+LinuxFileSystemAccess::~LinuxFileSystemAccess()
+{
+#ifdef ENABLE_SYNC
+
+    // Make sure there are no active notifiers.
+    assert(mNotifiers.empty());
+
+    // Release inotify descriptor, if any.
+    if (mNotifyFd >= 0)
+        close(mNotifyFd);
+
+#endif // ENABLE_SYNC
+}
+
+
+#endif //  __linux__
+
 
 bool PosixFileSystemAccess::cwd(LocalPath& path) const
 {
@@ -800,148 +830,143 @@ bool PosixFileSystemAccess::cwd_static(LocalPath& path)
 }
 
 // wake up from filesystem updates
-void PosixFileSystemAccess::addevents(Waiter* w, int /*flags*/)
+
+#ifdef __linux__
+void LinuxFileSystemAccess::addevents(Waiter* waiter, int flags)
 {
-    if (notifyfd >= 0)
-    {
-        PosixWaiter* pw = (PosixWaiter*)w;
+#ifdef ENABLE_SYNC
 
-        MEGA_FD_SET(notifyfd, &pw->rfds);
-        MEGA_FD_SET(notifyfd, &pw->ignorefds);
+    if (mNotifyFd < 0)
+        return;
 
-        pw->bumpmaxfd(notifyfd);
-    }
+    auto w = static_cast<PosixWaiter*>(waiter);
+
+    MEGA_FD_SET(mNotifyFd, &w->rfds);
+    MEGA_FD_SET(mNotifyFd, &w->ignorefds);
+
+    w->bumpmaxfd(mNotifyFd);
+
+#endif // ENABLE_SYNC
 }
 
 // read all pending inotify events and queue them for processing
-int PosixFileSystemAccess::checkevents(Waiter* w)
+int LinuxFileSystemAccess::checkevents(Waiter* waiter)
 {
-    int r = 0;
-    if (notifyfd < 0)
-    {
-        return r;
-    }
+    int result = 0;
+
 #ifdef ENABLE_SYNC
-#ifdef USE_INOTIFY
-    PosixWaiter* pw = (PosixWaiter*)w;
-    string *ignore;
 
-    if (MEGA_FD_ISSET(notifyfd, &pw->rfds))
+    if (mNotifyFd < 0)
+        return result;
+
+    // Called so that related syncs perform a rescan.
+    auto notifyTransientFailure = [&]() {
+        for (auto* notifier : mNotifiers)
+            ++notifier->mErrorCount;
+    };
+
+    auto* w = static_cast<PosixWaiter*>(waiter);
+
+    if (!MEGA_FD_ISSET(mNotifyFd, &w->rfds))
+        return result;
+
+    char buf[sizeof(struct inotify_event) + NAME_MAX + 1];
+    ssize_t p, l;
+    inotify_event* in;
+    WatchMapIterator it;
+    string localpath;
+
+    auto notifyAll = [&](int handle, const string& name)
     {
-        char buf[sizeof(struct inotify_event) + NAME_MAX + 1];
-        ssize_t p, l;
-        inotify_event* in;
-        wdlocalnode_map::iterator it;
-        string localpath;
+        // Loop over and notify all associated nodes.
+        auto associated = mWatches.equal_range(handle);
 
-        while ((l = read(notifyfd, buf, sizeof buf)) > 0)
+        for (auto i = associated.first; i != associated.second;)
         {
-            for (p = 0; p < l; p += offsetof(inotify_event, name) + in->len)
+            // Convenience.
+            using std::move;
+            auto& node = *i->second.first;
+            auto& sync = *node.sync;
+            auto& notifier = *sync.dirnotify;
+
+            LOG_debug << "Filesystem notification:"
+                << " Root: "
+                << node.localname
+                << " Path: "
+                << name;
+
+            if ((in->mask & IN_DELETE_SELF))
             {
-                in = (inotify_event*)(buf + p);
+                // The FS directory watched is gone
+                node.mWatchHandle.invalidate();
+                // Remove it from the container (C++11 and up)
+                i = mWatches.erase(i);
+            }
+            else
+            {
+                ++i;
+            }
 
-                if (in->mask & (IN_Q_OVERFLOW | IN_UNMOUNT))
-                {
-                    notifyerr = true;
-                }
+            auto localName = LocalPath::fromPlatformEncodedRelative(name);
+            notifier.notify(notifier.fsEventq, &node, Notification::NEEDS_PARENT_SCAN, move(localName));
 
-// this flag was introduced in glibc 2.13 and Linux 2.6.36 (released October 20, 2010)
+            // We need to rescan the directory if it's changed permissions.
+            //
+            // The reason for this is that we may not have been able to list
+            // the directory's contents before. If we didn't rescan, we
+            // wouldn't notice these files until some other event is
+            // triggered in or below this directory.
+            if (in->mask == (IN_ATTRIB | IN_ISDIR))
+                notifier.notify(notifier.fsEventq,
+                                &node,
+                                Notification::FOLDER_NEEDS_SELF_SCAN,
+                                LocalPath::fromPlatformEncodedRelative(name));
+
+            result |= Waiter::NEEDEXEC;
+        }
+    };
+
+    while ((l = read(mNotifyFd, buf, sizeof buf)) > 0)
+    {
+        for (p = 0; p < l; p += offsetof(inotify_event, name) + in->len)
+        {
+            in = (inotify_event*)(buf + p);
+
+            if ((in->mask & (IN_Q_OVERFLOW | IN_UNMOUNT)))
+            {
+                LOG_err << "inotify "
+                    << (in->mask & IN_Q_OVERFLOW ? "IN_Q_OVERFLOW" : "IN_UNMOUNT");
+
+                notifyTransientFailure();
+            }
+
+            // this flag was introduced in glibc 2.13 and Linux 2.6.36 (released October 20, 2010)
 #ifndef IN_EXCL_UNLINK
 #define IN_EXCL_UNLINK 0x04000000
 #endif
-                if (in->mask & (IN_CREATE | IN_DELETE | IN_MOVED_FROM
-                              | IN_MOVED_TO | IN_CLOSE_WRITE | IN_EXCL_UNLINK))
+            if ((in->mask & (IN_ATTRIB | IN_CREATE | IN_DELETE_SELF | IN_DELETE | IN_MOVED_FROM
+                | IN_MOVED_TO | IN_CLOSE_WRITE | IN_EXCL_UNLINK)))
+            {
+                LOG_verbose << "Filesystem notification:"
+                    << " event " << in->name << ": " << std::hex << in->mask;
+                it = mWatches.find(in->wd);
+
+                if (it != mWatches.end())
                 {
-                    //if ((in->mask & (IN_CREATE | IN_ISDIR)) != IN_CREATE) //certain operations (e.g: QFile::copy, Qt 5.11) might produce IN_CREATE with no further IN_CLOSE_WRITE
-                    {
-                        it = wdnodes.find(in->wd);
-
-                        if (it != wdnodes.end())
-                        {
-                            if (lastcookie && lastcookie != in->cookie)
-                            {
-                                ignore = &lastlocalnode->sync->dirnotify->ignore.localpath;
-                                if (lastname.size() < ignore->size()
-                                 || memcmp(lastname.c_str(), ignore->data(), ignore->size())
-                                 || (lastname.size() > ignore->size()
-                                  && lastname[ignore->size()] != LocalPath::localPathSeparator))
-                                {
-                                    // previous IN_MOVED_FROM is not followed by the
-                                    // corresponding IN_MOVED_TO, so was actually a deletion
-                                    LOG_debug << "Filesystem notification (deletion). Root: " << lastlocalnode->name << "   Path: " << lastname;
-                                    lastlocalnode->sync->dirnotify->notify(DirNotify::DIREVENTS,
-                                                                           lastlocalnode,
-                                                                           LocalPath::fromPlatformEncodedRelative(lastname),
-                                                                           false,
-                                                                           false);
-
-                                    r |= Waiter::NEEDEXEC;
-                                }
-                            }
-
-                            if (in->mask & IN_MOVED_FROM)
-                            {
-                                // could be followed by the corresponding IN_MOVE_TO or not..
-                                // retain in case it's not (in which case it's a deletion)
-                                lastcookie = in->cookie;
-                                lastlocalnode = it->second;
-                                lastname = in->name;
-                            }
-                            else
-                            {
-                                lastcookie = 0;
-
-                                ignore = &it->second->sync->dirnotify->ignore.localpath;
-                                size_t insize = strlen(in->name);
-
-                                if (insize < ignore->size()
-                                 || memcmp(in->name, ignore->data(), ignore->size())
-                                 || (insize > ignore->size()
-                                  && in->name[ignore->size()] != LocalPath::localPathSeparator))
-                                {
-                                    LOG_debug << "Filesystem notification. Root: " << it->second->name << "   Path: " << in->name;
-                                    it->second->sync->dirnotify->notify(DirNotify::DIREVENTS,
-                                                                        it->second,
-                                                                        LocalPath::fromPlatformEncodedRelative(std::string(in->name, insize)),
-                                                                        false,
-                                                                        false);
-
-                                    r |= Waiter::NEEDEXEC;
-                                }
-                            }
-                        }
-                    }
+                    // What nodes are associated with this handle?
+                    notifyAll(it->first, in->len? in->name : "");
                 }
             }
         }
-
-        // this assumes that corresponding IN_MOVED_FROM / IN_MOVED_FROM pairs are never notified separately
-        if (lastcookie)
-        {
-            ignore = &lastlocalnode->sync->dirnotify->ignore.localpath;
-
-            if (lastname.size() < ignore->size()
-             || memcmp(lastname.c_str(), ignore->data(), ignore->size())
-             || (lastname.size() > ignore->size()
-              && lastname[ignore->size()] != LocalPath::localPathSeparator))
-            {
-                LOG_debug << "Filesystem notification. Root: " << lastlocalnode->name << "   Path: " << lastname;
-                lastlocalnode->sync->dirnotify->notify(DirNotify::DIREVENTS,
-                                                       lastlocalnode,
-                                                       LocalPath::fromPlatformEncodedRelative(lastname),
-                                                       false,
-                                                       false);
-
-                r |= Waiter::NEEDEXEC;
-            }
-
-            lastcookie = 0;
-        }
     }
-#endif
-#endif
-    return r;
+
+#endif // ENABLE_SYNC
+
+    return result;
 }
+
+#endif //  __linux__
+
 
 // no legacy DOS garbage here...
 bool PosixFileSystemAccess::getsname(const LocalPath&, LocalPath&) const
@@ -1621,66 +1646,126 @@ void PosixFileSystemAccess::statsid(string *id) const
 #endif
 }
 
-#ifdef ENABLE_SYNC
+#if defined(ENABLE_SYNC)
+#if defined(__linux__)
 
-PosixDirNotify::PosixDirNotify(const LocalPath& localbasepath, const LocalPath& ignore, Sync* s)
-  : DirNotify(localbasepath, ignore, s)
+LinuxDirNotify::LinuxDirNotify(LinuxFileSystemAccess& owner,
+    LocalNode& root,
+    const LocalPath& rootPath)
+    : DirNotify(rootPath)
+    , mOwner(owner)
+    , mNotifiersIt(owner.mNotifiers.insert(owner.mNotifiers.end(), this))
 {
-#ifdef USE_INOTIFY
-    setFailed(0, "");
-#endif
+    // Assume our owner couldn't initialize.
+    setFailed(-owner.mNotifyFd, "Unable to create filesystem monitor.");
 
-#ifdef __MACH__
-    setFailed(0, "");
-#endif
-
-    fsaccess = NULL;
+    // Did our owner initialize correctly?
+    if (owner.mNotifyFd >= 0)
+        setFailed(0, "");
 }
 
-void PosixDirNotify::addnotify(LocalNode* l, const LocalPath& path)
+LinuxDirNotify::~LinuxDirNotify()
 {
-#ifdef USE_INOTIFY
-    int wd;
-
-    wd = inotify_add_watch(fsaccess->notifyfd, path.localpath.c_str(),
-                           IN_CREATE | IN_DELETE | IN_MOVED_FROM | IN_MOVED_TO
-                           | IN_CLOSE_WRITE | IN_EXCL_UNLINK | IN_ONLYDIR);
-
-    if (wd >= 0)
-    {
-        l->dirnotifytag = (handle)wd;
-        fsaccess->wdnodes[wd] = l;
-    }
-    else
-    {
-        LOG_warn << "Unable to addnotify path: " <<  path.localpath.c_str() << ". Error code: " << errno;
-    }
-#endif
+    // Remove ourselves from our owner's list of notiifers.
+    mOwner.mNotifiers.erase(mNotifiersIt);
 }
 
-void PosixDirNotify::delnotify(LocalNode* l)
+#if defined(USE_INOTIFY)
+
+AddWatchResult LinuxDirNotify::addWatch(LocalNode& node,
+    const LocalPath& path,
+    handle fsid)
 {
-#ifdef USE_INOTIFY
-    if (fsaccess->wdnodes.erase((int)(long)l->dirnotifytag))
+    using std::forward_as_tuple;
+    using std::piecewise_construct;
+
+    assert(node.type == FOLDERNODE);
+
+    // Convenience.
+    auto& watches = mOwner.mWatches;
+
+    auto handle =
+        inotify_add_watch(mOwner.mNotifyFd,
+            path.localpath.c_str(),
+            IN_ATTRIB
+            | IN_CLOSE_WRITE
+            | IN_CREATE
+            | IN_DELETE
+            | IN_DELETE_SELF
+            | IN_EXCL_UNLINK
+            | IN_MOVED_FROM // event->cookie set as IN_MOVED_TO
+            | IN_MOVED_TO
+            | IN_ONLYDIR);
+
+    if (handle >= 0)
     {
-        inotify_rm_watch(fsaccess->notifyfd, (int)l->dirnotifytag);
+        auto entry =
+            watches.emplace(piecewise_construct,
+                forward_as_tuple(handle),
+                forward_as_tuple(&node, fsid));
+
+        return make_pair(entry, WR_SUCCESS);
     }
-#endif
+
+    LOG_warn << "Unable to monitor path for filesystem notifications: "
+        << path.localpath.c_str()
+        << ": Descriptor: "
+        << mOwner.mNotifyFd
+        << ": Error: "
+        << errno;
+
+    if (errno == ENOMEM || errno == ENOSPC)
+        return make_pair(watches.end(), WR_FATAL);
+
+    return make_pair(watches.end(), WR_FAILURE);
 }
-#endif // ENABLE_SYNC
 
+void LinuxDirNotify::removeWatch(WatchMapIterator entry)
+{
+    LOG_verbose << "removeWatch for handle: " << entry->first;
+    auto& watches = mOwner.mWatches;
 
-#ifndef O_NOATIME
-#define O_NOATIME 0x0
-#endif // !O_NOATIME
+    auto handle = entry->first;
+    assert(handle >= 0);
 
+    watches.erase(entry); // Removes first instance
+
+    if (watches.find(handle) != watches.end())
+    {
+        LOG_warn << " There are more watches under handle: " << handle;
+
+        auto it = watches.find(handle);
+
+        while (it!=watches.end() && it->first == handle)
+        {
+            LOG_warn << "Handle: " << handle << " fsid:" << it->second.second;
+
+            ++it;
+        }
+
+        return;
+    }
+
+    auto const removedResult = inotify_rm_watch(mOwner.mNotifyFd, handle);
+
+    if (removedResult)
+    {
+        LOG_verbose << "inotify_rm_watch for handle: " << handle
+            <<  " error no: " << errno;
+    }
+}
+
+#endif // USE_INOTIFY
+#endif // __linux__
+
+#endif //ENABLE_SYNC
 // Used by directoryScan(...) below to avoid extra stat(...) calls.
 class UnixStreamAccess
     : public InputStreamAccess
 {
 public:
     UnixStreamAccess(const char* path, m_off_t size)
-      : mDescriptor(open(path, O_NOATIME | O_RDONLY))
+      : mDescriptor(open(path))
       , mOffset(0)
       , mSize(size)
     {
@@ -1723,6 +1808,28 @@ public:
     }
 
 private:
+
+    // open with O_NOATIME if possible
+    int open(const char *path)
+    {
+#ifdef TARGET_OS_IPHONE
+        // building for iOS, there is no O_NOATIME flag
+        int fd = ::open(path, O_RDONLY) ;
+#else
+        // for sync in particular, try to open without setting access-time
+        // we don't want to update that every time we get a fingerprint to see if it's changed
+        // and we don't want to be processing the filesystem notifications that would cause either
+        int fd = ::open(path, O_NOATIME | O_RDONLY);
+
+        if (fd < 0 && errno == EPERM)
+        {
+            // But then, on some systems (Android) sometimes (for external storage, but not for internal), the call fails if we try to set O_NOATIME
+            fd = ::open(path, O_RDONLY);
+        }
+#endif
+        return fd;
+    }
+
     int mDescriptor;
     m_off_t mOffset;
     m_off_t mSize;
@@ -1748,10 +1855,13 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
     };
 
     // So we don't duplicate link chasing logic.
-    auto stat = [&](const char* path, struct stat& metadata) {
+    auto stat = [&](const char* path, struct stat& metadata, bool* followSymLinkHere = nullptr) {
         auto result = !lstat(path, &metadata);
 
-        if (!result || !followSymLinks || !S_ISLNK(metadata.st_mode))
+        if (!result) return false;
+
+        bool followSymLink = followSymLinkHere ? *followSymLinkHere : followSymLinks;
+        if (!followSymLink || !S_ISLNK(metadata.st_mode))
             return result;
 
         return !::stat(path, &metadata);
@@ -1761,7 +1871,8 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
     struct stat metadata;
 
     // Try and get information about the scan target.
-    if (!stat(targetPath.localpath.c_str(), metadata))
+    bool scanTarget_followSymLink = true; // Follow symlink for the parent directory, so we retrieve the stats of the path that the symlinks points to
+    if (!stat(targetPath.localpath.c_str(), metadata, &scanTarget_followSymLink))
     {
         LOG_warn << "Failed to directoryScan: "
                  << "Unable to stat(...) scan target: "
@@ -1787,7 +1898,9 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
     {
         LOG_warn << "Failed to directoryScan: "
                  << "Scan target mismatch on expected FSID: "
-                 << targetPath;
+                 << targetPath
+                 << " was " << expectedFsid
+                 << " now " << (handle)metadata.st_ino;
 
         return SCAN_FSID_MISMATCH;
     }
@@ -1868,7 +1981,7 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
                      << (metadata.st_mode & S_IFMT);
 
             result.isSymlink = S_ISLNK(metadata.st_mode);
-            result.type = TYPE_SPECIAL;
+            result.type = result.isSymlink ? TYPE_SYMLINK: TYPE_SPECIAL;
             continue;
         }
 
@@ -1937,25 +2050,201 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
     return SCAN_SUCCESS;
 }
 
-#ifdef ENABLE_SYNC
+#ifndef __APPLE__
 
-fsfp_t PosixFileSystemAccess::fsFingerprint(const LocalPath& path) const
+// Determine which device contains the specified path.
+static std::string deviceOf(const std::string& path)
 {
-    struct statfs statfsbuf;
-    fsfp_t result;
+    // Convenience.
+    using FileDeleter = std::function<int(FILE*)>;
+    using FilePtr     = std::unique_ptr<FILE, FileDeleter>;
 
-    // FIXME: statfs() does not really do what we want.
-    if (statfs(path.localpath.c_str(), &statfsbuf))
+    // Try and open mount database.
+    FilePtr mounts(setmntent("/proc/mounts", "r"), endmntent);
+
+    // Couldn't open mount database.
+    if (!mounts)
     {
-        int e = errno;
-        LOG_err << "statfs() failed, errno " << e << " while processing path " << path;
-        return result;
+        // Latch error.
+        auto error = errno;
+
+        LOG_warn << "Couldn't open mount database: "
+                 << strerror(error);
+
+        return std::string();
     }
-    handle tmp;
-    memcpy(&tmp, &statfsbuf.f_fsid, sizeof(handle));
-    result.id = tmp+1;
-    return result;
+
+    // What device contains path?
+    std::string device;
+
+    // Determines which device is the strongest match.
+    //
+    // As an example consider:
+    // /dev/sda1 -> /mnt/usb
+    // /dev/sda2 -> /mnt/usb/a/b/c
+    //
+    // /dev/sda2 is a better match for /mnt/usb/a/b/c/d.
+    std::size_t score = 0;
+
+    // Temporary storage space for mount entries.
+    std::string storage(1, '\x0');
+
+    storage.reserve(3 * PATH_MAX - 1);
+
+    // Try and determine which device contains path.
+    for (errno = 0; ; )
+    {
+        struct mntent entry;
+
+        // Couldn't retrieve mount entry.
+        if (!getmntent_r(mounts.get(),
+                         &entry,
+                         &storage[0],
+                         static_cast<int>(storage.capacity())))
+            break;
+
+        // Where is this device mounted?
+        std::string target = entry.mnt_dir;
+
+        // Path's too short to be contained by target.
+        if (path.size() < target.size())
+            continue;
+
+        // Target doesn't contain path.
+        if (path.compare(0, target.size(), target))
+            continue;
+
+        // Existing device is a better match.
+        if (score >= target.size())
+            continue;
+
+        // This device is a better match.
+        device = entry.mnt_fsname;
+        score  = target.size();
+    }
+
+    // Couldn't retrieve mount entry.
+    if (errno)
+    {
+        // Latch error.
+        auto error = errno;
+
+        LOG_warn << "Couldn't enumerate mount database: "
+                 << strerror(error);
+
+        return std::string();
+    }
+
+    // Couldn't resolve symlinks in device.
+    if (!realpath(device.c_str(), &storage[0]))
+        return std::string();
+
+    // Return device to caller.
+    return storage.c_str();
 }
+
+// Compute legacy filesystem fingerprint.
+static std::uint64_t fingerprintOf(const std::string& path)
+{
+    struct statfs buffer;
+
+    // What filesystem contains our path?
+    if (statfs(path.c_str(), &buffer))
+        return 0;
+
+    std::uint64_t value;
+
+    // Alias-friendly conversion to uint64_t.
+    std::memcpy(&value, &buffer.f_fsid, sizeof(value));
+
+    return ++value;
+}
+
+// Determine the UUID of the specified device.
+static std::string uuidOf(const std::string& device)
+{
+    // Convenience.
+    using IteratorDeleter = std::function<int(DIR*)>;
+    using IteratorPtr     = std::unique_ptr<DIR, IteratorDeleter>;
+
+    std::string path = "/dev/disk/by-uuid";
+
+    // Try and open /dev/disk/by-uuid.
+    IteratorPtr iterator(opendir(path.c_str()), closedir);
+
+    // Couldn't open /dev/disk/by-uuid.
+    if (!iterator)
+    {
+        // Latch error.
+        auto error = errno;
+
+        LOG_warn << "Couldn't determine device UUID: "
+                 << strerror(error);
+
+        return std::string();
+    }
+
+    // Convenience.
+    auto size = path.size();
+
+    // Temporary storage.
+    std::string storage(1, '\0');
+
+    storage.reserve(PATH_MAX - 1);
+
+    // Try and determine which entry references device.
+    for (errno = 0; ; )
+    {
+        // Try and retrieve next directory entry.
+        const auto* entry = readdir(iterator.get());
+
+        // Couldn't retrieve directory entry.
+        if (!entry)
+            break;
+
+        // Restore path's size.
+        path.resize(size);
+
+        // Compute path of directory entry.
+        path.append(1, '/');
+        path.append(entry->d_name);
+
+        // Couldn't resolve link.
+        if (!realpath(path.c_str(), &storage[0]))
+            continue;
+
+        // Resolved path matches our device.
+        if (device == &storage[0])
+            return entry->d_name;
+    }
+
+    // Couldn't determine device's UUID.
+    return std::string();
+}
+
+fsfp_t FileSystemAccess::fsFingerprint(const LocalPath& path) const
+{
+    // Try and compute legacy filesystem fingerprint.
+    auto fingerprint = fingerprintOf(path.localpath);
+
+    // Couldn't compute legacy fingerprint.
+    if (!fingerprint)
+        return fsfp_t();
+
+    // What device contains the specified path?
+    auto device = deviceOf(path.localpath);
+
+    // Couldn't determine the device that contains path.
+    if (device.empty())
+        return fsfp_t();
+
+    // Return fingerprint to caller.
+    return fsfp_t(fingerprint, uuidOf(device));
+}
+
+#endif // ! __APPLE__
+
+#ifdef ENABLE_SYNC
 
 bool PosixFileSystemAccess::fsStableIDs(const LocalPath& path) const
 {
@@ -1973,16 +2262,6 @@ bool PosixFileSystemAccess::fsStableIDs(const LocalPath& path) const
            && type != FS_FAT32
            && type != FS_FUSE
            && type != FS_LIFS;
-}
-
-bool PosixFileSystemAccess::initFilesystemNotificationSystem()
-{
-#ifdef USE_INOTIFY
-    notifyfd = inotify_init1(IN_NONBLOCK);
-    notifyfailed = notifyfd < 0;
-#endif // USE_INOTIFY
-
-    return notifyfd >= 0;
 }
 
 #endif // ENABLE_SYNC
@@ -2019,15 +2298,15 @@ unique_ptr<DirAccess>  PosixFileSystemAccess::newdiraccess()
     return unique_ptr<DirAccess>(new PosixDirAccess());
 }
 
+#ifdef __linux__
 #ifdef ENABLE_SYNC
-DirNotify* PosixFileSystemAccess::newdirnotify(const LocalPath& localpath, const LocalPath& ignore, Waiter*, LocalNode* syncroot)
+DirNotify* LinuxFileSystemAccess::newdirnotify(LocalNode& root,
+    const LocalPath& rootPath,
+    Waiter*)
 {
-    PosixDirNotify* dirnotify = new PosixDirNotify(localpath, ignore, syncroot->sync);
-
-    dirnotify->fsaccess = this;
-
-    return dirnotify;
+    return new LinuxDirNotify(*this, root, rootPath);
 }
+#endif
 #endif
 
 bool PosixFileSystemAccess::issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning)
@@ -2265,7 +2544,6 @@ PosixDirAccess::~PosixDirAccess()
         globfree(&globbuf);
     }
 }
-
 
 // A more robust implementation would check whether the device has storage
 // quotas enabled and if so, return the amount of space available before

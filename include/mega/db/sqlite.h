@@ -119,7 +119,7 @@ public:
     bool searchInShareOrOutShareByName(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, ShareType_t shareType, CancelToken cancelFlag) override;
 
     bool getNodesByFingerprint(const std::string& fingerprint, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
-    bool getNodeByFingerprint(const std::string& fingerprint, mega::NodeSerialized& node) override;
+    bool getNodeByFingerprint(const std::string& fingerprint, mega::NodeSerialized& node, NodeHandle& handle) override;
     bool getRecentNodes(unsigned maxcount, m_time_t since, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
     bool getFavouritesHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) override;
     bool childNodeByNameType(NodeHandle parentHanlde, const std::string& name, nodetype_t nodeType, std::pair<NodeHandle, NodeSerialized>& node) override;

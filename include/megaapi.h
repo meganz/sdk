@@ -92,6 +92,8 @@ class MegaScheduledFlags;
 class MegaScheduledRules;
 class MegaIntegerMap;
 class MegaIntegerList;
+class MegaSyncStall;
+class MegaSyncStallList;
 class MegaVpnCredentials;
 
 #if defined(SWIG)
@@ -4301,8 +4303,10 @@ class MegaRequest
             TYPE_PUT_VPN_CREDENTIAL                                         = 174,
             TYPE_DEL_VPN_CREDENTIAL                                         = 175,
             TYPE_CHECK_VPN_CREDENTIAL                                       = 176,
-            TYPE_FETCH_CREDIT_CARD_INFO                                     = 177,
-            TOTAL_OF_REQUEST_TYPES                                          = 178
+            TYPE_GET_SYNC_STALL_LIST                                        = 177,
+            TYPE_FETCH_CREDIT_CARD_INFO                                     = 178,
+            TYPE_MOVE_TO_DEBRIS                                             = 179,
+            TOTAL_OF_REQUEST_TYPES                                          = 180,
         };
 
         virtual ~MegaRequest();
@@ -5155,6 +5159,21 @@ class MegaRequest
         virtual MegaSetElementList* getMegaSetElementList() const;
 
         virtual MegaBackupInfoList* getMegaBackupInfoList() const;
+
+#ifdef ENABLE_SYNC
+        /**
+         * @brief
+         * Returns a reference to this request's MegaSyncStallList instance.
+         *
+         * This value is valid only for the following requests:
+         * - MegaApi::getMegaSyncStallList
+         *
+         * @return
+         * A reference to this request's MegaSyncStallList instance.
+         */
+        virtual MegaSyncStallList* getMegaSyncStallList() const;
+
+#endif // ENABLE_SYNC
 
         /**
          * @brief Returns the VPN credentials registered by the user.
@@ -6540,7 +6559,7 @@ public:
         UNKNOWN_TEMPORARY_ERROR = 24, // unknown temporary error
         TOO_MANY_ACTION_PACKETS = 25, // Too many changes in account, local state discarded
         LOGGED_OUT = 26, // Logged out
-        WHOLE_ACCOUNT_REFETCHED = 27, // The whole account was reloaded, missed actionpacket changes could not have been applied
+        //WHOLE_ACCOUNT_REFETCHED = 27, // obsolete.  was: The whole account was reloaded, missed actionpacket changes could not have been applied
         MISSING_PARENT_NODE = 28, // Setting a new parent to a parent whose LocalNode is missing its corresponding Node crossref
         BACKUP_MODIFIED = 29, // Backup has been externally modified.
         BACKUP_SOURCE_NOT_BELOW_DRIVE = 30,     // Backup source path not below drive path.
@@ -6640,12 +6659,6 @@ public:
      * @return The path of the Remote folder from when it was last being synced
      */
     virtual const char* getLastKnownMegaFolder() const;
-
-    /**
-     * @brief Gets an unique identifier of the local filesystem that is being synced
-     * @return Unique identifier of the local file system that is being synced
-     */
-    virtual long long getLocalFingerprint() const;
 
     /**
      * @brief Returns the identifier of this synchronization
@@ -6848,7 +6861,165 @@ class MegaSyncList
         virtual void addSync(MegaSync* sync);
 };
 
+/**
+ * @brief A synchronization conflict that requires user intervention to be solved
+ */
+class MegaSyncStall
+{
+    public:
+        MegaSyncStall() = default;
+        virtual ~MegaSyncStall() = default;
 
+        enum SyncStallReason {
+            NoReason = 0,
+            FileIssue,
+            MoveOrRenameCannotOccur,
+            DeleteOrMoveWaitingOnScanning,
+            DeleteWaitingOnMoves,
+            UploadIssue,
+            DownloadIssue,
+            CannotCreateFolder,
+            CannotPerformDeletion,
+            SyncItemExceedsSupportedTreeDepth,
+            FolderMatchedAgainstFile,
+            LocalAndRemoteChangedSinceLastSyncedState_userMustChoose,
+            LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose,
+            NamesWouldClashWhenSynced,
+
+            SyncStallReason_LastPlusOne
+        };
+
+        enum SyncPathProblem {
+            NoProblem = 0,
+            FileChangingFrequently,
+            IgnoreRulesUnknown,
+            DetectedHardLink,
+            DetectedSymlink,
+            DetectedSpecialFile,
+            DifferentFileOrFolderIsAlreadyPresent,
+            ParentFolderDoesNotExist,
+            FilesystemErrorDuringOperation,
+            NameTooLongForFilesystem,
+            CannotFingerprintFile,
+            DestinationPathInUnresolvedArea,
+            MACVerificationFailure,
+            DeletedOrMovedByUser,
+            FileFolderDeletedByUser,
+            MoveToDebrisFolderFailed,
+            IgnoreFileMalformed,
+            FilesystemErrorListingFolder,
+            FilesystemErrorIdentifyingFolderContent,
+            UndecryptedCloudNode,
+            WaitingForScanningToComplete,
+            WaitingForAnotherMoveToComplete,
+            SourceWasMovedElsewhere,
+            FilesystemCannotStoreThisName,
+            CloudNodeInvalidFingerprint,
+
+            PutnodeDeferredByController,
+            PutnodeCompletionDeferredByController,
+            PutnodeCompletionPending,
+            UploadDeferredByController,
+
+            SyncPathProblem_LastPlusOne
+        };
+
+        /**
+         * @brief Creates a copy of this MegaSyncStall object
+         *
+         * You are the owner of the returned object
+         *
+         * @return Copy of the MegaSyncStall object
+         */
+        virtual MegaSyncStall* copy() const = 0;
+
+        /**
+        * @return reason for the sync stall
+        */
+        virtual SyncStallReason reason() const = 0;
+
+        /**
+        * @return a human readable (english only) representation of the sync stall reason. @see SyncStallReason
+        */
+        virtual const char* reasonDebugString() const = 0;
+
+        /**
+         * To get all paths involved in the stall,
+         * try with index 0, 1, 2 etc.  Usually there
+         * are two maximum.  Empty paths should be
+         * ignored unless there is a corresponding `pathProblem`.
+         * until the function returns NULL.  You can
+         * do this for each of cloudSide: true/false.
+         *
+         * @return path involved in the sync stall
+         */
+        virtual const char* path(bool cloudSide, int index) const = 0;
+
+        /**
+         * For cloud-side paths, call this function to get the
+         * corresponding node handle (if any)
+         */
+        virtual MegaHandle cloudNodeHandle(int index) const = 0;
+
+        /**
+         * To get the count of paths
+         *
+         * @return path count involved in the sync stall
+         */
+        virtual unsigned int pathCount(bool cloudSide) const = 0;
+
+        /**
+         * use the same technique as for `path` with
+         * cloudSide, index. -1 is returned when there is no entry.
+         * This function returns an enum describing a condition
+         * of the corresponding `path` that will help
+         * explain the stall to the user.
+         * It is possible for there to be a reason but with an empty path.
+         *
+         * @return local path involved in the sync stall
+         */
+        virtual int pathProblem(bool cloudSide, int index) const = 0;
+
+        /**
+         * For some casess, it's likely that a sutiable course of action
+         * for the user is to add the problematic path to .megaignore
+         * This function advises if the GUI could/should offer a
+         * shortcut button to do that.
+         * The path in question would be the one from pathProblem with
+         * the same arguments (but expressed as a cloud path from only the
+         * sync root)
+         *
+         * @return local path involved in the sync stall
+         */
+        virtual bool couldSuggestIgnoreThisPath(bool cloudSide, int index) const = 0;
+
+        /**
+        * Use this method for move problems to indicate which side
+        * the move was detected on, and therefore the other side
+        * is where the move could not be repliated.
+        */
+        virtual bool detectedCloudSide() const = 0;
+};
+
+/**
+ * @brief A list of synchronization stall conflicts @see MegaSyncStall
+ */
+class MegaSyncStallList
+{
+    public:
+        MegaSyncStallList() = default;
+        virtual ~MegaSyncStallList() = default;
+        virtual MegaSyncStallList* copy() const;
+        /**
+         * @param index of the request element in the list.
+         * @return constant pointer to a MegaSyncStall stored in the container.
+         */
+        virtual const MegaSyncStall* get(size_t index) const;
+        /**
+         * @return number of elements in the list.
+         */
+        virtual size_t size() const;
+};
 
 #endif // ENABLE_SYNC
 
@@ -7988,6 +8159,17 @@ class MegaGlobalListener
          * @param api MegaApi object connected to the account
          */
         virtual void onReloadNeeded(MegaApi* api);
+
+        /**
+         * @brief This function is called when seqTag updates.
+         *
+         * Used for synchronization of state between webclient and app on the same device
+         * Subject to significatnt alterations in future as this is based on internal implementation details.
+         *
+         * @param api MegaApi object connected to the account
+         * @param seqTag The string representing the sequence tag. (ownership stays with the SDK)
+         */
+        virtual void onSeqTagUpdate(MegaApi* api, const std::string* seqTag);
 
 #ifdef ENABLE_SYNC
         /**
@@ -9326,7 +9508,7 @@ class MegaApi
             RETRY_SERVERS_BUSY = 2,
             RETRY_API_LOCK = 3,
             RETRY_RATE_LIMIT = 4,
-            RETRY_LOCAL_LOCK = 5,
+            //RETRY_LOCAL_LOCK = 5,  // deprecated
             RETRY_UNKNOWN = 6
         };
 
@@ -10380,6 +10562,21 @@ class MegaApi
          * @return The current sequence number
          */
         char *getSequenceNumber();
+
+        /**
+         * @brief Returns the current sequence tag
+         *
+         * The sequence tag indicates the state of a MEGA account known by the SDK.
+         * When external changes (*) are received via actionpackets, the sequence tag is
+         * updated and changes are commited to the local cache.
+         * Contrary to sequence numbers, sequence tags can be compared.
+         * (*) external changes occurred in v3 enabled clients.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @return The current sequence tag
+         */
+        char *getSequenceTag();
 
         /**
          * @brief Get an authentication token that can be used to identify the user account
@@ -15408,7 +15605,7 @@ class MegaApi
          */
         void syncFolder(MegaSync::SyncType syncType, const char *localSyncRootFolder, const char *name, MegaHandle remoteSyncRootFolder,
             const char* driveRootIfExternal,
-            MegaRequestListener *listener);
+            MegaRequestListener *listener, const char* excludePath = nullptr);
 
         /**
          * @brief Copy sync data to SDK cache.
@@ -15575,6 +15772,17 @@ class MegaApi
         void setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningState targetState, MegaRequestListener *listener = NULL);
 
         /**
+        * @brief Cause one or all syncs' local folder tree to be rescanned
+        *
+        * The scanning will start, and the usual scanning callbacks notify
+        * about when scanning is going on, or is resolved.
+        *
+        * @param backupId Identifier of the single Sync, or INVALID_HANDLE to rescan all.
+        * @param reFingerprint If true, files on disk will be re-fingerprinted in case of changes not detectable by mtime etc
+        */
+        void rescanSync(MegaHandle backupId, bool reFingerprint);
+
+        /**
          * @brief
          * Imports internal sync configs from JSON.
          *
@@ -15621,15 +15829,7 @@ class MegaApi
         bool isSyncing();
 
         /**
-         * @brief Check if the MegaNode is synchronized with a local file
-         * @param MegaNode to check
-         * @return true if the node is synchronized, othewise false
-         * @see MegaApi::getLocalPath
-         */
-        bool isSynced(MegaNode *n);
-
-        /**
-         * @brief Set a list of excluded file names
+         * @brief Inform the SDK of the exclusion names used for old syncs, in case any need to be upgraded to .megaignore
          *
          * Wildcards (* and ?) are allowed
          *
@@ -15637,10 +15837,10 @@ class MegaApi
          * @deprecated A more powerful exclusion system based on regular expresions is being developed. This
          * function will be removed in future updates
          */
-        void setExcludedNames(std::vector<std::string> *excludedNames);
+        void setLegacyExcludedNames(std::vector<std::string> *excludedNames);
 
         /**
-         * @brief Set a list of excluded paths
+         * @brief Inform the SDK of the exclusion paths used for old syncs, in case any need to be upgraded to .megaignore
          *
          * Wildcards (* and ?) are allowed
          *
@@ -15648,10 +15848,10 @@ class MegaApi
          * @deprecated A more powerful exclusion system based on regular expresions is being developed. This
          * function will be removed in future updates
          */
-        void setExcludedPaths(std::vector<std::string> *excludedPaths);
+        void setLegacyExcludedPaths(std::vector<std::string> *excludedPaths);
 
         /**
-         * @brief Set a lower limit for synchronized files
+         * @brief Inform the SDK of the size limits used for old syncs, in case any need to be upgraded to .megaignore
          *
          * Files with a size lower than this limit won't be synchronized
          * To disable the limit, you can set it to 0
@@ -15661,10 +15861,10 @@ class MegaApi
          *
          * @param limit Lower limit for synchronized files
          */
-        void setExclusionLowerSizeLimit(long long limit);
+        void setLegacyExclusionLowerSizeLimit(unsigned long long limit);
 
         /**
-         * @brief Set an upper limit for synchronized files
+         * @brief Inform the SDK of the size limits used for old syncs, in case any need to be upgraded to .megaignore
          *
          * Files with a size greater than this limit won't be synchronized
          * To disable the limit, you can set it to 0
@@ -15674,25 +15874,7 @@ class MegaApi
          *
          * @param limit Upper limit for synchronized files
          */
-        void setExclusionUpperSizeLimit(long long limit);
-
-        /**
-         * @brief Move a local file to the local "Debris" folder
-         *
-         * The file have to be inside a local synced folder
-         *
-         * @param path Path of the local file
-         * @return true on success, false on failure
-         */
-        bool moveToLocalDebris(const char *path);
-
-        /**
-         * @brief Check if a path is syncable based on the excluded names and paths and sizes
-         * @param name Path to check
-         * @param size Size of the file or -1 to ignore the size
-         * @return true if the path is syncable, otherwise false
-         */
-        bool isSyncable(const char *path, long long size);
+        void setLegacyExclusionUpperSizeLimit(unsigned long long limit);
 
         /**
          * @brief Check if it's possible to start synchronizing a folder node.
@@ -15770,16 +15952,59 @@ class MegaApi
         long long getNumLocalNodes();
 
         /**
-         * @brief Get the path if the file/folder that is blocking the sync engine
+         * @brief
+         * Query the sync engine to find out what is causing sync stalls
          *
-         * If the sync engine is not blocked, this function returns NULL
-         * You take the ownership of the returned value
+         * The type of this request is MegaRequest::TYPE_GET_SYNC_STALL_LIST.
          *
-         * @return Path of the file that is blocking the sync engine, or NULL if it isn't blocked
+         * @param listener
+         * A MegaRequestListener with which to track the request.
+         *
+         * @param detailed
+         * Set to true if you want to receive as much information as
+         * possible detailing any problems the sync engine has detected.
+         *
+         * If this flag is false, the engine will tell you whether it had
+         * detected any name conflicts or stalls but it will not include any
+         * information about those conflicts or stalls.
+         *
+         * If the flag is true, the engine will include detailed information
+         * about any detected name conflicts or stalls.
          */
-        char *getBlockedPath();
+        void getMegaSyncStallList(MegaRequestListener* listener);
 
-#endif
+
+        /**
+         * @brief
+         * Clear a stall item in case the user Refreshes the list again
+         * before the sync code has re-iterated the tree to generate a new list
+         *
+         * @param stallCloudPath
+         * The stall item (or a copy of it) that was addressed but for which the
+         * sync code might not have noticed yet.
+         */
+        void clearStalledPath(MegaSyncStall* originalStall);
+
+        /**
+         * @brief Move local path to sync debris folder
+         *
+         * The associated request type with this request is MegaRequest::TYPE_MOVE_TO_DEBRIS.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getText - Returns local path.
+         * - MegaRequest::getNodeHandle - Returns sync backup Id
+         *
+         *  On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EARGS - Invalid path or backup id
+         * - MegaError::API_ENOENT - There is no sync with this id
+         * - MegaError::API_EINTERNAL - failure moving to sync debris
+         *
+         * @param path local path
+         * @param syncBackupId handle to the sync
+         * @param listener MegaRequestListener to track this request
+         */
+        void moveToDebris(const char* path, MegaHandle syncBackupId, MegaRequestListener* listener = nullptr);
+
+#endif // ENABLE_SYNC
 
         /**
          * @brief Move or Remove the nodes that used to be part of backup.
@@ -15873,34 +16098,14 @@ class MegaApi
         int isWaiting();
 
         /**
-         * @brief Check if the SDK is waiting to complete a request and get the reason
-         * @return State of SDK.
-         *
-         * Valid values are:
-         * - MegaApi::RETRY_NONE = 0
-         * SDK is not waiting for the server to complete a request
-         *
-         * - MegaApi::RETRY_CONNECTIVITY = 1
-         * SDK is waiting for the server to complete a request due to connectivity issues
-         *
-         * - MegaApi::RETRY_SERVERS_BUSY = 2
-         * SDK is waiting for the server to complete a request due to a HTTP error 500
-         *
-         * - MegaApi::RETRY_API_LOCK = 3
-         * SDK is waiting for the server to complete a request due to an API lock (API error -3)
-         *
-         * - MegaApi::RETRY_RATE_LIMIT = 4,
-         * SDK is waiting for the server to complete a request due to a rate limit (API error -4)
-         *
-         * - MegaApi::RETRY_LOCAL_LOCK = 5
-         * SDK is waiting for a local locked file
-         *
-         * - MegaApi::RETRY_UNKNOWN = 6
-         * SDK is waiting for the server to complete a request with unknown reason
-         *
-         * @deprecated Use MegaApi::isWaiting instead of this function.
-         */
-        int areServersBusy();
+        * @brief Find out if the syncs need User intervention for some files/folders
+        *
+        * use getMegaSyncStallList() to find out what needs attention.
+        *
+        * @return true if the User is needs to intervene.
+        *
+        */
+        bool isSyncStalled();
 
         /**
          * @brief Get the number of pending uploads
@@ -16031,9 +16236,24 @@ class MegaApi
 
         /**
          * @brief Get the total number of nodes in the account
+         *
+         * @note This method doesn't lock SDK mutex, returned value may not be up to date
+         * Nodes can be removed or added but this value is updated at the end of MegaClient::notityPurge
+         *
          * @return Total number of nodes in the account
          */
         unsigned long long getNumNodes();
+
+        /**
+         * @brief Get the total number of nodes in the account
+         *
+         * @note This method locks SDK mutex, returned value is up to date
+         * This calls gets blocked if it's called between a node is added or removed and
+         * nodes count is updated
+         *
+         * @return Total number of nodes in the account
+         */
+        unsigned long long getAccurateNumNodes();
 
         enum { ORDER_NONE = 0, ORDER_DEFAULT_ASC, ORDER_DEFAULT_DESC,
             ORDER_SIZE_ASC, ORDER_SIZE_DESC,
