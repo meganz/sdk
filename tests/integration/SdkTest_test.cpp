@@ -3797,6 +3797,8 @@ TEST_F(SdkTest, SdkTestShares2)
  * - Stop share nested inshare
  * - Check correctness of the account size
  * - Modify the access level
+ * - Sharee leaves the inshare
+ * - Share again the main folder
  * - Revoke the access to the share
  * - Share a folder with a non registered email
  * - Check the correctness of the pending outgoing share
@@ -3989,6 +3991,7 @@ TEST_F(SdkTest, SdkTestShares)
 
     sl = megaApi[1]->getInSharesList();
     ASSERT_EQ(1, sl->size()) << "Incoming share not received in auxiliar account";
+    delete sl;
 
     // Wait for the inshare node to be decrypted
     ASSERT_TRUE(WaitFor([this, &n1]() { return unique_ptr<MegaNode>(megaApi[1]->getNodeByHandle(n1->getHandle()))->isNodeKeyDecrypted(); }, 60*1000));
@@ -4283,6 +4286,63 @@ TEST_F(SdkTest, SdkTestShares)
 
     delete nl;
 
+    // --- Sharee leaves the inshare ---
+    // Testing APs caused by actions done in the sharee account.
+    unique_ptr<MegaNode> inshareRootNode(megaApi[1]->getNodeByHandle(hfolder1));
+
+    mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(hfolder1, MegaNode::CHANGE_TYPE_OUTSHARE, check1);
+    mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(hfolder1, MegaNode::CHANGE_TYPE_REMOVED, check2);
+    ASSERT_NO_FATAL_FAILURE(doDeleteNode(1, inshareRootNode.get())); // Delete an inshare root node to leave the inconming share
+    ASSERT_TRUE( waitForResponse(&check1) )   // at the target side (main account)
+        << "Node update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE( waitForResponse(&check2) )   // at the target side (auxiliar account)
+        << "Node update not received after " << maxTimeout << " seconds";
+    // important to reset
+    resetOnNodeUpdateCompletionCBs();
+    ASSERT_EQ(check1, true);
+    ASSERT_EQ(check2, true);
+
+    sl = megaApi[0]->getOutShares();
+    ASSERT_EQ(0, sl->size()) << "Leaving the inshare failed. Outshare is still active in the first account.";
+    delete sl;
+
+    contact.reset(megaApi[1]->getContact(mApi[0].email.c_str()));
+    nl = megaApi[1]->getInShares(contact.get());
+    ASSERT_EQ(0, nl->size()) << "Leaving the inshare failed. Inshare is still active in the second account.";
+    delete nl;
+
+    // Number of nodes should be the ones in the account only.
+    auto nodeCountAfterShareeLeavesShare = megaApi[1]->getNumNodes();
+    ASSERT_EQ(ownedNodeCount, nodeCountAfterShareeLeavesShare);
+
+    // --- Share again the main folder ---
+    mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(hfolder1, MegaNode::CHANGE_TYPE_OUTSHARE, check1);
+    mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(hfolder1, MegaNode::CHANGE_TYPE_INSHARE, check2);
+    ASSERT_NO_FATAL_FAILURE(shareFolder(n1.get(), mApi[1].email.data(), MegaShare::ACCESS_FULL));
+    ASSERT_TRUE(waitForResponse(&check1))   // at the target side (main account)
+        << "Node update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE(waitForResponse(&check2))   // at the target side (auxiliar account)
+        << "Node update not received after " << maxTimeout << " seconds";
+    // important to reset
+    resetOnNodeUpdateCompletionCBs();
+    ASSERT_EQ(check1, true);
+    ASSERT_EQ(check2, true);
+
+    sl = megaApi[0]->getOutShares();
+    ASSERT_EQ(1, sl->size()) << "Outgoing share failed. Sharing again after sharee left the share.";
+    delete sl;
+
+    // Wait for the inshare node to be decrypted
+    ASSERT_TRUE(WaitFor([this, &n1]() { return unique_ptr<MegaNode>(megaApi[1]->getNodeByHandle(n1->getHandle()))->isNodeKeyDecrypted(); }, 60*1000));
+
+    contact.reset(megaApi[1]->getContact(mApi[0].email.c_str()));
+    nl = megaApi[1]->getInShares(contact.get());
+    ASSERT_EQ(1, nl->size()) << "Incoming share failed. Sharing again after sharee left the share.";
+    delete nl;
+
+    // Number of nodes restored after sharing again.
+    auto nodeCountAfterShareAgainIfShareeLeaves = megaApi[1]->getNumNodes();
+    ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterShareAgainIfShareeLeaves);
 
     // --- Revoke access to an outgoing share ---
 
@@ -4299,7 +4359,6 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(check1, true);
     ASSERT_EQ(check2, true);
 
-    delete sl;
     sl = megaApi[0]->getOutShares();
     ASSERT_EQ(0, sl->size()) << "Outgoing share revocation failed";
     delete sl;

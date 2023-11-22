@@ -22,6 +22,9 @@
  * You should have received a copy of the license along with this
  * program.
  */
+#ifndef __APPLE__
+#include <mntent.h>
+#endif // ! __APPLE__
 
 #include "mega.h"
 #include <sys/utsname.h>
@@ -2047,25 +2050,201 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
     return SCAN_SUCCESS;
 }
 
-#ifdef ENABLE_SYNC
+#ifndef __APPLE__
 
-fsfp_t PosixFileSystemAccess::fsFingerprint(const LocalPath& path) const
+// Determine which device contains the specified path.
+static std::string deviceOf(const std::string& path)
 {
-    struct statfs statfsbuf;
-    fsfp_t result;
+    // Convenience.
+    using FileDeleter = std::function<int(FILE*)>;
+    using FilePtr     = std::unique_ptr<FILE, FileDeleter>;
 
-    // FIXME: statfs() does not really do what we want.
-    if (statfs(path.localpath.c_str(), &statfsbuf))
+    // Try and open mount database.
+    FilePtr mounts(setmntent("/proc/mounts", "r"), endmntent);
+
+    // Couldn't open mount database.
+    if (!mounts)
     {
-        int e = errno;
-        LOG_err << "statfs() failed, errno " << e << " while processing path " << path;
-        return result;
+        // Latch error.
+        auto error = errno;
+
+        LOG_warn << "Couldn't open mount database: "
+                 << strerror(error);
+
+        return std::string();
     }
-    handle tmp;
-    memcpy(&tmp, &statfsbuf.f_fsid, sizeof(handle));
-    result.id = tmp+1;
-    return result;
+
+    // What device contains path?
+    std::string device;
+
+    // Determines which device is the strongest match.
+    //
+    // As an example consider:
+    // /dev/sda1 -> /mnt/usb
+    // /dev/sda2 -> /mnt/usb/a/b/c
+    //
+    // /dev/sda2 is a better match for /mnt/usb/a/b/c/d.
+    std::size_t score = 0;
+
+    // Temporary storage space for mount entries.
+    std::string storage(1, '\x0');
+
+    storage.reserve(3 * PATH_MAX - 1);
+
+    // Try and determine which device contains path.
+    for (errno = 0; ; )
+    {
+        struct mntent entry;
+
+        // Couldn't retrieve mount entry.
+        if (!getmntent_r(mounts.get(),
+                         &entry,
+                         &storage[0],
+                         static_cast<int>(storage.capacity())))
+            break;
+
+        // Where is this device mounted?
+        std::string target = entry.mnt_dir;
+
+        // Path's too short to be contained by target.
+        if (path.size() < target.size())
+            continue;
+
+        // Target doesn't contain path.
+        if (path.compare(0, target.size(), target))
+            continue;
+
+        // Existing device is a better match.
+        if (score >= target.size())
+            continue;
+
+        // This device is a better match.
+        device = entry.mnt_fsname;
+        score  = target.size();
+    }
+
+    // Couldn't retrieve mount entry.
+    if (errno)
+    {
+        // Latch error.
+        auto error = errno;
+
+        LOG_warn << "Couldn't enumerate mount database: "
+                 << strerror(error);
+
+        return std::string();
+    }
+
+    // Couldn't resolve symlinks in device.
+    if (!realpath(device.c_str(), &storage[0]))
+        return std::string();
+
+    // Return device to caller.
+    return storage.c_str();
 }
+
+// Compute legacy filesystem fingerprint.
+static std::uint64_t fingerprintOf(const std::string& path)
+{
+    struct statfs buffer;
+
+    // What filesystem contains our path?
+    if (statfs(path.c_str(), &buffer))
+        return 0;
+
+    std::uint64_t value;
+
+    // Alias-friendly conversion to uint64_t.
+    std::memcpy(&value, &buffer.f_fsid, sizeof(value));
+
+    return ++value;
+}
+
+// Determine the UUID of the specified device.
+static std::string uuidOf(const std::string& device)
+{
+    // Convenience.
+    using IteratorDeleter = std::function<int(DIR*)>;
+    using IteratorPtr     = std::unique_ptr<DIR, IteratorDeleter>;
+
+    std::string path = "/dev/disk/by-uuid";
+
+    // Try and open /dev/disk/by-uuid.
+    IteratorPtr iterator(opendir(path.c_str()), closedir);
+
+    // Couldn't open /dev/disk/by-uuid.
+    if (!iterator)
+    {
+        // Latch error.
+        auto error = errno;
+
+        LOG_warn << "Couldn't determine device UUID: "
+                 << strerror(error);
+
+        return std::string();
+    }
+
+    // Convenience.
+    auto size = path.size();
+
+    // Temporary storage.
+    std::string storage(1, '\0');
+
+    storage.reserve(PATH_MAX - 1);
+
+    // Try and determine which entry references device.
+    for (errno = 0; ; )
+    {
+        // Try and retrieve next directory entry.
+        const auto* entry = readdir(iterator.get());
+
+        // Couldn't retrieve directory entry.
+        if (!entry)
+            break;
+
+        // Restore path's size.
+        path.resize(size);
+
+        // Compute path of directory entry.
+        path.append(1, '/');
+        path.append(entry->d_name);
+
+        // Couldn't resolve link.
+        if (!realpath(path.c_str(), &storage[0]))
+            continue;
+
+        // Resolved path matches our device.
+        if (device == &storage[0])
+            return entry->d_name;
+    }
+
+    // Couldn't determine device's UUID.
+    return std::string();
+}
+
+fsfp_t FileSystemAccess::fsFingerprint(const LocalPath& path) const
+{
+    // Try and compute legacy filesystem fingerprint.
+    auto fingerprint = fingerprintOf(path.localpath);
+
+    // Couldn't compute legacy fingerprint.
+    if (!fingerprint)
+        return fsfp_t();
+
+    // What device contains the specified path?
+    auto device = deviceOf(path.localpath);
+
+    // Couldn't determine the device that contains path.
+    if (device.empty())
+        return fsfp_t();
+
+    // Return fingerprint to caller.
+    return fsfp_t(fingerprint, uuidOf(device));
+}
+
+#endif // ! __APPLE__
+
+#ifdef ENABLE_SYNC
 
 bool PosixFileSystemAccess::fsStableIDs(const LocalPath& path) const
 {

@@ -10078,7 +10078,7 @@ void exec_syncadd(autocomplete::ACState& s)
             syncname,
             NodeHandle(),
             string(),
-            0,
+            fsfp_t(),
             std::move(drivePath),
             true,
             backup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);

@@ -19,7 +19,6 @@
  * program.
  */
 
-#include "types.h"
 #ifndef MEGA_SYNC_H
 #define MEGA_SYNC_H 1
 
@@ -564,9 +563,6 @@ private:
     unsigned mLastDailyDateTimeDebrisCounter = 0;
 
 public:
-    // original filesystem fingerprint
-    fsfp_t fsfp;
-
     // does the filesystem have stable IDs? (FAT does not)
     bool fsstableids = false;
 
@@ -618,6 +614,9 @@ public:
 
     // True if this sync should have a state cache database.
     bool shouldHaveDatabase() const;
+
+    // What filesystem is this sync running on?
+    const fsfp_t& fsfp() const;
 
     UnifiedSync& mUnifiedSync;
 
@@ -1128,13 +1127,13 @@ public:
     // maps local fsid to corresponding LocalNode* (s)
     fsid_localnode_map localnodeBySyncedFsid;
     fsid_localnode_map localnodeByScannedFsid;
-    LocalNode* findLocalNodeBySyncedFsid(fsfp_t, mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint& fp,
+    LocalNode* findLocalNodeBySyncedFsid(const fsfp_t& fsfp, mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint& fp,
                                          std::function<bool(LocalNode* ln)> extraCheck, handle owningUser, bool& foundExclusionUnknown);
-    LocalNode* findLocalNodeByScannedFsid(fsfp_t, mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint* fp,
+    LocalNode* findLocalNodeByScannedFsid(const fsfp_t& fsfp, mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint* fp,
                                          std::function<bool(LocalNode* ln)> extraCheck, handle owningUser, bool& foundExclusionUnknown);
 
-    void setSyncedFsidReused(fsfp_t, mega::handle fsid);
-    void setScannedFsidReused(fsfp_t, mega::handle fsid);
+    void setSyncedFsidReused(const fsfp_t& fsfp, mega::handle fsid);
+    void setScannedFsidReused(const fsfp_t& fsfp, mega::handle fsid);
 
     // maps nodehandle to corresponding LocalNode* (s)
     nodehandle_localnode_map localnodeByNodeHandle;
@@ -1526,6 +1525,9 @@ private:
 
     // Check whether a specified stall is "immediate."
     bool isImmediateStall(const SyncStallEntry& entry) const;
+
+    // What fingerprints does the engine know about?
+    fsfp_tracker_t mFingerprintTracker;
 
 public:
     // Should we defer sending a putnodes for the specified file?

@@ -641,23 +641,23 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     }
 
     // set specified fsfp or get from fs if none
-    fsfp = syncs.fsaccess->fsFingerprint(mLocalPath);
-    if (!fsfp.id)
+    auto fsfp = syncs.fsaccess->fsFingerprint(mLocalPath);
+    if (!fsfp)
     {
         e = FILESYSTEM_ID_UNAVAILABLE;
         return;
     }
 
-    auto original_fsfp = mUnifiedSync.mConfig.mFilesystemFingerprint;
-    if (original_fsfp.id)
+    auto& original_fsfp = mUnifiedSync.mConfig.mFilesystemFingerprint;
+    if (original_fsfp)
     {
-        if (fsfp.id != original_fsfp.id)
+        if (!original_fsfp.equivalent(fsfp))
         {
             // leave this function before we create a Rubbish/.debris folder where we maybe shouldn't
             LOG_err << "Sync root path is a different Filesystem than when the sync was created. Original filesystem id: "
-                    << original_fsfp.id
+                    << original_fsfp.toString()
                     << "  Current: "
-                    << fsfp.id;
+                    << fsfp.toString();
 
             e = LOCAL_FILESYSTEM_MISMATCH;
             return;
@@ -704,8 +704,14 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     localroot->fsid_lastSynced = fas->fsid;
     us.mConfig.mLocalPathFsid = fas->fsid;
     us.mConfig.mFilesystemFingerprint = fsfp;
-    LOG_debug << "Constructed Sync has filesystemId: " << us.mConfig.mFilesystemFingerprint.id
-              << " and root folder id: " << us.mConfig.mLocalPathFsid;
+
+    // Make sure the engine knows about this fingerprint.
+    syncs.mFingerprintTracker.add(fsfp);
+
+    LOG_debug << "Constructed Sync has filesystemId: "
+              << us.mConfig.mFilesystemFingerprint.toString()
+              << " and root folder id: "
+              << us.mConfig.mLocalPathFsid;
 
     // load LocalNodes from cache (only for internal syncs)
     // We are using SQLite in the no-mutex mode, so only access a database from a single thread.
@@ -740,6 +746,9 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
 Sync::~Sync()
 {
     assert(syncs.onSyncThread());
+
+    // Remove our reference to this fingerprint.
+    syncs.mFingerprintTracker.remove(fsfp());
 
     // must be set to prevent remote mass deletion while rootlocal destructor runs
     mDestructorRunning = true;
@@ -795,6 +804,11 @@ void Sync::setBackupMonitoring()
 bool Sync::shouldHaveDatabase() const
 {
     return syncs.mClient.dbaccess && !mUnifiedSync.mConfig.isExternal();
+}
+
+const fsfp_t& Sync::fsfp() const
+{
+    return getConfig().mFilesystemFingerprint;
 }
 
 void Sync::setSyncPaused(bool pause)
@@ -1609,7 +1623,7 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
         // also possible: was the file overwritten by moving an existing file over it?
         bool foundExclusionUnknown = false;
 
-        LocalNode* sourceSyncNode = syncs.findLocalNodeBySyncedFsid(fsfp, row.fsNode->fsid, fullPath.localPath, row.fsNode->type, row.fsNode->fingerprint, nullptr, cloudRootOwningUser, foundExclusionUnknown);
+        LocalNode* sourceSyncNode = syncs.findLocalNodeBySyncedFsid(fsfp(), row.fsNode->fsid, fullPath.localPath, row.fsNode->type, row.fsNode->fingerprint, nullptr, cloudRootOwningUser, foundExclusionUnknown);
 
         if (foundExclusionUnknown)
         {
@@ -1852,7 +1866,7 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
                 if (problem == PathProblem::NoProblem
                     && !row.syncNode->fsidSyncedReused)
                 {
-                    other = syncs.findLocalNodeByScannedFsid(fsfp, row.syncNode->fsid_lastSynced,
+                    other = syncs.findLocalNodeByScannedFsid(fsfp(), row.syncNode->fsid_lastSynced,
                                                              fullPath.localPath,
                                                              row.syncNode->type,
                                                              &row.syncNode->syncedFingerprint,
@@ -2068,7 +2082,7 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
 
 
                     // record details so we can look up the source LocalNode again after the move completes:
-                    movePtr->sourceFsfp = fsfp;
+                    movePtr->sourceFsfp = syncs.mFingerprintTracker.get(fsfp());
                     movePtr->sourceFsid = row.fsNode->fsid;
                     movePtr->sourceType = row.fsNode->type;
                     movePtr->sourceFingerprint = row.fsNode->fingerprint;
@@ -2478,7 +2492,7 @@ bool Sync::checkForCompletedCloudMoveToHere(SyncRow& row, SyncRow& parentRow, Sy
         {
 
             SYNC_verbose << syncname << "Cloud move completed, setting synced handle/fsid" << logTriplet(row, fullPath);
-            syncs.setSyncedFsidReused(moveHerePtr->sourceFsfp, moveHerePtr->sourceFsid); // prevent reusing that one as move source for chained move cases
+            syncs.setSyncedFsidReused(*moveHerePtr->sourceFsfp, moveHerePtr->sourceFsid); // prevent reusing that one as move source for chained move cases
 
             LOG_debug << syncname << "Looking up move source by fsid " << toHandle(moveHerePtr->sourceFsid);
 
@@ -3484,8 +3498,8 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool set
     us.mConfig.mRunState = SyncRunState::Loading;
     us.mConfig.mTemporarilyPaused = paused;
 
-
-    bool resetFingerprint = false;
+    // Regenerate LN cache if no fingerprint's been assigned.
+    bool resetFingerprint = !us.mConfig.mFilesystemFingerprint;
 
 #ifdef __APPLE__
     if (!resetFingerprint)
@@ -3505,7 +3519,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool set
 
     if (resetFingerprint)
     {
-        us.mConfig.mFilesystemFingerprint.id = 0; //This will cause the local filesystem fingerprint to be recalculated
+        us.mConfig.mFilesystemFingerprint.reset(); //This will cause the local filesystem fingerprint to be recalculated
         us.mConfig.mLocalPathFsid = UNDEF;
     }
 
@@ -5114,7 +5128,7 @@ bool Syncs::importSyncConfig(JSON& reader, SyncConfig& config)
     config.mBackupState = SYNC_BACKUP_NONE;
     config.mEnabled = false;
     config.mError = NO_SYNC_ERROR;
-    config.mFilesystemFingerprint.id = 0;
+    config.mFilesystemFingerprint.reset();
     config.mLocalPath = LocalPath::fromAbsolutePath(localPath);
     config.mName = std::move(name);
     config.mOriginalPathOfRemoteRootNode = remotePath;
@@ -5640,20 +5654,7 @@ bool Syncs::syncConfigByBackupId(handle backupId, SyncConfig& c) const
     for (auto& s : mSyncVec)
     {
         if (s->mConfig.mBackupId == backupId)
-        {
-            c = s->mConfig;
-
-            // double check we updated fsfp_t
-            if (s->mSync)
-            {
-                assert(c.mFilesystemFingerprint.id == s->mSync->fsfp.id);
-
-                // just in case, for now
-                c.mFilesystemFingerprint = s->mSync->fsfp;
-            }
-
-            return true;
-        }
+            return c = s->mConfig, true;
     }
 
     return false;
@@ -6224,18 +6225,18 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
             {
 
 #ifdef __APPLE__
-                unifiedSync->mConfig.mFilesystemFingerprint = 0; //for certain MacOS, fsfp seems to vary when restarting. we set it to 0, so that it gets recalculated
+                unifiedSync->mConfig.mFilesystemFingerprint.reset(); //for certain MacOS, fsfp seems to vary when restarting. we set it to 0, so that it gets recalculated
 #endif
-                LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint.id << " error = " << unifiedSync->mConfig.mError;
+                LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint.toString() << " error = " << unifiedSync->mConfig.mError;
 
                 enableSyncByBackupId_inThread(unifiedSync->mConfig.mBackupId, false, false, [&unifiedSync](error e, SyncError se, handle backupId)
                     {
-                        LOG_debug << "Sync autoresumed: " << toHandle(backupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint.id << " error = " << se;
+                        LOG_debug << "Sync autoresumed: " << toHandle(backupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint.toString() << " error = " << se;
                     }, "");
             }
             else
             {
-                LOG_debug << "Sync loaded (but not resumed): " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint.id << " error = " << unifiedSync->mConfig.mError;
+                LOG_debug << "Sync loaded (but not resumed): " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint.toString() << " error = " << unifiedSync->mConfig.mError;
             }
         }
     }
@@ -7230,7 +7231,7 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
                             // Maintain scanned FSID.
                             if (s->fsid_asScanned != f->fsid)
                             {
-                                syncs.setScannedFsidReused(fsfp, f->fsid);
+                                syncs.setScannedFsidReused(fsfp(), f->fsid);
                                 s->setScannedFsid(f->fsid, syncs.localnodeByScannedFsid, f->localname, f->fingerprint);
                             }
                             else if (s->scannedFingerprint != f->fingerprint)
@@ -8506,7 +8507,7 @@ bool Sync::resolve_checkMoveDownloadComplete(SyncRow& row, SyncPath& fullPath)
 
     // Are we still associated with the move source?
     bool sourceExclusionUnknown = false;
-    auto source = syncs.findLocalNodeBySyncedFsid(movePtr->sourceFsfp,
+    auto source = syncs.findLocalNodeBySyncedFsid(*movePtr->sourceFsfp,
                                                   movePtr->sourceFsid,
                                                   fullPath.localPath,
                                                   movePtr->sourceType,
@@ -8589,7 +8590,7 @@ bool Sync::resolve_checkMoveComplete(SyncRow& row, SyncRow& parentRow, SyncPath&
     LOG_debug << syncname << "Checking move source/target by fsid " << toHandle(movePtr->sourceFsid);
 
     bool sourceExclusionUnknown = false;
-    LocalNode* sourceSyncNode = syncs.findLocalNodeBySyncedFsid(movePtr->sourceFsfp, movePtr->sourceFsid, fullPath.localPath, movePtr->sourceType, movePtr->sourceFingerprint, nullptr, cloudRootOwningUser, sourceExclusionUnknown);
+    LocalNode* sourceSyncNode = syncs.findLocalNodeBySyncedFsid(*movePtr->sourceFsfp, movePtr->sourceFsid, fullPath.localPath, movePtr->sourceType, movePtr->sourceFingerprint, nullptr, cloudRootOwningUser, sourceExclusionUnknown);
 
     if (sourceExclusionUnknown)
     {
@@ -8939,7 +8940,7 @@ bool Sync::resolve_delSyncNode(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
             fsNodeIsElsewhere = true;
         }
         else if (row.syncNode->fsid_lastSynced != UNDEF &&
-            nullptr != (fsElsewhere = syncs.findLocalNodeByScannedFsid(fsfp, row.syncNode->fsid_lastSynced, fullPath.localPath, row.syncNode->type, nullptr, nullptr, cloudRootOwningUser, sourceFsidExclusionUnknown)))
+            nullptr != (fsElsewhere = syncs.findLocalNodeByScannedFsid(fsfp(), row.syncNode->fsid_lastSynced, fullPath.localPath, row.syncNode->type, nullptr, nullptr, cloudRootOwningUser, sourceFsidExclusionUnknown)))
         {
             fsNodeIsElsewhere = true;
             fsElsewhereLocation = fsElsewhere->getCloudPath(false);
@@ -9478,8 +9479,8 @@ bool Sync::resolve_downsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath
                     auto fsnode = FSNode::fromFOpened(*fa, fullPath.localPath, *syncs.fsaccess);
 
                     // Mark other nodes with this FSID as having their FSID reused.
-                    syncs.setSyncedFsidReused(fsfp, fsnode->fsid);
-                    syncs.setScannedFsidReused(fsfp, fsnode->fsid);
+                    syncs.setSyncedFsidReused(fsfp(), fsnode->fsid);
+                    syncs.setScannedFsidReused(fsfp(), fsnode->fsid);
 
                     row.syncNode->localname = fsnode->localname;
                     row.syncNode->slocalname = fsnode->cloneShortname();
@@ -9773,7 +9774,7 @@ bool Sync::resolve_cloudNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& ful
     return false;
 }
 
-LocalNode* Syncs::findLocalNodeBySyncedFsid(fsfp_t fsfp, mega::handle fsid,
+LocalNode* Syncs::findLocalNodeBySyncedFsid(const fsfp_t& fsfp, mega::handle fsid,
     const LocalPath& originalpath, nodetype_t type, const FileFingerprint& fingerprint,
     std::function<bool(LocalNode* ln)> extraCheck, handle owningUser, bool& foundExclusionUnknown)
 {
@@ -9786,7 +9787,7 @@ LocalNode* Syncs::findLocalNodeBySyncedFsid(fsfp_t fsfp, mega::handle fsid,
     {
         if (it->second->type != type) continue;
         if (it->second->fsidSyncedReused)   continue;
-        if (it->second->sync->fsfp.id != fsfp.id) continue; // they must be on the same filesystem
+        if (it->second->sync->fsfp() != fsfp) continue; // they must be on the same filesystem
 
         // we can't move a node between cloud users (eg inshare to this account, or inshare to inshare), so avoid detecting those
         if (owningUser != UNDEF &&
@@ -9816,7 +9817,7 @@ LocalNode* Syncs::findLocalNodeBySyncedFsid(fsfp_t fsfp, mega::handle fsid,
     return nullptr;
 }
 
-LocalNode* Syncs::findLocalNodeByScannedFsid(fsfp_t fsfp, mega::handle fsid,
+LocalNode* Syncs::findLocalNodeByScannedFsid(const fsfp_t& fsfp, mega::handle fsid,
     const LocalPath& originalpath, nodetype_t type, const FileFingerprint* fingerprint,
     std::function<bool(LocalNode* ln)> extraCheck, handle owningUser, bool& foundExclusionUnknown)
 {
@@ -9829,7 +9830,7 @@ LocalNode* Syncs::findLocalNodeByScannedFsid(fsfp_t fsfp, mega::handle fsid,
     {
         if (it->second->type != type) continue;
         if (it->second->fsidScannedReused)   continue;
-        if (it->second->sync->fsfp.id != fsfp.id) continue; // they must be on the same filesystem
+        if (it->second->sync->fsfp() != fsfp) continue; // they must be on the same filesystem
 
         switch (it->second->exclusionState())
         {
@@ -9871,31 +9872,27 @@ LocalNode* Syncs::findLocalNodeByScannedFsid(fsfp_t fsfp, mega::handle fsid,
     return nullptr;
 }
 
-void Syncs::setSyncedFsidReused(fsfp_t fsfp, mega::handle fsid)
+void Syncs::setSyncedFsidReused(const fsfp_t& fsfp, mega::handle fsid)
 {
     assert(onSyncThread());
     for (auto range = localnodeBySyncedFsid.equal_range(fsid);
-        range.first != range.second;
-        ++range.first)
+         range.first != range.second;
+         ++range.first)
     {
-        if (range.first->second->sync->fsfp.id == fsfp.id)
-        {
+        if (range.first->second->sync->fsfp() == fsfp)
             range.first->second->fsidSyncedReused = true;
-        }
     }
 }
 
-void Syncs::setScannedFsidReused(fsfp_t fsfp, mega::handle fsid)
+void Syncs::setScannedFsidReused(const fsfp_t& fsfp, mega::handle fsid)
 {
     assert(onSyncThread());
     for (auto range = localnodeByScannedFsid.equal_range(fsid);
         range.first != range.second;
         ++range.first)
     {
-        if (range.first->second->sync->fsfp.id == fsfp.id)
-        {
+        if (range.first->second->sync->fsfp() == fsfp)
             range.first->second->fsidScannedReused = true;
-        }
     }
 }
 
@@ -9951,7 +9948,7 @@ bool Syncs::findLocalNodeByNodeHandle(NodeHandle h, LocalNode*& sourceSyncNodeOr
     {
         // see if we can find where the local side went, so we can report a move clash
         sourceSyncNodeCurrent = findLocalNodeByScannedFsid(
-                sourceSyncNodeOriginal->sync->fsfp,
+                sourceSyncNodeOriginal->sync->fsfp(),
                 sourceSyncNodeOriginal->fsid_lastSynced,
                 sourceSyncNodeOriginal->getLocalPath(),
                 sourceSyncNodeOriginal->type,
@@ -10107,7 +10104,7 @@ bool Sync::resolve_fsNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& fullPa
         };
 
         movedLocalNode =
-            syncs.findLocalNodeByScannedFsid(fsfp, row.syncNode->fsid_lastSynced,
+            syncs.findLocalNodeByScannedFsid(fsfp(), row.syncNode->fsid_lastSynced,
                 fullPath.localPath,
                 row.syncNode->type,
                 &row.syncNode->syncedFingerprint,
@@ -11228,6 +11225,7 @@ bool SyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader, bool isE
     const auto TYPE_CHANGE_METHOD   = MAKENAMEID2('c', 'm');
     const auto TYPE_ENABLED         = MAKENAMEID2('e', 'n');
     const auto TYPE_FILESYSTEM_FP   = MAKENAMEID2('f', 'p');
+    const auto TYPE_FILESYSTEM_FU   = MAKENAMEID2('f', 'u');
     const auto TYPE_ROOT_FSID       = MAKENAMEID2('r', 'f');
     const auto TYPE_LAST_ERROR      = MAKENAMEID2('l', 'e');
     const auto TYPE_LAST_WARNING    = MAKENAMEID2('l', 'w');
@@ -11239,6 +11237,10 @@ bool SyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader, bool isE
     const auto TYPE_TARGET_PATH     = MAKENAMEID2('t', 'p');
     const auto TYPE_LEGACY_INELIGIB = MAKENAMEID2('l', 'i');
 
+    // Temporary storage.
+    std::uint64_t fsFingerprint = 0;
+    std::string   fsUUID;
+
     // Assume legacy exclusions are eligible.
     config.mLegacyExclusionsIneligigble = false;
 
@@ -11247,6 +11249,10 @@ bool SyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader, bool isE
         switch (reader.getnameid())
         {
         case EOO:
+            // Populate fingerprint.
+            config.mFilesystemFingerprint =
+              fsfp_t(fsFingerprint, std::move(fsUUID));
+
             // success if we reached the end of the object
             return *reader.pos == '}';
 
@@ -11260,7 +11266,11 @@ bool SyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader, bool isE
             break;
 
         case TYPE_FILESYSTEM_FP:
-            config.mFilesystemFingerprint = reader.getfsfp();
+            fsFingerprint = reader.getfsfp();
+            break;
+
+        case TYPE_FILESYSTEM_FU:
+            reader.storebinary(&fsUUID);
             break;
 
         case TYPE_ROOT_FSID:
@@ -11390,7 +11400,8 @@ void SyncConfigIOContext::serialize(const SyncConfig& config,
     writer.arg_B64("sp", sourcePath);
     writer.arg_B64("n", config.mName);
     writer.arg_B64("tp", config.mOriginalPathOfRemoteRootNode);
-    writer.arg_fsfp("fp", config.mFilesystemFingerprint);
+    writer.arg_fsfp("fp", config.mFilesystemFingerprint.fingerprint());
+    writer.arg_B64("fu", config.mFilesystemFingerprint.uuid());
     writer.arg("rf", config.mLocalPathFsid, sizeof(handle));
     writer.arg("th", config.mRemoteNode);
     writer.arg("le", config.mError);
@@ -11610,14 +11621,19 @@ void Syncs::syncLoop()
                     continue;
                 }
 
-                assert(sync->fsfp.id);
-                if (sync->fsfp.id)
+
+                auto expectedFsfp = sync->fsfp();
+                assert(expectedFsfp);
+
+                if (expectedFsfp)
                 {
-                    fsfp_t current = fsaccess->fsFingerprint(sync->localroot->localname);
-                    if (current.id != 0 && sync->fsfp.id != current.id)
+                    auto computedFsfp = fsaccess->fsFingerprint(sync->localroot->localname);
+                    if (computedFsfp && computedFsfp != expectedFsfp)
                     {
-                        LOG_err << "Local filesystem mismatch. Previous: " << sync->fsfp.id
-                            << "  Current: " << current.id;
+                        LOG_err << "Local filesystem mismatch. Previous: "
+                                << expectedFsfp.toString()
+                                << "  Current: "
+                                << computedFsfp.toString();
                         sync->changestate(LOCAL_FILESYSTEM_MISMATCH, false, true, true);
                         continue;
                     }
@@ -11655,7 +11671,9 @@ void Syncs::syncLoop()
                 // And it's safe to resume the sync because it's in Suspend (rather than disable)
                 // then we can auto-restart it, if the path becomes available (eg, network drive was slow to mount, user plugged in USB, etc)
 
-                fsfp_t filesystemId = fsaccess->fsFingerprint(us->mConfig.mLocalPath);
+                auto computedFsfp = fsaccess->fsFingerprint(us->mConfig.mLocalPath);
+                auto expectedFsfp = us->mConfig.mFilesystemFingerprint;
+
                 auto fa = fsaccess->newfileaccess();
                 if (fa->fopen(us->mConfig.mLocalPath, true, false, FSLogging::logExceptFileNotFound, nullptr, true))
                 {
@@ -11668,11 +11686,14 @@ void Syncs::syncLoop()
                     //{
                     //    LOG_err << "Sync path is available again but is not the same folder, by fsid: " << us->mConfig.mLocalPath;
                     //}
-                    else if (filesystemId.id && us->mConfig.mFilesystemFingerprint.id &&
-                             filesystemId.id != us->mConfig.mFilesystemFingerprint.id)
+                    else if (computedFsfp && expectedFsfp && computedFsfp != expectedFsfp)
                     {
                         LOG_err << "Sync path is available again but is not the same filesystem, by id.  Old: "
-                                << us->mConfig.mFilesystemFingerprint.id << " New: " << filesystemId.id << " Path: " << us->mConfig.mLocalPath;
+                                << expectedFsfp.toString()
+                                << " New: "
+                                << computedFsfp.toString()
+                                << " Path: "
+                                << us->mConfig.mLocalPath;
                     }
                     else
                     {

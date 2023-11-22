@@ -6202,11 +6202,6 @@ const char *MegaSync::getLastKnownMegaFolder() const
     return NULL;
 }
 
-long long MegaSync::getLocalFingerprint() const
-{
-    return 0;
-}
-
 MegaHandle MegaSync::getBackupId() const
 {
     return INVALID_HANDLE;
