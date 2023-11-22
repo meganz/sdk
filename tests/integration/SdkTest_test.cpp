@@ -16416,12 +16416,12 @@ TEST_F(SdkTestGfx, BasicGfxProcessForUpload)
     ASSERT_NE(n, nullptr);
     std::string thumbnailName = "logo_gfx_thumbnail.png";
     ASSERT_EQ(API_OK, doGetThumbnail(0, n.get(), thumbnailName.c_str()));
-    ASSERT_EQ(fs::file_size(fs::path(thumbnailName)), 4544);
+    ASSERT_EQ(fs::file_size(fs::path(thumbnailName)), 4544u);
 
     // Get the preview of the uploaded image should be OK
     std::string previewName = "logo_gfx_preview.png";
     ASSERT_EQ(API_OK, doGetPreview(0, n.get(), previewName.c_str()));
-    ASSERT_EQ(fs::file_size(fs::path(previewName)), 832);
+    ASSERT_EQ(fs::file_size(fs::path(previewName)), 832u);
 
     LOG_info << "___TEST BasicGfxProcessForUpload end___";
 }
