@@ -19906,7 +19906,8 @@ const char* const MegaClient::NODE_ATTR_PASSWORD_VALUE = "pwmpass";
 
 NodeHandle MegaClient::getPasswordManagerBase()
 {
-    return toNodeHandle(ownuser()->getattr(ATTR_PWM_BASE));
+    auto u = ownuser();
+    return u ? toNodeHandle(u->getattr(ATTR_PWM_BASE)) : NodeHandle{};
 }
 
 void MegaClient::preparePasswordNodeName(attr_map& attrs, const char* name)
