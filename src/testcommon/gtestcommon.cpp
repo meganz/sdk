@@ -10,7 +10,6 @@ namespace mega
 
 /// class ProcessWithInterceptedOutput
 ///
-/// run a process and intercept its stdout and stderr before simply outputting them to console line-by-line
 
 bool ProcessWithInterceptedOutput::run(const vector<string>& args, const unordered_map<string, string>& env)
 {
@@ -52,7 +51,6 @@ bool ProcessWithInterceptedOutput::finishedRunning()
 
     // "flushing" child process is mandatory; otherwise it might never report having exited;
     // should probably be part of Process::isAlive()
-    mProc->poll();
     mProc->flush();
 
     return !mProc->isAlive();
@@ -67,7 +65,6 @@ int ProcessWithInterceptedOutput::getExitCode()
 
     if (!mProc->hasStatus())
     {
-        mProc->poll();
         mProc->flush();
         mProc->wait(); // not relevant if it did not start or failed or succeeded
     }
@@ -140,7 +137,6 @@ void ProcessWithInterceptedOutput::intercept(const unsigned char* data, size_t l
 
 /// class GTestListProc
 ///
-/// extend ProcessWithInterceptedOutput to build a list of GTest-s (a.k.a. googletests) to run
 
 void GTestListProc::onOutLine(string&& line)
 {
@@ -187,7 +183,6 @@ void GTestListProc::onOutLine(string&& line)
 
 /// class GTestProc
 ///
-/// extend ProcessWithInterceptedOutput to interpret the output of a GTest (a.k.a. googletest)
 
 bool GTestProc::run(const vector<string>& args, const unordered_map<string, string>& env, size_t workerIdx, string&& name)
 {
@@ -315,7 +310,6 @@ void GTestProc::printToScreen(std::ostream& screen, const std::string& msg) cons
 
 /// class RuntimeArgValues
 ///
-/// parse and normalize runtime arguments
 
 RuntimeArgValues::RuntimeArgValues(vector<string>&& args)
 {
@@ -426,10 +420,10 @@ RuntimeArgValues::RuntimeArgValues(vector<string>&& args)
     {
         if (mEmailTemplate.empty())
         {
-            const char* teplt = getenv("MEGA_PWD0");
+            const char* teplt = getenv("MEGA_EMAIL0");
             if (!teplt)
             {
-                std::cerr << "Missing both --EMAIL-POOL runtime parameter and MEGA_PWD0 env var" << std::endl;
+                std::cerr << "Missing both --EMAIL-POOL runtime parameter and MEGA_EMAIL0 env var" << std::endl;
                 mRunMode = TestRunMode::INVALID;
                 return;
             }
@@ -547,7 +541,6 @@ string RuntimeArgValues::getLog() const
 
 /// class GTestParallelRunner
 ///
-/// launch worker processes and collect their final status
 
 int GTestParallelRunner::run()
 {
@@ -714,9 +707,9 @@ void GTestParallelRunner::summary()
         std::cout << "\n " << mFailedTests.size() << " FAILED TESTS\n";
     }
 
-    std::cout << '\n';
     if (mDisabledTestCount)
     {
+        std::cout << '\n';
         std::cout << "  YOU HAVE " << mDisabledTestCount << " DISABLED TESTS\n";
     }
 

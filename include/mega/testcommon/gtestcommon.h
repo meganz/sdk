@@ -12,13 +12,19 @@
 namespace mega
 {
 
+/// class ProcessWithInterceptedOutput
+///
+/// Run a process and intercept its stdout and stderr.
+/// This is useful for deriving from it, and reacting to each out/err line. By default
+/// it simply outputs them to console.
+
 class ProcessWithInterceptedOutput
 {
 public:
     virtual ~ProcessWithInterceptedOutput() = default;
     bool run(const std::vector<std::string>& args, const std::unordered_map<std::string, std::string>& env);
     bool finishedRunning(); // false when not started or still running
-    int getExitCode(); // 0 for success
+    int getExitCode(); // 0 for success, -1 when not started
     int getPid() const;
 
 protected:
@@ -37,6 +43,11 @@ private:
 };
 
 
+/// class GTestListProc
+///
+/// Build a list of tests and capture a few other details from the output of a program
+/// built with GTest (a.k.a. googletest) library and ran with '--gtest_list_tests'.
+
 class GTestListProc : public ProcessWithInterceptedOutput
 {
 public:
@@ -54,6 +65,10 @@ private:
     size_t mDisabledTestCount = 0u;
 };
 
+
+/// class GTestProc
+///
+/// Run a single GTest (a.k.a. googletest) and interpret its output.
 
 class GTestProc : public ProcessWithInterceptedOutput
 {
@@ -93,6 +108,10 @@ private:
     bool mIncomingMemLeaks = false;
 };
 
+
+/// class RuntimeArgValues
+///
+/// Parse and normalize runtime arguments for main process and worker processes.
 
 class RuntimeArgValues
 {
@@ -149,6 +168,11 @@ private:
     static constexpr size_t maxWorkerCount = 256u; // reasonable limit used for validation only, not really a constraint
 };
 
+
+/// class GTestParallelRunner
+///
+/// Run the tests requested by runtime args 1-by-1 in worker processes, collect and
+/// interpret their output, and determine the final status.
 
 class GTestParallelRunner
 {
