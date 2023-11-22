@@ -129,7 +129,7 @@ static std::string GetBasePath()
     return basePath;
 }
 
-auto AdjustBasePath(const LocalPath& path) -> std::string
+AdjustBasePathResult AdjustBasePath(const LocalPath& path)
 {
     // Get our hands on the app's base path.
     auto basePath = GetBasePath();
@@ -151,7 +151,7 @@ auto AdjustBasePath(const LocalPath& path) -> std::string
 
 #else // USE_IOS
 
-auto AdjustBasePath(const LocalPath& path) -> const std::string&
+AdjustBasePathResult AdjustBasePath(const LocalPath& path)
 {
     return path.rawValue();
 }
@@ -164,6 +164,7 @@ using namespace std;
 
 // Make AdjustBasePath visible in current scope.
 using detail::AdjustBasePath;
+using detail::AdjustBasePathResult;
 
 bool PosixFileAccess::mFoundASymlink = false;
 
@@ -283,12 +284,7 @@ PosixFileAccess::~PosixFileAccess()
 
 bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size, FSLogging)
 {
-#ifdef USE_IOS
-    const string nameStr = AdjustBasePath(nonblocking_localname);
-#else
-    // use the existing string if it's not iOS, no need for a copy
-    const string& nameStr = AdjustBasePath(nonblocking_localname);
-#endif
+    AdjustBasePathResult nameStr = AdjustBasePath(nonblocking_localname);
 
     struct stat statbuf;
     retry = false;
@@ -605,13 +601,7 @@ bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, FSLogging
         statok = true;
     }
 
-#ifdef USE_IOS
-    const string fstr = AdjustBasePath(f);
-#else
-    // use the existing string if it's not iOS, no need for a copy
-    const string& fstr = AdjustBasePath(f);
-#endif
-
+    AdjustBasePathResult fstr = AdjustBasePath(f);
 
 #ifdef __MACH__
     if (!write)
@@ -1031,14 +1021,8 @@ bool PosixFileSystemAccess::getsname(const LocalPath&, LocalPath&) const
 
 bool PosixFileSystemAccess::renamelocal(const LocalPath& oldname, const LocalPath& newname, bool override)
 {
-#ifdef USE_IOS
-    const string oldnamestr = AdjustBasePath(oldname);
-    const string newnamestr = AdjustBasePath(newname);
-#else
-    // use the existing string if it's not iOS, no need for a copy
-    const string& oldnamestr = AdjustBasePath(oldname);
-    const string& newnamestr = AdjustBasePath(newname);
-#endif
+    AdjustBasePathResult oldnamestr = AdjustBasePath(oldname);
+    AdjustBasePathResult newnamestr = AdjustBasePath(newname);
 
     bool existingandcare = !override && (0 == access(newnamestr.c_str(), F_OK));
     if (!existingandcare && !rename(oldnamestr.c_str(), newnamestr.c_str()))
@@ -1061,14 +1045,8 @@ bool PosixFileSystemAccess::renamelocal(const LocalPath& oldname, const LocalPat
 
 bool PosixFileSystemAccess::copylocal(const LocalPath& oldname, const LocalPath& newname, m_time_t mtime)
 {
-#ifdef USE_IOS
-    const string oldnamestr = AdjustBasePath(oldname);
-    const string newnamestr = AdjustBasePath(newname);
-#else
-    // use the existing string if it's not iOS, no need for a copy
-    const string& oldnamestr = AdjustBasePath(oldname);
-    const string& newnamestr = AdjustBasePath(newname);
-#endif
+    AdjustBasePathResult oldnamestr = AdjustBasePath(oldname);
+    AdjustBasePathResult newnamestr = AdjustBasePath(newname);
 
     int sfd, tfd;
     ssize_t t = -1;
@@ -1151,11 +1129,7 @@ void PosixFileSystemAccess::emptydirlocal(const LocalPath& nameParam, dev_t base
     dirent* d;
     int removed;
     struct stat statbuf;
-#ifdef USE_IOS
-    const string namestr = AdjustBasePath(name);
-#else
-    const string& namestr = AdjustBasePath(name);
-#endif
+    AdjustBasePathResult namestr = AdjustBasePath(name);
 
     if (!basedev)
     {
@@ -1185,12 +1159,8 @@ void PosixFileSystemAccess::emptydirlocal(const LocalPath& nameParam, dev_t base
 
                     name.appendWithSeparator(LocalPath::fromPlatformEncodedRelative(d->d_name), true);
 
-#ifdef USE_IOS
-                    const string nameStr = AdjustBasePath(name);
-#else
-                    // use the existing string if it's not iOS, no need for a copy
-                    const string& nameStr = AdjustBasePath(name);
-#endif
+                    AdjustBasePathResult nameStr = AdjustBasePath(name);
+
                     if (!lstat(nameStr.c_str(), &statbuf))
                     {
                         if (!S_ISLNK(statbuf.st_mode) && S_ISDIR(statbuf.st_mode) && statbuf.st_dev == basedev)
@@ -1260,12 +1230,7 @@ bool PosixFileSystemAccess::rmdirlocal(const LocalPath& name)
 
 bool PosixFileSystemAccess::mkdirlocal(const LocalPath& name, bool, bool logAlreadyExistsError)
 {
-#ifdef USE_IOS
-    const string nameStr = AdjustBasePath(name);
-#else
-    // use the existing string if it's not iOS, no need for a copy
-    const string& nameStr = AdjustBasePath(name);
-#endif
+    AdjustBasePathResult nameStr = AdjustBasePath(name);
 
     mode_t mode = umask(0);
     bool r = !mkdir(nameStr.c_str(), defaultfolderpermissions);
@@ -1295,12 +1260,7 @@ bool PosixFileSystemAccess::mkdirlocal(const LocalPath& name, bool, bool logAlre
 
 bool PosixFileSystemAccess::setmtimelocal(const LocalPath& name, m_time_t mtime)
 {
-#ifdef USE_IOS
-    const string nameStr = AdjustBasePath(name);
-#else
-    // use the existing string if it's not iOS, no need for a copy
-    const string& nameStr = AdjustBasePath(name);
-#endif
+    AdjustBasePathResult nameStr = AdjustBasePath(name);
 
     struct utimbuf times = { (time_t)mtime, (time_t)mtime };
 
@@ -2349,10 +2309,8 @@ bool PosixFileSystemAccess::fsStableIDs(const LocalPath& path) const
 
 bool PosixFileSystemAccess::hardLink(const LocalPath& source, const LocalPath& target)
 {
-    using StringType = decltype(AdjustBasePath(source));
-
-    StringType sourcePath = AdjustBasePath(source);
-    StringType targetPath = AdjustBasePath(target);
+    AdjustBasePathResult sourcePath = AdjustBasePath(source);
+    AdjustBasePathResult targetPath = AdjustBasePath(target);
 
     if (link(sourcePath.c_str(), targetPath.c_str()))
     {
@@ -2566,12 +2524,7 @@ bool PosixDirAccess::dnext(LocalPath& path, LocalPath& name, bool followsymlinks
         {
             path.appendWithSeparator(LocalPath::fromPlatformEncodedRelative(d->d_name), true);
 
-#ifdef USE_IOS
-            const string pathStr = AdjustBasePath(path);
-#else
-            // use the existing string if it's not iOS, no need for a copy
-            const string& pathStr = AdjustBasePath(path);
-#endif
+            AdjustBasePathResult pathStr = AdjustBasePath(path);
 
             bool statOk = !lstat(pathStr.c_str(), &statbuf);
             if (followsymlinks && statOk && S_ISLNK(statbuf.st_mode))
