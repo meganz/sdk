@@ -13609,19 +13609,6 @@ void MegaApiImpl::folderlinkinfo_result(error e, handle owner, handle /*ph*/, st
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
-#ifdef ENABLE_SYNC
-
-MegaSyncPrivate* MegaApiImpl::cachedMegaSyncPrivateByBackupId(const SyncConfig& config)
-{
-    if (mCachedMegaSyncPrivate && config.mBackupId == mCachedMegaSyncPrivate->getBackupId())
-    {
-        return mCachedMegaSyncPrivate.get();
-    }
-
-    mCachedMegaSyncPrivate.reset(new MegaSyncPrivate(config, client));
-    return mCachedMegaSyncPrivate.get();
-}
-
 std::unique_ptr<MegaPushNotificationSettingsPrivate> MegaApiImpl::getMegaPushNotificationSetting()
 {
     User* ownUser = client->ownuser();
@@ -13645,6 +13632,19 @@ std::unique_ptr<MegaPushNotificationSettingsPrivate> MegaApiImpl::getMegaPushNot
     }
 
     return nullptr;
+}
+
+#ifdef ENABLE_SYNC
+
+MegaSyncPrivate* MegaApiImpl::cachedMegaSyncPrivateByBackupId(const SyncConfig& config)
+{
+    if (mCachedMegaSyncPrivate && config.mBackupId == mCachedMegaSyncPrivate->getBackupId())
+    {
+        return mCachedMegaSyncPrivate.get();
+    }
+
+    mCachedMegaSyncPrivate.reset(new MegaSyncPrivate(config, client));
+    return mCachedMegaSyncPrivate.get();
 }
 
 void MegaApiImpl::syncupdate_stateconfig(const SyncConfig& config)
