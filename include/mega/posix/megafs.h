@@ -76,10 +76,6 @@ class MEGA_API PosixFileSystemAccess : public FileSystemAccess
 public:
     using FileSystemAccess::getlocalfstype;
 
-#ifdef USE_IOS
-    static char *appbasepath;
-#endif
-
     int defaultfilepermissions;
     int defaultfolderpermissions;
 

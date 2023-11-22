@@ -178,34 +178,6 @@ void FileSystemAccess::setMinimumFilePermissions(int permissions)
     mMinimumFilePermissions = permissions & 07777;
 }
 
-#ifdef USE_IOS
-
-const string adjustBasePath(const LocalPath& name)
-{
-    // return a temporary variable that the caller can optionally use c_str on (in that expression)
-    if (PosixFileSystemAccess::appbasepath)
-    {
-        if (!name.beginsWithSeparator())
-        {
-            string absolutename = PosixFileSystemAccess::appbasepath;
-            absolutename.append(name.localpath);
-            return absolutename;
-        }
-    }
-    return name.localpath;
-}
-
-char* PosixFileSystemAccess::appbasepath = nullptr;
-
-#else /* USE_IOS */
-
-const string& adjustBasePath(const LocalPath& name)
-{
-    return name.localpath;
-}
-
-#endif /* ! USE_IOS */
-
 int platformCompareUtf(const string& p1, bool unescape1, const string& p2, bool unescape2)
 {
     return compareUtf(p1, unescape1, p2, unescape2, false);
@@ -801,19 +773,6 @@ PosixFileSystemAccess::PosixFileSystemAccess()
 
     defaultfilepermissions = 0600;
     defaultfolderpermissions = 0700;
-
-#ifdef USE_IOS
-    if (!appbasepath)
-    {
-        string basepath;
-        ios_appbasepath(&basepath);
-        if (basepath.size())
-        {
-            basepath.append("/");
-            appbasepath = strdup(basepath.c_str());
-        }
-    }
-#endif
 }
 
 #ifdef __linux__
