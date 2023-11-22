@@ -50,7 +50,7 @@ namespace detail {
 using AdjustBasePathResult =
   IOS_OR_POSIX(std::string, const std::string&);
 
-AdjustBasePathResult AdjustBasePath(const LocalPath& path);
+AdjustBasePathResult adjustBasePath(const LocalPath& path);
 
 } // detail
 

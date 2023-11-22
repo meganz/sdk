@@ -129,7 +129,7 @@ static std::string GetBasePath()
     return basePath;
 }
 
-AdjustBasePathResult AdjustBasePath(const LocalPath& path)
+AdjustBasePathResult adjustBasePath(const LocalPath& path)
 {
     // Get our hands on the app's base path.
     auto basePath = GetBasePath();
@@ -151,7 +151,7 @@ AdjustBasePathResult AdjustBasePath(const LocalPath& path)
 
 #else // USE_IOS
 
-AdjustBasePathResult AdjustBasePath(const LocalPath& path)
+AdjustBasePathResult adjustBasePath(const LocalPath& path)
 {
     return path.rawValue();
 }
@@ -163,7 +163,7 @@ AdjustBasePathResult AdjustBasePath(const LocalPath& path)
 using namespace std;
 
 // Make AdjustBasePath visible in current scope.
-using detail::AdjustBasePath;
+using detail::adjustBasePath;
 using detail::AdjustBasePathResult;
 
 bool PosixFileAccess::mFoundASymlink = false;
@@ -256,7 +256,7 @@ PosixFileAccess::~PosixFileAccess()
 
 bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size, FSLogging)
 {
-    AdjustBasePathResult nameStr = AdjustBasePath(nonblocking_localname);
+    AdjustBasePathResult nameStr = adjustBasePath(nonblocking_localname);
 
     struct stat statbuf;
     retry = false;
@@ -306,13 +306,13 @@ bool PosixFileAccess::sysopen(bool, FSLogging fsl)
     // this is ok: this is not called with mFollowSymLinks = false, but from transfers doio.
     // When fully supporting symlinks, this might need to be reassessed
 
-    fd = open(AdjustBasePath(nonblocking_localname).c_str(), O_RDONLY);
+    fd = open(adjustBasePath(nonblocking_localname).c_str(), O_RDONLY);
     if (fd < 0)
     {
         errorcode = errno;
         if (fsl.doLog(errorcode))
         {
-            LOG_err << "Failed to open('" << AdjustBasePath(nonblocking_localname) << "'): error " << errorcode << ": " << PosixFileSystemAccess::getErrorMessage(errorcode);
+            LOG_err << "Failed to open('" << adjustBasePath(nonblocking_localname) << "'): error " << errorcode << ": " << PosixFileSystemAccess::getErrorMessage(errorcode);
         }
     }
 
@@ -573,7 +573,7 @@ bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, FSLogging
         statok = true;
     }
 
-    AdjustBasePathResult fstr = AdjustBasePath(f);
+    AdjustBasePathResult fstr = adjustBasePath(f);
 
 #ifdef __MACH__
     if (!write)
@@ -980,8 +980,8 @@ bool PosixFileSystemAccess::getsname(const LocalPath&, LocalPath&) const
 
 bool PosixFileSystemAccess::renamelocal(const LocalPath& oldname, const LocalPath& newname, bool override)
 {
-    AdjustBasePathResult oldnamestr = AdjustBasePath(oldname);
-    AdjustBasePathResult newnamestr = AdjustBasePath(newname);
+    AdjustBasePathResult oldnamestr = adjustBasePath(oldname);
+    AdjustBasePathResult newnamestr = adjustBasePath(newname);
 
     bool existingandcare = !override && (0 == access(newnamestr.c_str(), F_OK));
     if (!existingandcare && !rename(oldnamestr.c_str(), newnamestr.c_str()))
@@ -1004,8 +1004,8 @@ bool PosixFileSystemAccess::renamelocal(const LocalPath& oldname, const LocalPat
 
 bool PosixFileSystemAccess::copylocal(const LocalPath& oldname, const LocalPath& newname, m_time_t mtime)
 {
-    AdjustBasePathResult oldnamestr = AdjustBasePath(oldname);
-    AdjustBasePathResult newnamestr = AdjustBasePath(newname);
+    AdjustBasePathResult oldnamestr = adjustBasePath(oldname);
+    AdjustBasePathResult newnamestr = adjustBasePath(newname);
 
     int sfd, tfd;
     ssize_t t = -1;
@@ -1068,7 +1068,7 @@ bool PosixFileSystemAccess::copylocal(const LocalPath& oldname, const LocalPath&
 
 bool PosixFileSystemAccess::unlinklocal(const LocalPath& name)
 {
-    if (!unlink(AdjustBasePath(name).c_str()))
+    if (!unlink(adjustBasePath(name).c_str()))
     {
         return true;
     }
@@ -1088,7 +1088,7 @@ void PosixFileSystemAccess::emptydirlocal(const LocalPath& nameParam, dev_t base
     dirent* d;
     int removed;
     struct stat statbuf;
-    AdjustBasePathResult namestr = AdjustBasePath(name);
+    AdjustBasePathResult namestr = adjustBasePath(name);
 
     if (!basedev)
     {
@@ -1118,7 +1118,7 @@ void PosixFileSystemAccess::emptydirlocal(const LocalPath& nameParam, dev_t base
 
                     name.appendWithSeparator(LocalPath::fromPlatformEncodedRelative(d->d_name), true);
 
-                    AdjustBasePathResult nameStr = AdjustBasePath(name);
+                    AdjustBasePathResult nameStr = adjustBasePath(name);
 
                     if (!lstat(nameStr.c_str(), &statbuf))
                     {
@@ -1177,7 +1177,7 @@ bool PosixFileSystemAccess::rmdirlocal(const LocalPath& name)
 {
     emptydirlocal(name);
 
-    if (!rmdir(AdjustBasePath(name).c_str()))
+    if (!rmdir(adjustBasePath(name).c_str()))
     {
         return true;
     }
@@ -1189,7 +1189,7 @@ bool PosixFileSystemAccess::rmdirlocal(const LocalPath& name)
 
 bool PosixFileSystemAccess::mkdirlocal(const LocalPath& name, bool, bool logAlreadyExistsError)
 {
-    AdjustBasePathResult nameStr = AdjustBasePath(name);
+    AdjustBasePathResult nameStr = adjustBasePath(name);
 
     mode_t mode = umask(0);
     bool r = !mkdir(nameStr.c_str(), defaultfolderpermissions);
@@ -1219,7 +1219,7 @@ bool PosixFileSystemAccess::mkdirlocal(const LocalPath& name, bool, bool logAlre
 
 bool PosixFileSystemAccess::setmtimelocal(const LocalPath& name, m_time_t mtime)
 {
-    AdjustBasePathResult nameStr = AdjustBasePath(name);
+    AdjustBasePathResult nameStr = adjustBasePath(name);
 
     struct utimbuf times = { (time_t)mtime, (time_t)mtime };
 
@@ -1235,7 +1235,7 @@ bool PosixFileSystemAccess::setmtimelocal(const LocalPath& name, m_time_t mtime)
 
 bool PosixFileSystemAccess::chdirlocal(LocalPath& name) const
 {
-    return !chdir(AdjustBasePath(name).c_str());
+    return !chdir(adjustBasePath(name).c_str());
 }
 
 // return lowercased ASCII file extension, including the . separator
@@ -2268,8 +2268,8 @@ bool PosixFileSystemAccess::fsStableIDs(const LocalPath& path) const
 
 bool PosixFileSystemAccess::hardLink(const LocalPath& source, const LocalPath& target)
 {
-    AdjustBasePathResult sourcePath = AdjustBasePath(source);
-    AdjustBasePathResult targetPath = AdjustBasePath(target);
+    AdjustBasePathResult sourcePath = adjustBasePath(source);
+    AdjustBasePathResult targetPath = adjustBasePath(target);
 
     if (link(sourcePath.c_str(), targetPath.c_str()))
     {
@@ -2418,7 +2418,7 @@ bool PosixDirAccess::dopen(LocalPath* path, FileAccess* f, bool doglob)
 {
     if (doglob)
     {
-        if (glob(AdjustBasePath(*path).c_str(), GLOB_NOSORT, NULL, &globbuf))
+        if (glob(adjustBasePath(*path).c_str(), GLOB_NOSORT, NULL, &globbuf))
         {
             return false;
         }
@@ -2440,7 +2440,7 @@ bool PosixDirAccess::dopen(LocalPath* path, FileAccess* f, bool doglob)
     }
     else
     {
-        dp = opendir(AdjustBasePath(*path).c_str());
+        dp = opendir(adjustBasePath(*path).c_str());
     }
 
     return dp != NULL;
@@ -2483,7 +2483,7 @@ bool PosixDirAccess::dnext(LocalPath& path, LocalPath& name, bool followsymlinks
         {
             path.appendWithSeparator(LocalPath::fromPlatformEncodedRelative(d->d_name), true);
 
-            AdjustBasePathResult pathStr = AdjustBasePath(path);
+            AdjustBasePathResult pathStr = adjustBasePath(path);
 
             bool statOk = !lstat(pathStr.c_str(), &statbuf);
             if (followsymlinks && statOk && S_ISLNK(statbuf.st_mode))
@@ -2546,7 +2546,7 @@ m_off_t PosixFileSystemAccess::availableDiskSpace(const LocalPath& drivePath)
     struct statfs buffer;
     m_off_t constexpr maximumBytes = std::numeric_limits<m_off_t>::max();
 
-    if (statfs(AdjustBasePath(drivePath).c_str(), &buffer) < 0)
+    if (statfs(adjustBasePath(drivePath).c_str(), &buffer) < 0)
     {
         auto result = errno;
 

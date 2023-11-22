@@ -240,10 +240,10 @@ static std::string uuidOf(const std::string& device)
 fsfp_t FileSystemAccess::fsFingerprint(const LocalPath& path) const
 {
     // Convenience.
-    using detail::AdjustBasePath;
+    using detail::adjustBasePath;
 
     // What device contains path?
-    auto device = deviceOf(AdjustBasePath(path));
+    auto device = deviceOf(adjustBasePath(path));
     
     // Couldn't determine which device contains path.
     if (device.first.empty())
