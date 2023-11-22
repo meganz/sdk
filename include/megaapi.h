@@ -11754,23 +11754,6 @@ class MegaApi
 
 
         /**
-         * @brief Get the MegaNode that has a specific handle if it is a Password Node
-         *
-         * You can get the handle of a MegaNode using MegaNode::getHandle. The same handle
-         * can be got in a Base64-encoded string using MegaNode::getBase64Handle. Conversions
-         * between these formats can be done using MegaApi::base64ToHandle and MegaApi::handleToBase64
-         *
-         * It is required to be logged in and to have successfully completed a fetch nodes (complete
-         * or partial) request before calling this function. Otherwise, it will return NULL.
-         *
-         * You take the ownership of the returned value.
-         *
-         * @param h Node handle to check
-         * @return MegaNode object with the handle, otherwise NULL
-         */
-        MegaNode *getPasswordNodeByHandle(MegaHandle h);
-
-        /**
          * @brief Create a new Password Node in your Password Manager tree
          *
          * The associated request type with this request is MegaRequest::TYPE_CREATE_PASSWORD_NODE
@@ -11831,23 +11814,6 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void removePasswordNode(MegaHandle node, MegaRequestListener *listener = NULL);
-
-        /**
-         * @brief Get the MegaNode that has a specific handle if it is a Password Node Folder
-         *
-         * You can get the handle of a MegaNode using MegaNode::getHandle. The same handle
-         * can be got in a Base64-encoded string using MegaNode::getBase64Handle. Conversions
-         * between these formats can be done using MegaApi::base64ToHandle and MegaApi::handleToBase64
-         *
-         * It is required to be logged in and to have successfully completed a fetch nodes (complete
-         * or partial) request before calling this function. Otherwise, it will return NULL.
-         *
-         * You take the ownership of the returned value.
-         *
-         * @param h Node handle to check
-         * @return MegaNode object with the handle, otherwise NULL
-         */
-        MegaNode *getPasswordNodeFolderByHandle(MegaHandle h);
 
         /**
          * @brief Create a new Password Node Folder in your Password Manager tree

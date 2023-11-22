@@ -558,7 +558,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
                         MegaHandle nodeMegaHandle, const std::string *nodekey, const std::string *fileattrstring,
                         const char *fingerprint, const char *originalFingerprint, MegaHandle owner, MegaHandle parentHandle = INVALID_HANDLE,
                         const char *privateauth = NULL, const char *publicauth = NULL, bool isPublic = true,
-                        bool isForeign = false, bool isNodePasswordNodeFolder = false, const char *chatauth = NULL, bool isNodeDecrypted = true);
+                        bool isForeign = false, const char *chatauth = NULL, bool isNodeDecrypted = true);
 
         MegaNodePrivate(MegaNode *node);
         ~MegaNodePrivate() override;
@@ -635,8 +635,8 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         MegaNode *copy() override;
 
         char *serialize() override;
-        bool serialize(string*) const override;
-        static MegaNodePrivate* unserialize(string*);
+        bool serialize(string*) const override;  // only FILENODEs
+        static MegaNodePrivate* unserialize(string*);  // only FILENODEs
 
         static string removeAppPrefixFromFingerprint(const char* appFingerprint, m_off_t* nodeSize = nullptr);
         static string addAppPrefixToFingerprint(const string& fingerprint, const m_off_t nodeSize);
@@ -3577,9 +3577,7 @@ public:
                                 MegaRequestListener *listener = nullptr);
         void updatePasswordNode(MegaHandle node, const char* newName, const char* newPwd,
                                 MegaRequestListener *listener = NULL);
-        MegaNode *getPasswordNodeByHandle(handle h);
         void removePasswordNode(MegaHandle node, MegaRequestListener *listener = nullptr);
-        MegaNode *getPasswordNodeFolderByHandle(handle h);
         void createPasswordNodeFolder(const char *name, MegaHandle parent,
                                       MegaRequestListener *listener = nullptr);
         void renamePasswordNodeFolder(MegaHandle node, const char* newName,

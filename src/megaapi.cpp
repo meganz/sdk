@@ -2500,19 +2500,9 @@ void MegaApi::updatePasswordNode(MegaHandle node, const char* newName, const cha
     pImpl->updatePasswordNode(node, newName, newPwd, listener);
 }
 
-MegaNode* MegaApi::getPasswordNodeByHandle(uint64_t h)
-{
-    return pImpl->getPasswordNodeByHandle(h);
-}
-
 void MegaApi::removePasswordNode(MegaHandle node, MegaRequestListener *listener)
 {
     pImpl->removePasswordNode(node, listener);
-}
-
-MegaNode* MegaApi::getPasswordNodeFolderByHandle(uint64_t h)
-{
-    return pImpl->getPasswordNodeFolderByHandle(h);
 }
 
 void MegaApi::createPasswordNodeFolder(const char *name, MegaHandle parent, MegaRequestListener *listener)
