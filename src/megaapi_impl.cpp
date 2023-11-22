@@ -573,14 +573,13 @@ bool MegaNodePrivate::serialize(string *d) const
     w.serializestring(publicAuth);
     w.serializebool(isPublicNode);
     w.serializebool(foreign);
-    w.serializebool(mIsPasswordNodeFolder);
 
     bool hasChatAuth = chatAuth && chatAuth[0];
     bool hasOwner = true;
 
     bool hasOriginalFingerprint = originalfingerprint && originalfingerprint[0];
 
-    w.serializeexpansionflags(hasChatAuth, hasOwner, hasOriginalFingerprint, mIsNodeKeyDecrypted);
+    w.serializeexpansionflags(hasChatAuth, hasOwner, hasOriginalFingerprint, mIsNodeKeyDecrypted, mIsPasswordNodeFolder);
 
     if (hasChatAuth)
     {
@@ -621,8 +620,7 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
         !r.unserializestring(pubauth) ||
         !r.unserializebool(isPublicNode) ||
         !r.unserializebool(foreign) ||
-        !r.unserializebool(isNodePasswordNodeFolder) ||
-        !r.unserializeexpansionflags(expansions, 4) ||
+        !r.unserializeexpansionflags(expansions, 5) ||
         (expansions[0] && !r.unserializecstr(chatauth, false)) ||
         (expansions[1] && !r.unserializehandle(owner)) ||
         (expansions[2] && !r.unserializecstr(originalfingerprint, false)))
@@ -631,6 +629,7 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
         return NULL;
     }
     isNodeKeyDecrypted = expansions[3]; // the expansion flag is used to represent its value
+    isNodePasswordNodeFolder = expansions[4];
 
     r.eraseused(*d);
 
