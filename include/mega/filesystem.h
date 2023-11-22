@@ -198,11 +198,7 @@ class MEGA_API LocalPath
     friend void AddHiddenFileAttribute(LocalPath& path);
     friend class GfxProviderFreeImage;
     friend struct FileSystemAccess;
-#ifdef USE_IOS
-    friend const string adjustBasePath(const LocalPath& name);
-#else
-    friend const string& adjustBasePath(const LocalPath& name);
-#endif
+
     friend int compareUtf(const string&, bool unescaping1, const string&, bool unescaping2, bool caseInsensitive);
     friend int compareUtf(const string&, bool unescaping1, const LocalPath&, bool unescaping2, bool caseInsensitive);
     friend int compareUtf(const LocalPath&, bool unescaping1, const string&, bool unescaping2, bool caseInsensitive);
