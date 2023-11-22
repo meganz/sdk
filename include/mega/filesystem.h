@@ -338,6 +338,16 @@ public:
     bool operator==(const LocalPath& p) const { return localpath == p.localpath; }
     bool operator!=(const LocalPath& p) const { return localpath != p.localpath; }
     bool operator<(const LocalPath& p) const { return localpath < p.localpath; }
+
+    // Try to avoid using this function as much as you can.
+    //
+    // It's present for efficiency reasons and is really only meant for
+    // specific cases when we are using a LocalPath instance in a system
+    // call.
+    const string_type& rawValue() const
+    {
+        return localpath;
+    }
 };
 
 inline std::ostream& operator<<(std::ostream& os, const LocalPath& p)
