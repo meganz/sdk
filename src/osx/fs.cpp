@@ -1,7 +1,10 @@
 #include <sys/mount.h>
 #include <sys/param.h>
 
-#include <DiskArbitration/DADisk.h>
+// Disk Arbitration is not available on iOS.
+#ifndef USE_IOS
+#    include <DiskArbitration/DADisk.h>
+#endif // ! USE_IOS
 
 #include <cassert>
 #include <future>
@@ -117,6 +120,8 @@ static DeviceOfResult deviceOf(const std::string& path)
     return result;
 }
 
+#ifndef USE_IOS
+
 static std::string uuidOf(const std::string& device)
 {
     // Convenience.
@@ -230,20 +235,32 @@ static std::string uuidOf(const std::string& device)
     return std::string();
 }
 
+#endif // ! USE_IOS
+
 fsfp_t FileSystemAccess::fsFingerprint(const LocalPath& path) const
 {
-    auto device = deviceOf(path.localpath);
+    // Convenience.
+    using detail::AdjustBasePath;
+
+    // What device contains path?
+    auto device = deviceOf(AdjustBasePath(path));
     
     // Couldn't determine which device contains path.
     if (device.first.empty())
         return fsfp_t();
 
+    std::string uuid;
+
+#ifndef USE_IOS
+
     // Try and determine the device's UUID.
-    auto uuid = uuidOf(device.first);
+    uuid = uuidOf(device.first);
 
     // Couldn't determine UUID.
     if (uuid.empty())
         return fsfp_t();
+
+#endif // ! USE_IOS
 
     // Return fingerprint to caller.
     return fsfp_t(device.second, std::move(uuid));
