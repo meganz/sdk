@@ -44,6 +44,14 @@
 #define DEBRISFOLDER ".debris"
 
 namespace mega {
+
+namespace detail {
+
+auto AdjustBasePath(const LocalPath& path)
+  -> IOS_OR_POSIX(std::string, const std::string&);
+
+} // detail
+
 struct MEGA_API PosixDirAccess : public DirAccess
 {
     DIR* dp;
