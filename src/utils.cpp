@@ -3272,34 +3272,15 @@ const char* toString(retryreason_t reason)
     return "RETRY_UNKNOWN";
 }
 
-bool is_space(const char* ch)
+
+bool is_space(unsigned int ch)
 {
-    return ch && *ch && is_space(static_cast<unsigned char>(*ch));
+    return std::isspace(static_cast<unsigned char>(ch));
 }
 
-bool is_space(int ch)
+bool is_digit(unsigned int ch)
 {
-    return is_space(static_cast<unsigned char>(ch));
-}
-
-bool is_space(unsigned char ch)
-{
-    return std::isspace(ch);
-}
-
-bool is_digit(const char* ch)
-{
-    return ch && *ch && std::isdigit(static_cast<unsigned char>(*ch));
-}
-
-bool is_digit(int ch)
-{
-    return is_digit(static_cast<unsigned char>(ch));
-}
-
-bool is_digit(unsigned char ch)
-{
-    return std::isdigit(ch);
+    return std::isdigit(static_cast<unsigned char>(ch));
 }
 
 } // namespace mega
