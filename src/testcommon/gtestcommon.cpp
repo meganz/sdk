@@ -93,6 +93,11 @@ int ProcessWithInterceptedOutput::getExitCode()
     return mProc->hasExited() ? mProc->getExitCode() : mProc->getTerminatingSignal();
 }
 
+int ProcessWithInterceptedOutput::getPid() const
+{
+    return mProc ? mProc->getPid() : -1;
+}
+
 void ProcessWithInterceptedOutput::onOutLine(string&& line)
 {
     std::cout << line << std::endl;
@@ -515,6 +520,7 @@ int GTestParallelRunner::run()
     mFinalResult = 0;
     mPassedTestCount = 0u;
     mFailedTests.clear();
+    mPidDumps.clear();
 
     assert(mCommonArgs.isMainProcWithWorkers());
     if (!mCommonArgs.isMainProcWithWorkers() || !findTests())
@@ -628,6 +634,10 @@ void GTestParallelRunner::processFinishedTest(GTestProc& test, const std::string
     else
     {
         mFailedTests.push_back(test.getTestName());
+        if (test.crashed())
+        {
+            mPidDumps.push_back(test.getPid());
+        }
         mFinalResult = 1;
     }
 
@@ -674,6 +684,13 @@ void GTestParallelRunner::summary()
     {
         std::cout << "  YOU HAVE " << mDisabledTestCount << " DISABLED TESTS\n";
     }
+
+    if (!mPidDumps.empty())
+    {
+        std::cout << '\n';
+        for_each(mPidDumps.begin(), mPidDumps.end(), [](int p) { std::cout << "<< PROCESS SIGNALED >> (PID:" << p << ")\n"; });
+    }
+
     std::cout << std::endl;
 }
 

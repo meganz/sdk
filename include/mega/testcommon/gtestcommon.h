@@ -19,6 +19,7 @@ public:
     bool run(const std::vector<std::string>& args, const std::unordered_map<std::string, std::string>& env);
     bool finishedRunning(); // false when not started or still running
     int getExitCode(); // 0 for success
+    int getPid() const;
 
 protected:
     virtual void clearBeforeRun() {} // override for member cleanup
@@ -59,6 +60,7 @@ class GTestProc : public ProcessWithInterceptedOutput
 public:
     bool run(const std::vector<std::string>& args, const std::unordered_map<std::string, std::string>& env, size_t workerIdx, std::string&& name);
     bool passed() const { return mStatus == TestStatus::TEST_PASSED; }
+    bool crashed() const { return mStatus == TestStatus::CRASHED; }
     std::string getRelevantOutput() { return finishedRunning() ? mRelevantOutput : std::string(); }
     const std::string& getTestName() const { return mTestName; }
 
@@ -164,6 +166,7 @@ private:
     size_t mPassedTestCount = 0u;
     std::vector<std::string> mFailedTests;
     size_t mDisabledTestCount = 0u;
+    std::vector<int> mPidDumps;
 };
 
 
