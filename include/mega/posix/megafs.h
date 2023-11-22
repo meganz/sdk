@@ -115,8 +115,6 @@ public:
                              unsigned& nFingerprinted) override;
 
 #ifdef ENABLE_SYNC
-    fsfp_t fsFingerprint(const LocalPath& path) const override;
-
     bool fsStableIDs(const LocalPath& path) const override;
 
 #endif // ENABLE_SYNC

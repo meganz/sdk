@@ -306,6 +306,9 @@ public:
     bool isShareKeyInUse(handle sharehandle) const;
     void setSharekeyInUse(handle sharehandle, bool sent);
 
+    // Clears, if set, the in-use bit of the sharekeys no longer used.
+    void syncSharekeyInUseBit();
+
     // return empty string if the user's credentials are not verified (or if fail to encrypt)
     std::string encryptShareKeyTo(handle userhandle, std::string shareKey);
 
@@ -832,10 +835,10 @@ public:
     void putua(userattr_map *attrs, int ctag = -1, std::function<void(Error)> completion = nullptr);
 
     // queue a user attribute retrieval
-    bool getua(User* u, const attr_t at = ATTR_UNKNOWN, int ctag = -1);
+    bool getua(User* u, const attr_t at = ATTR_UNKNOWN, int ctag = -1, CommandGetUA::CompletionErr completionErr = nullptr, CommandGetUA::CompletionBytes completionBytes = nullptr, CommandGetUA::CompletionTLV completionTLV = nullptr);
 
     // queue a user attribute retrieval (for non-contacts)
-    void getua(const char* email_handle, const attr_t at = ATTR_UNKNOWN, const char *ph = NULL, int ctag = -1);
+    void getua(const char* email_handle, const attr_t at = ATTR_UNKNOWN, const char *ph = NULL, int ctag = -1, CommandGetUA::CompletionErr ce = nullptr, CommandGetUA::CompletionBytes cb = nullptr, CommandGetUA::CompletionTLV ctlv = nullptr);
 
     // retrieve the email address of a user
     void getUserEmail(const char *uid);

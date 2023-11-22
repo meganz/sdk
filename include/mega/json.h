@@ -54,7 +54,7 @@ struct MEGA_API JSON
     double getfloat();
     const char* getvalue();
 
-    fsfp_t getfsfp();
+    std::uint64_t getfsfp();
     uint64_t getuint64();
 
     nameid getnameid();
@@ -133,7 +133,7 @@ public:
     void arg(const char*, const byte*, int);
     void arg(const char*, m_off_t);
     void arg_B64(const char*, const string&);
-    void arg_fsfp(const char*, fsfp_t);
+    void arg_fsfp(const char*, std::uint64_t);
 
     // These should only be used when producing JSON meant for human consumption.
     // If you're generating JSON meant to be consumed by our servers, you

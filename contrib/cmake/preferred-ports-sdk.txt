@@ -8,6 +8,7 @@
 #         vcpkg is usually at 3rdparty_sdk/vcpkg/vcpkg)
 
 # vcpkg commits used as source for ports in this file -- to consider for future upgrades
+# a42af01b72c28a8e1d7b48107b33e4f286a55ef6 from 2023.11.20
 # 7476f0d4e77d3333fbb249657df8251c28c4faae from 2023.09.20
 # e0a9559a9b24af116388eae242d675bf9fde025c from 2022.10.25
 # 94ce0dab56f4d8ba6bd631ba59ed682b02d45c46 from 2022.10.19 ('2022.10.19 Release' tag)
@@ -28,7 +29,7 @@ vcpkg-cmake-get-vars/7476f0d4e77d3333fbb249657df8251c28c4faae
 # direct core dependencies of the SDK
 c-ares/c303dd024e2dc03a0665ddffbb12a1077933e649 all:on ios:off
 cryptopp/c303dd024e2dc03a0665ddffbb12a1077933e649
-curl/7375bb408f2278d2f1875c259beef93332697ba7 all:on ios:off
+curl/a42af01b72c28a8e1d7b48107b33e4f286a55ef6 all:on ios:off
 curl[core,sectransp]/7375bb408f2278d2f1875c259beef93332697ba7 all:off ios:curl-for-ios.patch
 libsodium/92adeffbce95847e141411177248ed04ac49ea9b all:on ios:libsodium-ios.patch
 openssl/6172c4b5a08aecf5755f753c6338fa74103d39cf ios:off osx:off

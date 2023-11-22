@@ -661,13 +661,14 @@ ELSE(WIN32)
     ENDIF()
 
     IF (APPLE)
+        set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs}
+                                      "-framework CoreFoundation"
+                                      "-framework DiskArbitration")
+
         IF (USE_DRIVE_NOTIFICATIONS)
             SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles}
                                            ${MegaDir}/include/mega/osx/drivenotifyosx.h
                                            ${MegaDir}/src/osx/drivenotifyosx.cpp)
-            SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs}
-                                          "-framework DiskArbitration"
-                                          "-framework CoreFoundation")
         ENDIF()
     ENDIF ()
 
