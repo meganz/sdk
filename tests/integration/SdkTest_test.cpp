@@ -16355,8 +16355,10 @@ int SdkTestGfx::upload(MegaHandle* newNodeHandleResult, const char *localPath, M
 }
 
 /**
- * @brief SdkGfxProcessForUpload
- *
+ * @brief BasicGfxProcessForUpload
+ *          1. upload a bad image and no thumbnail and preview generated.
+ *          2. upload a bad image which likely causes a gfx process crash, no thumbnail and preview generated.
+ *          3. after 2 likely crash, upload a good image, thumbnail and preview generation is succeeded.
  */
 TEST_F(SdkTestGfx, BasicGfxProcessForUpload)
 {
@@ -16391,7 +16393,7 @@ TEST_F(SdkTestGfx, BasicGfxProcessForUpload)
                                  &SdkTestGfx_BasicGfxProcessForUpload_Test::expectOneFailedJob)
     );
 
-#if defined(WIN32)
+#if defined(WIN32) // at moment, isolated gfx process is only supported in windows
     // a bad image likely causing crash
     out() << "Upload a bad file that results in gfx crashing";
 
@@ -16424,6 +16426,15 @@ TEST_F(SdkTestGfx, BasicGfxProcessForUpload)
     LOG_info << "___TEST BasicGfxProcessForUpload end___";
 }
 
+/**
+ * @brief GfxProcessCrashImageInSyncOnlyOnce
+ *          If a bad image is in sync, it wouldn't trigger gfx processing without a good reason: its content is modified
+ *          1. enable the sync and a gfx processing is trigger once
+ *          2. add a new non media file, after it synced, we check the gfx processing counter
+ *             is unchanged which means no new gfx processing.
+ *
+ *        Note: isolated process is only supported in windows at the moment, we use a good image for test in other platform
+ */
 TEST_F(SdkTestGfx, GfxProcessCrashImageInSyncOnlyOnce)
 {
     LOG_info << "___TEST GfxProcessCrashImageInSyncOnlyOnce___";
@@ -16439,8 +16450,14 @@ TEST_F(SdkTestGfx, GfxProcessCrashImageInSyncOnlyOnce)
     const auto syncPath = fs::current_path() / basePath;
 
     // create local path and copy images
+#if defined(WIN32)
+    const std::string imageFile = "likelycrash.tif";
+#else
+    const std::string imageFile = "logo.png";
+#endif
+
     fs::create_directories(syncPath);
-    copyFileFromTestData("likelycrash.tif", syncPath / "likelycrash.tif");
+    copyFileFromTestData(imageFile, syncPath / imageFile);
 
     // Creating the remote folders to be synced to.
     LOG_verbose << "Creating the remote folders to be synced to.";
@@ -16465,7 +16482,7 @@ TEST_F(SdkTestGfx, GfxProcessCrashImageInSyncOnlyOnce)
     ASSERT_EQ(MegaSync::NO_SYNC_ERROR, sync->getError());
 
     // wait until file is synced
-    WaitFor([fileIsSynced](){ return fileIsSynced("likelycrash.tif");}, 120*1000);
+    WaitFor([fileIsSynced, &imageFile](){ return fileIsSynced(imageFile);}, 120*1000);
 
     // check counters
     ASSERT_NO_FATAL_FAILURE(
@@ -16476,8 +16493,9 @@ TEST_F(SdkTestGfx, GfxProcessCrashImageInSyncOnlyOnce)
     );
 
     // simulate some sync activities, and wait for synced
-    ASSERT_TRUE(createFile((syncPath / "file.txt").string(), false)) << "Couldn't create " << UPFILE;
-    WaitFor([fileIsSynced](){ return fileIsSynced("file.txt");}, 120*1000);
+    const std::string txtFile = "file.txt";
+    ASSERT_TRUE(createFile((syncPath / txtFile).string(), false)) << "Couldn't create " << txtFile;
+    WaitFor([fileIsSynced, &txtFile](){ return fileIsSynced(txtFile);}, 120*1000);
 
     // no new gfx job is done
     // check counters
