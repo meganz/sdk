@@ -2582,6 +2582,7 @@ class MegaSyncStallPrivate : public MegaSyncStall
             int problem = pathProblem(cloudSide, index);
 
             return problem == DetectedHardLink ||
+                   problem == DetectedNestedMount ||
                    problem == DetectedSymlink ||
                    problem == DetectedSpecialFile ||
                    problem == FilesystemErrorListingFolder ||
