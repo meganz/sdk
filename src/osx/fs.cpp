@@ -1,15 +1,15 @@
 #include <sys/mount.h>
 #include <sys/param.h>
 
-// Disk Arbitration is not available on iOS.
-#ifndef USE_IOS
-#    include <DiskArbitration/DADisk.h>
-#endif // ! USE_IOS
-
 #include <cassert>
 #include <future>
 
 #include "mega.h"
+
+// Disk Arbitration is not available on iOS.
+#ifndef USE_IOS
+#    include <DiskArbitration/DADisk.h>
+#endif // ! USE_IOS
 
 namespace mega {
 
