@@ -2807,7 +2807,7 @@ bool readLines(const std::string& input, string_vector& destination)
         while (delim < end && *delim != '\r' && *delim != '\n')
         {
             ++delim;
-            whitespace += std::isspace(static_cast<unsigned char>(*whitespace)) > 0;
+            whitespace += is_space(*whitespace);
         }
 
         if (delim != whitespace)
@@ -3270,6 +3270,36 @@ const char* toString(retryreason_t reason)
     assert(false && "Unknown retry reason");
 
     return "RETRY_UNKNOWN";
+}
+
+bool is_space(const char* ch)
+{
+    return ch && *ch && is_space(static_cast<unsigned char>(*ch));
+}
+
+bool is_space(int ch)
+{
+    return is_space(static_cast<unsigned char>(ch));
+}
+
+bool is_space(unsigned char ch)
+{
+    return std::isspace(ch);
+}
+
+bool is_digit(const char* ch)
+{
+    return ch && *ch && std::isdigit(static_cast<unsigned char>(*ch));
+}
+
+bool is_digit(int ch)
+{
+    return is_digit(static_cast<unsigned char>(ch));
+}
+
+bool is_digit(unsigned char ch)
+{
+    return std::isdigit(ch);
 }
 
 } // namespace mega

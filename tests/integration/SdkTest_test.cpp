@@ -5976,7 +5976,7 @@ static void incrementFilename(string& s)
 {
     if (s.size() > 2)
     {
-        if (isdigit(s[s.size() - 2]) | !isdigit(s[s.size() - 1]))
+        if (is_digit(s[s.size() - 2]) | !is_digit(s[s.size() - 1]))
         {
             s += "00";
         }

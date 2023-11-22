@@ -522,7 +522,7 @@ uint64_t JSON::getuint64()
         ptr++;
     }
 
-    if (!std::isdigit(static_cast<unsigned char>(*ptr)))
+    if (!is_digit(*ptr))
     {
         LOG_err << "Parse error (getuint64)";
         return std::numeric_limits<uint64_t>::max();
@@ -782,7 +782,7 @@ string JSON::stripWhitespace(const char* text)
             result.append(temp);
             result.push_back('"');
         }
-        else if (std::isspace(static_cast<unsigned char>(*reader.pos)))
+        else if (is_space(*reader.pos))
             ++reader.pos;
         else
             result.push_back(*reader.pos++);

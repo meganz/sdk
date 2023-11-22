@@ -9137,7 +9137,7 @@ bool CommandSMSVerificationSend::isPhoneNumber(const string& s)
 {
     for (auto i = s.size(); i--; )
     {
-        if (!(isdigit(s[i]) || (i == 0 && s[i] == '+')))
+        if (!(is_digit(s[i]) || (i == 0 && s[i] == '+')))
         {
             return false;
         }
@@ -9170,7 +9170,7 @@ bool CommandSMSVerificationCheck::isVerificationCode(const string& s)
 {
     for (const char c : s)
     {
-        if (!isdigit(c))
+        if (!is_digit(c))
         {
             return false;
         }

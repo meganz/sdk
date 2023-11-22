@@ -1069,6 +1069,15 @@ string connDirectionToStr(direction_t directionType);
 // Translate retry reason into a human-friendly string.
 const char* toString(retryreason_t reason);
 
+
+// Wrapper functions for std::isspace and std::isdigit
+bool is_space(const char* ch);
+bool is_space(int c);
+bool is_space(unsigned char ch);
+bool is_digit(const char* ch);
+bool is_digit(int ch);
+bool is_digit(unsigned char ch);
+
 } // namespace mega
 
 #endif // MEGA_UTILS_H

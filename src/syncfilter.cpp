@@ -942,13 +942,13 @@ bool add(const string& text, SizeFilterPtr& filter)
     }
 
     // Skip leading whitespace.
-    while (std::isspace(istream.peek()))
+    while (is_space(istream.peek()))
     {
         istream.get();
     }
 
     // Is the limit a bare number?
-    if (!std::isdigit(istream.peek()))
+    if (!is_digit(istream.peek()))
     {
         // Limit isn't a number or has sign markers.
         return syntaxError(text);
@@ -1002,7 +1002,7 @@ bool add(const string& text, SizeFilterPtr& filter)
         {
             auto character = istream.get();
 
-            if (!std::isspace(character))
+            if (!is_space(character))
                 break;
         }
 
@@ -1191,7 +1191,7 @@ bool add(const string& text, StringFilterPtrVector& filters, bool& syncThisMegai
 
     // Ignore trailing whitespace.
     const char* n = text.c_str() + text.size();
-    while (n > m && std::isspace(static_cast<unsigned char>(*(n-1))))
+    while (n > m && is_space(*(n-1)))
         --n;
 
     // Is the pattern effectively empty?

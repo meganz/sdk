@@ -586,7 +586,7 @@ static char** split_str(const char* str, char del, size_t* len_out) {
                 len += 1;
                 accum = 0;
             }
-        } else if (!isspace(static_cast<unsigned char>(str[i]))) {
+        } else if (!isspace(str[i])) {
             accum += 1;
         }
     }
@@ -611,7 +611,7 @@ static char** split_str(const char* str, char del, size_t* len_out) {
                 memset(buf, 0, stlen + 1);
                 bi = 0;
             }
-        } else if (!isspace(static_cast<unsigned char>(str[i]))) {
+        } else if (!isspace(str[i])) {
             buf[bi++] = str[i];
         }
     }
