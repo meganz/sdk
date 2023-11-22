@@ -425,9 +425,9 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
             }
             else if (it->first == AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_VALUE))
             {
-                if (!customAttrs) customAttrs = new attr_map();
+                if (!mOfficialAttrs) mOfficialAttrs = make_unique<attr_map>();
 
-                (*customAttrs)[it->first] = it->second;
+                (*mOfficialAttrs)[it->first] = it->second;
             }
         }
     }
@@ -701,9 +701,9 @@ MegaStringList *MegaNodePrivate::getCustomAttrNames()
     return new MegaStringListPrivate(std::move(names));
 }
 
-const char *MegaNodePrivate::getCustomAttr(const char *attrName)
+const char* MegaNodePrivate::getAttrFrom(const char *attrName, const attr_map* m) const
 {
-    if (!customAttrs)
+    if (!m)
     {
         return NULL;
     }
@@ -714,13 +714,23 @@ const char *MegaNodePrivate::getCustomAttr(const char *attrName)
         return NULL;
     }
 
-    attr_map::iterator it = customAttrs->find(n);
-    if (it == customAttrs->end())
+    auto it = m->find(n);
+    if (it == m->end())
     {
         return NULL;
     }
 
     return it->second.c_str();
+}
+
+const char *MegaNodePrivate::getCustomAttr(const char *attrName)
+{
+    return getAttrFrom(attrName, customAttrs);
+}
+
+const char *MegaNodePrivate::getOfficialAttr(const char *attrName) const
+{
+    return getAttrFrom(attrName, mOfficialAttrs.get());
 }
 
 int MegaNodePrivate::getDuration()
@@ -1820,7 +1830,7 @@ bool MegaNodePrivate::isPasswordNode()
 
 const char* MegaNodePrivate::getPasswordNodeValue()
 {
-    return getCustomAttr(MegaClient::NODE_ATTR_PASSWORD_VALUE);
+    return getOfficialAttr(MegaClient::NODE_ATTR_PASSWORD_VALUE);
 }
 
 string *MegaNodePrivate::getPrivateAuth()

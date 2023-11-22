@@ -643,11 +643,15 @@ class MegaNodePrivate : public MegaNode, public Cacheable
 
     protected:
         MegaNodePrivate(Node *node);
+        const char* getAttrFrom(const char *attrName, const attr_map* attrMap) const;
+        const char *getOfficialAttr(const char* attrName) const;
+
         int type;
         const char *name;
         const char *fingerprint;
         const char *originalfingerprint;
         attr_map *customAttrs;
+        std::unique_ptr<attr_map> mOfficialAttrs;
         int64_t size;
         int64_t ctime;
         int64_t mtime;
