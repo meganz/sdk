@@ -114,6 +114,9 @@ public:
     std::string getExecutable() const { return mArgs.empty() ? std::string() : mArgs[0]; }
     std::string getFilter() const { return mGtestFilterIdx < mArgs.size() ? mArgs[mGtestFilterIdx] : std::string(); }
 
+    static void setAccountsPerInstance(size_t count) { emailsPerInstance = count; }
+    static size_t getAccountsPerInstance() { return emailsPerInstance; }
+
     bool hidingWorkerMemLeaks() const { return mHideWorkerMemLeaks; }
 
 private:
@@ -140,7 +143,7 @@ private:
 
     TestRunMode mRunMode = TestRunMode::INVALID;
 
-    static constexpr size_t emailsPerInstance = 3u;
+    static inline size_t emailsPerInstance = 3u; // default value at the time of writing this code
     static constexpr size_t maxWorkerCount = 256u; // reasonable limit used for validation only, not really a constraint
 };
 
