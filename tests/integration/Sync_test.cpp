@@ -146,7 +146,7 @@ bool createFile(const fs::path& path, const void* data, const size_t data_length
     auto create = [&](DWORD disposition, DWORD flags) {
         return CreateFileW(path.c_str(),
                            GENERIC_WRITE,
-                           0,
+                           FILE_SHARE_READ | FILE_SHARE_WRITE,
                            nullptr,
                            disposition,
                            flags,
