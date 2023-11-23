@@ -22,6 +22,7 @@
 #include "mega.h"
 #include "mega/gfx.h"
 #include "mega/logging.h"
+#include "mega/gfx/GfxProcCG.h"
 #include <numeric>
 #include <tuple>
 
