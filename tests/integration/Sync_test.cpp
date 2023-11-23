@@ -9535,16 +9535,16 @@ TEST_F(SyncTest, ReplaceParentWithEmptyChild)
     Model model;
     string session;
 
+    StandardClient c(TESTROOT, "c");
+
+    // Log callbacks.
+    c.logcb = true;
+
+    // Log in client.
+    ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
+
     // Populate initial filesystem.
     {
-        StandardClient c(TESTROOT, "c");
-
-        // Log callbacks.
-        c.logcb = true;
-
-        // Log in client.
-        ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
-
         // Add and start sync.
         id = c.setupSync_mainthread("s", "s", false, false);
         ASSERT_NE(id, UNDEF);
@@ -9562,30 +9562,12 @@ TEST_F(SyncTest, ReplaceParentWithEmptyChild)
         // Make sure the tree made it to the cloud.
         ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
 
-        // Save the session.
-        c.client.dumpsession(session);
-
-        // Locally log out the client.
-        c.localLogout();
-    }
-
-    StandardClient c(TESTROOT, "c");
-
-    // Log callbacks.
-    c.logcb = true;
-
-    // Locally replace 0 with 0/1/2/3.
-    {
-        model.removenode("0");
-        model.addfolder("0");
-
-        fs::rename(c.fsBasePath / "s" / "0" / "1" / "2" / "3",
-                   c.fsBasePath / "s" / "3");
-
-        fs::remove_all(c.fsBasePath / "s" / "0");
-
-        fs::rename(c.fsBasePath / "s" / "3",
-                   c.fsBasePath / "s" / "0");
+        // Temporarily disable the sync.
+        //
+        // The rationale for this is that we want to make sure that
+        // the cloud changes below are visible to this client before
+        // it starts trying synchronize stuff.
+        ASSERT_TRUE(c.disableSync(id, NO_SYNC_ERROR, true, true));
     }
 
     // Remotely replace 4 with 4/5/6/7.
@@ -9606,21 +9588,27 @@ TEST_F(SyncTest, ReplaceParentWithEmptyChild)
         ASSERT_TRUE(cr.movenode("s/4/5/6/7", "s"));
         ASSERT_TRUE(cr.deleteremote("s/4"));
         ASSERT_TRUE(cr.rename("s/7", "4"));
+
+        // Wait for our primary client to see cr's changes.
+        ASSERT_TRUE(c.waitFor(SyncRemoteMatch("s", model.root.get()), TIMEOUT));
     }
 
-    // Hook resume callbacks.
-    promise<void> notify;
+    // Locally replace 0 with 0/1/2/3.
+    {
+        model.removenode("0");
+        model.addfolder("0");
 
-    c.mOnSyncStateConfig = [&notify](const SyncConfig& config) {
-        if (config.mRunState == SyncRunState::Run)
-            notify.set_value();
-    };
+        fs::rename(c.fsBasePath / "s" / "0" / "1" / "2" / "3",
+                   c.fsBasePath / "s" / "3");
 
-    // Resume client.
-    ASSERT_TRUE(c.login_fetchnodesFromSession(session));
+        fs::remove_all(c.fsBasePath / "s" / "0");
 
-    // Wait for sync to resume.
-    ASSERT_TRUE(debugTolerantWaitOnFuture(notify.get_future(), 45));
+        fs::rename(c.fsBasePath / "s" / "3",
+                   c.fsBasePath / "s" / "0");
+    }
+
+    // Resume our sync.
+    ASSERT_TRUE(c.enableSyncByBackupId(id, "c"));
 
     // Wait for the sync to complete.
     waitonsyncs(TIMEOUT, &c);
