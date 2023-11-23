@@ -1,12 +1,15 @@
 #include <sys/mount.h>
 #include <sys/param.h>
 
-#include <DiskArbitration/DADisk.h>
-
 #include <cassert>
 #include <future>
 
 #include "mega.h"
+
+// Disk Arbitration is not available on iOS.
+#ifndef USE_IOS
+#    include <DiskArbitration/DADisk.h>
+#endif // ! USE_IOS
 
 namespace mega {
 
@@ -117,7 +120,13 @@ static DeviceOfResult deviceOf(const std::string& path)
     return result;
 }
 
-static std::string uuidOf(const std::string& device)
+// Convenience.
+using UUIDOfResult =
+  std::pair<std::string, bool>;
+
+#ifndef USE_IOS
+
+static UUIDOfResult uuidOf(const std::string& device)
 {
     // Convenience.
     using DictionaryPtr = CFPtr<CFDictionaryRef>;
@@ -132,7 +141,7 @@ static std::string uuidOf(const std::string& device)
 
     // Couldn't establish DA session.
     if (!session)
-        return std::string();
+        return UUIDOfResult("", false);
 
     // Try and get a reference to the specified device.
     DiskPtr disk(DADiskCreateFromBSDName(allocator,
@@ -141,14 +150,14 @@ static std::string uuidOf(const std::string& device)
 
     // Couldn't get a reference to the device.
     if (!disk)
-        return std::string();
+        return UUIDOfResult("", false);
 
     // Try and get the device's description.
     DictionaryPtr info(DADiskCopyDescription(disk.get()));
 
     // Couldn't get device's description.
     if (!info)
-        return std::string();
+        return UUIDOfResult("", false);
 
     // What UUIDs do we want to retrieve?
     static const std::vector<const char*> names = {
@@ -172,7 +181,7 @@ static std::string uuidOf(const std::string& device)
 
         // Couldn't create key.
         if (!key)
-            return std::string();
+            return UUIDOfResult("", false);
 
         // Try and retrieve UUID associated with key.
         auto uuid = ([&]() {
@@ -196,7 +205,7 @@ static std::string uuidOf(const std::string& device)
 
         // Try and retrieve the string's raw value.
         if (auto* value = CFStringGetCStringPtr(string.get(), encoding))
-            return value;
+            return UUIDOfResult(value, true);
 
         // Compute necessary buffer length.
         auto required =
@@ -223,16 +232,29 @@ static std::string uuidOf(const std::string& device)
         buffer.resize(static_cast<std::size_t>(required));
 
         // Return UUID to caller.
-        return buffer;
+        return UUIDOfResult(std::move(buffer), true);
     }
 
     // Couldn't retrieve UUID.
-    return std::string();
+    return UUIDOfResult("", false);
 }
+
+#else // ! USE_IOS
+
+static UUIDOfResult uuidOf(const std::string&)
+{
+    return UUIDOfResult("", true);
+}
+
+#endif // USE_IOS
 
 fsfp_t FileSystemAccess::fsFingerprint(const LocalPath& path) const
 {
-    auto device = deviceOf(path.localpath);
+    // Convenience.
+    using detail::adjustBasePath;
+
+    // What device contains path?
+    auto device = deviceOf(adjustBasePath(path));
     
     // Couldn't determine which device contains path.
     if (device.first.empty())
@@ -242,11 +264,11 @@ fsfp_t FileSystemAccess::fsFingerprint(const LocalPath& path) const
     auto uuid = uuidOf(device.first);
 
     // Couldn't determine UUID.
-    if (uuid.empty())
+    if (!uuid.second)
         return fsfp_t();
 
     // Return fingerprint to caller.
-    return fsfp_t(device.second, std::move(uuid));
+    return fsfp_t(device.second, std::move(uuid.first));
 }
 
 MacFileSystemAccess::MacFileSystemAccess()

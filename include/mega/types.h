@@ -1480,4 +1480,17 @@ public:
 
 using detail::CheckableMutex;
 
+// For convenience.
+#ifdef USE_IOS
+
+#define IOS_ONLY(i) i
+#define IOS_OR_POSIX(i, p) i
+
+#else  // USE_IOS
+
+#define IOS_ONLY(i)
+#define IOS_OR_POSIX(i, p) p
+
+#endif // ! USE_IOS
+
 #endif
