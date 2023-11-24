@@ -158,9 +158,22 @@ bool createFile(const fs::path& path, const void* data, const size_t data_length
     // Try and truncate any existing file.
     auto handle = create(TRUNCATE_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT);
 
-    // File doesn't already exist.
+    // File may not exist.
     if (handle == invalid)
     {
+        auto error = GetLastError();
+
+        // File exists but we couldn't truncate it.
+        if (error != ERROR_FILE_NOT_FOUND)
+        {
+            LOG_debug << "Unable to truncate data file: "
+                      << path.u8string()
+                      << ". Error was: "
+                      << error;
+
+            return false;
+        }
+
         // Try creating the file directly.
         handle = create(CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL);
 
@@ -168,7 +181,7 @@ bool createFile(const fs::path& path, const void* data, const size_t data_length
         if (handle == invalid)
         {
             // Latch error.
-            auto error = GetLastError();
+            error = GetLastError();
 
             // Let everyone know why we failed.
             LOG_debug << "Unable to create data file: "
