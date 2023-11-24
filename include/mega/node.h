@@ -697,7 +697,7 @@ struct MEGA_API LocalNode
 
             bool inProgress() { return !succeeded && !failed; }
 
-            fsfp_t sourceFsfp;
+            fsfp_ptr_t sourceFsfp;
             handle sourceFsid = UNDEF;
             nodetype_t sourceType = FILENODE;
             FileFingerprint sourceFingerprint;

@@ -31,7 +31,6 @@
 !/tests/test_integration/test-data/
 /tests/tool_purge_account
 examples/megacli
-examples/megasimplesync
 examples/linux/megafuse
 
 # Autotool stuff

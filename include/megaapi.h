@@ -4338,11 +4338,12 @@ class MegaRequest
             TYPE_GET_SYNC_STALL_LIST                                        = 177,
             TYPE_FETCH_CREDIT_CARD_INFO                                     = 178,
             TYPE_MOVE_TO_DEBRIS                                             = 179,
-            TYPE_CREATE_PASSWORD_MANAGER_BASE                               = 180,
-            TYPE_CREATE_PASSWORD_NODE                                       = 181,
-            TYPE_REMOVE_PASSWORD_NODE                                       = 182,
-            TYPE_UPDATE_PASSWORD_NODE                                       = 183,
-            TOTAL_OF_REQUEST_TYPES                                          = 184
+            TYPE_RING_INDIVIDUAL_IN_CALL                                    = 180,
+            TYPE_CREATE_PASSWORD_MANAGER_BASE                               = 181,
+            TYPE_CREATE_PASSWORD_NODE                                       = 182,
+            TYPE_REMOVE_PASSWORD_NODE                                       = 183,
+            TYPE_UPDATE_PASSWORD_NODE                                       = 184,
+            TOTAL_OF_REQUEST_TYPES                                          = 185,
         };
 
         virtual ~MegaRequest();
@@ -6698,12 +6699,6 @@ public:
     virtual const char* getLastKnownMegaFolder() const;
 
     /**
-     * @brief Gets an unique identifier of the local filesystem that is being synced
-     * @return Unique identifier of the local file system that is being synced
-     */
-    virtual long long getLocalFingerprint() const;
-
-    /**
      * @brief Returns the identifier of this synchronization
      *
      * Identifiers of synchronizations are always negative numbers.
@@ -6963,6 +6958,8 @@ class MegaSyncStall
             PutnodeCompletionDeferredByController,
             PutnodeCompletionPending,
             UploadDeferredByController,
+
+            DetectedNestedMount,
 
             SyncPathProblem_LastPlusOne
         };
@@ -20908,6 +20905,34 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void endChatCall(MegaHandle chatid, MegaHandle callid, int reason = 0, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief This function allows a user in an existing call, to send an incoming call push notification to another user in the chat
+         * to notify that call is ringing..
+         *
+         * When a call is started and one user doesn't pick it up, ringing stops for that user/participant after a given time.
+         * This function can be used to force another ringing event at said user/participant.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_RING_INDIVIDUAL_IN_CALL
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaChatRequest::getNodeHandle - Returns the chat identifier
+         * - MegaChatRequest::getParentHandle - Returns the user's id to ring again
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::ERROR_OK:
+         *
+         * The request will fail with MegaChatError::ERROR_ARGS
+         * - if chat id provided as param is invalid
+         * - if user id to ring again provided as param is invalid
+         *
+         * The request will fail with MegaChatError::ERROR_NOENT
+         * - if the chatroom doesn't exists.
+         *
+         * @param chatId MegaChatHandle that identifies the chat room
+         * @param userId MegaChatHandle that identifies the user to ring again
+         * @param listener MegaRequestListener to track this request
+         */
+        void ringIndividualInACall(MegaHandle chatid, MegaHandle userid, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Change the SFU id

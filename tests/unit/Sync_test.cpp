@@ -640,7 +640,7 @@ TEST_F(SyncConfigIOContextTest, Serialize)
         config.mBackupId = 1;
         config.mEnabled = false;
         config.mError = NO_SYNC_ERROR;
-        config.mFilesystemFingerprint.id = 1;
+        config.mFilesystemFingerprint = fsfp_t(2, "1");
         config.mLocalPath = Utilities::randomPathAbsolute();
         config.mName = Utilities::randomBase64();
         config.mOriginalPathOfRemoteRootNode = Utilities::randomBase64();
@@ -654,7 +654,7 @@ TEST_F(SyncConfigIOContextTest, Serialize)
         config.mBackupId = 2;
         config.mEnabled = true;
         config.mError = UNKNOWN_ERROR;
-        config.mFilesystemFingerprint.id = 2;
+        config.mFilesystemFingerprint = fsfp_t(2, "2");
         config.mLocalPath = Utilities::randomPathAbsolute();
         config.mName = Utilities::randomBase64();
         config.mOriginalPathOfRemoteRootNode = Utilities::randomBase64();
@@ -687,7 +687,7 @@ TEST_F(SyncConfigIOContextTest, Serialize)
         EXPECT_EQ(a.mBackupId, b.mBackupId);
         EXPECT_EQ(a.mEnabled, b.mEnabled);
         EXPECT_EQ(a.mError, b.mError);
-        EXPECT_EQ(a.mFilesystemFingerprint.id, b.mFilesystemFingerprint.id);
+        EXPECT_EQ(a.mFilesystemFingerprint, b.mFilesystemFingerprint);
         EXPECT_EQ(a.mLocalPath, b.mLocalPath);
         EXPECT_EQ(a.mName, b.mName);
         EXPECT_EQ(a.mOriginalPathOfRemoteRootNode, b.mOriginalPathOfRemoteRootNode);
@@ -792,7 +792,7 @@ TEST_F(SyncConfigStoreTest, Read)
         EXPECT_EQ(a.mBackupId, b.mBackupId);
         EXPECT_EQ(a.mEnabled, b.mEnabled);
         EXPECT_EQ(a.mError, b.mError);
-        EXPECT_EQ(a.mFilesystemFingerprint.id, b.mFilesystemFingerprint.id);
+        EXPECT_EQ(a.mFilesystemFingerprint, b.mFilesystemFingerprint);
         EXPECT_EQ(a.mLocalPath, b.mLocalPath);
         EXPECT_EQ(a.mName, b.mName);
         EXPECT_EQ(a.mOriginalPathOfRemoteRootNode, b.mOriginalPathOfRemoteRootNode);

@@ -23,7 +23,6 @@ In the `examples` folder you can find example apps using:
 
 1. The low level SDK:
   - megacli (a powerful command line tool that allows to use all SDK features)
-  - megasimplesync (a command line tool that allows to use the synchronization engine)
 
 2. The intermediate layer:
   - An example app for Visual Studio in `examples/win32`
@@ -75,7 +74,7 @@ For platforms with Autotools, first set up needed libraries and then the generic
 
 Notice that you would need Autotools installed in your system (in Linux this normally entails having `autoconf` and `libtool` packages installed).
 
-That compilation will include the examples using our low level SDK (`megacli` and `megasimplesync`). 
+That compilation will include the example using our low level SDK: `megacli`.
 You also have specific build instructions for OSX (`doc/OSX.txt`) and FreeBSD (`doc/FreeBSD.txt`)
 and a build script to automatically download and build the SDK along with all its dependencies (`contrib/build_sdk.sh`)
 
@@ -130,7 +129,7 @@ Usage
 -----
 
 The low level SDK doesn't have inline documentation yet. If you want to use it,
-please check one of our example apps (`examples/megacli`, `examples/megasimplesync`).
+please check our example app `examples/megacli`.
 
 The new intermediate layer has been documented using Doxygen. The only public header that you need
 to include to use is `include/megaapi.h`. You can read the documentation in that header file,

@@ -105,18 +105,15 @@ pipeline {
                     -S ${mac_sources_workspace}/contrib/cmake -B ${mac_sources_workspace}/${BUILD_DIR}"
                     sh "cmake --build ${mac_sources_workspace}/${BUILD_DIR} --target Mega -j1"
                     sh "cmake --build ${mac_sources_workspace}/${BUILD_DIR} --target megacli -j1"
-                    sh "cmake --build ${mac_sources_workspace}/${BUILD_DIR} --target megasimplesync -j1"
                     sh "cmake --build ${mac_sources_workspace}/${BUILD_DIR} --target test_unit -j1"
                     sh "cmake --build ${mac_sources_workspace}/${BUILD_DIR} --target test_integration -j1"
                     sh "cmake --build ${mac_sources_workspace}/${BUILD_DIR} --target tool_tcprelay -j1"
                     
-                    //Package megacli and megasimplesync to be archived
-                    sh "echo Packaging megacli and megasimplesync to be archived"
+                    //Package megacli to be archived
+                    sh "echo Packaging megacli to be archived"
                     sh "rm -r examples-* || :; mkdir examples-${BUILD_ID}"
                     sh "cp ${BUILD_DIR}/megacli ./examples-${BUILD_ID}"
-                    sh "cp ${BUILD_DIR}/megasimplesync ./examples-${BUILD_ID}"
                     sh "install_name_tool -add_rpath @executable_path/.libs ./examples-${BUILD_ID}/megacli"
-                    sh "install_name_tool -add_rpath @executable_path/.libs ./examples-${BUILD_ID}/megasimplesync"
                     sh "mkdir ./examples-${BUILD_ID}/.libs; cp -RP ${VCPKGPATH}/vcpkg/installed/arm64-osx-mega/debug/lib/*.dylib ./examples-${BUILD_ID}/.libs || :"
                     sh "cp -RP ${VCPKGPATH}/vcpkg/installed/arm64-osx-mega/debug/lib/*.dylib ./examples-${BUILD_ID}/.libs || :"
                     sh "tar czf examples-${BUILD_ID}.tar.gz ./examples-${BUILD_ID} || :"

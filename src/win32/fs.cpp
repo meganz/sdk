@@ -21,6 +21,7 @@
 
 #include <cctype>
 #include <cwctype>
+#include <iomanip>
 
 #include "mega.h"
 #include <limits>
@@ -1274,35 +1275,50 @@ void WinFileSystemAccess::statsid(string *id) const
     }
 }
 
-#ifdef ENABLE_SYNC
-
-fsfp_t WinFileSystemAccess::fsFingerprint(const LocalPath& path) const
+fsfp_t FileSystemAccess::fsFingerprint(const LocalPath& path) const
 {
-    ScopedFileHandle hDirectory =
-        CreateFileW(path.localpath.c_str(),
-                    FILE_LIST_DIRECTORY,
-                    FILE_SHARE_READ | FILE_SHARE_WRITE,
-                    NULL,
-                    OPEN_EXISTING,
-                    FILE_FLAG_BACKUP_SEMANTICS,
-                    NULL);
+    // Convenience.
+    static auto failed = []() {
+        auto error = GetLastError();
 
-    fsfp_t result;
+        LOG_err << "Unable to determine volume ID: "
+                << getErrorMessage(error);
 
-    if (!hDirectory)
-        return result;
+        return fsfp_t();
+    };  // failed
 
-    BY_HANDLE_FILE_INFORMATION fi;
+    // Try and open the specified file.
+    ScopedFileHandle handle = CreateFileW(path.localpath.c_str(),
+                                          FILE_LIST_DIRECTORY,
+                                          FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                          nullptr,
+                                          OPEN_EXISTING,
+                                          FILE_FLAG_BACKUP_SEMANTICS,
+                                          nullptr);
 
-	if (!GetFileInformationByHandle(hDirectory.get(), &fi))
-    {
-        LOG_err << "Unable to get fsfingerprint. Error code: " << GetLastError();
-        return result;
-    }
+    // Couldn't open the specified file.
+    if (!handle)
+        return failed();
 
-    result.id = fi.dwVolumeSerialNumber + 1;
-    return result;
+    BY_HANDLE_FILE_INFORMATION info;
+
+    // Try and retrieve information about the specified file.
+    if (!GetFileInformationByHandle(handle.get(), &info))
+        return failed();
+
+    // Convert serial number to a string.
+    std::ostringstream ostream;
+
+    ostream << std::hex
+            << std::setfill('0')
+            << std::setw(16)
+            << info.dwVolumeSerialNumber;
+
+    // Return ID to caller.
+    return fsfp_t(info.dwVolumeSerialNumber + 1, ostream.str());
 }
+
+#ifdef ENABLE_SYNC
 
 bool WinFileSystemAccess::fsStableIDs(const LocalPath& path) const
 {
