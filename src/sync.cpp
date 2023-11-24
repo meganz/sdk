@@ -10953,7 +10953,6 @@ FileSystemAccess& SyncConfigIOContext::fsAccess() const
 error SyncConfigIOContext::getSlotsInOrder(const LocalPath& dbPath,
                                            vector<unsigned int>& confSlots)
 {
-    using std::isdigit;
     using std::sort;
 
     using SlotTimePair = pair<unsigned int, m_time_t>;
@@ -10991,7 +10990,7 @@ error SyncConfigIOContext::getSlotsInOrder(const LocalPath& dbPath,
         const char suffix = filePath.toPath(false).back();
 
         // Skip invalid suffixes.
-        if (!isdigit(suffix))
+        if (!is_digit(suffix))
         {
             continue;
         }

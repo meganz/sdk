@@ -47,7 +47,7 @@ uint32_t GetMediaInfoVersion()
         unsigned column = 1;
         for (size_t i = s.size(); i--; )
         {
-            if (isdigit(s[i]))
+            if (is_digit(s[i]))
             {
                 version += column * (s[i] - '0');
                 column *= 10;

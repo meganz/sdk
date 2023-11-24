@@ -17140,11 +17140,6 @@ bool MegaApiImpl::isFilesystemAvailable()
     return client->nodeByHandle(client->mNodeManager.getRootNodeFiles()) != NULL;
 }
 
-bool isDigit(const char *c)
-{
-    return (*c >= '0' && *c <= '9');
-}
-
 // returns 0 if i==j, +1 if i goes first, -1 if j goes first.
 int naturalsorting_compare (const char *i, const char *j)
 {
@@ -17159,8 +17154,8 @@ int naturalsorting_compare (const char *i, const char *j)
             char char_i, char_j;
             while ( (char_i = *i) && (char_j = *j) )
             {
-                bool char_i_isDigit = isDigit(i);
-                bool char_j_isDigit = isDigit(j);
+                bool char_i_isDigit = is_digit(*i);
+                bool char_j_isDigit = is_digit(*j);
 
                 if (char_i_isDigit && char_j_isDigit)
                 {
@@ -17192,7 +17187,7 @@ int naturalsorting_compare (const char *i, const char *j)
         {
             uint64_t number_i = 0;
             unsigned int i_overflow_count = 0;
-            while (*i && isDigit(i))
+            while (*i && is_digit(*i))
             {
                 number_i = number_i * 10 + (*i - 48); // '0' ASCII code is 48
                 ++i;
@@ -17207,7 +17202,7 @@ int naturalsorting_compare (const char *i, const char *j)
 
             uint64_t number_j = 0;
             unsigned int j_overflow_count = 0;
-            while (*j && isDigit(j))
+            while (*j && is_digit(*j))
             {
                 number_j = number_j * 10 + (*j - 48);
                 ++j;
