@@ -41,6 +41,7 @@ using ::testing::Test;
 static const unsigned int pollingT      = 500000;   // (microseconds) to check if response from server is received
 static const unsigned int maxTimeout    = 600;      // Maximum time (seconds) to wait for response from server
 static const unsigned int defaultTimeout = 60;      // Normal time for most operations (seconds) to wait for response from server
+static const unsigned int waitForSyncsMs = 4000;    // Time to wait after a sync has been created and before adding new files to it
 
 
 struct TransferTracker : public ::mega::MegaTransferListener

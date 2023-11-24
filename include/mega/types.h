@@ -54,15 +54,6 @@ typedef int64_t m_off_t;
 
 namespace mega {
 
-// opaque filesystem fingerprint (eg on windows, volume serial number).  Let's make it a proper type so the compiler helps us not mix it up with other IDs
-struct fsfp_t
-{
-    uint64_t id = 0;
-    fsfp_t() {}
-    fsfp_t(uint64_t i) : id(i) {}
-    operator bool() { return id != 0; }
-};
-
 // within ::mega namespace, byte is unsigned char (avoids ambiguity when std::byte from c++17 and perhaps other defined ::byte are available)
 #if defined(USE_CRYPTOPP) && (CRYPTOPP_VERSION >= 600) && ((__cplusplus >= 201103L) || (__RPCNDR_H_VERSION__ == 500))
 using byte = CryptoPP::byte;
@@ -349,6 +340,7 @@ typedef list<struct File*> file_list;
 
 // node types:
 typedef enum {
+    TYPE_NESTED_MOUNT = -5,
     TYPE_SYMLINK = -4,
     TYPE_DONOTSYNC = -3,
     TYPE_SPECIAL = -2, // but not include SYMLINK
@@ -1159,6 +1151,8 @@ enum class PathProblem : unsigned short {
     PutnodeCompletionPending,
     UploadDeferredByController,
 
+    DetectedNestedMount,
+
     PathProblem_LastPlusOne
 };
 
@@ -1251,6 +1245,12 @@ using textchat_vector = vector<TextChat*>;
 static constexpr int sfu_invalid_id = -1;
 
 #endif // ENABLE_CHAT
+
+// Opaque filesystem fingerprint.
+class fsfp_t;
+
+// Convenience.
+using fsfp_ptr_t = std::shared_ptr<fsfp_t>;
 
 } // namespace mega
 
@@ -1480,5 +1480,18 @@ public:
 } // detail
 
 using detail::CheckableMutex;
+
+// For convenience.
+#ifdef USE_IOS
+
+#define IOS_ONLY(i) i
+#define IOS_OR_POSIX(i, p) i
+
+#else  // USE_IOS
+
+#define IOS_ONLY(i)
+#define IOS_OR_POSIX(i, p) p
+
+#endif // ! USE_IOS
 
 #endif
