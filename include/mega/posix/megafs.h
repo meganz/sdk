@@ -44,6 +44,16 @@
 #define DEBRISFOLDER ".debris"
 
 namespace mega {
+
+namespace detail {
+
+using AdjustBasePathResult =
+  IOS_OR_POSIX(std::string, const std::string&);
+
+AdjustBasePathResult adjustBasePath(const LocalPath& path);
+
+} // detail
+
 struct MEGA_API PosixDirAccess : public DirAccess
 {
     DIR* dp;
@@ -65,10 +75,6 @@ class MEGA_API PosixFileSystemAccess : public FileSystemAccess
 {
 public:
     using FileSystemAccess::getlocalfstype;
-
-#ifdef USE_IOS
-    static char *appbasepath;
-#endif
 
     int defaultfilepermissions;
     int defaultfolderpermissions;

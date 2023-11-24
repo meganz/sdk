@@ -103,14 +103,13 @@ pipeline {
                     sh "make clean"
                     sh "make"
 
-                    //Package megacli and megasimplesync to be archived
-                    sh "echo Packaging megacli and megasimplesync to be archived"
+                    //Package megacli to be archived
+                    sh "echo Packaging megacli to be archived"
                     sh "rm -r examples-* || :; mkdir examples-${BUILD_ID}"
                     sh "cp -r ./examples/.libs ./examples-${BUILD_ID}"
                     sh "cp -P ./src/.libs/libmega.so* ./examples-${BUILD_ID}/.libs/" 
                     sh "echo \"LD_LIBRARY_PATH=\\`dirname \\\$0\\`/.libs \\`dirname \\\$0\\`/.libs/megacli\" > examples-${BUILD_ID}/megacli"
-                    sh "echo \"LD_LIBRARY_PATH=\\`dirname \\\$0\\`/.libs \\`dirname \\\$0\\`/.libs/megasimplesync\" > examples-${BUILD_ID}/megasimplesync"
-                    sh "chmod +x examples-${BUILD_ID}/megacli && chmod +x examples-${BUILD_ID}/megasimplesync" 
+                    sh "chmod +x examples-${BUILD_ID}/megacli"
                     sh "tar czf examples-${BUILD_ID}.tar.gz examples-${BUILD_ID}"
                 }
             }

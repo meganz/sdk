@@ -198,11 +198,7 @@ class MEGA_API LocalPath
     friend void AddHiddenFileAttribute(LocalPath& path);
     friend class GfxProviderFreeImage;
     friend struct FileSystemAccess;
-#ifdef USE_IOS
-    friend const string adjustBasePath(const LocalPath& name);
-#else
-    friend const string& adjustBasePath(const LocalPath& name);
-#endif
+
     friend int compareUtf(const string&, bool unescaping1, const string&, bool unescaping2, bool caseInsensitive);
     friend int compareUtf(const string&, bool unescaping1, const LocalPath&, bool unescaping2, bool caseInsensitive);
     friend int compareUtf(const LocalPath&, bool unescaping1, const string&, bool unescaping2, bool caseInsensitive);
@@ -338,6 +334,16 @@ public:
     bool operator==(const LocalPath& p) const { return localpath == p.localpath; }
     bool operator!=(const LocalPath& p) const { return localpath != p.localpath; }
     bool operator<(const LocalPath& p) const { return localpath < p.localpath; }
+
+    // Try to avoid using this function as much as you can.
+    //
+    // It's present for efficiency reasons and is really only meant for
+    // specific cases when we are using a LocalPath instance in a system
+    // call.
+    const string_type& rawValue() const
+    {
+        return localpath;
+    }
 };
 
 inline std::ostream& operator<<(std::ostream& os, const LocalPath& p)

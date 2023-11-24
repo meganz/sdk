@@ -340,6 +340,7 @@ typedef list<struct File*> file_list;
 
 // node types:
 typedef enum {
+    TYPE_NESTED_MOUNT = -5,
     TYPE_SYMLINK = -4,
     TYPE_DONOTSYNC = -3,
     TYPE_SPECIAL = -2, // but not include SYMLINK
@@ -1149,6 +1150,8 @@ enum class PathProblem : unsigned short {
     PutnodeCompletionPending,
     UploadDeferredByController,
 
+    DetectedNestedMount,
+
     PathProblem_LastPlusOne
 };
 
@@ -1476,5 +1479,18 @@ public:
 } // detail
 
 using detail::CheckableMutex;
+
+// For convenience.
+#ifdef USE_IOS
+
+#define IOS_ONLY(i) i
+#define IOS_OR_POSIX(i, p) i
+
+#else  // USE_IOS
+
+#define IOS_ONLY(i)
+#define IOS_OR_POSIX(i, p) p
+
+#endif // ! USE_IOS
 
 #endif

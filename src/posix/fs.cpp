@@ -31,6 +31,7 @@
 #include <sys/ioctl.h>
 #include <sys/statvfs.h>
 #include <sys/resource.h>
+#include <sys/types.h>
 #ifdef TARGET_OS_MAC
 #include "mega/osx/osxutils.h"
 #endif
@@ -50,6 +51,7 @@ extern JavaVM *MEGAjvm;
 #include <linux/magic.h>
 #endif /* ! __ANDROID__ */
 
+#include <sys/sysmacros.h>
 #include <sys/vfs.h>
 
 #ifndef FUSEBLK_SUPER_MAGIC
@@ -108,7 +110,61 @@ extern JavaVM *MEGAjvm;
 #endif /* __APPLE__ || USE_IOS */
 
 namespace mega {
+
+namespace detail {
+
+#ifdef USE_IOS
+
+static std::string GetBasePath()
+{
+    static std::string    basePath;
+    static std::once_flag onceOnly;
+
+    // Compute base path as necessary.
+    std::call_once(onceOnly, []() {
+        ios_appbasepath(&basePath);
+    });
+
+    // Return base path to caller.
+    return basePath;
+}
+
+AdjustBasePathResult adjustBasePath(const LocalPath& path)
+{
+    // Get our hands on the app's base path.
+    auto basePath = GetBasePath();
+
+    // No base path.
+    if (basePath.empty())
+        return path.rawValue();
+
+    // Path is absolute.
+    if (path.beginsWithSeparator())
+        return path.rawValue();
+
+    // Compute absolute path.
+    basePath.append(path.rawValue());
+
+    // Return absolute path to caller.
+    return basePath;
+}
+
+#else // USE_IOS
+
+AdjustBasePathResult adjustBasePath(const LocalPath& path)
+{
+    return path.rawValue();
+}
+
+#endif // ! USE_IOS
+
+} // detail
+
 using namespace std;
+
+// Make AdjustBasePath visible in current scope.
+using detail::adjustBasePath;
+using detail::AdjustBasePathResult;
 
 bool PosixFileAccess::mFoundASymlink = false;
 
@@ -121,34 +177,6 @@ void FileSystemAccess::setMinimumFilePermissions(int permissions)
 {
     mMinimumFilePermissions = permissions & 07777;
 }
-
-#ifdef USE_IOS
-
-const string adjustBasePath(const LocalPath& name)
-{
-    // return a temporary variable that the caller can optionally use c_str on (in that expression)
-    if (PosixFileSystemAccess::appbasepath)
-    {
-        if (!name.beginsWithSeparator())
-        {
-            string absolutename = PosixFileSystemAccess::appbasepath;
-            absolutename.append(name.localpath);
-            return absolutename;
-        }
-    }
-    return name.localpath;
-}
-
-char* PosixFileSystemAccess::appbasepath = nullptr;
-
-#else /* USE_IOS */
-
-const string& adjustBasePath(const LocalPath& name)
-{
-    return name.localpath;
-}
-
-#endif /* ! USE_IOS */
 
 int platformCompareUtf(const string& p1, bool unescape1, const string& p2, bool unescape2)
 {
@@ -228,12 +256,7 @@ PosixFileAccess::~PosixFileAccess()
 
 bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size, FSLogging)
 {
-#ifdef USE_IOS
-    const string nameStr = adjustBasePath(nonblocking_localname);
-#else
-    // use the existing string if it's not iOS, no need for a copy
-    const string& nameStr = adjustBasePath(nonblocking_localname);
-#endif
+    AdjustBasePathResult nameStr = adjustBasePath(nonblocking_localname);
 
     struct stat statbuf;
     retry = false;
@@ -550,13 +573,7 @@ bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, FSLogging
         statok = true;
     }
 
-#ifdef USE_IOS
-    const string fstr = adjustBasePath(f);
-#else
-    // use the existing string if it's not iOS, no need for a copy
-    const string& fstr = adjustBasePath(f);
-#endif
-
+    AdjustBasePathResult fstr = adjustBasePath(f);
 
 #ifdef __MACH__
     if (!write)
@@ -756,19 +773,6 @@ PosixFileSystemAccess::PosixFileSystemAccess()
 
     defaultfilepermissions = 0600;
     defaultfolderpermissions = 0700;
-
-#ifdef USE_IOS
-    if (!appbasepath)
-    {
-        string basepath;
-        ios_appbasepath(&basepath);
-        if (basepath.size())
-        {
-            basepath.append("/");
-            appbasepath = strdup(basepath.c_str());
-        }
-    }
-#endif
 }
 
 #ifdef __linux__
@@ -976,14 +980,8 @@ bool PosixFileSystemAccess::getsname(const LocalPath&, LocalPath&) const
 
 bool PosixFileSystemAccess::renamelocal(const LocalPath& oldname, const LocalPath& newname, bool override)
 {
-#ifdef USE_IOS
-    const string oldnamestr = adjustBasePath(oldname);
-    const string newnamestr = adjustBasePath(newname);
-#else
-    // use the existing string if it's not iOS, no need for a copy
-    const string& oldnamestr = adjustBasePath(oldname);
-    const string& newnamestr = adjustBasePath(newname);
-#endif
+    AdjustBasePathResult oldnamestr = adjustBasePath(oldname);
+    AdjustBasePathResult newnamestr = adjustBasePath(newname);
 
     bool existingandcare = !override && (0 == access(newnamestr.c_str(), F_OK));
     if (!existingandcare && !rename(oldnamestr.c_str(), newnamestr.c_str()))
@@ -1006,14 +1004,8 @@ bool PosixFileSystemAccess::renamelocal(const LocalPath& oldname, const LocalPat
 
 bool PosixFileSystemAccess::copylocal(const LocalPath& oldname, const LocalPath& newname, m_time_t mtime)
 {
-#ifdef USE_IOS
-    const string oldnamestr = adjustBasePath(oldname);
-    const string newnamestr = adjustBasePath(newname);
-#else
-    // use the existing string if it's not iOS, no need for a copy
-    const string& oldnamestr = adjustBasePath(oldname);
-    const string& newnamestr = adjustBasePath(newname);
-#endif
+    AdjustBasePathResult oldnamestr = adjustBasePath(oldname);
+    AdjustBasePathResult newnamestr = adjustBasePath(newname);
 
     int sfd, tfd;
     ssize_t t = -1;
@@ -1096,11 +1088,7 @@ void PosixFileSystemAccess::emptydirlocal(const LocalPath& nameParam, dev_t base
     dirent* d;
     int removed;
     struct stat statbuf;
-#ifdef USE_IOS
-    const string namestr = adjustBasePath(name);
-#else
-    const string& namestr = adjustBasePath(name);
-#endif
+    AdjustBasePathResult namestr = adjustBasePath(name);
 
     if (!basedev)
     {
@@ -1130,12 +1118,8 @@ void PosixFileSystemAccess::emptydirlocal(const LocalPath& nameParam, dev_t base
 
                     name.appendWithSeparator(LocalPath::fromPlatformEncodedRelative(d->d_name), true);
 
-#ifdef USE_IOS
-                    const string nameStr = adjustBasePath(name);
-#else
-                    // use the existing string if it's not iOS, no need for a copy
-                    const string& nameStr = adjustBasePath(name);
-#endif
+                    AdjustBasePathResult nameStr = adjustBasePath(name);
+
                     if (!lstat(nameStr.c_str(), &statbuf))
                     {
                         if (!S_ISLNK(statbuf.st_mode) && S_ISDIR(statbuf.st_mode) && statbuf.st_dev == basedev)
@@ -1205,12 +1189,7 @@ bool PosixFileSystemAccess::rmdirlocal(const LocalPath& name)
 
 bool PosixFileSystemAccess::mkdirlocal(const LocalPath& name, bool, bool logAlreadyExistsError)
 {
-#ifdef USE_IOS
-    const string nameStr = adjustBasePath(name);
-#else
-    // use the existing string if it's not iOS, no need for a copy
-    const string& nameStr = adjustBasePath(name);
-#endif
+    AdjustBasePathResult nameStr = adjustBasePath(name);
 
     mode_t mode = umask(0);
     bool r = !mkdir(nameStr.c_str(), defaultfolderpermissions);
@@ -1240,12 +1219,7 @@ bool PosixFileSystemAccess::mkdirlocal(const LocalPath& name, bool, bool logAlre
 
 bool PosixFileSystemAccess::setmtimelocal(const LocalPath& name, m_time_t mtime)
 {
-#ifdef USE_IOS
-    const string nameStr = adjustBasePath(name);
-#else
-    // use the existing string if it's not iOS, no need for a copy
-    const string& nameStr = adjustBasePath(name);
-#endif
+    AdjustBasePathResult nameStr = adjustBasePath(name);
 
     struct utimbuf times = { (time_t)mtime, (time_t)mtime };
 
@@ -1919,6 +1893,9 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
         return SCAN_INACCESSIBLE;
     }
 
+    // What device is this directory on?
+    auto device = metadata.st_dev;
+
     // Iterate over the directory's children.
     auto entry = readdir(directory);
     auto path = targetPath;
@@ -1965,7 +1942,30 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
         {
             // Then no fingerprint is necessary.
             result.fingerprint.size = 0;
+
+            // Assume this directory isn't a mount point.
             result.type = FOLDERNODE;
+
+            // Directory's a mount point.
+            if (device != metadata.st_dev)
+            {
+                // Mark directory as a mount so we can emit a stall.
+                result.type = TYPE_NESTED_MOUNT;
+
+                // Leave a trail for debuggers.
+                LOG_warn << "directoryScan: "
+                         << "Encountered a nested mount: "
+                         << path
+                         << ". Expected device "
+                         << major(device)
+                         << ":"
+                         << minor(device)
+                         << ", got device "
+                         << major(metadata.st_dev)
+                         << ":"
+                         << minor(metadata.st_dev);
+            }
+
             continue;
         }
 
@@ -2268,10 +2268,8 @@ bool PosixFileSystemAccess::fsStableIDs(const LocalPath& path) const
 
 bool PosixFileSystemAccess::hardLink(const LocalPath& source, const LocalPath& target)
 {
-    using StringType = decltype(adjustBasePath(source));
-
-    StringType sourcePath = adjustBasePath(source);
-    StringType targetPath = adjustBasePath(target);
+    AdjustBasePathResult sourcePath = adjustBasePath(source);
+    AdjustBasePathResult targetPath = adjustBasePath(target);
 
     if (link(sourcePath.c_str(), targetPath.c_str()))
     {
@@ -2485,12 +2483,7 @@ bool PosixDirAccess::dnext(LocalPath& path, LocalPath& name, bool followsymlinks
         {
             path.appendWithSeparator(LocalPath::fromPlatformEncodedRelative(d->d_name), true);
 
-#ifdef USE_IOS
-            const string pathStr = adjustBasePath(path);
-#else
-            // use the existing string if it's not iOS, no need for a copy
-            const string& pathStr = adjustBasePath(path);
-#endif
+            AdjustBasePathResult pathStr = adjustBasePath(path);
 
             bool statOk = !lstat(pathStr.c_str(), &statbuf);
             if (followsymlinks && statOk && S_ISLNK(statbuf.st_mode))
