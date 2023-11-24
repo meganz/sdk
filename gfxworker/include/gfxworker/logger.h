@@ -78,11 +78,14 @@ public:
     void setLogFileSize(size_t size);
 
     void flushAndClose();
+    void flush();
     bool cleanLogs();
     int logLevelFromString(const std::string&);
     void setLogLevel(int);
     void setLogLevel(const std::string&);
 
+    // one global instance
+    static MegaFileLogger& get();
 private:
     std::unique_ptr<MegaFileLoggerLoggingThread> mLoggingThread;
     std::unordered_map<std::string, int> mLogLevelStringToEnumMap;

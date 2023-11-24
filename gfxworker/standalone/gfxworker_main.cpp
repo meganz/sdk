@@ -11,6 +11,7 @@
 using mega::gfx::GfxProcessor;
 using mega::gfx::RequestProcessor;
 using mega::gfx::WinGfxCommunicationsServer;
+using mega::gfx::MegaFileLogger;
 using mega::ArgumentsParser;
 using mega::Arguments;
 using mega::LocalPath;
@@ -132,8 +133,10 @@ int main(int argc, char** argv)
     }
 
     // init logger
-    mega::gfx::MegaFileLogger logger;
-    logger.initialize(config.logdirectory.c_str(), config.logfilename.c_str(), false);
+    MegaFileLogger::get().initialize(config.logdirectory.c_str(),
+                                     config.logfilename.c_str(),
+                                     false);
+
     LOG_info << "Gfxworker server starting"
              << ", pipe name: " << config.pipename
              << ", threads: " << config.threadCount

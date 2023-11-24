@@ -833,7 +833,12 @@ void MegaFileLogger::log(const char*, int loglevel, const char*, const char *mes
 
 void MegaFileLoggerLoggingThread::log(int loglevel, const char *message, const char **directMessages, size_t *directMessagesSizes, int numberMessages)
 {
-    bool direct = directMessages != nullptr;
+    bool direct =
+#ifdef ENABLE_LOG_PERFORMANCE
+            directMessages != nullptr;
+#else
+            false;
+#endif
 
     char timebuf[LOG_TIME_CHARS + 1];
     auto now = std::chrono::system_clock::now();
@@ -983,6 +988,13 @@ bool MegaFileLogger::cleanLogs()
     return true;
 }
 
+void MegaFileLogger::flush()
+{
+    std::lock_guard<std::mutex> g(mLoggingThread->mLogMutex);
+    mLoggingThread->mFlushLog = true;
+    mLoggingThread->mLogConditionVariable.notify_one();
+}
+
 void MegaFileLogger::flushAndClose()
 {
     try
@@ -1038,6 +1050,13 @@ void MegaFileLogger::setLogLevel(const std::string &str)
 void MegaFileLogger::setLogLevel(int level)
 {
     mega::MegaApi::setLogLevel(level);
+}
+
+MegaFileLogger& MegaFileLogger::get()
+{
+    static MegaFileLogger logger;
+
+    return logger;
 }
 
 }

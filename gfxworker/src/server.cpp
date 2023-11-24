@@ -17,8 +17,9 @@
  */
 
 #include "gfxworker/server.h"
-#include "mega/filesystem.h"
 #include "gfxworker/threadpool.h"
+#include "gfxworker/logger.h"
+#include "mega/filesystem.h"
 #include "mega/gfx.h"
 #include "mega/gfx/worker/commands.h"
 #include "mega/gfx/worker/comms.h"
@@ -133,6 +134,10 @@ bool RequestProcessor::process(std::unique_ptr<IEndpoint> endpoint)
              << "/"
              << command->typeStr();
 
+    // gfx processing might crash as processing bad images
+    // we flush log for every request to avoid a large portion log lost
+    MegaFileLogger::get().flush();
+
     std::shared_ptr<IEndpoint> sharedEndpoint = std::move(endpoint);
 
     mThreadPool.push(
@@ -187,6 +192,7 @@ void RequestProcessor::processGfx(IEndpoint* endpoint, CommandNewGfx* request)
     assert(request);
 
     LOG_info << "gfx processing";
+
     auto result = mGfxProcessor->process(request->Task);
 
     CommandNewGfxResponse response;
