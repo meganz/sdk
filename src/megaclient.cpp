@@ -19929,37 +19929,14 @@ void MegaClient::preparePasswordNodePwdValue(attr_map& attrs, const char* pwd)
     }
 }
 
-NewNode MegaClient::createBasicPasswordNode(AttrMap& attrs, const char* name)
-{
-    NewNode newNode;
-    std::array<byte, FOLDERNODEKEYLENGTH> key;
-
-    rng.genblock(key.data(), key.size());
-    SymmCipher cipher;
-    cipher.setkey(key.data());
-    newNode.nodekey.assign(reinterpret_cast<char *>(key.data()), key.size());
-
-    newNode.source = NEW_NODE;
-    newNode.type = FOLDERNODE;
-    newNode.nodehandle = UNDEF;
-    newNode.parenthandle = UNDEF;
-
-    preparePasswordNodeName(attrs.map, name);
-    string attrString;
-    attrs.getjson(&attrString);
-    newNode.attrstring.reset(new string);
-    makeattr(&cipher, newNode.attrstring, attrString.c_str());
-
-    return newNode;
-}
-
 void MegaClient::createPasswordManagerBase(int rTag, CommandCreatePasswordManagerBase::Completion cbRequest)
 {
     LOG_info << "Password Manager: Requesting pwmh creation to server";
 
-    // arbitrary default name, eventually updatable by client apps
-    AttrMap attrs;
-    auto newNode = make_unique<NewNode>(createBasicPasswordNode(attrs, "My Passwords"));
+    auto newNode = make_unique<NewNode>();
+    const bool canChangeVault = true;
+    const std::string defaultBaseFolderName = "My Passwords";  // arbitrary default name, eventually updatable by client apps
+    putnodes_prepareOneFolder(newNode.get(), defaultBaseFolderName, canChangeVault);
 
     // encrypt node password with user's master key to be sent to backend/API for storage
     std::array<byte, FILENODEKEYLENGTH> encryptedKey;
@@ -19983,15 +19960,13 @@ void MegaClient::createPasswordNode(const char* name, const char* pwd, NodeHandl
         return;
     }
 
-    AttrMap attrs;
-    preparePasswordNodePwdValue(attrs.map, pwd);
     NewNode& newPasswordNode = nn.front();
-    newPasswordNode = createBasicPasswordNode(attrs, name);
-    newPasswordNode.canChangeVault = true;
+    const auto addAttrs = [this, pwd](AttrMap& attrs) { preparePasswordNodePwdValue(attrs.map, pwd); };
+    const bool canChangeVault = true;
+    putnodes_prepareOneFolder(&newPasswordNode, name, canChangeVault, addAttrs);
     // setting newPasswordNode.parenthandle will cause API_EARGS on request response
 
     const char* cauth = nullptr;
-    const bool canChangeVault = newPasswordNode.canChangeVault;
     // newNode.nodekey will be encrypted with user's MK in Command construction
     // using existing logic with default client->app->putnodes_result as callback for completion
     putnodes(nhParent, VersioningOption::NoVersioning, std::move(nn), cauth, rTag, canChangeVault);
@@ -20063,14 +20038,12 @@ void MegaClient::createPasswordNodeFolder(const char* name, NodeHandle nhParent,
         return;
     }
 
-    AttrMap attrs;
     NewNode& newPasswordNode = nn.front();
-    newPasswordNode = createBasicPasswordNode(attrs, name);
-    newPasswordNode.canChangeVault = true;
+    const bool canChangeVault = true;
+    putnodes_prepareOneFolder(&newPasswordNode, name, canChangeVault);
     // setting newPasswordNode.parenthandle will cause API_EARGS on request response
 
     const char* cauth = nullptr;
-    const bool canChangeVault = newPasswordNode.canChangeVault;
     // newNode.nodekey will be encrypted with user's MK in Command construction
     // using existing logic with default client->app->putnodes_result as callback for completion
     putnodes(nhParent, VersioningOption::NoVersioning, std::move(nn), cauth, rTag, canChangeVault);
