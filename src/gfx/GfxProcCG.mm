@@ -55,17 +55,20 @@ const char* GfxProviderCG::supportedvideoformats() {
     return NULL;
 }
 
-bool GfxProviderCG::readbitmap(FileSystemAccess* fa, const LocalPath& name, int size) {
-    string absolutename;
-    NSString *sourcePath;
-    if (PosixFileSystemAccess::appbasepath && !name.beginsWithSeparator()) {
-        absolutename = PosixFileSystemAccess::appbasepath;
-        absolutename.append(name.platformEncoded());
-        sourcePath = [NSString stringWithCString:absolutename.c_str() encoding:[NSString defaultCStringEncoding]];
-    } else {
-        sourcePath = [NSString stringWithCString:name.platformEncoded().c_str() encoding:[NSString defaultCStringEncoding]];
-    }
-    
+bool GfxProviderCG::readbitmap(FileSystemAccess* fa, const LocalPath& path, int size) {
+    // Convenience.
+    using mega::detail::AdjustBasePathResult;
+    using mega::detail::adjustBasePath;
+
+    // Ensure provided path is absolute.
+    AdjustBasePathResult absolutePath = adjustBasePath(path);
+
+    // Make absolute path usable to Cocoa.
+    NSString* sourcePath =
+      [NSString stringWithCString: absolutePath.c_str()
+                encoding: [NSString defaultCStringEncoding]];
+
+    // Couldn't create a Cocoa-friendly path.
     if (sourcePath == nil) {
         return false;
     }

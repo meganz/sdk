@@ -146,7 +146,7 @@ bool createFile(const fs::path& path, const void* data, const size_t data_length
     auto create = [&](DWORD disposition, DWORD flags) {
         return CreateFileW(path.c_str(),
                            GENERIC_WRITE,
-                           0,
+                           FILE_SHARE_READ | FILE_SHARE_WRITE,
                            nullptr,
                            disposition,
                            flags,
@@ -158,15 +158,40 @@ bool createFile(const fs::path& path, const void* data, const size_t data_length
     // Try and truncate any existing file.
     auto handle = create(TRUNCATE_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT);
 
-    // File doesn't already exist.
+    // File may not exist.
     if (handle == invalid)
     {
+        auto error = GetLastError();
+
+        // File exists but we couldn't truncate it.
+        if (error != ERROR_FILE_NOT_FOUND)
+        {
+            LOG_debug << "Unable to truncate data file: "
+                      << path.u8string()
+                      << ". Error was: "
+                      << error;
+
+            return false;
+        }
+
         // Try creating the file directly.
         handle = create(CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL);
 
         // Couldn't create the file.
         if (handle == invalid)
+        {
+            // Latch error.
+            error = GetLastError();
+
+            // Let everyone know why we failed.
+            LOG_debug << "Unable to create data file: "
+                      << path.u8string()
+                      << ". Error was: "
+                      << error;
+
+            // Let caller know we failed.
             return false;
+        }
     }
 
     // Convenience.
@@ -181,7 +206,19 @@ bool createFile(const fs::path& path, const void* data, const size_t data_length
 
         // Couldn't write the file's data to disk.
         if (!WriteFile(handle, m, remaining, &written, nullptr))
+        {
+            // Latch error.
+            auto error = GetLastError();
+
+            // Let debuggers know why we failed.
+            LOG_debug << "Unable to write data to file: "
+                      << path.u8string()
+                      << ". Error was: "
+                      << error;
+
+            // Close handle and return failure to caller.
             return CloseHandle(handle), false;
+        }
 
         // Move buffer position forward.
         m += written;
@@ -189,6 +226,19 @@ bool createFile(const fs::path& path, const void* data, const size_t data_length
 
     // Try and flush changes to disk.
     auto result = FlushFileBuffers(handle);
+
+    // Couldn't flush changes to disk.
+    if (!result)
+    {
+        // Latch error.
+        auto error = GetLastError();
+
+        // Let debuggers know why we failed.
+        LOG_debug << "Couldn't flush file to disk: "
+                  << path.u8string()
+                  << ". Error was: "
+                  << error;
+    }
 
     // Release handle.
     CloseHandle(handle);
@@ -288,7 +338,10 @@ void Model::ModelNode::generate(const fs::path& path, bool force)
     {
         if (changed || force)
         {
-            ASSERT_TRUE(createDataFile(ourPath, content));
+            ASSERT_TRUE(createDataFile(ourPath, content))
+              << "Couldn't generate model file: "
+              << ourPath.u8string();
+
             changed = false;
         }
     }
@@ -2850,7 +2903,7 @@ void StandardClient::setupBackup_inThread(const string& rootPath,
             rootPath,
             NodeHandle(),
             string(),
-            0,
+            fsfp_t(),
             LocalPath(),
             true,
             SyncConfig::TYPE_BACKUP);
@@ -3003,7 +3056,7 @@ void StandardClient::setupSync_inThread(const string& rootPath,
                      rootPath_.u8string(),
                      remoteHandle,
                      remotePath,
-                     0,
+                     fsfp_t(),
                      LocalPath(),
                      true,
                      isBackup ? BACKUP : TWOWAY);

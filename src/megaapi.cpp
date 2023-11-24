@@ -4494,6 +4494,11 @@ unsigned long long MegaApi::getNumNodes()
     return pImpl->getNumNodes();
 }
 
+unsigned long long MegaApi::getAccurateNumNodes()
+{
+    return pImpl->getAccurateNumNodes();
+}
+
 long long MegaApi::getTotalDownloadedBytes()
 {
     return pImpl->getTotalDownloadedBytes();
@@ -5371,6 +5376,11 @@ void MegaApi::endChatCall(MegaHandle chatid, MegaHandle callid, int reason, Mega
     pImpl->endChatCall(chatid, callid, reason, listener);
 }
 
+void MegaApi::ringIndividualInACall(MegaHandle chatid, MegaHandle userid, MegaRequestListener* listener)
+{
+    pImpl->ringIndividualInACall(chatid, userid, listener);
+}
+
 void MegaApi::setSFUid(int sfuid)
 {
     pImpl->setSFUid(sfuid);
@@ -6190,11 +6200,6 @@ const char *MegaSync::getName() const
 const char *MegaSync::getLastKnownMegaFolder() const
 {
     return NULL;
-}
-
-long long MegaSync::getLocalFingerprint() const
-{
-    return 0;
 }
 
 MegaHandle MegaSync::getBackupId() const

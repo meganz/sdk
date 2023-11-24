@@ -252,11 +252,6 @@ void CacheableWriter::serializeNodeHandle(NodeHandle field)
     serializenodehandle(field.as8byte());
 }
 
-void CacheableWriter::serializefsfp(fsfp_t field)
-{
-    dest.append((char*)&field.id, sizeof(field.id));
-}
-
 void CacheableWriter::serializebool(bool field)
 {
     dest.append((char*)&field, sizeof(field));
@@ -857,18 +852,6 @@ bool CacheableReader::unserializeNodeHandle(NodeHandle& field)
     handle h;
     if (!unserializenodehandle(h)) return false;
     field.set6byte(h);
-    return true;
-}
-
-bool CacheableReader::unserializefsfp(fsfp_t& field)
-{
-    if (ptr + sizeof(fsfp_t) > end)
-    {
-        return false;
-    }
-    field.id = MemAccess::get<uint64_t>(ptr);
-    ptr += sizeof(uint64_t);
-    fieldnum += 1;
     return true;
 }
 
@@ -2824,7 +2807,7 @@ bool readLines(const std::string& input, string_vector& destination)
         while (delim < end && *delim != '\r' && *delim != '\n')
         {
             ++delim;
-            whitespace += std::isspace(*whitespace) > 0;
+            whitespace += is_space(*whitespace);
         }
 
         if (delim != whitespace)
@@ -2951,6 +2934,8 @@ const char* syncPathProblemDebugString(PathProblem r)
     case PathProblem::PutnodeCompletionDeferredByController: return "PutnodeCompletionDeferredByController";
     case PathProblem::PutnodeCompletionPending: return "PutnodeCompletionPending";
     case PathProblem::UploadDeferredByController: return "UploadDeferredByController";
+
+    case PathProblem::DetectedNestedMount: return "DetectedNestedMount";
 
     case PathProblem::PathProblem_LastPlusOne: break;
     }
@@ -3287,6 +3272,17 @@ const char* toString(retryreason_t reason)
     assert(false && "Unknown retry reason");
 
     return "RETRY_UNKNOWN";
+}
+
+
+bool is_space(unsigned int ch)
+{
+    return std::isspace(static_cast<unsigned char>(ch));
+}
+
+bool is_digit(unsigned int ch)
+{
+    return std::isdigit(static_cast<unsigned char>(ch));
 }
 
 } // namespace mega

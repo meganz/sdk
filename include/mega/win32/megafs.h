@@ -98,8 +98,6 @@ public:
     bool cwd(LocalPath& path) const override;
 
 #ifdef ENABLE_SYNC
-    fsfp_t fsFingerprint(const LocalPath& path) const override;
-
     bool fsStableIDs(const LocalPath& path) const override;
 
     std::set<WinDirNotify*> dirnotifys;
