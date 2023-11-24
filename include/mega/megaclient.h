@@ -306,6 +306,9 @@ public:
     bool isShareKeyInUse(handle sharehandle) const;
     void setSharekeyInUse(handle sharehandle, bool sent);
 
+    // Clears, if set, the in-use bit of the sharekeys no longer used.
+    void syncSharekeyInUseBit();
+
     // return empty string if the user's credentials are not verified (or if fail to encrypt)
     std::string encryptShareKeyTo(handle userhandle, std::string shareKey);
 
@@ -832,13 +835,10 @@ public:
     void putua(userattr_map *attrs, int ctag = -1, std::function<void(Error)> completion = nullptr);
 
     // queue a user attribute retrieval
-    bool getua(User* u, const attr_t at = ATTR_UNKNOWN, int ctag = -1,
-               CommandGetUA::CompletionErr ce = nullptr,
-               CommandGetUA::CompletionBytes cb = nullptr,
-               CommandGetUA::CompletionTLV ctlv = nullptr);
+    bool getua(User* u, const attr_t at = ATTR_UNKNOWN, int ctag = -1, CommandGetUA::CompletionErr completionErr = nullptr, CommandGetUA::CompletionBytes completionBytes = nullptr, CommandGetUA::CompletionTLV completionTLV = nullptr);
 
     // queue a user attribute retrieval (for non-contacts)
-    void getua(const char* email_handle, const attr_t at = ATTR_UNKNOWN, const char *ph = NULL, int ctag = -1);
+    void getua(const char* email_handle, const attr_t at = ATTR_UNKNOWN, const char *ph = NULL, int ctag = -1, CommandGetUA::CompletionErr ce = nullptr, CommandGetUA::CompletionBytes cb = nullptr, CommandGetUA::CompletionTLV ctlv = nullptr);
 
     // retrieve the email address of a user
     void getUserEmail(const char *uid);
@@ -2615,12 +2615,7 @@ public:
 
 } // namespace
 
-#if __cplusplus < 201100L
-#define char_is_not_digit std::not1(std::ptr_fun(static_cast<int(*)(int)>(std::isdigit)))
-#define char_is_not_space std::not1(std::ptr_fun<int, int>(std::isspace))
-#else
-#define char_is_not_digit [](char c) { return !std::isdigit(c); }
-#define char_is_not_space [](char c) { return !std::isspace(c); }
-#endif
+#define char_is_not_digit [](unsigned char c) { return !::mega::is_digit(c); }
+#define char_is_not_space [](unsigned char c) { return !::mega::is_space(c); }
 
 #endif

@@ -3316,6 +3316,26 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
 - (void)publicNodeForMegaFileLink:(NSString *)megaFileLink delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
+ * @brief Get downloads urls for a node
+ *
+ * The associated request type with this request is MEGARequestTypeGetDownloadUrls
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk
+ * - [MEGARequest name] - Returns semicolon-separated download URL(s) to the file
+ * - [MEGARequest link] - Returns semicolon-separated IPv4 of the server in the URL(s)
+ * -  [MEGARequest text] - Returns semicolon-separated IPv6 of the server in the URL(s)
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue
+ *
+ * @param node Node to get the downloads URLs
+ * @param singleUrl Always return one URL (even for raided files)
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getDownloadUrl:(MEGANode *)node singleUrl:(BOOL)singleUrl delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
  * @brief Get a MEGANode from a public link to a file.
  *
  * A public node can be imported using [MEGASdk copyNode:newParent:] or downloaded using [MEGASdk startDownloadNode:localPath:].

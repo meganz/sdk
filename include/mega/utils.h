@@ -617,7 +617,6 @@ struct CacheableWriter
     void serializehandle(handle field);
     void serializenodehandle(handle field);
     void serializeNodeHandle(NodeHandle field);
-    void serializefsfp(fsfp_t field);
     void serializebool(bool field);
     void serializebyte(byte field);
     void serializedouble(double field);
@@ -655,7 +654,6 @@ struct CacheableReader
     bool unserializehandle(handle& s);
     bool unserializenodehandle(handle& s);
     bool unserializeNodeHandle(NodeHandle& s);
-    bool unserializefsfp(fsfp_t& s);
     bool unserializebool(bool& s);
     bool unserializechunkmacs(chunkmac_map& m);
     bool unserializefingerprint(FileFingerprint& fp);
@@ -1072,6 +1070,12 @@ string connDirectionToStr(direction_t directionType);
 
 // Translate retry reason into a human-friendly string.
 const char* toString(retryreason_t reason);
+
+
+// Wrapper functions for std::isspace and std::isdigit
+// Not considering EOF values
+bool is_space(unsigned int ch);
+bool is_digit(unsigned int ch);
 
 } // namespace mega
 

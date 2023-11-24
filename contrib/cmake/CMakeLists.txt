@@ -661,13 +661,14 @@ ELSE(WIN32)
     ENDIF()
 
     IF (APPLE)
+        set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs}
+                                      "-framework CoreFoundation"
+                                      "-framework DiskArbitration")
+
         IF (USE_DRIVE_NOTIFICATIONS)
             SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles}
                                            ${MegaDir}/include/mega/osx/drivenotifyosx.h
                                            ${MegaDir}/src/osx/drivenotifyosx.cpp)
-            SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs}
-                                          "-framework DiskArbitration"
-                                          "-framework CoreFoundation")
         ENDIF()
     ENDIF ()
 
@@ -1111,8 +1112,6 @@ if (NOT NO_READLINE)
     target_link_libraries(megacli ${readline_LIBRARIES})
 endif (NOT NO_READLINE)
 
-add_executable(megasimplesync ${MegaDir}/examples/megasimplesync.cpp)
-target_link_libraries(megasimplesync Mega )
 endif()
 
 if(WIN32)
@@ -1140,7 +1139,6 @@ if (WIN32)
     set_property(TARGET Mega PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
     set_property(TARGET megacli PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
     set_property(TARGET testmega PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
-    set_property(TARGET megasimplesync PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
     set_property(TARGET test_integration PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
     set_property(TARGET test_unit PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
     if (HAVE_ASIO)
