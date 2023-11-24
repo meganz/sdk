@@ -297,9 +297,7 @@ endif()
 if(ENABLE_DRIVE_NOTIFICATIONS)
     if(WIN32)
         target_link_libraries(SDKlib PRIVATE wbemuuid)
-    elseif(APPLE)
-        target_link_libraries(SDKlib PRIVATE "-framework DiskArbitration -framework CoreFoundation")
-    else() # Linux
+    elseif(NOT APPLE) # Linux
         target_link_libraries(SDKlib PRIVATE udev)
     endif()
     set(USE_DRIVE_NOTIFICATIONS 1)
@@ -318,6 +316,9 @@ else()
         target_link_libraries(SDKlib PRIVATE
             "-framework CoreServices"
             "-framework Cocoa"
+            "-framework SystemConfiguration"
+            "-framework DiskArbitration"
+            "-framework CoreFoundation"
         )
     endif()
 endif()
