@@ -741,7 +741,8 @@ MegaFileLogger::MegaFileLogger() :
         #define GENERATOR_MACRO(Enum, String) { String, Enum },
           GENERATE_LOG_LEVELS_FROM_CFG_STRING
         #undef GENERATOR_MACRO
-    })
+    }),
+    mInited(false)
 {
 }
 
@@ -752,7 +753,7 @@ MegaFileLogger::~MegaFileLogger()
 
 void MegaFileLogger::stopLogger()
 {
-
+    if (!mInited) return;
     // note: possible race/crash here if there are any other threads calling log()
     // this mLoggingThread is about to be deleted, and the currently
     // logging threads call into it
@@ -794,26 +795,31 @@ void MegaFileLogger::initialize(const char * logsPath, const char * logFileName,
 
     mega::MegaApi::setLogLevel(logLevelFromString(sDefaultLogLevelStr));
     mega::MegaApi::addLoggerObject(this, true);
+    mInited = true;
 }
 
 void MegaFileLogger::setArchiveNumbered()
 {
+    if (!mInited) return;
     mLoggingThread->mArchiveType = archiveTypeNumbered;
 }
 
 void MegaFileLogger::setMaxArchiveAge(std::chrono::seconds maxAgeSeconds)
 {
+    if (!mInited) return;
     mLoggingThread->mArchiveType = archiveTypeTimestamp;
     mLoggingThread->mArchiveMaxFileAgeSeconds = maxAgeSeconds;
 }
 
 void MegaFileLogger::setMaxArchivesToKeep(int maxArchives)
 {
+    if (!mInited) return;
     mLoggingThread->mMaxArchiveLogsToKeep = maxArchives;
 }
 
 void MegaFileLogger::setLogFileSize(size_t size)
 {
+    if (!mInited) return;
     mLoggingThread->mLogFileSize = size;
 }
 
@@ -824,6 +830,7 @@ void MegaFileLogger::log(const char*, int loglevel, const char*, const char *mes
                          )
 
 {
+    if (!mInited) return;
     mLoggingThread->log(loglevel, message
 #ifdef ENABLE_LOG_PERFORMANCE
                         , directMessages, directMessagesSizes, numberMessages
@@ -982,6 +989,7 @@ void MegaFileLoggerLoggingThread::log(int loglevel, const char *message, const c
 
 bool MegaFileLogger::cleanLogs()
 {
+    if (!mInited) return false;
     std::lock_guard<std::mutex> g(mLoggingThread->mLogMutex);
     mLoggingThread->mForceRenew = true;
     mLoggingThread->mLogConditionVariable.notify_one();
@@ -990,7 +998,7 @@ bool MegaFileLogger::cleanLogs()
 
 void MegaFileLogger::flush()
 {
-    if (!mLoggingThread) return;
+    if (!mInited) return;
     std::lock_guard<std::mutex> g(mLoggingThread->mLogMutex);
     mLoggingThread->mFlushLog = true;
     mLoggingThread->mLogConditionVariable.notify_one();
@@ -998,6 +1006,7 @@ void MegaFileLogger::flush()
 
 void MegaFileLogger::flushAndClose()
 {
+    if (!mInited) return;
     try
     {
         mLoggingThread->log(mega::MegaApi::LOG_LEVEL_FATAL, "***CRASH DETECTED: FLUSHING AND CLOSING***");

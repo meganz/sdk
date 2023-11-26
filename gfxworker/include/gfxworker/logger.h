@@ -89,6 +89,7 @@ public:
 private:
     std::unique_ptr<MegaFileLoggerLoggingThread> mLoggingThread;
     std::unordered_map<std::string, int> mLogLevelStringToEnumMap;
+    std::atomic_bool mInited;
 };
 
 }
