@@ -762,6 +762,15 @@ public:
     // move node to new parent folder
     error rename(std::shared_ptr<Node>, std::shared_ptr<Node>, syncdel_t, NodeHandle prevparenthandle, const char *newName, bool canChangeVault, CommandMoveNode::Completion&& c);
 
+    // create folder node
+    error createFolder(std::shared_ptr<Node> parent, const char* name, int rTag);
+
+    // rename a node (i.e. change the node attribute 'n')
+    error renameNode(NodeHandle nh, const char* newName, CommandSetAttr::Completion&& cbRequest);
+
+    // remove node
+    error removeNode(NodeHandle nh, bool keepVersions, int rTag);
+
     // Queue commands (if needed) to remvoe any outshares (or pending outshares) below the specified node
     void removeOutSharesFromSubtree(std::shared_ptr<Node> n, int tag);
 
@@ -2550,7 +2559,6 @@ private:
     StringKeyPair generateVpnKeyPair();
 
     // Password Manager - private
-    void preparePasswordNodeName(attr_map& attrs, const char* name);
     void preparePasswordNodePwdValue(attr_map& attrs, const char* pwd);
 
 public:
@@ -2607,12 +2615,8 @@ public:
     NodeHandle getPasswordManagerBase();
     void createPasswordManagerBase(int rtag, CommandCreatePasswordManagerBase::Completion cbRequest);
     void createPasswordNode(const char* name, const char* pwd, NodeHandle nhParent, int rtag);
-    error updatePasswordNode(std::shared_ptr<Node> pwdNode, const char* newName, const char* newPwd,
+    error updatePasswordNode(std::shared_ptr<Node> pwdNode, const char* newPwd,
                              CommandSetAttr::Completion&& cb);
-    error removePasswordNode(handle h, int rTag);
-    void createPasswordNodeFolder(const char* name, NodeHandle nhParent, int rTag);
-    error renamePasswordNodeFolder(NodeHandle nh, const char *newName, CommandSetAttr::Completion &&cb);
-    error removePasswordNodeFolder(NodeHandle nh, int rTag);
 };
 
 } // namespace

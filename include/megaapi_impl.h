@@ -610,7 +610,6 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         bool isExpired() override;
         bool isTakenDown() override;
         bool isForeign() override;
-        bool isPasswordNodeFolder() override;
         bool isPasswordNode() override;
         const char* getPasswordNodeValue() override;
         std::string* getPrivateAuth() override;
@@ -673,7 +672,6 @@ class MegaNodePrivate : public MegaNode, public Cacheable
             bool outShares : 1;
             bool inShare : 1;
             bool foreign : 1;
-            bool mIsPasswordNodeFolder : 1;
         };
         PublicLink *plink;
         bool mNewLinkFormat;
@@ -3576,17 +3574,11 @@ public:
 
         // Password Manager
         void getPasswordManagerBase(MegaRequestListener *listener = nullptr);
+        bool isPasswordNodeFolder(MegaHandle node);
         void createPasswordNode(const char *name, const char *pwd, MegaHandle parent,
                                 MegaRequestListener *listener = nullptr);
-        void updatePasswordNode(MegaHandle node, const char* newName, const char* newPwd,
+        void updatePasswordNode(MegaHandle node, const char* newPwd,
                                 MegaRequestListener *listener = NULL);
-        void removePasswordNode(MegaHandle node, MegaRequestListener *listener = nullptr);
-        void createPasswordNodeFolder(const char *name, MegaHandle parent,
-                                      MegaRequestListener *listener = nullptr);
-        void renamePasswordNodeFolder(MegaHandle node, const char* newName,
-                                      MegaRequestListener *listener = NULL);
-        void removePasswordNodeFolder(MegaHandle node, MegaRequestListener *listener = NULL);
-
 
         void fetchCreditCardInfo(MegaRequestListener* listener = nullptr);
 

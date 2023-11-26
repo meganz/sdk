@@ -1049,15 +1049,6 @@ class MegaNode
         virtual bool isForeign();
 
         /**
-         * @brief Returns true if this MegaNode is a Password Node Folder
-         *
-         * Only MegaNodes created with MegaApi::createPasswordNodeFolder return true in this function.
-         *
-         * @return true if this node is a Password Node Folder
-         */
-        virtual bool isPasswordNodeFolder();
-
-        /**
          * @brief Returns true if this MegaNode is a Password Node
          *
          * Only MegaNodes created with MegaApi::createPasswordNode return true in this function.
@@ -4341,9 +4332,8 @@ class MegaRequest
             TYPE_RING_INDIVIDUAL_IN_CALL                                    = 180,
             TYPE_CREATE_PASSWORD_MANAGER_BASE                               = 181,
             TYPE_CREATE_PASSWORD_NODE                                       = 182,
-            TYPE_REMOVE_PASSWORD_NODE                                       = 183,
-            TYPE_UPDATE_PASSWORD_NODE                                       = 184,
-            TOTAL_OF_REQUEST_TYPES                                          = 185,
+            TYPE_UPDATE_PASSWORD_NODE                                       = 183,
+            TOTAL_OF_REQUEST_TYPES                                          = 184,
         };
 
         virtual ~MegaRequest();
@@ -11749,6 +11739,16 @@ class MegaApi
          */
         void getPasswordManagerBase(MegaRequestListener *listener = NULL);
 
+        /**
+         * @brief Returns true if provided MegaHandle is of a Password Node Folder
+         *
+         * A folder is considered a Password Node Folder if Password Manager Base is its
+         * ancestor.
+         *
+         * @param parent Parent folder for the new Password Node
+         * @return true if this node is a Password Node Folder
+         */
+        virtual bool isPasswordNodeFolder(MegaHandle node);
 
         /**
          * @brief Create a new Password Node in your Password Manager tree
@@ -11781,93 +11781,17 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_UPDATE_PASSWORD_NODE
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - handle provided of the Password Node to update
-         * - MegaRequest::getName - new name provided for the Password Node to update
          * - MegaRequest::getText - new password provided for the Password Node to update
          *
          * If the MEGA account is a business account and it's status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
          * @param node Node to modify
-         * @param newName New name for the node
          * @param newPwd New passwod value for the Password Node
          * @param listener MegaRequestListener to track this request
          */
-        void updatePasswordNode(MegaHandle node, const char* newName, const char* newPwd,
+        void updatePasswordNode(MegaHandle node, const char* newPwd,
                                 MegaRequestListener *listener = NULL);
-
-        /**
-         * @brief Remove a Password Node from the MEGA account
-         *
-         * This function doesn't move the node to the Rubbish Bin, it fully removes the node.
-         *
-         * The associated request type with this request is MegaRequest::TYPE_REMOVE_PASSWORD_NODE
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNodeHandle - Returns the handle of the removed Password Node
-         *
-         * If the MEGA account is a sub-user business account, onRequestFinish will
-         * be called with the error code MegaError::API_EMASTERONLY.
-         *
-         * @param node Node to remove
-         * @param listener MegaRequestListener to track this request
-         */
-        void removePasswordNode(MegaHandle node, MegaRequestListener *listener = NULL);
-
-        /**
-         * @brief Create a new Password Node Folder in your Password Manager tree
-         *
-         * The associated request type with this request is MegaRequest::TYPE_CREATE_FOLDER
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParentHandle - Handle of the parent provided as an argument
-         * - MegaRequest::getName - name for the new Password Node Folder provided as an argument
-         *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getNodeHandle - Handle of the folder
-         *
-         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
-         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
-         *
-         * @param name Name for the new Password Node Folder
-         * @param parent Parent folder for the new Password Node Folder
-         * @param listener MegaRequestListener to track this request
-         */
-        void createPasswordNodeFolder(const char *name, MegaHandle parent,
-                                      MegaRequestListener *listener = NULL);
-
-        /**
-         * @brief Rename a Password Node Folder in the MEGA account according to the parameter
-         *
-         * The associated request type with this request is MegaRequest::TYPE_RENAME
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNodeHandle - handle provided of the Password Node to update
-         * - MegaRequest::getName - new name provided for the Password Node to update
-         *
-         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
-         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
-         *
-         * @param node Node to modify
-         * @param newName New name for the node
-         * @param listener MegaRequestListener to track this request
-         */
-        void renamePasswordNodeFolder(MegaHandle node, const char* newName,
-                                      MegaRequestListener *listener = NULL);
-
-        /**
-         * @brief Remove a Password Node Folder from the MEGA account
-         *
-         * This function doesn't move the node to the Rubbish Bin, it fully removes the node.
-         *
-         * The associated request type with this request is MegaRequest::TYPE_REMOVE
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNodeHandle - Returns the handle of the removed Password Node
-         *
-         * If the MEGA account is a sub-user business account, onRequestFinish will
-         * be called with the error code MegaError::API_EMASTERONLY.
-         *
-         * @param node Node to remove
-         * @param listener MegaRequestListener to track this request
-         */
-        void removePasswordNodeFolder(MegaHandle node, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Create a new empty folder in your local file system
