@@ -990,6 +990,7 @@ bool MegaFileLogger::cleanLogs()
 
 void MegaFileLogger::flush()
 {
+    if (!mLoggingThread) return;
     std::lock_guard<std::mutex> g(mLoggingThread->mLogMutex);
     mLoggingThread->mFlushLog = true;
     mLoggingThread->mLogConditionVariable.notify_one();
