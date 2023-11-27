@@ -38,7 +38,8 @@ openssl/6172c4b5a08aecf5755f753c6338fa74103d39cf ios:off osx:off
 # this is the minimum version after PCRE's ftp server switched
 pcre/d6bd10b9af6f6197711222a0ac827e52e0247e30 all:off linux:on
 
-readline/8.0 all:off osx:on
+readline-unix/7476f0d4e77d3333fbb249657df8251c28c4faae all:off osx:on
+ncurses/7476f0d4e77d3333fbb249657df8251c28c4faae all:off osx:on
 sqlite3/c303dd024e2dc03a0665ddffbb12a1077933e649
 zlib/e0a9559a9b24af116388eae242d675bf9fde025c
 
