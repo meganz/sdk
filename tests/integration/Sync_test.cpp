@@ -146,7 +146,7 @@ bool createFile(const fs::path& path, const void* data, const size_t data_length
     auto create = [&](DWORD disposition, DWORD flags) {
         return CreateFileW(path.c_str(),
                            GENERIC_WRITE,
-                           0,
+                           FILE_SHARE_READ | FILE_SHARE_WRITE,
                            nullptr,
                            disposition,
                            flags,
@@ -158,15 +158,40 @@ bool createFile(const fs::path& path, const void* data, const size_t data_length
     // Try and truncate any existing file.
     auto handle = create(TRUNCATE_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT);
 
-    // File doesn't already exist.
+    // File may not exist.
     if (handle == invalid)
     {
+        auto error = GetLastError();
+
+        // File exists but we couldn't truncate it.
+        if (error != ERROR_FILE_NOT_FOUND)
+        {
+            LOG_debug << "Unable to truncate data file: "
+                      << path.u8string()
+                      << ". Error was: "
+                      << error;
+
+            return false;
+        }
+
         // Try creating the file directly.
         handle = create(CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL);
 
         // Couldn't create the file.
         if (handle == invalid)
+        {
+            // Latch error.
+            error = GetLastError();
+
+            // Let everyone know why we failed.
+            LOG_debug << "Unable to create data file: "
+                      << path.u8string()
+                      << ". Error was: "
+                      << error;
+
+            // Let caller know we failed.
             return false;
+        }
     }
 
     // Convenience.
@@ -181,7 +206,19 @@ bool createFile(const fs::path& path, const void* data, const size_t data_length
 
         // Couldn't write the file's data to disk.
         if (!WriteFile(handle, m, remaining, &written, nullptr))
+        {
+            // Latch error.
+            auto error = GetLastError();
+
+            // Let debuggers know why we failed.
+            LOG_debug << "Unable to write data to file: "
+                      << path.u8string()
+                      << ". Error was: "
+                      << error;
+
+            // Close handle and return failure to caller.
             return CloseHandle(handle), false;
+        }
 
         // Move buffer position forward.
         m += written;
@@ -189,6 +226,19 @@ bool createFile(const fs::path& path, const void* data, const size_t data_length
 
     // Try and flush changes to disk.
     auto result = FlushFileBuffers(handle);
+
+    // Couldn't flush changes to disk.
+    if (!result)
+    {
+        // Latch error.
+        auto error = GetLastError();
+
+        // Let debuggers know why we failed.
+        LOG_debug << "Couldn't flush file to disk: "
+                  << path.u8string()
+                  << ". Error was: "
+                  << error;
+    }
 
     // Release handle.
     CloseHandle(handle);
@@ -288,7 +338,10 @@ void Model::ModelNode::generate(const fs::path& path, bool force)
     {
         if (changed || force)
         {
-            ASSERT_TRUE(createDataFile(ourPath, content));
+            ASSERT_TRUE(createDataFile(ourPath, content))
+              << "Couldn't generate model file: "
+              << ourPath.u8string();
+
             changed = false;
         }
     }
@@ -9496,16 +9549,16 @@ TEST_F(SyncTest, ReplaceParentWithEmptyChild)
     Model model;
     string session;
 
+    StandardClient c(TESTROOT, "c");
+
+    // Log callbacks.
+    c.logcb = true;
+
+    // Log in client.
+    ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
+
     // Populate initial filesystem.
     {
-        StandardClient c(TESTROOT, "c");
-
-        // Log callbacks.
-        c.logcb = true;
-
-        // Log in client.
-        ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
-
         // Add and start sync.
         id = c.setupSync_mainthread("s", "s", false, false);
         ASSERT_NE(id, UNDEF);
@@ -9523,30 +9576,12 @@ TEST_F(SyncTest, ReplaceParentWithEmptyChild)
         // Make sure the tree made it to the cloud.
         ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
 
-        // Save the session.
-        c.client.dumpsession(session);
-
-        // Locally log out the client.
-        c.localLogout();
-    }
-
-    StandardClient c(TESTROOT, "c");
-
-    // Log callbacks.
-    c.logcb = true;
-
-    // Locally replace 0 with 0/1/2/3.
-    {
-        model.removenode("0");
-        model.addfolder("0");
-
-        fs::rename(c.fsBasePath / "s" / "0" / "1" / "2" / "3",
-                   c.fsBasePath / "s" / "3");
-
-        fs::remove_all(c.fsBasePath / "s" / "0");
-
-        fs::rename(c.fsBasePath / "s" / "3",
-                   c.fsBasePath / "s" / "0");
+        // Temporarily disable the sync.
+        //
+        // The rationale for this is that we want to make sure that
+        // the cloud changes below are visible to this client before
+        // it starts trying synchronize stuff.
+        ASSERT_TRUE(c.disableSync(id, NO_SYNC_ERROR, true, true));
     }
 
     // Remotely replace 4 with 4/5/6/7.
@@ -9567,21 +9602,27 @@ TEST_F(SyncTest, ReplaceParentWithEmptyChild)
         ASSERT_TRUE(cr.movenode("s/4/5/6/7", "s"));
         ASSERT_TRUE(cr.deleteremote("s/4"));
         ASSERT_TRUE(cr.rename("s/7", "4"));
+
+        // Wait for our primary client to see cr's changes.
+        ASSERT_TRUE(c.waitFor(SyncRemoteMatch("s", model.root.get()), TIMEOUT));
     }
 
-    // Hook resume callbacks.
-    promise<void> notify;
+    // Locally replace 0 with 0/1/2/3.
+    {
+        model.removenode("0");
+        model.addfolder("0");
 
-    c.mOnSyncStateConfig = [&notify](const SyncConfig& config) {
-        if (config.mRunState == SyncRunState::Run)
-            notify.set_value();
-    };
+        fs::rename(c.fsBasePath / "s" / "0" / "1" / "2" / "3",
+                   c.fsBasePath / "s" / "3");
 
-    // Resume client.
-    ASSERT_TRUE(c.login_fetchnodesFromSession(session));
+        fs::remove_all(c.fsBasePath / "s" / "0");
 
-    // Wait for sync to resume.
-    ASSERT_TRUE(debugTolerantWaitOnFuture(notify.get_future(), 45));
+        fs::rename(c.fsBasePath / "s" / "3",
+                   c.fsBasePath / "s" / "0");
+    }
+
+    // Resume our sync.
+    ASSERT_TRUE(c.enableSyncByBackupId(id, "c"));
 
     // Wait for the sync to complete.
     waitonsyncs(TIMEOUT, &c);

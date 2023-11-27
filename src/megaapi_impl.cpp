@@ -1627,6 +1627,7 @@ MegaSyncStallPrivate::pathProblemDebugString(MegaSyncStall::SyncPathProblem reas
     static_assert((int)PathProblem::PutnodeCompletionDeferredByController == (int)MegaSyncStall::SyncPathProblem::PutnodeCompletionDeferredByController, "");
     static_assert((int)PathProblem::PutnodeCompletionPending == (int)MegaSyncStall::SyncPathProblem::PutnodeCompletionPending, "");
     static_assert((int)PathProblem::UploadDeferredByController == (int)MegaSyncStall::SyncPathProblem::UploadDeferredByController, "");
+    static_assert((int)PathProblem::DetectedNestedMount == (int)MegaSyncStall::SyncPathProblem::DetectedNestedMount, "");
     static_assert((int)PathProblem::PathProblem_LastPlusOne == (int)MegaSyncStall::SyncPathProblem::SyncPathProblem_LastPlusOne, "");
 
     return syncPathProblemDebugString(PathProblem(reason));
@@ -4604,6 +4605,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_SYNC_STALL_LIST: return "GET_SYNC_STALL_LIST";
         case TYPE_FETCH_CREDIT_CARD_INFO: return "FETCH_CREDIT_CARD_INFO";
         case TYPE_MOVE_TO_DEBRIS: return "MOVE_TO_DEBRIS";
+        case TYPE_RING_INDIVIDUAL_IN_CALL: return "RING_INDIVIDUAL_IN_CALL";
     }
     return "UNKNOWN";
 }
@@ -13609,19 +13611,6 @@ void MegaApiImpl::folderlinkinfo_result(error e, handle owner, handle /*ph*/, st
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
-#ifdef ENABLE_SYNC
-
-MegaSyncPrivate* MegaApiImpl::cachedMegaSyncPrivateByBackupId(const SyncConfig& config)
-{
-    if (mCachedMegaSyncPrivate && config.mBackupId == mCachedMegaSyncPrivate->getBackupId())
-    {
-        return mCachedMegaSyncPrivate.get();
-    }
-
-    mCachedMegaSyncPrivate.reset(new MegaSyncPrivate(config, client));
-    return mCachedMegaSyncPrivate.get();
-}
-
 std::unique_ptr<MegaPushNotificationSettingsPrivate> MegaApiImpl::getMegaPushNotificationSetting()
 {
     User* ownUser = client->ownuser();
@@ -13645,6 +13634,19 @@ std::unique_ptr<MegaPushNotificationSettingsPrivate> MegaApiImpl::getMegaPushNot
     }
 
     return nullptr;
+}
+
+#ifdef ENABLE_SYNC
+
+MegaSyncPrivate* MegaApiImpl::cachedMegaSyncPrivateByBackupId(const SyncConfig& config)
+{
+    if (mCachedMegaSyncPrivate && config.mBackupId == mCachedMegaSyncPrivate->getBackupId())
+    {
+        return mCachedMegaSyncPrivate.get();
+    }
+
+    mCachedMegaSyncPrivate.reset(new MegaSyncPrivate(config, client));
+    return mCachedMegaSyncPrivate.get();
 }
 
 void MegaApiImpl::syncupdate_stateconfig(const SyncConfig& config)
@@ -17138,11 +17140,6 @@ bool MegaApiImpl::isFilesystemAvailable()
     return client->nodeByHandle(client->mNodeManager.getRootNodeFiles()) != NULL;
 }
 
-bool isDigit(const char *c)
-{
-    return (*c >= '0' && *c <= '9');
-}
-
 // returns 0 if i==j, +1 if i goes first, -1 if j goes first.
 int naturalsorting_compare (const char *i, const char *j)
 {
@@ -17157,8 +17154,8 @@ int naturalsorting_compare (const char *i, const char *j)
             char char_i, char_j;
             while ( (char_i = *i) && (char_j = *j) )
             {
-                bool char_i_isDigit = isDigit(i);
-                bool char_j_isDigit = isDigit(j);
+                bool char_i_isDigit = is_digit(*i);
+                bool char_j_isDigit = is_digit(*j);
 
                 if (char_i_isDigit && char_j_isDigit)
                 {
@@ -17190,7 +17187,7 @@ int naturalsorting_compare (const char *i, const char *j)
         {
             uint64_t number_i = 0;
             unsigned int i_overflow_count = 0;
-            while (*i && isDigit(i))
+            while (*i && is_digit(*i))
             {
                 number_i = number_i * 10 + (*i - 48); // '0' ASCII code is 48
                 ++i;
@@ -17205,7 +17202,7 @@ int naturalsorting_compare (const char *i, const char *j)
 
             uint64_t number_j = 0;
             unsigned int j_overflow_count = 0;
-            while (*j && isDigit(j))
+            while (*j && is_digit(*j))
             {
                 number_j = number_j * 10 + (*j - 48);
                 ++j;
@@ -24899,6 +24896,37 @@ void MegaApiImpl::endChatCall(MegaHandle chatid, MegaHandle callid, int reason, 
             }));
             return API_OK;
         };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::ringIndividualInACall(MegaHandle chatid, MegaHandle userid, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_RING_INDIVIDUAL_IN_CALL, listener);
+    request->setNodeHandle(chatid);
+    request->setParentHandle(userid);
+    request->performRequest = [this, request]()
+    {
+        const handle chatid = request->getNodeHandle();
+        const handle userid = request->getParentHandle();
+        if (chatid == INVALID_HANDLE || userid == INVALID_HANDLE)
+        {
+            return API_EARGS;
+        }
+
+        textchat_map::iterator it = client->chats.find(chatid);
+        if (it == client->chats.end())
+        {
+            return API_ENOENT;
+        }
+
+        client->reqs.add(new CommandRingUser(client, chatid, userid, [request, this](Error e)
+        {
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+        }));
+        return API_OK;
+    };
 
     requestQueue.push(request);
     waiter->notify();
