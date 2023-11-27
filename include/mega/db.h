@@ -164,7 +164,7 @@ public:
 
     virtual bool getRecentNodes(unsigned maxcount, m_time_t since, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
     virtual bool getNodesByFingerprint(const std::string& fingerprint, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
-    virtual bool getNodeByFingerprint(const std::string& fingerprint, mega::NodeSerialized& node) = 0;
+    virtual bool getNodeByFingerprint(const std::string& fingerprint, mega::NodeSerialized& node, NodeHandle& handle) = 0;
     virtual bool getRootNodes(std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
 
     /**
@@ -311,6 +311,7 @@ struct MEGA_API DbAccess
     static const int LEGACY_DB_VERSION;
     static const int DB_VERSION;
     static const int LAST_DB_VERSION_WITHOUT_NOD;
+    static const int LAST_DB_VERSION_WITHOUT_SRW;
 
     DbAccess();
 
