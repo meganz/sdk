@@ -1542,7 +1542,10 @@ WinDirNotify::WinDirNotify(LocalNode& root,
             smEventHandle = CreateEvent(NULL, FALSE, FALSE, NULL);
 
             // One thread to notify them all
-            smNotifierThread.reset(new std::thread([](){ notifierThreadFunction(); }));
+            smNotifierThread.reset(new std::thread([](){
+                // Process directory enumeration requests.
+                notifierThreadFunction();
+            }));
         }
     }
 
@@ -1574,11 +1577,26 @@ WinDirNotify::WinDirNotify(LocalNode& root,
     {
         setFailed(0, "");
 
+        // So we know when we've asked the system for directory notifications.
+        std::promise<void> requested;
+
         {
             std::lock_guard<std::mutex> g(smNotifyMutex);
-            smQueue.push_back([this](){ readchanges(); });
+
+            smQueue.push_back([&requested, this](){
+                // Ask the system to report directory change notifications.
+                readchanges();
+
+                // Let queuing thread know we've asked the system for notifications.
+                requested.set_value();
+            });
         }
+
+        // Let notification thread know there's work to do.
         SetEvent(smEventHandle);
+
+        // Wait until the notification thread has processed our request.
+        requested.get_future().get();
     }
     else
     {
