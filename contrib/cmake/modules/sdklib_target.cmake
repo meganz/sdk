@@ -348,6 +348,13 @@ if(WIN32)
 
 else()
 
+    target_compile_options(SDKlib
+        PRIVATE
+        $<$<CONFIG:Debug>:-ggdb3>
+        -Wall         -Wextra
+        -Wconversion  -Wno-unused-parameter
+    )
+
     if(ENABLE_SDKLIB_WERROR AND CMAKE_BUILD_TYPE STREQUAL "Debug")
         target_compile_options(SDKlib PRIVATE -Werror)
         # Warnings which should not be promoted to errors, but still appear as warnings
@@ -360,16 +367,10 @@ else()
                 -Wno-unused-private-field            -Wno-string-conversion
                 -Wno-unused-lambda-capture           -Wno-implicit-int-conversion
                 -Wno-shorten-64-to-32                -Wno-unused-value
+                -Wno-unqualified-std-cast-call
             )
         endif()
     endif()
-
-    target_compile_options(SDKlib
-        PRIVATE
-        $<$<CONFIG:Debug>:-ggdb3>
-        -Wall         -Wextra
-        -Wconversion  -Wno-unused-parameter
-    )
 
 endif()
 
