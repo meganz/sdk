@@ -265,7 +265,7 @@ target_include_directories(SDKlib
     )
 
 if (WIN32)
-    target_compile_definitions(SDKLib
+    target_compile_definitions(SDKlib
         PRIVATE
         HAVE_CONFIG_H # To include the config.h file in Windows builds
         _CRT_SECURE_NO_WARNINGS # warning in mega_ccronexpr
@@ -273,6 +273,10 @@ if (WIN32)
         UNICODE
         NOMINMAX # TODO Fix locally
     )
+
+    # Increase number of sections in .obj files. (megaapi_impl.cpp, Sync_test.cpp, ...)
+    target_compile_options(SDKlib PRIVATE /bigobj)
+
 endif()
 
 set_target_properties(SDKlib PROPERTIES
