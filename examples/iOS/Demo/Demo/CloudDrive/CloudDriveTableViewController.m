@@ -25,7 +25,6 @@
 #import <AssetsLibrary/AssetsLibrary.h>
 #import "DetailsNodeInfoViewController.h"
 #import "Helper.h"
-#import "MEGAphoto.h"
 
 @interface CloudDriveTableViewController () {
     UIAlertView *folderAlertView;
@@ -162,44 +161,6 @@
             break;
         }
         case MEGANodeTypeFile: {
-            NSString *name = [node name];
-            if (isImage(name.lowercaseString.pathExtension)) {
-                
-                int offsetIndex = 0;
-                self.cloudImages = [NSMutableArray new];
-                for (NSInteger i = 0; i < [[self.nodes size] integerValue]; i++) {
-                    
-                    MEGANode *n = [self.nodes nodeAtIndex:i];
-                    
-                    if (isImage([n name].lowercaseString.pathExtension)) {
-                        MEGAphoto *photo = [MEGAphoto photoWithNode:n];
-                        photo.caption = [n name];
-                        [self.cloudImages addObject:photo];
-                        if ([n handle] == [node handle]) {
-                            offsetIndex = (int)[self.cloudImages count] - 1;
-                        }
-                    }
-                }
-                
-                MWPhotoBrowser *browser = [[MWPhotoBrowser alloc] initWithDelegate:self];
-                
-                browser.displayActionButton = YES;
-                browser.displayNavArrows = YES;
-                browser.displaySelectionButtons = NO;
-                browser.zoomPhotosToFill = YES;
-                browser.alwaysShowControls = YES;
-                browser.enableGrid = YES;
-                browser.startOnGrid = NO;
-                
-                // Optionally set the current visible photo before displaying
-                //    [browser setCurrentPhotoIndex:1];
-                
-                [self.navigationController pushViewController:browser animated:YES];
-                
-                [browser showNextPhotoAnimated:YES];
-                [browser showPreviousPhotoAnimated:YES];
-                [browser setCurrentPhotoIndex:offsetIndex];
-            }
             break;
         }
         default:
@@ -238,20 +199,6 @@
                                                destructiveButtonTitle:nil
                                                     otherButtonTitles:NSLocalizedString(@"createFolder", @"Create folder"), NSLocalizedString(@"uploadPhoto", @"Upload photo"), nil];
     [actionSheet showFromTabBar:self.tabBarController.tabBar];
-}
-
-
-
-#pragma mark - MWPhotoBrowserDelegate
-
-- (NSUInteger)numberOfPhotosInPhotoBrowser:(MWPhotoBrowser *)photoBrowser {
-    return self.cloudImages.count;
-}
-
-- (id <MWPhoto>)photoBrowser:(MWPhotoBrowser *)photoBrowser photoAtIndex:(NSUInteger)index {
-    if (index < self.cloudImages.count)
-        return [self.cloudImages objectAtIndex:index];
-    return nil;
 }
 
 #pragma mark - Action sheet delegate

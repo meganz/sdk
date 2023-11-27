@@ -30,12 +30,10 @@ tests_test_unit_SOURCES = \
     tests/unit/Transfer_test.cpp \
     tests/unit/User_test.cpp \
     tests/unit/utils.cpp \
-    tests/unit/utils_test.cpp \
-    tests/integration/process.cpp
+    tests/unit/utils_test.cpp
 
 tests_test_integration_SOURCES = \
     tests/integration/main.cpp \
-    tests/integration/process.cpp \
     tests/integration/SdkTest_test.cpp \
     tests/integration/Sync_test.cpp
 

@@ -23,6 +23,9 @@
 #include "stdfs.h"
 #include "SdkTest_test.h"
 #include "mega/testhooks.h"
+
+#include "gmock/gmock-matchers.h"
+
 #include <algorithm>
 
 #define SSTR( x ) static_cast< const std::ostringstream & >( \
@@ -598,7 +601,6 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
 
     switch(type)
     {
-
     case MegaRequest::TYPE_GET_ATTR_USER:
         if (mApi[apiIndex].lastError == API_OK)
         {
@@ -1256,15 +1258,19 @@ void SdkTest::getAccountsForTest(unsigned howMany)
     out() << "Test setup done, test starts";
 }
 
-void SdkTest::configureTestInstance(unsigned index, const string &email, const string pass)
+void SdkTest::configureTestInstance(unsigned index, const string &email, const string pass, bool checkCredentials)
 {
     ASSERT_GT(mApi.size(), index) << "Invalid mApi size";
     ASSERT_GT(megaApi.size(), index) << "Invalid megaApi size";
-    mApi[index].email = email;
-    mApi[index].pwd = pass;
 
-    ASSERT_FALSE(mApi[index].email.empty()) << "Set test account " << index << " username at the environment variable $" << envVarAccount[index];
-    ASSERT_FALSE(mApi[index].pwd.empty()) << "Set test account " << index << " password at the environment variable $" << envVarPass[index];
+    if(checkCredentials)
+    {
+        mApi[index].email = email;
+        mApi[index].pwd = pass;
+
+        ASSERT_FALSE(mApi[index].email.empty()) << "Set test account " << index << " username at the environment variable $" << envVarAccount[index];
+        ASSERT_FALSE(mApi[index].pwd.empty()) << "Set test account " << index << " password at the environment variable $" << envVarPass[index];
+    }
 
     megaApi[index].reset(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(index).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
     mApi[index].megaApi = megaApi[index].get();
@@ -2830,7 +2836,8 @@ TEST_F(SdkTest, SdkTestTransfers)
                               false    /*startFirst*/,
                               nullptr  /*cancelToken*/,
                               MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
-                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
+                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
+                              false    /* undelete */);
 
     ASSERT_TRUE( waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 600) )
             << "Download transfer failed after " << maxTimeout << " seconds";
@@ -2878,7 +2885,8 @@ TEST_F(SdkTest, SdkTestTransfers)
                               false    /*startFirst*/,
                               nullptr  /*cancelToken*/,
                               MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
-                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
+                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
+                              false    /* undelete */);
 
     ASSERT_TRUE( waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 600) )
             << "Download 0-byte file failed after " << maxTimeout << " seconds";
@@ -2896,6 +2904,99 @@ TEST_F(SdkTest, SdkTestTransfers)
     delete n3;
     delete n4;
     delete n5;
+}
+
+
+/**
+ * @brief TEST_F SdkTestUndelete
+ *
+ * Undelete files that have been completely removed and their node no longer exists in the online account
+ *
+ * - Validate the account - undelete can only work with a PRO account
+ * - Upload a file
+ * - Unlink the file
+ * - Undelete the file
+ */
+TEST_F(SdkTest, SdkTestUndelete)
+{
+    LOG_info << "___TEST Undelete___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+
+    // --- Validate the account ---
+    RequestTracker accDetailsTracker(megaApi[0].get());
+    megaApi[0]->getAccountDetails(&accDetailsTracker);
+    ASSERT_EQ(accDetailsTracker.waitForResult(), API_OK) << "Failed to get account details";
+    std::unique_ptr<MegaAccountDetails> accDtls(accDetailsTracker.request->getMegaAccountDetails());
+    ASSERT_TRUE(accDtls) << "Missing account details";
+    if (accDtls->getProLevel() == MegaAccountDetails::ACCOUNT_TYPE_FREE)
+    {
+        string msg = "Skipped: actual test cannot be performed because account " + mApi[0].email + " does not have PRO level";
+        cout << msg << endl;
+        LOG_warn << msg;
+        return;
+    }
+
+    LOG_info << cwd();
+
+
+    // --- Upload a file ---
+    ASSERT_TRUE(createFile(UPFILE, false)) << "Couldn't create " << UPFILE;
+    std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
+    MegaHandle uploadedNodeHande = INVALID_HANDLE;
+    ASSERT_EQ(MegaError::API_OK,
+        doStartUpload(0, &uploadedNodeHande, UPFILE.c_str(),
+                      rootnode.get(),
+                      nullptr /*fileName*/,
+                      ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                      nullptr /*appData*/,
+                      false   /*isSourceTemporary*/,
+                      false   /*startFirst*/,
+                      nullptr /*cancelToken*/))
+        << "Cannot upload " << UPFILE;
+
+    std::unique_ptr<MegaNode> fileNode(megaApi[0]->getNodeByHandle(uploadedNodeHande));
+
+    ASSERT_TRUE(fileNode) << "Cannot upload file (error: " << mApi[0].lastError << ")";
+    ASSERT_STREQ(UPFILE.c_str(), fileNode->getName()) << "Uploaded file with wrong name";
+
+
+    // --- Download the file ---
+    string fileToDownload = UPFILE + "_download";
+    TransferTracker downloadNodeTracker(megaApi[0].get());
+    megaApi[0]->startDownload(fileNode.get(),
+        fileToDownload.c_str(),
+        nullptr  /*customName*/,
+        nullptr  /*appData*/,
+        false    /*startFirst*/,
+        nullptr  /*cancelToken*/,
+        MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+        MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
+        false    /*undelete*/,
+        &downloadNodeTracker);
+    EXPECT_EQ(downloadNodeTracker.waitForResult(), API_OK) << "Failed to download n2.";
+
+
+    // --- Unlink the file ---
+    RequestTracker removeNodeTracker(megaApi[0].get());
+    megaApi[0]->remove(fileNode.get(), &removeNodeTracker);
+    EXPECT_EQ(removeNodeTracker.waitForResult(), API_OK) << "Failed to remove n2.";
+
+
+    // --- Undelete the file ---
+    string fileToUndelete = UPFILE + "_undeleted";
+    TransferTracker undeleteNodeTracker(megaApi[0].get());
+    megaApi[0]->startDownload(fileNode.get(),
+        fileToUndelete.c_str(),
+        nullptr  /*customName*/,
+        nullptr  /*appData*/,
+        false    /*startFirst*/,
+        nullptr  /*cancelToken*/,
+        MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+        MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
+        true     /*undelete*/,
+        &undeleteNodeTracker);
+    EXPECT_EQ(undeleteNodeTracker.waitForResult(), API_OK) << "Failed to undelete n2.";
 }
 
 /**
@@ -3773,7 +3874,8 @@ TEST_F(SdkTest, SdkTestShares)
                                                  false    /*startFirst*/,
                                                  nullptr  /*cancelToken*/,
                                                  MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
-                                                 MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
+                                                 MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
+                                                 false    /*undelete*/);
 
 
     bool hasFailed = (transferError != API_OK);
@@ -3791,7 +3893,8 @@ TEST_F(SdkTest, SdkTestShares)
                                              false    /*startFirst*/,
                                              nullptr  /*cancelToken*/,
                                              MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
-                                             MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
+                                             MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
+                                             false    /*undelete*/);
 
     ASSERT_EQ(API_OK, transferError) << "Cannot download authorized node (error: " << mApi[1].lastError << ")";
     delete nNoAuth;
@@ -3824,7 +3927,7 @@ TEST_F(SdkTest, SdkTestShares)
         if (!areCredentialsVerified(1, mApi[0].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));}
     }
 
-    auto ownedNodeCount = megaApi[1]->getNumNodes();
+    auto ownedNodeCount = megaApi[1]->getAccurateNumNodes();
 
     // upload a file, just to test node counters
     bool check1;
@@ -3840,7 +3943,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_TRUE(waitForResponse(&check1)) << "Node update not received after " << maxTimeout << " seconds";
     // important to reset
     resetOnNodeUpdateCompletionCBs();
-    auto nodeCountAfterNewOwnedFile = megaApi[1]->getNumNodes();
+    auto nodeCountAfterNewOwnedFile = megaApi[1]->getAccurateNumNodes();
     ASSERT_EQ(ownedNodeCount + 1, nodeCountAfterNewOwnedFile);
     ownedNodeCount = nodeCountAfterNewOwnedFile;
     ASSERT_EQ(check1, true);
@@ -3898,7 +4001,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_TRUE(n->isInShare()) << "Wrong sharing information at incoming share";
     ASSERT_TRUE(n->isShared()) << "Wrong sharing information at incoming share";
 
-    auto nodeCountAfterInShares = megaApi[1]->getNumNodes();
+    auto nodeCountAfterInShares = megaApi[1]->getAccurateNumNodes();
     ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterInShares);
 
     // --- Move share file from different subtree, same file and fingerprint ---
@@ -4013,7 +4116,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(check2, true);
 
 
-    auto nodeCountAfterInSharesAddedDummyFolders = megaApi[1]->getNumNodes();
+    auto nodeCountAfterInSharesAddedDummyFolders = megaApi[1]->getAccurateNumNodes();
     ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterInSharesAddedDummyFolders);
 
     // check the corresponding user alert
@@ -4061,7 +4164,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(check1, true);
     ASSERT_EQ(check2, true);
 
-    auto nodeCountAfterInSharesAddedDummyFile = megaApi[1]->getNumNodes();
+    auto nodeCountAfterInSharesAddedDummyFile = megaApi[1]->getAccurateNumNodes();
     ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterInSharesAddedDummyFile);
 
     // move a folder outside share
@@ -4079,7 +4182,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(check1, true);
     ASSERT_EQ(check2, true);
 
-    auto nodeCountAfterInSharesRemovedDummyFolder1 = megaApi[1]->getNumNodes();
+    auto nodeCountAfterInSharesRemovedDummyFolder1 = megaApi[1]->getAccurateNumNodes();
     ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterInSharesRemovedDummyFolder1);
 
     // add a nested share
@@ -4097,7 +4200,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(check2, true);
 
     // number of nodes should not change, because this node is a nested share
-    auto nodeCountAfterInSharesAddedNestedSubfolder = megaApi[1]->getNumNodes();
+    auto nodeCountAfterInSharesAddedNestedSubfolder = megaApi[1]->getAccurateNumNodes();
     ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterInSharesAddedNestedSubfolder);
 
     // Stop share main folder (Shared-folder)
@@ -4114,7 +4217,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(check2, true);
 
     // number of nodes own cloud + nodes at nested in-share
-    auto nodeCountAfterRemoveMainInshare = megaApi[1]->getNumNodes();
+    auto nodeCountAfterRemoveMainInshare = megaApi[1]->getAccurateNumNodes();
     ASSERT_EQ(ownedNodeCount + nodesAtFolderDummyname2, nodeCountAfterRemoveMainInshare);
 
     // Share again main folder (Shared-folder)
@@ -4131,7 +4234,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(check2, true);
 
     // number of nodes own cloud + nodes at nested in-share
-    auto nodeCountAfterShareN1 = megaApi[1]->getNumNodes();
+    auto nodeCountAfterShareN1 = megaApi[1]->getAccurateNumNodes();
     ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterShareN1);
 
     // remove nested share
@@ -4149,7 +4252,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(check2, true);
 
     // number of nodes should not change, because this node was a nested share
-    auto nodeCountAfterInSharesRemovedNestedSubfolder = megaApi[1]->getNumNodes();
+    auto nodeCountAfterInSharesRemovedNestedSubfolder = megaApi[1]->getAccurateNumNodes();
     ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterInSharesRemovedNestedSubfolder);
 
     // --- Modify the access level of an outgoing share ---
@@ -4214,7 +4317,7 @@ TEST_F(SdkTest, SdkTestShares)
         delete list;
     }
 
-    auto nodeCountAfterRevokedSharesAccess = megaApi[1]->getNumNodes();
+    auto nodeCountAfterRevokedSharesAccess = megaApi[1]->getAccurateNumNodes();
     ASSERT_EQ(ownedNodeCount, nodeCountAfterRevokedSharesAccess);
 
     // --- Get pending outgoing shares ---
@@ -5992,7 +6095,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
                               false    /*startFirst*/,
                               nullptr  /*cancelToken*/,
                               MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
-                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
+                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
+                              false    /* undelete */);
 
     ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 600))
         << "Download cloudraid transfer failed after " << maxTimeout << " seconds";
@@ -6021,7 +6125,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
                                   false    /*startFirst*/,
                                   nullptr  /*cancelToken*/,
                                   MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
-                                  MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
+                                  MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
+                                  false    /* undelete */);
 
         m_off_t lastprogress = 0, pausecount = 0;
         second_timer t;
@@ -6061,7 +6166,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
                                   false    /*startFirst*/,
                                   nullptr  /*cancelToken*/,
                                   MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
-                                  MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
+                                  MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
+                                  false    /* undelete */);
 
         std::string sessionId = unique_ptr<char[]>(megaApi[0]->dumpSession()).get();
 
@@ -6090,7 +6196,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
                                           false    /*startFirst*/,
                                           nullptr  /*cancelToken*/,
                                           MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
-                                          MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
+                                          MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
+                                          false    /* undelete */);
             }
             else if (onTransferUpdate_progress > lastprogress + onTransferUpdate_filesize/10 )
             {
@@ -6172,7 +6279,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
                                   false    /*startFirst*/,
                                   nullptr  /*cancelToken*/,
                                   MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
-                                  MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
+                                  MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
+                                  false    /* undelete */);
 
         ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 180)) << "Cloudraid download with 404 and 403 errors time out (180 seconds)";
         ASSERT_EQ(API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
@@ -6232,7 +6340,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
                                   false    /*startFirst*/,
                                   nullptr  /*cancelToken*/,
                                   MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
-                                  MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
+                                  MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
+                                  false    /* undelete */);
 
         ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 180)) << "Cloudraid download with timeout errors timed out (180 seconds)";
         ASSERT_EQ(API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
@@ -6287,6 +6396,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferResume)
                               nullptr /*cancelToken*/,
                               MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
                               MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
+                              false   /* undelete */,
                               &rdt    /*listener*/);
 
     second_timer timer;
@@ -6382,7 +6492,8 @@ TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
                               false    /*startFirst*/,
                               nullptr  /*cancelToken*/,
                               MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
-                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
+                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
+                              false    /* undelete */);
 
     // get to 30 sec pause point
     second_timer t;
@@ -6458,7 +6569,8 @@ TEST_F(SdkTest, SdkTestOverquotaCloudraid)
                               false    /*startFirst*/,
                               nullptr  /*cancelToken*/,
                               MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
-                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
+                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
+                              false    /* undelete */);
 
     // get to 30 sec pause point
     second_timer t;
@@ -6625,7 +6737,8 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
                               false    /*startFirst*/,
                               nullptr  /*cancelToken*/,
                               MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
-                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */);
+                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
+                              false    /* undelete */);
 
     ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD])) << "Setup transfer failed after " << maxTimeout << " seconds";
     ASSERT_EQ(API_OK, mApi[0].lastError) << "Cannot download the initial file (error: " << mApi[0].lastError << ")";
@@ -8328,6 +8441,7 @@ TEST_F(SdkTest, DISABLED_invalidFileNames)
                               nullptr  /*cancelToken*/,
                               MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
                               MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
+                              false    /* undelete */,
                               &downloadListener);
 
     ASSERT_EQ(API_OK, downloadListener.waitForResult());
@@ -8496,6 +8610,7 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
             nullptr  /*cancelToken*/,
             MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
             MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
+            false    /* undelete */,
             &downloadListener1);
 
     ASSERT_TRUE(downloadListener1.waitForResult() == API_EEXIST);
@@ -8515,6 +8630,7 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
             nullptr  /*cancelToken*/,
             MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
             MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
+            false    /* undelete */,
             &downloadListener2);
 
     for (int i = 1000; i-- && !downloadListener2.started; ) WaitMillisec(1);
@@ -9604,7 +9720,8 @@ TEST_F(SdkTest, SyncPaths)
                                                          false    /*startFirst*/,
                                                          nullptr  /*cancelToken*/,
                                                          MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
-                                                         MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */));
+                                                         MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
+                                                         false    /*undelete*/));
 
     ASSERT_TRUE(fileexists(fileDownloadPath.u8string()));
     deleteFile(fileDownloadPath.u8string());
@@ -9652,7 +9769,8 @@ TEST_F(SdkTest, SyncPaths)
                                                          false    /*startFirst*/,
                                                          nullptr  /*cancelToken*/,
                                                          MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
-                                                         MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */));
+                                                         MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
+                                                         false    /*undelete*/));
 
     ASSERT_TRUE(fileexists(fileDownloadPath.u8string()));
     deleteFile(fileDownloadPath.u8string());
@@ -10973,6 +11091,121 @@ TEST_F(SdkTest, SearchNodesByCreationTime)
     results.reset(megaApi[0]->search(f.get()));
     ASSERT_EQ(results->size(), 1);
     ASSERT_EQ(results->get(0)->getName(), newerName);
+
+    deleteFile(fileName);
+}
+
+
+/**
+ * @brief TEST_F SearchNodesByNodeType
+ *
+ * Test filtering nodes by node type in search() and getChildren()
+ *
+ */
+TEST_F(SdkTest, SearchNodesByNodeType)
+{
+    LOG_info << "___TEST SearchNodesByNodeType___";
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootnode);
+
+    string folderName = "SearchByNodeType_Folder.Foo";
+    MegaHandle folderHandle = createFolder(0, folderName.c_str(), rootnode.get());
+    ASSERT_NE(folderHandle, INVALID_HANDLE);
+    unique_ptr<MegaNode> folderNode(megaApi[0]->getNodeByHandle(folderHandle));
+    ASSERT_TRUE(folderNode);
+
+    string fileName = "SearchByNodeType_File.bar";
+    ASSERT_TRUE(createFile(fileName, false));
+    MegaHandle fileHandle1 = 0;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &fileHandle1, fileName.c_str(), rootnode.get(),
+                                               nullptr /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload " << fileName << " to root";
+    ASSERT_NE(fileHandle1, INVALID_HANDLE);
+    unique_ptr<MegaNode> fileNode1(megaApi[0]->getNodeByHandle(fileHandle1));
+    ASSERT_TRUE(fileNode1);
+
+    MegaHandle fileHandle2 = 0;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &fileHandle2, fileName.c_str(), folderNode.get(),
+                                               nullptr /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload " << fileName << " to " << folderName;
+    ASSERT_NE(fileHandle2, INVALID_HANDLE);
+    unique_ptr<MegaNode> fileNode2(megaApi[0]->getNodeByHandle(fileHandle2));
+    ASSERT_TRUE(fileNode2);
+
+    // getChildren()
+    unique_ptr<MegaSearchFilter> f(MegaSearchFilter::createInstance());
+    f->byName("SearchByNodeType_*");
+    f->byLocationHandle(rootnode->getHandle());
+    unique_ptr<MegaNodeList> results(megaApi[0]->getChildren(f.get()));
+    ASSERT_EQ(results->size(), 2);
+
+    f->byNodeType(MegaNode::TYPE_FOLDER);
+    results.reset(megaApi[0]->getChildren(f.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getName(), folderName);
+
+    f->byNodeType(MegaNode::TYPE_FILE);
+    results.reset(megaApi[0]->getChildren(f.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getHandle(), fileHandle1);
+
+    f->byLocationHandle(folderHandle);
+    f->byNodeType(MegaNode::TYPE_UNKNOWN);
+    results.reset(megaApi[0]->getChildren(f.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getHandle(), fileHandle2);
+
+    f->byNodeType(MegaNode::TYPE_FOLDER);
+    results.reset(megaApi[0]->getChildren(f.get()));
+    ASSERT_EQ(results->size(), 0);
+
+    f->byNodeType(MegaNode::TYPE_FILE);
+    results.reset(megaApi[0]->getChildren(f.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getHandle(), fileHandle2);
+
+    // search()
+    f->byLocationHandle(INVALID_HANDLE);
+    f->byNodeType(MegaNode::TYPE_UNKNOWN);
+    results.reset(megaApi[0]->search(f.get()));
+    ASSERT_EQ(results->size(), 3);
+
+    f->byNodeType(MegaNode::TYPE_FOLDER);
+    results.reset(megaApi[0]->search(f.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getName(), folderName);
+
+    f->byNodeType(MegaNode::TYPE_FILE);
+    results.reset(megaApi[0]->search(f.get()));
+    ASSERT_EQ(results->size(), 2);
+    ASSERT_EQ(results->get(0)->getName(), fileName);
+    ASSERT_EQ(results->get(1)->getName(), fileName);
+
+    f->byLocationHandle(folderHandle);
+    f->byNodeType(MegaNode::TYPE_UNKNOWN);
+    results.reset(megaApi[0]->search(f.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getHandle(), fileHandle2);
+
+    f->byNodeType(MegaNode::TYPE_FOLDER);
+    results.reset(megaApi[0]->search(f.get()));
+    ASSERT_EQ(results->size(), 0);
+
+    f->byNodeType(MegaNode::TYPE_FILE);
+    results.reset(megaApi[0]->search(f.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getHandle(), fileHandle2);
 
     deleteFile(fileName);
 }
@@ -12343,7 +12576,8 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
                                   false    /*startFirst*/,
                                   nullptr  /*cancelToken*/,
                                   MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
-                                  MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */));
+                                  MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
+                                  false    /*undelete*/));
         fs::remove(downloadPath);
     };
 
@@ -13966,6 +14200,7 @@ TEST_F(SdkTest, SdkResumableTrasfers)
         nullptr /*cancelToken*/,
         MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
         MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
+        false   /* undelete */,
         &dt     /*listener*/);
 
     while (!dt.finished && timer.elapsed() < 120 && onTransferUpdate_progress < pauseThreshold)
@@ -14073,6 +14308,7 @@ TEST_F(SdkTest, SdkTestFilePermissions)
                                 nullptr  /*cancelToken*/,
                                 MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
                                 MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
+                                false    /* undelete */,
                                 &downloadListener);
         return downloadListener.waitForResult();
     };
@@ -14184,6 +14420,7 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
                                 nullptr  /*cancelToken*/,
                                 MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
                                 MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
+                                false    /* undelete */,
                                 &downloadListener);
         return downloadListener.waitForResult();
     };
@@ -14471,10 +14708,12 @@ TEST_F(SdkTest, SdkTestDeleteListenerBeforeFinishingRequest)
 /**
  * SdkTestGetNodeByMimetype
  * Steps:
- * - Create three files (test.sh, test.pdf, test.json)
- * - Check number of files from type program
- * - Check number of files from type pdf
- * - Check number of files from type json
+ * - Create files (test.sh, test.pdf, test.json, test.ods)
+ * - Search for files of type program
+ * - Search for files of type pdf
+ * - Search for files of type document
+ * - Search for files of type misc
+ * - Search for files of type spreadsheet
  */
 TEST_F(SdkTest, SdkTestGetNodeByMimetype)
 {
@@ -14484,64 +14723,81 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_NE(rootnode.get(), nullptr);
 
-    std::string progFile = "test.sh";
-    ASSERT_TRUE(createFile(progFile.c_str(), false)) << "Couldn't create " << PUBLICFILE.c_str();
+    ASSERT_TRUE(createFile(PUBLICFILE.c_str(), false)) << "Couldn't create " << PUBLICFILE;
 
+    const char progFile[] = "test.sh";
     MegaHandle handleCodeFile = UNDEF;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handleCodeFile, progFile.c_str(),
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handleCodeFile, PUBLICFILE.c_str(),
                                                rootnode.get(),
-                                               nullptr /*fileName*/,
+                                               progFile /*fileName*/,
                                                ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
                                                nullptr /*appData*/,
                                                false   /*isSourceTemporary*/,
                                                false   /*startFirst*/,
-                                               nullptr /*cancelToken*/)) << "Cannot upload a test file";
+                                               nullptr /*cancelToken*/)) << "Cannot upload " << PUBLICFILE << " as " << progFile;
 
-    std::string pdfFile = "test.pdf";
-    ASSERT_TRUE(createFile(pdfFile.c_str(), false)) << "Couldn't create " << PUBLICFILE.c_str();
-
+    const char pdfFile[] = "test.pdf";
     MegaHandle handlePdfFile = UNDEF;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handlePdfFile, pdfFile.c_str(),
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handlePdfFile, PUBLICFILE.c_str(),
                                                rootnode.get(),
-                                               nullptr /*fileName*/,
+                                               pdfFile /*fileName*/,
                                                ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
                                                nullptr /*appData*/,
                                                false   /*isSourceTemporary*/,
                                                false   /*startFirst*/,
-                                               nullptr /*cancelToken*/)) << "Cannot upload a test file";
+                                               nullptr /*cancelToken*/)) << "Cannot upload " << PUBLICFILE << " as " << pdfFile;
 
-    std::string jsonFile = "test.json";
-    ASSERT_TRUE(createFile(jsonFile.c_str(), false)) << "Couldn't create " << PUBLICFILE.c_str();
-
+    const char jsonFile[] = "test.json";
     MegaHandle handleJsonFile = UNDEF;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handleJsonFile, jsonFile.c_str(),
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handleJsonFile, PUBLICFILE.c_str(),
                                                rootnode.get(),
-                                               nullptr /*fileName*/,
+                                               jsonFile /*fileName*/,
                                                ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
                                                nullptr /*appData*/,
                                                false   /*isSourceTemporary*/,
                                                false   /*startFirst*/,
-                                               nullptr /*cancelToken*/)) << "Cannot upload a test file";
+                                               nullptr /*cancelToken*/)) << "Cannot upload " << PUBLICFILE << " as " << jsonFile;
 
-    std::unique_ptr<MegaNodeList> nodeList(megaApi[0]->searchByType(nullptr, nullptr, nullptr, true, MegaApi::ORDER_NONE, MegaApi::FILE_TYPE_PROGRAM));
+    const char spreadsheetFile[] = "test.ods";
+    MegaHandle handleSpreadsheetFile = UNDEF;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handleSpreadsheetFile, PUBLICFILE.c_str(),
+                                               rootnode.get(),
+                                               spreadsheetFile /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload " << PUBLICFILE << " as " << spreadsheetFile;
+
+    std::unique_ptr<MegaSearchFilter> filterResults(MegaSearchFilter::createInstance());
+
+    filterResults->byCategory(MegaApi::FILE_TYPE_PROGRAM);
+    std::unique_ptr<MegaNodeList> nodeList(megaApi[0]->search(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), handleCodeFile);
 
-    nodeList.reset(megaApi[0]->searchByType(nullptr, nullptr, nullptr, true, MegaApi::ORDER_NONE, MegaApi::FILE_TYPE_PDF));
+    filterResults->byCategory(MegaApi::FILE_TYPE_PDF);
+    nodeList.reset(megaApi[0]->search(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), handlePdfFile);
 
-    nodeList.reset(megaApi[0]->searchByType(nullptr, nullptr, nullptr, true, MegaApi::ORDER_NONE, MegaApi::FILE_TYPE_DOCUMENT));
-    ASSERT_EQ(nodeList->size(), 1);
+    filterResults->byCategory(MegaApi::FILE_TYPE_DOCUMENT);
+    nodeList.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_ALPHABETICAL_DESC));
+    ASSERT_EQ(nodeList->size(), 2);
     ASSERT_EQ(nodeList->get(0)->getHandle(), handlePdfFile);
+    ASSERT_EQ(nodeList->get(1)->getHandle(), handleSpreadsheetFile);
 
-    nodeList.reset(megaApi[0]->searchByType(nullptr, nullptr, nullptr, true, MegaApi::ORDER_NONE, MegaApi::FILE_TYPE_MISC));
+    filterResults->byCategory(MegaApi::FILE_TYPE_MISC);
+    nodeList.reset(megaApi[0]->search(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), handleJsonFile);
 
-    deleteFile(progFile);
-    deleteFile(pdfFile);
-    deleteFile(jsonFile);
+    filterResults->byCategory(MegaApi::FILE_TYPE_SPREADSHEET);
+    nodeList.reset(megaApi[0]->search(filterResults.get()));
+    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), handleSpreadsheetFile);
+
+    deleteFile(PUBLICFILE);
 }
 
 /**
@@ -14642,7 +14898,7 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
         else
         {
             ASSERT_EQ(API_EACCESS, result) << "adding a new VPN credential on a free account didn't return the expected error value (are you pointing to staging?)";
-            // NOTE: by Sep 2023, the API allows free accounts to create VPN credentials temporary, during development of the feature. 
+            // NOTE: by Sep 2023, the API allows free accounts to create VPN credentials temporary, during development of the feature.
             // In production, it returns EACCESS (as it will in staging later on)
         }
 
@@ -14734,4 +14990,180 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
         result = doDelVpnCredential(0, slotID);
         ASSERT_EQ(API_EARGS, result) << "deleting the VPN credential from the invalid slotID " << slotID << " didn't return the expected error value";
     }
+}
+
+/**
+ * @brief SdkTesResumeSessionInFolderLinkDeleted
+ *
+ * Resume session in a folder link deleted and expect to be logged out.
+ */
+TEST_F(SdkTest, SdkTesResumeSessionInFolderLinkDeleted)
+{
+    // Configure folder owner test instance
+    unsigned int numberOfTestInstances{1};
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfTestInstances));
+
+    // Create folder
+    const unsigned int folderOwnerApiIndex{0};
+    std::unique_ptr<MegaNode> rootNode{megaApi[folderOwnerApiIndex]->getRootNode()};
+    ASSERT_THAT(rootNode, ::testing::NotNull());
+
+    const std::string folderName{"Test"};
+    auto folderNodeHandle{createFolder(folderOwnerApiIndex, folderName.c_str(), rootNode.get())};
+    ASSERT_NE(folderNodeHandle, UNDEF);
+
+    std::unique_ptr<MegaNode> folderNode{megaApi[folderOwnerApiIndex]->getNodeByHandle(folderNodeHandle)};
+    ASSERT_THAT(folderNode, ::testing::NotNull());
+
+    // Create folder link
+    const auto folderLink{createPublicLink(folderOwnerApiIndex, folderNode.get(), 0, maxTimeout, false)};
+
+    // Configure folder visitor test instance
+    numberOfTestInstances = 2;
+    mApi.resize(numberOfTestInstances);
+    megaApi.resize(numberOfTestInstances);
+
+    unsigned int folderVisitorApiIndex{1};
+    const bool checkCredentials{false};
+    configureTestInstance(folderVisitorApiIndex, "", "", checkCredentials);
+
+    // Login into folder link
+    auto requestTracker{asyncRequestLoginToFolder(folderVisitorApiIndex, folderLink.c_str())};
+    ASSERT_EQ(requestTracker->waitForResult(), API_OK) << "Failed to login to folder " << folderLink;
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(folderVisitorApiIndex));
+
+    // Get session
+    std::string session{megaApi[folderVisitorApiIndex]->dumpSession()};
+
+    // Local logout
+    locallogout(folderVisitorApiIndex);
+
+    // Remove folder link
+    removePublicLink(folderOwnerApiIndex, folderNode.get());
+
+    // Login into folder link
+    const auto requestFlagType{MegaRequest::TYPE_LOGOUT};
+    auto& requestFlag{mApi[folderVisitorApiIndex].requestFlags[requestFlagType]};
+    requestFlag = false;
+
+    ASSERT_EQ(synchronousFastLogin(static_cast<unsigned int>(folderVisitorApiIndex), session.c_str(), this), API_OK);
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(static_cast<unsigned int>(folderVisitorApiIndex)));
+
+    const unsigned int timeoutInSeconds{60};
+    ASSERT_TRUE(waitForResponse(&requestFlag, timeoutInSeconds))
+        << "Logout did not happen after " << timeoutInSeconds  << " seconds";
+}
+
+class SdkTestAvatar : public SdkTest
+{
+protected:
+    unsigned int mApiIndex{0};
+    std::unique_ptr<MegaUser> mUser;
+    fs::path mDstAvatarPath{getTestDataDir()/AVATARDST};
+    const std::string PATH_SEPARATOR{LocalPath::localPathSeparator_utf8};
+
+public:
+    void SetUp() override
+    {
+        // Configure test instance
+        unsigned int numberOfTestInstances{1};
+        ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfTestInstances));
+
+        // Get user
+        mUser.reset(megaApi[mApiIndex]->getMyUser());
+        ASSERT_THAT(mUser, ::testing::NotNull());
+
+        // Set avatar
+        const auto srcAvatarPath{getTestDataDir()/AVATARSRC};
+        ASSERT_EQ(API_OK, synchronousSetAvatar(mApiIndex, srcAvatarPath.string().c_str()));
+    }
+
+    void TearDown() override
+    {
+        // Remove avatar
+        ASSERT_EQ(API_OK, synchronousSetAvatar(mApiIndex, nullptr));
+
+        // Check the avatar was removed
+        mApi[mApiIndex].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
+        ASSERT_EQ(API_ENOENT, synchronousGetUserAvatar(mApiIndex, mUser.get(), mDstAvatarPath.string().c_str()));
+    }
+};
+
+/**
+ * @brief SdkTestGetAvatarIntoAFile
+ *
+ * Get avatar into a file.
+ */
+TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoAFile)
+{
+    // Get avatar
+    mApi[mApiIndex].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
+    ASSERT_EQ(API_OK, synchronousGetUserAvatar(mApiIndex, mUser.get(), mDstAvatarPath.string().c_str()));
+
+    // Check avatar in local filesystem
+    ASSERT_TRUE(fs::exists(mDstAvatarPath));
+
+    // Remove avatar from local filesystem
+    ASSERT_TRUE(fs::remove(mDstAvatarPath));
+}
+
+/**
+ * @brief SdkTestGetAvatarIntoADirectoryEndingWithSlash
+ *
+ * Get avatar into a directory ending with slash.
+ */
+TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoADirectoryEndingWithSlash)
+{
+    // Get avatar
+    std::string dstAvatarPath{getTestDataDir().string()};
+    dstAvatarPath.append(PATH_SEPARATOR);
+    ASSERT_THAT(dstAvatarPath, ::testing::EndsWith(PATH_SEPARATOR));
+    mApi[mApiIndex].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
+    ASSERT_EQ(API_OK, synchronousGetUserAvatar(mApiIndex, mUser.get(), dstAvatarPath.c_str()));
+
+    // Check avatar in local filesystem
+    dstAvatarPath.append(mUser->getEmail());
+    dstAvatarPath.append("0.jpg");
+    ASSERT_TRUE(fs::exists(dstAvatarPath));
+
+    // Remove avatar from local filesystem
+    ASSERT_TRUE(fs::remove(dstAvatarPath));
+}
+
+/**
+ * @brief SdkTestGetAvatarIntoADirectoryNotEndingWithSlash
+ *
+ * Get avatar into a directory not ending with slash.
+ */
+TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoADirectoryNotEndingWithSlash)
+{
+    // Get avatar
+    std::string dstAvatarPath{getTestDataDir().string()};
+    ASSERT_THAT(dstAvatarPath, ::testing::Not(::testing::EndsWith(PATH_SEPARATOR)));
+    mApi[mApiIndex].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
+    ASSERT_EQ(API_EWRITE, synchronousGetUserAvatar(mApiIndex, mUser.get(), dstAvatarPath.c_str()));
+}
+
+/**
+ * @brief SdkTestGetAvatarIntoAnEmptyPath
+ *
+ * Get avatar into an empty path.
+ */
+TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoAnEmptyPath)
+{
+    // Get avatar
+    mApi[mApiIndex].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
+    ASSERT_EQ(API_EARGS, synchronousGetUserAvatar(mApiIndex, mUser.get(), ""));
+}
+
+/**
+ * @brief SdkTestGetAvatarIntoANullPath
+ *
+ * Get avatar into a null path.
+ */
+TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoANullPath)
+{
+    // Get avatar
+    mApi[mApiIndex].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
+    ASSERT_EQ(API_EARGS, synchronousGetUserAvatar(mApiIndex, mUser.get(), nullptr));
 }

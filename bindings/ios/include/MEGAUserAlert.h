@@ -60,6 +60,7 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertScheduledMeetingChangeType) {
     MEGAUserAlertScheduledMeetingChangeTypeRules        = 0x40, // Repetition rules have changed
 };
 
+NS_ASSUME_NONNULL_BEGIN
 
 /**
  * @brief Represents a user alert in MEGA.
@@ -108,7 +109,7 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertScheduledMeetingChangeType) {
  * This function returns a pointer to a statically allocated buffer.
  * You don't have to free the returned pointer
  */
-@property (nonatomic, readonly) NSString *typeString;
+@property (nonatomic, readonly, nullable) NSString *typeString;
 
 /**
  * @brief The handle of a user related to the alert
@@ -155,7 +156,7 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertScheduledMeetingChangeType) {
  * user could be looked up at the time the alert arrived. If it was not available,
  * this function will return false and the client can request it via the userHandle.
  */
-@property (nonatomic, readonly) NSString *email;
+@property (nonatomic, readonly, nullable) NSString *email;
 
 /**
  * @brief The path of a file, folder, or node related to the alert
@@ -164,7 +165,7 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertScheduledMeetingChangeType) {
  * it could be looked up from the cached nodes at the time the alert arrived.
  * Otherwise, it may be obtainable via the nodeHandle.
  */
-@property (nonatomic, readonly) NSString *path;
+@property (nonatomic, readonly, nullable) NSString *path;
 
 /**
  * @brief The name of a file, folder, or node related to the alert
@@ -173,7 +174,7 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertScheduledMeetingChangeType) {
  * it could be looked up from the cached nodes at the time the alert arrived.
  * Otherwise, it may be obtainable via the nodeHandle.
  */
-@property (nonatomic, readonly) NSString *name;
+@property (nonatomic, readonly, nullable) NSString *name;
 
 /**
  * @brief The heading related to this alert
@@ -181,7 +182,7 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertScheduledMeetingChangeType) {
  * This value is valid for all alerts, and similar to the strings displayed in the
  * webclient alerts.
  */
-@property (nonatomic, readonly) NSString *heading;
+@property (nonatomic, readonly, nullable) NSString *heading;
 
 /**
  * @brief The title related to this alert
@@ -189,7 +190,7 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertScheduledMeetingChangeType) {
  * This value is valid for all alerts, and similar to the strings displayed in the
  * webclient alerts.
  */
-@property (nonatomic, readonly) NSString *title;
+@property (nonatomic, readonly, nullable) NSString *title;
 
 /**
  * @brief Indicates if the user alert is changed by yourself or by another client.
@@ -225,7 +226,7 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertScheduledMeetingChangeType) {
  *
  * @return MEGAStringList that contains old and new title for ther scheduled meeting
  */
-@property (readonly, nonatomic) MEGAStringList *titleList;
+@property (readonly, nonatomic, nullable) MEGAStringList *titleList;
 
 /**
  * @brief Returns a array of dates that contains old and new StartDateTime for the scheduled meeting
@@ -235,7 +236,7 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertScheduledMeetingChangeType) {
  *
  * @return Array of dates that contains old and new StartDateTime for ther scheduled meeting
  */
-@property (readonly, nonatomic) NSArray<NSDate *> *startDateList;
+@property (readonly, nonatomic, nullable) NSArray<NSDate *> *startDateList;
 
 /**
  * @brief Returns a array of dates that contains old and new EndDateTime for the scheduled meeting
@@ -245,20 +246,9 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertScheduledMeetingChangeType) {
  *
  * @return Array of dates that contains old and new EndDateTime for ther scheduled meeting
  */
-@property (readonly, nonatomic) NSArray<NSDate *> *EndDateList;
+@property (readonly, nonatomic, nullable) NSArray<NSDate *> *endDateList;
 
 #endif
-
-/**
- * @brief Creates a copy of this MEGAUserAlert object.
- *
- * The resulting object is fully independent of the source MEGAUserAlert,
- * it contains a copy of all internal attributes, so it will be valid after
- * the original object is deleted.
- *
- * @return Copy of the MEGAUserAlert object
- */
-- (instancetype)clone;
 
 /**
  * @brief Returns a number related to this alert
@@ -290,7 +280,7 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertScheduledMeetingChangeType) {
  *
  * @return a pointer to the string if index is valid; otherwise nil
  */
-- (NSString *)stringAtIndex:(NSUInteger)index;
+- (nullable NSString *)stringAtIndex:(NSUInteger)index;
 
 #ifdef ENABLE_CHAT
 
@@ -313,5 +303,7 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertScheduledMeetingChangeType) {
 - (BOOL)hasScheduledMeetingChangeType:(MEGAUserAlertScheduledMeetingChangeType)changeType;
 
 #endif
+
+NS_ASSUME_NONNULL_END
 
 @end
