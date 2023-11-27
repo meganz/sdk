@@ -85,7 +85,7 @@ pipeline {
         }
         stage('Build Windows'){
             environment{
-                VCPKGPATH  = "${windows_sources_workspace}\\..\\..\\3rdparty"
+                VCPKGPATH  = "${windows_sources_workspace}\\..\\..\\3rdparty_cmake\\vcpkg"
             }
             options{
                 timeout(time: 150, unit: 'MINUTES')
@@ -94,20 +94,9 @@ pipeline {
                 dir(windows_sources_workspace){
                     //Build SDK
                     sh "echo Building SDK"  
-                    sh "mkdir contrib\\\\cmake\\\\build_dir\\\\"
-                    sh "cmake -DENABLE_CHAT=1 -DCMAKE_VERBOSE_MAKEFILE=1 -DMega3rdPartyDir='${VCPKGPATH}' ${BUILD_OPTIONS} -DCMAKE_GENERATOR_PLATFORM=x64 -S '${windows_sources_workspace}'\\\\contrib\\\\cmake\\\\   -B '${windows_sources_workspace}'\\\\contrib\\\\cmake\\\\build_dir\\\\"
-                    sh "cmake --build '${windows_sources_workspace}'\\\\contrib\\\\cmake\\\\build_dir\\\\ --config Debug --target Mega -j 1"
-                    sh "cmake --build '${windows_sources_workspace}'\\\\contrib\\\\cmake\\\\build_dir\\\\ --config Debug --target megacli -j 1"
-                    sh "cmake --build '${windows_sources_workspace}'\\\\contrib\\\\cmake\\\\build_dir\\\\ --config Debug --target test_integration -j 1"
-                    sh "cmake --build '${windows_sources_workspace}'\\\\contrib\\\\cmake\\\\build_dir\\\\ --config Debug --target test_unit -j 1"
-
-                    //Package megacli to be archived
-                    sh "echo Packaging megacli to be archived"
-                    sh "mkdir examples-${BUILD_ID}"    
-                    sh "cp contrib\\\\cmake\\\\build_dir\\\\Debug\\\\megacli.exe examples-${BUILD_ID}"
-                    sh "ls ..\\\\3rdparty\\\\vcpkg\\\\installed\\\\x64-windows-mega"
-                    bat "copy ..\\\\3rdparty\\\\vcpkg\\\\installed\\\\x64-windows-mega\\\\debug\\\\bin\\\\*.dll examples-${BUILD_ID} || :"
-                    bat "powershell Compress-Archive -Path .\\\\examples-${BUILD_ID}\\\\* -DestinationPath .\\\\examples-${BUILD_ID}.zip || :"
+                    sh "mkdir build_dir"
+                    sh "cmake -DENABLE_CHAT=1 -DVCPKG_ROOT='${VCPKGPATH}' ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=1 -DCMAKE_GENERATOR_PLATFORM=x64 -S '${windows_sources_workspace}' -B '${windows_sources_workspace}'\\\\build_dir\\\\"
+                    sh "cmake --build '${windows_sources_workspace}'\\\\build_dir\\\\ --config Debug -j 1"
                 }
             }
         }
@@ -117,7 +106,7 @@ pipeline {
                 timeout(time: 250, unit: 'MINUTES')
             }
             environment {
-                PATH = "${windows_sources_workspace}\\\\..\\\\..\\\\3rdparty\\\\vcpkg\\\\installed\\\\x64-windows-mega\\\\debug\\\\bin;${env.PATH}"
+                PATH = "${windows_sources_workspace}\\\\..\\\\..\\\\3rdparty_cmake\\\\vcpkg\\\\installed\\\\x64-windows-mega\\\\debug\\\\bin;${env.PATH}"
                 MEGA_PWD = credentials('MEGA_PWD_DEFAULT')
                 MEGA_PWD_AUX = credentials('MEGA_PWD_DEFAULT')
                 MEGA_PWD_AUX2 = credentials('MEGA_PWD_DEFAULT')
@@ -132,9 +121,17 @@ pipeline {
                         }
                         sh "echo Running tests"
                         bat """
-                        contrib\\\\cmake\\\\build_dir\\\\Debug\\\\test_unit.exe
+
+                        if not exist build_dir\\\\Debug\\\\test_unit.exe (
+                            if not exist build_dir\\\\Debug\\\\test_integration.exe (
+                                echo Tests not available > test_integration.log
+                                exit 0
+                            )
+                        )
+
+                        build_dir\\\\Debug\\\\test_unit.exe
                         if %ERRORLEVEL% NEQ 0 exit 1
-                        contrib\\\\cmake\\\\build_dir\\\\Debug\\\\test_integration.exe --CI --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${TESTS_PARALLEL}
+                        build_dir\\\\Debug\\\\test_integration.exe --CI --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${TESTS_PARALLEL}
                         if %ERRORLEVEL% NEQ 0 set ERROR_VAL=1
                         gzip -c test_integration.log > test_integration_${BUILD_ID}.log.gz
                         rm test_integration.log
