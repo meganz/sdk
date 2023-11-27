@@ -62,7 +62,7 @@ endif()
 # set (USE_PCRE 0 CACHE STRING "Can be used by client apps. The SDK does not use it itself anymore")
 
 ## General configuration
-# Modules location
+# Main modules location
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules)
 
 # No configurable values.
@@ -83,6 +83,8 @@ if(VCPKG_ROOT)
     include(vcpkg_management)
     process_vcpkg_libraries()
 else()
+    # For packages with no pkg-config in the system.
+    list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules/packages)
     message(STATUS "Using system dependencies")
 endif()
 
