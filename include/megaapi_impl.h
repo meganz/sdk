@@ -4029,7 +4029,7 @@ private:
         void putNodeAttribute(MegaBackgroundMediaUpload* bu, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void setUserAttr(int type, const char *value, MegaRequestListener *listener = NULL);
         void getUserAttr(User* user, attr_t type, MegaRequestPrivate* request);
-        void getUserAttr(const std::string& email, attr_t type, const std::string& ph, MegaRequestPrivate* request);
+        void getUserAttr(const std::string& email, attr_t type, const char* ph, MegaRequestPrivate* request);
         void getua_completion(error, MegaRequestPrivate* request);
         void getua_completion(byte*, unsigned, attr_t, MegaRequestPrivate* request);
         void getua_completion(TLVstore *, attr_t, MegaRequestPrivate* request);
