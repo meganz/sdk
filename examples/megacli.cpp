@@ -7815,6 +7815,7 @@ void exec_mediainfo(autocomplete::ACState& s)
                 break;
             }
             case TYPE_DONOTSYNC:
+            case TYPE_NESTED_MOUNT:
             case TYPE_SPECIAL:
             case TYPE_SYMLINK:
             case TYPE_UNKNOWN:
@@ -10078,7 +10079,7 @@ void exec_syncadd(autocomplete::ACState& s)
             syncname,
             NodeHandle(),
             string(),
-            0,
+            fsfp_t(),
             std::move(drivePath),
             true,
             backup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);

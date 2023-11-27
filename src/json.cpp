@@ -501,11 +501,9 @@ const char* JSON::getvalue()
     return r;
 }
 
-fsfp_t JSON::getfsfp()
+std::uint64_t JSON::getfsfp()
 {
-    fsfp_t fsfp;
-    fsfp.id = gethandle(sizeof(fsfp_t));
-    return fsfp;
+    return gethandle(sizeof(std::uint64_t));
 }
 
 uint64_t JSON::getuint64()
@@ -864,7 +862,7 @@ void JSONWriter::arg_B64(const char* n, const string& data)
     arg(n, (const byte*)data.data(), int(data.size()));
 }
 
-void JSONWriter::arg_fsfp(const char* n, fsfp_t fp)
+void JSONWriter::arg_fsfp(const char* n, std::uint64_t fp)
 {
     arg(n, (const byte*)&fp, int(sizeof(fp)));
 }
