@@ -33,7 +33,7 @@
 
 #include <zlib.h>
 
-#include "gfxworker/logger.h"
+#include "logger.h"
 #include "megaapi_impl.h"
 #include "mega/filesystem.h"
 #include "mega/utils.h"

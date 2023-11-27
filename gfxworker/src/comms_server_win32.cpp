@@ -1,8 +1,8 @@
 #include "mega/logging.h"
 #include "mega/utils.h"
 #include "mega/filesystem.h"
-#include "gfxworker/comms_server_win32.h"
-#include "gfxworker/server.h"
+#include "comms_server_win32.h"
+#include "server.h"
 #include <system_error>
 #include <windows.h>
 

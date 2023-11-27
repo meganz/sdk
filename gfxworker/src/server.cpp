@@ -16,9 +16,9 @@
  * program.
  */
 
-#include "gfxworker/server.h"
-#include "gfxworker/threadpool.h"
-#include "gfxworker/logger.h"
+#include "server.h"
+#include "threadpool.h"
+#include "logger.h"
 #include "mega/filesystem.h"
 #include "mega/gfx.h"
 #include "mega/gfx/worker/commands.h"

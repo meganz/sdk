@@ -5,8 +5,8 @@
 #include "mega/utils.h"
 #include "mega/win32/gfx/worker/comms_client.h"
 #include "mega/gfx/worker/client.h"
-#include "gfxworker/comms_server_win32.h"
-#include "gfxworker/server.h"
+#include "comms_server_win32.h"
+#include "server.h"
 #include "mega/gfx/isolatedprocess.h"
 #include <memory>
 #include <thread>

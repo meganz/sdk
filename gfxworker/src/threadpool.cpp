@@ -1,4 +1,4 @@
-#include "gfxworker/threadpool.h"
+#include "threadpool.h"
 #include "mega/logging.h"
 
 #include <algorithm>
