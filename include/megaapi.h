@@ -16242,9 +16242,24 @@ class MegaApi
 
         /**
          * @brief Get the total number of nodes in the account
+         *
+         * @note This method doesn't lock SDK mutex, returned value may not be up to date
+         * Nodes can be removed or added but this value is updated at the end of MegaClient::notityPurge
+         *
          * @return Total number of nodes in the account
          */
         unsigned long long getNumNodes();
+
+        /**
+         * @brief Get the total number of nodes in the account
+         *
+         * @note This method locks SDK mutex, returned value is up to date
+         * This calls gets blocked if it's called between a node is added or removed and
+         * nodes count is updated
+         *
+         * @return Total number of nodes in the account
+         */
+        unsigned long long getAccurateNumNodes();
 
         enum { ORDER_NONE = 0, ORDER_DEFAULT_ASC, ORDER_DEFAULT_DESC,
             ORDER_SIZE_ASC, ORDER_SIZE_DESC,

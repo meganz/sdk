@@ -3930,7 +3930,7 @@ TEST_F(SdkTest, SdkTestShares)
         if (!areCredentialsVerified(1, mApi[0].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));}
     }
 
-    auto ownedNodeCount = megaApi[1]->getNumNodes();
+    auto ownedNodeCount = megaApi[1]->getAccurateNumNodes();
 
     // upload a file, just to test node counters
     bool check1;
@@ -3946,7 +3946,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_TRUE(waitForResponse(&check1)) << "Node update not received after " << maxTimeout << " seconds";
     // important to reset
     resetOnNodeUpdateCompletionCBs();
-    auto nodeCountAfterNewOwnedFile = megaApi[1]->getNumNodes();
+    auto nodeCountAfterNewOwnedFile = megaApi[1]->getAccurateNumNodes();
     ASSERT_EQ(ownedNodeCount + 1, nodeCountAfterNewOwnedFile);
     ownedNodeCount = nodeCountAfterNewOwnedFile;
     ASSERT_EQ(check1, true);
@@ -4004,7 +4004,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_TRUE(n->isInShare()) << "Wrong sharing information at incoming share";
     ASSERT_TRUE(n->isShared()) << "Wrong sharing information at incoming share";
 
-    auto nodeCountAfterInShares = megaApi[1]->getNumNodes();
+    auto nodeCountAfterInShares = megaApi[1]->getAccurateNumNodes();
     ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterInShares);
 
     // --- Move share file from different subtree, same file and fingerprint ---
@@ -4119,7 +4119,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(check2, true);
 
 
-    auto nodeCountAfterInSharesAddedDummyFolders = megaApi[1]->getNumNodes();
+    auto nodeCountAfterInSharesAddedDummyFolders = megaApi[1]->getAccurateNumNodes();
     ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterInSharesAddedDummyFolders);
 
     // check the corresponding user alert
@@ -4167,7 +4167,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(check1, true);
     ASSERT_EQ(check2, true);
 
-    auto nodeCountAfterInSharesAddedDummyFile = megaApi[1]->getNumNodes();
+    auto nodeCountAfterInSharesAddedDummyFile = megaApi[1]->getAccurateNumNodes();
     ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterInSharesAddedDummyFile);
 
     // move a folder outside share
@@ -4185,7 +4185,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(check1, true);
     ASSERT_EQ(check2, true);
 
-    auto nodeCountAfterInSharesRemovedDummyFolder1 = megaApi[1]->getNumNodes();
+    auto nodeCountAfterInSharesRemovedDummyFolder1 = megaApi[1]->getAccurateNumNodes();
     ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterInSharesRemovedDummyFolder1);
 
     // add a nested share
@@ -4203,7 +4203,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(check2, true);
 
     // number of nodes should not change, because this node is a nested share
-    auto nodeCountAfterInSharesAddedNestedSubfolder = megaApi[1]->getNumNodes();
+    auto nodeCountAfterInSharesAddedNestedSubfolder = megaApi[1]->getAccurateNumNodes();
     ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterInSharesAddedNestedSubfolder);
 
     // Stop share main folder (Shared-folder)
@@ -4220,7 +4220,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(check2, true);
 
     // number of nodes own cloud + nodes at nested in-share
-    auto nodeCountAfterRemoveMainInshare = megaApi[1]->getNumNodes();
+    auto nodeCountAfterRemoveMainInshare = megaApi[1]->getAccurateNumNodes();
     ASSERT_EQ(ownedNodeCount + nodesAtFolderDummyname2, nodeCountAfterRemoveMainInshare);
 
     // Share again main folder (Shared-folder)
@@ -4237,7 +4237,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(check2, true);
 
     // number of nodes own cloud + nodes at nested in-share
-    auto nodeCountAfterShareN1 = megaApi[1]->getNumNodes();
+    auto nodeCountAfterShareN1 = megaApi[1]->getAccurateNumNodes();
     ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterShareN1);
 
     // remove nested share
@@ -4255,7 +4255,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(check2, true);
 
     // number of nodes should not change, because this node was a nested share
-    auto nodeCountAfterInSharesRemovedNestedSubfolder = megaApi[1]->getNumNodes();
+    auto nodeCountAfterInSharesRemovedNestedSubfolder = megaApi[1]->getAccurateNumNodes();
     ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterInSharesRemovedNestedSubfolder);
 
     // --- Modify the access level of an outgoing share ---
@@ -4320,7 +4320,7 @@ TEST_F(SdkTest, SdkTestShares)
         delete list;
     }
 
-    auto nodeCountAfterRevokedSharesAccess = megaApi[1]->getNumNodes();
+    auto nodeCountAfterRevokedSharesAccess = megaApi[1]->getAccurateNumNodes();
     ASSERT_EQ(ownedNodeCount, nodeCountAfterRevokedSharesAccess);
 
     // --- Get pending outgoing shares ---
