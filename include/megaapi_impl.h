@@ -634,19 +634,23 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         MegaNode *copy() override;
 
         char *serialize() override;
-        bool serialize(string*) const override;
-        static MegaNodePrivate* unserialize(string*);
+        bool serialize(string*) const override;  // only FILENODEs
+        static MegaNodePrivate* unserialize(string*);  // only FILENODEs
 
         static string removeAppPrefixFromFingerprint(const char* appFingerprint, m_off_t* nodeSize = nullptr);
         static string addAppPrefixToFingerprint(const string& fingerprint, const m_off_t nodeSize);
 
     protected:
         MegaNodePrivate(Node *node);
+        const char* getAttrFrom(const char *attrName, const attr_map* attrMap) const;
+        const char *getOfficialAttr(const char* attrName) const;
+
         int type;
         const char *name;
         const char *fingerprint;
         const char *originalfingerprint;
         attr_map *customAttrs;
+        std::unique_ptr<attr_map> mOfficialAttrs;
         int64_t size;
         int64_t ctime;
         int64_t mtime;
@@ -3570,12 +3574,11 @@ public:
 
         // Password Manager
         void getPasswordManagerBase(MegaRequestListener *listener = nullptr);
+        bool isPasswordNodeFolder(MegaHandle node);
         void createPasswordNode(const char *name, const char *pwd, MegaHandle parent,
                                 MegaRequestListener *listener = nullptr);
-        void updatePasswordNode(MegaHandle node, const char* newName, const char* newPwd,
+        void updatePasswordNode(MegaHandle node, const char* newPwd,
                                 MegaRequestListener *listener = NULL);
-        MegaNode *getPasswordNodeByHandle(handle h);
-        void removePasswordNode(MegaHandle node, MegaRequestListener *listener = nullptr);
 
         void fetchCreditCardInfo(MegaRequestListener* listener = nullptr);
 

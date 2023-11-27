@@ -2483,26 +2483,20 @@ void MegaApi::getPasswordManagerBase(MegaRequestListener *listener)
     pImpl->getPasswordManagerBase(listener);
 }
 
+bool MegaApi::isPasswordNodeFolder(MegaHandle node)
+{
+    return pImpl->isPasswordNodeFolder(node);
+}
+
 void MegaApi::createPasswordNode(const char *name, const char *pwd, MegaHandle parent,
                                  MegaRequestListener *listener)
 {
     pImpl->createPasswordNode(name, pwd, parent, listener);
 }
 
-void MegaApi::updatePasswordNode(MegaHandle node, const char* newName, const char* newPwd,
-                                MegaRequestListener *listener)
+void MegaApi::updatePasswordNode(MegaHandle node, const char* newPwd, MegaRequestListener *listener)
 {
-    pImpl->updatePasswordNode(node, newName, newPwd, listener);
-}
-
-MegaNode* MegaApi::getPasswordNodeByHandle(uint64_t h)
-{
-    return pImpl->getPasswordNodeByHandle(h);
-}
-
-void MegaApi::removePasswordNode(MegaHandle node, MegaRequestListener *listener)
-{
-    pImpl->removePasswordNode(node, listener);
+    pImpl->updatePasswordNode(node, newPwd, listener);
 }
 
 bool MegaApi::createLocalFolder(const char *localPath)

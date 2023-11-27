@@ -1124,6 +1124,10 @@ void Node::setattr()
             {
                 LocalPath::utf8_normalize(t);
             }
+            else if (name == AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_VALUE))
+            {
+                *t = Base64::atob(*t);
+            }
         }
 
         changed.name = attrs.hasDifferentValue('n', oldAttrs.map);
@@ -1753,6 +1757,13 @@ bool Node::isPasswordNode() const
     return ((type == FOLDERNODE) &&
             (attrs.map.find(AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_VALUE))
              != std::end(attrs.map)));
+}
+
+bool Node::isPasswordNodeFolder() const
+{
+    assert(client);
+    const auto nhBase = client->getPasswordManagerBase();
+    return ((type == FOLDERNODE) && (nodeHandle() == nhBase || isAncestor(nhBase)));
 }
 
 PublicLink::PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown, const char *authKey)
