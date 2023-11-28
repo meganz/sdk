@@ -61,6 +61,8 @@ $$MEGASDK_BASE_PATH/tests/gtestcommon.h \
 $$MEGASDK_BASE_PATH/tests/integration/test.h \
 $$MEGASDK_BASE_PATH/tests/integration/SdkTest_test.h
 
+INCLUDEPATH += $$MEGASDK_BASE_PATH/tests
+
 copydata.commands = $(COPY_DIR) $$shell_path($$MEGASDK_BASE_PATH/tests/integration/test-data/*) $$shell_path($$OUT_PWD)
 first.depends = $(first) copydata
 export(first.depends)

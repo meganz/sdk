@@ -1,4 +1,4 @@
-#include "mega/testcommon/gtestcommon.h"
+#include "gtestcommon.h"
 
 #include <fstream>
 #include <regex>

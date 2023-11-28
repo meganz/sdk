@@ -24,7 +24,7 @@
 
 
 #include "test.h"
-#include "mega/testcommon/gtestcommon.h"
+#include "gtestcommon.h"
 
 #define DEFAULTWAIT std::chrono::seconds(20)
 

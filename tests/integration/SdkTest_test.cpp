@@ -22,7 +22,7 @@
 #include "test.h"
 #include "stdfs.h"
 #include "SdkTest_test.h"
-#include "mega/testcommon/gtestcommon.h"
+#include "gtestcommon.h"
 #include "mega/testhooks.h"
 
 #include "gmock/gmock-matchers.h"
