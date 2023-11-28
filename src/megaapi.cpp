@@ -607,7 +607,15 @@ bool MegaNode::isPasswordNode()
     return false;
 }
 
-const char* MegaNode::getPasswordNodeValue()
+MegaNode::PasswordNodeData* MegaNode::PasswordNodeData::createInstance(const char* pwd,
+                                                                       const char* notes,
+                                                                       const char* url,
+                                                                       const char* userName)
+{
+    return new MegaNodePrivate::PNDataPrivate(pwd, notes, url, userName);
+}
+
+MegaNode::PasswordNodeData* MegaNode::getPasswordData()
 {
     return NULL;
 }
@@ -2488,15 +2496,16 @@ bool MegaApi::isPasswordNodeFolder(MegaHandle node)
     return pImpl->isPasswordNodeFolder(node);
 }
 
-void MegaApi::createPasswordNode(const char *name, const char *pwd, MegaHandle parent,
-                                 MegaRequestListener *listener)
+void MegaApi::createPasswordNode(const char* name, const MegaNode::PasswordNodeData* data,
+                                 MegaHandle parent, MegaRequestListener* listener)
 {
-    pImpl->createPasswordNode(name, pwd, parent, listener);
+    pImpl->createPasswordNode(name, data, parent, listener);
 }
 
-void MegaApi::updatePasswordNode(MegaHandle node, const char* newPwd, MegaRequestListener *listener)
+void MegaApi::updatePasswordNode(MegaHandle node, const MegaNode::PasswordNodeData* newData,
+                                 MegaRequestListener* listener)
 {
-    pImpl->updatePasswordNode(node, newPwd, listener);
+    pImpl->updatePasswordNode(node, newData, listener);
 }
 
 bool MegaApi::createLocalFolder(const char *localPath)

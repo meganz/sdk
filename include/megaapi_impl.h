@@ -554,6 +554,29 @@ protected:
 class MegaNodePrivate : public MegaNode, public Cacheable
 {
     public:
+    class PNDataPrivate : public MegaNode::PasswordNodeData
+    {
+    public:
+        PNDataPrivate(const char* p, const char* n, const char* url, const char* un)
+            : mPwd {p ? make_unique<std::string>(p) : nullptr},
+              mNotes {n ? make_unique<std::string>(n) : nullptr},
+              mURL {url ? make_unique<std::string>(url) : nullptr},
+              mUserName {un ? make_unique<std::string>(un) : nullptr}
+            {}
+
+        virtual void password(const char* pwd) override { mPwd.reset(); if (pwd) mPwd = make_unique<std::string>(pwd); }
+        virtual void notes(const char* n)      override { mNotes.reset(); if (n) mNotes = make_unique<std::string>(n); }
+        virtual void url(const char* u)        override { mURL.reset(); if (u) mURL = make_unique<std::string>(u); }
+        virtual void userName(const char* un)  override { mUserName.reset(); if (un) mUserName = make_unique<std::string>(un); }
+
+        virtual const char* password() const override { return mPwd ? mPwd->c_str() : nullptr; }
+        virtual const char* notes() const    override { return mNotes ? mNotes->c_str(): nullptr; }
+        virtual const char* url() const      override { return mURL ? mURL->c_str() : nullptr; }
+        virtual const char* userName() const override { return mUserName ? mUserName->c_str() : nullptr; }
+    private:
+        std::unique_ptr<std::string> mPwd, mNotes, mURL, mUserName;
+    };
+
         MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime,
                         MegaHandle nodeMegaHandle, const std::string *nodekey, const std::string *fileattrstring,
                         const char *fingerprint, const char *originalFingerprint, MegaHandle owner, MegaHandle parentHandle = INVALID_HANDLE,
@@ -611,7 +634,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         bool isTakenDown() override;
         bool isForeign() override;
         bool isPasswordNode() override;
-        const char* getPasswordNodeValue() override;
+        PasswordNodeData* getPasswordData() override;
         std::string* getPrivateAuth() override;
         MegaNodeList *getChildren() override;
         void setPrivateAuth(const char *privateAuth) override;
@@ -3118,6 +3141,9 @@ class MegaApiImpl : public MegaApp
 
     private:
         bool nodeInRubbishCheck(handle) const;
+        std::pair<bool, error> checkCreateFolderPrecons(const char* name,
+                                                        std::shared_ptr<Node> parent,
+                                                        MegaRequestPrivate* request);
 
     public:
 #ifdef ENABLE_SYNC
@@ -3575,9 +3601,9 @@ public:
         // Password Manager
         void getPasswordManagerBase(MegaRequestListener *listener = nullptr);
         bool isPasswordNodeFolder(MegaHandle node);
-        void createPasswordNode(const char *name, const char *pwd, MegaHandle parent,
-                                MegaRequestListener *listener = nullptr);
-        void updatePasswordNode(MegaHandle node, const char* newPwd,
+        void createPasswordNode(const char *name, const MegaNode::PasswordNodeData *data,
+                                MegaHandle parent, MegaRequestListener *listener = nullptr);
+        void updatePasswordNode(MegaHandle node, const MegaNode::PasswordNodeData* newData,
                                 MegaRequestListener *listener = NULL);
 
         void fetchCreditCardInfo(MegaRequestListener* listener = nullptr);
@@ -4063,6 +4089,7 @@ private:
 
         // Password Manager - private
         void createPasswordManagerBase(MegaRequestPrivate*);
+        std::unique_ptr<AttrMap> toPasswordNodeData(const MegaNode::PasswordNodeData* data) const;
 
         friend class MegaBackgroundMediaUploadPrivate;
         friend class MegaFolderDownloadController;

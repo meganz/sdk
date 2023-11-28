@@ -421,7 +421,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
             {
                 mS4 = it->second;
             }
-            else if (it->first == AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_VALUE))
+            else if (it->first == AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_MANAGER))
             {
                 if (!mOfficialAttrs) mOfficialAttrs = make_unique<attr_map>();
 
@@ -506,6 +506,18 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     if (node->changed.pwdValue)
     {
         this->changed |= MegaNode::CHANGE_TYPE_PWD_VALUE;
+    }
+    if (node->changed.pwdNotes)
+    {
+        this->changed |= MegaNode::CHANGE_TYPE_PWD_NOTES;
+    }
+    if (node->changed.pwdURL)
+    {
+        this->changed |= MegaNode::CHANGE_TYPE_PWD_URL;
+    }
+    if (node->changed.pwdUsername)
+    {
+        this->changed |= MegaNode::CHANGE_TYPE_PWD_USERNAME;
     }
 
     this->thumbnailAvailable = (node->hasfileattribute(0) != 0);
@@ -1818,12 +1830,31 @@ bool MegaNodePrivate::isForeign()
 
 bool MegaNodePrivate::isPasswordNode()
 {
-    return (type == FOLDERNODE && getPasswordNodeValue() != nullptr);
+    return (type == FOLDERNODE &&
+            getOfficialAttr(MegaClient::NODE_ATTR_PASSWORD_MANAGER) != nullptr);
 }
 
-const char* MegaNodePrivate::getPasswordNodeValue()
+MegaNode::PasswordNodeData* MegaNodePrivate::getPasswordData()
 {
-    return getOfficialAttr(MegaClient::NODE_ATTR_PASSWORD_VALUE);
+    if (isPasswordNode())
+    {
+        AttrMap aux;
+        aux.fromjson(getOfficialAttr(MegaClient::NODE_ATTR_PASSWORD_MANAGER));
+        const auto read = [&aux](const char* const k) -> const char*
+        {
+            const auto name = AttrMap::string2nameid(k);
+            if (aux.map.contains(name)) return aux.map[name].c_str();
+
+            return nullptr;
+        };
+
+        return new PNDataPrivate{read(MegaClient::PWM_ATTR_PASSWORD_PWD),
+                                 read(MegaClient::PWM_ATTR_PASSWORD_NOTES),
+                                 read(MegaClient::PWM_ATTR_PASSWORD_URL),
+                                 read(MegaClient::PWM_ATTR_PASSWORD_USERNAME)};
+    }
+
+    return nullptr;
 }
 
 string *MegaNodePrivate::getPrivateAuth()
@@ -19509,6 +19540,24 @@ void MegaApiImpl::fetchTimeZone(bool forceApiFetch, MegaRequestListener* listene
     waiter->notify();
 }
 
+std::pair<bool, error> MegaApiImpl::checkCreateFolderPrecons(const char* name,
+                                                             std::shared_ptr<Node> parent,
+                                                             MegaRequestPrivate* request)
+{
+    if (!name || !(*name) || !parent) return std::make_pair(false, API_EARGS);
+
+    // prevent to create a duplicate folder with same name in same path
+    std::shared_ptr<Node> folder = client->childnodebyname(parent.get(), name, false);
+    if (folder && folder->type == FOLDERNODE)
+    {
+        request->setNodeHandle(folder->nodehandle);
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+        return std::make_pair(false, API_OK);
+    }
+
+    return std::make_pair(true, API_OK);
+}
+
 void MegaApiImpl::createFolder(const char* name, MegaNode* parent, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_FOLDER, listener);
@@ -19516,22 +19565,17 @@ void MegaApiImpl::createFolder(const char* name, MegaNode* parent, MegaRequestLi
     request->setName(name);
 
     request->performRequest = [this, request]()
-        {
-            std::shared_ptr<Node> parent = client->nodebyhandle(request->getParentHandle());
-            const char *name = request->getName();
-            if (!name || !(*name) || !parent) { return API_EARGS;}
+    {
+        std::shared_ptr<Node> parent = client->nodebyhandle(request->getParentHandle());
+        auto name = request->getName();
 
-            // prevent to create a duplicate folder with same name in same path
-            std::shared_ptr<Node> folder = client->childnodebyname(parent.get(), name, false);
-            if (folder && folder->type == FOLDERNODE)
-            {
-                request->setNodeHandle(folder->nodehandle);
-                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
-                return API_OK;
-            }
+        const auto aux = checkCreateFolderPrecons(name, parent, request);
+        const bool& preconsOK = aux.first;
+        const error& code = aux.second;
+        if (!preconsOK) return code;
 
-            return client->createFolder(parent, name, request->getTag());
-        };
+        return client->createFolder(parent, name, request->getTag());
+    };
 
     requestQueue.push(request);
     waiter->notify();
@@ -19962,6 +20006,7 @@ void MegaApiImpl::renameNode(MegaNode* node, const char* newName, MegaRequestLis
 
     request->performRequest = [this, request]() -> error
     {
+        const auto nh = NodeHandle{}.set6byte(request->getNodeHandle());
         CommandSetAttr::Completion cb = [request, this](NodeHandle h, Error e)
         {
             assert(request->getNodeHandle() == h.as8byte());
@@ -19969,7 +20014,6 @@ void MegaApiImpl::renameNode(MegaNode* node, const char* newName, MegaRequestLis
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
         };
 
-        const auto nh = NodeHandle{}.set6byte(request->getNodeHandle());
         return client->renameNode(nh, request->getName(), std::move(cb));
     };
 
@@ -26166,50 +26210,62 @@ void MegaApiImpl::createPasswordManagerBase(MegaRequestPrivate* request)
     client->createPasswordManagerBase(request->getTag(), std::move(cb));
 }
 
-void MegaApiImpl::createPasswordNode(const char* name, const char* pwd, MegaHandle parentHandle,
-                                     MegaRequestListener* listener)
+std::unique_ptr<AttrMap> MegaApiImpl::toPasswordNodeData(const MegaNode::PasswordNodeData* data) const
+{
+    if (!data) return nullptr;
+
+    auto attrMap = make_unique<AttrMap>();
+
+    auto n = data->notes();
+    if (n) attrMap->map[AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_NOTES)] = n;
+
+    auto p = data->password();
+    if (p) attrMap->map[AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_PWD)] = p;
+
+    auto u = data->url();
+    if (u) attrMap->map[AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_URL)] = u;
+
+    auto un = data->userName();
+    if (un) attrMap->map[AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_USERNAME)] = un;
+
+    return attrMap;
+}
+
+void MegaApiImpl::createPasswordNode(const char* name, const MegaNode::PasswordNodeData* pwData,
+                                     MegaHandle parentHandle, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_PASSWORD_NODE, listener);
     request->setParentHandle(parentHandle);
     request->setName(name);
-    request->setText(pwd);
 
-    request->performRequest = [this, request]()
+    request->performRequest = [this, request, pwData]() -> error
     {
         auto name = request->getName();
-        auto pwd = request->getText();
-        auto nhParent = NodeHandle{}.set6byte(request->getParentHandle());
+        auto parent = client->nodebyhandle(request->getParentHandle());
+        auto data = toPasswordNodeData(pwData);
+
+        const auto aux = checkCreateFolderPrecons(name, parent, request);
+        const bool& preconsOK = aux.first;
+        const error& code = aux.second;
+        if (!preconsOK) return code;
+
         // using default this->putnodes_result as callback
-
-        client->createPasswordNode(name, pwd, nhParent, request->getTag());
-
-        return API_OK;
+        return client->createPasswordNode(name, std::move(data), parent, request->getTag());
     };
 
     requestQueue.push(request);
     waiter->notify();
 }
 
-void MegaApiImpl::updatePasswordNode(MegaHandle h, const char* newPwd, MegaRequestListener *listener)
+void MegaApiImpl::updatePasswordNode(MegaHandle h, const MegaNode::PasswordNodeData* pwData, MegaRequestListener *listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_UPDATE_PASSWORD_NODE, listener);
     request->setNodeHandle(h);
-    request->setText(newPwd);
 
-    request->performRequest = [this, request]()
+    request->performRequest = [this, request, pwData]() -> error
     {
-        if (client->ststatus == STORAGE_PAYWALL)
-        {
-            LOG_err << "Password Manager: failed Password Node update. Storage paywall";
-            return API_EPAYWALL;
-        }
-        auto node = client->nodebyhandle(request->getNodeHandle());
-        if (!node)
-        {
-            LOG_err << "Password Manager: failed Password Node update missing Password Node";
-            return API_EARGS;
-        }
-
+        auto nhPwdNode = NodeHandle{}.set6byte(request->getNodeHandle());
+        auto data = toPasswordNodeData(pwData);
         CommandSetAttr::Completion cbRequest = [this, request](NodeHandle nh, Error e)
         {
             assert(request->getNodeHandle() == nh.as8byte());
@@ -26217,7 +26273,7 @@ void MegaApiImpl::updatePasswordNode(MegaHandle h, const char* newPwd, MegaReque
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
         };
 
-        return client->updatePasswordNode(node, request->getText(), std::move(cbRequest));
+        return client->updatePasswordNode(nhPwdNode, std::move(data), std::move(cbRequest));
     };
 
     requestQueue.push(request);
