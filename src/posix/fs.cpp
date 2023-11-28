@@ -123,6 +123,7 @@ static std::string GetBasePath()
     // Compute base path as necessary.
     std::call_once(onceOnly, []() {
         ios_appbasepath(&basePath);
+        basePath.append("/");
     });
 
     // Return base path to caller.
