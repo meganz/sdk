@@ -1560,7 +1560,6 @@ int launchMultipleProcesses(const string& argv0, const vector<string>& subproces
                 ifstream in(test.outputFilename);
                 copyStream(cout, in);
             }
-            fs::remove(test.outputFilename);
             cout << "----------------------------------------------------------------------------------------------------" << endl;
         }
 
@@ -1667,6 +1666,7 @@ int launchMultipleProcesses(const string& argv0, const vector<string>& subproces
                     copyStream(out, in);
                 }
                 fs::remove(test.logFilename);
+                fs::remove(test.outputFilename); // remove this here as well, after the process instance has been destroyed
             }
         }
 

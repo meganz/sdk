@@ -1627,6 +1627,7 @@ MegaSyncStallPrivate::pathProblemDebugString(MegaSyncStall::SyncPathProblem reas
     static_assert((int)PathProblem::PutnodeCompletionDeferredByController == (int)MegaSyncStall::SyncPathProblem::PutnodeCompletionDeferredByController, "");
     static_assert((int)PathProblem::PutnodeCompletionPending == (int)MegaSyncStall::SyncPathProblem::PutnodeCompletionPending, "");
     static_assert((int)PathProblem::UploadDeferredByController == (int)MegaSyncStall::SyncPathProblem::UploadDeferredByController, "");
+    static_assert((int)PathProblem::DetectedNestedMount == (int)MegaSyncStall::SyncPathProblem::DetectedNestedMount, "");
     static_assert((int)PathProblem::PathProblem_LastPlusOne == (int)MegaSyncStall::SyncPathProblem::SyncPathProblem_LastPlusOne, "");
 
     return syncPathProblemDebugString(PathProblem(reason));
@@ -4604,6 +4605,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_SYNC_STALL_LIST: return "GET_SYNC_STALL_LIST";
         case TYPE_FETCH_CREDIT_CARD_INFO: return "FETCH_CREDIT_CARD_INFO";
         case TYPE_MOVE_TO_DEBRIS: return "MOVE_TO_DEBRIS";
+        case TYPE_RING_INDIVIDUAL_IN_CALL: return "RING_INDIVIDUAL_IN_CALL";
     }
     return "UNKNOWN";
 }
@@ -6029,7 +6031,6 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     }
 #endif
 
-    mPushSettings = NULL;
     mTimezones = NULL;
 
     httpio = new MegaHttpIO();
@@ -6090,7 +6091,6 @@ MegaApiImpl::~MegaApiImpl()
     thread.join();
     assert(client == nullptr);
 
-    delete mPushSettings;
     delete mTimezones;
 
     assert(requestMap.empty());
@@ -8286,6 +8286,41 @@ void MegaApiImpl::setUserAttr(int type, const char *value, MegaRequestListener *
     waiter->notify();
 }
 
+void MegaApiImpl::getUserAttr(User* user, attr_t type, MegaRequestPrivate* request)
+{
+    assert(request);
+    client->getua(user, type, -1,
+    [this, request](error e)
+    {
+        getua_completion(e, request);
+    },
+    [this, request](byte* data, unsigned len, attr_t type)
+    {
+        getua_completion(data, len, type, request);
+    },
+    [this, request](TLVstore *tlv, attr_t type)
+    {
+        getua_completion(tlv, type, request);
+    });
+}
+
+void MegaApiImpl::getUserAttr(const string& email, attr_t type, const string& ph, MegaRequestPrivate* request)
+{
+    assert(request);
+    client->getua(email.c_str(), type, ph.c_str(), -1, [this, request](error e)
+    {
+        getua_completion(e, request);
+    },
+    [this, request](byte* data, unsigned len, attr_t type)
+    {
+        getua_completion(data, len, type, request);
+    },
+    [this, request](TLVstore *tlv, attr_t type)
+    {
+        getua_completion(tlv, type, request);
+    });
+}
+
 char *MegaApiImpl::getAvatarColor(handle userhandle)
 {
     string colors[] = {
@@ -8330,12 +8365,12 @@ char *MegaApiImpl::getAvatarSecondaryColor(handle userhandle)
     return MegaApi::strdup(colors[index].c_str());
 }
 
-bool MegaApiImpl::isGlobalNotifiable()
+bool MegaApiImpl::isGlobalNotifiable(MegaPushNotificationSettingsPrivate* pushSettings)
 {
-    return !mPushSettings || (!mPushSettings->isGlobalDndEnabled() && isScheduleNotifiable());
+    return !pushSettings || (!pushSettings->isGlobalDndEnabled() && isScheduleNotifiable(pushSettings));
 }
 
-bool MegaApiImpl::isScheduleNotifiable()
+bool MegaApiImpl::isScheduleNotifiable(MegaPushNotificationSettingsPrivate* pushSettings)
 {
     if (!mTimezones)
     {
@@ -8343,7 +8378,7 @@ bool MegaApiImpl::isScheduleNotifiable()
         return true;
     }
 
-    if (!mPushSettings || !mPushSettings->isGlobalScheduleEnabled())
+    if (!pushSettings || !pushSettings->isGlobalScheduleEnabled())
     {
         return true;
     }
@@ -8353,7 +8388,7 @@ bool MegaApiImpl::isScheduleNotifiable()
     bool tzFound = false;
     for (int i = 0; i < mTimezones->getNumTimeZones(); i++)
     {
-        if (strcmp(mPushSettings->getGlobalScheduleTimezone(), mTimezones->getTimeZone(i)) == 0)
+        if (strcmp(pushSettings->getGlobalScheduleTimezone(), mTimezones->getTimeZone(i)) == 0)
         {
             offsetTz = mTimezones->getTimeOffset(i);
             tzFound = true;
@@ -8363,7 +8398,7 @@ bool MegaApiImpl::isScheduleNotifiable()
 
     if (!tzFound)
     {
-        LOG_err << "Timezone not found: " << mPushSettings->getGlobalScheduleTimezone();
+        LOG_err << "Timezone not found: " << pushSettings->getGlobalScheduleTimezone();
         assert(false);
         return true;    // better to generate the notification, in this case
     }
@@ -8376,8 +8411,8 @@ bool MegaApiImpl::isScheduleNotifiable()
     m_time_t dayStart = m_mktime_UTC(&tmp);
 
     // calculate the timestamps for the scheduled period
-    int offsetStart = mPushSettings->getGlobalScheduleStart() * 60; // convert minutes into seconds
-    int offsetEnd = mPushSettings->getGlobalScheduleEnd() * 60;
+    int offsetStart = pushSettings->getGlobalScheduleStart() * 60; // convert minutes into seconds
+    int offsetEnd = pushSettings->getGlobalScheduleEnd() * 60;
     m_time_t scheduleStart = dayStart + offsetStart;
     m_time_t scheduleEnd = dayStart + offsetEnd;
 
@@ -10702,14 +10737,15 @@ void MegaApiImpl::isGeolocationEnabled(MegaRequestListener *listener)
 
 bool MegaApiImpl::isChatNotifiable(MegaHandle chatid)
 {
-    if (mPushSettings)
+    std::unique_ptr<MegaPushNotificationSettingsPrivate> pushSettings = getMegaPushNotificationSetting();
+    if (pushSettings)
     {
-        if (mPushSettings->isChatAlwaysNotifyEnabled(chatid))
+        if (pushSettings->isChatAlwaysNotifyEnabled(chatid))
         {
             return true;
         }
 
-        return (!mPushSettings->isChatDndEnabled(chatid) && isGlobalNotifiable() && !mPushSettings->isGlobalChatsDndEnabled());
+        return (!pushSettings->isChatDndEnabled(chatid) && isGlobalNotifiable(pushSettings.get()) && !pushSettings->isGlobalChatsDndEnabled());
     }
 
     return true;
@@ -10885,12 +10921,14 @@ void MegaApiImpl::setPushNotificationSettings(MegaPushNotificationSettings *sett
 
 bool MegaApiImpl::isSharesNotifiable()
 {
-    return !mPushSettings || (mPushSettings->isSharesEnabled() && isScheduleNotifiable());
+    std::unique_ptr<MegaPushNotificationSettingsPrivate> pushSettings = getMegaPushNotificationSetting();
+    return !pushSettings || (pushSettings->isSharesEnabled() && isScheduleNotifiable(pushSettings.get()));
 }
 
 bool MegaApiImpl::isContactsNotifiable()
 {
-    return !mPushSettings || (mPushSettings->isContactsEnabled() && isScheduleNotifiable());
+    std::unique_ptr<MegaPushNotificationSettingsPrivate> pushSettings = getMegaPushNotificationSetting();
+    return !pushSettings || (pushSettings->isContactsEnabled() && isScheduleNotifiable(pushSettings.get()));
 }
 
 void MegaApiImpl::getAccountAchievements(MegaRequestListener *listener)
@@ -13581,6 +13619,31 @@ void MegaApiImpl::folderlinkinfo_result(error e, handle owner, handle /*ph*/, st
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
+std::unique_ptr<MegaPushNotificationSettingsPrivate> MegaApiImpl::getMegaPushNotificationSetting()
+{
+    User* ownUser = client->ownuser();
+    if (!ownUser)
+        return nullptr;
+
+    const std::string* settingsJson = ownUser->getattr(ATTR_PUSH_SETTINGS);
+    if (!settingsJson)
+    {
+        return nullptr;
+    }
+
+    std::unique_ptr<MegaPushNotificationSettingsPrivate> pushSettings = ::mega::make_unique<MegaPushNotificationSettingsPrivate>(*settingsJson);
+    if (pushSettings->isValid())
+    {
+        return pushSettings;
+    }
+    else
+    {
+        LOG_err << "Invalid JSON for received notification settings";
+    }
+
+    return nullptr;
+}
+
 #ifdef ENABLE_SYNC
 
 MegaSyncPrivate* MegaApiImpl::cachedMegaSyncPrivateByBackupId(const SyncConfig& config)
@@ -14824,8 +14887,6 @@ void MegaApiImpl::logout_result(error e, MegaRequestPrivate* request)
         totalDownloads = 0;
         waitingRequest = RETRY_NONE;
 
-        delete mPushSettings;
-        mPushSettings = NULL;
         delete mTimezones;
         mTimezones = NULL;
 
@@ -15143,13 +15204,8 @@ void MegaApiImpl::removecontact_result(error e)
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::getua_result(error e)
+void MegaApiImpl::getua_completion(error e, MegaRequestPrivate* request)
 {
-    MegaRequestPrivate* request = NULL;
-    auto it = requestMap.find(client->restag);
-    if (it == requestMap.end() || !(request = it->second)
-           || (request->getType() != MegaRequest::TYPE_GET_ATTR_USER && request->getType() != MegaRequest::TYPE_SET_ATTR_USER)) return;
-
     // if attempted to get ^!prd attribute but not exists yet...
     if (e == API_ENOENT)
     {
@@ -15223,37 +15279,9 @@ void MegaApiImpl::getua_result(error e)
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
+void MegaApiImpl::getua_completion(byte* data, unsigned len, attr_t type, MegaRequestPrivate* request)
 {
     error e = API_OK;
-
-    // update cached notification settings for filtering
-    std::unique_ptr<MegaPushNotificationSettingsPrivate> pushSettings;
-    if (type == ATTR_PUSH_SETTINGS)
-    {
-        string settingsJson((const char*)data, len);
-        pushSettings.reset(new MegaPushNotificationSettingsPrivate(settingsJson));
-        if (pushSettings->isValid())
-        {
-            delete mPushSettings;
-            mPushSettings = pushSettings->copy();
-        }
-        else
-        {
-            e = API_EINTERNAL;
-            client->sendevent(99448, "Invalid JSON for received notification settings");
-        }
-    }
-
-    MegaRequestPrivate* request = NULL;
-    auto it = requestMap.find(client->restag);
-    if (it == requestMap.end() || !(request = it->second)
-        || (request->getType() != MegaRequest::TYPE_GET_ATTR_USER &&
-            request->getType() != MegaRequest::TYPE_SET_ATTR_USER))
-    {
-        return;
-    }
-
     assert(type == request->getParamType());
 
     if (request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
@@ -15387,7 +15415,7 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
 
         case MegaApi::USER_ATTR_PUSH_SETTINGS:
         {
-            request->setMegaPushNotificationSettings(pushSettings.get());
+            request->setMegaPushNotificationSettings(getMegaPushNotificationSetting().get());
         }
         break;
 
@@ -15439,15 +15467,9 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
+void MegaApiImpl::getua_completion(TLVstore *tlv, attr_t type, MegaRequestPrivate* request)
 {
     error e = API_OK;
-    MegaRequestPrivate* request = NULL;
-    auto it = requestMap.find(client->restag);
-    if (it == requestMap.end() || !(request = it->second)
-           || (request->getType() != MegaRequest::TYPE_GET_ATTR_USER
-               && request->getType() != MegaRequest::TYPE_SET_ATTR_USER)) return;
-
     assert(type == static_cast<attr_t>(request->getParamType()));
 
     if (tlv)
@@ -17126,11 +17148,6 @@ bool MegaApiImpl::isFilesystemAvailable()
     return client->nodeByHandle(client->mNodeManager.getRootNodeFiles()) != NULL;
 }
 
-bool isDigit(const char *c)
-{
-    return (*c >= '0' && *c <= '9');
-}
-
 // returns 0 if i==j, +1 if i goes first, -1 if j goes first.
 int naturalsorting_compare (const char *i, const char *j)
 {
@@ -17145,8 +17162,8 @@ int naturalsorting_compare (const char *i, const char *j)
             char char_i, char_j;
             while ( (char_i = *i) && (char_j = *j) )
             {
-                bool char_i_isDigit = isDigit(i);
-                bool char_j_isDigit = isDigit(j);
+                bool char_i_isDigit = is_digit(*i);
+                bool char_j_isDigit = is_digit(*j);
 
                 if (char_i_isDigit && char_j_isDigit)
                 {
@@ -17178,7 +17195,7 @@ int naturalsorting_compare (const char *i, const char *j)
         {
             uint64_t number_i = 0;
             unsigned int i_overflow_count = 0;
-            while (*i && isDigit(i))
+            while (*i && is_digit(*i))
             {
                 number_i = number_i * 10 + (*i - 48); // '0' ASCII code is 48
                 ++i;
@@ -17193,7 +17210,7 @@ int naturalsorting_compare (const char *i, const char *j)
 
             uint64_t number_j = 0;
             unsigned int j_overflow_count = 0;
-            while (*j && isDigit(j))
+            while (*j && is_digit(*j))
             {
                 number_j = number_j * 10 + (*j - 48);
                 ++j;
@@ -20516,7 +20533,7 @@ error MegaApiImpl::performRequest_getAttrUser(MegaRequestPrivate* request)
                     return API_EACCESS;
                 }
 
-                client->getua(email, type, ph);
+                getUserAttr(email, type, ph, request);
                 return API_OK;
             }
 
@@ -20546,7 +20563,7 @@ error MegaApiImpl::performRequest_getAttrUser(MegaRequestPrivate* request)
                 request->setNodeHandle(driveId);
             }
 
-            client->getua(user, type);
+            getUserAttr(user, type, request);
             return API_OK;
 }
 
@@ -20669,7 +20686,7 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                     if (!ownUser->isattrvalid(type)) // not fetched yet or outdated
                     {
                         // always get updated value before update it
-                        client->getua(ownUser, type);
+                        getUserAttr(ownUser, type, request);
                         return API_OK;
                     }
                     else
@@ -20754,7 +20771,7 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                     }
 
                     // always get updated value before update it
-                    client->getua(ownUser, type);
+                    getUserAttr(ownUser, type, request);
                     return API_OK;
                 }
                 else if ((type == ATTR_DISABLE_VERSIONS)
@@ -22474,7 +22491,7 @@ void MegaApiImpl::importSyncConfigs(const char* configs, MegaRequestListener* li
 }
 
 void MegaApiImpl::copySyncDataToCache(const char* localFolder, const char* name, MegaHandle megaHandle, const char* remotePath,
-    long long localfp, bool enabled, bool temporaryDisabled, MegaRequestListener* listener)
+    long long, bool enabled, bool temporaryDisabled, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_COPY_SYNC_CONFIG, listener);
 
@@ -22496,7 +22513,6 @@ void MegaApiImpl::copySyncDataToCache(const char* localFolder, const char* name,
     request->setLink(remotePath);
     request->setFlag(enabled);
     request->setNumDetails(temporaryDisabled);
-    request->setNumber(localfp);
 
     request->performRequest = [this, request]()
         {
@@ -22543,11 +22559,9 @@ void MegaApiImpl::copySyncDataToCache(const char* localFolder, const char* name,
             // Copy sync config is only used for sync migration
             // therefore only deals with internal syncs, so drive path is empty
             LocalPath drivePath;
-            fsfp_t fsfp;
-            fsfp.id = request->getNumber();
             SyncConfig syncConfig(LocalPath::fromAbsolutePath(localPath),
                                   name, NodeHandle().set6byte(request->getNodeHandle()), remotePath ? remotePath : "",
-                                  fsfp,
+                                  fsfp_t(),
                                   drivePath, enabled);
 
             if (temporaryDisabled)
@@ -24894,6 +24908,37 @@ void MegaApiImpl::endChatCall(MegaHandle chatid, MegaHandle callid, int reason, 
     requestQueue.push(request);
     waiter->notify();
 }
+
+void MegaApiImpl::ringIndividualInACall(MegaHandle chatid, MegaHandle userid, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_RING_INDIVIDUAL_IN_CALL, listener);
+    request->setNodeHandle(chatid);
+    request->setParentHandle(userid);
+    request->performRequest = [this, request]()
+    {
+        const handle chatid = request->getNodeHandle();
+        const handle userid = request->getParentHandle();
+        if (chatid == INVALID_HANDLE || userid == INVALID_HANDLE)
+        {
+            return API_EARGS;
+        }
+
+        textchat_map::iterator it = client->chats.find(chatid);
+        if (it == client->chats.end())
+        {
+            return API_ENOENT;
+        }
+
+        client->reqs.add(new CommandRingUser(client, chatid, userid, [request, this](Error e)
+        {
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+        }));
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
 #endif
 
 void MegaApiImpl::setMyBackupsFolder(const char* localizedName, MegaRequestListener* listener)
@@ -25148,7 +25193,6 @@ void MegaApiImpl::addSyncByRequest(MegaRequestPrivate* request, SyncConfig syncC
             }
             else
             {
-                request->setNumber(createdConfig.mFilesystemFingerprint.id);
                 request->setParentHandle(backupId);
 
                 auto sync = ::mega::make_unique<MegaSyncPrivate>(createdConfig, client);
@@ -25177,8 +25221,13 @@ void MegaApiImpl::updateStats()
 
 unsigned long long MegaApiImpl::getNumNodes()
 {
+    return client->totalNodes.load();
+}
+
+unsigned long long MegaApiImpl::getAccurateNumNodes()
+{
     SdkMutexGuard g(sdkMutex);
-    return client->totalNodes;
+    return client->totalNodes.load();
 }
 
 long long MegaApiImpl::getTotalDownloadedBytes()
@@ -27038,9 +27087,7 @@ MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, MegaClient* client /*
         setName(config.getLocalPath().leafName().toName(*client->fsaccess).c_str());
     }
     this->lastKnownMegaFolder = NULL;
-    this->fingerprint = 0;
 
-    setLocalFingerprint(static_cast<long long>(config.mFilesystemFingerprint.id));
     setLastKnownMegaFolder(config.mOriginalPathOfRemoteRootNode.c_str());
 
     setError(config.mError < 0 ? 0 : config.mError);
@@ -27060,7 +27107,6 @@ MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate *sync)
     this->lastKnownMegaFolder = NULL;
     this->setLastKnownMegaFolder(sync->getLastKnownMegaFolder());
     this->setMegaHandle(sync->getMegaHandle());
-    this->setLocalFingerprint(sync->getLocalFingerprint());
     this->setError(sync->getError());
     this->setWarning(sync->getWarning());
 }
@@ -27127,16 +27173,6 @@ void MegaSyncPrivate::setLastKnownMegaFolder(const char *path)
         delete [] lastKnownMegaFolder;
     }
     lastKnownMegaFolder = MegaApi::strdup(path);
-}
-
-long long MegaSyncPrivate::getLocalFingerprint() const
-{
-    return fingerprint;
-}
-
-void MegaSyncPrivate::setLocalFingerprint(long long fingerprint)
-{
-    this->fingerprint = fingerprint;
 }
 
 MegaHandle MegaSyncPrivate::getBackupId() const
