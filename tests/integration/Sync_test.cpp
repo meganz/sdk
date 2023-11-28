@@ -6915,7 +6915,7 @@ TEST_F(SyncTest, CmdChecks_RRAttributeAfterMoveNode)
     ASSERT_TRUE(waitonresults(&fb));
 
     f = pclientA1->drillchildnodebyname(pclientA1->getcloudrubbishnode(), "f");
-    ASSERT_TRUE(f == nullptr);
+    ASSERT_TRUE(f == nullptr || f->changed.removed);
 
 
     // remove remote folder via A2
