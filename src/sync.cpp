@@ -2971,9 +2971,12 @@ bool Sync::checkCloudPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
 
             LOG_debug << syncname << "Move-target moved to local debris: " << fullPath.localPath;
 
-            // Rescan the parent if we're operating in periodic scan mode.
-            if (!dirnotify)
-                parentRow.syncNode->setScanAgain(false, true, false, 0);
+            // Explicitly rescan the parent.
+            //
+            // This is necessary even when we're not operating in periodic
+            // scan mode as we can't rely on the system delivering
+            // filesystem events to us in a timely manner.
+            parentRow.syncNode->setScanAgain(false, true, false, 0);
 
             // Therefore there is nothing in the local subfolder anymore
             // And we should delete the localnodes corresponding to the items we moved to debris.
