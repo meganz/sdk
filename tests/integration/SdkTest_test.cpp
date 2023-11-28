@@ -1135,28 +1135,26 @@ void SdkTest::onNodesUpdateCheck(size_t apiIndex, MegaHandle target, MegaNodeLis
 
 bool SdkTest::createFile(string filename, bool largeFile, string content)
 {
-    fs::path p = fs::u8path(filename);
-    std::ofstream file(p,ios::out);
+    // Convenience.
+    constexpr auto KiB = 1024ul;
+    constexpr auto MiB = 1024ul * KiB;
 
-    if (file)
-    {
-        int limit = 2000;
+    auto limit = 2000ul;
 
-        // create a file large enough for long upload/download times (5-10MB)
-        if (largeFile)
-            limit = 1000000 + rand() % 1000000;
+    // Caller wants to generate a large file.
+    if (largeFile)
+        limit = MiB + static_cast<unsigned long>(rand()) % MiB;
 
-        //limit = 5494065 / 5;
+    std::string temp;
 
-        for (int i = 0; i < limit; i++)
-        {
-            file << content;
-        }
+    temp.reserve(content.size() * limit);
 
-        file.close();
-    }
+    // Generate file content.
+    while (limit--)
+        temp.append(content);
 
-    return file.good();
+    // Write the file to disk.
+    return ::createFile(fs::u8path(filename), temp);
 }
 
 int64_t SdkTest::getFilesize(string filename)

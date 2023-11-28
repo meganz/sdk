@@ -266,14 +266,14 @@ bool createFile(const fs::path &path, const void *data, const size_t data_length
 
 #endif // ! _WIN32
 
-bool createDataFile(const fs::path &path, const std::string &data)
+bool createFile(const fs::path &path, const std::string &data)
 {
     return createFile(path, data.data(), data.size());
 }
 
-bool createDataFile(const fs::path& path, const std::string& data, std::chrono::seconds delta)
+bool createFile(const fs::path& path, const std::string& data, std::chrono::seconds delta)
 {
-    if (!createDataFile(path, data)) return false;
+    if (!createFile(path, data)) return false;
 
     std::error_code result;
     auto current = fs::last_write_time(path, result);
@@ -338,7 +338,7 @@ void Model::ModelNode::generate(const fs::path& path, bool force)
     {
         if (changed || force)
         {
-            ASSERT_TRUE(createDataFile(ourPath, content))
+            ASSERT_TRUE(createFile(ourPath, content))
               << "Couldn't generate model file: "
               << ourPath.u8string();
 
@@ -3115,7 +3115,7 @@ void StandardClient::setupSync_inThread(const string& rootPath,
         auto ignorePath = fsBasePath / ".megaignore";
 
         // Create the ignore file.
-        auto created = createDataFile(ignorePath, "+sync:.megaignore");
+        auto created = createFile(ignorePath, "+sync:.megaignore");
         EXPECT_TRUE(created);
 
         if (!created)
@@ -5365,13 +5365,13 @@ bool createNameFile(const fs::path &p, const string &filename)
     return createFile(p / fs::u8path(filename), filename.data(), filename.size());
 }
 
-bool createDataFileWithTimestamp(const fs::path &path,
+bool createFileWithTimestamp(const fs::path &path,
                              const std::string &data,
                              const fs::path& tmpCreationLocation,
                              const fs::file_time_type &timestamp)
 {
     // Create the file at a neutral location first so we can set the timestamp without a sync noticing the wrong timestamp first
-    bool result = createDataFile(tmpCreationLocation / path.filename(), data);
+    bool result = createFile(tmpCreationLocation / path.filename(), data);
 
     if (result)
     {
@@ -5593,7 +5593,7 @@ TEST_F(SyncFingerprintCollisionTest, DifferentMacSameName)
     const auto path1 = localRoot0() / "d_1" / "a";
 
     prepareForNodeUpdates();
-    ASSERT_TRUE(createDataFile(path0, data0));
+    ASSERT_TRUE(createFile(path0, data0));
     client0->triggerPeriodicScanEarly(backupId0);
     waitForNodeUpdates();
 
@@ -5606,7 +5606,7 @@ TEST_F(SyncFingerprintCollisionTest, DifferentMacSameName)
     // Prepare the file outside of the sync's view.
     auto stamp = fs::last_write_time(path0);
 
-    ASSERT_TRUE(createDataFileWithTimestamp(client0->fsBasePath / "a", data1, client0->fsBasePath, stamp));
+    ASSERT_TRUE(createFileWithTimestamp(client0->fsBasePath / "a", data1, client0->fsBasePath, stamp));
 
     prepareForNodeUpdates();
     fs::rename(client0->fsBasePath / "a", path1);
@@ -5637,7 +5637,7 @@ TEST_F(SyncFingerprintCollisionTest, DifferentMacDifferentName)
     const auto path1 = localRoot0() / "d_0" / "b";
 
     prepareForNodeUpdates();
-    ASSERT_TRUE(createDataFile(path0, data0));
+    ASSERT_TRUE(createFile(path0, data0));
     client0->triggerPeriodicScanEarly(backupId0);
     waitForNodeUpdates();
 
@@ -5650,7 +5650,7 @@ TEST_F(SyncFingerprintCollisionTest, DifferentMacDifferentName)
     // Prepare the file outside of the engine's view.
     auto stamp = fs::last_write_time(path0);
 
-    ASSERT_TRUE(createDataFileWithTimestamp(client0->fsBasePath / "a", data1, client0->fsBasePath, stamp));
+    ASSERT_TRUE(createFileWithTimestamp(client0->fsBasePath / "a", data1, client0->fsBasePath, stamp));
 
     prepareForNodeUpdates();
     fs::rename(client0->fsBasePath / "a", path1);
@@ -5676,7 +5676,7 @@ TEST_F(SyncFingerprintCollisionTest, SameMacDifferentName)
     const auto path1 = localRoot0() / "d_0" / "b";
 
     prepareForNodeUpdates();
-    ASSERT_TRUE(createDataFile(path0, data0));
+    ASSERT_TRUE(createFile(path0, data0));
     client0->triggerPeriodicScanEarly(backupId0);
     waitForNodeUpdates();
 
@@ -5685,7 +5685,7 @@ TEST_F(SyncFingerprintCollisionTest, SameMacDifferentName)
     // Build the file somewhere the sync won't notice.
     auto stamp = fs::last_write_time(path0);
 
-    ASSERT_TRUE(createDataFileWithTimestamp(client0->fsBasePath / "b", data0, client0->fsBasePath, stamp));
+    ASSERT_TRUE(createFileWithTimestamp(client0->fsBasePath / "b", data0, client0->fsBasePath, stamp));
 
     // Move file into place.
     prepareForNodeUpdates();
@@ -5954,7 +5954,7 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderBetweenSyncs)
         auto path = clientA1->fsBasePath / ".megaignore";
 
         // Create bare ignore file.
-        ASSERT_TRUE(createDataFile(path, "+sync:.megaignore"));
+        ASSERT_TRUE(createFile(path, "+sync:.megaignore"));
 
         // Upload ignore file to each sync root.
         ASSERT_TRUE(clientA1->uploadFile(path, "f"));
@@ -7523,7 +7523,7 @@ TEST_F(SyncTest, BasicSync_CreateAndReplaceLinkUponSyncDown)
     ASSERT_TRUE(clientA2->confirmModel_mainthread(model.findnode("f"), backupId2));
 
     // Upload a file to the web via A2.
-    ASSERT_TRUE(createDataFile(clientA2->syncSet(backupId2).localpath / "linked", "linked"));
+    ASSERT_TRUE(createFile(clientA2->syncSet(backupId2).localpath / "linked", "linked"));
     model.addfile("f/linked", "linked");
 
     clientA2->triggerPeriodicScanEarly(backupId2);
@@ -8161,9 +8161,9 @@ TEST_F(SyncTest, RemotesWithControlCharactersSynchronizeCorrectly)
 
     // Locally create some files with control escapes in their names.
     ASSERT_TRUE(fs::create_directories(syncRoot / "dd%07"));
-    ASSERT_TRUE(createDataFile(syncRoot / "ff%07", "ff"));
+    ASSERT_TRUE(createFile(syncRoot / "ff%07", "ff"));
     ASSERT_TRUE(fs::create_directories(syncRoot / "dd%41"));
-    ASSERT_TRUE(createDataFile(syncRoot / "ff%41", "ff"));
+    ASSERT_TRUE(createFile(syncRoot / "ff%41", "ff"));
 
     cd->triggerPeriodicScanEarly(backupId1);
 
@@ -8481,7 +8481,7 @@ TEST_F(SyncTest, RenameReplaceFileBetweenSyncs)
     model0.removenode("f0");
     model0.addfile("f0", "y");
 
-    ASSERT_TRUE(createDataFile(SYNCROOT0 / "f0", "y"));
+    ASSERT_TRUE(createFile(SYNCROOT0 / "f0", "y"));
 
     c0->triggerPeriodicScanEarly(id0);
     c0->triggerPeriodicScanEarly(id1);
@@ -8497,7 +8497,7 @@ TEST_F(SyncTest, RenameReplaceFileBetweenSyncs)
     ASSERT_TRUE(c0->disableSync(id0, NO_SYNC_ERROR, false, true));
 
     // Make sure s0 is disabled.
-    ASSERT_TRUE(createDataFile(SYNCROOT0 / "f1", "z"));
+    ASSERT_TRUE(createFile(SYNCROOT0 / "f1", "z"));
 
     c0->triggerPeriodicScanEarly(id0);
 
@@ -8519,7 +8519,7 @@ TEST_F(SyncTest, RenameReplaceFileBetweenSyncs)
     // Replace s1/f0.
     model1.addfile("f0", "q");
 
-    ASSERT_TRUE(createDataFile(SYNCROOT1 / "f0", "q"));
+    ASSERT_TRUE(createFile(SYNCROOT1 / "f0", "q"));
 
     c0->triggerPeriodicScanEarly(id0);
     c0->triggerPeriodicScanEarly(id1);
@@ -8593,7 +8593,7 @@ TEST_F(SyncTest, RenameReplaceFileWithinSync)
         m.findnode("fs")->name = "ft";
 
         // Replace fs.
-        ASSERT_TRUE(createDataFile(c->fsBasePath / "s" / "fs", "x"));
+        ASSERT_TRUE(createFile(c->fsBasePath / "s" / "fs", "x"));
 
         m.addfile("fs", "x");
 
@@ -8624,7 +8624,7 @@ TEST_F(SyncTest, RenameReplaceFileWithinSync)
         m.findnode("dd/dt/fs")->name = "ft";
 
         // Replace /dd/fs.
-        ASSERT_TRUE(createDataFile(c->fsBasePath / "s" / "dd" / "fs", "x"));
+        ASSERT_TRUE(createFile(c->fsBasePath / "s" / "dd" / "fs", "x"));
 
         m.addfile("dd/fs", "x");
 
@@ -8655,7 +8655,7 @@ TEST_F(SyncTest, RenameReplaceFileWithinSync)
         m.findnode("du/fs")->name = "ft";
 
         // Replace du/ds/fs.
-        ASSERT_TRUE(createDataFile(c->fsBasePath / "s" / "du" / "ds" / "fs", "x"));
+        ASSERT_TRUE(createFile(c->fsBasePath / "s" / "du" / "ds" / "fs", "x"));
 
         m.addfile("du/ds/fs", "x");
 
@@ -9018,7 +9018,7 @@ TEST_F(SyncTest, DownloadedDirectoriesHaveFilesystemWatch)
     // Trigger a filesystem notification.
     model.addfile("d/f", "x");
 
-    ASSERT_TRUE(createDataFile(SYNCROOT / "d" / "f", "x"));
+    ASSERT_TRUE(createFile(SYNCROOT / "d" / "f", "x"));
 
     c->triggerPeriodicScanEarly(id);
 
@@ -9102,13 +9102,13 @@ TEST_F(SyncTest, FilesystemWatchesPresentAfterResume)
     // Trigger some filesystem notifications.
     {
         model.addfile("f", "f");
-        ASSERT_TRUE(createDataFile(SYNCROOT / "f", "f"));
+        ASSERT_TRUE(createFile(SYNCROOT / "f", "f"));
 
         model.addfile("d0/d0f", "d0f");
-        ASSERT_TRUE(createDataFile(SYNCROOT / "d0" / "d0f", "d0f"));
+        ASSERT_TRUE(createFile(SYNCROOT / "d0" / "d0f", "d0f"));
 
         model.addfile("d0/d0d0/d0d0f", "d0d0f");
-        ASSERT_TRUE(createDataFile(SYNCROOT / "d0" / "d0d0" / "d0d0f", "d0d0f"));
+        ASSERT_TRUE(createFile(SYNCROOT / "d0" / "d0d0" / "d0d0f", "d0d0f"));
     }
 
     ASSERT_TRUE(c->waitForNodesUpdated(30)) << " no actionpacket received";
@@ -9199,8 +9199,8 @@ TEST_F(SyncTest, MoveTargetHasFilesystemWatch)
     model.addfile("d1/dq/fq", "q");
     model.addfile("d1/dx/fx", "x");
 
-    ASSERT_TRUE(createDataFile(SYNCROOT / "d1" / "dq" / "fq", "q"));
-    ASSERT_TRUE(createDataFile(SYNCROOT / "d1" / "dx" / "fx", "x"));
+    ASSERT_TRUE(createFile(SYNCROOT / "d1" / "dq" / "fq", "q"));
+    ASSERT_TRUE(createFile(SYNCROOT / "d1" / "dx" / "fx", "x"));
 
     c->triggerPeriodicScanEarly(id);
 
@@ -9310,7 +9310,7 @@ TEST_F(SyncTest, DeleteReplaceReplacementHasFilesystemWatch)
     out() << "creating file dx/g";
     model.addfile("dx/g", "g");
 
-    ASSERT_TRUE(createDataFile(ROOT / "dx" / "g", "g"));
+    ASSERT_TRUE(createFile(ROOT / "dx" / "g", "g"));
 
     c->triggerPeriodicScanEarly(id);
 
@@ -9382,8 +9382,8 @@ TEST_F(SyncTest, RenameReplaceSourceAndTargetHaveFilesystemWatch)
     model.addfile("dr/fr", "r");
     model.addfile("dy/fy", "y");
 
-    ASSERT_TRUE(createDataFile(SYNCROOT / "dr" / "fr", "r"));
-    ASSERT_TRUE(createDataFile(SYNCROOT / "dy" / "fy", "y"));
+    ASSERT_TRUE(createFile(SYNCROOT / "dr" / "fr", "r"));
+    ASSERT_TRUE(createFile(SYNCROOT / "dy" / "fy", "y"));
 
     c->triggerPeriodicScanEarly(id);
 
@@ -9399,8 +9399,8 @@ TEST_F(SyncTest, RenameReplaceSourceAndTargetHaveFilesystemWatch)
 
     LOG_debug << " --- Creating files fq and fz now ----";
 
-    ASSERT_TRUE(createDataFile(SYNCROOT / "dq" / "fq", "q"));
-    ASSERT_TRUE(createDataFile(SYNCROOT / "dz" / "fz", "z"));
+    ASSERT_TRUE(createFile(SYNCROOT / "dq" / "fq", "q"));
+    ASSERT_TRUE(createFile(SYNCROOT / "dz" / "fz", "z"));
 
     c->triggerPeriodicScanEarly(id);
 
@@ -9474,8 +9474,8 @@ TEST_F(SyncTest, RenameTargetHasFilesystemWatch)
     model.addfile("dr/f", "x");
     model.addfile("dy/f", "y");
 
-    ASSERT_TRUE(createDataFile(SYNCROOT / "dr" / "f", "x"));
-    ASSERT_TRUE(createDataFile(SYNCROOT / "dy" / "f", "y"));
+    ASSERT_TRUE(createFile(SYNCROOT / "dr" / "f", "x"));
+    ASSERT_TRUE(createFile(SYNCROOT / "dy" / "f", "y"));
 
     c->triggerPeriodicScanEarly(id);
 
@@ -10670,13 +10670,13 @@ void PrepareForSync(StandardClient& client)
     // Initial ignore file.
     auto ignoreFilePath = local / "f" / ".megaignore";
 
-    ASSERT_TRUE(createDataFile(ignoreFilePath, "+sync:.megaignore"));
+    ASSERT_TRUE(createFile(ignoreFilePath, "+sync:.megaignore"));
 
-    ASSERT_TRUE(createDataFile(local / "f" / ".megaignore", "+sync:.megaignore"));
-    ASSERT_TRUE(createDataFile(local / "f" / "file_older_1", "file_older_1", -delta));
-    ASSERT_TRUE(createDataFile(local / "f" / "file_older_2", "file_older_2", -delta));
-    ASSERT_TRUE(createDataFile(local / "f" / "file_newer_1", "file_newer_1", delta));
-    ASSERT_TRUE(createDataFile(local / "f" / "file_newer_2", "file_newer_2", delta));
+    ASSERT_TRUE(createFile(local / "f" / ".megaignore", "+sync:.megaignore"));
+    ASSERT_TRUE(createFile(local / "f" / "file_older_1", "file_older_1", -delta));
+    ASSERT_TRUE(createFile(local / "f" / "file_older_2", "file_older_2", -delta));
+    ASSERT_TRUE(createFile(local / "f" / "file_newer_1", "file_newer_1", delta));
+    ASSERT_TRUE(createFile(local / "f" / "file_newer_2", "file_newer_2", delta));
 
     auto remote = client.drillchildnodebyname(client.gettestbasenode(), "twoway");
     ASSERT_NE(remote, nullptr);
@@ -13023,7 +13023,7 @@ TEST_F(LocalToCloudFilterFixture, AcceptableFilterNameClash)
         auto ignoreFilePath = cu->fsBasePath / ".megaignore";
 
         // Create an ignore file for us to upload.
-        ASSERT_TRUE(createDataFile(ignoreFilePath, "+sync:.megaignore"));
+        ASSERT_TRUE(createFile(ignoreFilePath, "+sync:.megaignore"));
 
         // Upload the ignore file twice so to create a remote name clash.
         ASSERT_TRUE(cu->uploadFile(ignoreFilePath, "s"));
@@ -14432,7 +14432,7 @@ TEST_F(LocalToCloudFilterFixture, RenameReplaceIgnoreFile)
         // Replace .megaignore
         model.findnode("d0/.megaignore")->content = "-:x\n+sync:.megaignore";
 
-        ASSERT_TRUE(createDataFile(root / "d0" / ".megaignore", "-:x\n+sync:.megaignore"));
+        ASSERT_TRUE(createFile(root / "d0" / ".megaignore", "-:x\n+sync:.megaignore"));
     }
 
     // Wait for synchronization to complete.
@@ -14453,7 +14453,7 @@ TEST_F(LocalToCloudFilterFixture, RenameReplaceIgnoreFile)
         // Replace .megaignore
         model.findnode("d1/.megaignore")->content = "-:y\n+sync:.megaignore";
 
-        ASSERT_TRUE(createDataFile(root / "d1" / ".megaignore", "-:y\n+sync:.megaignore"));
+        ASSERT_TRUE(createFile(root / "d1" / ".megaignore", "-:y\n+sync:.megaignore"));
     }
 
     // Wait for synchronization to complete.
@@ -14470,8 +14470,8 @@ TEST_F(LocalToCloudFilterFixture, RenameReplaceIgnoreFile)
     localFS.addfile("d0/x", "x");
     localFS.addfile("d1/y", "y");
 
-    ASSERT_TRUE(createDataFile(root / "d0" / "x", "x"));
-    ASSERT_TRUE(createDataFile(root / "d1" / "y", "y"));
+    ASSERT_TRUE(createFile(root / "d0" / "x", "x"));
+    ASSERT_TRUE(createFile(root / "d1" / "y", "y"));
 
     cu->triggerPeriodicScanEarly(id);
     waitOnSyncs(cu);
@@ -14565,7 +14565,7 @@ TEST_F(CloudToLocalFilterFixture, DoesntDownloadIgnoredNodes)
         localFS.addfile("du/fi", data);
         remoteTree.addfile("du/fi", data);
 
-        ASSERT_TRUE(createDataFile(root(*cd) / "root" / "du" / "fi", data));
+        ASSERT_TRUE(createFile(root(*cd) / "root" / "du" / "fi", data));
     }
 
     // Wait for the change to hit the cloud.
@@ -15587,7 +15587,7 @@ TEST_F(CloudToLocalFilterFixture, FilterNameClash)
         auto ignoreFilePath = cdu->fsBasePath / ".megaignore";
 
         // Create a dummy ignore file for us to upload.
-        ASSERT_TRUE(createDataFile(ignoreFilePath, "#"));
+        ASSERT_TRUE(createFile(ignoreFilePath, "#"));
 
         // Upload the ignore file, twice.
         // This is so we have a cloud name clash.
@@ -16907,7 +16907,7 @@ TEST_F(SyncTest, StallsWhenExistingCloudMoveTargetUnsynced)
     local.generate(c->fsBasePath / "s");
 
     // Create a file for later use outside of the sync tree.
-    ASSERT_TRUE(createDataFile(c->fsBasePath / "fy", "fy"));
+    ASSERT_TRUE(createFile(c->fsBasePath / "fy", "fy"));
 
     // Add and start sync->
     auto id = c->setupSync_mainthread("s", "s", false, false);
@@ -17030,7 +17030,7 @@ TEST_F(SyncTest, MovedSyncedFileWhileDownloadInProgress)
         auto path = client->fsBasePath / "f";  // (this is outside s) (outside the sync)
 
         // Create a temporary file to upload.
-        ASSERT_TRUE(createDataFile(path, data));
+        ASSERT_TRUE(createFile(path, data));
 
         // Upload the file.
         ASSERT_TRUE(client->uploadFile(path, "s", 30, ClaimOldVersion));
@@ -17086,7 +17086,7 @@ TEST_F(SyncTest, MovedSyncedFileWhileDownloadInProgress)
         auto path = client->fsBasePath / "f";  // (this is outside s) (outside the sync)
 
         // Create a temporary file to upload.
-        ASSERT_TRUE(createDataFile(path, data));
+        ASSERT_TRUE(createFile(path, data));
 
         // Upload the file.
         ASSERT_TRUE(client->uploadFile(path, "s/d", 30, ClaimOldVersion));
@@ -17140,7 +17140,7 @@ TEST_F(SyncTest, MovedSyncedFileWhileDownloadInProgress)
         auto path = client->fsBasePath / "f";
 
         // Create a temporary file to upload.
-        ASSERT_TRUE(createDataFile(path, data));
+        ASSERT_TRUE(createFile(path, data));
 
         // Upload the file.
         ASSERT_TRUE(client->uploadFile(path, "s", 30, ClaimOldVersion));
@@ -17167,7 +17167,7 @@ TEST_F(SyncTest, MovedSyncedFileWhileDownloadInProgress)
         // But that would clash with the move of the old file from s/f to s/d/f
 
         auto data = randomData(16384);
-        ASSERT_TRUE(createDataFile(client->fsBasePath / "s" / "d" / "f", data));
+        ASSERT_TRUE(createFile(client->fsBasePath / "s" / "d" / "f", data));
 
         waiter.set_value();
         client->mOnMoveBegin = nullptr;
