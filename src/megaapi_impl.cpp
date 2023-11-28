@@ -8296,10 +8296,10 @@ void MegaApiImpl::getUserAttr(User* user, attr_t type, MegaRequestPrivate* reque
     });
 }
 
-void MegaApiImpl::getUserAttr(const string& email, attr_t type, const string& ph, MegaRequestPrivate* request)
+void MegaApiImpl::getUserAttr(const string& email, attr_t type, const char* ph, MegaRequestPrivate* request)
 {
     assert(request);
-    client->getua(email.c_str(), type, ph.c_str(), -1, [this, request](error e)
+    client->getua(email.c_str(), type, ph, -1, [this, request](error e)
     {
         getua_completion(e, request);
     },
