@@ -21,7 +21,6 @@
 #include <cctype>
 #include <memory>
 #include <type_traits>
-#include <unordered_set>
 #include <future>
 
 #include "mega.h"
@@ -1307,6 +1306,7 @@ void Sync::createDebrisTmpLockOnce()
 
 bool SyncStallInfo::empty() const
 {
+    assert(!(cloud.empty() && local.empty()) || stalledSyncs.empty());
     return cloud.empty() && local.empty();
 }
 
@@ -1354,6 +1354,11 @@ bool SyncStallInfo::waitingLocal(const LocalPath& mapKeyPath, SyncStallEntry&& e
     return true;
 }
 
+bool SyncStallInfo::isSyncStalled(handle backupId) const
+{
+    return stalledSyncs.find(backupId) != stalledSyncs.end();
+}
+
 bool SyncStallInfo::hasImmediateStallReason() const
 {
     for (auto& i : cloud)
@@ -1395,12 +1400,16 @@ struct ProgressingMonitor
         // update our list of subtree roots containing such paths
         resolved = true;
 
-        if (sf.stall.local.empty())
+        if (sf.stall.cloud.empty())
         {
             LOG_debug << sync.syncname << "First sync node cloud-waiting: " << int(e.reason) << " " << sync.logTriplet(sr, sp);
         }
 
-        sf.stall.waitingCloud(mapKeyPath, move(e));
+        bool isAddedToCloudMap = sf.stall.waitingCloud(mapKeyPath, move(e));
+        if (isAddedToCloudMap)
+        {
+            sf.stall.stalledSyncs.emplace(sync.getConfig().mBackupId);
+        }
     }
 
     void waitingLocal(const LocalPath& mapKeyPath, SyncStallEntry&& e)
@@ -1414,7 +1423,11 @@ struct ProgressingMonitor
             LOG_debug << sync.syncname << "First sync node local-waiting: " << int(e.reason) << " " << sync.logTriplet(sr, sp);
         }
 
-        sf.stall.waitingLocal(mapKeyPath, move(e));
+        bool isAddedToLocalMap = sf.stall.waitingLocal(mapKeyPath, move(e));
+        if (isAddedToLocalMap)
+        {
+            sf.stall.stalledSyncs.emplace(sync.getConfig().mBackupId);
+        }
     }
 
     void noResult()
@@ -5516,6 +5529,13 @@ SyncControllerPtr Syncs::syncController() const
     mSyncController.reset();
 
     return nullptr;
+}
+
+bool Syncs::isSyncStalled(handle backupId) const
+{
+    assert(onSyncThread());
+
+    return syncStallState && stallReport.isSyncStalled(backupId);
 }
 
 LocalNode* Syncs::findMoveFromLocalNode(const shared_ptr<LocalNode::RareFields::MoveInProgress>& moveTo)
@@ -12114,8 +12134,10 @@ void Syncs::syncLoop()
                 lock_guard<mutex> g(stallReportMutex);
                 stallReport.cloud.swap(mSyncFlags->stall.cloud);
                 stallReport.local.swap(mSyncFlags->stall.local);
+                stallReport.stalledSyncs.swap(mSyncFlags->stall.stalledSyncs);
                 mSyncFlags->stall.cloud.clear();
                 mSyncFlags->stall.local.clear();
+                mSyncFlags->stall.stalledSyncs.clear();
 
                 bool immediateStall = hasImmediateStall(stallReport);
                 bool progressLackStall = mSyncFlags->noProgressCount > 10
