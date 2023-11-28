@@ -349,15 +349,25 @@ bool SqliteDbAccess::ensureMtimeColumnIsInNodesTable(sqlite3* db)
 
     if (!hasMtimeColumn)
     {
-        result = sqlite3_exec(db, "ALTER TABLE nodes ADD COLUMN mtime int64", nullptr, nullptr, nullptr);
-        if (result != SQLITE_OK)
+        if (sqlite3_exec(db, "BEGIN", nullptr, nullptr, nullptr) != SQLITE_OK)
+        {
+            LOG_debug << "Db error for begin transaction: " << sqlite3_errmsg(db);
+            return false;
+        }
+        if (sqlite3_exec(db, "ALTER TABLE nodes ADD COLUMN mtime int64", nullptr, nullptr, nullptr) != SQLITE_OK)
         {
             LOG_debug << "Db error while adding 'nodes.mtime' column: " << sqlite3_errmsg(db);
             return false;
         }
 
         // populate column
-        return copyMtimeFromFingerprint(db);
+        string cr = copyMtimeFromFingerprint(db) ? "COMMIT" : "ROLLBACK";
+
+        if (sqlite3_exec(db, cr.c_str(), nullptr, nullptr, nullptr) != SQLITE_OK)
+        {
+            LOG_debug << "Db error for " << cr << " transaction: " << sqlite3_errmsg(db);
+            return false;
+        }
     }
 
     return true;
