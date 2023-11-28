@@ -813,7 +813,6 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/mediafileattribute.h
             ${MegaDir}/include/mega/mega_glob.h
             ${MegaDir}/include/mega/drivenotify.h
-            ${MegaDir}/include/mega/testcommon/gtestcommon.h
             ${MegaDir}/include/mega.h
             ${MegaDir}/src/attrmap.cpp
             ${MegaDir}/src/autocomplete.cpp
@@ -862,7 +861,6 @@ add_library(Mega STATIC
             ${MegaDir}/src/useralerts.cpp
             ${MegaDir}/src/utils.cpp
             ${MegaDir}/src/waiterbase.cpp
-            ${MegaDir}/src/testcommon/gtestcommon.cpp
             ${Mega_PlatformSpecificFiles} ${Mega_CryptoFiles} ${Mega_DbFiles} ${Mega_GfxFiles}
             ${WIN_EXTRA_INCLUDE}
             ${MACOS_EXTRA_INCLUDE}
@@ -1053,9 +1051,13 @@ add_executable(test_unit
 )
 
 add_executable(test_integration
+    ${MegaDir}/tests/gtestcommon.cpp
+    ${MegaDir}/tests/gtestcommon.h
     ${MegaDir}/tests/integration/main.cpp
     ${MegaDir}/tests/integration/SdkTest_test.cpp
+    ${MegaDir}/tests/integration/SdkTest_test.h
     ${MegaDir}/tests/integration/Sync_test.cpp
+    ${MegaDir}/tests/integration/test.h
 )
 
 target_compile_definitions(test_unit PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)

@@ -78,8 +78,7 @@ SOURCES += src/attrmap.cpp \
     src/mediafileattribute.cpp \
     src/raid.cpp \
     src/testhooks.cpp \
-    src/heartbeats.cpp \
-    src/testcommon/gtestcommon.cpp
+    src/heartbeats.cpp
 
 CONFIG(USE_MEGAAPI) {
   SOURCES += src/megaapi.cpp src/megaapi_impl.cpp
@@ -494,8 +493,7 @@ HEADERS  += include/mega.h \
             include/mega/mediafileattribute.h \
             include/mega/raid.h \
             include/mega/testhooks.h \
-            include/mega/drivenotify.h \
-            include/mega/testcommon/gtestcommon.h
+            include/mega/drivenotify.h
 
 CONFIG(USE_MEGAAPI) {
     HEADERS += bindings/qt/QTMegaRequestListener.h \
