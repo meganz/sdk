@@ -1405,7 +1405,8 @@ struct ProgressingMonitor
             LOG_debug << sync.syncname << "First sync node cloud-waiting: " << int(e.reason) << " " << sync.logTriplet(sr, sp);
         }
 
-        if (sf.stall.waitingCloud(mapKeyPath, move(e)))
+        bool isAddedToCloudMap = sf.stall.waitingCloud(mapKeyPath, move(e));
+        if (isAddedToCloudMap)
         {
             sf.stall.stalledSyncs.emplace(sync.getConfig().mBackupId);
         }
@@ -1422,7 +1423,8 @@ struct ProgressingMonitor
             LOG_debug << sync.syncname << "First sync node local-waiting: " << int(e.reason) << " " << sync.logTriplet(sr, sp);
         }
 
-        if (sf.stall.waitingLocal(mapKeyPath, move(e)))
+        bool isAddedToLocalMap = sf.stall.waitingLocal(mapKeyPath, move(e));
+        if (isAddedToLocalMap)
         {
             sf.stall.stalledSyncs.emplace(sync.getConfig().mBackupId);
         }
