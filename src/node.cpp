@@ -1371,6 +1371,7 @@ string Node::displaypath() const
             return path;
 
         case TYPE_DONOTSYNC:
+        case TYPE_NESTED_MOUNT:
         case TYPE_SPECIAL:
         case TYPE_SYMLINK:
         case TYPE_UNKNOWN:
