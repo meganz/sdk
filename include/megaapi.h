@@ -9253,6 +9253,9 @@ public:
      * @brief Set option for filtering out nodes modified outside a defined time interval.
      * If any of the passed values is 0 it will be ignored, and no filtering will be
      * performed based on it.
+     * If any of the passed values is non-0, only nodes with valid modification time will
+     * be included in the results. For now only File nodes have modification time so only
+     * they will be included in the results.
      *
      * @param lowerLimit timestamp lower than any of the considered nodes.
      * @param upperLimit timestamp greater than any of the considered nodes.
