@@ -56,6 +56,8 @@
 #import "MEGAScheduledCopyDelegate.h"
 #import "BackUpState.h"
 #import "BackUpSubState.h"
+#import "MEGASearchFilter.h"
+#import "MEGASearchFilterTimeFrame.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -8023,6 +8025,35 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * @return List of nodes that contain the desired string in their name.
  */
 - (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString recursive:(BOOL)recursive;
+
+
+/**
+ * @brief Search nodes with applied filter recursively.
+ *
+ * The search is case-insensitive.
+ *
+ * @param filter Filter we should apply to the current search.
+ * @param orderType Order type we should applyto the current search.
+ * NO if you want to seach in the children of the node only
+ *
+ * @return List of nodes that contain the desired string in their name.
+ */
+- (MEGANodeList *)searchWith:(MEGASearchFilter *)filter orderType:(MEGASortOrderType)orderType cancelToken:(MEGACancelToken *)cancelToken;
+
+
+/**
+ * @brief Search nodes with applied filter non-recursively.
+ *
+ * The search is case-insensitive.
+ *
+ * @param filter Filter we should apply to the current search.
+ * @param orderType Order type we should applyto the current search.
+ * NO if you want to seach in the children of the node only
+ *
+ * @return List of nodes that contain the desired string in their name.
+ */
+- (MEGANodeList *)searchNonRecursivelyWith:(MEGASearchFilter *)filter  orderType:(MEGASortOrderType)orderType cancelToken:(MEGACancelToken *)cancelToken;
+
 
 /**
  * @brief Search nodes containing a search string in their name.
