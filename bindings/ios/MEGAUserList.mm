@@ -58,7 +58,7 @@ using namespace mega;
 }
 
 - (NSInteger)size {
-    return self.userList ? self.userList->size() : -1;
+    return self.userList ? self.userList->size() : 0;
 }
 
 @end
