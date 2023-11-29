@@ -15135,32 +15135,29 @@ TEST_F(SdkTest, SdkTestJourneyTracking)
 }
 
 /**
- * @brief TEST_F SdkTestDeleteListenerBeforeFinishingRequest
+ * Make sure instances of RequestTracker disconnect themselves from the API.
  *
- * Tests deleting the listener after a request has started and before it has finished (before fireOnRequestFinish() call).
+ * FIXME: Should be a unit test rather than an integration test.
  */
-TEST_F(SdkTest, SdkTestDeleteListenerBeforeFinishingRequest)
+TEST_F(SdkTest, SdkTestListenerRemovedWhenRequestTrackerDestroyed)
 {
-    LOG_info << "___TEST SdkTestDeleteListenerBeforeFinishingRequest";
+    // Get our hands on a client we can play with.
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-    {
-        string link = MegaClient::MEGAURL+"/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns";
-        auto rt = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+    // Convenience.
+    auto* api = megaApi[0].get();
 
-        std::unique_ptr<MegaNode> parent{megaApi[0]->getRootNode()};
-        mApi[0].megaApi->importFileLink(link.c_str(), parent.get(), rt.get());
+    // Instantiate request tracker.
+    auto* tracker = new RequestTracker(api, nullptr);
 
-        // Brief wait for the request to start before getting out of the scope
-        // The RequestTracker object, the one used as the listener, will be deleted after the scope ends
-        const auto start = std::chrono::steady_clock::now();
-        while (!rt->started.load() && ((std::chrono::steady_clock::now() - start) < std::chrono::seconds(maxTimeout))) // Timeout just in case it never starts
-        {
-            std::this_thread::sleep_for(std::chrono::microseconds{10});
-        }
-        ASSERT_TRUE(rt->started);
-        ASSERT_FALSE(rt->finished);
-    }
+    // Register tracker with the API.
+    api->addRequestListener(tracker);
+
+    // Destroy tracker.
+    delete tracker;
+
+    // Tracker should no longer be associated with the API.
+    ASSERT_FALSE(api->removeRequestListener(tracker));
 }
 
 /**
