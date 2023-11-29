@@ -22,13 +22,13 @@
 
 @implementation MEGASearchFilter
 
-- (instancetype)initWithTerm:(NSString *)term
+- (instancetype _Nonnull)initWithTerm:( NSString * _Nonnull)term
             parentNodeHandle:(uint64_t)parentNodeHandle
                     nodeType:(int)nodeType
                     category:(int)category
                  sensitivity:(bool)sensitivity
                 locationType:(int)locationType
-                timeFrame:(nullable MEGASearchFilterTimeFrame*) timeFrame {
+                timeFrame:(MEGASearchFilterTimeFrame* _Nullable) timeFrame {
     self = [super init];
 
     if (self != nil) {
@@ -44,21 +44,21 @@
     return self;
 }
 
-- (instancetype)initWithTerm:(NSString *)term
+- (instancetype _Nonnull)initWithTerm:(NSString * _Nonnull)term
             parentNodeHandle: (uint64_t)parentNodeHandle
                     nodeType:(int)nodeType
                     category:(int)category
                  sensitivity:(bool)sensitivity
-                   timeFrame:(MEGASearchFilterTimeFrame*) timeFrame {
+                   timeFrame:(MEGASearchFilterTimeFrame* _Nullable) timeFrame {
     return [self initWithTerm:term parentNodeHandle:parentNodeHandle nodeType:nodeType category:category sensitivity:sensitivity locationType:-1 timeFrame:timeFrame];
 }
 
-- (instancetype)initWithTerm: (NSString *)term
+- (instancetype _Nonnull)initWithTerm: (NSString * _Nonnull)term
                     nodeType:(int)nodeType
                     category:(int)category
                  sensitivity:(bool)sensitivity
                 locationType:(int)locationType
-                   timeFrame:(MEGASearchFilterTimeFrame*) timeFrame {
+                   timeFrame:(MEGASearchFilterTimeFrame* _Nullable) timeFrame {
     return [self initWithTerm:term parentNodeHandle:-1 nodeType:nodeType category:category sensitivity:sensitivity locationType:locationType timeFrame:timeFrame];
 }
 

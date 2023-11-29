@@ -23,27 +23,27 @@
 
 @interface MEGASearchFilter : NSObject
 
-@property NSString* term;
+@property NSString* _Nonnull term;
+@property MEGASearchFilterTimeFrame* _Nullable timeFrame;
 @property uint64_t parentNodeHandle;
-@property MEGASearchFilterTimeFrame* timeFrame;
 @property int nodeType;
 @property int category;
 @property bool sensitivity;
 @property int locationType;
 
-- (instancetype)initWithTerm:(NSString *)term
+- (instancetype _Nonnull)initWithTerm:(NSString * _Nonnull)term
             parentNodeHandle:(uint64_t)parentNodeHandle
                     nodeType:(int)nodeType
                     category:(int)category
                  sensitivity:(bool)sensitivity
-                timeFrame:(MEGASearchFilterTimeFrame*) timeFrame;
+                timeFrame:(MEGASearchFilterTimeFrame* _Nullable) timeFrame;
 
-- (instancetype)initWithTerm:(NSString *)term
+- (instancetype _Nonnull)initWithTerm:(NSString * _Nonnull)term
                     nodeType:(int)nodeType
                     category:(int)category
                  sensitivity:(bool)sensitivity
                 locationType:(int)locationType
-                timeFrame:(MEGASearchFilterTimeFrame*) timeFrame;
+                timeFrame:(MEGASearchFilterTimeFrame* _Nullable) timeFrame;
 
 -(BOOL)didSetParentNodeHandle;
 -(BOOL)didSetLocationType;
