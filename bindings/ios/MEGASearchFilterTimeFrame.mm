@@ -21,6 +21,7 @@
 #import "MEGASearchFilterTimeFrame.h"
 
 NS_ASSUME_NONNULL_BEGIN
+
 @implementation MEGASearchFilterTimeFrame
 
 - (instancetype)initWithLowerLimit:(NSDate *)lowerLimit upperLimit:(NSDate *)upperLimit {
@@ -34,4 +35,5 @@ NS_ASSUME_NONNULL_BEGIN
 }
 
 @end
+
 NS_ASSUME_NONNULL_END

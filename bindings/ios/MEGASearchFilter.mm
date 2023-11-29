@@ -64,11 +64,11 @@ NS_ASSUME_NONNULL_BEGIN
     return [self initWithTerm:term parentNodeHandle:-1 nodeType:nodeType category:category sensitivity:sensitivity locationType:locationType timeFrame:timeFrame];
 }
 
--(BOOL)didSetParentNodeHandle {
+- (BOOL)didSetParentNodeHandle {
     return _parentNodeHandle != -1;
 }
 
--(BOOL)didSetLocationType {
+- (BOOL)didSetLocationType {
     return _locationType != -1;
 }
 

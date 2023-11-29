@@ -47,8 +47,8 @@ NS_ASSUME_NONNULL_BEGIN
                 locationType:(int)locationType
                 timeFrame:(MEGASearchFilterTimeFrame* _Nullable) timeFrame;
 
--(BOOL)didSetParentNodeHandle;
--(BOOL)didSetLocationType;
+- (BOOL)didSetParentNodeHandle;
+- (BOOL)didSetLocationType;
 
 @end
 
