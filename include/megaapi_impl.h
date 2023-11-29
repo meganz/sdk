@@ -2766,6 +2766,7 @@ public:
     void byLocationHandle(MegaHandle ancestorHandle) override;
     void byLocation(int locationType) override;
     void byCreationTime(int64_t lowerLimit, int64_t upperLimit) override;
+    void byModificationTime(int64_t lowerLimit, int64_t upperLimit) override;
 
     const char* byName() const override { return mNameFilter.c_str(); }
     int byNodeType() const override { return mNodeType; }
@@ -2775,6 +2776,8 @@ public:
     int byLocation() const override { return mLocationType; }
     int64_t byCreationTimeLowerLimit() const override { return mCreationLowerLimit; }
     int64_t byCreationTimeUpperLimit() const override { return mCreationUpperLimit; }
+    int64_t byModificationTimeLowerLimit() const override { return mModificationLowerLimit; }
+    int64_t byModificationTimeUpperLimit() const override { return mModificationUpperLimit; }
 
 private:
     std::string mNameFilter;
@@ -2785,6 +2788,8 @@ private:
     int mLocationType = MegaApi::SEARCH_TARGET_ALL;
     int64_t mCreationLowerLimit = 0;
     int64_t mCreationUpperLimit = 0;
+    int64_t mModificationLowerLimit = 0;
+    int64_t mModificationUpperLimit = 0;
 };
 
 

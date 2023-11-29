@@ -5948,6 +5948,12 @@ void MegaSearchFilterPrivate::byCreationTime(int64_t lowerLimit, int64_t upperLi
     mCreationUpperLimit = upperLimit;
 }
 
+void MegaSearchFilterPrivate::byModificationTime(int64_t lowerLimit, int64_t upperLimit)
+{
+    mModificationLowerLimit = lowerLimit;
+    mModificationUpperLimit = upperLimit;
+}
+
 MegaSearchFilterPrivate* MegaSearchFilterPrivate::copy() const
 {
     return new MegaSearchFilterPrivate(*this);
