@@ -15777,11 +15777,13 @@ TEST_F(SdkTest, SdkTestPasswordManager)
 
     LOG_debug << "# U1: create a new Password Node under Password Manager Base";
     RequestTracker rtC {megaApi[userIdx].get()};
-    const std::string pwdNodeName = "FirstPwd", pwdNodePassword = "12},\" '34";
+    const std::string pwdNodeName = "FirstPwd";
+    std::unique_ptr<MegaNode::PasswordNodeData> pwdData {
+        MegaNode::PasswordNodeData::createInstance("12},\" '34", "notes", "url", "userName")};
     bool check1;
     mApi[userIdx].mOnNodesUpdateCompletion =
         createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check1);
-    megaApi[userIdx]->createPasswordNode(pwdNodeName.c_str(), pwdNodePassword.c_str(), nhBase, &rtC);
+    megaApi[userIdx]->createPasswordNode(pwdNodeName.c_str(), pwdData.get(), nhBase, &rtC);
     ASSERT_EQ(API_OK, rtC.waitForResult()) << "Failure creating Password Node";
     ASSERT_TRUE(waitForResponse(&check1)) << "Node creation not received after " << maxTimeout << " seconds";
     ASSERT_NE(nullptr, rtC.request);
@@ -15789,11 +15791,34 @@ TEST_F(SdkTest, SdkTestPasswordManager)
     ASSERT_NE(UNDEF, newPwdNodeHandle) << "Wrong MegaHandle for new Password Node";
     const std::unique_ptr<MegaNode> newPwdNode {megaApi[userIdx]->getNodeByHandle(newPwdNodeHandle)};
     ASSERT_NE(newPwdNode.get(), nullptr) << "New node could not be retrieved";
-    auto aux = newPwdNode->getName(); ASSERT_NE(aux, nullptr);
-    ASSERT_EQ(std::string{aux}, pwdNodeName);
-    aux = newPwdNode->getPasswordNodeValue(); ASSERT_NE(aux, nullptr) << "No Password Node pwd value";
-    ASSERT_EQ(std::string{aux}, pwdNodePassword);
     ASSERT_TRUE(newPwdNode->isPasswordNode());
+    auto aux = newPwdNode->getName(); ASSERT_NE(aux, nullptr);
+    ASSERT_STREQ(aux, newPwdNode->getName());
+    std::unique_ptr<MegaNode::PasswordNodeData> receivedPwdData {newPwdNode->getPasswordData()};
+    ASSERT_NE(nullptr, receivedPwdData);
+    const auto equals = [](const MegaNode::PasswordNodeData* lhs,
+                           const MegaNode::PasswordNodeData* rhs) -> bool
+    {
+        std::string lp = lhs->password() ? lhs->password() : "";
+        std::string rp = rhs->password() ? rhs->password() : "";
+        if (lp != rp) LOG_err << "\tTest: passwords differ |" << lp << "| != |" << rp << "|";
+
+        std::string ln = lhs->notes() ? lhs->notes() : "";
+        std::string rn = rhs->notes() ? rhs->notes() : "";
+        if (ln != rn) LOG_err << "\tTest: notes differ |" << ln << "| != |" << rn << "|";
+
+        std::string lu = lhs->url() ? lhs->url() : "";
+        std::string ru = rhs->url() ? rhs->url() : "";
+        if (lu != ru) LOG_err << "\tTest: urls differ |" << lu << "| != |" << ru << "|";
+
+        std::string lun = lhs->userName() ? lhs->userName() : "";
+        std::string run = rhs->userName() ? rhs->userName() : "";
+        if (lun != run) LOG_err << "\tTest: userNames differ |" << lun << "| != |" << run << "|";
+
+        return (lp == rp && ln == rn && lu == ru && lun == run);
+    };
+    ASSERT_TRUE(equals(pwdData.get(), receivedPwdData.get()));
+
 
     LOG_debug << "\t# U1: attempt creation of new Password Node with wrong parameters";
     RequestTracker rtCError {megaApi[userIdx].get()};
@@ -15819,27 +15844,82 @@ TEST_F(SdkTest, SdkTestPasswordManager)
     ASSERT_TRUE(retrievedPwdNode->isPasswordNode());
     aux = retrievedPwdNode->getName(); ASSERT_NE(nullptr, aux);
     ASSERT_STREQ(nName, aux) << "Password Node name not updated correctly";
+    receivedPwdData.reset(retrievedPwdNode->getPasswordData());
+    ASSERT_NE(nullptr, receivedPwdData);
+    ASSERT_TRUE(equals(pwdData.get(), receivedPwdData.get()));
 
-    LOG_debug << "\t# change Password Node value";
+    LOG_debug << "\t# update only password attribute providing all attributes";
     const char* nPwd = "5678";
+    pwdData->password(nPwd);
     check1 = false;
     mApi[userIdx].mOnNodesUpdateCompletion =
         createOnNodesUpdateLambda(newPwdNode->getHandle(), MegaNode::CHANGE_TYPE_PWD_VALUE, check1);
     RequestTracker rtUpdate {megaApi[userIdx].get()};
-    megaApi[userIdx]->updatePasswordNode(newPwdNodeHandle, nPwd, &rtUpdate);
+    megaApi[userIdx]->updatePasswordNode(newPwdNodeHandle, pwdData.get(), &rtUpdate);
     ASSERT_EQ(API_OK, rtUpdate.waitForResult());
     ASSERT_TRUE(waitForResponse(&check1)) << "Node update not received after " << maxTimeout << " seconds";
-    retrievedPwdNode.reset(megaApi[userIdx]->getNodeByHandle(newPwdNodeHandle));
-    ASSERT_NE(nullptr, retrievedPwdNode.get());
-    ASSERT_TRUE(retrievedPwdNode->isPasswordNode());
-    aux = retrievedPwdNode->getPasswordNodeValue(); ASSERT_NE(nullptr, aux);
-    ASSERT_STREQ(nPwd, aux) << "Password Node value not updated correctly";
-    ASSERT_TRUE(retrievedPwdNode->isPasswordNode());
+    const auto isExpectedData =
+        [this, &userIdx, &equals](MegaHandle nh, const MegaNode::PasswordNodeData* expectedData)
+    {
+        std::unique_ptr<MegaNode> retrievedNode {megaApi[userIdx]->getNodeByHandle(nh)};
+        ASSERT_TRUE(retrievedNode);
+        ASSERT_TRUE(retrievedNode->isPasswordNode());
+        std::unique_ptr<MegaNode::PasswordNodeData> retrievedData {retrievedNode->getPasswordData()};
+        ASSERT_TRUE(retrievedData);
+        ASSERT_TRUE(equals(expectedData, retrievedData.get()));
+    };
+    ASSERT_NO_FATAL_FAILURE(isExpectedData(newPwdNodeHandle, pwdData.get()));
+
+    LOG_debug << "\t# update only notes attribute (the non-updated attributes should be the same)";
+    const char* newNotes = "Updated Notes";
+    pwdData->notes(newNotes);  // expected data
+    std::unique_ptr<MegaNode::PasswordNodeData> updatedData {
+        MegaNode::PasswordNodeData::createInstance(nullptr, newNotes, nullptr, nullptr)};
+    check1 = false;
+    mApi[userIdx].mOnNodesUpdateCompletion =
+        createOnNodesUpdateLambda(newPwdNode->getHandle(), MegaNode::CHANGE_TYPE_PWD_NOTES, check1);
+    RequestTracker rtUNotes {megaApi[userIdx].get()};
+    megaApi[userIdx]->updatePasswordNode(newPwdNodeHandle, updatedData.get(), &rtUNotes);
+    ASSERT_EQ(API_OK, rtUNotes.waitForResult());
+    ASSERT_TRUE(waitForResponse(&check1)) << "Notes node update not received after " << maxTimeout << " seconds";
+    ASSERT_NO_FATAL_FAILURE(isExpectedData(newPwdNodeHandle, pwdData.get()));
+
+    LOG_debug << "\t# update only url attribute (the non-updated attributes should be the same)";
+    const char* newURL = "Updated url";
+    pwdData->url(newURL);  // expected data
+    updatedData.reset(MegaNode::PasswordNodeData::createInstance(nullptr, nullptr, newURL, nullptr));
+    check1 = false;
+    mApi[userIdx].mOnNodesUpdateCompletion =
+        createOnNodesUpdateLambda(newPwdNode->getHandle(), MegaNode::CHANGE_TYPE_PWD_URL, check1);
+    RequestTracker rtUURL{megaApi[userIdx].get()};
+    megaApi[userIdx]->updatePasswordNode(newPwdNodeHandle, updatedData.get(), &rtUURL);
+    ASSERT_EQ(API_OK, rtUURL.waitForResult());
+    ASSERT_TRUE(waitForResponse(&check1)) << "URL node update not received after " << maxTimeout << " seconds";
+    ASSERT_NO_FATAL_FAILURE(isExpectedData(newPwdNodeHandle, pwdData.get()));
+
+    LOG_debug << "\t# update only user name attribute (the non-updated attributes should be the same)";
+    const char* newUserName = "Updated userName";
+    pwdData->userName(newUserName);  // expected data
+    updatedData.reset(MegaNode::PasswordNodeData::createInstance(nullptr, nullptr, nullptr, newUserName));
+    check1 = false;
+    mApi[userIdx].mOnNodesUpdateCompletion =
+        createOnNodesUpdateLambda(newPwdNode->getHandle(), MegaNode::CHANGE_TYPE_PWD_USERNAME, check1);
+    RequestTracker rtUUserName{megaApi[userIdx].get()};
+    megaApi[userIdx]->updatePasswordNode(newPwdNodeHandle, updatedData.get(), &rtUUserName);
+    ASSERT_EQ(API_OK, rtUUserName.waitForResult());
+    ASSERT_TRUE(waitForResponse(&check1)) << "User name node update not received after " << maxTimeout << " seconds";
+    ASSERT_NO_FATAL_FAILURE(isExpectedData(newPwdNodeHandle, pwdData.get()));
 
     LOG_debug << "\t# update attempt without new data";
     RequestTracker rtUError1 {megaApi[userIdx].get()};
     megaApi[userIdx]->updatePasswordNode(newPwdNodeHandle, nullptr, &rtUError1);
     ASSERT_EQ(API_EARGS, rtUError1.waitForResult());
+
+    LOG_debug << "\t# update attempt with empty new data";
+    pwdData.reset(MegaNode::PasswordNodeData::createInstance(nullptr, nullptr, nullptr, nullptr));
+    RequestTracker rtUError2 {megaApi[userIdx].get()};
+    megaApi[userIdx]->updatePasswordNode(newPwdNodeHandle, pwdData.get(), &rtUError2);
+    ASSERT_EQ(API_EARGS, rtUError2.waitForResult());
 
 
     LOG_debug << "# U1: delete Password Node";

@@ -1124,17 +1124,24 @@ void Node::setattr()
             {
                 LocalPath::utf8_normalize(t);
             }
-            else if (name == AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_VALUE))
-            {
-                *t = Base64::atob(*t);
-            }
         }
 
         changed.name = attrs.hasDifferentValue('n', oldAttrs.map);
         changed.favourite = attrs.hasDifferentValue(AttrMap::string2nameid("fav"), oldAttrs.map);
         changed.sensitive = attrs.hasDifferentValue(AttrMap::string2nameid("sen"), oldAttrs.map);
-        changed.pwdValue = attrs.hasDifferentValue(AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_VALUE),
-                                                   oldAttrs.map);
+
+        const auto namePWD = AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_MANAGER);
+        if (attrs.hasDifferentValue(namePWD, oldAttrs.map))
+        {
+            AttrMap oldPWD, newPWD;
+            oldPWD.fromjson(oldAttrs.map[namePWD].c_str());
+            newPWD.fromjson(attrs.map[namePWD].c_str());
+
+            changed.pwdValue = oldPWD.hasUpdate(AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_PWD), newPWD.map);
+            changed.pwdNotes = oldPWD.hasUpdate(AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_NOTES), newPWD.map);
+            changed.pwdURL = oldPWD.hasUpdate(AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_URL), newPWD.map);
+            changed.pwdUsername = oldPWD.hasUpdate(AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_USERNAME), newPWD.map);
+        }
 
         setfingerprint();
 
@@ -1755,8 +1762,7 @@ void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown, 
 bool Node::isPasswordNode() const
 {
     return ((type == FOLDERNODE) &&
-            (attrs.map.find(AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_VALUE))
-             != std::end(attrs.map)));
+            (attrs.map.contains(AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_MANAGER))));
 }
 
 bool Node::isPasswordNodeFolder() const

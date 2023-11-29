@@ -2558,8 +2558,10 @@ private:
     // Generates a key pair (x25519 (Cu) key pair) to use for Vpn Credentials (MegaClient::putVpnCredential)
     StringKeyPair generateVpnKeyPair();
 
+    std::pair<bool, error> checkRenameNodePrecons(std::shared_ptr<Node> n);
+
     // Password Manager - private
-    void preparePasswordNodePwdValue(attr_map& attrs, const char* pwd);
+    void preparePasswordNodeData(attr_map& attrs, const AttrMap& data) const;
 
 public:
 
@@ -2611,11 +2613,16 @@ public:
     void setProFlexi(bool newProFlexi);
 
     // Password Manager
-    static const char* const NODE_ATTR_PASSWORD_VALUE;
+    static const char* const NODE_ATTR_PASSWORD_MANAGER;
+    static const char* const PWM_ATTR_PASSWORD_NOTES;
+    static const char* const PWM_ATTR_PASSWORD_URL;
+    static const char* const PWM_ATTR_PASSWORD_USERNAME;
+    static const char* const PWM_ATTR_PASSWORD_PWD;
     NodeHandle getPasswordManagerBase();
     void createPasswordManagerBase(int rtag, CommandCreatePasswordManagerBase::Completion cbRequest);
-    void createPasswordNode(const char* name, const char* pwd, NodeHandle nhParent, int rtag);
-    error updatePasswordNode(std::shared_ptr<Node> pwdNode, const char* newPwd,
+    error createPasswordNode(const char* name, std::unique_ptr<AttrMap> data,
+                             std::shared_ptr<Node> nParent, int rtag);
+    error updatePasswordNode(NodeHandle nh, std::unique_ptr<AttrMap> newData,
                              CommandSetAttr::Completion&& cb);
 };
 

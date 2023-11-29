@@ -22,6 +22,7 @@
 #ifndef MEGA_ATTRMAP_H
 #define MEGA_ATTRMAP_H 1
 
+#include <mega/json.h>
 #include "mega/utils.h"
 
 namespace mega {
@@ -39,6 +40,11 @@ struct attr_map : map<nameid, string>
     attr_map(map<nameid, string>&& m)
     {
         m.swap(*this);
+    }
+
+    bool contains(nameid k) const
+    {
+        return this->find(k) != this->end();
     }
 };
 
@@ -60,6 +66,9 @@ struct MEGA_API AttrMap
 
     // export as JSON string
     void getjson(string*) const;
+
+    // import from JSON string
+    void fromjson(const char* buf);
 
     // export as raw binary serialize
     void serialize(string*) const;

@@ -8813,14 +8813,26 @@ error MegaClient::createFolder(std::shared_ptr<Node> parent, const char* name, i
     return API_OK;
 }
 
+std::pair<bool, error> MegaClient::checkRenameNodePrecons(std::shared_ptr<Node> n)
+{
+    if (ststatus == STORAGE_PAYWALL) return std::make_pair(false, API_EPAYWALL);
+
+    if (!n) return std::make_pair(false, API_EARGS);
+
+    if (!checkaccess(n.get(), FULL)) return std::make_pair(false, API_EACCESS);
+
+    return std::make_pair(true, API_OK);
+}
+
 error MegaClient::renameNode(NodeHandle nh, const char* newName, CommandSetAttr::Completion&& cbRequest)
 {
-    if (ststatus == STORAGE_PAYWALL) return API_EPAYWALL;
-
     auto node = nodeByHandle(nh);
-    if (!node || !newName || !(*newName)) return API_EARGS;
+    const auto aux = checkRenameNodePrecons(node);
+    const bool& preconsOK = aux.first;
+    const error& code = aux.second;
+    if (!preconsOK) return code;
 
-    if (!checkaccess(node.get(), FULL)) return API_EACCESS;
+    if (!(newName && *newName)) return API_EARGS;
 
     const bool canChangeVault = node->isPasswordNodeFolder() || node->isPasswordNode();
     string sname = newName;
@@ -19997,7 +20009,11 @@ void MegaClient::fetchCreditCardInfo(CommandFetchCreditCardCompletion completion
     reqs.add(new CommandFetchCreditCard(this, std::move(completion)));
 }
 
-const char* const MegaClient::NODE_ATTR_PASSWORD_VALUE = "pwmpass";
+const char* const MegaClient::NODE_ATTR_PASSWORD_MANAGER = "pwm";
+const char* const MegaClient::PWM_ATTR_PASSWORD_NOTES = "n";
+const char* const MegaClient::PWM_ATTR_PASSWORD_URL = "ur";
+const char* const MegaClient::PWM_ATTR_PASSWORD_USERNAME = "us";
+const char* const MegaClient::PWM_ATTR_PASSWORD_PWD = "pass";
 
 NodeHandle MegaClient::getPasswordManagerBase()
 {
@@ -20005,13 +20021,13 @@ NodeHandle MegaClient::getPasswordManagerBase()
     return u ? toNodeHandle(u->getattr(ATTR_PWM_BASE)) : NodeHandle{};
 }
 
-void MegaClient::preparePasswordNodePwdValue(attr_map& attrs, const char* pwd)
+void MegaClient::preparePasswordNodeData(attr_map& attrs, const AttrMap& data) const
 {
-    if (pwd)
-    {
-        const auto id = AttrMap::string2nameid(NODE_ATTR_PASSWORD_VALUE);
-        attrs[id] = Base64::btoa(pwd);
-    }
+    assert(!data.map.empty());
+
+    std::string jsonData;
+    data.getjson(&jsonData);
+    attrs[AttrMap::string2nameid(NODE_ATTR_PASSWORD_MANAGER)] = std::move(jsonData);
 }
 
 void MegaClient::createPasswordManagerBase(int rTag, CommandCreatePasswordManagerBase::Completion cbRequest)
@@ -20032,52 +20048,57 @@ void MegaClient::createPasswordManagerBase(int rTag, CommandCreatePasswordManage
     reqs.add(new CommandCreatePasswordManagerBase(this, std::move(newNode), rTag, std::move(cbRequest)));
 }
 
-void MegaClient::createPasswordNode(const char* name, const char* pwd, NodeHandle nhParent, int rTag)
+error MegaClient::createPasswordNode(const char* name, std::unique_ptr<AttrMap> data,
+                                     std::shared_ptr<Node> nParent, int rTag)
 {
-    std::vector<NewNode> nn(1);
-    auto nParent = nodeByHandle(nhParent);
-    if (!name || !pwd || !nParent || !nParent->isPasswordNodeFolder())
+    assert(nParent);
+    assert(name && *name);
+
+    const bool pwdPresent = data && (data->map.contains(AttrMap::string2nameid(PWM_ATTR_PASSWORD_PWD)));
+    if (!(pwdPresent && nParent->isPasswordNodeFolder()))
     {
         LOG_err << "Password Manager: failed Password Node creation wrong paramenters "
-                << (name ? "" : "name ") << (pwd ? "" : "password ")
-                << (nParent && nParent->isPasswordNodeFolder() ? "" : "Password Node Folder parent handle");
-        app->putnodes_result(API_EARGS, NODE_HANDLE, nn, false, rTag);
-        return;
-    }
-
-    NewNode& newPasswordNode = nn.front();
-    const auto addAttrs = [this, pwd](AttrMap& attrs) { preparePasswordNodePwdValue(attrs.map, pwd); };
-    const bool canChangeVault = true;
-    putnodes_prepareOneFolder(&newPasswordNode, name, canChangeVault, addAttrs);
-    // setting newPasswordNode.parenthandle will cause API_EARGS on request response
-
-    const char* cauth = nullptr;
-    // newNode.nodekey will be encrypted with user's MK in Command construction
-    // using existing logic with default client->app->putnodes_result as callback for completion
-    putnodes(nhParent, VersioningOption::NoVersioning, std::move(nn), cauth, rTag, canChangeVault);
-}
-
-error MegaClient::updatePasswordNode(std::shared_ptr<Node> pwdNode, const char* newPwd,
-                                     CommandSetAttr::Completion&& cb)
-{
-    assert(pwdNode);
-
-    const auto somethingToUpdate = newPwd && *newPwd;
-    const auto validParams = [pwdNode, &somethingToUpdate] ()
-    {
-        return (somethingToUpdate && pwdNode->isPasswordNode());
-    };
-
-    if (!validParams())
-    {
-        LOG_err << "Password Manager: failed Password Node update wrong parameters "
-                << (pwdNode && pwdNode->isPasswordNode() ? "" : "Node provided is not Password Node ")
-                << (somethingToUpdate ? "" : "nothing to update ");
+                << (pwdPresent ? "" : "password ")
+                << (nParent->isPasswordNodeFolder() ? "" : "Password Node Folder parent handle");
         return API_EARGS;
     }
 
+    std::vector<NewNode> nn(1);
+    NewNode& newPasswordNode = nn.front();
+    const auto d = data.get();  // lambda capture initializers are C++14 so can't pass an std::unique_ptr
+    const auto addAttrs = [this, d](AttrMap& attrs) { preparePasswordNodeData(attrs.map, *d); };
+    const bool canChangeVault = true;
+    putnodes_prepareOneFolder(&newPasswordNode, name, canChangeVault, addAttrs);
+    // setting newPasswordNode.parenthandle will cause API_EARGS on request response
+    const char* cauth = nullptr;
+
+    putnodes(nParent->nodeHandle(), VersioningOption::NoVersioning, std::move(nn), cauth, rTag, canChangeVault);
+
+    return API_OK;
+}
+
+error MegaClient::updatePasswordNode(NodeHandle nh, std::unique_ptr<AttrMap> newData,
+                                     CommandSetAttr::Completion&& cb)
+{
+    auto pwdNode = nodeByHandle(nh);
+    const auto aux = checkRenameNodePrecons(pwdNode);
+    const bool& preconsOK = aux.first;
+    const error& code = aux.second;
+    if (!preconsOK) return code;
+
+    if (!(newData && !newData->map.empty() && pwdNode->isPasswordNode()))
+    {
+        LOG_err << "Password Manager: failed Password Node update wrong parameters "
+                << (pwdNode->isPasswordNode() ? "" : "Node provided is not Password Node ")
+                << (newData && !newData->map.empty() ? "" : "nothing to update ");
+        return API_EARGS;
+    }
+
+    AttrMap mergedData;
+    mergedData.fromjson(pwdNode->attrs.map[AttrMap::string2nameid(NODE_ATTR_PASSWORD_MANAGER)].c_str());
+    mergedData.applyUpdates(newData->map);
     attr_map updates;
-    preparePasswordNodePwdValue(updates, newPwd);
+    preparePasswordNodeData(updates, mergedData);
 
     const bool canChangeVault = true;
     return setattr(pwdNode, std::move(updates), std::move(cb), canChangeVault);
