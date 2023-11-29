@@ -2,7 +2,7 @@
  * @file MEGASearchFilterTimeFrame.mm
  * @brief Search time frame used by MEGASearchFilter
  *
- * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
+ * (c) 2023- by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *

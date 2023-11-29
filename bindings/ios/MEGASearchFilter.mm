@@ -2,7 +2,7 @@
  * @file MEGASearchFilter.mm
  * @brief Class which encapsulates all data used for search nodes filtering
  *
- * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
+ * (c) 2023- by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -20,15 +20,17 @@
  */
 #import "MEGASearchFilter.h"
 
+NS_ASSUME_NONNULL_BEGIN
+
 @implementation MEGASearchFilter
 
-- (instancetype _Nonnull)initWithTerm:( NSString * _Nonnull)term
+- (instancetype)initWithTerm:(NSString *)term
             parentNodeHandle:(uint64_t)parentNodeHandle
                     nodeType:(int)nodeType
                     category:(int)category
                  sensitivity:(bool)sensitivity
                 locationType:(int)locationType
-                timeFrame:(MEGASearchFilterTimeFrame* _Nullable) timeFrame {
+                timeFrame:(MEGASearchFilterTimeFrame * _Nullable) timeFrame {
     self = [super init];
 
     if (self != nil) {
@@ -44,21 +46,21 @@
     return self;
 }
 
-- (instancetype _Nonnull)initWithTerm:(NSString * _Nonnull)term
+- (instancetype)initWithTerm:(NSString*)term
             parentNodeHandle: (uint64_t)parentNodeHandle
                     nodeType:(int)nodeType
                     category:(int)category
                  sensitivity:(bool)sensitivity
-                   timeFrame:(MEGASearchFilterTimeFrame* _Nullable) timeFrame {
+                   timeFrame:(MEGASearchFilterTimeFrame * _Nullable) timeFrame {
     return [self initWithTerm:term parentNodeHandle:parentNodeHandle nodeType:nodeType category:category sensitivity:sensitivity locationType:-1 timeFrame:timeFrame];
 }
 
-- (instancetype _Nonnull)initWithTerm: (NSString * _Nonnull)term
+- (instancetype)initWithTerm: (NSString*)term
                     nodeType:(int)nodeType
                     category:(int)category
                  sensitivity:(bool)sensitivity
                 locationType:(int)locationType
-                   timeFrame:(MEGASearchFilterTimeFrame* _Nullable) timeFrame {
+                   timeFrame:(MEGASearchFilterTimeFrame * _Nullable) timeFrame {
     return [self initWithTerm:term parentNodeHandle:-1 nodeType:nodeType category:category sensitivity:sensitivity locationType:locationType timeFrame:timeFrame];
 }
 
@@ -71,3 +73,5 @@
 }
 
 @end
+
+NS_ASSUME_NONNULL_END

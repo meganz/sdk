@@ -2,7 +2,7 @@
  * @file MEGASearchFilter.h
  * @brief Class which encapsulates all data used for search nodes filtering
  *
- * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
+ * (c) 2023- by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -21,9 +21,11 @@
 #import <Foundation/Foundation.h>
 #import "MEGASearchFilterTimeFrame.h"
 
+NS_ASSUME_NONNULL_BEGIN
+
 @interface MEGASearchFilter : NSObject
 
-@property NSString* _Nonnull term;
+@property NSString* term;
 @property MEGASearchFilterTimeFrame* _Nullable timeFrame;
 @property uint64_t parentNodeHandle;
 @property int nodeType;
@@ -31,14 +33,14 @@
 @property bool sensitivity;
 @property int locationType;
 
-- (instancetype _Nonnull)initWithTerm:(NSString * _Nonnull)term
+- (instancetype)initWithTerm:(NSString *)term
             parentNodeHandle:(uint64_t)parentNodeHandle
                     nodeType:(int)nodeType
                     category:(int)category
                  sensitivity:(bool)sensitivity
                 timeFrame:(MEGASearchFilterTimeFrame* _Nullable) timeFrame;
 
-- (instancetype _Nonnull)initWithTerm:(NSString * _Nonnull)term
+- (instancetype)initWithTerm:(NSString *)term
                     nodeType:(int)nodeType
                     category:(int)category
                  sensitivity:(bool)sensitivity
@@ -49,3 +51,5 @@
 -(BOOL)didSetLocationType;
 
 @end
+
+NS_ASSUME_NONNULL_END

@@ -3929,7 +3929,7 @@ using namespace mega;
     delete delegate;
 }
 
--(MegaSearchFilter*)generateSearchFilterFrom:(MEGASearchFilter*)filter {
+-(MegaSearchFilter *)generateSearchFilterFrom:(MEGASearchFilter*)filter {
     MegaSearchFilter* megaFilter = MegaSearchFilter::createInstance();
     
     megaFilter->byName(filter.term.UTF8String);
