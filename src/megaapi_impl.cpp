@@ -16265,20 +16265,22 @@ void MegaApiImpl::addGlobalListener(MegaGlobalListener* listener)
     globalListeners.insert(listener);
 }
 
-void MegaApiImpl::removeListener(MegaListener* listener)
+bool MegaApiImpl::removeListener(MegaListener* listener)
 {
-    if(!listener) return;
+    if(!listener) return false;
 
     SdkMutexGuard g(sdkMutex);
-    listeners.erase(listener);
+
+    return listeners.erase(listener) > 0;
 }
 
-void MegaApiImpl::removeRequestListener(MegaRequestListener* listener)
+bool MegaApiImpl::removeRequestListener(MegaRequestListener* listener)
 {
-    if(!listener) return;
+    if(!listener) return false;
 
     SdkMutexGuard g(sdkMutex);
-    requestListeners.erase(listener);
+
+    auto removed = requestListeners.erase(listener) > 0;
 
     std::map<int, MegaRequestPrivate*>::iterator it = requestMap.begin();
     while(it != requestMap.end())
@@ -16291,14 +16293,17 @@ void MegaApiImpl::removeRequestListener(MegaRequestListener* listener)
     }
 
     requestQueue.removeListener(listener);
+
+    return removed;
 }
 
-void MegaApiImpl::removeTransferListener(MegaTransferListener* listener)
+bool MegaApiImpl::removeTransferListener(MegaTransferListener* listener)
 {
-    if(!listener) return;
+    if(!listener) return false;
 
     SdkMutexGuard g(sdkMutex);
-    transferListeners.erase(listener);
+
+    auto removed = transferListeners.erase(listener) > 0;
 
     std::map<int, MegaTransferPrivate*>::iterator it = transferMap.begin();
     while(it != transferMap.end())
@@ -16311,14 +16316,17 @@ void MegaApiImpl::removeTransferListener(MegaTransferListener* listener)
     }
 
     transferQueue.removeListener(listener);
+
+    return removed;
 }
 
-void MegaApiImpl::removeScheduledCopyListener(MegaScheduledCopyListener* listener)
+bool MegaApiImpl::removeScheduledCopyListener(MegaScheduledCopyListener* listener)
 {
-    if(!listener) return;
+    if(!listener) return false;
 
     SdkMutexGuard g(sdkMutex);
-    backupListeners.erase(listener);
+
+    auto removed = backupListeners.erase(listener);
 
     std::map<int, MegaScheduledCopyController*>::iterator it = backupsMap.begin();
     while(it != backupsMap.end())
@@ -16331,14 +16339,17 @@ void MegaApiImpl::removeScheduledCopyListener(MegaScheduledCopyListener* listene
     }
 
     requestQueue.removeListener(listener);
+
+    return removed;
 }
 
-void MegaApiImpl::removeGlobalListener(MegaGlobalListener* listener)
+bool MegaApiImpl::removeGlobalListener(MegaGlobalListener* listener)
 {
-    if(!listener) return;
+    if(!listener) return false;
 
     SdkMutexGuard g(sdkMutex);
-    globalListeners.erase(listener);
+
+    return globalListeners.erase(listener) > 0;
 }
 
 void MegaApiImpl::fireOnRequestStart(MegaRequestPrivate *request)
