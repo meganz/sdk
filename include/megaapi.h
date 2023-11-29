@@ -9721,46 +9721,72 @@ class MegaApi
         void addScheduledCopyListener(MegaScheduledCopyListener *listener);
 
         /**
-         * @brief Unregister a backup listener
-         * @param listener Objet that will be unregistered
+         * @brief
+         * Unregister a backup listener
+         *
+         * @paramlistener
+         * Object that will be unregistered
+         *
+         * @return
+         * True if listener was found and unregistered.
          */
-        void removeScheduledCopyListener(MegaScheduledCopyListener *listener);
+        bool removeScheduledCopyListener(MegaScheduledCopyListener *listener);
 
         /**
-         * @brief Unregister a listener
+         * @brief
+         * Unregister a listener
          *
          * This listener won't receive more events.
          *
-         * @param listener Object that is unregistered
+         * @param listener
+         * Object that is unregistered
+         *
+         * @return
+         * True if listener was found and unregistered.
          */
-        void removeListener(MegaListener* listener);
+        bool removeListener(MegaListener* listener);
 
         /**
-         * @brief Unregister a MegaRequestListener
+         * @brief
+         * Unregister a MegaRequestListener
          *
          * This listener won't receive more events.
          *
-         * @param listener Object that is unregistered
+         * @param listener
+         * Object that is unregistered
+         *
+         * @return
+         * True if listener was found and unregistered.
          */
-        void removeRequestListener(MegaRequestListener* listener);
+        bool removeRequestListener(MegaRequestListener* listener);
 
         /**
-         * @brief Unregister a MegaTransferListener
+         * @brief
+         * Unregister a MegaTransferListener
          *
          * This listener won't receive more events.
          *
-         * @param listener Object that is unregistered
+         * @param listener
+         * Object that is unregistered
+         *
+         * @return
+         * True if listener was found and unregistered.
          */
-        void removeTransferListener(MegaTransferListener* listener);
+        bool removeTransferListener(MegaTransferListener* listener);
 
         /**
-         * @brief Unregister a MegaGlobalListener
+         * @brief
+         * Unregister a MegaGlobalListener
          *
          * This listener won't receive more events.
          *
-         * @param listener Object that is unregistered
+         * @param listener
+         * Object that is unregistered
+         *
+         * @return
+         * True if listener was found and unregistered.
          */
-        void removeGlobalListener(MegaGlobalListener* listener);
+        bool removeGlobalListener(MegaGlobalListener* listener);
 
         /**
          * @brief Get internal timestamp used by the SDK
