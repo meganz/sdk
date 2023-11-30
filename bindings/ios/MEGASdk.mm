@@ -3186,6 +3186,20 @@ using namespace mega;
     return [MEGANodeList.alloc initWithNodeList:self.megaApi->searchByType(node.getCPtr, searchString.UTF8String, cancelToken.getCPtr, recursive, (int)orderType, (int)nodeFormatType, (int)folderTargetType) cMemoryOwn:YES];
 }
 
+- (MEGANodeList *)searchWith:(MEGASearchFilter *)filter
+               orderType:(MEGASortOrderType)orderType
+             cancelToken:(MEGACancelToken *)cancelToken {
+    if (self.megaApi == nil) return nil;
+    return [MEGANodeList.alloc initWithNodeList:self.megaApi->search([self generateSearchFilterFrom: filter], (int)orderType, cancelToken.getCPtr) cMemoryOwn:YES];
+}
+
+- (MEGANodeList *)searchNonRecursivelyWith:(MEGASearchFilter *)filter
+                              orderType:(MEGASortOrderType)orderType
+                            cancelToken:(MEGACancelToken *)cancelToken {
+    if (self.megaApi == nil) return nil;
+    return [MEGANodeList.alloc initWithNodeList:self.megaApi->getChildren([self generateSearchFilterFrom: filter], (int)orderType, cancelToken.getCPtr) cMemoryOwn:YES];
+}
+
 - (MEGANodeList *)nodeListSearchOnInSharesByString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken order:(MEGASortOrderType)order {
     if (self.megaApi == nil) return nil;
     return [MEGANodeList.alloc initWithNodeList:self.megaApi->searchOnInShares(searchString.UTF8String, cancelToken.getCPtr, (int)order) cMemoryOwn:YES];
@@ -3920,6 +3934,29 @@ using namespace mega;
     _activeTransferListeners.erase(delegate);
     pthread_mutex_unlock(&listenerMutex);
     delete delegate;
+}
+
+- (MegaSearchFilter *)generateSearchFilterFrom:(MEGASearchFilter *)filter {
+    MegaSearchFilter *megaFilter = MegaSearchFilter::createInstance();
+
+    megaFilter->byName(filter.term.UTF8String);
+    megaFilter->byNodeType(filter.nodeType);
+    megaFilter->byCategory(filter.category);
+    megaFilter->bySensitivity(filter.sensitivity);
+
+    if (filter.didSetLocationType) {
+        megaFilter->byLocation(filter.locationType);
+    }
+
+    if (filter.didSetParentNodeHandle) {
+        megaFilter->byLocationHandle(filter.parentNodeHandle);
+    }
+
+    if (filter.timeFrame != nil) {
+        megaFilter->byCreationTime(filter.timeFrame.lowerLimit, filter.timeFrame.upperLimit);
+    }
+
+    return megaFilter;
 }
 
 #pragma mark - Cookie Dialog

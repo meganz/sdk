@@ -141,11 +141,18 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     std::string sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle int64 PRIMARY KEY NOT NULL, "
                       "parenthandle int64, name text, fingerprint BLOB, origFingerprint BLOB, "
                       "type tinyint, size int64, share tinyint, fav tinyint, "
-                      "ctime int64, flags int64, counter BLOB NOT NULL, node BLOB NOT NULL)";
+                      "ctime int64, mtime int64, flags int64, counter BLOB NOT NULL, node BLOB NOT NULL)";
     int result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
     if (result)
     {
         LOG_debug << "Data base error: " << sqlite3_errmsg(db);
+        sqlite3_close(db);
+        return nullptr;
+    }
+
+    // Add 'mtime' column to old 'nodes' table
+    if (!ensureMtimeColumnIsInNodesTable(db))
+    {
         sqlite3_close(db);
         return nullptr;
     }
@@ -321,6 +328,102 @@ void SqliteDbAccess::removeDBFiles(FileSystemAccess& fsAccess, mega::LocalPath& 
 
 #endif
 
+}
+
+bool SqliteDbAccess::ensureMtimeColumnIsInNodesTable(sqlite3* db)
+{
+    bool hasMtimeColumn = false;
+    string sql = "SELECT COUNT(*) FROM pragma_table_info('nodes') WHERE name = 'mtime'";
+    int result = sqlite3_exec(db, sql.c_str(), [](void* hasColumn, int colCount, char** colVals, char**)
+    {
+        *static_cast<bool*>(hasColumn) = colCount && colVals[0][0] != '0';
+        return 0;
+    },
+    &hasMtimeColumn, nullptr);
+
+    if (result != SQLITE_OK)
+    {
+        LOG_debug << "Db error while checking for 'nodes.mtime' column: " << sqlite3_errmsg(db);
+        return false;
+    }
+
+    if (!hasMtimeColumn)
+    {
+        if (sqlite3_exec(db, "BEGIN", nullptr, nullptr, nullptr) != SQLITE_OK)
+        {
+            LOG_debug << "Db error for begin transaction: " << sqlite3_errmsg(db);
+            return false;
+        }
+        if (sqlite3_exec(db, "ALTER TABLE nodes ADD COLUMN mtime int64", nullptr, nullptr, nullptr) != SQLITE_OK)
+        {
+            LOG_debug << "Db error while adding 'nodes.mtime' column: " << sqlite3_errmsg(db);
+            return false;
+        }
+
+        // populate column
+        string cr = copyMtimeFromFingerprint(db) ? "COMMIT" : "ROLLBACK";
+
+        if (sqlite3_exec(db, cr.c_str(), nullptr, nullptr, nullptr) != SQLITE_OK)
+        {
+            LOG_debug << "Db error for " << cr << " transaction: " << sqlite3_errmsg(db);
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool SqliteDbAccess::copyMtimeFromFingerprint(sqlite3* db)
+{
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, "SELECT nodehandle, fingerprint FROM nodes", -1, &stmt, nullptr) != SQLITE_OK)
+    {
+        LOG_debug << "Db error while preparing to extract mtime: " << sqlite3_errmsg(db);
+        return false;
+    }
+
+    map<handle, m_time_t> mtimes;
+    while (sqlite3_step(stmt) == SQLITE_ROW)
+    {
+        const char* fp = static_cast<const char*>(sqlite3_column_blob(stmt, 1));
+        size_t fpSize = sqlite3_column_bytes(stmt, 1);
+
+        if (sizeof(m_off_t) + sizeof(m_time_t) + 4 * sizeof(int32_t) + sizeof(bool) > fpSize)
+        {
+            LOG_err << "File fingerprint size too big";
+            return false;
+        }
+
+        mtimes[sqlite3_column_int64(stmt, 0)] = MemAccess::get<m_time_t>(fp + sizeof(m_off_t));
+    }
+    sqlite3_finalize(stmt);
+
+    if (mtimes.empty())
+    {
+        return true;
+    }
+
+    if (sqlite3_prepare_v2(db, "UPDATE nodes SET mtime = ? WHERE nodehandle = ?", -1, &stmt, nullptr) != SQLITE_OK)
+    {
+        LOG_debug << "Db error while preparing to update mtime: " << sqlite3_errmsg(db);
+        return false;
+    }
+
+    for (const auto& n : mtimes)
+    {
+        int stepResult;
+        if (sqlite3_bind_int64(stmt, 1, n.second) != SQLITE_OK ||
+            sqlite3_bind_int64(stmt, 2, n.first) != SQLITE_OK ||
+            ((stepResult = sqlite3_step(stmt)) != SQLITE_DONE && stepResult != SQLITE_ROW) ||
+            sqlite3_reset(stmt) != SQLITE_OK)
+        {
+            LOG_debug << "Db error while updating mtime: " << sqlite3_errmsg(db);
+            return false;
+        }
+    }
+    sqlite3_finalize(stmt);
+
+    return true;
 }
 
 SqliteDbTable::SqliteDbTable(PrnGen &rng, sqlite3* db, FileSystemAccess &fsAccess, const LocalPath &path, const bool checkAlwaysTransacted, DBErrorCallback dBErrorCallBack)
@@ -931,8 +1034,8 @@ bool SqliteAccountState::put(Node *node)
     if (!mStmtPutNode)
     {
         sqlResult = sqlite3_prepare_v2(db, "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, "
-                                           "name, fingerprint, origFingerprint, type, size, share, fav, ctime, flags, counter, node) "
-                                           "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &mStmtPutNode, NULL);
+                                           "name, fingerprint, origFingerprint, type, size, share, fav, ctime, mtime, flags, counter, node) "
+                                           "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &mStmtPutNode, NULL);
     }
 
     if (sqlResult == SQLITE_OK)
@@ -971,10 +1074,11 @@ bool SqliteAccountState::put(Node *node)
         bool fav = (favIt != node->attrs.map.end() && favIt->second == "1"); // test 'fav' attr value (only "1" is valid)
         sqlite3_bind_int(mStmtPutNode, 9, fav);
         sqlite3_bind_int64(mStmtPutNode, 10, node->ctime);
-        sqlite3_bind_int64(mStmtPutNode, 11, node->getDBFlags());
+        sqlite3_bind_int64(mStmtPutNode, 11, node->mtime);
+        sqlite3_bind_int64(mStmtPutNode, 12, node->getDBFlags());
         std::string nodeCountersBlob = node->getCounter().serialize();
-        sqlite3_bind_blob(mStmtPutNode, 12, nodeCountersBlob.data(), static_cast<int>(nodeCountersBlob.size()), SQLITE_STATIC);
-        sqlite3_bind_blob(mStmtPutNode, 13, nodeSerialized.data(), static_cast<int>(nodeSerialized.size()), SQLITE_STATIC);
+        sqlite3_bind_blob(mStmtPutNode, 13, nodeCountersBlob.data(), static_cast<int>(nodeCountersBlob.size()), SQLITE_STATIC);
+        sqlite3_bind_blob(mStmtPutNode, 14, nodeSerialized.data(), static_cast<int>(nodeSerialized.size()), SQLITE_STATIC);
 
         sqlResult = sqlite3_step(mStmtPutNode);
     }
@@ -1249,8 +1353,8 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, vecto
                                "WHERE (n1.flags & ? = 0) "
                                  "AND (n1.parenthandle = ?) "
                                  "AND (? = " + std::to_string(TYPE_UNKNOWN) + " OR n1.type = ?) "
-                                 "AND (? = 0 OR ? < n1.ctime) "
-                                 "AND (? = 0 OR n1.ctime < ?) "
+                                 "AND (? = 0 OR ? < n1.ctime) AND (? = 0 OR n1.ctime < ?) "
+                                 "AND (? = 0 OR ? < n1.mtime) AND (? = 0 OR (0 < n1.mtime AND n1.mtime < ?)) " // mtime is not used (0) for some nodes
                                  "AND (? = " + std::to_string(MIME_TYPE_UNKNOWN) + " OR (n1.type = " + std::to_string(FILENODE) + " AND ismimetype(n1.name, ?))) "
                                  "AND (n1.name REGEXP ?) ";
         // Leading and trailing '*' will be added to argument '?' so we are looking for a substring of name
@@ -1272,11 +1376,15 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, vecto
         (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 6, filter.byCreationTimeLowerLimit())) == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 7, filter.byCreationTimeUpperLimit())) == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 8, filter.byCreationTimeUpperLimit())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int(mStmtGetChildren, 9, filter.byCategory())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int(mStmtGetChildren, 10, filter.byCategory())) == SQLITE_OK)
+        (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 9, filter.byModificationTimeLowerLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 10, filter.byModificationTimeLowerLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 11, filter.byModificationTimeUpperLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 12, filter.byModificationTimeUpperLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int(mStmtGetChildren, 13, filter.byCategory())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int(mStmtGetChildren, 14, filter.byCategory())) == SQLITE_OK)
     {
         string wildCardName = '*' + filter.byName() + '*';
-        if ((sqlResult = sqlite3_bind_text(mStmtGetChildren, 11, wildCardName.c_str(), static_cast<int>(wildCardName.length()), SQLITE_STATIC)) == SQLITE_OK)
+        if ((sqlResult = sqlite3_bind_text(mStmtGetChildren, 15, wildCardName.c_str(), static_cast<int>(wildCardName.length()), SQLITE_STATIC)) == SQLITE_OK)
         {
             result = processSqlQueryNodes(mStmtGetChildren, children);
         }
@@ -1312,8 +1420,8 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, vector<pair
                                "FROM nodes n1 "
                                "WHERE (n1.flags & ? = 0) "
                                  "AND (? = " + std::to_string(TYPE_UNKNOWN) + " OR n1.type = ?) "
-                                 "AND (? = 0 OR ? < n1.ctime) "
-                                 "AND (? = 0 OR n1.ctime < ?) "
+                                 "AND (? = 0 OR ? < n1.ctime) AND (? = 0 OR n1.ctime < ?) "
+                                 "AND (? = 0 OR ? < n1.mtime) AND (? = 0 OR (0 < n1.mtime AND n1.mtime < ?)) " // mtime is not used (0) for some nodes
                                  "AND (? = " + std::to_string(NO_SHARES) + " OR n1.share = ?) "
                                  "AND (? = " + std::to_string(MIME_TYPE_UNKNOWN) + " OR (n1.type = " + std::to_string(FILENODE) + " AND ismimetype(n1.name, ?))) "
                                  "AND (n1.name REGEXP ?) ";
@@ -1335,13 +1443,17 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, vector<pair
         (sqlResult = sqlite3_bind_int64(mStmtSearchNodes, 5, filter.byCreationTimeLowerLimit())) == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int64(mStmtSearchNodes, 6, filter.byCreationTimeUpperLimit())) == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int64(mStmtSearchNodes, 7, filter.byCreationTimeUpperLimit())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int(mStmtSearchNodes, 8, filter.byShareType())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int(mStmtSearchNodes, 9, filter.byShareType())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int(mStmtSearchNodes, 10, filter.byCategory())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int(mStmtSearchNodes, 11, filter.byCategory())) == SQLITE_OK)
+        (sqlResult = sqlite3_bind_int64(mStmtSearchNodes, 8, filter.byModificationTimeLowerLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(mStmtSearchNodes, 9, filter.byModificationTimeLowerLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(mStmtSearchNodes, 10, filter.byModificationTimeUpperLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(mStmtSearchNodes, 11, filter.byModificationTimeUpperLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int(mStmtSearchNodes, 12, filter.byShareType())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int(mStmtSearchNodes, 13, filter.byShareType())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int(mStmtSearchNodes, 14, filter.byCategory())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int(mStmtSearchNodes, 15, filter.byCategory())) == SQLITE_OK)
     {
         string wildCardName = '*' + filter.byName() + '*';
-        if ((sqlResult = sqlite3_bind_text(mStmtSearchNodes, 12, wildCardName.c_str(), static_cast<int>(wildCardName.length()), SQLITE_STATIC)) == SQLITE_OK)
+        if ((sqlResult = sqlite3_bind_text(mStmtSearchNodes, 16, wildCardName.c_str(), static_cast<int>(wildCardName.length()), SQLITE_STATIC)) == SQLITE_OK)
         {
             result = processSqlQueryNodes(mStmtSearchNodes, nodes);
         }

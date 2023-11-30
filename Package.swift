@@ -35,8 +35,7 @@ let package = Package(
                       "src/win32",
                       "src/wincurl",
                       "src/mega_utf8proc_data.c",
-                      "src/thread/libuvthread.cpp",
-                      "src/osx/fs.cpp"],
+                      "src/thread/libuvthread.cpp"],
             cxxSettings: [
                 .headerSearchPath("bindings/ios"),
                 .headerSearchPath("include/mega/posix"),

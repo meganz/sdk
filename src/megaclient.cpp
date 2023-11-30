@@ -14330,7 +14330,8 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
                 {
                     LOG_err << "Pre-failing fetching nodes: unable not get user data";
                     restag = fetchtag;
-                    app->fetchnodes_result(API_EINTERNAL);
+                    fetchingnodes = false;
+                    app->fetchnodes_result(e);
                     return;
                 }
 
