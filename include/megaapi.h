@@ -5206,14 +5206,6 @@ class MegaRequest
          * @return MegaVpnCredentials* if there are any VPN credentials for the user, nullptr otherwise.
          */
         virtual MegaVpnCredentials* getMegaVpnCredentials() const;
-
-        /**
-         * @brief Returns the node tree created with MegaApi::createNodeTree from which to obtain
-         * the handles of all nested nodes.
-         *
-         * @return node tree created.
-         */
-        virtual const MegaNodeTree* getNodeTree() const = 0;
 };
 
 /**
@@ -9352,13 +9344,12 @@ protected:
 
 public:
     virtual ~MegaNodeTree() = default;
-    static MegaNodeTree* createInstance(const MegaNodeTree* nodeTreeChild,
+    static MegaNodeTree* createInstance(MegaNodeTree* nodeTreeChild,
                                         const char* name,
                                         const char* s4AttributeValue,
-                                        MegaCompleteUploadData* completeUploadData);
-    virtual const MegaNodeTree* getNodeTreeChild() const = 0;
+                                        const MegaCompleteUploadData* completeUploadData);
+    virtual MegaNodeTree* getNodeTreeChild() const = 0;
     virtual MegaHandle getNodeHandle() const = 0;
-    virtual MegaNodeTree* copy() const = 0;
 };
 
 class MegaCompleteUploadData
@@ -9371,7 +9362,6 @@ public:
     static MegaCompleteUploadData* createInstance(const char* fingerprint,
                                                   const char* string64UploadToken,
                                                   const char* string64FileKey);
-    virtual MegaCompleteUploadData* copy() const = 0;
 };
 
 class MegaApiImpl;
@@ -22040,19 +22030,15 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_CREATE_NODE_TREE.
          *
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNodeTree - Returns the node tree created from which to obtain the
-         * handles of all nested nodes.
-         *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EARGS - Parameters are incorrect.
          *
          * @param parentNode Parent node from which to create the node tree.
-         * @param nodeTree Node tree to create.
+         * @param nodeTree Node tree to create which is fulfilled with the new node handles.
          * @param listener Listener to track the request.
          */
         void createNodeTree(const MegaNode* parentNode,
-                            const MegaNodeTree* nodeTree,
+                            MegaNodeTree* nodeTree,
                             MegaRequestListener* listener);
 
  private:

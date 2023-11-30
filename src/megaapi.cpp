@@ -5798,7 +5798,7 @@ void MegaApi::setVisibleWelcomeDialog(bool visible, MegaRequestListener* listene
 }
 
 void MegaApi::createNodeTree(const MegaNode* parentNode,
-                             const MegaNodeTree* nodeTree,
+                             MegaNodeTree* nodeTree,
                              MegaRequestListener* listener)
 {
     pImpl->createNodeTree(parentNode, nodeTree, listener);
@@ -7675,10 +7675,10 @@ MegaVpnCredentials* MegaVpnCredentials::copy() const
 }
 /* MegaVpnCredentials END */
 
-MegaNodeTree* MegaNodeTree::createInstance(const MegaNodeTree* nodeTreeChild,
+MegaNodeTree* MegaNodeTree::createInstance(MegaNodeTree* nodeTreeChild,
                                            const char* name,
                                            const char* s4AttributeValue,
-                                           MegaCompleteUploadData* completeUploadData)
+                                           const MegaCompleteUploadData* completeUploadData)
 {
     return new MegaNodeTreePrivate(nodeTreeChild,
                                    name ? name : "",

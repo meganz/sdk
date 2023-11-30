@@ -15966,7 +15966,7 @@ TEST_F(SdkTest, CreateNodeTreeWithEmptyParentNode)
     const unsigned int apiIndex{0};
 
     // Create node tree
-    const std::unique_ptr<MegaNodeTree> nodeTree{
+    std::unique_ptr<MegaNodeTree> nodeTree{
         MegaNodeTree::createInstance(nullptr, nullptr, nullptr, nullptr)};
 
     ASSERT_EQ(API_EARGS, synchronousCreateNodeTree(apiIndex, nullptr, nodeTree.get()));
@@ -15982,7 +15982,7 @@ TEST_F(SdkTest, CreateNodeTreeWithEmptyNodeTree)
 
     const unsigned int apiIndex{0};
 
-    const std::unique_ptr<MegaNode> parentNode{megaApi[apiIndex]->getRootNode()};
+    std::unique_ptr<MegaNode> parentNode{megaApi[apiIndex]->getRootNode()};
     ASSERT_THAT(parentNode, ::testing::NotNull());
 
     ASSERT_EQ(API_EARGS, synchronousCreateNodeTree(apiIndex, parentNode.get(), nullptr));
@@ -15998,21 +15998,17 @@ TEST_F(SdkTest, CreateNodeTreeWithMalformedNodeTree)
 
     const unsigned int apiIndex{0};
 
-    const std::unique_ptr<MegaNode> parentNode{megaApi[apiIndex]->getRootNode()};
+    std::unique_ptr<MegaNode> parentNode{megaApi[apiIndex]->getRootNode()};
     ASSERT_THAT(parentNode, ::testing::NotNull());
 
     // Create node tree
-    const std::unique_ptr<MegaNodeTree> nodeTreeChild{
-        MegaNodeTree::createInstance(nullptr, nullptr, nullptr, nullptr)};
+    auto nodeTreeChild{MegaNodeTree::createInstance(nullptr, nullptr, nullptr, nullptr)};
 
-    const std::unique_ptr<MegaCompleteUploadData> completeUploadData{
+    const auto completeUploadData{
         MegaCompleteUploadData::createInstance(nullptr, nullptr, nullptr)};
 
-    const std::unique_ptr<MegaNodeTree> nodeTree{
-        MegaNodeTree::createInstance(nodeTreeChild.get(),
-                                     nullptr,
-                                     nullptr,
-                                     completeUploadData.get())};
+    std::unique_ptr<MegaNodeTree> nodeTree{
+        MegaNodeTree::createInstance(nodeTreeChild, nullptr, nullptr, completeUploadData)};
 
     ASSERT_EQ(API_EARGS, synchronousCreateNodeTree(apiIndex, parentNode.get(), nodeTree.get()));
 }
@@ -16027,11 +16023,11 @@ TEST_F(SdkTest, CreateNodeTreeWithOneDirectoryWithoutName)
 
     const unsigned int apiIndex{0};
 
-    const std::unique_ptr<MegaNode> parentNode{megaApi[apiIndex]->getRootNode()};
+    std::unique_ptr<MegaNode> parentNode{megaApi[apiIndex]->getRootNode()};
     ASSERT_THAT(parentNode, ::testing::NotNull());
 
     // Create node tree
-    const std::unique_ptr<MegaNodeTree> nodeTree{
+    std::unique_ptr<MegaNodeTree> nodeTree{
         MegaNodeTree::createInstance(nullptr, nullptr, nullptr, nullptr)};
 
     ASSERT_EQ(API_EARGS, synchronousCreateNodeTree(apiIndex, parentNode.get(), nodeTree.get()));
@@ -16049,24 +16045,19 @@ TEST_F(SdkTest, CreateNodeTreeWithOneDirectoryAndNoS4Attribute)
 
     const unsigned int apiIndex{0};
 
-    const std::unique_ptr<MegaNode> parentNode{megaApi[apiIndex]->getRootNode()};
+    std::unique_ptr<MegaNode> parentNode{megaApi[apiIndex]->getRootNode()};
     ASSERT_THAT(parentNode, ::testing::NotNull());
 
     // Create node tree
     const std::string directoryName{"directory"};
-    const std::unique_ptr<MegaNodeTree> nodeTree{
+    std::unique_ptr<MegaNodeTree> nodeTree{
         MegaNodeTree::createInstance(nullptr, directoryName.c_str(), nullptr, nullptr)};
 
-    const std::unique_ptr<RequestTracker> requestTracker{
-        asyncCreateNodeTree(apiIndex, parentNode.get(), nodeTree.get())};
-    ASSERT_EQ(API_OK, requestTracker->waitForResult());
+    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, parentNode.get(), nodeTree.get()));
 
-    // Check response
-    const auto nodeTreeResponse{requestTracker->getNodeTree()};
-    ASSERT_THAT(nodeTreeResponse, ::testing::NotNull());
-
-    const auto directoryNodeHandle{nodeTreeResponse->getNodeHandle()};
-    const std::unique_ptr<MegaNode> directoryNode{
+    // Check result
+    const auto directoryNodeHandle{nodeTree->getNodeHandle()};
+    std::unique_ptr<MegaNode> directoryNode{
         megaApi[apiIndex]->getNodeByHandle(directoryNodeHandle)};
     ASSERT_THAT(directoryNode, ::testing::NotNull());
     ASSERT_STREQ(directoryName.c_str(), directoryNode->getName());
@@ -16085,28 +16076,22 @@ TEST_F(SdkTest, CreateNodeTreeWithOneDirectoryAndS4Attribute)
 
     const unsigned int apiIndex{0};
 
-    const std::unique_ptr<MegaNode> parentNode{megaApi[apiIndex]->getRootNode()};
+    std::unique_ptr<MegaNode> parentNode{megaApi[apiIndex]->getRootNode()};
     ASSERT_THAT(parentNode, ::testing::NotNull());
 
     // Create node tree
     const std::string directoryName{"directory"};
     const std::string s4AttributeValue{"value"};
-    const std::unique_ptr<MegaNodeTree> nodeTree{
-        MegaNodeTree::createInstance(nullptr,
-                                     directoryName.c_str(),
-                                     s4AttributeValue.c_str(),
-                                     nullptr)};
+    std::unique_ptr<MegaNodeTree> nodeTree{MegaNodeTree::createInstance(nullptr,
+                                                                        directoryName.c_str(),
+                                                                        s4AttributeValue.c_str(),
+                                                                        nullptr)};
 
-    const std::unique_ptr<RequestTracker> requestTracker{
-        asyncCreateNodeTree(apiIndex, parentNode.get(), nodeTree.get())};
-    ASSERT_EQ(API_OK, requestTracker->waitForResult());
+    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, parentNode.get(), nodeTree.get()));
 
-    // Check response
-    const auto nodeTreeResponse{requestTracker->getNodeTree()};
-    ASSERT_THAT(nodeTreeResponse, ::testing::NotNull());
-
-    const auto directoryNodeHandle{nodeTreeResponse->getNodeHandle()};
-    const std::unique_ptr<MegaNode> directoryNode{
+    // Check result
+    const auto directoryNodeHandle{nodeTree->getNodeHandle()};
+    std::unique_ptr<MegaNode> directoryNode{
         megaApi[apiIndex]->getNodeByHandle(directoryNodeHandle)};
     ASSERT_THAT(directoryNode, ::testing::NotNull());
     ASSERT_STREQ(directoryName.c_str(), directoryNode->getName());
@@ -16142,30 +16127,22 @@ TEST_F(SdkTest, CreateNodeTreeWithOneFile)
                                                              string64FileKey));
 
     // Create node tree
-    const std::unique_ptr<MegaNode> parentNode{megaApi[apiIndex]->getRootNode()};
+    std::unique_ptr<MegaNode> parentNode{megaApi[apiIndex]->getRootNode()};
     ASSERT_THAT(parentNode, ::testing::NotNull());
 
-    const std::unique_ptr<MegaCompleteUploadData> completeUploadData{
+    const auto completeUploadData{
         MegaCompleteUploadData::createInstance(fingerprint.c_str(),
                                                string64UploadToken.c_str(),
                                                string64FileKey.c_str())};
 
-    const std::unique_ptr<MegaNodeTree> nodeTree{
-        MegaNodeTree::createInstance(nullptr,
-                                     IMAGEFILE.c_str(),
-                                     nullptr,
-                                     completeUploadData.get())};
+    std::unique_ptr<MegaNodeTree> nodeTree{
+        MegaNodeTree::createInstance(nullptr, IMAGEFILE.c_str(), nullptr, completeUploadData)};
 
-    const std::unique_ptr<RequestTracker> requestTracker{
-        asyncCreateNodeTree(apiIndex, parentNode.get(), nodeTree.get())};
-    ASSERT_EQ(API_OK, requestTracker->waitForResult());
+    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, parentNode.get(), nodeTree.get()));
 
-    // Check response
-    const auto nodeTreeResponse{requestTracker->getNodeTree()};
-    ASSERT_THAT(nodeTreeResponse, ::testing::NotNull());
-
-    const auto fileNodeHandle{nodeTreeResponse->getNodeHandle()};
-    const std::unique_ptr<MegaNode> fileNode{megaApi[apiIndex]->getNodeByHandle(fileNodeHandle)};
+    // Check result
+    const auto fileNodeHandle{nodeTree->getNodeHandle()};
+    std::unique_ptr<MegaNode> fileNode{megaApi[apiIndex]->getNodeByHandle(fileNodeHandle)};
     ASSERT_THAT(fileNode, ::testing::NotNull());
     ASSERT_STREQ(IMAGEFILE.c_str(), fileNode->getName());
     ASSERT_EQ(fileSize, fileNode->getSize());
@@ -16184,56 +16161,44 @@ TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectories)
 
     const unsigned int apiIndex{0};
 
-    const std::unique_ptr<MegaNode> parentNode{megaApi[apiIndex]->getRootNode()};
+    std::unique_ptr<MegaNode> parentNode{megaApi[apiIndex]->getRootNode()};
     ASSERT_THAT(parentNode, ::testing::NotNull());
 
     // Create node tree
     const std::string directoryNameLevel2{"directory_2"};
-    const std::unique_ptr<MegaNodeTree> nodeTreeLevel2{
+    auto nodeTreeLevel2{
         MegaNodeTree::createInstance(nullptr, directoryNameLevel2.c_str(), nullptr, nullptr)};
 
     const std::string directoryNameLevel1{"directory_1"};
-    const std::unique_ptr<MegaNodeTree> nodeTreeLevel1{
-        MegaNodeTree::createInstance(nodeTreeLevel2.get(),
-                                     directoryNameLevel1.c_str(),
-                                     nullptr,
-                                     nullptr)};
+    auto nodeTreeLevel1{MegaNodeTree::createInstance(nodeTreeLevel2,
+                                                     directoryNameLevel1.c_str(),
+                                                     nullptr,
+                                                     nullptr)};
 
     const std::string directoryNameLevel0{"directory_0"};
-    const std::unique_ptr<MegaNodeTree> nodeTreeLevel0{
-        MegaNodeTree::createInstance(nodeTreeLevel1.get(),
+    std::unique_ptr<MegaNodeTree> nodeTreeLevel0{
+        MegaNodeTree::createInstance(nodeTreeLevel1,
                                      directoryNameLevel0.c_str(),
                                      nullptr,
                                      nullptr)};
 
-    const std::unique_ptr<RequestTracker> requestTracker{
-        asyncCreateNodeTree(apiIndex, parentNode.get(), nodeTreeLevel0.get())};
-    ASSERT_EQ(API_OK, requestTracker->waitForResult());
+    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, parentNode.get(), nodeTreeLevel0.get()));
 
-    // Check response
-    const auto nodeTreeResponseLevel0{requestTracker->getNodeTree()};
-    ASSERT_THAT(nodeTreeResponseLevel0, ::testing::NotNull());
-
-    const auto directoryNodeHandleLevel0{nodeTreeResponseLevel0->getNodeHandle()};
-    const std::unique_ptr<MegaNode> directoryNodeLevel0{
+    // Check result
+    const auto directoryNodeHandleLevel0{nodeTreeLevel0->getNodeHandle()};
+    std::unique_ptr<MegaNode> directoryNodeLevel0{
         megaApi[apiIndex]->getNodeByHandle(directoryNodeHandleLevel0)};
     ASSERT_THAT(directoryNodeLevel0, ::testing::NotNull());
     ASSERT_STREQ(directoryNameLevel0.c_str(), directoryNodeLevel0->getName());
 
-    const auto nodeTreeResponseLevel1{nodeTreeResponseLevel0->getNodeTreeChild()};
-    ASSERT_THAT(nodeTreeResponseLevel1, ::testing::NotNull());
-
-    const auto directoryNodeHandleLevel1{nodeTreeResponseLevel1->getNodeHandle()};
-    const std::unique_ptr<MegaNode> directoryNodeLevel1{
+    const auto directoryNodeHandleLevel1{nodeTreeLevel1->getNodeHandle()};
+    std::unique_ptr<MegaNode> directoryNodeLevel1{
         megaApi[apiIndex]->getNodeByHandle(directoryNodeHandleLevel1)};
     ASSERT_THAT(directoryNodeLevel1, ::testing::NotNull());
     ASSERT_STREQ(directoryNameLevel1.c_str(), directoryNodeLevel1->getName());
 
-    const auto nodeTreeResponseLevel2{nodeTreeResponseLevel1->getNodeTreeChild()};
-    ASSERT_THAT(nodeTreeResponseLevel2, ::testing::NotNull());
-
-    const auto directoryNodeHandleLevel2{nodeTreeResponseLevel2->getNodeHandle()};
-    const std::unique_ptr<MegaNode> directoryNodeLevel2{
+    const auto directoryNodeHandleLevel2{nodeTreeLevel2->getNodeHandle()};
+    std::unique_ptr<MegaNode> directoryNodeLevel2{
         megaApi[apiIndex]->getNodeByHandle(directoryNodeHandleLevel2)};
     ASSERT_THAT(directoryNodeLevel2, ::testing::NotNull());
     ASSERT_STREQ(directoryNameLevel2.c_str(), directoryNodeLevel2->getName());
@@ -16252,7 +16217,7 @@ TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectoriesAndOneFileAtTheEnd)
 
     const unsigned int apiIndex{0};
 
-    const std::unique_ptr<MegaNode> parentNode{megaApi[apiIndex]->getRootNode()};
+    std::unique_ptr<MegaNode> parentNode{megaApi[apiIndex]->getRootNode()};
     ASSERT_THAT(parentNode, ::testing::NotNull());
 
     // File upload
@@ -16271,75 +16236,56 @@ TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectoriesAndOneFileAtTheEnd)
                                                              string64FileKey));
 
     // Create node tree
-    const std::unique_ptr<MegaCompleteUploadData> completeUploadData{
+    const auto completeUploadData{
         MegaCompleteUploadData::createInstance(fingerprint.c_str(),
                                                string64UploadToken.c_str(),
                                                string64FileKey.c_str())};
 
-    const std::unique_ptr<MegaNodeTree> nodeTreeLevel3{
-        MegaNodeTree::createInstance(nullptr,
-                                     IMAGEFILE.c_str(),
-                                     nullptr,
-                                     completeUploadData.get())};
+    auto nodeTreeLevel3{
+        MegaNodeTree::createInstance(nullptr, IMAGEFILE.c_str(), nullptr, completeUploadData)};
 
     const std::string directoryNameLevel2{"directory_2"};
-    const std::unique_ptr<MegaNodeTree> nodeTreeLevel2{
-        MegaNodeTree::createInstance(nodeTreeLevel3.get(),
-                                     directoryNameLevel2.c_str(),
-                                     nullptr,
-                                     nullptr)};
+    auto nodeTreeLevel2{MegaNodeTree::createInstance(nodeTreeLevel3,
+                                                     directoryNameLevel2.c_str(),
+                                                     nullptr,
+                                                     nullptr)};
 
     const std::string directoryNameLevel1{"directory_1"};
-    const std::unique_ptr<MegaNodeTree> nodeTreeLevel1{
-        MegaNodeTree::createInstance(nodeTreeLevel2.get(),
-                                     directoryNameLevel1.c_str(),
-                                     nullptr,
-                                     nullptr)};
+    auto nodeTreeLevel1{MegaNodeTree::createInstance(nodeTreeLevel2,
+                                                     directoryNameLevel1.c_str(),
+                                                     nullptr,
+                                                     nullptr)};
 
     const std::string directoryNameLevel0{"directory_0"};
-    const std::unique_ptr<MegaNodeTree> nodeTreeLevel0{
-        MegaNodeTree::createInstance(nodeTreeLevel1.get(),
+    std::unique_ptr<MegaNodeTree> nodeTreeLevel0{
+        MegaNodeTree::createInstance(nodeTreeLevel1,
                                      directoryNameLevel0.c_str(),
                                      nullptr,
                                      nullptr)};
 
-    const std::unique_ptr<RequestTracker> requestTracker{
-        asyncCreateNodeTree(apiIndex, parentNode.get(), nodeTreeLevel0.get())};
-    ASSERT_EQ(API_OK, requestTracker->waitForResult());
+    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, parentNode.get(), nodeTreeLevel0.get()));
 
-    // Check response
-    const auto nodeTreeResponseLevel0{requestTracker->getNodeTree()};
-    ASSERT_THAT(nodeTreeResponseLevel0, ::testing::NotNull());
-
-    const auto directoryNodeHandleLevel0{nodeTreeResponseLevel0->getNodeHandle()};
-    const std::unique_ptr<MegaNode> directoryNodeLevel0{
+    // Check result
+    const auto directoryNodeHandleLevel0{nodeTreeLevel0->getNodeHandle()};
+    std::unique_ptr<MegaNode> directoryNodeLevel0{
         megaApi[apiIndex]->getNodeByHandle(directoryNodeHandleLevel0)};
     ASSERT_THAT(directoryNodeLevel0, ::testing::NotNull());
     ASSERT_STREQ(directoryNameLevel0.c_str(), directoryNodeLevel0->getName());
 
-    const auto nodeTreeResponseLevel1{nodeTreeResponseLevel0->getNodeTreeChild()};
-    ASSERT_THAT(nodeTreeResponseLevel1, ::testing::NotNull());
-
-    const auto directoryNodeHandleLevel1{nodeTreeResponseLevel1->getNodeHandle()};
-    const std::unique_ptr<MegaNode> directoryNodeLevel1{
+    const auto directoryNodeHandleLevel1{nodeTreeLevel1->getNodeHandle()};
+    std::unique_ptr<MegaNode> directoryNodeLevel1{
         megaApi[apiIndex]->getNodeByHandle(directoryNodeHandleLevel1)};
     ASSERT_THAT(directoryNodeLevel1, ::testing::NotNull());
     ASSERT_STREQ(directoryNameLevel1.c_str(), directoryNodeLevel1->getName());
 
-    const auto nodeTreeResponseLevel2{nodeTreeResponseLevel1->getNodeTreeChild()};
-    ASSERT_THAT(nodeTreeResponseLevel2, ::testing::NotNull());
-
-    const auto directoryNodeHandleLevel2{nodeTreeResponseLevel2->getNodeHandle()};
-    const std::unique_ptr<MegaNode> directoryNodeLevel2{
+    const auto directoryNodeHandleLevel2{nodeTreeLevel2->getNodeHandle()};
+    std::unique_ptr<MegaNode> directoryNodeLevel2{
         megaApi[apiIndex]->getNodeByHandle(directoryNodeHandleLevel2)};
     ASSERT_THAT(directoryNodeLevel2, ::testing::NotNull());
     ASSERT_STREQ(directoryNameLevel2.c_str(), directoryNodeLevel2->getName());
 
-    const auto nodeTreeResponseLevel3{nodeTreeResponseLevel2->getNodeTreeChild()};
-    ASSERT_THAT(nodeTreeResponseLevel3, ::testing::NotNull());
-
-    const auto fileNodeHandle{nodeTreeResponseLevel3->getNodeHandle()};
-    const std::unique_ptr<MegaNode> fileNode{megaApi[apiIndex]->getNodeByHandle(fileNodeHandle)};
+    const auto fileNodeHandle{nodeTreeLevel3->getNodeHandle()};
+    std::unique_ptr<MegaNode> fileNode{megaApi[apiIndex]->getNodeByHandle(fileNodeHandle)};
     ASSERT_THAT(fileNode, ::testing::NotNull());
     ASSERT_STREQ(IMAGEFILE.c_str(), fileNode->getName());
     ASSERT_EQ(fileSize, fileNode->getSize());

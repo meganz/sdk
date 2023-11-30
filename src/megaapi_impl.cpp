@@ -3783,7 +3783,6 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
 #endif // ENABLE_SYNC
     this->mStringList.reset(request->mStringList ? request->mStringList->copy() : nullptr);
     this->mMegaVpnCredentials.reset(request->mMegaVpnCredentials ? request->mMegaVpnCredentials->copy() : nullptr);
-    this->mNodeTree.reset(request->mNodeTree ? request->mNodeTree->copy() : nullptr);
 }
 
 std::shared_ptr<AccountDetails> MegaRequestPrivate::getAccountDetails() const
@@ -4422,16 +4421,6 @@ MegaVpnCredentials* MegaRequestPrivate::getMegaVpnCredentials() const
 void MegaRequestPrivate::setMegaVpnCredentials(MegaVpnCredentials* megaVpnCredentials)
 {
     mMegaVpnCredentials.reset(megaVpnCredentials);
-}
-
-const MegaNodeTree* MegaRequestPrivate::getNodeTree() const
-{
-    return mNodeTree.get();
-}
-
-void MegaRequestPrivate::setNodeTree(MegaNodeTree* nodeTree)
-{
-    mNodeTree.reset(nodeTree);
 }
 
 const char *MegaRequestPrivate::getRequestString() const
@@ -14142,34 +14131,10 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
                     (request->getType() != MegaRequest::TYPE_MOVE) &&
                     (request->getType() != MegaRequest::TYPE_RESTORE) &&
                     (request->getType() != MegaRequest::TYPE_ADD_SYNC) &&
-                    (request->getType() != MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD) &&
-                    (request->getType() != MegaRequest::TYPE_CREATE_NODE_TREE))) return;
+                    (request->getType() != MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD))) return;
 
     if (request->getType() == MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD)
     {
-        request->setNodeHandle(h);
-        request->setFlag(targetOverride);
-        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-        return;
-    }
-
-    if (request->getType() == MegaRequest::TYPE_CREATE_NODE_TREE)
-    {
-        MegaNodeTreePrivate* lastNodeTree{nullptr};
-        for (auto it{nn.rbegin()}; nn.rend() != it; ++it)
-        {
-            if (const auto node{client->nodebyhandle(it->mAddedHandle)})
-            {
-                const auto newNodeTree{new MegaNodeTreePrivate(lastNodeTree,
-                                                               "",
-                                                               "",
-                                                               nullptr,
-                                                               node->nodehandle)};
-                delete lastNodeTree;
-                lastNodeTree = newNodeTree;
-            }
-        }
-        request->setNodeTree(lastNodeTree);
         request->setNodeHandle(h);
         request->setFlag(targetOverride);
         fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
@@ -26200,7 +26165,7 @@ void MegaApiImpl::setVisibleWelcomeDialog(bool visible, MegaRequestListener* lis
 }
 
 void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
-                                 const MegaNodeTree* nodeTree,
+                                 MegaNodeTree* nodeTree,
                                  MegaRequestListener* listener)
 {
     auto request{new MegaRequestPrivate(MegaRequest::TYPE_CREATE_NODE_TREE, listener)};
@@ -26218,9 +26183,8 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
 
         handle tmpNodeHandle{1};
         handle tmpParentNodeHandle{UNDEF};
-        for (auto tmpNodeTree{dynamic_cast<const MegaNodeTreePrivate*>(nodeTree)}; tmpNodeTree;
-             tmpNodeTree =
-                 dynamic_cast<const MegaNodeTreePrivate*>(tmpNodeTree->getNodeTreeChild()))
+        for (auto tmpNodeTree{dynamic_cast<MegaNodeTreePrivate*>(nodeTree)}; tmpNodeTree;
+             tmpNodeTree = dynamic_cast<MegaNodeTreePrivate*>(tmpNodeTree->getNodeTreeChild()))
         {
             const auto completeUploadData{dynamic_cast<const MegaCompleteUploadDataPrivate*>(
                 tmpNodeTree->getCompleteUploadData())};
@@ -26307,12 +26271,33 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
             newNodes.push_back(std::move(newNode));
         }
 
+        auto result{
+            [this,
+             request,
+             nodeTree](const Error& error, targettype_t, vector<NewNode>& newNodes, bool, int)
+            {
+                size_t i{};
+                auto tmpNodeTree{dynamic_cast<MegaNodeTreePrivate*>(nodeTree)};
+                while (i < newNodes.size() && tmpNodeTree)
+                {
+                    if (auto node{client->nodebyhandle(newNodes[i].mAddedHandle)})
+                    {
+                        tmpNodeTree->setNodeHandle(node->nodehandle);
+                    }
+                    i++;
+                    tmpNodeTree =
+                        dynamic_cast<MegaNodeTreePrivate*>(tmpNodeTree->getNodeTreeChild());
+                }
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(error));
+            }};
+
         client->putnodes(parentNodeHandle,
                          NoVersioning,
                          std::move(newNodes),
                          nullptr,
                          request->getTag(),
-                         false);
+                         false,
+                         result);
         return API_OK;
     };
 
@@ -37490,27 +37475,19 @@ MegaVpnCredentials* MegaVpnCredentialsPrivate::copy() const
 }
 /* MegaVpnCredentials END */
 
-MegaNodeTreePrivate::MegaNodeTreePrivate(const MegaNodeTree* nodeTreeChild,
+MegaNodeTreePrivate::MegaNodeTreePrivate(MegaNodeTree* nodeTreeChild,
                                          const std::string& name,
                                          const std::string& s4AttributeValue,
                                          const MegaCompleteUploadData* completeUploadData,
                                          MegaHandle nodeHandle):
-    mNodeTreeChild{nodeTreeChild ? nodeTreeChild->copy() : nullptr},
+    mNodeTreeChild{nodeTreeChild},
     mName{name},
     mS4AttributeValue{s4AttributeValue},
-    mCompleteUploadData{completeUploadData ? completeUploadData->copy() : nullptr},
+    mCompleteUploadData{completeUploadData},
     mNodeHandle{nodeHandle}
 {}
 
-MegaNodeTreePrivate::MegaNodeTreePrivate(const MegaNodeTreePrivate& other):
-    MegaNodeTreePrivate{other.getNodeTreeChild(),
-                        other.getName(),
-                        other.getS4AttributeValue(),
-                        other.getCompleteUploadData(),
-                        other.getNodeHandle()}
-{}
-
-const MegaNodeTree* MegaNodeTreePrivate::getNodeTreeChild() const
+MegaNodeTree* MegaNodeTreePrivate::getNodeTreeChild() const
 {
     return mNodeTreeChild.get();
 }
@@ -37535,9 +37512,9 @@ MegaHandle MegaNodeTreePrivate::getNodeHandle() const
     return mNodeHandle;
 }
 
-MegaNodeTreePrivate* MegaNodeTreePrivate::copy() const
+void MegaNodeTreePrivate::setNodeHandle(const MegaHandle& nodeHandle)
 {
-    return new MegaNodeTreePrivate(*this);
+    mNodeHandle = nodeHandle;
 }
 
 MegaCompleteUploadDataPrivate::MegaCompleteUploadDataPrivate(const std::string& fingerprint,
@@ -37546,13 +37523,6 @@ MegaCompleteUploadDataPrivate::MegaCompleteUploadDataPrivate(const std::string& 
     mFingerprint{fingerprint},
     mString64UploadToken{string64UploadToken},
     mString64FileKey{string64FileKey}
-{}
-
-MegaCompleteUploadDataPrivate::MegaCompleteUploadDataPrivate(
-    const MegaCompleteUploadDataPrivate& other):
-    MegaCompleteUploadDataPrivate{other.getFingerprint(),
-                                  other.getString64UploadToken(),
-                                  other.getString64FileKey()}
 {}
 
 const std::string& MegaCompleteUploadDataPrivate::getFingerprint() const
@@ -37568,11 +37538,6 @@ const std::string& MegaCompleteUploadDataPrivate::getString64UploadToken() const
 const std::string& MegaCompleteUploadDataPrivate::getString64FileKey() const
 {
     return mString64FileKey;
-}
-
-MegaCompleteUploadDataPrivate* MegaCompleteUploadDataPrivate::copy() const
-{
-    return new MegaCompleteUploadDataPrivate(*this);
 }
 
 } // namespace mega

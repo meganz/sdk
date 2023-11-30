@@ -197,11 +197,6 @@ struct RequestTracker : public ::mega::MegaRequestListener
     {
         return request ? request->getFlag() : false;
     }
-
-    const MegaNodeTree* getNodeTree() const
-    {
-        return request ? request->getNodeTree() : nullptr;
-    }
 };
 
 
