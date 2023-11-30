@@ -633,8 +633,8 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         bool isExpired() override;
         bool isTakenDown() override;
         bool isForeign() override;
-        bool isPasswordNode() override;
-        PasswordNodeData* getPasswordData() override;
+        bool isPasswordNode() const override;
+        PasswordNodeData* getPasswordData() const override;
         std::string* getPrivateAuth() override;
         MegaNodeList *getChildren() override;
         void setPrivateAuth(const char *privateAuth) override;
@@ -3605,7 +3605,7 @@ public:
 
         // Password Manager
         void getPasswordManagerBase(MegaRequestListener *listener = nullptr);
-        bool isPasswordNodeFolder(MegaHandle node);
+        bool isPasswordNodeFolder(MegaHandle node) const;
         void createPasswordNode(const char *name, const MegaNode::PasswordNodeData *data,
                                 MegaHandle parent, MegaRequestListener *listener = nullptr);
         void updatePasswordNode(MegaHandle node, const MegaNode::PasswordNodeData* newData,
@@ -3757,7 +3757,7 @@ private:
         set<MegaGlobalListener *> globalListeners;
         set<MegaListener *> listeners;
         retryreason_t waitingRequest;
-        std::recursive_timed_mutex sdkMutex;
+        mutable std::recursive_timed_mutex sdkMutex;
         using SdkMutexGuard = std::unique_lock<std::recursive_timed_mutex>;   // (equivalent to typedef)
         MegaTransferPrivate *currentTransfer;
         string appKey;

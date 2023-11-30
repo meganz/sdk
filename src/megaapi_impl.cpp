@@ -1828,13 +1828,13 @@ bool MegaNodePrivate::isForeign()
     return foreign;
 }
 
-bool MegaNodePrivate::isPasswordNode()
+bool MegaNodePrivate::isPasswordNode() const
 {
     return (type == FOLDERNODE &&
             getOfficialAttr(MegaClient::NODE_ATTR_PASSWORD_MANAGER) != nullptr);
 }
 
-MegaNode::PasswordNodeData* MegaNodePrivate::getPasswordData()
+MegaNode::PasswordNodeData* MegaNodePrivate::getPasswordData() const
 {
     if (isPasswordNode())
     {
@@ -26204,7 +26204,7 @@ void MegaApiImpl::getPasswordManagerBase(MegaRequestListener* listener)
     waiter->notify();
 }
 
-bool MegaApiImpl::isPasswordNodeFolder(MegaHandle h)
+bool MegaApiImpl::isPasswordNodeFolder(MegaHandle h) const
 {
     if(h == UNDEF) return false;
 

@@ -974,7 +974,16 @@ class MegaNode
          * Check if the node is new
          *
          * - MegaNode::CHANGE_TYPE_PWD_VALUE       = 0x8000
-         * Check if Password Node password value for this node has changed
+         * Check if Password Node Data password value for this node changed
+         *
+         * - MegaNode::CHANGE_TYPE_PWD_NOTES       = 0x10000
+         * Check if Password Node Data notes value for this node changed
+         *
+         * - MegaNode::CHANGE_TYPE_PWD_URL         = 0x20000
+         * Check if Password Node Data URL value for this node changed
+         *
+         * - MegaNode::CHANGE_TYPE_PWD_USERNAME    = 0x40000
+         * Check if Password Node Data user name value for this node changed
          *
          * @return true if this node has an specific change
          */
@@ -1031,7 +1040,16 @@ class MegaNode
          * Check if counter for this node (its subtree) has changed
          *
          * - MegaNode::CHANGE_TYPE_PWD_VALUE       = 0x8000
-         * Check if Password Node password value for this node has changed
+         * Check if Password Node Data password value for this node changed
+         *
+         * - MegaNode::CHANGE_TYPE_PWD_NOTES       = 0x10000
+         * Check if Password Node Data notes value for this node changed
+         *
+         * - MegaNode::CHANGE_TYPE_PWD_URL         = 0x20000
+         * Check if Password Node Data URL value for this node changed
+         *
+         * - MegaNode::CHANGE_TYPE_PWD_USERNAME    = 0x40000
+         * Check if Password Node Data user name value for this node changed
          *
          */
         virtual uint64_t getChanges();
@@ -1136,16 +1154,16 @@ class MegaNode
          *
          * @return true if this node is a Password Node
          */
-        virtual bool isPasswordNode();
+        virtual bool isPasswordNode() const;
 
         /**
          * @brief Gets the Password Node value if the node is a Password Node
          *
          * Non-set MegaNode::PasswordNodeData members will return nullptr/NULL
          *
-         * @return Password Node data
+         * @return Password Node data. Caller receives ownership.
          */
-        virtual MegaNode::PasswordNodeData* getPasswordData();
+        virtual MegaNode::PasswordNodeData* getPasswordData() const;
 
         /**
          * @brief Returns a string that contains the decryption key of the file (in binary format)
@@ -11884,7 +11902,7 @@ class MegaApi
          * @param node MegaHandle of the node to check if it is a Password Node Folder
          * @return true if this node is a Password Node Folder
          */
-        virtual bool isPasswordNodeFolder(MegaHandle node);
+        virtual bool isPasswordNodeFolder(MegaHandle node) const;
 
         /**
          * @brief Create a new Password Node in your Password Manager tree
@@ -11893,8 +11911,6 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParentHandle - Handle of the parent provided as an argument
          * - MegaRequest::getName - name for the new Password Node provided as an argument
-         * - MegaRequest::getText - password value for the new Password Node provided as
-         *   an argument
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -11917,7 +11933,6 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_UPDATE_PASSWORD_NODE
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - handle provided of the Password Node to update
-         * - MegaRequest::getText - new password provided for the Password Node to update
          *
          * If the MEGA account is a business account and it's status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.

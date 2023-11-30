@@ -21,6 +21,8 @@
 
 #include "mega/attrmap.h"
 
+#include <mega/json.h>
+
 namespace mega {
 // approximate raw storage size of serialized AttrMap, not taking JSON escaping
 // or name length into account

@@ -602,7 +602,7 @@ bool MegaNode::isForeign()
     return false;
 }
 
-bool MegaNode::isPasswordNode()
+bool MegaNode::isPasswordNode() const
 {
     return false;
 }
@@ -615,7 +615,7 @@ MegaNode::PasswordNodeData* MegaNode::PasswordNodeData::createInstance(const cha
     return new MegaNodePrivate::PNDataPrivate(pwd, notes, url, userName);
 }
 
-MegaNode::PasswordNodeData* MegaNode::getPasswordData()
+MegaNode::PasswordNodeData* MegaNode::getPasswordData() const
 {
     return NULL;
 }
@@ -2491,7 +2491,7 @@ void MegaApi::getPasswordManagerBase(MegaRequestListener *listener)
     pImpl->getPasswordManagerBase(listener);
 }
 
-bool MegaApi::isPasswordNodeFolder(MegaHandle node)
+bool MegaApi::isPasswordNodeFolder(MegaHandle node) const
 {
     return pImpl->isPasswordNodeFolder(node);
 }
