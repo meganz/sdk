@@ -20012,9 +20012,9 @@ void MegaClient::fetchCreditCardInfo(CommandFetchCreditCardCompletion completion
 
 const char* const MegaClient::NODE_ATTR_PASSWORD_MANAGER = "pwm";
 const char* const MegaClient::PWM_ATTR_PASSWORD_NOTES = "n";
-const char* const MegaClient::PWM_ATTR_PASSWORD_URL = "ur";
-const char* const MegaClient::PWM_ATTR_PASSWORD_USERNAME = "us";
-const char* const MegaClient::PWM_ATTR_PASSWORD_PWD = "pass";
+const char* const MegaClient::PWM_ATTR_PASSWORD_URL = "url";
+const char* const MegaClient::PWM_ATTR_PASSWORD_USERNAME = "un";
+const char* const MegaClient::PWM_ATTR_PASSWORD_PWD = "pwd";
 
 NodeHandle MegaClient::getPasswordManagerBase()
 {
