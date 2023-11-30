@@ -101,14 +101,14 @@ pipeline {
                     //Build SDK for arm64
                     sh "echo Building SDK for arm64"
                     sh "rm -rf ${BUILD_DIR}; mkdir ${BUILD_DIR}"
-                    sh "cmake -DENABLE_SDKLIB_WERROR=1 -DENABLE_CHAT=1 -DCMAKE_BUILD_TYPE=Debug -DVCPKG_ROOT=${VCPKGPATH} ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=1 \
+                    sh "cmake -DENABLE_SDKLIB_WERROR=ON -DENABLE_CHAT=ON -DCMAKE_BUILD_TYPE=Debug -DVCPKG_ROOT=${VCPKGPATH} ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=ON \
                     -S ${mac_sources_workspace} -B ${mac_sources_workspace}/${BUILD_DIR}"
                     sh "cmake --build ${mac_sources_workspace}/${BUILD_DIR} -j1"
 
                     //Build SDK for x64
                     sh "echo Building SDK for x64"
                     sh "rm -rf ${BUILD_DIR_X64}; mkdir ${BUILD_DIR_X64}"
-                    sh "cmake -DENABLE_SDKLIB_WERROR=1 -DENABLE_CHAT=1 -DCMAKE_BUILD_TYPE=Debug -DVCPKG_ROOT=${VCPKGPATH} ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=1 \
+                    sh "cmake -DENABLE_SDKLIB_WERROR=ON -DENABLE_CHAT=ON -DCMAKE_BUILD_TYPE=Debug -DVCPKG_ROOT=${VCPKGPATH} ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=ON \
                     -DVCPKG_TARGET_TRIPLET=x64-osx-mega \
                     -S ${mac_sources_workspace} -B ${mac_sources_workspace}/${BUILD_DIR_X64}"
                     sh "cmake --build ${mac_sources_workspace}/${BUILD_DIR_X64} -j1"

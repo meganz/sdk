@@ -96,7 +96,7 @@ pipeline {
                     sh "rm -rf ${BUILD_DIR}; mkdir ${BUILD_DIR}"
                     //Build SDK
                     sh "echo Building SDK"
-                    sh "cmake -DENABLE_SDKLIB_WERROR=1 -DUSE_PDFIUM=OFF -DENABLE_CHAT=1 -DCMAKE_BUILD_TYPE=Debug ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=1 \
+                    sh "cmake -DENABLE_SDKLIB_WERROR=ON -DUSE_PDFIUM=OFF -DENABLE_CHAT=ON -DCMAKE_BUILD_TYPE=Debug ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=ON \
                     -S ${linux_sources_workspace} -B ${linux_sources_workspace}/${BUILD_DIR}"
                     sh "cmake --build ${linux_sources_workspace}/${BUILD_DIR} -j1"
                 }
