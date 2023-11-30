@@ -1210,5 +1210,19 @@ fs::path getLinkExtractSrciptPath();
 bool isFileHidden(const LocalPath& path);
 bool isFileHidden(const fs::path& path);
 
+// Useful utilities.
+bool createFile(const fs::path& path,
+                const void* data,
+                const size_t data_length);
+
+bool createFile(const fs::path &path,
+                const std::string &data);
+
+bool createFile(const fs::path& path,
+                const std::string& data,
+                std::chrono::seconds delta);
+
+std::string randomData(const std::size_t length);
+
 #endif // TEST_H
 

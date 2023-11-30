@@ -248,6 +248,8 @@ private:
     bool openDBAndCreateStatecache(sqlite3 **db, FileSystemAccess& fsAccess, const string& name, mega::LocalPath &dbPath, const int flags);
     bool renameDBFiles(mega::FileSystemAccess& fsAccess, mega::LocalPath& legacyPath, mega::LocalPath& dbPath);
     void removeDBFiles(mega::FileSystemAccess& fsAccess, mega::LocalPath& dbPath);
+    bool ensureMtimeColumnIsInNodesTable(sqlite3* db);
+    bool copyMtimeFromFingerprint(sqlite3* db);
 };
 
 } // namespace

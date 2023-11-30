@@ -1135,28 +1135,26 @@ void SdkTest::onNodesUpdateCheck(size_t apiIndex, MegaHandle target, MegaNodeLis
 
 bool SdkTest::createFile(string filename, bool largeFile, string content)
 {
-    fs::path p = fs::u8path(filename);
-    std::ofstream file(p,ios::out);
+    // Convenience.
+    constexpr auto KiB = 1024ul;
+    constexpr auto MiB = 1024ul * KiB;
 
-    if (file)
-    {
-        int limit = 2000;
+    auto limit = 2000ul;
 
-        // create a file large enough for long upload/download times (5-10MB)
-        if (largeFile)
-            limit = 1000000 + rand() % 1000000;
+    // Caller wants to generate a large file.
+    if (largeFile)
+        limit = MiB + static_cast<unsigned long>(rand()) % MiB;
 
-        //limit = 5494065 / 5;
+    std::string temp;
 
-        for (int i = 0; i < limit; i++)
-        {
-            file << content;
-        }
+    temp.reserve(content.size() * limit);
 
-        file.close();
-    }
+    // Generate file content.
+    while (limit--)
+        temp.append(content);
 
-    return file.good();
+    // Write the file to disk.
+    return ::createFile(fs::u8path(filename), temp);
 }
 
 int64_t SdkTest::getFilesize(string filename)
@@ -11562,6 +11560,193 @@ TEST_F(SdkTest, SearchNodesByCreationTime)
 
 
 /**
+ * @brief TEST_F SearchNodesByModificationTime
+ *
+ * Test filtering nodes by mtime in search() and getChildren()
+ *
+ */
+TEST_F(SdkTest, SearchNodesByModificationTime)
+{
+    LOG_info << "___TEST SearchNodesByModificationTime___";
+
+    /// /
+    ///     TestMTime_Folder.Foo/
+    ///         TestMTime_File1.bar
+    ///         TestMTime_File2.bar
+    ///     TestMTime_FileAtRoot.bar
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // TestCTime_Folder.Foo
+    unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootnode);
+
+    string folderName = "TestMTime_Folder.Foo";
+    MegaHandle folderHandle = createFolder(0, folderName.c_str(), rootnode.get());
+    ASSERT_NE(folderHandle, INVALID_HANDLE);
+    unique_ptr<MegaNode> folderNode(megaApi[0]->getNodeByHandle(folderHandle));
+    ASSERT_TRUE(folderNode);
+
+    // TestCTime_Folder.Foo / TestMTime_File1.bar
+    string fileName1 = "TestMTime_File1.bar";
+    ASSERT_TRUE(createFile(fileName1, false));
+
+    MegaHandle fileHandle1 = 0;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &fileHandle1, fileName1.c_str(), folderNode.get(),
+                                               nullptr /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload " << fileName1;
+
+    ASSERT_NE(fileHandle1, INVALID_HANDLE);
+    unique_ptr<MegaNode> fileNode1(megaApi[0]->getNodeByHandle(fileHandle1));
+    ASSERT_TRUE(fileNode1);
+    int64_t fileMTime1Old = fileNode1->getModificationTime();
+    ASSERT_NE(fileMTime1Old, 0) << "Invalid modification time for file " << fileName1;
+
+    std::this_thread::sleep_for(std::chrono::milliseconds{1500}); // avoid nodes having identical MTime
+    // modify file
+    {
+    ofstream f(fileName1);
+    f << "update ";
+    f.close();
+    }
+
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &fileHandle1, fileName1.c_str(), folderNode.get(),
+                                               nullptr /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload modified " << fileName1;
+    ASSERT_NE(fileHandle1, INVALID_HANDLE);
+    fileNode1.reset(megaApi[0]->getNodeByHandle(fileHandle1));
+    ASSERT_TRUE(fileNode1);
+    int64_t fileMTime1 = fileNode1->getModificationTime();
+    ASSERT_NE(fileMTime1, 0) << "Invalid modification time after update for file " << fileName1;
+    ASSERT_NE(fileMTime1Old, fileMTime1) << "Test file has the same Modification time after being updated";
+
+    std::this_thread::sleep_for(std::chrono::milliseconds{1500}); // avoid nodes having identical MTime
+    // modify file
+    {
+    ofstream f(fileName1);
+    f << "update ";
+    f.close();
+    }
+
+    // TestCTime_Folder.Foo / TestMTime_File2.bar
+    string fileName2 = "TestMTime_File2.bar";
+    MegaHandle fileHandle2 = 0;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &fileHandle2, fileName1.c_str(), folderNode.get(),
+                                               fileName2.c_str() /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload " << fileName2;
+
+    ASSERT_NE(fileHandle2, INVALID_HANDLE);
+    unique_ptr<MegaNode> fileNode2(megaApi[0]->getNodeByHandle(fileHandle2));
+    ASSERT_TRUE(fileNode2);
+    int64_t fileMTime2 = fileNode2->getModificationTime();
+    ASSERT_NE(fileMTime2, 0) << "Invalid modification time for file 2 " << fileName2;
+
+    std::this_thread::sleep_for(std::chrono::milliseconds{2200}); // avoid nodes having identical MTime
+    // modify file
+    {
+    ofstream f(fileName1);
+    f << "update ";
+    f.close();
+    }
+
+    // TestMTime_FileAtRoot.bar
+    string fileNameAtRoot = "TestMTime_FileAtRoot.bar";
+    MegaHandle fileHandleAtRoot = 0;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &fileHandleAtRoot, fileName1.c_str(), rootnode.get(),
+                                               fileNameAtRoot.c_str() /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload " << fileName1 << " at root";
+
+    ASSERT_NE(fileHandleAtRoot, INVALID_HANDLE);
+    unique_ptr<MegaNode> fileNodeAtRoot(megaApi[0]->getNodeByHandle(fileHandleAtRoot));
+    ASSERT_TRUE(fileNodeAtRoot);
+    int64_t fileMTimeR = fileNodeAtRoot->getModificationTime();
+    ASSERT_NE(fileMTimeR, 0) << "Invalid modification time for file at root " << fileName1;
+
+    // getChildren()
+    unique_ptr<MegaSearchFilter> f(MegaSearchFilter::createInstance());
+    f->byName("TestMTime_*");
+    f->byLocationHandle(rootnode->getHandle());
+    unique_ptr<MegaNodeList> results(megaApi[0]->getChildren(f.get(), MegaApi::ORDER_DEFAULT_ASC));
+    ASSERT_EQ(results->size(), 2);
+    ASSERT_EQ(results->get(0)->getName(), folderName); // folders come first
+    ASSERT_EQ(results->get(1)->getName(), fileNameAtRoot);
+
+    f->byModificationTime(fileMTimeR - 1, 0);
+    results.reset(megaApi[0]->getChildren(f.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getName(), fileNameAtRoot);
+
+    f->byLocationHandle(folderHandle);
+    f->byModificationTime(fileMTime1 - 1, 0);
+    results.reset(megaApi[0]->getChildren(f.get(), MegaApi::ORDER_DEFAULT_ASC));
+    ASSERT_EQ(results->size(), 2);
+    ASSERT_EQ(results->get(0)->getName(), fileName1);
+    ASSERT_EQ(results->get(1)->getName(), fileName2);
+
+    f->byModificationTime(0, fileMTime2);
+    results.reset(megaApi[0]->getChildren(f.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getName(), fileName1);
+
+    f->byModificationTime(fileMTime1, fileMTime1);
+    results.reset(megaApi[0]->getChildren(f.get()));
+    ASSERT_EQ(results->size(), 0) << "Found " << results->get(0)->getName();
+
+    f->byModificationTime(fileMTime1 - 1, fileMTime2 + 1);
+    results.reset(megaApi[0]->getChildren(f.get(), MegaApi::ORDER_DEFAULT_ASC));
+    ASSERT_EQ(results->size(), 2);
+    ASSERT_EQ(results->get(0)->getName(), fileName1);
+    ASSERT_EQ(results->get(1)->getName(), fileName2);
+
+    // search()
+    f->byLocationHandle(INVALID_HANDLE);
+    f->byModificationTime(fileMTime1 - 100, fileMTimeR + 1);
+    results.reset(megaApi[0]->search(f.get(), MegaApi::ORDER_DEFAULT_ASC));
+    ASSERT_EQ(results->size(), 3);
+    ASSERT_EQ(results->get(0)->getName(), fileName1);
+    ASSERT_EQ(results->get(1)->getName(), fileName2);
+    ASSERT_EQ(results->get(2)->getName(), fileNameAtRoot);
+
+    f->byModificationTime(fileMTimeR, fileMTimeR);
+    results.reset(megaApi[0]->search(f.get()));
+    ASSERT_EQ(results->size(), 0);
+
+    f->byModificationTime(fileMTimeR - 1, fileMTimeR + 1);
+    results.reset(megaApi[0]->search(f.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getName(), fileNameAtRoot);
+
+    f->byModificationTime(0, fileMTime2);
+    results.reset(megaApi[0]->search(f.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getName(), fileName1);
+
+    f->byModificationTime(fileMTime1, 0);
+    results.reset(megaApi[0]->search(f.get(), MegaApi::ORDER_DEFAULT_ASC));
+    ASSERT_EQ(results->size(), 2);
+    ASSERT_EQ(results->get(0)->getName(), fileName2);
+    ASSERT_EQ(results->get(1)->getName(), fileNameAtRoot);
+
+    deleteFile(fileName1);
+}
+
+
+/**
  * @brief TEST_F SearchNodesByNodeType
  *
  * Test filtering nodes by node type in search() and getChildren()
@@ -15143,32 +15328,29 @@ TEST_F(SdkTest, SdkTestJourneyTracking)
 }
 
 /**
- * @brief TEST_F SdkTestDeleteListenerBeforeFinishingRequest
+ * Make sure instances of RequestTracker disconnect themselves from the API.
  *
- * Tests deleting the listener after a request has started and before it has finished (before fireOnRequestFinish() call).
+ * FIXME: Should be a unit test rather than an integration test.
  */
-TEST_F(SdkTest, SdkTestDeleteListenerBeforeFinishingRequest)
+TEST_F(SdkTest, SdkTestListenerRemovedWhenRequestTrackerDestroyed)
 {
-    LOG_info << "___TEST SdkTestDeleteListenerBeforeFinishingRequest";
+    // Get our hands on a client we can play with.
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-    {
-        string link = MegaClient::MEGAURL+"/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns";
-        auto rt = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+    // Convenience.
+    auto* api = megaApi[0].get();
 
-        std::unique_ptr<MegaNode> parent{megaApi[0]->getRootNode()};
-        mApi[0].megaApi->importFileLink(link.c_str(), parent.get(), rt.get());
+    // Instantiate request tracker.
+    auto* tracker = new RequestTracker(api, nullptr);
 
-        // Brief wait for the request to start before getting out of the scope
-        // The RequestTracker object, the one used as the listener, will be deleted after the scope ends
-        const auto start = std::chrono::steady_clock::now();
-        while (!rt->started.load() && ((std::chrono::steady_clock::now() - start) < std::chrono::seconds(maxTimeout))) // Timeout just in case it never starts
-        {
-            std::this_thread::sleep_for(std::chrono::microseconds{10});
-        }
-        ASSERT_TRUE(rt->started);
-        ASSERT_FALSE(rt->finished);
-    }
+    // Register tracker with the API.
+    api->addRequestListener(tracker);
+
+    // Destroy tracker.
+    delete tracker;
+
+    // Tracker should no longer be associated with the API.
+    ASSERT_FALSE(api->removeRequestListener(tracker));
 }
 
 /**

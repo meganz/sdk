@@ -1,0 +1,19 @@
+{
+  "name": "pdfium",
+  "version": "5247",
+  "port-version": 1,
+  "description": "Library to render PDF files",
+  "homepage": "https://pdfium.googlesource.com/pdfium/",
+  "license": " Apache-2.0",
+  "dependencies": [
+    {"name" : "vcpkg-cmake", "host" : true },
+    {"name": "vcpkg-cmake-config", "host": true },
+    "icu",
+    "lcms",
+    "libjpeg-turbo",
+    "openjpeg",
+    "bzip2",
+    "libpng",
+    "freetype"
+  ]
+}
