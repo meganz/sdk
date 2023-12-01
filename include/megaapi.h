@@ -504,56 +504,56 @@ class MegaNode
              *
              * @param pwd Value to set
              */
-            virtual void password(const char* pwd) =0;
+            virtual void password(const char* pwd) = 0;
 
             /**
              * @brief Set notes attribute value.
              *
              * @param pwd Value to set
              */
-            virtual void notes(const char* n) =0;
+            virtual void notes(const char* n) = 0;
 
             /**
              * @brief Set URL attribute value.
              *
              * @param pwd Value to set
              */
-            virtual void url(const char* u) =0;
+            virtual void url(const char* u) = 0;
 
             /**
              * @brief Set user name attribute value.
              *
              * @param pwd Value to set
              */
-            virtual void userName(const char* un) =0;
+            virtual void userName(const char* un) = 0;
 
             /**
              * @brief Get password attribute value.
              *
              * @return null-terminated string with the password value or nullptr/NULL if none
              */
-            virtual const char* password() const =0;
+            virtual const char* password() const = 0;
 
             /**
              * @brief Get notes attribute value.
              *
              * @return null-terminated string with the password value or nullptr/NULL if none
              */
-            virtual const char* notes() const =0;
+            virtual const char* notes() const = 0;
 
             /**
              * @brief Get URL attribute value.
              *
              * @return null-terminated string with the password value or nullptr/NULL if none
              */
-            virtual const char* url() const =0;
+            virtual const char* url() const = 0;
 
             /**
              * @brief Get user name attribute value.
              *
              * @return null-terminated string with the password value or nullptr/NULL if none
              */
-            virtual const char* userName() const =0;
+            virtual const char* userName() const = 0;
 
             virtual ~PasswordNodeData() = default;
         protected:

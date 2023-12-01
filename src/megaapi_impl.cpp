@@ -63,10 +63,8 @@
 namespace mega {
 
 MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, uint64_t nodehandle,
-                                 const string *nodekey, const string *fileattrstring, const char *fingerprint,
-                                 const char *originalFingerprint, MegaHandle owner, MegaHandle parentHandle,
-                                 const char *privateauth, const char *publicauth, bool ispublic, bool isForeign,
-                                 const char *chatauth, bool isNodeKeyDecrypted)
+                                 const string *nodekey, const string *fileattrstring, const char *fingerprint, const char *originalFingerprint, MegaHandle owner, MegaHandle parentHandle,
+                                 const char *privateauth, const char *publicauth, bool ispublic, bool isForeign, const char *chatauth, bool isNodeKeyDecrypted)
 : MegaNode()
 {
     this->name = MegaApi::strdup(name);
@@ -15165,10 +15163,9 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
     else
     {
         MegaNodePrivate *megaNodePrivate = new MegaNodePrivate(fileName.c_str(), FILENODE, size, 0, mtime, ph, &keystring,
-                                                               fa, fingerprint.size() ? fingerprint.c_str() : NULL,
-                                                               originalfingerprint.size() ? originalfingerprint.c_str() : NULL,
-                                                               INVALID_HANDLE, INVALID_HANDLE, nullptr, nullptr, true,
-                                                               false, nullptr, isNodeKeyDecrypted);
+                                                           fa, fingerprint.size() ? fingerprint.c_str() : NULL,
+                                                           originalfingerprint.size() ? originalfingerprint.c_str() : NULL, INVALID_HANDLE, INVALID_HANDLE,
+                                                               nullptr, nullptr, true, false, nullptr, isNodeKeyDecrypted);
         request->setPublicNode(megaNodePrivate);
         delete megaNodePrivate;
         fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(MegaError::API_OK));
