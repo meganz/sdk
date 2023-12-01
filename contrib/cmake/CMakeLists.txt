@@ -422,7 +422,7 @@ endif()
 
 if (USE_THIRDPARTY_FROM_VCPKG)
         IF(USE_CRYPTOPP)
-            ImportStdVcpkgLibrary(cryptopp        cryptopp-static cryptopp-static libcryptopp libcryptopp)
+            ImportStdVcpkgLibrary(cryptopp        cryptopp cryptopp libcryptopp libcryptopp)
         ENDIF(USE_CRYPTOPP)
 
         ImportStdVcpkgLibrary(sodium          libsodium libsodium libsodium libsodium)
