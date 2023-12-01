@@ -88,7 +88,7 @@ pipeline {
                 timeout(time: 120, unit: 'MINUTES')
             }
             environment{
-                VCPKGPATH = "${env.HOME}/3rdparty_cmake/vcpkg"
+                VCPKGPATH = "${env.HOME}/3rdparty/vcpkg"
                 BUILD_DIR = "build_dir"
             }
             steps{
