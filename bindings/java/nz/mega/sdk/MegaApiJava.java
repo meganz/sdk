@@ -2744,6 +2744,82 @@ public class MegaApiJava {
     }
 
     /**
+     * Get Password Manager Base folder node from the MEGA account
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_CREATE_PASSWORD_MANAGER_BASE
+     * Valid data in the MegaRequest object received on callbacks:
+     * <p>
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNodeHandle - Handle of the folder
+     * <p>
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getPasswordManagerBase(MegaRequestListenerInterface listener) {
+        megaApi.getPasswordManagerBase(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Returns true if provided MegaHandle is of a Password Node Folder
+     *
+     * A folder is considered a Password Node Folder if Password Manager Base is its
+     * ancestor.
+     *
+     * @param node MegaHandle of the node to check if it is a Password Node Folder
+     * @return true if this node is a Password Node Folder
+     */
+    public boolean isPasswordNodeFolder(long node) {
+        return megaApi.isPasswordNodeFolder(node);
+    }
+
+    /**
+     * Create a new Password Node in your Password Manager tree
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_CREATE_PASSWORD_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Handle of the parent provided as an argument
+     * - MegaRequest::getName - name for the new Password Node provided as an argument
+     * <p>
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNodeHandle - Handle of the new Password Node
+     * <p>
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param name Name for the new Password Node
+     * @param data Password Node data for the Password Node
+     * @param parent Parent folder for the new Password Node
+     * @param listener MegaRequestListener to track this request
+     */
+    public void createPasswordNode(String name, PasswordNodeData data, long parent,
+                                   MegaRequestListenerInterface listener) {
+        megaApi.createPasswordNode(name, data, parent, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Update a Password Node in the MEGA account according to the parameters
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_UPDATE_PASSWORD_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - handle provided of the Password Node to update
+     * <p>
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param node Node to modify
+     * @param newData New data for the Password Node to update
+     * @param listener MegaRequestListener to track this request
+     */
+    public void updatePasswordNode(long node, PasswordNodeData newData,
+                                   MegaRequestListenerInterface listener) {
+        megaApi.updatePasswordNode(node, newData, createDelegateRequestListener(listener));
+    }
+
+    /**
      * Move a node in the MEGA account
      * <p>
      * The associated request type with this request is MegaRequest::TYPE_MOVE
