@@ -2795,7 +2795,7 @@ public class MegaApiJava {
      * @param parent Parent folder for the new Password Node
      * @param listener MegaRequestListener to track this request
      */
-    public void createPasswordNode(String name, PasswordNodeData data, long parent,
+    public void createPasswordNode(String name, MegaNode.PasswordNodeData data, long parent,
                                    MegaRequestListenerInterface listener) {
         megaApi.createPasswordNode(name, data, parent, createDelegateRequestListener(listener));
     }
@@ -2814,7 +2814,7 @@ public class MegaApiJava {
      * @param newData New data for the Password Node to update
      * @param listener MegaRequestListener to track this request
      */
-    public void updatePasswordNode(long node, PasswordNodeData newData,
+    public void updatePasswordNode(long node, MegaNode.PasswordNodeData newData,
                                    MegaRequestListenerInterface listener) {
         megaApi.updatePasswordNode(node, newData, createDelegateRequestListener(listener));
     }
