@@ -306,7 +306,7 @@ sharedNode_list NodeManager::getChildren_internal(const Node *parent, CancelToke
             else
             {
                 shared_ptr<Node> n = getNodeFromDataBase(child.first);
-                assert(n);
+                assert(n && "Node should be present at DB");
                 if (n)
                 {
                     childrenList.push_back(std::move(n));
@@ -660,7 +660,7 @@ sharedNode_vector NodeManager::getNodesByFingerprint_internal(FileFingerprint &f
         Node* node = static_cast<Node*>(*it);
         fpLoaded.emplace(node->nodeHandle());
         std::shared_ptr<Node> sharedNode = node->mNodePosition->second.getNodeInRam();
-        assert(sharedNode);
+        assert(sharedNode && "Node loaded at fingerprint map should have a node in RAM ");
         nodes.push_back(std::move(sharedNode));
     }
 
@@ -856,17 +856,17 @@ sharedNode_vector NodeManager::getRootNodes_internal()
     if (mNodes.size()) // nodes already loaded from DB
     {
         std::shared_ptr<Node> rootNode = rootnodes.mRootNodes[ROOTNODE];
-        assert(rootNode);
+        assert(rootNode && "Root node should be defined");
         nodes.push_back(std::move(rootNode));
 
         if (!mClient.loggedIntoFolder())
         {
             std::shared_ptr<Node> inBox = rootnodes.mRootNodes[VAULTNODE];
-            assert(inBox);
+            assert(inBox && "Vault node node should be defined (except logged into folder link)");
             nodes.push_back(std::move(inBox));
 
             std::shared_ptr<Node> rubbish = rootnodes.mRootNodes[RUBBISHNODE];
-            assert(rubbish);
+            assert(rubbish && "Rubbishbin node node should be defined (except logged into folder link)");
             nodes.push_back(std::move(rubbish));
         }
     }
@@ -1707,7 +1707,7 @@ bool NodeManager::ready()
 
 void NodeManager::insertNodeCacheLRU_internal(std::shared_ptr<Node> node)
 {
-    assert(mMutex.owns_lock());
+    assert(mMutex.owns_lock() && "Mutex should be locked by this thread");
     if (node->mNodePosition->second.mLRUPosition != mCacheLRU.end())
     {
         mCacheLRU.erase(node->mNodePosition->second.mLRUPosition);
@@ -1726,7 +1726,7 @@ void NodeManager::insertNodeCacheLRU_internal(std::shared_ptr<Node> node)
 
 void NodeManager::unLoadNodeFromCacheLRU()
 {
-    assert(mMutex.owns_lock());
+    assert(mMutex.owns_lock() && "Mutex should be locked by this thread");
     while (mCacheLRU.size() > mCacheLRUMaxSize)
     {
         std::shared_ptr<Node> node = mCacheLRU.back();

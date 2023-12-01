@@ -3801,7 +3801,7 @@ NodeManagerNode::NodeManagerNode(NodeManager& nodeManager, NodeHandle nodeHandle
 
 void NodeManagerNode::setNode(shared_ptr<Node> node)
 {
-    assert(mNode.expired());
+    assert(mNode.expired() && "There is a valid node assigned");
     mNode = node;
 }
 
