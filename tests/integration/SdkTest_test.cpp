@@ -15974,6 +15974,7 @@ TEST_F(SdkTest, SdkTestPasswordManager)
     const std::unique_ptr<MegaNode> newPwdNode {megaApi[userIdx]->getNodeByHandle(newPwdNodeHandle)};
     ASSERT_NE(newPwdNode.get(), nullptr) << "New node could not be retrieved";
     ASSERT_TRUE(newPwdNode->isPasswordNode());
+    ASSERT_FALSE(megaApi[userIdx]->isPasswordNodeFolder(newPwdNode->getHandle()));
     auto aux = newPwdNode->getName(); ASSERT_NE(aux, nullptr);
     ASSERT_STREQ(aux, newPwdNode->getName());
     std::unique_ptr<MegaNode::PasswordNodeData> receivedPwdData {newPwdNode->getPasswordData()};

@@ -1769,7 +1769,7 @@ bool Node::isPasswordNodeFolder() const
 {
     assert(client);
     const auto nhBase = client->getPasswordManagerBase();
-    return ((type == FOLDERNODE) && (nodeHandle() == nhBase || isAncestor(nhBase)));
+    return ((type == FOLDERNODE) && (nodeHandle() == nhBase || isAncestor(nhBase))) && !isPasswordNode();
 }
 
 PublicLink::PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown, const char *authKey)
