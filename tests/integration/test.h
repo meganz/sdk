@@ -593,7 +593,7 @@ struct StandardClient : public MegaApp
 
 
     bool waitForAttrDeviceIdIsSet(unsigned numSeconds, bool& updated);
-    bool waitForAttrMyBackupIsSet(unsigned numSeconds);
+    bool waitForAttrMyBackupIsSet(unsigned numSeconds, bool& setValue);
 
     bool isUserAttributeSet(attr_t attr, unsigned numSeconds, error& err);
 

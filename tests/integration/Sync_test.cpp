@@ -1767,7 +1767,7 @@ bool StandardClient::waitForAttrDeviceIdIsSet(unsigned int numSeconds, bool& upd
     return isUserAttributeSet(attr_t::ATTR_DEVICE_NAMES, numSeconds, err);
 }
 
-bool StandardClient::waitForAttrMyBackupIsSet(unsigned int numSeconds)
+bool StandardClient::waitForAttrMyBackupIsSet(unsigned int numSeconds, bool& setValue)
 {
     error err  = API_EINTERNAL;
     bool attrMyBackupFolderIsSet = isUserAttributeSet(attr_t::ATTR_MY_BACKUPS_FOLDER, numSeconds, err);
@@ -1778,6 +1778,7 @@ bool StandardClient::waitForAttrMyBackupIsSet(unsigned int numSeconds)
     }
 
     // If attribute is not set, it's going to established
+    setValue = true;
     const char* folderName = "My Backups";
     attrMyBackupFolderIsSet = false;
     std::recursive_mutex attrMyBackup_cv_mutex;
@@ -5938,7 +5939,7 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderBetweenSyncs)
 
     bool deviceIdUpdated = false;
     ASSERT_TRUE(clientA1->waitForAttrDeviceIdIsSet(60, deviceIdUpdated)) << "Error User attr device id isn't establised client1";
-    if (deviceIdUpdated)  // only wait for action package if atribute has been updated
+    if (deviceIdUpdated)  // only wait for action package if atribute has been set or updated
     {
         // Waiting period finished when callback register at createsOnUserUpdateLamda returns true
         ASSERT_TRUE(clientA2->waitForUserUpdated(60)) << "User update doesn't arrive at client2 (device id)";
@@ -5953,11 +5954,51 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderBetweenSyncs)
     clientA2->removeOnUserUpdateLamda();
     clientA3->removeOnUserUpdateLamda();
 
-    // ATTR_MY_BACKUPS_FOLDER is only set once, if it exists, it shouldn't be modified
-    ASSERT_TRUE(clientA1->waitForAttrMyBackupIsSet(60)) << "Error User attr My Back Folder isn't establised client1";
-    ASSERT_TRUE(clientA2->waitForAttrMyBackupIsSet(60)) << "Error User attr My Back Folder isn't establised client2";
-    ASSERT_TRUE(clientA3->waitForAttrMyBackupIsSet(60)) << "Error User attr My Back Folder isn't establised client3";
+    // ATTR_MY_BACKUPS_FOLDER is only set once, if it exists, it shouldn't be set again
+    bool backUpIsSet = false;
+    ASSERT_TRUE(clientA1->waitForAttrMyBackupIsSet(60, backUpIsSet)) << "Error User attr My Back Folder isn't establised client1";
+    if (backUpIsSet) // only wait for action package if atribute has been set
+    {
+        auto receivedBackUpId = [](User* actionPackageUser, User* ownUser)
+        {
+            assert(actionPackageUser && ownUser);
+            if (actionPackageUser->userhandle == ownUser->userhandle && actionPackageUser->changed.myBackupsFolder)
+            {
+                return true;
+            }
 
+            return false;
+        };
+
+        User* ownUserClient2 = clientA2->client.ownuser();
+        // Register a callback to be used when users_updated is called. This callBack is used to stop waiting period at waitForUserUpdated
+        // removeOnUserUpdateLamda should be called to unregister
+        clientA2->createsOnUserUpdateLamda([ownUserClient2, receivedBackUpId](User* user)
+        {
+            return receivedBackUpId(user, ownUserClient2);
+        });
+
+        User* ownUserClient3 = clientA3->client.ownuser();
+        // Register a callback to be used when users_updated is called. This callBack is used to stop waiting period at waitForUserUpdated
+        // removeOnUserUpdateLamda should be called to unregister
+        clientA3->createsOnUserUpdateLamda([ownUserClient3, receivedBackUpId](User* user)
+        {
+            return receivedBackUpId(user, ownUserClient3);
+        });
+
+        ASSERT_TRUE(clientA2->waitForUserUpdated(60)) << "User update doesn't arrive at client2 (backup folder)";
+        ASSERT_TRUE(clientA3->waitForUserUpdated(60)) << "User update doesn't arrive at client3 (backup folder)";
+        clientA2->removeOnUserUpdateLamda();
+        clientA3->removeOnUserUpdateLamda();
+
+        // Check attribute has been set correctly
+        backUpIsSet = false;
+        ASSERT_TRUE(clientA2->waitForAttrMyBackupIsSet(60, backUpIsSet)) << "Error User attr My Back Folder isn't establised client2";
+        ASSERT_EQ(backUpIsSet, false); // It has already set
+        backUpIsSet = false;
+        ASSERT_TRUE(clientA3->waitForAttrMyBackupIsSet(60, backUpIsSet)) << "Error User attr My Back Folder isn't establised client3";
+        ASSERT_EQ(backUpIsSet, false); // It has already set
+    }
 
     ASSERT_TRUE(clientA1->resetBaseFolderMulticlient(clientA2, clientA3));
     ASSERT_TRUE(clientA1->makeCloudSubdirs("f", 3, 3));
