@@ -5,4 +5,4 @@ add_executable(gfxworker_test_unit
                ${GFXWORKER_DIR}/tests/misc_test.cpp
 )
 
-target_link_libraries(gfxworker_test_unit gmock gtest libgfxworker Mega)
+target_link_libraries(gfxworker_test_unit PRIVATE gmock gtest libgfxworker)
