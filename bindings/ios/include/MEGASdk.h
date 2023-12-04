@@ -56,6 +56,8 @@
 #import "MEGAScheduledCopyDelegate.h"
 #import "BackUpState.h"
 #import "BackUpSubState.h"
+#import "MEGASearchFilter.h"
+#import "MEGASearchFilterTimeFrame.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -3314,6 +3316,26 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * @param delegate Delegate to track this request.
  */
 - (void)publicNodeForMegaFileLink:(NSString *)megaFileLink delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get downloads urls for a node
+ *
+ * The associated request type with this request is MEGARequestTypeGetDownloadUrls
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk
+ * - [MEGARequest name] - Returns semicolon-separated download URL(s) to the file
+ * - [MEGARequest link] - Returns semicolon-separated IPv4 of the server in the URL(s)
+ * -  [MEGARequest text] - Returns semicolon-separated IPv6 of the server in the URL(s)
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue
+ *
+ * @param node Node to get the downloads URLs
+ * @param singleUrl Always return one URL (even for raided files)
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getDownloadUrl:(MEGANode *)node singleUrl:(BOOL)singleUrl delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Get a MEGANode from a public link to a file.
@@ -8003,6 +8025,35 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * @return List of nodes that contain the desired string in their name.
  */
 - (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString recursive:(BOOL)recursive;
+
+
+/**
+ * @brief Search nodes with applied filter recursively.
+ *
+ * The search is case-insensitive.
+ *
+ * @param filter Filter we should apply to the current search.
+ * @param orderType Order type we should applyto the current search.
+ * NO if you want to seach in the children of the node only
+ *
+ * @return List of nodes that contain the desired string in their name.
+ */
+- (MEGANodeList *)searchWith:(MEGASearchFilter *)filter orderType:(MEGASortOrderType)orderType cancelToken:(MEGACancelToken *)cancelToken;
+
+
+/**
+ * @brief Search nodes with applied filter non-recursively.
+ *
+ * The search is case-insensitive.
+ *
+ * @param filter Filter we should apply to the current search.
+ * @param orderType Order type we should applyto the current search.
+ * NO if you want to seach in the children of the node only
+ *
+ * @return List of nodes that contain the desired string in their name.
+ */
+- (MEGANodeList *)searchNonRecursivelyWith:(MEGASearchFilter *)filter  orderType:(MEGASortOrderType)orderType cancelToken:(MEGACancelToken *)cancelToken;
+
 
 /**
  * @brief Search nodes containing a search string in their name.

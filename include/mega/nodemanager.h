@@ -53,6 +53,8 @@ public:
         mShareType = shareType;
         mCreationLowerLimit = f.byCreationTimeLowerLimit();
         mCreationUpperLimit = f.byCreationTimeUpperLimit();
+        mModificationLowerLimit = f.byModificationTimeLowerLimit();
+        mModificationUpperLimit = f.byModificationTimeUpperLimit();
     }
 
     const std::string& byName() const { return mNameFilter; }
@@ -71,6 +73,9 @@ public:
     int64_t byCreationTimeLowerLimit() const { return mCreationLowerLimit; }
     int64_t byCreationTimeUpperLimit() const { return mCreationUpperLimit; }
 
+    int64_t byModificationTimeLowerLimit() const { return mModificationLowerLimit; }
+    int64_t byModificationTimeUpperLimit() const { return mModificationUpperLimit; }
+
 private:
     std::string mNameFilter;
     nodetype_t mNodeType = TYPE_UNKNOWN;
@@ -80,6 +85,8 @@ private:
     ShareType_t mShareType = NO_SHARES;
     int64_t mCreationLowerLimit = 0;
     int64_t mCreationUpperLimit = 0;
+    int64_t mModificationLowerLimit = 0;
+    int64_t mModificationUpperLimit = 0;
 };
 
 /**

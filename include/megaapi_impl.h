@@ -1422,8 +1422,6 @@ public:
     void setName(const char*name);
     const char* getLastKnownMegaFolder() const override;
     void setLastKnownMegaFolder(const char *path);
-    long long getLocalFingerprint() const override;
-    void setLocalFingerprint(long long fingerprint);
     MegaHandle getBackupId() const override;
     void setBackupId(MegaHandle backupId);
 
@@ -1444,7 +1442,6 @@ protected:
     char *localFolder;
     char *mName;
     char *lastKnownMegaFolder;
-    long long fingerprint;
 
     SyncType mType = TYPE_UNKNOWN;
 
@@ -2585,6 +2582,7 @@ class MegaSyncStallPrivate : public MegaSyncStall
             int problem = pathProblem(cloudSide, index);
 
             return problem == DetectedHardLink ||
+                   problem == DetectedNestedMount ||
                    problem == DetectedSymlink ||
                    problem == DetectedSpecialFile ||
                    problem == FilesystemErrorListingFolder ||
@@ -2768,6 +2766,7 @@ public:
     void byLocationHandle(MegaHandle ancestorHandle) override;
     void byLocation(int locationType) override;
     void byCreationTime(int64_t lowerLimit, int64_t upperLimit) override;
+    void byModificationTime(int64_t lowerLimit, int64_t upperLimit) override;
 
     const char* byName() const override { return mNameFilter.c_str(); }
     int byNodeType() const override { return mNodeType; }
@@ -2777,6 +2776,8 @@ public:
     int byLocation() const override { return mLocationType; }
     int64_t byCreationTimeLowerLimit() const override { return mCreationLowerLimit; }
     int64_t byCreationTimeUpperLimit() const override { return mCreationUpperLimit; }
+    int64_t byModificationTimeLowerLimit() const override { return mModificationLowerLimit; }
+    int64_t byModificationTimeUpperLimit() const override { return mModificationUpperLimit; }
 
 private:
     std::string mNameFilter;
@@ -2787,6 +2788,8 @@ private:
     int mLocationType = MegaApi::SEARCH_TARGET_ALL;
     int64_t mCreationLowerLimit = 0;
     int64_t mCreationUpperLimit = 0;
+    int64_t mModificationLowerLimit = 0;
+    int64_t mModificationUpperLimit = 0;
 };
 
 
@@ -2804,11 +2807,11 @@ class MegaApiImpl : public MegaApp
         void addTransferListener(MegaTransferListener* listener);
         void addScheduledCopyListener(MegaScheduledCopyListener* listener);
         void addGlobalListener(MegaGlobalListener* listener);
-        void removeListener(MegaListener* listener);
-        void removeRequestListener(MegaRequestListener* listener);
-        void removeTransferListener(MegaTransferListener* listener);
-        void removeScheduledCopyListener(MegaScheduledCopyListener* listener);
-        void removeGlobalListener(MegaGlobalListener* listener);
+        bool removeListener(MegaListener* listener);
+        bool removeRequestListener(MegaRequestListener* listener);
+        bool removeTransferListener(MegaTransferListener* listener);
+        bool removeScheduledCopyListener(MegaScheduledCopyListener* listener);
+        bool removeGlobalListener(MegaGlobalListener* listener);
 
         //Utils
         long long getSDKtime();
@@ -3503,6 +3506,7 @@ public:
         void startChatCall(MegaHandle chatid, bool notRinging, MegaRequestListener* listener = nullptr);
         void joinChatCall(MegaHandle chatid, MegaHandle callid, MegaRequestListener* listener = nullptr);
         void endChatCall(MegaHandle chatid, MegaHandle callid, int reason = 0, MegaRequestListener *listener = nullptr);
+        void ringIndividualInACall(MegaHandle chatid, MegaHandle userid, MegaRequestListener* listener = nullptr);
         void setSFUid(int sfuid);
         void createOrUpdateScheduledMeeting(const MegaScheduledMeeting* scheduledMeeting, const char* chatTitle,  MegaRequestListener* listener = NULL);
         void removeScheduledMeeting(MegaHandle chatid, MegaHandle schedId, MegaRequestListener* listener = NULL);
@@ -3719,7 +3723,8 @@ private:
         MegaTransferPrivate *currentTransfer;
         string appKey;
 
-        MegaPushNotificationSettings *mPushSettings; // stores lastest-seen settings (to be able to filter notifications)
+        std::unique_ptr<MegaPushNotificationSettingsPrivate> getMegaPushNotificationSetting(); // returns lastest-seen settings (to be able to filter notifications)
+
         MegaTimeZoneDetails *mTimezones;
 
         std::atomic<bool> syncPathStateLockTimeout{ false };
@@ -3853,9 +3858,6 @@ private:
 
         // user invites/attributes
         void removecontact_result(error) override;
-        void getua_result(error) override;
-        void getua_result(byte*, unsigned, attr_t) override;
-        void getua_result(TLVstore *, attr_t) override;
 #ifdef DEBUG
         void delua_result(error) override;
         void senddevcommand_result(int) override;
@@ -4032,12 +4034,17 @@ private:
         void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaHandle attributehandle, MegaRequestListener *listener = NULL);
         void putNodeAttribute(MegaBackgroundMediaUpload* bu, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void setUserAttr(int type, const char *value, MegaRequestListener *listener = NULL);
+        void getUserAttr(User* user, attr_t type, MegaRequestPrivate* request);
+        void getUserAttr(const std::string& email, attr_t type, const char* ph, MegaRequestPrivate* request);
+        void getua_completion(error, MegaRequestPrivate* request);
+        void getua_completion(byte*, unsigned, attr_t, MegaRequestPrivate* request);
+        void getua_completion(TLVstore *, attr_t, MegaRequestPrivate* request);
         static char *getAvatarColor(handle userhandle);
         static char *getAvatarSecondaryColor(handle userhandle);
-        bool isGlobalNotifiable();
+        bool isGlobalNotifiable(MegaPushNotificationSettingsPrivate* pushSettings);
 
         // return false if there's a schedule and it currently does not apply. Otherwise, true
-        bool isScheduleNotifiable();
+        bool isScheduleNotifiable(MegaPushNotificationSettingsPrivate* pushSettings);
 
         // deletes backups, requests and transfers. Reset total stats for down/uploads
         void abortPendingActions(error preverror = API_OK);

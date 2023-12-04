@@ -4306,7 +4306,8 @@ class MegaRequest
             TYPE_GET_SYNC_STALL_LIST                                        = 177,
             TYPE_FETCH_CREDIT_CARD_INFO                                     = 178,
             TYPE_MOVE_TO_DEBRIS                                             = 179,
-            TOTAL_OF_REQUEST_TYPES                                          = 180,
+            TYPE_RING_INDIVIDUAL_IN_CALL                                    = 180,
+            TOTAL_OF_REQUEST_TYPES                                          = 181,
         };
 
         virtual ~MegaRequest();
@@ -6661,12 +6662,6 @@ public:
     virtual const char* getLastKnownMegaFolder() const;
 
     /**
-     * @brief Gets an unique identifier of the local filesystem that is being synced
-     * @return Unique identifier of the local file system that is being synced
-     */
-    virtual long long getLocalFingerprint() const;
-
-    /**
      * @brief Returns the identifier of this synchronization
      *
      * Identifiers of synchronizations are always negative numbers.
@@ -6926,6 +6921,8 @@ class MegaSyncStall
             PutnodeCompletionDeferredByController,
             PutnodeCompletionPending,
             UploadDeferredByController,
+
+            DetectedNestedMount,
 
             SyncPathProblem_LastPlusOne
         };
@@ -9253,6 +9250,19 @@ public:
     virtual void byCreationTime(int64_t lowerLimit, int64_t upperLimit);
 
     /**
+     * @brief Set option for filtering out nodes modified outside a defined time interval.
+     * If any of the passed values is 0 it will be ignored, and no filtering will be
+     * performed based on it.
+     * If any of the passed values is non-0, only nodes with valid modification time will
+     * be included in the results. For now only File nodes have modification time so only
+     * they will be included in the results.
+     *
+     * @param lowerLimit timestamp lower than any of the considered nodes.
+     * @param upperLimit timestamp greater than any of the considered nodes.
+     */
+    virtual void byModificationTime(int64_t lowerLimit, int64_t upperLimit);
+
+    /**
      * @brief Return the string used for filtering by name.
      *
      * @return string set for filtering by name, or empty string ("") if not set
@@ -9307,6 +9317,20 @@ public:
      * @return upper limit creation timestamp set for restricting node search to, or 0 if not set
      */
     virtual int64_t byCreationTimeUpperLimit() const;
+
+    /**
+     * @brief Return lower limit modification timestamp set for restricting node search to.
+     *
+     * @return lower limit modification timestamp set for restricting node search to, or 0 if not set
+     */
+    virtual int64_t byModificationTimeLowerLimit() const;
+
+    /**
+     * @brief Return upper limit modification timestamp set for restricting node search to.
+     *
+     * @return upper limit modification timestamp set for restricting node search to, or 0 if not set
+     */
+    virtual int64_t byModificationTimeUpperLimit() const;
 };
 
 class MegaApiImpl;
@@ -9697,46 +9721,72 @@ class MegaApi
         void addScheduledCopyListener(MegaScheduledCopyListener *listener);
 
         /**
-         * @brief Unregister a backup listener
-         * @param listener Objet that will be unregistered
+         * @brief
+         * Unregister a backup listener
+         *
+         * @paramlistener
+         * Object that will be unregistered
+         *
+         * @return
+         * True if listener was found and unregistered.
          */
-        void removeScheduledCopyListener(MegaScheduledCopyListener *listener);
+        bool removeScheduledCopyListener(MegaScheduledCopyListener *listener);
 
         /**
-         * @brief Unregister a listener
+         * @brief
+         * Unregister a listener
          *
          * This listener won't receive more events.
          *
-         * @param listener Object that is unregistered
+         * @param listener
+         * Object that is unregistered
+         *
+         * @return
+         * True if listener was found and unregistered.
          */
-        void removeListener(MegaListener* listener);
+        bool removeListener(MegaListener* listener);
 
         /**
-         * @brief Unregister a MegaRequestListener
+         * @brief
+         * Unregister a MegaRequestListener
          *
          * This listener won't receive more events.
          *
-         * @param listener Object that is unregistered
+         * @param listener
+         * Object that is unregistered
+         *
+         * @return
+         * True if listener was found and unregistered.
          */
-        void removeRequestListener(MegaRequestListener* listener);
+        bool removeRequestListener(MegaRequestListener* listener);
 
         /**
-         * @brief Unregister a MegaTransferListener
+         * @brief
+         * Unregister a MegaTransferListener
          *
          * This listener won't receive more events.
          *
-         * @param listener Object that is unregistered
+         * @param listener
+         * Object that is unregistered
+         *
+         * @return
+         * True if listener was found and unregistered.
          */
-        void removeTransferListener(MegaTransferListener* listener);
+        bool removeTransferListener(MegaTransferListener* listener);
 
         /**
-         * @brief Unregister a MegaGlobalListener
+         * @brief
+         * Unregister a MegaGlobalListener
          *
          * This listener won't receive more events.
          *
-         * @param listener Object that is unregistered
+         * @param listener
+         * Object that is unregistered
+         *
+         * @return
+         * True if listener was found and unregistered.
          */
-        void removeGlobalListener(MegaGlobalListener* listener);
+        bool removeGlobalListener(MegaGlobalListener* listener);
 
         /**
          * @brief Get internal timestamp used by the SDK
@@ -20741,6 +20791,34 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void endChatCall(MegaHandle chatid, MegaHandle callid, int reason = 0, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief This function allows a user in an existing call, to send an incoming call push notification to another user in the chat
+         * to notify that call is ringing..
+         *
+         * When a call is started and one user doesn't pick it up, ringing stops for that user/participant after a given time.
+         * This function can be used to force another ringing event at said user/participant.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_RING_INDIVIDUAL_IN_CALL
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaChatRequest::getNodeHandle - Returns the chat identifier
+         * - MegaChatRequest::getParentHandle - Returns the user's id to ring again
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::ERROR_OK:
+         *
+         * The request will fail with MegaChatError::ERROR_ARGS
+         * - if chat id provided as param is invalid
+         * - if user id to ring again provided as param is invalid
+         *
+         * The request will fail with MegaChatError::ERROR_NOENT
+         * - if the chatroom doesn't exists.
+         *
+         * @param chatId MegaChatHandle that identifies the chat room
+         * @param userId MegaChatHandle that identifies the user to ring again
+         * @param listener MegaRequestListener to track this request
+         */
+        void ringIndividualInACall(MegaHandle chatid, MegaHandle userid, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Change the SFU id

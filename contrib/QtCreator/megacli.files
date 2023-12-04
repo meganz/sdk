@@ -1,7 +1,6 @@
 ../../doc/example/lsmega.cpp
 ../../examples/megacli.cpp
 ../../examples/megacli.h
-../../examples/megasimplesync.cpp
 ../../include/mega/crypto/cryptopp.h
 ../../include/mega/crypto/sodium.h
 ../../include/mega/db/sqlite.h

@@ -32,6 +32,7 @@
 #include "megafs.h"
 
 #include <cassert>
+#include <tuple>
 
 #ifdef TARGET_OS_MAC
 #include "mega/osx/osxutils.h"
@@ -222,6 +223,136 @@ int compareUtf(UnicodeCodepointIterator<CharT> first1, bool unescaping1,
 
 } // detail
 
+fsfp_t::fsfp_t(std::uint64_t fingerprint,
+               std::string uuid)
+  : mFingerprint(fingerprint)
+  , mUUID(std::move(uuid))
+{
+}
+
+fsfp_t::operator bool() const
+{
+    return mFingerprint;
+}
+
+bool fsfp_t::operator!() const
+{
+    return !mFingerprint;
+}
+
+bool fsfp_t::operator==(const fsfp_t& rhs) const
+{
+    return mFingerprint == rhs.mFingerprint
+           && mUUID == rhs.mUUID;
+}
+
+bool fsfp_t::operator<(const fsfp_t& rhs) const
+{
+    return std::tie(mFingerprint, mUUID)
+           < std::tie(rhs.mFingerprint, rhs.mUUID);
+}
+
+bool fsfp_t::operator!=(const fsfp_t& rhs) const
+{
+    return !operator==(rhs);
+}
+
+bool fsfp_t::equivalent(const fsfp_t& rhs) const
+{
+    return mFingerprint == rhs.mFingerprint
+           && (mUUID.empty() || mUUID == rhs.mUUID);
+}
+
+std::uint64_t fsfp_t::fingerprint() const
+{
+    return mFingerprint;
+}
+
+void fsfp_t::reset()
+{
+    operator=(fsfp_t());
+}
+
+const std::string& fsfp_t::uuid() const
+{
+    return mUUID;
+}
+
+std::string fsfp_t::toString() const
+{
+    std::ostringstream ostream;
+
+    ostream << "(fingerprint: "
+            << mFingerprint
+            << ", uuid: "
+            << (mUUID.empty() ? "undefined" : mUUID.c_str())
+            << ")";
+
+    return ostream.str();
+}
+
+bool fsfp_tracker_t::Less::operator()(const fsfp_t* lhs,
+                                      const fsfp_t* rhs) const
+{
+    return lhs != rhs && *lhs < *rhs;
+}
+
+fsfp_ptr_t fsfp_tracker_t::add(const fsfp_t& id)
+{
+    // Do we already know about this ID?
+    auto i = mFingerprints.find(&id);
+
+    // IDs already tracked.
+    if (i != mFingerprints.end())
+    {
+        // Increment reference count.
+        ++i->second.second;
+
+        // Return reference to caller.
+        return i->second.first;
+    }
+
+    // Instantiate ID.
+    auto ptr = std::make_shared<fsfp_t>(id);
+
+    // Add ID to map.
+    mFingerprints.emplace(std::piecewise_construct,
+                        std::forward_as_tuple(ptr.get()),
+                        std::forward_as_tuple(ptr, 1));
+
+    // Return reference to caller.
+    return ptr;
+}
+
+fsfp_ptr_t fsfp_tracker_t::get(const fsfp_t& id) const
+{
+    // Do we know about this ID?
+    auto i = mFingerprints.find(&id);
+
+    // Don't know about this ID.
+    if (i == mFingerprints.end())
+        return nullptr;
+
+    // Return reference to caller.
+    return i->second.first;
+}
+
+bool fsfp_tracker_t::remove(const fsfp_t& id)
+{
+    // Do we know about this ID?
+    auto i = mFingerprints.find(&id);
+
+    // Don't know about this ID.
+    if (i == mFingerprints.end())
+        return false;
+
+    // Remove ID if reference count drops to zero.
+    if (!--i->second.second)
+        mFingerprints.erase(i);
+
+    // Let caller know we removed an ID reference.
+    return true;
+}
 
 int compareUtf(const string& s1, bool unescaping1, const string& s2, bool unescaping2, bool caseInsensitive)
 {

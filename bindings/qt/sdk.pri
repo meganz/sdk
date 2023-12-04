@@ -214,7 +214,7 @@ CONFIG(USE_LIBUV) {
 CONFIG(USE_MEDIAINFO) {
     DEFINES += USE_MEDIAINFO UNICODE
 
-    vcpkg:LIBS += -lmediainfo$$MI_DEBUG_SUFFIX -lzen$$MI_DEBUG_SUFFIX 
+    vcpkg:LIBS += -lmediainfo$$MI_DEBUG_SUFFIX -lzen$$MI_DEBUG_SUFFIX -ltinyxml2
     vcpkg:win32:LIBS += -lzlib$$DEBUG_SUFFIX
     vcpkg:!win32:LIBS += -lz
 
