@@ -23,6 +23,7 @@
 #define MEGA_SYNC_H 1
 
 #include <future>
+#include <unordered_set>
 
 #include "db.h"
 #include "waiter.h"
@@ -909,6 +910,7 @@ struct SyncStallEntry
 
 struct SyncStallInfo
 {
+    using StalledSyncsSet = std::unordered_set<handle>;
     using CloudStallInfoMap = map<string, SyncStallEntry>;
     using LocalStallInfoMap = map<LocalPath, SyncStallEntry>;
 
@@ -921,8 +923,11 @@ struct SyncStallInfo
     bool waitingLocal(const LocalPath& mapKeyPath,
                       SyncStallEntry&& e);
 
+    bool isSyncStalled(handle backupId) const;
+
     CloudStallInfoMap cloud;
     LocalStallInfoMap local;
+    StalledSyncsSet stalledSyncs;
 
     /** Requires user action to resolve */
     bool hasImmediateStallReason() const;
@@ -1558,6 +1563,8 @@ public:
 
     // Retrieve the engine's current controller.
     SyncControllerPtr syncController() const;
+
+    bool isSyncStalled(handle backupId) const;
 };
 
 class OverlayIconCachedPaths

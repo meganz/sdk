@@ -123,6 +123,7 @@ static std::string GetBasePath()
     // Compute base path as necessary.
     std::call_once(onceOnly, []() {
         ios_appbasepath(&basePath);
+        basePath.append("/");
     });
 
     // Return base path to caller.
@@ -2053,14 +2054,18 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
 #ifndef __APPLE__
 
 // Determine which device contains the specified path.
-static std::string deviceOf(const std::string& path)
+static std::string deviceOf(const std::string& database,
+                            const std::string& path)
 {
     // Convenience.
     using FileDeleter = std::function<int(FILE*)>;
     using FilePtr     = std::unique_ptr<FILE, FileDeleter>;
 
+    LOG_verbose << "Opening mount database: "
+                << database;
+
     // Try and open mount database.
-    FilePtr mounts(setmntent("/proc/mounts", "r"), endmntent);
+    FilePtr mounts(setmntent(database.c_str(), "r"), endmntent);
 
     // Couldn't open mount database.
     if (!mounts)
@@ -2069,6 +2074,8 @@ static std::string deviceOf(const std::string& path)
         auto error = errno;
 
         LOG_warn << "Couldn't open mount database: "
+                 << database
+                 << ". Error was: "
                  << strerror(error);
 
         return std::string();
@@ -2130,17 +2137,84 @@ static std::string deviceOf(const std::string& path)
         auto error = errno;
 
         LOG_warn << "Couldn't enumerate mount database: "
+                 << database
+                 << ". Error was: "
                  << strerror(error);
 
         return std::string();
     }
 
-    // Couldn't resolve symlinks in device.
-    if (!realpath(device.c_str(), &storage[0]))
+    // No device seems to contain path.
+    if (device.empty())
+    {
+        LOG_warn << "No device seems to contain path: "
+                 << path;
+
         return std::string();
+    }
+
+    // Device isn't actually a device.
+    if (device.front() != '/')
+    {
+        LOG_warn << "A virtual device "
+                 << device
+                 << " seems to contain path: "
+                 << path;
+
+        return std::string();
+    }
+
+    // Couldn't resolve symlinks in device.
+    //
+    // This is necessary to correctly handle nodes managed by device-mapper.
+    // Say, the user is using LUKS or LVM.
+    if (!realpath(device.c_str(), &storage[0]))
+    {
+        // Latch error.
+        auto error = errno;
+
+        LOG_warn << "Couldn't resolve device symlink: "
+                 << device
+                 << ". Error was: "
+                 << std::strerror(error);
+                 
+        return std::string();
+    }
+
+    // For debugging purposes.
+    LOG_verbose << "Path "
+                << path
+                << " is on device "
+                << storage;
 
     // Return device to caller.
     return storage.c_str();
+}
+
+static std::string deviceOf(const std::string& path)
+{
+    // Which mount databases should we search?
+    static const std::vector<std::string> databases = {
+        "/proc/mounts",
+        "/etc/mtab"
+    }; // databases
+
+    // Try and determine which device contains path.
+    for (const auto& database : databases)
+    {
+        // Ask database which devices contains path.
+        auto device = deviceOf(database, path);
+
+        // Database has a mapping for path.
+        if (!device.empty())
+            return device;
+    }
+
+    LOG_warn << "Couldn't determine which device contains path: "
+             << path;
+
+    // No database has a mapping for this path.
+    return std::string();
 }
 
 // Compute legacy filesystem fingerprint.
@@ -2150,7 +2224,17 @@ static std::uint64_t fingerprintOf(const std::string& path)
 
     // What filesystem contains our path?
     if (statfs(path.c_str(), &buffer))
+    {
+        // Latch error.
+        auto error = errno;
+
+        LOG_warn << "Couldn't retrieve filesystem ID: "
+                 << path
+                 << ". Error was: "
+                 << std::strerror(error);
+
         return 0;
+    }
 
     std::uint64_t value;
 
@@ -2234,12 +2318,22 @@ fsfp_t FileSystemAccess::fsFingerprint(const LocalPath& path) const
     // What device contains the specified path?
     auto device = deviceOf(path.localpath);
 
-    // Couldn't determine the device that contains path.
-    if (device.empty())
-        return fsfp_t();
+    // We know what device contains path.
+    if (!device.empty())
+    {
+        // Try and determine the device's UUID.
+        auto uuid = uuidOf(device);
 
-    // Return fingerprint to caller.
-    return fsfp_t(fingerprint, uuidOf(device));
+        // We retrieved the device's UUID.
+        if (!uuid.empty())
+            return fsfp_t(fingerprint, std::move(uuid));
+    }
+
+    LOG_warn << "Falling back to legacy filesystem fingerprint: "
+             << path;
+
+    // Couldn't determine filesystem UUID.
+    return fsfp_t(fingerprint, std::string());
 }
 
 #endif // ! __APPLE__

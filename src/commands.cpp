@@ -9137,7 +9137,7 @@ bool CommandSMSVerificationSend::isPhoneNumber(const string& s)
 {
     for (auto i = s.size(); i--; )
     {
-        if (!(isdigit(s[i]) || (i == 0 && s[i] == '+')))
+        if (!(is_digit(s[i]) || (i == 0 && s[i] == '+')))
         {
             return false;
         }
@@ -9170,7 +9170,7 @@ bool CommandSMSVerificationCheck::isVerificationCode(const string& s)
 {
     for (const char c : s)
     {
-        if (!isdigit(c))
+        if (!is_digit(c))
         {
             return false;
         }
@@ -10463,6 +10463,21 @@ CommandMeetingEnd::CommandMeetingEnd(MegaClient *client, handle chatid, handle c
     // At meeting first version, only valid reason is 0x02 (REJECTED)
     arg("r", reason);
 
+    tag = client->reqtag;
+}
+
+bool CommandRingUser::procresult(Command::Result r, JSON&)
+{
+    mCompletion(r.errorOrOK());
+    return r.wasErrorOrOK();
+}
+
+CommandRingUser::CommandRingUser(MegaClient* client, handle chatid, handle userid, CommandRingUserCompletion completion)
+    : mCompletion(completion)
+{
+    cmd("mcru");
+    arg("u", reinterpret_cast<byte*>(&userid), MegaClient::CHATHANDLE);
+    arg("cid", reinterpret_cast<byte*>(&chatid), MegaClient::CHATHANDLE);
     tag = client->reqtag;
 }
 
