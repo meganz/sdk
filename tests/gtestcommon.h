@@ -116,7 +116,7 @@ private:
 class RuntimeArgValues
 {
 public:
-    RuntimeArgValues(std::vector<std::string>&& args);
+    RuntimeArgValues(std::vector<std::string>&& args, std::vector<std::pair<std::string, std::string>>&& accEnvVars);
 
     bool isValid() const { return mRunMode != TestRunMode::INVALID; }
     bool isListOnly() const { return mRunMode == TestRunMode::LIST_ONLY; }
@@ -134,8 +134,7 @@ public:
     std::string getExecutable() const { return mArgs.empty() ? std::string() : mArgs[0]; }
     std::string getFilter() const { return mGtestFilterIdx < mArgs.size() ? mArgs[mGtestFilterIdx] : std::string(); }
 
-    static void setAccountsPerInstance(size_t count) { emailsPerInstance = count; }
-    static size_t getAccountsPerInstance() { return emailsPerInstance; }
+    size_t getAccountsPerInstance() const { return mAccEnvVars.size(); }
 
     bool hidingWorkerMemLeaks() const { return mHideWorkerMemLeaks; }
 
@@ -164,7 +163,7 @@ private:
 
     TestRunMode mRunMode = TestRunMode::INVALID;
 
-    static size_t emailsPerInstance;
+    std::vector<std::pair<std::string, std::string>> mAccEnvVars;
     static constexpr size_t maxWorkerCount = 256u; // reasonable limit used for validation only, not really a constraint
 };
 

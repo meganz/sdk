@@ -8,8 +8,6 @@ using namespace std;
 namespace mega
 {
 
-size_t RuntimeArgValues::emailsPerInstance = 3u; // default value at the time of writing this code
-
 
 /// class ProcessWithInterceptedOutput
 ///
@@ -314,8 +312,11 @@ void GTestProc::printToScreen(std::ostream& screen, const std::string& msg) cons
 /// class RuntimeArgValues
 ///
 
-RuntimeArgValues::RuntimeArgValues(vector<string>&& args)
+RuntimeArgValues::RuntimeArgValues(vector<string>&& args, vector<pair<string, string>>&& accEnvVars)
 {
+    assert(!accEnvVars.empty());
+    mAccEnvVars.swap(accEnvVars);
+
     for (auto it = args.begin(); it != args.end();)
     {
         string arg = Utils::toUpperUtf8(*it);
@@ -423,10 +424,10 @@ RuntimeArgValues::RuntimeArgValues(vector<string>&& args)
     {
         if (mEmailTemplate.empty())
         {
-            const char* teplt = getenv("MEGA_EMAIL0");
+            const char* teplt = getenv(mAccEnvVars[0].first.c_str());
             if (!teplt)
             {
-                std::cerr << "Missing both --EMAIL-POOL runtime parameter and MEGA_EMAIL0 env var" << std::endl;
+                std::cerr << "Missing both --EMAIL-POOL runtime parameter and " << mAccEnvVars[0].first << " env var" << std::endl;
                 mRunMode = TestRunMode::INVALID;
                 return;
             }
@@ -494,25 +495,26 @@ unordered_map<string, string> RuntimeArgValues::getEnvVarsForWorker(size_t idx) 
     if (mEmailTemplate.empty() || !isMainProcWithWorkers()) return {};
 
     tuple<string, size_t, size_t, string> templateValues = breakTemplate();
-    size_t first = std::get<1>(templateValues) + emailsPerInstance * idx;
-    size_t last = first + emailsPerInstance - 1u;
+    size_t first = std::get<1>(templateValues) + getAccountsPerInstance() * idx;
+    size_t last = first + getAccountsPerInstance() - 1u;
     if (last > std::get<2>(templateValues)) return {};
 
-    unordered_map<string, string> envVars(emailsPerInstance);
-    for (size_t i = 0; i < emailsPerInstance; ++i)
+    unordered_map<string, string> envVars(getAccountsPerInstance());
+    for (size_t i = 0; i < getAccountsPerInstance(); ++i)
     {
+        envVars[mAccEnvVars[i].first] = std::get<0>(templateValues) + std::to_string(first + i) + std::get<3>(templateValues);
+
         static const char* pswd = nullptr;
         if (!i)
         {
-            pswd = getenv("MEGA_PWD0");
+            // the first passwrod will be duplicated for the rest of accounts
+            pswd = getenv(mAccEnvVars[0].second.c_str());
             if (!pswd) return envVars;
         }
         else
         {
-            envVars["MEGA_PWD" + std::to_string(i)] = pswd;
+            envVars[mAccEnvVars[i].second] = pswd;
         }
-
-        envVars["MEGA_EMAIL" + std::to_string(i)] = std::get<0>(templateValues) + std::to_string(first + i) + std::get<3>(templateValues);
     }
 
     return envVars;
