@@ -25,6 +25,11 @@ fs::path LINK_EXTRACT_SCRIPT = "email_processor.py";
 fs::path executableDir; // Path to the folder containing the test executable.
 
 const string LOG_NAME = "test_integration.log";
+const string& getDefaultLogName()
+{
+    return LOG_NAME;
+}
+
 const string MASTER_LOG_NAME = "test_integration.master.log";
 const string LOG_NAME_AFTER_CLOSE = "test_integration.after-closed.log";
 const string LOG_TEMPLATE = "test_integration.{n}.log";

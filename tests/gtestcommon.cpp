@@ -5,6 +5,9 @@
 
 using namespace std;
 
+const string& getDefaultLogName();  // implement this separately for SDK tests, MEGAchat tests etc.
+
+
 namespace mega
 {
 
@@ -753,10 +756,8 @@ void GTestParallelRunner::summary()
 
 std::string getLogFileName(size_t useIdx, const std::string& useDescription)
 {
-    static string defaultName("test.log");
-
-    return useDescription.empty() ? defaultName :
-           Utils::replace(defaultName, ".", '.' + std::to_string(useIdx) + '.' + useDescription + '.');
+    return useDescription.empty() ? getDefaultLogName() :
+           Utils::replace(getDefaultLogName(), ".", '.' + std::to_string(useIdx) + '.' + useDescription + '.');
 }
 
 std::string getCurrentTimestamp(bool includeDate)
