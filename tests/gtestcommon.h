@@ -117,6 +117,7 @@ class RuntimeArgValues
 {
 public:
     RuntimeArgValues(std::vector<std::string>&& args, std::vector<std::pair<std::string, std::string>>&& accEnvVars);
+    virtual ~RuntimeArgValues() = default;
 
     bool isValid() const { return mRunMode != TestRunMode::INVALID; }
     bool isListOnly() const { return mRunMode == TestRunMode::LIST_ONLY; }
@@ -138,10 +139,12 @@ public:
 
     bool hidingWorkerMemLeaks() const { return mHideWorkerMemLeaks; }
 
+protected:
+    std::vector<std::string> mArgs; // filled only in main process
+
 private:
     std::tuple<std::string, size_t, size_t, std::string> breakTemplate() const;
 
-    std::vector<std::string> mArgs; // filled only in main process
     size_t mInstanceCount = 0u;
     size_t mCurrentInstance = SIZE_MAX;
     std::string mTestName;

@@ -319,6 +319,7 @@ RuntimeArgValues::RuntimeArgValues(vector<string>&& args, vector<pair<string, st
 
     for (auto it = args.begin(); it != args.end();)
     {
+        // handle common args
         string arg = Utils::toUpperUtf8(*it);
 
         if (arg == "--HELP")
