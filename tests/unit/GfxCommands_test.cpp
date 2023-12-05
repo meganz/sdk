@@ -86,7 +86,7 @@ bool StringReader::do_read(void* out, size_t n, TimeoutMs /*timeout*/)
     return true;
 }
 
-TEST(CommandSerializer, CommandNewGfxSerializeAndUnserializeSuccessfully)
+TEST(GfxCommandSerializer, CommandNewGfxSerializeAndUnserializeSuccessfully)
 {
     CommandNewGfx sourceCommand;
     sourceCommand.Task.Path = "c:\\path\\image.png";
@@ -103,7 +103,7 @@ TEST(CommandSerializer, CommandNewGfxSerializeAndUnserializeSuccessfully)
     ASSERT_EQ(sourceCommand, *targetCommand);
 }
 
-TEST(CommandSerializer, CommandNewGfxResponseSerializeAndUnserializeSuccessfully)
+TEST(GfxCommandSerializer, CommandNewGfxResponseSerializeAndUnserializeSuccessfully)
 {
     CommandNewGfxResponse sourceCommand;
     sourceCommand.ErrorCode = 0;
@@ -121,7 +121,7 @@ TEST(CommandSerializer, CommandNewGfxResponseSerializeAndUnserializeSuccessfully
     ASSERT_EQ(sourceCommand, *targetCommand);
 }
 
-TEST(CommandSerializer, CommandShutdownSerializeAndUnserializeSuccessfully)
+TEST(GfxCommandSerializer, CommandShutdownSerializeAndUnserializeSuccessfully)
 {
     CommandShutDown sourceCommand;
 
@@ -136,7 +136,7 @@ TEST(CommandSerializer, CommandShutdownSerializeAndUnserializeSuccessfully)
     ASSERT_EQ(sourceCommand, *targetCommand);
 }
 
-TEST(CommandSerializer, CommandShutdownResponseSerializeAndUnserializeSuccessfully)
+TEST(GfxCommandSerializer, CommandShutdownResponseSerializeAndUnserializeSuccessfully)
 {
     CommandShutDownResponse sourceCommand;
 
@@ -151,7 +151,7 @@ TEST(CommandSerializer, CommandShutdownResponseSerializeAndUnserializeSuccessful
     ASSERT_EQ(sourceCommand, *targetCommand);
 }
 
-TEST(CommandSerializer, CommandHelloSerializeAndUnserializeSuccessfully)
+TEST(GfxCommandSerializer, CommandHelloSerializeAndUnserializeSuccessfully)
 {
     CommandHello sourceCommand;
 
@@ -166,7 +166,7 @@ TEST(CommandSerializer, CommandHelloSerializeAndUnserializeSuccessfully)
     ASSERT_EQ(sourceCommand, *targetCommand);
 }
 
-TEST(CommandSerializer, CommandHelloResponseSerializeAndUnserializeSuccessfully)
+TEST(GfxCommandSerializer, CommandHelloResponseSerializeAndUnserializeSuccessfully)
 {
     CommandHelloResponse sourceCommand;
 
@@ -181,7 +181,7 @@ TEST(CommandSerializer, CommandHelloResponseSerializeAndUnserializeSuccessfully)
     ASSERT_EQ(sourceCommand, *targetCommand);
 }
 
-TEST(CommandSerializer, CommandSupportFormatsSerializeAndUnserializeSuccessfully)
+TEST(GfxCommandSerializer, CommandSupportFormatsSerializeAndUnserializeSuccessfully)
 {
     CommandSupportFormats sourceCommand;
 
@@ -196,7 +196,7 @@ TEST(CommandSerializer, CommandSupportFormatsSerializeAndUnserializeSuccessfully
     ASSERT_EQ(sourceCommand, *targetCommand);
 }
 
-TEST(CommandSerializer, CommandSupportFormatsResponseSerializeAndUnserializeSuccessfully)
+TEST(GfxCommandSerializer, CommandSupportFormatsResponseSerializeAndUnserializeSuccessfully)
 {
     CommandSupportFormatsResponse sourceCommand;
 

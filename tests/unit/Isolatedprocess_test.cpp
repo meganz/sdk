@@ -26,7 +26,7 @@ seconds DurationCounter::duration() const
 
 }
 
-TEST(Misc, CancelableSleeperCanBecancelledInNoTime)
+TEST(Isolatedprocess, CancelableSleeperCanBecancelledInNoTime)
 {
     DurationCounter counter;
 
@@ -47,7 +47,7 @@ TEST(Misc, CancelableSleeperCanBecancelledInNoTime)
 //
 // Test hellobeater can be shutdown quickly
 //
-TEST(Misc, GfxWorkerHelloBeaterCanGracefullyShutdownInNoTime)
+TEST(Isolatedprocess, GfxWorkerHelloBeaterCanGracefullyShutdownInNoTime)
 {
     DurationCounter counter;
     {

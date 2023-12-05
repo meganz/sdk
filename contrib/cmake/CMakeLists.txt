@@ -1039,6 +1039,13 @@ endif()
 
 if (NOT IOS)
 #test apps
+if (WIN32)
+    SET(Mega_PlatformSpecificUnitTestFiles
+        ${MegaDir}/tests/unit/GfxCommands_test.cpp
+        ${MegaDir}/tests/unit/Isolatedprocess_test.cpp
+    )
+endif()
+
 add_executable(test_unit
     ${MegaDir}/tests/unit/Arguments_test.cpp
     ${MegaDir}/tests/unit/AttrMap_test.cpp
@@ -1072,6 +1079,7 @@ add_executable(test_unit
     ${MegaDir}/tests/unit/utils.h
     ${MegaDir}/tests/unit/utils_test.cpp
     ${MegaDir}/tests/unit/CacheLRU_test.cpp
+    ${Mega_PlatformSpecificUnitTestFiles}
 )
 
 add_executable(test_integration
