@@ -5787,6 +5787,16 @@ void MegaApi::fetchCreditCardInfo(MegaRequestListener* listener)
     pImpl->fetchCreditCardInfo(listener);
 }
 
+void MegaApi::getVisibleWelcomeDialog(MegaRequestListener* listener)
+{
+    pImpl->getVisibleWelcomeDialog(listener);
+}
+
+void MegaApi::setVisibleWelcomeDialog(bool visible, MegaRequestListener* listener)
+{
+    pImpl->setVisibleWelcomeDialog(visible, listener);
+}
+
 /* END MEGAAPI */
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)

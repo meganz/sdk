@@ -15876,3 +15876,37 @@ TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoANullPath)
     mApi[mApiIndex].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
     ASSERT_EQ(API_EARGS, synchronousGetUserAvatar(mApiIndex, mUser.get(), nullptr));
 }
+
+/**
+ * @brief Set and get Welcome dialog visibility
+ */
+TEST_F(SdkTest, SetGetVisibleWelcomeDialog)
+{
+    const unsigned int numberOfTestInstances{1};
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfTestInstances));
+
+    const unsigned int apiIndex{0};
+
+    std::unique_ptr<RequestTracker> requestTrackerGetOriginalVisibleWelcomeDialog{
+        asyncRequestGetVisibleWelcomeDialog(apiIndex)};
+    ASSERT_THAT(requestTrackerGetOriginalVisibleWelcomeDialog->waitForResult(),
+                ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
+    const auto originalVisibleWelcomeDialog{
+        requestTrackerGetOriginalVisibleWelcomeDialog->getFlag()};
+
+    const auto newVisibleWelcomeDialog{!originalVisibleWelcomeDialog};
+    ASSERT_EQ(API_OK, synchronousSetVisibleWelcomeDialog(apiIndex, newVisibleWelcomeDialog));
+
+    std::unique_ptr<RequestTracker> requestTrackerGetNewVisibleWelcomeDialog{
+        asyncRequestGetVisibleWelcomeDialog(apiIndex)};
+    ASSERT_EQ(API_OK, requestTrackerGetNewVisibleWelcomeDialog->waitForResult());
+    ASSERT_EQ(newVisibleWelcomeDialog, requestTrackerGetNewVisibleWelcomeDialog->getFlag());
+
+    ASSERT_EQ(API_OK, synchronousSetVisibleWelcomeDialog(apiIndex, originalVisibleWelcomeDialog));
+
+    std::unique_ptr<RequestTracker> requestTrackerGetRestoredVisibleWelcomeDialog{
+        asyncRequestGetVisibleWelcomeDialog(apiIndex)};
+    ASSERT_EQ(API_OK, requestTrackerGetRestoredVisibleWelcomeDialog->waitForResult());
+    ASSERT_EQ(originalVisibleWelcomeDialog,
+              requestTrackerGetRestoredVisibleWelcomeDialog->getFlag());
+}
