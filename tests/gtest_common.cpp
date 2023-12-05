@@ -1,4 +1,4 @@
-#include "gtestcommon.h"
+#include "gtest_common.h"
 
 #include <fstream>
 #include <numeric>

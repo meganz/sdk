@@ -1,7 +1,7 @@
 ﻿#include "mega.h"
 #include "mega/filesystem.h"
 #include "mega/process.h"
-#include "gtestcommon.h"
+#include "gtest_common.h"
 #include <gtest/gtest.h>
 #include <stdio.h>
 #include <fstream>

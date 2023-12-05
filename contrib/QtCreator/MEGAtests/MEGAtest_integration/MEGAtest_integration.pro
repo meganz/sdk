@@ -51,13 +51,13 @@ CONFIG += c++17
 QMAKE_CXXFLAGS+=-std=c++17
 
 SOURCES += \
-$$MEGASDK_BASE_PATH/tests/gtestcommon.cpp \
+$$MEGASDK_BASE_PATH/tests/gtest_common.cpp \
 $$MEGASDK_BASE_PATH/tests/integration/main.cpp \
 $$MEGASDK_BASE_PATH/tests/integration/SdkTest_test.cpp \
 $$MEGASDK_BASE_PATH/tests/integration/Sync_test.cpp
 
 HEADERS += \
-$$MEGASDK_BASE_PATH/tests/gtestcommon.h \
+$$MEGASDK_BASE_PATH/tests/gtest_common.h \
 $$MEGASDK_BASE_PATH/tests/integration/test.h \
 $$MEGASDK_BASE_PATH/tests/integration/SdkTest_test.h
 

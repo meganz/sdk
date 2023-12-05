@@ -1052,8 +1052,8 @@ add_executable(test_unit
 )
 
 add_executable(test_integration
-    ${MegaDir}/tests/gtestcommon.cpp
-    ${MegaDir}/tests/gtestcommon.h
+    ${MegaDir}/tests/gtest_common.cpp
+    ${MegaDir}/tests/gtest_common.h
     ${MegaDir}/tests/integration/main.cpp
     ${MegaDir}/tests/integration/SdkTest_test.cpp
     ${MegaDir}/tests/integration/SdkTest_test.h
