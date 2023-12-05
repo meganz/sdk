@@ -78,7 +78,9 @@ public:
     bool crashed() const { return mStatus == TestStatus::CRASHED; }
     std::string getRelevantOutput() { return finishedRunning() ? mRelevantOutput : std::string(); }
     const std::string& getTestName() const { return mTestName; }
+    std::string getWorkerLog() const;
 
+    void setCustomPathForPid(const std::string& path) { mCustomPathForPid = path; }
     void hideMemLeaks(bool hide) { mHideMemLeaks = hide; }
 
 private:
@@ -90,6 +92,7 @@ private:
 
     std::string mTestName;
     size_t mWorkerIdx = 0u;
+    std::string mCustomPathForPid;
 
     enum class TestStatus
     {
@@ -183,6 +186,8 @@ public:
 
     int run();
 
+    void useWorkerOutputPathForPid(std::string&& basePath) { mWorkerOutPath.swap(basePath); }
+
 private:
     bool findTests();
     size_t getNexatAvailableInstance();
@@ -191,6 +196,7 @@ private:
     void summary();
 
     RuntimeArgValues mCommonArgs;
+    std::string mWorkerOutPath;
     std::deque<std::string> mTestsToRun;
     std::map<size_t, GTestProc> mRunningGTests;
     int mFinalResult = 0;

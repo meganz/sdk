@@ -292,20 +292,29 @@ void GTestProc::onExit()
     string msg("[  FAILED  ] " + mTestName + " CRASHED");
     printToScreen(std::cout, msg);
 
-    ofstream testLog(getLogFileName(mWorkerIdx, mTestName), ios_base::app);
+    const string& workerLog = getWorkerLog();
+    ofstream testLog(workerLog, ios_base::app);
     if (testLog.is_open())
     {
         testLog << mRelevantOutput << msg << std::endl;
     }
     else
     {
-        printToScreen(std::cout, "Could not open " + getLogFileName(mWorkerIdx, mTestName) + " to append relevant output after crash.");
+        printToScreen(std::cout, "Could not open " + workerLog + " to append relevant output after crash.");
     }
 }
 
 void GTestProc::printToScreen(std::ostream& screen, const std::string& msg) const
 {
     screen << getCurrentTimestamp(true) << " #" << mWorkerIdx << ' ' << msg << std::endl;
+}
+
+string GTestProc::getWorkerLog() const
+{
+    const string& log = (mStatus == TestStatus::NOT_STARTED || mCustomPathForPid.empty())
+                        ? getLogFileName(mWorkerIdx, mTestName)
+                        : mCustomPathForPid + std::to_string(getPid()) + '/' + getLogFileName(mWorkerIdx, mTestName);
+    return log;
 }
 
 
@@ -644,6 +653,7 @@ bool GTestParallelRunner::runTest(size_t workerIdx, string&& name)
     auto envVars = mCommonArgs.getEnvVarsForWorker(workerIdx);
 
     GTestProc& testProcess = mRunningGTests[workerIdx];
+    testProcess.setCustomPathForPid(mWorkerOutPath);
     testProcess.hideMemLeaks(mCommonArgs.hidingWorkerMemLeaks());
     bool running = testProcess.run(procArgs, envVars, workerIdx, std::move(name));
 
@@ -675,9 +685,21 @@ void GTestParallelRunner::processFinishedTest(GTestProc& test, const std::string
         mFinalResult = 1;
     }
 
-    // concatenate test log to main log
-    ifstream infile(logFile);
-    ofstream outfile(getLogFileName(), ios_base::app);
+    // concatenate individual log to main log
+    const string& individualLog = test.getWorkerLog();
+    ifstream infile(individualLog);
+    if (!infile.is_open())
+    {
+        std::cout << "Could not open " << individualLog << " for reading" << std::endl;
+        return;
+    }
+    const string& mainLog = getLogFileName();
+    ofstream outfile(mainLog, ios_base::app);
+    if (!outfile.is_open())
+    {
+        std::cout << "Could not open " << mainLog << " for writing" << std::endl;
+        return;
+    }
     outfile << infile.rdbuf();
 }
 
