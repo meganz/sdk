@@ -192,7 +192,7 @@ private:
     bool findTests();
     size_t getNexatAvailableInstance();
     bool runTest(size_t workerIdx, std::string&& name);
-    void processFinishedTest(GTestProc& test, const std::string& logFile);
+    void processFinishedTest(GTestProc& test);
     void summary();
 
     RuntimeArgValues mCommonArgs;

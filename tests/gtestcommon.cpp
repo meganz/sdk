@@ -1,6 +1,7 @@
 #include "gtestcommon.h"
 
 #include <fstream>
+#include <numeric>
 #include <regex>
 
 using namespace std;
@@ -568,7 +569,7 @@ int GTestParallelRunner::run()
     mPidDumps.clear();
 
     assert(mCommonArgs.isMainProcWithWorkers());
-    if (!mCommonArgs.isMainProcWithWorkers() || !findTests())
+    if (!mCommonArgs.isMainProcWithWorkers() || !findTests() || !mTotalTestCount)
     {
         return 1;
     }
@@ -598,11 +599,26 @@ int GTestParallelRunner::run()
     }
 
     // wait for remaining tests to finish
-    for (auto& i : mRunningGTests)
+    vector<size_t> stillRunning(mRunningGTests.size());
+    std::iota(stillRunning.begin(), stillRunning.end(), 0); // fill it with 0,1,...
+
+    while (!stillRunning.empty())
     {
-        GTestProc& testProcess = i.second;
-        const string& logFile = getLogFileName(i.first, testProcess.getTestName());
-        processFinishedTest(testProcess, logFile);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100)); // collect output from running workers
+
+        for (auto it = stillRunning.begin(); it != stillRunning.end();)
+        {
+            GTestProc& t = mRunningGTests[*it];
+            if (t.finishedRunning())
+            {
+                processFinishedTest(t);
+                it = stillRunning.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
     }
 
     summary();
@@ -640,8 +656,7 @@ size_t GTestParallelRunner::getNexatAvailableInstance()
         GTestProc& testProcess = i.second;
         if (testProcess.finishedRunning())
         {
-            const string& logFile = getLogFileName(i.first, testProcess.getTestName());
-            processFinishedTest(testProcess, logFile);
+            processFinishedTest(testProcess);
 
             return i.first;
         }
@@ -667,7 +682,7 @@ bool GTestParallelRunner::runTest(size_t workerIdx, string&& name)
     return running;
 }
 
-void GTestParallelRunner::processFinishedTest(GTestProc& test, const std::string& logFile)
+void GTestParallelRunner::processFinishedTest(GTestProc& test)
 {
     int err = test.getExitCode(); // waits if not finished yet
 
