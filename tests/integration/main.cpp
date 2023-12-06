@@ -448,6 +448,66 @@ ClientManager* g_clientManager = nullptr;
 
 RequestRetryRecorder* RequestRetryRecorder::mInstance = nullptr;
 
+
+class SdkRuntimeArgValues : public RuntimeArgValues
+{
+public:
+    SdkRuntimeArgValues(std::vector<std::string>&& args, std::vector<std::pair<std::string, std::string>>&& envVars) :
+        RuntimeArgValues(std::move(args), std::move(envVars))
+    {
+        if (isHelp())
+        {
+            cout << endl;
+            cout << "--LOG                       Write output to log file" << endl;
+            cout << endl;
+            cout << "--CI                        Include all 'Continuous Integration' options (same as --LOG)" << endl;
+            cout << endl;
+            cout << "--RESUMESESSIONS            Resume previous account sessions, instead of full logins" << endl;
+            cout << endl;
+            cout << "--SCANONLY                  (Not used)" << endl;
+            cout << endl;
+            cout << "--#<arg>                    Commented out argument, ignored" << endl;
+
+            return;
+        }
+
+        auto& aa = isMainProcWithWorkers() ? mArgs : args;
+
+        for (auto it = aa.begin(); it != aa.end();)
+        {
+            if (Utils::startswith(*it, "--#"))
+            {
+                // commented out args, e.g. --#INSTANCES:3
+                it = aa.erase(it);
+                continue;
+            }
+
+            string arg = Utils::toUpperUtf8(*it);
+
+            if (arg == "--LOG")
+            {
+                gWriteLog = true;
+            }
+            else if (arg == "--CI")
+            {
+                // options for continuous integration
+                gWriteLog = true;
+            }
+            else if (arg == "--RESUMESESSIONS")
+            {
+                gResumeSessions = true;
+            }
+            else if (arg == "--SCANONLY")
+            {
+                gScanOnly = true;
+            }
+
+            ++it;
+        }
+    }
+};
+
+
 int main (int argc, char *argv[])
 {
     // So we can track how often requests are retried.
