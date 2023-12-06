@@ -536,16 +536,19 @@ unordered_map<string, string> RuntimeArgValues::getEnvVarsForWorker(size_t idx) 
 
 tuple<string, size_t, size_t, string> RuntimeArgValues::breakTemplate() const
 {
-    static regex emailRegex("(.*)[{](\\d+)-(\\d+)[}](.*)"); // "(prefix){(first)-(last)}(suffix)"
+    // Supported templates:
+    //   "(prefix){(first)-(last)}(suffix)"
+    //   "(prefix){(first)..(last)}(suffix)"
+    static regex emailRegex("(.*)[{](\\d+)(-|\\.\\.)(\\d+)[}](.*)");
     smatch matches;
-    if (regex_search(mEmailTemplate, matches, emailRegex) && matches.size() >= 5)
+    if (regex_search(mEmailTemplate, matches, emailRegex) && matches.size() >= 6)
     {
         size_t first = atoi(matches[2].str().c_str()); // only digits, e.g. 1
-        size_t last = atoi(matches[3].str().c_str());  // only digits, e.g. 100
+        size_t last = atoi(matches[4].str().c_str());  // only digits, e.g. 100
 
         if (first > 0u && last >= first)
         {
-            return tuple<string, size_t, size_t, string>(matches[1].str(), first, last, matches[4].str());
+            return tuple<string, size_t, size_t, string>(matches[1].str(), first, last, matches[5].str());
         }
     }
 
