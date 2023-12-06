@@ -86,7 +86,8 @@ class GfxWorkerHelloBeater : public IHelloBeater
 {
 public:
     GfxWorkerHelloBeater(const std::chrono::seconds& period, const std::string& pipename)
-        : mPeriod(period)
+        : mShuttingDown(false)
+        , mPeriod(period)
         , mPipename(pipename)
     {
         mThread = std::thread(&GfxWorkerHelloBeater::beat, this);
@@ -174,7 +175,7 @@ private:
     private:
         std::string         mFormats;
         std::string         mVideoformats;
-        std::atomic<bool>   mIsValid;
+        std::atomic<bool>   mIsValid{false};
         std::mutex          mMutex;
     };
 

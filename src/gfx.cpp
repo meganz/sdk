@@ -404,6 +404,9 @@ bool GfxProc::savefa(const LocalPath& localfilepath, const GfxDimension& dimensi
 
 GfxProc::GfxProc(std::unique_ptr<IGfxProvider> middleware)
     : mGfxProvider(std::move(middleware))
+    , mJobCounter(0)
+    , mOkResultCounter(0)
+    , mNoResultCounter(0)
 {
     client = NULL;
     finished = false;
