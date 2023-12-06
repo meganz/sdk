@@ -510,6 +510,55 @@ public:
 
 int main (int argc, char *argv[])
 {
+    assert(envVarAccount.size() == envVarPass.size());
+    vector<pair<string, string>> accEnvVArs;
+    std::transform(envVarAccount.begin(), envVarAccount.end(), envVarPass.begin(), std::back_inserter(accEnvVArs),
+        [](const string& a, const string& p) { return std::make_pair(a, p); });
+
+    SdkRuntimeArgValues argVals(vector<string>(argv, argv + argc), std::move(accEnvVArs));
+    if (argVals.isHelp())
+    {
+        return 0;
+    }
+
+    if (!argVals.isValid())
+    {
+        std::cout << "No tests executed (invalid arguments)." << std::endl;
+        return -1;
+    }
+
+    if (argVals.isListOnly())
+    {
+        testing::InitGoogleTest(&argc, argv);
+        return RUN_ALL_TESTS(); // returns 0 (success) or 1 (failed tests)
+    }
+
+    gLogName = argVals.getLog(); // set accordingly for worker or main process
+
+    remove(gLogName.c_str());
+
+    if (argVals.isMainProcWithWorkers())
+    {
+        // Don't run tests, only manage subprocesses.
+        // To get here run with --INSTANCES:2 [--EMAIL-POOL:foo+bar-{1-28}@mega.nz]
+        // If --EMAIL-POOL runtime arg is missing, email template will be taken from MEGA_PWD0 env var.
+        // Password for all emails built from template will be taken from MEGA_PWD0 env var.
+        // If it did not get an email template, it'll use 1 single subprocess with the existing env vars.
+        GTestParallelRunner pr(std::move(argVals));
+        string testBase = (TestFS::GetBaseFolder() / "pid_").u8string(); // see TestFS::GetProcessFolder()
+        pr.useWorkerOutputPathForPid(std::move(testBase));
+        return pr.run();
+    }
+
+    if (!argVals.getCustomApiUrl().empty())
+    {
+        g_APIURL_default = argVals.getCustomApiUrl();
+    }
+    if (!argVals.getCustomUserAget().empty())
+    {
+        USER_AGENT = argVals.getCustomUserAget();
+    }
+
     // So we can track how often requests are retried.
     RequestRetryRecorder retryRecorder;
 
@@ -528,6 +577,7 @@ int main (int argc, char *argv[])
 
     // delete old test folders, created during previous runs
     TestFS testFS;
+    testFS.ClearProcessFolder();
     testFS.ChangeToProcessFolder();
 
 #if defined(__APPLE__)
@@ -548,6 +598,7 @@ int main (int argc, char *argv[])
             listeners.Append(new GTestLogger());
     }
 
+    ::testing::InitGoogleTest(&argc, argv);
 
     int gtestRet = RUN_ALL_TESTS();
 
@@ -563,11 +614,17 @@ int main (int argc, char *argv[])
     }
 #endif
 
+#ifdef ENABLE_SYNC
+    g_clientManager->clear();
+#endif
+    megaLogger.close();
+
+    return gtestRet;
 
     }
     catch (exception& e) {
-        cerr << argv[0] << ": fatal error: " << e.what() << endl;
-        return 1;
+        cerr << argv[0] << ": exception: " << e.what() << endl;
+        return -1;
     }
 }
 
