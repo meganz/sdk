@@ -26,12 +26,11 @@ find_package(lcms          REQUIRED)
 find_package(JPEG          REQUIRED)
 find_package(BZip2         REQUIRED)
 find_package(libpng        REQUIRED)
-find_package(FREETYPE      REQUIRED)
+find_package(Freetype      REQUIRED)
 
 include_directories(
     ${JPEG_INCLUDE_DIRS}
     ${BZIP2_INCLUDE_DIRS}
-    ${FREETYPE_INCLUDE_DIRS}
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/abseil-cpp
     "."
 )
@@ -619,7 +618,7 @@ target_link_libraries(pdfium
     openjp2
     JPEG::JPEG
     ${BZIP2_LIBRARIES}
-    ${FREETYPE_LIBRARIES}
+    Freetype::Freetype
 )
 
 file(GLOB_RECURSE PUB_HEADERS "public/*.h" "public/cpp/*.h")
