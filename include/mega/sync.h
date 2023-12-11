@@ -163,10 +163,7 @@ public:
     // Prevent applying old settings dialog based exclusion when creating .megaignore, for newer syncs.  We set this true for new syncs or after upgrade.
     bool mLegacyExclusionsIneligigble = true;
 
-    // Whether recursiveSync() is called.  This one is not serialized, it just makes it convenient to deliver thread-safe sync state data back to client apps.
-    bool mTemporarilyPaused = false;
-
-    // If the database exists then its running/paused/suspended.  Not serialized.
+    // If the database exists then its running/suspended. Not serialized.
     bool mDatabaseExists = false;
 
     // Maintained as we transition
@@ -581,10 +578,6 @@ public:
     Sync(UnifiedSync&, const string&, const LocalPath&, bool, const string& logname, SyncError& e);
     ~Sync();
 
-    // pause synchronization.  Syncs are still "active" but we don't call recursiveSync for them.
-    void setSyncPaused(bool pause);
-    bool isSyncPaused();
-
     // Asynchronous scan request / result.
     std::shared_ptr<ScanService::ScanRequest> mActiveScanRequestGeneral;
 
@@ -950,7 +943,7 @@ struct SyncFlags
     bool reachableNodesAllScannedThisPass = true;
     bool reachableNodesAllScannedLastPass = true;
 
-    // true anytime we have just added a new sync, or unpaused one
+    // true anytime we have just added a new sync, or unsuspended (unpaused) one
     bool isInitialPass = true;
 
     // we can only delete/upload/download after moves are complete
@@ -1030,7 +1023,7 @@ struct Syncs
     void loadSyncConfigsOnFetchnodesComplete(bool resetSyncConfigStore);
     void resumeSyncsOnStateCurrent();
 
-    void enableSyncByBackupId(handle backupId, bool paused, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname);
+    void enableSyncByBackupId(handle backupId, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname);
     void disableSyncByBackupId(handle backupId, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void()> completion);
 
     // disable all active syncs.  Cache is kept
@@ -1243,9 +1236,9 @@ private:
 
     void proclocaltree(LocalNode* n, LocalTreeProc* tp);
 
-    bool mightAnySyncsHaveMoves(bool includePausedSyncs);
-    bool isAnySyncSyncing(bool includePausedSyncs);
-    bool isAnySyncScanning_inThread(bool includePausedSyncs);
+    bool mightAnySyncsHaveMoves();
+    bool isAnySyncSyncing();
+    bool isAnySyncScanning_inThread();
 
     // actually start the sync (on sync thread)
     void startSync_inThread(UnifiedSync& us, const string& debris, const LocalPath& localdebris,
@@ -1255,7 +1248,7 @@ private:
     void locallogout_inThread(bool removecaches, bool keepSyncsConfigFile, bool reopenStoreAfter);
     void loadSyncConfigsOnFetchnodesComplete_inThread(bool resetSyncConfigStore);
     void resumeSyncsOnStateCurrent_inThread();
-    void enableSyncByBackupId_inThread(handle backupId, bool paused, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath = string());
+    void enableSyncByBackupId_inThread(handle backupId, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath = string());
     void disableSyncByBackupId_inThread(handle backupId, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void()> completion);
     void appendNewSync_inThread(const SyncConfig&, bool startSync, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath = string());
     void removeSyncAfterDeregistration_inThread(handle backupId, std::function<void(Error)> clientCompletion, std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction);
@@ -1305,7 +1298,7 @@ private:
     bool isDefinitelyExcluded(const pair<std::shared_ptr<Node>, Sync*>& root, std::shared_ptr<const Node> child);
 
     template<typename Predicate>
-    Sync* syncMatching(Predicate&& predicate, bool includePaused)
+    Sync* syncMatching(Predicate&& predicate)
     {
         // Sanity.
         assert(onSyncThread());
@@ -1318,10 +1311,6 @@ private:
             if (!i->mSync)
                 continue;
 
-            // Optionally skip paused syncs.
-            if (!includePaused && i->mConfig.mTemporarilyPaused)
-                continue;
-
             // Have we found our lucky sync?
             if (predicate(*i))
                 return i->mSync.get();
@@ -1331,8 +1320,8 @@ private:
         return nullptr;
     }
 
-    Sync* syncContainingPath(const LocalPath& path, bool includePaused);
-    Sync* syncContainingPath(const string& path, bool includePaused);
+    Sync* syncContainingPath(const LocalPath& path);
+    Sync* syncContainingPath(const string& path);
 
     // Signal that an ignore file failed to load.
     void ignoreFileLoadFailure(const Sync& sync, const LocalPath& path);
@@ -1342,7 +1331,6 @@ private:
     {
         // Clear the context if the associated sync:
         // - Is disabled (or failed.)
-        // - Is paused.
         // - No longer exists.
         void reset(Syncs& syncs)
         {
@@ -1354,7 +1342,7 @@ private:
                        && !!us.mSync;
             };
 
-            if (syncs.syncMatching(std::move(predicate), false))
+            if (syncs.syncMatching(std::move(predicate)))
                 return;
 
             reset();

@@ -84,8 +84,7 @@ void HeartBeatSyncInfo::updateSPHBStatus(UnifiedSync& us)
         if (!us.mConfig.mError)
         {
             if (us.syncs.isSyncStalled(us.mConfig.mBackupId) ||
-                us.mSync->localroot->conflicts != TREE_RESOLVED ||
-                us.mConfig.mTemporarilyPaused)
+                us.mSync->localroot->conflicts != TREE_RESOLVED)
             {
                 status = CommandBackupPutHeartBeat::STALLED;
             }

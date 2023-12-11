@@ -10372,7 +10372,6 @@ void exec_synclist(autocomplete::ACState& s)
 
         // Display status info.
         cout << "  State: " << runStateName << " "
-            << (config.mTemporarilyPaused ? " (paused)" : "")
             << "\n";
 
         //    // Display some usage stats.
@@ -10749,11 +10748,9 @@ void exec_syncxable(autocomplete::ACState& s)
     case SyncRunState::Pending:
     case SyncRunState::Loading:
     case SyncRunState::Run:
-    case SyncRunState::Pause:
     {
         // sync enable id
-        bool pause = targetState == SyncRunState::Pause;
-        client->syncs.enableSyncByBackupId(backupId, pause, true, [pause](error err, SyncError serr, handle)
+        client->syncs.enableSyncByBackupId(backupId, true, [](error err, SyncError serr, handle)
             {
                 if (err)
                 {
@@ -10763,16 +10760,21 @@ void exec_syncxable(autocomplete::ACState& s)
                 }
                 else
                 {
-                    cout << (pause ? "Sync Paused." : "Sync Running.") << endl;
+                    cout << "Sync Running." << endl;
                 }
             }, true, "");
 
         break;
     }
+    case SyncRunState::Pause:
     case SyncRunState::Suspend:
     case SyncRunState::Disable:
     {
-        bool keepSyncDb = targetState == SyncRunState::Suspend;
+        if (targetState == SyncRunState::Pause)
+        {
+            LOG_warn << "[exec_syncxable] Target state: SyncRunState::Pause. Sync will be suspended";
+        }
+        bool keepSyncDb = targetState == SyncRunState::Pause || targetState == SyncRunState::Suspend;
 
         client->syncs.disableSyncByBackupId(
             backupId,
@@ -10780,7 +10782,7 @@ void exec_syncxable(autocomplete::ACState& s)
             false,
             keepSyncDb,
             [targetState](){
-                cout << (targetState == SyncRunState::Suspend ? "Sync Suspended." : "Sync Disabled.") << endl;
+                cout << (targetState == SyncRunState::Suspend || targetState == SyncRunState::Pause ? "Sync Suspended." : "Sync Disabled.") << endl;
                 });
         break;
     }
