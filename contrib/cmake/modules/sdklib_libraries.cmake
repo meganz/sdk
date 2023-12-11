@@ -4,7 +4,7 @@ macro(load_sdklib_libraries)
 
     if(VCPKG_ROOT)
         find_package(cryptopp CONFIG REQUIRED)
-        target_link_libraries(SDKlib PRIVATE cryptopp::cryptopp)
+        target_link_libraries(SDKlib PUBLIC cryptopp::cryptopp) # TODO: Private for SDK core
 
         find_package(unofficial-sodium REQUIRED)
         if(WIN32)
@@ -76,7 +76,7 @@ macro(load_sdklib_libraries)
 
     else() # No VCPKG usage. Use pkg-config
         pkg_check_modules(cryptopp REQUIRED IMPORTED_TARGET libcrypto++)
-        target_link_libraries(SDKlib PRIVATE PkgConfig::cryptopp)
+        target_link_libraries(SDKlib PUBLIC PkgConfig::cryptopp) # TODO: Private for SDK core
 
         pkg_check_modules(sodium REQUIRED IMPORTED_TARGET libsodium)
         target_link_libraries(SDKlib PRIVATE PkgConfig::sodium)

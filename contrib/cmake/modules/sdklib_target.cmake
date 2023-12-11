@@ -253,25 +253,25 @@ target_sources_conditional(SDKlib
 
 # Include directories
 target_include_directories(SDKlib
-    PRIVATE # Internal and private headers
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
-        ${CMAKE_CURRENT_BINARY_DIR}
-        $<$<BOOL:${APPLE}>:${CMAKE_CURRENT_SOURCE_DIR}/include/mega/osx>
-        $<$<BOOL:${WIN32}>:${CMAKE_CURRENT_SOURCE_DIR}/include/mega/$<IF:${USE_CURL},wincurl,win32>>
-        $<$<BOOL:${UNIX}>:${CMAKE_CURRENT_SOURCE_DIR}/include/mega/posix>
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> # For the top level projects.
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}> # For the external projects.
+#    PRIVATE # TODO: Private for SDK core
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+        $<$<BOOL:${APPLE}>:${CMAKE_CURRENT_SOURCE_DIR}/include/mega/osx>
+        $<$<BOOL:${WIN32}>:${CMAKE_CURRENT_SOURCE_DIR}/include/mega/$<IF:${USE_CURL},wincurl,win32>>
+        $<$<BOOL:${UNIX}>:${CMAKE_CURRENT_SOURCE_DIR}/include/mega/posix>
     )
 
 if (WIN32)
     target_compile_definitions(SDKlib
+        PUBLIC # TODO: Private for SDK core
+            HAVE_CONFIG_H # To include the config.h file in Windows builds
         PRIVATE
-        HAVE_CONFIG_H # To include the config.h file in Windows builds
-        _CRT_SECURE_NO_WARNINGS # warning in mega_ccronexpr
-        $<$<BOOL:${USE_CPPTHREAD}>:USE_CPPTHREAD>
-        UNICODE
-        NOMINMAX # TODO Fix locally
+            _CRT_SECURE_NO_WARNINGS # warning in mega_ccronexpr
+            $<$<BOOL:${USE_CPPTHREAD}>:USE_CPPTHREAD>
+            UNICODE
+            NOMINMAX # TODO Fix locally
     )
 
     # Increase number of sections in .obj files. (megaapi_impl.cpp, Sync_test.cpp, ...)
@@ -290,8 +290,6 @@ set_target_properties(SDKlib PROPERTIES
 load_sdklib_libraries()
 
 # System libraries
-# TODO SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} pthread z dl termcap) Linux
-# TODO SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} crypto rt stdc++fs) Linux
 if((NOT (WIN32 OR APPLE)) AND CMAKE_CXX_STANDARD LESS_EQUAL 17)
     # Needed for std::experimental::filesystem
     # Needed for c++17 and std::filesystem for some compilers. Not needed starting in gcc9, but harmless.
