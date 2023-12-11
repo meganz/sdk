@@ -97,6 +97,7 @@ pipeline {
                     //Build SDK
                     sh "echo Building SDK"
                     sh "cmake -DENABLE_SDKLIB_WERROR=ON -DUSE_PDFIUM=OFF -DENABLE_CHAT=ON -DCMAKE_BUILD_TYPE=Debug ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=ON \
+                    -DCMAKE_PREFIX_PATH=/opt/gtest/gtest-1.10.0 \
                     -S ${linux_sources_workspace} -B ${linux_sources_workspace}/${BUILD_DIR}"
                     sh "cmake --build ${linux_sources_workspace}/${BUILD_DIR} -j1"
                 }
