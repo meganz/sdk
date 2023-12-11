@@ -3,6 +3,7 @@
 #include "mega/gfx/worker/client.h"
 #include "mega/logging.h"
 #include "mega/process.h"
+
 #include <algorithm>
 #include <iterator>
 #include <mutex>

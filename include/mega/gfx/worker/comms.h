@@ -18,13 +18,13 @@
 
 #pragma once
 
-#include <memory>
-#include <functional>
-#include <limits>
-
 #ifdef _WIN32
     #include <windows.h>
 #endif
+
+#include <memory>
+#include <functional>
+#include <limits>
 
 namespace mega {
 namespace gfx {

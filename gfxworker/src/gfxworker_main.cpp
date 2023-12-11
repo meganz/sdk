@@ -1,12 +1,14 @@
+#include "server.h"
+#include "comms_server_win32.h"
+#include "logger.h"
+
+#include "mega/arguments.h"
+
 #include <algorithm>
 #include <iostream>
 #include <memory>
 #include <unordered_map>
 #include <utility>
-#include "mega/arguments.h"
-#include "server.h"
-#include "comms_server_win32.h"
-#include "logger.h"
 
 using mega::gfx::GfxProcessor;
 using mega::gfx::RequestProcessor;

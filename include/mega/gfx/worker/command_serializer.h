@@ -1,9 +1,10 @@
 #pragma once
 
-#include <memory>
-#include <string>
 #include "mega/gfx/worker/commands.h"
 #include "mega/gfx/worker/comms.h"
+
+#include <memory>
+#include <string>
 
 namespace mega
 {

@@ -1,10 +1,12 @@
-#include "gtest/gtest.h"
-#include "mega.h"
+#include "comms_server_win32.h"
+#include "server.h"
+
 #include "mega/gfx.h"
 #include "mega/win32/gfx/worker/comms_client.h"
 #include "mega/gfx/worker/client.h"
-#include "comms_server_win32.h"
-#include "server.h"
+
+#include <gtest/gtest.h>
+
 #include <memory>
 #include <thread>
 #include <chrono>

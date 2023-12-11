@@ -1,10 +1,8 @@
-#include "mega/logging.h"
-#include "mega/utils.h"
-#include "mega/filesystem.h"
 #include "comms_server_win32.h"
 #include "server.h"
-#include <system_error>
-#include <windows.h>
+
+#include "mega/logging.h"
+#include "mega/utils.h"
 
 namespace mega {
 namespace gfx {

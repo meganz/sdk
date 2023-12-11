@@ -1,9 +1,5 @@
 #pragma once
 
-#include <memory>
-#include <unordered_map>
-#include <mutex>
-
 #include "threadpool.h"
 
 #include "mega/gfx/worker/comms.h"
@@ -11,6 +7,10 @@
 #include "mega/gfx/freeimage.h"
 #include "mega/gfx/worker/tasks.h"
 #include "megafs.h"
+
+#include <memory>
+#include <unordered_map>
+#include <mutex>
 
 namespace mega {
 namespace gfx {

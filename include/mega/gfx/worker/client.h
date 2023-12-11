@@ -18,12 +18,13 @@
 
 #pragma once
 
+#include "mega/gfx/worker/comms.h"
+#include "mega/gfx/worker/tasks.h"
+
 #include <memory>
 #include <vector>
 #include <string>
 #include <assert.h>
-#include "mega/gfx/worker/comms.h"
-#include "mega/gfx/worker/tasks.h"
 
 namespace mega {
 namespace gfx {

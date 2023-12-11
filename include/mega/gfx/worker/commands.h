@@ -18,8 +18,9 @@
 
 #pragma once
 
-#include <memory>
 #include "mega/gfx/worker/tasks.h"
+
+#include <memory>
 
 namespace mega {
 namespace gfx {

@@ -1,10 +1,8 @@
 #pragma once
 
+#include "mega/types.h"
 #include "mega/win32/gfx/worker/comms.h"
-#include <minwindef.h>
-#include <winbase.h>
-#include <windows.h>
-#include <thread>
+
 #include <system_error>
 
 namespace mega {

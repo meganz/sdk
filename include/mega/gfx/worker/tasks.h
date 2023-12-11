@@ -17,6 +17,7 @@
  */
 
 #pragma once
+
 #include "mega/gfx.h"
 
 #include <string>
