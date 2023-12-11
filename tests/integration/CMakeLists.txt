@@ -21,6 +21,13 @@ else()
     target_link_libraries(test_integration PRIVATE PkgConfig::gmock PkgConfig::gtest)
 endif()
 
+if (WIN32)
+    target_compile_definitions(test_integration
+        PRIVATE
+            NOMINMAX # TODO Fix locally
+    )
+endif()
+
 ## Adjust compilation flags for warnigns and errors ##
 if(WIN32)
 

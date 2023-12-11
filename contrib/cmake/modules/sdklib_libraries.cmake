@@ -8,7 +8,7 @@ macro(load_sdklib_libraries)
 
         find_package(unofficial-sodium REQUIRED)
         if(WIN32)
-            target_link_libraries(SDKlib PRIVATE unofficial-sodium::sodium)
+            target_link_libraries(SDKlib PUBLIC unofficial-sodium::sodium)  # TODO: Private for SDK core
         else()
             target_link_libraries(SDKlib PRIVATE unofficial-sodium::sodium unofficial-sodium::sodium_config_public)
         endif()
