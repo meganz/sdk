@@ -64,6 +64,13 @@ else()
 
     if(ENABLE_SDKLIB_WERROR AND CMAKE_BUILD_TYPE STREQUAL "Debug")
         target_compile_options(test_unit PRIVATE -Werror)
+        if(APPLE)
+            target_compile_options(test_unit
+                PRIVATE
+                -Wno-sign-conversion                 -Wno-overloaded-virtual
+                -Wno-inconsistent-missing-override   -Wno-unqualified-std-cast-call
+            )
+        endif()
     endif()
 
 endif()
