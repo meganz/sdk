@@ -54,12 +54,9 @@ CommError WinGfxCommunicationsClient::do_connect(LPCTSTR pipeName, HANDLE &hPipe
 
 CommError WinGfxCommunicationsClient::connect(std::unique_ptr<IEndpoint>& endpoint)
 {
-    std::string pipename = "\\\\.\\pipe\\" + mPipename;
-    std::wstring wpipename;
-    LocalPath::path2local(&pipename, &wpipename);
-
+    const auto fullPipename = win_utils::toFullPipename(mPipename);
     HANDLE hPipe = INVALID_HANDLE_VALUE;
-    CommError error  = do_connect(wpipename.c_str(), hPipe);
+    const CommError error  = do_connect(fullPipename.c_str(), hPipe);
     endpoint = hPipe == INVALID_HANDLE_VALUE ? nullptr : mega::make_unique<Win32NamedPipeEndpointClient>(hPipe, "client");
     return error;
 }

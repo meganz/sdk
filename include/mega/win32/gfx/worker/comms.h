@@ -5,6 +5,12 @@
 
 namespace mega {
 namespace gfx {
+namespace win_utils
+{
+
+std::wstring toFullPipename(const std::string& name);
+
+}
 
 class Win32NamedPipeEndpoint : public IEndpoint
 {

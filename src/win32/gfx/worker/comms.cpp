@@ -1,8 +1,21 @@
 #include "mega/win32/gfx/worker/comms.h"
 #include "mega/logging.h"
+#include "mega/filesystem.h"
 
 namespace mega {
 namespace gfx {
+namespace win_utils
+{
+
+std::wstring toFullPipename(const std::string& name)
+{
+    const std::string pipename = "\\\\.\\pipe\\" + name;
+    std::wstring pipenameW;
+    LocalPath::path2local(&pipename, &pipenameW);
+    return pipenameW;
+}
+
+}
 
 WinOverlap::WinOverlap()
 {

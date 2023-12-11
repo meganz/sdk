@@ -89,9 +89,7 @@ void WinGfxCommunicationsServer::serverListeningLoop()
         return;
     }
 
-    std::string pipename = "\\\\.\\pipe\\" + mPipename;
-    std::wstring wpipename;
-    LocalPath::path2local(&pipename, &wpipename);
+    const auto fullPipename = win_utils::toFullPipename(mPipename);
 
     // first instance to prevent two processes create the same pipe
     DWORD firstInstance = FILE_FLAG_FIRST_PIPE_INSTANCE;
@@ -101,10 +99,10 @@ void WinGfxCommunicationsServer::serverListeningLoop()
         LOG_verbose << "server awaiting client connection";
 
         auto hPipe = CreateNamedPipe(
-            wpipename.c_str(),        // pipe name
+            fullPipename.c_str(),     // pipe name
             PIPE_ACCESS_DUPLEX |      // read/write access
             FILE_FLAG_OVERLAPPED |    // overlapped
-            firstInstance,           // first instance or not
+            firstInstance,            // first instance or not
             PIPE_TYPE_MESSAGE |       // message type pipe
             PIPE_READMODE_BYTE |      // message-read mode
             PIPE_WAIT,                // blocking mode
