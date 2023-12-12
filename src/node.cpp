@@ -492,6 +492,21 @@ bool Node::isOfMimetype(MimeType_t mimetype, const string& ext)
     }
 }
 
+MimeType_t Node::getMimetype(const std::string& ext)
+{
+    if (isPhoto(ext))         return MimeType_t::MIME_TYPE_PHOTO;
+    if (isAudio(ext))         return MimeType_t::MIME_TYPE_AUDIO;
+    if (isVideo(ext))         return MimeType_t::MIME_TYPE_VIDEO;
+    if (isPdf(ext))           return MimeType_t::MIME_TYPE_PDF;
+    if (isPresentation(ext))  return MimeType_t::MIME_TYPE_PRESENTATION;
+    if (isSpreadsheet(ext))   return MimeType_t::MIME_TYPE_SPREADSHEET;
+    if (isDocument(ext))      return MimeType_t::MIME_TYPE_DOCUMENT;
+    if (isArchive(ext))       return MimeType_t::MIME_TYPE_ARCHIVE;
+    if (isProgram(ext))       return MimeType_t::MIME_TYPE_PROGRAM;
+    if (isMiscellaneous(ext)) return MimeType_t::MIME_TYPE_MISC;
+    return MimeType_t::MIME_TYPE_UNKNOWN;
+}
+
 nameid Node::getExtensionNameId(const std::string& ext)
 {
     if (ext.length() > 8)

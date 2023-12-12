@@ -167,6 +167,14 @@ public:
     // It checks if received mimetype is the same as extension extracted from file name
     static void userIsMimetype(sqlite3_context* context, int argc, sqlite3_value** argv);
 
+    // Method called when query uses 'ismimetypeincluded'
+    // Checks whether first mimetype is included by the second one
+    static void userIsMimetypeIncluded(sqlite3_context* context, int argc, sqlite3_value** argv);
+
+    // Method called when query uses 'getmimetype'
+    // Gets the mimetype corresponding to the file extension
+    static void userGetMimetype(sqlite3_context* context, int argc, sqlite3_value** argv);
+
 private:
     // Iterate over a SQL query row by row and fill the map
     // Allow at least the following containers:
@@ -249,6 +257,7 @@ private:
     bool renameDBFiles(mega::FileSystemAccess& fsAccess, mega::LocalPath& legacyPath, mega::LocalPath& dbPath);
     void removeDBFiles(mega::FileSystemAccess& fsAccess, mega::LocalPath& dbPath);
     bool ensureMtimeColumnIsInNodesTable(sqlite3* db);
+    bool ensureMimetypeColumnIsInNodesTable(sqlite3* db);
     bool copyMtimeFromFingerprint(sqlite3* db);
 };
 
