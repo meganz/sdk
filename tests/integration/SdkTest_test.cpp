@@ -15960,14 +15960,24 @@ TEST_F(SdkTest, SdkTestPasswordManager)
     LOG_debug << "# U1: create a new Password Node under Password Manager Base";
     RequestTracker rtC {megaApi[userIdx].get()};
     const std::string pwdNodeName = "FirstPwd";
-    std::unique_ptr<MegaNode::PasswordNodeData> pwdData {
+    std::unique_ptr<MegaNode> existingPwdNode{
+        megaApi[userIdx]->getChildNode(mnBase.get(), pwdNodeName.c_str())};
+    std::unique_ptr<MegaNode::PasswordNodeData> pwdData{
         MegaNode::PasswordNodeData::createInstance("12},\" '34", "notes", "url", "userName")};
     bool check1;
     mApi[userIdx].mOnNodesUpdateCompletion =
         createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check1);
     megaApi[userIdx]->createPasswordNode(pwdNodeName.c_str(), pwdData.get(), nhBase, &rtC);
     ASSERT_EQ(API_OK, rtC.waitForResult()) << "Failure creating Password Node";
-    ASSERT_TRUE(waitForResponse(&check1)) << "Node creation not received after " << maxTimeout << " seconds";
+    if (existingPwdNode)
+    {
+        LOG_debug << "Existing Password Node with the same name retrieved";
+    }
+    else
+    {
+        ASSERT_TRUE(waitForResponse(&check1))
+            << "Node creation not received after " << maxTimeout << " seconds";
+    }
     ASSERT_NE(nullptr, rtC.request);
     const auto newPwdNodeHandle = rtC.request->getNodeHandle();
     ASSERT_NE(UNDEF, newPwdNodeHandle) << "Wrong MegaHandle for new Password Node";
