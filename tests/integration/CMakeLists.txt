@@ -11,24 +11,10 @@ target_sources(test_integration
     Sync_test.cpp
 )
 
-# Link with SDKlib
-target_link_libraries(test_integration PRIVATE MEGA::SDKlib)
+# Link with the common interface library for the tests.
+target_link_libraries(test_integration PRIVATE test_common)
 
-# Link with GoogleTest framework libraries
-if(VCPKG_ROOT)
-    target_link_libraries(test_integration PRIVATE GTest::gmock GTest::gtest)
-else()
-    target_link_libraries(test_integration PRIVATE PkgConfig::gmock PkgConfig::gtest)
-endif()
-
-if (WIN32)
-    target_compile_definitions(test_integration
-        PRIVATE
-            NOMINMAX # TODO Fix locally
-    )
-endif()
-
-## Adjust compilation flags for warnigns and errors ##
+# Adjust compilation flags for warnigns and errors
 if(WIN32)
 
     if(ENABLE_SDKLIB_WERROR)

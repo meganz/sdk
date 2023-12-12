@@ -35,25 +35,10 @@ target_sources(test_unit
     utils_test.cpp
 )
 
+# Link with the common interface library for the tests.
+target_link_libraries(test_unit PRIVATE test_common)
 
-# Link with SDKlib
-target_link_libraries(test_unit PRIVATE MEGA::SDKlib)
-
-# Link with GoogleTest framework libraries
-if(VCPKG_ROOT)
-    target_link_libraries(test_unit PRIVATE GTest::gmock GTest::gtest)
-else()
-    target_link_libraries(test_unit PRIVATE PkgConfig::gmock PkgConfig::gtest)
-endif()
-
-if (WIN32)
-    target_compile_definitions(test_unit
-        PRIVATE
-            NOMINMAX # TODO Fix locally
-    )
-endif()
-
-## Adjust compilation flags for warnigns and errors ##
+# Adjust compilation flags for warnigns and errors
 if(WIN32)
 
     if(ENABLE_SDKLIB_WERROR)
