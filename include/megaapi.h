@@ -22049,7 +22049,7 @@ class MegaApi
                             MegaNodeTree* nodeTree,
                             MegaRequestListener* listener);
 
- private:
+ protected:
         MegaApiImpl *pImpl = nullptr;
         friend class MegaApiImpl;
 };
