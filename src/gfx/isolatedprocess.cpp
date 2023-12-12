@@ -27,7 +27,7 @@ const milliseconds AutoStartLauncher::MAX_BACKOFF(15 * 1000);
 const milliseconds AutoStartLauncher::START_BACKOFF(100);
 const unsigned int GfxIsolatedProcess::MIN_ALIVE_SECONDS = 3;
 
-void GfxWorkerHelloBeater::beat()
+void HelloBeater::beat()
 {
     auto gfxclient = GfxClient::create(mPipename);
     auto intervalMs = duration_cast<milliseconds>(mPeriod);
@@ -41,7 +41,7 @@ void GfxWorkerHelloBeater::beat()
     }
 }
 
-void GfxWorkerHelloBeater::shutdownOnce()
+void HelloBeater::shutdownOnce()
 {
     bool wasShuttingdown = mShuttingDown.exchange(true);
     if (wasShuttingdown)
@@ -55,7 +55,7 @@ void GfxWorkerHelloBeater::shutdownOnce()
     if (mThread.joinable()) mThread.join();
 }
 
-GfxWorkerHelloBeater::~GfxWorkerHelloBeater()
+HelloBeater::~HelloBeater()
 {
     shutdownOnce();
 }
@@ -291,24 +291,17 @@ void CancellableSleeper::cancel()
     mCv.notify_all();
 }
 
-GfxIsolatedProcess:: GfxIsolatedProcess(const std::string& pipename,
-                                        const std::string& executable,
-                                        unsigned int aliveSeconds)
-                                        : mPipename(pipename)
+GfxIsolatedProcess:: GfxIsolatedProcess(
+    const std::string& pipename,
+    const std::string& executable,
+    unsigned int aliveSeconds)
+    : mPipename(pipename)
+    , mLauncher(formatArguments(pipename, executable, std::max(MIN_ALIVE_SECONDS, aliveSeconds)) /*argv*/,
+                [pipename]() { gfx::GfxClient::create(pipename).runShutDown(); } /*shutdowner*/)
+    , mBeater(seconds(aliveSeconds / 3) /*divde by 3 allow at least 2 beats*/,
+              pipename)
 {
-    // a function to shutdown the isolated process
-    auto shutdowner = [pipename]() { ::mega::gfx::GfxClient::create(pipename).runShutDown(); };
 
-    auto arguments = formatArguments(pipename, executable, aliveSeconds);
-
-    mLauncher = ::mega::make_unique<::mega::AutoStartLauncher>(
-        formatArguments(pipename, executable, std::max(MIN_ALIVE_SECONDS, aliveSeconds)),
-        shutdowner);
-
-    // allow two beats by divide 3
-    seconds beatInterval = seconds(aliveSeconds / 3);
-
-    mBeater = ::mega::make_unique<::mega::GfxWorkerHelloBeater>(beatInterval, pipename);
 }
 
 GfxIsolatedProcess::GfxIsolatedProcess(const std::string& pipename,
@@ -320,7 +313,7 @@ GfxIsolatedProcess::GfxIsolatedProcess(const std::string& pipename,
 
 std::vector<std::string> GfxIsolatedProcess::formatArguments(const std::string& pipename,
                                                              const std::string& executable,
-                                                             unsigned int aliveSeconds) const
+                                                             unsigned int aliveSeconds)
 {
     LocalPath absolutePath = LocalPath::fromAbsolutePath(executable);
 

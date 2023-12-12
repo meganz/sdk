@@ -35,7 +35,7 @@ struct GfxTask final
 };
 
 /**
- * @brief Defines the possible result status of IGfxProcessor::process
+ * @brief Defines the possible result status of GfxProcessor::process
  */
 enum class GfxTaskProcessStatus
 {

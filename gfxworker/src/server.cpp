@@ -89,7 +89,7 @@ std::string GfxProcessor::supportedvideoformats() const
     return videoformats ? std::string(videoformats) : "";
 }
 
-RequestProcessor::RequestProcessor(std::unique_ptr<IGfxProcessor> processor,
+RequestProcessor::RequestProcessor(std::unique_ptr<GfxProcessor> processor,
                                    size_t threadCount,
                                    size_t maxQueueSize)
                                    : mGfxProcessor(std::move(processor))

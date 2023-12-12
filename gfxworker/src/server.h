@@ -15,18 +15,7 @@
 namespace mega {
 namespace gfx {
 
-struct IGfxProcessor
-{
-    virtual ~IGfxProcessor() = default;
-
-    virtual GfxTaskResult process(const GfxTask& task) = 0;
-
-    virtual std::string supportedformats() const = 0;
-
-    virtual std::string supportedvideoformats() const = 0;
-};
-
-class GfxProcessor : public IGfxProcessor
+class GfxProcessor
 {
 public:
     GfxProcessor() = delete;
@@ -39,11 +28,11 @@ public:
         assert(mGfxProvider);
     }
 
-    GfxTaskResult process(const GfxTask& task) override;
+    GfxTaskResult process(const GfxTask& task);
 
-    std::string supportedformats() const override;
+    std::string supportedformats() const;
 
-    std::string supportedvideoformats() const override;
+    std::string supportedvideoformats() const;
 
     virtual ~GfxProcessor() = default;
 
@@ -55,21 +44,13 @@ private:
     std::unique_ptr<::mega::IGfxProvider> mGfxProvider;
 };
 
-class IRequestProcessor
+class RequestProcessor
 {
 public:
-    virtual ~IRequestProcessor() = default;
+    RequestProcessor(std::unique_ptr<GfxProcessor> processor, size_t threadCount = 6, size_t maxQueueSize = 12);
 
     // process the request. return true if processsing should
     // be stopped such as received a shutdown request
-    virtual bool process(std::unique_ptr<IEndpoint> endpoint) = 0;
-};
-
-class RequestProcessor : public IRequestProcessor
-{
-public:
-    RequestProcessor(std::unique_ptr<IGfxProcessor> processor, size_t threadCount = 6, size_t maxQueueSize = 12);
-
     bool process(std::unique_ptr<IEndpoint> endpoint);
 
 private:
@@ -81,9 +62,9 @@ private:
 
     void processSupportFormats(IEndpoint* endpoint);
 
-    ThreadPool mThreadPool;
+    std::unique_ptr<GfxProcessor> mGfxProcessor;
 
-    std::unique_ptr<IGfxProcessor> mGfxProcessor;
+    ThreadPool mThreadPool;
 
     const static TimeoutMs READ_TIMEOUT;
 

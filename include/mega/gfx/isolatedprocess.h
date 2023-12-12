@@ -30,13 +30,7 @@ private:
     bool                    mCancelled;
 };
 
-class ILauncher
-{
-public:
-    virtual ~ILauncher() = default;
-};
-
-class AutoStartLauncher : public ILauncher
+class AutoStartLauncher
 {
 public:
     AutoStartLauncher(const std::vector<std::string>& argv, std::function<void()> shutdowner);
@@ -71,27 +65,21 @@ private:
     const static std::chrono::milliseconds START_BACKOFF;
 };
 
-class IHelloBeater
-{
-public:
-    virtual ~IHelloBeater() = default;
-};
-
 // This class creates a thread sending hello command to
 // gfxworker in mPeriod interval. The purpose is to keep
 // the gfxworker running.
-class GfxWorkerHelloBeater : public IHelloBeater
+class HelloBeater
 {
 public:
-    GfxWorkerHelloBeater(const std::chrono::seconds& period, const std::string& pipename)
+    HelloBeater(const std::chrono::seconds& period, const std::string& pipename)
         : mShuttingDown(false)
         , mPeriod(period)
         , mPipename(pipename)
     {
-        mThread = std::thread(&GfxWorkerHelloBeater::beat, this);
+        mThread = std::thread(&HelloBeater::beat, this);
     }
 
-    ~GfxWorkerHelloBeater();
+    ~HelloBeater();
 
     void shutdownOnce();
 
@@ -125,17 +113,17 @@ public:
 private:
     // this hide the detail of the isolated process command options and also provides the default value that callers
     // don't need to supply
-    std::vector<std::string> formatArguments(const std::string& pipename,
-                                             const std::string& executable,
-                                             unsigned int aliveSeconds) const;
+    static std::vector<std::string> formatArguments(const std::string& pipename,
+                                                    const std::string& executable,
+                                                    unsigned int aliveSeconds);
 
     static const unsigned int MIN_ALIVE_SECONDS;
 
-    std::unique_ptr<ILauncher> mLauncher;
-
-    std::unique_ptr<IHelloBeater> mBeater;
-
     std::string mPipename;
+
+    AutoStartLauncher mLauncher;
+
+    HelloBeater mBeater;
 };
 
 class GfxProviderIsolatedProcess : public IGfxProvider
@@ -158,7 +146,7 @@ private:
     class Formats
     {
     public:
-        // whether has valie formats
+        // whether has valid formats
         bool isValid() const;
 
         // return formats if it is valid and not empty, otherwise nullptr

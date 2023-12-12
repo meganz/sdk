@@ -8,7 +8,7 @@
 namespace mega {
 namespace gfx {
 
-class IRequestProcessor;
+class RequestProcessor;
 
 class Win32NamedPipeEndpointServer : public Win32NamedPipeEndpoint
 {
@@ -33,7 +33,7 @@ public:
      *                     the given seconds. 0 mean keeping infinitely running even
      *                     if there is no request coming.
      */
-    WinGfxCommunicationsServer(std::unique_ptr<IRequestProcessor> requestProcessor, const std::string& pipename = "mega_gfxworker", unsigned short aliveSeconds = 60)
+    WinGfxCommunicationsServer(std::unique_ptr<RequestProcessor> requestProcessor, const std::string& pipename = "mega_gfxworker", unsigned short aliveSeconds = 60)
         : mRequestProcessor(std::move(requestProcessor))
         , mPipename(pipename)
     {
@@ -49,7 +49,7 @@ private:
 
     std::error_code waitForClient(HANDLE hPipe, OVERLAPPED* overlap);
 
-    std::unique_ptr<IRequestProcessor> mRequestProcessor;
+    std::unique_ptr<RequestProcessor> mRequestProcessor;
 
     std::string mPipename;
 

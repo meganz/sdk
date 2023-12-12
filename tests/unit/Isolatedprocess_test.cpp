@@ -51,7 +51,7 @@ TEST(Isolatedprocess, GfxWorkerHelloBeaterCanGracefullyShutdownInNoTime)
 {
     DurationCounter counter;
     {
-        mega::GfxWorkerHelloBeater beater(seconds(60), "__"); //long enough
+        mega::HelloBeater beater(seconds(60), "__"); //long enough
     }
     // cancel should be done immediately, but we don't want a
     // too short number that the result could be affected by disturbance.
