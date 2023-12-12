@@ -48,8 +48,6 @@ TEST_F(ServerClientTest, gfxTask)
 
     std::thread serverThread(std::ref(server));
 
-    std::this_thread::sleep_for(100ms);
-
     auto dimensions = std::vector<GfxDimension> {
         { 200, 0 },     // THUMBNAIL: square thumbnail, cropped from near center
         { 1000, 1000 }  // PREVIEW: scaled version inside 1000x1000 bounding square
@@ -100,8 +98,8 @@ TEST_F(ServerClientTest, hello)
 
     std::thread serverThread(std::ref(server));
 
+    // allow server starting up as runHello doesn't have connect retry
     std::this_thread::sleep_for(100ms);
-
 
     EXPECT_TRUE(
         GfxClient(
@@ -129,8 +127,6 @@ TEST_F(ServerClientTest, supportformats)
     );
 
     std::thread serverThread(std::ref(server));
-
-    std::this_thread::sleep_for(100ms);
 
     // Get from isolated process
     std::string formats, videoformats;
