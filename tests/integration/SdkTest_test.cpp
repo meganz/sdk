@@ -16011,7 +16011,13 @@ TEST_F(SdkTest, SdkTestPasswordManager)
         return (lp == rp && ln == rn && lu == ru && lun == run);
     };
     ASSERT_TRUE(equals(pwdData.get(), receivedPwdData.get()));
-
+    {
+        LOG_debug << "\t# validate & verify copy/cloning capabilities of Password Node Data";
+        std::unique_ptr<MegaNode> clonedNode {newPwdNode->copy()};
+        std::unique_ptr<MegaNode::PasswordNodeData> clonedPwdData{clonedNode->getPasswordData()};
+        ASSERT_NE(nullptr, clonedPwdData);
+        ASSERT_TRUE(equals(clonedPwdData.get(), receivedPwdData.get()));
+    }
 
     LOG_debug << "\t# U1: attempt creation of new Password Node with wrong parameters";
     RequestTracker rtCError {megaApi[userIdx].get()};
