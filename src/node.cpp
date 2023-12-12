@@ -176,38 +176,19 @@ uint64_t Node::getDBFlags(uint64_t oldFlags, bool isInRubbish, bool isVersion, b
 
 bool Node::getExtension(std::string& ext, const string& nodeName)
 {
-    ext.clear();
-    const char* name = nodeName.c_str();
-    const size_t size = strlen(name);
-
-    const char* ptr = name + size;
-    char c;
-
-    for (unsigned i = 0; i < size; ++i)
+    size_t dotPos = nodeName.rfind('.');
+    if (dotPos == string::npos)
     {
-        if (*--ptr == '.')
-        {
-            ptr++; // Avoid add dot
-            ext.reserve(i);
-
-            unsigned j = 0;
-            for (; j <= i - 1; j++)
-            {
-                if (*ptr < '.' || *ptr > 'z') return false;
-
-                c = *(ptr++);
-
-                // tolower()
-                if (c >= 'A' && c <= 'Z') c |= ' ';
-
-                ext.push_back(c);
-            }
-
-            return true;
-        }
+        ext.clear();
+        return false;
     }
 
-    return false;
+    ext = nodeName.substr(dotPos + 1);
+    for (auto& c : ext)
+    {
+        c = static_cast<char>(tolower(c));
+    }
+    return true;
 }
 
 // these lists of file extensions (and the logic to use them) all come from the webclient - if updating here, please make sure the webclient is updated too, preferably webclient first.
