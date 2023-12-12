@@ -220,6 +220,15 @@ struct OneShotListener : public ::mega::MegaRequestListener
 
 using onNodesUpdateCompletion_t = std::function<void(size_t apiIndex, MegaNodeList* nodes)>;
 
+class MegaApiTest: public MegaApi
+{
+public:
+    MegaApiImpl* getImpl()
+    {
+        return pImpl;
+    }
+};
+
 // Fixture class with common code for most of tests
 class SdkTest : public SdkTestBase, public MegaListener, public MegaRequestListener, MegaTransferListener, MegaLogger {
 
