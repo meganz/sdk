@@ -25249,6 +25249,11 @@ unsigned long long MegaApiImpl::getAccurateNumNodes()
     return client->totalNodes.load();
 }
 
+void MegaApiImpl::setLRUCacheSize(unsigned long long size)
+{
+    client->mNodeManager.setCacheLRUMaxSize(size);
+}
+
 long long MegaApiImpl::getTotalDownloadedBytes()
 {
     return totalDownloadedBytes;

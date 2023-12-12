@@ -16332,8 +16332,7 @@ class MegaApi
          */
         unsigned long long getNumNodes();
 
-        /**
-         * @brief Get the total number of nodes in the account
+        /** @brief Get the total number of nodes in the account
          *
          * @note This method locks SDK mutex, returned value is up to date
          * This calls gets blocked if it's called between a node is added or removed and
@@ -16342,6 +16341,15 @@ class MegaApi
          * @return Total number of nodes in the account
          */
         unsigned long long getAccurateNumNodes();
+
+        /**
+         * @brief Set LRU cache size
+         *
+         * By default it's defined at unsigned long long max value
+         *
+         * @param size LRU cache size
+         */
+        void setLRUCacheSize(unsigned long long size);
 
         enum { ORDER_NONE = 0, ORDER_DEFAULT_ASC, ORDER_DEFAULT_DESC,
             ORDER_SIZE_ASC, ORDER_SIZE_DESC,
