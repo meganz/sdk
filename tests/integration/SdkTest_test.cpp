@@ -5246,7 +5246,8 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
 
     ::mega::NodeHandle megaCurDir;
 
-    MegaApiImpl* impl = *((MegaApiImpl**)(((char*)megaApi[0].get()) + sizeof(*megaApi[0].get())) - 1);
+    MegaApiTest* apiTest{reinterpret_cast<MegaApiTest*>(megaApi[0].get())};
+    MegaApiImpl* impl{apiTest->getImpl()};
     MegaClient* client = impl->getMegaClient();
 
     std::unique_ptr<Either> p(new Either);
@@ -15244,12 +15245,12 @@ TEST_F(SdkTest, SdkTestJourneyTracking)
     LOG_info << "___TEST SdkTestJourneyTracking___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-    // This UGLY cast is used so we can access the MegaClient.
     // We need to access the MegaClient to test JourneyID functionality according to specifications.
     // JID values from ug/gmf commands affect the behavior (set/unset tracking flag, update JourneyID::mJidValue if it's empty, etc.)
     // We don't have TestInstruments or any other mechanism to change the command response results, so we cannot test this just with regular requests on the intermmediate layer.
     // Finally, JourneyID is used internally on the MegaClient, it's never shared with the apps, so we need to check its value directly from MegaClient.
-    MegaApiImpl* impl = *((MegaApiImpl**)(((char*)megaApi[0].get()) + sizeof(*megaApi[0].get())) - 1);
+    MegaApiTest* apiTest{reinterpret_cast<MegaApiTest*>(megaApi[0].get())};
+    MegaApiImpl* impl{apiTest->getImpl()};
     MegaClient* client = impl->getMegaClient();
 
     //==================||
