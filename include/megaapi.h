@@ -16355,9 +16355,9 @@ class MegaApi
             ORDER_SIZE_ASC, ORDER_SIZE_DESC,
             ORDER_CREATION_ASC, ORDER_CREATION_DESC,
             ORDER_MODIFICATION_ASC, ORDER_MODIFICATION_DESC,
-            ORDER_ALPHABETICAL_ASC, ORDER_ALPHABETICAL_DESC,
-            ORDER_PHOTO_ASC, ORDER_PHOTO_DESC,
-            ORDER_VIDEO_ASC, ORDER_VIDEO_DESC,
+            /*deprecated*/ ORDER_ALPHABETICAL_ASC, /*deprecated*/ ORDER_ALPHABETICAL_DESC,
+            /*deprecated*/ ORDER_PHOTO_ASC, /*deprecated*/ ORDER_PHOTO_DESC,
+            /*deprecated*/ ORDER_VIDEO_ASC, /*deprecated*/ ORDER_VIDEO_DESC,
             ORDER_LINK_CREATION_ASC, ORDER_LINK_CREATION_DESC,
             ORDER_LABEL_ASC, ORDER_LABEL_DESC, ORDER_FAV_ASC, ORDER_FAV_DESC,};
 
@@ -16462,22 +16462,22 @@ class MegaApi
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
          * Sort by modification time of the original file, descending
          *
-         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_ASC = 9
          * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
-         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * - deprecated: MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
          *
-         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * - deprecated: MegaApi::ORDER_PHOTO_DESC = 12
          * Sort with photos first, then by date descending
          *
-         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * - deprecated: MegaApi::ORDER_VIDEO_ASC = 13
          * Sort with videos first, then by date ascending
          *
-         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * - deprecated: MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
@@ -16491,10 +16491,6 @@ class MegaApi
          *
          * - MegaApi::ORDER_FAV_DESC = 20
          * Sort nodes with favourite attr last. With this order, folders are returned first, then files
-         *
-         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-         * They will be eventually removed.
          *
          * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
          * @return List with all child MegaNode objects
@@ -16544,22 +16540,22 @@ class MegaApi
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
          * Sort by modification time of the original file, descending
          *
-         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_ASC = 9
          * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
-         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * - deprecated: MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
          *
-         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * - deprecated: MegaApi::ORDER_PHOTO_DESC = 12
          * Sort with photos first, then by date descending
          *
-         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * - deprecated: MegaApi::ORDER_VIDEO_ASC = 13
          * Sort with videos first, then by date ascending
          *
-         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * - deprecated: MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
@@ -16573,10 +16569,6 @@ class MegaApi
          *
          * - MegaApi::ORDER_FAV_DESC = 20
          * Sort nodes with favourite attr last. With this order, folders are returned first, then files
-         *
-         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-         * They will be eventually removed.
          *
          * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
          *
@@ -16622,16 +16614,16 @@ class MegaApi
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
          * Sort by modification time of the original file, descending
          *
-         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * - deprecated: MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
          *
-         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * - deprecated: MegaApi::ORDER_PHOTO_DESC = 12
          * Sort with photos first, then by date descending
          *
-         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * - deprecated: MegaApi::ORDER_VIDEO_ASC = 13
          * Sort with videos first, then by date ascending
          *
-         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * - deprecated: MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
@@ -16728,16 +16720,16 @@ class MegaApi
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
          * Sort by modification time of the original file, descending
          *
-         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * - deprecated: MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
          *
-         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * - deprecated: MegaApi::ORDER_PHOTO_DESC = 12
          * Sort with photos first, then by date descending
          *
-         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * - deprecated: MegaApi::ORDER_VIDEO_ASC = 13
          * Sort with videos first, then by date ascending
          *
-         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * - deprecated: MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
@@ -17670,26 +17662,22 @@ class MegaApi
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
          * Sort by modification time of the original file, descending
          *
-         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_ASC = 9
          * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
-         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-         * They will be eventually removed.
-         *
-         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * - deprecated: MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
          *
-         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * - deprecated: MegaApi::ORDER_PHOTO_DESC = 12
          * Sort with photos first, then by date descending
          *
-         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * - deprecated: MegaApi::ORDER_VIDEO_ASC = 13
          * Sort with videos first, then by date ascending
          *
-         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * - deprecated: MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
@@ -17750,26 +17738,22 @@ class MegaApi
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
          * Sort by modification time of the original file, descending
          *
-         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_ASC = 9
          * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
-         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-         * They will be eventually removed.
-         *
-         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * - deprecated: MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
          *
-         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * - deprecated: MegaApi::ORDER_PHOTO_DESC = 12
          * Sort with photos first, then by date descending
          *
-         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * - deprecated: MegaApi::ORDER_VIDEO_ASC = 13
          * Sort with videos first, then by date ascending
          *
-         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * - deprecated: MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
@@ -17837,26 +17821,22 @@ class MegaApi
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
          * Sort by modification time of the original file, descending
          *
-         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_ASC = 9
          * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
-         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-         * They will be eventually removed.
-         *
-         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * - deprecated: MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
          *
-         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * - deprecated: MegaApi::ORDER_PHOTO_DESC = 12
          * Sort with photos first, then by date descending
          *
-         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * - deprecated: MegaApi::ORDER_VIDEO_ASC = 13
          * Sort with videos first, then by date ascending
          *
-         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * - deprecated: MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
@@ -17922,26 +17902,22 @@ class MegaApi
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
          * Sort by modification time of the original file, descending
          *
-         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_ASC = 9
          * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
-         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-         * They will be eventually removed.
-         *
-         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * - deprecated: MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
          *
-         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * - deprecated: MegaApi::ORDER_PHOTO_DESC = 12
          * Sort with photos first, then by date descending
          *
-         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * - deprecated: MegaApi::ORDER_VIDEO_ASC = 13
          * Sort with videos first, then by date ascending
          *
-         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * - deprecated: MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
@@ -18010,26 +17986,22 @@ class MegaApi
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
          * Sort by modification time of the original file, descending
          *
-         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_ASC = 9
          * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
-         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-         * They will be eventually removed.
-         *
-         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * - deprecated: MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
          *
-         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * - deprecated: MegaApi::ORDER_PHOTO_DESC = 12
          * Sort with photos first, then by date descending
          *
-         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * - deprecated: MegaApi::ORDER_VIDEO_ASC = 13
          * Sort with videos first, then by date ascending
          *
-         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * - deprecated: MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
@@ -18094,26 +18066,22 @@ class MegaApi
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
          * Sort by modification time of the original file, descending
          *
-         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_ASC = 9
          * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
-         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-         * They will be eventually removed.
-         *
-         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * - deprecated: MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
          *
-         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * - deprecated: MegaApi::ORDER_PHOTO_DESC = 12
          * Sort with photos first, then by date descending
          *
-         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * - deprecated: MegaApi::ORDER_VIDEO_ASC = 13
          * Sort with videos first, then by date ascending
          *
-         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * - deprecated: MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
@@ -18178,26 +18146,22 @@ class MegaApi
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
          * Sort by modification time of the original file, descending
          *
-         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_ASC = 9
          * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
-         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-         * They will be eventually removed.
-         *
-         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * - deprecated: MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
          *
-         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * - deprecated: MegaApi::ORDER_PHOTO_DESC = 12
          * Sort with photos first, then by date descending
          *
-         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * - deprecated: MegaApi::ORDER_VIDEO_ASC = 13
          * Sort with videos first, then by date ascending
          *
-         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * - deprecated: MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
@@ -18262,26 +18226,22 @@ class MegaApi
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
          * Sort by modification time of the original file, descending
          *
-         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_ASC = 9
          * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
-         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-         * They will be eventually removed.
-         *
-         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * - deprecated: MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
          *
-         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * - deprecated: MegaApi::ORDER_PHOTO_DESC = 12
          * Sort with photos first, then by date descending
          *
-         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * - deprecated: MegaApi::ORDER_VIDEO_ASC = 13
          * Sort with videos first, then by date ascending
          *
-         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * - deprecated: MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
@@ -18318,7 +18278,7 @@ class MegaApi
          * return an empty list.
          *
          * If parameter type is different of MegaApi::FILE_TYPE_DEFAULT, the following values for parameter
-         * order are invalid: MegaApi::ORDER_PHOTO_ASC, MegaApi::ORDER_PHOTO_DESC,
+         * order are invalid (and already deprecated): MegaApi::ORDER_PHOTO_ASC, MegaApi::ORDER_PHOTO_DESC,
          * MegaApi::ORDER_VIDEO_ASC, MegaApi::ORDER_VIDEO_DESC
          *
          * The search is case-insensitive. If the search string is not provided but type has any value
@@ -18368,16 +18328,16 @@ class MegaApi
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
          * Sort by modification time of the original file, descending
          *
-         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * - deprecated: MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
          *
-         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * - deprecated: MegaApi::ORDER_PHOTO_DESC = 12
          * Sort with photos first, then by date descending
          *
-         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * - deprecated: MegaApi::ORDER_VIDEO_ASC = 13
          * Sort with videos first, then by date ascending
          *
-         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * - deprecated: MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
