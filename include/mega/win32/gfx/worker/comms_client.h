@@ -22,8 +22,8 @@ using OnClientConnectedFunc = std::function<void(std::unique_ptr<IEndpoint> endp
 class WinGfxCommunicationsClient : public IGfxCommunicationsClient
 {
 public:
-    WinGfxCommunicationsClient(const std::string& pipename)
-        : mPipename(pipename)
+    WinGfxCommunicationsClient(const std::string& pipeName)
+        : mPipeName(pipeName)
     {
 
     }
@@ -35,7 +35,7 @@ private:
 
     CommError toCommError(DWORD winError) const;
 
-    std::string mPipename;
+    std::string mPipeName;
 };
 
 } // end of namespace

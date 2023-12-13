@@ -147,26 +147,26 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
     std::function<std::function<void()>(LocalPath)> onCompletedGenerator, bool noRetries, bool allowDuplicateVersions);
 
 
-static std::string USAGE = R"--(
+static std::string USAGE = R"(
 Mega command line
 Usage:
   megacli [OPTION...]
 
   -h                   Show help
   -v                   Verbose
-)--"
+)"
 #if defined(WIN32)
-R"--(
+R"(
   -e=arg               Use the isolated gfx processor. This gives executable binary path
   -n=arg               Pipe name (default: mega_gfxworker_megacli)
-)--"
+)"
 #endif
 ;
 struct Config
 {
     std::string executable;
 
-    std::string pipename;
+    std::string pipeName;
 
     static Config fromArguments(const Arguments& arguments);
 };
@@ -185,8 +185,8 @@ Config Config::fromArguments(const Arguments& arguments)
         throw std::runtime_error("Couldn't find Executable: " + config.executable);
     }
 
-    // pipename
-    config.pipename  = arguments.getValue("-n", "mega_gfxworker_megacli");
+    // pipe name
+    config.pipeName  = arguments.getValue("-n", "mega_gfxworker_megacli");
 #else
     (void)arguments;
 #endif
@@ -199,7 +199,7 @@ static std::unique_ptr<IGfxProvider> createGfxProvider(const Config& config)
 #if defined(_WIN32)
     if (!config.executable.empty())
     {
-        auto process = std::make_shared<GfxIsolatedProcess>(config.pipename, config.executable);
+        auto process = std::make_shared<GfxIsolatedProcess>(config.pipeName, config.executable);
         return ::mega::make_unique<::mega::GfxProviderIsolatedProcess>(process);
     }
     else

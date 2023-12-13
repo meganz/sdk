@@ -7810,11 +7810,11 @@ MegaCompleteUploadData* MegaCompleteUploadData::createInstance(const char* finge
 MegaGfxProvider::~MegaGfxProvider() = default;
 
 MegaGfxProvider* MegaGfxProvider::createIsolatedInstance(
-    const char* pipename,
+    const char* pipeName,
     const char* executable)
 {
     auto provider = MegaGfxProviderPrivate::createIsolatedInstance(
-        std::string(pipename),
+        std::string(pipeName),
         std::string(executable));
 
     return provider.release();
@@ -7832,11 +7832,11 @@ MegaGfxProvider* MegaGfxProvider::createInternalInstance()
 
 MegaGfxProviderList::~MegaGfxProviderList() = default;
 
-MegaGfxProviderList* MegaGfxProviderList::createIsolatedInstances(const char* pipename,
+MegaGfxProviderList* MegaGfxProviderList::createIsolatedInstances(const char* pipeName,
                                                                   const char* executable,
                                                                   unsigned int numberOfInstances)
 {
-    auto list = MegaGfxProviderListPrivate::createIsolatedInstances(std::string(pipename),
+    auto list = MegaGfxProviderListPrivate::createIsolatedInstances(std::string(pipeName),
                                                                     std::string(executable),
                                                                     numberOfInstances);
     return list.release();

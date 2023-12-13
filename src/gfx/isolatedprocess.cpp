@@ -29,7 +29,7 @@ const unsigned int GfxIsolatedProcess::MIN_ALIVE_SECONDS = 3;
 
 void HelloBeater::beat()
 {
-    auto gfxclient = GfxClient::create(mPipename);
+    auto gfxclient = GfxClient::create(mPipeName);
     auto intervalMs = duration_cast<milliseconds>(mPeriod);
     while(!mShuttingDown)
     {
@@ -87,7 +87,7 @@ void GfxProviderIsolatedProcess::Formats::setOnce(const std::string& formats, co
 
 GfxProviderIsolatedProcess::GfxProviderIsolatedProcess(std::shared_ptr<GfxIsolatedProcess> process)
     : mProcess(process)
-    , mPipename(process->pipename())
+    , mPipeName(process->pipeName())
 {
     assert(mProcess);
 }
@@ -100,7 +100,7 @@ std::vector<std::string> GfxProviderIsolatedProcess::generateImages(
     // default return
     std::vector<std::string> images(dimensions.size());
 
-    auto gfxclient = GfxClient::create(mPipename);
+    auto gfxclient = GfxClient::create(mPipeName);
     gfxclient.runGfxTask(localfilepath.toPath(false), dimensions, images);
 
     return images;
@@ -126,7 +126,7 @@ const char* GfxProviderIsolatedProcess::getformats(const char* (Formats::*format
 
     // do fetching
     std::string formats, videoformats;
-    if (!GfxClient::create(mPipename).runSupportFormats(formats, videoformats))
+    if (!GfxClient::create(mPipeName).runSupportFormats(formats, videoformats))
     {
         return nullptr;
     }
@@ -292,35 +292,35 @@ void CancellableSleeper::cancel()
 }
 
 GfxIsolatedProcess:: GfxIsolatedProcess(
-    const std::string& pipename,
+    const std::string& pipeName,
     const std::string& executable,
-    unsigned int aliveSeconds)
-    : mPipename(pipename)
-    , mLauncher(formatArguments(pipename, executable, std::max(MIN_ALIVE_SECONDS, aliveSeconds)) /*argv*/,
-                [pipename]() { gfx::GfxClient::create(pipename).runShutDown(); } /*shutdowner*/)
-    , mBeater(seconds(aliveSeconds / 3) /*divde by 3 allow at least 2 beats*/,
-              pipename)
+    unsigned int keepAliveInSeconds)
+    : mPipeName(pipeName)
+    , mLauncher(formatArguments(pipeName, executable, std::max(MIN_ALIVE_SECONDS, keepAliveInSeconds)) /*argv*/,
+                [pipeName]() { gfx::GfxClient::create(pipeName).runShutDown(); } /*shutdowner*/)
+    , mBeater(seconds(keepAliveInSeconds / 3) /*divde by 3 allow at least 2 beats*/,
+              pipeName)
 {
 
 }
 
-GfxIsolatedProcess::GfxIsolatedProcess(const std::string& pipename,
+GfxIsolatedProcess::GfxIsolatedProcess(const std::string& pipeName,
                                        const std::string& executable)
-                                       : GfxIsolatedProcess(pipename, executable, 15)
+                                       : GfxIsolatedProcess(pipeName, executable, 15)
 {
 
 }
 
-std::vector<std::string> GfxIsolatedProcess::formatArguments(const std::string& pipename,
+std::vector<std::string> GfxIsolatedProcess::formatArguments(const std::string& pipeName,
                                                              const std::string& executable,
-                                                             unsigned int aliveSeconds)
+                                                             unsigned int keepAliveInSeconds)
 {
     LocalPath absolutePath = LocalPath::fromAbsolutePath(executable);
 
     std::vector<std::string> commandArgs = {
         absolutePath.toPath(false),
-        "-n=" + pipename,
-        "-l=" + std::to_string(aliveSeconds)
+        "-n=" + pipeName,
+        "-l=" + std::to_string(keepAliveInSeconds)
     };
 
     return commandArgs;

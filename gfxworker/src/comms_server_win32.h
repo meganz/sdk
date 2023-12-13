@@ -28,17 +28,20 @@ public:
      * @brief A server listening on the named pipe for alive seconds
      *
      * @param requestProcessor the request processor
-     * @param pipename the name of the pipe
-     * @param aliveSeconds keep alive if the sever hasn't receive any request for
-     *                     the given seconds. 0 mean keeping infinitely running even
-     *                     if there is no request coming.
+     * @param pipeName the name of the pipe
+     * @param keepAliveInSeconds keep alive if the sever hasn't receive any request for
+     *                           the given seconds. 0 mean keeping infinitely running even
+     *                           if there is no request coming.
      */
-    WinGfxCommunicationsServer(std::unique_ptr<RequestProcessor> requestProcessor, const std::string& pipename = "mega_gfxworker", unsigned short aliveSeconds = 60)
+    WinGfxCommunicationsServer(
+        std::unique_ptr<RequestProcessor> requestProcessor,
+        const std::string& pipeName = "mega_gfxworker",
+        unsigned short keepAliveInSeconds = 60)
         : mRequestProcessor(std::move(requestProcessor))
-        , mPipename(pipename)
+        , mPipeName(pipeName)
     {
         // wait for client to connect timeout is set accordingly
-        mWaitMs = aliveSeconds == 0 ? INFINITE : static_cast<DWORD>(aliveSeconds * 1000);
+        mWaitMs = keepAliveInSeconds == 0 ? INFINITE : static_cast<DWORD>(keepAliveInSeconds * 1000);
     }
 
     void operator()();
@@ -51,7 +54,7 @@ private:
 
     std::unique_ptr<RequestProcessor> mRequestProcessor;
 
-    std::string mPipename;
+    std::string mPipeName;
 
     DWORD       mWaitMs;
 };

@@ -87,7 +87,7 @@ void WinGfxCommunicationsServer::serverListeningLoop()
         return;
     }
 
-    const auto fullPipename = win_utils::toFullPipename(mPipename);
+    const auto fullPipeName = win_utils::toFullPipeName(mPipeName);
 
     // first instance to prevent two processes create the same pipe
     DWORD firstInstance = FILE_FLAG_FIRST_PIPE_INSTANCE;
@@ -97,7 +97,7 @@ void WinGfxCommunicationsServer::serverListeningLoop()
         LOG_verbose << "server awaiting client connection";
 
         auto hPipe = CreateNamedPipe(
-            fullPipename.c_str(),     // pipe name
+            fullPipeName.c_str(),     // pipe name
             PIPE_ACCESS_DUPLEX |      // read/write access
             FILE_FLAG_OVERLAPPED |    // overlapped
             firstInstance,            // first instance or not

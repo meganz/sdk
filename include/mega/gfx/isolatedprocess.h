@@ -71,10 +71,10 @@ private:
 class HelloBeater
 {
 public:
-    HelloBeater(const std::chrono::seconds& period, const std::string& pipename)
+    HelloBeater(const std::chrono::seconds& period, const std::string& pipeName)
         : mShuttingDown(false)
         , mPeriod(period)
-        , mPipename(pipename)
+        , mPipeName(pipeName)
     {
         mThread = std::thread(&HelloBeater::beat, this);
     }
@@ -94,7 +94,7 @@ private:
 
     std::chrono::seconds mPeriod;
 
-    std::string mPipename;
+    std::string mPipeName;
 };
 
 // This lauches the process and keep it running using beater
@@ -102,24 +102,24 @@ class GfxIsolatedProcess
 {
 public:
     // Notes: beatIntervalSeconds would be set to minimum 3 if not
-    GfxIsolatedProcess(const std::string& pipename,
+    GfxIsolatedProcess(const std::string& pipeName,
                        const std::string& executable,
                        unsigned int beatIntervalSeconds);
 
-    GfxIsolatedProcess(const std::string& pipename,
+    GfxIsolatedProcess(const std::string& pipeName,
                        const std::string& executable);
 
-    const std::string& pipename() const { return mPipename; }
+    const std::string& pipeName() const { return mPipeName; }
 private:
     // this hide the detail of the isolated process command options and also provides the default value that callers
     // don't need to supply
-    static std::vector<std::string> formatArguments(const std::string& pipename,
+    static std::vector<std::string> formatArguments(const std::string& pipeName,
                                                     const std::string& executable,
-                                                    unsigned int aliveSeconds);
+                                                    unsigned int keepAliveInSeconds);
 
     static const unsigned int MIN_ALIVE_SECONDS;
 
-    std::string mPipename;
+    std::string mPipeName;
 
     AutoStartLauncher mLauncher;
 
@@ -171,7 +171,7 @@ private:
 
     std::shared_ptr<GfxIsolatedProcess> mProcess;
 
-    std::string mPipename;
+    std::string mPipeName;
 };
 
 }

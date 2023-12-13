@@ -57,7 +57,7 @@ public:
 
     bool runSupportFormats(std::string& formats, std::string& videoformats);
 
-    static GfxClient create(const std::string& pipename);
+    static GfxClient create(const std::string& pipeName);
 
 private:
 

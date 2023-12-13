@@ -275,10 +275,10 @@ public:
     *
     * Note: Currently, only Windows is supported.
     *
-    * @param pipename The unique named pipe's name used for communicating with the isolated process.
+    * @param pipeName The unique named pipe's name used for communicating with the isolated process.
     * @param executable The executable path.
     */
-    static MegaGfxProvider* createIsolatedInstance(const char* pipename,
+    static MegaGfxProvider* createIsolatedInstance(const char* pipeName,
                                                    const char* executable);
 
     /**
@@ -316,11 +316,11 @@ public:
     * @brief Create multiple isolated graphics processor instances.
     *        @see MegaGfxProvider::createIsolatedInstance for create one isolated graphics processor instance.
     *
-    * @param pipename The unique named pipe's name used for communicating with the isolated process.
+    * @param pipeName The unique named pipe's name used for communicating with the isolated process.
     * @param executable The executable path.
     * @param numberOfInstances The number of instances to create.
     */
-    static MegaGfxProviderList* createIsolatedInstances(const char* pipename,
+    static MegaGfxProviderList* createIsolatedInstances(const char* pipeName,
                                                         const char* executable,
                                                         unsigned int numberOfInstances);
 };

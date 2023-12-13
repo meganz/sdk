@@ -6045,15 +6045,15 @@ MegaSearchFilterPrivate* MegaSearchFilterPrivate::copy() const
 }
 
 std::unique_ptr<MegaGfxProviderPrivate> MegaGfxProviderPrivate::createIsolatedInstance(
-    const std::string& pipename,
+    const std::string& pipeName,
     const std::string& executable)
 {
 #ifdef _WIN32
-    auto process = std::make_shared<GfxIsolatedProcess>(pipename, executable);
+    auto process = std::make_shared<GfxIsolatedProcess>(pipeName, executable);
     auto provider = ::mega::make_unique<::mega::GfxProviderIsolatedProcess>(process);
     return ::mega::make_unique<MegaGfxProviderPrivate>(std::move(provider));
 #else
-    (void)pipename, (void)executable;
+    (void)pipeName, (void)executable;
     return nullptr;
 #endif
 }
@@ -6081,7 +6081,7 @@ MegaGfxProviderPrivate* MegaGfxProviderListPrivate::get(size_t index)
 }
 
 std::unique_ptr<MegaGfxProviderListPrivate> MegaGfxProviderListPrivate::createIsolatedInstances(
-    const std::string& pipename,
+    const std::string& pipeName,
     const std::string& executable,
     unsigned int numberOfInstances)
 {
@@ -6089,7 +6089,7 @@ std::unique_ptr<MegaGfxProviderListPrivate> MegaGfxProviderListPrivate::createIs
     if (numberOfInstances == 0) return nullptr;
 
     // only one process is started
-    auto process = std::make_shared<GfxIsolatedProcess>(pipename, executable);
+    auto process = std::make_shared<GfxIsolatedProcess>(pipeName, executable);
 
     // all share the same process
     auto result = ::mega::make_unique<MegaGfxProviderListPrivate>();
@@ -6101,7 +6101,7 @@ std::unique_ptr<MegaGfxProviderListPrivate> MegaGfxProviderListPrivate::createIs
 
     return result;
 #else
-    (void)pipename, (void)executable, (void) numberOfInstances;
+    (void)pipeName, (void)executable, (void) numberOfInstances;
     return nullptr;
 #endif
 }

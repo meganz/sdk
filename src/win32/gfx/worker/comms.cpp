@@ -7,12 +7,12 @@ namespace gfx {
 namespace win_utils
 {
 
-std::wstring toFullPipename(const std::string& name)
+std::wstring toFullPipeName(const std::string& name)
 {
-    const std::string pipename = "\\\\.\\pipe\\" + name;
-    std::wstring pipenameW;
-    LocalPath::path2local(&pipename, &pipenameW);
-    return pipenameW;
+    const std::string pipeName = "\\\\.\\pipe\\" + name;
+    std::wstring pipeNameW;
+    LocalPath::path2local(&pipeName, &pipeNameW);
+    return pipeNameW;
 }
 
 }

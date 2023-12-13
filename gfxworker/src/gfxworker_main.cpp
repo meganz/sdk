@@ -21,7 +21,7 @@ using mega::LocalPath;
 namespace
 {
 
-std::string USAGE = R"--(
+std::string USAGE = R"(
 GFX processing server
 Usage:
   gfxworker [OPTION...]
@@ -36,22 +36,22 @@ Usage:
                        busy. Minimum 1 (default: 10)
   -n=arg               Pipe name (default: mega_gfxworker)
   -d=arg               Log directory (default: .)
-  -f=arg               File name (default mega.gfxworker.<pipename>.log)
-)--";
+  -f=arg               Log filename (default: mega.gfxworker.<pipeName>.log)
+)";
 
 struct Config
 {
-    unsigned short aliveSeconds;
+    unsigned short keepAliveInSeconds;
 
     size_t threadCount;
 
     size_t queueSize;
 
-    std::string pipename;
+    std::string pipeName;
 
-    std::string logdirectory;
+    std::string logDirectory;
 
-    std::string logfilename;
+    std::string logFilename;
 
     static Config fromArguments(const Arguments& arguments);
 };
@@ -59,8 +59,8 @@ struct Config
 Config Config::fromArguments(const Arguments& arguments)
 {
     Config config;
-    // live
-    config.aliveSeconds = static_cast<unsigned short>(std::stoi(arguments.getValue("-l", "60")));
+    // alive
+    config.keepAliveInSeconds = static_cast<unsigned short>(std::stoi(arguments.getValue("-l", "60")));
 
     // thread count, minimum 1
     config.threadCount = static_cast<size_t>(std::stoi(arguments.getValue("-t", "5")));
@@ -71,19 +71,19 @@ Config Config::fromArguments(const Arguments& arguments)
     config.queueSize = std::max<size_t>(1, config.queueSize);
 
     // pipe name
-    config.pipename  = arguments.getValue("-n", "mega_gfxworker");
+    config.pipeName  = arguments.getValue("-n", "mega_gfxworker");
 
     // log directory
-    config.logdirectory = arguments.getValue("-d", ".");
+    config.logDirectory = arguments.getValue("-d", ".");
 
     // log file name
-    config.logfilename = arguments.getValue("-f", "mega.gfxworker." + config.pipename + ".log");
+    config.logFilename = arguments.getValue("-f", "mega.gfxworker." + config.pipeName + ".log");
 
     return config;
 }
 
 //
-// We'll use a debug version and test gfx prcessing crashing in jenkins
+// We'll use a debug version and test gfx processing crashing in Jenkins
 // this prevents from presenting dialog with "Debug Error! abort()..." on
 // windows
 //
@@ -135,21 +135,21 @@ int main(int argc, char** argv)
     }
 
     // init logger
-    MegaFileLogger::get().initialize(config.logdirectory.c_str(),
-                                     config.logfilename.c_str(),
+    MegaFileLogger::get().initialize(config.logDirectory.c_str(),
+                                     config.logFilename.c_str(),
                                      false);
 
     LOG_info << "Gfxworker server starting"
-             << ", pipe name: " << config.pipename
+             << ", pipe name: " << config.pipeName
              << ", threads: " << config.threadCount
              << ", queue size: " << config.queueSize
-             << ", live in seconds: " << config.aliveSeconds;
+             << ", live in seconds: " << config.keepAliveInSeconds;
 
     // start server
     WinGfxCommunicationsServer server(
         ::mega::make_unique<RequestProcessor>(GfxProcessor::create(), config.threadCount, config.queueSize),
-        config.pipename,
-        config.aliveSeconds
+        config.pipeName,
+        config.keepAliveInSeconds
     );
 
     std::thread serverThread(std::ref(server));
