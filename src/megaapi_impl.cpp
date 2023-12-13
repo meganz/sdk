@@ -135,7 +135,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
         this->mLabel = np->mLabel;
         this->mDeviceId = np->mDeviceId;
         this->mS4 = np->mS4;
-        if (np->mOfficialAttrs) this->mOfficialAttrs = make_unique<attr_map>(*np->mOfficialAttrs);
+        if (np->mOfficialAttrs) this->mOfficialAttrs = ::mega::make_unique<attr_map>(*np->mOfficialAttrs);
     }
     else
     {
