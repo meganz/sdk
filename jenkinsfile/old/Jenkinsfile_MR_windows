@@ -136,7 +136,6 @@ pipeline {
                         bat """
                         contrib\\\\cmake\\\\build_dir\\\\Debug\\\\test_unit.exe
                         if %ERRORLEVEL% NEQ 0 exit 1
-                        copy gfxworker\\\\tests\\\\data\\\\* .
                         contrib\\\\cmake\\\\build_dir\\\\Debug\\\\gfxworker_test_integration.exe
                         if %ERRORLEVEL% NEQ 0 exit 1
                         contrib\\\\cmake\\\\build_dir\\\\Debug\\\\test_integration.exe --CI --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${TESTS_PARALLEL}

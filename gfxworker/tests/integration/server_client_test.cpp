@@ -1,3 +1,5 @@
+#include "common.h"
+
 #include "comms_server_win32.h"
 #include "server.h"
 
@@ -22,15 +24,16 @@ using mega::gfx::GfxClient;
 using mega::gfx::IEndpoint;
 using mega::GfxDimension;
 using mega::LocalPath;
+using mega_test::ExecutableDir;
 using namespace std::chrono_literals;
 
 
-class ServerClientTest : public ::testing::Test
+class ServerClientTest : public testing::Test
 {
 protected:
     void SetUp() override
     {
-        mDataFolder = LocalPath::fromAbsolutePath(".");
+        mDataFolder = LocalPath::fromAbsolutePath(ExecutableDir::get());
         mPipename = "MEGA_GFXWOKER_UNIT_TEST";
     }
 
