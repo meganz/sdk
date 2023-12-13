@@ -230,9 +230,9 @@ public:
         MegaApi(appKey, basePath, userAgent, workerThreadCount)
     {}
 
-    MegaApiImpl* getImpl()
+    MegaClient* getClient()
     {
-        return pImpl;
+        return pImpl->getMegaClient();
     }
 };
 
