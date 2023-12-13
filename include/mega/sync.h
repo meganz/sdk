@@ -521,7 +521,7 @@ public:
     bool resolve_checkMoveDownloadComplete(SyncRow& row, SyncPath& fullPath);
     bool resolve_checkMoveComplete(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath);
     bool resolve_rowMatched(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFolderLogSummaryCounts& pflsc);
-    bool resolve_userIntervention(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath);
+    bool resolve_userIntervention(SyncRow& row, SyncPath& fullPath);
     bool resolve_makeSyncNode_fromFS(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool considerSynced);
     bool resolve_makeSyncNode_fromCloud(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool considerSynced);
     bool resolve_delSyncNode(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, unsigned deleteCounter);

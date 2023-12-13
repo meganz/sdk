@@ -1951,7 +1951,11 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
                 // The move source might be below the target.
                 row.recurseBelowRemovedFsNode = true;
 
-                // And let the engine know why we can't proceed.
+                // If there is a different file or folder already present in the cloud side, let the user decide
+                if (problem == PathProblem::DifferentFileOrFolderIsAlreadyPresent)
+                    return resolve_userIntervention(row, fullPath);
+
+                // Otherwise, let the engine know why we can't proceed.
                 monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
                     SyncWaitReason::MoveOrRenameCannotOccur, false, false,
                     {sourceSyncNode->syncedCloudNodeHandle, sourceSyncNode->getCloudPath(true)},
@@ -2068,9 +2072,9 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
                 monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
                     SyncWaitReason::MoveOrRenameCannotOccur, false, false,
                     {sourceSyncNode->syncedCloudNodeHandle, sourceSyncNode->getCloudPath(true)},
-                    {NodeHandle(), fullPath.cloudPath},
+                    {NodeHandle(), fullPath.cloudPath, PathProblem::ParentFolderDoesNotExist},
                     {sourceSyncNode->getLocalPath()},
-                    {fullPath.localPath, PathProblem::ParentFolderDoesNotExist}));
+                    {fullPath.localPath}));
 
                 row.syncNode->setSyncAgain(true, false, false);
             }
@@ -2335,9 +2339,9 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
                 monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
                     SyncWaitReason::MoveOrRenameCannotOccur, false, false,
                     {sourceSyncNode->syncedCloudNodeHandle, sourceSyncNode->getCloudPath(true)},
-                    {NodeHandle(), fullPath.cloudPath},
+                    {NodeHandle(), fullPath.cloudPath, PathProblem::ParentFolderDoesNotExist},
                     {sourceSyncNode->getLocalPath()},
-                    {fullPath.localPath, PathProblem::ParentFolderDoesNotExist}));
+                    {fullPath.localPath}));
 
                 row.suppressRecursion = true;
                 rowResult = false;
@@ -2733,7 +2737,7 @@ bool Sync::checkCloudPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
             else
             {
                 monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
-                    SyncWaitReason::MoveOrRenameCannotOccur, false, false,
+                    SyncWaitReason::MoveOrRenameCannotOccur, false, true,
                     {sourceSyncNodeOriginal->syncedCloudNodeHandle, sourceSyncNodeOriginal->getCloudPath(true)},
                     {NodeHandle(), fullPath.cloudPath},
                     {sourceSyncNodeOriginal->getLocalPath(), PathProblem::SourceWasMovedElsewhere},
@@ -2889,6 +2893,10 @@ bool Sync::checkCloudPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
             {
                 parentRow.syncNode->setCheckMovesAgain(false, true, false);
 
+                // If there is a different file or folder already present in the local side, let the user decide
+                if (problem == PathProblem::DifferentFileOrFolderIsAlreadyPresent)
+                    return resolve_userIntervention(row, fullPath);
+
                 monitor.waitingCloud(fullPath.cloudPath, SyncStallEntry(
                     SyncWaitReason::MoveOrRenameCannotOccur, false, true,
                     {sourceSyncNode->syncedCloudNodeHandle, sourceSyncNode->getCloudPath(true)},
@@ -2896,6 +2904,7 @@ bool Sync::checkCloudPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
                     {sourceSyncNode->getLocalPath()},
                     {fullPath.localPath}));
 
+                // Move isn't complete and this row isn't synced.
                 return rowResult = false, true;
             }
 
@@ -3083,7 +3092,7 @@ bool Sync::checkCloudPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
         {
             LOG_warn << "transient error moving folder: " << sourcePath << logTriplet(row, fullPath);
 
-            monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
+            monitor.waitingCloud(fullPath.cloudPath, SyncStallEntry(
                 SyncWaitReason::MoveOrRenameCannotOccur, false, true,
                 {sourceSyncNode->syncedCloudNodeHandle, sourceSyncNode->getCloudPath(true)},
                 {NodeHandle(), fullPath.cloudPath},
@@ -3101,7 +3110,7 @@ bool Sync::checkCloudPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
                      << sourcePath
                      << logTriplet(row, fullPath);
 
-            monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
+            monitor.waitingCloud(fullPath.cloudPath, SyncStallEntry(
                 SyncWaitReason::MoveOrRenameCannotOccur, true, true,
                 {sourceSyncNode->syncedCloudNodeHandle, sourceSyncNode->getCloudPath(true)},
                 {NodeHandle(), fullPath.cloudPath},
@@ -3973,6 +3982,32 @@ void Syncs::getSyncProblems_inThread(SyncProblems& problems)
     // and one for the target node.   Most paths will match between the two.
     // If for some reason we only know one side of the move/rename, we will keep that item.
 
+    auto combinePathProblems = [](const SyncStallEntry& soEntry, SyncStallEntry& siEntry)
+    {
+        // We always keep the PathProblem present on any of the two stalls
+        // If we have two PathProblems, one of them should be caused by an unresolved area (waiting for moves, etc), so we keep the more meaningful one (which could be solvable)
+        if (soEntry.localPath1.problem != PathProblem::NoProblem &&
+            (siEntry.localPath1.problem == PathProblem::NoProblem || siEntry.localPath1.problem == PathProblem::DestinationPathInUnresolvedArea))
+        {
+            siEntry.localPath1.problem = soEntry.localPath1.problem;
+        }
+        if (soEntry.localPath2.problem != PathProblem::NoProblem &&
+            (siEntry.localPath2.problem == PathProblem::NoProblem || siEntry.localPath2.problem == PathProblem::DestinationPathInUnresolvedArea))
+        {
+            siEntry.localPath2.problem = soEntry.localPath2.problem;
+        }
+        if (soEntry.cloudPath1.problem != PathProblem::NoProblem &&
+            (siEntry.cloudPath1.problem == PathProblem::NoProblem || siEntry.cloudPath1.problem == PathProblem::DestinationPathInUnresolvedArea))
+        {
+            siEntry.cloudPath1.problem = soEntry.cloudPath1.problem;
+        }
+        if (soEntry.cloudPath2.problem != PathProblem::NoProblem &&
+            (siEntry.cloudPath2.problem == PathProblem::NoProblem || siEntry.cloudPath2.problem == PathProblem::DestinationPathInUnresolvedArea))
+        {
+            siEntry.cloudPath2.problem = soEntry.cloudPath2.problem;
+        }
+    };
+
     for (auto si = problems.mStalls.local.begin();
               si != problems.mStalls.local.end();
               ++si)
@@ -3984,16 +4019,16 @@ void Syncs::getSyncProblems_inThread(SyncProblems& problems)
             {
                 if (so != si &&
                     so->second.reason == SyncWaitReason::MoveOrRenameCannotOccur &&
-                    so->second.localPath1.localPath == so->second.localPath1.localPath &&
-                    so->second.localPath2.localPath == so->second.localPath2.localPath &&
-                    so->second.cloudPath1.cloudPath == so->second.cloudPath1.cloudPath)
+                    so->second.localPath1.localPath == si->second.localPath1.localPath &&
+                    so->second.localPath2.localPath == si->second.localPath2.localPath &&
+                    so->second.cloudPath1.cloudPath == si->second.cloudPath1.cloudPath)
                 {
+                    combinePathProblems(so->second, si->second);
                     if (si->second.cloudPath2.cloudPath.empty())
                     {
                         // if we know the destination in one, make sure we keep it
                         si->second.cloudPath2.cloudPath = so->second.cloudPath2.cloudPath;
                     }
-
                     // other iterators are not invalidated in std::map
                     problems.mStalls.local.erase(so);
                 }
@@ -4012,10 +4047,11 @@ void Syncs::getSyncProblems_inThread(SyncProblems& problems)
             {
                 if (so != si &&
                     so->second.reason == SyncWaitReason::MoveOrRenameCannotOccur &&
-                    so->second.cloudPath1.cloudPath == so->second.cloudPath1.cloudPath &&
-                    so->second.cloudPath2.cloudPath == so->second.cloudPath2.cloudPath &&
-                    so->second.localPath1.localPath == so->second.localPath1.localPath)
+                    so->second.cloudPath1.cloudPath == si->second.cloudPath1.cloudPath &&
+                    so->second.cloudPath2.cloudPath == si->second.cloudPath2.cloudPath &&
+                    so->second.localPath1.localPath == si->second.localPath1.localPath)
                 {
+                    combinePathProblems(so->second, si->second);
                     if (si->second.localPath2.localPath.empty())
                     {
                         // if we know the destination in one, make sure we keep it
@@ -4027,7 +4063,6 @@ void Syncs::getSyncProblems_inThread(SyncProblems& problems)
             }
         }
     }
-
 }
 
 void Syncs::getSyncStatusInfo(handle backupID,
@@ -8389,7 +8424,7 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
         }
 
         // both changed, so we can't decide without the user's help
-        return resolve_userIntervention(row, parentRow, fullPath);
+        return resolve_userIntervention(row, fullPath);
     }
     case SRT_XSF:
     {
@@ -8526,7 +8561,7 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
         }
         else
         {
-            return resolve_userIntervention(row, parentRow, fullPath);
+            return resolve_userIntervention(row, fullPath);
         }
     }
     case SRT_XXF:
@@ -9634,7 +9669,7 @@ bool Sync::resolve_downsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath
 
 
 
-bool Sync::resolve_userIntervention(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath)
+bool Sync::resolve_userIntervention(SyncRow& row, SyncPath& fullPath)
 {
     assert(syncs.onSyncThread());
     ProgressingMonitor monitor(*this, row, fullPath);
