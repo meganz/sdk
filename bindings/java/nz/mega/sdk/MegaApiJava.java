@@ -8083,7 +8083,6 @@ public class MegaApiJava {
      *               <p>
      *               - MegaApi::ORDER_FAV_DESC = 20
      *               Sort nodes with favourite attr last. With this order, folders are returned first, then files
-     *               <p>
      * @return List with all child MegaNode objects
      */
     public ArrayList<MegaNode> getChildren(MegaNode parent, int order) {
@@ -9336,10 +9335,6 @@ public class MegaApiJava {
      * If node and searchString are not provided, and node type is not valid, this method will
      * return an empty list.
      * <p>
-     * If parameter type is different of MegaApi::FILE_TYPE_DEFAULT, the following values for parameter
-     * order are invalid (and already deprecated): MegaApi::ORDER_PHOTO_ASC, MegaApi::ORDER_PHOTO_DESC,
-     * MegaApi::ORDER_VIDEO_ASC, MegaApi::ORDER_VIDEO_DESC
-     * <p>
      * The search is case-insensitive. If the search string is not provided but type has any value
      * defined at nodefiletype_t (except FILE_TYPE_DEFAULT),
      * this method will return a list that contains nodes of the same type as provided.
@@ -9425,10 +9420,6 @@ public class MegaApiJava {
      * <p>
      * If node type is not valid, this method will return an empty list.
      * <p>
-     * If parameter type is different of MegaApi::FILE_TYPE_DEFAULT, the following values for parameter
-     * order are invalid (and already deprecated): MegaApi::ORDER_PHOTO_ASC, MegaApi::ORDER_PHOTO_DESC,
-     * MegaApi::ORDER_VIDEO_ASC, MegaApi::ORDER_VIDEO_DESC
-     * <p>
      * The search is case-insensitive. If the type has any value defined at nodefiletype_t
      * (except FILE_TYPE_DEFAULT), this method will return a list
      * that contains nodes of the same type as provided.
@@ -9509,10 +9500,6 @@ public class MegaApiJava {
      * <p>
      * If node and searchString are not provided, and node type is not valid, this method will
      * return an empty list.
-     * <p>
-     * If parameter type is different of MegaApi::FILE_TYPE_DEFAULT, the following values for parameter
-     * order are invalid (and already deprecated): MegaApi::ORDER_PHOTO_ASC, MegaApi::ORDER_PHOTO_DESC,
-     * MegaApi::ORDER_VIDEO_ASC, MegaApi::ORDER_VIDEO_DESC
      * <p>
      * The search is case-insensitive. If the search string is not provided but type has any value
      * defined at nodefiletype_t (except FILE_TYPE_DEFAULT),
