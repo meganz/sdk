@@ -16546,6 +16546,18 @@ class MegaApi
          * - deprecated: MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
+         * - deprecated: MegaApi::ORDER_PHOTO_ASC = 11
+         * Sort with photos first, then by date ascending
+         *
+         * - deprecated: MegaApi::ORDER_PHOTO_DESC = 12
+         * Sort with photos first, then by date descending
+         *
+         * - deprecated: MegaApi::ORDER_VIDEO_ASC = 13
+         * Sort with videos first, then by date ascending
+         *
+         * - deprecated: MegaApi::ORDER_VIDEO_DESC = 14
+         * Sort with videos first, then by date descending
+         *
          * - MegaApi::ORDER_LABEL_ASC = 17
          * Sort by color label, ascending. With this order, folders are returned first, then files
          *
@@ -17655,6 +17667,18 @@ class MegaApi
          *
          * - deprecated: MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * - deprecated: MegaApi::ORDER_PHOTO_ASC = 11
+         * Sort with photos first, then by date ascending
+         *
+         * - deprecated: MegaApi::ORDER_PHOTO_DESC = 12
+         * Sort with photos first, then by date descending
+         *
+         * - deprecated: MegaApi::ORDER_VIDEO_ASC = 13
+         * Sort with videos first, then by date ascending
+         *
+         * - deprecated: MegaApi::ORDER_VIDEO_DESC = 14
+         * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
          * Sort by color label, ascending. With this order, folders are returned first, then files
