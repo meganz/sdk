@@ -16129,10 +16129,10 @@ TEST_F(SyncTest, StallsWhenMoveTargetHasLongName)
     ASSERT_TRUE(c->client.syncs.syncStallDetected(stalls));
 
     // Is the stall record populated?
-    ASSERT_FALSE(stalls.local.empty());
-    ASSERT_TRUE(stalls.cloud.empty());
+    ASSERT_TRUE(stalls.local.empty());
+    ASSERT_FALSE(stalls.cloud.empty());
 
-    auto& sr = stalls.local.begin()->second;
+    auto& sr = stalls.cloud.begin()->second;
 
     // Was the stall due to the rename?
     ASSERT_EQ(sr.localPath1.localPath.toPath(false),
@@ -16179,44 +16179,52 @@ TEST_F(SyncTest, StallsWhenMoveTargetHasLongName)
     ASSERT_TRUE(c->client.syncs.syncStallDetected(stalls));
 
     // Is the stall record actually populated?
-    ASSERT_FALSE(stalls.cloud.empty());
-    ASSERT_FALSE(stalls.local.empty());
+    ASSERT_EQ(stalls.cloud.size(), static_cast<size_t>(2));
+    ASSERT_TRUE(stalls.local.empty());
 
-    auto& local_sr = stalls.local.begin()->second;
-    auto& cloud_sr = stalls.cloud.begin()->second;
+    auto cloud_sr_it = stalls.cloud.begin();
+
+    auto& cloud_sr1 = cloud_sr_it->second;
+
+    // First stall: DestinationPathInUnresolvedArea
 
     // Correct paths reported?
-    ASSERT_EQ(cloud_sr.cloudPath1.cloudPath,
+    ASSERT_EQ(cloud_sr1.cloudPath1.cloudPath,
               "/mega_test_sync/s/d/" + FILE_NAME);
 
-    ASSERT_EQ(cloud_sr.cloudPath2.cloudPath,
+    ASSERT_EQ(cloud_sr1.cloudPath2.cloudPath,
               "/mega_test_sync/s/" + FILE_NAME);
 
-    ASSERT_EQ(cloud_sr.localPath1.localPath.toPath(false),
+    ASSERT_EQ(cloud_sr1.localPath1.localPath.toPath(false),
               (c->fsBasePath / "s" / "d" / "ff").u8string());
 
+    // Correct reasons reported?
+    ASSERT_EQ(cloud_sr1.reason,
+        SyncWaitReason::MoveOrRenameCannotOccur);
+    ASSERT_EQ(cloud_sr1.localPath2.problem,
+        PathProblem::DestinationPathInUnresolvedArea);
 
-    ASSERT_EQ(local_sr.localPath1.localPath.toPath(false),
+    // Second stall: NameTooLongForFilesystem
+    ++cloud_sr_it;
+    auto& cloud_sr2 = cloud_sr_it->second;
+
+    // Correct paths reported?
+    ASSERT_EQ(cloud_sr2.localPath1.localPath.toPath(false),
               (c->fsBasePath / "s" / "d" / "ff").u8string());
 
-    ASSERT_EQ(local_sr.localPath2.localPath.toPath(false),
+    ASSERT_EQ(cloud_sr2.localPath2.localPath.toPath(false),
               (c->fsBasePath / "s" / FILE_NAME).u8string());
 
-    ASSERT_EQ(local_sr.cloudPath1.cloudPath,
+    ASSERT_EQ(cloud_sr2.cloudPath1.cloudPath,
               "/mega_test_sync/s/d/ff");
 
-    ASSERT_EQ(local_sr.cloudPath2.cloudPath,
+    ASSERT_EQ(cloud_sr2.cloudPath2.cloudPath,
               "/mega_test_sync/s/" + FILE_NAME);
 
     // Correct reasons reported?
-    ASSERT_EQ(cloud_sr.reason,
+    ASSERT_EQ(cloud_sr2.reason,
         SyncWaitReason::MoveOrRenameCannotOccur);
-    ASSERT_EQ(cloud_sr.localPath2.problem,
-        PathProblem::DestinationPathInUnresolvedArea);
-
-    ASSERT_EQ(local_sr.reason,
-        SyncWaitReason::MoveOrRenameCannotOccur);
-    ASSERT_EQ(local_sr.localPath2.problem,
+    ASSERT_EQ(cloud_sr2.localPath2.problem,
         PathProblem::NameTooLongForFilesystem);
 
     // Renaming the file to something sane should resolve the stall.
@@ -16877,7 +16885,7 @@ TEST_F(SyncTest, StallsWhenExistingCloudMoveTargetUnknown)
     ASSERT_TRUE(c->client.syncs.syncStallDetected(stalls));
 
     // Correct number of stalls?
-    ASSERT_EQ(stalls.cloud.size(), 1u);
+    ASSERT_EQ(stalls.local.size(), 1u);
 
     // Make sure the move hasn't occured on the local filesystem.
     ASSERT_TRUE(fs::exists(c->fsBasePath / "s" / "fx"));
@@ -16964,7 +16972,7 @@ TEST_F(SyncTest, StallsWhenExistingCloudMoveTargetUnsynced)
     ASSERT_TRUE(c->client.syncs.syncStallDetected(stalls));
 
     // Correct number of stalls?
-    ASSERT_EQ(stalls.cloud.size(), 1u);
+    ASSERT_EQ(stalls.local.size(), 1u);
 
     // Make sure we haven't moved fx on the local filesystem.
     ASSERT_TRUE(fs::exists(c->fsBasePath / "s" / "fx"));
