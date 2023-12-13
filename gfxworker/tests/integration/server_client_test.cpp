@@ -30,8 +30,7 @@ class ServerClientTest : public ::testing::Test
 protected:
     void SetUp() override
     {
-        auto s = std::getenv("MEGA_TESTDATA_FOLDER");
-        mDataFolder = s ? LocalPath::fromAbsolutePath(s) : LocalPath::fromAbsolutePath(".");
+        mDataFolder = LocalPath::fromAbsolutePath(".");
         mPipename = "MEGA_GFXWOKER_UNIT_TEST";
     }
 
@@ -53,10 +52,10 @@ TEST_F(ServerClientTest, gfxTask)
         { 1000, 1000 }  // PREVIEW: scaled version inside 1000x1000 bounding square
     };
 
-    // JPG
+    // one png
     std::vector<std::string> images;
     LocalPath jpgImage = mDataFolder;
-    jpgImage.appendWithSeparator(LocalPath::fromRelativePath("Screenshot.jpg"), false);
+    jpgImage.appendWithSeparator(LocalPath::fromRelativePath("logo.png"), false);
 
     EXPECT_TRUE(
         GfxClient(
@@ -64,19 +63,10 @@ TEST_F(ServerClientTest, gfxTask)
         ).runGfxTask(jpgImage.toPath(false), dimensions, images)
     );
     EXPECT_EQ(images.size(), 2);
-    EXPECT_EQ(images[0].size(), 8146);
-    EXPECT_EQ(images[1].size(), 63012);
+    EXPECT_EQ(images[0].size(), 4539);
+    EXPECT_EQ(images[1].size(), 826);
 
-    // PNG
-    LocalPath pngImage = mDataFolder;
-    pngImage.appendWithSeparator(LocalPath::fromRelativePath("Screenshot.png"), false);
-    EXPECT_TRUE(
-        GfxClient(
-            mega::make_unique<WinGfxCommunicationsClient>(mPipename)
-        ).runGfxTask(jpgImage.toPath(false), dimensions, images)
-    );
-    EXPECT_EQ(images.size(), 2);
-
+    // shutdown
     EXPECT_TRUE(
         GfxClient(
             mega::make_unique<WinGfxCommunicationsClient>(mPipename)
