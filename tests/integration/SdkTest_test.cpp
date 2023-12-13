@@ -186,9 +186,12 @@ bool WaitFor(const std::function<bool()>& predicate, unsigned timeoutMs)
     return false;
 }
 
-MegaApi* newMegaApi(const char *appKey, const char *basePath, const char *userAgent, unsigned workerThreadCount)
+MegaApiTest* newMegaApi(const char* appKey,
+                        const char* basePath,
+                        const char* userAgent,
+                        unsigned workerThreadCount)
 {
-    return new MegaApi(appKey, basePath, userAgent, workerThreadCount);
+    return new MegaApiTest(appKey, basePath, userAgent, workerThreadCount);
 }
 
 enum { USERALERT_ARRIVAL_MILLISEC = 1000 };
@@ -5246,7 +5249,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
 
     ::mega::NodeHandle megaCurDir;
 
-    MegaApiTest* apiTest{reinterpret_cast<MegaApiTest*>(megaApi[0].get())};
+    MegaApiTest* apiTest{megaApi[0].get()};
     MegaApiImpl* impl{apiTest->getImpl()};
     MegaClient* client = impl->getMegaClient();
 
@@ -15249,7 +15252,7 @@ TEST_F(SdkTest, SdkTestJourneyTracking)
     // JID values from ug/gmf commands affect the behavior (set/unset tracking flag, update JourneyID::mJidValue if it's empty, etc.)
     // We don't have TestInstruments or any other mechanism to change the command response results, so we cannot test this just with regular requests on the intermmediate layer.
     // Finally, JourneyID is used internally on the MegaClient, it's never shared with the apps, so we need to check its value directly from MegaClient.
-    MegaApiTest* apiTest{reinterpret_cast<MegaApiTest*>(megaApi[0].get())};
+    MegaApiTest* apiTest{megaApi[0].get()};
     MegaApiImpl* impl{apiTest->getImpl()};
     MegaClient* client = impl->getMegaClient();
 

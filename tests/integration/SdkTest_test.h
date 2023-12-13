@@ -223,6 +223,13 @@ using onNodesUpdateCompletion_t = std::function<void(size_t apiIndex, MegaNodeLi
 class MegaApiTest: public MegaApi
 {
 public:
+    MegaApiTest(const char* appKey,
+                const char* basePath = nullptr,
+                const char* userAgent = nullptr,
+                unsigned workerThreadCount = 1):
+        MegaApi(appKey, basePath, userAgent, workerThreadCount)
+    {}
+
     MegaApiImpl* getImpl()
     {
         return pImpl;
@@ -347,7 +354,7 @@ public:
     };
 
     std::vector<PerApi> mApi;
-    std::vector<std::unique_ptr<MegaApi>> megaApi;
+    std::vector<std::unique_ptr<MegaApiTest>> megaApi;
 
     m_off_t onTransferStart_progress;
     m_off_t onTransferUpdate_progress;
