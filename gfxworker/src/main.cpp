@@ -147,7 +147,7 @@ int main(int argc, char** argv)
 
     // start server
     WinGfxCommunicationsServer server(
-        ::mega::make_unique<RequestProcessor>(GfxProcessor::create(), config.threadCount, config.queueSize),
+        ::mega::make_unique<RequestProcessor>(config.threadCount, config.queueSize),
         config.pipeName,
         config.keepAliveInSeconds
     );

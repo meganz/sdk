@@ -18,25 +18,13 @@ namespace gfx {
 class GfxProcessor
 {
 public:
-    GfxProcessor() = delete;
-
-    GfxProcessor(const GfxProcessor&) = delete;
-
-    GfxProcessor(std::unique_ptr<::mega::IGfxProvider> gfxProvider) :
-        mGfxProvider{std::move(gfxProvider)}
-    {
-        assert(mGfxProvider);
-    }
+    GfxProcessor();
 
     GfxTaskResult process(const GfxTask& task);
 
     std::string supportedformats() const;
 
     std::string supportedvideoformats() const;
-
-    virtual ~GfxProcessor() = default;
-
-    static std::unique_ptr<GfxProcessor> create();
 private:
 
     mega::FSACCESS_CLASS mFaccess;
@@ -47,7 +35,7 @@ private:
 class RequestProcessor
 {
 public:
-    RequestProcessor(std::unique_ptr<GfxProcessor> processor, size_t threadCount = 6, size_t maxQueueSize = 12);
+    RequestProcessor(size_t threadCount = 6, size_t maxQueueSize = 12);
 
     // process the request. return true if processsing should
     // be stopped such as received a shutdown request
@@ -62,7 +50,7 @@ private:
 
     void processSupportFormats(IEndpoint* endpoint);
 
-    std::unique_ptr<GfxProcessor> mGfxProcessor;
+    GfxProcessor mGfxProcessor;
 
     ThreadPool mThreadPool;
 

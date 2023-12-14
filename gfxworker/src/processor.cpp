@@ -20,11 +20,9 @@ const TimeoutMs RequestProcessor::READ_TIMEOUT(5000);
 
 const TimeoutMs RequestProcessor::WRITE_TIMEOUT(5000);
 
-std::unique_ptr<GfxProcessor> GfxProcessor::create()
+GfxProcessor::GfxProcessor()
+    : mGfxProvider(::mega::make_unique<GfxProviderFreeImage>())
 {
-    return ::mega::make_unique<GfxProcessor>(
-        ::mega::make_unique<GfxProviderFreeImage>()
-    );
 }
 
 GfxTaskResult GfxProcessor::process(const GfxTask& task)
@@ -89,10 +87,9 @@ std::string GfxProcessor::supportedvideoformats() const
     return videoformats ? std::string(videoformats) : "";
 }
 
-RequestProcessor::RequestProcessor(std::unique_ptr<GfxProcessor> processor,
-                                   size_t threadCount,
+RequestProcessor::RequestProcessor(size_t threadCount,
                                    size_t maxQueueSize)
-                                   : mGfxProcessor(std::move(processor))
+                                   : mGfxProcessor()
                                    , mThreadPool(threadCount, maxQueueSize)
 {
 }
@@ -176,7 +173,7 @@ void RequestProcessor::processGfx(IEndpoint* endpoint, CommandNewGfx* request)
 
     LOG_info << "gfx processing";
 
-    auto result = mGfxProcessor->process(request->Task);
+    auto result = mGfxProcessor.process(request->Task);
 
     CommandNewGfxResponse response;
     response.ErrorCode = static_cast<uint32_t>(result.ProcessStatus);
@@ -194,8 +191,8 @@ void RequestProcessor::processSupportFormats(IEndpoint* endpoint)
     assert(endpoint);
 
     CommandSupportFormatsResponse response;
-    response.formats = mGfxProcessor->supportedformats();
-    response.videoformats = mGfxProcessor->supportedvideoformats();
+    response.formats = mGfxProcessor.supportedformats();
+    response.videoformats = mGfxProcessor.supportedvideoformats();
 
     ProtocolWriter writer{ endpoint };
     writer.writeCommand(&response, WRITE_TIMEOUT);

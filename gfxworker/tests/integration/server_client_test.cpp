@@ -44,7 +44,7 @@ protected:
 TEST_F(ServerClientTest, gfxTask)
 {
     WinGfxCommunicationsServer server(
-        ::mega::make_unique<RequestProcessor>(GfxProcessor::create()),
+        ::mega::make_unique<RequestProcessor>(),
         mPipeName
     );
 
@@ -85,7 +85,7 @@ TEST_F(ServerClientTest, gfxTask)
 TEST_F(ServerClientTest, hello)
 {
     WinGfxCommunicationsServer server(
-        ::mega::make_unique<RequestProcessor>(GfxProcessor::create()),
+        ::mega::make_unique<RequestProcessor>(),
         mPipeName
     );
 
@@ -115,7 +115,7 @@ TEST_F(ServerClientTest, hello)
 TEST_F(ServerClientTest, supportformats)
 {
     WinGfxCommunicationsServer server(
-        ::mega::make_unique<RequestProcessor>(GfxProcessor::create()),
+        ::mega::make_unique<RequestProcessor>(),
         mPipeName
     );
 
