@@ -36,11 +36,11 @@ protected:
     std::string mName;
 
 private:
-    bool do_write(const void* data, size_t n, TimeoutMs timeout) override;
+    bool doWrite(const void* data, size_t n, TimeoutMs timeout) override;
 
-    bool do_read(void* data, size_t n, TimeoutMs timeout) override;
+    bool doRead(void* data, size_t n, TimeoutMs timeout) override;
 
-    bool do_overlapOp(std::function<bool(OVERLAPPED*)>op,
+    bool doOverlapOp(std::function<bool(OVERLAPPED*)>op,
                       TimeoutMs timeout,
                       const std::string& opStr);
 

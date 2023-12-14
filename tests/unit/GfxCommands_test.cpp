@@ -67,13 +67,13 @@ class StringReader : public IReader
 public:
     StringReader(std::string&& value) : mValue(std::move(value)), mIndex{0} {}
 private:
-    bool do_read(void* out, size_t n, TimeoutMs timeout) override;
+    bool doRead(void* out, size_t n, TimeoutMs timeout) override;
 
     std::string mValue;
     size_t      mIndex;
 };
 
-bool StringReader::do_read(void* out, size_t n, TimeoutMs /*timeout*/)
+bool StringReader::doRead(void* out, size_t n, TimeoutMs /*timeout*/)
 {
     if (mIndex > mValue.size()) return false;
 

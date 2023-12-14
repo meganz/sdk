@@ -36,8 +36,9 @@ private:
     IReader* mReader;
 };
 
-struct CommandSerializer
+class CommandSerializer
 {
+public:
     static std::unique_ptr<std::string> serialize(ICommand* command);
 
     static std::unique_ptr<ICommand> unserialize(IReader& reader, TimeoutMs timeout);

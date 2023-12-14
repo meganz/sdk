@@ -60,10 +60,10 @@ public:
         * @param n the n BYTEs to read
         * @return true: successfully read n BYTEs, false: there is either an error or EOF
         */
-    bool read(void* out, size_t n, TimeoutMs timeout) { return do_read(out, n, timeout); };
+    bool read(void* out, size_t n, TimeoutMs timeout) { return doRead(out, n, timeout); };
 
 private:
-    virtual bool do_read(void* out, size_t n, TimeoutMs timeout) = 0;
+    virtual bool doRead(void* out, size_t n, TimeoutMs timeout) = 0;
 };
 
 class IWriter
@@ -71,10 +71,10 @@ class IWriter
 public:
     virtual ~IWriter() = default;
 
-    bool write(const void* in, size_t n, TimeoutMs timeout) { return do_write(in, n, timeout); };
+    bool write(const void* in, size_t n, TimeoutMs timeout) { return doWrite(in, n, timeout); };
 
 private:
-    virtual bool do_write(const void* in, size_t n, TimeoutMs timeout) = 0;
+    virtual bool doWrite(const void* in, size_t n, TimeoutMs timeout) = 0;
 };
 
 class IEndpoint : public IReader, public IWriter
