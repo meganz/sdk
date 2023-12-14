@@ -24,14 +24,12 @@
 #define GFX_CLASS GfxProviderCG
 
 #include "mega.h"
-#include <ImageIO/CGImageSource.h>
 
 // bitmap graphics processor
 class MEGA_API GfxProviderCG : public mega::IGfxProvider
 {
     dispatch_semaphore_t semaphore;
     CFURLRef sourceURL;
-    int maxSizeForThumbnail(const int rw, const int rh);
 private: // mega::GfxProc implementations
     const char* supportedformats() override;
     const char* supportedvideoformats() override;

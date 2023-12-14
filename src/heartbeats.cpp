@@ -83,7 +83,7 @@ void HeartBeatSyncInfo::updateSPHBStatus(UnifiedSync& us)
     {
         if (!us.mConfig.mError)
         {
-            if (us.syncs.syncStallState ||
+            if (us.syncs.isSyncStalled(us.mConfig.mBackupId) ||
                 us.mSync->localroot->conflicts != TREE_RESOLVED ||
                 us.mConfig.mTemporarilyPaused)
             {
@@ -179,9 +179,10 @@ CommandBackupPut::SPState BackupInfoSync::getSyncState(SyncError error, SyncRunS
             return CommandBackupPut::TEMPORARY_DISABLED;
 
         case SyncRunState::Suspend:
-        case SyncRunState::Disable:
+            return error > NO_SYNC_ERROR ? CommandBackupPut::FAILED : CommandBackupPut::TEMPORARY_DISABLED;
 
-            return error != NO_SYNC_ERROR ? CommandBackupPut::FAILED : CommandBackupPut::DISABLED;
+        case SyncRunState::Disable:
+            return error > NO_SYNC_ERROR ? CommandBackupPut::FAILED : CommandBackupPut::DISABLED;
     }
 
     return CommandBackupPut::DISABLED;
