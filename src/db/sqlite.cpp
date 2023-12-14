@@ -988,8 +988,11 @@ void SqliteAccountState::finalise()
     sqlite3_finalize(mStmtNumChildren);
     mStmtNumChildren = nullptr;
 
-    sqlite3_finalize(mStmtGetChildren);
-    mStmtGetChildren = nullptr;
+    for (auto& s : mStmtGetChildren)
+    {
+        sqlite3_finalize(s.second);
+    }
+    mStmtGetChildren.clear();
 
     sqlite3_finalize(mStmtSearchNodes);
     mStmtSearchNodes = nullptr;
@@ -1343,7 +1346,7 @@ uint64_t SqliteAccountState::getNumberOfChildren(NodeHandle parentHandle)
     return numChildren;
 }
 
-bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, vector<pair<NodeHandle, NodeSerialized>>& children, CancelToken cancelFlag)
+bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int order, vector<pair<NodeHandle, NodeSerialized>>& children, CancelToken cancelFlag)
 {
     if (!db)
     {
@@ -1355,9 +1358,16 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, vecto
         sqlite3_progress_handler(db, NUM_VIRTUAL_MACHINE_INSTRUCTIONS, SqliteAccountState::progressHandler, static_cast<void*>(&cancelFlag));
     }
 
+    // There are 2 criteria used (so far) in ORDER BY clause.
+    // For every combination of order-by directions, a separate query will be necessary.
+    int cacheId = OrderBy2Clause::getId(order);
+    sqlite3_stmt*& stmt = mStmtGetChildren[cacheId];
+
     int sqlResult = SQLITE_OK;
-    if (!mStmtGetChildren)
+    if (!stmt)
     {
+        // Inherited sensitivity is not a concern here. When filtering out sensitive nodes, the parent of all children
+        // would be checked before getting here. There's no point in making this query recursive just because of that.
         std::string sqlQuery = "SELECT nodehandle, counter, node "
                                "FROM nodes "
                                "WHERE (flags & ? = 0) "
@@ -1365,12 +1375,15 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, vecto
                                  "AND (?3 = " + std::to_string(TYPE_UNKNOWN) + " OR type = ?3) "
                                  "AND (?4 = 0 OR ?4 < ctime) AND (?5 = 0 OR ctime < ?5) "
                                  "AND (?6 = 0 OR ?6 < mtime) AND (?7 = 0 OR (0 < mtime AND mtime < ?7)) " // mtime is not used (0) for some nodes
-                                 "AND (?8 = " + std::to_string(MIME_TYPE_UNKNOWN) + " OR (type = " + std::to_string(FILENODE) + " AND mimetype = ?)) "
-                                 "AND (name REGEXP ?) ";
-        // Leading and trailing '*' will be added to argument '?' so we are looking for a substring of name
-        // Our REGEXP implementation is case insensitive
+                                 "AND (?8 = " + std::to_string(MIME_TYPE_UNKNOWN) + " OR (type = " + std::to_string(FILENODE) + " AND mimetype = ?8)) "
+                                 "AND (name REGEXP ?) "
+                                 // Leading and trailing '*' will be added to argument '?' so we are looking for substrings containing name
+                                 // Our REGEXP implementation is case insensitive
 
-        sqlResult = sqlite3_prepare_v2(db, sqlQuery.c_str(), -1, &mStmtGetChildren, NULL);
+                               "ORDER BY \n" +
+                                  OrderBy2Clause::get(order, 10); // use ?10 for bound value
+
+        sqlResult = sqlite3_prepare_v2(db, sqlQuery.c_str(), -1, &stmt, NULL);
     }
 
     bool result = false;
@@ -1378,19 +1391,20 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, vecto
                      (filter.bySensitivity() ? (1 << Node::FLAGS_IS_MARKED_SENSTIVE) : 0); // filter by sensitivity
 
     if (sqlResult == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 1, flags)) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 2, filter.byLocationHandle())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int(mStmtGetChildren, 3, filter.byNodeType())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 4, filter.byCreationTimeLowerLimit())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 5, filter.byCreationTimeUpperLimit())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 6, filter.byModificationTimeLowerLimit())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 7, filter.byModificationTimeUpperLimit())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int(mStmtGetChildren, 8, filter.byCategory())) == SQLITE_OK)
+        (sqlResult = sqlite3_bind_int64(stmt, 1, flags)) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(stmt, 2, filter.byLocationHandle())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int(stmt, 3, filter.byNodeType())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(stmt, 4, filter.byCreationTimeLowerLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(stmt, 5, filter.byCreationTimeUpperLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(stmt, 6, filter.byModificationTimeLowerLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(stmt, 7, filter.byModificationTimeUpperLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int(stmt, 8, filter.byCategory())) == SQLITE_OK)
     {
         string wildCardName = '*' + filter.byName() + '*';
-        if ((sqlResult = sqlite3_bind_text(mStmtGetChildren, 9, wildCardName.c_str(), static_cast<int>(wildCardName.length()), SQLITE_STATIC)) == SQLITE_OK)
+        if ((sqlResult = sqlite3_bind_text(stmt, 9, wildCardName.c_str(), static_cast<int>(wildCardName.length()), SQLITE_STATIC)) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 10, order)) == SQLITE_OK)
         {
-            result = processSqlQueryNodes(mStmtGetChildren, children);
+            result = processSqlQueryNodes(stmt, children);
         }
     }
 
@@ -1400,7 +1414,7 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, vecto
     string errMsg("Get children with filter");
     errorHandler(sqlResult, errMsg, true);
 
-    sqlite3_reset(mStmtGetChildren);
+    sqlite3_reset(stmt);
 
     return result;
 }

@@ -123,7 +123,7 @@ public:
     // read children from DB and load them in memory
     sharedNode_list getChildren(const Node *parent, CancelToken cancelToken = CancelToken());
 
-    sharedNode_vector getChildren(const NodeSearchFilter& filter, CancelToken cancelFlag);
+    sharedNode_vector getChildren(const NodeSearchFilter& filter, int order, CancelToken cancelFlag);
 
     // read children from type (folder or file) from DB and load them in memory
     sharedNode_vector getChildrenFromType(const NodeHandle &parent, nodetype_t type, CancelToken cancelToken);
@@ -383,7 +383,7 @@ private:
 
     sharedNode_vector searchNodes_internal(const NodeSearchFilter& filter, CancelToken cancelFlag);
     sharedNode_vector processUnserializedNodes(const std::vector<std::pair<NodeHandle, NodeSerialized>>& nodesFromTable, const NodeSearchFilter& filter, CancelToken cancelFlag = CancelToken());
-    sharedNode_vector getChildren_internal(const NodeSearchFilter& filter, CancelToken cancelFlag);
+    sharedNode_vector getChildren_internal(const NodeSearchFilter& filter, int order, CancelToken cancelFlag);
     sharedNode_vector processUnserializedChildren(const std::vector<std::pair<NodeHandle, NodeSerialized>>& childrenFromTable, const NodeSearchFilter& filter, CancelToken cancelFlag = CancelToken());
 
     // node temporary in memory, which will be removed upon write to DB

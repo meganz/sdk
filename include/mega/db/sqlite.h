@@ -94,7 +94,7 @@ public:
     bool getChildrenFromType(NodeHandle parentHandle, nodetype_t nodeType, std::vector<std::pair<NodeHandle, NodeSerialized>>& children, mega::CancelToken cancelFlag) override;
     uint64_t getNumberOfChildren(NodeHandle parentHandle) override;
     // If a cancelFlag is passed, it must be kept alive until this method returns.
-    bool getChildren(const mega::NodeSearchFilter& filter, std::vector<std::pair<NodeHandle, NodeSerialized>>& children, CancelToken cancelFlag) override;
+    bool getChildren(const mega::NodeSearchFilter& filter, int order, std::vector<std::pair<NodeHandle, NodeSerialized>>& children, CancelToken cancelFlag) override;
     bool searchNodes(const mega::NodeSearchFilter& filter, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag) override;
 
     /**
@@ -198,7 +198,7 @@ private:
     sqlite3_stmt* mStmtChildrenFromType = nullptr;
 
     sqlite3_stmt* mStmtNumChildren = nullptr;
-    sqlite3_stmt* mStmtGetChildren = nullptr;
+    std::map<int, sqlite3_stmt*> mStmtGetChildren;
     sqlite3_stmt* mStmtSearchNodes = nullptr;
 
     /** @deprecated */

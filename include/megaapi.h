@@ -16528,7 +16528,8 @@ class MegaApi
          *
          * @param filter Container for filtering options. In order to be considered valid it must
          * - be not null
-         * - have valid ancestor handle (different than INVALID_HANDLE)
+         * - have valid ancestor handle (different than INVALID_HANDLE) set by calling byLocationHandle(),
+         *   and in consequence it must have default value for location (SEARCH_TARGET_ALL)
          * @param order Order for the returned list
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
@@ -16558,29 +16559,13 @@ class MegaApi
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
          * Sort by modification time of the original file, descending
          *
-         * - deprecated: MegaApi::ORDER_ALPHABETICAL_ASC = 9
-         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
-         *
-         * - deprecated: MegaApi::ORDER_ALPHABETICAL_DESC = 10
-         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
-         *
-         * - deprecated: MegaApi::ORDER_PHOTO_ASC = 11
-         * Sort with photos first, then by date ascending
-         *
-         * - deprecated: MegaApi::ORDER_PHOTO_DESC = 12
-         * Sort with photos first, then by date descending
-         *
-         * - deprecated: MegaApi::ORDER_VIDEO_ASC = 13
-         * Sort with videos first, then by date ascending
-         *
-         * - deprecated: MegaApi::ORDER_VIDEO_DESC = 14
-         * Sort with videos first, then by date descending
-         *
          * - MegaApi::ORDER_LABEL_ASC = 17
          * Sort by color label, ascending. With this order, folders are returned first, then files
+         * This sorting criteria is expensive in current implementation
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
          * Sort by color label, descending. With this order, folders are returned first, then files
+         * This sorting criteria is expensive in current implementation
          *
          * - MegaApi::ORDER_FAV_ASC = 19
          * Sort nodes with favourite attr first. With this order, folders are returned first, then files
@@ -17679,24 +17664,6 @@ class MegaApi
          *
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
          * Sort by modification time of the original file, descending
-         *
-         * - deprecated: MegaApi::ORDER_ALPHABETICAL_ASC = 9
-         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
-         *
-         * - deprecated: MegaApi::ORDER_ALPHABETICAL_DESC = 10
-         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
-         *
-         * - deprecated: MegaApi::ORDER_PHOTO_ASC = 11
-         * Sort with photos first, then by date ascending
-         *
-         * - deprecated: MegaApi::ORDER_PHOTO_DESC = 12
-         * Sort with photos first, then by date descending
-         *
-         * - deprecated: MegaApi::ORDER_VIDEO_ASC = 13
-         * Sort with videos first, then by date ascending
-         *
-         * - deprecated: MegaApi::ORDER_VIDEO_DESC = 14
-         * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
          * Sort by color label, ascending. With this order, folders are returned first, then files

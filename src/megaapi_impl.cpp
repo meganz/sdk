@@ -17834,9 +17834,8 @@ MegaNodeList *MegaApiImpl::getChildren(const MegaSearchFilter* filter, int order
 
     NodeSearchFilter nf;
     nf.copyFrom(*filter);
-    sharedNode_vector results = client->mNodeManager.getChildren(nf, cancelToken);
+    sharedNode_vector results = client->mNodeManager.getChildren(nf, order, cancelToken);
 
-    sortByComparatorFunction(results, order, *client);
     return new MegaNodeListPrivate(results);
 }
 
@@ -17898,13 +17897,13 @@ MegaNodeList *MegaApiImpl::getChildren(MegaNodeList *parentNodes, int order)
     return new MegaNodeListPrivate(childrenNodes);
 }
 
-sharedNode_vector NodeManager::getChildren(const NodeSearchFilter& filter, CancelToken cancelFlag)
+sharedNode_vector NodeManager::getChildren(const NodeSearchFilter& filter, int order, CancelToken cancelFlag)
 {
     LockGuard g(mMutex);
-    return getChildren_internal(filter, cancelFlag);
+    return getChildren_internal(filter, order, cancelFlag);
 }
 
-sharedNode_vector NodeManager::getChildren_internal(const NodeSearchFilter& filter, CancelToken cancelFlag)
+sharedNode_vector NodeManager::getChildren_internal(const NodeSearchFilter& filter, int order, CancelToken cancelFlag)
 {
     assert(mMutex.owns_lock());
 
@@ -17927,7 +17926,7 @@ sharedNode_vector NodeManager::getChildren_internal(const NodeSearchFilter& filt
 
     // db look-up
     vector<pair<NodeHandle, NodeSerialized>> nodesFromTable;
-    if (!mTable->getChildren(filter, nodesFromTable, cancelFlag))
+    if (!mTable->getChildren(filter, order, nodesFromTable, cancelFlag))
     {
         return sharedNode_vector();
     }
