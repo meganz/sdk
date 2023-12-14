@@ -20,7 +20,6 @@
  */
 
 #include "mega.h"
-#include <MobileCoreServices/UTCoreTypes.h>
 #import <AVFoundation/AVFoundation.h>
 #import <UIKit/UIImage.h>
 #import <MobileCoreServices/UTType.h>
@@ -141,14 +140,6 @@ static inline CGRect tileRect(size_t w, size_t h)
         res.origin.y = 0;
     }
     return res;
-}
-
-int GfxProviderCG::maxSizeForThumbnail(const int rw, const int rh) {
-    if (rh) { // rectangular rw*rh bounding box
-        return std::max(rw, rh);
-    }
-    // square rw*rw crop thumbnail
-    return ceil(rw * ((double)std::max(w, h) / (double)std::min(w, h)));
 }
 
 bool GfxProviderCG::resizebitmap(int rw, int rh, string* jpegout) {

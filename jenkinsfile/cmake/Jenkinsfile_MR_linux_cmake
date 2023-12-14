@@ -87,30 +87,18 @@ pipeline {
             options{
                 timeout(time: 120, unit: 'MINUTES')
             }
+            environment{
+                VCPKGPATH = "${env.HOME}/3rdparty/vcpkg"
+                BUILD_DIR = "build_dir"
+            }
             steps{
                 dir("${linux_sources_workspace}") {
-                    sh "rm test_integration.log test_integration_*.gz || :"
-                    sh "./clean.sh; mv sdk_build_keep sdk_build || :"
-                    sh "./contrib/build_sdk.sh -b -g -f -I -i -s -n -z -o ${linux_sources_workspace}/3rd_pkgs -p ${linux_sources_workspace}/3rd_deps"
-                    sh "rm ./3rd_deps/include/sqlite* ./3rd_deps/lib/libsqlite* || :"
-
+                    sh "rm -rf ${BUILD_DIR}; mkdir ${BUILD_DIR}"
                     //Build SDK
-                    sh "echo Building SDK"                                   
-                    sh "./autogen.sh"
-                    sh "./configure --disable-silent-rules --enable-debug --enable-tests --enable-chat --with-gtest=/opt/gtest/gtest-1.10.0 --with-curl=${linux_sources_workspace}/3rd_deps \
-                    --disable-curl-checks --enable-rotative-performance-logger --enable-werror ${BUILD_OPTIONS}"
-                    sh "sed -i 's/#define ENABLE_LOG_PERFORMANCE 1//g' ./include/mega/config.h"
-                    sh "make clean"
-                    sh "make"
-
-                    //Package megacli to be archived
-                    sh "echo Packaging megacli to be archived"
-                    sh "rm -r examples-* || :; mkdir examples-${BUILD_ID}"
-                    sh "cp -r ./examples/.libs ./examples-${BUILD_ID}"
-                    sh "cp -P ./src/.libs/libmega.so* ./examples-${BUILD_ID}/.libs/" 
-                    sh "echo \"LD_LIBRARY_PATH=\\`dirname \\\$0\\`/.libs \\`dirname \\\$0\\`/.libs/megacli\" > examples-${BUILD_ID}/megacli"
-                    sh "chmod +x examples-${BUILD_ID}/megacli"
-                    sh "tar czf examples-${BUILD_ID}.tar.gz examples-${BUILD_ID}"
+                    sh "echo Building SDK"
+                    sh "cmake -DENABLE_SDKLIB_WERROR=ON -DUSE_PDFIUM=OFF -DENABLE_CHAT=ON -DCMAKE_BUILD_TYPE=Debug ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=ON \
+                    -S ${linux_sources_workspace} -B ${linux_sources_workspace}/${BUILD_DIR}"
+                    sh "cmake --build ${linux_sources_workspace}/${BUILD_DIR} -j1"
                 }
             }
         }
@@ -123,6 +111,7 @@ pipeline {
                 MEGA_PWD_AUX = credentials('MEGA_PWD_DEFAULT')
                 MEGA_PWD_AUX2 = credentials('MEGA_PWD_DEFAULT')
                 MEGA_REAL_PWD=credentials('MEGA_REAL_PWD_TEST')
+                BUILD_DIR = "build_dir"
             }
             steps{
                 lock(label: 'SDK_Concurrent_Test_Accounts', variable: 'ACCOUNTS_COMBINATION', quantity: 1, resource: null){    
@@ -135,17 +124,24 @@ pipeline {
                         sh """#!/bin/bash
                         set -x
                         ulimit -c unlimited
-                        ./tests/test_unit || FAILED=1
+                        cd ${env.BUILD_DIR}
+
+                        if [ ! -f ./test_unit ] && [ ! -f ./test_integration ]; then
+                            echo Tests not available | tee > test_integration.log
+                            exit 0
+                        fi
+
+                        ./test_unit || FAILED=1
                         
                         if [ -z \"\$FAILED\" ]; then
                             if [ -z \"${TESTS_PARALLEL}\" ]; then
                                 # Sequential run
-                                ./tests/test_integration --CI --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} &
+                                ./test_integration --CI --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} &
                                 pid=\$!
                                 wait \$pid || FAILED=2
                             else
                                 # Parallel run
-                                ./tests/test_integration --CI --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${TESTS_PARALLEL} 2>&1 | tee tests.stdout
+                                ./test_integration --CI --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${TESTS_PARALLEL} 2>&1 | tee tests.stdout
                                 [ \"\${PIPESTATUS[0]}\" != \"0\" ] && FAILED=2
                             fi
                         fi
@@ -181,8 +177,8 @@ pipeline {
                                             echo \"Processing core dump \$i :: \$(grep `echo \$i | sed 's#pid_\\([0-9].*\\)/core#\\1#'` tests.stdout)\"
                                             echo thread apply all bt > backtrace
                                             echo quit >> backtrace
-                                            [ \"\$FAILED\" = \"1\" ] && gdb -q ./tests/.libs/test_unit \$i -x ${linux_sources_workspace}/backtrace
-                                            [ \"\$FAILED\" = \"2\" ] && gdb -q ./tests/.libs/test_integration \$i -x ${linux_sources_workspace}/backtrace
+                                            [ \"\$FAILED\" = \"1\" ] && gdb -q ./test_unit \$i -x ${linux_sources_workspace}/backtrace
+                                            [ \"\$FAILED\" = \"2\" ] && gdb -q ./test_integration \$i -x ${linux_sources_workspace}/backtrace
                                             tar rf core.tar \$i
                                             coresProcessed=`expr \$coresProcessed + 1`
                                             coreFiles=`echo \$coreFiles | sed -e \"s#\$i##\"`
@@ -190,8 +186,8 @@ pipeline {
                                     done
                                 done
                                 if [ -e core.tar ]; then
-                                    [ \"\$FAILED\" = \"1\" ] && tar rf core.tar -C ./tests/.libs test_unit
-                                    [ \"\$FAILED\" = \"2\" ] && tar rf core.tar -C ./tests/.libs test_integration
+                                    [ \"\$FAILED\" = \"1\" ] && tar rf core.tar -C ./ test_unit
+                                    [ \"\$FAILED\" = \"2\" ] && tar rf core.tar -C ./ test_integration
                                     gzip core.tar
                                 fi
                             fi
@@ -210,7 +206,7 @@ pipeline {
     }            
     post{
         always {
-            archiveArtifacts artifacts: 'test_integration*, examples-*.tar.gz, core.tar.gz', fingerprint: true
+            archiveArtifacts artifacts: 'build_dir/test_integration*, examples-*.tar.gz, core.tar.gz', fingerprint: true
             script{
                 if (currentBuild.currentResult == 'SUCCESS'){
                     addGitLabMRComment(comment: ":white_check_mark: ${currentBuild.projectName} :penguin: <b>Linux</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )

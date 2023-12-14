@@ -4329,29 +4329,29 @@ void MegaApi::addScheduledCopyListener(MegaScheduledCopyListener *listener)
     pImpl->addScheduledCopyListener(listener);
 }
 
-void MegaApi::removeScheduledCopyListener(MegaScheduledCopyListener *listener)
+bool MegaApi::removeScheduledCopyListener(MegaScheduledCopyListener *listener)
 {
-    pImpl->removeScheduledCopyListener(listener);
+    return pImpl->removeScheduledCopyListener(listener);
 }
 
-void MegaApi::removeListener(MegaListener* listener)
+bool MegaApi::removeListener(MegaListener* listener)
 {
-    pImpl->removeListener(listener);
+    return pImpl->removeListener(listener);
 }
 
-void MegaApi::removeRequestListener(MegaRequestListener* listener)
+bool MegaApi::removeRequestListener(MegaRequestListener* listener)
 {
-    pImpl->removeRequestListener(listener);
+    return pImpl->removeRequestListener(listener);
 }
 
-void MegaApi::removeTransferListener(MegaTransferListener* listener)
+bool MegaApi::removeTransferListener(MegaTransferListener* listener)
 {
-    pImpl->removeTransferListener(listener);
+    return pImpl->removeTransferListener(listener);
 }
 
-void MegaApi::removeGlobalListener(MegaGlobalListener* listener)
+bool MegaApi::removeGlobalListener(MegaGlobalListener* listener)
 {
-    pImpl->removeGlobalListener(listener);
+    return pImpl->removeGlobalListener(listener);
 }
 
 MegaError MegaApi::checkAccess(MegaNode* megaNode, int level)
@@ -4497,6 +4497,11 @@ unsigned long long MegaApi::getNumNodes()
 unsigned long long MegaApi::getAccurateNumNodes()
 {
     return pImpl->getAccurateNumNodes();
+}
+
+void MegaApi::setLRUCacheSize(unsigned long long size)
+{
+    pImpl->setLRUCacheSize(size);
 }
 
 long long MegaApi::getTotalDownloadedBytes()
@@ -5787,6 +5792,23 @@ void MegaApi::fetchCreditCardInfo(MegaRequestListener* listener)
     pImpl->fetchCreditCardInfo(listener);
 }
 
+void MegaApi::getVisibleWelcomeDialog(MegaRequestListener* listener)
+{
+    pImpl->getVisibleWelcomeDialog(listener);
+}
+
+void MegaApi::setVisibleWelcomeDialog(bool visible, MegaRequestListener* listener)
+{
+    pImpl->setVisibleWelcomeDialog(visible, listener);
+}
+
+void MegaApi::createNodeTree(const MegaNode* parentNode,
+                             MegaNodeTree* nodeTree,
+                             MegaRequestListener* listener)
+{
+    pImpl->createNodeTree(parentNode, nodeTree, listener);
+}
+
 /* END MEGAAPI */
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)
@@ -6666,6 +6688,10 @@ void MegaSearchFilter::byCreationTime(int64_t /*lowerLimit*/, int64_t /*upperLim
 {
 }
 
+void MegaSearchFilter::byModificationTime(int64_t /*lowerLimit*/, int64_t /*upperLimit*/)
+{
+}
+
 const char* MegaSearchFilter::byName() const
 {
     return nullptr;
@@ -6702,6 +6728,16 @@ int64_t MegaSearchFilter::byCreationTimeLowerLimit() const
 }
 
 int64_t MegaSearchFilter::byCreationTimeUpperLimit() const
+{
+    return 0;
+}
+
+int64_t MegaSearchFilter::byModificationTimeLowerLimit() const
+{
+    return 0;
+}
+
+int64_t MegaSearchFilter::byModificationTimeUpperLimit() const
 {
     return 0;
 }
@@ -7644,4 +7680,24 @@ MegaVpnCredentials* MegaVpnCredentials::copy() const
 }
 /* MegaVpnCredentials END */
 
+MegaNodeTree* MegaNodeTree::createInstance(MegaNodeTree* nodeTreeChild,
+                                           const char* name,
+                                           const char* s4AttributeValue,
+                                           const MegaCompleteUploadData* completeUploadData)
+{
+    return new MegaNodeTreePrivate(nodeTreeChild,
+                                   name ? name : "",
+                                   s4AttributeValue ? s4AttributeValue : "",
+                                   completeUploadData,
+                                   UNDEF);
+}
+
+MegaCompleteUploadData* MegaCompleteUploadData::createInstance(const char* fingerprint,
+                                                               const char* string64UploadToken,
+                                                               const char* string64FileKey)
+{
+    return new MegaCompleteUploadDataPrivate(fingerprint ? fingerprint : "",
+                                             string64UploadToken ? string64UploadToken : "",
+                                             string64FileKey ? string64FileKey : "");
+}
 }
