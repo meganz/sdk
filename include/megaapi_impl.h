@@ -650,7 +650,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         int64_t mtime;
         MegaHandle nodehandle;
         MegaHandle parenthandle;
-        MegaHandle restorehandle;
+        MegaHandle restorehandle = UNDEF;
         std::string nodekey;
         std::string fileattrstring;
         std::string privateAuth;
