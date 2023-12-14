@@ -45,13 +45,11 @@ public:
 
 private:
 
-    static bool unserializeHelper(IReader& reader, uint32_t& data, TimeoutMs timeout);
+    static bool unserializeUInt32(IReader& reader, uint32_t& data, TimeoutMs timeout);
 
-    static bool unserializeHelper(IReader& reader, std::string& data, TimeoutMs timeout);
+    static bool unserializeString(IReader& reader, std::string& data, TimeoutMs timeout);
 
-    static std::unique_ptr<ICommand> unserializeHelper(CommandType type, const std::string& data);
-
-    static bool serializeHelper(ICommand* command, std::string& data);
+    static std::unique_ptr<ICommand> unserializeCommand(CommandType type, const std::string& data);
 };
 
 }

@@ -63,15 +63,15 @@ std::unique_ptr<std::string> CommandSerializer::serialize(ICommand* command)
     return ::mega::make_unique<std::string>(std::move(dataToReturn));
 }
 
-bool CommandSerializer::unserializeHelper(IReader& reader, uint32_t& data, TimeoutMs timeout)
+bool CommandSerializer::unserializeUInt32(IReader& reader, uint32_t& data, TimeoutMs timeout)
 {
     return reader.read(&data, sizeof(uint32_t), timeout);
 }
 
-bool CommandSerializer::unserializeHelper(IReader& reader, std::string& data, TimeoutMs timeout)
+bool CommandSerializer::unserializeString(IReader& reader, std::string& data, TimeoutMs timeout)
 {
     uint32_t len;
-    if (!unserializeHelper(reader, len, timeout))
+    if (!unserializeUInt32(reader, len, timeout))
     {
         return false;
     }
@@ -110,16 +110,16 @@ std::unique_ptr<ICommand> CommandSerializer::unserialize(IReader& reader, Timeou
 
     // command data
     std::string data;
-    if (!unserializeHelper(reader, data, timeout))
+    if (!unserializeString(reader, data, timeout))
     {
         return nullptr;
     }
 
-    return unserializeHelper(static_cast<CommandType>(type), data);
+    return unserializeCommand(static_cast<CommandType>(type), data);
 
 }
 
-std::unique_ptr<ICommand> CommandSerializer::unserializeHelper(CommandType type, const std::string& data)
+std::unique_ptr<ICommand> CommandSerializer::unserializeCommand(CommandType type, const std::string& data)
 {
     auto command = ICommand::factory(type);
 
@@ -127,7 +127,7 @@ std::unique_ptr<ICommand> CommandSerializer::unserializeHelper(CommandType type,
 
     if (!command->unserialize(data))
     {
-        LOG_err << "CommandSerializer::unserializeHelper unable to unseriaize";
+        LOG_err << "CommandSerializer::unserializeCommand unable to unseriaize";
         return nullptr;
     }
 
