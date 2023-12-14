@@ -1,5 +1,5 @@
 #include "comms_server_win32.h"
-#include "server.h"
+#include "processor.h"
 
 #include "mega/logging.h"
 #include "mega/utils.h"

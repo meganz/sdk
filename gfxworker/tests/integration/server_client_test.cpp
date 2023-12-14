@@ -1,7 +1,7 @@
 #include "common.h"
 
 #include "comms_server_win32.h"
-#include "server.h"
+#include "processor.h"
 
 #include "mega/gfx.h"
 #include "mega/win32/gfx/worker/comms_client.h"
