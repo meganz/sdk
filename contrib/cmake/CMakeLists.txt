@@ -1167,4 +1167,4 @@ else()
 endif()
 
 # gfxworker support.
-include(${MegaDir}/gfxworker/CMakeLists.txt)
+include(${MegaDir}/tools/gfxworker/CMakeLists.txt)

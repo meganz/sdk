@@ -1,4 +1,4 @@
-set(GFXWORKER_DIR "${MegaDir}/gfxworker")
+set(GFXWORKER_DIR "${MegaDir}/tools/gfxworker")
 
 if (WIN32)
     # libgfxworker library and gfxworker executable
