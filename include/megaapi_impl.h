@@ -3363,10 +3363,10 @@ public:
         static bool nodeComparatorCreationDESC  (Node *i, Node *j);
         static bool nodeComparatorModificationASC  (Node *i, Node *j);
         static bool nodeComparatorModificationDESC  (Node *i, Node *j);
-        static bool nodeComparatorPhotoASC(Node *i, Node *j, MegaClient& mc);
-        static bool nodeComparatorPhotoDESC(Node *i, Node *j, MegaClient& mc);
-        static bool nodeComparatorVideoASC(Node *i, Node *j, MegaClient& mc);
-        static bool nodeComparatorVideoDESC(Node *i, Node *j, MegaClient& mc);
+        /*deprecated*/ static bool nodeComparatorPhotoASC(Node *i, Node *j, MegaClient& mc);
+        /*deprecated*/ static bool nodeComparatorPhotoDESC(Node *i, Node *j, MegaClient& mc);
+        /*deprecated*/ static bool nodeComparatorVideoASC(Node *i, Node *j, MegaClient& mc);
+        /*deprecated*/ static bool nodeComparatorVideoDESC(Node *i, Node *j, MegaClient& mc);
         static bool nodeComparatorPublicLinkCreationASC(Node *i, Node *j);
         static bool nodeComparatorPublicLinkCreationDESC(Node *i, Node *j);
         static bool nodeComparatorLabelASC(Node *i, Node *j);
