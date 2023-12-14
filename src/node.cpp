@@ -549,7 +549,12 @@ void Node::setKey(const string& key)
     assert(client->mAppliedKeyNodeCount >= 0);
 }
 
-std::shared_ptr<Node> Node::unserialize(MegaClient& client, const std::string *d, bool fromOldCache, std::list<std::unique_ptr<NewShare>>& ownNewshares)
+std::shared_ptr<Node> Node::unserialize(MegaClient& client, const std::string* d, bool fromOldCache, std::list<std::unique_ptr<NewShare>>& ownNewshares)
+{
+    return unserializeRaw(client, d->c_str(), d->size(), fromOldCache, ownNewshares);
+}
+
+std::shared_ptr<Node> Node::unserializeRaw(MegaClient& client, const char* ptr, size_t size, bool fromOldCache, std::list<std::unique_ptr<NewShare>>& ownNewshares)
 {
     handle h, ph;
     nodetype_t t;
@@ -559,8 +564,7 @@ std::shared_ptr<Node> Node::unserialize(MegaClient& client, const std::string *d
     const char* fa;
     m_time_t ts;
     const byte* skey;
-    const char* ptr = d->data();
-    const char* end = ptr + d->size();
+    const char* end = ptr + size;
     unsigned short ll;
     int i;
     char isExported = '\0';
