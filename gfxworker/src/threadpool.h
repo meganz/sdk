@@ -22,7 +22,7 @@ public:
 
     ~ThreadPool();
 
-    bool push(Entry&& entry, const bool bypassMaxQueueSize = false);
+    bool push(Entry&& entry);
 private:
     void shutdown();
 

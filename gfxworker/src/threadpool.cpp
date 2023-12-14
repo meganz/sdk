@@ -42,14 +42,14 @@ ThreadPool::~ThreadPool()
     shutdown();
 }
 
-bool ThreadPool::push(Entry&& entry, const bool bypassMaxQueueSize/* = false*/)
+bool ThreadPool::push(Entry&& entry)
 {
     {
         std::lock_guard<std::mutex> g(mMutex);
 
         if (mDone) return false;
 
-        if (!bypassMaxQueueSize && mMaxQueueSize > 0 && mQueue.size() >= mMaxQueueSize)
+        if (mMaxQueueSize > 0 && mQueue.size() >= mMaxQueueSize)
         {
             return false;
         }
