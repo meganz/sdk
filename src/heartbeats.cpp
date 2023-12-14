@@ -179,9 +179,10 @@ CommandBackupPut::SPState BackupInfoSync::getSyncState(SyncError error, SyncRunS
             return CommandBackupPut::TEMPORARY_DISABLED;
 
         case SyncRunState::Suspend:
-        case SyncRunState::Disable:
+            return error > NO_SYNC_ERROR ? CommandBackupPut::FAILED : CommandBackupPut::TEMPORARY_DISABLED;
 
-            return error != NO_SYNC_ERROR ? CommandBackupPut::FAILED : CommandBackupPut::DISABLED;
+        case SyncRunState::Disable:
+            return error > NO_SYNC_ERROR ? CommandBackupPut::FAILED : CommandBackupPut::DISABLED;
     }
 
     return CommandBackupPut::DISABLED;
