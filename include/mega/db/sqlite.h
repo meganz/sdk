@@ -171,6 +171,14 @@ public:
     // Gets the mimetype corresponding to the file extension
     static void userGetMimetype(sqlite3_context* context, int argc, sqlite3_value** argv);
 
+    // Method called when query uses 'getlabel'
+    // Gets the Label corresponding to a node
+    static void userGetLabel(sqlite3_context* context, int argc, sqlite3_value** argv);
+
+    // Method called from userGetLabel() when query uses 'getlabel'
+    // Extracts the Label of a node from the blob stored in db
+    static void setLabelGetter(std::function<int(const char*, size_t)> labelGetter) { mLabelGetter = labelGetter; }
+
 private:
     // Iterate over a SQL query row by row and fill the map
     // Allow at least the following containers:
@@ -220,6 +228,8 @@ private:
     // how many SQLite instructions will be executed between callbacks to the progress handler
     // (tests with a value of 1000 results on a callback every 1.2ms on a desktop PC)
     static const int NUM_VIRTUAL_MACHINE_INSTRUCTIONS = 1000;
+
+    static std::function<int(const char*, size_t)> mLabelGetter;
 };
 
 class MEGA_API SqliteDbAccess : public DbAccess

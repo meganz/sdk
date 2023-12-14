@@ -144,11 +144,19 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
         return nullptr;
     }
 
+    if (sqlite3_create_function(db, u8"getlabel", 1, SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0, &SqliteAccountState::userGetLabel, 0, 0) != SQLITE_OK)
+    {
+        LOG_err << "Data base error(sqlite3_create_function userGetLabel): " << sqlite3_errmsg(db);
+        sqlite3_close(db);
+        return nullptr;
+    }
+
     // Create specific table for handle nodes
     std::string sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle int64 PRIMARY KEY NOT NULL, "
                       "parenthandle int64, name text, fingerprint BLOB, origFingerprint BLOB, "
                       "type tinyint, mimetype tinyint AS (getmimetype(name)) VIRTUAL, size int64, share tinyint, fav tinyint, "
-                      "ctime int64, mtime int64, flags int64, counter BLOB NOT NULL, node BLOB NOT NULL)";
+                      "ctime int64, mtime int64, flags int64, counter BLOB NOT NULL, node BLOB NOT NULL, "
+                      "label tinyint AS (getlabel(node)) VIRTUAL)";
     int result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
     if (result)
     {
@@ -157,9 +165,13 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
         return nullptr;
     }
 
-    // Add 'mtime' column and 'mimetype' virtual column to old 'nodes' table
+    // Add following columns to 'nodes' table:
+    // - 'mtime' (regular),
+    // - 'mimetype' (virtual),
+    // - 'label' (virtual)
     if (!ensureColumnIsInNodesTable(db, "mtime", "int64", [this, db]() { return copyMtimeFromFingerprint(db); }) ||
-        !ensureColumnIsInNodesTable(db, "mimetype", "tinyint AS (getmimetype(name)) VIRTUAL"))
+        !ensureColumnIsInNodesTable(db, "mimetype", "tinyint AS (getmimetype(name)) VIRTUAL") ||
+        !ensureColumnIsInNodesTable(db, "label", "tinyint AS (getlabel(node)) VIRTUAL"))
     {
         sqlite3_close(db);
         return nullptr;
@@ -2259,6 +2271,33 @@ void SqliteAccountState::userGetMimetype(sqlite3_context* context, int argc, sql
     string ext;
     int result = (fileName && *fileName && Node::getExtension(ext, fileName) && !ext.empty()) ?
                  Node::getMimetype(ext) : MimeType_t::MIME_TYPE_UNKNOWN;
+    sqlite3_result_int(context, result);
+}
+
+/*static*/
+std::function<int(const char*, size_t)> SqliteAccountState::mLabelGetter;
+
+void SqliteAccountState::userGetLabel(sqlite3_context* context, int argc, sqlite3_value** argv)
+{
+    if (argc != 1)
+    {
+        LOG_err << "Invalid parameters for userGetLabel";
+        assert(argc == 1);
+        sqlite3_result_int(context, nodelabel_t::LBL_UNKNOWN);
+        return;
+    }
+
+    if (!mLabelGetter)
+    {
+        LOG_err << "Mechanism for getting Label from blob data not set";
+        sqlite3_result_int(context, nodelabel_t::LBL_UNKNOWN);
+        return;
+    }
+
+    const char* nodeData = static_cast<const char*>(sqlite3_value_blob(argv[0]));
+    size_t nodeSize = static_cast<size_t>(sqlite3_value_bytes(argv[0]));
+    int result = mLabelGetter(nodeData, nodeSize);
+
     sqlite3_result_int(context, result);
 }
 
