@@ -13,6 +13,6 @@ target_include_directories(libgfxworker PUBLIC ${GFXWORKER_DIR}/src)
 
 target_link_libraries(libgfxworker PUBLIC Mega)
 
-add_executable(gfxworker ${GFXWORKER_DIR}/src/gfxworker_main.cpp)
+add_executable(gfxworker ${GFXWORKER_DIR}/src/main.cpp)
 
 target_link_libraries(gfxworker PRIVATE libgfxworker)
