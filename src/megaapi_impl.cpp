@@ -675,7 +675,7 @@ MegaStringList *MegaNodePrivate::getCustomAttrNames()
 {
     if (!customAttrs)
     {
-        return new MegaStringListPrivate();
+        return new MegaStringList();
     }
 
     string_vector names;
@@ -5110,10 +5110,6 @@ void MegaNodeListPrivate::addNode(std::unique_ptr<MegaNode> node)
 
     if (copyList != NULL)
     {
-        for (int i = 0; i < s - 1; ++i)
-        {
-            delete copyList[i];
-        }
         delete [] copyList;
     }
 }
@@ -5132,10 +5128,6 @@ void MegaNodeListPrivate::addNode(MegaNode *node)
 
     if (copyList != NULL)
     {
-        for (int i = 0; i < s - 1; ++i)
-        {
-            delete copyList[i];
-        }
         delete [] copyList;
     }
 }
