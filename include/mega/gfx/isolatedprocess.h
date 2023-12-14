@@ -43,7 +43,7 @@ private:
 
     bool startUntilSuccess(Process& process);
 
-    bool startlaunchLoopThread();
+    bool startLaunchLoopThread();
 
     void exitLaunchLoopThread();
 

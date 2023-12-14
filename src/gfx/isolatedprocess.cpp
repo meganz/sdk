@@ -149,7 +149,7 @@ AutoStartLauncher::AutoStartLauncher(const std::vector<std::string>& argv, std::
     if (!mArgv.empty())
     {
         // launch loop thread
-        startlaunchLoopThread();
+        startLaunchLoopThread();
     }
     else
     {
@@ -177,7 +177,7 @@ bool AutoStartLauncher::startUntilSuccess(Process& process)
     return false;
 }
 
-bool AutoStartLauncher::startlaunchLoopThread()
+bool AutoStartLauncher::startLaunchLoopThread()
 {
     static const milliseconds MAX_FAST_FAILURE_BACKOFF(2*1000);
 
