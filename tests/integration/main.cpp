@@ -464,7 +464,7 @@ public:
             cout << endl;
             cout << "--RESUMESESSIONS            Resume previous account sessions, instead of full logins" << endl;
             cout << endl;
-            cout << "--SCANONLY                  (Not used)" << endl;
+            cout << "--SCANONLY                  Scan synced folders periodically instead of use file system notifications." << endl;
             cout << endl;
             cout << "--#<arg>                    Commented out argument, ignored" << endl;
 
