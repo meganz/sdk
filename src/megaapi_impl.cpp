@@ -12232,7 +12232,7 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
     }
 
     if (mimeType != MegaApi::FILE_TYPE_DEFAULT
-            && (order >= MegaApi::ORDER_PHOTO_ASC && order <= MegaApi::ORDER_VIDEO_DESC))
+            && (order >= /*deprecated*/ MegaApi::ORDER_PHOTO_ASC && order <= /*deprecated*/ MegaApi::ORDER_VIDEO_DESC))
     {
         return new MegaNodeListPrivate();
     }
@@ -17286,10 +17286,10 @@ std::function<bool (Node*, Node*)> MegaApiImpl::getComparatorFunction(int order,
         case MegaApi::ORDER_ALPHABETICAL_DESC: return MegaApiImpl::nodeComparatorDefaultDESC;
         case MegaApi::ORDER_LINK_CREATION_ASC: return MegaApiImpl::nodeComparatorPublicLinkCreationASC;
         case MegaApi::ORDER_LINK_CREATION_DESC: return MegaApiImpl::nodeComparatorPublicLinkCreationDESC;
-        case MegaApi::ORDER_PHOTO_ASC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorPhotoASC(i, j, mc); };
-        case MegaApi::ORDER_PHOTO_DESC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorPhotoDESC(i, j, mc); };
-        case MegaApi::ORDER_VIDEO_ASC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorVideoASC(i, j, mc); };
-        case MegaApi::ORDER_VIDEO_DESC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorVideoDESC(i, j, mc); };
+        case /*deprecated*/ MegaApi::ORDER_PHOTO_ASC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorPhotoASC(i, j, mc); };
+        case /*deprecated*/ MegaApi::ORDER_PHOTO_DESC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorPhotoDESC(i, j, mc); };
+        case /*deprecated*/ MegaApi::ORDER_VIDEO_ASC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorVideoASC(i, j, mc); };
+        case /*deprecated*/ MegaApi::ORDER_VIDEO_DESC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorVideoDESC(i, j, mc); };
         case MegaApi::ORDER_LABEL_ASC: return MegaApiImpl::nodeComparatorLabelASC;
         case MegaApi::ORDER_LABEL_DESC: return MegaApiImpl::nodeComparatorLabelDESC;
         case MegaApi::ORDER_FAV_ASC: return MegaApiImpl::nodeComparatorFavASC;
@@ -17688,6 +17688,7 @@ int MegaApiImpl::typeComparator(Node *i, Node *j)
     return -1;
 }
 
+/*deprecated*/
 bool MegaApiImpl::nodeComparatorPhotoASC(Node *i, Node *j, MegaClient& mc)
 {
     bool i_photo = false, i_video = false, j_photo = false, j_video = false;
@@ -17708,6 +17709,7 @@ bool MegaApiImpl::nodeComparatorPhotoASC(Node *i, Node *j, MegaClient& mc)
     return nodeComparatorModificationASC(i, j);
 }
 
+/*deprecated*/
 bool MegaApiImpl::nodeComparatorPhotoDESC(Node *i, Node *j, MegaClient& mc)
 {
     bool i_photo = false, i_video = false, j_photo = false, j_video = false;
@@ -17728,6 +17730,7 @@ bool MegaApiImpl::nodeComparatorPhotoDESC(Node *i, Node *j, MegaClient& mc)
     return nodeComparatorModificationDESC(i, j);
 }
 
+/*deprecated*/
 bool MegaApiImpl::nodeComparatorVideoASC(Node *i, Node *j, MegaClient& mc)
 {
     bool i_photo = false, i_video = false, j_photo = false, j_video = false;
@@ -17748,6 +17751,7 @@ bool MegaApiImpl::nodeComparatorVideoASC(Node *i, Node *j, MegaClient& mc)
     return nodeComparatorModificationASC(i, j);
 }
 
+/*deprecated*/
 bool MegaApiImpl::nodeComparatorVideoDESC(Node *i, Node *j, MegaClient& mc)
 {
     bool i_photo = false, i_video = false, j_photo = false, j_video = false;
@@ -25247,6 +25251,11 @@ unsigned long long MegaApiImpl::getAccurateNumNodes()
 {
     SdkMutexGuard g(sdkMutex);
     return client->totalNodes.load();
+}
+
+void MegaApiImpl::setLRUCacheSize(unsigned long long size)
+{
+    client->mNodeManager.setCacheLRUMaxSize(size);
 }
 
 long long MegaApiImpl::getTotalDownloadedBytes()
@@ -35127,14 +35136,14 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
         LOG_verbose << "FTP Data Channel received invalid read size: " << nread << ". Closing connection";
         if (ftpdatactx->tmpFileName.size())
         {
-            MegaNode *newParentNode = ftpdatactx->megaApi->getNodeByHandle(fds->newParentNodeHandle);
+            std::unique_ptr<MegaNode> newParentNode {ftpdatactx->megaApi->getNodeByHandle(fds->newParentNodeHandle)};
             if (newParentNode)
             {
                 LOG_debug << "Starting upload of file " << fds->newNameToUpload;
                 fds->controlftpctx->tmpFileName = ftpdatactx->tmpFileName;
 
                 FileSystemType fsType = fds->fsAccess->getlocalfstype(LocalPath::fromAbsolutePath(ftpdatactx->tmpFileName));
-                ftpdatactx->megaApi->startUpload(false, ftpdatactx->tmpFileName.c_str(), newParentNode, fds->newNameToUpload.c_str(),
+                ftpdatactx->megaApi->startUpload(false, ftpdatactx->tmpFileName.c_str(), newParentNode.get(), fds->newNameToUpload.c_str(),
                                                     nullptr, -1, 0, true, nullptr, false, false, fsType, CancelToken(), fds->controlftpctx);
 
                 ftpdatactx->controlRespondedElsewhere = true;

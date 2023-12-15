@@ -4499,6 +4499,11 @@ unsigned long long MegaApi::getAccurateNumNodes()
     return pImpl->getAccurateNumNodes();
 }
 
+void MegaApi::setLRUCacheSize(unsigned long long size)
+{
+    pImpl->setLRUCacheSize(size);
+}
+
 long long MegaApi::getTotalDownloadedBytes()
 {
     return pImpl->getTotalDownloadedBytes();

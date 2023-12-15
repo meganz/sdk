@@ -650,7 +650,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         int64_t mtime;
         MegaHandle nodehandle;
         MegaHandle parenthandle;
-        MegaHandle restorehandle;
+        MegaHandle restorehandle = UNDEF;
         std::string nodekey;
         std::string fileattrstring;
         std::string privateAuth;
@@ -3184,6 +3184,7 @@ class MegaApiImpl : public MegaApp
         void resetTotalDownloads();
         void resetTotalUploads();
         void updateStats();
+        void setLRUCacheSize(unsigned long long size);
         unsigned long long getNumNodes();
         unsigned long long getAccurateNumNodes();
         long long getTotalDownloadedBytes();
@@ -3362,10 +3363,10 @@ public:
         static bool nodeComparatorCreationDESC  (Node *i, Node *j);
         static bool nodeComparatorModificationASC  (Node *i, Node *j);
         static bool nodeComparatorModificationDESC  (Node *i, Node *j);
-        static bool nodeComparatorPhotoASC(Node *i, Node *j, MegaClient& mc);
-        static bool nodeComparatorPhotoDESC(Node *i, Node *j, MegaClient& mc);
-        static bool nodeComparatorVideoASC(Node *i, Node *j, MegaClient& mc);
-        static bool nodeComparatorVideoDESC(Node *i, Node *j, MegaClient& mc);
+        /*deprecated*/ static bool nodeComparatorPhotoASC(Node *i, Node *j, MegaClient& mc);
+        /*deprecated*/ static bool nodeComparatorPhotoDESC(Node *i, Node *j, MegaClient& mc);
+        /*deprecated*/ static bool nodeComparatorVideoASC(Node *i, Node *j, MegaClient& mc);
+        /*deprecated*/ static bool nodeComparatorVideoDESC(Node *i, Node *j, MegaClient& mc);
         static bool nodeComparatorPublicLinkCreationASC(Node *i, Node *j);
         static bool nodeComparatorPublicLinkCreationDESC(Node *i, Node *j);
         static bool nodeComparatorLabelASC(Node *i, Node *j);

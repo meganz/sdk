@@ -7110,18 +7110,22 @@ TEST_F(SyncTest, NodeSorting_forPhotosAndVideos)
     sharedNode_vector v{ photo1, photo2, video1, video2, otherfolder, otherfile };
     for (auto n : v) n->setkey(key);
 
+    /*deprecated*/
     MegaApiImpl::sortByComparatorFunction(v, MegaApi::ORDER_PHOTO_ASC, client);
     sharedNode_vector v2{ photo1, photo2, video1, video2, otherfolder, otherfile };
     ASSERT_EQ(v, v2);
 
+    /*deprecated*/
     MegaApiImpl::sortByComparatorFunction(v, MegaApi::ORDER_PHOTO_DESC, client);
     sharedNode_vector v3{ photo2, photo1, video2, video1, otherfolder, otherfile };
     ASSERT_EQ(v, v3);
 
+    /*deprecated*/
     MegaApiImpl::sortByComparatorFunction(v, MegaApi::ORDER_VIDEO_ASC, client);
     sharedNode_vector v4{ video1, video2, photo1, photo2, otherfolder, otherfile };
     ASSERT_EQ(v, v4);
 
+    /*deprecated*/
     MegaApiImpl::sortByComparatorFunction(v, MegaApi::ORDER_VIDEO_DESC, client);
     sharedNode_vector v5{ video2, video1, photo2, photo1, otherfolder, otherfile };
     ASSERT_EQ(v, v5);

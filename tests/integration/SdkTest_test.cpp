@@ -186,9 +186,12 @@ bool WaitFor(const std::function<bool()>& predicate, unsigned timeoutMs)
     return false;
 }
 
-MegaApi* newMegaApi(const char *appKey, const char *basePath, const char *userAgent, unsigned workerThreadCount)
+MegaApiTest* newMegaApi(const char* appKey,
+                        const char* basePath,
+                        const char* userAgent,
+                        unsigned workerThreadCount)
 {
-    return new MegaApi(appKey, basePath, userAgent, workerThreadCount);
+    return new MegaApiTest(appKey, basePath, userAgent, workerThreadCount);
 }
 
 enum { USERALERT_ARRIVAL_MILLISEC = 1000 };
@@ -5246,8 +5249,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
 
     ::mega::NodeHandle megaCurDir;
 
-    MegaApiImpl* impl = *((MegaApiImpl**)(((char*)megaApi[0].get()) + sizeof(*megaApi[0].get())) - 1);
-    MegaClient* client = impl->getMegaClient();
+    auto client{megaApi[0]->getClient()};
 
     std::unique_ptr<Either> p(new Either);
     p->Add(sequence(text("cd")));
@@ -15244,13 +15246,11 @@ TEST_F(SdkTest, SdkTestJourneyTracking)
     LOG_info << "___TEST SdkTestJourneyTracking___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-    // This UGLY cast is used so we can access the MegaClient.
     // We need to access the MegaClient to test JourneyID functionality according to specifications.
     // JID values from ug/gmf commands affect the behavior (set/unset tracking flag, update JourneyID::mJidValue if it's empty, etc.)
     // We don't have TestInstruments or any other mechanism to change the command response results, so we cannot test this just with regular requests on the intermmediate layer.
     // Finally, JourneyID is used internally on the MegaClient, it's never shared with the apps, so we need to check its value directly from MegaClient.
-    MegaApiImpl* impl = *((MegaApiImpl**)(((char*)megaApi[0].get()) + sizeof(*megaApi[0].get())) - 1);
-    MegaClient* client = impl->getMegaClient();
+    auto client{megaApi[0]->getClient()};
 
     //==================||
     //    Test ViewID   ||
@@ -15296,8 +15296,7 @@ TEST_F(SdkTest, SdkTestJourneyTracking)
     gSessionIDs[0] = "invalid";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     // New impl and client - we need to update pointers
-    impl = *((MegaApiImpl**)(((char*)megaApi[0].get()) + sizeof(*megaApi[0].get())) - 1);
-    client = impl->getMegaClient();
+    client = megaApi[0]->getClient();
 
     // TEST 3: Check JourneyID after login from a fresh instance with no cache file
     // A new JourneyID should have been retrieved from the initial "ug" command
