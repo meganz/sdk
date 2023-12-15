@@ -285,17 +285,6 @@ namespace
             #endif
         }
     }
-
-    MegaClient* getMegaClientFromMegaApi(MegaApi* api)
-    {
-        // This UGLY cast is used so we can access the MegaClient.
-        // We need to access the MegaClient to test JourneyID functionality according to specifications.
-        // JID values from ug/gmf commands affect the behavior (set/unset tracking flag, update JourneyID::mJidValue if it's empty, etc.)
-        // We don't have TestInstruments or any other mechanism to change the command response results, so we cannot test this just with regular requests on the intermmediate layer.
-        // Finally, JourneyID is used internally on the MegaClient, it's never shared with the apps, so we need to check its value directly from MegaClient.
-        MegaApiImpl* impl = *((MegaApiImpl**)(((char*)api) + sizeof(*api)) - 1);
-        return impl->getMegaClient();
-    }
 }
 
 std::map<size_t, std::string> gSessionIDs;
@@ -16250,15 +16239,15 @@ protected:
                         int& oldOkResults,
                         int& oldNoResults) const;
 
-    unsigned int mApiIndex{0};
+    unsigned int mApiIndex = 0;
 
-    int mCurrentTotalJobs{0};
+    int mCurrentTotalJobs = 0;
 
-    int mCurrentOkResults{0};
+    int mCurrentOkResults = 0;
 
-    int mCurrentNoResults{0};
+    int mCurrentNoResults = 0;
 
-    MegaClient* mClient{nullptr};
+    MegaClient* mClient = nullptr;
 };
 
 void SdkTestGfx::SetUp()
@@ -16267,7 +16256,7 @@ void SdkTestGfx::SetUp()
 
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-    mClient = getMegaClientFromMegaApi(megaApi[mApiIndex].get());
+    mClient = megaApi[0]->getClient();
 
     // get current gfx counters
     std::tie(mCurrentTotalJobs, mCurrentOkResults, mCurrentNoResults) = mClient->gfx->getCounters();
