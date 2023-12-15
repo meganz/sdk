@@ -160,12 +160,19 @@ bool AutoStartLauncher::startUntilSuccess(Process& process)
     milliseconds backOff = START_BACKOFF;
     while (!mShuttingDown)
     {
+        // if previous gfxwoker is running
+        // it could block this one
+        // shutdown it blindly
+        if (mShutdowner) mShutdowner();
+
+        // run
         if (process.run(mArgv))
         {
             LOG_verbose << "process is started";
             return true;
         }
 
+        // backoff if fails
         LOG_err << "couldn't not start: " << mArgv[0];
         mSleeper.sleep(backOff);
         backOff = std::min(backOff * 2, MAX_BACKOFF); // double it and MAX_BACKOFF at most
