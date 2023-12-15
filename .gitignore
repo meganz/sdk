@@ -33,6 +33,9 @@
 examples/megacli
 examples/linux/megafuse
 
+# Generated
+/include/config.h
+
 # Autotool stuff
 .deps
 /Makefile
