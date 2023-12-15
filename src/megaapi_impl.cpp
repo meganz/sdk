@@ -6139,7 +6139,7 @@ MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* pro
 MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProvider* provider, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType)
 {
     auto p = dynamic_cast<MegaGfxProviderPrivate*>(provider);
-    auto iProvider = p ? p->takeProvider() : nullptr;
+    auto iProvider = p ? p->releaseProvider() : nullptr;
     auto gfxproc = iProvider ? ::mega::make_unique<GfxProc>(std::move(iProvider)) : nullptr;
     init(api, appKey, std::move(gfxproc), basePath, userAgent, workerThreadCount, clientType);
 }

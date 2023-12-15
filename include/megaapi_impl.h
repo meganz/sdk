@@ -2840,7 +2840,7 @@ public:
 
     explicit MegaGfxProviderPrivate(MegaGfxProviderPrivate&& other) : mProvider(std::move(other.mProvider)) {}
 
-    std::unique_ptr<::mega::IGfxProvider> takeProvider() { return std::move(mProvider); }
+    std::unique_ptr<::mega::IGfxProvider> releaseProvider() { return std::move(mProvider); }
 
     static std::unique_ptr<MegaGfxProviderPrivate> createIsolatedInstance(const std::string& pipeName,
                                                                           const std::string& executable);
