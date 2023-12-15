@@ -256,8 +256,7 @@ private:
     bool openDBAndCreateStatecache(sqlite3 **db, FileSystemAccess& fsAccess, const string& name, mega::LocalPath &dbPath, const int flags);
     bool renameDBFiles(mega::FileSystemAccess& fsAccess, mega::LocalPath& legacyPath, mega::LocalPath& dbPath);
     void removeDBFiles(mega::FileSystemAccess& fsAccess, mega::LocalPath& dbPath);
-    bool ensureMtimeColumnIsInNodesTable(sqlite3* db);
-    bool ensureMimetypeColumnIsInNodesTable(sqlite3* db);
+    bool ensureColumnIsInNodesTable(sqlite3* db, const string& colName, const string& colType, std::function<bool()> callAfterAdded = nullptr);
     bool copyMtimeFromFingerprint(sqlite3* db);
 };
 

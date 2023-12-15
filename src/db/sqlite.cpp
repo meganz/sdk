@@ -157,15 +157,9 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
         return nullptr;
     }
 
-    // Add 'mtime' column to old 'nodes' table
-    if (!ensureMtimeColumnIsInNodesTable(db))
-    {
-        sqlite3_close(db);
-        return nullptr;
-    }
-
-    // Add 'mimetype' virtual column to old 'nodes' table
-    if (!ensureMimetypeColumnIsInNodesTable(db))
+    // Add 'mtime' column and 'mimetype' virtual column to old 'nodes' table
+    if (!ensureColumnIsInNodesTable(db, "mtime", "int64", [this, db]() { return copyMtimeFromFingerprint(db); }) ||
+        !ensureColumnIsInNodesTable(db, "mimetype", "tinyint AS (getmimetype(name)) VIRTUAL"))
     {
         sqlite3_close(db);
         return nullptr;
@@ -351,89 +345,37 @@ void SqliteDbAccess::removeDBFiles(FileSystemAccess& fsAccess, mega::LocalPath& 
 
 }
 
-bool SqliteDbAccess::ensureMtimeColumnIsInNodesTable(sqlite3* db)
+bool SqliteDbAccess::ensureColumnIsInNodesTable(sqlite3* db, const string& colName, const string& colType,
+                                                std::function<bool()> callAfterAdded)
 {
-    bool hasMtimeColumn = false;
-    string sql = "SELECT COUNT(*) FROM pragma_table_info('nodes') WHERE name = 'mtime'";
+    bool hasCol = false;
+    string sql = "SELECT COUNT(*) FROM pragma_table_info('nodes') WHERE name = '" + colName + "'";
     int result = sqlite3_exec(db, sql.c_str(), [](void* hasColumn, int colCount, char** colVals, char**)
-    {
-        *static_cast<bool*>(hasColumn) = colCount && colVals[0][0] != '0';
-        return 0;
-    },
-    &hasMtimeColumn, nullptr);
+        {
+            *static_cast<bool*>(hasColumn) = colCount && colVals[0][0] != '0';
+            return 0;
+        },
+        &hasCol, nullptr);
 
     if (result != SQLITE_OK)
     {
-        LOG_debug << "Db error while checking for 'nodes.mtime' column: " << sqlite3_errmsg(db);
+        LOG_err << "Db error while checking for 'nodes." << colName << "' column: " << sqlite3_errmsg(db);
         return false;
     }
 
-    if (!hasMtimeColumn)
+    if (hasCol)
     {
-        if (sqlite3_exec(db, "BEGIN", nullptr, nullptr, nullptr) != SQLITE_OK)
-        {
-            LOG_debug << "Db error for begin transaction: " << sqlite3_errmsg(db);
-            return false;
-        }
-        if (sqlite3_exec(db, "ALTER TABLE nodes ADD COLUMN mtime int64", nullptr, nullptr, nullptr) != SQLITE_OK)
-        {
-            LOG_debug << "Db error while adding 'nodes.mtime' column: " << sqlite3_errmsg(db);
-            return false;
-        }
-
-        // populate column
-        string cr = copyMtimeFromFingerprint(db) ? "COMMIT" : "ROLLBACK";
-
-        if (sqlite3_exec(db, cr.c_str(), nullptr, nullptr, nullptr) != SQLITE_OK)
-        {
-            LOG_debug << "Db error for " << cr << " transaction: " << sqlite3_errmsg(db);
-            return false;
-        }
+        return true;
     }
 
-    return true;
-}
-
-bool SqliteDbAccess::ensureMimetypeColumnIsInNodesTable(sqlite3* db)
-{
-    bool hasMtimeColumn = false;
-    string sql = "SELECT COUNT(*) FROM pragma_table_info('nodes') WHERE name = 'mimetype'";
-    int result = sqlite3_exec(db, sql.c_str(), [](void* hasColumn, int colCount, char** colVals, char**)
+    string query("ALTER TABLE nodes ADD COLUMN " + colName + ' ' + colType);
+    if (sqlite3_exec(db, query.c_str(), nullptr, nullptr, nullptr) != SQLITE_OK)
     {
-        *static_cast<bool*>(hasColumn) = colCount && colVals[0][0] != '0';
-        return 0;
-    },
-    &hasMtimeColumn, nullptr);
-
-    if (result != SQLITE_OK)
-    {
-        LOG_debug << "Db error while checking for 'nodes.mimetype' column: " << sqlite3_errmsg(db);
+        LOG_err << "Db error while adding 'nodes." << colName << "' column: " << sqlite3_errmsg(db);
         return false;
     }
 
-    if (!hasMtimeColumn)
-    {
-        if (sqlite3_exec(db, "BEGIN", nullptr, nullptr, nullptr) != SQLITE_OK)
-        {
-            LOG_debug << "Db error for begin transaction: " << sqlite3_errmsg(db);
-            return false;
-        }
-
-        string cr = "COMMIT";
-        if (sqlite3_exec(db, "ALTER TABLE nodes ADD COLUMN mimetype tinyint AS (getmimetype(name)) VIRTUAL", nullptr, nullptr, nullptr) != SQLITE_OK)
-        {
-            LOG_debug << "Db error while adding 'nodes.mimetype' column: " << sqlite3_errmsg(db);
-            cr = "ROLLBACK";
-        }
-
-        if (sqlite3_exec(db, cr.c_str(), nullptr, nullptr, nullptr) != SQLITE_OK)
-        {
-            LOG_debug << "Db error for " << cr << " transaction: " << sqlite3_errmsg(db);
-            return false;
-        }
-    }
-
-    return true;
+    return callAfterAdded ? callAfterAdded() : true;
 }
 
 bool SqliteDbAccess::copyMtimeFromFingerprint(sqlite3* db)
