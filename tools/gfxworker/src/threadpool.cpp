@@ -8,10 +8,10 @@ namespace mega
 namespace gfx
 {
 
-ThreadPool::ThreadPool(size_t threadCount, size_t maxQueueSize) : mDone(false)
+ThreadPool::ThreadPool(size_t threadCount, size_t maxQueueSize)
+    : mMaxQueueSize(std::max<size_t>(maxQueueSize, 1)) // minimum 1
 {
     threadCount = std::max<size_t>(threadCount, 1); // minimum 1
-    mMaxQueueSize = std::max<size_t>(maxQueueSize, 1); // minimum 1
     for (size_t i = threadCount; i--; )
     {
         mThreads.emplace_back([this]() mutable { asyncThreadLoop(); });

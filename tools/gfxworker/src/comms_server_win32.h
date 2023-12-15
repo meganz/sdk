@@ -56,7 +56,7 @@ private:
 
     std::string mPipeName;
 
-    DWORD       mWaitMs;
+    DWORD       mWaitMs = INFINITE;
 };
 
 } //namespace gfx

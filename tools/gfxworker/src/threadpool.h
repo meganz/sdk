@@ -32,14 +32,14 @@ private:
 
     std::condition_variable mConditionVariable;
 
-    size_t mMaxQueueSize;
-
     std::vector<std::thread> mThreads;
+
+    size_t mMaxQueueSize = 10;
 
     // mQueue and mDone is condition should be protected with mMutex and notify by mConditionVariable
     std::deque<Entry> mQueue;
 
-    bool mDone;
+    bool mDone = false;
 };
 
 } // end of namespace

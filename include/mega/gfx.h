@@ -74,7 +74,7 @@ class MEGA_API GfxJobQueue
 class MEGA_API GfxDimension
 {
 public:
-    GfxDimension() : mWidth(0), mHeight(0) {}
+    GfxDimension() = default;
 
     GfxDimension(int w, int h) : mWidth(w), mHeight(h) {}
 
@@ -90,9 +90,9 @@ public:
 
     void setH(const int height) { mHeight = height; }
 private:
-    int mWidth;
+    int mWidth = 0;
 
-    int mHeight;
+    int mHeight = 0;
 };
 
 // Interface for graphic processor provider used by GfxProc
@@ -151,7 +151,7 @@ protected:
 // bitmap graphics processor
 class MEGA_API GfxProc
 {
-    bool finished;
+    bool finished = false;
     WAIT_CLASS waiter;
     std::mutex mutex;
     THREAD_CLASS thread;
@@ -163,11 +163,11 @@ class MEGA_API GfxProc
 
     // counters for testing
     // total job requests counter
-    std::atomic_int mJobCounter;
+    std::atomic_int mJobCounter{0};
     // ok result
-    std::atomic_int mOkResultCounter ;
+    std::atomic_int mOkResultCounter{0};
     // not ok result
-    std::atomic_int mNoResultCounter;
+    std::atomic_int mNoResultCounter{0};
 
     static void *threadEntryPoint(void *param);
     void loop();
@@ -210,7 +210,7 @@ public:
     static const std::vector<GfxDimension> DIMENSIONS;
     static const std::vector<GfxDimension> DIMENSIONS_AVATAR;
 
-    MegaClient* client;
+    MegaClient* client = nullptr;
 
     // start a thread that will do the processing
     void startProcessingThread();

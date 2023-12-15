@@ -139,8 +139,6 @@ const char* GfxProviderIsolatedProcess::getformats(const char* (Formats::*format
 
 AutoStartLauncher::AutoStartLauncher(const std::vector<std::string>& argv, std::function<void()> shutdowner) :
     mArgv(argv),
-    mShuttingDown(false),
-    mThreadIsRunning(false),
     mShutdowner(std::move(shutdowner))
 {
     assert(!mArgv.empty());

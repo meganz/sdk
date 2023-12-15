@@ -18,8 +18,6 @@ class Process;
 class CancellableSleeper
 {
 public:
-    CancellableSleeper() : mCancelled(false) {}
-
     // true if sleeping is cancelled, otherwise, false
     bool sleep(const std::chrono::milliseconds& period);
 
@@ -27,7 +25,7 @@ public:
 private:
     std::condition_variable mCv;
     std::mutex              mMutex;
-    bool                    mCancelled;
+    bool                    mCancelled = false;
 };
 
 class AutoStartLauncher
@@ -51,9 +49,9 @@ private:
 
     std::thread mThread;
 
-    std::atomic<bool> mShuttingDown;
+    std::atomic<bool> mShuttingDown{false};
 
-    std::atomic<bool> mThreadIsRunning;
+    std::atomic<bool> mThreadIsRunning{false};
 
     CancellableSleeper mSleeper;
 
@@ -72,8 +70,7 @@ class HelloBeater
 {
 public:
     HelloBeater(const std::chrono::seconds& period, const std::string& pipeName)
-        : mShuttingDown(false)
-        , mPeriod(period)
+        : mPeriod(period)
         , mPipeName(pipeName)
     {
         mThread = std::thread(&HelloBeater::beat, this);
@@ -88,7 +85,7 @@ private:
 
     std::thread mThread;
 
-    std::atomic<bool> mShuttingDown;
+    std::atomic<bool> mShuttingDown{false};
 
     CancellableSleeper mSleeper;
 
