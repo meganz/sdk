@@ -201,6 +201,7 @@ bool GTestProc::run(const vector<string>& args, const unordered_map<string, stri
         return true;
     }
 
+    printToScreen(std::cout, "Failed to run " + mTestName);
     return false;
 }
 
@@ -678,10 +679,6 @@ bool GTestParallelRunner::runTest(size_t workerIdx, string&& name)
     testProcess.hideMemLeaks(mCommonArgs.hidingWorkerMemLeaks());
     bool running = testProcess.run(procArgs, envVars, workerIdx, std::move(name));
 
-    if (!running)
-    {
-        std::cout << "Failed to run " << name << std::endl;
-    }
     return running;
 }
 
