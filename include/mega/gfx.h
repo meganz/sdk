@@ -101,9 +101,9 @@ class MEGA_API IGfxProvider
 public:
     virtual ~IGfxProvider() = default;
 
-    // It generates thumbnails for the file by localfilepath according to the dimensions
-    // The function should always return the number of thumbnails as the dimensions. The
-    // vector of empty strings should be return on error cases.
+    // It generates thumbnails for the file at localfilepath. The function will return
+    // the same number of thumbnails as the size of dimensions vector. On error it will
+    // return a vector of empty strings.
     virtual std::vector<std::string> generateImages(FileSystemAccess* fa,
                                                     const LocalPath& localfilepath,
                                                     const std::vector<GfxDimension>& dimensions) = 0;
