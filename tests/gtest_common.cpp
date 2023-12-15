@@ -328,7 +328,12 @@ string GTestProc::getWorkerLog() const
 
 RuntimeArgValues::RuntimeArgValues(vector<string>&& args, vector<pair<string, string>>&& accEnvVars)
 {
-    assert(!accEnvVars.empty());
+    if (accEnvVars.empty())
+    {
+        assert(!accEnvVars.empty());
+        return;
+    }
+
     mAccEnvVars.swap(accEnvVars);
 
     for (auto it = args.begin(); it != args.end();)
@@ -341,19 +346,19 @@ RuntimeArgValues::RuntimeArgValues(vector<string>&& args, vector<pair<string, st
             cout << "Options are case insensitive." << endl;
             cout << endl;
             cout << "--INSTANCES:<n>             Run n tests in parallel, each in its own process. In order to achieve that, an email pattern" << endl;
-            cout << "                            will be required and will be looked up in --EMAIL-POOL argument or $MEGA_EMAIL0 env var. If" << endl;
-            cout << "                            no email pattern was found, it will behave as if n==1, thus run with a single worker process" << endl;
-            cout << "                            and use credentials from the same env vars required by a run without this arg." << endl;
+            cout << "                            will be required and will be looked up in --EMAIL-POOL argument or $" << accEnvVars[0].first << endl;
+            cout << "                            env var. If no email pattern was found, it will behave as if n==1, thus run with a single worker" << endl;
+            cout << "                            process and use credentials from the same env vars required by a run without this arg." << endl;
             cout << endl;
-            cout << "--EMAIL-POOL:<pattern>      Email address pattern used when running tests in parallel. Igenored when --INSTANCES was not" << endl;
-            cout << "                            passed. Must be of the form foo+bar-{1-20}@mega.co.nz." << endl;
+            cout << "--EMAIL-POOL:<pattern>      Email address pattern used to extract the required test accounts. Must be of the form" << endl;
+            cout << "                            foo+bar-{1-15}@mega.co.nz." << endl;
             cout << endl;
             cout << "--APIURL:<url>              Custom base URL to use for contacting the server; overwrites default url." << endl;
             cout << endl;
             cout << "--USERAGENT:<uag>           Custom HTTP User-Agent" << endl;
             cout << endl;
             cout << "--GTEST_FILTER=<filter>     Set tests to execute; can be ':'-separated list, with * or other wildcards" << endl;
-            cout << "                            e.g. --GTEST_FILTER=SdkFoo.SdkTestBar:*TestBazz" << endl;
+            cout << "                            e.g. --GTEST_FILTER=SuiteFoo.TestBar:*TestBazz" << endl;
             cout << endl;
             cout << "--GTEST_LIST_TESTS          List tests compiled with this executable; consider --GTEST_FILTER if received." << endl;
             cout << endl;
@@ -366,6 +371,11 @@ RuntimeArgValues::RuntimeArgValues(vector<string>&& args, vector<pair<string, st
         if (Utils::startswith(arg, "--EMAIL-POOL:"))
         {
             mEmailTemplate = it->substr(13); // keep original string, not in CAPS
+            if (!isTemplate(mEmailTemplate))
+            {
+                std::cerr << "Invalid runtime parameter: " << *it << "\nMust be a template like foo+bar-{1-15}@mega.co.nz" << std::endl;
+                return;
+            }
             it = args.erase(it); // not passed to subprocesses
             continue;
         }
@@ -434,34 +444,8 @@ RuntimeArgValues::RuntimeArgValues(vector<string>&& args, vector<pair<string, st
         ++it;
     }
 
-    // finish set up for main process
-    if (isMainProcWithWorkers())
-    {
-        if (mEmailTemplate.empty())
-        {
-            const char* teplt = getenv(mAccEnvVars[0].first.c_str());
-            if (!teplt)
-            {
-                std::cerr << "Missing both --EMAIL-POOL runtime parameter and " << mAccEnvVars[0].first << " env var" << std::endl;
-                mRunMode = TestRunMode::INVALID;
-                return;
-            }
-            mEmailTemplate = teplt;
-        }
-
-        // if it received --INSTANCES but not an email template, then it will run tests in a single worker process
-        if (mEmailTemplate.find('{') == string::npos)
-        {
-            mEmailTemplate.clear();
-            mInstanceCount = 1u;
-        }
-
-        // save args that will be passed to subprocesses
-        mArgs = std::move(args);
-    }
-
     // finish set up for worker process
-    else if (isWorker())
+    if (isWorker())
     {
         if (mGtestFilterIdx == SIZE_MAX)
         {
@@ -473,9 +457,41 @@ RuntimeArgValues::RuntimeArgValues(vector<string>&& args, vector<pair<string, st
         mTestName = args[mGtestFilterIdx].substr(15);
     }
 
+    // finish set up for main process
     else
     {
-        mRunMode = TestRunMode::MAIN_PROCESS_ONLY;
+        if (mEmailTemplate.empty())
+        {
+            const char* teplt = getenv(mAccEnvVars[0].first.c_str());
+            if (!teplt)
+            {
+                std::cerr << "Missing both " << mAccEnvVars[0].first << " env var and --EMAIL-POOL runtime parameter" << std::endl;
+                mRunMode = TestRunMode::INVALID;
+                return;
+            }
+            string tepltStr(teplt);
+            if (isTemplate(tepltStr))
+            {
+                mEmailTemplate.swap(tepltStr);
+            }
+        }
+
+        if (isMainProcWithWorkers())
+        {
+            if (mEmailTemplate.empty())
+            {
+                // if it received --INSTANCES but not an email template, then it will run tests in a single worker process
+                mInstanceCount = 1u;
+            }
+
+            // save args that will be passed to subprocesses
+            mArgs = std::move(args);
+        }
+
+        else
+        {
+            mRunMode = TestRunMode::MAIN_PROCESS_ONLY;
+        }
     }
 }
 
@@ -505,9 +521,9 @@ vector<string> RuntimeArgValues::getArgsForWorker(const string& test, size_t spI
 
 unordered_map<string, string> RuntimeArgValues::getEnvVarsForWorker(size_t idx) const
 {
-    assert(isMainProcWithWorkers());
+    assert(isMainProcWithWorkers() || isMainProcOnly());
     // when it did not receive an email template don't overwrite env vars
-    if (mEmailTemplate.empty() || !isMainProcWithWorkers()) return {};
+    if (mEmailTemplate.empty() || (!isMainProcWithWorkers() && !isMainProcOnly())) return {};
 
     tuple<string, size_t, size_t, string> templateValues = breakTemplate();
     size_t first = std::get<1>(templateValues) + getAccountsPerInstance() * idx;
@@ -554,6 +570,11 @@ tuple<string, size_t, size_t, string> RuntimeArgValues::breakTemplate() const
     }
 
     return tuple<string, size_t, size_t, string>();
+}
+
+bool RuntimeArgValues::isTemplate(const string& email)
+{
+    return email.find('{') != string::npos;
 }
 
 string RuntimeArgValues::getLog() const

@@ -147,6 +147,7 @@ protected:
 
 private:
     std::tuple<std::string, size_t, size_t, std::string> breakTemplate() const;
+    static bool isTemplate(const std::string& email);
 
     size_t mInstanceCount = 0u;
     size_t mCurrentInstance = SIZE_MAX;

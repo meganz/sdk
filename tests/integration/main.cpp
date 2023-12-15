@@ -573,6 +573,15 @@ int main (int argc, char *argv[])
     {
         USER_AGENT = argVals.getCustomUserAget();
     }
+    if (argVals.isMainProcOnly())
+    {
+        // Env vars might need to be set, for example when an email template was used
+        auto envVars = argVals.getEnvVarsForWorker(0);
+        for (const auto& env : envVars)
+        {
+            Utils::setenv(env.first, env.second);
+        }
+    }
 
     // So we can track how often requests are retried.
     RequestRetryRecorder retryRecorder;
