@@ -1,6 +1,6 @@
 #pragma once
 
-#include "threadpool.h"
+#include "thread_pool.h"
 
 #include "mega/gfx/worker/comms.h"
 #include "mega/gfx/worker/commands.h"
