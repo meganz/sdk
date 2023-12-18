@@ -156,17 +156,17 @@ TEST_F(ServerClientTest, supportformats)
 
 TEST_F(ServerClientTest, ServerIsNotRunning)
 {
-    auto dimensions = std::vector<GfxDimension> {
-        { 200, 0 },     // THUMBNAIL: square thumbnail, cropped from near center
-        { 1000, 1000 }  // PREVIEW: scaled version inside 1000x1000 bounding square
-    };
-    std::vector<std::string> images;
-
     EXPECT_FALSE(
         GfxClient(
             mega::make_unique<WinGfxCommunicationsClient>(mPipeName)
         ).runShutDown()
     );
+
+    auto dimensions = std::vector<GfxDimension> {
+        { 200, 0 },     // THUMBNAIL: square thumbnail, cropped from near center
+        { 1000, 1000 }  // PREVIEW: scaled version inside 1000x1000 bounding square
+    };
+    std::vector<std::string> images;
 
     EXPECT_FALSE(
         GfxClient(
