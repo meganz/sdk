@@ -40,7 +40,7 @@ private:
 
     bool doRead(void* data, size_t n, TimeoutMs timeout) override;
 
-    bool doOverlapOp(std::function<bool(OVERLAPPED*)>op,
+    bool doOverlappedOperation(std::function<bool(OVERLAPPED*)>op,
                       TimeoutMs timeout,
                       const std::string& opStr);
 

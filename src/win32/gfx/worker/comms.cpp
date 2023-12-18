@@ -64,7 +64,7 @@ Win32NamedPipeEndpoint::~Win32NamedPipeEndpoint()
 
 bool Win32NamedPipeEndpoint::doWrite(const void* data, size_t n, TimeoutMs timeout)
 {
-    auto writeOp = [this, n, data](OVERLAPPED* overlapped){
+    auto writeOverlappedFn = [this, n, data](OVERLAPPED* overlapped){
         DWORD written;
         auto result = WriteFile(
             mPipeHandle,            // pipe handle
@@ -77,12 +77,12 @@ bool Win32NamedPipeEndpoint::doWrite(const void* data, size_t n, TimeoutMs timeo
 
     };
 
-    return doOverlapOp(writeOp, timeout, "write");
+    return doOverlappedOperation(writeOverlappedFn, timeout, "write");
 }
 
 bool Win32NamedPipeEndpoint::doRead(void* out, size_t n, TimeoutMs timeout)
 {
-    auto readOp = [this, n, out](OVERLAPPED* overlapped){
+    auto readOverlappedFn = [this, n, out](OVERLAPPED* overlapped){
         DWORD cbRead = 0;
         bool result = ReadFile(
             mPipeHandle,            // pipe handle
@@ -94,10 +94,10 @@ bool Win32NamedPipeEndpoint::doRead(void* out, size_t n, TimeoutMs timeout)
         return result;
     };
 
-    return doOverlapOp(readOp, timeout, "read");
+    return doOverlappedOperation(readOverlappedFn, timeout, "read");
 }
 
-bool Win32NamedPipeEndpoint::doOverlapOp(std::function<bool(OVERLAPPED*)>op,
+bool Win32NamedPipeEndpoint::doOverlappedOperation(std::function<bool(OVERLAPPED*)>op,
                                           TimeoutMs timeout,
                                           const std::string& opStr)
 {

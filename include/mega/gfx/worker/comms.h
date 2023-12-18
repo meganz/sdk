@@ -77,6 +77,9 @@ private:
     virtual bool doWrite(const void* in, size_t n, TimeoutMs timeout) = 0;
 };
 
+//
+// It represents a communication endpoint
+//
 class IEndpoint : public IReader, public IWriter
 {
 public:
