@@ -3459,25 +3459,6 @@ bool CommandGetUA::procresult(Result r, JSON& json)
         const char* end;
         string value, version, buf;
 
-        //If we are in preview mode, we only can retrieve atributes with mcuga and the response format is different
-        if (isFromChatPreview())
-        {
-            ptr = json.getvalue();
-            if (!ptr || !(end = strchr(ptr, '"')))
-            {
-                mCompletionErr(API_EINTERNAL);
-            }
-            else
-            {
-                // convert from ASCII to binary the received data
-                buf.assign(ptr, (end-ptr));
-                value.resize(buf.size() / 4 * 3 + 3);
-                value.resize(Base64::atob(buf.data(), (byte *)value.data(), int(value.size())));
-                mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
-            }
-            return true;
-        }
-
         for (;;)
         {
             switch (json.getnameid())
