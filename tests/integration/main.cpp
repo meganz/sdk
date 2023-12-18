@@ -457,32 +457,6 @@ public:
     {
         if (isHelp())
         {
-            cout << endl;
-            cout << "--LOG                       Write output to log file" << endl;
-            cout << endl;
-            cout << "--CI                        Include all 'Continuous Integration' options (same as --LOG)" << endl;
-            cout << endl;
-            cout << "--RESUMESESSIONS            Resume previous account sessions, instead of full logins" << endl;
-            cout << endl;
-            cout << "--SCANONLY                  Scan synced folders periodically instead of use file system notifications." << endl;
-            cout << endl;
-            cout << "--#<arg>                    Commented out argument, ignored" << endl;
-
-            // print info about env vars used by this process
-            cout << endl;
-            cout << "Environment variables:" << endl;
-            cout << "  $MEGA_EMAIL               [required or pass --EMAIL-POOL:<pattern>] Email address for first MEGA account, can be overwritten by passing" << endl;
-            cout << "                            the command line argument. When running concurrently using --instances, it must contain {min-max}, e.g: test+email-{1-50}@mega.co.nz" << endl;
-            cout << "                            to set all MEGA account email addresses" << endl;
-            cout << "  $MEGA_PWD                 [required] Passsword for first MEGA account, becomes the default for the rest of mega accounts" << endl;
-            cout << "  $MEGA_EMAIL_AUX           Email address for second MEGA account" << endl;
-            cout << "  $MEGA_PWD_AUX             Password for second MEGA account, defaults to the password of the first mega account when not set" << endl;
-            cout << "  $MEGA_EMAIL_AUX2          Email address for third MEGA account" << endl;
-            cout << "  $MEGA_PWD_AUX2            Password for third MEGA account, defaults to the password of the first mega account when not set" << endl;
-            cout << "  $MEGA_REAL_EMAIL          mega.co.nz email account to recevied account creation emails" << endl;
-            cout << "  $MEGA_REAL_PWD            Password for Mega email account" << endl;
-            cout << "  $WORKSPACE                Where to base tests, defaults to " << LOCAL_TEST_FOLDER << " when not set" << endl;
-
             return;
         }
 
@@ -520,6 +494,23 @@ public:
             ++it;
         }
     }
+
+protected:
+    void printCustomOptions() const override
+    {
+        cout << buildAlignedHelpString("--LOG",            {"Write output to log file"}) << '\n';
+        cout << buildAlignedHelpString("--CI",             {"Include all 'Continuous Integration' options (same as --LOG)"}) << '\n';
+        cout << buildAlignedHelpString("--RESUMESESSIONS", {"Resume previous account sessions, instead of full logins"}) << '\n';
+        cout << buildAlignedHelpString("--SCANONLY",       {"Scan synced folders periodically instead of use file system notifications"}) << '\n';
+        cout << buildAlignedHelpString("--#<arg>",         {"Commented out argument, ignored"}) << '\n';
+    }
+
+    void printCustomEnvVars() const override
+    {
+        cout << buildAlignedHelpString("  $MEGA_REAL_EMAIL", {"mega.co.nz email account to recevied account creation emails"}) << '\n';
+        cout << buildAlignedHelpString("  $MEGA_REAL_PWD",   {"Password for Mega email account"}) << '\n';
+        cout << buildAlignedHelpString("  $WORKSPACE",       {"Where to base tests, defaults to " + LOCAL_TEST_FOLDER + " when not set"}) << '\n';
+    }
 };
 
 
@@ -533,6 +524,7 @@ int main (int argc, char *argv[])
     SdkRuntimeArgValues argVals(vector<string>(argv, argv + argc), std::move(accEnvVArs));
     if (argVals.isHelp())
     {
+        argVals.printHelp();
         return 0;
     }
 

@@ -343,27 +343,6 @@ RuntimeArgValues::RuntimeArgValues(vector<string>&& args, vector<pair<string, st
 
         if (arg == "--HELP")
         {
-            cout << "Options are case insensitive." << endl;
-            cout << endl;
-            cout << "--INSTANCES:<n>             Run n tests in parallel, each in its own process. In order to achieve that, an email pattern" << endl;
-            cout << "                            will be required and will be looked up in --EMAIL-POOL argument or $" << accEnvVars[0].first << endl;
-            cout << "                            env var. If no email pattern was found, it will behave as if n==1, thus run with a single worker" << endl;
-            cout << "                            process and use credentials from the same env vars required by a run without this arg." << endl;
-            cout << endl;
-            cout << "--EMAIL-POOL:<pattern>      Email address pattern used to extract the required test accounts. Must be of the form" << endl;
-            cout << "                            foo+bar-{1-15}@mega.co.nz." << endl;
-            cout << endl;
-            cout << "--APIURL:<url>              Custom base URL to use for contacting the server; overwrites default url." << endl;
-            cout << endl;
-            cout << "--USERAGENT:<uag>           Custom HTTP User-Agent" << endl;
-            cout << endl;
-            cout << "--GTEST_FILTER=<filter>     Set tests to execute; can be ':'-separated list, with * or other wildcards" << endl;
-            cout << "                            e.g. --GTEST_FILTER=SuiteFoo.TestBar:*TestBazz" << endl;
-            cout << endl;
-            cout << "--GTEST_LIST_TESTS          List tests compiled with this executable; consider --GTEST_FILTER if received." << endl;
-            cout << endl;
-            cout << "--HIDE_WORKER_MEM_LEAKS     Hide memory leaks printed by debugger while running with --INSTANCES." << endl;
-
             mRunMode = TestRunMode::HELP;
             return;
         }
@@ -495,6 +474,71 @@ RuntimeArgValues::RuntimeArgValues(vector<string>&& args, vector<pair<string, st
     }
 }
 
+void RuntimeArgValues::printHelp() const
+{
+    string firstAccDescr = mAccEnvVars.empty() ? "env var of the first account" : ('$' + mAccEnvVars[0].first + " env var");
+    static const string patternExample{ "foo+bar-{1-15}@mega.co.nz" };
+
+    // runtime options
+    cout << "Options are case insensitive.\n";
+    cout << buildAlignedHelpString("--INSTANCES:<n>",         {"Run n tests in parallel, each in its own process. In order to achieve that, an email pattern",
+                                                               "will be required and will be taken from --EMAIL-POOL argument or " + firstAccDescr + '.',
+                                                               "If no email pattern was found, it will behave as if n==1, thus run with a single worker",
+                                                               "process and use credentials from the same env vars required by running without this arg."}) << '\n';
+    cout << buildAlignedHelpString("--EMAIL-POOL:<pattern>",  {"Email address pattern used to extract the required test accounts. Must be of the form",
+                                                               patternExample}) << '\n';
+    cout << buildAlignedHelpString("--APIURL:<url>",          {"Custom base URL to use for contacting the server; overwrites default url."}) << '\n';
+    cout << buildAlignedHelpString("--USERAGENT:<uag>",       {"Custom HTTP User-Agent"}) << '\n';
+    cout << buildAlignedHelpString("--GTEST_FILTER=<filter>", {"Set tests to execute; can be ':'-separated list, with * or other wildcards",
+                                                               "e.g. --GTEST_FILTER=SuiteFoo.TestBar:*TestBazz"}) << '\n';
+    cout << buildAlignedHelpString("--GTEST_LIST_TESTS",      {"List tests compiled with this executable; consider --GTEST_FILTER if received."}) << '\n';
+    cout << buildAlignedHelpString("--HIDE_WORKER_MEM_LEAKS", {"Hide memory leaks printed by debugger while running with --INSTANCES."}) << '\n';
+    printCustomOptions();
+
+    // env vars
+    cout << '\n';
+    cout << "Environment variables:\n";
+    for (size_t i = 0u; i < mAccEnvVars.size(); ++i)
+    {
+        string numeralStr = std::to_string(i);
+        switch ((i + 1) % 10)
+        {
+        case 1: numeralStr += "st"; break;
+        case 2: numeralStr += "nd"; break;
+        case 3: numeralStr += "rd"; break;
+        default: numeralStr += "th"; break;
+        }
+
+        const string& accVarName = mAccEnvVars[i].first;
+        string defaultAccDescr = "Email address for " + numeralStr + " MEGA account";
+        const vector<string>& accVarDescr = (i > 0) ?
+            vector<string>{defaultAccDescr} :
+            vector<string>{"[required or pass --EMAIL-POOL:<pattern>] " + defaultAccDescr + ", or pattern; can be",
+                           "overwritten by the command line argument. When running concurrently using --instances, it must contain",
+                           "{min - max}, e.g: " + patternExample + " to set all MEGA account email addresses"};
+        cout << buildAlignedHelpString("  $" + accVarName, accVarDescr) << '\n';
+
+        const string& pwdVarName = mAccEnvVars[i].second;
+        string defaultPwdDescr = "Passsword for " + numeralStr + " MEGA account,";
+        const vector<string>& pwdVarDescr = (i > 0) ?
+            vector<string>{defaultPwdDescr + " defaults to the password of the first mega account when not set"} :
+            vector<string>{"[required] " + defaultPwdDescr + " becomes the default for unset passwords of other accounts"};
+        cout << buildAlignedHelpString("  $" + pwdVarName, pwdVarDescr) << '\n';
+    }
+    printCustomEnvVars();
+}
+
+string RuntimeArgValues::buildAlignedHelpString(const string& var, const std::vector<string>& descr)
+{
+    static size_t colW = 28u; // 28 characters from the start of row until the description
+    size_t spacesAfterVar = var.size() >= colW ? 1 : colW - var.size();
+    string str = std::accumulate(descr.begin(), descr.end(), string{},
+        [](const string& a, const string& b)
+        {
+            return a + (a.size() ? '\n' + string(colW, ' ') : "") + b;
+        });
+    return var + string(spacesAfterVar, ' ') + str;
+}
 vector<string> RuntimeArgValues::getArgsForWorker(const string& test, size_t spIdx) const
 {
     assert(isMainProcWithWorkers());

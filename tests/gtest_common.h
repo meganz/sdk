@@ -128,6 +128,7 @@ public:
     bool isMainProcWithWorkers() const { return mRunMode == TestRunMode::MAIN_PROCESS_WITH_WORKERS; }
     bool isWorker() const { return mRunMode == TestRunMode::WORKER_PROCESS; }
     bool isHelp() const { return mRunMode == TestRunMode::HELP; }
+    void printHelp() const;
 
     std::string getLog() const;
     size_t getInstanceCount() const { return mInstanceCount; }
@@ -144,6 +145,9 @@ public:
 
 protected:
     std::vector<std::string> mArgs; // filled only in main process
+    virtual void printCustomOptions() const {}
+    virtual void printCustomEnvVars() const {}
+    static string buildAlignedHelpString(const string& var, const std::vector<string>& descr);
 
 private:
     std::tuple<std::string, size_t, size_t, std::string> breakTemplate() const;
