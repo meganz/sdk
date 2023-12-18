@@ -7,7 +7,7 @@
 namespace mega {
 namespace gfx {
 
-const std::error_code WinGfxCommunicationsServer::OK;
+const std::error_code ServerWin32::OK;
 
 Win32NamedPipeEndpointServer::~Win32NamedPipeEndpointServer()
 {
@@ -20,12 +20,12 @@ Win32NamedPipeEndpointServer::~Win32NamedPipeEndpointServer()
     }
 }
 
-void WinGfxCommunicationsServer::operator()()
+void ServerWin32::operator()()
 {
     serverListeningLoop();
 }
 
-std::error_code WinGfxCommunicationsServer::waitForClient(HANDLE hPipe, OVERLAPPED* overlap)
+std::error_code ServerWin32::waitForClient(HANDLE hPipe, OVERLAPPED* overlap)
 {
     assert(hPipe != INVALID_HANDLE_VALUE);
     assert(overlap);
@@ -79,7 +79,7 @@ std::error_code WinGfxCommunicationsServer::waitForClient(HANDLE hPipe, OVERLAPP
     }
 }
 
-void WinGfxCommunicationsServer::serverListeningLoop()
+void ServerWin32::serverListeningLoop()
 {
     WinOverlap overlap;
     if (!overlap.isValid())

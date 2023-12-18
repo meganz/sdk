@@ -20,7 +20,7 @@ private:
     Type type() const { return Type::Server; }
 };
 
-class WinGfxCommunicationsServer
+class ServerWin32
 {
 public:
 
@@ -33,7 +33,7 @@ public:
      *                           the given seconds. 0 mean keeping infinitely running even
      *                           if there is no request coming.
      */
-    WinGfxCommunicationsServer(
+    ServerWin32(
         std::unique_ptr<RequestProcessor> requestProcessor,
         const std::string& pipeName = "mega_gfxworker",
         unsigned short keepAliveInSeconds = 60)

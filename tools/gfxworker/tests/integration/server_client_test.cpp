@@ -16,7 +16,7 @@
 #include <cstdlib>
 
 
-using mega::gfx::WinGfxCommunicationsServer;
+using mega::gfx::ServerWin32;
 using mega::gfx::WinGfxCommunicationsClient;
 using mega::gfx::RequestProcessor;
 using mega::gfx::GfxProcessor;
@@ -43,7 +43,7 @@ protected:
 
 TEST_F(ServerClientTest, gfxTask)
 {
-    WinGfxCommunicationsServer server(
+    ServerWin32 server(
         ::mega::make_unique<RequestProcessor>(),
         mPipeName
     );
@@ -84,7 +84,7 @@ TEST_F(ServerClientTest, gfxTask)
 
 TEST_F(ServerClientTest, hello)
 {
-    WinGfxCommunicationsServer server(
+    ServerWin32 server(
         ::mega::make_unique<RequestProcessor>(),
         mPipeName
     );
@@ -114,7 +114,7 @@ TEST_F(ServerClientTest, hello)
 
 TEST_F(ServerClientTest, supportformats)
 {
-    WinGfxCommunicationsServer server(
+    ServerWin32 server(
         ::mega::make_unique<RequestProcessor>(),
         mPipeName
     );

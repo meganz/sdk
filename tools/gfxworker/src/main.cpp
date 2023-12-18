@@ -12,7 +12,7 @@
 
 using mega::gfx::GfxProcessor;
 using mega::gfx::RequestProcessor;
-using mega::gfx::WinGfxCommunicationsServer;
+using mega::gfx::ServerWin32;
 using mega::gfx::MegaFileLogger;
 using mega::ArgumentsParser;
 using mega::Arguments;
@@ -146,7 +146,7 @@ int main(int argc, char** argv)
              << ", live in seconds: " << config.keepAliveInSeconds;
 
     // start server
-    WinGfxCommunicationsServer server(
+    ServerWin32 server(
         ::mega::make_unique<RequestProcessor>(config.threadCount, config.queueSize),
         config.pipeName,
         config.keepAliveInSeconds
