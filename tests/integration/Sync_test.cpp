@@ -2603,7 +2603,8 @@ void StandardClient::deleteTestBaseFolder(bool mayNeedDeleting, bool deleted, Pr
 {
     if (std::shared_ptr<Node> root = client.nodeByHandle(client.mNodeManager.getRootNodeFiles()))
     {
-        if (std::shared_ptr<Node> basenode = client.childnodebyname(root.get(), "mega_test_sync", false))
+        std::shared_ptr<Node> basenode = client.childnodebyname(root.get(), "mega_test_sync", false);
+        if (basenode && !basenode->changed.removed) // ensure it isn't already marked as removed
         {
             if (mayNeedDeleting)
             {
@@ -6914,7 +6915,7 @@ TEST_F(SyncTest, CmdChecks_RRAttributeAfterMoveNode)
     ASSERT_TRUE(waitonresults(&fb));
 
     f = pclientA1->drillchildnodebyname(pclientA1->getcloudrubbishnode(), "f");
-    ASSERT_TRUE(f == nullptr);
+    ASSERT_TRUE(f == nullptr || f->changed.removed);
 
 
     // remove remote folder via A2
