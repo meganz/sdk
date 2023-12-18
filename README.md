@@ -17,19 +17,17 @@ SDK Contents
 
 In this SDK, you can find our low level SDK, that was already released few months after the MEGA launch,
 a new intermediate layer to make it easier to use and to bind with other programming languages, and
-example apps for all our currently supported platforms (Windows, Linux, OSX, Android, iOS and Windows Phone).
+example apps for all our currently supported platforms (Windows, Linux, OSX, Android and iOS).
 
 In the `examples` folder you can find example apps using:
 
 1. The low level SDK:
   - megacli (a powerful command line tool that allows to use all SDK features)
-  - megasimplesync (a command line tool that allows to use the synchronization engine)
 
 2. The intermediate layer:
   - An example app for Visual Studio in `examples/win32`
   - An example app for Android (using Java bindings based on SWIG) in `examples/android`
   - An example app for iOS (using Objective-C bindings) in `examples/iOS`
-  - An example app for Windows Phone (using Windows Phone bindings) in `examples/wp8`
 
 [MEGAcmd](examples/megacmd), a higher level command line application that uses the SDK to provide interactive and scriptable access to MEGA, can be found [here](https://github.com/meganz/megacmd).
 
@@ -76,7 +74,7 @@ For platforms with Autotools, first set up needed libraries and then the generic
 
 Notice that you would need Autotools installed in your system (in Linux this normally entails having `autoconf` and `libtool` packages installed).
 
-That compilation will include the examples using our low level SDK (`megacli` and `megasimplesync`). 
+That compilation will include the example using our low level SDK: `megacli`.
 You also have specific build instructions for OSX (`doc/OSX.txt`) and FreeBSD (`doc/FreeBSD.txt`)
 and a build script to automatically download and build the SDK along with all its dependencies (`contrib/build_sdk.sh`)
 
@@ -131,7 +129,7 @@ Usage
 -----
 
 The low level SDK doesn't have inline documentation yet. If you want to use it,
-please check one of our example apps (`examples/megacli`, `examples/megasimplesync`).
+please check our example app `examples/megacli`.
 
 The new intermediate layer has been documented using Doxygen. The only public header that you need
 to include to use is `include/megaapi.h`. You can read the documentation in that header file,

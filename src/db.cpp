@@ -50,7 +50,10 @@ bool DbTable::put(uint32_t type, Cacheable* record, SymmCipher* key)
         return true;
     }
 
-    PaddedCBC::encrypt(rng, &data, key);
+    if (!PaddedCBC::encrypt(rng, &data, key))
+    {
+        LOG_err << "Failed to CBC encrypt data"; // continue with unencrypted data or return false ?
+    }
 
     if (!record->dbid)
     {
@@ -129,9 +132,10 @@ void DbTable::checkCommitter(DBTableTransactionCommitter*)
     assert(mTransactionCommitter);
 }
 
-const int DbAccess::LEGACY_DB_VERSION = 12;
+const int DbAccess::LEGACY_DB_VERSION = 13;
 const int DbAccess::DB_VERSION = DbAccess::LEGACY_DB_VERSION + 1;
 const int DbAccess::LAST_DB_VERSION_WITHOUT_NOD = 12;
+const int DbAccess::LAST_DB_VERSION_WITHOUT_SRW = 13;
 
 DbAccess::DbAccess()
 {

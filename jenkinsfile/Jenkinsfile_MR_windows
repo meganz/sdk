@@ -98,15 +98,13 @@ pipeline {
                     sh "cmake -DENABLE_CHAT=1 -DCMAKE_VERBOSE_MAKEFILE=1 -DMega3rdPartyDir='${VCPKGPATH}' ${BUILD_OPTIONS} -DCMAKE_GENERATOR_PLATFORM=x64 -S '${windows_sources_workspace}'\\\\contrib\\\\cmake\\\\   -B '${windows_sources_workspace}'\\\\contrib\\\\cmake\\\\build_dir\\\\"
                     sh "cmake --build '${windows_sources_workspace}'\\\\contrib\\\\cmake\\\\build_dir\\\\ --config Debug --target Mega -j 1"
                     sh "cmake --build '${windows_sources_workspace}'\\\\contrib\\\\cmake\\\\build_dir\\\\ --config Debug --target megacli -j 1"
-                    sh "cmake --build '${windows_sources_workspace}'\\\\contrib\\\\cmake\\\\build_dir\\\\ --config Debug --target megasimplesync -j 1"
                     sh "cmake --build '${windows_sources_workspace}'\\\\contrib\\\\cmake\\\\build_dir\\\\ --config Debug --target test_integration -j 1"
                     sh "cmake --build '${windows_sources_workspace}'\\\\contrib\\\\cmake\\\\build_dir\\\\ --config Debug --target test_unit -j 1"
 
-                    //Package megacli and megasimplesync to be archived
-                    sh "echo Packaging megacli and megasimplesync to be archived"
+                    //Package megacli to be archived
+                    sh "echo Packaging megacli to be archived"
                     sh "mkdir examples-${BUILD_ID}"    
                     sh "cp contrib\\\\cmake\\\\build_dir\\\\Debug\\\\megacli.exe examples-${BUILD_ID}"
-                    sh "cp contrib\\\\cmake\\\\build_dir\\\\Debug\\\\megasimplesync.exe examples-${BUILD_ID}"
                     sh "ls ..\\\\3rdparty\\\\vcpkg\\\\installed\\\\x64-windows-mega"
                     bat "copy ..\\\\3rdparty\\\\vcpkg\\\\installed\\\\x64-windows-mega\\\\debug\\\\bin\\\\*.dll examples-${BUILD_ID} || :"
                     bat "powershell Compress-Archive -Path .\\\\examples-${BUILD_ID}\\\\* -DestinationPath .\\\\examples-${BUILD_ID}.zip || :"
@@ -119,7 +117,7 @@ pipeline {
                 timeout(time: 250, unit: 'MINUTES')
             }
             environment {
-                PATH = "${windows_sources_workspace}\\\\..\\\\vcpkg\\\\installed\\\\x64-windows-mega\\\\debug\\\\bin;${env.PATH}"
+                PATH = "${windows_sources_workspace}\\\\..\\\\3rdparty\\\\vcpkg\\\\installed\\\\x64-windows-mega\\\\debug\\\\bin;${env.PATH}"
                 MEGA_PWD = credentials('MEGA_PWD_DEFAULT')
                 MEGA_PWD_AUX = credentials('MEGA_PWD_DEFAULT')
                 MEGA_PWD_AUX2 = credentials('MEGA_PWD_DEFAULT')

@@ -161,6 +161,73 @@ bool Request::processSeqTag(Command* cmd, bool withJSON, bool& parsedOk, bool in
     }
 }
 
+m_off_t Request::processChunk(const char* chunk, MegaClient *client)
+{
+    if (stopProcessing || cmds.size() != 1)
+    {
+        clear();
+        return 0;
+    }
+
+    // Only fetchnodes command is currently supported
+    assert(isFetchNodes());
+
+    m_off_t consumed = 0;
+    Command& cmd = *cmds[0];
+    client->restag = cmd.tag;
+    cmd.client = client;
+
+    bool start = !json.pos;
+    json.begin(chunk);
+
+    if (start)
+    {
+        if (!json.enterarray())
+        {
+            // Request-level error
+            clear();
+            return 0;
+        }
+        consumed++;
+        assert(mJsonSplitter.isStarting());
+    }
+
+    consumed += mJsonSplitter.processChunk(&cmd.mFilters, json.pos);
+    if (mJsonSplitter.hasFailed())
+    {
+        // stop the processing
+        cmds[0].reset();
+        clear();
+        return 0;
+    }
+
+    mChunkedProgress += static_cast<size_t>(consumed);
+    json.begin(chunk + consumed);
+    if (mJsonSplitter.hasFinished())
+    {
+        if (!json.leavearray())
+        {
+            LOG_err << "Unexpected end of JSON stream: " << json.pos;
+            assert(false);
+        }
+        else
+        {
+            consumed++;
+        }
+        assert(!chunk[consumed]);
+
+        cmds[0].reset();
+        clear();
+    }
+
+    return consumed;
+}
+
+m_off_t Request::totalChunkedProgress()
+{
+    return static_cast<m_off_t>(mChunkedProgress);
+}
+
 void Request::process(MegaClient* client)
 {
     TransferDbCommitter committer(client->tctable);
@@ -293,6 +360,8 @@ void Request::clear()
     jsonresponse.clear();
     json.pos = NULL;
     processindex = 0;
+    mJsonSplitter.clear();
+    mChunkedProgress = 0;
     stopProcessing = false;
 }
 
@@ -462,6 +531,23 @@ void RequestDispatcher::serverresponse(std::string&& movestring, MegaClient *cli
     {
         clear();
     }
+}
+
+size_t RequestDispatcher::serverChunk(const char *chunk, MegaClient *client)
+{
+    processing = true;
+    size_t consumed = static_cast<size_t>(inflightreq.processChunk(chunk, client));
+    processing = false;
+    if (clearWhenSafe)
+    {
+        clear();
+    }
+    return consumed;
+}
+
+size_t RequestDispatcher::chunkedProgress()
+{
+    return static_cast<size_t>(inflightreq.totalChunkedProgress());
 }
 
 void RequestDispatcher::servererror(const std::string& e, MegaClient *client)

@@ -23,6 +23,7 @@
 #define MEGA_SYNC_H 1
 
 #include <future>
+#include <unordered_set>
 
 #include "db.h"
 #include "waiter.h"
@@ -533,6 +534,8 @@ public:
     bool syncEqual(const CloudNode&, const LocalNode&);
     bool syncEqual(const FSNode&, const LocalNode&);
 
+    bool checkSpecialFile(SyncRow& child, SyncRow& parent, SyncPath& path);
+
     bool checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult, bool belowRemovedCloudNode);
     bool checkCloudPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult, bool belowRemovedFsNode);
     bool checkForCompletedCloudMoveToHere(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult);
@@ -563,9 +566,6 @@ private:
     unsigned mLastDailyDateTimeDebrisCounter = 0;
 
 public:
-    // original filesystem fingerprint
-    fsfp_t fsfp;
-
     // does the filesystem have stable IDs? (FAT does not)
     bool fsstableids = false;
 
@@ -617,6 +617,9 @@ public:
 
     // True if this sync should have a state cache database.
     bool shouldHaveDatabase() const;
+
+    // What filesystem is this sync running on?
+    const fsfp_t& fsfp() const;
 
     UnifiedSync& mUnifiedSync;
 
@@ -907,6 +910,7 @@ struct SyncStallEntry
 
 struct SyncStallInfo
 {
+    using StalledSyncsSet = std::unordered_set<handle>;
     using CloudStallInfoMap = map<string, SyncStallEntry>;
     using LocalStallInfoMap = map<LocalPath, SyncStallEntry>;
 
@@ -919,8 +923,11 @@ struct SyncStallInfo
     bool waitingLocal(const LocalPath& mapKeyPath,
                       SyncStallEntry&& e);
 
+    bool isSyncStalled(handle backupId) const;
+
     CloudStallInfoMap cloud;
     LocalStallInfoMap local;
+    StalledSyncsSet stalledSyncs;
 
     /** Requires user action to resolve */
     bool hasImmediateStallReason() const;
@@ -961,6 +968,42 @@ struct SyncFlags
     SyncStallInfo stall;
 };
 
+// This interface exists to give tests a little more control over how the
+// sync engine behaves.
+//
+// The basic idea is that the sync will will ask an outside entity whether
+// it should proceed with a certain action. Say, whether it should upload a
+// particular file or complete a putnodes request (binding.)
+//
+// This is necessary as some tests require very specific sequencing in order
+// to pass reliably.
+class SyncController
+{
+protected:
+    SyncController();
+
+public:
+    virtual ~SyncController();
+
+    // Should we defer sending a putnodes for the specified file?
+    virtual bool deferPutnode(const LocalPath& path) const;
+
+    // Should we defer the completion of a putnodes sent for the specified file?
+    virtual bool deferPutnodeCompletion(const LocalPath& path) const;
+
+    // Should we defer uploading of the specified file?
+    virtual bool deferUpload(const LocalPath& path) const;
+}; // SyncController
+
+// Convenience.
+using HasImmediateStallPredicate =
+  std::function<bool(const SyncStallInfo&)>;
+
+using IsImmediateStallPredicate =
+  std::function<bool(const SyncStallEntry& entry)>;
+
+using SyncControllerPtr = std::shared_ptr<SyncController>;
+using SyncControllerWeakPtr = std::weak_ptr<SyncController>;
 
 struct Syncs
 {
@@ -972,7 +1015,7 @@ struct Syncs
     handle getSyncIdContainingActivePath(const LocalPath& lp) const;
 
     // Add new sync setups
-    void appendNewSync(const SyncConfig&, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname, const string& excludedPath = string());
+    void appendNewSync(const SyncConfig&, bool startSync, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname, const string& excludedPath = string());
 
 
     // only for use in tests; not really thread safe
@@ -987,7 +1030,7 @@ struct Syncs
     void loadSyncConfigsOnFetchnodesComplete(bool resetSyncConfigStore);
     void resumeSyncsOnStateCurrent();
 
-    void enableSyncByBackupId(handle backupId, bool paused, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname);
+    void enableSyncByBackupId(handle backupId, bool paused, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname);
     void disableSyncByBackupId(handle backupId, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void()> completion);
 
     // disable all active syncs.  Cache is kept
@@ -1058,6 +1101,11 @@ struct Syncs
     // That is, they are added directly to the JSON DB on disk.
     error syncConfigStoreAdd(const SyncConfig& config);
 
+    // Move path to .debris folder associated to the backupId
+    // Note: This method is thread safe.
+    // completion is executed in sync thread, completionInClient is executed in client thread
+    void moveToSyncDebrisByBackupID(const string& path, handle backupId, std::function<void(Error)> completion, std::function<void (Error)> completionInClient);
+
 private:  // anything to do with loading/saving/storing configs etc is done on the sync thread
 
     // Returns a reference to this user's internal configuration database.
@@ -1086,13 +1134,13 @@ public:
     // maps local fsid to corresponding LocalNode* (s)
     fsid_localnode_map localnodeBySyncedFsid;
     fsid_localnode_map localnodeByScannedFsid;
-    LocalNode* findLocalNodeBySyncedFsid(fsfp_t, mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint& fp,
+    LocalNode* findLocalNodeBySyncedFsid(const fsfp_t& fsfp, mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint& fp,
                                          std::function<bool(LocalNode* ln)> extraCheck, handle owningUser, bool& foundExclusionUnknown);
-    LocalNode* findLocalNodeByScannedFsid(fsfp_t, mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint* fp,
+    LocalNode* findLocalNodeByScannedFsid(const fsfp_t& fsfp, mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint* fp,
                                          std::function<bool(LocalNode* ln)> extraCheck, handle owningUser, bool& foundExclusionUnknown);
 
-    void setSyncedFsidReused(fsfp_t, mega::handle fsid);
-    void setScannedFsidReused(fsfp_t, mega::handle fsid);
+    void setSyncedFsidReused(const fsfp_t& fsfp, mega::handle fsid);
+    void setScannedFsidReused(const fsfp_t& fsfp, mega::handle fsid);
 
     // maps nodehandle to corresponding LocalNode* (s)
     nodehandle_localnode_map localnodeByNodeHandle;
@@ -1207,9 +1255,9 @@ private:
     void locallogout_inThread(bool removecaches, bool keepSyncsConfigFile, bool reopenStoreAfter);
     void loadSyncConfigsOnFetchnodesComplete_inThread(bool resetSyncConfigStore);
     void resumeSyncsOnStateCurrent_inThread();
-    void enableSyncByBackupId_inThread(handle backupId, bool paused, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath = string());
+    void enableSyncByBackupId_inThread(handle backupId, bool paused, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath = string());
     void disableSyncByBackupId_inThread(handle backupId, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void()> completion);
-    void appendNewSync_inThread(const SyncConfig&, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath = string());
+    void appendNewSync_inThread(const SyncConfig&, bool startSync, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath = string());
     void removeSyncAfterDeregistration_inThread(handle backupId, std::function<void(Error)> clientCompletion, std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction);
     void syncConfigStoreAdd_inThread(const SyncConfig& config, std::function<void(error)> completion);
     void clear_inThread();
@@ -1458,6 +1506,65 @@ private:
     friend class BackupInfoSync;
     friend class BackupMonitor;
     friend struct ProgressingMonitor;
+
+    // Helps guide the engine's activities.
+    mutable SyncControllerWeakPtr mSyncController;
+
+    // Serializes access to mSyncController.
+    mutable std::mutex mSyncControllerLock;
+
+    // Convenience helper.
+    template<typename... Arguments, typename... Parameters>
+    bool defer(bool (SyncController::*predicate)(Parameters...) const,
+               Arguments&&... arguments) const;
+
+    // How does the engine know when an immediate stall has been reported?
+    HasImmediateStallPredicate mHasImmediateStall;
+
+    // How does the engine know that a specific stall is immediate?
+    IsImmediateStallPredicate mIsImmediateStall;
+
+    // Serializes access to *ImmediateStall predicates.
+    mutable std::mutex mImmediateStallLock;
+
+    // Check whether any immediate stalls have been reported.
+    bool hasImmediateStall(const SyncStallInfo& stalls) const;
+
+    // Check whether a specified stall is "immediate."
+    bool isImmediateStall(const SyncStallEntry& entry) const;
+
+    // What fingerprints does the engine know about?
+    fsfp_tracker_t mFingerprintTracker;
+
+public:
+    // Should we defer sending a putnodes for the specified file?
+    bool deferPutnode(const LocalPath& path) const;
+
+    // Should we defer the completion of a putnodes sent for the specified file?
+    bool deferPutnodeCompletion(const LocalPath& path) const;
+
+    // Should we defer uploading of the specified file?
+    bool deferUpload(const LocalPath& path) const;
+
+    // Check if the engine is being controlled by a sync controller.
+    //
+    // Pretty much the same as the syncController() function below but
+    // better expresses intent.
+    bool hasSyncController() const;
+
+    // Specify how the engine should determine whether there are any immediate stalls.
+    void setHasImmediateStall(HasImmediateStallPredicate predicate);
+
+    // Specify how the engine can determine whether a given stall is "immediate."
+    void setIsImmediateStall(IsImmediateStallPredicate predicate);
+
+    // Specify a controller who should guide the engine's activities.
+    void setSyncController(SyncControllerPtr controller);
+
+    // Retrieve the engine's current controller.
+    SyncControllerPtr syncController() const;
+
+    bool isSyncStalled(handle backupId) const;
 };
 
 class OverlayIconCachedPaths

@@ -46,7 +46,7 @@ using StringFilterPtrVector = std::vector<StringFilterPtr>;
 class MEGA_API DefaultFilterChain
 {
 public:
-    explicit DefaultFilterChain();
+    DefaultFilterChain();
 
     DefaultFilterChain(DefaultFilterChain& other);
 

@@ -47,7 +47,7 @@ bool operator==(const FileFingerprint& lhs, const FileFingerprint& rhs)
         return false;
     }
 
-    // FileFingerprints not fully available - give it the benefit of the doubt
+    // FileFingerprints not fully available - we can't ensure that they are equal
     if (!lhs.isvalid || !rhs.isvalid)
     {
         return false;

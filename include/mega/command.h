@@ -30,6 +30,7 @@
 #include "http.h"
 #include "json.h"
 #include "textchat.h"
+#include "nodemanager.h"
 
 namespace mega {
 
@@ -67,6 +68,9 @@ public:
 
     // some commands are guaranteed to work if we query without specifying a SID (eg. gmf)
     bool suppressSID;
+
+    // filters for JSON parsing in streaming
+    std::map<std::string, std::function<bool(JSON *)>> mFilters;
 
     void cmd(const char*);
     void notself(MegaClient*);
@@ -460,8 +464,22 @@ class MEGA_API CommandFetchNodes : public Command
 
 public:
     bool procresult(Result, JSON&) override;
+    bool parsingFinished();
 
     CommandFetchNodes(MegaClient*, int tag, bool nocache, bool loadSyncs);
+    ~CommandFetchNodes();
+
+protected:
+    handle mPreviousHandleForAlert = UNDEF;
+    NodeManager::MissingParentNodes mMissingParentNodes;
+
+    // Field to temporarily save the received scsn
+    handle mScsn;
+    // sequence-tag, saved temporary while processing the response (it's received before nodes)
+    string mSt;
+
+    std::unique_lock<mutex> mNodeTreeIsChanging;
+    bool mFirstChunkProcessed = false;
 };
 
 // update own node keys
@@ -602,7 +620,7 @@ public:
     void cancel() override;
     bool procresult(Result, JSON&) override;
 
-    CommandGetFile(MegaClient *client, const byte* key, size_t keySize,
+    CommandGetFile(MegaClient *client, const byte* key, size_t keySize, bool undelete,
                        handle h, bool p, const char *privateauth = nullptr,
                        const char *publicauth = nullptr, const char *chatauth = nullptr,
                        bool singleUrl = false, Cb &&completion = nullptr);
@@ -692,6 +710,8 @@ private:
 
 public:
     bool procresult(Result, JSON&) override;
+    // Apply the internal attr_map updates to the provided attrMap
+    void applyUpdatesTo(AttrMap& attrMap) const;
 
     CommandSetAttr(MegaClient*, std::shared_ptr<Node>, attr_map&& attrMapUpdates, Completion&& c, bool canChangeVault);
 };
@@ -1697,7 +1717,7 @@ class MEGA_API CommandMeetingStart : public Command
 public:
     bool procresult(Result, JSON&) override;
 
-    CommandMeetingStart(MegaClient*, handle chatid, handle schedId, CommandMeetingStartCompletion completion);
+    CommandMeetingStart(MegaClient*, const handle chatid, const bool notRinging, CommandMeetingStartCompletion completion);
 };
 
 typedef std::function<void(Error, std::string)> CommandMeetingJoinCompletion;
@@ -1720,15 +1740,26 @@ public:
     CommandMeetingEnd(MegaClient*, handle chatid, handle callid, int reason, CommandMeetingEndCompletion completion);
 };
 
+typedef std::function<void(Error)> CommandRingUserCompletion;
+class MEGA_API CommandRingUser : public Command
+{
+    CommandRingUserCompletion mCompletion;
+public:
+    bool procresult(Result, JSON&) override;
+
+    CommandRingUser(MegaClient*, handle chatid, handle userid, CommandRingUserCompletion completion);
+};
+
 typedef std::function<void(Error, const ScheduledMeeting*)> CommandScheduledMeetingAddOrUpdateCompletion;
 class MEGA_API CommandScheduledMeetingAddOrUpdate : public Command
 {
+    std::string mChatTitle;
     std::unique_ptr<ScheduledMeeting> mScheduledMeeting;
     CommandScheduledMeetingAddOrUpdateCompletion mCompletion;
 
 public:
     bool procresult(Result, JSON&) override;
-    CommandScheduledMeetingAddOrUpdate(MegaClient *, const ScheduledMeeting*, CommandScheduledMeetingAddOrUpdateCompletion completion);
+    CommandScheduledMeetingAddOrUpdate(MegaClient *, const ScheduledMeeting*, const char*, CommandScheduledMeetingAddOrUpdateCompletion);
 };
 
 typedef std::function<void(Error)> CommandScheduledMeetingRemoveCompletion;
@@ -1865,6 +1896,18 @@ private:
     Cb mCompletion;
 };
 /* MegaVPN Commands END*/
+
+typedef std::function<void(const Error&, const std::map<std::string, std::string>& creditCardInfo)> CommandFetchCreditCardCompletion;
+class MEGA_API CommandFetchCreditCard : public Command
+{
+public:
+    CommandFetchCreditCard(MegaClient* client, CommandFetchCreditCardCompletion completion);
+    bool procresult(Result r, JSON&json) override;
+
+private:
+    CommandFetchCreditCardCompletion mCompletion;
+};
+
 
 } // namespace
 

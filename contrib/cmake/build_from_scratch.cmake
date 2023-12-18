@@ -133,7 +133,6 @@ execute_checked_command(
     COMMAND ${_3rdparty_tool_exe}
         --setup
         --removeunusedports
-        --nopkgconfig
         ${_3rdparty_tool_common_args}
     WORKING_DIRECTORY ${_3rdparty_sdk_dir}
 )

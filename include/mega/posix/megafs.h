@@ -44,6 +44,16 @@
 #define DEBRISFOLDER ".debris"
 
 namespace mega {
+
+namespace detail {
+
+using AdjustBasePathResult =
+  IOS_OR_POSIX(std::string, const std::string&);
+
+AdjustBasePathResult adjustBasePath(const LocalPath& path);
+
+} // detail
+
 struct MEGA_API PosixDirAccess : public DirAccess
 {
     DIR* dp;
@@ -65,10 +75,6 @@ class MEGA_API PosixFileSystemAccess : public FileSystemAccess
 {
 public:
     using FileSystemAccess::getlocalfstype;
-
-#ifdef USE_IOS
-    static char *appbasepath;
-#endif
 
     int defaultfilepermissions;
     int defaultfolderpermissions;
@@ -115,8 +121,6 @@ public:
                              unsigned& nFingerprinted) override;
 
 #ifdef ENABLE_SYNC
-    fsfp_t fsFingerprint(const LocalPath& path) const override;
-
     bool fsStableIDs(const LocalPath& path) const override;
 
 #endif // ENABLE_SYNC
@@ -174,9 +178,6 @@ public:
     void asyncsyswrite(AsyncIOContext* context) override;
 
     ~PosixFileAccess();
-
-    std::string getErrorMessage(int error) const override;
-    bool isErrorFileNotFound(int error) const override;
 
 #ifdef HAVE_AIO_RT
 protected:

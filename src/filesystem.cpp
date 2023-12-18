@@ -32,6 +32,7 @@
 #include "megafs.h"
 
 #include <cassert>
+#include <tuple>
 
 #ifdef TARGET_OS_MAC
 #include "mega/osx/osxutils.h"
@@ -48,10 +49,10 @@ FSLogging FSLogging::noLogging(eNoLogging);
 FSLogging FSLogging::logOnError(eLogOnError);
 FSLogging FSLogging::logExceptFileNotFound(eLogExceptFileNotFound);
 
-bool FSLogging::doLog(int os_errorcode, FileAccess& fsaccess)
+bool FSLogging::doLog(int os_errorcode)
 {
     return setting == eLogOnError ||
-          (setting == eLogExceptFileNotFound && !fsaccess.isErrorFileNotFound(os_errorcode));
+          (setting == eLogExceptFileNotFound && !isFileNotFound(os_errorcode));
 }
 
 namespace detail {
@@ -222,6 +223,136 @@ int compareUtf(UnicodeCodepointIterator<CharT> first1, bool unescaping1,
 
 } // detail
 
+fsfp_t::fsfp_t(std::uint64_t fingerprint,
+               std::string uuid)
+  : mFingerprint(fingerprint)
+  , mUUID(std::move(uuid))
+{
+}
+
+fsfp_t::operator bool() const
+{
+    return mFingerprint;
+}
+
+bool fsfp_t::operator!() const
+{
+    return !mFingerprint;
+}
+
+bool fsfp_t::operator==(const fsfp_t& rhs) const
+{
+    return mFingerprint == rhs.mFingerprint
+           && mUUID == rhs.mUUID;
+}
+
+bool fsfp_t::operator<(const fsfp_t& rhs) const
+{
+    return std::tie(mFingerprint, mUUID)
+           < std::tie(rhs.mFingerprint, rhs.mUUID);
+}
+
+bool fsfp_t::operator!=(const fsfp_t& rhs) const
+{
+    return !operator==(rhs);
+}
+
+bool fsfp_t::equivalent(const fsfp_t& rhs) const
+{
+    return mFingerprint == rhs.mFingerprint
+           && (mUUID.empty() || mUUID == rhs.mUUID);
+}
+
+std::uint64_t fsfp_t::fingerprint() const
+{
+    return mFingerprint;
+}
+
+void fsfp_t::reset()
+{
+    operator=(fsfp_t());
+}
+
+const std::string& fsfp_t::uuid() const
+{
+    return mUUID;
+}
+
+std::string fsfp_t::toString() const
+{
+    std::ostringstream ostream;
+
+    ostream << "(fingerprint: "
+            << mFingerprint
+            << ", uuid: "
+            << (mUUID.empty() ? "undefined" : mUUID.c_str())
+            << ")";
+
+    return ostream.str();
+}
+
+bool fsfp_tracker_t::Less::operator()(const fsfp_t* lhs,
+                                      const fsfp_t* rhs) const
+{
+    return lhs != rhs && *lhs < *rhs;
+}
+
+fsfp_ptr_t fsfp_tracker_t::add(const fsfp_t& id)
+{
+    // Do we already know about this ID?
+    auto i = mFingerprints.find(&id);
+
+    // IDs already tracked.
+    if (i != mFingerprints.end())
+    {
+        // Increment reference count.
+        ++i->second.second;
+
+        // Return reference to caller.
+        return i->second.first;
+    }
+
+    // Instantiate ID.
+    auto ptr = std::make_shared<fsfp_t>(id);
+
+    // Add ID to map.
+    mFingerprints.emplace(std::piecewise_construct,
+                        std::forward_as_tuple(ptr.get()),
+                        std::forward_as_tuple(ptr, 1));
+
+    // Return reference to caller.
+    return ptr;
+}
+
+fsfp_ptr_t fsfp_tracker_t::get(const fsfp_t& id) const
+{
+    // Do we know about this ID?
+    auto i = mFingerprints.find(&id);
+
+    // Don't know about this ID.
+    if (i == mFingerprints.end())
+        return nullptr;
+
+    // Return reference to caller.
+    return i->second.first;
+}
+
+bool fsfp_tracker_t::remove(const fsfp_t& id)
+{
+    // Do we know about this ID?
+    auto i = mFingerprints.find(&id);
+
+    // Don't know about this ID.
+    if (i == mFingerprints.end())
+        return false;
+
+    // Remove ID if reference count drops to zero.
+    if (!--i->second.second)
+        mFingerprints.erase(i);
+
+    // Let caller know we removed an ID reference.
+    return true;
+}
 
 int compareUtf(const string& s1, bool unescaping1, const string& s2, bool unescaping2, bool caseInsensitive)
 {
@@ -949,9 +1080,9 @@ bool FileAccess::fopen(const LocalPath& name, FSLogging fsl)
     updatelocalname(name, true);
 
     fopenSucceeded = sysstat(&mtime, &size, FSLogging::noLogging);
-    if (!fopenSucceeded && fsl.doLog(errorcode, *this))
+    if (!fopenSucceeded && fsl.doLog(errorcode))
     {
-        LOG_err << "Unable to FileAccess::fopen('" << name << "'): sysstat() failed: error code: " << errorcode << ": " << getErrorMessage(errorcode);
+        LOG_err << "Unable to FileAccess::fopen('" << name << "'): sysstat() failed: error code: " << errorcode << ": " << FileSystemAccess::getErrorMessage(errorcode);
     }
     return fopenSucceeded;
 }
@@ -981,10 +1112,10 @@ bool FileAccess::openf(FSLogging fsl)
     m_off_t curr_size;
     if (!sysstat(&curr_mtime, &curr_size, FSLogging::noLogging))
     {
-        if (fsl.doLog(errorcode, *this))
+        if (fsl.doLog(errorcode))
         {
             LOG_err << "Error opening file handle (sysstat) '"
-                << nonblocking_localname << "': errorcode " << errorcode << ": " << getErrorMessage(errorcode);
+                << nonblocking_localname << "': errorcode " << errorcode << ": " << FileSystemAccess::getErrorMessage(errorcode);
         }
         return false;
     }
@@ -998,10 +1129,10 @@ bool FileAccess::openf(FSLogging fsl)
     }
 
     bool r = sysopen(false, FSLogging::noLogging);
-    if (!r && fsl.doLog(errorcode, *this)) {
+    if (!r && fsl.doLog(errorcode)) {
         // file may have been deleted just now
         LOG_err << "Error opening file handle (sysopen) '"
-                << nonblocking_localname << "': errorcode " << errorcode << ": " << getErrorMessage(errorcode);
+                << nonblocking_localname << "': errorcode " << errorcode << ": " << FileSystemAccess::getErrorMessage(errorcode);
     }
     return r;
 }
@@ -1062,9 +1193,9 @@ bool FileAccess::asyncopenf(FSLogging fsl)
     m_off_t curr_size = 0;
     if (!sysstat(&curr_mtime, &curr_size, FSLogging::noLogging))
     {
-        if (fsl.doLog(errorcode, *this))
+        if (fsl.doLog(errorcode))
         {
-            LOG_err << "Error opening async file handle (sysstat): '" << nonblocking_localname << "': " << errorcode << ": " << getErrorMessage(errorcode);
+            LOG_err << "Error opening async file handle (sysstat): '" << nonblocking_localname << "': " << errorcode << ": " << FileSystemAccess::getErrorMessage(errorcode);
         }
         return false;
     }
@@ -1083,9 +1214,9 @@ bool FileAccess::asyncopenf(FSLogging fsl)
     {
         isAsyncOpened = true;
     }
-    else if (fsl.doLog(errorcode, *this))
+    else if (fsl.doLog(errorcode))
     {
-        LOG_err << "Error opening async file handle (sysopen): '" << nonblocking_localname << "': " << errorcode << ": " << getErrorMessage(errorcode);
+        LOG_err << "Error opening async file handle (sysopen): '" << nonblocking_localname << "': " << errorcode << ": " << FileSystemAccess::getErrorMessage(errorcode);
     }
     return result;
 }
@@ -1254,11 +1385,6 @@ AsyncIOContext::~AsyncIOContext()
     {
         fa->asyncclosef();
     }
-}
-
-std::string FileAccess::getErrorMessage(int error) const
-{
-    return std::to_string(error);
 }
 
 void AsyncIOContext::finish()

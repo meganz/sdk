@@ -20,6 +20,8 @@
  */
 
 #import <Foundation/Foundation.h>
+#import "BackUpState.h"
+#import "BackUpSubState.h"
 
 typedef NS_ENUM (NSInteger, MEGABackupType) {
     MEGABackupTypeInvalid = -1,
@@ -29,67 +31,6 @@ typedef NS_ENUM (NSInteger, MEGABackupType) {
     MEGABackupTypeCameraUpload = 3,
     MEGABackupTypeMediaUpload = 4,
     MEGABackupTypeBackupUpload = 5,
-};
-
-typedef NS_ENUM (NSInteger, MEGASyncState) {
-    MEGASyncStateNotInitialized = 0,
-    MEGASyncStateActive = 1,
-    MEGASyncStateFailed = 2,
-    MEGASyncStateTemporaryDisabled = 3,
-    MEGASyncStateDisabled = 4,
-    MEGASyncStatePauseUp = 5,
-    MEGASyncStatePauseDown = 6,
-    MEGASyncStatePauseFull = 7,
-    MEGASyncStateDeleted = 8,
-    MEGASyncStateUnknown = 9
-};
-
-typedef NS_ENUM (NSInteger, MEGABackupSubstate) {
-    MEGABackupSubstateNoSyncError = 0,
-    MEGABackupSubstateUnknownError = 1,
-    MEGABackupSubstateUnsupportedFileSystem = 2,
-    MEGABackupSubstateInvalidRemoteType = 3,
-    MEGABackupSubstateInvalidLocalType = 4,
-    MEGABackupSubstateInitialScanFailed = 5,
-    MEGABackupSubstateLocalPathTemporaryUnavailable = 6,
-    MEGABackupSubstateLocalPathUnavailable = 7,
-    MEGABackupSubstateRemoteNodeNotFound = 8,
-    MEGABackupSubstateStorageOverquota = 9,
-    MEGABackupSubstateAccountExpired = 10,
-    MEGABackupSubstateForeignTargetOverstorage = 11,
-    MEGABackupSubstateRemotePathHasChanged = 12,
-    MEGABackupSubstateShareNonFullAccess = 14,
-    MEGABackupSubstateLocalFilesystemMismatch = 15,
-    MEGABackupSubstatePutNodesError = 16,
-    MEGABackupSubstateActiveSyncBelowPath = 17,
-    MEGABackupSubstateActiveSyncAbovePath = 18,
-    MEGABackupSubstateRemoteNodeMovedToRubbish = 19,
-    MEGABackupSubstateRemoteNodeInsideRubbish = 20,
-    MEGABackupSubstateVBoxSharedFolderUnsupported = 21,
-    MEGABackupSubstateLocalPathSyncCollision = 22,
-    MEGABackupSubstateAccountBlocked = 23,
-    MEGABackupSubstateUnknownTemporaryError = 24,
-    MEGABackupSubstateTooManyActionPackets = 25,
-    MEGABackupSubstateLoggedOut = 26,
-    MEGABackupSubstateWholeAccountRefetched = 27,
-    MEGABackupSubstateMissingParentNode = 28,
-    MEGABackupSubstateBackupModified = 29,
-    MEGABackupSubstateBackupSourceNotBelowDrive = 30,
-    MEGABackupSubstateSyncConfigWriteFailure = 31,
-    MEGABackupSubstateActiveSyncSamePath = 32,
-    MEGABackupSubstateCouldNotMoveCloudNodes = 33,
-    MEGABackupSubstateCouldNotCreateIgnoreFile = 34,
-    MEGABackupSubstateSyncConfigReadFailure = 35,
-    MEGABackupSubstateUnknownDrivePath = 36,
-    MEGABackupSubstateInvalidScanInterval = 37,
-    MEGABackupSubstateNotificationSystemUnavailable = 38,
-    MEGABackupSubstateUnableToAddWatch = 39,
-    MEGABackupSubstateUnableToRetrieveRootFSID = 40,
-    MEGABackupSubstateUnableToOpenDatabase = 41,
-    MEGABackupSubstateInsufficientDiskSpace = 42,
-    MEGABackupSubstateFailureAccessingPersistentStorage = 43,
-    MEGABackupSubstateMismatchOfRootRSID = 44,
-    MEGABackupSubstateFilesystemFileIdsAreUnstable = 45,
 };
 
 typedef NS_ENUM(NSUInteger, MEGABackupHeartbeatStatus) {
@@ -160,38 +101,41 @@ NS_ASSUME_NONNULL_BEGIN
  * @return Sync state of the backup.
  *
  * It can be one of the following values:
- * - MEGASyncStateNotInitialized                 = 0,
+ * - BackUpStateInvalid                           = -1,
  * Not initialized sync state.
  *
- * - MEGASyncStateActive                            = 1,
+ * - BackUpStateNotInitialized                 = 0,
+ * Not initialized sync state.
+ *
+ * - BackUpStateActive                            = 1,
  * Working fine (enabled)
  *
- * - MEGASyncStateFailed                            = 2,
+ * - BackUpStateFailed                            = 2,
  * Failed (permanently disabled)
  *
- * - MEGASyncStateTemporaryDisabled      = 3,
+ * - BackUpStateTemporaryDisabled      = 3,
  * emporarily disabled due to a transient situation (e.g: account blocked). Will be resumed when the condition passes
  *
- * - MEGASyncStateDisabled                       = 4,
+ * - BackUpStateDisabled                       = 4,
  * Disabled by the user
  *
- * - MEGASyncStatePauseUp                       = 5,
+ * - BackUpStatePauseUp                       = 5,
  * Active but upload transfers paused in the SDK
  *
- * - MEGASyncStatePauseDown                  = 6,
+ * - BackUpStatePauseDown                  = 6,
  * Active but download transfers paused in the SDK
  *
- * - MEGASyncStatePauseFull                     = 7,
+ * - BackUpStatePauseFull                     = 7,
  * Active but transfers paused in the SDK
  *
- * - MEGASyncStateDeleted                        = 8,
+ * - BackUpStateDeleted                        = 8,
  * Sync needs to be deleted, as required by sync-desired-state received from BackupCenter (WebClient)
  *
- * - MEGASyncStateUnknown                     = 9,
+ * - BackUpStateUnknown                     = 9,
  * Unknown status.
  *
  */
-@property (readonly, nonatomic) MEGASyncState state;
+@property (readonly, nonatomic) BackUpState state;
 
 /**
  * @brief Returns the sync substate of the backup.
@@ -199,143 +143,149 @@ NS_ASSUME_NONNULL_BEGIN
  * @return Substate of the backup.
  *
  * It can be one of the following values:
- * - MEGABackupSubstateNoSyncError                                                 =  0,
+ * - BackUpSubStateInvalid                                                          =  -1,
  *   No synchronization error.
  *
- * - MEGABackupSubstateUnknownError                                              =  1,
+ * - BackUpSubStateNoSyncError                                                 =  0,
+ *   No synchronization error.
+ *
+ * - BackUpSubStateUnknownError                                              =  1,
  *   Unknown error occurred during the backup process.
  *
- * - MEGABackupSubstateUnsupportedFileSystem                               =  2,
+ * - BackUpSubStateUnsupportedFileSystem                               =  2,
  *   The file system used is not supported.
  *
- * - MEGABackupSubstateInvalidRemoteType                                      =  3,
+ * - BackUpSubStateInvalidRemoteType                                      =  3,
  *   Invalid remote type, it is not a folder that can be synced.
  *
- * - MEGABackupSubstateInvalidLocalType                                          =  4,
+ * - BackUpSubStateInvalidLocalType                                          =  4,
  *   Invalid local type, its path does not refer to a folder.
  *
- * - MEGABackupSubstateInitialScanFailed                                          =  5,
+ * - BackUpSubStateInitialScanFailed                                          =  5,
  *   Initial scan failed.
  *
- * - MEGABackupSubstateLocalPathTemporaryUnavailable                 =  6,
+ * - BackUpSubStateLocalPathTemporaryUnavailable                 =  6,
  *   Temporary unavailability of the local path. This is fatal when adding a sync.
  *
- * - MEGABackupSubstateLocalPathUnavailable                                  =  7,
+ * - BackUpSubStateLocalPathUnavailable                                  =  7,
  *   The local path is unavailable (can't be opened).
  *
- * - MEGABackupSubstateRemoteNodeNotFound                                =  8,
+ * - BackUpSubStateRemoteNodeNotFound                                =  8,
  *   The remote node no longer exists.
  *
- * - MEGABackupSubstateStorageOverquota                                       =  9,
+ * - BackUpSubStateStorageOverquota                                       =  9,
  *   Account reached storage overquota.
  *
- * - MEGABackupSubstateAccountExpired                                           = 10,
+ * - BackUpSubStateAccountExpired                                           = 10,
  *   Account expired (business or pro flexi).
  *
- * - MEGABackupSubstateForeignTargetOverstorage                          = 11,
+ * - BackUpSubStateForeignTargetOverstorage                          = 11,
  *   Sync transfer fails (upload into an inshare whose account is overquota).
  *
- * - MEGABackupSubstateRemotePathHasChanged                          = 12,
+ * - BackUpSubStateRemotePathHasChanged                          = 12,
  *   The remote path has changed (currently unused: not an error).
  *
- * - MEGABackupSubstateShareNonFullAccess                                 = 14,
+ * - BackUpSubStateShareNonFullAccess                                 = 14,
  *   Existing inbound share sync or part thereof lost full access.
  *
- * - MEGABackupSubstateLocalFilesystemMismatch                         = 15,
+ * - BackUpSubStateLocalFilesystemMismatch                         = 15,
  *   Filesystem fingerprint does not match the one stored for the synchronization.
  *
- * - MEGABackupSubstatePutNodesError                                          = 16,
+ * - BackUpSubStatePutNodesError                                          = 16,
  *   Error processing put nodes result.
  *
- * - MEGABackupSubstateActiveSyncBelowPath                              = 17,
+ * - BackUpSubStateActiveSyncBelowPath                              = 17,
  *   There's a synced node below the path to be synced.
  *
- * - MEGABackupSubstateActiveSyncAbovePath                              = 18,
+ * - BackUpSubStateActiveSyncAbovePath                              = 18,
  *   There's a synced node above the path to be synced.
  *
- * - MEGABackupSubstateRemoteNodeMovedToRubbish                = 19,
+ * - BackUpSubStateRemoteNodeMovedToRubbish                = 19,
  *   The remote node for backup was moved to the rubbish bin.
  *
- * - MEGABackupSubstateRemoteNodeInsideRubbish                     = 20,
+ * - BackUpSubStateRemoteNodeInsideRubbish                     = 20,
  *   The remote node for backup is attempted to be added in rubbish.
  *
- * - MEGABackupSubstateVBoxSharedFolderUnsupported              = 21,
+ * - BackUpSubStateVBoxSharedFolderUnsupported              = 21,
  *   Found unsupported VBoxSharedFolderFS.
  *
- * - MEGABackupSubstateLocalPathSyncCollision                           = 22,
+ * - BackUpSubStateLocalPathSyncCollision                           = 22,
  *   Local path includes a synced path or is included within one.
  *
- * - MEGABackupSubstateAccountBlocked                                       = 23,
+ * - BackUpSubStateAccountBlocked                                       = 23,
  *   The backup account has been blocked.
  *
- * - MEGABackupSubstateUnknownTemporaryError                        = 24,
+ * - BackUpSubStateUnknownTemporaryError                        = 24,
  *   Unknown temporary error occurred during backup.
  *
- * - MEGABackupSubstateTooManyActionPackets                          = 25,
+ * - BackUpSubStateTooManyActionPackets                          = 25,
  *   Too many changes in account, local state discarded.
  *
- * - MEGABackupSubstateLoggedOut                                             = 26,
+ * - BackUpSubStateLoggedOut                                             = 26,
  *   The user has been logged out.
  *
- * - MEGABackupSubstateWholeAccountRefetched                       = 27,
+ * - BackUpSubStateWholeAccountRefetched                       = 27,
  *   The whole account was reloaded, missed actionpacket changes could not have been applied.
  *
- * - MEGABackupSubstateMissingParentNode                               = 28,
+ * - BackUpSubStateMissingParentNode                               = 28,
  *   Setting a new parent to a parent whose LocalNode is missing its corresponding Node crossref.
  *
- * - MEGABackupSubstateBackupModified                                     = 29,
+ * - BackUpSubStateBackupModified                                     = 29,
  *   The backup has been externally modified.
  *
- * - MEGABackupSubstateBackupSourceNotBelowDrive               = 30,
+ * - BackUpSubStateBackupSourceNotBelowDrive               = 30,
  *   The backup source path not below drive path.
  *
- * - MEGABackupSubstateSyncConfigWriteFailure                        = 31,
+ * - BackUpSubStateSyncConfigWriteFailure                        = 31,
  *   Unable to write sync config to disk.
  *
- * - MEGABackupSubstateActiveSyncSamePath                           = 32,
+ * - BackUpSubStateActiveSyncSamePath                           = 32,
  *   There's a synced node at the path to be synced.
  *
- * - MEGABackupSubstateCouldNotMoveCloudNodes                  = 33,
+ * - BackUpSubStateCouldNotMoveCloudNodes                  = 33,
  *   rename() failed.
  *
- * - MEGABackupSubstateCouldNotCreateIgnoreFile                    = 34,
+ * - BackUpSubStateCouldNotCreateIgnoreFile                    = 34,
  *   Couldn't create a sync's initial ignore file.
  *
- * - MEGABackupSubstateSyncConfigReadFailure                       = 35,
+ * - BackUpSubStateSyncConfigReadFailure                       = 35,
  *   Couldn't read sync configs from disk.
  *
- * - MEGABackupSubstateUnknownDrivePath                              = 36,
+ * - BackUpSubStateUnknownDrivePath                              = 36,
  *   Sync's drive path isn't known.
  *
- * - MEGABackupSubstateInvalidScanInterval                              = 37,
+ * - BackUpSubStateInvalidScanInterval                              = 37,
  *   The user's specified an invalid scan interval.
  *
- * - MEGABackupSubstateNotificationSystemUnavailable           = 38,
+ * - BackUpSubStateNotificationSystemUnavailable           = 38,
  *   Filesystem notification subsystem has encountered an unrecoverable error.
  *
- * - MEGABackupSubstateUnableToAddWatch                           = 39,
+ * - BackUpSubStateUnableToAddWatch                           = 39,
  *   Unable to add a filesystem watch.
  *
- * - MEGABackupSubstateUnableToRetrieveRootFSID              = 40,
+ * - BackUpSubStateUnableToRetrieveRootFSID              = 40,
  *   Unable to retrieve a sync root's FSID.
  *
- * - MEGABackupSubstateUnableToOpenDatabase                   = 41,
+ * - BackUpSubStateUnableToOpenDatabase                   = 41,
  *   Unable to open state cache database.
  *
- * - MEGABackupSubstateInsufficientDiskSpace                        = 42,
+ * - BackUpSubStateInsufficientDiskSpace                        = 42,
  *   Insufficient space for download.
  *
- * - MEGABackupSubstateFailureAccessingPersistentStorage  = 43,
+ * - BackUpSubStateFailureAccessingPersistentStorage  = 43,
  *   Failure accessing persistent storage.
  *
- * - MEGABackupSubstateMismatchOfRootRSID                       = 44,
+ * - BackUpSubStateMismatchOfRootRSID                       = 44,
  *   The sync root's FSID changed. So this is a different folder.
  *
- * - MEGABackupSubstateFilesystemFileIdsAreUnstable           = 45,
+ * - BackUpSubStateFilesystemFileIdsAreUnstable           = 45,
  *   On MAC, the FSID of a file in an exFAT drive can change frequently.
  *
+ * - BackUpSubStateFilesystemIDUnavailable          = 46,
+ *   Could not get the filesystem's id
+ *
  */
-@property (readonly, nonatomic) MEGABackupSubstate substate;
+@property (readonly, nonatomic) BackUpSubState substate;
 
 /**
  * @brief Returns extra information, used as source for extracting other details.
@@ -400,6 +350,12 @@ NS_ASSUME_NONNULL_BEGIN
  * @brief Returns handle of the last synced node.
  */
 @property (readonly, nonatomic) uint64_t lastSync;
+
+/**
+ * @brief Returns the user-agent associated with the device where the backup originated.
+ *
+ */
+@property (readonly, nonatomic, nullable) NSString *userAgent;
 
 @end
 

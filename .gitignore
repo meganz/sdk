@@ -31,8 +31,11 @@
 !/tests/test_integration/test-data/
 /tests/tool_purge_account
 examples/megacli
-examples/megasimplesync
 examples/linux/megafuse
+
+# Generated
+/include/config.h
+/include/mega/config.h
 
 # Autotool stuff
 .deps
@@ -41,7 +44,6 @@ examples/linux/megafuse
 Makefile.in
 aclocal.m4
 autom4te.cache
-/include/mega/config.h
 /include/mega/config.h.in
 configure
 depcomp

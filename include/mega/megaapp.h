@@ -22,6 +22,8 @@
 #ifndef MEGA_APP_H
 #define MEGA_APP_H 1
 
+#include "types.h"
+
 namespace mega {
 
 struct Notification;
@@ -143,9 +145,6 @@ struct MEGA_API MegaApp
 #ifndef NDEBUG
     // So that tests can make a change as soon as a cloud node is moved.
     virtual void move_begin(const LocalPath&, const LocalPath&) { };
-
-    // So that tests can make a change as soon as a putnodes is sent.
-    virtual void putnodes_begin(const LocalPath&) { };
 #endif // ! NDEBUG
 
     // node addition has failed
@@ -425,6 +424,8 @@ struct MEGA_API MegaApp
 
     // provides the per mil progress of a long-running API operation or -1 if there isn't any operation in progress
     virtual void reqstat_progress(int) { }
+
+    virtual void notify_creditCardExpiry() { }
 
     virtual ~MegaApp() { }
 

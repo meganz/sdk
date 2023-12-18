@@ -252,11 +252,6 @@ void CacheableWriter::serializeNodeHandle(NodeHandle field)
     serializenodehandle(field.as8byte());
 }
 
-void CacheableWriter::serializefsfp(fsfp_t field)
-{
-    dest.append((char*)&field.id, sizeof(field.id));
-}
-
 void CacheableWriter::serializebool(bool field)
 {
     dest.append((char*)&field, sizeof(field));
@@ -860,18 +855,6 @@ bool CacheableReader::unserializeNodeHandle(NodeHandle& field)
     return true;
 }
 
-bool CacheableReader::unserializefsfp(fsfp_t& field)
-{
-    if (ptr + sizeof(fsfp_t) > end)
-    {
-        return false;
-    }
-    field.id = MemAccess::get<uint64_t>(ptr);
-    ptr += sizeof(uint64_t);
-    fieldnum += 1;
-    return true;
-}
-
 bool CacheableReader::unserializebool(bool& field)
 {
     if (ptr + sizeof(bool) > end)
@@ -956,9 +939,9 @@ bool CacheableReader::unserializedirection(direction_t& field)
  * @param iv Optional initialisation vector for encryption. Will use a
  *     zero IV if not given. If `iv` is a zero length string, a new IV
  *     for encryption will be generated and available through the reference.
- * @return Void.
+ * @return true if encryption was successful.
  */
-void PaddedCBC::encrypt(PrnGen &rng, string* data, SymmCipher* key, string* iv)
+bool PaddedCBC::encrypt(PrnGen &rng, string* data, SymmCipher* key, string* iv)
 {
     if (iv)
     {
@@ -984,21 +967,18 @@ void PaddedCBC::encrypt(PrnGen &rng, string* data, SymmCipher* key, string* iv)
     // Pad to block size and encrypt.
     data->append("E");
     data->resize((data->size() + key->BLOCKSIZE - 1) & - key->BLOCKSIZE, 'P');
-    if (iv)
-    {
-        key->cbc_encrypt((byte*)data->data(), data->size(),
-                         (const byte*)iv->data());
-    }
-    else
-    {
-        key->cbc_encrypt((byte*)data->data(), data->size());
-    }
+    byte* dd = reinterpret_cast<byte*>(const_cast<char*>(data->data())); // make sure it works for pre-C++17 compilers
+    bool encrypted = iv ?
+        key->cbc_encrypt(dd, data->size(), reinterpret_cast<const byte*>(iv->data())) :
+        key->cbc_encrypt(dd, data->size());
 
     // Truncate IV back to the first 8 bytes only..
     if (iv)
     {
         iv->resize(8);
     }
+
+    return encrypted;
 }
 
 /**
@@ -1011,7 +991,7 @@ void PaddedCBC::encrypt(PrnGen &rng, string* data, SymmCipher* key, string* iv)
  * @param key AES key for decryption.
  * @param iv Optional initialisation vector for encryption. Will use a
  *     zero IV if not given.
- * @return Void.
+ * @return true if decryption was successful.
  */
 bool PaddedCBC::decrypt(string* data, SymmCipher* key, string* iv)
 {
@@ -1033,14 +1013,13 @@ bool PaddedCBC::decrypt(string* data, SymmCipher* key, string* iv)
     }
 
     // Decrypt and unpad.
-    if (iv)
+    byte* dd = reinterpret_cast<byte*>(const_cast<char*>(data->data())); // make sure it works for pre-C++17 compilers
+    bool encrypted = iv ?
+        key->cbc_decrypt(dd, data->size(), reinterpret_cast<const byte*>(iv->data())) :
+        key->cbc_decrypt(dd, data->size());
+    if (!encrypted)
     {
-        key->cbc_decrypt((byte*)data->data(), data->size(),
-                         (const byte*)iv->data());
-    }
-    else
-    {
-        key->cbc_decrypt((byte*)data->data(), data->size());
+        return false;
     }
 
     size_t p = data->find_last_of('E');
@@ -1178,7 +1157,10 @@ bool PayCrypter::encryptPayload(const string *cleartext, string *result)
     //AES-CBC encryption
     string encResult;
     SymmCipher sym(encKey);
-    sym.cbc_encrypt_pkcs_padding(cleartext, iv, &encResult);
+    if (!sym.cbc_encrypt_pkcs_padding(cleartext, iv, &encResult))
+    {
+        return false;
+    }
 
     //Prepare the message to authenticate (IV + cipher text)
     string toAuthenticate((char *)iv, IV_BYTES);
@@ -1218,7 +1200,7 @@ bool PayCrypter::rsaEncryptKeys(const string *cleartext, const byte *pubkdata, i
     size_t keylen = keyString.size();
 
     //Resize to add padding
-    keyString.resize(asym.key[AsymmCipher::PUB_PQ].ByteCount() - 2);
+    keyString.resize(asym.getKey(AsymmCipher::PUB_PQ).ByteCount() - 2);
 
     //Add padding
     if(randompadding)
@@ -1292,11 +1274,11 @@ string * TLVstore::tlvRecordsToContainer(PrnGen &rng, SymmCipher *key, encryptio
     }
 
     // serialize the TLV records
-    string *container = tlvRecordsToContainer();
+    std::unique_ptr<string> container(tlvRecordsToContainer());
 
     // generate IV array
-    byte *iv = new byte[ivlen];
-    rng.genblock(iv, ivlen);
+    std::vector<byte> iv(ivlen);
+    rng.genblock(iv.data(), ivlen);
 
     string cipherText;
 
@@ -1304,21 +1286,24 @@ string * TLVstore::tlvRecordsToContainer(PrnGen &rng, SymmCipher *key, encryptio
 
     if (encMode == AES_MODE_CCM)   // CCM or GCM_BROKEN (same than CCM)
     {
-        key->ccm_encrypt(container, iv, ivlen, taglen, &cipherText);
+        if (!key->ccm_encrypt(container.get(), iv.data(), ivlen, taglen, &cipherText))
+        {
+            return nullptr;
+        }
     }
     else if (encMode == AES_MODE_GCM)   // then use GCM
     {
-        key->gcm_encrypt(container, iv, ivlen, taglen, &cipherText);
+        if (!key->gcm_encrypt(container.get(), iv.data(), ivlen, taglen, &cipherText))
+        {
+            return nullptr;
+        }
     }
 
     string *result = new string;
     result->resize(1);
     result->at(0) = static_cast<char>(encSetting);
-    result->append((char*) iv, ivlen);
+    result->append((char*) iv.data(), ivlen);
     result->append((char*) cipherText.data(), cipherText.length()); // includes auth. tag
-
-    delete [] iv;
-    delete container;
 
     return result;
 }
@@ -2822,7 +2807,7 @@ bool readLines(const std::string& input, string_vector& destination)
         while (delim < end && *delim != '\r' && *delim != '\n')
         {
             ++delim;
-            whitespace += std::isspace(*whitespace) > 0;
+            whitespace += is_space(*whitespace);
         }
 
         if (delim != whitespace)
@@ -2944,6 +2929,13 @@ const char* syncPathProblemDebugString(PathProblem r)
     case PathProblem::SourceWasMovedElsewhere: return "SourceWasMovedElsewhere";
     case PathProblem::FilesystemCannotStoreThisName: return "FilesystemCannotStoreThisName";
     case PathProblem::CloudNodeInvalidFingerprint: return "CloudNodeInvalidFingerprint";
+
+    case PathProblem::PutnodeDeferredByController: return "PutnodeDeferredByController";
+    case PathProblem::PutnodeCompletionDeferredByController: return "PutnodeCompletionDeferredByController";
+    case PathProblem::PutnodeCompletionPending: return "PutnodeCompletionPending";
+    case PathProblem::UploadDeferredByController: return "UploadDeferredByController";
+
+    case PathProblem::DetectedNestedMount: return "DetectedNestedMount";
 
     case PathProblem::PathProblem_LastPlusOne: break;
     }
@@ -3266,6 +3258,31 @@ string connDirectionToStr(mega::direction_t directionType)
         default:
             return "UNKNOWN";
     }
+}
+
+const char* toString(retryreason_t reason)
+{
+    switch (reason)
+    {
+#define DEFINE_RETRY_CLAUSE(index, name) case name: return #name;
+        DEFINE_RETRY_REASONS(DEFINE_RETRY_CLAUSE)
+#undef DEFINE_RETRY_CLAUSE
+    }
+
+    assert(false && "Unknown retry reason");
+
+    return "RETRY_UNKNOWN";
+}
+
+
+bool is_space(unsigned int ch)
+{
+    return std::isspace(static_cast<unsigned char>(ch));
+}
+
+bool is_digit(unsigned int ch)
+{
+    return std::isdigit(static_cast<unsigned char>(ch));
 }
 
 } // namespace mega

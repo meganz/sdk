@@ -708,6 +708,12 @@ SyncUpload_inClient::~SyncUpload_inClient()
         syncThreadSafeState->transferFailed(PUT, size);
     }
 
+    if (!uploadHandle.isUndef())
+    {
+        // Remove file attributes if they weren't removed upon ~Transfer destructor
+        syncThreadSafeState->client()->fileAttributesUploading.erase(uploadHandle);
+    }
+
     if (putnodesStarted)
     {
         syncThreadSafeState->removeExpectedUpload(h, name);

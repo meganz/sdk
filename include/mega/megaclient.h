@@ -306,6 +306,9 @@ public:
     bool isShareKeyInUse(handle sharehandle) const;
     void setSharekeyInUse(handle sharehandle, bool sent);
 
+    // Clears, if set, the in-use bit of the sharekeys no longer used.
+    void syncSharekeyInUseBit();
+
     // return empty string if the user's credentials are not verified (or if fail to encrypt)
     std::string encryptShareKeyTo(handle userhandle, std::string shareKey);
 
@@ -520,6 +523,9 @@ public:
     // Don't start showing the cookie banner until API says so
     bool mCookieBannerEnabled = false;
 
+    // Consider an account as new if it was created less than X days earlier (right now it's 30days; received in "ug":"na")
+    bool accountIsNew = false;
+
     // AB Test flags
     std::map<string, uint32_t> mABTestFlags;
 
@@ -716,10 +722,10 @@ public:
     error updateAuthring(AuthRing *authring, attr_t authringType, bool temporalAuthring, handle updateduh);
 
     // set the Ed25519 public key as verified for a given user in the authring (done by user manually by comparing hash of keys)
-    error verifyCredentials(handle uh);
+    error verifyCredentials(handle uh, std::function<void(Error)>);
 
     // reset the authentication method of Ed25519 key from Fingerprint-verified to Seen for a given user
-    error resetCredentials(handle uh);
+    error resetCredentials(handle uh, std::function<void (Error)>);
 
     // check credentials are verified for a given user
     bool areCredentialsVerified(handle uh);
@@ -760,7 +766,7 @@ public:
     void removeOutSharesFromSubtree(std::shared_ptr<Node> n, int tag);
 
     // start/stop/pause file transfer
-    bool startxfer(direction_t, File*, TransferDbCommitter&, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption, error* cause, int tag);
+    bool startxfer(direction_t, File*, TransferDbCommitter&, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption, error* cause, int tag, m_off_t availableDiskSpace = 0);
     void stopxfer(File* f, TransferDbCommitter* committer);
     void pausexfers(direction_t, bool pause, bool hard, TransferDbCommitter& committer);
 
@@ -810,7 +816,7 @@ public:
     void putnodes(const char*, vector<NewNode>&&, int tag, CommandPutNodes::Completion&& completion = nullptr);
 
     // attach file attribute to upload or node handle
-    void putfa(NodeOrUploadHandle, fatype, SymmCipher*, int tag, std::unique_ptr<string>);
+    bool putfa(NodeOrUploadHandle, fatype, SymmCipher*, int tag, std::unique_ptr<string>);
 
     // move as many as possible from pendingfa to activefa
     void activatefa();
@@ -829,10 +835,10 @@ public:
     void putua(userattr_map *attrs, int ctag = -1, std::function<void(Error)> completion = nullptr);
 
     // queue a user attribute retrieval
-    bool getua(User* u, const attr_t at = ATTR_UNKNOWN, int ctag = -1);
+    bool getua(User* u, const attr_t at = ATTR_UNKNOWN, int ctag = -1, CommandGetUA::CompletionErr completionErr = nullptr, CommandGetUA::CompletionBytes completionBytes = nullptr, CommandGetUA::CompletionTLV completionTLV = nullptr);
 
     // queue a user attribute retrieval (for non-contacts)
-    void getua(const char* email_handle, const attr_t at = ATTR_UNKNOWN, const char *ph = NULL, int ctag = -1);
+    void getua(const char* email_handle, const attr_t at = ATTR_UNKNOWN, const char *ph = NULL, int ctag = -1, CommandGetUA::CompletionErr ce = nullptr, CommandGetUA::CompletionBytes cb = nullptr, CommandGetUA::CompletionTLV ctlv = nullptr);
 
     // retrieve the email address of a user
     void getUserEmail(const char *uid);
@@ -923,13 +929,12 @@ public:
      * @brief add sync. Will fill syncError/syncWarning in the SyncConfig in case there are any.
      * It will persist the sync configuration if its call to checkSyncConfig succeeds
      * @param syncConfig the Config to attempt to add (takes ownership)
-     * @param notifyApp whether the syncupdate_stateconfig callback should be called at this stage or not
      * @param completion Completion function
      * @exludedPath: in sync rework, use this to specify a folder within the sync to exclude (eg, working folder with sync db in it)
      * @return API_OK if added to active syncs. (regular) error otherwise (with detail in syncConfig's SyncError field).
      * Completion is used to signal success/failure.  That may occur during this call, or in future (after server request/reply etc)
      */
-    void addsync(SyncConfig&& syncConfig, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath);
+    void addsync(SyncConfig&& syncConfig, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath);
 
     /**
      * @brief
@@ -957,6 +962,11 @@ public:
     typedef std::function<void(std::function<void()> continuation)> UndoFunction;
     void preparebackup(SyncConfig, std::function<void(Error, SyncConfig, UndoFunction revertOnError)>);
 
+    /**
+     * @brief Used to migrate all the sync's management data from MEGAsync to the SDK
+     *
+     * @deprecated This function is deprecated. Please don't use it in new code.
+     */
     void copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion);
 
     /**
@@ -1483,6 +1493,7 @@ public:
     void sc_ub();
     void sc_sqac();
     void sc_pk();
+    void sc_cce();
 
     void init();
 
@@ -1778,7 +1789,7 @@ public:
     static dstime USER_DATA_EXPIRATION_BACKOFF_SECS;
 
     // total number of Node objects
-    long long totalNodes;
+    std::atomic_ullong totalNodes;
 
     // tracks how many nodes have had a successful applykey()
     std::atomic<long long> mAppliedKeyNodeCount;
@@ -1786,7 +1797,15 @@ public:
     // server-client request sequence number
     SCSN scsn;
 
+    // process an array of users from the API server
     bool readusers(JSON*, bool actionpackets);
+
+    // process a JSON user object
+    // possible results:
+    // 0 -> no object found
+    // 1 -> successful parsing
+    // any other number -> parsing error
+    int readuser(JSON*, bool actionpackets);
 
     user_vector usernotify;
     void notifyuser(User*);
@@ -1936,6 +1955,15 @@ public:
     // process object arrays by the API server
     int readnodes(JSON*, int, putsource_t, vector<NewNode>*, bool modifiedByThisClient, bool applykeys, Node* priorActionpacketDeletedNode, bool* firstHandleMismatchedDelete);
 
+    // process a JSON node object
+    // possible results:
+    // 0 -> no object found
+    // 1 -> successful parsing
+    // any other number -> parsing error
+    int readnode(JSON*, int, putsource_t, vector<NewNode>*, bool modifiedByThisClient, bool applykeys,
+                 NodeManager::MissingParentNodes& missingParentNodes, handle &previousHandleForAlert, set<NodeHandle> *allParents,
+                 Node *priorActionpacketDeletedNode, bool *firstHandleMatchesDelete);
+
     void readok(JSON*);
     void readokelement(JSON*);
     void readoutshares(JSON*);
@@ -1946,7 +1974,14 @@ public:
 
     error readmiscflags(JSON*);
 
-    void procph(JSON*);
+    bool procph(JSON*);
+
+    // process a JSON ph object
+    // possible results:
+    // 0 -> no object found
+    // 1 -> successful parsing
+    // any other number -> parsing error
+    int procphelement(JSON*);
 
     void procsnk(JSON*);
     void procsuk(JSON*);
@@ -2560,16 +2595,13 @@ public:
 
 /* Mega VPN methods END */
 
+    void fetchCreditCardInfo(CommandFetchCreditCardCompletion completion);
+    void setProFlexi(bool newProFlexi);
 };
 
 } // namespace
 
-#if __cplusplus < 201100L
-#define char_is_not_digit std::not1(std::ptr_fun(static_cast<int(*)(int)>(std::isdigit)))
-#define char_is_not_space std::not1(std::ptr_fun<int, int>(std::isspace))
-#else
-#define char_is_not_digit [](char c) { return !std::isdigit(c); }
-#define char_is_not_space [](char c) { return !std::isspace(c); }
-#endif
+#define char_is_not_digit [](unsigned char c) { return !::mega::is_digit(c); }
+#define char_is_not_space [](unsigned char c) { return !::mega::is_space(c); }
 
 #endif

@@ -567,7 +567,7 @@ bool WholeNumber::addCompletions(ACState& s)
     {
         for (char c : s.word().s)
         {
-            if (!isdigit(c))
+            if (!is_digit(c))
             {
                 return true;
             }
@@ -584,7 +584,7 @@ bool WholeNumber::match(ACState& s) const
     {
         for (char c : s.word().s)
         {
-            if (!isdigit(c))
+            if (!is_digit(c))
             {
                 return false;
             }

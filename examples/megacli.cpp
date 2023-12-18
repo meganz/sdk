@@ -974,14 +974,14 @@ void DemoApp::printChatInformation(TextChat *chat)
 
     cout << "\tPeers:";
 
-    if (chat->getOwnPrivileges())
+    if (chat->getUserPrivileges())
     {
         cout << "\t\t(userhandle)\t(privilege level)" << endl;
-        for (unsigned i = 0; i < chat->getUserPrivileges()->size(); i++)
+        for (const auto& up : *chat->getUserPrivileges())
         {
-            Base64Str<sizeof(handle)> hstr(chat->getUserPrivileges()->at(i).first);
+            Base64Str<sizeof(handle)> hstr(up.first);
             cout << "\t\t\t" << hstr;
-            cout << "\t" << DemoApp::getPrivilegeString(chat->getUserPrivileges()->at(i).second) << endl;
+            cout << "\t" << DemoApp::getPrivilegeString(up.second) << endl;
         }
     }
     else
@@ -4285,6 +4285,8 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_checkvpncredential, sequence(text("checkvpncredential"), param("userpublickey")));
     /* MEGA VPN commands END */
 
+    p->Add(exec_fetchcreditcardinfo, text("cci"));
+
     return autocompleteTemplate = std::move(p);
 }
 
@@ -5089,7 +5091,7 @@ void exec_get(autocomplete::ACState& s)
         {
             cout << "Checking link..." << endl;
 
-            client->reqs.add(new CommandGetFile(client, key, FILENODEKEYLENGTH, ph, false, nullptr, nullptr, nullptr, false,
+            client->reqs.add(new CommandGetFile(client, key, FILENODEKEYLENGTH, false, ph, false, nullptr, nullptr, nullptr, false,
                 [key, ph](const Error &e, m_off_t size, dstime /*timeleft*/,
                    std::string* filename, std::string* fingerprint, std::string* fileattrstring,
                    const std::vector<std::string> &/*tempurls*/, const std::vector<std::string> &/*ips*/)
@@ -6413,7 +6415,7 @@ void exec_debug(autocomplete::ACState& s)
         }
     }
 
-    cout << "Debug level set to " << SimpleLogger::logCurrentLevel << endl;
+    cout << "Debug level set to " << SimpleLogger::getLogLevel() << endl;
     cout << "Log to console: " << (gLogger.logToConsole ? "on" : "off") << endl;
     cout << "Log to file: " << (gLogger.mLogFile.is_open() ? gLogger.mLogFileName : "<off>") << endl;
 
@@ -7040,7 +7042,7 @@ void exec_verifycredentials(autocomplete::ACState& s)
     else if (s.words[1].s == "verify")
     {
         error e;
-        if ((e = client->verifyCredentials(u->userhandle)))
+        if ((e = client->verifyCredentials(u->userhandle, nullptr)))
         {
             cout << "Verification failed. Error: " << errorstring(e) << endl;
             return;
@@ -7049,7 +7051,7 @@ void exec_verifycredentials(autocomplete::ACState& s)
     else if (s.words[1].s == "reset")
     {
         error e;
-        if ((e = client->resetCredentials(u->userhandle)))
+        if ((e = client->resetCredentials(u->userhandle, nullptr)))
         {
             cout << "Reset verification failed. Error: " << errorstring(e) << endl;
             return;
@@ -7605,6 +7607,10 @@ void exec_version(autocomplete::ACState& s)
     cout << "* PDFium" << endl;
 #endif
 
+#ifdef HAVE_FFMPEG
+    cout << "* FFmpeg" << endl;
+#endif
+
 #ifdef ENABLE_SYNC
     cout << "* sync subsystem" << endl;
 #endif
@@ -7809,6 +7815,7 @@ void exec_mediainfo(autocomplete::ACState& s)
                 break;
             }
             case TYPE_DONOTSYNC:
+            case TYPE_NESTED_MOUNT:
             case TYPE_SPECIAL:
             case TYPE_SYMLINK:
             case TYPE_UNKNOWN:
@@ -7951,7 +7958,7 @@ void exec_setmaxloglinesize(autocomplete::ACState& s)
 {
     if (s.words.size() > 1)
     {
-        SimpleLogger::maxPayloadLogSize = atoi(s.words[1].s.c_str());
+        SimpleLogger::setMaxPayloadLogSize(atoll(s.words[1].s.c_str()));
     }
 }
 
@@ -10072,7 +10079,7 @@ void exec_syncadd(autocomplete::ACState& s)
             syncname,
             NodeHandle(),
             string(),
-            0,
+            fsfp_t(),
             std::move(drivePath),
             true,
             backup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
@@ -10109,7 +10116,7 @@ void exec_syncadd(autocomplete::ACState& s)
         config.mRemoteNode = targetNode ? NodeHandle().set6byte(targetNode->nodehandle) : NodeHandle();
         config.mOriginalPathOfRemoteRootNode = targetNode ? targetNode->displaypath() : string();
 
-        client->addsync(std::move(config), false, sync_completion, "", "");
+        client->addsync(std::move(config), sync_completion, "", "");
     }
 
     else // backup
@@ -10138,7 +10145,7 @@ void exec_syncadd(autocomplete::ACState& s)
             }
             else
             {
-                client->addsync(std::move(sc), false, [revertOnError](error e, SyncError se, handle h){
+                client->addsync(std::move(sc), [revertOnError](error e, SyncError se, handle h){
 
                     if (e != API_OK)
                     {
@@ -10746,7 +10753,7 @@ void exec_syncxable(autocomplete::ACState& s)
     {
         // sync enable id
         bool pause = targetState == SyncRunState::Pause;
-        client->syncs.enableSyncByBackupId(backupId, pause, true, true, [pause](error err, SyncError serr, handle)
+        client->syncs.enableSyncByBackupId(backupId, pause, true, [pause](error err, SyncError serr, handle)
             {
                 if (err)
                 {
@@ -11665,3 +11672,22 @@ void exec_checkvpncredential(autocomplete::ACState& s)
             });
 }
 /* MEGA VPN commands */
+
+void exec_fetchcreditcardinfo(autocomplete::ACState&)
+{
+    client->fetchCreditCardInfo([](const Error& e, const std::map<std::string, std::string>& creditCardInfo)
+    {
+        if (e == API_OK)
+        {
+            cout << "Credit card info: " << endl;
+            for (const auto& it: creditCardInfo)
+            {
+                cout << "   " << it.first << ": " << it.second << endl;
+            }
+        }
+        else
+        {
+            cout << "Error requesting credit card info: " << e << endl;
+        }
+    });
+}

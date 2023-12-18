@@ -47,7 +47,7 @@ uint32_t GetMediaInfoVersion()
         unsigned column = 1;
         for (size_t i = s.size(); i--; )
         {
-            if (isdigit(s[i]))
+            if (is_digit(s[i]))
             {
                 version += column * (s[i] - '0');
                 column *= 10;
@@ -903,7 +903,7 @@ void MediaProperties::extractMediaPropertyFileAttributes(LocalPath& localFilenam
                     fps = vro.To_int32u();
                 }
 
-                if (SimpleLogger::logCurrentLevel >= logDebug)
+                if (SimpleLogger::getLogLevel() >= logDebug)
                 {
                     LOG_debug << "MediaInfo on " << localFilename << " | " << vw.To_Local() << " " << vh.To_Local() << " " << vd.To_Local() << " " << vr.To_Local() << " |\"" << gci.To_Local() << "\",\"" << gf.To_Local() << "\",\"" << vci.To_Local() << "\",\"" << vcf.To_Local() << "\",\"" << aci.To_Local() << "\",\"" << acf.To_Local() << "\"";
                 }
