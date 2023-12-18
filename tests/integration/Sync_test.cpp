@@ -1767,7 +1767,7 @@ bool StandardClient::waitForAttrDeviceIdIsSet(unsigned int numSeconds, bool& upd
     return isUserAttributeSet(attr_t::ATTR_DEVICE_NAMES, numSeconds, err);
 }
 
-bool StandardClient::waitForAttrMyBackupIsSet(unsigned int numSeconds, bool& setValue)
+bool StandardClient::waitForAttrMyBackupIsSet(unsigned int numSeconds, bool& newBackupIsSet)
 {
     error err  = API_EINTERNAL;
     bool attrMyBackupFolderIsSet = isUserAttributeSet(attr_t::ATTR_MY_BACKUPS_FOLDER, numSeconds, err);
@@ -1778,7 +1778,6 @@ bool StandardClient::waitForAttrMyBackupIsSet(unsigned int numSeconds, bool& set
     }
 
     // If attribute is not set, it's going to established
-    setValue = true;
     const char* folderName = "My Backups";
     attrMyBackupFolderIsSet = false;
     std::recursive_mutex attrMyBackup_cv_mutex;
@@ -1794,6 +1793,7 @@ bool StandardClient::waitForAttrMyBackupIsSet(unsigned int numSeconds, bool& set
                 if (e == API_OK)
                 {
                     attrMyBackupFolderIsSet = true;
+                    newBackupIsSet = true;
                 }
                 else
                 {
@@ -1814,7 +1814,7 @@ bool StandardClient::waitForAttrMyBackupIsSet(unsigned int numSeconds, bool& set
     }
 
     // Check if attribute has been established properly
-    return isUserAttributeSet(attr_t::ATTR_MY_BACKUPS_FOLDER, numSeconds, err);;
+    return isUserAttributeSet(attr_t::ATTR_MY_BACKUPS_FOLDER, numSeconds, err);
 }
 
 void StandardClient::file_added(File* file)
