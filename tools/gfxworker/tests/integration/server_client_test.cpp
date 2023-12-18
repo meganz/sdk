@@ -41,7 +41,7 @@ protected:
     std::string mPipeName;
 };
 
-TEST_F(ServerClientTest, gfxTask)
+TEST_F(ServerClientTest, RunGfxTaskSuccessfully)
 {
     ServerWin32 server(
         ::mega::make_unique<RequestProcessor>(),
@@ -82,7 +82,7 @@ TEST_F(ServerClientTest, gfxTask)
     }
 }
 
-TEST_F(ServerClientTest, hello)
+TEST_F(ServerClientTest, RunHelloRequestResponseSuccessfully)
 {
     ServerWin32 server(
         ::mega::make_unique<RequestProcessor>(),
@@ -112,7 +112,7 @@ TEST_F(ServerClientTest, hello)
     }
 }
 
-TEST_F(ServerClientTest, supportformats)
+TEST_F(ServerClientTest, RunSupportformatsRequestResponseSuccessfully)
 {
     ServerWin32 server(
         ::mega::make_unique<RequestProcessor>(),
@@ -154,7 +154,7 @@ TEST_F(ServerClientTest, supportformats)
     }
 }
 
-TEST_F(ServerClientTest, ServerIsNotRunning)
+TEST_F(ServerClientTest, RunCommandsReturnFalseWhileServerIsNotRunning)
 {
     EXPECT_FALSE(
         GfxClient(
