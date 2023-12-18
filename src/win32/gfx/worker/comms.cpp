@@ -17,33 +17,33 @@ std::wstring toFullPipeName(const std::string& name)
 
 }
 
-WinOverlap::WinOverlap()
+WinOverlapped::WinOverlapped()
 {
-    mOverlap.Offset = 0;
-    mOverlap.OffsetHigh = 0;
-    mOverlap.hEvent = CreateEvent(
+    mOverlapped.Offset = 0;
+    mOverlapped.OffsetHigh = 0;
+    mOverlapped.hEvent = CreateEvent(
         NULL,    // default security attribute
         TRUE,    // manual-reset event
         TRUE,    // initial state = signaled
         NULL);   // unnamed event object
 
-    if (mOverlap.hEvent == NULL)
+    if (mOverlapped.hEvent == NULL)
     {
         LOG_err << "CreateEvent failed. error code=" << GetLastError() << " " << mega::winErrorMessage(GetLastError());
     }
 }
 
-WinOverlap::~WinOverlap()
+WinOverlapped::~WinOverlapped()
 {
-    if (!mOverlap.hEvent)
+    if (!mOverlapped.hEvent)
     {
-        CloseHandle(mOverlap.hEvent);
+        CloseHandle(mOverlapped.hEvent);
     }
 }
 
-OVERLAPPED* WinOverlap::data()
+OVERLAPPED* WinOverlapped::data()
 {
-    return &mOverlap;
+    return &mOverlapped;
 }
 
 Win32NamedPipeEndpoint::Win32NamedPipeEndpoint(Win32NamedPipeEndpoint&& other)
@@ -64,14 +64,14 @@ Win32NamedPipeEndpoint::~Win32NamedPipeEndpoint()
 
 bool Win32NamedPipeEndpoint::doWrite(const void* data, size_t n, TimeoutMs timeout)
 {
-    auto writeOp = [this, n, data](OVERLAPPED* overlap){
+    auto writeOp = [this, n, data](OVERLAPPED* overlapped){
         DWORD written;
         auto result = WriteFile(
             mPipeHandle,            // pipe handle
             data,                   // message
             static_cast<DWORD>(n),  // message length
             &written,               // bytes written
-            overlap);               // overlapped
+            overlapped);               // overlapped
         //if (result) LOG_verbose << "write " << written << " bytes OK";
         return result;
 
@@ -82,14 +82,14 @@ bool Win32NamedPipeEndpoint::doWrite(const void* data, size_t n, TimeoutMs timeo
 
 bool Win32NamedPipeEndpoint::doRead(void* out, size_t n, TimeoutMs timeout)
 {
-    auto readOp = [this, n, out](OVERLAPPED* overlap){
+    auto readOp = [this, n, out](OVERLAPPED* overlapped){
         DWORD cbRead = 0;
         bool result = ReadFile(
             mPipeHandle,            // pipe handle
             out,                    // buffer to receive reply
             static_cast<DWORD>(n),  // size of buffer
             &cbRead,                // number of bytes read
-            overlap);               // overlapped
+            overlapped);               // overlapped
         //if (result) LOG_verbose << "read " << cbRead << " bytes OK";
         return result;
     };
@@ -106,14 +106,14 @@ bool Win32NamedPipeEndpoint::doOverlapOp(std::function<bool(OVERLAPPED*)>op,
         return false;
     }
 
-    WinOverlap overlap;
-    if (!overlap.isValid())
+    WinOverlapped overlapped;
+    if (!overlapped.isValid())
     {
         return false;
     }
 
     // call Op.
-    if (op(overlap.data()))
+    if (op(overlapped.data()))
     {
         return true;
     }
@@ -131,7 +131,7 @@ bool Win32NamedPipeEndpoint::doOverlapOp(std::function<bool(OVERLAPPED*)>op,
     DWORD numberOfBytesTransferred = 0;
     bool success = GetOverlappedResultEx(
         mPipeHandle,
-        overlap.data(),
+        overlapped.data(),
         &numberOfBytesTransferred,
         milliseconds,
         false);

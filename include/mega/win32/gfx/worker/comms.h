@@ -47,18 +47,18 @@ private:
     virtual Type type() const = 0;
 };
 
-class WinOverlap final
+class WinOverlapped final
 {
 public:
-    WinOverlap();
-    ~WinOverlap();
+    WinOverlapped();
+    ~WinOverlapped();
 
     OVERLAPPED* data();
 
-    bool isValid() const { return mOverlap.hEvent != NULL; };
+    bool isValid() const { return mOverlapped.hEvent != NULL; };
 
 private:
-    OVERLAPPED mOverlap;
+    OVERLAPPED mOverlapped;
 };
 
 } // end of namespace

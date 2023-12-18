@@ -25,17 +25,17 @@ void ServerWin32::operator()()
     serverListeningLoop();
 }
 
-std::error_code ServerWin32::waitForClient(HANDLE hPipe, OVERLAPPED* overlap)
+std::error_code ServerWin32::waitForClient(HANDLE hPipe, OVERLAPPED* overlapped)
 {
     assert(hPipe != INVALID_HANDLE_VALUE);
-    assert(overlap);
+    assert(overlapped);
 
     // Wait for the client to connect asynchronous; if it succeeds,
     // the function returns a nonzero value.
     // If the function returns zero,
     //         GetLastError returns ERROR_IO_PENDING, the IO is connected
     //         GetLastError returns ERROR_PIPE_CONNECTED, the IO is pending
-    bool success = ConnectNamedPipe(hPipe, overlap);
+    bool success = ConnectNamedPipe(hPipe, overlapped);
     if (success)
     {
         LOG_verbose << "Client connected";
@@ -58,7 +58,7 @@ std::error_code ServerWin32::waitForClient(HANDLE hPipe, OVERLAPPED* overlap)
     DWORD numberOfBytesTransferred = 0;
     if (GetOverlappedResultEx(
         hPipe,
-        overlap,
+        overlapped,
         &numberOfBytesTransferred,
         mWaitMs,
         false))
@@ -81,8 +81,8 @@ std::error_code ServerWin32::waitForClient(HANDLE hPipe, OVERLAPPED* overlap)
 
 void ServerWin32::serverListeningLoop()
 {
-    WinOverlap overlap;
-    if (!overlap.isValid())
+    WinOverlapped overlapped;
+    if (!overlapped.isValid())
     {
         return;
     }
@@ -120,7 +120,7 @@ void ServerWin32::serverListeningLoop()
         firstInstance = 0;
 
         bool stopRunning = false;
-        auto err_code = waitForClient(hPipe, overlap.data());
+        auto err_code = waitForClient(hPipe, overlapped.data());
         if (err_code)
         {
             // if has timeout and expires, we'll stop running
