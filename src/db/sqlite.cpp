@@ -349,7 +349,7 @@ bool SqliteDbAccess::ensureColumnIsInNodesTable(sqlite3* db, const string& colNa
                                                 std::function<bool()> callAfterAdded)
 {
     bool hasCol = false;
-    string sql = "SELECT COUNT(*) FROM pragma_table_info('nodes') WHERE name = '" + colName + "'";
+    string sql = "SELECT COUNT(*) FROM pragma_table_xinfo('nodes') WHERE name = '" + colName + "'";
     int result = sqlite3_exec(db, sql.c_str(), [](void* hasColumn, int colCount, char** colVals, char**)
         {
             *static_cast<bool*>(hasColumn) = colCount && colVals[0][0] != '0';
