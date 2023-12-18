@@ -1,6 +1,6 @@
 add_executable(gfxworker_test_integration
-               ${GFXWORKER_DIR}/tests/integration/common.h
-               ${GFXWORKER_DIR}/tests/integration/common.cpp
+               ${GFXWORKER_DIR}/tests/integration/executable_dir.h
+               ${GFXWORKER_DIR}/tests/integration/executable_dir.cpp
                ${GFXWORKER_DIR}/tests/integration/main.cpp
                ${GFXWORKER_DIR}/tests/integration/server_client_test.cpp
 )

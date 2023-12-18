@@ -1,4 +1,4 @@
-#include "common.h"
+#include "executable_dir.h"
 
 #include "comms_server_win32.h"
 #include "processor.h"
