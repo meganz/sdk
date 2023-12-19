@@ -4057,6 +4057,8 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     string sigCu255, versionSigCu255;
     string authringEd255, versionAuthringEd255;
     string authringCu255, versionAuthringCu255;
+    string visibleWelcomeDialog;
+    string versionVisibleWelcomeDialog;
     string pwmh, pwmhVersion;
 
     bool uspw = false;
@@ -4393,6 +4395,11 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 //                int proPlan = json.getint32();
 //            }
 //            break;
+        case MAKENAMEID8('^', '!', 'w', 'e', 'l', 'd', 'l', 'g'):
+        {
+            parseUserAttribute(json, visibleWelcomeDialog, versionVisibleWelcomeDialog);
+            break;
+        }
         case MAKENAMEID4('p', 'w', 'm', 'h'):
             parseUserAttribute(json, pwmh, pwmhVersion);
             break;

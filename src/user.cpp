@@ -646,6 +646,10 @@ string User::attr2string(attr_t type)
             attrname = "*!ccPref";
             break;
 
+        case ATTR_VISIBLE_WELCOME_DIALOG:
+            attrname = "^!weldlg";
+            break;
+
         case ATTR_PWM_BASE:
             attrname = "pwmh";
             break;
@@ -813,6 +817,11 @@ string User::attr2longname(attr_t type)
     case ATTR_CC_PREFS:
         longname = "CC_PREFS";
         break;
+
+    case ATTR_VISIBLE_WELCOME_DIALOG:
+        longname = "VISIBLE_WELCOME_DIALOG";
+        break;
+
     case ATTR_PWM_BASE:
         longname = "PWM_BASE";
         break;
@@ -972,6 +981,10 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_CC_PREFS;
     }
+    else if(!strcmp(name, "^!weldlg"))
+    {
+        return ATTR_VISIBLE_WELCOME_DIALOG;
+    }
     else
     {
         return ATTR_UNKNOWN;   // attribute not recognized
@@ -1020,6 +1033,7 @@ int User::needversioning(attr_t at)
         case ATTR_KEYS:
         case ATTR_APPS_PREFS:
         case ATTR_CC_PREFS:
+        case ATTR_VISIBLE_WELCOME_DIALOG:
             return 1;
 
         case ATTR_STORAGE_STATE: //putua is forbidden for this attribute
@@ -1068,6 +1082,7 @@ char User::scope(attr_t at)
         case ATTR_COOKIE_SETTINGS:
         case ATTR_MY_BACKUPS_FOLDER:
         case ATTR_KEYS:
+        case ATTR_VISIBLE_WELCOME_DIALOG:
         case ATTR_PWM_BASE:
             return '^';
 

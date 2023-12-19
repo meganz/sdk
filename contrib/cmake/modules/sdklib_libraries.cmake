@@ -107,7 +107,7 @@ macro(load_sdklib_libraries)
         endif()
 
         if(USE_FFMPEG)
-            pkg_check_modules(ffmpeg REQUIRED IMPORTED_TARGET libavformat libavutil libavcodec libavfilter libavdevice libswscale libswresample)
+            pkg_check_modules(ffmpeg REQUIRED IMPORTED_TARGET libavformat libavutil libavcodec libswscale libswresample)
             target_link_libraries(SDKlib PRIVATE PkgConfig::ffmpeg)
             set(HAVE_FFMPEG 1)
         endif()

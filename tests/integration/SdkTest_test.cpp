@@ -186,9 +186,12 @@ bool WaitFor(const std::function<bool()>& predicate, unsigned timeoutMs)
     return false;
 }
 
-MegaApi* newMegaApi(const char *appKey, const char *basePath, const char *userAgent, unsigned workerThreadCount)
+MegaApiTest* newMegaApi(const char* appKey,
+                        const char* basePath,
+                        const char* userAgent,
+                        unsigned workerThreadCount)
 {
-    return new MegaApi(appKey, basePath, userAgent, workerThreadCount);
+    return new MegaApiTest(appKey, basePath, userAgent, workerThreadCount);
 }
 
 enum { USERALERT_ARRIVAL_MILLISEC = 1000 };
@@ -1773,6 +1776,50 @@ void SdkTest::synchronousMediaUpload(unsigned int apiIndex, int64_t fileSize, co
     err = synchronousMediaUploadComplete(apiIndex, req.get(), fileOutput, rootnode.get(), fingerprint.get(), fingerprintOrig.get(), base64UploadToken.get(), nullptr);
 
     ASSERT_EQ(API_OK, err) << "Cannot complete media upload (error: " << err << ")";
+}
+
+void SdkTest::synchronousMediaUploadIncomplete(unsigned int apiIndex,
+                                               int64_t fileSize,
+                                               const char* filename,
+                                               const char* fileEncrypted,
+                                               std::string& fingerprint,
+                                               std::string& string64UploadToken,
+                                               std::string& string64FileKey)
+{
+    // Create a "media upload" instance
+    std::unique_ptr<MegaBackgroundMediaUploadPrivate> req(
+        dynamic_cast<MegaBackgroundMediaUploadPrivate*>(
+            MegaBackgroundMediaUpload::createInstance(megaApi[apiIndex].get())));
+
+    // Request a media upload URL
+    auto err = synchronousMediaUploadRequestURL(apiIndex, fileSize, req.get(), nullptr);
+    ASSERT_EQ(API_OK, err) << "Cannot request media upload URL (error: " << err << ")";
+
+    // Get the generated media upload URL
+    std::unique_ptr<char[]> url(req->getUploadURL());
+    ASSERT_NE(nullptr, url) << "Got NULL media upload URL";
+    ASSERT_NE('\0', url[0]) << "Got empty media upload URL";
+
+    // encrypt file contents and get URL suffix
+    std::unique_ptr<char[]> suffix(req->encryptFile(filename, 0, &fileSize, fileEncrypted, false));
+    ASSERT_NE(nullptr, suffix) << "Got NULL suffix after encryption";
+
+    fingerprint = megaApi[apiIndex]->getFingerprint(fileEncrypted);
+
+    string finalurl(url.get());
+    finalurl.append(suffix.get());
+
+    string binaryUploadToken;
+    synchronousHttpPOSTFile(finalurl, fileEncrypted, binaryUploadToken);
+
+    ASSERT_GT(binaryUploadToken.size(), 3u)
+        << "POST failed, fa server error: " << binaryUploadToken;
+
+    string64UploadToken =
+        megaApi[apiIndex]->binaryToBase64(binaryUploadToken.data(), binaryUploadToken.length());
+
+    string64FileKey = megaApi[apiIndex]->binaryToBase64(reinterpret_cast<const char*>(req->filekey),
+                                                        FILENODEKEYLENGTH);
 }
 
 string getLinkFromMailbox(const string& exe,         // Python
@@ -5208,8 +5255,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
 
     ::mega::NodeHandle megaCurDir;
 
-    MegaApiImpl* impl = *((MegaApiImpl**)(((char*)megaApi[0].get()) + sizeof(*megaApi[0].get())) - 1);
-    MegaClient* client = impl->getMegaClient();
+    auto client{megaApi[0]->getClient()};
 
     std::unique_ptr<Either> p(new Either);
     p->Add(sequence(text("cd")));
@@ -7140,7 +7186,7 @@ TEST_F(SdkTest, SdkHttpReqCommandPutFATest)
     ASSERT_FALSE(previewURL.empty()) << "Got empty preview upload URL";
 }
 
-#ifndef __APPLE__ // todo: enable for Mac (needs work in synchronousMediaUploadComplete)
+#ifndef __APPLE__
 TEST_F(SdkTest, SdkMediaImageUploadTest)
 {
     LOG_info << "___TEST MediaUploadRequestURL___";
@@ -15206,13 +15252,11 @@ TEST_F(SdkTest, SdkTestJourneyTracking)
     LOG_info << "___TEST SdkTestJourneyTracking___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-    // This UGLY cast is used so we can access the MegaClient.
     // We need to access the MegaClient to test JourneyID functionality according to specifications.
     // JID values from ug/gmf commands affect the behavior (set/unset tracking flag, update JourneyID::mJidValue if it's empty, etc.)
     // We don't have TestInstruments or any other mechanism to change the command response results, so we cannot test this just with regular requests on the intermmediate layer.
     // Finally, JourneyID is used internally on the MegaClient, it's never shared with the apps, so we need to check its value directly from MegaClient.
-    MegaApiImpl* impl = *((MegaApiImpl**)(((char*)megaApi[0].get()) + sizeof(*megaApi[0].get())) - 1);
-    MegaClient* client = impl->getMegaClient();
+    auto client{megaApi[0]->getClient()};
 
     //==================||
     //    Test ViewID   ||
@@ -15258,8 +15302,7 @@ TEST_F(SdkTest, SdkTestJourneyTracking)
     gSessionIDs[0] = "invalid";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     // New impl and client - we need to update pointers
-    impl = *((MegaApiImpl**)(((char*)megaApi[0].get()) + sizeof(*megaApi[0].get())) - 1);
-    client = impl->getMegaClient();
+    client = megaApi[0]->getClient();
 
     // TEST 3: Check JourneyID after login from a fresh instance with no cache file
     // A new JourneyID should have been retrieved from the initial "ug" command
@@ -15417,6 +15460,17 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
                                                false   /*startFirst*/,
                                                nullptr /*cancelToken*/)) << "Cannot upload " << PUBLICFILE << " as " << spreadsheetFile;
 
+    const char documentFile[] = "test.doc";
+    MegaHandle handleDocumentFile = UNDEF;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handleDocumentFile, PUBLICFILE.c_str(),
+                                               rootnode.get(),
+                                               documentFile /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload " << PUBLICFILE << " as " << documentFile;
+
     std::unique_ptr<MegaSearchFilter> filterResults(MegaSearchFilter::createInstance());
 
     filterResults->byCategory(MegaApi::FILE_TYPE_PROGRAM);
@@ -15432,8 +15486,8 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
     filterResults->byCategory(MegaApi::FILE_TYPE_DOCUMENT);
     nodeList.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_ALPHABETICAL_DESC));
     ASSERT_EQ(nodeList->size(), 2);
-    ASSERT_EQ(nodeList->get(0)->getHandle(), handlePdfFile);
-    ASSERT_EQ(nodeList->get(1)->getHandle(), handleSpreadsheetFile);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), handleSpreadsheetFile);
+    ASSERT_EQ(nodeList->get(1)->getHandle(), handleDocumentFile);
 
     filterResults->byCategory(MegaApi::FILE_TYPE_MISC);
     nodeList.reset(megaApi[0]->search(filterResults.get()));
@@ -15476,6 +15530,11 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
 {
     LOG_info << "___TEST SdkTestMegaVpnCredentials";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    ASSERT_EQ(API_ENOENT, doDelVpnCredential(0, 149))  << "Wrong error when deleting VPN credentials from unused slotID 149";
+    ASSERT_EQ(API_ENOENT, doDelVpnCredential(0, 200))  << "Wrong error when deleting VPN credentials from unused slotID 200";
+    ASSERT_EQ(API_ENOENT, doDelVpnCredential(0, 3000)) << "Wrong error when deleting VPN credentials from unused slotID 3000";
+    bool usingProductionServer = g_APIURL_default.find("staging") == string::npos;
 
     int result;
 
@@ -15545,9 +15604,19 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
         }
         else
         {
-            ASSERT_EQ(API_EACCESS, result) << "adding a new VPN credential on a free account didn't return the expected error value (are you pointing to staging?)";
-            // NOTE: by Sep 2023, the API allows free accounts to create VPN credentials temporary, during development of the feature.
-            // In production, it returns EACCESS (as it will in staging later on)
+            if (usingProductionServer)
+            {
+                ASSERT_EQ(API_EACCESS, result) << "adding a new VPN credential on a free account return wrong error (using production)";
+                ASSERT_EQ(slotID, 0);
+                ASSERT_EQ(API_EARGS, doDelVpnCredential(0, slotID)) << "deleting non-existing VPN credentials from slotID " << slotID << " returned wrong error (using production)";
+            }
+            else
+            {
+                // NOTE: by Sep 2023, the API allows free accounts to create VPN credentials temporary, during development of the feature.
+                // In production, it returns EACCESS (as it will in staging later on)
+                ASSERT_EQ(API_OK, result) << "adding a new VPN credential on a free account failed (using staging)";
+                ASSERT_GT(slotID, 0);
+            }
         }
 
         // 3-b) Check nonexistent VPN credentials
@@ -15606,8 +15675,19 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
             }
             else
             {
-                ASSERT_EQ(API_ENOENT, result) << "getting the VPN credentials for a free account didn't return the expected error value";
-                ASSERT_TRUE(megaVpnCredentials == nullptr) << "MegaVpnCredentials is NOT NULL for a free account";
+                if (usingProductionServer)
+                {
+                    ASSERT_EQ(API_ENOENT, result) << "getting the VPN credentials for a free account returned wrong error (using production)";
+                    ASSERT_FALSE(megaVpnCredentials) << "MegaVpnCredentials is NOT NULL for a free account (using production)";
+                    ASSERT_EQ(slotID, 0);
+                    ASSERT_EQ(API_EARGS, doDelVpnCredential(0, slotID)) << "deleting non-existing VPN credentials from slotID " << slotID << " returned wrong error (using production)";
+                }
+                else
+                {
+                    ASSERT_EQ(API_OK, result) << "getting the VPN credentials for a free account failed (using staging)";
+                    ASSERT_GT(slotID, 0);
+                    ASSERT_TRUE(megaVpnCredentials) << "MegaVpnCredentials is NULL for a free account (using staging)";
+                }
             }
         }
 
@@ -15631,7 +15711,15 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
         // 6) Delete VPN credentials from an unoccupied slot. Expecting ENOENT: SlotID is empty
         result = doDelVpnCredential(0, slotID);
 
-        ASSERT_EQ(API_ENOENT, result) << "deleting the VPN credentials from the unused slotID " << slotID << " didn't return the expected error value";
+        if (usingProductionServer)
+        {
+            ASSERT_EQ(API_ENOENT, result) << "deleting the VPN credentials from unused slotID " << slotID << " returned wrong error (using production)";
+        }
+        else
+        {
+            ASSERT_EQ(API_OK, result) << "deleting the VPN credentials from slotID " << slotID << " failed (using staging)";
+            ASSERT_EQ(API_ENOENT, doDelVpnCredential(0, slotID)) << "deleting the VPN credentials again from slotID " << slotID << " returned wrong error (using staging)";
+        }
 
         // 7) Delete VPN credentials from an invalid slot. Expecting EARGS: SlotID is not valid
         slotID = -1;
@@ -15882,6 +15970,377 @@ TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoANullPath)
     mApi[mApiIndex].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
     ASSERT_EQ(API_EARGS, synchronousGetUserAvatar(mApiIndex, mUser.get(), nullptr));
 }
+
+/**
+ * @brief Set and get Welcome dialog visibility
+ */
+TEST_F(SdkTest, SetGetVisibleWelcomeDialog)
+{
+    const unsigned int numberOfTestInstances{1};
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfTestInstances));
+
+    const unsigned int apiIndex{0};
+
+    std::unique_ptr<RequestTracker> requestTrackerGetOriginalVisibleWelcomeDialog{
+        asyncRequestGetVisibleWelcomeDialog(apiIndex)};
+    ASSERT_THAT(requestTrackerGetOriginalVisibleWelcomeDialog->waitForResult(),
+                ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
+    const auto originalVisibleWelcomeDialog{
+        requestTrackerGetOriginalVisibleWelcomeDialog->getFlag()};
+
+    const auto newVisibleWelcomeDialog{!originalVisibleWelcomeDialog};
+    ASSERT_EQ(API_OK, synchronousSetVisibleWelcomeDialog(apiIndex, newVisibleWelcomeDialog));
+
+    std::unique_ptr<RequestTracker> requestTrackerGetNewVisibleWelcomeDialog{
+        asyncRequestGetVisibleWelcomeDialog(apiIndex)};
+    ASSERT_EQ(API_OK, requestTrackerGetNewVisibleWelcomeDialog->waitForResult());
+    ASSERT_EQ(newVisibleWelcomeDialog, requestTrackerGetNewVisibleWelcomeDialog->getFlag());
+
+    ASSERT_EQ(API_OK, synchronousSetVisibleWelcomeDialog(apiIndex, originalVisibleWelcomeDialog));
+
+    std::unique_ptr<RequestTracker> requestTrackerGetRestoredVisibleWelcomeDialog{
+        asyncRequestGetVisibleWelcomeDialog(apiIndex)};
+    ASSERT_EQ(API_OK, requestTrackerGetRestoredVisibleWelcomeDialog->waitForResult());
+    ASSERT_EQ(originalVisibleWelcomeDialog,
+              requestTrackerGetRestoredVisibleWelcomeDialog->getFlag());
+}
+
+/**
+ * @brief Create node tree with empty parent node
+ */
+TEST_F(SdkTest, CreateNodeTreeWithEmptyParentNode)
+{
+    const unsigned int numberOfTestInstances{1};
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfTestInstances));
+
+    const unsigned int apiIndex{0};
+
+    // Create node tree
+    std::unique_ptr<MegaNodeTree> nodeTree{
+        MegaNodeTree::createInstance(nullptr, nullptr, nullptr, nullptr)};
+
+    ASSERT_EQ(API_EARGS, synchronousCreateNodeTree(apiIndex, nullptr, nodeTree.get()));
+}
+
+/**
+ * @brief Create node tree with empty node tree
+ */
+TEST_F(SdkTest, CreateNodeTreeWithEmptyNodeTree)
+{
+    const unsigned int numberOfTestInstances{1};
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfTestInstances));
+
+    const unsigned int apiIndex{0};
+
+    std::unique_ptr<MegaNode> parentNode{megaApi[apiIndex]->getRootNode()};
+    ASSERT_THAT(parentNode, ::testing::NotNull());
+
+    ASSERT_EQ(API_EARGS, synchronousCreateNodeTree(apiIndex, parentNode.get(), nullptr));
+}
+
+/**
+ * @brief Create node tree with malformed node tree
+ */
+TEST_F(SdkTest, CreateNodeTreeWithMalformedNodeTree)
+{
+    const unsigned int numberOfTestInstances{1};
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfTestInstances));
+
+    const unsigned int apiIndex{0};
+
+    std::unique_ptr<MegaNode> parentNode{megaApi[apiIndex]->getRootNode()};
+    ASSERT_THAT(parentNode, ::testing::NotNull());
+
+    // Create node tree
+    auto nodeTreeChild{MegaNodeTree::createInstance(nullptr, nullptr, nullptr, nullptr)};
+
+    const auto completeUploadData{
+        MegaCompleteUploadData::createInstance(nullptr, nullptr, nullptr)};
+
+    std::unique_ptr<MegaNodeTree> nodeTree{
+        MegaNodeTree::createInstance(nodeTreeChild, nullptr, nullptr, completeUploadData)};
+
+    ASSERT_EQ(API_EARGS, synchronousCreateNodeTree(apiIndex, parentNode.get(), nodeTree.get()));
+}
+
+/**
+ * @brief Create node tree with one directory without name
+ */
+TEST_F(SdkTest, CreateNodeTreeWithOneDirectoryWithoutName)
+{
+    const unsigned int numberOfTestInstances{1};
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfTestInstances));
+
+    const unsigned int apiIndex{0};
+
+    std::unique_ptr<MegaNode> parentNode{megaApi[apiIndex]->getRootNode()};
+    ASSERT_THAT(parentNode, ::testing::NotNull());
+
+    // Create node tree
+    std::unique_ptr<MegaNodeTree> nodeTree{
+        MegaNodeTree::createInstance(nullptr, nullptr, nullptr, nullptr)};
+
+    ASSERT_EQ(API_EARGS, synchronousCreateNodeTree(apiIndex, parentNode.get(), nodeTree.get()));
+}
+
+/**
+ * @brief Create node tree with one directory and no S4 attribute
+ *
+ * directory/
+ */
+TEST_F(SdkTest, CreateNodeTreeWithOneDirectoryAndNoS4Attribute)
+{
+    const unsigned int numberOfTestInstances{1};
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfTestInstances));
+
+    const unsigned int apiIndex{0};
+
+    std::unique_ptr<MegaNode> parentNode{megaApi[apiIndex]->getRootNode()};
+    ASSERT_THAT(parentNode, ::testing::NotNull());
+
+    // Create node tree
+    const std::string directoryName{"directory"};
+    std::unique_ptr<MegaNodeTree> nodeTree{
+        MegaNodeTree::createInstance(nullptr, directoryName.c_str(), nullptr, nullptr)};
+
+    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, parentNode.get(), nodeTree.get()));
+
+    // Check result
+    const auto directoryNodeHandle{nodeTree->getNodeHandle()};
+    std::unique_ptr<MegaNode> directoryNode{
+        megaApi[apiIndex]->getNodeByHandle(directoryNodeHandle)};
+    ASSERT_THAT(directoryNode, ::testing::NotNull());
+    ASSERT_STREQ(directoryName.c_str(), directoryNode->getName());
+    ASSERT_STREQ("", directoryNode->getS4());
+}
+
+/**
+ * @brief Create node tree with one directory and S4 attribute
+ *
+ * directory/
+ */
+TEST_F(SdkTest, CreateNodeTreeWithOneDirectoryAndS4Attribute)
+{
+    const unsigned int numberOfTestInstances{1};
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfTestInstances));
+
+    const unsigned int apiIndex{0};
+
+    std::unique_ptr<MegaNode> parentNode{megaApi[apiIndex]->getRootNode()};
+    ASSERT_THAT(parentNode, ::testing::NotNull());
+
+    // Create node tree
+    const std::string directoryName{"directory"};
+    const std::string s4AttributeValue{"value"};
+    std::unique_ptr<MegaNodeTree> nodeTree{MegaNodeTree::createInstance(nullptr,
+                                                                        directoryName.c_str(),
+                                                                        s4AttributeValue.c_str(),
+                                                                        nullptr)};
+
+    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, parentNode.get(), nodeTree.get()));
+
+    // Check result
+    const auto directoryNodeHandle{nodeTree->getNodeHandle()};
+    std::unique_ptr<MegaNode> directoryNode{
+        megaApi[apiIndex]->getNodeByHandle(directoryNodeHandle)};
+    ASSERT_THAT(directoryNode, ::testing::NotNull());
+    ASSERT_STREQ(directoryName.c_str(), directoryNode->getName());
+    ASSERT_STREQ(s4AttributeValue.c_str(), directoryNode->getS4());
+}
+
+#ifndef __APPLE__
+/**
+ * @brief Create node tree with one file
+ *
+ * logo.png
+ */
+TEST_F(SdkTest, CreateNodeTreeWithOneFile)
+{
+    const unsigned int numberOfTestInstances{1};
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfTestInstances));
+
+    const unsigned int apiIndex{0};
+
+    // File upload
+    copyFileFromTestData(IMAGEFILE);
+    const auto fileSize{getFilesize(IMAGEFILE)};
+
+    std::string fingerprint;
+    std::string string64UploadToken;
+    std::string string64FileKey;
+    ASSERT_NO_FATAL_FAILURE(synchronousMediaUploadIncomplete(apiIndex,
+                                                             fileSize,
+                                                             IMAGEFILE.c_str(),
+                                                             IMAGEFILE_C.c_str(),
+                                                             fingerprint,
+                                                             string64UploadToken,
+                                                             string64FileKey));
+
+    // Create node tree
+    std::unique_ptr<MegaNode> parentNode{megaApi[apiIndex]->getRootNode()};
+    ASSERT_THAT(parentNode, ::testing::NotNull());
+
+    const auto completeUploadData{
+        MegaCompleteUploadData::createInstance(fingerprint.c_str(),
+                                               string64UploadToken.c_str(),
+                                               string64FileKey.c_str())};
+
+    std::unique_ptr<MegaNodeTree> nodeTree{
+        MegaNodeTree::createInstance(nullptr, IMAGEFILE.c_str(), nullptr, completeUploadData)};
+
+    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, parentNode.get(), nodeTree.get()));
+
+    // Check result
+    const auto fileNodeHandle{nodeTree->getNodeHandle()};
+    std::unique_ptr<MegaNode> fileNode{megaApi[apiIndex]->getNodeByHandle(fileNodeHandle)};
+    ASSERT_THAT(fileNode, ::testing::NotNull());
+    ASSERT_STREQ(IMAGEFILE.c_str(), fileNode->getName());
+    ASSERT_EQ(fileSize, fileNode->getSize());
+}
+#endif
+
+/**
+ * @brief Create node tree with multiple levels of directories
+ *
+ * directory_0/directory_1/directory_2/
+ */
+TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectories)
+{
+    const unsigned int numberOfTestInstances{1};
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfTestInstances));
+
+    const unsigned int apiIndex{0};
+
+    std::unique_ptr<MegaNode> parentNode{megaApi[apiIndex]->getRootNode()};
+    ASSERT_THAT(parentNode, ::testing::NotNull());
+
+    // Create node tree
+    const std::string directoryNameLevel2{"directory_2"};
+    auto nodeTreeLevel2{
+        MegaNodeTree::createInstance(nullptr, directoryNameLevel2.c_str(), nullptr, nullptr)};
+
+    const std::string directoryNameLevel1{"directory_1"};
+    auto nodeTreeLevel1{MegaNodeTree::createInstance(nodeTreeLevel2,
+                                                     directoryNameLevel1.c_str(),
+                                                     nullptr,
+                                                     nullptr)};
+
+    const std::string directoryNameLevel0{"directory_0"};
+    std::unique_ptr<MegaNodeTree> nodeTreeLevel0{
+        MegaNodeTree::createInstance(nodeTreeLevel1,
+                                     directoryNameLevel0.c_str(),
+                                     nullptr,
+                                     nullptr)};
+
+    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, parentNode.get(), nodeTreeLevel0.get()));
+
+    // Check result
+    const auto directoryNodeHandleLevel0{nodeTreeLevel0->getNodeHandle()};
+    std::unique_ptr<MegaNode> directoryNodeLevel0{
+        megaApi[apiIndex]->getNodeByHandle(directoryNodeHandleLevel0)};
+    ASSERT_THAT(directoryNodeLevel0, ::testing::NotNull());
+    ASSERT_STREQ(directoryNameLevel0.c_str(), directoryNodeLevel0->getName());
+
+    const auto directoryNodeHandleLevel1{nodeTreeLevel1->getNodeHandle()};
+    std::unique_ptr<MegaNode> directoryNodeLevel1{
+        megaApi[apiIndex]->getNodeByHandle(directoryNodeHandleLevel1)};
+    ASSERT_THAT(directoryNodeLevel1, ::testing::NotNull());
+    ASSERT_STREQ(directoryNameLevel1.c_str(), directoryNodeLevel1->getName());
+
+    const auto directoryNodeHandleLevel2{nodeTreeLevel2->getNodeHandle()};
+    std::unique_ptr<MegaNode> directoryNodeLevel2{
+        megaApi[apiIndex]->getNodeByHandle(directoryNodeHandleLevel2)};
+    ASSERT_THAT(directoryNodeLevel2, ::testing::NotNull());
+    ASSERT_STREQ(directoryNameLevel2.c_str(), directoryNodeLevel2->getName());
+}
+
+#ifndef __APPLE__
+/**
+ * @brief Create node tree with multiple levels of directories and one file at the end
+ *
+ * directory_0/directory_1/directory_2/logo.png
+ */
+TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectoriesAndOneFileAtTheEnd)
+{
+    const unsigned int numberOfTestInstances{1};
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfTestInstances));
+
+    const unsigned int apiIndex{0};
+
+    std::unique_ptr<MegaNode> parentNode{megaApi[apiIndex]->getRootNode()};
+    ASSERT_THAT(parentNode, ::testing::NotNull());
+
+    // File upload
+    copyFileFromTestData(IMAGEFILE);
+    const auto fileSize{getFilesize(IMAGEFILE)};
+
+    std::string fingerprint;
+    std::string string64UploadToken;
+    std::string string64FileKey;
+    ASSERT_NO_FATAL_FAILURE(synchronousMediaUploadIncomplete(apiIndex,
+                                                             fileSize,
+                                                             IMAGEFILE.c_str(),
+                                                             IMAGEFILE_C.c_str(),
+                                                             fingerprint,
+                                                             string64UploadToken,
+                                                             string64FileKey));
+
+    // Create node tree
+    const auto completeUploadData{
+        MegaCompleteUploadData::createInstance(fingerprint.c_str(),
+                                               string64UploadToken.c_str(),
+                                               string64FileKey.c_str())};
+
+    auto nodeTreeLevel3{
+        MegaNodeTree::createInstance(nullptr, IMAGEFILE.c_str(), nullptr, completeUploadData)};
+
+    const std::string directoryNameLevel2{"directory_2"};
+    auto nodeTreeLevel2{MegaNodeTree::createInstance(nodeTreeLevel3,
+                                                     directoryNameLevel2.c_str(),
+                                                     nullptr,
+                                                     nullptr)};
+
+    const std::string directoryNameLevel1{"directory_1"};
+    auto nodeTreeLevel1{MegaNodeTree::createInstance(nodeTreeLevel2,
+                                                     directoryNameLevel1.c_str(),
+                                                     nullptr,
+                                                     nullptr)};
+
+    const std::string directoryNameLevel0{"directory_0"};
+    std::unique_ptr<MegaNodeTree> nodeTreeLevel0{
+        MegaNodeTree::createInstance(nodeTreeLevel1,
+                                     directoryNameLevel0.c_str(),
+                                     nullptr,
+                                     nullptr)};
+
+    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, parentNode.get(), nodeTreeLevel0.get()));
+
+    // Check result
+    const auto directoryNodeHandleLevel0{nodeTreeLevel0->getNodeHandle()};
+    std::unique_ptr<MegaNode> directoryNodeLevel0{
+        megaApi[apiIndex]->getNodeByHandle(directoryNodeHandleLevel0)};
+    ASSERT_THAT(directoryNodeLevel0, ::testing::NotNull());
+    ASSERT_STREQ(directoryNameLevel0.c_str(), directoryNodeLevel0->getName());
+
+    const auto directoryNodeHandleLevel1{nodeTreeLevel1->getNodeHandle()};
+    std::unique_ptr<MegaNode> directoryNodeLevel1{
+        megaApi[apiIndex]->getNodeByHandle(directoryNodeHandleLevel1)};
+    ASSERT_THAT(directoryNodeLevel1, ::testing::NotNull());
+    ASSERT_STREQ(directoryNameLevel1.c_str(), directoryNodeLevel1->getName());
+
+    const auto directoryNodeHandleLevel2{nodeTreeLevel2->getNodeHandle()};
+    std::unique_ptr<MegaNode> directoryNodeLevel2{
+        megaApi[apiIndex]->getNodeByHandle(directoryNodeHandleLevel2)};
+    ASSERT_THAT(directoryNodeLevel2, ::testing::NotNull());
+    ASSERT_STREQ(directoryNameLevel2.c_str(), directoryNodeLevel2->getName());
+
+    const auto fileNodeHandle{nodeTreeLevel3->getNodeHandle()};
+    std::unique_ptr<MegaNode> fileNode{megaApi[apiIndex]->getNodeByHandle(fileNodeHandle)};
+    ASSERT_THAT(fileNode, ::testing::NotNull());
+    ASSERT_STREQ(IMAGEFILE.c_str(), fileNode->getName());
+    ASSERT_EQ(fileSize, fileNode->getSize());
+}
+#endif
 
 /**
  * @brief TEST_F SdkTestGetPasswordNodeBase

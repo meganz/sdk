@@ -214,7 +214,7 @@ CONFIG(USE_LIBUV) {
 CONFIG(USE_MEDIAINFO) {
     DEFINES += USE_MEDIAINFO UNICODE
 
-    vcpkg:LIBS += -lmediainfo$$MI_DEBUG_SUFFIX -lzen$$MI_DEBUG_SUFFIX 
+    vcpkg:LIBS += -lmediainfo$$MI_DEBUG_SUFFIX -lzen$$MI_DEBUG_SUFFIX -ltinyxml2
     vcpkg:win32:LIBS += -lzlib$$DEBUG_SUFFIX
     vcpkg:!win32:LIBS += -lz
 
@@ -614,7 +614,7 @@ vcpkg {
     release:LIBS += -L"$$THIRDPARTY_VCPKG_PATH/lib"
     debug:LIBS += -L"$$THIRDPARTY_VCPKG_PATH/debug/lib"
 
-    win32:LIBS += -llibsodium -lcryptopp-static -lzlib$$DEBUG_SUFFIX
+    win32:LIBS += -llibsodium -lcryptopp -lzlib$$DEBUG_SUFFIX
     else:LIBS += -lsodium -lcryptopp -lz
     win32:DEFINES += SODIUM_STATIC
     LIBS += -lsqlite3
