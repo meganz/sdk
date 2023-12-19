@@ -16221,18 +16221,21 @@ protected:
 
     int upload(MegaHandle* newNodeHandleResult, const char *localPath, MegaNode *parent);
 
-    void expectOneSuccessJob(int& oldTotalJobs,
-                             int& oldOkResults,
-                             int& oldNoResults) const;
+    bool waitForOneSuccessJob(int& oldTotalJobs,
+                              int& oldOkResults,
+                              int& oldNoResults,
+                              unsigned timeoutMs) const;
 
-    void expectOneFailedJob(int& oldTotalJobs,
-                            int& oldOkResults,
-                            int& oldNoResults) const;
+    bool waitForOneFailedJob(int& oldTotalJobs,
+                             int& oldOkResults,
+                             int& oldNoResults,
+                             unsigned timeoutMs) const;
 
     // either success or failed
-    void expectOneEitherJob(int& oldTotalJobs,
-                            int& oldOkResults,
-                            int& oldNoResults) const;
+    bool waitForOneEitherJob(int& oldTotalJobs,
+                             int& oldOkResults,
+                             int& oldNoResults,
+                             unsigned timeoutMs) const;
 
     // no new job, counters are unchanged
     void expectNoNewJob(int& oldTotalJobs,
@@ -16267,51 +16270,98 @@ void SdkTestGfx::TearDown()
     SdkTest::TearDown();
 }
 
-void SdkTestGfx::expectOneSuccessJob(int& oldTotalJobs,
+bool SdkTestGfx::waitForOneSuccessJob(int& oldTotalJobs,
+                                      int& oldOkResults,
+                                      int& oldNoResults,
+                                      unsigned timeoutMs) const
+{
+    int totalJobs = 0, okResults = 0, noResults = 0;
+    auto oneSuccessJobPred = [&]()
+    {
+        std::tie(totalJobs, okResults, noResults) = mClient->gfx->getCounters();
+
+        return totalJobs == oldTotalJobs + 1 && // Expect one more gfx processing job
+               okResults == oldOkResults + 2 && // Expect both thumbnail and preview are generated
+               noResults == oldNoResults;       // Expect none of thumbnail and preview generation failed
+    };
+
+    bool result = WaitFor(oneSuccessJobPred, timeoutMs);
+    if (result)
+    {
+        // pass back current counters on success
+        oldTotalJobs = totalJobs, oldOkResults = okResults, oldNoResults = noResults;
+    }
+    else
+    {
+        LOG_err << "waitForOneSuccessJob failed. totalJobs/okResults/noResults,"
+                << " old:" << oldTotalJobs << "/" << oldOkResults << "/" << oldNoResults
+                << " latest:" << totalJobs << "/" << okResults << "/" << noResults;
+    }
+    return result;
+}
+
+bool SdkTestGfx::waitForOneFailedJob(int& oldTotalJobs,
                                      int& oldOkResults,
-                                     int& oldNoResults) const
+                                     int& oldNoResults,
+                                     unsigned timeoutMs) const
 {
     int totalJobs = 0, okResults = 0, noResults = 0;
-    std::tie(totalJobs, okResults, noResults) = mClient->gfx->getCounters();
 
-    EXPECT_EQ(totalJobs, oldTotalJobs + 1) << "Expect one more gfx processing job";
-    EXPECT_EQ(okResults, oldOkResults + 2) << "Expect both thumbnail and preview are generated";
-    EXPECT_EQ(noResults, oldNoResults) << "Expect none of thumbnail and preview generation failed";
+    auto oneFailedJobPred = [&]()
+    {
+        std::tie(totalJobs, okResults, noResults) = mClient->gfx->getCounters();
 
-    // pass back current counters
-    oldTotalJobs = totalJobs, oldOkResults = okResults, oldNoResults = noResults;
+        return totalJobs == oldTotalJobs + 1 && // Expect one more gfx processing job
+               okResults == oldOkResults &&     // Expect neither thumbnail and preview are generated
+               noResults == oldNoResults + 2;   // Expect both thumbnail and preview generation failed
+    };
+
+    bool result = WaitFor(oneFailedJobPred, timeoutMs);
+    if (result)
+    {
+        // pass back current counters on success
+        oldTotalJobs = totalJobs, oldOkResults = okResults, oldNoResults = noResults;
+    }
+    else
+    {
+        LOG_err << "waitForOneFailedJob failed. totalJobs/okResults/noResults,"
+                << " old:" << oldTotalJobs << "/" << oldOkResults << "/" << oldNoResults
+                << " latest:" << totalJobs << "/" << okResults << "/" << noResults;
+    }
+    return result;
 }
 
-void SdkTestGfx::expectOneFailedJob(int& oldTotalJobs,
-                                    int& oldOkResults,
-                                    int& oldNoResults) const
+bool SdkTestGfx::waitForOneEitherJob(int& oldTotalJobs,
+                                     int& oldOkResults,
+                                     int& oldNoResults,
+                                     unsigned timeoutMs) const
 {
     int totalJobs = 0, okResults = 0, noResults = 0;
-    std::tie(totalJobs, okResults, noResults) = mClient->gfx->getCounters();
 
-    EXPECT_EQ(totalJobs, oldTotalJobs + 1) << "Expect one more gfx processing job";
-    EXPECT_EQ(okResults, oldOkResults) << "Expect neither thumbnail and preview are generated";
-    EXPECT_EQ(noResults, oldNoResults + 2) << "Expect both thumbnail and preview generation failed";
+    auto oneEitherJobPred = [&]()
+    {
+        std::tie(totalJobs, okResults, noResults) = mClient->gfx->getCounters();
 
-    // pass back current counters
-    oldTotalJobs = totalJobs, oldOkResults = okResults, oldNoResults = noResults;
-}
+        // Expect one more gfx processing job
+        // Expect the preview and thumbnail are either both sucessful or failed
+        return totalJobs == oldTotalJobs + 1 &&
+               (okResults == (oldOkResults + 2) || noResults == (oldNoResults + 2)) &&
+               (okResults == oldOkResults || noResults == oldNoResults);
+    };
 
-void SdkTestGfx::expectOneEitherJob(int& oldTotalJobs,
-                                    int& oldOkResults,
-                                    int& oldNoResults) const
-{
-    int totalJobs = 0, okResults = 0, noResults = 0;
-    std::tie(totalJobs, okResults, noResults) = mClient->gfx->getCounters();
-
-    ASSERT_EQ(totalJobs, oldTotalJobs + 1) << "Expect one more gfx job is prcoessed";
-    ASSERT_TRUE(
-        (okResults == (oldOkResults + 2) || noResults == (oldNoResults + 2)) &&
-        (okResults == oldOkResults || noResults == oldNoResults)
-    ) << "Expect the preview and thumbnail are either both sucessful or failed if process crashed";
-
-    // pass back current counters
-    oldTotalJobs = totalJobs, oldOkResults = okResults, oldNoResults = noResults;
+    bool result = WaitFor(oneEitherJobPred, timeoutMs);
+    if (result)
+    {
+        // pass back current counters on success
+        oldTotalJobs = totalJobs, oldOkResults = okResults, oldNoResults = noResults;
+    }
+    else
+    {
+        LOG_err << "waitForOneEitherJob failed. totalJobs/okResults/noResults,"
+                << " old:" << oldTotalJobs << "/" << oldOkResults << "/" << oldNoResults
+                << " latest:" << totalJobs << "/" << okResults << "/" << noResults;
+    }
+    return result;
 }
 
 void SdkTestGfx::expectNoNewJob(int& oldTotalJobs,
@@ -16359,9 +16409,9 @@ TEST_F(SdkTestGfx, BasicGfxProcessForUpload)
 
     // convenience
     MegaHandle uploadedNode = UNDEF;
-    using ExpectFun = void(SdkTestGfx_BasicGfxProcessForUpload_Test::*)(int&, int&, int&) const;
+    using WaitForCounterPred = bool(SdkTestGfx_BasicGfxProcessForUpload_Test::*)(int&, int&, int&, unsigned) const;
     auto checkGfxProcessForUpload = [this, rootnodePtr, &uploadedNode]
-        (const std::string &imageFile, ExpectFun expectFun) {
+        (const std::string &imageFile, WaitForCounterPred expectFun) {
                 // upload
                 uploadedNode = UNDEF;
                 copyFileFromTestData(imageFile);
@@ -16369,9 +16419,9 @@ TEST_F(SdkTestGfx, BasicGfxProcessForUpload)
                                                     imageFile.c_str(),
                                                     rootnodePtr)) << "Cannot upload a test file";
                 // check gfx counters
-                ASSERT_NO_FATAL_FAILURE(
-                    (this->*expectFun)(mCurrentTotalJobs, mCurrentOkResults, mCurrentNoResults)
-                );
+                ASSERT_TRUE(
+                    (this->*expectFun)(mCurrentTotalJobs, mCurrentOkResults, mCurrentNoResults, 30*1000)
+                ) << "Gfx counters checking failed";
         };
 
     // a bad file
@@ -16379,7 +16429,7 @@ TEST_F(SdkTestGfx, BasicGfxProcessForUpload)
 
     ASSERT_NO_FATAL_FAILURE(
         checkGfxProcessForUpload("notvalid.jpg",
-                                 &SdkTestGfx_BasicGfxProcessForUpload_Test::expectOneFailedJob)
+                                 &SdkTestGfx_BasicGfxProcessForUpload_Test::waitForOneFailedJob)
     );
 
 #if defined(WIN32) // at moment, isolated gfx process is only supported in windows
@@ -16388,7 +16438,7 @@ TEST_F(SdkTestGfx, BasicGfxProcessForUpload)
 
     ASSERT_NO_FATAL_FAILURE(
         checkGfxProcessForUpload("likelycrash.tif",
-                                 &SdkTestGfx_BasicGfxProcessForUpload_Test::expectOneEitherJob)
+                                 &SdkTestGfx_BasicGfxProcessForUpload_Test::waitForOneEitherJob)
     );
 #endif
 
@@ -16397,7 +16447,7 @@ TEST_F(SdkTestGfx, BasicGfxProcessForUpload)
 
     ASSERT_NO_FATAL_FAILURE(
         checkGfxProcessForUpload(IMAGEFILE,
-                                 &SdkTestGfx_BasicGfxProcessForUpload_Test::expectOneSuccessJob)
+                                &SdkTestGfx_BasicGfxProcessForUpload_Test::waitForOneSuccessJob)
     );
 
     // Get the thumbnail of the uploaded image should be OK
@@ -16474,11 +16524,12 @@ TEST_F(SdkTestGfx, GfxProcessCrashImageInSyncOnlyOnce)
     WaitFor([fileIsSynced, &imageFile](){ return fileIsSynced(imageFile);}, 120*1000);
 
     // check counters
-    ASSERT_NO_FATAL_FAILURE(
-        expectOneEitherJob(
+    ASSERT_TRUE(
+        waitForOneEitherJob(
             mCurrentTotalJobs,
             mCurrentOkResults,
-            mCurrentNoResults)
+            mCurrentNoResults,
+            30*1000)
     );
 
     // simulate some sync activities, and wait for synced
