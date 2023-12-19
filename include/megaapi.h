@@ -476,10 +476,7 @@ class MegaNode
             CHANGE_TYPE_FAVOURITE       = 0x1000,
             CHANGE_TYPE_COUNTER         = 0x2000,
             CHANGE_TYPE_SENSITIVE       = 0x4000,
-            CHANGE_TYPE_PWD_VALUE       = 0x8000,
-            CHANGE_TYPE_PWD_NOTES       = 0x10000,
-            CHANGE_TYPE_PWD_URL         = 0x20000,
-            CHANGE_TYPE_PWD_USERNAME    = 0x40000,
+            CHANGE_TYPE_PWD             = 0x8000,
         };
 
         /**
@@ -973,17 +970,8 @@ class MegaNode
          * - MegaNode::CHANGE_TYPE_NEW             = 0x400
          * Check if the node is new
          *
-         * - MegaNode::CHANGE_TYPE_PWD_VALUE       = 0x8000
-         * Check if Password Node Data password value for this node changed
-         *
-         * - MegaNode::CHANGE_TYPE_PWD_NOTES       = 0x10000
-         * Check if Password Node Data notes value for this node changed
-         *
-         * - MegaNode::CHANGE_TYPE_PWD_URL         = 0x20000
-         * Check if Password Node Data URL value for this node changed
-         *
-         * - MegaNode::CHANGE_TYPE_PWD_USERNAME    = 0x40000
-         * Check if Password Node Data user name value for this node changed
+         * - MegaNode::CHANGE_TYPE_PWD             = 0x8000
+         * Check if any Password Node Data value for this node changed
          *
          * @return true if this node has an specific change
          */
@@ -1039,17 +1027,8 @@ class MegaNode
          * - MegaNode::CHANGE_TYPE_COUNTER         = 0x2000
          * Check if counter for this node (its subtree) has changed
          *
-         * - MegaNode::CHANGE_TYPE_PWD_VALUE       = 0x8000
-         * Check if Password Node Data password value for this node changed
-         *
-         * - MegaNode::CHANGE_TYPE_PWD_NOTES       = 0x10000
-         * Check if Password Node Data notes value for this node changed
-         *
-         * - MegaNode::CHANGE_TYPE_PWD_URL         = 0x20000
-         * Check if Password Node Data URL value for this node changed
-         *
-         * - MegaNode::CHANGE_TYPE_PWD_USERNAME    = 0x40000
-         * Check if Password Node Data user name value for this node changed
+         * - MegaNode::CHANGE_TYPE_PWD             = 0x8000
+         * Check if any Password Node Data value for this node changed
          *
          */
         virtual uint64_t getChanges();

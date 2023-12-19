@@ -1130,18 +1130,8 @@ void Node::setattr()
         changed.favourite = attrs.hasDifferentValue(AttrMap::string2nameid("fav"), oldAttrs.map);
         changed.sensitive = attrs.hasDifferentValue(AttrMap::string2nameid("sen"), oldAttrs.map);
 
-        const auto namePWD = AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_MANAGER);
-        if (attrs.hasDifferentValue(namePWD, oldAttrs.map))
-        {
-            AttrMap oldPWD, newPWD;
-            oldPWD.fromjson(oldAttrs.map[namePWD].c_str());
-            newPWD.fromjson(attrs.map[namePWD].c_str());
-
-            changed.pwdValue = oldPWD.hasUpdate(AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_PWD), newPWD.map);
-            changed.pwdNotes = oldPWD.hasUpdate(AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_NOTES), newPWD.map);
-            changed.pwdURL = oldPWD.hasUpdate(AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_URL), newPWD.map);
-            changed.pwdUsername = oldPWD.hasUpdate(AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_USERNAME), newPWD.map);
-        }
+        const auto pwdNameid = AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_MANAGER);
+        changed.pwd = attrs.hasDifferentValue(pwdNameid, oldAttrs.map);
 
         setfingerprint();
 

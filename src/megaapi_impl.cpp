@@ -502,21 +502,9 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     {
         this->changed |= MegaNode::CHANGE_TYPE_SENSITIVE;
     }
-    if (node->changed.pwdValue)
+    if (node->changed.pwd)
     {
-        this->changed |= MegaNode::CHANGE_TYPE_PWD_VALUE;
-    }
-    if (node->changed.pwdNotes)
-    {
-        this->changed |= MegaNode::CHANGE_TYPE_PWD_NOTES;
-    }
-    if (node->changed.pwdURL)
-    {
-        this->changed |= MegaNode::CHANGE_TYPE_PWD_URL;
-    }
-    if (node->changed.pwdUsername)
-    {
-        this->changed |= MegaNode::CHANGE_TYPE_PWD_USERNAME;
+        this->changed |= MegaNode::CHANGE_TYPE_PWD;
     }
 
     this->thumbnailAvailable = (node->hasfileattribute(0) != 0);

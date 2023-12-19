@@ -16052,7 +16052,7 @@ TEST_F(SdkTest, SdkTestPasswordManager)
     pwdData->password(nPwd);
     check1 = false;
     mApi[userIdx].mOnNodesUpdateCompletion =
-        createOnNodesUpdateLambda(newPwdNode->getHandle(), MegaNode::CHANGE_TYPE_PWD_VALUE, check1);
+        createOnNodesUpdateLambda(newPwdNode->getHandle(), MegaNode::CHANGE_TYPE_PWD, check1);
     RequestTracker rtUpdate {megaApi[userIdx].get()};
     megaApi[userIdx]->updatePasswordNode(newPwdNodeHandle, pwdData.get(), &rtUpdate);
     ASSERT_EQ(API_OK, rtUpdate.waitForResult());
@@ -16076,7 +16076,7 @@ TEST_F(SdkTest, SdkTestPasswordManager)
         MegaNode::PasswordNodeData::createInstance(nullptr, newNotes, nullptr, nullptr)};
     check1 = false;
     mApi[userIdx].mOnNodesUpdateCompletion =
-        createOnNodesUpdateLambda(newPwdNode->getHandle(), MegaNode::CHANGE_TYPE_PWD_NOTES, check1);
+        createOnNodesUpdateLambda(newPwdNode->getHandle(), MegaNode::CHANGE_TYPE_PWD, check1);
     RequestTracker rtUNotes {megaApi[userIdx].get()};
     megaApi[userIdx]->updatePasswordNode(newPwdNodeHandle, updatedData.get(), &rtUNotes);
     ASSERT_EQ(API_OK, rtUNotes.waitForResult());
@@ -16089,7 +16089,7 @@ TEST_F(SdkTest, SdkTestPasswordManager)
     updatedData.reset(MegaNode::PasswordNodeData::createInstance(nullptr, nullptr, newURL, nullptr));
     check1 = false;
     mApi[userIdx].mOnNodesUpdateCompletion =
-        createOnNodesUpdateLambda(newPwdNode->getHandle(), MegaNode::CHANGE_TYPE_PWD_URL, check1);
+        createOnNodesUpdateLambda(newPwdNode->getHandle(), MegaNode::CHANGE_TYPE_PWD, check1);
     RequestTracker rtUURL{megaApi[userIdx].get()};
     megaApi[userIdx]->updatePasswordNode(newPwdNodeHandle, updatedData.get(), &rtUURL);
     ASSERT_EQ(API_OK, rtUURL.waitForResult());
@@ -16102,7 +16102,7 @@ TEST_F(SdkTest, SdkTestPasswordManager)
     updatedData.reset(MegaNode::PasswordNodeData::createInstance(nullptr, nullptr, nullptr, newUserName));
     check1 = false;
     mApi[userIdx].mOnNodesUpdateCompletion =
-        createOnNodesUpdateLambda(newPwdNode->getHandle(), MegaNode::CHANGE_TYPE_PWD_USERNAME, check1);
+        createOnNodesUpdateLambda(newPwdNode->getHandle(), MegaNode::CHANGE_TYPE_PWD, check1);
     RequestTracker rtUUserName{megaApi[userIdx].get()};
     megaApi[userIdx]->updatePasswordNode(newPwdNodeHandle, updatedData.get(), &rtUUserName);
     ASSERT_EQ(API_OK, rtUUserName.waitForResult());
