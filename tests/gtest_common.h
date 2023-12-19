@@ -139,7 +139,7 @@ public:
     std::string getExecutable() const { return mArgs.empty() ? std::string() : mArgs[0]; }
     std::string getFilter() const { return mGtestFilterIdx < mArgs.size() ? mArgs[mGtestFilterIdx] : std::string(); }
 
-    size_t getAccountsPerInstance() const { return mAccEnvVars.size(); }
+    inline size_t getAccountsPerInstance() const { return mAccEnvVars.size(); }
 
     bool hidingWorkerMemLeaks() const { return mHideWorkerMemLeaks; }
 
@@ -150,15 +150,16 @@ protected:
     static string buildAlignedHelpString(const string& var, const std::vector<string>& descr);
 
 private:
-    std::tuple<std::string, size_t, size_t, std::string> breakTemplate() const;
-    static bool isTemplate(const std::string& email);
+    bool validateRequirements(const std::string& emailTemplate);
+    bool breakTemplate(const std::string& tplt);
+    bool usingTemplate() const;
 
     size_t mInstanceCount = 0u;
+    std::tuple<std::string, size_t, size_t, std::string> mEmailTemplateValues; // extracted from "foo+bar-{1-15}@mega.co.nz"
     size_t mCurrentInstance = SIZE_MAX;
     std::string mTestName;
     std::string mApiUrl;
     std::string mUserAgent;
-    std::string mEmailTemplate; // "foo+bar-{1-100}@mega.co.nz"
     size_t mGtestFilterIdx = SIZE_MAX; // avoid a search
     bool mHideWorkerMemLeaks = false;
 

@@ -455,7 +455,7 @@ public:
     SdkRuntimeArgValues(std::vector<std::string>&& args, std::vector<std::pair<std::string, std::string>>&& envVars) :
         RuntimeArgValues(std::move(args), std::move(envVars))
     {
-        if (isHelp())
+        if (isHelp() || isListOnly() || !isValid())
         {
             return;
         }
