@@ -16142,7 +16142,6 @@ TEST_F(SdkTest, CreateNodeTreeWithOneDirectoryAndS4Attribute)
     ASSERT_STREQ(s4AttributeValue.c_str(), directoryNode->getS4());
 }
 
-#ifndef __APPLE__
 /**
  * @brief Create node tree with one file
  *
@@ -16191,7 +16190,6 @@ TEST_F(SdkTest, CreateNodeTreeWithOneFile)
     ASSERT_STREQ(IMAGEFILE.c_str(), fileNode->getName());
     ASSERT_EQ(fileSize, fileNode->getSize());
 }
-#endif
 
 /**
  * @brief Create node tree with multiple levels of directories
