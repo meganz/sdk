@@ -160,10 +160,8 @@ TEST_F(ServerClientTest, RunCommandsReturnFalseWhileServerIsNotRunning)
         ).runShutDown()
     );
 
-    auto dimensions = std::vector<GfxDimension> {
-        { 200, 0 },     // THUMBNAIL: square thumbnail, cropped from near center
-        { 1000, 1000 }  // PREVIEW: scaled version inside 1000x1000 bounding square
-    };
+    // could be any dimensions
+    std::vector<GfxDimension> dimensions;
     std::vector<std::string> images;
 
     EXPECT_FALSE(
