@@ -339,7 +339,13 @@ RuntimeArgValues::RuntimeArgValues(vector<string>&& args, vector<pair<string, st
 
     for (auto it = args.begin(); it != args.end();)
     {
-        // handle common args
+        if (Utils::startswith(*it, "--#"))
+        {
+            // commented out args, e.g. --#INSTANCES:3
+            it = args.erase(it);
+            continue;
+        }
+
         string arg = Utils::toUpperUtf8(*it);
 
         if (arg == "--HELP")
@@ -431,15 +437,12 @@ RuntimeArgValues::RuntimeArgValues(vector<string>&& args, vector<pair<string, st
     {
         mTestName = args[mGtestFilterIdx].substr(15);
     }
-    else if (isMainProcWithWorkers())
-    {
-        // save args that will be passed to subprocesses
-        mArgs = std::move(args);
-    }
-    else
+    else if (!isMainProcWithWorkers())
     {
         mRunMode = TestRunMode::MAIN_PROCESS_ONLY;
     }
+
+    mArgs = std::move(args);
 }
 
 bool RuntimeArgValues::validateRequirements(const string& emailTemplate)
@@ -467,8 +470,8 @@ bool RuntimeArgValues::validateRequirements(const string& emailTemplate)
         }
         else
         {
-            const char* teplt = getenv(mAccEnvVars[0].first.c_str());
-            if (!teplt)
+            const string& teplt = Utils::getenv(mAccEnvVars[0].first, "");
+            if (teplt.empty())
             {
                 std::cerr << "Missing both $" << mAccEnvVars[0].first << " env var and --EMAIL-POOL runtime parameter" << std::endl;
                 return false;
@@ -482,14 +485,14 @@ bool RuntimeArgValues::validateRequirements(const string& emailTemplate)
         size_t instanceCountFromTemplate = (std::get<2>(mEmailTemplateValues) - std::get<1>(mEmailTemplateValues) + 1) / getAccountsPerInstance();
         if (!instanceCountFromTemplate)
         {
-            std::cerr << "Invalid email template, 0 instances allowed" << std::endl;
+            const string& t = emailTemplate.empty() ? Utils::getenv(mAccEnvVars[0].first, "") : emailTemplate;
+            std::cerr << "Invalid email template " << t << ", 0 instances allowed" << std::endl;
             return false;
         }
         if (mInstanceCount && instanceCountFromTemplate < mInstanceCount)
         {
-            std::cerr << "WARNING: Accounts extracted from email template (" << instanceCountFromTemplate << ") are not enough for"
-                         "\nrequested instances (" << mInstanceCount << "). Running with maximum " << instanceCountFromTemplate <<
-                         " instances instead." << std::endl;
+            std::cerr << "WARNING: Not enough accounts in email template (" << instanceCountFromTemplate << ") for requested instances (" << mInstanceCount << ")."
+                      << "\nRunning with maximum " << instanceCountFromTemplate << " instances instead.\n" << std::endl;
             mInstanceCount = instanceCountFromTemplate;
         }
         return true;
@@ -626,12 +629,12 @@ unordered_map<string, string> RuntimeArgValues::getEnvVarsForWorker(size_t idx) 
     {
         envVars[mAccEnvVars[i].first] = std::get<0>(mEmailTemplateValues) + std::to_string(first + i) + std::get<3>(mEmailTemplateValues);
 
-        static const char* pswd = nullptr;
-        if (!i)
+        // the first passwrod will be duplicated for the rest of accounts
+        static const string pswd{ Utils::getenv(mAccEnvVars[0].second, "")};
+
+        if (!i && pswd.empty())
         {
-            // the first passwrod will be duplicated for the rest of accounts
-            pswd = getenv(mAccEnvVars[0].second.c_str());
-            if (!pswd) return envVars;
+            return envVars;
         }
         else
         {

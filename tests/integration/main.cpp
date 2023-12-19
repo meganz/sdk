@@ -460,17 +460,8 @@ public:
             return;
         }
 
-        auto& aa = isMainProcWithWorkers() ? mArgs : args;
-
-        for (auto it = aa.begin(); it != aa.end();)
+        for (auto it = mArgs.begin(); it != mArgs.end();)
         {
-            if (Utils::startswith(*it, "--#"))
-            {
-                // commented out args, e.g. --#INSTANCES:3
-                it = aa.erase(it);
-                continue;
-            }
-
             string arg = Utils::toUpperUtf8(*it);
 
             if (arg == "--LOG")
