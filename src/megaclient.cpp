@@ -20177,6 +20177,14 @@ void MegaClient::putSet(Set&& s, std::function<void(Error, const Set*)> completi
     // create Set
     if (s.id() == UNDEF)
     {
+        if (s.type() >= Set::TYPE_SIZE)
+        {
+            LOG_err << "Sets: Invalid Set type " << static_cast<unsigned int>(s.type()) << ". Maximum valid type is "
+                    << static_cast<unsigned int>(Set::TYPE_SIZE) - 1;
+            if (completion) completion(API_EARGS, nullptr);
+            return;
+        }
+
         // generate AES-128 Set key
         encrSetKey = rng.genstring(SymmCipher::KEYLENGTH);
         s.setKey(encrSetKey);
