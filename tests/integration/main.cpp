@@ -313,13 +313,9 @@ void synchronousHttpPOSTFile(const string& url, const string& filepath, string& 
 #ifdef WIN32
     synchronousHttpPOSTData(url, loadfile(filepath), responsedata);
 #else
-#ifdef __APPLE__
-    // tbd
-#else
     string command = "curl -s --data-binary @";
     command.append(filepath).append(" ").append(url.c_str());
     responsedata = runProgram(command, PROG_OUTPUT_TYPE::BINARY);
-#endif
 #endif
 }
 
