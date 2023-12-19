@@ -31,7 +31,7 @@ public:
     CommError connect(std::unique_ptr<IEndpoint>& endpoint) override;
 
 private:
-    CommError do_connect(LPCTSTR pipeName, HANDLE &hPipe);
+    CommError doConnect(LPCTSTR pipeName, HANDLE &hPipe);
 
     CommError toCommError(DWORD winError) const;
 

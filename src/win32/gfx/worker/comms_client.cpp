@@ -1,12 +1,11 @@
 #include "mega/logging.h"
-#include "mega/filesystem.h"
 #include "mega/win32/gfx/worker/comms_client.h"
 #include "mega/gfx/worker/comms.h"
 
 namespace mega {
 namespace gfx {
 
-CommError WinGfxCommunicationsClient::do_connect(LPCTSTR pipeName, HANDLE &hPipe)
+CommError WinGfxCommunicationsClient::doConnect(LPCTSTR pipeName, HANDLE &hPipe)
 {
     CommError error = CommError::ERR;
     hPipe = INVALID_HANDLE_VALUE;
@@ -56,7 +55,7 @@ CommError WinGfxCommunicationsClient::connect(std::unique_ptr<IEndpoint>& endpoi
 {
     const auto fullPipeName = win_utils::toFullPipeName(mPipeName);
     HANDLE hPipe = INVALID_HANDLE_VALUE;
-    const CommError error  = do_connect(fullPipeName.c_str(), hPipe);
+    const CommError error  = doConnect(fullPipeName.c_str(), hPipe);
     endpoint = hPipe == INVALID_HANDLE_VALUE ? nullptr : mega::make_unique<Win32NamedPipeEndpointClient>(hPipe, "client");
     return error;
 }
