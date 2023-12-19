@@ -1366,6 +1366,7 @@ public:
     {
         SET_TYPE_ALBUM = 0,
         SET_TYPE_PLAYLIST = 1,
+        SET_TYPE_IGNORE = SET_TYPE_ALBUM,
     };
 
 };
