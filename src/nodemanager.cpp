@@ -31,6 +31,7 @@ namespace mega {
 
 NodeManager::NodeManager(MegaClient& client)
     : mClient(client)
+    , mNodesInRam{0}
 {
 }
 
@@ -301,15 +302,15 @@ sharedNode_list NodeManager::getChildren_internal(const Node *parent, CancelToke
 
             if (child.second)
             {
-                childrenList.push_back(child.second->getNodeInRam());
+                childrenList.push_back(getNodeFromNodeManagerNode(*child.second));
             }
             else
             {
                 shared_ptr<Node> n = getNodeFromDataBase(child.first);
-                assert(n);
+                assert(n && "Node should be present at DB");
                 if (n)
                 {
-                    childrenList.push_back(n);
+                    childrenList.push_back(std::move(n));
                 }
             }
         }
@@ -322,7 +323,10 @@ sharedNode_list NodeManager::getChildren_internal(const Node *parent, CancelToke
             {
                 if (child.second)
                 {
-                    childrenList.push_back(child.second->getNodeInRam());
+                    if (shared_ptr<Node> node = child.second->getNodeInRam())
+                    {
+                        childrenList.push_back(std::move(node));
+                    }
                 }
             }
         }
@@ -361,7 +365,7 @@ sharedNode_list NodeManager::getChildren_internal(const Node *parent, CancelToke
                         return childrenList;
                     }
 
-                    childrenList.push_back(n);
+                    childrenList.push_back(std::move(n));
                 }
                 else  // -> node loaded, but it isn't associated to the parent -> the node has been moved but DB isn't already updated
                 {
@@ -657,8 +661,8 @@ sharedNode_vector NodeManager::getNodesByFingerprint_internal(FileFingerprint &f
         Node* node = static_cast<Node*>(*it);
         fpLoaded.emplace(node->nodeHandle());
         std::shared_ptr<Node> sharedNode = node->mNodePosition->second.getNodeInRam();
-        assert(sharedNode);
-        nodes.push_back(sharedNode);
+        assert(sharedNode && "Node loaded at fingerprint map should have a node in RAM ");
+        nodes.push_back(std::move(sharedNode));
     }
 
     // If all fingerprints are loaded at DB, it isn't necessary search in DB
@@ -679,15 +683,24 @@ sharedNode_vector NodeManager::getNodesByFingerprint_internal(FileFingerprint &f
             // avoid to load already loaded nodes (found at mFingerPrints)
             if (fpLoaded.find(nodeIt.first) == fpLoaded.end())
             {
-                std::shared_ptr<Node> node = getNodeFromNodeSerialized(nodeIt.second);
+                std::shared_ptr<Node> node;
+                auto it = mNodes.find(nodeIt.first);
+                if (it != mNodes.end())
+                {
+                    node = it->second.getNodeInRam();
+                }
 
                 if (!node)
                 {
-                    nodes.clear();
-                    return nodes;
+                    node = getNodeFromNodeSerialized(nodeIt.second);
+                    if (!node)
+                    {
+                        nodes.clear();
+                        return nodes;
+                    }
                 }
 
-                nodes.push_back(node);
+                nodes.push_back(std::move(node));
             }
         }
     }
@@ -750,8 +763,9 @@ std::shared_ptr<Node> NodeManager::getNodeByFingerprint_internal(FileFingerprint
     fingerprint.FileFingerprint::serialize(&fingerprintString);
     NodeHandle handle;
     mTable->getNodeByFingerprint(fingerprintString, nodeSerialized, handle);
-    std::shared_ptr<Node> node;
-    if (nodeSerialized.mNode.size()) // nodes with that fingerprint found in DB
+    auto itNode = mNodes.find(handle);
+    std::shared_ptr<Node> node = itNode != mNodes.end() ? itNode->second.getNodeInRam() : nullptr;
+    if (!node && nodeSerialized.mNode.size()) // nodes with that fingerprint found in DB
     {
         node = getNodeFromNodeSerialized(nodeSerialized);
     }
@@ -843,18 +857,18 @@ sharedNode_vector NodeManager::getRootNodes_internal()
     if (mNodes.size()) // nodes already loaded from DB
     {
         std::shared_ptr<Node> rootNode = rootnodes.mRootNodes[ROOTNODE];
-        assert(rootNode);
-        nodes.push_back(rootNode);
+        assert(rootNode && "Root node should be defined");
+        nodes.push_back(std::move(rootNode));
 
         if (!mClient.loggedIntoFolder())
         {
             std::shared_ptr<Node> inBox = rootnodes.mRootNodes[VAULTNODE];
-            assert(inBox);
-            nodes.push_back(inBox);
+            assert(inBox && "Vault node node should be defined (except logged into folder link)");
+            nodes.push_back(std::move(inBox));
 
             std::shared_ptr<Node> rubbish = rootnodes.mRootNodes[RUBBISHNODE];
-            assert(rubbish);
-            nodes.push_back(rubbish);
+            assert(rubbish && "Rubbishbin node node should be defined (except logged into folder link)");
+            nodes.push_back(std::move(rubbish));
         }
     }
     else    // nodes not loaded yet
@@ -869,8 +883,8 @@ sharedNode_vector NodeManager::getRootNodes_internal()
                 return nodes;
             }
 
-            nodes.push_back(n);
             setrootnode_internal(n);
+            nodes.push_back(std::move(n));
         }
         else
         {
@@ -887,9 +901,9 @@ sharedNode_vector NodeManager::getRootNodes_internal()
                     return nodes;
                 }
 
-                nodes.push_back(n);
-
                 setrootnode_internal(n);
+                nodes.push_back(std::move(n));
+
             }
         }
     }
@@ -1212,7 +1226,7 @@ void NodeManager::removeChanges_internal()
 
     for (auto& it : mNodes)
     {
-        std::shared_ptr<Node> node = it.second.getNodeInRam();
+        std::shared_ptr<Node> node = it.second.getNodeInRam(false);
         if (node)
         {
             memset(&(node->changed), 0, sizeof node->changed);
@@ -1232,6 +1246,7 @@ void NodeManager::cleanNodes_internal()
 
     mFingerPrints.clear();
     mNodes.clear();
+    mCacheLRU.clear();
     mNodesInRam = 0;
     mNodeToWriteInDb.reset();
     mNodeNotify.clear();
@@ -1269,10 +1284,11 @@ shared_ptr<Node> NodeManager::unserializeNode(const std::string *d, bool fromOld
         auto pair = mNodes.emplace(n->nodeHandle(), NodeManagerNode(*this, n->nodeHandle()));
         // The NodeManagerNode could have been added in the initial fetch nodes (without session)
         // Now, the node is loaded from DB, NodeManagerNode is updated with correct values
-        mNodesInRam++;
         auto& nodePosition = pair.first;
         nodePosition->second.setNode(n);
         n->mNodePosition = nodePosition;
+
+        insertNodeCacheLRU_internal(n);
 
         // setparent() skiping update of node counters, since they are already calculated in DB
         // In DB migration we have to calculate them as they aren't calculated previously
@@ -1304,7 +1320,7 @@ void NodeManager::applyKeys_internal(uint32_t appliedKeys)
     {
         for (auto& it : mNodes)
         {
-            if (shared_ptr<Node> node = it.second.getNodeInRam())
+            if (shared_ptr<Node> node = it.second.getNodeInRam(false))
             {
                node->applykey();
             }
@@ -1396,7 +1412,12 @@ void NodeManager::notifyPurge()
 
                 removeFingerprint(n.get());
 
-                mNodesInRam--;
+                // effectively delete node from RAM
+                if (n->mNodePosition->second.mLRUPosition != invalidCacheLRUPos())
+                {
+                    mCacheLRU.erase(n->mNodePosition->second.mLRUPosition);
+                }
+
                 mNodes.erase(n->mNodePosition);
                 n->mNodePosition = mNodes.end();
 
@@ -1479,11 +1500,12 @@ void NodeManager::saveNodeInRAM(std::shared_ptr<Node> node, bool isRootnode, Mis
 
     auto pair = mNodes.emplace(node->nodeHandle(), NodeManagerNode(*this, node->nodeHandle()));
     // The NodeManagerNode could have been added by NodeManager::addChild() but, in that case, mNode would be invalid
-    mNodesInRam++;
     auto& nodePosition = pair.first;
     nodePosition->second.setNode(node);
     nodePosition->second.mAllChildrenHandleLoaded = true; // Receive a new node, children aren't received yet or they are stored a mNodesWithMissingParents
     node->mNodePosition = nodePosition;
+
+    insertNodeCacheLRU_internal(node);
 
     // In case of rootnode, no need to add to missingParentNodes
     if (!isRootnode)
@@ -1617,9 +1639,46 @@ std::shared_ptr<Node> NodeManager::getNodeFromNodeManagerNode(NodeManagerNode& n
 {
     LockGuard g(mMutex);
     shared_ptr<Node> node = nodeManagerNode.getNodeInRam();
-    assert(!node);
+    if (!node)
+    {
+        node = getNodeFromDataBase(nodeManagerNode.getNodeHandle());
+    }
 
     return node;
+}
+
+void NodeManager::insertNodeCacheLRU(std::shared_ptr<Node> node)
+{
+    LockGuard g(mMutex);
+    insertNodeCacheLRU_internal(node);
+}
+
+void NodeManager::increaseNumNodesInRam()
+{
+    mNodesInRam++;
+}
+
+void NodeManager::decreaseNumNodesInRam()
+{
+    mNodesInRam--;
+}
+
+uint64_t NodeManager::getCacheLRUMaxSize() const
+{
+    return mCacheLRUMaxSize;
+}
+
+void NodeManager::setCacheLRUMaxSize(uint64_t cacheLRUMaxSize)
+{
+    LockGuard g(mMutex);
+    mCacheLRUMaxSize = cacheLRUMaxSize;
+
+    unLoadNodeFromCacheLRU(); // check if it's necessary unload nodes
+}
+
+uint64_t NodeManager::getNumNodesAtCacheLRU() const
+{
+    return mCacheLRU.size();
 }
 
 void NodeManager::initCompleted_internal()
@@ -1645,6 +1704,37 @@ void NodeManager::initCompleted_internal()
 bool NodeManager::ready()
 {
     return mInitialized;
+}
+
+void NodeManager::insertNodeCacheLRU_internal(std::shared_ptr<Node> node)
+{
+    assert(mMutex.owns_lock() && "Mutex should be locked by this thread");
+    if (node->mNodePosition->second.mLRUPosition != mCacheLRU.end())
+    {
+        mCacheLRU.erase(node->mNodePosition->second.mLRUPosition);
+    }
+
+    node->mNodePosition->second.mLRUPosition = mCacheLRU.insert(mCacheLRU.begin(), node);
+    unLoadNodeFromCacheLRU(); // check if it's necessary unload nodes
+
+    // setfingerprint again to force to insert into NodeManager::mFingerPrints
+    // only nodes in LRU are at NodeManager::mFingerPrints
+    if (node->mFingerPrintPosition == invalidFingerprintPos())
+    {
+        node->setfingerprint();
+    }
+}
+
+void NodeManager::unLoadNodeFromCacheLRU()
+{
+    assert(mMutex.owns_lock() && "Mutex should be locked by this thread");
+    while (mCacheLRU.size() > mCacheLRUMaxSize)
+    {
+        std::shared_ptr<Node> node = mCacheLRU.back();
+        removeFingerprint(node.get(), true);
+        node->mNodePosition->second.mLRUPosition = invalidCacheLRUPos();
+        mCacheLRU.pop_back();
+    }
 }
 
 NodeCounter NodeManager::getCounterOfRootNodes()
@@ -1766,6 +1856,12 @@ FingerprintPosition NodeManager::invalidFingerprintPos()
 {
     // no locking for this one, it returns a constant
     return mFingerPrints.end();
+}
+
+std::list<std::shared_ptr<Node> >::const_iterator NodeManager::invalidCacheLRUPos() const
+{
+    // no locking for this one, it returns a constant
+    return mCacheLRU.end();
 }
 
 void NodeManager::dumpNodes()
@@ -2013,7 +2109,7 @@ sharedNode_vector NodeManager::processUnserializedNodes(const std::vector<std::p
             }
         }
 
-        nodes.push_back(n);
+        nodes.push_back(std::move(n));
     }
 
     return nodes;

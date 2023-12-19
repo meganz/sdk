@@ -1653,42 +1653,47 @@ void StandardClient::syncupdate_stalled(bool state)
 
 bool StandardClient::isUserAttributeSet(attr_t attr, unsigned int numSeconds, error& err)
 {
-    int tag = client.reqtag;
     std::recursive_mutex attr_cv_mutex;
     std::condition_variable_any user_attribute_updated_cv;
     bool attrIsSet = false;
     std::atomic_bool replyReceived{false};
+    auto  completionErr = [&](error e)
     {
-        std::lock_guard<std::mutex> g(mUserAttributeMutex);
-        mOnGetUA = [&](const attr_t at, error e)
-        {
-            if (tag != client.restag)
-            {
-                return;
-            }
+        std::lock_guard<std::recursive_mutex> g(attr_cv_mutex);
+        err = e;
+        LOG_debug << "attr: " << attr << " error: " << err;
+        replyReceived = true;
+        user_attribute_updated_cv.notify_one();
+    };
 
-            std::lock_guard<std::recursive_mutex> g(attr_cv_mutex);
-            err = e;
-            if (err == API_OK)
-            {
-                assert(at == attr);
-                LOG_debug << "attr: " << attr << " is set";
-                attrIsSet = true;
-            }
+    auto completionBytes = [&](::mega::byte*, unsigned, attr_t)
+    {
+        std::lock_guard<std::recursive_mutex> g(attr_cv_mutex);
+        err = API_OK;
+        LOG_debug << "attr: " << attr << " is set";
+        replyReceived = true;
+        attrIsSet = true;
+        user_attribute_updated_cv.notify_one();
+    };
 
-            replyReceived = true;
-            user_attribute_updated_cv.notify_one();
-        };
-    }
+    auto completionTLV = [&](TLVstore*, attr_t)
+    {
+        std::lock_guard<std::recursive_mutex> g(attr_cv_mutex);
+        err = API_OK;
+        LOG_debug << "attr: " << attr << " is set";
+        replyReceived = true;
+        attrIsSet = true;
+        user_attribute_updated_cv.notify_one();
+    };
 
     std::unique_lock<std::recursive_mutex> g(attr_cv_mutex);
-    client.getua(client.ownuser(), attr);
+    resultproc.prepresult(COMPLETION, ++next_request_tag,
+        [&](){
+            client.getua(client.ownuser(), attr, -1, completionErr, completionBytes, completionTLV);
+        }, nullptr);
+
 
     user_attribute_updated_cv.wait_for(g, std::chrono::seconds(numSeconds), [&replyReceived](){ return replyReceived.load(); });
-    {
-        std::lock_guard<std::mutex> g(mUserAttributeMutex);
-        mOnGetUA = nullptr;
-    }
 
     return attrIsSet;
 }
@@ -1730,21 +1735,25 @@ bool StandardClient::waitForAttrDeviceIdIsSet(unsigned int numSeconds, bool& upd
     // serialize and encrypt the TLV container
     std::unique_ptr<string> container(tlv->tlvRecordsToContainer(client.rng, &client.key));
     std::unique_lock<std::recursive_mutex> g(attrDeviceNamePut_mutex);
-    client.putua(attr_t::ATTR_DEVICE_NAMES, (::mega::byte *)container->data(), unsigned(container->size()), -1, UNDEF, 0, 0, [&](Error e)
-    {
-        std::lock_guard<std::recursive_mutex> g(attrDeviceNamePut_mutex);
-        if (e == API_OK)
-        {
-            attrDeviceNamePut = true;
-        }
-        else
-        {
-            LOG_err << "Error setting device id user attribute";
-        }
+    resultproc.prepresult(COMPLETION, ++next_request_tag,
+        [&](){
+            client.putua(attr_t::ATTR_DEVICE_NAMES, (::mega::byte *)container->data(), unsigned(container->size()), -1, UNDEF, 0, 0, [&](Error e)
+            {
+                std::lock_guard<std::recursive_mutex> g(attrDeviceNamePut_mutex);
+                if (e == API_OK)
+                {
+                    attrDeviceNamePut = true;
+                }
+                else
+                {
+                    LOG_err << "Error setting device id user attribute";
+                }
 
-        replyReceived = true;
-        attrDeviceNamePut_cv.notify_one();
-    });
+                replyReceived = true;
+                attrDeviceNamePut_cv.notify_one();
+            });
+        }, nullptr);
+
 
     attrDeviceNamePut_cv.wait_for(g, std::chrono::seconds(numSeconds), [&replyReceived](){ return replyReceived.load(); });
 
@@ -1758,7 +1767,7 @@ bool StandardClient::waitForAttrDeviceIdIsSet(unsigned int numSeconds, bool& upd
     return isUserAttributeSet(attr_t::ATTR_DEVICE_NAMES, numSeconds, err);
 }
 
-bool StandardClient::waitForAttrMyBackupIsSet(unsigned int numSeconds)
+bool StandardClient::waitForAttrMyBackupIsSet(unsigned int numSeconds, bool& newBackupIsSet)
 {
     error err  = API_EINTERNAL;
     bool attrMyBackupFolderIsSet = isUserAttributeSet(attr_t::ATTR_MY_BACKUPS_FOLDER, numSeconds, err);
@@ -1775,21 +1784,27 @@ bool StandardClient::waitForAttrMyBackupIsSet(unsigned int numSeconds)
     std::condition_variable_any user_attribute_backup_updated_cv;
     std::atomic_bool replyReceived{false};
     std::unique_lock<std::recursive_mutex> g(attrMyBackup_cv_mutex);
-    client.setbackupfolder(folderName, client.reqtag, [&](Error e)
-    {
-        std::lock_guard<std::recursive_mutex> g(attrMyBackup_cv_mutex);
-        if (e == API_OK)
-        {
-            attrMyBackupFolderIsSet = true;
-        }
-        else
-        {
-            LOG_err << "Error setting backup folder user attribute";
-        }
 
-        replyReceived = true;
-        user_attribute_backup_updated_cv.notify_one();
-    });
+    resultproc.prepresult(COMPLETION, ++next_request_tag,
+        [&](){
+            client.setbackupfolder(folderName, client.reqtag, [&](Error e)
+            {
+                std::lock_guard<std::recursive_mutex> g(attrMyBackup_cv_mutex);
+                if (e == API_OK)
+                {
+                    attrMyBackupFolderIsSet = true;
+                    newBackupIsSet = true;
+                }
+                else
+                {
+                    LOG_err << "Error setting backup folder user attribute";
+                }
+
+                replyReceived = true;
+                user_attribute_backup_updated_cv.notify_one();
+            });
+        }, nullptr);
+
 
     user_attribute_backup_updated_cv.wait_for(g, std::chrono::seconds(numSeconds), [&replyReceived](){ return replyReceived.load(); });
 
@@ -1799,7 +1814,7 @@ bool StandardClient::waitForAttrMyBackupIsSet(unsigned int numSeconds)
     }
 
     // Check if attribute has been established properly
-    return isUserAttributeSet(attr_t::ATTR_MY_BACKUPS_FOLDER, numSeconds, err);;
+    return isUserAttributeSet(attr_t::ATTR_MY_BACKUPS_FOLDER, numSeconds, err);
 }
 
 void StandardClient::file_added(File* file)
@@ -2603,7 +2618,8 @@ void StandardClient::deleteTestBaseFolder(bool mayNeedDeleting, bool deleted, Pr
 {
     if (std::shared_ptr<Node> root = client.nodeByHandle(client.mNodeManager.getRootNodeFiles()))
     {
-        if (std::shared_ptr<Node> basenode = client.childnodebyname(root.get(), "mega_test_sync", false))
+        std::shared_ptr<Node> basenode = client.childnodebyname(root.get(), "mega_test_sync", false);
+        if (basenode && !basenode->changed.removed) // ensure it isn't already marked as removed
         {
             if (mayNeedDeleting)
             {
@@ -5924,7 +5940,7 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderBetweenSyncs)
 
     bool deviceIdUpdated = false;
     ASSERT_TRUE(clientA1->waitForAttrDeviceIdIsSet(60, deviceIdUpdated)) << "Error User attr device id isn't establised client1";
-    if (deviceIdUpdated)  // only wait for action package if atribute has been updated
+    if (deviceIdUpdated)  // only wait for action package if atribute has been set or updated
     {
         // Waiting period finished when callback register at createsOnUserUpdateLamda returns true
         ASSERT_TRUE(clientA2->waitForUserUpdated(60)) << "User update doesn't arrive at client2 (device id)";
@@ -5939,11 +5955,51 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderBetweenSyncs)
     clientA2->removeOnUserUpdateLamda();
     clientA3->removeOnUserUpdateLamda();
 
-    // ATTR_MY_BACKUPS_FOLDER is only set once, if it exists, it shouldn't be modified
-    ASSERT_TRUE(clientA1->waitForAttrMyBackupIsSet(60)) << "Error User attr My Back Folder isn't establised client1";
-    ASSERT_TRUE(clientA2->waitForAttrMyBackupIsSet(60)) << "Error User attr My Back Folder isn't establised client2";
-    ASSERT_TRUE(clientA3->waitForAttrMyBackupIsSet(60)) << "Error User attr My Back Folder isn't establised client3";
+    // ATTR_MY_BACKUPS_FOLDER is only set once, if it exists, it shouldn't be set again
+    bool backUpIsSet = false;
+    ASSERT_TRUE(clientA1->waitForAttrMyBackupIsSet(60, backUpIsSet)) << "Error User attr My Back Folder isn't establised client1";
+    if (backUpIsSet) // only wait for action package if atribute has been set
+    {
+        auto receivedBackUpId = [](User* actionPackageUser, User* ownUser)
+        {
+            assert(actionPackageUser && ownUser);
+            if (actionPackageUser->userhandle == ownUser->userhandle && actionPackageUser->changed.myBackupsFolder)
+            {
+                return true;
+            }
 
+            return false;
+        };
+
+        User* ownUserClient2 = clientA2->client.ownuser();
+        // Register a callback to be used when users_updated is called. This callBack is used to stop waiting period at waitForUserUpdated
+        // removeOnUserUpdateLamda should be called to unregister
+        clientA2->createsOnUserUpdateLamda([ownUserClient2, receivedBackUpId](User* user)
+        {
+            return receivedBackUpId(user, ownUserClient2);
+        });
+
+        User* ownUserClient3 = clientA3->client.ownuser();
+        // Register a callback to be used when users_updated is called. This callBack is used to stop waiting period at waitForUserUpdated
+        // removeOnUserUpdateLamda should be called to unregister
+        clientA3->createsOnUserUpdateLamda([ownUserClient3, receivedBackUpId](User* user)
+        {
+            return receivedBackUpId(user, ownUserClient3);
+        });
+
+        ASSERT_TRUE(clientA2->waitForUserUpdated(60)) << "User update doesn't arrive at client2 (backup folder)";
+        ASSERT_TRUE(clientA3->waitForUserUpdated(60)) << "User update doesn't arrive at client3 (backup folder)";
+        clientA2->removeOnUserUpdateLamda();
+        clientA3->removeOnUserUpdateLamda();
+
+        // Check attribute has been set correctly
+        backUpIsSet = false;
+        ASSERT_TRUE(clientA2->waitForAttrMyBackupIsSet(60, backUpIsSet)) << "Error User attr My Back Folder isn't establised client2";
+        ASSERT_EQ(backUpIsSet, false); // It has already set
+        backUpIsSet = false;
+        ASSERT_TRUE(clientA3->waitForAttrMyBackupIsSet(60, backUpIsSet)) << "Error User attr My Back Folder isn't establised client3";
+        ASSERT_EQ(backUpIsSet, false); // It has already set
+    }
 
     ASSERT_TRUE(clientA1->resetBaseFolderMulticlient(clientA2, clientA3));
     ASSERT_TRUE(clientA1->makeCloudSubdirs("f", 3, 3));
@@ -6914,7 +6970,7 @@ TEST_F(SyncTest, CmdChecks_RRAttributeAfterMoveNode)
     ASSERT_TRUE(waitonresults(&fb));
 
     f = pclientA1->drillchildnodebyname(pclientA1->getcloudrubbishnode(), "f");
-    ASSERT_TRUE(f == nullptr);
+    ASSERT_TRUE(f == nullptr || f->changed.removed);
 
 
     // remove remote folder via A2
@@ -7110,18 +7166,22 @@ TEST_F(SyncTest, NodeSorting_forPhotosAndVideos)
     sharedNode_vector v{ photo1, photo2, video1, video2, otherfolder, otherfile };
     for (auto n : v) n->setkey(key);
 
+    /*deprecated*/
     MegaApiImpl::sortByComparatorFunction(v, MegaApi::ORDER_PHOTO_ASC, client);
     sharedNode_vector v2{ photo1, photo2, video1, video2, otherfolder, otherfile };
     ASSERT_EQ(v, v2);
 
+    /*deprecated*/
     MegaApiImpl::sortByComparatorFunction(v, MegaApi::ORDER_PHOTO_DESC, client);
     sharedNode_vector v3{ photo2, photo1, video2, video1, otherfolder, otherfile };
     ASSERT_EQ(v, v3);
 
+    /*deprecated*/
     MegaApiImpl::sortByComparatorFunction(v, MegaApi::ORDER_VIDEO_ASC, client);
     sharedNode_vector v4{ video1, video2, photo1, photo2, otherfolder, otherfile };
     ASSERT_EQ(v, v4);
 
+    /*deprecated*/
     MegaApiImpl::sortByComparatorFunction(v, MegaApi::ORDER_VIDEO_DESC, client);
     sharedNode_vector v5{ video2, video1, photo2, photo1, otherfolder, otherfile };
     ASSERT_EQ(v, v5);

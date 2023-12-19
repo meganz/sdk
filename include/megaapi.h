@@ -95,6 +95,8 @@ class MegaIntegerList;
 class MegaSyncStall;
 class MegaSyncStallList;
 class MegaVpnCredentials;
+class MegaNodeTree;
+class MegaCompleteUploadData;
 
 #if defined(SWIG)
     #define MEGA_DEPRECATED
@@ -4410,10 +4412,11 @@ class MegaRequest
             TYPE_FETCH_CREDIT_CARD_INFO                                     = 178,
             TYPE_MOVE_TO_DEBRIS                                             = 179,
             TYPE_RING_INDIVIDUAL_IN_CALL                                    = 180,
-            TYPE_CREATE_PASSWORD_MANAGER_BASE                               = 181,
-            TYPE_CREATE_PASSWORD_NODE                                       = 182,
-            TYPE_UPDATE_PASSWORD_NODE                                       = 183,
-            TOTAL_OF_REQUEST_TYPES                                          = 184,
+            TYPE_CREATE_NODE_TREE                                           = 181,
+            TYPE_CREATE_PASSWORD_MANAGER_BASE                               = 182,
+            TYPE_CREATE_PASSWORD_NODE                                       = 183,
+            TYPE_UPDATE_PASSWORD_NODE                                       = 184,
+            TOTAL_OF_REQUEST_TYPES                                          = 185,
         };
 
         virtual ~MegaRequest();
@@ -4903,6 +4906,7 @@ class MegaRequest
          * - MegaApi::getChatLinkURL - Returns a vector with one element (callid), if call doesn't exit it will be NULL
          * - MegaApi::setScheduledCopy - Returns if backups that should have happen in the past should be taken care of
          * - MegaApi::sendEvent - Returns true if the JourneyID should be tracked
+         * - MegaApi::getVisibleWelcomeDialog - Returns true if the Welcome dialog is visible
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -9440,6 +9444,33 @@ public:
     virtual int64_t byModificationTimeUpperLimit() const;
 };
 
+class MegaNodeTree
+{
+protected:
+    MegaNodeTree() = default;
+
+public:
+    virtual ~MegaNodeTree() = default;
+    static MegaNodeTree* createInstance(MegaNodeTree* nodeTreeChild,
+                                        const char* name,
+                                        const char* s4AttributeValue,
+                                        const MegaCompleteUploadData* completeUploadData);
+    virtual MegaNodeTree* getNodeTreeChild() const = 0;
+    virtual MegaHandle getNodeHandle() const = 0;
+};
+
+class MegaCompleteUploadData
+{
+protected:
+    MegaCompleteUploadData() = default;
+
+public:
+    virtual ~MegaCompleteUploadData() = default;
+    static MegaCompleteUploadData* createInstance(const char* fingerprint,
+                                                  const char* string64UploadToken,
+                                                  const char* string64FileKey);
+};
+
 class MegaApiImpl;
 
 /**
@@ -9580,7 +9611,8 @@ class MegaApi
             USER_ATTR_NO_CALLKIT = 36,           // private - byte array
             USER_ATTR_APPS_PREFS = 38,           // private - byte array - versioned
             USER_ATTR_CC_PREFS   = 39,           // private - byte array - versioned
-            USER_ATTR_PWM_BASE = 40,             // private non-encrypted (fully controlled by API) - char array in B64
+            USER_ATTR_VISIBLE_WELCOME_DIALOG = 40, // private - byte array - versioned
+            USER_ATTR_PWM_BASE = 41,             // private non-encrypted (fully controlled by API) - char array in B64
         };
 
         enum {
@@ -16476,8 +16508,7 @@ class MegaApi
          */
         unsigned long long getNumNodes();
 
-        /**
-         * @brief Get the total number of nodes in the account
+        /** @brief Get the total number of nodes in the account
          *
          * @note This method locks SDK mutex, returned value is up to date
          * This calls gets blocked if it's called between a node is added or removed and
@@ -16487,13 +16518,22 @@ class MegaApi
          */
         unsigned long long getAccurateNumNodes();
 
+        /**
+         * @brief Set LRU cache size
+         *
+         * By default it's defined at unsigned long long max value
+         *
+         * @param size LRU cache size
+         */
+        void setLRUCacheSize(unsigned long long size);
+
         enum { ORDER_NONE = 0, ORDER_DEFAULT_ASC, ORDER_DEFAULT_DESC,
             ORDER_SIZE_ASC, ORDER_SIZE_DESC,
             ORDER_CREATION_ASC, ORDER_CREATION_DESC,
             ORDER_MODIFICATION_ASC, ORDER_MODIFICATION_DESC,
-            ORDER_ALPHABETICAL_ASC, ORDER_ALPHABETICAL_DESC,
-            ORDER_PHOTO_ASC, ORDER_PHOTO_DESC,
-            ORDER_VIDEO_ASC, ORDER_VIDEO_DESC,
+            /*deprecated*/ ORDER_ALPHABETICAL_ASC, /*deprecated*/ ORDER_ALPHABETICAL_DESC,
+            /*deprecated*/ ORDER_PHOTO_ASC, /*deprecated*/ ORDER_PHOTO_DESC,
+            /*deprecated*/ ORDER_VIDEO_ASC, /*deprecated*/ ORDER_VIDEO_DESC,
             ORDER_LINK_CREATION_ASC, ORDER_LINK_CREATION_DESC,
             ORDER_LABEL_ASC, ORDER_LABEL_DESC, ORDER_FAV_ASC, ORDER_FAV_DESC,};
 
@@ -16598,22 +16638,22 @@ class MegaApi
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
          * Sort by modification time of the original file, descending
          *
-         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_ASC = 9
          * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
-         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * - deprecated: MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
          *
-         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * - deprecated: MegaApi::ORDER_PHOTO_DESC = 12
          * Sort with photos first, then by date descending
          *
-         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * - deprecated: MegaApi::ORDER_VIDEO_ASC = 13
          * Sort with videos first, then by date ascending
          *
-         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * - deprecated: MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
@@ -16627,10 +16667,6 @@ class MegaApi
          *
          * - MegaApi::ORDER_FAV_DESC = 20
          * Sort nodes with favourite attr last. With this order, folders are returned first, then files
-         *
-         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-         * They will be eventually removed.
          *
          * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
          * @return List with all child MegaNode objects
@@ -16680,22 +16716,22 @@ class MegaApi
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
          * Sort by modification time of the original file, descending
          *
-         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_ASC = 9
          * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
-         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * - deprecated: MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
          *
-         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * - deprecated: MegaApi::ORDER_PHOTO_DESC = 12
          * Sort with photos first, then by date descending
          *
-         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * - deprecated: MegaApi::ORDER_VIDEO_ASC = 13
          * Sort with videos first, then by date ascending
          *
-         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * - deprecated: MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
@@ -16709,10 +16745,6 @@ class MegaApi
          *
          * - MegaApi::ORDER_FAV_DESC = 20
          * Sort nodes with favourite attr last. With this order, folders are returned first, then files
-         *
-         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-         * They will be eventually removed.
          *
          * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
          *
@@ -16758,16 +16790,16 @@ class MegaApi
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
          * Sort by modification time of the original file, descending
          *
-         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * - deprecated: MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
          *
-         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * - deprecated: MegaApi::ORDER_PHOTO_DESC = 12
          * Sort with photos first, then by date descending
          *
-         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * - deprecated: MegaApi::ORDER_VIDEO_ASC = 13
          * Sort with videos first, then by date ascending
          *
-         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * - deprecated: MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
@@ -16864,16 +16896,16 @@ class MegaApi
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
          * Sort by modification time of the original file, descending
          *
-         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * - deprecated: MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
          *
-         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * - deprecated: MegaApi::ORDER_PHOTO_DESC = 12
          * Sort with photos first, then by date descending
          *
-         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * - deprecated: MegaApi::ORDER_VIDEO_ASC = 13
          * Sort with videos first, then by date ascending
          *
-         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * - deprecated: MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
@@ -17806,26 +17838,22 @@ class MegaApi
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
          * Sort by modification time of the original file, descending
          *
-         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_ASC = 9
          * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
-         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-         * They will be eventually removed.
-         *
-         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * - deprecated: MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
          *
-         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * - deprecated: MegaApi::ORDER_PHOTO_DESC = 12
          * Sort with photos first, then by date descending
          *
-         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * - deprecated: MegaApi::ORDER_VIDEO_ASC = 13
          * Sort with videos first, then by date ascending
          *
-         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * - deprecated: MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
@@ -17886,26 +17914,22 @@ class MegaApi
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
          * Sort by modification time of the original file, descending
          *
-         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_ASC = 9
          * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
-         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-         * They will be eventually removed.
-         *
-         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * - deprecated: MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
          *
-         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * - deprecated: MegaApi::ORDER_PHOTO_DESC = 12
          * Sort with photos first, then by date descending
          *
-         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * - deprecated: MegaApi::ORDER_VIDEO_ASC = 13
          * Sort with videos first, then by date ascending
          *
-         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * - deprecated: MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
@@ -17973,26 +17997,22 @@ class MegaApi
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
          * Sort by modification time of the original file, descending
          *
-         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_ASC = 9
          * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
-         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-         * They will be eventually removed.
-         *
-         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * - deprecated: MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
          *
-         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * - deprecated: MegaApi::ORDER_PHOTO_DESC = 12
          * Sort with photos first, then by date descending
          *
-         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * - deprecated: MegaApi::ORDER_VIDEO_ASC = 13
          * Sort with videos first, then by date ascending
          *
-         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * - deprecated: MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
@@ -18058,26 +18078,22 @@ class MegaApi
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
          * Sort by modification time of the original file, descending
          *
-         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_ASC = 9
          * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
-         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-         * They will be eventually removed.
-         *
-         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * - deprecated: MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
          *
-         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * - deprecated: MegaApi::ORDER_PHOTO_DESC = 12
          * Sort with photos first, then by date descending
          *
-         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * - deprecated: MegaApi::ORDER_VIDEO_ASC = 13
          * Sort with videos first, then by date ascending
          *
-         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * - deprecated: MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
@@ -18146,26 +18162,22 @@ class MegaApi
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
          * Sort by modification time of the original file, descending
          *
-         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_ASC = 9
          * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
-         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-         * They will be eventually removed.
-         *
-         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * - deprecated: MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
          *
-         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * - deprecated: MegaApi::ORDER_PHOTO_DESC = 12
          * Sort with photos first, then by date descending
          *
-         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * - deprecated: MegaApi::ORDER_VIDEO_ASC = 13
          * Sort with videos first, then by date ascending
          *
-         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * - deprecated: MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
@@ -18230,26 +18242,22 @@ class MegaApi
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
          * Sort by modification time of the original file, descending
          *
-         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_ASC = 9
          * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
-         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-         * They will be eventually removed.
-         *
-         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * - deprecated: MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
          *
-         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * - deprecated: MegaApi::ORDER_PHOTO_DESC = 12
          * Sort with photos first, then by date descending
          *
-         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * - deprecated: MegaApi::ORDER_VIDEO_ASC = 13
          * Sort with videos first, then by date ascending
          *
-         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * - deprecated: MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
@@ -18314,26 +18322,22 @@ class MegaApi
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
          * Sort by modification time of the original file, descending
          *
-         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_ASC = 9
          * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
-         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-         * They will be eventually removed.
-         *
-         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * - deprecated: MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
          *
-         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * - deprecated: MegaApi::ORDER_PHOTO_DESC = 12
          * Sort with photos first, then by date descending
          *
-         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * - deprecated: MegaApi::ORDER_VIDEO_ASC = 13
          * Sort with videos first, then by date ascending
          *
-         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * - deprecated: MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
@@ -18398,26 +18402,22 @@ class MegaApi
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
          * Sort by modification time of the original file, descending
          *
-         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_ASC = 9
          * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
-         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * - deprecated: MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-         * They will be eventually removed.
-         *
-         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * - deprecated: MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
          *
-         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * - deprecated: MegaApi::ORDER_PHOTO_DESC = 12
          * Sort with photos first, then by date descending
          *
-         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * - deprecated: MegaApi::ORDER_VIDEO_ASC = 13
          * Sort with videos first, then by date ascending
          *
-         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * - deprecated: MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
@@ -18454,7 +18454,7 @@ class MegaApi
          * return an empty list.
          *
          * If parameter type is different of MegaApi::FILE_TYPE_DEFAULT, the following values for parameter
-         * order are invalid: MegaApi::ORDER_PHOTO_ASC, MegaApi::ORDER_PHOTO_DESC,
+         * order are invalid (and already deprecated): MegaApi::ORDER_PHOTO_ASC, MegaApi::ORDER_PHOTO_DESC,
          * MegaApi::ORDER_VIDEO_ASC, MegaApi::ORDER_VIDEO_DESC
          *
          * The search is case-insensitive. If the search string is not provided but type has any value
@@ -18504,16 +18504,16 @@ class MegaApi
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
          * Sort by modification time of the original file, descending
          *
-         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * - deprecated: MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
          *
-         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * - deprecated: MegaApi::ORDER_PHOTO_DESC = 12
          * Sort with photos first, then by date descending
          *
-         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * - deprecated: MegaApi::ORDER_VIDEO_ASC = 13
          * Sort with videos first, then by date ascending
          *
-         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * - deprecated: MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
@@ -22142,7 +22142,50 @@ class MegaApi
          */
         void fetchCreditCardInfo(MegaRequestListener* listener = nullptr);
 
- private:
+        /**
+         * @brief Get Welcome dialog visibility.
+         *
+         * The associated request type with this request is
+         * MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG.
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getFlag - Returns the Welcome dialog visibility.
+         *
+         * If the corresponding user attribute is not set yet, the request will fail with the error
+         * code MegaError::API_ENOENT and MegaRequest::getFlag will return the default value.
+         *
+         * @param listener MegaRequestListener to track this request.
+         */
+        virtual void getVisibleWelcomeDialog(MegaRequestListener* listener);
+
+        /**
+         * @brief Set Welcome dialog visibility.
+         *
+         * The associated request type with this request is
+         * MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG.
+         *
+         * @param visible True to set the Welcome dialog visible, false otherwise.
+         * @param listener MegaRequestListener to track this request.
+         */
+        virtual void setVisibleWelcomeDialog(bool visible, MegaRequestListener* listener);
+
+        /**
+         * @brief Creates a node tree.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CREATE_NODE_TREE.
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EARGS - Parameters are incorrect.
+         *
+         * @param parentNode Parent node from which to create the node tree.
+         * @param nodeTree Node tree to create which is fulfilled with the new node handles.
+         * @param listener Listener to track the request.
+         */
+        void createNodeTree(const MegaNode* parentNode,
+                            MegaNodeTree* nodeTree,
+                            MegaRequestListener* listener);
+
+ protected:
         MegaApiImpl *pImpl = nullptr;
         friend class MegaApiImpl;
 };
