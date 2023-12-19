@@ -7814,8 +7814,8 @@ MegaGfxProvider* MegaGfxProvider::createIsolatedInstance(
     const char* executable)
 {
     auto provider = MegaGfxProviderPrivate::createIsolatedInstance(
-        std::string(pipeName),
-        std::string(executable));
+        std::string(pipeName ? pipeName : ""),
+        std::string(executable ? executable : ""));
 
     return provider.release();
 }
@@ -7836,9 +7836,11 @@ MegaGfxProviderList* MegaGfxProviderList::createIsolatedInstances(const char* pi
                                                                   const char* executable,
                                                                   unsigned int numberOfInstances)
 {
-    auto list = MegaGfxProviderListPrivate::createIsolatedInstances(std::string(pipeName),
-                                                                    std::string(executable),
-                                                                    numberOfInstances);
+    auto list = MegaGfxProviderListPrivate::createIsolatedInstances(
+        std::string(pipeName ? pipeName : ""),
+        std::string(executable ? executable : ""),
+        numberOfInstances);
+
     return list.release();
 }
 
