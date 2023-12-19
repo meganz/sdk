@@ -11908,7 +11908,7 @@ class MegaApi
          * @brief Returns true if provided MegaHandle is of a Password Node Folder
          *
          * A folder is considered a Password Node Folder if Password Manager Base is its
-         * ancestor.
+         * ancestor, or if the node is the Password Manager Base folder itself.
          *
          * @param node MegaHandle of the node to check if it is a Password Node Folder
          * @return true if this node is a Password Node Folder
