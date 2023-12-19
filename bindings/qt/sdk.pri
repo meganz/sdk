@@ -46,6 +46,7 @@ SOURCES += src/attrmap.cpp \
     src/json.cpp \
     src/megaclient.cpp \
     src/node.cpp \
+    src/process.cpp \
     src/pubkeyaction.cpp \
     src/request.cpp \
     src/serialize64.cpp \
@@ -54,6 +55,7 @@ SOURCES += src/attrmap.cpp \
     src/share.cpp \
     src/sharenodekeys.cpp \
     src/sync.cpp \
+    src/syncfilter.cpp \
     src/transfer.cpp \
     src/transferslot.cpp \
     src/treeproc.cpp \
@@ -212,7 +214,7 @@ CONFIG(USE_LIBUV) {
 CONFIG(USE_MEDIAINFO) {
     DEFINES += USE_MEDIAINFO UNICODE
 
-    vcpkg:LIBS += -lmediainfo$$MI_DEBUG_SUFFIX -lzen$$MI_DEBUG_SUFFIX 
+    vcpkg:LIBS += -lmediainfo$$MI_DEBUG_SUFFIX -lzen$$MI_DEBUG_SUFFIX -ltinyxml2
     vcpkg:win32:LIBS += -lzlib$$DEBUG_SUFFIX
     vcpkg:!win32:LIBS += -lz
 
@@ -449,6 +451,7 @@ HEADERS  += include/mega.h \
             include/mega/megaapp.h \
             include/mega/megaclient.h \
             include/mega/node.h \
+            include/mega/process.h \
             include/mega/pubkeyaction.h \
             include/mega/request.h \
             include/mega/serialize64.h \
@@ -457,6 +460,7 @@ HEADERS  += include/mega.h \
             include/mega/share.h \
             include/mega/sharenodekeys.h \
             include/mega/sync.h \
+            include/mega/syncfilter.h \
             include/mega/heartbeats.h \
             include/mega/transfer.h \
             include/mega/transferslot.h \
@@ -610,7 +614,7 @@ vcpkg {
     release:LIBS += -L"$$THIRDPARTY_VCPKG_PATH/lib"
     debug:LIBS += -L"$$THIRDPARTY_VCPKG_PATH/debug/lib"
 
-    win32:LIBS += -llibsodium -lcryptopp-static -lzlib$$DEBUG_SUFFIX
+    win32:LIBS += -llibsodium -lcryptopp -lzlib$$DEBUG_SUFFIX
     else:LIBS += -lsodium -lcryptopp -lz
     win32:DEFINES += SODIUM_STATIC
     LIBS += -lsqlite3

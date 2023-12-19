@@ -55,6 +55,7 @@ LocalPath SqliteDbAccess::databasePath(const FileSystemAccess& fsAccess,
     return path;
 }
 
+
 bool SqliteDbAccess::checkDbFileAndAdjustLegacy(FileSystemAccess& fsAccess, const string& name, const int flags, LocalPath& dbPath)
 {
     dbPath = databasePath(fsAccess, name, DB_VERSION);
@@ -68,8 +69,8 @@ bool SqliteDbAccess::checkDbFileAndAdjustLegacy(FileSystemAccess& fsAccess, cons
         {
             LOG_debug << "Found legacy database at: " << legacyPath;
 
-            // if current version, use that one... unless migration to NoD is required
-            if (currentDbVersion == LEGACY_DB_VERSION && LEGACY_DB_VERSION != LAST_DB_VERSION_WITHOUT_NOD)
+            // if current version, use that one... unless migration to NoD or renaming to adapt the version to SRW are required
+            if (currentDbVersion == LEGACY_DB_VERSION && LEGACY_DB_VERSION != LAST_DB_VERSION_WITHOUT_NOD && LEGACY_DB_VERSION != LAST_DB_VERSION_WITHOUT_SRW)
             {
                 LOG_debug << "Using a legacy database.";
                 dbPath = std::move(legacyPath);
@@ -136,15 +137,30 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
         return nullptr;
     }
 
+    if (sqlite3_create_function(db, u8"getmimetype", 1, SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0, &SqliteAccountState::userGetMimetype, 0, 0) != SQLITE_OK)
+    {
+        LOG_err << "Data base error(sqlite3_create_function userGetMimetype): " << sqlite3_errmsg(db);
+        sqlite3_close(db);
+        return nullptr;
+    }
+
     // Create specific table for handle nodes
     std::string sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle int64 PRIMARY KEY NOT NULL, "
                       "parenthandle int64, name text, fingerprint BLOB, origFingerprint BLOB, "
-                      "type tinyint, size int64, share tinyint, fav tinyint, "
-                      "ctime int64, flags int64, counter BLOB NOT NULL, node BLOB NOT NULL)";
+                      "type tinyint, mimetype tinyint AS (getmimetype(name)) VIRTUAL, size int64, share tinyint, fav tinyint, "
+                      "ctime int64, mtime int64, flags int64, counter BLOB NOT NULL, node BLOB NOT NULL)";
     int result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
     if (result)
     {
-        LOG_debug << "Data base error: " << sqlite3_errmsg(db);
+        LOG_err << "Data base error: " << sqlite3_errmsg(db);
+        sqlite3_close(db);
+        return nullptr;
+    }
+
+    // Add 'mtime' column and 'mimetype' virtual column to old 'nodes' table
+    if (!ensureColumnIsInNodesTable(db, "mtime", "int64", [this, db]() { return copyMtimeFromFingerprint(db); }) ||
+        !ensureColumnIsInNodesTable(db, "mimetype", "tinyint AS (getmimetype(name)) VIRTUAL"))
+    {
         sqlite3_close(db);
         return nullptr;
     }
@@ -164,7 +180,7 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     result = sqlite3_create_function(db, "regexp", 2, SQLITE_ANY,0, &SqliteAccountState::userRegexp, 0, 0);
     if (result)
     {
-        LOG_debug << "Data base error(sqlite3_create_function userRegexp): " << sqlite3_errmsg(db);
+        LOG_err << "Data base error(sqlite3_create_function userRegexp): " << sqlite3_errmsg(db);
         sqlite3_close(db);
         return nullptr;
     }
@@ -172,7 +188,14 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     result = sqlite3_create_function(db, "ismimetype", 2, SQLITE_ANY,0, &SqliteAccountState::userIsMimetype, 0, 0);
     if (result)
     {
-        LOG_debug << "Data base error(sqlite3_create_function userIsMimetype): " << sqlite3_errmsg(db);
+        LOG_err << "Data base error(sqlite3_create_function userIsMimetype): " << sqlite3_errmsg(db);
+        sqlite3_close(db);
+        return nullptr;
+    }
+
+    if (sqlite3_create_function(db, u8"ismimetypeincluded", 2, SQLITE_ANY | SQLITE_DETERMINISTIC, 0, &SqliteAccountState::userIsMimetypeIncluded, 0, 0) != SQLITE_OK)
+    {
+        LOG_err << "Data base error(sqlite3_create_function userIsMimetypeIncluded): " << sqlite3_errmsg(db);
         sqlite3_close(db);
         return nullptr;
     }
@@ -320,6 +343,92 @@ void SqliteDbAccess::removeDBFiles(FileSystemAccess& fsAccess, mega::LocalPath& 
 
 #endif
 
+}
+
+bool SqliteDbAccess::ensureColumnIsInNodesTable(sqlite3* db, const string& colName, const string& colType,
+                                                std::function<bool()> callAfterAdded)
+{
+    bool hasCol = false;
+    string sql = "SELECT COUNT(*) FROM pragma_table_xinfo('nodes') WHERE name = '" + colName + "'";
+    int result = sqlite3_exec(db, sql.c_str(), [](void* hasColumn, int colCount, char** colVals, char**)
+        {
+            *static_cast<bool*>(hasColumn) = colCount && colVals[0][0] != '0';
+            return 0;
+        },
+        &hasCol, nullptr);
+
+    if (result != SQLITE_OK)
+    {
+        LOG_err << "Db error while checking for 'nodes." << colName << "' column: " << sqlite3_errmsg(db);
+        return false;
+    }
+
+    if (hasCol)
+    {
+        return true;
+    }
+
+    string query("ALTER TABLE nodes ADD COLUMN " + colName + ' ' + colType);
+    if (sqlite3_exec(db, query.c_str(), nullptr, nullptr, nullptr) != SQLITE_OK)
+    {
+        LOG_err << "Db error while adding 'nodes." << colName << "' column: " << sqlite3_errmsg(db);
+        return false;
+    }
+
+    return callAfterAdded ? callAfterAdded() : true;
+}
+
+bool SqliteDbAccess::copyMtimeFromFingerprint(sqlite3* db)
+{
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, "SELECT nodehandle, fingerprint FROM nodes", -1, &stmt, nullptr) != SQLITE_OK)
+    {
+        LOG_debug << "Db error while preparing to extract mtime: " << sqlite3_errmsg(db);
+        return false;
+    }
+
+    map<handle, m_time_t> mtimes;
+    while (sqlite3_step(stmt) == SQLITE_ROW)
+    {
+        const char* fp = static_cast<const char*>(sqlite3_column_blob(stmt, 1));
+        size_t fpSize = sqlite3_column_bytes(stmt, 1);
+
+        if (sizeof(m_off_t) + sizeof(m_time_t) + 4 * sizeof(int32_t) + sizeof(bool) > fpSize)
+        {
+            LOG_err << "File fingerprint size too big";
+            return false;
+        }
+
+        mtimes[sqlite3_column_int64(stmt, 0)] = MemAccess::get<m_time_t>(fp + sizeof(m_off_t));
+    }
+    sqlite3_finalize(stmt);
+
+    if (mtimes.empty())
+    {
+        return true;
+    }
+
+    if (sqlite3_prepare_v2(db, "UPDATE nodes SET mtime = ? WHERE nodehandle = ?", -1, &stmt, nullptr) != SQLITE_OK)
+    {
+        LOG_debug << "Db error while preparing to update mtime: " << sqlite3_errmsg(db);
+        return false;
+    }
+
+    for (const auto& n : mtimes)
+    {
+        int stepResult;
+        if (sqlite3_bind_int64(stmt, 1, n.second) != SQLITE_OK ||
+            sqlite3_bind_int64(stmt, 2, n.first) != SQLITE_OK ||
+            ((stepResult = sqlite3_step(stmt)) != SQLITE_DONE && stepResult != SQLITE_ROW) ||
+            sqlite3_reset(stmt) != SQLITE_OK)
+        {
+            LOG_debug << "Db error while updating mtime: " << sqlite3_errmsg(db);
+            return false;
+        }
+    }
+    sqlite3_finalize(stmt);
+
+    return true;
 }
 
 SqliteDbTable::SqliteDbTable(PrnGen &rng, sqlite3* db, FileSystemAccess &fsAccess, const LocalPath &path, const bool checkAlwaysTransacted, DBErrorCallback dBErrorCallBack)
@@ -930,8 +1039,8 @@ bool SqliteAccountState::put(Node *node)
     if (!mStmtPutNode)
     {
         sqlResult = sqlite3_prepare_v2(db, "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, "
-                                           "name, fingerprint, origFingerprint, type, size, share, fav, ctime, flags, counter, node) "
-                                           "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &mStmtPutNode, NULL);
+                                           "name, fingerprint, origFingerprint, type, size, share, fav, ctime, mtime, flags, counter, node) "
+                                           "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &mStmtPutNode, NULL);
     }
 
     if (sqlResult == SQLITE_OK)
@@ -970,10 +1079,11 @@ bool SqliteAccountState::put(Node *node)
         bool fav = (favIt != node->attrs.map.end() && favIt->second == "1"); // test 'fav' attr value (only "1" is valid)
         sqlite3_bind_int(mStmtPutNode, 9, fav);
         sqlite3_bind_int64(mStmtPutNode, 10, node->ctime);
-        sqlite3_bind_int64(mStmtPutNode, 11, node->getDBFlags());
+        sqlite3_bind_int64(mStmtPutNode, 11, node->mtime);
+        sqlite3_bind_int64(mStmtPutNode, 12, node->getDBFlags());
         std::string nodeCountersBlob = node->getCounter().serialize();
-        sqlite3_bind_blob(mStmtPutNode, 12, nodeCountersBlob.data(), static_cast<int>(nodeCountersBlob.size()), SQLITE_STATIC);
-        sqlite3_bind_blob(mStmtPutNode, 13, nodeSerialized.data(), static_cast<int>(nodeSerialized.size()), SQLITE_STATIC);
+        sqlite3_bind_blob(mStmtPutNode, 13, nodeCountersBlob.data(), static_cast<int>(nodeCountersBlob.size()), SQLITE_STATIC);
+        sqlite3_bind_blob(mStmtPutNode, 14, nodeSerialized.data(), static_cast<int>(nodeSerialized.size()), SQLITE_STATIC);
 
         sqlResult = sqlite3_step(mStmtPutNode);
     }
@@ -1247,9 +1357,10 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, vecto
                                "FROM nodes n1 "
                                "WHERE (n1.flags & ? = 0) "
                                  "AND (n1.parenthandle = ?) "
-                                 "AND (? = 0 OR ? < n1.ctime) "
-                                 "AND (? = 0 OR n1.ctime < ?) "
-                                 "AND (? = 0 OR (n1.type = " + std::to_string(FILENODE) + " AND ismimetype(n1.name, ?))) "
+                                 "AND (? = " + std::to_string(TYPE_UNKNOWN) + " OR n1.type = ?) "
+                                 "AND (? = 0 OR ? < n1.ctime) AND (? = 0 OR n1.ctime < ?) "
+                                 "AND (? = 0 OR ? < n1.mtime) AND (? = 0 OR (0 < n1.mtime AND n1.mtime < ?)) " // mtime is not used (0) for some nodes
+                                 "AND (? = " + std::to_string(MIME_TYPE_UNKNOWN) + " OR (n1.type = " + std::to_string(FILENODE) + " AND ismimetypeincluded(n1.mimetype, ?))) "
                                  "AND (n1.name REGEXP ?) ";
         // Leading and trailing '*' will be added to argument '?' so we are looking for a substring of name
         // Our REGEXP implementation is case insensitive
@@ -1264,15 +1375,21 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, vecto
     if (sqlResult == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 1, flags)) == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 2, filter.byLocationHandle())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 3, filter.byCreationTimeLowerLimit())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 4, filter.byCreationTimeLowerLimit())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 5, filter.byCreationTimeUpperLimit())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 6, filter.byCreationTimeUpperLimit())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int(mStmtGetChildren, 7, filter.byCategory())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int(mStmtGetChildren, 8, filter.byCategory())) == SQLITE_OK)
+        (sqlResult = sqlite3_bind_int(mStmtGetChildren, 3, filter.byNodeType())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int(mStmtGetChildren, 4, filter.byNodeType())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 5, filter.byCreationTimeLowerLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 6, filter.byCreationTimeLowerLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 7, filter.byCreationTimeUpperLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 8, filter.byCreationTimeUpperLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 9, filter.byModificationTimeLowerLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 10, filter.byModificationTimeLowerLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 11, filter.byModificationTimeUpperLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 12, filter.byModificationTimeUpperLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int(mStmtGetChildren, 13, filter.byCategory())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int(mStmtGetChildren, 14, filter.byCategory())) == SQLITE_OK)
     {
         string wildCardName = '*' + filter.byName() + '*';
-        if ((sqlResult = sqlite3_bind_text(mStmtGetChildren, 9, wildCardName.c_str(), static_cast<int>(wildCardName.length()), SQLITE_STATIC)) == SQLITE_OK)
+        if ((sqlResult = sqlite3_bind_text(mStmtGetChildren, 15, wildCardName.c_str(), static_cast<int>(wildCardName.length()), SQLITE_STATIC)) == SQLITE_OK)
         {
             result = processSqlQueryNodes(mStmtGetChildren, children);
         }
@@ -1307,10 +1424,11 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, vector<pair
         std::string sqlQuery = "SELECT n1.nodehandle, n1.counter, n1.node "
                                "FROM nodes n1 "
                                "WHERE (n1.flags & ? = 0) "
-                                 "AND (? = 0 OR ? < n1.ctime) "
-                                 "AND (? = 0 OR n1.ctime < ?) "
-                                 "AND (? = 0 OR n1.share = ?) "
-                                 "AND (? = 0 OR (n1.type = " + std::to_string(FILENODE) + " AND ismimetype(n1.name, ?))) "
+                                 "AND (? = " + std::to_string(TYPE_UNKNOWN) + " OR n1.type = ?) "
+                                 "AND (? = 0 OR ? < n1.ctime) AND (? = 0 OR n1.ctime < ?) "
+                                 "AND (? = 0 OR ? < n1.mtime) AND (? = 0 OR (0 < n1.mtime AND n1.mtime < ?)) " // mtime is not used (0) for some nodes
+                                 "AND (? = " + std::to_string(NO_SHARES) + " OR n1.share = ?) "
+                                 "AND (? = " + std::to_string(MIME_TYPE_UNKNOWN) + " OR (n1.type = " + std::to_string(FILENODE) + " AND ismimetypeincluded(n1.mimetype, ?))) "
                                  "AND (n1.name REGEXP ?) ";
         // Leading and trailing '*' will be added to argument '?' so we are looking for a substring of name
         // Our REGEXP implementation is case insensitive
@@ -1324,17 +1442,23 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, vector<pair
 
     if (sqlResult == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int64(mStmtSearchNodes, 1, excludeFlags)) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int64(mStmtSearchNodes, 2, filter.byCreationTimeLowerLimit())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int64(mStmtSearchNodes, 3, filter.byCreationTimeLowerLimit())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int64(mStmtSearchNodes, 4, filter.byCreationTimeUpperLimit())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int64(mStmtSearchNodes, 5, filter.byCreationTimeUpperLimit())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int(mStmtSearchNodes, 6, filter.byShareType())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int(mStmtSearchNodes, 7, filter.byShareType())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int(mStmtSearchNodes, 8, filter.byCategory())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int(mStmtSearchNodes, 9, filter.byCategory())) == SQLITE_OK)
+        (sqlResult = sqlite3_bind_int(mStmtSearchNodes, 2, filter.byNodeType())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int(mStmtSearchNodes, 3, filter.byNodeType())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(mStmtSearchNodes, 4, filter.byCreationTimeLowerLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(mStmtSearchNodes, 5, filter.byCreationTimeLowerLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(mStmtSearchNodes, 6, filter.byCreationTimeUpperLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(mStmtSearchNodes, 7, filter.byCreationTimeUpperLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(mStmtSearchNodes, 8, filter.byModificationTimeLowerLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(mStmtSearchNodes, 9, filter.byModificationTimeLowerLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(mStmtSearchNodes, 10, filter.byModificationTimeUpperLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(mStmtSearchNodes, 11, filter.byModificationTimeUpperLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int(mStmtSearchNodes, 12, filter.byShareType())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int(mStmtSearchNodes, 13, filter.byShareType())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int(mStmtSearchNodes, 14, filter.byCategory())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int(mStmtSearchNodes, 15, filter.byCategory())) == SQLITE_OK)
     {
         string wildCardName = '*' + filter.byName() + '*';
-        if ((sqlResult = sqlite3_bind_text(mStmtSearchNodes, 10, wildCardName.c_str(), static_cast<int>(wildCardName.length()), SQLITE_STATIC)) == SQLITE_OK)
+        if ((sqlResult = sqlite3_bind_text(mStmtSearchNodes, 16, wildCardName.c_str(), static_cast<int>(wildCardName.length()), SQLITE_STATIC)) == SQLITE_OK)
         {
             result = processSqlQueryNodes(mStmtSearchNodes, nodes);
         }
@@ -1535,7 +1659,7 @@ bool SqliteAccountState::getNodesByFingerprint(const std::string &fingerprint, s
 
 }
 
-bool SqliteAccountState::getNodeByFingerprint(const std::string &fingerprint, mega::NodeSerialized &node)
+bool SqliteAccountState::getNodeByFingerprint(const std::string &fingerprint, mega::NodeSerialized &node, NodeHandle& handle)
 {
     if (!db)
     {
@@ -1558,6 +1682,7 @@ bool SqliteAccountState::getNodeByFingerprint(const std::string &fingerprint, me
             if (nodes.size())
             {
                 node = nodes.begin()->second;
+                handle = nodes.begin()->first;
             }
         }
     }
@@ -2137,6 +2262,43 @@ void SqliteAccountState::userIsMimetype(sqlite3_context* context, int argc, sqli
 
     }
 
+    sqlite3_result_int(context, result);
+}
+
+void SqliteAccountState::userIsMimetypeIncluded(sqlite3_context* context, int argc, sqlite3_value** argv)
+{
+    if (argc != 2)
+    {
+        LOG_err << "Invalid parameters for userIsMimetypeIncluded";
+        assert(argc == 2);
+        sqlite3_result_int(context, 0);
+        return;
+    }
+
+    int mimetypeExt = argv[0] ? sqlite3_value_int(argv[0]) : MimeType_t::MIME_TYPE_UNKNOWN;
+    int mimetypeIncl = argv[1] ? sqlite3_value_int(argv[1]) : MimeType_t::MIME_TYPE_UNKNOWN;
+
+    int result = mimetypeIncl == MimeType_t::MIME_TYPE_UNKNOWN ||
+                 mimetypeIncl == mimetypeExt ||
+                 (mimetypeIncl == MimeType_t::MIME_TYPE_DOCUMENT && mimetypeExt == MimeType_t::MIME_TYPE_SPREADSHEET);
+
+    sqlite3_result_int(context, result);
+}
+
+void SqliteAccountState::userGetMimetype(sqlite3_context* context, int argc, sqlite3_value** argv)
+{
+    if (argc != 1)
+    {
+        LOG_err << "Invalid parameters for userGetMimetype";
+        assert(argc == 1);
+        sqlite3_result_int(context, MimeType_t::MIME_TYPE_UNKNOWN);
+        return;
+    }
+
+    const char* fileName = reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
+    string ext;
+    int result = (fileName && *fileName && Node::getExtension(ext, fileName) && !ext.empty()) ?
+                 Node::getMimetype(ext) : MimeType_t::MIME_TYPE_UNKNOWN;
     sqlite3_result_int(context, result);
 }
 

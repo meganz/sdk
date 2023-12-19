@@ -15,6 +15,7 @@
  */
 package nz.mega.sdk;
 
+import static nz.mega.sdk.MegaSync.SyncRunningState.RUNSTATE_PAUSED;
 import static nz.mega.sdk.MegaSync.SyncRunningState.RUNSTATE_RUNNING;
 import static nz.mega.sdk.MegaSync.SyncRunningState.RUNSTATE_SUSPENDED;
 
@@ -171,7 +172,6 @@ public class MegaApiJava {
     public final static int RETRY_SERVERS_BUSY = MegaApi.RETRY_SERVERS_BUSY;
     public final static int RETRY_API_LOCK = MegaApi.RETRY_API_LOCK;
     public final static int RETRY_RATE_LIMIT = MegaApi.RETRY_RATE_LIMIT;
-    public final static int RETRY_LOCAL_LOCK = MegaApi.RETRY_LOCAL_LOCK;
     public final static int RETRY_UNKNOWN = MegaApi.RETRY_UNKNOWN;
 
     public final static int KEEP_ALIVE_CAMERA_UPLOADS = MegaApi.KEEP_ALIVE_CAMERA_UPLOADS;
@@ -209,12 +209,6 @@ public class MegaApiJava {
     public final static int ORDER_CREATION_DESC = MegaApi.ORDER_CREATION_DESC;
     public final static int ORDER_MODIFICATION_ASC = MegaApi.ORDER_MODIFICATION_ASC;
     public final static int ORDER_MODIFICATION_DESC = MegaApi.ORDER_MODIFICATION_DESC;
-    public final static int ORDER_ALPHABETICAL_ASC = MegaApi.ORDER_ALPHABETICAL_ASC;
-    public final static int ORDER_ALPHABETICAL_DESC = MegaApi.ORDER_ALPHABETICAL_DESC;
-    public final static int ORDER_PHOTO_ASC = MegaApi.ORDER_PHOTO_ASC;
-    public final static int ORDER_PHOTO_DESC = MegaApi.ORDER_PHOTO_DESC;
-    public final static int ORDER_VIDEO_ASC = MegaApi.ORDER_VIDEO_ASC;
-    public final static int ORDER_VIDEO_DESC = MegaApi.ORDER_VIDEO_DESC;
     public final static int ORDER_LINK_CREATION_ASC = MegaApi.ORDER_LINK_CREATION_ASC;
     public final static int ORDER_LINK_CREATION_DESC = MegaApi.ORDER_LINK_CREATION_DESC;
     public final static int ORDER_LABEL_ASC = MegaApi.ORDER_LABEL_ASC;
@@ -647,6 +641,19 @@ public class MegaApiJava {
      */
     public boolean newLinkFormatEnabled() {
         return megaApi.newLinkFormatEnabled();
+    }
+
+    /**
+     * @brief Check if the logged in account is considered new
+     *
+     * This function will NOT return a valid value until the callback onEvent with
+     * type MegaApi::EVENT_MISC_FLAGS_READY is received. You can also rely on the completion of
+     * a fetchnodes to check this value.
+     *
+     * @return True if account is considered new. Otherwise, false.
+     */
+    public Boolean accountIsNew() {
+        return megaApi.accountIsNew();
     }
 
     /**
@@ -6798,7 +6805,7 @@ public class MegaApiJava {
                               boolean startFirst, MegaCancelToken cancelToken, int collisionCheck, int collisionResolution,
                               MegaTransferListenerInterface listener) {
         megaApi.startDownload(node, localPath, fileName, appData, startFirst, cancelToken, collisionCheck, collisionResolution,
-                createDelegateTransferListener(listener));
+                false, createDelegateTransferListener(listener));
     }
 
     /**
@@ -6845,7 +6852,8 @@ public class MegaApiJava {
      */
     public void startDownload(MegaNode node, String localPath, String fileName, String appData,
                               boolean startFirst, MegaCancelToken cancelToken, int collisionCheck, int collisionResolution) {
-        megaApi.startDownload(node, localPath, fileName, appData, startFirst, cancelToken, collisionCheck, collisionResolution);
+        megaApi.startDownload(node, localPath, fileName, appData, startFirst, cancelToken, collisionCheck, collisionResolution,
+                false);
     }
 
     /**
@@ -8064,24 +8072,6 @@ public class MegaApiJava {
      *               - MegaApi::ORDER_MODIFICATION_DESC = 8
      *               Sort by modification time of the original file, descending
      *               <p>
-     *               - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-     *               Same behavior than MegaApi::ORDER_DEFAULT_ASC
-     *               <p>
-     *               - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-     *               Same behavior than MegaApi::ORDER_DEFAULT_DESC
-     *               <p>
-     *               - MegaApi::ORDER_PHOTO_ASC = 11
-     *               Sort with photos first, then by date ascending
-     *               <p>
-     *               - MegaApi::ORDER_PHOTO_DESC = 12
-     *               Sort with photos first, then by date descending
-     *               <p>
-     *               - MegaApi::ORDER_VIDEO_ASC = 13
-     *               Sort with videos first, then by date ascending
-     *               <p>
-     *               - MegaApi::ORDER_VIDEO_DESC = 14
-     *               Sort with videos first, then by date descending
-     *               <p>
      *               - MegaApi::ORDER_LABEL_ASC = 17
      *               Sort by color label, ascending. With this order, folders are returned first, then files
      *               <p>
@@ -8093,10 +8083,6 @@ public class MegaApiJava {
      *               <p>
      *               - MegaApi::ORDER_FAV_DESC = 20
      *               Sort nodes with favourite attr last. With this order, folders are returned first, then files
-     *               <p>
-     *               Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-     *               are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-     *               They will be eventually removed.
      * @return List with all child MegaNode objects
      */
     public ArrayList<MegaNode> getChildren(MegaNode parent, int order) {
@@ -8141,18 +8127,6 @@ public class MegaApiJava {
      *                    <p>
      *                    - MegaApi::ORDER_MODIFICATION_DESC = 8
      *                    Sort by modification time of the original file, descending
-     *                    <p>
-     *                    - MegaApi::ORDER_PHOTO_ASC = 11
-     *                    Sort with photos first, then by date ascending
-     *                    <p>
-     *                    - MegaApi::ORDER_PHOTO_DESC = 12
-     *                    Sort with photos first, then by date descending
-     *                    <p>
-     *                    - MegaApi::ORDER_VIDEO_ASC = 13
-     *                    Sort with videos first, then by date ascending
-     *                    <p>
-     *                    - MegaApi::ORDER_VIDEO_DESC = 14
-     *                    Sort with videos first, then by date descending
      *                    <p>
      *                    - MegaApi::ORDER_LABEL_ASC = 17
      *                    Sort by color label, ascending. With this order, folders are returned first, then files
@@ -9081,28 +9055,6 @@ public class MegaApiJava {
      *                     - MegaApi::ORDER_MODIFICATION_DESC = 8
      *                     Sort by modification time of the original file, descending
      *                     <p>
-     *                     - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-     *                     Same behavior than MegaApi::ORDER_DEFAULT_ASC
-     *                     <p>
-     *                     - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-     *                     Same behavior than MegaApi::ORDER_DEFAULT_DESC
-     *                     <p>
-     *                     Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-     *                     are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-     *                     They will be eventually removed.
-     *                     <p>
-     *                     - MegaApi::ORDER_PHOTO_ASC = 11
-     *                     Sort with photos first, then by date ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_PHOTO_DESC = 12
-     *                     Sort with photos first, then by date descending
-     *                     <p>
-     *                     - MegaApi::ORDER_VIDEO_ASC = 13
-     *                     Sort with videos first, then by date ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_VIDEO_DESC = 14
-     *                     Sort with videos first, then by date descending
-     *                     <p>
      *                     - MegaApi::ORDER_LABEL_ASC = 17
      *                     Sort by color label, ascending. With this order, folders are returned first, then files
      *                     <p>
@@ -9168,28 +9120,6 @@ public class MegaApiJava {
      *                     - MegaApi::ORDER_MODIFICATION_DESC = 8
      *                     Sort by modification time of the original file, descending
      *                     <p>
-     *                     - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-     *                     Same behavior than MegaApi::ORDER_DEFAULT_ASC
-     *                     <p>
-     *                     - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-     *                     Same behavior than MegaApi::ORDER_DEFAULT_DESC
-     *                     <p>
-     *                     Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-     *                     are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-     *                     They will be eventually removed.
-     *                     <p>
-     *                     - MegaApi::ORDER_PHOTO_ASC = 11
-     *                     Sort with photos first, then by date ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_PHOTO_DESC = 12
-     *                     Sort with photos first, then by date descending
-     *                     <p>
-     *                     - MegaApi::ORDER_VIDEO_ASC = 13
-     *                     Sort with videos first, then by date ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_VIDEO_DESC = 14
-     *                     Sort with videos first, then by date descending
-     *                     <p>
      *                     - MegaApi::ORDER_LABEL_ASC = 17
      *                     Sort by color label, ascending. With this order, folders are returned first, then files
      *                     <p>
@@ -9250,28 +9180,6 @@ public class MegaApiJava {
      *                     <p>
      *                     - MegaApi::ORDER_MODIFICATION_DESC = 8
      *                     Sort by modification time of the original file, descending
-     *                     <p>
-     *                     - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-     *                     Same behavior than MegaApi::ORDER_DEFAULT_ASC
-     *                     <p>
-     *                     - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-     *                     Same behavior than MegaApi::ORDER_DEFAULT_DESC
-     *                     <p>
-     *                     Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-     *                     are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-     *                     They will be eventually removed.
-     *                     <p>
-     *                     - MegaApi::ORDER_PHOTO_ASC = 11
-     *                     Sort with photos first, then by date ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_PHOTO_DESC = 12
-     *                     Sort with photos first, then by date descending
-     *                     <p>
-     *                     - MegaApi::ORDER_VIDEO_ASC = 13
-     *                     Sort with videos first, then by date ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_VIDEO_DESC = 14
-     *                     Sort with videos first, then by date descending
      *                     <p>
      *                     - MegaApi::ORDER_LABEL_ASC = 17
      *                     Sort by color label, ascending. With this order, folders are returned first, then files
@@ -9334,28 +9242,6 @@ public class MegaApiJava {
      *                     - MegaApi::ORDER_MODIFICATION_DESC = 8
      *                     Sort by modification time of the original file, descending
      *                     <p>
-     *                     - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-     *                     Same behavior than MegaApi::ORDER_DEFAULT_ASC
-     *                     <p>
-     *                     - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-     *                     Same behavior than MegaApi::ORDER_DEFAULT_DESC
-     *                     <p>
-     *                     Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-     *                     are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-     *                     They will be eventually removed.
-     *                     <p>
-     *                     - MegaApi::ORDER_PHOTO_ASC = 11
-     *                     Sort with photos first, then by date ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_PHOTO_DESC = 12
-     *                     Sort with photos first, then by date descending
-     *                     <p>
-     *                     - MegaApi::ORDER_VIDEO_ASC = 13
-     *                     Sort with videos first, then by date ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_VIDEO_DESC = 14
-     *                     Sort with videos first, then by date descending
-     *                     <p>
      *                     - MegaApi::ORDER_LABEL_ASC = 17
      *                     Sort by color label, ascending. With this order, folders are returned first, then files
      *                     <p>
@@ -9417,28 +9303,6 @@ public class MegaApiJava {
      *                     - MegaApi::ORDER_MODIFICATION_DESC = 8
      *                     Sort by modification time of the original file, descending
      *                     <p>
-     *                     - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-     *                     Same behavior than MegaApi::ORDER_DEFAULT_ASC
-     *                     <p>
-     *                     - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-     *                     Same behavior than MegaApi::ORDER_DEFAULT_DESC
-     *                     <p>
-     *                     Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-     *                     are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-     *                     They will be eventually removed.
-     *                     <p>
-     *                     - MegaApi::ORDER_PHOTO_ASC = 11
-     *                     Sort with photos first, then by date ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_PHOTO_DESC = 12
-     *                     Sort with photos first, then by date descending
-     *                     <p>
-     *                     - MegaApi::ORDER_VIDEO_ASC = 13
-     *                     Sort with videos first, then by date ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_VIDEO_DESC = 14
-     *                     Sort with videos first, then by date descending
-     *                     <p>
      *                     - MegaApi::ORDER_LABEL_ASC = 17
      *                     Sort by color label, ascending. With this order, folders are returned first, then files
      *                     <p>
@@ -9470,10 +9334,6 @@ public class MegaApiJava {
      * <p>
      * If node and searchString are not provided, and node type is not valid, this method will
      * return an empty list.
-     * <p>
-     * If parameter type is different of MegaApi::FILE_TYPE_DEFAULT, the following values for parameter
-     * order are invalid: MegaApi::ORDER_PHOTO_ASC, MegaApi::ORDER_PHOTO_DESC,
-     * MegaApi::ORDER_VIDEO_ASC, MegaApi::ORDER_VIDEO_DESC
      * <p>
      * The search is case-insensitive. If the search string is not provided but type has any value
      * defined at nodefiletype_t (except FILE_TYPE_DEFAULT),
@@ -9519,18 +9379,6 @@ public class MegaApiJava {
      *                     - MegaApi::ORDER_MODIFICATION_DESC = 8
      *                     Sort by modification time of the original file, descending
      *                     <p>
-     *                     - MegaApi::ORDER_PHOTO_ASC = 11
-     *                     Sort with photos first, then by date ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_PHOTO_DESC = 12
-     *                     Sort with photos first, then by date descending
-     *                     <p>
-     *                     - MegaApi::ORDER_VIDEO_ASC = 13
-     *                     Sort with videos first, then by date ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_VIDEO_DESC = 14
-     *                     Sort with videos first, then by date descending
-     *                     <p>
      *                     - MegaApi::ORDER_LABEL_ASC = 17
      *                     Sort by color label, ascending. With this order, folders are returned first, then files
      *                     <p>
@@ -9572,10 +9420,6 @@ public class MegaApiJava {
      * <p>
      * If node type is not valid, this method will return an empty list.
      * <p>
-     * If parameter type is different of MegaApi::FILE_TYPE_DEFAULT, the following values for parameter
-     * order are invalid: MegaApi::ORDER_PHOTO_ASC, MegaApi::ORDER_PHOTO_DESC,
-     * MegaApi::ORDER_VIDEO_ASC, MegaApi::ORDER_VIDEO_DESC
-     * <p>
      * The search is case-insensitive. If the type has any value defined at nodefiletype_t
      * (except FILE_TYPE_DEFAULT), this method will return a list
      * that contains nodes of the same type as provided.
@@ -9610,18 +9454,6 @@ public class MegaApiJava {
      *               <p>
      *               - MegaApi::ORDER_MODIFICATION_DESC = 8
      *               Sort by modification time of the original file, descending
-     *               <p>
-     *               - MegaApi::ORDER_PHOTO_ASC = 11
-     *               Sort with photos first, then by date ascending
-     *               <p>
-     *               - MegaApi::ORDER_PHOTO_DESC = 12
-     *               Sort with photos first, then by date descending
-     *               <p>
-     *               - MegaApi::ORDER_VIDEO_ASC = 13
-     *               Sort with videos first, then by date ascending
-     *               <p>
-     *               - MegaApi::ORDER_VIDEO_DESC = 14
-     *               Sort with videos first, then by date descending
      *               <p>
      *               - MegaApi::ORDER_LABEL_ASC = 17
      *               Sort by color label, ascending. With this order, folders are returned first, then files
@@ -9669,10 +9501,6 @@ public class MegaApiJava {
      * If node and searchString are not provided, and node type is not valid, this method will
      * return an empty list.
      * <p>
-     * If parameter type is different of MegaApi::FILE_TYPE_DEFAULT, the following values for parameter
-     * order are invalid: MegaApi::ORDER_PHOTO_ASC, MegaApi::ORDER_PHOTO_DESC,
-     * MegaApi::ORDER_VIDEO_ASC, MegaApi::ORDER_VIDEO_DESC
-     * <p>
      * The search is case-insensitive. If the search string is not provided but type has any value
      * defined at nodefiletype_t (except FILE_TYPE_DEFAULT),
      * this method will return a list that contains nodes of the same type as provided.
@@ -9716,18 +9544,6 @@ public class MegaApiJava {
      *                     <p>
      *                     - MegaApi::ORDER_MODIFICATION_DESC = 8
      *                     Sort by modification time of the original file, descending
-     *                     <p>
-     *                     - MegaApi::ORDER_PHOTO_ASC = 11
-     *                     Sort with photos first, then by date ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_PHOTO_DESC = 12
-     *                     Sort with photos first, then by date descending
-     *                     <p>
-     *                     - MegaApi::ORDER_VIDEO_ASC = 13
-     *                     Sort with videos first, then by date ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_VIDEO_DESC = 14
-     *                     Sort with videos first, then by date descending
      *                     <p>
      *                     - MegaApi::ORDER_LABEL_ASC = 17
      *                     Sort by color label, ascending. With this order, folders are returned first, then files
@@ -9807,18 +9623,6 @@ public class MegaApiJava {
      *                     <p>
      *                     - MegaApi::ORDER_MODIFICATION_DESC = 8
      *                     Sort by modification time of the original file, descending
-     *                     <p>
-     *                     - MegaApi::ORDER_PHOTO_ASC = 11
-     *                     Sort with photos first, then by date ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_PHOTO_DESC = 12
-     *                     Sort with photos first, then by date descending
-     *                     <p>
-     *                     - MegaApi::ORDER_VIDEO_ASC = 13
-     *                     Sort with videos first, then by date ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_VIDEO_DESC = 14
-     *                     Sort with videos first, then by date descending
      *                     <p>
      *                     - MegaApi::ORDER_LABEL_ASC = 17
      *                     Sort by color label, ascending. With this order, folders are returned first, then files
@@ -12366,6 +12170,136 @@ public class MegaApiJava {
     }
 
     /**
+     * @brief Start a Sync or Backup between a local folder and a folder in MEGA
+     *
+     * This function should be used to add a new synchronization/backup task for the MegaApi.
+     * To resume a previously configured task folder, use MegaApi::enableSync.
+     *
+     * Both TYPE_TWOWAY and TYPE_BACKUP are supported for the first parameter.
+     *
+     * The sync/backup's name is optional. If not provided, it will take the name of the leaf folder of
+     * the local path. In example, for "/home/user/Documents", it will become "Documents".
+     *
+     * The remote sync root folder should be INVALID_HANDLE for syncs of TYPE_BACKUP. The handle of the
+     * remote node, which is created as part of this request, will be set to the MegaRequest::getNodeHandle.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_ADD_SYNC
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
+     * - MegaRequest::getFile - Returns the path of the local folder
+     * - MegaRequest::getName - Returns the name of the sync
+     * - MegaRequest::getParamType - Returns the type of the sync
+     * - MegaRequest::getLink - Returns the drive root if external backup
+     * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+     * - MegaRequest::getNumDetails - If different than NO_SYNC_ERROR, it returns additional info for
+     * the  specific sync error (MegaSync::Error). It could happen both when the request has succeeded (API_OK) and
+     * also in some cases of failure, when the request error is not accurate enough.
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is other than MegaError::API_OK:
+     * - MegaRequest::getNumber - Fingerprint of the local folder. Note, fingerprint will only be valid
+     * if the sync was added with no errors
+     * - MegaRequest::getParentHandle - Returns the sync backupId
+     *
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_EARGS - If the local folder was not set or is not a folder.
+     * - MegaError::API_EACCESS - If the user was invalid, or did not have an attribute for "My Backups" folder,
+     * or the attribute was invalid, or "My Backups"/`DEVICE_NAME` existed but was not a folder, or it had the
+     * wrong 'dev-id'/'drv-id' tag.
+     * - MegaError::API_EINTERNAL - If the user attribute for "My Backups" folder did not have a record containing
+     * the handle.
+     * - MegaError::API_ENOENT - If the handle of "My Backups" folder contained in the user attribute was invalid
+     * - or the node could not be found.
+     * - MegaError::API_EINCOMPLETE - If device id was not set, or if current user did not have an attribute for
+     * device name, or the attribute was invalid, or the attribute did not contain a record for the device name,
+     * or device name was empty.
+     * - MegaError::API_EEXIST - If this is a new device, but a folder with the same device-name already exists.
+     *
+     * @param syncType Type of sync. Currently supported: TYPE_TWOWAY and TYPE_BACKUP.
+     * @param localSyncRootFolder Path of the Local folder to sync/backup.
+     * @param name Name given to the sync. You can pass NULL, and the folder name will be used instead.
+     * @param remoteSyncRootFolder Handle of MEGA folder. If you have a MegaNode for that folder, use its getHandle()
+     * @param driveRootIfExternal Only relevant for backups, and only if the backup is on an external disk. Otherwise use NULL.
+     * @param listener MegaRequestListener to track this request
+     */
+    public void syncFolder(
+            MegaSync.SyncType syncType,
+            String localSyncRootFolder,
+            String name,
+            long remoteSyncRootFolder,
+            String driveRootIfExternal,
+            MegaRequestListenerInterface listener
+    ) {
+        megaApi.syncFolder(
+                syncType,
+                localSyncRootFolder,
+                name,
+                remoteSyncRootFolder,
+                driveRootIfExternal,
+                createDelegateRequestListener(listener, false)
+        );
+    }
+
+    /**
+     * @brief Get all configured syncs
+     *
+     * You take the ownership of the returned value
+     *
+     * @return List of MegaSync objects with all syncs
+     */
+    public MegaSyncList getSyncs() {
+        return megaApi.getSyncs();
+    }
+
+    /**
+     * @brief De-configure the sync/backup of a folder
+     *
+     * The folder will stop being synced. No files in the local nor in the remote folder
+     * will be deleted due to the usage of this function.
+     *
+     * The synchronization will stop and the local sync database will be deleted
+     * The backupId of this sync will be invalid going forward.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns sync backupId
+     * - MegaRequest::getFlag - Returns true
+     * - MegaRequest::getFile - Returns the path of the local folder (for active syncs only)
+     *
+     * @param backupId Identifier of the Sync (unique per user, provided by API)
+     * @param listener MegaRequestListener to track this request
+     */
+    public void removeSync(long backupId) {
+        megaApi.removeSync(backupId);
+    }
+
+    /**
+     * Resumes all sync folder pairs
+     */
+    public void resumeAllSyncs() {
+        MegaSyncList syncs = megaApi.getSyncs();
+        int syncsSize = syncs.size();
+
+        for (int i = 0; i < syncsSize; i++) {
+            MegaSync sync = syncs.get(i);
+            megaApi.setSyncRunState(sync.getBackupId(), RUNSTATE_RUNNING);
+        }
+    }
+
+    /**
+     * Pauses all sync folder pairs
+     */
+    public void pauseAllSyncs() {
+        MegaSyncList syncs = megaApi.getSyncs();
+        int syncsSize = syncs.size();
+
+        for (int i = 0; i < syncsSize; i++) {
+            MegaSync sync = syncs.get(i);
+            megaApi.setSyncRunState(sync.getBackupId(), RUNSTATE_PAUSED);
+        }
+    }
+
+    /**
      * Returns true if the Set has been exported (has a public link)
      * <p>
      * Public links are created by calling MegaApi::exportSet
@@ -12548,104 +12482,25 @@ public class MegaApiJava {
     }
 
     /**
-     * @param syncType             Type of sync. Currently supported: TYPE_TWOWAY and TYPE_BACKUP.
-     * @param localSyncRootFolder  Path of the Local folder to sync/backup.
-     * @param name                 Name given to the sync. You can pass NULL, and the folder name will be used instead.
-     * @param remoteSyncRootFolder Handle of MEGA folder. If you have a MegaNode for that folder, use its getHandle()
-     * @param driveRootIfExternal  Only relevant for backups, and only if the backup is on an external disk. Otherwise use NULL.
-     * @param listener             MegaRequestListener to track this request
-     * @brief Start a Sync or Backup between a local folder and a folder in MEGA
-     * <p>
-     * This function should be used to add a new synchronization/backup task for the MegaApi.
-     * To resume a previously configured task folder, use MegaApi::enableSync.
-     * <p>
-     * Both TYPE_TWOWAY and TYPE_BACKUP are supported for the first parameter.
-     * <p>
-     * The sync/backup's name is optional. If not provided, it will take the name of the leaf folder of
-     * the local path. In example, for "/home/user/Documents", it will become "Documents".
-     * <p>
-     * The remote sync root folder should be INVALID_HANDLE for syncs of TYPE_BACKUP. The handle of the
-     * remote node, which is created as part of this request, will be set to the MegaRequest::getNodeHandle.
-     * <p>
-     * The associated request type with this request is MegaRequest::TYPE_ADD_SYNC
-     * Valid data in the MegaRequest object received on callbacks:
-     * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
-     * - MegaRequest::getFile - Returns the path of the local folder
-     * - MegaRequest::getName - Returns the name of the sync
-     * - MegaRequest::getParamType - Returns the type of the sync
-     * - MegaRequest::getLink - Returns the drive root if external backup
-     * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
-     * - MegaRequest::getNumDetails - If different than NO_SYNC_ERROR, it returns additional info for
-     * the  specific sync error (MegaSync::Error). It could happen both when the request has succeeded (API_OK) and
-     * also in some cases of failure, when the request error is not accurate enough.
-     * <p>
-     * Valid data in the MegaRequest object received in onRequestFinish when the error code
-     * is other than MegaError::API_OK:
-     * - MegaRequest::getNumber - Fingerprint of the local folder. Note, fingerprint will only be valid
-     * if the sync was added with no errors
-     * - MegaRequest::getParentHandle - Returns the sync backupId
-     * <p>
-     * On the onRequestFinish error, the error code associated to the MegaError can be:
-     * - MegaError::API_EARGS - If the local folder was not set or is not a folder.
-     * - MegaError::API_EACCESS - If the user was invalid, or did not have an attribute for "My Backups" folder,
-     * or the attribute was invalid, or "My Backups"/`DEVICE_NAME` existed but was not a folder, or it had the
-     * wrong 'dev-id'/'drv-id' tag.
-     * - MegaError::API_EINTERNAL - If the user attribute for "My Backups" folder did not have a record containing
-     * the handle.
-     * - MegaError::API_ENOENT - If the handle of "My Backups" folder contained in the user attribute was invalid
-     * - or the node could not be found.
-     * - MegaError::API_EINCOMPLETE - If device id was not set, or if current user did not have an attribute for
-     * device name, or the attribute was invalid, or the attribute did not contain a record for the device name,
-     * or device name was empty.
-     * - MegaError::API_EEXIST - If this is a new device, but a folder with the same device-name already exists.
+     * Initiate an asynchronous request to receive stalled issues.
+     *
+     * Use MegaRequestListenerInterface to subscribe for result.
+     * Result is of MegaRequest.TYPE_GET_SYNC_STALL_LIST type.
      */
-    public void syncFolder(
-            MegaSync.SyncType syncType,
-            String localSyncRootFolder,
-            String name,
-            long remoteSyncRootFolder,
-            String driveRootIfExternal,
-            MegaRequestListenerInterface listener
-    ) {
-        megaApi.syncFolder(
-                syncType,
-                localSyncRootFolder,
-                name,
-                remoteSyncRootFolder,
-                driveRootIfExternal,
-                createDelegateRequestListener(listener, false)
-        );
+    public void requestMegaSyncStallList(MegaRequestListenerInterface listener) {
+        megaApi.getMegaSyncStallList(createDelegateRequestListener(listener));
     }
 
     /**
-     * @return List of MegaSync objects with all syncs
-     * @brief Get all configured syncs
-     * <p>
-     * You take the ownership of the returned value
+     * @brief Find out if the syncs need User intervention for some files/folders
+     *
+     * use getMegaSyncStallList() to find out what needs attention.
+     *
+     * @return true if the User is needs to intervene.
+     *
      */
-    public MegaSyncList getSyncs() {
-        return megaApi.getSyncs();
-    }
-
-    /**
-     * @param backupId Identifier of the Sync (unique per user, provided by API)
-     * @param listener MegaRequestListener to track this request
-     * @brief De-configure the sync/backup of a folder
-     * <p>
-     * The folder will stop being synced. No files in the local nor in the remote folder
-     * will be deleted due to the usage of this function.
-     * <p>
-     * The synchronization will stop and the local sync database will be deleted
-     * The backupId of this sync will be invalid going forward.
-     * <p>
-     * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
-     * Valid data in the MegaRequest object received on callbacks:
-     * - MegaRequest::getParentHandle - Returns sync backupId
-     * - MegaRequest::getFlag - Returns true
-     * - MegaRequest::getFile - Returns the path of the local folder (for active syncs only)
-     */
-    public void removeSync(long backupId) {
-        megaApi.removeSync(backupId);
+    public boolean isSyncStalled() {
+        return megaApi.isSyncStalled();
     }
 
     /**

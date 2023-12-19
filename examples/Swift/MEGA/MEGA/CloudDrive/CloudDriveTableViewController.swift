@@ -21,6 +21,7 @@
 
 import UIKit
 import AssetsLibrary
+import MEGASdk
 
 class CloudDriveTableViewController: UITableViewController, MEGADelegate, UIActionSheetDelegate, UIAlertViewDelegate, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
     
@@ -32,7 +33,7 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate, UIActi
     var parentNode : MEGANode!
     var nodes : MEGANodeList!
     
-    let megaapi : MEGASdk! = (UIApplication.shared.delegate as! AppDelegate).megaapi
+    let megaapi = (UIApplication.shared.delegate as! AppDelegate).megaapi
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -70,10 +71,11 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate, UIActi
         
         if parentNode == nil {
             navigationItem.title = "Cloud Drive"
-            nodes = megaapi.children(forParent: megaapi.rootNode)
+            guard let rootNode = megaapi.rootNode else { return }
+            nodes = megaapi.children(forParent: rootNode)
             
-            let files = megaapi.numberChildFiles(forParent: megaapi.rootNode)
-            let folders = megaapi.numberChildFolders(forParent: megaapi.rootNode)
+            let files = megaapi.numberChildFiles(forParent: rootNode)
+            let folders = megaapi.numberChildFolders(forParent: rootNode)
             
             if files == 0 || files > 1 {
                 if folders == 0 || folders > 1 {
@@ -127,25 +129,25 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate, UIActi
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "nodeCell", for: indexPath) as! NodeTableViewCell
-        let node = nodes.node(at: indexPath.row)
+        guard let node = nodes.node(at: indexPath.row) else { return UITableViewCell() }
         
-        cell.nameLabel.text = node?.name
+        cell.nameLabel.text = node.name
         
-        let thumbnailFilePath = Helper.pathForNode(node!, path:FileManager.SearchPathDirectory.cachesDirectory, directory: "thumbs")
+        let thumbnailFilePath = Helper.pathForNode(node, path:FileManager.SearchPathDirectory.cachesDirectory, directory: "thumbs")
         let fileExists = FileManager.default.fileExists(atPath: thumbnailFilePath)
         
         if !fileExists {
-            if node!.hasThumbnail() {
+            if node.hasThumbnail() {
                 megaapi.getThumbnailNode(node, destinationFilePath: thumbnailFilePath)
             } else {
-                cell.thumbnailImageView.image = Helper.imageForNode(node!)
+                cell.thumbnailImageView.image = Helper.imageForNode(node)
             }
         } else {
             cell.thumbnailImageView.image = UIImage(named: thumbnailFilePath)
         }
         
-        if (node?.isFile())! {
-            cell.subtitleLabel.text = ByteCountFormatter.string(fromByteCount: (node?.size.int64Value)!, countStyle: ByteCountFormatter.CountStyle.memory)
+        if (node.isFile()) {
+            cell.subtitleLabel.text = ByteCountFormatter.string(fromByteCount: (node.size?.int64Value)!, countStyle: ByteCountFormatter.CountStyle.memory)
         } else {
             let files = megaapi.numberChildFiles(forParent: node)
             let folders = megaapi.numberChildFolders(forParent: node)
@@ -153,7 +155,7 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate, UIActi
             cell.subtitleLabel.text = "\(folders) folders, \(files) files"
         }
         
-        cell.nodeHandle = node?.handle
+        cell.nodeHandle = node.handle
         
         return cell
     }
@@ -173,7 +175,7 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate, UIActi
     
     override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
         if editingStyle == .delete {
-            let node = nodes.node(at: indexPath.row)
+            guard let node = nodes.node(at: indexPath.row) else { return }
             megaapi.remove(node)
         }
     }
@@ -230,9 +232,10 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate, UIActi
         if alertView.tag == 1 {
             if buttonIndex == 1 {
                 if parentNode != nil {
-                    megaapi.createFolder(withName: (alertView.textField(at: 0)?.text), parent: parentNode)
+                    megaapi.createFolder(withName: (alertView.textField(at: 0)?.text ?? ""), parent: parentNode)
                 } else {
-                    megaapi.createFolder(withName: (alertView.textField(at: 0)?.text), parent: megaapi.rootNode)
+                    guard let rootNode = megaapi.rootNode else { return }
+                    megaapi.createFolder(withName: (alertView.textField(at: 0)?.text) ?? "", parent: rootNode)
                 }
             }
         }
@@ -274,7 +277,7 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate, UIActi
     
     // MARK: - MEGA Request delegate
     
-    func onRequestFinish(_ api: MEGASdk!, request: MEGARequest!, error: MEGAError!) {
+    func onRequestFinish(_ api: MEGASdk, request: MEGARequest, error: MEGAError) {
         if error.type != MEGAErrorType.apiOk {
             return
         }
@@ -285,7 +288,7 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate, UIActi
             
         case MEGARequestType.MEGARequestTypeGetAttrFile:
             guard let cells = tableView.visibleCells as? [NodeTableViewCell] else { break }
-            for tableViewCell in cells where request?.nodeHandle == tableViewCell.nodeHandle {
+            for tableViewCell in cells where request.nodeHandle == tableViewCell.nodeHandle {
                 let node = megaapi.node(forHandle: request.nodeHandle)
                 let thumbnailFilePath = Helper.pathForNode(node!, path: FileManager.SearchPathDirectory.cachesDirectory, directory: "thumbs")
                 let fileExists = FileManager.default.fileExists(atPath: thumbnailFilePath)
@@ -302,7 +305,7 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate, UIActi
     
     // MARK: - MEGA Global delegate
     
-    func onNodesUpdate(_ api: MEGASdk!, nodeList: MEGANodeList!) {
+    func onNodesUpdate(_ api: MEGASdk, nodeList: MEGANodeList) {
         reloadUI()
     }
     

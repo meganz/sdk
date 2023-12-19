@@ -204,7 +204,7 @@ private:
     void processDisappeared(CFDictionaryRef diskDescription) override;
 
     // Check if description has changed to add a Volume Path for a disk that previously appeared with no path
-    void onDiskDescriptionChangedImpl(DADiskRef disk, CFArrayRef changedKeys, void* context);
+    void onDiskDescriptionChangedImpl(DADiskRef disk, CFArrayRef changedKeys, void* context) override;
 
     UniqueCFRef<CFDictionaryRef> mMatchingDict;
 

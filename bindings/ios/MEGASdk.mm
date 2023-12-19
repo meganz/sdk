@@ -201,6 +201,11 @@ using namespace mega;
     return self.megaApi->contactVerificationWarningEnabled();
 }
 
+- (BOOL)isNewAccount {
+    if (self.megaApi == nil) return NO;
+    return self.megaApi->accountIsNew();
+}
+
 #pragma mark - Business
 
 - (BOOL)isBusinessAccount {
@@ -1395,6 +1400,13 @@ using namespace mega;
 - (void)publicNodeForMegaFileLink:(NSString *)megaFileLink delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->getPublicNode(megaFileLink.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
+
+
+- (void)getDownloadUrl:(MEGANode *)node singleUrl:(BOOL)singleUrl delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->getDownloadUrl(node.getCPtr, singleUrl, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
     }
 }
 
@@ -2596,13 +2608,13 @@ using namespace mega;
 
 - (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath  fileName:(nullable NSString*)fileName appData:(nullable NSString *)appData startFirst:(BOOL) startFirst cancelToken:(nullable MEGACancelToken *)cancelToken collisionCheck:(CollisionCheck)collisionCheck collisionResolution:(CollisionResolution)collisionResolution {
     if (self.megaApi) {
-        self.megaApi->startDownload(node.getCPtr, localPath.UTF8String, fileName.UTF8String, appData.UTF8String, startFirst, cancelToken.getCPtr, (int)collisionCheck, (int)collisionResolution);
+        self.megaApi->startDownload(node.getCPtr, localPath.UTF8String, fileName.UTF8String, appData.UTF8String, startFirst, cancelToken.getCPtr, (int)collisionCheck, (int)collisionResolution, false);
     }
 }
 
 - (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath  fileName:(nullable NSString*)fileName appData:(nullable NSString *)appData startFirst:(BOOL) startFirst cancelToken:(nullable MEGACancelToken *)cancelToken collisionCheck:(CollisionCheck)collisionCheck collisionResolution:(CollisionResolution)collisionResolution delegate:(id<MEGATransferDelegate>)delegate {
     if (self.megaApi) {
-        self.megaApi->startDownload(node.getCPtr, localPath.UTF8String, fileName.UTF8String, appData.UTF8String, startFirst, cancelToken.getCPtr, (int)collisionCheck, (int)collisionResolution, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
+        self.megaApi->startDownload(node.getCPtr, localPath.UTF8String, fileName.UTF8String, appData.UTF8String, startFirst, cancelToken.getCPtr, (int)collisionCheck, (int)collisionResolution, false, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
     }
 }
 
@@ -3174,6 +3186,20 @@ using namespace mega;
     return [MEGANodeList.alloc initWithNodeList:self.megaApi->searchByType(node.getCPtr, searchString.UTF8String, cancelToken.getCPtr, recursive, (int)orderType, (int)nodeFormatType, (int)folderTargetType) cMemoryOwn:YES];
 }
 
+- (MEGANodeList *)searchWith:(MEGASearchFilter *)filter
+               orderType:(MEGASortOrderType)orderType
+             cancelToken:(MEGACancelToken *)cancelToken {
+    if (self.megaApi == nil) return nil;
+    return [MEGANodeList.alloc initWithNodeList:self.megaApi->search([self generateSearchFilterFrom: filter], (int)orderType, cancelToken.getCPtr) cMemoryOwn:YES];
+}
+
+- (MEGANodeList *)searchNonRecursivelyWith:(MEGASearchFilter *)filter
+                              orderType:(MEGASortOrderType)orderType
+                            cancelToken:(MEGACancelToken *)cancelToken {
+    if (self.megaApi == nil) return nil;
+    return [MEGANodeList.alloc initWithNodeList:self.megaApi->getChildren([self generateSearchFilterFrom: filter], (int)orderType, cancelToken.getCPtr) cMemoryOwn:YES];
+}
+
 - (MEGANodeList *)nodeListSearchOnInSharesByString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken order:(MEGASortOrderType)order {
     if (self.megaApi == nil) return nil;
     return [MEGANodeList.alloc initWithNodeList:self.megaApi->searchOnInShares(searchString.UTF8String, cancelToken.getCPtr, (int)order) cMemoryOwn:YES];
@@ -3726,6 +3752,12 @@ using namespace mega;
     }
 }
 
+- (void)getDeviceName:(nullable NSString *)deviceId delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->getDeviceName(deviceId.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
 - (void)setDeviceName:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->setDeviceName(name.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
@@ -3902,6 +3934,29 @@ using namespace mega;
     _activeTransferListeners.erase(delegate);
     pthread_mutex_unlock(&listenerMutex);
     delete delegate;
+}
+
+- (MegaSearchFilter *)generateSearchFilterFrom:(MEGASearchFilter *)filter {
+    MegaSearchFilter *megaFilter = MegaSearchFilter::createInstance();
+
+    megaFilter->byName(filter.term.UTF8String);
+    megaFilter->byNodeType(filter.nodeType);
+    megaFilter->byCategory(filter.category);
+    megaFilter->bySensitivity(filter.sensitivity);
+
+    if (filter.didSetLocationType) {
+        megaFilter->byLocation(filter.locationType);
+    }
+
+    if (filter.didSetParentNodeHandle) {
+        megaFilter->byLocationHandle(filter.parentNodeHandle);
+    }
+
+    if (filter.timeFrame != nil) {
+        megaFilter->byCreationTime(filter.timeFrame.lowerLimit, filter.timeFrame.upperLimit);
+    }
+
+    return megaFilter;
 }
 
 #pragma mark - Cookie Dialog

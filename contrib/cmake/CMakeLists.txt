@@ -422,7 +422,7 @@ endif()
 
 if (USE_THIRDPARTY_FROM_VCPKG)
         IF(USE_CRYPTOPP)
-            ImportStdVcpkgLibrary(cryptopp        cryptopp-static cryptopp-static libcryptopp libcryptopp)
+            ImportStdVcpkgLibrary(cryptopp        cryptopp cryptopp libcryptopp libcryptopp)
         ENDIF(USE_CRYPTOPP)
 
         ImportStdVcpkgLibrary(sodium          libsodium libsodium libsodium libsodium)
@@ -469,6 +469,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
                 set(DEBUG_SUFIX _debug)
             endif()
             ImportStdVcpkgLibrary(zen        zend zen libzen${DEBUG_SUFIX} libzen)
+            ImportStdVcpkgLibrary(tinyxml2   tinyxml2 tinyxml2 libtinyxml2 libtinyxml2)
             ImportStdVcpkgLibrary(mediainfo  mediainfod mediainfo libmediainfo${DEBUG_SUFIX} libmediainfo)
         ENDIF(USE_MEDIAINFO)
 
@@ -661,13 +662,14 @@ ELSE(WIN32)
     ENDIF()
 
     IF (APPLE)
+        set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs}
+                                      "-framework CoreFoundation"
+                                      "-framework DiskArbitration")
+
         IF (USE_DRIVE_NOTIFICATIONS)
             SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles}
                                            ${MegaDir}/include/mega/osx/drivenotifyosx.h
                                            ${MegaDir}/src/osx/drivenotifyosx.cpp)
-            SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs}
-                                          "-framework DiskArbitration"
-                                          "-framework CoreFoundation")
         ENDIF()
     ENDIF ()
 
@@ -733,6 +735,7 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/thread/cppthread.h
             ${MegaDir}/include/mega/thread/posixthread.h
             ${MegaDir}/include/mega/thread/libuvthread.h
+            ${MegaDir}/include/mega/process.h
             ${MegaDir}/include/mega/command.h
             ${MegaDir}/include/mega/config.h
             ${MegaDir}/include/mega/thread.h
@@ -795,6 +798,7 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/logging.h
             ${MegaDir}/include/mega/file.h
             ${MegaDir}/include/mega/sync.h
+            ${MegaDir}/include/mega/syncfilter.h
             ${MegaDir}/include/mega/heartbeats.h
             ${MegaDir}/include/mega/utils.h
             ${MegaDir}/include/mega/account.h
@@ -838,6 +842,7 @@ add_library(Mega STATIC
             ${MegaDir}/src/node.cpp
             ${MegaDir}/src/pendingcontactrequest.cpp
             ${MegaDir}/src/textchat.cpp
+            ${MegaDir}/src/process.cpp
             ${MegaDir}/src/proxy.cpp
             ${MegaDir}/src/pubkeyaction.cpp
             ${MegaDir}/src/raid.cpp
@@ -848,6 +853,7 @@ add_library(Mega STATIC
             ${MegaDir}/src/share.cpp
             ${MegaDir}/src/sharenodekeys.cpp
             ${MegaDir}/src/sync.cpp
+            ${MegaDir}/src/syncfilter.cpp
             ${MegaDir}/src/heartbeats.cpp
             ${MegaDir}/src/testhooks.cpp
             ${MegaDir}/src/transfer.cpp
@@ -868,6 +874,8 @@ add_library(Mega STATIC
 target_include_directories(Mega PRIVATE ${MegaDir}/include ${Mega_PlatformSpecificIncludes})
 target_include_directories(Mega PUBLIC ${MegaDir}/include ${Mega_PlatformSpecificIncludes})
 
+MESSAGE(STATUS "ID: ${Mega_PlatformSpecificIncludes}")
+
 if (WIN32)
     set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} $<${HAVE_FFMPEG}:Mfplat.lib> $<${HAVE_FFMPEG}:Strmiids.lib> $<${HAVE_FFMPEG}:Mfuuid.lib>)
 endif()
@@ -884,7 +892,7 @@ target_link_libraries(Mega PUBLIC
                         $<${USE_CRYPTOPP}:cryptopp>
                         sodium
                         $<${USE_WEBRTC}:webrtc>
-                        $<${USE_MEDIAINFO}:mediainfo> $<${USE_MEDIAINFO}:zen>
+                        $<${USE_MEDIAINFO}:mediainfo> $<${USE_MEDIAINFO}:zen> $<${USE_MEDIAINFO}:tinyxml2>
                         $<${USE_CURL}:curl>
                         $<${MEGA_USE_C_ARES}:cares>
                         $<$<AND:${USE_OPENSSL},$<NOT:${USE_WEBRTC}>>:ssl>
@@ -1034,6 +1042,7 @@ add_executable(test_unit
     ${MegaDir}/tests/unit/PendingContactRequest_test.cpp
     ${MegaDir}/tests/unit/Serialization_test.cpp
     ${MegaDir}/tests/unit/Share_test.cpp
+    ${MegaDir}/tests/unit/Sync_conflict_test.cpp
     ${MegaDir}/tests/unit/Sync_test.cpp
     ${MegaDir}/tests/unit/TextChat_test.cpp
     ${MegaDir}/tests/unit/Transfer_test.cpp
@@ -1041,12 +1050,11 @@ add_executable(test_unit
     ${MegaDir}/tests/unit/utils.cpp
     ${MegaDir}/tests/unit/utils.h
     ${MegaDir}/tests/unit/utils_test.cpp
-    ${MegaDir}/tests/integration/process.cpp
+    ${MegaDir}/tests/unit/CacheLRU_test.cpp
 )
 
 add_executable(test_integration
     ${MegaDir}/tests/integration/main.cpp
-    ${MegaDir}/tests/integration/process.cpp
     ${MegaDir}/tests/integration/SdkTest_test.cpp
     ${MegaDir}/tests/integration/Sync_test.cpp
 )
@@ -1106,8 +1114,6 @@ if (NOT NO_READLINE)
     target_link_libraries(megacli ${readline_LIBRARIES})
 endif (NOT NO_READLINE)
 
-add_executable(megasimplesync ${MegaDir}/examples/megasimplesync.cpp)
-target_link_libraries(megasimplesync Mega )
 endif()
 
 if(WIN32)
@@ -1135,7 +1141,6 @@ if (WIN32)
     set_property(TARGET Mega PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
     set_property(TARGET megacli PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
     set_property(TARGET testmega PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
-    set_property(TARGET megasimplesync PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
     set_property(TARGET test_integration PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
     set_property(TARGET test_unit PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
     if (HAVE_ASIO)
@@ -1144,7 +1149,7 @@ if (WIN32)
 
 else()
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb3")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Wextra -Wconversion -Wno-unused-parameter")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Wextra -Wconversion -Wno-unused-parameter -Wno-unqualified-std-cast-call -Wno-deprecated-declarations -Wno-unqualified-std-cast-call")  #no-deprecated-declarations because of FSEventStreamScheduleWithRunLoop
 
     if (ENABLE_WERROR)
         if (CMAKE_BUILD_TYPE STREQUAL "Debug" )

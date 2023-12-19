@@ -119,7 +119,7 @@ public:
     bool searchInShareOrOutShareByName(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, ShareType_t shareType, CancelToken cancelFlag) override;
 
     bool getNodesByFingerprint(const std::string& fingerprint, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
-    bool getNodeByFingerprint(const std::string& fingerprint, mega::NodeSerialized& node) override;
+    bool getNodeByFingerprint(const std::string& fingerprint, mega::NodeSerialized& node, NodeHandle& handle) override;
     bool getRecentNodes(unsigned maxcount, m_time_t since, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
     bool getFavouritesHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) override;
     bool childNodeByNameType(NodeHandle parentHanlde, const std::string& name, nodetype_t nodeType, std::pair<NodeHandle, NodeSerialized>& node) override;
@@ -166,6 +166,14 @@ public:
     // Method called when query use method 'ismimetype'
     // It checks if received mimetype is the same as extension extracted from file name
     static void userIsMimetype(sqlite3_context* context, int argc, sqlite3_value** argv);
+
+    // Method called when query uses 'ismimetypeincluded'
+    // Checks whether first mimetype is included by the second one
+    static void userIsMimetypeIncluded(sqlite3_context* context, int argc, sqlite3_value** argv);
+
+    // Method called when query uses 'getmimetype'
+    // Gets the mimetype corresponding to the file extension
+    static void userGetMimetype(sqlite3_context* context, int argc, sqlite3_value** argv);
 
 private:
     // Iterate over a SQL query row by row and fill the map
@@ -248,6 +256,8 @@ private:
     bool openDBAndCreateStatecache(sqlite3 **db, FileSystemAccess& fsAccess, const string& name, mega::LocalPath &dbPath, const int flags);
     bool renameDBFiles(mega::FileSystemAccess& fsAccess, mega::LocalPath& legacyPath, mega::LocalPath& dbPath);
     void removeDBFiles(mega::FileSystemAccess& fsAccess, mega::LocalPath& dbPath);
+    bool ensureColumnIsInNodesTable(sqlite3* db, const string& colName, const string& colType, std::function<bool()> callAfterAdded = nullptr);
+    bool copyMtimeFromFingerprint(sqlite3* db);
 };
 
 } // namespace

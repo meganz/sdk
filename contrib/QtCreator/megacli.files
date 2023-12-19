@@ -1,7 +1,6 @@
 ../../doc/example/lsmega.cpp
 ../../examples/megacli.cpp
 ../../examples/megacli.h
-../../examples/megasimplesync.cpp
 ../../include/mega/crypto/cryptopp.h
 ../../include/mega/crypto/sodium.h
 ../../include/mega/db/sqlite.h
@@ -57,6 +56,7 @@
 ../../include/mega/share.h
 ../../include/mega/sharenodekeys.h
 ../../include/mega/sync.h
+../../include/mega/syncfilter.h
 ../../include/mega/heartbeats.h
 ../../include/mega/thread.h
 ../../include/mega/transfer.h
@@ -123,6 +123,7 @@
 ../../src/share.cpp
 ../../src/sharenodekeys.cpp
 ../../src/sync.cpp
+../../src/syncfilter.cpp
 ../../src/transfer.cpp
 ../../src/transferslot.cpp
 ../../src/treeproc.cpp
