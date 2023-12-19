@@ -39,7 +39,7 @@ namespace gfx {
 
 class MegaFileLoggerLoggingThread;
 
-class MegaFileLogger : public mega::MegaLogger
+class MegaFileLogger : public ::mega::MegaLogger
 {
     friend class MegaFileLoggerLoggingThread;
 
