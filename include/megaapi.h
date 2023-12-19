@@ -501,28 +501,28 @@ class MegaNode
              *
              * @param pwd Value to set
              */
-            virtual void password(const char* pwd) = 0;
+            virtual void setPassword(const char* pwd) = 0;
 
             /**
              * @brief Set notes attribute value.
              *
              * @param pwd Value to set
              */
-            virtual void notes(const char* n) = 0;
+            virtual void setNotes(const char* n) = 0;
 
             /**
              * @brief Set URL attribute value.
              *
              * @param pwd Value to set
              */
-            virtual void url(const char* u) = 0;
+            virtual void setUrl(const char* u) = 0;
 
             /**
              * @brief Set user name attribute value.
              *
              * @param pwd Value to set
              */
-            virtual void userName(const char* un) = 0;
+            virtual void setUserName(const char* un) = 0;
 
             /**
              * @brief Get password attribute value.

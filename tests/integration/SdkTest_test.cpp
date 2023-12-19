@@ -16049,7 +16049,7 @@ TEST_F(SdkTest, SdkTestPasswordManager)
 
     LOG_debug << "\t# update only password attribute providing all attributes";
     const char* nPwd = "5678";
-    pwdData->password(nPwd);
+    pwdData->setPassword(nPwd);
     check1 = false;
     mApi[userIdx].mOnNodesUpdateCompletion =
         createOnNodesUpdateLambda(newPwdNode->getHandle(), MegaNode::CHANGE_TYPE_PWD, check1);
@@ -16071,7 +16071,7 @@ TEST_F(SdkTest, SdkTestPasswordManager)
 
     LOG_debug << "\t# update only notes attribute (the non-updated attributes should be the same)";
     const char* newNotes = "Updated Notes";
-    pwdData->notes(newNotes);  // expected data
+    pwdData->setNotes(newNotes);  // expected data
     std::unique_ptr<MegaNode::PasswordNodeData> updatedData {
         MegaNode::PasswordNodeData::createInstance(nullptr, newNotes, nullptr, nullptr)};
     check1 = false;
@@ -16085,7 +16085,7 @@ TEST_F(SdkTest, SdkTestPasswordManager)
 
     LOG_debug << "\t# update only url attribute (the non-updated attributes should be the same)";
     const char* newURL = "Updated url";
-    pwdData->url(newURL);  // expected data
+    pwdData->setUrl(newURL);  // expected data
     updatedData.reset(MegaNode::PasswordNodeData::createInstance(nullptr, nullptr, newURL, nullptr));
     check1 = false;
     mApi[userIdx].mOnNodesUpdateCompletion =
@@ -16098,7 +16098,7 @@ TEST_F(SdkTest, SdkTestPasswordManager)
 
     LOG_debug << "\t# update only user name attribute (the non-updated attributes should be the same)";
     const char* newUserName = "Updated userName";
-    pwdData->userName(newUserName);  // expected data
+    pwdData->setUserName(newUserName);  // expected data
     updatedData.reset(MegaNode::PasswordNodeData::createInstance(nullptr, nullptr, nullptr, newUserName));
     check1 = false;
     mApi[userIdx].mOnNodesUpdateCompletion =

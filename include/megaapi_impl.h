@@ -564,10 +564,10 @@ class MegaNodePrivate : public MegaNode, public Cacheable
               mUserName {un ? make_unique<std::string>(un) : nullptr}
             {}
 
-        virtual void password(const char* pwd) override { mPwd.reset(); if (pwd) mPwd = make_unique<std::string>(pwd); }
-        virtual void notes(const char* n)      override { mNotes.reset(); if (n) mNotes = make_unique<std::string>(n); }
-        virtual void url(const char* u)        override { mURL.reset(); if (u) mURL = make_unique<std::string>(u); }
-        virtual void userName(const char* un)  override { mUserName.reset(); if (un) mUserName = make_unique<std::string>(un); }
+        virtual void setPassword(const char* pwd) override { mPwd.reset(); if (pwd) mPwd = make_unique<std::string>(pwd); }
+        virtual void setNotes(const char* n)      override { mNotes.reset(); if (n) mNotes = make_unique<std::string>(n); }
+        virtual void setUrl(const char* u)        override { mURL.reset(); if (u) mURL = make_unique<std::string>(u); }
+        virtual void setUserName(const char* un)  override { mUserName.reset(); if (un) mUserName = make_unique<std::string>(un); }
 
         virtual const char* password() const override { return mPwd ? mPwd->c_str() : nullptr; }
         virtual const char* notes() const    override { return mNotes ? mNotes->c_str(): nullptr; }
