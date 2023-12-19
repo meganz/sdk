@@ -16246,7 +16246,6 @@ TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectories)
     ASSERT_STREQ(directoryNameLevel2.c_str(), directoryNodeLevel2->getName());
 }
 
-#ifndef __APPLE__
 /**
  * @brief Create node tree with multiple levels of directories and one file at the end
  *
@@ -16332,4 +16331,3 @@ TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectoriesAndOneFileAtTheEnd)
     ASSERT_STREQ(IMAGEFILE.c_str(), fileNode->getName());
     ASSERT_EQ(fileSize, fileNode->getSize());
 }
-#endif
