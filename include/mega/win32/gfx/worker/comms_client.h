@@ -12,7 +12,6 @@ class Win32NamedPipeEndpointClient : public Win32NamedPipeEndpoint
 public:
     Win32NamedPipeEndpointClient(HANDLE h, const std::string& name) : Win32NamedPipeEndpoint(h, name) {}
 
-    ~Win32NamedPipeEndpointClient() {}
 private:
     Type type() const { return Type::Client; }
 };
