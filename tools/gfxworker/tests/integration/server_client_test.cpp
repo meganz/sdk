@@ -33,11 +33,9 @@ class ServerClientTest : public testing::Test
 protected:
     void SetUp() override
     {
-        mDataFolder = LocalPath::fromAbsolutePath(ExecutableDir::get());
         mPipeName = "MEGA_GFXWOKER_UNIT_TEST";
     }
 
-    LocalPath mDataFolder;
     std::string mPipeName;
 };
 
@@ -57,7 +55,7 @@ TEST_F(ServerClientTest, RunGfxTaskSuccessfully)
 
     // one png
     std::vector<std::string> images;
-    LocalPath jpgImage = mDataFolder;
+    LocalPath jpgImage = LocalPath::fromAbsolutePath(ExecutableDir::get());
     jpgImage.appendWithSeparator(LocalPath::fromRelativePath("logo.png"), false);
 
     EXPECT_TRUE(
