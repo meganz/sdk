@@ -10325,8 +10325,7 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * A folder is considered a Password Node Folder if Password Manager Base is its
  * ancestor.
  *
- * @param parent Parent folder for the new Password Node // TODO: - Seems wrong on 'megaapi.h'
- * @param delegate MEGARequestDelegate to track this request
+ * @param node MegaHandle of the node to check if it is a Password Node Folder
  */
 - (BOOL)isPasswordNodeFolderWithHandle:(MEGAHandle)node;
 
