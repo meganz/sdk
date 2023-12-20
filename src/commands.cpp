@@ -3381,12 +3381,6 @@ CommandGetUA::CommandGetUA(MegaClient* /*client*/, const char* uid, attr_t at, c
     {
         cmd("mcuga");
         arg("ph", ph);
-
-
-        // cannot use v3, since the response is "<value>" and, if we have multiple `mcuga` in the
-        // same request -> first value will be taken as the sequence-tag, second value as the value
-        // for the first command
-        mV3 = false;
     }
     else
     {
@@ -3465,25 +3459,6 @@ bool CommandGetUA::procresult(Result r, JSON& json)
         const char* ptr;
         const char* end;
         string value, version, buf;
-
-        //If we are in preview mode, we only can retrieve atributes with mcuga and the response format is different
-        if (isFromChatPreview())
-        {
-            ptr = json.getvalue();
-            if (!ptr || !(end = strchr(ptr, '"')))
-            {
-                mCompletionErr(API_EINTERNAL);
-            }
-            else
-            {
-                // convert from ASCII to binary the received data
-                buf.assign(ptr, (end-ptr));
-                value.resize(buf.size() / 4 * 3 + 3);
-                value.resize(Base64::atob(buf.data(), (byte *)value.data(), int(value.size())));
-                mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
-            }
-            return true;
-        }
 
         for (;;)
         {
