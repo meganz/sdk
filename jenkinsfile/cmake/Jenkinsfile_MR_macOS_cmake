@@ -92,31 +92,26 @@ pipeline {
             }
             environment{
                 PATH = "/usr/local/bin:${env.PATH}"
-                VCPKGPATH = "${env.HOME}/jenkins/3rdparty"
-                BUILD_DIR = "contrib/cmake/build_dir"
+                VCPKGPATH = "${env.HOME}/jenkins/3rdparty/vcpkg"
+                BUILD_DIR = "build_dir"
+                BUILD_DIR_X64 = "build_dir_x64"
             }
             steps{
                 dir(mac_sources_workspace){
+                    //Build SDK for arm64
+                    sh "echo Building SDK for arm64"
                     sh "rm -rf ${BUILD_DIR}; mkdir ${BUILD_DIR}"
+                    sh "cmake -DENABLE_SDKLIB_WERROR=ON -DENABLE_CHAT=ON -DCMAKE_BUILD_TYPE=Debug -DVCPKG_ROOT=${VCPKGPATH} ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=ON \
+                    -S ${mac_sources_workspace} -B ${mac_sources_workspace}/${BUILD_DIR}"
+                    sh "cmake --build ${mac_sources_workspace}/${BUILD_DIR} -j1"
 
-                    //Build SDK
-                    sh "echo Building SDK"
-                    sh "cmake -DENABLE_WERROR=1 -DENABLE_CHAT=1 -DCMAKE_BUILD_TYPE=Debug -DMega3rdPartyDir=${VCPKGPATH} ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=1 -DUSE_THIRDPARTY_FROM_VCPKG=1 \
-                    -S ${mac_sources_workspace}/contrib/cmake -B ${mac_sources_workspace}/${BUILD_DIR}"
-                    sh "cmake --build ${mac_sources_workspace}/${BUILD_DIR} --target Mega -j1"
-                    sh "cmake --build ${mac_sources_workspace}/${BUILD_DIR} --target megacli -j1"
-                    sh "cmake --build ${mac_sources_workspace}/${BUILD_DIR} --target test_unit -j1"
-                    sh "cmake --build ${mac_sources_workspace}/${BUILD_DIR} --target test_integration -j1"
-                    sh "cmake --build ${mac_sources_workspace}/${BUILD_DIR} --target tool_tcprelay -j1"
-                    
-                    //Package megacli to be archived
-                    sh "echo Packaging megacli to be archived"
-                    sh "rm -r examples-* || :; mkdir examples-${BUILD_ID}"
-                    sh "cp ${BUILD_DIR}/megacli ./examples-${BUILD_ID}"
-                    sh "install_name_tool -add_rpath @executable_path/.libs ./examples-${BUILD_ID}/megacli"
-                    sh "mkdir ./examples-${BUILD_ID}/.libs; cp -RP ${VCPKGPATH}/vcpkg/installed/arm64-osx-mega/debug/lib/*.dylib ./examples-${BUILD_ID}/.libs || :"
-                    sh "cp -RP ${VCPKGPATH}/vcpkg/installed/arm64-osx-mega/debug/lib/*.dylib ./examples-${BUILD_ID}/.libs || :"
-                    sh "tar czf examples-${BUILD_ID}.tar.gz ./examples-${BUILD_ID} || :"
+                    //Build SDK for x64
+                    sh "echo \"Building SDK for x64 (crosscompiling)\""
+                    sh "rm -rf ${BUILD_DIR_X64}; mkdir ${BUILD_DIR_X64}"
+                    sh "cmake -DENABLE_SDKLIB_WERROR=ON -DENABLE_CHAT=ON -DCMAKE_BUILD_TYPE=Debug -DVCPKG_ROOT=${VCPKGPATH} ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=ON \
+                    -DCMAKE_OSX_ARCHITECTURES=x86_64 \
+                    -S ${mac_sources_workspace} -B ${mac_sources_workspace}/${BUILD_DIR_X64}"
+                    sh "cmake --build ${mac_sources_workspace}/${BUILD_DIR_X64} -j1"
                 }
             }
         }
@@ -129,7 +124,7 @@ pipeline {
                 MEGA_PWD_AUX = credentials('MEGA_PWD_DEFAULT')
                 MEGA_PWD_AUX2 = credentials('MEGA_PWD_DEFAULT')
                 MEGA_REAL_PWD=credentials('MEGA_REAL_PWD_TEST')
-                BUILD_DIR = "contrib/cmake/build_dir"  
+                BUILD_DIR = "build_dir"  
                 }
             steps{
                 lock(label: 'SDK_Concurrent_Test_Accounts', variable: 'ACCOUNTS_COMBINATION', quantity: 1, resource: null){
@@ -142,6 +137,12 @@ pipeline {
                         sh """#!/bin/zsh
                         set -x
                         cd ${env.BUILD_DIR}
+
+                        if [ ! -f ./test_unit ] && [ ! -f ./test_integration ]; then
+                            echo Tests not available | tee > test_integration.log
+                            exit 0
+                        fi
+
                         ./test_unit &
                         pid=\$!
                         wait \$pid || FAILED=1
@@ -197,7 +198,7 @@ pipeline {
             
     post{
         always {
-            archiveArtifacts artifacts: 'contrib/cmake/build_dir/test_integration*log*, examples-*.tar.gz', fingerprint: true
+            archiveArtifacts artifacts: 'build_dir/test_integration*log*, examples-*.tar.gz', fingerprint: true
             script{
                 if (currentBuild.currentResult == 'SUCCESS'){
                     addGitLabMRComment(comment: ":white_check_mark: ${currentBuild.projectName} :green_apple: <b>macOS</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )

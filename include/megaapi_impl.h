@@ -2766,6 +2766,7 @@ public:
     void byLocationHandle(MegaHandle ancestorHandle) override;
     void byLocation(int locationType) override;
     void byCreationTime(int64_t lowerLimit, int64_t upperLimit) override;
+    void byModificationTime(int64_t lowerLimit, int64_t upperLimit) override;
 
     const char* byName() const override { return mNameFilter.c_str(); }
     int byNodeType() const override { return mNodeType; }
@@ -2775,6 +2776,8 @@ public:
     int byLocation() const override { return mLocationType; }
     int64_t byCreationTimeLowerLimit() const override { return mCreationLowerLimit; }
     int64_t byCreationTimeUpperLimit() const override { return mCreationUpperLimit; }
+    int64_t byModificationTimeLowerLimit() const override { return mModificationLowerLimit; }
+    int64_t byModificationTimeUpperLimit() const override { return mModificationUpperLimit; }
 
 private:
     std::string mNameFilter;
@@ -2785,6 +2788,8 @@ private:
     int mLocationType = MegaApi::SEARCH_TARGET_ALL;
     int64_t mCreationLowerLimit = 0;
     int64_t mCreationUpperLimit = 0;
+    int64_t mModificationLowerLimit = 0;
+    int64_t mModificationUpperLimit = 0;
 };
 
 
@@ -2802,11 +2807,11 @@ class MegaApiImpl : public MegaApp
         void addTransferListener(MegaTransferListener* listener);
         void addScheduledCopyListener(MegaScheduledCopyListener* listener);
         void addGlobalListener(MegaGlobalListener* listener);
-        void removeListener(MegaListener* listener);
-        void removeRequestListener(MegaRequestListener* listener);
-        void removeTransferListener(MegaTransferListener* listener);
-        void removeScheduledCopyListener(MegaScheduledCopyListener* listener);
-        void removeGlobalListener(MegaGlobalListener* listener);
+        bool removeListener(MegaListener* listener);
+        bool removeRequestListener(MegaRequestListener* listener);
+        bool removeTransferListener(MegaTransferListener* listener);
+        bool removeScheduledCopyListener(MegaScheduledCopyListener* listener);
+        bool removeGlobalListener(MegaGlobalListener* listener);
 
         //Utils
         long long getSDKtime();
@@ -3590,6 +3595,14 @@ public:
         void lockMutex();
         void unlockMutex();
         bool tryLockMutexFor(long long time);
+
+        void getVisibleWelcomeDialog(MegaRequestListener* listener);
+
+        void setVisibleWelcomeDialog(bool visible, MegaRequestListener* listener);
+
+        void createNodeTree(const MegaNode* parentNode,
+                            MegaNodeTree* nodeTree,
+                            MegaRequestListener* listener);
 
 private:
         void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, unsigned clientWorkerThreadCount /*= 1*/);
@@ -4847,6 +4860,46 @@ private:
     std::unique_ptr<MegaStringList> mVpnRegions;
 };
 
+class MegaNodeTreePrivate: public MegaNodeTree
+{
+public:
+    MegaNodeTreePrivate(MegaNodeTree* nodeTreeChild,
+                        const std::string& name,
+                        const std::string& s4AttributeValue,
+                        const MegaCompleteUploadData* completeUploadData,
+                        MegaHandle nodeHandle);
+    ~MegaNodeTreePrivate() override = default;
+    MegaNodeTree* getNodeTreeChild() const override;
+    const std::string& getName() const;
+    const std::string& getS4AttributeValue() const;
+    const MegaCompleteUploadData* getCompleteUploadData() const;
+    MegaHandle getNodeHandle() const override;
+    void setNodeHandle(const MegaHandle& nodeHandle);
+
+private:
+    std::unique_ptr<MegaNodeTree> mNodeTreeChild;
+    std::string mName;
+    std::string mS4AttributeValue;
+    std::unique_ptr<const MegaCompleteUploadData> mCompleteUploadData;
+    MegaHandle mNodeHandle;
+};
+
+class MegaCompleteUploadDataPrivate: public MegaCompleteUploadData
+{
+public:
+    MegaCompleteUploadDataPrivate(const std::string& fingerprint,
+                                  const std::string& string64UploadToken,
+                                  const std::string& string64FileKey);
+    ~MegaCompleteUploadDataPrivate() override = default;
+    const std::string& getFingerprint() const;
+    const std::string& getString64UploadToken() const;
+    const std::string& getString64FileKey() const;
+
+private:
+    std::string mFingerprint;
+    std::string mString64UploadToken;
+    std::string mString64FileKey;
+};
 }
 
 #endif //MEGAAPI_IMPL_H

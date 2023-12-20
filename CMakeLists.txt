@@ -27,7 +27,7 @@ endif()
 #    target_link_libraries(<target> PRIVATE PkgConfig::SDKlib)
 #
 
-cmake_minimum_required(VERSION 3.19)
+cmake_minimum_required(VERSION 3.18)
 
 # Qt Creator configures VCPKG automatically. Disable it, we may want to use different tripplets, paths...
 set(QT_CREATOR_SKIP_VCPKG_SETUP TRUE CACHE BOOL "")
@@ -62,7 +62,7 @@ endif()
 # set (USE_PCRE 0 CACHE STRING "Can be used by client apps. The SDK does not use it itself anymore")
 
 ## General configuration
-# Modules location
+# Main modules location
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules)
 
 # No configurable values.
@@ -83,6 +83,8 @@ if(VCPKG_ROOT)
     include(vcpkg_management)
     process_vcpkg_libraries()
 else()
+    # For packages with no pkg-config in the system.
+    list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules/packages)
     message(STATUS "Using system dependencies")
 endif()
 
@@ -119,6 +121,13 @@ else()
     endif()
 endif()
 
+message(STATUS "Generator: ${CMAKE_GENERATOR}")
+if(CMAKE_GENERATOR_PLATFORM)
+    message(STATUS "Platform: ${CMAKE_GENERATOR_PLATFORM}")
+endif()
+if(CMAKE_OSX_ARCHITECTURES)
+    message(STATUS "Architectures: ${CMAKE_OSX_ARCHITECTURES}")
+endif()
 if (NOT CMAKE_BUILD_TYPE)
     message(STATUS "Generated with config types: ${CMAKE_CONFIGURATION_TYPES}")
 else()
