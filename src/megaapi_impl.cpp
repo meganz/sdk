@@ -12062,60 +12062,32 @@ MegaNodeList* MegaApiImpl::search(const MegaSearchFilter* filter, int order, Can
         switch (filter->byLocation())
         {
         case MegaApi::SEARCH_TARGET_ALL:
-            searchResults = searchInNodeManager(filter, cancelToken);
-            break;
-        case MegaApi::SEARCH_TARGET_ROOTNODE:
-            searchResults = searchTopLevelNodesExclRubbish(filter, cancelToken);
+        case MegaApi::SEARCH_TARGET_ROOTNODE: // Search on Cloud root and Vault, excluding Rubbish
+            searchResults = searchInNodeManager(filter, order, cancelToken);
             break;
         case MegaApi::SEARCH_TARGET_INSHARE:
-            searchResults = searchInshares(filter, cancelToken);
+            searchResults = searchInshares(filter, order, cancelToken);
             break;
         case MegaApi::SEARCH_TARGET_OUTSHARE:
-            searchResults = searchOutshares(filter, cancelToken);
+            searchResults = searchOutshares(filter, order, cancelToken);
             break;
         case MegaApi::SEARCH_TARGET_PUBLICLINK:
-            searchResults = searchPublicLinks(filter, cancelToken);
+            searchResults = searchPublicLinks(filter, order, cancelToken);
             break;
         default:
             LOG_err << "Search not implemented for Location " << filter->byLocation();
         }
     } // end scope for mutex guard
 
-    // order
-    sortByComparatorFunction(searchResults, order, *client);
     MegaNodeListPrivate* nodeList = new MegaNodeListPrivate(searchResults);
 
     return nodeList;
 }
 
-sharedNode_vector MegaApiImpl::searchTopLevelNodesExclRubbish(const MegaSearchFilter* filter, CancelToken cancelToken)
-{
-    // Search on rootnodes (Cloud and Vault, excluding Rubbish)
-    if (client->mNodeManager.getRootNodeFiles().isUndef())
-    {
-        return sharedNode_vector();
-    }
-
-    // make a copy as it will need to be modified
-    std::unique_ptr<MegaSearchFilter> f(filter->copy());
-    f->byLocationHandle(client->mNodeManager.getRootNodeFiles().as8byte());
-
-    sharedNode_vector searchResults = searchInNodeManager(f.get(), cancelToken);
-
-    if (!client->mNodeManager.getRootNodeVault().isUndef())
-    {
-        f->byLocationHandle(client->mNodeManager.getRootNodeVault().as8byte());
-        sharedNode_vector vaultResults = searchInNodeManager(f.get(), cancelToken);
-        searchResults.insert(searchResults.end(), vaultResults.begin(), vaultResults.end());
-    }
-
-    return searchResults;
-}
-
-sharedNode_vector MegaApiImpl::searchInshares(const MegaSearchFilter* filter, CancelToken cancelToken)
+sharedNode_vector MegaApiImpl::searchInshares(const MegaSearchFilter* filter, int order, CancelToken cancelToken)
 {
     // find in-shares that conform to the filter
-    sharedNode_vector results = searchInNodeManager(filter, cancelToken);
+    sharedNode_vector results = searchInNodeManager(filter, 0, cancelToken);
 
     // get all in-shares and search in each one of them
     sharedNode_vector allInShares = client->getVerifiedInShares();
@@ -12132,17 +12104,20 @@ sharedNode_vector MegaApiImpl::searchInshares(const MegaSearchFilter* filter, Ca
         }
 
         f->byLocationHandle(node->nodehandle);
-        sharedNode_vector inEachShare = searchInNodeManager(f.get(), cancelToken);
+        sharedNode_vector inEachShare = searchInNodeManager(f.get(), 0, cancelToken);
         results.insert(results.end(), inEachShare.begin(), inEachShare.end());
     }
+
+    // order
+    sortByComparatorFunction(results, order, *client);
 
     return results;
 }
 
-sharedNode_vector MegaApiImpl::searchOutshares(const MegaSearchFilter* filter, CancelToken cancelToken)
+sharedNode_vector MegaApiImpl::searchOutshares(const MegaSearchFilter* filter, int order, CancelToken cancelToken)
 {
     // find out-shares that conform to the filter
-    sharedNode_vector results = searchInNodeManager(filter, cancelToken);
+    sharedNode_vector results = searchInNodeManager(filter, 0, cancelToken);
 
     // get all out-shares and search in each one of them
     sharedNode_vector allOutShares = getOutShares();
@@ -12167,22 +12142,25 @@ sharedNode_vector MegaApiImpl::searchOutshares(const MegaSearchFilter* filter, C
         }
 
         f->byLocationHandle(node->nodehandle);
-        sharedNode_vector inEachShare = searchInNodeManager(f.get(), cancelToken);
+        sharedNode_vector inEachShare = searchInNodeManager(f.get(), 0, cancelToken);
         results.insert(results.end(), inEachShare.begin(), inEachShare.end());
     }
+
+    // order
+    sortByComparatorFunction(results, order, *client);
 
     return results;
 }
 
-sharedNode_vector MegaApiImpl::searchPublicLinks(const MegaSearchFilter* filter, CancelToken cancelToken)
+sharedNode_vector MegaApiImpl::searchPublicLinks(const MegaSearchFilter* filter, int order, CancelToken cancelToken)
 {
     // find public links that conform to the filter
-    sharedNode_vector results = searchInNodeManager(filter, cancelToken);
+    sharedNode_vector results = searchInNodeManager(filter, 0, cancelToken);
 
     // get all public links and search under each one of them
     std::unique_ptr<MegaSearchFilter> f(filter->copy());
     f->byName(nullptr);
-    sharedNode_vector allLinks = searchInNodeManager(f.get(), cancelToken);
+    sharedNode_vector allLinks = searchInNodeManager(f.get(), 0, cancelToken);
 
     // Search under each public link
     f.reset(filter->copy());
@@ -12196,21 +12174,30 @@ sharedNode_vector MegaApiImpl::searchPublicLinks(const MegaSearchFilter* filter,
         }
 
         f->byLocationHandle(node->nodehandle);
-        sharedNode_vector underEachLink = searchInNodeManager(f.get(), cancelToken);
+        sharedNode_vector underEachLink = searchInNodeManager(f.get(), 0, cancelToken);
         results.insert(results.end(), underEachLink.begin(), underEachLink.end());
     }
+
+    // order
+    sortByComparatorFunction(results, order, *client);
 
     return results;
 }
 
-sharedNode_vector MegaApiImpl::searchInNodeManager(const MegaSearchFilter* filter, CancelToken cancelToken)
+sharedNode_vector MegaApiImpl::searchInNodeManager(const MegaSearchFilter* filter, int order, CancelToken cancelToken)
 {
     ShareType_t shareType = filter->byLocation() == MegaApi::SEARCH_TARGET_INSHARE ? IN_SHARES :
                             (filter->byLocation() == MegaApi::SEARCH_TARGET_OUTSHARE ? OUT_SHARES :
                             (filter->byLocation() == MegaApi::SEARCH_TARGET_PUBLICLINK ? LINK : NO_SHARES));
     NodeSearchFilter nf;
     nf.copyFrom(*filter, shareType);
-    sharedNode_vector results = client->mNodeManager.searchNodes(nf, cancelToken);
+
+    if (filter->byLocation() == MegaApi::SEARCH_TARGET_ROOTNODE) // search under Cloud root and Vault
+    {
+        nf.byAncestors({client->mNodeManager.getRootNodeFiles().as8byte(), client->mNodeManager.getRootNodeVault().as8byte()});
+    }
+
+    sharedNode_vector results = client->mNodeManager.searchNodes(nf, order, cancelToken);
     return results;
 }
 
@@ -17908,16 +17895,16 @@ sharedNode_vector NodeManager::getChildren_internal(const NodeSearchFilter& filt
     assert(mMutex.owns_lock());
 
     // validation
-    if (filter.byLocationHandle() == UNDEF || !mTable || mNodes.empty())
+    if (filter.byParentHandle() == UNDEF || !mTable || mNodes.empty())
     {
-        assert(filter.byLocationHandle() != UNDEF && mTable && !mNodes.empty());
+        assert(filter.byParentHandle() != UNDEF && mTable && !mNodes.empty());
         return sharedNode_vector();
     }
 
     // small optimization to possibly skip the db look-up
     if (filter.bySensitivity())
     {
-        shared_ptr<Node> node = getNodeByHandle_internal(NodeHandle().set6byte(filter.byLocationHandle()));
+        shared_ptr<Node> node = getNodeByHandle_internal(NodeHandle().set6byte(filter.byParentHandle()));
         if (!node || node->isSensitiveInherited())
         {
             return sharedNode_vector();
@@ -17931,7 +17918,7 @@ sharedNode_vector NodeManager::getChildren_internal(const NodeSearchFilter& filt
         return sharedNode_vector();
     }
 
-    sharedNode_vector nodes = processUnserializedChildren(nodesFromTable, filter, cancelFlag);
+    sharedNode_vector nodes = processUnserializedNodes(nodesFromTable, filter, cancelFlag);
 
     return nodes;
 }

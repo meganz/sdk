@@ -95,7 +95,7 @@ public:
         return false;
         //throw NotImplemented(__func__);
     }
-    bool searchNodes(const mega::NodeSearchFilter&, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&, mega::CancelToken) override
+    bool searchNodes(const mega::NodeSearchFilter&, int, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&, mega::CancelToken) override
     {
         return false;
         //throw NotImplemented(__func__);

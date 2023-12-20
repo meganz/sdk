@@ -472,13 +472,13 @@ uint64_t NodeManager::getNodeCount_internal()
     return count;
 }
 
-sharedNode_vector NodeManager::searchNodes(const NodeSearchFilter& filter, CancelToken cancelFlag)
+sharedNode_vector NodeManager::searchNodes(const NodeSearchFilter& filter, int order, CancelToken cancelFlag)
 {
     LockGuard g(mMutex);
-    return searchNodes_internal(filter, cancelFlag);
+    return searchNodes_internal(filter, order, cancelFlag);
 }
 
-sharedNode_vector NodeManager::searchNodes_internal(const NodeSearchFilter& filter, CancelToken cancelFlag)
+sharedNode_vector NodeManager::searchNodes_internal(const NodeSearchFilter& filter, int order, CancelToken cancelFlag)
 {
     assert(mMutex.owns_lock());
 
@@ -490,18 +490,20 @@ sharedNode_vector NodeManager::searchNodes_internal(const NodeSearchFilter& filt
     }
 
     // small optimization to possibly skip the db look-up
-    if (filter.bySensitivity() && filter.byLocationHandle() != UNDEF)
-    {
-        shared_ptr<Node> node = getNodeByHandle_internal(NodeHandle().set6byte(filter.byLocationHandle()));
-        if (!node || node->isSensitiveInherited())
+    const vector<handle>& ancestors = filter.byAncestorHandles();
+    if (filter.bySensitivity() &&
+        std::all_of(ancestors.begin(), ancestors.end(), [this](handle a)
         {
-            return sharedNode_vector();
-        }
+            shared_ptr<Node> node = getNodeByHandle_internal(NodeHandle().set6byte(a));
+            return node && node->isSensitiveInherited();
+        }))
+    {
+        return sharedNode_vector();
     }
 
     // db look-up
     vector<pair<NodeHandle, NodeSerialized>> nodesFromTable;
-    if (!mTable->searchNodes(filter, nodesFromTable, cancelFlag))
+    if (!mTable->searchNodes(filter, order, nodesFromTable, cancelFlag))
     {
         return sharedNode_vector();
     }
@@ -2015,51 +2017,9 @@ sharedNode_vector NodeManager::processUnserializedNodes(const vector<pair<NodeHa
         if (cancelFlag.isCancelled()) break;
 
         shared_ptr<Node> n = getNodeInRAM(nodeIt.first);
-        NodeHandle ancestorHandle = NodeHandle().set6byte(filter.byLocationHandle());
-
-        if (!ancestorHandle.isUndef())  // filter results by subtree (nodeHandle)
-        {
-            bool skip = n ? !n->isAncestor(ancestorHandle)
-                          : !isAncestor(nodeIt.first, ancestorHandle, cancelFlag);
-
-            if (skip) continue;
-        }
-
         if (!n)
         {
             n = getNodeFromNodeSerialized(nodeIt.second);
-            if (!n)
-            {
-                nodes.clear();
-                return nodes;
-            }
-        }
-
-        // filter by sensitivity when it was inherited  --  should probably
-        // be [part of] a function passed to the sql query
-        if (filter.bySensitivity() && n->isSensitiveInherited()) continue;
-
-        nodes.push_back(n);
-    }
-
-    return nodes;
-}
-
-sharedNode_vector NodeManager::processUnserializedChildren(const vector<pair<NodeHandle, NodeSerialized>>& childrenFromTable, const NodeSearchFilter& filter, CancelToken cancelFlag)
-{
-    assert(mMutex.owns_lock());
-
-    sharedNode_vector nodes;
-
-    for (const auto& child : childrenFromTable)
-    {
-        // Check pointer and value
-        if (cancelFlag.isCancelled()) break;
-
-        shared_ptr<Node> n = getNodeInRAM(child.first);
-        if (!n)
-        {
-            n = getNodeFromNodeSerialized(child.second);
             if (!n)
             {
                 nodes.clear();

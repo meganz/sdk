@@ -17667,9 +17667,11 @@ class MegaApi
          *
          * - MegaApi::ORDER_LABEL_ASC = 17
          * Sort by color label, ascending. With this order, folders are returned first, then files
+         * This sorting criteria is expensive in current implementation
          *
          * - MegaApi::ORDER_LABEL_DESC = 18
          * Sort by color label, descending. With this order, folders are returned first, then files
+         * This sorting criteria is expensive in current implementation
          *
          * - MegaApi::ORDER_FAV_ASC = 19
          * Sort nodes with favourite attr first. With this order, folders are returned first, then files
