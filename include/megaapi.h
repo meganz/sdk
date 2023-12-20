@@ -1279,7 +1279,7 @@ public:
      *
      * @return type value.
      */
-    virtual uint8_t type() const { return 0; }
+    virtual int type() const { return SET_TYPE_INVALID; }
 
     /**
      * @brief Returns name of current Set.
@@ -1362,11 +1362,12 @@ public:
         CHANGE_TYPE_EXPORT  = 0x10,
     };
 
-    enum : uint8_t // 1:1 with Set::TYPE_YYY values (<255)
+    enum : int // 1:1 with existing Set::TYPE_YYY values (<255)
     {
         SET_TYPE_ALBUM = 0,
         SET_TYPE_PLAYLIST = 1,
         SET_TYPE_IGNORE = SET_TYPE_ALBUM,
+        SET_TYPE_INVALID = -1,
     };
 
 };
@@ -21390,7 +21391,7 @@ class MegaApi
          * @param type the type of the Set (see MegaSet for possible types)
          * @param listener MegaRequestListener to track this request
          */
-        void createSet(const char* name = nullptr, uint8_t type = MegaSet::SET_TYPE_ALBUM,
+        void createSet(const char* name = nullptr, int type = MegaSet::SET_TYPE_ALBUM,
                        MegaRequestListener* listener = nullptr);
 
         /**

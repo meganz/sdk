@@ -5619,7 +5619,7 @@ bool MegaApi::driveMonitorEnabled()
     return pImpl->driveMonitorEnabled();
 }
 
-void MegaApi::createSet(const char* name, uint8_t type, MegaRequestListener* listener)
+void MegaApi::createSet(const char* name, int type, MegaRequestListener* listener)
 {
     int options = CREATE_SET | (name ? OPTION_SET_NAME : 0);
     pImpl->putSet(INVALID_HANDLE, options, name, INVALID_HANDLE, type, listener);

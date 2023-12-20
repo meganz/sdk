@@ -13410,10 +13410,16 @@ TEST_F(SdkTest, SdkTestSetsAndElementsSetTypes)
         << "Failed to receive commit to DB event related to latest Set stored";
 
 
-    LOG_debug << "# U1: Create set with invalid type";
+    LOG_debug << "# U1: Create Sets with invalid types";
     const string invalidSetName = u8"failure-001";
     newSet = nullptr;
-    ASSERT_NE(API_OK, doCreateSet(0, &newSet, invalidSetName.c_str(), static_cast<uint8_t>(255)));  // std::numeric_limits<uint8_t>::max()
+    const int maxRange = 255;  // std::numeric_limits<uint8_t>::max()
+    const int minRange = 0;    // std::numeric_limits<uint8_t>::min()
+    ASSERT_NE(API_OK, doCreateSet(0, &newSet, invalidSetName.c_str(), maxRange));
+    ASSERT_EQ(newSet, nullptr);
+    ASSERT_NE(API_OK, doCreateSet(0, &newSet, invalidSetName.c_str(), maxRange + 1));
+    ASSERT_EQ(newSet, nullptr);
+    ASSERT_NE(API_OK, doCreateSet(0, &newSet, invalidSetName.c_str(), minRange - 1));
     ASSERT_EQ(newSet, nullptr);
 
 
