@@ -504,9 +504,12 @@ bool RuntimeArgValues::validateRequirements(const string& emailTemplate)
         return false;
     }
 
-    if (isMainProcWithWorkers())
+    if (isMainProcWithWorkers() && mInstanceCount > 1u)
     {
         // if it received --INSTANCES but not an email template, then it will run tests in a single worker process
+        std::cerr << "WARNING: No email template found to run " << mInstanceCount << " instances,\n";
+        std::cerr << "Continuing with sequential run in 1 separate instance instead." << std::endl;
+
         mInstanceCount = 1u;
     }
 
