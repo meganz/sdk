@@ -62,19 +62,19 @@ using namespace mega;
     return self.set ? self.set->publicId() : 0;
 }
 
-- (NSDate *)timestamp {
+- (nullable NSDate *)timestamp {
     return self.set ? [[NSDate alloc] initWithTimeIntervalSince1970:self.set->ts()] : nil;
 }
 
-- (NSDate *)timestampCreated {
+- (nullable NSDate *)timestampCreated {
     return self.set ? [[NSDate alloc] initWithTimeIntervalSince1970:self.set->cts()] : nil;
 }
 
 - (MEGASetType)type {
-    return (MEGASetType) (self.set ? self.set->type() : -1);
+    return (MEGASetType) (self.set ? self.set->type() : MEGASetTypeInvalid);
 }
 
-- (NSString *)name {
+- (nullable NSString *)name {
     if (!self.set) return nil;
     
     return self.set->name() ? [[NSString alloc] initWithUTF8String:self.set->name()] : nil;

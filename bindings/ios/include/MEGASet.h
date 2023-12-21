@@ -86,14 +86,14 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * @return timestamp value.
  */
-@property (readonly, nonatomic) NSDate *timestamp;
+@property (readonly, nonatomic, nullable) NSDate *timestamp;
 
 /**
  * @brief Returns creation timestamp of current Set.
  *
  * @return timestamp value.
  */
-@property (readonly, nonatomic) NSDate *timestampCreated;
+@property (readonly, nonatomic, nullable) NSDate *timestampCreated;
 
 /**
  * @brief Type of the current set.
