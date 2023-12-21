@@ -145,6 +145,7 @@ message(STATUS "Building SDKlib v${PROJECT_VERSION}")
 include(GNUInstallDirs) # Values for installation directories. All platforms
 include(CMakePackageConfigHelpers) # For the CMake package
 include(target_sources_conditional) # To add files to the project without building them
+include(target_platform_compile_options) # To add compile options depeding on the platform
 include(sdklib_libraries) # Includes a macro to load the dependencies, both the VCPKG or the system ones.
 
 # Load common and per platform configuration for the project

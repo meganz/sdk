@@ -41,31 +41,18 @@ target_link_libraries(test_unit PRIVATE MEGA::SDKlib)
 # Link with the common interface library for the tests.
 target_link_libraries(test_unit PRIVATE test_common)
 
-# Adjust compilation flags for warnigns and errors
-if(WIN32)
+# Adjust compilation flags for warnings and errors
+target_platform_compile_options(
+    TARGET test_unit
+    UNIX $<$<CONFIG:Debug>:-ggdb3> -Wall -Wextra -Wconversion -Wno-unused-parameter
+)
 
-    if(ENABLE_SDKLIB_WERROR)
-        target_compile_options(test_unit PRIVATE /WX)
-    endif()
-
-else()
-
-    target_compile_options(test_unit
-        PRIVATE
-        $<$<CONFIG:Debug>:-ggdb3>
-        -Wall         -Wextra
-        -Wconversion  -Wno-unused-parameter
+if(ENABLE_SDKLIB_WERROR)
+    target_platform_compile_options(
+        TARGET test_unit
+        WINDOWS /WX
+        UNIX  $<$<CONFIG:Debug>: -Werror>
+        APPLE $<$<CONFIG:Debug>: -Wno-sign-conversion -Wno-overloaded-virtual -Wno-inconsistent-missing-override
+                                 -Wno-unqualified-std-cast-call>
     )
-
-    if(ENABLE_SDKLIB_WERROR AND CMAKE_BUILD_TYPE STREQUAL "Debug")
-        target_compile_options(test_unit PRIVATE -Werror)
-        if(APPLE)
-            target_compile_options(test_unit
-                PRIVATE
-                -Wno-sign-conversion                 -Wno-overloaded-virtual
-                -Wno-inconsistent-missing-override   -Wno-unqualified-std-cast-call
-            )
-        endif()
-    endif()
-
 endif()
