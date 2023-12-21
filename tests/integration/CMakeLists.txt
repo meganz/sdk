@@ -11,6 +11,9 @@ target_sources(test_integration
     Sync_test.cpp
 )
 
+# Link with SDKlib
+target_link_libraries(test_integration PRIVATE MEGA::SDKlib)
+
 # Link with the common interface library for the tests.
 target_link_libraries(test_integration PRIVATE test_common)
 

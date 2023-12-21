@@ -35,6 +35,9 @@ target_sources(test_unit
     utils_test.cpp
 )
 
+# Link with SDKlib
+target_link_libraries(test_unit PRIVATE MEGA::SDKlib)
+
 # Link with the common interface library for the tests.
 target_link_libraries(test_unit PRIVATE test_common)
 
