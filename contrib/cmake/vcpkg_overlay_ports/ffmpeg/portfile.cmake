@@ -533,6 +533,20 @@ if(VCPKG_DETECTED_CMAKE_C_COMPILER MATCHES "([^\/]*-)gcc$")
     string(APPEND OPTIONS_CROSS " --cross-prefix=${CMAKE_MATCH_1}")
 endif()
 
+if(VCPKG_TARGET_IS_OSX)
+    execute_process(
+        COMMAND ${VCPKG_DETECTED_CMAKE_C_COMPILER} --version
+        OUTPUT_VARIABLE COMPILER_VERSION
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+
+    string(REGEX MATCH "[0-9]+\\.[0-9]+" COMP_ONLY_VERSION "${COMPILER_VERSION}")
+
+    if(NOT COMP_ONLY_VERSION VERSION_LESS "15.0")
+        string(APPEND OPTIONS " --extra-ldflags=-Wl,-ld_classic")
+    endif()
+endif()
+
 if(VCPKG_TARGET_ARCHITECTURE STREQUAL "x64")
     set(BUILD_ARCH "x86_64")
 else()
