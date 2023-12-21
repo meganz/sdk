@@ -26,7 +26,8 @@ NS_ASSUME_NONNULL_BEGIN
 @interface MEGASearchFilter : NSObject
 
 @property NSString* term;
-@property MEGASearchFilterTimeFrame* _Nullable timeFrame;
+@property MEGASearchFilterTimeFrame* _Nullable creationTimeFrame;
+@property MEGASearchFilterTimeFrame* _Nullable modificationTimeFrame;
 @property uint64_t parentNodeHandle;
 @property int nodeType;
 @property int category;
@@ -38,14 +39,16 @@ NS_ASSUME_NONNULL_BEGIN
                     nodeType:(int)nodeType
                     category:(int)category
                  sensitivity:(bool)sensitivity
-                timeFrame:(MEGASearchFilterTimeFrame* _Nullable) timeFrame;
+           creationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)creationTimeFrame
+       modificationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)modificationTimeFrame;
 
 - (instancetype)initWithTerm:(NSString *)term
                     nodeType:(int)nodeType
                     category:(int)category
                  sensitivity:(bool)sensitivity
                 locationType:(int)locationType
-                timeFrame:(MEGASearchFilterTimeFrame* _Nullable) timeFrame;
+           creationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)creationTimeFrame
+       modificationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)modificationTimeFrame;
 
 - (BOOL)didSetParentNodeHandle;
 - (BOOL)didSetLocationType;

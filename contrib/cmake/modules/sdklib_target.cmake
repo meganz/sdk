@@ -325,51 +325,34 @@ else()
     endif()
 endif()
 
-## Adjust compilation flags for warnigns and errors ##
-if(WIN32)
-    if(ENABLE_SDKLIB_WERROR)
-        target_compile_options(SDKlib PRIVATE /WX)
-    endif()
+## Adjust compilation flags for warnings and errors ##
+target_platform_compile_options(
+    TARGET SDKlib
+    WINDOWS /W4
+            /wd4201 # nameless struct/union (nonstandard)
+            /wd4100 # unreferenced formal parameter
+            /wd4706 # assignment within conditional
+            /wd4458 # identifier hides class member
+            /wd4324 # structure was padded due to alignment specifier (common in Sodium)
+            /wd4456 # declaration hides previous local declaration
+            /wd4266 # derived class did not override all overloads of a virtual function
+            #TODO: remove some of those gradually.  also consider: /wd4503 /wd4996 /wd4702
+    UNIX $<$<CONFIG:Debug>:-ggdb3> -Wall -Wextra -Wconversion -Wno-unused-parameter
+)
 
-    target_compile_options(SDKlib
-        PRIVATE
-        /W4
-        /wd4201 # nameless struct/union (nonstandard)
-        /wd4100 # unreferenced formal parameter
-        /wd4706 # assignment within conditional
-        /wd4458 # identifier hides class member
-        /wd4324 # structure was padded due to alignment specifier (common in Sodium)
-        /wd4456 # declaration hides previous local declaration
-        /wd4266 # derived class did not override all overloads of a virtual function
+if(ENABLE_SDKLIB_WERROR)
+    target_platform_compile_options(
+        TARGET SDKlib
+        WINDOWS /WX
+        UNIX  $<$<CONFIG:Debug>: -Werror
+                                 -Wno-error=deprecated-declarations> # Kept as a warning, do not promote to error.
+        APPLE $<$<CONFIG:Debug>: -Wno-sign-conversion                 -Wno-overloaded-virtual
+                                 -Wno-inconsistent-missing-override   -Wno-unused-variable
+                                 -Wno-unused-private-field            -Wno-string-conversion
+                                 -Wno-unused-lambda-capture           -Wno-implicit-int-conversion
+                                 -Wno-shorten-64-to-32                -Wno-unused-value
+                                 -Wno-unqualified-std-cast-call>
     )
-    #TODO: remove some of those gradually.  also consider: /wd4503 /wd4996 /wd4702
-
-else()
-
-    target_compile_options(SDKlib
-        PRIVATE
-        $<$<CONFIG:Debug>:-ggdb3>
-        -Wall         -Wextra
-        -Wconversion  -Wno-unused-parameter
-    )
-
-    if(ENABLE_SDKLIB_WERROR AND CMAKE_BUILD_TYPE STREQUAL "Debug")
-        target_compile_options(SDKlib PRIVATE -Werror)
-        # Warnings which should not be promoted to errors, but still appear as warnings
-        target_compile_options(SDKlib PRIVATE -Wno-error=deprecated-declarations)
-        if(APPLE)
-            target_compile_options(SDKlib
-                PRIVATE
-                -Wno-sign-conversion                 -Wno-overloaded-virtual
-                -Wno-inconsistent-missing-override   -Wno-unused-variable
-                -Wno-unused-private-field            -Wno-string-conversion
-                -Wno-unused-lambda-capture           -Wno-implicit-int-conversion
-                -Wno-shorten-64-to-32                -Wno-unused-value
-                -Wno-unqualified-std-cast-call
-            )
-        endif()
-    endif()
-
 endif()
 
 ## Create config files ##

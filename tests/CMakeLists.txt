@@ -12,9 +12,6 @@ else()
     target_link_libraries(test_common INTERFACE PkgConfig::gmock PkgConfig::gtest)
 endif()
 
-# Link with SDKlib
-target_link_libraries(test_common INTERFACE MEGA::SDKlib)
-
 if (WIN32)
     target_compile_definitions(test_common
         INTERFACE

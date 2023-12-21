@@ -15,33 +15,19 @@ if (WIN32)
     )
 endif()
 
-## Adjust compilation flags for warnigns and errors ##
-if(WIN32)
+# Adjust compilation flags for warnings and errors
+target_platform_compile_options(
+    TARGET megacli
+    UNIX $<$<CONFIG:Debug>:-ggdb3> -Wall -Wextra -Wconversion -Wno-unused-parameter
+)
 
-    if(ENABLE_SDKLIB_WERROR)
-        target_compile_options(megacli PRIVATE /WX)
-    endif()
-
-else()
-
-    target_compile_options(megacli
-        PRIVATE
-        $<$<CONFIG:Debug>:-ggdb3>
-        -Wall         -Wextra
-        -Wconversion  -Wno-unused-parameter
+if(ENABLE_SDKLIB_WERROR)
+    target_platform_compile_options(
+        TARGET megacli
+        WINDOWS /WX
+        UNIX  $<$<CONFIG:Debug>: -Werror>
+        APPLE $<$<CONFIG:Debug>: -Wno-sign-conversion -Wno-overloaded-virtual -Wno-string-conversion>
     )
-
-    if(ENABLE_SDKLIB_WERROR AND CMAKE_BUILD_TYPE STREQUAL "Debug")
-        target_compile_options(megacli PRIVATE -Werror)
-        if(APPLE)
-            target_compile_options(megacli
-                PRIVATE
-                -Wno-sign-conversion    -Wno-overloaded-virtual
-                -Wno-string-conversion
-            )
-        endif()
-    endif()
-
 endif()
 
 # Starting on Xcode 15: https://gitlab.kitware.com/cmake/cmake/-/issues/25297
