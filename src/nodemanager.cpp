@@ -503,7 +503,10 @@ sharedNode_vector NodeManager::searchNodes_internal(const NodeSearchFilter& filt
 
     // db look-up
     vector<pair<NodeHandle, NodeSerialized>> nodesFromTable;
-    if (!mTable->searchNodes(filter, order, nodesFromTable, cancelFlag))
+    bool searched = (filter.byShareType() == NO_SHARES || filter.byShareType() == IN_SHARES) ?
+                    mTable->searchNodes(filter, order, nodesFromTable, cancelFlag) :
+                    mTable->searchNodeShares(filter, order, nodesFromTable, cancelFlag);
+    if (!searched)
     {
         return sharedNode_vector();
     }

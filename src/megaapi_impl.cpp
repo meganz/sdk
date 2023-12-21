@@ -12063,16 +12063,12 @@ MegaNodeList* MegaApiImpl::search(const MegaSearchFilter* filter, int order, Can
         {
         case MegaApi::SEARCH_TARGET_ALL:
         case MegaApi::SEARCH_TARGET_ROOTNODE: // Search on Cloud root and Vault, excluding Rubbish
+        case MegaApi::SEARCH_TARGET_OUTSHARE:
+        case MegaApi::SEARCH_TARGET_PUBLICLINK:
             searchResults = searchInNodeManager(filter, order, cancelToken);
             break;
         case MegaApi::SEARCH_TARGET_INSHARE:
             searchResults = searchInshares(filter, order, cancelToken);
-            break;
-        case MegaApi::SEARCH_TARGET_OUTSHARE:
-            searchResults = searchOutshares(filter, order, cancelToken);
-            break;
-        case MegaApi::SEARCH_TARGET_PUBLICLINK:
-            searchResults = searchPublicLinks(filter, order, cancelToken);
             break;
         default:
             LOG_err << "Search not implemented for Location " << filter->byLocation();
@@ -12106,76 +12102,6 @@ sharedNode_vector MegaApiImpl::searchInshares(const MegaSearchFilter* filter, in
         f->byLocationHandle(node->nodehandle);
         sharedNode_vector inEachShare = searchInNodeManager(f.get(), 0, cancelToken);
         results.insert(results.end(), inEachShare.begin(), inEachShare.end());
-    }
-
-    // order
-    sortByComparatorFunction(results, order, *client);
-
-    return results;
-}
-
-sharedNode_vector MegaApiImpl::searchOutshares(const MegaSearchFilter* filter, int order, CancelToken cancelToken)
-{
-    // find out-shares that conform to the filter
-    sharedNode_vector results = searchInNodeManager(filter, 0, cancelToken);
-
-    // get all out-shares and search in each one of them
-    sharedNode_vector allOutShares = getOutShares();
-
-    // Search in each outshare
-    std::unique_ptr<MegaSearchFilter> f(filter->copy());
-    std::set<MegaHandle> outsharesHandles;
-    for (size_t i = 0; i < allOutShares.size() && !cancelToken.isCancelled(); ++i)
-    {
-        shared_ptr<Node> node = allOutShares[i];
-        assert(node);
-        if (!node)
-        {
-            continue;
-        }
-
-        // share list includes an item per outshare AND per sharee/user, ignore duplicates
-        const auto inserted = outsharesHandles.insert(node->nodehandle);
-        if (!inserted.second)
-        {
-            continue;   // avoid duplicates
-        }
-
-        f->byLocationHandle(node->nodehandle);
-        sharedNode_vector inEachShare = searchInNodeManager(f.get(), 0, cancelToken);
-        results.insert(results.end(), inEachShare.begin(), inEachShare.end());
-    }
-
-    // order
-    sortByComparatorFunction(results, order, *client);
-
-    return results;
-}
-
-sharedNode_vector MegaApiImpl::searchPublicLinks(const MegaSearchFilter* filter, int order, CancelToken cancelToken)
-{
-    // find public links that conform to the filter
-    sharedNode_vector results = searchInNodeManager(filter, 0, cancelToken);
-
-    // get all public links and search under each one of them
-    std::unique_ptr<MegaSearchFilter> f(filter->copy());
-    f->byName(nullptr);
-    sharedNode_vector allLinks = searchInNodeManager(f.get(), 0, cancelToken);
-
-    // Search under each public link
-    f.reset(filter->copy());
-    for (size_t i = 0; i < allLinks.size() && !cancelToken.isCancelled(); ++i)
-    {
-        shared_ptr<Node> node = allLinks[i];
-        assert(node);
-        if (!node)
-        {
-            continue;
-        }
-
-        f->byLocationHandle(node->nodehandle);
-        sharedNode_vector underEachLink = searchInNodeManager(f.get(), 0, cancelToken);
-        results.insert(results.end(), underEachLink.begin(), underEachLink.end());
     }
 
     // order

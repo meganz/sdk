@@ -3293,8 +3293,6 @@ public:
 
     private:
         sharedNode_vector searchInshares(const MegaSearchFilter* filter, int order, CancelToken cancelToken);
-        sharedNode_vector searchOutshares(const MegaSearchFilter* filter, int order, CancelToken cancelToken);
-        sharedNode_vector searchPublicLinks(const MegaSearchFilter* filter, int order, CancelToken cancelToken);
         sharedNode_vector searchInNodeManager(const MegaSearchFilter* filter, int order, CancelToken cancelToken);
 
         // deprecated

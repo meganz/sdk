@@ -1000,6 +1000,12 @@ void SqliteAccountState::finalise()
     }
     mStmtSearchNodes.clear();
 
+    for (auto& s : mStmtSearchNodeShares)
+    {
+        sqlite3_finalize(s.second);
+    }
+    mStmtSearchNodeShares.clear();
+
     sqlite3_finalize(mStmtNodeByName);
     mStmtNodeByName = nullptr;
 
@@ -1504,6 +1510,114 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
             (sqlResult = sqlite3_bind_int(stmt, 10, order)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int64(stmt, 11, filter.byAncestorHandles()[0])) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int64(stmt, 12, filter.byAncestorHandles()[1])) == SQLITE_OK)
+        {
+            result = processSqlQueryNodes(stmt, nodes);
+        }
+    }
+
+    // unregister the handler (no-op if not registered)
+    sqlite3_progress_handler(db, -1, nullptr, nullptr);
+
+    string errMsg(filter.byShareType() == NO_SHARES ? "Search nodes with filter" : "Search shares or links with filter");
+    errorHandler(sqlResult, errMsg, true);
+
+    sqlite3_reset(stmt);
+
+    return result;
+}
+
+bool SqliteAccountState::searchNodeShares(const NodeSearchFilter& filter, int order, vector<pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    if (cancelFlag.exists())
+    {
+        sqlite3_progress_handler(db, NUM_VIRTUAL_MACHINE_INSTRUCTIONS, SqliteAccountState::progressHandler, static_cast<void*>(&cancelFlag));
+    }
+
+    // There are 2 criteria used (so far) in ORDER BY clause.
+    // For every combination of order-by directions, a separate query will be necessary.
+    int cacheId = OrderBy2Clause::getId(order);
+    sqlite3_stmt*& stmt = mStmtSearchNodeShares[cacheId];
+
+    int sqlResult = SQLITE_OK;
+    if (!stmt)
+    {
+        /// filters go here
+        string whereClause{ "(flags & ?1 = 0) \n"
+            "AND (?2 = " + std::to_string(TYPE_UNKNOWN) + " OR type = ?2) \n"
+            "AND (?3 = 0 OR ?3 < ctime) AND (?4 = 0 OR ctime < ?4) \n"
+            "AND (?5 = 0 OR ?5 < mtime) AND (?6 = 0 OR (0 < mtime AND mtime < ?6)) \n" // mtime is not used (0) for some nodes
+            "AND (?7 = " + std::to_string(MIME_TYPE_UNKNOWN) + " OR (type = " + std::to_string(FILENODE) + " "
+                                                                    "AND mimetype = ?7)) \n"
+            "AND (name REGEXP ?8) \n" };
+            // Leading and trailing '*' will be added to argument '?' so we are looking for substrings containing name
+            // Our REGEXP implementation is case insensitive
+
+        /// recursive query, considering possible ancestors
+        std::string query = "WITH \n"
+                            "directshares(nodehandle, parenthandle, flags, name, type, counter, node, \n"
+                                         "size, ctime, mtime, share, mimetype, fav, label) "
+                            "AS (SELECT nodehandle, parenthandle, flags, name, type, counter, node, "
+                                       "size, ctime, mtime, share, mimetype, fav, label \n"
+                                "FROM nodes \n"
+                                "WHERE share = ?10), \n"
+
+                            "nodesCTE(nodehandle, parenthandle, flags, name, type, counter, node, "
+                                     "size, ctime, mtime, share, mimetype, fav, label) \n"
+                            "AS (SELECT nodehandle, parenthandle, flags, name, type, counter, node, "
+                                       "size, ctime, mtime, share, mimetype, fav, label \n"
+                                "FROM nodes \n"
+                                "WHERE parenthandle IN (SELECT nodehandle FROM directshares) \n"
+                                "UNION ALL \n"
+                                "SELECT N.nodehandle, N.parenthandle, N.flags, N.name, N.type, N.counter, N.node, "
+                                       "N.size, N.ctime, N.mtime, N.share, N.mimetype, N.fav, N.label \n"
+                                "FROM nodes AS N \n"
+                                "INNER JOIN nodesCTE AS P \n"
+                                "ON (N.parenthandle = P.nodehandle \n"
+                                "AND P.type != " + std::to_string(FILENODE) + ")), \n"
+
+                            "shares (nodehandle, parenthandle, flags, name, type, counter, node, "
+                                     "size, ctime, mtime, share, mimetype, fav, label) \n"
+                            "AS (SELECT nodehandle, parenthandle, flags, name, type, counter, node, "
+                                       "size, ctime, mtime, share, mimetype, fav, label \n"
+                                "FROM directshares \n"
+                                "WHERE " + whereClause + " \n"
+                                "UNION \n"
+                                "SELECT nodehandle, parenthandle, flags, name, type, counter, node, "
+                                       "size, ctime, mtime, share, mimetype, fav, label \n"
+                                "FROM nodesCTE \n"
+                                "WHERE " + whereClause + ") \n"
+
+                            "SELECT * FROM shares \n"
+                            /// order goes here
+                            "ORDER BY \n" +
+                               OrderBy2Clause::get(order, 9); // use ?9 for bound value;
+
+        sqlResult = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, NULL);
+    }
+
+    bool result = false;
+    uint64_t excludeFlags = (1 << Node::FLAGS_IS_VERSION) | // exclude file versions
+        (filter.bySensitivity() ? (1 << Node::FLAGS_IS_MARKED_SENSTIVE) : 0); // filter by sensitivity
+
+    if (sqlResult == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(stmt, 1, excludeFlags)) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int(stmt, 2, filter.byNodeType())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(stmt, 3, filter.byCreationTimeLowerLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(stmt, 4, filter.byCreationTimeUpperLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(stmt, 5, filter.byModificationTimeLowerLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int64(stmt, 6, filter.byModificationTimeUpperLimit())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int(stmt, 7, filter.byCategory())) == SQLITE_OK)
+    {
+        assert(filter.byAncestorHandles().size() >= 2); // support max 2 ancestors
+        string wildCardName = '*' + filter.byName() + '*';
+        if ((sqlResult = sqlite3_bind_text(stmt, 8, wildCardName.c_str(), static_cast<int>(wildCardName.length()), SQLITE_STATIC)) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 9, order)) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 10, filter.byShareType())) == SQLITE_OK)
         {
             result = processSqlQueryNodes(stmt, nodes);
         }

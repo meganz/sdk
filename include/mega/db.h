@@ -140,6 +140,7 @@ public:
     virtual uint64_t getNumberOfChildren(NodeHandle parentHandle) = 0;
     virtual bool getChildren(const NodeSearchFilter& filter, int order, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag) = 0;
     virtual bool searchNodes(const NodeSearchFilter& filter, int order, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag) = 0;
+    virtual bool searchNodeShares(const NodeSearchFilter& filter, int order, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag) = 0;
 
     /**
      * @deprecated
