@@ -7180,7 +7180,6 @@ TEST_F(SdkTest, SdkHttpReqCommandPutFATest)
     ASSERT_FALSE(previewURL.empty()) << "Got empty preview upload URL";
 }
 
-#ifndef __APPLE__
 TEST_F(SdkTest, SdkMediaImageUploadTest)
 {
     LOG_info << "___TEST MediaUploadRequestURL___";
@@ -7207,7 +7206,6 @@ TEST_F(SdkTest, SdkMediaUploadTest)
     synchronousMediaUpload(apiIndex, fileSize, filename.c_str(), DOWNFILE.c_str(), outputFile);
 
 }
-#endif
 
 TEST_F(SdkTest, SdkGetPricing)
 {
@@ -16142,7 +16140,6 @@ TEST_F(SdkTest, CreateNodeTreeWithOneDirectoryAndS4Attribute)
     ASSERT_STREQ(s4AttributeValue.c_str(), directoryNode->getS4());
 }
 
-#ifndef __APPLE__
 /**
  * @brief Create node tree with one file
  *
@@ -16191,7 +16188,6 @@ TEST_F(SdkTest, CreateNodeTreeWithOneFile)
     ASSERT_STREQ(IMAGEFILE.c_str(), fileNode->getName());
     ASSERT_EQ(fileSize, fileNode->getSize());
 }
-#endif
 
 /**
  * @brief Create node tree with multiple levels of directories
@@ -16248,7 +16244,6 @@ TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectories)
     ASSERT_STREQ(directoryNameLevel2.c_str(), directoryNodeLevel2->getName());
 }
 
-#ifndef __APPLE__
 /**
  * @brief Create node tree with multiple levels of directories and one file at the end
  *
@@ -16334,4 +16329,3 @@ TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectoriesAndOneFileAtTheEnd)
     ASSERT_STREQ(IMAGEFILE.c_str(), fileNode->getName());
     ASSERT_EQ(fileSize, fileNode->getSize());
 }
-#endif

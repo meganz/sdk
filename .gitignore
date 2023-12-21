@@ -33,6 +33,10 @@
 examples/megacli
 examples/linux/megafuse
 
+# Generated
+/include/config.h
+/include/mega/config.h
+
 # Autotool stuff
 .deps
 /Makefile
@@ -40,7 +44,6 @@ examples/linux/megafuse
 Makefile.in
 aclocal.m4
 autom4te.cache
-/include/mega/config.h
 /include/mega/config.h.in
 configure
 depcomp

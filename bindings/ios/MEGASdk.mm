@@ -3952,8 +3952,12 @@ using namespace mega;
         megaFilter->byLocationHandle(filter.parentNodeHandle);
     }
 
-    if (filter.timeFrame != nil) {
-        megaFilter->byCreationTime(filter.timeFrame.lowerLimit, filter.timeFrame.upperLimit);
+    if (filter.creationTimeFrame != nil) {
+        megaFilter->byCreationTime(filter.creationTimeFrame.lowerLimit, filter.creationTimeFrame.upperLimit);
+    }
+    
+    if (filter.modificationTimeFrame != nil) {
+        megaFilter->byModificationTime(filter.modificationTimeFrame.lowerLimit, filter.modificationTimeFrame.upperLimit);
     }
 
     return megaFilter;

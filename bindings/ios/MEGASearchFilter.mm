@@ -30,7 +30,8 @@ NS_ASSUME_NONNULL_BEGIN
                     category:(int)category
                  sensitivity:(bool)sensitivity
                 locationType:(int)locationType
-                timeFrame:(MEGASearchFilterTimeFrame * _Nullable) timeFrame {
+           creationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)creationTimeFrame
+       modificationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)modificationTimeFrame {
     self = [super init];
 
     if (self != nil) {
@@ -40,7 +41,8 @@ NS_ASSUME_NONNULL_BEGIN
         _category = category;
         _sensitivity = sensitivity;
         _locationType = locationType;
-        _timeFrame = timeFrame;
+        _creationTimeFrame = creationTimeFrame;
+        _modificationTimeFrame = modificationTimeFrame;
     }
 
     return self;
@@ -51,8 +53,16 @@ NS_ASSUME_NONNULL_BEGIN
                     nodeType:(int)nodeType
                     category:(int)category
                  sensitivity:(bool)sensitivity
-                   timeFrame:(MEGASearchFilterTimeFrame * _Nullable) timeFrame {
-    return [self initWithTerm:term parentNodeHandle:parentNodeHandle nodeType:nodeType category:category sensitivity:sensitivity locationType:-1 timeFrame:timeFrame];
+           creationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)creationTimeFrame
+       modificationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)modificationTimeFrame {
+    return [self initWithTerm:term
+             parentNodeHandle:parentNodeHandle
+                     nodeType:nodeType
+                     category:category
+                  sensitivity:sensitivity
+                 locationType:-1
+            creationTimeFrame:creationTimeFrame
+            modificationTimeFrame:modificationTimeFrame];
 }
 
 - (instancetype)initWithTerm: (NSString*)term
@@ -60,8 +70,16 @@ NS_ASSUME_NONNULL_BEGIN
                     category:(int)category
                  sensitivity:(bool)sensitivity
                 locationType:(int)locationType
-                   timeFrame:(MEGASearchFilterTimeFrame * _Nullable) timeFrame {
-    return [self initWithTerm:term parentNodeHandle:-1 nodeType:nodeType category:category sensitivity:sensitivity locationType:locationType timeFrame:timeFrame];
+           creationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)creationTimeFrame
+       modificationTimeFrame:(MEGASearchFilterTimeFrame* _Nullable)modificationTimeFrame {
+    return [self initWithTerm:term
+             parentNodeHandle:-1
+                     nodeType:nodeType
+                     category:category
+                  sensitivity:sensitivity
+                 locationType:locationType
+            creationTimeFrame:creationTimeFrame
+        modificationTimeFrame:modificationTimeFrame];
 }
 
 - (BOOL)didSetParentNodeHandle {
