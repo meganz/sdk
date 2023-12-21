@@ -155,19 +155,22 @@ pipeline {
                 timeout(time: 300, unit: 'MINUTES')
             }
             steps{
-                lock(label: 'SDK_Test_Accounts', variable: 'ACCOUNTS_COMBINATION', quantity: 1, resource: null){
+                lock(label: 'SDK_Concurrent_Test_Accounts', variable: 'ACCOUNTS_COMBINATION', quantity: 1, resource: null){
                     dir("${megachat_sources_workspace}/build/subfolder"){
                         script{
-                            def accounts_array = "${env.ACCOUNTS_COMBINATION}".split(',')
-                            env.MEGA_EMAIL0 = accounts_array[0]
-                            env.MEGA_EMAIL1 = accounts_array[1]
-                            env.MEGA_EMAIL2 = accounts_array[2]
+                            env.MEGA_EMAIL0 = "${env.ACCOUNTS_COMBINATION}"
                             echo "${env.ACCOUNTS_COMBINATION}"
                         }
                         sh "ln -sfr ${megachat_sources_workspace}/build/MEGAchatTests/megachat_tests megachat_tests"
                         sh """
                         ulimit -c unlimited
-                        ./megachat_tests ${APIURL_TO_TEST} || FAILED=1
+
+                        # TODO: allow sequential run
+                        # TODO: add support for TESTS_PARALLEL
+                        # TODO: implement collecting core dumps for parallel runs
+                        # Parallel run
+                        ./megachat_tests --APIURL:${APIURL_TO_TEST} --INSTANCES:10 || FAILED=1
+
                         if [ -n \"\$FAILED\" ]; then
                             maxTime=10
                             startTime=`date +%s`
