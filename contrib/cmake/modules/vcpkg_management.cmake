@@ -1,4 +1,4 @@
-macro(process_vcpkg_libraries)
+macro(process_vcpkg_libraries overlays_path)
 
 set(VCPKG_TOOLCHAIN_PATH "${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake")
 
@@ -6,8 +6,8 @@ set(VCPKG_TOOLCHAIN_PATH "${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake")
 if(NOT CMAKE_TOOLCHAIN_FILE MATCHES "${VCPKG_TOOLCHAIN_PATH}")
     # Use internal VCPKG tools
     set(VCPKG_BOOTSTRAP_OPTIONS "-disableMetrics")
-    list(APPEND VCPKG_OVERLAY_TRIPLETS "${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/vcpkg_overlay_triplets")
-    list(APPEND VCPKG_OVERLAY_PORTS "${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/vcpkg_overlay_ports")
+    list(APPEND VCPKG_OVERLAY_TRIPLETS "${overlays_path}/vcpkg_overlay_triplets")
+    list(APPEND VCPKG_OVERLAY_PORTS "${overlays_path}/vcpkg_overlay_ports")
 
     if(NOT VCPKG_TARGET_TRIPLET)
         # Try to guess the triplet if it is not set.
