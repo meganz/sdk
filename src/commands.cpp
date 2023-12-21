@@ -3007,8 +3007,6 @@ void CommandRemoveContact::doComplete(error result)
 
 CommandPutMultipleUAVer::CommandPutMultipleUAVer(MegaClient *client, const userattr_map *attrs, int ctag, std::function<void (Error)> completion)
 {
-    mV3 = false;
-
     this->attrs = *attrs;
 
     mCompletion = completion ? std::move(completion) :
