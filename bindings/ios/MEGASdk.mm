@@ -1475,11 +1475,11 @@ using namespace mega;
     }
 }
 
-- (void)createSet:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate {
+- (void)createSet:(nullable NSString *)name type:(MEGASetType)type delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
-        self.megaApi->createSet(name.UTF8String, [self createDelegateMEGARequestListener:delegate
-                                                                          singleListener:YES
-                                                                               queueType:ListenerQueueTypeCurrent]);
+        self.megaApi->createSet(name.UTF8String, (int)type, [self createDelegateMEGARequestListener:delegate
+                                                                                     singleListener:YES
+                                                                                          queueType:ListenerQueueTypeCurrent]);
     }
 }
 

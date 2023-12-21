@@ -70,6 +70,10 @@ using namespace mega;
     return self.set ? [[NSDate alloc] initWithTimeIntervalSince1970:self.set->cts()] : nil;
 }
 
+- (MEGASetType)type {
+    return (MEGASetType) (self.set ? self.set->type() : -1);
+}
+
 - (NSString *)name {
     if (!self.set) return nil;
     
