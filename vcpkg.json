@@ -16,7 +16,13 @@
         },
         "use-freeimage": {
             "description": "FreeImage library",
-            "dependencies": [ "freeimage" ]
+            "dependencies": [
+                "freeimage",
+                {
+                    "name": "jasper",
+                    "default-features": false
+                }
+            ]
         },
         "use-ffmpeg": {
             "description": "FFMpeg library",
