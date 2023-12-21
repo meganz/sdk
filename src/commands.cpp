@@ -3352,11 +3352,7 @@ bool CommandPutUA::procresult(Result r, JSON& json)
 CommandGetUA::CommandGetUA(MegaClient* /*client*/, const char* uid, attr_t at, const char* ph, int ctag,
                            CompletionErr completionErr, CompletionBytes completionBytes, CompletionTLV compltionTLV)
 {
-    // It's important for this one to be v3, as the phone apps send huge numbers of alternating uga/uge
-    // and so we need those to go out in a single batch, rather than a batch per request
     mV3 = true;
-    // we probably don't need to set mSeqtagArray, becuase the API doco says the (successful) response is always a { JSON object }
-    // And from experimentation, a failed response is just a raw error, eg -9
 
     this->uid = uid;
     this->at = at;
