@@ -4990,8 +4990,6 @@ void CommandGetUserData::parseUserAttribute(JSON& json, std::string &value, std:
 
 CommandGetMiscFlags::CommandGetMiscFlags(MegaClient *client)
 {
-    mV3 = false;
-
     cmd("gmf");
 
     // this one can get the smsve flag when the account is blocked (if it's in a batch by itself)
