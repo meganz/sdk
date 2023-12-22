@@ -542,6 +542,7 @@ void RuntimeArgValues::printHelp() const
                                                                patternExample}) << '\n';
     cout << buildAlignedHelpString("--APIURL:<url>",          {"Custom base URL to use for contacting the server; overwrites default url."}) << '\n';
     cout << buildAlignedHelpString("--USERAGENT:<uag>",       {"Custom HTTP User-Agent"}) << '\n';
+    cout << buildAlignedHelpString("--#<arg>",                {"Commented out argument, ignored"}) << '\n';
     cout << buildAlignedHelpString("--GTEST_FILTER=<filter>", {"Set tests to execute; can be ':'-separated list, with * or other wildcards",
                                                                "e.g. --GTEST_FILTER=SuiteFoo.TestBar:*TestBazz"}) << '\n';
     cout << buildAlignedHelpString("--GTEST_LIST_TESTS",      {"List tests compiled with this executable; consider --GTEST_FILTER if received."}) << '\n';
@@ -632,7 +633,7 @@ unordered_map<string, string> RuntimeArgValues::getEnvVarsForWorker(size_t idx) 
     {
         envVars[mAccEnvVars[i].first] = std::get<0>(mEmailTemplateValues) + std::to_string(first + i) + std::get<3>(mEmailTemplateValues);
 
-        // the first passwrod will be duplicated for the rest of accounts
+        // the first password will be duplicated for the rest of accounts
         static const string pswd{ Utils::getenv(mAccEnvVars[0].second, "")};
 
         if (!i && pswd.empty())

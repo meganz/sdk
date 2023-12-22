@@ -489,7 +489,6 @@ protected:
         cout << buildAlignedHelpString("--CI",             {"Include all 'Continuous Integration' options (same as --LOG)"}) << '\n';
         cout << buildAlignedHelpString("--RESUMESESSIONS", {"Resume previous account sessions, instead of full logins"}) << '\n';
         cout << buildAlignedHelpString("--SCANONLY",       {"Scan synced folders periodically instead of use file system notifications"}) << '\n';
-        cout << buildAlignedHelpString("--#<arg>",         {"Commented out argument, ignored"}) << '\n';
     }
 
     void printCustomEnvVars() const override
@@ -535,8 +534,8 @@ int main (int argc, char *argv[])
     {
         // Don't run tests, only manage subprocesses.
         // To get here run with --INSTANCES:2 [--EMAIL-POOL:foo+bar-{1-28}@mega.nz]
-        // If --EMAIL-POOL runtime arg is missing, email template will be taken from MEGA_PWD0 env var.
-        // Password for all emails built from template will be taken from MEGA_PWD0 env var.
+        // If --EMAIL-POOL runtime arg is missing, email template will be taken from MEGA_EMAIL env var.
+        // Password for all emails built from template will be taken from MEGA_PWD env var.
         // If it did not get an email template, it'll use 1 single subprocess with the existing env vars.
         GTestParallelRunner pr(std::move(argVals));
         string testBase = (TestFS::GetBaseFolder() / "pid_").u8string(); // see TestFS::GetProcessFolder()
