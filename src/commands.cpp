@@ -11239,7 +11239,9 @@ CommandCreatePasswordManagerBase::CommandCreatePasswordManagerBase(MegaClient* c
         }
     }
 
-    tag = ctag;  // although it won't be used, it is updated for integrity
+    // although these won't be used, they are updated for integrity
+    tag = ctag;
+    client = cl;
 };
 
 bool CommandCreatePasswordManagerBase::procresult(Result r, JSON &json)

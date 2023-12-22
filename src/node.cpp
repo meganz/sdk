@@ -1129,6 +1129,9 @@ void Node::setattr()
         changed.favourite = attrs.hasDifferentValue(AttrMap::string2nameid("fav"), oldAttrs.map);
         changed.sensitive = attrs.hasDifferentValue(AttrMap::string2nameid("sen"), oldAttrs.map);
 
+        const auto pwdNameid = AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_MANAGER);
+        changed.pwd = attrs.hasDifferentValue(pwdNameid, oldAttrs.map);
+
         setfingerprint();
 
         delete[] buf;
@@ -1743,6 +1746,19 @@ void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown, 
         plink->takendown = takendown;
         plink->mAuthKey = authKey;
     }
+}
+
+bool Node::isPasswordNode() const
+{
+    return ((type == FOLDERNODE) &&
+            (attrs.map.contains(AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_MANAGER))));
+}
+
+bool Node::isPasswordNodeFolder() const
+{
+    assert(client);
+    const auto nhBase = client->getPasswordManagerBase();
+    return ((type == FOLDERNODE) && (nodeHandle() == nhBase || isAncestor(nhBase))) && !isPasswordNode();
 }
 
 PublicLink::PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown, const char *authKey)

@@ -762,6 +762,15 @@ public:
     // move node to new parent folder
     error rename(std::shared_ptr<Node>, std::shared_ptr<Node>, syncdel_t, NodeHandle prevparenthandle, const char *newName, bool canChangeVault, CommandMoveNode::Completion&& c);
 
+    // create folder node
+    error createFolder(std::shared_ptr<Node> parent, const char* name, int rTag);
+
+    // rename a node (i.e. change the node attribute 'n')
+    error renameNode(NodeHandle nh, const char* newName, CommandSetAttr::Completion&& cbRequest);
+
+    // remove node
+    error removeNode(NodeHandle nh, bool keepVersions, int rTag);
+
     // Queue commands (if needed) to remvoe any outshares (or pending outshares) below the specified node
     void removeOutSharesFromSubtree(std::shared_ptr<Node> n, int tag);
 
@@ -2549,6 +2558,11 @@ private:
     // Generates a key pair (x25519 (Cu) key pair) to use for Vpn Credentials (MegaClient::putVpnCredential)
     StringKeyPair generateVpnKeyPair();
 
+    std::pair<bool, error> checkRenameNodePrecons(std::shared_ptr<Node> n);
+
+    // Password Manager - private
+    void preparePasswordNodeData(attr_map& attrs, const AttrMap& data) const;
+
 public:
 
 /* Mega VPN methods */
@@ -2599,9 +2613,17 @@ public:
     void setProFlexi(bool newProFlexi);
 
     // Password Manager
+    static const char* const NODE_ATTR_PASSWORD_MANAGER;
+    static const char* const PWM_ATTR_PASSWORD_NOTES;
+    static const char* const PWM_ATTR_PASSWORD_URL;
+    static const char* const PWM_ATTR_PASSWORD_USERNAME;
+    static const char* const PWM_ATTR_PASSWORD_PWD;
     NodeHandle getPasswordManagerBase();
     void createPasswordManagerBase(int rtag, CommandCreatePasswordManagerBase::Completion cbRequest);
-
+    error createPasswordNode(const char* name, std::unique_ptr<AttrMap> data,
+                             std::shared_ptr<Node> nParent, int rtag);
+    error updatePasswordNode(NodeHandle nh, std::unique_ptr<AttrMap> newData,
+                             CommandSetAttr::Completion&& cb);
 };
 
 } // namespace
