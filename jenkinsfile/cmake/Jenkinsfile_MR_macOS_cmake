@@ -138,24 +138,19 @@ pipeline {
                         set -x
                         cd ${env.BUILD_DIR}
 
-                        if [ ! -f ./test_unit ] && [ ! -f ./test_integration ]; then
-                            echo Tests not available | tee > test_integration.log
-                            exit 0
-                        fi
-
-                        ./test_unit &
+                        ./tests/unit/test_unit &
                         pid=\$!
                         wait \$pid || FAILED=1
 
                         if [ -z \"\$FAILED\" ]; then
                             if [ -z \"${TESTS_PARALLEL}\" ]; then
                                 # Sequential run
-                                ./test_integration --CI --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} &
+                                ./tests/integration/test_integration --CI --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} &
                                 pid=\$!
                                 wait \$pid || FAILED=2
                             else
                                 # Parallel run
-                                ./test_integration --CI --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${TESTS_PARALLEL} 2>&1 | tee tests.stdout
+                                ./tests/integration/test_integration --CI --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${TESTS_PARALLEL} 2>&1 | tee tests.stdout
                                 [ \"\${pipestatus[1]}\" != \"0\" ] && FAILED=2
                             fi
                         fi
@@ -198,7 +193,7 @@ pipeline {
             
     post{
         always {
-            archiveArtifacts artifacts: 'build_dir/test_integration*log*, examples-*.tar.gz', fingerprint: true
+            archiveArtifacts artifacts: 'build_dir/test_integration*log*, build_dir/examples-*.tar.gz', fingerprint: true
             script{
                 if (currentBuild.currentResult == 'SUCCESS'){
                     addGitLabMRComment(comment: ":white_check_mark: ${currentBuild.projectName} :green_apple: <b>macOS</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )

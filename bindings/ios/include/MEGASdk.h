@@ -3533,9 +3533,10 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * - MEGAErrorTypeApiEAccess - Permissions Error
  *
  * @param name the name that should be given to the new Set
+ * @param type the type that should be given to the new Set
  * @param delegate MEGARequestDelegate to track this request
  */
--(void)createSet:(nullable NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
+-(void)createSet:(nullable NSString *)name type:(MEGASetType)type delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Generate a public link of a Set in MEGA

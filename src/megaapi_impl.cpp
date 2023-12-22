@@ -19301,13 +19301,15 @@ void MegaApiImpl::sendPendingRequests()
     }
 }
 
-void MegaApiImpl::putSet(MegaHandle sid, int optionFlags, const char* name, MegaHandle cover, MegaRequestListener* listener)
+void MegaApiImpl::putSet(MegaHandle sid, int optionFlags, const char* name, MegaHandle cover,
+                         int type, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_PUT_SET, listener);
     request->setParentHandle(sid);
     request->setParamType(optionFlags);
     request->setText(name);
     request->setNodeHandle(cover);
+    request->setAccess(type);
 
     request->performRequest = [this, request]()
         {
@@ -19320,6 +19322,19 @@ void MegaApiImpl::putSet(MegaHandle sid, int optionFlags, const char* name, Mega
             if (request->getParamType() & MegaApi::OPTION_SET_COVER)
             {
                 s.setCover(request->getNodeHandle());
+            }
+            if (request->getParamType() & MegaApi::CREATE_SET)
+            {
+                const int t = request->getAccess();
+                const int max = static_cast<int>(std::numeric_limits<uint8_t>::max());
+                const int min = static_cast<int>(std::numeric_limits<uint8_t>::min());
+                if (t > max || t < min)
+                {
+                    LOG_err << "Sets: type requested " << t << " is out of valid range [" << min << "," << max << "]";
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_EARGS));
+                    return API_OK;
+                }
+                s.setType(static_cast<Set::SetType>(t));
             }
             client->putSet(std::move(s),
                 [this, request](Error e, const Set* s)

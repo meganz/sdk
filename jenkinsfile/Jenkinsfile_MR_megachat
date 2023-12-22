@@ -167,7 +167,7 @@ pipeline {
                         sh "ln -sfr ${megachat_sources_workspace}/build/MEGAchatTests/megachat_tests megachat_tests"
                         sh """
                         ulimit -c unlimited
-                        ./megachat_tests ${APIURL_TO_TEST} || FAILED=1
+                        ./megachat_tests --APIURL:${APIURL_TO_TEST} || FAILED=1
                         if [ -n \"\$FAILED\" ]; then
                             maxTime=10
                             startTime=`date +%s`

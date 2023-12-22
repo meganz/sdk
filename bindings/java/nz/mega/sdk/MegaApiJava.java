@@ -11701,10 +11701,11 @@ public class MegaApiJava {
      * - MegaError::API_EACCESS - Permissions Error (from API).
      *
      * @param name     the name that should be given to the new Set
+     * @param type     the type of the Set (see MegaSet for possible types)
      * @param listener MegaRequestListener to track this request
      */
-    public void createSet(String name, MegaRequestListenerInterface listener) {
-        megaApi.createSet(name, createDelegateRequestListener(listener));
+    public void createSet(String name, int type, MegaRequestListenerInterface listener) {
+        megaApi.createSet(name, type, createDelegateRequestListener(listener));
     }
 
     /**

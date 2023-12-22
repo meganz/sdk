@@ -127,16 +127,11 @@ pipeline {
                         sh "echo Running tests"
                         bat """
 
-                        if not exist build_dir\\\\Debug\\\\test_unit.exe (
-                            if not exist build_dir\\\\Debug\\\\test_integration.exe (
-                                echo Tests not available > test_integration.log
-                                exit 0
-                            )
-                        )
+                        cd build_dir
 
-                        build_dir\\\\Debug\\\\test_unit.exe
+                        tests\\\\unit\\\\Debug\\\\test_unit.exe
                         if %ERRORLEVEL% NEQ 0 exit 1
-                        build_dir\\\\Debug\\\\test_integration.exe --CI --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${TESTS_PARALLEL}
+                        tests\\\\integration\\\\Debug\\\\test_integration.exe --CI --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${TESTS_PARALLEL}
                         if %ERRORLEVEL% NEQ 0 set ERROR_VAL=1
                         gzip -c test_integration.log > test_integration_${BUILD_ID}.log.gz
                         rm test_integration.log
@@ -150,7 +145,7 @@ pipeline {
             
     post{
         always {
-            archiveArtifacts artifacts: 'test_integration*log*, examples-*.zip', fingerprint: true
+            archiveArtifacts artifacts: 'build_dir/test_integration*log*', fingerprint: true
             script{
                 if (currentBuild.currentResult == 'SUCCESS'){
                     addGitLabMRComment(comment: ":white_check_mark: ${currentBuild.projectName} <b>Windows</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
