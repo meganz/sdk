@@ -1275,6 +1275,13 @@ public:
     virtual int64_t cts() const { return 0; }
 
     /**
+     * @brief Returns type of current Set according to defined enum.
+     *
+     * @return type value.
+     */
+    virtual int type() const { return SET_TYPE_INVALID; }
+
+    /**
      * @brief Returns name of current Set.
      *
      * The MegaSet object retains the ownership of the returned string, it will be valid until
@@ -1354,6 +1361,15 @@ public:
         CHANGE_TYPE_REMOVED = 0x08,
         CHANGE_TYPE_EXPORT  = 0x10,
     };
+
+    enum : int // 1:1 with existing Set::TYPE_YYY values (<255)
+    {
+        SET_TYPE_ALBUM = 0,
+        SET_TYPE_PLAYLIST = 1,
+        SET_TYPE_IGNORE = SET_TYPE_ALBUM,
+        SET_TYPE_INVALID = -1,
+    };
+
 };
 
 /**
@@ -21372,9 +21388,11 @@ class MegaApi
          * - MegaError::API_EACCESS - Permissions Error (from API).
          *
          * @param name the name that should be given to the new Set
+         * @param type the type of the Set (see MegaSet for possible types)
          * @param listener MegaRequestListener to track this request
          */
-        void createSet(const char* name = nullptr, MegaRequestListener* listener = nullptr);
+        void createSet(const char* name = nullptr, int type = MegaSet::SET_TYPE_ALBUM,
+                       MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Request to update the name of a Set

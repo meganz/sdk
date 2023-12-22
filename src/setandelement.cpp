@@ -194,8 +194,9 @@ namespace mega {
             }
         }
 
-        r.serializeexpansionflags(true);
+        r.serializeexpansionflags(true, true);
         r.serializecompressedi64(mCTs);
+        r.serializeu8(mType);
 
         return true;
     }
@@ -233,13 +234,15 @@ namespace mega {
 
         unsigned char expansionsS[8];
         m_time_t cts = 0;
-        if (!r.unserializeexpansionflags(expansionsS, 1) ||
-            (expansionsS[0] && !r.unserializecompressedi64(cts))) // creation timestamp
+        SetType t = TYPE_ALBUM; // by default, for migration of existing Sets
+        if (!r.unserializeexpansionflags(expansionsS, 2) ||
+            (expansionsS[0] && !r.unserializecompressedi64(cts)) || // creation timestamp
+            (expansionsS[1] && !r.unserializeu8(t)))  // type
         {
             return nullptr;
         }
 
-        auto s = ::mega::make_unique<Set>(id, publicId, std::move(k), u, std::move(attrs));
+        auto s = ::mega::make_unique<Set>(id, publicId, std::move(k), u, std::move(attrs), t);
         s->setTs(ts);
         s->setCTs(cts);
 
