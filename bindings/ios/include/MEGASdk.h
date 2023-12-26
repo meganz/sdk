@@ -100,7 +100,8 @@ typedef NS_ENUM (NSInteger, MEGANodeFormatType) {
     MEGANodeFormatTypePresentation,
     MEGANodeFormatTypeArchive,
     MEGANodeFormatTypeProgram,
-    MEGANodeFormatTypeMisc
+    MEGANodeFormatTypeMisc,
+    MEGANodeFormatTypeSpreadsheet
 };
 
 typedef NS_ENUM (NSInteger, MEGAFolderTargetType) {
