@@ -2030,10 +2030,6 @@ sharedNode_vector NodeManager::processUnserializedNodes(const vector<pair<NodeHa
             }
         }
 
-        // filter by sensitivity when it was inherited  --  should probably
-        // be [part of] a function passed to the sql query
-        if (filter.bySensitivity() && n->isSensitiveInherited()) continue;
-
         nodes.push_back(n);
     }
 

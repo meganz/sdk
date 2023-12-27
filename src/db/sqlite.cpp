@@ -1473,6 +1473,7 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
                                   "FROM nodes AS N \n"
                                   "INNER JOIN nodesCTE AS P \n"
                                         "ON (N.parenthandle = P.nodehandle \n"
+                                        "AND (P.flags & ?1 = 0) \n"
                                         "AND P.type != " + std::to_string(FILENODE) + ")) \n"
 
                                /// filters go here
@@ -1590,6 +1591,7 @@ bool SqliteAccountState::searchNodeShares(const NodeSearchFilter& filter, int or
                                 "FROM nodes AS N \n"
                                 "INNER JOIN nodesCTE AS P \n"
                                 "ON (N.parenthandle = P.nodehandle \n"
+                                "AND (P.flags & ?1 = 0) \n"
                                 "AND P.type != " + std::to_string(FILENODE) + ")), \n"
 
                             "shares (nodehandle, parenthandle, flags, name, type, counter, node, "
