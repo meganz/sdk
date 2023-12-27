@@ -3292,7 +3292,6 @@ public:
         MegaNodeList* search(MegaNode *node, const char *searchString, CancelToken cancelToken, bool recursive = true, int order = MegaApi::ORDER_NONE, int mimeType = MegaApi::FILE_TYPE_DEFAULT, int target = MegaApi::SEARCH_TARGET_ALL, bool includeSensitive = true);
 
     private:
-        sharedNode_vector searchInshares(const MegaSearchFilter* filter, int order, CancelToken cancelToken);
         sharedNode_vector searchInNodeManager(const MegaSearchFilter* filter, int order, CancelToken cancelToken);
 
         // deprecated

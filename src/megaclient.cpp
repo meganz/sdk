@@ -10833,6 +10833,19 @@ void MegaClient::opensctable()
                 };
                 SqliteAccountState::setLabelGetter(labelGetter);
 
+                // set a mechanism for checking that an inshare was verified
+                auto verifiedInshareCheck = [&cl](const char* nodeData, size_t size) -> int
+                {
+                    if (!nodeData || !size) return 0;
+
+                    list<unique_ptr<NewShare>> shares;
+                    auto sn = Node::unserializeRaw(cl, nodeData, size, false, shares);
+
+                    return sn && shares.size() == 1 && !shares.front()->outgoing &&
+                           !cl.mKeyManager.isUnverifiedInShare(sn->nodehandle, shares.front()->peer);
+                };
+                SqliteAccountState::setVerifiedInshareCheck(verifiedInshareCheck);
+
                 mNodeManager.setTable(nodeTable);
 
                 // DB connection always has a transaction started (applies to both tables, statecache and nodes)

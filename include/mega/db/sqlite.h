@@ -180,6 +180,12 @@ public:
     // Extracts the Label of a node from the blob stored in db
     static void setLabelGetter(std::function<int(const char*, size_t)> labelGetter) { mLabelGetter = labelGetter; }
 
+    // Method called when query uses 'isverifiedinshare'
+    static void userIsVerifiedInshare(sqlite3_context* context, int argc, sqlite3_value** argv);
+
+    // Method called from userIsVerifiedInshare() when query uses 'isverifiedinshare'
+    static void setVerifiedInshareCheck(std::function<int(const char*, size_t)> verifiedInshareCheck) { mVerifiedInshareCheck = verifiedInshareCheck; }
+
 private:
     // Iterate over a SQL query row by row and fill the map
     // Allow at least the following containers:
@@ -232,6 +238,7 @@ private:
     static const int NUM_VIRTUAL_MACHINE_INSTRUCTIONS = 1000;
 
     static std::function<int(const char*, size_t)> mLabelGetter;
+    static std::function<int(const char*, size_t)> mVerifiedInshareCheck;
 };
 
 class MEGA_API SqliteDbAccess : public DbAccess

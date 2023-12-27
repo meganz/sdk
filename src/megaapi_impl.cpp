@@ -12063,12 +12063,10 @@ MegaNodeList* MegaApiImpl::search(const MegaSearchFilter* filter, int order, Can
         {
         case MegaApi::SEARCH_TARGET_ALL:
         case MegaApi::SEARCH_TARGET_ROOTNODE: // Search on Cloud root and Vault, excluding Rubbish
+        case MegaApi::SEARCH_TARGET_INSHARE:
         case MegaApi::SEARCH_TARGET_OUTSHARE:
         case MegaApi::SEARCH_TARGET_PUBLICLINK:
             searchResults = searchInNodeManager(filter, order, cancelToken);
-            break;
-        case MegaApi::SEARCH_TARGET_INSHARE:
-            searchResults = searchInshares(filter, order, cancelToken);
             break;
         default:
             LOG_err << "Search not implemented for Location " << filter->byLocation();
@@ -12078,36 +12076,6 @@ MegaNodeList* MegaApiImpl::search(const MegaSearchFilter* filter, int order, Can
     MegaNodeListPrivate* nodeList = new MegaNodeListPrivate(searchResults);
 
     return nodeList;
-}
-
-sharedNode_vector MegaApiImpl::searchInshares(const MegaSearchFilter* filter, int order, CancelToken cancelToken)
-{
-    // find in-shares that conform to the filter
-    sharedNode_vector results = searchInNodeManager(filter, 0, cancelToken);
-
-    // get all in-shares and search in each one of them
-    sharedNode_vector allInShares = client->getVerifiedInShares();
-
-    // Search in each inshare
-    std::unique_ptr<MegaSearchFilter> f(filter->copy());
-    for (size_t i = 0; i < allInShares.size() && !cancelToken.isCancelled(); ++i)
-    {
-        shared_ptr<Node> node = allInShares[i];
-        assert(node);
-        if (!node)
-        {
-            continue;
-        }
-
-        f->byLocationHandle(node->nodehandle);
-        sharedNode_vector inEachShare = searchInNodeManager(f.get(), 0, cancelToken);
-        results.insert(results.end(), inEachShare.begin(), inEachShare.end());
-    }
-
-    // order
-    sortByComparatorFunction(results, order, *client);
-
-    return results;
 }
 
 sharedNode_vector MegaApiImpl::searchInNodeManager(const MegaSearchFilter* filter, int order, CancelToken cancelToken)
