@@ -266,6 +266,25 @@ private:
     bool copyMtimeFromFingerprint(sqlite3* db);
 };
 
+class OrderBy2Clause
+{
+public:
+    static std::string get(int order, int sqlParamIndex);
+    static int getId(int order);
+
+private:
+    enum {
+        DEFAULT_ASC = 1, DEFAULT_DESC,
+        SIZE_ASC, SIZE_DESC,
+        CTIME_ASC, CTIME_DESC,
+        MTIME_ASC, MTIME_DESC,
+        LABEL_ASC = 17, LABEL_DESC,
+        FAV_ASC, FAV_DESC
+    };
+
+    static std::pair<bool, bool> getDescendingDirs(int order);
+};
+
 } // namespace
 
 #endif

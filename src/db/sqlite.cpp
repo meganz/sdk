@@ -2301,6 +2301,80 @@ void SqliteAccountState::userGetLabel(sqlite3_context* context, int argc, sqlite
     sqlite3_result_int(context, result);
 }
 
+std::string OrderBy2Clause::get(int order, int sqlParamIndex)
+{
+    std::string criteria1 =
+        "WHEN " + std::to_string(DEFAULT_ASC)  + " THEN type \n"  // folders first
+        "WHEN " + std::to_string(DEFAULT_DESC) + " THEN type \n"  // files first
+        "WHEN " + std::to_string(SIZE_ASC)  + " THEN size \n"
+        "WHEN " + std::to_string(SIZE_DESC) + " THEN size \n"
+        "WHEN " + std::to_string(CTIME_ASC)  + " THEN ctime \n"
+        "WHEN " + std::to_string(CTIME_DESC) + " THEN ctime \n"
+        "WHEN " + std::to_string(MTIME_ASC)  + " THEN mtime \n"
+        "WHEN " + std::to_string(MTIME_DESC) + " THEN mtime \n"
+        "WHEN " + std::to_string(LABEL_ASC)  + " THEN type \n"    // folders first
+        "WHEN " + std::to_string(LABEL_DESC) + " THEN type \n"    // folders first
+        "WHEN " + std::to_string(FAV_ASC)  + " THEN type \n"      // folders first
+        "WHEN " + std::to_string(FAV_DESC) + " THEN type \n";     // folders first
+    std::string criteria2 =
+        "WHEN " + std::to_string(DEFAULT_ASC)  + " THEN name \n"
+        "WHEN " + std::to_string(DEFAULT_DESC) + " THEN name \n"
+        "WHEN " + std::to_string(LABEL_ASC)  + " THEN label \n"
+        "WHEN " + std::to_string(LABEL_DESC) + " THEN label \n"
+        "WHEN " + std::to_string(FAV_ASC)  + " THEN fav \n"
+        "WHEN " + std::to_string(FAV_DESC) + " THEN fav \n";
+
+    std::pair<bool, bool> dirs = getDescendingDirs(order);
+    std::string direction1 = dirs.first ? "DESC" : "";
+    std::string direction2 = dirs.second ? "DESC" : "";
+
+    std::string x = '?' + std::to_string(sqlParamIndex);
+
+    std::string clause =
+        "CASE " + x +
+        criteria1 +
+        "END " + direction1 + ", \n"
+        "CASE " + x +
+        criteria2 +
+        "END " + direction2;
+
+    return clause;
+}
+
+int OrderBy2Clause::getId(int order)
+{
+    std::pair<int, int> dirs = getDescendingDirs(order);
+    int id = (dirs.first << 1) + dirs.second;
+    return id;
+}
+
+std::pair<bool, bool> OrderBy2Clause::getDescendingDirs(int order)
+{
+    std::pair<bool, bool> dirs; // {false, false} by default
+
+    switch (order)
+    {
+    case DEFAULT_ASC:
+    case SIZE_DESC:
+    case CTIME_DESC:
+    case MTIME_DESC:
+    case LABEL_ASC:
+    case FAV_ASC:
+        dirs.first = true; break;
+    case DEFAULT_DESC:
+        dirs.second = true; break;
+    case LABEL_DESC:
+    case FAV_DESC:
+        dirs.first = dirs.second = true; break;
+    case SIZE_ASC:
+    case CTIME_ASC:
+    case MTIME_ASC:
+        break;
+    }
+
+    return dirs;
+}
+
 } // namespace
 
 #endif
