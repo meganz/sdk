@@ -7637,8 +7637,6 @@ bool CommandSetChatOptions::procresult(Result r, JSON& json)
 
 CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, handle uh, privilege_t priv, const char *unifiedkey, const char* title)
 {
-    mV3 = false;
-
     this->client = client;
     this->chatid = chatid;
     this->uh = uh;
