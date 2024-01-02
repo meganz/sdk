@@ -5760,6 +5760,7 @@ bool MegaClient::sc_checkSequenceTag(const string& tag)
                 else
                 {
                     // We know there is a mCurrentSeqtag that we must receive, but we have not encountered it yet.  Continue with actionpackets
+                    LOG_verbose << clientname << "current st tag " << mCurrentSeqtag;
                     LOG_verbose << clientname << "st tag " << tag << " catching up";
                     assert(tag.size() < mCurrentSeqtag.size() || (tag.size() == mCurrentSeqtag.size() && tag < mCurrentSeqtag));
                     return true;
