@@ -2674,6 +2674,13 @@ bool Sync::checkCloudPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
     // this one is a bit too verbose for large down-syncs
     //SYNC_verbose << syncname << "checking localnodes for synced cloud handle " << row.cloudNode->handle;
 
+    if (!row.cloudNode) // row.cloudNode is expected to exist
+    {
+        LOG_err << "[Sync::checkCloudPathForMovesRenames] row.CloudNode is nullptr and it shouldn't be!!!";
+        assert (false);
+        return false;
+    }
+
     // Are we moving an ignore file?
     if (row.isIgnoreFile())
     {
@@ -2694,11 +2701,13 @@ bool Sync::checkCloudPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
 
     if (syncs.findLocalNodeByNodeHandle(row.cloudNode->handle, sourceSyncNodeOriginal, sourceSyncNode, unsureDueToIncompleteScanning, unsureDueToUnknownExclusionMoveSource))
     {
+        // If we reach this point, sourceSyncNodeOriginal and sourceSyncNode should be valid pointers, as their validity is checked by findLocalNodeByHandle before returning true
+        assert(sourceSyncNode && sourceSyncNodeOriginal);
 
         // Check if the source file/folder is still present
         if (sourceSyncNodeOriginal != sourceSyncNode)
         {
-            if (sourceSyncNode->getLocalPath() == row.syncNode->getLocalPath())
+            if (row.syncNode && sourceSyncNode->getLocalPath() == row.syncNode->getLocalPath())
             {
                 SYNC_verbose << "Detected cloud move that is already performed remotely, at " << logTriplet(row, fullPath);
 
@@ -2948,15 +2957,15 @@ bool Sync::checkCloudPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
 
         if (overwrite)
         {
+            // If overwrite is true, row.syncNode must exist at this point
+            assert(row.syncNode);
+
             SYNC_verbose << "Move-target exists and must be moved to local debris: " << fullPath.localPath;
 
             if (!movetolocaldebris(fullPath.localPath))
             {
                 // Couldn't move the target to local debris.
                 LOG_err << "Couldn't move move-target to local debris: " << fullPath.localPath;
-
-                // Sanity: Must exist for overwrite to be true.
-                assert(row.syncNode);
 
                 monitor.waitingCloud(fullPath.cloudPath, SyncStallEntry(
                     SyncWaitReason::CannotPerformDeletion, false, true,
@@ -3027,7 +3036,7 @@ bool Sync::checkCloudPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
 
             if (caseInsensitiveRename)
             {
-                row.syncNode->setScanAgain(false, true, false, 0);
+                row.syncNode->setScanAgain(false, true, false, 0); // if caseInsensitiveRename, row.syncNode is a valid pointer
             }
             else
             {
