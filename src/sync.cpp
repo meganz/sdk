@@ -736,7 +736,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
             readstatecache();
         }
     }
-    us.mConfig.mRunState = us.mConfig.mTemporarilyPaused ? SyncRunState::Pause : SyncRunState::Run;
+    us.mConfig.mRunState = SyncRunState::Run;
 
     mCaseInsensitive = determineCaseInsenstivity(false);
     LOG_debug << "Sync case insensitivity for " << mLocalPath << " is " << mCaseInsensitive;
@@ -808,20 +808,6 @@ bool Sync::shouldHaveDatabase() const
 const fsfp_t& Sync::fsfp() const
 {
     return getConfig().mFilesystemFingerprint;
-}
-
-void Sync::setSyncPaused(bool pause)
-{
-    assert(syncs.onSyncThread());
-
-    getConfig().mTemporarilyPaused = pause;
-    syncs.mSyncFlags->isInitialPass = true;
-}
-
-bool Sync::isSyncPaused() {
-    assert(syncs.onSyncThread());
-
-    return getConfig().mTemporarilyPaused;
 }
 
 void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, LocalPath& localpath, LocalNode *p, int maxdepth)
@@ -3493,7 +3479,7 @@ void Syncs::confirmOrCreateDefaultMegaignore(bool transitionToMegaignore, unique
     }
 }
 
-void Syncs::enableSyncByBackupId(handle backupId, bool paused, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname)
+void Syncs::enableSyncByBackupId(handle backupId, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname)
 {
     assert(!onSyncThread());
 
@@ -3507,11 +3493,11 @@ void Syncs::enableSyncByBackupId(handle backupId, bool paused, bool setOriginalP
 
     queueSync([=]()
         {
-            enableSyncByBackupId_inThread(backupId, paused, setOriginalPath, completionInClient ? clientCompletion : completion, logname);
+            enableSyncByBackupId_inThread(backupId, setOriginalPath, completionInClient ? clientCompletion : completion, logname);
         }, "enableSyncByBackupId");
 }
 
-void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath)
+void Syncs::enableSyncByBackupId_inThread(handle backupId, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath)
 {
     assert(onSyncThread());
 
@@ -3536,30 +3522,23 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool set
 
     if (us.mSync)
     {
-        // it's already running, just set whether it's paused or not.
-        LOG_debug << "Sync pause/unpause from "
-                  << us.mConfig.mTemporarilyPaused
-                  << " to "
-                  << paused;
-
-        auto changed = us.mConfig.mTemporarilyPaused != paused;
-
-        us.mConfig.mTemporarilyPaused = paused;
-        us.mConfig.mRunState = paused ? SyncRunState::Pause : SyncRunState::Run;
-
-        if (changed)
+        // it's already running
+        LOG_debug << "Sync with id " << backupId << " is already running";
+        if (us.mConfig.mRunState != SyncRunState::Run)
+        {
+            LOG_err << "Sync with id " << backupId << " should be in SyncRunState::Run(" << static_cast<int>(SyncRunState::Run) << "), however, the actual state is " << static_cast<int>(us.mConfig.mRunState) << " (state will now be set to SyncRunState::Run)";
+            assert(false && "us.mConfig.mRunState should be SyncRunState::Run but it is not");
+            us.mConfig.mRunState = SyncRunState::Run;
             mClient.app->syncupdate_stateconfig(us.mConfig);
+        }
 
         if (completion) completion(API_OK, NO_SYNC_ERROR, backupId);
         return;
     }
 
-
-
     auto previousConfigError = us.mConfig.mError;
     us.mConfig.mError = NO_SYNC_ERROR;
     us.mConfig.mRunState = SyncRunState::Loading;
-    us.mConfig.mTemporarilyPaused = paused;
 
     // Regenerate LN cache if no fingerprint's been assigned.
     bool resetFingerprint = !us.mConfig.mFilesystemFingerprint;
@@ -3817,7 +3796,7 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
     us.mSync->purgeStaleDownloads();
 
     // this was already set in the Sync constructor
-    assert(us.mConfig.mRunState == (us.mConfig.mTemporarilyPaused ? SyncRunState::Pause : SyncRunState::Run));
+    assert(us.mConfig.mRunState == SyncRunState::Run);
 
     us.changedConfigState(false, true);
 
@@ -4201,7 +4180,7 @@ handle Syncs::getSyncIdContainingActivePath(const LocalPath& lp) const
     SyncConfigVector v;
     for (auto& s : mSyncVec)
     {
-        if ((s->mSync && !s->mConfig.mTemporarilyPaused))
+        if (s->mSync)
         {
             if (s->mConfig.mLocalPath.isContainingPathOf(lp))
             {
@@ -5696,7 +5675,7 @@ void Syncs::appendNewSync_inThread(const SyncConfig& c, bool startSync, std::fun
         return;
     }
 
-    enableSyncByBackupId_inThread(c.mBackupId, false, true, completion, logname, excludedPath);
+    enableSyncByBackupId_inThread(c.mBackupId, true, completion, logname, excludedPath);
 }
 
 Sync* Syncs::runningSyncByBackupIdForTests(handle backupId) const
@@ -6299,7 +6278,7 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
 #endif
                 LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint.toString() << " error = " << unifiedSync->mConfig.mError;
 
-                enableSyncByBackupId_inThread(unifiedSync->mConfig.mBackupId, false, false, [&unifiedSync](error e, SyncError se, handle backupId)
+                enableSyncByBackupId_inThread(unifiedSync->mConfig.mBackupId, false, [&unifiedSync](error e, SyncError se, handle backupId)
                     {
                         LOG_debug << "Sync autoresumed: " << toHandle(backupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint.toString() << " error = " << se;
                     }, "");
@@ -9029,9 +9008,9 @@ bool Sync::resolve_delSyncNode(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
         CloudNode cloudNode;
         string cloudNodePath;
         bool isInTrash = false;
-        bool nodeIsInActiveUnpausedSync = false, nodeIsDefinitelyExcluded = false;
-        bool found = syncs.lookupCloudNode(row.syncNode->syncedCloudNodeHandle, cloudNode, &cloudNodePath, &isInTrash, &nodeIsInActiveUnpausedSync, &nodeIsDefinitelyExcluded, nullptr, Syncs::EXACT_VERSION);
-        if (found && !isInTrash && nodeIsInActiveUnpausedSync && !nodeIsDefinitelyExcluded)
+        bool nodeIsInActiveSync = false, nodeIsDefinitelyExcluded = false;
+        bool found = syncs.lookupCloudNode(row.syncNode->syncedCloudNodeHandle, cloudNode, &cloudNodePath, &isInTrash, &nodeIsInActiveSync, &nodeIsDefinitelyExcluded, nullptr, Syncs::EXACT_VERSION);
+        if (found && !isInTrash && nodeIsInActiveSync && !nodeIsDefinitelyExcluded)
         {
             cloudNodeIsElsewhere = true;
             SYNC_verbose << "LocalNode considered for deletion, but cloud Node is elsewhere: " << cloudNodePath << logTriplet(row, fullPath);
@@ -9743,7 +9722,7 @@ bool Sync::resolve_cloudNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& ful
             }
         }
 
-        // It's in an active, unpaused sync, and not excluded
+        // It's in an active sync and it's not excluded
         return MT_PENDING;
     };
 
@@ -11770,7 +11749,7 @@ void Syncs::syncLoop()
                     else
                     {
                         LOG_debug << "Auto-starting sync that was suspended when the local path was unavailable: " << us->mConfig.mLocalPath;
-                        enableSyncByBackupId_inThread(us->mConfig.mBackupId, false, false, nullptr, "", "");
+                        enableSyncByBackupId_inThread(us->mConfig.mBackupId, false, nullptr, "", "");
                     }
                 }
             }
@@ -11780,32 +11759,6 @@ void Syncs::syncLoop()
 
         // Clear the context if the associated sync is no longer active.
         mIgnoreFileFailureContext.reset(*this);
-
-        // This block is to cater to periodic syncs but it is preventing one last pass
-        // over the flag checks at the end of the loop for normal syncs, and so
-        // MEGAsync shows as "scanning/syncing" forever as those flags don't clear
-        //
-        //// Does it look like we have no work to do?
-        //if (!syncStallState && !isAnySyncSyncing(true))
-        //{
-        //    auto mustScan = false;
-
-        //    // Check if any syncs need a periodic scan.
-        //    for (auto& us : mSyncVec)
-        //    {
-        //        auto* sync = us->mSync.get();
-
-        //        // Only active syncs without a notifier.
-        //        if (!sync || sync->dirnotify)
-        //            continue;
-
-        //        mustScan |= sync->syncscanbt.armed();
-        //    }
-
-        //    // No work to do.
-        //    if (!mustScan)
-        //        continue;
-        //}
 
         if (syncStallState &&
             (waiter->ds < mSyncFlags->recursiveSyncLastCompletedDs + 10) &&
@@ -11825,10 +11778,10 @@ void Syncs::syncLoop()
         {
             // we need one pass with recursiveSync() after scanning is complete, to be sure there are no moves left.
             auto scanningCompletePreviously = mSyncFlags->scanningWasComplete && !mSyncFlags->isInitialPass;
-            mSyncFlags->scanningWasComplete = !isAnySyncScanning_inThread(false);   // paused syncs do not participate in move detection
+            mSyncFlags->scanningWasComplete = !isAnySyncScanning_inThread();
             mSyncFlags->reachableNodesAllScannedLastPass = mSyncFlags->reachableNodesAllScannedThisPass && !mSyncFlags->isInitialPass;
             mSyncFlags->reachableNodesAllScannedThisPass = true;
-            mSyncFlags->movesWereComplete = scanningCompletePreviously && !mightAnySyncsHaveMoves(false); // paused syncs do not participate in move detection
+            mSyncFlags->movesWereComplete = scanningCompletePreviously && !mightAnySyncsHaveMoves();
             mSyncFlags->noProgress = mSyncFlags->reachableNodesAllScannedLastPass;
         }
 
@@ -11892,7 +11845,6 @@ void Syncs::syncLoop()
                     }
                 }
 
-                if (!sync->getConfig().mTemporarilyPaused)
                 {
                     bool activeIncomplete = sync->mActiveScanRequestGeneral &&
                         !sync->mActiveScanRequestGeneral->completed();
@@ -12031,7 +11983,7 @@ void Syncs::syncLoop()
 
         if (!earlyExit)
         {
-            bool anySyncScanning = isAnySyncScanning_inThread(false);
+            bool anySyncScanning = isAnySyncScanning_inThread();
             if (anySyncScanning != syncscanstate)
             {
                 assert(onSyncThread());
@@ -12039,7 +11991,7 @@ void Syncs::syncLoop()
                 syncscanstate = anySyncScanning;
             }
 
-            bool anySyncBusy = isAnySyncSyncing(false);
+            bool anySyncBusy = isAnySyncSyncing();
             if (anySyncBusy != syncBusyState)
             {
                 assert(onSyncThread());
@@ -12065,7 +12017,7 @@ void Syncs::syncLoop()
                 {
                     if (auto lp = i->lock())
                     {
-                        if (!(lp->sync && lp->sync->getConfig().mTemporarilyPaused))
+                        if (lp->sync)
                         {
                             mSyncFlags->stall.waitingLocal(lp->localPath, SyncStallEntry(
                                 SyncWaitReason::FileIssue, true, false,
@@ -12185,7 +12137,7 @@ void Syncs::syncLoop()
     }
 }
 
-bool Syncs::isAnySyncSyncing(bool includePausedSyncs)
+bool Syncs::isAnySyncSyncing()
 {
     assert(onSyncThread());
 
@@ -12193,22 +12145,19 @@ bool Syncs::isAnySyncSyncing(bool includePausedSyncs)
     {
         if (Sync* sync = us->mSync.get())
         {
-            if (includePausedSyncs || !us->mConfig.mTemporarilyPaused)
+            if (!us->mConfig.mError &&
+                (sync->localroot->scanRequired()
+                    || sync->localroot->mightHaveMoves()
+                    || sync->localroot->syncRequired()))
             {
-                if (!us->mConfig.mError &&
-                    (sync->localroot->scanRequired()
-                        || sync->localroot->mightHaveMoves()
-                        || sync->localroot->syncRequired()))
-                {
-                    return true;
-                }
+                return true;
             }
         }
     }
     return false;
 }
 
-bool Syncs::isAnySyncScanning_inThread(bool includePausedSyncs)
+bool Syncs::isAnySyncScanning_inThread()
 {
     assert(onSyncThread());
 
@@ -12216,20 +12165,17 @@ bool Syncs::isAnySyncScanning_inThread(bool includePausedSyncs)
     {
         if (Sync* sync = us->mSync.get())
         {
-            if (includePausedSyncs || !us->mConfig.mTemporarilyPaused)
+            if (!us->mConfig.mError &&
+                sync->localroot->scanRequired())
             {
-                if (!us->mConfig.mError &&
-                    sync->localroot->scanRequired())
-                {
-                    return true;
-                }
+                return true;
             }
         }
     }
     return false;
 }
 
-bool Syncs::mightAnySyncsHaveMoves(bool includePausedSyncs)
+bool Syncs::mightAnySyncsHaveMoves()
 {
     assert(onSyncThread());
 
@@ -12237,14 +12183,11 @@ bool Syncs::mightAnySyncsHaveMoves(bool includePausedSyncs)
     {
         if (Sync* sync = us->mSync.get())
         {
-            if (includePausedSyncs || !us->mConfig.mTemporarilyPaused)
+            if (!us->mConfig.mError &&
+                (sync->localroot->mightHaveMoves()
+                    || sync->localroot->scanRequired()))
             {
-                if (!us->mConfig.mError &&
-                    (sync->localroot->mightHaveMoves()
-                        || sync->localroot->scanRequired()))
-                {
-                    return true;
-                }
+                return true;
             }
         }
     }
@@ -12261,8 +12204,7 @@ bool Syncs::conflictsDetected(list<NameConflict>* conflicts) const
     {
         if (Sync* sync = us->mSync.get())
         {
-            if (!us->mConfig.mTemporarilyPaused &&
-                sync->localroot->conflictsDetected())
+            if (sync->localroot->conflictsDetected())
             {
                 anyDetected = true;
                 if (conflicts)
@@ -12362,7 +12304,7 @@ void Syncs::proclocaltree(LocalNode* n, LocalTreeProc* tp)
 }
 
 bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool* isInTrash,
-        bool* nodeIsInActiveUnpausedSyncQuery,
+        bool* nodeIsInActiveSyncQuery,
         bool* nodeIsDefinitelyExcluded,
         unsigned* depth,
         WhichCloudVersion whichVersion,
@@ -12372,20 +12314,20 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
     // we have to avoid doing these lookups when the client thread might be changing the Node tree
     // so we use the mutex to prevent access during that time - which is only actionpacket processing.
     assert(onSyncThread());
-    assert(!nodeIsDefinitelyExcluded || nodeIsInActiveUnpausedSyncQuery); // if you ask if it's excluded, you must ask if it's in sync too
+    assert(!nodeIsDefinitelyExcluded || nodeIsInActiveSyncQuery); // if you ask if it's excluded, you must ask if it's in sync too
 
     if (h.isUndef()) return false;
 
     vector<pair<NodeHandle, Sync*>> activeSyncHandles;
     vector<pair<std::shared_ptr<Node>, Sync*>> activeSyncRoots;
 
-    if (nodeIsInActiveUnpausedSyncQuery)
+    if (nodeIsInActiveSyncQuery)
     {
-        *nodeIsInActiveUnpausedSyncQuery = false;
+        *nodeIsInActiveSyncQuery = false;
 
         for (auto & us : mSyncVec)
         {
-            if (us->mSync && !us->mConfig.mError && !us->mConfig.mTemporarilyPaused)
+            if (us->mSync && !us->mConfig.mError)
             {
                 activeSyncHandles.emplace_back(us->mConfig.mRemoteNode, us->mSync.get());
             }
@@ -12394,7 +12336,7 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
 
     lock_guard<mutex> g(mClient.nodeTreeMutex);
 
-    if (nodeIsInActiveUnpausedSyncQuery)
+    if (nodeIsInActiveSyncQuery)
     {
         for (auto & rh : activeSyncHandles)
         {
@@ -12451,12 +12393,13 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
 
         cn = CloudNode(*n);
 
-        if (nodeIsInActiveUnpausedSyncQuery)
+        if (nodeIsInActiveSyncQuery)
         {
             auto it = std::find_if(activeSyncRoots.begin(), activeSyncRoots.end(),
-                          [n](const pair<std::shared_ptr<Node>, Sync *> &rn) { return n->isbelow(rn.first.get()) && !rn.second->getConfig().mTemporarilyPaused; });
-            if (it != activeSyncRoots.end()) {
-                *nodeIsInActiveUnpausedSyncQuery = true;
+                          [n](const pair<std::shared_ptr<Node>, Sync *> &rn) { return n->isbelow(rn.first.get()); });
+            if (it != activeSyncRoots.end())
+            {
+                *nodeIsInActiveSyncQuery = true;
                 if (nodeIsDefinitelyExcluded) *nodeIsDefinitelyExcluded = isDefinitelyExcluded(*it, n);
             }
         }
@@ -12566,16 +12509,16 @@ bool Syncs::isDefinitelyExcluded(const pair<std::shared_ptr<Node>, Sync*>& root,
     return parent->exclusionState(cloudPath, child->type, child->size) == ES_EXCLUDED;
 }
 
-Sync* Syncs::syncContainingPath(const LocalPath& path, bool includePaused)
+Sync* Syncs::syncContainingPath(const LocalPath& path)
 {
     auto predicate = [&path](const UnifiedSync& us) {
         return us.mConfig.mLocalPath.isContainingPathOf(path);
     };
 
-    return syncMatching(std::move(predicate), includePaused);
+    return syncMatching(std::move(predicate));
 }
 
-Sync* Syncs::syncContainingPath(const string& path, bool includePaused)
+Sync* Syncs::syncContainingPath(const string& path)
 {
     auto predicate = [&path](const UnifiedSync& us) {
         return IsContainingCloudPathOf(
@@ -12583,7 +12526,7 @@ Sync* Syncs::syncContainingPath(const string& path, bool includePaused)
                  path);
     };
 
-    return syncMatching(std::move(predicate), includePaused);
+    return syncMatching(std::move(predicate));
 }
 
 void Syncs::ignoreFileLoadFailure(const Sync& sync, const LocalPath& path)

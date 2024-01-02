@@ -9377,9 +9377,8 @@ void MegaApiImpl::setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningStat
         switch (targetState)
         {
             case MegaSync::RUNSTATE_RUNNING:
-            case MegaSync::RUNSTATE_PAUSED:
             {
-                client->syncs.enableSyncByBackupId(backupId, targetState == MegaSync::RUNSTATE_PAUSED, true, [this, request](error err, SyncError serr, handle)
+                client->syncs.enableSyncByBackupId(backupId, true, [this, request](error err, SyncError serr, handle)
                     {
                         request->setNumDetails(serr);
                         fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(err, serr), true);
@@ -9387,10 +9386,15 @@ void MegaApiImpl::setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningStat
 
                 return API_OK;
             }
+            case MegaSync::RUNSTATE_PAUSED:
             case MegaSync::RUNSTATE_SUSPENDED:
             case MegaSync::RUNSTATE_DISABLED:
             {
-                bool keepSyncDb = targetState == MegaSync::SyncRunningState(SyncRunState::Suspend);
+                if (targetState == MegaSync::SyncRunningState(SyncRunState::Pause))
+                {
+                    LOG_warn << "[MegaApiImpl::setSyncRunState] Target state: SyncRunState::Pause. Sync will be suspended";
+                }
+                bool keepSyncDb = targetState == MegaSync::SyncRunningState(SyncRunState::Pause) || targetState == MegaSync::SyncRunningState(SyncRunState::Suspend);
 
                 client->syncs.disableSyncByBackupId(
                     backupId,
