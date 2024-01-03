@@ -184,7 +184,8 @@ bool AutoStartLauncher::startUntilSuccess(Process& process)
 
 bool AutoStartLauncher::startLaunchLoopThread()
 {
-    static const milliseconds MAX_FAST_FAILURE_BACKOFF(2*1000);
+    static const milliseconds maxBackoff(400);
+    static const milliseconds fastFailureThreshold(1000);
 
     // There are permanent startup failure such as missing DLL. This is not likey to happen
     // at customer's side as it will be installed properly. It is more likely during development
@@ -197,14 +198,14 @@ bool AutoStartLauncher::startLaunchLoopThread()
         while(!mShuttingDown) {
                 const time_point<steady_clock> start = steady_clock::now();
                 f();
-                auto usedSeconds = (steady_clock::now() - start) / seconds(1);
+                const auto used = milliseconds((steady_clock::now() - start) / milliseconds(1));
 
-                // <= 1 seconds, it fails right after startup.
-                if ((usedSeconds <= 1) && !mShuttingDown)
+                // if less than threshhold, it fails right after startup.
+                if ((used < fastFailureThreshold) && !mShuttingDown)
                 {
-                    LOG_err << "process existed too fast: " << usedSeconds << " backoff" << backOff.count() << "ms";
+                    LOG_err << "process existed too fast: " << used.count() << " backoff" << backOff.count() << "ms";
                     mSleeper.sleep(backOff);
-                    backOff = std::min(backOff * 2, MAX_FAST_FAILURE_BACKOFF); // double it and MAX_FAST_FAILURE_BACKOFF at most
+                    backOff = std::min(backOff * 2, maxBackoff); // double it and maxBackoff at most
                 }
                 else
                 {
