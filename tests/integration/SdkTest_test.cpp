@@ -16219,18 +16219,6 @@ protected:
 
     void TearDown() override;
 
-    int upload(MegaHandle* newNodeHandleResult, const char *localPath, MegaNode *parent);
-
-    bool waitForOneSuccessJob(int& oldTotalJobs,
-                              int& oldOkResults,
-                              int& oldNoResults,
-                              unsigned timeoutMs) const;
-
-    bool waitForOneFailedJob(int& oldTotalJobs,
-                             int& oldOkResults,
-                             int& oldNoResults,
-                             unsigned timeoutMs) const;
-
     // either success or failed
     bool waitForOneEitherJob(int& oldTotalJobs,
                              int& oldOkResults,
@@ -16268,67 +16256,6 @@ void SdkTestGfx::SetUp()
 void SdkTestGfx::TearDown()
 {
     SdkTest::TearDown();
-}
-
-bool SdkTestGfx::waitForOneSuccessJob(int& oldTotalJobs,
-                                      int& oldOkResults,
-                                      int& oldNoResults,
-                                      unsigned timeoutMs) const
-{
-    int totalJobs = 0, okResults = 0, noResults = 0;
-    auto oneSuccessJobPred = [&]()
-    {
-        std::tie(totalJobs, okResults, noResults) = mClient->gfx->getCounters();
-
-        return totalJobs == oldTotalJobs + 1 && // Expect one more gfx processing job
-               okResults == oldOkResults + 2 && // Expect both thumbnail and preview are generated
-               noResults == oldNoResults;       // Expect none of thumbnail and preview generation failed
-    };
-
-    bool result = WaitFor(oneSuccessJobPred, timeoutMs);
-    if (result)
-    {
-        // pass back current counters on success
-        oldTotalJobs = totalJobs, oldOkResults = okResults, oldNoResults = noResults;
-    }
-    else
-    {
-        LOG_err << "waitForOneSuccessJob failed. totalJobs/okResults/noResults,"
-                << " old:" << oldTotalJobs << "/" << oldOkResults << "/" << oldNoResults
-                << " latest:" << totalJobs << "/" << okResults << "/" << noResults;
-    }
-    return result;
-}
-
-bool SdkTestGfx::waitForOneFailedJob(int& oldTotalJobs,
-                                     int& oldOkResults,
-                                     int& oldNoResults,
-                                     unsigned timeoutMs) const
-{
-    int totalJobs = 0, okResults = 0, noResults = 0;
-
-    auto oneFailedJobPred = [&]()
-    {
-        std::tie(totalJobs, okResults, noResults) = mClient->gfx->getCounters();
-
-        return totalJobs == oldTotalJobs + 1 && // Expect one more gfx processing job
-               okResults == oldOkResults &&     // Expect neither thumbnail and preview are generated
-               noResults == oldNoResults + 2;   // Expect both thumbnail and preview generation failed
-    };
-
-    bool result = WaitFor(oneFailedJobPred, timeoutMs);
-    if (result)
-    {
-        // pass back current counters on success
-        oldTotalJobs = totalJobs, oldOkResults = okResults, oldNoResults = noResults;
-    }
-    else
-    {
-        LOG_err << "waitForOneFailedJob failed. totalJobs/okResults/noResults,"
-                << " old:" << oldTotalJobs << "/" << oldOkResults << "/" << oldNoResults
-                << " latest:" << totalJobs << "/" << okResults << "/" << noResults;
-    }
-    return result;
 }
 
 bool SdkTestGfx::waitForOneEitherJob(int& oldTotalJobs,
@@ -16379,90 +16306,40 @@ void SdkTestGfx::expectNoNewJob(int& oldTotalJobs,
     oldTotalJobs = totalJobs, oldOkResults = okResults, oldNoResults = noResults;
 }
 
-int SdkTestGfx::upload(MegaHandle* newNodeHandleResult, const char *localPath, MegaNode *parent)
-{
-    return doStartUpload(mApiIndex,
-                         newNodeHandleResult,
-                         localPath,
-                         parent,
-                         nullptr /*fileName*/,
-                         ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                         nullptr /*appData*/,
-                         false   /*isSourceTemporary*/,
-                         false   /*startFirst*/,
-                         nullptr /*cancelToken*/);
-}
-
 /**
- * @brief BasicGfxProcessForUpload
- *          1. upload a bad image and no thumbnail and preview generated.
- *          2. upload a bad image which likely causes a gfx process crash, no thumbnail and preview generated.
- *          3. after 2 likely crash, upload a good image, thumbnail and preview generation is succeeded.
+ * @brief GfxProcessingCanContinueSuccessfullyAfterALikelyGfxProcessingCrash
+ *          1. create thumbnail successfully
+ *          2. create thumbnail and preview of a image likely causes a gfx process crash.
+ *          3. create preview successfully
+ *          4. create thumbnail of a not valid image expects false.
  */
-TEST_F(SdkTestGfx, BasicGfxProcessForUpload)
+TEST_F(SdkTestGfx, GfxProcessingContinueSuccessfullyAfterCrash)
 {
-    LOG_info << "___TEST BasicGfxProcessForUpload___";
+    LOG_info << "___TEST GfxProcessingContinueSuccessfullyAfterCrash";
 
-    // root
-    std::unique_ptr<MegaNode> rootnode(megaApi[mApiIndex]->getRootNode());
-    auto rootnodePtr = rootnode.get();
+    // api
+    MegaApi* api = megaApi[mApiIndex].get();
 
-    // convenience
-    MegaHandle uploadedNode = UNDEF;
-    using WaitForCounterPred = bool(SdkTestGfx_BasicGfxProcessForUpload_Test::*)(int&, int&, int&, unsigned) const;
-    auto checkGfxProcessForUpload = [this, rootnodePtr, &uploadedNode]
-        (const std::string &imageFile, WaitForCounterPred expectFun) {
-                // upload
-                uploadedNode = UNDEF;
-                copyFileFromTestData(imageFile);
-                ASSERT_EQ(MegaError::API_OK, upload(&uploadedNode,
-                                                    imageFile.c_str(),
-                                                    rootnodePtr)) << "Cannot upload a test file";
-                // check gfx counters
-                ASSERT_TRUE(
-                    (this->*expectFun)(mCurrentTotalJobs, mCurrentOkResults, mCurrentNoResults, 30*1000)
-                ) << "Gfx counters checking failed";
-        };
+    // create a thumbnail successfully
+    copyFileFromTestData(IMAGEFILE);
+    ASSERT_TRUE(api->createThumbnail(IMAGEFILE.c_str(), THUMBNAIL.c_str())) << "create thumbnail should succeed";
 
-    // a bad file
-    out() << "Upload a bad file that we know the generation fails.";
 
-    ASSERT_NO_FATAL_FAILURE(
-        checkGfxProcessForUpload("notvalid.jpg",
-                                 &SdkTestGfx_BasicGfxProcessForUpload_Test::waitForOneFailedJob)
-    );
-
-#if defined(WIN32) // at moment, isolated gfx process is only supported in windows
-    // a bad image likely causing crash
-    out() << "Upload a bad file that results in gfx crashing";
-
-    ASSERT_NO_FATAL_FAILURE(
-        checkGfxProcessForUpload("likelycrash.tif",
-                                 &SdkTestGfx_BasicGfxProcessForUpload_Test::waitForOneEitherJob)
-    );
+#if defined(WIN32) // only windows at moment
+    // create thumbnail and preview of a image which likely result in a crash
+    copyFileFromTestData("likelycrash.tif");
+    // don't check the return value until we find a definitely crash media file
+    api->createThumbnail("likelycrash.tif", "likelycrash_thumbnail.tif");
+    api->createPreview("likelycrash.tif", "likelycrash_preview.tif");
 #endif
+    // create a preview successfully
+    ASSERT_TRUE(api->createPreview(IMAGEFILE.c_str(), PREVIEW.c_str())) << "create preview should succeed";
 
-    // a good image
-    out() << "upload an image. Thumbnail, preview should be generated successfully";
+    // create thumbnail of a not valid image
+    copyFileFromTestData("notvalid.jpg");
+    ASSERT_FALSE(api->createThumbnail("notvalid.jpg", "notvalid_thumbnail.jpg")) << "create notvalid.jpg thumbnail should fail";
 
-    ASSERT_NO_FATAL_FAILURE(
-        checkGfxProcessForUpload(IMAGEFILE,
-                                &SdkTestGfx_BasicGfxProcessForUpload_Test::waitForOneSuccessJob)
-    );
-
-    // Get the thumbnail of the uploaded image should be OK
-    std::unique_ptr<MegaNode> n(megaApi[mApiIndex]->getNodeByHandle(uploadedNode));
-    ASSERT_NE(n, nullptr);
-    std::string thumbnailName = "logo_gfx_thumbnail.png";
-    ASSERT_EQ(API_OK, doGetThumbnail(0, n.get(), thumbnailName.c_str()));
-    ASSERT_EQ(fs::file_size(fs::path(thumbnailName)), 4544u);
-
-    // Get the preview of the uploaded image should be OK
-    std::string previewName = "logo_gfx_preview.png";
-    ASSERT_EQ(API_OK, doGetPreview(0, n.get(), previewName.c_str()));
-    ASSERT_EQ(fs::file_size(fs::path(previewName)), 832u);
-
-    LOG_info << "___TEST BasicGfxProcessForUpload end___";
+    LOG_info << "___TEST GfxProcessingContinueSuccessfullyAfterCrash end___";
 }
 
 /**
@@ -16492,7 +16369,7 @@ TEST_F(SdkTestGfx, GfxProcessCrashImageInSyncOnlyOnce)
 #if defined(WIN32)
     const std::string imageFile = "likelycrash.tif";
 #else
-    const std::string imageFile = "logo.png";
+    const std::string imageFile = IMAGEFILE;
 #endif
 
     fs::create_directories(syncPath);
