@@ -9215,11 +9215,13 @@ public:
      * - MegaApi::FILE_TYPE_PHOTO = 1
      * - MegaApi::FILE_TYPE_AUDIO = 2
      * - MegaApi::FILE_TYPE_VIDEO = 3
-     * - MegaApi::FILE_TYPE_PDF = 4
-     * - MegaApi::FILE_TYPE_PRESENTATION = 5
-     * - MegaApi::FILE_TYPE_ARCHIVE = 6
-     * - MegaApi::FILE_TYPE_PROGRAM = 7
-     * - MegaApi::FILE_TYPE_MISC = 8
+     * - MegaApi::FILE_TYPE_DOCUMENT = 4
+     * - MegaApi::FILE_TYPE_PDF = 5
+     * - MegaApi::FILE_TYPE_PRESENTATION = 6
+     * - MegaApi::FILE_TYPE_ARCHIVE = 7
+     * - MegaApi::FILE_TYPE_PROGRAM = 8
+     * - MegaApi::FILE_TYPE_MISC = 9
+     * - MegaApi::FILE_TYPE_SPREADSHEET = 10
      */
     virtual void byCategory(int mimeType);
 
