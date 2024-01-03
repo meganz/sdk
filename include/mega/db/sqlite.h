@@ -167,10 +167,6 @@ public:
     // It checks if received mimetype is the same as extension extracted from file name
     static void userIsMimetype(sqlite3_context* context, int argc, sqlite3_value** argv);
 
-    // Method called when query uses 'ismimetypeincluded'
-    // Checks whether first mimetype is included by the second one
-    static void userIsMimetypeIncluded(sqlite3_context* context, int argc, sqlite3_value** argv);
-
     // Method called when query uses 'getmimetype'
     // Gets the mimetype corresponding to the file extension
     static void userGetMimetype(sqlite3_context* context, int argc, sqlite3_value** argv);
