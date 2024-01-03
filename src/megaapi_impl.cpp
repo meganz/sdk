@@ -11939,7 +11939,7 @@ bool MegaApiImpl::isValidTypeNode(const Node *node, int type) const
         case MegaApi::FILE_TYPE_PDF:
             return client->nodeIsPdf(node);
         case MegaApi::FILE_TYPE_PRESENTATION:
-            return client->nodeIsPdf(node);
+            return client->nodeIsPresentation(node);
         case MegaApi::FILE_TYPE_ARCHIVE:
             return client->nodeIsArchive(node);
         case MegaApi::FILE_TYPE_PROGRAM:
