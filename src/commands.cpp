@@ -3007,7 +3007,7 @@ void CommandRemoveContact::doComplete(error result)
 
 CommandPutMultipleUAVer::CommandPutMultipleUAVer(MegaClient *client, const userattr_map *attrs, int ctag, std::function<void (Error)> completion)
 {
-    mV3 = false;
+    mSeqtagArray = true;
 
     this->attrs = *attrs;
 
@@ -3132,7 +3132,7 @@ bool CommandPutMultipleUAVer::procresult(Result r, JSON& json)
 CommandPutUAVer::CommandPutUAVer(MegaClient* client, attr_t at, const byte* av, unsigned avl, int ctag,
                                  std::function<void(Error)> completion)
 {
-    mV3 = false;
+    mSeqtagArray = true;
 
     this->at = at;
     this->av.assign((const char*)av, avl);
@@ -4961,8 +4961,6 @@ void CommandGetUserData::parseUserAttribute(JSON& json, std::string &value, std:
 
 CommandGetMiscFlags::CommandGetMiscFlags(MegaClient *client)
 {
-    mV3 = false;
-
     cmd("gmf");
 
     // this one can get the smsve flag when the account is blocked (if it's in a batch by itself)
@@ -7354,8 +7352,6 @@ bool CommandGetLocalSSLCertificate::procresult(Result r, JSON& json)
 #ifdef ENABLE_CHAT
 CommandChatCreate::CommandChatCreate(MegaClient* client, bool group, bool publicchat, const userpriv_vector* upl, const string_map* ukm, const char* title, bool meetingRoom, int chatOptions, const ScheduledMeeting* schedMeeting)
 {
-    mV3 = false;
-
     this->client = client;
     this->chatPeers = new userpriv_vector(*upl);
     this->mPublicChat = publicchat;
@@ -9707,7 +9703,8 @@ bool CommandDismissBanner::procresult(Result r, JSON& json)
 // Sets and Elements
 //
 
-bool CommandSE::procjsonobject(JSON& json, handle& id, m_time_t& ts, handle* u, m_time_t* cts, handle* s, int64_t* o, handle* ph) const
+bool CommandSE::procjsonobject(JSON& json, handle& id, m_time_t& ts, handle* u, m_time_t* cts,
+                               handle* s, int64_t* o, handle* ph, uint8_t* t) const
 {
     for (;;)
     {
@@ -9756,6 +9753,13 @@ bool CommandSE::procjsonobject(JSON& json, handle& id, m_time_t& ts, handle* u, 
             }
             break;
 
+        case MAKENAMEID1('t'):
+            {
+                const auto setType = static_cast<uint8_t>(json.getint());
+                if (t) *t = setType;
+            }
+            break;
+
         default:
             if (!json.storeobject())
             {
@@ -9769,9 +9773,10 @@ bool CommandSE::procjsonobject(JSON& json, handle& id, m_time_t& ts, handle* u, 
     }
 }
 
-bool CommandSE::procresultid(JSON& json, const Result& r, handle& id, m_time_t& ts, handle* u, m_time_t* cts, handle* s, int64_t* o, handle* ph) const
+bool CommandSE::procresultid(JSON& json, const Result& r, handle& id, m_time_t& ts, handle* u,
+                             m_time_t* cts, handle* s, int64_t* o, handle* ph, uint8_t* t) const
 {
-    return r.hasJsonObject() && procjsonobject(json, id, ts, u, cts, s, o, ph);
+    return r.hasJsonObject() && procjsonobject(json, id, ts, u, cts, s, o, ph, t);
 }
 
 bool CommandSE::procerrorcode(const Result& r, Error& e) const
@@ -9822,6 +9827,7 @@ CommandPutSet::CommandPutSet(MegaClient* cl, Set&& s, unique_ptr<string> encrAtt
     if (mSet->id() == UNDEF) // create new
     {
         arg("k", (byte*)encrKey.c_str(), (int)encrKey.size());
+        arg("t", static_cast<m_off_t>(mSet->type()));
     }
     else // update
     {

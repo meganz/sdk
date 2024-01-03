@@ -18156,6 +18156,14 @@ void MegaClient::putSet(Set&& s, std::function<void(Error, const Set*)> completi
     // create Set
     if (s.id() == UNDEF)
     {
+        if (s.type() >= Set::TYPE_SIZE)
+        {
+            LOG_err << "Sets: Invalid Set type " << static_cast<unsigned int>(s.type()) << ". Maximum valid type is "
+                    << static_cast<unsigned int>(Set::TYPE_SIZE) - 1;
+            if (completion) completion(API_EARGS, nullptr);
+            return;
+        }
+
         // generate AES-128 Set key
         encrSetKey = rng.genstring(SymmCipher::KEYLENGTH);
         s.setKey(encrSetKey);
@@ -18218,6 +18226,7 @@ void MegaClient::putSet(Set&& s, std::function<void(Error, const Set*)> completi
         s.setUser(setToBeUpdated.user());
         s.rebaseAttrsOn(setToBeUpdated);
         s.setPublicId(setToBeUpdated.publicId());
+        s.setType(setToBeUpdated.type());
 
         string enc = s.encryptAttributes([this](const string_map& a, const string& k) { return encryptAttrs(a, k); });
         encrAttrs.reset(new string(std::move(enc)));
@@ -18799,6 +18808,10 @@ error MegaClient::readSet(JSON& j, Set& s)
 
         case MAKENAMEID3('c', 't', 's'):
             s.setCTs(j.getint());
+            break;
+
+        case MAKENAMEID1('t'):
+            s.setType(static_cast<Set::SetType>(j.getint()));
             break;
 
         default: // skip unknown member

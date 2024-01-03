@@ -12529,7 +12529,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     string name = u8"Set name ideograms: 讓我們打破這個"; // "讓我們打破這個"
     differentApiDtls.setUpdated = false;
     MegaSet* newSet = nullptr;
-    int err = doCreateSet(0, &newSet, name.c_str());
+    int err = doCreateSet(0, &newSet, name.c_str(), MegaSet::SET_TYPE_ALBUM);
     ASSERT_EQ(err, API_OK);
 
     unique_ptr<MegaSet> s1p(newSet);
@@ -13003,7 +13003,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     const string name = u8"qq-001";
     MegaSet* newSet = nullptr;
     differentApiDtlsPtr->setUpdated = false;
-    ASSERT_EQ(API_OK, doCreateSet(0, &newSet, name.c_str()));
+    ASSERT_EQ(API_OK, doCreateSet(0, &newSet, name.c_str(), MegaSet::SET_TYPE_ALBUM));
     ASSERT_NE(newSet, nullptr);
     const unique_ptr<MegaSet> s1p(newSet);
     const MegaHandle sh = s1p->id();
@@ -13322,6 +13322,120 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
 
     LOG_debug << "# U1: Remove all Sets";
     userIdx = 0;
+    unique_ptr<MegaSetList> sets(megaApi[userIdx]->getSets());
+    for (unsigned i = 0; i < sets->size(); ++i)
+    {
+        differentApiDtlsPtr->setUpdated = false;
+        handle setId = sets->get(i)->id();
+        ASSERT_EQ(API_OK, doRemoveSet(userIdx, setId));
+
+        unique_ptr<MegaSet> s(megaApi[userIdx]->getSet(setId));
+        ASSERT_EQ(s, nullptr);
+        ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
+            << "Failed to receive deleted Set AP on U1's secondary client";
+    }
+    sets.reset(megaApi[userIdx]->getSets());
+    ASSERT_EQ(sets->size(), 0u);
+}
+
+/**
+ * @brief TEST_F SdkTestSetsAndElementsSetTypes
+ *
+ * Tests creating all possible Set types.
+ */
+TEST_F(SdkTest, SdkTestSetsAndElementsSetTypes)
+{
+    LOG_info << "___TEST Sets and Elements Set Types___";
+
+    // U1: Create set with type MegaSet::SET_TYPE_PHOTOS
+    // U1: Create set with type MegaSet::SET_TYPE_VIDEOS
+    // U1: Create set with a type out of range
+    // U1: Logout / login to retrieve Sets
+    // U1: Check existing Sets and types
+    // U1: Remove all Sets
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Use another connection with the same credentials as U1 (i.e. fake a different client for AP processing)
+    MegaApi* differentApiPtr = nullptr;
+    PerApi* differentApiDtlsPtr = nullptr;
+    const int userIdx = 0;
+    megaApi.emplace_back(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(userIdx).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
+    differentApiPtr = &(*megaApi.back());
+    differentApiPtr->addListener(this);
+    PerApi pa; // make a copy
+    auto& aux = mApi[userIdx];
+    pa.email = aux.email;
+    pa.pwd = aux.pwd;
+    mApi.push_back(std::move(pa));
+    differentApiDtlsPtr = &(mApi.back());
+    differentApiDtlsPtr->megaApi = differentApiPtr;
+    const int difApiIdx = static_cast<int>(megaApi.size() - 1);
+
+    auto loginTracker = asyncRequestLogin(difApiIdx, differentApiDtlsPtr->email.c_str(), differentApiDtlsPtr->pwd.c_str());
+    ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to establish a login/session for account " << difApiIdx;
+    loginTracker = asyncRequestFetchnodes(difApiIdx);
+    ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to fetch nodes for account " << difApiIdx;
+
+
+    LOG_debug << "# U1: Create set with type MegaSet::SET_TYPE_PHOTOS";
+    const string albumName = u8"qq-001";
+    MegaSet* newSet = nullptr;
+    differentApiDtlsPtr->setUpdated = false;
+    ASSERT_EQ(API_OK, doCreateSet(0, &newSet, albumName.c_str(), MegaSet::SET_TYPE_ALBUM));
+    ASSERT_NE(newSet, nullptr);
+    const unique_ptr<MegaSet> setAsPhotoAlbum(newSet);
+    const MegaHandle albumHandle = setAsPhotoAlbum->id();
+    ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
+        << "Failed to receive create Set AP on U1's secondary client for photo album creation";
+
+
+    LOG_debug << "# U1: Create set with type MegaSet::SET_TYPE_VIDEOS";
+    const string playlistName = u8"gg-001";
+    newSet = nullptr;
+    differentApiDtlsPtr->setUpdated = false;
+    PerApi& target = mApi[userIdx];
+    target.resetlastEvent();     // So we can detect when the node database has been committed.
+    ASSERT_EQ(API_OK, doCreateSet(0, &newSet, playlistName.c_str(), MegaSet::SET_TYPE_PLAYLIST));
+    ASSERT_NE(newSet, nullptr);
+    const unique_ptr<MegaSet> setAsVideoPlaylist(newSet);
+    const MegaHandle playlistHandle = setAsVideoPlaylist->id();
+    ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
+        << "Failed to receive create Set AP on U1's secondary client for video playlist creation";
+    // Wait for the database to be updated (note: even if commit is triggered by 1st update, the 2nd update
+    // has been applied already, so the DB will store the final value)
+    ASSERT_TRUE(WaitFor([&target](){ return target.lastEventsContain(MegaEvent::EVENT_COMMIT_DB); }, maxTimeout*1000))
+        << "Failed to receive commit to DB event related to latest Set stored";
+
+
+    LOG_debug << "# U1: Create Sets with invalid types";
+    const string invalidSetName = u8"failure-001";
+    newSet = nullptr;
+    const int maxRange = 255;  // std::numeric_limits<uint8_t>::max()
+    const int minRange = 0;    // std::numeric_limits<uint8_t>::min()
+    ASSERT_NE(API_OK, doCreateSet(0, &newSet, invalidSetName.c_str(), maxRange));
+    ASSERT_EQ(newSet, nullptr);
+    ASSERT_NE(API_OK, doCreateSet(0, &newSet, invalidSetName.c_str(), maxRange + 1));
+    ASSERT_EQ(newSet, nullptr);
+    ASSERT_NE(API_OK, doCreateSet(0, &newSet, invalidSetName.c_str(), minRange - 1));
+    ASSERT_EQ(newSet, nullptr);
+
+
+    LOG_debug << "# U1: Logout / login to retrieve Sets";
+    unique_ptr<char[]> session(dumpSession());
+    ASSERT_NO_FATAL_FAILURE(locallogout());
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(userIdx)); // load cached Sets
+
+
+    LOG_debug << "# U1: Check Sets types loaded from local cache";
+    unique_ptr<MegaSet> reloadedSessionAlbumSet(megaApi[userIdx]->getSet(albumHandle));
+    ASSERT_EQ(reloadedSessionAlbumSet->type(), setAsPhotoAlbum->type());
+    unique_ptr<MegaSet> reloadedSessionPlaylistSet(megaApi[userIdx]->getSet(playlistHandle));
+    ASSERT_EQ(reloadedSessionPlaylistSet->type(), setAsVideoPlaylist->type());
+
+
+    LOG_debug << "# U1: Remove all Sets";
     unique_ptr<MegaSetList> sets(megaApi[userIdx]->getSets());
     for (unsigned i = 0; i < sets->size(); ++i)
     {
