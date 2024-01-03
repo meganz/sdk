@@ -691,14 +691,14 @@ int GTestParallelRunner::run()
     mPassedTestCount = 0u;
     mFailedTests.clear();
     mPidDumps.clear();
+    mStartTime = chrono::system_clock::now();
 
     assert(mCommonArgs.isMainProcWithWorkers());
-    if (!mCommonArgs.isMainProcWithWorkers() || !findTests() || !mTotalTestCount)
+    if (!mCommonArgs.isMainProcWithWorkers() || !findTests())
     {
         return 1;
     }
 
-    mStartTime = chrono::system_clock::now();
     std::cout << "[==========] Running " << mTestsToRun.size() << " tests from " << mTestSuiteCount << " test suites." << std::endl;
 
     // assign 1 test to 1 subprocess
@@ -764,6 +764,13 @@ bool GTestParallelRunner::findTests()
     mTestSuiteCount = proc.getTestSuiteCount();
     mTotalTestCount = mTestsToRun.size();
     mDisabledTestCount = proc.getDisabledTestCount();
+
+    if (!mTotalTestCount)
+    {
+        std::cerr << mCommonArgs.getExecutable() << " --gtest_list_tests " << mCommonArgs.getFilter() << " found 0 tests to run" << std::endl;
+        summary();
+        return false;
+    }
 
     return true;
 }
