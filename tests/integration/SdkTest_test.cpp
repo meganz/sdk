@@ -15590,10 +15590,9 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
     ASSERT_EQ(nodeList->get(0)->getHandle(), handlePdfFile);
 
     filterResults->byCategory(MegaApi::FILE_TYPE_DOCUMENT);
-    nodeList.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_ALPHABETICAL_DESC));
-    ASSERT_EQ(nodeList->size(), 2);
-    ASSERT_EQ(nodeList->get(0)->getHandle(), handleSpreadsheetFile);
-    ASSERT_EQ(nodeList->get(1)->getHandle(), handleDocumentFile);
+    nodeList.reset(megaApi[0]->search(filterResults.get()));
+    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), handleDocumentFile);
 
     filterResults->byCategory(MegaApi::FILE_TYPE_MISC);
     nodeList.reset(megaApi[0]->search(filterResults.get()));
