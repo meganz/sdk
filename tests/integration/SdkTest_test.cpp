@@ -16239,6 +16239,16 @@ protected:
     int mCurrentNoResults = 0;
 
     MegaClient* mClient = nullptr;
+
+    static constexpr const char* LIKELY_CRASH = "likelycrash.tif";
+
+    static constexpr const char* LIKELY_CRASH_THUMBNAIL = "likelycrash_thumbnail.jpg";
+
+    static constexpr const char* LIKELY_CRASH_PREVIEW = "likelycrash_preview.jpg";
+
+    static constexpr const char* NOT_VALID = "notvalid.jpg";
+
+    static constexpr const char* NOT_VALID_THUMBNAIL = "notvalid_thumbnail.jpg";
 };
 
 void SdkTestGfx::SetUp()
@@ -16324,20 +16334,21 @@ TEST_F(SdkTestGfx, GfxProcessingContinueSuccessfullyAfterCrash)
     copyFileFromTestData(IMAGEFILE);
     ASSERT_TRUE(api->createThumbnail(IMAGEFILE.c_str(), THUMBNAIL.c_str())) << "create thumbnail should succeed";
 
-
-#if defined(WIN32) // only windows at moment
+    // only windows at moment
+#if defined(WIN32)
     // create thumbnail and preview of a image which likely result in a crash
-    copyFileFromTestData("likelycrash.tif");
+    copyFileFromTestData(LIKELY_CRASH);
     // don't check the return value until we find a definitely crash media file
-    api->createThumbnail("likelycrash.tif", "likelycrash_thumbnail.tif");
-    api->createPreview("likelycrash.tif", "likelycrash_preview.tif");
+    api->createThumbnail(LIKELY_CRASH, LIKELY_CRASH_THUMBNAIL);
+    api->createPreview(LIKELY_CRASH, LIKELY_CRASH_PREVIEW);
 #endif
+
     // create a preview successfully
     ASSERT_TRUE(api->createPreview(IMAGEFILE.c_str(), PREVIEW.c_str())) << "create preview should succeed";
 
     // create thumbnail of a not valid image
-    copyFileFromTestData("notvalid.jpg");
-    ASSERT_FALSE(api->createThumbnail("notvalid.jpg", "notvalid_thumbnail.jpg")) << "create notvalid.jpg thumbnail should fail";
+    copyFileFromTestData(NOT_VALID);
+    ASSERT_FALSE(api->createThumbnail(NOT_VALID, NOT_VALID_THUMBNAIL)) << "create notvalid thumbnail should fail";
 
     LOG_info << "___TEST GfxProcessingContinueSuccessfullyAfterCrash end___";
 }
@@ -16367,7 +16378,7 @@ TEST_F(SdkTestGfx, GfxProcessCrashImageInSyncOnlyOnce)
 
     // create local path and copy images
 #if defined(WIN32)
-    const std::string imageFile = "likelycrash.tif";
+    const std::string imageFile = LIKELY_CRASH;
 #else
     const std::string imageFile = IMAGEFILE;
 #endif
