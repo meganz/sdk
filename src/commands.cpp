@@ -7696,8 +7696,6 @@ bool CommandChatInvite::procresult(Result r, JSON& json)
 
 CommandChatRemove::CommandChatRemove(MegaClient *client, handle chatid, handle uh)
 {
-    mV3 = false;
-
     this->client = client;
     this->chatid = chatid;
     this->uh = uh;
