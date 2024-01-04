@@ -16240,15 +16240,15 @@ protected:
 
     MegaClient* mClient = nullptr;
 
-    static constexpr const char* CRASH = "crash.pct";
+    static constexpr const char* CRASH_IMAGE = "crash.pct";
 
     static constexpr const char* CRASH_THUMBNAIL = "crash_thumbnail.jpg";
 
     static constexpr const char* CRASH_PREVIEW = "crash_preview.jpg";
 
-    static constexpr const char* NOT_VALID = "notvalid.jpg";
+    static constexpr const char* INVALID_IMAGE = "invalid.jpg";
 
-    static constexpr const char* NOT_VALID_THUMBNAIL = "notvalid_thumbnail.jpg";
+    static constexpr const char* INVALID_THUMBNAIL = "invalid_thumbnail.jpg";
 };
 
 void SdkTestGfx::SetUp()
@@ -16317,7 +16317,7 @@ void SdkTestGfx::expectNoNewJob(int& oldTotalJobs,
 }
 
 /**
- * @brief GfxProcessingCanContinueSuccessfullyAfterALikelyGfxProcessingCrash
+ * @brief GfxProcessingContinueSuccessfullyAfterCrash
  *          1. create thumbnail successfully
  *          2. create thumbnail and preview of a image which causes a gfx process crash.
  *          3. create preview successfully
@@ -16340,17 +16340,17 @@ TEST_F(SdkTestGfx, GfxProcessingContinueSuccessfullyAfterCrash)
     // the image is selected by testing, thus not guaranteed. we'd either
     // find another media file or need another alternative if it couldn't
     // consistently result in a crash
-    copyFileFromTestData(CRASH);
-    ASSERT_FALSE(api->createThumbnail(CRASH, CRASH_THUMBNAIL));
-    ASSERT_FALSE(api->createPreview(CRASH, CRASH_PREVIEW));
+    copyFileFromTestData(CRASH_IMAGE);
+    ASSERT_FALSE(api->createThumbnail(CRASH_IMAGE, CRASH_THUMBNAIL));
+    ASSERT_FALSE(api->createPreview(CRASH_IMAGE, CRASH_PREVIEW));
 #endif
 
     // create a preview successfully
     ASSERT_TRUE(api->createPreview(IMAGEFILE.c_str(), PREVIEW.c_str())) << "create preview should succeed";
 
     // create thumbnail of a not valid image
-    copyFileFromTestData(NOT_VALID);
-    ASSERT_FALSE(api->createThumbnail(NOT_VALID, NOT_VALID_THUMBNAIL)) << "create notvalid thumbnail should fail";
+    copyFileFromTestData(INVALID_IMAGE);
+    ASSERT_FALSE(api->createThumbnail(INVALID_IMAGE, INVALID_THUMBNAIL)) << "create invalid image's thumbnail should fail";
 
     LOG_info << "___TEST GfxProcessingContinueSuccessfullyAfterCrash end___";
 }
@@ -16380,7 +16380,7 @@ TEST_F(SdkTestGfx, GfxProcessCrashImageInSyncOnlyOnce)
 
     // create local path and copy images
 #if defined(WIN32)
-    const std::string imageFile = CRASH;
+    const std::string imageFile = CRASH_IMAGE;
 #else
     const std::string imageFile = IMAGEFILE;
 #endif
