@@ -3540,18 +3540,29 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool setOriginalPath,
 
     if (us.mSync)
     {
-        // it's already running
-        LOG_debug << "Sync with id " << backupId << " is already running";
-        if (us.mConfig.mRunState != SyncRunState::Run)
+        // already exists
+        if (us.mConfig.mError == NO_SYNC_ERROR)
         {
-            LOG_err << "Sync with id " << backupId << " should be in SyncRunState::Run(" << static_cast<int>(SyncRunState::Run) << "), however, the actual state is " << static_cast<int>(us.mConfig.mRunState) << " (state will now be set to SyncRunState::Run)";
-            assert(false && "us.mConfig.mRunState should be SyncRunState::Run but it is not");
-            us.mConfig.mRunState = SyncRunState::Run;
-            mClient.app->syncupdate_stateconfig(us.mConfig);
+            if (us.mConfig.mRunState == SyncRunState::Run)
+            {
+                // it's already running
+                LOG_debug << "Sync with id " << backupId << " is already running";
+            }
+            else
+            {
+                LOG_err << "Sync with id " << backupId << " already exists and should be in SyncRunState::Run(" << static_cast<int>(SyncRunState::Run) << "), however, the actual state is " << static_cast<int>(us.mConfig.mRunState) << " (state will now be set to SyncRunState::Run)";
+                assert(false && "us.mConfig.mRunState should be SyncRunState::Run but it is not");
+                us.mConfig.mRunState = SyncRunState::Run;
+                mClient.app->syncupdate_stateconfig(us.mConfig);
+            }
+
+            if (completion) completion(API_OK, NO_SYNC_ERROR, backupId);
+            return;
         }
 
-        if (completion) completion(API_OK, NO_SYNC_ERROR, backupId);
-        return;
+        // there is a sync error, it should've been reset in Syncs::stopSyncsInErrorState, but next loop hasn't be executed yet (so let's do it now)
+        LOG_warn << "Sync with id " << backupId << " has a sync error (" << us.mConfig.mError << "). It will be reset now";
+        us.mSync.reset();
     }
 
     auto previousConfigError = us.mConfig.mError;
