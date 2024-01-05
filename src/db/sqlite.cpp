@@ -1353,7 +1353,7 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, vecto
                                  "AND (? = " + std::to_string(TYPE_UNKNOWN) + " OR n1.type = ?) "
                                  "AND (? = 0 OR ? < n1.ctime) AND (? = 0 OR n1.ctime < ?) "
                                  "AND (? = 0 OR ? < n1.mtime) AND (? = 0 OR (0 < n1.mtime AND n1.mtime < ?)) " // mtime is not used (0) for some nodes
-                                 "AND (? = " + std::to_string(MIME_TYPE_UNKNOWN) + " OR (n1.type = " + std::to_string(FILENODE) + " AND ismimetype(n1.name, ?))) "
+                                 "AND (? = " + std::to_string(MIME_TYPE_UNKNOWN) + " OR (n1.type = " + std::to_string(FILENODE) + " AND n1.mimetype = ?)) "
                                  "AND (n1.name REGEXP ?) ";
         // Leading and trailing '*' will be added to argument '?' so we are looking for a substring of name
         // Our REGEXP implementation is case insensitive
@@ -1421,7 +1421,7 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, vector<pair
                                  "AND (? = 0 OR ? < n1.ctime) AND (? = 0 OR n1.ctime < ?) "
                                  "AND (? = 0 OR ? < n1.mtime) AND (? = 0 OR (0 < n1.mtime AND n1.mtime < ?)) " // mtime is not used (0) for some nodes
                                  "AND (? = " + std::to_string(NO_SHARES) + " OR n1.share = ?) "
-                                 "AND (? = " + std::to_string(MIME_TYPE_UNKNOWN) + " OR (n1.type = " + std::to_string(FILENODE) + " AND ismimetype(n1.name, ?))) "
+                                 "AND (? = " + std::to_string(MIME_TYPE_UNKNOWN) + " OR (n1.type = " + std::to_string(FILENODE) + " AND n1.mimetype = ?)) "
                                  "AND (n1.name REGEXP ?) ";
         // Leading and trailing '*' will be added to argument '?' so we are looking for a substring of name
         // Our REGEXP implementation is case insensitive
