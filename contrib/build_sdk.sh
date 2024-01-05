@@ -610,9 +610,9 @@ sqlite_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="SQLite"
-    local sqlite_ver="3440200"
-    local sqlite_url="http://www.sqlite.org/2023/sqlite-autoconf-$sqlite_ver.tar.gz"
-    local sqlite_md5="c02f40fd4f809ced95096250adc5764a"
+    local sqlite_ver="3330000"
+    local sqlite_url="http://www.sqlite.org/2020/sqlite-autoconf-$sqlite_ver.tar.gz"
+    local sqlite_md5="842a8a100d7b01b09e543deb2b7951dd"
     local sqlite_file="sqlite-$sqlite_ver.tar.gz"
     local sqlite_dir="sqlite-autoconf-$sqlite_ver"
     if [ $use_dynamic -eq 1 ]; then
