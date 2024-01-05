@@ -433,8 +433,7 @@ bool Node::isAudio(const std::string& ext)
 
 bool Node::isDocument(const std::string& ext)
 {
-    return documentExtensions().find(getExtensionNameId(ext)) != documentExtensions().end() ||
-           isSpreadsheet(ext);
+    return documentExtensions().find(getExtensionNameId(ext)) != documentExtensions().end();
 }
 
 bool Node::isSpreadsheet(const std::string& ext)
