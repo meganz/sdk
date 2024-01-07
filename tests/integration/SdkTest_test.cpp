@@ -16340,7 +16340,7 @@ TEST_F(SdkTestGfx, GfxProcessingContinueSuccessfullyAfterCrash)
     // the image is selected by testing, thus not guaranteed. we'd either
     // find another media file or need another alternative if it couldn't
     // consistently result in a crash
-    copyFileFromTestData(CRASH_IMAGE);
+    copyFileFromTestData(std::string(CRASH_IMAGE));
     ASSERT_FALSE(api->createThumbnail(CRASH_IMAGE, CRASH_THUMBNAIL));
     ASSERT_FALSE(api->createPreview(CRASH_IMAGE, CRASH_PREVIEW));
 #endif
@@ -16349,7 +16349,7 @@ TEST_F(SdkTestGfx, GfxProcessingContinueSuccessfullyAfterCrash)
     ASSERT_TRUE(api->createPreview(IMAGEFILE.c_str(), PREVIEW.c_str())) << "create preview should succeed";
 
     // create thumbnail of a not valid image
-    copyFileFromTestData(INVALID_IMAGE);
+    copyFileFromTestData(std::string(INVALID_IMAGE));
     ASSERT_FALSE(api->createThumbnail(INVALID_IMAGE, INVALID_THUMBNAIL)) << "create invalid image's thumbnail should fail";
 
     LOG_info << "___TEST GfxProcessingContinueSuccessfullyAfterCrash end___";
