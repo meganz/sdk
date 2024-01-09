@@ -2,7 +2,6 @@
     "$schema" : "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
     "name" : "sdklib",
     "homepage" : "https://github.com/meganz/sdk",
-    "version-string" : "0.0.1",
     "features" :
     {
         "use-openssl":
