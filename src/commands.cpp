@@ -7959,8 +7959,6 @@ bool CommandChatTruncate::procresult(Result r, JSON& json)
 
 CommandChatSetTitle::CommandChatSetTitle(MegaClient *client, handle chatid, const char *title)
 {
-    mV3 = false;
-
     this->client = client;
     this->chatid = chatid;
     this->title = title ? string(title) : "";
