@@ -24,6 +24,7 @@
 #define NODEMANAGER_H 1
 
 #include <map>
+#include <limits>
 #include <set>
 #include "node.h"
 #include "types.h"
@@ -237,6 +238,7 @@ public:
     // Remove fingerprint from mFingerprint
     void removeFingerprint(Node* node, bool unloadNode = false);
     FingerprintPosition invalidFingerprintPos();
+    std::list<std::shared_ptr<Node>>::const_iterator invalidCacheLRUPos() const;
 
     // Node has received last updates and it's ready to store in DB
     void saveNodeInDb(Node *node);
@@ -270,6 +272,16 @@ public:
     void initCompleted();
 
     std::shared_ptr<Node> getNodeFromNodeManagerNode(NodeManagerNode& nodeManagerNode);
+
+    void insertNodeCacheLRU(std::shared_ptr<Node> node);
+
+    void increaseNumNodesInRam();
+    void decreaseNumNodesInRam();
+
+    uint64_t getCacheLRUMaxSize() const;
+    void setCacheLRUMaxSize(uint64_t cacheLRUMaxSize);
+
+    uint64_t getNumNodesAtCacheLRU() const;
 
     // true when the filesystem has been initialized
     bool ready();
@@ -321,7 +333,10 @@ private:
     // Stores nodes that have been loaded in RAM from DB (not necessarily all of them)
     std::map<NodeHandle, NodeManagerNode> mNodes;
 
-    uint64_t mNodesInRam = 0;
+    uint64_t mCacheLRUMaxSize = std::numeric_limits<uint64_t>::max();
+    std::list<std::shared_ptr<Node> > mCacheLRU;
+
+    std::atomic<uint64_t> mNodesInRam;
 
     // nodes that have changed and are pending to notify to app and dump to DB
     sharedNode_vector mNodeNotify;
@@ -443,6 +458,8 @@ private:
     void setRootNodeVault_internal(NodeHandle h);
     void setRootNodeRubbish_internal(NodeHandle h);
     void initCompleted_internal();
+    void insertNodeCacheLRU_internal(std::shared_ptr<Node> node);
+    void unLoadNodeFromCacheLRU();
 };
 
 } // namespace

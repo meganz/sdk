@@ -593,38 +593,9 @@ struct StandardClient : public MegaApp
 
 
     bool waitForAttrDeviceIdIsSet(unsigned numSeconds, bool& updated);
-    bool waitForAttrMyBackupIsSet(unsigned numSeconds);
+    bool waitForAttrMyBackupIsSet(unsigned numSeconds, bool& newBackupIsSet);
 
     bool isUserAttributeSet(attr_t attr, unsigned numSeconds, error& err);
-
-    std::mutex mUserAttributeMutex;
-    std::function<void(const attr_t at, error)> mOnGetUA;
-    void getua_result(error e) override
-    {
-        std::lock_guard<std::mutex> g(mUserAttributeMutex);
-        if (mOnGetUA)
-        {
-            mOnGetUA(attr_t::ATTR_UNKNOWN, e);
-        }
-    }
-
-    void getua_result(::mega::byte*, unsigned, attr_t attr) override
-    {
-        std::lock_guard<std::mutex> g(mUserAttributeMutex);
-        if (mOnGetUA)
-        {
-            mOnGetUA(attr, error::API_OK);
-        }
-    }
-
-    void getua_result(TLVstore *, attr_t attr) override
-    {
-        std::lock_guard<std::mutex> g(mUserAttributeMutex);
-        if (mOnGetUA)
-        {
-            mOnGetUA(attr, error::API_OK);
-        }
-    }
 
     void transfer_complete(Transfer* transfer) override
     {

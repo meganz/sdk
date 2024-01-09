@@ -3352,11 +3352,7 @@ bool CommandPutUA::procresult(Result r, JSON& json)
 CommandGetUA::CommandGetUA(MegaClient* /*client*/, const char* uid, attr_t at, const char* ph, int ctag,
                            CompletionErr completionErr, CompletionBytes completionBytes, CompletionTLV compltionTLV)
 {
-    // It's important for this one to be v3, as the phone apps send huge numbers of alternating uga/uge
-    // and so we need those to go out in a single batch, rather than a batch per request
     mV3 = true;
-    // we probably don't need to set mSeqtagArray, becuase the API doco says the (successful) response is always a { JSON object }
-    // And from experimentation, a failed response is just a raw error, eg -9
 
     this->uid = uid;
     this->at = at;
@@ -3381,12 +3377,6 @@ CommandGetUA::CommandGetUA(MegaClient* /*client*/, const char* uid, attr_t at, c
     {
         cmd("mcuga");
         arg("ph", ph);
-
-
-        // cannot use v3, since the response is "<value>" and, if we have multiple `mcuga` in the
-        // same request -> first value will be taken as the sequence-tag, second value as the value
-        // for the first command
-        mV3 = false;
     }
     else
     {
@@ -3465,25 +3455,6 @@ bool CommandGetUA::procresult(Result r, JSON& json)
         const char* ptr;
         const char* end;
         string value, version, buf;
-
-        //If we are in preview mode, we only can retrieve atributes with mcuga and the response format is different
-        if (isFromChatPreview())
-        {
-            ptr = json.getvalue();
-            if (!ptr || !(end = strchr(ptr, '"')))
-            {
-                mCompletionErr(API_EINTERNAL);
-            }
-            else
-            {
-                // convert from ASCII to binary the received data
-                buf.assign(ptr, (end-ptr));
-                value.resize(buf.size() / 4 * 3 + 3);
-                value.resize(Base64::atob(buf.data(), (byte *)value.data(), int(value.size())));
-                mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
-            }
-            return true;
-        }
 
         for (;;)
         {
@@ -4990,8 +4961,6 @@ void CommandGetUserData::parseUserAttribute(JSON& json, std::string &value, std:
 
 CommandGetMiscFlags::CommandGetMiscFlags(MegaClient *client)
 {
-    mV3 = false;
-
     cmd("gmf");
 
     // this one can get the smsve flag when the account is blocked (if it's in a batch by itself)
@@ -9736,7 +9705,8 @@ bool CommandDismissBanner::procresult(Result r, JSON& json)
 // Sets and Elements
 //
 
-bool CommandSE::procjsonobject(JSON& json, handle& id, m_time_t& ts, handle* u, m_time_t* cts, handle* s, int64_t* o, handle* ph) const
+bool CommandSE::procjsonobject(JSON& json, handle& id, m_time_t& ts, handle* u, m_time_t* cts,
+                               handle* s, int64_t* o, handle* ph, uint8_t* t) const
 {
     for (;;)
     {
@@ -9785,6 +9755,13 @@ bool CommandSE::procjsonobject(JSON& json, handle& id, m_time_t& ts, handle* u, 
             }
             break;
 
+        case MAKENAMEID1('t'):
+            {
+                const auto setType = static_cast<uint8_t>(json.getint());
+                if (t) *t = setType;
+            }
+            break;
+
         default:
             if (!json.storeobject())
             {
@@ -9798,9 +9775,10 @@ bool CommandSE::procjsonobject(JSON& json, handle& id, m_time_t& ts, handle* u, 
     }
 }
 
-bool CommandSE::procresultid(JSON& json, const Result& r, handle& id, m_time_t& ts, handle* u, m_time_t* cts, handle* s, int64_t* o, handle* ph) const
+bool CommandSE::procresultid(JSON& json, const Result& r, handle& id, m_time_t& ts, handle* u,
+                             m_time_t* cts, handle* s, int64_t* o, handle* ph, uint8_t* t) const
 {
-    return r.hasJsonObject() && procjsonobject(json, id, ts, u, cts, s, o, ph);
+    return r.hasJsonObject() && procjsonobject(json, id, ts, u, cts, s, o, ph, t);
 }
 
 bool CommandSE::procerrorcode(const Result& r, Error& e) const
@@ -9851,6 +9829,7 @@ CommandPutSet::CommandPutSet(MegaClient* cl, Set&& s, unique_ptr<string> encrAtt
     if (mSet->id() == UNDEF) // create new
     {
         arg("k", (byte*)encrKey.c_str(), (int)encrKey.size());
+        arg("t", static_cast<m_off_t>(mSet->type()));
     }
     else // update
     {

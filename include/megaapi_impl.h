@@ -650,7 +650,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         int64_t mtime;
         MegaHandle nodehandle;
         MegaHandle parenthandle;
-        MegaHandle restorehandle;
+        MegaHandle restorehandle = UNDEF;
         std::string nodekey;
         std::string fileattrstring;
         std::string privateAuth;
@@ -744,13 +744,14 @@ public:
 
     MegaSetPrivate(const Set& s)
         : mId(s.id()), mPublicId(s.publicId()), mUser(s.user()), mTs(s.ts()), mCTs(s.cts()),
-          mName(s.name()), mCover(s.cover()), mChanges(s.changes()) {}
+          mName(s.name()), mCover(s.cover()), mChanges(s.changes()), mType(s.type()) {}
 
     MegaHandle id() const override { return mId; }
     MegaHandle publicId() const override { return mPublicId; }
     MegaHandle user() const override { return mUser; }
     int64_t ts() const override { return mTs; }
     int64_t cts() const override { return mCTs; }
+    int type() const override { return static_cast<int>(mType); }
     const char* name() const override { return mName.c_str(); }
     MegaHandle cover() const override { return mCover; }
 
@@ -769,6 +770,7 @@ private:
     string mName;
     MegaHandle mCover;
     std::bitset<Set::CH_SIZE> mChanges;
+    Set::SetType mType;
 };
 
 
@@ -3088,7 +3090,8 @@ class MegaApiImpl : public MegaApp
         MegaTransferList *getTansfersByFolderTag(int folderTransferTag);
 
         //Sets and Elements
-        void putSet(MegaHandle sid, int optionFlags, const char* name, MegaHandle cover, MegaRequestListener* listener = nullptr);
+        void putSet(MegaHandle sid, int optionFlags, const char* name, MegaHandle cover,
+                    int type, MegaRequestListener* listener = nullptr);
         void removeSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
         void putSetElements(MegaHandle sid, const MegaHandleList* nodes, const MegaStringList* names, MegaRequestListener* listener = nullptr);
         void putSetElement(MegaHandle sid, MegaHandle eid, MegaHandle node, int optionFlags, int64_t order, const char* name, MegaRequestListener* listener = nullptr);
@@ -3184,6 +3187,7 @@ class MegaApiImpl : public MegaApp
         void resetTotalDownloads();
         void resetTotalUploads();
         void updateStats();
+        void setLRUCacheSize(unsigned long long size);
         unsigned long long getNumNodes();
         unsigned long long getAccurateNumNodes();
         long long getTotalDownloadedBytes();
@@ -3362,10 +3366,10 @@ public:
         static bool nodeComparatorCreationDESC  (Node *i, Node *j);
         static bool nodeComparatorModificationASC  (Node *i, Node *j);
         static bool nodeComparatorModificationDESC  (Node *i, Node *j);
-        static bool nodeComparatorPhotoASC(Node *i, Node *j, MegaClient& mc);
-        static bool nodeComparatorPhotoDESC(Node *i, Node *j, MegaClient& mc);
-        static bool nodeComparatorVideoASC(Node *i, Node *j, MegaClient& mc);
-        static bool nodeComparatorVideoDESC(Node *i, Node *j, MegaClient& mc);
+        /*deprecated*/ static bool nodeComparatorPhotoASC(Node *i, Node *j, MegaClient& mc);
+        /*deprecated*/ static bool nodeComparatorPhotoDESC(Node *i, Node *j, MegaClient& mc);
+        /*deprecated*/ static bool nodeComparatorVideoASC(Node *i, Node *j, MegaClient& mc);
+        /*deprecated*/ static bool nodeComparatorVideoDESC(Node *i, Node *j, MegaClient& mc);
         static bool nodeComparatorPublicLinkCreationASC(Node *i, Node *j);
         static bool nodeComparatorPublicLinkCreationDESC(Node *i, Node *j);
         static bool nodeComparatorLabelASC(Node *i, Node *j);

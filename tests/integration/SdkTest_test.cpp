@@ -186,9 +186,12 @@ bool WaitFor(const std::function<bool()>& predicate, unsigned timeoutMs)
     return false;
 }
 
-MegaApi* newMegaApi(const char *appKey, const char *basePath, const char *userAgent, unsigned workerThreadCount)
+MegaApiTest* newMegaApi(const char* appKey,
+                        const char* basePath,
+                        const char* userAgent,
+                        unsigned workerThreadCount)
 {
-    return new MegaApi(appKey, basePath, userAgent, workerThreadCount);
+    return new MegaApiTest(appKey, basePath, userAgent, workerThreadCount);
 }
 
 enum { USERALERT_ARRIVAL_MILLISEC = 1000 };
@@ -5246,8 +5249,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
 
     ::mega::NodeHandle megaCurDir;
 
-    MegaApiImpl* impl = *((MegaApiImpl**)(((char*)megaApi[0].get()) + sizeof(*megaApi[0].get())) - 1);
-    MegaClient* client = impl->getMegaClient();
+    auto client{megaApi[0]->getClient()};
 
     std::unique_ptr<Either> p(new Either);
     p->Add(sequence(text("cd")));
@@ -7178,7 +7180,6 @@ TEST_F(SdkTest, SdkHttpReqCommandPutFATest)
     ASSERT_FALSE(previewURL.empty()) << "Got empty preview upload URL";
 }
 
-#ifndef __APPLE__
 TEST_F(SdkTest, SdkMediaImageUploadTest)
 {
     LOG_info << "___TEST MediaUploadRequestURL___";
@@ -7205,7 +7206,6 @@ TEST_F(SdkTest, SdkMediaUploadTest)
     synchronousMediaUpload(apiIndex, fileSize, filename.c_str(), DOWNFILE.c_str(), outputFile);
 
 }
-#endif
 
 TEST_F(SdkTest, SdkGetPricing)
 {
@@ -12529,7 +12529,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     string name = u8"Set name ideograms: 讓我們打破這個"; // "讓我們打破這個"
     differentApiDtls.setUpdated = false;
     MegaSet* newSet = nullptr;
-    int err = doCreateSet(0, &newSet, name.c_str());
+    int err = doCreateSet(0, &newSet, name.c_str(), MegaSet::SET_TYPE_ALBUM);
     ASSERT_EQ(err, API_OK);
 
     unique_ptr<MegaSet> s1p(newSet);
@@ -13003,7 +13003,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
     const string name = u8"qq-001";
     MegaSet* newSet = nullptr;
     differentApiDtlsPtr->setUpdated = false;
-    ASSERT_EQ(API_OK, doCreateSet(0, &newSet, name.c_str()));
+    ASSERT_EQ(API_OK, doCreateSet(0, &newSet, name.c_str(), MegaSet::SET_TYPE_ALBUM));
     ASSERT_NE(newSet, nullptr);
     const unique_ptr<MegaSet> s1p(newSet);
     const MegaHandle sh = s1p->id();
@@ -13322,6 +13322,120 @@ TEST_F(SdkTest, SdkTestSetsAndElementsPublicLink)
 
     LOG_debug << "# U1: Remove all Sets";
     userIdx = 0;
+    unique_ptr<MegaSetList> sets(megaApi[userIdx]->getSets());
+    for (unsigned i = 0; i < sets->size(); ++i)
+    {
+        differentApiDtlsPtr->setUpdated = false;
+        handle setId = sets->get(i)->id();
+        ASSERT_EQ(API_OK, doRemoveSet(userIdx, setId));
+
+        unique_ptr<MegaSet> s(megaApi[userIdx]->getSet(setId));
+        ASSERT_EQ(s, nullptr);
+        ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
+            << "Failed to receive deleted Set AP on U1's secondary client";
+    }
+    sets.reset(megaApi[userIdx]->getSets());
+    ASSERT_EQ(sets->size(), 0u);
+}
+
+/**
+ * @brief TEST_F SdkTestSetsAndElementsSetTypes
+ *
+ * Tests creating all possible Set types.
+ */
+TEST_F(SdkTest, SdkTestSetsAndElementsSetTypes)
+{
+    LOG_info << "___TEST Sets and Elements Set Types___";
+
+    // U1: Create set with type MegaSet::SET_TYPE_PHOTOS
+    // U1: Create set with type MegaSet::SET_TYPE_VIDEOS
+    // U1: Create set with a type out of range
+    // U1: Logout / login to retrieve Sets
+    // U1: Check existing Sets and types
+    // U1: Remove all Sets
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Use another connection with the same credentials as U1 (i.e. fake a different client for AP processing)
+    MegaApi* differentApiPtr = nullptr;
+    PerApi* differentApiDtlsPtr = nullptr;
+    const int userIdx = 0;
+    megaApi.emplace_back(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(userIdx).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
+    differentApiPtr = &(*megaApi.back());
+    differentApiPtr->addListener(this);
+    PerApi pa; // make a copy
+    auto& aux = mApi[userIdx];
+    pa.email = aux.email;
+    pa.pwd = aux.pwd;
+    mApi.push_back(std::move(pa));
+    differentApiDtlsPtr = &(mApi.back());
+    differentApiDtlsPtr->megaApi = differentApiPtr;
+    const int difApiIdx = static_cast<int>(megaApi.size() - 1);
+
+    auto loginTracker = asyncRequestLogin(difApiIdx, differentApiDtlsPtr->email.c_str(), differentApiDtlsPtr->pwd.c_str());
+    ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to establish a login/session for account " << difApiIdx;
+    loginTracker = asyncRequestFetchnodes(difApiIdx);
+    ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to fetch nodes for account " << difApiIdx;
+
+
+    LOG_debug << "# U1: Create set with type MegaSet::SET_TYPE_PHOTOS";
+    const string albumName = u8"qq-001";
+    MegaSet* newSet = nullptr;
+    differentApiDtlsPtr->setUpdated = false;
+    ASSERT_EQ(API_OK, doCreateSet(0, &newSet, albumName.c_str(), MegaSet::SET_TYPE_ALBUM));
+    ASSERT_NE(newSet, nullptr);
+    const unique_ptr<MegaSet> setAsPhotoAlbum(newSet);
+    const MegaHandle albumHandle = setAsPhotoAlbum->id();
+    ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
+        << "Failed to receive create Set AP on U1's secondary client for photo album creation";
+
+
+    LOG_debug << "# U1: Create set with type MegaSet::SET_TYPE_VIDEOS";
+    const string playlistName = u8"gg-001";
+    newSet = nullptr;
+    differentApiDtlsPtr->setUpdated = false;
+    PerApi& target = mApi[userIdx];
+    target.resetlastEvent();     // So we can detect when the node database has been committed.
+    ASSERT_EQ(API_OK, doCreateSet(0, &newSet, playlistName.c_str(), MegaSet::SET_TYPE_PLAYLIST));
+    ASSERT_NE(newSet, nullptr);
+    const unique_ptr<MegaSet> setAsVideoPlaylist(newSet);
+    const MegaHandle playlistHandle = setAsVideoPlaylist->id();
+    ASSERT_TRUE(waitForResponse(&differentApiDtlsPtr->setUpdated))
+        << "Failed to receive create Set AP on U1's secondary client for video playlist creation";
+    // Wait for the database to be updated (note: even if commit is triggered by 1st update, the 2nd update
+    // has been applied already, so the DB will store the final value)
+    ASSERT_TRUE(WaitFor([&target](){ return target.lastEventsContain(MegaEvent::EVENT_COMMIT_DB); }, maxTimeout*1000))
+        << "Failed to receive commit to DB event related to latest Set stored";
+
+
+    LOG_debug << "# U1: Create Sets with invalid types";
+    const string invalidSetName = u8"failure-001";
+    newSet = nullptr;
+    const int maxRange = 255;  // std::numeric_limits<uint8_t>::max()
+    const int minRange = 0;    // std::numeric_limits<uint8_t>::min()
+    ASSERT_NE(API_OK, doCreateSet(0, &newSet, invalidSetName.c_str(), maxRange));
+    ASSERT_EQ(newSet, nullptr);
+    ASSERT_NE(API_OK, doCreateSet(0, &newSet, invalidSetName.c_str(), maxRange + 1));
+    ASSERT_EQ(newSet, nullptr);
+    ASSERT_NE(API_OK, doCreateSet(0, &newSet, invalidSetName.c_str(), minRange - 1));
+    ASSERT_EQ(newSet, nullptr);
+
+
+    LOG_debug << "# U1: Logout / login to retrieve Sets";
+    unique_ptr<char[]> session(dumpSession());
+    ASSERT_NO_FATAL_FAILURE(locallogout());
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(userIdx)); // load cached Sets
+
+
+    LOG_debug << "# U1: Check Sets types loaded from local cache";
+    unique_ptr<MegaSet> reloadedSessionAlbumSet(megaApi[userIdx]->getSet(albumHandle));
+    ASSERT_EQ(reloadedSessionAlbumSet->type(), setAsPhotoAlbum->type());
+    unique_ptr<MegaSet> reloadedSessionPlaylistSet(megaApi[userIdx]->getSet(playlistHandle));
+    ASSERT_EQ(reloadedSessionPlaylistSet->type(), setAsVideoPlaylist->type());
+
+
+    LOG_debug << "# U1: Remove all Sets";
     unique_ptr<MegaSetList> sets(megaApi[userIdx]->getSets());
     for (unsigned i = 0; i < sets->size(); ++i)
     {
@@ -15244,13 +15358,11 @@ TEST_F(SdkTest, SdkTestJourneyTracking)
     LOG_info << "___TEST SdkTestJourneyTracking___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-    // This UGLY cast is used so we can access the MegaClient.
     // We need to access the MegaClient to test JourneyID functionality according to specifications.
     // JID values from ug/gmf commands affect the behavior (set/unset tracking flag, update JourneyID::mJidValue if it's empty, etc.)
     // We don't have TestInstruments or any other mechanism to change the command response results, so we cannot test this just with regular requests on the intermmediate layer.
     // Finally, JourneyID is used internally on the MegaClient, it's never shared with the apps, so we need to check its value directly from MegaClient.
-    MegaApiImpl* impl = *((MegaApiImpl**)(((char*)megaApi[0].get()) + sizeof(*megaApi[0].get())) - 1);
-    MegaClient* client = impl->getMegaClient();
+    auto client{megaApi[0]->getClient()};
 
     //==================||
     //    Test ViewID   ||
@@ -15296,8 +15408,7 @@ TEST_F(SdkTest, SdkTestJourneyTracking)
     gSessionIDs[0] = "invalid";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     // New impl and client - we need to update pointers
-    impl = *((MegaApiImpl**)(((char*)megaApi[0].get()) + sizeof(*megaApi[0].get())) - 1);
-    client = impl->getMegaClient();
+    client = megaApi[0]->getClient();
 
     // TEST 3: Check JourneyID after login from a fresh instance with no cache file
     // A new JourneyID should have been retrieved from the initial "ug" command
@@ -15455,6 +15566,17 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
                                                false   /*startFirst*/,
                                                nullptr /*cancelToken*/)) << "Cannot upload " << PUBLICFILE << " as " << spreadsheetFile;
 
+    const char documentFile[] = "test.doc";
+    MegaHandle handleDocumentFile = UNDEF;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handleDocumentFile, PUBLICFILE.c_str(),
+                                               rootnode.get(),
+                                               documentFile /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload " << PUBLICFILE << " as " << documentFile;
+
     std::unique_ptr<MegaSearchFilter> filterResults(MegaSearchFilter::createInstance());
 
     filterResults->byCategory(MegaApi::FILE_TYPE_PROGRAM);
@@ -15470,8 +15592,8 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
     filterResults->byCategory(MegaApi::FILE_TYPE_DOCUMENT);
     nodeList.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_ALPHABETICAL_DESC));
     ASSERT_EQ(nodeList->size(), 2);
-    ASSERT_EQ(nodeList->get(0)->getHandle(), handlePdfFile);
-    ASSERT_EQ(nodeList->get(1)->getHandle(), handleSpreadsheetFile);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), handleSpreadsheetFile);
+    ASSERT_EQ(nodeList->get(1)->getHandle(), handleDocumentFile);
 
     filterResults->byCategory(MegaApi::FILE_TYPE_MISC);
     nodeList.reset(megaApi[0]->search(filterResults.get()));
@@ -16132,7 +16254,6 @@ TEST_F(SdkTest, CreateNodeTreeWithOneDirectoryAndS4Attribute)
     ASSERT_STREQ(s4AttributeValue.c_str(), directoryNode->getS4());
 }
 
-#ifndef __APPLE__
 /**
  * @brief Create node tree with one file
  *
@@ -16181,7 +16302,6 @@ TEST_F(SdkTest, CreateNodeTreeWithOneFile)
     ASSERT_STREQ(IMAGEFILE.c_str(), fileNode->getName());
     ASSERT_EQ(fileSize, fileNode->getSize());
 }
-#endif
 
 /**
  * @brief Create node tree with multiple levels of directories
@@ -16238,7 +16358,6 @@ TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectories)
     ASSERT_STREQ(directoryNameLevel2.c_str(), directoryNodeLevel2->getName());
 }
 
-#ifndef __APPLE__
 /**
  * @brief Create node tree with multiple levels of directories and one file at the end
  *
@@ -16324,4 +16443,3 @@ TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectoriesAndOneFileAtTheEnd)
     ASSERT_STREQ(IMAGEFILE.c_str(), fileNode->getName());
     ASSERT_EQ(fileSize, fileNode->getSize());
 }
-#endif
