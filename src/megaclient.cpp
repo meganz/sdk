@@ -10823,7 +10823,7 @@ void MegaClient::opensctable()
                     if (!nodeData || !size) return LBL_UNKNOWN;
 
                     list<unique_ptr<NewShare>> dummy;
-                    auto sn = Node::unserializeRaw(cl, nodeData, size, false, dummy);
+                    auto sn = Node::unserializeRaw(cl, nodeData, size, false, dummy, false);
                     if (!sn) return LBL_UNKNOWN;
 
                     static nameid labelId = AttrMap::string2nameid("lbl");
@@ -10839,7 +10839,7 @@ void MegaClient::opensctable()
                     if (!nodeData || !size) return 0;
 
                     list<unique_ptr<NewShare>> shares;
-                    auto sn = Node::unserializeRaw(cl, nodeData, size, false, shares);
+                    auto sn = Node::unserializeRaw(cl, nodeData, size, false, shares, false);
 
                     return sn && shares.size() == 1 && !shares.front()->outgoing &&
                            !cl.mKeyManager.isUnverifiedInShare(sn->nodehandle, shares.front()->peer);

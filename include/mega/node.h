@@ -380,7 +380,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     bool serialize(string*) const override;
     static std::shared_ptr<Node> unserialize(MegaClient& client, const string*, bool fromOldCache, std::list<std::unique_ptr<NewShare>>& ownNewshares);
-    static std::shared_ptr<Node> unserializeRaw(MegaClient& client, const char* ptr, size_t size, bool fromOldCache, std::list<std::unique_ptr<NewShare>>& ownNewshares);
+    static std::shared_ptr<Node> unserializeRaw(MegaClient& client, const char* ptr, size_t size, bool fromOldCache, std::list<std::unique_ptr<NewShare>>& ownNewshares, bool intendToKeep);
 
     Node(MegaClient&, NodeHandle, NodeHandle, nodetype_t, m_off_t, handle, const char*, m_time_t);
     ~Node();
