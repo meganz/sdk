@@ -8044,8 +8044,6 @@ bool CommandRegisterPushNotification::procresult(Result r, JSON& json)
 
 CommandArchiveChat::CommandArchiveChat(MegaClient *client, handle chatid, bool archive)
 {
-    mV3 = false;
-
     this->mChatid = chatid;
     this->mArchive = archive;
 
