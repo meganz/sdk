@@ -824,6 +824,11 @@ std::shared_ptr<Node> Node::unserializeRaw(MegaClient& client, const char* ptr, 
         ptr += length;
     }
 
+    if (ptr != end)
+    {
+        return nullptr;
+    }
+
     n->setKey(nodekey); // it can be decrypted or encrypted
 
     if (!encrypted)
@@ -833,14 +838,7 @@ std::shared_ptr<Node> Node::unserializeRaw(MegaClient& client, const char* ptr, 
         n->setfingerprint();
     }
 
-    if (ptr == end)
-    {
-        return n;
-    }
-    else
-    {
-        return NULL;
-    }
+    return n;
 }
 
 // serialize node - nodes with pending or RSA keys are unsupported
