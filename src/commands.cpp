@@ -3646,8 +3646,6 @@ bool CommandGetUA::procresult(Result r, JSON& json)
 #ifdef DEBUG
 CommandDelUA::CommandDelUA(MegaClient *client, const char *an)
 {
-    mV3 = false;
-
     this->an = an;
 
     cmd("upr");
