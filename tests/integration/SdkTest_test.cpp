@@ -2021,12 +2021,12 @@ TEST_F(SdkTest, SdkTestCreateAccount)
         string changelink = getLinkFromMailbox(pyExe, bufScript.string(), realAccount, bufRealPswd, changedTestAcc, MegaClient::verifyLinkPrefix(), timeOfChangeEmail);
         ASSERT_FALSE(changelink.empty()) << "Change email account link was not found.";
 
-        ASSERT_EQ(newTestAcc, megaApi[0]->getMyEmail()) << "email changed prematurely";
+        ASSERT_STRCASEEQ(newTestAcc.c_str(), megaApi[0]->getMyEmail()) << "email changed prematurely";
         ASSERT_EQ(synchronousConfirmChangeEmail(0, changelink.c_str(), newTestPwd), MegaError::API_OK) << "confirmChangeEmail failed";
     }
 
     // Login using new email
-    ASSERT_EQ(changedTestAcc, megaApi[0]->getMyEmail()) << "email not changed correctly";
+    ASSERT_STRCASEEQ(changedTestAcc.c_str(), megaApi[0]->getMyEmail()) << "email not changed correctly";
     {
         unique_ptr<RequestTracker> loginTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->login(changedTestAcc.c_str(), newTestPwd, loginTracker.get());
@@ -2040,7 +2040,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
         ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes after change password for account " << changedTestAcc.c_str();
     }
 
-    ASSERT_EQ(changedTestAcc, megaApi[0]->getMyEmail()) << "my email not set correctly after changed";
+    ASSERT_STRCASEEQ(changedTestAcc.c_str(), megaApi[0]->getMyEmail()) << "my email not set correctly after changed";
 
 
     // delete the account
