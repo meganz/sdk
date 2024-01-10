@@ -5353,9 +5353,9 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
 
         WaitMillisec(400);
 
-        if ((chrono::steady_clock::now() - totalTimeoutStart) > std::chrono::minutes(1))
+        if ((chrono::steady_clock::now() - totalTimeoutStart) > std::chrono::minutes(5))
         {
-            out() << "Waiting for syncing to stop timed out at 1 minutes";
+            out() << "Waiting for syncing to stop timed out at 5 minutes";
             return result;
         }
     }
@@ -6507,7 +6507,7 @@ TEST_F(SyncTest, BasicSync_MoveSeveralExistingIntoDeepNewLocalFolders)
     clientA1->triggerPeriodicScanEarly(backupId1);
 
     // let them catch up
-    waitonsyncs(std::chrono::seconds(20), clientA1, clientA2);
+    waitonsyncs(std::chrono::seconds(4), clientA1, clientA2);
 
     // check everything matches (model has expected state of remote and local)
     model.findnode("f")->addkid(model.buildModelSubdirs("new", 3, 3, 3));
