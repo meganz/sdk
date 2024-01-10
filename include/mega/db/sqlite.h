@@ -172,14 +172,6 @@ public:
     // Gets the mimetype corresponding to the file extension
     static void userGetMimetype(sqlite3_context* context, int argc, sqlite3_value** argv);
 
-    // Method called when query uses 'getlabel'
-    // Gets the Label corresponding to a node
-    static void userGetLabel(sqlite3_context* context, int argc, sqlite3_value** argv);
-
-    // Method called from userGetLabel() when query uses 'getlabel'
-    // Extracts the Label of a node from the blob stored in db
-    static void setLabelGetter(std::function<int(const char*, size_t)> labelGetter) { mLabelGetter = labelGetter; }
-
     // Method called when query uses 'isverifiedinshare'
     static void userIsVerifiedInshare(sqlite3_context* context, int argc, sqlite3_value** argv);
 
@@ -237,7 +229,9 @@ private:
     // (tests with a value of 1000 results on a callback every 1.2ms on a desktop PC)
     static const int NUM_VIRTUAL_MACHINE_INSTRUCTIONS = 1000;
 
-    static std::function<int(const char*, size_t)> mLabelGetter;
+    // On-the-fly db function that uses MegaClient instance.
+    // Usually there is only one MegaClient instance created, but at least in tests multiple instances are created.
+    // TODO: find a way to not depend on a particular MegaClient instance.
     static std::function<int(const char*, size_t)> mVerifiedInshareCheck;
 };
 
@@ -273,6 +267,7 @@ private:
     void removeDBFiles(mega::FileSystemAccess& fsAccess, mega::LocalPath& dbPath);
     bool ensureColumnIsInNodesTable(sqlite3* db, const string& colName, const string& colType, std::function<bool()> callAfterAdded = nullptr);
     bool copyMtimeFromFingerprint(sqlite3* db);
+    bool copyLabelFromAttrs(sqlite3* db);
 };
 
 class OrderBy2Clause

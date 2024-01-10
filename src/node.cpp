@@ -1751,6 +1751,195 @@ void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown, 
     }
 }
 
+
+handle NodeData::getInsharePeer()
+{
+    if (mInsharePeer)
+    {
+        return mInsharePeer;
+    }
+
+    if ((!mSharesStart && !skipToShares()) || (mSharesStart + sizeof(short) > mEnd))
+    {
+        LOG_err << "Failed to skip to start of shares";
+        return UNDEF;
+    }
+
+    const char* ptr = mSharesStart;
+
+    short numshares = MemAccess::get<short>(ptr);
+    ptr += sizeof(numshares);
+    if (numshares >= 0 || (ptr + SymmCipher::KEYLENGTH > mEnd))
+    {
+        return UNDEF;
+    }
+
+    const byte* skey = (const byte*)ptr;
+    ptr += SymmCipher::KEYLENGTH;
+    std::unique_ptr<NewShare> newShare{ Share::unserialize(0, UNDEF, skey, &ptr, mEnd) };
+
+    if (newShare)
+    {
+        mInsharePeer = newShare->peer;
+        mAttrsStart = ptr; // optimization, in case attrs are needed later
+    }
+    else
+    {
+        mInsharePeer = UNDEF; // set it to UNDEF to avoid parsing it again
+    }
+
+    return mInsharePeer;
+}
+
+int NodeData::getAttrLabel()
+{
+    if (!mAttrs)
+    {
+        if (!mAttrsStart && !skipToAttrs())
+        {
+            LOG_err << "Failed to skip to start of attrs";
+            return false;
+        }
+
+        mAttrs = ::mega::make_unique<AttrMap>();
+        const char* ptr = mAttrs->unserialize(mAttrsStart, mEnd);
+        if (!ptr)
+        {
+            LOG_err << "Failed to unserialize attrs";
+            assert(ptr);
+            return false;
+        }
+
+        static const nameid labelId = AttrMap::string2nameid("lbl");
+        auto attrIt = mAttrs->map.find(labelId);
+        mLabel = attrIt == mAttrs->map.end() ? LBL_UNKNOWN : std::atoi(attrIt->second.c_str());
+    }
+
+    return mLabel;
+}
+
+handle NodeData::getHandle()
+{
+    if (!mSharesStart)
+    {
+        // node handle will be read as part of skipping towards shares
+        skipToShares();
+    }
+
+    return mHandle;
+}
+
+bool NodeData::skipToShares() // logic duplicated from Node::unserialize()
+{
+    const char* ptr = mStart;
+    if (!ptr || ptr + sizeof(m_off_t) > mEnd)
+    {
+        return false;
+    }
+
+    m_off_t s = MemAccess::get<m_off_t>(ptr);
+    ptr += sizeof(m_off_t); // node type representation
+
+    // node handle
+    if (ptr + MegaClient::NODEHANDLE > mEnd)
+    {
+        return false;
+    }
+    mHandle = 0;
+    memcpy((char*)&mHandle, ptr, MegaClient::NODEHANDLE);
+
+    ptr += 2 * MegaClient::NODEHANDLE; // node handle & parent handle
+    ptr += MegaClient::USERHANDLE;
+    ptr += 2 * sizeof(time_t); // ts
+
+    nodetype_t t = (s < 0 && s >= -RUBBISHNODE) ? (nodetype_t)-s : FILENODE;
+    int keylen = (t == FILENODE) ? FILENODEKEYLENGTH : (t == FOLDERNODE ? FOLDERNODEKEYLENGTH : 0);
+    ptr += keylen;
+
+    if (t == FILENODE)
+    {
+        if (ptr + sizeof(unsigned short) > mEnd)
+        {
+            return false;
+        }
+        unsigned short ll = MemAccess::get<unsigned short>(ptr);
+        ptr += sizeof(ll) + ll;
+    }
+
+    ptr += 2 * sizeof(char); // isExported & hasLinkCreationTs
+
+    // skip auth key
+    if (ptr + sizeof(char) > mEnd)
+    {
+        return false;
+    }
+    char authKeySize = MemAccess::get<char>(ptr);
+    ptr += sizeof(char) + authKeySize;
+
+    // skip "encrypted"
+    if (ptr + 2 * sizeof(char) > mEnd)
+    {
+        return false;
+    }
+    ptr += (unsigned)*ptr + 1;
+    if (ptr >= mEnd)
+    {
+        return false;
+    }
+    for (int i = 4; i--;)
+    {
+        if (ptr + (unsigned char)*ptr < mEnd)
+        {
+            ptr += (unsigned char)*ptr + 1;
+        }
+    }
+
+    if (ptr + sizeof(short) > mEnd)
+    {
+        return false;
+    }
+
+    mSharesStart = ptr;
+
+    return true;
+}
+
+bool NodeData::skipToAttrs() // logic duplicated from Node::unserialize()
+{
+    if (!mSharesStart && !skipToShares())
+    {
+        return false;
+    }
+
+    const char* ptr = mSharesStart;
+    assert(mStart < ptr&& ptr < mEnd);
+    short numshares = MemAccess::get<short>(ptr);
+    ptr += sizeof(short);
+    if (numshares)
+    {
+        ptr += SymmCipher::KEYLENGTH;
+        for (short i = 0; i < numshares; ++i)
+        {
+            size_t skip = sizeof(handle) + sizeof(m_time_t) + 1;
+            if (ptr + skip > mEnd)
+            {
+                return false;
+            }
+            char version_flag = ptr[skip];
+            ptr += sizeof(handle) + sizeof(m_time_t) + 2;
+            if (version_flag >= 1)
+            {
+                ptr += sizeof(handle);
+            }
+        }
+    }
+
+    mAttrsStart = ptr;
+    return true;
+}
+
+
+
 PublicLink::PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown, const char *authKey)
 {
     this->ph = ph;

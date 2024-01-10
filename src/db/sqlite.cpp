@@ -144,19 +144,12 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
         return nullptr;
     }
 
-    if (sqlite3_create_function(db, u8"getlabel", 1, SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0, &SqliteAccountState::userGetLabel, 0, 0) != SQLITE_OK)
-    {
-        LOG_err << "Data base error(sqlite3_create_function userGetLabel): " << sqlite3_errmsg(db);
-        sqlite3_close(db);
-        return nullptr;
-    }
-
     // Create specific table for handle nodes
     std::string sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle int64 PRIMARY KEY NOT NULL, "
                       "parenthandle int64, name text, fingerprint BLOB, origFingerprint BLOB, "
                       "type tinyint, mimetype tinyint AS (getmimetype(name)) VIRTUAL, size int64, share tinyint, fav tinyint, "
                       "ctime int64, mtime int64, flags int64, counter BLOB NOT NULL, node BLOB NOT NULL, "
-                      "label tinyint AS (getlabel(node)) VIRTUAL)";
+                      "label tinyint)";
     int result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
     if (result)
     {
@@ -171,7 +164,7 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     // - 'label' (virtual)
     if (!ensureColumnIsInNodesTable(db, "mtime", "int64", [this, db]() { return copyMtimeFromFingerprint(db); }) ||
         !ensureColumnIsInNodesTable(db, "mimetype", "tinyint AS (getmimetype(name)) VIRTUAL") ||
-        !ensureColumnIsInNodesTable(db, "label", "tinyint AS (getlabel(node)) VIRTUAL"))
+        !ensureColumnIsInNodesTable(db, "label", "tinyint", [this, db]() { return copyLabelFromAttrs(db); }))
     {
         sqlite3_close(db);
         return nullptr;
@@ -435,6 +428,55 @@ bool SqliteDbAccess::copyMtimeFromFingerprint(sqlite3* db)
             sqlite3_reset(stmt) != SQLITE_OK)
         {
             LOG_debug << "Db error while updating mtime: " << sqlite3_errmsg(db);
+            return false;
+        }
+    }
+    sqlite3_finalize(stmt);
+
+    return true;
+}
+
+bool SqliteDbAccess::copyLabelFromAttrs(sqlite3* db)
+{
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, "SELECT nodehandle, node FROM nodes", -1, &stmt, nullptr) != SQLITE_OK)
+    {
+        LOG_err << "Db error while preparing to extract label: " << sqlite3_errmsg(db);
+        return false;
+    }
+
+    map<handle, int> labels;
+    while (sqlite3_step(stmt) == SQLITE_ROW)
+    {
+        const char* blob = static_cast<const char*>(sqlite3_column_blob(stmt, 1));
+        int blobSize = sqlite3_column_bytes(stmt, 1);
+        NodeData nd(blob, blobSize);
+
+        int l = nd.getAttrLabel();
+        labels[sqlite3_column_int64(stmt, 0)] = l;
+    }
+    sqlite3_finalize(stmt);
+
+    if (labels.empty())
+    {
+        return true;
+    }
+
+    if (sqlite3_prepare_v2(db, "UPDATE nodes SET label = ? WHERE nodehandle = ?", -1, &stmt, nullptr) != SQLITE_OK)
+    {
+        LOG_err << "Db error while preparing to populate new label column: " << sqlite3_errmsg(db);
+        return false;
+    }
+
+    for (const auto& n : labels)
+    {
+        int stepResult;
+        if (sqlite3_bind_int(stmt, 1, n.second) != SQLITE_OK ||
+            sqlite3_bind_int64(stmt, 2, n.first) != SQLITE_OK ||
+            ((stepResult = sqlite3_step(stmt)) != SQLITE_DONE && stepResult != SQLITE_ROW) ||
+            sqlite3_reset(stmt) != SQLITE_OK)
+        {
+            LOG_err << "Db error while populating label: " << sqlite3_errmsg(db);
             return false;
         }
     }
@@ -1063,8 +1105,8 @@ bool SqliteAccountState::put(Node *node)
     if (!mStmtPutNode)
     {
         sqlResult = sqlite3_prepare_v2(db, "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, "
-                                           "name, fingerprint, origFingerprint, type, size, share, fav, ctime, mtime, flags, counter, node) "
-                                           "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &mStmtPutNode, NULL);
+                                           "name, fingerprint, origFingerprint, type, size, share, fav, ctime, mtime, flags, counter, node, label) "
+                                           "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &mStmtPutNode, NULL);
     }
 
     if (sqlResult == SQLITE_OK)
@@ -1108,6 +1150,11 @@ bool SqliteAccountState::put(Node *node)
         std::string nodeCountersBlob = node->getCounter().serialize();
         sqlite3_bind_blob(mStmtPutNode, 13, nodeCountersBlob.data(), static_cast<int>(nodeCountersBlob.size()), SQLITE_STATIC);
         sqlite3_bind_blob(mStmtPutNode, 14, nodeSerialized.data(), static_cast<int>(nodeSerialized.size()), SQLITE_STATIC);
+
+        static nameid labelId = AttrMap::string2nameid("lbl");
+        auto labelIt = node->attrs.map.find(labelId);
+        int label = (labelIt == node->attrs.map.end()) ? LBL_UNKNOWN : std::atoi(labelIt->second.c_str());
+        sqlite3_bind_int(mStmtPutNode, 15, label);
 
         sqlResult = sqlite3_step(mStmtPutNode);
     }
@@ -2460,33 +2507,6 @@ void SqliteAccountState::userGetMimetype(sqlite3_context* context, int argc, sql
     string ext;
     int result = (fileName && *fileName && Node::getExtension(ext, fileName) && !ext.empty()) ?
                  Node::getMimetype(ext) : MimeType_t::MIME_TYPE_UNKNOWN;
-    sqlite3_result_int(context, result);
-}
-
-/*static*/
-std::function<int(const char*, size_t)> SqliteAccountState::mLabelGetter;
-
-void SqliteAccountState::userGetLabel(sqlite3_context* context, int argc, sqlite3_value** argv)
-{
-    if (argc != 1)
-    {
-        LOG_err << "Invalid parameters for userGetLabel";
-        assert(argc == 1);
-        sqlite3_result_int(context, nodelabel_t::LBL_UNKNOWN);
-        return;
-    }
-
-    if (!mLabelGetter)
-    {
-        LOG_err << "Mechanism for getting Label from blob data not set";
-        sqlite3_result_int(context, nodelabel_t::LBL_UNKNOWN);
-        return;
-    }
-
-    const char* nodeData = static_cast<const char*>(sqlite3_value_blob(argv[0]));
-    size_t nodeSize = static_cast<size_t>(sqlite3_value_bytes(argv[0]));
-    int result = mLabelGetter(nodeData, nodeSize);
-
     sqlite3_result_int(context, result);
 }
 

@@ -472,6 +472,32 @@ inline bool Node::keyApplied() const
     return nodekeydata.size() == size_t((type == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH);
 }
 
+class NodeData
+{
+public:
+    NodeData(const char* ptr, size_t size) : mStart(ptr), mEnd(ptr + size) {}
+
+    handle getInsharePeer();
+    int getAttrLabel();
+    handle getHandle();
+
+private:
+    bool skipToShares();
+    bool skipToAttrs();
+
+    const char* mStart;
+    const char* mEnd;
+
+    handle mHandle = 0;
+
+    const char* mSharesStart = nullptr;
+    handle mInsharePeer = 0;
+
+    const char* mAttrsStart = nullptr;
+    std::unique_ptr<AttrMap> mAttrs;
+    int mLabel;
+};
+
 #ifdef ENABLE_SYNC
 
 enum TreeState

@@ -10817,22 +10817,6 @@ void MegaClient::opensctable()
                 assert(nodeTable);
                 MegaClient& cl = *this; // alias for lambdas
 
-                // set a mechanism for extracting node Label from a blob stored in db
-                auto labelGetter = [&cl](const char* nodeData, size_t size) -> int
-                {
-                    if (!nodeData || !size) return LBL_UNKNOWN;
-
-                    list<unique_ptr<NewShare>> dummy;
-                    auto sn = Node::unserializeRaw(cl, nodeData, size, false, dummy, false);
-                    if (!sn) return LBL_UNKNOWN;
-
-                    static nameid labelId = AttrMap::string2nameid("lbl");
-                    auto attrIt = sn->attrs.map.find(labelId);
-                    int label = attrIt == sn->attrs.map.end() ? LBL_UNKNOWN : std::atoi(attrIt->second.c_str());
-                    return label;
-                };
-                SqliteAccountState::setLabelGetter(labelGetter);
-
                 // set a mechanism for checking that an inshare was verified
                 auto verifiedInshareCheck = [&cl](const char* nodeData, size_t size) -> int
                 {
