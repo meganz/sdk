@@ -4421,9 +4421,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             if (u)
             {
                 int changes = 0;
-                if (u->email.empty())
+                if (email.size())
                 {
-                    u->email = email;
+                    client->setEmail(u, email);
                 }
 
                 if (firstname.size())
@@ -7220,13 +7220,7 @@ bool CommandConfirmEmailLink::procresult(Result r, JSON& json)
         if (replace)
         {
             LOG_debug << "Email changed from `" << u->email << "` to `" << email << "`";
-
-            client->mapuser(u->userhandle, email.c_str()); // update email used as index for user's map
-            u->changed.email = true;
-            client->notifyuser(u);
-
-            // produce a callback to update cached email in MegaApp
-            client->reportLoggedInChanges();
+            client->setEmail(u, email);
         }
         // TODO: once we manage multiple emails, add the new email to the list of emails
     }
