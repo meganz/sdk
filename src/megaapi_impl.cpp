@@ -124,30 +124,22 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->customAttrs = NULL;
 
     MegaNodePrivate *np = dynamic_cast<MegaNodePrivate *>(node);
-    if (np)
+    if (!np)
     {
-        this->duration = np->duration;
-        this->width = np->width;
-        this->height = np->height;
-        this->shortformat = np->shortformat;
-        this->videocodecid = np->videocodecid;
-        this->mFavourite = np->mFavourite;
-        this->mLabel = np->mLabel;
-        this->mDeviceId = np->mDeviceId;
-        this->mS4 = np->mS4;
-    }
-    else
-    {
-        this->duration = node->getDuration();
-        this->width = node->getWidth();
-        this->height = node->getHeight();
-        this->shortformat = node->getShortformat();
-        this->videocodecid = node->getVideocodecid();
-        this->mFavourite = node->isFavourite();
-        this->mLabel = static_cast<nodelabel_t>(node->getLabel());
-        mMarkedSensitive = node->isMarkedSensitive();
+        LOG_err << "Critical error: Unexpected MegaNode extension received";
+        assert(false);
     }
 
+    this->duration = np->duration;
+    this->width = np->width;
+    this->height = np->height;
+    this->shortformat = np->shortformat;
+    this->videocodecid = np->videocodecid;
+    this->mFavourite = np->mFavourite;
+    this->mLabel = np->mLabel;
+    this->mDeviceId = np->mDeviceId;
+    this->mS4 = np->mS4;
+    mMarkedSensitive = node->isMarkedSensitive();
     this->latitude = node->getLatitude();
     this->longitude = node->getLongitude();
     this->restorehandle = node->getRestoreHandle();
