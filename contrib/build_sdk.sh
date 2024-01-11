@@ -1253,7 +1253,7 @@ display_help() {
     local app=$(basename "$0")
     echo ""
     echo "Usage:"
-    echo " $app [-a] [-c] [-h] [-d] [-e] [-f] [-g] [-l] [-m opts] [-n] [-N] [-o path] [-p path] [-q] [-r] [-s] [-t] [-w] [-x opts] [-y] [z] [-0] [-E]"
+    echo " $app [-a] [-c] [-h] [-d] [-e] [-f] [-g] [-l] [-L] [-m opts] [-n] [-N] [-o path] [-p path] [-q] [-r] [-s] [-t] [-w] [-x opts] [-y] [z] [-0] [-E]"
     echo ""
     echo "By the default this script builds static megacli executable."
     echo "This script can be run with numerous options to configure and build MEGA SDK."
@@ -1269,6 +1269,7 @@ display_help() {
     echo " -i : Disable external media info"
     echo " -I : Incremental build.  Already built dependencies will be skipped"
     echo " -l : Use local software archive files instead of downloading"
+    echo " -L : Enable external sqlite3"
     echo " -n : Disable example applications"
     echo " -N : Enable Drive Notifications (libudev / wbemuuid)"
     echo " -s : Disable OpenSSL"
@@ -1305,7 +1306,7 @@ main() {
     local_dir=$work_dir
     status_dir=$work_dir
 
-    while getopts ":habcdefgiIlm:nNo:p:rRsS:tuvyx:XC:O:wWqz0EGT" opt; do
+    while getopts ":habcdefgiIlLm:nNo:p:rRsS:tuvyx:XC:O:wWqz0EGT" opt; do
         case $opt in
             h)
                 display_help $0
