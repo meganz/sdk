@@ -708,7 +708,7 @@ win32 {
 
 unix:!macx {
    INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/posix
-   LIBS += -lsqlite3 -lrt
+   LIBS += -lrt
 
    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a) {
     LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a
@@ -745,6 +745,13 @@ unix:!macx {
    else {
     LIBS += -lcryptopp
    }
+
+    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsqlite3.a) {
+     LIBS +=  $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsqlite3.a
+    }
+    else {
+     LIBS += -lsqlite3
+    }
 
    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a) {
     LIBS +=  $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a

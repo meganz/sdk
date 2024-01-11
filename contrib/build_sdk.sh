@@ -50,6 +50,7 @@ enable_libraw=0
 android_build=0
 readline_build=0
 enable_cryptopp=0
+enable_sqlite=0
 disable_mediainfo=0
 incremental=0
 no_optimisation=0
@@ -1351,6 +1352,10 @@ main() {
                 echo "* Using local files"
                 use_local=1
                 ;;
+            L)
+                echo "* Enabling external sqlite3"
+                enable_sqlite=1
+                ;;
             m)
                 make_opts="$OPTARG"
                 ;;
@@ -1527,8 +1532,10 @@ main() {
         zlib_pkg $build_dir $install_dir
     fi
     
-    sqlite_pkg $build_dir $install_dir
-    
+    if [ $enable_sqlite -eq 1 ]; then
+        sqlite_pkg $build_dir $install_dir
+    fi
+       
     if [ $enable_cares -eq 1 ]; then
         cares_pkg $build_dir $install_dir
     fi
