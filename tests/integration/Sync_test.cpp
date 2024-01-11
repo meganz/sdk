@@ -6494,6 +6494,16 @@ TEST_F(SyncTest, BasicSync_MoveSeveralExistingIntoDeepNewLocalFolders)
 
     // make new folder tree in the local filesystem
     ASSERT_TRUE(buildLocalFolders(clientA1->syncSet(backupId1).localpath, "new", 3, 3, 3));
+    model.findnode("f")->addkid(model.buildModelSubdirs("new", 3, 3, 3));
+
+    clientA1->triggerPeriodicScanEarly(backupId1);
+
+    // let them catch up
+    waitonsyncs(std::chrono::seconds(4), clientA1, clientA2);
+
+    // check everything matches (model has expected state of remote and local)
+    ASSERT_TRUE(clientA1->confirmModel_mainthread(model.findnode("f"), backupId1));
+    ASSERT_TRUE(clientA2->confirmModel_mainthread(model.findnode("f"), backupId2));
 
     // move already synced folders to serveral parts of it - one under another moved folder too
     error_code rename_error;
@@ -6510,7 +6520,6 @@ TEST_F(SyncTest, BasicSync_MoveSeveralExistingIntoDeepNewLocalFolders)
     waitonsyncs(std::chrono::seconds(4), clientA1, clientA2);
 
     // check everything matches (model has expected state of remote and local)
-    model.findnode("f")->addkid(model.buildModelSubdirs("new", 3, 3, 3));
     model.findnode("f/new/new_0/new_0_1/new_0_1_2")->addkid(model.removenode("f/f_0"));
     model.findnode("f/new/new_1/new_1_2")->addkid(model.removenode("f/f_1"));
     model.findnode("f/new/new_1/new_1_2/f_1/f_1_2")->addkid(model.removenode("f/f_2"));
