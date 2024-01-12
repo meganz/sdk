@@ -130,16 +130,18 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
         assert(false);
     }
 
+    // Optimization to avoid decode media info when getter is called
     this->duration = np->duration;
     this->width = np->width;
     this->height = np->height;
     this->shortformat = np->shortformat;
     this->videocodecid = np->videocodecid;
-    this->mFavourite = np->mFavourite;
-    this->mLabel = np->mLabel;
-    this->mDeviceId = np->mDeviceId;
-    this->mS4 = np->mS4;
-    mMarkedSensitive = node->isMarkedSensitive();
+
+    this->mFavourite = node->isFavourite();
+    this->mLabel = static_cast<nodelabel_t>(node->getLabel());
+    this->mDeviceId = node->getDeviceId();
+    this->mS4 = node->getS4();
+    this->mMarkedSensitive = node->isMarkedSensitive();
     this->latitude = node->getLatitude();
     this->longitude = node->getLongitude();
     this->restorehandle = node->getRestoreHandle();
