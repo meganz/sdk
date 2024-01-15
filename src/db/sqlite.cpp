@@ -388,7 +388,7 @@ bool SqliteDbAccess::copyMtimeFromFingerprint(sqlite3* db)
     sqlite3_stmt* stmt = nullptr;
     if (sqlite3_prepare_v2(db, "SELECT nodehandle, fingerprint FROM nodes", -1, &stmt, nullptr) != SQLITE_OK)
     {
-        LOG_debug << "Db error while preparing to extract mtime: " << sqlite3_errmsg(db);
+        LOG_err << "Db error while preparing to extract mtime: " << sqlite3_errmsg(db);
         return false;
     }
 
@@ -415,7 +415,7 @@ bool SqliteDbAccess::copyMtimeFromFingerprint(sqlite3* db)
 
     if (sqlite3_prepare_v2(db, "UPDATE nodes SET mtime = ? WHERE nodehandle = ?", -1, &stmt, nullptr) != SQLITE_OK)
     {
-        LOG_debug << "Db error while preparing to update mtime: " << sqlite3_errmsg(db);
+        LOG_err << "Db error while preparing to update mtime: " << sqlite3_errmsg(db);
         return false;
     }
 
@@ -427,7 +427,7 @@ bool SqliteDbAccess::copyMtimeFromFingerprint(sqlite3* db)
             ((stepResult = sqlite3_step(stmt)) != SQLITE_DONE && stepResult != SQLITE_ROW) ||
             sqlite3_reset(stmt) != SQLITE_OK)
         {
-            LOG_debug << "Db error while updating mtime: " << sqlite3_errmsg(db);
+            LOG_err << "Db error while updating mtime: " << sqlite3_errmsg(db);
             return false;
         }
     }
