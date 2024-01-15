@@ -551,11 +551,6 @@ void Node::setKey(const string& key)
 
 std::shared_ptr<Node> Node::unserialize(MegaClient& client, const std::string* d, bool fromOldCache, std::list<std::unique_ptr<NewShare>>& ownNewshares)
 {
-    return unserializeRaw(client, d->c_str(), d->size(), fromOldCache, ownNewshares, true);
-}
-
-std::shared_ptr<Node> Node::unserializeRaw(MegaClient& client, const char* ptr, size_t size, bool fromOldCache, std::list<std::unique_ptr<NewShare>>& ownNewshares, bool intendToKeep)
-{
     handle h, ph;
     nodetype_t t;
     m_off_t s;
@@ -564,7 +559,8 @@ std::shared_ptr<Node> Node::unserializeRaw(MegaClient& client, const char* ptr, 
     const char* fa;
     m_time_t ts;
     const byte* skey;
-    const char* end = ptr + size;
+    const char* ptr = d->data();
+    const char* end = ptr + d->size();
     unsigned short ll;
     int i;
     char isExported = '\0';
@@ -835,12 +831,7 @@ std::shared_ptr<Node> Node::unserializeRaw(MegaClient& client, const char* ptr, 
     {
         // only if the node is not encrypted, we can generate a valid
         // fingerprint, based on the node's attribute 'c'
-        // but do that (and dangerously store it as a raw pointer) only if we intend to keep the unserialized node,
-        // and not only need it temporarily (i.e. for accessing an attribute from it, or its shares etc.)
-        if (intendToKeep)
-        {
-            n->setfingerprint();
-        }
+        n->setfingerprint();
     }
 
     return n;
