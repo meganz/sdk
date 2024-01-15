@@ -2220,6 +2220,8 @@ bool CommandPendingKeys::procresult(Result r, JSON& json)
 
 CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const char* temail, opcactions_t action, const char* msg, const char* oemail, handle contactLink, Completion completion)
 {
+    mSeqtagArray = true;
+    
     cmd("upc");
 
     if (oemail != NULL)
