@@ -10820,13 +10820,8 @@ void MegaClient::opensctable()
                 // set a mechanism for checking that an inshare was verified
                 auto verifiedInshareCheck = [&cl](const char* nodeData, size_t size) -> int
                 {
-                    if (!nodeData || !size) return 0;
-
-                    list<unique_ptr<NewShare>> shares;
-                    auto sn = Node::unserializeRaw(cl, nodeData, size, false, shares, false);
-
-                    return sn && shares.size() == 1 && !shares.front()->outgoing &&
-                           !cl.mKeyManager.isUnverifiedInShare(sn->nodehandle, shares.front()->peer);
+                    NodeData nd(nodeData, size);
+                    return !cl.mKeyManager.isUnverifiedInShare(nd.getHandle(), nd.getInsharePeer());
                 };
                 SqliteAccountState::setVerifiedInshareCheck(verifiedInshareCheck);
 
