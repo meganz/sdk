@@ -2010,8 +2010,18 @@ TEST_F(SdkTest, SdkTestCreateAccount)
         ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes after change password for account " << newTestAcc.c_str();
     }
 
-    // test changing the email
+    // test changing the email (check change with auxiliar instance)
     // -----------------------
+
+    // login with auxiliar instance
+    megaApi.resize(2);
+    mApi.resize(2);
+    ASSERT_NO_FATAL_FAILURE(configureTestInstance(1, newTestAcc, newTestPwd));
+    {
+        unique_ptr<RequestTracker> loginTracker = ::mega::make_unique<RequestTracker>(megaApi[1].get());
+        megaApi[1]->login(newTestAcc.c_str(), newTestPwd, loginTracker.get());
+        ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to auxiliar account ";
+    }
 
     const string changedTestAcc = Utils::replace(newTestAcc, "@", "-new@");
     chrono::time_point<chrono::system_clock> timeOfChangeEmail = chrono::system_clock::now();
@@ -2023,6 +2033,15 @@ TEST_F(SdkTest, SdkTestCreateAccount)
 
         ASSERT_EQ(newTestAcc, megaApi[0]->getMyEmail()) << "email changed prematurely";
         ASSERT_EQ(synchronousConfirmChangeEmail(0, changelink.c_str(), newTestPwd), MegaError::API_OK) << "confirmChangeEmail failed";
+    }
+
+    {
+        // Check if our own email is updated after receive ug at auxiliar instance
+        unique_ptr<RequestTracker> userDataTracker = ::mega::make_unique<RequestTracker>(megaApi[1].get());
+        megaApi[1]->getUserData(userDataTracker.get());
+        ASSERT_EQ(API_OK, userDataTracker->waitForResult()) << " Failed to get user data at auxiliar account";
+        ASSERT_EQ(changedTestAcc, megaApi[1]->getMyEmail()) << "Email update error at auxiliar account";
+        logout(1, false, maxTimeout);
     }
 
     // Login using new email

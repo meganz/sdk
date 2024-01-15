@@ -7134,12 +7134,7 @@ void MegaClient::sc_se()
             {
                 LOG_debug << "Email changed from `" << u->email << "` to `" << email << "`";
 
-                mapuser(uh, email.c_str()); // update email used as index for user's map
-                u->changed.email = true;
-                notifyuser(u);
-
-                // produce a callback to update cached email in MegaApp
-                reportLoggedInChanges();
+                setEmail(u, email);
             }
             // TODO: manage different status once multiple-emails is supported
 
@@ -19860,6 +19855,24 @@ void MegaClient::clearsetelementnotify(handle sid)
 void MegaClient::setProFlexi(bool newProFlexi)
 {
     mProFlexi = newProFlexi;
+}
+
+void MegaClient::setEmail(User* u, const string& email)
+{
+    assert(u);
+    if (email == u->email)
+    {
+        return;
+    }
+
+    mapuser(u->userhandle, email.c_str()); // update email used as index for user's map
+    u->changed.email = true;
+    notifyuser(u);
+
+    if (u->userhandle == me)
+    {
+        reportLoggedInChanges();  // produce a callback to update cached email in MegaApp
+    }
 }
 
 Error MegaClient::sendABTestActive(const char* flag, CommandABTestActive::Completion completion)

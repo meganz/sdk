@@ -13783,22 +13783,6 @@ void MegaApiImpl::users_updated(User** u, int count)
     MegaUserList *userList = NULL;
     if(u != NULL)
     {
-        // if the email of own user has changed, cache it in the intermediate layer
-        int i = count;
-        while (i--)
-        {
-            User* user = u[i];
-            if (user && user->userhandle == client->me)
-            {
-                if (user->changed.email)
-                {
-                    std::lock_guard<std::mutex> g(mLastRecievedLoggedMeMutex);
-                    mLastReceivedLoggedInMyEmail = user->email;
-                }
-                break;  // same user is only notified once
-            }
-        }
-
         userList = new MegaUserListPrivate(u, count);
         fireOnUsersUpdate(userList);
     }

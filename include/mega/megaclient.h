@@ -843,6 +843,8 @@ public:
     // retrieve the email address of a user
     void getUserEmail(const char *uid);
 
+    // Set email for an user
+    void setEmail(User* u, const std::string& email);
 
 //
 // Account upgrade to V2
