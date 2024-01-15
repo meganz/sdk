@@ -128,6 +128,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     {
         LOG_err << "Critical error: Unexpected MegaNode extension received";
         assert(false);
+        return;
     }
 
     // Optimization to avoid decode media info when getter is called
