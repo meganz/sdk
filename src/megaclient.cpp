@@ -17016,6 +17016,11 @@ bool MegaClient::nodeIsMiscellaneous(const Node* n) const
     return n->isIncludedForMimetype(MimeType_t::MIME_TYPE_MISC);
 }
 
+bool MegaClient::nodeIsSpreadsheet(const Node *n) const
+{
+    return n->isIncludedForMimetype(MimeType_t::MIME_TYPE_SPREADSHEET);
+}
+
 bool MegaClient::treatAsIfFileDataEqual(const FileFingerprint& node1, const LocalPath& file2, const string& filenameExtensionLowercaseNoDot)
 {
     // if equal, upload or download could be skipped
