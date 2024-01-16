@@ -18419,6 +18419,10 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                 std::shared_ptr<Node> parent = client->nodebyhandle(transfer->getParentHandle());
                 bool startFirst = transfer->shouldStartFirst();
 
+                // This bool below is a bit tricky: for example, this would be true for uploadForSupport: targetUser param on createUploadTransfer is populated with MegaClient::SUPPORT_USER_HANDLE (length = 11),
+                // and that param is used to populate transfer->parentPath (i.e.: it's not really a path, but a handle). At the same time, parentHandle is undef. So "uploadToInbox" would be true here.
+                // Later, when creating the MegaFilePut object, the cusertarget constructor param will have the value of inboxTarget (see below), so MegaFilePut::targetuser will have the value of MegaClient::SUPPORT_USER_HANDLE.
+                // This comparison (File::targetuser != MegaClient::SUPPORT_USER_HANDLE) can be used later to check if a transfer is for support.
                 bool uploadToInbox = ISUNDEF(transfer->getParentHandle()) && transfer->getParentPath() && (strchr(transfer->getParentPath(), '@') || (strlen(transfer->getParentPath()) == 11));
                 const char *inboxTarget = uploadToInbox ? transfer->getParentPath() : nullptr;
 

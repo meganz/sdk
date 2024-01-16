@@ -2989,7 +2989,8 @@ void MegaClient::exec()
                     // this also removes it from slots
                     (*it)->transfer->removeAndDeleteSelf(TRANSFERSTATE_CANCELLED);
                 }
-                else if (!xferpaused[(*it)->transfer->type] && (!(*it)->retrying || (*it)->retrybt.armed()))
+                else if ((!xferpaused[(*it)->transfer->type] || (*it)->transfer->isForSupport())
+                        && (!(*it)->retrying || (*it)->retrybt.armed()))
                 {
                     (*it)->doio(this, committer);
                 }
