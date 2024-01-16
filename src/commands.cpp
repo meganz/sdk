@@ -5010,8 +5010,6 @@ bool CommandABTestActive::procresult(Result r, JSON&)
 
 CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, std::shared_ptr<AccountDetails> ad, bool storage, bool transfer, bool pro, int source)
 {
-    mV3 = false;
-
     details = ad;
     mStorage = storage;
     mTransfer = transfer;
