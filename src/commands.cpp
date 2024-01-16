@@ -3936,8 +3936,6 @@ void CommandPubKeyRequest::invalidateUser()
 
 CommandGetUserData::CommandGetUserData(MegaClient *client, int tag, std::function<void(string*, string*, string*, error)> completion)
 {
-    mV3 = false;
-
     cmd("ug");
     arg("v", 1);
 
