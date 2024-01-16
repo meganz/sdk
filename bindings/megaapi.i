@@ -357,8 +357,12 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaShareList::copy;
 %newobject mega::MegaUser::copy;
 %newobject mega::MegaUserList::copy;
+%newobject mega::MegaSetElement::copy;
+%newobject mega::MegaSet::copy;
+%newobject mega::MegaEvent::copy;
 %newobject mega::MegaSync::copy;
 %newobject mega::MegaSyncStats::copy;
+%newobject mega::MegaRecentActionBucket::copy;
 %newobject mega::MegaContactRequest::copy;
 %newobject mega::MegaContactRequestList::copy;
 %newobject mega::MegaStringList::copy;
@@ -406,6 +410,7 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaApi::getFingerprint;
 %newobject mega::MegaApi::getNodeByFingerprint;
 %newobject mega::MegaApi::getNodesByFingerprint;
+%newobject mega::MegaApi::getNodesByOriginalFingerprint;
 %newobject mega::MegaApi::getExportableNodeByFingerprint;
 %newobject mega::MegaApi::getCRC;
 %newobject mega::MegaApi::getNodeByCRC;

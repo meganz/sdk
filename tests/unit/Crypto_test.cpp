@@ -59,14 +59,14 @@ TEST(Crypto, AES_GCM)
 
     // Test AES_GCM_12_16 encryption
     result.clear();
-    key.gcm_encrypt(&plainText, ivBytes, ivLen, tagLen, &result);
+    ASSERT_TRUE(key.gcm_encrypt(&plainText, ivBytes, ivLen, tagLen, &result)) << "GCM encryption failed";
 
     ASSERT_STREQ(result.data(), cipherText.data()) << "GCM encryption: cipher text doesn't match the expected value";
 
 
     // Test AES_GCM_12_16 decryption
     result.clear();
-    key.gcm_decrypt(&cipherText, ivBytes, ivLen, tagLen, &result);
+    ASSERT_TRUE(key.gcm_decrypt(&cipherText, ivBytes, ivLen, tagLen, &result)) << "GCM decryption failed";
 
     ASSERT_STREQ(result.data(), plainText.data()) << "GCM decryption: plain text doesn't match the expected value";
 
@@ -148,14 +148,14 @@ TEST(Crypto, AES_CCM)
 
     // Test AES_CCM_12_16 encryption
     result.clear();
-    key.ccm_encrypt(&plainText, ivBytes, sizeof ivBytes, tagLen, &result);
+    ASSERT_TRUE(key.ccm_encrypt(&plainText, ivBytes, sizeof ivBytes, tagLen, &result)) << "CCM encryption failed";
 
     ASSERT_STREQ(result.data(), cipherText.data()) << "CCM encryption: cipher text doesn't match the expected value";
 
 
     // Test AES_CCM_12_16 decryption
     result.clear();
-    key.ccm_decrypt(&cipherText, ivBytes, sizeof ivBytes, tagLen, &result);
+    ASSERT_TRUE(key.ccm_decrypt(&cipherText, ivBytes, sizeof ivBytes, tagLen, &result)) << "CCM decryption failed";
 
     ASSERT_STREQ(result.data(), plainText.data()) << "CCM decryption: plain text doesn't match the expected value";
 }

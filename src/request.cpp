@@ -117,6 +117,117 @@ bool Request::processCmdJSON(Command* cmd, bool couldBeError, JSON& json)
     }
 }
 
+bool Request::processSeqTag(Command* cmd, bool withJSON, bool& parsedOk, bool inSeqTagArray, JSON& processingJson)
+{
+    string st;
+    processingJson.storeobject(&st);
+
+    if (inSeqTagArray)
+    {
+        if (*processingJson.pos == ',') ++processingJson.pos;
+    }
+
+    // In normal operation, we get called once to figure out the `st` to watch out for in sc json (else case below)
+    // then the sc processing will process actionpackets up to and including the one(s) with that `st`
+    // and only after that, call us a second time (with mCurrentSeqtagSeen true), and we will execute the if block.
+    // And one additional case to consider, before we start the sc channel, it's ok to send non-actionpacket (ie, non-st) requests (hence scsn check)
+
+    if (cmd->client->mCurrentSeqtag == st ||
+        !cmd->client->scsn.ready())  // if we have not started the sc channel, we won't receive the matching st, so ignore st until we do
+    {
+        if (!cmd->client->scsn.ready())
+        {
+            LOG_verbose << "Processing command result regardless of st as we don't have scsn yet. " << st << cmd->client->mCurrentSeqtag;
+        }
+
+        assert(cmd->client->mCurrentSeqtagSeen || !cmd->client->scsn.ready());
+        cmd->client->mCurrentSeqtag.clear();
+        cmd->client->mCurrentSeqtagSeen = false;
+        parsedOk = withJSON ? processCmdJSON(cmd, false, processingJson)
+                            : cmd->procresult(Command::Result(Command::CmdError, API_OK), processingJson); // just an `st` returned is implicitly successful
+        return true;
+    }
+    else
+    {
+        // result processing paused until we encounter and process actionpackets matching client->mCurrentSeqtag
+        cmd->client->mPriorSeqTag = cmd->client->mCurrentSeqtag;
+        cmd->client->mCurrentSeqtag = st;
+        cmd->client->mCurrentSeqtagSeen = false;
+        cmd->client->mCurrentSeqtagCmdtag = cmd->tag;
+        assert(cmd->client->mPriorSeqTag.size() < cmd->client->mCurrentSeqtag.size() ||
+              (cmd->client->mPriorSeqTag.size() == cmd->client->mCurrentSeqtag.size() &&
+               cmd->client->mPriorSeqTag < cmd->client->mCurrentSeqtag));
+        return false;
+    }
+}
+
+m_off_t Request::processChunk(const char* chunk, MegaClient *client)
+{
+    if (stopProcessing || cmds.size() != 1)
+    {
+        clear();
+        return 0;
+    }
+
+    // Only fetchnodes command is currently supported
+    assert(isFetchNodes());
+
+    m_off_t consumed = 0;
+    Command& cmd = *cmds[0];
+    client->restag = cmd.tag;
+    cmd.client = client;
+
+    bool start = !json.pos;
+    json.begin(chunk);
+
+    if (start)
+    {
+        if (!json.enterarray())
+        {
+            // Request-level error
+            clear();
+            return 0;
+        }
+        consumed++;
+        assert(mJsonSplitter.isStarting());
+    }
+
+    consumed += mJsonSplitter.processChunk(&cmd.mFilters, json.pos);
+    if (mJsonSplitter.hasFailed())
+    {
+        // stop the processing
+        cmds[0].reset();
+        clear();
+        return 0;
+    }
+
+    mChunkedProgress += static_cast<size_t>(consumed);
+    json.begin(chunk + consumed);
+    if (mJsonSplitter.hasFinished())
+    {
+        if (!json.leavearray())
+        {
+            LOG_err << "Unexpected end of JSON stream: " << json.pos;
+            assert(false);
+        }
+        else
+        {
+            consumed++;
+        }
+        assert(!chunk[consumed]);
+
+        cmds[0].reset();
+        clear();
+    }
+
+    return consumed;
+}
+
+m_off_t Request::totalChunkedProgress()
+{
+    return static_cast<m_off_t>(mChunkedProgress);
+}
+
 void Request::process(MegaClient* client)
 {
     TransferDbCommitter committer(client->tctable);
@@ -136,10 +247,42 @@ void Request::process(MegaClient* client)
 
         if (*processingJson.pos == ',') ++processingJson.pos;
 
-        Error e;
-        if (cmd->checkError(e, processingJson))
+        if (cmd->mSeqtagArray && processingJson.enterarray())
         {
-            parsedOk = cmd->procresult(Command::Result(Command::CmdError, e), processingJson);
+            // Some commands need to return seqtag and also some JSON,
+            // in which case they are in an array with `st` first, and the JSON second
+            // Some commands might or might not produce `st`.  And might return a string.
+            // So in the case of success with a string return, but no `st`, the array is [0, "returnValue"]
+            // If the command failed, there is no array, just the error code
+            assert(cmd->mV3);
+            assert(*processingJson.pos == '0' || *processingJson.pos == '\"');
+            if (*processingJson.pos == '0' && *(processingJson.pos+1) == ',')
+            {
+                processingJson.pos += 2;
+                parsedOk = processCmdJSON(cmd, false, processingJson);
+            }
+            else if (!processSeqTag(cmd, true, parsedOk, true, processingJson)) // executes the command's procresult if we match the seqtag
+            {
+                // we need to wait for sc processing to catch up with the seqtag we just read
+                json = cmdJSON;
+                return;
+            }
+
+            if (parsedOk && !processingJson.leavearray())
+            {
+                LOG_err << "Invalid seqtag array";
+                parsedOk = false;
+            }
+        }
+        else if (mV3 && *processingJson.pos == '"')
+        {
+            // For v3 commands, a string result is a string which is a seqtag.
+            if (!processSeqTag(cmd, false, parsedOk, false, processingJson))
+            {
+                // we need to wait for sc processing to catch up with the seqtag we just read
+                json = cmdJSON;
+                return;
+            }
         }
         else
         {
@@ -217,6 +360,8 @@ void Request::clear()
     jsonresponse.clear();
     json.pos = NULL;
     processindex = 0;
+    mJsonSplitter.clear();
+    mChunkedProgress = 0;
     stopProcessing = false;
 }
 
@@ -229,6 +374,7 @@ void Request::swap(Request& r)
 {
     // we use swap to move between queues, but process only after it gets into the completedreqs
     cmds.swap(r.cmds);
+    std::swap(mV3, r.mV3);
 
     std::swap(cachedJSON, r.cachedJSON);
     std::swap(cachedIdempotenceId, r.cachedIdempotenceId);
@@ -284,6 +430,16 @@ void RequestDispatcher::add(Command *c)
         nextreqs.push_back(Request());
     }
 
+    if (!nextreqs.back().empty() && nextreqs.back().mV3 != c->mV3)
+    {
+        LOG_debug << "Starting an additional Request for v3 transition " << c->mV3;
+        nextreqs.push_back(Request());
+    }
+    if (nextreqs.back().empty())
+    {
+        nextreqs.back().mV3 = c->mV3;
+    }
+
     nextreqs.back().add(c);
     if (c->batchSeparately)
     {
@@ -307,7 +463,13 @@ bool RequestDispatcher::readyToSend() const
 
 bool RequestDispatcher::cmdsInflight() const
 {
-    return !inflightreq.empty() && inflightFailReason == RETRY_NONE;
+    // stays true even through network errors, -3, retries, etc until we get that response
+    return !inflightreq.empty();
+}
+
+Command* RequestDispatcher::getCurrentCommand(bool currSeqtagSeen)
+{
+    return currSeqtagSeen ? inflightreq.getCurrentCommand() : nullptr;
 }
 
 string RequestDispatcher::serverrequest(bool& suppressSID, bool &includesFetchingNodes, bool& v3, MegaClient* client, string& idempotenceId)
@@ -330,6 +492,7 @@ string RequestDispatcher::serverrequest(bool& suppressSID, bool &includesFetchin
     }
     string requestJSON = inflightreq.get(suppressSID, client, reqid, idempotenceId);
     includesFetchingNodes = inflightreq.isFetchNodes();
+    v3 = inflightreq.mV3;
 #ifdef MEGA_MEASURE_CODE
     csRequestsSent += inflightreq.size();
     csBatchesSent += 1;
@@ -363,12 +526,28 @@ void RequestDispatcher::serverresponse(std::string&& movestring, MegaClient *cli
     processing = true;
     inflightreq.serverresponse(std::move(movestring), client);
     inflightreq.process(client);
-    assert(inflightreq.empty());
     processing = false;
     if (clearWhenSafe)
     {
         clear();
     }
+}
+
+size_t RequestDispatcher::serverChunk(const char *chunk, MegaClient *client)
+{
+    processing = true;
+    size_t consumed = static_cast<size_t>(inflightreq.processChunk(chunk, client));
+    processing = false;
+    if (clearWhenSafe)
+    {
+        clear();
+    }
+    return consumed;
+}
+
+size_t RequestDispatcher::chunkedProgress()
+{
+    return static_cast<size_t>(inflightreq.totalChunkedProgress());
 }
 
 void RequestDispatcher::servererror(const std::string& e, MegaClient *client)
@@ -380,6 +559,18 @@ void RequestDispatcher::servererror(const std::string& e, MegaClient *client)
     inflightreq.process(client);
     assert(inflightreq.empty());
     inflightFailReason = RETRY_NONE;
+    processing = false;
+    if (clearWhenSafe)
+    {
+        clear();
+    }
+}
+
+void RequestDispatcher::continueProcessing(MegaClient* client)
+{
+    assert(!inflightreq.empty());
+    processing = true;
+    inflightreq.process(client);
     processing = false;
     if (clearWhenSafe)
     {

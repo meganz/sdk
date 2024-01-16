@@ -88,8 +88,9 @@ struct MEGA_API PaddedCBC
      * @param iv Optional initialisation vector for encryption. Will use a
      *     zero IV if not given. If `iv` is a zero length string, a new IV
      *     for encryption will be generated and available through the reference.
+     * @return true if encryption was successful.
      */
-    static void encrypt(PrnGen &rng, string* data, SymmCipher* key, string* iv = NULL);
+    static bool encrypt(PrnGen &rng, string* data, SymmCipher* key, string* iv = NULL);
 
     /**
      * @brief Decrypts a string and strips the padding.
@@ -101,7 +102,7 @@ struct MEGA_API PaddedCBC
      * @param key AES key for decryption.
      * @param iv Optional initialisation vector for encryption. Will use a
      *     zero IV if not given.
-     * @return Void.
+     * @return true if decryption was successful.
      */
     static bool decrypt(string* data, SymmCipher* key, string* iv = NULL);
 };
@@ -614,7 +615,6 @@ struct CacheableWriter
     void serializehandle(handle field);
     void serializenodehandle(handle field);
     void serializeNodeHandle(NodeHandle field);
-    void serializefsfp(fsfp_t field);
     void serializebool(bool field);
     void serializebyte(byte field);
     void serializedouble(double field);
@@ -652,7 +652,6 @@ struct CacheableReader
     bool unserializehandle(handle& s);
     bool unserializenodehandle(handle& s);
     bool unserializeNodeHandle(NodeHandle& s);
-    bool unserializefsfp(fsfp_t& s);
     bool unserializebool(bool& s);
     bool unserializechunkmacs(chunkmac_map& m);
     bool unserializefingerprint(FileFingerprint& fp);
@@ -1066,6 +1065,15 @@ void reportWindowsError(const std::string& message, DWORD error = 0xFFFFFFFF);
 
 // returns the direction type of a connection
 string connDirectionToStr(direction_t directionType);
+
+// Translate retry reason into a human-friendly string.
+const char* toString(retryreason_t reason);
+
+
+// Wrapper functions for std::isspace and std::isdigit
+// Not considering EOF values
+bool is_space(unsigned int ch);
+bool is_digit(unsigned int ch);
 
 } // namespace mega
 

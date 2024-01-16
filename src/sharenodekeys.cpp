@@ -28,7 +28,7 @@
 
 namespace mega {
 // add share node and return its index
-int ShareNodeKeys::addshare(Node* sn)
+int ShareNodeKeys::addshare(std::shared_ptr<Node> sn)
 {
     for (int i = static_cast<int>(shares.size()); i--;)
     {
@@ -43,7 +43,7 @@ int ShareNodeKeys::addshare(Node* sn)
     return static_cast<int>(shares.size() - 1);
 }
 
-void ShareNodeKeys::add(Node* n, Node* sn, int specific)
+void ShareNodeKeys::add(std::shared_ptr<Node> n, std::shared_ptr<Node> sn, bool includeParentChain)
 {
     if (!sn)
     {
@@ -56,11 +56,11 @@ void ShareNodeKeys::add(Node* n, Node* sn, int specific)
         return;
     }
 
-    add(n->nodekey(), n->nodehandle, sn, specific);
+    add(n->nodekey(), n->nodehandle, sn, includeParentChain);
 }
 
 // add a nodecore (!sn: all relevant shares, otherwise starting from sn, fixed: only sn)
-void ShareNodeKeys::add(const string& nodekey, handle nodehandle, Node* sn, int specific, const byte* item, int itemlen)
+void ShareNodeKeys::add(const string& nodekey, handle nodehandle, std::shared_ptr<Node> sn, bool includeParentChain, const byte* item, int itemlen)
 {
     char buf[96];
     char* ptr;
@@ -83,7 +83,7 @@ void ShareNodeKeys::add(const string& nodekey, handle nodehandle, Node* sn, int 
             keys.append(buf, ptr - buf);
             addnode = 1;
         }
-    } while (!specific && (sn = sn->parent));
+    } while (includeParentChain && (sn = sn->parent));
 
     if (addnode)
     {

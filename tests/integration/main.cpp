@@ -1,6 +1,7 @@
 ﻿#include "mega.h"
 #include "gtest/gtest.h"
 #include "mega/filesystem.h"
+#include <gtest/gtest.h>
 #include <stdio.h>
 #include <fstream>
 #ifdef WIN32
@@ -9,7 +10,7 @@
 #include <regex>
 
 #include "test.h"
-#include "process.h"
+#include "mega/process.h"
 
 // If running in Jenkins, we use its working folder.  But for local manual testing, use a convenient location
 #define LOCAL_TEST_FOLDER_NAME "mega_tests"
@@ -312,13 +313,9 @@ void synchronousHttpPOSTFile(const string& url, const string& filepath, string& 
 #ifdef WIN32
     synchronousHttpPOSTData(url, loadfile(filepath), responsedata);
 #else
-#ifdef __APPLE__
-    // tbd
-#else
     string command = "curl -s --data-binary @";
     command.append(filepath).append(" ").append(url.c_str());
     responsedata = runProgram(command, PROG_OUTPUT_TYPE::BINARY);
-#endif
 #endif
 }
 
@@ -402,7 +399,7 @@ public:
 
         lock_guard<mutex> g(logMutex);
 
-        if (loglevel <= SimpleLogger::logCurrentLevel)
+        if (loglevel <= SimpleLogger::getLogLevel())
         {
             if (gWriteLog)
             {
@@ -444,6 +441,11 @@ bool TestMegaLogger::writeCout = true;
 class GTestLogger
   : public ::testing::EmptyTestEventListener
 {
+    static void toLog(const std::string& message)
+    {
+        out() << "GTEST: " << message;
+    }
+
 public:
     void OnTestEnd(const ::testing::TestInfo& info) override
     {
@@ -460,6 +462,8 @@ public:
               << info.test_case_name()
               << "."
               << info.name();
+
+        RequestRetryRecorder::instance().report(toLog);
     }
 
     void OnTestPartResult(const ::testing::TestPartResult& result) override
@@ -493,6 +497,8 @@ public:
         {
             out() << "GTEST: " << s;
         }
+
+        RequestRetryRecorder::instance().report(toLog);
     }
 
     void OnTestStart(const ::testing::TestInfo& info) override
@@ -504,6 +510,30 @@ public:
     }
 }; // GTestLogger
 
+class RequestRetryReporter
+  : public ::testing::EmptyTestEventListener
+{
+    static void toStandardOutput(const std::string& message)
+    {
+        std::cout << message << std::endl;
+    }
+
+public:
+    void OnTestEnd(const ::testing::TestInfo& info) override
+    {
+        RequestRetryRecorder::instance().report(toStandardOutput);
+    }
+
+    void OnTestPartResult(const ::testing::TestPartResult& result) override
+    {
+        using ::testing::TestPartResult;
+
+        // Only write report if the test failed.
+        if (result.type() == TestPartResult::kSuccess)
+            RequestRetryRecorder::instance().report(toStandardOutput);
+    }
+}; // RequestRetryReporter
+
 // Let us log even during post-test shutdown
 TestMegaLogger megaLogger;
 
@@ -512,8 +542,13 @@ TestMegaLogger megaLogger;
 ClientManager* g_clientManager = nullptr;
 #endif // ENABLE_SYNC
 
+RequestRetryRecorder* RequestRetryRecorder::mInstance = nullptr;
+
 int main (int argc, char *argv[])
 {
+    // So we can track how often requests are retried.
+    RequestRetryRecorder retryRecorder;
+
     try { // @todo: try/catch not indented to avoid merge conflict
 
 #ifdef ENABLE_SYNC
@@ -857,10 +892,17 @@ int main (int argc, char *argv[])
         cerr << endl;
     }
 
-    if (gWriteLog)
+    // Add listeners.
     {
         auto& listeners = testing::UnitTest::GetInstance()->listeners();
-        listeners.Append(new GTestLogger());
+
+        // Emit request retries to screen when appropriate.
+        if (!gOutputToCout)
+            listeners.Append(new RequestRetryReporter());
+
+        // Emit test events to a log file.
+        if (gWriteLog)
+            listeners.Append(new GTestLogger());
     }
 
     bool exitFlag = false;
@@ -1536,7 +1578,6 @@ int launchMultipleProcesses(const string& argv0, const vector<string>& subproces
                 ifstream in(test.outputFilename);
                 copyStream(cout, in);
             }
-            fs::remove(test.outputFilename);
             cout << "----------------------------------------------------------------------------------------------------" << endl;
         }
 
@@ -1643,6 +1684,7 @@ int launchMultipleProcesses(const string& argv0, const vector<string>& subproces
                     copyStream(out, in);
                 }
                 fs::remove(test.logFilename);
+                fs::remove(test.outputFilename); // remove this here as well, after the process instance has been destroyed
             }
         }
 
@@ -1664,14 +1706,20 @@ int launchMultipleProcesses(const string& argv0, const vector<string>& subproces
 
 bool SdkTestBase::clearProcessFolderEachTest = false;
 
-void SdkTestBase::SetUp() {
+void SdkTestBase::SetUp()
+{
     Test::SetUp();
+
     TestFS::ChangeToProcessFolder();
+
     if (clearProcessFolderEachTest)
     {
         // for testing that tests are independent, slow as NOD database deleted
         TestFS::ClearProcessFolder();
     }
+
+    // Reset request retry statistics.
+    RequestRetryRecorder::instance().reset();
 }
 
 void copyFileFromTestData(fs::path filename, fs::path destination)
@@ -1688,3 +1736,14 @@ void copyFileFromTestData(fs::path filename, fs::path destination)
 fs::path getLinkExtractSrciptPath() {
     return executableDir / LINK_EXTRACT_SCRIPT;
 }
+
+bool isFileHidden(const LocalPath& path)
+{
+    return FileSystemAccess::isFileHidden(path);
+}
+
+bool isFileHidden(const fs::path& path)
+{
+    return isFileHidden(LocalPath::fromAbsolutePath(path.u8string()));
+}
+

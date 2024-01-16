@@ -610,9 +610,9 @@ sqlite_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="SQLite"
-    local sqlite_ver="3300100"
-    local sqlite_url="http://www.sqlite.org/2019/sqlite-autoconf-$sqlite_ver.tar.gz"
-    local sqlite_md5="51252dc6bc9094ba11ab151ba650ff3c"
+    local sqlite_ver="3330000"
+    local sqlite_url="http://www.sqlite.org/2020/sqlite-autoconf-$sqlite_ver.tar.gz"
+    local sqlite_md5="842a8a100d7b01b09e543deb2b7951dd"
     local sqlite_file="sqlite-$sqlite_ver.tar.gz"
     local sqlite_dir="sqlite-autoconf-$sqlite_ver"
     if [ $use_dynamic -eq 1 ]; then
@@ -824,8 +824,15 @@ freeimage_pkg() {
     #Fix issue with powf64 redefined in mathcalls.h in glibc 2.27
     find $freeimage_dir_extract/FreeImage/ -type f -print0 | xargs -0 sed -i "s#powf64#powf64freeimage#g"
 
-    #patch to fix problem with raw strings
-    find $freeimage_dir_extract/FreeImage/Source/LibWebP -type f -exec sed -i -e 's/"#\([A-X]\)"/" #\1 "/g' {} \;
+    # Remove libewbp support in FreeImage
+    rm -r $freeimage_dir_extract/FreeImage/Source/LibWebP
+    rm -r $freeimage_dir_extract/FreeImage/Source/FreeImage/PluginWebP.cpp
+    pushd $freeimage_dir_extract/FreeImage
+    sh gensrclist.sh
+    popd
+    sed -i "s#./Source/FreeImage/PluginWebP.cpp##" $freeimage_dir_extract/FreeImage/Makefile.srcs
+    sed -i -e '141d' $freeimage_dir_extract/FreeImage/Source/Plugin.h
+    sed -i -e '274d' $freeimage_dir_extract/FreeImage/Source/FreeImage/Plugin.cpp
 
     sed -i "s#CFLAGS ?=#CFLAGS +=#g" $freeimage_dir_extract/FreeImage/Makefile.gnu
     #patch to fix problem with newest compilers
