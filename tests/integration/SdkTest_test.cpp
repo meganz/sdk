@@ -15505,7 +15505,8 @@ TEST_F(SdkTest, SdkTestListenerRemovedWhenRequestTrackerDestroyed)
 /**
  * SdkTestGetNodeByMimetype
  * Steps:
- * - Create files (test.sh, test.pdf, test.json, test.ods, test.doc)
+ * - Create files (test.txt, test.sh, test.pdf, test.json, test.ods, test.doc)
+ * - Search for files of type text
  * - Search for files of type program
  * - Search for files of type pdf
  * - Search for files of type document
@@ -15521,6 +15522,17 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
     ASSERT_NE(rootnode.get(), nullptr);
 
     ASSERT_TRUE(createFile(PUBLICFILE.c_str(), false)) << "Couldn't create " << PUBLICFILE;
+
+    const char txtFile[] = "test.txt";
+    MegaHandle handleTxtFile = UNDEF;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handleTxtFile, PUBLICFILE.c_str(),
+                                               rootnode.get(),
+                                               txtFile /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload " << PUBLICFILE << " as " << txtFile;
 
     const char progFile[] = "test.sh";
     MegaHandle handleCodeFile = UNDEF;
@@ -15590,9 +15602,10 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
     ASSERT_EQ(nodeList->get(0)->getHandle(), handlePdfFile);
 
     filterResults->byCategory(MegaApi::FILE_TYPE_DOCUMENT);
-    nodeList.reset(megaApi[0]->search(filterResults.get()));
-    ASSERT_EQ(nodeList->size(), 1);
-    ASSERT_EQ(nodeList->get(0)->getHandle(), handleDocumentFile);
+    nodeList.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_ALPHABETICAL_DESC));
+    ASSERT_EQ(nodeList->size(), 2);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), handleTxtFile);
+    ASSERT_EQ(nodeList->get(1)->getHandle(), handleDocumentFile);
 
     filterResults->byCategory(MegaApi::FILE_TYPE_MISC);
     nodeList.reset(megaApi[0]->search(filterResults.get()));
