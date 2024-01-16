@@ -15505,7 +15505,8 @@ TEST_F(SdkTest, SdkTestListenerRemovedWhenRequestTrackerDestroyed)
 /**
  * SdkTestGetNodeByMimetype
  * Steps:
- * - Create files (test.sh, test.pdf, test.json, test.ods, test.doc)
+ * - Create files (test.txt, test.sh, test.pdf, test.json, test.ods, test.doc)
+ * - Search for files of type text
  * - Search for files of type program
  * - Search for files of type pdf
  * - Search for files of type document
