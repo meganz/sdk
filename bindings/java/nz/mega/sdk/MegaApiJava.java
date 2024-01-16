@@ -9396,7 +9396,7 @@ public class MegaApiJava {
      *                     - MegaApi::FILE_TYPE_PHOTO = 1
      *                     - MegaApi::FILE_TYPE_AUDIO = 2
      *                     - MegaApi::FILE_TYPE_VIDEO = 3
-     *                     - MegaApi::FILE_TYPE_ALL_DOCS = 4
+     *                     - MegaApi::FILE_TYPE_ALL_DOCS = 11
      * @param target       Target type where this method will search
      *                     Valid values for this parameter are
      *                     - SEARCH_TARGET_INSHARE = 0
@@ -9472,7 +9472,7 @@ public class MegaApiJava {
      *               - MegaApi::FILE_TYPE_PHOTO = 1
      *               - MegaApi::FILE_TYPE_AUDIO = 2
      *               - MegaApi::FILE_TYPE_VIDEO = 3
-     *               - MegaApi::FILE_TYPE_ALL_DOCS = 4
+     *               - MegaApi::FILE_TYPE_ALL_DOCS = 11
      * @param target Target type where this method will search
      *               Valid values for this parameter are
      *               - SEARCH_TARGET_INSHARE = 0
@@ -9562,7 +9562,7 @@ public class MegaApiJava {
      *                     - MegaApi::FILE_TYPE_PHOTO = 1
      *                     - MegaApi::FILE_TYPE_AUDIO = 2
      *                     - MegaApi::FILE_TYPE_VIDEO = 3
-     *                     - MegaApi::FILE_TYPE_ALL_DOCS = 4
+     *                     - MegaApi::FILE_TYPE_ALL_DOCS = 11
      * @return List of nodes that match with the search parameters
      */
     public ArrayList<MegaNode> searchByType(MegaNode node, String searchString,
