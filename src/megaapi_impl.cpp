@@ -11948,6 +11948,9 @@ bool MegaApiImpl::isValidTypeNode(const Node *node, int type) const
             return client->nodeIsMiscellaneous(node);
         case MegaApi::FILE_TYPE_SPREADSHEET:
             return client->nodeIsSpreadsheet(node);
+        case MegaApi::FILE_TYPE_ALL_DOCS:
+            return client->nodeIsDocument(node) || client->nodeIsPdf(node) ||
+                   client->nodeIsPresentation(node) || client->nodeIsSpreadsheet(node);
         case MegaApi::FILE_TYPE_DEFAULT:
         default:
             return true;
