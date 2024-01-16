@@ -16392,7 +16392,7 @@ class MegaApi
                FILE_TYPE_PROGRAM,
                FILE_TYPE_MISC,
                FILE_TYPE_SPREADSHEET,
-               FILE_TYPE_ALL_DOCS,
+               FILE_TYPE_ALL_DOCS,    // any of {DOCUMENT, PDF, PRESENTATION, SPREADSHEET}
                FILE_TYPE_LAST = FILE_TYPE_ALL_DOCS,
              };
 
