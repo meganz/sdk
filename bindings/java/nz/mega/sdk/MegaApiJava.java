@@ -230,7 +230,7 @@ public class MegaApiJava {
     public final static int FILE_TYPE_PHOTO = MegaApi.FILE_TYPE_PHOTO;
     public final static int FILE_TYPE_AUDIO = MegaApi.FILE_TYPE_AUDIO;
     public final static int FILE_TYPE_VIDEO = MegaApi.FILE_TYPE_VIDEO;
-    public final static int FILE_TYPE_DOCUMENT = MegaApi.FILE_TYPE_DOCUMENT;
+    public final static int FILE_TYPE_ALL_DOCS = MegaApi.FILE_TYPE_ALL_DOCS;
 
     public final static int SEARCH_TARGET_INSHARE = MegaApi.SEARCH_TARGET_INSHARE;
     public final static int SEARCH_TARGET_OUTSHARE = MegaApi.SEARCH_TARGET_OUTSHARE;
@@ -9396,7 +9396,7 @@ public class MegaApiJava {
      *                     - MegaApi::FILE_TYPE_PHOTO = 1
      *                     - MegaApi::FILE_TYPE_AUDIO = 2
      *                     - MegaApi::FILE_TYPE_VIDEO = 3
-     *                     - MegaApi::FILE_TYPE_DOCUMENT = 4
+     *                     - MegaApi::FILE_TYPE_ALL_DOCS = 4
      * @param target       Target type where this method will search
      *                     Valid values for this parameter are
      *                     - SEARCH_TARGET_INSHARE = 0
@@ -9472,7 +9472,7 @@ public class MegaApiJava {
      *               - MegaApi::FILE_TYPE_PHOTO = 1
      *               - MegaApi::FILE_TYPE_AUDIO = 2
      *               - MegaApi::FILE_TYPE_VIDEO = 3
-     *               - MegaApi::FILE_TYPE_DOCUMENT = 4
+     *               - MegaApi::FILE_TYPE_ALL_DOCS = 4
      * @param target Target type where this method will search
      *               Valid values for this parameter are
      *               - SEARCH_TARGET_INSHARE = 0
@@ -9562,7 +9562,7 @@ public class MegaApiJava {
      *                     - MegaApi::FILE_TYPE_PHOTO = 1
      *                     - MegaApi::FILE_TYPE_AUDIO = 2
      *                     - MegaApi::FILE_TYPE_VIDEO = 3
-     *                     - MegaApi::FILE_TYPE_DOCUMENT = 4
+     *                     - MegaApi::FILE_TYPE_ALL_DOCS = 4
      * @return List of nodes that match with the search parameters
      */
     public ArrayList<MegaNode> searchByType(MegaNode node, String searchString,
