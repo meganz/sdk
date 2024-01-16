@@ -101,7 +101,8 @@ typedef NS_ENUM (NSInteger, MEGANodeFormatType) {
     MEGANodeFormatTypeArchive,
     MEGANodeFormatTypeProgram,
     MEGANodeFormatTypeMisc,
-    MEGANodeFormatTypeSpreadsheet
+    MEGANodeFormatTypeSpreadsheet,
+    MEGANodeFormatTypeAllDocs
 };
 
 typedef NS_ENUM (NSInteger, MEGAFolderTargetType) {
@@ -8216,6 +8217,13 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * - MEGANodeFormatTypeAudio = 2
  * - MEGANodeFormatTypeVideo = 3
  * - MEGANodeFormatTypeDocument = 4
+ * - MEGANodeFormatTypePdf = 5,
+ * - MEGANodeFormatTypePresentation = 6,
+ * - MEGANodeFormatTypeArchive = 7,
+ * - MEGANodeFormatTypeProgram = 8,
+ * - MEGANodeFormatTypeMisc = 9,
+ * - MEGANodeFormatTypeSpreadsheet = 10,
+ * - MEGANodeFormatTypeAllDocs = 11
  *
  * @param folderTargetType Target type where this method will search
  * Valid values for this parameter are
