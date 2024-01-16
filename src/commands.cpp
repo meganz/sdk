@@ -3836,8 +3836,6 @@ CommandKeyCR::CommandKeyCR(MegaClient* /*client*/, sharedNode_vector* rshares, s
 // for node sn to user u with access a
 CommandPubKeyRequest::CommandPubKeyRequest(MegaClient* client, User* user)
 {
-    mV3 = false;
-
     cmd("uk");
     arg("u", user->uid.c_str());
 
