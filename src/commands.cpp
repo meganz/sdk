@@ -7188,7 +7188,6 @@ bool CommandGetEmailLink::procresult(Result r, JSON& json)
 
 CommandConfirmEmailLink::CommandConfirmEmailLink(MegaClient *client, const char *code, const char *email, const byte *newLoginHash, bool replace)
 {
-    mV3 = false;
     this->email = email;
     this->replace = replace;
 
