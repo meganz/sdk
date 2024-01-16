@@ -9222,6 +9222,7 @@ public:
      * - MegaApi::FILE_TYPE_PROGRAM = 8
      * - MegaApi::FILE_TYPE_MISC = 9
      * - MegaApi::FILE_TYPE_SPREADSHEET = 10
+     * - MegaApi::FILE_TYPE_ALL_DOCS = 11  --> any of {DOCUMENT, PDF, PRESENTATION, SPREADSHEET}
      */
     virtual void byCategory(int mimeType);
 
@@ -16391,7 +16392,8 @@ class MegaApi
                FILE_TYPE_PROGRAM,
                FILE_TYPE_MISC,
                FILE_TYPE_SPREADSHEET,
-               FILE_TYPE_LAST = FILE_TYPE_SPREADSHEET,
+               FILE_TYPE_ALL_DOCS,    // any of {DOCUMENT, PDF, PRESENTATION, SPREADSHEET}
+               FILE_TYPE_LAST = FILE_TYPE_ALL_DOCS,
              };
 
         enum { SEARCH_TARGET_INSHARE = 0,

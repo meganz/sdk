@@ -1353,7 +1353,13 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, vecto
                                  "AND (? = " + std::to_string(TYPE_UNKNOWN) + " OR n1.type = ?) "
                                  "AND (? = 0 OR ? < n1.ctime) AND (? = 0 OR n1.ctime < ?) "
                                  "AND (? = 0 OR ? < n1.mtime) AND (? = 0 OR (0 < n1.mtime AND n1.mtime < ?)) " // mtime is not used (0) for some nodes
-                                 "AND (? = " + std::to_string(MIME_TYPE_UNKNOWN) + " OR (n1.type = " + std::to_string(FILENODE) + " AND n1.mimetype = ?)) "
+                                 "AND (? = " + std::to_string(MIME_TYPE_UNKNOWN) +
+                                     " OR (n1.type = " + std::to_string(FILENODE) +
+                                         " AND ((? = " + std::to_string(MIME_TYPE_ALL_DOCS) + " AND n1.mimetype IN (" + std::to_string(MIME_TYPE_DOCUMENT) +
+                                                                                                                  ',' + std::to_string(MIME_TYPE_PDF) +
+                                                                                                                  ',' + std::to_string(MIME_TYPE_PRESENTATION) +
+                                                                                                                  ',' + std::to_string(MIME_TYPE_SPREADSHEET) + "))"
+                                              " OR n1.mimetype = ?))) "
                                  "AND (n1.name REGEXP ?) ";
         // Leading and trailing '*' will be added to argument '?' so we are looking for a substring of name
         // Our REGEXP implementation is case insensitive
@@ -1379,10 +1385,11 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, vecto
         (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 11, filter.byModificationTimeUpperLimit())) == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 12, filter.byModificationTimeUpperLimit())) == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int(mStmtGetChildren, 13, filter.byCategory())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int(mStmtGetChildren, 14, filter.byCategory())) == SQLITE_OK)
+        (sqlResult = sqlite3_bind_int(mStmtGetChildren, 14, filter.byCategory())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int(mStmtGetChildren, 15, filter.byCategory())) == SQLITE_OK)
     {
         string wildCardName = '*' + filter.byName() + '*';
-        if ((sqlResult = sqlite3_bind_text(mStmtGetChildren, 15, wildCardName.c_str(), static_cast<int>(wildCardName.length()), SQLITE_STATIC)) == SQLITE_OK)
+        if ((sqlResult = sqlite3_bind_text(mStmtGetChildren, 16, wildCardName.c_str(), static_cast<int>(wildCardName.length()), SQLITE_STATIC)) == SQLITE_OK)
         {
             result = processSqlQueryNodes(mStmtGetChildren, children);
         }
@@ -1421,7 +1428,13 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, vector<pair
                                  "AND (? = 0 OR ? < n1.ctime) AND (? = 0 OR n1.ctime < ?) "
                                  "AND (? = 0 OR ? < n1.mtime) AND (? = 0 OR (0 < n1.mtime AND n1.mtime < ?)) " // mtime is not used (0) for some nodes
                                  "AND (? = " + std::to_string(NO_SHARES) + " OR n1.share = ?) "
-                                 "AND (? = " + std::to_string(MIME_TYPE_UNKNOWN) + " OR (n1.type = " + std::to_string(FILENODE) + " AND n1.mimetype = ?)) "
+                                 "AND (? = " + std::to_string(MIME_TYPE_UNKNOWN) +
+                                     " OR (n1.type = " + std::to_string(FILENODE) +
+                                         " AND ((? = " + std::to_string(MIME_TYPE_ALL_DOCS) + " AND n1.mimetype IN (" + std::to_string(MIME_TYPE_DOCUMENT) +
+                                                                                                                  ',' + std::to_string(MIME_TYPE_PDF) +
+                                                                                                                  ',' + std::to_string(MIME_TYPE_PRESENTATION) +
+                                                                                                                  ',' + std::to_string(MIME_TYPE_SPREADSHEET) + "))"
+                                              " OR n1.mimetype = ?))) "
                                  "AND (n1.name REGEXP ?) ";
         // Leading and trailing '*' will be added to argument '?' so we are looking for a substring of name
         // Our REGEXP implementation is case insensitive
@@ -1448,10 +1461,11 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, vector<pair
         (sqlResult = sqlite3_bind_int(mStmtSearchNodes, 12, filter.byShareType())) == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int(mStmtSearchNodes, 13, filter.byShareType())) == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int(mStmtSearchNodes, 14, filter.byCategory())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int(mStmtSearchNodes, 15, filter.byCategory())) == SQLITE_OK)
+        (sqlResult = sqlite3_bind_int(mStmtSearchNodes, 15, filter.byCategory())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int(mStmtSearchNodes, 16, filter.byCategory())) == SQLITE_OK)
     {
         string wildCardName = '*' + filter.byName() + '*';
-        if ((sqlResult = sqlite3_bind_text(mStmtSearchNodes, 16, wildCardName.c_str(), static_cast<int>(wildCardName.length()), SQLITE_STATIC)) == SQLITE_OK)
+        if ((sqlResult = sqlite3_bind_text(mStmtSearchNodes, 17, wildCardName.c_str(), static_cast<int>(wildCardName.length()), SQLITE_STATIC)) == SQLITE_OK)
         {
             result = processSqlQueryNodes(mStmtSearchNodes, nodes);
         }

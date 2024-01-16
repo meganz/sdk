@@ -15617,6 +15617,14 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), handleSpreadsheetFile);
 
+    filterResults->byCategory(MegaApi::FILE_TYPE_ALL_DOCS); // any of {DOCUMENT, PDF, PRESENTATION, SPREADSHEET}
+    nodeList.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC)); // order Alphabetical asc
+    ASSERT_EQ(nodeList->size(), 4);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), handleDocumentFile);
+    ASSERT_EQ(nodeList->get(1)->getHandle(), handleSpreadsheetFile);
+    ASSERT_EQ(nodeList->get(2)->getHandle(), handlePdfFile);
+    ASSERT_EQ(nodeList->get(3)->getHandle(), handleTxtFile);
+
     deleteFile(PUBLICFILE);
 }
 
