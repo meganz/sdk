@@ -16217,6 +16217,18 @@ class MegaApi
         bool isSyncStalled();
 
         /**
+        * @brief Find out if the stall/conflict list has changed (increased/decreased).
+        *
+        * Note that this is meant to be used while MegaApi::isSyncStalled() is true.
+        *
+        * use getMegaSyncStallList() to find out what needs attention.
+        *
+        * @return true if the stall/conflict list has changed.
+        *
+        */
+        bool isSyncStalledChanged();
+
+        /**
          * @brief Get the number of pending uploads
          *
          * @return Pending uploads

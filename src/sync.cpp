@@ -3952,6 +3952,43 @@ void Syncs::getSyncProblems(std::function<void(unique_ptr<SyncProblems>)> comple
     }, "getSyncProblems");
 }
 
+size_t Syncs::getSyncStallsTotal() const
+{
+    //list<NameConflict> conflicts;
+    //size_t numConflicts = conflictsDetected(&conflicts);
+    size_t numCloudIssues = 0;
+    size_t numLocalIssues = 0;
+    if (syncStallState)
+    {
+        numCloudIssues = stallReport.cloud.size() + stallReport.local.size();
+    }
+    else
+    {
+        for (auto& r: stallReport.cloud)
+        {
+            if (r.second.alertUserImmediately)
+            {
+                ++numCloudIssues;
+            }
+        }
+        for (auto& r: stallReport.local)
+        {
+            if (r.second.alertUserImmediately)
+            {
+                ++numLocalIssues;
+            }
+        }
+    }
+    //return numConflicts + numCloudIssues + numLocalIssues;
+    return numCloudIssues + numLocalIssues;
+}
+
+size_t Syncs::getSyncConflictsTotal(size_t stopIfGreaterThan = 0) const
+{
+    size_t numConflicts = conflictsDetected(stopIfGreaterThan);
+    return numConflicts;
+}
+
 void Syncs::getSyncProblems_inThread(SyncProblems& problems)
 {
     assert(onSyncThread());
@@ -3959,12 +3996,16 @@ void Syncs::getSyncProblems_inThread(SyncProblems& problems)
     problems.mStallsDetected = syncStallState;
     problems.mConflictsDetected = conflictsDetected(&problems.mConflicts);
 
+    int numCloudIssues = 0;
+    int numLocalIssues = 0;
+
     // if we're not actually in stall state then don't report things
     // that we are waiting on that migtht come right, only report definites.
     for (auto& r: stallReport.cloud)
     {
         if (syncStallState || r.second.alertUserImmediately)
         {
+            ++numCloudIssues;
             problems.mStalls.cloud.insert(r);
         }
     }
@@ -3972,6 +4013,7 @@ void Syncs::getSyncProblems_inThread(SyncProblems& problems)
     {
         if (syncStallState || r.second.alertUserImmediately)
         {
+            ++numLocalIssues;
             problems.mStalls.local.insert(r);
         }
     }
@@ -4062,6 +4104,9 @@ void Syncs::getSyncProblems_inThread(SyncProblems& problems)
             }
         }
     }
+
+    if (numCloudIssues || numLocalIssues) mClient.app->syncupdate_totalstalls(false);
+    if (problems.mConflictsDetected) mClient.app->syncupdate_totalconflicts(false);
 }
 
 void Syncs::getSyncStatusInfo(handle backupID,
@@ -12030,9 +12075,24 @@ void Syncs::syncLoop()
             if (conflictsNow != syncConflictState)
             {
                 assert(onSyncThread());
-                mClient.app->syncupdate_conflicts(conflictsNow);
                 syncConflictState = conflictsNow;
+                mClient.app->syncupdate_totalconflicts(false);
+                mClient.app->syncupdate_conflicts(conflictsNow);
+                if (!conflictsNow) totalSyncConflicts.store(0);
+                assert(!totalSyncConflicts.load());
                 LOG_info << mClient.clientname << "Sync conflicting paths state app notified: " << conflictsNow;
+            }
+            else if (conflictsNow)
+            {
+                auto updatedSyncConflictsTotal = getSyncConflictsTotal(totalSyncConflicts.load());
+                if (totalSyncConflicts.load() != updatedSyncConflictsTotal)
+                {
+                    assert(onSyncThread());
+                    mClient.app->syncupdate_totalconflicts(true);
+                    LOG_info << mClient.clientname << "Sync conflicting paths state app update notified [previousSyncConflictsTotal = " << totalSyncConflicts.load() << ", updatedSyncConflictsTotal = " << updatedSyncConflictsTotal << "]";
+                }
+                else mClient.app->syncupdate_totalconflicts(false);
+                totalSyncConflicts.store(updatedSyncConflictsTotal);
             }
         }
 
@@ -12180,8 +12240,23 @@ void Syncs::syncLoop()
             {
                 assert(onSyncThread());
                 syncStallState = stalled;
+                mClient.app->syncupdate_totalstalls(false);
                 mClient.app->syncupdate_stalled(stalled);
+                if (!stalled) totalSyncStalls.store(0);
+                assert(!totalSyncStalls.load());
                 LOG_warn << mClient.clientname << "Stall state app notified: " << stalled;
+            }
+            else if (stalled)
+            {
+                auto updatedSyncStallsTotal = getSyncStallsTotal();
+                if (totalSyncStalls.load() != updatedSyncStallsTotal)
+                {
+                    assert(onSyncThread());
+                    mClient.app->syncupdate_totalstalls(true);
+                    LOG_warn << mClient.clientname << "Stall state app update notified [previousSyncStallsTotal = " << totalSyncStalls.load() << ", updatedSyncStallsTotal = " << updatedSyncStallsTotal << "]";
+                }
+                else mClient.app->syncupdate_totalstalls(false);
+                totalSyncStalls.store(updatedSyncStallsTotal);
             }
 
             ++completedPassCount;
@@ -12262,14 +12337,32 @@ bool Syncs::conflictsDetected(list<NameConflict>* conflicts) const
             if (sync->localroot->conflictsDetected())
             {
                 anyDetected = true;
-                if (conflicts)
-                {
-                    sync->recursiveCollectNameConflicts(*conflicts);
-                }
+                if (!conflicts) break; // We already set anyDetected
+                sync->recursiveCollectNameConflicts(*conflicts);
             }
         }
     }
     return anyDetected;
+}
+
+size_t Syncs::conflictsDetected(size_t stopIfGreaterThan) const
+{
+    assert(onSyncThread());
+
+    list<NameConflict> conflicts;
+
+    for (auto& us : mSyncVec)
+    {
+        if (Sync* sync = us->mSync.get())
+        {
+            if (sync->localroot->conflictsDetected())
+            {
+                sync->recursiveCollectNameConflicts(conflicts);
+                if (conflicts.size() > stopIfGreaterThan) break; // If there are more conflicts than before, it needs an update.
+            }
+        }
+    }
+    return conflicts.size();
 }
 
 bool Syncs::syncStallDetected(SyncStallInfo& si) const

@@ -1145,6 +1145,7 @@ public:
 
     // retrieves information about any detected name conflicts.
     bool conflictsDetected(list<NameConflict>* conflicts) const;
+    size_t conflictsDetected(size_t stopIfGreaterThan) const;
 
     bool syncStallDetected(SyncStallInfo& si) const;
 
@@ -1203,6 +1204,9 @@ public:
     bool mSyncsLoaded = false;
     bool mSyncsResumed = false;
 
+    std::atomic<size_t> totalSyncConflicts{0};
+    std::atomic<size_t> totalSyncStalls{0};
+
     // for quick lock free reference by MegaApiImpl::syncPathState (don't slow down windows explorer)
     bool mSyncVecIsEmpty = true;
 
@@ -1258,6 +1262,8 @@ private:
     void renameSync_inThread(handle backupId, const string& newname, std::function<void(Error e)> result);
     error backupOpenDrive_inThread(const LocalPath& drivePath);
     error backupCloseDrive_inThread(LocalPath drivePath);
+    size_t getSyncStallsTotal() const;
+    size_t getSyncConflictsTotal(size_t stopIfGreaterThan) const;
     void getSyncProblems_inThread(SyncProblems& problems);
     bool checkSdsCommandsForDelete(UnifiedSync& us, vector<pair<handle, int>>& sdsBackups, std::function<void(MegaClient&, TransferDbCommitter&)>& clientRemoveSdsEntryFunction);
     bool processRemovingSyncBySds(UnifiedSync& us, bool foundRootNode, vector<pair<handle, int>>& sdsBackups);
