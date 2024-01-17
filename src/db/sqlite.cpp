@@ -161,7 +161,7 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     // Add following columns to 'nodes' table:
     // - 'mtime' (regular),
     // - 'mimetype' (virtual),
-    // - 'label' (virtual)
+    // - 'label' (regular)
     if (!ensureColumnIsInNodesTable(db, "mtime", "int64", [this, db]() { return copyMtimeFromFingerprint(db); }) ||
         !ensureColumnIsInNodesTable(db, "mimetype", "tinyint AS (getmimetype(name)) VIRTUAL") ||
         !ensureColumnIsInNodesTable(db, "label", "tinyint", [this, db]() { return copyLabelFromAttrs(db); }))
