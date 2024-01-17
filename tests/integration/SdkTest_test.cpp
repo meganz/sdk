@@ -15607,7 +15607,7 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
                                                false   /*isSourceTemporary*/,
                                                false   /*startFirst*/,
                                                nullptr /*cancelToken*/)) << "Cannot upload " << PUBLICFILE << " as " << documentFile;
-    
+
     const char orgFile[] = "test.org";
     MegaHandle handleOrgFile = UNDEF;
     ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handleOrgFile, PUBLICFILE.c_str(),
@@ -15618,7 +15618,7 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
                                                false   /*isSourceTemporary*/,
                                                false   /*startFirst*/,
                                                nullptr /*cancelToken*/)) << "Cannot upload " << PUBLICFILE << " as " << orgFile;
-    
+
     std::unique_ptr<MegaSearchFilter> filterResults(MegaSearchFilter::createInstance());
 
     filterResults->byCategory(MegaApi::FILE_TYPE_PROGRAM);
@@ -15637,7 +15637,7 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
     ASSERT_EQ(nodeList->get(0)->getHandle(), handleTxtFile);
     ASSERT_EQ(nodeList->get(1)->getHandle(), handleOrgFile);
     ASSERT_EQ(nodeList->get(2)->getHandle(), handleDocumentFile);
-    
+
     filterResults->byCategory(MegaApi::FILE_TYPE_MISC);
     nodeList.reset(megaApi[0]->search(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 1);
@@ -15670,7 +15670,7 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
     ASSERT_EQ(nodeList->get(2)->getHandle(), handleOrgFile);
     ASSERT_EQ(nodeList->get(3)->getHandle(), handlePdfFile);
     ASSERT_EQ(nodeList->get(4)->getHandle(), handleTxtFile);
-    
+
     nodeList.reset(megaApi[0]->searchByType(nullptr, "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_ALL_DOCS)); // order Alphabetical asc
     ASSERT_EQ(nodeList->size(), 5);
     ASSERT_EQ(nodeList->get(0)->getHandle(), handleDocumentFile);
@@ -15678,7 +15678,7 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
     ASSERT_EQ(nodeList->get(2)->getHandle(), handleOrgFile);
     ASSERT_EQ(nodeList->get(3)->getHandle(), handlePdfFile);
     ASSERT_EQ(nodeList->get(4)->getHandle(), handleTxtFile);
-    
+
     deleteFile(PUBLICFILE);
 }
 
