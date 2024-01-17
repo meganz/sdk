@@ -12047,6 +12047,10 @@ char* strcasestr(const char* string, const char* substring)
 
 MegaNodeList* MegaApiImpl::search(const MegaSearchFilter* filter, int order, CancelToken cancelToken)
 {
+    // guard against unsupported or removed order criteria
+    assert((MegaApi::ORDER_NONE <= order && order <= MegaApi::ORDER_MODIFICATION_DESC) ||
+           (MegaApi::ORDER_LABEL_ASC <= order && order <= MegaApi::ORDER_FAV_DESC));
+
     if (!filter ||
         (filter->byNodeType() == MegaNode::TYPE_FOLDER && filter->byCategory() != MegaApi::FILE_TYPE_DEFAULT))
     {
@@ -17689,6 +17693,10 @@ int MegaApiImpl::getNumChildFolders(MegaNode* p)
 
 MegaNodeList *MegaApiImpl::getChildren(const MegaSearchFilter* filter, int order, CancelToken cancelToken)
 {
+    // guard against unsupported or removed order criteria
+    assert((MegaApi::ORDER_NONE <= order && order <= MegaApi::ORDER_MODIFICATION_DESC) ||
+           (MegaApi::ORDER_LABEL_ASC <= order && order <= MegaApi::ORDER_FAV_DESC));
+
     // validations
     if (!filter || filter->byLocationHandle() == INVALID_HANDLE ||
         (filter->byNodeType() == MegaNode::TYPE_FOLDER && filter->byCategory() != MegaApi::FILE_TYPE_DEFAULT))
