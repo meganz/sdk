@@ -2962,8 +2962,8 @@ bool CommandPurchaseCheckout::procresult(Result r, JSON& json)
 
 CommandRemoveContact::CommandRemoveContact(MegaClient* client, const char* m, visibility_t show, Completion completion)
 {
-    mV3 = false;
-
+    mSeqtagArray = true;
+    
     this->email = m ? m : "";
     this->v = show;
 
