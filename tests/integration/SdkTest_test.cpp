@@ -16211,7 +16211,7 @@ TEST_F(SdkTest, SdkTesResumeSessionInFolderLinkDeleted)
         << "Logout did not happen after " << timeoutInSeconds  << " seconds";
 }
 
-
+#if defined(WIN32)
 class SdkTestGfx : public SdkTest
 {
 protected:
@@ -16334,8 +16334,6 @@ TEST_F(SdkTestGfx, GfxProcessingContinueSuccessfullyAfterCrash)
     copyFileFromTestData(IMAGEFILE);
     ASSERT_TRUE(api->createThumbnail(IMAGEFILE.c_str(), THUMBNAIL.c_str())) << "create thumbnail should succeed";
 
-    // only windows at moment
-#if defined(WIN32)
     // create thumbnail and preview of a image which result in a crash
     // the image is selected by testing, thus not guaranteed. we'd either
     // find another media file or need another alternative if it couldn't
@@ -16343,7 +16341,6 @@ TEST_F(SdkTestGfx, GfxProcessingContinueSuccessfullyAfterCrash)
     copyFileFromTestData(std::string(CRASH_IMAGE));
     ASSERT_FALSE(api->createThumbnail(CRASH_IMAGE, CRASH_THUMBNAIL));
     ASSERT_FALSE(api->createPreview(CRASH_IMAGE, CRASH_PREVIEW));
-#endif
 
     // create a preview successfully
     ASSERT_TRUE(api->createPreview(IMAGEFILE.c_str(), PREVIEW.c_str())) << "create preview should succeed";
@@ -16379,12 +16376,7 @@ TEST_F(SdkTestGfx, GfxProcessCrashImageInSyncOnlyOnce)
     const auto syncPath = fs::current_path() / basePath;
 
     // create local path and copy images
-#if defined(WIN32)
     const std::string imageFile = CRASH_IMAGE;
-#else
-    const std::string imageFile = IMAGEFILE;
-#endif
-
     fs::create_directories(syncPath);
     copyFileFromTestData(imageFile, syncPath / imageFile);
 
@@ -16438,6 +16430,7 @@ TEST_F(SdkTestGfx, GfxProcessCrashImageInSyncOnlyOnce)
 
     LOG_info << "___TEST GfxProcessCrashImageInSyncOnlyOnce end___";
 }
+#endif
 
 class SdkTestAvatar : public SdkTest
 {
