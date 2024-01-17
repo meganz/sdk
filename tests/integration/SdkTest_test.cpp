@@ -16240,11 +16240,11 @@ protected:
 
     MegaClient* mClient = nullptr;
 
-    static constexpr const char* LIKELY_CRASH = "likelycrash.tif";
+    static constexpr const char* CRASH = "crash.pct";
 
-    static constexpr const char* LIKELY_CRASH_THUMBNAIL = "likelycrash_thumbnail.jpg";
+    static constexpr const char* CRASH_THUMBNAIL = "crash_thumbnail.jpg";
 
-    static constexpr const char* LIKELY_CRASH_PREVIEW = "likelycrash_preview.jpg";
+    static constexpr const char* CRASH_PREVIEW = "crash_preview.jpg";
 
     static constexpr const char* NOT_VALID = "notvalid.jpg";
 
@@ -16319,7 +16319,7 @@ void SdkTestGfx::expectNoNewJob(int& oldTotalJobs,
 /**
  * @brief GfxProcessingCanContinueSuccessfullyAfterALikelyGfxProcessingCrash
  *          1. create thumbnail successfully
- *          2. create thumbnail and preview of a image likely causes a gfx process crash.
+ *          2. create thumbnail and preview of a image which causes a gfx process crash.
  *          3. create preview successfully
  *          4. create thumbnail of a not valid image expects false.
  */
@@ -16336,11 +16336,13 @@ TEST_F(SdkTestGfx, GfxProcessingContinueSuccessfullyAfterCrash)
 
     // only windows at moment
 #if defined(WIN32)
-    // create thumbnail and preview of a image which likely result in a crash
-    copyFileFromTestData(LIKELY_CRASH);
-    // don't check the return value until we find a definitely crash media file
-    api->createThumbnail(LIKELY_CRASH, LIKELY_CRASH_THUMBNAIL);
-    api->createPreview(LIKELY_CRASH, LIKELY_CRASH_PREVIEW);
+    // create thumbnail and preview of a image which result in a crash
+    // the image is selected by testing, thus not guaranteed. we'd either
+    // find another media file or need another alternative if it couldn't
+    // consistently result in a crash
+    copyFileFromTestData(CRASH);
+    ASSERT_FALSE(api->createThumbnail(CRASH, CRASH_THUMBNAIL));
+    ASSERT_FALSE(api->createPreview(CRASH, CRASH_PREVIEW));
 #endif
 
     // create a preview successfully
@@ -16378,7 +16380,7 @@ TEST_F(SdkTestGfx, GfxProcessCrashImageInSyncOnlyOnce)
 
     // create local path and copy images
 #if defined(WIN32)
-    const std::string imageFile = LIKELY_CRASH;
+    const std::string imageFile = CRASH;
 #else
     const std::string imageFile = IMAGEFILE;
 #endif
