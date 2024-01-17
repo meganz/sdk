@@ -1438,7 +1438,14 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int o
                                  "AND (?3 = " + std::to_string(TYPE_UNKNOWN) + " OR type = ?3) "
                                  "AND (?4 = 0 OR ?4 < ctime) AND (?5 = 0 OR ctime < ?5) "
                                  "AND (?6 = 0 OR ?6 < mtime) AND (?7 = 0 OR (0 < mtime AND mtime < ?7)) " // mtime is not used (0) for some nodes
-                                 "AND (?8 = " + std::to_string(MIME_TYPE_UNKNOWN) + " OR (type = " + std::to_string(FILENODE) + " AND mimetype = ?8)) "
+                                 "AND (?8 = " + std::to_string(MIME_TYPE_UNKNOWN) +
+                                     " OR (type = " + std::to_string(FILENODE) +
+                                         " AND ((?8 = " + std::to_string(MIME_TYPE_ALL_DOCS) +
+                                               " AND mimetype IN (" + std::to_string(MIME_TYPE_DOCUMENT) +
+                                                                ',' + std::to_string(MIME_TYPE_PDF) +
+                                                                ',' + std::to_string(MIME_TYPE_PRESENTATION) +
+                                                                ',' + std::to_string(MIME_TYPE_SPREADSHEET) + "))"
+                                              " OR mimetype = ?8))) "
                                  "AND (?11 = 0 OR (name REGEXP ?9)) "
                                  // Leading and trailing '*' will be added to argument '?' so we are looking for substrings containing name
                                  // Our REGEXP implementation is case insensitive
@@ -1534,8 +1541,14 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
                                  "AND (?3 = 0 OR ?3 < ctime) AND (?4 = 0 OR ctime < ?4) \n"
                                  "AND (?5 = 0 OR ?5 < mtime) AND (?6 = 0 OR (0 < mtime AND mtime < ?6)) \n" // mtime is not used (0) for some nodes
                                  "AND (?7 = " + std::to_string(NO_SHARES) + " OR share = ?7) \n"
-                                 "AND (?8 = " + std::to_string(MIME_TYPE_UNKNOWN) + " OR (type = " + std::to_string(FILENODE) + " "
-                                                                                         "AND mimetype = ?8)) \n"
+                                 "AND (?8 = " + std::to_string(MIME_TYPE_UNKNOWN) +
+                                     " OR (type = " + std::to_string(FILENODE) +
+                                         " AND ((?8 = " + std::to_string(MIME_TYPE_ALL_DOCS) +
+                                               " AND mimetype IN (" + std::to_string(MIME_TYPE_DOCUMENT) +
+                                                                ',' + std::to_string(MIME_TYPE_PDF) +
+                                                                ',' + std::to_string(MIME_TYPE_PRESENTATION) +
+                                                                ',' + std::to_string(MIME_TYPE_SPREADSHEET) + "))"
+                                              " OR mimetype = ?8))) \n"
                                  "AND (?13 = 0 OR (name REGEXP ?9)) \n"
                                  // Leading and trailing '*' will be added to argument '?' so we are looking for substrings containing name
                                  // Our REGEXP implementation is case insensitive
@@ -1615,8 +1628,14 @@ bool SqliteAccountState::searchNodeShares(const NodeSearchFilter& filter, int or
             "AND (?2 = " + std::to_string(TYPE_UNKNOWN) + " OR type = ?2) \n"
             "AND (?3 = 0 OR ?3 < ctime) AND (?4 = 0 OR ctime < ?4) \n"
             "AND (?5 = 0 OR ?5 < mtime) AND (?6 = 0 OR (0 < mtime AND mtime < ?6)) \n" // mtime is not used (0) for some nodes
-            "AND (?7 = " + std::to_string(MIME_TYPE_UNKNOWN) + " OR (type = " + std::to_string(FILENODE) + " "
-                                                                    "AND mimetype = ?7)) \n"
+            "AND (?7 = " + std::to_string(MIME_TYPE_UNKNOWN) +
+                " OR (type = " + std::to_string(FILENODE) +
+                    " AND ((?7 = " + std::to_string(MIME_TYPE_ALL_DOCS) +
+                          " AND mimetype IN (" + std::to_string(MIME_TYPE_DOCUMENT) +
+                                           ',' + std::to_string(MIME_TYPE_PDF) +
+                                           ',' + std::to_string(MIME_TYPE_PRESENTATION) +
+                                           ',' + std::to_string(MIME_TYPE_SPREADSHEET) + ")) \n"
+                         " OR mimetype = ?7))) \n"
             "AND (?11 = 0 OR (name REGEXP ?8)) \n" };
             // Leading and trailing '*' will be added to argument '?' so we are looking for substrings containing name
             // Our REGEXP implementation is case insensitive

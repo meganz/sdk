@@ -20,16 +20,12 @@ pipeline {
         stage('Get build parameters'){
             parallel{
                 stage('Get build options'){
-                    when {
-                        allOf {
-                            expression { env.gitlabTriggerPhrase != null }
-                            expression { env.gitlabTriggerPhrase.contains('BUILD_OPTIONS') }
-                        }
-                    }
                     steps {
                         script{
-                            BUILD_OPTIONS = sh(script: 'echo "$gitlabTriggerPhrase" | grep BUILD_OPTIONS | awk -F "BUILD_OPTIONS="  \'{print \$2}\' | cut -d"\"" -f2', returnStdout: true).trim()
+                            BUILD_OPTIONS = sh(script: 'echo "$gitlabTriggerPhrase" | grep BUILD_OPTIONS | awk -F "BUILD_OPTIONS="  \'{print \$2}\' | cut -d"\\"" -f2 || :', returnStdout: true).trim()
+                            TESTS_PARALLEL = sh(script: 'echo "$gitlabTriggerPhrase" | grep "\\-\\-sequence" >/dev/null 2>&1 && echo "" || echo "--INSTANCES:10"', returnStdout: true).trim()
                             println BUILD_OPTIONS
+                            println TESTS_PARALLEL
                         }
                     }
                     post{
@@ -155,34 +151,43 @@ pipeline {
                 timeout(time: 300, unit: 'MINUTES')
             }
             steps{
-                lock(label: 'SDK_Test_Accounts', variable: 'ACCOUNTS_COMBINATION', quantity: 1, resource: null){
+                lock(label: 'SDK_Concurrent_Test_Accounts', variable: 'ACCOUNTS_COMBINATION', quantity: 1, resource: null){
                     dir("${megachat_sources_workspace}/build/subfolder"){
                         script{
-                            def accounts_array = "${env.ACCOUNTS_COMBINATION}".split(',')
-                            env.MEGA_EMAIL0 = accounts_array[0]
-                            env.MEGA_EMAIL1 = accounts_array[1]
-                            env.MEGA_EMAIL2 = accounts_array[2]
+                            env.MEGA_EMAIL0 = "${env.ACCOUNTS_COMBINATION}"
                             echo "${env.ACCOUNTS_COMBINATION}"
                         }
                         sh "ln -sfr ${megachat_sources_workspace}/build/MEGAchatTests/megachat_tests megachat_tests"
-                        sh """
+                        sh """#!/bin/bash
                         ulimit -c unlimited
-                        ./megachat_tests --APIURL:${APIURL_TO_TEST} || FAILED=1
+
+                        if [ -z \"${TESTS_PARALLEL}\" ]; then
+                            ./megachat_tests --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} || FAILED=1
+                        else
+                            # Parallel run
+                            ./megachat_tests --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${TESTS_PARALLEL} 2>&1 | tee tests.stdout
+                            [ \"\${PIPESTATUS[0]}\" != \"0\" ] && FAILED=1
+                        fi
+
                         if [ -n \"\$FAILED\" ]; then
+                            echo "Test failed with status \$FAILED"
                             maxTime=10
                             startTime=`date +%s`
-                            while [ ! -e \"core\" -o -n \"\$( lsof core 2>/dev/null )\" ] && [ \$( expr `date +%s` - \$startTime ) -lt \$maxTime ]; do
-                                echo "Waiting for core dump..."
+
+                            # Only a single core file can be handled, for either sequential or parallel run
+                            while [ \$( expr `date +%s` - \$startTime ) -lt \$maxTime ]; do
+                                if [ -e \"core\" ]; then
+                                    echo "Processing core dump..."
+                                    echo thread apply all bt > backtrace
+                                    echo quit >> backtrace
+                                    gdb -q ./megachat_tests core -x ${megachat_sources_workspace}/build/subfolder/backtrace
+                                    tar chvzf core.tar.gz core megachat_tests
+                                    break
+                                fi
                                 sleep 1
                             done
-                            if [ -e \"core\" ] && [ -z \"\$( lsof core 2>/dev/null )\" ]; then
-                                echo "Processing core dump..."
-                                echo thread apply all bt > backtrace
-                                echo quit >> backtrace
-                                gdb -q ./megachat_tests core -x ${megachat_sources_workspace}/build/subfolder/backtrace
-                                tar chvzf core.tar.gz core megachat_tests
-                            fi
                         fi
+
                         gzip -c test.log > test_${BUILD_ID}.log.gz || :
                         rm test.log || :
                         if [ ! -z \"\$FAILED\" ]; then

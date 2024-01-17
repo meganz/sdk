@@ -410,6 +410,7 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaApi::getFingerprint;
 %newobject mega::MegaApi::getNodeByFingerprint;
 %newobject mega::MegaApi::getNodesByFingerprint;
+%newobject mega::MegaApi::getNodesByOriginalFingerprint;
 %newobject mega::MegaApi::getExportableNodeByFingerprint;
 %newobject mega::MegaApi::getCRC;
 %newobject mega::MegaApi::getNodeByCRC;
