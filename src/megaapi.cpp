@@ -4229,9 +4229,9 @@ char *MegaApi::base32ToBase64(const char *base32)
     return result;
 }
 
-MegaNodeList* MegaApi::search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
+MegaNodeList* MegaApi::search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken, const MegaSearchPage* searchPage)
 {
-    return pImpl->search(filter, order, convertToCancelToken(cancelToken));
+    return pImpl->search(filter, order, convertToCancelToken(cancelToken), searchPage);
 }
 
 MegaNodeList* MegaApi::search(MegaNode* n, const char* searchString, bool recursive, int order)

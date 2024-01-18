@@ -12110,7 +12110,7 @@ char* strcasestr(const char* string, const char* substring)
 
 #endif
 
-MegaNodeList* MegaApiImpl::search(const MegaSearchFilter* filter, int order, CancelToken cancelToken)
+MegaNodeList* MegaApiImpl::search(const MegaSearchFilter* filter, int order, CancelToken cancelToken, const MegaSearchPage* searchPage)
 {
     // guard against unsupported or removed order criteria
     assert((MegaApi::ORDER_NONE <= order && order <= MegaApi::ORDER_MODIFICATION_DESC) ||
@@ -12135,7 +12135,7 @@ MegaNodeList* MegaApiImpl::search(const MegaSearchFilter* filter, int order, Can
         case MegaApi::SEARCH_TARGET_INSHARE:
         case MegaApi::SEARCH_TARGET_OUTSHARE:
         case MegaApi::SEARCH_TARGET_PUBLICLINK:
-            searchResults = searchInNodeManager(filter, order, cancelToken);
+            searchResults = searchInNodeManager(filter, order, cancelToken, searchPage);
             break;
         default:
             LOG_err << "Search not implemented for Location " << filter->byLocation();
@@ -12147,7 +12147,7 @@ MegaNodeList* MegaApiImpl::search(const MegaSearchFilter* filter, int order, Can
     return nodeList;
 }
 
-sharedNode_vector MegaApiImpl::searchInNodeManager(const MegaSearchFilter* filter, int order, CancelToken cancelToken)
+sharedNode_vector MegaApiImpl::searchInNodeManager(const MegaSearchFilter* filter, int order, CancelToken cancelToken, const MegaSearchPage* searchPage)
 {
     ShareType_t shareType = filter->byLocation() == MegaApi::SEARCH_TARGET_INSHARE ? IN_SHARES :
                             (filter->byLocation() == MegaApi::SEARCH_TARGET_OUTSHARE ? OUT_SHARES :
@@ -12160,7 +12160,8 @@ sharedNode_vector MegaApiImpl::searchInNodeManager(const MegaSearchFilter* filte
         nf.byAncestors({client->mNodeManager.getRootNodeFiles().as8byte(), client->mNodeManager.getRootNodeVault().as8byte()});
     }
 
-    sharedNode_vector results = client->mNodeManager.searchNodes(nf, order, cancelToken);
+    const NodeSearchPage& np = searchPage ? NodeSearchPage(searchPage->startingOffset(), searchPage->size()) : NodeSearchPage(0, 0);
+    sharedNode_vector results = client->mNodeManager.searchNodes(nf, order, cancelToken, np);
     return results;
 }
 

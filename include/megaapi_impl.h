@@ -3336,13 +3336,13 @@ public:
         MegaRecentActionBucketList* getRecentActions(unsigned days = 90, unsigned maxnodes = 500);
         void getRecentActionsAsync(unsigned days, unsigned maxnodes, MegaRequestListener *listener = NULL);
 
-        MegaNodeList* search(const MegaSearchFilter* filter, int order, CancelToken cancelToken);
+        MegaNodeList* search(const MegaSearchFilter* filter, int order, CancelToken cancelToken, const MegaSearchPage* searchPage);
 
         // deprecated
         MegaNodeList* search(MegaNode *node, const char *searchString, CancelToken cancelToken, bool recursive = true, int order = MegaApi::ORDER_NONE, int mimeType = MegaApi::FILE_TYPE_DEFAULT, int target = MegaApi::SEARCH_TARGET_ALL, bool includeSensitive = true);
 
     private:
-        sharedNode_vector searchInNodeManager(const MegaSearchFilter* filter, int order, CancelToken cancelToken);
+        sharedNode_vector searchInNodeManager(const MegaSearchFilter* filter, int order, CancelToken cancelToken, const MegaSearchPage* searchPage);
 
         // deprecated
         MegaNodeList* searchWithFlags(MegaNode* node, const char* searchString, CancelToken cancelToken, bool recursive, int order, int mimeType = MegaApi::FILE_TYPE_DEFAULT, int target = MegaApi::SEARCH_TARGET_ALL, Node::Flags requiredFlags = Node::Flags(), Node::Flags excludeFlags = Node::Flags(), Node::Flags excludeRecursiveFlags = Node::Flags());

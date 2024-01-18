@@ -156,7 +156,7 @@ public:
     /** @deprecated Use searchNodes(const NodeSearchFilter...) instead */
     sharedNode_vector search(NodeHandle ancestorHandle, const char* searchString, bool recursive, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelFlag);
 
-    sharedNode_vector searchNodes(const NodeSearchFilter& filter, int order, CancelToken cancelFlag);
+    sharedNode_vector searchNodes(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page);
 
     /** @deprecated Use searchNodes(const NodeSearchFilter...) instead */
     sharedNode_vector getInSharesWithName(const char *searchString, CancelToken cancelFlag);
@@ -397,7 +397,7 @@ private:
     // If a valid object is passed, it must be kept alive until this method returns.
     sharedNode_vector processUnserializedNodes(const std::vector<std::pair<NodeHandle, NodeSerialized>>& nodesFromTable, NodeHandle ancestorHandle = NodeHandle(), CancelToken cancelFlag = CancelToken());
 
-    sharedNode_vector searchNodes_internal(const NodeSearchFilter& filter, int order, CancelToken cancelFlag);
+    sharedNode_vector searchNodes_internal(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page);
     sharedNode_vector processUnserializedNodes(const std::vector<std::pair<NodeHandle, NodeSerialized>>& nodesFromTable, const NodeSearchFilter& filter, CancelToken cancelFlag = CancelToken());
     sharedNode_vector getChildren_internal(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page);
 

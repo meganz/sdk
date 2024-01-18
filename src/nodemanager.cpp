@@ -512,13 +512,13 @@ uint64_t NodeManager::getNodeCount_internal()
     return count;
 }
 
-sharedNode_vector NodeManager::searchNodes(const NodeSearchFilter& filter, int order, CancelToken cancelFlag)
+sharedNode_vector NodeManager::searchNodes(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page)
 {
     LockGuard g(mMutex);
-    return searchNodes_internal(filter, order, cancelFlag);
+    return searchNodes_internal(filter, order, cancelFlag, page);
 }
 
-sharedNode_vector NodeManager::searchNodes_internal(const NodeSearchFilter& filter, int order, CancelToken cancelFlag)
+sharedNode_vector NodeManager::searchNodes_internal(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page)
 {
     assert(mMutex.owns_lock());
 
@@ -544,8 +544,8 @@ sharedNode_vector NodeManager::searchNodes_internal(const NodeSearchFilter& filt
     // db look-up
     vector<pair<NodeHandle, NodeSerialized>> nodesFromTable;
     bool searched = (filter.byShareType() == NO_SHARES) ?
-                    mTable->searchNodes(filter, order, nodesFromTable, cancelFlag) :
-                    mTable->searchNodeShares(filter, order, nodesFromTable, cancelFlag);
+                    mTable->searchNodes(filter, order, nodesFromTable, cancelFlag, page) :
+                    mTable->searchNodeShares(filter, order, nodesFromTable, cancelFlag, page);
     if (!searched)
     {
         return sharedNode_vector();

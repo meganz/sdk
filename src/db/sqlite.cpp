@@ -1545,7 +1545,7 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int o
     return result;
 }
 
-bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, vector<pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag)
+bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, vector<pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag, const NodeSearchPage& page)
 {
     if (!db)
     {
@@ -1611,7 +1611,9 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
 
                                /// order goes here
                                "ORDER BY \n" +
-                                  OrderBy2Clause::get(order, 10); // use ?10 for bound value;
+                                  OrderBy2Clause::get(order, 10) + " \n" + // use ?10 for bound value
+
+                               "LIMIT ?14 OFFSET ?15";
 
         sqlResult = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, NULL);
     }
@@ -1638,7 +1640,9 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
             (sqlResult = sqlite3_bind_int(stmt, 10, order)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int64(stmt, 11, filter.byAncestorHandles()[0])) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int64(stmt, 12, filter.byAncestorHandles()[1])) == SQLITE_OK &&
-            (sqlResult = sqlite3_bind_int(stmt, 13, matchWildcard)) == SQLITE_OK)
+            (sqlResult = sqlite3_bind_int(stmt, 13, matchWildcard)) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int64(stmt, 14, page.size() ? static_cast<sqlite3_int64>(page.size()) : -1)) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int64(stmt, 15, page.startingOffset())) == SQLITE_OK)
         {
             result = processSqlQueryNodes(stmt, nodes);
         }
@@ -1654,7 +1658,7 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
     return result;
 }
 
-bool SqliteAccountState::searchNodeShares(const NodeSearchFilter& filter, int order, vector<pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag)
+bool SqliteAccountState::searchNodeShares(const NodeSearchFilter& filter, int order, vector<pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag, const NodeSearchPage& page)
 {
     if (!db)
     {
@@ -1732,7 +1736,9 @@ bool SqliteAccountState::searchNodeShares(const NodeSearchFilter& filter, int or
                             "SELECT * FROM shares \n"
                             /// order goes here
                             "ORDER BY \n" +
-                               OrderBy2Clause::get(order, 9); // use ?9 for bound value;
+                               OrderBy2Clause::get(order, 9) + " \n" + // use ?9 for bound value
+
+                            "LIMIT ?12 OFFSET ?13";
 
         sqlResult = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, NULL);
     }
@@ -1757,7 +1763,9 @@ bool SqliteAccountState::searchNodeShares(const NodeSearchFilter& filter, int or
         if ((sqlResult = sqlite3_bind_text(stmt, 8, wildCardName.c_str(), static_cast<int>(wildCardName.length()), SQLITE_STATIC)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int(stmt, 9, order)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int(stmt, 10, filter.byShareType())) == SQLITE_OK &&
-            (sqlResult = sqlite3_bind_int(stmt, 11, matchWildcard)) == SQLITE_OK)
+            (sqlResult = sqlite3_bind_int(stmt, 11, matchWildcard)) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int64(stmt, 12, page.size() ? static_cast<sqlite3_int64>(page.size()) : -1)) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int64(stmt, 13, page.startingOffset())) == SQLITE_OK)
         {
             result = processSqlQueryNodes(stmt, nodes);
         }

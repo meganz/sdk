@@ -17944,7 +17944,7 @@ class MegaApi
          *
          * @return List with found nodes as MegaNode objects
          */
-        MegaNodeList* search(const MegaSearchFilter* filter, int order = ORDER_NONE, MegaCancelToken* cancelToken = nullptr);
+        MegaNodeList* search(const MegaSearchFilter* filter, int order = ORDER_NONE, MegaCancelToken* cancelToken = nullptr, const MegaSearchPage* searchPage = nullptr);
 
         /**
          * @brief Search nodes containing a search string in their name
