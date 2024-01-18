@@ -50,7 +50,7 @@ enable_libraw=0
 android_build=0
 readline_build=0
 enable_cryptopp=0
-enable_sqlite=0
+disable_sqlite=0
 disable_mediainfo=0
 incremental=0
 no_optimisation=0
@@ -1126,6 +1126,11 @@ build_sdk() {
         freeimage_flags="--without-freeimage"
     fi
 
+    # disable external sqlite
+    if [ $disable_sqlite -eq 0 ]; then
+        sqlite_flags="--with-sqlite=$install_dir"
+    fi
+
     # enable libuv
     if [ $enable_libuv -eq 1 ]; then
         libuv_flags="--with-libuv=$install_dir"
@@ -1184,7 +1189,7 @@ build_sdk() {
             --with-cryptopp=$install_dir \
             $sodium_flags \
             --with-zlib=$install_dir \
-            --with-sqlite=$install_dir \
+            $sqlite_flags \
             --with-cares=$install_dir \
             --with-curl=$install_dir \
             $freeimage_flags \
@@ -1212,7 +1217,7 @@ build_sdk() {
             --with-cryptopp=$install_dir \
             $sodium_flags \
             --with-zlib=$install_dir \
-            --with-sqlite=$install_dir \
+            $sqlite_flags \
             --without-cares \
             --without-curl \
             --with-winhttp=$cwd \
@@ -1269,7 +1274,7 @@ display_help() {
     echo " -i : Disable external media info"
     echo " -I : Incremental build.  Already built dependencies will be skipped"
     echo " -l : Use local software archive files instead of downloading"
-    echo " -L : Enable external sqlite3"
+    echo " -L : Disable external sqlite3"
     echo " -n : Disable example applications"
     echo " -N : Enable Drive Notifications (libudev / wbemuuid)"
     echo " -s : Disable OpenSSL"
@@ -1354,8 +1359,8 @@ main() {
                 use_local=1
                 ;;
             L)
-                echo "* Enabling external sqlite3"
-                enable_sqlite=1
+                echo "* Disabling external sqlite3"
+                disable_sqlite=1
                 ;;
             m)
                 make_opts="$OPTARG"
@@ -1533,7 +1538,7 @@ main() {
         zlib_pkg $build_dir $install_dir
     fi
     
-    if [ $enable_sqlite -eq 1 ]; then
+    if [ $disable_sqlite -eq 0 ]; then
         sqlite_pkg $build_dir $install_dir
     fi
        
