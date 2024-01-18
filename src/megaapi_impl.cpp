@@ -26323,59 +26323,6 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
 
 /* END MEGAAPIIMPL */
 
-void TreeProcCopy::allocnodes()
-{
-    nn.resize(nc);
-    allocated = true;
-}
-
-// determine node tree size (nn = NULL) or write node tree to new nodes array
-void TreeProcCopy::proc(MegaClient* client, std::shared_ptr<mega::Node> n)
-{
-    if (allocated)
-    {
-        string attrstring;
-        SymmCipher key;
-        assert(nc > 0);
-        NewNode* t = &nn[--nc];
-
-        // copy node
-        t->source = NEW_NODE;
-        t->type = n->type;
-        t->nodehandle = n->nodehandle;
-        t->parenthandle = n->parent ? n->parent->nodehandle : UNDEF;
-
-        // copy key (if file) or generate new key (if folder)
-        if (n->type == FILENODE) t->nodekey = n->nodekey();
-        else
-        {
-            byte buf[FOLDERNODEKEYLENGTH];
-            client->rng.genblock(buf,sizeof buf);
-            t->nodekey.assign((char*)buf,FOLDERNODEKEYLENGTH);
-        }
-
-        t->attrstring.reset(new string);
-        if(t->nodekey.size())
-        {
-            key.setkey((const byte*)t->nodekey.data(),n->type);
-
-            AttrMap tattrs;
-            tattrs.map = n->attrs.map;
-            nameid rrname = AttrMap::string2nameid("rr");
-            attr_map::iterator it = tattrs.map.find(rrname);
-            if (it != tattrs.map.end())
-            {
-                LOG_debug << "Removing rr attribute";
-                tattrs.map.erase(it);
-            }
-
-            tattrs.getjson(&attrstring);
-            client->makeattr(&key, t->attrstring, attrstring.c_str());
-        }
-    }
-    else nc++;
-}
-
 int TransferQueue::getLastPushedTag() const
 {
     return lastPushedTransferTag;
