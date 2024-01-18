@@ -7854,8 +7854,6 @@ bool CommandChatRemoveAccess::procresult(Result r, JSON& json)
 
 CommandChatUpdatePermissions::CommandChatUpdatePermissions(MegaClient *client, handle chatid, handle uh, privilege_t priv)
 {
-    mV3 = false;
-
     this->client = client;
     this->chatid = chatid;
     this->uh = uh;
