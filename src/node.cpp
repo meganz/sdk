@@ -202,7 +202,8 @@ const std::set<nameid>& documentExtensions()
                                         MAKENAMEID4('d','o','c','x'), MAKENAMEID3('d','o','t'), MAKENAMEID4('d','o','t','m'),
                                         MAKENAMEID4('d','o','t','x'), MAKENAMEID3('o','d','t'),
                                         MAKENAMEID3('s','x','c'), MAKENAMEID3('s','x','d'), MAKENAMEID3('s','x','i'),
-                                        MAKENAMEID4('t','e','x','t'), MAKENAMEID3('t','s','v'), MAKENAMEID3('t','t','l'), MAKENAMEID3('t','x','t')};
+                                        MAKENAMEID4('t','e','x','t'), MAKENAMEID3('t','s','v'), MAKENAMEID3('t','t','l'), MAKENAMEID3('t','x','t'),
+                                        MAKENAMEID3('o','r','g')};
     return docs;
 }
 
