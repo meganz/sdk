@@ -414,7 +414,7 @@ sharedNode_vector NodeManager::getChildren_internal(const NodeSearchFilter& filt
         return sharedNode_vector();
     }
 
-    sharedNode_vector nodes = processUnserializedNodes(nodesFromTable, filter, cancelFlag);
+    sharedNode_vector nodes = processUnserializedNodes(nodesFromTable, cancelFlag);
 
     return nodes;
 }
@@ -551,7 +551,7 @@ sharedNode_vector NodeManager::searchNodes_internal(const NodeSearchFilter& filt
         return sharedNode_vector();
     }
 
-    sharedNode_vector nodes = processUnserializedNodes(nodesFromTable, filter, cancelFlag);
+    sharedNode_vector nodes = processUnserializedNodes(nodesFromTable, cancelFlag);
 
     return nodes;
 }
@@ -2048,7 +2048,7 @@ sharedNode_vector NodeManager::getRootNodesAndInshares()
     return rootnodes;
 }
 
-sharedNode_vector NodeManager::processUnserializedNodes(const vector<pair<NodeHandle, NodeSerialized>>& nodesFromTable, const NodeSearchFilter& filter, CancelToken cancelFlag)
+sharedNode_vector NodeManager::processUnserializedNodes(const vector<pair<NodeHandle, NodeSerialized>>& nodesFromTable, CancelToken cancelFlag)
 {
     assert(mMutex.owns_lock());
 
