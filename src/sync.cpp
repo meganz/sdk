@@ -5677,6 +5677,8 @@ void Syncs::clear_inThread()
 
     syncStallState = false;
     syncConflictState = false;
+    totalSyncStalls.store(0);
+    totalSyncConflicts.store(0);
 
     totalLocalNodes = 0;
 
@@ -12090,9 +12092,9 @@ void Syncs::syncLoop()
                     assert(onSyncThread());
                     mClient.app->syncupdate_totalconflicts(true);
                     LOG_info << mClient.clientname << "Sync conflicting paths state app update notified [previousSyncConflictsTotal = " << totalSyncConflicts.load() << ", updatedSyncConflictsTotal = " << updatedSyncConflictsTotal << "]";
+                    totalSyncConflicts.store(updatedSyncConflictsTotal);
                 }
                 else mClient.app->syncupdate_totalconflicts(false);
-                totalSyncConflicts.store(updatedSyncConflictsTotal);
             }
         }
 
@@ -12254,9 +12256,9 @@ void Syncs::syncLoop()
                     assert(onSyncThread());
                     mClient.app->syncupdate_totalstalls(true);
                     LOG_warn << mClient.clientname << "Stall state app update notified [previousSyncStallsTotal = " << totalSyncStalls.load() << ", updatedSyncStallsTotal = " << updatedSyncStallsTotal << "]";
+                    totalSyncStalls.store(updatedSyncStallsTotal);
                 }
                 else mClient.app->syncupdate_totalstalls(false);
-                totalSyncStalls.store(updatedSyncStallsTotal);
             }
 
             ++completedPassCount;
