@@ -16840,7 +16840,7 @@ class MegaApi
          *
          * @return List with found children as MegaNode objects
          */
-        MegaNodeList* getChildren(const MegaSearchFilter *filter, int order = ORDER_NONE, MegaCancelToken *cancelToken = nullptr);
+        MegaNodeList* getChildren(const MegaSearchFilter *filter, int order = ORDER_NONE, MegaCancelToken *cancelToken = nullptr, const MegaSearchPage* searchPage = nullptr);
 
         /**
          * @brief Get all children of a list of MegaNodes

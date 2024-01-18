@@ -1458,7 +1458,7 @@ uint64_t SqliteAccountState::getNumberOfChildren(NodeHandle parentHandle)
     return numChildren;
 }
 
-bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int order, vector<pair<NodeHandle, NodeSerialized>>& children, CancelToken cancelFlag)
+bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int order, vector<pair<NodeHandle, NodeSerialized>>& children, CancelToken cancelFlag, const NodeSearchPage& page)
 {
     if (!db)
     {
@@ -1500,7 +1500,9 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int o
                                  // Our REGEXP implementation is case insensitive
 
                                "ORDER BY \n" +
-                                  OrderBy2Clause::get(order, 10); // use ?10 for bound value
+                                  OrderBy2Clause::get(order, 10) + " \n" + // use ?10 for bound value
+
+                               "LIMIT ?12 OFFSET ?13";
 
         sqlResult = sqlite3_prepare_v2(db, sqlQuery.c_str(), -1, &stmt, NULL);
     }
@@ -1524,7 +1526,9 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int o
         const string& wildCardName = matchWildcard ? '*' + filter.byName() + '*' : nameFilter;
         if ((sqlResult = sqlite3_bind_text(stmt, 9, wildCardName.c_str(), static_cast<int>(wildCardName.length()), SQLITE_STATIC)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int(stmt, 10, order)) == SQLITE_OK &&
-            (sqlResult = sqlite3_bind_int(stmt, 11, matchWildcard)) == SQLITE_OK)
+            (sqlResult = sqlite3_bind_int(stmt, 11, matchWildcard)) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int64(stmt, 12, page.size() ? static_cast<sqlite3_int64>(page.size()) : -1)) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int64(stmt, 13, page.startingOffset())) == SQLITE_OK)
         {
             result = processSqlQueryNodes(stmt, children);
         }

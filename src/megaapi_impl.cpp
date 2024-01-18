@@ -17787,7 +17787,7 @@ int MegaApiImpl::getNumChildFolders(MegaNode* p)
 }
 
 
-MegaNodeList *MegaApiImpl::getChildren(const MegaSearchFilter* filter, int order, CancelToken cancelToken)
+MegaNodeList *MegaApiImpl::getChildren(const MegaSearchFilter* filter, int order, CancelToken cancelToken, const MegaSearchPage* searchPage)
 {
     // guard against unsupported or removed order criteria
     assert((MegaApi::ORDER_NONE <= order && order <= MegaApi::ORDER_MODIFICATION_DESC) ||
@@ -17803,7 +17803,8 @@ MegaNodeList *MegaApiImpl::getChildren(const MegaSearchFilter* filter, int order
 
     NodeSearchFilter nf;
     nf.copyFrom(*filter);
-    sharedNode_vector results = client->mNodeManager.getChildren(nf, order, cancelToken);
+    const NodeSearchPage& np = searchPage ? NodeSearchPage(searchPage->startingOffset(), searchPage->size()) : NodeSearchPage(0u, 0u);
+    sharedNode_vector results = client->mNodeManager.getChildren(nf, order, cancelToken, np);
 
     return new MegaNodeListPrivate(results);
 }

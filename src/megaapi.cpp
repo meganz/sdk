@@ -4434,9 +4434,9 @@ int MegaApi::getNumChildFolders(MegaNode* parent)
 	return pImpl->getNumChildFolders(parent);
 }
 
-MegaNodeList *MegaApi::getChildren(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
+MegaNodeList *MegaApi::getChildren(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken, const MegaSearchPage* searchPage)
 {
-    return pImpl->getChildren(filter, order, convertToCancelToken(cancelToken));
+    return pImpl->getChildren(filter, order, convertToCancelToken(cancelToken), searchPage);
 }
 
 MegaNodeList *MegaApi::getChildren(MegaNode* p, int order, MegaCancelToken* cancelToken)

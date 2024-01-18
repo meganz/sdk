@@ -380,13 +380,13 @@ sharedNode_list NodeManager::getChildren_internal(const Node *parent, CancelToke
     return childrenList;
 }
 
-sharedNode_vector NodeManager::getChildren(const NodeSearchFilter& filter, int order, CancelToken cancelFlag)
+sharedNode_vector NodeManager::getChildren(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page)
 {
     LockGuard g(mMutex);
-    return getChildren_internal(filter, order, cancelFlag);
+    return getChildren_internal(filter, order, cancelFlag, page);
 }
 
-sharedNode_vector NodeManager::getChildren_internal(const NodeSearchFilter& filter, int order, CancelToken cancelFlag)
+sharedNode_vector NodeManager::getChildren_internal(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page)
 {
     assert(mMutex.owns_lock());
 
@@ -409,7 +409,7 @@ sharedNode_vector NodeManager::getChildren_internal(const NodeSearchFilter& filt
 
     // db look-up
     vector<pair<NodeHandle, NodeSerialized>> nodesFromTable;
-    if (!mTable->getChildren(filter, order, nodesFromTable, cancelFlag))
+    if (!mTable->getChildren(filter, order, nodesFromTable, cancelFlag, page))
     {
         return sharedNode_vector();
     }
