@@ -193,13 +193,6 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
         return nullptr;
     }
 
-    if (sqlite3_create_function(db, u8"ismimetypeincluded", 2, SQLITE_ANY | SQLITE_DETERMINISTIC, 0, &SqliteAccountState::userIsMimetypeIncluded, 0, 0) != SQLITE_OK)
-    {
-        LOG_err << "Data base error(sqlite3_create_function userIsMimetypeIncluded): " << sqlite3_errmsg(db);
-        sqlite3_close(db);
-        return nullptr;
-    }
-
     return new SqliteAccountState(rng,
                                 db,
                                 fsAccess,
@@ -1360,7 +1353,13 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, vecto
                                  "AND (? = " + std::to_string(TYPE_UNKNOWN) + " OR n1.type = ?) "
                                  "AND (? = 0 OR ? < n1.ctime) AND (? = 0 OR n1.ctime < ?) "
                                  "AND (? = 0 OR ? < n1.mtime) AND (? = 0 OR (0 < n1.mtime AND n1.mtime < ?)) " // mtime is not used (0) for some nodes
-                                 "AND (? = " + std::to_string(MIME_TYPE_UNKNOWN) + " OR (n1.type = " + std::to_string(FILENODE) + " AND ismimetypeincluded(n1.mimetype, ?))) "
+                                 "AND (? = " + std::to_string(MIME_TYPE_UNKNOWN) +
+                                     " OR (n1.type = " + std::to_string(FILENODE) +
+                                         " AND ((? = " + std::to_string(MIME_TYPE_ALL_DOCS) + " AND n1.mimetype IN (" + std::to_string(MIME_TYPE_DOCUMENT) +
+                                                                                                                  ',' + std::to_string(MIME_TYPE_PDF) +
+                                                                                                                  ',' + std::to_string(MIME_TYPE_PRESENTATION) +
+                                                                                                                  ',' + std::to_string(MIME_TYPE_SPREADSHEET) + "))"
+                                              " OR n1.mimetype = ?))) "
                                  "AND (n1.name REGEXP ?) ";
         // Leading and trailing '*' will be added to argument '?' so we are looking for a substring of name
         // Our REGEXP implementation is case insensitive
@@ -1386,10 +1385,11 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, vecto
         (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 11, filter.byModificationTimeUpperLimit())) == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int64(mStmtGetChildren, 12, filter.byModificationTimeUpperLimit())) == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int(mStmtGetChildren, 13, filter.byCategory())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int(mStmtGetChildren, 14, filter.byCategory())) == SQLITE_OK)
+        (sqlResult = sqlite3_bind_int(mStmtGetChildren, 14, filter.byCategory())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int(mStmtGetChildren, 15, filter.byCategory())) == SQLITE_OK)
     {
         string wildCardName = '*' + filter.byName() + '*';
-        if ((sqlResult = sqlite3_bind_text(mStmtGetChildren, 15, wildCardName.c_str(), static_cast<int>(wildCardName.length()), SQLITE_STATIC)) == SQLITE_OK)
+        if ((sqlResult = sqlite3_bind_text(mStmtGetChildren, 16, wildCardName.c_str(), static_cast<int>(wildCardName.length()), SQLITE_STATIC)) == SQLITE_OK)
         {
             result = processSqlQueryNodes(mStmtGetChildren, children);
         }
@@ -1428,7 +1428,13 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, vector<pair
                                  "AND (? = 0 OR ? < n1.ctime) AND (? = 0 OR n1.ctime < ?) "
                                  "AND (? = 0 OR ? < n1.mtime) AND (? = 0 OR (0 < n1.mtime AND n1.mtime < ?)) " // mtime is not used (0) for some nodes
                                  "AND (? = " + std::to_string(NO_SHARES) + " OR n1.share = ?) "
-                                 "AND (? = " + std::to_string(MIME_TYPE_UNKNOWN) + " OR (n1.type = " + std::to_string(FILENODE) + " AND ismimetypeincluded(n1.mimetype, ?))) "
+                                 "AND (? = " + std::to_string(MIME_TYPE_UNKNOWN) +
+                                     " OR (n1.type = " + std::to_string(FILENODE) +
+                                         " AND ((? = " + std::to_string(MIME_TYPE_ALL_DOCS) + " AND n1.mimetype IN (" + std::to_string(MIME_TYPE_DOCUMENT) +
+                                                                                                                  ',' + std::to_string(MIME_TYPE_PDF) +
+                                                                                                                  ',' + std::to_string(MIME_TYPE_PRESENTATION) +
+                                                                                                                  ',' + std::to_string(MIME_TYPE_SPREADSHEET) + "))"
+                                              " OR n1.mimetype = ?))) "
                                  "AND (n1.name REGEXP ?) ";
         // Leading and trailing '*' will be added to argument '?' so we are looking for a substring of name
         // Our REGEXP implementation is case insensitive
@@ -1455,10 +1461,11 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, vector<pair
         (sqlResult = sqlite3_bind_int(mStmtSearchNodes, 12, filter.byShareType())) == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int(mStmtSearchNodes, 13, filter.byShareType())) == SQLITE_OK &&
         (sqlResult = sqlite3_bind_int(mStmtSearchNodes, 14, filter.byCategory())) == SQLITE_OK &&
-        (sqlResult = sqlite3_bind_int(mStmtSearchNodes, 15, filter.byCategory())) == SQLITE_OK)
+        (sqlResult = sqlite3_bind_int(mStmtSearchNodes, 15, filter.byCategory())) == SQLITE_OK &&
+        (sqlResult = sqlite3_bind_int(mStmtSearchNodes, 16, filter.byCategory())) == SQLITE_OK)
     {
         string wildCardName = '*' + filter.byName() + '*';
-        if ((sqlResult = sqlite3_bind_text(mStmtSearchNodes, 16, wildCardName.c_str(), static_cast<int>(wildCardName.length()), SQLITE_STATIC)) == SQLITE_OK)
+        if ((sqlResult = sqlite3_bind_text(mStmtSearchNodes, 17, wildCardName.c_str(), static_cast<int>(wildCardName.length()), SQLITE_STATIC)) == SQLITE_OK)
         {
             result = processSqlQueryNodes(mStmtSearchNodes, nodes);
         }
@@ -2261,26 +2268,6 @@ void SqliteAccountState::userIsMimetype(sqlite3_context* context, int argc, sqli
                  Node::isOfMimetype(static_cast<MimeType_t>(mimetype), ext);
 
     }
-
-    sqlite3_result_int(context, result);
-}
-
-void SqliteAccountState::userIsMimetypeIncluded(sqlite3_context* context, int argc, sqlite3_value** argv)
-{
-    if (argc != 2)
-    {
-        LOG_err << "Invalid parameters for userIsMimetypeIncluded";
-        assert(argc == 2);
-        sqlite3_result_int(context, 0);
-        return;
-    }
-
-    int mimetypeExt = argv[0] ? sqlite3_value_int(argv[0]) : MimeType_t::MIME_TYPE_UNKNOWN;
-    int mimetypeIncl = argv[1] ? sqlite3_value_int(argv[1]) : MimeType_t::MIME_TYPE_UNKNOWN;
-
-    int result = mimetypeIncl == MimeType_t::MIME_TYPE_UNKNOWN ||
-                 mimetypeIncl == mimetypeExt ||
-                 (mimetypeIncl == MimeType_t::MIME_TYPE_DOCUMENT && mimetypeExt == MimeType_t::MIME_TYPE_SPREADSHEET);
 
     sqlite3_result_int(context, result);
 }

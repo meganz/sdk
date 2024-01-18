@@ -101,7 +101,9 @@ typedef NS_ENUM (NSInteger, MEGANodeFormatType) {
     MEGANodeFormatTypePresentation,
     MEGANodeFormatTypeArchive,
     MEGANodeFormatTypeProgram,
-    MEGANodeFormatTypeMisc
+    MEGANodeFormatTypeMisc,
+    MEGANodeFormatTypeSpreadsheet,
+    MEGANodeFormatTypeAllDocs
 };
 
 typedef NS_ENUM (NSInteger, MEGAFolderTargetType) {
@@ -4481,25 +4483,29 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
 + (nullable NSString *)avatarSecondaryColorForBase64UserHandle:(nullable NSString *)base64UserHandle;
 
 /**
- * @brief Set the avatar of the MEGA account.
+ * @brief Set/Remove the avatar of the MEGA account
  *
  * The associated request type with this request is MEGARequestTypeSetAttrFile.
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest file] - Returns the source path
  *
  * @param sourceFilePath Source path of the file that will be set as avatar.
+ * If nil, the existing avatar will be removed (if any). 
  * @param delegate Delegate to track this request.
+ * In case the avatar never existed before, removing the avatar returns MEGAErrorApiENoent.
  */
 - (void)setAvatarUserWithSourceFilePath:(nullable NSString *)sourceFilePath delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
- * @brief Set the avatar of the MEGA account.
+ * @brief Set/Remove the avatar of the MEGA account
  *
  * The associated request type with this request is MEGARequestTypeSetAttrFile.
  * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest file] - Returns the source path
+ * - [MEGARequest file] - Returns the source path (optional)
  *
  * @param sourceFilePath Source path of the file that will be set as avatar.
+ * If nil, the existing avatar will be removed (if any).
+ * In case the avatar never existed before, removing the avatar returns MEGAErrorApiENoent.
  */
 - (void)setAvatarUserWithSourceFilePath:(nullable NSString *)sourceFilePath;
 
@@ -8216,6 +8222,13 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * - MEGANodeFormatTypeAudio = 2
  * - MEGANodeFormatTypeVideo = 3
  * - MEGANodeFormatTypeDocument = 4
+ * - MEGANodeFormatTypePdf = 5,
+ * - MEGANodeFormatTypePresentation = 6,
+ * - MEGANodeFormatTypeArchive = 7,
+ * - MEGANodeFormatTypeProgram = 8,
+ * - MEGANodeFormatTypeMisc = 9,
+ * - MEGANodeFormatTypeSpreadsheet = 10,
+ * - MEGANodeFormatTypeAllDocs = 11
  *
  * @param folderTargetType Target type where this method will search
  * Valid values for this parameter are

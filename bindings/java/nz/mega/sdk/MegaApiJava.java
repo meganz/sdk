@@ -230,7 +230,7 @@ public class MegaApiJava {
     public final static int FILE_TYPE_PHOTO = MegaApi.FILE_TYPE_PHOTO;
     public final static int FILE_TYPE_AUDIO = MegaApi.FILE_TYPE_AUDIO;
     public final static int FILE_TYPE_VIDEO = MegaApi.FILE_TYPE_VIDEO;
-    public final static int FILE_TYPE_DOCUMENT = MegaApi.FILE_TYPE_DOCUMENT;
+    public final static int FILE_TYPE_ALL_DOCS = MegaApi.FILE_TYPE_ALL_DOCS;
 
     public final static int SEARCH_TARGET_INSHARE = MegaApi.SEARCH_TARGET_INSHARE;
     public final static int SEARCH_TARGET_OUTSHARE = MegaApi.SEARCH_TARGET_OUTSHARE;
@@ -6835,6 +6835,37 @@ public class MegaApiJava {
     }
 
     /**
+     * Upload a file or a folder
+     * <p>
+     * This method should be used ONLY to share by chat a local file. In case the file
+     * is already uploaded, but the corresponding node is missing the thumbnail and/or preview,
+     * this method will force a new upload from the scratch (ensuring the file attributes are set),
+     * instead of doing a remote copy.
+     * <p>
+     * If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
+     * @param localPath         Local path of the file or folder
+     * @param parent            Parent node for the file or folder in the MEGA account
+     * @param appData           Custom app data to save in the MegaTransfer object
+     *                          The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+     *                          related to the transfer. If a transfer is started with exactly the same data
+     *                          (local path and target parent) as another one in the transfer queue, the new transfer
+     *                          fails with the error API_EEXISTS and the appData of the new transfer is appended to
+     *                          the appData of the old transfer, using a '!' separator if the old transfer had already
+     *                          appData.
+     * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+     *                          This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+     *                          Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+     * @param fileName          Custom file name for the file or folder in MEGA
+     * @param listener          MegaTransferListener to track this transfer
+     */
+    public void startUploadForChat(String localPath, MegaNode parent, String appData, boolean isSourceTemporary, String fileName, MegaTransferListenerInterface listener) {
+        megaApi.startUploadForChat(localPath, parent, appData, isSourceTemporary, fileName, createDelegateTransferListener(listener));
+    }
+
+    /**
      * Download a file or a folder from MEGA, saving custom app data during the transfer
      * <p>
      * If the status of the business account is expired, onTransferFinish will be called with the error
@@ -9472,7 +9503,7 @@ public class MegaApiJava {
      *                     - MegaApi::FILE_TYPE_PHOTO = 1
      *                     - MegaApi::FILE_TYPE_AUDIO = 2
      *                     - MegaApi::FILE_TYPE_VIDEO = 3
-     *                     - MegaApi::FILE_TYPE_DOCUMENT = 4
+     *                     - MegaApi::FILE_TYPE_ALL_DOCS = 11
      * @param target       Target type where this method will search
      *                     Valid values for this parameter are
      *                     - SEARCH_TARGET_INSHARE = 0
@@ -9548,7 +9579,7 @@ public class MegaApiJava {
      *               - MegaApi::FILE_TYPE_PHOTO = 1
      *               - MegaApi::FILE_TYPE_AUDIO = 2
      *               - MegaApi::FILE_TYPE_VIDEO = 3
-     *               - MegaApi::FILE_TYPE_DOCUMENT = 4
+     *               - MegaApi::FILE_TYPE_ALL_DOCS = 11
      * @param target Target type where this method will search
      *               Valid values for this parameter are
      *               - SEARCH_TARGET_INSHARE = 0
@@ -9638,7 +9669,7 @@ public class MegaApiJava {
      *                     - MegaApi::FILE_TYPE_PHOTO = 1
      *                     - MegaApi::FILE_TYPE_AUDIO = 2
      *                     - MegaApi::FILE_TYPE_VIDEO = 3
-     *                     - MegaApi::FILE_TYPE_DOCUMENT = 4
+     *                     - MegaApi::FILE_TYPE_ALL_DOCS = 11
      * @return List of nodes that match with the search parameters
      */
     public ArrayList<MegaNode> searchByType(MegaNode node, String searchString,

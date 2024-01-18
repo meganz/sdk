@@ -603,6 +603,11 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ LocalPath&
 #endif
 }
 
+bool Transfer::isForSupport() const
+{
+    return type == PUT && !files.empty() && files.back()->targetuser == MegaClient::SUPPORT_USER_HANDLE;
+}
+
 FileDistributor::TargetNameExistsResolution Transfer::toTargetNameExistsResolution(CollisionResolution resolution)
 {
     switch (resolution) {
