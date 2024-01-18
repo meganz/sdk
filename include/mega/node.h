@@ -476,7 +476,6 @@ class NodeData
 public:
     NodeData(const char* ptr, size_t size) : mStart(ptr), mEnd(ptr + size) {}
 
-    handle getInsharePeer();
     int getAttrLabel();
     handle getHandle();
 
@@ -490,7 +489,6 @@ private:
     handle mHandle = 0;
 
     const char* mSharesStart = nullptr;
-    handle mInsharePeer = 0;
 
     const char* mAttrsStart = nullptr;
     std::unique_ptr<AttrMap> mAttrs;

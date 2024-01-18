@@ -1746,45 +1746,6 @@ void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown, 
 }
 
 
-handle NodeData::getInsharePeer()
-{
-    if (mInsharePeer)
-    {
-        return mInsharePeer;
-    }
-
-    if ((!mSharesStart && !skipToShares()) || (mSharesStart + sizeof(short) > mEnd))
-    {
-        LOG_err << "Failed to skip to start of shares";
-        return UNDEF;
-    }
-
-    const char* ptr = mSharesStart;
-
-    short numshares = MemAccess::get<short>(ptr);
-    ptr += sizeof(numshares);
-    if (numshares >= 0 || (ptr + SymmCipher::KEYLENGTH > mEnd))
-    {
-        return UNDEF;
-    }
-
-    const byte* skey = (const byte*)ptr;
-    ptr += SymmCipher::KEYLENGTH;
-    std::unique_ptr<NewShare> newShare{ Share::unserialize(0, UNDEF, skey, &ptr, mEnd) };
-
-    if (newShare)
-    {
-        mInsharePeer = newShare->peer;
-        mAttrsStart = ptr; // optimization, in case attrs are needed later
-    }
-    else
-    {
-        mInsharePeer = UNDEF; // set it to UNDEF to avoid parsing it again
-    }
-
-    return mInsharePeer;
-}
-
 int NodeData::getAttrLabel()
 {
     if (!mAttrs)
@@ -1792,7 +1753,7 @@ int NodeData::getAttrLabel()
         if (!mAttrsStart && !skipToAttrs())
         {
             LOG_err << "Failed to skip to start of attrs";
-            return false;
+            return LBL_UNKNOWN;
         }
 
         mAttrs = ::mega::make_unique<AttrMap>();
@@ -1801,7 +1762,7 @@ int NodeData::getAttrLabel()
         {
             LOG_err << "Failed to unserialize attrs";
             assert(ptr);
-            return false;
+            return LBL_UNKNOWN;
         }
 
         static const nameid labelId = AttrMap::string2nameid("lbl");
