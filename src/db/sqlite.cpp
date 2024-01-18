@@ -198,13 +198,6 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
         return nullptr;
     }
 
-    if (sqlite3_create_function(db, u8"isverifiedinshare", 1, SQLITE_ANY, 0, &SqliteAccountState::userIsVerifiedInshare, 0, 0) != SQLITE_OK)
-    {
-        LOG_err << "Data base error(sqlite3_create_function userIsVerifiedInshare): " << sqlite3_errmsg(db);
-        sqlite3_close(db);
-        return nullptr;
-    }
-
     return new SqliteAccountState(rng,
                                 db,
                                 fsAccess,
@@ -1654,9 +1647,7 @@ bool SqliteAccountState::searchNodeShares(const NodeSearchFilter& filter, int or
                             "AS (SELECT nodehandle, parenthandle, flags, name, type, counter, node, "
                                        "size, ctime, mtime, share, mimetype, fav, label \n"
                                 "FROM nodes \n"
-                                "WHERE parenthandle IN (SELECT nodehandle FROM directshares "
-                                                       "WHERE share != " + std::to_string(IN_SHARES) + " OR isverifiedinshare(node)"
-                                                       ") \n"
+                                "WHERE parenthandle IN (SELECT nodehandle FROM directshares) \n"
                                 "UNION ALL \n"
                                 "SELECT N.nodehandle, N.parenthandle, N.flags, N.name, N.type, N.counter, N.node, "
                                        "N.size, N.ctime, N.mtime, N.share, N.mimetype, N.fav, N.label \n"
@@ -2526,33 +2517,6 @@ void SqliteAccountState::userGetMimetype(sqlite3_context* context, int argc, sql
     string ext;
     int result = (fileName && *fileName && Node::getExtension(ext, fileName) && !ext.empty()) ?
                  Node::getMimetype(ext) : MimeType_t::MIME_TYPE_UNKNOWN;
-    sqlite3_result_int(context, result);
-}
-
-/*static*/
-std::function<int(const char*, size_t)> SqliteAccountState::mVerifiedInshareCheck;
-
-void SqliteAccountState::userIsVerifiedInshare(sqlite3_context* context, int argc, sqlite3_value** argv)
-{
-    if (argc != 1)
-    {
-        LOG_err << "Invalid parameters for userIsVerifiedInshare";
-        assert(argc == 1);
-        sqlite3_result_int(context, 0);
-        return;
-    }
-
-    if (!mVerifiedInshareCheck)
-    {
-        LOG_err << "Mechanism for checking verified inshare from blob data not set";
-        sqlite3_result_int(context, 0);
-        return;
-    }
-
-    const char* nodeData = static_cast<const char*>(sqlite3_value_blob(argv[0]));
-    size_t nodeSize = static_cast<size_t>(sqlite3_value_bytes(argv[0]));
-    int result = mVerifiedInshareCheck(nodeData, nodeSize);
-
     sqlite3_result_int(context, result);
 }
 

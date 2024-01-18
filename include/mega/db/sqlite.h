@@ -172,12 +172,6 @@ public:
     // Gets the mimetype corresponding to the file extension
     static void userGetMimetype(sqlite3_context* context, int argc, sqlite3_value** argv);
 
-    // Method called when query uses 'isverifiedinshare'
-    static void userIsVerifiedInshare(sqlite3_context* context, int argc, sqlite3_value** argv);
-
-    // Method called from userIsVerifiedInshare() when query uses 'isverifiedinshare'
-    static void setVerifiedInshareCheck(std::function<int(const char*, size_t)> verifiedInshareCheck) { mVerifiedInshareCheck = verifiedInshareCheck; }
-
 private:
     // Iterate over a SQL query row by row and fill the map
     // Allow at least the following containers:
@@ -228,11 +222,6 @@ private:
     // how many SQLite instructions will be executed between callbacks to the progress handler
     // (tests with a value of 1000 results on a callback every 1.2ms on a desktop PC)
     static const int NUM_VIRTUAL_MACHINE_INSTRUCTIONS = 1000;
-
-    // On-the-fly db function that uses MegaClient instance.
-    // Usually there is only one MegaClient instance created, but at least in tests multiple instances are created.
-    // TODO: find a way to not depend on a particular MegaClient instance.
-    static std::function<int(const char*, size_t)> mVerifiedInshareCheck;
 };
 
 class MEGA_API SqliteDbAccess : public DbAccess

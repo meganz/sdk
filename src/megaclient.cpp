@@ -10811,16 +10811,6 @@ void MegaClient::opensctable()
             {
                 DBTableNodes *nodeTable = dynamic_cast<DBTableNodes *>(sctable.get());
                 assert(nodeTable);
-                MegaClient& cl = *this; // alias for lambdas
-
-                // set a mechanism for checking that an inshare was verified
-                auto verifiedInshareCheck = [&cl](const char* nodeData, size_t size) -> int
-                {
-                    NodeData nd(nodeData, size);
-                    return !cl.mKeyManager.isUnverifiedInShare(nd.getHandle(), nd.getInsharePeer());
-                };
-                SqliteAccountState::setVerifiedInshareCheck(verifiedInshareCheck);
-
                 mNodeManager.setTable(nodeTable);
 
                 // DB connection always has a transaction started (applies to both tables, statecache and nodes)
