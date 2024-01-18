@@ -43,6 +43,8 @@ const dstime Sync::RECENT_VERSION_INTERVAL_SECS = 10800;
 
 const unsigned Sync::MAX_CLOUD_DEPTH = 64;
 
+const std::chrono::milliseconds Syncs::DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT{2000};
+
 #define SYNC_verbose if (syncs.mDetailedSyncLogging) LOG_verbose
 
 bool PerSyncStats::operator==(const PerSyncStats& other)
@@ -3954,8 +3956,6 @@ void Syncs::getSyncProblems(std::function<void(unique_ptr<SyncProblems>)> comple
 
 size_t Syncs::getSyncStallsTotal() const
 {
-    //list<NameConflict> conflicts;
-    //size_t numConflicts = conflictsDetected(&conflicts);
     size_t numCloudIssues = 0;
     size_t numLocalIssues = 0;
     if (syncStallState)
@@ -3979,13 +3979,12 @@ size_t Syncs::getSyncStallsTotal() const
             }
         }
     }
-    //return numConflicts + numCloudIssues + numLocalIssues;
     return numCloudIssues + numLocalIssues;
 }
 
 size_t Syncs::getSyncConflictsTotal(size_t stopIfGreaterThan = 0) const
 {
-    size_t numConflicts = conflictsDetected(stopIfGreaterThan);
+    size_t numConflicts = conflictsDetectedCount(stopIfGreaterThan);
     return numConflicts;
 }
 
@@ -3994,7 +3993,7 @@ void Syncs::getSyncProblems_inThread(SyncProblems& problems)
     assert(onSyncThread());
 
     problems.mStallsDetected = syncStallState;
-    problems.mConflictsDetected = conflictsDetected(&problems.mConflicts);
+    problems.mConflictsDetected = conflictsDetected(problems.mConflicts);
 
     int numCloudIssues = 0;
     int numLocalIssues = 0;
@@ -4106,7 +4105,13 @@ void Syncs::getSyncProblems_inThread(SyncProblems& problems)
     }
 
     if (numCloudIssues || numLocalIssues) mClient.app->syncupdate_totalstalls(false);
-    if (problems.mConflictsDetected) mClient.app->syncupdate_totalconflicts(false);
+    if (problems.mConflictsDetected)
+    {
+        // totalSyncConflicts is set by getSyncConflictsTotal, whose count is limited by the previous number of conflicts + 1, in order to avoid extra recursive operations as the full count is not needed
+        // This updates the counter to the real number of conflicts, so we avoid incremental updates later (from previous_conflicts_size + 1 to actual_conflicts_size)
+        totalSyncConflicts.store(problems.mConflicts.size());
+        mClient.app->syncupdate_totalconflicts(false);
+    }
 }
 
 void Syncs::getSyncStatusInfo(handle backupID,
@@ -6395,15 +6400,20 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
     mClient.app->syncs_restored(NO_SYNC_ERROR);
 }
 
-bool Sync::recursiveCollectNameConflicts(list<NameConflict>& conflicts)
+bool Sync::recursiveCollectNameConflicts(list<NameConflict>* conflicts, size_t* count, size_t* stopIfGreaterThan)
 {
     assert(syncs.onSyncThread());
 
+    if (!conflicts && !count)
+    {
+        assert(false && "Either a list of conflicts or a counter must be present");
+        return false;
+    }
     FSNode rootFsNode(localroot->getLastSyncedFSDetails());
     SyncRow row{ &cloudRoot, localroot.get(), &rootFsNode };
     SyncPath pathBuffer(syncs, localroot->localname, cloudRootPath);
-    recursiveCollectNameConflicts(row, conflicts, pathBuffer);
-    return !conflicts.empty();
+    recursiveCollectNameConflicts(row, pathBuffer, conflicts, count, stopIfGreaterThan);
+    return (conflicts && !conflicts->empty()) || (count && *count);
 }
 
 void Sync::purgeStaleDownloads()
@@ -6514,12 +6524,19 @@ void SyncRow::inferOrCalculateChildSyncRows(bool wasSynced, vector<SyncRow>& chi
 }
 
 
-void Sync::recursiveCollectNameConflicts(SyncRow& row, list<NameConflict>& ncs, SyncPath& fullPath)
+void Sync::recursiveCollectNameConflicts(SyncRow& row, SyncPath& fullPath, list<NameConflict>* ncs, size_t* count, size_t* stopIfGreaterThan)
 {
     assert(syncs.onSyncThread());
 
     assert(row.syncNode);
     if (!row.syncNode->conflictsDetected())
+    {
+        return;
+    }
+
+    assert(ncs || count);
+    assert(!stopIfGreaterThan || count);
+    if (stopIfGreaterThan && count && *count > *stopIfGreaterThan)
     {
         return;
     }
@@ -6543,29 +6560,40 @@ void Sync::recursiveCollectNameConflicts(SyncRow& row, list<NameConflict>& ncs, 
     {
         if (childRow.hasClashes())
         {
-            NameConflict nc;
+            if (ncs)
+            {
+                NameConflict nc;
 
-            if (childRow.hasCloudPresence())
-                nc.cloudPath = fullPath.cloudPath;
+                if (childRow.hasCloudPresence())
+                    nc.cloudPath = fullPath.cloudPath;
 
-            if (childRow.hasLocalPresence())
-                nc.localPath = fullPath.localPath;
+                if (childRow.hasLocalPresence())
+                    nc.localPath = fullPath.localPath;
 
-            // Only meaningful if there are no cloud clashes.
-            if (auto* c = childRow.cloudNode)
-                nc.clashingCloud.emplace_back(c->name, c->handle);
+                // Only meaningful if there are no cloud clashes.
+                if (auto* c = childRow.cloudNode)
+                    nc.clashingCloud.emplace_back(c->name, c->handle);
 
-            // Only meaningful if there are no local clashes.
-            if (auto* f = childRow.fsNode)
-                nc.clashingLocalNames.emplace_back(f->localname);
+                // Only meaningful if there are no local clashes.
+                if (auto* f = childRow.fsNode)
+                    nc.clashingLocalNames.emplace_back(f->localname);
 
-            for (auto* c : childRow.cloudClashingNames)
-                nc.clashingCloud.emplace_back(c->name, c->handle);
+                for (auto* c : childRow.cloudClashingNames)
+                    nc.clashingCloud.emplace_back(c->name, c->handle);
 
-            for (auto* f : childRow.fsClashingNames)
-                nc.clashingLocalNames.emplace_back(f->localname);
+                for (auto* f : childRow.fsClashingNames)
+                    nc.clashingLocalNames.emplace_back(f->localname);
 
-            ncs.emplace_back(std::move(nc));
+                ncs->emplace_back(std::move(nc));
+            }
+            if (count)
+            {
+                ++*count;
+                if (stopIfGreaterThan && *count > *stopIfGreaterThan)
+                {
+                    break;
+                }
+            }
         }
 
         // recurse after dealing with all items, so any renames within the folder have been completed
@@ -6582,7 +6610,7 @@ void Sync::recursiveCollectNameConflicts(SyncRow& row, list<NameConflict>& ncs, 
                 continue;
             }
 
-            recursiveCollectNameConflicts(childRow, ncs, fullPath);
+            recursiveCollectNameConflicts(childRow, fullPath, ncs, count, stopIfGreaterThan);
         }
     }
 }
@@ -12073,18 +12101,20 @@ void Syncs::syncLoop()
                 ++mSyncFlags->noProgressCount;
             }
 
-            bool conflictsNow = conflictsDetected(nullptr);
+            bool conflictsNow = conflictsDetectedCount(0);
             if (conflictsNow != syncConflictState)
             {
                 assert(onSyncThread());
                 syncConflictState = conflictsNow;
                 mClient.app->syncupdate_totalconflicts(false);
                 mClient.app->syncupdate_conflicts(conflictsNow);
-                if (!conflictsNow) totalSyncConflicts.store(0);
+                if (conflictsNow) lastSyncConflictsCount = std::chrono::steady_clock::now();
+                else totalSyncConflicts.store(0);
                 assert(!totalSyncConflicts.load());
                 LOG_info << mClient.clientname << "Sync conflicting paths state app notified: " << conflictsNow;
             }
-            else if (conflictsNow)
+            else if (conflictsNow &&
+                    ((std::chrono::steady_clock::now() - lastSyncConflictsCount) > DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT))
             {
                 auto updatedSyncConflictsTotal = getSyncConflictsTotal(totalSyncConflicts.load());
                 if (totalSyncConflicts.load() != updatedSyncConflictsTotal)
@@ -12094,7 +12124,7 @@ void Syncs::syncLoop()
                     LOG_info << mClient.clientname << "Sync conflicting paths state app update notified [previousSyncConflictsTotal = " << totalSyncConflicts.load() << ", updatedSyncConflictsTotal = " << updatedSyncConflictsTotal << "]";
                     totalSyncConflicts.store(updatedSyncConflictsTotal);
                 }
-                else mClient.app->syncupdate_totalconflicts(false);
+                lastSyncConflictsCount = std::chrono::steady_clock::now();
             }
         }
 
@@ -12244,11 +12274,13 @@ void Syncs::syncLoop()
                 syncStallState = stalled;
                 mClient.app->syncupdate_totalstalls(false);
                 mClient.app->syncupdate_stalled(stalled);
-                if (!stalled) totalSyncStalls.store(0);
+                if (stalled) lastSyncStallsCount = std::chrono::steady_clock::now();
+                else totalSyncStalls.store(0);
                 assert(!totalSyncStalls.load());
                 LOG_warn << mClient.clientname << "Stall state app notified: " << stalled;
             }
-            else if (stalled)
+            else if (stalled &&
+                    ((std::chrono::steady_clock::now() - lastSyncStallsCount) > DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT))
             {
                 auto updatedSyncStallsTotal = getSyncStallsTotal();
                 if (totalSyncStalls.load() != updatedSyncStallsTotal)
@@ -12258,7 +12290,7 @@ void Syncs::syncLoop()
                     LOG_warn << mClient.clientname << "Stall state app update notified [previousSyncStallsTotal = " << totalSyncStalls.load() << ", updatedSyncStallsTotal = " << updatedSyncStallsTotal << "]";
                     totalSyncStalls.store(updatedSyncStallsTotal);
                 }
-                else mClient.app->syncupdate_totalstalls(false);
+                lastSyncStallsCount = std::chrono::steady_clock::now();
             }
 
             ++completedPassCount;
@@ -12326,11 +12358,9 @@ bool Syncs::mightAnySyncsHaveMoves()
     return false;
 }
 
-bool Syncs::conflictsDetected(list<NameConflict>* conflicts) const
+bool Syncs::conflictsDetected(list<NameConflict>& conflicts) const
 {
     assert(onSyncThread());
-
-    bool anyDetected = false;
 
     for (auto& us : mSyncVec)
     {
@@ -12338,33 +12368,35 @@ bool Syncs::conflictsDetected(list<NameConflict>* conflicts) const
         {
             if (sync->localroot->conflictsDetected())
             {
-                anyDetected = true;
-                if (!conflicts) break; // We already set anyDetected
-                sync->recursiveCollectNameConflicts(*conflicts);
+                sync->recursiveCollectNameConflicts(&conflicts);
             }
         }
     }
-    return anyDetected;
+    return !conflicts.empty();
 }
 
-size_t Syncs::conflictsDetected(size_t stopIfGreaterThan) const
+size_t Syncs::conflictsDetectedCount(size_t stopIfGreaterThan) const
 {
     assert(onSyncThread());
 
-    list<NameConflict> conflicts;
-
+    size_t count = 0;
     for (auto& us : mSyncVec)
     {
         if (Sync* sync = us->mSync.get())
         {
             if (sync->localroot->conflictsDetected())
             {
-                sync->recursiveCollectNameConflicts(conflicts);
-                if (conflicts.size() > stopIfGreaterThan) break; // If there are more conflicts than before, it needs an update.
+                if (stopIfGreaterThan == 0)
+                {
+                    count = 1;
+                    break;
+                }
+                sync->recursiveCollectNameConflicts(nullptr, &count, &stopIfGreaterThan);
+                if (count > stopIfGreaterThan) break;
             }
         }
     }
-    return conflicts.size();
+    return count;
 }
 
 bool Syncs::syncStallDetected(SyncStallInfo& si) const
@@ -12402,7 +12434,7 @@ void Syncs::collectSyncNameConflicts(handle backupId, std::function<void(list<Na
             {
                 if (us->mSync && (us->mConfig.mBackupId == backupId || backupId == UNDEF))
                 {
-                    us->mSync->recursiveCollectNameConflicts(nc);
+                    us->mSync->recursiveCollectNameConflicts(&nc);
                 }
             }
             finalcompletion(move(nc));

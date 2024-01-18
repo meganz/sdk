@@ -540,8 +540,8 @@ public:
     bool checkForCompletedFolderCreateHere(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult);
     bool checkForCompletedCloudMovedToDebris(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult);
 
-    void recursiveCollectNameConflicts(SyncRow& row, list<NameConflict>& nc, SyncPath& fullPath);
-    bool recursiveCollectNameConflicts(list<NameConflict>& nc);
+    void recursiveCollectNameConflicts(SyncRow& row, SyncPath& fullPath, list<NameConflict>* ncs, size_t* count = nullptr, size_t* stopIfGreaterThan = nullptr);
+    bool recursiveCollectNameConflicts(list<NameConflict>* conflicts, size_t* count = nullptr, size_t* stopIfGreaterThan = nullptr);
 
     void purgeStaleDownloads();
     bool makeSyncNode_fromFS(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool considerSynced);
@@ -1144,8 +1144,8 @@ public:
     void setSyncsNeedFullSync(bool andFullScan, bool andReFingerprint, handle backupId);
 
     // retrieves information about any detected name conflicts.
-    bool conflictsDetected(list<NameConflict>* conflicts) const;
-    size_t conflictsDetected(size_t stopIfGreaterThan) const;
+    bool conflictsDetected(list<NameConflict>& conflicts) const;
+    size_t conflictsDetectedCount(size_t stopIfGreaterThan) const;
 
     bool syncStallDetected(SyncStallInfo& si) const;
 
@@ -1206,6 +1206,9 @@ public:
 
     std::atomic<size_t> totalSyncConflicts{0};
     std::atomic<size_t> totalSyncStalls{0};
+    std::chrono::steady_clock::time_point lastSyncConflictsCount{std::chrono::steady_clock::now()};
+    std::chrono::steady_clock::time_point lastSyncStallsCount{std::chrono::steady_clock::now()};
+    static const std::chrono::milliseconds DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT;
 
     // for quick lock free reference by MegaApiImpl::syncPathState (don't slow down windows explorer)
     bool mSyncVecIsEmpty = true;

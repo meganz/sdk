@@ -4080,7 +4080,7 @@ bool StandardClient::conflictsDetected(list<NameConflict>& conflicts)
     bool result = false;
 
     client.syncs.syncRun([&](){
-        result = client.syncs.conflictsDetected(&conflicts);
+        result = client.syncs.conflictsDetected(conflicts);
         pb->set_value(true);
     }, "StandardClient::conflictsDetected");
 
