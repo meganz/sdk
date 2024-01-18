@@ -111,6 +111,7 @@ public:
 };
 
 class NodeSearchFilter;
+class NodeSearchPage;
 
 class MEGA_API DBTableNodes
 {

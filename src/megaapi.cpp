@@ -6797,6 +6797,34 @@ int64_t MegaSearchFilter::byModificationTimeUpperLimit() const
     return 0;
 }
 
+MegaSearchPage::MegaSearchPage()
+{
+}
+
+MegaSearchPage* MegaSearchPage::createInstance(size_t startingOffset, size_t size)
+{
+    return new MegaSearchPagePrivate(startingOffset, size);
+}
+
+MegaSearchPage* MegaSearchPage::copy() const
+{
+    return nullptr;
+}
+
+MegaSearchPage::~MegaSearchPage()
+{
+}
+
+size_t MegaSearchPage::startingOffset() const
+{
+    return 0u;
+}
+
+size_t MegaSearchPage::size() const
+{
+    return 0u;
+}
+
 MegaApiLock::MegaApiLock(MegaApiImpl* ptr, bool lock) : api(ptr)
 {
     if (lock)

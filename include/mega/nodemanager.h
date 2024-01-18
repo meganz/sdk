@@ -93,6 +93,18 @@ private:
     int64_t mModificationUpperLimit = 0;
 };
 
+class NodeSearchPage
+{
+public:
+    NodeSearchPage(size_t startingOffset, size_t size) : mOffset(startingOffset), mSize(size) {}
+    const size_t& startingOffset() const { return mOffset; }
+    const size_t& size() const { return mSize; }
+
+private:
+    size_t mOffset;
+    size_t mSize;
+};
+
 /**
  * @brief The NodeManager class
  *

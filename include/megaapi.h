@@ -9464,6 +9464,56 @@ public:
     virtual int64_t byModificationTimeUpperLimit() const;
 };
 
+/**
+ * @brief Store pagination options used in searches @see MegaApi::search, MegaApi::getChildren.
+ *
+ */
+class MegaSearchPage
+{
+protected:
+    MegaSearchPage();
+
+public:
+    /**
+     * @brief Creates a new instance of MegaSearchPage
+     *
+     * @param startingOffset The first position in the list of results to be included in the returned page (starts from 0).
+     * @param size The maximum number of results included in the page, or 0 to return all (remaining) results
+     *
+     * @return A pointer of current type, a superclass of the private object
+     */
+    static MegaSearchPage* createInstance(size_t startingOffset, size_t size);
+
+    /**
+     * @brief Create a copy of this instance.
+     *
+     * The resulted instance is fully independent of the source instance,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original instance was deleted.
+     *
+     * You are the owner of the returned instance
+     *
+     * @return Copy of the current instance
+     */
+    virtual MegaSearchPage* copy() const;
+
+    virtual ~MegaSearchPage();
+
+    /**
+     * @brief Return the first position in the list of results to be included in the returned page (starts from 0)
+     *
+     * @return first position in the list of results to be included in the returned page (starts from 0)
+     */
+    virtual size_t startingOffset() const;
+
+    /**
+     * @brief Return the maximum number of results included in the page, or 0 to return all (remaining) results
+     *
+     * @return maximum number of results included in the page, or 0 to return all (remaining) results
+     */
+    virtual size_t size() const;
+};
+
 class MegaNodeTree
 {
 protected:

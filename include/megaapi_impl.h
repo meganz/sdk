@@ -2825,6 +2825,19 @@ private:
     int64_t mModificationUpperLimit = 0;
 };
 
+class MegaSearchPagePrivate : public MegaSearchPage
+{
+public:
+    MegaSearchPagePrivate(size_t startingOffset, size_t size) : mOffset(startingOffset), mSize(size) {}
+    MegaSearchPagePrivate* copy() const override { return new MegaSearchPagePrivate(*this); }
+    size_t startingOffset() const override { return mOffset; }
+    size_t size() const override { return mSize; }
+
+private:
+    size_t mOffset;
+    size_t mSize;
+};
+
 
 class MegaApiImpl : public MegaApp
 {
