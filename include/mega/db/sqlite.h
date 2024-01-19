@@ -191,9 +191,9 @@ private:
     sqlite3_stmt* mStmtChildrenFromType = nullptr;
 
     sqlite3_stmt* mStmtNumChildren = nullptr;
-    std::map<int, sqlite3_stmt*> mStmtGetChildren;
-    std::map<int, sqlite3_stmt*> mStmtSearchNodes;
-    std::map<int, sqlite3_stmt*> mStmtSearchNodeShares;
+    std::map<size_t, sqlite3_stmt*> mStmtGetChildren;
+    std::map<size_t, sqlite3_stmt*> mStmtSearchNodes;
+    std::map<size_t, sqlite3_stmt*> mStmtSearchNodeShares;
 
     /** @deprecated */
     sqlite3_stmt* mStmtNodeByName = nullptr;
@@ -270,11 +270,11 @@ private:
     bool migrateDataToColumns(sqlite3* db, vector<NewColumn>&& cols);
 };
 
-class OrderBy2Clause
+class OrderByClause
 {
 public:
     static std::string get(int order, int sqlParamIndex);
-    static int getId(int order);
+    static size_t getId(int order);
 
 private:
     enum {
@@ -286,7 +286,7 @@ private:
         FAV_ASC, FAV_DESC
     };
 
-    static std::pair<bool, bool> getDescendingDirs(int order);
+    static std::bitset<3> getDescendingDirs(int order);
 };
 
 } // namespace

@@ -1472,7 +1472,7 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int o
 
     // There are 2 criteria used (so far) in ORDER BY clause.
     // For every combination of order-by directions, a separate query will be necessary.
-    int cacheId = OrderBy2Clause::getId(order);
+    size_t cacheId = OrderByClause::getId(order);
     sqlite3_stmt*& stmt = mStmtGetChildren[cacheId];
 
     int sqlResult = SQLITE_OK;
@@ -1500,7 +1500,7 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int o
                                  // Our REGEXP implementation is case insensitive
 
                                "ORDER BY \n" +
-                                  OrderBy2Clause::get(order, 10) + " \n" + // use ?10 for bound value
+                                  OrderByClause::get(order, 10) + " \n" + // use ?10 for bound value
 
                                "LIMIT ?12 OFFSET ?13";
 
@@ -1561,7 +1561,7 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
 
     // There are 2 criteria used (so far) in ORDER BY clause.
     // For every combination of order-by directions, a separate query will be necessary.
-    int cacheId = OrderBy2Clause::getId(order);
+    size_t cacheId = OrderByClause::getId(order);
     sqlite3_stmt*& stmt = mStmtSearchNodes[cacheId];
 
     int sqlResult = SQLITE_OK;
@@ -1611,7 +1611,7 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
 
                                /// order goes here
                                "ORDER BY \n" +
-                                  OrderBy2Clause::get(order, 10) + " \n" + // use ?10 for bound value
+                                  OrderByClause::get(order, 10) + " \n" + // use ?10 for bound value
 
                                "LIMIT ?14 OFFSET ?15";
 
@@ -1674,7 +1674,7 @@ bool SqliteAccountState::searchNodeShares(const NodeSearchFilter& filter, int or
 
     // There are 2 criteria used (so far) in ORDER BY clause.
     // For every combination of order-by directions, a separate query will be necessary.
-    int cacheId = OrderBy2Clause::getId(order);
+    size_t cacheId = OrderByClause::getId(order);
     sqlite3_stmt*& stmt = mStmtSearchNodeShares[cacheId];
 
     int sqlResult = SQLITE_OK;
@@ -1736,7 +1736,7 @@ bool SqliteAccountState::searchNodeShares(const NodeSearchFilter& filter, int or
                             "SELECT * FROM shares \n"
                             /// order goes here
                             "ORDER BY \n" +
-                               OrderBy2Clause::get(order, 9) + " \n" + // use ?9 for bound value
+                               OrderByClause::get(order, 9) + " \n" + // use ?9 for bound value
 
                             "LIMIT ?12 OFFSET ?13";
 
@@ -2588,7 +2588,7 @@ void SqliteAccountState::userGetMimetype(sqlite3_context* context, int argc, sql
     sqlite3_result_int(context, result);
 }
 
-std::string OrderBy2Clause::get(int order, int sqlParamIndex)
+std::string OrderByClause::get(int order, int sqlParamIndex)
 {
     std::string criteria1 =
         "WHEN " + std::to_string(DEFAULT_ASC)  + " THEN type \n"  // folders first
@@ -2611,9 +2611,10 @@ std::string OrderBy2Clause::get(int order, int sqlParamIndex)
         "WHEN " + std::to_string(FAV_ASC)  + " THEN fav \n"
         "WHEN " + std::to_string(FAV_DESC) + " THEN fav \n";
 
-    std::pair<bool, bool> dirs = getDescendingDirs(order);
-    std::string direction1 = dirs.first ? "DESC" : "";
-    std::string direction2 = dirs.second ? "DESC" : "";
+    std::bitset<3> dirs = getDescendingDirs(order);
+    std::string direction1 = dirs[0] ? "DESC" : "";
+    std::string direction2 = dirs[1] ? "DESC" : "";
+    std::string direction3 = dirs[2] ? "DESC" : "";
 
     std::string x = '?' + std::to_string(sqlParamIndex);
 
@@ -2623,36 +2624,45 @@ std::string OrderBy2Clause::get(int order, int sqlParamIndex)
         "END " + direction1 + ", \n"
         "CASE " + x +
         criteria2 +
-        "END " + direction2;
+        "END " + direction2 + ", \n"
+        // always order by PK last, to get the same order for identical queries
+        "nodehandle " + direction3;
 
     return clause;
 }
 
-int OrderBy2Clause::getId(int order)
+size_t OrderByClause::getId(int order)
 {
-    std::pair<int, int> dirs = getDescendingDirs(order);
-    int id = (dirs.first << 1) + dirs.second;
+    std::bitset<3> dirs = getDescendingDirs(order);
+    size_t id = dirs.to_ulong();
     return id;
 }
 
-std::pair<bool, bool> OrderBy2Clause::getDescendingDirs(int order)
+std::bitset<3> OrderByClause::getDescendingDirs(int order)
 {
-    std::pair<bool, bool> dirs; // {false, false} by default
+    std::bitset<3> dirs;
 
     switch (order)
     {
-    case DEFAULT_ASC:
     case SIZE_DESC:
     case CTIME_DESC:
     case MTIME_DESC:
+        dirs[2] = true; // DESC, by PK
+        [[fallthrough]];
+    case DEFAULT_ASC:
     case LABEL_ASC:
     case FAV_ASC:
-        dirs.first = true; break;
+        dirs[0] = true; break;
     case DEFAULT_DESC:
-        dirs.second = true; break;
+        dirs[1] = true;
+        dirs[2] = true; // DESC, by PK
+        break;
     case LABEL_DESC:
     case FAV_DESC:
-        dirs.first = dirs.second = true; break;
+        dirs[0] = true;
+        dirs[1] = true;
+        dirs[2] = true; // DESC, by PK
+        break;
     case SIZE_ASC:
     case CTIME_ASC:
     case MTIME_ASC:
