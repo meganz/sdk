@@ -505,21 +505,41 @@ static char* to_string(int num) {
 
 static char* str_replace(char *orig, const char *rep, const char *with) {
     if (!orig) return NULL; // Nothing to do
-    if (!rep) return orig;  // We do not want to replace nothing
+    if (!rep) return orig;  // We do not want to replace anything
 
     size_t rep_len = strlen(rep);
     if (rep_len == 0) return orig;
 
     const char* aux_with = with ? with : "";
     size_t with_len = strlen(aux_with);
+    size_t orig_len = strlen(orig);
 
     std::string aux_result {orig};
 
     size_t start_pos = 0;
+    size_t count = 0;
     while ((start_pos = aux_result.find(rep, start_pos)) != std::string::npos)
     {
-        aux_result.replace(start_pos, rep_len, with);
-        start_pos += with_len;
+        if (rep_len < with_len)
+        {
+            ++count;
+            start_pos += rep_len;
+        }
+        else
+        {
+            aux_result.replace(start_pos, rep_len, with);
+            start_pos += with_len;
+        }
+    }
+    if (rep_len < with_len && count)
+    {
+        aux_result.reserve(orig_len + (with_len - rep_len) * count + 1);
+        start_pos = 0;
+        while ((start_pos = aux_result.find(rep, start_pos)) != std::string::npos)
+        {
+            aux_result.replace(start_pos, rep_len, with);
+            start_pos += with_len;
+        }
     }
 
     char* result = (char*) cronMalloc(aux_result.length() + 1);
