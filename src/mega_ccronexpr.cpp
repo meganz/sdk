@@ -512,8 +512,8 @@ static char* string_to_char_ptr(const std::string& str) {
 }
 
 static char* str_replace(char *orig, const char *rep, const char *with) {
-    if (!orig) return NULL; // Nothing to do
-    if (!rep) return orig;  // We do not want to replace anything
+    if (!orig) return nullptr; // Nothing to do
+    if (!rep) return orig;     // We do not want to replace anything
 
     size_t rep_len = strlen(rep);
     if (rep_len == 0) return orig;
@@ -528,26 +528,20 @@ static char* str_replace(char *orig, const char *rep, const char *with) {
     size_t count = 0;
     while ((start_pos = aux_result.find(rep, start_pos)) != std::string::npos)
     {
-        if (rep_len < with_len)
-        {
-            ++count;
-            start_pos += rep_len;
-        }
-        else
-        {
-            aux_result.replace(start_pos, rep_len, with);
-            start_pos += with_len;
-        }
+        ++count;
+        start_pos += rep_len;
     }
-    if (rep_len < with_len && count)
+    if (!count) return orig;
+
+    if (rep_len < with_len)
     {
         aux_result.reserve(orig_len + (with_len - rep_len) * count + 1);
-        start_pos = 0;
-        while ((start_pos = aux_result.find(rep, start_pos)) != std::string::npos)
-        {
-            aux_result.replace(start_pos, rep_len, with);
-            start_pos += with_len;
-        }
+    }
+    start_pos = 0;
+    while ((start_pos = aux_result.find(rep, start_pos)) != std::string::npos)
+    {
+        aux_result.replace(start_pos, rep_len, with);
+        start_pos += with_len;
     }
     return string_to_char_ptr(aux_result);
 }
