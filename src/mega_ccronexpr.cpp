@@ -507,15 +507,19 @@ static char* str_replace(char *orig, const char *rep, const char *with) {
     if (!orig) return NULL; // Nothing to do
     if (!rep) return orig;  // We do not want to replace nothing
 
+    size_t rep_len = strlen(rep);
+    if (rep_len == 0) return orig;
+
+    const char* aux_with = with ? with : "";
+    size_t with_len = strlen(aux_with);
+
     std::string aux_result {orig};
-    const std::string aux_rep {rep};
-    const std::string aux_with = with ? with : "";
 
     size_t start_pos = 0;
     while ((start_pos = aux_result.find(rep, start_pos)) != std::string::npos)
     {
-        aux_result.replace(start_pos, aux_rep.length(), with);
-        start_pos += aux_with.length();
+        aux_result.replace(start_pos, rep_len, with);
+        start_pos += with_len;
     }
 
     char* result = (char*) cronMalloc(aux_result.length() + 1);
