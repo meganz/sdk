@@ -43,7 +43,8 @@ const dstime Sync::RECENT_VERSION_INTERVAL_SECS = 10800;
 
 const unsigned Sync::MAX_CLOUD_DEPTH = 64;
 
-const std::chrono::milliseconds Syncs::DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT{2000};
+const std::chrono::milliseconds Syncs::MIN_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT{100}; // 100 ms
+const std::chrono::milliseconds Syncs::MAX_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT{10000}; // 10 secs
 
 #define SYNC_verbose if (syncs.mDetailedSyncLogging) LOG_verbose
 
@@ -3954,7 +3955,34 @@ void Syncs::getSyncProblems(std::function<void(unique_ptr<SyncProblems>)> comple
     }, "getSyncProblems");
 }
 
-size_t Syncs::getSyncStallsTotal() const
+bool Syncs::stallsDetected(SyncStallInfo& stallInfo)
+{
+    assert(!onSyncThread());
+
+    // if we're not actually in stall state then don't report things
+    // that we are waiting on that migtht come right, only report definites.
+    for (auto& r: stallReport.cloud)
+    {
+        if (syncStallState || r.second.alertUserImmediately)
+        {
+            stallInfo.cloud.insert(r);
+        }
+    }
+    for (auto& r: stallReport.local)
+    {
+        if (syncStallState || r.second.alertUserImmediately)
+        {
+            stallInfo.local.insert(r);
+        }
+    }
+    // Disable sync stalls update flag
+    mClient.app->syncupdate_totalstalls(false);
+    // Update totalSyncStalls just in case it is different since last check
+    totalSyncStalls.store(stallInfo.cloud.size() + stallInfo.local.size());
+    return syncStallState;
+}
+
+size_t Syncs::stallsDetectedCount() const
 {
     size_t numCloudIssues = 0;
     size_t numLocalIssues = 0;
@@ -3982,40 +4010,12 @@ size_t Syncs::getSyncStallsTotal() const
     return numCloudIssues + numLocalIssues;
 }
 
-size_t Syncs::getSyncConflictsTotal(size_t stopIfGreaterThan = 0) const
-{
-    size_t numConflicts = conflictsDetectedCount(stopIfGreaterThan);
-    return numConflicts;
-}
-
 void Syncs::getSyncProblems_inThread(SyncProblems& problems)
 {
     assert(onSyncThread());
 
-    problems.mStallsDetected = syncStallState;
+    problems.mStallsDetected = stallsDetected(problems.mStalls);
     problems.mConflictsDetected = conflictsDetected(problems.mConflicts);
-
-    int numCloudIssues = 0;
-    int numLocalIssues = 0;
-
-    // if we're not actually in stall state then don't report things
-    // that we are waiting on that migtht come right, only report definites.
-    for (auto& r: stallReport.cloud)
-    {
-        if (syncStallState || r.second.alertUserImmediately)
-        {
-            ++numCloudIssues;
-            problems.mStalls.cloud.insert(r);
-        }
-    }
-    for (auto& r: stallReport.local)
-    {
-        if (syncStallState || r.second.alertUserImmediately)
-        {
-            ++numLocalIssues;
-            problems.mStalls.local.insert(r);
-        }
-    }
 
     // Try to present just one item for a move/rename, instead of two.
     // We may have generated two items, one for the source node
@@ -4102,15 +4102,6 @@ void Syncs::getSyncProblems_inThread(SyncProblems& problems)
                 }
             }
         }
-    }
-
-    if (numCloudIssues || numLocalIssues) mClient.app->syncupdate_totalstalls(false);
-    if (problems.mConflictsDetected)
-    {
-        // totalSyncConflicts is set by getSyncConflictsTotal, whose count is limited by the previous number of conflicts + 1, in order to avoid extra recursive operations as the full count is not needed
-        // This updates the counter to the real number of conflicts, so we avoid incremental updates later (from previous_conflicts_size + 1 to actual_conflicts_size)
-        totalSyncConflicts.store(problems.mConflicts.size());
-        mClient.app->syncupdate_totalconflicts(false);
     }
 }
 
@@ -12108,23 +12099,37 @@ void Syncs::syncLoop()
                 syncConflictState = conflictsNow;
                 mClient.app->syncupdate_totalconflicts(false);
                 mClient.app->syncupdate_conflicts(conflictsNow);
-                if (conflictsNow) lastSyncConflictsCount = std::chrono::steady_clock::now();
-                else totalSyncConflicts.store(0);
-                assert(!totalSyncConflicts.load());
+                if (conflictsNow)
+                {
+                    assert(!totalSyncConflicts.load());
+                    auto conflictsCount = conflictsDetectedCount();
+                    totalSyncConflicts.store(conflictsCount);
+                    lastSyncConflictsCount = std::chrono::steady_clock::now();
+                }
+                else
+                {
+                    totalSyncConflicts.store(0);
+                }
                 LOG_info << mClient.clientname << "Sync conflicting paths state app notified: " << conflictsNow;
             }
-            else if (conflictsNow &&
-                    ((std::chrono::steady_clock::now() - lastSyncConflictsCount) > DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT))
+            else if (conflictsNow && !mClient.app->isSyncStalledChanged() &&
+                    ((std::chrono::steady_clock::now() - lastSyncConflictsCount) >= MIN_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT))
             {
-                auto updatedSyncConflictsTotal = getSyncConflictsTotal(totalSyncConflicts.load());
-                if (totalSyncConflicts.load() != updatedSyncConflictsTotal)
+                auto minDelayBetweenConflictsCount = std::min(std::max(MIN_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT,
+                                                                        std::chrono::milliseconds(totalSyncConflicts.load() * 10)), // 1 second for every 100 conflicts
+                                                                MAX_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT);
+                if ((std::chrono::steady_clock::now() - lastSyncConflictsCount) >= minDelayBetweenConflictsCount)
                 {
-                    assert(onSyncThread());
-                    mClient.app->syncupdate_totalconflicts(true);
-                    LOG_info << mClient.clientname << "Sync conflicting paths state app update notified [previousSyncConflictsTotal = " << totalSyncConflicts.load() << ", updatedSyncConflictsTotal = " << updatedSyncConflictsTotal << "]";
-                    totalSyncConflicts.store(updatedSyncConflictsTotal);
+                    auto updatedTotalSyncsConflict = conflictsDetectedCount(totalSyncConflicts.load());
+                    if (totalSyncConflicts.load() != updatedTotalSyncsConflict)
+                    {
+                        assert(onSyncThread());
+                        mClient.app->syncupdate_totalconflicts(true);
+                        LOG_info << mClient.clientname << "Sync conflicting paths state app update notified [previousSyncConflictsTotal = " << totalSyncConflicts.load() << ", updatedSyncConflictsTotal = " << updatedSyncConflictsTotal << "]";
+                        totalSyncConflicts.store(updatedTotalSyncsConflict);
+                    }
+                    lastSyncConflictsCount = std::chrono::steady_clock::now();
                 }
-                lastSyncConflictsCount = std::chrono::steady_clock::now();
             }
         }
 
@@ -12274,21 +12279,29 @@ void Syncs::syncLoop()
                 syncStallState = stalled;
                 mClient.app->syncupdate_totalstalls(false);
                 mClient.app->syncupdate_stalled(stalled);
-                if (stalled) lastSyncStallsCount = std::chrono::steady_clock::now();
-                else totalSyncStalls.store(0);
-                assert(!totalSyncStalls.load());
+                if (stalled)
+                {
+                    assert(!totalSyncStalls.load());
+                    totalSyncStalls.store(stallsDetectedCount());
+                    lastSyncStallsCount = std::chrono::steady_clock::now();
+                }
+                else
+                {
+                    totalSyncStalls.store(0);
+                }
                 LOG_warn << mClient.clientname << "Stall state app notified: " << stalled;
             }
-            else if (stalled &&
-                    ((std::chrono::steady_clock::now() - lastSyncStallsCount) > DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT))
+            else if (stalled && !mClient.app->isSyncStalledChanged() &&
+                    ((std::chrono::steady_clock::now() - lastSyncStallsCount) >= MIN_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT))
             {
-                auto updatedSyncStallsTotal = getSyncStallsTotal();
-                if (totalSyncStalls.load() != updatedSyncStallsTotal)
+                auto updatedTotalSyncsStalls = stallsDetectedCount();
+                if (totalSyncStalls.load() != updatedTotalSyncsStalls)
                 {
                     assert(onSyncThread());
                     mClient.app->syncupdate_totalstalls(true);
                     LOG_warn << mClient.clientname << "Stall state app update notified [previousSyncStallsTotal = " << totalSyncStalls.load() << ", updatedSyncStallsTotal = " << updatedSyncStallsTotal << "]";
-                    totalSyncStalls.store(updatedSyncStallsTotal);
+                    LOG_warn << mClient.clientname << "Stall state app update notified [previousSyncStallsTotal = " << totalSyncStalls.load() << ", updatedTotalSyncsStalls = " << updatedTotalSyncsStalls << "]";
+                    totalSyncStalls.store(updatedTotalSyncsStalls);
                 }
                 lastSyncStallsCount = std::chrono::steady_clock::now();
             }
@@ -12358,7 +12371,7 @@ bool Syncs::mightAnySyncsHaveMoves()
     return false;
 }
 
-bool Syncs::conflictsDetected(list<NameConflict>& conflicts) const
+bool Syncs::conflictsDetected(list<NameConflict>& conflicts)
 {
     assert(onSyncThread());
 
@@ -12372,6 +12385,11 @@ bool Syncs::conflictsDetected(list<NameConflict>& conflicts) const
             }
         }
     }
+    // Disable sync conflicts update flag
+    mClient.app->syncupdate_totalconflicts(false);
+    // totalSyncConflicts is set by conflictsDetectedCount, whose count is limited by the previous number of conflicts + 1, in order to avoid extra recursive operations as the full count is not needed
+    // This updates the counter to the real number of conflicts, so we avoid incremental updates later (from previous_conflicts_size + 1 to actual_conflicts_size)
+    totalSyncConflicts.store(conflicts.size());
     return !conflicts.empty();
 }
 
@@ -12393,6 +12411,24 @@ size_t Syncs::conflictsDetectedCount(size_t stopIfGreaterThan) const
                 }
                 sync->recursiveCollectNameConflicts(nullptr, &count, &stopIfGreaterThan);
                 if (count > stopIfGreaterThan) break;
+            }
+        }
+    }
+    return count;
+}
+
+size_t Syncs::conflictsDetectedCount() const
+{
+    assert(onSyncThread());
+
+    size_t count = 0;
+    for (auto& us : mSyncVec)
+    {
+        if (Sync* sync = us->mSync.get())
+        {
+            if (sync->localroot->conflictsDetected())
+            {
+                sync->recursiveCollectNameConflicts(nullptr, &count);
             }
         }
     }

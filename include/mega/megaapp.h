@@ -314,6 +314,7 @@ struct MEGA_API MegaApp
     virtual void syncupdate_totalstalls(bool) { }
     virtual void syncupdate_totalconflicts(bool) { }
     virtual void syncupdate_treestate(const SyncConfig &, const LocalPath&, treestate_t, nodetype_t) { }
+    virtual bool isSyncStalledChanged() { return false; } // flag for syncupdate_totalstalls or syncupdate_totalstalls is set
 
 #ifdef DEBUG
     // Called right before the sync engine processes a filesystem notification.
