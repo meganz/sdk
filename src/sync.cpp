@@ -3931,7 +3931,6 @@ void Syncs::queueClient(std::function<void(MegaClient&, TransferDbCommitter&)>&&
     mClient.waiter->notify();
 }
 
-
 void Syncs::getSyncProblems(std::function<void(unique_ptr<SyncProblems>)> completion,
                             bool completionInClient)
 {
@@ -3953,61 +3952,6 @@ void Syncs::getSyncProblems(std::function<void(unique_ptr<SyncProblems>)> comple
         getSyncProblems_inThread(*problems);
         completion(move(problems));
     }, "getSyncProblems");
-}
-
-bool Syncs::stallsDetected(SyncStallInfo& stallInfo)
-{
-    assert(!onSyncThread());
-
-    // if we're not actually in stall state then don't report things
-    // that we are waiting on that migtht come right, only report definites.
-    for (auto& r: stallReport.cloud)
-    {
-        if (syncStallState || r.second.alertUserImmediately)
-        {
-            stallInfo.cloud.insert(r);
-        }
-    }
-    for (auto& r: stallReport.local)
-    {
-        if (syncStallState || r.second.alertUserImmediately)
-        {
-            stallInfo.local.insert(r);
-        }
-    }
-    // Disable sync stalls update flag
-    mClient.app->syncupdate_totalstalls(false);
-    // Update totalSyncStalls just in case it is different since last check
-    totalSyncStalls.store(stallInfo.cloud.size() + stallInfo.local.size());
-    return syncStallState;
-}
-
-size_t Syncs::stallsDetectedCount() const
-{
-    size_t numCloudIssues = 0;
-    size_t numLocalIssues = 0;
-    if (syncStallState)
-    {
-        numCloudIssues = stallReport.cloud.size() + stallReport.local.size();
-    }
-    else
-    {
-        for (auto& r: stallReport.cloud)
-        {
-            if (r.second.alertUserImmediately)
-            {
-                ++numCloudIssues;
-            }
-        }
-        for (auto& r: stallReport.local)
-        {
-            if (r.second.alertUserImmediately)
-            {
-                ++numLocalIssues;
-            }
-        }
-    }
-    return numCloudIssues + numLocalIssues;
 }
 
 void Syncs::getSyncProblems_inThread(SyncProblems& problems)
@@ -12092,45 +12036,8 @@ void Syncs::syncLoop()
                 ++mSyncFlags->noProgressCount;
             }
 
-            bool conflictsNow = conflictsDetectedCount(0);
-            if (conflictsNow != syncConflictState)
-            {
-                assert(onSyncThread());
-                syncConflictState = conflictsNow;
-                mClient.app->syncupdate_totalconflicts(false);
-                mClient.app->syncupdate_conflicts(conflictsNow);
-                if (conflictsNow)
-                {
-                    assert(!totalSyncConflicts.load());
-                    auto conflictsCount = conflictsDetectedCount();
-                    totalSyncConflicts.store(conflictsCount);
-                    lastSyncConflictsCount = std::chrono::steady_clock::now();
-                }
-                else
-                {
-                    totalSyncConflicts.store(0);
-                }
-                LOG_info << mClient.clientname << "Sync conflicting paths state app notified: " << conflictsNow;
-            }
-            else if (conflictsNow && !mClient.app->isSyncStalledChanged() &&
-                    ((std::chrono::steady_clock::now() - lastSyncConflictsCount) >= MIN_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT))
-            {
-                auto minDelayBetweenConflictsCount = std::min(std::max(MIN_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT,
-                                                                        std::chrono::milliseconds(totalSyncConflicts.load() * 10)), // 1 second for every 100 conflicts
-                                                                MAX_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT);
-                if ((std::chrono::steady_clock::now() - lastSyncConflictsCount) >= minDelayBetweenConflictsCount)
-                {
-                    auto updatedTotalSyncsConflict = conflictsDetectedCount(totalSyncConflicts.load());
-                    if (totalSyncConflicts.load() != updatedTotalSyncsConflict)
-                    {
-                        assert(onSyncThread());
-                        mClient.app->syncupdate_totalconflicts(true);
-                        LOG_info << mClient.clientname << "Sync conflicting paths state app update notified [previousSyncConflictsTotal = " << totalSyncConflicts.load() << ", updatedSyncConflictsTotal = " << updatedSyncConflictsTotal << "]";
-                        totalSyncConflicts.store(updatedTotalSyncsConflict);
-                    }
-                    lastSyncConflictsCount = std::chrono::steady_clock::now();
-                }
-            }
+            // Process name conflicts
+            processSyncConflicts();
         }
 
         if (!earlyExit)
@@ -12151,164 +12058,11 @@ void Syncs::syncLoop()
                 syncBusyState = anySyncBusy;
             }
 
-            bool stalled = syncStallState;
-
-            {
-                // add .megaignore broken file paths to stall records (if they are still broken)
-                //if (mIgnoreFileFailureContext.signalled())
-                //{
-                //    // Has the problem been resolved?
-                //    if (!mIgnoreFileFailureContext.resolve(*fsaccess))
-                //    {
-                //        // Not resolved so report as a stall.
-                //        mIgnoreFileFailureContext.report(mSyncFlags->stall);
-                //    }
-                //}
-
-                for (auto i = badlyFormedIgnoreFilePaths.begin(); i != badlyFormedIgnoreFilePaths.end(); )
-                {
-                    if (auto lp = i->lock())
-                    {
-                        if (lp->sync)
-                        {
-                            mSyncFlags->stall.waitingLocal(lp->localPath, SyncStallEntry(
-                                SyncWaitReason::FileIssue, true, false,
-                                {},
-                                {},
-                                {lp->localPath, PathProblem::IgnoreFileMalformed},
-                                {}));
-                        }
-                        ++i;
-                    }
-                    else i = badlyFormedIgnoreFilePaths.erase(i);
-                }
-
-                // add scan-blocked paths to stall records
-                for (auto i = scanBlockedPaths.begin(); i != scanBlockedPaths.end(); )
-                {
-                    if (auto sbp = i->lock())
-                    {
-                        if (sbp->localNode->exclusionState() == ES_EXCLUDED)
-                        {
-                            // the user ignored the path in response to the stall item, probably
-                            i = scanBlockedPaths.erase(i);
-                            continue;
-                        }
-
-                        if (sbp->scanBlockedTimer.armed())
-                        {
-                            if (sbp->folderUnreadable)
-                            {
-                                LOG_verbose << "Scan blocked timer elapsed, trigger folder rescan: " << sbp->scanBlockedLocalPath;
-                                sbp->localNode->setScanAgain(false, true, false, 0);
-                                sbp->scanBlockedTimer.backoff(); // wait increases exponentially (up to 10 mins) until we succeed
-                            }
-                            else
-                            {
-                                LOG_verbose << "Locked file fingerprint timer elapsed, trigger folder rescan: " << sbp->scanBlockedLocalPath;
-                                sbp->localNode->setScanAgain(false, true, false, 0);
-                                sbp->scanBlockedTimer.backoff(300); // limited wait (30s) as the user will expect it uploaded fairly soon after they stop editing it
-                            }
-                        }
-
-                        if (sbp->folderUnreadable)
-                        {
-                            mSyncFlags->stall.waitingLocal(sbp->scanBlockedLocalPath, SyncStallEntry(
-                                SyncWaitReason::FileIssue, true, false,
-                                {},
-                                {},
-                                {sbp->scanBlockedLocalPath, PathProblem::FilesystemErrorListingFolder},
-                                {}));
-                        }
-                        else
-                        {
-                            assert(sbp->filesUnreadable);
-                            mSyncFlags->stall.waitingLocal(sbp->scanBlockedLocalPath, SyncStallEntry(
-                                SyncWaitReason::FileIssue, false, false,
-                                {},
-                                {},
-                                {sbp->scanBlockedLocalPath, PathProblem::FilesystemErrorIdentifyingFolderContent},
-                                {}));
-                        }
-                        ++i;
-                    }
-                    else i = scanBlockedPaths.erase(i);
-                }
-
-                lock_guard<mutex> g(stallReportMutex);
-                stallReport.cloud.swap(mSyncFlags->stall.cloud);
-                stallReport.local.swap(mSyncFlags->stall.local);
-                stallReport.stalledSyncs.swap(mSyncFlags->stall.stalledSyncs);
-                mSyncFlags->stall.cloud.clear();
-                mSyncFlags->stall.local.clear();
-                mSyncFlags->stall.stalledSyncs.clear();
-
-                bool immediateStall = hasImmediateStall(stallReport);
-                bool progressLackStall = mSyncFlags->noProgressCount > 10
-                                      && mSyncFlags->reachableNodesAllScannedThisPass;
-
-                stalled = !stallReport.empty()
-                          && (immediateStall || progressLackStall);
-
-                if (stalled)
-                {
-                    if (immediateStall && !progressLackStall)
-                    {
-                        // only report immediates, otherwise the volume of reports can be a bit scary, and they will probably come right later anyway after parent nodes are made etc
-                        for (auto it = stallReport.cloud.begin(); it != stallReport.cloud.end(); )
-                        {
-                            if (isImmediateStall(it->second)) ++it;
-                            else it = stallReport.cloud.erase(it);
-                        }
-                        for (auto it = stallReport.local.begin(); it != stallReport.local.end(); )
-                        {
-                            if (isImmediateStall(it->second)) ++it;
-                            else it = stallReport.local.erase(it);
-                        }
-                    }
-
-                    LOG_warn << mClient.clientname << "Stall detected!";
-                    for (auto& p : stallReport.cloud) LOG_warn << "stalled node path (" << syncWaitReasonDebugString(p.second.reason) << "): " << p.first;
-                    for (auto& p : stallReport.local) LOG_warn << "stalled local path (" << syncWaitReasonDebugString(p.second.reason) << "): " << p.first;
-                }
-            }
-
-            if (stalled != syncStallState)
-            {
-                assert(onSyncThread());
-                syncStallState = stalled;
-                mClient.app->syncupdate_totalstalls(false);
-                mClient.app->syncupdate_stalled(stalled);
-                if (stalled)
-                {
-                    assert(!totalSyncStalls.load());
-                    totalSyncStalls.store(stallsDetectedCount());
-                    lastSyncStallsCount = std::chrono::steady_clock::now();
-                }
-                else
-                {
-                    totalSyncStalls.store(0);
-                }
-                LOG_warn << mClient.clientname << "Stall state app notified: " << stalled;
-            }
-            else if (stalled && !mClient.app->isSyncStalledChanged() &&
-                    ((std::chrono::steady_clock::now() - lastSyncStallsCount) >= MIN_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT))
-            {
-                auto updatedTotalSyncsStalls = stallsDetectedCount();
-                if (totalSyncStalls.load() != updatedTotalSyncsStalls)
-                {
-                    assert(onSyncThread());
-                    mClient.app->syncupdate_totalstalls(true);
-                    LOG_warn << mClient.clientname << "Stall state app update notified [previousSyncStallsTotal = " << totalSyncStalls.load() << ", updatedSyncStallsTotal = " << updatedSyncStallsTotal << "]";
-                    LOG_warn << mClient.clientname << "Stall state app update notified [previousSyncStallsTotal = " << totalSyncStalls.load() << ", updatedTotalSyncsStalls = " << updatedTotalSyncsStalls << "]";
-                    totalSyncStalls.store(updatedTotalSyncsStalls);
-                }
-                lastSyncStallsCount = std::chrono::steady_clock::now();
-            }
+            // Process stall issues
+            processSyncStalls();
 
             ++completedPassCount;
         }
-
 
         lastLoopEarlyExit = earlyExit;
     }
@@ -12369,6 +12123,32 @@ bool Syncs::mightAnySyncsHaveMoves()
         }
     }
     return false;
+}
+
+void Syncs::setSyncsNeedFullSync(bool andFullScan, bool andReFingerprint, handle backupId)
+{
+    assert(!onSyncThread());
+    queueSync([=](){
+
+        assert(onSyncThread());
+        for (auto & us : mSyncVec)
+        {
+            if ((us->mConfig.mBackupId == backupId
+                || backupId == UNDEF) &&
+                us->mSync)
+            {
+                us->mSync->localroot->setSyncAgain(false, true, true);
+                if (andFullScan)
+                {
+                    us->mSync->localroot->setScanAgain(false, true, true, 0);
+                    if (andReFingerprint)
+                    {
+                        us->mSync->localroot->setSubtreeNeedsRefingerprint();
+                    }
+                }
+            }
+        }
+    }, "setSyncsNeedFullSync");
 }
 
 bool Syncs::conflictsDetected(list<NameConflict>& conflicts)
@@ -12435,19 +12215,6 @@ size_t Syncs::conflictsDetectedCount() const
     return count;
 }
 
-bool Syncs::syncStallDetected(SyncStallInfo& si) const
-{
-    assert(!onSyncThread());
-    lock_guard<mutex> g(stallReportMutex);
-
-    if (syncStallState)
-    {
-        si = stallReport;
-        return true;
-    }
-    return false;
-}
-
 void Syncs::collectSyncNameConflicts(handle backupId, std::function<void(list<NameConflict>&& nc)> completion, bool completionInClient)
 {
     assert(!onSyncThread());
@@ -12477,31 +12244,262 @@ void Syncs::collectSyncNameConflicts(handle backupId, std::function<void(list<Na
         }, "collectSyncNameConflicts");
 }
 
-void Syncs::setSyncsNeedFullSync(bool andFullScan, bool andReFingerprint, handle backupId)
+bool Syncs::stallsDetected(SyncStallInfo& stallInfo)
 {
     assert(!onSyncThread());
-    queueSync([=](){
 
-        assert(onSyncThread());
-        for (auto & us : mSyncVec)
+    // if we're not actually in stall state then don't report things
+    // that we are waiting on that migtht come right, only report definites.
+    for (auto& r: stallReport.cloud)
+    {
+        if (syncStallState || r.second.alertUserImmediately)
         {
-            if ((us->mConfig.mBackupId == backupId
-                || backupId == UNDEF) &&
-                us->mSync)
+            stallInfo.cloud.insert(r);
+        }
+    }
+    for (auto& r: stallReport.local)
+    {
+        if (syncStallState || r.second.alertUserImmediately)
+        {
+            stallInfo.local.insert(r);
+        }
+    }
+    // Disable sync stalls update flag
+    mClient.app->syncupdate_totalstalls(false);
+    // Update totalSyncStalls just in case it is different since last check
+    totalSyncStalls.store(stallInfo.cloud.size() + stallInfo.local.size());
+    return syncStallState;
+}
+
+size_t Syncs::stallsDetectedCount() const
+{
+    size_t numCloudIssues = 0;
+    size_t numLocalIssues = 0;
+    if (syncStallState)
+    {
+        numCloudIssues = stallReport.cloud.size() + stallReport.local.size();
+    }
+    else
+    {
+        for (auto& r: stallReport.cloud)
+        {
+            if (r.second.alertUserImmediately)
             {
-                us->mSync->localroot->setSyncAgain(false, true, true);
-                if (andFullScan)
-                {
-                    us->mSync->localroot->setScanAgain(false, true, true, 0);
-                    if (andReFingerprint)
-                    {
-                        us->mSync->localroot->setSubtreeNeedsRefingerprint();
-                    }
-                }
+                ++numCloudIssues;
             }
         }
-    }, "setSyncsNeedFullSync");
+        for (auto& r: stallReport.local)
+        {
+            if (r.second.alertUserImmediately)
+            {
+                ++numLocalIssues;
+            }
+        }
+    }
+    return numCloudIssues + numLocalIssues;
 }
+
+bool Syncs::syncStallDetected(SyncStallInfo& si) const
+{
+    assert(!onSyncThread());
+    lock_guard<mutex> g(stallReportMutex);
+
+    if (syncStallState)
+    {
+        si = stallReport;
+        return true;
+    }
+    return false;
+}
+
+void Syncs::processSyncConflicts()
+{
+    bool conflictsNow = conflictsDetectedCount(0);
+    if (conflictsNow != syncConflictState)
+    {
+        assert(onSyncThread());
+        syncConflictState = conflictsNow;
+        mClient.app->syncupdate_totalconflicts(false);
+        mClient.app->syncupdate_conflicts(conflictsNow);
+        if (conflictsNow)
+        {
+            assert(!totalSyncConflicts.load());
+            auto conflictsCount = conflictsDetectedCount();
+            totalSyncConflicts.store(conflictsCount);
+            lastSyncConflictsCount = std::chrono::steady_clock::now();
+        }
+        else
+        {
+            totalSyncConflicts.store(0);
+        }
+    }
+    else if (conflictsNow && !mClient.app->isSyncStalledChanged() &&
+            ((std::chrono::steady_clock::now() - lastSyncConflictsCount) >= MIN_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT))
+    {
+        auto minDelayBetweenConflictsCount = std::min(std::max(MIN_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT,
+                                                                std::chrono::milliseconds(totalSyncConflicts.load() * 10)), // 1 second for every 100 conflicts
+                                                        MAX_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT);
+        if ((std::chrono::steady_clock::now() - lastSyncConflictsCount) >= minDelayBetweenConflictsCount)
+        {
+            auto updatedTotalSyncsConflict = conflictsDetectedCount(totalSyncConflicts.load());
+            if (totalSyncConflicts.load() != updatedTotalSyncsConflict)
+            {
+                assert(onSyncThread());
+                mClient.app->syncupdate_totalconflicts(true);
+                LOG_info << mClient.clientname << "Sync conflicting paths state app update notified [previousSyncConflictsTotal = " << totalSyncConflicts.load() << ", updatedTotalSyncsConflict = " << updatedTotalSyncsConflict << "]";
+                totalSyncConflicts.store(updatedTotalSyncsConflict);
+            }
+            lastSyncConflictsCount = std::chrono::steady_clock::now();
+        }
+    }
+}
+
+void Syncs::processSyncStalls()
+{
+    bool stalled = syncStallState;
+
+    {
+        for (auto i = badlyFormedIgnoreFilePaths.begin(); i != badlyFormedIgnoreFilePaths.end(); )
+        {
+            if (auto lp = i->lock())
+            {
+                if (lp->sync)
+                {
+                    mSyncFlags->stall.waitingLocal(lp->localPath, SyncStallEntry(
+                        SyncWaitReason::FileIssue, true, false,
+                        {},
+                        {},
+                        {lp->localPath, PathProblem::IgnoreFileMalformed},
+                        {}));
+                }
+                ++i;
+            }
+            else i = badlyFormedIgnoreFilePaths.erase(i);
+        }
+
+        // add scan-blocked paths to stall records
+        for (auto i = scanBlockedPaths.begin(); i != scanBlockedPaths.end(); )
+        {
+            if (auto sbp = i->lock())
+            {
+                if (sbp->localNode->exclusionState() == ES_EXCLUDED)
+                {
+                    // the user ignored the path in response to the stall item, probably
+                    i = scanBlockedPaths.erase(i);
+                    continue;
+                }
+
+                if (sbp->scanBlockedTimer.armed())
+                {
+                    if (sbp->folderUnreadable)
+                    {
+                        LOG_verbose << "Scan blocked timer elapsed, trigger folder rescan: " << sbp->scanBlockedLocalPath;
+                        sbp->localNode->setScanAgain(false, true, false, 0);
+                        sbp->scanBlockedTimer.backoff(); // wait increases exponentially (up to 10 mins) until we succeed
+                    }
+                    else
+                    {
+                        LOG_verbose << "Locked file fingerprint timer elapsed, trigger folder rescan: " << sbp->scanBlockedLocalPath;
+                        sbp->localNode->setScanAgain(false, true, false, 0);
+                        sbp->scanBlockedTimer.backoff(300); // limited wait (30s) as the user will expect it uploaded fairly soon after they stop editing it
+                    }
+                }
+
+                if (sbp->folderUnreadable)
+                {
+                    mSyncFlags->stall.waitingLocal(sbp->scanBlockedLocalPath, SyncStallEntry(
+                        SyncWaitReason::FileIssue, true, false,
+                        {},
+                        {},
+                        {sbp->scanBlockedLocalPath, PathProblem::FilesystemErrorListingFolder},
+                        {}));
+                }
+                else
+                {
+                    assert(sbp->filesUnreadable);
+                    mSyncFlags->stall.waitingLocal(sbp->scanBlockedLocalPath, SyncStallEntry(
+                        SyncWaitReason::FileIssue, false, false,
+                        {},
+                        {},
+                        {sbp->scanBlockedLocalPath, PathProblem::FilesystemErrorIdentifyingFolderContent},
+                        {}));
+                }
+                ++i;
+            }
+            else i = scanBlockedPaths.erase(i);
+        }
+
+        lock_guard<mutex> g(stallReportMutex);
+        stallReport.cloud.swap(mSyncFlags->stall.cloud);
+        stallReport.local.swap(mSyncFlags->stall.local);
+        stallReport.stalledSyncs.swap(mSyncFlags->stall.stalledSyncs);
+        mSyncFlags->stall.cloud.clear();
+        mSyncFlags->stall.local.clear();
+        mSyncFlags->stall.stalledSyncs.clear();
+
+        bool immediateStall = hasImmediateStall(stallReport);
+        bool progressLackStall = mSyncFlags->noProgressCount > 10
+                                      && mSyncFlags->reachableNodesAllScannedThisPass;
+
+        stalled = !stallReport.empty()
+                    && (immediateStall || progressLackStall);
+
+        if (stalled)
+        {
+            if (immediateStall && !progressLackStall)
+            {
+                // only report immediates, otherwise the volume of reports can be a bit scary, and they will probably come right later anyway after parent nodes are made etc
+                for (auto it = stallReport.cloud.begin(); it != stallReport.cloud.end(); )
+                {
+                    if (isImmediateStall(it->second)) ++it;
+                    else it = stallReport.cloud.erase(it);
+                }
+                for (auto it = stallReport.local.begin(); it != stallReport.local.end(); )
+                {
+                    if (isImmediateStall(it->second)) ++it;
+                    else it = stallReport.local.erase(it);
+                }
+            }
+
+            LOG_warn << mClient.clientname << "Stall detected!";
+            for (auto& p : stallReport.cloud) LOG_warn << "stalled node path (" << syncWaitReasonDebugString(p.second.reason) << "): " << p.first;
+            for (auto& p : stallReport.local) LOG_warn << "stalled local path (" << syncWaitReasonDebugString(p.second.reason) << "): " << p.first;
+        }
+    }
+
+    if (stalled != syncStallState)
+    {
+        assert(onSyncThread());
+        syncStallState = stalled;
+        mClient.app->syncupdate_totalstalls(false);
+        mClient.app->syncupdate_stalled(stalled);
+        if (stalled)
+        {
+            assert(!totalSyncStalls.load());
+            totalSyncStalls.store(stallsDetectedCount());
+            lastSyncStallsCount = std::chrono::steady_clock::now();
+        }
+        else
+        {
+            totalSyncStalls.store(0);
+        }
+        LOG_warn << mClient.clientname << "Stall state app notified: " << stalled;
+    }
+    else if (stalled && !mClient.app->isSyncStalledChanged() &&
+            ((std::chrono::steady_clock::now() - lastSyncStallsCount) >= MIN_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT))
+    {
+        auto updatedTotalSyncsStalls = stallsDetectedCount();
+        if (totalSyncStalls.load() != updatedTotalSyncsStalls)
+        {
+            assert(onSyncThread());
+            mClient.app->syncupdate_totalstalls(true);
+            LOG_warn << mClient.clientname << "Stall state app update notified [previousSyncStallsTotal = " << totalSyncStalls.load() << ", updatedTotalSyncsStalls = " << updatedTotalSyncsStalls << "]";
+            totalSyncStalls.store(updatedTotalSyncsStalls);
+        }
+        lastSyncStallsCount = std::chrono::steady_clock::now();
+    }
+}
+
 
 void Syncs::proclocaltree(LocalNode* n, LocalTreeProc* tp)
 {

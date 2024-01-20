@@ -1274,6 +1274,8 @@ private:
     bool checkSdsCommandsForDelete(UnifiedSync& us, vector<pair<handle, int>>& sdsBackups, std::function<void(MegaClient&, TransferDbCommitter&)>& clientRemoveSdsEntryFunction);
     bool processRemovingSyncBySds(UnifiedSync& us, bool foundRootNode, vector<pair<handle, int>>& sdsBackups);
     void deregisterThenRemoveSyncBySds(UnifiedSync& us, std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction);
+    void processSyncConflicts();
+    void processSyncStalls();
 
     void syncLoop();
 
