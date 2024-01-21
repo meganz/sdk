@@ -7352,8 +7352,6 @@ bool CommandGetLocalSSLCertificate::procresult(Result r, JSON& json)
 #ifdef ENABLE_CHAT
 CommandChatCreate::CommandChatCreate(MegaClient* client, bool group, bool publicchat, const userpriv_vector* upl, const string_map* ukm, const char* title, bool meetingRoom, int chatOptions, const ScheduledMeeting* schedMeeting)
 {
-    mV3 = false;
-
     this->client = client;
     this->chatPeers = new userpriv_vector(*upl);
     this->mPublicChat = publicchat;
@@ -7639,8 +7637,6 @@ bool CommandSetChatOptions::procresult(Result r, JSON& json)
 
 CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, handle uh, privilege_t priv, const char *unifiedkey, const char* title)
 {
-    mV3 = false;
-
     this->client = client;
     this->chatid = chatid;
     this->uh = uh;
@@ -7698,8 +7694,6 @@ bool CommandChatInvite::procresult(Result r, JSON& json)
 
 CommandChatRemove::CommandChatRemove(MegaClient *client, handle chatid, handle uh)
 {
-    mV3 = false;
-
     this->client = client;
     this->chatid = chatid;
     this->uh = uh;
@@ -7793,8 +7787,6 @@ bool CommandChatURL::procresult(Result r, JSON& json)
 
 CommandChatGrantAccess::CommandChatGrantAccess(MegaClient *client, handle chatid, handle h, const char *uid)
 {
-    mV3 = false;
-
     this->client = client;
     this->chatid = chatid;
     this->h = h;

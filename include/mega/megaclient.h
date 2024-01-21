@@ -1884,6 +1884,9 @@ public:
     // determine if the file is miscellaneous.
     bool nodeIsMiscellaneous(const Node* n) const;
 
+    // determine if the file is a spreadsheet.
+    bool nodeIsSpreadsheet(const Node* n) const;
+
     // functions for determining whether we can clone a node instead of upload
     // or whether two files are the same so we can just upload/download the data once
     bool treatAsIfFileDataEqual(const FileFingerprint& nodeFingerprint, const LocalPath& file2, const string& filenameExtensionLowercaseNoDot);

@@ -9377,9 +9377,8 @@ void MegaApiImpl::setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningStat
         switch (targetState)
         {
             case MegaSync::RUNSTATE_RUNNING:
-            case MegaSync::RUNSTATE_PAUSED:
             {
-                client->syncs.enableSyncByBackupId(backupId, targetState == MegaSync::RUNSTATE_PAUSED, true, [this, request](error err, SyncError serr, handle)
+                client->syncs.enableSyncByBackupId(backupId, true, [this, request](error err, SyncError serr, handle)
                     {
                         request->setNumDetails(serr);
                         fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(err, serr), true);
@@ -9387,10 +9386,15 @@ void MegaApiImpl::setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningStat
 
                 return API_OK;
             }
+            case MegaSync::RUNSTATE_PAUSED:
             case MegaSync::RUNSTATE_SUSPENDED:
             case MegaSync::RUNSTATE_DISABLED:
             {
-                bool keepSyncDb = targetState == MegaSync::SyncRunningState(SyncRunState::Suspend);
+                if (targetState == MegaSync::SyncRunningState(SyncRunState::Pause))
+                {
+                    LOG_warn << "[MegaApiImpl::setSyncRunState] Target state: SyncRunState::Pause. Sync will be suspended";
+                }
+                bool keepSyncDb = targetState == MegaSync::SyncRunningState(SyncRunState::Pause) || targetState == MegaSync::SyncRunningState(SyncRunState::Suspend);
 
                 client->syncs.disableSyncByBackupId(
                     backupId,
@@ -11935,13 +11939,18 @@ bool MegaApiImpl::isValidTypeNode(const Node *node, int type) const
         case MegaApi::FILE_TYPE_PDF:
             return client->nodeIsPdf(node);
         case MegaApi::FILE_TYPE_PRESENTATION:
-            return client->nodeIsPdf(node);
+            return client->nodeIsPresentation(node);
         case MegaApi::FILE_TYPE_ARCHIVE:
             return client->nodeIsArchive(node);
         case MegaApi::FILE_TYPE_PROGRAM:
             return client->nodeIsProgram(node);
         case MegaApi::FILE_TYPE_MISC:
             return client->nodeIsMiscellaneous(node);
+        case MegaApi::FILE_TYPE_SPREADSHEET:
+            return client->nodeIsSpreadsheet(node);
+        case MegaApi::FILE_TYPE_ALL_DOCS:
+            return client->nodeIsDocument(node) || client->nodeIsPdf(node) ||
+                   client->nodeIsPresentation(node) || client->nodeIsSpreadsheet(node);
         case MegaApi::FILE_TYPE_DEFAULT:
         default:
             return true;

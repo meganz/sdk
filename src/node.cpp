@@ -202,13 +202,13 @@ const std::set<nameid>& documentExtensions()
                                         MAKENAMEID4('d','o','c','x'), MAKENAMEID3('d','o','t'), MAKENAMEID4('d','o','t','m'),
                                         MAKENAMEID4('d','o','t','x'), MAKENAMEID3('o','d','t'),
                                         MAKENAMEID3('s','x','c'), MAKENAMEID3('s','x','d'), MAKENAMEID3('s','x','i'),
-                                        MAKENAMEID4('t','e','x','t'), MAKENAMEID3('t','s','v'), MAKENAMEID3('t','t','l')};
+                                        MAKENAMEID4('t','e','x','t'), MAKENAMEID3('t','s','v'), MAKENAMEID3('t','t','l'), MAKENAMEID3('t','x','t')};
     return docs;
 }
 
 const std::set<nameid>& spreadsheetExtensions()
 {
-    static const std::set<nameid> spds {MAKENAMEID3('c','s','v'), MAKENAMEID3('o','d','s'), MAKENAMEID3('t','x','t'),
+    static const std::set<nameid> spds {MAKENAMEID3('c','s','v'), MAKENAMEID3('o','d','s'),
                                         MAKENAMEID3('x','l','s'), MAKENAMEID4('x','l','s','m'), MAKENAMEID4('x','l','s','x')};
     return spds;
 }
@@ -433,8 +433,7 @@ bool Node::isAudio(const std::string& ext)
 
 bool Node::isDocument(const std::string& ext)
 {
-    return documentExtensions().find(getExtensionNameId(ext)) != documentExtensions().end() ||
-           isSpreadsheet(ext);
+    return documentExtensions().find(getExtensionNameId(ext)) != documentExtensions().end();
 }
 
 bool Node::isSpreadsheet(const std::string& ext)
@@ -490,6 +489,8 @@ bool Node::isOfMimetype(MimeType_t mimetype, const string& ext)
         return Node::isMiscellaneous(ext);
     case MimeType_t::MIME_TYPE_SPREADSHEET:
         return Node::isSpreadsheet(ext);
+    case MimeType_t::MIME_TYPE_ALL_DOCS:
+        return Node::isDocument(ext) || Node::isPdf(ext) || Node::isPresentation(ext) || Node::isSpreadsheet(ext);
     default:
         return false;
     }
