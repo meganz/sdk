@@ -1865,7 +1865,7 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath& newlocalpat
     // add to parent map by localname
     if (parent && (parentChange || localnameChange))
     {
-        #ifdef DEBUG
+        #ifndef NDEBUG
             auto it = parent->children.find(localname);
             assert(it == parent->children.end());   // check we are not about to orphan the old one at this location... if we do then how did we get a clash in the first place?
         #endif
