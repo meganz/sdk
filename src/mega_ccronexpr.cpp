@@ -503,15 +503,17 @@ static char* to_string(int num) {
     return str;
 }
 
-static char* string_to_char_ptr(const std::string& str) {
+static char* string_to_char_ptr(const std::string& str)
+{
     char* result = (char*) cronMalloc(str.length() + 1);
     result[str.length()] = '\0';
     size_t i = 0;
-    for (auto c: str) result[i++] = c;
+    for (auto c: str) { result[i++] = c; }
     return result;
 }
 
-static char* str_replace(char *orig, const char *rep, const char *with) {
+static char* str_replace(char *orig, const char *rep, const char *with)
+{
     if (!orig) return nullptr; // Nothing to do
     if (!rep) return orig;     // We do not want to replace anything
 
