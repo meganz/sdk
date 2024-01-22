@@ -39,16 +39,39 @@ For the SDK development and compilation we mainly use CMake as the cross-platfor
 
 The prior autotools and qmake build systems are still available but obsolete, so their usage is discouraged.
 
-### Tools
+### Building tools
 
-Some common development tools should be available in the system to be able the build the MEGA SDK.
+Some common development tools should be available in the system to be able the build the MEGA SDK and the needed dependencies:
 
 - Git: Use the one from your system package manager or install it from https://git-scm.com
-- CMake: Use the one from your system package manager or install it from https://cmake.org
-- A compiler, depending on the platform: Visual Studio for Windows, Xcode for MacOS, gcc for Linux.
-- To build 3rd parties with VCPKG in MacOS and Linux: autoconf, autoconf-archive, automake, pkg-config and NASM.
+- CMake 3.18 or higher: Use the one from your system package manager or install it from https://cmake.org
 
-### Prepare the environment
+#### Windows
+
+Ensure you have installed a working Visual Studio to build C++ sources and the Windows SDK in your system.
+
+#### MacOS
+
+Xcode and the Developer tools are needed. To install the
+Developer tools, run the following command and follow the instructions:
+
+	$ xcode-select --install
+
+The following packages should also be available in the system:
+
+ - autoconf, autoconf-archive, automake, pkg-config and nasm.
+
+You can use any package manager if you have one installed or build and install them from sources
+
+#### Linux
+
+For debian-based distros you can install the needed compilers and tools with the following command:
+
+	sudo apt install build-essential curl zip unzip autoconf autoconf-archive nasm
+
+Package names may be different for other Linux distros, but it should build having similar packages to the ones listed above.
+
+### Prepare the sources
 
 First of all, prepare a directory of your choice to work with the MEGA SDK. The `mega` directory
 will be used as the workspace directory in the examples in this document.
@@ -64,7 +87,7 @@ Next to the MEGA SDK, clone the VCPKG repository. If you are already using VCPKG
 
 	git clone https://github.com/microsoft/vcpkg
 
-### MEGA SDK configuration
+### Configuration
 
 The following instructions are for configuring the project from the CLI, but cmake-gui, any editor or IDE
 compatible with CMake should be ok if the same cmake parameters are configured.
@@ -80,7 +103,7 @@ In the command above relative paths have been used for simplicity. If you want t
 
 During the configuration of the project, VCPKG will build and configure the needed libraries for the platform. It may take a while in the first run, but once the libraries are built, VCPKG will retrieve them from the binary cache.
 
-Some options to configure the SDK may be found in the CMakeLists.txt, like ENABLE_TESTS, ENABLE_SYNC or USE_PDFIUM.
+Some options to configure the SDK may be found in the [CMakeLists.txt](CMakeLists.txt), like ENABLE_TESTS, ENABLE_SYNC or USE_PDFIUM.
 
 ### Building the sources
 
@@ -95,7 +118,7 @@ Once the build is finished, binaries will be available in the `build_dir`
 
 ### Run megacli
 
-To run the example app `megacli`, go to the `examples` directory in the `build_dir` and run the megacli binary.
+To run the example app `megacli`, go to the `examples` directory in the `build_dir` and run the `megacli` binary.
 
 ## How to build the SDK library (Obsolete methods)
 
