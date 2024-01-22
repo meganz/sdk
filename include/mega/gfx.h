@@ -161,14 +161,6 @@ class MEGA_API GfxProc
     GfxJobQueue responses;
     std::unique_ptr<IGfxProvider>  mGfxProvider;
 
-    // counters for testing
-    // total job requests counter
-    std::atomic_int mJobCounter{0};
-    // ok result
-    std::atomic_int mOkResultCounter{0};
-    // not ok result
-    std::atomic_int mNoResultCounter{0};
-
     static void *threadEntryPoint(void *param);
     void loop();
 
@@ -214,8 +206,6 @@ public:
 
     // start a thread that will do the processing
     void startProcessingThread();
-
-    std::tuple<int, int, int> getCounters() const;
 
     // The provided IGfxProvider implements library specific image processing
     // Thread safety among IGfxProvider methods is guaranteed by GfxProc
