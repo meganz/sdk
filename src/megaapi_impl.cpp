@@ -15263,9 +15263,9 @@ void MegaApiImpl::getua_completion(error e, MegaRequestPrivate* request)
             });
             return;
         }
-        else if ((request->getType() == MegaRequest::TYPE_GET_ATTR_USER) &&
-                 (request->getParamType() == MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG
-                 || request->getParamType() == MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE))
+        else if ((request->getType() == MegaRequest::TYPE_GET_ATTR_USER)
+                  && (request->getParamType() == MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG
+                  || request->getParamType() == MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE))
         {
             request->setFlag(true);
         }
@@ -26193,7 +26193,7 @@ void MegaApiImpl::getVisibleTermsOfService(MegaRequestListener* listener)
 
 void MegaApiImpl::setVisibleTermsOfService(bool visible, MegaRequestListener* listener)
 {
-    const auto attributeValue{std::to_string(visible)};
+    const string attributeValue{std::to_string(visible)};
     setUserAttr(MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE, attributeValue.c_str(), listener);
 }
 

@@ -4027,7 +4027,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     string versionVisibleWelcomeDialog;
     string visibleTermsOfService;
     string versionVisibleTermsOfService;
-    
+
     bool uspw = false;
     vector<m_time_t> warningTs;
     m_time_t deadlineTs = -1;
