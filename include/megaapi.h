@@ -11919,6 +11919,9 @@ class MegaApi
          * If the MEGA account is a business account and it's status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
+         * A successfully completed a fetchNodes request is required before calling getNodeByHandle with
+         * the MegaHandle returned by this request. Otherwise, getNodeByHandle will return NULL.
+         *
          * @param listener MegaRequestListener to track this request
          */
         void getPasswordManagerBase(MegaRequestListener *listener = NULL);

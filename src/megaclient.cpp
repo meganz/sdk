@@ -8863,13 +8863,9 @@ error MegaClient::removeNode(NodeHandle nh, bool keepVersions, int rTag)
         keepVersions = false;
         canChangeVault = true;
     }
-    else
+    else if (node->type == ROOTNODE || node->type == VAULTNODE || node->type == RUBBISHNODE)  // rootnodes cannot be deleted
     {
-        // rootnodes cannot be deleted
-        if (node->type == ROOTNODE || node->type == VAULTNODE || node->type == RUBBISHNODE)
-        {
-            return API_EACCESS;
-        }
+        return API_EACCESS;
     }
 
     // use default callback function app->unlink_result
