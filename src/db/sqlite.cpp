@@ -148,8 +148,8 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     std::string sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle int64 PRIMARY KEY NOT NULL, "
                       "parenthandle int64, name text, fingerprint BLOB, origFingerprint BLOB, "
                       "type tinyint, mimetype tinyint AS (getmimetype(name)) VIRTUAL, size int64, share tinyint, fav tinyint, "
-                      "ctime int64, mtime int64, flags int64, counter BLOB NOT NULL, node BLOB NOT NULL, "
-                      "label tinyint)";
+                      "ctime int64, mtime int64 DEFAULT 0, flags int64, counter BLOB NOT NULL, node BLOB NOT NULL, "
+                      "label tinyint DEFAULT 0)";
     int result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
     if (result)
     {
@@ -162,9 +162,9 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     // - 'mtime' (regular),
     // - 'mimetype' (virtual),
     // - 'label' (regular)
-    if (!ensureColumnIsInNodesTable(db, "mtime", "int64", [this, db]() { return copyMtimeFromFingerprint(db); }) ||
+    if (!ensureColumnIsInNodesTable(db, "mtime", "int64 DEFAULT 0", [this, db]() { return copyMtimeFromFingerprint(db); }) ||
         !ensureColumnIsInNodesTable(db, "mimetype", "tinyint AS (getmimetype(name)) VIRTUAL") ||
-        !ensureColumnIsInNodesTable(db, "label", "tinyint", [this, db]() { return copyLabelFromAttrs(db); }))
+        !ensureColumnIsInNodesTable(db, "label", "tinyint DEFAULT 0", [this, db]() { return copyLabelFromAttrs(db); }))
     {
         sqlite3_close(db);
         return nullptr;
@@ -397,7 +397,11 @@ bool SqliteDbAccess::copyMtimeFromFingerprint(sqlite3* db)
             return false;
         }
 
-        mtimes[sqlite3_column_int64(stmt, 0)] = MemAccess::get<m_time_t>(fp + sizeof(m_off_t));
+        m_time_t mt = MemAccess::get<m_time_t>(fp + sizeof(m_off_t));
+        if (mt) // skip 0 because that's the default value for that column
+        {
+            mtimes[sqlite3_column_int64(stmt, 0)] = mt;
+        }
     }
     sqlite3_finalize(stmt);
 
@@ -446,7 +450,10 @@ bool SqliteDbAccess::copyLabelFromAttrs(sqlite3* db)
         NodeData nd(blob, blobSize);
 
         int l = nd.getAttrLabel();
-        labels[sqlite3_column_int64(stmt, 0)] = l;
+        if (l != LBL_UNKNOWN) // skip 0 (LBL_UNKNOWN) because that's the default value for that column
+        {
+            labels[sqlite3_column_int64(stmt, 0)] = l;
+        }
     }
     sqlite3_finalize(stmt);
 
