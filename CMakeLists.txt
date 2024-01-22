@@ -92,14 +92,16 @@ else()
     set(USE_CPPTHREAD 1)
 endif()
 
-if(VCPKG_ROOT)
-    # Include VCPKG management tools.
-    include(vcpkg_management)
-    process_vcpkg_libraries(${CMAKE_CURRENT_LIST_DIR}/contrib/cmake)
-else()
-    # For packages with no pkg-config in the system.
-    list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules/packages)
-    message(STATUS "Using system dependencies")
+if(NOT PROJECT_NAME)
+    if(VCPKG_ROOT)
+        # Include VCPKG management tools.
+        include(vcpkg_management)
+        process_vcpkg_libraries(${CMAKE_CURRENT_LIST_DIR}/contrib/cmake)
+    else()
+        # For packages with no pkg-config in the system.
+        list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules/packages)
+        message(STATUS "Using system dependencies")
+    endif()
 endif()
 
 # Get SDK library version to use it as the CMake project version.

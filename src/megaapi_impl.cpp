@@ -124,30 +124,25 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->customAttrs = NULL;
 
     MegaNodePrivate *np = dynamic_cast<MegaNodePrivate *>(node);
-    if (np)
+    if (!np)
     {
-        this->duration = np->duration;
-        this->width = np->width;
-        this->height = np->height;
-        this->shortformat = np->shortformat;
-        this->videocodecid = np->videocodecid;
-        this->mFavourite = np->mFavourite;
-        this->mLabel = np->mLabel;
-        this->mDeviceId = np->mDeviceId;
-        this->mS4 = np->mS4;
-    }
-    else
-    {
-        this->duration = node->getDuration();
-        this->width = node->getWidth();
-        this->height = node->getHeight();
-        this->shortformat = node->getShortformat();
-        this->videocodecid = node->getVideocodecid();
-        this->mFavourite = node->isFavourite();
-        this->mLabel = static_cast<nodelabel_t>(node->getLabel());
-        mMarkedSensitive = node->isMarkedSensitive();
+        LOG_err << "Critical error: Unexpected MegaNode extension received";
+        assert(false);
+        return;
     }
 
+    // Optimization to avoid decode media info when getter is called
+    this->duration = np->duration;
+    this->width = np->width;
+    this->height = np->height;
+    this->shortformat = np->shortformat;
+    this->videocodecid = np->videocodecid;
+
+    this->mFavourite = node->isFavourite();
+    this->mLabel = static_cast<nodelabel_t>(node->getLabel());
+    this->mDeviceId = node->getDeviceId();
+    this->mS4 = node->getS4();
+    this->mMarkedSensitive = node->isMarkedSensitive();
     this->latitude = node->getLatitude();
     this->longitude = node->getLongitude();
     this->restorehandle = node->getRestoreHandle();
@@ -11946,6 +11941,11 @@ bool MegaApiImpl::isValidTypeNode(const Node *node, int type) const
             return client->nodeIsProgram(node);
         case MegaApi::FILE_TYPE_MISC:
             return client->nodeIsMiscellaneous(node);
+        case MegaApi::FILE_TYPE_SPREADSHEET:
+            return client->nodeIsSpreadsheet(node);
+        case MegaApi::FILE_TYPE_ALL_DOCS:
+            return client->nodeIsDocument(node) || client->nodeIsPdf(node) ||
+                   client->nodeIsPresentation(node) || client->nodeIsSpreadsheet(node);
         case MegaApi::FILE_TYPE_DEFAULT:
         default:
             return true;
@@ -13783,22 +13783,6 @@ void MegaApiImpl::users_updated(User** u, int count)
     MegaUserList *userList = NULL;
     if(u != NULL)
     {
-        // if the email of own user has changed, cache it in the intermediate layer
-        int i = count;
-        while (i--)
-        {
-            User* user = u[i];
-            if (user && user->userhandle == client->me)
-            {
-                if (user->changed.email)
-                {
-                    std::lock_guard<std::mutex> g(mLastRecievedLoggedMeMutex);
-                    mLastReceivedLoggedInMyEmail = user->email;
-                }
-                break;  // same user is only notified once
-            }
-        }
-
         userList = new MegaUserListPrivate(u, count);
         fireOnUsersUpdate(userList);
     }
@@ -18440,6 +18424,10 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                 std::shared_ptr<Node> parent = client->nodebyhandle(transfer->getParentHandle());
                 bool startFirst = transfer->shouldStartFirst();
 
+                // This bool below is a bit tricky: for example, this would be true for uploadForSupport: targetUser param on createUploadTransfer is populated with MegaClient::SUPPORT_USER_HANDLE (length = 11),
+                // and that param is used to populate transfer->parentPath (i.e.: it's not really a path, but a handle). At the same time, parentHandle is undef. So "uploadToInbox" would be true here.
+                // Later, when creating the MegaFilePut object, the cusertarget constructor param will have the value of inboxTarget (see below), so MegaFilePut::targetuser will have the value of MegaClient::SUPPORT_USER_HANDLE.
+                // This comparison (File::targetuser != MegaClient::SUPPORT_USER_HANDLE) can be used later to check if a transfer is for support.
                 bool uploadToInbox = ISUNDEF(transfer->getParentHandle()) && transfer->getParentPath() && (strchr(transfer->getParentPath(), '@') || (strlen(transfer->getParentPath()) == 11));
                 const char *inboxTarget = uploadToInbox ? transfer->getParentPath() : nullptr;
 

@@ -89,7 +89,7 @@ pipeline {
             }
             steps{
                 dir("${linux_sources_workspace}") {
-                    sh "rm test_integration.log test_integration_*.gz || :"
+                    sh "rm test_integration.log test_integration.*.log test_integration_*.gz || :"
                     sh "./clean.sh; mv sdk_build_keep sdk_build || :"
                     sh "./contrib/build_sdk.sh -b -g -f -I -i -s -n -z -o ${linux_sources_workspace}/3rd_pkgs -p ${linux_sources_workspace}/3rd_deps"
                     sh "rm ./3rd_deps/include/sqlite* ./3rd_deps/lib/libsqlite* || :"

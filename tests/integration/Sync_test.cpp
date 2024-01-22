@@ -24,6 +24,7 @@
 
 
 #include "test.h"
+#include "gtest_common.h"
 
 #define DEFAULTWAIT std::chrono::seconds(20)
 
@@ -32,8 +33,6 @@ using namespace ::std;
 
 // we are on SRW branch
 #define SRW_NEEDED_FOR_THIS_ONE
-
-std::string getCurrentTimestamp(bool includeDate);
 
 #ifdef ENABLE_SYNC
 

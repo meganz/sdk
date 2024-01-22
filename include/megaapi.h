@@ -9222,6 +9222,7 @@ public:
      * - MegaApi::FILE_TYPE_PROGRAM = 8
      * - MegaApi::FILE_TYPE_MISC = 9
      * - MegaApi::FILE_TYPE_SPREADSHEET = 10
+     * - MegaApi::FILE_TYPE_ALL_DOCS = 11  --> any of {DOCUMENT, PDF, PRESENTATION, SPREADSHEET}
      */
     virtual void byCategory(int mimeType);
 
@@ -13289,6 +13290,7 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getLink - Public link
+         * - MegaRequest::getPrivateKey - Authentication token (only if writable=true)
          *
          * If the MEGA account is a business account and it's status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.
@@ -13319,6 +13321,7 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getLink - Public link
+         * - MegaRequest::getPrivateKey - Authentication token (only if writable=true)
          *
          * If the MEGA account is a business account and it's status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.
@@ -16391,7 +16394,8 @@ class MegaApi
                FILE_TYPE_PROGRAM,
                FILE_TYPE_MISC,
                FILE_TYPE_SPREADSHEET,
-               FILE_TYPE_LAST = FILE_TYPE_SPREADSHEET,
+               FILE_TYPE_ALL_DOCS,    // any of {DOCUMENT, PDF, PRESENTATION, SPREADSHEET}
+               FILE_TYPE_LAST = FILE_TYPE_ALL_DOCS,
              };
 
         enum { SEARCH_TARGET_INSHARE = 0,
