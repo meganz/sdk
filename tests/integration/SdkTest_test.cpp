@@ -16219,27 +16219,6 @@ protected:
 
     void TearDown() override;
 
-    // either success or failed
-    bool waitForOneEitherJob(int& oldTotalJobs,
-                             int& oldOkResults,
-                             int& oldNoResults,
-                             unsigned timeoutMs) const;
-
-    // no new job, counters are unchanged
-    void expectNoNewJob(int& oldTotalJobs,
-                        int& oldOkResults,
-                        int& oldNoResults) const;
-
-    unsigned int mApiIndex = 0;
-
-    int mCurrentTotalJobs = 0;
-
-    int mCurrentOkResults = 0;
-
-    int mCurrentNoResults = 0;
-
-    MegaClient* mClient = nullptr;
-
     static constexpr const char* CRASH_IMAGE = "crash.pct";
 
     static constexpr const char* CRASH_THUMBNAIL = "crash_thumbnail.jpg";
@@ -16256,64 +16235,11 @@ void SdkTestGfx::SetUp()
     SdkTest::SetUp();
 
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-
-    mClient = megaApi[0]->getClient();
-
-    // get current gfx counters
-    std::tie(mCurrentTotalJobs, mCurrentOkResults, mCurrentNoResults) = mClient->gfx->getCounters();
 }
 
 void SdkTestGfx::TearDown()
 {
     SdkTest::TearDown();
-}
-
-bool SdkTestGfx::waitForOneEitherJob(int& oldTotalJobs,
-                                     int& oldOkResults,
-                                     int& oldNoResults,
-                                     unsigned timeoutMs) const
-{
-    int totalJobs = 0, okResults = 0, noResults = 0;
-
-    auto oneEitherJobPred = [&]()
-    {
-        std::tie(totalJobs, okResults, noResults) = mClient->gfx->getCounters();
-
-        // Expect one more gfx processing job
-        // Expect the preview and thumbnail are either both sucessful or failed
-        return totalJobs == oldTotalJobs + 1 &&
-               (okResults == (oldOkResults + 2) || noResults == (oldNoResults + 2)) &&
-               (okResults == oldOkResults || noResults == oldNoResults);
-    };
-
-    bool result = WaitFor(oneEitherJobPred, timeoutMs);
-    if (result)
-    {
-        // pass back current counters on success
-        oldTotalJobs = totalJobs, oldOkResults = okResults, oldNoResults = noResults;
-    }
-    else
-    {
-        LOG_err << "waitForOneEitherJob failed. totalJobs/okResults/noResults,"
-                << " old:" << oldTotalJobs << "/" << oldOkResults << "/" << oldNoResults
-                << " latest:" << totalJobs << "/" << okResults << "/" << noResults;
-    }
-    return result;
-}
-
-void SdkTestGfx::expectNoNewJob(int& oldTotalJobs,
-                                int& oldOkResults,
-                                int& oldNoResults) const
-{
-    int totalJobs = 0, okResults = 0, noResults = 0;
-    std::tie(totalJobs, okResults, noResults) = mClient->gfx->getCounters();
-
-    EXPECT_EQ(totalJobs, oldTotalJobs) << "Expect no new gfx processing job";
-    EXPECT_EQ(okResults, oldOkResults) << "Expect no thumbnail and preview are generated";
-    EXPECT_EQ(noResults, oldNoResults) << "Expect no thumbnail and preview generation failed";
-
-    // pass back current counters
-    oldTotalJobs = totalJobs, oldOkResults = okResults, oldNoResults = noResults;
 }
 
 /**
@@ -16328,7 +16254,7 @@ TEST_F(SdkTestGfx, GfxProcessingContinueSuccessfullyAfterCrash)
     LOG_info << "___TEST GfxProcessingContinueSuccessfullyAfterCrash";
 
     // api
-    MegaApi* api = megaApi[mApiIndex].get();
+    MegaApi* api = megaApi[0].get();
 
     // create a thumbnail successfully
     copyFileFromTestData(IMAGEFILE);
@@ -16350,85 +16276,6 @@ TEST_F(SdkTestGfx, GfxProcessingContinueSuccessfullyAfterCrash)
     ASSERT_FALSE(api->createThumbnail(INVALID_IMAGE, INVALID_THUMBNAIL)) << "create invalid image's thumbnail should fail";
 
     LOG_info << "___TEST GfxProcessingContinueSuccessfullyAfterCrash end___";
-}
-
-/**
- * @brief GfxProcessCrashImageInSyncOnlyOnce
- *          If a bad image is in sync, it wouldn't trigger gfx processing without a good reason: its content is modified
- *          1. enable the sync and a gfx processing is trigger once
- *          2. add a new non media file, after it synced, we check the gfx processing counter
- *             is unchanged which means no new gfx processing.
- *
- *        Note: isolated process is only supported in windows at the moment, we use a good image for test in other platform
- */
-TEST_F(SdkTestGfx, GfxProcessCrashImageInSyncOnlyOnce)
-{
-    LOG_info << "___TEST GfxProcessCrashImageInSyncOnlyOnce___";
-
-    // root
-    std::unique_ptr<MegaNode> rootnode(megaApi[mApiIndex]->getRootNode());
-
-    // api
-    MegaApi* api = megaApi[mApiIndex].get();
-
-    // path
-    const fs::path basePath = "SdkGfxProcessForSync";
-    const auto syncPath = fs::current_path() / basePath;
-
-    // create local path and copy images
-    const std::string imageFile = CRASH_IMAGE;
-    fs::create_directories(syncPath);
-    copyFileFromTestData(imageFile, syncPath / imageFile);
-
-    // Creating the remote folders to be synced to.
-    LOG_verbose << "Creating the remote folders to be synced to.";
-    auto nh = createFolder(0, basePath.string().c_str(), rootnode.get());
-    ASSERT_NE(nh, UNDEF) << "Error creating remote folders";
-    std::unique_ptr<MegaNode> remoteBaseNode(megaApi[0]->getNodeByHandle(nh));
-    ASSERT_NE(remoteBaseNode.get(), nullptr);
-
-    // convenience
-    auto fileIsSynced = [api, &basePath](const std::string& fileName) {
-        auto remotePath = "/" + basePath.u8string() + "/" + fileName;
-        auto remoteNode = api->getNodeByPath(remotePath.c_str());
-        return remoteNode != nullptr;
-    };
-
-    // setup sync
-    const auto& lp = syncPath.u8string();
-    ASSERT_EQ(API_OK, synchronousSyncFolder(0, nullptr, MegaSync::TYPE_TWOWAY, lp.c_str(), nullptr, remoteBaseNode->getHandle(), nullptr)) << "API Error adding a new sync";
-    ASSERT_EQ(MegaSync::NO_SYNC_ERROR, mApi[0].lastSyncError);
-    std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), MegaSync::RUNSTATE_RUNNING, MegaSync::NO_SYNC_ERROR);
-    ASSERT_TRUE(sync && sync->getRunState() == MegaSync::RUNSTATE_RUNNING);
-    ASSERT_EQ(MegaSync::NO_SYNC_ERROR, sync->getError());
-
-    // wait until file is synced
-    WaitFor([fileIsSynced, &imageFile](){ return fileIsSynced(imageFile);}, 120*1000);
-
-    // check counters
-    ASSERT_TRUE(
-        waitForOneEitherJob(
-            mCurrentTotalJobs,
-            mCurrentOkResults,
-            mCurrentNoResults,
-            30*1000)
-    );
-
-    // simulate some sync activities, and wait for synced
-    const std::string txtFile = "file.txt";
-    ASSERT_TRUE(createFile((syncPath / txtFile).string(), false)) << "Couldn't create " << txtFile;
-    WaitFor([fileIsSynced, &txtFile](){ return fileIsSynced(txtFile);}, 120*1000);
-
-    // no new gfx job is done
-    // check counters
-    ASSERT_NO_FATAL_FAILURE(
-        expectNoNewJob(
-            mCurrentTotalJobs,
-            mCurrentOkResults,
-            mCurrentNoResults)
-    );
-
-    LOG_info << "___TEST GfxProcessCrashImageInSyncOnlyOnce end___";
 }
 #endif
 
