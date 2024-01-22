@@ -553,9 +553,13 @@ struct StandardClient : public MegaApp
 
     std::atomic<bool> mStallDetected{false};
     std::atomic<bool> mConflictsDetected{false};
+    std::atomic<bool> mTotalStallsUpdated{false};
+    std::atomic<bool> mTotalConflictsUpdated{false};
 
     void syncupdate_conflicts(bool state) override;
     void syncupdate_stalled(bool state) override;
+    void syncupdate_totalconflicts(bool state) override;
+    void syncupdate_totalstalls(bool state) override;
     void file_added(File* file) override;
     void file_complete(File* file) override;
 
@@ -1041,6 +1045,8 @@ struct StandardClient : public MegaApp
     function<void(File&)> mOnFileComplete;
     function<void(bool)> mOnStall;
     function<void(bool)> mOnConflictsDetected;
+    function<void(bool)> mOnTotalStallsUpdate;
+    function<void(bool)> mOnTotalConflictsUpdate;
 
     void setHasImmediateStall(HasImmediateStallPredicate predicate);
 

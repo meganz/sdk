@@ -1367,6 +1367,13 @@ bool SyncStallInfo::hasImmediateStallReason() const
     return false;
 }
 
+void SyncStallInfo::clear()
+{
+    cloud.clear();
+    local.clear();
+    stalledSyncs.clear();
+}
+
 struct ProgressingMonitor
 {
     bool resolved = false;

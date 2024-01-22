@@ -918,12 +918,14 @@ struct SyncStallInfo
 
     bool isSyncStalled(handle backupId) const;
 
+    /** Requires user action to resolve */
+    bool hasImmediateStallReason() const;
+
+    void clear();
+
     CloudStallInfoMap cloud;
     LocalStallInfoMap local;
     StalledSyncsSet stalledSyncs;
-
-    /** Requires user action to resolve */
-    bool hasImmediateStallReason() const;
 };
 
 struct SyncProblems
