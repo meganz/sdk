@@ -3604,6 +3604,10 @@ public:
 
         void setVisibleWelcomeDialog(bool visible, MegaRequestListener* listener);
 
+        void getVisibleTermsOfService(MegaRequestListener* listener);
+        
+        void setVisibleTermsOfService(bool visible, MegaRequestListener* listener);
+
         void createNodeTree(const MegaNode* parentNode,
                             MegaNodeTree* nodeTree,
                             MegaRequestListener* listener);

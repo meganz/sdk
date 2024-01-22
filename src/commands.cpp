@@ -4025,7 +4025,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     string authringCu255, versionAuthringCu255;
     string visibleWelcomeDialog;
     string versionVisibleWelcomeDialog;
-
+    string visibleTermsOfService;
+    string versionVisibleTermsOfService;
+    
     bool uspw = false;
     vector<m_time_t> warningTs;
     m_time_t deadlineTs = -1;
@@ -4365,6 +4367,13 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             parseUserAttribute(json, visibleWelcomeDialog, versionVisibleWelcomeDialog);
             break;
         }
+
+        case MAKENAMEID5('^', '!', 't', 'o', 's'):
+        {
+            parseUserAttribute(json, visibleTermsOfService, versionVisibleTermsOfService);
+            break;
+        }
+
         case EOO:
         {
             assert(me == client->me);

@@ -4816,6 +4816,7 @@ class MegaRequest
          * - MegaApi::setScheduledCopy - Returns if backups that should have happen in the past should be taken care of
          * - MegaApi::sendEvent - Returns true if the JourneyID should be tracked
          * - MegaApi::getVisibleWelcomeDialog - Returns true if the Welcome dialog is visible
+         * - MegaApi::getVisibleTermsOfService - Returns true if the Terms of Service need to be displayed
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -9524,6 +9525,7 @@ class MegaApi
             USER_ATTR_APPS_PREFS = 38,           // private - byte array - versioned
             USER_ATTR_CC_PREFS   = 39,           // private - byte array - versioned
             USER_ATTR_VISIBLE_WELCOME_DIALOG = 40, // private - byte array - versioned
+            USER_ATTR_VISIBLE_TERMS_OF_SERVICE = 41, // private - byte array - versioned
         };
 
         enum {
@@ -22016,6 +22018,33 @@ class MegaApi
          * @param listener MegaRequestListener to track this request.
          */
         virtual void setVisibleWelcomeDialog(bool visible, MegaRequestListener* listener);
+
+        /**
+         * @brief Get Terms of Service visibility.
+         *
+         * The associated request type with this request is
+         * MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE.
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getFlag - Returns Terms of Service visibility.
+         *
+         * If the corresponding user attribute is not set yet, the request will fail with the error
+         * code MegaError::API_ENOENT and MegaRequest::getFlag will return the default value.
+         *
+         * @param listener MegaRequestListener to track this request.
+         */
+        virtual void getVisibleTermsOfService(MegaRequestListener* listener);
+
+        /**
+         * @brief Set Terms of Service visibility.
+         *
+         * The associated request type with this request is
+         * MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE.
+         *
+         * @param visible True to set Terms of Service visibility on, false otherwise.
+         * @param listener MegaRequestListener to track this request.
+         */
+        virtual void setVisibleTermsOfService(bool visible, MegaRequestListener* listener);
 
         /**
          * @brief Creates a node tree.

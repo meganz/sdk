@@ -6616,6 +6616,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_COOKIE_SETTINGS:
         case MegaApi::USER_ATTR_MY_BACKUPS_FOLDER:
         case MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG:
+        case MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE:
             scope = '^';
             break;
 
@@ -15263,7 +15264,8 @@ void MegaApiImpl::getua_completion(error e, MegaRequestPrivate* request)
             return;
         }
         else if ((request->getType() == MegaRequest::TYPE_GET_ATTR_USER) &&
-                 (request->getParamType() == MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG))
+                 (request->getParamType() == MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG
+                 || request->getParamType() == MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE))
         {
             request->setFlag(true);
         }
@@ -15344,6 +15346,7 @@ void MegaApiImpl::getua_completion(byte* data, unsigned len, attr_t type, MegaRe
         case MegaApi::USER_ATTR_DISABLE_VERSIONS:
         case MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION:
         case MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG:
+        case MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE:
             {
                 string str((const char*)data,len);
                 request->setText(str.c_str());
@@ -15352,10 +15355,12 @@ void MegaApiImpl::getua_completion(byte* data, unsigned len, attr_t type, MegaRe
                 static_assert(int(MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION) == ATTR_CONTACT_LINK_VERIFICATION, "User Attribute Enum Mismatch");
                 static_assert(int(MegaApi::USER_ATTR_PWD_REMINDER) == ATTR_PWD_REMINDER, "User Attribute Enum Mismatch");
                 static_assert(int(MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG) == ATTR_VISIBLE_WELCOME_DIALOG, "User Attribute Enum Mismatch");
+                static_assert(int(MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE) == ATTR_VISIBLE_TERMS_OF_SERVICE, "User Attribute Enum Mismatch");
 
                 if (int(type) == MegaApi::USER_ATTR_DISABLE_VERSIONS
                         || int(type) == MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION
-                        || int(type) == MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG)
+                        || int(type) == MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG
+                        || int(type) == MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE)
                 {
                     request->setFlag(str == "1");
                 }
@@ -20806,7 +20811,8 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                 else if ((type == ATTR_DISABLE_VERSIONS)
                          || (type == ATTR_NO_CALLKIT)
                          || (type == ATTR_CONTACT_LINK_VERIFICATION)
-                         || (type == ATTR_VISIBLE_WELCOME_DIALOG))
+                         || (type == ATTR_VISIBLE_WELCOME_DIALOG)
+                         || (type == ATTR_VISIBLE_TERMS_OF_SERVICE))
                 {
                     if (!value || strlen(value) != 1 || (value[0] != '0' && value[0] != '1'))
                     {
@@ -26178,6 +26184,17 @@ void MegaApiImpl::setVisibleWelcomeDialog(bool visible, MegaRequestListener* lis
 {
     const auto attributeValue{std::to_string(visible)};
     setUserAttr(MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG, attributeValue.c_str(), listener);
+}
+
+void MegaApiImpl::getVisibleTermsOfService(MegaRequestListener* listener)
+{
+    getUserAttr(nullptr, MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE, nullptr, 0, listener);
+}
+
+void MegaApiImpl::setVisibleTermsOfService(bool visible, MegaRequestListener* listener)
+{
+    const auto attributeValue{std::to_string(visible)};
+    setUserAttr(MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE, attributeValue.c_str(), listener);
 }
 
 void MegaApiImpl::createNodeTree(const MegaNode* parentNode,

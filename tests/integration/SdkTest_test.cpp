@@ -16254,6 +16254,40 @@ TEST_F(SdkTest, SetGetVisibleWelcomeDialog)
 }
 
 /**
+ * @brief Set and get Terms of Service visibility
+ */
+TEST_F(SdkTest, SetGetVisibleTermsOfService)
+{
+    const unsigned int numberOfTestInstances{1};
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfTestInstances));
+
+    const unsigned int apiIndex{0};
+
+    std::unique_ptr<RequestTracker> requestTrackerGetOriginalVisibleTermsOfService{
+        asyncRequestGetVisibleTermsOfService(apiIndex)};
+    ASSERT_THAT(requestTrackerGetOriginalVisibleTermsOfService->waitForResult(),
+                ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
+    const auto originalVisibleTermsOfService{
+        requestTrackerGetOriginalVisibleTermsOfService->getFlag()};
+
+    const auto newVisibleTermsOfService{!originalVisibleTermsOfService};
+    ASSERT_EQ(API_OK, synchronousSetVisibleTermsOfService(apiIndex, newVisibleTermsOfService));
+
+    std::unique_ptr<RequestTracker> requestTrackerGetNewVisibleTermsOfService{
+        asyncRequestGetVisibleTermsOfService(apiIndex)};
+    ASSERT_EQ(API_OK, requestTrackerGetNewVisibleTermsOfService->waitForResult());
+    ASSERT_EQ(newVisibleTermsOfService, requestTrackerGetNewVisibleTermsOfService->getFlag());
+
+    ASSERT_EQ(API_OK, synchronousSetVisibleTermsOfService(apiIndex, originalVisibleTermsOfService));
+
+    std::unique_ptr<RequestTracker> requestTrackerGetRestoredVisibleTermsOfService{
+        asyncRequestGetVisibleTermsOfService(apiIndex)};
+    ASSERT_EQ(API_OK, requestTrackerGetRestoredVisibleTermsOfService->waitForResult());
+    ASSERT_EQ(originalVisibleTermsOfService,
+              requestTrackerGetRestoredVisibleTermsOfService->getFlag());
+}
+
+/**
  * @brief Create node tree with empty parent node
  */
 TEST_F(SdkTest, CreateNodeTreeWithEmptyParentNode)
