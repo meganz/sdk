@@ -7,7 +7,7 @@
 #include <winhttp.h>
 #endif
 
-#include "utils.h"
+#include "sdk_test_utils.h"
 #include "test.h"
 
 // If running in Jenkins, we use its working folder.  But for local manual testing, use a convenient location
@@ -566,7 +566,7 @@ int main (int argc, char *argv[])
     g_clientManager = &clientManager;
 #endif // ENABLE_SYNC
 
-    setTestDataDir(fs::absolute(fs::path(argv[0]).parent_path()));
+    sdk_test::setTestDataDir(fs::absolute(fs::path(argv[0]).parent_path()));
 
     SimpleLogger::setLogLevel(logMax);
     SimpleLogger::setOutputClass(&megaLogger);
@@ -827,7 +827,7 @@ void SdkTestBase::SetUp()
 }
 
 fs::path getLinkExtractSrciptPath() {
-    return getTestDataDir() / LINK_EXTRACT_SCRIPT;
+    return sdk_test::getTestDataDir() / LINK_EXTRACT_SCRIPT;
 }
 
 bool isFileHidden(const LocalPath& path)

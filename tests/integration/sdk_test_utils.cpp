@@ -1,4 +1,8 @@
-#include "utils.h"
+#include "sdk_test_utils.h"
+
+
+namespace sdk_test
+{
 
 static fs::path executableDir;
 
@@ -26,3 +30,4 @@ void copyFileFromTestData(fs::path filename, fs::path destination)
     fs::copy_file(source, destination);
 }
 
+}

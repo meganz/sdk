@@ -5,13 +5,13 @@ target_sources(test_integration
     SdkTest_test.h
     stdfs.h
     test.h
-    utils.h
+    sdk_test_utils.h
     ../gtest_common.h
 
     main.cpp
     SdkTest_test.cpp
     Sync_test.cpp
-    utils.cpp
+    sdk_test_utils.cpp
     ../gtest_common.cpp
 )
 

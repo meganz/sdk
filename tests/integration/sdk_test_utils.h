@@ -2,6 +2,9 @@
 
 #include "stdfs.h"
 
+namespace sdk_test
+{
+
 /**
  * @brief Returns the path to the folder containing the test executable.
  *
@@ -23,3 +26,5 @@ void setTestDataDir(const fs::path& dataDir);
  * directory by default).
  */
 void copyFileFromTestData(fs::path filename, fs::path destination = ".");
+
+}
