@@ -1,3 +1,8 @@
 include src/fuse/common/include.am
+
+if WITH_FUSE
+include src/fuse/supported/include.am
+else !WITH_FUSE
 include src/fuse/unsupported/include.am
+endif !WITH_FUSE
 

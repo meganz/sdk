@@ -77,3 +77,81 @@ macx {
     LIBS += -framework Cocoa
 }
 
+CONFIG(WITH_FUSE) {
+    INCLUDEPATH += $$MEGASDK_BASE_PATH
+
+    FUSE_COMMON_TESTING_SRC = $$MEGASDK_BASE_PATH/src/fuse/common/testing
+    FUSE_COMMON_TESTING_INC = $$MEGASDK_BASE_PATH/src/fuse/common/fuse/testing
+
+    HEADERS += \
+        $$FUSE_COMMON_TESTING_INC/client.h \
+        $$FUSE_COMMON_TESTING_INC/cloud_path.h \
+        $$FUSE_COMMON_TESTING_INC/cloud_path_forward.h \
+        $$FUSE_COMMON_TESTING_INC/directory.h \
+        $$FUSE_COMMON_TESTING_INC/file.h \
+        $$FUSE_COMMON_TESTING_INC/mock_client.h \
+        $$FUSE_COMMON_TESTING_INC/model.h \
+        $$FUSE_COMMON_TESTING_INC/model_forward.h \
+        $$FUSE_COMMON_TESTING_INC/mount_event_observer.h \
+        $$FUSE_COMMON_TESTING_INC/mount_event_observer_forward.h \
+        $$FUSE_COMMON_TESTING_INC/parameters.h \
+        $$FUSE_COMMON_TESTING_INC/parameters_forward.h \
+        $$FUSE_COMMON_TESTING_INC/path.h \
+        $$FUSE_COMMON_TESTING_INC/path_forward.h \
+        $$FUSE_COMMON_TESTING_INC/printers.h \
+        $$FUSE_COMMON_TESTING_INC/real_client.h \
+        $$FUSE_COMMON_TESTING_INC/test_base.h \
+        $$FUSE_COMMON_TESTING_INC/test.h \
+        $$FUSE_COMMON_TESTING_INC/utility.h
+
+    SOURCES += \
+        $$FUSE_COMMON_TESTING_SRC/client.cpp \
+        $$FUSE_COMMON_TESTING_SRC/cloud_path.cpp \
+        $$FUSE_COMMON_TESTING_SRC/common_tests.cpp \
+        $$FUSE_COMMON_TESTING_SRC/directory.cpp \
+        $$FUSE_COMMON_TESTING_SRC/file.cpp \
+        $$FUSE_COMMON_TESTING_SRC/mock_client.cpp \
+        $$FUSE_COMMON_TESTING_SRC/model.cpp \
+        $$FUSE_COMMON_TESTING_SRC/mount_event_observer.cpp \
+        $$FUSE_COMMON_TESTING_SRC/mount_tests.cpp \
+        $$FUSE_COMMON_TESTING_SRC/parameters.cpp \
+        $$FUSE_COMMON_TESTING_SRC/path.cpp \
+        $$FUSE_COMMON_TESTING_SRC/printers.cpp \
+        $$FUSE_COMMON_TESTING_SRC/real_client.cpp \
+        $$FUSE_COMMON_TESTING_SRC/sync_tests.cpp \
+        $$FUSE_COMMON_TESTING_SRC/test.cpp \
+        $$FUSE_COMMON_TESTING_SRC/test_base.cpp \
+        $$FUSE_COMMON_TESTING_SRC/utility.cpp
+
+    FUSE_SUPPORTED_TESTING_INC = \
+        $$MEGASDK_BASE_PATH/src/fuse/supported/fuse/platform/testing
+
+    FUSE_SUPPORTED_TESTING_SRC = \
+        $$MEGASDK_BASE_PATH/src/fuse/supported/testing
+
+    HEADERS += \
+        $$FUSE_SUPPORTED_TESTING_INC/platform_tests.h
+
+    SOURCES += \
+        $$FUSE_SUPPORTED_TESTING_SRC/platform_tests.cpp
+
+    unix {
+        FUSE_POSIX_SRC = $$MEGASDK_BASE_PATH/src/fuse/supported/posix
+
+        FUSE_POSIX_TESTING_SRC = $$FUSE_POSIX_SRC/testing
+        FUSE_POSIX_TESTING_INC = $$FUSE_POSIX_SRC/fuse/testing
+
+        HEADERS += \
+            $$FUSE_POSIX_TESTING_INC/printers.h \
+            $$FUSE_POSIX_TESTING_INC/wrappers.h
+
+        SOURCES += \
+            $$FUSE_POSIX_TESTING_SRC/platform_tests.cpp \
+            $$FUSE_POSIX_TESTING_SRC/printers.cpp \
+            $$FUSE_POSIX_TESTING_SRC/utility.cpp \
+            $$FUSE_POSIX_TESTING_SRC/wrappers.cpp
+
+        !macx:SOURCES += $$FUSE_POSIX_SRC/linux/platform_tests.cpp
+    } # unix
+} # WITH_FUSE
+

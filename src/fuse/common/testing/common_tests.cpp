@@ -616,7 +616,7 @@ handle fsidOf(const Path& path)
 
 bool makeFile(const Path& path, const std::string& data)
 {
-    std::ofstream ostream(path, std::ios::binary | std::ios::trunc);
+    std::ofstream ostream(path.string(), std::ios::binary | std::ios::trunc);
 
     if (!ostream)
         return false;

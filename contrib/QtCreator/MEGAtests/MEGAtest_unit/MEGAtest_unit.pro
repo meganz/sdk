@@ -81,3 +81,12 @@ macx {
     LIBS += -framework Cocoa
 }
 
+CONFIG(WITH_FUSE) {
+    INCLUDEPATH += $$MEGASDK_BASE_PATH
+
+    FUSE_COMMON_TESTING_SRC = $$MEGASDK_BASE_PATH/src/fuse/common/testing
+
+    SOURCES += \
+        $$FUSE_COMMON_TESTING_SRC/shared_mutex_tests.cpp
+} # WITH_FUSE
+

@@ -47,3 +47,56 @@ tests_test_unit_CXXFLAGS += -I$(abs_srcdir)/src/fuse/common
 
 endif BUILD_TESTS
 
+if WITH_FUSE
+
+# Only needed if a concrete backend is being built.
+src_libmega_la_SOURCES += \
+    src/fuse/common/database_builder.cpp \
+    src/fuse/common/date_time.cpp \
+    src/fuse/common/directory_inode.cpp \
+    src/fuse/common/file_cache.cpp \
+    src/fuse/common/file_extension_db.cpp \
+    src/fuse/common/file_info.cpp \
+    src/fuse/common/file_inode.cpp \
+    src/fuse/common/file_io_context.cpp \
+    src/fuse/common/inode_cache.cpp \
+    src/fuse/common/inode_db.cpp \
+    src/fuse/common/inode_id.cpp \
+    src/fuse/common/inode.cpp \
+    src/fuse/common/mount_db.cpp \
+    src/fuse/common/mount_inode_id.cpp \
+    src/fuse/common/mount.cpp
+
+if BUILD_TESTS
+
+tests_test_integration_SOURCES += \
+    src/fuse/common/testing/client.cpp \
+    src/fuse/common/testing/cloud_path.cpp \
+    src/fuse/common/testing/common_tests.cpp \
+    src/fuse/common/testing/directory.cpp \
+    src/fuse/common/testing/file.cpp \
+    src/fuse/common/testing/mock_client.cpp \
+    src/fuse/common/testing/model.cpp \
+    src/fuse/common/testing/mount_event_observer.cpp \
+    src/fuse/common/testing/mount_tests.cpp \
+    src/fuse/common/testing/parameters.cpp \
+    src/fuse/common/testing/path.cpp \
+    src/fuse/common/testing/printers.cpp \
+    src/fuse/common/testing/real_client.cpp \
+    src/fuse/common/testing/test.cpp \
+    src/fuse/common/testing/test_base.cpp \
+    src/fuse/common/testing/utility.cpp
+
+if ENABLE_SYNC
+
+tests_test_integration_SOURCES += \
+    src/fuse/common/testing/sync_tests.cpp
+
+endif ENABLE_SYNC
+
+tests_test_unit_SOURCES += \
+    src/fuse/common/testing/shared_mutex_tests.cpp
+
+endif BUILD_TESTS
+endif WITH_FUSE
+

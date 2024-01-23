@@ -1613,6 +1613,88 @@ if test "x$WIN32" = "xno" ; then
     )
 fi
 
+dnl FUSE functionality is only really meaningful on POSIX platforms.
+AS_IF([test "x$LINUX" = xyes -o "x$DARWIN" = xyes], [
+    dnl Let the user know they can enable FUSE functionality.
+    AC_ARG_ENABLE(fuse,
+                  [AS_HELP_STRING(
+                    [--enable-fuse],
+                    [Enable FUSE functionality [default=check]])],
+                  [],
+                  [enable_fuse=check])
+
+    dnl Let the user specify where libfuse can be found.
+    AC_ARG_WITH(fuse,
+                [AS_HELP_STRING(
+                  [--with-fuse=PATH],
+                  [Where libfuse has been installed [default=PREFIX]])],
+                [],
+                [with_fuse=$prefix])
+
+    dnl libfuse must be present to enable FUSE functionality.
+    AS_IF([test "x$enable_fuse" != xno -a "x$with_fuse" != xno], [
+        dnl Convenience.
+        FUSE_CPPFLAGS="-I$with_fuse/include"
+        FUSE_LDFLAGS="-L$with_fuse/lib"
+        FUSE_LIBS="-lfuse"
+
+        dnl Tell the system where it should search for libfuse.
+        CPPFLAGS="$FUSE_CPPFLAGS $CPPFLAGS"
+        LDFLAGS="$FUSE_LDFLAGS $LDFLAGS"
+
+        dnl Check for libfuse headers.
+        AC_CHECK_HEADERS([fuse/fuse.h], [], [
+            dnl Compilation may fali if _FILE_OFFSET_BITS isn't defined.
+            FUSE_CPPFLAGS="-D_FILE_OFFSET_BITS=64 $FUSE_CPPFLAGS"
+            CPPFLAGS="$FUSE_CPPFLAGS $SAVE_CPPFLAGS"
+
+            dnl See if this changes the result.
+            AS_UNSET([ac_cv_header_fuse_fuse_h])
+
+            AC_CHECK_HEADERS([fuse/fuse.h], [], [
+                AS_IF([test "x$enable_fuse" != xcheck ], [
+                    AC_MSG_ERROR([fuse/fuse.h not found or usable.])
+                ], [
+                    enable_fuse=no
+                ])
+            ])
+        ])
+
+        dnl Check for usable libfuse libraries.
+        AS_IF([test "x$enable_fuse" != xno], [
+            AC_CHECK_LIB([fuse], [fuse_main], [], [
+                AS_IF([test "x$enable_fuse" != xcheck ], [
+                    AC_MSG_ERROR([libfuse not found or usable.])
+                ], [
+                    enable_fuse=no
+                ])
+            ])
+        ])
+
+        dnl Make flags accessible from the makefiles.
+        AS_IF([test "x$enable_fuse" = xno], [
+            FUSE_CPPFLAGS=
+            FUSE_LDFLAGS=
+            FUSE_LIBS=
+        ])
+
+        AC_SUBST(FUSE_CPPFLAGS)
+        AC_SUBST(FUSE_LDFLAGS)
+        AC_SUBST(FUSE_LIBS)
+
+        dnl Don't interfere with future feature checks.
+        CPPFLAGS=$SAVE_CPPFLAGS
+        LDFLAGS=$SAVE_LDFLAGS
+        LIBS=$SAVE_LIBS
+    ])
+], [
+  dnl Only POSIX platforms currently support FUSE.
+  enable_fuse=no
+])
+
+dnl Let AM know whether we found a fuse backend.
+AM_CONDITIONAL([WITH_FUSE], [test "x$enable_fuse" != xno])
+
 # define on all platforms
 AM_CONDITIONAL(HAVE_OPENSSL, test x$openssl = xtrue)
 if test "x$openssl" = "xtrue" ; then
@@ -2242,4 +2324,5 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   LIBRAW:           $LIBRAW_CXXFLAGS $LIBRAW_LDFLAGS $LIBRAW_LIBS
   LIBMEDIAINFO:     $LIBMEDIAINFO_CXXFLAGS $LIBMEDIAINFO_LDFLAGS $LIBMEDIAINFO_LIBS
   FFMPEG:           $FFMPEG_CXXFLAGS $FFMPEG_LDFLAGS $FFMPEG_LIBS
+  FUSE:             $FUSE_CPPFLAGS $FUSE_LDFLAGS $FUSE_LIBS
 ])

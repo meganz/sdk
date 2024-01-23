@@ -986,16 +986,211 @@ SOURCES += \
     $$FUSE_COMMON_SRC/transaction.cpp \
     $$FUSE_COMMON_SRC/utility.cpp
 
+# Required by all concrete backends.
+CONFIG(WITH_FUSE) {
+    HEADERS += \
+        $$FUSE_COMMON_INC/badge_forward.h \
+        $$FUSE_COMMON_INC/badge.h \
+        $$FUSE_COMMON_INC/constants.h \
+        $$FUSE_COMMON_INC/database_builder.h \
+        $$FUSE_COMMON_INC/date_time_forward.h \
+        $$FUSE_COMMON_INC/date_time.h \
+        $$FUSE_COMMON_INC/directory_inode_forward.h \
+        $$FUSE_COMMON_INC/directory_inode_results.h \
+        $$FUSE_COMMON_INC/directory_inode.h \
+        $$FUSE_COMMON_INC/error_or.h \
+        $$FUSE_COMMON_INC/error_or_forward.h \
+        $$FUSE_COMMON_INC/file_cache.h \
+        $$FUSE_COMMON_INC/file_cache_forward.h \
+        $$FUSE_COMMON_INC/file_extension_db.h \
+        $$FUSE_COMMON_INC/file_extension_db_forward.h \
+        $$FUSE_COMMON_INC/file_info.h \
+        $$FUSE_COMMON_INC/file_info_forward.h \
+        $$FUSE_COMMON_INC/file_inode.h \
+        $$FUSE_COMMON_INC/file_inode_forward.h \
+        $$FUSE_COMMON_INC/file_io_context.h \
+        $$FUSE_COMMON_INC/file_io_context_forward.h \
+        $$FUSE_COMMON_INC/inode_cache.h \
+        $$FUSE_COMMON_INC/inode_cache_forward.h \
+        $$FUSE_COMMON_INC/inode_db.h \
+        $$FUSE_COMMON_INC/inode_db_forward.h \
+        $$FUSE_COMMON_INC/inode_forward.h \
+        $$FUSE_COMMON_INC/inode.h \
+        $$FUSE_COMMON_INC/mount_db_forward.h \
+        $$FUSE_COMMON_INC/mount_db.h \
+        $$FUSE_COMMON_INC/mount_forward.h \
+        $$FUSE_COMMON_INC/mount.h \
+        $$FUSE_COMMON_INC/path_adapter_forward.h \
+        $$FUSE_COMMON_INC/path_adapter.h \
+        $$FUSE_COMMON_INC/ref_forward.h \
+        $$FUSE_COMMON_INC/ref.h \
+        $$FUSE_COMMON_INC/tags.h
+
+    SOURCES += \
+        $$FUSE_COMMON_SRC/database_builder.cpp \
+        $$FUSE_COMMON_SRC/date_time.cpp \
+        $$FUSE_COMMON_SRC/directory_inode.cpp \
+        $$FUSE_COMMON_SRC/file_cache.cpp \
+        $$FUSE_COMMON_SRC/file_extension_db.cpp \
+        $$FUSE_COMMON_SRC/file_info.cpp \
+        $$FUSE_COMMON_SRC/file_inode.cpp \
+        $$FUSE_COMMON_SRC/file_io_context.cpp \
+        $$FUSE_COMMON_SRC/inode.cpp \
+        $$FUSE_COMMON_SRC/inode_cache.cpp \
+        $$FUSE_COMMON_SRC/inode_db.cpp \
+        $$FUSE_COMMON_SRC/mount_db.cpp \
+        $$FUSE_COMMON_SRC/mount.cpp
+
+    FUSE_SUPPORTED_SRC = $$MEGASDK_BASE_PATH/src/fuse/supported
+    FUSE_SUPPORTED_INC = $$MEGASDK_BASE_PATH/src/fuse/supported/mega/fuse
+
+    INCLUDEPATH += $$FUSE_SUPPORTED_SRC
+
+    HEADERS += \
+        $$FUSE_SUPPORTED_INC/platform/context_forward.h \
+        $$FUSE_SUPPORTED_INC/platform/context.h \
+        $$FUSE_SUPPORTED_INC/platform/directory_context_forward.h \
+        $$FUSE_SUPPORTED_INC/platform/file_context_forward.h \
+        $$FUSE_SUPPORTED_INC/platform/file_context.h \
+        $$FUSE_SUPPORTED_INC/platform/mount_db_forward.h \
+        $$FUSE_SUPPORTED_INC/platform/mount_forward.h \
+        $$FUSE_SUPPORTED_INC/platform/path_adapter_forward.h \
+        $$FUSE_SUPPORTED_INC/platform/path_adapter.h \
+        $$FUSE_SUPPORTED_INC/platform/service_context_forward.h \
+        $$FUSE_SUPPORTED_INC/platform/service_context.h \
+        $$FUSE_SUPPORTED_INC/platform/unmounter.h
+
+    SOURCES += \
+        $$FUSE_SUPPORTED_SRC/context.cpp \
+        $$FUSE_SUPPORTED_SRC/file_context.cpp \
+        $$FUSE_SUPPORTED_SRC/service_context.cpp \
+        $$FUSE_SUPPORTED_SRC/service.cpp \
+        $$FUSE_SUPPORTED_SRC/unmounter.cpp
+
+    # Sources required by all POSIX backends.
+    unix {
+        FUSE_POSIX_SRC = $$FUSE_SUPPORTED_SRC/posix
+        FUSE_POSIX_INC = $$FUSE_POSIX_SRC/mega/fuse
+
+        INCLUDEPATH += $$FUSE_POSIX_SRC
+
+        HEADERS += \
+            $$FUSE_POSIX_INC/platform/constants.h \
+            $$FUSE_POSIX_INC/platform/directory_context.h \
+            $$FUSE_POSIX_INC/platform/file_descriptor.h \
+            $$FUSE_POSIX_INC/platform/file_descriptor_forward.h \
+            $$FUSE_POSIX_INC/platform/inode_invalidator.h \
+            $$FUSE_POSIX_INC/platform/library.h \
+            $$FUSE_POSIX_INC/platform/mount.h \
+            $$FUSE_POSIX_INC/platform/mount_db.h \
+            $$FUSE_POSIX_INC/platform/path_adapter.h \
+            $$FUSE_POSIX_INC/platform/platform.h \
+            $$FUSE_POSIX_INC/platform/process.h \
+            $$FUSE_POSIX_INC/platform/process_forward.h \
+            $$FUSE_POSIX_INC/platform/request.h \
+            $$FUSE_POSIX_INC/platform/request_forward.h \
+            $$FUSE_POSIX_INC/platform/session.h \
+            $$FUSE_POSIX_INC/platform/session_forward.h \
+            $$FUSE_POSIX_INC/platform/signal.h \
+            $$FUSE_POSIX_INC/platform/utility.h
+
+        SOURCES += \
+            $$FUSE_POSIX_SRC/directory_context.cpp \
+            $$FUSE_POSIX_SRC/constants.cpp \
+            $$FUSE_POSIX_SRC/file_descriptor.cpp \
+            $$FUSE_POSIX_SRC/inode_invalidator.cpp \
+            $$FUSE_POSIX_SRC/mount.cpp \
+            $$FUSE_POSIX_SRC/mount_db.cpp \
+            $$FUSE_POSIX_SRC/request.cpp \
+            $$FUSE_POSIX_SRC/service.cpp \
+            $$FUSE_POSIX_SRC/session.cpp \
+            $$FUSE_POSIX_SRC/signal.cpp \
+            $$FUSE_POSIX_SRC/unmounter.cpp \
+            $$FUSE_POSIX_SRC/utility.cpp
+
+        # User's told us where FUSE should live.
+        !isEmpty(FUSE_PREFIX) {
+            # User hasn't told us where to find FUSE's headers.
+            isEmpty(FUSE_INCLUDE_DIR) {
+                FUSE_INCLUDE_DIR=$$FUSE_PREFIX/include
+            }
+
+            # User hasn't told us where to find FUSE's libraries.
+            isEmpty(FUSE_LIB_DIR) {
+                FUSE_LIB_DIR=$$FUSE_PREFIX/lib
+            }
+        }
+
+        # Make sure header and library paths are sane.
+        isEmpty(FUSE_INCLUDE_DIR) {
+            error("You must specify either FUSE_INCLUDE_DIR or FUSE_PREFIX")
+        }
+
+        isEmpty(FUSE_LIB_DIR) {
+            error("You must specify either FUSE_LIB_DIR or FUSE_PREFIX")
+        }
+
+        # Make sure FUSE's headers are present.
+        !exists($$FUSE_INCLUDE_DIR/fuse/fuse_lowlevel.h) {
+            error("Couldn't find fuse/fuse_lowlevel.h under $$FUSE_INCLUDE_DIR")
+        }
+
+        DEFINES += _FILE_OFFSET_BITS=64
+        INCLUDEPATH += $$FUSE_INCLUDE_DIR
+
+        # Sources required for Linux.
+        !macx {
+            # Make sure the FUSE library is present.
+            !exists($$FUSE_LIB_DIR/libfuse.a) {
+                error("Couldn't find libfuse.a under $$FUSE_LIB_DIR")
+            }
+
+            LIBS += $$FUSE_LIB_DIR/libfuse.a
+
+            FUSE_UNIX_SRC = $$FUSE_POSIX_SRC/linux
+            FUSE_UNIX_INC = $$FUSE_UNIX_SRC/mega/fuse
+        } # !macx
+
+        macx {
+            # Make sure the FUSE library is present.
+            !exists($$FUSE_LIB_DIR/libfuse.dylib) {
+                error("Couldn't find libfuse.dylib under $$FUSE_LIB_DIR")
+            }
+
+            LIBS += $$FUSE_LIB_DIR/libfuse.dylib
+
+            FUSE_UNIX_SRC = $$FUSE_POSIX_SRC/darwin
+            FUSE_UNIX_INC = $$FUSE_UNIX_SRC/mega/fuse
+        } # macx
+
+        isEmpty(FUSE_UNIX_SRC):error("Unsupported UNIX implementation")
+
+        INCLUDEPATH += $$FUSE_UNIX_SRC
+
+        HEADERS += \
+            $$FUSE_UNIX_INC/platform/date-time.h \
+            $$FUSE_UNIX_INC/platform/platform.h
+
+        SOURCES += \
+            $$FUSE_UNIX_SRC/utility.cpp
+    } # unix
+
+    # Windows remains unsupported for now.
+    !unix:error("FUSE support is not yet implemented for Windows")
+} # WITH_FUSE
+
 # Required by dummy backend.
-FUSE_UNSUPPORTED_SRC = $$MEGASDK_BASE_PATH/src/fuse/unsupported
-FUSE_UNSUPPORTED_INC = $$MEGASDK_BASE_PATH/src/fuse/unsupported/mega/fuse
+!CONFIG(WITH_FUSE) {
+    FUSE_UNSUPPORTED_SRC = $$MEGASDK_BASE_PATH/src/fuse/unsupported
+    FUSE_UNSUPPORTED_INC = $$MEGASDK_BASE_PATH/src/fuse/unsupported/mega/fuse
 
-INCLUDEPATH += $$FUSE_UNSUPPORTED_SRC
+    INCLUDEPATH += $$FUSE_UNSUPPORTED_SRC
 
-HEADERS += \
-    $$FUSE_UNSUPPORTED_INC/platform/service_context.h
+    HEADERS += \
+        $$FUSE_UNSUPPORTED_INC/platform/service_context.h
 
-SOURCES += \
-    $$FUSE_UNSUPPORTED_SRC/service_context.cpp \
-    $$FUSE_UNSUPPORTED_SRC/service.cpp
+    SOURCES += \
+        $$FUSE_UNSUPPORTED_SRC/service_context.cpp \
+        $$FUSE_UNSUPPORTED_SRC/service.cpp
+} # !WITH_FUSE
 
