@@ -16720,6 +16720,11 @@ TEST_F(SdkTest, SdkTestPasswordManager)
         ASSERT_TRUE(equals(clonedPwdData.get(), receivedPwdData.get()));
     }
 
+    LOG_debug << "\t# U1: attempt creation of new Password Node with same name as existing one";
+    RequestTracker rtCErrorExists {megaApi[userIdx].get()};
+    megaApi[userIdx]->createPasswordNode(pwdNodeName.c_str(), pwdData.get(), nhBase, &rtCErrorExists);
+    ASSERT_EQ(API_EEXIST, rtCErrorExists.waitForResult());
+
     LOG_debug << "\t# U1: attempt creation of new Password Node with wrong parameters";
     RequestTracker rtCError {megaApi[userIdx].get()};
     megaApi[userIdx]->createPasswordNode(nullptr, nullptr, INVALID_HANDLE, &rtCError);

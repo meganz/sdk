@@ -19574,8 +19574,7 @@ std::pair<bool, error> MegaApiImpl::checkCreateFolderPrecons(const char* name,
     if (folder && folder->type == FOLDERNODE)
     {
         request->setNodeHandle(folder->nodehandle);
-        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
-        return std::make_pair(false, API_OK);
+        return std::make_pair(false, API_EEXIST);
     }
 
     return std::make_pair(true, API_OK);

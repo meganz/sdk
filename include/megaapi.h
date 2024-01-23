@@ -11897,6 +11897,9 @@ class MegaApi
          * - MegaRequest::getNodeHandle - Handle of the new folder
          * - MegaRequest::getFlag - True if target folder (\c parent) was overriden
          *
+         * If there already is a folder in target path with the same name, error code API_EEXIST is
+         * returned and the existing folder MegaHandle included in MegaRequest::getNodeHandle.
+         *
          * If the MEGA account is a business account and it's status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
@@ -11948,6 +11951,10 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getNodeHandle - Handle of the new Password Node
+         *
+         * If there already is a Password Node in target path with the same name, error code
+         * API_EEXIST is returned and the existing Password Node MegaHandle included in
+         * MegaRequest::getNodeHandle.
          *
          * If the MEGA account is a business account and it's status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.
