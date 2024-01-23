@@ -9320,7 +9320,7 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
             threadSafeState->addExpectedUpload(parentRow.cloudNode->handle, existingUpload->name, existingUpload);
 
             NodeHandle displaceHandle = row.cloudNode ? row.cloudNode->handle : NodeHandle();
-            auto noDebris = inshare;
+            auto isInshare = inshare;
 
             std::function<void(MegaClient&)> signalPutnodesBegin;
 
@@ -9332,13 +9332,13 @@ bool Sync::resolve_upsync(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, 
             }
 
             bool canChangeVault = threadSafeState->mCanChangeVault;
-            syncs.queueClient([existingUpload, displaceHandle, noDebris, signalPutnodesBegin, canChangeVault](MegaClient& mc, TransferDbCommitter& committer)
+            syncs.queueClient([existingUpload, displaceHandle, isInshare, signalPutnodesBegin, canChangeVault](MegaClient& mc, TransferDbCommitter& committer)
                 {
                     std::shared_ptr<Node> displaceNode = mc.nodeByHandle(displaceHandle);
                     if (displaceNode && mc.versions_disabled)
                     {
                         MegaClient* c = &mc;
-                        mc.movetosyncdebris(displaceNode.get(), noDebris,
+                        mc.movetosyncdebris(displaceNode.get(), isInshare,
 
                             // after the old node is out of the way, we wll putnodes
                             [c, existingUpload, signalPutnodesBegin](NodeHandle, Error){
