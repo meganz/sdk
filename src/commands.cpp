@@ -3247,7 +3247,7 @@ bool CommandPutUAVer::procresult(Result r, JSON& json)
 CommandPutUA::CommandPutUA(MegaClient* /*client*/, attr_t at, const byte* av, unsigned avl, int ctag, handle lph, int phtype, int64_t ts,
                            std::function<void(Error)> completion)
 {
-    mSeqtagArray = true;
+    mV3 = false;
 
     this->at = at;
     this->av.assign((const char*)av, avl);
@@ -7854,8 +7854,6 @@ bool CommandChatRemoveAccess::procresult(Result r, JSON& json)
 
 CommandChatUpdatePermissions::CommandChatUpdatePermissions(MegaClient *client, handle chatid, handle uh, privilege_t priv)
 {
-    mV3 = false;
-
     this->client = client;
     this->chatid = chatid;
     this->uh = uh;
