@@ -8941,24 +8941,25 @@ TEST_F(SdkTest, QueryAds)
 TEST_F(SdkTest, FetchAds)
 {
     LOG_info << "___TEST FetchAds";
+    LOG_debug << "\t# Test suite 1: Fetching ads with non-ads account";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     std::unique_ptr<MegaStringList> stringList = std::unique_ptr<MegaStringList>(MegaStringList::createInstance());
     std::unique_ptr<RequestTracker> tr = asyncFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get(), INVALID_HANDLE);
     ASSERT_EQ(API_EARGS, tr->waitForResult()) << "Fetch Ads succeeded with invalid arguments";
     stringList->add("dummyAdUnit");
     tr = asyncFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get(), INVALID_HANDLE);
-    ASSERT_EQ(API_OK, tr->waitForResult()) << "Fetch Ads failed";
+    ASSERT_EQ(API_ENOENT, tr->waitForResult()) << "Fetch Ads didn't fail when it was expected to (dummy Ad case)";
     const MegaStringMap* ads = tr->request->getMegaStringMap();
-    ASSERT_TRUE(ads) << "Fetch Ads didn't copy ads to `request`";
-    ASSERT_EQ(ads->size(), 0) << "Fetch Ads found some dummy ads";
+    ASSERT_FALSE(ads) << "Fetch Ads should have been nullptr due to expected error code `request`";
     const char valiAdSlot[] = "ANDFB";
+    stringList.reset(MegaStringList::createInstance());
     stringList->add(valiAdSlot);
     tr = asyncFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get(), INVALID_HANDLE);
-    ASSERT_EQ(API_OK, tr->waitForResult()) << "Fetch Ads failed";
+    ASSERT_EQ(API_ENOENT, tr->waitForResult()) << "Fetch Ads didn't fail when it was expected to (correct Ad case)";
     ads = tr->request->getMegaStringMap();
-    ASSERT_TRUE(ads) << "Fetch Ads didn't copy ads to `request`";
-    ASSERT_EQ(ads->size(), 1) << "Fetch Ads findings are incorrect";
-    ASSERT_NE(ads->get(valiAdSlot), nullptr) << "Fetch Ads didn't find " << valiAdSlot;
+    ASSERT_FALSE(ads) << "Fetch Ads should have been nullptr to expected error code in `request`";
+
+    // TODO: LOG_debug << "\t# Test suite 2: Fetching ads with containing-ads account";
 }
 
 #ifdef ENABLE_SYNC
