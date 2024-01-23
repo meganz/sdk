@@ -16749,25 +16749,31 @@ TEST_F(SdkTest, SetGetVisibleTermsOfService)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfTestInstances));
 
     const unsigned int apiIndex{0};
+    const unsigned int defaultTermsOfService = true;
 
-    RequestTracker requestTrackerBeforeSets(megaApi[apiIndex].get());
-    megaApi[apiIndex]->getVisibleTermsOfService(&requestTrackerBeforeSets);
-    ASSERT_THAT(requestTrackerBeforeSets.waitForResult(),
+    RequestTracker requestTrackerFirstGet(megaApi[apiIndex].get());
+    megaApi[apiIndex]->getVisibleTermsOfService(&requestTrackerFirstGet);
+    ASSERT_THAT(requestTrackerFirstGet.waitForResult(),
                 ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
-    const bool originalVisibleTermsOfService = requestTrackerBeforeSets.getFlag();
+    ASSERT_EQ(defaultTermsOfService, requestTrackerFirstGet.getFlag());
 
-    const bool newVisibleTermsOfService = !originalVisibleTermsOfService;
-    ASSERT_EQ(API_OK, synchronousSetVisibleTermsOfService(apiIndex, newVisibleTermsOfService));
+    const bool modifiedTermsOfService = !defaultTermsOfService;
 
-    RequestTracker requestTrackerAfterFirstSet(megaApi[apiIndex].get());
-    megaApi[apiIndex]->getVisibleTermsOfService(&requestTrackerAfterFirstSet);
-    ASSERT_EQ(API_OK, requestTrackerAfterFirstSet.waitForResult());
-    ASSERT_EQ(newVisibleTermsOfService, requestTrackerAfterFirstSet.getFlag());
+    RequestTracker requestTrackerFirstSet(megaApi[apiIndex].get());
+    megaApi[apiIndex]->setVisibleTermsOfService(modifiedTermsOfService, &requestTrackerFirstSet);
+    ASSERT_EQ(API_OK, requestTrackerFirstSet.waitForResult());
 
-    ASSERT_EQ(API_OK, synchronousSetVisibleTermsOfService(apiIndex, originalVisibleTermsOfService));
+    RequestTracker requestTrackerSecondGet(megaApi[apiIndex].get());
+    megaApi[apiIndex]->getVisibleTermsOfService(&requestTrackerSecondGet);
+    ASSERT_EQ(API_OK, requestTrackerSecondGet.waitForResult());
+    ASSERT_EQ(modifiedTermsOfService, requestTrackerSecondGet.getFlag());
 
-    RequestTracker requestTrackerAfterSecondSet(megaApi[apiIndex].get());
-    megaApi[apiIndex]->getVisibleTermsOfService(&requestTrackerAfterSecondSet);
-    ASSERT_EQ(API_OK, requestTrackerAfterSecondSet.waitForResult());
-    ASSERT_EQ(originalVisibleTermsOfService, requestTrackerAfterSecondSet.getFlag());
+    RequestTracker requestTrackerSecondSet(megaApi[apiIndex].get());
+    megaApi[apiIndex]->setVisibleTermsOfService(defaultTermsOfService, &requestTrackerSecondSet);
+    ASSERT_EQ(API_OK, requestTrackerSecondSet.waitForResult());
+
+    RequestTracker requestTrackerThirdGet(megaApi[apiIndex].get());
+    megaApi[apiIndex]->getVisibleTermsOfService(&requestTrackerThirdGet);
+    ASSERT_EQ(API_OK, requestTrackerThirdGet.waitForResult());
+    ASSERT_EQ(defaultTermsOfService, requestTrackerThirdGet.getFlag());
 }

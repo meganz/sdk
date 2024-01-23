@@ -480,7 +480,6 @@ public:
     template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestFetchnodes(unsigned apiIndex, requestArgs... args) { auto rt = ::mega::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->fetchNodes(args..., rt.get()); return rt; }
     template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestFetchnodes(MegaApi *api, requestArgs... args) { auto rt = ::mega::make_unique<RequestTracker>(api); api->fetchNodes(args..., rt.get()); return rt; }
     template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestGetVisibleWelcomeDialog(unsigned apiIndex) { auto rt = ::mega::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->getVisibleWelcomeDialog(rt.get()); return rt; }
-    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestGetVisibleTermsOfService(unsigned apiIndex) { auto rt = ::mega::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->getVisibleTermsOfService(rt.get()); return rt; }
     template<typename ... requestArgs> int doGetDeviceName(unsigned apiIndex, string* dvc, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->getDeviceName(args..., &rt); auto e = rt.waitForResult(); if (dvc && e == API_OK) *dvc = rt.request->getName(); return e; }
     template<typename ... requestArgs> int doSetDeviceName(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setDeviceName(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int doGetDriveName(unsigned apiIndex, string* drv, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->getDriveName(args..., &rt); auto e = rt.waitForResult(); if (drv && e == API_OK) *drv = rt.request->getName(); return e; }
@@ -606,7 +605,6 @@ public:
     template<typename ... requestArgs> int syncSendABTestActive(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->sendABTestActive(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int syncMoveToDebris(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->moveToDebris(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousSetVisibleWelcomeDialog(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setVisibleWelcomeDialog(args..., &rt); return rt.waitForResult(); }
-    template<typename ... requestArgs> int synchronousSetVisibleTermsOfService(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setVisibleTermsOfService(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousCreateNodeTree(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->createNodeTree(args..., &rt); return rt.waitForResult(); }
 
     // Checkup methods called from MegaApi callbacks
