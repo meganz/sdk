@@ -4123,6 +4123,23 @@ bool StandardClient::conflictsDetected(list<NameConflict>& conflicts)
     return result;
 }
 
+bool StandardClient::stallsDetected(SyncStallInfo& stalls)
+{
+    PromiseBoolSP pb(new promise<bool>());
+
+    bool result = false;
+
+    client.syncs.syncRun([&](){
+        result = client.syncs.stallsDetected(stalls);
+        result |= !stalls.empty();
+        pb->set_value(true);
+    }, "StandardClient::stallsDetected");
+
+    EXPECT_TRUE(debugTolerantWaitOnFuture(pb->get_future(), 45));
+
+    return result;
+}
+
 bool StandardClient::login_reset(bool noCache)
 {
     return login_reset("MEGA_EMAIL", "MEGA_PWD", noCache);
@@ -4363,6 +4380,8 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
     mOnSyncStateConfig = nullptr;
     mOnTransferAdded = nullptr;
     onTransferCompleted = nullptr;
+    mOnTotalConflictsUpdate = nullptr;
+    mOnTotalStallsUpdate = nullptr;
 
 #ifndef NDEBUG // match the conditon in the header
     mOnMoveBegin = nullptr;
@@ -16924,7 +16943,7 @@ TEST_F(SyncTest, MultipleStallsWhenEncounteringHardLink)
 
     // Make sure we've actually stalled.
     SyncStallInfo stalls;
-    ASSERT_TRUE(client->client.syncs.stallsDetected(stalls));
+    ASSERT_TRUE(client->stallsDetected(stalls));
 
     // Check that we've stalled for the right reason.
     ASSERT_FALSE(stalls.local.empty());
@@ -16960,7 +16979,7 @@ TEST_F(SyncTest, MultipleStallsWhenEncounteringHardLink)
 
     // Make sure the stalls collection is updated
     stalls.clear();
-    ASSERT_TRUE(client->client.syncs.stallsDetected(stalls));
+    ASSERT_TRUE(client->stallsDetected(stalls));
 
     // Check that we've stalled for the right reason.
     ASSERT_EQ(stalls.local.size(), 2u);
@@ -16997,7 +17016,7 @@ TEST_F(SyncTest, MultipleStallsWhenEncounteringHardLink)
 
     // Make sure the stalls collection is updated
     stalls.clear();
-    ASSERT_TRUE(client->client.syncs.stallsDetected(stalls));
+    ASSERT_TRUE(client->stallsDetected(stalls));
 
     // Check that we've stalled for the right reason.
     ASSERT_EQ(stalls.local.size(), 1u);

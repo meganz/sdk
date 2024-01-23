@@ -12253,7 +12253,7 @@ void Syncs::collectSyncNameConflicts(handle backupId, std::function<void(list<Na
 
 bool Syncs::stallsDetected(SyncStallInfo& stallInfo)
 {
-    assert(!onSyncThread());
+    assert(onSyncThread());
 
     // if we're not actually in stall state then don't report things
     // that we are waiting on that migtht come right, only report definites.
@@ -12280,6 +12280,8 @@ bool Syncs::stallsDetected(SyncStallInfo& stallInfo)
 
 size_t Syncs::stallsDetectedCount() const
 {
+    assert(onSyncThread());
+
     size_t numCloudIssues = 0;
     size_t numLocalIssues = 0;
     if (syncStallState)
@@ -12321,6 +12323,8 @@ bool Syncs::syncStallDetected(SyncStallInfo& si) const
 
 void Syncs::processSyncConflicts()
 {
+    assert(onSyncThread());
+
     bool conflictsNow = conflictsDetectedCount(0);
     if (conflictsNow != syncConflictState)
     {
@@ -12363,8 +12367,9 @@ void Syncs::processSyncConflicts()
 
 void Syncs::processSyncStalls()
 {
-    bool stalled = syncStallState;
+    assert(onSyncThread());
 
+    bool stalled = syncStallState;
     {
         for (auto i = badlyFormedIgnoreFilePaths.begin(); i != badlyFormedIgnoreFilePaths.end(); )
         {
@@ -12506,7 +12511,6 @@ void Syncs::processSyncStalls()
         lastSyncStallsCount = std::chrono::steady_clock::now();
     }
 }
-
 
 void Syncs::proclocaltree(LocalNode* n, LocalTreeProc* tp)
 {
