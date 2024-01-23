@@ -29,8 +29,8 @@ if (UNIX)
     # libfuse backend.
     include(${FUSE_SUPPORTED_SRC}/posix/CMakeLists.txt)
 else()
-    # No backend exists for Windows yet.
-    message(FATAL_ERROR "FUSE support is not yet implemented for Windows")
+    # WinFSP backend.
+    include(${FUSE_SUPPORTED_SRC}/windows/CMakeLists.txt)
 endif()
 
 # Are we building integration tests?

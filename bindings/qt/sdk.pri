@@ -1175,8 +1175,98 @@ CONFIG(WITH_FUSE) {
             $$FUSE_UNIX_SRC/utility.cpp
     } # unix
 
-    # Windows remains unsupported for now.
-    !unix:error("FUSE support is not yet implemented for Windows")
+    # Sources required by WinFSP backend.
+    win32 {
+        FUSE_WINDOWS_SRC = $$FUSE_SUPPORTED_SRC/windows
+        FUSE_WINDOWS_INC = $$FUSE_WINDOWS_SRC/fuse
+
+        INCLUDEPATH += $$FUSE_WINDOWS_SRC
+
+        HEADERS += \
+            $$FUSE_WINDOWS_INC/platform/constants.h \
+            $$FUSE_WINDOWS_INC/platform/date_time.h \
+            $$FUSE_WINDOWS_INC/platform/directory_context.h \
+            $$FUSE_WINDOWS_INC/platform/dispatcher_forward.h \
+            $$FUSE_WINDOWS_INC/platform/dispatcher.h \
+            $$FUSE_WINDOWS_INC/platform/handle_forward.h \
+            $$FUSE_WINDOWS_INC/platform/handle.h \
+            $$FUSE_WINDOWS_INC/platform/library.h \
+            $$FUSE_WINDOWS_INC/platform/local_pointer.h \
+            $$FUSE_WINDOWS_INC/platform/mount_db.h \
+            $$FUSE_WINDOWS_INC/platform/mount.h \
+            $$FUSE_WINDOWS_INC/platform/path_adapter.h \
+            $$FUSE_WINDOWS_INC/platform/platform.h \
+            $$FUSE_WINDOWS_INC/platform/security_descriptor_forward.h \
+            $$FUSE_WINDOWS_INC/platform/security_descriptor.h \
+            $$FUSE_WINDOWS_INC/platform/security_identifier_forward.h \
+            $$FUSE_WINDOWS_INC/platform/security_identifier.h \
+            $$FUSE_WINDOWS_INC/platform/windows.h \
+            $$FUSE_WINDOWS_INC/utility.h
+
+        SOURCES += \
+            $$FUSE_WINDOWS_SRC/constants.cpp \
+            $$FUSE_WINDOWS_SRC/directory_context.cpp \
+            $$FUSE_WINDOWS_SRC/dispatcher.cpp \
+            $$FUSE_WINDOWS_SRC/local_pointer.cpp \
+            $$FUSE_WINDOWS_SRC/mount.cpp \
+            $$FUSE_WINDOWS_SRC/mount_db.cpp \
+            $$FUSE_WINDOWS_SRC/security_descriptor.cpp \
+            $$FUSE_WINDOWS_SRC/security_identifier.cpp \
+            $$FUSE_WINDOWS_SRC/service.cpp \
+            $$FUSE_WINDOWS_SRC/unmounter.cpp \
+            $$FUSE_WINDOWS_SRC/utility.cpp
+
+        !isEmpty(WINFSP_PREFIX) {
+            # User hasn't specified where to find WinFSP's headers.
+            isEmpty(WINFSP_INCLUDE_DIR) {
+                WINFSP_INCLUDE_DIR=$$WINFSP_PREFIX\inc
+            }
+
+            # User hasn't specified where to find WinFSP's libraries.
+            isEmpty(WINFSP_LIB_DIR) {
+                WINFSP_LIB_DIR=$$WINFSP_PREFIX\lib
+            }
+        }
+
+        # Make sure header and library paths are sane.
+        isEmpty(WINFSP_INCLUDE_DIR) {
+            error("You must specify either WINFSP_INCLUDE_DIR or WINFSP_PREFIX")
+        }
+
+        isEmpty(WINFSP_LIB_DIR) {
+            error("You must specify either WINFSP_LIB_DIR or WINFSP_PREFIX")
+        }
+
+        # Make sure WinFSP's headers are present.
+        !exists($$WINFSP_INCLUDE_DIR/winfsp/winfsp.h) {
+            error("Couldn't find winfsp/winfsp.h under $$WINFSP_INCLUDE_DIR")
+        }
+
+        # Necessary so we don't refine lots of Win32 macros.
+        DEFINES += WIN32_LEAN_AND_MEAN
+
+        # Let the SDK know where it can find WinFSP's headers.
+        INCLUDEPATH += "$$WINFSP_INCLUDE_DIR"
+
+        # Assume we're building a 64bit binary.
+        WINFSP_LIB = winfsp-x64.lib
+
+        # Actually building a 32bit binary.
+        contains(QT_ARCH, i386):WINFSP_LIB = winfsp-x86.lib
+
+        # Make sure the WinFSP library is present.
+        !exists($$WINFSP_LIB_DIR/$$WINFSP_LIB) {
+            error("Couldn't find $$WINFSP_LIB under $$WINFSP_LIB_DIR")
+        }
+
+        # Delay load the WinFSP DLL.
+        QMAKE_LFLAGS += /DELAYLOAD:$$replace(WINFSP_LIB, lib, dll)
+
+        LIBS += delayimp.lib
+
+        # Make sure the SDK is linked against WinFSP.
+        LIBS += "$$WINFSP_LIB_DIR/$$WINFSP_LIB"
+    } # win32
 } # WITH_FUSE
 
 # Required by dummy backend.

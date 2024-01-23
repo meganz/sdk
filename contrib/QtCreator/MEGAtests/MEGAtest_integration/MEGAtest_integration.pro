@@ -153,5 +153,24 @@ CONFIG(WITH_FUSE) {
 
         !macx:SOURCES += $$FUSE_POSIX_SRC/linux/platform_tests.cpp
     } # unix
+
+    win32 {
+        FUSE_WINDOWS_SRC = $$MEGASDK_BASE_PATH/src/fuse/supported/windows
+
+        FUSE_WINDOWS_TESTING_SRC = $$FUSE_WINDOWS_SRC/testing
+        FUSE_WINDOWS_TESTING_INC = $$FUSE_WINDOWS_SRC/fuse/testing
+
+        HEADERS += \
+            $$FUSE_WINDOWS_TESTING_INC/directory_monitor.h \
+            $$FUSE_WINDOWS_TESTING_INC/printers.h \
+            $$FUSE_WINDOWS_TESTING_INC/wrappers.h
+
+        SOURCES += \
+            $$FUSE_WINDOWS_TESTING_SRC/directory_monitor.cpp \
+            $$FUSE_WINDOWS_TESTING_SRC/platform_tests.cpp \
+            $$FUSE_WINDOWS_TESTING_SRC/printers.cpp \
+            $$FUSE_WINDOWS_TESTING_SRC/utility.cpp \
+            $$FUSE_WINDOWS_TESTING_SRC/wrappers.cpp
+    } # win32
 } # WITH_FUSE
 
