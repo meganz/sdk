@@ -31,4 +31,7 @@ file(REMOVE_RECURSE
 
 vcpkg_fixup_pkgconfig()
 
+configure_file("${CMAKE_CURRENT_LIST_DIR}/FindReadline-unix.cmake.in" "${CURRENT_PACKAGES_DIR}/share/${PORT}/FindReadline-unix.cmake" @ONLY)
+file(COPY "${CMAKE_CURRENT_LIST_DIR}/vcpkg-cmake-wrapper.cmake" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}")
+
 file(INSTALL "${SOURCE_PATH}/COPYING" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}" RENAME copyright)
