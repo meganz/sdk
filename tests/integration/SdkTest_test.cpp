@@ -8950,16 +8950,16 @@ TEST_F(SdkTest, FetchAds)
     tr = asyncFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get(), INVALID_HANDLE);
     ASSERT_EQ(API_ENOENT, tr->waitForResult()) << "Fetch Ads didn't fail when it was expected to (dummy Ad case)";
     const MegaStringMap* ads = tr->request->getMegaStringMap();
-    ASSERT_FALSE(ads) << "Fetch Ads didn't copy ads to `request`";
+    ASSERT_FALSE(ads) << "Fetch Ads should have been nullptr due to expected error code `request`";
     const char valiAdSlot[] = "ANDFB";
     stringList.reset(MegaStringList::createInstance());
     stringList->add(valiAdSlot);
     tr = asyncFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get(), INVALID_HANDLE);
     ASSERT_EQ(API_ENOENT, tr->waitForResult()) << "Fetch Ads didn't fail when it was expected to (correct Ad case)";
     ads = tr->request->getMegaStringMap();
-    ASSERT_FALSE(ads) << "Fetch Ads didn't copy ads to `request`";
+    ASSERT_FALSE(ads) << "Fetch Ads should have been nullptr to expected error code in `request`";
 
-    // TODO: LOG_debug << "\t# Test suite 2: Fetching ads with non-ads account";
+    // TODO: LOG_debug << "\t# Test suite 2: Fetching ads with containing-ads account";
 }
 
 #ifdef ENABLE_SYNC
