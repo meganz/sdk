@@ -19,7 +19,7 @@
  * program.
  */
 
-#include "test.h"
+#include "utils.h"
 #include "stdfs.h"
 #include "SdkTest_test.h"
 #include "gtest_common.h"

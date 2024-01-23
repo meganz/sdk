@@ -7,6 +7,7 @@
 #include <winhttp.h>
 #endif
 
+#include "utils.h"
 #include "test.h"
 
 // If running in Jenkins, we use its working folder.  But for local manual testing, use a convenient location
@@ -18,8 +19,6 @@
 #endif
 
 fs::path LINK_EXTRACT_SCRIPT = "email_processor.py";
-
-fs::path executableDir; // Path to the folder containing the test executable.
 
 const string& getDefaultLogName()
 {
@@ -40,11 +39,6 @@ std::string USER_AGENT = "Integration Tests with GoogleTest framework";
 
 string_vector envVarAccount = {"MEGA_EMAIL", "MEGA_EMAIL_AUX", "MEGA_EMAIL_AUX2"};
 string_vector envVarPass    = {"MEGA_PWD",   "MEGA_PWD_AUX",   "MEGA_PWD_AUX2"};
-
-fs::path getTestDataDir() {
-    // testing files are expected to be next to the binary.
-    return executableDir;
-}
 
 void WaitMillisec(unsigned n)
 {
@@ -572,7 +566,7 @@ int main (int argc, char *argv[])
     g_clientManager = &clientManager;
 #endif // ENABLE_SYNC
 
-    executableDir = fs::absolute(fs::path(argv[0]).parent_path());
+    setTestDataDir(fs::absolute(fs::path(argv[0]).parent_path()));
 
     SimpleLogger::setLogLevel(logMax);
     SimpleLogger::setOutputClass(&megaLogger);
@@ -832,19 +826,8 @@ void SdkTestBase::SetUp()
     RequestRetryRecorder::instance().reset();
 }
 
-void copyFileFromTestData(fs::path filename, fs::path destination)
-{
-    fs::path dir = getTestDataDir();
-    fs::path source = dir / filename;
-    if (fs::is_directory(destination))
-        destination = destination / filename;
-    if (fs::exists(destination))
-        fs::remove(destination);
-    fs::copy_file(source, destination);
-}
-
 fs::path getLinkExtractSrciptPath() {
-    return executableDir / LINK_EXTRACT_SCRIPT;
+    return getTestDataDir() / LINK_EXTRACT_SCRIPT;
 }
 
 bool isFileHidden(const LocalPath& path)

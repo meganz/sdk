@@ -89,9 +89,6 @@ extern bool gScanOnly;
 extern int gMaxAccounts;
 extern bool gManualVerification;
 
-// the directory the checked-in test data is in
-fs::path getTestDataDir();
-
 LogStream out();
 
 enum { THREADS_PER_MEGACLIENT = 3 };
@@ -1171,9 +1168,6 @@ public:
     // run before each test
     void SetUp() override;
 };
-
-// copy a file from sdk/tests/integration to destination
-void copyFileFromTestData(fs::path filename, fs::path destination = ".");
 
 fs::path getLinkExtractSrciptPath();
 
