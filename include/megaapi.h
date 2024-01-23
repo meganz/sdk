@@ -9322,11 +9322,14 @@ public:
      * - MegaApi::FILE_TYPE_PHOTO = 1
      * - MegaApi::FILE_TYPE_AUDIO = 2
      * - MegaApi::FILE_TYPE_VIDEO = 3
-     * - MegaApi::FILE_TYPE_PDF = 4
-     * - MegaApi::FILE_TYPE_PRESENTATION = 5
-     * - MegaApi::FILE_TYPE_ARCHIVE = 6
-     * - MegaApi::FILE_TYPE_PROGRAM = 7
-     * - MegaApi::FILE_TYPE_MISC = 8
+     * - MegaApi::FILE_TYPE_DOCUMENT = 4
+     * - MegaApi::FILE_TYPE_PDF = 5
+     * - MegaApi::FILE_TYPE_PRESENTATION = 6
+     * - MegaApi::FILE_TYPE_ARCHIVE = 7
+     * - MegaApi::FILE_TYPE_PROGRAM = 8
+     * - MegaApi::FILE_TYPE_MISC = 9
+     * - MegaApi::FILE_TYPE_SPREADSHEET = 10
+     * - MegaApi::FILE_TYPE_ALL_DOCS = 11  --> any of {DOCUMENT, PDF, PRESENTATION, SPREADSHEET}
      */
     virtual void byCategory(int mimeType);
 
@@ -11916,6 +11919,9 @@ class MegaApi
          * If the MEGA account is a business account and it's status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
+         * A successfully completed a fetchNodes request is required before calling getNodeByHandle with
+         * the MegaHandle returned by this request. Otherwise, getNodeByHandle will return NULL.
+         *
          * @param listener MegaRequestListener to track this request
          */
         void getPasswordManagerBase(MegaRequestListener *listener = NULL);
@@ -13463,6 +13469,7 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getLink - Public link
+         * - MegaRequest::getPrivateKey - Authentication token (only if writable=true)
          *
          * If the MEGA account is a business account and it's status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.
@@ -13493,6 +13500,7 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getLink - Public link
+         * - MegaRequest::getPrivateKey - Authentication token (only if writable=true)
          *
          * If the MEGA account is a business account and it's status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.
@@ -16565,7 +16573,8 @@ class MegaApi
                FILE_TYPE_PROGRAM,
                FILE_TYPE_MISC,
                FILE_TYPE_SPREADSHEET,
-               FILE_TYPE_LAST = FILE_TYPE_SPREADSHEET,
+               FILE_TYPE_ALL_DOCS,    // any of {DOCUMENT, PDF, PRESENTATION, SPREADSHEET}
+               FILE_TYPE_LAST = FILE_TYPE_ALL_DOCS,
              };
 
         enum { SEARCH_TARGET_INSHARE = 0,

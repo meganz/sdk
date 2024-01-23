@@ -56,10 +56,24 @@ else()
     option(USE_OPENSSL "Use the OpenSSL library or a compatible one" ON)
 endif()
 
-# Old USE_XXX not needed in the SDK library.
-# set (USE_ASIO 1 CACHE STRING "Only needed For tcprelay test tool")
-# set (USE_LIBRAW 0 CACHE STRING "Just includes the library (used by MEGAsync)")
-# set (USE_PCRE 0 CACHE STRING "Can be used by client apps. The SDK does not use it itself anymore")
+# If PROJECT_NAME is not set before project() we are the main project.
+if(NOT PROJECT_NAME)
+    message(STATUS "[SDKlib] is a top-level project. Install target, examples and tests will be enabled by default.")
+    set(SDKLIB_STANDALONE 1)
+    option(ENABLE_EXAMPLES "Example application is built if enabled" ON)
+    option(ENABLE_TESTS "Integration and unit tests are built if enabled" ON)
+    if (WIN32)
+        option(ENABLE_SDKLIB_WERROR "Enable warnings as errors" ON)
+    else()
+        option(ENABLE_SDKLIB_WERROR "Enable warnings as errors when building in debug mode." OFF)
+    endif()
+else()
+    message(STATUS "[SDKlib] is building under project [${PROJECT_NAME}] Install target, examples and tests will not be enabled by default.")
+    set(SDKLIB_STANDALONE 0)
+    option(ENABLE_EXAMPLES "Example application is built if enabled" OFF)
+    option(ENABLE_TESTS "Integration and unit tests are built if enabled" OFF)
+    option(ENABLE_SDKLIB_WERROR "Enable warnings as errors." OFF)
+endif()
 
 ## General configuration
 # Main modules location
@@ -78,14 +92,16 @@ else()
     set(USE_CPPTHREAD 1)
 endif()
 
-if(VCPKG_ROOT)
-    # Include VCPKG management tools.
-    include(vcpkg_management)
-    process_vcpkg_libraries()
-else()
-    # For packages with no pkg-config in the system.
-    list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules/packages)
-    message(STATUS "Using system dependencies")
+if(NOT PROJECT_NAME)
+    if(VCPKG_ROOT)
+        # Include VCPKG management tools.
+        include(vcpkg_management)
+        process_vcpkg_libraries(${CMAKE_CURRENT_LIST_DIR}/contrib/cmake)
+    else()
+        # For packages with no pkg-config in the system.
+        list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules/packages)
+        message(STATUS "Using system dependencies")
+    endif()
 endif()
 
 # Get SDK library version to use it as the CMake project version.
@@ -100,25 +116,6 @@ project(SDKlib
 # In-source build not allowed
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
     message(FATAL_ERROR "In-source build is not allowed. Remove CMakeCache.txt and the CMakeFiles directory and set a new binary directory different than the source tree.")
-endif()
-
-# Detect if building standalone or nested in another project
-if(NOT CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
-    message(STATUS "[${PROJECT_NAME}] is building under project [${CMAKE_PROJECT_NAME}] Install target will NOT be available.")
-    set(SDKLIB_STANDALONE 0)
-    option(ENABLE_EXAMPLES "Example application is built if enabled" OFF)
-    option(ENABLE_TESTS "Integration and unit tests are built if enabled" OFF)
-    option(ENABLE_SDKLIB_WERROR "Enable warnings as errors." OFF)
-else()
-    message(STATUS "[${PROJECT_NAME}] is a top-level project. Install target will be available.")
-    set(SDKLIB_STANDALONE 1)
-    option(ENABLE_EXAMPLES "Example application is built if enabled" ON)
-    option(ENABLE_TESTS "Integration and unit tests are built if enabled" ON)
-    if (WIN32)
-        option(ENABLE_SDKLIB_WERROR "Enable warnings as errors" ON)
-    else()
-        option(ENABLE_SDKLIB_WERROR "Enable warnings as errors when building in debug mode." OFF)
-    endif()
 endif()
 
 message(STATUS "Generator: ${CMAKE_GENERATOR}")

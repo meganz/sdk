@@ -2220,7 +2220,8 @@ bool CommandPendingKeys::procresult(Result r, JSON& json)
 
 CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const char* temail, opcactions_t action, const char* msg, const char* oemail, handle contactLink, Completion completion)
 {
-    mV3 = false;
+    mSeqtagArray = true;
+    
     cmd("upc");
 
     if (oemail != NULL)
@@ -2961,8 +2962,8 @@ bool CommandPurchaseCheckout::procresult(Result r, JSON& json)
 
 CommandRemoveContact::CommandRemoveContact(MegaClient* client, const char* m, visibility_t show, Completion completion)
 {
-    mV3 = false;
-
+    mSeqtagArray = true;
+    
     this->email = m ? m : "";
     this->v = show;
 
@@ -3646,8 +3647,6 @@ bool CommandGetUA::procresult(Result r, JSON& json)
 #ifdef DEBUG
 CommandDelUA::CommandDelUA(MegaClient *client, const char *an)
 {
-    mV3 = false;
-
     this->an = an;
 
     cmd("upr");
@@ -3838,8 +3837,6 @@ CommandKeyCR::CommandKeyCR(MegaClient* /*client*/, sharedNode_vector* rshares, s
 // for node sn to user u with access a
 CommandPubKeyRequest::CommandPubKeyRequest(MegaClient* client, User* user)
 {
-    mV3 = false;
-
     cmd("uk");
     arg("u", user->uid.c_str());
 
@@ -3940,8 +3937,6 @@ void CommandPubKeyRequest::invalidateUser()
 
 CommandGetUserData::CommandGetUserData(MegaClient *client, int tag, std::function<void(string*, string*, string*, error)> completion)
 {
-    mV3 = false;
-
     cmd("ug");
     arg("v", 1);
 
@@ -4425,9 +4420,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             if (u)
             {
                 int changes = 0;
-                if (u->email.empty())
+                if (email.size())
                 {
-                    u->email = email;
+                    client->setEmail(u, email);
                 }
 
                 if (firstname.size())
@@ -5027,8 +5022,6 @@ bool CommandABTestActive::procresult(Result r, JSON&)
 
 CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, std::shared_ptr<AccountDetails> ad, bool storage, bool transfer, bool pro, int source)
 {
-    mV3 = false;
-
     details = ad;
     mStorage = storage;
     mTransfer = transfer;
@@ -7203,7 +7196,6 @@ bool CommandGetEmailLink::procresult(Result r, JSON& json)
 
 CommandConfirmEmailLink::CommandConfirmEmailLink(MegaClient *client, const char *code, const char *email, const byte *newLoginHash, bool replace)
 {
-    mV3 = false;
     this->email = email;
     this->replace = replace;
 
@@ -7233,13 +7225,7 @@ bool CommandConfirmEmailLink::procresult(Result r, JSON& json)
         if (replace)
         {
             LOG_debug << "Email changed from `" << u->email << "` to `" << email << "`";
-
-            client->mapuser(u->userhandle, email.c_str()); // update email used as index for user's map
-            u->changed.email = true;
-            client->notifyuser(u);
-
-            // produce a callback to update cached email in MegaApp
-            client->reportLoggedInChanges();
+            client->setEmail(u, email);
         }
         // TODO: once we manage multiple emails, add the new email to the list of emails
     }
@@ -7365,8 +7351,6 @@ bool CommandGetLocalSSLCertificate::procresult(Result r, JSON& json)
 #ifdef ENABLE_CHAT
 CommandChatCreate::CommandChatCreate(MegaClient* client, bool group, bool publicchat, const userpriv_vector* upl, const string_map* ukm, const char* title, bool meetingRoom, int chatOptions, const ScheduledMeeting* schedMeeting)
 {
-    mV3 = false;
-
     this->client = client;
     this->chatPeers = new userpriv_vector(*upl);
     this->mPublicChat = publicchat;
@@ -7652,8 +7636,6 @@ bool CommandSetChatOptions::procresult(Result r, JSON& json)
 
 CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, handle uh, privilege_t priv, const char *unifiedkey, const char* title)
 {
-    mV3 = false;
-
     this->client = client;
     this->chatid = chatid;
     this->uh = uh;
@@ -7711,8 +7693,6 @@ bool CommandChatInvite::procresult(Result r, JSON& json)
 
 CommandChatRemove::CommandChatRemove(MegaClient *client, handle chatid, handle uh)
 {
-    mV3 = false;
-
     this->client = client;
     this->chatid = chatid;
     this->uh = uh;
@@ -7806,8 +7786,6 @@ bool CommandChatURL::procresult(Result r, JSON& json)
 
 CommandChatGrantAccess::CommandChatGrantAccess(MegaClient *client, handle chatid, handle h, const char *uid)
 {
-    mV3 = false;
-
     this->client = client;
     this->chatid = chatid;
     this->h = h;
@@ -7889,8 +7867,6 @@ bool CommandChatRemoveAccess::procresult(Result r, JSON& json)
 
 CommandChatUpdatePermissions::CommandChatUpdatePermissions(MegaClient *client, handle chatid, handle uh, privilege_t priv)
 {
-    mV3 = false;
-
     this->client = client;
     this->chatid = chatid;
     this->uh = uh;
@@ -7980,8 +7956,6 @@ bool CommandChatTruncate::procresult(Result r, JSON& json)
 
 CommandChatSetTitle::CommandChatSetTitle(MegaClient *client, handle chatid, const char *title)
 {
-    mV3 = false;
-
     this->client = client;
     this->chatid = chatid;
     this->title = title ? string(title) : "";
@@ -8065,8 +8039,6 @@ bool CommandRegisterPushNotification::procresult(Result r, JSON& json)
 
 CommandArchiveChat::CommandArchiveChat(MegaClient *client, handle chatid, bool archive)
 {
-    mV3 = false;
-
     this->mChatid = chatid;
     this->mArchive = archive;
 
@@ -9089,8 +9061,6 @@ bool CommandFetchTimeZone::procresult(Result r, JSON& json)
 
 CommandSetLastAcknowledged::CommandSetLastAcknowledged(MegaClient* client)
 {
-    mV3 = false;  // just until we figure out why this started returning `st` for v3
-
     cmd("sla");
     tag = client->reqtag;
 }

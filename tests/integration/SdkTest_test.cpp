@@ -22,6 +22,7 @@
 #include "test.h"
 #include "stdfs.h"
 #include "SdkTest_test.h"
+#include "gtest_common.h"
 #include "mega/testhooks.h"
 
 #include "gmock/gmock-matchers.h"
@@ -1877,7 +1878,6 @@ string getUniqueAlias()
     return alias;
 }
 
-std::string getCurrentTimestamp(bool includeDate);
 
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
 
@@ -2016,8 +2016,18 @@ TEST_F(SdkTest, SdkTestCreateAccount)
         ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes after change password for account " << newTestAcc.c_str();
     }
 
-    // test changing the email
+    // test changing the email (check change with auxiliar instance)
     // -----------------------
+
+    // login with auxiliar instance
+    megaApi.resize(2);
+    mApi.resize(2);
+    ASSERT_NO_FATAL_FAILURE(configureTestInstance(1, newTestAcc, newTestPwd));
+    {
+        unique_ptr<RequestTracker> loginTracker = ::mega::make_unique<RequestTracker>(megaApi[1].get());
+        megaApi[1]->login(newTestAcc.c_str(), newTestPwd, loginTracker.get());
+        ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to auxiliar account ";
+    }
 
     const string changedTestAcc = Utils::replace(newTestAcc, "@", "-new@");
     chrono::time_point<chrono::system_clock> timeOfChangeEmail = chrono::system_clock::now();
@@ -2027,12 +2037,21 @@ TEST_F(SdkTest, SdkTestCreateAccount)
         string changelink = getLinkFromMailbox(pyExe, bufScript.string(), realAccount, bufRealPswd, changedTestAcc, MegaClient::verifyLinkPrefix(), timeOfChangeEmail);
         ASSERT_FALSE(changelink.empty()) << "Change email account link was not found.";
 
-        ASSERT_EQ(newTestAcc, megaApi[0]->getMyEmail()) << "email changed prematurely";
+        ASSERT_STRCASEEQ(newTestAcc.c_str(), megaApi[0]->getMyEmail()) << "email changed prematurely";
         ASSERT_EQ(synchronousConfirmChangeEmail(0, changelink.c_str(), newTestPwd), MegaError::API_OK) << "confirmChangeEmail failed";
     }
 
+    {
+        // Check if our own email is updated after receive ug at auxiliar instance
+        unique_ptr<RequestTracker> userDataTracker = ::mega::make_unique<RequestTracker>(megaApi[1].get());
+        megaApi[1]->getUserData(userDataTracker.get());
+        ASSERT_EQ(API_OK, userDataTracker->waitForResult()) << " Failed to get user data at auxiliar account";
+        ASSERT_EQ(changedTestAcc, megaApi[1]->getMyEmail()) << "Email update error at auxiliar account";
+        logout(1, false, maxTimeout);
+    }
+
     // Login using new email
-    ASSERT_EQ(changedTestAcc, megaApi[0]->getMyEmail()) << "email not changed correctly";
+    ASSERT_STRCASEEQ(changedTestAcc.c_str(), megaApi[0]->getMyEmail()) << "email not changed correctly";
     {
         unique_ptr<RequestTracker> loginTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->login(changedTestAcc.c_str(), newTestPwd, loginTracker.get());
@@ -2046,7 +2065,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
         ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes after change password for account " << changedTestAcc.c_str();
     }
 
-    ASSERT_EQ(changedTestAcc, megaApi[0]->getMyEmail()) << "my email not set correctly after changed";
+    ASSERT_STRCASEEQ(changedTestAcc.c_str(), megaApi[0]->getMyEmail()) << "my email not set correctly after changed";
 
 
     // delete the account
@@ -13461,7 +13480,7 @@ TEST_F(SdkTest, SdkTestSetsAndElementsSetTypes)
 /**
  * @brief TEST_F SdkUserAlerts
  *
- * Generate User Alerts and check that they are received as expected.
+ * Generate User Alerts and check that they are received and acknowledged as expected.
  *
  * Generated so far:
  *      IncomingPendingContact  --  request created
@@ -13566,6 +13585,13 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_EQ(a->getPcrHandle(), B1dtls.cr->getHandle()) << "IncomingPendingContact  --  request created";
     bkpAlerts.emplace_back(a->copy());
     bkpSc50Alerts.emplace_back(a->copy());
+    ASSERT_FALSE(a->getSeen());
+    ASSERT_EQ(doAckUserAlerts(B1idx), API_OK);
+    for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
+    {
+        if (B1dtls.userAlertList->get(i)->isRemoved()) continue;
+        ASSERT_TRUE(B1dtls.userAlertList->get(i)->getSeen());
+    }
 
     // ContactChange  --  contact request accepted
     //--------------------------------------------
@@ -13604,6 +13630,13 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_NE(a->getTimestamp(0), 0) << "ContactChange  --  contact request accepted";
     ASSERT_FALSE(a->isOwnChange()) << "ContactChange  --  contact request accepted";
     ASSERT_EQ(a->getUserHandle(), B1.getMyUserHandleBinary()) << "ContactChange  --  contact request accepted";
+    ASSERT_FALSE(a->getSeen());
+    ASSERT_EQ(doAckUserAlerts(A1idx), API_OK);
+    for (int i = 0; i < A1dtls.userAlertList->size(); ++i)
+    {
+        if (A1dtls.userAlertList->get(i)->isRemoved()) continue;
+        ASSERT_TRUE(A1dtls.userAlertList->get(i)->getSeen());
+    }
     // received by A1, do not keep it for comparing with B2's sc50
 
     if (gManualVerification)
@@ -13803,7 +13836,13 @@ TEST_F(SdkTest, SdkUserAlerts)
     }
     bkpAlerts.emplace_back(a->copy());
     bkpSc50Alerts.emplace_back(a->copy());
-
+    ASSERT_FALSE(a->getSeen());
+    ASSERT_EQ(doAckUserAlerts(B1idx), API_OK);
+    for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
+    {
+        if (B1dtls.userAlertList->get(i)->isRemoved()) continue;
+        ASSERT_TRUE(B1dtls.userAlertList->get(i)->getSeen());
+    }
 
     // RemovedSharedNode
     //--------------------------------------------
@@ -13840,7 +13879,13 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_EQ(a->getNumber(0), 1) << "RemovedSharedNode";
     //bkpAlerts.emplace_back(a->copy()); // removed internally (combined to "update" later?)
     bkpSc50Alerts.emplace_back(a->copy());
-
+    ASSERT_FALSE(a->getSeen());
+    ASSERT_EQ(doAckUserAlerts(B1idx), API_OK);
+    for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
+    {
+        if (B1dtls.userAlertList->get(i)->isRemoved()) continue;
+        ASSERT_TRUE(B1dtls.userAlertList->get(i)->getSeen());
+    }
 
     // NewSharedNodes
     //--------------------------------------------
@@ -13896,7 +13941,13 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_EQ(a->getHandle(0), hUpfile) << "NewSharedNodes";
     //bkpAlerts.emplace_back(a->copy()); // removed internally (combined to "update" later?)
     bkpSc50Alerts.emplace_back(a->copy());
-
+    ASSERT_FALSE(a->getSeen());
+    ASSERT_EQ(doAckUserAlerts(B1idx), API_OK);
+    for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
+    {
+        if (B1dtls.userAlertList->get(i)->isRemoved()) continue;
+        ASSERT_TRUE(B1dtls.userAlertList->get(i)->getSeen());
+    }
 
     // UpdatedSharedNode
     //--------------------------------------------
@@ -13941,6 +13992,13 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_FALSE(a->isOwnChange()) << "UpdatedSharedNode";
     ASSERT_EQ(a->getUserHandle(), A1.getMyUserHandleBinary()) << "UpdatedSharedNode";
     ASSERT_EQ(a->getNumber(0), 1) << "UpdatedSharedNode"; // item count
+    ASSERT_FALSE(a->getSeen());
+    ASSERT_EQ(doAckUserAlerts(B1idx), API_OK);
+    for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
+    {
+        if (B1dtls.userAlertList->get(i)->isRemoved()) continue;
+        ASSERT_TRUE(B1dtls.userAlertList->get(i)->getSeen());
+    }
     // this will be combined with the next one, do not keep it for comparison or validation
 
 
@@ -13988,6 +14046,13 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_EQ(a->getUserHandle(), A1.getMyUserHandleBinary()) << "UpdatedSharedNode (combined)";
     ASSERT_EQ(a->getNumber(0), 2) << "UpdatedSharedNode (combined)"; // item count
     bkpAlerts.emplace_back(a->copy());
+    ASSERT_FALSE(a->getSeen());
+    ASSERT_EQ(doAckUserAlerts(B1idx), API_OK);
+    for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
+    {
+        if (B1dtls.userAlertList->get(i)->isRemoved()) continue;
+        ASSERT_TRUE(B1dtls.userAlertList->get(i)->getSeen());
+    }
     //bkpSc50Alerts.emplace_back(a->copy()); // not generated by API, which sends only [combined] NewSharedNodes
 
 
@@ -14129,6 +14194,13 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_STREQ(a->getName(), sharedFolder) << "DeletedShare";
     ASSERT_EQ(a->getNumber(0), 1) << "DeletedShare";
     bkpAlerts.emplace_back(a->copy());
+    ASSERT_FALSE(a->getSeen());
+    ASSERT_EQ(doAckUserAlerts(B1idx), API_OK);
+    for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
+    {
+        if (B1dtls.userAlertList->get(i)->isRemoved()) continue;
+        ASSERT_TRUE(B1dtls.userAlertList->get(i)->getSeen());
+    }
 
     // Reset credentials before removing contacts
     if (gManualVerification)
@@ -14169,6 +14241,13 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_FALSE(a->isOwnChange()) << "ContactChange  --  contact deleted";
     ASSERT_EQ(a->getUserHandle(), A1.getMyUserHandleBinary()) << "ContactChange  --  contact deleted";
     bkpAlerts.emplace_back(a->copy());
+    ASSERT_FALSE(a->getSeen());
+    ASSERT_EQ(doAckUserAlerts(B1idx), API_OK);
+    for (int i = 0; i < B1dtls.userAlertList->size(); ++i)
+    {
+        if (B1dtls.userAlertList->get(i)->isRemoved()) continue;
+        ASSERT_TRUE(B1dtls.userAlertList->get(i)->getSeen());
+    }
 
     // create a dummy folder, just to trigger a local db commit before locallogout (which triggers a ROLLBACK)
     std::unique_ptr<MegaNode> rootnodeB1{ B1.getRootNode() };
@@ -15511,7 +15590,8 @@ TEST_F(SdkTest, SdkTestListenerRemovedWhenRequestTrackerDestroyed)
 /**
  * SdkTestGetNodeByMimetype
  * Steps:
- * - Create files (test.sh, test.pdf, test.json, test.ods)
+ * - Create files (test.txt, test.sh, test.pdf, test.json, test.ods, test.doc, test.org)
+ * - Search for files of type text
  * - Search for files of type program
  * - Search for files of type pdf
  * - Search for files of type document
@@ -15527,6 +15607,17 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
     ASSERT_NE(rootnode.get(), nullptr);
 
     ASSERT_TRUE(createFile(PUBLICFILE.c_str(), false)) << "Couldn't create " << PUBLICFILE;
+
+    const char txtFile[] = "test.txt";
+    MegaHandle handleTxtFile = UNDEF;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handleTxtFile, PUBLICFILE.c_str(),
+                                               rootnode.get(),
+                                               txtFile /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload " << PUBLICFILE << " as " << txtFile;
 
     const char progFile[] = "test.sh";
     MegaHandle handleCodeFile = UNDEF;
@@ -15583,6 +15674,17 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
                                                false   /*startFirst*/,
                                                nullptr /*cancelToken*/)) << "Cannot upload " << PUBLICFILE << " as " << documentFile;
 
+    const char orgFile[] = "test.org";
+    MegaHandle handleOrgFile = UNDEF;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handleOrgFile, PUBLICFILE.c_str(),
+                                               rootnode.get(),
+                                               orgFile /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload " << PUBLICFILE << " as " << orgFile;
+
     std::unique_ptr<MegaSearchFilter> filterResults(MegaSearchFilter::createInstance());
 
     filterResults->byCategory(MegaApi::FILE_TYPE_PROGRAM);
@@ -15597,9 +15699,10 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
 
     filterResults->byCategory(MegaApi::FILE_TYPE_DOCUMENT);
     nodeList.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_ALPHABETICAL_DESC));
-    ASSERT_EQ(nodeList->size(), 2);
-    ASSERT_EQ(nodeList->get(0)->getHandle(), handleSpreadsheetFile);
-    ASSERT_EQ(nodeList->get(1)->getHandle(), handleDocumentFile);
+    ASSERT_EQ(nodeList->size(), 3);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), handleTxtFile);
+    ASSERT_EQ(nodeList->get(1)->getHandle(), handleOrgFile);
+    ASSERT_EQ(nodeList->get(2)->getHandle(), handleDocumentFile);
 
     filterResults->byCategory(MegaApi::FILE_TYPE_MISC);
     nodeList.reset(megaApi[0]->search(filterResults.get()));
@@ -15610,6 +15713,37 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
     nodeList.reset(megaApi[0]->search(filterResults.get()));
     ASSERT_EQ(nodeList->size(), 1);
     ASSERT_EQ(nodeList->get(0)->getHandle(), handleSpreadsheetFile);
+
+    filterResults->byCategory(MegaApi::FILE_TYPE_ALL_DOCS); // any of {DOCUMENT, PDF, PRESENTATION, SPREADSHEET}
+    nodeList.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC)); // order Alphabetical asc
+    ASSERT_EQ(nodeList->size(), 5);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), handleDocumentFile);
+    ASSERT_EQ(nodeList->get(1)->getHandle(), handleSpreadsheetFile);
+    ASSERT_EQ(nodeList->get(2)->getHandle(), handleOrgFile);
+    ASSERT_EQ(nodeList->get(3)->getHandle(), handlePdfFile);
+    ASSERT_EQ(nodeList->get(4)->getHandle(), handleTxtFile);
+
+    ///
+    /// search using old and deprecated API, to make sure we don't break it in the future
+    nodeList.reset(megaApi[0]->searchByType(nullptr, "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_SPREADSHEET)); // order Alphabetical asc
+    ASSERT_EQ(nodeList->size(), 1);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), handleSpreadsheetFile);
+
+    nodeList.reset(megaApi[0]->searchByType(rootnode.get(), "", nullptr, false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_ALL_DOCS)); // order Alphabetical asc
+    ASSERT_EQ(nodeList->size(), 5);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), handleDocumentFile);
+    ASSERT_EQ(nodeList->get(1)->getHandle(), handleSpreadsheetFile);
+    ASSERT_EQ(nodeList->get(2)->getHandle(), handleOrgFile);
+    ASSERT_EQ(nodeList->get(3)->getHandle(), handlePdfFile);
+    ASSERT_EQ(nodeList->get(4)->getHandle(), handleTxtFile);
+
+    nodeList.reset(megaApi[0]->searchByType(nullptr, "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_ALL_DOCS)); // order Alphabetical asc
+    ASSERT_EQ(nodeList->size(), 5);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), handleDocumentFile);
+    ASSERT_EQ(nodeList->get(1)->getHandle(), handleSpreadsheetFile);
+    ASSERT_EQ(nodeList->get(2)->getHandle(), handleOrgFile);
+    ASSERT_EQ(nodeList->get(3)->getHandle(), handlePdfFile);
+    ASSERT_EQ(nodeList->get(4)->getHandle(), handleTxtFile);
 
     deleteFile(PUBLICFILE);
 }

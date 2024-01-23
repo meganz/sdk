@@ -1,13 +1,11 @@
-macro(process_vcpkg_libraries)
+macro(process_vcpkg_libraries overlays_path)
 
-set(VCPKG_TOOLCHAIN_PATH "${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake")
+    set(VCPKG_TOOLCHAIN_PATH "${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake")
 
-## If VCPKG_ROOT path is in CMAKE_TOOLCHAIN_FILE, VCPKG is alredy configured by us, or we are a subproject.
-if(NOT CMAKE_TOOLCHAIN_FILE MATCHES "${VCPKG_TOOLCHAIN_PATH}")
     # Use internal VCPKG tools
     set(VCPKG_BOOTSTRAP_OPTIONS "-disableMetrics")
-    list(APPEND VCPKG_OVERLAY_TRIPLETS "${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/vcpkg_overlay_triplets")
-    list(APPEND VCPKG_OVERLAY_PORTS "${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/vcpkg_overlay_ports")
+    list(APPEND VCPKG_OVERLAY_TRIPLETS "${overlays_path}/vcpkg_overlay_triplets")
+    list(APPEND VCPKG_OVERLAY_PORTS "${overlays_path}/vcpkg_overlay_ports")
 
     if(NOT VCPKG_TARGET_TRIPLET)
         # Try to guess the triplet if it is not set.
@@ -28,10 +26,43 @@ if(NOT CMAKE_TOOLCHAIN_FILE MATCHES "${VCPKG_TOOLCHAIN_PATH}")
         endif()
     endif()
 
+    if (USE_OPENSSL)
+        list(APPEND VCPKG_MANIFEST_FEATURES "use-openssl")
+    endif()
+
+    if (USE_MEDIAINFO)
+        list(APPEND VCPKG_MANIFEST_FEATURES "use-mediainfo")
+    endif()
+
+    if (USE_FREEIMAGE)
+        list(APPEND VCPKG_MANIFEST_FEATURES "use-freeimage")
+    endif()
+
+    if (USE_FFMPEG)
+        list(APPEND VCPKG_MANIFEST_FEATURES "use-ffmpeg")
+    endif()
+
+    if (USE_LIBUV)
+        list(APPEND VCPKG_MANIFEST_FEATURES "use-libuv")
+    endif()
+
+    if (USE_PDFIUM)
+        list(APPEND VCPKG_MANIFEST_FEATURES "use-pdfium")
+    endif()
+
+    if (USE_C_ARES)
+        list(APPEND VCPKG_MANIFEST_FEATURES "use-cares")
+    endif()
+
+    if (USE_READLINE)
+        list(APPEND VCPKG_MANIFEST_FEATURES "use-readline")
+    endif()
+
+    if (ENABLE_TESTS)
+        list(APPEND VCPKG_MANIFEST_FEATURES "tests")
+    endif()
+
     set(CMAKE_TOOLCHAIN_FILE ${CMAKE_TOOLCHAIN_FILE} ${VCPKG_TOOLCHAIN_PATH})
     message(STATUS "Using VCPKG dependencies. VCPKG base path: ${VCPKG_ROOT} and tripplet ${VCPKG_TARGET_TRIPLET}")
-else()
-    message(STATUS "VCPKG already configured with base path ${VCPKG_ROOT}")
-endif()
 
 endmacro()

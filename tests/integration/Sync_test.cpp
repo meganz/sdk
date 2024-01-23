@@ -24,6 +24,7 @@
 
 
 #include "test.h"
+#include "gtest_common.h"
 
 #define DEFAULTWAIT std::chrono::seconds(20)
 
@@ -32,8 +33,6 @@ using namespace ::std;
 
 // we are on SRW branch
 #define SRW_NEEDED_FOR_THIS_ONE
-
-std::string getCurrentTimestamp(bool includeDate);
 
 #ifdef ENABLE_SYNC
 
@@ -3616,14 +3615,23 @@ Sync* StandardClient::syncByBackupId(handle backupId)
 bool StandardClient::setSyncPausedByBackupId(handle id, bool pause)
 {
     PromiseBoolSP result = makeSharedPromise<bool>();
-    client.syncs.enableSyncByBackupId(id, pause, false,
-        [result](error e, SyncError, handle){ result->set_value(!e); }, id, "");
+
+    if (pause)
+    {
+        disableSync(id, NO_SYNC_ERROR, false /* enabled */, true /* keepSyncDB */, result);
+    }
+    else
+    {
+        client.syncs.enableSyncByBackupId(id, false,
+            [result](error e, SyncError, handle){ result->set_value(!e); }, id, "");
+    }
+
     return debugTolerantWaitOnFuture(result->get_future(), 45);
 }
 
 void StandardClient::enableSyncByBackupId(handle id, PromiseBoolSP result, const string& logname)
 {
-    client.syncs.enableSyncByBackupId(id, false, true,
+    client.syncs.enableSyncByBackupId(id, true,
         [result](error e, SyncError, handle){ result->set_value(!e); }, id, logname);
 }
 
@@ -5344,9 +5352,9 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
 
         WaitMillisec(400);
 
-        if ((chrono::steady_clock::now() - totalTimeoutStart) > std::chrono::minutes(1))
+        if ((chrono::steady_clock::now() - totalTimeoutStart) > std::chrono::minutes(5))
         {
-            out() << "Waiting for syncing to stop timed out at 1 minutes";
+            out() << "Waiting for syncing to stop timed out at 5 minutes";
             return result;
         }
     }
@@ -6233,7 +6241,7 @@ TEST_F(SyncTest, BasicSync_AddLocalFolder)
     // let them catch up
     // two minutes should be long enough to get past API_ETEMPUNAVAIL == -18 for sync2 downloading the files uploaded by sync1
     // 4 seconds was too short sometimes, sync2 not caught up yet, due to a few consecutive -3 for `g`
-    waitonsyncs(std::chrono::seconds(10), clientA1, clientA2);
+    waitonsyncs(DEFAULTWAIT, clientA1, clientA2);
 
     // check everything matches (model has expected state of remote and local)
     model1.findnode("f/f_2")->addkid(model1.buildModelSubdirs("newkid", 2, 2, 2));
@@ -6427,7 +6435,7 @@ TEST_F(SyncTest, BasicSync_MoveExistingIntoNewLocalFolder)
     ASSERT_NE(backupId1, UNDEF);
     handle backupId2 = clientA2->setupSync_mainthread("sync2", "f", false, false);
     ASSERT_NE(backupId2, UNDEF);
-    waitonsyncs(std::chrono::seconds(4), clientA1, clientA2);
+    waitonsyncs(DEFAULTWAIT, clientA1, clientA2);
     clientA1->logcb = clientA2->logcb = true;
 
     // check everything matches (model has expected state of remote and local)
@@ -6446,7 +6454,7 @@ TEST_F(SyncTest, BasicSync_MoveExistingIntoNewLocalFolder)
     clientA1->triggerPeriodicScanEarly(backupId1);
 
     // let them catch up
-    waitonsyncs(std::chrono::seconds(10), clientA1, clientA2);
+    waitonsyncs(DEFAULTWAIT, clientA1, clientA2);
 
     // check everything matches (model has expected state of remote and local)
     auto f = model.makeModelSubfolder("new");
@@ -6476,7 +6484,7 @@ TEST_F(SyncTest, BasicSync_MoveSeveralExistingIntoDeepNewLocalFolders)
     ASSERT_NE(backupId1, UNDEF);
     handle backupId2 = clientA2->setupSync_mainthread("sync2", "f", false, false);
     ASSERT_NE(backupId2, UNDEF);
-    waitonsyncs(std::chrono::seconds(4), clientA1, clientA2);
+    waitonsyncs(DEFAULTWAIT, clientA1, clientA2);
     clientA1->logcb = clientA2->logcb = true;
 
     // check everything matches (model has expected state of remote and local)
@@ -6485,6 +6493,16 @@ TEST_F(SyncTest, BasicSync_MoveSeveralExistingIntoDeepNewLocalFolders)
 
     // make new folder tree in the local filesystem
     ASSERT_TRUE(buildLocalFolders(clientA1->syncSet(backupId1).localpath, "new", 3, 3, 3));
+    model.findnode("f")->addkid(model.buildModelSubdirs("new", 3, 3, 3));
+
+    clientA1->triggerPeriodicScanEarly(backupId1);
+
+    // let them catch up
+    waitonsyncs(DEFAULTWAIT, clientA1, clientA2);
+
+    // check everything matches (model has expected state of remote and local)
+    ASSERT_TRUE(clientA1->confirmModel_mainthread(model.findnode("f"), backupId1));
+    ASSERT_TRUE(clientA2->confirmModel_mainthread(model.findnode("f"), backupId2));
 
     // move already synced folders to serveral parts of it - one under another moved folder too
     error_code rename_error;
@@ -6498,10 +6516,9 @@ TEST_F(SyncTest, BasicSync_MoveSeveralExistingIntoDeepNewLocalFolders)
     clientA1->triggerPeriodicScanEarly(backupId1);
 
     // let them catch up
-    waitonsyncs(std::chrono::seconds(20), clientA1, clientA2);
+    waitonsyncs(DEFAULTWAIT, clientA1, clientA2);
 
     // check everything matches (model has expected state of remote and local)
-    model.findnode("f")->addkid(model.buildModelSubdirs("new", 3, 3, 3));
     model.findnode("f/new/new_0/new_0_1/new_0_1_2")->addkid(model.removenode("f/f_0"));
     model.findnode("f/new/new_1/new_1_2")->addkid(model.removenode("f/f_1"));
     model.findnode("f/new/new_1/new_1_2/f_1/f_1_2")->addkid(model.removenode("f/f_2"));
@@ -8864,7 +8881,7 @@ TEST_F(SyncTest, RenameReplaceFolderWithinSync)
     c0->triggerPeriodicScanEarly(id);
 
     // Wait for synchronization to complete.
-    waitonsyncs(chrono::seconds(15), c0);
+    waitonsyncs(DEFAULTWAIT, c0);
 
     // Confirm model.
     ASSERT_TRUE(c0->confirmModel_mainthread(model.root.get(), id));
@@ -8992,7 +9009,7 @@ TEST_F(SyncTest, SyncIncompatibleMoveStallsAndResolutions)
     c->triggerPeriodicScanEarly(id2);
 
     // Be absolutely sure we've stalled. (stall is across all syncs - todo: figure out if each one contains a stall)
-    ASSERT_TRUE(c->waitFor(SyncStallState(true), chrono::seconds(20)));
+    ASSERT_TRUE(c->waitFor(SyncStallState(true), DEFAULTWAIT));
 
     // resolve case 0: Make it possible for the sync to resolve the stall.
     fs::rename(
@@ -10705,9 +10722,9 @@ bool CatchupClients(StandardClient* c1, StandardClient* c2, StandardClient* c3)
     auto f2 = pb2->get_future();
     auto f3 = pb3->get_future();
 
-    if (c1 && f1.wait_for(chrono::seconds(10)) == future_status::timeout) return false;
-    if (c2 && f2.wait_for(chrono::seconds(10)) == future_status::timeout) return false;
-    if (c3 && f3.wait_for(chrono::seconds(10)) == future_status::timeout) return false;
+    if (c1 && f1.wait_for(DEFAULTWAIT) == future_status::timeout) return false;
+    if (c2 && f2.wait_for(DEFAULTWAIT) == future_status::timeout) return false;
+    if (c3 && f3.wait_for(DEFAULTWAIT) == future_status::timeout) return false;
 
     EXPECT_TRUE((!c1 || f1.get()) &&
                 (!c2 || f2.get()) &&
@@ -10919,10 +10936,10 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
     }
 
     out() << "Letting all " << cases.size() << " Two-way syncs run";
-    waitonsyncs(std::chrono::seconds(10), &clientA1Steady, &clientA1Resume);
+    waitonsyncs(DEFAULTWAIT, &clientA1Steady, &clientA1Resume);
 
     CatchupClients(&clientA1Steady, &clientA1Resume, &clientA2);
-    waitonsyncs(std::chrono::seconds(10), &clientA1Steady, &clientA1Resume);
+    waitonsyncs(DEFAULTWAIT, &clientA1Steady, &clientA1Resume);
 
     out() << "Checking intial state";
     for (auto& testcase : cases)
@@ -11440,7 +11457,7 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
 
             // get the single sync
             SyncConfig config;
-            ASSERT_TRUE(cb.client.syncs.syncConfigByBackupId(id, config));
+            ASSERT_TRUE(cb.client.syncs.syncConfigByBackupId(id, config)) << "BackupId: " << id << ". SyncVec is empty: " << cb.client.syncs.mSyncVecIsEmpty;
 
             // Make sure the sync's in mirroring mode.
             ASSERT_EQ(config.mBackupId, id);
@@ -14636,7 +14653,7 @@ TEST_F(CloudToLocalFilterFixture, DoesntDownloadIgnoredNodes)
     ASSERT_TRUE(confirm(*cd, id, remoteTree));
 
     // Make sure cdu is aware of du/fi.
-    ASSERT_TRUE(cdu->waitFor(SyncRemoteMatch("x", remoteTree.root.get()), chrono::seconds(20)));
+    ASSERT_TRUE(cdu->waitFor(SyncRemoteMatch("x", remoteTree.root.get()), DEFAULTWAIT));
 
     // Remove du/fi in the cloud.
     {
@@ -16189,10 +16206,10 @@ TEST_F(SyncTest, StallsWhenMoveTargetHasLongName)
     ASSERT_TRUE(c->client.syncs.syncStallDetected(stalls));
 
     // Is the stall record populated?
-    ASSERT_FALSE(stalls.local.empty());
-    ASSERT_TRUE(stalls.cloud.empty());
+    ASSERT_TRUE(stalls.local.empty());
+    ASSERT_FALSE(stalls.cloud.empty());
 
-    auto& sr = stalls.local.begin()->second;
+    auto& sr = stalls.cloud.begin()->second;
 
     // Was the stall due to the rename?
     ASSERT_EQ(sr.localPath1.localPath.toPath(false),
@@ -16239,44 +16256,52 @@ TEST_F(SyncTest, StallsWhenMoveTargetHasLongName)
     ASSERT_TRUE(c->client.syncs.syncStallDetected(stalls));
 
     // Is the stall record actually populated?
-    ASSERT_FALSE(stalls.cloud.empty());
-    ASSERT_FALSE(stalls.local.empty());
+    ASSERT_EQ(stalls.cloud.size(), static_cast<size_t>(2));
+    ASSERT_TRUE(stalls.local.empty());
 
-    auto& local_sr = stalls.local.begin()->second;
-    auto& cloud_sr = stalls.cloud.begin()->second;
+    auto cloud_sr_it = stalls.cloud.begin();
+
+    auto& cloud_sr1 = cloud_sr_it->second;
+
+    // First stall: DestinationPathInUnresolvedArea
 
     // Correct paths reported?
-    ASSERT_EQ(cloud_sr.cloudPath1.cloudPath,
+    ASSERT_EQ(cloud_sr1.cloudPath1.cloudPath,
               "/mega_test_sync/s/d/" + FILE_NAME);
 
-    ASSERT_EQ(cloud_sr.cloudPath2.cloudPath,
+    ASSERT_EQ(cloud_sr1.cloudPath2.cloudPath,
               "/mega_test_sync/s/" + FILE_NAME);
 
-    ASSERT_EQ(cloud_sr.localPath1.localPath.toPath(false),
+    ASSERT_EQ(cloud_sr1.localPath1.localPath.toPath(false),
               (c->fsBasePath / "s" / "d" / "ff").u8string());
 
+    // Correct reasons reported?
+    ASSERT_EQ(cloud_sr1.reason,
+        SyncWaitReason::MoveOrRenameCannotOccur);
+    ASSERT_EQ(cloud_sr1.localPath2.problem,
+        PathProblem::DestinationPathInUnresolvedArea);
 
-    ASSERT_EQ(local_sr.localPath1.localPath.toPath(false),
+    // Second stall: NameTooLongForFilesystem
+    ++cloud_sr_it;
+    auto& cloud_sr2 = cloud_sr_it->second;
+
+    // Correct paths reported?
+    ASSERT_EQ(cloud_sr2.localPath1.localPath.toPath(false),
               (c->fsBasePath / "s" / "d" / "ff").u8string());
 
-    ASSERT_EQ(local_sr.localPath2.localPath.toPath(false),
+    ASSERT_EQ(cloud_sr2.localPath2.localPath.toPath(false),
               (c->fsBasePath / "s" / FILE_NAME).u8string());
 
-    ASSERT_EQ(local_sr.cloudPath1.cloudPath,
+    ASSERT_EQ(cloud_sr2.cloudPath1.cloudPath,
               "/mega_test_sync/s/d/ff");
 
-    ASSERT_EQ(local_sr.cloudPath2.cloudPath,
+    ASSERT_EQ(cloud_sr2.cloudPath2.cloudPath,
               "/mega_test_sync/s/" + FILE_NAME);
 
     // Correct reasons reported?
-    ASSERT_EQ(cloud_sr.reason,
+    ASSERT_EQ(cloud_sr2.reason,
         SyncWaitReason::MoveOrRenameCannotOccur);
-    ASSERT_EQ(cloud_sr.localPath2.problem,
-        PathProblem::DestinationPathInUnresolvedArea);
-
-    ASSERT_EQ(local_sr.reason,
-        SyncWaitReason::MoveOrRenameCannotOccur);
-    ASSERT_EQ(local_sr.localPath2.problem,
+    ASSERT_EQ(cloud_sr2.localPath2.problem,
         PathProblem::NameTooLongForFilesystem);
 
     // Renaming the file to something sane should resolve the stall.
@@ -16937,7 +16962,7 @@ TEST_F(SyncTest, StallsWhenExistingCloudMoveTargetUnknown)
     ASSERT_TRUE(c->client.syncs.syncStallDetected(stalls));
 
     // Correct number of stalls?
-    ASSERT_EQ(stalls.cloud.size(), 1u);
+    ASSERT_EQ(stalls.local.size(), 1u);
 
     // Make sure the move hasn't occured on the local filesystem.
     ASSERT_TRUE(fs::exists(c->fsBasePath / "s" / "fx"));
@@ -17024,7 +17049,7 @@ TEST_F(SyncTest, StallsWhenExistingCloudMoveTargetUnsynced)
     ASSERT_TRUE(c->client.syncs.syncStallDetected(stalls));
 
     // Correct number of stalls?
-    ASSERT_EQ(stalls.cloud.size(), 1u);
+    ASSERT_EQ(stalls.local.size(), 1u);
 
     // Make sure we haven't moved fx on the local filesystem.
     ASSERT_TRUE(fs::exists(c->fsBasePath / "s" / "fx"));

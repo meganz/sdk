@@ -5,10 +5,17 @@ target_sources(test_integration
     SdkTest_test.h
     stdfs.h
     test.h
+    ../gtest_common.h
 
     main.cpp
     SdkTest_test.cpp
     Sync_test.cpp
+    ../gtest_common.cpp
+)
+
+target_include_directories(test_integration
+    PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../
 )
 
 # Link with SDKlib

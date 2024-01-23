@@ -1,7 +1,5 @@
 macro(load_sdklib_libraries)
 
-    find_package(PkgConfig REQUIRED) # For libraries loaded using pkg-config
-
     if(VCPKG_ROOT)
         find_package(cryptopp CONFIG REQUIRED)
         target_link_libraries(SDKlib PUBLIC cryptopp::cryptopp) # TODO: Private for SDK core
@@ -68,6 +66,7 @@ macro(load_sdklib_libraries)
         endif()
 
         if(USE_READLINE)
+            find_package(PkgConfig REQUIRED)
             pkg_check_modules(readline REQUIRED IMPORTED_TARGET readline)
             target_link_libraries(SDKlib PRIVATE PkgConfig::readline)
         else()
@@ -75,6 +74,9 @@ macro(load_sdklib_libraries)
         endif()
 
     else() # No VCPKG usage. Use pkg-config
+
+        find_package(PkgConfig REQUIRED) # For libraries loaded using pkg-config
+
         pkg_check_modules(cryptopp REQUIRED IMPORTED_TARGET libcrypto++)
         target_link_libraries(SDKlib PUBLIC PkgConfig::cryptopp) # TODO: Private for SDK core
 

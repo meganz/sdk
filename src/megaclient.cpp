@@ -2989,7 +2989,8 @@ void MegaClient::exec()
                     // this also removes it from slots
                     (*it)->transfer->removeAndDeleteSelf(TRANSFERSTATE_CANCELLED);
                 }
-                else if (!xferpaused[(*it)->transfer->type] && (!(*it)->retrying || (*it)->retrybt.armed()))
+                else if ((!xferpaused[(*it)->transfer->type] || (*it)->transfer->isForSupport())
+                        && (!(*it)->retrying || (*it)->retrybt.armed()))
                 {
                     (*it)->doio(this, committer);
                 }
@@ -5760,6 +5761,7 @@ bool MegaClient::sc_checkSequenceTag(const string& tag)
                 else
                 {
                     // We know there is a mCurrentSeqtag that we must receive, but we have not encountered it yet.  Continue with actionpackets
+                    LOG_verbose << clientname << "current st tag " << mCurrentSeqtag;
                     LOG_verbose << clientname << "st tag " << tag << " catching up";
                     assert(tag.size() < mCurrentSeqtag.size() || (tag.size() == mCurrentSeqtag.size() && tag < mCurrentSeqtag));
                     return true;
@@ -7133,12 +7135,7 @@ void MegaClient::sc_se()
             {
                 LOG_debug << "Email changed from `" << u->email << "` to `" << email << "`";
 
-                mapuser(uh, email.c_str()); // update email used as index for user's map
-                u->changed.email = true;
-                notifyuser(u);
-
-                // produce a callback to update cached email in MegaApp
-                reportLoggedInChanges();
+                setEmail(u, email);
             }
             // TODO: manage different status once multiple-emails is supported
 
@@ -8866,13 +8863,9 @@ error MegaClient::removeNode(NodeHandle nh, bool keepVersions, int rTag)
         keepVersions = false;
         canChangeVault = true;
     }
-    else
+    else if (node->type == ROOTNODE || node->type == VAULTNODE || node->type == RUBBISHNODE)  // rootnodes cannot be deleted
     {
-        // rootnodes cannot be deleted
-        if (node->type == ROOTNODE || node->type == VAULTNODE || node->type == RUBBISHNODE)
-        {
-            return API_EACCESS;
-        }
+        return API_EACCESS;
     }
 
     // use default callback function app->unlink_result
@@ -17096,6 +17089,11 @@ bool MegaClient::nodeIsMiscellaneous(const Node* n) const
     return n->isIncludedForMimetype(MimeType_t::MIME_TYPE_MISC);
 }
 
+bool MegaClient::nodeIsSpreadsheet(const Node *n) const
+{
+    return n->isIncludedForMimetype(MimeType_t::MIME_TYPE_SPREADSHEET);
+}
+
 bool MegaClient::treatAsIfFileDataEqual(const FileFingerprint& node1, const LocalPath& file2, const string& filenameExtensionLowercaseNoDot)
 {
     // if equal, upload or download could be skipped
@@ -19936,6 +19934,24 @@ void MegaClient::clearsetelementnotify(handle sid)
 void MegaClient::setProFlexi(bool newProFlexi)
 {
     mProFlexi = newProFlexi;
+}
+
+void MegaClient::setEmail(User* u, const string& email)
+{
+    assert(u);
+    if (email == u->email)
+    {
+        return;
+    }
+
+    mapuser(u->userhandle, email.c_str()); // update email used as index for user's map
+    u->changed.email = true;
+    notifyuser(u);
+
+    if (u->userhandle == me)
+    {
+        reportLoggedInChanges();  // produce a callback to update cached email in MegaApp
+    }
 }
 
 Error MegaClient::sendABTestActive(const char* flag, CommandABTestActive::Completion completion)
