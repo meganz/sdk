@@ -41,14 +41,14 @@ The prior autotools and qmake build systems are still available but obsolete, so
 
 ### Building tools
 
-Some common development tools should be available in the system to be able the build the MEGA SDK and the needed dependencies:
+Some common development tools should be available in the system to be able to build the MEGA SDK and the needed dependencies:
 
 - Git: Use the one from your system package manager or install it from https://git-scm.com
 - CMake 3.18 or higher: Use the one from your system package manager or install it from https://cmake.org
 
 #### Windows
 
-Ensure you have installed a working Visual Studio to build C++ sources and the Windows SDK in your system.
+Ensure you have installed Visual Studio, with the necessary components for building C++ sources, and the Windows SDK on your system.
 
 #### MacOS
 
@@ -57,7 +57,7 @@ Developer tools, run the following command and follow the instructions:
 
 	$ xcode-select --install
 
-The following packages should also be available in the system:
+The following packages should be available in the system as well:
 
  - autoconf, autoconf-archive, automake, pkg-config and nasm.
 
@@ -65,11 +65,11 @@ You can use any package manager if you have one installed or build and install t
 
 #### Linux
 
-For debian-based distros you can install the needed compilers and tools with the following command:
+For debian-based distributions, you can install the needed compilers and tools using the following command:
 
 	sudo apt install build-essential curl zip unzip autoconf autoconf-archive nasm
 
-Package names may be different for other Linux distros, but it should build having similar packages to the ones listed above.
+Package names may vary for other Linux distros, but it should build successfully with similar packages to the ones listed above.
 
 ### Prepare the sources
 
@@ -79,46 +79,46 @@ will be used as the workspace directory in the examples in this document.
 	mkdir mega
 	cd mega
 
-Then, clone the MEGA SDK repository to get the MEGA SDK source code
+Then, clone the MEGA SDK repository to obtain the source code for the MEGA SDK.
 
 	git clone https://github.com/meganz/sdk
 
-Next to the MEGA SDK, clone the VCPKG repository. If you are already using VCPKG and you have a local clone of the VCPKG repository, you can skip this step and use the VCPKG you already have in your system.
+Next to the MEGA SDK, clone the VCPKG repository. If you are already using VCPKG and have a local clone of the VCPKG repository, you can skip this step and use the VCPKG you already have in your system.
 
 	git clone https://github.com/microsoft/vcpkg
 
 ### Configuration
 
-The following instructions are for configuring the project from the CLI, but cmake-gui, any editor or IDE
-compatible with CMake should be ok if the same cmake parameters are configured.
+The following instructions are for configuring the project from the CLI, but cmake-gui or any editor or IDE
+compatible with CMake should be suitable if the same CMake parameters are configured.
 
-The SDK is configured as any other regular cmake project. The only paramter which is always needed is the VCPKG directory
-to manage the 3rd parties. To configure the SDK with the dafault options, from the workspace (`mega` directory), run cmake:
+The SDK is configured likne any other regular CMake project. The only parameter that is always needed is the VCPKG directory
+to manage the third-party dependencies. To configure the SDK with the dafault options, from the workspace (`mega` directory), run CMake:
 
 	cmake -DVCPKG_ROOT=vcpkg -DCMAKE_BUILD_TYPE=Debug -S sdk -B build_dir
 
-**Note**: `-DCMAKE_BUILD_TYPE=<Debug|Release>` may not be needed for multiconfig generators, like Visual Studio.
+**Note**: The `-DCMAKE_BUILD_TYPE=<Debug|Release>` may not be needed for multiconfig generators, like Visual Studio.
 
-In the command above relative paths have been used for simplicity. If you want to change where VCPKG, the SDK or the build directory are, just provide a valid relative or absolute path for any of them.
+In the command above, relative paths have been used for simplicity. If you want to change the location of VCPKG, the SDK or the build directory, simply provide a valid relative or absolute path for any of them.
 
-During the configuration of the project, VCPKG will build and configure the needed libraries for the platform. It may take a while in the first run, but once the libraries are built, VCPKG will retrieve them from the binary cache.
+During the configuration of the project, VCPKG will build and configure the necessary libraries for the platform. It may take a while on the first run, but once the libraries are built, VCPKG will retrieve them from the binary cache.
 
-Some options to configure the SDK may be found in the [CMakeLists.txt](CMakeLists.txt), like ENABLE_TESTS, ENABLE_SYNC or USE_PDFIUM.
+Some options to configure the SDK may be found in the [CMakeLists.txt](CMakeLists.txt), such as ENABLE_TESTS, ENABLE_SYNC or USE_PDFIUM.
 
 ### Building the sources
 
-Once the MEGA SDK is configured, just build the complete project:
+Once the MEGA SDK is configured, simply build the complete project:
 
 	cmake --build build_dir
 
-You can specify `--target=<target>` like `SDKlib` or `megacli`, or just left the command as it is to build all the tagets.
-Also, `-j<N>` can be added to manage the concurrency and speed up the build.
+You can specify `--target=<target>` like `SDKlib` or `megacli`, or just leave the command as it is to build all the tagets.
+Additionally, `-j<N>` can be added to manage concurrency and speed up the build.
 
 Once the build is finished, binaries will be available in the `build_dir`
 
 ### Run megacli
 
-To run the example app `megacli`, go to the `examples` directory in the `build_dir` and run the `megacli` binary.
+To run the example app `megacli`, go to the `examples` directory in the `build_dir` and execute the `megacli` binary.
 
 ## How to build the SDK library (Obsolete methods)
 
