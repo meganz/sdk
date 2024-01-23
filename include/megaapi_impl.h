@@ -3604,13 +3604,13 @@ public:
 
         void setVisibleWelcomeDialog(bool visible, MegaRequestListener* listener);
 
-        void getVisibleTermsOfService(MegaRequestListener* listener);
-
-        void setVisibleTermsOfService(bool visible, MegaRequestListener* listener);
-
         void createNodeTree(const MegaNode* parentNode,
                             MegaNodeTree* nodeTree,
                             MegaRequestListener* listener);
+
+        void getVisibleTermsOfService(MegaRequestListener* listener = nullptr);
+
+        void setVisibleTermsOfService(bool visible, MegaRequestListener* listener = nullptr);
 
 private:
         void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, unsigned clientWorkerThreadCount /*= 1*/);
