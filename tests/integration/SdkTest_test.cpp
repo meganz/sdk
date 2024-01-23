@@ -16254,40 +16254,6 @@ TEST_F(SdkTest, SetGetVisibleWelcomeDialog)
 }
 
 /**
- * @brief Set and get Terms of Service visibility
- */
-TEST_F(SdkTest, SetGetVisibleTermsOfService)
-{
-    const unsigned int numberOfTestInstances{1};
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfTestInstances));
-
-    const unsigned int apiIndex{0};
-
-    std::unique_ptr<RequestTracker> requestTrackerGetOriginalVisibleTermsOfService{
-        asyncRequestGetVisibleTermsOfService(apiIndex)};
-    ASSERT_THAT(requestTrackerGetOriginalVisibleTermsOfService->waitForResult(),
-                ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
-    const auto originalVisibleTermsOfService{
-        requestTrackerGetOriginalVisibleTermsOfService->getFlag()};
-
-    const auto newVisibleTermsOfService{!originalVisibleTermsOfService};
-    ASSERT_EQ(API_OK, synchronousSetVisibleTermsOfService(apiIndex, newVisibleTermsOfService));
-
-    std::unique_ptr<RequestTracker> requestTrackerGetNewVisibleTermsOfService{
-        asyncRequestGetVisibleTermsOfService(apiIndex)};
-    ASSERT_EQ(API_OK, requestTrackerGetNewVisibleTermsOfService->waitForResult());
-    ASSERT_EQ(newVisibleTermsOfService, requestTrackerGetNewVisibleTermsOfService->getFlag());
-
-    ASSERT_EQ(API_OK, synchronousSetVisibleTermsOfService(apiIndex, originalVisibleTermsOfService));
-
-    std::unique_ptr<RequestTracker> requestTrackerGetRestoredVisibleTermsOfService{
-        asyncRequestGetVisibleTermsOfService(apiIndex)};
-    ASSERT_EQ(API_OK, requestTrackerGetRestoredVisibleTermsOfService->waitForResult());
-    ASSERT_EQ(originalVisibleTermsOfService,
-              requestTrackerGetRestoredVisibleTermsOfService->getFlag());
-}
-
-/**
  * @brief Create node tree with empty parent node
  */
 TEST_F(SdkTest, CreateNodeTreeWithEmptyParentNode)
@@ -16620,7 +16586,6 @@ TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectoriesAndOneFileAtTheEnd)
     ASSERT_EQ(fileSize, fileNode->getSize());
 }
 
-
 #ifdef ENABLE_SYNC
 /**
  * ___RemoveInshareElementToSynDebris___
@@ -16774,3 +16739,35 @@ TEST_F(SdkTest, RemoveInshareElementToSynDebris)
     ASSERT_EQ(API_OK, synchronousRemoveSync(1, sync->getBackupId()));
 }
 #endif
+
+/**
+ * @brief Set and get Terms of Service visibility
+ */
+TEST_F(SdkTest, SetGetVisibleTermsOfService)
+{
+    const unsigned int numberOfTestInstances{1};
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfTestInstances));
+
+    const unsigned int apiIndex{0};
+
+    RequestTracker requestTrackerBeforeSets(megaApi[apiIndex].get());
+    megaApi[apiIndex]->getVisibleTermsOfService(&requestTrackerBeforeSets);
+    ASSERT_THAT(requestTrackerBeforeSets.waitForResult(),
+                ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
+    const bool originalVisibleTermsOfService = requestTrackerBeforeSets.getFlag();
+
+    const bool newVisibleTermsOfService = !originalVisibleTermsOfService;
+    ASSERT_EQ(API_OK, synchronousSetVisibleTermsOfService(apiIndex, newVisibleTermsOfService));
+
+    RequestTracker requestTrackerAfterFirstSet(megaApi[apiIndex].get());
+    megaApi[apiIndex]->getVisibleTermsOfService(&requestTrackerAfterFirstSet);
+    ASSERT_EQ(API_OK, requestTrackerAfterFirstSet.waitForResult());
+    ASSERT_EQ(newVisibleTermsOfService, requestTrackerAfterFirstSet.getFlag());
+
+    ASSERT_EQ(API_OK, synchronousSetVisibleTermsOfService(apiIndex, originalVisibleTermsOfService));
+
+    RequestTracker requestTrackerAfterSecondSet(megaApi[apiIndex].get());
+    megaApi[apiIndex]->getVisibleTermsOfService(&requestTrackerAfterSecondSet);
+    ASSERT_EQ(API_OK, requestTrackerAfterSecondSet.waitForResult());
+    ASSERT_EQ(originalVisibleTermsOfService, requestTrackerAfterSecondSet.getFlag());
+}
