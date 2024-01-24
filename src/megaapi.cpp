@@ -5802,6 +5802,16 @@ void MegaApi::setVisibleWelcomeDialog(bool visible, MegaRequestListener* listene
     pImpl->setVisibleWelcomeDialog(visible, listener);
 }
 
+void MegaApi::getVisibleTermsOfService(MegaRequestListener* listener)
+{
+    pImpl->getVisibleTermsOfService(listener);
+}
+
+void MegaApi::setVisibleTermsOfService(bool visible, MegaRequestListener* listener)
+{
+    pImpl->setVisibleTermsOfService(visible, listener);
+}
+
 void MegaApi::createNodeTree(const MegaNode* parentNode,
                              MegaNodeTree* nodeTree,
                              MegaRequestListener* listener)

@@ -3608,6 +3608,10 @@ public:
                             MegaNodeTree* nodeTree,
                             MegaRequestListener* listener);
 
+        void getVisibleTermsOfService(MegaRequestListener* listener = nullptr);
+
+        void setVisibleTermsOfService(bool visible, MegaRequestListener* listener = nullptr);
+
 private:
         void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, unsigned clientWorkerThreadCount /*= 1*/);
 
