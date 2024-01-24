@@ -23,12 +23,12 @@ void copyFileFromTestData(fs::path filename, fs::path destination)
     {
         destination = destination / filename;
     }
-    if (fs::equivalent(source, destination))
-    {
-        return;
-    }
     if (fs::exists(destination))
     {
+        if (fs::equivalent(source, destination))
+        {
+            return;
+        }
         fs::remove(destination);
     }
     fs::copy_file(source, destination);
