@@ -18,15 +18,19 @@ void setTestDataDir(const fs::path& dataDir)
 
 void copyFileFromTestData(fs::path filename, fs::path destination)
 {
+    fs::path source = getTestDataDir() / filename;
     if (fs::is_directory(destination))
     {
         destination = destination / filename;
+    }
+    if (fs::equivalent(source, destination))
+    {
+        return;
     }
     if (fs::exists(destination))
     {
         fs::remove(destination);
     }
-    fs::path source = getTestDataDir() / filename;
     fs::copy_file(source, destination);
 }
 
