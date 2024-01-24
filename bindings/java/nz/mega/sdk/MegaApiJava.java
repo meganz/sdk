@@ -4624,6 +4624,56 @@ public class MegaApiJava {
     }
 
     /**
+     * Mark a node as sensitive
+     * <p>
+     * Descendants will inherit the sensitive property.
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+     * - MegaRequest::getNumDetails - Returns 1 if node is set as sensitive, otherwise return 0
+     * - MegaRequest::getFlag - Returns true (official attribute)
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_SENSITIVE
+     *
+     * @param node      Node that will receive the information.
+     * @param sensitive if true set node as sensitive, otherwise remove the attribute
+     * @param listener  MegaRequestListener to track this request
+     */
+    public void setNodeSensitive(MegaNode node, boolean sensitive, MegaRequestListenerInterface listener) {
+        megaApi.setNodeSensitive(node, sensitive, createDelegateRequestListener(listener))
+    }
+
+    /**
+     * Mark a node as sensitive
+     * <p>
+     * Descendants will inherit the sensitive property.
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+     * - MegaRequest::getNumDetails - Returns 1 if node is set as sensitive, otherwise return 0
+     * - MegaRequest::getFlag - Returns true (official attribute)
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_SENSITIVE
+     *
+     * @param node      Node that will receive the information.
+     * @param sensitive if true set node as sensitive, otherwise remove the attribute
+     */
+    public void setNodeSensitive(MegaNode node, boolean sensitive) {
+        megaApi.setNodeSensitive(node, sensitive)
+    }
+
+    /**
+     * Ascertain if the node is marked as sensitive or a descendent of such
+     * <p>
+     * see MegaNode::isMarkedSensitive to see if the node is sensitive
+     *
+     * @param node node to inspect
+     */
+    public boolean isSensitiveInherited(MegaNode node) {
+        megaApi.isSensitiveInherited(node)
+    }
+
+    /**
      * Get a list of favourite nodes.
      * <p>
      * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_NODE
