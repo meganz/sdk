@@ -26228,6 +26228,9 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
                                &nodeKeyLength);
                 newNode.nodekey.assign(reinterpret_cast<char*>(nodeKey), nodeKeyLength);
                 delete nodeKey;
+                SymmCipher::xorblock(
+                    reinterpret_cast<const byte*>(newNode.nodekey.data()) + SymmCipher::KEYLENGTH,
+                    const_cast<byte*>(reinterpret_cast<const byte*>(newNode.nodekey.data())));
             }
             else
             {
@@ -26236,9 +26239,6 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
                 client->rng.genblock(nodeKey, nodeKeyLength);
                 newNode.nodekey.assign(reinterpret_cast<char*>(nodeKey), nodeKeyLength);
             }
-            SymmCipher::xorblock(
-                reinterpret_cast<const byte*>(newNode.nodekey.data()) + SymmCipher::KEYLENGTH,
-                const_cast<byte*>(reinterpret_cast<const byte*>(newNode.nodekey.data())));
 
             // Set name
             std::string name{tmpNodeTree->getName()};
