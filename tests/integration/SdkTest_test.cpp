@@ -17026,3 +17026,41 @@ TEST_F(SdkTest, RemoveInshareElementToSynDebris)
     ASSERT_EQ(API_OK, synchronousRemoveSync(1, sync->getBackupId()));
 }
 #endif
+
+/**
+ * @brief Set and get Terms of Service visibility
+ */
+TEST_F(SdkTest, SetGetVisibleTermsOfService)
+{
+    const unsigned int numberOfTestInstances{1};
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfTestInstances));
+
+    const unsigned int apiIndex{0};
+    const unsigned int defaultTermsOfService = true;
+
+    RequestTracker requestTrackerFirstGet(megaApi[apiIndex].get());
+    megaApi[apiIndex]->getVisibleTermsOfService(&requestTrackerFirstGet);
+    ASSERT_THAT(requestTrackerFirstGet.waitForResult(),
+                ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
+    ASSERT_EQ(defaultTermsOfService, requestTrackerFirstGet.getFlag());
+
+    const bool modifiedTermsOfService = !defaultTermsOfService;
+
+    RequestTracker requestTrackerFirstSet(megaApi[apiIndex].get());
+    megaApi[apiIndex]->setVisibleTermsOfService(modifiedTermsOfService, &requestTrackerFirstSet);
+    ASSERT_EQ(API_OK, requestTrackerFirstSet.waitForResult());
+
+    RequestTracker requestTrackerSecondGet(megaApi[apiIndex].get());
+    megaApi[apiIndex]->getVisibleTermsOfService(&requestTrackerSecondGet);
+    ASSERT_EQ(API_OK, requestTrackerSecondGet.waitForResult());
+    ASSERT_EQ(modifiedTermsOfService, requestTrackerSecondGet.getFlag());
+
+    RequestTracker requestTrackerSecondSet(megaApi[apiIndex].get());
+    megaApi[apiIndex]->setVisibleTermsOfService(defaultTermsOfService, &requestTrackerSecondSet);
+    ASSERT_EQ(API_OK, requestTrackerSecondSet.waitForResult());
+
+    RequestTracker requestTrackerThirdGet(megaApi[apiIndex].get());
+    megaApi[apiIndex]->getVisibleTermsOfService(&requestTrackerThirdGet);
+    ASSERT_EQ(API_OK, requestTrackerThirdGet.waitForResult());
+    ASSERT_EQ(defaultTermsOfService, requestTrackerThirdGet.getFlag());
+}

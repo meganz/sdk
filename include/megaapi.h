@@ -4923,6 +4923,7 @@ class MegaRequest
          * - MegaApi::setScheduledCopy - Returns if backups that should have happen in the past should be taken care of
          * - MegaApi::sendEvent - Returns true if the JourneyID should be tracked
          * - MegaApi::getVisibleWelcomeDialog - Returns true if the Welcome dialog is visible
+         * - MegaApi::getVisibleTermsOfService - Returns true if the Terms of Service need to be displayed
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -9631,7 +9632,8 @@ class MegaApi
             USER_ATTR_APPS_PREFS = 38,           // private - byte array - versioned
             USER_ATTR_CC_PREFS   = 39,           // private - byte array - versioned
             USER_ATTR_VISIBLE_WELCOME_DIALOG = 40, // private - byte array - versioned
-            USER_ATTR_PWM_BASE = 41,             // private non-encrypted (fully controlled by API) - char array in B64
+            USER_ATTR_VISIBLE_TERMS_OF_SERVICE = 41, // private - byte array - versioned
+            USER_ATTR_PWM_BASE = 42,             // private non-encrypted (fully controlled by API) - char array in B64
         };
 
         enum {
@@ -22218,6 +22220,34 @@ class MegaApi
         void createNodeTree(const MegaNode* parentNode,
                             MegaNodeTree* nodeTree,
                             MegaRequestListener* listener);
+
+        /**
+         * @brief Get Terms of Service for VPN visibility.
+         *
+         * The associated request type with this request is
+         * MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE.
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getFlag - Returns Terms of Service for VPN visibility.
+         *
+         * If the corresponding user attribute is not set yet, the request will fail with the error
+         * code MegaError::API_ENOENT and MegaRequest::getFlag will return the default value (true).
+         *
+         * @param listener MegaRequestListener to track this request.
+         */
+        void getVisibleTermsOfService(MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Set Terms of Service for VPN visibility.
+         *
+         * The associated request type with this request is
+         * MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE.
+         *
+         * @param visible True to set Terms of Service visibility on, false otherwise.
+         * @param listener MegaRequestListener to track this request.
+         */
+        void setVisibleTermsOfService(bool visible, MegaRequestListener* listener = nullptr);
 
  protected:
         MegaApiImpl *pImpl = nullptr;
