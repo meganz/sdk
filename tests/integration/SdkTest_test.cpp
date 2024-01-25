@@ -16750,7 +16750,7 @@ TEST_F(SdkTest, SetGetVisibleTermsOfService)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfTestInstances));
 
     const unsigned int apiIndex{0};
-    const unsigned int defaultTermsOfService = true;
+    const bool defaultTermsOfService = true;
 
     RequestTracker requestTrackerFirstGet(megaApi[apiIndex].get());
     megaApi[apiIndex]->getVisibleTermsOfService(&requestTrackerFirstGet);
