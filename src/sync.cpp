@@ -6342,20 +6342,17 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
     mClient.app->syncs_restored(NO_SYNC_ERROR);
 }
 
-bool Sync::recursiveCollectNameConflicts(list<NameConflict>* conflicts, size_t* count, size_t* stopIfGreaterThan)
+void Sync::recursiveCollectNameConflicts(list<NameConflict>* conflicts, size_t* count, size_t* limit)
 {
     assert(syncs.onSyncThread());
 
-    if (!conflicts && !count)
-    {
-        assert(false && "Either a list of conflicts or a counter must be present");
-        return false;
-    }
+    assert(conflicts || count);
     FSNode rootFsNode(localroot->getLastSyncedFSDetails());
     SyncRow row{ &cloudRoot, localroot.get(), &rootFsNode };
     SyncPath pathBuffer(syncs, localroot->localname, cloudRootPath);
-    recursiveCollectNameConflicts(row, pathBuffer, conflicts, count, stopIfGreaterThan);
-    return (conflicts && !conflicts->empty()) || (count && *count);
+    size_t dummyCount = 0;
+    size_t dummyMax = std::numeric_limits<size_t>::max();
+    recursiveCollectNameConflicts(row, pathBuffer, conflicts, count ? *count : dummyCount, limit ? *limit : dummyMax);
 }
 
 void Sync::purgeStaleDownloads()
@@ -6466,7 +6463,7 @@ void SyncRow::inferOrCalculateChildSyncRows(bool wasSynced, vector<SyncRow>& chi
 }
 
 
-void Sync::recursiveCollectNameConflicts(SyncRow& row, SyncPath& fullPath, list<NameConflict>* ncs, size_t* count, size_t* stopIfGreaterThan)
+void Sync::recursiveCollectNameConflicts(SyncRow& row, SyncPath& fullPath, list<NameConflict>* ncs, size_t& count, size_t& limit)
 {
     assert(syncs.onSyncThread());
 
@@ -6476,9 +6473,7 @@ void Sync::recursiveCollectNameConflicts(SyncRow& row, SyncPath& fullPath, list<
         return;
     }
 
-    assert(ncs || count);
-    assert(!stopIfGreaterThan || count);
-    if (stopIfGreaterThan && count && *count > *stopIfGreaterThan)
+    if (count >= limit)
     {
         return;
     }
@@ -6528,20 +6523,15 @@ void Sync::recursiveCollectNameConflicts(SyncRow& row, SyncPath& fullPath, list<
 
                 ncs->emplace_back(std::move(nc));
             }
-            if (count)
+            if (++count >= limit)
             {
-                ++*count;
-                if (stopIfGreaterThan && *count > *stopIfGreaterThan)
-                {
-                    break;
-                }
+                break;
             }
         }
 
         // recurse after dealing with all items, so any renames within the folder have been completed
         if (childRow.syncNode && childRow.syncNode->type == FOLDERNODE)
         {
-
             ScopedSyncPathRestore syncPathRestore(fullPath);
 
             if (!fullPath.appendRowNames(childRow, mFilesystemType) ||
@@ -6552,7 +6542,7 @@ void Sync::recursiveCollectNameConflicts(SyncRow& row, SyncPath& fullPath, list<
                 continue;
             }
 
-            recursiveCollectNameConflicts(childRow, fullPath, ncs, count, stopIfGreaterThan);
+            recursiveCollectNameConflicts(childRow, fullPath, ncs, count, limit);
         }
     }
 }
@@ -12180,7 +12170,7 @@ bool Syncs::conflictsDetected(list<NameConflict>& conflicts)
     return !conflicts.empty();
 }
 
-size_t Syncs::conflictsDetectedCount(size_t stopIfGreaterThan) const
+size_t Syncs::conflictsDetectedCount(size_t limit) const
 {
     assert(onSyncThread());
 
@@ -12191,31 +12181,13 @@ size_t Syncs::conflictsDetectedCount(size_t stopIfGreaterThan) const
         {
             if (sync->localroot->conflictsDetected())
             {
-                if (stopIfGreaterThan == 0)
+                if (limit == 1)
                 {
-                    count = 1;
+                    count = limit;
                     break;
                 }
-                sync->recursiveCollectNameConflicts(nullptr, &count, &stopIfGreaterThan);
-                if (count > stopIfGreaterThan) break;
-            }
-        }
-    }
-    return count;
-}
-
-size_t Syncs::conflictsDetectedCount() const
-{
-    assert(onSyncThread());
-
-    size_t count = 0;
-    for (auto& us : mSyncVec)
-    {
-        if (Sync* sync = us->mSync.get())
-        {
-            if (sync->localroot->conflictsDetected())
-            {
-                sync->recursiveCollectNameConflicts(nullptr, &count);
+                sync->recursiveCollectNameConflicts(nullptr, &count, limit ? &limit : nullptr);
+                if (count >= limit) break;
             }
         }
     }
@@ -12325,7 +12297,7 @@ void Syncs::processSyncConflicts()
 {
     assert(onSyncThread());
 
-    bool conflictsNow = conflictsDetectedCount(0);
+    bool conflictsNow = conflictsDetectedCount(1); // We only need to know if we have at least 1 conflict
     if (conflictsNow != syncConflictState)
     {
         assert(onSyncThread());
@@ -12352,7 +12324,7 @@ void Syncs::processSyncConflicts()
                                                         MAX_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT);
         if ((std::chrono::steady_clock::now() - lastSyncConflictsCount) >= minDelayBetweenConflictsCount)
         {
-            auto updatedTotalSyncsConflict = conflictsDetectedCount(totalSyncConflicts.load());
+            auto updatedTotalSyncsConflict = conflictsDetectedCount(totalSyncConflicts.load() + 1); // We only need to know either if there are now less conflicts or at least one conflict more than before
             if (totalSyncConflicts.load() != updatedTotalSyncsConflict)
             {
                 assert(onSyncThread());

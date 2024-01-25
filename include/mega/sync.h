@@ -540,8 +540,8 @@ public:
     bool checkForCompletedFolderCreateHere(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult);
     bool checkForCompletedCloudMovedToDebris(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult);
 
-    void recursiveCollectNameConflicts(SyncRow& row, SyncPath& fullPath, list<NameConflict>* ncs, size_t* count = nullptr, size_t* stopIfGreaterThan = nullptr);
-    bool recursiveCollectNameConflicts(list<NameConflict>* conflicts, size_t* count = nullptr, size_t* stopIfGreaterThan = nullptr);
+    void recursiveCollectNameConflicts(SyncRow& row, SyncPath& fullPath, list<NameConflict>* ncs, size_t& count, size_t& limit);
+    void recursiveCollectNameConflicts(list<NameConflict>* conflicts, size_t* count = nullptr, size_t* limit = nullptr);
 
     void purgeStaleDownloads();
     bool makeSyncNode_fromFS(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool considerSynced);
@@ -1147,8 +1147,7 @@ public:
 
     // retrieves information about any detected name conflicts.
     bool conflictsDetected(list<NameConflict>& conflicts); // This one resets syncupdate_totalconflicts
-    size_t conflictsDetectedCount(size_t stopIfGreaterThan) const;
-    size_t conflictsDetectedCount() const;
+    size_t conflictsDetectedCount(size_t limit = 0) const; // limit 0 -> no limit
 
     // Get name conficts - pass UNDEF to collect for all syncs.
     void collectSyncNameConflicts(handle backupId, std::function<void(list<NameConflict>&& nc)>, bool completionInClient);
