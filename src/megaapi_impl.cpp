@@ -26244,7 +26244,7 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
                                &nodeKey,
                                &nodeKeyLength);
                 newNode.nodekey.assign(reinterpret_cast<char*>(nodeKey), nodeKeyLength);
-                delete nodeKey;
+                delete[] nodeKey;
                 SymmCipher::xorblock(
                     reinterpret_cast<const byte*>(newNode.nodekey.data()) + SymmCipher::KEYLENGTH,
                     const_cast<byte*>(reinterpret_cast<const byte*>(newNode.nodekey.data())));
