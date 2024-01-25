@@ -4640,7 +4640,7 @@ public class MegaApiJava {
      * @param listener  MegaRequestListener to track this request
      */
     public void setNodeSensitive(MegaNode node, boolean sensitive, MegaRequestListenerInterface listener) {
-        megaApi.setNodeSensitive(node, sensitive, createDelegateRequestListener(listener))
+        megaApi.setNodeSensitive(node, sensitive, createDelegateRequestListener(listener));
     }
 
     /**
@@ -4659,7 +4659,7 @@ public class MegaApiJava {
      * @param sensitive if true set node as sensitive, otherwise remove the attribute
      */
     public void setNodeSensitive(MegaNode node, boolean sensitive) {
-        megaApi.setNodeSensitive(node, sensitive)
+        megaApi.setNodeSensitive(node, sensitive);
     }
 
     /**
@@ -4670,7 +4670,7 @@ public class MegaApiJava {
      * @param node node to inspect
      */
     public boolean isSensitiveInherited(MegaNode node) {
-        megaApi.isSensitiveInherited(node)
+        return megaApi.isSensitiveInherited(node);
     }
 
     /**
