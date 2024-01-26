@@ -16779,6 +16779,8 @@ TEST_F(SdkTest, SetGetVisibleTermsOfService)
     ASSERT_EQ(defaultTermsOfService, requestTrackerThirdGet.getFlag());
 }
 
+#ifdef ENABLE_CHAT
+
 /**
  * @brief Give and remove access to download a file from a chat
  */
@@ -16800,7 +16802,7 @@ TEST_F(SdkTest, GiveRemoveChatAccess)
     size_t numChats = mApi[indexUser1].chats.size();
     mApi[indexUser2].chatUpdated = false;
     MegaTextChatPeerList *peers = MegaTextChatPeerList::createInstance();
-    peers->addPeer(megaApi[1]->getMyUser()->getHandle(), PRIV_STANDARD);
+    peers->addPeer(megaApi[indexUser2]->getMyUser()->getHandle(), PRIV_STANDARD);
 
     createChat(true, peers);
 
@@ -16843,3 +16845,5 @@ TEST_F(SdkTest, GiveRemoveChatAccess)
     ASSERT_EQ(API_OK, requestTrackerRemoveAccess.waitForResult());
     ASSERT_FALSE(megaApi[indexUser1]->hasAccessToAttachment(chatId, fileHandle, megaApi[indexUser2]->getMyUser()->getHandle()));
 }
+
+#endif
