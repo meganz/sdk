@@ -7822,8 +7822,6 @@ bool CommandChatGrantAccess::procresult(Result r, JSON& json)
 
 CommandChatRemoveAccess::CommandChatRemoveAccess(MegaClient *client, handle chatid, handle h, const char *uid)
 {
-    mV3 = false;
-
     this->client = client;
     this->chatid = chatid;
     this->h = h;
