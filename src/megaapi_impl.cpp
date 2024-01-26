@@ -3351,6 +3351,11 @@ MegaCancelToken* MegaTransferPrivate::getCancelToken()
     return mCancelToken.existencePtr();
 }
 
+unsigned int MegaTransferPrivate::getTotalRecursiveOperation() const
+{
+    return recursiveOperation ? recursiveOperation->getTransfersTotalCount() : 0;
+}
+
 void MegaTransferPrivate::setPath(const char* path)
 {
     if(this->path) delete [] this->path;
@@ -8472,7 +8477,7 @@ void MegaApiImpl::abortPendingActions(error preverror)
         while (!transferMap.empty())
         {
             MegaTransferPrivate* transfer = transferMap.begin()->second;
-            if (transfer->isRecursive())
+            if (transfer->isRecursive() && transfer->getTotalRecursiveOperation())  // None subtransfer has been created yet (scan period)
             {
                 // just remove it from the map.  When its last dependent transfer is deleted
                 // then it will have its fireOnTransferFinish called also.
@@ -8480,6 +8485,11 @@ void MegaApiImpl::abortPendingActions(error preverror)
             }
             else
             {
+                if (transfer->isRecursive())
+                {
+                    transfer->stopRecursiveOperationThread();
+                }
+
                 transfer->setState(MegaTransfer::STATE_FAILED);
                 fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(preverror));
             }

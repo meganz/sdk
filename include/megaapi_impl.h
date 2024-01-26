@@ -1154,6 +1154,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
 
         MegaCancelToken* getCancelToken() override;
         bool isRecursive() const { return recursiveOperation.get() != nullptr; }
+        unsigned getTotalRecursiveOperation() const;
 
         CancelToken& accessCancelToken() { return mCancelToken.cancelFlag; }
 
