@@ -3154,8 +3154,10 @@ class MegaApiImpl : public MegaApp
         bool isScanning();
         bool isSyncing();
 
-        bool receivedStallFlag = false;
-        bool receivedNameConflictsFlag = false;
+        std::atomic<bool> receivedStallFlag{false};
+        std::atomic<bool> receivedNameConflictsFlag{false};
+        std::atomic<bool> receivedTotalStallsFlag{false};
+        std::atomic<bool> receivedTotalNameConflictsFlag{false};
 
         MegaSync *getSyncByBackupId(mega::MegaHandle backupId);
         MegaSync *getSyncByNode(MegaNode *node);
@@ -3178,6 +3180,7 @@ class MegaApiImpl : public MegaApp
         void update();
         int isWaiting();
         bool isSyncStalled();
+        bool isSyncStalledChanged();
 
         //Statistics
         int getNumPendingUploads();
@@ -3984,6 +3987,8 @@ private:
         void syncupdate_scanning(bool scanning) override;
         void syncupdate_stalled(bool stalled) override;
         void syncupdate_conflicts(bool conflicts) override;
+        void syncupdate_totalstalls(bool totalstalls) override;
+        void syncupdate_totalconflicts(bool totalconflicts) override;
         void syncupdate_treestate(const SyncConfig &, const LocalPath&, treestate_t, nodetype_t) override;
 
         // for the exclusive use of sync_syncable

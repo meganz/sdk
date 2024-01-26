@@ -553,9 +553,13 @@ struct StandardClient : public MegaApp
 
     std::atomic<bool> mStallDetected{false};
     std::atomic<bool> mConflictsDetected{false};
+    std::atomic<bool> mTotalStallsUpdated{false};
+    std::atomic<bool> mTotalConflictsUpdated{false};
 
     void syncupdate_conflicts(bool state) override;
     void syncupdate_stalled(bool state) override;
+    void syncupdate_totalconflicts(bool state) override;
+    void syncupdate_totalstalls(bool state) override;
     void file_added(File* file) override;
     void file_complete(File* file) override;
 
@@ -969,6 +973,7 @@ struct StandardClient : public MegaApp
     void getpubliclink(Node* n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb);
     void waitonsyncs(chrono::seconds d = chrono::seconds(2));
     bool conflictsDetected(list<NameConflict>& conflicts);
+    bool stallsDetected(SyncStallInfo& stalls);
     bool login_reset(bool noCache = false);
     bool login_reset(const string& user, const string& pw, bool noCache = false, bool resetBaseCloudFolder = true);
     bool resetBaseFolderMulticlient(StandardClient* c2 = nullptr, StandardClient* c3 = nullptr, StandardClient* c4 = nullptr);
@@ -1041,6 +1046,8 @@ struct StandardClient : public MegaApp
     function<void(File&)> mOnFileComplete;
     function<void(bool)> mOnStall;
     function<void(bool)> mOnConflictsDetected;
+    function<void(bool)> mOnTotalStallsUpdate;
+    function<void(bool)> mOnTotalConflictsUpdate;
 
     void setHasImmediateStall(HasImmediateStallPredicate predicate);
 

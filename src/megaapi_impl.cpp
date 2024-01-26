@@ -13688,14 +13688,32 @@ void MegaApiImpl::syncupdate_scanning(bool scanning)
 
 void MegaApiImpl::syncupdate_stalled(bool stalled)
 {
-    receivedStallFlag = stalled;
+    receivedStallFlag.store(stalled);
     fireOnGlobalSyncStateChanged();
 }
 
 void MegaApiImpl::syncupdate_conflicts(bool conflicts)
 {
-    receivedNameConflictsFlag = conflicts;
+    receivedNameConflictsFlag.store(conflicts);
     fireOnGlobalSyncStateChanged();
+}
+
+void MegaApiImpl::syncupdate_totalstalls(bool totalstalls)
+{
+    receivedTotalStallsFlag.store(totalstalls);
+    if (totalstalls)
+    {
+        fireOnGlobalSyncStateChanged();
+    }
+}
+
+void MegaApiImpl::syncupdate_totalconflicts(bool totalconflicts)
+{
+    receivedTotalNameConflictsFlag.store(totalconflicts);
+    if (totalconflicts)
+    {
+        fireOnGlobalSyncStateChanged();
+    }
 }
 
 void MegaApiImpl::syncupdate_syncing(bool syncing)
@@ -14881,8 +14899,10 @@ void MegaApiImpl::logout_result(error e, MegaRequestPrivate* request)
 
 #ifdef ENABLE_SYNC
         mCachedMegaSyncPrivate.reset();
-        receivedStallFlag = false;
-        receivedNameConflictsFlag = false;
+        receivedStallFlag.store(false);
+        receivedNameConflictsFlag.store(false);
+        receivedTotalStallsFlag.store(false);
+        receivedTotalNameConflictsFlag.store(false);
         mAddressedStallFilter.clear();
 #endif
 
@@ -25316,8 +25336,18 @@ bool MegaApiImpl::isSyncStalled()
 {
     // no need to lock sdkMutex for these simple flags
 #ifdef ENABLE_SYNC
-    if (receivedStallFlag) return true;
-    if (receivedNameConflictsFlag) return true;
+    if (receivedStallFlag.load()) return true;
+    if (receivedNameConflictsFlag.load()) return true;
+#endif
+    return false;
+}
+
+bool MegaApiImpl::isSyncStalledChanged()
+{
+    // no need to lock sdkMutex for these simple flags
+#ifdef ENABLE_SYNC
+    if (receivedTotalStallsFlag.load()) return true;
+    if (receivedTotalNameConflictsFlag.load()) return true;
 #endif
     return false;
 }

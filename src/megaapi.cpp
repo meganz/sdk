@@ -4539,6 +4539,11 @@ bool MegaApi::isSyncStalled()
     return pImpl->isSyncStalled();
 }
 
+bool MegaApi::isSyncStalledChanged()
+{
+    return pImpl->isSyncStalledChanged();
+}
+
 void MegaApi::removeRecursively(const char *path)
 {
     MegaApiImpl::removeRecursively(path);
