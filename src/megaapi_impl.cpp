@@ -3351,7 +3351,7 @@ MegaCancelToken* MegaTransferPrivate::getCancelToken()
     return mCancelToken.existencePtr();
 }
 
-unsigned int MegaTransferPrivate::getTotalRecursiveOperation() const
+size_t MegaTransferPrivate::getTotalRecursiveOperation() const
 {
     return recursiveOperation ? recursiveOperation->getTransfersTotalCount() : 0;
 }
