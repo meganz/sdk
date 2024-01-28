@@ -44,6 +44,8 @@ typedef NS_ENUM(NSUInteger, Event) {
     EventUpgradeSecurity = 18,
 };
 
+NS_ASSUME_NONNULL_BEGIN
+
 /**
  * @brief Provides information about an event
  *
@@ -60,7 +62,7 @@ typedef NS_ENUM(NSUInteger, Event) {
 /**
  * @brief Text relative to this event
  */
-@property (nonatomic, readonly) NSString *text;
+@property (nonatomic, readonly, nullable) NSString *text;
 
 /**
  * @brief A number relative to this event
@@ -68,17 +70,6 @@ typedef NS_ENUM(NSUInteger, Event) {
  */
 @property (nonatomic, readonly) NSInteger number;
 
-/**
- * @brief Creates a copy of this MEGAEvent object
- *
- * The resulting object is fully independent of the source MEGAEvent,
- * it contains a copy of all internal attributes, so it will be valid after
- * the original object is deleted.
- *
- * You are the owner of the returned object
- *
- * @return Copy of the MEGAEvent object
- */
-- (instancetype)clone;
+NS_ASSUME_NONNULL_END
 
 @end

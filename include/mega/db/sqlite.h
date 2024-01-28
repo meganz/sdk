@@ -23,6 +23,8 @@
 #ifndef DBACCESS_CLASS
 #define DBACCESS_CLASS SqliteDbAccess
 
+#include "mega/db.h"
+
 #include <sqlite3.h>
 
 // Include ICU headers
@@ -74,16 +76,50 @@ public:
     bool getNode(mega::NodeHandle nodehandle, NodeSerialized& nodeSerialized) override;
     bool getNodesByOrigFingerprint(const std::string& fingerprint, std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes) override;
     bool getRootNodes(std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
+
+    /**
+     * @deprecated
+     * should be removed along with deprecated MegaApi::search() calls
+     * use searchNodes(const NodeSearchFilter& filter, ...) instead
+     */
     bool getNodesWithSharesOrLink(std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, ShareType_t shareType) override;
+
+    /**
+     * @deprecated
+     * should be removed along with deprecated MegaApi::getChildren() calls
+     * use getChildren(const NodeSearchFilter& filter, ...) instead
+     */
     bool getChildren(NodeHandle parentHandle, std::vector<std::pair<NodeHandle, NodeSerialized>>& children, CancelToken cancelFlag) override;
+
     bool getChildrenFromType(NodeHandle parentHandle, nodetype_t nodeType, std::vector<std::pair<NodeHandle, NodeSerialized>>& children, mega::CancelToken cancelFlag) override;
     uint64_t getNumberOfChildren(NodeHandle parentHandle) override;
     // If a cancelFlag is passed, it must be kept alive until this method returns.
+    bool getChildren(const mega::NodeSearchFilter& filter, std::vector<std::pair<NodeHandle, NodeSerialized>>& children, CancelToken cancelFlag) override;
+    bool searchNodes(const mega::NodeSearchFilter& filter, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag) override;
+
+    /**
+     * @deprecated
+     * should be removed along with deprecated MegaApi::search() calls
+     * use searchNodes(const NodeSearchFilter& filter, ...) instead
+     */
     bool searchForNodesByName(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes, CancelToken cancelFlag) override;
+
+    /**
+     * @deprecated
+     * should be removed along with deprecated MegaApi::getChildren() calls
+     * use getChildren(const NodeSearchFilter& filter, ...) instead
+     */
     bool searchForNodesByNameNoRecursive(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, NodeHandle parentHandle, CancelToken cancelFlag) override;
+
+    /**
+     * @deprecated
+     * should be removed along with deprecated MegaApi::search() calls
+     * use searchNodes(const NodeSearchFilter& filter, ...) instead
+     */
     bool searchInShareOrOutShareByName(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, ShareType_t shareType, CancelToken cancelFlag) override;
+
     bool getNodesByFingerprint(const std::string& fingerprint, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
-    bool getNodeByFingerprint(const std::string& fingerprint, mega::NodeSerialized& node) override;
+    bool getNodeByFingerprint(const std::string& fingerprint, mega::NodeSerialized& node, NodeHandle& handle) override;
     bool getRecentNodes(unsigned maxcount, m_time_t since, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
     bool getFavouritesHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) override;
     bool childNodeByNameType(NodeHandle parentHanlde, const std::string& name, nodetype_t nodeType, std::pair<NodeHandle, NodeSerialized>& node) override;
@@ -91,7 +127,19 @@ public:
     bool isAncestor(mega::NodeHandle node, mega::NodeHandle ancestor, CancelToken cancelFlag) override;
     uint64_t getNumberOfNodes() override;
     uint64_t getNumberOfChildrenByType(NodeHandle parentHandle, nodetype_t nodeType) override;
+
+    /**
+     * @deprecated
+     * should be removed along with deprecated MegaApi::search() calls
+     * use searchNodes(const NodeSearchFilter& filter, ...) instead
+     */
     bool getNodesByMimetype(MimeType_t mimeType, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized> >& nodes, Node::Flags requiredFlags, Node::Flags excludeFlags, CancelToken cancelFlag) override;
+
+        /**
+     * @deprecated
+     * should be removed along with deprecated MegaApi::getChildren() calls
+     * use getChildren(const NodeSearchFilter& filter, ...) instead
+     */
     bool getNodesByMimetypeExclusiveRecursive(MimeType_t mimeType, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, NodeHandle anscestorHandle, CancelToken cancelFlag) override;
     bool put(Node* node) override;
     bool remove(mega::NodeHandle nodehandle) override;
@@ -119,6 +167,10 @@ public:
     // It checks if received mimetype is the same as extension extracted from file name
     static void userIsMimetype(sqlite3_context* context, int argc, sqlite3_value** argv);
 
+    // Method called when query uses 'getmimetype'
+    // Gets the mimetype corresponding to the file extension
+    static void userGetMimetype(sqlite3_context* context, int argc, sqlite3_value** argv);
+
 private:
     // Iterate over a SQL query row by row and fill the map
     // Allow at least the following containers:
@@ -130,14 +182,32 @@ private:
     sqlite3_stmt* mStmtUpdateNodeAndFlags = nullptr;
     sqlite3_stmt* mStmtTypeAndSizeNode = nullptr;
     sqlite3_stmt* mStmtGetNode = nullptr;
+
+    /** @deprecated */
     sqlite3_stmt* mStmtChildren = nullptr;
+
+    /** @deprecated */
     sqlite3_stmt* mStmtChildrenFromType = nullptr;
+
     sqlite3_stmt* mStmtNumChildren = nullptr;
+    sqlite3_stmt* mStmtGetChildren = nullptr;
+    sqlite3_stmt* mStmtSearchNodes = nullptr;
+
+    /** @deprecated */
     sqlite3_stmt* mStmtNodeByName = nullptr;
+
+    /** @deprecated */
     sqlite3_stmt* mStmtNodeByNameNoRecursive = nullptr;
+
+    /** @deprecated */
     sqlite3_stmt* mStmtInShareOutShareByName = nullptr;
+
+    /** @deprecated */
     sqlite3_stmt* mStmtNodeByMimeType = nullptr;
+
+    /** @deprecated */
     sqlite3_stmt* mStmtNodeByMimeTypeExcludeRecursiveFlags = nullptr;
+
     sqlite3_stmt* mStmtNodesByFp = nullptr;
     sqlite3_stmt* mStmtNodeByFp = nullptr;
     sqlite3_stmt* mStmtNodeByOrigFp = nullptr;
@@ -182,6 +252,8 @@ private:
     bool openDBAndCreateStatecache(sqlite3 **db, FileSystemAccess& fsAccess, const string& name, mega::LocalPath &dbPath, const int flags);
     bool renameDBFiles(mega::FileSystemAccess& fsAccess, mega::LocalPath& legacyPath, mega::LocalPath& dbPath);
     void removeDBFiles(mega::FileSystemAccess& fsAccess, mega::LocalPath& dbPath);
+    bool ensureColumnIsInNodesTable(sqlite3* db, const string& colName, const string& colType, std::function<bool()> callAfterAdded = nullptr);
+    bool copyMtimeFromFingerprint(sqlite3* db);
 };
 
 } // namespace

@@ -1,7 +1,6 @@
 ../../doc/example/lsmega.cpp
 ../../examples/megacli.cpp
 ../../examples/megacli.h
-../../examples/megasimplesync.cpp
 ../../include/mega/crypto/cryptopp.h
 ../../include/mega/crypto/sodium.h
 ../../include/mega/db/sqlite.h
@@ -25,12 +24,6 @@
 ../../include/mega/win32/meganet.h
 ../../include/mega/win32/megasys.h
 ../../include/mega/win32/megawaiter.h
-../../include/mega/wp8/megaconsole.h
-../../include/mega/wp8/megaconsolewaiter.h
-../../include/mega/wp8/megafs.h
-../../include/mega/wp8/meganet.h
-../../include/mega/wp8/megasys.h
-../../include/mega/wp8/megawaiter.h
 ../../include/mega/account.h
 ../../include/mega/attrmap.h
 ../../include/mega/backofftimer.h
@@ -63,6 +56,7 @@
 ../../include/mega/share.h
 ../../include/mega/sharenodekeys.h
 ../../include/mega/sync.h
+../../include/mega/syncfilter.h
 ../../include/mega/heartbeats.h
 ../../include/mega/thread.h
 ../../include/mega/transfer.h
@@ -98,7 +92,6 @@
 ../../src/win32/fs.cpp
 ../../src/win32/net.cpp
 ../../src/win32/waiter.cpp
-../../src/wp8/waiter.cpp
 ../../src/attrmap.cpp
 ../../src/autocomplete.cpp
 ../../src/backofftimer.cpp
@@ -130,6 +123,7 @@
 ../../src/share.cpp
 ../../src/sharenodekeys.cpp
 ../../src/sync.cpp
+../../src/syncfilter.cpp
 ../../src/transfer.cpp
 ../../src/transferslot.cpp
 ../../src/treeproc.cpp

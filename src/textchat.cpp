@@ -363,8 +363,8 @@ bool ScheduledMeeting::serialize(string& out) const
 {
     if (schedId() == UNDEF)
     {
-        assert(false);
         LOG_warn << "ScheduledMeeting::serialize: Invalid scheduled meeting with an UNDEF schedId";
+        assert(false);
         return false;
     }
 
@@ -1166,11 +1166,20 @@ const map<handle/*schedId*/, std::unique_ptr<ScheduledMeeting>>& TextChat::getSc
 
 bool TextChat::addSchedMeeting(std::unique_ptr<ScheduledMeeting> sm, bool notify)
 {
-    if (!sm || id != sm->chatid())
+    if (!sm)
     {
         assert(false);
         return false;
     }
+
+    if (id != sm->chatid())
+    {
+        LOG_err << "addSchedMeeting: scheduled meeting chatid: " << toHandle(sm->chatid())
+                << " doesn't match with expected one: " << toHandle(id);
+        assert(false);
+        return false;
+    }
+
     handle schedId = sm->schedId();
     if (mScheduledMeetings.find(schedId) != mScheduledMeetings.end())
     {
@@ -1245,6 +1254,13 @@ bool TextChat::addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting> sm, boo
     if (!sm)
     {
         LOG_err << "addOrUpdateSchedMeeting: invalid scheduled meeting provided";
+        assert(false);
+        return false;
+    }
+
+    if (sm->schedId() == UNDEF)
+    {
+        LOG_err << "addOrUpdateSchedMeeting: invalid schedid";
         assert(false);
         return false;
     }

@@ -20,7 +20,6 @@
  */
 
 #import <Foundation/Foundation.h>
-#import <AssetsLibrary/AssetsLibrary.h>
 
 #import "MEGAAccountDetails.h"
 #import "MEGAAchievementsDetails.h"
@@ -55,6 +54,10 @@
 #import "MEGABackupInfoList.h"
 #import "MEGAScheduledCopy.h"
 #import "MEGAScheduledCopyDelegate.h"
+#import "BackUpState.h"
+#import "BackUpSubState.h"
+#import "MEGASearchFilter.h"
+#import "MEGASearchFilterTimeFrame.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -93,6 +96,13 @@ typedef NS_ENUM (NSInteger, MEGANodeFormatType) {
     MEGANodeFormatTypeAudio,
     MEGANodeFormatTypeVideo,
     MEGANodeFormatTypeDocument,
+    MEGANodeFormatTypePdf,
+    MEGANodeFormatTypePresentation,
+    MEGANodeFormatTypeArchive,
+    MEGANodeFormatTypeProgram,
+    MEGANodeFormatTypeMisc,
+    MEGANodeFormatTypeSpreadsheet,
+    MEGANodeFormatTypeAllDocs
 };
 
 typedef NS_ENUM (NSInteger, MEGAFolderTargetType) {
@@ -252,61 +262,6 @@ typedef NS_ENUM(NSInteger, BackUpType) {
     BackUpTypeMediaUploads = 4
 };
 
-typedef NS_ENUM(NSUInteger, BackUpState) {
-    BackUpStateActive = 1,
-    BackUpStateFailed = 2,
-    BackUpStateTemporaryDisabled = 3,
-    BackUpStateDisabled = 4,
-    BackUpStatePauseUp = 5,
-    BackUpStatePauseDown = 6,
-    BackUpStatePauseFull = 7
-};
-
-typedef NS_ENUM(NSUInteger, BackUpSubState) {
-    BackUpSubStateNoSyncError = 0,
-    BackUpSubStateUnknownError = 1,
-    BackUpSubStateUnsupportedFileSystem = 2, //File system type is not supported
-    BackUpSubStateInvalidRemoteType = 3, //Remote type is not a folder that can be synced
-    BackUpSubStateInvalidLocalType = 4, //Local path does not refer to a folder
-    BackUpSubStateInitialScanFailed = 5, //The initial scan failed
-    BackUpSubStateLocalPathTemporaryUnavailable = 6, //Local path is temporarily unavailable: this is fatal when adding a sync
-    BackUpSubStateLocalPathUnavailable = 7, //Local path is not available (can't be open)
-    BackUpSubStateRemoteNodeNotFound = 8, //Remote node does no longer exists
-    BackUpSubStateStorageOverquota = 9, //Account reached storage overquota
-    BackUpSubStateAccountExpired = 10, //Account expired (business or pro flexi)
-    BackUpSubStateForeignTargetOverstorage = 11, //Sync transfer fails (upload into an inshare whose account is overquota)
-    BackUpSubStateRemotePathHasChanged = 12, // Remote path has changed (currently unused: not an error)
-    BackUpSubStateShareNonFullAccess = 14, //Existing inbound share sync or part thereof lost full access
-    BackUpSubStateLocalFilesystemMismatch = 15, //Filesystem fingerprint does not match the one stored for the synchronization
-    BackUpSubStatePutNodesError = 16, // Error processing put nodes result
-    BackUpSubStateActiveSyncBelowPath = 17, // There's a synced node below the path to be synced
-    BackUpSubStateActiveSyncAbovePath = 18, // There's a synced node above the path to be synced
-    BackUpSubStateRemoteNodeMovedToRubbish = 19, // Moved to rubbish
-    BackUpSubStateRremoteNodeInsideRubbish = 20, // Attempted to be added in rubbish
-    BackUpSubStateVBoxSharedFolderUnsupported = 21, // Found unsupported VBoxSharedFolderFS
-    BackUpSubStateLocalPathSyncCollision = 22, //Local path includes a synced path or is included within one
-    BackUpSubStateAccountBlocked = 23, // Account blocked
-    BackUpSubStateUnknownTemporaryError = 24, // unknown temporary error
-    BackUpSubStateTooManyActionPackets = 25, // Too many changes in account, local state discarded
-    BackUpSubStateLoggedOut = 26, // Logged out
-    BackUpSubStateWholeAccountRefetched = 27, // The whole account was reloaded, missed actionpacket changes could not have been applied
-    BackUpSubStateMissingParentNode = 28, // Setting a new parent to a parent whose LocalNode is missing its corresponding Node crossref
-    BackUpSubStateBackupModified = 29, // Backup has been externally modified.
-    BackUpSubStateBackupSourceNotBelowDrive = 30,     // Backup source path not below drive path.
-    BackUpSubStateSyncConfigWriteFailure = 31,         // Unable to write sync config to disk.
-    BackUpSubStateActiveSyncSamePath = 32,             // There's a synced node at the path to be synced
-    BackUpSubStateCouldNotMoveCloudNodes = 33,        // rename() failed
-    BackUpSubStateCouldNotCreateIgnoreFile = 34,      // Couldn't create a sync's initial ignore file.
-    BackUpSubStateSyncConfigReadFailure = 35,          // Couldn't read sync configs from disk.
-    BackUpSubStateUnknownDrivePath = 36,                // Sync's drive path isn't known.
-    BackUpSubStateInvalidScanInterval = 37,             // The user's specified an invalid scan interval.
-    BackUpSubStateNotificationSystemUnavailable = 38,   // Filesystem notification subsystem has encountered an unrecoverable error.
-    BackUpSubStateUnableToAddWatch = 39,               // Unable to add a filesystem watch.
-    BackUpSubStateUnableToRetrieveRootFSID = 40,      // Unable to retrieve a sync root's FSID.
-    BackUpSubStateUnableToOpenDatabase = 41,           // Unable to open state cache database.
-    BackUpSubStateInsufficientDiskSpace = 42,
-};
-
 typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
     BackupHeartbeatStatusUpToDate = 1,
     BackupHeartbeatStatusSyncing = 2,
@@ -335,6 +290,16 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
     CollisionResolutionOverwrite        = 1,
     CollisionResolutionNewWithN         = 2,
     CollisionResolutionExistingToOldN   = 3,
+};
+
+typedef NS_ENUM(NSInteger, AdsFlag) {
+    AdsFlagDefault          = 0x0,    // If you don't want to set any overrides/flags, then please provide 0
+    AdsFlagForceAds         = 0x200,  // Force enable ads regardless of any other factors.
+    AdsFlagIgnoreMega       = 0x400,  // Show ads even if the current user or file owner is a MEGA employee.
+    AdsFlagIgnoreCountry    = 0x800,  // Show ads even if the user is not within an enabled country.
+    AdsFlagIgnoreIP         = 0x1000, // Show ads even if the user is on a blacklisted IP (MEGA ips).
+    AdsFlagIgnorePRO        = 0x2000, // Show ads even if the current user or file owner is a PRO user.
+    AdsFlagIgnoreRollout    = 0x4000  // Ignore the rollout logic which only servers ads to 10% of users based on their IP.
 };
 
 /**
@@ -488,7 +453,7 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
 /**
  * @brief The total number of nodes in the account
  */
-@property (readonly, nonatomic) NSUInteger totalNodes;
+@property (readonly, nonatomic) unsigned long long totalNodes;
 
 /**
  * @brief The master key of the account.
@@ -527,6 +492,17 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
  * YES if enabled, NO otherwise.
  */
 @property (readonly, nonatomic, getter=isContactVerificationWarningEnabled) BOOL isContactVerificationWarningEnabled;
+
+/**
+ * @brief Check if the logged in account is considered new
+ *
+ * This will NOT return a valid value until the callback onEvent with
+ * type EventMiscFlagsReady is received. You can also rely on the completion of
+ * a fetchnodes to check this value.
+ *
+ * YES if account is considered new. Otherwise, NO.
+ */
+@property (readonly, nonatomic, getter=isNewAccount) BOOL newAccount;
 
 #pragma mark - Business
 
@@ -882,6 +858,14 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
 * For example, if you want to open https://mega.nz/#pro, the parameter of this function should be "pro".
 */
 - (void)getSessionTransferURL:(NSString *)path;
+
+/**
+ * @brief Returns a new MEGAStringList that contains the given list of strings.
+ *
+ * @param stringList Array of string that will be converted to MEGAStringList.
+ * @return MEGAStringList from the given list of strings.
+ */
+- (MEGAStringList *)megaStringListFor:(NSArray<NSString *>*)stringList;
 
 #pragma mark - Login Requests
 
@@ -3336,6 +3320,26 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
 - (void)publicNodeForMegaFileLink:(NSString *)megaFileLink delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
+ * @brief Get downloads urls for a node
+ *
+ * The associated request type with this request is MEGARequestTypeGetDownloadUrls
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk
+ * - [MEGARequest name] - Returns semicolon-separated download URL(s) to the file
+ * - [MEGARequest link] - Returns semicolon-separated IPv4 of the server in the URL(s)
+ * -  [MEGARequest text] - Returns semicolon-separated IPv6 of the server in the URL(s)
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue
+ *
+ * @param node Node to get the downloads URLs
+ * @param singleUrl Always return one URL (even for raided files)
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getDownloadUrl:(MEGANode *)node singleUrl:(BOOL)singleUrl delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
  * @brief Get a MEGANode from a public link to a file.
  *
  * A public node can be imported using [MEGASdk copyNode:newParent:] or downloaded using [MEGASdk startDownloadNode:localPath:].
@@ -3530,9 +3534,10 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
  * - MEGAErrorTypeApiEAccess - Permissions Error
  *
  * @param name the name that should be given to the new Set
+ * @param type the type that should be given to the new Set
  * @param delegate MEGARequestDelegate to track this request
  */
--(void)createSet:(nullable NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
+-(void)createSet:(nullable NSString *)name type:(MEGASetType)type delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Generate a public link of a Set in MEGA
@@ -4477,25 +4482,29 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
 + (nullable NSString *)avatarSecondaryColorForBase64UserHandle:(nullable NSString *)base64UserHandle;
 
 /**
- * @brief Set the avatar of the MEGA account.
+ * @brief Set/Remove the avatar of the MEGA account
  *
  * The associated request type with this request is MEGARequestTypeSetAttrFile.
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest file] - Returns the source path
  *
  * @param sourceFilePath Source path of the file that will be set as avatar.
+ * If nil, the existing avatar will be removed (if any). 
  * @param delegate Delegate to track this request.
+ * In case the avatar never existed before, removing the avatar returns MEGAErrorApiENoent.
  */
 - (void)setAvatarUserWithSourceFilePath:(nullable NSString *)sourceFilePath delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
- * @brief Set the avatar of the MEGA account.
+ * @brief Set/Remove the avatar of the MEGA account
  *
  * The associated request type with this request is MEGARequestTypeSetAttrFile.
  * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest file] - Returns the source path
+ * - [MEGARequest file] - Returns the source path (optional)
  *
  * @param sourceFilePath Source path of the file that will be set as avatar.
+ * If nil, the existing avatar will be removed (if any).
+ * In case the avatar never existed before, removing the avatar returns MEGAErrorApiENoent.
  */
 - (void)setAvatarUserWithSourceFilePath:(nullable NSString *)sourceFilePath;
 
@@ -8024,6 +8033,35 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
  */
 - (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString recursive:(BOOL)recursive;
 
+
+/**
+ * @brief Search nodes with applied filter recursively.
+ *
+ * The search is case-insensitive.
+ *
+ * @param filter Filter we should apply to the current search.
+ * @param orderType Order type we should applyto the current search.
+ * NO if you want to seach in the children of the node only
+ *
+ * @return List of nodes that contain the desired string in their name.
+ */
+- (MEGANodeList *)searchWith:(MEGASearchFilter *)filter orderType:(MEGASortOrderType)orderType cancelToken:(MEGACancelToken *)cancelToken;
+
+
+/**
+ * @brief Search nodes with applied filter non-recursively.
+ *
+ * The search is case-insensitive.
+ *
+ * @param filter Filter we should apply to the current search.
+ * @param orderType Order type we should applyto the current search.
+ * NO if you want to seach in the children of the node only
+ *
+ * @return List of nodes that contain the desired string in their name.
+ */
+- (MEGANodeList *)searchNonRecursivelyWith:(MEGASearchFilter *)filter  orderType:(MEGASortOrderType)orderType cancelToken:(MEGACancelToken *)cancelToken;
+
+
 /**
  * @brief Search nodes containing a search string in their name.
  *
@@ -8183,6 +8221,13 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
  * - MEGANodeFormatTypeAudio = 2
  * - MEGANodeFormatTypeVideo = 3
  * - MEGANodeFormatTypeDocument = 4
+ * - MEGANodeFormatTypePdf = 5,
+ * - MEGANodeFormatTypePresentation = 6,
+ * - MEGANodeFormatTypeArchive = 7,
+ * - MEGANodeFormatTypeProgram = 8,
+ * - MEGANodeFormatTypeMisc = 9,
+ * - MEGANodeFormatTypeSpreadsheet = 10,
+ * - MEGANodeFormatTypeAllDocs = 11
  *
  * @param folderTargetType Target type where this method will search
  * Valid values for this parameter are
@@ -8411,28 +8456,6 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
  * @return List of PublicLinks nodes that contain the desired string in their name.
  */
 - (MEGANodeList *)nodeListSearchOnPublicLinksByString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken order:(MEGASortOrderType)orderType;
-/**
- * @brief Return an array of buckets, each bucket containing a list of recently added/modified nodes
- *
- * Each bucket contains files that were added/modified in a set, by a single user.
- * This function, that takes no parameters, uses the defaults for the MEGA apps
- * which are (currently) within the last 30 days, and max 10000 nodes.
- *
- * @return Array of buckets containing nodes that were added/modifed as a set
- */
-- (NSMutableArray *)recentActions;
-
-/**
- * @brief Return an array of buckets, each bucket containing a list of recently added/modified nodes
- *
- * Each bucket contains files that were added/modified in a set, by a single user.
- *
- * @param days Age of actions since added/modified nodes will be considered (in days).
- * @param maxNodes Maximum amount of nodes to be considered.
- *
- * @return Array of buckets containing nodes that were added/modifed as a set
- */
-- (NSMutableArray *)recentActionsSinceDays:(NSInteger)days maxNodes:(NSInteger)maxNodes;
 
 /// Get a list of buckets, each bucket containing a list of recently added/modified nodes
 ///
@@ -9481,23 +9504,6 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
  */
 - (void)checkSMSVerificationCode:(NSString *)verificationCode delegate:(id<MEGARequestDelegate>)delegate;
 
-/*
- * @brief Requests the user contacts registered in MEGA and verificated through SMS.
- *
- * Valid data in the MEGARequest object received on callbacks:
- * - [MegaRequest getMegaStringTable] Returns the array with registered contacts
- *
- * The associated request type with this request is MegaRequest::TYPE_GET_REGISTERED_CONTACTS
- * On the onRequestFinish error, the error code associated to the MegaError can be:
- * - MEGAErrorTypeApiEArgs if your contact details are invalid (malformed SMS number for example).
- * - MEGAErrorTypeApiETooMany if the request exceeds the details limit that can be looked up per account.
- * - MEGAErrorTypeApiOk is returned upon success.
- *
- * @param contacts An NSArray containing user contacts (NSDictionary "phoneNumber":"userName").
- * @param delegate MEGARequestDelegate to track this request
- */
-- (void)getRegisteredContacts:(NSArray<NSDictionary *> *)contacts delegate:(id<MEGARequestDelegate>)delegate;
-
 /**
  * @brief Reset the verified phone number for the account logged in.
  *
@@ -9908,7 +9914,7 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
  * @param subState BackUpState type backup sub-state
  * @param delegate MEGARequestDelegate to track this request
 */
-- (void)updateBackup:(MEGAHandle)backupId backupType:(BackUpType)type targetNode:(MEGANode *)node folderPath:(nullable NSString *)path backupName:(NSString *)name state:(BackUpState)state subState:(BackUpSubState)subState delegate:(id<MEGARequestDelegate>)delegate;
+- (void)updateBackup:(MEGAHandle)backupId backupType:(BackUpType)type targetNode:(nullable MEGANode *)node folderPath:(nullable NSString *)path backupName:(nullable NSString *)name state:(BackUpState)state subState:(BackUpSubState)subState delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Fetch information about all registered backups for Backup Centre
@@ -9987,8 +9993,29 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
  * - name - Returns device name.
  *
  * @param delegate MEGARequestDelegate to track this request
+ *
+ * @deprecated This version of the function is deprecated. Please use the non-deprecated one below.
  */
-- (void)getDeviceNameWithDelegate:(id<MEGARequestDelegate>)delegate;
+- (void)getDeviceNameWithDelegate:(id<MEGARequestDelegate>)delegate __attribute__((deprecated("Use [MEGASdk getDeviceName:delegate] instead of this function.")));
+
+/**
+ * @brief Returns the name previously set for a device
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - paramType - Returns the attribute type MEGAUserAttributeDeviceNames
+ * - text - Returns passed device id (or the value returned by deviceId()
+ * if deviceId was initially passed as null).
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - name - Returns device name.
+ *
+ * @param deviceId The id of the device to get the name for. If null, the value returned
+ * by deviceId() will be used instead.
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getDeviceName:(nullable NSString *)deviceId delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Sets device name
@@ -10002,6 +10029,21 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
  * @param delegate MEGARequestDelegate to track this request
  */
 - (void)setDeviceName:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Sets name for specific device
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - paramType - Returns the attribute type MEGAUserAttributeDeviceNames
+ * - deviceId - Returns the device id.
+ * - name - Returns device name.
+ *
+ * @param deviceId String with device id
+ * @param name String with device name
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)renameDevice:(NSString *)deviceId newName:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
 
 #pragma mark - Cookie Dialog
 
@@ -10113,6 +10155,164 @@ typedef NS_ENUM(NSInteger, CollisionResolution) {
  * @return An unsigned integer with the value of the flag.
  */
 - (NSInteger)getABTestValue:(NSString*)flag;
+
+#pragma mark - Ads
+/**
+ * @brief Fetch ads
+ *
+ * The associated request type with this request is MEGARequestTypeFetchAds
+ * Valid data in the MegaRequest object received on callbacks:
+ *  - [MEGARequest number] A bitmap flag used to communicate with the API
+ *  - [MEGASDK megaStringListFor:] List of the adslot ids to fetch
+ *  - [MEGARequest nodeHandle] Public handle that the user is visiting
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaStringDictionary] map with relationship between ids and ius
+ *
+ * @param adFlags A bitmap flag used to communicate with the API
+ * Valid values are:
+ *      - AdsFlagDefault = 0x0
+ *      - AdsFlagForceAds = 0x200
+ *      - AdsFlagIgnoreMega = 0x400
+ *      - AdsFlagIgnoreCountry = 0x800
+ *      - AdsFlagIgnoreIP = 0x1000
+ *      - AdsFlagIgnorePRO = 0x2000
+ *      - AdsFlagIgnoreRollout = 0x400
+ * @param adUnits A list of the adslot ids to fetch; it cannot be null nor empty
+ * @param publicHandle Provide the public handle that the user is visiting
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)fetchAds:(AdsFlag)adFlags adUnits:(MEGAStringList *)adUnits publicHandle:(MEGAHandle)publicHandle delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Check if ads should show or not
+ *
+ * The associated request type with this request is MEGARequestTypeQueryAds
+ * Valid data in the MegaRequest object received on callbacks:
+ *  - [MEGARequest number] A bitmap flag used to communicate with the API
+ *  - [MEGARequest nodeHandle] Public handle that the user is visiting
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest numDetails] Return if ads should be show or not
+ *
+ * @param adFlags A bitmap flag used to communicate with the API
+ * Valid values are:
+ *      - AdsFlagDefault = 0x0
+ *      - AdsFlagForceAds = 0x200
+ *      - AdsFlagIgnoreMega = 0x400
+ *      - AdsFlagIgnoreCountry = 0x800
+ *      - AdsFlagIgnoreIP = 0x1000
+ *      - AdsFlagIgnorePRO = 0x2000
+ *      - AdsFlagIgnoreRollout = 0x400
+ * @param publicHandle Provide the public handle that the user is visiting
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)queryAds:(AdsFlag)adFlags publicHandle:(MEGAHandle)publicHandle delegate:(id<MEGARequestDelegate>)delegate;
+
+#pragma mark - VPN
+
+/**
+ * @brief Gets a list with the available regions for MEGA VPN.
+ *
+ * The associated request type with this request is MEGARequestTypeGetVPNRegions.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaStringList] - Returns the list with the VPN regions.
+ *
+ * @param delegate MEGARequestDelegate to track this request.
+ */
+- (void)getVpnRegionsWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Gets the MEGA VPN credentials currently active for the user.
+ *
+ * Important consideration:
+ * These credentials do NOT contain the User Private Key, which is required for VPN connection.
+ * Credentials containing the User Private Key are generated by
+ * [MEGASdk putVpnCredentialWithRegion] and cannot be retrieved afterwards.
+ *
+ * The associated request type with this request is MEGARequestTypeGetVPNCredentials.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaVpnCredentials] - Returns the MEGAVPNCredentials object.
+ *
+ * On the onRequestFinish error, the error code associated to the MEGAError can be:
+ * - MEGAErrorTypeApiENoent - The user has no credentials registered.
+ *
+ * @param delegate MEGARequestDelegate to track this request.
+ */
+- (void)getVpnCredentialsWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Adds new MEGA VPN credentials on an empty slot.
+ *
+ * A pair of private and public keys are generated for the user during this request.
+ * The User Public Key value is intended for use with [MEGASdk checkVpnCredentialWithUserPubKey].
+ * The User Private Key value is included in the VPN credentials.
+ * Once returned, neither of these keys can be retrieved, not even using [MEGASdk getVpnCredentialsWithDelegate].
+ *
+ * The user must be a PRO user and have unoccupied VPN slots in order to add new VPN credentials.
+ *
+ * The associated request type with this request is MEGARequestTypePutVPNCredential.
+ *
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest text] - Returns the VPN region used for the VPN credentials.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest number] - Returns the SlotID attached to the new VPN credentials.
+ * - [MEGARequest password] - Returns the User Public Key used to register the new VPN credentials.
+ * - [MEGARequest sessionKey] - Returns a string with the new VPN credentials.
+ *
+ * On the onRequestFinish error, the error code associated to the MEGAError can be:
+ * - MEGAErrorTypeApiEArgs - Public Key does not have a correct format/length.
+ * - MEGAErrorTypeApiEAccess - User is not PRO.
+ *                            - User is not logged in.
+ *                            - Public Key is already taken.
+ * - MEGAErrorTypeApiETooMany - User has too many registered credentials.
+ *
+ * @param region The VPN region to be used on the new VPN credential.
+ * @param delegate MEGARequestDelegate to track this request.
+ */
+- (void)putVpnCredentialWithRegion:(NSString *)region delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Delete the current MEGA VPN credentials used on a slot.
+ *
+ * The associated request type with this request is MEGARequestTypeDeleteVPNCredential.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest number] - Returns the SlotID used as a parameter for credential removal.
+ *
+ * On the onRequestFinish error, the error code associated to the MEGAError can be:
+ * - MEGAErrorTypeApiEArgs - SlotID is not valid.
+ * - MEGAErrorTypeApiENoEnt - SlotID is not occupied.
+ *
+ * @param slotID The SlotID from which to remove the VPN credentials.
+ * @param delegate MEGARequestDelegate to track this request.
+ */
+- (void)delVpnCredentialWithSlotID:(NSInteger)slotID delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Check the current status of MEGA VPN credentials using the User Public Key.
+ *
+ * The User Public Key is obtained from [MEGASdk putVpnCredentialWithRegion].
+ *
+ * The associated request type with this request is MEGARequestTypeCheckVPNCredential.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest text] - Returns the User Public Key used as a parameter to verify the status of the VPN credentials.
+ *
+ * On the onRequestFinish error, the error code associated to the MEGAError can be:
+ * - MEGAErrorTypeApiEAccess - Public Key is not valid.
+ *
+ * @param userPubKey The User Public Key used to register the VPN credentials.
+ * @param delegate MEGARequestDelegate to track this request.
+ */
+- (void)checkVpnCredentialWithUserPubKey:(NSString *)userPubKey delegate:(id<MEGARequestDelegate>)delegate;
+
 
 @end
 

@@ -279,7 +279,7 @@ TEST(FileFingerprint, comparisonOperator_compareNotEqualBecauseOfValid)
     mega::FileFingerprint ffp2;
     ffp2.isvalid = true;
 
-    ASSERT_TRUE(ffp == ffp2);
+    ASSERT_TRUE(ffp != ffp2);
 }
 
 TEST(FileFingerprint, comparisonOperator_compareNotEqualBecauseOfCrc)
@@ -536,67 +536,4 @@ TEST(FileFingerprint, serializefingerprint_unserializefingerprint)
 //    ASSERT_EQ(false, ffp.isvalid);
 //}
 
-TEST(FileFingerprint, light_genfingerprint)
-{
-    mega::LightFileFingerprint ffp;
-    const m_off_t filesize = 42;
-    const mega::m_time_t filemtime = 13;
-    ASSERT_TRUE(ffp.genfingerprint(filesize, filemtime));
-    ASSERT_EQ(filesize, ffp.size);
-    ASSERT_EQ(filemtime, ffp.mtime);
-}
 
-TEST(FileFingerprint, light_genfingerprint_compare_equal)
-{
-    mega::LightFileFingerprint ffp1;
-    ffp1.size = 42;
-    ffp1.mtime = 13;
-    mega::LightFileFingerprint ffp2;
-    ffp2.size = 42;
-    ffp2.mtime = 13;
-    ASSERT_TRUE(ffp1 == ffp2);
-}
-
-TEST(FileFingerprint, light_genfingerprint_compare_not_equal)
-{
-    mega::LightFileFingerprint ffp1;
-    ffp1.size = 42;
-    ffp1.mtime = 13;
-    mega::LightFileFingerprint ffp2;
-    ffp2.size = 42;
-    ffp2.mtime = 12;
-    ASSERT_FALSE(ffp1 == ffp2);
-}
-
-TEST(FileFingerprint, light_genfingerprint_firstSmaller_becauseOfSize)
-{
-    mega::LightFileFingerprint ffp1;
-    ffp1.size = 41;
-    ffp1.mtime = 13;
-    mega::LightFileFingerprint ffp2;
-    ffp2.size = 42;
-    ffp2.mtime = 13;
-    ASSERT_TRUE(mega::LightFileFingerprintCmp{}(&ffp1, &ffp2));
-}
-
-TEST(FileFingerprint, light_genfingerprint_firstSmaller_becauseOfMTime)
-{
-    mega::LightFileFingerprint ffp1;
-    ffp1.size = 42;
-    ffp1.mtime = 12;
-    mega::LightFileFingerprint ffp2;
-    ffp2.size = 42;
-    ffp2.mtime = 13;
-    ASSERT_TRUE(mega::LightFileFingerprintCmp{}(&ffp1, &ffp2));
-}
-
-TEST(FileFingerprint, light_genfingerprint_firstNotSmaller)
-{
-    mega::LightFileFingerprint ffp1;
-    ffp1.size = 42;
-    ffp1.mtime = 13;
-    mega::LightFileFingerprint ffp2;
-    ffp2.size = 42;
-    ffp2.mtime = 13;
-    ASSERT_FALSE(mega::LightFileFingerprintCmp{}(&ffp1, &ffp2));
-}

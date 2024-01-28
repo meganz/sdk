@@ -1,0 +1,42 @@
+# Module to find the Readline library for Unix
+
+# Try to find the header
+find_path(Readline-unix_INCLUDE_DIR
+    NAMES readline/readline.h
+)
+mark_as_advanced(Readline-unix_INCLUDE_DIR)
+
+# Try to find the library
+find_library(Readline-unix_LIBRARY
+    NAMES readline libreadline
+)
+mark_as_advanced(Readline-unix_LIBRARY)
+
+file(READ "${Readline-unix_INCLUDE_DIR}/readline/readline.h" FILE_CONTENTS)
+string(REGEX MATCH "#define RL_VERSION_MAJOR[ \t]*([0-9]*)" _ ${FILE_CONTENTS})
+set(Readline-unix_VERSION ${CMAKE_MATCH_1})
+string(REGEX MATCH "#define RL_VERSION_MINOR[ \t]*([0-9]*)" _ ${FILE_CONTENTS})
+set(Readline-unix_VERSION ${Readline-unix_VERSION}.${CMAKE_MATCH_1})
+
+
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(Readline-unix
+    REQUIRED_VARS Readline-unix_INCLUDE_DIR Readline-unix_LIBRARY
+    VERSION_VAR Readline-unix_VERSION
+)
+
+# Create target
+if(Readline-unix_FOUND)
+    set(Readline-unix_INCLUDE_DIRS ${Readline-unix_INCLUDE_DIR})
+    set(Readline-unix_LIBRARIES ${Readline-unix_LIBRARY})
+
+    if(NOT TARGET Readline::Readline)
+        add_library(Readline::Readline UNKNOWN IMPORTED)
+        set_target_properties(Readline::Readline
+            PROPERTIES
+            IMPORTED_LOCATION "${Readline-unix_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${Readline-unix_INCLUDE_DIR}")
+    endif()
+endif()
+
+

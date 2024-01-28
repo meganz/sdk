@@ -1466,7 +1466,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
     }
     else
     {
-        if (req->out->size() < size_t(SimpleLogger::maxPayloadLogSize))
+        if (req->out->size() < size_t(SimpleLogger::getMaxPayloadLogSize()))
         {
             LOG_debug << httpctx->req->logname << "Sending " << req->out->size() << ": " << DirectMessage(req->out->c_str(), req->out->size())
                       << " (at ds: " << Waiter::ds << ")";
@@ -1474,9 +1474,9 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         else
         {
             LOG_debug << httpctx->req->logname << "Sending " << req->out->size() << ": "
-                      << DirectMessage(req->out->c_str(), static_cast<size_t>(SimpleLogger::maxPayloadLogSize / 2))
+                      << DirectMessage(req->out->c_str(), static_cast<size_t>(SimpleLogger::getMaxPayloadLogSize() / 2))
                       << " [...] "
-                      << DirectMessage(req->out->c_str() + req->out->size() - SimpleLogger::maxPayloadLogSize / 2, static_cast<size_t>(SimpleLogger::maxPayloadLogSize / 2));
+                      << DirectMessage(req->out->c_str() + req->out->size() - SimpleLogger::getMaxPayloadLogSize() / 2, static_cast<size_t>(SimpleLogger::getMaxPayloadLogSize() / 2));
         }
     }
 
@@ -2333,9 +2333,13 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                     {
                         LOG_debug << req->logname << "[received " << (req->buf ? req->bufpos : (int)req->in.size()) << " bytes of raw data]";
                     }
+                    else if (req->mChunked && static_cast<size_t>(req->bufpos) != req->in.size())
+                    {
+                        LOG_debug << req->logname << "[received " << req->bufpos << " bytes of chunked data]";
+                    }
                     else
                     {
-                        if (req->in.size() < size_t(SimpleLogger::maxPayloadLogSize))
+                        if (req->in.size() < size_t(SimpleLogger::getMaxPayloadLogSize()))
                         {
                             LOG_debug << req->logname << "Received " << req->in.size() << ": " << DirectMessage(req->in.c_str(), req->in.size())
                                       << " (at ds: " << Waiter::ds << ")";
@@ -2343,9 +2347,9 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                         else
                         {
                             LOG_debug << req->logname << "Received " << req->in.size() << ": "
-                                      << DirectMessage(req->in.c_str(), static_cast<size_t>(SimpleLogger::maxPayloadLogSize / 2))
+                                      << DirectMessage(req->in.c_str(), static_cast<size_t>(SimpleLogger::getMaxPayloadLogSize() / 2))
                                       << " [...] "
-                                      << DirectMessage(req->in.c_str() + req->in.size() - SimpleLogger::maxPayloadLogSize / 2, static_cast<size_t>(SimpleLogger::maxPayloadLogSize / 2));
+                                      << DirectMessage(req->in.c_str() + req->in.size() - SimpleLogger::getMaxPayloadLogSize() / 2, static_cast<size_t>(SimpleLogger::getMaxPayloadLogSize() / 2));
                         }
                     }
                 }
@@ -2354,7 +2358,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                 req->status = ((req->httpstatus == 200 || (req->mExpectRedirect && req->isRedirection() && req->mRedirectURL.size()))
                                && errorCode != CURLE_PARTIAL_FILE
                                && (req->contentlength < 0
-                                   || req->contentlength == (req->buf ? req->bufpos : (int)req->in.size())))
+                                   || req->contentlength == ((req->buf || req->mChunked) ? req->bufpos : (int)req->in.size())))
                         ? REQ_SUCCESS : REQ_FAILURE;
 
                 if (req->status == REQ_SUCCESS)

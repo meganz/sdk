@@ -50,6 +50,7 @@ enable_libraw=0
 android_build=0
 readline_build=0
 enable_cryptopp=0
+disable_sqlite=0
 disable_mediainfo=0
 incremental=0
 no_optimisation=0
@@ -610,9 +611,9 @@ sqlite_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="SQLite"
-    local sqlite_ver="3300100"
-    local sqlite_url="http://www.sqlite.org/2019/sqlite-autoconf-$sqlite_ver.tar.gz"
-    local sqlite_md5="51252dc6bc9094ba11ab151ba650ff3c"
+    local sqlite_ver="3330000"
+    local sqlite_url="http://www.sqlite.org/2020/sqlite-autoconf-$sqlite_ver.tar.gz"
+    local sqlite_md5="842a8a100d7b01b09e543deb2b7951dd"
     local sqlite_file="sqlite-$sqlite_ver.tar.gz"
     local sqlite_dir="sqlite-autoconf-$sqlite_ver"
     if [ $use_dynamic -eq 1 ]; then
@@ -824,8 +825,15 @@ freeimage_pkg() {
     #Fix issue with powf64 redefined in mathcalls.h in glibc 2.27
     find $freeimage_dir_extract/FreeImage/ -type f -print0 | xargs -0 sed -i "s#powf64#powf64freeimage#g"
 
-    #patch to fix problem with raw strings
-    find $freeimage_dir_extract/FreeImage/Source/LibWebP -type f -exec sed -i -e 's/"#\([A-X]\)"/" #\1 "/g' {} \;
+    # Remove libewbp support in FreeImage
+    rm -r $freeimage_dir_extract/FreeImage/Source/LibWebP
+    rm -r $freeimage_dir_extract/FreeImage/Source/FreeImage/PluginWebP.cpp
+    pushd $freeimage_dir_extract/FreeImage
+    sh gensrclist.sh
+    popd
+    sed -i "s#./Source/FreeImage/PluginWebP.cpp##" $freeimage_dir_extract/FreeImage/Makefile.srcs
+    sed -i -e '141d' $freeimage_dir_extract/FreeImage/Source/Plugin.h
+    sed -i -e '274d' $freeimage_dir_extract/FreeImage/Source/FreeImage/Plugin.cpp
 
     sed -i "s#CFLAGS ?=#CFLAGS +=#g" $freeimage_dir_extract/FreeImage/Makefile.gnu
     #patch to fix problem with newest compilers
@@ -1118,6 +1126,11 @@ build_sdk() {
         freeimage_flags="--without-freeimage"
     fi
 
+    # disable external sqlite
+    if [ $disable_sqlite -eq 0 ]; then
+        sqlite_flags="--with-sqlite=$install_dir"
+    fi
+
     # enable libuv
     if [ $enable_libuv -eq 1 ]; then
         libuv_flags="--with-libuv=$install_dir"
@@ -1176,7 +1189,7 @@ build_sdk() {
             --with-cryptopp=$install_dir \
             $sodium_flags \
             --with-zlib=$install_dir \
-            --with-sqlite=$install_dir \
+            $sqlite_flags \
             --with-cares=$install_dir \
             --with-curl=$install_dir \
             $freeimage_flags \
@@ -1204,7 +1217,7 @@ build_sdk() {
             --with-cryptopp=$install_dir \
             $sodium_flags \
             --with-zlib=$install_dir \
-            --with-sqlite=$install_dir \
+            $sqlite_flags \
             --without-cares \
             --without-curl \
             --with-winhttp=$cwd \
@@ -1245,7 +1258,7 @@ display_help() {
     local app=$(basename "$0")
     echo ""
     echo "Usage:"
-    echo " $app [-a] [-c] [-h] [-d] [-e] [-f] [-g] [-l] [-m opts] [-n] [-N] [-o path] [-p path] [-q] [-r] [-s] [-t] [-w] [-x opts] [-y] [z] [-0] [-E]"
+    echo " $app [-a] [-c] [-h] [-d] [-e] [-f] [-g] [-l] [-L] [-m opts] [-n] [-N] [-o path] [-p path] [-q] [-r] [-s] [-t] [-w] [-x opts] [-y] [z] [-0] [-E]"
     echo ""
     echo "By the default this script builds static megacli executable."
     echo "This script can be run with numerous options to configure and build MEGA SDK."
@@ -1261,6 +1274,7 @@ display_help() {
     echo " -i : Disable external media info"
     echo " -I : Incremental build.  Already built dependencies will be skipped"
     echo " -l : Use local software archive files instead of downloading"
+    echo " -L : Disable external sqlite3"
     echo " -n : Disable example applications"
     echo " -N : Enable Drive Notifications (libudev / wbemuuid)"
     echo " -s : Disable OpenSSL"
@@ -1297,7 +1311,7 @@ main() {
     local_dir=$work_dir
     status_dir=$work_dir
 
-    while getopts ":habcdefgiIlm:nNo:p:rRsS:tuvyx:XC:O:wWqz0EGT" opt; do
+    while getopts ":habcdefgiIlLm:nNo:p:rRsS:tuvyx:XC:O:wWqz0EGT" opt; do
         case $opt in
             h)
                 display_help $0
@@ -1343,6 +1357,10 @@ main() {
             l)
                 echo "* Using local files"
                 use_local=1
+                ;;
+            L)
+                echo "* Disabling external sqlite3"
+                disable_sqlite=1
                 ;;
             m)
                 make_opts="$OPTARG"
@@ -1520,8 +1538,10 @@ main() {
         zlib_pkg $build_dir $install_dir
     fi
     
-    sqlite_pkg $build_dir $install_dir
-    
+    if [ $disable_sqlite -eq 0 ]; then
+        sqlite_pkg $build_dir $install_dir
+    fi
+       
     if [ $enable_cares -eq 1 ]; then
         cares_pkg $build_dir $install_dir
     fi

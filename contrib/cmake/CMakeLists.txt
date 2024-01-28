@@ -143,6 +143,14 @@ else()
     message(STATUS "Building 64 bit")
 endif()
 
+if(APPLE AND NOT IOS)
+    if(NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS "15.0")
+        message("Building with ${CMAKE_CXX_COMPILER_ID} with version ${CMAKE_CXX_COMPILER_VERSION}")
+        add_link_options("-Wl,-ld_classic")
+    endif()
+endif()
+
+
 if(APPLE)
     set(CMAKE_CXX_STANDARD 11)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -321,8 +329,8 @@ if (WIN32)
     add_definitions( -D_WINSOCK_DEPRECATED_NO_WARNINGS )
 ENDIF(WIN32)
 
+include(CheckIncludeFile)
 if (NOT WIN32)
-    include(CheckIncludeFile)
     include(CheckFunctionExists)
     check_include_file(inttypes.h HAVE_INTTYPES_H)
     check_include_file(dirent.h HAVE_DIRENT_H)
@@ -414,7 +422,7 @@ endif()
 
 if (USE_THIRDPARTY_FROM_VCPKG)
         IF(USE_CRYPTOPP)
-            ImportStdVcpkgLibrary(cryptopp        cryptopp-static cryptopp-static libcryptopp libcryptopp)
+            ImportStdVcpkgLibrary(cryptopp        cryptopp cryptopp libcryptopp libcryptopp)
         ENDIF(USE_CRYPTOPP)
 
         ImportStdVcpkgLibrary(sodium          libsodium libsodium libsodium libsodium)
@@ -461,6 +469,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
                 set(DEBUG_SUFIX _debug)
             endif()
             ImportStdVcpkgLibrary(zen        zend zen libzen${DEBUG_SUFIX} libzen)
+            ImportStdVcpkgLibrary(tinyxml2   tinyxml2 tinyxml2 libtinyxml2 libtinyxml2)
             ImportStdVcpkgLibrary(mediainfo  mediainfod mediainfo libmediainfo${DEBUG_SUFIX} libmediainfo)
         ENDIF(USE_MEDIAINFO)
 
@@ -471,13 +480,13 @@ if (USE_THIRDPARTY_FROM_VCPKG)
         endif()
 
         IF(USE_LIBRAW OR USE_FREEIMAGE OR USE_PDFIUM)
-            ImportStdVcpkgLibrary(liblcms        lcmsd            lcms           liblcmsd            liblcms)
+            ImportStdVcpkgLibrary(liblcms        lcms2            lcms2          liblcms2            liblcms2)
             ImportStdVcpkgLibrary(libturbojpeg   turbojpeg        turbojpeg      libturbojpeg        libturbojpeg       )
         ENDIF()
 
         IF(USE_LIBRAW OR USE_FREEIMAGE)
             # we might need libraw directly (eg MEGAsync) but also freeimage needs it
-            ImportStdVcpkgLibrary(libraw         raw_rd           raw_r          libraw_rd           libraw_r)
+            ImportStdVcpkgLibrary(libraw         raw_rd           raw_r          libraw_r           libraw_r)
 
             # libraw needs jasper and lcms and libjpeg-turbo (all also part of freeimage)
             ImportStdVcpkgLibrary(libjasper      jasperd          jasper         libjasperd          libjasper)
@@ -511,10 +520,11 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             ImportStdVcpkgLibrary(freeimage_jxrglue     jxrglued         jxrglue        libjxrglued         libjxrglue         )
             ImportStdVcpkgLibrary(freeimage_lzma        lzma             lzma           liblzma             liblzma            )
             ImportStdVcpkgLibrary(freeimage_tiff        tiffd            tiff           libtiffd            libtiff            )
-            ImportStdVcpkgLibrary(freeimage_webp        webpd            webp           libwebpd            libwebp            )
-            ImportStdVcpkgLibrary(freeimage_webpdecoder webpdecoderd     webpdecoder    libwebpdecoderd     libwebpdecoder     )
-            ImportStdVcpkgLibrary(freeimage_webpdemux   webpdemuxd       webpdemux      libwebpdemuxd       libwebpdemux       )
-            ImportStdVcpkgLibrary(freeimage_webpmux     libwebpmuxd      libwebpmux     libwebpmuxd         libwebpmux         )
+            ImportStdVcpkgLibrary(freeimage_webp        libwebp          libwebp        libwebp             libwebp            )
+            ImportStdVcpkgLibrary(freeimage_webpdecoder libwebpdecoder   libwebpdecoder libwebpdecoder      libwebpdecoder     )
+            ImportStdVcpkgLibrary(freeimage_webpdemux   libwebpdemux     libwebpdemux   libwebpdemux        libwebpdemux       )
+            ImportStdVcpkgLibrary(freeimage_webpmux     libwebpmux       libwebpmux     libwebpmux          libwebpmux         )
+            ImportStdVcpkgLibrary(freeimage_sharpyuv    libsharpyuv      libsharpyuv    libsharpyuv         libsharpyuv        )
 
             target_link_libraries(freeimage INTERFACE
                                             freeimage_Iex
@@ -528,6 +538,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
                                             freeimage_webpdecoder
                                             freeimage_webpdemux
                                             freeimage_webpmux
+                                            freeimage_sharpyuv
                                             freeimage_jpeg
                                             freeimage_Imath
                                             freeimage_lzma
@@ -544,6 +555,10 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             IF(NOT CMAKE_HOST_APPLE AND NOT CMAKE_HOST_WIN32)
                 set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} -fopenmp )
             ENDIF()
+
+            # To be included in the config.h file if available.
+            file(TO_CMAKE_PATH "${vcpkg_dir}/include/FreeImageConfig.h" FREEIMAGECONFIG_PATH)
+            CHECK_INCLUDE_FILE(${FREEIMAGECONFIG_PATH} HAVE_FREEIMAGECONFIG_H)
 
         ENDIF(USE_FREEIMAGE)
 
@@ -580,15 +595,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             # pdfium will use bzip2 if present
             ImportStdVcpkgLibrary(bzip2       bz2d bz2 libbz2d libbz2)
 
-            # pkgconfig might not be needed anymore? - suppressed by our build3rdparty project
-            IF (CMAKE_HOST_UNIX AND NOT CMAKE_HOST_APPLE)
-                set(ENV{PKG_CONFIG_PATH} "${vcpkg_dir}/lib/pkgconfig")
-                include(FindPkgConfig)
-                pkg_check_modules(FTYPECONF freetype2)
-                set(freetype_deps ${FTYPECONF_STATIC_LIBRARIES})
-            ENDIF()
-
-            set(pdfium_deps  ${pdfium_deps} freetype ${freetype_deps} liblcms libturbojpeg libopenjpeg bzip2 libpng)
+            set(pdfium_deps ${pdfium_deps} freetype liblcms libturbojpeg libopenjpeg bzip2 libpng)
         ENDIF(USE_PDFIUM)
 
 endif(USE_THIRDPARTY_FROM_VCPKG)
@@ -655,13 +662,14 @@ ELSE(WIN32)
     ENDIF()
 
     IF (APPLE)
+        set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs}
+                                      "-framework CoreFoundation"
+                                      "-framework DiskArbitration")
+
         IF (USE_DRIVE_NOTIFICATIONS)
             SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles}
                                            ${MegaDir}/include/mega/osx/drivenotifyosx.h
                                            ${MegaDir}/src/osx/drivenotifyosx.cpp)
-            SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs}
-                                          "-framework DiskArbitration"
-                                          "-framework CoreFoundation")
         ENDIF()
     ENDIF ()
 
@@ -727,17 +735,12 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/thread/cppthread.h
             ${MegaDir}/include/mega/thread/posixthread.h
             ${MegaDir}/include/mega/thread/libuvthread.h
+            ${MegaDir}/include/mega/process.h
             ${MegaDir}/include/mega/command.h
             ${MegaDir}/include/mega/config.h
             ${MegaDir}/include/mega/thread.h
             ${MegaDir}/include/mega/json.h
             ${MegaDir}/include/mega/base64.h
-            ${MegaDir}/include/mega/wp8/megafs.h
-            ${MegaDir}/include/mega/wp8/meganet.h
-            ${MegaDir}/include/mega/wp8/megaconsolewaiter.h
-            ${MegaDir}/include/mega/wp8/megasys.h
-            ${MegaDir}/include/mega/wp8/megaconsole.h
-            ${MegaDir}/include/mega/wp8/megawaiter.h
             ${MegaDir}/include/mega/mega_utf8proc.h
             ${MegaDir}/include/mega/gfx.h
             ${MegaDir}/include/mega/proxy.h
@@ -797,6 +800,7 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/logging.h
             ${MegaDir}/include/mega/file.h
             ${MegaDir}/include/mega/sync.h
+            ${MegaDir}/include/mega/syncfilter.h
             ${MegaDir}/include/mega/heartbeats.h
             ${MegaDir}/include/mega/utils.h
             ${MegaDir}/include/mega/account.h
@@ -840,6 +844,7 @@ add_library(Mega STATIC
             ${MegaDir}/src/node.cpp
             ${MegaDir}/src/pendingcontactrequest.cpp
             ${MegaDir}/src/textchat.cpp
+            ${MegaDir}/src/process.cpp
             ${MegaDir}/src/proxy.cpp
             ${MegaDir}/src/pubkeyaction.cpp
             ${MegaDir}/src/raid.cpp
@@ -851,6 +856,7 @@ add_library(Mega STATIC
             ${MegaDir}/src/share.cpp
             ${MegaDir}/src/sharenodekeys.cpp
             ${MegaDir}/src/sync.cpp
+            ${MegaDir}/src/syncfilter.cpp
             ${MegaDir}/src/heartbeats.cpp
             ${MegaDir}/src/testhooks.cpp
             ${MegaDir}/src/transfer.cpp
@@ -871,6 +877,8 @@ add_library(Mega STATIC
 target_include_directories(Mega PRIVATE ${MegaDir}/include ${Mega_PlatformSpecificIncludes})
 target_include_directories(Mega PUBLIC ${MegaDir}/include ${Mega_PlatformSpecificIncludes})
 
+MESSAGE(STATUS "ID: ${Mega_PlatformSpecificIncludes}")
+
 if (WIN32)
     set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} $<${HAVE_FFMPEG}:Mfplat.lib> $<${HAVE_FFMPEG}:Strmiids.lib> $<${HAVE_FFMPEG}:Mfuuid.lib>)
 endif()
@@ -887,7 +895,7 @@ target_link_libraries(Mega PUBLIC
                         $<${USE_CRYPTOPP}:cryptopp>
                         sodium
                         $<${USE_WEBRTC}:webrtc>
-                        $<${USE_MEDIAINFO}:mediainfo> $<${USE_MEDIAINFO}:zen>
+                        $<${USE_MEDIAINFO}:mediainfo> $<${USE_MEDIAINFO}:zen> $<${USE_MEDIAINFO}:tinyxml2>
                         $<${USE_CURL}:curl>
                         $<${MEGA_USE_C_ARES}:cares>
                         $<$<AND:${USE_OPENSSL},$<NOT:${USE_WEBRTC}>>:ssl>
@@ -1037,6 +1045,7 @@ add_executable(test_unit
     ${MegaDir}/tests/unit/PendingContactRequest_test.cpp
     ${MegaDir}/tests/unit/Serialization_test.cpp
     ${MegaDir}/tests/unit/Share_test.cpp
+    ${MegaDir}/tests/unit/Sync_conflict_test.cpp
     ${MegaDir}/tests/unit/Sync_test.cpp
     ${MegaDir}/tests/unit/TextChat_test.cpp
     ${MegaDir}/tests/unit/Transfer_test.cpp
@@ -1044,16 +1053,20 @@ add_executable(test_unit
     ${MegaDir}/tests/unit/utils.cpp
     ${MegaDir}/tests/unit/utils.h
     ${MegaDir}/tests/unit/utils_test.cpp
-    ${MegaDir}/tests/integration/process.cpp
+    ${MegaDir}/tests/unit/CacheLRU_test.cpp
 )
 
 add_executable(test_integration
+    ${MegaDir}/tests/gtest_common.cpp
+    ${MegaDir}/tests/gtest_common.h
     ${MegaDir}/tests/integration/main.cpp
-    ${MegaDir}/tests/integration/process.cpp
     ${MegaDir}/tests/integration/SdkTest_test.cpp
+    ${MegaDir}/tests/integration/SdkTest_test.h
     ${MegaDir}/tests/integration/Sync_test.cpp
+    ${MegaDir}/tests/integration/test.h
 )
 
+target_include_directories(test_integration PRIVATE ${MegaDir}/tests)
 target_compile_definitions(test_unit PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
 target_compile_definitions(test_integration PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
 target_link_libraries(test_unit gmock gtest Mega )
@@ -1109,8 +1122,6 @@ if (NOT NO_READLINE)
     target_link_libraries(megacli ${readline_LIBRARIES})
 endif (NOT NO_READLINE)
 
-add_executable(megasimplesync ${MegaDir}/examples/megasimplesync.cpp)
-target_link_libraries(megasimplesync Mega )
 endif()
 
 if(WIN32)
@@ -1138,7 +1149,6 @@ if (WIN32)
     set_property(TARGET Mega PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
     set_property(TARGET megacli PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
     set_property(TARGET testmega PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
-    set_property(TARGET megasimplesync PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
     set_property(TARGET test_integration PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
     set_property(TARGET test_unit PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
     if (HAVE_ASIO)
@@ -1147,7 +1157,7 @@ if (WIN32)
 
 else()
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb3")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Wextra -Wconversion -Wno-unused-parameter")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Wextra -Wconversion -Wno-unused-parameter -Wno-unqualified-std-cast-call -Wno-deprecated-declarations -Wno-unqualified-std-cast-call")  #no-deprecated-declarations because of FSEventStreamScheduleWithRunLoop
 
     if (ENABLE_WERROR)
         if (CMAKE_BUILD_TYPE STREQUAL "Debug" )

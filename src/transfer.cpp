@@ -87,6 +87,8 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
 // delete transfer with underlying slot, notify files
 Transfer::~Transfer()
 {
+    auto keepDownloadTarget = false;
+
     TransferDbCommitter* committer = nullptr;
     if (client->tctable && client->tctable->getTransactionCommitter())
     {
@@ -94,7 +96,7 @@ Transfer::~Transfer()
         assert(committer);
     }
 
-    if (!uploadhandle.isUndef())
+    if (!uploadhandle.isUndef() && !mIsSyncUpload) // For sync uploads, we will delete the attributes upon SyncUpload_inClient destruction
     {
         client->fileAttributesUploading.erase(uploadhandle);
     }
@@ -110,8 +112,25 @@ Transfer::~Transfer()
 
         if (type == GET)
         {
-            if (downloadDistributor)
-                downloadDistributor->removeTarget();
+#ifdef ENABLE_SYNC
+            if (auto dl = dynamic_cast<SyncDownload_inClient*>(*it))
+            {
+                assert((*it)->syncxfer);
+
+                // Keep sync downloads whose Mac failed, so the user can decide to keep them or not
+                if (dl->mError == API_EKEY)
+                {
+                    keepDownloadTarget = true;
+                    dl->setLocalname(localfilename);
+                }
+            }
+            else
+#endif
+            {
+                assert(!(*it)->syncxfer);
+                if (downloadDistributor)
+                    downloadDistributor->removeTarget();
+            }
         }
 
         // this File may be deleted by this call.  So call after the tests above
@@ -143,7 +162,8 @@ Transfer::~Transfer()
     {
         if (type == GET && !localfilename.empty())
         {
-            client->fsaccess->unlinklocal(localfilename);
+            if (!keepDownloadTarget)
+                client->fsaccess->unlinklocal(localfilename);
         }
         client->transfercachedel(this, committer);
     }
@@ -233,8 +253,8 @@ bool Transfer::serialize(string *d) const
     assert(t->tempurls == tempurls);
     assert(t->state == (state == TRANSFERSTATE_PAUSED ? TRANSFERSTATE_PAUSED : TRANSFERSTATE_NONE));
     assert(t->priority == priority);
-    assert(t->fingerprint() == fingerprint());
-    assert(t->badfp == badfp);
+    assert(t->fingerprint() == fingerprint() || (!t->fingerprint().isvalid && !fingerprint().isvalid));
+    assert(t->badfp == badfp || (!t->badfp.isvalid && !badfp.isvalid));
     assert(t->downloadFileHandle == downloadFileHandle);
 #endif
 
@@ -423,7 +443,6 @@ void Transfer::failed(const Error& e, TransferDbCommitter& committer, dstime tim
         bt.backoff();
         state = TRANSFERSTATE_RETRYING;
         client->app->transfer_failed(this, e, timeleft);
-        client->looprequested = true;
         ++client->performanceStats.transferTempErrors;
     }
 
@@ -435,13 +454,6 @@ void Transfer::failed(const Error& e, TransferDbCommitter& committer, dstime tim
                 && client->isForeignNode((*it)->h))
         {
             File *f = (*it++);
-
-#ifdef ENABLE_SYNC
-            if (f->syncxfer)
-            {
-                client->disableSyncContainingNode(f->h, FOREIGN_TARGET_OVERSTORAGE, false);
-            }
-#endif
             removeTransferFile(API_EOVERQUOTA, f, &committer);
             continue;
         }
@@ -485,11 +497,19 @@ void Transfer::failed(const Error& e, TransferDbCommitter& committer, dstime tim
         ultoken.reset();
         pos = 0;
 
-        if (slot && slot->fa && (slot->fa->mtime != mtime || slot->fa->size != size))
+        if (slot && slot->fa)
         {
-            LOG_warn << "Modification detected during active upload. Size: " << size << "  Mtime: " << mtime
-                     << "    FaSize: " << slot->fa->size << "  FaMtime: " << slot->fa->mtime;
-            defer = false;
+            if (!slot->fa->fopenSucceeded)
+            {
+                LOG_warn << "fopen failed for upload.";
+                defer = false;
+            }
+            else if (slot->fa->mtime != mtime || slot->fa->size != size)
+            {
+                LOG_warn << "Modification detected during active upload. Size: " << size << "  Mtime: " << mtime
+                         << "    FaSize: " << slot->fa->size << "  FaMtime: " << slot->fa->mtime;
+                defer = false;
+            }
         }
     }
 
@@ -509,7 +529,11 @@ void Transfer::failed(const Error& e, TransferDbCommitter& committer, dstime tim
         finished = true;
 
 #ifdef ENABLE_SYNC
-        bool alreadyDisabled = false;
+        if (e == API_EBUSINESSPASTDUE)
+        {
+            LOG_debug << "Disabling syncs on account of API_EBUSINESSPASTDUE error on transfer";
+            client->syncs.disableSyncs(ACCOUNT_EXPIRED, false, true);
+        }
 #endif
 
         for (file_list::iterator it = files.begin(); it != files.end(); it++)
@@ -520,15 +544,12 @@ void Transfer::failed(const Error& e, TransferDbCommitter& committer, dstime tim
                 && e != API_EOVERQUOTA
                 && e != API_EPAYWALL)
             {
-                client->syncdownrequired = true;
-            }
-
-            if (e == API_EBUSINESSPASTDUE && !alreadyDisabled)
-            {
-                client->syncs.disableSyncs(false, ACCOUNT_EXPIRED, false, nullptr);
-                alreadyDisabled = true;
+                // Get the sync to check that folder again so it doesn't just recreate that same transfer
+                LOG_debug << "Trigger sync parent path scan for failed transfer of " << (*it)->getLocalname();
+                client->syncs.triggerSync((*it)->getLocalname().parentPath(), type == PUT);
             }
 #endif
+
 
             client->app->file_removed(*it, e);
         }
@@ -582,6 +603,11 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ LocalPath&
 #endif
 }
 
+bool Transfer::isForSupport() const
+{
+    return type == PUT && !files.empty() && files.back()->targetuser == MegaClient::SUPPORT_USER_HANDLE;
+}
+
 FileDistributor::TargetNameExistsResolution Transfer::toTargetNameExistsResolution(CollisionResolution resolution)
 {
     switch (resolution) {
@@ -627,10 +653,13 @@ void Transfer::complete(TransferDbCommitter& committer)
             LOG_debug << "setmtimelocal failed " << transient_error;
         }
 
+        // try to catch failing cases in the debugger (seen on synology SMB drive after the file was moved to final destination)
+        assert(FSNode::debugConfirmOnDiskFingerprintOrLogWhy(*client->fsaccess, localfilename, *this));
+
         // verify integrity of file
         auto fa = client->fsaccess->newfileaccess();
         FileFingerprint fingerprint;
-        Node* n = nullptr;
+        std::shared_ptr<Node> n;
         bool fixfingerprint = false;
         bool fixedfingerprint = false;
         bool syncxfer = false;
@@ -643,7 +672,7 @@ void Transfer::complete(TransferDbCommitter& committer)
             }
 
             if (!fixedfingerprint && (n = client->nodeByHandle((*it)->h))
-                 && !(*(FileFingerprint*)this == *(FileFingerprint*)n))
+                 && !(this->EqualExceptValidFlag(*n)))
             {
                 LOG_debug << "Wrong fingerprint already fixed";
                 fixedfingerprint = true;
@@ -706,7 +735,7 @@ void Transfer::complete(TransferDbCommitter& committer)
         {
             if (fingerprint.isvalid)
             {
-                // set FileFingerprint on source node(s) if missing
+                // set FileFingerprint on source node(s) if missing or invalid
                 set<handle> nodes;
                 for (file_list::iterator it = files.begin(); it != files.end(); it++)
                 {
@@ -716,17 +745,36 @@ void Transfer::complete(TransferDbCommitter& committer)
                         nodes.insert(n->nodehandle);
 
                         if ((!n->isvalid || fixfingerprint)
-                                && !(fingerprint == *(FileFingerprint*)n)
+                                && !(fingerprint == *(FileFingerprint*)n.get())
                                 && fingerprint.size == this->size)
                         {
-                            LOG_debug << "Fixing fingerprint";
-                            *(FileFingerprint*)n = fingerprint;
-
                             attr_map attrUpdate;
-                            n->serializefingerprint(&attrUpdate['c']);
-                            client->setattr(n, std::move(attrUpdate), nullptr, false);
-                            // canChangeVault = false -> this is a download being completed. Backups only upload data, and
-                            // even if the FileFingerprint was missing, setting it is not an action coming from a backup
+                            fingerprint.serializefingerprint(&attrUpdate['c']);
+
+                            // the fingerprint is still wrong, but....
+                            // is it already being fixed?
+                            AttrMap pendingAttrs;
+                            if (!n->mPendingChanges.empty())
+                            {
+                                pendingAttrs = n->attrs;
+                                n->mPendingChanges.forEachCommand([&pendingAttrs](Command* cmd)
+                                {
+                                    if (auto cmdSetAttr = dynamic_cast<CommandSetAttr*>(cmd))
+                                    {
+                                        cmdSetAttr->applyUpdatesTo(pendingAttrs);
+                                    }
+                                });
+                            }
+
+                            if (pendingAttrs.hasDifferentValue('c', attrUpdate))
+                            {
+                                LOG_debug << "Fixing fingerprint";
+                                client->setattr(n, std::move(attrUpdate), nullptr, false);
+                            }
+                            else
+                            {
+                                LOG_debug << "Fingerprint already being fixed";
+                            }
                         }
                     }
                 }
@@ -751,33 +799,22 @@ void Transfer::complete(TransferDbCommitter& committer)
             // remove and complete successfully completed files
             for (file_list::iterator it = files.begin(); it != files.end(); )
             {
+                if ((*it)->syncxfer)
+                {
+                    // leave sync items for later, they will be passed to the sync thread
+                    ++it;
+                    continue;
+                }
+
                 transient_error = false;
                 success = false;
 
                 auto finalpath = (*it)->getLocalname();
 
-                // it may update the path to include (n), or .oldN if there is a clash
+                // it may update the path to include (n) if there is a clash
                 bool name_too_long = false;
-#ifdef ENABLE_SYNC
-                if ((*it)->syncxfer)
-                {
-                    auto syncFileGet = dynamic_cast<SyncFileGet*>(*it);
-                    if (syncFileGet && syncFileGet->sync)
-                    {
-                        success = downloadDistributor->distributeTo(finalpath, *client->fsaccess, FileDistributor::MoveReplacedFileToSyncDebris, transient_error, name_too_long, syncFileGet->sync);
-                    }
-                    else
-                    {
-                        LOG_err << "Unable to complete transfer due to syncFileGet " << syncFileGet << " ->sync " << (syncFileGet ? syncFileGet->sync : nullptr);
-                        success = false;
-                    }
-                }
-                else 
-#endif //ENABLE_SYNC
-                {
-                    auto r = toTargetNameExistsResolution((*it)->getCollisionResolution());
-                    success = downloadDistributor->distributeTo(finalpath, *client->fsaccess, r, transient_error, name_too_long, nullptr);
-                }
+                auto r = toTargetNameExistsResolution((*it)->getCollisionResolution());
+                success = downloadDistributor->distributeTo(finalpath, *client->fsaccess, r, transient_error, name_too_long, nullptr);
 
                 if (success)
                 {
@@ -797,7 +834,7 @@ void Transfer::complete(TransferDbCommitter& committer)
                         auto localname = (*it)->getLocalname();
                         if (!client->gfxdisabled && client->gfx && client->gfx->isgfx(localname) &&
                             keys.find(n->nodekey()) == keys.end() &&    // this file hasn't been processed yet
-                            client->checkaccess(n, OWNER))
+                            client->checkaccess(n.get(), OWNER))
                         {
                             keys.insert(n->nodekey());
 
@@ -814,7 +851,7 @@ void Transfer::complete(TransferDbCommitter& committer)
                                     client->gfx->gendimensionsputfa(NULL, localname, NodeOrUploadHandle(n->nodeHandle()), n->nodecipher(), missingattr);
                                 }
 
-                                addAnyMissingMediaFileAttributes(n, localname);
+                                addAnyMissingMediaFileAttributes(n.get(), localname);
                             }
                         }
                     }
@@ -842,10 +879,11 @@ void Transfer::complete(TransferDbCommitter& committer)
                     LOG_warn << "Unable to complete transfer due to a persistent error";
                     client->filecachedel(f, &committer);
 #ifdef ENABLE_SYNC
-                            if (f->syncxfer)
-                            {
-                                client->syncdownrequired = true;
-                            }
+                    if (f->syncxfer)
+                    {
+                        client->syncs.setSyncsNeedFullSync(false, false, UNDEF);
+                    }
+                    else
 #endif
                     {
                         downloadDistributor->removeTarget();
@@ -867,7 +905,31 @@ void Transfer::complete(TransferDbCommitter& committer)
                 }
             }
 
-            if (files.empty())
+#ifdef ENABLE_SYNC
+            for (file_list::iterator it = files.begin(); it != files.end(); )
+            {
+                // now that the file itself is moved (if started as a manual download),
+                // we can let the sync copy (or move) for the sync cases
+                File* f = *it;
+
+                // pass the distribution responsibility to the sync, for sync requested downloads
+                if (f->syncxfer)
+                {
+                    auto dl = dynamic_cast<SyncDownload_inClient*>(f);
+                    assert(dl);
+                    dl->downloadDistributor = downloadDistributor;
+
+                    client->filecachedel(f, &committer);
+                    client->app->file_complete(f);
+                    f->transfer = NULL;
+                    f->completed(this, PUTNODES_SYNC);  // sets wasCompleted == true, and the sync thread can then call the distributor
+                    it = files.erase(it);
+                }
+                else it++;
+            }
+#endif // ENABLE_SYNC
+
+            if (!files.size())
             {
                 // check if we should delete the download at downloaded path
                 downloadDistributor.reset();
@@ -879,7 +941,7 @@ void Transfer::complete(TransferDbCommitter& committer)
             state = TRANSFERSTATE_COMPLETED;
             assert(localfilename.isAbsolute());
             finished = true;
-            client->looprequested = true;
+
             client->app->transfer_complete(this);
             localfilename.clear();
             delete this;
@@ -911,21 +973,7 @@ void Transfer::complete(TransferDbCommitter& committer)
             File *f = (*it);
             LocalPath localpath = f->getLocalname();
 
-#ifdef ENABLE_SYNC
-            LocalPath synclocalpath;
-            LocalNode *ll = dynamic_cast<LocalNode *>(f);
-            if (ll)
-            {
-                LOG_debug << "Verifying sync upload";
-                synclocalpath = ll->getLocalPath();
-                localpath = synclocalpath;
-            }
-#endif
-
-            if (localpath == f->getLocalname())
-            {
-                LOG_debug << "Verifying regular upload";
-            }
+            LOG_debug << "Verifying upload";
 
             auto fa = client->fsaccess->newfileaccess();
             bool isOpen = fa->fopen(localpath, FSLogging::logOnError);
@@ -940,7 +988,8 @@ void Transfer::complete(TransferDbCommitter& committer)
                 }
             }
 
-            if (!isOpen || f->genfingerprint(fa.get()))
+            if (!f->syncxfer &&  // for syncs, it's ok if the file moved/renamed elsewhere since
+               (!isOpen || f->genfingerprint(fa.get())))
             {
                 if (!isOpen)
                 {
@@ -951,12 +1000,6 @@ void Transfer::complete(TransferDbCommitter& committer)
                     LOG_warn << "Modification detected after upload";
                 }
 
-#ifdef ENABLE_SYNC
-                if (f->syncxfer)
-                {
-                    client->syncdownrequired = true;
-                }
-#endif
                 it++; // the next line will remove the current item and invalidate that iterator
                 removeTransferFile(API_EREAD, f, &committer);
             }
@@ -980,7 +1023,6 @@ void Transfer::complete(TransferDbCommitter& committer)
 
         // if this transfer is put on hold, do not complete
         client->checkfacompletion(uploadhandle, this, true);
-        return;
     }
 }
 
@@ -989,6 +1031,9 @@ void Transfer::completefiles()
     // notify all files and give them an opportunity to self-destruct
     vector<uint32_t> &ids = client->pendingtcids[tag];
     vector<LocalPath> *pfs = NULL;
+#ifdef ENABLE_SYNC
+    bool wakeSyncs = false;
+#endif // ENABLE_SYNC
 
     for (file_list::iterator it = files.begin(); it != files.end(); )
     {
@@ -1004,11 +1049,37 @@ void Transfer::completefiles()
         }
 
         client->app->file_complete(f);
+
+#ifdef ENABLE_SYNC
+        if (f->syncxfer && type == PUT)
+        {
+            if (SyncUpload_inClient* put = dynamic_cast<SyncUpload_inClient*>(f))
+            {
+                // We are about to hand over responsibility for putnodes to the sync
+                // However, if the sync gets shut down before that is sent, or the
+                // operation turns out to be invalidated (eg. uploaded file deleted before putnodes)
+                // then we must inform the app of the final transfer outcome.
+                client->transferBackstop.remember(put->tag, put->selfKeepAlive);
+                wakeSyncs = true;
+                mIsSyncUpload = true; // This will prevent the deletion of file attributes upon Transfer destruction
+            }
+        }
+#endif // ENABLE_SYNC
+
         f->transfer = NULL;
         f->completed(this, f->syncxfer ? PUTNODES_SYNC : PUTNODES_APP);
         files.erase(it++);
     }
     ids.push_back(dbid);
+
+#ifdef ENABLE_SYNC
+    if (wakeSyncs)
+    {
+        // for a sync that is only uploading, there's no other mechansim to wake it up early between tree recursions
+        client->syncs.skipWait = true;
+        client->syncs.waiter->notify();
+    }
+#endif // ENABLE_SYNC
 }
 
 DirectReadNode::DirectReadNode(MegaClient* cclient, handle ch, bool cp, SymmCipher* csymmcipher, int64_t cctriv, const char *privauth, const char *pubauth, const char *cauth)

@@ -1405,17 +1405,15 @@ m_off_t TransferSlot::updatecontiguousprogress()
 void TransferSlot::prepareRequest(const std::shared_ptr<HttpReqXfer>& httpReq, const string& tempURL, m_off_t pos, m_off_t npos)
 {
     string finaltempURL = tempURL;
-    if (!finaltempURL.empty())
+    if (!finaltempURL.empty() &&
+        ((transfer->type == GET && transfer->client->usealtdownport) ||
+        (transfer->type == PUT && transfer->client->usealtupport)) &&
+            !memcmp(finaltempURL.c_str(), "http:", 5))
     {
-        if (((transfer->type == GET && transfer->client->usealtdownport) ||
-            (transfer->type == PUT && transfer->client->usealtupport)) &&
-                !memcmp(finaltempURL.c_str(), "http:", 5))
+        size_t index = finaltempURL.find("/", 8);
+        if (index != string::npos && finaltempURL.find(":", 8) == string::npos)
         {
-            size_t index = finaltempURL.find("/", 8);
-            if (index != string::npos && finaltempURL.find(":", 8) == string::npos)
-            {
-                finaltempURL.insert(index, ":8080");
-            }
+            finaltempURL.insert(index, ":8080");
         }
     }
 
@@ -1427,10 +1425,9 @@ void TransferSlot::prepareRequest(const std::shared_ptr<HttpReqXfer>& httpReq, c
     httpReq->status = REQ_PREPARED;
 }
 
-
 std::pair<error, dstime> TransferSlot::processRequestFailure(MegaClient* client, const std::shared_ptr<HttpReqXfer>& httpReq, dstime& backoff, int channel)
 {
-    LOG_warn << "Conn " << channel << " : Failed chunk. HTTP status: " << httpReq->httpstatus << " on channel " << channel;
+    LOG_warn << "Conn " << channel << " : Failed chunk. HTTP status: " << httpReq->httpstatus;
 
     if (httpReq->httpstatus && httpReq->contenttype.find("text/html") != string::npos && !memcmp(httpReq->posturl.c_str(), "http:", 5))
     {

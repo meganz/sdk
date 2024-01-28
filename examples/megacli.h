@@ -135,7 +135,7 @@ struct DemoApp : public MegaApp
 
     void users_updated(User**, int) override;
     void useralerts_updated(UserAlert::Base** ua, int count) override;
-    void nodes_updated(Node**, int count) override;
+    void nodes_updated(sharedNode_vector* nodes, int count) override;
     void pcrs_updated(PendingContactRequest**, int) override;
     void nodes_current() override;
     void account_updated() override;
@@ -143,6 +143,8 @@ struct DemoApp : public MegaApp
     void notify_confirm_user_email(handle user, const char *email) override;
     void sets_updated(Set**, int) override;
     void setelements_updated(SetElement**, int) override;
+
+    void sequencetag_update(const string&) override;
 
 #ifdef ENABLE_CHAT
     void chatcreate_result(TextChat *, error) override;
@@ -157,7 +159,11 @@ struct DemoApp : public MegaApp
     virtual void chatpresenceurl_result(string *, error) override;
     void chatlink_result(handle, error) override;
     void chatlinkclose_result(error) override;
-    void chatlinkurl_result(handle, int, string*, string*, int, m_time_t, bool, const bool, const std::vector<std::unique_ptr<ScheduledMeeting>>*, handle, error) override;
+    void chatlinkurl_result(handle chatid, int shard, string* url, string* ct, int numPeers,
+                            m_time_t ts, bool meetingRoom, int chatOptions,
+                            const std::vector<std::unique_ptr<ScheduledMeeting>>* smList,
+                            handle callid, error e) override;
+
     void chatlinkjoin_result(error) override;
 
     void chats_updated(textchat_map*, int) override;
@@ -224,11 +230,9 @@ struct DemoApp : public MegaApp
 
     void syncupdate_syncing(bool) override;
     void syncupdate_scanning(bool) override;
-    void syncupdate_local_lockretry(bool) override;
+    void syncupdate_stalled(bool stalled) override;
+    void syncupdate_conflicts(bool conflicts) override;
     void syncupdate_treestate(const SyncConfig& config, const LocalPath&, treestate_t, nodetype_t) override;
-
-    bool sync_syncable(Sync*, const char*, LocalPath&, Node*) override;
-    bool sync_syncable(Sync*, const char*, LocalPath&) override;
 #endif
 
     void upgrading_security() override;
@@ -283,7 +287,7 @@ struct DemoAppFolder : public DemoApp
     void login_result(error);
     void fetchnodes_result(const Error&);
 
-    void nodes_updated(Node **n, int count);
+    void nodes_updated(sharedNode_vector* nodes, int count);
     void users_updated(User**, int) {}
     void pcrs_updated(PendingContactRequest**, int) {}
 };
@@ -323,6 +327,7 @@ void exec_rm(autocomplete::ACState& s);
 void exec_mv(autocomplete::ACState& s);
 void exec_cp(autocomplete::ACState& s);
 void exec_du(autocomplete::ACState& s);
+void exec_syncrescan(autocomplete::ACState& s);
 void exec_nodecounter(autocomplete::ACState& s);
 void exec_numberofnodes(autocomplete::ACState& s);
 void exec_numberofchildren(autocomplete::ACState& s);
@@ -419,9 +424,20 @@ void exec_syncimport(autocomplete::ACState& s);
 void exec_syncopendrive(autocomplete::ACState& s);
 void exec_synclist(autocomplete::ACState& s);
 void exec_syncremove(autocomplete::ACState& s);
+void exec_syncstatus(autocomplete::ACState& s);
 void exec_syncxable(autocomplete::ACState& s);
 
 #endif // ENABLE_SYNC
 
 void exec_setsandelements(autocomplete::ACState& s);
 void exec_reqstat(autocomplete::ACState& s);
+
+/* MEGA VPN commands */
+void exec_getvpnregions(autocomplete::ACState& s);
+void exec_getvpncredentials(autocomplete::ACState& s);
+void exec_putvpncredential(autocomplete::ACState& s);
+void exec_delvpncredential(autocomplete::ACState& s);
+void exec_checkvpncredential(autocomplete::ACState& s);
+/* MEGA VPN commands END */
+
+void exec_fetchcreditcardinfo(autocomplete::ACState&);

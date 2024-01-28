@@ -21,6 +21,8 @@
 
 #include "mega.h"
 #include "mega/megaclient.h"
+#include "mega/useralerts.h"
+
 #include <utility>
 
 using std::to_string;
@@ -629,7 +631,7 @@ void UserAlert::DeletedShare::updateEmail(MegaClient* mc)
 {
     Base::updateEmail(mc);
 
-    if (Node* n = mc->nodebyhandle(folderHandle))
+    if (std::shared_ptr<Node> n = mc->nodebyhandle(folderHandle))
     {
         folderPath = n->displaypath();
         folderName = n->displayname();
@@ -1225,7 +1227,7 @@ void UserAlert::Takedown::text(string& header, string& title, MegaClient* mc)
     const char* typestring = "node";
     string name;
 
-    Node* node = mc->nodebyhandle(nodeHandle);
+    std::shared_ptr<Node> node = mc->nodebyhandle(nodeHandle);
     if (node)
     {
         if (node->type == FOLDERNODE)
@@ -1525,8 +1527,9 @@ UserAlert::UpdatedScheduledMeeting::UpdatedScheduledMeeting(UserAlertRaw& un, un
         {
             if (MegaClient::parseScheduledMeetingChangeset(&auxJson, &mUpdatedChangeset) != API_OK)
             {
-                assert(false);
                 LOG_err << "UpdatedScheduledMeeting user alert ctor: error parsing cs array";
+                assert(false);
+                return;
             }
             auxJson.leaveobject();
         }
@@ -1803,6 +1806,15 @@ UserAlerts::UserAlerts(MegaClient& cmc)
 unsigned int UserAlerts::nextId()
 {
     return ++nextid;
+}
+
+void UserAlerts::ff::squash(const ff &rhs)
+{
+    areNodeVersions(rhs.areNodeVersions());
+    std::for_each(std::begin(rhs.alertTypePerFileNode), std::end(rhs.alertTypePerFileNode),
+                  [this](const std::pair<handle, nameid>& p) { alertTypePerFileNode[p.first] = p.second; });
+    std::for_each(std::begin(rhs.alertTypePerFolderNode), std::end(rhs.alertTypePerFolderNode),
+                  [this](const std::pair<handle, nameid>& p) { alertTypePerFolderNode[p.first] = p.second; });
 }
 
 bool UserAlerts::isUnwantedAlert(nameid type, int action)
@@ -2085,7 +2097,7 @@ void UserAlerts::noteSharedNode(handle user, int type, m_time_t ts, Node* n, nam
         if (!ISUNDEF(ignoreNodesUnderShare) && (alertType != UserAlert::type_d))
         {
             // don't make alerts on files/folders already in the new share
-            for (Node* p = n; p != NULL; p = p->parent)
+            for (Node* p = n; p != NULL; p = p->parent.get())
             {
                 if (p->nodehandle == ignoreNodesUnderShare)
                     return;
@@ -2100,6 +2112,7 @@ void UserAlerts::noteSharedNode(handle user, int type, m_time_t ts, Node* n, nam
         else if (n && type == FILENODE)
         {
             f.alertTypePerFileNode[n->nodehandle] = alertType;
+	    f.areNodeVersions(n && n->parent && n->parent->type == FILENODE);
         }
         // there shouldn't be any other types
 
@@ -2436,12 +2449,28 @@ void UserAlerts::setNewNodeAlertToUpdateNodeAlert(Node* nodeToUpdate)
     // Remove NewSharedNode alert from noted node alerts
     if (setNotedSharedNodeToUpdate(nodeToUpdate))
     {
-        LOG_debug << debug_msg << " new-alert found in noted nodes";
+        LOG_verbose << debug_msg << " new-alert found in noted nodes";
     }
+}
+
+void UserAlerts::purgeNodeVersionsFromStash()
+{
+    auto& stash = deletedSharedNodesStash;
+    if (stash.empty()) return;
+
+    std::vector<notedShNodesMap::const_iterator> vers;
+    for(auto stashIt = std::begin(stash); stashIt != std::end(stash); ++stashIt)
+    {
+        if (stashIt->second.areNodeVersions()) vers.push_back(stashIt);
+    }
+
+    std::for_each(std::begin(vers), std::end(vers), [&stash](notedShNodesMap::const_iterator it) { stash.erase(it); });
 }
 
 void UserAlerts::convertStashedDeletedSharedNodes()
 {
+    if (deletedSharedNodesStash.empty()) return;
+
     notedSharedNodes = deletedSharedNodesStash;
     deletedSharedNodesStash.clear();
 
@@ -2460,11 +2489,14 @@ void UserAlerts::stashDeletedNotedSharedNodes(handle originatingUser)
 {
     if (isConvertReadyToAdd(originatingUser))
     {
-        deletedSharedNodesStash = notedSharedNodes;
+        std::for_each(std::begin(notedSharedNodes), std::end(notedSharedNodes), [this](const std::pair<std::pair<handle, handle>, ff> p)
+        {
+            deletedSharedNodesStash[p.first].squash(p.second);
+        });
     }
 
     clearNotedSharedMembers();
-    LOG_debug << "Removal-alert noted-nodes alert notifications stashed";
+    LOG_verbose << "Removal-alert noted-nodes alert notifications stashed";
 }
 
 // process server-client notifications
