@@ -379,6 +379,45 @@ sharedNode_list NodeManager::getChildren_internal(const Node *parent, CancelToke
     return childrenList;
 }
 
+sharedNode_vector NodeManager::getChildren(const NodeSearchFilter& filter, int order, CancelToken cancelFlag)
+{
+    LockGuard g(mMutex);
+    return getChildren_internal(filter, order, cancelFlag);
+}
+
+sharedNode_vector NodeManager::getChildren_internal(const NodeSearchFilter& filter, int order, CancelToken cancelFlag)
+{
+    assert(mMutex.owns_lock());
+
+    // validation
+    if (filter.byParentHandle() == UNDEF || !mTable || mNodes.empty())
+    {
+        assert(filter.byParentHandle() != UNDEF && mTable && !mNodes.empty());
+        return sharedNode_vector();
+    }
+
+    // small optimization to possibly skip the db look-up
+    if (filter.bySensitivity())
+    {
+        shared_ptr<Node> node = getNodeByHandle_internal(NodeHandle().set6byte(filter.byParentHandle()));
+        if (!node || node->isSensitiveInherited())
+        {
+            return sharedNode_vector();
+        }
+    }
+
+    // db look-up
+    vector<pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    if (!mTable->getChildren(filter, order, nodesFromTable, cancelFlag))
+    {
+        return sharedNode_vector();
+    }
+
+    sharedNode_vector nodes = processUnserializedNodes(nodesFromTable, filter, cancelFlag);
+
+    return nodes;
+}
+
 sharedNode_vector NodeManager::getChildrenFromType(const NodeHandle& parent, nodetype_t type, CancelToken cancelToken)
 {
     LockGuard g(mMutex);
