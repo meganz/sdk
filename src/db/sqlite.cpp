@@ -158,6 +158,20 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
         return nullptr;
     }
 
+    // Add following columns to existing 'nodes' table that might not have them, and populate them if needed:
+    vector<NewColumn> newCols
+    {
+        {"mtime", "int64 DEFAULT 0", NodeData::COMPONENT_MTIME},
+        {"label", "tinyint DEFAULT 0", NodeData::COMPONENT_LABEL},
+        {"mimetype", "tinyint AS (getmimetype(name)) VIRTUAL", NodeData::COMPONENT_NONE},
+    };
+
+    if (!addAndPopulateColumns(db, std::move(newCols)))
+    {
+        sqlite3_close(db);
+        return nullptr;
+    }
+
 #if __ANDROID__
     // Android doesn't provide a temporal directory -> change default policy for temp
     // store (FILE=1) to avoid failures on large queries, so it relies on MEMORY=2
@@ -329,6 +343,166 @@ void SqliteDbAccess::removeDBFiles(FileSystemAccess& fsAccess, mega::LocalPath& 
 
 #endif
 
+}
+
+bool SqliteDbAccess::addAndPopulateColumns(sqlite3* db, vector<NewColumn>&& newCols)
+{
+    // skip existing columns
+    if (!stripExistingColumns(db, newCols))
+    {
+        return false;
+    }
+
+    // add missing columns
+    for (const auto& c : newCols)
+    {
+        if (!addColumn(db, c.name, c.type))
+        {
+            return false;
+        }
+    }
+
+    return migrateDataToColumns(db, std::move(newCols));
+}
+
+bool SqliteDbAccess::stripExistingColumns(sqlite3* db, vector<NewColumn>& cols)
+{
+    string query = "SELECT name, COUNT(name) FROM pragma_table_xinfo('nodes') WHERE name IN ( ";
+    std::for_each(cols.begin(), cols.end(), [&query](const NewColumn& c) { query += '\'' + c.name + "',"; });
+    query.pop_back(); // drop trailing ','
+    query += " ) GROUP BY name";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr) != SQLITE_OK)
+    {
+        LOG_err << "Db error while preparing to search for existing cols: " << sqlite3_errmsg(db);
+        return false;
+    }
+
+    while (sqlite3_step(stmt) == SQLITE_ROW)
+    {
+        int existing = sqlite3_column_int(stmt, 1);
+        const char* n = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        if (existing)
+        {
+            assert(n); // "Strings returned by sqlite3_column_text(), even empty strings, are always zero-terminated."
+            cols.erase(std::remove_if(cols.begin(), cols.end(), [n](const NewColumn& c) { return c.name == n; }), cols.end());
+        }
+    }
+
+    sqlite3_finalize(stmt);
+
+    return true;
+}
+
+bool SqliteDbAccess::addColumn(sqlite3* db, const string& name, const string& type)
+{
+    string query("ALTER TABLE nodes ADD COLUMN '" + name + "' " + type);
+    if (sqlite3_exec(db, query.c_str(), nullptr, nullptr, nullptr) != SQLITE_OK)
+    {
+        LOG_err << "Db error while adding 'nodes." << name << ' ' << type << "' column: " << sqlite3_errmsg(db);
+        return false;
+    }
+
+    return true;
+}
+
+bool SqliteDbAccess::migrateDataToColumns(sqlite3* db, vector<NewColumn>&& cols)
+{
+    if (cols.empty()) return true;
+
+    // identify data pieces to copy to new columns
+    std::map<int, int> dataToMigrate;
+    int bindIdx = 0;
+    for (const auto& c : cols)
+    {
+        if (c.migrationId != NodeData::COMPONENT_NONE)
+        {
+            assert(c.migrationId > NodeData::COMPONENT_NONE);
+            dataToMigrate[c.migrationId] = ++bindIdx;
+        }
+    }
+    cols.erase(std::remove_if(cols.begin(), cols.end(),
+        [](const NewColumn& c) { return c.migrationId == NodeData::COMPONENT_NONE; }), cols.end());
+
+    if (cols.empty()) return true;
+
+    // get existing data
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, "SELECT nodehandle, node FROM nodes", -1, &stmt, nullptr) != SQLITE_OK)
+    {
+        LOG_err << "Db error while preparing to extract data to migrate: " << sqlite3_errmsg(db);
+        return false;
+    }
+
+    // extract values to be copied
+    map<handle, map<int /*COMPONENT*/, int64_t>> newValues;
+    while (sqlite3_step(stmt) == SQLITE_ROW)
+    {
+        const char* blob = static_cast<const char*>(sqlite3_column_blob(stmt, 1));
+        int blobSize = sqlite3_column_bytes(stmt, 1);
+        NodeData nd(blob, blobSize, NodeData::COMPONENT_ATTRS);
+
+        m_time_t mtime = (dataToMigrate.find(NodeData::COMPONENT_MTIME) == dataToMigrate.end()) ? 0 : nd.getMtime();
+        int l = (dataToMigrate.find(NodeData::COMPONENT_LABEL) == dataToMigrate.end()) ? LBL_UNKNOWN : nd.getLabel();
+
+        if (mtime || l != LBL_UNKNOWN) // update only non-default values
+        {
+            auto& nodeValues = newValues[sqlite3_column_int64(stmt, 0)];
+
+            nodeValues[NodeData::COMPONENT_MTIME] = mtime;
+            nodeValues[NodeData::COMPONENT_LABEL] = l;
+        }
+    }
+    sqlite3_finalize(stmt);
+
+    if (newValues.empty())
+    {
+        return true;
+    }
+
+    // build update query
+    string query{"UPDATE nodes SET "};
+    for (const NewColumn& c : cols)
+    {
+        query += c.name + "= ?" + std::to_string(dataToMigrate[c.migrationId]) + ',';
+    }
+    query.pop_back(); // drop trailing ','
+    query += " WHERE nodehandle = ?" + std::to_string(cols.size() + 1); // identifier for 'nodehandle'
+
+    if (sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr) != SQLITE_OK)
+    {
+        LOG_err << "Db error while preparing to populate new columns: " << sqlite3_errmsg(db);
+        return false;
+    }
+
+    // run update query for each data entry
+    for (const auto& update : newValues)
+    {
+        for (const auto& values : update.second)
+        {
+            if (sqlite3_bind_int64(stmt, dataToMigrate[values.first], values.second) != SQLITE_OK)
+            {
+                LOG_err << "Db error during migration while binding value to column: " << sqlite3_errmsg(db);
+                sqlite3_finalize(stmt);
+                return false;
+            }
+        }
+
+        int stepResult;
+        if (sqlite3_bind_int64(stmt, static_cast<int>(cols.size()) + 1, update.first) != SQLITE_OK || // nodehandle
+            ((stepResult = sqlite3_step(stmt)) != SQLITE_DONE && stepResult != SQLITE_ROW) ||
+            sqlite3_reset(stmt) != SQLITE_OK)
+        {
+            LOG_err << "Db error during migration while updating columns: " << sqlite3_errmsg(db);
+            sqlite3_finalize(stmt);
+            return false;
+        }
+    }
+
+    sqlite3_finalize(stmt);
+
+    return true;
 }
 
 

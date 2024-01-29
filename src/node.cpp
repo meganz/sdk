@@ -1746,6 +1746,324 @@ void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown, 
 }
 
 
+bool NodeData::readComponents()
+{
+    mReadAttempted = true;
+    const char* ptr = mStart;
+
+    if (!ptr || ptr + sizeof(m_off_t) + MegaClient::NODEHANDLE > mEnd)
+    {
+        return false;
+    }
+
+    /// node type
+    mSize = MemAccess::get<m_off_t>(ptr);
+    ptr += sizeof(m_off_t);
+    mType = (mSize < 0 && mSize >= -RUBBISHNODE) ? (nodetype_t)-mSize : FILENODE;
+    int nodeKeyLen = (mType == FILENODE) ? FILENODEKEYLENGTH : ((mType == FOLDERNODE) ? FOLDERNODEKEYLENGTH : 0);
+
+    /// node handle
+    memcpy((char*)&mHandle, ptr, MegaClient::NODEHANDLE);
+    ptr += MegaClient::NODEHANDLE;
+
+    // size of next data chunk
+    constexpr int lenBeforeNodeKey = MegaClient::NODEHANDLE + MegaClient::USERHANDLE + 2 * sizeof(time_t);
+
+    if (mComp == COMPONENT_ALL)
+    {
+        if (ptr + lenBeforeNodeKey + nodeKeyLen > mEnd)
+        {
+            return false;
+        }
+
+        /// parent handle
+        memcpy((char*)&mParentHandle, ptr, MegaClient::NODEHANDLE);
+        if (!mParentHandle)
+        {
+            mParentHandle = UNDEF;
+        }
+        ptr += MegaClient::NODEHANDLE;
+
+        /// user handle
+        memcpy((char*)&mUserHandle, ptr, MegaClient::USERHANDLE);
+        ptr += MegaClient::USERHANDLE;
+
+        /// ctime
+        ptr += sizeof(time_t); // FIME: use m_time_t / Serialize64 instead
+        mCtime = (uint32_t)MemAccess::get<time_t>(ptr);
+        ptr += sizeof(time_t);
+
+        /// node key
+        if ((mType == FILENODE) || (mType == FOLDERNODE))
+        {
+            if (ptr + nodeKeyLen > mEnd)
+            {
+                return false;
+            }
+
+            mNodeKey.assign(ptr, nodeKeyLen);
+            ptr += nodeKeyLen;
+        }
+    }
+    else
+    {
+        ptr += lenBeforeNodeKey + nodeKeyLen;
+    }
+
+    /// file attributes
+    if (mType == FILENODE)
+    {
+        if (ptr + sizeof(unsigned short) > mEnd)
+        {
+            return false;
+        }
+        unsigned short faLen = MemAccess::get<unsigned short>(ptr);
+        ptr += sizeof(unsigned short);
+
+        if (mComp == COMPONENT_ALL)
+        {
+            if (ptr + faLen > mEnd)
+            {
+                return false;
+            }
+            mFileAttributes.assign(ptr, faLen);
+        }
+        ptr += faLen;
+    }
+
+    if (ptr + 3 > mEnd)
+    {
+        return false;
+    }
+
+    /// is exported
+    mIsExported = ptr[0];
+    /// has link creation Ts
+    char hasLinkCreationTs = ptr[1];
+
+    if (mComp == COMPONENT_ALL)
+    {
+        /// auth key size
+        char authKeySize = ptr[2];
+        ptr += 3;
+
+        if (authKeySize)
+        {
+            /// auth key
+            if (ptr + authKeySize > mEnd)
+            {
+                return false;
+            }
+            mAuthKey.assign(ptr, authKeySize);
+            ptr += authKeySize;
+        }
+    }
+    else
+    {
+        ptr += 3 + ptr[2];
+    }
+
+    /// is encrypted
+    if (ptr + 2 > mEnd)
+    {
+        return false;
+    }
+    mIsEncrypted = ptr[0] && ptr[1];
+    ptr += (unsigned)*ptr + 1;
+
+    /// skip some bytes
+    for (int i = 4; i--;)
+    {
+        if (ptr + 1 > mEnd)
+        {
+            return false;
+        }
+        ptr += (unsigned char)*ptr + 1;
+    }
+
+    /// share count
+    if (ptr + sizeof(short) > mEnd)
+    {
+        return false;
+    }
+    mShareCount = MemAccess::get<short>(ptr);
+    ptr += sizeof(short);
+
+    if (mShareCount)
+    {
+        if (mComp == COMPONENT_ALL)
+        {
+            /// share key
+            if (ptr + SymmCipher::KEYLENGTH > mEnd)
+            {
+                return false;
+            }
+            mShareKey.reset(new byte[SymmCipher::KEYLENGTH]);
+            std::copy(ptr, ptr + SymmCipher::KEYLENGTH, mShareKey.get());
+        }
+        ptr += SymmCipher::KEYLENGTH;
+
+        // inshare, outshares, or pending shares
+        for (; mShareCount; --mShareCount)   // inshares: -1, outshare/s: positive value
+        {
+            // share size, see Share::unserialize()
+            size_t shareSize = sizeof(handle) + sizeof(m_time_t) + 1;
+            if (ptr + shareSize + 1 > mEnd)
+            {
+                return false;
+            }
+            char version_flag = ptr[shareSize];
+            shareSize += 1 + (version_flag >= 1 ? sizeof(handle) : 0);
+
+            if (mComp == COMPONENT_ALL)
+            {
+                if (ptr + shareSize > mEnd)
+                {
+                    return false;
+                }
+                mShares.emplace_back(shareSize);
+                std::copy(ptr, ptr + shareSize, mShares.back().data());
+            }
+
+            ptr += shareSize;
+
+            if (mShareCount < 0)    // inshare
+            {
+                break;
+            }
+        }
+    }
+
+    /// node attributes
+    ptr = mAttrs.unserialize(ptr, mEnd);
+    if (!ptr)
+    {
+        LOG_err << "Failed to unserialize attrs";
+        assert(ptr);
+        return false;
+    }
+
+    /// public link
+    if (mIsExported)
+    {
+        if (mComp == COMPONENT_ALL)
+        {
+            if (ptr + MegaClient::NODEHANDLE + sizeof(m_time_t) + sizeof(bool) > mEnd)
+            {
+                return false;
+            }
+
+            memcpy((char*)&mPubLinkHandle, ptr, MegaClient::NODEHANDLE);
+            ptr += MegaClient::NODEHANDLE;
+            mPubLinkEts = MemAccess::get<m_time_t>(ptr);
+            ptr += sizeof(mPubLinkEts);
+            mPubLinkTakenDown = MemAccess::get<bool>(ptr);
+            ptr += sizeof(mPubLinkTakenDown);
+
+            if (hasLinkCreationTs)
+            {
+                mPubLinkCts = MemAccess::get<m_time_t>(ptr);
+                ptr += sizeof(m_time_t);
+            }
+
+            // n->plink.reset(new PublicLink(ph, cts, ets, takendown, authKey ? authKey : ""));
+        }
+        else
+        {
+            ptr += MegaClient::NODEHANDLE + sizeof(m_time_t) + sizeof(bool) + (hasLinkCreationTs ? sizeof(m_time_t) : 0);
+        }
+    }
+
+    if (mIsEncrypted)
+    {
+        // Have we encoded the node key data's length?
+        if (ptr + sizeof(uint32_t) > mEnd)
+        {
+            return false;
+        }
+        uint32_t length = MemAccess::get<uint32_t>(ptr);
+        ptr += sizeof(uint32_t);
+
+        if (mComp == COMPONENT_ALL)
+        {
+            // Have we encoded the node key data?
+            if (ptr + length > mEnd)
+            {
+                return false;
+            }
+            mNodeKey.assign(ptr, length);
+        }
+        ptr += length;
+
+        // Have we encoded the length of the attribute string?
+        if (ptr + sizeof(uint32_t) > mEnd)
+        {
+            return false;
+        }
+        length = MemAccess::get<uint32_t>(ptr);
+        ptr += sizeof(uint32_t);
+
+        if (mComp == COMPONENT_ALL)
+        {
+            // Have we encoded the attribute string?
+            if (ptr + length > mEnd)
+            {
+                return false;
+            }
+            mAttrString.assign(ptr, length);
+        }
+        ptr += length;
+    }
+
+    mReadSucceeded = ptr == mEnd;
+
+    return mReadSucceeded;
+}
+
+m_time_t NodeData::getMtime()
+{
+    if (readFailed() || mType != FILENODE)
+    {
+        return 0;
+    }
+
+    auto attrIt = mAttrs.map.find('c');
+    if (attrIt != mAttrs.map.end())
+    {
+        FileFingerprint fp;
+        if (fp.unserializefingerprint(&attrIt->second) && fp.isvalid)
+        {
+            return fp.mtime;
+        }
+    }
+
+    return 0;
+}
+
+int NodeData::getLabel()
+{
+    if (readFailed())
+    {
+        return LBL_UNKNOWN;
+    }
+
+    static const nameid labelId = AttrMap::string2nameid("lbl");
+    auto attrIt = mAttrs.map.find(labelId);
+
+    return attrIt == mAttrs.map.end() ? LBL_UNKNOWN : std::atoi(attrIt->second.c_str());
+}
+
+handle NodeData::getHandle()
+{
+    if (readFailed())
+    {
+        return 0;
+    }
+
+    return mHandle;
+}
+
+
 PublicLink::PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown, const char *authKey)
 {
     this->ph = ph;
