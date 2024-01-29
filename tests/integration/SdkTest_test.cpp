@@ -19,7 +19,7 @@
  * program.
  */
 
-#include "test.h"
+#include "sdk_test_utils.h"
 #include "stdfs.h"
 #include "SdkTest_test.h"
 #include "gtest_common.h"
@@ -3109,7 +3109,7 @@ TEST_F(SdkTest, SdkTestContacts)
     LOG_info << "___TEST Contacts___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
-    copyFileFromTestData(AVATARSRC);
+    sdk_test::copyFileFromTestData(AVATARSRC);
 
     // --- Check my email and the email of the contact ---
 
@@ -7164,7 +7164,7 @@ TEST_F(SdkTest, SdkHttpReqCommandPutFATest)
 {
     LOG_info << "___TEST SdkHttpReqCommandPutFATest___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-    copyFileFromTestData(IMAGEFILE);
+    sdk_test::copyFileFromTestData(IMAGEFILE);
 
     // SCENARIO 1: Upload image file and check thumbnail and preview
     std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
@@ -7211,7 +7211,7 @@ TEST_F(SdkTest, SdkMediaImageUploadTest)
 {
     LOG_info << "___TEST MediaUploadRequestURL___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-    copyFileFromTestData(IMAGEFILE);
+    sdk_test::copyFileFromTestData(IMAGEFILE);
 
     unsigned int apiIndex = 0;
     int64_t fileSize = 1304;
@@ -7525,7 +7525,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     LOG_info << "___TEST SDKSensitive___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
-    copyFileFromTestData(IMAGEFILE);
+    sdk_test::copyFileFromTestData(IMAGEFILE);
 
     unique_ptr<MegaNode> rootnodeA(megaApi[0]->getRootNode());
 
@@ -10559,7 +10559,7 @@ TEST_F(SdkTest, SyncImage)
     WaitMillisec(waitForSyncsMs);
 
     LOG_verbose << "SyncImage :  Adding the image file and checking if it is synced: " << filePath.u8string();
-    copyFileFromTestData(fileNameStr, filePath.u8string());
+    sdk_test::copyFileFromTestData(fileNameStr, filePath.u8string());
     auto remoteFile = "/" + string(remoteBaseNode->getName()) + "/" + fileNameStr;
     std::unique_ptr<MegaNode> remoteNode;
     WaitFor([this, &remoteNode, &remoteFile]() -> bool
@@ -11071,7 +11071,7 @@ TEST_F(SdkTest, SdkTestAudioFileThumbnail)
 
     LocalPath mp3LP;
 
-    mp3LP = LocalPath::fromAbsolutePath(getTestDataDir().string());
+    mp3LP = LocalPath::fromAbsolutePath(sdk_test::getTestDataDir().string());
     mp3LP.appendWithSeparator(LocalPath::fromRelativePath(AUDIO_FILENAME), false);
 
     const std::string& mp3 = mp3LP.toPath(false);
@@ -16111,7 +16111,7 @@ class SdkTestAvatar : public SdkTest
 protected:
     unsigned int mApiIndex{0};
     std::unique_ptr<MegaUser> mUser;
-    fs::path mDstAvatarPath{getTestDataDir()/AVATARDST};
+    fs::path mDstAvatarPath{sdk_test::getTestDataDir()/AVATARDST};
     const std::string PATH_SEPARATOR{LocalPath::localPathSeparator_utf8};
 
 public:
@@ -16126,7 +16126,7 @@ public:
         ASSERT_THAT(mUser, ::testing::NotNull());
 
         // Set avatar
-        const auto srcAvatarPath{getTestDataDir()/AVATARSRC};
+        const auto srcAvatarPath{sdk_test::getTestDataDir()/AVATARSRC};
         ASSERT_EQ(API_OK, synchronousSetAvatar(mApiIndex, srcAvatarPath.string().c_str()));
     }
 
@@ -16167,7 +16167,7 @@ TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoAFile)
 TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoADirectoryEndingWithSlash)
 {
     // Get avatar
-    std::string dstAvatarPath{getTestDataDir().string()};
+    std::string dstAvatarPath{sdk_test::getTestDataDir().string()};
     dstAvatarPath.append(PATH_SEPARATOR);
     ASSERT_THAT(dstAvatarPath, ::testing::EndsWith(PATH_SEPARATOR));
     mApi[mApiIndex].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
@@ -16190,7 +16190,7 @@ TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoADirectoryEndingWithSlash)
 TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoADirectoryNotEndingWithSlash)
 {
     // Get avatar
-    std::string dstAvatarPath{getTestDataDir().string()};
+    std::string dstAvatarPath{sdk_test::getTestDataDir().string()};
     ASSERT_THAT(dstAvatarPath, ::testing::Not(::testing::EndsWith(PATH_SEPARATOR)));
     mApi[mApiIndex].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
     ASSERT_EQ(API_EWRITE, synchronousGetUserAvatar(mApiIndex, mUser.get(), dstAvatarPath.c_str()));
@@ -16410,7 +16410,7 @@ TEST_F(SdkTest, CreateNodeTreeWithOneFile)
     const unsigned int apiIndex{0};
 
     // File upload
-    copyFileFromTestData(IMAGEFILE);
+    sdk_test::copyFileFromTestData(IMAGEFILE);
     const auto fileSize{getFilesize(IMAGEFILE)};
 
     std::string fingerprint;
@@ -16517,7 +16517,7 @@ TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectoriesAndOneFileAtTheEnd)
     ASSERT_THAT(parentNode, ::testing::NotNull());
 
     // File upload
-    copyFileFromTestData(IMAGEFILE);
+    sdk_test::copyFileFromTestData(IMAGEFILE);
     const auto fileSize{getFilesize(IMAGEFILE)};
 
     std::string fingerprint;

@@ -35,6 +35,7 @@ tests_test_unit_SOURCES = \
 tests_test_integration_SOURCES = \
     tests/gtest_common.cpp \
     tests/integration/main.cpp \
+    tests/integration/sdk_test_utils.cpp \
     tests/integration/SdkTest_test.cpp \
     tests/integration/Sync_test.cpp
 
