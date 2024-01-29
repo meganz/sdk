@@ -47,6 +47,7 @@ pipeline {
 
     environment {
         BUILD_OPTIONS = ' '
+        THIRD_PARTY_SOURCES_PATH = "sdk/src/main/jni"
     }
 
     stages {
@@ -241,6 +242,16 @@ pipeline {
                                 }
                             }
                         }
+
+                        stage('Download prebuilt third-party-sources'){
+                            steps {
+                                dir("${env.THIRD_PARTY_SOURCES_PATH}"){
+                                    sh "jf rt download third-party-sources-sdk/3rdparty-sdk.tar.gz ."
+                                    sh "tar -xvf 3rdparty-sdk.tar.gz"
+                                }
+                            }
+                        }
+
                         stage('Build SDK and Android App'){
                             environment{
                                 BUILD_ARCHS = "arm64-v8a"
@@ -260,7 +271,7 @@ pipeline {
                                     sh "ln -sfrT ${ANDROID_WEBRTC} megachat/webrtc"
                                     sh "sed -i 's#JOBS=.*#JOBS=1#' build.sh"
                                     sh "sed -i 's#LOG_FILE=/dev/null#LOG_FILE=/dev/stdout#g' build.sh"
-                                    sh "./build.sh clean"
+                                    //sh "./build.sh clean"
                                     sh "./build.sh all"
                                 }
                               sh "cp -r ${DEFAULT_GOOGLE_MAPS_API_PATH}/* app/src/"
