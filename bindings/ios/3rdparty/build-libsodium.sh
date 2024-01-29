@@ -45,22 +45,22 @@ build_arch_platform() {
     export CFLAGS="-Os -arch ${ARCH} -pipe -no-cpp-precomp -isysroot ${BUILD_SDKROOT} -miphoneos-version-min=15.0 -DNDEBUG ${RUNTARGET}"
     export CPPFLAGS="${CFLAGS} -I${BUILD_SDKROOT}/usr/include"
     export CXXFLAGS="${CPPFLAGS}"
-
-    if [ "${ARCH}" == "arm64" ]; then
-      HOST=arm-apple-darwin
-    else
-      HOST=${ARCH}-apple-darwin
-    fi
   else #macOS
-    HOST="x86_64-apple-darwin"
     if [ $ARCH == "x86_64" ]; then
-      export LDFLAGS="-Os -arch ${ARCH} -Wl,-dead_strip -mmacosx-version-min=11.0 -L${BUILD_DEVROOT}/SDKs/${PLATFORM}.sdk/usr/lib"
-      export CFLAGS="-Os -arch ${ARCH} -pipe -no-cpp-precomp -isysroot ${BUILD_DEVROOT}/SDKs/${PLATFORM}.sdk -mmacosx-version-min=11.0 -DNDEBUG"
-      export CPPFLAGS="${CFLAGS} -I${BUILD_DEVROOT}/SDKs/${PLATFORM}.sdk/usr/include"
+      export LDFLAGS="-Os -arch ${ARCH} -Wl,-dead_strip -mmacosx-version-min=11.0 -L${BUILD_SDKROOT}/usr/lib"
+      export CFLAGS="-Os -arch ${ARCH} -pipe -no-cpp-precomp -isysroot ${BUILD_SDKROOT} -mmacosx-version-min=11.0 -DNDEBUG"
+      export CPPFLAGS="${CFLAGS} -I${BUILD_SDKROOT}/usr/include"
       export CXXFLAGS="${CPPFLAGS}"
     elif [ $ARCH == "arm64" ]; then
       export CFLAGS="-Os -arch ${ARCH} -pipe -no-cpp-precomp -mmacosx-version-min=11.0 -DNDEBUG"
     fi
+  fi
+        
+
+  if [ "${ARCH}" == "arm64" ]; then
+    HOST=arm-apple-darwin
+  else
+    HOST=${ARCH}-apple-darwin
   fi
     
   if [ "${CATALYST}" == "true" ]; then
@@ -88,7 +88,7 @@ build_catalyst() {
   lipo -create "${CURRENTPATH}/bin/libsodium/MacOSX${SDKVERSION}-catalyst-x86_64.sdk/lib/libsodium.a" "${CURRENTPATH}/bin/libsodium/MacOSX${SDKVERSION}-catalyst-arm64.sdk/lib/libsodium.a" -output "${CURRENTPATH}/bin/libsodium/catalyst/libsodium.a"
 }
 
-# Build Catalyst (macOS) targets for arm64 and x86_64
+# Build macOS targets for arm64 and x86_64
 build_mac() {
   build_arch_platform "arm64" "MacOSX"
   build_arch_platform "x86_64" "MacOSX"
