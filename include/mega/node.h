@@ -474,25 +474,15 @@ inline bool Node::keyApplied() const
 class NodeData
 {
 public:
-    NodeData(const char* ptr, size_t size) : mStart(ptr), mEnd(ptr + size) {}
 
-    int getAttrLabel();
     handle getHandle();
 
 private:
-    bool skipToShares();
-    bool skipToAttrs();
 
     const char* mStart;
     const char* mEnd;
 
     handle mHandle = 0;
-
-    const char* mSharesStart = nullptr;
-
-    const char* mAttrsStart = nullptr;
-    std::unique_ptr<AttrMap> mAttrs;
-    int mLabel;
 };
 
 #ifdef ENABLE_SYNC
