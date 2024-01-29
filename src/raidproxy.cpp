@@ -885,27 +885,27 @@ void RaidReq::procdata(int part, byte* ptr, m_off_t pos, m_off_t len)
             {
                 // parity involved in this line
 
-                    int index = -1;
+                int index = -1;
 #ifdef _MSC_VER
-                    unsigned long bitIndex;
-                    if (_BitScanForward(&bitIndex, mask))
-                    {
-                        index = static_cast<int>(bitIndex);
-                    }
+                unsigned long bitIndex;
+                if (_BitScanForward(&bitIndex, mask))
+                {
+                    index = static_cast<int>(bitIndex);
+                }
 #else
-                    // __GNUC__ is defined for both GCC and Clang
+                // __GNUC__ is defined for both GCC and Clang
 #if defined(__GNUC__)
-                    index = __builtin_ctz(mask); // counts least significant consecutive 0 bits (ie 0-based index of least significant 1 bit).  Windows equivalent is _bitScanForward
+                index = __builtin_ctz(mask); // counts least significant consecutive 0 bits (ie 0-based index of least significant 1 bit).  Windows equivalent is _bitScanForward
 #else
-                    // Fallback to a loop for other compilers
-                    for (int i = 0; i < RAIDLINE; ++i)
+                // Fallback to a loop for other compilers
+                for (int i = 0; i < RAIDLINE; ++i)
+                {
+                    if (mask & (1 << i))
                     {
-                        if (mask & (1 << i))
-                        {
-                            index = i;
-                            break;
-                        }
+                        index = i;
+                        break;
                     }
+                }
 #endif
 #endif
                 if (index != -1) // index > 0 && index < RAIDLINE

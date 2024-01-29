@@ -1245,7 +1245,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                         auto failValues = processRaidReq(i);
                         if (failValues.first != API_OK)
                         {
-                            LOG_debug << "[TransferSlot::doio] Transfer fail after processing RaidReq. Error: " << failValues.first << ". Backoff: " << failValues.second;
+                            LOG_debug << "[TransferSlot::doio] Transfer failure after processing RaidReq. Error: " << failValues.first << ". Backoff: " << failValues.second;
                             return transfer->failed(failValues.first, committer, failValues.second);
                         }
                     }
