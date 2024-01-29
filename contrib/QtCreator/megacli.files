@@ -146,4 +146,6 @@
 ../../src/mediafileattribute.cpp
 ../../include/mega/mediafileattribute.h
 ../../include/mega/raid.h
+../../include/mega/raidproxy.h
 ../../src/raid.cpp
+../../src/raidproxy.cpp
