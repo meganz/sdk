@@ -24,3 +24,10 @@ check_xcode_path() {
     print_error "Xcode path is not set correctly: $DEVELOPER does not exist."
   fi
 }
+
+# Check for spaces in paths
+check_for_spaces() {
+  if [[ "$DEVELOPER" == *" "* || "$CURRENTPATH" == *" "* ]]; then
+    print_error "Paths with spaces are not supported."
+  fi
+}
