@@ -145,3 +145,8 @@ endif()
 if(ENABLE_SDKLIB_TESTS)
     add_subdirectory(tests)
 endif()
+
+# windows only at the moment
+if(WIN32)
+    add_subdirectory(tools/gfxworker)
+endif()

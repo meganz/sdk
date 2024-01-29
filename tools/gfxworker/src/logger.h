@@ -18,13 +18,14 @@
 
 #pragma once
 
+#include <mega/types.h>
+#include "megaapi.h"
+
 #include <atomic>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <unordered_map>
-
-#include "megaapi.h"
 
 namespace mega {
 namespace gfx {

@@ -15,6 +15,13 @@
 * You should have received a copy of the license along with this
 * program.
 */
+#include "logger.h"
+
+#include "megaapi_impl.h"
+#include "mega/filesystem.h"
+#include "mega/utils.h"
+
+#include <zlib.h>
 
 #include <cstring>
 #include <iomanip>
@@ -30,17 +37,6 @@
 #include <thread>
 #include <condition_variable>
 #include <future>
-
-#include <zlib.h>
-
-#include "logger.h"
-#include "megaapi_impl.h"
-#include "mega/filesystem.h"
-#include "mega/utils.h"
-
-#ifdef WIN32
-#include <windows.h>
-#endif
 
 #define LOG_TIME_CHARS 25
 #define LOG_LEVEL_CHARS 5

@@ -194,7 +194,7 @@ MegaApiTest* newMegaApi(const char* appKey,
                         unsigned workerThreadCount)
 {
 #ifdef WIN32
-    auto gfxworkerPath = getTestDataDir() / "gfxworker.exe";
+    auto gfxworkerPath = sdk_test::getTestDataDir() / "gfxworker.exe";
     auto provider = std::unique_ptr<MegaGfxProvider>(MegaGfxProvider::createIsolatedInstance("mega_sdk_test", gfxworkerPath.string().c_str()));
     return new MegaApiTest(appKey, provider.get(), basePath, userAgent, workerThreadCount);
 #else
@@ -16257,14 +16257,14 @@ TEST_F(SdkTestGfx, GfxProcessingContinueSuccessfullyAfterCrash)
     MegaApi* api = megaApi[0].get();
 
     // create a thumbnail successfully
-    copyFileFromTestData(IMAGEFILE);
+    sdk_test::copyFileFromTestData(IMAGEFILE);
     ASSERT_TRUE(api->createThumbnail(IMAGEFILE.c_str(), THUMBNAIL.c_str())) << "create thumbnail should succeed";
 
     // create thumbnail and preview of a image which result in a crash
     // the image is selected by testing, thus not guaranteed. we'd either
     // find another media file or need another alternative if it couldn't
     // consistently result in a crash
-    copyFileFromTestData(std::string(CRASH_IMAGE));
+    sdk_test::copyFileFromTestData(std::string(CRASH_IMAGE));
     ASSERT_FALSE(api->createThumbnail(CRASH_IMAGE, CRASH_THUMBNAIL));
     ASSERT_FALSE(api->createPreview(CRASH_IMAGE, CRASH_PREVIEW));
 
@@ -16272,7 +16272,7 @@ TEST_F(SdkTestGfx, GfxProcessingContinueSuccessfullyAfterCrash)
     ASSERT_TRUE(api->createPreview(IMAGEFILE.c_str(), PREVIEW.c_str())) << "create preview should succeed";
 
     // create thumbnail of a not valid image
-    copyFileFromTestData(std::string(INVALID_IMAGE));
+    sdk_test::copyFileFromTestData(std::string(INVALID_IMAGE));
     ASSERT_FALSE(api->createThumbnail(INVALID_IMAGE, INVALID_THUMBNAIL)) << "create invalid image's thumbnail should fail";
 
     LOG_info << "___TEST GfxProcessingContinueSuccessfullyAfterCrash end___";

@@ -17,10 +17,7 @@
  */
 
 #pragma once
-
-#ifdef _WIN32
-    #include <windows.h>
-#endif
+#include "mega/types.h"
 
 #include <memory>
 #include <functional>

@@ -2,6 +2,7 @@
 #include "server_win32.h"
 #include "logger.h"
 
+#include "mega.h"
 #include "mega/arguments.h"
 
 #include <algorithm>

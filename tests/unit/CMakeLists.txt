@@ -12,6 +12,7 @@ target_sources(test_unit
     utils.h
 
     main.cpp
+    Arguments_test.cpp
     AttrMap_test.cpp
     CacheLRU_test.cpp
     ChunkMacMap_test.cpp

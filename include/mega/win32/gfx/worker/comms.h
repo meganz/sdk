@@ -1,7 +1,6 @@
 #pragma once
+#include "mega/types.h"
 #include "mega/gfx/worker/comms.h"
-
-#include <windows.h>
 
 namespace mega {
 namespace gfx {
