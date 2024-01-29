@@ -480,6 +480,8 @@ public:
     int getLabel();
     handle getHandle();
 
+    std::unique_ptr<Node> createNode(MegaClient& client, bool fromOldCache, std::list<std::unique_ptr<NewShare>>& ownNewshares);
+
     enum
     {
         COMPONENT_ALL = -1,

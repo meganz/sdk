@@ -554,290 +554,8 @@ void Node::setKey(const string& key)
 
 std::shared_ptr<Node> Node::unserialize(MegaClient& client, const std::string* d, bool fromOldCache, std::list<std::unique_ptr<NewShare>>& ownNewshares)
 {
-    handle h, ph;
-    nodetype_t t;
-    m_off_t s;
-    handle u;
-    string nodekey;
-    const char* fa;
-    m_time_t ts;
-    const byte* skey;
-    const char* ptr = d->data();
-    const char* end = ptr + d->size();
-    unsigned short ll;
-    int i;
-    char isExported = '\0';
-    char hasLinkCreationTs = '\0';
-
-    if (ptr + sizeof s + 2 * MegaClient::NODEHANDLE + MegaClient::USERHANDLE + 2 * sizeof ts + sizeof ll > end)
-    {
-        return NULL;
-    }
-
-    s = MemAccess::get<m_off_t>(ptr);
-    ptr += sizeof s;
-
-    if (s < 0 && s >= -RUBBISHNODE)
-    {
-        t = (nodetype_t)-s;
-    }
-    else
-    {
-        t = FILENODE;
-    }
-
-    h = 0;
-    memcpy((char*)&h, ptr, MegaClient::NODEHANDLE);
-    ptr += MegaClient::NODEHANDLE;
-
-    ph = 0;
-    memcpy((char*)&ph, ptr, MegaClient::NODEHANDLE);
-    ptr += MegaClient::NODEHANDLE;
-
-    if (!ph)
-    {
-        ph = UNDEF;
-    }
-
-    u = 0;
-    memcpy((char*)&u, ptr, MegaClient::USERHANDLE);
-    ptr += MegaClient::USERHANDLE;
-
-    // FIME: use m_time_t / Serialize64 instead
-    ptr += sizeof(time_t);
-
-    ts = (uint32_t)MemAccess::get<time_t>(ptr);
-    ptr += sizeof(time_t);
-
-    if ((t == FILENODE) || (t == FOLDERNODE))
-    {
-        int keylen = ((t == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH);
-
-        if (ptr + keylen + 8 + sizeof(short) > end)
-        {
-            return NULL;
-        }
-
-        nodekey.assign(ptr, keylen);
-        ptr += keylen;
-    }
-
-    if (t == FILENODE)
-    {
-        ll = MemAccess::get<unsigned short>(ptr);
-        ptr += sizeof ll;
-
-        if (ptr + ll > end)
-        {
-            return NULL;
-        }
-
-        fa = ptr;
-        ptr += ll;
-    }
-    else
-    {
-        fa = NULL;
-    }
-
-    if (ptr + sizeof isExported + sizeof hasLinkCreationTs > end)
-    {
-        return NULL;
-    }
-
-    isExported = MemAccess::get<char>(ptr);
-    ptr += sizeof(isExported);
-
-    hasLinkCreationTs = MemAccess::get<char>(ptr);
-    ptr += sizeof(hasLinkCreationTs);
-
-    auto authKeySize = MemAccess::get<char>(ptr);
-
-    ptr += sizeof authKeySize;
-    const char *authKey = nullptr;
-    if (authKeySize)
-    {
-        authKey = ptr;
-        ptr += authKeySize;
-    }
-
-    if (ptr + (unsigned)*ptr > end)
-    {
-        return nullptr;
-    }
-
-    auto encrypted = *ptr && ptr[1];
-
-    ptr += (unsigned)*ptr + 1;
-
-    for (i = 4; i--;)
-    {
-        if (ptr + (unsigned char)*ptr < end)
-        {
-            ptr += (unsigned char)*ptr + 1;
-        }
-    }
-
-    if (ptr + sizeof(short) > end)
-    {
-        return NULL;
-    }
-
-    short numshares = MemAccess::get<short>(ptr);
-    ptr += sizeof(numshares);
-
-    if (numshares)
-    {
-        if (ptr + SymmCipher::KEYLENGTH > end)
-        {
-            return NULL;
-        }
-
-        skey = (const byte*)ptr;
-        ptr += SymmCipher::KEYLENGTH;
-    }
-    else
-    {
-        skey = NULL;
-    }
-
-    shared_ptr<Node> n = std::make_shared<Node>(client, NodeHandle().set6byte(h), NodeHandle().set6byte(ph), t, s, u, fa, ts);
-
-    // read inshare, outshares, or pending shares
-    while (numshares)   // inshares: -1, outshare/s: num_shares
-    {
-        int direction = (numshares > 0) ? -1 : 0;
-        std::unique_ptr<NewShare> newShare(Share::unserialize(direction, h, skey, &ptr, end));
-
-        if (!newShare)
-        {
-            LOG_err << "Failed to unserialize Share";
-            break;
-        }
-
-        if (fromOldCache)
-        {
-            // mergenewshare should be called when users and pcr are loaded
-            // It's used only when we are migrating the cache
-            // mergenewshares is called when all nodes, user and pcr are loaded (fetchsc)
-            client.newshares.push_back(newShare.release());
-        }
-        else
-        {
-            ownNewshares.push_back(std::move(newShare));
-        }
-
-        if (numshares > 0)  // outshare/s
-        {
-            numshares--;
-        }
-        else    // inshare
-        {
-            break;
-        }
-    }
-
-    ptr = n->attrs.unserialize(ptr, end);
-    if (!ptr)
-    {
-        LOG_err << "Failed to unserialize attrs";
-        assert(false);
-        return NULL;
-    }
-
-    if (fromOldCache)
-    {
-        // It's needed to re-normalize node names because
-        // the updated version of utf8proc doesn't provide
-        // exactly the same output as the previous one that
-        // we were using
-        attr_map::iterator it = n->attrs.map.find('n');
-        if (it != n->attrs.map.end())
-        {
-            LocalPath::utf8_normalize(&(it->second));
-        }
-    }
-    // else from new cache, names has been normalized before to store in DB
-
-    if (isExported)
-    {
-        if (ptr + MegaClient::NODEHANDLE + sizeof(m_time_t) + sizeof(bool) > end)
-        {
-            return NULL;
-        }
-
-        handle ph = 0;
-        memcpy((char*)&ph, ptr, MegaClient::NODEHANDLE);
-        ptr += MegaClient::NODEHANDLE;
-        m_time_t ets = MemAccess::get<m_time_t>(ptr);
-        ptr += sizeof(ets);
-        bool takendown = MemAccess::get<bool>(ptr);
-        ptr += sizeof(takendown);
-
-        m_time_t cts = 0;
-        if (hasLinkCreationTs)
-        {
-            cts = MemAccess::get<m_time_t>(ptr);
-            ptr += sizeof(cts);
-        }
-
-        n->plink.reset(new PublicLink(ph, cts, ets, takendown, authKey ? authKey : ""));
-    }
-
-    if (encrypted)
-    {
-        // Have we encoded the node key data's length?
-        if (ptr + sizeof(uint32_t) > end)
-        {
-            return nullptr;
-        }
-
-        auto length = MemAccess::get<uint32_t>(ptr);
-        ptr += sizeof(length);
-
-        // Have we encoded the node key data?
-        if (ptr + length > end)
-        {
-            return nullptr;
-        }
-
-        nodekey.assign(ptr, length);
-        ptr += length;
-
-        // Have we encoded the length of the attribute string?
-        if (ptr + sizeof(uint32_t) > end)
-        {
-            return nullptr;
-        }
-
-        length = MemAccess::get<uint32_t>(ptr);
-        ptr += sizeof(length);
-
-        // Have we encoded the attribute string?
-        if (ptr + length > end)
-        {
-            return nullptr;
-        }
-
-        n->attrstring.reset(new string(ptr, length));
-        ptr += length;
-    }
-
-    if (ptr != end)
-    {
-        return nullptr;
-    }
-
-    n->setKey(nodekey); // it can be decrypted or encrypted
-
-    if (!encrypted)
-    {
-        // only if the node is not encrypted, we can generate a valid
-        // fingerprint, based on the node's attribute 'c'
-        n->setfingerprint();
-    }
-
-    return n;
+    NodeData nd(d->data(), d->size(), NodeData::COMPONENT_ALL);
+    return nd.createNode(client, fromOldCache, ownNewshares);
 }
 
 // serialize node - nodes with pending or RSA keys are unsupported
@@ -2061,6 +1779,81 @@ handle NodeData::getHandle()
     }
 
     return mHandle;
+}
+
+std::unique_ptr<Node> NodeData::createNode(MegaClient& client, bool fromOldCache, std::list<std::unique_ptr<NewShare>>& ownNewshares)
+{
+    assert(mComp == COMPONENT_ALL);
+    if (readFailed())
+    {
+        return nullptr;
+    }
+
+    unique_ptr<Node> n = mega::make_unique<Node>(client, NodeHandle().set6byte(mHandle), NodeHandle().set6byte(mParentHandle),
+                                                 mType, mSize, mUserHandle, mFileAttributes.c_str(), mCtime);
+
+    // read inshare, outshares, or pending shares
+    for (const auto& s : mShares)
+    {
+        int direction = (mShareCount > 0) ? -1 : 0;
+        const char* ptr = s.data();
+        NewShare* newShare = Share::unserialize(direction, mHandle, mShareKey.get(), &ptr, ptr + s.size());
+
+        if (!newShare)
+        {
+            LOG_err << "Failed to unserialize Share";
+            break;
+        }
+
+        if (fromOldCache)
+        {
+            // mergenewshare should be called when users and pcr are loaded
+            // It's used only when we are migrating the cache
+            // mergenewshares is called when all nodes, user and pcr are loaded (fetchsc)
+            client.newshares.push_back(newShare);
+        }
+        else
+        {
+            ownNewshares.emplace_back(newShare);
+        }
+    }
+
+    n->attrs = mAttrs;
+
+    if (fromOldCache)
+    {
+        // It's needed to re-normalize node names because
+        // the updated version of utf8proc doesn't provide
+        // exactly the same output as the previous one that
+        // we were using
+        attr_map::iterator it = n->attrs.map.find('n');
+        if (it != n->attrs.map.end())
+        {
+            LocalPath::utf8_normalize(&(it->second));
+        }
+    }
+    // else from new cache, names has been normalized before to store in DB
+
+    if (mIsExported)
+    {
+        n->plink.reset(new PublicLink(mPubLinkHandle, mPubLinkCts, mPubLinkEts, mPubLinkTakenDown, mAuthKey.c_str()));
+    }
+
+    if (mIsEncrypted)
+    {
+        n->attrstring.reset(new string(mAttrString));
+    }
+
+    n->setKey(mNodeKey); // it can be decrypted or encrypted
+
+    if (!mIsEncrypted)
+    {
+        // only if the node is not encrypted, we can generate a valid
+        // fingerprint, based on the node's attribute 'c'
+        n->setfingerprint();
+    }
+
+    return n;
 }
 
 
