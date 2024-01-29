@@ -1314,14 +1314,14 @@ m_off_t CloudRaid::readData(int connection, byte* buf, m_off_t len)
 bool CloudRaid::resumeAllConnections()
 {
     if (!shown.load())
-        return -1;
+        return false;
     return Pimpl()->resumeAllConnections();
 }
 
 bool CloudRaid::raidReqDoio(int connection)
 {
     if (!shown.load())
-        return -1;
+        return false;
     return Pimpl()->raidReqDoio(connection);
 }
 

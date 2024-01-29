@@ -1,5 +1,8 @@
 #include <algorithm>
 #include <map>
+#include <bitset>
+#include <cstdint>
+#include <climits>
 
 #include "mega/raidproxy.h"
 #include "mega.h"
@@ -799,7 +802,7 @@ void RaidReq::procdata(int part, byte* ptr, m_off_t pos, m_off_t len)
                             static_cast<byte*>(std::realloc(itReadAhead->second.first, ahead_len)) :
                             static_cast<byte*>(malloc(ahead_len));
             memcpy(p, ahead_ptr, ahead_len);
-            fetcher[part].readahead[ahead_pos] = pair<byte*, unsigned>(p, ahead_len);
+            fetcher[part].readahead[ahead_pos] = pair<byte*, unsigned>(p, static_cast<unsigned>(ahead_len));
         }
         // if this is a pure readahead, we're done
         if (!consecutive) return;
@@ -868,7 +871,8 @@ void RaidReq::procdata(int part, byte* ptr, m_off_t pos, m_off_t len)
     for (; completed < until; completed++)
     {
         unsigned char mask = invalid[completed];
-        auto bitsSet = __builtin_popcount(mask); // machine instruction for number of bits set
+        std::bitset<CHAR_BIT * sizeof(unsigned char)> bits(mask);
+        auto bitsSet = bits.count();
 
         assert(bitsSet);
         if (bitsSet > 1)
@@ -881,8 +885,30 @@ void RaidReq::procdata(int part, byte* ptr, m_off_t pos, m_off_t len)
             {
                 // parity involved in this line
 
-                int index = __builtin_ctz(mask); // counts least significant consecutive 0 bits (ie 0-based index of least significant 1 bit).  Windows equivalent is _bitScanForward
-                if (index > 0 && index < RAIDLINE)
+                    int index = -1;
+#ifdef _MSC_VER
+                    unsigned long bitIndex;
+                    if (_BitScanForward(&bitIndex, mask))
+                    {
+                        index = static_cast<int>(bitIndex);
+                    }
+#else
+                    // __GNUC__ is defined for both GCC and Clang
+#if defined(__GNUC__)
+                    index = __builtin_ctz(mask); // counts least significant consecutive 0 bits (ie 0-based index of least significant 1 bit).  Windows equivalent is _bitScanForward
+#else
+                    // Fallback to a loop for other compilers
+                    for (int i = 0; i < RAIDLINE; ++i)
+                    {
+                        if (mask & (1 << i))
+                        {
+                            index = i;
+                            break;
+                        }
+                    }
+#endif
+#endif
+                if (index != -1) // index > 0 && index < RAIDLINE
                 {
                     auto sectors = (raidsector_t*)(data + (RAIDLINE * completed));
                     raidsector_t& target = sectors[index - 1];
