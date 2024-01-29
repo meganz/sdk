@@ -462,15 +462,19 @@ void SdkTest::Cleanup()
             for (int i = 0u; i < chats->size(); ++i)
             {
                 const MegaTextChat* c = chats->get(i);
-                RequestTracker rt(megaApi[nApi].get());
-                megaApi[nApi]->chatLinkQuery(c->getHandle(), &rt);
-                auto e = rt.waitForResult();
-                EXPECT_TRUE(e == API_OK || e == API_ENOENT || e == API_EACCESS) << "e == " << e;
-                if (e == API_OK)
+                ASSERT_TRUE(c);
+                if (c->getOwnPrivilege() == PRIV_MODERATOR)
                 {
-                    RequestTracker rtD(megaApi[nApi].get());
-                    megaApi[nApi]->chatLinkDelete(c->getHandle(), &rtD);
-                    EXPECT_EQ(rtD.waitForResult(), API_OK);
+                    RequestTracker rt(megaApi[nApi].get());
+                    megaApi[nApi]->chatLinkQuery(c->getHandle(), &rt);
+                    auto e = rt.waitForResult();
+                    EXPECT_TRUE(e == API_OK || e == API_ENOENT || e == API_EACCESS) << "e == " << e;
+                    if (e == API_OK)
+                    {
+                        RequestTracker rtD(megaApi[nApi].get());
+                        megaApi[nApi]->chatLinkDelete(c->getHandle(), &rtD);
+                        EXPECT_EQ(rtD.waitForResult(), API_OK);
+                    }
                 }
             }
 #endif
