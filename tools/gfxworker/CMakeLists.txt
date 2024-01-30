@@ -1,4 +1,3 @@
-# libgfxwoker
 add_library(libgfxworker
     STATIC
     src/logger.h
@@ -13,7 +12,7 @@ add_library(libgfxworker
 
 target_include_directories(libgfxworker
     PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+    src
 )
 
 target_link_libraries(libgfxworker
@@ -24,10 +23,9 @@ target_link_libraries(libgfxworker
 target_compile_definitions(libgfxworker
     PUBLIC
     UNICODE
-    NOMINMAX # TODO Fix locally
+    NOMINMAX
 )
 
-# gfxworker executable
 add_executable(gfxworker
     src/main.cpp
 )
@@ -37,13 +35,11 @@ target_link_libraries(gfxworker
     libgfxworker
 )
 
-# test
 if(ENABLE_TESTS)
     add_subdirectory(tests/integration)
 endif()
 
-# TODO: this is temperary solution to copy gfxworker so we can run jenkins
-# and megacli
+# Copy gfxworker into directories where it is used
 if(TARGET test_integration)
     add_custom_command(
         TARGET gfxworker POST_BUILD
