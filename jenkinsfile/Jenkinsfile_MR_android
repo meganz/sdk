@@ -148,15 +148,13 @@ pipeline {
                                         [$class: 'PreBuildMerge', options: [fastForwardMode: 'FF', mergeRemote: "origin", mergeStrategy: 'DEFAULT', mergeTarget: "${env.gitlabTargetBranch}"]]
                                         ]
                                 ])
-                                script{
-                                    sdk_sources_workspace = WORKSPACE
-                                }
                             }
                         }
 
                         stage('Download prebuilt third-party-sources for example'){
                             steps {
                                 dir("${env.THIRD_PARTY_SOURCES_EXAMPLE_PATH}"){
+                                    sh "pwd"
                                     sh "jf rt download third-party-sources-sdk/3rdparty-sdk-android-example.tar.gz ."
                                     sh "tar -xvf 3rdparty-sdk-android-example.tar.gz --skip-old-files"
                                 }
@@ -170,7 +168,7 @@ pipeline {
                                 ANDROID_NDK_HOME ="/home/jenkins/android-ndk/"
                             }
                             steps{
-                                dir("${sdk_sources_workspace}/examples/android/ExampleApp") {
+                                dir("examples/android/ExampleApp") {
                                     script{
                                         env.PATH="${env.PATH}:${env.ANDROID_HOME}/cmdline-tools/tools/bin/"
                                     }
@@ -183,12 +181,10 @@ pipeline {
                                         //Build SDK and libs
                                         sh "bash -x ./build.sh all"
                                         script {
-                                            if ("${env.UPLOAD_THIRD_PARTY_SOURCES_EXAMPLE}" == "true"){
-                                                dir("${env.THIRD_PARTY_SOURCES_EXAMPLE_PATH}"){
-                                                    sh "tar -czvf 3rdparty-sdk-android-example-new.tar.gz cryptopp curl icu libuv libwebsockets mediainfo pdfviewer sodium sqlite"
-                                                    sh "jf rt upload 3rdparty-sdk-android-example-new.tar.gz third-party-sources-sdk/"
-
-                                                }
+                                            if ("${UPLOAD_THIRD_PARTY_SOURCES_EXAMPLE}" == "true"){
+                                                sh "tar -czvf 3rdparty-sdk-android-example.tar.gz cryptopp curl icu libuv mediainfo openssl sodium sqlite"
+                                                sh "jf rt upload 3rdparty-sdk-android-example.tar.gz third-party-sources-sdk/"
+                                                sh "rm 3rdparty-sdk-android-example.tar.gz"
                                             }                                        
                                         }
                                     }
@@ -283,7 +279,7 @@ pipeline {
                             }
                             steps{
                                 //build SDK
-                                dir("sdk/src/main/jni"){
+                                dir("${env.THIRD_PARTY_SOURCES_ANDROID_PATH}"){
                                     script{
                                         env.PATH="${env.PATH}:${env.ANDROID_HOME}/cmdline-tools/tools/bin/"
                                     }
@@ -292,11 +288,10 @@ pipeline {
                                     sh "sed -i 's#LOG_FILE=/dev/null#LOG_FILE=/dev/stdout#g' build.sh"
                                     sh "./build.sh all"
                                     script {
-                                        if ("${env.UPLOAD_THIRD_PARTY_SOURCES}" == "true"){
-                                            dir("${env.THIRD_PARTY_SOURCES_ANDROID_PATH}"){
-                                                sh "tar -czvf 3rdparty-sdk-new.tar.gz cryptopp curl icu libuv libwebsockets mediainfo pdfviewer sodium sqlite"
-                                                sh "jf rt upload 3rdparty-sdk-new.tar.gz third-party-sources-sdk/"
-                                            }
+                                        if ("${UPLOAD_THIRD_PARTY_SOURCES}" == "true"){
+                                            sh "tar -czvf 3rdparty-sdk.tar.gz cryptopp curl icu libuv libwebsockets mediainfo pdfviewer sodium sqlite"
+                                            sh "jf rt upload 3rdparty-sdk.tar.gz third-party-sources-sdk/"
+                                            sh "rm 3rdparty-sdk.tar.gz"
                                         }                                        
                                     }
                                 }
