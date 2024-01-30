@@ -27994,15 +27994,8 @@ MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFo
     nodetype_t dirEntryType;
     while (da->dnext(localPath, localname, false, &dirEntryType))
     {
-
-        if (isCancelledByFolderTransferToken())
+        if (isStoppedOrCancelled("MegaFolderUploadController::scanFolder"))
         {
-            LOG_debug << "MegaFolderUploadController::scanFolder thread stopped by cancel token";
-            return scanFolder_cancelled;
-        }
-        if (mWorkerThreadStopFlag)
-        {
-            LOG_debug << "MegaFolderUploadController::scanFolder thread stopped by flag";
             return scanFolder_cancelled;
         }
 
@@ -29574,7 +29567,7 @@ MegaFolderDownloadController::scanFolder_result MegaFolderDownloadController::sc
     return scanFolder_succeeded;
 }
 
-bool MegaFolderDownloadController::IsStoppedOrCancelled(const std::string& name) const
+bool MegaRecursiveOperation::isStoppedOrCancelled(const std::string& name) const
 {
     if (mWorkerThreadStopFlag)
     {
@@ -29608,7 +29601,7 @@ std::unique_ptr<TransferQueue> MegaFolderDownloadController::createFolderGenDown
     auto it = mLocalTree.begin();
     while (it != mLocalTree.end())
     {
-        if (IsStoppedOrCancelled("MegaFolderDownloadController::createFolderGenDownloadTransfersForFiles"))
+        if (isStoppedOrCancelled("MegaFolderDownloadController::createFolderGenDownloadTransfersForFiles"))
         {
             e = API_EINCOMPLETE;
             return nullptr;
@@ -29654,7 +29647,7 @@ bool MegaFolderDownloadController::genDownloadTransfersForFiles(
 
     for (auto& fileNode : folder.childrenNodes)
     {
-        if (IsStoppedOrCancelled("MegaFolderDownloadController::genDownloadTransfersForFiles"))
+        if (isStoppedOrCancelled("MegaFolderDownloadController::genDownloadTransfersForFiles"))
         {
             return false;
         }

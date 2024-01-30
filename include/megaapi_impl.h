@@ -284,6 +284,9 @@ protected:
 
     // called from onTransferFinish for the last sub-transfer
     void complete(Error e, bool cancelledByUser = false);
+    
+    // return true if thread is stopped or canceled by transfer token
+    bool isStoppedOrCancelled(const std::string& name) const;
 
 private:
     // client ptr to only be used from the MegaApiImpl's thread
@@ -538,8 +541,6 @@ protected:
     // Scan entire tree recursively, and retrieve folder structure and files to be downloaded.
     enum scanFolder_result { scanFolder_succeeded, scanFolder_cancelled, scanFolder_failed };
     scanFolder_result scanFolder(MegaNode *node, LocalPath& path, FileSystemType fsType, unsigned& fileAddedCount);
-
-    bool IsStoppedOrCancelled(const std::string& name) const;
 
     // Create all local directories in one shot. This happens on the worker thread.
     std::unique_ptr<TransferQueue> createFolderGenDownloadTransfersForFiles(FileSystemType fsType, uint32_t fileCount, Error& e);
