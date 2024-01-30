@@ -10,6 +10,13 @@
 using namespace ::mega::RaidProxy;
 
 #define MAX_DELAY_IN_SECONDS 30
+#define OWNREADAHEAD 64
+#define ISOWNREADAHEAD(X) ((X) & OWNREADAHEAD)
+#define VALIDPARTS(X) ((X) & (OWNREADAHEAD-1))
+#define SECTORFLOOR(X) ((X) & -RAIDSECTOR)
+
+
+/* -------------- PartFetcher --------------*/
 
 PartFetcher::PartFetcher()
 {
@@ -53,39 +60,6 @@ PartFetcher::~PartFetcher()
         }
     }
 }
-
-bool PartFetcher::setsource(const std::string& partUrl, RaidReq* crr, int cpart)
-{
-    url = partUrl;
-    part = cpart;
-    rr = crr;
-    partStartPos = rr->reqStartPos / (RAIDPARTS-1);
-    assert(partStartPos % RAIDSECTOR == 0);
-
-    sourcesize = RaidReq::raidPartSize(part, rr->filesize);
-    return true;
-}
-
-size_t RaidReq::raidPartSize(int part, size_t fullfilesize)
-{
-    // compute the size of this raid part based on the original file size len
-    int r = static_cast<int>(fullfilesize) % RAIDLINE; // residual part
-
-    // parts 0 (parity) & 1 (largest data) are the same size
-    int t = r - ((part - !!part) * RAIDSECTOR);
-
-    // (excess length will be found in the following sectors,
-    // negative length in the preceding sectors)
-    if (t < 0) t = 0;
-    else if (t > RAIDSECTOR) t = RAIDSECTOR;
-
-    return (fullfilesize - r) / (RAIDPARTS - 1) + t;
-}
-
-#define OWNREADAHEAD 64
-#define ISOWNREADAHEAD(X) ((X) & OWNREADAHEAD)
-#define VALIDPARTS(X) ((X) & (OWNREADAHEAD-1))
-#define SECTORFLOOR(X) ((X) & -RAIDSECTOR)
 
 // sets the next read position (pos) and the remaining read length (rem/remfeed),
 // taking into account all readahead data and ongoing reads on other connected
@@ -232,52 +206,17 @@ bool PartFetcher::setremfeed(m_off_t numBytes)
     return remfeed != 0;
 }
 
-bool RaidReq::allconnected(int excludedPart)
+bool PartFetcher::setsource(const std::string& partUrl, RaidReq* crr, int cpart)
 {
-    for (int i = RAIDPARTS; i--; ) if (i != excludedPart && !fetcher[i].connected) return false;
+    url = partUrl;
+    part = cpart;
+    rr = crr;
+    partStartPos = rr->reqStartPos / (RAIDPARTS-1);
+    assert(partStartPos % RAIDSECTOR == 0);
 
+    sourcesize = RaidReq::raidPartSize(part, rr->filesize);
+    LOG_debug << "[PartFetcher::setsource] part = " << cpart << ", partStartPos = " << partStartPos << ", sourcesize = " << sourcesize;
     return true;
-}
-
-m_off_t PartFetcher::getSocketSpeed()
-{
-    if (!timeInflight)
-    {
-        return 0;
-    }
-    // In Bytes per millisec
-    return reqBytesReceived / timeInflight;
-}
-
-// close socket
-void PartFetcher::closesocket(bool reuseSocket)
-{
-    if (skip_setposrem)
-    {
-        skip_setposrem = false;
-    }
-    else
-    {
-        rem = 0;
-        remfeed = 0; // need to clear remfeed so that the disconnected channel does not corrupt feedlag
-    }
-    postCompleted = false;
-    if (inbuf) inbuf.reset(nullptr);
-
-    auto& httpReq = rr->httpReqs[part];
-    if (httpReq)
-    {
-        if (connected)
-        {
-            if (!reuseSocket || httpReq->status == REQ_INFLIGHT)
-            {
-                rr->cloudRaid->disconnect(httpReq);
-            }
-            httpReq->status = REQ_READY;
-        }
-        rr->pool.removeio(httpReq);
-    }
-    connected = false;
 }
 
 // (re)create, set up socket and start (optionally delayed) io on it
@@ -333,6 +272,37 @@ bool PartFetcher::directTrigger(bool addDirectio)
         return true;
     }
     return !addDirectio;
+}
+
+// close socket
+void PartFetcher::closesocket(bool reuseSocket)
+{
+    if (skip_setposrem)
+    {
+        skip_setposrem = false;
+    }
+    else
+    {
+        rem = 0;
+        remfeed = 0; // need to clear remfeed so that the disconnected channel does not corrupt feedlag
+    }
+    postCompleted = false;
+    if (inbuf) inbuf.reset(nullptr);
+
+    auto& httpReq = rr->httpReqs[part];
+    if (httpReq)
+    {
+        if (connected)
+        {
+            if (!reuseSocket || httpReq->status == REQ_INFLIGHT)
+            {
+                rr->cloudRaid->disconnect(httpReq);
+            }
+            httpReq->status = REQ_READY;
+        }
+        rr->pool.removeio(httpReq);
+    }
+    connected = false;
 }
 
 // perform I/O on socket (which is assumed to exist)
@@ -399,6 +369,7 @@ int PartFetcher::io()
 
         m_off_t npos = pos + rem;
         assert(npos <= rr->paddedpartsize);
+        LOG_debug << "[RaidProxy::io] prepareRequest -> pos = " << (pos + partStartPos) << ", npos = " << (npos + partStartPos) << " [partStartPos = " << partStartPos << ", rem = " << rem << "]";
         rr->cloudRaid->prepareRequest(httpReq, url, pos + partStartPos, npos + partStartPos);
         assert(httpReq->status == REQ_PREPARED);
         connected = true;
@@ -512,6 +483,79 @@ int PartFetcher::io()
     return -1;
 }
 
+// request a further chunk of data from the open connection
+// (we cannot call io() directly due procdata() being non-reentrant)
+void PartFetcher::cont(m_off_t numbytes)
+{
+    if (connected && pos < rr->paddedpartsize)
+    {
+        assert(!finished);
+        setremfeed(numbytes);
+        trigger();
+    }
+}
+
+// feed suitable readahead data
+bool PartFetcher::feedreadahead()
+{
+    if (readahead.empty()) return false;
+
+    auto total = readahead.size();
+    auto remaining = total;
+
+    while (remaining)
+    {
+        auto it = readahead.begin();
+
+        // make sure that we feed gaplessly
+        if ((it->first < ((rr->dataline + rr->completed) * RAIDSECTOR)))
+        {
+            LOG_warn << "Gaps found on read ahead feed";
+        }
+        assert(it->first >= ((rr->dataline + rr->completed) * RAIDSECTOR));
+
+        // we only take over from any source if we match the completed boundary precisely
+        if (it->first == ((rr->dataline + rr->completed) * RAIDSECTOR)) rr->partpos[part] = it->first - (rr->dataline * RAIDSECTOR);
+
+        // always continue at any position on our own source
+        if (it->first != ((rr->dataline * RAIDSECTOR) + rr->partpos[part])) break;
+
+        // we do not feed chunks that cannot even be processed in part (i.e. that start at or past the end of the buffer)
+        if ((it->first - (rr->dataline * RAIDSECTOR)) >= (NUMLINES * RAIDSECTOR)) break;
+
+        m_off_t p = it->first;
+        byte* d = it->second.first;
+        unsigned l = it->second.second;
+        readahead.erase(it);
+
+        rr->procdata(part, d, p, l);
+        free(d);
+
+        remaining--;
+    }
+
+    return total && total != remaining;
+}
+
+// resume fetching on a parked source that has become eligible again
+void PartFetcher::resume(bool forceSetPosRem)
+{
+    bool resumeCondition = finished ? false : true;
+
+    if (resumeCondition)
+    {
+        if (forceSetPosRem || ((!connected || !rem) && (pos < rr->paddedpartsize)))
+        {
+            setposrem();
+        }
+
+        if (rem || (pos < rr->paddedpartsize) || rr->httpReqs[part]->status == REQ_SUCCESS)
+        {
+            trigger();
+        }
+    }
+}
+
 int PartFetcher::onFailure()
 {
     auto& httpReq = rr->httpReqs[part];
@@ -581,17 +625,20 @@ int PartFetcher::onFailure()
     return -1;
 }
 
-// request a further chunk of data from the open connection
-// (we cannot call io() directly due procdata() being non-reentrant)
-void PartFetcher::cont(m_off_t numbytes)
+m_off_t PartFetcher::getSocketSpeed() const
 {
-    if (connected && pos < rr->paddedpartsize)
+    if (!timeInflight)
     {
-        assert(!finished);
-        setremfeed(numbytes);
-        trigger();
+        return 0;
     }
+    // In Bytes per millisec
+    return reqBytesReceived / timeInflight;
 }
+
+/* -------------- PartFetcher END --------------*/
+
+
+/* -------------- RaidReq --------------*/
 
 RaidReq::RaidReq(const Params& p, RaidReqPool& rrp, const std::shared_ptr<CloudRaid>& cloudRaid)
     : pool(rrp)
@@ -621,6 +668,7 @@ RaidReq::RaidReq(const Params& p, RaidReqPool& rrp, const std::shared_ptr<CloudR
     filesize = p.filesize;
     paddedpartsize = (raidPartSize(0, filesize)+RAIDSECTOR-1) & -RAIDSECTOR;
     maxRequestSize = p.maxRequestSize;
+    LOG_debug << "[RaidReq::RaidReq] filesize = " << filesize << ", paddedpartsize = " << paddedpartsize << ", maxRequestSize = " << maxRequestSize;
 
     lastdata = Waiter::ds;
     haddata = false;
@@ -651,9 +699,101 @@ RaidReq::RaidReq(const Params& p, RaidReqPool& rrp, const std::shared_ptr<CloudR
 
 RaidReq::~RaidReq()
 {
+    LOG_debug << "[RaidReq::~RaidReq] call";
 }
 
-int RaidReq::numPartsUnfinished()
+void RaidReq::dispatchio(const HttpReqPtr& httpReq)
+{
+    // fast lookup of which PartFetcher to call from a single cache line
+    // we don't check for httpReq not being found since we know sometimes it won't be when we closed a socket to a slower/nonresponding server
+    for (int i = RAIDPARTS; i--; )
+    {
+        if (httpReqs[i] == httpReq)
+        {
+            int t = fetcher[i].io();
+
+            if (t > 0)
+            {
+                // this is a relatively infrequent ocurrence, so we tolerate the overhead of a std::set insertion/erasure
+                pool.addScheduledio(Waiter::ds + t, httpReqs[i]);
+            }
+            break;
+        }
+    }
+}
+
+void RaidReq::shiftdata(m_off_t len)
+{
+    skip += len;
+    rem -= len;
+
+    if (rem)
+    {
+        auto shiftby = skip / RAIDLINE;
+
+        completed -= shiftby;
+
+        skip %= RAIDLINE;
+
+        // we remove completed sectors/lines from the beginning of all state buffers
+        m_off_t eobData = 0, eobAll = 0;
+        for (int i = RAIDPARTS; i--; )
+        {
+            if (i > 0 && partpos[i] > eobData) eobData = partpos[i];
+            if (partpos[i] > eobAll) eobAll = partpos[i];
+        }
+        eobData = (eobData + RAIDSECTOR - 1) / RAIDSECTOR;
+        eobAll = (eobAll + RAIDSECTOR - 1) / RAIDSECTOR;
+
+        if (eobData > shiftby)
+        {
+            memmove(data, data + (shiftby * RAIDLINE), (eobData - shiftby) * RAIDLINE);
+        }
+
+        if (eobAll > shiftby)
+        {
+            memmove(invalid, invalid + shiftby, eobAll - shiftby);
+            memset(invalid + eobAll - shiftby, (1 << RAIDPARTS) - 1, shiftby);
+        }
+        else
+        {
+            memset(invalid, (1 << RAIDPARTS) - 1, shiftby);
+        }
+
+        dataline += shiftby;
+        shiftby *= RAIDSECTOR;
+
+        if (partpos[0] > shiftby) memmove(parity, parity + shiftby, partpos[0] - shiftby);
+
+        // shift partpos[] by the dataline increment and retrigger data flow
+        for (int i = RAIDPARTS; i--; )
+        {
+            partpos[i] -= shiftby;
+
+            if (partpos[i] < 0) partpos[i] = 0;
+            else
+            {
+                if (!fetcher[i].finished)
+                {
+                    // request 1 less RAIDSECTOR as we will add up to 1 sector of 0 bytes at the end of the file - this leaves enough buffer space in the buffer passed to procdata for us to write past the reported length
+                    fetcher[i].cont(static_cast<m_off_t>((NUMLINES * RAIDSECTOR) - partpos[i]));
+                }
+            }
+        }
+
+        haddata = true;
+        lastdata = Waiter::ds;
+    }
+}
+
+bool RaidReq::allconnected(int excludedPart) const
+{
+    for (int i = RAIDPARTS; i--; ) if (i != excludedPart && !fetcher[i].connected) return false;
+
+    return true;
+}
+
+int RaidReq::numPartsUnfinished() const
 {
    int count = 0;
    for (int i = RAIDPARTS; i--;)
@@ -664,107 +804,6 @@ int RaidReq::numPartsUnfinished()
         }
    }
    return count;
-}
-
-// resume fetching on a parked source that has become eligible again
-void PartFetcher::resume(bool forceSetPosRem)
-{
-    bool resumeCondition = finished ? false : true;
-
-    if (resumeCondition)
-    {
-        if (forceSetPosRem || ((!connected || !rem) && (pos < rr->paddedpartsize)))
-        {
-            setposrem();
-        }
-
-        if (rem || (pos < rr->paddedpartsize) || rr->httpReqs[part]->status == REQ_SUCCESS)
-        {
-            trigger();
-        }
-    }
-}
-
-// try to resume fetching on all sources
-void RaidReq::resumeall(int excludedPart)
-{
-    if (rem)
-    {
-        {
-            for (int i = RAIDPARTS; i--; )
-            {
-                if (i != excludedPart)
-                {
-                    if (fetcher[i].finished)
-                    {
-                        fetcher[i].directTrigger();
-                    }
-                    else if (fetcher[i].connected)
-                    {
-                        fetcher[i].resume();
-                    }
-                }
-            }
-        }
-    }
-}
-
-// feed suitable readahead data
-bool PartFetcher::feedreadahead()
-{
-    if (readahead.empty()) return false;
-
-    auto total = readahead.size();
-    auto remaining = total;
-
-    while (remaining)
-    {
-        auto it = readahead.begin();
-
-        // make sure that we feed gaplessly
-        if ((it->first < ((rr->dataline + rr->completed) * RAIDSECTOR)))
-        {
-            LOG_warn << "Gaps found on read ahead feed";
-        }
-        assert(it->first >= ((rr->dataline + rr->completed) * RAIDSECTOR));
-
-        // we only take over from any source if we match the completed boundary precisely
-        if (it->first == ((rr->dataline + rr->completed) * RAIDSECTOR)) rr->partpos[part] = it->first - (rr->dataline * RAIDSECTOR);
-
-        // always continue at any position on our own source
-        if (it->first != ((rr->dataline * RAIDSECTOR) + rr->partpos[part])) break;
-
-        // we do not feed chunks that cannot even be processed in part (i.e. that start at or past the end of the buffer)
-        if ((it->first - (rr->dataline * RAIDSECTOR)) >= (NUMLINES * RAIDSECTOR)) break;
-
-        m_off_t p = it->first;
-        byte* d = it->second.first;
-        unsigned l = it->second.second;
-        readahead.erase(it);
-
-        rr->procdata(part, d, p, l);
-        free(d);
-
-        remaining--;
-    }
-
-    return total && total != remaining;
-}
-
-// feed relevant read-ahead data to procdata
-// returns true if any data was processed
-void RaidReq::procreadahead()
-{
-    bool fed;
-
-    do {
-        fed = false;
-
-        for (int i = RAIDPARTS; i--; )
-        {
-            if (fetcher[i].feedreadahead()) fed = true;
-        }
-    } while (fed);
 }
 
 // procdata() handles input in any order/size and will push excess data to readahead
@@ -929,73 +968,156 @@ void RaidReq::procdata(int part, byte* ptr, m_off_t pos, m_off_t len)
     {
         lastdata = Waiter::ds;
     }
-
 }
 
-void RaidReq::shiftdata(m_off_t len)
+m_off_t RaidReq::readdata(byte* buf, m_off_t len)
 {
-    skip += len;
-    rem -= len;
+    watchdog();
 
-    if (rem)
+    m_off_t lenCompleted = 0;
+    m_off_t old_completed, new_completed;
+    m_off_t t;
+    do
     {
-        auto shiftby = skip / RAIDLINE;
-
-        completed -= shiftby;
-
-        skip %= RAIDLINE;
-
-        // we remove completed sectors/lines from the beginning of all state buffers
-        m_off_t eobData = 0, eobAll = 0;
-        for (int i = RAIDPARTS; i--; )
+        if (completed < NUMLINES)
         {
-            if (i > 0 && partpos[i] > eobData) eobData = partpos[i];
-            if (partpos[i] > eobAll) eobAll = partpos[i];
-        }
-        eobData = (eobData + RAIDSECTOR - 1) / RAIDSECTOR;
-        eobAll = (eobAll + RAIDSECTOR - 1) / RAIDSECTOR;
-
-        if (eobData > shiftby)
-        {
-            memmove(data, data + (shiftby * RAIDLINE), (eobData - shiftby) * RAIDLINE);
-        }
-
-        if (eobAll > shiftby)
-        {
-            memmove(invalid, invalid + shiftby, eobAll - shiftby);
-            memset(invalid + eobAll - shiftby, (1 << RAIDPARTS) - 1, shiftby);
+            old_completed = completed;
+            procreadahead();
         }
         else
         {
-            memset(invalid, (1 << RAIDPARTS) - 1, shiftby);
+            old_completed = 0;
         }
+        new_completed = completed;
+        t = (completed * RAIDLINE) - skip;
 
-        dataline += shiftby;
-        shiftby *= RAIDSECTOR;
 
-        if (partpos[0] > shiftby) memmove(parity, parity + shiftby, partpos[0] - shiftby);
-
-        // shift partpos[] by the dataline increment and retrigger data flow
-        for (int i = RAIDPARTS; i--; )
+        if (t > 0)
         {
-            partpos[i] -= shiftby;
+            if ((t + lenCompleted) > len) t = len - lenCompleted;
+            memmove(buf + lenCompleted, data + skip, t);
+            lenCompleted += t;
 
-            if (partpos[i] < 0) partpos[i] = 0;
-            else
+            shiftdata(t);
+        }
+        else
+        {
+            if (Waiter::ds-lastdata > 1000)
             {
-                if (!fetcher[i].finished)
+                if (Waiter::ds-lastdata > 6000)
                 {
-                    // request 1 less RAIDSECTOR as we will add up to 1 sector of 0 bytes at the end of the file - this leaves enough buffer space in the buffer passed to procdata for us to write past the reported length
-                    fetcher[i].cont(static_cast<m_off_t>((NUMLINES * RAIDSECTOR) - partpos[i]));
+                    LOG_warn << "CloudRAID feed timed out [haddata = " << haddata << "]";
+                    return -1;
+                }
+
+                if (!reported)
+                {
+                    reported = true;
+                    LOG_warn << "CloudRAID feed stuck [haddata = " << haddata << "]";
                 }
             }
         }
+    } while (new_completed > old_completed && t > 0 && lenCompleted < len);
 
-        haddata = true;
-        lastdata = Waiter::ds;
+    if (lenCompleted)
+    {
+        resumeall();
+    }
+
+    return lenCompleted;
+}
+
+// try to resume fetching on all sources
+void RaidReq::resumeall(int excludedPart)
+{
+    if (rem)
+    {
+        {
+            for (int i = RAIDPARTS; i--; )
+            {
+                if (i != excludedPart)
+                {
+                    if (fetcher[i].finished)
+                    {
+                        fetcher[i].directTrigger();
+                    }
+                    else if (fetcher[i].connected)
+                    {
+                        fetcher[i].resume();
+                    }
+                }
+            }
+        }
     }
 }
 
+// feed relevant read-ahead data to procdata
+// returns true if any data was processed
+void RaidReq::procreadahead()
+{
+    bool fed;
+
+    do {
+        fed = false;
+
+        for (int i = RAIDPARTS; i--; )
+        {
+            if (fetcher[i].feedreadahead()) fed = true;
+        }
+    } while (fed);
+}
+
+// watchdog: resolve stuck connections
+void RaidReq::watchdog()
+{
+    if (missingsource) return;
+
+    // check for a single fast source hanging
+    int hanging = 0;
+    int hangingsource = -1;
+    int idlegoodsource = -1;
+
+    for (int i = RAIDPARTS; i--; )
+    {
+        if (fetcher[i].connected)
+        {
+            if (httpReqs[i]->status == REQ_INFLIGHT)
+            {
+                fetcher[i].lastdata = httpReqs[i]->lastdata;
+                if (fetcher[i].remfeed && ((Waiter::ds - httpReqs[i]->lastdata > 100) || (Waiter::ds - fetcher[i].lastdata > 200)))
+                {
+                    hanging++;
+                    hangingsource = i;
+                }
+            }
+        }
+        else if (!fetcher[i].finished && !fetcher[i].errors) idlegoodsource = i;
+    }
+
+    if (hanging)
+    {
+        {
+            if (idlegoodsource >= 0)
+            {
+                fetcher[hangingsource].errors++;
+                fetcher[hangingsource].closesocket();
+                if (fetcher[idlegoodsource].trigger() == -1)
+                {
+                    fetcher[hangingsource].trigger();
+                }
+                return;
+            }
+        }
+    }
+}
+
+void RaidReq::disconnect()
+{
+    for (auto& httpReq : httpReqs)
+    {
+        httpReq->disconnect();
+    }
+}
 
 int RaidReq::processFeedLag()
 {
@@ -1060,134 +1182,28 @@ int RaidReq::processFeedLag()
     return laggedPart;
 }
 
-void RaidReq::dispatchio(const HttpReqPtr& httpReq)
+size_t RaidReq::raidPartSize(int part, size_t fullfilesize)
 {
-    // fast lookup of which PartFetcher to call from a single cache line
-    // we don't check for httpReq not being found since we know sometimes it won't be when we closed a socket to a slower/nonresponding server
-    for (int i = RAIDPARTS; i--; )
-    {
-        if (httpReqs[i] == httpReq)
-        {
-            int t = fetcher[i].io();
+    // compute the size of this raid part based on the original file size len
+    int r = static_cast<int>(fullfilesize) % RAIDLINE; // residual part
 
-            if (t > 0)
-            {
-                // this is a relatively infrequent ocurrence, so we tolerate the overhead of a std::set insertion/erasure
-                pool.addScheduledio(Waiter::ds + t, httpReqs[i]);
-            }
-            break;
-        }
-    }
+    // parts 0 (parity) & 1 (largest data) are the same size
+    int t = r - ((part - !!part) * RAIDSECTOR);
+
+    // (excess length will be found in the following sectors,
+    // negative length in the preceding sectors)
+    if (t < 0) t = 0;
+    else if (t > RAIDSECTOR) t = RAIDSECTOR;
+
+    LOG_debug << "[RaidReq::raidPartSize] return (fullfilesize - r) / (RAIDPARTS - 1) + t = (" << fullfilesize << " -  " << r << ") / (" << (RAIDPARTS - 1) << ") + " << t << " = " << ((fullfilesize - r) / (RAIDPARTS - 1)) << " + " << t << " = " << ((fullfilesize - r) / (RAIDPARTS - 1) + t);
+
+    return (fullfilesize - r) / (RAIDPARTS - 1) + t;
 }
 
-// watchdog: resolve stuck connections
-void RaidReq::watchdog()
-{
-    if (missingsource) return;
-
-    // check for a single fast source hanging
-    int hanging = 0;
-    int hangingsource = -1;
-    int idlegoodsource = -1;
-
-    for (int i = RAIDPARTS; i--; )
-    {
-        if (fetcher[i].connected)
-        {
-            if (httpReqs[i]->status == REQ_INFLIGHT)
-            {
-                fetcher[i].lastdata = httpReqs[i]->lastdata;
-                if (fetcher[i].remfeed && ((Waiter::ds - httpReqs[i]->lastdata > 100) || (Waiter::ds - fetcher[i].lastdata > 200)))
-                {
-                    hanging++;
-                    hangingsource = i;
-                }
-            }
-        }
-        else if (!fetcher[i].finished && !fetcher[i].errors) idlegoodsource = i;
-    }
-
-    if (hanging)
-    {
-        {
-            if (idlegoodsource >= 0)
-            {
-                fetcher[hangingsource].errors++;
-                fetcher[hangingsource].closesocket();
-                if (fetcher[idlegoodsource].trigger() == -1)
-                {
-                    fetcher[hangingsource].trigger();
-                }
-                return;
-            }
-        }
-    }
-}
-
-m_off_t RaidReq::readdata(byte* buf, m_off_t len)
-{
-    watchdog();
-
-    m_off_t lenCompleted = 0;
-    m_off_t old_completed, new_completed;
-    m_off_t t;
-    do
-    {
-        if (completed < NUMLINES)
-        {
-            old_completed = completed;
-            procreadahead();
-        }
-        else
-        {
-            old_completed = 0;
-        }
-        new_completed = completed;
-        t = (completed * RAIDLINE) - skip;
+/* -------------- RaidReq END --------------*/
 
 
-        if (t > 0)
-        {
-            if ((t + lenCompleted) > len) t = len - lenCompleted;
-            memmove(buf + lenCompleted, data + skip, t);
-            lenCompleted += t;
-
-            shiftdata(t);
-        }
-        else
-        {
-            if (Waiter::ds-lastdata > 1000)
-            {
-                if (Waiter::ds-lastdata > 6000)
-                {
-                    LOG_warn << "CloudRAID feed timed out [haddata = " << haddata << "]";
-                    return -1;
-                }
-
-                if (!reported)
-                {
-                    reported = true;
-                    LOG_warn << "CloudRAID feed stuck [haddata = " << haddata << "]";
-                }
-            }
-        }
-    } while (new_completed > old_completed && t > 0 && lenCompleted < len);
-
-    if (lenCompleted)
-    {
-        resumeall();
-    }
-
-    return lenCompleted;
-}
-
-void RaidReq::disconnect()
-{
-    for (auto& httpReq : httpReqs)
-    {
-        httpReq->disconnect();
-    }
-}
+/* -------------- RaidReqPool --------------*/
 
 bool RaidReqPool::addScheduledio(raidTime scheduledFor, const HttpReqPtr& req)
 {
@@ -1263,3 +1279,5 @@ void RaidReqPool::request(const RaidReq::Params& p, const std::shared_ptr<CloudR
     RaidReq* rr = new RaidReq(p, *this, cloudRaid);
     raidReq.reset(rr);
 }
+
+/* -------------- RaidReqPool END --------------*/

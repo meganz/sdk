@@ -11,8 +11,6 @@
 
 namespace mega::RaidProxy {
 
-using raidTime = ::mega::dstime;
-
 #define NUMLINES 16384 // 16 KBs
 #define MAXRETRIES 10
 #define READAHEAD ((m_off_t)NUMLINES*RAIDSECTOR)
@@ -48,6 +46,7 @@ typedef uint128_t raidsector_t;
 using HttpReqType = HttpReqDL;
 using HttpReqPtr = std::shared_ptr<HttpReqType>;
 using HttpInputBuf = ::mega::HttpReq::http_buf_t;
+using raidTime = ::mega::dstime;
 
 class RaidReqPool;
 
@@ -56,23 +55,20 @@ class PartFetcher
     class RaidReq* rr;
 
     std::string url;
-    raidTime delayuntil;
-
     std::unique_ptr<HttpInputBuf> inbuf;
     m_off_t partStartPos;
-
+    raidTime delayuntil;
+    char consecutive_errors;
     bool skip_setposrem;
+
     void setposrem();
     bool setremfeed(m_off_t = NUMLINES * RAIDSECTOR);
-
-    char consecutive_errors;
 
 public:
     int part;
     bool connected;
     bool finished;
     m_off_t remfeed;
-
     int errors;
 
     raidTime lastdata;
@@ -96,7 +92,7 @@ public:
     bool feedreadahead();
     void resume(bool = false);
     int onFailure();
-    m_off_t getSocketSpeed();
+    m_off_t getSocketSpeed() const;
 
     PartFetcher();
     ~PartFetcher();
@@ -111,12 +107,9 @@ class RaidReq
     std::vector<HttpReqPtr> httpReqs;
     std::array<PartFetcher, RAIDPARTS> fetcher;
 
-    m_off_t partpos[RAIDPARTS];                      // incoming part positions relative to dataline
-    unsigned feedlag[RAIDPARTS];                     // accumulated remfeed at shiftata() to identify slow sources
-    int lagrounds;                                   // number of accumulated additions to feedlag[]
-
-    void dispatchio(const HttpReqPtr&);
-    void shiftdata(m_off_t);
+    m_off_t partpos[RAIDPARTS];          // incoming part positions relative to dataline
+    unsigned feedlag[RAIDPARTS];         // accumulated remfeed at shiftata() to identify slow sources
+    int lagrounds;                       // number of accumulated additions to feedlag[]
 
     alignas(RAIDSECTOR) byte data[NUMLINES*RAIDLINE];       // always starts on a RAID line boundary
     alignas(RAIDSECTOR) byte parity[NUMLINES*RAIDSECTOR];   // parity sectors
@@ -135,19 +128,12 @@ class RaidReq
     m_off_t reqStartPos;
     m_off_t maxRequestSize;
 
-    bool allconnected(int = RAIDPARTS);
-    int numPartsUnfinished();
+    void dispatchio(const HttpReqPtr&);
+    void shiftdata(m_off_t);
+    bool allconnected(int = RAIDPARTS) const;
+    int numPartsUnfinished() const;
 
 public:
-    void procdata(int, byte*, m_off_t, m_off_t);
-    m_off_t readdata(byte*, m_off_t);
-
-    void resumeall(int = RAIDPARTS);
-    void procreadahead();
-    void watchdog();
-    void disconnect();
-    int processFeedLag();
-
     struct Params
     {
         std::vector<std::string> tempUrls;
@@ -161,6 +147,15 @@ public:
 
     RaidReq(const Params&, RaidReqPool&, const std::shared_ptr<CloudRaid>&);
     ~RaidReq();
+
+    void procdata(int, byte*, m_off_t, m_off_t);
+    m_off_t readdata(byte*, m_off_t);
+
+    void resumeall(int = RAIDPARTS);
+    void procreadahead();
+    void watchdog();
+    void disconnect();
+    int processFeedLag();
 
     static size_t raidPartSize(int part, size_t fullfilesize);
 };
