@@ -20,7 +20,30 @@ using raidTime = ::mega::dstime;
 // number of readdata() requests until the next interval check is conducted
 #define LAGINTERVAL 256
 
+
+#if defined(__GNUC__)
 typedef unsigned int uint128_t __attribute__((mode(TI)));
+#else
+struct uint128_t
+{
+    uint64_t parts[2];
+
+    uint128_t& operator=(const uint128_t& other)
+    {
+        parts[0] = other.parts[0];
+        parts[1] = other.parts[1];
+        return *this;
+    }
+
+    uint128_t& operator^=(const uint128_t& other)
+    {
+        parts[0] ^= other.parts[0];
+        parts[1] ^= other.parts[1];
+        return *this;
+    }
+};
+#endif
+
 typedef uint128_t raidsector_t;
 using HttpReqType = HttpReqDL;
 using HttpReqPtr = std::shared_ptr<HttpReqType>;
@@ -148,9 +171,9 @@ class RaidReqPool
     friend class RaidReq;
 
     bool isRunning;
-    unique_ptr<RaidReq> raidReq;
-    set<HttpReqPtr> setHttpReqs;
-    set<pair<raidTime, HttpReqPtr>> scheduledio;
+    std::unique_ptr<RaidReq> raidReq;
+    std::set<HttpReqPtr> setHttpReqs;
+    std::set<std::pair<raidTime, HttpReqPtr>> scheduledio;
 
 public:
     RaidReqPool();
