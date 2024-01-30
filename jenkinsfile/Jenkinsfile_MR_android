@@ -274,8 +274,17 @@ pipeline {
                                     //sh "./build.sh clean"
                                     sh "./build.sh all"
                                 }
-                              sh "cp -r ${DEFAULT_GOOGLE_MAPS_API_PATH}/* app/src/"
-                              sh "./gradlew --no-daemon --max-workers=1 assembleGms"
+                                sh "cp -r ${DEFAULT_GOOGLE_MAPS_API_PATH}/* app/src/"
+                                withCredentials([
+                                        string(credentialsId: 'ARTIFACTORY_USER', variable: 'ARTIFACTORY_USER'),
+                                        string(credentialsId: 'ARTIFACTORY_ACCESS_TOKEN', variable: 'ARTIFACTORY_ACCESS_TOKEN'),
+                                ])
+                                withEnv([
+                                        "ARTIFACTORY_USER=${ARTIFACTORY_USER}",
+                                        "ARTIFACTORY_ACCESS_TOKEN=${ARTIFACTORY_ACCESS_TOKEN}"
+                                ])
+                                sh "./gradlew --no-daemon --max-workers=1 assembleGmsDebug"
+                                sh "./gradlew --no-daemon --max-workers=1 assembleGmsQa"
                             }
                         }
 
