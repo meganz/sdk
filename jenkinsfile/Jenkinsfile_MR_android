@@ -47,7 +47,10 @@ pipeline {
 
     environment {
         BUILD_OPTIONS = ' '
-        THIRD_PARTY_SOURCES_PATH = "sdk/src/main/jni"
+        UPLOAD_THIRD_PARTY_SOURCES = ' ' 
+        UPLOAD_THIRD_PARTY_SOURCES_EXAMPLE = ' '
+        THIRD_PARTY_SOURCES_ANDROID_PATH = "sdk/src/main/jni"
+        THIRD_PARTY_SOURCES_EXAMPLE_PATH = "examples/android/ExampleApp/app/src/main/jni"
     }
 
     stages {
@@ -59,17 +62,15 @@ pipeline {
         }
         stage('Get build parameters'){
             parallel{
-                stage('Get build options'){
-                    when {
-                        allOf {
-                            expression { env.gitlabTriggerPhrase != null }
-                            expression { env.gitlabTriggerPhrase.contains('BUILD_OPTIONS') }
-                        }
-                    }
+                stage('Get build options and run parameters'){
                     steps {
                         script{
-                            BUILD_OPTIONS = sh(script: 'echo "$gitlabTriggerPhrase" | grep BUILD_OPTIONS | awk -F "BUILD_OPTIONS="  \'{print \$2}\' | cut -d"\"" -f2', returnStdout: true).trim()
+                            BUILD_OPTIONS = sh(script: 'echo "$gitlabTriggerPhrase" | grep BUILD_OPTIONS | awk -F "BUILD_OPTIONS="  \'{print \$2}\' | cut -d"\\"" -f2 || :', returnStdout: true).trim()
+                            UPLOAD_THIRD_PARTY_SOURCES = sh(script: 'echo "$gitlabTriggerPhrase" | grep "\\-\\-upload_android" >/dev/null 2>&1 && echo "true" || echo "false"', returnStdout: true).trim()
+                            UPLOAD_THIRD_PARTY_SOURCES_EXAMPLE = sh(script: 'echo "$gitlabTriggerPhrase" | grep "\\-\\-upload_example" >/dev/null 2>&1 && echo "true" || echo "false"', returnStdout: true).trim()
                             println BUILD_OPTIONS
+                            println UPLOAD_THIRD_PARTY_SOURCES
+                            println UPLOAD_THIRD_PARTY_SOURCES_EXAMPLE
                         }
                     }
                     post{
@@ -152,6 +153,16 @@ pipeline {
                                 }
                             }
                         }
+
+                        stage('Download prebuilt third-party-sources for example'){
+                            steps {
+                                dir("${env.THIRD_PARTY_SOURCES_EXAMPLE_PATH}"){
+                                    sh "jf rt download third-party-sources-sdk/3rdparty-sdk-android-example.tar.gz ."
+                                    sh "tar -xvf 3rdparty-sdk-android-example.tar.gz --skip-old-files"
+                                }
+                            }
+                        }
+                        
                         stage('Build SDK and exampleApp'){
                             environment{
                                 BUILD_ARCHS = "arm64-v8a"
@@ -168,10 +179,18 @@ pipeline {
                                     dir("app/src/main/jni/"){
                                         sh "sed -i 's#JOBS=.*#JOBS=1#' build.sh"
                                         sh "sed -i 's#LOG_FILE=/dev/null#LOG_FILE=/dev/stdout#g' build.sh"
-                                        sh "bash -x ./build.sh clean"
                                         sh "rm -rf ../java/nz/mega/sdk"
                                         //Build SDK and libs
                                         sh "bash -x ./build.sh all"
+                                        script {
+                                            if ("${env.UPLOAD_THIRD_PARTY_SOURCES_EXAMPLE}" == "true"){
+                                                dir("${env.THIRD_PARTY_SOURCES_EXAMPLE_PATH}"){
+                                                    sh "tar -czvf 3rdparty-sdk-android-example-new.tar.gz cryptopp curl icu libuv libwebsockets mediainfo pdfviewer sodium sqlite"
+                                                    sh "jf rt upload 3rdparty-sdk-android-example-new.tar.gz third-party-sources-sdk/"
+
+                                                }
+                                            }                                        
+                                        }
                                     }
                                     //Build Example App
                                     sh "./gradlew --no-daemon --max-workers=1 build"
@@ -245,9 +264,9 @@ pipeline {
 
                         stage('Download prebuilt third-party-sources'){
                             steps {
-                                dir("${env.THIRD_PARTY_SOURCES_PATH}"){
+                                dir("${env.THIRD_PARTY_SOURCES_ANDROID_PATH}"){
                                     sh "jf rt download third-party-sources-sdk/3rdparty-sdk.tar.gz ."
-                                    sh "tar -xvf 3rdparty-sdk.tar.gz"
+                                    sh "tar -xvf 3rdparty-sdk.tar.gz --skip-old-files"
                                 }
                             }
                         }
@@ -271,20 +290,31 @@ pipeline {
                                     sh "ln -sfrT ${ANDROID_WEBRTC} megachat/webrtc"
                                     sh "sed -i 's#JOBS=.*#JOBS=1#' build.sh"
                                     sh "sed -i 's#LOG_FILE=/dev/null#LOG_FILE=/dev/stdout#g' build.sh"
-                                    //sh "./build.sh clean"
                                     sh "./build.sh all"
+                                    script {
+                                        if ("${env.UPLOAD_THIRD_PARTY_SOURCES}" == "true"){
+                                            dir("${env.THIRD_PARTY_SOURCES_ANDROID_PATH}"){
+                                                sh "tar -czvf 3rdparty-sdk-new.tar.gz cryptopp curl icu libuv libwebsockets mediainfo pdfviewer sodium sqlite"
+                                                sh "jf rt upload 3rdparty-sdk-new.tar.gz third-party-sources-sdk/"
+                                            }
+                                        }                                        
+                                    }
                                 }
                                 sh "cp -r ${DEFAULT_GOOGLE_MAPS_API_PATH}/* app/src/"
-                                withCredentials([
-                                        string(credentialsId: 'ARTIFACTORY_USER', variable: 'ARTIFACTORY_USER'),
-                                        string(credentialsId: 'ARTIFACTORY_ACCESS_TOKEN', variable: 'ARTIFACTORY_ACCESS_TOKEN'),
-                                ])
-                                withEnv([
-                                        "ARTIFACTORY_USER=${ARTIFACTORY_USER}",
-                                        "ARTIFACTORY_ACCESS_TOKEN=${ARTIFACTORY_ACCESS_TOKEN}"
-                                ])
-                                sh "./gradlew --no-daemon --max-workers=1 assembleGmsDebug"
-                                sh "./gradlew --no-daemon --max-workers=1 assembleGmsQa"
+                                script {
+                                    withCredentials([
+                                            string(credentialsId: 'ARTIFACTORY_USER', variable: 'ARTIFACTORY_USER'),
+                                            string(credentialsId: 'ARTIFACTORY_ACCESS_TOKEN', variable: 'ARTIFACTORY_ACCESS_TOKEN'),
+                                    ]){
+                                        withEnv([
+                                            "ARTIFACTORY_USER=${ARTIFACTORY_USER}",
+                                            "ARTIFACTORY_ACCESS_TOKEN=${ARTIFACTORY_ACCESS_TOKEN}"
+                                        ]){
+                                            sh "./gradlew --no-daemon --max-workers=1 assembleGmsDebug"
+                                            sh "./gradlew --no-daemon --max-workers=1 assembleGmsQa"
+                                        }
+                                    }
+                                }
                             }
                         }
 
