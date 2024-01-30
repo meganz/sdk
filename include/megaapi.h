@@ -9466,6 +9466,13 @@ private:
 class MegaApi
 {
     public:
+        enum
+        {
+            CLIENT_TYPE_DEFAULT = 0,
+            CLIENT_TYPE_VPN,
+            CLIENT_TYPE_PASSWORD_MANAGER,
+        };
+
     	enum
 		{
 			STATE_NONE = 0,
@@ -9695,8 +9702,10 @@ class MegaApi
          * Using worker threads means that synchronous function calls on MegaApi will be blocked less,
          * and uploads and downloads can proceed more quickly on very fast connections.
          *
+         * @param clientType Client type (default, VPN or Password Manager) enables SDK to function differently
+         *
          */
-        MegaApi(const char *appKey, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1);
+        MegaApi(const char *appKey, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1, int clientType = CLIENT_TYPE_DEFAULT);
 
         /**
          * @brief MegaApi Constructor that allows to use a custom GFX processor
@@ -9722,8 +9731,10 @@ class MegaApi
          * Using worker threads means that synchronous function calls on MegaApi will be blocked less,
          * and uploads and downloads can proceed more quickly on very fast connections.
          *
+         * @param clientType Client type (default, VPN or Password Manager) enables SDK to function differently
+         *
          */
-        MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1);
+        MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1, int clientType = CLIENT_TYPE_DEFAULT);
 
 #ifdef HAVE_MEGAAPI_RPC
         MegaApi();
