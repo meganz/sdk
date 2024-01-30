@@ -18,9 +18,12 @@ build_arch_platform() {
   export BUILD_SDKROOT="${BUILD_DEVROOT}/SDKs/${PLATFORM}${SDKVERSION}.sdk"
   
   RUNTARGET=""
-  
+  PREFIX=""
   if [ "${CATALYST}" == "true" ]; then
+    PREFIX="${CURRENTPATH}/bin/libsodium/${PLATFORM}${SDKVERSION}-catalyst-${ARCH}.sdk"
     RUNTARGET="-target ${ARCH}-apple-ios15.0-macabi"
+  else
+    PREFIX="${CURRENTPATH}/bin/libsodium/${PLATFORM}${SDKVERSION}-${ARCH}.sdk"
   fi
   
   if [ "${PLATFORM}" == "MacOSX" ]; then
@@ -34,11 +37,7 @@ build_arch_platform() {
   echo "${bold}Building libsodium for $PLATFORM (catalyst=$CATALYST) $ARCH $BUILD_SDKROOT ${normal}"
   
   export CC="${BUILD_TOOLS}/usr/bin/gcc -arch ${ARCH}"
-  if [ "${CATALYST}" == "true" ]; then
-    mkdir -p "${CURRENTPATH}/bin/libsodium/${PLATFORM}${SDKVERSION}-catalyst-${ARCH}.sdk"
-  else
-    mkdir -p "${CURRENTPATH}/bin/libsodium/${PLATFORM}${SDKVERSION}-${ARCH}.sdk"
-  fi
+  mkdir -p ${PREFIX}
 
   if [[ "${CATALYST}" == "true" || "${PLATFORM}" == "iPhoneOS" || "${PLATFORM}" == "iPhoneSimulator" ]];  then
     export LDFLAGS="-Os -arch ${ARCH} -Wl,-dead_strip -miphoneos-version-min=15.0 -L${BUILD_SDKROOT}/usr/lib"
@@ -62,12 +61,8 @@ build_arch_platform() {
   else
     HOST=${ARCH}-apple-darwin
   fi
-    
-  if [ "${CATALYST}" == "true" ]; then
-    ./configure --prefix="${CURRENTPATH}/bin/libsodium/${PLATFORM}${SDKVERSION}-catalyst-${ARCH}.sdk" --host=${HOST} --disable-shared --enable-minimal
-  else
-    ./configure --prefix="${CURRENTPATH}/bin/libsodium/${PLATFORM}${SDKVERSION}-${ARCH}.sdk" --host=${HOST} --disable-shared --enable-minimal
-  fi
+      
+  ./configure --prefix=${PREFIX} --host=${HOST} --disable-shared --enable-minimal
 
   make -j${CORES}
   make install
