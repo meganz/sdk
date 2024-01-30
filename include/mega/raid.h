@@ -293,14 +293,15 @@ namespace mega {
         bool onRequestFailure(const std::shared_ptr<HttpReqXfer>& req, int part, dstime& backoff);
         bool setTransferFailure(::mega::error e = API_EAGAIN, dstime backoff = 0);
         std::pair<::mega::error, dstime> checkTransferFailure();
+        m_off_t transferred(const std::shared_ptr<HttpReqXfer>& req) const;
 
         /* RaidProxy functionality for TransferSlot */
         bool init(TransferSlot* tslot, MegaClient* client, int connections);
-        bool balancedRequest(int connection, const std::vector<std::string> &tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, m_off_t cmaxRequestSize);
+        bool balancedRequest(int connection, const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, m_off_t cmaxRequestSize);
         bool removeRaidReq(int connection);
         bool resumeAllConnections();
         bool raidReqDoio(int connection);
-
+        m_off_t progress() const;
         m_off_t readData(int connection, byte* buf, m_off_t len);
     };
 

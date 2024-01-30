@@ -639,6 +639,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
 
                     if (client->orderdownloadedchunks && transfer->type == GET && !transferbuf.isRaid() && transfer->progresscompleted != static_cast<HttpReqDL*>(reqs[i].get())->dlpos)
                     {
+                        LOG_debug << "Conn " << i << " : POSTPONING UNSORTED CHUNK";
                         // postponing unsorted chunk
                         p += reqs[i]->size;
                         break;
@@ -818,6 +819,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                         {
                             if (!downloadRequest->buffer_released)
                             {
+                                LOG_debug << "Conn " << i << " : Submit buffer";
                                 transferbuf.submitBuffer(i, new TransferBufferManager::FilePiece(downloadRequest->dlpos, downloadRequest->release_buf())); // resets size & bufpos.  finalize() is taken care of in the transferbuf
                                 downloadRequest->buffer_released = true;
                             }
@@ -842,12 +844,14 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                                     {
                                         sc.setkey(transferkey.data());
                                         outputPiece->finalize(true, filesize, ctriv, &sc, nullptr);
+                                        LOG_debug << "Conn " << i << " : REQ_DECRYPTED [parallel]";
                                         req->status = REQ_DECRYPTED;
                                     }, false);  // not discardable:  if we downloaded the data, don't waste it - decrypt and write as much as we can to file
                                 }
                                 else
                                 {
                                     reqs[i]->status = REQ_DECRYPTED;
+                                    LOG_debug << "Conn " << i << " : REQ_DECRYPTED";
                                 }
                             }
                             else if (transferbuf.isRaid())
@@ -1079,6 +1083,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                 auto outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
                 if (outputPiece && reqs[i])
                 {
+                    LOG_verbose << "Conn " << i << " : outputPiece && reqs[ " << i << "] -> REQ_SUCCESS (set up to do the actual write on the next loop, as if it was a retry)";
                     // set up to do the actual write on the next loop, as if it was a retry
                     reqs[i]->status = REQ_SUCCESS;
                     static_cast<HttpReqDL*>(reqs[i].get())->buffer_released = true;
@@ -1087,10 +1092,12 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
 
                 if (newOutputBufferSupplied || newInputBufferSupplied || pauseConnectionInputForRaid)
                 {
+                    LOG_verbose << "Conn " << i << " : process supplied block, or just wait until other connections catch up a bit";
                     // process supplied block, or just wait until other connections catch up a bit
                 }
                 else if (posrange.second > posrange.first || !transfer->size || (transfer->type == PUT && asyncIO[i]))
                 {
+                    LOG_verbose << "Conn " << i << " : download/upload specified range";
                     // download/upload specified range
 
                     if (!reqs[i])
@@ -1156,6 +1163,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                 }
                 else if (reqs[i])
                 {
+                    LOG_verbose << "Conn " << i << " : REQUEST DONE -> REQ_DONE";
                     reqs[i]->status = REQ_DONE;
 
                     if (transfer->type == GET)
@@ -1164,6 +1172,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                         auto outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
                         if (outputPiece)
                         {
+                            LOG_verbose << "Conn " << i << " : raid reassembly still has chunks to complete -> change REQ_DONE to REQ_SUCCESS (set up to do the actual write on the next loop, as if it was a retry)";
                             // set up to do the actual write on the next loop, as if it was a retry
                             reqs[i]->status = REQ_SUCCESS;
                             static_cast<HttpReqDL*>(reqs[i].get())->buffer_released = true;
@@ -1254,10 +1263,18 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
         }
     }
 
-    if (transfer->type == GET && transferbuf.isRaid())
+    if (transfer->type == GET)
     {
         // for Raid, additionally we need the raid data that's waiting to be recombined
-        p += transferbuf.progress();
+        if (transferbuf.isRaid())
+        {
+            p += transferbuf.progress();
+        }
+        else if (transferbuf.isNewRaid())
+        {
+            assert(cloudRaid != nullptr);
+            p += cloudRaid->progress();
+        }
     }
     p += transfer->progresscompleted;
 
@@ -1417,6 +1434,7 @@ void TransferSlot::prepareRequest(const std::shared_ptr<HttpReqXfer>& httpReq, c
         }
     }
 
+    LOG_debug << "[TransferSlot::prepareRequest] pos = " << pos << ", npos = " << npos << ", tempURL = '" << finaltempURL << "'";
     httpReq->prepare(finaltempURL.c_str(),
                      transfer->transfercipher(),
                      transfer->ctriv,
@@ -1579,6 +1597,7 @@ std::pair<error, dstime> TransferSlot::processRaidReq(size_t connection)
 
     if (httpReq->status == REQ_SUCCESS)
     {
+        LOG_verbose << "[TransferSlot::processRaidReq] Conn " << connection << " : RaidReq SUCCESS. Removing RaidReq...";
         cloudRaid->removeRaidReq(static_cast<int>(connection));
     }
     return cloudRaid->checkTransferFailure();

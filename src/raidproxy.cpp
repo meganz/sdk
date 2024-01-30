@@ -635,6 +635,42 @@ m_off_t PartFetcher::getSocketSpeed() const
     return reqBytesReceived / timeInflight;
 }
 
+m_off_t PartFetcher::progress() const
+{
+    m_off_t progressCount = 0;
+
+    for (auto& it : readahead)
+    {
+        progressCount += static_cast<m_off_t>(it.second.second);
+    }
+    auto& httpReq = rr->httpReqs[part];
+    assert(httpReq != nullptr);
+    switch (httpReq->status)
+    {
+        case REQ_INFLIGHT:
+        {
+            progressCount += rr->cloudRaid->transferred(httpReq);
+            break;
+        }
+        case REQ_SUCCESS:
+        {
+            if (inbuf)
+            {
+                assert(httpReq->buffer_released);
+                progressCount += inbuf->datalen();
+            }
+            else
+            {
+                progressCount += httpReq->size;
+            }
+            break;
+        }
+        default:
+            break;
+    }
+    return progressCount;
+}
+
 /* -------------- PartFetcher END --------------*/
 
 
@@ -1004,7 +1040,7 @@ m_off_t RaidReq::readdata(byte* buf, m_off_t len)
         {
             if (Waiter::ds-lastdata > 1000)
             {
-                if (Waiter::ds-lastdata > 6000)
+                if (Waiter::ds-lastdata > 3000)
                 {
                     LOG_warn << "CloudRAID feed timed out [haddata = " << haddata << "]";
                     return -1;
@@ -1180,6 +1216,17 @@ int RaidReq::processFeedLag()
         lagrounds = 0;
     }
     return laggedPart;
+}
+
+m_off_t RaidReq::progress() const
+{
+    m_off_t progressCount = 0;
+    for (int i = RAIDPARTS; i--; )
+    {
+        progressCount += fetcher[i].progress();
+    }
+    progressCount += ((completed * RAIDLINE) - skip);
+    return progressCount;
 }
 
 size_t RaidReq::raidPartSize(int part, size_t fullfilesize)

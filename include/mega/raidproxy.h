@@ -42,7 +42,7 @@ struct uint128_t
 };
 #endif
 
-typedef uint128_t raidsector_t;
+typedef uint128_t raidsector_t; // RAIDSECTOR = 16
 using HttpReqType = HttpReqDL;
 using HttpReqPtr = std::shared_ptr<HttpReqType>;
 using HttpInputBuf = ::mega::HttpReq::http_buf_t;
@@ -93,6 +93,7 @@ public:
     void resume(bool = false);
     int onFailure();
     m_off_t getSocketSpeed() const;
+    m_off_t progress() const;
 
     PartFetcher();
     ~PartFetcher();
@@ -156,6 +157,7 @@ public:
     void watchdog();
     void disconnect();
     int processFeedLag();
+    m_off_t progress() const;
 
     static size_t raidPartSize(int part, size_t fullfilesize);
 };

@@ -1078,28 +1078,28 @@ public:
     }
 
     /* TransferSlot functionality */
-    bool disconnect(std::shared_ptr<HttpReqXfer> req)
+    bool disconnect(const std::shared_ptr<HttpReqXfer>& req)
     {
         if (!started) return false;
         tslot->disconnect(req);
         return true;
     }
 
-    bool prepareRequest(std::shared_ptr<HttpReqXfer> req, const string& tempURL, m_off_t pos, m_off_t npos)
+    bool prepareRequest(const std::shared_ptr<HttpReqXfer>& req, const string& tempURL, m_off_t pos, m_off_t npos)
     {
         if (!started) return false;
         tslot->prepareRequest(req, tempURL, pos, npos);
         return req->status == REQ_PREPARED;
     }
 
-    bool post(std::shared_ptr<HttpReqXfer> req)
+    bool post(const std::shared_ptr<HttpReqXfer>& req)
     {
         if (!started) return false;
         req->post(client);
         return req->status == REQ_INFLIGHT;
     }
 
-    bool onRequestFailure(std::shared_ptr<HttpReqXfer> req, int part, dstime& backoff)
+    bool onRequestFailure(const std::shared_ptr<HttpReqXfer>& req, int part, dstime& backoff)
     {
         if (!started) return false;
         dstime tslot_backoff = 0;
@@ -1129,6 +1129,12 @@ public:
     {
         if (!started) return std::make_pair(API_OK, 0);
         return std::make_pair(transferFailed.first, transferFailed.second);
+    }
+
+    m_off_t transferred(const std::shared_ptr<HttpReqXfer>& req) const
+    {
+        if (!started) return false;
+        return req->transferred(client);
     }
 
     /* CloudRaid functionality */
@@ -1188,7 +1194,10 @@ public:
             int i = connections;
             while (i --> 0)
             {
-                raidReqPoolArray[i]->rr()->resumeall();
+                if (raidReqPoolArray[i])
+                {
+                    raidReqPoolArray[i]->rr()->resumeall();
+                }
             }
             return true;
         }
@@ -1198,7 +1207,7 @@ public:
     m_off_t readData(int connection, byte* buf, m_off_t len)
     {
         m_off_t readData = -1;
-        if (started)
+        if (started && raidReqPoolArray[connection])
         {
             readData = static_cast<m_off_t>(raidReqPoolArray[connection]->rr()->readdata(buf, len));
         }
@@ -1213,6 +1222,23 @@ public:
             return true;
         }
         return false;
+    }
+
+    m_off_t progress() const
+    {
+        m_off_t progressCount = 0;
+        if (started)
+        {
+            int i = connections;
+            while (i --> 0)
+            {
+                if (raidReqPoolArray[i])
+                {
+                    progressCount += raidReqPoolArray[i]->rr()->progress();
+                }
+            }
+        }
+        return progressCount;
     }
 };
 
@@ -1276,6 +1302,13 @@ std::pair<::mega::error, dstime> CloudRaid::checkTransferFailure()
     return Pimpl()->checkTransferFailure();
 }
 
+m_off_t CloudRaid::transferred(const std::shared_ptr<HttpReqXfer>& req) const
+{
+    if (!shown.load())
+        return 0;
+    return Pimpl()->transferred(req);
+}
+
 bool CloudRaid::init(TransferSlot* tslot, MegaClient* client, int connections)
 {
     m_pImpl = mega::make_unique<CloudRaidImpl>(tslot, client, connections);
@@ -1283,7 +1316,7 @@ bool CloudRaid::init(TransferSlot* tslot, MegaClient* client, int connections)
     return shown.load();
 }
 
-bool CloudRaid::balancedRequest(int connection, const std::vector<std::string> &tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, m_off_t cmaxRequestSize)
+bool CloudRaid::balancedRequest(int connection, const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, m_off_t cmaxRequestSize)
 {
     if (!shown.load())
         return false;
@@ -1323,6 +1356,13 @@ bool CloudRaid::raidReqDoio(int connection)
     if (!shown.load())
         return false;
     return Pimpl()->raidReqDoio(connection);
+}
+
+m_off_t CloudRaid::progress() const
+{
+    if (!shown.load())
+        return 0;
+    return Pimpl()->progress();
 }
 
 }; // namespace
