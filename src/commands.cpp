@@ -11177,15 +11177,14 @@ CommandCreatePasswordManagerBase::CommandCreatePasswordManagerBase(MegaClient* c
     cmd("pwmp");
     // APs "t" (for the new node/folder) and "ua" (for the new user attribute) triggered
 
-    if (mNewNode)
+    assert(mNewNode);
+
+    arg("k", reinterpret_cast<const byte*>(mNewNode->nodekey.data()),
+        static_cast<int>(mNewNode->nodekey.size()));
+    if (mNewNode->attrstring)
     {
-        arg("k", reinterpret_cast<const byte*>(mNewNode->nodekey.data()),
-            static_cast<int>(mNewNode->nodekey.size()));
-        if (mNewNode->attrstring)
-        {
-            arg("at", reinterpret_cast<const byte*>(mNewNode->attrstring->data()),
-                static_cast<int>(mNewNode->attrstring->size()));
-        }
+        arg("at", reinterpret_cast<const byte*>(mNewNode->attrstring->data()),
+            static_cast<int>(mNewNode->attrstring->size()));
     }
 
     // although these won't be used, they are updated for integrity
@@ -11204,6 +11203,8 @@ bool CommandCreatePasswordManagerBase::procresult(Result r, JSON &json)
     }
 
     NodeHandle folderHandle;
+    std::string key;
+    std::unique_ptr<std::string> attrString;  // optionals are C++17
     m_off_t t = 0;
     for (;;)
     {
@@ -11213,25 +11214,67 @@ bool CommandCreatePasswordManagerBase::procresult(Result r, JSON &json)
         case 'h':
             folderHandle.set6byte(json.gethandle(MegaClient::NODEHANDLE));
             break;
+        case 'k':
+            json.storeobject(&key);
+            break;
+        case 'a':
+            attrString = make_unique<std::string>();
+            json.storeobject(attrString.get());
+            break;
         case 't':
         {
             t = json.getint();
             break;
         }
         case EOO:
-            if (FOLDERNODE != static_cast<nodetype_t>(t))  // sanity check
+        {
+            bool sanityChecksFailed = false;
+            const std::string msg {"Password Manager: wrong node type received in command response. Received "};
+            if (FOLDERNODE != static_cast<nodetype_t>(t))
             {
-                LOG_err << "Password Manager: wrong node type received in command response. "
-                        <<" Received " << t << " expected " << FOLDERNODE << " received "
-                        << t;
-                if (mCompletion) mCompletion(API_EINTERNAL, nullptr);
-                return false;
+                LOG_err << msg << "type " << t << " expected " << FOLDERNODE;
+                sanityChecksFailed = true;
             }
+
+            auto keySeparatorPos = key.find(":");
+            if (keySeparatorPos == std::string::npos)
+            {
+                LOG_err << msg << "invalid key field received |" << key << "| missing separator ':'";
+                sanityChecksFailed = true;
+            }
+            else
+            {
+                const std::string aux = Base64::btoa(mNewNode->nodekey);
+                key = key.substr(++keySeparatorPos);
+                if (key != aux)
+                {
+                    LOG_err << "node key value |" << key << "| different than expected |" << aux << "|";
+                    sanityChecksFailed = true;
+                }
+            }
+
+            const auto& at = mNewNode->attrstring;
+            const std::string atAux = at ? Base64::btoa(*(at.get())) : "";
+            if ((!at && attrString) || (at && !attrString) ||  // if only 1 exists
+                (at && attrString && atAux != *attrString))    // or both exist and are different
+            {
+                LOG_err << "node attributes |" << (attrString ? *attrString : "")
+                        << "| different than expected |" << atAux << "|";
+                sanityChecksFailed = true;
+            }
+
+            if (sanityChecksFailed)
+            {
+                if (mCompletion) mCompletion(API_EINTERNAL, nullptr);
+                return true;
+            }
+
 
             mNewNode->nodehandle = folderHandle.as8byte();
 
             if (mCompletion) mCompletion(API_OK, std::move(mNewNode));
             return true;
+        }
         default:
             if (!json.storeobject())
             {
