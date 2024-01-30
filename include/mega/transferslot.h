@@ -83,9 +83,6 @@ struct MEGA_API TransferSlot
 
     dstime starttime, lastdata;
 
-    SpeedController speedController;
-    m_off_t speed, meanSpeed;
-
     // number of consecutive errors
     unsigned errorcount;
 
@@ -100,6 +97,7 @@ struct MEGA_API TransferSlot
     // Keep track of transfer network speed per channel, and overall
     vector<SpeedController> mReqSpeeds;
     SpeedController mTransferSpeed;
+    m_off_t speed, meanSpeed;
 
     // only swap channels twice for speed issues, to prevent endless non-progress (counter is reset if we make overall progress, ie data reassembled)
     unsigned mRaidChannelSwapsForSlowness = 0;

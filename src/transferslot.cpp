@@ -1283,8 +1283,8 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
         if (p != progressreported)
         {
             m_off_t diff = std::max<m_off_t>(0, p - progressreported);
-            speed = speedController.calculateSpeed(diff);
-            meanSpeed = speedController.getMeanSpeed();
+            speed = mTransferSpeed.calculateSpeed(diff);
+            meanSpeed = mTransferSpeed.getMeanSpeed();
             if (transfer->type == PUT)
             {
                 client->httpio->updateuploadspeed(diff);
