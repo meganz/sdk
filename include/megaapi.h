@@ -22203,6 +22203,7 @@ public:
         BACKUP_STATUS_PENDING = 3, // The sync engine is working, e.g: scanning local folders
         BACKUP_STATUS_INACTIVE = 4, // Sync is not active. A state != ACTIVE should have been sent through 'sp'
         BACKUP_STATUS_UNKNOWN = 5, // Unknown status
+        BACKUP_STATUS_STALLED = 6, // A folder is scan-blocked, or some contradictory changes occured between local and remote folders, user must pick one
     };
 
     /**
