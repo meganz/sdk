@@ -272,6 +272,12 @@ TransferSlot::~TransferSlot()
             }
         }
 
+        if (transferbuf.isNewRaid() && cloudRaid)
+        {
+            LOG_debug << "[TransferSlot::~TransferSlot] Stop cloudRaid";
+            cloudRaid->stop();
+        }
+
         if (cachetransfer)
         {
             transfer->client->transfercacheadd(transfer, nullptr);
@@ -1249,6 +1255,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                 }
                 if (transferbuf.isNewRaid())
                 {
+                    assert(cloudRaid != nullptr);
                     if (reqs[i]->status == REQ_PREPARED || reqs[i]->status == REQ_INFLIGHT)
                     {
                         auto failValues = processRaidReq(i);

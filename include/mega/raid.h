@@ -284,7 +284,6 @@ namespace mega {
 
         /* Instance control functionality */
         bool isShown() const;
-        bool isStarted() const;
 
         /* TransferSlot functionality for RaidProxy */
         bool disconnect(const std::shared_ptr<HttpReqXfer>& req);
@@ -301,6 +300,7 @@ namespace mega {
         bool removeRaidReq(int connection);
         bool resumeAllConnections();
         bool raidReqDoio(int connection);
+        bool stop();
         m_off_t progress() const;
         m_off_t readData(int connection, byte* buf, m_off_t len);
     };

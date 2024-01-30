@@ -979,9 +979,6 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
     	assert(false);
     	return std::make_pair(0, 0);
     }
-        std::cout << std::string(transfer->type == PUT ? "Uploading" :
-                                transfer->type == GET ? "Downloading" : "?")
-                  << " chunk of size " << npos - transfer->pos << std::endl;
         LOG_debug << std::string(transfer->type == PUT ? "Uploading" :
                                 transfer->type == GET ? "Downloading" : "?")
                   << " chunk of size " << npos - transfer->pos;
@@ -1150,11 +1147,6 @@ public:
         return raidReqPoolArray[connection]->rr() != nullptr;
     }
 
-    bool isStarted() const
-    {
-        return started;
-    }
-
     bool start()
     {
         if (started)
@@ -1179,6 +1171,7 @@ public:
 
     bool removeRaidReq(int connection)
     {
+        LOG_verbose << "[CloudRaidImpl::removeRaidReq] connection = " << connection << " [started = " << started << "] [this = " << this << "]";
         if (started && raidReqPoolArray[connection])
         {
             raidReqPoolArray[connection].reset();
@@ -1249,10 +1242,11 @@ CloudRaid::CloudRaid()
 
 CloudRaid::CloudRaid(TransferSlot* tslot, MegaClient* client, int connections)
 {
+    LOG_verbose << "[CloudRaid::CloudRaid] CONSTRUCTOR CALL [this = " << this << "]";
     init(tslot, client, connections);
 }
 
-CloudRaid::~CloudRaid() { LOG_verbose << "[CloudRaid::~CloudRaid] destructor call"; }
+CloudRaid::~CloudRaid() { LOG_verbose << "[CloudRaid::~CloudRaid] DESTRUCTOR CALL [this = " << this << "]"; }
 
 bool CloudRaid::isShown() const
 {
@@ -1323,13 +1317,6 @@ bool CloudRaid::balancedRequest(int connection, const std::vector<std::string>& 
     return Pimpl()->balancedRequest(connection, tempUrls, cfilesize, cstart, creqlen, cmaxRequestSize);
 }
 
-bool CloudRaid::isStarted() const
-{
-    if (!shown.load())
-        return false;
-    return Pimpl()->isStarted();
-}
-
 bool CloudRaid::removeRaidReq(int connection)
 {
     if (!shown.load())
@@ -1356,6 +1343,13 @@ bool CloudRaid::raidReqDoio(int connection)
     if (!shown.load())
         return false;
     return Pimpl()->raidReqDoio(connection);
+}
+
+bool CloudRaid::stop()
+{
+    if (!shown.load())
+        return false;
+    return Pimpl()->stop();
 }
 
 m_off_t CloudRaid::progress() const
