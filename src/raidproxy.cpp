@@ -645,7 +645,7 @@ m_off_t PartFetcher::progress() const
     }
     auto& httpReq = rr->httpReqs[part];
     assert(httpReq != nullptr);
-    switch (httpReq->status)
+    switch (httpReq->status.load())
     {
         case REQ_INFLIGHT:
         {
