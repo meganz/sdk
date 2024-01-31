@@ -654,6 +654,10 @@ string User::attr2string(attr_t type)
             attrname = "^!tos";
             break;
 
+        case ATTR_PWM_BASE:
+            attrname = "pwmh";
+            break;
+
         case ATTR_UNKNOWN:  // empty string
             break;
     }
@@ -817,13 +821,17 @@ string User::attr2longname(attr_t type)
     case ATTR_CC_PREFS:
         longname = "CC_PREFS";
         break;
-    
+
     case ATTR_VISIBLE_WELCOME_DIALOG:
         longname = "VISIBLE_WELCOME_DIALOG";
         break;
 
     case ATTR_VISIBLE_TERMS_OF_SERVICE:
         longname = "VISIBLE_TERMS_OF_SERVICE";
+        break;
+
+    case ATTR_PWM_BASE:
+        longname = "PWM_BASE";
         break;
     }
 
@@ -1089,6 +1097,7 @@ char User::scope(attr_t at)
         case ATTR_KEYS:
         case ATTR_VISIBLE_WELCOME_DIALOG:
         case ATTR_VISIBLE_TERMS_OF_SERVICE:
+        case ATTR_PWM_BASE:
             return '^';
 
         default:

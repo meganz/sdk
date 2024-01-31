@@ -4045,5 +4045,32 @@ using namespace mega;
     }
 }
 
+#pragma mark - Password Manager
+
+- (void)getPasswordManagerBaseWithDelegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->getPasswordManagerBase([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
+
+- (BOOL)isPasswordNodeFolderWithHandle:(MEGAHandle)node {
+    if (self.megaApi == nil) return NO;
+
+    return self.megaApi->isPasswordNodeFolder(node);
+}
+
+- (void)createPasswordNodeWithName:(NSString *)name data:(PasswordNodeData *)data parent:(MEGAHandle)parent delegate:(id<MEGARequestDelegate>)delegate; {
+    if (self.megaApi) {
+        MegaNode::PasswordNodeData *passwordNodeData = MegaNode::PasswordNodeData::createInstance(data.password.UTF8String, data.notes.UTF8String, data.url.UTF8String, data.userName.UTF8String);
+        self.megaApi->createPasswordNode(name.UTF8String, passwordNodeData, parent, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
+
+- (void)updatePasswordNodeWithHandle:(MEGAHandle)node newData:(PasswordNodeData *)newData delegate:(id<MEGARequestDelegate>)delegate; {
+    if (self.megaApi) {
+        MegaNode::PasswordNodeData *passwordNodeData = MegaNode::PasswordNodeData::createInstance(newData.password.UTF8String, newData.notes.UTF8String, newData.url.UTF8String, newData.userName.UTF8String);
+        self.megaApi->updatePasswordNode(node, passwordNodeData, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
 
 @end

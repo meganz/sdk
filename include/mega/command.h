@@ -1911,6 +1911,19 @@ private:
 };
 
 
+class MEGA_API CommandCreatePasswordManagerBase : public Command
+{
+public:
+    using Completion = std::function<void(Error, std::unique_ptr<NewNode>)>;
+
+    CommandCreatePasswordManagerBase(MegaClient* cl, std::unique_ptr<NewNode>, int ctag, Completion&& cb = nullptr);
+    bool procresult(Result, JSON&) override;
+
+private:
+    std::unique_ptr<NewNode> mNewNode;
+    Completion mCompletion;
+};
+
 } // namespace
 
 #endif

@@ -477,7 +477,86 @@ class MegaNode
             CHANGE_TYPE_NAME            = 0x800,
             CHANGE_TYPE_FAVOURITE       = 0x1000,
             CHANGE_TYPE_COUNTER         = 0x2000,
-            CHANGE_TYPE_SENSITIVE       = 0x4000
+            CHANGE_TYPE_SENSITIVE       = 0x4000,
+            CHANGE_TYPE_PWD             = 0x8000,
+        };
+
+        /**
+         * @brief Pure Object Data for Password Node attributes. Instances of this class are
+         * returned by the function getPasswordData on a Password Node, as well as provided
+         * as an argument for Password Node updates in updatePasswordNode function.
+         */
+        class PasswordNodeData
+        {
+        public:
+            /**
+             * @brief Creates a new instance of PasswordNodeData
+             * @return A pointer to the newly created object which will be owned by the caller
+             */
+            static PasswordNodeData* createInstance(const char* pwd,
+                                                    const char* notes,
+                                                    const char* url,
+                                                    const char* userName);
+
+            /**
+             * @brief Set password attribute value.
+             *
+             * @param pwd Value to set
+             */
+            virtual void setPassword(const char* pwd) = 0;
+
+            /**
+             * @brief Set notes attribute value.
+             *
+             * @param pwd Value to set
+             */
+            virtual void setNotes(const char* n) = 0;
+
+            /**
+             * @brief Set URL attribute value.
+             *
+             * @param pwd Value to set
+             */
+            virtual void setUrl(const char* u) = 0;
+
+            /**
+             * @brief Set user name attribute value.
+             *
+             * @param pwd Value to set
+             */
+            virtual void setUserName(const char* un) = 0;
+
+            /**
+             * @brief Get password attribute value.
+             *
+             * @return null-terminated string with the password value or nullptr/NULL if none
+             */
+            virtual const char* password() const = 0;
+
+            /**
+             * @brief Get notes attribute value.
+             *
+             * @return null-terminated string with the password value or nullptr/NULL if none
+             */
+            virtual const char* notes() const = 0;
+
+            /**
+             * @brief Get URL attribute value.
+             *
+             * @return null-terminated string with the password value or nullptr/NULL if none
+             */
+            virtual const char* url() const = 0;
+
+            /**
+             * @brief Get user name attribute value.
+             *
+             * @return null-terminated string with the password value or nullptr/NULL if none
+             */
+            virtual const char* userName() const = 0;
+
+            virtual ~PasswordNodeData() = default;
+        protected:
+            PasswordNodeData() = default;
         };
 
         static const int INVALID_DURATION = -1;
@@ -893,6 +972,9 @@ class MegaNode
          * - MegaNode::CHANGE_TYPE_NEW             = 0x400
          * Check if the node is new
          *
+         * - MegaNode::CHANGE_TYPE_PWD             = 0x8000
+         * Check if any Password Node Data value for this node changed
+         *
          * @return true if this node has an specific change
          */
         virtual bool hasChanged(uint64_t changeType);
@@ -946,6 +1028,9 @@ class MegaNode
          *
          * - MegaNode::CHANGE_TYPE_COUNTER         = 0x2000
          * Check if counter for this node (its subtree) has changed
+         *
+         * - MegaNode::CHANGE_TYPE_PWD             = 0x8000
+         * Check if any Password Node Data value for this node changed
          *
          */
         virtual uint64_t getChanges();
@@ -1042,6 +1127,24 @@ class MegaNode
          * @return true if this node is a private node from a foreign account
          */
         virtual bool isForeign();
+
+        /**
+         * @brief Returns true if this MegaNode is a Password Node
+         *
+         * Only MegaNodes created with MegaApi::createPasswordNode return true in this function.
+         *
+         * @return true if this node is a Password Node
+         */
+        virtual bool isPasswordNode() const;
+
+        /**
+         * @brief Gets the Password Node value if the node is a Password Node
+         *
+         * Non-set MegaNode::PasswordNodeData members will return nullptr/NULL
+         *
+         * @return Password Node data. Caller receives ownership.
+         */
+        virtual MegaNode::PasswordNodeData* getPasswordData() const;
 
         /**
          * @brief Returns a string that contains the decryption key of the file (in binary format)
@@ -4326,7 +4429,10 @@ class MegaRequest
             TYPE_MOVE_TO_DEBRIS                                             = 179,
             TYPE_RING_INDIVIDUAL_IN_CALL                                    = 180,
             TYPE_CREATE_NODE_TREE                                           = 181,
-            TOTAL_OF_REQUEST_TYPES                                          = 182,
+            TYPE_CREATE_PASSWORD_MANAGER_BASE                               = 182,
+            TYPE_CREATE_PASSWORD_NODE                                       = 183,
+            TYPE_UPDATE_PASSWORD_NODE                                       = 184,
+            TOTAL_OF_REQUEST_TYPES                                          = 185,
         };
 
         virtual ~MegaRequest();
@@ -4431,6 +4537,7 @@ class MegaRequest
          * - MegaApi::createFolder - Returns the handle of the new folder
          * - MegaApi::copyNode - Returns the handle of the new node
          * - MegaApi::importFileLink - Returns the handle of the new node
+         * - MegaApi::getPasswordManagerBase - Returns the handle of the base folder node
          *
          * @return Handle of a node related to the request
          */
@@ -9526,6 +9633,7 @@ class MegaApi
             USER_ATTR_CC_PREFS   = 39,           // private - byte array - versioned
             USER_ATTR_VISIBLE_WELCOME_DIALOG = 40, // private - byte array - versioned
             USER_ATTR_VISIBLE_TERMS_OF_SERVICE = 41, // private - byte array - versioned
+            USER_ATTR_PWM_BASE = 42,             // private non-encrypted (fully controlled by API) - char array in B64
         };
 
         enum {
@@ -11791,6 +11899,9 @@ class MegaApi
          * - MegaRequest::getNodeHandle - Handle of the new folder
          * - MegaRequest::getFlag - True if target folder (\c parent) was overriden
          *
+         * If there already is a folder in target path with the same name, error code API_EEXIST is
+         * returned and the existing folder MegaHandle included in MegaRequest::getNodeHandle.
+         *
          * If the MEGA account is a business account and it's status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
@@ -11799,6 +11910,81 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get Password Manager Base folder node from the MEGA account
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CREATE_PASSWORD_MANAGER_BASE
+         * Valid data in the MegaRequest object received on callbacks:
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNodeHandle - Handle of the folder
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * A successfully completed a fetchNodes request is required before calling getNodeByHandle with
+         * the MegaHandle returned by this request. Otherwise, getNodeByHandle will return NULL.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getPasswordManagerBase(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Returns true if provided MegaHandle is of a Password Node Folder
+         *
+         * A folder is considered a Password Node Folder if Password Manager Base is its
+         * ancestor, or if the node is the Password Manager Base folder itself.
+         *
+         * @param node MegaHandle of the node to check if it is a Password Node Folder
+         * @return true if this node is a Password Node Folder
+         */
+        virtual bool isPasswordNodeFolder(MegaHandle node) const;
+
+        /**
+         * @brief Create a new Password Node in your Password Manager tree
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CREATE_PASSWORD_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Handle of the parent provided as an argument
+         * - MegaRequest::getName - name for the new Password Node provided as an argument
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNodeHandle - Handle of the new Password Node
+         *
+         * If there already is a Password Node in target path with the same name, error code
+         * API_EEXIST is returned and the existing Password Node MegaHandle included in
+         * MegaRequest::getNodeHandle.
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param name Name for the new Password Node
+         * @param data Password Node data for the Password Node
+         * @param parent Parent folder for the new Password Node
+         * @param listener MegaRequestListener to track this request
+         */
+        void createPasswordNode(const char *name, const MegaNode::PasswordNodeData *data, MegaHandle parent,
+                                MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Update a Password Node in the MEGA account according to the parameters
+         *
+         * The associated request type with this request is MegaRequest::TYPE_UPDATE_PASSWORD_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - handle provided of the Password Node to update
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param node Node to modify
+         * @param newData New data for the Password Node to update
+         * @param listener MegaRequestListener to track this request
+         */
+        void updatePasswordNode(MegaHandle node, const MegaNode::PasswordNodeData* newData,
+                                MegaRequestListener *listener = NULL);
 
         /**
          * @brief Create a new empty folder in your local file system
