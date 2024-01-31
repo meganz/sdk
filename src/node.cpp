@@ -1062,16 +1062,7 @@ byte* Node::decryptattr(SymmCipher* key, const char* attrstring, size_t attrstrl
 
 void Node::parseattr(byte *bufattr, AttrMap &attrs, m_off_t size, m_time_t &mtime , string &fileName, string &fingerprint, FileFingerprint &ffp)
 {
-    JSON json;
-    nameid name;
-    string *t;
-
-    json.begin((char*)bufattr + 5);
-    while ((name = json.getnameid()) != EOO && json.storeobject((t = &attrs.map[name])))
-    {
-        JSON::unescape(t);
-    }
-
+    attrs.fromjson(reinterpret_cast<char*>(bufattr) + 5);
     attr_map::iterator it = attrs.map.find('n');   // filename
     if (it == attrs.map.end())
     {
@@ -1109,23 +1100,12 @@ void Node::setattr()
 
     if (attrstring && (cipher = nodecipher()) && (buf = decryptattr(cipher, attrstring->c_str(), attrstring->size())))
     {
-        JSON json;
-        nameid name;
-        string* t;
-
         AttrMap oldAttrs(attrs);
         attrs.map.clear();
-        json.begin((char*)buf + 5);
+        attrs.fromjson(reinterpret_cast<char*>(buf) + 5);
 
-        while ((name = json.getnameid()) != EOO && json.storeobject((t = &attrs.map[name])))
-        {
-            JSON::unescape(t);
-
-            if (name == 'n')
-            {
-                LocalPath::utf8_normalize(t);
-            }
-        }
+        auto it = attrs.map.find('n');
+        if (it != std::end(attrs.map)) LocalPath::utf8_normalize(&it->second);
 
         changed.name = attrs.hasDifferentValue('n', oldAttrs.map);
         changed.favourite = attrs.hasDifferentValue(AttrMap::string2nameid("fav"), oldAttrs.map);
