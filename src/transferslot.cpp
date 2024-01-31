@@ -278,7 +278,7 @@ TransferSlot::~TransferSlot()
             }
         }
 
-        if (transferbuf.isNewRaid() && cloudRaid)
+        if (cloudRaid)
         {
             LOG_debug << "[TransferSlot::~TransferSlot] Stop cloudRaid";
             cloudRaid->stop();
