@@ -1903,14 +1903,14 @@ MegaTreeProcessor::~MegaTreeProcessor()
 
 /* BEGIN MEGAAPI */
 
-MegaApi::MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned workerThreadCount)
+MegaApi::MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType)
 {
-    pImpl = new MegaApiImpl(this, appKey, processor, basePath, userAgent, workerThreadCount);
+    pImpl = new MegaApiImpl(this, appKey, processor, basePath, userAgent, workerThreadCount, clientType);
 }
 
-MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent, unsigned workerThreadCount)
+MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType)
 {
-    pImpl = new MegaApiImpl(this, appKey, nullptr, basePath, userAgent, workerThreadCount);
+    pImpl = new MegaApiImpl(this, appKey, nullptr, basePath, userAgent, workerThreadCount, clientType);
 }
 
 #ifdef HAVE_MEGAAPI_RPC

@@ -2327,7 +2327,14 @@ public:
      */
     dstime overTransferQuotaBackoff(HttpReq* req);
 
-    MegaClient(MegaApp*, shared_ptr<Waiter>, HttpIO*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
+    enum class ClientType
+    {
+        DEFAULT = 0,        // same as MegaApi::CLIENT_TYPE_DEFAULT
+        VPN,
+        PASSWORD_MANAGER,
+    };
+
+    MegaClient(MegaApp*, shared_ptr<Waiter>, HttpIO*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount, ClientType clientType = ClientType::DEFAULT);
     ~MegaClient();
 
 struct MyAccountData
@@ -2381,7 +2388,11 @@ public:
     bool resetCacheAndValues();
 };
 
+    ClientType getClientType() const { return mClientType; }
+
 private:
+    ClientType mClientType;
+
     // Since it's quite expensive to create a SymmCipher, this are provided to use for quick operations - just set the key and use.
     SymmCipher tmpnodecipher;
 

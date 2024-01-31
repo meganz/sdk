@@ -2829,7 +2829,7 @@ private:
 class MegaApiImpl : public MegaApp
 {
     public:
-        MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned workerThreadCount);
+        MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType);
         virtual ~MegaApiImpl();
 
         static MegaApiImpl* ImplOf(MegaApi*);
@@ -3658,7 +3658,7 @@ public:
         void setVisibleTermsOfService(bool visible, MegaRequestListener* listener = nullptr);
 
 private:
-        void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, unsigned clientWorkerThreadCount /*= 1*/);
+        void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, unsigned clientWorkerThreadCount /*= 1*/, int clientType);
 
         static void *threadEntryPoint(void *param);
 
