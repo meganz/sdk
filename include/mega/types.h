@@ -768,6 +768,7 @@ typedef enum {
     ATTR_CC_PREFS   = 39,                   // private - byte array - versioned (content consumption preferences)
     ATTR_VISIBLE_WELCOME_DIALOG = 40,       // private - non-encrypted - byte array - versioned
     ATTR_VISIBLE_TERMS_OF_SERVICE = 41,     // private - non-encrypted - byte array - versioned
+    ATTR_PWM_BASE = 42,                     // private, non-encrypted (fully controlled by API) - char array in B64 - non-versioned
 
 } attr_t;
 typedef map<attr_t, string> userattr_map;

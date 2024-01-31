@@ -1537,8 +1537,6 @@ public:
         PENDING = 3, // The sync engine is working, e.g: scanning local folders
         INACTIVE = 4, // Sync is not active. A state != ACTIVE should have been sent through '''sp'''
         UNKNOWN = 5, // Unknown status
-
-        // TODO: can this be added to the Backup Centre
         STALLED = 6, // a folder is scan-blocked, or some contradictory changes occured between local and remote folders, user must pick one
     };
 
@@ -1912,6 +1910,19 @@ private:
     CommandFetchCreditCardCompletion mCompletion;
 };
 
+
+class MEGA_API CommandCreatePasswordManagerBase : public Command
+{
+public:
+    using Completion = std::function<void(Error, std::unique_ptr<NewNode>)>;
+
+    CommandCreatePasswordManagerBase(MegaClient* cl, std::unique_ptr<NewNode>, int ctag, Completion&& cb = nullptr);
+    bool procresult(Result, JSON&) override;
+
+private:
+    std::unique_ptr<NewNode> mNewNode;
+    Completion mCompletion;
+};
 
 } // namespace
 
