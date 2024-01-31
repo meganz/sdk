@@ -127,6 +127,10 @@ using namespace mega;
     return self.megaNode ? self.megaNode->isFavourite() : NO;
 }
 
+- (BOOL)isMarkedSensitive {
+    return self.megaNode ? self.megaNode->isMarkedSensitive() : NO;
+}
+
 - (MEGANodeLabel)label {
     return (MEGANodeLabel) (self.megaNode ? self.megaNode->getLabel() : 0);
 }

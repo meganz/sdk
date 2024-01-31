@@ -1463,6 +1463,18 @@ using namespace mega;
     }
 }
 
+- (void)setNodeSensitive:(MEGANode *)node sensitive:(BOOL)sensitive delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->setNodeSensitive(node.getCPtr, sensitive, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
+
+- (void)setNodeSensitive:(MEGANode *)node sensitive:(BOOL)sensitive {
+    if (self.megaApi) {
+        self.megaApi->setNodeSensitive(node.getCPtr, sensitive);
+    }
+}
+
 - (void)favouritesForParent:(nullable MEGANode *)node count:(NSInteger)count delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->getFavourites(node.getCPtr, (int)count, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
@@ -3153,6 +3165,11 @@ using namespace mega;
 - (BOOL)isNodeInRubbish:(MEGANode *)node {
     if (self.megaApi == nil) return NO;
     return self.megaApi->isInRubbish(node.getCPtr);
+}
+
+-(BOOL)isNodeInheritingSensitivity:(MEGANode *)node {
+    if (self.megaApi == nil) return NO;
+    return self.megaApi->isSensitiveInherited(node.getCPtr);
 }
 
 - (MEGAError *)checkMoveErrorExtendedForNode:(MEGANode *)node target:(MEGANode *)target {
