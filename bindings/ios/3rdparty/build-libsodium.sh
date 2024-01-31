@@ -45,14 +45,10 @@ build_arch_platform() {
     export CPPFLAGS="${CFLAGS} -I${BUILD_SDKROOT}/usr/include"
     export CXXFLAGS="${CPPFLAGS}"
   else #macOS
-    if [ $ARCH == "x86_64" ]; then
       export LDFLAGS="-Os -arch ${ARCH} -Wl,-dead_strip -mmacosx-version-min=10.15 -L${BUILD_SDKROOT}/usr/lib"
       export CFLAGS="-Os -arch ${ARCH} -pipe -no-cpp-precomp -isysroot ${BUILD_SDKROOT} -mmacosx-version-min=10.15 -DNDEBUG"
       export CPPFLAGS="${CFLAGS} -I${BUILD_SDKROOT}/usr/include"
       export CXXFLAGS="${CPPFLAGS}"
-    elif [ $ARCH == "arm64" ]; then
-      export CFLAGS="-Os -arch ${ARCH} -pipe -no-cpp-precomp -mmacosx-version-min=10.15 -DNDEBUG"
-    fi
   fi
         
 
