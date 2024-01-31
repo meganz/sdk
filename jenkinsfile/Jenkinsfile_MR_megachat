@@ -157,15 +157,14 @@ pipeline {
                             env.MEGA_EMAIL0 = "${env.ACCOUNTS_COMBINATION}"
                             echo "${env.ACCOUNTS_COMBINATION}"
                         }
-                        sh "ln -sfr ${megachat_sources_workspace}/build/MEGAchatTests/megachat_tests megachat_tests"
                         sh """#!/bin/bash
                         ulimit -c unlimited
 
                         if [ -z \"${TESTS_PARALLEL}\" ]; then
-                            ./megachat_tests --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} || FAILED=1
+                            ${megachat_sources_workspace}/build/MEGAchatTests/megachat_tests --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} || FAILED=1
                         else
                             # Parallel run
-                            ./megachat_tests --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${TESTS_PARALLEL} 2>&1 | tee tests.stdout
+                            ${megachat_sources_workspace}/build/MEGAchatTests/megachat_tests --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${TESTS_PARALLEL} 2>&1 | tee tests.stdout
                             [ \"\${PIPESTATUS[0]}\" != \"0\" ] && FAILED=1
                         fi
 
@@ -180,7 +179,7 @@ pipeline {
                                     echo "Processing core dump..."
                                     echo thread apply all bt > backtrace
                                     echo quit >> backtrace
-                                    gdb -q ./megachat_tests core -x ${megachat_sources_workspace}/build/subfolder/backtrace
+                                    gdb -q ${megachat_sources_workspace}/build/MEGAchatTests/megachat_tests core -x ${megachat_sources_workspace}/build/subfolder/backtrace
                                     tar chvzf core.tar.gz core megachat_tests
                                     break
                                 fi

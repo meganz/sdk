@@ -19,6 +19,7 @@
  * program.
  */
 #import <Foundation/Foundation.h>
+#import "PasswordNodeData.h"
 
 typedef NS_ENUM (NSInteger, MEGANodeType) {
     MEGANodeTypeUnknown = -1,
@@ -284,6 +285,11 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly, nonatomic, nullable) NSString *deviceId;
 
 /**
+* @brief The Password Node Data if the node is a Password Node.
+*/
+@property (readonly, nonatomic, nullable) PasswordNodeData *passwordNodeData;
+
+/**
  * @brief Creates a copy of this MEGANode object.
  *
  * The resulting object is fully independent of the source MEGANode,
@@ -516,6 +522,14 @@ NS_ASSUME_NONNULL_BEGIN
  */
 - (BOOL)isNodeKeyDecrypted;
 
+/**
+ * @brief Returns true if this MegaNode is a Password Node
+ *
+ * Only MegaNodes created with MegaApi::createPasswordNode return true in this function.
+ *
+ * @return true if this node is a Password Node
+ */
+- (BOOL)isPasswordNode;
 
 + (nullable NSString *)stringForNodeLabel:(MEGANodeLabel)nodeLabel;
 
