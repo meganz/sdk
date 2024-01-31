@@ -11236,21 +11236,21 @@ bool CommandCreatePasswordManagerBase::procresult(Result r, JSON &json)
                 sanityChecksFailed = true;
             }
 
-            auto keySeparatorPos = key.find(":");
+            const auto keySeparatorPos = key.find(":");
+            auto keyBeginning = keySeparatorPos + 1;
             if (keySeparatorPos == std::string::npos)
             {
-                LOG_err << msg << "invalid key field received |" << key << "| missing separator ':'";
-                sanityChecksFailed = true;
+                LOG_warn << msg << "unexpected key field value |" << key << "| missing separator ':'."
+                         << " Attempting key value format without separator ':'";
+                keyBeginning = 0;
             }
-            else
+
+            const std::string aux {Base64::btoa(mNewNode->nodekey)};
+            key = key.substr(keyBeginning);
+            if (key != aux)
             {
-                const std::string aux = Base64::btoa(mNewNode->nodekey);
-                key = key.substr(++keySeparatorPos);
-                if (key != aux)
-                {
-                    LOG_err << "node key value |" << key << "| different than expected |" << aux << "|";
-                    sanityChecksFailed = true;
-                }
+                LOG_err << "node key value |" << key << "| different than expected |" << aux << "|";
+                sanityChecksFailed = true;
             }
 
             const auto& at = mNewNode->attrstring;
