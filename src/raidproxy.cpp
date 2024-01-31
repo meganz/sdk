@@ -680,6 +680,7 @@ RaidReq::RaidReq(const Params& p, RaidReqPool& rrp, const std::shared_ptr<CloudR
     : pool(rrp)
     , cloudRaid(cloudRaid)
 {
+    LOG_verbose << "[RaidReq::RaidReq] CONSTRUCTOR call [this = " << this << "]";
     assert(p.tempUrls.size() > 0);
     assert((p.reqStartPos >= 0) && (p.reqlen <= p.filesize));
     httpReqs.resize(p.tempUrls.size());
@@ -735,7 +736,7 @@ RaidReq::RaidReq(const Params& p, RaidReqPool& rrp, const std::shared_ptr<CloudR
 
 RaidReq::~RaidReq()
 {
-    LOG_debug << "[RaidReq::~RaidReq] call";
+    LOG_verbose << "[RaidReq::~RaidReq] DESTRUCTOR call [this = " << this << "]";
 }
 
 void RaidReq::dispatchio(const HttpReqPtr& httpReq)
@@ -1040,16 +1041,18 @@ m_off_t RaidReq::readdata(byte* buf, m_off_t len)
         {
             if (Waiter::ds-lastdata > 1000)
             {
-                if (Waiter::ds-lastdata > 3000)
+                if (Waiter::ds-lastdata > 1500)
                 {
-                    LOG_warn << "CloudRAID feed timed out [haddata = " << haddata << "]";
+                    LOG_warn << "CloudRAID feed timed out [haddata = " << haddata << "] [this = " << this << "]";
+                    std::cout << "CloudRAID feed timed out [haddata = " << haddata << "] [this = " << this << "]" << std::endl;
                     return -1;
                 }
 
                 if (!reported)
                 {
                     reported = true;
-                    LOG_warn << "CloudRAID feed stuck [haddata = " << haddata << "]";
+                    LOG_warn << "CloudRAID feed stuck [haddata = " << haddata << "] [this = " << this << "]";
+                    std::cout << "CloudRAID feed stuck [haddata = " << haddata << "] [this = " << this << "]" << std::endl;
                 }
             }
         }
@@ -1120,7 +1123,7 @@ void RaidReq::watchdog()
             if (httpReqs[i]->status == REQ_INFLIGHT)
             {
                 fetcher[i].lastdata = httpReqs[i]->lastdata;
-                if (fetcher[i].remfeed && ((Waiter::ds - httpReqs[i]->lastdata > 100) || (Waiter::ds - fetcher[i].lastdata > 200)))
+                if (fetcher[i].remfeed && (Waiter::ds - fetcher[i].lastdata > 300))
                 {
                     hanging++;
                     hangingsource = i;
@@ -1132,18 +1135,30 @@ void RaidReq::watchdog()
 
     if (hanging)
     {
+        if (idlegoodsource < 0)
         {
-            if (idlegoodsource >= 0)
+            // Try a source with less errors:
+            for (int i = RAIDPARTS; i--; )
             {
-                fetcher[hangingsource].errors++;
-                fetcher[hangingsource].closesocket();
-                if (fetcher[idlegoodsource].trigger() == -1)
-                {
-                    fetcher[hangingsource].trigger();
-                }
-                return;
+                if (!fetcher[i].connected &&
+                    !fetcher[i].finished &&
+                    (fetcher[i].errors <= 2 ||
+                            (idlegoodsource >= 0 && fetcher[i].errors < fetcher[idlegoodsource].errors)))
+                    idlegoodsource = i;
             }
         }
+        if (idlegoodsource >= 0)
+        {
+            LOG_verbose << "Hanging source!!!!! hangingsource = " << hangingsource << " (" << (void*)httpReqs[hangingsource].get() << "), idlegoodsource = " << idlegoodsource << " (" << (void*)httpReqs[idlegoodsource].get() << ") [fetcher[hangingsource].lastdata = " << fetcher[hangingsource].lastdata << ", Waiter::ds = " << Waiter::ds << "] [this = " << this << "]";
+            fetcher[hangingsource].errors++;
+            fetcher[hangingsource].closesocket();
+            if (fetcher[idlegoodsource].trigger() == -1)
+            {
+                fetcher[hangingsource].trigger();
+            }
+            return;
+        }
+        else { LOG_verbose << "Hanging source!!!!! hangingsource = " << hangingsource << " (" << (void*)httpReqs[hangingsource].get() << "), idlegoodsource = " << idlegoodsource << " [fetcher[hangingsource].lastdata = " << fetcher[hangingsource].lastdata << ", Waiter::ds = " << Waiter::ds << "] [this = " << this << "]"; }
     }
 }
 
@@ -1192,6 +1207,7 @@ int RaidReq::processFeedLag()
         {
             // slow channel detected
             {
+                LOG_debug << "Slow channel " << slowest << " (" << (void*)httpReqs[slowest].get() << ")" << " detected !!!!!!!!";
                 fetcher[slowest].errors++;
 
                 // check if we have a fresh and idle channel left to try
@@ -1202,10 +1218,12 @@ int RaidReq::processFeedLag()
                 }
                 if (fresh >= 0)
                 {
+                    LOG_verbose << "New fresh channel: " << fresh << " (" << (void*)httpReqs[fresh].get() << ")";
                     fetcher[slowest].closesocket();
                     fetcher[fresh].resume(true);
                     laggedPart = slowest;
                 }
+                else { LOG_verbose << "No fresh channel to switch with the slow channel"; }
             }
         }
 
@@ -1312,11 +1330,13 @@ void RaidReqPool::raidproxyio()
 
 RaidReqPool::RaidReqPool()
 {
+    LOG_verbose << "[RaidReqPool::RaidReqPool] CONSTRUCTOR CALL [this = " << this << "]";
     isRunning = true;
 }
 
 RaidReqPool::~RaidReqPool()
 {
+    LOG_verbose << "[RaidReqPool::~RaidReqPool] DESTRUCTOR CALL [this = " << this << "]";
     isRunning = false;
     raidReq.reset();
 }

@@ -149,8 +149,13 @@ bool TransferSlot::createconnectionsonce(MegaClient* client, TransferDbCommitter
         }
 
         connections = transferbuf.isRaid() ? RAIDPARTS : transfer->size > 131072 ? transfer->client->connections[transfer->type] : 1;
-        if (transferbuf.isNewRaid()) connections = NUM_CONNECTIONS_NEW_RAID;
-        LOG_debug << "Populating transfer slot with " << connections << " connections, max request size of " << maxRequestSize << " bytes";
+        if (transfer->size > 131072 && transferbuf.isNewRaid())
+        {
+            // Need this until there is a way to change it on megaCMD
+            connections = NUM_CONNECTIONS_NEW_RAID;
+            DEBUG_TEST_HOOK_NUMBER_OF_CONNECTIONS(connections, transfer->client->connections[transfer->type])
+        }
+        LOG_debug << "Populating transfer slot with " << connections << " connections, max request size of " << maxRequestSize << " bytes [transferbuf.isNewRaid() = " << transferbuf.isNewRaid() << "] [isDownload = " << (transfer->type == GET) << "]";
         reqs.resize(connections);
         mReqSpeeds.resize(connections);
         asyncIO = new AsyncIOContext*[connections]();
@@ -167,6 +172,7 @@ bool TransferSlot::createconnectionsonce(MegaClient* client, TransferDbCommitter
 // reused on a new slot)
 TransferSlot::~TransferSlot()
 {
+    LOG_verbose << "[TransferSlot::~TransferSlot] BEGIN [cloudRaid = " << (void*)(cloudRaid.get()) << "]";
     LOG_verbose << "Deleting TransferSlot";
     if (transfer->type == GET && !transfer->finished
             && transfer->progresscompleted != transfer->size
@@ -316,6 +322,7 @@ TransferSlot::~TransferSlot()
     }
 
     delete[] asyncIO;
+    LOG_verbose << "[TransferSlot::~TransferSlot] END [cloudRaid = " << (void*)(cloudRaid.get()) << "]";
 }
 
 void TransferSlot::toggleport(HttpReqXfer *req)
@@ -1243,6 +1250,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                     if (transferbuf.isNewRaid())
                     {
                         assert(cloudRaid != nullptr);
+                        LOG_verbose << "Conn " << i << " : balancedRequest Size: " << reqs[i]->size << ". Pos: " << reqs[i]->pos << ". maxRequestSize : " << maxRequestSize << " [req = " << (void*)reqs[i].get() << "]";
                         if (!cloudRaid->balancedRequest(i, transferbuf.tempUrlVector(), reqs[i]->size, reqs[i]->pos, reqs[i]->size, maxRequestSize))
                         {
                             reqs[i]->status = REQ_FAILURE;
@@ -1452,11 +1460,11 @@ void TransferSlot::prepareRequest(const std::shared_ptr<HttpReqXfer>& httpReq, c
 
 std::pair<error, dstime> TransferSlot::processRequestFailure(MegaClient* client, const std::shared_ptr<HttpReqXfer>& httpReq, dstime& backoff, int channel)
 {
-    LOG_warn << "Conn " << channel << " : Failed chunk. HTTP status: " << httpReq->httpstatus;
+    LOG_warn << "Conn " << channel << " : Failed chunk. HTTP status: " << httpReq->httpstatus << " [httpReq = " << (void*)httpReq.get() << "]";
 
     if (httpReq->httpstatus && httpReq->contenttype.find("text/html") != string::npos && !memcmp(httpReq->posturl.c_str(), "http:", 5))
     {
-        LOG_warn << "Conn " << channel << " : Invalid Content-Type detected on failed chunk: " << httpReq->contenttype;
+        LOG_warn << "Conn " << channel << " : Invalid Content-Type detected on failed chunk: " << httpReq->contenttype << " [httpReq = " << (void*)httpReq.get() << "]";
         client->usehttps = true;
         client->app->notify_change_to_https();
 
@@ -1467,7 +1475,7 @@ std::pair<error, dstime> TransferSlot::processRequestFailure(MegaClient* client,
 
     if (httpReq->httpstatus == 509)
     {
-        LOG_warn << "Conn " << channel << " : Bandwidth overquota from storage server";
+        LOG_warn << "Conn " << channel << " : Bandwidth overquota from storage server" << " [httpReq = " << (void*)httpReq.get() << "]";
 
         dstime new_backoff = client->overTransferQuotaBackoff(httpReq.get());
 
@@ -1475,18 +1483,21 @@ std::pair<error, dstime> TransferSlot::processRequestFailure(MegaClient* client,
     }
     else if (httpReq->httpstatus == 429)
     {
+        LOG_warn << "Conn " << channel << " : 429 - too many requests - backoff 5, REQ_PREPARED" << " [httpReq = " << (void*)httpReq.get() << "]";
         // too many requests - back off a bit (may be added serverside at some point.  Added here 202020623)
         backoff = 5;
         httpReq->status = REQ_PREPARED;
     }
     else if (httpReq->httpstatus == 503 && !transferbuf.isRaid() && !transferbuf.isNewRaid())
     {
+        LOG_warn << "Conn " << channel << " : 503 dor non raid... backoff and REQ_PREPARED" << " [httpReq = " << (void*)httpReq.get() << "]";
         // for non-raid, if a file gets a 503 then back off as it may become available shortly
         backoff = 50;
         httpReq->status = REQ_PREPARED;
     }
     else if (httpReq->httpstatus == 403 || httpReq->httpstatus == 404 || (httpReq->httpstatus == 503 && (transferbuf.isRaid() || transferbuf.isNewRaid())))
     {
+        LOG_warn << "Conn " << channel << " : 403, 404 or 503... (if is new raid -> REQ_READY)" << " [httpReq = " << (void*)httpReq.get() << "]";
         if (transferbuf.isNewRaid())
         {
             httpReq->status = REQ_READY;
@@ -1501,6 +1512,7 @@ std::pair<error, dstime> TransferSlot::processRequestFailure(MegaClient* client,
     }
     else if (httpReq->httpstatus == 0 && (transferbuf.isNewRaid() || tryRaidRecoveryFromHttpGetError(channel, true)))
     {
+        LOG_warn << "Conn " << channel << " : status 0 NETWORK ERROR OR TIMEOUT -> (if is new raid -> REQ_READY)" << " [httpReq = " << (void*)httpReq.get() << "]";
         if (transferbuf.isNewRaid())
         {
             httpReq->status = REQ_READY;
@@ -1512,6 +1524,7 @@ std::pair<error, dstime> TransferSlot::processRequestFailure(MegaClient* client,
     {
         if (!failure)
         {
+            LOG_verbose << "Conn " << channel << " : else if failure" << " [httpReq = " << (void*)httpReq.get() << "]";
             failure = true;
             bool changeport = false;
 
@@ -1537,6 +1550,7 @@ std::pair<error, dstime> TransferSlot::processRequestFailure(MegaClient* client,
                 toggleport(httpReq.get());
             }
         }
+        LOG_verbose << "Conn " << channel << " : from req_failure to REQ_PREPARED" << " [httpReq = " << (void*)httpReq.get() << "]";
         httpReq->status = REQ_PREPARED;
     }
     return std::make_pair(API_OK, 0);
@@ -1598,13 +1612,14 @@ std::pair<error, dstime> TransferSlot::processRaidReq(size_t connection)
     }
     else if (progress < 0)
     {
+        LOG_debug << "[TransferSlot::processRaidReq] Conn " << connection << " : RaidReq FAILURE. [httpReq = " << (void*)httpReq.get() << "]";
         httpReq->status = REQ_FAILURE;
     }
     httpReq->lastdata = Waiter::ds;
 
     if (httpReq->status == REQ_SUCCESS)
     {
-        LOG_verbose << "[TransferSlot::processRaidReq] Conn " << connection << " : RaidReq SUCCESS. Removing RaidReq...";
+        LOG_verbose << "[TransferSlot::processRaidReq] Conn " << connection << " : RaidReq SUCCESS. Removing RaidReq... [httpReq = " << (void*)httpReq.get() << "]";
         cloudRaid->removeRaidReq(static_cast<int>(connection));
     }
     return cloudRaid->checkTransferFailure();

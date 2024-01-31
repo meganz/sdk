@@ -465,6 +465,7 @@ void HttpReq::disconnect()
 
 HttpReq::HttpReq(bool b)
 {
+    LOG_verbose << "[HttpReq::HttpReq] CONSTRUCTOR CALL [this = " << this << "]";
     binary = b;
     status = REQ_READY;
     buf = NULL;
@@ -484,6 +485,7 @@ HttpReq::HttpReq(bool b)
 
 HttpReq::~HttpReq()
 {
+    LOG_verbose << "[HttpReq::~HttpReq] DESTRUCTOR CALL [this = " << this << "]";
     if (httpio)
     {
         httpio->cancel(this);

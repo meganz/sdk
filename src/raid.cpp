@@ -883,9 +883,8 @@ TransferBufferManager::TransferBufferManager()
 
 void TransferBufferManager::setIsRaid(Transfer* t, const std::vector<std::string>& tempUrls, m_off_t resumepos, m_off_t maxRequestSize, bool isNewRaid)
 {
-    RaidBufferManager::setIsRaid(tempUrls, resumepos, t->size, t->size, maxRequestSize, isNewRaid && t->type == GET);
-
     transfer = t;
+    RaidBufferManager::setIsRaid(tempUrls, resumepos, t->size, t->size, maxRequestSize, isNewRaid && t->type == GET);
 }
 
 m_off_t& TransferBufferManager::transferPos(unsigned connectionNum)
@@ -959,6 +958,7 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
                 m_off_t maxReqsSize = defaultMaxReqSize * 4; // based on 4 connections
                 maxReqSize = static_cast<m_off_t>(maxReqsSize / transfer->slot->connections);
                 maxReqSize = std::max<m_off_t>(maxReqSize, (1*1024*1024)*5); // 1MB for each raidpart min
+                DEBUG_TEST_HOOK_LIMIT_MAX_REQ_SIZE(maxReqSize) // Limit max request size if needed
                 maxReqSize = std::min<m_off_t>(maxReqSize, transfer->size); // Not greater than the transfer itself
                 m_off_t nextChunk = ChunkedHash::chunkceil(transfer->pos + maxReqSize, transfer->size);
                 while ((nextChunk < transfer->size) && (((nextChunk - transfer->pos) % RAIDLINE) != 0))
@@ -1063,6 +1063,7 @@ public:
     , client(client)
     , started(false)
     {
+        LOG_verbose << "[CloudRaidImpl::CloudRaidImpl] CONSTRUCTOR CALL [this = " << this << "]";
         assert(tslot != nullptr);
         assert(client != nullptr);
         transferFailed = std::make_pair(API_OK, 0);
@@ -1071,6 +1072,7 @@ public:
 
     ~CloudRaidImpl()
     {
+        LOG_verbose << "[CloudRaidImpl::~CloudRaidImpl] DESTRUCTOR CALL [this = " << this << "]";
         stop();
     }
 
@@ -1160,6 +1162,7 @@ public:
 
     bool stop()
     {
+        LOG_verbose << "[CloudRaidImpl::stop] stop CALL [started = " << started << "] [this = " << this << "]";
         if (!started)
         {
             return false;

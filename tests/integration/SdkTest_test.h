@@ -655,6 +655,8 @@ public:
     void createChat(bool group, MegaTextChatPeerList *peers, int timeout = maxTimeout);
 #endif
 
+    template<typename ... requestArgs> bool doSetMaxConnections(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setMaxConnections(args..., &rt); return rt.waitForResult(); }
+
     /* MegaVpnCredentials */
     template<typename ... requestArgs> int doGetVpnRegions(unsigned apiIndex, unique_ptr<MegaStringList>& vpnRegions, requestArgs... args)
     {
