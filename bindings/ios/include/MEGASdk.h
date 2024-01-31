@@ -165,7 +165,8 @@ typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
     MEGANodeAttributeCoordinates    = 1,
     MEGANodeAttributeOriginalFingerprint = 2,
     MEGANodeAttributeLabel = 3,
-    MEGANodeAttributeFav = 4
+    MEGANodeAttributeFav = 4,
+    MEGANodeAttributeSen = 6
 };
 
 typedef NS_ENUM(NSInteger, MEGASetAttribute) {
@@ -3485,14 +3486,14 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  *
  * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
  * Valid data in the MegaRequest object received on callbacks:
- * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
- * - MegaRequest::getNumDetails - Returns 1 if node is set as sensitive, otherwise return 0
- * - MegaRequest::getFlag - Returns true (official attribute)
- * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_SENSITIVE
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest numDetails] - Returns 1 if node is set as favourite, otherwise return 0
+ * - [MEGARequest flag] - Returns YES (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeSen
  *
  * @param node Node that will receive the information.
  * @param sensitive if true set node as sensitive, otherwise remove the attribute
- * @param delegate MegaRequestListener to track this request
+ * @param delegate MEGARequestDelegate to track this request
  */
 - (void)setNodeSensitive:(MEGANode *)node sensitive:(BOOL)sensitive delegate:(id<MEGARequestDelegate>)delegate;
 
@@ -3503,10 +3504,10 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  *
  * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
  * Valid data in the MegaRequest object received on callbacks:
- * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
- * - MegaRequest::getNumDetails - Returns 1 if node is set as sensitive, otherwise return 0
- * - MegaRequest::getFlag - Returns true (official attribute)
- * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_SENSITIVE
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest numDetails] - Returns 1 if node is set as favourite, otherwise return 0
+ * - [MEGARequest flag] - Returns YES (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeSen
  *
  * @param node Node that will receive the information.
  * @param sensitive if true set node as sensitive, otherwise remove the attribute
@@ -8057,7 +8058,7 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
 /**
 * @brief Ascertain if the node is marked as sensitive or a descendent of such
 *
-* see MegaNode::isMarkedSensitive to see if the node is sensitive
+* see [MEGANode isMarkedSensitive] to see if the node is sensitive
 *
 * @param node node to inspect
 */
