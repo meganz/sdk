@@ -16454,6 +16454,16 @@ TEST_F(SdkTest, CreateNodeTreeWithOneFile)
     ASSERT_THAT(fileNode, ::testing::NotNull());
     ASSERT_STREQ(IMAGEFILE.c_str(), fileNode->getName());
     ASSERT_EQ(fileSize, fileNode->getSize());
+
+    // Create a copy of the already existing file
+    string fileCopy = IMAGEFILE + "_copy";
+    nodeTree.reset(
+            MegaNodeTree::createInstance(nullptr, fileCopy.c_str(), nullptr, nullptr, fileNode->getHandle()));
+    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, parentNode.get(), nodeTree.get()));
+    fileNode.reset(megaApi[apiIndex]->getNodeByHandle(nodeTree->getNodeHandle()));
+    ASSERT_THAT(fileNode, ::testing::NotNull());
+    ASSERT_STREQ(fileCopy.c_str(), fileNode->getName());
+    ASSERT_EQ(fileSize, fileNode->getSize());
 }
 
 /**
@@ -16503,12 +16513,21 @@ TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectories)
         megaApi[apiIndex]->getNodeByHandle(directoryNodeHandleLevel1)};
     ASSERT_THAT(directoryNodeLevel1, ::testing::NotNull());
     ASSERT_STREQ(directoryNameLevel1.c_str(), directoryNodeLevel1->getName());
+    ASSERT_EQ(directoryNodeLevel1->getParentHandle(), directoryNodeLevel0->getHandle());
 
     const auto directoryNodeHandleLevel2{nodeTreeLevel2->getNodeHandle()};
     std::unique_ptr<MegaNode> directoryNodeLevel2{
         megaApi[apiIndex]->getNodeByHandle(directoryNodeHandleLevel2)};
     ASSERT_THAT(directoryNodeLevel2, ::testing::NotNull());
     ASSERT_STREQ(directoryNameLevel2.c_str(), directoryNodeLevel2->getName());
+    ASSERT_EQ(directoryNodeLevel2->getParentHandle(), directoryNodeLevel1->getHandle());
+
+
+    // make a copy of a dir containing another dir
+    string dir1Copy = directoryNameLevel1 + "_copy";
+    std::unique_ptr<MegaNodeTree> nodeTreeLevel1Copy{
+        MegaNodeTree::createInstance(nullptr, dir1Copy.c_str(), nullptr, nullptr, directoryNodeLevel1->getHandle()) };
+    ASSERT_EQ(API_EARGS, synchronousCreateNodeTree(apiIndex, directoryNodeLevel0.get(), nodeTreeLevel1Copy.get()));
 }
 
 /**

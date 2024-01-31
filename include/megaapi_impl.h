@@ -4153,6 +4153,7 @@ private:
         error performRequest_passwordLink(MegaRequestPrivate* request);
         error performRequest_importLink_getPublicNode(MegaRequestPrivate* request);
         error performRequest_copy(MegaRequestPrivate* request);
+        error copyTreeFromOwnedNode(shared_ptr<Node> node, const char *newName, shared_ptr<Node> target, vector<NewNode>& treeCopy);
         error performRequest_login(MegaRequestPrivate* request);
 
         error performTransferRequest_cancelTransfer(MegaRequestPrivate* request, TransferDbCommitter& committer);
@@ -4926,7 +4927,8 @@ public:
                         const std::string& name,
                         const std::string& s4AttributeValue,
                         const MegaCompleteUploadData* completeUploadData,
-                        MegaHandle nodeHandle);
+                        MegaHandle nodeHandle,
+                        MegaHandle sourceHandle);
     ~MegaNodeTreePrivate() override = default;
     MegaNodeTree* getNodeTreeChild() const override;
     const std::string& getName() const;
@@ -4934,6 +4936,7 @@ public:
     const MegaCompleteUploadData* getCompleteUploadData() const;
     MegaHandle getNodeHandle() const override;
     void setNodeHandle(const MegaHandle& nodeHandle);
+    const MegaHandle& getSourceHandle() const { return mSourceHandle; }
 
 private:
     std::unique_ptr<MegaNodeTree> mNodeTreeChild;
@@ -4941,6 +4944,7 @@ private:
     std::string mS4AttributeValue;
     std::unique_ptr<const MegaCompleteUploadData> mCompleteUploadData;
     MegaHandle mNodeHandle;
+    MegaHandle mSourceHandle;
 };
 
 class MegaCompleteUploadDataPrivate: public MegaCompleteUploadData

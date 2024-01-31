@@ -19910,10 +19910,38 @@ error MegaApiImpl::performRequest_copy(MegaRequestPrivate* request)
             }
             else
             {
-                TreeProcCopy tc;
+                vector<NewNode> nn;
+                error err = copyTreeFromOwnedNode(node, newName, target, nn);
+                if (err != API_OK)
+                {
+                    return err;
+                }
+
+                assert(!nn.empty()); // never empty because an error should have been reported in that case
+                nn[0].parenthandle = UNDEF;
+
+                if (target)
+                {
+                    client->putnodes(target->nodeHandle(), UseLocalVersioningFlag, std::move(nn), nullptr, request->getTag(), false);
+                }
+                else
+                {
+                    client->putnodes(email, std::move(nn), request->getTag());
+                }
+            }
+            return API_OK;
+}
+
+error MegaApiImpl::copyTreeFromOwnedNode(shared_ptr<Node> node, const char* newName, shared_ptr<Node> target, vector<NewNode>& treeCopy)
+{
+    assert(node);
+    assert(!newName || *newName);
+
+                /// Use more indentation for the code below to minimize the diff
 
                 if (!node->nodekey().size())
                 {
+                    LOG_err << "Failed to copy owned node: Node had no key";
                     return API_EKEY;
                 }
 
@@ -19923,10 +19951,12 @@ error MegaApiImpl::performRequest_copy(MegaRequestPrivate* request)
                     node->setattr();
                     if (node->attrstring)
                     {
+                        LOG_err << "Failed to copy owned node: Node had bad key";
                         return API_EKEY;
                     }
                 }
 
+                // process new name
                 string sname;
                 if (newName)
                 {
@@ -19942,6 +19972,9 @@ error MegaApiImpl::performRequest_copy(MegaRequestPrivate* request)
                     }
                 }
 
+                // determine handling of older versions
+                NodeHandle ovhandle;
+                bool fileAlreadyExisted = false;
                 if (target && node->type == FILENODE)
                 {
                     std::shared_ptr<Node> ovn = client->childnodebyname(target.get(), sname.c_str(), true);
@@ -19949,9 +19982,7 @@ error MegaApiImpl::performRequest_copy(MegaRequestPrivate* request)
                     {
                         if (node->isvalid && ovn->isvalid && *(FileFingerprint*)node.get() == *(FileFingerprint*)ovn.get())
                         {
-                            request->setNodeHandle(ovn->nodehandle);
-                            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
-                            return API_OK;
+                            fileAlreadyExisted = true;
                         }
 
                         ovhandle = ovn->nodeHandle();
@@ -19959,14 +19990,21 @@ error MegaApiImpl::performRequest_copy(MegaRequestPrivate* request)
                 }
 
                 // determine number of nodes to be copied
+                TreeProcCopy tc;
                 client->proctree(node, &tc, false, !ovhandle.isUndef());
                 tc.allocnodes();
 
                 // build new nodes array
                 client->proctree(node, &tc, false, !ovhandle.isUndef());
+                if (tc.nn.empty())
+                {
+                    LOG_err << "Failed to copy owned node: Failed to find nodes";
+                    return API_EARGS;
+                }
                 tc.nn[0].parenthandle = UNDEF;
                 tc.nn[0].ovhandle = ovhandle;
 
+                // Update name attr
                 if (newName)
                 {
                     SymmCipher key;
@@ -19982,16 +20020,12 @@ error MegaApiImpl::performRequest_copy(MegaRequestPrivate* request)
                     client->makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
                 }
 
-                if (target)
-                {
-                    client->putnodes(target->nodeHandle(), UseLocalVersioningFlag, std::move(tc.nn), nullptr, request->getTag(), false);
-                }
-                else
-                {
-                    client->putnodes(email, std::move(tc.nn), request->getTag());
-                }
-            }
-            return API_OK;
+    treeCopy = std::move(tc.nn);
+
+    // If the exact same file was already there do not send the request.
+    // Let the caller know by returning a dedicated error code, so that they
+    // can continue as if API_OK was received from the cloud API.
+    return fileAlreadyExisted ? API_EEXIST : API_OK;
 }
 
 void MegaApiImpl::restoreVersion(MegaNode* version, MegaRequestListener* listener)
@@ -26403,6 +26437,7 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
     {
         if (!parentNode || !nodeTree)
         {
+            LOG_err << "Failed to create node tree: Missing arguments";
             return API_EARGS;
         }
 
@@ -26416,13 +26451,47 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
         for (auto tmpNodeTree{dynamic_cast<MegaNodeTreePrivate*>(nodeTree)}; tmpNodeTree;
              tmpNodeTree = dynamic_cast<MegaNodeTreePrivate*>(tmpNodeTree->getNodeTreeChild()))
         {
-            const auto completeUploadData{dynamic_cast<const MegaCompleteUploadDataPrivate*>(
-                tmpNodeTree->getCompleteUploadData())};
-
-            if (tmpNodeTree->getNodeTreeChild() && completeUploadData)
+            if ((tmpNodeTree->getNodeTreeChild() && tmpNodeTree->getCompleteUploadData()) ||
+                (tmpNodeTree->getNodeTreeChild() && tmpNodeTree->getSourceHandle() != INVALID_HANDLE) ||
+                (tmpNodeTree->getCompleteUploadData() && tmpNodeTree->getSourceHandle() != INVALID_HANDLE))
             {
+                LOG_err << "Failed to create node tree: Invalid arguments";
                 return API_EARGS;
             }
+
+            if (tmpNodeTree->getSourceHandle() != INVALID_HANDLE) // copy existing node (source)
+            {
+                shared_ptr<Node> source{ client->nodebyhandle(tmpNodeTree->getSourceHandle()) };
+
+                // only owned file source is allowed
+                if (!source || source->type != FILENODE)
+                {
+                    LOG_err << "Failed to create node tree: Source was not a file";
+                    return API_EARGS;
+                }
+
+                // Ignore old versions. (Should this ever change, check for old versions only when
+                // the target is parentNode, not one of the newly created folders).
+                shared_ptr<Node> target;
+
+                vector<NewNode> nn;
+                error err = copyTreeFromOwnedNode(source, tmpNodeTree->getName().c_str(), target, nn);
+                if (err != API_OK)
+                {
+                    return err;
+                }
+
+                assert(!nn.empty()); // never empty because an error should have been reported in that case
+                nn[0].parenthandle = tmpParentNodeHandle;
+
+                newNodes.insert(newNodes.end(), std::make_move_iterator(nn.begin()),
+                                                std::make_move_iterator(nn.end()));
+
+                break; // only the last nodetree can have a source
+            }
+
+            const auto completeUploadData{dynamic_cast<const MegaCompleteUploadDataPrivate*>(
+                tmpNodeTree->getCompleteUploadData())};
 
             NewNode newNode{};
             newNode.source = completeUploadData ? NEW_UPLOAD : NEW_NODE;
@@ -37649,12 +37718,14 @@ MegaNodeTreePrivate::MegaNodeTreePrivate(MegaNodeTree* nodeTreeChild,
                                          const std::string& name,
                                          const std::string& s4AttributeValue,
                                          const MegaCompleteUploadData* completeUploadData,
-                                         MegaHandle nodeHandle):
+                                         MegaHandle nodeHandle,
+                                         MegaHandle sourceHandle):
     mNodeTreeChild{nodeTreeChild},
     mName{name},
     mS4AttributeValue{s4AttributeValue},
     mCompleteUploadData{completeUploadData},
-    mNodeHandle{nodeHandle}
+    mNodeHandle{nodeHandle},
+    mSourceHandle{sourceHandle}
 {}
 
 MegaNodeTree* MegaNodeTreePrivate::getNodeTreeChild() const
