@@ -540,8 +540,8 @@ public:
     bool checkForCompletedFolderCreateHere(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult);
     bool checkForCompletedCloudMovedToDebris(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult);
 
-    void recursiveCollectNameConflicts(SyncRow& row, list<NameConflict>& nc, SyncPath& fullPath);
-    bool recursiveCollectNameConflicts(list<NameConflict>& nc);
+    void recursiveCollectNameConflicts(SyncRow& row, SyncPath& fullPath, list<NameConflict>* ncs, size_t& count, size_t& limit);
+    void recursiveCollectNameConflicts(list<NameConflict>* conflicts, size_t* count = nullptr, size_t* limit = nullptr);
 
     void purgeStaleDownloads();
     bool makeSyncNode_fromFS(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool considerSynced);
@@ -918,12 +918,14 @@ struct SyncStallInfo
 
     bool isSyncStalled(handle backupId) const;
 
+    /** Requires user action to resolve */
+    bool hasImmediateStallReason() const;
+
+    void clear();
+
     CloudStallInfoMap cloud;
     LocalStallInfoMap local;
     StalledSyncsSet stalledSyncs;
-
-    /** Requires user action to resolve */
-    bool hasImmediateStallReason() const;
 };
 
 struct SyncProblems
@@ -1144,12 +1146,16 @@ public:
     void setSyncsNeedFullSync(bool andFullScan, bool andReFingerprint, handle backupId);
 
     // retrieves information about any detected name conflicts.
-    bool conflictsDetected(list<NameConflict>* conflicts) const;
-
-    bool syncStallDetected(SyncStallInfo& si) const;
+    bool conflictsDetected(list<NameConflict>& conflicts); // This one resets syncupdate_totalconflicts
+    size_t conflictsDetectedCount(size_t limit = 0) const; // limit 0 -> no limit
 
     // Get name conficts - pass UNDEF to collect for all syncs.
     void collectSyncNameConflicts(handle backupId, std::function<void(list<NameConflict>&& nc)>, bool completionInClient);
+
+    // retrieves information about any detected stalls.
+    bool stallsDetected(SyncStallInfo& stallInfo); // This one resets syncupdate_totalstalls
+    size_t stallsDetectedCount() const;
+    bool syncStallDetected(SyncStallInfo& si) const;
 
     list<weak_ptr<LocalNode::RareFields::ScanBlocked>> scanBlockedPaths;
     list<weak_ptr<LocalNode::RareFields::BadlyFormedIgnore>> badlyFormedIgnoreFilePaths;
@@ -1202,6 +1208,13 @@ public:
 
     bool mSyncsLoaded = false;
     bool mSyncsResumed = false;
+
+    std::atomic<size_t> totalSyncConflicts{0};
+    std::atomic<size_t> totalSyncStalls{0};
+    std::chrono::steady_clock::time_point lastSyncConflictsCount{std::chrono::steady_clock::now()};
+    std::chrono::steady_clock::time_point lastSyncStallsCount{std::chrono::steady_clock::now()};
+    static const std::chrono::milliseconds MIN_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT;
+    static const std::chrono::milliseconds MAX_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT;
 
     // for quick lock free reference by MegaApiImpl::syncPathState (don't slow down windows explorer)
     bool mSyncVecIsEmpty = true;
@@ -1262,6 +1275,8 @@ private:
     bool checkSdsCommandsForDelete(UnifiedSync& us, vector<pair<handle, int>>& sdsBackups, std::function<void(MegaClient&, TransferDbCommitter&)>& clientRemoveSdsEntryFunction);
     bool processRemovingSyncBySds(UnifiedSync& us, bool foundRootNode, vector<pair<handle, int>>& sdsBackups);
     void deregisterThenRemoveSyncBySds(UnifiedSync& us, std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction);
+    void processSyncConflicts();
+    void processSyncStalls();
 
     void syncLoop();
 

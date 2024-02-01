@@ -602,6 +602,24 @@ bool MegaNode::isForeign()
     return false;
 }
 
+bool MegaNode::isPasswordNode() const
+{
+    return false;
+}
+
+MegaNode::PasswordNodeData* MegaNode::PasswordNodeData::createInstance(const char* pwd,
+                                                                       const char* notes,
+                                                                       const char* url,
+                                                                       const char* userName)
+{
+    return new MegaNodePrivate::PNDataPrivate(pwd, notes, url, userName);
+}
+
+MegaNode::PasswordNodeData* MegaNode::getPasswordData() const
+{
+    return NULL;
+}
+
 string *MegaNode::getNodeKey()
 {
     return NULL;
@@ -1885,14 +1903,14 @@ MegaTreeProcessor::~MegaTreeProcessor()
 
 /* BEGIN MEGAAPI */
 
-MegaApi::MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned workerThreadCount)
+MegaApi::MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType)
 {
-    pImpl = new MegaApiImpl(this, appKey, processor, basePath, userAgent, workerThreadCount);
+    pImpl = new MegaApiImpl(this, appKey, processor, basePath, userAgent, workerThreadCount, clientType);
 }
 
-MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent, unsigned workerThreadCount)
+MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType)
 {
-    pImpl = new MegaApiImpl(this, appKey, nullptr, basePath, userAgent, workerThreadCount);
+    pImpl = new MegaApiImpl(this, appKey, nullptr, basePath, userAgent, workerThreadCount, clientType);
 }
 
 #ifdef HAVE_MEGAAPI_RPC
@@ -2466,6 +2484,28 @@ MegaProxy *MegaApi::getAutoProxySettings()
 void MegaApi::createFolder(const char *name, MegaNode *parent, MegaRequestListener *listener)
 {
     pImpl->createFolder(name, parent, listener);
+}
+
+void MegaApi::getPasswordManagerBase(MegaRequestListener *listener)
+{
+    pImpl->getPasswordManagerBase(listener);
+}
+
+bool MegaApi::isPasswordNodeFolder(MegaHandle node) const
+{
+    return pImpl->isPasswordNodeFolder(node);
+}
+
+void MegaApi::createPasswordNode(const char* name, const MegaNode::PasswordNodeData* data,
+                                 MegaHandle parent, MegaRequestListener* listener)
+{
+    pImpl->createPasswordNode(name, data, parent, listener);
+}
+
+void MegaApi::updatePasswordNode(MegaHandle node, const MegaNode::PasswordNodeData* newData,
+                                 MegaRequestListener* listener)
+{
+    pImpl->updatePasswordNode(node, newData, listener);
 }
 
 bool MegaApi::createLocalFolder(const char *localPath)
@@ -4539,6 +4579,11 @@ bool MegaApi::isSyncStalled()
     return pImpl->isSyncStalled();
 }
 
+bool MegaApi::isSyncStalledChanged()
+{
+    return pImpl->isSyncStalledChanged();
+}
+
 void MegaApi::removeRecursively(const char *path)
 {
     MegaApiImpl::removeRecursively(path);
@@ -5800,6 +5845,16 @@ void MegaApi::getVisibleWelcomeDialog(MegaRequestListener* listener)
 void MegaApi::setVisibleWelcomeDialog(bool visible, MegaRequestListener* listener)
 {
     pImpl->setVisibleWelcomeDialog(visible, listener);
+}
+
+void MegaApi::getVisibleTermsOfService(MegaRequestListener* listener)
+{
+    pImpl->getVisibleTermsOfService(listener);
+}
+
+void MegaApi::setVisibleTermsOfService(bool visible, MegaRequestListener* listener)
+{
+    pImpl->setVisibleTermsOfService(visible, listener);
 }
 
 void MegaApi::createNodeTree(const MegaNode* parentNode,

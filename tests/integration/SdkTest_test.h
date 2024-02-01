@@ -426,6 +426,8 @@ public:
 
     bool waitForResponse(bool *responseReceived, unsigned int timeout = maxTimeout);
 
+    bool waitForEvent(std::function<bool()> method, unsigned int timeout = maxTimeout);
+
     bool synchronousRequest(unsigned apiIndex, int type, std::function<void()> f, unsigned int timeout = maxTimeout);
     bool synchronousTransfer(unsigned apiIndex, int type, std::function<void()> f, unsigned int timeout = maxTimeout);
 
@@ -613,7 +615,8 @@ public:
     void deleteFile(string filename);
     void deleteFolder(string foldername);
 
-    void getAccountsForTest(unsigned howMany = 1);
+    void fetchNodesForAccounts(const unsigned howMany);
+    void getAccountsForTest(unsigned howMany = 1, bool fetchNodes = true);
     void configureTestInstance(unsigned index, const std::string& email, const std::string pass, bool checkCredentials = true);
     void releaseMegaApi(unsigned int apiIndex);
 

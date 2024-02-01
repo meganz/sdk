@@ -66,9 +66,15 @@ macro(load_sdklib_libraries)
         endif()
 
         if(USE_READLINE)
-            find_package(PkgConfig REQUIRED)
-            pkg_check_modules(readline REQUIRED IMPORTED_TARGET readline)
-            target_link_libraries(SDKlib PRIVATE PkgConfig::readline)
+            find_package(Readline-unix REQUIRED)
+            target_link_libraries(SDKlib PRIVATE Readline::Readline)
+
+            # Curses is needed by Readline
+            set(CURSES_NEED_NCURSES TRUE)
+            find_package(Curses REQUIRED)
+            target_include_directories(SDKlib PRIVATE ${CURSES_INCLUDE_DIRS})
+            target_compile_options(SDKlib PRIVATE ${CURSES_CFLAGS})
+            target_link_libraries(SDKlib PRIVATE ${CURSES_LIBRARIES})
         else()
             set(NO_READLINE 1)
         endif()

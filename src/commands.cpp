@@ -3008,6 +3008,12 @@ void CommandRemoveContact::doComplete(error result)
 
 CommandPutMultipleUAVer::CommandPutMultipleUAVer(MegaClient *client, const userattr_map *attrs, int ctag, std::function<void (Error)> completion)
 {
+    if (attrs->find(ATTR_KEYS) != attrs->end() && client->getClientType() != MegaClient::ClientType::DEFAULT)
+    {
+        LOG_warn << "Invalid Client type (" << static_cast<int>(client->getClientType()) << ") for updating keys in multi-upv.";
+        assert(client->getClientType() == MegaClient::ClientType::DEFAULT);
+    }
+
     mV3 = false;
 
     this->attrs = *attrs;
@@ -3133,6 +3139,12 @@ bool CommandPutMultipleUAVer::procresult(Result r, JSON& json)
 CommandPutUAVer::CommandPutUAVer(MegaClient* client, attr_t at, const byte* av, unsigned avl, int ctag,
                                  std::function<void(Error)> completion)
 {
+    if (at == ATTR_KEYS && client->getClientType() != MegaClient::ClientType::DEFAULT)
+    {
+        LOG_warn << "Invalid Client type (" << static_cast<int>(client->getClientType()) << ") for updating keys in upv.";
+        assert(client->getClientType() == MegaClient::ClientType::DEFAULT);
+    }
+
     mV3 = false;
 
     this->at = at;
@@ -3247,7 +3259,7 @@ bool CommandPutUAVer::procresult(Result r, JSON& json)
 CommandPutUA::CommandPutUA(MegaClient* /*client*/, attr_t at, const byte* av, unsigned avl, int ctag, handle lph, int phtype, int64_t ts,
                            std::function<void(Error)> completion)
 {
-    mSeqtagArray = true;
+    mV3 = false;
 
     this->at = at;
     this->av.assign((const char*)av, avl);
@@ -4025,6 +4037,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     string authringCu255, versionAuthringCu255;
     string visibleWelcomeDialog;
     string versionVisibleWelcomeDialog;
+    string visibleTermsOfService;
+    string versionVisibleTermsOfService;
+    string pwmh, pwmhVersion;
 
     bool uspw = false;
     vector<m_time_t> warningTs;
@@ -4365,6 +4380,17 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             parseUserAttribute(json, visibleWelcomeDialog, versionVisibleWelcomeDialog);
             break;
         }
+
+        case MAKENAMEID5('^', '!', 't', 'o', 's'):
+        {
+            parseUserAttribute(json, visibleTermsOfService, versionVisibleTermsOfService);
+            break;
+        }
+
+        case MAKENAMEID4('p', 'w', 'm', 'h'):
+            parseUserAttribute(json, pwmh, pwmhVersion);
+            break;
+
         case EOO:
         {
             assert(me == client->me);
@@ -4770,6 +4796,15 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 if (sigCu255.size())
                 {
                     changes += u->updateattr(ATTR_SIG_CU255_PUBK, &sigCu255, &versionSigCu255);
+                }
+
+                if (!pwmh.empty())
+                {
+                    changes += u->updateattr(ATTR_PWM_BASE, &pwmh, &pwmhVersion);
+                }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_PWM_BASE);
                 }
 
                 if (changes > 0)
@@ -7854,8 +7889,6 @@ bool CommandChatRemoveAccess::procresult(Result r, JSON& json)
 
 CommandChatUpdatePermissions::CommandChatUpdatePermissions(MegaClient *client, handle chatid, handle uh, privilege_t priv)
 {
-    mV3 = false;
-
     this->client = client;
     this->chatid = chatid;
     this->uh = uh;
@@ -7908,8 +7941,6 @@ bool CommandChatUpdatePermissions::procresult(Result r, JSON& json)
 
 CommandChatTruncate::CommandChatTruncate(MegaClient *client, handle chatid, handle messageid)
 {
-    mV3 = false;
-
     this->client = client;
     this->chatid = chatid;
 
@@ -8327,8 +8358,6 @@ bool CommandChatLinkURL::procresult(Result r, JSON& json)
 
 CommandChatLinkClose::CommandChatLinkClose(MegaClient *client, handle chatid, const char *title)
 {
-    mV3 = false;
-
     mChatid = chatid;
     mTitle = title ? string(title) : "";
 
@@ -11155,6 +11184,124 @@ bool CommandFetchCreditCard::procresult(Command::Result r, JSON& json)
     }
 
     return false;
+}
+
+CommandCreatePasswordManagerBase::CommandCreatePasswordManagerBase(MegaClient* cl, std::unique_ptr<NewNode> nn, int ctag,
+                                                                   CommandCreatePasswordManagerBase::Completion&& cb)
+    : mNewNode(std::move(nn)), mCompletion(std::move(cb))
+{
+    mSeqtagArray = true;
+
+    cmd("pwmp");
+    // APs "t" (for the new node/folder) and "ua" (for the new user attribute) triggered
+
+    assert(mNewNode);
+
+    arg("k", reinterpret_cast<const byte*>(mNewNode->nodekey.data()),
+        static_cast<int>(mNewNode->nodekey.size()));
+    if (mNewNode->attrstring)
+    {
+        arg("at", reinterpret_cast<const byte*>(mNewNode->attrstring->data()),
+            static_cast<int>(mNewNode->attrstring->size()));
+    }
+
+    // although these won't be used, they are updated for integrity
+    tag = ctag;
+    client = cl;
+};
+
+bool CommandCreatePasswordManagerBase::procresult(Result r, JSON &json)
+{
+    // APs will update user data (in v3: wait for APs before returning)
+
+    if (r.wasErrorOrOK())
+    {
+        if (mCompletion) mCompletion(r.errorOrOK(), nullptr);
+        return true;
+    }
+
+    NodeHandle folderHandle;
+    std::string key;
+    std::unique_ptr<std::string> attrString;  // optionals are C++17
+    m_off_t t = 0;
+    for (;;)
+    {
+        // not interested in already-known "k" (user:key), "t", "at", "u", "ts"
+        switch (json.getnameid())
+        {
+        case 'h':
+            folderHandle.set6byte(json.gethandle(MegaClient::NODEHANDLE));
+            break;
+        case 'k':
+            json.storeobject(&key);
+            break;
+        case 'a':
+            attrString = make_unique<std::string>();
+            json.storeobject(attrString.get());
+            break;
+        case 't':
+        {
+            t = json.getint();
+            break;
+        }
+        case EOO:
+        {
+            bool sanityChecksFailed = false;
+            const std::string msg {"Password Manager: wrong node type received in command response. Received "};
+            if (FOLDERNODE != static_cast<nodetype_t>(t))
+            {
+                LOG_err << msg << "type " << t << " expected " << FOLDERNODE;
+                sanityChecksFailed = true;
+            }
+
+            const auto keySeparatorPos = key.find(":");
+            auto keyBeginning = keySeparatorPos + 1;
+            if (keySeparatorPos == std::string::npos)
+            {
+                LOG_warn << msg << "unexpected key field value |" << key << "| missing separator ':'."
+                         << " Attempting key value format without separator ':'";
+                keyBeginning = 0;
+            }
+
+            const std::string aux {Base64::btoa(mNewNode->nodekey)};
+            key = key.substr(keyBeginning);
+            if (key != aux)
+            {
+                LOG_err << "node key value |" << key << "| different than expected |" << aux << "|";
+                sanityChecksFailed = true;
+            }
+
+            const auto& at = mNewNode->attrstring;
+            const std::string atAux = at ? Base64::btoa(*(at.get())) : "";
+            if ((!at && attrString) || (at && !attrString) ||  // if only 1 exists
+                (at && attrString && atAux != *attrString))    // or both exist and are different
+            {
+                LOG_err << "node attributes |" << (attrString ? *attrString : "")
+                        << "| different than expected |" << atAux << "|";
+                sanityChecksFailed = true;
+            }
+
+            if (sanityChecksFailed)
+            {
+                if (mCompletion) mCompletion(API_EINTERNAL, nullptr);
+                return true;
+            }
+
+
+            mNewNode->nodehandle = folderHandle.as8byte();
+
+            if (mCompletion) mCompletion(API_OK, std::move(mNewNode));
+            return true;
+        }
+        default:
+            if (!json.storeobject())
+            {
+                LOG_err << "Password Manager: error parsing param";
+                if (mCompletion) mCompletion(API_EINTERNAL, nullptr);
+                return false;
+            }
+        }
+    }
 }
 
 } // namespace

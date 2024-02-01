@@ -762,6 +762,15 @@ public:
     // move node to new parent folder
     error rename(std::shared_ptr<Node>, std::shared_ptr<Node>, syncdel_t, NodeHandle prevparenthandle, const char *newName, bool canChangeVault, CommandMoveNode::Completion&& c);
 
+    // create folder node
+    error createFolder(std::shared_ptr<Node> parent, const char* name, int rTag);
+
+    // rename a node (i.e. change the node attribute 'n')
+    error renameNode(NodeHandle nh, const char* newName, CommandSetAttr::Completion&& cbRequest);
+
+    // remove node
+    error removeNode(NodeHandle nh, bool keepVersions, int rTag);
+
     // Queue commands (if needed) to remvoe any outshares (or pending outshares) below the specified node
     void removeOutSharesFromSubtree(std::shared_ptr<Node> n, int tag);
 
@@ -1912,22 +1921,22 @@ public:
     // minute of the last created folder in SyncDebris (don't attempt creation more frequently than once per minute)
     m_time_t syncdebrisminute;
 
-    // move nodes to //bin/SyncDebris/yyyy-mm-dd/ or unlink directly
-    void movetosyncdebris(Node*, bool unlink, std::function<void(NodeHandle, Error)>&& completion, bool canChangeVault);
+    // move nodes to //bin/SyncDebris/yyyy-mm-dd/ or copy to //bin/SyncDebris/yyyy-mm-dd/ folder and unlink
+    void movetosyncdebris(Node*, bool inshare, std::function<void(NodeHandle, Error)>&& completion, bool canChangeVault);
 
     // move queued nodes to SyncDebris (for syncing into the user's own cloud drive)
-    void execmovetosyncdebris(Node* n, std::function<void(NodeHandle, Error)>&& completion, bool canChangeVault);
+    void execmovetosyncdebris(Node* n, std::function<void(NodeHandle, Error)>&& completion, bool canChangeVault, bool isInshare);
 
     std::shared_ptr<Node> getOrCreateSyncdebrisFolder();
     struct pendingDebrisRecord {
         NodeHandle nodeHandle;
         std::function<void(NodeHandle, Error)> completion;
-        pendingDebrisRecord(NodeHandle h, std::function<void(NodeHandle, Error)> c) : nodeHandle(h), completion(c) {}
+        bool mIsInshare = false;
+        bool mCanChangeVault = false;
+        pendingDebrisRecord(NodeHandle h, std::function<void(NodeHandle, Error)> c, bool inshare, bool changeVault)
+            : nodeHandle(h), completion(c), mIsInshare(inshare), mCanChangeVault(changeVault) {}
     };
     list<pendingDebrisRecord> pendingDebris;
-
-    // unlink queued nodes directly (for inbound share syncing)
-    void execsyncunlink(Node* n, std::function<void(NodeHandle, Error)>&& completion, bool canChangeVault);
 
 #endif
     // determine if all transfer slots are full
@@ -2318,7 +2327,14 @@ public:
      */
     dstime overTransferQuotaBackoff(HttpReq* req);
 
-    MegaClient(MegaApp*, shared_ptr<Waiter>, HttpIO*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
+    enum class ClientType
+    {
+        DEFAULT = 0,        // same as MegaApi::CLIENT_TYPE_DEFAULT
+        VPN,
+        PASSWORD_MANAGER,
+    };
+
+    MegaClient(MegaApp*, shared_ptr<Waiter>, HttpIO*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount, ClientType clientType = ClientType::DEFAULT);
     ~MegaClient();
 
 struct MyAccountData
@@ -2372,7 +2388,11 @@ public:
     bool resetCacheAndValues();
 };
 
+    ClientType getClientType() const { return mClientType; }
+
 private:
+    ClientType mClientType;
+
     // Since it's quite expensive to create a SymmCipher, this are provided to use for quick operations - just set the key and use.
     SymmCipher tmpnodecipher;
 
@@ -2554,6 +2574,11 @@ private:
     // Generates a key pair (x25519 (Cu) key pair) to use for Vpn Credentials (MegaClient::putVpnCredential)
     StringKeyPair generateVpnKeyPair();
 
+    std::pair<bool, error> checkRenameNodePrecons(std::shared_ptr<Node> n);
+
+    // Password Manager - private
+    void preparePasswordNodeData(attr_map& attrs, const AttrMap& data) const;
+
 public:
 
 /* Mega VPN methods */
@@ -2602,6 +2627,19 @@ public:
 
     void fetchCreditCardInfo(CommandFetchCreditCardCompletion completion);
     void setProFlexi(bool newProFlexi);
+
+    // Password Manager
+    static const char* const NODE_ATTR_PASSWORD_MANAGER;
+    static const char* const PWM_ATTR_PASSWORD_NOTES;
+    static const char* const PWM_ATTR_PASSWORD_URL;
+    static const char* const PWM_ATTR_PASSWORD_USERNAME;
+    static const char* const PWM_ATTR_PASSWORD_PWD;
+    NodeHandle getPasswordManagerBase();
+    void createPasswordManagerBase(int rtag, CommandCreatePasswordManagerBase::Completion cbRequest);
+    error createPasswordNode(const char* name, std::unique_ptr<AttrMap> data,
+                             std::shared_ptr<Node> nParent, int rtag);
+    error updatePasswordNode(NodeHandle nh, std::unique_ptr<AttrMap> newData,
+                             CommandSetAttr::Completion&& cb);
 };
 
 } // namespace
