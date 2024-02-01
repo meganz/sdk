@@ -1604,10 +1604,10 @@ bool NodeData::readComponents()
     {
         return false;
     }
-    mShareCount = MemAccess::get<short>(ptr);
+    short shareCount = MemAccess::get<short>(ptr);
     ptr += sizeof(short);
 
-    if (mShareCount)
+    if (shareCount)
     {
         if (mComp == COMPONENT_ALL)
         {
@@ -1621,8 +1621,10 @@ bool NodeData::readComponents()
         }
         ptr += SymmCipher::KEYLENGTH;
 
+        mShareDirection = (shareCount > 0) ? -1 : 0;
+
         // inshare, outshares, or pending shares
-        for (; mShareCount; --mShareCount)   // inshares: -1, outshare/s: positive value
+        for (; shareCount; --shareCount)   // inshares: -1, outshare/s: positive value
         {
             // share size, see Share::unserialize()
             size_t shareSize = sizeof(handle) + sizeof(m_time_t) + 1;
@@ -1645,7 +1647,7 @@ bool NodeData::readComponents()
 
             ptr += shareSize;
 
-            if (mShareCount < 0)    // inshare
+            if (!mShareDirection)    // inshare
             {
                 break;
             }
@@ -1795,9 +1797,8 @@ std::unique_ptr<Node> NodeData::createNode(MegaClient& client, bool fromOldCache
     // read inshare, outshares, or pending shares
     for (const auto& s : mShares)
     {
-        int direction = (mShareCount > 0) ? -1 : 0;
         const char* ptr = s.data();
-        NewShare* newShare = Share::unserialize(direction, mHandle, mShareKey.get(), &ptr, ptr + s.size());
+        NewShare* newShare = Share::unserialize(mShareDirection, mHandle, mShareKey.get(), &ptr, ptr + s.size());
 
         if (!newShare)
         {

@@ -511,7 +511,7 @@ private:
     string mFileAttributes;
     string mAuthKey;
     std::unique_ptr<byte[]> mShareKey;
-    short mShareCount = 0;
+    int mShareDirection = INT_MAX; // valid values are -1 (outshares) and 0 (inshare)
     std::list<std::vector<char>> mShares;
     AttrMap mAttrs;
     string mAttrString; // encrypted attrs
