@@ -441,17 +441,33 @@ bool SqliteDbAccess::migrateDataToColumns(sqlite3* db, vector<NewColumn>&& cols)
     {
         const char* blob = static_cast<const char*>(sqlite3_column_blob(stmt, 1));
         int blobSize = sqlite3_column_bytes(stmt, 1);
+        handle nh = sqlite3_column_int64(stmt, 0);
         NodeData nd(blob, blobSize, NodeData::COMPONENT_ATTRS);
 
-        m_time_t mtime = (dataToMigrate.find(NodeData::COMPONENT_MTIME) == dataToMigrate.end()) ? 0 : nd.getMtime();
-        int l = (dataToMigrate.find(NodeData::COMPONENT_LABEL) == dataToMigrate.end()) ? LBL_UNKNOWN : nd.getLabel();
+        m_time_t mtime = 0;
+        int l = LBL_UNKNOWN;
+        // When migrating data, the first non-default value will create the entry for that node,
+        // while other non-default values will avoid the search by reusing the same container.
+        map<int, int64_t>* newNodeValues = nullptr;
 
-        if (mtime || l != LBL_UNKNOWN) // update only non-default values
+        if (dataToMigrate.find(NodeData::COMPONENT_MTIME) != dataToMigrate.end() &&
+            (mtime = nd.getMtime()))
         {
-            auto& nodeValues = newValues[sqlite3_column_int64(stmt, 0)];
+            if (!newNodeValues)
+            {
+                newNodeValues = &newValues[nh];
+            }
+            newNodeValues->emplace(NodeData::COMPONENT_MTIME, mtime);
+        }
 
-            nodeValues[NodeData::COMPONENT_MTIME] = mtime;
-            nodeValues[NodeData::COMPONENT_LABEL] = l;
+        if (dataToMigrate.find(NodeData::COMPONENT_LABEL) != dataToMigrate.end() &&
+            (l = nd.getLabel()) != LBL_UNKNOWN)
+        {
+            if (!newNodeValues)
+            {
+                newNodeValues = &newValues[nh];
+            }
+            newNodeValues->emplace(NodeData::COMPONENT_LABEL, l);
         }
     }
     sqlite3_finalize(stmt);
