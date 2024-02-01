@@ -1054,11 +1054,16 @@ add_executable(test_unit
 )
 
 add_executable(test_integration
+    ${MegaDir}/tests/gtest_common.cpp
+    ${MegaDir}/tests/gtest_common.h
     ${MegaDir}/tests/integration/main.cpp
     ${MegaDir}/tests/integration/SdkTest_test.cpp
+    ${MegaDir}/tests/integration/SdkTest_test.h
     ${MegaDir}/tests/integration/Sync_test.cpp
+    ${MegaDir}/tests/integration/test.h
 )
 
+target_include_directories(test_integration PRIVATE ${MegaDir}/tests)
 target_compile_definitions(test_unit PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
 target_compile_definitions(test_integration PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
 target_link_libraries(test_unit gmock gtest Mega )

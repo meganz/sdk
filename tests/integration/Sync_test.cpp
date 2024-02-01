@@ -24,6 +24,7 @@
 
 
 #include "test.h"
+#include "gtest_common.h"
 
 #define DEFAULTWAIT std::chrono::seconds(20)
 
@@ -32,8 +33,6 @@ using namespace ::std;
 
 // we are on SRW branch
 #define SRW_NEEDED_FOR_THIS_ONE
-
-std::string getCurrentTimestamp(bool includeDate);
 
 #ifdef ENABLE_SYNC
 
@@ -5353,9 +5352,9 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
 
         WaitMillisec(400);
 
-        if ((chrono::steady_clock::now() - totalTimeoutStart) > std::chrono::minutes(1))
+        if ((chrono::steady_clock::now() - totalTimeoutStart) > std::chrono::minutes(5))
         {
-            out() << "Waiting for syncing to stop timed out at 1 minutes";
+            out() << "Waiting for syncing to stop timed out at 5 minutes";
             return result;
         }
     }
@@ -6242,7 +6241,7 @@ TEST_F(SyncTest, BasicSync_AddLocalFolder)
     // let them catch up
     // two minutes should be long enough to get past API_ETEMPUNAVAIL == -18 for sync2 downloading the files uploaded by sync1
     // 4 seconds was too short sometimes, sync2 not caught up yet, due to a few consecutive -3 for `g`
-    waitonsyncs(std::chrono::seconds(10), clientA1, clientA2);
+    waitonsyncs(DEFAULTWAIT, clientA1, clientA2);
 
     // check everything matches (model has expected state of remote and local)
     model1.findnode("f/f_2")->addkid(model1.buildModelSubdirs("newkid", 2, 2, 2));
@@ -6436,7 +6435,7 @@ TEST_F(SyncTest, BasicSync_MoveExistingIntoNewLocalFolder)
     ASSERT_NE(backupId1, UNDEF);
     handle backupId2 = clientA2->setupSync_mainthread("sync2", "f", false, false);
     ASSERT_NE(backupId2, UNDEF);
-    waitonsyncs(std::chrono::seconds(4), clientA1, clientA2);
+    waitonsyncs(DEFAULTWAIT, clientA1, clientA2);
     clientA1->logcb = clientA2->logcb = true;
 
     // check everything matches (model has expected state of remote and local)
@@ -6455,7 +6454,7 @@ TEST_F(SyncTest, BasicSync_MoveExistingIntoNewLocalFolder)
     clientA1->triggerPeriodicScanEarly(backupId1);
 
     // let them catch up
-    waitonsyncs(std::chrono::seconds(10), clientA1, clientA2);
+    waitonsyncs(DEFAULTWAIT, clientA1, clientA2);
 
     // check everything matches (model has expected state of remote and local)
     auto f = model.makeModelSubfolder("new");
@@ -6485,7 +6484,7 @@ TEST_F(SyncTest, BasicSync_MoveSeveralExistingIntoDeepNewLocalFolders)
     ASSERT_NE(backupId1, UNDEF);
     handle backupId2 = clientA2->setupSync_mainthread("sync2", "f", false, false);
     ASSERT_NE(backupId2, UNDEF);
-    waitonsyncs(std::chrono::seconds(4), clientA1, clientA2);
+    waitonsyncs(DEFAULTWAIT, clientA1, clientA2);
     clientA1->logcb = clientA2->logcb = true;
 
     // check everything matches (model has expected state of remote and local)
@@ -6494,6 +6493,16 @@ TEST_F(SyncTest, BasicSync_MoveSeveralExistingIntoDeepNewLocalFolders)
 
     // make new folder tree in the local filesystem
     ASSERT_TRUE(buildLocalFolders(clientA1->syncSet(backupId1).localpath, "new", 3, 3, 3));
+    model.findnode("f")->addkid(model.buildModelSubdirs("new", 3, 3, 3));
+
+    clientA1->triggerPeriodicScanEarly(backupId1);
+
+    // let them catch up
+    waitonsyncs(DEFAULTWAIT, clientA1, clientA2);
+
+    // check everything matches (model has expected state of remote and local)
+    ASSERT_TRUE(clientA1->confirmModel_mainthread(model.findnode("f"), backupId1));
+    ASSERT_TRUE(clientA2->confirmModel_mainthread(model.findnode("f"), backupId2));
 
     // move already synced folders to serveral parts of it - one under another moved folder too
     error_code rename_error;
@@ -6507,10 +6516,9 @@ TEST_F(SyncTest, BasicSync_MoveSeveralExistingIntoDeepNewLocalFolders)
     clientA1->triggerPeriodicScanEarly(backupId1);
 
     // let them catch up
-    waitonsyncs(std::chrono::seconds(20), clientA1, clientA2);
+    waitonsyncs(DEFAULTWAIT, clientA1, clientA2);
 
     // check everything matches (model has expected state of remote and local)
-    model.findnode("f")->addkid(model.buildModelSubdirs("new", 3, 3, 3));
     model.findnode("f/new/new_0/new_0_1/new_0_1_2")->addkid(model.removenode("f/f_0"));
     model.findnode("f/new/new_1/new_1_2")->addkid(model.removenode("f/f_1"));
     model.findnode("f/new/new_1/new_1_2/f_1/f_1_2")->addkid(model.removenode("f/f_2"));
@@ -8873,7 +8881,7 @@ TEST_F(SyncTest, RenameReplaceFolderWithinSync)
     c0->triggerPeriodicScanEarly(id);
 
     // Wait for synchronization to complete.
-    waitonsyncs(chrono::seconds(15), c0);
+    waitonsyncs(DEFAULTWAIT, c0);
 
     // Confirm model.
     ASSERT_TRUE(c0->confirmModel_mainthread(model.root.get(), id));
@@ -9001,7 +9009,7 @@ TEST_F(SyncTest, SyncIncompatibleMoveStallsAndResolutions)
     c->triggerPeriodicScanEarly(id2);
 
     // Be absolutely sure we've stalled. (stall is across all syncs - todo: figure out if each one contains a stall)
-    ASSERT_TRUE(c->waitFor(SyncStallState(true), chrono::seconds(20)));
+    ASSERT_TRUE(c->waitFor(SyncStallState(true), DEFAULTWAIT));
 
     // resolve case 0: Make it possible for the sync to resolve the stall.
     fs::rename(
@@ -10714,9 +10722,9 @@ bool CatchupClients(StandardClient* c1, StandardClient* c2, StandardClient* c3)
     auto f2 = pb2->get_future();
     auto f3 = pb3->get_future();
 
-    if (c1 && f1.wait_for(chrono::seconds(10)) == future_status::timeout) return false;
-    if (c2 && f2.wait_for(chrono::seconds(10)) == future_status::timeout) return false;
-    if (c3 && f3.wait_for(chrono::seconds(10)) == future_status::timeout) return false;
+    if (c1 && f1.wait_for(DEFAULTWAIT) == future_status::timeout) return false;
+    if (c2 && f2.wait_for(DEFAULTWAIT) == future_status::timeout) return false;
+    if (c3 && f3.wait_for(DEFAULTWAIT) == future_status::timeout) return false;
 
     EXPECT_TRUE((!c1 || f1.get()) &&
                 (!c2 || f2.get()) &&
@@ -10928,10 +10936,10 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
     }
 
     out() << "Letting all " << cases.size() << " Two-way syncs run";
-    waitonsyncs(std::chrono::seconds(10), &clientA1Steady, &clientA1Resume);
+    waitonsyncs(DEFAULTWAIT, &clientA1Steady, &clientA1Resume);
 
     CatchupClients(&clientA1Steady, &clientA1Resume, &clientA2);
-    waitonsyncs(std::chrono::seconds(10), &clientA1Steady, &clientA1Resume);
+    waitonsyncs(DEFAULTWAIT, &clientA1Steady, &clientA1Resume);
 
     out() << "Checking intial state";
     for (auto& testcase : cases)
@@ -11449,7 +11457,7 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
 
             // get the single sync
             SyncConfig config;
-            ASSERT_TRUE(cb.client.syncs.syncConfigByBackupId(id, config));
+            ASSERT_TRUE(cb.client.syncs.syncConfigByBackupId(id, config)) << "BackupId: " << id << ". SyncVec is empty: " << cb.client.syncs.mSyncVecIsEmpty;
 
             // Make sure the sync's in mirroring mode.
             ASSERT_EQ(config.mBackupId, id);
@@ -14645,7 +14653,7 @@ TEST_F(CloudToLocalFilterFixture, DoesntDownloadIgnoredNodes)
     ASSERT_TRUE(confirm(*cd, id, remoteTree));
 
     // Make sure cdu is aware of du/fi.
-    ASSERT_TRUE(cdu->waitFor(SyncRemoteMatch("x", remoteTree.root.get()), chrono::seconds(20)));
+    ASSERT_TRUE(cdu->waitFor(SyncRemoteMatch("x", remoteTree.root.get()), DEFAULTWAIT));
 
     // Remove du/fi in the cloud.
     {

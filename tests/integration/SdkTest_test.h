@@ -426,6 +426,8 @@ public:
 
     bool waitForResponse(bool *responseReceived, unsigned int timeout = maxTimeout);
 
+    bool waitForEvent(std::function<bool()> method, unsigned int timeout = maxTimeout);
+
     bool synchronousRequest(unsigned apiIndex, int type, std::function<void()> f, unsigned int timeout = maxTimeout);
     bool synchronousTransfer(unsigned apiIndex, int type, std::function<void()> f, unsigned int timeout = maxTimeout);
 

@@ -2989,7 +2989,8 @@ void MegaClient::exec()
                     // this also removes it from slots
                     (*it)->transfer->removeAndDeleteSelf(TRANSFERSTATE_CANCELLED);
                 }
-                else if (!xferpaused[(*it)->transfer->type] && (!(*it)->retrying || (*it)->retrybt.armed()))
+                else if ((!xferpaused[(*it)->transfer->type] || (*it)->transfer->isForSupport())
+                        && (!(*it)->retrying || (*it)->retrybt.armed()))
                 {
                     (*it)->doio(this, committer);
                 }
@@ -7134,12 +7135,7 @@ void MegaClient::sc_se()
             {
                 LOG_debug << "Email changed from `" << u->email << "` to `" << email << "`";
 
-                mapuser(uh, email.c_str()); // update email used as index for user's map
-                u->changed.email = true;
-                notifyuser(u);
-
-                // produce a callback to update cached email in MegaApp
-                reportLoggedInChanges();
+                setEmail(u, email);
             }
             // TODO: manage different status once multiple-emails is supported
 
@@ -16261,33 +16257,16 @@ void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConf
 
 // move node to //bin, then on to the SyncDebris folder of the day (to prevent
 // dupes)
-void MegaClient::movetosyncdebris(Node* dn, bool unlink, std::function<void(NodeHandle, Error)>&& completion, bool canChangeVault)
+void MegaClient::movetosyncdebris(Node* dn, bool inshare, std::function<void(NodeHandle, Error)>&& completion, bool canChangeVault)
 {
-    if (unlink)
-    {
-        execsyncunlink(dn, move(completion), canChangeVault);
-    }
-    else
-    {
-        execmovetosyncdebris(dn, move(completion), canChangeVault);
-    }
+    execmovetosyncdebris(dn, move(completion), canChangeVault, inshare);
 }
 
-void MegaClient::execsyncunlink(Node* n, std::function<void(NodeHandle, Error)>&& completion, bool canChangeVault)
-{
-    error err = unlink(n, false, 0, canChangeVault, move(completion));
-    if (err)
-    {
-        // if an err was returned from unlink(), then it has not actually move()d from the completion function rvalue ref
-        completion(n->nodeHandle(), err);
-    }
-}
-
-void MegaClient::execmovetosyncdebris(Node* requestedNode, std::function<void(NodeHandle, Error)>&& completion, bool canChangeVault)
+void MegaClient::execmovetosyncdebris(Node* requestedNode, std::function<void(NodeHandle, Error)>&& completion, bool canChangeVault, bool isInshare)
 {
     if (requestedNode)
     {
-        pendingDebris.emplace_back(requestedNode->nodeHandle(), move(completion));
+        pendingDebris.emplace_back(requestedNode->nodeHandle(), move(completion), isInshare, canChangeVault);
     }
 
     if (std::shared_ptr<Node> debrisTarget = getOrCreateSyncdebrisFolder())
@@ -16296,8 +16275,39 @@ void MegaClient::execmovetosyncdebris(Node* requestedNode, std::function<void(No
         {
             if (std::shared_ptr<Node> n = nodeByHandle(rec.nodeHandle))
             {
-                LOG_debug << "Moving to cloud Syncdebris: " << n->displaypath() << " in " << debrisTarget->displaypath() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
-                rename(n, debrisTarget, SYNCDEL_DEBRISDAY, n->parent ? n->parent->nodeHandle() : NodeHandle(), nullptr, canChangeVault, move(rec.completion));
+                if (!rec.mIsInshare)
+                {
+                    LOG_debug << "Moving to cloud Syncdebris: " << n->displaypath() << " in " << debrisTarget->displaypath() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
+                    rename(n, debrisTarget, SYNCDEL_DEBRISDAY, n->parent ? n->parent->nodeHandle() : NodeHandle(), nullptr, rec.mCanChangeVault, move(rec.completion));
+                }
+                else
+                {
+                    LOG_debug << "Copy and delete to cloud Syncdebris: " << n->displaypath() << " in " << debrisTarget->displaypath() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
+                    TreeProcCopy tc;
+                    proctree(n, &tc, false, false);
+                    tc.allocnodes();
+                    proctree(n, &tc, false, false);
+                    tc.nn[0].parenthandle = UNDEF;
+                    putnodes(debrisTarget->nodeHandle(), NoVersioning, std::move(tc.nn), nullptr, reqtag, rec.mCanChangeVault, [this, rec](const Error&e, targettype_t, vector<NewNode>&, bool, int)
+                    {
+                        if (e)
+                        {
+                            LOG_warn << "Error copying files at SyncDebris folder, continue process (remove them)";
+                        }
+
+                        if (std::shared_ptr<Node> n = nodeByHandle(rec.nodeHandle))
+                        {
+                            unlink(n.get(), false, 0, false, [rec](NodeHandle, Error e)
+                            {
+                                if (rec.completion) rec.completion(rec.nodeHandle, e);
+                            });
+                        }
+                        else
+                        {
+                            if (rec.completion) rec.completion(rec.nodeHandle, API_EEXIST);
+                        }
+                    });
+                }
             }
             else
             {
@@ -16387,7 +16397,7 @@ std::shared_ptr<Node> MegaClient::getOrCreateSyncdebrisFolder()
             syncdebrisadding = false;
             // on completion, send the queued nodes
             LOG_debug << "Daily cloud SyncDebris folder created. Trigger remaining debris moves: " << pendingDebris.size();
-            execmovetosyncdebris(nullptr, nullptr, false);
+            execmovetosyncdebris(nullptr, nullptr, false, false);
         }, false));
     return nullptr;
 }
@@ -19865,6 +19875,24 @@ void MegaClient::clearsetelementnotify(handle sid)
 void MegaClient::setProFlexi(bool newProFlexi)
 {
     mProFlexi = newProFlexi;
+}
+
+void MegaClient::setEmail(User* u, const string& email)
+{
+    assert(u);
+    if (email == u->email)
+    {
+        return;
+    }
+
+    mapuser(u->userhandle, email.c_str()); // update email used as index for user's map
+    u->changed.email = true;
+    notifyuser(u);
+
+    if (u->userhandle == me)
+    {
+        reportLoggedInChanges();  // produce a callback to update cached email in MegaApp
+    }
 }
 
 Error MegaClient::sendABTestActive(const char* flag, CommandABTestActive::Completion completion)
