@@ -16799,7 +16799,8 @@ TEST_F(SdkTest, GiveRemoveChatAccess)
 
     // Create chat between new contacts
 
-    size_t numChats = mApi[host].chats.size();
+    size_t numChatsHost = mApi[host].chats.size();
+    size_t numChatsGuest = mApi[guest].chats.size();
     mApi[guest].chatUpdated = false;
     std::unique_ptr<MegaTextChatPeerList> peers(MegaTextChatPeerList::createInstance());
     peers->addPeer(megaApi[guest]->getMyUser()->getHandle(), PRIV_STANDARD);
@@ -16808,8 +16809,9 @@ TEST_F(SdkTest, GiveRemoveChatAccess)
 
     ASSERT_TRUE(waitForResponse(&mApi[guest].chatUpdated))
             << "Chat update not received after " << maxTimeout << " seconds";
-    ASSERT_EQ(mApi[host].chats.size(), numChats+1) << "Unexpected received number of chats";
     ASSERT_TRUE(mApi[guest].chatUpdated) << "The peer didn't receive notification of the chat creation";
+    ASSERT_EQ(mApi[host].chats.size(), numChatsHost+1) << "Unexpected received number of chats";
+    ASSERT_EQ(mApi[guest].chats.size(), numChatsGuest+1) << "Unexpected received number of chats";
 
     MegaHandle chatId = mApi[host].chatid;
 
