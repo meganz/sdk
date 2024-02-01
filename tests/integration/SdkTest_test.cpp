@@ -16799,8 +16799,8 @@ TEST_F(SdkTest, GiveRemoveChatAccess)
 
     // Create chat between new contacts
 
-    size_t numChatsHost = mApi[host].chats.size();
-    size_t numChatsGuest = mApi[guest].chats.size();
+    int numChatsHost = mApi[host].chats.size();
+    int numChatsGuest = mApi[guest].chats.size();
     mApi[guest].chatUpdated = false;
     std::unique_ptr<MegaTextChatPeerList> peers(MegaTextChatPeerList::createInstance());
     peers->addPeer(megaApi[guest]->getMyUser()->getHandle(), PRIV_STANDARD);
