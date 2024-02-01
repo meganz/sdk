@@ -7941,8 +7941,6 @@ bool CommandChatUpdatePermissions::procresult(Result r, JSON& json)
 
 CommandChatTruncate::CommandChatTruncate(MegaClient *client, handle chatid, handle messageid)
 {
-    mV3 = false;
-
     this->client = client;
     this->chatid = chatid;
 
