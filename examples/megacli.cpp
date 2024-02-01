@@ -199,8 +199,8 @@ static std::unique_ptr<IGfxProvider> createGfxProvider(const Config& config)
 #if defined(_WIN32)
     if (!config.executable.empty())
     {
-        auto process = std::make_shared<GfxIsolatedProcess>(config.pipeName, config.executable);
-        return ::mega::make_unique<::mega::GfxProviderIsolatedProcess>(process);
+        auto process = ::mega::make_unique<GfxIsolatedProcess>(config.pipeName, config.executable);
+        return ::mega::make_unique<GfxProviderIsolatedProcess>(std::move(process));
     }
     else
 #endif

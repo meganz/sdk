@@ -7830,19 +7830,4 @@ MegaGfxProvider* MegaGfxProvider::createInternalInstance()
     return MegaGfxProviderPrivate::createInternalInstance().release();
 }
 
-MegaGfxProviderList::~MegaGfxProviderList() = default;
-
-MegaGfxProviderList* MegaGfxProviderList::createIsolatedInstances(const char* pipeName,
-                                                                  const char* executable,
-                                                                  unsigned int numberOfInstances)
-{
-    auto list = MegaGfxProviderListPrivate::createIsolatedInstances(
-        std::string(pipeName ? pipeName : ""),
-        std::string(executable ? executable : ""),
-        numberOfInstances);
-
-    return list.release();
-}
-
-
 }

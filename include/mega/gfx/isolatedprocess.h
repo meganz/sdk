@@ -127,7 +127,7 @@ class GfxProviderIsolatedProcess : public IGfxProvider
 {
 public:
 
-    GfxProviderIsolatedProcess(std::shared_ptr<GfxIsolatedProcess> process);
+    GfxProviderIsolatedProcess(std::unique_ptr<GfxIsolatedProcess> process);
 
     std::vector<std::string> generateImages(FileSystemAccess* fa,
                                             const LocalPath& localfilepath,
@@ -166,7 +166,7 @@ private:
 
     Formats mFormats;
 
-    std::shared_ptr<GfxIsolatedProcess> mProcess;
+    std::unique_ptr<GfxIsolatedProcess> mProcess;
 
     std::string mPipeName;
 };

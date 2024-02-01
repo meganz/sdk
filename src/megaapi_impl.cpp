@@ -6049,8 +6049,8 @@ std::unique_ptr<MegaGfxProviderPrivate> MegaGfxProviderPrivate::createIsolatedIn
     const std::string& executable)
 {
 #ifdef _WIN32
-    auto process = std::make_shared<GfxIsolatedProcess>(pipeName, executable);
-    auto provider = ::mega::make_unique<::mega::GfxProviderIsolatedProcess>(process);
+    auto process = ::mega::make_unique<GfxIsolatedProcess>(pipeName, executable);
+    auto provider = ::mega::make_unique<GfxProviderIsolatedProcess>(std::move(process));
     return ::mega::make_unique<MegaGfxProviderPrivate>(std::move(provider));
 #else
     (void)pipeName, (void)executable;
@@ -6066,44 +6066,6 @@ std::unique_ptr<MegaGfxProviderPrivate> MegaGfxProviderPrivate::createExternalIn
 std::unique_ptr<MegaGfxProviderPrivate> MegaGfxProviderPrivate::createInternalInstance()
 {
     return ::mega::make_unique<MegaGfxProviderPrivate>(IGfxProvider::createInternalGfxProvider());
-}
-
-void MegaGfxProviderListPrivate::add(MegaGfxProviderPrivate&& elem)
-{
-    mProviders.push_back(std::move(elem));
-}
-
-MegaGfxProviderPrivate* MegaGfxProviderListPrivate::get(size_t index)
-{
-    if (index >= mProviders.size()) return nullptr;
-
-    return &mProviders[index];
-}
-
-std::unique_ptr<MegaGfxProviderListPrivate> MegaGfxProviderListPrivate::createIsolatedInstances(
-    const std::string& pipeName,
-    const std::string& executable,
-    unsigned int numberOfInstances)
-{
-#ifdef _WIN32
-    if (numberOfInstances == 0) return nullptr;
-
-    // only one process is started
-    auto process = std::make_shared<GfxIsolatedProcess>(pipeName, executable);
-
-    // all share the same process
-    auto result = ::mega::make_unique<MegaGfxProviderListPrivate>();
-    for (unsigned int i = 0; i < numberOfInstances; ++i)
-    {
-        MegaGfxProviderPrivate provider( ::mega::make_unique<::mega::GfxProviderIsolatedProcess>(process));
-        result->add(std::move(provider));
-    }
-
-    return result;
-#else
-    (void)pipeName, (void)executable, (void) numberOfInstances;
-    return nullptr;
-#endif
 }
 
 //Entry point for the blocking thread

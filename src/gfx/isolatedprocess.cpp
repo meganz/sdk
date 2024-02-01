@@ -85,9 +85,9 @@ void GfxProviderIsolatedProcess::Formats::setOnce(const std::string& formats, co
     mIsValid = true;
 }
 
-GfxProviderIsolatedProcess::GfxProviderIsolatedProcess(std::shared_ptr<GfxIsolatedProcess> process)
-    : mProcess(process)
-    , mPipeName(process->pipeName())
+GfxProviderIsolatedProcess::GfxProviderIsolatedProcess(std::unique_ptr<GfxIsolatedProcess> process)
+    : mProcess(std::move(process))
+    , mPipeName(mProcess->pipeName())
 {
     assert(mProcess);
 }

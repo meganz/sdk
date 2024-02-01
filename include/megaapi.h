@@ -296,36 +296,6 @@ public:
 };
 
 /**
- * @brief Represents a list of GFX providers and provides an interface for creating a list of isolated GFX providers
- * that share the same isolated process. You can use these GFX providers with the SDK to create multiple instances
- * of MegaApi::MegaApi. These instances will utilize the same isolated process for graphics processing.
- */
-class MegaGfxProviderList
-{
-public:
-    virtual ~MegaGfxProviderList();
-
-    /**
-    * @brief Access the specified GFX provider instance.
-    *
-    * @param index The position of the GFX provider instance to return.
-    */
-    virtual MegaGfxProvider* get(size_t index) = 0;
-
-    /**
-    * @brief Create multiple isolated graphics processor instances.
-    *        @see MegaGfxProvider::createIsolatedInstance for create one isolated graphics processor instance.
-    *
-    * @param pipeName The unique named pipe's name used for communicating with the isolated process.
-    * @param executable The executable path.
-    * @param numberOfInstances The number of instances to create.
-    */
-    static MegaGfxProviderList* createIsolatedInstances(const char* pipeName,
-                                                        const char* executable,
-                                                        unsigned int numberOfInstances);
-};
-
-/**
  * @brief Contains the information related to a proxy server.
  *
  * Pass an object of this class to MegaApi::setProxySettings to
@@ -9940,7 +9910,6 @@ class MegaApi
          *
          * The SDK attach thumbnails and previews to all uploaded images. To generate them, it needs a graphics provider.
          * @see MegaGfxProvider
-         * @see MegaGfxProviderList
          *
          * @param appKey AppKey of your application
          * You can pass NULL to this parameter if you don't have one. AppKey is currently no longer required.

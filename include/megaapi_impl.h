@@ -2853,20 +2853,6 @@ private:
     std::unique_ptr<::mega::IGfxProvider> mProvider;
 };
 
-class MegaGfxProviderListPrivate : public MegaGfxProviderList
-{
-public:
-    static std::unique_ptr<MegaGfxProviderListPrivate> createIsolatedInstances(const std::string& pipeName,
-                                                                               const std::string& executable,
-                                                                               unsigned int numberOfInstances);
-    void add(MegaGfxProviderPrivate&& elem);
-
-    MegaGfxProviderPrivate* get(size_t index) override;
-
-private:
-    std::vector<MegaGfxProviderPrivate> mProviders;
-};
-
 class MegaApiImpl : public MegaApp
 {
     public:
