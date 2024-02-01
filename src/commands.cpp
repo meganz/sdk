@@ -8360,8 +8360,6 @@ bool CommandChatLinkURL::procresult(Result r, JSON& json)
 
 CommandChatLinkClose::CommandChatLinkClose(MegaClient *client, handle chatid, const char *title)
 {
-    mV3 = false;
-
     mChatid = chatid;
     mTitle = title ? string(title) : "";
 
