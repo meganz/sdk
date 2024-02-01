@@ -1775,7 +1775,7 @@ handle NodeData::getHandle()
 {
     if (readFailed())
     {
-        return 0;
+        return UNDEF;
     }
 
     return mHandle;
