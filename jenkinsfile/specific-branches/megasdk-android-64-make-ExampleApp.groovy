@@ -12,7 +12,7 @@ pipeline {
             steps {
                 dir("examples/android/ExampleApp/app/src/main/jni"){
                     sh "jf rt download third-party-sources-sdk/3rdparty-sdk-android-example.tar.gz ."
-                    sh "tar -xvf 3rdparty-sdk-android-example.tar.gz --skip-old-files"
+                    sh "tar -xf 3rdparty-sdk-android-example.tar.gz --skip-old-files"
                 }
             }
         }
