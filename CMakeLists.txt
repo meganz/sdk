@@ -32,29 +32,12 @@ cmake_minimum_required(VERSION 3.18)
 # Qt Creator configures VCPKG automatically. Disable it, we may want to use different tripplets, paths...
 set(QT_CREATOR_SKIP_VCPKG_SETUP TRUE CACHE BOOL "")
 
-## Configurable options ##
+# Main modules location
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules)
 
+## Configurable options ##
 set(VCPKG_ROOT "" CACHE PATH "If set, it will build and use the VCPKG packages defined in the manifest file")
-option(ENABLE_SYNC "Turns on sync functionality" ON)
-option(ENABLE_CHAT "Turns on chat management functionality" OFF)
-option(ENABLE_LOG_PERFORMANCE "Faster log message generation" OFF)
-option(ENABLE_DRIVE_NOTIFICATIONS "Allows to monitor (external) drives being [dis]connected to the computer" OFF)
-option(USE_MEDIAINFO "Used to determine media properties and set those as node attributes" ON)
-option(USE_FREEIMAGE "Used to create previews/thumbnails for photos/pictures" ON)
-option(USE_FFMPEG "Used to create previews/thumbnails for video files" ON)
-option(USE_LIBUV "Includes the library and turns on internal web and ftp server functionality" OFF)
-option(USE_PDFIUM "Used to create previews/thumbnails for PDF files" ON)
-option(USE_C_ARES "If set, the SDK will manage DNS lookups and ipv4/ipv6 itself, using the c-ares library.  Otherwise we rely on cURL" ON)
-if (WIN32 OR IOS)
-    option(USE_READLINE "Use the readline library for the console" OFF)
-else()
-    option(USE_READLINE "Use the readline library for the console" ON)
-endif()
-if (APPLE AND NOT IOS)
-    option(USE_OPENSSL "Use the OpenSSL library or a compatible one" OFF)
-else()
-    option(USE_OPENSSL "Use the OpenSSL library or a compatible one" ON)
-endif()
+include(sdklib_options)
 
 # If PROJECT_NAME is not set before project() we are the main project.
 if(NOT PROJECT_NAME)
@@ -76,8 +59,6 @@ else()
 endif()
 
 ## General configuration
-# Main modules location
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules)
 
 # No configurable values.
 set(USE_CURL 1)
