@@ -17068,3 +17068,73 @@ TEST_F(SdkTest, SetGetVisibleTermsOfService)
     ASSERT_EQ(API_OK, requestTrackerThirdGet.waitForResult());
     ASSERT_EQ(defaultTermsOfService, requestTrackerThirdGet.getFlag());
 }
+
+#ifdef ENABLE_CHAT
+
+/**
+ * @brief Give and remove access to download a file from a chat
+ */
+TEST_F(SdkTest, GiveRemoveChatAccess)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    const unsigned int host = 0;
+    const unsigned int guest = 1;
+    mApi[host].chats.clear();
+    mApi[guest].chats.clear();
+
+    // Send and accept a new contact request
+
+    string message = "Hi contact. This is a testing message";
+    inviteTestAccount(host, guest, message);
+
+    // Create chat between new contacts
+
+    int numChatsHost = mApi[host].chats.size();
+    int numChatsGuest = mApi[guest].chats.size();
+    mApi[guest].chatUpdated = false;
+    std::unique_ptr<MegaTextChatPeerList> peers(MegaTextChatPeerList::createInstance());
+    peers->addPeer(megaApi[guest]->getMyUser()->getHandle(), PRIV_STANDARD);
+
+    createChat(true, peers.get());
+
+    ASSERT_TRUE(waitForResponse(&mApi[guest].chatUpdated))
+            << "Chat update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE(mApi[guest].chatUpdated) << "The peer didn't receive notification of the chat creation";
+    ASSERT_EQ(mApi[host].chats.size(), numChatsHost+1) << "Unexpected received number of chats";
+    ASSERT_EQ(mApi[guest].chats.size(), numChatsGuest+1) << "Unexpected received number of chats";
+
+    MegaHandle chatId = mApi[host].chatid;
+
+    // Update test file
+
+    ASSERT_TRUE(createFile(PUBLICFILE.c_str(), false)) << "Couldn't create " << PUBLICFILE;
+    std::unique_ptr<MegaNode> rootnode{megaApi[host]->getRootNode()};
+    ASSERT_NE(rootnode.get(), nullptr);
+    MegaHandle fileHandle = UNDEF;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(host, &fileHandle, PUBLICFILE.c_str(),
+                                               rootnode.get(),
+                                               nullptr /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload a test file";
+    std::unique_ptr<MegaNode> fileNode(megaApi[host]->getNodeByHandle(fileHandle));
+
+    // Grant access to guest
+
+    ASSERT_FALSE(megaApi[host]->hasAccessToAttachment(chatId, fileHandle, megaApi[guest]->getMyUser()->getHandle()));
+    RequestTracker requestTrackerGrantAccess(megaApi[host].get());
+    megaApi[host]->grantAccessInChat(chatId, fileNode.get(), megaApi[guest]->getMyUser()->getHandle(), &requestTrackerGrantAccess);
+    ASSERT_EQ(API_OK, requestTrackerGrantAccess.waitForResult());
+    ASSERT_TRUE(megaApi[host]->hasAccessToAttachment(chatId, fileHandle, megaApi[guest]->getMyUser()->getHandle()));
+
+    // Remove access to guest
+
+    RequestTracker requestTrackerRemoveAccess(megaApi[host].get());
+    megaApi[host]->removeAccessInChat(chatId, fileNode.get(), megaApi[guest]->getMyUser()->getHandle(), &requestTrackerRemoveAccess);
+    ASSERT_EQ(API_OK, requestTrackerRemoveAccess.waitForResult());
+    ASSERT_FALSE(megaApi[host]->hasAccessToAttachment(chatId, fileHandle, megaApi[guest]->getMyUser()->getHandle()));
+}
+
+#endif
