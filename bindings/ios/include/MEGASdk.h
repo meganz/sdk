@@ -165,7 +165,8 @@ typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
     MEGANodeAttributeCoordinates    = 1,
     MEGANodeAttributeOriginalFingerprint = 2,
     MEGANodeAttributeLabel = 3,
-    MEGANodeAttributeFav = 4
+    MEGANodeAttributeFav = 4,
+    MEGANodeAttributeSen = 6
 };
 
 typedef NS_ENUM(NSInteger, MEGASetAttribute) {
@@ -3478,6 +3479,40 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  */
 - (void)setNodeFavourite:(MEGANode *)node favourite:(BOOL)favourite;
 
+/**
+ * @brief Mark a node as sensitive
+ *
+ * @note Descendants will inherit the sensitive property.
+ *
+ * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest numDetails] - Returns 1 if node is set as favourite, otherwise return 0
+ * - [MEGARequest flag] - Returns YES (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeSen
+ *
+ * @param node Node that will receive the information.
+ * @param sensitive if true set node as sensitive, otherwise remove the attribute
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setNodeSensitive:(MEGANode *)node sensitive:(BOOL)sensitive delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Mark a node as sensitive
+ *
+ * @note Descendants will inherit the sensitive property.
+ *
+ * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest numDetails] - Returns 1 if node is set as favourite, otherwise return 0
+ * - [MEGARequest flag] - Returns YES (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeSen
+ *
+ * @param node Node that will receive the information.
+ * @param sensitive if true set node as sensitive, otherwise remove the attribute
+ */
+- (void)setNodeSensitive:(MEGANode *)node sensitive:(BOOL)sensitive;
 
 /**
  * @brief Get a list of favourite nodes.
@@ -8019,6 +8054,15 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * @return YES if the node is in the Rubbish bin
  */
 - (BOOL)isNodeInRubbish:(MEGANode *)node;
+
+/**
+* @brief Ascertain if the node is marked as sensitive or a descendent of such
+*
+* see [MEGANode isMarkedSensitive] to see if the node is sensitive
+*
+* @param node node to inspect
+*/
+-(BOOL)isNodeInheritingSensitivity:(MEGANode *)node;
 
 /**
  * @brief Search nodes containing a search string in their name.

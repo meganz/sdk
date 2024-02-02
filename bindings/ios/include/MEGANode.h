@@ -151,6 +151,13 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly, nonatomic, getter=isFavourite) BOOL favourite;
 
 /**
+ * @brief Get the attribute of the node representing if node is marked as sensitive.
+ *
+ * @return YES if node is marked as sensitive, otherwise return NO (attribute is not set).
+ */
+@property (readonly, nonatomic) BOOL isMarkedSensitive;
+
+/**
  * @brief Get the attribute of the node representing its label.
  *
  * @return The label of the node, valid values are:
