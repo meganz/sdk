@@ -656,6 +656,15 @@ public:
     void createChat(bool group, MegaTextChatPeerList *peers, int timeout = maxTimeout);
 #endif
 
+    /**
+     * @brief Download a file from a URL using cURL
+     *
+     * @param url The URL of the File
+     * @param dstPath The destination file path to write
+     * @return True if the file is downloaded successfully, otherwise false
+     */
+    bool getFileFromURL(const std::string& url, const fs::path& dstPath);
+
     /* MegaVpnCredentials */
     template<typename ... requestArgs> int doGetVpnRegions(unsigned apiIndex, unique_ptr<MegaStringList>& vpnRegions, requestArgs... args)
     {

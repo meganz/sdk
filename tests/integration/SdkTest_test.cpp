@@ -258,6 +258,20 @@ namespace
         fs << name;
         return true;
     }
+
+    // cURL Callback function to write downloaded data to a stream
+    // See https://curl.se/libcurl/c/CURLOPT_WRITEFUNCTION.html
+    size_t writeData(void *ptr, size_t size, size_t nmemb, std::ofstream *stream)
+    {
+        if (stream->write((char*)ptr, size * nmemb))
+        {
+            return size * nmemb;
+        }
+        else
+        {
+            return CURL_WRITEFUNC_ERROR;
+        }
+    }
 }
 
 std::map<size_t, std::string> gSessionIDs;
@@ -1833,6 +1847,49 @@ void SdkTest::synchronousMediaUploadIncomplete(unsigned int apiIndex,
 
     string64FileKey = megaApi[apiIndex]->binaryToBase64(reinterpret_cast<const char*>(req->filekey),
                                                         FILENODEKEYLENGTH);
+}
+
+bool SdkTest::getFileFromURL(const std::string& url, const fs::path& dstPath)
+{
+    auto curlCleaner = [](CURL* curl) {
+        curl_easy_cleanup(curl);
+    };
+
+    // Initialize libcurl
+    std::unique_ptr<CURL, decltype(curlCleaner)> curl{curl_easy_init(), curlCleaner};
+    if (!curl)
+    {
+        LOG_err << "Failed to initialize libcurl";
+        return false;
+    }
+
+    // Open file to save downloaded data
+    std::ofstream ofs(dstPath, std::ios::binary | std::ios::out);
+    if (!ofs) {
+        LOG_err << "Error opening file for writing:" << dstPath;
+        return false;
+    }
+
+    // Download
+    curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, writeData);
+    curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &ofs);
+    CURLcode res = curl_easy_perform(curl.get());
+    if (res != CURLE_OK) {
+        LOG_err <<  "curl_easy_perform() failed: " << curl_easy_strerror(res);
+        return false;
+    }
+
+    // Close file
+    ofs.close();
+    if (!ofs)
+    {
+        LOG_verbose << "Error closing file:" << dstPath;
+        return false;
+    }
+
+    LOG_verbose << "File " << dstPath << " downloaded successfully";
+    return true;
 }
 
 string getLinkFromMailbox(const string& exe,         // Python
@@ -17138,3 +17195,11 @@ TEST_F(SdkTest, GiveRemoveChatAccess)
 }
 
 #endif
+TEST_F(SdkTest, GetFileFromURLSuccessfully)
+{
+    const std::string url{"https://artifactory.developers.mega.co.nz:443/artifactory/sdk/test-data/gfx-processing-crash/default_irradiance.dds"};
+    const fs::path output{"default_irradiance.dds"};
+    ASSERT_TRUE(getFileFromURL(url, output));
+    ASSERT_TRUE(fs::exists(output));
+    fs::remove(output);
+}
