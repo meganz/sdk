@@ -1,14 +1,12 @@
 macro(load_sdklib_libraries)
 
-    find_package(PkgConfig REQUIRED) # For libraries loaded using pkg-config
-
     if(VCPKG_ROOT)
         find_package(cryptopp CONFIG REQUIRED)
-        target_link_libraries(SDKlib PRIVATE cryptopp::cryptopp)
+        target_link_libraries(SDKlib PUBLIC cryptopp::cryptopp) # TODO: Private for SDK core
 
         find_package(unofficial-sodium REQUIRED)
         if(WIN32)
-            target_link_libraries(SDKlib PRIVATE unofficial-sodium::sodium)
+            target_link_libraries(SDKlib PUBLIC unofficial-sodium::sodium)  # TODO: Private for SDK core
         else()
             target_link_libraries(SDKlib PRIVATE unofficial-sodium::sodium unofficial-sodium::sodium_config_public)
         endif()
@@ -68,15 +66,25 @@ macro(load_sdklib_libraries)
         endif()
 
         if(USE_READLINE)
-            pkg_check_modules(readline REQUIRED IMPORTED_TARGET readline)
-            target_link_libraries(SDKlib PRIVATE PkgConfig::readline)
+            find_package(Readline-unix REQUIRED)
+            target_link_libraries(SDKlib PRIVATE Readline::Readline)
+
+            # Curses is needed by Readline
+            set(CURSES_NEED_NCURSES TRUE)
+            find_package(Curses REQUIRED)
+            target_include_directories(SDKlib PRIVATE ${CURSES_INCLUDE_DIRS})
+            target_compile_options(SDKlib PRIVATE ${CURSES_CFLAGS})
+            target_link_libraries(SDKlib PRIVATE ${CURSES_LIBRARIES})
         else()
             set(NO_READLINE 1)
         endif()
 
     else() # No VCPKG usage. Use pkg-config
+
+        find_package(PkgConfig REQUIRED) # For libraries loaded using pkg-config
+
         pkg_check_modules(cryptopp REQUIRED IMPORTED_TARGET libcrypto++)
-        target_link_libraries(SDKlib PRIVATE PkgConfig::cryptopp)
+        target_link_libraries(SDKlib PUBLIC PkgConfig::cryptopp) # TODO: Private for SDK core
 
         pkg_check_modules(sodium REQUIRED IMPORTED_TARGET libsodium)
         target_link_libraries(SDKlib PRIVATE PkgConfig::sodium)
@@ -107,7 +115,7 @@ macro(load_sdklib_libraries)
         endif()
 
         if(USE_FFMPEG)
-            pkg_check_modules(ffmpeg REQUIRED IMPORTED_TARGET libavformat libavutil libavcodec libavfilter libavdevice libswscale libswresample)
+            pkg_check_modules(ffmpeg REQUIRED IMPORTED_TARGET libavformat libavutil libavcodec libswscale libswresample)
             target_link_libraries(SDKlib PRIVATE PkgConfig::ffmpeg)
             set(HAVE_FFMPEG 1)
         endif()

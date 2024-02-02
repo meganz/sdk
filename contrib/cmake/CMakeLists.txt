@@ -422,7 +422,7 @@ endif()
 
 if (USE_THIRDPARTY_FROM_VCPKG)
         IF(USE_CRYPTOPP)
-            ImportStdVcpkgLibrary(cryptopp        cryptopp-static cryptopp-static libcryptopp libcryptopp)
+            ImportStdVcpkgLibrary(cryptopp        cryptopp cryptopp libcryptopp libcryptopp)
         ENDIF(USE_CRYPTOPP)
 
         ImportStdVcpkgLibrary(sodium          libsodium libsodium libsodium libsodium)
@@ -469,6 +469,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
                 set(DEBUG_SUFIX _debug)
             endif()
             ImportStdVcpkgLibrary(zen        zend zen libzen${DEBUG_SUFIX} libzen)
+            ImportStdVcpkgLibrary(tinyxml2   tinyxml2 tinyxml2 libtinyxml2 libtinyxml2)
             ImportStdVcpkgLibrary(mediainfo  mediainfod mediainfo libmediainfo${DEBUG_SUFIX} libmediainfo)
         ENDIF(USE_MEDIAINFO)
 
@@ -891,7 +892,7 @@ target_link_libraries(Mega PUBLIC
                         $<${USE_CRYPTOPP}:cryptopp>
                         sodium
                         $<${USE_WEBRTC}:webrtc>
-                        $<${USE_MEDIAINFO}:mediainfo> $<${USE_MEDIAINFO}:zen>
+                        $<${USE_MEDIAINFO}:mediainfo> $<${USE_MEDIAINFO}:zen> $<${USE_MEDIAINFO}:tinyxml2>
                         $<${USE_CURL}:curl>
                         $<${MEGA_USE_C_ARES}:cares>
                         $<$<AND:${USE_OPENSSL},$<NOT:${USE_WEBRTC}>>:ssl>
@@ -1049,14 +1050,22 @@ add_executable(test_unit
     ${MegaDir}/tests/unit/utils.cpp
     ${MegaDir}/tests/unit/utils.h
     ${MegaDir}/tests/unit/utils_test.cpp
+    ${MegaDir}/tests/unit/CacheLRU_test.cpp
 )
 
 add_executable(test_integration
+    ${MegaDir}/tests/gtest_common.cpp
+    ${MegaDir}/tests/gtest_common.h
     ${MegaDir}/tests/integration/main.cpp
+    ${MegaDir}/tests/integration/sdk_test_utils.cpp
+    ${MegaDir}/tests/integration/sdk_test_utils.h
     ${MegaDir}/tests/integration/SdkTest_test.cpp
+    ${MegaDir}/tests/integration/SdkTest_test.h
     ${MegaDir}/tests/integration/Sync_test.cpp
+    ${MegaDir}/tests/integration/test.h
 )
 
+target_include_directories(test_integration PRIVATE ${MegaDir}/tests)
 target_compile_definitions(test_unit PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
 target_compile_definitions(test_integration PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
 target_link_libraries(test_unit gmock gtest Mega )

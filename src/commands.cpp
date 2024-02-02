@@ -2220,7 +2220,8 @@ bool CommandPendingKeys::procresult(Result r, JSON& json)
 
 CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const char* temail, opcactions_t action, const char* msg, const char* oemail, handle contactLink, Completion completion)
 {
-    mV3 = false;
+    mSeqtagArray = true;
+    
     cmd("upc");
 
     if (oemail != NULL)
@@ -2961,8 +2962,8 @@ bool CommandPurchaseCheckout::procresult(Result r, JSON& json)
 
 CommandRemoveContact::CommandRemoveContact(MegaClient* client, const char* m, visibility_t show, Completion completion)
 {
-    mV3 = false;
-
+    mSeqtagArray = true;
+    
     this->email = m ? m : "";
     this->v = show;
 
@@ -3007,6 +3008,12 @@ void CommandRemoveContact::doComplete(error result)
 
 CommandPutMultipleUAVer::CommandPutMultipleUAVer(MegaClient *client, const userattr_map *attrs, int ctag, std::function<void (Error)> completion)
 {
+    if (attrs->find(ATTR_KEYS) != attrs->end() && client->getClientType() != MegaClient::ClientType::DEFAULT)
+    {
+        LOG_warn << "Invalid Client type (" << static_cast<int>(client->getClientType()) << ") for updating keys in multi-upv.";
+        assert(client->getClientType() == MegaClient::ClientType::DEFAULT);
+    }
+
     mV3 = false;
 
     this->attrs = *attrs;
@@ -3132,6 +3139,12 @@ bool CommandPutMultipleUAVer::procresult(Result r, JSON& json)
 CommandPutUAVer::CommandPutUAVer(MegaClient* client, attr_t at, const byte* av, unsigned avl, int ctag,
                                  std::function<void(Error)> completion)
 {
+    if (at == ATTR_KEYS && client->getClientType() != MegaClient::ClientType::DEFAULT)
+    {
+        LOG_warn << "Invalid Client type (" << static_cast<int>(client->getClientType()) << ") for updating keys in upv.";
+        assert(client->getClientType() == MegaClient::ClientType::DEFAULT);
+    }
+
     mV3 = false;
 
     this->at = at;
@@ -3352,11 +3365,7 @@ bool CommandPutUA::procresult(Result r, JSON& json)
 CommandGetUA::CommandGetUA(MegaClient* /*client*/, const char* uid, attr_t at, const char* ph, int ctag,
                            CompletionErr completionErr, CompletionBytes completionBytes, CompletionTLV compltionTLV)
 {
-    // It's important for this one to be v3, as the phone apps send huge numbers of alternating uga/uge
-    // and so we need those to go out in a single batch, rather than a batch per request
     mV3 = true;
-    // we probably don't need to set mSeqtagArray, becuase the API doco says the (successful) response is always a { JSON object }
-    // And from experimentation, a failed response is just a raw error, eg -9
 
     this->uid = uid;
     this->at = at;
@@ -3381,12 +3390,6 @@ CommandGetUA::CommandGetUA(MegaClient* /*client*/, const char* uid, attr_t at, c
     {
         cmd("mcuga");
         arg("ph", ph);
-
-
-        // cannot use v3, since the response is "<value>" and, if we have multiple `mcuga` in the
-        // same request -> first value will be taken as the sequence-tag, second value as the value
-        // for the first command
-        mV3 = false;
     }
     else
     {
@@ -3465,25 +3468,6 @@ bool CommandGetUA::procresult(Result r, JSON& json)
         const char* ptr;
         const char* end;
         string value, version, buf;
-
-        //If we are in preview mode, we only can retrieve atributes with mcuga and the response format is different
-        if (isFromChatPreview())
-        {
-            ptr = json.getvalue();
-            if (!ptr || !(end = strchr(ptr, '"')))
-            {
-                mCompletionErr(API_EINTERNAL);
-            }
-            else
-            {
-                // convert from ASCII to binary the received data
-                buf.assign(ptr, (end-ptr));
-                value.resize(buf.size() / 4 * 3 + 3);
-                value.resize(Base64::atob(buf.data(), (byte *)value.data(), int(value.size())));
-                mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
-            }
-            return true;
-        }
 
         for (;;)
         {
@@ -3675,8 +3659,6 @@ bool CommandGetUA::procresult(Result r, JSON& json)
 #ifdef DEBUG
 CommandDelUA::CommandDelUA(MegaClient *client, const char *an)
 {
-    mV3 = false;
-
     this->an = an;
 
     cmd("upr");
@@ -3867,8 +3849,6 @@ CommandKeyCR::CommandKeyCR(MegaClient* /*client*/, sharedNode_vector* rshares, s
 // for node sn to user u with access a
 CommandPubKeyRequest::CommandPubKeyRequest(MegaClient* client, User* user)
 {
-    mV3 = false;
-
     cmd("uk");
     arg("u", user->uid.c_str());
 
@@ -3969,8 +3949,6 @@ void CommandPubKeyRequest::invalidateUser()
 
 CommandGetUserData::CommandGetUserData(MegaClient *client, int tag, std::function<void(string*, string*, string*, error)> completion)
 {
-    mV3 = false;
-
     cmd("ug");
     arg("v", 1);
 
@@ -4057,6 +4035,10 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     string sigCu255, versionSigCu255;
     string authringEd255, versionAuthringEd255;
     string authringCu255, versionAuthringCu255;
+    string visibleWelcomeDialog;
+    string versionVisibleWelcomeDialog;
+    string visibleTermsOfService;
+    string versionVisibleTermsOfService;
     string pwmh, pwmhVersion;
 
     bool uspw = false;
@@ -4393,9 +4375,22 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 //                int proPlan = json.getint32();
 //            }
 //            break;
+        case MAKENAMEID8('^', '!', 'w', 'e', 'l', 'd', 'l', 'g'):
+        {
+            parseUserAttribute(json, visibleWelcomeDialog, versionVisibleWelcomeDialog);
+            break;
+        }
+
+        case MAKENAMEID5('^', '!', 't', 'o', 's'):
+        {
+            parseUserAttribute(json, visibleTermsOfService, versionVisibleTermsOfService);
+            break;
+        }
+
         case MAKENAMEID4('p', 'w', 'm', 'h'):
             parseUserAttribute(json, pwmh, pwmhVersion);
             break;
+
         case EOO:
         {
             assert(me == client->me);
@@ -4447,9 +4442,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             if (u)
             {
                 int changes = 0;
-                if (u->email.empty())
+                if (email.size())
                 {
-                    u->email = email;
+                    client->setEmail(u, email);
                 }
 
                 if (firstname.size())
@@ -4996,8 +4991,6 @@ void CommandGetUserData::parseUserAttribute(JSON& json, std::string &value, std:
 
 CommandGetMiscFlags::CommandGetMiscFlags(MegaClient *client)
 {
-    mV3 = false;
-
     cmd("gmf");
 
     // this one can get the smsve flag when the account is blocked (if it's in a batch by itself)
@@ -5051,8 +5044,6 @@ bool CommandABTestActive::procresult(Result r, JSON&)
 
 CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, std::shared_ptr<AccountDetails> ad, bool storage, bool transfer, bool pro, int source)
 {
-    mV3 = false;
-
     details = ad;
     mStorage = storage;
     mTransfer = transfer;
@@ -7227,7 +7218,6 @@ bool CommandGetEmailLink::procresult(Result r, JSON& json)
 
 CommandConfirmEmailLink::CommandConfirmEmailLink(MegaClient *client, const char *code, const char *email, const byte *newLoginHash, bool replace)
 {
-    mV3 = false;
     this->email = email;
     this->replace = replace;
 
@@ -7257,13 +7247,7 @@ bool CommandConfirmEmailLink::procresult(Result r, JSON& json)
         if (replace)
         {
             LOG_debug << "Email changed from `" << u->email << "` to `" << email << "`";
-
-            client->mapuser(u->userhandle, email.c_str()); // update email used as index for user's map
-            u->changed.email = true;
-            client->notifyuser(u);
-
-            // produce a callback to update cached email in MegaApp
-            client->reportLoggedInChanges();
+            client->setEmail(u, email);
         }
         // TODO: once we manage multiple emails, add the new email to the list of emails
     }
@@ -7389,8 +7373,6 @@ bool CommandGetLocalSSLCertificate::procresult(Result r, JSON& json)
 #ifdef ENABLE_CHAT
 CommandChatCreate::CommandChatCreate(MegaClient* client, bool group, bool publicchat, const userpriv_vector* upl, const string_map* ukm, const char* title, bool meetingRoom, int chatOptions, const ScheduledMeeting* schedMeeting)
 {
-    mV3 = false;
-
     this->client = client;
     this->chatPeers = new userpriv_vector(*upl);
     this->mPublicChat = publicchat;
@@ -7676,8 +7658,6 @@ bool CommandSetChatOptions::procresult(Result r, JSON& json)
 
 CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, handle uh, privilege_t priv, const char *unifiedkey, const char* title)
 {
-    mV3 = false;
-
     this->client = client;
     this->chatid = chatid;
     this->uh = uh;
@@ -7735,8 +7715,6 @@ bool CommandChatInvite::procresult(Result r, JSON& json)
 
 CommandChatRemove::CommandChatRemove(MegaClient *client, handle chatid, handle uh)
 {
-    mV3 = false;
-
     this->client = client;
     this->chatid = chatid;
     this->uh = uh;
@@ -7830,8 +7808,6 @@ bool CommandChatURL::procresult(Result r, JSON& json)
 
 CommandChatGrantAccess::CommandChatGrantAccess(MegaClient *client, handle chatid, handle h, const char *uid)
 {
-    mV3 = false;
-
     this->client = client;
     this->chatid = chatid;
     this->h = h;
@@ -7872,8 +7848,6 @@ bool CommandChatGrantAccess::procresult(Result r, JSON& json)
 
 CommandChatRemoveAccess::CommandChatRemoveAccess(MegaClient *client, handle chatid, handle h, const char *uid)
 {
-    mV3 = false;
-
     this->client = client;
     this->chatid = chatid;
     this->h = h;
@@ -7913,8 +7887,6 @@ bool CommandChatRemoveAccess::procresult(Result r, JSON& json)
 
 CommandChatUpdatePermissions::CommandChatUpdatePermissions(MegaClient *client, handle chatid, handle uh, privilege_t priv)
 {
-    mV3 = false;
-
     this->client = client;
     this->chatid = chatid;
     this->uh = uh;
@@ -7967,8 +7939,6 @@ bool CommandChatUpdatePermissions::procresult(Result r, JSON& json)
 
 CommandChatTruncate::CommandChatTruncate(MegaClient *client, handle chatid, handle messageid)
 {
-    mV3 = false;
-
     this->client = client;
     this->chatid = chatid;
 
@@ -8004,8 +7974,6 @@ bool CommandChatTruncate::procresult(Result r, JSON& json)
 
 CommandChatSetTitle::CommandChatSetTitle(MegaClient *client, handle chatid, const char *title)
 {
-    mV3 = false;
-
     this->client = client;
     this->chatid = chatid;
     this->title = title ? string(title) : "";
@@ -8089,8 +8057,6 @@ bool CommandRegisterPushNotification::procresult(Result r, JSON& json)
 
 CommandArchiveChat::CommandArchiveChat(MegaClient *client, handle chatid, bool archive)
 {
-    mV3 = false;
-
     this->mChatid = chatid;
     this->mArchive = archive;
 
@@ -8390,8 +8356,6 @@ bool CommandChatLinkURL::procresult(Result r, JSON& json)
 
 CommandChatLinkClose::CommandChatLinkClose(MegaClient *client, handle chatid, const char *title)
 {
-    mV3 = false;
-
     mChatid = chatid;
     mTitle = title ? string(title) : "";
 
@@ -9113,8 +9077,6 @@ bool CommandFetchTimeZone::procresult(Result r, JSON& json)
 
 CommandSetLastAcknowledged::CommandSetLastAcknowledged(MegaClient* client)
 {
-    mV3 = false;  // just until we figure out why this started returning `st` for v3
-
     cmd("sla");
     tag = client->reqtag;
 }
@@ -9742,7 +9704,8 @@ bool CommandDismissBanner::procresult(Result r, JSON& json)
 // Sets and Elements
 //
 
-bool CommandSE::procjsonobject(JSON& json, handle& id, m_time_t& ts, handle* u, m_time_t* cts, handle* s, int64_t* o, handle* ph) const
+bool CommandSE::procjsonobject(JSON& json, handle& id, m_time_t& ts, handle* u, m_time_t* cts,
+                               handle* s, int64_t* o, handle* ph, uint8_t* t) const
 {
     for (;;)
     {
@@ -9791,6 +9754,13 @@ bool CommandSE::procjsonobject(JSON& json, handle& id, m_time_t& ts, handle* u, 
             }
             break;
 
+        case MAKENAMEID1('t'):
+            {
+                const auto setType = static_cast<uint8_t>(json.getint());
+                if (t) *t = setType;
+            }
+            break;
+
         default:
             if (!json.storeobject())
             {
@@ -9804,9 +9774,10 @@ bool CommandSE::procjsonobject(JSON& json, handle& id, m_time_t& ts, handle* u, 
     }
 }
 
-bool CommandSE::procresultid(JSON& json, const Result& r, handle& id, m_time_t& ts, handle* u, m_time_t* cts, handle* s, int64_t* o, handle* ph) const
+bool CommandSE::procresultid(JSON& json, const Result& r, handle& id, m_time_t& ts, handle* u,
+                             m_time_t* cts, handle* s, int64_t* o, handle* ph, uint8_t* t) const
 {
-    return r.hasJsonObject() && procjsonobject(json, id, ts, u, cts, s, o, ph);
+    return r.hasJsonObject() && procjsonobject(json, id, ts, u, cts, s, o, ph, t);
 }
 
 bool CommandSE::procerrorcode(const Result& r, Error& e) const
@@ -9857,6 +9828,7 @@ CommandPutSet::CommandPutSet(MegaClient* cl, Set&& s, unique_ptr<string> encrAtt
     if (mSet->id() == UNDEF) // create new
     {
         arg("k", (byte*)encrKey.c_str(), (int)encrKey.size());
+        arg("t", static_cast<m_off_t>(mSet->type()));
     }
     else // update
     {
@@ -11221,15 +11193,14 @@ CommandCreatePasswordManagerBase::CommandCreatePasswordManagerBase(MegaClient* c
     cmd("pwmp");
     // APs "t" (for the new node/folder) and "ua" (for the new user attribute) triggered
 
-    if (mNewNode)
+    assert(mNewNode);
+
+    arg("k", reinterpret_cast<const byte*>(mNewNode->nodekey.data()),
+        static_cast<int>(mNewNode->nodekey.size()));
+    if (mNewNode->attrstring)
     {
-        arg("k", reinterpret_cast<const byte*>(mNewNode->nodekey.data()),
-            static_cast<int>(mNewNode->nodekey.size()));
-        if (mNewNode->attrstring)
-        {
-            arg("at", reinterpret_cast<const byte*>(mNewNode->attrstring->data()),
-                static_cast<int>(mNewNode->attrstring->size()));
-        }
+        arg("at", reinterpret_cast<const byte*>(mNewNode->attrstring->data()),
+            static_cast<int>(mNewNode->attrstring->size()));
     }
 
     // although these won't be used, they are updated for integrity
@@ -11248,6 +11219,8 @@ bool CommandCreatePasswordManagerBase::procresult(Result r, JSON &json)
     }
 
     NodeHandle folderHandle;
+    std::string key;
+    std::unique_ptr<std::string> attrString;  // optionals are C++17
     m_off_t t = 0;
     for (;;)
     {
@@ -11257,25 +11230,67 @@ bool CommandCreatePasswordManagerBase::procresult(Result r, JSON &json)
         case 'h':
             folderHandle.set6byte(json.gethandle(MegaClient::NODEHANDLE));
             break;
+        case 'k':
+            json.storeobject(&key);
+            break;
+        case 'a':
+            attrString = make_unique<std::string>();
+            json.storeobject(attrString.get());
+            break;
         case 't':
         {
             t = json.getint();
             break;
         }
         case EOO:
-            if (FOLDERNODE != static_cast<nodetype_t>(t))  // sanity check
+        {
+            bool sanityChecksFailed = false;
+            const std::string msg {"Password Manager: wrong node type received in command response. Received "};
+            if (FOLDERNODE != static_cast<nodetype_t>(t))
             {
-                LOG_err << "Password Manager: wrong node type received in command response. "
-                        <<" Received " << t << " expected " << FOLDERNODE << " received "
-                        << t;
-                if (mCompletion) mCompletion(API_EINTERNAL, nullptr);
-                return false;
+                LOG_err << msg << "type " << t << " expected " << FOLDERNODE;
+                sanityChecksFailed = true;
             }
+
+            const auto keySeparatorPos = key.find(":");
+            auto keyBeginning = keySeparatorPos + 1;
+            if (keySeparatorPos == std::string::npos)
+            {
+                LOG_warn << msg << "unexpected key field value |" << key << "| missing separator ':'."
+                         << " Attempting key value format without separator ':'";
+                keyBeginning = 0;
+            }
+
+            const std::string aux {Base64::btoa(mNewNode->nodekey)};
+            key = key.substr(keyBeginning);
+            if (key != aux)
+            {
+                LOG_err << "node key value |" << key << "| different than expected |" << aux << "|";
+                sanityChecksFailed = true;
+            }
+
+            const auto& at = mNewNode->attrstring;
+            const std::string atAux = at ? Base64::btoa(*(at.get())) : "";
+            if ((!at && attrString) || (at && !attrString) ||  // if only 1 exists
+                (at && attrString && atAux != *attrString))    // or both exist and are different
+            {
+                LOG_err << "node attributes |" << (attrString ? *attrString : "")
+                        << "| different than expected |" << atAux << "|";
+                sanityChecksFailed = true;
+            }
+
+            if (sanityChecksFailed)
+            {
+                if (mCompletion) mCompletion(API_EINTERNAL, nullptr);
+                return true;
+            }
+
 
             mNewNode->nodehandle = folderHandle.as8byte();
 
             if (mCompletion) mCompletion(API_OK, std::move(mNewNode));
             return true;
+        }
         default:
             if (!json.storeobject())
             {

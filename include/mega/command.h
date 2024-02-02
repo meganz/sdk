@@ -1537,8 +1537,6 @@ public:
         PENDING = 3, // The sync engine is working, e.g: scanning local folders
         INACTIVE = 4, // Sync is not active. A state != ACTIVE should have been sent through '''sp'''
         UNKNOWN = 5, // Unknown status
-
-        // TODO: can this be added to the Backup Centre
         STALLED = 6, // a folder is scan-blocked, or some contradictory changes occured between local and remote folders, user must pick one
     };
 
@@ -1604,8 +1602,12 @@ class CommandSE : public Command // intermediary class to avoid code duplication
 public:
     CommandSE() { mV3 = false; }
 protected:
-    bool procjsonobject(JSON& json, handle& id, m_time_t& ts, handle* u, m_time_t* cts = nullptr, handle* s = nullptr, int64_t* o = nullptr, handle* ph = nullptr) const;
-    bool procresultid(JSON& json, const Result& r, handle& id, m_time_t& ts, handle* u, m_time_t* cts = nullptr, handle* s = nullptr, int64_t* o = nullptr, handle* ph = nullptr) const;
+    bool procjsonobject(JSON& json, handle& id, m_time_t& ts, handle* u, m_time_t* cts = nullptr,
+                        handle* s = nullptr, int64_t* o = nullptr, handle* ph = nullptr,
+                        uint8_t* setType = nullptr) const;
+    bool procresultid(JSON& json, const Result& r, handle& id, m_time_t& ts, handle* u,
+                      m_time_t* cts = nullptr, handle* s = nullptr, int64_t* o = nullptr,
+                      handle* ph = nullptr, uint8_t* setType = nullptr) const;
     bool procerrorcode(const Result& r, Error& e) const;
     bool procExtendedError(JSON& json, int64_t& errCode, handle& eid) const;
 };

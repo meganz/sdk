@@ -852,6 +852,8 @@ public:
     // retrieve the email address of a user
     void getUserEmail(const char *uid);
 
+    // Set email for an user
+    void setEmail(User* u, const std::string& email);
 
 //
 // Account upgrade to V2
@@ -1893,6 +1895,9 @@ public:
     // determine if the file is miscellaneous.
     bool nodeIsMiscellaneous(const Node* n) const;
 
+    // determine if the file is a spreadsheet.
+    bool nodeIsSpreadsheet(const Node* n) const;
+
     // functions for determining whether we can clone a node instead of upload
     // or whether two files are the same so we can just upload/download the data once
     bool treatAsIfFileDataEqual(const FileFingerprint& nodeFingerprint, const LocalPath& file2, const string& filenameExtensionLowercaseNoDot);
@@ -1916,22 +1921,22 @@ public:
     // minute of the last created folder in SyncDebris (don't attempt creation more frequently than once per minute)
     m_time_t syncdebrisminute;
 
-    // move nodes to //bin/SyncDebris/yyyy-mm-dd/ or unlink directly
-    void movetosyncdebris(Node*, bool unlink, std::function<void(NodeHandle, Error)>&& completion, bool canChangeVault);
+    // move nodes to //bin/SyncDebris/yyyy-mm-dd/ or copy to //bin/SyncDebris/yyyy-mm-dd/ folder and unlink
+    void movetosyncdebris(Node*, bool inshare, std::function<void(NodeHandle, Error)>&& completion, bool canChangeVault);
 
     // move queued nodes to SyncDebris (for syncing into the user's own cloud drive)
-    void execmovetosyncdebris(Node* n, std::function<void(NodeHandle, Error)>&& completion, bool canChangeVault);
+    void execmovetosyncdebris(Node* n, std::function<void(NodeHandle, Error)>&& completion, bool canChangeVault, bool isInshare);
 
     std::shared_ptr<Node> getOrCreateSyncdebrisFolder();
     struct pendingDebrisRecord {
         NodeHandle nodeHandle;
         std::function<void(NodeHandle, Error)> completion;
-        pendingDebrisRecord(NodeHandle h, std::function<void(NodeHandle, Error)> c) : nodeHandle(h), completion(c) {}
+        bool mIsInshare = false;
+        bool mCanChangeVault = false;
+        pendingDebrisRecord(NodeHandle h, std::function<void(NodeHandle, Error)> c, bool inshare, bool changeVault)
+            : nodeHandle(h), completion(c), mIsInshare(inshare), mCanChangeVault(changeVault) {}
     };
     list<pendingDebrisRecord> pendingDebris;
-
-    // unlink queued nodes directly (for inbound share syncing)
-    void execsyncunlink(Node* n, std::function<void(NodeHandle, Error)>&& completion, bool canChangeVault);
 
 #endif
     // determine if all transfer slots are full
@@ -2322,7 +2327,14 @@ public:
      */
     dstime overTransferQuotaBackoff(HttpReq* req);
 
-    MegaClient(MegaApp*, shared_ptr<Waiter>, HttpIO*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
+    enum class ClientType
+    {
+        DEFAULT = 0,        // same as MegaApi::CLIENT_TYPE_DEFAULT
+        VPN,
+        PASSWORD_MANAGER,
+    };
+
+    MegaClient(MegaApp*, shared_ptr<Waiter>, HttpIO*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount, ClientType clientType = ClientType::DEFAULT);
     ~MegaClient();
 
 struct MyAccountData
@@ -2376,7 +2388,11 @@ public:
     bool resetCacheAndValues();
 };
 
+    ClientType getClientType() const { return mClientType; }
+
 private:
+    ClientType mClientType;
+
     // Since it's quite expensive to create a SymmCipher, this are provided to use for quick operations - just set the key and use.
     SymmCipher tmpnodecipher;
 

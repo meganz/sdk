@@ -1663,7 +1663,7 @@ void MegaClient::init()
     mLastReceivedScSeqTag.clear();
 }
 
-MegaClient::MegaClient(MegaApp* a, shared_ptr<Waiter> w, HttpIO* h, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
+MegaClient::MegaClient(MegaApp* a, shared_ptr<Waiter> w, HttpIO* h, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount, ClientType clientType)
    : mAsyncQueue(*w, workerThreadCount)
    , mCachedStatus(this)
    , useralerts(*this)
@@ -1682,6 +1682,7 @@ MegaClient::MegaClient(MegaApp* a, shared_ptr<Waiter> w, HttpIO* h, DbAccess* d,
 #endif
    , reqs(rng)
    , mKeyManager(*this)
+   , mClientType(clientType)
    , mJourneyId(fsaccess, dbaccess ? dbaccess->rootPath() : LocalPath())
 {
     mNodeManager.reset();
@@ -2730,6 +2731,13 @@ void MegaClient::exec()
                             fnstats.eOthersCount++;
                         }
                     }
+                    
+                    if (pendingsc->httpstatus == 500 && !scnotifyurl.empty())
+                    {
+                        sendevent(99482, "500 received on wsc url");
+                        LOG_err << "500 error on wsc URL. Clearing it";
+                        scnotifyurl.clear();
+                    }
 
                     if (pendingsc->sslcheckfailed)
                     {
@@ -2982,7 +2990,8 @@ void MegaClient::exec()
                     // this also removes it from slots
                     (*it)->transfer->removeAndDeleteSelf(TRANSFERSTATE_CANCELLED);
                 }
-                else if (!xferpaused[(*it)->transfer->type] && (!(*it)->retrying || (*it)->retrybt.armed()))
+                else if ((!xferpaused[(*it)->transfer->type] || (*it)->transfer->isForSupport())
+                        && (!(*it)->retrying || (*it)->retrybt.armed()))
                 {
                     (*it)->doio(this, committer);
                 }
@@ -5753,6 +5762,7 @@ bool MegaClient::sc_checkSequenceTag(const string& tag)
                 else
                 {
                     // We know there is a mCurrentSeqtag that we must receive, but we have not encountered it yet.  Continue with actionpackets
+                    LOG_verbose << clientname << "current st tag " << mCurrentSeqtag;
                     LOG_verbose << clientname << "st tag " << tag << " catching up";
                     assert(tag.size() < mCurrentSeqtag.size() || (tag.size() == mCurrentSeqtag.size() && tag < mCurrentSeqtag));
                     return true;
@@ -7126,12 +7136,7 @@ void MegaClient::sc_se()
             {
                 LOG_debug << "Email changed from `" << u->email << "` to `" << email << "`";
 
-                mapuser(uh, email.c_str()); // update email used as index for user's map
-                u->changed.email = true;
-                notifyuser(u);
-
-                // produce a callback to update cached email in MegaApp
-                reportLoggedInChanges();
+                setEmail(u, email);
             }
             // TODO: manage different status once multiple-emails is supported
 
@@ -8859,13 +8864,9 @@ error MegaClient::removeNode(NodeHandle nh, bool keepVersions, int rTag)
         keepVersions = false;
         canChangeVault = true;
     }
-    else
+    else if (node->type == ROOTNODE || node->type == VAULTNODE || node->type == RUBBISHNODE)  // rootnodes cannot be deleted
     {
-        // rootnodes cannot be deleted
-        if (node->type == ROOTNODE || node->type == VAULTNODE || node->type == RUBBISHNODE)
-        {
-            return API_EACCESS;
-        }
+        return API_EACCESS;
     }
 
     // use default callback function app->unlink_result
@@ -16330,33 +16331,16 @@ void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConf
 
 // move node to //bin, then on to the SyncDebris folder of the day (to prevent
 // dupes)
-void MegaClient::movetosyncdebris(Node* dn, bool unlink, std::function<void(NodeHandle, Error)>&& completion, bool canChangeVault)
+void MegaClient::movetosyncdebris(Node* dn, bool inshare, std::function<void(NodeHandle, Error)>&& completion, bool canChangeVault)
 {
-    if (unlink)
-    {
-        execsyncunlink(dn, move(completion), canChangeVault);
-    }
-    else
-    {
-        execmovetosyncdebris(dn, move(completion), canChangeVault);
-    }
+    execmovetosyncdebris(dn, move(completion), canChangeVault, inshare);
 }
 
-void MegaClient::execsyncunlink(Node* n, std::function<void(NodeHandle, Error)>&& completion, bool canChangeVault)
-{
-    error err = unlink(n, false, 0, canChangeVault, move(completion));
-    if (err)
-    {
-        // if an err was returned from unlink(), then it has not actually move()d from the completion function rvalue ref
-        completion(n->nodeHandle(), err);
-    }
-}
-
-void MegaClient::execmovetosyncdebris(Node* requestedNode, std::function<void(NodeHandle, Error)>&& completion, bool canChangeVault)
+void MegaClient::execmovetosyncdebris(Node* requestedNode, std::function<void(NodeHandle, Error)>&& completion, bool canChangeVault, bool isInshare)
 {
     if (requestedNode)
     {
-        pendingDebris.emplace_back(requestedNode->nodeHandle(), move(completion));
+        pendingDebris.emplace_back(requestedNode->nodeHandle(), move(completion), isInshare, canChangeVault);
     }
 
     if (std::shared_ptr<Node> debrisTarget = getOrCreateSyncdebrisFolder())
@@ -16365,8 +16349,39 @@ void MegaClient::execmovetosyncdebris(Node* requestedNode, std::function<void(No
         {
             if (std::shared_ptr<Node> n = nodeByHandle(rec.nodeHandle))
             {
-                LOG_debug << "Moving to cloud Syncdebris: " << n->displaypath() << " in " << debrisTarget->displaypath() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
-                rename(n, debrisTarget, SYNCDEL_DEBRISDAY, n->parent ? n->parent->nodeHandle() : NodeHandle(), nullptr, canChangeVault, move(rec.completion));
+                if (!rec.mIsInshare)
+                {
+                    LOG_debug << "Moving to cloud Syncdebris: " << n->displaypath() << " in " << debrisTarget->displaypath() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
+                    rename(n, debrisTarget, SYNCDEL_DEBRISDAY, n->parent ? n->parent->nodeHandle() : NodeHandle(), nullptr, rec.mCanChangeVault, move(rec.completion));
+                }
+                else
+                {
+                    LOG_debug << "Copy and delete to cloud Syncdebris: " << n->displaypath() << " in " << debrisTarget->displaypath() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
+                    TreeProcCopy tc;
+                    proctree(n, &tc, false, false);
+                    tc.allocnodes();
+                    proctree(n, &tc, false, false);
+                    tc.nn[0].parenthandle = UNDEF;
+                    putnodes(debrisTarget->nodeHandle(), NoVersioning, std::move(tc.nn), nullptr, reqtag, rec.mCanChangeVault, [this, rec](const Error&e, targettype_t, vector<NewNode>&, bool, int)
+                    {
+                        if (e)
+                        {
+                            LOG_warn << "Error copying files at SyncDebris folder, continue process (remove them)";
+                        }
+
+                        if (std::shared_ptr<Node> n = nodeByHandle(rec.nodeHandle))
+                        {
+                            unlink(n.get(), false, 0, false, [rec](NodeHandle, Error e)
+                            {
+                                if (rec.completion) rec.completion(rec.nodeHandle, e);
+                            });
+                        }
+                        else
+                        {
+                            if (rec.completion) rec.completion(rec.nodeHandle, API_EEXIST);
+                        }
+                    });
+                }
             }
             else
             {
@@ -16456,7 +16471,7 @@ std::shared_ptr<Node> MegaClient::getOrCreateSyncdebrisFolder()
             syncdebrisadding = false;
             // on completion, send the queued nodes
             LOG_debug << "Daily cloud SyncDebris folder created. Trigger remaining debris moves: " << pendingDebris.size();
-            execmovetosyncdebris(nullptr, nullptr, false);
+            execmovetosyncdebris(nullptr, nullptr, false, false);
         }, false));
     return nullptr;
 }
@@ -17087,6 +17102,11 @@ bool MegaClient::nodeIsProgram(const Node* n) const
 bool MegaClient::nodeIsMiscellaneous(const Node* n) const
 {
     return n->isIncludedForMimetype(MimeType_t::MIME_TYPE_MISC);
+}
+
+bool MegaClient::nodeIsSpreadsheet(const Node *n) const
+{
+    return n->isIncludedForMimetype(MimeType_t::MIME_TYPE_SPREADSHEET);
 }
 
 bool MegaClient::treatAsIfFileDataEqual(const FileFingerprint& node1, const LocalPath& file2, const string& filenameExtensionLowercaseNoDot)
@@ -18226,6 +18246,14 @@ void MegaClient::putSet(Set&& s, std::function<void(Error, const Set*)> completi
     // create Set
     if (s.id() == UNDEF)
     {
+        if (s.type() >= Set::TYPE_SIZE)
+        {
+            LOG_err << "Sets: Invalid Set type " << static_cast<unsigned int>(s.type()) << ". Maximum valid type is "
+                    << static_cast<unsigned int>(Set::TYPE_SIZE) - 1;
+            if (completion) completion(API_EARGS, nullptr);
+            return;
+        }
+
         // generate AES-128 Set key
         encrSetKey = rng.genstring(SymmCipher::KEYLENGTH);
         s.setKey(encrSetKey);
@@ -18288,6 +18316,7 @@ void MegaClient::putSet(Set&& s, std::function<void(Error, const Set*)> completi
         s.setUser(setToBeUpdated.user());
         s.rebaseAttrsOn(setToBeUpdated);
         s.setPublicId(setToBeUpdated.publicId());
+        s.setType(setToBeUpdated.type());
 
         string enc = s.encryptAttributes([this](const string_map& a, const string& k) { return encryptAttrs(a, k); });
         encrAttrs.reset(new string(std::move(enc)));
@@ -18869,6 +18898,10 @@ error MegaClient::readSet(JSON& j, Set& s)
 
         case MAKENAMEID3('c', 't', 's'):
             s.setCTs(j.getint());
+            break;
+
+        case MAKENAMEID1('t'):
+            s.setType(static_cast<Set::SetType>(j.getint()));
             break;
 
         default: // skip unknown member
@@ -19916,6 +19949,24 @@ void MegaClient::clearsetelementnotify(handle sid)
 void MegaClient::setProFlexi(bool newProFlexi)
 {
     mProFlexi = newProFlexi;
+}
+
+void MegaClient::setEmail(User* u, const string& email)
+{
+    assert(u);
+    if (email == u->email)
+    {
+        return;
+    }
+
+    mapuser(u->userhandle, email.c_str()); // update email used as index for user's map
+    u->changed.email = true;
+    notifyuser(u);
+
+    if (u->userhandle == me)
+    {
+        reportLoggedInChanges();  // produce a callback to update cached email in MegaApp
+    }
 }
 
 Error MegaClient::sendABTestActive(const char* flag, CommandABTestActive::Completion completion)

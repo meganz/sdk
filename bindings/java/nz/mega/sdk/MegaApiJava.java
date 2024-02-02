@@ -209,12 +209,6 @@ public class MegaApiJava {
     public final static int ORDER_CREATION_DESC = MegaApi.ORDER_CREATION_DESC;
     public final static int ORDER_MODIFICATION_ASC = MegaApi.ORDER_MODIFICATION_ASC;
     public final static int ORDER_MODIFICATION_DESC = MegaApi.ORDER_MODIFICATION_DESC;
-    public final static int ORDER_ALPHABETICAL_ASC = MegaApi.ORDER_ALPHABETICAL_ASC;
-    public final static int ORDER_ALPHABETICAL_DESC = MegaApi.ORDER_ALPHABETICAL_DESC;
-    public final static int ORDER_PHOTO_ASC = MegaApi.ORDER_PHOTO_ASC;
-    public final static int ORDER_PHOTO_DESC = MegaApi.ORDER_PHOTO_DESC;
-    public final static int ORDER_VIDEO_ASC = MegaApi.ORDER_VIDEO_ASC;
-    public final static int ORDER_VIDEO_DESC = MegaApi.ORDER_VIDEO_DESC;
     public final static int ORDER_LINK_CREATION_ASC = MegaApi.ORDER_LINK_CREATION_ASC;
     public final static int ORDER_LINK_CREATION_DESC = MegaApi.ORDER_LINK_CREATION_DESC;
     public final static int ORDER_LABEL_ASC = MegaApi.ORDER_LABEL_ASC;
@@ -236,7 +230,7 @@ public class MegaApiJava {
     public final static int FILE_TYPE_PHOTO = MegaApi.FILE_TYPE_PHOTO;
     public final static int FILE_TYPE_AUDIO = MegaApi.FILE_TYPE_AUDIO;
     public final static int FILE_TYPE_VIDEO = MegaApi.FILE_TYPE_VIDEO;
-    public final static int FILE_TYPE_DOCUMENT = MegaApi.FILE_TYPE_DOCUMENT;
+    public final static int FILE_TYPE_ALL_DOCS = MegaApi.FILE_TYPE_ALL_DOCS;
 
     public final static int SEARCH_TARGET_INSHARE = MegaApi.SEARCH_TARGET_INSHARE;
     public final static int SEARCH_TARGET_OUTSHARE = MegaApi.SEARCH_TARGET_OUTSHARE;
@@ -4706,6 +4700,56 @@ public class MegaApiJava {
     }
 
     /**
+     * Mark a node as sensitive
+     * <p>
+     * Descendants will inherit the sensitive property.
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+     * - MegaRequest::getNumDetails - Returns 1 if node is set as sensitive, otherwise return 0
+     * - MegaRequest::getFlag - Returns true (official attribute)
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_SENSITIVE
+     *
+     * @param node      Node that will receive the information.
+     * @param sensitive if true set node as sensitive, otherwise remove the attribute
+     * @param listener  MegaRequestListener to track this request
+     */
+    public void setNodeSensitive(MegaNode node, boolean sensitive, MegaRequestListenerInterface listener) {
+        megaApi.setNodeSensitive(node, sensitive, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Mark a node as sensitive
+     * <p>
+     * Descendants will inherit the sensitive property.
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+     * - MegaRequest::getNumDetails - Returns 1 if node is set as sensitive, otherwise return 0
+     * - MegaRequest::getFlag - Returns true (official attribute)
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_SENSITIVE
+     *
+     * @param node      Node that will receive the information.
+     * @param sensitive if true set node as sensitive, otherwise remove the attribute
+     */
+    public void setNodeSensitive(MegaNode node, boolean sensitive) {
+        megaApi.setNodeSensitive(node, sensitive);
+    }
+
+    /**
+     * Ascertain if the node is marked as sensitive or a descendent of such
+     * <p>
+     * see MegaNode::isMarkedSensitive to see if the node is sensitive
+     *
+     * @param node node to inspect
+     */
+    public boolean isSensitiveInherited(MegaNode node) {
+        return megaApi.isSensitiveInherited(node);
+    }
+
+    /**
      * Get a list of favourite nodes.
      * <p>
      * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_NODE
@@ -6841,6 +6885,37 @@ public class MegaApiJava {
     }
 
     /**
+     * Upload a file or a folder
+     * <p>
+     * This method should be used ONLY to share by chat a local file. In case the file
+     * is already uploaded, but the corresponding node is missing the thumbnail and/or preview,
+     * this method will force a new upload from the scratch (ensuring the file attributes are set),
+     * instead of doing a remote copy.
+     * <p>
+     * If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
+     * @param localPath         Local path of the file or folder
+     * @param parent            Parent node for the file or folder in the MEGA account
+     * @param appData           Custom app data to save in the MegaTransfer object
+     *                          The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+     *                          related to the transfer. If a transfer is started with exactly the same data
+     *                          (local path and target parent) as another one in the transfer queue, the new transfer
+     *                          fails with the error API_EEXISTS and the appData of the new transfer is appended to
+     *                          the appData of the old transfer, using a '!' separator if the old transfer had already
+     *                          appData.
+     * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+     *                          This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+     *                          Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+     * @param fileName          Custom file name for the file or folder in MEGA
+     * @param listener          MegaTransferListener to track this transfer
+     */
+    public void startUploadForChat(String localPath, MegaNode parent, String appData, boolean isSourceTemporary, String fileName, MegaTransferListenerInterface listener) {
+        megaApi.startUploadForChat(localPath, parent, appData, isSourceTemporary, fileName, createDelegateTransferListener(listener));
+    }
+
+    /**
      * Download a file or a folder from MEGA, saving custom app data during the transfer
      * <p>
      * If the status of the business account is expired, onTransferFinish will be called with the error
@@ -8154,24 +8229,6 @@ public class MegaApiJava {
      *               - MegaApi::ORDER_MODIFICATION_DESC = 8
      *               Sort by modification time of the original file, descending
      *               <p>
-     *               - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-     *               Same behavior than MegaApi::ORDER_DEFAULT_ASC
-     *               <p>
-     *               - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-     *               Same behavior than MegaApi::ORDER_DEFAULT_DESC
-     *               <p>
-     *               - MegaApi::ORDER_PHOTO_ASC = 11
-     *               Sort with photos first, then by date ascending
-     *               <p>
-     *               - MegaApi::ORDER_PHOTO_DESC = 12
-     *               Sort with photos first, then by date descending
-     *               <p>
-     *               - MegaApi::ORDER_VIDEO_ASC = 13
-     *               Sort with videos first, then by date ascending
-     *               <p>
-     *               - MegaApi::ORDER_VIDEO_DESC = 14
-     *               Sort with videos first, then by date descending
-     *               <p>
      *               - MegaApi::ORDER_LABEL_ASC = 17
      *               Sort by color label, ascending. With this order, folders are returned first, then files
      *               <p>
@@ -8183,10 +8240,6 @@ public class MegaApiJava {
      *               <p>
      *               - MegaApi::ORDER_FAV_DESC = 20
      *               Sort nodes with favourite attr last. With this order, folders are returned first, then files
-     *               <p>
-     *               Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-     *               are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-     *               They will be eventually removed.
      * @return List with all child MegaNode objects
      */
     public ArrayList<MegaNode> getChildren(MegaNode parent, int order) {
@@ -8231,18 +8284,6 @@ public class MegaApiJava {
      *                    <p>
      *                    - MegaApi::ORDER_MODIFICATION_DESC = 8
      *                    Sort by modification time of the original file, descending
-     *                    <p>
-     *                    - MegaApi::ORDER_PHOTO_ASC = 11
-     *                    Sort with photos first, then by date ascending
-     *                    <p>
-     *                    - MegaApi::ORDER_PHOTO_DESC = 12
-     *                    Sort with photos first, then by date descending
-     *                    <p>
-     *                    - MegaApi::ORDER_VIDEO_ASC = 13
-     *                    Sort with videos first, then by date ascending
-     *                    <p>
-     *                    - MegaApi::ORDER_VIDEO_DESC = 14
-     *                    Sort with videos first, then by date descending
      *                    <p>
      *                    - MegaApi::ORDER_LABEL_ASC = 17
      *                    Sort by color label, ascending. With this order, folders are returned first, then files
@@ -9171,28 +9212,6 @@ public class MegaApiJava {
      *                     - MegaApi::ORDER_MODIFICATION_DESC = 8
      *                     Sort by modification time of the original file, descending
      *                     <p>
-     *                     - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-     *                     Same behavior than MegaApi::ORDER_DEFAULT_ASC
-     *                     <p>
-     *                     - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-     *                     Same behavior than MegaApi::ORDER_DEFAULT_DESC
-     *                     <p>
-     *                     Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-     *                     are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-     *                     They will be eventually removed.
-     *                     <p>
-     *                     - MegaApi::ORDER_PHOTO_ASC = 11
-     *                     Sort with photos first, then by date ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_PHOTO_DESC = 12
-     *                     Sort with photos first, then by date descending
-     *                     <p>
-     *                     - MegaApi::ORDER_VIDEO_ASC = 13
-     *                     Sort with videos first, then by date ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_VIDEO_DESC = 14
-     *                     Sort with videos first, then by date descending
-     *                     <p>
      *                     - MegaApi::ORDER_LABEL_ASC = 17
      *                     Sort by color label, ascending. With this order, folders are returned first, then files
      *                     <p>
@@ -9258,28 +9277,6 @@ public class MegaApiJava {
      *                     - MegaApi::ORDER_MODIFICATION_DESC = 8
      *                     Sort by modification time of the original file, descending
      *                     <p>
-     *                     - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-     *                     Same behavior than MegaApi::ORDER_DEFAULT_ASC
-     *                     <p>
-     *                     - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-     *                     Same behavior than MegaApi::ORDER_DEFAULT_DESC
-     *                     <p>
-     *                     Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-     *                     are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-     *                     They will be eventually removed.
-     *                     <p>
-     *                     - MegaApi::ORDER_PHOTO_ASC = 11
-     *                     Sort with photos first, then by date ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_PHOTO_DESC = 12
-     *                     Sort with photos first, then by date descending
-     *                     <p>
-     *                     - MegaApi::ORDER_VIDEO_ASC = 13
-     *                     Sort with videos first, then by date ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_VIDEO_DESC = 14
-     *                     Sort with videos first, then by date descending
-     *                     <p>
      *                     - MegaApi::ORDER_LABEL_ASC = 17
      *                     Sort by color label, ascending. With this order, folders are returned first, then files
      *                     <p>
@@ -9340,28 +9337,6 @@ public class MegaApiJava {
      *                     <p>
      *                     - MegaApi::ORDER_MODIFICATION_DESC = 8
      *                     Sort by modification time of the original file, descending
-     *                     <p>
-     *                     - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-     *                     Same behavior than MegaApi::ORDER_DEFAULT_ASC
-     *                     <p>
-     *                     - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-     *                     Same behavior than MegaApi::ORDER_DEFAULT_DESC
-     *                     <p>
-     *                     Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-     *                     are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-     *                     They will be eventually removed.
-     *                     <p>
-     *                     - MegaApi::ORDER_PHOTO_ASC = 11
-     *                     Sort with photos first, then by date ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_PHOTO_DESC = 12
-     *                     Sort with photos first, then by date descending
-     *                     <p>
-     *                     - MegaApi::ORDER_VIDEO_ASC = 13
-     *                     Sort with videos first, then by date ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_VIDEO_DESC = 14
-     *                     Sort with videos first, then by date descending
      *                     <p>
      *                     - MegaApi::ORDER_LABEL_ASC = 17
      *                     Sort by color label, ascending. With this order, folders are returned first, then files
@@ -9424,28 +9399,6 @@ public class MegaApiJava {
      *                     - MegaApi::ORDER_MODIFICATION_DESC = 8
      *                     Sort by modification time of the original file, descending
      *                     <p>
-     *                     - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-     *                     Same behavior than MegaApi::ORDER_DEFAULT_ASC
-     *                     <p>
-     *                     - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-     *                     Same behavior than MegaApi::ORDER_DEFAULT_DESC
-     *                     <p>
-     *                     Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-     *                     are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-     *                     They will be eventually removed.
-     *                     <p>
-     *                     - MegaApi::ORDER_PHOTO_ASC = 11
-     *                     Sort with photos first, then by date ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_PHOTO_DESC = 12
-     *                     Sort with photos first, then by date descending
-     *                     <p>
-     *                     - MegaApi::ORDER_VIDEO_ASC = 13
-     *                     Sort with videos first, then by date ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_VIDEO_DESC = 14
-     *                     Sort with videos first, then by date descending
-     *                     <p>
      *                     - MegaApi::ORDER_LABEL_ASC = 17
      *                     Sort by color label, ascending. With this order, folders are returned first, then files
      *                     <p>
@@ -9507,28 +9460,6 @@ public class MegaApiJava {
      *                     - MegaApi::ORDER_MODIFICATION_DESC = 8
      *                     Sort by modification time of the original file, descending
      *                     <p>
-     *                     - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-     *                     Same behavior than MegaApi::ORDER_DEFAULT_ASC
-     *                     <p>
-     *                     - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-     *                     Same behavior than MegaApi::ORDER_DEFAULT_DESC
-     *                     <p>
-     *                     Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-     *                     are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-     *                     They will be eventually removed.
-     *                     <p>
-     *                     - MegaApi::ORDER_PHOTO_ASC = 11
-     *                     Sort with photos first, then by date ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_PHOTO_DESC = 12
-     *                     Sort with photos first, then by date descending
-     *                     <p>
-     *                     - MegaApi::ORDER_VIDEO_ASC = 13
-     *                     Sort with videos first, then by date ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_VIDEO_DESC = 14
-     *                     Sort with videos first, then by date descending
-     *                     <p>
      *                     - MegaApi::ORDER_LABEL_ASC = 17
      *                     Sort by color label, ascending. With this order, folders are returned first, then files
      *                     <p>
@@ -9560,10 +9491,6 @@ public class MegaApiJava {
      * <p>
      * If node and searchString are not provided, and node type is not valid, this method will
      * return an empty list.
-     * <p>
-     * If parameter type is different of MegaApi::FILE_TYPE_DEFAULT, the following values for parameter
-     * order are invalid: MegaApi::ORDER_PHOTO_ASC, MegaApi::ORDER_PHOTO_DESC,
-     * MegaApi::ORDER_VIDEO_ASC, MegaApi::ORDER_VIDEO_DESC
      * <p>
      * The search is case-insensitive. If the search string is not provided but type has any value
      * defined at nodefiletype_t (except FILE_TYPE_DEFAULT),
@@ -9609,18 +9536,6 @@ public class MegaApiJava {
      *                     - MegaApi::ORDER_MODIFICATION_DESC = 8
      *                     Sort by modification time of the original file, descending
      *                     <p>
-     *                     - MegaApi::ORDER_PHOTO_ASC = 11
-     *                     Sort with photos first, then by date ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_PHOTO_DESC = 12
-     *                     Sort with photos first, then by date descending
-     *                     <p>
-     *                     - MegaApi::ORDER_VIDEO_ASC = 13
-     *                     Sort with videos first, then by date ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_VIDEO_DESC = 14
-     *                     Sort with videos first, then by date descending
-     *                     <p>
      *                     - MegaApi::ORDER_LABEL_ASC = 17
      *                     Sort by color label, ascending. With this order, folders are returned first, then files
      *                     <p>
@@ -9638,7 +9553,7 @@ public class MegaApiJava {
      *                     - MegaApi::FILE_TYPE_PHOTO = 1
      *                     - MegaApi::FILE_TYPE_AUDIO = 2
      *                     - MegaApi::FILE_TYPE_VIDEO = 3
-     *                     - MegaApi::FILE_TYPE_DOCUMENT = 4
+     *                     - MegaApi::FILE_TYPE_ALL_DOCS = 11
      * @param target       Target type where this method will search
      *                     Valid values for this parameter are
      *                     - SEARCH_TARGET_INSHARE = 0
@@ -9661,10 +9576,6 @@ public class MegaApiJava {
      * - Order the returned list
      * <p>
      * If node type is not valid, this method will return an empty list.
-     * <p>
-     * If parameter type is different of MegaApi::FILE_TYPE_DEFAULT, the following values for parameter
-     * order are invalid: MegaApi::ORDER_PHOTO_ASC, MegaApi::ORDER_PHOTO_DESC,
-     * MegaApi::ORDER_VIDEO_ASC, MegaApi::ORDER_VIDEO_DESC
      * <p>
      * The search is case-insensitive. If the type has any value defined at nodefiletype_t
      * (except FILE_TYPE_DEFAULT), this method will return a list
@@ -9701,18 +9612,6 @@ public class MegaApiJava {
      *               - MegaApi::ORDER_MODIFICATION_DESC = 8
      *               Sort by modification time of the original file, descending
      *               <p>
-     *               - MegaApi::ORDER_PHOTO_ASC = 11
-     *               Sort with photos first, then by date ascending
-     *               <p>
-     *               - MegaApi::ORDER_PHOTO_DESC = 12
-     *               Sort with photos first, then by date descending
-     *               <p>
-     *               - MegaApi::ORDER_VIDEO_ASC = 13
-     *               Sort with videos first, then by date ascending
-     *               <p>
-     *               - MegaApi::ORDER_VIDEO_DESC = 14
-     *               Sort with videos first, then by date descending
-     *               <p>
      *               - MegaApi::ORDER_LABEL_ASC = 17
      *               Sort by color label, ascending. With this order, folders are returned first, then files
      *               <p>
@@ -9730,7 +9629,7 @@ public class MegaApiJava {
      *               - MegaApi::FILE_TYPE_PHOTO = 1
      *               - MegaApi::FILE_TYPE_AUDIO = 2
      *               - MegaApi::FILE_TYPE_VIDEO = 3
-     *               - MegaApi::FILE_TYPE_DOCUMENT = 4
+     *               - MegaApi::FILE_TYPE_ALL_DOCS = 11
      * @param target Target type where this method will search
      *               Valid values for this parameter are
      *               - SEARCH_TARGET_INSHARE = 0
@@ -9758,10 +9657,6 @@ public class MegaApiJava {
      * <p>
      * If node and searchString are not provided, and node type is not valid, this method will
      * return an empty list.
-     * <p>
-     * If parameter type is different of MegaApi::FILE_TYPE_DEFAULT, the following values for parameter
-     * order are invalid: MegaApi::ORDER_PHOTO_ASC, MegaApi::ORDER_PHOTO_DESC,
-     * MegaApi::ORDER_VIDEO_ASC, MegaApi::ORDER_VIDEO_DESC
      * <p>
      * The search is case-insensitive. If the search string is not provided but type has any value
      * defined at nodefiletype_t (except FILE_TYPE_DEFAULT),
@@ -9807,18 +9702,6 @@ public class MegaApiJava {
      *                     - MegaApi::ORDER_MODIFICATION_DESC = 8
      *                     Sort by modification time of the original file, descending
      *                     <p>
-     *                     - MegaApi::ORDER_PHOTO_ASC = 11
-     *                     Sort with photos first, then by date ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_PHOTO_DESC = 12
-     *                     Sort with photos first, then by date descending
-     *                     <p>
-     *                     - MegaApi::ORDER_VIDEO_ASC = 13
-     *                     Sort with videos first, then by date ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_VIDEO_DESC = 14
-     *                     Sort with videos first, then by date descending
-     *                     <p>
      *                     - MegaApi::ORDER_LABEL_ASC = 17
      *                     Sort by color label, ascending. With this order, folders are returned first, then files
      *                     <p>
@@ -9836,7 +9719,7 @@ public class MegaApiJava {
      *                     - MegaApi::FILE_TYPE_PHOTO = 1
      *                     - MegaApi::FILE_TYPE_AUDIO = 2
      *                     - MegaApi::FILE_TYPE_VIDEO = 3
-     *                     - MegaApi::FILE_TYPE_DOCUMENT = 4
+     *                     - MegaApi::FILE_TYPE_ALL_DOCS = 11
      * @return List of nodes that match with the search parameters
      */
     public ArrayList<MegaNode> searchByType(MegaNode node, String searchString,
@@ -9897,18 +9780,6 @@ public class MegaApiJava {
      *                     <p>
      *                     - MegaApi::ORDER_MODIFICATION_DESC = 8
      *                     Sort by modification time of the original file, descending
-     *                     <p>
-     *                     - MegaApi::ORDER_PHOTO_ASC = 11
-     *                     Sort with photos first, then by date ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_PHOTO_DESC = 12
-     *                     Sort with photos first, then by date descending
-     *                     <p>
-     *                     - MegaApi::ORDER_VIDEO_ASC = 13
-     *                     Sort with videos first, then by date ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_VIDEO_DESC = 14
-     *                     Sort with videos first, then by date descending
      *                     <p>
      *                     - MegaApi::ORDER_LABEL_ASC = 17
      *                     Sort by color label, ascending. With this order, folders are returned first, then files
@@ -11911,10 +11782,11 @@ public class MegaApiJava {
      * - MegaError::API_EACCESS - Permissions Error (from API).
      *
      * @param name     the name that should be given to the new Set
+     * @param type     the type of the Set (see MegaSet for possible types)
      * @param listener MegaRequestListener to track this request
      */
-    public void createSet(String name, MegaRequestListenerInterface listener) {
-        megaApi.createSet(name, createDelegateRequestListener(listener));
+    public void createSet(String name, int type, MegaRequestListenerInterface listener) {
+        megaApi.createSet(name, type, createDelegateRequestListener(listener));
     }
 
     /**

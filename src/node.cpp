@@ -72,6 +72,8 @@ Node::Node(MegaClient& cclient, NodeHandle h, NodeHandle ph,
     {
         mCounter.folders = 1;
     }
+
+    client->mNodeManager.increaseNumNodesInRam();
 }
 
 Node::~Node()
@@ -91,8 +93,9 @@ Node::~Node()
 
     // abort pending direct reads
     client->preadabort(this);
-}
 
+    client->mNodeManager.decreaseNumNodesInRam();
+}
 int Node::getShareType() const
 {
     int shareType = ShareType_t::NO_SHARES;
@@ -176,38 +179,19 @@ uint64_t Node::getDBFlags(uint64_t oldFlags, bool isInRubbish, bool isVersion, b
 
 bool Node::getExtension(std::string& ext, const string& nodeName)
 {
-    ext.clear();
-    const char* name = nodeName.c_str();
-    const size_t size = strlen(name);
-
-    const char* ptr = name + size;
-    char c;
-
-    for (unsigned i = 0; i < size; ++i)
+    size_t dotPos = nodeName.rfind('.');
+    if (dotPos == string::npos)
     {
-        if (*--ptr == '.')
-        {
-            ptr++; // Avoid add dot
-            ext.reserve(i);
-
-            unsigned j = 0;
-            for (; j <= i - 1; j++)
-            {
-                if (*ptr < '.' || *ptr > 'z') return false;
-
-                c = *(ptr++);
-
-                // tolower()
-                if (c >= 'A' && c <= 'Z') c |= ' ';
-
-                ext.push_back(c);
-            }
-
-            return true;
-        }
+        ext.clear();
+        return false;
     }
 
-    return false;
+    ext = nodeName.substr(dotPos + 1);
+    for (auto& c : ext)
+    {
+        c = static_cast<char>(tolower(c));
+    }
+    return true;
 }
 
 // these lists of file extensions (and the logic to use them) all come from the webclient - if updating here, please make sure the webclient is updated too, preferably webclient first.
@@ -218,13 +202,14 @@ const std::set<nameid>& documentExtensions()
                                         MAKENAMEID4('d','o','c','x'), MAKENAMEID3('d','o','t'), MAKENAMEID4('d','o','t','m'),
                                         MAKENAMEID4('d','o','t','x'), MAKENAMEID3('o','d','t'),
                                         MAKENAMEID3('s','x','c'), MAKENAMEID3('s','x','d'), MAKENAMEID3('s','x','i'),
-                                        MAKENAMEID4('t','e','x','t'), MAKENAMEID3('t','s','v'), MAKENAMEID3('t','t','l')};
+                                        MAKENAMEID4('t','e','x','t'), MAKENAMEID3('t','s','v'), MAKENAMEID3('t','t','l'), MAKENAMEID3('t','x','t'),
+                                        MAKENAMEID3('o','r','g')};
     return docs;
 }
 
 const std::set<nameid>& spreadsheetExtensions()
 {
-    static const std::set<nameid> spds {MAKENAMEID3('c','s','v'), MAKENAMEID3('o','d','s'), MAKENAMEID3('t','x','t'),
+    static const std::set<nameid> spds {MAKENAMEID3('c','s','v'), MAKENAMEID3('o','d','s'),
                                         MAKENAMEID3('x','l','s'), MAKENAMEID4('x','l','s','m'), MAKENAMEID4('x','l','s','x')};
     return spds;
 }
@@ -449,8 +434,7 @@ bool Node::isAudio(const std::string& ext)
 
 bool Node::isDocument(const std::string& ext)
 {
-    return documentExtensions().find(getExtensionNameId(ext)) != documentExtensions().end() ||
-           isPdf(ext) || isPresentation(ext) || isSpreadsheet(ext);
+    return documentExtensions().find(getExtensionNameId(ext)) != documentExtensions().end();
 }
 
 bool Node::isSpreadsheet(const std::string& ext)
@@ -506,9 +490,26 @@ bool Node::isOfMimetype(MimeType_t mimetype, const string& ext)
         return Node::isMiscellaneous(ext);
     case MimeType_t::MIME_TYPE_SPREADSHEET:
         return Node::isSpreadsheet(ext);
+    case MimeType_t::MIME_TYPE_ALL_DOCS:
+        return Node::isDocument(ext) || Node::isPdf(ext) || Node::isPresentation(ext) || Node::isSpreadsheet(ext);
     default:
         return false;
     }
+}
+
+MimeType_t Node::getMimetype(const std::string& ext)
+{
+    if (isPhoto(ext))         return MimeType_t::MIME_TYPE_PHOTO;
+    if (isAudio(ext))         return MimeType_t::MIME_TYPE_AUDIO;
+    if (isVideo(ext))         return MimeType_t::MIME_TYPE_VIDEO;
+    if (isPdf(ext))           return MimeType_t::MIME_TYPE_PDF;
+    if (isPresentation(ext))  return MimeType_t::MIME_TYPE_PRESENTATION;
+    if (isSpreadsheet(ext))   return MimeType_t::MIME_TYPE_SPREADSHEET;
+    if (isDocument(ext))      return MimeType_t::MIME_TYPE_DOCUMENT;
+    if (isArchive(ext))       return MimeType_t::MIME_TYPE_ARCHIVE;
+    if (isProgram(ext))       return MimeType_t::MIME_TYPE_PROGRAM;
+    if (isMiscellaneous(ext)) return MimeType_t::MIME_TYPE_MISC;
+    return MimeType_t::MIME_TYPE_UNKNOWN;
 }
 
 nameid Node::getExtensionNameId(const std::string& ext)
@@ -1061,16 +1062,7 @@ byte* Node::decryptattr(SymmCipher* key, const char* attrstring, size_t attrstrl
 
 void Node::parseattr(byte *bufattr, AttrMap &attrs, m_off_t size, m_time_t &mtime , string &fileName, string &fingerprint, FileFingerprint &ffp)
 {
-    JSON json;
-    nameid name;
-    string *t;
-
-    json.begin((char*)bufattr + 5);
-    while ((name = json.getnameid()) != EOO && json.storeobject((t = &attrs.map[name])))
-    {
-        JSON::unescape(t);
-    }
-
+    attrs.fromjson(reinterpret_cast<char*>(bufattr) + 5);
     attr_map::iterator it = attrs.map.find('n');   // filename
     if (it == attrs.map.end())
     {
@@ -1108,40 +1100,19 @@ void Node::setattr()
 
     if (attrstring && (cipher = nodecipher()) && (buf = decryptattr(cipher, attrstring->c_str(), attrstring->size())))
     {
-        JSON json;
-        nameid name;
-        string* t;
-
         AttrMap oldAttrs(attrs);
         attrs.map.clear();
-        json.begin((char*)buf + 5);
+        attrs.fromjson(reinterpret_cast<char*>(buf) + 5);
 
-        while ((name = json.getnameid()) != EOO && json.storeobject((t = &attrs.map[name])))
-        {
-            JSON::unescape(t);
-
-            if (name == 'n')
-            {
-                LocalPath::utf8_normalize(t);
-            }
-        }
+        auto it = attrs.map.find('n');
+        if (it != std::end(attrs.map)) LocalPath::utf8_normalize(&it->second);
 
         changed.name = attrs.hasDifferentValue('n', oldAttrs.map);
         changed.favourite = attrs.hasDifferentValue(AttrMap::string2nameid("fav"), oldAttrs.map);
         changed.sensitive = attrs.hasDifferentValue(AttrMap::string2nameid("sen"), oldAttrs.map);
 
-        const auto namePWD = AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_MANAGER);
-        if (attrs.hasDifferentValue(namePWD, oldAttrs.map))
-        {
-            AttrMap oldPWD, newPWD;
-            oldPWD.fromjson(oldAttrs.map[namePWD].c_str());
-            newPWD.fromjson(attrs.map[namePWD].c_str());
-
-            changed.pwdValue = oldPWD.hasUpdate(AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_PWD), newPWD.map);
-            changed.pwdNotes = oldPWD.hasUpdate(AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_NOTES), newPWD.map);
-            changed.pwdURL = oldPWD.hasUpdate(AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_URL), newPWD.map);
-            changed.pwdUsername = oldPWD.hasUpdate(AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_USERNAME), newPWD.map);
-        }
+        const auto pwdNameid = AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_MANAGER);
+        changed.pwd = attrs.hasDifferentValue(pwdNameid, oldAttrs.map);
 
         setfingerprint();
 
@@ -1874,7 +1845,7 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath& newlocalpat
     // add to parent map by localname
     if (parent && (parentChange || localnameChange))
     {
-        #ifdef DEBUG
+        #ifndef NDEBUG
             auto it = parent->children.find(localname);
             assert(it == parent->children.end());   // check we are not about to orphan the old one at this location... if we do then how did we get a clash in the first place?
         #endif
@@ -3817,19 +3788,27 @@ bool CloudNode::isIgnoreFile() const
 }
 
 NodeManagerNode::NodeManagerNode(NodeManager& nodeManager, NodeHandle nodeHandle)
-    : mNodeHandle(nodeHandle)
+    : mLRUPosition(nodeManager.invalidCacheLRUPos())
+    , mNodeHandle(nodeHandle)
     , mNodeManager(nodeManager)
 {
 }
 
 void NodeManagerNode::setNode(shared_ptr<Node> node)
 {
+    assert(mNode.expired() && "There is a valid node assigned");
     mNode = node;
 }
 
-shared_ptr<Node> NodeManagerNode::getNodeInRam()
+shared_ptr<Node> NodeManagerNode::getNodeInRam(bool updatePositionAtLRU)
 {
-    return mNode;
+    shared_ptr<Node> node = mNode.lock();
+    if (node && updatePositionAtLRU)
+    {
+        mNodeManager.insertNodeCacheLRU(node);
+    }
+
+    return node;
 }
 
 NodeHandle NodeManagerNode::getNodeHandle() const

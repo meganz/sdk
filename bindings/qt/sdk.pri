@@ -214,7 +214,7 @@ CONFIG(USE_LIBUV) {
 CONFIG(USE_MEDIAINFO) {
     DEFINES += USE_MEDIAINFO UNICODE
 
-    vcpkg:LIBS += -lmediainfo$$MI_DEBUG_SUFFIX -lzen$$MI_DEBUG_SUFFIX 
+    vcpkg:LIBS += -lmediainfo$$MI_DEBUG_SUFFIX -lzen$$MI_DEBUG_SUFFIX -ltinyxml2
     vcpkg:win32:LIBS += -lzlib$$DEBUG_SUFFIX
     vcpkg:!win32:LIBS += -lz
 
@@ -614,7 +614,7 @@ vcpkg {
     release:LIBS += -L"$$THIRDPARTY_VCPKG_PATH/lib"
     debug:LIBS += -L"$$THIRDPARTY_VCPKG_PATH/debug/lib"
 
-    win32:LIBS += -llibsodium -lcryptopp-static -lzlib$$DEBUG_SUFFIX
+    win32:LIBS += -llibsodium -lcryptopp -lzlib$$DEBUG_SUFFIX
     else:LIBS += -lsodium -lcryptopp -lz
     win32:DEFINES += SODIUM_STATIC
     LIBS += -lsqlite3
@@ -708,7 +708,7 @@ win32 {
 
 unix:!macx {
    INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/posix
-   LIBS += -lsqlite3 -lrt
+   LIBS += -lrt
 
    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a) {
     LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a
@@ -745,6 +745,13 @@ unix:!macx {
    else {
     LIBS += -lcryptopp
    }
+
+    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsqlite3.a) {
+     LIBS +=  $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsqlite3.a
+    }
+    else {
+     LIBS += -lsqlite3
+    }
 
    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a) {
     LIBS +=  $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a
@@ -799,7 +806,7 @@ macx {
     LIBS += -lpcre
    }
 
-   DEFINES += _DARWIN_FEATURE_64_BIT_INODE CRYPTOPP_DISABLE_ASM
+   DEFINES += _DARWIN_FEATURE_64_BIT_INODE
 
    !vcpkg:LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a \
                     $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsodium.a -lcryptopp

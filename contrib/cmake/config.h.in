@@ -47,6 +47,11 @@
 #cmakedefine HAVE_FFMPEG 1
 #endif
 
+/* Define to use PDFIUM */
+#ifndef HAVE_PDFIUM
+#cmakedefine HAVE_PDFIUM 1
+#endif
+
 /* Define to 1 if you have the <inttypes.h> header file. */
 #cmakedefine HAVE_INTTYPES_H 1
 

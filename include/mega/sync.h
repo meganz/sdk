@@ -163,10 +163,7 @@ public:
     // Prevent applying old settings dialog based exclusion when creating .megaignore, for newer syncs.  We set this true for new syncs or after upgrade.
     bool mLegacyExclusionsIneligigble = true;
 
-    // Whether recursiveSync() is called.  This one is not serialized, it just makes it convenient to deliver thread-safe sync state data back to client apps.
-    bool mTemporarilyPaused = false;
-
-    // If the database exists then its running/paused/suspended.  Not serialized.
+    // If the database exists then its running/suspended. Not serialized.
     bool mDatabaseExists = false;
 
     // Maintained as we transition
@@ -521,7 +518,7 @@ public:
     bool resolve_checkMoveDownloadComplete(SyncRow& row, SyncPath& fullPath);
     bool resolve_checkMoveComplete(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath);
     bool resolve_rowMatched(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFolderLogSummaryCounts& pflsc);
-    bool resolve_userIntervention(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath);
+    bool resolve_userIntervention(SyncRow& row, SyncPath& fullPath);
     bool resolve_makeSyncNode_fromFS(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool considerSynced);
     bool resolve_makeSyncNode_fromCloud(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool considerSynced);
     bool resolve_delSyncNode(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, unsigned deleteCounter);
@@ -543,8 +540,8 @@ public:
     bool checkForCompletedFolderCreateHere(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult);
     bool checkForCompletedCloudMovedToDebris(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult);
 
-    void recursiveCollectNameConflicts(SyncRow& row, list<NameConflict>& nc, SyncPath& fullPath);
-    bool recursiveCollectNameConflicts(list<NameConflict>& nc);
+    void recursiveCollectNameConflicts(SyncRow& row, SyncPath& fullPath, list<NameConflict>* ncs, size_t& count, size_t& limit);
+    void recursiveCollectNameConflicts(list<NameConflict>* conflicts, size_t* count = nullptr, size_t* limit = nullptr);
 
     void purgeStaleDownloads();
     bool makeSyncNode_fromFS(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool considerSynced);
@@ -580,10 +577,6 @@ public:
 
     Sync(UnifiedSync&, const string&, const LocalPath&, bool, const string& logname, SyncError& e);
     ~Sync();
-
-    // pause synchronization.  Syncs are still "active" but we don't call recursiveSync for them.
-    void setSyncPaused(bool pause);
-    bool isSyncPaused();
 
     // Asynchronous scan request / result.
     std::shared_ptr<ScanService::ScanRequest> mActiveScanRequestGeneral;
@@ -925,12 +918,14 @@ struct SyncStallInfo
 
     bool isSyncStalled(handle backupId) const;
 
+    /** Requires user action to resolve */
+    bool hasImmediateStallReason() const;
+
+    void clear();
+
     CloudStallInfoMap cloud;
     LocalStallInfoMap local;
     StalledSyncsSet stalledSyncs;
-
-    /** Requires user action to resolve */
-    bool hasImmediateStallReason() const;
 };
 
 struct SyncProblems
@@ -950,7 +945,7 @@ struct SyncFlags
     bool reachableNodesAllScannedThisPass = true;
     bool reachableNodesAllScannedLastPass = true;
 
-    // true anytime we have just added a new sync, or unpaused one
+    // true anytime we have just added a new sync, or unsuspended (unpaused) one
     bool isInitialPass = true;
 
     // we can only delete/upload/download after moves are complete
@@ -1030,7 +1025,7 @@ struct Syncs
     void loadSyncConfigsOnFetchnodesComplete(bool resetSyncConfigStore);
     void resumeSyncsOnStateCurrent();
 
-    void enableSyncByBackupId(handle backupId, bool paused, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname);
+    void enableSyncByBackupId(handle backupId, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname);
     void disableSyncByBackupId(handle backupId, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void()> completion);
 
     // disable all active syncs.  Cache is kept
@@ -1151,12 +1146,16 @@ public:
     void setSyncsNeedFullSync(bool andFullScan, bool andReFingerprint, handle backupId);
 
     // retrieves information about any detected name conflicts.
-    bool conflictsDetected(list<NameConflict>* conflicts) const;
-
-    bool syncStallDetected(SyncStallInfo& si) const;
+    bool conflictsDetected(list<NameConflict>& conflicts); // This one resets syncupdate_totalconflicts
+    size_t conflictsDetectedCount(size_t limit = 0) const; // limit 0 -> no limit
 
     // Get name conficts - pass UNDEF to collect for all syncs.
     void collectSyncNameConflicts(handle backupId, std::function<void(list<NameConflict>&& nc)>, bool completionInClient);
+
+    // retrieves information about any detected stalls.
+    bool stallsDetected(SyncStallInfo& stallInfo); // This one resets syncupdate_totalstalls
+    size_t stallsDetectedCount() const;
+    bool syncStallDetected(SyncStallInfo& si) const;
 
     list<weak_ptr<LocalNode::RareFields::ScanBlocked>> scanBlockedPaths;
     list<weak_ptr<LocalNode::RareFields::BadlyFormedIgnore>> badlyFormedIgnoreFilePaths;
@@ -1210,6 +1209,13 @@ public:
     bool mSyncsLoaded = false;
     bool mSyncsResumed = false;
 
+    std::atomic<size_t> totalSyncConflicts{0};
+    std::atomic<size_t> totalSyncStalls{0};
+    std::chrono::steady_clock::time_point lastSyncConflictsCount{std::chrono::steady_clock::now()};
+    std::chrono::steady_clock::time_point lastSyncStallsCount{std::chrono::steady_clock::now()};
+    static const std::chrono::milliseconds MIN_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT;
+    static const std::chrono::milliseconds MAX_DELAY_BETWEEN_SYNC_STALLS_OR_CONFLICTS_COUNT;
+
     // for quick lock free reference by MegaApiImpl::syncPathState (don't slow down windows explorer)
     bool mSyncVecIsEmpty = true;
 
@@ -1243,9 +1249,9 @@ private:
 
     void proclocaltree(LocalNode* n, LocalTreeProc* tp);
 
-    bool mightAnySyncsHaveMoves(bool includePausedSyncs);
-    bool isAnySyncSyncing(bool includePausedSyncs);
-    bool isAnySyncScanning_inThread(bool includePausedSyncs);
+    bool mightAnySyncsHaveMoves();
+    bool isAnySyncSyncing();
+    bool isAnySyncScanning_inThread();
 
     // actually start the sync (on sync thread)
     void startSync_inThread(UnifiedSync& us, const string& debris, const LocalPath& localdebris,
@@ -1255,7 +1261,7 @@ private:
     void locallogout_inThread(bool removecaches, bool keepSyncsConfigFile, bool reopenStoreAfter);
     void loadSyncConfigsOnFetchnodesComplete_inThread(bool resetSyncConfigStore);
     void resumeSyncsOnStateCurrent_inThread();
-    void enableSyncByBackupId_inThread(handle backupId, bool paused, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath = string());
+    void enableSyncByBackupId_inThread(handle backupId, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath = string());
     void disableSyncByBackupId_inThread(handle backupId, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void()> completion);
     void appendNewSync_inThread(const SyncConfig&, bool startSync, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath = string());
     void removeSyncAfterDeregistration_inThread(handle backupId, std::function<void(Error)> clientCompletion, std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction);
@@ -1269,6 +1275,8 @@ private:
     bool checkSdsCommandsForDelete(UnifiedSync& us, vector<pair<handle, int>>& sdsBackups, std::function<void(MegaClient&, TransferDbCommitter&)>& clientRemoveSdsEntryFunction);
     bool processRemovingSyncBySds(UnifiedSync& us, bool foundRootNode, vector<pair<handle, int>>& sdsBackups);
     void deregisterThenRemoveSyncBySds(UnifiedSync& us, std::function<void(MegaClient&, TransferDbCommitter&)> clientRemoveSdsEntryFunction);
+    void processSyncConflicts();
+    void processSyncStalls();
 
     void syncLoop();
 
@@ -1305,7 +1313,7 @@ private:
     bool isDefinitelyExcluded(const pair<std::shared_ptr<Node>, Sync*>& root, std::shared_ptr<const Node> child);
 
     template<typename Predicate>
-    Sync* syncMatching(Predicate&& predicate, bool includePaused)
+    Sync* syncMatching(Predicate&& predicate)
     {
         // Sanity.
         assert(onSyncThread());
@@ -1318,10 +1326,6 @@ private:
             if (!i->mSync)
                 continue;
 
-            // Optionally skip paused syncs.
-            if (!includePaused && i->mConfig.mTemporarilyPaused)
-                continue;
-
             // Have we found our lucky sync?
             if (predicate(*i))
                 return i->mSync.get();
@@ -1331,8 +1335,8 @@ private:
         return nullptr;
     }
 
-    Sync* syncContainingPath(const LocalPath& path, bool includePaused);
-    Sync* syncContainingPath(const string& path, bool includePaused);
+    Sync* syncContainingPath(const LocalPath& path);
+    Sync* syncContainingPath(const string& path);
 
     // Signal that an ignore file failed to load.
     void ignoreFileLoadFailure(const Sync& sync, const LocalPath& path);
@@ -1342,7 +1346,6 @@ private:
     {
         // Clear the context if the associated sync:
         // - Is disabled (or failed.)
-        // - Is paused.
         // - No longer exists.
         void reset(Syncs& syncs)
         {
@@ -1354,7 +1357,7 @@ private:
                        && !!us.mSync;
             };
 
-            if (syncs.syncMatching(std::move(predicate), false))
+            if (syncs.syncMatching(std::move(predicate)))
                 return;
 
             reset();

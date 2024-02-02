@@ -58,6 +58,7 @@
 #import "BackUpSubState.h"
 #import "MEGASearchFilter.h"
 #import "MEGASearchFilterTimeFrame.h"
+#import "PasswordNodeData.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -100,7 +101,9 @@ typedef NS_ENUM (NSInteger, MEGANodeFormatType) {
     MEGANodeFormatTypePresentation,
     MEGANodeFormatTypeArchive,
     MEGANodeFormatTypeProgram,
-    MEGANodeFormatTypeMisc
+    MEGANodeFormatTypeMisc,
+    MEGANodeFormatTypeSpreadsheet,
+    MEGANodeFormatTypeAllDocs
 };
 
 typedef NS_ENUM (NSInteger, MEGAFolderTargetType) {
@@ -162,7 +165,8 @@ typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
     MEGANodeAttributeCoordinates    = 1,
     MEGANodeAttributeOriginalFingerprint = 2,
     MEGANodeAttributeLabel = 3,
-    MEGANodeAttributeFav = 4
+    MEGANodeAttributeFav = 4,
+    MEGANodeAttributeSen = 6
 };
 
 typedef NS_ENUM(NSInteger, MEGASetAttribute) {
@@ -3475,6 +3479,40 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  */
 - (void)setNodeFavourite:(MEGANode *)node favourite:(BOOL)favourite;
 
+/**
+ * @brief Mark a node as sensitive
+ *
+ * @note Descendants will inherit the sensitive property.
+ *
+ * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest numDetails] - Returns 1 if node is set as favourite, otherwise return 0
+ * - [MEGARequest flag] - Returns YES (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeSen
+ *
+ * @param node Node that will receive the information.
+ * @param sensitive if true set node as sensitive, otherwise remove the attribute
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setNodeSensitive:(MEGANode *)node sensitive:(BOOL)sensitive delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Mark a node as sensitive
+ *
+ * @note Descendants will inherit the sensitive property.
+ *
+ * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest numDetails] - Returns 1 if node is set as favourite, otherwise return 0
+ * - [MEGARequest flag] - Returns YES (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeSen
+ *
+ * @param node Node that will receive the information.
+ * @param sensitive if true set node as sensitive, otherwise remove the attribute
+ */
+- (void)setNodeSensitive:(MEGANode *)node sensitive:(BOOL)sensitive;
 
 /**
  * @brief Get a list of favourite nodes.
@@ -3532,9 +3570,10 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * - MEGAErrorTypeApiEAccess - Permissions Error
  *
  * @param name the name that should be given to the new Set
+ * @param type the type that should be given to the new Set
  * @param delegate MEGARequestDelegate to track this request
  */
--(void)createSet:(nullable NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
+-(void)createSet:(nullable NSString *)name type:(MEGASetType)type delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Generate a public link of a Set in MEGA
@@ -4479,25 +4518,29 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
 + (nullable NSString *)avatarSecondaryColorForBase64UserHandle:(nullable NSString *)base64UserHandle;
 
 /**
- * @brief Set the avatar of the MEGA account.
+ * @brief Set/Remove the avatar of the MEGA account
  *
  * The associated request type with this request is MEGARequestTypeSetAttrFile.
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest file] - Returns the source path
  *
  * @param sourceFilePath Source path of the file that will be set as avatar.
+ * If nil, the existing avatar will be removed (if any). 
  * @param delegate Delegate to track this request.
+ * In case the avatar never existed before, removing the avatar returns MEGAErrorApiENoent.
  */
 - (void)setAvatarUserWithSourceFilePath:(nullable NSString *)sourceFilePath delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
- * @brief Set the avatar of the MEGA account.
+ * @brief Set/Remove the avatar of the MEGA account
  *
  * The associated request type with this request is MEGARequestTypeSetAttrFile.
  * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest file] - Returns the source path
+ * - [MEGARequest file] - Returns the source path (optional)
  *
  * @param sourceFilePath Source path of the file that will be set as avatar.
+ * If nil, the existing avatar will be removed (if any).
+ * In case the avatar never existed before, removing the avatar returns MEGAErrorApiENoent.
  */
 - (void)setAvatarUserWithSourceFilePath:(nullable NSString *)sourceFilePath;
 
@@ -8013,6 +8056,15 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
 - (BOOL)isNodeInRubbish:(MEGANode *)node;
 
 /**
+* @brief Ascertain if the node is marked as sensitive or a descendent of such
+*
+* see [MEGANode isMarkedSensitive] to see if the node is sensitive
+*
+* @param node node to inspect
+*/
+-(BOOL)isNodeInheritingSensitivity:(MEGANode *)node;
+
+/**
  * @brief Search nodes containing a search string in their name.
  *
  * The search is case-insensitive.
@@ -8214,6 +8266,13 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * - MEGANodeFormatTypeAudio = 2
  * - MEGANodeFormatTypeVideo = 3
  * - MEGANodeFormatTypeDocument = 4
+ * - MEGANodeFormatTypePdf = 5,
+ * - MEGANodeFormatTypePresentation = 6,
+ * - MEGANodeFormatTypeArchive = 7,
+ * - MEGANodeFormatTypeProgram = 8,
+ * - MEGANodeFormatTypeMisc = 9,
+ * - MEGANodeFormatTypeSpreadsheet = 10,
+ * - MEGANodeFormatTypeAllDocs = 11
  *
  * @param folderTargetType Target type where this method will search
  * Valid values for this parameter are
@@ -10299,6 +10358,72 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  */
 - (void)checkVpnCredentialWithUserPubKey:(NSString *)userPubKey delegate:(id<MEGARequestDelegate>)delegate;
 
+#pragma mark - Password Manager
+
+/**
+ * @brief Get Password Manager Base folder node from the MEGA account
+ *
+ * The associated request type with this request is MegaRequest::TYPE_CREATE_PASSWORD_MANAGER_BASE
+ * Valid data in the MegaRequest object received on callbacks:
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MegaError::API_OK:
+ * - MegaRequest::getNodeHandle - Handle of the folder
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getPasswordManagerBaseWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+ /**
+ * @brief Returns true if provided MegaHandle is of a Password Node Folder
+ *
+ * A folder is considered a Password Node Folder if Password Manager Base is its
+ * ancestor.
+ *
+ * @param node MegaHandle of the node to check if it is a Password Node Folder
+ */
+- (BOOL)isPasswordNodeFolderWithHandle:(MEGAHandle)node;
+
+/**
+ * @brief Create a new Password Node in your Password Manager tree
+ *
+ * The associated request type with this request is MegaRequest::TYPE_CREATE_PASSWORD_NODE
+ * Valid data in the MegaRequest object received on callbacks:
+ * - MegaRequest::getParentHandle - Handle of the parent provided as an argument
+ * - MegaRequest::getName - name for the new Password Node provided as an argument
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MegaError::API_OK:
+ * - MegaRequest::getNodeHandle - Handle of the new Password Node
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+ *
+ * @param name Name for the new Password Node
+ * @param data The data of the new Password Node
+ * @param parent Parent folder for the new Password Node
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)createPasswordNodeWithName:(NSString *)name data:(PasswordNodeData *)data parent:(MEGAHandle)parent delegate:(id<MEGARequestDelegate>)delegate;
+
+ /**
+ * @brief Update a Password Node in the MEGA account according to the parameters
+ *
+ * The associated request type with this request is MegaRequest::TYPE_UPDATE_PASSWORD_NODE
+ * Valid data in the MegaRequest object received on callbacks:
+ * - MegaRequest::getNodeHandle - handle provided of the Password Node to update
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+ *
+ * @param node Node to modify
+ * @param newData The new data of the Password Node to update
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)updatePasswordNodeWithHandle:(MEGAHandle)node newData:(PasswordNodeData *)newData delegate:(id<MEGARequestDelegate>)delegate;
 
 @end
 

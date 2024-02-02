@@ -124,31 +124,26 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->customAttrs = NULL;
 
     MegaNodePrivate *np = dynamic_cast<MegaNodePrivate *>(node);
-    if (np)
+    if (!np)
     {
-        this->duration = np->duration;
-        this->width = np->width;
-        this->height = np->height;
-        this->shortformat = np->shortformat;
-        this->videocodecid = np->videocodecid;
-        this->mFavourite = np->mFavourite;
-        this->mLabel = np->mLabel;
-        this->mDeviceId = np->mDeviceId;
-        this->mS4 = np->mS4;
-        if (np->mOfficialAttrs) this->mOfficialAttrs = ::mega::make_unique<attr_map>(*np->mOfficialAttrs);
-    }
-    else
-    {
-        this->duration = node->getDuration();
-        this->width = node->getWidth();
-        this->height = node->getHeight();
-        this->shortformat = node->getShortformat();
-        this->videocodecid = node->getVideocodecid();
-        this->mFavourite = node->isFavourite();
-        this->mLabel = static_cast<nodelabel_t>(node->getLabel());
-        mMarkedSensitive = node->isMarkedSensitive();
+        LOG_err << "Critical error: Unexpected MegaNode extension received";
+        assert(false);
+        return;
     }
 
+    // Optimization to avoid decode media info when getter is called
+    this->duration = np->duration;
+    this->width = np->width;
+    this->height = np->height;
+    this->shortformat = np->shortformat;
+    this->videocodecid = np->videocodecid;
+
+    this->mFavourite = node->isFavourite();
+    this->mLabel = static_cast<nodelabel_t>(node->getLabel());
+    this->mDeviceId = node->getDeviceId();
+    this->mS4 = node->getS4();
+    this->mMarkedSensitive = node->isMarkedSensitive();
+    if (np->mOfficialAttrs) this->mOfficialAttrs = ::mega::make_unique<attr_map>(*np->mOfficialAttrs);
     this->latitude = node->getLatitude();
     this->longitude = node->getLongitude();
     this->restorehandle = node->getRestoreHandle();
@@ -502,21 +497,9 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     {
         this->changed |= MegaNode::CHANGE_TYPE_SENSITIVE;
     }
-    if (node->changed.pwdValue)
+    if (node->changed.pwd)
     {
-        this->changed |= MegaNode::CHANGE_TYPE_PWD_VALUE;
-    }
-    if (node->changed.pwdNotes)
-    {
-        this->changed |= MegaNode::CHANGE_TYPE_PWD_NOTES;
-    }
-    if (node->changed.pwdURL)
-    {
-        this->changed |= MegaNode::CHANGE_TYPE_PWD_URL;
-    }
-    if (node->changed.pwdUsername)
-    {
-        this->changed |= MegaNode::CHANGE_TYPE_PWD_USERNAME;
+        this->changed |= MegaNode::CHANGE_TYPE_PWD;
     }
 
     this->thumbnailAvailable = (node->hasfileattribute(0) != 0);
@@ -3418,6 +3401,11 @@ MegaCancelToken* MegaTransferPrivate::getCancelToken()
     return mCancelToken.existencePtr();
 }
 
+size_t MegaTransferPrivate::getTotalRecursiveOperation() const
+{
+    return recursiveOperation ? recursiveOperation->getTransfersTotalCount() : 0;
+}
+
 void MegaTransferPrivate::setPath(const char* path)
 {
     if(this->path) delete [] this->path;
@@ -4668,6 +4656,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_FETCH_CREDIT_CARD_INFO: return "FETCH_CREDIT_CARD_INFO";
         case TYPE_MOVE_TO_DEBRIS: return "MOVE_TO_DEBRIS";
         case TYPE_RING_INDIVIDUAL_IN_CALL: return "RING_INDIVIDUAL_IN_CALL";
+        case TYPE_CREATE_NODE_TREE: return "CREATE_NODE_TREE";
         case TYPE_CREATE_PASSWORD_MANAGER_BASE: return "CREATE_PASSWORD_MANAGER_BASE";
         case TYPE_CREATE_PASSWORD_NODE: return "CREATE_PASSWORD_NODE";
         case TYPE_UPDATE_PASSWORD_NODE: return "UPDATE_PASSWORD_NODE";
@@ -6050,12 +6039,12 @@ MegaTransferPrivate *MegaApiImpl::getMegaTransferPrivate(int tag)
     return it->second;
 }
 
-MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned workerThreadCount)
+MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType)
 {
-    init(api, appKey, processor, basePath, userAgent, workerThreadCount);
+    init(api, appKey, processor, basePath, userAgent, workerThreadCount, clientType);
 }
 
-void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned clientWorkerThreadCount)
+void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned clientWorkerThreadCount, int clientType)
 {
     this->api = api;
 
@@ -6132,7 +6121,7 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     {
         this->appKey = appKey;
     }
-    client = new MegaClient(this, waiter, httpio, dbAccess, gfxAccess, appKey, userAgent, clientWorkerThreadCount);
+    client = new MegaClient(this, waiter, httpio, dbAccess, gfxAccess, appKey, userAgent, clientWorkerThreadCount, MegaClient::ClientType(clientType));
 
 #if defined(_WIN32)
     httpio->unlock();
@@ -6684,6 +6673,8 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_PUSH_SETTINGS:
         case MegaApi::USER_ATTR_COOKIE_SETTINGS:
         case MegaApi::USER_ATTR_MY_BACKUPS_FOLDER:
+        case MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG:
+        case MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE:
         case MegaApi::USER_ATTR_PWM_BASE:
             scope = '^';
             break;
@@ -8540,7 +8531,7 @@ void MegaApiImpl::abortPendingActions(error preverror)
         while (!transferMap.empty())
         {
             MegaTransferPrivate* transfer = transferMap.begin()->second;
-            if (transfer->isRecursive())
+            if (transfer->isRecursive() && transfer->getTotalRecursiveOperation())  // None subtransfer has been created yet (scan period)
             {
                 // just remove it from the map.  When its last dependent transfer is deleted
                 // then it will have its fireOnTransferFinish called also.
@@ -8548,6 +8539,11 @@ void MegaApiImpl::abortPendingActions(error preverror)
             }
             else
             {
+                if (transfer->isRecursive())
+                {
+                    transfer->stopRecursiveOperationThread();
+                }
+
                 transfer->setState(MegaTransfer::STATE_FAILED);
                 fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(preverror));
             }
@@ -9441,9 +9437,8 @@ void MegaApiImpl::setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningStat
         switch (targetState)
         {
             case MegaSync::RUNSTATE_RUNNING:
-            case MegaSync::RUNSTATE_PAUSED:
             {
-                client->syncs.enableSyncByBackupId(backupId, targetState == MegaSync::RUNSTATE_PAUSED, true, [this, request](error err, SyncError serr, handle)
+                client->syncs.enableSyncByBackupId(backupId, true, [this, request](error err, SyncError serr, handle)
                     {
                         request->setNumDetails(serr);
                         fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(err, serr), true);
@@ -9451,10 +9446,15 @@ void MegaApiImpl::setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningStat
 
                 return API_OK;
             }
+            case MegaSync::RUNSTATE_PAUSED:
             case MegaSync::RUNSTATE_SUSPENDED:
             case MegaSync::RUNSTATE_DISABLED:
             {
-                bool keepSyncDb = targetState == MegaSync::SyncRunningState(SyncRunState::Suspend);
+                if (targetState == MegaSync::SyncRunningState(SyncRunState::Pause))
+                {
+                    LOG_warn << "[MegaApiImpl::setSyncRunState] Target state: SyncRunState::Pause. Sync will be suspended";
+                }
+                bool keepSyncDb = targetState == MegaSync::SyncRunningState(SyncRunState::Pause) || targetState == MegaSync::SyncRunningState(SyncRunState::Suspend);
 
                 client->syncs.disableSyncByBackupId(
                     backupId,
@@ -11999,13 +11999,18 @@ bool MegaApiImpl::isValidTypeNode(const Node *node, int type) const
         case MegaApi::FILE_TYPE_PDF:
             return client->nodeIsPdf(node);
         case MegaApi::FILE_TYPE_PRESENTATION:
-            return client->nodeIsPdf(node);
+            return client->nodeIsPresentation(node);
         case MegaApi::FILE_TYPE_ARCHIVE:
             return client->nodeIsArchive(node);
         case MegaApi::FILE_TYPE_PROGRAM:
             return client->nodeIsProgram(node);
         case MegaApi::FILE_TYPE_MISC:
             return client->nodeIsMiscellaneous(node);
+        case MegaApi::FILE_TYPE_SPREADSHEET:
+            return client->nodeIsSpreadsheet(node);
+        case MegaApi::FILE_TYPE_ALL_DOCS:
+            return client->nodeIsDocument(node) || client->nodeIsPdf(node) ||
+                   client->nodeIsPresentation(node) || client->nodeIsSpreadsheet(node);
         case MegaApi::FILE_TYPE_DEFAULT:
         default:
             return true;
@@ -12296,7 +12301,7 @@ MegaNodeList* MegaApiImpl::searchWithFlags(MegaNode* n, const char* searchString
     }
 
     if (mimeType != MegaApi::FILE_TYPE_DEFAULT
-            && (order >= MegaApi::ORDER_PHOTO_ASC && order <= MegaApi::ORDER_VIDEO_DESC))
+            && (order >= /*deprecated*/ MegaApi::ORDER_PHOTO_ASC && order <= /*deprecated*/ MegaApi::ORDER_VIDEO_DESC))
     {
         return new MegaNodeListPrivate();
     }
@@ -13747,14 +13752,32 @@ void MegaApiImpl::syncupdate_scanning(bool scanning)
 
 void MegaApiImpl::syncupdate_stalled(bool stalled)
 {
-    receivedStallFlag = stalled;
+    receivedStallFlag.store(stalled);
     fireOnGlobalSyncStateChanged();
 }
 
 void MegaApiImpl::syncupdate_conflicts(bool conflicts)
 {
-    receivedNameConflictsFlag = conflicts;
+    receivedNameConflictsFlag.store(conflicts);
     fireOnGlobalSyncStateChanged();
+}
+
+void MegaApiImpl::syncupdate_totalstalls(bool totalstalls)
+{
+    receivedTotalStallsFlag.store(totalstalls);
+    if (totalstalls)
+    {
+        fireOnGlobalSyncStateChanged();
+    }
+}
+
+void MegaApiImpl::syncupdate_totalconflicts(bool totalconflicts)
+{
+    receivedTotalNameConflictsFlag.store(totalconflicts);
+    if (totalconflicts)
+    {
+        fireOnGlobalSyncStateChanged();
+    }
 }
 
 void MegaApiImpl::syncupdate_syncing(bool syncing)
@@ -13843,22 +13866,6 @@ void MegaApiImpl::users_updated(User** u, int count)
     MegaUserList *userList = NULL;
     if(u != NULL)
     {
-        // if the email of own user has changed, cache it in the intermediate layer
-        int i = count;
-        while (i--)
-        {
-            User* user = u[i];
-            if (user && user->userhandle == client->me)
-            {
-                if (user->changed.email)
-                {
-                    std::lock_guard<std::mutex> g(mLastRecievedLoggedMeMutex);
-                    mLastReceivedLoggedInMyEmail = user->email;
-                }
-                break;  // same user is only notified once
-            }
-        }
-
         userList = new MegaUserListPrivate(u, count);
         fireOnUsersUpdate(userList);
     }
@@ -14957,8 +14964,10 @@ void MegaApiImpl::logout_result(error e, MegaRequestPrivate* request)
 
 #ifdef ENABLE_SYNC
         mCachedMegaSyncPrivate.reset();
-        receivedStallFlag = false;
-        receivedNameConflictsFlag = false;
+        receivedStallFlag.store(false);
+        receivedNameConflictsFlag.store(false);
+        receivedTotalStallsFlag.store(false);
+        receivedTotalNameConflictsFlag.store(false);
         mAddressedStallFilter.clear();
 #endif
 
@@ -15339,6 +15348,12 @@ void MegaApiImpl::getua_completion(error e, MegaRequestPrivate* request)
             });
             return;
         }
+        else if ((request->getType() == MegaRequest::TYPE_GET_ATTR_USER)
+                  && (request->getParamType() == MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG
+                  || request->getParamType() == MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE))
+        {
+            request->setFlag(true);
+        }
     }
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
@@ -15415,6 +15430,8 @@ void MegaApiImpl::getua_completion(byte* data, unsigned len, attr_t type, MegaRe
         case MegaApi::USER_ATTR_PWD_REMINDER:
         case MegaApi::USER_ATTR_DISABLE_VERSIONS:
         case MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION:
+        case MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG:
+        case MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE:
             {
                 string str((const char*)data,len);
                 request->setText(str.c_str());
@@ -15422,9 +15439,13 @@ void MegaApiImpl::getua_completion(byte* data, unsigned len, attr_t type, MegaRe
                 static_assert(int(MegaApi::USER_ATTR_DISABLE_VERSIONS) == ATTR_DISABLE_VERSIONS, "User Attribute Enum Mismatch");
                 static_assert(int(MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION) == ATTR_CONTACT_LINK_VERIFICATION, "User Attribute Enum Mismatch");
                 static_assert(int(MegaApi::USER_ATTR_PWD_REMINDER) == ATTR_PWD_REMINDER, "User Attribute Enum Mismatch");
+                static_assert(int(MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG) == ATTR_VISIBLE_WELCOME_DIALOG, "User Attribute Enum Mismatch");
+                static_assert(int(MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE) == ATTR_VISIBLE_TERMS_OF_SERVICE, "User Attribute Enum Mismatch");
 
                 if (int(type) == MegaApi::USER_ATTR_DISABLE_VERSIONS
-                        || int(type) == MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION)
+                        || int(type) == MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION
+                        || int(type) == MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG
+                        || int(type) == MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE)
                 {
                     request->setFlag(str == "1");
                 }
@@ -15471,7 +15492,6 @@ void MegaApiImpl::getua_completion(byte* data, unsigned len, attr_t type, MegaRe
                 }
             }
             break;
-
         case MegaApi::USER_ATTR_COOKIE_SETTINGS:
             {
                 e = getCookieSettings_getua_result(data, len, request);
@@ -17350,10 +17370,10 @@ std::function<bool (Node*, Node*)> MegaApiImpl::getComparatorFunction(int order,
         case MegaApi::ORDER_ALPHABETICAL_DESC: return MegaApiImpl::nodeComparatorDefaultDESC;
         case MegaApi::ORDER_LINK_CREATION_ASC: return MegaApiImpl::nodeComparatorPublicLinkCreationASC;
         case MegaApi::ORDER_LINK_CREATION_DESC: return MegaApiImpl::nodeComparatorPublicLinkCreationDESC;
-        case MegaApi::ORDER_PHOTO_ASC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorPhotoASC(i, j, mc); };
-        case MegaApi::ORDER_PHOTO_DESC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorPhotoDESC(i, j, mc); };
-        case MegaApi::ORDER_VIDEO_ASC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorVideoASC(i, j, mc); };
-        case MegaApi::ORDER_VIDEO_DESC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorVideoDESC(i, j, mc); };
+        case /*deprecated*/ MegaApi::ORDER_PHOTO_ASC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorPhotoASC(i, j, mc); };
+        case /*deprecated*/ MegaApi::ORDER_PHOTO_DESC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorPhotoDESC(i, j, mc); };
+        case /*deprecated*/ MegaApi::ORDER_VIDEO_ASC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorVideoASC(i, j, mc); };
+        case /*deprecated*/ MegaApi::ORDER_VIDEO_DESC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorVideoDESC(i, j, mc); };
         case MegaApi::ORDER_LABEL_ASC: return MegaApiImpl::nodeComparatorLabelASC;
         case MegaApi::ORDER_LABEL_DESC: return MegaApiImpl::nodeComparatorLabelDESC;
         case MegaApi::ORDER_FAV_ASC: return MegaApiImpl::nodeComparatorFavASC;
@@ -17752,6 +17772,7 @@ int MegaApiImpl::typeComparator(Node *i, Node *j)
     return -1;
 }
 
+/*deprecated*/
 bool MegaApiImpl::nodeComparatorPhotoASC(Node *i, Node *j, MegaClient& mc)
 {
     bool i_photo = false, i_video = false, j_photo = false, j_video = false;
@@ -17772,6 +17793,7 @@ bool MegaApiImpl::nodeComparatorPhotoASC(Node *i, Node *j, MegaClient& mc)
     return nodeComparatorModificationASC(i, j);
 }
 
+/*deprecated*/
 bool MegaApiImpl::nodeComparatorPhotoDESC(Node *i, Node *j, MegaClient& mc)
 {
     bool i_photo = false, i_video = false, j_photo = false, j_video = false;
@@ -17792,6 +17814,7 @@ bool MegaApiImpl::nodeComparatorPhotoDESC(Node *i, Node *j, MegaClient& mc)
     return nodeComparatorModificationDESC(i, j);
 }
 
+/*deprecated*/
 bool MegaApiImpl::nodeComparatorVideoASC(Node *i, Node *j, MegaClient& mc)
 {
     bool i_photo = false, i_video = false, j_photo = false, j_video = false;
@@ -17812,6 +17835,7 @@ bool MegaApiImpl::nodeComparatorVideoASC(Node *i, Node *j, MegaClient& mc)
     return nodeComparatorModificationASC(i, j);
 }
 
+/*deprecated*/
 bool MegaApiImpl::nodeComparatorVideoDESC(Node *i, Node *j, MegaClient& mc)
 {
     bool i_photo = false, i_video = false, j_photo = false, j_video = false;
@@ -18496,6 +18520,10 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                 std::shared_ptr<Node> parent = client->nodebyhandle(transfer->getParentHandle());
                 bool startFirst = transfer->shouldStartFirst();
 
+                // This bool below is a bit tricky: for example, this would be true for uploadForSupport: targetUser param on createUploadTransfer is populated with MegaClient::SUPPORT_USER_HANDLE (length = 11),
+                // and that param is used to populate transfer->parentPath (i.e.: it's not really a path, but a handle). At the same time, parentHandle is undef. So "uploadToInbox" would be true here.
+                // Later, when creating the MegaFilePut object, the cusertarget constructor param will have the value of inboxTarget (see below), so MegaFilePut::targetuser will have the value of MegaClient::SUPPORT_USER_HANDLE.
+                // This comparison (File::targetuser != MegaClient::SUPPORT_USER_HANDLE) can be used later to check if a transfer is for support.
                 bool uploadToInbox = ISUNDEF(transfer->getParentHandle()) && transfer->getParentPath() && (strchr(transfer->getParentPath(), '@') || (strlen(transfer->getParentPath()) == 11));
                 const char *inboxTarget = uploadToInbox ? transfer->getParentPath() : nullptr;
 
@@ -18720,8 +18748,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                     transferMap[nextTag] = transfer;
                     transfer->setTag(nextTag);
 
-                    // todo:  use make_shared after jenkins node is updated to VS2019
-                    transfer->startRecursiveOperation(make_unique<MegaFolderUploadController>(this, transfer), nullptr);
+                    transfer->startRecursiveOperation(std::make_shared<MegaFolderUploadController>(this, transfer), nullptr);
                 }
                 break;
             }
@@ -18758,8 +18785,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                     transferMap[nextTag] = transfer;
                     transfer->setTag(nextTag);
 
-                    // todo:  use make_shared after jenkins node is updated to VS2019
-                    transfer->startRecursiveOperation(make_unique<MegaFolderDownloadController>(this, transfer), publicNode);
+                    transfer->startRecursiveOperation(std::make_shared<MegaFolderDownloadController>(this, transfer), publicNode);
                     break;
                 }
 
@@ -19300,13 +19326,15 @@ void MegaApiImpl::sendPendingRequests()
     }
 }
 
-void MegaApiImpl::putSet(MegaHandle sid, int optionFlags, const char* name, MegaHandle cover, MegaRequestListener* listener)
+void MegaApiImpl::putSet(MegaHandle sid, int optionFlags, const char* name, MegaHandle cover,
+                         int type, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_PUT_SET, listener);
     request->setParentHandle(sid);
     request->setParamType(optionFlags);
     request->setText(name);
     request->setNodeHandle(cover);
+    request->setAccess(type);
 
     request->performRequest = [this, request]()
         {
@@ -19319,6 +19347,19 @@ void MegaApiImpl::putSet(MegaHandle sid, int optionFlags, const char* name, Mega
             if (request->getParamType() & MegaApi::OPTION_SET_COVER)
             {
                 s.setCover(request->getNodeHandle());
+            }
+            if (request->getParamType() & MegaApi::CREATE_SET)
+            {
+                const int t = request->getAccess();
+                const int max = static_cast<int>(std::numeric_limits<uint8_t>::max());
+                const int min = static_cast<int>(std::numeric_limits<uint8_t>::min());
+                if (t > max || t < min)
+                {
+                    LOG_err << "Sets: type requested " << t << " is out of valid range [" << min << "," << max << "]";
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_EARGS));
+                    return API_OK;
+                }
+                s.setType(static_cast<Set::SetType>(t));
             }
             client->putSet(std::move(s),
                 [this, request](Error e, const Set* s)
@@ -19566,8 +19607,7 @@ std::pair<bool, error> MegaApiImpl::checkCreateFolderPrecons(const char* name,
     if (folder && folder->type == FOLDERNODE)
     {
         request->setNodeHandle(folder->nodehandle);
-        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
-        return std::make_pair(false, API_OK);
+        return std::make_pair(false, API_EEXIST);
     }
 
     return std::make_pair(true, API_OK);
@@ -20812,7 +20852,9 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                 }
                 else if ((type == ATTR_DISABLE_VERSIONS)
                          || (type == ATTR_NO_CALLKIT)
-                         || (type == ATTR_CONTACT_LINK_VERIFICATION))
+                         || (type == ATTR_CONTACT_LINK_VERIFICATION)
+                         || (type == ATTR_VISIBLE_WELCOME_DIALOG)
+                         || (type == ATTR_VISIBLE_TERMS_OF_SERVICE))
                 {
                     if (!value || strlen(value) != 1 || (value[0] != '0' && value[0] != '1'))
                     {
@@ -25266,6 +25308,11 @@ unsigned long long MegaApiImpl::getAccurateNumNodes()
     return client->totalNodes.load();
 }
 
+void MegaApiImpl::setLRUCacheSize(unsigned long long size)
+{
+    client->mNodeManager.setCacheLRUMaxSize(size);
+}
+
 long long MegaApiImpl::getTotalDownloadedBytes()
 {
     return totalDownloadedBytes;
@@ -25311,8 +25358,18 @@ bool MegaApiImpl::isSyncStalled()
 {
     // no need to lock sdkMutex for these simple flags
 #ifdef ENABLE_SYNC
-    if (receivedStallFlag) return true;
-    if (receivedNameConflictsFlag) return true;
+    if (receivedStallFlag.load()) return true;
+    if (receivedNameConflictsFlag.load()) return true;
+#endif
+    return false;
+}
+
+bool MegaApiImpl::isSyncStalledChanged()
+{
+    // no need to lock sdkMutex for these simple flags
+#ifdef ENABLE_SYNC
+    if (receivedTotalStallsFlag.load()) return true;
+    if (receivedTotalNameConflictsFlag.load()) return true;
 #endif
     return false;
 }
@@ -26315,60 +26372,170 @@ void MegaApiImpl::fetchCreditCardInfo(MegaRequestListener* listener)
     waiter->notify();
 }
 
-/* END MEGAAPIIMPL */
-
-void TreeProcCopy::allocnodes()
+void MegaApiImpl::getVisibleWelcomeDialog(MegaRequestListener* listener)
 {
-    nn.resize(nc);
-    allocated = true;
+    getUserAttr(nullptr, MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG, nullptr, 0, listener);
 }
 
-// determine node tree size (nn = NULL) or write node tree to new nodes array
-void TreeProcCopy::proc(MegaClient* client, std::shared_ptr<mega::Node> n)
+void MegaApiImpl::setVisibleWelcomeDialog(bool visible, MegaRequestListener* listener)
 {
-    if (allocated)
+    const auto attributeValue{std::to_string(visible)};
+    setUserAttr(MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG, attributeValue.c_str(), listener);
+}
+
+void MegaApiImpl::getVisibleTermsOfService(MegaRequestListener* listener)
+{
+    getUserAttr(nullptr, MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE, nullptr, 0, listener);
+}
+
+void MegaApiImpl::setVisibleTermsOfService(bool visible, MegaRequestListener* listener)
+{
+    const string attributeValue{std::to_string(visible)};
+    setUserAttr(MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE, attributeValue.c_str(), listener);
+}
+
+void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
+                                 MegaNodeTree* nodeTree,
+                                 MegaRequestListener* listener)
+{
+    auto request{new MegaRequestPrivate(MegaRequest::TYPE_CREATE_NODE_TREE, listener)};
+    request->performRequest = [this, parentNode, nodeTree, request]()
     {
-        string attrstring;
-        SymmCipher key;
-        assert(nc > 0);
-        NewNode* t = &nn[--nc];
-
-        // copy node
-        t->source = NEW_NODE;
-        t->type = n->type;
-        t->nodehandle = n->nodehandle;
-        t->parenthandle = n->parent ? n->parent->nodehandle : UNDEF;
-
-        // copy key (if file) or generate new key (if folder)
-        if (n->type == FILENODE) t->nodekey = n->nodekey();
-        else
+        if (!parentNode || !nodeTree)
         {
-            byte buf[FOLDERNODEKEYLENGTH];
-            client->rng.genblock(buf,sizeof buf);
-            t->nodekey.assign((char*)buf,FOLDERNODEKEYLENGTH);
+            return API_EARGS;
         }
 
-        t->attrstring.reset(new string);
-        if(t->nodekey.size())
-        {
-            key.setkey((const byte*)t->nodekey.data(),n->type);
+        NodeHandle parentNodeHandle;
+        parentNodeHandle.set6byte(parentNode->getHandle());
 
-            AttrMap tattrs;
-            tattrs.map = n->attrs.map;
-            nameid rrname = AttrMap::string2nameid("rr");
-            attr_map::iterator it = tattrs.map.find(rrname);
-            if (it != tattrs.map.end())
+        std::vector<NewNode> newNodes;
+
+        handle tmpNodeHandle{1};
+        handle tmpParentNodeHandle{UNDEF};
+        for (auto tmpNodeTree{dynamic_cast<MegaNodeTreePrivate*>(nodeTree)}; tmpNodeTree;
+             tmpNodeTree = dynamic_cast<MegaNodeTreePrivate*>(tmpNodeTree->getNodeTreeChild()))
+        {
+            const auto completeUploadData{dynamic_cast<const MegaCompleteUploadDataPrivate*>(
+                tmpNodeTree->getCompleteUploadData())};
+
+            if (tmpNodeTree->getNodeTreeChild() && completeUploadData)
             {
-                LOG_debug << "Removing rr attribute";
-                tattrs.map.erase(it);
+                return API_EARGS;
             }
 
-            tattrs.getjson(&attrstring);
-            client->makeattr(&key, t->attrstring, attrstring.c_str());
+            NewNode newNode{};
+            newNode.source = completeUploadData ? NEW_UPLOAD : NEW_NODE;
+            newNode.type = completeUploadData ? FILENODE : FOLDERNODE;
+            newNode.nodehandle = tmpNodeHandle++;
+            newNode.parenthandle = tmpParentNodeHandle;
+            newNode.fileattributes.reset(new string);
+            tmpParentNodeHandle = newNode.nodehandle;
+
+            // Set node key
+            if (completeUploadData)
+            {
+                byte* nodeKey;
+                size_t nodeKeyLength{FILENODEKEYLENGTH};
+                base64ToBinary(completeUploadData->getString64FileKey().c_str(),
+                               &nodeKey,
+                               &nodeKeyLength);
+                newNode.nodekey.assign(reinterpret_cast<char*>(nodeKey), nodeKeyLength);
+                delete[] nodeKey;
+                SymmCipher::xorblock(
+                    reinterpret_cast<const byte*>(newNode.nodekey.data()) + SymmCipher::KEYLENGTH,
+                    const_cast<byte*>(reinterpret_cast<const byte*>(newNode.nodekey.data())));
+            }
+            else
+            {
+                constexpr size_t nodeKeyLength{FOLDERNODEKEYLENGTH};
+                byte nodeKey[nodeKeyLength];
+                client->rng.genblock(nodeKey, nodeKeyLength);
+                newNode.nodekey.assign(reinterpret_cast<char*>(nodeKey), nodeKeyLength);
+            }
+
+            // Set name
+            std::string name{tmpNodeTree->getName()};
+            if (name.empty())
+            {
+                return API_EARGS;
+            }
+            LocalPath::utf8_normalize(&name);
+            AttrMap attributes;
+            attributes.map['n'] = name;
+
+            // Set S4 attribute
+            attributes.map[AttrMap::string2nameid("s4")] = tmpNodeTree->getS4AttributeValue();
+
+            // Set fingerprint
+            if (completeUploadData)
+            {
+                attributes.map['c'] = completeUploadData->getFingerprint();
+            }
+
+            // Set attributes
+            std::string attrstring;
+            attributes.getjson(&attrstring);
+            newNode.attrstring.reset(new std::string);
+
+            SymmCipher cipher;
+            cipher.setkey(&newNode.nodekey);
+            client->makeattr(&cipher, newNode.attrstring, attrstring.c_str());
+
+            // Set upload
+            if (completeUploadData)
+            {
+                UploadToken uploadToken{};
+                const size_t uploadTokenSize{static_cast<size_t>(
+                    Base64::atob(completeUploadData->getString64UploadToken().c_str(),
+                                 &uploadToken[0],
+                                 sizeof(uploadToken)))};
+                if ((uploadTokenSize != UPLOADTOKENLEN) || (uploadTokenSize != sizeof(uploadToken)))
+                {
+                    return API_EARGS;
+                }
+                newNode.uploadtoken = uploadToken;
+                newNode.uploadhandle = client->mUploadHandle.next();
+            }
+
+            newNodes.push_back(std::move(newNode));
         }
-    }
-    else nc++;
+
+        auto result{
+            [this,
+             request,
+             nodeTree](const Error& error, targettype_t, vector<NewNode>& newNodes, bool, int)
+            {
+                size_t i{};
+                auto tmpNodeTree{dynamic_cast<MegaNodeTreePrivate*>(nodeTree)};
+                while (i < newNodes.size() && tmpNodeTree)
+                {
+                    if (auto node{client->nodebyhandle(newNodes[i].mAddedHandle)})
+                    {
+                        tmpNodeTree->setNodeHandle(node->nodehandle);
+                    }
+                    i++;
+                    tmpNodeTree =
+                        dynamic_cast<MegaNodeTreePrivate*>(tmpNodeTree->getNodeTreeChild());
+                }
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(error));
+            }};
+
+        client->putnodes(parentNodeHandle,
+                         NoVersioning,
+                         std::move(newNodes),
+                         nullptr,
+                         request->getTag(),
+                         false,
+                         result);
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
 }
+
+/* END MEGAAPIIMPL */
 
 int TransferQueue::getLastPushedTag() const
 {
@@ -27986,15 +28153,8 @@ MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFo
     nodetype_t dirEntryType;
     while (da->dnext(localPath, localname, false, &dirEntryType))
     {
-
-        if (isCancelledByFolderTransferToken())
+        if (isStoppedOrCancelled("MegaFolderUploadController::scanFolder"))
         {
-            LOG_debug << "MegaFolderUploadController::scanFolder thread stopped by cancel token";
-            return scanFolder_cancelled;
-        }
-        if (mWorkerThreadStopFlag)
-        {
-            LOG_debug << "MegaFolderUploadController::scanFolder thread stopped by flag";
             return scanFolder_cancelled;
         }
 
@@ -29566,7 +29726,7 @@ MegaFolderDownloadController::scanFolder_result MegaFolderDownloadController::sc
     return scanFolder_succeeded;
 }
 
-bool MegaFolderDownloadController::IsStoppedOrCancelled(const std::string& name) const
+bool MegaRecursiveOperation::isStoppedOrCancelled(const std::string& name) const
 {
     if (mWorkerThreadStopFlag)
     {
@@ -29600,7 +29760,7 @@ std::unique_ptr<TransferQueue> MegaFolderDownloadController::createFolderGenDown
     auto it = mLocalTree.begin();
     while (it != mLocalTree.end())
     {
-        if (IsStoppedOrCancelled("MegaFolderDownloadController::createFolderGenDownloadTransfersForFiles"))
+        if (isStoppedOrCancelled("MegaFolderDownloadController::createFolderGenDownloadTransfersForFiles"))
         {
             e = API_EINCOMPLETE;
             return nullptr;
@@ -29646,7 +29806,7 @@ bool MegaFolderDownloadController::genDownloadTransfersForFiles(
 
     for (auto& fileNode : folder.childrenNodes)
     {
-        if (IsStoppedOrCancelled("MegaFolderDownloadController::genDownloadTransfersForFiles"))
+        if (isStoppedOrCancelled("MegaFolderDownloadController::genDownloadTransfersForFiles"))
         {
             return false;
         }
@@ -35137,14 +35297,14 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
         LOG_verbose << "FTP Data Channel received invalid read size: " << nread << ". Closing connection";
         if (ftpdatactx->tmpFileName.size())
         {
-            MegaNode *newParentNode = ftpdatactx->megaApi->getNodeByHandle(fds->newParentNodeHandle);
+            std::unique_ptr<MegaNode> newParentNode {ftpdatactx->megaApi->getNodeByHandle(fds->newParentNodeHandle)};
             if (newParentNode)
             {
                 LOG_debug << "Starting upload of file " << fds->newNameToUpload;
                 fds->controlftpctx->tmpFileName = ftpdatactx->tmpFileName;
 
                 FileSystemType fsType = fds->fsAccess->getlocalfstype(LocalPath::fromAbsolutePath(ftpdatactx->tmpFileName));
-                ftpdatactx->megaApi->startUpload(false, ftpdatactx->tmpFileName.c_str(), newParentNode, fds->newNameToUpload.c_str(),
+                ftpdatactx->megaApi->startUpload(false, ftpdatactx->tmpFileName.c_str(), newParentNode.get(), fds->newNameToUpload.c_str(),
                                                     nullptr, -1, 0, true, nullptr, false, false, fsType, CancelToken(), fds->controlftpctx);
 
                 ftpdatactx->controlRespondedElsewhere = true;
@@ -37484,5 +37644,70 @@ MegaVpnCredentials* MegaVpnCredentialsPrivate::copy() const
     return new MegaVpnCredentialsPrivate(*this);
 }
 /* MegaVpnCredentials END */
+
+MegaNodeTreePrivate::MegaNodeTreePrivate(MegaNodeTree* nodeTreeChild,
+                                         const std::string& name,
+                                         const std::string& s4AttributeValue,
+                                         const MegaCompleteUploadData* completeUploadData,
+                                         MegaHandle nodeHandle):
+    mNodeTreeChild{nodeTreeChild},
+    mName{name},
+    mS4AttributeValue{s4AttributeValue},
+    mCompleteUploadData{completeUploadData},
+    mNodeHandle{nodeHandle}
+{}
+
+MegaNodeTree* MegaNodeTreePrivate::getNodeTreeChild() const
+{
+    return mNodeTreeChild.get();
+}
+
+const std::string& MegaNodeTreePrivate::getName() const
+{
+    return mName;
+}
+
+const std::string& MegaNodeTreePrivate::getS4AttributeValue() const
+{
+    return mS4AttributeValue;
+}
+
+const MegaCompleteUploadData* MegaNodeTreePrivate::getCompleteUploadData() const
+{
+    return mCompleteUploadData.get();
+}
+
+MegaHandle MegaNodeTreePrivate::getNodeHandle() const
+{
+    return mNodeHandle;
+}
+
+void MegaNodeTreePrivate::setNodeHandle(const MegaHandle& nodeHandle)
+{
+    mNodeHandle = nodeHandle;
+}
+
+MegaCompleteUploadDataPrivate::MegaCompleteUploadDataPrivate(const std::string& fingerprint,
+                                                             const std::string& string64UploadToken,
+                                                             const std::string& string64FileKey):
+    mFingerprint{fingerprint},
+    mString64UploadToken{string64UploadToken},
+    mString64FileKey{string64FileKey}
+{}
+
+const std::string& MegaCompleteUploadDataPrivate::getFingerprint() const
+{
+    return mFingerprint;
+}
+
+const std::string& MegaCompleteUploadDataPrivate::getString64UploadToken() const
+{
+    return mString64UploadToken;
+}
+
+const std::string& MegaCompleteUploadDataPrivate::getString64FileKey() const
+{
+    return mString64FileKey;
+}
 
 } // namespace mega

@@ -4258,7 +4258,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_setsandelements,
         sequence(text("setsandelements"),
                  either(text("list"),
-                        sequence(text("newset"), opt(param("name"))),
+                        sequence(text("newset"), param("type"), opt(param("name"))),
                         sequence(text("updateset"), param("id"), opt(sequence(flag("-n"), opt(param("name")))), opt(sequence(flag("-c"), opt(param("cover"))))),
                         sequence(text("removeset"), param("id")),
                         sequence(text("newelement"), param("setid"), param("nodehandle"),
@@ -5714,7 +5714,8 @@ void exec_open(autocomplete::ACState& s)
                                           "megacli_folder/" TOSTRING(MEGA_MAJOR_VERSION)
                                           "." TOSTRING(MEGA_MINOR_VERSION)
                                           "." TOSTRING(MEGA_MICRO_VERSION),
-                                          2);
+                                          2,
+                                          client->getClientType());
         }
         else
         {
@@ -9758,6 +9759,37 @@ static void registerSignalHandlers()
 
 #endif // ! NO_READLINE
 
+MegaClient::ClientType getClientTypeFromArgs(const std::vector<char*>& args)
+{
+    for (const char* a : args)
+    {
+        assert(a);
+
+        static constexpr char prefix[] = "--client_type=";
+        static constexpr size_t prefixLen = sizeof(prefix) - 1;
+        string s{a};
+        if (!s.compare(0, prefixLen, prefix))
+        {
+            const string& clientType = s.substr(prefixLen);
+            if (clientType == "vpn")
+            {
+                return MegaClient::ClientType::VPN;
+            }
+            if (clientType == "password_manager")
+            {
+                return MegaClient::ClientType::PASSWORD_MANAGER;
+            }
+            if (clientType != "default")
+            {
+                cout << "WARNING: Invalid argument " << s << ". Using default instead.\n" << endl;
+                break;
+            }
+        }
+    }
+
+    return MegaClient::ClientType::DEFAULT;
+}
+
 int main(int argc, char* argv[])
 {
 #if defined(_WIN32) && defined(_DEBUG)
@@ -9833,6 +9865,7 @@ int main(int argc, char* argv[])
         nullptr;
 #endif
 
+    auto clientType = getClientTypeFromArgs(myargv1);
 
     // instantiate app components: the callback processor (DemoApp),
     // the HTTP I/O engine (WinHttpIO) and the MegaClient itself
@@ -9845,7 +9878,8 @@ int main(int argc, char* argv[])
                             "megacli/" TOSTRING(MEGA_MAJOR_VERSION)
                             "." TOSTRING(MEGA_MINOR_VERSION)
                             "." TOSTRING(MEGA_MICRO_VERSION),
-                            2);
+                            2,
+                            clientType);
 
     ac::ACN acs = autocompleteSyntax();
 #if defined(WIN32) && defined(NO_READLINE)
@@ -10397,7 +10431,6 @@ void exec_synclist(autocomplete::ACState& s)
 
         // Display status info.
         cout << "  State: " << runStateName << " "
-            << (config.mTemporarilyPaused ? " (paused)" : "")
             << "\n";
 
         //    // Display some usage stats.
@@ -10774,11 +10807,9 @@ void exec_syncxable(autocomplete::ACState& s)
     case SyncRunState::Pending:
     case SyncRunState::Loading:
     case SyncRunState::Run:
-    case SyncRunState::Pause:
     {
         // sync enable id
-        bool pause = targetState == SyncRunState::Pause;
-        client->syncs.enableSyncByBackupId(backupId, pause, true, [pause](error err, SyncError serr, handle)
+        client->syncs.enableSyncByBackupId(backupId, true, [](error err, SyncError serr, handle)
             {
                 if (err)
                 {
@@ -10788,16 +10819,21 @@ void exec_syncxable(autocomplete::ACState& s)
                 }
                 else
                 {
-                    cout << (pause ? "Sync Paused." : "Sync Running.") << endl;
+                    cout << "Sync Running." << endl;
                 }
             }, true, "");
 
         break;
     }
+    case SyncRunState::Pause:
     case SyncRunState::Suspend:
     case SyncRunState::Disable:
     {
-        bool keepSyncDb = targetState == SyncRunState::Suspend;
+        if (targetState == SyncRunState::Pause)
+        {
+            LOG_warn << "[exec_syncxable] Target state: SyncRunState::Pause. Sync will be suspended";
+        }
+        bool keepSyncDb = targetState == SyncRunState::Pause || targetState == SyncRunState::Suspend;
 
         client->syncs.disableSyncByBackupId(
             backupId,
@@ -10805,7 +10841,7 @@ void exec_syncxable(autocomplete::ACState& s)
             false,
             keepSyncDb,
             [targetState](){
-                cout << (targetState == SyncRunState::Suspend ? "Sync Suspended." : "Sync Disabled.") << endl;
+                cout << (targetState == SyncRunState::Suspend || targetState == SyncRunState::Pause ? "Sync Suspended." : "Sync Disabled.") << endl;
                 });
         break;
     }
@@ -10813,6 +10849,17 @@ void exec_syncxable(autocomplete::ACState& s)
 }
 
 #endif // ENABLE_SYNC
+
+std::string setTypeToString(Set::SetType t)
+{
+    const std::string tStr = std::to_string(t);
+    switch (t)
+    {
+    case Set::TYPE_ALBUM: return "Photo Album (" + tStr + ")";
+    case Set::TYPE_PLAYLIST: return "Video Playlist (" + tStr + ")";
+    default:               return "Unexpected Set Type with value " + tStr;
+    }
+}
 
 void printSet(const Set* s)
 {
@@ -10823,6 +10870,7 @@ void printSet(const Set* s)
     }
 
     cout << "Set " << toHandle(s->id()) << endl;
+    cout << "\ttype: " << setTypeToString(s->type()) << endl;
     cout << "\tpublic id: " << toHandle(s->publicId()) << endl;
     cout << "\tkey: " << Base64::btoa(s->key()) << endl;
     cout << "\tuser: " << toHandle(s->user()) << endl;
@@ -10902,12 +10950,20 @@ void exec_setsandelements(autocomplete::ACState& s)
 
     else if (command == "newset")
     {
-        const char* name = (s.words.size() == 3) ? s.words[2].s.c_str() : nullptr;
+        if (s.words.size() < 3)
+        {
+            cout << "Wrong number of parameters. Try again\n";
+            return;
+        }
+
+        const char* name = (s.words.size() == 4) ? s.words[3].s.c_str() : nullptr;
         Set newset;
         if (name)
         {
             newset.setName(name);
         }
+        Set::SetType t = static_cast<Set::SetType>(stoi(s.words[2].s));
+        newset.setType(t);
 
         client->putSet(std::move(newset), [](Error e, const Set* s)
             {
