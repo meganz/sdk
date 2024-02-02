@@ -20,7 +20,7 @@ pipeline {
             steps{
                 sh "export PATH=\$PATH:\$ANDROID_HOME/cmdline-tools/tools/bin/"
                 dir ("examples/android/ExampleApp/app/src/main/jni/") {
-                    sh "sed -i \"s#-j[0-9]##g\" build.sh"
+                    sh "sed -i 's#JOBS=.*#JOBS=1#' build.sh"
                     sh "sed -i 's#LOG_FILE=/dev/null#LOG_FILE=/dev/stdout#g' build.sh"
                     sh "rm -rf ../java/nz/mega/sdk/"
                     // Build libs and SDK.
