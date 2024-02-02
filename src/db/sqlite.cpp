@@ -477,6 +477,12 @@ bool SqliteDbAccess::migrateDataToColumns(sqlite3* db, vector<NewColumn>&& cols)
         return true;
     }
 
+    if (sqlite3_exec(db, "BEGIN", nullptr, nullptr, nullptr) != SQLITE_OK)
+    {
+        LOG_debug << "Db error during migration for " << "BEGIN: " << sqlite3_errmsg(db);
+        return false;
+    }
+
     // build update query
     string query{"UPDATE nodes SET "};
     for (const NewColumn& c : cols)
@@ -517,6 +523,12 @@ bool SqliteDbAccess::migrateDataToColumns(sqlite3* db, vector<NewColumn>&& cols)
     }
 
     sqlite3_finalize(stmt);
+
+    if (sqlite3_exec(db, "COMMIT", nullptr, nullptr, nullptr) != SQLITE_OK)
+    {
+        LOG_debug << "Db error during migration for " << "COMMIT: " << sqlite3_errmsg(db);
+        return false;
+    }
 
     return true;
 }
