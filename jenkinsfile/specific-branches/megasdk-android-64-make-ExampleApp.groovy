@@ -11,8 +11,8 @@ pipeline {
         stage('Download prebuilt third-party-sources for example'){
             steps {
                 dir("examples/android/ExampleApp/app/src/main/jni"){
-                    sh "jf rt download third-party-sources-sdk/3rdparty-sdk-android-example.tar.gz ."
-                    sh "tar -xf 3rdparty-sdk-android-example.tar.gz --skip-old-files"
+                    sh "jf rt download third-party-sources-sdk/3rdparty-sdk-android-example-all-archs.tar.gz ."
+                    sh "tar -xf 3rdparty-sdk-android-example-all-archs.tar.gz --skip-old-files"
                 }
             }
         }
