@@ -618,9 +618,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
             {
                 case REQ_INFLIGHT:
                 {
-                    m_off_t delta = mReqSpeeds[i].requestProgressed(reqs[i]->transferred(client));
-                    mTransferSpeed.calculateSpeed(delta);
-
+                    mReqSpeeds[i].requestProgressed(reqs[i]->transferred(client));
                     p += reqs[i]->transferred(client);
 
                     assert(reqs[i]->lastdata != NEVER);
@@ -647,8 +645,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
 
                 case REQ_SUCCESS:
                 {
-                    m_off_t delta = mReqSpeeds[i].requestProgressed(reqs[i]->size);
-                    mTransferSpeed.calculateSpeed(delta);
+                    mReqSpeeds[i].requestProgressed(reqs[i]->size);
 
                     if (client->orderdownloadedchunks && transfer->type == GET && !transferbuf.isRaid() && transfer->progresscompleted != static_cast<HttpReqDL*>(reqs[i].get())->dlpos)
                     {
@@ -1266,12 +1263,21 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                     assert(cloudRaid != nullptr);
                     if (reqs[i]->status == REQ_PREPARED || reqs[i]->status == REQ_INFLIGHT)
                     {
-                        auto failValues = processRaidReq(i);
-                        if (failValues.first != API_OK)
+                        m_off_t raidReqProgress = 0;
+                        auto failValues = processRaidReq(i, raidReqProgress);
+                        if (failValues.first == API_OK)
                         {
-                            LOG_debug << "[TransferSlot::doio] Transfer failure after processing RaidReq. Error: " << failValues.first << ". Backoff: " << failValues.second;
+                            if (raidReqProgress > 0)
+                                p += raidReqProgress;
+                        }
+                        else
+                        {
+                            LOG_debug << "[TransferSlot::doio] Conn " << i << " : Transfer failure after processing RaidReq. Error: " << failValues.first << ". Backoff: " << failValues.second;
                             return transfer->failed(failValues.first, committer, failValues.second);
                         }
+                    }
+                    else
+                    {
                     }
                 }
             }
@@ -1297,9 +1303,13 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
     {
         if (p != progressreported)
         {
-            m_off_t diff = std::max<m_off_t>(0, p - progressreported);
+            m_off_t diff =  p - progressreported;
             speed = mTransferSpeed.calculateSpeed(diff);
             meanSpeed = mTransferSpeed.getMeanSpeed();
+            if ((Waiter::ds % 500 == 0) || diff < 0) // every 5s
+            {
+                LOG_verbose << "[TransferSlot::doio] Speed: " << (speed / 1024) << " KB/s. Mean speed: " << (meanSpeed / 1024) << " KB/s [diff = " << (diff / 1024) << " KBs]" << " [p = " << p << ", lastprogressreported = " << progressreported << ", transfer->progresscompleted = " << transfer->progresscompleted << "] [transfer->size = " << transfer->size << "]";
+            }
             if (transfer->type == PUT)
             {
                 client->httpio->updateuploadspeed(diff);
@@ -1574,7 +1584,7 @@ bool TransferSlot::initCloudRaid(MegaClient* client)
 }
 
 
-std::pair<error, dstime> TransferSlot::processRaidReq(size_t connection)
+std::pair<error, dstime> TransferSlot::processRaidReq(size_t connection, m_off_t& raidReqProgress)
 {
     assert(connection <= reqs.size());
     const std::shared_ptr<HttpReqXfer>& httpReq = reqs[connection];
@@ -1595,22 +1605,22 @@ std::pair<error, dstime> TransferSlot::processRaidReq(size_t connection)
         httpReq->bufpos = 0;
         httpReq->status = REQ_INFLIGHT;
     }
-    m_off_t progress = -1;
+    raidReqProgress = -1;
     byte* buf = httpReq->buf + httpReq->bufpos;
     m_off_t len = httpReq->size - httpReq->bufpos;
-    assert((len > 0) && "len is not 0 in processRaidReq");
+    assert((len > 0) && "len is 0 in processRaidReq");
 
     // Get raid-assembled data
-    progress = static_cast<m_off_t>(cloudRaid->readData(static_cast<int>(connection), buf, len));
-    if (progress > 0)
+    raidReqProgress = static_cast<m_off_t>(cloudRaid->readData(static_cast<int>(connection), buf, len));
+    if (raidReqProgress > 0)
     {
-        httpReq->bufpos += progress;
+        httpReq->bufpos += raidReqProgress;
         if (httpReq->bufpos == httpReq->size)
         {
             httpReq->status = REQ_SUCCESS;
         }
     }
-    else if (progress < 0)
+    else if (raidReqProgress < 0)
     {
         LOG_debug << "[TransferSlot::processRaidReq] Conn " << connection << " : RaidReq FAILURE. [httpReq = " << (void*)httpReq.get() << "]";
         httpReq->status = REQ_FAILURE;
@@ -1619,7 +1629,7 @@ std::pair<error, dstime> TransferSlot::processRaidReq(size_t connection)
 
     if (httpReq->status == REQ_SUCCESS)
     {
-        LOG_verbose << "[TransferSlot::processRaidReq] Conn " << connection << " : RaidReq SUCCESS. Removing RaidReq... [httpReq = " << (void*)httpReq.get() << "]";
+        LOG_verbose << "[TransferSlot::processRaidReq] Conn " << connection << " : RaidReq SUCCESS. Progress: " << raidReqProgress << ". Removing RaidReq... [httpReq = " << (void*)httpReq.get() << "]";
         cloudRaid->removeRaidReq(static_cast<int>(connection));
     }
     return cloudRaid->checkTransferFailure();

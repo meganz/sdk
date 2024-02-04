@@ -133,6 +133,7 @@ class RaidReq
     void shiftdata(m_off_t);
     bool allconnected(int = RAIDPARTS) const;
     int numPartsUnfinished() const;
+    uint8_t unusedPart() const;                               // inactive source (RAIDPARTS for no inactive source)
 
 public:
     struct Params
