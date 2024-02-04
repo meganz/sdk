@@ -1304,19 +1304,21 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
         if (p != progressreported)
         {
             m_off_t diff =  p - progressreported;
-            speed = mTransferSpeed.calculateSpeed(diff);
+            m_off_t naturalDiff = std::max<m_off_t>(diff, 0);
+            speed = mTransferSpeed.calculateSpeed(naturalDiff);
             meanSpeed = mTransferSpeed.getMeanSpeed();
             if ((Waiter::ds % 500 == 0) || diff < 0) // every 5s
             {
-                LOG_verbose << "[TransferSlot::doio] Speed: " << (speed / 1024) << " KB/s. Mean speed: " << (meanSpeed / 1024) << " KB/s [diff = " << (diff / 1024) << " KBs]" << " [p = " << p << ", lastprogressreported = " << progressreported << ", transfer->progresscompleted = " << transfer->progresscompleted << "] [transfer->size = " << transfer->size << "]";
+                LOG_verbose << "[TransferSlot::doio] Speed: " << (speed / 1024) << " KB/s. Mean speed: " << (meanSpeed / 1024) << " KB/s [diff = " << diff << "]" << " [p = " << p << ", lastprogressreported = " << progressreported << ", transfer->progresscompleted = " << transfer->progresscompleted << "] [transfer->size = " << transfer->size << "]";
             }
+            assert(p <= transfer->size);
             if (transfer->type == PUT)
             {
-                client->httpio->updateuploadspeed(diff);
+                client->httpio->updateuploadspeed(naturalDiff);
             }
             else
             {
-                client->httpio->updatedownloadspeed(diff);
+                client->httpio->updatedownloadspeed(naturalDiff);
             }
 
             progressreported = p;
