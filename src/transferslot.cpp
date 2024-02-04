@@ -662,7 +662,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                             << " " << reqs[i]->pos << " - " << (reqs[i]->pos + reqs[i]->size)
                             << "   Size: " << reqs[i]->size
                             << (transferbuf.isRaid() ? string("   Part progress: " + std::to_string(transferbuf.transferPos(i)) + "/" + std::to_string(transferbuf.raidPartSize(i, transfer->size))) : "")
-                            << "   (" << mReqSpeeds[i].lastRequestSpeed() << " B/s)";
+                            << "   (" << (mReqSpeeds[i].lastRequestSpeed() / 1024) << " KB/s)";
 
                     if (transfer->type == PUT)
                     {
@@ -1586,11 +1586,11 @@ bool TransferSlot::initCloudRaid(MegaClient* client)
 
 std::pair<error, dstime> TransferSlot::processRaidReq(size_t connection, m_off_t& raidReqProgress)
 {
-    assert(connection <= reqs.size());
-    const std::shared_ptr<HttpReqXfer>& httpReq = reqs[connection];
     assert(transfer->type == GET);
-    assert(httpReq != nullptr);
     assert(cloudRaid && cloudRaid->isShown());
+    assert(!reqs.empty() && connection <= reqs.size());
+    const std::shared_ptr<HttpReqXfer>& httpReq = reqs[connection];
+    assert(httpReq != nullptr);
 
     // Process internal RaidReq IO
     cloudRaid->raidReqDoio(static_cast<int>(connection));
