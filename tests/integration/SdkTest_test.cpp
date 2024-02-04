@@ -1892,6 +1892,18 @@ bool SdkTest::getFileFromURL(const std::string& url, const fs::path& dstPath)
     return true;
 }
 
+bool SdkTest::getFileFromArtifactory(const std::string& relativeUrl, const fs::path& dstPath)
+{
+    static const std::string baseUrl{"https://artifactory.developers.mega.co.nz:443/artifactory/sdk"};
+
+    // Join base URL and relatvie URL
+    bool startedWithBackSlash = !relativeUrl.empty() && relativeUrl[0] == '/';
+    std::string seperator = startedWithBackSlash ? "" : "/";
+    const auto absoluateUrl = baseUrl + seperator + relativeUrl;
+
+    return getFileFromURL(absoluateUrl, dstPath);
+}
+
 string getLinkFromMailbox(const string& exe,         // Python
                           const string& script,      // email_processor.py
                           const string& realAccount, // user
@@ -17197,9 +17209,9 @@ TEST_F(SdkTest, GiveRemoveChatAccess)
 #endif
 TEST_F(SdkTest, GetFileFromURLSuccessfully)
 {
-    const std::string url{"https://artifactory.developers.mega.co.nz:443/artifactory/sdk/test-data/gfx-processing-crash/default_irradiance.dds"};
+    const std::string relativeUrl{"test-data/gfx-processing-crash/default_irradiance.dds"};
     const fs::path output{"default_irradiance.dds"};
-    ASSERT_TRUE(getFileFromURL(url, output));
+    ASSERT_TRUE(getFileFromArtifactory(relativeUrl, output));
     ASSERT_TRUE(fs::exists(output));
     fs::remove(output);
 }

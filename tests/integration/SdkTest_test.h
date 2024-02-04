@@ -665,6 +665,16 @@ public:
      */
     bool getFileFromURL(const std::string& url, const fs::path& dstPath);
 
+    /**
+     * @brief Download a file from the Artifactory
+     *
+     * @param relativeUrl The relative URL to the base URL
+                          "https://artifactory.developers.mega.co.nz:443/artifactory/sdk/"
+     * @param dstPath The destination file path to write
+     * @return True if the file is downloaded successfully, otherwise false
+     */
+    bool getFileFromArtifactory(const std::string& relativeUrl, const fs::path& dstPath);
+
     /* MegaVpnCredentials */
     template<typename ... requestArgs> int doGetVpnRegions(unsigned apiIndex, unique_ptr<MegaStringList>& vpnRegions, requestArgs... args)
     {
