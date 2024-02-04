@@ -17207,7 +17207,8 @@ TEST_F(SdkTest, GiveRemoveChatAccess)
 }
 
 #endif
-TEST_F(SdkTest, GetFileFromURLSuccessfully)
+
+TEST_F(SdkTest, GetFileFromArtifactorySuccessfully)
 {
     const std::string relativeUrl{"test-data/gfx-processing-crash/default_irradiance.dds"};
     const fs::path output{"default_irradiance.dds"};
