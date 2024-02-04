@@ -668,9 +668,9 @@ m_off_t PartFetcher::progress() const
 RaidReq::RaidReq(const Params& p, RaidReqPool& rrp, const std::shared_ptr<CloudRaid>& cloudRaid)
     : pool(rrp)
     , cloudRaid(cloudRaid),
-    data(std::make_unique<byte[]>(DATA_SIZE)),
-    parity(std::make_unique<byte[]>(PARITY_SIZE)),
-    invalid(std::make_unique<char[]>(NUMLINES)),
+    data(make_unique<byte[]>(DATA_SIZE)),
+    parity(make_unique<byte[]>(PARITY_SIZE)),
+    invalid(make_unique<char[]>(NUMLINES)),
     rem(p.reqlen),
     filesize(p.filesize),
     reqStartPos(p.reqStartPos),
