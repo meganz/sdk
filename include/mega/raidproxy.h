@@ -193,6 +193,7 @@ public:
     void request(const RaidReq::Params& p, const std::shared_ptr<CloudRaid>&);
     bool addScheduledio(raidTime, const HttpReqPtr&);
     bool addDirectio(const HttpReqPtr&);
+    bool lookupHttpReq(const HttpReqPtr& httpReq) { return setHttpReqs.find(httpReq) != setHttpReqs.end(); }
     bool removeio(const HttpReqPtr&);
     RaidReq* rr() { return raidReq.get(); }
 };

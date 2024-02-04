@@ -198,7 +198,7 @@ bool PartFetcher::setsource(const std::string& partUrl, RaidReq* crr, uint8_t cp
     assert(partStartPos % RAIDSECTOR == 0);
 
     sourcesize = RaidReq::raidPartSize(part, rr->filesize);
-    LOG_debug << "[PartFetcher::setsource] part = " << (int)cpart << ", partStartPos = " << partStartPos << ", sourcesize = " << sourcesize;
+    LOG_debug << "[PartFetcher::setsource] part = " << (int)cpart << ", partStartPos = " << partStartPos << ", sourcesize = " << sourcesize << " [this = " << this << "]";
     return true;
 }
 
@@ -308,7 +308,7 @@ int PartFetcher::io()
     }
     else if (rr->allconnected(part))
     {
-        LOG_warn << "There are 6 connected channels, and there shouldn't be";
+        LOG_warn << "There are 6 connected channels, and there shouldn't be" << " [this = " << this << "]";
         assert(false && "There shouldn't be 6 connected channels");
         // we only need RAIDPARTS-1 connections, so shut down the slowest one
         closesocket(true);
@@ -352,7 +352,7 @@ int PartFetcher::io()
 
         m_off_t npos = pos + rem;
         assert(npos <= rr->paddedpartsize);
-        LOG_verbose << "[PartFetcher::io] [part " << (int)part << "] prepareRequest -> pos = " << (pos + partStartPos) << ", npos = " << (npos + partStartPos) << " [partStartPos = " << partStartPos << ", rem = " << rem << "]";
+        LOG_verbose << "[PartFetcher::io] [part " << (int)part << "] prepareRequest -> pos = " << (pos + partStartPos) << ", npos = " << (npos + partStartPos) << " [partStartPos = " << partStartPos << ", rem = " << rem << "]" << " [this = " << this << "]";
         rr->cloudRaid->prepareRequest(httpReq, url, pos + partStartPos, npos + partStartPos);
         assert(httpReq->status == REQ_PREPARED);
         connected = true;
@@ -377,7 +377,7 @@ int PartFetcher::io()
 
         if (httpReq->status == REQ_SUCCESS)
         {
-            LOG_verbose << "[PartFetcher::io] [part " << (int)part << "] REQ_SUCCESS [pos = " << pos << ", partStartPos = " << partStartPos << "] [httpReq->dlpos = " << httpReq->dlpos << ", httpReq->size = " << httpReq->size << ", inbuf = " << (inbuf ? static_cast<int>(inbuf->datalen()) : -1) << "]";
+            LOG_verbose << "[PartFetcher::io] [part " << (int)part << "] REQ_SUCCESS [pos = " << pos << ", partStartPos = " << partStartPos << "] [httpReq->dlpos = " << httpReq->dlpos << ", httpReq->size = " << httpReq->size << ", inbuf = " << (inbuf ? static_cast<int>(inbuf->datalen()) : -1) << "]" << " [this = " << this << "]";
             assert(!inbuf || httpReq->buffer_released);
             if (!inbuf || !httpReq->buffer_released)
             {
@@ -495,7 +495,7 @@ bool PartFetcher::feedreadahead()
         // make sure that we feed gaplessly
         if ((it->first < ((rr->dataline + rr->completed) * RAIDSECTOR)))
         {
-            LOG_warn << "Gaps found on read ahead feed";
+            LOG_warn << "Gaps found on read ahead feed" << " [this = " << this << "]";
         }
         assert(it->first >= ((rr->dataline + rr->completed) * RAIDSECTOR));
 
@@ -556,7 +556,7 @@ int PartFetcher::onFailure()
                     auto failValues = rr->cloudRaid->checkTransferFailure();
                     if (!failValues.first)
                     {
-                        LOG_warn << "[PartFetcher::onFailure] Request failure on part " << (int)part << " with no transfer fail values";
+                        LOG_warn << "[PartFetcher::onFailure] Request failure on part " << (int)part << " with no transfer fail values" << " [this = " << this << "]";
                         assert(false);
                     }
                     closesocket();
@@ -569,7 +569,7 @@ int PartFetcher::onFailure()
             }
         }
 
-        LOG_warn << "CloudRAID connection to part " << (int)part << " failed. Http status: " << httpReq->httpstatus;
+        LOG_warn << "CloudRAID connection to part " << (int)part << " failed. Http status: " << httpReq->httpstatus << " [this = " << this << "]";
         errors++;
 
         if (consecutive_errors > MAXRETRIES || httpReq->status == REQ_READY)
@@ -822,9 +822,13 @@ uint8_t RaidReq::unusedPart() const
     uint8_t partIndex = RAIDPARTS;
     for (uint8_t i = RAIDPARTS; i--;)
     {
-        if (!fetcher[i].connected && !fetcher[i].finished)
+        if (!fetcher[i].connected && !fetcher[i].finished && !pool.lookupHttpReq(httpReqs[i]))
         {
-            assert(partIndex == RAIDPARTS);
+            if (partIndex != RAIDPARTS)
+            {
+                LOG_warn << "[RaidReq::unusedPart] More than one unused part detected!!! [unusedPart = " << (int)partIndex << ", otherUnusedPart = " << (int)i << "]" << " [this = " << this << "]";
+                assert(false && "More than one unused part detected!!!!!");
+            }
             partIndex = i;
         }
     }
@@ -1171,7 +1175,7 @@ void RaidReq::watchdog()
         }
         if (idlegoodsource >= 0)
         {
-            LOG_verbose << "Hanging source!!!!! hangingsource = " << hangingsource << " (" << (void*)httpReqs[hangingsource].get() << "), idlegoodsource = " << idlegoodsource << " (" << (void*)httpReqs[idlegoodsource].get() << ") [fetcher[hangingsource].lastdata = " << fetcher[hangingsource].lastdata << ", Waiter::ds = " << Waiter::ds << "] [this = " << this << "]";
+            LOG_verbose << "Hanging source!! hangingsource = " << (int)hangingsource << " (HttpReq: " << (void*)httpReqs[hangingsource].get() << "), idlegoodsource = " << (int)idlegoodsource << " (HttpReq: " << (void*)httpReqs[idlegoodsource].get() << ") [fetcher[hangingsource].lastdata = " << fetcher[hangingsource].lastdata << ", Waiter::ds = " << Waiter::ds << "] [this = " << this << "]";
             fetcher[hangingsource].errors++;
             fetcher[hangingsource].closesocket();
             if (fetcher[idlegoodsource].trigger() == -1)
@@ -1182,7 +1186,7 @@ void RaidReq::watchdog()
         }
         else
         {
-            LOG_verbose << "Hanging source!!!!! hangingsource = " << hangingsource << " (" << (void*)httpReqs[hangingsource].get() << "), idlegoodsource = " << idlegoodsource << " [fetcher[hangingsource].lastdata = " << fetcher[hangingsource].lastdata << ", Waiter::ds = " << Waiter::ds << "] [this = " << this << "]";
+            LOG_verbose << "Hanging source and no idle good source to switch!! hangingsource = " << (int)hangingsource << " (HttpReq: " << (void*)httpReqs[hangingsource].get() << ") [fetcher[hangingsource].lastdata = " << fetcher[hangingsource].lastdata << ", Waiter::ds = " << Waiter::ds << "] [this = " << this << "]";
         }
     }
 }
@@ -1230,7 +1234,7 @@ uint8_t RaidReq::processFeedLag()
         {
             // slow channel detected
             {
-                LOG_debug << "Slow channel " << slowest << " (" << (void*)httpReqs[slowest].get() << ")" << " detected !!!!!!!!";
+                LOG_debug << "Slow channel " << (int)slowest << " (" << (void*)httpReqs[slowest].get() << ")" << " detected!" << " [this = " << this << "]";
                 fetcher[slowest].errors++;
 
                 // check if we have a fresh and idle channel left to try
@@ -1241,12 +1245,12 @@ uint8_t RaidReq::processFeedLag()
                 }
                 if (fresh >= 0)
                 {
-                    LOG_verbose << "New fresh channel: " << fresh << " (" << (void*)httpReqs[fresh].get() << ")";
+                    LOG_verbose << "New fresh channel: " << (int)fresh << " (" << (void*)httpReqs[fresh].get() << ")" << " [this = " << this << "]";
                     fetcher[slowest].closesocket();
                     fetcher[fresh].resume(true);
                     laggedPart = slowest;
                 }
-                else { LOG_verbose << "No fresh channel to switch with the slow channel"; }
+                else { LOG_verbose << "No fresh channel to switch with the slow channel" << " [this = " << this << "]"; }
             }
         }
 
@@ -1358,7 +1362,7 @@ void RaidReqPool::raidproxyio()
                 }
                 if (raidReq->cloudRaid->checkTransferFailure().first)
                 {
-                    LOG_debug << "[RaidReqPool::raidproxyio] Found transfer failed flag. Stop";
+                    LOG_debug << "[RaidReqPool::raidproxyio] Found transfer failed flag. Stop" << " [this = " << this << "]";
                     transferFailed = true;
                 }
             }
