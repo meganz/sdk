@@ -1284,6 +1284,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
         }
     }
 
+    m_off_t cloudRaidProgress = 0;
     if (transfer->type == GET)
     {
         // for Raid, additionally we need the raid data that's waiting to be recombined
@@ -1294,7 +1295,8 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
         else if (transferbuf.isNewRaid())
         {
             assert(cloudRaid != nullptr);
-            p += cloudRaid->progress();
+            cloudRaidProgress = cloudRaid->progress();
+            p += cloudRaidProgress;
         }
     }
     p += transfer->progresscompleted;
@@ -1309,7 +1311,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
             meanSpeed = mTransferSpeed.getMeanSpeed();
             if ((Waiter::ds % 500 == 0) || diff < 0) // every 5s
             {
-                LOG_verbose << "[TransferSlot::doio] Speed: " << (speed / 1024) << " KB/s. Mean speed: " << (meanSpeed / 1024) << " KB/s [diff = " << diff << "]" << " [p = " << p << ", lastprogressreported = " << progressreported << ", transfer->progresscompleted = " << transfer->progresscompleted << "] [transfer->size = " << transfer->size << "]";
+                LOG_verbose << "[TransferSlot::doio] Speed: " << (speed / 1024) << " KB/s. Mean speed: " << (meanSpeed / 1024) << " KB/s [diff = " << diff << "]" << " [cloudRaidProgress = " << cloudRaidProgress << ", p = " << p << ", lastprogressreported = " << progressreported << ", transfer->progresscompleted = " << transfer->progresscompleted << "] [transfer->size = " << transfer->size << "] [transfer->name = " << transfer->localfilename << "]";
             }
             assert(p <= transfer->size);
             if (transfer->type == PUT)
