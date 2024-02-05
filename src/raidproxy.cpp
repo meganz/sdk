@@ -624,18 +624,19 @@ m_off_t PartFetcher::progress() const
 {
     m_off_t progressCount = 0;
 
+    m_off_t totalReadAhead = 0;
     for (auto& it : readahead)
     {
-        progressCount += static_cast<m_off_t>(it.second.second);
+        totalReadAhead += static_cast<m_off_t>(it.second.second);
     }
     auto& httpReq = rr->httpReqs[part];
     assert(httpReq != nullptr);
-    m_off_t totalReadAhead = progressCount;
+    m_off_t reqsProgress;
     switch (httpReq->status.load())
     {
         case REQ_INFLIGHT:
         {
-            progressCount += rr->cloudRaid->transferred(httpReq);
+            reqsProgress = rr->cloudRaid->transferred(httpReq);
             break;
         }
         case REQ_SUCCESS:
@@ -643,18 +644,32 @@ m_off_t PartFetcher::progress() const
             if (inbuf)
             {
                 assert(httpReq->buffer_released);
-                progressCount += inbuf->datalen();
+                reqsProgress = inbuf->datalen();
             }
             else
             {
-                progressCount += httpReq->size;
+                reqsProgress = httpReq->size;
             }
             break;
         }
         default:
         {
+            reqsProgress = 0;
             break;
         }
+    }
+    progressCount = totalReadAhead +
+                    reqsProgress +
+                    rr->partpos[part]; // Consecutive part data for not completed raidlines (i.e., other parts still not finished)
+    if (progressCount &&
+        (pos + reqsProgress) == rr->paddedpartsize)
+    {
+        // Parts are padded to paddedpartsize, so we can only count as much as sourcesize (which is the real data size for that part).
+        assert(part != rr->unusedPart()); // If there is progress, it shouldn't be the unused part
+        auto partIndex = part == 0 ? rr->unusedPart() : part; // Parity must get the sourcesize of the unused part (for example, if part 5 is the unused, it can be smaller than part 0, so we must adjust the progress)
+        m_off_t paddedOffsetToSubstract = rr->paddedpartsize - rr->fetcher[partIndex].sourcesize;
+        progressCount -= paddedOffsetToSubstract;
+        assert ((progressCount + (rr->dataline * RAIDSECTOR)) == rr->fetcher[partIndex].sourcesize);
     }
     assert(progressCount >= 0);
     return progressCount;
@@ -1270,24 +1285,12 @@ m_off_t RaidReq::progress() const
     m_off_t progressCount = 0;
     for (uint8_t i = RAIDPARTS; i--; )
     {
-        m_off_t partProgress = fetcher[i].progress();
-        // Consecutive part data for not completed raidlines (i.e., other parts still not finished)
-        // It could be considered a type of readahead data, directly written to the RaidReq::data buffer, as it is consecutive data that fits in the array and doesn't exceed its size
-        assert ((fetcher[i].pos != paddedpartsize) || ((partpos[i] + fetcher[i].progress() + (dataline * RAIDSECTOR)) == paddedpartsize)); // They should be equivalent
-        // Parts are padded to paddedpartsize, so we can only count as much as sourcesize (which is the real data size for that part).
-        m_off_t paddedOffset = 0;
-        if (partpos[i] && fetcher[i].pos == paddedpartsize)
-        {
-            assert(i != unusedPart());
-            auto partIndex = i == 0 ? unusedPart() : i; // Parity part (0) will have the highest source size along with part 1. So we need take the offset for the unused source
-            paddedOffset = paddedpartsize - fetcher[partIndex].sourcesize;
-        }
-        m_off_t completedPartDataOverFileDataline = partpos[i] - paddedOffset;
-        progressCount += (fetcher[i].progress() + completedPartDataOverFileDataline);
+        progressCount += fetcher[i].progress();
     }
     assert((completed * RAIDLINE) - skip >= 0);
     progressCount += ((completed * RAIDLINE) - skip);
     assert(progressCount >= 0);
+    assert(progressCount <= filesize);
     return progressCount;
 }
 
