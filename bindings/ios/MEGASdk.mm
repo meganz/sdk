@@ -2235,6 +2235,18 @@ using namespace mega;
     }
 }
 
+- (void)getToSAccepted: (id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->getVisibleTermsOfService([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
+
+- (void)setToSAccepted:(BOOL)isAccepted delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->setVisibleTermsOfService(isAccepted, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
+
 #ifdef ENABLE_CHAT
 
 - (void)enableRichPreviews:(BOOL)enable delegate:(id<MEGARequestDelegate>)delegate {

@@ -5802,6 +5802,46 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  */
 - (void)isMasterKeyExported;
 
+
+/**
+ * @brief Check if the user has accepted Terms of Use
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePwdReminder
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest flag] - Returns YES if the password reminder dialog should be shown
+ *
+ * If the corresponding user attribute is not set yet, the request will fail with the
+ * error code MEGAErrorTypeApiENoent but the value of [MEGARequest flag] will still
+ * be valid.
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getToSAccepted:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Set whether the user has accepted Terms of Use or not
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePwdReminder
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest flag] - Returns YES if the password reminder dialog should be shown
+ *
+ * If the corresponding user attribute is not set yet, the request will fail with the
+ * error code MEGAErrorTypeApiENoent but the value of [MEGARequest flag] will still
+ * be valid.
+ *
+ * @param isAccepted YES if the user accepted Terms of Service
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setToSAccepted:(BOOL)isAccepted delegate:(id<MEGARequestDelegate>)delegate;
+
 #ifdef ENABLE_CHAT
 
 /**
