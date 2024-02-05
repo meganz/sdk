@@ -1290,7 +1290,8 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
         // for Raid, additionally we need the raid data that's waiting to be recombined
         if (transferbuf.isRaid())
         {
-            p += transferbuf.progress();
+            cloudRaidProgress = transferbuf.progress();
+            p += cloudRaidProgress;
         }
         else if (transferbuf.isNewRaid())
         {
@@ -1309,9 +1310,16 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
             m_off_t naturalDiff = std::max<m_off_t>(diff, 0);
             speed = mTransferSpeed.calculateSpeed(naturalDiff);
             meanSpeed = mTransferSpeed.getMeanSpeed();
-            if ((Waiter::ds % 500 == 0) || (diff < 0) || (p > transfer->size)) // every 5s
+            if ((Waiter::ds % 50 == 0) || (diff < 0) || (p > transfer->size)) // every 5s
             {
-                LOG_verbose << "[TransferSlot::doio] Speed: " << (speed / 1024) << " KB/s. Mean speed: " << (meanSpeed / 1024) << " KB/s [diff = " << diff << "]" << " [cloudRaidProgress = " << cloudRaidProgress << ", p = " << p << ", lastprogressreported = " << progressreported << ", transfer->progresscompleted = " << transfer->progresscompleted << "] [transfer->size = " << transfer->size << "] [transfer->name = " << transfer->localfilename << "]";
+                if (transferbuf.isRaid() || transferbuf.isNewRaid())
+                {
+                    LOG_verbose << "[TransferSlot::doio] [CloudRaid] Speed: " << (speed / 1024) << " KB/s. Mean speed: " << (meanSpeed / 1024) << " KB/s [diff = " << diff << "]" << " [cloudRaidProgress = " << cloudRaidProgress << ", new progressreported = " << p << ", last progressreported = " << progressreported << ", transfer->progresscompleted = " << transfer->progresscompleted << "] [transfer->size = " << transfer->size << "] [transfer->name = " << transfer->localfilename << "]";
+                }
+                else
+                {
+                    LOG_verbose << "[TransferSlot::doio] [Non CloudRaid] Speed: " << (speed / 1024) << " KB/s. Mean speed: " << (meanSpeed / 1024) << " KB/s [diff = " << diff << "]" << " [new progressreported = " << p << ", last progressreported = " << progressreported << ", transfer->progresscompleted = " << transfer->progresscompleted << "] [transfer->size = " << transfer->size << "] [transfer->name = " << transfer->localfilename << "]";
+                }
                 assert(p <= transfer->size);
             }
             if (transfer->type == PUT)

@@ -16977,7 +16977,7 @@ void MegaApiImpl::processTransferUpdate(Transfer *tr, MegaTransferPrivate *trans
     {
         m_off_t prevTransferredBytes = transfer->getTransferredBytes();
         m_off_t deltaSize = tr->slot->progressreported - prevTransferredBytes;
-        LOG_verbose << "Transfer update: progress to update = " << deltaSize << ", transfer size = " << tr->size << ", transferred bytes = " << transfer->getTransferredBytes() << ", progress reported = " << tr->slot->progressreported << ", progress completed = " << tr->progresscompleted << " [speed: " << (tr->slot->speed / 1024) << " KB/s] [mean speed: " << (tr->slot->meanSpeed / 1024) << " KB/s]";
+        LOG_verbose << "Transfer update: progress to update = " << deltaSize << ", transfer size = " << tr->size << ", transferred bytes = " << transfer->getTransferredBytes() << ", progress reported = " << tr->slot->progressreported << ", progress completed = " << tr->progresscompleted << " [speed: " << (tr->slot->speed / 1024) << " KB/s] [mean speed: " << (tr->slot->meanSpeed / 1024) << " KB/s] [transfer->name = " << tr->localfilename << "]";
         transfer->setStartTime(currentTime);
         transfer->setTransferredBytes(tr->slot->progressreported);
         transfer->setDeltaSize(deltaSize);
