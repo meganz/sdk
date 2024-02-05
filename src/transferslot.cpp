@@ -1309,11 +1309,11 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
             m_off_t naturalDiff = std::max<m_off_t>(diff, 0);
             speed = mTransferSpeed.calculateSpeed(naturalDiff);
             meanSpeed = mTransferSpeed.getMeanSpeed();
-            if ((Waiter::ds % 500 == 0) || diff < 0) // every 5s
+            if ((Waiter::ds % 500 == 0) || diff < 0 || (p > transfer->size)) // every 5s
             {
                 LOG_verbose << "[TransferSlot::doio] Speed: " << (speed / 1024) << " KB/s. Mean speed: " << (meanSpeed / 1024) << " KB/s [diff = " << diff << "]" << " [cloudRaidProgress = " << cloudRaidProgress << ", p = " << p << ", lastprogressreported = " << progressreported << ", transfer->progresscompleted = " << transfer->progresscompleted << "] [transfer->size = " << transfer->size << "] [transfer->name = " << transfer->localfilename << "]";
+                assert(p <= transfer->size);
             }
-            assert(p <= transfer->size);
             if (transfer->type == PUT)
             {
                 client->httpio->updateuploadspeed(naturalDiff);
