@@ -1,51 +1,136 @@
 #!/bin/sh
-
-CURRENTPATH=`pwd`
-
-CRYPTOPP_VERSION="64ecb2e974bfecd26467c4c301de3bd5ed29cb67"
+CRYPTOPP_VERSION="b6806f47e9fef7556689e7d3e5a458950acd3365"
+source common.sh
 
 set -e
 
-NPROCESSORS=$(getconf NPROCESSORS_ONLN 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null)
+# Build libcryptopp for a specific architecture and platform
+build_arch_platform() {
+  ARCH="$1"
+  PLATFORM="$2"
+  CATALYST="${3:-false}"
+  
+  rm -rf "${CRYPTOPP_VERSION}"
+  tar zxf "${CRYPTOPP_VERSION}.tar.gz"
+  pushd "cryptopp-${CRYPTOPP_VERSION}"
+  
+  if [[ "$ARCH" = "arm64" && ("$PLATFORM" == "iPhoneSimulator" || "$PLATFORM" == "iPhoneOS") ]]; then
+    sed -i '' $'75s/DEF_CPPFLAGS=\"-DNDEBUG\"/DEF_CPPFLAGS=\"-DNDEBUG -DCRYPTOPP_DISABLE_ARM_CRC32\"/' TestScripts/setenv-ios.sh
+  fi
+    
+  if [ "${CATALYST}" == "true" ]; then
+    source TestScripts/setenv-macos.sh ${ARCH} MACOS_CATALYST=1
+    mkdir -p "${CURRENTPATH}/bin/libcryptopp/${PLATFORM}-catalyst-${ARCH}.sdk"
+  elif [ "${PLATFORM}" == "MacOSX" ]; then
+    source TestScripts/setenv-macos.sh ${ARCH}
+    mkdir -p "${CURRENTPATH}/bin/libcryptopp/${PLATFORM}-${ARCH}.sdk"
+  else
+    source TestScripts/setenv-ios.sh ${PLATFORM} ${ARCH}
+    mkdir -p "${CURRENTPATH}/bin/libcryptopp/${PLATFORM}-${ARCH}.sdk"
+  fi
+  
+  if [ "$PLATFORM" == "MacOSX" ]; then
+    make -f GNUmakefile-cross static -j${CORES}
+  else
+    make -f GNUmakefile-cross lean -j${CORES}
+  fi
+  
+  if [ "${CATALYST}" == "true" ]; then
+    mv libcryptopp.a "${CURRENTPATH}/bin/libcryptopp/${PLATFORM}-catalyst-${ARCH}.sdk"
+    mkdir -p "${CURRENTPATH}/bin/libcryptopp/${PLATFORM}-catalyst-${ARCH}.sdk/include/cryptopp"
+    cp -f *.h "${CURRENTPATH}/bin/libcryptopp/${PLATFORM}-catalyst-${ARCH}.sdk/include/cryptopp"
+  else
+    mv libcryptopp.a "${CURRENTPATH}/bin/libcryptopp/${PLATFORM}-${ARCH}.sdk"
+    mkdir -p "${CURRENTPATH}/bin/libcryptopp/${PLATFORM}-${ARCH}.sdk/include/cryptopp"
+    cp -f *.h "${CURRENTPATH}/bin/libcryptopp/${PLATFORM}-${ARCH}.sdk/include/cryptopp"
+  fi
+  make clean
+  
+  popd
+}
 
-if [ ! -e "${CRYPTOPP_VERSION}.tar.gz" ]
-then
-curl -LO "https://github.com/weidai11/cryptopp/archive/${CRYPTOPP_VERSION}.tar.gz"
-fi
+# Build Catalyst (macOS) targets for arm64 and x86_64
+build_catalyst() {
+  build_arch_platform "x86_64" "MacOSX" true
+  build_arch_platform "arm64" "MacOSX" true
+  
+  echo "${bold}Lipo library for x86_64 and arm64 catalyst ${normal}"
+  
+  mkdir -p "${CURRENTPATH}/bin/libcryptopp/catalyst"
+  
+  lipo -create "${CURRENTPATH}/bin/libcryptopp/MacOSX-catalyst-x86_64.sdk/libcryptopp.a" "${CURRENTPATH}/bin/libcryptopp/MacOSX-catalyst-arm64.sdk/libcryptopp.a" -output "${CURRENTPATH}/bin/libcryptopp/catalyst/libcryptopp.a"
+}
 
-ARCHS="x86_64 arm64-simulator arm64"
+# Build macOS targets for arm64 and x86_64
+build_mac() {
+  build_arch_platform "x86_64" "MacOSX"
+  build_arch_platform "arm64" "MacOSX"
+  
+  echo "${bold}Lipo library for x86_64 and arm64 catalyst ${normal}"
+  
+  mkdir -p "${CURRENTPATH}/bin/libcryptopp/mac"
+  
+  lipo -create "${CURRENTPATH}/bin/libcryptopp/MacOSX-x86_64.sdk/libcryptopp.a" "${CURRENTPATH}/bin/libcryptopp/MacOSX-arm64.sdk/libcryptopp.a" -output "${CURRENTPATH}/bin/libcryptopp/mac/libcryptopp.a"
+}
 
-tar zxf ${CRYPTOPP_VERSION}.tar.gz
+# Build iOS target for arm64
+build_iOS() {
+  build_arch_platform "arm64" "iPhoneOS"
+}
 
-for ARCH in ${ARCHS}
-do
-pushd cryptopp-${CRYPTOPP_VERSION}
-if [ $ARCH = "x86_64" ]; then
-source TestScripts/setenv-ios.sh iPhoneSimulator ${ARCH}
-elif [ $ARCH = "arm64" ]; then
-sed -i '' $'75s/DEF_CPPFLAGS=\"-DNDEBUG\"/DEF_CPPFLAGS=\"-DNDEBUG -DCRYPTOPP_DISABLE_ARM_CRC32\"/' TestScripts/setenv-ios.sh
-source TestScripts/setenv-ios.sh iPhone ${ARCH}
-elif [ $ARCH = "arm64-simulator" ]; then
-source TestScripts/setenv-ios.sh iPhoneSimulator ${ARCH}
-fi;
-mkdir -p "${CURRENTPATH}/bin/cryptopp/${ARCH}.sdk"
-make -f GNUmakefile-cross lean -j${NPROCESSORS}
-mv libcryptopp.a "${CURRENTPATH}/bin/cryptopp/${ARCH}.sdk"
-mkdir -p "${CURRENTPATH}/bin/cryptopp/${ARCH}.sdk/include/cryptopp"
-cp -f *.h "${CURRENTPATH}/bin/cryptopp/${ARCH}.sdk/include/cryptopp"
-make clean
-popd
-done
+# Build iOS Simulator targets for arm64 and x86_64
+build_iOS_simulator() {
+  build_arch_platform "arm64" "iPhoneSimulator"
+  build_arch_platform "x86_64" "iPhoneSimulator"
+  
+  echo "${bold}Lipo library for x86_64 and arm64 simulators ${normal}"
+  
+  mkdir -p "${CURRENTPATH}/bin/libcryptopp/iPhoneSimulator"
+  
+  lipo -create "${CURRENTPATH}/bin/libcryptopp/iPhoneSimulator-x86_64.sdk/libcryptopp.a" "${CURRENTPATH}/bin/libcryptopp/iPhoneSimulator-arm64.sdk/libcryptopp.a" -output "${CURRENTPATH}/bin/libcryptopp/iPhoneSimulator/libcryptopp.a"
+}
 
-mkdir xcframework || true
+create_XCFramework() {
+  mkdir -p xcframework || true
+  
+  echo "${bold}Creating xcframework ${normal}"
+  
+  xcodebuild -create-xcframework \
+    -library "${CURRENTPATH}/bin/libcryptopp/iPhoneSimulator/libcryptopp.a" \
+    -headers "${CURRENTPATH}/bin/libcryptopp/iPhoneSimulator-arm64.sdk/include" \
+    -library "${CURRENTPATH}/bin/libcryptopp/iPhoneOS-arm64.sdk/libcryptopp.a" \
+    -headers "${CURRENTPATH}/bin/libcryptopp/iPhoneOS-arm64.sdk/include" \
+    -library "${CURRENTPATH}/bin/libcryptopp/catalyst/libcryptopp.a" \
+    -headers "${CURRENTPATH}/bin/libcryptopp/MacOSX-catalyst-arm64.sdk/include" \
+    -library "${CURRENTPATH}/bin/libcryptopp/mac/libcryptopp.a" \
+    -headers "${CURRENTPATH}/bin/libcryptopp/MacOSX-arm64.sdk/include" \
+    -output "${CURRENTPATH}/xcframework/libcryptopp.xcframework"
+}
 
-lipo -create "${CURRENTPATH}/bin/cryptopp/x86_64.sdk/libcryptopp.a" "${CURRENTPATH}/bin/cryptopp/arm64-simulator.sdk/libcryptopp.a" -output "${CURRENTPATH}/bin/cryptopp/libcryptopp.a"
+clean_up() {
+  echo "${bold}Cleaning up ${normal}"
 
-xcodebuild -create-xcframework -library ${CURRENTPATH}/bin/cryptopp/libcryptopp.a -headers ${CURRENTPATH}/bin/cryptopp/arm64-simulator.sdk//include -library ${CURRENTPATH}/bin/cryptopp/arm64.sdk/libcryptopp.a -headers ${CURRENTPATH}/bin/cryptopp/arm64.sdk/include -output ${CURRENTPATH}/xcframework/libcryptopp.xcframework
+  rm -rf "${CRYPTOPP_VERSION}.tar.gz"
+  rm -rf "cryptopp-${CRYPTOPP_VERSION}"
+  rm -rf bin
 
-rm -rf bin
-rm -rf ${CRYPTOPP_VERSION}.tar.gz
-rm -rf cryptopp-${CRYPTOPP_VERSION}
+  echo "${bold}Done.${normal}"
+}
 
+# Main build process
+main() {
+  if [ ! -e "${CRYPTOPP_VERSION}.tar.gz" ]; then
+    curl -LO "https://github.com/jnavarrom/cryptopp/archive/${CRYPTOPP_VERSION}.tar.gz"
+  fi
 
-echo "${bold}Done.${normal}"
+  build_mac
+  build_catalyst
+  build_iOS
+  build_iOS_simulator
+  
+  create_XCFramework
+  clean_up
+}
+
+# Run the main build process
+main
