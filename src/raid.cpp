@@ -968,17 +968,17 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
                     nextChunk = ChunkedHash::chunkceil(transfer->pos + maxReqSize, transfer->size);
                 }
                 maxReqSize += 1; // Same as above, needed for expandUnProcessedPiece to return a chunk padded to raid-line
-        }
+            }
 
-    }
-    // Calc npos limit depending on the maxReqSize, the next processed piece and the transfer size.
-    npos = transfer->chunkmacs.expandUnprocessedPiece(transfer->pos, npos, transfer->size, maxReqSize);
-    if (isNewRaid() && (npos < transfer->size) && ((npos - transfer->pos) % RAIDLINE != 0))
-    {
-        LOG_err << "Wrong chunk size for new raid, not padded to RAIDLINE: pos = " << transfer->pos << ", npos = " << npos << ", size = " << (npos-transfer->pos) << ", RAIDLINE = " << RAIDLINE << ", mod = " << ((npos-transfer->pos)%RAIDLINE);
-    	assert(false);
-    	return std::make_pair(0, 0);
-    }
+        }
+        // Calc npos limit depending on the maxReqSize, the next processed piece and the transfer size.
+        npos = transfer->chunkmacs.expandUnprocessedPiece(transfer->pos, npos, transfer->size, maxReqSize);
+        if (isNewRaid() && (npos < transfer->size) && ((npos - transfer->pos) % RAIDLINE != 0))
+        {
+            LOG_err << "Wrong chunk size for new raid, not padded to RAIDLINE: pos = " << transfer->pos << ", npos = " << npos << ", size = " << (npos-transfer->pos) << ", RAIDLINE = " << RAIDLINE << ", mod = " << ((npos-transfer->pos)%RAIDLINE);
+            assert(false);
+            return std::make_pair(0, 0);
+        }
         LOG_debug << std::string(transfer->type == PUT ? "Uploading" :
                                 transfer->type == GET ? "Downloading" : "?")
                   << " chunk of size " << npos - transfer->pos;

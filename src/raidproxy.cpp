@@ -461,7 +461,6 @@ int PartFetcher::io()
                 rr->resumeall(part);
             }
 
-
             while (mRemfeed && mInbuf->datalen())
             {
                 size_t bufSize = mInbuf->datalen();
