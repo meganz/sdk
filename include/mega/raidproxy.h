@@ -173,7 +173,8 @@ public:
     uint8_t processFeedLag();                                 // check slow sources
     m_off_t progress() const;                                 // get the progress of the whole RaidReq (including part fetchers)
     uint8_t unusedPart() const;                               // inactive source (RAIDPARTS for no inactive source)
-    bool setNewUnusedRaidConnection(uint8_t part);
+    bool setNewUnusedRaidConnection(uint8_t part,             // Set the shared unused raid connection in CloudRaid. Optionally add them to faulty servers persistent storage.
+                                    bool addToFaultyServers = true);
 
     static size_t raidPartSize(uint8_t part, size_t fullfilesize);
 };

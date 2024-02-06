@@ -292,7 +292,7 @@ namespace mega {
         bool onRequestFailure(const std::shared_ptr<HttpReqXfer>& req, uint8_t part, dstime& backoff);
         bool setTransferFailure(::mega::error e = API_EAGAIN, dstime backoff = 0);
         std::pair<::mega::error, dstime> checkTransferFailure();
-        bool setUnusedRaidConnection(uint8_t part);
+        bool setUnusedRaidConnection(uint8_t part, bool addToFaultyServers);
         uint8_t getUnusedRaidConnection() const;
         m_off_t transferred(const std::shared_ptr<HttpReqXfer>& req) const;
 

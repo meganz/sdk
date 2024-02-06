@@ -1132,7 +1132,7 @@ public:
         return std::make_pair(mTransferFailed.first, mTransferFailed.second);
     }
 
-    bool setUnusedRaidConnection(uint8_t part)
+    bool setUnusedRaidConnection(uint8_t part, bool addToFaultyServers)
     {
         if (!mStarted) return false;
 
@@ -1144,8 +1144,13 @@ public:
             return false;
         }
 
-        LOG_debug << "[CloudRaid::setUnusedRaidConnection] Set unused raid connection to " << (int)part << " (clear previous unused connection: " << (int)mUnusedRaidConnection << ")";
+        LOG_debug << "[CloudRaid::setUnusedRaidConnection] Set unused raid connection to " << (int)part << " (clear previous unused connection: " << (int)mUnusedRaidConnection << ") [addToFaultyServers = " << addToFaultyServers << "]";
         mUnusedRaidConnection = part;
+
+        if (addToFaultyServers)
+        {
+            g_faultyServers.add(mTSlot->transferbuf.tempUrlVector()[part]);
+        }
         return true;
     }
 
@@ -1181,12 +1186,17 @@ public:
         }
         mRaidReqPoolArray.resize(mConnections);
         mStarted = true;
+        if (mUnusedRaidConnection == RAIDPARTS)
+        {
+            mUnusedRaidConnection = g_faultyServers.selectWorstServer(mTSlot->transferbuf.tempUrlVector());
+        }
+        LOG_debug << "[CloudRaid::start] CloudRAID started. Initial unused raid connection: " << (int)mUnusedRaidConnection;
         return true;
     }
 
     bool stop()
     {
-        LOG_verbose << "[CloudRaidImpl::stop] stop CALL [started = " << mStarted << "] [this = " << this << "]";
+        LOG_verbose << "[CloudRaid::stop] stop CALL [started = " << mStarted << "] [this = " << this << "]";
         if (!mStarted)
         {
             return false;
@@ -1198,7 +1208,7 @@ public:
 
     bool removeRaidReq(int connection)
     {
-        LOG_verbose << "[CloudRaidImpl::removeRaidReq] connection = " << connection << " [started = " << mStarted << "] [this = " << this << "]";
+        LOG_verbose << "[CloudRaid::removeRaidReq] connection = " << connection << " [started = " << mStarted << "] [this = " << this << "]";
         if (mStarted && mRaidReqPoolArray[connection])
         {
             mRaidReqPoolArray[connection].reset();
@@ -1322,11 +1332,11 @@ std::pair<::mega::error, dstime> CloudRaid::checkTransferFailure()
     return mPimpl()->checkTransferFailure();
 }
 
-bool CloudRaid::setUnusedRaidConnection(uint8_t part)
+bool CloudRaid::setUnusedRaidConnection(uint8_t part, bool addToFaultyServers)
 {
     if (!mShown)
         return false;
-    return mPimpl()->setUnusedRaidConnection(part);
+    return mPimpl()->setUnusedRaidConnection(part, addToFaultyServers);
 }
 
 uint8_t CloudRaid::getUnusedRaidConnection() const

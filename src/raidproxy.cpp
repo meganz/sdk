@@ -713,7 +713,7 @@ RaidReq::RaidReq(const Params& p, RaidReqPool& rrp, const std::shared_ptr<CloudR
     if (mUnusedRaidConnection == RAIDPARTS)
     {
         LOG_verbose << "[RaidReq::RaidReq] No previous unused raid connection: set initial unused raid connection to 0" << " [this = " << this << "]";
-        setNewUnusedRaidConnection(0);
+        setNewUnusedRaidConnection(0, false);
     }
 
     LOG_verbose << "[RaidReq::RaidReq] filesize = " << filesize << ", paddedpartsize = " << paddedpartsize << ", maxRequestSize = " << maxRequestSize << ", unusedRaidConnection = " << (int)mUnusedRaidConnection << " [this = " << this << "]";
@@ -1311,9 +1311,9 @@ uint8_t RaidReq::unusedPart() const
     return partIndex;
 }
 
-bool RaidReq::setNewUnusedRaidConnection(uint8_t part)
+bool RaidReq::setNewUnusedRaidConnection(uint8_t part, bool addToFaultyServers)
 {
-    if (!cloudRaid->setUnusedRaidConnection(part))
+    if (!cloudRaid->setUnusedRaidConnection(part, addToFaultyServers))
     {
         LOG_warn << "[RaidReq::setNewUnusedRaidConnection] Could not set unused raid connection, setting it to 0" << " [this = " << this << "]";
         assert(false && "Unused raid connection couldn't be set");
@@ -1321,7 +1321,7 @@ bool RaidReq::setNewUnusedRaidConnection(uint8_t part)
         return false;
     }
 
-    LOG_verbose << "[RaidReq::setNewUnusedRaidConnection] Set unused raid connection to " << (int)part << " (clear previous unused connection: " << (int)mUnusedRaidConnection << ")" << " [this = " << this << "]";
+    LOG_verbose << "[RaidReq::setNewUnusedRaidConnection] Set unused raid connection to " << (int)part << " (clear previous unused connection: " << (int)mUnusedRaidConnection << ") [addToFaultyServers = " << addToFaultyServers << "]" << " [this = " << this << "]";
     mUnusedRaidConnection = part;
     return true;
 }
