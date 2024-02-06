@@ -4942,9 +4942,16 @@ private:
     std::unique_ptr<MegaNodeTree> mNodeTreeChild;
     std::string mName;
     std::string mS4AttributeValue;
+    // new leaf-file-node is created from upload-token or as a 
+    // copy of an existing node (cannot use both at the same time)
+
+    // data to create node from upload-token
     std::unique_ptr<const MegaCompleteUploadData> mCompleteUploadData;
-    MegaHandle mNodeHandle;
+    // handle of an existing file node to be copied
     MegaHandle mSourceHandle;
+
+    // output param: handle give to new node
+    MegaHandle mNodeHandle;
 };
 
 class MegaCompleteUploadDataPrivate: public MegaCompleteUploadData

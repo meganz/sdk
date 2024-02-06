@@ -26489,6 +26489,7 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
 
                 break; // only the last nodetree can have a source
             }
+            // else -> complete upload
 
             const auto completeUploadData{dynamic_cast<const MegaCompleteUploadDataPrivate*>(
                 tmpNodeTree->getCompleteUploadData())};
@@ -37724,8 +37725,8 @@ MegaNodeTreePrivate::MegaNodeTreePrivate(MegaNodeTree* nodeTreeChild,
     mName{name},
     mS4AttributeValue{s4AttributeValue},
     mCompleteUploadData{completeUploadData},
-    mNodeHandle{nodeHandle},
-    mSourceHandle{sourceHandle}
+    mSourceHandle{sourceHandle},
+    mNodeHandle{nodeHandle}
 {}
 
 MegaNodeTree* MegaNodeTreePrivate::getNodeTreeChild() const
