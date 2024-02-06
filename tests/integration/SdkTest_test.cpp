@@ -6448,13 +6448,11 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
         ASSERT_EQ(API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
         const auto& downloadEndTime = std::chrono::system_clock::now();
         auto downloadTime = std::chrono::duration_cast<std::chrono::milliseconds>(downloadEndTime - downloadStartTime).count();
-        std::cout << "[SdkTestCloudRaidTransferWithConnectionFailures] downloadTime = " << downloadTime << " ms, size = " << nimported->getSize() << "" << " [speed = " << (nimported->getSize() / downloadTime) << " B/s]" << std::endl;
+        LOG_debug << "[SdkTestCloudRaidTransferWithConnectionFailures] downloadTime = " << downloadTime << " ms, size = " << nimported->getSize() << "" << " [speed = " << (nimported->getSize() / downloadTime) << " B/s]";
         ASSERT_GE(onTransferUpdate_filesize, 0u);
         ASSERT_TRUE(onTransferUpdate_progress == onTransferUpdate_filesize);
-        std::cout << "Transfer complete, checking 404 and 403" << std::endl;
         ASSERT_LT(DebugTestHook::countdownTo404, 0);
         ASSERT_LT(DebugTestHook::countdownTo403, 0);
-        std::cout << "Asserts passed" << std::endl;
     }
 
 
@@ -6474,19 +6472,13 @@ TEST_F(SdkTest, SdkTestCloudraidTransferBestCase)
     std::string url10GB = "/#!hrgGHYBQ!PefsCS6CRC6sFWQhIVMesZcY5m68OMzgcCkqkV5B5PI"; // https://mega.nz/file/hrgGHYBQ#PefsCS6CRC6sFWQhIVMesZcY5m68OMzgcCkqkV5B5PI
     std::string url100GB = "/#!AqIEkKDT!wQloQwp5YEzOG4Vns5AX36o7WUubs_ZhfVP6S4tr3E8"; //https://mega.nz/file/AqIEkKDT#wQloQwp5YEzOG4Vns5AX36o7WUubs_ZhfVP6S4tr3E8
     std::string urlWebrtc = "/#!A4pxxQoJ!OoAuL0SKIGuWkw6iSrSPHRMF0-Ri7BSF64IDeIWq-qs"; //https://mega.nz/file/A4pxxQoJ#OoAuL0SKIGuWkw6iSrSPHRMF0-Ri7BSF64IDeIWq-qs
-    // video unraided: https://mega.nz/file/BmZygYLA#wVMRI8Hhs_Kke8uGFEpuIX4xsp6F_JIEH6cSwBGJDZ0
-    // video raided: https://mega.nz/file/p6RxjDoS#YU2QxH0kGNe8Md91-VF1nF-ZdwYak0o71yXtmCBHczw
-    std::string urlVideounraided = "/#!BmZygYLA!wVMRI8Hhs_Kke8uGFEpuIX4xsp6F_JIEH6cSwBGJDZ0";
     std::string urlVideoraided = "/#!p6RxjDoS!YU2QxH0kGNe8Md91-VF1nF-ZdwYak0o71yXtmCBHczw";
     std::string url120MBvideo = "/#!BuJFGQSC!r_P2GPTnH92_T2iMXMVa5gj6Y9hp1t4zrDP-uqBn_B0";
     std::string url17MBvideo = "/#!hrZFCBwD!05dQh4en_lKi5CKJzhPWpNBBDniEwfcAz6eX4Iii4JA";
     std::string url2MBvideo = "/#!AnZQ0YoI!-S-8n6vL6PICnIVR3VDmAe3Dq-lMi7Kbp9esbXfijXQ";
     std::string urlTest = "/#!BoY3AKYJ";
     std::string msTest = "/#!ov4niJaY!SspyJnT5oyOvOovAFS8asXxTx2oJ-mgt9CTJWgdnuZU";
-    //auto importHandle = importPublicLink(0, MegaClient::MEGAURL+url120MB, rootnode.get());
-    //auto importHandle = importPublicLink(0, MegaClient::MEGAURL+urlVideoraided, rootnode.get());
-    //auto importHandle = importPublicLink(0, MegaClient::MEGAURL+urlVideounraided, rootnode.get());
-    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+url17MBvideo, rootnode.get());
+    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+url120MBvideo, rootnode.get());
     std::unique_ptr<MegaNode> nimported{megaApi[0]->getNodeByHandle(importHandle)};
 
 
@@ -6510,16 +6502,13 @@ TEST_F(SdkTest, SdkTestCloudraidTransferBestCase)
                                   false /* undelete */);
 
         unsigned int transfer_timeout_in_seconds = 180;
-        //unsigned int transfer_timeout_in_seconds = 15;
         ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], transfer_timeout_in_seconds)) << "Cloudraid download Best Case (without forced errors) time out (180 seconds)";
         ASSERT_EQ(API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
         const auto& downloadEndTime = std::chrono::system_clock::now();
         auto downloadTime = std::chrono::duration_cast<std::chrono::milliseconds>(downloadEndTime - downloadStartTime).count();
-        std::cout << "[SdkTestCloudRaidTransferBestCase] downloadTime = " << downloadTime << " ms, size = " << nimported->getSize() << "" << " [speed = " << (((nimported->getSize() / downloadTime) * 1000) / 1024) << " KB/s]" << std::endl;
         LOG_debug << "[SdkTestCloudRaidTransferBestCase] downloadTime = " << downloadTime << " ms, size = " << nimported->getSize() << "" << " [speed = " << (((nimported->getSize() / downloadTime) * 1000) / 1024) << " KB/s]";
         ASSERT_GE(onTransferUpdate_filesize, 0u);
         ASSERT_TRUE(onTransferUpdate_progress == onTransferUpdate_filesize);
-        std::cout << "Asserts passed" << std::endl;
     }
 }
 #endif
