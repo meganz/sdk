@@ -182,6 +182,87 @@ bool PartFetcher::setremfeed(m_off_t numBytes)
     return remfeed != 0;
 }
 
+int PartFetcher::onFailure()
+{
+    auto& httpReq = rr->httpReqs[part];
+    assert(httpReq != nullptr);
+    if (httpReq->status == REQ_FAILURE)
+    {
+        raidTime backoff = 0;
+        {
+            if (rr->cloudRaid->onRequestFailure(httpReq, part, backoff))
+            {
+                if (httpReq->status == REQ_FAILURE)
+                {
+                    auto failValues = rr->cloudRaid->checkTransferFailure();
+                    if (!failValues.first)
+                    {
+                        LOG_warn << "[PartFetcher::onFailure] Request failure on part " << (int)part << " with no transfer fail values" << " [this = " << this << "]";
+                        assert(false);
+                    }
+                    rr->setNewUnusedRaidConnection(part);
+                    closesocket();
+                    return -1;
+                }
+                if (httpReq->status == REQ_PREPARED)
+                {
+                    return trigger(backoff);
+                }
+            }
+        }
+
+        LOG_warn << "CloudRAID connection to part " << (int)part << " failed. Http status: " << httpReq->httpstatus << " [this = " << this << "]";
+        errors++;
+
+        if (consecutive_errors > MAXRETRIES || httpReq->status == REQ_READY)
+        {
+            rr->setNewUnusedRaidConnection(part);
+            closesocket();
+            for (uint8_t i = RAIDPARTS; i--;)
+            {
+                if (i != part && !rr->fetcher[i].connected)
+                {
+                    rr->fetcher[i].trigger();
+                }
+            }
+            return -1;
+        }
+        else
+        {
+            consecutive_errors++;
+            for (uint8_t i = RAIDPARTS; i--;)
+            {
+                if (i != part && !rr->fetcher[i].connected)
+                {
+                    rr->fetcher[i].trigger();
+                }
+            }
+
+            if (httpReq->status == REQ_FAILURE) // shouldn't be
+            {
+                httpReq->status = REQ_READY;
+            }
+            return trigger(backoff);
+        }
+    }
+    else
+    {
+        httpReq->status = REQ_READY;
+        resume();
+    }
+    return -1;
+}
+
+m_off_t PartFetcher::getSocketSpeed() const
+{
+    if (!timeInflight)
+    {
+        return 0;
+    }
+    // In Bytes per millisec
+    return reqBytesReceived / timeInflight;
+}
+
 bool PartFetcher::setsource(const std::string& partUrl, RaidReq* crr, uint8_t cpart)
 {
     url = partUrl;
@@ -527,87 +608,6 @@ void PartFetcher::resume(bool forceSetPosRem)
     }
 }
 
-int PartFetcher::onFailure()
-{
-    auto& httpReq = rr->httpReqs[part];
-    assert(httpReq != nullptr);
-    if (httpReq->status == REQ_FAILURE)
-    {
-        raidTime backoff = 0;
-        {
-            if (rr->cloudRaid->onRequestFailure(httpReq, part, backoff))
-            {
-                if (httpReq->status == REQ_FAILURE)
-                {
-                    auto failValues = rr->cloudRaid->checkTransferFailure();
-                    if (!failValues.first)
-                    {
-                        LOG_warn << "[PartFetcher::onFailure] Request failure on part " << (int)part << " with no transfer fail values" << " [this = " << this << "]";
-                        assert(false);
-                    }
-                    rr->setNewUnusedRaidConnection(part);
-                    closesocket();
-                    return -1;
-                }
-                if (httpReq->status == REQ_PREPARED)
-                {
-                    return trigger(backoff);
-                }
-            }
-        }
-
-        LOG_warn << "CloudRAID connection to part " << (int)part << " failed. Http status: " << httpReq->httpstatus << " [this = " << this << "]";
-        errors++;
-
-        if (consecutive_errors > MAXRETRIES || httpReq->status == REQ_READY)
-        {
-            rr->setNewUnusedRaidConnection(part);
-            closesocket();
-            for (uint8_t i = RAIDPARTS; i--;)
-            {
-                if (i != part && !rr->fetcher[i].connected)
-                {
-                    rr->fetcher[i].trigger();
-                }
-            }
-            return -1;
-        }
-        else
-        {
-            consecutive_errors++;
-            for (uint8_t i = RAIDPARTS; i--;)
-            {
-                if (i != part && !rr->fetcher[i].connected)
-                {
-                    rr->fetcher[i].trigger();
-                }
-            }
-
-            if (httpReq->status == REQ_FAILURE) // shouldn't be
-            {
-                httpReq->status = REQ_READY;
-            }
-            return trigger(backoff);
-        }
-    }
-    else
-    {
-        httpReq->status = REQ_READY;
-        resume();
-    }
-    return -1;
-}
-
-m_off_t PartFetcher::getSocketSpeed() const
-{
-    if (!timeInflight)
-    {
-        return 0;
-    }
-    // In Bytes per millisec
-    return reqBytesReceived / timeInflight;
-}
-
 m_off_t PartFetcher::progress() const
 {
     m_off_t progressCount = 0;
@@ -728,26 +728,6 @@ RaidReq::~RaidReq()
     LOG_verbose << "[RaidReq::~RaidReq] DESTRUCTOR [this = " << this << "]";
 }
 
-void RaidReq::dispatchio(const HttpReqPtr& httpReq)
-{
-    // fast lookup of which PartFetcher to call from a single cache line
-    // we don't check for httpReq not being found since we know sometimes it won't be when we closed a socket to a slower/nonresponding server
-    for (uint8_t i = RAIDPARTS; i--; )
-    {
-        if (httpReqs[i] == httpReq)
-        {
-            int t = fetcher[i].io();
-
-            if (t > 0)
-            {
-                // this is a relatively infrequent ocurrence, so we tolerate the overhead of a std::set insertion/erasure
-                pool.addScheduledio(Waiter::ds + t, httpReqs[i]);
-            }
-            break;
-        }
-    }
-}
-
 void RaidReq::shiftdata(m_off_t len)
 {
     skip += len;
@@ -866,6 +846,49 @@ uint8_t RaidReq::hangingSources(uint8_t* hangingSource = nullptr, uint8_t* idleG
         else if (idleGoodSource && !fetcher[i].finished && !fetcher[i].errors) *idleGoodSource = i;
     }
     return numHangingSources;
+}
+
+// watchdog: resolve stuck connections
+void RaidReq::watchdog()
+{
+    if (missingsource) return;
+
+    // check for a single fast source hanging
+    uint8_t hangingsource;
+    uint8_t idlegoodsource;
+    uint8_t hanging = hangingSources(&hangingsource, &idlegoodsource);
+
+    if (hanging)
+    {
+        if (idlegoodsource < 0)
+        {
+            // Try a source with less errors:
+            for (uint8_t i = RAIDPARTS; i--; )
+            {
+                if (!fetcher[i].connected &&
+                    !fetcher[i].finished &&
+                    (fetcher[i].errors <= MAX_ERRORS_FOR_IDLE_GOOD_SOURCE ||
+                            (idlegoodsource >= 0 && fetcher[i].errors < fetcher[idlegoodsource].errors)))
+                    idlegoodsource = i;
+            }
+        }
+        if (idlegoodsource >= 0)
+        {
+            LOG_verbose << "Hanging source!! hangingsource = " << (int)hangingsource << " (HttpReq: " << (void*)httpReqs[hangingsource].get() << "), idlegoodsource = " << (int)idlegoodsource << " (HttpReq: " << (void*)httpReqs[idlegoodsource].get() << ") [fetcher[hangingsource].lastdata = " << fetcher[hangingsource].lastdata << ", Waiter::ds = " << Waiter::ds << "] [this = " << this << "]";
+            fetcher[hangingsource].errors++;
+            setNewUnusedRaidConnection(hangingsource);
+            fetcher[hangingsource].closesocket();
+            if (fetcher[idlegoodsource].trigger() == -1)
+            {
+                fetcher[hangingsource].trigger();
+            }
+            return;
+        }
+        else
+        {
+            LOG_verbose << "Hanging source and no idle good source to switch!! hangingsource = " << (int)hangingsource << " (HttpReq: " << (void*)httpReqs[hangingsource].get() << ") [fetcher[hangingsource].lastdata = " << fetcher[hangingsource].lastdata << ", Waiter::ds = " << Waiter::ds << "] [this = " << this << "]";
+        }
+    }
 }
 
 // procdata() handles input in any order/size and will push excess data to readahead
@@ -1126,6 +1149,26 @@ void RaidReq::resumeall(uint8_t excludedPart)
     }
 }
 
+void RaidReq::dispatchio(const HttpReqPtr& httpReq)
+{
+    // fast lookup of which PartFetcher to call from a single cache line
+    // we don't check for httpReq not being found since we know sometimes it won't be when we closed a socket to a slower/nonresponding server
+    for (uint8_t i = RAIDPARTS; i--; )
+    {
+        if (httpReqs[i] == httpReq)
+        {
+            int t = fetcher[i].io();
+
+            if (t > 0)
+            {
+                // this is a relatively infrequent ocurrence, so we tolerate the overhead of a std::set insertion/erasure
+                pool.addScheduledio(Waiter::ds + t, httpReqs[i]);
+            }
+            break;
+        }
+    }
+}
+
 // feed relevant read-ahead data to procdata
 // returns true if any data was processed
 void RaidReq::procreadahead()
@@ -1140,49 +1183,6 @@ void RaidReq::procreadahead()
             if (fetcher[i].feedreadahead()) fed = true;
         }
     } while (fed);
-}
-
-// watchdog: resolve stuck connections
-void RaidReq::watchdog()
-{
-    if (missingsource) return;
-
-    // check for a single fast source hanging
-    uint8_t hangingsource;
-    uint8_t idlegoodsource;
-    uint8_t hanging = hangingSources(&hangingsource, &idlegoodsource);
-
-    if (hanging)
-    {
-        if (idlegoodsource < 0)
-        {
-            // Try a source with less errors:
-            for (uint8_t i = RAIDPARTS; i--; )
-            {
-                if (!fetcher[i].connected &&
-                    !fetcher[i].finished &&
-                    (fetcher[i].errors <= MAX_ERRORS_FOR_IDLE_GOOD_SOURCE ||
-                            (idlegoodsource >= 0 && fetcher[i].errors < fetcher[idlegoodsource].errors)))
-                    idlegoodsource = i;
-            }
-        }
-        if (idlegoodsource >= 0)
-        {
-            LOG_verbose << "Hanging source!! hangingsource = " << (int)hangingsource << " (HttpReq: " << (void*)httpReqs[hangingsource].get() << "), idlegoodsource = " << (int)idlegoodsource << " (HttpReq: " << (void*)httpReqs[idlegoodsource].get() << ") [fetcher[hangingsource].lastdata = " << fetcher[hangingsource].lastdata << ", Waiter::ds = " << Waiter::ds << "] [this = " << this << "]";
-            fetcher[hangingsource].errors++;
-            setNewUnusedRaidConnection(hangingsource);
-            fetcher[hangingsource].closesocket();
-            if (fetcher[idlegoodsource].trigger() == -1)
-            {
-                fetcher[hangingsource].trigger();
-            }
-            return;
-        }
-        else
-        {
-            LOG_verbose << "Hanging source and no idle good source to switch!! hangingsource = " << (int)hangingsource << " (HttpReq: " << (void*)httpReqs[hangingsource].get() << ") [fetcher[hangingsource].lastdata = " << fetcher[hangingsource].lastdata << ", Waiter::ds = " << Waiter::ds << "] [this = " << this << "]";
-        }
-    }
 }
 
 void RaidReq::disconnect()
@@ -1297,6 +1297,11 @@ uint8_t RaidReq::unusedPart() const
     return partIndex;
 }
 
+std::pair<::mega::error, raidTime> RaidReq::checkTransferFailure()
+{
+    return cloudRaid->checkTransferFailure();
+}
+
 bool RaidReq::setNewUnusedRaidConnection(uint8_t part, bool addToFaultyServers)
 {
     if (!cloudRaid->setUnusedRaidConnection(part, addToFaultyServers))
@@ -1383,7 +1388,7 @@ void RaidReqPool::raidproxyio()
                 {
                     itScheduled++;
                 }
-                if (raidReq->cloudRaid->checkTransferFailure().first)
+                if (raidReq->checkTransferFailure().first)
                 {
                     LOG_debug << "[RaidReqPool::raidproxyio] Found transfer failed flag. Stop" << " [this = " << this << "]";
                     transferFailed = true;

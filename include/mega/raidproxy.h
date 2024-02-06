@@ -51,21 +51,14 @@ class RaidReqPool;
 
 class PartFetcher
 {
+    friend class RaidReq;
+
     RaidReq* rr{nullptr};                                     // pointer to the underlying RaidReq
     std::string url;                                          // part tempURL
     std::unique_ptr<HttpInputBuf> inbuf{nullptr};             // buffer containing the whole data for the HttpReq after successing (internal HttpReq buffer is released)
     m_off_t partStartPos{};                                   // starting position relative to the filesize (the underlying RaidReq can be requesting a part of the file)
     raidTime delayuntil{};                                    // delay before this part can be processed (checked in PartFetcher::io)
     uint8_t consecutive_errors{};                             // number of consecutive errors (related to 'errors')
-
-    void setposrem();                                         // sets the next read position (pos) and the remaining read length (rem/remfeed)
-    bool setremfeed(m_off_t = NUMLINES * RAIDSECTOR);         // sets the remfeed depending on the number of bytes param and the remaining (rem) part data
-
-public:
-    static constexpr raidTime LASTDATA_DSTIME_FOR_HANGING_SOURCE = 300;
-
-    PartFetcher();
-    ~PartFetcher();
 
     uint8_t part{};                                           // raid part index
     bool connected{};                                         // whether the part is considered as connected. A part is considered "connected" since it is prepared (REQ_PREPARED) for HttpReq::post
@@ -84,6 +77,17 @@ public:
     m_off_t remfeed{};                                        // active remaining read length (related to 'rem')
     map<m_off_t, pair<byte*, unsigned>> readahead;            // read-ahead data
 
+    void setposrem();                                         // sets the next read position (pos) and the remaining read length (rem/remfeed)
+    bool setremfeed(m_off_t = NUMLINES * RAIDSECTOR);         // sets the remfeed depending on the number of bytes param and the remaining (rem) part data
+    int onFailure();                                          // Handle request failures
+    m_off_t getSocketSpeed() const;                           // Get part throughput in bytes per millisec
+
+public:
+    static constexpr raidTime LASTDATA_DSTIME_FOR_HANGING_SOURCE = 300;
+
+    PartFetcher();
+    ~PartFetcher();
+
     bool setsource(const std::string&, RaidReq*, uint8_t);    // Set URL for this source, part start pos and source size
     int trigger(raidTime = 0, bool = false);                  // Add request for processing in RaidReqPool (with an optional delay). Also checks if this part shouldn't be processed.
     bool directTrigger(bool = true);                          // Add request for direct processing in RaidReqPool (with no delay)
@@ -92,15 +96,12 @@ public:
     void cont(m_off_t);                                       // request a further chunk of data from the open connection
     bool feedreadahead();                                     // Process available read ahead for this part and send it to RaidReq::procdata
     void resume(bool = false);                                // resume fetching on a parked source that has become eligible again
-    int onFailure();                                          // Handle request failures
-    m_off_t getSocketSpeed() const;                           // Get part throughput in bytes per millisec
     m_off_t progress() const;                                 // get part progress (data inflight, readahead...)
 };
 
 class RaidReq
 {
     friend class PartFetcher;
-    friend class RaidReqPool;
 
     static constexpr raidTime LASTDATA_DSTIME_FOR_REPORTING_FEED_STUCK = 1000;
     static constexpr raidTime LASTDATA_DSTIME_FOR_TIMEOUT = LASTDATA_DSTIME_FOR_REPORTING_FEED_STUCK + (LASTDATA_DSTIME_FOR_REPORTING_FEED_STUCK / 2);
@@ -137,11 +138,11 @@ class RaidReq
     bool missingsource{};                                     // disable all-channel logic
     uint8_t mUnusedRaidConnection;                            // Unused connection or bad source
 
-    void dispatchio(const HttpReqPtr&);                       // add active requests to RaidReqPool for HttpReq processing
     void shiftdata(m_off_t);                                  // shift already served data from the data array
     bool allconnected(uint8_t = RAIDPARTS) const;             // whether all sources are connected, optionally excluding a RAIDPART (default value 'RAIDPARTS' won't exclude any part)
     uint8_t numPartsUnfinished() const;                       // how many parts are unfinished, the unused part will always count as "unfinished"
     uint8_t hangingSources(uint8_t*, uint8_t*);               // how many sources are hanging (lastdata from the HttpReq exceeds the hanging time value 'LASTDATA_DSTIME_FOR_HANGING_SOURCE')
+    void watchdog();                                          // check hanging sources
 
 public:
     struct Params
@@ -161,13 +162,14 @@ public:
     void procdata(uint8_t, byte*, m_off_t, m_off_t);          // process HttpReq data, either for read ahead or for assembled data buffer
     m_off_t readdata(byte*, m_off_t);                         // serve completed data to the external byte buffer param
 
+    void dispatchio(const HttpReqPtr&);                       // add active requests to RaidReqPool for HttpReq processing
     void resumeall(uint8_t = RAIDPARTS);                      // resume part fetchers
     void procreadahead();                                     // process read ahead data
-    void watchdog();                                          // check hanging sources
     void disconnect();                                        // disconnect all HttpReqs
     uint8_t processFeedLag();                                 // check slow sources
     m_off_t progress() const;                                 // get the progress of the whole RaidReq (including part fetchers)
     uint8_t unusedPart() const;                               // inactive source (RAIDPARTS for no inactive source)
+    std::pair<::mega::error, raidTime> checkTransferFailure(); // Check if CloudRaid transfer has failed (it could have happened in other RaidReq)
     bool setNewUnusedRaidConnection(uint8_t part,             // set the shared unused raid connection in CloudRaid. Optionally add them to faulty servers persistent storage.
                                     bool addToFaultyServers = true);
 
@@ -176,9 +178,6 @@ public:
 
 class RaidReqPool
 {
-    friend class PartFetcher;
-    friend class RaidReq;
-
     bool isRunning{true};                                     // RaidReqPool loop control flag
     std::unique_ptr<RaidReq> raidReq{nullptr};                // RaidReq owned by this RaidReqPool
     std::set<HttpReqPtr> setHttpReqs;                         // HttpReq set to avoid repetition in scheduledio
