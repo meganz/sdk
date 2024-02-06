@@ -1681,8 +1681,6 @@ bool NodeData::readComponents()
                 mPubLinkCts = MemAccess::get<m_time_t>(ptr);
                 ptr += sizeof(m_time_t);
             }
-
-            // n->plink.reset(new PublicLink(ph, cts, ets, takendown, authKey ? authKey : ""));
         }
         else
         {
