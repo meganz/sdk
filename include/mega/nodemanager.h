@@ -26,6 +26,7 @@
 #include <map>
 #include <limits>
 #include <set>
+#include <vector>
 #include "node.h"
 #include "types.h"
 
@@ -49,7 +50,7 @@ public:
         mNodeType = static_cast<nodetype_t>(f.byNodeType()); // get it as int
         mMimeCategory = static_cast<MimeType_t>(f.byCategory()); // get it as int
         mExcludeSensitive = f.bySensitivity();
-        mLocationHandle = f.byLocationHandle();
+        mLocationHandles = {f.byLocationHandle(), UNDEF};
         mShareType = shareType;
         mCreationLowerLimit = f.byCreationTimeLowerLimit();
         mCreationUpperLimit = f.byCreationTimeUpperLimit();
@@ -57,14 +58,17 @@ public:
         mModificationUpperLimit = f.byModificationTimeUpperLimit();
     }
 
+    void byAncestors(std::vector<handle>&& ancs) { assert(ancs.size() >= 2); mLocationHandles.swap(ancs); }
+
     const std::string& byName() const { return mNameFilter; }
     nodetype_t byNodeType() const { return mNodeType; }
     MimeType_t byCategory() const { return mMimeCategory; }
     bool bySensitivity() const { return mExcludeSensitive; }
 
-    // recursive look-ups (searchNodes): represents 'ancestor';
-    // non-recursive look-ups (getChildren): represents 'parent'.
-    handle byLocationHandle() const { return mLocationHandle; }
+    // recursive look-ups (searchNodes)
+    const std::vector<handle>& byAncestorHandles() const { return mLocationHandles; }
+    // non-recursive look-ups (getChildren)
+    handle byParentHandle() const { assert(!mLocationHandles.empty()); return mLocationHandles[0]; }
 
     // recursive look-ups (searchNodes): type of share where search is restricted to;
     // non-recursive look-ups (getChildren): ignored.
@@ -81,7 +85,7 @@ private:
     nodetype_t mNodeType = TYPE_UNKNOWN;
     MimeType_t mMimeCategory = MIME_TYPE_UNKNOWN;
     bool mExcludeSensitive = false;
-    handle mLocationHandle = UNDEF;
+    std::vector<handle> mLocationHandles {UNDEF, UNDEF}; // always contain 2 items
     ShareType_t mShareType = NO_SHARES;
     int64_t mCreationLowerLimit = 0;
     int64_t mCreationUpperLimit = 0;
@@ -123,7 +127,7 @@ public:
     // read children from DB and load them in memory
     sharedNode_list getChildren(const Node *parent, CancelToken cancelToken = CancelToken());
 
-    sharedNode_vector getChildren(const NodeSearchFilter& filter, CancelToken cancelFlag);
+    sharedNode_vector getChildren(const NodeSearchFilter& filter, int order, CancelToken cancelFlag);
 
     // read children from type (folder or file) from DB and load them in memory
     sharedNode_vector getChildrenFromType(const NodeHandle &parent, nodetype_t type, CancelToken cancelToken);
@@ -140,7 +144,7 @@ public:
     /** @deprecated Use searchNodes(const NodeSearchFilter...) instead */
     sharedNode_vector search(NodeHandle ancestorHandle, const char* searchString, bool recursive, Node::Flags requiredFlags, Node::Flags excludeFlags, Node::Flags excludeRecursiveFlags, CancelToken cancelFlag);
 
-    sharedNode_vector searchNodes(const NodeSearchFilter& filter, CancelToken cancelFlag);
+    sharedNode_vector searchNodes(const NodeSearchFilter& filter, int order, CancelToken cancelFlag);
 
     /** @deprecated Use searchNodes(const NodeSearchFilter...) instead */
     sharedNode_vector getInSharesWithName(const char *searchString, CancelToken cancelFlag);
@@ -381,10 +385,9 @@ private:
     // If a valid object is passed, it must be kept alive until this method returns.
     sharedNode_vector processUnserializedNodes(const std::vector<std::pair<NodeHandle, NodeSerialized>>& nodesFromTable, NodeHandle ancestorHandle = NodeHandle(), CancelToken cancelFlag = CancelToken());
 
-    sharedNode_vector searchNodes_internal(const NodeSearchFilter& filter, CancelToken cancelFlag);
+    sharedNode_vector searchNodes_internal(const NodeSearchFilter& filter, int order, CancelToken cancelFlag);
     sharedNode_vector processUnserializedNodes(const std::vector<std::pair<NodeHandle, NodeSerialized>>& nodesFromTable, const NodeSearchFilter& filter, CancelToken cancelFlag = CancelToken());
-    sharedNode_vector getChildren_internal(const NodeSearchFilter& filter, CancelToken cancelFlag);
-    sharedNode_vector processUnserializedChildren(const std::vector<std::pair<NodeHandle, NodeSerialized>>& childrenFromTable, const NodeSearchFilter& filter, CancelToken cancelFlag = CancelToken());
+    sharedNode_vector getChildren_internal(const NodeSearchFilter& filter, int order, CancelToken cancelFlag);
 
     // node temporary in memory, which will be removed upon write to DB
     std::shared_ptr<Node> mNodeToWriteInDb;
