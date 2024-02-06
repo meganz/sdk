@@ -5820,7 +5820,7 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  *
  * @param delegate MEGARequestDelegate to track this request
  */
-- (void)getToSAccepted:(id<MEGARequestDelegate>)delegate;
+- (void)getToSAcceptedStatus:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Set whether the user has accepted Terms of Use or not

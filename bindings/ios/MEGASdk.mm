@@ -2235,7 +2235,7 @@ using namespace mega;
     }
 }
 
-- (void)getToSAccepted: (id<MEGARequestDelegate>)delegate {
+- (void)getToSAcceptedStatus: (id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->getVisibleTermsOfService([self createDelegateMEGARequestListener:delegate singleListener:YES]);
     }
