@@ -344,6 +344,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
         // this field also only used internally, for reporting new NO_KEY occurrences
         bool modifiedByThisClient : 1;
 
+        bool pwd : 1;
     } changed;
 
 
@@ -442,6 +443,9 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     bool isPhotoWithFileAttributes(bool checkPreview) const;
     bool isVideoWithFileAttributes() const;
+
+    bool isPasswordNode() const;
+    bool isPasswordNodeFolder() const;
 
 private:
     // full folder/file key, symmetrically or asymmetrically encrypted

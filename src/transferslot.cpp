@@ -619,6 +619,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                 case REQ_INFLIGHT:
                 {
                     mReqSpeeds[i].requestProgressed(reqs[i]->transferred(client));
+
                     p += reqs[i]->transferred(client);
 
                     assert(reqs[i]->lastdata != NEVER);
@@ -1306,7 +1307,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
     {
         if (p != progressreported)
         {
-            m_off_t diff =  p - progressreported;
+            m_off_t diff = p - progressreported;
             m_off_t naturalDiff = std::max<m_off_t>(diff, 0);
             speed = mTransferSpeed.calculateSpeed(naturalDiff);
             meanSpeed = mTransferSpeed.getMeanSpeed();
