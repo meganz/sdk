@@ -11,12 +11,10 @@
 
 namespace mega::RaidProxy {
 
-#define NUMLINES 16384
-#define MAXRETRIES 10
-#define READAHEAD (static_cast<m_off_t>(NUMLINES * RAIDSECTOR))
-
-#define LAGINTERVAL 256                   // number of readdata() requests until the next interval check is conducted
-#define MAX_ERRORS_FOR_IDLE_GOOD_SOURCE 3 // Error tolerance to consider a source as a candidate to be switched with a hanging source
+#define NUMLINES 16384                                        // number of lines for the RaidReq::data array
+#define MAXRETRIES 10                                         // max number of consecutive errors for a failing part
+#define LAGINTERVAL 256                                       // number of readdata() requests until the next interval check is conducted
+#define MAX_ERRORS_FOR_IDLE_GOOD_SOURCE 3                     // Error tolerance to consider a source as a candidate to be switched with a hanging source
 
 
 #if defined(__GNUC__)
@@ -53,53 +51,50 @@ class RaidReqPool;
 
 class PartFetcher
 {
-    RaidReq* rr{nullptr};
-    std::string url;
-    std::unique_ptr<HttpInputBuf> inbuf{nullptr};
-    m_off_t partStartPos{};
-    raidTime delayuntil{};
-    uint8_t consecutive_errors{};
-    bool skip_setposrem{};
+    RaidReq* rr{nullptr};                                     // pointer to the underlying RaidReq
+    std::string url;                                          // part tempURL
+    std::unique_ptr<HttpInputBuf> inbuf{nullptr};             // buffer containing the whole data for the HttpReq after successing (internal HttpReq buffer is released)
+    m_off_t partStartPos{};                                   // starting position relative to the filesize (the underlying RaidReq can be requesting a part of the file)
+    raidTime delayuntil{};                                    // delay before this part can be processed (checked in PartFetcher::io)
+    uint8_t consecutive_errors{};                             // number of consecutive errors (related to 'errors')
 
-    void setposrem();
-    bool setremfeed(m_off_t = NUMLINES * RAIDSECTOR);
+    void setposrem();                                         // sets the next read position (pos) and the remaining read length (rem/remfeed)
+    bool setremfeed(m_off_t = NUMLINES * RAIDSECTOR);         // sets the remfeed depending on the number of bytes param and the remaining (rem) part data
 
 public:
     static constexpr raidTime LASTDATA_DSTIME_FOR_HANGING_SOURCE = 300;
 
-    uint8_t part{};
-    bool connected{};
-    bool finished{};
-    m_off_t remfeed{};
-    uint16_t errors{};
-
-    raidTime lastdata;
-    raidTime lastconnect{};
-
-    std::chrono::time_point<std::chrono::system_clock> postStartTime{};
-    int64_t timeInflight{};
-    m_off_t reqBytesReceived{};
-    bool postCompleted{};
-
-    m_off_t sourcesize{};
-    m_off_t pos{};
-    m_off_t rem{};
-    map<m_off_t, pair<byte*, unsigned>> readahead; // read-ahead data
-
-    bool setsource(const std::string&, RaidReq*, uint8_t);
-    int trigger(raidTime = 0, bool = false);
-    bool directTrigger(bool = true);
-    void closesocket(bool = false);
-    int io();
-    void cont(m_off_t);
-    bool feedreadahead();
-    void resume(bool = false);
-    int onFailure();
-    m_off_t getSocketSpeed() const;
-    m_off_t progress() const;
-
     PartFetcher();
     ~PartFetcher();
+
+    uint8_t part{};                                           // raid part index
+    bool connected{};                                         // whether the part is considered as connected. A part is considered "connected" since it is prepared (REQ_PREPARED) for HttpReq::post
+    bool finished{};                                          // whether this part is finished (there can be pending data to process like readahead, but all the requested HttpReq data is finished)
+    uint16_t errors{};                                        // number of errors for this part (hanging, failures, etc.)
+
+    raidTime lastdata;                                        // last data for this part's request
+    std::chrono::time_point<std::chrono::system_clock> postStartTime{}; // starting time for HttpReq::post
+    int64_t timeInflight{};                                   // total time in flight for this part
+    m_off_t reqBytesReceived{};                               // total number of bytes received for this part
+    bool postCompleted{};                                     // whether a HttpReq::post has been completed
+
+    m_off_t sourcesize{};                                     // full source size (which can be smaller than RaidReq::paddedpartsize)
+    m_off_t pos{};                                            // part current position
+    m_off_t rem{};                                            // remaining data for this part
+    m_off_t remfeed{};                                        // active remaining read length (related to 'rem')
+    map<m_off_t, pair<byte*, unsigned>> readahead;            // read-ahead data
+
+    bool setsource(const std::string&, RaidReq*, uint8_t);    // Set URL for this source, part start pos and source size
+    int trigger(raidTime = 0, bool = false);                  // Add request for processing in RaidReqPool (with an optional delay). Also checks if this part shouldn't be processed.
+    bool directTrigger(bool = true);                          // Add request for direct processing in RaidReqPool (with no delay)
+    void closesocket(bool = false);                           // reset part and optionally disconnect the HttpReq (depending on if it is going to be used)
+    int io();                                                 // process HttpReq
+    void cont(m_off_t);                                       // request a further chunk of data from the open connection
+    bool feedreadahead();                                     // Process available read ahead for this part and send it to RaidReq::procdata
+    void resume(bool = false);                                // resume fetching on a parked source that has become eligible again
+    int onFailure();                                          // Handle request failures
+    m_off_t getSocketSpeed() const;                           // Get part throughput in bytes per millisec
+    m_off_t progress() const;                                 // get part progress (data inflight, readahead...)
 };
 
 class RaidReq
@@ -173,10 +168,10 @@ public:
     uint8_t processFeedLag();                                 // check slow sources
     m_off_t progress() const;                                 // get the progress of the whole RaidReq (including part fetchers)
     uint8_t unusedPart() const;                               // inactive source (RAIDPARTS for no inactive source)
-    bool setNewUnusedRaidConnection(uint8_t part,             // Set the shared unused raid connection in CloudRaid. Optionally add them to faulty servers persistent storage.
+    bool setNewUnusedRaidConnection(uint8_t part,             // set the shared unused raid connection in CloudRaid. Optionally add them to faulty servers persistent storage.
                                     bool addToFaultyServers = true);
 
-    static size_t raidPartSize(uint8_t part, size_t fullfilesize);
+    static size_t raidPartSize(uint8_t part, size_t fullfilesize);  // calculate part size
 };
 
 class RaidReqPool
@@ -184,21 +179,22 @@ class RaidReqPool
     friend class PartFetcher;
     friend class RaidReq;
 
-    bool isRunning{true};
-    std::unique_ptr<RaidReq> raidReq{nullptr};
-    std::set<HttpReqPtr> setHttpReqs;
-    std::set<std::pair<raidTime, HttpReqPtr>> scheduledio;
+    bool isRunning{true};                                     // RaidReqPool loop control flag
+    std::unique_ptr<RaidReq> raidReq{nullptr};                // RaidReq owned by this RaidReqPool
+    std::set<HttpReqPtr> setHttpReqs;                         // HttpReq set to avoid repetition in scheduledio
+    std::set<std::pair<raidTime, HttpReqPtr>> scheduledio;    // HttpReqs to be processed in raidproxyio() at raidTime
 
 public:
     RaidReqPool();
     ~RaidReqPool();
-    void raidproxyio();
-    void request(const RaidReq::Params& p, const std::shared_ptr<CloudRaid>&);
-    bool addScheduledio(raidTime, const HttpReqPtr&);
-    bool addDirectio(const HttpReqPtr&);
+
+    void raidproxyio();                                       // process HttpReqs from scheduledio
+    void request(const RaidReq::Params& p, const std::shared_ptr<CloudRaid>&); // create and add RaidReq to RaidReqPool
+    bool addScheduledio(raidTime, const HttpReqPtr&);         // add HttpReq to scheduledio collection
+    bool addDirectio(const HttpReqPtr&);                      // add HttpReq for immediate io processing
     bool lookupHttpReq(const HttpReqPtr& httpReq) { return setHttpReqs.find(httpReq) != setHttpReqs.end(); }
-    bool removeio(const HttpReqPtr&);
-    RaidReq* rr() { return raidReq.get(); }
+    bool removeio(const HttpReqPtr&);                         // remove HttpReq from scheduledio
+    RaidReq* rr() { return raidReq.get(); }                   // returns RaidReq pointer
 };
 
 } // namespace

@@ -25,14 +25,8 @@ PartFetcher::PartFetcher()
 
 PartFetcher::~PartFetcher()
 {
-    static m_off_t globalReqBytesReceived = 0;
-    static m_off_t globalTimeInflight = 0;
-    static m_off_t globalAccSpeed = 0;
     if (rr)
     {
-        globalReqBytesReceived += reqBytesReceived;
-        globalTimeInflight += timeInflight;
-        globalAccSpeed += getSocketSpeed();
         closesocket();
 
         while (!readahead.empty())
@@ -44,8 +38,7 @@ PartFetcher::~PartFetcher()
 }
 
 // sets the next read position (pos) and the remaining read length (rem/remfeed),
-// taking into account all readahead data and ongoing reads on other connected
-// fetchers.
+// taking into account all readahead data and ongoing reads on other connected fetchers.
 void PartFetcher::setposrem()
 {
     // we want to continue reading at the 2nd lowest position:
@@ -260,15 +253,9 @@ bool PartFetcher::directTrigger(bool addDirectio)
 // close socket
 void PartFetcher::closesocket(bool reuseSocket)
 {
-    if (skip_setposrem)
-    {
-        skip_setposrem = false;
-    }
-    else
-    {
-        rem = 0;
-        remfeed = 0; // need to clear remfeed so that the disconnected channel does not corrupt feedlag
-    }
+    rem = 0;
+    remfeed = 0; // need to clear remfeed so that the disconnected channel does not corrupt feedlag
+
     postCompleted = false;
     if (inbuf) inbuf.reset(nullptr);
 
@@ -365,7 +352,6 @@ int PartFetcher::io()
             bool postDone = rr->cloudRaid->post(httpReq);
             if (postDone)
             {
-                lastconnect = Waiter::ds;
                 lastdata = Waiter::ds;
                 postStartTime = std::chrono::system_clock::now();
             }
