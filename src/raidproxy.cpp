@@ -726,6 +726,16 @@ RaidReq::RaidReq(const Params& p, RaidReqPool& rrp, const std::shared_ptr<CloudR
 RaidReq::~RaidReq()
 {
     LOG_verbose << "[RaidReq::~RaidReq] DESTRUCTOR [this = " << this << "]";
+
+    // Use feedlag to set next unused source
+    uint8_t slowest, fastest;
+    if (!faultysourceadded &&
+        getSlowestAndFastestParts(slowest, fastest, false /* no need for the parts to be connected, just have feedlag */) &&
+        differenceBetweenPartsSpeedIsSignificant(fastest, slowest))
+    {
+        LOG_verbose << "[RaidReq::~RaidReq] Detected slowest part for this RaidReq: " << (int)slowest << ". There's no sources with errors reported, so we will use this one as the unused connection for next RaidReq" << " [this = " << this << "]";
+        cloudRaid->setUnusedRaidConnection(slowest, true);
+    }
 }
 
 void RaidReq::shiftdata(m_off_t len)
@@ -889,6 +899,41 @@ void RaidReq::watchdog()
             LOG_verbose << "Hanging source and no idle good source to switch!! hangingsource = " << (int)hangingsource << " (HttpReq: " << (void*)httpReqs[hangingsource].get() << ") [fetcher[hangingsource].lastdata = " << fetcher[hangingsource].lastdata << ", Waiter::ds = " << Waiter::ds << "] [this = " << this << "]";
         }
     }
+}
+
+bool RaidReq::differenceBetweenPartsSpeedIsSignificant(uint8_t part1, uint8_t part2) const
+{
+    return feedlag[part1] * 4 > feedlag[part2] * 5;
+}
+
+bool RaidReq::getSlowestAndFastestParts(uint8_t& slowest, uint8_t& fastest, bool mustBeConnected) const
+{
+    slowest = 0;
+    fastest = 0;
+
+    uint8_t i = RAIDPARTS;
+    while (i --> 0 &&
+        ((mustBeConnected && !fetcher[slowest].connected) || !feedlag[slowest]))
+    {
+        slowest++;
+        fastest++;
+    }
+    if (slowest == RAIDPARTS) // Cannot compare yet
+    {
+        return false;
+    }
+    for (i = RAIDPARTS; --i; )
+    {
+        if ((fetcher[i].connected || !mustBeConnected) &&
+            feedlag[i])
+        {
+            if (feedlag[i] < feedlag[slowest])
+                slowest = i;
+            else if (feedlag[i] > feedlag[fastest])
+                fastest = i;
+        }
+    }
+    return true;
 }
 
 // procdata() handles input in any order/size and will push excess data to readahead
@@ -1198,33 +1243,15 @@ uint8_t RaidReq::processFeedLag()
     uint8_t laggedPart = RAIDPARTS;
     if (++lagrounds >= numPartsUnfinished())
     {
-        // (dominance is defined as the ratio between fastest and slowest)
-        uint8_t slowest = 0, fastest = 0;
-
-        uint8_t i = RAIDPARTS;
-        while (i --> 0 && (!fetcher[slowest].connected || !feedlag[slowest]))
-        {
-            slowest++;
-            fastest++;
-        }
-        if (slowest == RAIDPARTS) // Cannot compare yet
+        // dominance is defined as the ratio between fastest and slowest
+        uint8_t slowest, fastest;
+        if (!getSlowestAndFastestParts(slowest, fastest)) // Cannot compare yet
         {
             return RAIDPARTS;
         }
 
-        for (i = RAIDPARTS; --i; )
-        {
-            if (fetcher[i].connected && feedlag[i])
-            {
-                if (feedlag[i] < feedlag[slowest])
-                    slowest = i;
-                else if (feedlag[i] > feedlag[fastest])
-                    fastest = i;
-            }
-        }
-
         if (!missingsource && fetcher[slowest].connected && !fetcher[slowest].finished && httpReqs[slowest]->status != REQ_SUCCESS &&
-            ((fetcher[slowest].rem - fetcher[fastest].rem) > ((NUMLINES * RAIDSECTOR * LAGINTERVAL * 3) / 4) || (feedlag[fastest] * 4 > feedlag[slowest] * 5)))
+            ((fetcher[slowest].rem - fetcher[fastest].rem) > ((NUMLINES * RAIDSECTOR * LAGINTERVAL * 3) / 4) || differenceBetweenPartsSpeedIsSignificant(fastest, slowest)))
         {
             // slow channel detected
             {
@@ -1314,6 +1341,7 @@ bool RaidReq::setNewUnusedRaidConnection(uint8_t part, bool addToFaultyServers)
 
     LOG_verbose << "[RaidReq::setNewUnusedRaidConnection] Set unused raid connection to " << (int)part << " (clear previous unused connection: " << (int)mUnusedRaidConnection << ") [addToFaultyServers = " << addToFaultyServers << "]" << " [this = " << this << "]";
     mUnusedRaidConnection = part;
+    if (addToFaultyServers) faultysourceadded = true;
     return true;
 }
 

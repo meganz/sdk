@@ -136,6 +136,7 @@ class RaidReq
     bool haddata{};                                           // flag indicating whether any data was forwarded to user on this RaidReq
     bool reported{};                                          // whether a feed stuck (RaidReq not progressing) has been already reported
     bool missingsource{};                                     // disable all-channel logic
+    bool faultysourceadded{};                                 // whether a failing or hanging source has been added to faulty servers storage
     uint8_t mUnusedRaidConnection;                            // Unused connection or bad source
 
     void shiftdata(m_off_t);                                  // shift already served data from the data array
@@ -143,6 +144,8 @@ class RaidReq
     uint8_t numPartsUnfinished() const;                       // how many parts are unfinished, the unused part will always count as "unfinished"
     uint8_t hangingSources(uint8_t*, uint8_t*);               // how many sources are hanging (lastdata from the HttpReq exceeds the hanging time value 'LASTDATA_DSTIME_FOR_HANGING_SOURCE')
     void watchdog();                                          // check hanging sources
+    bool differenceBetweenPartsSpeedIsSignificant(uint8_t part1, uint8_t part2) const;  // return whether there is a significant difference between two parts based on a ratio (part1 should be faster than part2)
+    bool getSlowestAndFastestParts(uint8_t&, uint8_t&, bool = true) const; // Get slowest and fastest parts (using feedlag)
 
 public:
     struct Params
