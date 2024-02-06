@@ -5802,45 +5802,27 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  */
 - (void)isMasterKeyExported;
 
-
 /**
- * @brief Check if the user has accepted Terms of Use
- *
- * The associated request type with this request is MEGARequestTypeGetAttrUser
- * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePwdReminder
+ * @brief Get Terms of Service for VPN visibility.
  *
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
- * - [MEGARequest flag] - Returns YES if the password reminder dialog should be shown
+ * - [MEGARequest access] - Returns YES if the Terms Of Service should be visible for user
  *
  * If the corresponding user attribute is not set yet, the request will fail with the
- * error code MEGAErrorTypeApiENoent but the value of [MEGARequest flag] will still
- * be valid.
+ * error code MEGAErrorTypeApiENoent.
  *
  * @param delegate MEGARequestDelegate to track this request
  */
-- (void)getToSAcceptedStatus:(id<MEGARequestDelegate>)delegate;
+- (void)getVisibleTermsOfServiceWithDelegate:(id<MEGARequestDelegate>)delegate;
 
 /**
- * @brief Set whether the user has accepted Terms of Use or not
+ * @brief Set Terms of Service for VPN visibility.
  *
- * The associated request type with this request is MEGARequestTypeGetAttrUser
- * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePwdReminder
- *
- * Valid data in the MEGARequest object received in onRequestFinish when the error code
- * is MEGAErrorTypeApiOk:
- * - [MEGARequest flag] - Returns YES if the password reminder dialog should be shown
- *
- * If the corresponding user attribute is not set yet, the request will fail with the
- * error code MEGAErrorTypeApiENoent but the value of [MEGARequest flag] will still
- * be valid.
- *
- * @param isAccepted YES if the user accepted Terms of Service
+ * @param visible True to set Terms of Service visibility on, false otherwise.
  * @param delegate MEGARequestDelegate to track this request
  */
-- (void)setToSAccepted:(BOOL)isAccepted delegate:(id<MEGARequestDelegate>)delegate;
+- (void)setVisibleTermsOfService:(BOOL)visible delegate:(id<MEGARequestDelegate>)delegate;
 
 #ifdef ENABLE_CHAT
 

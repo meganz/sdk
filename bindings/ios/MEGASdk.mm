@@ -2235,15 +2235,15 @@ using namespace mega;
     }
 }
 
-- (void)getToSAcceptedStatus: (id<MEGARequestDelegate>)delegate {
+- (void)getVisibleTermsOfServiceWithDelegate: (id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->getVisibleTermsOfService([self createDelegateMEGARequestListener:delegate singleListener:YES]);
     }
 }
 
-- (void)setToSAccepted:(BOOL)isAccepted delegate:(id<MEGARequestDelegate>)delegate {
+- (void)setVisibleTermsOfService:(BOOL)visible delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
-        self.megaApi->setVisibleTermsOfService(isAccepted, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+        self.megaApi->setVisibleTermsOfService(visible, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
     }
 }
 
