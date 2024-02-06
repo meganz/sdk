@@ -1247,8 +1247,8 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                     if (transferbuf.isNewRaid())
                     {
                         assert(cloudRaid != nullptr);
-                        LOG_verbose << "Conn " << i << " : balancedRequest Size: " << reqs[i]->size << ". Pos: " << reqs[i]->pos << ". maxRequestSize : " << maxRequestSize << " [req = " << (void*)reqs[i].get() << "]";
-                        if (!cloudRaid->balancedRequest(i, transferbuf.tempUrlVector(), reqs[i]->size, reqs[i]->pos, reqs[i]->size, maxRequestSize))
+                        LOG_verbose << "Conn " << i << " : balancedRequest Size: " << reqs[i]->size << ". Pos: " << reqs[i]->pos << ". Progressreported = " << progressreported << ", progresscompleted = " << transfer->progresscompleted << " [req = " << (void*)reqs[i].get() << "]";
+                        if (!cloudRaid->balancedRequest(i, transferbuf.tempUrlVector(), reqs[i]->size, reqs[i]->pos, reqs[i]->size))
                         {
                             reqs[i]->status = REQ_FAILURE;
                         }

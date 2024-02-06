@@ -129,7 +129,6 @@ class RaidReq
     size_t mFilesize;                                         // total file size
     m_off_t mReqStartPos;                                     // RaidReq offset - starting pos (a RaidReq can request just a part of the whole file)
     m_off_t mPaddedpartsize;                                  // the size of the biggest part (0) rounded up to the next RAIDSECTOR boundary
-    m_off_t mMaxRequestSize;                                  // UNUSED
 
     int mLagrounds{};                                         // number of accumulated additions to feedlag[]
     raidTime lastdata;                                        // timestamp of RaidReq creation or last data chunk forwarded to user
@@ -154,9 +153,8 @@ public:
         size_t filesize;
         m_off_t reqStartPos;
         size_t reqlen;
-        m_off_t maxRequestSize;
-        Params(const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t creqStartPos, size_t creqlen, m_off_t cmaxRequestSize)
-            : tempUrls(tempUrls), filesize(cfilesize), reqStartPos(creqStartPos), reqlen(creqlen), maxRequestSize(cmaxRequestSize) {}
+        Params(const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t creqStartPos, size_t creqlen)
+            : tempUrls(tempUrls), filesize(cfilesize), reqStartPos(creqStartPos), reqlen(creqlen) {}
     };
 
     RaidReq(const Params&, RaidReqPool&, const std::shared_ptr<CloudRaid>&);

@@ -298,7 +298,7 @@ namespace mega {
 
         /* RaidProxy functionality for TransferSlot */
         bool init(TransferSlot* tslot, MegaClient* client, int connections);
-        bool balancedRequest(int connection, const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, m_off_t cmaxRequestSize);
+        bool balancedRequest(int connection, const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen);
         bool removeRaidReq(int connection);
         bool resumeAllConnections();
         bool raidReqDoio(int connection);

@@ -675,7 +675,6 @@ RaidReq::RaidReq(const Params& p, RaidReqPool& rrp, const std::shared_ptr<CloudR
     mFilesize(p.filesize),
     mReqStartPos(p.reqStartPos),
     mPaddedpartsize((raidPartSize(0, mFilesize) + RAIDSECTOR - 1) & -RAIDSECTOR),
-    mMaxRequestSize(p.maxRequestSize),
     lastdata(Waiter::ds)
 {
     assert(p.tempUrls.size() > 0);
@@ -702,7 +701,7 @@ RaidReq::RaidReq(const Params& p, RaidReqPool& rrp, const std::shared_ptr<CloudR
         setNewUnusedRaidConnection(0, false);
     }
 
-    LOG_verbose << "[RaidReq::RaidReq] filesize = " << mFilesize << ", paddedpartsize = " << mPaddedpartsize << ", maxRequestSize = " << mMaxRequestSize << ", unusedRaidConnection = " << (int)mUnusedRaidConnection << " [this = " << this << "]";
+    LOG_verbose << "[RaidReq::RaidReq] filesize = " << mFilesize << ", paddedpartsize = " << mPaddedpartsize << ", unusedRaidConnection = " << (int)mUnusedRaidConnection << " [this = " << this << "]";
 
 
     for (uint8_t i = RAIDPARTS; i--; )

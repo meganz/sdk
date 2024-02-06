@@ -1166,13 +1166,13 @@ public:
     }
 
     /* CloudRaid functionality */
-    bool balancedRequest(int connection, const std::vector<std::string> &tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, m_off_t cmaxRequestSize)
+    bool balancedRequest(int connection, const std::vector<std::string> &tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen)
     {
         if (!mStarted)
         {
             start();
         }
-        RaidProxy::RaidReq::Params raidReqParams(tempUrls, cfilesize, cstart, creqlen, cmaxRequestSize);
+        RaidProxy::RaidReq::Params raidReqParams(tempUrls, cfilesize, cstart, creqlen);
         mRaidReqPoolArray[connection].reset(new RaidProxy::RaidReqPool());
         mRaidReqPoolArray[connection]->request(raidReqParams, mTSlot->getcloudRaidPtr());
         return mRaidReqPoolArray[connection]->rr() != nullptr;
@@ -1358,11 +1358,11 @@ bool CloudRaid::init(TransferSlot* tslot, MegaClient* client, int connections)
     return mShown;
 }
 
-bool CloudRaid::balancedRequest(int connection, const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, m_off_t cmaxRequestSize)
+bool CloudRaid::balancedRequest(int connection, const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen)
 {
     if (!mShown)
         return false;
-    return mPimpl()->balancedRequest(connection, tempUrls, cfilesize, cstart, creqlen, cmaxRequestSize);
+    return mPimpl()->balancedRequest(connection, tempUrls, cfilesize, cstart, creqlen);
 }
 
 bool CloudRaid::removeRaidReq(int connection)
