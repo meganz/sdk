@@ -53,8 +53,9 @@ let package = Package(
                 .linkedFramework("Foundation"),
                 .linkedFramework("ImageIO"),
                 .linkedFramework("Security"),
-                .linkedFramework("UIKit"),
+                .linkedFramework("UIKit", .when(platforms: [.iOS, .macCatalyst])),
                 .linkedFramework("UniformTypeIdentifiers"),
+                .linkedFramework("SystemConfiguration", .when(platforms: [.macOS])),
                 // Libraries
                 .linkedLibrary("resolv"),
                 .linkedLibrary("z"),
