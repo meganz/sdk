@@ -559,6 +559,7 @@ int PartFetcher::onFailure()
                         LOG_warn << "[PartFetcher::onFailure] Request failure on part " << (int)part << " with no transfer fail values" << " [this = " << this << "]";
                         assert(false);
                     }
+                    rr->setNewUnusedRaidConnection(part);
                     closesocket();
                     return -1;
                 }
@@ -574,6 +575,7 @@ int PartFetcher::onFailure()
 
         if (consecutive_errors > MAXRETRIES || httpReq->status == REQ_READY)
         {
+            rr->setNewUnusedRaidConnection(part);
             closesocket();
             for (uint8_t i = RAIDPARTS; i--;)
             {
@@ -690,7 +692,6 @@ RaidReq::RaidReq(const Params& p, RaidReqPool& rrp, const std::shared_ptr<CloudR
     maxRequestSize(p.maxRequestSize),
     lastdata(Waiter::ds)
 {
-    LOG_verbose << "[RaidReq::RaidReq] filesize = " << filesize << ", paddedpartsize = " << paddedpartsize << ", maxRequestSize = " << maxRequestSize << " [this = " << this << "]";
     assert(p.tempUrls.size() > 0);
     assert((reqStartPos >= 0) && (rem <= filesize));
     assert(reqStartPos % RAIDSECTOR == 0);
@@ -708,8 +709,16 @@ RaidReq::RaidReq(const Params& p, RaidReqPool& rrp, const std::shared_ptr<CloudR
     std::fill(parity.get(), parity.get() + PARITY_SIZE, 0);
     std::fill(invalid.get(), invalid.get() + NUMLINES, (1 << RAIDPARTS) - 1);
 
+    mUnusedRaidConnection = cloudRaid->getUnusedRaidConnection();
+    if (mUnusedRaidConnection == RAIDPARTS)
+    {
+        LOG_verbose << "[RaidReq::RaidReq] No previous unused raid connection: set initial unused raid connection to 0" << " [this = " << this << "]";
+        setNewUnusedRaidConnection(0);
+    }
 
-    uint8_t firstExcluded = 5; // Todo: get the unused source from raid.cpp
+    LOG_verbose << "[RaidReq::RaidReq] filesize = " << filesize << ", paddedpartsize = " << paddedpartsize << ", maxRequestSize = " << maxRequestSize << ", unusedRaidConnection = " << (int)mUnusedRaidConnection << " [this = " << this << "]";
+
+
     for (uint8_t i = RAIDPARTS; i--; )
     {
         if (!p.tempUrls[i].empty())
@@ -718,7 +727,7 @@ RaidReq::RaidReq(const Params& p, RaidReqPool& rrp, const std::shared_ptr<CloudR
             if (fetcher[i].setsource(p.tempUrls[i], this, i))
             {
                 // this kicks off I/O on that source
-                if (i != firstExcluded) fetcher[i].trigger();
+                if (i != mUnusedRaidConnection) fetcher[i].trigger();
             }
         }
         else
@@ -832,25 +841,6 @@ bool RaidReq::allconnected(uint8_t excludedPart) const
     }
 
     return true;
-}
-
-uint8_t RaidReq::unusedPart() const
-{
-    uint8_t partIndex = RAIDPARTS;
-    for (uint8_t i = RAIDPARTS; i--;)
-    {
-        if (!fetcher[i].connected && !fetcher[i].finished && !pool.lookupHttpReq(httpReqs[i]))
-        {
-            if (partIndex != RAIDPARTS)
-            {
-                LOG_warn << "[RaidReq::unusedPart] More than one unused part detected!!! [unusedPart = " << (int)partIndex << ", otherUnusedPart = " << (int)i << "]" << " [this = " << this << "]";
-                assert(false && "More than one unused part detected!!!!!");
-            }
-            partIndex = i;
-        }
-    }
-    assert(partIndex != RAIDPARTS);
-    return partIndex;
 }
 
 uint8_t RaidReq::numPartsUnfinished() const
@@ -1194,6 +1184,7 @@ void RaidReq::watchdog()
         {
             LOG_verbose << "Hanging source!! hangingsource = " << (int)hangingsource << " (HttpReq: " << (void*)httpReqs[hangingsource].get() << "), idlegoodsource = " << (int)idlegoodsource << " (HttpReq: " << (void*)httpReqs[idlegoodsource].get() << ") [fetcher[hangingsource].lastdata = " << fetcher[hangingsource].lastdata << ", Waiter::ds = " << Waiter::ds << "] [this = " << this << "]";
             fetcher[hangingsource].errors++;
+            setNewUnusedRaidConnection(hangingsource);
             fetcher[hangingsource].closesocket();
             if (fetcher[idlegoodsource].trigger() == -1)
             {
@@ -1263,6 +1254,7 @@ uint8_t RaidReq::processFeedLag()
                 if (fresh >= 0)
                 {
                     LOG_verbose << "New fresh channel: " << (int)fresh << " (" << (void*)httpReqs[fresh].get() << ")" << " [this = " << this << "]";
+                    setNewUnusedRaidConnection(slowest);
                     fetcher[slowest].closesocket();
                     fetcher[fresh].resume(true);
                     laggedPart = slowest;
@@ -1285,13 +1277,53 @@ m_off_t RaidReq::progress() const
     m_off_t progressCount = 0;
     for (uint8_t i = RAIDPARTS; i--; )
     {
-        progressCount += fetcher[i].progress();
+        m_off_t partProgress = fetcher[i].progress();
+        progressCount += partProgress;
     }
     assert((completed * RAIDLINE) - skip >= 0);
     progressCount += ((completed * RAIDLINE) - skip);
     assert(progressCount >= 0);
     assert(progressCount <= filesize);
     return progressCount;
+}
+
+uint8_t RaidReq::unusedPart() const
+{
+    uint8_t partIndex = RAIDPARTS;
+    for (uint8_t i = RAIDPARTS; i--;)
+    {
+        if (!fetcher[i].connected && !fetcher[i].finished && !pool.lookupHttpReq(httpReqs[i]))
+        {
+            if (partIndex != RAIDPARTS)
+            {
+                LOG_warn << "[RaidReq::unusedPart] More than one unused part detected!!! [unusedPart = " << (int)partIndex << ", otherUnusedPart = " << (int)i << "]" << " [this = " << this << "]";
+                assert(false && "More than one unused part detected!!!!!");
+            }
+            partIndex = i;
+        }
+    }
+    if (partIndex != mUnusedRaidConnection)
+    {
+        LOG_warn << "[RaidReq::unusedPart] Unused part (" << (int)partIndex << ") does not match with unused raid connection (" << (int)mUnusedRaidConnection << ") !!!!" << " [this = " << this << "]";
+        assert(false && "Unused part does not match with unused raid connection");
+    }
+    assert(partIndex != RAIDPARTS);
+    return partIndex;
+}
+
+bool RaidReq::setNewUnusedRaidConnection(uint8_t part)
+{
+    if (!cloudRaid->setUnusedRaidConnection(part))
+    {
+        LOG_warn << "[RaidReq::setNewUnusedRaidConnection] Could not set unused raid connection, setting it to 0" << " [this = " << this << "]";
+        assert(false && "Unused raid connection couldn't be set");
+        mUnusedRaidConnection = 0;
+        return false;
+    }
+
+    LOG_verbose << "[RaidReq::setNewUnusedRaidConnection] Set unused raid connection to " << (int)part << " (clear previous unused connection: " << (int)mUnusedRaidConnection << ")" << " [this = " << this << "]";
+    mUnusedRaidConnection = part;
+    return true;
 }
 
 size_t RaidReq::raidPartSize(uint8_t part, size_t fullfilesize)

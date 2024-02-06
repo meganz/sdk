@@ -271,11 +271,11 @@ namespace mega {
     {
     private:
         class CloudRaidImpl;
-        const CloudRaidImpl* Pimpl() const { return m_pImpl.get(); }
-        CloudRaidImpl* Pimpl() { return m_pImpl.get(); }
+        const CloudRaidImpl* mPimpl() const { return m_pImpl.get(); }
+        CloudRaidImpl* mPimpl() { return m_pImpl.get(); }
 
-        std::unique_ptr<CloudRaidImpl> m_pImpl;
-        std::atomic<bool> shown;
+        std::unique_ptr<CloudRaidImpl> m_pImpl{};
+        bool mShown{};
 
     public:
         CloudRaid();
@@ -289,9 +289,11 @@ namespace mega {
         bool disconnect(const std::shared_ptr<HttpReqXfer>& req);
         bool prepareRequest(const std::shared_ptr<HttpReqXfer>& req, const string& tempURL, m_off_t pos, m_off_t npos);
         bool post(const std::shared_ptr<HttpReqXfer>& req);
-        bool onRequestFailure(const std::shared_ptr<HttpReqXfer>& req, int part, dstime& backoff);
+        bool onRequestFailure(const std::shared_ptr<HttpReqXfer>& req, uint8_t part, dstime& backoff);
         bool setTransferFailure(::mega::error e = API_EAGAIN, dstime backoff = 0);
         std::pair<::mega::error, dstime> checkTransferFailure();
+        bool setUnusedRaidConnection(uint8_t part);
+        uint8_t getUnusedRaidConnection() const;
         m_off_t transferred(const std::shared_ptr<HttpReqXfer>& req) const;
 
         /* RaidProxy functionality for TransferSlot */

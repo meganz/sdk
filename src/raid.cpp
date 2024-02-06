@@ -1049,24 +1049,26 @@ void DirectReadBufferManager::finalize(FilePiece& fp)
 class CloudRaid::CloudRaidImpl
 {
 private:
-    std::vector<std::unique_ptr<RaidProxy::RaidReqPool>> raidReqPoolArray;
-    int connections;
-    TransferSlot* tslot;
-    MegaClient* client;
-    bool started;
-    std::pair<::mega::error, dstime> transferFailed; // Error and backoff to call transfer->failed()
+    std::vector<std::unique_ptr<RaidProxy::RaidReqPool>> mRaidReqPoolArray;
+    int mConnections;
+    TransferSlot* mTSlot;
+    MegaClient* mClient;
+    bool mStarted;
+    uint8_t mUnusedRaidConnection;
+    std::pair<::mega::error, dstime> mTransferFailed; // Error and backoff to call transfer->failed()
 
 public:
     CloudRaidImpl(TransferSlot* tslot, MegaClient* client, int connections)
-    : connections(connections)
-    , tslot(tslot)
-    , client(client)
-    , started(false)
+    : mConnections(connections)
+    , mTSlot(tslot)
+    , mClient(client)
+    , mStarted(false)
+    , mUnusedRaidConnection(RAIDPARTS)
     {
         LOG_verbose << "[CloudRaidImpl::CloudRaidImpl] CONSTRUCTOR CALL [this = " << this << "]";
-        assert(tslot != nullptr);
-        assert(client != nullptr);
-        transferFailed = std::make_pair(API_OK, 0);
+        assert(mTSlot != nullptr);
+        assert(mClient != nullptr);
+        mTransferFailed = std::make_pair(API_OK, 0);
         start();
     }
 
@@ -1079,30 +1081,30 @@ public:
     /* TransferSlot functionality */
     bool disconnect(const std::shared_ptr<HttpReqXfer>& req)
     {
-        if (!started) return false;
-        tslot->disconnect(req);
+        if (!mStarted) return false;
+        mTSlot->disconnect(req);
         return true;
     }
 
     bool prepareRequest(const std::shared_ptr<HttpReqXfer>& req, const string& tempURL, m_off_t pos, m_off_t npos)
     {
-        if (!started) return false;
-        tslot->prepareRequest(req, tempURL, pos, npos);
+        if (!mStarted) return false;
+        mTSlot->prepareRequest(req, tempURL, pos, npos);
         return req->status == REQ_PREPARED;
     }
 
     bool post(const std::shared_ptr<HttpReqXfer>& req)
     {
-        if (!started) return false;
-        req->post(client);
+        if (!mStarted) return false;
+        req->post(mClient);
         return req->status == REQ_INFLIGHT;
     }
 
-    bool onRequestFailure(const std::shared_ptr<HttpReqXfer>& req, int part, dstime& backoff)
+    bool onRequestFailure(const std::shared_ptr<HttpReqXfer>& req, uint8_t part, dstime& backoff)
     {
-        if (!started) return false;
+        if (!mStarted) return false;
         dstime tslot_backoff = 0;
-        auto failValues = tslot->processRequestFailure(client, req, tslot_backoff, part);
+        auto failValues = mTSlot->processRequestFailure(mClient, req, tslot_backoff, static_cast<int>(part));
         backoff = tslot_backoff;
         if (failValues.first != API_OK)
         {
@@ -1113,71 +1115,93 @@ public:
 
     bool setTransferFailure(::mega::error e, dstime backoff)
     {
-        if (!started) return false;
-        if (transferFailed.first)
+        if (!mStarted) return false;
+        if (mTransferFailed.first)
         {
             LOG_warn << "[CloudRaid::setTransferFailure] Transfer failed values are already set. Previous values: error = " << e << ", backoff = " << backoff;
         }
         LOG_debug << "[CloudRaid::setTransferFailure] Transfer failed values set to: error = " << e << ", backoff = " << backoff;
-        transferFailed.first = e;
-        transferFailed.second = backoff;
+        mTransferFailed.first = e;
+        mTransferFailed.second = backoff;
         return true;
     }
 
     std::pair<::mega::error, dstime> checkTransferFailure()
     {
-        if (!started) return std::make_pair(API_OK, 0);
-        return std::make_pair(transferFailed.first, transferFailed.second);
+        if (!mStarted) return std::make_pair(API_OK, 0);
+        return std::make_pair(mTransferFailed.first, mTransferFailed.second);
+    }
+
+    bool setUnusedRaidConnection(uint8_t part)
+    {
+        if (!mStarted) return false;
+
+        if (part >= RAIDPARTS)
+        {
+            LOG_warn << "[CloudRaid::setUnusedRaidConnection] Invalid connection index, setting it to 0";
+            assert(false && "Unused raid must be within RAIDPARTS");
+            mUnusedRaidConnection = 0;
+            return false;
+        }
+
+        LOG_debug << "[CloudRaid::setUnusedRaidConnection] Set unused raid connection to " << (int)part << " (clear previous unused connection: " << (int)mUnusedRaidConnection << ")";
+        mUnusedRaidConnection = part;
+        return true;
+    }
+
+    uint8_t getUnusedRaidConnection() const
+    {
+        return mUnusedRaidConnection; // No need to check if mStarted, there is always a default value, and if we stop it with a previous set value it is ok to retrieve it
     }
 
     m_off_t transferred(const std::shared_ptr<HttpReqXfer>& req) const
     {
-        if (!started) return false;
-        return req->transferred(client);
+        if (!mStarted) return false;
+        return req->transferred(mClient);
     }
 
     /* CloudRaid functionality */
     bool balancedRequest(int connection, const std::vector<std::string> &tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, m_off_t cmaxRequestSize)
     {
-        if (!started)
+        if (!mStarted)
         {
             start();
         }
         RaidProxy::RaidReq::Params raidReqParams(tempUrls, cfilesize, cstart, creqlen, cmaxRequestSize);
-        raidReqPoolArray[connection].reset(new RaidProxy::RaidReqPool());
-        raidReqPoolArray[connection]->request(raidReqParams, tslot->getcloudRaidPtr());
-        return raidReqPoolArray[connection]->rr() != nullptr;
+        mRaidReqPoolArray[connection].reset(new RaidProxy::RaidReqPool());
+        mRaidReqPoolArray[connection]->request(raidReqParams, mTSlot->getcloudRaidPtr());
+        return mRaidReqPoolArray[connection]->rr() != nullptr;
     }
 
     bool start()
     {
-        if (started)
+        if (mStarted)
         {
             return false;
         }
-        raidReqPoolArray.resize(connections);
-        started = true;
+        mRaidReqPoolArray.resize(mConnections);
+        mStarted = true;
         return true;
     }
 
     bool stop()
     {
-        LOG_verbose << "[CloudRaidImpl::stop] stop CALL [started = " << started << "] [this = " << this << "]";
-        if (!started)
+        LOG_verbose << "[CloudRaidImpl::stop] stop CALL [started = " << mStarted << "] [this = " << this << "]";
+        if (!mStarted)
         {
             return false;
         }
-        raidReqPoolArray.clear();
-        started = false;
+        mRaidReqPoolArray.clear();
+        mStarted = false;
         return true;
     }
 
     bool removeRaidReq(int connection)
     {
-        LOG_verbose << "[CloudRaidImpl::removeRaidReq] connection = " << connection << " [started = " << started << "] [this = " << this << "]";
-        if (started && raidReqPoolArray[connection])
+        LOG_verbose << "[CloudRaidImpl::removeRaidReq] connection = " << connection << " [started = " << mStarted << "] [this = " << this << "]";
+        if (mStarted && mRaidReqPoolArray[connection])
         {
-            raidReqPoolArray[connection].reset();
+            mRaidReqPoolArray[connection].reset();
             return true;
         }
         return false;
@@ -1185,14 +1209,14 @@ public:
 
     bool resumeAllConnections()
     {
-        if (started)
+        if (mStarted)
         {
-            int i = connections;
+            int i = mConnections;
             while (i --> 0)
             {
-                if (raidReqPoolArray[i])
+                if (mRaidReqPoolArray[i])
                 {
-                    raidReqPoolArray[i]->rr()->resumeall();
+                    mRaidReqPoolArray[i]->rr()->resumeall();
                 }
             }
             return true;
@@ -1203,18 +1227,18 @@ public:
     m_off_t readData(int connection, byte* buf, m_off_t len)
     {
         m_off_t readData = -1;
-        if (started && raidReqPoolArray[connection])
+        if (mStarted && mRaidReqPoolArray[connection])
         {
-            readData = static_cast<m_off_t>(raidReqPoolArray[connection]->rr()->readdata(buf, len));
+            readData = static_cast<m_off_t>(mRaidReqPoolArray[connection]->rr()->readdata(buf, len));
         }
         return readData;
     }
 
     bool raidReqDoio(int connection)
     {
-        if (started && raidReqPoolArray[connection])
+        if (mStarted && mRaidReqPoolArray[connection])
         {
-            raidReqPoolArray[connection]->raidproxyio();
+            mRaidReqPoolArray[connection]->raidproxyio();
             return true;
         }
         return false;
@@ -1223,14 +1247,14 @@ public:
     m_off_t progress() const
     {
         m_off_t progressCount = 0;
-        if (started)
+        if (mStarted)
         {
-            int i = connections;
+            int i = mConnections;
             while (i --> 0)
             {
-                if (raidReqPoolArray[i])
+                if (mRaidReqPoolArray[i])
                 {
-                    progressCount += raidReqPoolArray[i]->rr()->progress();
+                    progressCount += mRaidReqPoolArray[i]->rr()->progress();
                 }
             }
         }
@@ -1240,7 +1264,6 @@ public:
 
 CloudRaid::CloudRaid()
 {
-    shown.store(false);
 }
 
 CloudRaid::CloudRaid(TransferSlot* tslot, MegaClient* client, int connections)
@@ -1253,113 +1276,125 @@ CloudRaid::~CloudRaid() { LOG_verbose << "[CloudRaid::~CloudRaid] DESTRUCTOR CAL
 
 bool CloudRaid::isShown() const
 {
-    return shown.load();
+    return mShown;
 }
 
 /* TransferSlot functionality */
 bool CloudRaid::disconnect(const std::shared_ptr<HttpReqXfer>& req)
 {
-    if (!shown.load())
+    if (!mShown)
         return false;
-    return Pimpl()->disconnect(req);
+    return mPimpl()->disconnect(req);
 }
 
 bool CloudRaid::prepareRequest(const std::shared_ptr<HttpReqXfer>& req, const string& tempURL, m_off_t pos, m_off_t npos)
 {
-    if (!shown.load())
+    if (!mShown)
         return false;
-    return Pimpl()->prepareRequest(req, tempURL, pos, npos);
+    return mPimpl()->prepareRequest(req, tempURL, pos, npos);
 }
 
 bool CloudRaid::post(const std::shared_ptr<HttpReqXfer>& req)
 {
-    if (!shown.load())
+    if (!mShown)
         return false;
-    return Pimpl()->post(req);
+    return mPimpl()->post(req);
 }
 
-bool CloudRaid::onRequestFailure(const std::shared_ptr<HttpReqXfer>& req, int part, dstime& backoff)
+bool CloudRaid::onRequestFailure(const std::shared_ptr<HttpReqXfer>& req, uint8_t part, dstime& backoff)
 {
-    if (!shown.load())
+    if (!mShown)
         return false;
-    return Pimpl()->onRequestFailure(req, part, backoff);
+    return mPimpl()->onRequestFailure(req, part, backoff);
 }
 
 bool CloudRaid::setTransferFailure(::mega::error e, dstime backoff)
 {
-    if (!shown.load())
+    if (!mShown)
         return false;
-    return Pimpl()->setTransferFailure(e, backoff);
+    return mPimpl()->setTransferFailure(e, backoff);
 }
 
 std::pair<::mega::error, dstime> CloudRaid::checkTransferFailure()
 {
-    if (!shown.load())
+    if (!mShown)
         return std::make_pair(API_OK, 0);
-    return Pimpl()->checkTransferFailure();
+    return mPimpl()->checkTransferFailure();
+}
+
+bool CloudRaid::setUnusedRaidConnection(uint8_t part)
+{
+    if (!mShown)
+        return false;
+    return mPimpl()->setUnusedRaidConnection(part);
+}
+
+uint8_t CloudRaid::getUnusedRaidConnection() const
+{
+    return mPimpl()->getUnusedRaidConnection(); // No need to check if mShown, there is always a default value, and if we stop it with a previous set value it is ok to retrieve it
 }
 
 m_off_t CloudRaid::transferred(const std::shared_ptr<HttpReqXfer>& req) const
 {
-    if (!shown.load())
+    if (!mShown)
         return 0;
-    return Pimpl()->transferred(req);
+    return mPimpl()->transferred(req);
 }
 
 bool CloudRaid::init(TransferSlot* tslot, MegaClient* client, int connections)
 {
-    m_pImpl = ::mega::make_unique<CloudRaidImpl>(tslot, client, connections);
-    shown.store(m_pImpl != nullptr);
-    return shown.load();
+    m_pImpl = ::mega::make_unique<CloudRaidImpl>(tslot, client, static_cast<uint8_t>(connections));
+    mShown = m_pImpl != nullptr;
+    return mShown;
 }
 
 bool CloudRaid::balancedRequest(int connection, const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, m_off_t cmaxRequestSize)
 {
-    if (!shown.load())
+    if (!mShown)
         return false;
-    return Pimpl()->balancedRequest(connection, tempUrls, cfilesize, cstart, creqlen, cmaxRequestSize);
+    return mPimpl()->balancedRequest(connection, tempUrls, cfilesize, cstart, creqlen, cmaxRequestSize);
 }
 
 bool CloudRaid::removeRaidReq(int connection)
 {
-    if (!shown.load())
+    if (!mShown)
         return false;
-    return Pimpl()->removeRaidReq(connection);
+    return mPimpl()->removeRaidReq(connection);
 }
 
 m_off_t CloudRaid::readData(int connection, byte* buf, m_off_t len)
 {
-    if (!shown.load())
+    if (!mShown)
         return -1;
-    return Pimpl()->readData(connection, buf, len);
+    return mPimpl()->readData(connection, buf, len);
 }
 
 bool CloudRaid::resumeAllConnections()
 {
-    if (!shown.load())
+    if (!mShown)
         return false;
-    return Pimpl()->resumeAllConnections();
+    return mPimpl()->resumeAllConnections();
 }
 
 bool CloudRaid::raidReqDoio(int connection)
 {
-    if (!shown.load())
+    if (!mShown)
         return false;
-    return Pimpl()->raidReqDoio(connection);
+    return mPimpl()->raidReqDoio(connection);
 }
 
 bool CloudRaid::stop()
 {
-    if (!shown.load())
+    if (!mShown)
         return false;
-    return Pimpl()->stop();
+    return mPimpl()->stop();
 }
 
 m_off_t CloudRaid::progress() const
 {
-    if (!shown.load())
+    if (!mShown)
         return 0;
-    return Pimpl()->progress();
+    return mPimpl()->progress();
 }
 
 }; // namespace

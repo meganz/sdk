@@ -140,11 +140,11 @@ class RaidReq
     bool haddata{};                                           // flag indicating whether any data was forwarded to user on this RaidReq
     bool reported{};                                          // whether a feed stuck (RaidReq not progressing) has been already reported
     bool missingsource{};                                     // disable all-channel logic
+    uint8_t mUnusedRaidConnection;                            // Unused connection or bad source
 
     void dispatchio(const HttpReqPtr&);                       // add active requests to RaidReqPool for HttpReq processing
     void shiftdata(m_off_t);                                  // shift already served data from the data array
     bool allconnected(uint8_t = RAIDPARTS) const;             // whether all sources are connected, optionally excluding a RAIDPART (default value 'RAIDPARTS' won't exclude any part)
-    uint8_t unusedPart() const;                               // inactive source (RAIDPARTS for no inactive source)
     uint8_t numPartsUnfinished() const;                       // how many parts are unfinished, the unused part will always count as "unfinished"
     uint8_t hangingSources(uint8_t*, uint8_t*);               // how many sources are hanging (lastdata from the HttpReq exceeds the hanging time value 'LASTDATA_DSTIME_FOR_HANGING_SOURCE')
 
@@ -163,15 +163,17 @@ public:
     RaidReq(const Params&, RaidReqPool&, const std::shared_ptr<CloudRaid>&);
     ~RaidReq();
 
-    void procdata(uint8_t, byte*, m_off_t, m_off_t);
-    m_off_t readdata(byte*, m_off_t);
+    void procdata(uint8_t, byte*, m_off_t, m_off_t);          // process HttpReq data, either for read ahead or for assembled data buffer
+    m_off_t readdata(byte*, m_off_t);                         // serve completed data to the external byte buffer param
 
-    void resumeall(uint8_t = RAIDPARTS);
-    void procreadahead();
-    void watchdog();
-    void disconnect();
-    uint8_t processFeedLag();
-    m_off_t progress() const;
+    void resumeall(uint8_t = RAIDPARTS);                      // resume part fetchers
+    void procreadahead();                                     // process read ahead data
+    void watchdog();                                          // check hanging sources
+    void disconnect();                                        // disconnect all HttpReqs
+    uint8_t processFeedLag();                                 // check slow sources
+    m_off_t progress() const;                                 // get the progress of the whole RaidReq (including part fetchers)
+    uint8_t unusedPart() const;                               // inactive source (RAIDPARTS for no inactive source)
+    bool setNewUnusedRaidConnection(uint8_t part);
 
     static size_t raidPartSize(uint8_t part, size_t fullfilesize);
 };
