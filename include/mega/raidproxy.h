@@ -54,28 +54,28 @@ class PartFetcher
     friend class RaidReq;
 
     RaidReq* rr{nullptr};                                     // pointer to the underlying RaidReq
-    std::string url;                                          // part tempURL
-    std::unique_ptr<HttpInputBuf> inbuf{nullptr};             // buffer containing the whole data for the HttpReq after successing (internal HttpReq buffer is released)
-    m_off_t partStartPos{};                                   // starting position relative to the filesize (the underlying RaidReq can be requesting a part of the file)
-    raidTime delayuntil{};                                    // delay before this part can be processed (checked in PartFetcher::io)
-    uint8_t consecutive_errors{};                             // number of consecutive errors (related to 'errors')
+    std::string mUrl;                                         // part tempURL
+    std::unique_ptr<HttpInputBuf> mInbuf{nullptr};            // buffer containing the whole data for the HttpReq after successing (internal HttpReq buffer is released)
+    m_off_t mPartStartPos{};                                  // starting position relative to the filesize (the underlying RaidReq can be requesting a part of the file)
+    raidTime mDelayuntil{};                                   // delay before this part can be processed (checked in PartFetcher::io)
+    uint8_t mConsecutiveErrors{};                             // number of consecutive errors (related to 'errors')
 
     uint8_t part{};                                           // raid part index
-    bool connected{};                                         // whether the part is considered as connected. A part is considered "connected" since it is prepared (REQ_PREPARED) for HttpReq::post
-    bool finished{};                                          // whether this part is finished (there can be pending data to process like readahead, but all the requested HttpReq data is finished)
-    uint16_t errors{};                                        // number of errors for this part (hanging, failures, etc.)
+    bool mConnected{};                                        // whether the part is considered as connected. A part is considered "connected" since it is prepared (REQ_PREPARED) for HttpReq::post
+    bool mFinished{};                                         // whether this part is finished (there can be pending data to process like readahead, but all the requested HttpReq data is finished)
+    uint16_t mErrors{};                                       // number of errors for this part (hanging, failures, etc.)
 
-    raidTime lastdata;                                        // last data for this part's request
-    std::chrono::time_point<std::chrono::system_clock> postStartTime{}; // starting time for HttpReq::post
-    int64_t timeInflight{};                                   // total time in flight for this part
-    m_off_t reqBytesReceived{};                               // total number of bytes received for this part
-    bool postCompleted{};                                     // whether a HttpReq::post has been completed
+    raidTime lastdata;                                        // last data for this part's request (keep the same naming as HttpReq, so no 'mLastData')
+    std::chrono::time_point<std::chrono::system_clock> mPostStartTime{}; // starting time for HttpReq::post
+    int64_t mTimeInflight{};                                  // total time in flight for this part
+    m_off_t mReqBytesReceived{};                              // total number of bytes received for this part
+    bool mPostCompleted{};                                    // whether a HttpReq::post has been completed
 
-    m_off_t sourcesize{};                                     // full source size (which can be smaller than RaidReq::paddedpartsize)
-    m_off_t pos{};                                            // part current position
-    m_off_t rem{};                                            // remaining data for this part
-    m_off_t remfeed{};                                        // active remaining read length (related to 'rem')
-    map<m_off_t, pair<byte*, unsigned>> readahead;            // read-ahead data
+    m_off_t mSourcesize{};                                    // full source size (which can be smaller than RaidReq::paddedpartsize)
+    m_off_t mPos{};                                           // part current position
+    m_off_t mRem{};                                           // remaining data for this part
+    m_off_t mRemfeed{};                                       // active remaining read length (related to 'rem')
+    map<m_off_t, pair<byte*, unsigned>> mReadahead;           // read-ahead data
 
     void setposrem();                                         // sets the next read position (pos) and the remaining read length (rem/remfeed)
     bool setremfeed(m_off_t = NUMLINES * RAIDSECTOR);         // sets the remfeed depending on the number of bytes param and the remaining (rem) part data
@@ -111,32 +111,32 @@ class RaidReq
     static constexpr size_t DATA_SIZE = NUMLINES * RAIDLINE;
     static constexpr size_t PARITY_SIZE = NUMLINES * RAIDSECTOR;
 
-    RaidReqPool& pool;
-    std::shared_ptr<CloudRaid> cloudRaid;                     // CloudRaid controller
-    std::vector<HttpReqPtr> httpReqs;                         // Download HttpReqs
-    std::array<PartFetcher, RAIDPARTS> fetcher;
+    RaidReqPool& mPool;
+    std::shared_ptr<CloudRaid> mCloudRaid;                    // CloudRaid controller
+    std::vector<HttpReqPtr> mHttpReqs;                        // Download HttpReqs
+    std::array<PartFetcher, RAIDPARTS> mFetcher;
 
-    std::array<m_off_t, RAIDPARTS> partpos{};                 // incoming part positions relative to dataline
-    std::array<unsigned, RAIDPARTS> feedlag{};                // accumulated remfeed at shiftata() to identify slow sources
-    alignas(RAIDSECTOR) std::unique_ptr<byte[]> data;         // always starts on a RAID line boundary
-    alignas(RAIDSECTOR) std::unique_ptr<byte[]> parity;       // parity sectors
-    std::unique_ptr<char[]> invalid;                          // bitfield indicating which sectors have yet to be received
+    std::array<m_off_t, RAIDPARTS> mPartpos{};                // incoming part positions relative to dataline
+    std::array<unsigned, RAIDPARTS> mFeedlag{};               // accumulated remfeed at shiftata() to identify slow sources
+    alignas(RAIDSECTOR) std::unique_ptr<byte[]> mData;        // always starts on a RAID line boundary
+    alignas(RAIDSECTOR) std::unique_ptr<byte[]> mParity;      // parity sectors
+    std::unique_ptr<char[]> mInvalid;                         // bitfield indicating which sectors have yet to be received
 
-    m_off_t dataline{};                                       // data's position relative to the file's beginning in RAID lines
-    m_off_t completed{};                                      // valid data RAID lines in data
-    m_off_t skip{};                                           // bytes to skip from start of data
-    m_off_t rem;                                              // bytes remaining for this request
-    size_t filesize;                                          // total file size
-    m_off_t reqStartPos;                                      // RaidReq offset - starting pos (a RaidReq can request just a part of the whole file)
-    m_off_t paddedpartsize;                                   // the size of the biggest part (0) rounded up to the next RAIDSECTOR boundary
-    m_off_t maxRequestSize;
+    m_off_t mDataline{};                                      // data's position relative to the file's beginning in RAID lines
+    m_off_t mCompleted{};                                     // valid data RAID lines in data
+    m_off_t mSkip{};                                          // bytes to skip from start of data
+    m_off_t mRem;                                             // bytes remaining for this request
+    size_t mFilesize;                                         // total file size
+    m_off_t mReqStartPos;                                     // RaidReq offset - starting pos (a RaidReq can request just a part of the whole file)
+    m_off_t mPaddedpartsize;                                  // the size of the biggest part (0) rounded up to the next RAIDSECTOR boundary
+    m_off_t mMaxRequestSize;                                  // UNUSED
 
-    int lagrounds{};                                          // number of accumulated additions to feedlag[]
+    int mLagrounds{};                                         // number of accumulated additions to feedlag[]
     raidTime lastdata;                                        // timestamp of RaidReq creation or last data chunk forwarded to user
-    bool haddata{};                                           // flag indicating whether any data was forwarded to user on this RaidReq
-    bool reported{};                                          // whether a feed stuck (RaidReq not progressing) has been already reported
-    bool missingsource{};                                     // disable all-channel logic
-    bool faultysourceadded{};                                 // whether a failing or hanging source has been added to faulty servers storage
+    bool mHaddata{};                                          // flag indicating whether any data was forwarded to user on this RaidReq
+    bool mReported{};                                         // whether a feed stuck (RaidReq not progressing) has been already reported
+    bool mMissingSource{};                                    // disable all-channel logic
+    bool mFaultysourceadded{};                                // whether a failing or hanging source has been added to faulty servers storage
     uint8_t mUnusedRaidConnection;                            // Unused connection or bad source
 
     void shiftdata(m_off_t);                                  // shift already served data from the data array
@@ -181,10 +181,10 @@ public:
 
 class RaidReqPool
 {
-    bool isRunning{true};                                     // RaidReqPool loop control flag
-    std::unique_ptr<RaidReq> raidReq{nullptr};                // RaidReq owned by this RaidReqPool
-    std::set<HttpReqPtr> setHttpReqs;                         // HttpReq set to avoid repetition in scheduledio
-    std::set<std::pair<raidTime, HttpReqPtr>> scheduledio;    // HttpReqs to be processed in raidproxyio() at raidTime
+    bool mIsRunning{true};                                    // RaidReqPool loop control flag
+    std::unique_ptr<RaidReq> mRaidReq{nullptr};               // RaidReq owned by this RaidReqPool
+    std::set<HttpReqPtr> mSetHttpReqs;                        // HttpReq set to avoid repetition in scheduledio
+    std::set<std::pair<raidTime, HttpReqPtr>> mScheduledio;   // HttpReqs to be processed in raidproxyio() at raidTime
 
 public:
     RaidReqPool();
@@ -194,9 +194,9 @@ public:
     void request(const RaidReq::Params& p, const std::shared_ptr<CloudRaid>&); // create and add RaidReq to RaidReqPool
     bool addScheduledio(raidTime, const HttpReqPtr&);         // add HttpReq to scheduledio collection
     bool addDirectio(const HttpReqPtr&);                      // add HttpReq for immediate io processing
-    bool lookupHttpReq(const HttpReqPtr& httpReq) { return setHttpReqs.find(httpReq) != setHttpReqs.end(); }
+    bool lookupHttpReq(const HttpReqPtr& httpReq) { return mSetHttpReqs.find(httpReq) != mSetHttpReqs.end(); }
     bool removeio(const HttpReqPtr&);                         // remove HttpReq from scheduledio
-    RaidReq* rr() { return raidReq.get(); }                   // returns RaidReq pointer
+    RaidReq* rr() { return mRaidReq.get(); }                  // returns RaidReq pointer
 };
 
 } // namespace
