@@ -22233,6 +22233,10 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_CREATE_NODE_TREE.
          *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getParentHandle - Returns the node handle of the parent node in the tree
+         *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EARGS - Parameters are incorrect.
          *
