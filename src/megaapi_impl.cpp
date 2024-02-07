@@ -19914,6 +19914,14 @@ error MegaApiImpl::performRequest_copy(MegaRequestPrivate* request)
                 error err = copyTreeFromOwnedNode(node, newName, target, nn);
                 if (err != API_OK)
                 {
+                    if (err == API_EEXIST) // dedicated error code when that exact same file already existed
+                    {
+                        assert(!nn.empty()); // never empty because other error should have been reported in that case
+                        request->setNodeHandle(nn[0].ovhandle.as8byte());
+                        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+                        return API_OK;
+                    }
+
                     return err;
                 }
 
