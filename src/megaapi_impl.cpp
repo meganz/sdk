@@ -26247,15 +26247,16 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
                                  MegaRequestListener* listener)
 {
     auto request{new MegaRequestPrivate(MegaRequest::TYPE_CREATE_NODE_TREE, listener)};
-    request->performRequest = [this, parentNode, nodeTree, request]()
+    request->setParentHandle(parentNode ? parentNode->getHandle() : INVALID_HANDLE);
+    request->performRequest = [this, nodeTree, request]()
     {
-        if (!parentNode || !nodeTree)
+        if (request->getParentHandle() == INVALID_HANDLE || !nodeTree)
         {
             return API_EARGS;
         }
 
         NodeHandle parentNodeHandle;
-        parentNodeHandle.set6byte(parentNode->getHandle());
+        parentNodeHandle.set6byte(request->getParentHandle());
 
         std::vector<NewNode> newNodes;
 
