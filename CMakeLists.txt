@@ -32,36 +32,19 @@ cmake_minimum_required(VERSION 3.18)
 # Qt Creator configures VCPKG automatically. Disable it, we may want to use different tripplets, paths...
 set(QT_CREATOR_SKIP_VCPKG_SETUP TRUE CACHE BOOL "")
 
-## Configurable options ##
+# Main modules location
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules)
 
+## Configurable options ##
 set(VCPKG_ROOT "" CACHE PATH "If set, it will build and use the VCPKG packages defined in the manifest file")
-option(ENABLE_SYNC "Turns on sync functionality" ON)
-option(ENABLE_CHAT "Turns on chat management functionality" OFF)
-option(ENABLE_LOG_PERFORMANCE "Faster log message generation" OFF)
-option(ENABLE_DRIVE_NOTIFICATIONS "Allows to monitor (external) drives being [dis]connected to the computer" OFF)
-option(USE_MEDIAINFO "Used to determine media properties and set those as node attributes" ON)
-option(USE_FREEIMAGE "Used to create previews/thumbnails for photos/pictures" ON)
-option(USE_FFMPEG "Used to create previews/thumbnails for video files" ON)
-option(USE_LIBUV "Includes the library and turns on internal web and ftp server functionality" OFF)
-option(USE_PDFIUM "Used to create previews/thumbnails for PDF files" ON)
-option(USE_C_ARES "If set, the SDK will manage DNS lookups and ipv4/ipv6 itself, using the c-ares library.  Otherwise we rely on cURL" ON)
-if (WIN32 OR IOS)
-    option(USE_READLINE "Use the readline library for the console" OFF)
-else()
-    option(USE_READLINE "Use the readline library for the console" ON)
-endif()
-if (APPLE AND NOT IOS)
-    option(USE_OPENSSL "Use the OpenSSL library or a compatible one" OFF)
-else()
-    option(USE_OPENSSL "Use the OpenSSL library or a compatible one" ON)
-endif()
+include(sdklib_options)
 
 # If PROJECT_NAME is not set before project() we are the main project.
 if(NOT PROJECT_NAME)
     message(STATUS "[SDKlib] is a top-level project. Install target, examples and tests will be enabled by default.")
     set(SDKLIB_STANDALONE 1)
-    option(ENABLE_EXAMPLES "Example application is built if enabled" ON)
-    option(ENABLE_TESTS "Integration and unit tests are built if enabled" ON)
+    option(ENABLE_SDKLIB_EXAMPLES "Example application is built if enabled" ON)
+    option(ENABLE_SDKLIB_TESTS "Integration and unit tests are built if enabled" ON)
     if (WIN32)
         option(ENABLE_SDKLIB_WERROR "Enable warnings as errors" ON)
     else()
@@ -70,14 +53,12 @@ if(NOT PROJECT_NAME)
 else()
     message(STATUS "[SDKlib] is building under project [${PROJECT_NAME}] Install target, examples and tests will not be enabled by default.")
     set(SDKLIB_STANDALONE 0)
-    option(ENABLE_EXAMPLES "Example application is built if enabled" OFF)
-    option(ENABLE_TESTS "Integration and unit tests are built if enabled" OFF)
+    option(ENABLE_SDKLIB_EXAMPLES "Example application is built if enabled" OFF)
+    option(ENABLE_SDKLIB_TESTS "Integration and unit tests are built if enabled" OFF)
     option(ENABLE_SDKLIB_WERROR "Enable warnings as errors." OFF)
 endif()
 
 ## General configuration
-# Main modules location
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/contrib/cmake/modules)
 
 # No configurable values.
 set(USE_CURL 1)
@@ -152,10 +133,10 @@ include(configuration)
 include(sdklib_target)
 
 ## Load examples and tests
-if(ENABLE_EXAMPLES)
+if(ENABLE_SDKLIB_EXAMPLES)
     add_subdirectory(examples)
 endif()
 
-if(ENABLE_TESTS)
+if(ENABLE_SDKLIB_TESTS)
     add_subdirectory(tests)
 endif()
