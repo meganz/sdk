@@ -5802,6 +5802,28 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  */
 - (void)isMasterKeyExported;
 
+/**
+ * @brief Get Terms of Service for VPN visibility.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest access] - Returns YES if the Terms Of Service should be visible for user
+ *
+ * If the corresponding user attribute is not set yet, the request will fail with the
+ * error code MEGAErrorTypeApiENoent.
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getVisibleTermsOfServiceWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Set Terms of Service for VPN visibility.
+ *
+ * @param visible True to set Terms of Service visibility on, false otherwise.
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setVisibleTermsOfService:(BOOL)visible delegate:(id<MEGARequestDelegate>)delegate;
+
 #ifdef ENABLE_CHAT
 
 /**
