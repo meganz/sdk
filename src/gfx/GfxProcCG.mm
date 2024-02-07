@@ -148,7 +148,7 @@ static inline CGRect tileRect(size_t w, size_t h)
 #if !(TARGET_OS_IPHONE)
 static inline NSData* dataForImage(CGImageRef image) {
     NSBitmapImageRep *bitmap = [[NSBitmapImageRep alloc] initWithCGImage:image];
-    NSDictionary *properties = @{NSImageCompressionFactor: @(COMPRESSION_QUALITY)};
+    NSDictionary *properties = @{NSImageCompressionFactor : @(COMPRESSION_QUALITY)};
     return [bitmap representationUsingType:NSBitmapImageFileTypeJPEG properties:properties];
 }
 #endif
