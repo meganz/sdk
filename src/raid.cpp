@@ -931,33 +931,14 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
         }
         else if (transfer->type == GET)
         {
-            maxReqSize = (transfer->size - transfer->progresscompleted) / connectionCount / 2;
-            if (maxReqSize > maxRequestSize)
-            {
-                maxReqSize = maxRequestSize;
-            }
-
-            if (maxReqSize > 0x100000)
-            {
-                m_off_t val = 0x100000;
-                while (val <= maxReqSize)
-                {
-                    val <<= 1;
-                }
-                maxReqSize = val >> 1;
-                maxReqSize -= 0x100000;
-            }
-            else
-            {
-                maxReqSize = 0;
-            }
-
             if (isNewRaid())
             {
+                // We need to adjust the size taking into account that our RaidReqs will be split into 5 requests (one for each part)
+                // Besides, we need that the RaidReqs (except for the last one) are padded to a RAIDLINE
                 m_off_t defaultMaxReqSize = static_cast<m_off_t>((TransferSlot::MAX_REQ_SIZE_NEW_RAID) * 5);
                 m_off_t maxReqsSize = defaultMaxReqSize * 4; // based on 4 connections
                 maxReqSize = static_cast<m_off_t>(maxReqsSize / transfer->slot->connections);
-                maxReqSize = std::max<m_off_t>(maxReqSize, (1*1024*1024)*5); // 1MB for each raidpart min
+                maxReqSize = std::max<m_off_t>(maxReqSize, (1*1024*1024) * 5); // 1MB for each raidpart min
                 DEBUG_TEST_HOOK_LIMIT_MAX_REQ_SIZE(maxReqSize) // Limit max request size if needed
                 maxReqSize = std::min<m_off_t>(maxReqSize, transfer->size); // Not greater than the transfer itself
                 m_off_t nextChunk = ChunkedHash::chunkceil(transfer->pos + maxReqSize, transfer->size);
@@ -969,7 +950,30 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
                 }
                 maxReqSize += 1; // Same as above, needed for expandUnProcessedPiece to return a chunk padded to raid-line
             }
+            else
+            {
+                // Non raid
+                maxReqSize = (transfer->size - transfer->progresscompleted) / connectionCount / 2;
+                if (maxReqSize > maxRequestSize)
+                {
+                    maxReqSize = maxRequestSize;
+                }
 
+                if (maxReqSize > 0x100000)
+                {
+                    m_off_t val = 0x100000;
+                    while (val <= maxReqSize)
+                    {
+                        val <<= 1;
+                    }
+                    maxReqSize = val >> 1;
+                    maxReqSize -= 0x100000;
+                }
+                else
+                {
+                    maxReqSize = 0;
+                }
+            }
         }
         // Calc npos limit depending on the maxReqSize, the next processed piece and the transfer size.
         npos = transfer->chunkmacs.expandUnprocessedPiece(transfer->pos, npos, transfer->size, maxReqSize);
