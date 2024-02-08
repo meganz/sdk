@@ -1,0 +1,29 @@
+From 082bb032be1f6c75173bf603252e4f37bfded9fa Mon Sep 17 00:00:00 2001
+From: Milian Wolff <milian.wolff@kdab.com>
+Date: Mon, 7 Jun 2021 09:45:26 +0200
+Subject: [PATCH] Use mkstemp instead of tmpnam
+
+tmpnam isn't threadsafe and shouldn't be used. Fixes compiler warning:
+```
+warning: the use of 'tmpnam' is dangerous, better use 'mkstemp'
+```
+---
+ image/encode/strenc.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/image/encode/strenc.c b/image/encode/strenc.c
+index d6e970e..65c277e 100644
+--- a/image/encode/strenc.c
++++ b/image/encode/strenc.c
+@@ -482,8 +482,10 @@ Int StrIOEncInit(CWMImageStrCodec* pSC)
+                 pSC->ppTempFile[i] = (char *)malloc(FILENAME_MAX * sizeof(char));
+                 if(pSC->ppTempFile[i] == NULL) return ICERR_ERROR;
+ 
+-                if ((pFilename = tmpnam(NULL)) == NULL)
++                char tmpnambuf[] = {'f', 'i', 'l', 'e', 'X', 'X', 'X', 'X', 'X', 'X', '\0'};
++                if (mkstemp(tmpnambuf) == -1)
+                     return ICERR_ERROR;                
++                pFilename = tmpnambuf;
+                 strcpy(pSC->ppTempFile[i], pFilename);
+ #endif
+                 if(CreateWS_File(pSC->ppWStream + i, pFilename, "w+b") != ICERR_OK) return ICERR_ERROR;               
