@@ -154,7 +154,7 @@ Usage:
 
   -h                   Show help
   -v                   Verbose
-)"
+  -c=arg               Client type. default|vpn|password_manager (default: default))"
 #if defined(WIN32)
 R"(
   -e=arg               Use the isolated gfx processor. This gives executable binary path
@@ -167,6 +167,8 @@ struct Config
     std::string executable;
 
     std::string pipeName;
+
+    std::string clientType;
 
     static Config fromArguments(const Arguments& arguments);
 };
@@ -187,9 +189,9 @@ Config Config::fromArguments(const Arguments& arguments)
 
     // pipe name
     config.pipeName  = arguments.getValue("-n", "mega_gfxworker_megacli");
-#else
-    (void)arguments;
 #endif
+
+    config.clientType = arguments.getValue("-c", "default");
 
     return config;
 }
@@ -9839,32 +9841,19 @@ static void registerSignalHandlers()
 
 #endif // ! NO_READLINE
 
-MegaClient::ClientType getClientTypeFromArgs(const std::vector<char*>& args)
+MegaClient::ClientType getClientTypeFromArgs(const std::string& clientType)
 {
-    for (const char* a : args)
+    if (clientType == "vpn")
     {
-        assert(a);
-
-        static constexpr char prefix[] = "--client_type=";
-        static constexpr size_t prefixLen = sizeof(prefix) - 1;
-        string s{a};
-        if (!s.compare(0, prefixLen, prefix))
-        {
-            const string& clientType = s.substr(prefixLen);
-            if (clientType == "vpn")
-            {
-                return MegaClient::ClientType::VPN;
-            }
-            if (clientType == "password_manager")
-            {
-                return MegaClient::ClientType::PASSWORD_MANAGER;
-            }
-            if (clientType != "default")
-            {
-                cout << "WARNING: Invalid argument " << s << ". Using default instead.\n" << endl;
-                break;
-            }
-        }
+        return MegaClient::ClientType::VPN;
+    }
+    if (clientType == "password_manager")
+    {
+        return MegaClient::ClientType::PASSWORD_MANAGER;
+    }
+    if (clientType != "default")
+    {
+        cout << "WARNING: Invalid argument " << clientType << ". Using default instead." << endl;
     }
 
     return MegaClient::ClientType::DEFAULT;
@@ -9882,17 +9871,16 @@ int main(int argc, char* argv[])
 
     auto arguments = ArgumentsParser::parse(argc, argv);
 
-    // help
     if (arguments.contains("-h"))
     {
-        std::cout << USAGE << std::endl;
+        cout << USAGE << endl;
         return 0;
     }
 
     if (arguments.contains("-v"))
     {
-        std::cout << "Arguments: \n"
-                  << arguments;
+        cout << "Arguments: \n"
+             << arguments;
     }
 
     // config from arguments
@@ -9903,8 +9891,8 @@ int main(int argc, char* argv[])
     }
     catch(const std::exception& e)
     {
-        std::cout << "Error: " << e.what() << std::endl;
-        std::cout << USAGE << std::endl;
+        cout << "Error: " << e.what() << endl;
+        cout << USAGE << endl;
         return -1;
     }
 
@@ -9964,7 +9952,7 @@ int main(int argc, char* argv[])
         nullptr;
 #endif
 
-    auto clientType = getClientTypeFromArgs(myargv1);
+    auto clientType = getClientTypeFromArgs(config.clientType);
 
     // instantiate app components: the callback processor (DemoApp),
     // the HTTP I/O engine (WinHttpIO) and the MegaClient itself
