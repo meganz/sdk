@@ -1277,9 +1277,6 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                             return transfer->failed(failValues.first, committer, failValues.second);
                         }
                     }
-                    else
-                    {
-                    }
                 }
             }
         }
@@ -1618,7 +1615,6 @@ std::pair<error, dstime> TransferSlot::processRaidReq(size_t connection, m_off_t
         httpReq->bufpos = 0;
         httpReq->status = REQ_INFLIGHT;
     }
-    raidReqProgress = -1;
     byte* buf = httpReq->buf + httpReq->bufpos;
     m_off_t len = httpReq->size - httpReq->bufpos;
     assert((len > 0) && "len is 0 in processRaidReq");
