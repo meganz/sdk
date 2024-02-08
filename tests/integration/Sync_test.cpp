@@ -17095,7 +17095,7 @@ TEST_F(SyncTest, ChangingDirectoryPermissions)
     };
 
     // Wait for the engine to detect a stall.
-    assertAndRestoreIfFails(client->waitFor(SyncStallState(true), TIMEOUT), "wait for sync stall state reached the timeout!");
+    assertAndRestoreIfFails(client->waitFor(SyncStallState(true), DEFAULTWAIT), "wait for sync stall state reached the timeout!");
 
     // Make sure we've stalled for the right reason.
     SyncStallInfo stalls;
