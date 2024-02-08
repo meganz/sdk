@@ -909,7 +909,7 @@ bool RaidReq::getSlowestAndFastestParts(uint8_t& slowest, uint8_t& fastest, bool
     fastest = 0;
 
     uint8_t i = RAIDPARTS;
-    while (i --> 0 &&
+    while (i-- > 0 &&
         ((mustBeConnected && !mFetcher[slowest].mConnected) || !mFeedlag[slowest]))
     {
         slowest++;
@@ -1211,7 +1211,6 @@ void RaidReq::dispatchio(const HttpReqPtr& httpReq)
 }
 
 // feed relevant read-ahead data to procdata
-// returns true if any data was processed
 void RaidReq::procreadahead()
 {
     bool fed;

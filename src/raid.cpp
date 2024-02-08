@@ -1226,7 +1226,7 @@ public:
         if (mStarted)
         {
             int i = mConnections;
-            while (i --> 0)
+            while (i-- > 0)
             {
                 if (mRaidReqPoolArray[i])
                 {
@@ -1264,7 +1264,7 @@ public:
         if (mStarted)
         {
             int i = mConnections;
-            while (i --> 0)
+            while (i-- > 0)
             {
                 if (mRaidReqPoolArray[i])
                 {
