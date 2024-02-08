@@ -35,7 +35,7 @@ target_link_libraries(gfxworker
     libgfxworker
 )
 
-if(ENABLE_TESTS)
+if(ENABLE_SDKLIB_TESTS)
     add_subdirectory(tests/integration)
 endif()
 
