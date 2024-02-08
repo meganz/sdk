@@ -14545,6 +14545,42 @@ TEST_F(SdkTest, SdkVersionManagement)
     ASSERT_EQ(allVersions->size(), verCount);
     ASSERT_EQ(fileNode->getHandle(), allVersions->get(0)->getHandle());
 
+
+    //
+    // create versions using "flexible tree" API
+
+    // Make a copy of the file
+    RequestTracker nodeCopyTracker(api.get());
+    api->copyNode(allVersions->get(0), folder2Node.get(), nullptr, &nodeCopyTracker);
+    ASSERT_EQ(API_OK, nodeCopyTracker.waitForResult());
+    ASSERT_NE(nodeCopyTracker.getNodeHandle(), INVALID_HANDLE);
+    // Attempt to make a new version with an identical copy of the file
+    int prevVersionCount = allVersions->size();
+    std::unique_ptr<MegaNodeTree> nodeTree{
+        MegaNodeTree::createInstance(nullptr, UPFILE.c_str(), nullptr, nullptr, nodeCopyTracker.getNodeHandle()) };
+    ASSERT_EQ(API_OK, synchronousCreateNodeTree(0, folder1Node.get(), nodeTree.get()));
+    ASSERT_NE(nodeTree->getNodeHandle(), INVALID_HANDLE);
+    unique_ptr<MegaNode> fileNodeTree{ api->getNodeByHandle(nodeTree->getNodeHandle()) };
+    ASSERT_THAT(fileNodeTree, ::testing::NotNull());
+    allVersions.reset(api->getVersions(fileNodeTree.get()));
+    ASSERT_EQ(allVersions->size(), prevVersionCount);
+    ASSERT_EQ(fileNodeTree->getHandle(), allVersions->get(0)->getHandle());
+
+    // Make a new version with a different file
+    nodeTree.reset(
+        MegaNodeTree::createInstance(nullptr, UPFILE.c_str(), nullptr, nullptr, allVersions->get(prevVersionCount - 2)->getHandle()));
+    ASSERT_EQ(API_OK, synchronousCreateNodeTree(0, folder1Node.get(), nodeTree.get()));
+    fileNodeTree.reset(api->getNodeByHandle(nodeTree->getNodeHandle()));
+    ASSERT_THAT(fileNodeTree, ::testing::NotNull());
+    allVersions.reset(api->getVersions(fileNodeTree.get()));
+    ASSERT_EQ(allVersions->size(), prevVersionCount + 1);
+    ASSERT_EQ(fileNodeTree->getHandle(), allVersions->get(0)->getHandle());
+    // remove the new version
+    ASSERT_EQ(API_OK, doRemoveVersion(0, fileNodeTree.get()));
+    allVersions.reset(api->getVersions(allVersions->get(1)));
+    ASSERT_EQ(allVersions->size(), prevVersionCount);
+
+
     //  Move file with versions to second folder
     ASSERT_EQ(API_OK, doMoveNode(0, &fileHandle, fileNode.get(), folder2Node.get())) << "Cannot move file";
     string destinationPath = '/' + folder2 + '/' + UPFILE;
@@ -16801,6 +16837,47 @@ TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectoriesAndOneFileAtTheEnd)
     ASSERT_THAT(fileNode, ::testing::NotNull());
     ASSERT_STREQ(IMAGEFILE.c_str(), fileNode->getName());
     ASSERT_EQ(fileSize, fileNode->getSize());
+
+    // "create" an existing file
+    std::unique_ptr<MegaSearchFilter> sf{ MegaSearchFilter::createInstance() };
+    sf->byLocationHandle(directoryNodeHandleLevel2);
+    std::unique_ptr<MegaNodeList> files{ megaApi[apiIndex]->getChildren(sf.get()) };
+    ASSERT_THAT(files, ::testing::NotNull());
+    ASSERT_EQ(files->size(), 1);
+    MegaCompleteUploadData* uploadData = MegaCompleteUploadData::createInstance(fingerprint.c_str(),
+                                                                                string64UploadToken.c_str(),
+                                                                                string64FileKey.c_str());
+    MegaNodeTree* fileTreeFromData = MegaNodeTree::createInstance(nullptr, IMAGEFILE.c_str(), nullptr, uploadData);
+    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, directoryNodeLevel2.get(), fileTreeFromData));
+    ASSERT_EQ(fileTreeFromData->getNodeHandle(), fileNodeHandle) << "File was ovewritten with identical one";
+    files.reset(megaApi[apiIndex]->getChildren(sf.get()));
+    ASSERT_THAT(files, ::testing::NotNull());
+    ASSERT_EQ(files->size(), 1);
+
+    // createa new version, with different data
+    doSetFileVersionsOption(0, false); // enable versioning
+    unique_ptr<MegaNodeList> allVersions{ megaApi[apiIndex]->getVersions(files->get(0)) };
+    ASSERT_THAT(allVersions, ::testing::NotNull());
+    int prevVersionCount = allVersions->size();
+    ASSERT_TRUE(createFile(UPFILE, false)) << "Couldn't create " << UPFILE;
+    int64_t upFileSize = getFilesize(UPFILE);
+    ASSERT_NO_FATAL_FAILURE(synchronousMediaUploadIncomplete(apiIndex,
+                                                             upFileSize,
+                                                             UPFILE.c_str(),
+                                                             UPFILE.c_str(),
+                                                             fingerprint,
+                                                             string64UploadToken,
+                                                             string64FileKey));
+    uploadData = MegaCompleteUploadData::createInstance(fingerprint.c_str(),
+                                                        string64UploadToken.c_str(),
+                                                        string64FileKey.c_str());
+    fileTreeFromData = MegaNodeTree::createInstance(nullptr, IMAGEFILE.c_str(), nullptr, uploadData);
+    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, directoryNodeLevel2.get(), fileTreeFromData));
+    fileNode.reset(megaApi[apiIndex]->getNodeByHandle(fileTreeFromData->getNodeHandle()));
+    ASSERT_THAT(fileNode, ::testing::NotNull());
+    allVersions.reset(megaApi[apiIndex]->getVersions(fileNode.get()));
+    ASSERT_THAT(allVersions, ::testing::NotNull());
+    ASSERT_EQ(allVersions->size(), prevVersionCount + 1);
 }
 
 /**
