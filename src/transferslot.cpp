@@ -1289,14 +1289,13 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
         if (transferbuf.isRaid())
         {
             cloudRaidProgress = transferbuf.progress();
-            p += cloudRaidProgress;
         }
         else if (transferbuf.isNewRaid())
         {
             assert(cloudRaid != nullptr);
             cloudRaidProgress = cloudRaid->progress();
-            p += cloudRaidProgress;
         }
+        p += cloudRaidProgress;
     }
     p += transfer->progresscompleted;
 
