@@ -1915,7 +1915,7 @@ MegaApi::MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *ba
 
 MegaApi::MegaApi(const char *appKey, MegaGfxProvider* provider, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType)
 {
-    pImpl = new MegaApiImpl(this, appKey, provider, basePath, userAgent, workerThreadCount);
+    pImpl = new MegaApiImpl(this, appKey, provider, basePath, userAgent, workerThreadCount, clientType);
 }
 
 MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType)
