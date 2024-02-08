@@ -138,7 +138,7 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
 #endif
 }
 
-bool TransferSlot::createconnectionsonce(MegaClient* client, TransferDbCommitter& committer)
+bool TransferSlot::createconnectionsonce()
 {
     // delay creating these until we know if it's raid or non-raid
     if (!(connections || reqs.size() || asyncIO))
@@ -162,7 +162,7 @@ bool TransferSlot::createconnectionsonce(MegaClient* client, TransferDbCommitter
 
         if (transferbuf.isNewRaid())
         {
-            transfer->slot->initCloudRaid(client);
+            transfer->slot->initCloudRaid(transfer->client);
         }
     }
     return true;
@@ -570,7 +570,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
     retrybt.reset();  // in case we don't delete the slot, and in case retrybt.next=1
     transfer->state = TRANSFERSTATE_ACTIVE;
 
-    if (!createconnectionsonce(client, committer))  // don't use connections, reqs, or asyncIO before this point.
+    if (!createconnectionsonce()) // don't use connections, reqs, or asyncIO before this point.
     {
         return;
     }

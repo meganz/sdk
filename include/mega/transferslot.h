@@ -130,7 +130,7 @@ struct MEGA_API TransferSlot
     std::pair<error, dstime> processRaidReq(size_t connection, m_off_t& raidReqProgress);
 
     // helper for doio to delay connection creation until we know if it's raid or non-raid
-    bool createconnectionsonce(MegaClient* client, TransferDbCommitter& committer);
+    bool createconnectionsonce();
 
     // disconnect and reconnect all open connections for this transfer
     void disconnect();
