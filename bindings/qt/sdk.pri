@@ -191,7 +191,7 @@ CONFIG(USE_LIBUV) {
     vcpkg:INCLUDEPATH_EXTERNAL += $$THIRDPARTY_VCPKG_PATH/include/libuv
     !vcpkg:INCLUDEPATH_EXTERNAL += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libuv
     win32 {
-        LIBS += -llibuv -lIphlpapi -lUserenv -lpsapi
+        LIBS += -llibuv -lIphlpapi -lUserenv -lpsapi -ldbghelp
     }
 
     unix:!macx {
