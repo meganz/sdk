@@ -102,7 +102,6 @@ bzip2/7476f0d4e77d3333fbb249657df8251c28c4faae
 # qt5-winextras/6185aa76504a5025f36754324abf307cc776f3da all:off windows:on
 
 # tests and tools
-asio/7476f0d4e77d3333fbb249657df8251c28c4faae
 gtest/c303dd024e2dc03a0665ddffbb12a1077933e649 all:gtest-warnings-are-not-errors.patch
 
 # previously listed - possibly for mega chat,sync,cmd.  Re-add with comment if the SDK alone needs them

@@ -32,7 +32,6 @@ else()
     set (USE_OPENSSL 1 CACHE STRING "Usually Needed")
 endif()
 
-set (USE_ASIO 1 CACHE STRING "Only needed For tcprelay test tool")
 set (USE_CURL 1 CACHE STRING "Always needed (turning it off would mean using WinHTTP instead but that has not been maintained for a while)")
 set (USE_SQLITE 1 CACHE STRING "Needed unless intending a cache-less app")
 set (USE_MEDIAINFO 1 CACHE STRING "Used to determine media properties and set those as node attributes")
@@ -1074,37 +1073,6 @@ if(APPLE)
     target_link_libraries(test_integration "-framework Security" )
 endif()
 
-if (USE_ASIO)
-    if (USE_THIRDPARTY_FROM_VCPKG)
-        if (EXISTS "${vcpkg_dir}/include/asio.hpp")
-            set(HAVE_ASIO 1 CACHE STRING "" FORCE)
-        else()
-            set(HAVE_ASIO 0 CACHE STRING "" FORCE)
-        endif()
-    endif()
-endif()
-
-if (HAVE_ASIO)
-    add_executable(tool_tcprelay "${MegaDir}/tests/tool/tcprelay/main.cpp" "${MegaDir}/tests/tool/tcprelay/tcprelay.cpp")
-    set_property(
-        TARGET tool_tcprelay
-        PROPERTY EXCLUDE_FROM_ALL 1
-    )
-    target_include_directories(tool_tcprelay PUBLIC "${vcpkg_dir}/installed/include")
-    target_compile_definitions(tool_tcprelay PUBLIC -DASIO_STANDALONE)
-    target_link_libraries(tool_tcprelay Mega)
-    target_compile_features(tool_tcprelay PUBLIC cxx_std_14)
-
-    if (WIN32)
-        target_compile_definitions(tool_tcprelay PUBLIC -D_WIN32_WINNT=0x601)
-        target_link_libraries(tool_tcprelay Ws2_32.lib)
-    endif()
-
-    if (NOT NO_READLINE)
-        target_link_libraries(tool_tcprelay ${readline_LIBRARIES})
-    endif()
-endif()
-
 #Integration tests require the following files to work
 file(GLOB TESTING_AUX_FILES "${MegaDir}/tests/integration/test-data/*")
 add_custom_command(
@@ -1150,10 +1118,6 @@ if (WIN32)
     set_property(TARGET testmega PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
     set_property(TARGET test_integration PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
     set_property(TARGET test_unit PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
-    if (HAVE_ASIO)
-        set_property(TARGET tool_tcprelay PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
-    endif()
-
 else()
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb3")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Wextra -Wconversion -Wno-unused-parameter -Wno-unqualified-std-cast-call -Wno-deprecated-declarations -Wno-unqualified-std-cast-call")  #no-deprecated-declarations because of FSEventStreamScheduleWithRunLoop

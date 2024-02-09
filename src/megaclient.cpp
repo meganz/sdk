@@ -10892,6 +10892,11 @@ void MegaClient::opensctable()
                 sctable->begin();
                 assert(sctable->inTransaction());
             }
+            else
+            {
+                LOG_err << "Failed to open DB";
+                MegaClient::fatalError(REASON_ERROR_DB_IO);
+            }
         }
     }
 }
