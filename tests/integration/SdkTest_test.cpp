@@ -16253,25 +16253,31 @@ TEST_F(SdkTestGfx, GfxProcessingContinueSuccessfullyAfterCrash)
 {
     LOG_info << "___TEST GfxProcessingContinueSuccessfullyAfterCrash";
 
-    // api
     MegaApi* api = megaApi[0].get();
 
-    // create a thumbnail successfully
+    // 1. Create a thumbnail successfully
     sdk_test::copyFileFromTestData(IMAGEFILE);
     ASSERT_TRUE(api->createThumbnail(IMAGEFILE.c_str(), THUMBNAIL.c_str())) << "create thumbnail should succeed";
 
-    // create thumbnail and preview of a image which result in a crash
+    // 2. Create thumbnail and preview of a image which result in a crash
     // the image is selected by testing, thus not guaranteed. we'd either
     // find another media file or need another alternative if it couldn't
     // consistently result in a crash
-    sdk_test::copyFileFromTestData(std::string(CRASH_IMAGE));
+
+    // Get the test media file
+    const std::string source{"test-data/gfx-processing-crash/SNC-2406_Almotassem%20invoice%2015021001.pct"};
+    fs::path destination{CRASH_IMAGE};
+    ASSERT_TRUE(getFileFromArtifactory(source, destination));
+    ASSERT_TRUE(fs::exists(destination));
+
+    // Gfx process would crash due to the bad media file
     ASSERT_FALSE(api->createThumbnail(CRASH_IMAGE, CRASH_THUMBNAIL));
     ASSERT_FALSE(api->createPreview(CRASH_IMAGE, CRASH_PREVIEW));
 
-    // create a preview successfully
+    // 3. Create a preview successfully
     ASSERT_TRUE(api->createPreview(IMAGEFILE.c_str(), PREVIEW.c_str())) << "create preview should succeed";
 
-    // create thumbnail of a not valid image
+    // 4. Create thumbnail of a not valid image
     sdk_test::copyFileFromTestData(std::string(INVALID_IMAGE));
     ASSERT_FALSE(api->createThumbnail(INVALID_IMAGE, INVALID_THUMBNAIL)) << "create invalid image's thumbnail should fail";
 
