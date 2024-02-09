@@ -26390,6 +26390,12 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
     waiter->notify();
 }
 
+MegaIntegerList* MegaApiImpl::getEnabledNotifications() const
+{
+    SdkMutexGuard g(sdkMutex);
+    return new MegaIntegerListPrivate(client->getEnabledNotifications());
+}
+
 /* END MEGAAPIIMPL */
 
 int TransferQueue::getLastPushedTag() const
@@ -36394,6 +36400,12 @@ MegaIntegerListPrivate::MegaIntegerListPrivate(const vector<int64_t>& integerLis
     : mIntegers(integerList)
 {
 
+}
+
+MegaIntegerListPrivate::MegaIntegerListPrivate(const vector<uint32_t>& bytesList)
+{
+    mIntegers.reserve(bytesList.size());
+    std::transform(bytesList.begin(), bytesList.end(), std::back_inserter(mIntegers), [](uint32_t x) { return static_cast<int64_t>(x);});
 }
 
 MegaIntegerListPrivate::MegaIntegerListPrivate()

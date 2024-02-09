@@ -978,6 +978,7 @@ public:
     MegaIntegerListPrivate();
     MegaIntegerListPrivate(const vector<int8_t>& bytesList);
     MegaIntegerListPrivate(const vector<int64_t>& integerList);
+    MegaIntegerListPrivate(const vector<uint32_t>& integerList);
     virtual ~MegaIntegerListPrivate();
     MegaSmallIntVector* toByteList() const;
     MegaIntegerList *copy() const override;
@@ -3653,6 +3654,8 @@ public:
         void getVisibleTermsOfService(MegaRequestListener* listener = nullptr);
 
         void setVisibleTermsOfService(bool visible, MegaRequestListener* listener = nullptr);
+
+        MegaIntegerList* getEnabledNotifications() const;
 
 private:
         void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, unsigned clientWorkerThreadCount /*= 1*/, int clientType);

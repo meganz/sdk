@@ -5869,6 +5869,11 @@ void MegaApi::createNodeTree(const MegaNode* parentNode,
     pImpl->createNodeTree(parentNode, nodeTree, listener);
 }
 
+MegaIntegerList* MegaApi::getEnabledNotifications()
+{
+    return pImpl->getEnabledNotifications();
+}
+
 /* END MEGAAPI */
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)
