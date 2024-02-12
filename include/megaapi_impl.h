@@ -75,7 +75,7 @@ class MegaSemaphore : public CppSemaphore {};
 
 #if USE_FREEIMAGE
 using MegaGfxProvider = GfxProviderFreeImage;
-#elif TARGET_OS_IPHONE
+#elif __APPLE__
 using MegaGfxProvider = GfxProviderCG;
 #else
 using MegaGfxProvider = GfxProviderExternal;
