@@ -39,9 +39,15 @@ private:
 
     bool doRead(void* data, size_t n, TimeoutMs timeout) override;
 
+    //
+    // The common part of doing an overlapped I/O.
+    //
+    // Overlapped I/O is a name used for asynchoruous I/O in the Windows API.
+    // See https://learn.microsoft.com/en-us/windows/win32/ipc/named-pipe-server-using-overlapped-i-o
+    //
     bool doOverlappedOperation(std::function<bool(OVERLAPPED*)>op,
-                      TimeoutMs timeout,
-                      const std::string& opStr);
+                               TimeoutMs timeout,
+                               const std::string& opStr);
 
     virtual Type type() const = 0;
 };

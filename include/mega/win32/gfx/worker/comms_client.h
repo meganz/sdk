@@ -16,8 +16,6 @@ private:
     Type type() const { return Type::Client; }
 };
 
-using OnClientConnectedFunc = std::function<void(std::unique_ptr<IEndpoint> endpoint)>;
-
 class WinGfxCommunicationsClient : public IGfxCommunicationsClient
 {
 public:

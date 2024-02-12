@@ -72,9 +72,8 @@ bool Win32NamedPipeEndpoint::doWrite(const void* data, size_t n, TimeoutMs timeo
             static_cast<DWORD>(n),  // message length
             &written,               // bytes written
             overlapped);               // overlapped
-        //if (result) LOG_verbose << "write " << written << " bytes OK";
-        return result;
 
+        return result;
     };
 
     return doOverlappedOperation(writeOverlappedFn, timeout, "write");
@@ -90,7 +89,7 @@ bool Win32NamedPipeEndpoint::doRead(void* out, size_t n, TimeoutMs timeout)
             static_cast<DWORD>(n),  // size of buffer
             &cbRead,                // number of bytes read
             overlapped);               // overlapped
-        //if (result) LOG_verbose << "read " << cbRead << " bytes OK";
+
         return result;
     };
 
@@ -144,7 +143,6 @@ bool Win32NamedPipeEndpoint::doOverlappedOperation(std::function<bool(OVERLAPPED
     }
 
     // IO completed
-    // LOG_verbose << mName << ": " << opStr << " complete bytes transferred: " << numberOfBytesTransferred;
     return true;
 }
 
