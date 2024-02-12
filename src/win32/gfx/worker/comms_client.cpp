@@ -56,7 +56,7 @@ CommError WinGfxCommunicationsClient::connect(std::unique_ptr<IEndpoint>& endpoi
     const auto fullPipeName = win_utils::toFullPipeName(mPipeName);
     HANDLE hPipe = INVALID_HANDLE_VALUE;
     const CommError error  = doConnect(fullPipeName.c_str(), hPipe);
-    endpoint = hPipe == INVALID_HANDLE_VALUE ? nullptr : mega::make_unique<Win32NamedPipeEndpointClient>(hPipe, "client");
+    endpoint = hPipe == INVALID_HANDLE_VALUE ? nullptr : mega::make_unique<ClientNamedPipe>(hPipe);
     return error;
 }
 

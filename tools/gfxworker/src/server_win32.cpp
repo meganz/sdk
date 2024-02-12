@@ -9,7 +9,7 @@ namespace gfx {
 
 const std::error_code ServerWin32::OK;
 
-Win32NamedPipeEndpointServer::~Win32NamedPipeEndpointServer()
+ServerNamedPipe::~ServerNamedPipe()
 {
     if (isValid())
     {
@@ -129,7 +129,7 @@ void ServerWin32::serverListeningLoop()
         }
         else if (mRequestProcessor)
         {
-            stopRunning = mRequestProcessor->process(mega::make_unique<Win32NamedPipeEndpointServer>(hPipe, "server"));
+            stopRunning = mRequestProcessor->process(mega::make_unique<ServerNamedPipe>(hPipe));
         }
 
         if (stopRunning)

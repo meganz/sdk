@@ -7,10 +7,10 @@
 namespace mega {
 namespace gfx {
 
-class Win32NamedPipeEndpointClient : public Win32NamedPipeEndpoint
+class ClientNamedPipe : public NamedPipe
 {
 public:
-    Win32NamedPipeEndpointClient(HANDLE h, const std::string& name) : Win32NamedPipeEndpoint(h, name) {}
+    ClientNamedPipe(HANDLE h) : NamedPipe(h, "client") {}
 
 private:
     Type type() const { return Type::Client; }

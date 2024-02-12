@@ -11,16 +11,16 @@ std::wstring toFullPipeName(const std::string& name);
 
 }
 
-class Win32NamedPipeEndpoint : public IEndpoint
+class NamedPipe : public IEndpoint
 {
 public:
-    Win32NamedPipeEndpoint(HANDLE h, const std::string& name) : mPipeHandle(h), mName(name) {}
+    NamedPipe(HANDLE h, const std::string& name) : mPipeHandle(h), mName(name) {}
 
-    Win32NamedPipeEndpoint(const Win32NamedPipeEndpoint&) = delete;
+    NamedPipe(const NamedPipe&) = delete;
 
-    Win32NamedPipeEndpoint(Win32NamedPipeEndpoint&& other);
+    NamedPipe(NamedPipe&& other);
 
-    ~Win32NamedPipeEndpoint();
+    ~NamedPipe();
 
     bool isValid() const { return mPipeHandle != INVALID_HANDLE_VALUE; }
 protected:

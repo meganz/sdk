@@ -10,12 +10,12 @@ namespace gfx {
 
 class RequestProcessor;
 
-class Win32NamedPipeEndpointServer : public Win32NamedPipeEndpoint
+class ServerNamedPipe : public NamedPipe
 {
 public:
-    Win32NamedPipeEndpointServer(HANDLE h, const std::string& name) : Win32NamedPipeEndpoint(h, name) {}
+    ServerNamedPipe(HANDLE h) : NamedPipe(h, "server") {}
 
-    ~Win32NamedPipeEndpointServer();
+    ~ServerNamedPipe();
 private:
     Type type() const { return Type::Server; }
 };
