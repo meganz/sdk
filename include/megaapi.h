@@ -9641,6 +9641,7 @@ class MegaApi
             USER_ATTR_VISIBLE_WELCOME_DIALOG = 40, // private - byte array - versioned
             USER_ATTR_VISIBLE_TERMS_OF_SERVICE = 41, // private - byte array - versioned
             USER_ATTR_PWM_BASE = 42,             // private non-encrypted (fully controlled by API) - char array in B64
+            USER_ATTR_ENABLE_TEST_NOTIFICATIONS = 43, // private - non-encrypted - char array - non-versioned
         };
 
         enum {
@@ -22264,6 +22265,19 @@ class MegaApi
          * @return List of IDs for enabled notifications
          */
         MegaIntegerList* getEnabledNotifications();
+
+        /**
+         * @brief Enable test notifications
+         *
+         * The type associated with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_ENABLE_TEST_NOTIFICATIONS
+         * - MegaRequest::getMegaIntegerList - Returns a list containing the notification IDs to be enabled
+         *
+         * @param notificationIds list of IDs for the notifications to be enabled
+         * @param listener MegaRequestListener to track this request
+         */
+        void enableTestNotifications(const MegaIntegerList* notificationIds, MegaRequestListener* listener = nullptr);
 
  protected:
         MegaApiImpl *pImpl = nullptr;

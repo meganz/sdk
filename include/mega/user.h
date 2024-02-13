@@ -88,6 +88,7 @@ struct MEGA_API User : public Cacheable
         bool keys : 1;
         bool aPrefs : 1;    // apps preferences
         bool ccPrefs : 1;   // content consumption preferences
+        bool enableTestNotifications : 1; // list of IDs for enabled notifications
     } changed;
 
     // user's public key

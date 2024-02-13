@@ -658,6 +658,10 @@ string User::attr2string(attr_t type)
             attrname = "pwmh";
             break;
 
+        case ATTR_ENABLE_TEST_NOTIFICATIONS:
+            attrname = "^!tnotif";
+            break;
+
         case ATTR_UNKNOWN:  // empty string
             break;
     }
@@ -833,6 +837,10 @@ string User::attr2longname(attr_t type)
     case ATTR_PWM_BASE:
         longname = "PWM_BASE";
         break;
+
+    case ATTR_ENABLE_TEST_NOTIFICATIONS:
+        longname = "ENABLE_TEST_NOTIFICATIONS";
+        break;
     }
 
     return longname;
@@ -997,6 +1005,10 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_VISIBLE_TERMS_OF_SERVICE;
     }
+    else if(!strcmp(name, "^!tnotif"))
+    {
+        return ATTR_ENABLE_TEST_NOTIFICATIONS;
+    }
     else
     {
         return ATTR_UNKNOWN;   // attribute not recognized
@@ -1047,6 +1059,7 @@ int User::needversioning(attr_t at)
         case ATTR_CC_PREFS:
         case ATTR_VISIBLE_WELCOME_DIALOG:
         case ATTR_VISIBLE_TERMS_OF_SERVICE:
+        case ATTR_ENABLE_TEST_NOTIFICATIONS:
             return 1;
 
         case ATTR_STORAGE_STATE: //putua is forbidden for this attribute
@@ -1098,6 +1111,7 @@ char User::scope(attr_t at)
         case ATTR_VISIBLE_WELCOME_DIALOG:
         case ATTR_VISIBLE_TERMS_OF_SERVICE:
         case ATTR_PWM_BASE:
+        case ATTR_ENABLE_TEST_NOTIFICATIONS:
             return '^';
 
         default:
@@ -1534,6 +1548,10 @@ bool User::setChanged(attr_t at)
 
         case ATTR_CC_PREFS:
             changed.ccPrefs = true;
+            break;
+
+        case ATTR_ENABLE_TEST_NOTIFICATIONS:
+            changed.enableTestNotifications = true;
             break;
 
         default:
