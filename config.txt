@@ -1,0 +1,34 @@
+# Fake Config File - config.txt
+
+## Database Configuration
+DB_USERNAME=admin
+DB_PASSWORD=12345FakePassword!
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=fake_db
+
+## API Keys
+API_KEY=FAKE1234567890ABCD
+API_SECRET=FakeSecretKeyHere123!
+
+## SMTP Configuration
+SMTP_HOST=smtp.fakeemail.com
+SMTP_PORT=587
+SMTP_USER=fakeuser@fakeemail.com
+SMTP_PASS=FakeEmailPass!123
+
+## AWS Credentials
+AWS_ACCESS_KEY_ID=FAKEACCESSKEY1234567
+AWS_SECRET_ACCESS_KEY=FakeAwsSecretAccessKeyHere!123
+
+## JWT Secret
+JWT_SECRET=UltraSecretKey123!
+
+## OAuth Credentials
+OAUTH_CLIENT_ID=FakeClientID1234567890
+OAUTH_CLIENT_SECRET=SuperSecretClientSecretHere!
+
+## Miscellaneous
+ENCRYPTION_KEY=FakeEncryptionKey123!
+BACKUP_API_KEY=BackupApiKey1234567890Fake
+
