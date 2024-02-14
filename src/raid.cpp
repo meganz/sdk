@@ -202,9 +202,9 @@ void RaidBufferManager::setIsRaid(const std::vector<std::string>& tempUrls, m_of
     startfilepos = resumepos;
     if (is_raid)
     {
-        raidpartspos = resumepos / (RAIDPARTS - 1);
+        raidpartspos = resumepos / EFFECTIVE_RAIDPARTS;
         raidpartspos -= raidpartspos % RAIDSECTOR;
-        resumewastedbytes = size_t(outputfilepos - raidpartspos * (RAIDPARTS - 1));
+        resumewastedbytes = size_t(outputfilepos - raidpartspos * EFFECTIVE_RAIDPARTS);
         outputfilepos -= resumewastedbytes; // we'll skip over these bytes on the first output
         for (int i = RAIDPARTS; i--;)
         {
@@ -469,14 +469,14 @@ m_off_t RaidBufferManager::raidPartSize(unsigned part, m_off_t filesize)
         t = RAIDSECTOR;
     }
 
-    return (filesize - r) / (RAIDPARTS - 1) + t;
+    return (filesize - r) / EFFECTIVE_RAIDPARTS + t;
 }
 
 
 void RaidBufferManager::combineRaidParts(unsigned connectionNum)
 {
     assert(asyncoutputbuffers.find(connectionNum) == asyncoutputbuffers.end() || !asyncoutputbuffers[connectionNum]);
-    assert(raidpartspos * (RAIDPARTS - 1) == outputfilepos + m_off_t(leftoverchunk.buf.datalen()));
+    assert(raidpartspos * EFFECTIVE_RAIDPARTS == outputfilepos + m_off_t(leftoverchunk.buf.datalen()));
 
     size_t partslen = 0x10000000, sumdatalen = 0, xorlen = 0;
     for (unsigned i = RAIDPARTS; i--; )
@@ -499,22 +499,22 @@ void RaidBufferManager::combineRaidParts(unsigned connectionNum)
     m_off_t newdatafilepos = outputfilepos + leftoverchunk.buf.datalen();
     assert(newdatafilepos + m_off_t(sumdatalen) <= acquirelimitpos);
     bool processToEnd =  (newdatafilepos + m_off_t(sumdatalen) == acquirelimitpos)   // data to the end
-              &&  (newdatafilepos / (RAIDPARTS - 1) + m_off_t(xorlen) == raidPartSize(0, acquirelimitpos));  // parity to the end
+              &&  (newdatafilepos / EFFECTIVE_RAIDPARTS + m_off_t(xorlen) == raidPartSize(0, acquirelimitpos));  // parity to the end
 
-    assert(!partslen || !processToEnd || sumdatalen - partslen * (RAIDPARTS - 1) <= RAIDLINE);
+    assert(!partslen || !processToEnd || sumdatalen - partslen * EFFECTIVE_RAIDPARTS <= RAIDLINE);
 
     if (partslen > 0 || processToEnd)
     {
-        m_off_t macchunkpos = calcOutputChunkPos(newdatafilepos + partslen * (RAIDPARTS - 1));
+        m_off_t macchunkpos = calcOutputChunkPos(newdatafilepos + partslen * EFFECTIVE_RAIDPARTS);
 
-        size_t buflen = static_cast<size_t>(processToEnd ? sumdatalen : partslen * (RAIDPARTS - 1));
+        size_t buflen = static_cast<size_t>(processToEnd ? sumdatalen : partslen * EFFECTIVE_RAIDPARTS);
         LOG_debug << "Combining raid parts -> partslen = " << partslen << ", buflen = " << buflen << ", outputfilepos = " << outputfilepos << ", leftoverchunk = " << leftoverchunk.buf.datalen();
         FilePiece* outputrec = combineRaidParts(partslen, buflen, outputfilepos, leftoverchunk);  // includes a bit of extra space for non-full sectors if we are at the end of the file
         rollInputBuffers(partslen);
         raidpartspos += partslen;
-        sumdatalen -= partslen * (RAIDPARTS - 1);
-        outputfilepos += partslen * (RAIDPARTS - 1) + leftoverchunk.buf.datalen();
-        byte* dest = outputrec->buf.datastart() + partslen * (RAIDPARTS - 1) + leftoverchunk.buf.datalen();
+        sumdatalen -= partslen * EFFECTIVE_RAIDPARTS;
+        outputfilepos += partslen * EFFECTIVE_RAIDPARTS + leftoverchunk.buf.datalen();
+        byte* dest = outputrec->buf.datastart() + partslen * EFFECTIVE_RAIDPARTS + leftoverchunk.buf.datalen();
         FilePiece emptyFilePiece;
         leftoverchunk.swap(emptyFilePiece);  // this data is entirely included in the outputrec now, so discard and reset
 
@@ -534,7 +534,7 @@ void RaidBufferManager::combineRaidParts(unsigned connectionNum)
             memcpy(leftoverchunk.buf.datastart(), outputrec->buf.datastart() + outputrec->buf.datalen() - excessdata, excessdata);
             outputrec->buf.end -= excessdata;
             outputfilepos -= excessdata;
-            assert(raidpartspos * (RAIDPARTS - 1) == outputfilepos + m_off_t(leftoverchunk.buf.datalen()));
+            assert(raidpartspos * EFFECTIVE_RAIDPARTS == outputfilepos + m_off_t(leftoverchunk.buf.datalen()));
         }
 
         // discard any excess data that we had to fetch when resuming a file (to align the parts appropriately)
@@ -589,7 +589,7 @@ RaidBufferManager::FilePiece* RaidBufferManager::combineRaidParts(size_t partsle
         }
 
         byte* b = result->buf.datastart() + prevleftoverchunk.buf.datalen();
-        byte* endpos = b + partslen * (RAIDPARTS-1);
+        byte* endpos = b + partslen * EFFECTIVE_RAIDPARTS;
 
         for (unsigned i = 0; b < endpos; i += RAIDSECTOR)
         {
@@ -931,35 +931,20 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
         }
         else if (transfer->type == GET)
         {
-            maxReqSize = (transfer->size - transfer->progresscompleted) / connectionCount / 2;
-            if (maxReqSize > maxRequestSize)
-            {
-                maxReqSize = maxRequestSize;
-            }
-
-            if (maxReqSize > 0x100000)
-            {
-                m_off_t val = 0x100000;
-                while (val <= maxReqSize)
-                {
-                    val <<= 1;
-                }
-                maxReqSize = val >> 1;
-                maxReqSize -= 0x100000;
-            }
-            else
-            {
-                maxReqSize = 0;
-            }
-
             if (isNewRaid())
             {
-                m_off_t defaultMaxReqSize = static_cast<m_off_t>((TransferSlot::MAX_REQ_SIZE_NEW_RAID) * 5);
-                m_off_t maxReqsSize = defaultMaxReqSize * 4; // based on 4 connections
-                maxReqSize = static_cast<m_off_t>(maxReqsSize / transfer->slot->connections);
-                maxReqSize = std::max<m_off_t>(maxReqSize, (1*1024*1024)*5); // 1MB for each raidpart min
+                // We need to adjust the size taking into account that our RaidReqs will be split into 5 requests (one for each part)
+                // Besides, we need that the RaidReqs (except for the last one) are padded to a RAIDLINE
+                m_off_t defaultMaxReqSize = static_cast<m_off_t>((TransferSlot::MAX_REQ_SIZE_NEW_RAID) * EFFECTIVE_RAIDPARTS);
+
+                const m_off_t AVERAGE_NUMBER_OF_TRANSFERSLOT_CONNECTIONS = 4; // based on the average number of connections per download (and default value in MEGASync)
+                m_off_t maxReqsSize = defaultMaxReqSize * AVERAGE_NUMBER_OF_TRANSFERSLOT_CONNECTIONS;
+
+                maxReqSize = static_cast<m_off_t>(maxReqsSize / transfer->slot->connections); // divided by the real number of connections
+                maxReqSize = std::max<m_off_t>(maxReqSize, (1 * 1024 * 1024) * EFFECTIVE_RAIDPARTS); // min 1MB for each raidpart
                 DEBUG_TEST_HOOK_LIMIT_MAX_REQ_SIZE(maxReqSize) // Limit max request size if needed
                 maxReqSize = std::min<m_off_t>(maxReqSize, transfer->size); // Not greater than the transfer itself
+
                 m_off_t nextChunk = ChunkedHash::chunkceil(transfer->pos + maxReqSize, transfer->size);
                 while ((nextChunk < transfer->size) && (((nextChunk - transfer->pos) % RAIDLINE) != 0))
                 {
@@ -969,7 +954,30 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
                 }
                 maxReqSize += 1; // Same as above, needed for expandUnProcessedPiece to return a chunk padded to raid-line
             }
+            else
+            {
+                // Non raid
+                maxReqSize = (transfer->size - transfer->progresscompleted) / connectionCount / 2;
+                if (maxReqSize > maxRequestSize)
+                {
+                    maxReqSize = maxRequestSize;
+                }
 
+                if (maxReqSize > 0x100000)
+                {
+                    m_off_t val = 0x100000;
+                    while (val <= maxReqSize)
+                    {
+                        val <<= 1;
+                    }
+                    maxReqSize = val >> 1;
+                    maxReqSize -= 0x100000;
+                }
+                else
+                {
+                    maxReqSize = 0;
+                }
+            }
         }
         // Calc npos limit depending on the maxReqSize, the next processed piece and the transfer size.
         npos = transfer->chunkmacs.expandUnprocessedPiece(transfer->pos, npos, transfer->size, maxReqSize);
@@ -1222,7 +1230,7 @@ public:
         if (mStarted)
         {
             int i = mConnections;
-            while (i --> 0)
+            while (i-- > 0)
             {
                 if (mRaidReqPoolArray[i])
                 {
@@ -1260,7 +1268,7 @@ public:
         if (mStarted)
         {
             int i = mConnections;
-            while (i --> 0)
+            while (i-- > 0)
             {
                 if (mRaidReqPoolArray[i])
                 {

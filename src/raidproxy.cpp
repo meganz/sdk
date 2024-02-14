@@ -48,7 +48,7 @@ void PartFetcher::setposrem()
     m_off_t curpos = basepos + rr->mPartpos[part];
 
     // determine the next suitable read range to ensure the availability
-    // of RAIDPARTS-1 sources based on ongoing reads and stored readahead data.
+    // of EFFECTIVE_RAIDPARTS sources based on ongoing reads and stored readahead data.
     for (m_off_t i = RAIDPARTS; i--; )
     {
         // compile boundaries of data chunks that have been or are being fetched
@@ -91,9 +91,9 @@ void PartFetcher::setposrem()
     }
 
     // find range from the first position after the current read position
-    // with less than RAIDPARTS-1 valid sources
+    // with less than EFFECTIVE_RAIDPARTS valid sources
     // (where we need to start fetching) to the first position thereafter with
-    // RAIDPARTS-1 valid sources, if any (where we would need to stop fetching)
+    // EFFECTIVE_RAIDPARTS valid sources, if any (where we would need to stop fetching)
     char valid = RAIDPARTS;
     m_off_t startpos = -1, endpos = -1;
 
@@ -108,7 +108,7 @@ void PartFetcher::setposrem()
         if (startpos == -1)
         {
             // no startpos yet+ (our own readahead is excluded by valid being bumped by OWNREADAHEAD)
-            if (valid < RAIDPARTS - 1)
+            if (valid < EFFECTIVE_RAIDPARTS)
             {
                 if (curpos < it->first)
                 {
@@ -125,7 +125,7 @@ void PartFetcher::setposrem()
 
             // startpos valid, look for suitable endpos
             // (must not cross own readahead data or any already sufficient raidparts)
-            if (valid >= (RAIDPARTS - 1))
+            if (valid >= EFFECTIVE_RAIDPARTS)
             {
                 endpos = it->first;
                 break;
@@ -268,7 +268,7 @@ bool PartFetcher::setsource(const std::string& partUrl, RaidReq* crr, uint8_t cp
     mUrl = partUrl;
     part = cpart;
     rr = crr;
-    mPartStartPos = rr->mReqStartPos / (RAIDPARTS - 1);
+    mPartStartPos = rr->mReqStartPos / EFFECTIVE_RAIDPARTS;
     assert(mPartStartPos % RAIDSECTOR == 0);
 
     mSourcesize = RaidReq::raidPartSize(part, rr->mFilesize);
@@ -378,7 +378,7 @@ int PartFetcher::io()
     {
         LOG_warn << "There are 6 connected channels, and there shouldn't be" << " [this = " << this << "]";
         assert(false && "There shouldn't be 6 connected channels");
-        // we only need RAIDPARTS-1 connections, so shut down the slowest one
+        // we only need EFFECTIVE_RAIDPARTS connections, so shut down the slowest one
         closesocket(true);
         return -1;
     }
@@ -909,7 +909,7 @@ bool RaidReq::getSlowestAndFastestParts(uint8_t& slowest, uint8_t& fastest, bool
     fastest = 0;
 
     uint8_t i = RAIDPARTS;
-    while (i --> 0 &&
+    while (i-- > 0 &&
         ((mustBeConnected && !mFetcher[slowest].mConnected) || !mFeedlag[slowest]))
     {
         slowest++;
@@ -984,7 +984,7 @@ void RaidReq::procdata(uint8_t part, byte* ptr, m_off_t pos, m_off_t len)
     auto t = pos - (mDataline * RAIDSECTOR);
 
     // ascertain absence of overflow (also covers parity part)
-    assert((t + len) <= static_cast<m_off_t>(DATA_SIZE / (RAIDPARTS - 1)));
+    assert((t + len) <= static_cast<m_off_t>(DATA_SIZE / EFFECTIVE_RAIDPARTS));
 
     // set valid bit for every block that's been received in full
     char partmask = 1 << part;
@@ -1016,7 +1016,7 @@ void RaidReq::procdata(uint8_t part, byte* ptr, m_off_t pos, m_off_t len)
         while (len2 >= RAIDSECTOR)
         {
             *reinterpret_cast<raidsector_t*>(target) = *reinterpret_cast<raidsector_t*>(ptr2);
-            target += RAIDSECTOR * (RAIDPARTS - 1);
+            target += RAIDSECTOR * EFFECTIVE_RAIDPARTS;
             ptr2 += RAIDSECTOR;
             len2 -= RAIDSECTOR;
         }
@@ -1211,7 +1211,6 @@ void RaidReq::dispatchio(const HttpReqPtr& httpReq)
 }
 
 // feed relevant read-ahead data to procdata
-// returns true if any data was processed
 void RaidReq::procreadahead()
 {
     bool fed;
@@ -1255,7 +1254,7 @@ uint8_t RaidReq::processFeedLag()
                 mFetcher[slowest].mErrors++;
 
                 // check if we have a fresh and idle channel left to try
-                uint8_t fresh = RAIDPARTS - 1;
+                uint8_t fresh = EFFECTIVE_RAIDPARTS;
                 while (fresh >= 0 && (mFetcher[fresh].mConnected || mFetcher[fresh].mErrors || mFetcher[fresh].mFinished))
                 {
                     fresh--;
@@ -1354,9 +1353,9 @@ size_t RaidReq::raidPartSize(uint8_t part, size_t fullfilesize)
     if (t < 0) t = 0;
     else if (t > RAIDSECTOR) t = RAIDSECTOR;
 
-    LOG_debug << "[RaidReq::raidPartSize] return (fullfilesize - r) / (RAIDPARTS - 1) + t = (" << fullfilesize << " -  " << r << ") / (" << (RAIDPARTS - 1) << ") + " << t << " = " << ((fullfilesize - r) / (RAIDPARTS - 1)) << " + " << t << " = " << ((fullfilesize - r) / (RAIDPARTS - 1) + t);
+    LOG_debug << "[RaidReq::raidPartSize] return (fullfilesize - r) / EFFECTIVE_RAIDPARTS + t = (" << fullfilesize << " -  " << r << ") / (" << EFFECTIVE_RAIDPARTS << ") + " << t << " = " << ((fullfilesize - r) / EFFECTIVE_RAIDPARTS) << " + " << t << " = " << ((fullfilesize - r) / EFFECTIVE_RAIDPARTS + t);
 
-    return (fullfilesize - r) / (RAIDPARTS - 1) + t;
+    return (fullfilesize - r) / EFFECTIVE_RAIDPARTS + t;
 }
 
 /* -------------- RaidReq END --------------*/

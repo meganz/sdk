@@ -1581,7 +1581,7 @@ bool DirectReadSlot::watchOverDirectReadPerformance()
 bool DirectReadSlot::doio()
 {
     bool isRaid = mDr->drbuf.isRaid();
-    unsigned numParts = isRaid ? (RAIDPARTS-1) : 1;
+    unsigned numParts = isRaid ? EFFECTIVE_RAIDPARTS : 1;
     unsigned minSpeedPerConnection = mDr->drn->client->minstreamingrate < 0 ? // Default limit
                                         (MIN_BYTES_PER_SECOND / numParts) :
                                      mDr->drn->client->minstreamingrate > 0 ? // Custom limit
@@ -1859,7 +1859,7 @@ void DirectRead::abort()
 m_off_t DirectRead::drMaxReqSize() const
 {
     m_off_t numParts = drn->tempurls.size() == RAIDPARTS ?
-                                    (RAIDPARTS - 1) :
+                                    EFFECTIVE_RAIDPARTS :
                                     drn->tempurls.size();
     return std::max(drn->size / numParts, TransferSlot::MAX_REQ_SIZE);
 }
@@ -1974,7 +1974,7 @@ DirectReadSlot::DirectReadSlot(DirectRead* cdr)
 
     mDr->drn->partiallen = 0;
     mDr->drn->partialstarttime = Waiter::ds;
-    mMaxChunkSize = static_cast<unsigned>(static_cast<unsigned>(DirectReadSlot::MAX_DELIVERY_CHUNK) / (mReqs.size() == static_cast<unsigned>(RAIDPARTS) ? (static_cast<unsigned>(RAIDPARTS-1)) : mReqs.size()));
+    mMaxChunkSize = static_cast<unsigned>(static_cast<unsigned>(DirectReadSlot::MAX_DELIVERY_CHUNK) / (mReqs.size() == static_cast<unsigned>(RAIDPARTS) ? (static_cast<unsigned>(EFFECTIVE_RAIDPARTS)) : mReqs.size()));
     if (mDr->drbuf.isRaid())
     {
         mMaxChunkSize -= mMaxChunkSize % RAIDSECTOR;

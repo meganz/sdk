@@ -30,8 +30,9 @@
 namespace mega {
 
     enum { RAIDPARTS = 6 };
+    enum { EFFECTIVE_RAIDPARTS = 5 }; // A file is divided by 5 parts plus parity part (to assemble the other parts if one of them is missing)
     enum { RAIDSECTOR = 16 };
-    enum { RAIDLINE = ((RAIDPARTS - 1)*RAIDSECTOR) };
+    enum { RAIDLINE = (EFFECTIVE_RAIDPARTS * RAIDSECTOR) };
 
 
     // Holds the latest download data received.   Raid-aware.   Suitable for file transfers, or direct streaming.

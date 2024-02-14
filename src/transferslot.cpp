@@ -138,7 +138,7 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
 #endif
 }
 
-bool TransferSlot::createconnectionsonce(MegaClient* client, TransferDbCommitter& committer)
+bool TransferSlot::createconnectionsonce()
 {
     // delay creating these until we know if it's raid or non-raid
     if (!(connections || reqs.size() || asyncIO))
@@ -162,7 +162,7 @@ bool TransferSlot::createconnectionsonce(MegaClient* client, TransferDbCommitter
 
         if (transferbuf.isNewRaid())
         {
-            transfer->slot->initCloudRaid(client);
+            transfer->slot->initCloudRaid(transfer->client);
         }
     }
     return true;
@@ -570,7 +570,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
     retrybt.reset();  // in case we don't delete the slot, and in case retrybt.next=1
     transfer->state = TRANSFERSTATE_ACTIVE;
 
-    if (!createconnectionsonce(client, committer))  // don't use connections, reqs, or asyncIO before this point.
+    if (!createconnectionsonce()) // don't use connections, reqs, or asyncIO before this point.
     {
         return;
     }
@@ -1277,9 +1277,6 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                             return transfer->failed(failValues.first, committer, failValues.second);
                         }
                     }
-                    else
-                    {
-                    }
                 }
             }
         }
@@ -1292,14 +1289,13 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
         if (transferbuf.isRaid())
         {
             cloudRaidProgress = transferbuf.progress();
-            p += cloudRaidProgress;
         }
         else if (transferbuf.isNewRaid())
         {
             assert(cloudRaid != nullptr);
             cloudRaidProgress = cloudRaid->progress();
-            p += cloudRaidProgress;
         }
+        p += cloudRaidProgress;
     }
     p += transfer->progresscompleted;
 
@@ -1618,7 +1614,6 @@ std::pair<error, dstime> TransferSlot::processRaidReq(size_t connection, m_off_t
         httpReq->bufpos = 0;
         httpReq->status = REQ_INFLIGHT;
     }
-    raidReqProgress = -1;
     byte* buf = httpReq->buf + httpReq->bufpos;
     m_off_t len = httpReq->size - httpReq->bufpos;
     assert((len > 0) && "len is 0 in processRaidReq");
