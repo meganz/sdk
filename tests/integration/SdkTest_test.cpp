@@ -6240,7 +6240,7 @@ namespace mega
         static void onLimitMaxReqSize(m_off_t& maxReqSize) // Only valid for TransferBufferManager
         {
             auto oldMaxRequestSize = maxReqSize;
-            maxReqSize = std::min<unsigned>(maxReqSize, 1024 * 1024);
+            maxReqSize = std::min<m_off_t>(maxReqSize, 1024 * 1024);
             LOG_info << "onLimitMaxReqSize: adjusted maxRequestSize from " << oldMaxRequestSize << " to " << maxReqSize;
         }
 
