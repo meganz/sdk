@@ -1859,8 +1859,8 @@ void DirectRead::abort()
 m_off_t DirectRead::drMaxReqSize() const
 {
     m_off_t numParts = drn->tempurls.size() == RAIDPARTS ?
-                                    EFFECTIVE_RAIDPARTS :
-                                    drn->tempurls.size();
+                                    static_cast<m_off_t>(EFFECTIVE_RAIDPARTS) :
+                                    static_cast<m_off_t>(drn->tempurls.size());
     return std::max(drn->size / numParts, TransferSlot::MAX_REQ_SIZE);
 }
 
