@@ -3833,6 +3833,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
 #endif // ENABLE_SYNC
     this->mStringList.reset(request->mStringList ? request->mStringList->copy() : nullptr);
     this->mMegaVpnCredentials.reset(request->mMegaVpnCredentials ? request->mMegaVpnCredentials->copy() : nullptr);
+    this->mMegaNotifications.reset(request->mMegaNotifications ? request->mMegaNotifications->copy() : nullptr);
 }
 
 std::shared_ptr<AccountDetails> MegaRequestPrivate::getAccountDetails() const
@@ -4660,6 +4661,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CREATE_PASSWORD_MANAGER_BASE: return "CREATE_PASSWORD_MANAGER_BASE";
         case TYPE_CREATE_PASSWORD_NODE: return "CREATE_PASSWORD_NODE";
         case TYPE_UPDATE_PASSWORD_NODE: return "UPDATE_PASSWORD_NODE";
+        case TYPE_GET_NOTIFICATIONS: return "GET_NOTIFICATIONS";
     }
     return "UNKNOWN";
 }
@@ -4687,6 +4689,16 @@ const char *MegaRequestPrivate::__str__() const
 const char *MegaRequestPrivate::__toString() const
 {
     return getRequestString();
+}
+
+const MegaNotificationList* MegaRequestPrivate::getMegaNotifications() const
+{
+    return mMegaNotifications.get();
+}
+
+void MegaRequestPrivate::setMegaNotifications(MegaNotificationList* megaNotifications)
+{
+    mMegaNotifications.reset(megaNotifications);
 }
 
 MegaBannerPrivate::MegaBannerPrivate(std::tuple<int, std::string, std::string, std::string, std::string, std::string, std::string>&& details)
@@ -26444,6 +26456,33 @@ void MegaApiImpl::performRequest_enableTestNotifications(MegaRequestPrivate* req
         {
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
         });
+}
+
+void MegaApiImpl::getNotifications(MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_NOTIFICATIONS, listener);
+
+    request->performRequest = [this, request]()
+    {
+        return performRequest_getNotifications(request);
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+error MegaApiImpl::performRequest_getNotifications(MegaRequestPrivate* request)
+{
+    auto onResult = [this, request](const Error& error, vector<DynamicMessageNotification>&& notifications)
+    {
+        MegaNotificationList* megaNotifications = new MegaNotificationListPrivate(std::move(notifications));
+        request->setMegaNotifications(megaNotifications);
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(error));
+    };
+
+    client->getNotifications(onResult);
+
+    return API_OK;
 }
 
 /* END MEGAAPIIMPL */

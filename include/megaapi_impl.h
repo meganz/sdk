@@ -1670,6 +1670,9 @@ class MegaRequestPrivate : public MegaRequest
         MegaVpnCredentials* getMegaVpnCredentials() const override;
         void setMegaVpnCredentials(MegaVpnCredentials* megaVpnCredentials);
 
+        const MegaNotificationList* getMegaNotifications() const override;
+        void setMegaNotifications(MegaNotificationList* megaNotifications);
+
 protected:
         std::shared_ptr<AccountDetails> accountDetails;
         MegaPricingPrivate *megaPricing;
@@ -1730,6 +1733,9 @@ protected:
 #ifdef ENABLE_SYNC
         unique_ptr<MegaSyncStallList> mSyncStallList;
 #endif // ENABLE_SYNC
+
+        unique_ptr<MegaNotificationList> mMegaNotifications;
+
     public:
         shared_ptr<ExecuteOnce> functionToExecute;
 };
@@ -3657,6 +3663,7 @@ public:
 
         MegaIntegerList* getEnabledNotifications() const;
         void enableTestNotifications(const MegaIntegerList* notificationIds, MegaRequestListener* listener);
+        void getNotifications(MegaRequestListener* listener);
 
 private:
         void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, unsigned clientWorkerThreadCount /*= 1*/, int clientType);
@@ -4166,6 +4173,7 @@ private:
         void CompleteFileDownloadBySkip(MegaTransferPrivate* transfer, m_off_t size, uint64_t nodehandle, int nextTag, const LocalPath& localPath);
 
         void performRequest_enableTestNotifications(MegaRequestPrivate* request);
+        error performRequest_getNotifications(MegaRequestPrivate * request);
 };
 
 class MegaHashSignatureImpl
@@ -4963,6 +4971,52 @@ private:
     std::string mString64FileKey;
 };
 
+class MegaNotificationPrivate : public MegaNotification
+{
+public:
+    MegaNotificationPrivate(DynamicMessageNotification&& n) :
+        mNotification{std::move(n)}, mCall1{&mNotification.callToAction1}, mCall2{&mNotification.callToAction2} {}
+    MegaNotificationPrivate(const DynamicMessageNotification& n) :
+        mNotification{n}, mCall1{&mNotification.callToAction1}, mCall2{&mNotification.callToAction2} {}
+
+    int64_t getID() const override { return mNotification.id; }
+    const char* getTitle() const override { return mNotification.title.c_str(); }
+    const char* getDescription() const override { return mNotification.description.c_str(); }
+    const char* getImageName() const override { return mNotification.imageName.c_str(); }
+    const char* getImagePath() const override { return mNotification.imagePath.c_str(); }
+    int64_t getStart() const override { return mNotification.start; }
+    int64_t getEnd() const override { return mNotification.end; }
+    bool showBanner() const override { return mNotification.showBanner; }
+    const MegaStringMap* getCallToAction1() const override { return &mCall1; }
+    const MegaStringMap* getCallToAction2() const override { return &mCall2; }
+    MegaNotificationPrivate* copy() const override { return new MegaNotificationPrivate(*this); }
+
+private:
+    const DynamicMessageNotification mNotification;
+    const MegaStringMapPrivate mCall1;
+    const MegaStringMapPrivate mCall2;
+};
+
+class MegaNotificationListPrivate : public MegaNotificationList
+{
+public:
+    MegaNotificationListPrivate(std::vector<DynamicMessageNotification>&& ns)
+    {
+        mNotifications.reserve(ns.size());
+        for (const auto& n : ns)
+        {
+            mNotifications.emplace_back(std::move(n));
+        }
+    }
+
+    MegaNotificationListPrivate* copy() const override { return new MegaNotificationListPrivate(*this); }
+
+    const MegaNotification* get(unsigned i) const override { return i < size() ? &mNotifications[i] : nullptr; }
+    unsigned size() const override { return static_cast<unsigned>(mNotifications.size()); }
+
+private:
+    vector<MegaNotificationPrivate> mNotifications;
+};
 }
 
 #endif //MEGAAPI_IMPL_H

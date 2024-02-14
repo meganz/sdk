@@ -20216,6 +20216,11 @@ std::string MegaClient::generatePasswordChars(const bool useUpper,
     return pwd;
 }
 
+void MegaClient::getNotifications(CommandGetNotifications::ResultFunc onResult)
+{
+    reqs.add(new CommandGetNotifications(this, onResult));
+}
+
 FetchNodesStats::FetchNodesStats()
 {
     init();

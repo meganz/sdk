@@ -1924,6 +1924,23 @@ private:
     Completion mCompletion;
 };
 
+
+struct DynamicMessageNotification;
+
+class MEGA_API CommandGetNotifications : public Command
+{
+public:
+    bool procresult(Result, JSON&) override;
+
+    using ResultFunc = std::function<void(const Error& error, vector<DynamicMessageNotification>&& notifications)>;
+    CommandGetNotifications(MegaClient*, ResultFunc onResult);
+
+private:
+    bool readCallToAction(JSON& json, std::map<std::string, std::string>& action);
+
+    ResultFunc mOnResult;
+};
+
 } // namespace
 
 #endif
