@@ -1255,12 +1255,12 @@ uint8_t RaidReq::processFeedLag()
                 mFetcher[slowest].mErrors++;
 
                 // check if we have a fresh and idle channel left to try
-                uint8_t fresh = EFFECTIVE_RAIDPARTS;
-                while (fresh >= 0 && (mFetcher[fresh].mConnected || mFetcher[fresh].mErrors || mFetcher[fresh].mFinished))
+                uint8_t fresh = 0;
+                while (fresh <= EFFECTIVE_RAIDPARTS && (mFetcher[fresh].mConnected || mFetcher[fresh].mErrors || mFetcher[fresh].mFinished))
                 {
-                    fresh--;
+                    fresh++;
                 }
-                if (fresh >= 0)
+                if (fresh <= EFFECTIVE_RAIDPARTS)
                 {
                     LOG_verbose << "New fresh channel: " << (int)fresh << " (" << (void*)mHttpReqs[fresh].get() << ")" << " [this = " << this << "]";
                     setNewUnusedRaidConnection(slowest);
