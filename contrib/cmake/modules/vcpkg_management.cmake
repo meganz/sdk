@@ -58,8 +58,8 @@ macro(process_vcpkg_libraries overlays_path)
         list(APPEND VCPKG_MANIFEST_FEATURES "use-readline")
     endif()
 
-    if (ENABLE_TESTS)
-        list(APPEND VCPKG_MANIFEST_FEATURES "tests")
+    if (ENABLE_SDKLIB_TESTS)
+        list(APPEND VCPKG_MANIFEST_FEATURES "sdk-tests")
     endif()
 
     set(CMAKE_TOOLCHAIN_FILE ${CMAKE_TOOLCHAIN_FILE} ${VCPKG_TOOLCHAIN_PATH})

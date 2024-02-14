@@ -1,4 +1,5 @@
 import SwiftUI
+import MEGADesignToken
 
 struct LoginView: View {
     @Bindable var viewModel: LoginViewModel
@@ -8,13 +9,15 @@ struct LoginView: View {
         NavigationStack {
             VStack {
                 Spacer()
-                Form {
+                Form(content: {
                     TextField("Email", text: $viewModel.email, prompt: Text("Email"))
-                    .autocapitalization(.none)
-                    .disableAutocorrection(true)
-                    .keyboardType(.emailAddress)
+                        .disableAutocorrection(true)
+                    #if os(iOS)
+                        .autocapitalization(.none)
+                        .keyboardType(.emailAddress)
+                    #endif
                     SecureField("Password", text: $viewModel.password, prompt: Text("Password"))
-                }
+                })
                 Spacer()
                 Text(viewModel.message)
                     .opacity(viewModel.message.isEmpty ? 0.0 : 1.0)
@@ -36,6 +39,8 @@ struct LoginView: View {
                 NodeListView()
             }
             .padding(30)
+            .background(TokenColors.Background.page.swiftUI)
+
         }
     }
 }

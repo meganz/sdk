@@ -9556,7 +9556,7 @@ void megacli()
                     if ((*it)->fa)
                     {
                         xferrate[(*it)->transfer->type]
-                            += (*it)->mTransferSpeed.calculateSpeed();
+                            += (*it)->mTransferSpeed.getCircularMeanSpeed();
                     }
                 }
                 xferrate[GET] /= 1024;
@@ -10673,7 +10673,7 @@ void exec_syncstatus(autocomplete::ACState& s)
             continue;
 
         // Determine the transfer's current speed.
-        auto speed = slot->mTransferSpeed.calculateSpeed();
+        auto speed = slot->mTransferSpeed.getCircularMeanSpeed();
 
         // Find out which syncs, if any, are related to this transfer.
         for (auto* file : slot->transfer->files)

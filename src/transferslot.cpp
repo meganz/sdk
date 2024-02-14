@@ -496,7 +496,7 @@ bool TransferSlot::testForSlowRaidConnection(unsigned connectionNum, bool& incre
                             || (reqs[j] && reqs[j]->status == REQ_DONE)) // this one reached end of file
                     {
                         ++otherCount;
-                        averageOtherRate += mReqSpeeds[j].lastRequestSpeed();
+                        averageOtherRate += mReqSpeeds[j].lastRequestMeanSpeed();
                     }
                     else
                     {
@@ -506,7 +506,7 @@ bool TransferSlot::testForSlowRaidConnection(unsigned connectionNum, bool& incre
             }
 
             averageOtherRate /=  otherCount ? otherCount : 1;
-            m_off_t thisRate = mReqSpeeds[connectionNum].lastRequestSpeed();
+            m_off_t thisRate = mReqSpeeds[connectionNum].lastRequestMeanSpeed();
 
             if (thisRate < averageOtherRate / 2     // this is less than half of avg of other connections
                     && averageOtherRate > 50 * 1024 // avg is more than 50KB/s
@@ -663,7 +663,7 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                             << " " << reqs[i]->pos << " - " << (reqs[i]->pos + reqs[i]->size)
                             << "   Size: " << reqs[i]->size
                             << (transferbuf.isRaid() ? string("   Part progress: " + std::to_string(transferbuf.transferPos(i)) + "/" + std::to_string(transferbuf.raidPartSize(i, transfer->size))) : "")
-                            << "   (" << (mReqSpeeds[i].lastRequestSpeed() / 1024) << " KB/s)";
+                            << "   (" << (mReqSpeeds[i].lastRequestMeanSpeed() / 1024) << " KB/s)";
 
                     if (transfer->type == PUT)
                     {
@@ -1315,7 +1315,8 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                 }
                 else
                 {
-                    LOG_verbose << "[TransferSlot::doio] [Non CloudRaid] Speed: " << (speed / 1024) << " KB/s. Mean speed: " << (meanSpeed / 1024) << " KB/s [diff = " << diff << "]" << " [new progressreported = " << p << ", last progressreported = " << progressreported << ", transfer->progresscompleted = " << transfer->progresscompleted << "] [transfer->size = " << transfer->size << "] [transfer->name = " << transfer->localfilename << "]";
+                    LOG_verbose << "[TransferSlot::doio] " << ((transfer->type == PUT) ? "[Upload]" : "[Non CloudRaid]")
+                                << " Speed: " << (speed / 1024) << " KB/s. Mean speed: " << (meanSpeed / 1024) << " KB/s [diff = " << diff << "]" << " [new progressreported = " << p << ", last progressreported = " << progressreported << ", transfer->progresscompleted = " << transfer->progresscompleted << "] [transfer->size = " << transfer->size << "] [transfer->name = " << transfer->localfilename << "]";
                 }
                 assert(p <= transfer->size);
             }
