@@ -9,7 +9,9 @@
 #include "mega/http.h"
 #include "raid.h"
 
-namespace mega::RaidProxy {
+namespace mega {
+
+namespace RaidProxy {
 
 #define NUMLINES 16384                                        // number of lines for the RaidReq::data array
 #define MAXRETRIES 10                                         // max number of consecutive errors for a failing part
@@ -197,6 +199,8 @@ public:
     RaidReq* rr() { return mRaidReq.get(); }                  // returns RaidReq pointer
 };
 
-} // namespace
+} // namespace RaidProxy
+
+} // namespace mega
 
 #endif
