@@ -188,20 +188,6 @@ bool WaitFor(const std::function<bool()>& predicate, unsigned timeoutMs)
     return false;
 }
 
-MegaApiTest* newMegaApi(const char* appKey,
-                        const char* basePath,
-                        const char* userAgent,
-                        unsigned workerThreadCount)
-{
-#ifdef WIN32
-    auto gfxworkerPath = sdk_test::getTestDataDir() / "gfxworker.exe";
-    auto provider = std::unique_ptr<MegaGfxProvider>(MegaGfxProvider::createIsolatedInstance("mega_sdk_test", gfxworkerPath.string().c_str()));
-    return new MegaApiTest(appKey, provider.get(), basePath, userAgent, workerThreadCount);
-#else
-    return new MegaApiTest(appKey, basePath, userAgent, workerThreadCount);
-#endif
-}
-
 enum { USERALERT_ARRIVAL_MILLISEC = 1000 };
 
 #ifdef _WIN32
@@ -285,6 +271,21 @@ namespace
             #endif
         }
     }
+
+    MegaApiTest* newMegaApi(const char* appKey,
+                            const char* basePath,
+                            const char* userAgent,
+                            unsigned workerThreadCount)
+    {
+    #ifdef WIN32
+        auto gfxworkerPath = sdk_test::getTestDataDir() / "gfxworker.exe";
+        auto provider = std::unique_ptr<MegaGfxProvider>(MegaGfxProvider::createIsolatedInstance("mega_sdk_test", gfxworkerPath.string().c_str()));
+        return new MegaApiTest(appKey, provider.get(), basePath, userAgent, workerThreadCount);
+    #else
+        return new MegaApiTest(appKey, basePath, userAgent, workerThreadCount);
+    #endif
+    }
+
 }
 
 std::map<size_t, std::string> gSessionIDs;
