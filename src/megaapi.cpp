@@ -3287,6 +3287,11 @@ int MegaApi::getPasswordStrength(const char *password)
     return pImpl->getPasswordStrength(password);
 }
 
+char* MegaApi::generateRandomCharsPassword(bool uU, bool uD, bool uS, unsigned int l)
+{
+    return MegaApiImpl::generateRandomCharsPassword(uU, uD, uS, l);
+}
+
 void MegaApi::submitFeedback(int rating, const char *comment, MegaRequestListener* listener)
 {
     pImpl->submitFeedback(rating, comment, listener);
@@ -6838,7 +6843,6 @@ void MegaApiLock::unlockOnce()
         locked = false;
     }
 }
-
 
 #ifdef ENABLE_CHAT
 MegaTextChatPeerList * MegaTextChatPeerList::createInstance()

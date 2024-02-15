@@ -2640,6 +2640,11 @@ public:
                              std::shared_ptr<Node> nParent, int rtag);
     error updatePasswordNode(NodeHandle nh, std::unique_ptr<AttrMap> newData,
                              CommandSetAttr::Completion&& cb);
+
+    static std::string generatePasswordChars(const bool useUpper,
+                                             const bool useDigits,
+                                             const bool useSymbols,
+                                             const unsigned int length);
 };
 
 } // namespace
