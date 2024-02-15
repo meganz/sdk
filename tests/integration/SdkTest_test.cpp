@@ -283,7 +283,10 @@ namespace
     {
         static std::atomic_int counter{0};
         int current = counter++;
-        return "test_integration_" + std::to_string(getCurrentPid()) + "_" + std::to_string(current);
+
+        std::ostringstream oss;
+        oss << "test_integration_" << getCurrentPid() << "_" << current;
+        return oss.str();
     }
 
     MegaApiTest* newMegaApi(const char* appKey,
@@ -16263,8 +16266,28 @@ void SdkTestGfx::TearDown()
  * @brief GfxProcessingContinueSuccessfullyAfterCrash
  *          1. create thumbnail successfully
  *          2. create thumbnail and preview of a image which causes a gfx process crash.
- *          3. create preview successfully
+ *          3. create preview still successfully after the crash
  *          4. create thumbnail of a not valid image expects false.
+ *
+ * @ Note:
+ *          Basically a createThumbnail/createPreview might fail due to the following reason:
+ *          
+ *          1. The GFX process was already crashed (not running), therefore the error is 
+ *             the pipe couldn't be connected
+ *          2. The GFX process crashed while processing, therefore the error is others.
+ *          
+ *          For the 1st case, we'll retry so it is handled. For the 2nd case, we don't retry as
+ *          we don't want to retry processing bad images which cause a crash. We have problems 
+ *          here because gfxworker process uses multiple thread model.        
+ *             When it is processing multiple GFX calls and crashes, we don't know which call is 
+ *          processing bad images. So simply all calls are not retried.
+ *             When the previous call results in a crash, the following immediate call may still
+ *             connect to the pipe as the crash takes time to shutdown the whole process. Therefore
+ *             the second call is dropped as well though it should be retried.
+ *
+ *          It has been discussed and we don't want to deal with these known problem at the moment
+ *          as we want to start with simple. It happens rare and the side effect is limited (thumbnail lost).
+ *          We'll improve it until we find it is necessary.
  */
 TEST_F(SdkTestGfx, GfxProcessingContinueSuccessfullyAfterCrash)
 {
@@ -16291,9 +16314,7 @@ TEST_F(SdkTestGfx, GfxProcessingContinueSuccessfullyAfterCrash)
     ASSERT_FALSE(api->createThumbnail(CRASH_IMAGE, CRASH_THUMBNAIL));
     ASSERT_FALSE(api->createPreview(CRASH_IMAGE, CRASH_PREVIEW));
 
-    // A known issue due to multi process model in gfxworker.exe
-    // A new call might be accpeted before the process exits due to crash
-    // Delay the new call as a workaround
+    // Don't make a call too quickly. Workaround: see note in test case desription
     std::this_thread::sleep_for(std::chrono::milliseconds{200});
 
     // 3. Create a preview successfully
