@@ -17367,6 +17367,11 @@ TEST_F(SdkTest, DynamicMessageNotifs)
     megaApi[0]->enableTestNotifications(ids.get(), &clearNotifsTracker); // clear "^!tnotif"
     ASSERT_EQ(clearNotifsTracker.waitForResult(), API_OK);
 
+    // Clear last-read-notification
+    RequestTracker clearLastReadNotifTracker(megaApi[0].get());
+    megaApi[0]->setLastReadNotification(0, &clearLastReadNotifTracker); // clear "^!lnotif"
+    ASSERT_EQ(clearLastReadNotifTracker.waitForResult(), API_OK);
+
     // Fetch user data ("ug" command), and cache IDs of enabled-notifications (ug.notifs).
     RequestTracker userDataTracker(megaApi[0].get());
     megaApi[0]->getUserData(&userDataTracker);
@@ -17418,6 +17423,12 @@ TEST_F(SdkTest, DynamicMessageNotifs)
     const auto* notificationList2 = gnotifTracker2.request->getMegaNotifications();
     ASSERT_THAT(notificationList2, ::testing::NotNull());
     ASSERT_EQ(notificationList2->size(), 1u);
+
+    // Set last-read-notification
+    const uint32_t lastReadNotifId = numeric_limits<uint32_t>::max() - 2; // dummy value
+    RequestTracker setLastReadNotifTracker(megaApi[0].get());
+    megaApi[0]->setLastReadNotification(lastReadNotifId, &setLastReadNotifTracker); // set "^!lnotif"
+    ASSERT_EQ(setLastReadNotifTracker.waitForResult(), API_OK);
 
     // Clear test-notifications
     ids.reset(MegaIntegerList::createInstance());

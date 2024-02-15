@@ -3664,6 +3664,7 @@ public:
         MegaIntegerList* getEnabledNotifications() const;
         void enableTestNotifications(const MegaIntegerList* notificationIds, MegaRequestListener* listener);
         void getNotifications(MegaRequestListener* listener);
+        void setLastReadNotification(uint32_t notificationId, MegaRequestListener* listener);
 
 private:
         void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, unsigned clientWorkerThreadCount /*= 1*/, int clientType);
@@ -4174,6 +4175,7 @@ private:
 
         void performRequest_enableTestNotifications(MegaRequestPrivate* request);
         error performRequest_getNotifications(MegaRequestPrivate * request);
+        void performRequest_setLastReadNotification(MegaRequestPrivate* request);
 };
 
 class MegaHashSignatureImpl

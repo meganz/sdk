@@ -4024,6 +4024,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     string ccPrefs;
     string versionCcPrefs;
     string enabledTestNotifications, versionEnabledTestNotifications;
+    string lastReadNotification, versionLastReadNotification;
 #ifdef ENABLE_SYNC
     string jsonSyncConfigData;
     string jsonSyncConfigDataVersion;
@@ -4412,6 +4413,12 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             break;
         }
 
+        case MAKENAMEID8('^', '!', 'l', 'n', 'o', 't', 'i', 'f'):
+        {
+            parseUserAttribute(json, lastReadNotification, versionLastReadNotification);
+            break;
+        }
+
         case EOO:
         {
             assert(me == client->me);
@@ -4728,6 +4735,15 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 else
                 {
                     u->setNonExistingAttribute(ATTR_ENABLE_TEST_NOTIFICATIONS);
+                }
+
+                if (!lastReadNotification.empty() || !versionLastReadNotification.empty())
+                {
+                    changes += u->updateattr(ATTR_LAST_READ_NOTIFICATION, &lastReadNotification, &versionLastReadNotification);
+                }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_LAST_READ_NOTIFICATION);
                 }
 
 #ifdef ENABLE_SYNC

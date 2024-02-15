@@ -6689,6 +6689,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE:
         case MegaApi::USER_ATTR_PWM_BASE:
         case MegaApi::USER_ATTR_ENABLE_TEST_NOTIFICATIONS:
+        case MegaApi::USER_ATTR_LAST_READ_NOTIFICATION:
             scope = '^';
             break;
 
@@ -20771,6 +20772,10 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                 {
                     performRequest_enableTestNotifications(request);
                 }
+                else if (type == ATTR_LAST_READ_NOTIFICATION)
+                {
+                    performRequest_setLastReadNotification(request);
+                }
                 else
                 {
                     return API_EARGS;
@@ -26483,6 +26488,33 @@ error MegaApiImpl::performRequest_getNotifications(MegaRequestPrivate* request)
     client->getNotifications(onResult);
 
     return API_OK;
+}
+
+void MegaApiImpl::setLastReadNotification(uint32_t notificationId, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_LAST_READ_NOTIFICATION);
+    request->setNumber(notificationId);
+
+    request->performRequest = [this, request]()
+    {
+        return performRequest_setAttrUser(request);
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::performRequest_setLastReadNotification(MegaRequestPrivate* request)
+{
+    const string& tmp = request->getNumber() ? std::to_string(static_cast<uint32_t>(request->getNumber())) : string{};
+
+    client->putua(ATTR_LAST_READ_NOTIFICATION, reinterpret_cast<const byte*>(tmp.c_str()),
+        static_cast<unsigned>(tmp.size()), -1, UNDEF, 0, 0,
+        [this, request](Error e)
+        {
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+        });
 }
 
 /* END MEGAAPIIMPL */
