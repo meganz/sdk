@@ -1196,7 +1196,7 @@ public:
         mStarted = true;
         if (mUnusedRaidConnection == RAIDPARTS)
         {
-            mUnusedRaidConnection = g_faultyServers.selectWorstServer(mTSlot->transferbuf.tempUrlVector());
+            mUnusedRaidConnection = static_cast<uint8_t>(g_faultyServers.selectWorstServer(mTSlot->transferbuf.tempUrlVector()));
         }
         LOG_debug << "[CloudRaid::start] CloudRAID started. Initial unused raid connection: " << (int)mUnusedRaidConnection;
         return true;

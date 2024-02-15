@@ -677,7 +677,7 @@ RaidReq::RaidReq(const Params& p, RaidReqPool& rrp, const std::shared_ptr<CloudR
     lastdata(Waiter::ds)
 {
     assert(p.tempUrls.size() > 0);
-    assert((mReqStartPos >= 0) && (mRem <= mFilesize));
+    assert((mReqStartPos >= 0) && (mRem <= static_cast<m_off_t>(mFilesize)));
     assert(mReqStartPos % RAIDSECTOR == 0);
     assert(mReqStartPos % RAIDLINE == 0);
 
@@ -832,8 +832,8 @@ uint8_t RaidReq::numPartsUnfinished() const
 uint8_t RaidReq::hangingSources(uint8_t* hangingSource = nullptr, uint8_t* idleGoodSource = nullptr)
 {
     uint8_t numHangingSources = 0;
-    if (hangingSource) *hangingSource = -1;
-    if (idleGoodSource) *idleGoodSource = -1;
+    if (hangingSource) *hangingSource = RAIDPARTS;
+    if (idleGoodSource) *idleGoodSource = RAIDPARTS;
 
     for (uint8_t i = RAIDPARTS; i--; )
     {
@@ -867,7 +867,8 @@ void RaidReq::watchdog()
 
     if (hanging)
     {
-        if (idlegoodsource < 0)
+        assert(hangingsource != RAIDPARTS);
+        if (idlegoodsource == RAIDPARTS)
         {
             // Try a source with less errors:
             for (uint8_t i = RAIDPARTS; i--; )
@@ -875,11 +876,11 @@ void RaidReq::watchdog()
                 if (!mFetcher[i].mConnected &&
                     !mFetcher[i].mFinished &&
                     (mFetcher[i].mErrors <= MAX_ERRORS_FOR_IDLE_GOOD_SOURCE ||
-                            (idlegoodsource >= 0 && mFetcher[i].mErrors < mFetcher[idlegoodsource].mErrors)))
+                            (idlegoodsource != RAIDPARTS && mFetcher[i].mErrors < mFetcher[idlegoodsource].mErrors)))
                     idlegoodsource = i;
             }
         }
-        if (idlegoodsource >= 0)
+        if (idlegoodsource != RAIDPARTS)
         {
             LOG_verbose << "Hanging source!! hangingsource = " << (int)hangingsource << " (HttpReq: " << (void*)mHttpReqs[hangingsource].get() << "), idlegoodsource = " << (int)idlegoodsource << " (HttpReq: " << (void*)mHttpReqs[idlegoodsource].get() << ") [mFetcher[hangingsource].lastdata = " << mFetcher[hangingsource].lastdata << ", Waiter::ds = " << Waiter::ds << "] [this = " << this << "]";
             mFetcher[hangingsource].mErrors++;
@@ -1254,12 +1255,12 @@ uint8_t RaidReq::processFeedLag()
                 mFetcher[slowest].mErrors++;
 
                 // check if we have a fresh and idle channel left to try
-                uint8_t fresh = EFFECTIVE_RAIDPARTS;
-                while (fresh >= 0 && (mFetcher[fresh].mConnected || mFetcher[fresh].mErrors || mFetcher[fresh].mFinished))
+                uint8_t fresh = 0;
+                while (fresh <= EFFECTIVE_RAIDPARTS && (mFetcher[fresh].mConnected || mFetcher[fresh].mErrors || mFetcher[fresh].mFinished))
                 {
-                    fresh--;
+                    fresh++;
                 }
-                if (fresh >= 0)
+                if (fresh <= EFFECTIVE_RAIDPARTS)
                 {
                     LOG_verbose << "New fresh channel: " << (int)fresh << " (" << (void*)mHttpReqs[fresh].get() << ")" << " [this = " << this << "]";
                     setNewUnusedRaidConnection(slowest);
@@ -1291,7 +1292,7 @@ m_off_t RaidReq::progress() const
     assert((mCompleted * RAIDLINE) - mSkip >= 0);
     progressCount += ((mCompleted * RAIDLINE) - mSkip);
     assert(progressCount >= 0);
-    assert(progressCount <= mFilesize);
+    assert(progressCount <= static_cast<m_off_t>(mFilesize));
     return progressCount;
 }
 
