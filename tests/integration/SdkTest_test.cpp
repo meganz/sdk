@@ -272,6 +272,20 @@ namespace
         }
     }
 
+    //
+    // Get a new pipe name without conflicts with any running instances
+    // under the following situations:
+    //      1. Jenkins can run multiple test jobs at the same time
+    //      2. A test job can run tests in parallel
+    // Use current process ID so names are unique between different jobs (processes)
+    // Use a static incremental counter so names are unique in the same job (process)
+    std::string newPipeName()
+    {
+        static std::atomic_int counter{0};
+        int current = counter++;
+        return "test_integration_" + std::to_string(getCurrentPid()) + "_" + std::to_string(current);
+    }
+
     MegaApiTest* newMegaApi(const char* appKey,
                             const char* basePath,
                             const char* userAgent,
@@ -279,7 +293,9 @@ namespace
     {
     #ifdef WIN32
         auto gfxworkerPath = sdk_test::getTestDataDir() / "gfxworker.exe";
-        auto provider = std::unique_ptr<MegaGfxProvider>(MegaGfxProvider::createIsolatedInstance("mega_sdk_test", gfxworkerPath.string().c_str()));
+        std::unique_ptr<MegaGfxProvider> provider{
+            MegaGfxProvider::createIsolatedInstance(newPipeName().c_str(), gfxworkerPath.string().c_str())
+        };
         return new MegaApiTest(appKey, provider.get(), basePath, userAgent, workerThreadCount);
     #else
         return new MegaApiTest(appKey, basePath, userAgent, workerThreadCount);
