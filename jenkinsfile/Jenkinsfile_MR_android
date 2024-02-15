@@ -47,6 +47,10 @@ pipeline {
 
     environment {
         BUILD_OPTIONS = ' '
+        UPLOAD_THIRD_PARTY_SOURCES = ' ' 
+        UPLOAD_THIRD_PARTY_SOURCES_EXAMPLE = ' '
+        THIRD_PARTY_SOURCES_ANDROID_PATH = "sdk/src/main/jni"
+        THIRD_PARTY_SOURCES_EXAMPLE_PATH = "examples/android/ExampleApp/app/src/main/jni"
     }
 
     stages {
@@ -58,17 +62,15 @@ pipeline {
         }
         stage('Get build parameters'){
             parallel{
-                stage('Get build options'){
-                    when {
-                        allOf {
-                            expression { env.gitlabTriggerPhrase != null }
-                            expression { env.gitlabTriggerPhrase.contains('BUILD_OPTIONS') }
-                        }
-                    }
+                stage('Get build options and run parameters'){
                     steps {
                         script{
-                            BUILD_OPTIONS = sh(script: 'echo "$gitlabTriggerPhrase" | grep BUILD_OPTIONS | awk -F "BUILD_OPTIONS="  \'{print \$2}\' | cut -d"\"" -f2', returnStdout: true).trim()
+                            BUILD_OPTIONS = sh(script: 'echo "$gitlabTriggerPhrase" | grep BUILD_OPTIONS | awk -F "BUILD_OPTIONS="  \'{print \$2}\' | cut -d"\\"" -f2 || :', returnStdout: true).trim()
+                            UPLOAD_THIRD_PARTY_SOURCES = sh(script: 'echo "$gitlabTriggerPhrase" | grep "\\-\\-upload_android" >/dev/null 2>&1 && echo "true" || echo "false"', returnStdout: true).trim()
+                            UPLOAD_THIRD_PARTY_SOURCES_EXAMPLE = sh(script: 'echo "$gitlabTriggerPhrase" | grep "\\-\\-upload_example" >/dev/null 2>&1 && echo "true" || echo "false"', returnStdout: true).trim()
                             println BUILD_OPTIONS
+                            println UPLOAD_THIRD_PARTY_SOURCES
+                            println UPLOAD_THIRD_PARTY_SOURCES_EXAMPLE
                         }
                     }
                     post{
@@ -146,11 +148,20 @@ pipeline {
                                         [$class: 'PreBuildMerge', options: [fastForwardMode: 'FF', mergeRemote: "origin", mergeStrategy: 'DEFAULT', mergeTarget: "${env.gitlabTargetBranch}"]]
                                         ]
                                 ])
-                                script{
-                                    sdk_sources_workspace = WORKSPACE
+                            }
+                        }
+
+                        stage('Download prebuilt third-party-sources for example'){
+                            steps {
+                                dir("${env.THIRD_PARTY_SOURCES_EXAMPLE_PATH}"){
+                                    sh "pwd"
+                                    sh "jf rt download third-party-sources-sdk/3rdparty-sdk-android-example.tar.gz ."
+                                    sh "tar -xf 3rdparty-sdk-android-example.tar.gz --skip-old-files"
+                                    sh "rm 3rdparty-sdk-android-example.tar.gz"
                                 }
                             }
                         }
+                        
                         stage('Build SDK and exampleApp'){
                             environment{
                                 BUILD_ARCHS = "arm64-v8a"
@@ -158,7 +169,7 @@ pipeline {
                                 ANDROID_NDK_HOME ="/home/jenkins/android-ndk/"
                             }
                             steps{
-                                dir("${sdk_sources_workspace}/examples/android/ExampleApp") {
+                                dir("examples/android/ExampleApp") {
                                     script{
                                         env.PATH="${env.PATH}:${env.ANDROID_HOME}/cmdline-tools/tools/bin/"
                                     }
@@ -167,10 +178,17 @@ pipeline {
                                     dir("app/src/main/jni/"){
                                         sh "sed -i 's#JOBS=.*#JOBS=1#' build.sh"
                                         sh "sed -i 's#LOG_FILE=/dev/null#LOG_FILE=/dev/stdout#g' build.sh"
-                                        sh "bash -x ./build.sh clean"
                                         sh "rm -rf ../java/nz/mega/sdk"
                                         //Build SDK and libs
                                         sh "bash -x ./build.sh all"
+                                        script {
+                                            if ("${UPLOAD_THIRD_PARTY_SOURCES_EXAMPLE}" == "true"){
+                                                sh "rm curl/crashlytics.h.ready"
+                                                sh "tar -czf 3rdparty-sdk-android-example.tar.gz cryptopp curl icu libuv mediainfo openssl sodium sqlite"
+                                                sh "jf rt upload 3rdparty-sdk-android-example.tar.gz third-party-sources-sdk/"
+                                                sh "rm 3rdparty-sdk-android-example.tar.gz"
+                                            }                                        
+                                        }
                                     }
                                     //Build Example App
                                     sh "./gradlew --no-daemon --max-workers=1 build"
@@ -241,6 +259,17 @@ pipeline {
                                 }
                             }
                         }
+
+                        stage('Download prebuilt third-party-sources'){
+                            steps {
+                                dir("${env.THIRD_PARTY_SOURCES_ANDROID_PATH}"){
+                                    sh "jf rt download third-party-sources-sdk/3rdparty-sdk.tar.gz ."
+                                    sh "tar -xf 3rdparty-sdk.tar.gz --skip-old-files"
+                                    sh "rm 3rdparty-sdk.tar.gz"
+                                }
+                            }
+                        }
+
                         stage('Build SDK and Android App'){
                             environment{
                                 BUILD_ARCHS = "arm64-v8a"
@@ -253,18 +282,38 @@ pipeline {
                             }
                             steps{
                                 //build SDK
-                                dir("sdk/src/main/jni"){
+                                dir("${env.THIRD_PARTY_SOURCES_ANDROID_PATH}"){
                                     script{
                                         env.PATH="${env.PATH}:${env.ANDROID_HOME}/cmdline-tools/tools/bin/"
                                     }
                                     sh "ln -sfrT ${ANDROID_WEBRTC} megachat/webrtc"
                                     sh "sed -i 's#JOBS=.*#JOBS=1#' build.sh"
                                     sh "sed -i 's#LOG_FILE=/dev/null#LOG_FILE=/dev/stdout#g' build.sh"
-                                    sh "./build.sh clean"
                                     sh "./build.sh all"
+                                    script {
+                                        if ("${UPLOAD_THIRD_PARTY_SOURCES}" == "true"){
+                                            sh "rm curl/crashlytics.h.ready"
+                                            sh "tar -czf 3rdparty-sdk.tar.gz cryptopp curl icu libuv libwebsockets mediainfo pdfviewer sodium sqlite"
+                                            sh "jf rt upload 3rdparty-sdk.tar.gz third-party-sources-sdk/"
+                                            sh "rm 3rdparty-sdk.tar.gz"
+                                        }                                        
+                                    }
                                 }
-                              sh "cp -r ${DEFAULT_GOOGLE_MAPS_API_PATH}/* app/src/"
-                              sh "./gradlew --no-daemon --max-workers=1 assembleGms"
+                                sh "cp -r ${DEFAULT_GOOGLE_MAPS_API_PATH}/* app/src/"
+                                script {
+                                    withCredentials([
+                                            string(credentialsId: 'ARTIFACTORY_USER', variable: 'ARTIFACTORY_USER'),
+                                            string(credentialsId: 'ARTIFACTORY_ACCESS_TOKEN', variable: 'ARTIFACTORY_ACCESS_TOKEN'),
+                                    ]){
+                                        withEnv([
+                                            "ARTIFACTORY_USER=${ARTIFACTORY_USER}",
+                                            "ARTIFACTORY_ACCESS_TOKEN=${ARTIFACTORY_ACCESS_TOKEN}"
+                                        ]){
+                                            sh "./gradlew --no-daemon --max-workers=1 assembleGmsDebug"
+                                            sh "./gradlew --no-daemon --max-workers=1 assembleGmsQa"
+                                        }
+                                    }
+                                }
                             }
                         }
 

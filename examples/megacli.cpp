@@ -5689,7 +5689,8 @@ void exec_open(autocomplete::ACState& s)
                                           "megacli_folder/" TOSTRING(MEGA_MAJOR_VERSION)
                                           "." TOSTRING(MEGA_MINOR_VERSION)
                                           "." TOSTRING(MEGA_MICRO_VERSION),
-                                          2);
+                                          2,
+                                          client->getClientType());
         }
         else
         {
@@ -9733,6 +9734,37 @@ static void registerSignalHandlers()
 
 #endif // ! NO_READLINE
 
+MegaClient::ClientType getClientTypeFromArgs(const std::vector<char*>& args)
+{
+    for (const char* a : args)
+    {
+        assert(a);
+
+        static constexpr char prefix[] = "--client_type=";
+        static constexpr size_t prefixLen = sizeof(prefix) - 1;
+        string s{a};
+        if (!s.compare(0, prefixLen, prefix))
+        {
+            const string& clientType = s.substr(prefixLen);
+            if (clientType == "vpn")
+            {
+                return MegaClient::ClientType::VPN;
+            }
+            if (clientType == "password_manager")
+            {
+                return MegaClient::ClientType::PASSWORD_MANAGER;
+            }
+            if (clientType != "default")
+            {
+                cout << "WARNING: Invalid argument " << s << ". Using default instead.\n" << endl;
+                break;
+            }
+        }
+    }
+
+    return MegaClient::ClientType::DEFAULT;
+}
+
 int main(int argc, char* argv[])
 {
 #if defined(_WIN32) && defined(_DEBUG)
@@ -9808,6 +9840,7 @@ int main(int argc, char* argv[])
         nullptr;
 #endif
 
+    auto clientType = getClientTypeFromArgs(myargv1);
 
     // instantiate app components: the callback processor (DemoApp),
     // the HTTP I/O engine (WinHttpIO) and the MegaClient itself
@@ -9820,7 +9853,8 @@ int main(int argc, char* argv[])
                             "megacli/" TOSTRING(MEGA_MAJOR_VERSION)
                             "." TOSTRING(MEGA_MINOR_VERSION)
                             "." TOSTRING(MEGA_MICRO_VERSION),
-                            2);
+                            2,
+                            clientType);
 
     ac::ACN acs = autocompleteSyntax();
 #if defined(WIN32) && defined(NO_READLINE)

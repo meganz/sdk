@@ -19,7 +19,7 @@
  * program.
  */
 
-#include "test.h"
+#include "sdk_test_utils.h"
 #include "stdfs.h"
 #include "SdkTest_test.h"
 #include "gtest_common.h"
@@ -462,15 +462,19 @@ void SdkTest::Cleanup()
             for (int i = 0u; i < chats->size(); ++i)
             {
                 const MegaTextChat* c = chats->get(i);
-                RequestTracker rt(megaApi[nApi].get());
-                megaApi[nApi]->chatLinkQuery(c->getHandle(), &rt);
-                auto e = rt.waitForResult();
-                EXPECT_TRUE(e == API_OK || e == API_ENOENT || e == API_EACCESS) << "e == " << e;
-                if (e == API_OK)
+                ASSERT_TRUE(c);
+                if (c->getOwnPrivilege() == PRIV_MODERATOR)
                 {
-                    RequestTracker rtD(megaApi[nApi].get());
-                    megaApi[nApi]->chatLinkDelete(c->getHandle(), &rtD);
-                    EXPECT_EQ(rtD.waitForResult(), API_OK);
+                    RequestTracker rt(megaApi[nApi].get());
+                    megaApi[nApi]->chatLinkQuery(c->getHandle(), &rt);
+                    auto e = rt.waitForResult();
+                    EXPECT_TRUE(e == API_OK || e == API_ENOENT || e == API_EACCESS) << "e == " << e;
+                    if (e == API_OK)
+                    {
+                        RequestTracker rtD(megaApi[nApi].get());
+                        megaApi[nApi]->chatLinkDelete(c->getHandle(), &rtD);
+                        EXPECT_EQ(rtD.waitForResult(), API_OK);
+                    }
                 }
             }
 #endif
@@ -1191,7 +1195,34 @@ void SdkTest::deleteFolder(string foldername)
     fs::remove_all(p, ignoredEc);
 }
 
-void SdkTest::getAccountsForTest(unsigned howMany)
+void SdkTest::fetchNodesForAccounts(const unsigned howMany)
+{
+    std::vector<std::unique_ptr<RequestTracker>> trackers(howMany);
+    // perform parallel fetchnodes for each
+    for (unsigned index = 0; index < howMany; ++index)
+    {
+        out() << "Fetching nodes for account " << index;
+        trackers[index] = asyncRequestFetchnodes(index);
+    }
+
+    // wait for fetchnodes to complete:
+    bool anyFetchnodesFailed = false;
+    for (unsigned index = 0; index < howMany; ++index)
+    {
+        auto fetchnodesResult = trackers[index]->waitForResult();
+        EXPECT_EQ(API_OK, fetchnodesResult) << " Failed to fetchnodes for account " << index;
+        anyFetchnodesFailed = anyFetchnodesFailed || (fetchnodesResult != API_OK);
+    }
+    ASSERT_FALSE(anyFetchnodesFailed);
+
+    // Ensure all accounts are migrated.
+    for (unsigned index = 0; index < howMany; ++index)
+    {
+        EXPECT_EQ(MegaError::API_OK, synchronousDoUpgradeSecurity(index));
+    }
+}
+
+void SdkTest::getAccountsForTest(unsigned howMany, bool fetchNodes)
 {
     EXPECT_TRUE(howMany > 0) << "SdkTest::getAccountsForTest(): invalid number of test account to setup " << howMany << " is < 0";
     EXPECT_TRUE(howMany <= (unsigned)gMaxAccounts) << "SdkTest::getAccountsForTest(): too many test accounts requested " << howMany << " is > " << gMaxAccounts;
@@ -1243,28 +1274,7 @@ void SdkTest::getAccountsForTest(unsigned howMany)
     }
     ASSERT_FALSE(anyLoginFailed);
 
-    // perform parallel fetchnodes for each
-    for (unsigned index = 0; index < howMany; ++index)
-    {
-        out() << "Fetching nodes for account " << index;
-        trackers[index] = asyncRequestFetchnodes(index);
-    }
-
-    // wait for fetchnodes to complete:
-    bool anyFetchnodesFailed = false;
-    for (unsigned index = 0; index < howMany; ++index)
-    {
-        auto fetchnodesResult = trackers[index]->waitForResult();
-        EXPECT_EQ(API_OK, fetchnodesResult) << " Failed to fetchnodes for account " << index;
-        anyFetchnodesFailed = anyFetchnodesFailed || (fetchnodesResult != API_OK);
-    }
-    ASSERT_FALSE(anyFetchnodesFailed);
-
-    // Ensure all accounts are migrated.
-    for (unsigned index = 0; index < howMany; ++index)
-    {
-        EXPECT_EQ(MegaError::API_OK, synchronousDoUpgradeSecurity(index));
-    }
+    if (fetchNodes) fetchNodesForAccounts(howMany);
 
     // In case the last test exited without cleaning up (eg, debugging etc)
     Cleanup();
@@ -3109,7 +3119,7 @@ TEST_F(SdkTest, SdkTestContacts)
     LOG_info << "___TEST Contacts___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
-    copyFileFromTestData(AVATARSRC);
+    sdk_test::copyFileFromTestData(AVATARSRC);
 
     // --- Check my email and the email of the contact ---
 
@@ -7164,7 +7174,7 @@ TEST_F(SdkTest, SdkHttpReqCommandPutFATest)
 {
     LOG_info << "___TEST SdkHttpReqCommandPutFATest___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-    copyFileFromTestData(IMAGEFILE);
+    sdk_test::copyFileFromTestData(IMAGEFILE);
 
     // SCENARIO 1: Upload image file and check thumbnail and preview
     std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
@@ -7211,7 +7221,7 @@ TEST_F(SdkTest, SdkMediaImageUploadTest)
 {
     LOG_info << "___TEST MediaUploadRequestURL___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-    copyFileFromTestData(IMAGEFILE);
+    sdk_test::copyFileFromTestData(IMAGEFILE);
 
     unsigned int apiIndex = 0;
     int64_t fileSize = 1304;
@@ -7525,7 +7535,7 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     LOG_info << "___TEST SDKSensitive___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
-    copyFileFromTestData(IMAGEFILE);
+    sdk_test::copyFileFromTestData(IMAGEFILE);
 
     unique_ptr<MegaNode> rootnodeA(megaApi[0]->getRootNode());
 
@@ -8941,24 +8951,25 @@ TEST_F(SdkTest, QueryAds)
 TEST_F(SdkTest, FetchAds)
 {
     LOG_info << "___TEST FetchAds";
+    LOG_debug << "\t# Test suite 1: Fetching ads with non-ads account";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     std::unique_ptr<MegaStringList> stringList = std::unique_ptr<MegaStringList>(MegaStringList::createInstance());
     std::unique_ptr<RequestTracker> tr = asyncFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get(), INVALID_HANDLE);
     ASSERT_EQ(API_EARGS, tr->waitForResult()) << "Fetch Ads succeeded with invalid arguments";
     stringList->add("dummyAdUnit");
     tr = asyncFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get(), INVALID_HANDLE);
-    ASSERT_EQ(API_OK, tr->waitForResult()) << "Fetch Ads failed";
+    ASSERT_EQ(API_ENOENT, tr->waitForResult()) << "Fetch Ads didn't fail when it was expected to (dummy Ad case)";
     const MegaStringMap* ads = tr->request->getMegaStringMap();
-    ASSERT_TRUE(ads) << "Fetch Ads didn't copy ads to `request`";
-    ASSERT_EQ(ads->size(), 0) << "Fetch Ads found some dummy ads";
+    ASSERT_FALSE(ads) << "Fetch Ads should have been nullptr due to expected error code `request`";
     const char valiAdSlot[] = "ANDFB";
+    stringList.reset(MegaStringList::createInstance());
     stringList->add(valiAdSlot);
     tr = asyncFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get(), INVALID_HANDLE);
-    ASSERT_EQ(API_OK, tr->waitForResult()) << "Fetch Ads failed";
+    ASSERT_EQ(API_ENOENT, tr->waitForResult()) << "Fetch Ads didn't fail when it was expected to (correct Ad case)";
     ads = tr->request->getMegaStringMap();
-    ASSERT_TRUE(ads) << "Fetch Ads didn't copy ads to `request`";
-    ASSERT_EQ(ads->size(), 1) << "Fetch Ads findings are incorrect";
-    ASSERT_NE(ads->get(valiAdSlot), nullptr) << "Fetch Ads didn't find " << valiAdSlot;
+    ASSERT_FALSE(ads) << "Fetch Ads should have been nullptr to expected error code in `request`";
+
+    // TODO: LOG_debug << "\t# Test suite 2: Fetching ads with containing-ads account";
 }
 
 #ifdef ENABLE_SYNC
@@ -10558,7 +10569,7 @@ TEST_F(SdkTest, SyncImage)
     WaitMillisec(waitForSyncsMs);
 
     LOG_verbose << "SyncImage :  Adding the image file and checking if it is synced: " << filePath.u8string();
-    copyFileFromTestData(fileNameStr, filePath.u8string());
+    sdk_test::copyFileFromTestData(fileNameStr, filePath.u8string());
     auto remoteFile = "/" + string(remoteBaseNode->getName()) + "/" + fileNameStr;
     std::unique_ptr<MegaNode> remoteNode;
     WaitFor([this, &remoteNode, &remoteFile]() -> bool
@@ -11070,7 +11081,7 @@ TEST_F(SdkTest, SdkTestAudioFileThumbnail)
 
     LocalPath mp3LP;
 
-    mp3LP = LocalPath::fromAbsolutePath(getTestDataDir().string());
+    mp3LP = LocalPath::fromAbsolutePath(sdk_test::getTestDataDir().string());
     mp3LP.appendWithSeparator(LocalPath::fromRelativePath(AUDIO_FILENAME), false);
 
     const std::string& mp3 = mp3LP.toPath(false);
@@ -16110,7 +16121,7 @@ class SdkTestAvatar : public SdkTest
 protected:
     unsigned int mApiIndex{0};
     std::unique_ptr<MegaUser> mUser;
-    fs::path mDstAvatarPath{getTestDataDir()/AVATARDST};
+    fs::path mDstAvatarPath{sdk_test::getTestDataDir()/AVATARDST};
     const std::string PATH_SEPARATOR{LocalPath::localPathSeparator_utf8};
 
 public:
@@ -16125,7 +16136,7 @@ public:
         ASSERT_THAT(mUser, ::testing::NotNull());
 
         // Set avatar
-        const auto srcAvatarPath{getTestDataDir()/AVATARSRC};
+        const auto srcAvatarPath{sdk_test::getTestDataDir()/AVATARSRC};
         ASSERT_EQ(API_OK, synchronousSetAvatar(mApiIndex, srcAvatarPath.string().c_str()));
     }
 
@@ -16166,7 +16177,7 @@ TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoAFile)
 TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoADirectoryEndingWithSlash)
 {
     // Get avatar
-    std::string dstAvatarPath{getTestDataDir().string()};
+    std::string dstAvatarPath{sdk_test::getTestDataDir().string()};
     dstAvatarPath.append(PATH_SEPARATOR);
     ASSERT_THAT(dstAvatarPath, ::testing::EndsWith(PATH_SEPARATOR));
     mApi[mApiIndex].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
@@ -16189,7 +16200,7 @@ TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoADirectoryEndingWithSlash)
 TEST_F(SdkTestAvatar, SdkTestGetAvatarIntoADirectoryNotEndingWithSlash)
 {
     // Get avatar
-    std::string dstAvatarPath{getTestDataDir().string()};
+    std::string dstAvatarPath{sdk_test::getTestDataDir().string()};
     ASSERT_THAT(dstAvatarPath, ::testing::Not(::testing::EndsWith(PATH_SEPARATOR)));
     mApi[mApiIndex].requestFlags[MegaRequest::TYPE_GET_ATTR_USER] = false;
     ASSERT_EQ(API_EWRITE, synchronousGetUserAvatar(mApiIndex, mUser.get(), dstAvatarPath.c_str()));
@@ -16409,7 +16420,7 @@ TEST_F(SdkTest, CreateNodeTreeWithOneFile)
     const unsigned int apiIndex{0};
 
     // File upload
-    copyFileFromTestData(IMAGEFILE);
+    sdk_test::copyFileFromTestData(IMAGEFILE);
     const auto fileSize{getFilesize(IMAGEFILE)};
 
     std::string fingerprint;
@@ -16516,7 +16527,7 @@ TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectoriesAndOneFileAtTheEnd)
     ASSERT_THAT(parentNode, ::testing::NotNull());
 
     // File upload
-    copyFileFromTestData(IMAGEFILE);
+    sdk_test::copyFileFromTestData(IMAGEFILE);
     const auto fileSize{getFilesize(IMAGEFILE)};
 
     std::string fingerprint;
@@ -16586,6 +16597,285 @@ TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectoriesAndOneFileAtTheEnd)
     ASSERT_EQ(fileSize, fileNode->getSize());
 }
 
+/**
+ * @brief TEST_F SdkTestPasswordManager
+ *
+ * Tests MEGA Password Manager functionality.
+ *
+ * Notes:
+ * - Base folder created hangs from Vault root node, and it cannot be deleted
+ *
+ * Test description:
+ * #1 Get Password Manager Base node
+ * - U1: special logging in sequence
+ *     + 1) plain login
+ *     + 2) get Password Manager node handle; it will be created if it didn't exist
+ *     + 3) fetch nodes
+ * - U1: get Password Manager Base via get user's attribute command
+ * - U1: get Password Manager Base node again; no get user attribute requests expected
+ *
+ * #2 Password Node CRUD operations
+ * - U1: create a Password Node
+ * - U1: retrieve an existing Password Node
+ * - U1: update an existing Password Node
+ * - U1: delete an existing Password Node
+ *
+ * #3 Password Node Folder CRUD operations
+ * - U1: create a Password Node Folder
+ * - U1: retrieve an existing Password Node Folder
+ * - U1: update an existing Password Node Folder
+ * - U1: delete an existing Password Node Folder
+ *
+ * #4 Attempt deletion of Password Manager Base node
+ * - U1: try to delete Password Manager Base node
+ */
+TEST_F(SdkTest, SdkTestPasswordManager)
+{
+    LOG_info << "___TEST SdkTestPasswordManager";
+
+    LOG_debug << "# U1: special logging in sequence";
+    const unsigned userIdx = 0, totalAccounts = 1;
+    LOG_debug << "\t# log in without fetching nodes";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(totalAccounts, false));
+
+    LOG_debug << "\t# get Password Manager Base node handle; it will be created if it didn't exist";
+    RequestTracker rt2 {megaApi[userIdx].get()};
+    megaApi[userIdx]->getPasswordManagerBase(&rt2);
+    ASSERT_EQ(API_OK, rt2.waitForResult()) << "Getting Password Manager Base node failed";
+    ASSERT_NE(nullptr, rt2.request) << "Missing getPasswordManagerBase request data after finish";
+    const MegaHandle nhBase = rt2.request->getNodeHandle();
+    ASSERT_NE(UNDEF, nhBase) << "Password Manager Base node not set";
+
+    LOG_debug << "\t# fetch nodes";
+    fetchNodesForAccounts(totalAccounts);
+    LOG_debug << "\t# get Password Manager Base node by handle";
+    std::unique_ptr<MegaNode> mnBase {megaApi[userIdx]->getNodeByHandle(nhBase)};
+    ASSERT_NE(nullptr, mnBase.get())
+        << "Error retrieving MegaNode for Password Base with handle " << toNodeHandle(nhBase);
+
+
+    LOG_debug << "# U1: get Password Manager Base via get user's attribute command";
+    RequestTracker rt3 {megaApi[userIdx].get()};
+    megaApi[userIdx]->getUserAttribute(MegaApi::USER_ATTR_PWM_BASE, &rt3);
+    ASSERT_EQ(API_OK, rt3.waitForResult()) << "Unexpected error retrieving pwmh user attribute";
+    ASSERT_NE(nullptr, rt3.request) << "Missing get user attribute pwmh request data after finish";
+    ASSERT_EQ(nhBase, rt3.request->getNodeHandle()) << "Mismatch in user attribute pwmh retrieved";
+
+
+    LOG_debug << "# U1: get Password Manager Base node again; no get user attribute requests expected";
+    RequestTracker rt4 {megaApi[userIdx].get()};
+    megaApi[userIdx]->getPasswordManagerBase(&rt4);
+    ASSERT_EQ(API_OK, rt4.waitForResult()) << "Getting Password Manager Base node through shortcut failed";
+    ASSERT_NE(nullptr, rt4.request);
+    ASSERT_EQ(nhBase, rt4.request->getNodeHandle())
+        << "Wrong Password Manager Base node retrieved through shortcut";
+
+
+    LOG_debug << "# U1: create a new Password Node under Password Manager Base";
+    RequestTracker rtC {megaApi[userIdx].get()};
+    const std::string pwdNodeName = "FirstPwd";
+    std::unique_ptr<MegaNode> existingPwdNode{
+        megaApi[userIdx]->getChildNode(mnBase.get(), pwdNodeName.c_str())};
+    std::unique_ptr<MegaNode::PasswordNodeData> pwdData{
+        MegaNode::PasswordNodeData::createInstance("12},\" '34", "notes", "url", "userName")};
+    bool check1;
+    mApi[userIdx].mOnNodesUpdateCompletion =
+        createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check1);
+    megaApi[userIdx]->createPasswordNode(pwdNodeName.c_str(), pwdData.get(), nhBase, &rtC);
+    ASSERT_EQ(API_OK, rtC.waitForResult()) << "Failure creating Password Node";
+    if (existingPwdNode)
+    {
+        LOG_debug << "Existing Password Node with the same name retrieved";
+    }
+    else
+    {
+        ASSERT_TRUE(waitForResponse(&check1))
+            << "Node creation not received after " << maxTimeout << " seconds";
+    }
+    ASSERT_NE(nullptr, rtC.request);
+    const auto newPwdNodeHandle = rtC.request->getNodeHandle();
+    ASSERT_NE(UNDEF, newPwdNodeHandle) << "Wrong MegaHandle for new Password Node";
+    const std::unique_ptr<MegaNode> newPwdNode {megaApi[userIdx]->getNodeByHandle(newPwdNodeHandle)};
+    ASSERT_NE(newPwdNode.get(), nullptr) << "New node could not be retrieved";
+    ASSERT_TRUE(newPwdNode->isPasswordNode());
+    ASSERT_FALSE(megaApi[userIdx]->isPasswordNodeFolder(newPwdNode->getHandle()));
+    auto aux = newPwdNode->getName(); ASSERT_NE(aux, nullptr);
+    ASSERT_STREQ(aux, newPwdNode->getName());
+    std::unique_ptr<MegaNode::PasswordNodeData> receivedPwdData {newPwdNode->getPasswordData()};
+    ASSERT_NE(nullptr, receivedPwdData);
+    const auto equals = [](const MegaNode::PasswordNodeData* lhs,
+                           const MegaNode::PasswordNodeData* rhs) -> bool
+    {
+        std::string lp = lhs->password() ? lhs->password() : "";
+        std::string rp = rhs->password() ? rhs->password() : "";
+        if (lp != rp) LOG_err << "\tTest: passwords differ |" << lp << "| != |" << rp << "|";
+
+        std::string ln = lhs->notes() ? lhs->notes() : "";
+        std::string rn = rhs->notes() ? rhs->notes() : "";
+        if (ln != rn) LOG_err << "\tTest: notes differ |" << ln << "| != |" << rn << "|";
+
+        std::string lu = lhs->url() ? lhs->url() : "";
+        std::string ru = rhs->url() ? rhs->url() : "";
+        if (lu != ru) LOG_err << "\tTest: urls differ |" << lu << "| != |" << ru << "|";
+
+        std::string lun = lhs->userName() ? lhs->userName() : "";
+        std::string run = rhs->userName() ? rhs->userName() : "";
+        if (lun != run) LOG_err << "\tTest: userNames differ |" << lun << "| != |" << run << "|";
+
+        return (lp == rp && ln == rn && lu == ru && lun == run);
+    };
+    ASSERT_TRUE(equals(pwdData.get(), receivedPwdData.get()));
+    {
+        LOG_debug << "\t# validate & verify copy/cloning capabilities of Password Node Data";
+        std::unique_ptr<MegaNode> clonedNode {newPwdNode->copy()};
+        std::unique_ptr<MegaNode::PasswordNodeData> clonedPwdData{clonedNode->getPasswordData()};
+        ASSERT_NE(nullptr, clonedPwdData);
+        ASSERT_TRUE(equals(clonedPwdData.get(), receivedPwdData.get()));
+    }
+
+    LOG_debug << "\t# U1: attempt creation of new Password Node with same name as existing one";
+    RequestTracker rtCErrorExists {megaApi[userIdx].get()};
+    megaApi[userIdx]->createPasswordNode(pwdNodeName.c_str(), pwdData.get(), nhBase, &rtCErrorExists);
+    ASSERT_EQ(API_EEXIST, rtCErrorExists.waitForResult());
+
+    LOG_debug << "\t# U1: attempt creation of new Password Node with wrong parameters";
+    RequestTracker rtCError {megaApi[userIdx].get()};
+    megaApi[userIdx]->createPasswordNode(nullptr, nullptr, INVALID_HANDLE, &rtCError);
+    ASSERT_EQ(API_EARGS, rtCError.waitForResult());
+
+
+    LOG_debug << "# U1: retrieve Password Node by NodeHandle";
+    std::unique_ptr<MegaNode> retrievedPwdNode {megaApi[userIdx]->getNodeByHandle(newPwdNodeHandle)};
+    ASSERT_NE(nullptr, retrievedPwdNode.get());
+    ASSERT_TRUE(retrievedPwdNode->isPasswordNode());
+    retrievedPwdNode.reset(megaApi[userIdx]->getNodeByHandle(nhBase));
+    ASSERT_NE(nullptr, retrievedPwdNode.get());
+    ASSERT_FALSE(retrievedPwdNode->isPasswordNode());
+
+
+    LOG_debug << "# U1: update Password Node";
+    const char* nName = "SecondPwd";
+    LOG_debug << "\t# rename the Password Node";
+    ASSERT_EQ(API_OK, doRenameNode(userIdx, newPwdNode.get(), nName));
+    retrievedPwdNode.reset(megaApi[userIdx]->getNodeByHandle(newPwdNodeHandle));
+    ASSERT_NE(nullptr, retrievedPwdNode.get());
+    ASSERT_TRUE(retrievedPwdNode->isPasswordNode());
+    aux = retrievedPwdNode->getName(); ASSERT_NE(nullptr, aux);
+    ASSERT_STREQ(nName, aux) << "Password Node name not updated correctly";
+    receivedPwdData.reset(retrievedPwdNode->getPasswordData());
+    ASSERT_NE(nullptr, receivedPwdData);
+    ASSERT_TRUE(equals(pwdData.get(), receivedPwdData.get()));
+
+    LOG_debug << "\t# update only password attribute providing all attributes";
+    const char* nPwd = "5678";
+    pwdData->setPassword(nPwd);
+    check1 = false;
+    mApi[userIdx].mOnNodesUpdateCompletion =
+        createOnNodesUpdateLambda(newPwdNode->getHandle(), MegaNode::CHANGE_TYPE_PWD, check1);
+    RequestTracker rtUpdate {megaApi[userIdx].get()};
+    megaApi[userIdx]->updatePasswordNode(newPwdNodeHandle, pwdData.get(), &rtUpdate);
+    ASSERT_EQ(API_OK, rtUpdate.waitForResult());
+    ASSERT_TRUE(waitForResponse(&check1)) << "Node update not received after " << maxTimeout << " seconds";
+    const auto isExpectedData =
+        [this, &userIdx, &equals](MegaHandle nh, const MegaNode::PasswordNodeData* expectedData)
+    {
+        std::unique_ptr<MegaNode> retrievedNode {megaApi[userIdx]->getNodeByHandle(nh)};
+        ASSERT_TRUE(retrievedNode);
+        ASSERT_TRUE(retrievedNode->isPasswordNode());
+        std::unique_ptr<MegaNode::PasswordNodeData> retrievedData {retrievedNode->getPasswordData()};
+        ASSERT_TRUE(retrievedData);
+        ASSERT_TRUE(equals(expectedData, retrievedData.get()));
+    };
+    ASSERT_NO_FATAL_FAILURE(isExpectedData(newPwdNodeHandle, pwdData.get()));
+
+    LOG_debug << "\t# update only notes attribute (the non-updated attributes should be the same)";
+    const char* newNotes = "Updated Notes";
+    pwdData->setNotes(newNotes);  // expected data
+    std::unique_ptr<MegaNode::PasswordNodeData> updatedData {
+        MegaNode::PasswordNodeData::createInstance(nullptr, newNotes, nullptr, nullptr)};
+    check1 = false;
+    mApi[userIdx].mOnNodesUpdateCompletion =
+        createOnNodesUpdateLambda(newPwdNode->getHandle(), MegaNode::CHANGE_TYPE_PWD, check1);
+    RequestTracker rtUNotes {megaApi[userIdx].get()};
+    megaApi[userIdx]->updatePasswordNode(newPwdNodeHandle, updatedData.get(), &rtUNotes);
+    ASSERT_EQ(API_OK, rtUNotes.waitForResult());
+    ASSERT_TRUE(waitForResponse(&check1)) << "Notes node update not received after " << maxTimeout << " seconds";
+    ASSERT_NO_FATAL_FAILURE(isExpectedData(newPwdNodeHandle, pwdData.get()));
+
+    LOG_debug << "\t# update only url attribute (the non-updated attributes should be the same)";
+    const char* newURL = "Updated url";
+    pwdData->setUrl(newURL);  // expected data
+    updatedData.reset(MegaNode::PasswordNodeData::createInstance(nullptr, nullptr, newURL, nullptr));
+    check1 = false;
+    mApi[userIdx].mOnNodesUpdateCompletion =
+        createOnNodesUpdateLambda(newPwdNode->getHandle(), MegaNode::CHANGE_TYPE_PWD, check1);
+    RequestTracker rtUURL{megaApi[userIdx].get()};
+    megaApi[userIdx]->updatePasswordNode(newPwdNodeHandle, updatedData.get(), &rtUURL);
+    ASSERT_EQ(API_OK, rtUURL.waitForResult());
+    ASSERT_TRUE(waitForResponse(&check1)) << "URL node update not received after " << maxTimeout << " seconds";
+    ASSERT_NO_FATAL_FAILURE(isExpectedData(newPwdNodeHandle, pwdData.get()));
+
+    LOG_debug << "\t# update only user name attribute (the non-updated attributes should be the same)";
+    const char* newUserName = "Updated userName";
+    pwdData->setUserName(newUserName);  // expected data
+    updatedData.reset(MegaNode::PasswordNodeData::createInstance(nullptr, nullptr, nullptr, newUserName));
+    check1 = false;
+    mApi[userIdx].mOnNodesUpdateCompletion =
+        createOnNodesUpdateLambda(newPwdNode->getHandle(), MegaNode::CHANGE_TYPE_PWD, check1);
+    RequestTracker rtUUserName{megaApi[userIdx].get()};
+    megaApi[userIdx]->updatePasswordNode(newPwdNodeHandle, updatedData.get(), &rtUUserName);
+    ASSERT_EQ(API_OK, rtUUserName.waitForResult());
+    ASSERT_TRUE(waitForResponse(&check1)) << "User name node update not received after " << maxTimeout << " seconds";
+    ASSERT_NO_FATAL_FAILURE(isExpectedData(newPwdNodeHandle, pwdData.get()));
+
+    LOG_debug << "\t# update attempt without new data";
+    RequestTracker rtUError1 {megaApi[userIdx].get()};
+    megaApi[userIdx]->updatePasswordNode(newPwdNodeHandle, nullptr, &rtUError1);
+    ASSERT_EQ(API_EARGS, rtUError1.waitForResult());
+
+    LOG_debug << "\t# update attempt with empty new data";
+    pwdData.reset(MegaNode::PasswordNodeData::createInstance(nullptr, nullptr, nullptr, nullptr));
+    RequestTracker rtUError2 {megaApi[userIdx].get()};
+    megaApi[userIdx]->updatePasswordNode(newPwdNodeHandle, pwdData.get(), &rtUError2);
+    ASSERT_EQ(API_EARGS, rtUError2.waitForResult());
+
+
+    LOG_debug << "# U1: delete Password Node";
+    ASSERT_EQ(API_OK, doDeleteNode(userIdx, retrievedPwdNode.get()));
+    retrievedPwdNode.reset(megaApi[userIdx]->getNodeByHandle(newPwdNodeHandle));
+    ASSERT_EQ(nullptr, retrievedPwdNode.get());
+
+
+    LOG_debug << "# U1: create a new Password Node Folder";
+    const char* newFolderName = "NewPasswordNodeFolder";
+    const MegaHandle nhPNFolder = createFolder(userIdx, newFolderName, mnBase.get());
+    ASSERT_NE(INVALID_HANDLE, nhPNFolder);
+
+
+    LOG_debug << "# U1: retrieve newly created Password Node Folder";
+    std::unique_ptr<MegaNode> mnPNFolder {megaApi[userIdx]->getNodeByHandle(nhPNFolder)};
+    ASSERT_NE(nullptr, mnPNFolder);
+    ASSERT_TRUE(megaApi[userIdx]->isPasswordNodeFolder(mnPNFolder->getHandle()));
+    ASSERT_STREQ(newFolderName, mnPNFolder->getName());
+
+
+    LOG_debug << "# U1: update (rename) an existing Password Node Folder";
+    const char* updatedFolderName = "UpdatedPNF";
+    ASSERT_EQ(API_OK, doRenameNode(userIdx, mnPNFolder.get(), updatedFolderName));
+    mnPNFolder.reset(megaApi[userIdx]->getNodeByHandle(nhPNFolder));
+    ASSERT_NE(nullptr, mnPNFolder);
+    ASSERT_TRUE(megaApi[userIdx]->isPasswordNodeFolder(mnPNFolder->getHandle()));
+    ASSERT_STREQ(updatedFolderName, mnPNFolder->getName());
+
+
+    LOG_debug << "# U1: delete an existing Password Node Folder";
+    ASSERT_EQ(API_OK, doDeleteNode(userIdx, mnPNFolder.get()));
+    mnPNFolder.reset(megaApi[userIdx]->getNodeByHandle(nhPNFolder));
+    ASSERT_EQ(nullptr, mnPNFolder);
+
+    LOG_debug << "\t# deletion attempted with Password Manager Base as handle";
+    ASSERT_EQ(API_EARGS, doDeleteNode(userIdx, mnBase.get()));
+}
 
 #ifdef ENABLE_SYNC
 /**
@@ -16739,4 +17029,112 @@ TEST_F(SdkTest, RemoveInshareElementToSynDebris)
 
     ASSERT_EQ(API_OK, synchronousRemoveSync(1, sync->getBackupId()));
 }
+#endif
+
+/**
+ * @brief Set and get Terms of Service visibility
+ */
+TEST_F(SdkTest, SetGetVisibleTermsOfService)
+{
+    const unsigned int numberOfTestInstances{1};
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfTestInstances));
+
+    const unsigned int apiIndex{0};
+    const bool defaultTermsOfService = true;
+
+    RequestTracker requestTrackerFirstGet(megaApi[apiIndex].get());
+    megaApi[apiIndex]->getVisibleTermsOfService(&requestTrackerFirstGet);
+    ASSERT_THAT(requestTrackerFirstGet.waitForResult(),
+                ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
+    ASSERT_EQ(defaultTermsOfService, requestTrackerFirstGet.getFlag());
+
+    const bool modifiedTermsOfService = !defaultTermsOfService;
+
+    RequestTracker requestTrackerFirstSet(megaApi[apiIndex].get());
+    megaApi[apiIndex]->setVisibleTermsOfService(modifiedTermsOfService, &requestTrackerFirstSet);
+    ASSERT_EQ(API_OK, requestTrackerFirstSet.waitForResult());
+
+    RequestTracker requestTrackerSecondGet(megaApi[apiIndex].get());
+    megaApi[apiIndex]->getVisibleTermsOfService(&requestTrackerSecondGet);
+    ASSERT_EQ(API_OK, requestTrackerSecondGet.waitForResult());
+    ASSERT_EQ(modifiedTermsOfService, requestTrackerSecondGet.getFlag());
+
+    RequestTracker requestTrackerSecondSet(megaApi[apiIndex].get());
+    megaApi[apiIndex]->setVisibleTermsOfService(defaultTermsOfService, &requestTrackerSecondSet);
+    ASSERT_EQ(API_OK, requestTrackerSecondSet.waitForResult());
+
+    RequestTracker requestTrackerThirdGet(megaApi[apiIndex].get());
+    megaApi[apiIndex]->getVisibleTermsOfService(&requestTrackerThirdGet);
+    ASSERT_EQ(API_OK, requestTrackerThirdGet.waitForResult());
+    ASSERT_EQ(defaultTermsOfService, requestTrackerThirdGet.getFlag());
+}
+
+#ifdef ENABLE_CHAT
+
+/**
+ * @brief Give and remove access to download a file from a chat
+ */
+TEST_F(SdkTest, GiveRemoveChatAccess)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    const unsigned int host = 0;
+    const unsigned int guest = 1;
+    mApi[host].chats.clear();
+    mApi[guest].chats.clear();
+
+    // Send and accept a new contact request
+
+    string message = "Hi contact. This is a testing message";
+    inviteTestAccount(host, guest, message);
+
+    // Create chat between new contacts
+
+    int numChatsHost = mApi[host].chats.size();
+    int numChatsGuest = mApi[guest].chats.size();
+    mApi[guest].chatUpdated = false;
+    std::unique_ptr<MegaTextChatPeerList> peers(MegaTextChatPeerList::createInstance());
+    peers->addPeer(megaApi[guest]->getMyUser()->getHandle(), PRIV_STANDARD);
+
+    createChat(true, peers.get());
+
+    ASSERT_TRUE(waitForResponse(&mApi[guest].chatUpdated))
+            << "Chat update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE(mApi[guest].chatUpdated) << "The peer didn't receive notification of the chat creation";
+    ASSERT_EQ(mApi[host].chats.size(), numChatsHost+1) << "Unexpected received number of chats";
+    ASSERT_EQ(mApi[guest].chats.size(), numChatsGuest+1) << "Unexpected received number of chats";
+
+    MegaHandle chatId = mApi[host].chatid;
+
+    // Update test file
+
+    ASSERT_TRUE(createFile(PUBLICFILE.c_str(), false)) << "Couldn't create " << PUBLICFILE;
+    std::unique_ptr<MegaNode> rootnode{megaApi[host]->getRootNode()};
+    ASSERT_NE(rootnode.get(), nullptr);
+    MegaHandle fileHandle = UNDEF;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(host, &fileHandle, PUBLICFILE.c_str(),
+                                               rootnode.get(),
+                                               nullptr /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload a test file";
+    std::unique_ptr<MegaNode> fileNode(megaApi[host]->getNodeByHandle(fileHandle));
+
+    // Grant access to guest
+
+    ASSERT_FALSE(megaApi[host]->hasAccessToAttachment(chatId, fileHandle, megaApi[guest]->getMyUser()->getHandle()));
+    RequestTracker requestTrackerGrantAccess(megaApi[host].get());
+    megaApi[host]->grantAccessInChat(chatId, fileNode.get(), megaApi[guest]->getMyUser()->getHandle(), &requestTrackerGrantAccess);
+    ASSERT_EQ(API_OK, requestTrackerGrantAccess.waitForResult());
+    ASSERT_TRUE(megaApi[host]->hasAccessToAttachment(chatId, fileHandle, megaApi[guest]->getMyUser()->getHandle()));
+
+    // Remove access to guest
+
+    RequestTracker requestTrackerRemoveAccess(megaApi[host].get());
+    megaApi[host]->removeAccessInChat(chatId, fileNode.get(), megaApi[guest]->getMyUser()->getHandle(), &requestTrackerRemoveAccess);
+    ASSERT_EQ(API_OK, requestTrackerRemoveAccess.waitForResult());
+    ASSERT_FALSE(megaApi[host]->hasAccessToAttachment(chatId, fileHandle, megaApi[guest]->getMyUser()->getHandle()));
+}
+
 #endif
