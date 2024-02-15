@@ -16291,6 +16291,11 @@ TEST_F(SdkTestGfx, GfxProcessingContinueSuccessfullyAfterCrash)
     ASSERT_FALSE(api->createThumbnail(CRASH_IMAGE, CRASH_THUMBNAIL));
     ASSERT_FALSE(api->createPreview(CRASH_IMAGE, CRASH_PREVIEW));
 
+    // A known issue due to multi process model in gfxworker.exe
+    // A new call might be accpeted before the process exits due to crash
+    // Delay the new call as a workaround
+    std::this_thread::sleep_for(std::chrono::milliseconds{200});
+
     // 3. Create a preview successfully
     ASSERT_TRUE(api->createPreview(IMAGEFILE.c_str(), PREVIEW.c_str())) << "create preview should succeed";
 
