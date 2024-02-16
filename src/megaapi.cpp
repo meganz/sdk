@@ -5894,6 +5894,11 @@ void MegaApi::setLastReadNotification(uint32_t notificationId, MegaRequestListen
     pImpl->setLastReadNotification(notificationId, listener);
 }
 
+void MegaApi::getLastReadNotification(MegaRequestListener* listener)
+{
+    pImpl->getLastReadNotification(listener);
+}
+
 /* END MEGAAPI */
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)
