@@ -16286,8 +16286,8 @@ void SdkTestGfx::TearDown()
  *             the second call is dropped as well though it should be retried.
  *
  *          It has been discussed and we don't want to deal with these known problem at the moment
- *          as we want to start with simple. It happens rare and the side effect is limited (thumbnail lost).
- *          We'll improve it until we find it is necessary.
+ *          as we want to start with simple. It happens rarely and the side effect is limited (thumbnail lost).
+ *          We'll improve it when we find it is necessary.
  */
 TEST_F(SdkTestGfx, GfxProcessingContinueSuccessfullyAfterCrash)
 {
