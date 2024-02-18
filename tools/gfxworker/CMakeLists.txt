@@ -38,20 +38,3 @@ target_link_libraries(gfxworker
 if(ENABLE_SDKLIB_TESTS)
     add_subdirectory(tests/integration)
 endif()
-
-# Copy gfxworker into directories where it is used
-if(TARGET test_integration)
-    add_custom_command(
-        TARGET gfxworker POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:gfxworker> $<TARGET_FILE_DIR:test_integration>
-        COMMENT "Copying gfxworker for integration tests."
-    )
-endif()
-
-if(TARGET megacli)
-    add_custom_command(
-        TARGET gfxworker POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:gfxworker> $<TARGET_FILE_DIR:megacli>
-        COMMENT "Copying gfxworker for megacli."
-    )
-endif()
