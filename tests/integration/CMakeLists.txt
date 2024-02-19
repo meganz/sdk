@@ -50,7 +50,7 @@ add_custom_command(
     COMMENT "Copying test files for integration tests."
 )
 
-if(WIN32)
+if(TARGET gfxworker)
     add_custom_command(
         TARGET test_integration POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:gfxworker> $<TARGET_FILE_DIR:test_integration>
