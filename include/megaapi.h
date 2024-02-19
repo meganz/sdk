@@ -9658,6 +9658,7 @@ class MegaApi
             USER_ATTR_PWM_BASE = 42,             // private non-encrypted (fully controlled by API) - char array in B64
             USER_ATTR_ENABLE_TEST_NOTIFICATIONS = 43, // private - non-encrypted - char array - non-versioned
             USER_ATTR_LAST_READ_NOTIFICATION = 44, // private - non-encrypted - char array - non-versioned
+            USER_ATTR_LAST_ACTIONED_BANNER = 45, // private - non-encrypted - char array - non-versioned
         };
 
         enum {
@@ -22345,6 +22346,20 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getLastReadNotification(MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Set last actioned banner for Notification Center
+         *
+         * The type associated with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_LAST_ACTIONED_BANNER
+         * - MegaRequest::getNumber - Returns the ID to be set as last actioned banner
+         *
+         * @param notificationId ID for which the last banner was actioned. Value `0` is an invalid ID.
+         * Passing `0` will clear a previously set last actioned banner.
+         * @param listener MegaRequestListener to track this request
+         */
+        void setLastActionedBanner(uint32_t notificationId, MegaRequestListener* listener = nullptr);
 
  protected:
         MegaApiImpl *pImpl = nullptr;

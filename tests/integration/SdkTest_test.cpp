@@ -17352,6 +17352,7 @@ TEST_F(SdkTest, GenerateRandomCharsPassword)
  * Get enabled-notifications (from cmd("ug")."notifs").
  * Get the complete notifications (using cmd("gnotif")).
  * Set and get the last-read-notification ("^!lnotif").
+ * Set and get the last-actioned-banner ("^!lbannr").
  */
 TEST_F(SdkTest, DynamicMessageNotifs)
 {
@@ -17372,6 +17373,11 @@ TEST_F(SdkTest, DynamicMessageNotifs)
     RequestTracker clearLastReadNotifTracker(megaApi[0].get());
     megaApi[0]->setLastReadNotification(0, &clearLastReadNotifTracker); // clear "^!lnotif"
     ASSERT_EQ(clearLastReadNotifTracker.waitForResult(), API_OK);
+
+    // Clear last-actioned-banner
+    RequestTracker clearLastActionedBannerTracker(megaApi[0].get());
+    megaApi[0]->setLastActionedBanner(0, &clearLastActionedBannerTracker); // clear "^!lbannr"
+    ASSERT_EQ(clearLastActionedBannerTracker.waitForResult(), API_OK);
 
     // Get last-read-notification (not previously set)
     RequestTracker getLastReadNotifTracker(megaApi[0].get());
@@ -17447,6 +17453,17 @@ TEST_F(SdkTest, DynamicMessageNotifs)
     RequestTracker clearLastReadNotifTracker2(megaApi[0].get());
     megaApi[0]->setLastReadNotification(0, &clearLastReadNotifTracker2); // clear "^!lnotif"
     ASSERT_EQ(clearLastReadNotifTracker2.waitForResult(), API_OK);
+
+    // Set last-actioned-banner
+    const uint32_t lastActionedBannerId = numeric_limits<uint32_t>::max() - 3; // dummy value
+    RequestTracker setLastActionedBannerTracker(megaApi[0].get());
+    megaApi[0]->setLastActionedBanner(lastActionedBannerId, &setLastActionedBannerTracker); // set "^!lbannr"
+    ASSERT_EQ(setLastActionedBannerTracker.waitForResult(), API_OK);
+
+    // Clear a previously set last-actioned-banner
+    RequestTracker clearLastActionedBannerTracker2(megaApi[0].get());
+    megaApi[0]->setLastActionedBanner(0, &clearLastActionedBannerTracker2); // clear "^!lbannr"
+    ASSERT_EQ(clearLastActionedBannerTracker2.waitForResult(), API_OK);
 
     // Clear test-notifications
     ids.reset(MegaIntegerList::createInstance());

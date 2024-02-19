@@ -666,6 +666,10 @@ string User::attr2string(attr_t type)
             attrname = "^!lnotif";
             break;
 
+        case ATTR_LAST_ACTIONED_BANNER:
+            attrname = "^!lbannr";
+            break;
+
         case ATTR_UNKNOWN:  // empty string
             break;
     }
@@ -849,6 +853,10 @@ string User::attr2longname(attr_t type)
     case ATTR_LAST_READ_NOTIFICATION:
         longname = "LAST_READ_NOTIFICATION";
         break;
+
+    case ATTR_LAST_ACTIONED_BANNER:
+        longname = "LAST_ACTIONED_BANNER";
+        break;
     }
 
     return longname;
@@ -1021,6 +1029,10 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_LAST_READ_NOTIFICATION;
     }
+    else if(!strcmp(name, "^!lbannr"))
+    {
+        return ATTR_LAST_ACTIONED_BANNER;
+    }
     else
     {
         return ATTR_UNKNOWN;   // attribute not recognized
@@ -1073,6 +1085,7 @@ int User::needversioning(attr_t at)
         case ATTR_VISIBLE_TERMS_OF_SERVICE:
         case ATTR_ENABLE_TEST_NOTIFICATIONS:
         case ATTR_LAST_READ_NOTIFICATION:
+        case ATTR_LAST_ACTIONED_BANNER:
             return 1;
 
         case ATTR_STORAGE_STATE: //putua is forbidden for this attribute
@@ -1126,6 +1139,7 @@ char User::scope(attr_t at)
         case ATTR_PWM_BASE:
         case ATTR_ENABLE_TEST_NOTIFICATIONS:
         case ATTR_LAST_READ_NOTIFICATION:
+        case ATTR_LAST_ACTIONED_BANNER:
             return '^';
 
         default:
@@ -1570,6 +1584,10 @@ bool User::setChanged(attr_t at)
 
         case ATTR_LAST_READ_NOTIFICATION:
             changed.lastReadNotification = true;
+            break;
+
+        case ATTR_LAST_ACTIONED_BANNER:
+            changed.lastActionedBanner = true;
             break;
 
         default:
