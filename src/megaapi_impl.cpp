@@ -15260,7 +15260,8 @@ void MegaApiImpl::getua_completion(error e, MegaRequestPrivate* request)
         {
             request->setFlag(true);
         }
-        else if (request->getParamType() == MegaApi::USER_ATTR_LAST_READ_NOTIFICATION &&
+        else if ((request->getParamType() == MegaApi::USER_ATTR_LAST_READ_NOTIFICATION ||
+                  request->getParamType() == MegaApi::USER_ATTR_LAST_ACTIONED_BANNER) &&
                  request->getType() == MegaRequest::TYPE_GET_ATTR_USER)
         {
             request->setNumber(0);
@@ -15445,6 +15446,12 @@ void MegaApiImpl::getua_completion(byte* data, unsigned len, attr_t type, MegaRe
         case MegaApi::USER_ATTR_LAST_READ_NOTIFICATION:
         {
             e = getLastReadNotification_getua_result(data, len, request);
+        }
+        break;
+
+        case MegaApi::USER_ATTR_LAST_ACTIONED_BANNER:
+        {
+            e = getLastActionedBanner_getua_result(data, len, request);
         }
         break;
 
@@ -26598,6 +26605,46 @@ void MegaApiImpl::performRequest_setLastActionedBanner(MegaRequestPrivate* reque
         {
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
         });
+}
+
+void MegaApiImpl::getLastActionedBanner(MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_LAST_ACTIONED_BANNER);
+
+    request->performRequest = [this, request]()
+    {
+        return performRequest_getAttrUser(request);
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+error MegaApiImpl::getLastActionedBanner_getua_result(byte* data, unsigned len, MegaRequestPrivate* request)
+{
+    uint32_t value = 0u;
+    error e = API_OK;
+
+    if (len)
+    {
+        // make a copy to make sure we don't read too much from a non-null terminated stream
+        string buff{ reinterpret_cast<char*>(data), len };
+        size_t processed = 0;
+        value = static_cast<uint32_t>(stoul(buff, &processed));
+
+        // validate the value
+        if (processed < buff.size())
+        {
+            value = 0;
+            LOG_err << "Invalid value for Last Read Notification";
+            e = API_EINTERNAL;
+        }
+    }
+
+    request->setNumber(static_cast<long long>(value));
+
+    return e;
 }
 
 /* END MEGAAPIIMPL */

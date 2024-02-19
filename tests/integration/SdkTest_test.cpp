@@ -17460,6 +17460,12 @@ TEST_F(SdkTest, DynamicMessageNotifs)
     megaApi[0]->setLastActionedBanner(lastActionedBannerId, &setLastActionedBannerTracker); // set "^!lbannr"
     ASSERT_EQ(setLastActionedBannerTracker.waitForResult(), API_OK);
 
+    // Get last-actioned-banner
+    RequestTracker getLastActionedBannerTracker2(megaApi[0].get());
+    megaApi[0]->getLastActionedBanner(&getLastActionedBannerTracker2); // get "^!lbannr"
+    ASSERT_EQ(getLastActionedBannerTracker2.waitForResult(), API_OK);
+    ASSERT_EQ(static_cast<uint32_t>(getLastActionedBannerTracker2.request->getNumber()), lastActionedBannerId);
+
     // Clear a previously set last-actioned-banner
     RequestTracker clearLastActionedBannerTracker2(megaApi[0].get());
     megaApi[0]->setLastActionedBanner(0, &clearLastActionedBannerTracker2); // clear "^!lbannr"

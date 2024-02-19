@@ -3667,6 +3667,7 @@ public:
         void setLastReadNotification(uint32_t notificationId, MegaRequestListener* listener);
         void getLastReadNotification(MegaRequestListener* listener);
         void setLastActionedBanner(uint32_t notificationId, MegaRequestListener* listener);
+        void getLastActionedBanner(MegaRequestListener* listener);
 
 private:
         void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, unsigned clientWorkerThreadCount /*= 1*/, int clientType);
@@ -4180,6 +4181,7 @@ private:
         void performRequest_setLastReadNotification(MegaRequestPrivate* request);
         error getLastReadNotification_getua_result(byte* data, unsigned len, MegaRequestPrivate* request);
         void performRequest_setLastActionedBanner(MegaRequestPrivate* request);
+        error getLastActionedBanner_getua_result(byte* data, unsigned len, MegaRequestPrivate* request);
 };
 
 class MegaHashSignatureImpl

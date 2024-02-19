@@ -22361,6 +22361,22 @@ class MegaApi
          */
         void setLastActionedBanner(uint32_t notificationId, MegaRequestListener* listener = nullptr);
 
+        /**
+         * @brief Get last actioned banner for Notification Center
+         *
+         * The type associated with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_LAST_ACTIONED_BANNER
+         *
+         * When onRequestFinish received MegaError::API_OK, valid data in the MegaRequest object is:
+         * - MegaRequest::getNumber - Returns the ID of the last actioned banner
+         * Note that when the ID returned here was `0` it means that no ID was set as last actioned banner.
+         * Note that the value returned here should be treated like a 32bit unsigned int.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getLastActionedBanner(MegaRequestListener* listener = nullptr);
+
  protected:
         MegaApiImpl *pImpl = nullptr;
         friend class MegaApiImpl;

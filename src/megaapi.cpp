@@ -5904,6 +5904,11 @@ void MegaApi::setLastActionedBanner(uint32_t notificationId, MegaRequestListener
     pImpl->setLastActionedBanner(notificationId, listener);
 }
 
+void MegaApi::getLastActionedBanner(MegaRequestListener* listener)
+{
+    pImpl->getLastActionedBanner(listener);
+}
+
 /* END MEGAAPI */
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)
