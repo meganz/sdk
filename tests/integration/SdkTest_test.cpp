@@ -269,7 +269,7 @@ namespace
         }
         else
         {
-            return CURL_WRITEFUNC_ERROR;
+            return CURLE_WRITE_ERROR;
         }
     }
 }
