@@ -7295,7 +7295,11 @@ TEST_F(SdkTest, SdkMediaImageUploadTest)
     unsigned int apiIndex = 0;
     int64_t fileSize = 1304;
     const char* outputImage = "newlogo.png";
-    synchronousMediaUpload(apiIndex, fileSize, IMAGEFILE.c_str(), IMAGEFILE_C.c_str(), outputImage, THUMBNAIL.c_str(), PREVIEW.c_str());
+    synchronousMediaUpload(apiIndex, fileSize, IMAGEFILE.c_str(), IMAGEFILE_C.c_str(), outputImage
+#if USE_FREEIMAGE
+            ,THUMBNAIL.c_str(), PREVIEW.c_str()
+#endif
+            );
 
 }
 
