@@ -261,6 +261,8 @@ namespace
 
     // cURL Callback function to write downloaded data to a stream
     // See https://curl.se/libcurl/c/CURLOPT_WRITEFUNCTION.html
+    // See https://github.com/curl/curl/pull/9874 returning CURL_WRITEFUNC_ERROR
+    //     is better than 0 on errors.
     size_t writeData(void *ptr, size_t size, size_t nmemb, std::ofstream *stream)
     {
         if (stream->write((char*)ptr, size * nmemb))
@@ -269,7 +271,11 @@ namespace
         }
         else
         {
-            return CURLE_WRITE_ERROR;
+            #ifdef CURL_WRITEFUNC_ERROR
+                return CURL_WRITEFUNC_ERROR;
+            #else
+                return 0;
+            #endif
         }
     }
 }
