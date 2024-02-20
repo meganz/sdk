@@ -28,6 +28,7 @@
 #include "gmock/gmock-matchers.h"
 
 #include <algorithm>
+#include <cctype>
 
 #define SSTR( x ) static_cast< const std::ostringstream & >( \
         (  std::ostringstream() << std::dec << x ) ).str()
@@ -17219,4 +17220,120 @@ TEST_F(SdkTest, GetFileFromArtifactorySuccessfully)
     ASSERT_TRUE(getFileFromArtifactory(relativeUrl, output));
     ASSERT_TRUE(fs::exists(output));
     fs::remove(output);
+}
+
+TEST_F(SdkTest, GenerateRandomCharsPassword)
+{
+    LOG_debug << "### Test characters-based random passwords generation";
+    bool useUpper = false;
+    bool useDigits = false;
+    bool useSymbols = false;
+    const unsigned int minLength = 8, maxLength = 64;
+    const unsigned int length = 10;
+
+    LOG_debug << "# Test out-of-bounds password generation request";
+    std::unique_ptr<char[]> pwd{
+        MegaApi::generateRandomCharsPassword(useUpper, useDigits, useSymbols, minLength - 1)};
+    ASSERT_FALSE(pwd);
+    pwd.reset(MegaApi::generateRandomCharsPassword(useUpper, useDigits, useSymbols, maxLength + 1));
+    ASSERT_FALSE(pwd);
+
+    const auto validatePassword =
+        [&upperExpected = useUpper, &digitsExpected = useDigits, &symbolsExpected = useSymbols]
+        (const std::string& pwd) -> bool
+    {
+        bool lowerFound = false;
+        bool upperFound = false;
+        bool digitFound = false;
+        bool symbolFound = false;
+        const std::set<char> validSymbols {'!','@','#','$','%','^','&','*','(',')'};
+
+        for (auto c : pwd)
+        {
+            if (!upperFound && std::isupper(c))
+            {
+                if (!upperExpected) return false;
+                upperFound = true;
+            }
+
+            if (!digitFound && std::isdigit(c))
+            {
+                if (!digitsExpected) return false;
+                digitFound = true;
+            }
+
+            if (!symbolFound && validSymbols.count(c))
+            {
+                if (!symbolsExpected) return false;
+                symbolFound = true;
+            }
+
+            if (!lowerFound && std::islower(c)) lowerFound = true;
+        }
+
+        return lowerFound && (upperExpected == upperFound) &&
+               (digitsExpected == digitFound) && (symbolsExpected == symbolFound);
+    };
+
+    LOG_debug << "\t# Test only lower case characters";
+    useUpper = useDigits = useSymbols = false;
+    pwd.reset(MegaApi::generateRandomCharsPassword(useUpper, useDigits, useSymbols, length));
+    ASSERT_TRUE(pwd);
+    ASSERT_TRUE(std::strlen(pwd.get()) == length);
+    ASSERT_TRUE(validatePassword(pwd.get())) << "Invalid generated password " << pwd.get();
+
+    LOG_debug << "\t# Test lower and upper case characters only";
+    useDigits = useSymbols = false;
+    useUpper = true;
+    pwd.reset(MegaApi::generateRandomCharsPassword(useUpper, useDigits, useSymbols, length));
+    ASSERT_TRUE(pwd);
+    ASSERT_TRUE(std::strlen(pwd.get()) == length);
+    ASSERT_TRUE(validatePassword(pwd.get())) << "Invalid generated password " << pwd.get();
+
+    LOG_debug << "\t# Test lower and digits only";
+    useUpper = useSymbols = false;
+    useDigits = true;
+    pwd.reset(MegaApi::generateRandomCharsPassword(useUpper, useDigits, useSymbols, length));
+    ASSERT_TRUE(pwd);
+    ASSERT_TRUE(std::strlen(pwd.get()) == length);
+    ASSERT_TRUE(validatePassword(pwd.get())) << "Invalid generated password " << pwd.get();
+
+    LOG_debug << "\t# Test lower and symbols only";
+    useUpper = useDigits = false;
+    useSymbols = true;
+    pwd.reset(MegaApi::generateRandomCharsPassword(useUpper, useDigits, useSymbols, length));
+    ASSERT_TRUE(pwd);
+    ASSERT_TRUE(std::strlen(pwd.get()) == length);
+    ASSERT_TRUE(validatePassword(pwd.get())) << "Invalid generated password " << pwd.get();
+
+    LOG_debug << "\t# Test lower, upper, and digits";
+    useSymbols = false;
+    useUpper = useDigits = true;
+    pwd.reset(MegaApi::generateRandomCharsPassword(useUpper, useDigits, useSymbols, length));
+    ASSERT_TRUE(pwd);
+    ASSERT_TRUE(std::strlen(pwd.get()) == length);
+    ASSERT_TRUE(validatePassword(pwd.get())) << "Invalid generated password " << pwd.get();
+
+    LOG_debug << "\t# Test lower, upper, and symbols";
+    useDigits = false;
+    useUpper = useSymbols = true;
+    pwd.reset(MegaApi::generateRandomCharsPassword(useUpper, useDigits, useSymbols, length));
+    ASSERT_TRUE(pwd);
+    ASSERT_TRUE(std::strlen(pwd.get()) == length);
+    ASSERT_TRUE(validatePassword(pwd.get())) << "Invalid generated password " << pwd.get();
+
+    LOG_debug << "\t# Test lower, digits, and symbols";
+    useUpper = false;
+    useDigits = useSymbols = true;
+    pwd.reset(MegaApi::generateRandomCharsPassword(useUpper, useDigits, useSymbols, length));
+    ASSERT_TRUE(pwd);
+    ASSERT_TRUE(std::strlen(pwd.get()) == length);
+    ASSERT_TRUE(validatePassword(pwd.get())) << "Invalid generated password " << pwd.get();
+
+    LOG_debug << "\t# Test lower, upper, digits, and symbols";
+    useUpper = useDigits = useSymbols = true;
+    pwd.reset(MegaApi::generateRandomCharsPassword(useUpper, useDigits, useSymbols, length));
+    ASSERT_TRUE(pwd);
+    ASSERT_TRUE(std::strlen(pwd.get()) == length);
+    ASSERT_TRUE(validatePassword(pwd.get())) << "Invalid generated password " << pwd.get();
 }

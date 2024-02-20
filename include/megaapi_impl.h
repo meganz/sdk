@@ -3060,6 +3060,7 @@ class MegaApiImpl : public MegaApp
         void localLogout(MegaRequestListener *listener = NULL);
         void invalidateCache();
         int getPasswordStrength(const char *password);
+        static char* generateRandomCharsPassword(bool useUpper, bool useDigit, bool useSymbol, unsigned int length);
         void submitFeedback(int rating, const char *comment, MegaRequestListener *listener = NULL);
         void reportEvent(const char *details = NULL, MegaRequestListener *listener = NULL);
         void sendEvent(int eventType, const char* message, bool addJourneyId, const char* viewId, MegaRequestListener *listener = NULL);
@@ -4955,6 +4956,7 @@ private:
     std::string mString64UploadToken;
     std::string mString64FileKey;
 };
+
 }
 
 #endif //MEGAAPI_IMPL_H
