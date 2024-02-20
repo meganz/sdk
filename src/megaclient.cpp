@@ -2836,7 +2836,9 @@ void MegaClient::exec()
                 pendingsc->protect = true;
                 pendingsc->posturl.append("?sn=");
                 pendingsc->posturl.append(scsn.text());
-                pendingsc->posturl.append(getAuthURI(false, true));
+                // folder links should not send "sid" to avoid receiving packets unrelated to the folder link
+                bool suppressSID = loggedIntoFolder() ? true : false;
+                pendingsc->posturl.append(getAuthURI(suppressSID, true));
 
                 pendingsc->type = REQ_JSON;
                 pendingsc->post(this);
