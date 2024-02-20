@@ -1124,8 +1124,8 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                         prepareRequest(reqs[i], transferbuf.tempURL(i), posrange.first, posrange.second);
                     }
 
-                    LOG_verbose << "Conn " << i << " : Request prepared. Pos: " << posrange.first << " to npos: " << posrange.second << ". Size: " << (posrange.second - posrange.first) << ""
-                                << (transferbuf.isRaid() ? "Transfer" : "Raid part") << " pos: " << transferbuf.transferPos(i) << ". New " << (transferbuf.isRaid() ? "Transfer" : "Raid part") << " pos: " << (std::max<m_off_t>(transferbuf.transferPos(i), posrange.second))
+                    LOG_verbose << "Conn " << i << " : Request prepared. Pos: " << posrange.first << " to npos: " << posrange.second << ". Size: " << (posrange.second - posrange.first)
+                                << ". Current " << (transferbuf.isRaid() ? "raid part" : "transfer") << " pos: " << transferbuf.transferPos(i) << ". New " << (transferbuf.isRaid() ? "raid part" : "transfer") << " pos: " << (std::max<m_off_t>(transferbuf.transferPos(i), posrange.second))
                                 << (transferbuf.isRaid() ? string(". Part size: " + std::to_string(transferbuf.raidPartSize(i, transfer->size))) : "")
                                 << ". Transfer size: " << transfer->size;
                     transferbuf.transferPos(i) = std::max<m_off_t>(transferbuf.transferPos(i), posrange.second);
