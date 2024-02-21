@@ -19945,88 +19945,86 @@ error MegaApiImpl::copyTreeFromOwnedNode(shared_ptr<Node> node, const char* newN
     assert(node);
     assert(!newName || *newName);
 
-                /// Use more indentation for the code below to minimize the diff
+    if (!node->nodekey().size())
+    {
+        LOG_err << "Failed to copy owned node: Node had no key";
+        return API_EKEY;
+    }
 
-                if (!node->nodekey().size())
-                {
-                    LOG_err << "Failed to copy owned node: Node had no key";
-                    return API_EKEY;
-                }
+    if (node->attrstring)
+    {
+        node->applykey();
+        node->setattr();
+        if (node->attrstring)
+        {
+            LOG_err << "Failed to copy owned node: Node had bad key";
+            return API_EKEY;
+        }
+    }
 
-                if (node->attrstring)
-                {
-                    node->applykey();
-                    node->setattr();
-                    if (node->attrstring)
-                    {
-                        LOG_err << "Failed to copy owned node: Node had bad key";
-                        return API_EKEY;
-                    }
-                }
+    // process new name
+    string sname;
+    if (newName)
+    {
+        sname = newName;
+        LocalPath::utf8_normalize(&sname);
+    }
+    else
+    {
+        attr_map::iterator it = node->attrs.map.find('n');
+        if (it != node->attrs.map.end())
+        {
+            sname = it->second;
+        }
+    }
 
-                // process new name
-                string sname;
-                if (newName)
-                {
-                    sname = newName;
-                    LocalPath::utf8_normalize(&sname);
-                }
-                else
-                {
-                    attr_map::iterator it = node->attrs.map.find('n');
-                    if (it != node->attrs.map.end())
-                    {
-                        sname = it->second;
-                    }
-                }
+    // determine handling of older versions
+    NodeHandle ovhandle;
+    bool fileAlreadyExisted = false;
+    if (target && node->type == FILENODE)
+    {
+        std::shared_ptr<Node> ovn = client->childnodebyname(target.get(), sname.c_str(), true);
+        if (ovn)
+        {
+            if (node->isvalid && ovn->isvalid && *(FileFingerprint*)node.get() == *(FileFingerprint*)ovn.get())
+            {
+                fileAlreadyExisted = true;
+            }
 
-                // determine handling of older versions
-                NodeHandle ovhandle;
-                bool fileAlreadyExisted = false;
-                if (target && node->type == FILENODE)
-                {
-                    std::shared_ptr<Node> ovn = client->childnodebyname(target.get(), sname.c_str(), true);
-                    if (ovn)
-                    {
-                        if (node->isvalid && ovn->isvalid && *(FileFingerprint*)node.get() == *(FileFingerprint*)ovn.get())
-                        {
-                            fileAlreadyExisted = true;
-                        }
+            ovhandle = ovn->nodeHandle();
+        }
+    }
 
-                        ovhandle = ovn->nodeHandle();
-                    }
-                }
+    // determine number of nodes to be copied
+    TreeProcCopy tc;
+    client->proctree(node, &tc, false, !ovhandle.isUndef());
+    tc.allocnodes();
 
-                // determine number of nodes to be copied
-                TreeProcCopy tc;
-                client->proctree(node, &tc, false, !ovhandle.isUndef());
-                tc.allocnodes();
+    // build new nodes array
+    client->proctree(node, &tc, false, !ovhandle.isUndef());
+    if (tc.nn.empty())
+    {
+        LOG_err << "Failed to copy owned node: Failed to find nodes";
+        return API_EARGS;
+    }
+    tc.nn[0].parenthandle = UNDEF;
+    tc.nn[0].ovhandle = ovhandle;
 
-                // build new nodes array
-                client->proctree(node, &tc, false, !ovhandle.isUndef());
-                if (tc.nn.empty())
-                {
-                    LOG_err << "Failed to copy owned node: Failed to find nodes";
-                    return API_EARGS;
-                }
-                tc.nn[0].parenthandle = UNDEF;
-                tc.nn[0].ovhandle = ovhandle;
+    // Update name attr
+    if (newName)
+    {
+        SymmCipher key;
+        AttrMap attrs;
+        string attrstring;
 
-                // Update name attr
-                if (newName)
-                {
-                    SymmCipher key;
-                    AttrMap attrs;
-                    string attrstring;
+        key.setkey((const byte*)tc.nn[0].nodekey.data(), node->type);
+        attrs = node->attrs;
 
-                    key.setkey((const byte*)tc.nn[0].nodekey.data(), node->type);
-                    attrs = node->attrs;
+        attrs.map['n'] = sname;
 
-                    attrs.map['n'] = sname;
-
-                    attrs.getjson(&attrstring);
-                    client->makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
-                }
+        attrs.getjson(&attrstring);
+        client->makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
+    }
 
     treeCopy = std::move(tc.nn);
 
