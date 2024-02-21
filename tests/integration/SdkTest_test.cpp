@@ -16471,16 +16471,44 @@ TEST_F(SdkTest, CreateNodeTreeWithOneFile)
     ASSERT_THAT(fileNode, ::testing::NotNull());
     ASSERT_STREQ(IMAGEFILE.c_str(), fileNode->getName());
     ASSERT_EQ(fileSize, fileNode->getSize());
+}
+
+/**
+ * @brief Create node tree to copy existing source file
+ */
+TEST_F(SdkTest, CreateNodeTreeToCopyExistingSource)
+{
+    const unsigned int numberOfTestInstances{ 1 };
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfTestInstances));
+
+    const unsigned int apiIndex{ 0 };
+
+    // File upload
+    std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
+    ASSERT_TRUE(createFile(UPFILE, false)) << "Couldn't create " << UPFILE;
+
+    MegaHandle uploadedNode = UNDEF;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &uploadedNode, UPFILE.c_str(),
+        rootnode.get(),
+        nullptr /*fileName*/,
+        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+        nullptr /*appData*/,
+        false   /*isSourceTemporary*/,
+        false   /*startFirst*/,
+        nullptr /*cancelToken*/)) << "Cannot upload " << UPFILE;
+
+    std::unique_ptr<MegaNode> newNode(megaApi[0]->getNodeByHandle(uploadedNode));
+    ASSERT_THAT(newNode, ::testing::NotNull());
 
     // Create a copy of the already existing file
-    string fileCopy = IMAGEFILE + "_copy";
-    nodeTree.reset(
-            MegaNodeTree::createInstance(nullptr, fileCopy.c_str(), nullptr, nullptr, fileNode->getHandle()));
-    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, parentNode.get(), nodeTree.get()));
-    fileNode.reset(megaApi[apiIndex]->getNodeByHandle(nodeTree->getNodeHandle()));
-    ASSERT_THAT(fileNode, ::testing::NotNull());
-    ASSERT_STREQ(fileCopy.c_str(), fileNode->getName());
-    ASSERT_EQ(fileSize, fileNode->getSize());
+    string fileCopy = UPFILE + "_copy";
+    std::unique_ptr<MegaNodeTree> nodeTree{
+        MegaNodeTree::createInstance(nullptr, fileCopy.c_str(), nullptr, nullptr, newNode->getHandle()) };
+    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, rootnode.get(), nodeTree.get()));
+    std::unique_ptr<MegaNode> newNodeCopy{ megaApi[apiIndex]->getNodeByHandle(nodeTree->getNodeHandle()) };
+    ASSERT_THAT(newNodeCopy, ::testing::NotNull());
+    ASSERT_STREQ(newNodeCopy->getName(), fileCopy.c_str());
+    ASSERT_EQ(newNodeCopy->getSize(), newNode->getSize());
 }
 
 /**
