@@ -262,6 +262,8 @@ namespace
 
     // cURL Callback function to write downloaded data to a stream
     // See https://curl.se/libcurl/c/CURLOPT_WRITEFUNCTION.html
+    // See https://github.com/curl/curl/pull/9874 returning CURL_WRITEFUNC_ERROR
+    //     is better than 0 on errors.
     size_t writeData(void *ptr, size_t size, size_t nmemb, std::ofstream *stream)
     {
         if (stream->write((char*)ptr, size * nmemb))
@@ -270,7 +272,11 @@ namespace
         }
         else
         {
-            return CURL_WRITEFUNC_ERROR;
+            #ifdef CURL_WRITEFUNC_ERROR
+                return CURL_WRITEFUNC_ERROR;
+            #else
+                return 0;
+            #endif
         }
     }
 }
@@ -17172,8 +17178,8 @@ TEST_F(SdkTest, GiveRemoveChatAccess)
 
     // Create chat between new contacts
 
-    long unsigned int numChatsHost = mApi[host].chats.size();
-    long unsigned int numChatsGuest = mApi[guest].chats.size();
+    auto numChatsHost = mApi[host].chats.size();
+    auto numChatsGuest = mApi[guest].chats.size();
     mApi[guest].chatUpdated = false;
     std::unique_ptr<MegaTextChatPeerList> peers(MegaTextChatPeerList::createInstance());
     peers->addPeer(megaApi[guest]->getMyUser()->getHandle(), PRIV_STANDARD);
@@ -17248,7 +17254,7 @@ TEST_F(SdkTest, GenerateRandomCharsPassword)
     ASSERT_FALSE(pwd);
 
     const auto validatePassword =
-        [&upperExpected = useUpper, &digitsExpected = useDigits, &symbolsExpected = useSymbols]
+        [&useUpper, &useDigits, &useSymbols]
         (const std::string& pwd) -> bool
     {
         bool lowerFound = false;
@@ -17261,27 +17267,27 @@ TEST_F(SdkTest, GenerateRandomCharsPassword)
         {
             if (!upperFound && std::isupper(c))
             {
-                if (!upperExpected) return false;
+                if (!useUpper) return false;
                 upperFound = true;
             }
 
             if (!digitFound && std::isdigit(c))
             {
-                if (!digitsExpected) return false;
+                if (!useDigits) return false;
                 digitFound = true;
             }
 
             if (!symbolFound && validSymbols.count(c))
             {
-                if (!symbolsExpected) return false;
+                if (!useSymbols) return false;
                 symbolFound = true;
             }
 
             if (!lowerFound && std::islower(c)) lowerFound = true;
         }
 
-        return lowerFound && (upperExpected == upperFound) &&
-               (digitsExpected == digitFound) && (symbolsExpected == symbolFound);
+        return lowerFound && (useUpper == upperFound) &&
+               (useDigits == digitFound) && (useSymbols == symbolFound);
     };
 
     LOG_debug << "\t# Test only lower case characters";

@@ -105,8 +105,8 @@ pipeline {
                     sh "echo Packaging megacli to be archived"
                     sh "mkdir examples-${BUILD_ID}"    
                     sh "cp contrib\\\\cmake\\\\build_dir\\\\Debug\\\\megacli.exe examples-${BUILD_ID}"
-                    sh "ls ..\\\\3rdparty\\\\vcpkg\\\\installed\\\\x64-windows-mega"
-                    bat "copy ..\\\\3rdparty\\\\vcpkg\\\\installed\\\\x64-windows-mega\\\\debug\\\\bin\\\\*.dll examples-${BUILD_ID} || :"
+                    sh "ls '${VCPKGPATH}'\\\\vcpkg\\\\installed\\\\x64-windows-mega"
+                    bat "copy ${VCPKGPATH}\\\\vcpkg\\\\installed\\\\x64-windows-mega\\\\debug\\\\bin\\\\*.dll examples-${BUILD_ID} || :"
                     bat "powershell Compress-Archive -Path .\\\\examples-${BUILD_ID}\\\\* -DestinationPath .\\\\examples-${BUILD_ID}.zip || :"
                 }
             }
