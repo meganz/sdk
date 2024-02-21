@@ -6690,6 +6690,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_PWM_BASE:
         case MegaApi::USER_ATTR_ENABLE_TEST_NOTIFICATIONS:
         case MegaApi::USER_ATTR_LAST_READ_NOTIFICATION:
+        case MegaApi::USER_ATTR_LAST_ACTIONED_BANNER:
             scope = '^';
             break;
 
@@ -15259,7 +15260,8 @@ void MegaApiImpl::getua_completion(error e, MegaRequestPrivate* request)
         {
             request->setFlag(true);
         }
-        else if (request->getParamType() == MegaApi::USER_ATTR_LAST_READ_NOTIFICATION &&
+        else if ((request->getParamType() == MegaApi::USER_ATTR_LAST_READ_NOTIFICATION ||
+                  request->getParamType() == MegaApi::USER_ATTR_LAST_ACTIONED_BANNER) &&
                  request->getType() == MegaRequest::TYPE_GET_ATTR_USER)
         {
             request->setNumber(0);
@@ -15444,6 +15446,12 @@ void MegaApiImpl::getua_completion(byte* data, unsigned len, attr_t type, MegaRe
         case MegaApi::USER_ATTR_LAST_READ_NOTIFICATION:
         {
             e = getLastReadNotification_getua_result(data, len, request);
+        }
+        break;
+
+        case MegaApi::USER_ATTR_LAST_ACTIONED_BANNER:
+        {
+            e = getLastActionedBanner_getua_result(data, len, request);
         }
         break;
 
@@ -20786,6 +20794,10 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                 else if (type == ATTR_LAST_READ_NOTIFICATION)
                 {
                     performRequest_setLastReadNotification(request);
+                }
+                else if (type == ATTR_LAST_ACTIONED_BANNER)
+                {
+                    performRequest_setLastActionedBanner(request);
                 }
                 else
                 {
@@ -26543,6 +26555,73 @@ void MegaApiImpl::getLastReadNotification(MegaRequestListener* listener)
 }
 
 error MegaApiImpl::getLastReadNotification_getua_result(byte* data, unsigned len, MegaRequestPrivate* request)
+{
+    uint32_t value = 0u;
+    error e = API_OK;
+
+    if (len)
+    {
+        // make a copy to make sure we don't read too much from a non-null terminated stream
+        string buff{ reinterpret_cast<char*>(data), len };
+        size_t processed = 0;
+        value = static_cast<uint32_t>(stoul(buff, &processed));
+
+        // validate the value
+        if (processed < buff.size())
+        {
+            value = 0;
+            LOG_err << "Invalid value for Last Read Notification";
+            e = API_EINTERNAL;
+        }
+    }
+
+    request->setNumber(static_cast<long long>(value));
+
+    return e;
+}
+
+void MegaApiImpl::setLastActionedBanner(uint32_t notificationId, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_LAST_ACTIONED_BANNER);
+    request->setNumber(notificationId);
+
+    request->performRequest = [this, request]()
+    {
+        return performRequest_setAttrUser(request);
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::performRequest_setLastActionedBanner(MegaRequestPrivate* request)
+{
+    const string& tmp = request->getNumber() ? std::to_string(static_cast<uint32_t>(request->getNumber())) : string{};
+
+    client->putua(ATTR_LAST_ACTIONED_BANNER, reinterpret_cast<const byte*>(tmp.c_str()),
+        static_cast<unsigned>(tmp.size()), -1, UNDEF, 0, 0,
+        [this, request](Error e)
+        {
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+        });
+}
+
+void MegaApiImpl::getLastActionedBanner(MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_LAST_ACTIONED_BANNER);
+
+    request->performRequest = [this, request]()
+    {
+        return performRequest_getAttrUser(request);
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+error MegaApiImpl::getLastActionedBanner_getua_result(byte* data, unsigned len, MegaRequestPrivate* request)
 {
     uint32_t value = 0u;
     error e = API_OK;

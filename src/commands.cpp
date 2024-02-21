@@ -4025,6 +4025,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     string versionCcPrefs;
     string enabledTestNotifications, versionEnabledTestNotifications;
     string lastReadNotification, versionLastReadNotification;
+    string lastActionedBanner, versionLastActionedBanner;
 #ifdef ENABLE_SYNC
     string jsonSyncConfigData;
     string jsonSyncConfigDataVersion;
@@ -4419,6 +4420,12 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             break;
         }
 
+        case MAKENAMEID8('^', '!', 'l', 'b', 'a', 'n', 'n', 'r'):
+        {
+            parseUserAttribute(json, lastActionedBanner, versionLastActionedBanner);
+            break;
+        }
+
         case EOO:
         {
             assert(me == client->me);
@@ -4744,6 +4751,15 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 else
                 {
                     u->setNonExistingAttribute(ATTR_LAST_READ_NOTIFICATION);
+                }
+
+                if (!lastActionedBanner.empty() || !versionLastActionedBanner.empty())
+                {
+                    changes += u->updateattr(ATTR_LAST_ACTIONED_BANNER, &lastActionedBanner, &versionLastActionedBanner);
+                }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_LAST_ACTIONED_BANNER);
                 }
 
 #ifdef ENABLE_SYNC
