@@ -915,6 +915,15 @@ void SdkTest::onSetElementsUpdate(MegaApi* api, MegaSetElementList* elements)
     int apiIndex = getApiIndex(api);
     if (apiIndex < 0 || !elements || !elements->size()) return;
 
+    for (unsigned int i = 0; i < elements->size(); ++i)
+    {
+        if (!elements->get(i)->getChanges())
+        {
+            LOG_err << "GlobalListener::onSetElementsUpdate no change received for elements[" << i << "]";
+            return;
+        }
+    }
+
     mApi[apiIndex].setElementUpdated = true;
 }
 

@@ -826,7 +826,7 @@ class MegaSetElementPrivate : public MegaSetElement
 public:
     MegaSetElementPrivate(const SetElement& el)
         : mId(el.id()), mNode(el.node()), mSetId(el.set()), mOrder(el.order()), mTs(el.ts()),
-          mName(el.name())
+          mName(el.name()), mChanges(el.changes())
         {}
 
     MegaHandle id() const override { return mId; }
