@@ -3656,6 +3656,7 @@ public:
         void setVisibleTermsOfService(bool visible, MegaRequestListener* listener = nullptr);
 
         MegaIntegerList* getEnabledNotifications() const;
+        void enableTestNotifications(const MegaIntegerList* notificationIds, MegaRequestListener* listener);
 
 private:
         void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, unsigned clientWorkerThreadCount /*= 1*/, int clientType);
@@ -4163,6 +4164,8 @@ private:
         void addSyncByRequest(MegaRequestPrivate* request, SyncConfig sc, MegaClient::UndoFunction revertOnError);
 #endif
         void CompleteFileDownloadBySkip(MegaTransferPrivate* transfer, m_off_t size, uint64_t nodehandle, int nextTag, const LocalPath& localPath);
+
+        void performRequest_enableTestNotifications(MegaRequestPrivate* request);
 };
 
 class MegaHashSignatureImpl

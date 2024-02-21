@@ -17346,3 +17346,74 @@ TEST_F(SdkTest, GenerateRandomCharsPassword)
     ASSERT_TRUE(std::strlen(pwd.get()) == length);
     ASSERT_TRUE(validatePassword(pwd.get())) << "Invalid generated password " << pwd.get();
 }
+
+/**
+ * @brief Enable test-notifications by setting their IDs in "^!tnotif".
+ * Get enabled-notifications (from cmd("ug")."notifs").
+ */
+TEST_F(SdkTest, DynamicMessageNotifs)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Sending a null list of test-notifications should fail
+    RequestTracker nullNotifsTracker(megaApi[0].get());
+    megaApi[0]->enableTestNotifications(nullptr, &nullNotifsTracker);
+    ASSERT_EQ(nullNotifsTracker.waitForResult(), API_EARGS);
+
+    // Clear any test-notifications that may be leftovers from previous tests
+    unique_ptr<MegaIntegerList> ids{ MegaIntegerList::createInstance() };
+    RequestTracker clearNotifsTracker(megaApi[0].get());
+    megaApi[0]->enableTestNotifications(ids.get(), &clearNotifsTracker); // clear "^!tnotif"
+    ASSERT_EQ(clearNotifsTracker.waitForResult(), API_OK);
+
+    // Fetch user data ("ug" command), and cache IDs of enabled-notifications (ug.notifs).
+    RequestTracker userDataTracker(megaApi[0].get());
+    megaApi[0]->getUserData(&userDataTracker);
+    ASSERT_EQ(userDataTracker.waitForResult(), API_OK);
+
+    // Get IDs of enabled-notifications, which are composed of
+    // - IDs of test-notifications: IDs of notifications that should already exist, enabled as
+    //   requested by the user;
+    // - IDs of always-enabled notifications: IDs of notifications that already exist and are
+    //   always enabled regardless of not being requested by the user.
+    unique_ptr<MegaIntegerList> defaultNotifs{ megaApi[0]->getEnabledNotifications() }; // get IDs cached fom ug.notifs
+    ASSERT_THAT(defaultNotifs, ::testing::NotNull());
+    ASSERT_GE(defaultNotifs->size(), 0);
+
+    // Enable some test-notifications.
+    // IDs 1,2,3,4,5 have been reserved to be "^!tnotif" only notifications.
+    // However, only notification with ID 1 existed at the time of writing this test
+    ids->add(1);
+    ids->add(numeric_limits<uint32_t>::max() - 1); // dummy
+
+    RequestTracker notifsTracker(megaApi[0].get());
+    megaApi[0]->enableTestNotifications(ids.get(), &notifsTracker); // set "^!tnotif"
+    ASSERT_EQ(notifsTracker.waitForResult(), API_OK);
+
+    // Fetch user data ("ug" command), and cache IDs of enabled-notifications (ug.notifs).
+    RequestTracker userDataTracker2(megaApi[0].get());
+    megaApi[0]->getUserData(&userDataTracker2); // get ug.notifs again
+    ASSERT_EQ(userDataTracker2.waitForResult(), API_OK);
+
+    // Get IDs of enabled-notifications
+    unique_ptr<MegaIntegerList> enabledNotifs{ megaApi[0]->getEnabledNotifications() };
+    ASSERT_THAT(enabledNotifs, ::testing::NotNull());
+    ASSERT_EQ(enabledNotifs->size(), 1); // only IDs of existing notifications will be there, dummy IDs will not be included
+    ASSERT_EQ(enabledNotifs->get(0), 1);
+
+    // Clear test-notifications
+    ids.reset(MegaIntegerList::createInstance());
+    RequestTracker clearNotifsTracker2(megaApi[0].get());
+    megaApi[0]->enableTestNotifications(ids.get(), &clearNotifsTracker2); // clear "^!tnotif"
+    ASSERT_EQ(clearNotifsTracker2.waitForResult(), API_OK);
+
+    // Fetch user data ("ug" command), and cache IDs of enabled-notifications (ug.notifs).
+    RequestTracker userDataTracker3(megaApi[0].get());
+    megaApi[0]->getUserData(&userDataTracker3);
+    ASSERT_EQ(userDataTracker3.waitForResult(), API_OK);
+
+    // Get IDs of enabled-notifications
+    defaultNotifs.reset(megaApi[0]->getEnabledNotifications()); // get cached value of ug.notifs
+    ASSERT_THAT(defaultNotifs, ::testing::NotNull());
+    ASSERT_EQ(defaultNotifs->size(), 0);
+}

@@ -4023,6 +4023,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     string versionAppPrefs;
     string ccPrefs;
     string versionCcPrefs;
+    string enabledTestNotifications, versionEnabledTestNotifications;
 #ifdef ENABLE_SYNC
     string jsonSyncConfigData;
     string jsonSyncConfigDataVersion;
@@ -4405,6 +4406,12 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             break;
         }
 
+        case MAKENAMEID8('^', '!', 't', 'n', 'o', 't', 'i', 'f'):
+        {
+            parseUserAttribute(json, enabledTestNotifications, versionEnabledTestNotifications);
+            break;
+        }
+
         case EOO:
         {
             assert(me == client->me);
@@ -4713,6 +4720,15 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 }
 
                 client->setEnabledNotifications(std::move(notifs));
+
+                if (!enabledTestNotifications.empty() || !versionEnabledTestNotifications.empty())
+                {
+                    changes += u->updateattr(ATTR_ENABLE_TEST_NOTIFICATIONS, &enabledTestNotifications, &versionEnabledTestNotifications);
+                }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_ENABLE_TEST_NOTIFICATIONS);
+                }
 
 #ifdef ENABLE_SYNC
                 if (!jsonSyncConfigData.empty())

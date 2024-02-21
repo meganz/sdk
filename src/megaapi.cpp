@@ -5874,6 +5874,11 @@ MegaIntegerList* MegaApi::getEnabledNotifications()
     return pImpl->getEnabledNotifications();
 }
 
+void MegaApi::enableTestNotifications(const MegaIntegerList* notificationIds, MegaRequestListener* listener)
+{
+    pImpl->enableTestNotifications(notificationIds, listener);
+}
+
 /* END MEGAAPI */
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)

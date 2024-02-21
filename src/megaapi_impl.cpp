@@ -6676,6 +6676,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG:
         case MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE:
         case MegaApi::USER_ATTR_PWM_BASE:
+        case MegaApi::USER_ATTR_ENABLE_TEST_NOTIFICATIONS:
             scope = '^';
             break;
 
@@ -20754,6 +20755,10 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
 
                     client->putua(type, (byte *)settingsJson.data(), unsigned(settingsJson.size()), -1, UNDEF, 0, 0, std::move(putuaCompletion));
                 }
+                else if (type == ATTR_ENABLE_TEST_NOTIFICATIONS)
+                {
+                    performRequest_enableTestNotifications(request);
+                }
                 else
                 {
                     return API_EARGS;
@@ -26394,6 +26399,51 @@ MegaIntegerList* MegaApiImpl::getEnabledNotifications() const
 {
     SdkMutexGuard g(sdkMutex);
     return new MegaIntegerListPrivate(client->getEnabledNotifications());
+}
+
+void MegaApiImpl::enableTestNotifications(const MegaIntegerList * notificationIds, MegaRequestListener * listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_ENABLE_TEST_NOTIFICATIONS);
+    MegaIntegerList* ids = notificationIds ? notificationIds->copy() : nullptr;
+    request->setMegaIntegerList(std::unique_ptr<MegaIntegerList>{ ids });
+
+    request->performRequest = [this, request]()
+    {
+        return performRequest_setAttrUser(request);
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::performRequest_enableTestNotifications(MegaRequestPrivate* request)
+{
+    const auto* ids = request->getMegaIntegerList();
+    if (!ids)
+    {
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_EARGS));
+        return;
+    }
+
+    // Convert MegaIntegerList to CSV format
+    string tmp;
+    for (int i = 0; i < ids->size(); ++i)
+    {
+        tmp += std::to_string(ids->get(i)) + ',';
+    }
+
+    if (!tmp.empty())
+    {
+        tmp.pop_back(); // drop trailing ','
+    }
+
+    client->putua(ATTR_ENABLE_TEST_NOTIFICATIONS,
+        reinterpret_cast<const byte*>(tmp.c_str()), unsigned(tmp.size()),
+        -1, UNDEF, 0, 0, [this, request](Error e)
+        {
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+        });
 }
 
 /* END MEGAAPIIMPL */
