@@ -97,6 +97,7 @@ class MegaSyncStallList;
 class MegaVpnCredentials;
 class MegaNodeTree;
 class MegaCompleteUploadData;
+class MegaNotificationList;
 
 #if defined(SWIG)
     #define MEGA_DEPRECATED
@@ -4432,7 +4433,8 @@ class MegaRequest
             TYPE_CREATE_PASSWORD_MANAGER_BASE                               = 182,
             TYPE_CREATE_PASSWORD_NODE                                       = 183,
             TYPE_UPDATE_PASSWORD_NODE                                       = 184,
-            TOTAL_OF_REQUEST_TYPES                                          = 185,
+            TYPE_GET_NOTIFICATIONS                                          = 185,
+            TOTAL_OF_REQUEST_TYPES                                          = 186,
         };
 
         virtual ~MegaRequest();
@@ -5330,6 +5332,19 @@ class MegaRequest
          * @return MegaVpnCredentials* if there are any VPN credentials for the user, nullptr otherwise.
          */
         virtual MegaVpnCredentials* getMegaVpnCredentials() const;
+
+        /**
+         * @brief Get list of available notifications for Notification Center
+         *
+         * This value is valid only for the following requests:
+         * - MegaApi::getNotifications
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * @return non-null pointer if a valid MegaApi functionality has been called, nullptr otherwise.
+         */
+        virtual const MegaNotificationList* getMegaNotifications() const;
 };
 
 /**
@@ -22279,6 +22294,24 @@ class MegaApi
          */
         void enableTestNotifications(const MegaIntegerList* notificationIds, MegaRequestListener* listener = nullptr);
 
+        /**
+         * @brief Get list of available notifications for Notification Center
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_NOTIFICATIONS.
+         *
+         * When onRequestFinish received MegaError::API_OK, valid data in the MegaRequest object is:
+         * - MegaRequest::getMegaNotifications - Returns the list of notifications
+         *
+         * When onRequestFinish errored, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT - No such notifications exist, and MegaRequest::getMegaNotifications
+         *   will return a non-null, empty list.
+         * - MegaError::API_EACCESS - No user was logged in.
+         * - MegaError::API_EINTERNAL - Received answer could not be read.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getNotifications(MegaRequestListener* listener = nullptr);
+
  protected:
         MegaApiImpl *pImpl = nullptr;
         friend class MegaApiImpl;
@@ -23736,6 +23769,168 @@ public:
      * @return MegaVpnCredentials* with the copied MegaVpnCredentials object.
      */
     virtual MegaVpnCredentials* copy() const = 0;
+};
+
+/**
+ * @brief Container class to store all information of a notification.
+ *
+ *  - ID.
+ *  - Title.
+ *  - Description.
+ *  - Image name for the notification.
+ *  - Default static path for the notification image.
+ *  - Timestamp of when the notification became available to the user.
+ *  - Timestamp of when the notification will expire.
+ *  - Whether it should show a banner or only render a notification.
+ *  - Metadata for the first call-to-action ("link" and "text" attributes).
+ *  - Metadata for the second call-to-action ("link" and "text" attributes).
+ *
+ * Objects of this class are immutable.
+ */
+class MegaNotification
+{
+protected:
+    MegaNotification() = default;
+
+public:
+
+    virtual ~MegaNotification() = default;
+
+    /**
+     * @brief Get the ID associated with this notification.
+     *
+     * @return the ID associated with this notification.
+     */
+    virtual int64_t getID() const = 0;
+
+    /**
+     * @brief Get the title of this notification.
+     *
+     * The caller does not take the ownership of the const char* object.
+     * The const char* object is valid as long as the current MegaNotification object is valid too.
+     *
+     * @return the title of this notification, always not-null.
+     */
+    virtual const char* getTitle() const = 0;
+
+    /**
+     * @brief Get the description for this notification.
+     *
+     * The caller does not take the ownership of the const char* object.
+     * The const char* object is valid as long as the current MegaNotification object is valid too.
+     *
+     * @return the description for this notification, always not-null.
+     */
+    virtual const char* getDescription() const = 0;
+
+    /**
+     * @brief Get the image name for this notification.
+     *
+     * The caller does not take the ownership of the const char* object.
+     * The const char* object is valid as long as the current MegaNotification object is valid too.
+     *
+     * @return the image name for this notification, always not-null.
+     */
+    virtual const char* getImageName() const = 0;
+
+    /**
+     * @brief Get the default static path of the image associated with this notification.
+     *
+     * The caller does not take the ownership of the const char* object.
+     * The const char* object is valid as long as the current MegaNotification object is valid too.
+     *
+     * @return the default static path of the image associated with this notification, always not-null.
+     */
+    virtual const char* getImagePath() const = 0;
+
+    /**
+     * @brief Get the timestamp of when the notification became available to the user.
+     *
+     * @return the timestamp of when the notification became available to the user.
+     */
+    virtual int64_t getStart() const = 0;
+
+    /**
+     * @brief Get the timestamp of when the notification will expire.
+     *
+     * @return the timestamp of when the notification will expire.
+     */
+    virtual int64_t getEnd() const = 0;
+
+    /**
+     * @brief Report whether it should show a banner or only render a notification.
+     *
+     * @return whether it should show a banner or only render a notification.
+     */
+    virtual bool showBanner() const = 0;
+
+    /**
+     * @brief Get metadata for the first call to action, represented by attributes "link" and "text",
+     * and their corresponding values.
+     *
+     * The caller does not take the ownership of the returned object.
+     * The returned object is valid as long as the current MegaNotification object is valid too.
+     *
+     * @return metadata for the first call to action, always not-null.
+     */
+    virtual const MegaStringMap* getCallToAction1() const = 0;
+
+    /**
+     * @brief Get metadata for the second call-to-action, represented by attributes "link" and "text",
+     * and their corresponding values.
+     *
+     * The caller does not take the ownership of the returned object.
+     * The returned object is valid as long as the current MegaNotification object is valid too.
+     *
+     * @return metadata for the second call-to-action, always not-null.
+     */
+    virtual const MegaStringMap* getCallToAction2() const = 0;
+
+    /**
+     * @brief Copy the MegaNotification object.
+     *
+     * This copy is meant to be used from another scope which must survive the actual owner of this MegaNotification object.
+     * The caller takes the ownership of the new MegaNotification object.
+     *
+     * @return MegaNotification* with the copied MegaNotification object.
+     */
+    virtual MegaNotification* copy() const = 0;
+};
+
+/**
+ * @brief List of MegaNotification objects
+ *
+ * A MegaNotificationList has the ownership of the MegaNotification objects that it contains, so they will be
+ * only valid until the MegaNotificationList is deleted. If you want to retain a MegaNotification returned by
+ * a MegaNotificationList, use MegaNotification::copy().
+ *
+ * Objects of this class are immutable.
+ */
+class MegaNotificationList
+{
+public:
+    /**
+     * @brief Returns the MegaNotification at position i in the list
+     *
+     * The MegaNotificationList retains the ownership of the returned MegaNotification. It will be only valid until
+     * the MegaNotificationList is deleted. If you want to retain a MegaNotification returned by this function,
+     * use MegaNotification::copy().
+     *
+     * If the index is >= the size of the list, this function returns NULL.
+     *
+     * @param i Position of the MegaNotification that we want to get from the list
+     * @return MegaNotification at position i in the list
+     */
+    virtual const MegaNotification* get(unsigned i) const = 0;
+
+    /**
+     * @brief Returns the number of MegaNotification-s in the list
+     * @return number of MegaNotification-s in the list
+     */
+    virtual unsigned size() const = 0;
+
+    virtual MegaNotificationList* copy() const = 0;
+    virtual ~MegaNotificationList() = default;
 };
 }
 

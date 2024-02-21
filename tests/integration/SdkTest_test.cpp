@@ -17350,6 +17350,7 @@ TEST_F(SdkTest, GenerateRandomCharsPassword)
 /**
  * @brief Enable test-notifications by setting their IDs in "^!tnotif".
  * Get enabled-notifications (from cmd("ug")."notifs").
+ * Get the complete notifications (using cmd("gnotif")).
  */
 TEST_F(SdkTest, DynamicMessageNotifs)
 {
@@ -17380,6 +17381,15 @@ TEST_F(SdkTest, DynamicMessageNotifs)
     ASSERT_THAT(defaultNotifs, ::testing::NotNull());
     ASSERT_GE(defaultNotifs->size(), 0);
 
+    // Get the complete notifications
+    RequestTracker gnotifTracker(megaApi[0].get());
+    megaApi[0]->getNotifications(&gnotifTracker); // send "gnotif" and process its response
+    ASSERT_THAT(gnotifTracker.waitForResult(),
+        ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
+    const auto* notificationList = gnotifTracker.request->getMegaNotifications();
+    ASSERT_THAT(notificationList, ::testing::NotNull());
+    ASSERT_EQ(notificationList->size(), 0u);
+
     // Enable some test-notifications.
     // IDs 1,2,3,4,5 have been reserved to be "^!tnotif" only notifications.
     // However, only notification with ID 1 existed at the time of writing this test
@@ -17400,6 +17410,14 @@ TEST_F(SdkTest, DynamicMessageNotifs)
     ASSERT_THAT(enabledNotifs, ::testing::NotNull());
     ASSERT_EQ(enabledNotifs->size(), 1); // only IDs of existing notifications will be there, dummy IDs will not be included
     ASSERT_EQ(enabledNotifs->get(0), 1);
+
+    // Get the complete notifications (corresponding only to existing IDs)
+    RequestTracker gnotifTracker2(megaApi[0].get());
+    megaApi[0]->getNotifications(&gnotifTracker2); // send "gnotif" and process its response
+    ASSERT_EQ(gnotifTracker2.waitForResult(), API_OK);
+    const auto* notificationList2 = gnotifTracker2.request->getMegaNotifications();
+    ASSERT_THAT(notificationList2, ::testing::NotNull());
+    ASSERT_EQ(notificationList2->size(), 1u);
 
     // Clear test-notifications
     ids.reset(MegaIntegerList::createInstance());

@@ -1184,6 +1184,11 @@ MegaVpnCredentials* MegaRequest::getMegaVpnCredentials() const
     return nullptr;
 }
 
+const MegaNotificationList* MegaRequest::getMegaNotifications() const
+{
+    return nullptr;
+}
+
 MegaTransfer::~MegaTransfer() { }
 
 MegaTransfer *MegaTransfer::copy()
@@ -5877,6 +5882,11 @@ MegaIntegerList* MegaApi::getEnabledNotifications()
 void MegaApi::enableTestNotifications(const MegaIntegerList* notificationIds, MegaRequestListener* listener)
 {
     pImpl->enableTestNotifications(notificationIds, listener);
+}
+
+void MegaApi::getNotifications(MegaRequestListener* listener)
+{
+    pImpl->getNotifications(listener);
 }
 
 /* END MEGAAPI */

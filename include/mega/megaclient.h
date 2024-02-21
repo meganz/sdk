@@ -485,6 +485,19 @@ private:
     bool verificationRequired(handle userHandle);
 };
 
+struct DynamicMessageNotification
+{
+    int64_t id = 0;
+    std::string title;
+    std::string description;
+    std::string imageName;
+    std::string imagePath;
+    int64_t start = 0;
+    int64_t end = 0;
+    bool showBanner = false;
+    std::map<std::string, std::string> callToAction1;
+    std::map<std::string, std::string> callToAction2;
+};
 
 class MEGA_API MegaClient
 {
@@ -2651,6 +2664,7 @@ public:
 
     void setEnabledNotifications(std::vector<uint32_t>&& notifs) { mEnabledNotifications = std::move(notifs); }
     const std::vector<uint32_t>& getEnabledNotifications() const { return mEnabledNotifications; }
+    void getNotifications(CommandGetNotifications::ResultFunc onResult);
 };
 
 } // namespace
