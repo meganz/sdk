@@ -16360,6 +16360,37 @@ TEST_F(SdkTest, CreateNodeTreeWithOneDirectoryWithoutName)
 }
 
 /**
+ * @brief Create node tree with directory as source
+ *
+ * Attempt to copy directory/
+ * to              directory_copy/
+ */
+TEST_F(SdkTest, CreateNodeTreeWithDirectoryAsSource)
+{
+    const unsigned int numberOfTestInstances{ 1 };
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfTestInstances));
+
+    const unsigned int apiIndex{ 0 };
+
+    std::unique_ptr<MegaNode> rootNode{ megaApi[apiIndex]->getRootNode() };
+    ASSERT_THAT(rootNode, ::testing::NotNull());
+
+    // Create directory
+    const std::string directoryName{ "directory" };
+    MegaHandle directoryHandle = createFolder(apiIndex, directoryName.c_str(), rootNode.get());
+    ASSERT_NE(directoryHandle, INVALID_HANDLE);
+
+    std::unique_ptr<MegaNode> directoryNode{ megaApi[apiIndex]->getNodeByHandle(directoryHandle) };
+    ASSERT_THAT(directoryNode, ::testing::NotNull());
+
+    // attempt to copy a source directory
+    string directoryNameCopy = directoryName + "_copy";
+    std::unique_ptr<MegaNodeTree> directoryTreeCopy{
+        MegaNodeTree::createInstance(nullptr, directoryNameCopy.c_str(), nullptr, nullptr, directoryHandle) };
+    ASSERT_EQ(API_EARGS, synchronousCreateNodeTree(apiIndex, rootNode.get(), directoryTreeCopy.get()));
+}
+
+/**
  * @brief Create node tree with one directory and no S4 attribute
  *
  * directory/
@@ -16566,13 +16597,6 @@ TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectories)
     ASSERT_THAT(directoryNodeLevel2, ::testing::NotNull());
     ASSERT_STREQ(directoryNameLevel2.c_str(), directoryNodeLevel2->getName());
     ASSERT_EQ(directoryNodeLevel2->getParentHandle(), directoryNodeLevel1->getHandle());
-
-
-    // make a copy of a dir containing another dir
-    string dir1Copy = directoryNameLevel1 + "_copy";
-    std::unique_ptr<MegaNodeTree> nodeTreeLevel1Copy{
-        MegaNodeTree::createInstance(nullptr, dir1Copy.c_str(), nullptr, nullptr, directoryNodeLevel1->getHandle()) };
-    ASSERT_EQ(API_EARGS, synchronousCreateNodeTree(apiIndex, directoryNodeLevel0.get(), nodeTreeLevel1Copy.get()));
 }
 
 /**
