@@ -26494,89 +26494,89 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
 
                 newNodes.insert(newNodes.end(), std::make_move_iterator(nn.begin()),
                                                 std::make_move_iterator(nn.end()));
-
-                break; // only the last nodetree can have a source
-            }
-            // else -> complete upload
-
-            const auto completeUploadData{dynamic_cast<const MegaCompleteUploadDataPrivate*>(
-                tmpNodeTree->getCompleteUploadData())};
-
-            NewNode newNode{};
-            newNode.source = completeUploadData ? NEW_UPLOAD : NEW_NODE;
-            newNode.type = completeUploadData ? FILENODE : FOLDERNODE;
-            newNode.nodehandle = tmpNodeHandle++;
-            newNode.parenthandle = tmpParentNodeHandle;
-            newNode.fileattributes.reset(new string);
-            tmpParentNodeHandle = newNode.nodehandle;
-
-            // Set node key
-            if (completeUploadData)
-            {
-                byte* nodeKey;
-                size_t nodeKeyLength{FILENODEKEYLENGTH};
-                base64ToBinary(completeUploadData->getString64FileKey().c_str(),
-                               &nodeKey,
-                               &nodeKeyLength);
-                newNode.nodekey.assign(reinterpret_cast<char*>(nodeKey), nodeKeyLength);
-                delete[] nodeKey;
-                SymmCipher::xorblock(
-                    reinterpret_cast<const byte*>(newNode.nodekey.data()) + SymmCipher::KEYLENGTH,
-                    const_cast<byte*>(reinterpret_cast<const byte*>(newNode.nodekey.data())));
-            }
-            else
-            {
-                constexpr size_t nodeKeyLength{FOLDERNODEKEYLENGTH};
-                byte nodeKey[nodeKeyLength];
-                client->rng.genblock(nodeKey, nodeKeyLength);
-                newNode.nodekey.assign(reinterpret_cast<char*>(nodeKey), nodeKeyLength);
             }
 
-            // Set name
-            std::string name{tmpNodeTree->getName()};
-            if (name.empty())
+            else // complete upload
             {
-                return API_EARGS;
-            }
-            LocalPath::utf8_normalize(&name);
-            AttrMap attributes;
-            attributes.map['n'] = name;
+                const auto completeUploadData{ dynamic_cast<const MegaCompleteUploadDataPrivate*>(
+                    tmpNodeTree->getCompleteUploadData()) };
 
-            // Set S4 attribute
-            attributes.map[AttrMap::string2nameid("s4")] = tmpNodeTree->getS4AttributeValue();
+                NewNode newNode{};
+                newNode.source = completeUploadData ? NEW_UPLOAD : NEW_NODE;
+                newNode.type = completeUploadData ? FILENODE : FOLDERNODE;
+                newNode.nodehandle = tmpNodeHandle++;
+                newNode.parenthandle = tmpParentNodeHandle;
+                newNode.fileattributes.reset(new string);
+                tmpParentNodeHandle = newNode.nodehandle;
 
-            // Set fingerprint
-            if (completeUploadData)
-            {
-                attributes.map['c'] = completeUploadData->getFingerprint();
-            }
+                // Set node key
+                if (completeUploadData)
+                {
+                    byte* nodeKey;
+                    size_t nodeKeyLength{ FILENODEKEYLENGTH };
+                    base64ToBinary(completeUploadData->getString64FileKey().c_str(),
+                        &nodeKey,
+                        &nodeKeyLength);
+                    newNode.nodekey.assign(reinterpret_cast<char*>(nodeKey), nodeKeyLength);
+                    delete[] nodeKey;
+                    SymmCipher::xorblock(
+                        reinterpret_cast<const byte*>(newNode.nodekey.data()) + SymmCipher::KEYLENGTH,
+                        const_cast<byte*>(reinterpret_cast<const byte*>(newNode.nodekey.data())));
+                }
+                else
+                {
+                    constexpr size_t nodeKeyLength{ FOLDERNODEKEYLENGTH };
+                    byte nodeKey[nodeKeyLength];
+                    client->rng.genblock(nodeKey, nodeKeyLength);
+                    newNode.nodekey.assign(reinterpret_cast<char*>(nodeKey), nodeKeyLength);
+                }
 
-            // Set attributes
-            std::string attrstring;
-            attributes.getjson(&attrstring);
-            newNode.attrstring.reset(new std::string);
-
-            SymmCipher cipher;
-            cipher.setkey(&newNode.nodekey);
-            client->makeattr(&cipher, newNode.attrstring, attrstring.c_str());
-
-            // Set upload
-            if (completeUploadData)
-            {
-                UploadToken uploadToken{};
-                const size_t uploadTokenSize{static_cast<size_t>(
-                    Base64::atob(completeUploadData->getString64UploadToken().c_str(),
-                                 &uploadToken[0],
-                                 sizeof(uploadToken)))};
-                if ((uploadTokenSize != UPLOADTOKENLEN) || (uploadTokenSize != sizeof(uploadToken)))
+                // Set name
+                std::string name{ tmpNodeTree->getName() };
+                if (name.empty())
                 {
                     return API_EARGS;
                 }
-                newNode.uploadtoken = uploadToken;
-                newNode.uploadhandle = client->mUploadHandle.next();
-            }
+                LocalPath::utf8_normalize(&name);
+                AttrMap attributes;
+                attributes.map['n'] = name;
 
-            newNodes.push_back(std::move(newNode));
+                // Set S4 attribute
+                attributes.map[AttrMap::string2nameid("s4")] = tmpNodeTree->getS4AttributeValue();
+
+                // Set fingerprint
+                if (completeUploadData)
+                {
+                    attributes.map['c'] = completeUploadData->getFingerprint();
+                }
+
+                // Set attributes
+                std::string attrstring;
+                attributes.getjson(&attrstring);
+                newNode.attrstring.reset(new std::string);
+
+                SymmCipher cipher;
+                cipher.setkey(&newNode.nodekey);
+                client->makeattr(&cipher, newNode.attrstring, attrstring.c_str());
+
+                // Set upload
+                if (completeUploadData)
+                {
+                    UploadToken uploadToken{};
+                    const size_t uploadTokenSize{ static_cast<size_t>(
+                        Base64::atob(completeUploadData->getString64UploadToken().c_str(),
+                                     &uploadToken[0],
+                                     sizeof(uploadToken))) };
+                    if ((uploadTokenSize != UPLOADTOKENLEN) || (uploadTokenSize != sizeof(uploadToken)))
+                    {
+                        return API_EARGS;
+                    }
+                    newNode.uploadtoken = uploadToken;
+                    newNode.uploadhandle = client->mUploadHandle.next();
+                }
+
+                newNodes.push_back(std::move(newNode));
+            }
         }
 
         auto result{
