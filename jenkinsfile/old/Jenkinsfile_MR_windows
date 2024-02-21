@@ -100,8 +100,6 @@ pipeline {
                     sh "cmake --build '${windows_sources_workspace}'\\\\contrib\\\\cmake\\\\build_dir\\\\ --config Debug --target megacli -j 1"
                     sh "cmake --build '${windows_sources_workspace}'\\\\contrib\\\\cmake\\\\build_dir\\\\ --config Debug --target test_integration -j 1"
                     sh "cmake --build '${windows_sources_workspace}'\\\\contrib\\\\cmake\\\\build_dir\\\\ --config Debug --target test_unit -j 1"
-                    sh "cmake --build '${windows_sources_workspace}'\\\\contrib\\\\cmake\\\\build_dir\\\\ --config Debug --target gfxworker -j 1"
-                    sh "cmake --build '${windows_sources_workspace}'\\\\contrib\\\\cmake\\\\build_dir\\\\ --config Debug --target gfxworker_test_integration -j 1"
 
                     //Package megacli to be archived
                     sh "echo Packaging megacli to be archived"
@@ -135,8 +133,6 @@ pipeline {
                         sh "echo Running tests"
                         bat """
                         contrib\\\\cmake\\\\build_dir\\\\Debug\\\\test_unit.exe
-                        if %ERRORLEVEL% NEQ 0 exit 1
-                        contrib\\\\cmake\\\\build_dir\\\\Debug\\\\gfxworker_test_integration.exe
                         if %ERRORLEVEL% NEQ 0 exit 1
                         contrib\\\\cmake\\\\build_dir\\\\Debug\\\\test_integration.exe --CI --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${TESTS_PARALLEL}
                         if %ERRORLEVEL% NEQ 0 set ERROR_VAL=1

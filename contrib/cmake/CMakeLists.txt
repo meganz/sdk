@@ -1166,5 +1166,3 @@ else()
     endif(ENABLE_WERROR)
 endif()
 
-# gfxworker support.
-include(${MegaDir}/tools/gfxworker/CMakeLists.txt)
