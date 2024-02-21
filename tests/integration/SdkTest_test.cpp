@@ -16310,7 +16310,7 @@ TEST_F(SdkTest, CreateNodeTreeWithMalformedNodeTree)
     std::unique_ptr<MegaNode> parentNode{megaApi[apiIndex]->getRootNode()};
     ASSERT_THAT(parentNode, ::testing::NotNull());
 
-    // Create node tree
+    // Create node tree with both child-tree and upload-data
     auto nodeTreeChild{MegaNodeTree::createInstance(nullptr, nullptr, nullptr, nullptr)};
 
     const auto completeUploadData{
@@ -16320,6 +16320,23 @@ TEST_F(SdkTest, CreateNodeTreeWithMalformedNodeTree)
         MegaNodeTree::createInstance(nodeTreeChild, nullptr, nullptr, completeUploadData)};
 
     ASSERT_EQ(API_EARGS, synchronousCreateNodeTree(apiIndex, parentNode.get(), nodeTree.get()));
+
+    // Create node tree with both source-handle and child-tree
+    MegaHandle sourceHandle = parentNode->getHandle(); // not important, any dummy (but valid) value will do
+    MegaNodeTree* childTree{ MegaNodeTree::createInstance(nullptr, nullptr, nullptr, nullptr) };
+
+    std::unique_ptr<MegaNodeTree> treeWithSourceAndChild{
+        MegaNodeTree::createInstance(childTree, nullptr, nullptr, nullptr, sourceHandle) };
+
+    ASSERT_EQ(API_EARGS, synchronousCreateNodeTree(apiIndex, parentNode.get(), treeWithSourceAndChild.get()));
+
+    // Create node tree with both source-handle and upload-data
+    const auto* uploadData{ MegaCompleteUploadData::createInstance(nullptr, nullptr, nullptr) };
+
+    std::unique_ptr<MegaNodeTree> treeWithSourceAndUploadData{
+        MegaNodeTree::createInstance(nullptr, nullptr, nullptr, uploadData, sourceHandle) };
+
+    ASSERT_EQ(API_EARGS, synchronousCreateNodeTree(apiIndex, parentNode.get(), treeWithSourceAndUploadData.get()));
 }
 
 /**
