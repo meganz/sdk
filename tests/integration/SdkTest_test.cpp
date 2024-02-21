@@ -16320,8 +16320,22 @@ TEST_F(SdkTest, CreateNodeTreeWithMalformedNodeTree)
         MegaNodeTree::createInstance(nodeTreeChild, nullptr, nullptr, completeUploadData)};
 
     ASSERT_EQ(API_EARGS, synchronousCreateNodeTree(apiIndex, parentNode.get(), nodeTree.get()));
+}
 
-    // Create node tree with both source-handle and child-tree
+/**
+ * @brief Create node tree with source-handle and child-tree
+ */
+TEST_F(SdkTest, CreateNodeTreeWithSourceHandleAndChildTree)
+{
+    const unsigned int numberOfTestInstances{ 1 };
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfTestInstances));
+
+    const unsigned int apiIndex{ 0 };
+
+    std::unique_ptr<MegaNode> parentNode{ megaApi[apiIndex]->getRootNode() };
+    ASSERT_THAT(parentNode, ::testing::NotNull());
+
+    // Create node tree with source-handle and child-tree
     MegaHandle sourceHandle = parentNode->getHandle(); // not important, any dummy (but valid) value will do
     MegaNodeTree* childTree{ MegaNodeTree::createInstance(nullptr, nullptr, nullptr, nullptr) };
 
@@ -16329,8 +16343,23 @@ TEST_F(SdkTest, CreateNodeTreeWithMalformedNodeTree)
         MegaNodeTree::createInstance(childTree, nullptr, nullptr, nullptr, sourceHandle) };
 
     ASSERT_EQ(API_EARGS, synchronousCreateNodeTree(apiIndex, parentNode.get(), treeWithSourceAndChild.get()));
+}
+
+/**
+ * @brief Create node tree with source-handle and upload-data
+ */
+TEST_F(SdkTest, CreateNodeTreeWithSourceHandleAndUploadData)
+{
+    const unsigned int numberOfTestInstances{ 1 };
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfTestInstances));
+
+    const unsigned int apiIndex{ 0 };
+
+    std::unique_ptr<MegaNode> parentNode{ megaApi[apiIndex]->getRootNode() };
+    ASSERT_THAT(parentNode, ::testing::NotNull());
 
     // Create node tree with both source-handle and upload-data
+    MegaHandle sourceHandle = parentNode->getHandle(); // not important, any dummy (but valid) value will do
     const auto* uploadData{ MegaCompleteUploadData::createInstance(nullptr, nullptr, nullptr) };
 
     std::unique_ptr<MegaNodeTree> treeWithSourceAndUploadData{
