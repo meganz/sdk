@@ -4286,6 +4286,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                                             if (!json.storeobject())
                                             {
                                                 mCompletion(NULL, NULL, NULL, API_EINTERNAL);
+                                                json.leavearray();
                                                 return false;
                                             }
                                     }
