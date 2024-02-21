@@ -17254,7 +17254,7 @@ TEST_F(SdkTest, GenerateRandomCharsPassword)
     ASSERT_FALSE(pwd);
 
     const auto validatePassword =
-        [&upperExpected = useUpper, &digitsExpected = useDigits, &symbolsExpected = useSymbols]
+        [&useUpper, &useDigits, &useSymbols]
         (const std::string& pwd) -> bool
     {
         bool lowerFound = false;
@@ -17267,27 +17267,27 @@ TEST_F(SdkTest, GenerateRandomCharsPassword)
         {
             if (!upperFound && std::isupper(c))
             {
-                if (!upperExpected) return false;
+                if (!useUpper) return false;
                 upperFound = true;
             }
 
             if (!digitFound && std::isdigit(c))
             {
-                if (!digitsExpected) return false;
+                if (!useDigits) return false;
                 digitFound = true;
             }
 
             if (!symbolFound && validSymbols.count(c))
             {
-                if (!symbolsExpected) return false;
+                if (!useSymbols) return false;
                 symbolFound = true;
             }
 
             if (!lowerFound && std::islower(c)) lowerFound = true;
         }
 
-        return lowerFound && (upperExpected == upperFound) &&
-               (digitsExpected == digitFound) && (symbolsExpected == symbolFound);
+        return lowerFound && (useUpper == upperFound) &&
+               (useDigits == digitFound) && (useSymbols == symbolFound);
     };
 
     LOG_debug << "\t# Test only lower case characters";
