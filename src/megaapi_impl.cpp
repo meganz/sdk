@@ -26469,7 +26469,6 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
             {
                 shared_ptr<Node> source{ client->nodebyhandle(tmpNodeTree->getSourceHandle()) };
 
-                // only owned file source is allowed
                 if (!source || source->type != FILENODE)
                 {
                     LOG_err << "Failed to create node tree: Source was not a file";
@@ -26480,18 +26479,17 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
                 // the target is parentNode, not one of the newly created folders).
                 shared_ptr<Node> target;
 
-                vector<NewNode> nn;
-                error err = copyTreeFromOwnedNode(source, tmpNodeTree->getName().c_str(), target, nn);
+                vector<NewNode> treeToCopy;
+                error err = copyTreeFromOwnedNode(source, tmpNodeTree->getName().c_str(), target, treeToCopy);
                 if (err != API_OK)
                 {
                     return err;
                 }
 
-                assert(!nn.empty()); // never empty because an error should have been reported in that case
-                nn[0].parenthandle = tmpParentNodeHandle;
+                assert(!treeToCopy.empty()); // never empty because an error should have been reported in that case
+                treeToCopy[0].parenthandle = tmpParentNodeHandle;
 
-                newNodes.insert(newNodes.end(), std::make_move_iterator(nn.begin()),
-                                                std::make_move_iterator(nn.end()));
+                newNodes.emplace_back(std::move(treeToCopy[0]));
             }
 
             else // complete upload
