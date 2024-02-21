@@ -42,7 +42,7 @@ std::unique_ptr<IGfxProvider> IGfxProvider::createInternalGfxProvider()
 {
 #if USE_FREEIMAGE
     return ::mega::make_unique<::mega::GfxProviderFreeImage>();
-#elif TARGET_OS_IPHONE
+#elif USE_IOS
     return ::mega::make_unique<GfxProviderCG>();
 #else
     return nullptr;

@@ -73,14 +73,6 @@ class MegaThread : public CppThread {};
 class MegaSemaphore : public CppSemaphore {};
 #endif
 
-#if USE_FREEIMAGE
-using MegaGfxProvider = GfxProviderFreeImage;
-#elif USE_IOS
-using MegaGfxProvider = GfxProviderCG;
-#else
-using MegaGfxProvider = GfxProviderExternal;
-#endif
-
 #ifdef WIN32
     #ifdef USE_CURL
     class MegaHttpIO : public CurlHttpIO {};
