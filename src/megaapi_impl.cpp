@@ -37727,8 +37727,8 @@ MegaNodeTreePrivate::MegaNodeTreePrivate(MegaNodeTree* nodeTreeChild,
                                          const std::string& name,
                                          const std::string& s4AttributeValue,
                                          const MegaCompleteUploadData* completeUploadData,
-                                         MegaHandle nodeHandle,
-                                         MegaHandle sourceHandle):
+                                         MegaHandle sourceHandle,
+                                         MegaHandle nodeHandle):
     mNodeTreeChild{nodeTreeChild},
     mName{name},
     mS4AttributeValue{s4AttributeValue},

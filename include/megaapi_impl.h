@@ -4927,8 +4927,8 @@ public:
                         const std::string& name,
                         const std::string& s4AttributeValue,
                         const MegaCompleteUploadData* completeUploadData,
-                        MegaHandle nodeHandle,
-                        MegaHandle sourceHandle);
+                        MegaHandle sourceHandle,
+                        MegaHandle nodeHandle);
     ~MegaNodeTreePrivate() override = default;
     MegaNodeTree* getNodeTreeChild() const override;
     const std::string& getName() const;

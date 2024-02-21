@@ -7745,8 +7745,8 @@ MegaNodeTree* MegaNodeTree::createInstance(MegaNodeTree* nodeTreeChild,
                                    name ? name : "",
                                    s4AttributeValue ? s4AttributeValue : "",
                                    completeUploadData,
-                                   INVALID_HANDLE,
-                                   sourceHandle);
+                                   sourceHandle,
+                                   INVALID_HANDLE);
 }
 
 MegaCompleteUploadData* MegaCompleteUploadData::createInstance(const char* fingerprint,
