@@ -4040,6 +4040,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     string visibleTermsOfService;
     string versionVisibleTermsOfService;
     string pwmh, pwmhVersion;
+    vector<uint32_t> notifs;
 
     bool uspw = false;
     vector<m_time_t> warningTs;
@@ -4391,6 +4392,19 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             parseUserAttribute(json, pwmh, pwmhVersion);
             break;
 
+        case MAKENAMEID6('n', 'o', 't', 'i', 'f', 's'):
+        {
+            if (json.enterarray())
+            {
+                while (json.isnumeric())
+                {
+                    notifs.push_back(json.getuint32());
+                }
+                json.leavearray();
+            }
+            break;
+        }
+
         case EOO:
         {
             assert(me == client->me);
@@ -4697,6 +4711,8 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 {
                     u->setNonExistingAttribute(ATTR_COOKIE_SETTINGS);
                 }
+
+                client->setEnabledNotifications(std::move(notifs));
 
 #ifdef ENABLE_SYNC
                 if (!jsonSyncConfigData.empty())

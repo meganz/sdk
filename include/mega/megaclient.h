@@ -1395,6 +1395,9 @@ private:
     // Request status monitor
     unique_ptr<HttpReq> mReqStatCS;
 
+    // List of Notification IDs that should show in Notification Center
+    std::vector<uint32_t> mEnabledNotifications;
+
 public:
     // notify URL for new server-client commands
     string scnotifyurl;
@@ -2645,6 +2648,9 @@ public:
                                              const bool useDigits,
                                              const bool useSymbols,
                                              const unsigned int length);
+
+    void setEnabledNotifications(std::vector<uint32_t>&& notifs) { mEnabledNotifications = std::move(notifs); }
+    const std::vector<uint32_t>& getEnabledNotifications() const { return mEnabledNotifications; }
 };
 
 } // namespace

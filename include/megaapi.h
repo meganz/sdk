@@ -22256,6 +22256,15 @@ class MegaApi
          */
         void setVisibleTermsOfService(bool visible, MegaRequestListener* listener = nullptr);
 
+        /**
+         * @brief Get the list of IDs for enabled notifications
+         *
+         * You take the ownership of the returned value
+         *
+         * @return List of IDs for enabled notifications
+         */
+        MegaIntegerList* getEnabledNotifications();
+
  protected:
         MegaApiImpl *pImpl = nullptr;
         friend class MegaApiImpl;
