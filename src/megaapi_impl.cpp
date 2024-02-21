@@ -8206,6 +8206,12 @@ int MegaApiImpl::getPasswordStrength(const char *password)
     return MegaApi::PASSWORD_STRENGTH_VERYWEAK;
 }
 
+char* MegaApiImpl::generateRandomCharsPassword(bool uU, bool uD, bool uS, unsigned int len)
+{
+    const std::string pwd = MegaClient::generatePasswordChars(uU, uD, uS, len);
+    return pwd.empty() ? nullptr : MegaApi::strdup(pwd.c_str());
+}
+
 bool MegaApiImpl::usingHttpsOnly()
 {
     return client->usehttps;

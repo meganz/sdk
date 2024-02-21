@@ -75,7 +75,7 @@ class MegaSemaphore : public CppSemaphore {};
 
 #if USE_FREEIMAGE
 using MegaGfxProvider = GfxProviderFreeImage;
-#elif __APPLE__
+#elif USE_IOS
 using MegaGfxProvider = GfxProviderCG;
 #else
 using MegaGfxProvider = GfxProviderExternal;
@@ -826,7 +826,7 @@ class MegaSetElementPrivate : public MegaSetElement
 public:
     MegaSetElementPrivate(const SetElement& el)
         : mId(el.id()), mNode(el.node()), mSetId(el.set()), mOrder(el.order()), mTs(el.ts()),
-          mName(el.name())
+          mName(el.name()), mChanges(el.changes())
         {}
 
     MegaHandle id() const override { return mId; }
@@ -3060,6 +3060,7 @@ class MegaApiImpl : public MegaApp
         void localLogout(MegaRequestListener *listener = NULL);
         void invalidateCache();
         int getPasswordStrength(const char *password);
+        static char* generateRandomCharsPassword(bool useUpper, bool useDigit, bool useSymbol, unsigned int length);
         void submitFeedback(int rating, const char *comment, MegaRequestListener *listener = NULL);
         void reportEvent(const char *details = NULL, MegaRequestListener *listener = NULL);
         void sendEvent(int eventType, const char* message, bool addJourneyId, const char* viewId, MegaRequestListener *listener = NULL);
@@ -4955,6 +4956,7 @@ private:
     std::string mString64UploadToken;
     std::string mString64FileKey;
 };
+
 }
 
 #endif //MEGAAPI_IMPL_H

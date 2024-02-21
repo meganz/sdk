@@ -4312,6 +4312,16 @@ autocomplete::ACN autocompleteSyntax()
                         sequence(text("removeentry"), param("nodehandle"))
                         )));
 
+    p->Add(exec_generatepassword,
+           sequence(text("generatepassword"),
+                    either(sequence(text("chars"),
+                                    param("length"),
+                                    opt(flag("-useUpper")),
+                                    opt(flag("-useDigits")),
+                                    opt(flag("-useSymbols")))
+                        )));
+
+
     return autocompleteTemplate = std::move(p);
 }
 
@@ -12050,5 +12060,29 @@ void exec_passwordmanager(autocomplete::ACState& s)
     else
     {
         cout << command << " not recognized. Ignoring it\n";
+    }
+}
+
+void exec_generatepassword(autocomplete::ACState& s)
+{
+    const auto command = s.words[1].s;
+
+    if (command == "chars")
+    {
+        if (s.words.size() < 3)
+        {
+            cout << "Wrong parameters";
+            return;
+        }
+
+        const auto length = static_cast<unsigned int>(std::stoul(s.words[2].s));
+        const bool useUpper = s.extractflag("-useUpper");
+        const bool useDigits = s.extractflag("-useDigits");
+        const bool useSymb = s.extractflag("-useSymbols");
+
+        auto pwd = MegaClient::generatePasswordChars(useUpper, useDigits, useSymb, length);
+
+        if (pwd.empty()) cout << "Error generating the password. Please check the logs (if active)\n";
+        else cout << "Characers-based password successfully generated: " << pwd << "\n";
     }
 }
