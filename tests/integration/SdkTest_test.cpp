@@ -1375,12 +1375,23 @@ void SdkTest::inviteTestAccount(const unsigned invitorIndex, const unsigned invi
     ASSERT_TRUE(waitForResponse(&mApi[invitorIndex].contactRequestUpdated))   // at the source side (main account)
             << "Contact request creation not received after " << maxTimeout << " seconds";
     mApi[inviteIndex].cr.reset();
+    bool hasExpectedVisibility = waitForEvent(
+        [this, &invitorIndex, &inviteIndex]()
+        {
+            std::unique_ptr<MegaUser> contact(
+                mApi[invitorIndex].megaApi->getContact(mApi[inviteIndex].email.c_str()));
+            return contact && contact->getVisibility() == MegaUser::VISIBILITY_VISIBLE;
+        },
+        defaultTimeout); // Wait just a little, previously there was no wait and it passed 90% of
+                         // the times.
 
-    std::unique_ptr<MegaUser> contact(mApi[invitorIndex].megaApi->getContact(mApi[inviteIndex].email.c_str()));
-    if (!contact || contact->getVisibility() != MegaUser::VISIBILITY_VISIBLE)
+    if (!hasExpectedVisibility)
     {
-        ASSERT_TRUE(contact) << "Invalid contact";
-        ASSERT_TRUE(contact->getVisibility() == MegaUser::VISIBILITY_VISIBLE) << "Invalid contact visibility";
+        std::unique_ptr<MegaUser>
+            contact(mApi[invitorIndex].megaApi->getContact(mApi[inviteIndex].email.c_str()));
+        ASSERT_TRUE(contact) << "Invalid contact after timeout";
+        ASSERT_EQ(contact->getVisibility(), MegaUser::VISIBILITY_VISIBLE)
+            << "Invalid contact visibility after timeout";
     }
 }
 
