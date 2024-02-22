@@ -6095,7 +6095,7 @@ MegaTransferPrivate *MegaApiImpl::getMegaTransferPrivate(int tag)
 
 MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType)
 {
-    init(api, appKey, processor, basePath, userAgent, workerThreadCount, clientType);
+    init(api, appKey, createGfxProc(processor), basePath, userAgent, workerThreadCount, clientType);
 }
 
 MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProvider* provider, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType)
@@ -6103,11 +6103,6 @@ MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProvider* prov
     auto p = dynamic_cast<MegaGfxProviderPrivate*>(provider);
     auto iProvider = p ? p->releaseProvider() : nullptr;
     auto gfxproc = iProvider ? ::mega::make_unique<GfxProc>(std::move(iProvider)) : nullptr;
-    init(api, appKey, std::move(gfxproc), basePath, userAgent, workerThreadCount, clientType);
-}
-
-MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, std::unique_ptr<GfxProc> gfxproc, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType)
-{
     init(api, appKey, std::move(gfxproc), basePath, userAgent, workerThreadCount, clientType);
 }
 
@@ -6190,11 +6185,6 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, std::unique_ptr<GfxProc
     threadExit = 0;
     thread = std::thread([this](){ threadEntryPoint(this); } );
     threadId = thread.get_id();
-}
-
-void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned clientWorkerThreadCount, int clientType)
-{
-    init(api, appKey, createGfxProc(processor), basePath, userAgent, clientWorkerThreadCount, clientType);
 }
 
 MegaApiImpl::~MegaApiImpl()

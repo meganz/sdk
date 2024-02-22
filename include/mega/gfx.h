@@ -19,8 +19,6 @@
  * program.
  */
 
-#include <atomic>
-#include <tuple>
 #ifndef GFX_H
 #define GFX_H 1
 

@@ -2850,7 +2850,6 @@ class MegaApiImpl : public MegaApp
     public:
         MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType);
         MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProvider* provider, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType);
-        MegaApiImpl(MegaApi *api, const char *appKey, std::unique_ptr<GfxProc> gfxproc, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType);
         virtual ~MegaApiImpl();
 
         static MegaApiImpl* ImplOf(MegaApi*);
@@ -3684,8 +3683,6 @@ public:
         void getLastActionedBanner(MegaRequestListener* listener);
 
 private:
-        void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, unsigned clientWorkerThreadCount /*= 1*/, int clientType);
-
         void init(MegaApi *api, const char *appKey, std::unique_ptr<GfxProc> gfxproc, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, unsigned clientWorkerThreadCount /*= 1*/, int clientType);
 
         static void *threadEntryPoint(void *param);
