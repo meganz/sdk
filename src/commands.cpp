@@ -4995,7 +4995,6 @@ CommandGetMiscFlags::CommandGetMiscFlags(MegaClient *client)
 
     // this one can get the smsve flag when the account is blocked (if it's in a batch by itself)
     batchSeparately = true;
-    suppressSID = true;
 
     tag = client->reqtag;
 }

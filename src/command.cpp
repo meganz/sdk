@@ -31,7 +31,6 @@ Command::Command()
     client = NULL;
     tag = 0;
     batchSeparately = false;
-    suppressSID = false;
 }
 
 Command::~Command()

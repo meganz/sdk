@@ -2543,14 +2543,14 @@ void MegaClient::exec()
                     pendingcs->logname = clientname + "cs ";
                     pendingcs_serverBusySent = false;
 
-                    bool suppressSID, v3;
+                    bool v3;
                     string idempotenceId;
-                    *pendingcs->out = reqs.serverrequest(suppressSID, pendingcs->includesFetchingNodes, v3, this, idempotenceId);
+                    *pendingcs->out = reqs.serverrequest(pendingcs->includesFetchingNodes, v3, this, idempotenceId);
 
                     pendingcs->posturl = httpio->APIURL;
                     pendingcs->posturl.append("cs?id=");
                     pendingcs->posturl.append(idempotenceId);
-                    pendingcs->posturl.append(getAuthURI(suppressSID));
+                    pendingcs->posturl.append(getAuthURI());
                     pendingcs->posturl.append(appkey);
 
                     pendingcs->posturl.append(v3 ? "&v=3" : "&v=2");
