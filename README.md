@@ -260,5 +260,3 @@ Such files and folders will still be inaccessible through e.g. Explorer!
 
 Also, disable automatic short name generation to eliminate the risk of
 clashes with existing short names.
-
-
