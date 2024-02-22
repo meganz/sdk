@@ -11,6 +11,8 @@
 		A85CEDA72ACEEDE600190183 /* NodeListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A85CEDA62ACEEDE600190183 /* NodeListViewModel.swift */; };
 		A87266AB2ACF214D00090A5D /* NodeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A87266AA2ACF214D00090A5D /* NodeView.swift */; };
 		A87266AD2ACF218300090A5D /* NodeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A87266AC2ACF218300090A5D /* NodeViewModel.swift */; };
+		A89C7F462B7A8D1B00F4BBEB /* MEGADesignToken in Frameworks */ = {isa = PBXBuildFile; productRef = A89C7F452B7A8D1B00F4BBEB /* MEGADesignToken */; };
+		A89C7F482B7A8D1B00F4BBEB /* TokenCodegenGenerator in Frameworks */ = {isa = PBXBuildFile; productRef = A89C7F472B7A8D1B00F4BBEB /* TokenCodegenGenerator */; };
 		A8D756482ACEB14200EA3DC6 /* ExampleAppApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8D756472ACEB14200EA3DC6 /* ExampleAppApp.swift */; };
 		A8D7564C2ACEB14500EA3DC6 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A8D7564B2ACEB14500EA3DC6 /* Assets.xcassets */; };
 		A8D756502ACEB14500EA3DC6 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A8D7564F2ACEB14500EA3DC6 /* Preview Assets.xcassets */; };
@@ -45,7 +47,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A89C7F462B7A8D1B00F4BBEB /* MEGADesignToken in Frameworks */,
 				A8D756592ACEB32200EA3DC6 /* MEGASdk in Frameworks */,
+				A89C7F482B7A8D1B00F4BBEB /* TokenCodegenGenerator in Frameworks */,
 				A8D7565E2ACEB37100EA3DC6 /* MEGASdkRepo in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -172,6 +176,8 @@
 			packageProductDependencies = (
 				A8D756582ACEB32200EA3DC6 /* MEGASdk */,
 				A8D7565D2ACEB37100EA3DC6 /* MEGASdkRepo */,
+				A89C7F452B7A8D1B00F4BBEB /* MEGADesignToken */,
+				A89C7F472B7A8D1B00F4BBEB /* TokenCodegenGenerator */,
 			);
 			productName = ExampleApp;
 			productReference = A8D756442ACEB14200EA3DC6 /* ExampleApp.app */;
@@ -185,7 +191,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1500;
-				LastUpgradeCheck = 1500;
+				LastUpgradeCheck = 1520;
 				TargetAttributes = {
 					A8D756432ACEB14200EA3DC6 = {
 						CreatedOnToolsVersion = 15.0;
@@ -203,6 +209,7 @@
 			mainGroup = A8D7563B2ACEB14200EA3DC6;
 			packageReferences = (
 				A8D756572ACEB32200EA3DC6 /* XCLocalSwiftPackageReference "../../.." */,
+				A89C7F442B7A8D1B00F4BBEB /* XCRemoteSwiftPackageReference "MEGADesignToken" */,
 			);
 			productRefGroup = A8D756452ACEB14200EA3DC6 /* Products */;
 			projectDirPath = "";
@@ -468,7 +475,28 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		A89C7F442B7A8D1B00F4BBEB /* XCRemoteSwiftPackageReference "MEGADesignToken" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/meganz/MEGADesignToken";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
+		A89C7F452B7A8D1B00F4BBEB /* MEGADesignToken */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A89C7F442B7A8D1B00F4BBEB /* XCRemoteSwiftPackageReference "MEGADesignToken" */;
+			productName = MEGADesignToken;
+		};
+		A89C7F472B7A8D1B00F4BBEB /* TokenCodegenGenerator */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A89C7F442B7A8D1B00F4BBEB /* XCRemoteSwiftPackageReference "MEGADesignToken" */;
+			productName = TokenCodegenGenerator;
+		};
 		A8D756582ACEB32200EA3DC6 /* MEGASdk */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = MEGASdk;

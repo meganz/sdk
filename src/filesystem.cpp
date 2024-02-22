@@ -1919,11 +1919,7 @@ std::atomic<unsigned> LocalPath_tmpNameLocal_counter{};
 LocalPath LocalPath::tmpNameLocal()
 {
     char buf[128];
-#ifdef WIN32
-    snprintf(buf, sizeof(buf), ".getxfer.%lu.%u.mega", (unsigned long)GetCurrentProcessId(), ++LocalPath_tmpNameLocal_counter);
-#else
-    snprintf(buf, sizeof(buf), ".getxfer.%lu.%u.mega", (unsigned long)getpid(), ++LocalPath_tmpNameLocal_counter);
-#endif
+    snprintf(buf, sizeof(buf), ".getxfer.%lu.%u.mega", getCurrentPid(), ++LocalPath_tmpNameLocal_counter);
     return LocalPath::fromRelativePath(buf);
 }
 

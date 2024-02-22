@@ -28,6 +28,7 @@
 #include "gmock/gmock-matchers.h"
 
 #include <algorithm>
+#include <cctype>
 
 #define SSTR( x ) static_cast< const std::ostringstream & >( \
         (  std::ostringstream() << std::dec << x ) ).str()
@@ -257,6 +258,26 @@ namespace
         }
         fs << name;
         return true;
+    }
+
+    // cURL Callback function to write downloaded data to a stream
+    // See https://curl.se/libcurl/c/CURLOPT_WRITEFUNCTION.html
+    // See https://github.com/curl/curl/pull/9874 returning CURL_WRITEFUNC_ERROR
+    //     is better than 0 on errors.
+    size_t writeData(void *ptr, size_t size, size_t nmemb, std::ofstream *stream)
+    {
+        if (stream->write((char*)ptr, size * nmemb))
+        {
+            return size * nmemb;
+        }
+        else
+        {
+            #ifdef CURL_WRITEFUNC_ERROR
+                return CURL_WRITEFUNC_ERROR;
+            #else
+                return 0;
+            #endif
+        }
     }
 }
 
@@ -899,6 +920,15 @@ void SdkTest::onSetElementsUpdate(MegaApi* api, MegaSetElementList* elements)
 {
     int apiIndex = getApiIndex(api);
     if (apiIndex < 0 || !elements || !elements->size()) return;
+
+    for (unsigned int i = 0; i < elements->size(); ++i)
+    {
+        if (!elements->get(i)->getChanges())
+        {
+            LOG_err << "GlobalListener::onSetElementsUpdate no change received for elements[" << i << "]";
+            return;
+        }
+    }
 
     mApi[apiIndex].setElementUpdated = true;
 }
@@ -1833,6 +1863,61 @@ void SdkTest::synchronousMediaUploadIncomplete(unsigned int apiIndex,
 
     string64FileKey = megaApi[apiIndex]->binaryToBase64(reinterpret_cast<const char*>(req->filekey),
                                                         FILENODEKEYLENGTH);
+}
+
+bool SdkTest::getFileFromURL(const std::string& url, const fs::path& dstPath)
+{
+    auto curlCleaner = [](CURL* curl) {
+        curl_easy_cleanup(curl);
+    };
+
+    // Initialize libcurl
+    std::unique_ptr<CURL, decltype(curlCleaner)> curl{curl_easy_init(), curlCleaner};
+    if (!curl)
+    {
+        LOG_err << "Failed to initialize libcurl";
+        return false;
+    }
+
+    // Open file to save downloaded data
+    std::ofstream ofs(dstPath, std::ios::binary | std::ios::out);
+    if (!ofs) {
+        LOG_err << "Error opening file for writing:" << dstPath;
+        return false;
+    }
+
+    // Download
+    curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, writeData);
+    curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &ofs);
+    CURLcode res = curl_easy_perform(curl.get());
+    if (res != CURLE_OK) {
+        LOG_err <<  "curl_easy_perform() failed: " << curl_easy_strerror(res);
+        return false;
+    }
+
+    // Close file
+    ofs.close();
+    if (!ofs)
+    {
+        LOG_verbose << "Error closing file:" << dstPath;
+        return false;
+    }
+
+    LOG_verbose << "File " << dstPath << " downloaded successfully";
+    return true;
+}
+
+bool SdkTest::getFileFromArtifactory(const std::string& relativeUrl, const fs::path& dstPath)
+{
+    static const std::string baseUrl{"https://artifactory.developers.mega.co.nz:443/artifactory/sdk"};
+
+    // Join base URL and relatvie URL
+    bool startedWithBackSlash = !relativeUrl.empty() && relativeUrl[0] == '/';
+    std::string seperator = startedWithBackSlash ? "" : "/";
+    const auto absoluateUrl = baseUrl + seperator + relativeUrl;
+
+    return getFileFromURL(absoluateUrl, dstPath);
 }
 
 string getLinkFromMailbox(const string& exe,         // Python
@@ -7226,7 +7311,11 @@ TEST_F(SdkTest, SdkMediaImageUploadTest)
     unsigned int apiIndex = 0;
     int64_t fileSize = 1304;
     const char* outputImage = "newlogo.png";
-    synchronousMediaUpload(apiIndex, fileSize, IMAGEFILE.c_str(), IMAGEFILE_C.c_str(), outputImage, THUMBNAIL.c_str(), PREVIEW.c_str());
+    synchronousMediaUpload(apiIndex, fileSize, IMAGEFILE.c_str(), IMAGEFILE_C.c_str(), outputImage
+#if USE_FREEIMAGE
+            ,THUMBNAIL.c_str(), PREVIEW.c_str()
+#endif
+            );
 
 }
 
@@ -17153,8 +17242,8 @@ TEST_F(SdkTest, GiveRemoveChatAccess)
 
     // Create chat between new contacts
 
-    int numChatsHost = mApi[host].chats.size();
-    int numChatsGuest = mApi[guest].chats.size();
+    auto numChatsHost = mApi[host].chats.size();
+    auto numChatsGuest = mApi[guest].chats.size();
     mApi[guest].chatUpdated = false;
     std::unique_ptr<MegaTextChatPeerList> peers(MegaTextChatPeerList::createInstance());
     peers->addPeer(megaApi[guest]->getMyUser()->getHandle(), PRIV_STANDARD);
@@ -17202,3 +17291,269 @@ TEST_F(SdkTest, GiveRemoveChatAccess)
 }
 
 #endif
+
+TEST_F(SdkTest, GetFileFromArtifactorySuccessfully)
+{
+    const std::string relativeUrl{"test-data/gfx-processing-crash/default_irradiance.dds"};
+    const fs::path output{"default_irradiance.dds"};
+    ASSERT_TRUE(getFileFromArtifactory(relativeUrl, output));
+    ASSERT_TRUE(fs::exists(output));
+    fs::remove(output);
+}
+
+TEST_F(SdkTest, GenerateRandomCharsPassword)
+{
+    LOG_debug << "### Test characters-based random passwords generation";
+    bool useUpper = false;
+    bool useDigits = false;
+    bool useSymbols = false;
+    const unsigned int minLength = 8, maxLength = 64;
+    const unsigned int length = 10;
+
+    LOG_debug << "# Test out-of-bounds password generation request";
+    std::unique_ptr<char[]> pwd{
+        MegaApi::generateRandomCharsPassword(useUpper, useDigits, useSymbols, minLength - 1)};
+    ASSERT_FALSE(pwd);
+    pwd.reset(MegaApi::generateRandomCharsPassword(useUpper, useDigits, useSymbols, maxLength + 1));
+    ASSERT_FALSE(pwd);
+
+    const auto validatePassword =
+        [&useUpper, &useDigits, &useSymbols]
+        (const std::string& pwd) -> bool
+    {
+        bool lowerFound = false;
+        bool upperFound = false;
+        bool digitFound = false;
+        bool symbolFound = false;
+        const std::set<char> validSymbols {'!','@','#','$','%','^','&','*','(',')'};
+
+        for (auto c : pwd)
+        {
+            if (!upperFound && std::isupper(c))
+            {
+                if (!useUpper) return false;
+                upperFound = true;
+            }
+
+            if (!digitFound && std::isdigit(c))
+            {
+                if (!useDigits) return false;
+                digitFound = true;
+            }
+
+            if (!symbolFound && validSymbols.count(c))
+            {
+                if (!useSymbols) return false;
+                symbolFound = true;
+            }
+
+            if (!lowerFound && std::islower(c)) lowerFound = true;
+        }
+
+        return lowerFound && (useUpper == upperFound) &&
+               (useDigits == digitFound) && (useSymbols == symbolFound);
+    };
+
+    LOG_debug << "\t# Test only lower case characters";
+    useUpper = useDigits = useSymbols = false;
+    pwd.reset(MegaApi::generateRandomCharsPassword(useUpper, useDigits, useSymbols, length));
+    ASSERT_TRUE(pwd);
+    ASSERT_TRUE(std::strlen(pwd.get()) == length);
+    ASSERT_TRUE(validatePassword(pwd.get())) << "Invalid generated password " << pwd.get();
+
+    LOG_debug << "\t# Test lower and upper case characters only";
+    useDigits = useSymbols = false;
+    useUpper = true;
+    pwd.reset(MegaApi::generateRandomCharsPassword(useUpper, useDigits, useSymbols, length));
+    ASSERT_TRUE(pwd);
+    ASSERT_TRUE(std::strlen(pwd.get()) == length);
+    ASSERT_TRUE(validatePassword(pwd.get())) << "Invalid generated password " << pwd.get();
+
+    LOG_debug << "\t# Test lower and digits only";
+    useUpper = useSymbols = false;
+    useDigits = true;
+    pwd.reset(MegaApi::generateRandomCharsPassword(useUpper, useDigits, useSymbols, length));
+    ASSERT_TRUE(pwd);
+    ASSERT_TRUE(std::strlen(pwd.get()) == length);
+    ASSERT_TRUE(validatePassword(pwd.get())) << "Invalid generated password " << pwd.get();
+
+    LOG_debug << "\t# Test lower and symbols only";
+    useUpper = useDigits = false;
+    useSymbols = true;
+    pwd.reset(MegaApi::generateRandomCharsPassword(useUpper, useDigits, useSymbols, length));
+    ASSERT_TRUE(pwd);
+    ASSERT_TRUE(std::strlen(pwd.get()) == length);
+    ASSERT_TRUE(validatePassword(pwd.get())) << "Invalid generated password " << pwd.get();
+
+    LOG_debug << "\t# Test lower, upper, and digits";
+    useSymbols = false;
+    useUpper = useDigits = true;
+    pwd.reset(MegaApi::generateRandomCharsPassword(useUpper, useDigits, useSymbols, length));
+    ASSERT_TRUE(pwd);
+    ASSERT_TRUE(std::strlen(pwd.get()) == length);
+    ASSERT_TRUE(validatePassword(pwd.get())) << "Invalid generated password " << pwd.get();
+
+    LOG_debug << "\t# Test lower, upper, and symbols";
+    useDigits = false;
+    useUpper = useSymbols = true;
+    pwd.reset(MegaApi::generateRandomCharsPassword(useUpper, useDigits, useSymbols, length));
+    ASSERT_TRUE(pwd);
+    ASSERT_TRUE(std::strlen(pwd.get()) == length);
+    ASSERT_TRUE(validatePassword(pwd.get())) << "Invalid generated password " << pwd.get();
+
+    LOG_debug << "\t# Test lower, digits, and symbols";
+    useUpper = false;
+    useDigits = useSymbols = true;
+    pwd.reset(MegaApi::generateRandomCharsPassword(useUpper, useDigits, useSymbols, length));
+    ASSERT_TRUE(pwd);
+    ASSERT_TRUE(std::strlen(pwd.get()) == length);
+    ASSERT_TRUE(validatePassword(pwd.get())) << "Invalid generated password " << pwd.get();
+
+    LOG_debug << "\t# Test lower, upper, digits, and symbols";
+    useUpper = useDigits = useSymbols = true;
+    pwd.reset(MegaApi::generateRandomCharsPassword(useUpper, useDigits, useSymbols, length));
+    ASSERT_TRUE(pwd);
+    ASSERT_TRUE(std::strlen(pwd.get()) == length);
+    ASSERT_TRUE(validatePassword(pwd.get())) << "Invalid generated password " << pwd.get();
+}
+
+/**
+ * @brief Enable test-notifications by setting their IDs in "^!tnotif".
+ * Get enabled-notifications (from cmd("ug")."notifs").
+ * Get the complete notifications (using cmd("gnotif")).
+ * Set and get the last-read-notification ("^!lnotif").
+ * Set and get the last-actioned-banner ("^!lbannr").
+ */
+TEST_F(SdkTest, DynamicMessageNotifs)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Sending a null list of test-notifications should fail
+    RequestTracker nullNotifsTracker(megaApi[0].get());
+    megaApi[0]->enableTestNotifications(nullptr, &nullNotifsTracker);
+    ASSERT_EQ(nullNotifsTracker.waitForResult(), API_EARGS);
+
+    // Clear any test-notifications that may be leftovers from previous tests
+    unique_ptr<MegaIntegerList> ids{ MegaIntegerList::createInstance() };
+    RequestTracker clearNotifsTracker(megaApi[0].get());
+    megaApi[0]->enableTestNotifications(ids.get(), &clearNotifsTracker); // clear "^!tnotif"
+    ASSERT_EQ(clearNotifsTracker.waitForResult(), API_OK);
+
+    // Clear last-read-notification
+    RequestTracker clearLastReadNotifTracker(megaApi[0].get());
+    megaApi[0]->setLastReadNotification(0, &clearLastReadNotifTracker); // clear "^!lnotif"
+    ASSERT_EQ(clearLastReadNotifTracker.waitForResult(), API_OK);
+
+    // Clear last-actioned-banner
+    RequestTracker clearLastActionedBannerTracker(megaApi[0].get());
+    megaApi[0]->setLastActionedBanner(0, &clearLastActionedBannerTracker); // clear "^!lbannr"
+    ASSERT_EQ(clearLastActionedBannerTracker.waitForResult(), API_OK);
+
+    // Get last-read-notification (not previously set)
+    RequestTracker getLastReadNotifTracker(megaApi[0].get());
+    megaApi[0]->getLastReadNotification(&getLastReadNotifTracker); // get "^!lnotif"
+    ASSERT_EQ(getLastReadNotifTracker.waitForResult(), API_OK);
+    ASSERT_EQ(static_cast<uint32_t>(getLastReadNotifTracker.request->getNumber()), 0u);
+
+    // Fetch user data ("ug" command), and cache IDs of enabled-notifications (ug.notifs).
+    RequestTracker userDataTracker(megaApi[0].get());
+    megaApi[0]->getUserData(&userDataTracker);
+    ASSERT_EQ(userDataTracker.waitForResult(), API_OK);
+
+    // Get IDs of enabled-notifications, which are composed of
+    // - IDs of test-notifications: IDs of notifications that should already exist, enabled as
+    //   requested by the user;
+    // - IDs of always-enabled notifications: IDs of notifications that already exist and are
+    //   always enabled regardless of not being requested by the user.
+    unique_ptr<MegaIntegerList> defaultNotifs{ megaApi[0]->getEnabledNotifications() }; // get IDs cached fom ug.notifs
+    ASSERT_THAT(defaultNotifs, ::testing::NotNull());
+    ASSERT_GE(defaultNotifs->size(), 0);
+
+    // Get the complete notifications
+    RequestTracker gnotifTracker(megaApi[0].get());
+    megaApi[0]->getNotifications(&gnotifTracker); // send "gnotif" and process its response
+    ASSERT_THAT(gnotifTracker.waitForResult(),
+        ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
+    const auto* notificationList = gnotifTracker.request->getMegaNotifications();
+    ASSERT_THAT(notificationList, ::testing::NotNull());
+    ASSERT_EQ(notificationList->size(), 0u);
+
+    // Enable some test-notifications.
+    // IDs 1,2,3,4,5 have been reserved to be "^!tnotif" only notifications.
+    // However, only notification with ID 1 existed at the time of writing this test
+    ids->add(1);
+    ids->add(numeric_limits<uint32_t>::max() - 1); // dummy
+
+    RequestTracker notifsTracker(megaApi[0].get());
+    megaApi[0]->enableTestNotifications(ids.get(), &notifsTracker); // set "^!tnotif"
+    ASSERT_EQ(notifsTracker.waitForResult(), API_OK);
+
+    // Fetch user data ("ug" command), and cache IDs of enabled-notifications (ug.notifs).
+    RequestTracker userDataTracker2(megaApi[0].get());
+    megaApi[0]->getUserData(&userDataTracker2); // get ug.notifs again
+    ASSERT_EQ(userDataTracker2.waitForResult(), API_OK);
+
+    // Get IDs of enabled-notifications
+    unique_ptr<MegaIntegerList> enabledNotifs{ megaApi[0]->getEnabledNotifications() };
+    ASSERT_THAT(enabledNotifs, ::testing::NotNull());
+    ASSERT_EQ(enabledNotifs->size(), 1); // only IDs of existing notifications will be there, dummy IDs will not be included
+    ASSERT_EQ(enabledNotifs->get(0), 1);
+
+    // Get the complete notifications (corresponding only to existing IDs)
+    RequestTracker gnotifTracker2(megaApi[0].get());
+    megaApi[0]->getNotifications(&gnotifTracker2); // send "gnotif" and process its response
+    ASSERT_EQ(gnotifTracker2.waitForResult(), API_OK);
+    const auto* notificationList2 = gnotifTracker2.request->getMegaNotifications();
+    ASSERT_THAT(notificationList2, ::testing::NotNull());
+    ASSERT_EQ(notificationList2->size(), 1u);
+
+    // Set last-read-notification
+    const uint32_t lastReadNotifId = numeric_limits<uint32_t>::max() - 2; // dummy value
+    RequestTracker setLastReadNotifTracker(megaApi[0].get());
+    megaApi[0]->setLastReadNotification(lastReadNotifId, &setLastReadNotifTracker); // set "^!lnotif"
+    ASSERT_EQ(setLastReadNotifTracker.waitForResult(), API_OK);
+
+    // Get last-read-notification
+    RequestTracker getLastReadNotifTracker2(megaApi[0].get());
+    megaApi[0]->getLastReadNotification(&getLastReadNotifTracker2); // get "^!lnotif"
+    ASSERT_EQ(getLastReadNotifTracker2.waitForResult(), API_OK);
+    ASSERT_EQ(static_cast<uint32_t>(getLastReadNotifTracker2.request->getNumber()), lastReadNotifId);
+
+    // Clear a previusly set last-read-notification
+    RequestTracker clearLastReadNotifTracker2(megaApi[0].get());
+    megaApi[0]->setLastReadNotification(0, &clearLastReadNotifTracker2); // clear "^!lnotif"
+    ASSERT_EQ(clearLastReadNotifTracker2.waitForResult(), API_OK);
+
+    // Set last-actioned-banner
+    const uint32_t lastActionedBannerId = numeric_limits<uint32_t>::max() - 3; // dummy value
+    RequestTracker setLastActionedBannerTracker(megaApi[0].get());
+    megaApi[0]->setLastActionedBanner(lastActionedBannerId, &setLastActionedBannerTracker); // set "^!lbannr"
+    ASSERT_EQ(setLastActionedBannerTracker.waitForResult(), API_OK);
+
+    // Get last-actioned-banner
+    RequestTracker getLastActionedBannerTracker2(megaApi[0].get());
+    megaApi[0]->getLastActionedBanner(&getLastActionedBannerTracker2); // get "^!lbannr"
+    ASSERT_EQ(getLastActionedBannerTracker2.waitForResult(), API_OK);
+    ASSERT_EQ(static_cast<uint32_t>(getLastActionedBannerTracker2.request->getNumber()), lastActionedBannerId);
+
+    // Clear a previously set last-actioned-banner
+    RequestTracker clearLastActionedBannerTracker2(megaApi[0].get());
+    megaApi[0]->setLastActionedBanner(0, &clearLastActionedBannerTracker2); // clear "^!lbannr"
+    ASSERT_EQ(clearLastActionedBannerTracker2.waitForResult(), API_OK);
+
+    // Clear test-notifications
+    ids.reset(MegaIntegerList::createInstance());
+    RequestTracker clearNotifsTracker2(megaApi[0].get());
+    megaApi[0]->enableTestNotifications(ids.get(), &clearNotifsTracker2); // clear "^!tnotif"
+    ASSERT_EQ(clearNotifsTracker2.waitForResult(), API_OK);
+
+    // Fetch user data ("ug" command), and cache IDs of enabled-notifications (ug.notifs).
+    RequestTracker userDataTracker3(megaApi[0].get());
+    megaApi[0]->getUserData(&userDataTracker3);
+    ASSERT_EQ(userDataTracker3.waitForResult(), API_OK);
+
+    // Get IDs of enabled-notifications
+    defaultNotifs.reset(megaApi[0]->getEnabledNotifications()); // get cached value of ug.notifs
+    ASSERT_THAT(defaultNotifs, ::testing::NotNull());
+    ASSERT_EQ(defaultNotifs->size(), 0);
+}

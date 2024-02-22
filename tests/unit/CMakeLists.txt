@@ -13,6 +13,7 @@ target_sources(test_unit
 
     main.cpp
     AttrMap_test.cpp
+    CacheLRU_test.cpp
     ChunkMacMap_test.cpp
     Commands_test.cpp
     Crypto_test.cpp

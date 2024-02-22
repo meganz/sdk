@@ -4023,6 +4023,9 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     string versionAppPrefs;
     string ccPrefs;
     string versionCcPrefs;
+    string enabledTestNotifications, versionEnabledTestNotifications;
+    string lastReadNotification, versionLastReadNotification;
+    string lastActionedBanner, versionLastActionedBanner;
 #ifdef ENABLE_SYNC
     string jsonSyncConfigData;
     string jsonSyncConfigDataVersion;
@@ -4040,6 +4043,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     string visibleTermsOfService;
     string versionVisibleTermsOfService;
     string pwmh, pwmhVersion;
+    vector<uint32_t> notifs;
 
     bool uspw = false;
     vector<m_time_t> warningTs;
@@ -4391,6 +4395,37 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             parseUserAttribute(json, pwmh, pwmhVersion);
             break;
 
+        case MAKENAMEID6('n', 'o', 't', 'i', 'f', 's'):
+        {
+            if (json.enterarray())
+            {
+                while (json.isnumeric())
+                {
+                    notifs.push_back(json.getuint32());
+                }
+                json.leavearray();
+            }
+            break;
+        }
+
+        case MAKENAMEID8('^', '!', 't', 'n', 'o', 't', 'i', 'f'):
+        {
+            parseUserAttribute(json, enabledTestNotifications, versionEnabledTestNotifications);
+            break;
+        }
+
+        case MAKENAMEID8('^', '!', 'l', 'n', 'o', 't', 'i', 'f'):
+        {
+            parseUserAttribute(json, lastReadNotification, versionLastReadNotification);
+            break;
+        }
+
+        case MAKENAMEID8('^', '!', 'l', 'b', 'a', 'n', 'n', 'r'):
+        {
+            parseUserAttribute(json, lastActionedBanner, versionLastActionedBanner);
+            break;
+        }
+
         case EOO:
         {
             assert(me == client->me);
@@ -4696,6 +4731,35 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 else
                 {
                     u->setNonExistingAttribute(ATTR_COOKIE_SETTINGS);
+                }
+
+                client->setEnabledNotifications(std::move(notifs));
+
+                if (!enabledTestNotifications.empty() || !versionEnabledTestNotifications.empty())
+                {
+                    changes += u->updateattr(ATTR_ENABLE_TEST_NOTIFICATIONS, &enabledTestNotifications, &versionEnabledTestNotifications);
+                }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_ENABLE_TEST_NOTIFICATIONS);
+                }
+
+                if (!lastReadNotification.empty() || !versionLastReadNotification.empty())
+                {
+                    changes += u->updateattr(ATTR_LAST_READ_NOTIFICATION, &lastReadNotification, &versionLastReadNotification);
+                }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_LAST_READ_NOTIFICATION);
+                }
+
+                if (!lastActionedBanner.empty() || !versionLastActionedBanner.empty())
+                {
+                    changes += u->updateattr(ATTR_LAST_ACTIONED_BANNER, &lastActionedBanner, &versionLastActionedBanner);
+                }
+                else
+                {
+                    u->setNonExistingAttribute(ATTR_LAST_ACTIONED_BANNER);
                 }
 
 #ifdef ENABLE_SYNC
@@ -11300,6 +11364,155 @@ bool CommandCreatePasswordManagerBase::procresult(Result r, JSON &json)
             }
         }
     }
+}
+
+CommandGetNotifications::CommandGetNotifications(MegaClient* client, ResultFunc onResult)
+    : mOnResult(onResult)
+{
+    cmd("gnotif");
+
+    tag = client->reqtag;
+
+    if (!mOnResult)
+    {
+        mOnResult = [](const Error&, vector<DynamicMessageNotification>&&)
+        {
+            LOG_err << "The result of 'gnotif' will be lost";
+        };
+    }
+}
+
+bool CommandGetNotifications::procresult(Result r, JSON& json)
+{
+    if (r.wasErrorOrOK())
+    {
+        LOG_err << "Unexpected response of 'gnotif' command";
+        mOnResult(r.errorOrOK(), {});
+        return true;
+    }
+
+    vector<DynamicMessageNotification> notifications;
+
+    while (json.enterobject())
+    {
+        notifications.emplace_back();
+        DynamicMessageNotification& notification = notifications.back();
+
+        for (nameid nid = json.getnameid(); nid != EOO; nid = json.getnameid())
+        {
+            switch (nid)
+            {
+            case MAKENAMEID2('i', 'd'):
+                notification.id = json.getint();
+                break;
+
+            case 't':
+                json.storeobject(&notification.title);
+                notification.title = Base64::atob(notification.title);
+                break;
+
+            case 'd':
+                json.storeobject(&notification.description);
+                notification.description = Base64::atob(notification.description);
+                break;
+
+            case MAKENAMEID3('i', 'm', 'g'):
+                json.storeobject(&notification.imageName);
+                break;
+
+            case MAKENAMEID3('d', 's', 'p'):
+                json.storeobject(&notification.imagePath);
+                break;
+
+            case 's':
+                notification.start = json.getint();
+                break;
+
+            case 'e':
+                notification.end = json.getint();
+                break;
+
+            case MAKENAMEID2('s', 'b'):
+                notification.showBanner = json.getbool();
+                break;
+
+            case MAKENAMEID4('c', 't', 'a', '1'):
+            {
+                if (!readCallToAction(json, notification.callToAction1))
+                {
+                    LOG_err << "Unable to read 'cta1' in 'gnotif' response";
+                    mOnResult(API_EINTERNAL, {});
+                    return false;
+                }
+                break;
+            }
+
+            case MAKENAMEID4('c', 't', 'a', '2'):
+            {
+                if (!readCallToAction(json, notification.callToAction2))
+                {
+                    LOG_err << "Unable to read 'cta2' in 'gnotif' response";
+                    mOnResult(API_EINTERNAL, {});
+                    return false;
+                }
+                break;
+            }
+
+            default:
+                if (!json.storeobject())
+                {
+                    LOG_err << "Failed to parse 'gnotif' response";
+                    mOnResult(API_EINTERNAL, {});
+                    return false;
+                }
+                break;
+            }
+        }
+
+        if (!json.leaveobject())
+        {
+            LOG_err << "Unable to leave json object in 'gnotif' response";
+            mOnResult(API_EINTERNAL, {});
+            return false;
+        }
+    }
+
+    mOnResult(API_OK, std::move(notifications));
+    return true;
+}
+
+bool CommandGetNotifications::readCallToAction(JSON& json, map<string, string>& action)
+{
+    if (!json.enterobject())
+    {
+        return false;
+    }
+
+    for (nameid nid = json.getnameid(); nid != EOO; nid = json.getnameid())
+    {
+        switch (nid)
+        {
+        case MAKENAMEID4('l', 'i', 'n', 'k'):
+        {
+            json.storeobject(&action["link"]);
+            break;
+        }
+        case MAKENAMEID4('t', 'e', 'x', 't'):
+        {
+            string& t = action["text"];
+            json.storeobject(&t);
+            t = Base64::atob(t);
+            break;
+        }
+        default:
+            if (!json.storeobject())
+            {
+                return false;
+            }
+        }
+    }
+
+    return json.leaveobject();
 }
 
 } // namespace
