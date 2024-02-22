@@ -4165,6 +4165,7 @@ private:
         error performRequest_passwordLink(MegaRequestPrivate* request);
         error performRequest_importLink_getPublicNode(MegaRequestPrivate* request);
         error performRequest_copy(MegaRequestPrivate* request);
+        error copyTreeFromOwnedNode(shared_ptr<Node> node, const char *newName, shared_ptr<Node> target, vector<NewNode>& treeCopy);
         error performRequest_login(MegaRequestPrivate* request);
 
         error performTransferRequest_cancelTransfer(MegaRequestPrivate* request, TransferDbCommitter& committer);
@@ -4945,6 +4946,7 @@ public:
                         const std::string& name,
                         const std::string& s4AttributeValue,
                         const MegaCompleteUploadData* completeUploadData,
+                        MegaHandle sourceHandle,
                         MegaHandle nodeHandle);
     ~MegaNodeTreePrivate() override = default;
     MegaNodeTree* getNodeTreeChild() const override;
@@ -4953,12 +4955,21 @@ public:
     const MegaCompleteUploadData* getCompleteUploadData() const;
     MegaHandle getNodeHandle() const override;
     void setNodeHandle(const MegaHandle& nodeHandle);
+    const MegaHandle& getSourceHandle() const { return mSourceHandle; }
 
 private:
     std::unique_ptr<MegaNodeTree> mNodeTreeChild;
     std::string mName;
     std::string mS4AttributeValue;
+    // new leaf-file-node is created from upload-token or as a 
+    // copy of an existing node (cannot use both at the same time)
+
+    // data to create node from upload-token
     std::unique_ptr<const MegaCompleteUploadData> mCompleteUploadData;
+    // handle of an existing file node to be copied
+    MegaHandle mSourceHandle;
+
+    // output param: handle give to new node
     MegaHandle mNodeHandle;
 };
 

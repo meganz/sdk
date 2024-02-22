@@ -7782,13 +7782,15 @@ MegaVpnCredentials* MegaVpnCredentials::copy() const
 MegaNodeTree* MegaNodeTree::createInstance(MegaNodeTree* nodeTreeChild,
                                            const char* name,
                                            const char* s4AttributeValue,
-                                           const MegaCompleteUploadData* completeUploadData)
+                                           const MegaCompleteUploadData* completeUploadData,
+                                           MegaHandle sourceHandle)
 {
     return new MegaNodeTreePrivate(nodeTreeChild,
                                    name ? name : "",
                                    s4AttributeValue ? s4AttributeValue : "",
                                    completeUploadData,
-                                   UNDEF);
+                                   sourceHandle,
+                                   INVALID_HANDLE);
 }
 
 MegaCompleteUploadData* MegaCompleteUploadData::createInstance(const char* fingerprint,

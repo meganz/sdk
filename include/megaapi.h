@@ -9489,7 +9489,8 @@ public:
     static MegaNodeTree* createInstance(MegaNodeTree* nodeTreeChild,
                                         const char* name,
                                         const char* s4AttributeValue,
-                                        const MegaCompleteUploadData* completeUploadData);
+                                        const MegaCompleteUploadData* completeUploadData,
+                                        MegaHandle sourceHandle = INVALID_HANDLE);
     virtual MegaNodeTree* getNodeTreeChild() const = 0;
     virtual MegaHandle getNodeHandle() const = 0;
 };

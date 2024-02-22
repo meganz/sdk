@@ -19797,88 +19797,128 @@ error MegaApiImpl::performRequest_copy(MegaRequestPrivate* request)
             }
             else
             {
-                TreeProcCopy tc;
-
-                if (!node->nodekey().size())
+                vector<NewNode> nn;
+                error err = copyTreeFromOwnedNode(node, newName, target, nn);
+                if (err != API_OK)
                 {
-                    return API_EKEY;
-                }
-
-                if (node->attrstring)
-                {
-                    node->applykey();
-                    node->setattr();
-                    if (node->attrstring)
+                    if (err == API_EEXIST) // dedicated error code when that exact same file already existed
                     {
-                        return API_EKEY;
+                        assert(!nn.empty()); // never empty because other error should have been reported in that case
+                        request->setNodeHandle(nn[0].ovhandle.as8byte());
+                        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+                        return API_OK;
                     }
+
+                    return err;
                 }
 
-                string sname;
-                if (newName)
-                {
-                    sname = newName;
-                    LocalPath::utf8_normalize(&sname);
-                }
-                else
-                {
-                    attr_map::iterator it = node->attrs.map.find('n');
-                    if (it != node->attrs.map.end())
-                    {
-                        sname = it->second;
-                    }
-                }
-
-                if (target && node->type == FILENODE)
-                {
-                    std::shared_ptr<Node> ovn = client->childnodebyname(target.get(), sname.c_str(), true);
-                    if (ovn)
-                    {
-                        if (node->isvalid && ovn->isvalid && *(FileFingerprint*)node.get() == *(FileFingerprint*)ovn.get())
-                        {
-                            request->setNodeHandle(ovn->nodehandle);
-                            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
-                            return API_OK;
-                        }
-
-                        ovhandle = ovn->nodeHandle();
-                    }
-                }
-
-                // determine number of nodes to be copied
-                client->proctree(node, &tc, false, !ovhandle.isUndef());
-                tc.allocnodes();
-
-                // build new nodes array
-                client->proctree(node, &tc, false, !ovhandle.isUndef());
-                tc.nn[0].parenthandle = UNDEF;
-                tc.nn[0].ovhandle = ovhandle;
-
-                if (newName)
-                {
-                    SymmCipher key;
-                    AttrMap attrs;
-                    string attrstring;
-
-                    key.setkey((const byte*)tc.nn[0].nodekey.data(), node->type);
-                    attrs = node->attrs;
-
-                    attrs.map['n'] = sname;
-
-                    attrs.getjson(&attrstring);
-                    client->makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
-                }
+                assert(!nn.empty()); // never empty because an error should have been reported in that case
+                nn[0].parenthandle = UNDEF;
 
                 if (target)
                 {
-                    client->putnodes(target->nodeHandle(), UseLocalVersioningFlag, std::move(tc.nn), nullptr, request->getTag(), false);
+                    client->putnodes(target->nodeHandle(), UseLocalVersioningFlag, std::move(nn), nullptr, request->getTag(), false);
                 }
                 else
                 {
-                    client->putnodes(email, std::move(tc.nn), request->getTag());
+                    client->putnodes(email, std::move(nn), request->getTag());
                 }
             }
             return API_OK;
+}
+
+error MegaApiImpl::copyTreeFromOwnedNode(shared_ptr<Node> node, const char* newName, shared_ptr<Node> target, vector<NewNode>& treeCopy)
+{
+    assert(node);
+    assert(!newName || *newName);
+
+    if (!node->nodekey().size())
+    {
+        LOG_err << "Failed to copy owned node: Node had no key";
+        return API_EKEY;
+    }
+
+    if (node->attrstring)
+    {
+        node->applykey();
+        node->setattr();
+        if (node->attrstring)
+        {
+            LOG_err << "Failed to copy owned node: Node had bad key";
+            return API_EKEY;
+        }
+    }
+
+    // process new name
+    string sname;
+    if (newName)
+    {
+        sname = newName;
+        LocalPath::utf8_normalize(&sname);
+    }
+    else
+    {
+        attr_map::iterator it = node->attrs.map.find('n');
+        if (it != node->attrs.map.end())
+        {
+            sname = it->second;
+        }
+    }
+
+    // determine handling of older versions
+    NodeHandle ovhandle;
+    bool fileAlreadyExisted = false;
+    if (target && node->type == FILENODE)
+    {
+        std::shared_ptr<Node> ovn = client->childnodebyname(target.get(), sname.c_str(), true);
+        if (ovn)
+        {
+            if (node->isvalid && ovn->isvalid && *(FileFingerprint*)node.get() == *(FileFingerprint*)ovn.get())
+            {
+                fileAlreadyExisted = true;
+            }
+
+            ovhandle = ovn->nodeHandle();
+        }
+    }
+
+    // determine number of nodes to be copied
+    TreeProcCopy tc;
+    client->proctree(node, &tc, false, !ovhandle.isUndef());
+    tc.allocnodes();
+
+    // build new nodes array
+    client->proctree(node, &tc, false, !ovhandle.isUndef());
+    if (tc.nn.empty())
+    {
+        LOG_err << "Failed to copy owned node: Failed to find nodes";
+        return API_EARGS;
+    }
+    tc.nn[0].parenthandle = UNDEF;
+    tc.nn[0].ovhandle = ovhandle;
+
+    // Update name attr
+    if (newName)
+    {
+        SymmCipher key;
+        AttrMap attrs;
+        string attrstring;
+
+        key.setkey((const byte*)tc.nn[0].nodekey.data(), node->type);
+        attrs = node->attrs;
+
+        attrs.map['n'] = sname;
+
+        attrs.getjson(&attrstring);
+        client->makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
+    }
+
+    treeCopy = std::move(tc.nn);
+
+    // If the exact same file was already there do not send the request.
+    // Let the caller know by returning a dedicated error code, so that they
+    // can continue as if API_OK was received from the cloud API.
+    return fileAlreadyExisted ? API_EEXIST : API_OK;
 }
 
 void MegaApiImpl::restoreVersion(MegaNode* version, MegaRequestListener* listener)
@@ -26303,6 +26343,7 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
     {
         if (request->getParentHandle() == INVALID_HANDLE || !nodeTree)
         {
+            LOG_err << "Failed to create node tree: Missing arguments";
             return API_EARGS;
         }
 
@@ -26316,89 +26357,122 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
         for (auto tmpNodeTree{dynamic_cast<MegaNodeTreePrivate*>(nodeTree)}; tmpNodeTree;
              tmpNodeTree = dynamic_cast<MegaNodeTreePrivate*>(tmpNodeTree->getNodeTreeChild()))
         {
-            const auto completeUploadData{dynamic_cast<const MegaCompleteUploadDataPrivate*>(
-                tmpNodeTree->getCompleteUploadData())};
-
-            if (tmpNodeTree->getNodeTreeChild() && completeUploadData)
+            if ((tmpNodeTree->getNodeTreeChild() && tmpNodeTree->getCompleteUploadData()) ||
+                (tmpNodeTree->getNodeTreeChild() && tmpNodeTree->getSourceHandle() != INVALID_HANDLE) ||
+                (tmpNodeTree->getCompleteUploadData() && tmpNodeTree->getSourceHandle() != INVALID_HANDLE))
             {
+                LOG_err << "Failed to create node tree: Invalid arguments";
                 return API_EARGS;
             }
 
-            NewNode newNode{};
-            newNode.source = completeUploadData ? NEW_UPLOAD : NEW_NODE;
-            newNode.type = completeUploadData ? FILENODE : FOLDERNODE;
-            newNode.nodehandle = tmpNodeHandle++;
-            newNode.parenthandle = tmpParentNodeHandle;
-            newNode.fileattributes.reset(new string);
-            tmpParentNodeHandle = newNode.nodehandle;
+            if (tmpNodeTree->getSourceHandle() != INVALID_HANDLE) // copy existing node (source)
+            {
+                shared_ptr<Node> source{ client->nodebyhandle(tmpNodeTree->getSourceHandle()) };
 
-            // Set node key
-            if (completeUploadData)
-            {
-                byte* nodeKey;
-                size_t nodeKeyLength{FILENODEKEYLENGTH};
-                base64ToBinary(completeUploadData->getString64FileKey().c_str(),
-                               &nodeKey,
-                               &nodeKeyLength);
-                newNode.nodekey.assign(reinterpret_cast<char*>(nodeKey), nodeKeyLength);
-                delete[] nodeKey;
-                SymmCipher::xorblock(
-                    reinterpret_cast<const byte*>(newNode.nodekey.data()) + SymmCipher::KEYLENGTH,
-                    const_cast<byte*>(reinterpret_cast<const byte*>(newNode.nodekey.data())));
-            }
-            else
-            {
-                constexpr size_t nodeKeyLength{FOLDERNODEKEYLENGTH};
-                byte nodeKey[nodeKeyLength];
-                client->rng.genblock(nodeKey, nodeKeyLength);
-                newNode.nodekey.assign(reinterpret_cast<char*>(nodeKey), nodeKeyLength);
+                if (!source || source->type != FILENODE)
+                {
+                    LOG_err << "Failed to create node tree: Source was not a file";
+                    return API_EARGS;
+                }
+
+                // Ignore old versions. (Should this ever change, check for old versions only when
+                // the target is parentNode, not one of the newly created folders).
+                shared_ptr<Node> target;
+
+                vector<NewNode> treeToCopy;
+                error err = copyTreeFromOwnedNode(source, tmpNodeTree->getName().c_str(), target, treeToCopy);
+                if (err != API_OK)
+                {
+                    return err;
+                }
+
+                assert(!treeToCopy.empty()); // never empty because an error should have been reported in that case
+                treeToCopy[0].parenthandle = tmpParentNodeHandle;
+
+                newNodes.emplace_back(std::move(treeToCopy[0]));
             }
 
-            // Set name
-            std::string name{tmpNodeTree->getName()};
-            if (name.empty())
+            else // complete upload
             {
-                return API_EARGS;
-            }
-            LocalPath::utf8_normalize(&name);
-            AttrMap attributes;
-            attributes.map['n'] = name;
+                const auto completeUploadData{ dynamic_cast<const MegaCompleteUploadDataPrivate*>(
+                    tmpNodeTree->getCompleteUploadData()) };
 
-            // Set S4 attribute
-            attributes.map[AttrMap::string2nameid("s4")] = tmpNodeTree->getS4AttributeValue();
+                NewNode newNode{};
+                newNode.source = completeUploadData ? NEW_UPLOAD : NEW_NODE;
+                newNode.type = completeUploadData ? FILENODE : FOLDERNODE;
+                newNode.nodehandle = tmpNodeHandle++;
+                newNode.parenthandle = tmpParentNodeHandle;
+                newNode.fileattributes.reset(new string);
+                tmpParentNodeHandle = newNode.nodehandle;
 
-            // Set fingerprint
-            if (completeUploadData)
-            {
-                attributes.map['c'] = completeUploadData->getFingerprint();
-            }
+                // Set node key
+                if (completeUploadData)
+                {
+                    byte* nodeKey;
+                    size_t nodeKeyLength{ FILENODEKEYLENGTH };
+                    base64ToBinary(completeUploadData->getString64FileKey().c_str(),
+                        &nodeKey,
+                        &nodeKeyLength);
+                    newNode.nodekey.assign(reinterpret_cast<char*>(nodeKey), nodeKeyLength);
+                    delete[] nodeKey;
+                    SymmCipher::xorblock(
+                        reinterpret_cast<const byte*>(newNode.nodekey.data()) + SymmCipher::KEYLENGTH,
+                        const_cast<byte*>(reinterpret_cast<const byte*>(newNode.nodekey.data())));
+                }
+                else
+                {
+                    constexpr size_t nodeKeyLength{ FOLDERNODEKEYLENGTH };
+                    byte nodeKey[nodeKeyLength];
+                    client->rng.genblock(nodeKey, nodeKeyLength);
+                    newNode.nodekey.assign(reinterpret_cast<char*>(nodeKey), nodeKeyLength);
+                }
 
-            // Set attributes
-            std::string attrstring;
-            attributes.getjson(&attrstring);
-            newNode.attrstring.reset(new std::string);
-
-            SymmCipher cipher;
-            cipher.setkey(&newNode.nodekey);
-            client->makeattr(&cipher, newNode.attrstring, attrstring.c_str());
-
-            // Set upload
-            if (completeUploadData)
-            {
-                UploadToken uploadToken{};
-                const size_t uploadTokenSize{static_cast<size_t>(
-                    Base64::atob(completeUploadData->getString64UploadToken().c_str(),
-                                 &uploadToken[0],
-                                 sizeof(uploadToken)))};
-                if ((uploadTokenSize != UPLOADTOKENLEN) || (uploadTokenSize != sizeof(uploadToken)))
+                // Set name
+                std::string name{ tmpNodeTree->getName() };
+                if (name.empty())
                 {
                     return API_EARGS;
                 }
-                newNode.uploadtoken = uploadToken;
-                newNode.uploadhandle = client->mUploadHandle.next();
-            }
+                LocalPath::utf8_normalize(&name);
+                AttrMap attributes;
+                attributes.map['n'] = name;
 
-            newNodes.push_back(std::move(newNode));
+                // Set S4 attribute
+                attributes.map[AttrMap::string2nameid("s4")] = tmpNodeTree->getS4AttributeValue();
+
+                // Set fingerprint
+                if (completeUploadData)
+                {
+                    attributes.map['c'] = completeUploadData->getFingerprint();
+                }
+
+                // Set attributes
+                std::string attrstring;
+                attributes.getjson(&attrstring);
+                newNode.attrstring.reset(new std::string);
+
+                SymmCipher cipher;
+                cipher.setkey(&newNode.nodekey);
+                client->makeattr(&cipher, newNode.attrstring, attrstring.c_str());
+
+                // Set upload
+                if (completeUploadData)
+                {
+                    UploadToken uploadToken{};
+                    const size_t uploadTokenSize{ static_cast<size_t>(
+                        Base64::atob(completeUploadData->getString64UploadToken().c_str(),
+                                     &uploadToken[0],
+                                     sizeof(uploadToken))) };
+                    if ((uploadTokenSize != UPLOADTOKENLEN) || (uploadTokenSize != sizeof(uploadToken)))
+                    {
+                        return API_EARGS;
+                    }
+                    newNode.uploadtoken = uploadToken;
+                    newNode.uploadhandle = client->mUploadHandle.next();
+                }
+
+                newNodes.push_back(std::move(newNode));
+            }
         }
 
         auto result{
@@ -37767,11 +37841,13 @@ MegaNodeTreePrivate::MegaNodeTreePrivate(MegaNodeTree* nodeTreeChild,
                                          const std::string& name,
                                          const std::string& s4AttributeValue,
                                          const MegaCompleteUploadData* completeUploadData,
+                                         MegaHandle sourceHandle,
                                          MegaHandle nodeHandle):
     mNodeTreeChild{nodeTreeChild},
     mName{name},
     mS4AttributeValue{s4AttributeValue},
     mCompleteUploadData{completeUploadData},
+    mSourceHandle{sourceHandle},
     mNodeHandle{nodeHandle}
 {}
 
