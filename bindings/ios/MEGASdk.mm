@@ -1200,6 +1200,20 @@ using namespace mega;
     }
 }
 
+#pragma mark - Notifications
+
+- (void)getLastReadNotificationWithDelegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->getLastReadNotification([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
+
+- (void)setLastReadNotificationWithNotificationId:(NSInteger)notificationId delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->setLastReadNotification((int)notificationId, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
+
 #pragma mark - Filesystem changes Requests
 
 - (void)createFolderWithName:(NSString *)name parent:(MEGANode *)parent delegate:(id<MEGARequestDelegate>)delegate {
