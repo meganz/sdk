@@ -2649,6 +2649,17 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  */
 - (void)acknowledgeUserAlerts;
 
+#pragma mark - Notifications
+
+/**
+ * @brief Get the list of IDs for enabled notifications
+ *
+ * You take the ownership of the returned value
+ *
+ * @return List of IDs for enabled notifications
+ */
+- (nullable MEGAIntegerList *)getEnabledNotifications;
+
 #pragma mark - Filesystem changes Requests
 
 /**
