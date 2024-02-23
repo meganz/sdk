@@ -1210,7 +1210,7 @@ using namespace mega;
 
 - (void)setLastReadNotificationWithNotificationId:(uint32_t)notificationId delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
-        self.megaApi->setLastReadNotification((int)notificationId, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+        self.megaApi->setLastReadNotification(notificationId, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
     }
 }
 
