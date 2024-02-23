@@ -22,7 +22,6 @@ target_sources(test_unit
     File_test.cpp
     FsNode.cpp
     GfxCommands_test.cpp
-    Isolatedprocess_test.cpp
     Logging_test.cpp
     MediaProperties_test.cpp
     MegaApi_test.cpp
@@ -37,6 +36,12 @@ target_sources(test_unit
     User_test.cpp
     utils.cpp
     utils_test.cpp
+)
+
+target_sources_conditional(test_unit
+    FLAG WIN32
+    PRIVATE
+    Isolatedprocess_test.cpp
 )
 
 # Link with SDKlib
