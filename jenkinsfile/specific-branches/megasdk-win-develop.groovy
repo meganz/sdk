@@ -40,24 +40,34 @@ pipeline {
                 MEGA_REAL_PWD=credentials('MEGA_REAL_PWD_TEST')
             }
             steps{
-                lock(label: 'SDK_Concurrent_Test_Accounts', variable: 'ACCOUNTS_COMBINATION', quantity: 1, resource: null){
-                    script{
-                        env.MEGA_EMAIL = "${env.ACCOUNTS_COMBINATION}"
-                        echo "${env.ACCOUNTS_COMBINATION}"
+                script {
+                    def lockLabel = ''
+                    if ("${APIURL_TO_TEST}" == 'https://g.api.mega.co.nz/') {
+                        lockLabel = 'SDK_Concurrent_Test_Accounts'
+                    } else if ("${APIURL_TO_TEST}" == 'https://staging.api.mega.co.nz/') {
+                        lockLabel = 'SDK_Concurrent_Test_Accounts_Staging'
+                    } else {
+                        error("Wrong APIURL: ${APIURL_TO_TEST}")                        
                     }
-                    sh "echo Running tests"
-                    bat """
+                    lock(label: lockLabel, variable: 'ACCOUNTS_COMBINATION', quantity: 1, resource: null){
+                        script{
+                            env.MEGA_EMAIL = "${env.ACCOUNTS_COMBINATION}"
+                            echo "${env.ACCOUNTS_COMBINATION}"
+                        }
+                        sh "echo Running tests"
+                        bat """
 
-                    cd build_dir
+                        cd build_dir
 
-                    tests\\\\unit\\\\${BUILD_TYPE}\\\\test_unit.exe
-                    if %ERRORLEVEL% NEQ 0 exit 1
-                    tests\\\\integration\\\\${BUILD_TYPE}\\\\test_integration.exe --CI --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${TESTS_PARALLEL}
-                    if %ERRORLEVEL% NEQ 0 set ERROR_VAL=1
-                    gzip -c test_integration.log > test_integration_${BUILD_ID}.log.gz
-                    rm test_integration.log
-                    exit %ERROR_VAL%
-                    """
+                        tests\\\\unit\\\\${BUILD_TYPE}\\\\test_unit.exe
+                        if %ERRORLEVEL% NEQ 0 exit 1
+                        tests\\\\integration\\\\${BUILD_TYPE}\\\\test_integration.exe --CI --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${TESTS_PARALLEL}
+                        if %ERRORLEVEL% NEQ 0 set ERROR_VAL=1
+                        gzip -c test_integration.log > test_integration_${BUILD_ID}.log.gz
+                        rm test_integration.log
+                        exit %ERROR_VAL%
+                        """
+                    }
                 }
             }
         }              
