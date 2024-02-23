@@ -2668,7 +2668,7 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * Passing `0` will clear a previously set last read value.
  * @param delegate MEGARequestDelegate to track this request
  */
-- (void)setLastReadNotificationWithNotificationId:(NSInteger)notificationId delegate:(id<MEGARequestDelegate>)delegate;
+- (void)setLastReadNotificationWithNotificationId:(uint32_t)notificationId delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Get last read notification for Notification Center

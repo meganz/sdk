@@ -1208,7 +1208,7 @@ using namespace mega;
     }
 }
 
-- (void)setLastReadNotificationWithNotificationId:(NSInteger)notificationId delegate:(id<MEGARequestDelegate>)delegate {
+- (void)setLastReadNotificationWithNotificationId:(uint32_t)notificationId delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->setLastReadNotification((int)notificationId, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
     }
