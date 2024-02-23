@@ -1203,6 +1203,18 @@ using namespace mega;
 
 #pragma mark - Notifications
 
+- (void)getLastReadNotificationWithDelegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->getLastReadNotification([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
+
+- (void)setLastReadNotificationWithNotificationId:(uint32_t)notificationId delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->setLastReadNotification(notificationId, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
+
 - (nullable MEGAIntegerList *)getEnabledNotifications {
     if (self.megaApi == nil) return nil;
 
