@@ -96,7 +96,6 @@ public:
     // If a cancelFlag is passed, it must be kept alive until this method returns.
     bool getChildren(const mega::NodeSearchFilter& filter, int order, std::vector<std::pair<NodeHandle, NodeSerialized>>& children, CancelToken cancelFlag, const NodeSearchPage& page) override;
     bool searchNodes(const mega::NodeSearchFilter& filter, int order, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag, const NodeSearchPage& page) override;
-    bool searchNodeShares(const mega::NodeSearchFilter& filter, int order, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag, const NodeSearchPage& page) override;
 
     /**
      * @deprecated
@@ -193,7 +192,6 @@ private:
     sqlite3_stmt* mStmtNumChildren = nullptr;
     std::map<size_t, sqlite3_stmt*> mStmtGetChildren;
     std::map<size_t, sqlite3_stmt*> mStmtSearchNodes;
-    std::map<size_t, sqlite3_stmt*> mStmtSearchNodeShares;
 
     /** @deprecated */
     sqlite3_stmt* mStmtNodeByName = nullptr;

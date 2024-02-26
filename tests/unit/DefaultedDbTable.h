@@ -100,11 +100,6 @@ public:
         return false;
         //throw NotImplemented(__func__);
     }
-    bool searchNodeShares(const mega::NodeSearchFilter&, int, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&, mega::CancelToken, const mega::NodeSearchPage&) override
-    {
-        return false;
-        //throw NotImplemented(__func__);
-    }
 
     /** @deprecated */
     bool searchForNodesByName(const std::string&, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&, mega::CancelToken cancelFlag) override
