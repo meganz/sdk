@@ -1400,6 +1400,7 @@ void SdkTest::inviteTestAccount(const unsigned invitorIndex, const unsigned invi
         ASSERT_TRUE(contact) << "Invalid contact after " << maxTimeout << " seconds";
         ASSERT_EQ(contact->getVisibility(), MegaUser::VISIBILITY_VISIBLE)
             << "Invalid contact visibility after " << maxTimeout << " seconds";
+        ASSERT_TRUE(hasExpectedVisibility) << "The contact has the correct visibility but the timeout of " << maxTimeout << " seconds was exceeded";
     }
 }
 
