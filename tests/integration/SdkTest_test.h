@@ -230,6 +230,14 @@ public:
         MegaApi(appKey, basePath, userAgent, workerThreadCount)
     {}
 
+    MegaApiTest(const char* appKey,
+                MegaGfxProvider* provider,
+                const char* basePath = nullptr,
+                const char* userAgent = nullptr,
+                unsigned workerThreadCount = 1):
+        MegaApi(appKey, provider, basePath, userAgent, workerThreadCount)
+    {}
+
     MegaClient* getClient()
     {
         return pImpl->getMegaClient();

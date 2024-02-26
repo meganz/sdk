@@ -10,6 +10,7 @@ $(TESTS): $(top_builddir)/src/libmega.la
 
 # rules
 tests_test_unit_SOURCES = \
+    tests/unit/Arguments_test.cpp \
     tests/unit/AttrMap_test.cpp \
     tests/unit/ChunkMacMap_test.cpp \
     tests/unit/Commands_test.cpp \

@@ -73,14 +73,6 @@ class MegaThread : public CppThread {};
 class MegaSemaphore : public CppSemaphore {};
 #endif
 
-#if USE_FREEIMAGE
-using MegaGfxProvider = GfxProviderFreeImage;
-#elif USE_IOS
-using MegaGfxProvider = GfxProviderCG;
-#else
-using MegaGfxProvider = GfxProviderExternal;
-#endif
-
 #ifdef WIN32
     #ifdef USE_CURL
     class MegaHttpIO : public CurlHttpIO {};
@@ -284,7 +276,7 @@ protected:
 
     // called from onTransferFinish for the last sub-transfer
     void complete(Error e, bool cancelledByUser = false);
-    
+
     // return true if thread is stopped or canceled by transfer token
     bool isStoppedOrCancelled(const std::string& name) const;
 
@@ -2176,7 +2168,7 @@ public:
     const char* get(int i) const override;
     int size() const override;
     void add(const char* value) override;
-    const string_vector& getVector();
+    const string_vector& getVector() const;
 protected:
     MegaStringListPrivate(const MegaStringListPrivate& stringList) = default;
     string_vector mList;
@@ -2833,10 +2825,31 @@ private:
 };
 
 
+class MegaGfxProviderPrivate : public MegaGfxProvider
+{
+public:
+    explicit MegaGfxProviderPrivate(std::unique_ptr<::mega::IGfxProvider> provider) : mProvider(std::move(provider)) {}
+
+    explicit MegaGfxProviderPrivate(MegaGfxProviderPrivate&& other) : mProvider(std::move(other.mProvider)) {}
+
+    std::unique_ptr<::mega::IGfxProvider> releaseProvider() { return std::move(mProvider); }
+
+    static std::unique_ptr<MegaGfxProviderPrivate> createIsolatedInstance(const std::string& pipeName,
+                                                                          const std::string& executable);
+
+    static std::unique_ptr<MegaGfxProviderPrivate> createExternalInstance(MegaGfxProcessor* processor);
+
+    static std::unique_ptr<MegaGfxProviderPrivate> createInternalInstance();
+
+private:
+    std::unique_ptr<::mega::IGfxProvider> mProvider;
+};
+
 class MegaApiImpl : public MegaApp
 {
     public:
         MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType);
+        MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProvider* provider, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType);
         virtual ~MegaApiImpl();
 
         static MegaApiImpl* ImplOf(MegaApi*);
@@ -3670,7 +3683,7 @@ public:
         void getLastActionedBanner(MegaRequestListener* listener);
 
 private:
-        void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, unsigned clientWorkerThreadCount /*= 1*/, int clientType);
+        void init(MegaApi *api, const char *appKey, std::unique_ptr<GfxProc> gfxproc, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, unsigned clientWorkerThreadCount /*= 1*/, int clientType);
 
         static void *threadEntryPoint(void *param);
 

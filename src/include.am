@@ -24,6 +24,7 @@ endif
 
 # common sources
 src_libmega_la_SOURCES = src/megaclient.cpp
+src_libmega_la_SOURCES += src/arguments.cpp
 src_libmega_la_SOURCES += src/attrmap.cpp
 src_libmega_la_SOURCES += src/autocomplete.cpp
 src_libmega_la_SOURCES += src/backofftimer.cpp
@@ -67,6 +68,9 @@ src_libmega_la_SOURCES += src/mega_utf8proc.cpp
 src_libmega_la_SOURCES += src/mega_ccronexpr.cpp
 src_libmega_la_SOURCES += src/mega_evt_tls.cpp
 src_libmega_la_SOURCES += src/gfx/external.cpp
+src_libmega_la_SOURCES += src/gfx/worker/commands.cpp
+src_libmega_la_SOURCES += src/gfx/worker/command_serializer.cpp
+src_libmega_la_SOURCES += src/gfx/worker/client.cpp
 src_libmega_la_SOURCES += src/pendingcontactrequest.cpp
 src_libmega_la_SOURCES += src/textchat.cpp
 src_libmega_la_SOURCES += src/mega_zxcvbn.cpp
@@ -132,6 +136,9 @@ src_libmega_la_SOURCES+= src/win32/console.cpp
 src_libmega_la_SOURCES+= src/win32/net.cpp
 src_libmega_la_SOURCES+= src/win32/waiter.cpp
 src_libmega_la_SOURCES+= src/win32/consolewaiter.cpp
+src_libmega_la_SOURCES+= src/win32/gfx/worker/comms.cpp
+src_libmega_la_SOURCES+= src/win32/gfx/worker/comms_client.cpp
+src_libmega_la_SOURCES += src/gfx/isolatedprocess.cpp # windows only ATM
 
 if HAVE_PTHREAD
 src_libmega_la_SOURCES += src/thread/posixthread.cpp

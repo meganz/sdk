@@ -1913,9 +1913,14 @@ MegaApi::MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *ba
     pImpl = new MegaApiImpl(this, appKey, processor, basePath, userAgent, workerThreadCount, clientType);
 }
 
+MegaApi::MegaApi(const char *appKey, MegaGfxProvider* provider, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType)
+{
+    pImpl = new MegaApiImpl(this, appKey, provider, basePath, userAgent, workerThreadCount, clientType);
+}
+
 MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType)
 {
-    pImpl = new MegaApiImpl(this, appKey, nullptr, basePath, userAgent, workerThreadCount, clientType);
+    pImpl = new MegaApiImpl(this, appKey, static_cast<MegaGfxProcessor*>(nullptr), basePath, userAgent, workerThreadCount, clientType);
 }
 
 #ifdef HAVE_MEGAAPI_RPC
@@ -7801,4 +7806,28 @@ MegaCompleteUploadData* MegaCompleteUploadData::createInstance(const char* finge
                                              string64UploadToken ? string64UploadToken : "",
                                              string64FileKey ? string64FileKey : "");
 }
+
+MegaGfxProvider::~MegaGfxProvider() = default;
+
+MegaGfxProvider* MegaGfxProvider::createIsolatedInstance(
+    const char* pipeName,
+    const char* executable)
+{
+    auto provider = MegaGfxProviderPrivate::createIsolatedInstance(
+        std::string(pipeName ? pipeName : ""),
+        std::string(executable ? executable : ""));
+
+    return provider.release();
+}
+
+MegaGfxProvider* MegaGfxProvider::createExternalInstance(MegaGfxProcessor* processor)
+{
+    return MegaGfxProviderPrivate::createExternalInstance(processor).release();
+}
+
+MegaGfxProvider* MegaGfxProvider::createInternalInstance()
+{
+    return MegaGfxProviderPrivate::createInternalInstance().release();
+}
+
 }

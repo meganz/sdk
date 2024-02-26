@@ -188,14 +188,6 @@ bool WaitFor(const std::function<bool()>& predicate, unsigned timeoutMs)
     return false;
 }
 
-MegaApiTest* newMegaApi(const char* appKey,
-                        const char* basePath,
-                        const char* userAgent,
-                        unsigned workerThreadCount)
-{
-    return new MegaApiTest(appKey, basePath, userAgent, workerThreadCount);
-}
-
 enum { USERALERT_ARRIVAL_MILLISEC = 1000 };
 
 #ifdef _WIN32
@@ -279,6 +271,40 @@ namespace
             #endif
         }
     }
+
+    //
+    // Get a new pipe name without conflicts with any running instances
+    // under the following situations:
+    //      1. Jenkins can run multiple test jobs at the same time
+    //      2. A test job can run tests in parallel
+    // Use current process ID so names are unique between different jobs (processes)
+    // Use a static incremental counter so names are unique in the same job (process)
+    std::string newPipeName()
+    {
+        static std::atomic_int counter{0};
+        int current = counter++;
+
+        std::ostringstream oss;
+        oss << "test_integration_" << getCurrentPid() << "_" << current;
+        return oss.str();
+    }
+
+    MegaApiTest* newMegaApi(const char* appKey,
+                            const char* basePath,
+                            const char* userAgent,
+                            unsigned workerThreadCount)
+    {
+    #ifdef WIN32
+        auto gfxworkerPath = sdk_test::getTestDataDir() / "gfxworker.exe";
+        std::unique_ptr<MegaGfxProvider> provider{
+            MegaGfxProvider::createIsolatedInstance(newPipeName().c_str(), gfxworkerPath.string().c_str())
+        };
+        return new MegaApiTest(appKey, provider.get(), basePath, userAgent, workerThreadCount);
+    #else
+        return new MegaApiTest(appKey, basePath, userAgent, workerThreadCount);
+    #endif
+    }
+
 }
 
 std::map<size_t, std::string> gSessionIDs;
@@ -16204,6 +16230,103 @@ TEST_F(SdkTest, SdkTesResumeSessionInFolderLinkDeleted)
     ASSERT_TRUE(waitForResponse(&requestFlag, timeoutInSeconds))
         << "Logout did not happen after " << timeoutInSeconds  << " seconds";
 }
+
+#if defined(WIN32)
+class SdkTestGfx : public SdkTest
+{
+protected:
+    void SetUp() override;
+
+    void TearDown() override;
+
+    static constexpr const char* CRASH_IMAGE = "crash.pct";
+
+    static constexpr const char* CRASH_THUMBNAIL = "crash_thumbnail.jpg";
+
+    static constexpr const char* CRASH_PREVIEW = "crash_preview.jpg";
+
+    static constexpr const char* INVALID_IMAGE = "invalid.jpg";
+
+    static constexpr const char* INVALID_THUMBNAIL = "invalid_thumbnail.jpg";
+};
+
+void SdkTestGfx::SetUp()
+{
+    SdkTest::SetUp();
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+}
+
+void SdkTestGfx::TearDown()
+{
+    SdkTest::TearDown();
+}
+
+/**
+ * @brief GfxProcessingContinueSuccessfullyAfterCrash
+ *          1. create thumbnail successfully
+ *          2. create thumbnail and preview of a image which causes a gfx process crash.
+ *          3. create preview still successfully after the crash
+ *          4. create thumbnail of a not valid image expects false.
+ *
+ * @ Note:
+ *          Basically a createThumbnail/createPreview might fail due to the following reason:
+ *          
+ *          1. The GFX process was already crashed (not running), therefore the error is 
+ *             the pipe couldn't be connected
+ *          2. The GFX process crashed while processing, therefore the error is others.
+ *          
+ *          For the 1st case, we'll retry so it is handled. For the 2nd case, we don't retry as
+ *          we don't want to retry processing bad images which cause a crash. We have problems 
+ *          here because gfxworker process uses multiple thread model.        
+ *             When it is processing multiple GFX calls and crashes, we don't know which call is 
+ *          processing bad images. So simply all calls are not retried.
+ *             When the previous call results in a crash, the following immediate call may still
+ *             connect to the pipe as the crash takes time to shutdown the whole process. Therefore
+ *             the second call is dropped as well though it should be retried.
+ *
+ *          It has been discussed and we don't want to deal with these known problem at the moment
+ *          as we want to start with simple. It happens rarely and the side effect is limited (thumbnail lost).
+ *          We'll improve it when we find it is necessary.
+ */
+TEST_F(SdkTestGfx, GfxProcessingContinueSuccessfullyAfterCrash)
+{
+    LOG_info << "___TEST GfxProcessingContinueSuccessfullyAfterCrash";
+
+    MegaApi* api = megaApi[0].get();
+
+    // 1. Create a thumbnail successfully
+    sdk_test::copyFileFromTestData(IMAGEFILE);
+    ASSERT_TRUE(api->createThumbnail(IMAGEFILE.c_str(), THUMBNAIL.c_str())) << "create thumbnail should succeed";
+
+    // 2. Create thumbnail and preview of a image which result in a crash
+    // the image is selected by testing, thus not guaranteed. we'd either
+    // find another media file or need another alternative if it couldn't
+    // consistently result in a crash
+
+    // Get the test media file
+    const std::string source{"test-data/gfx-processing-crash/SNC-2406_Almotassem%20invoice%2015021001.pct"};
+    fs::path destination{CRASH_IMAGE};
+    ASSERT_TRUE(getFileFromArtifactory(source, destination));
+    ASSERT_TRUE(fs::exists(destination));
+
+    // Gfx process would crash due to the bad media file
+    ASSERT_FALSE(api->createThumbnail(CRASH_IMAGE, CRASH_THUMBNAIL));
+    ASSERT_FALSE(api->createPreview(CRASH_IMAGE, CRASH_PREVIEW));
+
+    // Don't make a call too quickly. Workaround: see note in test case desription
+    std::this_thread::sleep_for(std::chrono::milliseconds{200});
+
+    // 3. Create a preview successfully
+    ASSERT_TRUE(api->createPreview(IMAGEFILE.c_str(), PREVIEW.c_str())) << "create preview should succeed";
+
+    // 4. Create thumbnail of a not valid image
+    sdk_test::copyFileFromTestData(std::string(INVALID_IMAGE));
+    ASSERT_FALSE(api->createThumbnail(INVALID_IMAGE, INVALID_THUMBNAIL)) << "create invalid image's thumbnail should fail";
+
+    LOG_info << "___TEST GfxProcessingContinueSuccessfullyAfterCrash end___";
+}
+#endif
 
 class SdkTestAvatar : public SdkTest
 {

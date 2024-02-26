@@ -44,6 +44,7 @@ else {
 }
 
 SOURCES += \
+../../../../tests/unit/Arguments_test.cpp \
 ../../../../tests/unit/AttrMap_test.cpp \
 ../../../../tests/unit/ChunkMacMap_test.cpp \
 ../../../../tests/unit/Commands_test.cpp \
