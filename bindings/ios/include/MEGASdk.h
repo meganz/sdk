@@ -2658,8 +2658,8 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * The type associated with this request is MEGARequestTypeSetAttrUser
  * 
  * Valid data in the MegaRequest object received on callbacks:
- * - [MEGARequest paramType]  - Returns the attribute type MEGAUserAttributeLastReadNotification
- * - [MEGARequest number]  - Returns the ID to be set as last read
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeLastReadNotification
+ * - [MEGARequest number] - Returns the ID to be set as last read
  *
  * Note that any notifications with ID equal to or less than the given one will be marked as seen
  * in Notification Center.
@@ -2679,7 +2679,7 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeLastReadNotification
  *
  * When onRequestFinish received MEGAErrorTypeApiOk, valid data in the MegaRequest object is:
- * - [MEGARequest number]  - Returns the ID of the last read Notification
+ * - [MEGARequest number] - Returns the ID of the last read Notification
  * Note that when the ID returned here was `0` it means that no ID was set as last read.
  * Note that the value returned here should be treated like a 32bit unsigned int.
  *
