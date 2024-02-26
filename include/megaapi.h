@@ -9370,8 +9370,8 @@ public:
     virtual void byLocationHandle(MegaHandle ancestorHandle);
 
     /**
-     * @brief Set option for retrieving nodes below a particular predefined location.
-     * If not set, nodes will not be restricted to a particular location and it will behave like using SEARCH_TARGET_ALL.
+     * @brief Set option for searching nodes below predefined locations.
+     * If not set, it will behave like using SEARCH_TARGET_ALL.
      *
      * @note When called, it will cancel any previous setting done by calling byLocationHandle().
      *
@@ -9380,8 +9380,9 @@ public:
      * - SEARCH_TARGET_INSHARE = 0
      * - SEARCH_TARGET_OUTSHARE = 1
      * - SEARCH_TARGET_PUBLICLINK = 2
-     * - SEARCH_TARGET_ROOTNODE = 3 --> search in Cloud and Vault rootnodes
-     * - SEARCH_TARGET_ALL = 4
+     * - SEARCH_TARGET_ROOTNODE = 3 --> search under Cloud and Vault rootnodes
+     * - SEARCH_TARGET_ALL = 4 --> by default search under Cloud, Vault, Rubbish and among INSHARE-s;
+     *   if an ancestor was explicitly set via byLocationHandle(), search under that particular ancestor
      */
     virtual void byLocation(int locationType);
 

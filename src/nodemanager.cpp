@@ -531,7 +531,7 @@ sharedNode_vector NodeManager::searchNodes_internal(const NodeSearchFilter& filt
 
     // small optimization to possibly skip the db look-up
     const vector<handle>& ancestors = filter.byAncestorHandles();
-    if (filter.bySensitivity() &&
+    if (filter.bySensitivity() && filter.includedShares() == NO_SHARES &&
         std::all_of(ancestors.begin(), ancestors.end(), [this](handle a)
         {
             shared_ptr<Node> node = getNodeByHandle_internal(NodeHandle().set6byte(a));
@@ -543,10 +543,7 @@ sharedNode_vector NodeManager::searchNodes_internal(const NodeSearchFilter& filt
 
     // db look-up
     vector<pair<NodeHandle, NodeSerialized>> nodesFromTable;
-    bool searched = (filter.byShareType() == NO_SHARES) ?
-                    mTable->searchNodes(filter, order, nodesFromTable, cancelFlag, page) :
-                    mTable->searchNodeShares(filter, order, nodesFromTable, cancelFlag, page);
-    if (!searched)
+    if (!mTable->searchNodes(filter, order, nodesFromTable, cancelFlag, page))
     {
         return sharedNode_vector();
     }

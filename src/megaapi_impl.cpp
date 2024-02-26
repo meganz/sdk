@@ -12176,9 +12176,20 @@ sharedNode_vector MegaApiImpl::searchInNodeManager(const MegaSearchFilter* filte
     NodeSearchFilter nf;
     nf.copyFrom(*filter, shareType);
 
-    if (filter->byLocation() == MegaApi::SEARCH_TARGET_ROOTNODE) // search under Cloud root and Vault
+    if (filter->byLocation() == MegaApi::SEARCH_TARGET_ROOTNODE)
     {
-        nf.byAncestors({client->mNodeManager.getRootNodeFiles().as8byte(), client->mNodeManager.getRootNodeVault().as8byte()});
+        // search under Cloud root and Vault
+        nf.byAncestors({ client->mNodeManager.getRootNodeFiles().as8byte(),
+                         client->mNodeManager.getRootNodeVault().as8byte(),
+                         UNDEF });
+    }
+    else if (filter->byLocation() == MegaApi::SEARCH_TARGET_ALL && filter->byLocationHandle() == INVALID_HANDLE)
+    {
+        // search under Cloud root, Vault, Rubbish and among in-shares
+        nf.byAncestors({ client->mNodeManager.getRootNodeFiles().as8byte(),
+                         client->mNodeManager.getRootNodeVault().as8byte(),
+                         client->mNodeManager.getRootNodeRubbish().as8byte() });
+        nf.setIncludedShares(IN_SHARES);
     }
 
     const NodeSearchPage& np = searchPage ? NodeSearchPage(searchPage->startingOffset(), searchPage->size()) : NodeSearchPage(0, 0);
