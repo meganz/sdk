@@ -15,6 +15,9 @@ using namespace ::mega::RaidProxy;
 #define VALIDPARTS(X) ((X) & (OWNREADAHEAD-1))
 #define SECTORFLOOR(X) ((X) & -RAIDSECTOR)
 
+// Macro to calculate the number of sectors per part based on NUMLINES (NL)
+#define SECTORSPERPART(NL) (NL * RAIDSECTOR)
+
 
 /* -------------- PartFetcher --------------*/
 
@@ -160,7 +163,7 @@ void PartFetcher::setposrem()
 
     mPos = startpos;
 
-    setremfeed();
+    setremfeed(mRem);
 }
 
 bool PartFetcher::setremfeed(m_off_t numBytes)
@@ -360,7 +363,7 @@ void PartFetcher::closesocket(bool reuseSocket)
 int PartFetcher::io()
 {
     // prevent spurious epoll events from triggering a delayed reconnect early
-    if (mFinished && rr->mCompleted < NUMLINES && (rr->mRem > rr->mCompleted*RAIDLINE-rr->mSkip))
+    if (mFinished && rr->mCompleted < rr->mNumLines && (rr->mRem > ((rr->mCompleted * RAIDLINE) - rr->mSkip)))
     {
         rr->procreadahead();
     }
@@ -513,7 +516,7 @@ int PartFetcher::io()
             }
             else
             {
-                setremfeed(std::min(static_cast<m_off_t>(NUMLINES * RAIDSECTOR), static_cast<m_off_t>(mInbuf->datalen())));
+                setremfeed(mInbuf->datalen());
             }
         }
         assert(httpReq->status == REQ_READY || httpReq->status == REQ_INFLIGHT || httpReq->status == REQ_SUCCESS || httpReq->status == REQ_FAILURE || httpReq->status == REQ_PREPARED);
@@ -535,7 +538,6 @@ int PartFetcher::io()
 }
 
 // request a further chunk of data from the open connection
-// (we cannot call io() directly due procdata() being non-reentrant)
 void PartFetcher::cont(m_off_t numbytes)
 {
     if (mConnected && mPos < rr->mPaddedpartsize)
@@ -572,7 +574,7 @@ bool PartFetcher::feedreadahead()
         if (it->first != ((rr->mDataline * RAIDSECTOR) + rr->mPartpos[part])) break;
 
         // we do not feed chunks that cannot even be processed in part (i.e. that start at or past the end of the buffer)
-        if ((it->first - (rr->mDataline * RAIDSECTOR)) >= (NUMLINES * RAIDSECTOR)) break;
+        if ((it->first - (rr->mDataline * RAIDSECTOR)) >= SECTORSPERPART(rr->mNumLines)) break;
 
         m_off_t p = it->first;
         byte* d = it->second.first;
@@ -668,8 +670,8 @@ m_off_t PartFetcher::progress() const
 /* -------------- RaidReq --------------*/
 
 RaidReq::RaidReq(const Params& p, RaidReqPool& rrp, const std::shared_ptr<CloudRaid>& cloudRaid)
-    : mPool(rrp)
-    , mCloudRaid(cloudRaid),
+    : mPool(rrp),
+    mCloudRaid(cloudRaid),
     mRem(p.reqlen),
     mFilesize(p.filesize),
     mReqStartPos(p.reqStartPos),
@@ -686,12 +688,13 @@ RaidReq::RaidReq(const Params& p, RaidReqPool& rrp, const std::shared_ptr<CloudR
     {
         httpReq = std::make_shared<HttpReqType>();
     }
-    mData.reset(new byte[DATA_SIZE]);
-    mParity.reset(new byte[PARITY_SIZE]);
-    mInvalid.reset(new char[NUMLINES]);
-    std::fill(mData.get(), mData.get() + DATA_SIZE, 0);
-    std::fill(mParity.get(), mParity.get() + PARITY_SIZE, 0);
-    std::fill(mInvalid.get(), mInvalid.get() + NUMLINES, (1 << RAIDPARTS) - 1);
+    calculateNumLinesAndBufferSizes();
+    mData.reset(new byte[mDataSize]);
+    mParity.reset(new byte[mParitySize]);
+    mInvalid.reset(new char[mNumLines]);
+    std::fill(mData.get(), mData.get() + mDataSize, 0);
+    std::fill(mParity.get(), mParity.get() + mParitySize, 0);
+    std::fill(mInvalid.get(), mInvalid.get() + mNumLines, (1 << RAIDPARTS) - 1);
 
     mUnusedRaidConnection = mCloudRaid->getUnusedRaidConnection();
     if (mUnusedRaidConnection == RAIDPARTS)
@@ -700,7 +703,7 @@ RaidReq::RaidReq(const Params& p, RaidReqPool& rrp, const std::shared_ptr<CloudR
         setNewUnusedRaidConnection(0, false);
     }
 
-    LOG_verbose << "[RaidReq::RaidReq] filesize = " << mFilesize << ", paddedpartsize = " << mPaddedpartsize << ", unusedRaidConnection = " << (int)mUnusedRaidConnection << " [this = " << this << "]";
+    LOG_verbose << "[RaidReq::RaidReq] filesize = " << mFilesize << ", paddedpartsize = " << mPaddedpartsize << ", unusedRaidConnection = " << (int)mUnusedRaidConnection << " [mNumLines = " << mNumLines << ", mDataSize = " << mDataSize << ", mParitySize = " << mParitySize << ", MAX_NUMLINES = " << MAX_NUMLINES << "] [this = " << this << "]";
 
 
     for (uint8_t i = RAIDPARTS; i--; )
@@ -734,6 +737,22 @@ RaidReq::~RaidReq()
         LOG_verbose << "[RaidReq::~RaidReq] Detected slowest part for this RaidReq: " << (int)slowest << ". There's no sources with errors reported, so we will use this one as the unused connection for next RaidReq" << " [this = " << this << "]";
         mCloudRaid->setUnusedRaidConnection(slowest, true);
     }
+}
+
+void RaidReq::calculateNumLinesAndBufferSizes()
+{
+    // Calculate the number of lines based on the file size and RAIDLINE
+    mNumLines = std::min<m_off_t>((mFilesize + RAIDLINE - 1) / RAIDLINE, MAX_NUMLINES);
+
+    // Calculate the required size for data buffer (padded to RAIDLINE)
+    mDataSize = mNumLines * RAIDLINE;
+
+    // Calculate the required size for parity buffer (padded to RAIDSECTOR)
+    mParitySize = static_cast<size_t>(SECTORSPERPART(mNumLines));
+
+    assert(mNumLines >= 1);
+    assert(mDataSize >= RAIDLINE);
+    assert(mParitySize >= RAIDSECTOR);
 }
 
 void RaidReq::shiftdata(m_off_t len)
@@ -793,7 +812,7 @@ void RaidReq::shiftdata(m_off_t len)
                 if (!mFetcher[i].mFinished)
                 {
                     // request 1 less RAIDSECTOR as we will add up to 1 sector of 0 bytes at the end of the file - this leaves enough buffer space in the buffer passed to procdata for us to write past the reported length
-                    mFetcher[i].cont(static_cast<m_off_t>((NUMLINES * RAIDSECTOR) - mPartpos[i]));
+                    mFetcher[i].cont(SECTORSPERPART(mNumLines) - mPartpos[i]);
                 }
             }
         }
@@ -946,7 +965,7 @@ void RaidReq::procdata(uint8_t part, byte* ptr, m_off_t pos, m_off_t len)
     bool consecutive = pos == basepos + mPartpos[part];
 
     // is the data non-consecutive (i.e. a readahead), OR is it extending past the end of our buffer?
-    if (!consecutive || ((pos + len) > (basepos + (NUMLINES * RAIDSECTOR))))
+    if (!consecutive || ((pos + len) > (basepos + SECTORSPERPART(mNumLines))))
     {
         auto ahead_ptr = ptr;
         auto ahead_pos = pos;
@@ -956,7 +975,7 @@ void RaidReq::procdata(uint8_t part, byte* ptr, m_off_t pos, m_off_t len)
         // and process the non-overflowing part normally
         if (consecutive)
         {
-            ahead_pos = basepos + (NUMLINES * RAIDSECTOR);
+            ahead_pos = basepos + SECTORSPERPART(mNumLines);
             ahead_ptr = ptr + (ahead_pos - pos);
             ahead_len = len - (ahead_pos - pos);
         }
@@ -985,7 +1004,7 @@ void RaidReq::procdata(uint8_t part, byte* ptr, m_off_t pos, m_off_t len)
     auto t = pos - (mDataline * RAIDSECTOR);
 
     // ascertain absence of overflow (also covers parity part)
-    assert((t + len) <= static_cast<m_off_t>(DATA_SIZE / EFFECTIVE_RAIDPARTS));
+    assert((t + len) <= static_cast<m_off_t>(mDataSize / EFFECTIVE_RAIDPARTS));
 
     // set valid bit for every block that's been received in full
     char partmask = 1 << part;
@@ -1106,7 +1125,7 @@ m_off_t RaidReq::readdata(byte* buf, m_off_t len)
     m_off_t t;
     do
     {
-        if (mCompleted < NUMLINES)
+        if (mCompleted < mNumLines)
         {
             old_completed = mCompleted;
             procreadahead();
@@ -1245,7 +1264,7 @@ uint8_t RaidReq::processFeedLag()
         }
 
         if (!mMissingSource && mFetcher[slowest].mConnected && !mFetcher[slowest].mFinished && mHttpReqs[slowest]->status != REQ_SUCCESS &&
-            ((mFetcher[slowest].mRem - mFetcher[fastest].mRem) > ((NUMLINES * RAIDSECTOR * LAGINTERVAL * 3) / 4) || differenceBetweenPartsSpeedIsSignificant(fastest, slowest)))
+            ((mFetcher[slowest].mRem - mFetcher[fastest].mRem) > ((SECTORSPERPART(mNumLines) * LAGINTERVAL * 3) / 4) || differenceBetweenPartsSpeedIsSignificant(fastest, slowest)))
         {
             // slow channel detected
             {
