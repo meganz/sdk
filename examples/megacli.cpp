@@ -12138,6 +12138,15 @@ void exec_passwordmanager(autocomplete::ACState& s)
     {
         cout << command << " not recognized. Ignoring it\n";
     }
+
+    if (!client->isClientType(MegaClient::ClientType::PASSWORD_MANAGER))
+    {
+        std::cout << "\n*****\n"
+                  << "* Password Manager commands executed in a non-Password Manager MegaClient type.\n"
+                  << "* Be wary of implications regarding fetch nodes and action packets received.\n"
+                  << "* Check megacli help to start it as a Password Manager MegaClient type.\n"
+                  << "*****\n\n";
+    }
 }
 
 void exec_generatepassword(autocomplete::ACState& s)

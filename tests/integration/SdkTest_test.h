@@ -226,16 +226,18 @@ public:
     MegaApiTest(const char* appKey,
                 const char* basePath = nullptr,
                 const char* userAgent = nullptr,
-                unsigned workerThreadCount = 1):
-        MegaApi(appKey, basePath, userAgent, workerThreadCount)
+                unsigned workerThreadCount = 1,
+                const int clientType = MegaApi::CLIENT_TYPE_DEFAULT):
+        MegaApi(appKey, basePath, userAgent, workerThreadCount, clientType)
     {}
 
     MegaApiTest(const char* appKey,
                 MegaGfxProvider* provider,
                 const char* basePath = nullptr,
                 const char* userAgent = nullptr,
-                unsigned workerThreadCount = 1):
-        MegaApi(appKey, provider, basePath, userAgent, workerThreadCount)
+                unsigned workerThreadCount = 1,
+                const int clientType = MegaApi::CLIENT_TYPE_DEFAULT):
+        MegaApi(appKey, provider, basePath, userAgent, workerThreadCount, clientType)
     {}
 
     MegaClient* getClient()
@@ -624,8 +626,14 @@ public:
     void deleteFolder(string foldername);
 
     void fetchNodesForAccounts(const unsigned howMany);
-    void getAccountsForTest(unsigned howMany = 1, bool fetchNodes = true);
-    void configureTestInstance(unsigned index, const std::string& email, const std::string pass, bool checkCredentials = true);
+    void getAccountsForTest(unsigned howMany = 1,
+                            bool fetchNodes = true,
+                            const int clientType = MegaApi::CLIENT_TYPE_DEFAULT);
+    void configureTestInstance(unsigned index,
+                               const std::string& email,
+                               const std::string pass,
+                               bool checkCredentials = true,
+                               const int clientType = MegaApi::CLIENT_TYPE_DEFAULT);
     void releaseMegaApi(unsigned int apiIndex);
 
     void inviteTestAccount(const unsigned invitorIndex, const unsigned inviteIndex, const string &message);
