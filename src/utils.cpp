@@ -217,6 +217,13 @@ void CacheableWriter::serializestring(const string& field)
     dest.append(field.data(), ll);
 }
 
+void CacheableWriter::serializestring_u32(const string& field)
+{
+    uint32_t ll = (uint32_t)field.size();
+    dest.append((char*)&ll, sizeof(ll));
+    dest.append(field.data(), ll);
+}
+
 void CacheableWriter::serializecompressedu64(uint64_t field)
 {
     byte buf[sizeof field+1];
@@ -348,6 +355,30 @@ bool CacheableReader::unserializestring(string& s)
     }
 
     unsigned short len = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(len);
+
+    if (ptr + len > end)
+    {
+        return false;
+    }
+
+    if (len)
+    {
+        s.assign(ptr, len);
+    }
+    ptr += len;
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializestring_u32(string& s)
+{
+    if (ptr + sizeof(uint32_t) > end)
+    {
+        return false;
+    }
+
+    uint32_t len = MemAccess::get<uint32_t>(ptr);
     ptr += sizeof(len);
 
     if (ptr + len > end)
@@ -1894,7 +1925,7 @@ bool Utils::hasenv(const std::string &key)
     return r;
 }
 
-std::string Utils::getenv(const std::string& key, const std::string& def) 
+std::string Utils::getenv(const std::string& key, const std::string& def)
 {
     bool found = false;
     string r = getenv(key, &found);
@@ -1916,7 +1947,7 @@ std::string Utils::getenv(const std::string& key, bool* out_found)\
         if (out_found) *out_found = false;
         return "";
     }
-    else 
+    else
     {
         if (out_found) *out_found = true;
 
@@ -3116,7 +3147,7 @@ bool platformSetRLimitNumFile(int newNumFileLimit)
             LOG_err << "Error calling setrlimit: " << e;
             return false;
         }
-        else 
+        else
         {
             LOG_info << "rlimit for NOFILE is: " << rl.rlim_cur;
         }
@@ -3303,6 +3334,16 @@ bool is_space(unsigned int ch)
 bool is_digit(unsigned int ch)
 {
     return std::isdigit(static_cast<unsigned char>(ch));
+}
+
+// Get the current process ID
+unsigned long getCurrentPid()
+{
+#ifdef WIN32
+    return GetCurrentProcessId();
+#else
+    return getpid();
+#endif
 }
 
 } // namespace mega

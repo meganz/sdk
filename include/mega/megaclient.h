@@ -485,6 +485,19 @@ private:
     bool verificationRequired(handle userHandle);
 };
 
+struct DynamicMessageNotification
+{
+    int64_t id = 0;
+    std::string title;
+    std::string description;
+    std::string imageName;
+    std::string imagePath;
+    int64_t start = 0;
+    int64_t end = 0;
+    bool showBanner = false;
+    std::map<std::string, std::string> callToAction1;
+    std::map<std::string, std::string> callToAction2;
+};
 
 class MEGA_API MegaClient
 {
@@ -1394,6 +1407,9 @@ private:
 
     // Request status monitor
     unique_ptr<HttpReq> mReqStatCS;
+
+    // List of Notification IDs that should show in Notification Center
+    std::vector<uint32_t> mEnabledNotifications;
 
 public:
     // notify URL for new server-client commands
@@ -2640,6 +2656,15 @@ public:
                              std::shared_ptr<Node> nParent, int rtag);
     error updatePasswordNode(NodeHandle nh, std::unique_ptr<AttrMap> newData,
                              CommandSetAttr::Completion&& cb);
+
+    static std::string generatePasswordChars(const bool useUpper,
+                                             const bool useDigits,
+                                             const bool useSymbols,
+                                             const unsigned int length);
+
+    void setEnabledNotifications(std::vector<uint32_t>&& notifs) { mEnabledNotifications = std::move(notifs); }
+    const std::vector<uint32_t>& getEnabledNotifications() const { return mEnabledNotifications; }
+    void getNotifications(CommandGetNotifications::ResultFunc onResult);
 };
 
 } // namespace

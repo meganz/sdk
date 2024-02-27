@@ -20,9 +20,19 @@
  */
 
 #include "mega.h"
+#include "mega/arguments.h"
+#include "mega/filesystem.h"
+#include "mega/gfx.h"
+#include "mega/gfx/worker/client.h"
 #include "megacli.h"
+#include <chrono>
+#include <exception>
 #include <fstream>
 #include <bitset>
+#include <iostream>
+#include <stdexcept>
+#include <string>
+#include <vector>
 #include "mega/testhooks.h"
 
 #if defined(_WIN32) && defined(_DEBUG)
@@ -59,6 +69,7 @@
 #ifdef USE_FREEIMAGE
 #include "mega/gfx/freeimage.h"
 #endif
+#include "mega/gfx/isolatedprocess.h"
 
 #ifdef WIN32
 #include <winioctl.h>
@@ -135,6 +146,71 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
     TransferDbCommitter& committer, int& total, bool recursive, VersioningOption vo,
     std::function<std::function<void()>(LocalPath)> onCompletedGenerator, bool noRetries, bool allowDuplicateVersions);
 
+
+static std::string USAGE = R"(
+Mega command line
+Usage:
+  megacli [OPTION...]
+
+  -h                   Show help
+  -v                   Verbose
+  -c=arg               Client type. default|vpn|password_manager (default: default))"
+#if defined(WIN32)
+R"(
+  -e=arg               Use the isolated gfx processor. This gives executable binary path
+  -n=arg               Pipe name (default: mega_gfxworker_megacli)
+)"
+#endif
+;
+struct Config
+{
+    std::string executable;
+
+    std::string pipeName;
+
+    std::string clientType;
+
+    static Config fromArguments(const Arguments& arguments);
+};
+
+Config Config::fromArguments(const Arguments& arguments)
+{
+    Config config;
+
+#if defined(WIN32)
+    // executable
+    config.executable = arguments.getValue("-e", "");
+
+    FSACCESS_CLASS fsAccess;
+    if (!config.executable.empty() && !fsAccess.fileExistsAt(LocalPath::fromAbsolutePath(config.executable)))
+    {
+        throw std::runtime_error("Couldn't find Executable: " + config.executable);
+    }
+
+    // pipe name
+    config.pipeName  = arguments.getValue("-n", "mega_gfxworker_megacli");
+#endif
+
+    config.clientType = arguments.getValue("-c", "default");
+
+    return config;
+}
+
+static std::unique_ptr<IGfxProvider> createGfxProvider(const Config& config)
+{
+#if defined(_WIN32)
+    if (!config.executable.empty())
+    {
+        auto process = ::mega::make_unique<GfxIsolatedProcess>(config.pipeName, config.executable);
+        return ::mega::make_unique<GfxProviderIsolatedProcess>(std::move(process));
+    }
+    else
+#endif
+    {
+        (void) config;
+        return IGfxProvider::createInternalGfxProvider();
+    }
+}
 
 #ifdef ENABLE_SYNC
 
@@ -4312,6 +4388,16 @@ autocomplete::ACN autocompleteSyntax()
                         sequence(text("removeentry"), param("nodehandle"))
                         )));
 
+    p->Add(exec_generatepassword,
+           sequence(text("generatepassword"),
+                    either(sequence(text("chars"),
+                                    param("length"),
+                                    opt(flag("-useUpper")),
+                                    opt(flag("-useDigits")),
+                                    opt(flag("-useSymbols")))
+                        )));
+
+
     return autocompleteTemplate = std::move(p);
 }
 
@@ -5690,10 +5776,10 @@ void exec_open(autocomplete::ACState& s)
         if (!clientFolder)
         {
             using namespace mega;
-#ifdef GFX_CLASS
-            auto gfx = new GfxProc(::mega::make_unique<GFX_CLASS>());
-            gfx->startProcessingThread();
-#endif
+
+            auto provider = IGfxProvider::createInternalGfxProvider();
+            GfxProc* gfx = provider ? new GfxProc(std::move(provider)) : nullptr;
+            if (gfx) gfx->startProcessingThread();
 
             // create a new MegaClient with a different MegaApp to process callbacks
             // from the client logged into a folder. Reuse the waiter and httpio
@@ -5705,11 +5791,7 @@ void exec_open(autocomplete::ACState& s)
                 #else
                                           NULL,
                 #endif
-                #ifdef GFX_CLASS
                                           gfx,
-                #else
-                                          NULL,
-                #endif
                                           "Gk8DyQBS",
                                           "megacli_folder/" TOSTRING(MEGA_MAJOR_VERSION)
                                           "." TOSTRING(MEGA_MINOR_VERSION)
@@ -9759,32 +9841,19 @@ static void registerSignalHandlers()
 
 #endif // ! NO_READLINE
 
-MegaClient::ClientType getClientTypeFromArgs(const std::vector<char*>& args)
+MegaClient::ClientType getClientTypeFromArgs(const std::string& clientType)
 {
-    for (const char* a : args)
+    if (clientType == "vpn")
     {
-        assert(a);
-
-        static constexpr char prefix[] = "--client_type=";
-        static constexpr size_t prefixLen = sizeof(prefix) - 1;
-        string s{a};
-        if (!s.compare(0, prefixLen, prefix))
-        {
-            const string& clientType = s.substr(prefixLen);
-            if (clientType == "vpn")
-            {
-                return MegaClient::ClientType::VPN;
-            }
-            if (clientType == "password_manager")
-            {
-                return MegaClient::ClientType::PASSWORD_MANAGER;
-            }
-            if (clientType != "default")
-            {
-                cout << "WARNING: Invalid argument " << s << ". Using default instead.\n" << endl;
-                break;
-            }
-        }
+        return MegaClient::ClientType::VPN;
+    }
+    if (clientType == "password_manager")
+    {
+        return MegaClient::ClientType::PASSWORD_MANAGER;
+    }
+    if (clientType != "default")
+    {
+        cout << "WARNING: Invalid argument " << clientType << ". Using default instead." << endl;
     }
 
     return MegaClient::ClientType::DEFAULT;
@@ -9800,13 +9869,34 @@ int main(int argc, char* argv[])
     registerSignalHandlers();
 #endif // NO_READLINE
 
-    // On Mac, we need to be passed a special file descriptor that has permissions allowing filesystem notifications.
-    // This is how MEGAsync and the integration tests work.  (running a sudo also works but then the program has too much power)
-    // The program megacli_fsloader in CMakeLists is the one that gets the special descriptor and starts megacli (mac only).
-    std::vector<char*> myargv1(argv, argv + argc);
+    auto arguments = ArgumentsParser::parse(argc, argv);
+
+    if (arguments.contains("-h"))
+    {
+        cout << USAGE << endl;
+        return 0;
+    }
+
+    if (arguments.contains("-v"))
+    {
+        cout << "Arguments: \n"
+             << arguments;
+    }
+
+    // config from arguments
+    Config config;
+    try
+    {
+        config = Config::fromArguments(arguments);
+    }
+    catch(const std::exception& e)
+    {
+        cout << "Error: " << e.what() << endl;
+        cout << USAGE << endl;
+        return -1;
+    }
 
     SimpleLogger::setLogLevel(logMax);
-    //SimpleLogger::setOutputClass(&gLogger);
     auto gLoggerAddr = &gLogger;
     g_externalLogger.addMegaLogger(&gLogger,
 
@@ -9824,12 +9914,9 @@ int main(int argc, char* argv[])
 
     console = new CONSOLE_CLASS;
 
-#ifdef GFX_CLASS
-    auto gfx = new GfxProc(::mega::make_unique<GFX_CLASS>());
-    gfx->startProcessingThread();
-#else
-    mega::GfxProc* gfx = nullptr;
-#endif
+    std::unique_ptr<IGfxProvider> provider = createGfxProvider(config);
+    mega::GfxProc* gfx = provider ? new GfxProc(std::move(provider)) : nullptr;
+    if (gfx) gfx->startProcessingThread();
 
     // Needed so we can get the cwd.
     auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
@@ -9865,7 +9952,7 @@ int main(int argc, char* argv[])
         nullptr;
 #endif
 
-    auto clientType = getClientTypeFromArgs(myargv1);
+    auto clientType = getClientTypeFromArgs(config.clientType);
 
     // instantiate app components: the callback processor (DemoApp),
     // the HTTP I/O engine (WinHttpIO) and the MegaClient itself
@@ -11506,7 +11593,7 @@ void exec_getvpncredentials(autocomplete::ACState& s)
         }
     }
     bool showVpnRegions = !s.extractflag("-noregions");
-    
+
     client->getVpnCredentials([slotID, showVpnRegions]
             (const Error& e,
             CommandGetVpnCredentials::MapSlotIDToCredentialInfo&& mapSlotIDToCredentialInfo, /* Map of SlotID: { ClusterID, IPv4, IPv6, DeviceID } */
@@ -11616,7 +11703,7 @@ void exec_getvpncredentials(autocomplete::ACState& s)
                     }
                     cout << "'" << endl;
                 }
-                
+
             });
 }
 
@@ -11940,7 +12027,7 @@ void exec_passwordmanager(autocomplete::ACState& s)
     else if (command == "newfolder")
     {
         if (!moreParamsThan(3)) return;
-        
+
         auto ph = getNodeHandleFromParam(2);
         auto name = s.words[3].s.c_str();
         auto n = client->nodeByHandle(ph);
@@ -11949,7 +12036,7 @@ void exec_passwordmanager(autocomplete::ACState& s)
             cout << "Parent node with handle " << toNodeHandle(ph) << " not found\n";
             return;
         }
-        
+
         client->createFolder(n, name, 0);
     }
     else if (command == "renamefolder" || command == "renameentry")
@@ -11963,13 +12050,13 @@ void exec_passwordmanager(autocomplete::ACState& s)
             if (e == API_OK) cout << "Node " << toNodeHandle(nh) << " renamed successfully\n";
             else cout << "Error renaming the node." << errorstring(e) << "\n";
         };
-        
+
         client->renameNode(nh, newName, std::move(cb));
     }
     else if (command == "removefolder" || command == "removeentry")
     {
         if (!moreParamsThan(2)) return;
-        
+
         auto nh = getNodeHandleFromParam(2);
         client->removeNode(nh, false, 0);
     }
@@ -11983,7 +12070,7 @@ void exec_passwordmanager(autocomplete::ACState& s)
         {
             cout << "Wrong parent handle provided " << toNodeHandle(ph) << "\n";
         }
-        
+
         auto name = s.words[3].s.c_str();
         auto pwd = s.words[4].s.c_str();
         assert(*name && *pwd);
@@ -12050,5 +12137,29 @@ void exec_passwordmanager(autocomplete::ACState& s)
     else
     {
         cout << command << " not recognized. Ignoring it\n";
+    }
+}
+
+void exec_generatepassword(autocomplete::ACState& s)
+{
+    const auto command = s.words[1].s;
+
+    if (command == "chars")
+    {
+        if (s.words.size() < 3)
+        {
+            cout << "Wrong parameters";
+            return;
+        }
+
+        const auto length = static_cast<unsigned int>(std::stoul(s.words[2].s));
+        const bool useUpper = s.extractflag("-useUpper");
+        const bool useDigits = s.extractflag("-useDigits");
+        const bool useSymb = s.extractflag("-useSymbols");
+
+        auto pwd = MegaClient::generatePasswordChars(useUpper, useDigits, useSymb, length);
+
+        if (pwd.empty()) cout << "Error generating the password. Please check the logs (if active)\n";
+        else cout << "Characers-based password successfully generated: " << pwd << "\n";
     }
 }

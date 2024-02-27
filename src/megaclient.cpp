@@ -20162,6 +20162,66 @@ error MegaClient::updatePasswordNode(NodeHandle nh, std::unique_ptr<AttrMap> new
     return setattr(pwdNode, std::move(updates), std::move(cb), canChangeVault);
 }
 
+std::string MegaClient::generatePasswordChars(const bool useUpper,
+                                              const bool useDigits,
+                                              const bool useSymbols,
+                                              const unsigned int length)
+{
+    if (length < 8 || length > 64)
+    {
+        LOG_err << "Characters-based password generation requested for invalid length. "
+                << "Valid length range is [8, 64]";
+        return std::string{};
+    }
+
+    static const std::string lowerCase = "abcdefghijklmnopqrstuvwxyz";
+    static const std::string upperCase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    static const std::string digits = "0123456789";
+    static const std::string symbols = "!@#$%^&*()";
+
+    std::string pwd;
+    pwd.reserve(length);
+
+    std::random_device rd;
+    std::mt19937 gen(rd()); // Mersenne Twister generator
+    const auto appendOneRandom = [&pwd, &gen](const std::string& src)
+    {
+        std::uniform_int_distribution<> dis(0, static_cast<int>(src.size() - 1));
+        pwd += src[static_cast<size_t>(dis(gen))];
+    };
+
+    std::string pool = lowerCase;
+    appendOneRandom(lowerCase);
+    if (useUpper)
+    {
+        appendOneRandom(upperCase); // Make sure there is at least 1
+        pool += upperCase;
+    }
+    if (useDigits)
+    {
+        appendOneRandom(digits);
+        pool += digits;
+    }
+    if (useSymbols)
+    {
+        appendOneRandom(symbols);
+        pool += symbols;
+    }
+
+    std::uniform_int_distribution<> dis(0, static_cast<int>(pool.size() - 1));
+    for (auto i = pwd.size(); i < length; ++i) pwd += pool[static_cast<size_t>(dis(gen))];
+
+    // We shuffle to avoid the first mandatory types
+    std::shuffle(std::begin(pwd), std::end(pwd), gen);
+
+    return pwd;
+}
+
+void MegaClient::getNotifications(CommandGetNotifications::ResultFunc onResult)
+{
+    reqs.add(new CommandGetNotifications(this, onResult));
+}
+
 FetchNodesStats::FetchNodesStats()
 {
     init();
