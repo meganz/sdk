@@ -8625,7 +8625,7 @@ bool MegaApiImpl::hasToForceUpload(const Node &node, const MegaTransferPrivate &
     bool hasThumbnail = (Node::hasfileattribute(&node.fileattrstring, GfxProc::THUMBNAIL) != 0);
     string name = node.displayname();
     LocalPath lp = LocalPath::fromRelativePath(name);
-    bool isMedia = gfxAccess->isgfx(lp) || gfxAccess->isvideo(lp);
+    bool isMedia = gfxAccess && (gfxAccess->isgfx(lp) || gfxAccess->isvideo(lp));
     bool canForceUpload = transfer.isForceNewUpload();
     bool isPdf = name.find(".pdf") != string::npos;
 
