@@ -60,18 +60,7 @@ endif()
 
 ## General configuration
 
-# No configurable values.
-set(USE_CURL 1)
-set(USE_SQLITE 1)
-set(USE_SODIUM 1)
-set(USE_CRYPTOPP 1)
-
-if (NOT WIN32)
-    set(USE_PTHREAD 1)
-    set(USE_CPPTHREAD 0)
-else()
-    set(USE_CPPTHREAD 1)
-endif()
+include(sdklib_variables)
 
 if(NOT PROJECT_NAME)
     if(VCPKG_ROOT)
@@ -137,8 +126,7 @@ if(ENABLE_QT_BINDINGS)
     add_subdirectory(bindings/qt)
 endif()
 
-# windows only at the moment
-if(WIN32)
+if(ENABLE_ISOLATED_GFX)
     add_subdirectory(tools/gfxworker)
 endif()
 

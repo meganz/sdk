@@ -294,7 +294,7 @@ namespace
                             const char* userAgent,
                             unsigned workerThreadCount)
     {
-    #ifdef WIN32
+    #ifdef ENABLE_ISOLATED_GFX
         auto gfxworkerPath = sdk_test::getTestDataDir() / "gfxworker.exe";
         std::unique_ptr<MegaGfxProvider> provider{
             MegaGfxProvider::createIsolatedInstance(newPipeName().c_str(), gfxworkerPath.string().c_str())
@@ -16231,7 +16231,7 @@ TEST_F(SdkTest, SdkTesResumeSessionInFolderLinkDeleted)
         << "Logout did not happen after " << timeoutInSeconds  << " seconds";
 }
 
-#if defined(WIN32)
+#if defined(ENABLE_ISOLATED_GFX)
 class SdkTestGfx : public SdkTest
 {
 protected:

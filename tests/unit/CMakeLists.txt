@@ -39,7 +39,7 @@ target_sources(test_unit
 )
 
 target_sources_conditional(test_unit
-    FLAG WIN32
+    FLAG ENABLE_ISOLATED_GFX
     PRIVATE
     Isolatedprocess_test.cpp
 )
