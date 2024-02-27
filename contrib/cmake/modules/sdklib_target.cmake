@@ -279,6 +279,16 @@ if (WIN32)
 
 endif()
 
+# Needed for megaapi.h. The top level projects usually don't include the config.h in the SDK, so needed SDK definitions are not available in that context.
+# Only the ones used in megaapi.h are listed below.
+target_compile_definitions(SDKlib
+    PUBLIC
+    $<$<BOOL:${ENABLE_LOG_PERFORMANCE}>:ENABLE_LOG_PERFORMANCE>
+    $<$<BOOL:${ENABLE_CHAT}>:ENABLE_CHAT>
+    $<$<BOOL:${ENABLE_SYNC}>:ENABLE_SYNC>
+    $<$<BOOL:${USE_LIBUV}>:HAVE_LIBUV>
+)
+
 set_target_properties(SDKlib PROPERTIES
     VERSION ${PROJECT_VERSION}
     DEBUG_POSTFIX "d"

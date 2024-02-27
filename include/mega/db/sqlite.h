@@ -94,8 +94,9 @@ public:
     bool getChildrenFromType(NodeHandle parentHandle, nodetype_t nodeType, std::vector<std::pair<NodeHandle, NodeSerialized>>& children, mega::CancelToken cancelFlag) override;
     uint64_t getNumberOfChildren(NodeHandle parentHandle) override;
     // If a cancelFlag is passed, it must be kept alive until this method returns.
-    bool getChildren(const mega::NodeSearchFilter& filter, std::vector<std::pair<NodeHandle, NodeSerialized>>& children, CancelToken cancelFlag) override;
-    bool searchNodes(const mega::NodeSearchFilter& filter, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag) override;
+    bool getChildren(const mega::NodeSearchFilter& filter, int order, std::vector<std::pair<NodeHandle, NodeSerialized>>& children, CancelToken cancelFlag) override;
+    bool searchNodes(const mega::NodeSearchFilter& filter, int order, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag) override;
+    bool searchNodeShares(const mega::NodeSearchFilter& filter, int order, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag) override;
 
     /**
      * @deprecated
@@ -190,8 +191,9 @@ private:
     sqlite3_stmt* mStmtChildrenFromType = nullptr;
 
     sqlite3_stmt* mStmtNumChildren = nullptr;
-    sqlite3_stmt* mStmtGetChildren = nullptr;
-    sqlite3_stmt* mStmtSearchNodes = nullptr;
+    std::map<int, sqlite3_stmt*> mStmtGetChildren;
+    std::map<int, sqlite3_stmt*> mStmtSearchNodes;
+    std::map<int, sqlite3_stmt*> mStmtSearchNodeShares;
 
     /** @deprecated */
     sqlite3_stmt* mStmtNodeByName = nullptr;
@@ -252,8 +254,39 @@ private:
     bool openDBAndCreateStatecache(sqlite3 **db, FileSystemAccess& fsAccess, const string& name, mega::LocalPath &dbPath, const int flags);
     bool renameDBFiles(mega::FileSystemAccess& fsAccess, mega::LocalPath& legacyPath, mega::LocalPath& dbPath);
     void removeDBFiles(mega::FileSystemAccess& fsAccess, mega::LocalPath& dbPath);
-    bool ensureColumnIsInNodesTable(sqlite3* db, const string& colName, const string& colType, std::function<bool()> callAfterAdded = nullptr);
-    bool copyMtimeFromFingerprint(sqlite3* db);
+
+    // functionality for adding columns to existing table, and copying data to them
+    struct NewColumn
+    {
+        NewColumn(string&& n, string&& t, int id) : name(std::move(n)), type(std::move(t)), migrationId(id) {}
+
+        string name;
+        string type;
+        int migrationId;
+    };
+    bool addAndPopulateColumns(sqlite3* db, vector<NewColumn>&& newCols);
+    bool stripExistingColumns(sqlite3* db, vector<NewColumn>& cols);
+    bool addColumn(sqlite3* db, const string& name, const string& type);
+    bool migrateDataToColumns(sqlite3* db, vector<NewColumn>&& cols);
+};
+
+class OrderBy2Clause
+{
+public:
+    static std::string get(int order, int sqlParamIndex);
+    static int getId(int order);
+
+private:
+    enum {
+        DEFAULT_ASC = 1, DEFAULT_DESC,
+        SIZE_ASC, SIZE_DESC,
+        CTIME_ASC, CTIME_DESC,
+        MTIME_ASC, MTIME_DESC,
+        LABEL_ASC = 17, LABEL_DESC,
+        FAV_ASC, FAV_DESC
+    };
+
+    static std::pair<bool, bool> getDescendingDirs(int order);
 };
 
 } // namespace

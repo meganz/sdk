@@ -1980,7 +1980,9 @@ static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstre
                 break;
             }
             case FOLDERNODE:
-                stream << "folder";
+                if (n->isPasswordNode())            stream << "password entry";
+                else if (n->isPasswordNodeFolder()) stream << "password folder";
+                else                                stream << "folder";
 
                 if (handles_on)
                 {
@@ -4286,6 +4288,29 @@ autocomplete::ACN autocompleteSyntax()
     /* MEGA VPN commands END */
 
     p->Add(exec_fetchcreditcardinfo, text("cci"));
+
+    p->Add(exec_passwordmanager,
+        sequence(text("pwdman"),
+                 either(text("list"),
+                        text("getbase"),
+                        text("createbase"),
+                        text("removebase"),
+                        sequence(text("newfolder"), param("parenthandle"), param("name")),
+                        sequence(text("renamefolder"), param("handle"), param("name")),
+                        sequence(text("removefolder"), param("handle")),
+                        sequence(text("newentry"), param("parenthandle"), param("name"), param("pwd"),
+                                 opt(sequence(flag("-url"), param("url"))),
+                                 opt(sequence(flag("-u"), param("username"))),
+                                 opt(sequence(flag("-n"), param("notes")))),
+                        sequence(text("getentrydata"), param("nodehandle")),
+                        sequence(text("renameentry"), param("nodehandle"), param("name")),
+                        sequence(text("updateentry"), param("nodehandle"),
+                                 opt(sequence(flag("-p"), param("pwd"))),
+                                 opt(sequence(flag("-url"), param("url"))),
+                                 opt(sequence(flag("-u"), param("username"))),
+                                 opt(sequence(flag("-n"), param("note")))),
+                        sequence(text("removeentry"), param("nodehandle"))
+                        )));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -9531,7 +9556,7 @@ void megacli()
                     if ((*it)->fa)
                     {
                         xferrate[(*it)->transfer->type]
-                            += (*it)->mTransferSpeed.calculateSpeed();
+                            += (*it)->mTransferSpeed.getCircularMeanSpeed();
                     }
                 }
                 xferrate[GET] /= 1024;
@@ -10648,7 +10673,7 @@ void exec_syncstatus(autocomplete::ACState& s)
             continue;
 
         // Determine the transfer's current speed.
-        auto speed = slot->mTransferSpeed.calculateSpeed();
+        auto speed = slot->mTransferSpeed.getCircularMeanSpeed();
 
         // Find out which syncs, if any, are related to this transfer.
         for (auto* file : slot->transfer->files)
@@ -11746,4 +11771,284 @@ void exec_fetchcreditcardinfo(autocomplete::ACState&)
             cout << "Error requesting credit card info: " << e << endl;
         }
     });
+}
+
+void exec_passwordmanager(autocomplete::ACState& s)
+{
+    static const set<string> nonLoggedInCmds {};
+
+    const auto command = s.words[1].s;
+    const auto commandRequiresLoggingIn = [&command]() -> bool
+    {
+        return nonLoggedInCmds.find(command) == nonLoggedInCmds.end();
+    };
+    const auto isClientLoggedIn = []() -> bool
+    {
+        return client->loggedin() == FULLACCOUNT;
+    };
+
+    // Are we logged in?
+    if (commandRequiresLoggingIn() && !isClientLoggedIn())
+    {
+        cerr << "You must be logged in to manipulate Password items. "
+             << (nonLoggedInCmds.empty() ? "" : "Except for the following commands:")
+             << "\n";
+        for (const auto& c : nonLoggedInCmds) cerr << "\t" << c << "\n";
+        return;
+    }
+
+    const auto moreParamsThan = [&s](size_t min) -> bool
+    {
+        if (s.words.size() <= min)
+        {
+            cout << "Wrong parameters\n";
+            return false;
+        }
+        return true;
+    };
+    const auto getNodeHandleFromParam = [&s](size_t paramPos) -> NodeHandle
+    {
+        handle nh;
+        Base64::atob(s.words[paramPos].s.c_str(), (byte*)&nh, MegaClient::NODEHANDLE);
+        return NodeHandle{}.set6byte(nh);
+    };
+    const auto createPwdData = [](std::string&& pwd,
+                                  std::string&& url,
+                                  std::string&& userName,
+                                  std::string&& notes)
+    {
+        // patch to allow setting to null taking into account that extractflag doesn't accept ""
+        const string EMPTY = "EMPTY";
+        auto pwdData = make_unique<AttrMap>();
+        if (!pwd.empty())
+        {
+            if (pwd == EMPTY) pwd.clear();
+            pwdData->map[AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_PWD)] = std::move(pwd);
+        }
+        if (!url.empty())
+        {
+            if (url == EMPTY) url.clear();
+            pwdData->map[AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_URL)] = std::move(url);
+        }
+        if (!userName.empty())
+        {
+            if (userName == EMPTY) userName.clear();
+            pwdData->map[AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_USERNAME)] = std::move(userName);
+        }
+        if (!notes.empty())
+        {
+            if (notes == EMPTY) notes.clear();
+            pwdData->map[AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_NOTES)] = std::move(notes);
+        }
+        return pwdData;
+    };
+    const auto printEntryDetails = [](NodeHandle nh)
+    {
+        auto pwdNode = client->nodeByHandle(nh);
+        assert(pwdNode);
+        assert(pwdNode->isPasswordNode());
+
+        auto jsonPwdData = pwdNode->attrs.map[AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_MANAGER)];
+        AttrMap pwdData;
+        pwdData.fromjson(jsonPwdData.c_str());
+        cout << "Password data for entry " << pwdNode->attrs.map['n'] << " (" << toNodeHandle(nh) << "):\n";
+        const auto printAttr = [&pwdData](const char* attr) -> void
+        {
+            const auto nid = AttrMap::string2nameid(attr);
+            cout << "\t" << attr << ": " << (pwdData.map.contains(nid) ? pwdData.map[nid] : "") << "\n";
+        };
+        printAttr(MegaClient::PWM_ATTR_PASSWORD_PWD);
+        printAttr(MegaClient::PWM_ATTR_PASSWORD_USERNAME);
+        printAttr(MegaClient::PWM_ATTR_PASSWORD_URL);
+        printAttr(MegaClient::PWM_ATTR_PASSWORD_NOTES);
+    };
+
+    if (command == "list")
+    {
+        auto n = client->nodeByHandle(client->getPasswordManagerBase());
+        if (n)
+        {
+            dumptree(n.get(), true, 1, nullptr, nullptr);
+        }
+    }
+    else if (command == "getbase")
+    {
+        cout << "Password Base handle is " << toNodeHandle(client->getPasswordManagerBase()) << "\n";
+    }
+    else if (command == "createbase")
+    {
+        auto sBase = client->ownuser()->getattr(ATTR_PWM_BASE);
+        if (sBase)
+        {
+            std::cout << "Password Manager Base already exists " << toNodeHandle(sBase) << ". Skipping creation\n";
+            return;
+        }
+
+        const auto cb = [](Error e, std::unique_ptr<NewNode> nn)
+        {
+            if (e == API_OK)
+            {
+                assert(nn);
+                auto nh = nn->nodeHandle();
+                // forced getUA because ATTR_PWM_BASE is not deletable / updatable
+                client->getua(client->ownuser(), ATTR_PWM_BASE, -1, nullptr, [nh](byte*, unsigned, attr_t)
+                {
+                    std::cout << "Password Manager Base created with handle " << toNodeHandle(nh) << "\n";
+                });
+            }
+            else
+            {
+                std::cout << "Error " << errorstring(e) << " during the creation of Password Manager Base\n";
+            }
+        };
+
+        client->createPasswordManagerBase(-1, cb);
+    }
+    else if (command == "removebase")  // only doable in dev / debug conditions
+    {
+        #ifdef NDEBUG
+        std::cout << "This command is only available in debug conditions for dev puporses\nn";
+        #else
+        const auto nhBase = client->getPasswordManagerBase();
+        const auto mnBase = client->nodeByHandle(nhBase);
+
+        client->senddevcommand("pwmhd", client->ownuser()->email.c_str());
+
+        // forced erasing the user attribute and base folder node from Vault
+        client->ownuser()->removeattr(ATTR_PWM_BASE);
+        if (!mnBase) return;  // just in case there was a previous state where the node was deleted
+        const bool keepVersions = false;
+        const int tag = -1;
+        const bool canChangeVault = true;
+        auto cb = [nhBase](NodeHandle nh, Error e)
+        {
+            assert(nh == nhBase);
+            const auto msg = "Password Manager Base " + toNodeHandle(nhBase);
+            if (e == API_OK)
+            {
+                std::cout << msg << " and descendants erased\n";
+            }
+            else
+            {
+                std::cout << "Error " << errorstring(e) << " erasing " << msg << "\n";
+            }
+
+        };
+        client->unlink(mnBase.get(), keepVersions, tag, canChangeVault, std::move(cb));
+        #endif
+    }
+    else if (command == "newfolder")
+    {
+        if (!moreParamsThan(3)) return;
+        
+        auto ph = getNodeHandleFromParam(2);
+        auto name = s.words[3].s.c_str();
+        auto n = client->nodeByHandle(ph);
+        if (!n)
+        {
+            cout << "Parent node with handle " << toNodeHandle(ph) << " not found\n";
+            return;
+        }
+        
+        client->createFolder(n, name, 0);
+    }
+    else if (command == "renamefolder" || command == "renameentry")
+    {
+        if (!moreParamsThan(3)) return;
+
+        auto nh = getNodeHandleFromParam(2);
+        auto newName = s.words[3].s.c_str();
+        CommandSetAttr::Completion cb = [](NodeHandle nh, Error e)
+        {
+            if (e == API_OK) cout << "Node " << toNodeHandle(nh) << " renamed successfully\n";
+            else cout << "Error renaming the node." << errorstring(e) << "\n";
+        };
+        
+        client->renameNode(nh, newName, std::move(cb));
+    }
+    else if (command == "removefolder" || command == "removeentry")
+    {
+        if (!moreParamsThan(2)) return;
+        
+        auto nh = getNodeHandleFromParam(2);
+        client->removeNode(nh, false, 0);
+    }
+    else if (command == "newentry")
+    {
+        if (!moreParamsThan(5)) return;
+
+        auto ph = getNodeHandleFromParam(2);
+        auto nParent = client->nodeByHandle(ph);
+        if (!nParent)
+        {
+            cout << "Wrong parent handle provided " << toNodeHandle(ph) << "\n";
+        }
+        
+        auto name = s.words[3].s.c_str();
+        auto pwd = s.words[4].s.c_str();
+        assert(*name && *pwd);
+
+        string url; s.extractflagparam("-url", url);
+        string userName; s.extractflagparam("-u", userName);
+        string notes; s.extractflagparam("-n", notes);
+
+        auto pwdData = createPwdData(std::string{pwd},
+                                     std::move(url),
+                                     std::move(userName),
+                                     std::move(notes));
+
+        client->createPasswordNode(name, std::move(pwdData), nParent, 0);
+    }
+    else if (command == "getentrydata")
+    {
+        if (!moreParamsThan(2)) return;
+
+        auto nh = getNodeHandleFromParam(2);
+        auto pwdNode = client->nodeByHandle(nh);
+        if (!pwdNode)
+        {
+            cout << "No node found with provided handle " << toNodeHandle(nh) << "\n";
+            return;
+        }
+        if (!pwdNode->isPasswordNode())
+        {
+            cout << "Node handle provided " << toNodeHandle(nh) << " isn't a Password Node's\n";
+            return;
+        }
+
+        printEntryDetails(nh);
+    }
+    else if (command == "updateentry")
+    {
+        if (!moreParamsThan(3)) return;
+
+        auto nh = getNodeHandleFromParam(2);
+        auto n = client->nodeByHandle(nh);
+        if (!(n && n->isPasswordNode()))
+        {
+            cout << "Wrong Password node handle provided " << toNodeHandle(nh) << "\n";
+        }
+
+        string pwd; s.extractflagparam("-p", pwd);
+        string url; s.extractflagparam("-url", url);
+        string userName; s.extractflagparam("-u", userName);
+        string notes; s.extractflagparam("-n", notes);
+
+        auto pwdData = createPwdData(std::move(pwd),
+                                     std::move(url),
+                                     std::move(userName),
+                                     std::move(notes));
+
+        auto cb = [printEntryDetails](NodeHandle nh, Error e)
+        {
+            if (e == API_OK) printEntryDetails(nh);
+            else std::cout << "Error: " << errorstring(e) << "\n";
+        };
+
+        client->updatePasswordNode(nh, std::move(pwdData), std::move(cb));
+    }
+    else
+    {
+        cout << command << " not recognized. Ignoring it\n";
+    }
 }

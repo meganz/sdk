@@ -12007,7 +12007,8 @@ void Syncs::syncLoop()
 
         LOG_verbose << "recursiveSync took ms: " << lastRecurseMs
                     << (skippedForScanning ? " (" + std::to_string(skippedForScanning)+ " skipped due to ongoing scanning)" : "")
-                    << (mSyncFlags->noProgressCount ? " no progress count: " + std::to_string(mSyncFlags->noProgressCount) : "");
+                    << (mSyncFlags->noProgressCount ? " no progress count: " + std::to_string(mSyncFlags->noProgressCount) : "")
+                    << (earlyExit ? " (earlyExit)" : "");
 
 
         waiter->bumpds();
@@ -12035,10 +12036,8 @@ void Syncs::syncLoop()
 
             // Process name conflicts
             processSyncConflicts();
-        }
 
-        if (!earlyExit)
-        {
+            // Process scanning updates
             bool anySyncScanning = isAnySyncScanning_inThread();
             if (anySyncScanning != syncscanstate)
             {
@@ -12047,6 +12046,7 @@ void Syncs::syncLoop()
                 syncscanstate = anySyncScanning;
             }
 
+            // Process syncing updates
             bool anySyncBusy = isAnySyncSyncing();
             if (anySyncBusy != syncBusyState)
             {

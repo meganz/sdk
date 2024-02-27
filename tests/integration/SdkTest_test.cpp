@@ -258,6 +258,20 @@ namespace
         fs << name;
         return true;
     }
+
+    // cURL Callback function to write downloaded data to a stream
+    // See https://curl.se/libcurl/c/CURLOPT_WRITEFUNCTION.html
+    size_t writeData(void *ptr, size_t size, size_t nmemb, std::ofstream *stream)
+    {
+        if (stream->write((char*)ptr, size * nmemb))
+        {
+            return size * nmemb;
+        }
+        else
+        {
+            return CURL_WRITEFUNC_ERROR;
+        }
+    }
 }
 
 std::map<size_t, std::string> gSessionIDs;
@@ -1833,6 +1847,61 @@ void SdkTest::synchronousMediaUploadIncomplete(unsigned int apiIndex,
 
     string64FileKey = megaApi[apiIndex]->binaryToBase64(reinterpret_cast<const char*>(req->filekey),
                                                         FILENODEKEYLENGTH);
+}
+
+bool SdkTest::getFileFromURL(const std::string& url, const fs::path& dstPath)
+{
+    auto curlCleaner = [](CURL* curl) {
+        curl_easy_cleanup(curl);
+    };
+
+    // Initialize libcurl
+    std::unique_ptr<CURL, decltype(curlCleaner)> curl{curl_easy_init(), curlCleaner};
+    if (!curl)
+    {
+        LOG_err << "Failed to initialize libcurl";
+        return false;
+    }
+
+    // Open file to save downloaded data
+    std::ofstream ofs(dstPath, std::ios::binary | std::ios::out);
+    if (!ofs) {
+        LOG_err << "Error opening file for writing:" << dstPath;
+        return false;
+    }
+
+    // Download
+    curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, writeData);
+    curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &ofs);
+    CURLcode res = curl_easy_perform(curl.get());
+    if (res != CURLE_OK) {
+        LOG_err <<  "curl_easy_perform() failed: " << curl_easy_strerror(res);
+        return false;
+    }
+
+    // Close file
+    ofs.close();
+    if (!ofs)
+    {
+        LOG_verbose << "Error closing file:" << dstPath;
+        return false;
+    }
+
+    LOG_verbose << "File " << dstPath << " downloaded successfully";
+    return true;
+}
+
+bool SdkTest::getFileFromArtifactory(const std::string& relativeUrl, const fs::path& dstPath)
+{
+    static const std::string baseUrl{"https://artifactory.developers.mega.co.nz:443/artifactory/sdk"};
+
+    // Join base URL and relatvie URL
+    bool startedWithBackSlash = !relativeUrl.empty() && relativeUrl[0] == '/';
+    std::string seperator = startedWithBackSlash ? "" : "/";
+    const auto absoluateUrl = baseUrl + seperator + relativeUrl;
+
+    return getFileFromURL(absoluateUrl, dstPath);
 }
 
 string getLinkFromMailbox(const string& exe,         // Python
@@ -7226,7 +7295,11 @@ TEST_F(SdkTest, SdkMediaImageUploadTest)
     unsigned int apiIndex = 0;
     int64_t fileSize = 1304;
     const char* outputImage = "newlogo.png";
-    synchronousMediaUpload(apiIndex, fileSize, IMAGEFILE.c_str(), IMAGEFILE_C.c_str(), outputImage, THUMBNAIL.c_str(), PREVIEW.c_str());
+    synchronousMediaUpload(apiIndex, fileSize, IMAGEFILE.c_str(), IMAGEFILE_C.c_str(), outputImage
+#if USE_FREEIMAGE
+            ,THUMBNAIL.c_str(), PREVIEW.c_str()
+#endif
+            );
 
 }
 
@@ -15711,7 +15784,7 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
     ASSERT_EQ(nodeList->get(0)->getHandle(), handlePdfFile);
 
     filterResults->byCategory(MegaApi::FILE_TYPE_DOCUMENT);
-    nodeList.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_ALPHABETICAL_DESC));
+    nodeList.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_DESC));
     ASSERT_EQ(nodeList->size(), 3);
     ASSERT_EQ(nodeList->get(0)->getHandle(), handleTxtFile);
     ASSERT_EQ(nodeList->get(1)->getHandle(), handleOrgFile);
@@ -17089,8 +17162,8 @@ TEST_F(SdkTest, GiveRemoveChatAccess)
 
     // Create chat between new contacts
 
-    int numChatsHost = mApi[host].chats.size();
-    int numChatsGuest = mApi[guest].chats.size();
+    long unsigned int numChatsHost = mApi[host].chats.size();
+    long unsigned int numChatsGuest = mApi[guest].chats.size();
     mApi[guest].chatUpdated = false;
     std::unique_ptr<MegaTextChatPeerList> peers(MegaTextChatPeerList::createInstance());
     peers->addPeer(megaApi[guest]->getMyUser()->getHandle(), PRIV_STANDARD);
@@ -17138,3 +17211,12 @@ TEST_F(SdkTest, GiveRemoveChatAccess)
 }
 
 #endif
+
+TEST_F(SdkTest, GetFileFromArtifactorySuccessfully)
+{
+    const std::string relativeUrl{"test-data/gfx-processing-crash/default_irradiance.dds"};
+    const fs::path output{"default_irradiance.dds"};
+    ASSERT_TRUE(getFileFromArtifactory(relativeUrl, output));
+    ASSERT_TRUE(fs::exists(output));
+    fs::remove(output);
+}

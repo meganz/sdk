@@ -475,6 +475,59 @@ inline bool Node::keyApplied() const
     return nodekeydata.size() == size_t((type == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH);
 }
 
+class NodeData
+{
+public:
+    NodeData(const char* ptr, size_t size, int component) : mStart(ptr), mEnd(ptr + size), mComp(component) {}
+
+    m_time_t getMtime();
+    int getLabel();
+    handle getHandle();
+
+    std::unique_ptr<Node> createNode(MegaClient& client, bool fromOldCache, std::list<std::unique_ptr<NewShare>>& ownNewshares);
+
+    enum
+    {
+        COMPONENT_ALL = -1,
+        COMPONENT_NONE = COMPONENT_ALL, // dummy symbol useful where "all" makes no sense (i.e. when no migration is required)
+        COMPONENT_ATTRS,
+        COMPONENT_MTIME,
+        COMPONENT_LABEL,
+    };
+
+private:
+    bool readComponents();
+    bool readFailed() { return (mReadAttempted && !mReadSucceeded) || (!mReadAttempted && !readComponents()); }
+
+    const char* mStart;
+    const char* mEnd;
+    int mComp;
+
+    m_off_t mSize = 0;
+    nodetype_t mType = TYPE_UNKNOWN;
+    handle mHandle = 0;
+    handle mParentHandle = 0;
+    handle mUserHandle = 0;
+    m_time_t mCtime = 0;
+    string mNodeKey;
+    char mIsExported = '\0';
+    char mIsEncrypted = '\0';
+    string mFileAttributes;
+    string mAuthKey;
+    std::unique_ptr<byte[]> mShareKey;
+    int mShareDirection = INT_MAX; // valid values are -1 (outshares) and 0 (inshare)
+    std::list<std::vector<char>> mShares;
+    AttrMap mAttrs;
+    string mAttrString; // encrypted attrs
+    handle mPubLinkHandle = 0;
+    m_time_t mPubLinkEts = 0;
+    m_time_t mPubLinkCts = 0;
+    bool mPubLinkTakenDown = false;
+
+    bool mReadAttempted = false;
+    bool mReadSucceeded = false;
+};
+
 #ifdef ENABLE_SYNC
 
 enum TreeState

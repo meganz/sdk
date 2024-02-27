@@ -75,7 +75,7 @@ class MegaSemaphore : public CppSemaphore {};
 
 #if USE_FREEIMAGE
 using MegaGfxProvider = GfxProviderFreeImage;
-#elif TARGET_OS_IPHONE
+#elif USE_IOS
 using MegaGfxProvider = GfxProviderCG;
 #else
 using MegaGfxProvider = GfxProviderExternal;
@@ -3329,11 +3329,7 @@ public:
         MegaNodeList* search(MegaNode *node, const char *searchString, CancelToken cancelToken, bool recursive = true, int order = MegaApi::ORDER_NONE, int mimeType = MegaApi::FILE_TYPE_DEFAULT, int target = MegaApi::SEARCH_TARGET_ALL, bool includeSensitive = true);
 
     private:
-        sharedNode_vector searchTopLevelNodesExclRubbish(const MegaSearchFilter* filter, CancelToken cancelToken);
-        sharedNode_vector searchInshares(const MegaSearchFilter* filter, CancelToken cancelToken);
-        sharedNode_vector searchOutshares(const MegaSearchFilter* filter, CancelToken cancelToken);
-        sharedNode_vector searchPublicLinks(const MegaSearchFilter* filter, CancelToken cancelToken);
-        sharedNode_vector searchInNodeManager(const MegaSearchFilter* filter, CancelToken cancelToken);
+        sharedNode_vector searchInNodeManager(const MegaSearchFilter* filter, int order, CancelToken cancelToken);
 
         // deprecated
         MegaNodeList* searchWithFlags(MegaNode* node, const char* searchString, CancelToken cancelToken, bool recursive, int order, int mimeType = MegaApi::FILE_TYPE_DEFAULT, int target = MegaApi::SEARCH_TARGET_ALL, Node::Flags requiredFlags = Node::Flags(), Node::Flags excludeFlags = Node::Flags(), Node::Flags excludeRecursiveFlags = Node::Flags());

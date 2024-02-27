@@ -27,6 +27,7 @@ cmake_parse_arguments("target_platform_compile_options"
 "${options}"
 "${oneValueArgs}"
 "${multiValueArgs}"
+${ARGN}
 )
 
 if(WIN32 AND target_platform_compile_options_WINDOWS)

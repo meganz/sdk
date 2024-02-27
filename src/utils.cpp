@@ -3305,5 +3305,15 @@ bool is_digit(unsigned int ch)
     return std::isdigit(static_cast<unsigned char>(ch));
 }
 
+// Get the current process ID
+unsigned long getCurrentPid()
+{
+#ifdef WIN32
+    return GetCurrentProcessId();
+#else
+    return getpid();
+#endif
+}
+
 } // namespace mega
 

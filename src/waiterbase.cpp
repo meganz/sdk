@@ -22,6 +22,7 @@
 #include "mega/waiter.h"
 
 namespace mega {
+
 void Waiter::init(dstime ds)
 {
     maxds = ds;
@@ -32,4 +33,5 @@ void Waiter::wakeupby(EventTrigger* et, int flags)
 {
     et->addevents(this, flags);
 }
+
 } // namespace

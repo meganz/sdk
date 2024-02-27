@@ -642,13 +642,7 @@ fs::path TestFS::GetBaseFolder()
 
 fs::path TestFS::GetProcessFolder()
 {
-#ifdef WIN32
-    auto pid = GetCurrentProcessId();
-#else
-    auto pid = getpid();
-#endif
-
-    fs::path testBase = GetBaseFolder() / ("pid_" + std::to_string(pid));
+    fs::path testBase = GetBaseFolder() / ("pid_" + std::to_string(getCurrentPid()));
     return testBase;
 }
 
@@ -791,13 +785,7 @@ fs::path makeNewTestRoot()
 
 fs::path makeReusableClientFolder(const string& subfolder)
 {
-#ifdef WIN32
-    auto pid = GetCurrentProcessId();
-#else
-    auto pid = getpid();
-#endif
-
-    fs::path p = TestFS::GetProcessFolder() / ("clients_" + std::to_string(pid)) / subfolder;
+    fs::path p = TestFS::GetProcessFolder() / ("clients_" + std::to_string(getCurrentPid())) / subfolder;
 
 #ifndef NDEBUG
     bool b =

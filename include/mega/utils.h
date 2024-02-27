@@ -1077,6 +1077,9 @@ const char* toString(retryreason_t reason);
 bool is_space(unsigned int ch);
 bool is_digit(unsigned int ch);
 
+// Get the current process ID
+unsigned long getCurrentPid();
+
 } // namespace mega
 
 #endif // MEGA_UTILS_H

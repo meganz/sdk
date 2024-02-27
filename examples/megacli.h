@@ -441,3 +441,4 @@ void exec_checkvpncredential(autocomplete::ACState& s);
 /* MEGA VPN commands END */
 
 void exec_fetchcreditcardinfo(autocomplete::ACState&);
+void exec_passwordmanager(autocomplete::ACState&);

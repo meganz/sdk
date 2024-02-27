@@ -107,7 +107,6 @@ pipeline {
                     sh "cmake --build ${mac_sources_workspace}/${BUILD_DIR} --target megacli -j1"
                     sh "cmake --build ${mac_sources_workspace}/${BUILD_DIR} --target test_unit -j1"
                     sh "cmake --build ${mac_sources_workspace}/${BUILD_DIR} --target test_integration -j1"
-                    sh "cmake --build ${mac_sources_workspace}/${BUILD_DIR} --target tool_tcprelay -j1"
 
                     //Package megacli to be archived
                     sh "echo Packaging megacli to be archived"

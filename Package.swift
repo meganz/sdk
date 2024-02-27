@@ -53,8 +53,9 @@ let package = Package(
                 .linkedFramework("Foundation"),
                 .linkedFramework("ImageIO"),
                 .linkedFramework("Security"),
-                .linkedFramework("UIKit"),
+                .linkedFramework("UIKit", .when(platforms: [.iOS, .macCatalyst])),
                 .linkedFramework("UniformTypeIdentifiers"),
+                .linkedFramework("SystemConfiguration", .when(platforms: [.macOS])),
                 // Libraries
                 .linkedLibrary("resolv"),
                 .linkedLibrary("z"),
@@ -75,33 +76,33 @@ let package = Package(
         ),
         .binaryTarget(
             name: "libcryptopp",
-            url: "https://s3.g.s4.mega.io/010996547823786/xcframeworks-with-catalyst-support/libcryptopp.xcframework.zip",
-            checksum: "c4e3d72b36038ad7d05853aaa4d7c811638bc53a4488fa4fed5e788b8b7c0fc0"
+            url: "https://s3.g.s4.mega.io/010996547823786/xcframeworks-macos-support/libcryptopp.xcframework.zip",
+            checksum: "f7483596a4a682fbdf38a2a0c919c6407bdbd8c4f3cef1877c105820ae9f9896"
         ),
         .binaryTarget(
             name: "libcurl",
-            url: "https://s3.g.s4.mega.io/010996547823786/xcframeworks-with-catalyst-support/libcurl.xcframework.zip",
-            checksum: "1c07647a29ab012f3aa596295ebf749044b9efe6402c891cf78332b4692ff00f"
+            url: "https://s3.g.s4.mega.io/010996547823786/xcframeworks-macos-support/libcurl.xcframework.zip",
+            checksum: "ab3c685d9c20bf22a8f63105bbe3410bf06edf10d3f164a59a81c5bb0a0e4dd3"
         ),
         .binaryTarget(
             name: "libsodium",
-            url: "https://s3.g.s4.mega.io/010996547823786/xcframeworks-with-catalyst-support/libsodium.xcframework.zip",
-            checksum: "622568a5aca7b34b145a11b3dc0d8e48eb540c88fee159d48120fb032f83ecf3"
+            url: "https://s3.g.s4.mega.io/010996547823786/xcframeworks-macos-support/libsodium.xcframework.zip",
+            checksum: "edf385ce2b693f864a5879559c9e61c84d4209e62e3e6e37bcd01cd23c0c311c"
         ),
         .binaryTarget(
             name: "libuv",
-            url: "https://s3.g.s4.mega.io/010996547823786/xcframeworks-with-catalyst-support/libuv.xcframework.zip",
-            checksum: "d9afca567e9c99e9b64be05e5f7f28f764995ddb2459b83eb4c4897eb46107f3"
+            url: "https://s3.g.s4.mega.io/010996547823786/xcframeworks-macos-support/libuv.xcframework.zip",
+            checksum: "97e387c71773766d0673634a3688550226b0ca5ea0ce0fb0c4a66a7e99ddb6a7"
         ),
         .binaryTarget(
             name: "libmediainfo",
-            url: "https://s3.g.s4.mega.io/010996547823786/xcframeworks-with-catalyst-support/libmediainfo.xcframework.zip",
-            checksum: "1d77ae0c91988e3ef0ba6dde223b51e92f571232ab3de38549410d633eab16ee"
+            url: "https://s3.g.s4.mega.io/010996547823786/xcframeworks-macos-support/libmediainfo.xcframework.zip",
+            checksum: "d6fa1c5feb6282057a9b4313e77dec9a4d40d5b4a49c62a6e209fb46951a351c"
         ),
         .binaryTarget(
             name: "libzen",
-            url: "https://s3.g.s4.mega.io/010996547823786/xcframeworks-with-catalyst-support/libzen.xcframework.zip",
-            checksum: "f70d339890e00ea5e1e49e5e749652528fc3442621a657c19cecdff81c05f7be"
+            url: "https://s3.g.s4.mega.io/010996547823786/xcframeworks-macos-support/libzen.xcframework.zip",
+            checksum: "520bd9579d6174c7e4b2eb989b48429961e6bb10e057119db17f8967dfe9b5a2"
         )
     ],
     cxxLanguageStandard: .cxx14
