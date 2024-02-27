@@ -1172,19 +1172,17 @@ void RaidReq::resumeall(uint8_t excludedPart)
 {
     if (mRem)
     {
+        for (uint8_t i = RAIDPARTS; i--; )
         {
-            for (uint8_t i = RAIDPARTS; i--; )
+            if (i != excludedPart)
             {
-                if (i != excludedPart)
+                if (mFetcher[i].mFinished)
                 {
-                    if (mFetcher[i].mFinished)
-                    {
-                        mFetcher[i].directTrigger();
-                    }
-                    else if (mFetcher[i].mConnected)
-                    {
-                        mFetcher[i].resume();
-                    }
+                    mFetcher[i].directTrigger();
+                }
+                else if (mFetcher[i].mConnected)
+                {
+                    mFetcher[i].resume();
                 }
             }
         }
