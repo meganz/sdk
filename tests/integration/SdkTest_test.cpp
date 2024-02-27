@@ -906,6 +906,7 @@ void SdkTest::onUsersUpdate(MegaApi* api, MegaUserList *users)
     if (!users)
         return;
 
+    auto& currentPerApi = mApi[static_cast<size_t>(apiIndex)];
     for (int i = 0; i < users->size(); i++)
     {
         MegaUser *u = users->get(i);
@@ -914,14 +915,15 @@ void SdkTest::onUsersUpdate(MegaApi* api, MegaUserList *users)
                 || u->hasChanged(MegaUser::CHANGE_TYPE_FIRSTNAME)
                 || u->hasChanged(MegaUser::CHANGE_TYPE_LASTNAME))
         {
-            mApi[apiIndex].userUpdated = true;
+            currentPerApi.userUpdated = true;
         }
         else
         {
             // Contact is removed from main account
-            mApi[apiIndex].requestFlags[MegaRequest::TYPE_REMOVE_CONTACT] = true;
-            mApi[apiIndex].userUpdated = true;
+            currentPerApi.requestFlags[MegaRequest::TYPE_REMOVE_CONTACT] = true;
+            currentPerApi.userUpdated = true;
         }
+        currentPerApi.callCustomCallbackCheck(u->getHandle());
     }
 }
 
@@ -1389,6 +1391,20 @@ void SdkTest::inviteTestAccount(const unsigned invitorIndex, const unsigned invi
 {
     //--- Add account as contact ---
     mApi[inviteIndex].contactRequestUpdated = false;
+
+    // Watcher for the new contact visibility
+    bool contactRightVisibility = false;
+    auto visibilityCheck = std::make_shared<std::function<void()>>(
+        [this, &invitorIndex, &inviteIndex, &contactRightVisibility]()
+        {
+            std::unique_ptr<MegaUser> contact(
+                mApi[invitorIndex].megaApi->getContact(mApi[inviteIndex].email.c_str()));
+            contactRightVisibility =
+                contact && contact->getVisibility() == MegaUser::VISIBILITY_VISIBLE;
+        });
+    MegaHandle invitedUserHandler = mApi[inviteIndex].megaApi->getMyUserHandleBinary();
+    mApi[invitorIndex].customCallbackCheck[invitedUserHandler] = visibilityCheck;
+
     ASSERT_NO_FATAL_FAILURE(inviteContact(invitorIndex, mApi[inviteIndex].email, message, MegaContactRequest::INVITE_ACTION_ADD));
     ASSERT_TRUE(waitForResponse(&mApi[inviteIndex].contactRequestUpdated))   // at the target side (auxiliar account)
             << "Contact request creation not received after " << maxTimeout << " seconds";
@@ -1402,11 +1418,15 @@ void SdkTest::inviteTestAccount(const unsigned invitorIndex, const unsigned invi
             << "Contact request creation not received after " << maxTimeout << " seconds";
     mApi[inviteIndex].cr.reset();
 
-    std::unique_ptr<MegaUser> contact(mApi[invitorIndex].megaApi->getContact(mApi[inviteIndex].email.c_str()));
-    if (!contact || contact->getVisibility() != MegaUser::VISIBILITY_VISIBLE)
+    bool hasExpectedVisibility = waitForResponse(&contactRightVisibility);
+    if (!hasExpectedVisibility)
     {
-        ASSERT_TRUE(contact) << "Invalid contact";
-        ASSERT_TRUE(contact->getVisibility() == MegaUser::VISIBILITY_VISIBLE) << "Invalid contact visibility";
+        std::unique_ptr<MegaUser>
+            contact(mApi[invitorIndex].megaApi->getContact(mApi[inviteIndex].email.c_str()));
+        ASSERT_TRUE(contact) << "Invalid contact after " << maxTimeout << " seconds";
+        ASSERT_EQ(contact->getVisibility(), MegaUser::VISIBILITY_VISIBLE)
+            << "Invalid contact visibility after " << maxTimeout << " seconds";
+        ASSERT_TRUE(hasExpectedVisibility) << "The contact has the correct visibility but the timeout of " << maxTimeout << " seconds was exceeded";
     }
 }
 
