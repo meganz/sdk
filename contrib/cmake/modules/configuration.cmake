@@ -21,7 +21,7 @@ if (WIN32)
 
 else()
     # Build the project with C++11
-    set(CMAKE_CXX_STANDARD 11)
+    set(CMAKE_CXX_STANDARD 17)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
     include(CheckIncludeFile)
