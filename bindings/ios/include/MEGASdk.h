@@ -158,6 +158,7 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
     MEGAUserAttributeNoCallKit               = 36, // private - byte array
     MEGAUserAttributeAppsPreferences         = 38, // private - byte array - versioned (apps preferences)
     MEGAUserAttributeContentConsumptionPreferences = 39, // private - byte array - versioned (content consumption preferences)
+    MEGAUserAttributeLastReadNotification    = 44, // private - char array
 };
 
 typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
@@ -2648,6 +2649,52 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * @see [MEGASdk userAlertList]
  */
 - (void)acknowledgeUserAlerts;
+
+#pragma mark - Notifications
+
+/**
+ * @brief Set last read notification for Notification Center
+ *
+ * The type associated with this request is MEGARequestTypeSetAttrUser
+ * 
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeLastReadNotification
+ * - [MEGARequest number] - Returns the ID to be set as last read
+ *
+ * Note that any notifications with ID equal to or less than the given one will be marked as seen
+ * in Notification Center.
+ *
+ * @param notificationId ID of the notification to be set as last read. Value `0` is an invalid ID.
+ * Passing `0` will clear a previously set last read value.
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setLastReadNotificationWithNotificationId:(uint32_t)notificationId delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get last read notification for Notification Center
+ *
+ * The type associated with this request is MEGARequestTypeSetAttrUser
+ *
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeLastReadNotification
+ *
+ * When onRequestFinish received MEGAErrorTypeApiOk, valid data in the MegaRequest object is:
+ * - [MEGARequest number] - Returns the ID of the last read Notification
+ * Note that when the ID returned here was `0` it means that no ID was set as last read.
+ * Note that the value returned here should be treated like a 32bit unsigned int.
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getLastReadNotificationWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get the list of IDs for enabled notifications
+ *
+ * You take the ownership of the returned value
+ *
+ * @return List of IDs for enabled notifications
+ */
+- (nullable MEGAIntegerList *)getEnabledNotifications;
 
 #pragma mark - Filesystem changes Requests
 

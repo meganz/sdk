@@ -73,14 +73,6 @@ class MegaThread : public CppThread {};
 class MegaSemaphore : public CppSemaphore {};
 #endif
 
-#if USE_FREEIMAGE
-using MegaGfxProvider = GfxProviderFreeImage;
-#elif __APPLE__
-using MegaGfxProvider = GfxProviderCG;
-#else
-using MegaGfxProvider = GfxProviderExternal;
-#endif
-
 #ifdef WIN32
     #ifdef USE_CURL
     class MegaHttpIO : public CurlHttpIO {};
@@ -284,7 +276,7 @@ protected:
 
     // called from onTransferFinish for the last sub-transfer
     void complete(Error e, bool cancelledByUser = false);
-    
+
     // return true if thread is stopped or canceled by transfer token
     bool isStoppedOrCancelled(const std::string& name) const;
 
@@ -826,7 +818,7 @@ class MegaSetElementPrivate : public MegaSetElement
 public:
     MegaSetElementPrivate(const SetElement& el)
         : mId(el.id()), mNode(el.node()), mSetId(el.set()), mOrder(el.order()), mTs(el.ts()),
-          mName(el.name())
+          mName(el.name()), mChanges(el.changes())
         {}
 
     MegaHandle id() const override { return mId; }
@@ -978,6 +970,7 @@ public:
     MegaIntegerListPrivate();
     MegaIntegerListPrivate(const vector<int8_t>& bytesList);
     MegaIntegerListPrivate(const vector<int64_t>& integerList);
+    MegaIntegerListPrivate(const vector<uint32_t>& integerList);
     virtual ~MegaIntegerListPrivate();
     MegaSmallIntVector* toByteList() const;
     MegaIntegerList *copy() const override;
@@ -1669,6 +1662,9 @@ class MegaRequestPrivate : public MegaRequest
         MegaVpnCredentials* getMegaVpnCredentials() const override;
         void setMegaVpnCredentials(MegaVpnCredentials* megaVpnCredentials);
 
+        const MegaNotificationList* getMegaNotifications() const override;
+        void setMegaNotifications(MegaNotificationList* megaNotifications);
+
 protected:
         std::shared_ptr<AccountDetails> accountDetails;
         MegaPricingPrivate *megaPricing;
@@ -1729,6 +1725,9 @@ protected:
 #ifdef ENABLE_SYNC
         unique_ptr<MegaSyncStallList> mSyncStallList;
 #endif // ENABLE_SYNC
+
+        unique_ptr<MegaNotificationList> mMegaNotifications;
+
     public:
         shared_ptr<ExecuteOnce> functionToExecute;
 };
@@ -2169,7 +2168,7 @@ public:
     const char* get(int i) const override;
     int size() const override;
     void add(const char* value) override;
-    const string_vector& getVector();
+    const string_vector& getVector() const;
 protected:
     MegaStringListPrivate(const MegaStringListPrivate& stringList) = default;
     string_vector mList;
@@ -2826,10 +2825,31 @@ private:
 };
 
 
+class MegaGfxProviderPrivate : public MegaGfxProvider
+{
+public:
+    explicit MegaGfxProviderPrivate(std::unique_ptr<::mega::IGfxProvider> provider) : mProvider(std::move(provider)) {}
+
+    explicit MegaGfxProviderPrivate(MegaGfxProviderPrivate&& other) : mProvider(std::move(other.mProvider)) {}
+
+    std::unique_ptr<::mega::IGfxProvider> releaseProvider() { return std::move(mProvider); }
+
+    static std::unique_ptr<MegaGfxProviderPrivate> createIsolatedInstance(const std::string& pipeName,
+                                                                          const std::string& executable);
+
+    static std::unique_ptr<MegaGfxProviderPrivate> createExternalInstance(MegaGfxProcessor* processor);
+
+    static std::unique_ptr<MegaGfxProviderPrivate> createInternalInstance();
+
+private:
+    std::unique_ptr<::mega::IGfxProvider> mProvider;
+};
+
 class MegaApiImpl : public MegaApp
 {
     public:
         MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType);
+        MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProvider* provider, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType);
         virtual ~MegaApiImpl();
 
         static MegaApiImpl* ImplOf(MegaApi*);
@@ -3060,6 +3080,7 @@ class MegaApiImpl : public MegaApp
         void localLogout(MegaRequestListener *listener = NULL);
         void invalidateCache();
         int getPasswordStrength(const char *password);
+        static char* generateRandomCharsPassword(bool useUpper, bool useDigit, bool useSymbol, unsigned int length);
         void submitFeedback(int rating, const char *comment, MegaRequestListener *listener = NULL);
         void reportEvent(const char *details = NULL, MegaRequestListener *listener = NULL);
         void sendEvent(int eventType, const char* message, bool addJourneyId, const char* viewId, MegaRequestListener *listener = NULL);
@@ -3653,8 +3674,16 @@ public:
 
         void setVisibleTermsOfService(bool visible, MegaRequestListener* listener = nullptr);
 
+        MegaIntegerList* getEnabledNotifications() const;
+        void enableTestNotifications(const MegaIntegerList* notificationIds, MegaRequestListener* listener);
+        void getNotifications(MegaRequestListener* listener);
+        void setLastReadNotification(uint32_t notificationId, MegaRequestListener* listener);
+        void getLastReadNotification(MegaRequestListener* listener);
+        void setLastActionedBanner(uint32_t notificationId, MegaRequestListener* listener);
+        void getLastActionedBanner(MegaRequestListener* listener);
+
 private:
-        void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, unsigned clientWorkerThreadCount /*= 1*/, int clientType);
+        void init(MegaApi *api, const char *appKey, std::unique_ptr<GfxProc> gfxproc, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, unsigned clientWorkerThreadCount /*= 1*/, int clientType);
 
         static void *threadEntryPoint(void *param);
 
@@ -4149,6 +4178,7 @@ private:
         error performRequest_passwordLink(MegaRequestPrivate* request);
         error performRequest_importLink_getPublicNode(MegaRequestPrivate* request);
         error performRequest_copy(MegaRequestPrivate* request);
+        error copyTreeFromOwnedNode(shared_ptr<Node> node, const char *newName, shared_ptr<Node> target, vector<NewNode>& treeCopy);
         error performRequest_login(MegaRequestPrivate* request);
 
         error performTransferRequest_cancelTransfer(MegaRequestPrivate* request, TransferDbCommitter& committer);
@@ -4159,6 +4189,13 @@ private:
         void addSyncByRequest(MegaRequestPrivate* request, SyncConfig sc, MegaClient::UndoFunction revertOnError);
 #endif
         void CompleteFileDownloadBySkip(MegaTransferPrivate* transfer, m_off_t size, uint64_t nodehandle, int nextTag, const LocalPath& localPath);
+
+        void performRequest_enableTestNotifications(MegaRequestPrivate* request);
+        error performRequest_getNotifications(MegaRequestPrivate * request);
+        void performRequest_setLastReadNotification(MegaRequestPrivate* request);
+        error getLastReadNotification_getua_result(byte* data, unsigned len, MegaRequestPrivate* request);
+        void performRequest_setLastActionedBanner(MegaRequestPrivate* request);
+        error getLastActionedBanner_getua_result(byte* data, unsigned len, MegaRequestPrivate* request);
 };
 
 class MegaHashSignatureImpl
@@ -4922,6 +4959,7 @@ public:
                         const std::string& name,
                         const std::string& s4AttributeValue,
                         const MegaCompleteUploadData* completeUploadData,
+                        MegaHandle sourceHandle,
                         MegaHandle nodeHandle);
     ~MegaNodeTreePrivate() override = default;
     MegaNodeTree* getNodeTreeChild() const override;
@@ -4930,12 +4968,21 @@ public:
     const MegaCompleteUploadData* getCompleteUploadData() const;
     MegaHandle getNodeHandle() const override;
     void setNodeHandle(const MegaHandle& nodeHandle);
+    const MegaHandle& getSourceHandle() const { return mSourceHandle; }
 
 private:
     std::unique_ptr<MegaNodeTree> mNodeTreeChild;
     std::string mName;
     std::string mS4AttributeValue;
+    // new leaf-file-node is created from upload-token or as a 
+    // copy of an existing node (cannot use both at the same time)
+
+    // data to create node from upload-token
     std::unique_ptr<const MegaCompleteUploadData> mCompleteUploadData;
+    // handle of an existing file node to be copied
+    MegaHandle mSourceHandle;
+
+    // output param: handle give to new node
     MegaHandle mNodeHandle;
 };
 
@@ -4954,6 +5001,53 @@ private:
     std::string mFingerprint;
     std::string mString64UploadToken;
     std::string mString64FileKey;
+};
+
+class MegaNotificationPrivate : public MegaNotification
+{
+public:
+    MegaNotificationPrivate(DynamicMessageNotification&& n) :
+        mNotification{std::move(n)}, mCall1{&mNotification.callToAction1}, mCall2{&mNotification.callToAction2} {}
+    MegaNotificationPrivate(const DynamicMessageNotification& n) :
+        mNotification{n}, mCall1{&mNotification.callToAction1}, mCall2{&mNotification.callToAction2} {}
+
+    int64_t getID() const override { return mNotification.id; }
+    const char* getTitle() const override { return mNotification.title.c_str(); }
+    const char* getDescription() const override { return mNotification.description.c_str(); }
+    const char* getImageName() const override { return mNotification.imageName.c_str(); }
+    const char* getImagePath() const override { return mNotification.imagePath.c_str(); }
+    int64_t getStart() const override { return mNotification.start; }
+    int64_t getEnd() const override { return mNotification.end; }
+    bool showBanner() const override { return mNotification.showBanner; }
+    const MegaStringMap* getCallToAction1() const override { return &mCall1; }
+    const MegaStringMap* getCallToAction2() const override { return &mCall2; }
+    MegaNotificationPrivate* copy() const override { return new MegaNotificationPrivate(*this); }
+
+private:
+    const DynamicMessageNotification mNotification;
+    const MegaStringMapPrivate mCall1;
+    const MegaStringMapPrivate mCall2;
+};
+
+class MegaNotificationListPrivate : public MegaNotificationList
+{
+public:
+    MegaNotificationListPrivate(std::vector<DynamicMessageNotification>&& ns)
+    {
+        mNotifications.reserve(ns.size());
+        for (const auto& n : ns)
+        {
+            mNotifications.emplace_back(std::move(n));
+        }
+    }
+
+    MegaNotificationListPrivate* copy() const override { return new MegaNotificationListPrivate(*this); }
+
+    const MegaNotification* get(unsigned i) const override { return i < size() ? &mNotifications[i] : nullptr; }
+    unsigned size() const override { return static_cast<unsigned>(mNotifications.size()); }
+
+private:
+    vector<MegaNotificationPrivate> mNotifications;
 };
 }
 

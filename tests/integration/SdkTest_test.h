@@ -230,6 +230,14 @@ public:
         MegaApi(appKey, basePath, userAgent, workerThreadCount)
     {}
 
+    MegaApiTest(const char* appKey,
+                MegaGfxProvider* provider,
+                const char* basePath = nullptr,
+                const char* userAgent = nullptr,
+                unsigned workerThreadCount = 1):
+        MegaApi(appKey, provider, basePath, userAgent, workerThreadCount)
+    {}
+
     MegaClient* getClient()
     {
         return pImpl->getMegaClient();
@@ -267,6 +275,9 @@ public:
         bool accountUpdated;
         bool nodeUpdated; // flag to check specific updates for a node (upon onNodesUpdate)
 
+        // A map to store custom functions to be called inside callbacks
+        std::map<MegaHandle, std::weak_ptr<std::function<void()>>> customCallbackCheck;
+
         bool userAlertsUpdated;
         std::unique_ptr<MegaUserAlertList> userAlertList;
 
@@ -285,6 +296,28 @@ public:
         MegaHandle chatid;          // last chat added
         MegaHandle schedId;         // last scheduled meeting added
 #endif
+
+        /**
+         * @brief Ensures that the access to the customCallbackCheck map and the posterior function
+         * call is properly managed.
+         */
+        void callCustomCallbackCheck(const MegaHandle userHandle)
+        {
+            auto it = customCallbackCheck.find(userHandle);
+            if (it == customCallbackCheck.end())
+            {
+                return;
+            }
+            auto funPtr = it->second.lock();
+            if (funPtr)
+            {
+                (*funPtr)();
+            }
+            else
+            {
+                customCallbackCheck.erase(it);
+            }
+        }
 
         void receiveEvent(MegaEvent* e)
         {
