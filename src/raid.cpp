@@ -183,7 +183,7 @@ void RaidBufferManager::setIsRaid(const std::vector<std::string>& tempUrls, m_of
 
     if (tempurls.size() == RAIDPARTS)
     {
-        if (isNewRaid)
+        if (isNewRaid && filesize >= TransferSlot::MIN_FILESIZE_FOR_NEWRAID)
         {
             is_newRaid = true;
         }
