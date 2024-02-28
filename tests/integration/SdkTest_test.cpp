@@ -292,16 +292,22 @@ namespace
     MegaApiTest* newMegaApi(const char* appKey,
                             const char* basePath,
                             const char* userAgent,
-                            unsigned workerThreadCount)
+                            unsigned workerThreadCount,
+                            const int clientType = MegaApi::CLIENT_TYPE_DEFAULT)
     {
     #ifdef WIN32
         auto gfxworkerPath = sdk_test::getTestDataDir() / "gfxworker.exe";
         std::unique_ptr<MegaGfxProvider> provider{
             MegaGfxProvider::createIsolatedInstance(newPipeName().c_str(), gfxworkerPath.string().c_str())
         };
-        return new MegaApiTest(appKey, provider.get(), basePath, userAgent, workerThreadCount);
+        return new MegaApiTest(appKey,
+                               provider.get(),
+                               basePath,
+                               userAgent,
+                               workerThreadCount,
+                               clientType);
     #else
-        return new MegaApiTest(appKey, basePath, userAgent, workerThreadCount);
+        return new MegaApiTest(appKey, basePath, userAgent, workerThreadCount, clientType);
     #endif
     }
 
@@ -1280,7 +1286,7 @@ void SdkTest::fetchNodesForAccounts(const unsigned howMany)
     }
 }
 
-void SdkTest::getAccountsForTest(unsigned howMany, bool fetchNodes)
+void SdkTest::getAccountsForTest(unsigned howMany, bool fetchNodes, const int clientType)
 {
     EXPECT_TRUE(howMany > 0) << "SdkTest::getAccountsForTest(): invalid number of test account to setup " << howMany << " is < 0";
     EXPECT_TRUE(howMany <= (unsigned)gMaxAccounts) << "SdkTest::getAccountsForTest(): too many test accounts requested " << howMany << " is > " << gMaxAccounts;
@@ -1298,7 +1304,8 @@ void SdkTest::getAccountsForTest(unsigned howMany, bool fetchNodes)
         const char *pass = getenv(envVarPass[index].c_str());
         ASSERT_NE(pass, nullptr);
 
-        configureTestInstance(index, email, pass);
+        static const bool checkCredentials = true; // default value
+        configureTestInstance(index, email, pass, checkCredentials, clientType);
 
         if (!gResumeSessions || gSessionIDs[index].empty() || gSessionIDs[index] == "invalid")
         {
@@ -1339,7 +1346,11 @@ void SdkTest::getAccountsForTest(unsigned howMany, bool fetchNodes)
     out() << "Test setup done, test starts";
 }
 
-void SdkTest::configureTestInstance(unsigned index, const string &email, const string pass, bool checkCredentials)
+void SdkTest::configureTestInstance(unsigned index,
+                                    const string& email,
+                                    const string pass,
+                                    bool checkCredentials,
+                                    const int clientType)
 {
     ASSERT_GT(mApi.size(), index) << "Invalid mApi size";
     ASSERT_GT(megaApi.size(), index) << "Invalid megaApi size";
@@ -1353,7 +1364,7 @@ void SdkTest::configureTestInstance(unsigned index, const string &email, const s
         ASSERT_FALSE(mApi[index].pwd.empty()) << "Set test account " << index << " password at the environment variable $" << envVarPass[index];
     }
 
-    megaApi[index].reset(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(index).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
+    megaApi[index].reset(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(index).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT), clientType));
     mApi[index].megaApi = megaApi[index].get();
 
     // helps with restoring logging after tests that fiddle with log level
@@ -1361,7 +1372,6 @@ void SdkTest::configureTestInstance(unsigned index, const string &email, const s
 
     megaApi[index]->setLoggingName(to_string(index).c_str());
     megaApi[index]->addListener(this);    // TODO: really should be per api
-
 }
 
 void SdkTest::releaseMegaApi(unsigned int apiIndex)
@@ -16985,7 +16995,8 @@ TEST_F(SdkTest, SdkTestPasswordManager)
     LOG_debug << "# U1: special logging in sequence";
     const unsigned userIdx = 0, totalAccounts = 1;
     LOG_debug << "\t# log in without fetching nodes";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(totalAccounts, false));
+    ASSERT_NO_FATAL_FAILURE(
+        getAccountsForTest(totalAccounts, false, MegaApi::CLIENT_TYPE_PASSWORD_MANAGER));
 
     LOG_debug << "\t# get Password Manager Base node handle; it will be created if it didn't exist";
     RequestTracker rt2 {megaApi[userIdx].get()};

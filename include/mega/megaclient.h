@@ -2405,6 +2405,7 @@ public:
 };
 
     ClientType getClientType() const { return mClientType; }
+    bool isClientType(const ClientType& t) const { return mClientType == t; }
 
 private:
     ClientType mClientType;
