@@ -9795,6 +9795,7 @@ void MegaClient::readipc(JSON *j)
                     default:
                        if (!j->storeobject())
                        {
+                            j->leavearray();
                             return;
                        }
                 }
@@ -9878,6 +9879,7 @@ void MegaClient::readopc(JSON *j)
                     default:
                        if (!j->storeobject())
                        {
+                            j->leavearray();
                             return;
                        }
                 }
@@ -9991,6 +9993,7 @@ bool MegaClient::procph(JSON *j)
         if (e != 1)
         {
             LOG_err << "Parsing error in procph: " << e;
+            j->leavearray();
             return false;
         }
     }
@@ -10129,6 +10132,7 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
         if (e != 1)
         {
             LOG_err << "Parsing error in readusers: " << e;
+            j->leavearray();
             return false;
         }
     }
@@ -12437,6 +12441,7 @@ void MegaClient::proccr(JSON* j)
         else
         {
             LOG_err << "Malformed SNK CR - nodes part";
+            j->leavearray();
             return;
         }
 
@@ -12448,6 +12453,7 @@ void MegaClient::proccr(JSON* j)
         else
         {
             LOG_err << "Malformed CR - linkage part";
+            j->leavearray();
             return;
         }
     }
@@ -12466,11 +12472,15 @@ void MegaClient::procsnk(JSON* j)
         {
             if (ISUNDEF((sh = j->gethandle())))
             {
+                j->leavearray();
+                j->leavearray();
                 return;
             }
 
             if (ISUNDEF((nh = j->gethandle())))
             {
+                j->leavearray();
+                j->leavearray();
                 return;
             }
 
@@ -17439,6 +17449,7 @@ userpriv_vector *MegaClient::readuserpriv(JSON *j)
                         if(uh == UNDEF || priv == PRIV_UNKNOWN)
                         {
                             delete userpriv;
+                            j->leavearray();
                             return NULL;
                         }
 
@@ -17455,6 +17466,7 @@ userpriv_vector *MegaClient::readuserpriv(JSON *j)
                         if (!j->storeobject())
                         {
                             delete userpriv;
+                            j->leavearray();
                             return NULL;
                         }
                         break;
@@ -18936,6 +18948,7 @@ error MegaClient::readElements(JSON& j, map<handle, elementsmap_t>& elements)
         error e = readElement(j, el);
         if (e)
         {
+            j.leavearray();
             return e;
         }
         handle sid = el.set();
@@ -19026,6 +19039,7 @@ error MegaClient::readAllNodeMetadata(JSON& j, map<handle, SetElement::NodeMetad
         error e = readSingleNodeMetadata(j, eln);
         if (e)
         {
+            j.leavearray();
             return e;
         }
         nodes.emplace(eln.h, std::move(eln));
