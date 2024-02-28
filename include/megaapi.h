@@ -9688,16 +9688,16 @@ class MegaApi
             // ATTR_UNSHAREABLE_KEY = 26         // it's internal for SDK, not exposed to apps
             USER_ATTR_ALIAS = 27,                // private - byte array
             USER_ATTR_DEVICE_NAMES = 30,         // private - byte array
-            USER_ATTR_MY_BACKUPS_FOLDER = 31,    // protected - char array in B64
+            USER_ATTR_MY_BACKUPS_FOLDER = 31,    // protected - char array in B64 - non-versioned
             // USER_ATTR_BACKUP_NAMES = 32,      // (deprecated) private - byte array
-            USER_ATTR_COOKIE_SETTINGS = 33,      // private - byte array
+            USER_ATTR_COOKIE_SETTINGS = 33,      // private - byte array - non-versioned
             USER_ATTR_JSON_SYNC_CONFIG_DATA = 34,// private - byte array
             // USER_ATTR_DRIVE_NAMES = 35,       // (merged with USER_ATTR_DEVICE_NAMES and removed) private - byte array
             USER_ATTR_NO_CALLKIT = 36,           // private - byte array
             USER_ATTR_APPS_PREFS = 38,           // private - byte array - versioned
             USER_ATTR_CC_PREFS   = 39,           // private - byte array - versioned
-            USER_ATTR_VISIBLE_WELCOME_DIALOG = 40, // private - byte array - versioned
-            USER_ATTR_VISIBLE_TERMS_OF_SERVICE = 41, // private - byte array - versioned
+            USER_ATTR_VISIBLE_WELCOME_DIALOG = 40, // private - non-encrypted - byte array - non-versioned
+            USER_ATTR_VISIBLE_TERMS_OF_SERVICE = 41, // private - non-encrypted - byte array - non-versioned
             USER_ATTR_PWM_BASE = 42,             // private non-encrypted (fully controlled by API) - char array in B64
             USER_ATTR_ENABLE_TEST_NOTIFICATIONS = 43, // private - non-encrypted - char array - non-versioned
             USER_ATTR_LAST_READ_NOTIFICATION = 44, // private - non-encrypted - char array - non-versioned
@@ -22272,10 +22272,11 @@ class MegaApi
         /**
          * @brief Get Welcome dialog visibility.
          *
-         * The associated request type with this request is
-         * MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG.
+         * The type associated with this request is MegaRequest::TYPE_GET_ATTR_USER
          *
-         * Valid data in the MegaRequest object received on callbacks:
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG
          * - MegaRequest::getFlag - Returns the Welcome dialog visibility.
          *
          * If the corresponding user attribute is not set yet, the request will fail with the error
@@ -22288,8 +22289,11 @@ class MegaApi
         /**
          * @brief Set Welcome dialog visibility.
          *
-         * The associated request type with this request is
-         * MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG.
+         * The type associated with this request is MegaRequest::TYPE_SET_ATTR_USER
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG
          *
          * @param visible True to set the Welcome dialog visible, false otherwise.
          * @param listener MegaRequestListener to track this request.
@@ -22319,11 +22323,11 @@ class MegaApi
         /**
          * @brief Get Terms of Service for VPN visibility.
          *
-         * The associated request type with this request is
-         * MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE.
+         * The type associated with this request is MegaRequest::TYPE_GET_ATTR_USER
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE
          * - MegaRequest::getFlag - Returns Terms of Service for VPN visibility.
          *
          * If the corresponding user attribute is not set yet, the request will fail with the error
@@ -22336,8 +22340,10 @@ class MegaApi
         /**
          * @brief Set Terms of Service for VPN visibility.
          *
-         * The associated request type with this request is
-         * MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE.
+         * The type associated with this request is MegaRequest::TYPE_SET_ATTR_USER
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE
          *
          * @param visible True to set Terms of Service visibility on, false otherwise.
          * @param listener MegaRequestListener to track this request.
@@ -22357,6 +22363,7 @@ class MegaApi
          * @brief Enable test notifications
          *
          * The type associated with this request is MegaRequest::TYPE_SET_ATTR_USER
+         *
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_ENABLE_TEST_NOTIFICATIONS
          * - MegaRequest::getMegaIntegerList - Returns a list containing the notification IDs to be enabled
@@ -22388,6 +22395,7 @@ class MegaApi
          * @brief Set last read notification for Notification Center
          *
          * The type associated with this request is MegaRequest::TYPE_SET_ATTR_USER
+         *
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_LAST_READ_NOTIFICATION
          * - MegaRequest::getNumber - Returns the ID to be set as last read
@@ -22405,6 +22413,7 @@ class MegaApi
          * @brief Get last read notification for Notification Center
          *
          * The type associated with this request is MegaRequest::TYPE_GET_ATTR_USER
+         *
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_LAST_READ_NOTIFICATION
          *
@@ -22421,6 +22430,7 @@ class MegaApi
          * @brief Set last actioned banner for Notification Center
          *
          * The type associated with this request is MegaRequest::TYPE_SET_ATTR_USER
+         *
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_LAST_ACTIONED_BANNER
          * - MegaRequest::getNumber - Returns the ID to be set as last actioned banner
@@ -22435,6 +22445,7 @@ class MegaApi
          * @brief Get last actioned banner for Notification Center
          *
          * The type associated with this request is MegaRequest::TYPE_GET_ATTR_USER
+         *
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_LAST_ACTIONED_BANNER
          *
