@@ -20398,7 +20398,8 @@ bool KeyManager::fromKeysContainer(const string &data)
     }
 
     // validate received data and update local values
-    if (success && isValidKeysContainer(km))
+    if (success) success = isValidKeysContainer(km);
+    if (success)
     {
         updateValues(km);
     }
@@ -21177,15 +21178,19 @@ void KeyManager::tryCommit(Error e, std::function<void ()> completion)
         else if (e == API_EARGS) LOG_debug << "[keymgr] Commit aborted, keys too large?" << tmp;
         else LOG_debug << "[keymgr] Commit aborted (downgrade attack)" << tmp;
 
+        if (e == API_OK)    // only assume ^!keys was updated if it actually was updated
         {
-            if (activeCommit.second)
+            for (auto &activeCommit : activeQueue)
             {
-                activeCommit.second(); // Run update completion callback
+                if (activeCommit.second)
+                {
+                    activeCommit.second(); // Run update completion callback
+                }
             }
         }
         activeQueue = {};
 
-        completion();
+        completion();   // -> nextCommit() or log "No more updates in the queue"
         return;
     }
 
