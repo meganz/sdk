@@ -1485,6 +1485,8 @@ public:
 
 } // detail
 
+static constexpr size_t MAX_USER_NODE_ATTRIBUTE_SIZE = 16 * 1024;
+
 using detail::CheckableMutex;
 
 // For convenience.

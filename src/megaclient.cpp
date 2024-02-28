@@ -12026,6 +12026,14 @@ void MegaClient::putua(attr_t at, const byte* av, unsigned avl, int ctag, handle
         return;
     }
 
+    if (avl >= MAX_USER_NODE_ATTRIBUTE_SIZE)
+    {
+        sendevent(99483, "User attribute exceeds maximum size");
+        LOG_err << "User attribute exceeds maximum size: " << User::attr2string(at);
+        restag = tag;
+        return completion(API_EARGS);
+    }
+
     if (!needversion)
     {
         reqs.add(new CommandPutUA(this, at, av, avl, tag, lastPublicHandle, phtype, ts, std::move(completion)));
@@ -12059,6 +12067,18 @@ void MegaClient::putua(userattr_map *attrs, int ctag, std::function<void (Error)
     {
         restag = tag;
         return completion(API_EARGS);
+    }
+
+    for (const auto& attr : *attrs)
+    {
+        if (attr.second.size() >= MAX_USER_NODE_ATTRIBUTE_SIZE)
+        {
+            sendevent(99483, "User attribute exceeds maximum size");
+            LOG_err << "User attribute exceeds maximum size: " << User::attr2string(attr.first);
+            restag = tag;
+            completion(API_EARGS);
+            return;
+        }
     }
 
     for (userattr_map::iterator it = attrs->begin(); it != attrs->end(); it++)
