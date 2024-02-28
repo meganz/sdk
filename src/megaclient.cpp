@@ -21169,13 +21169,14 @@ void KeyManager::nextCommit()
 
 void KeyManager::tryCommit(Error e, std::function<void ()> completion)
 {
-    if (!e || mDowngradeAttack)
+    if (!e || mDowngradeAttack || e == API_EARGS)
     {
-        LOG_debug << (!e
-                     ? "[keymgr] Commit completed"
-                     : "[keymgr] Commit aborted (downgrade attack)")
-                  << " with " << activeQueue.size() << " updates";
-        for (auto &activeCommit : activeQueue)
+        const std::string tmp(" with " + std::to_string(activeQueue.size()) + " updates");
+
+        if (e == API_OK) LOG_debug << "[keymgr] Commit completed" << tmp;
+        else if (e == API_EARGS) LOG_debug << "[keymgr] Commit aborted, keys too large?" << tmp;
+        else LOG_debug << "[keymgr] Commit aborted (downgrade attack)" << tmp;
+
         {
             if (activeCommit.second)
             {
@@ -21190,6 +21191,7 @@ void KeyManager::tryCommit(Error e, std::function<void ()> completion)
 
     LOG_debug << "[keymgr] " << (e == API_EINCOMPLETE ? "Starting" : "Retrying")
               << " commit with " << activeQueue.size() << " updates";
+
     for (auto &activeCommit : activeQueue)
     {
         if (activeCommit.first)
@@ -21235,7 +21237,7 @@ void KeyManager::updateAttribute(std::function<void (Error)> completion)
         [completion](error err)
         {
             LOG_err << "[keymgr] Error getting the value of ^!keys (" << err << ")";
-            completion(API_EEXPIRED);
+            completion(err);
         },
         [completion](byte*, unsigned, attr_t)
         {
