@@ -1223,6 +1223,12 @@ using namespace mega;
     return enabledNotifications != nil ? [[MEGAIntegerList alloc] initWithMegaIntegerList:enabledNotifications cMemoryOwn:YES] : nil;
 }
 
+- (void)getNotificationsWithDelegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->getNotifications([self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
 #pragma mark - Filesystem changes Requests
 
 - (void)createFolderWithName:(NSString *)name parent:(MEGANode *)parent delegate:(id<MEGARequestDelegate>)delegate {
