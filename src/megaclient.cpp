@@ -8461,6 +8461,21 @@ error MegaClient::setattr(std::shared_ptr<Node> n, attr_map&& updates, CommandSe
         return API_EACCESS;
     }
 
+    if (SymmCipher* cipher = n->nodecipher())
+    {
+        std::string at;
+        AttrMap attributeMap;
+        attributeMap.map = updates;
+        attributeMap.getjson(&at);
+        makeattr(cipher, &at, at.c_str(), int(at.size()));
+        if (at.size() > MAX_USER_NODE_ATTRIBUTE_SIZE)
+        {
+            sendevent(99484, "Node attribute exceed maximun size");
+            LOG_err << "Node attribute exceed maximun size";
+            return API_EARGS;
+        }
+    }
+
     // Check and delete invalid fav attributes
     if (n->firstancestor()->getShareType() == ShareType_t::IN_SHARES) // Avoid an inshare to be tagged as favourite by the sharee
     {
