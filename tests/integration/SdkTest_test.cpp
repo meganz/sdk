@@ -1334,6 +1334,21 @@ void SdkTest::getAccountsForTest(unsigned howMany, bool fetchNodes)
 
     if (fetchNodes) fetchNodesForAccounts(howMany);
 
+    for (unsigned index = 0; index < howMany; ++index)
+    {
+        auto rt = ::mega::make_unique<RequestTracker>(megaApi[index].get());
+        megaApi[index]->getUserAttribute(37 /*ATTR_KEYS*/, rt.get());
+        rt->waitForResult();
+        std::string b64Value{rt->request->getText()};
+        std::string binValue = Base64::atob(b64Value);
+        if (binValue.size() > MAX_USER_NODE_ATTRIBUTE_SIZE - 512) // limit almost exceeded, tests will start failing soon
+        {
+            out() << "Account " << megaApi[index]->getMyEmail() << " has a ^!keys of " << binValue.size() << " bytes";
+            out() << "Please, DevOps, park this account";
+            ASSERT_FALSE(true);
+        }
+    }
+
     // In case the last test exited without cleaning up (eg, debugging etc)
     Cleanup();
     out() << "Test setup done, test starts";
