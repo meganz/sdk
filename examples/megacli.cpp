@@ -12062,7 +12062,7 @@ void exec_passwordmanager(autocomplete::ACState& s)
     }
     else if (command == "newentry")
     {
-        if (!moreParamsThan(5)) return;
+        if (!moreParamsThan(4)) return;
 
         auto ph = getNodeHandleFromParam(2);
         auto nParent = client->nodeByHandle(ph);
