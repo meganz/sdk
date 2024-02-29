@@ -8,11 +8,9 @@ add_compile_definitions(
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-if (WIN32)
-    if (MSVC)
-        # https://gitlab.kitware.com/cmake/cmake/-/issues/18837
-        add_compile_options(/Zc:__cplusplus) # Enable updated __cplusplus macro
-    endif()
+if (MSVC)
+    # https://gitlab.kitware.com/cmake/cmake/-/issues/18837
+    add_compile_options(/Zc:__cplusplus) # Enable updated __cplusplus macro
 
     # Enable build with multiple processes.
     add_compile_options(/MP)
