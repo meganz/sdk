@@ -1,5 +1,5 @@
 #include "processor.h"
-#include "server_win32.h"
+#include "win32/server.h"
 #include "logger.h"
 
 #include "mega.h"

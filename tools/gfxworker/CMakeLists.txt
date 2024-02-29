@@ -1,11 +1,11 @@
 add_library(libgfxworker
     STATIC
     src/logger.h
-    src/server_win32.h
+    src/win32/server.h
     src/processor.h
     src/thread_pool.h
     src/logger.cpp
-    src/server_win32.cpp
+    src/win32/server.cpp
     src/processor.cpp
     src/thread_pool.cpp
 )

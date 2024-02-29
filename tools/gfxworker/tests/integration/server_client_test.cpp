@@ -1,6 +1,6 @@
 #include "executable_dir.h"
 
-#include "server_win32.h"
+#include "win32/server.h"
 #include "processor.h"
 
 #include "mega/gfx.h"
