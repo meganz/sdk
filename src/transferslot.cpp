@@ -71,6 +71,8 @@ const dstime TransferSlot::PROGRESSTIMEOUT = 10;
 const m_off_t TransferSlot::MAX_REQ_SIZE_NEW_RAID = 2 * 1024 * 1024; // 2 MB for each raidpart
 #define NUM_CONNECTIONS_NEW_RAID 4 // Used as a temp fix for tests -until we have a way to change the value on megaCmd-
 
+const m_off_t TransferSlot::MIN_FILESIZE_FOR_NEWRAID = 15 * 1024 * 1024; // 15 MB
+const m_off_t TransferSlot::MIN_FILESIZE_FOR_MULTIPLE_CONNECTIONS = 131072 + 1; // 128 KB + 1 -> legacy value
 const m_off_t TransferSlot::MAX_GAP_SIZE = 256 * 1024 * 1024; // 256 MB
 
 TransferSlot::TransferSlot(Transfer* ctransfer)
@@ -148,8 +150,8 @@ bool TransferSlot::createconnectionsonce()
             return false;   // too soon, we don't know raid / non-raid yet
         }
 
-        connections = transferbuf.isRaid() ? RAIDPARTS : transfer->size > 131072 ? transfer->client->connections[transfer->type] : 1;
-        if (transfer->size > 131072 && transferbuf.isNewRaid())
+        connections = transferbuf.isRaid() ? RAIDPARTS : transfer->size >= MIN_FILESIZE_FOR_MULTIPLE_CONNECTIONS ? transfer->client->connections[transfer->type] : 1;
+        if (transfer->size >= MIN_FILESIZE_FOR_MULTIPLE_CONNECTIONS && transferbuf.isNewRaid())
         {
             // Need this until there is a way to change it on megaCMD
             connections = NUM_CONNECTIONS_NEW_RAID;

@@ -72,6 +72,12 @@ struct MEGA_API TransferSlot
     // max request size per raid part for each connection
     static const m_off_t MAX_REQ_SIZE_NEW_RAID;
 
+    // min file size to use new raid engine
+    static const m_off_t MIN_FILESIZE_FOR_NEWRAID;
+
+    // min file size for multiple connections in transfer slot
+    static const m_off_t MIN_FILESIZE_FOR_MULTIPLE_CONNECTIONS;
+
     // maximum gap between chunks for uploads
     static const m_off_t MAX_GAP_SIZE;
 

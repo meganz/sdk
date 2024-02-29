@@ -13,7 +13,7 @@ namespace mega {
 
 namespace RaidProxy {
 
-#define NUMLINES 16384                                        // number of lines for the RaidReq::data array
+#define MAX_NUMLINES 4096                                     // max number of lines for the RaidReq::data array
 #define MAXRETRIES 10                                         // max number of consecutive errors for a failing part
 #define LAGINTERVAL 256                                       // number of readdata() requests until the next interval check is conducted
 #define MAX_ERRORS_FOR_IDLE_GOOD_SOURCE 3                     // Error tolerance to consider a source as a candidate to be switched with a hanging source
@@ -80,7 +80,7 @@ class PartFetcher
     map<m_off_t, pair<byte*, unsigned>> mReadahead;           // read-ahead data
 
     void setposrem();                                         // sets the next read position (pos) and the remaining read length (rem/remfeed)
-    bool setremfeed(m_off_t = NUMLINES * RAIDSECTOR);         // sets the remfeed depending on the number of bytes param and the remaining (rem) part data
+    bool setremfeed(m_off_t);                                 // sets the remfeed depending on the number of bytes param and the remaining (rem) part data
     int onFailure();                                          // Handle request failures
     m_off_t getSocketSpeed() const;                           // Get part throughput in bytes per millisec
 
@@ -110,14 +110,14 @@ class RaidReq
     static constexpr raidTime LASTDATA_DSTIME_FOR_REPORTING_FEED_STUCK_WITH_NO_HANGING_SOURCES = 3000;
     static constexpr raidTime LASTDATA_DSTIME_FOR_TIMEOUT_WITH_NO_HANGING_SOURCES = 6000;
 
-    static constexpr size_t DATA_SIZE = NUMLINES * RAIDLINE;
-    static constexpr size_t PARITY_SIZE = NUMLINES * RAIDSECTOR;
-
     RaidReqPool& mPool;
     std::shared_ptr<CloudRaid> mCloudRaid;                    // CloudRaid controller
     std::vector<HttpReqPtr> mHttpReqs;                        // Download HttpReqs
     std::array<PartFetcher, RAIDPARTS> mFetcher;
 
+    m_off_t mNumLines;                                        // dynamic NUMLINES for data and parity buffer sizes
+    size_t mDataSize;                                         // size of mData
+    size_t mParitySize;                                       // size of mParity
     std::array<m_off_t, RAIDPARTS> mPartpos{};                // incoming part positions relative to dataline
     std::array<unsigned, RAIDPARTS> mFeedlag{};               // accumulated remfeed at shiftata() to identify slow sources
     alignas(RAIDSECTOR) std::unique_ptr<byte[]> mData;        // always starts on a RAID line boundary
@@ -140,6 +140,7 @@ class RaidReq
     bool mFaultysourceadded{};                                // whether a failing or hanging source has been added to faulty servers storage
     uint8_t mUnusedRaidConnection;                            // Unused connection or bad source
 
+    void calculateNumLinesAndBufferSizes();                   // Calculate the number of lines (NUMLINES) depending on the file size, and use that value to calculate mData and mParity buffer sizes
     void shiftdata(m_off_t);                                  // shift already served data from the data array
     bool allconnected(uint8_t = RAIDPARTS) const;             // whether all sources are connected, optionally excluding a RAIDPART (default value 'RAIDPARTS' won't exclude any part)
     uint8_t numPartsUnfinished() const;                       // how many parts are unfinished, the unused part will always count as "unfinished"
