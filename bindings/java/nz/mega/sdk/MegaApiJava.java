@@ -12660,6 +12660,17 @@ public class MegaApiJava {
     }
 
     /**
+     * @brief Get the list of IDs for enabled notifications
+     *
+     * You take the ownership of the returned value
+     *
+     * @return List of IDs for enabled notifications
+     */
+    public MegaIntegerList getEnabledNotifications(){
+        return megaApi.getEnabledNotifications();
+    }
+
+    /**
      * Initiate an asynchronous request to receive stalled issues.
      *
      * Use MegaRequestListenerInterface to subscribe for result.
