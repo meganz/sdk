@@ -980,7 +980,7 @@ const char* CommandSetAttr::getJSON(MegaClient* client)
             generationError = API_EKEY;
         }
 
-        if (at.size() > MAX_USER_NODE_ATTRIBUTE_SIZE)
+        if (at.size() > MAX_NODE_ATTRIBUTE_SIZE)
         {
             client->sendevent(99484, "Node attribute exceed maximun size");
             LOG_err << "Node attribute exceed maximun size";

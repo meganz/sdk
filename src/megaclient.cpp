@@ -8468,7 +8468,7 @@ error MegaClient::setattr(std::shared_ptr<Node> n, attr_map&& updates, CommandSe
         attributeMap.map = updates;
         attributeMap.getjson(&at);
         makeattr(cipher, &at, at.c_str(), int(at.size()));
-        if (at.size() > MAX_USER_NODE_ATTRIBUTE_SIZE)
+        if (at.size() > MAX_NODE_ATTRIBUTE_SIZE)
         {
             sendevent(99484, "Node attribute exceed maximun size");
             LOG_err << "Node attribute exceed maximun size";
@@ -12041,7 +12041,7 @@ void MegaClient::putua(attr_t at, const byte* av, unsigned avl, int ctag, handle
         return;
     }
 
-    if (avl >= MAX_USER_NODE_ATTRIBUTE_SIZE)
+    if (avl >= User::getMaxAttributeSize(at))
     {
         sendevent(99483, "User attribute exceeds maximum size");
         LOG_err << "User attribute exceeds maximum size: " << User::attr2string(at);
@@ -12101,7 +12101,7 @@ void MegaClient::putua(userattr_map *attrs, int ctag, std::function<void (Error)
             return completion(API_EEXPIRED);
         }
 
-        if (it->second.size() >= MAX_USER_NODE_ATTRIBUTE_SIZE)
+        if (it->second.size() >= User::getMaxAttributeSize(type))
         {
             sendevent(99483, "User attribute exceeds maximum size");
             LOG_err << "User attribute exceeds maximum size: " << User::attr2string(it->first);
