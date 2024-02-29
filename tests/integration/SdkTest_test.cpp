@@ -11934,6 +11934,38 @@ TEST_F(SdkTest, SearchNodesByModificationTime)
     ASSERT_EQ(results->get(0)->getName(), fileName1);
     ASSERT_EQ(results->get(1)->getName(), fileName2);
 
+    // getChildren(), repeat last using pagination
+    unique_ptr<MegaSearchPage> p(MegaSearchPage::createInstance(0, 1));
+    results.reset(megaApi[0]->getChildren(f.get(), MegaApi::ORDER_DEFAULT_ASC, nullptr, p.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getName(), fileName1);
+
+    p.reset(MegaSearchPage::createInstance(0, 2));
+    results.reset(megaApi[0]->getChildren(f.get(), MegaApi::ORDER_DEFAULT_ASC, nullptr, p.get()));
+    ASSERT_EQ(results->size(), 2);
+    ASSERT_EQ(results->get(0)->getName(), fileName1);
+    ASSERT_EQ(results->get(1)->getName(), fileName2);
+
+    p.reset(MegaSearchPage::createInstance(0, 3));
+    results.reset(megaApi[0]->getChildren(f.get(), MegaApi::ORDER_DEFAULT_ASC, nullptr, p.get()));
+    ASSERT_EQ(results->size(), 2);
+    ASSERT_EQ(results->get(0)->getName(), fileName1);
+    ASSERT_EQ(results->get(1)->getName(), fileName2);
+
+    p.reset(MegaSearchPage::createInstance(1, 1));
+    results.reset(megaApi[0]->getChildren(f.get(), MegaApi::ORDER_DEFAULT_ASC, nullptr, p.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getName(), fileName2);
+
+    p.reset(MegaSearchPage::createInstance(1, 2));
+    results.reset(megaApi[0]->getChildren(f.get(), MegaApi::ORDER_DEFAULT_ASC, nullptr, p.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getName(), fileName2);
+
+    p.reset(MegaSearchPage::createInstance(2, 14));
+    results.reset(megaApi[0]->getChildren(f.get(), MegaApi::ORDER_DEFAULT_ASC, nullptr, p.get()));
+    ASSERT_EQ(results->size(), 0);
+
     // search()
     f->byLocationHandle(INVALID_HANDLE);
     f->byModificationTime(fileMTime1 - 100, fileMTimeR + 1);
@@ -11962,6 +11994,38 @@ TEST_F(SdkTest, SearchNodesByModificationTime)
     ASSERT_EQ(results->size(), 2);
     ASSERT_EQ(results->get(0)->getName(), fileName2);
     ASSERT_EQ(results->get(1)->getName(), fileNameAtRoot);
+
+    // search(), repeat last using pagination
+    p.reset(MegaSearchPage::createInstance(0, 1));
+    results.reset(megaApi[0]->search(f.get(), MegaApi::ORDER_DEFAULT_ASC, nullptr, p.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getName(), fileName2);
+
+    p.reset(MegaSearchPage::createInstance(0, 2));
+    results.reset(megaApi[0]->search(f.get(), MegaApi::ORDER_DEFAULT_ASC, nullptr, p.get()));
+    ASSERT_EQ(results->size(), 2);
+    ASSERT_EQ(results->get(0)->getName(), fileName2);
+    ASSERT_EQ(results->get(1)->getName(), fileNameAtRoot);
+
+    p.reset(MegaSearchPage::createInstance(0, 3));
+    results.reset(megaApi[0]->search(f.get(), MegaApi::ORDER_DEFAULT_ASC, nullptr, p.get()));
+    ASSERT_EQ(results->size(), 2);
+    ASSERT_EQ(results->get(0)->getName(), fileName2);
+    ASSERT_EQ(results->get(1)->getName(), fileNameAtRoot);
+
+    p.reset(MegaSearchPage::createInstance(1, 1));
+    results.reset(megaApi[0]->search(f.get(), MegaApi::ORDER_DEFAULT_ASC, nullptr, p.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getName(), fileNameAtRoot);
+
+    p.reset(MegaSearchPage::createInstance(1, 2));
+    results.reset(megaApi[0]->search(f.get(), MegaApi::ORDER_DEFAULT_ASC, nullptr, p.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getName(), fileNameAtRoot);
+
+    p.reset(MegaSearchPage::createInstance(2, 14));
+    results.reset(megaApi[0]->search(f.get(), MegaApi::ORDER_DEFAULT_ASC, nullptr, p.get()));
+    ASSERT_EQ(results->size(), 0);
 
     deleteFile(fileName1);
 }

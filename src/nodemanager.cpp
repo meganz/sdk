@@ -380,13 +380,13 @@ sharedNode_list NodeManager::getChildren_internal(const Node *parent, CancelToke
     return childrenList;
 }
 
-sharedNode_vector NodeManager::getChildren(const NodeSearchFilter& filter, int order, CancelToken cancelFlag)
+sharedNode_vector NodeManager::getChildren(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page)
 {
     LockGuard g(mMutex);
-    return getChildren_internal(filter, order, cancelFlag);
+    return getChildren_internal(filter, order, cancelFlag, page);
 }
 
-sharedNode_vector NodeManager::getChildren_internal(const NodeSearchFilter& filter, int order, CancelToken cancelFlag)
+sharedNode_vector NodeManager::getChildren_internal(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page)
 {
     assert(mMutex.owns_lock());
 
@@ -409,12 +409,12 @@ sharedNode_vector NodeManager::getChildren_internal(const NodeSearchFilter& filt
 
     // db look-up
     vector<pair<NodeHandle, NodeSerialized>> nodesFromTable;
-    if (!mTable->getChildren(filter, order, nodesFromTable, cancelFlag))
+    if (!mTable->getChildren(filter, order, nodesFromTable, cancelFlag, page))
     {
         return sharedNode_vector();
     }
 
-    sharedNode_vector nodes = processUnserializedNodes(nodesFromTable, filter, cancelFlag);
+    sharedNode_vector nodes = processUnserializedNodes(nodesFromTable, cancelFlag);
 
     return nodes;
 }
@@ -512,13 +512,13 @@ uint64_t NodeManager::getNodeCount_internal()
     return count;
 }
 
-sharedNode_vector NodeManager::searchNodes(const NodeSearchFilter& filter, int order, CancelToken cancelFlag)
+sharedNode_vector NodeManager::searchNodes(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page)
 {
     LockGuard g(mMutex);
-    return searchNodes_internal(filter, order, cancelFlag);
+    return searchNodes_internal(filter, order, cancelFlag, page);
 }
 
-sharedNode_vector NodeManager::searchNodes_internal(const NodeSearchFilter& filter, int order, CancelToken cancelFlag)
+sharedNode_vector NodeManager::searchNodes_internal(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page)
 {
     assert(mMutex.owns_lock());
 
@@ -531,7 +531,7 @@ sharedNode_vector NodeManager::searchNodes_internal(const NodeSearchFilter& filt
 
     // small optimization to possibly skip the db look-up
     const vector<handle>& ancestors = filter.byAncestorHandles();
-    if (filter.bySensitivity() &&
+    if (filter.bySensitivity() && filter.includedShares() == NO_SHARES &&
         std::all_of(ancestors.begin(), ancestors.end(), [this](handle a)
         {
             shared_ptr<Node> node = getNodeByHandle_internal(NodeHandle().set6byte(a));
@@ -543,15 +543,12 @@ sharedNode_vector NodeManager::searchNodes_internal(const NodeSearchFilter& filt
 
     // db look-up
     vector<pair<NodeHandle, NodeSerialized>> nodesFromTable;
-    bool searched = (filter.byShareType() == NO_SHARES) ?
-                    mTable->searchNodes(filter, order, nodesFromTable, cancelFlag) :
-                    mTable->searchNodeShares(filter, order, nodesFromTable, cancelFlag);
-    if (!searched)
+    if (!mTable->searchNodes(filter, order, nodesFromTable, cancelFlag, page))
     {
         return sharedNode_vector();
     }
 
-    sharedNode_vector nodes = processUnserializedNodes(nodesFromTable, filter, cancelFlag);
+    sharedNode_vector nodes = processUnserializedNodes(nodesFromTable, cancelFlag);
 
     return nodes;
 }
@@ -2048,7 +2045,7 @@ sharedNode_vector NodeManager::getRootNodesAndInshares()
     return rootnodes;
 }
 
-sharedNode_vector NodeManager::processUnserializedNodes(const vector<pair<NodeHandle, NodeSerialized>>& nodesFromTable, const NodeSearchFilter& filter, CancelToken cancelFlag)
+sharedNode_vector NodeManager::processUnserializedNodes(const vector<pair<NodeHandle, NodeSerialized>>& nodesFromTable, CancelToken cancelFlag)
 {
     assert(mMutex.owns_lock());
 

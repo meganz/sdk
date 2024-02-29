@@ -4244,9 +4244,9 @@ char *MegaApi::base32ToBase64(const char *base32)
     return result;
 }
 
-MegaNodeList* MegaApi::search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
+MegaNodeList* MegaApi::search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken, const MegaSearchPage* searchPage)
 {
-    return pImpl->search(filter, order, convertToCancelToken(cancelToken));
+    return pImpl->search(filter, order, convertToCancelToken(cancelToken), searchPage);
 }
 
 MegaNodeList* MegaApi::search(MegaNode* n, const char* searchString, bool recursive, int order)
@@ -4449,9 +4449,9 @@ int MegaApi::getNumChildFolders(MegaNode* parent)
 	return pImpl->getNumChildFolders(parent);
 }
 
-MegaNodeList *MegaApi::getChildren(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
+MegaNodeList *MegaApi::getChildren(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken, const MegaSearchPage* searchPage)
 {
-    return pImpl->getChildren(filter, order, convertToCancelToken(cancelToken));
+    return pImpl->getChildren(filter, order, convertToCancelToken(cancelToken), searchPage);
 }
 
 MegaNodeList *MegaApi::getChildren(MegaNode* p, int order, MegaCancelToken* cancelToken)
@@ -6845,6 +6845,34 @@ int64_t MegaSearchFilter::byModificationTimeLowerLimit() const
 int64_t MegaSearchFilter::byModificationTimeUpperLimit() const
 {
     return 0;
+}
+
+MegaSearchPage::MegaSearchPage()
+{
+}
+
+MegaSearchPage* MegaSearchPage::createInstance(size_t startingOffset, size_t size)
+{
+    return new MegaSearchPagePrivate(startingOffset, size);
+}
+
+MegaSearchPage* MegaSearchPage::copy() const
+{
+    return nullptr;
+}
+
+MegaSearchPage::~MegaSearchPage()
+{
+}
+
+size_t MegaSearchPage::startingOffset() const
+{
+    return 0u;
+}
+
+size_t MegaSearchPage::size() const
+{
+    return 0u;
 }
 
 MegaApiLock::MegaApiLock(MegaApiImpl* ptr, bool lock) : api(ptr)

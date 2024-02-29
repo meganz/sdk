@@ -12173,7 +12173,7 @@ char* strcasestr(const char* string, const char* substring)
 
 #endif
 
-MegaNodeList* MegaApiImpl::search(const MegaSearchFilter* filter, int order, CancelToken cancelToken)
+MegaNodeList* MegaApiImpl::search(const MegaSearchFilter* filter, int order, CancelToken cancelToken, const MegaSearchPage* searchPage)
 {
     // guard against unsupported or removed order criteria
     assert((MegaApi::ORDER_NONE <= order && order <= MegaApi::ORDER_MODIFICATION_DESC) ||
@@ -12198,7 +12198,7 @@ MegaNodeList* MegaApiImpl::search(const MegaSearchFilter* filter, int order, Can
         case MegaApi::SEARCH_TARGET_INSHARE:
         case MegaApi::SEARCH_TARGET_OUTSHARE:
         case MegaApi::SEARCH_TARGET_PUBLICLINK:
-            searchResults = searchInNodeManager(filter, order, cancelToken);
+            searchResults = searchInNodeManager(filter, order, cancelToken, searchPage);
             break;
         default:
             LOG_err << "Search not implemented for Location " << filter->byLocation();
@@ -12210,7 +12210,7 @@ MegaNodeList* MegaApiImpl::search(const MegaSearchFilter* filter, int order, Can
     return nodeList;
 }
 
-sharedNode_vector MegaApiImpl::searchInNodeManager(const MegaSearchFilter* filter, int order, CancelToken cancelToken)
+sharedNode_vector MegaApiImpl::searchInNodeManager(const MegaSearchFilter* filter, int order, CancelToken cancelToken, const MegaSearchPage* searchPage)
 {
     ShareType_t shareType = filter->byLocation() == MegaApi::SEARCH_TARGET_INSHARE ? IN_SHARES :
                             (filter->byLocation() == MegaApi::SEARCH_TARGET_OUTSHARE ? OUT_SHARES :
@@ -12218,12 +12218,24 @@ sharedNode_vector MegaApiImpl::searchInNodeManager(const MegaSearchFilter* filte
     NodeSearchFilter nf;
     nf.copyFrom(*filter, shareType);
 
-    if (filter->byLocation() == MegaApi::SEARCH_TARGET_ROOTNODE) // search under Cloud root and Vault
+    if (filter->byLocation() == MegaApi::SEARCH_TARGET_ROOTNODE)
     {
-        nf.byAncestors({client->mNodeManager.getRootNodeFiles().as8byte(), client->mNodeManager.getRootNodeVault().as8byte()});
+        // search under Cloud root and Vault
+        nf.byAncestors({ client->mNodeManager.getRootNodeFiles().as8byte(),
+                         client->mNodeManager.getRootNodeVault().as8byte(),
+                         UNDEF });
+    }
+    else if (filter->byLocation() == MegaApi::SEARCH_TARGET_ALL && filter->byLocationHandle() == INVALID_HANDLE)
+    {
+        // search under Cloud root, Vault, Rubbish and among in-shares
+        nf.byAncestors({ client->mNodeManager.getRootNodeFiles().as8byte(),
+                         client->mNodeManager.getRootNodeVault().as8byte(),
+                         client->mNodeManager.getRootNodeRubbish().as8byte() });
+        nf.setIncludedShares(IN_SHARES);
     }
 
-    sharedNode_vector results = client->mNodeManager.searchNodes(nf, order, cancelToken);
+    const NodeSearchPage& np = searchPage ? NodeSearchPage(searchPage->startingOffset(), searchPage->size()) : NodeSearchPage(0, 0);
+    sharedNode_vector results = client->mNodeManager.searchNodes(nf, order, cancelToken, np);
     return results;
 }
 
@@ -17868,7 +17880,7 @@ int MegaApiImpl::getNumChildFolders(MegaNode* p)
 }
 
 
-MegaNodeList *MegaApiImpl::getChildren(const MegaSearchFilter* filter, int order, CancelToken cancelToken)
+MegaNodeList *MegaApiImpl::getChildren(const MegaSearchFilter* filter, int order, CancelToken cancelToken, const MegaSearchPage* searchPage)
 {
     // guard against unsupported or removed order criteria
     assert((MegaApi::ORDER_NONE <= order && order <= MegaApi::ORDER_MODIFICATION_DESC) ||
@@ -17884,7 +17896,8 @@ MegaNodeList *MegaApiImpl::getChildren(const MegaSearchFilter* filter, int order
 
     NodeSearchFilter nf;
     nf.copyFrom(*filter);
-    sharedNode_vector results = client->mNodeManager.getChildren(nf, order, cancelToken);
+    const NodeSearchPage& np = searchPage ? NodeSearchPage(searchPage->startingOffset(), searchPage->size()) : NodeSearchPage(0u, 0u);
+    sharedNode_vector results = client->mNodeManager.getChildren(nf, order, cancelToken, np);
 
     return new MegaNodeListPrivate(results);
 }
