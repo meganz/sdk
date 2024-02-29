@@ -59,6 +59,7 @@
 #import "MEGASearchFilter.h"
 #import "MEGASearchFilterTimeFrame.h"
 #import "PasswordNodeData.h"
+#import "MEGANotification.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -2695,6 +2696,24 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * @return List of IDs for enabled notifications
  */
 - (nullable MEGAIntegerList *)getEnabledNotifications;
+
+/**
+ * @brief Get list of available notifications for Notification Center
+ *
+ * The associated request type with this request is MEGARequestTypeGetNotifications
+ *
+ * When onRequestFinish received MEGAErrorTypeApiOk, valid data in the MegaRequest object is:
+ * - [MegaRequest megaNotifications] - Returns the list of notifications
+ *
+ * When onRequestFinish errored, the error code associated to the MegaError can be:
+ * - MEGAErrorTypeApiENoent - No such notifications exist, and MegaRequest::getMegaNotifications
+ *   will return a non-null, empty list.
+ * - MEGAErrorTypeApiEAccess - No user was logged in.
+ * - MEGAErrorTypeApiEInternal - Received answer could not be read.
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getNotificationsWithDelegate:(id<MEGARequestDelegate>)delegate;
 
 #pragma mark - Filesystem changes Requests
 
