@@ -19923,18 +19923,10 @@ error MegaApiImpl::copyTreeFromOwnedNode(shared_ptr<Node> node, const char* newN
     // determine handling of older versions
     NodeHandle ovhandle;
     bool fileAlreadyExisted = false;
-    if (target && node->type == FILENODE)
+    if (std::shared_ptr<Node> ovn = (node->type == FILENODE) ? client->getovnode(target.get(), &sname) : nullptr)
     {
-        std::shared_ptr<Node> ovn = client->childnodebyname(target.get(), sname.c_str(), true);
-        if (ovn)
-        {
-            if (node->isvalid && ovn->isvalid && *(FileFingerprint*)node.get() == *(FileFingerprint*)ovn.get())
-            {
-                fileAlreadyExisted = true;
-            }
-
-            ovhandle = ovn->nodeHandle();
-        }
+        ovhandle = ovn->nodeHandle();
+        fileAlreadyExisted = node->isvalid && ovn->isvalid && node->EqualExceptValidFlag(*ovn);
     }
 
     // determine number of nodes to be copied
@@ -26402,8 +26394,9 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
             return API_EARGS;
         }
 
-        NodeHandle parentNodeHandle;
-        parentNodeHandle.set6byte(request->getParentHandle());
+        // Check for old versions when copying directly to parentNode
+        // (not to a newly created intermediary folder).
+        shared_ptr<Node> ovLocation{ nodeTree->getNodeTreeChild() ? nullptr : client->nodebyhandle(request->getParentHandle()) };
 
         std::vector<NewNode> newNodes;
 
@@ -26414,7 +26407,8 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
         {
             if ((tmpNodeTree->getNodeTreeChild() && tmpNodeTree->getCompleteUploadData()) ||
                 (tmpNodeTree->getNodeTreeChild() && tmpNodeTree->getSourceHandle() != INVALID_HANDLE) ||
-                (tmpNodeTree->getCompleteUploadData() && tmpNodeTree->getSourceHandle() != INVALID_HANDLE))
+                (tmpNodeTree->getCompleteUploadData() && tmpNodeTree->getSourceHandle() != INVALID_HANDLE) ||
+                tmpNodeTree->getName().empty() )
             {
                 LOG_err << "Failed to create node tree: Invalid arguments";
                 return API_EARGS;
@@ -26430,14 +26424,19 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
                     return API_EARGS;
                 }
 
-                // Ignore old versions. (Should this ever change, check for old versions only when
-                // the target is parentNode, not one of the newly created folders).
-                shared_ptr<Node> target;
-
                 vector<NewNode> treeToCopy;
-                error err = copyTreeFromOwnedNode(source, tmpNodeTree->getName().c_str(), target, treeToCopy);
+                error err = copyTreeFromOwnedNode(source, tmpNodeTree->getName().c_str(), ovLocation, treeToCopy);
                 if (err != API_OK)
                 {
+                    if (err == API_EEXIST) // dedicated error code when that exact same file already existed
+                    {
+                        assert(!treeToCopy.empty()); // never empty because other error should have been reported in that case
+                        tmpNodeTree->setNodeHandle(treeToCopy[0].ovhandle.as8byte());
+                        request->setNodeHandle(tmpNodeTree->getNodeHandle());
+                        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+                        return API_OK;
+                    }
+
                     return err;
                 }
 
@@ -26460,9 +26459,28 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
                 newNode.fileattributes.reset(new string);
                 tmpParentNodeHandle = newNode.nodehandle;
 
+                // Normalize name
+                std::string name{ tmpNodeTree->getName() };
+                LocalPath::utf8_normalize(&name);
+
                 // Set node key
                 if (completeUploadData)
                 {
+                    // determine handling of older versions
+                    if (std::shared_ptr<Node> ovn = ovLocation ? client->getovnode(ovLocation.get(), &name) : nullptr)
+                    {
+                        auto ovfp = ovn->attrs.map.find('c');
+                        if (ovfp != ovn->attrs.map.end() && ovfp->second == completeUploadData->getFingerprint())
+                        {
+                            tmpNodeTree->setNodeHandle(ovn->nodeHandle().as8byte());
+                            request->setNodeHandle(tmpNodeTree->getNodeHandle());
+                            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+                            return API_OK;
+                        }
+
+                        newNode.ovhandle = ovn->nodeHandle();
+                    }
+
                     byte* nodeKey;
                     size_t nodeKeyLength{ FILENODEKEYLENGTH };
                     base64ToBinary(completeUploadData->getString64FileKey().c_str(),
@@ -26483,12 +26501,6 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
                 }
 
                 // Set name
-                std::string name{ tmpNodeTree->getName() };
-                if (name.empty())
-                {
-                    return API_EARGS;
-                }
-                LocalPath::utf8_normalize(&name);
                 AttrMap attributes;
                 attributes.map['n'] = name;
 
@@ -26550,8 +26562,8 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(error));
             }};
 
-        client->putnodes(parentNodeHandle,
-                         NoVersioning,
+        client->putnodes(NodeHandle().set6byte(request->getParentHandle()),
+                         UseLocalVersioningFlag,
                          std::move(newNodes),
                          nullptr,
                          request->getTag(),

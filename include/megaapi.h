@@ -9579,10 +9579,10 @@ protected:
 
 public:
     virtual ~MegaNodeTree() = default;
-    static MegaNodeTree* createInstance(MegaNodeTree* nodeTreeChild,
-                                        const char* name,
-                                        const char* s4AttributeValue,
-                                        const MegaCompleteUploadData* completeUploadData,
+    static MegaNodeTree* createInstance(MegaNodeTree* nodeTreeChild,                      // takes ownership !
+                                        const char* name,                                 // ownership left with the caller
+                                        const char* s4AttributeValue,                     // ownership left with the caller
+                                        const MegaCompleteUploadData* completeUploadData, // takes ownership !
                                         MegaHandle sourceHandle = INVALID_HANDLE);
     virtual MegaNodeTree* getNodeTreeChild() const = 0;
     virtual MegaHandle getNodeHandle() const = 0;

@@ -17021,6 +17021,271 @@ TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectoriesAndOneFileAtTheEnd)
 }
 
 /**
+ * @brief Create node tree version using identical upload data.
+ *
+ * The handle of the existing file should be returned, and no new version should be added.
+ */
+TEST_F(SdkTest, CreateNodeTreeVersionUsingIdenticalUploadData)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const unsigned apiIndex = 0;
+
+    // Prepare the file to upload
+    createFile(PUBLICFILE.c_str(), false);
+    const int64_t fileSize = getFilesize(PUBLICFILE);
+    string encryptedFile = PUBLICFILE + "_encr";
+    std::string fingerprint;
+    std::string string64UploadToken;
+    std::string string64FileKey;
+
+    // Upload file, incomplete
+    ASSERT_NO_FATAL_FAILURE(synchronousMediaUploadIncomplete(apiIndex,
+                                                             fileSize,
+                                                             PUBLICFILE.c_str(),
+                                                             encryptedFile.c_str(),
+                                                             fingerprint,
+                                                             string64UploadToken,
+                                                             string64FileKey));
+
+    // Prepare destination
+    std::unique_ptr<MegaNode> parentNode{ megaApi[apiIndex]->getRootNode() };
+    ASSERT_THAT(parentNode, ::testing::NotNull());
+
+    // Create node tree from uploaded data
+    const MegaCompleteUploadData* uploadData =
+        MegaCompleteUploadData::createInstance(fingerprint.c_str(),
+                                               string64UploadToken.c_str(),
+                                               string64FileKey.c_str());
+    std::unique_ptr<MegaNodeTree> fileTreeFromData {
+        MegaNodeTree::createInstance(nullptr, PUBLICFILE.c_str(), nullptr, uploadData) };
+    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, parentNode.get(), fileTreeFromData.get()));
+    ASSERT_NE(fileTreeFromData->getNodeHandle(), INVALID_HANDLE);
+
+    // Ensure there's only 1 version
+    std::unique_ptr<MegaNode> fileNode{ megaApi[apiIndex]->getNodeByHandle(fileTreeFromData->getNodeHandle()) };
+    ASSERT_THAT(fileNode, ::testing::NotNull());
+    std::unique_ptr<MegaNodeList> allVersions{ megaApi[apiIndex]->getVersions(fileNode.get()) };
+    ASSERT_THAT(allVersions, ::testing::NotNull());
+    ASSERT_EQ(allVersions->size(), 1);
+
+    // Attempt to create another node tree from the same data
+    const MegaCompleteUploadData* uploadData2 =
+        MegaCompleteUploadData::createInstance(fingerprint.c_str(),
+                                               string64UploadToken.c_str(),
+                                               string64FileKey.c_str());
+    std::unique_ptr<MegaNodeTree> fileTreeFromData2 {
+        MegaNodeTree::createInstance(nullptr, PUBLICFILE.c_str(), nullptr, uploadData2) };
+    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, parentNode.get(), fileTreeFromData2.get()));
+
+    // Confirm there's still only 1 version
+    std::unique_ptr<MegaNode> fileNode2{ megaApi[apiIndex]->getNodeByHandle(fileTreeFromData2->getNodeHandle()) };
+    ASSERT_THAT(fileNode2, ::testing::NotNull());
+    std::unique_ptr<MegaNodeList> allVersions2{ megaApi[apiIndex]->getVersions(fileNode2.get()) };
+    ASSERT_THAT(allVersions2, ::testing::NotNull());
+    ASSERT_EQ(allVersions2->size(), 1);
+    ASSERT_EQ(fileTreeFromData2->getNodeHandle(), fileTreeFromData->getNodeHandle());
+}
+
+/**
+ * @brief Create node tree version using identical source file.
+ *
+ * The handle of the existing file should be returned, and no new version should be added.
+ */
+TEST_F(SdkTest, CreateNodeTreeVersionUsingIdenticalSourceFile)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const unsigned apiIndex = 0;
+
+    // File upload
+    std::unique_ptr<MegaNode> rootNode{ megaApi[apiIndex]->getRootNode() };
+    ASSERT_TRUE(createFile(UPFILE, false)) << "Couldn't create " << UPFILE;
+
+    MegaHandle upHandle = INVALID_HANDLE;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &upHandle, UPFILE.c_str(),
+        rootNode.get(),
+        nullptr /*fileName*/,
+        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+        nullptr /*appData*/,
+        false   /*isSourceTemporary*/,
+        false   /*startFirst*/,
+        nullptr /*cancelToken*/)) << "Cannot upload " << UPFILE;
+    ASSERT_NE(upHandle, INVALID_HANDLE);
+
+    // Ensure there's only 1 version
+    std::unique_ptr<MegaNode> upNode(megaApi[0]->getNodeByHandle(upHandle));
+    ASSERT_THAT(upNode, ::testing::NotNull());
+    std::unique_ptr<MegaNodeList> allVersions{ megaApi[apiIndex]->getVersions(upNode.get()) };
+    ASSERT_THAT(allVersions, ::testing::NotNull());
+    ASSERT_EQ(allVersions->size(), 1);
+
+    // Make a copy of the file
+    string fileCopy = UPFILE + "_copy";
+    RequestTracker nodeCopyTracker(megaApi[apiIndex].get());
+    megaApi[apiIndex]->copyNode(upNode.get(), rootNode.get(), fileCopy.c_str(), &nodeCopyTracker);
+    ASSERT_EQ(API_OK, nodeCopyTracker.waitForResult());
+    ASSERT_NE(nodeCopyTracker.getNodeHandle(), INVALID_HANDLE);
+    std::unique_ptr<MegaNode> upNodeCopy(megaApi[0]->getNodeByHandle(nodeCopyTracker.getNodeHandle()));
+
+    // Create a new version of the initial file using its copy as source
+    std::unique_ptr<MegaNodeTree> nodeTree{
+        MegaNodeTree::createInstance(nullptr, UPFILE.c_str(), nullptr, nullptr, upNodeCopy->getHandle()) };
+    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, rootNode.get(), nodeTree.get()));
+
+    // Confirm there's still only 1 version
+    std::unique_ptr<MegaNode> upNodeVersion{ megaApi[apiIndex]->getNodeByHandle(nodeTree->getNodeHandle()) };
+    ASSERT_THAT(upNodeVersion, ::testing::NotNull());
+    std::unique_ptr<MegaNodeList> allVersions2{ megaApi[apiIndex]->getVersions(upNodeVersion.get()) };
+    ASSERT_THAT(allVersions2, ::testing::NotNull());
+    ASSERT_EQ(allVersions2->size(), 1);
+    ASSERT_EQ(upNodeVersion->getHandle(), upNode->getHandle());
+}
+
+/**
+ * @brief Create node tree version using different upload data.
+ *
+ * A new handle should be returned, a new version should be added, and the handle of
+ * the existing file should correspond to the previous version.
+ */
+TEST_F(SdkTest, CreateNodeTreeVersionUsingDifferentUploadData)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const unsigned apiIndex = 0;
+
+    // Prepare the file to upload
+    createFile(PUBLICFILE.c_str(), false);
+    const int64_t fileSize = getFilesize(PUBLICFILE);
+    string encryptedFile = PUBLICFILE + "_encr";
+    std::string fingerprint;
+    std::string string64UploadToken;
+    std::string string64FileKey;
+
+    // Upload file, incomplete
+    ASSERT_NO_FATAL_FAILURE(synchronousMediaUploadIncomplete(apiIndex,
+                                                             fileSize,
+                                                             PUBLICFILE.c_str(),
+                                                             encryptedFile.c_str(),
+                                                             fingerprint,
+                                                             string64UploadToken,
+                                                             string64FileKey));
+
+    // Prepare destination
+    std::unique_ptr<MegaNode> parentNode{ megaApi[apiIndex]->getRootNode() };
+    ASSERT_THAT(parentNode, ::testing::NotNull());
+
+    // Create node tree from uploaded data
+    const MegaCompleteUploadData* uploadData =
+        MegaCompleteUploadData::createInstance(fingerprint.c_str(),
+                                               string64UploadToken.c_str(),
+                                               string64FileKey.c_str());
+    std::unique_ptr<MegaNodeTree> fileTreeFromData {
+        MegaNodeTree::createInstance(nullptr, PUBLICFILE.c_str(), nullptr, uploadData) };
+    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, parentNode.get(), fileTreeFromData.get()));
+    ASSERT_NE(fileTreeFromData->getNodeHandle(), INVALID_HANDLE);
+
+    // Ensure there's only 1 version
+    std::unique_ptr<MegaNode> fileNode{ megaApi[apiIndex]->getNodeByHandle(fileTreeFromData->getNodeHandle()) };
+    ASSERT_THAT(fileNode, ::testing::NotNull());
+    std::unique_ptr<MegaNodeList> allVersions{ megaApi[apiIndex]->getVersions(fileNode.get()) };
+    ASSERT_THAT(allVersions, ::testing::NotNull());
+    ASSERT_EQ(allVersions->size(), 1);
+
+    // Upload file again, incomplete
+    ASSERT_NO_FATAL_FAILURE(synchronousMediaUploadIncomplete(apiIndex,
+                                                             fileSize,
+                                                             PUBLICFILE.c_str(),
+                                                             encryptedFile.c_str(),
+                                                             fingerprint,
+                                                             string64UploadToken,
+                                                             string64FileKey));
+
+    // Create node tree from the new data
+    const MegaCompleteUploadData* uploadData2 =
+        MegaCompleteUploadData::createInstance(fingerprint.c_str(),
+                                               string64UploadToken.c_str(),
+                                               string64FileKey.c_str());
+    std::unique_ptr<MegaNodeTree> fileTreeFromData2 {
+        MegaNodeTree::createInstance(nullptr, PUBLICFILE.c_str(), nullptr, uploadData2) };
+    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, parentNode.get(), fileTreeFromData2.get()));
+
+    // Confirm there are 2 versions now
+    std::unique_ptr<MegaNode> fileNode2{ megaApi[apiIndex]->getNodeByHandle(fileTreeFromData2->getNodeHandle()) };
+    ASSERT_THAT(fileNode2, ::testing::NotNull());
+    std::unique_ptr<MegaNodeList> allVersions2{ megaApi[apiIndex]->getVersions(fileNode2.get()) };
+    ASSERT_THAT(allVersions2, ::testing::NotNull());
+    ASSERT_EQ(allVersions2->size(), 2);
+    ASSERT_EQ(allVersions2->get(1)->getHandle(), fileTreeFromData->getNodeHandle());
+    ASSERT_EQ(allVersions2->get(0)->getHandle(), fileTreeFromData2->getNodeHandle());
+    ASSERT_NE(fileTreeFromData2->getNodeHandle(), fileTreeFromData->getNodeHandle());
+}
+
+/**
+ * @brief Create node tree version using different source file.
+ *
+ * A new handle should be returned, a new version should be added, and the handle of
+ * the existing file should correspond to the previous version.
+ */
+TEST_F(SdkTest, CreateNodeTreeVersionUsingDifferentSourceFile)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const unsigned apiIndex = 0;
+
+    // File upload
+    std::unique_ptr<MegaNode> rootNode{ megaApi[apiIndex]->getRootNode() };
+    ASSERT_TRUE(createFile(UPFILE, false, "UPFILE")) << "Couldn't create " << UPFILE;
+
+    MegaHandle upHandle = INVALID_HANDLE;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &upHandle, UPFILE.c_str(),
+        rootNode.get(),
+        nullptr /*fileName*/,
+        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+        nullptr /*appData*/,
+        false   /*isSourceTemporary*/,
+        false   /*startFirst*/,
+        nullptr /*cancelToken*/)) << "Cannot upload " << UPFILE;
+    ASSERT_NE(upHandle, INVALID_HANDLE);
+
+    // Ensure there's only 1 version
+    std::unique_ptr<MegaNode> upNode(megaApi[0]->getNodeByHandle(upHandle));
+    ASSERT_THAT(upNode, ::testing::NotNull());
+    std::unique_ptr<MegaNodeList> allVersions{ megaApi[apiIndex]->getVersions(upNode.get()) };
+    ASSERT_THAT(allVersions, ::testing::NotNull());
+    ASSERT_EQ(allVersions->size(), 1);
+
+    // File 2 upload
+    ASSERT_TRUE(createFile(PUBLICFILE, false, "PUBLICFILE")) << "Couldn't create " << PUBLICFILE;
+
+    MegaHandle pubHandle = INVALID_HANDLE;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &pubHandle, PUBLICFILE.c_str(),
+        rootNode.get(),
+        nullptr /*fileName*/,
+        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+        nullptr /*appData*/,
+        false   /*isSourceTemporary*/,
+        false   /*startFirst*/,
+        nullptr /*cancelToken*/)) << "Cannot upload " << PUBLICFILE;
+    ASSERT_NE(pubHandle, INVALID_HANDLE);
+
+    // Create a new version of the initial file using a different file as source
+    std::unique_ptr<MegaNodeTree> nodeTree{
+        MegaNodeTree::createInstance(nullptr, UPFILE.c_str(), nullptr, nullptr, pubHandle) };
+    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, rootNode.get(), nodeTree.get()));
+
+    // Confirm there are 2 versions now
+    std::unique_ptr<MegaNode> upNodeVersion{ megaApi[apiIndex]->getNodeByHandle(nodeTree->getNodeHandle()) };
+    ASSERT_THAT(upNodeVersion, ::testing::NotNull());
+    std::unique_ptr<MegaNodeList> allVersions2{ megaApi[apiIndex]->getVersions(upNodeVersion.get()) };
+    ASSERT_THAT(allVersions2, ::testing::NotNull());
+    ASSERT_EQ(allVersions2->size(), 2);
+    ASSERT_EQ(allVersions2->get(1)->getHandle(), upHandle);
+    ASSERT_EQ(allVersions2->get(0)->getHandle(), upNodeVersion->getHandle());
+    ASSERT_NE(upNodeVersion->getHandle(), upHandle);
+}
+
+/**
  * @brief TEST_F SdkTestPasswordManager
  *
  * Tests MEGA Password Manager functionality.
