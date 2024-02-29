@@ -6184,8 +6184,14 @@ bool CommandSetKeyPair::procresult(Result r, JSON& json)
 }
 
 // fetch full node tree
-CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache, bool loadSyncs)
+CommandFetchNodes::CommandFetchNodes(MegaClient* client,
+                                     int tag,
+                                     bool nocache,
+                                     bool loadSyncs,
+                                     const NodeHandle partialFetchRoot)
 {
+    assert(client);
+
     cmd("f");
     arg("c", 1);
     arg("r", 1);
@@ -6193,6 +6199,13 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache, 
     if (!nocache)
     {
         arg("ca", 1);
+    }
+
+    if (client->isClientType(MegaClient::ClientType::PASSWORD_MANAGER))
+    {
+        const auto nhBytes = partialFetchRoot.as8byte();
+        arg("n", reinterpret_cast<const byte*>(&nhBytes), MegaClient::NODEHANDLE);
+        arg("part", 1);
     }
 
     // The servers are more efficient with this command when it's the only one in the batch
