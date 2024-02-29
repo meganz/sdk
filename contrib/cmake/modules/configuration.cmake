@@ -4,10 +4,11 @@ add_compile_definitions(
     $<$<CONFIG:Debug>:_DEBUG>
 )
 
+# Build the project with C++17
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 if (WIN32)
-    # Build the project with C++17 for Windows
-    set(CMAKE_CXX_STANDARD 17)
-    set(CMAKE_CXX_STANDARD_REQUIRED ON)
     if (MSVC)
         # https://gitlab.kitware.com/cmake/cmake/-/issues/18837
         add_compile_options(/Zc:__cplusplus) # Enable updated __cplusplus macro
@@ -20,10 +21,6 @@ if (WIN32)
     add_compile_options($<$<CONFIG:Release>:/Zi>)
 
 else()
-    # Build the project with C++11
-    set(CMAKE_CXX_STANDARD 17)
-    set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
     include(CheckIncludeFile)
     include(CheckFunctionExists)
     check_include_file(inttypes.h HAVE_INTTYPES_H)
