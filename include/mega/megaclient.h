@@ -837,6 +837,8 @@ public:
     // send files/folders to user
     void putnodes(const char*, vector<NewNode>&&, int tag, CommandPutNodes::Completion&& completion = nullptr);
 
+    void putFileAttributes(handle h, fatype t, const std::string& encryptedAttributes, int tag);
+
     // attach file attribute to upload or node handle
     bool putfa(NodeOrUploadHandle, fatype, SymmCipher*, int tag, std::unique_ptr<string>);
 

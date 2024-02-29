@@ -8617,6 +8617,21 @@ void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes, int tag,
     queuepubkeyreq(user, ::mega::make_unique<PubKeyActionPutNodes>(std::move(newnodes), tag, std::move(completion)));
 }
 
+void MegaClient::putFileAttributes(handle h, fatype t, const string& encryptedAttributes, int tag)
+{
+    std::shared_ptr<Node> node = mNodeManager.getNodeByHandle(NodeHandle().set6byte(h));
+    if (node && node->fileattrstring.size() + encryptedAttributes.size() >= MAX_FILE_ATTRIBUTE_SIZE)
+    {
+        sendevent(99485, "Exceeded size for file attribute");
+        LOG_err << "Exceede size for file attribute: " << t;
+        restag = tag;
+        app->putfa_result(h, t, API_EARGS);
+        return;
+    }
+
+    reqs.add(new CommandAttachFA(this, h, t, encryptedAttributes, tag));
+}
+
 // returns 1 if node has accesslevel a or better, 0 otherwise
 int MegaClient::checkaccess(Node* n, accesslevel_t a)
 {

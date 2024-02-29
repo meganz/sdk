@@ -20939,8 +20939,7 @@ error MegaApiImpl::performRequest_setAttrFile(MegaRequestPrivate* request)
 
                 string fileattr;
                 appendFileAttribute(fileattr, type, fileattrhandle);
-
-                client->reqs.add(new CommandAttachFA(client, node->nodehandle, fatype(type), fileattr, request->getTag()));
+                client->putFileAttributes(node->nodehandle, fatype(type), fileattr, request->getTag());
             }
             else
             {
