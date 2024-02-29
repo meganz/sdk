@@ -1,13 +1,28 @@
-add_library(libgfxworker
-    STATIC
+add_library(libgfxworker STATIC)
+
+target_sources(libgfxworker
+    PRIVATE
     src/logger.h
-    src/win32/server.h
     src/processor.h
+    src/server.h
     src/thread_pool.h
     src/logger.cpp
-    src/win32/server.cpp
     src/processor.cpp
     src/thread_pool.cpp
+)
+
+target_sources_conditional(libgfxworker
+    FLAG WIN32
+    PRIVATE
+    src/win32/server.h
+    src/win32/server.cpp
+)
+
+target_sources_conditional(libgfxworker
+    FLAG UNIX
+    PRIVATE
+    src/posix/server.h
+    src/posix/server.cpp
 )
 
 target_include_directories(libgfxworker
@@ -20,11 +35,13 @@ target_link_libraries(libgfxworker
     MEGA::SDKlib
 )
 
-target_compile_definitions(libgfxworker
-    PUBLIC
-    UNICODE
-    NOMINMAX
-)
+if (WIN32)
+    target_compile_definitions(libgfxworker
+        PUBLIC
+        UNICODE
+        NOMINMAX
+    )
+endif()
 
 add_executable(gfxworker
     src/main.cpp

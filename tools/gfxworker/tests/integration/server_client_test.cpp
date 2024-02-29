@@ -1,10 +1,12 @@
 #include "executable_dir.h"
 
-#include "win32/server.h"
+#include "server.h"
 #include "processor.h"
 
 #include "mega/gfx.h"
+#if defined(WIN32)
 #include "mega/win32/gfx/worker/comms_client.h"
+#endif
 #include "mega/gfx/worker/client.h"
 #include "mega/utils.h"
 
@@ -16,9 +18,11 @@
 #include <vector>
 #include <cstdlib>
 
-
-using mega::gfx::ServerWin32;
+#if defined(WIN32)
 using mega::gfx::WinGfxCommunicationsClient;
+#endif
+
+using mega::gfx::Server;
 using mega::gfx::RequestProcessor;
 using mega::gfx::GfxProcessor;
 using mega::gfx::GfxClient;
@@ -43,9 +47,11 @@ protected:
     std::string mPipeName;
 };
 
+#if defined(WIN32)
+
 TEST_F(ServerClientTest, RunGfxTaskSuccessfully)
 {
-    ServerWin32 server(
+    Server server(
         ::mega::make_unique<RequestProcessor>(),
         mPipeName
     );
@@ -86,7 +92,7 @@ TEST_F(ServerClientTest, RunGfxTaskSuccessfully)
 
 TEST_F(ServerClientTest, RunHelloRequestResponseSuccessfully)
 {
-    ServerWin32 server(
+    Server server(
         ::mega::make_unique<RequestProcessor>(),
         mPipeName
     );
@@ -116,7 +122,7 @@ TEST_F(ServerClientTest, RunHelloRequestResponseSuccessfully)
 
 TEST_F(ServerClientTest, RunSupportformatsRequestResponseSuccessfully)
 {
-    ServerWin32 server(
+    Server server(
         ::mega::make_unique<RequestProcessor>(),
         mPipeName
     );
@@ -174,3 +180,5 @@ TEST_F(ServerClientTest, RunCommandsReturnFalseWhileServerIsNotRunning)
         ).runGfxTask("anyimagename.jpg", dimensions, images)
     );
 }
+
+#endif

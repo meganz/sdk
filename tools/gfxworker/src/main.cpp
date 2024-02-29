@@ -1,5 +1,5 @@
 #include "processor.h"
-#include "win32/server.h"
+#include "server.h"
 #include "logger.h"
 
 #include "mega.h"
@@ -13,7 +13,7 @@
 
 using mega::gfx::GfxProcessor;
 using mega::gfx::RequestProcessor;
-using mega::gfx::ServerWin32;
+using mega::gfx::Server;
 using mega::gfx::MegaFileLogger;
 using mega::ArgumentsParser;
 using mega::Arguments;
@@ -147,7 +147,7 @@ int main(int argc, char** argv)
              << ", live in seconds: " << config.keepAliveInSeconds;
 
     // start server
-    ServerWin32 server(
+    Server server(
         ::mega::make_unique<RequestProcessor>(config.threadCount, config.queueSize),
         config.pipeName,
         config.keepAliveInSeconds
