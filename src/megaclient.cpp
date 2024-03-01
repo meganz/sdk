@@ -20115,11 +20115,6 @@ std::string MegaClient::getPartialAPs()
         ret = "&e=" + toNodeHandle(getPasswordManagerBase()) + "&ir=1";
     }
 
-    if (!ret.empty())
-    {
-        LOG_info << "Partial APs requested. Appending params to wsc: " << ret;
-    }
-
     return ret;
 }
 

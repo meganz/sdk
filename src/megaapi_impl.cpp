@@ -13998,19 +13998,24 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
         if (e == API_OK)
         {
             // Sanity check for required root nodes
-            if (client->isClientType(MegaClient::ClientType::DEFAULT))
+            switch (client->getClientType())
             {
-                assert(!client->mNodeManager.getRootNodeFiles().isUndef());
-            }
-            else if (client->isClientType(MegaClient::ClientType::PASSWORD_MANAGER))
-            {
-                assert(!client->mNodeManager.getRootNodeVault().isUndef());
-            }
-            else
-            {
-                LOG_err << "Fetch nodes requested for unexpected MegaApi type "
-                        << static_cast<int>(client->getClientType());
-                assert(false);
+                case MegaClient::ClientType::DEFAULT:
+                    assert(!client->mNodeManager.getRootNodeFiles().isUndef());
+                    break;
+
+                case MegaClient::ClientType::PASSWORD_MANAGER:
+                    assert(!client->mNodeManager.getRootNodeVault().isUndef());
+                    break;
+
+                case MegaClient::ClientType::VPN: // fall-through
+                default:
+                {
+                    LOG_err << "Fetch nodes requested for unexpected MegaApi type "
+                            << static_cast<int>(client->getClientType());
+                    assert(false);
+                    break;
+                }
             }
 
             request->setNodeHandle(client->getFolderLinkPublicHandle());

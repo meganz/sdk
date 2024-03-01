@@ -918,7 +918,7 @@ sharedNode_vector NodeManager::getRootNodes_internal()
         const auto loadVault = [this, &nodes]() -> void
         {
             std::shared_ptr<Node> inBox = rootnodes.mRootNodes[VAULTNODE];
-            assert(inBox && "Vault node node should be defined (except logged into folder link)");
+            assert(inBox && "Vault node should be defined (except logged into folder link)");
             nodes.push_back(std::move(inBox));
         };
 
@@ -934,7 +934,7 @@ sharedNode_vector NodeManager::getRootNodes_internal()
 
                 std::shared_ptr<Node> rubbish = rootnodes.mRootNodes[RUBBISHNODE];
                 assert(rubbish &&
-                       "Rubbishbin node node should be defined (except logged into folder link)");
+                       "Rubbishbin node should be defined (except logged into folder link)");
                 nodes.push_back(std::move(rubbish));
             }
         }

@@ -6203,8 +6203,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
 
     if (client->isClientType(MegaClient::ClientType::PASSWORD_MANAGER))
     {
-        const auto nhBytes = partialFetchRoot.as8byte();
-        arg("n", reinterpret_cast<const byte*>(&nhBytes), MegaClient::NODEHANDLE);
+        arg("n", partialFetchRoot);
         arg("part", 1);
     }
 
