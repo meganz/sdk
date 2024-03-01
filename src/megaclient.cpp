@@ -2840,6 +2840,11 @@ void MegaClient::exec()
                 bool suppressSID = loggedIntoFolder() ? true : false;
                 pendingsc->posturl.append(getAuthURI(suppressSID, true));
 
+                if (isClientType(ClientType::PASSWORD_MANAGER))
+                {
+                    pendingsc->posturl.append(getPartialAPs());
+                }
+
                 pendingsc->type = REQ_JSON;
                 pendingsc->post(this);
             }
@@ -14362,7 +14367,8 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
 
                 // FetchNodes procresult() needs some data from `ug` (or it may try to make new Sync User Attributes for example)
                 // So only submit the request after `ug` completes, otherwise everything is interleaved
-                reqs.add(new CommandFetchNodes(this, fetchtag, nocache, loadSyncs));
+                const auto partialFetchRoot = isClientType(ClientType::PASSWORD_MANAGER) ? getPasswordManagerBase() : NodeHandle{};
+                reqs.add(new CommandFetchNodes(this, fetchtag, nocache, loadSyncs, partialFetchRoot));
             });
 
             fetchtimezone();
@@ -20101,6 +20107,17 @@ void MegaClient::preparePasswordNodeData(attr_map& attrs, const AttrMap& data) c
     std::string jsonData;
     data.getjson(&jsonData);
     attrs[AttrMap::string2nameid(NODE_ATTR_PASSWORD_MANAGER)] = std::move(jsonData);
+}
+
+std::string MegaClient::getPartialAPs()
+{
+    std::string ret;
+    if (isClientType(ClientType::PASSWORD_MANAGER))
+    {
+        ret = "&e=" + toNodeHandle(getPasswordManagerBase()) + "&ir=1";
+    }
+
+    return ret;
 }
 
 void MegaClient::createPasswordManagerBase(int rTag, CommandCreatePasswordManagerBase::Completion cbRequest)

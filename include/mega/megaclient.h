@@ -2595,6 +2595,7 @@ private:
 
     // Password Manager - private
     void preparePasswordNodeData(attr_map& attrs, const AttrMap& data) const;
+    std::string getPartialAPs();
 
 public:
 

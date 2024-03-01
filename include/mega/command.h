@@ -463,7 +463,11 @@ public:
     bool procresult(Result, JSON&) override;
     bool parsingFinished();
 
-    CommandFetchNodes(MegaClient*, int tag, bool nocache, bool loadSyncs);
+    CommandFetchNodes(MegaClient*,
+                      int tag,
+                      bool nocache,
+                      bool loadSyncs,
+                      const NodeHandle partialFetchRoot = NodeHandle{});
     ~CommandFetchNodes();
 
 protected:
