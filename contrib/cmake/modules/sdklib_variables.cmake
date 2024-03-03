@@ -10,7 +10,3 @@ if (NOT WIN32)
 else()
     set(USE_CPPTHREAD 1)
 endif()
-
-if (USE_FREEIMAGE AND WIN32)
-    set(ENABLE_ISOLATED_GFX 1)
-endif()

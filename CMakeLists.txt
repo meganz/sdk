@@ -107,6 +107,10 @@ if(USE_READLINE AND WIN32)
     message(FATAL_ERROR "Readline is not available in Windows builds. Disable USE_READLINE to continue.")
 endif()
 
+if(ENABLE_ISOLATED_GFX AND NOT USE_FREEIMAGE)
+    message(FATAL_ERROR "USE_FREEIMAGE is not ON. Disable ENABLE_ISOLATED_GFX to continue.")
+endif()
+
 message(STATUS "Building SDKlib v${PROJECT_VERSION}")
 
 include(GNUInstallDirs) # Values for installation directories. All platforms
