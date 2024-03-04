@@ -1154,7 +1154,7 @@ bool User::isAuthring(attr_t at)
 
 size_t User::getMaxAttributeSize(attr_t at)
 {
-    std::string attributeName = attr2longname(at);
+    std::string attributeName = attr2string(at);
     if (attributeName.size() > 2 && (attributeName[1] == '!' || attributeName[1] == '~'))
     {
         return MAX_USER_VAR_SIZE;
