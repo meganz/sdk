@@ -183,7 +183,7 @@ void RaidBufferManager::setIsRaid(const std::vector<std::string>& tempUrls, m_of
 
     if (tempurls.size() == RAIDPARTS)
     {
-        if (isNewRaid && filesize >= TransferSlot::MIN_FILESIZE_FOR_NEWRAID)
+        if (isNewRaid)
         {
             is_newRaid = true;
         }
@@ -944,6 +944,10 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
                 maxReqSize = std::max<m_off_t>(maxReqSize, (1 * 1024 * 1024) * EFFECTIVE_RAIDPARTS); // min 1MB for each raidpart
                 DEBUG_TEST_HOOK_LIMIT_MAX_REQ_SIZE(maxReqSize) // Limit max request size if needed
                 maxReqSize = std::min<m_off_t>(maxReqSize, transfer->size); // Not greater than the transfer itself
+                if (transfer->size <= TransferSlot::UPPER_FILESIZE_LIMIT_FOR_SMALLER_CHUNKS)
+                {
+                    maxReqSize = transfer->size / AVERAGE_NUMBER_OF_TRANSFERSLOT_CONNECTIONS;
+                }
 
                 m_off_t nextChunk = ChunkedHash::chunkceil(transfer->pos + maxReqSize, transfer->size);
                 while ((nextChunk < transfer->size) && (((nextChunk - transfer->pos) % RAIDLINE) != 0))
