@@ -12686,7 +12686,7 @@ public class MegaApiJava {
      *                       Passing `0` will clear a previously set last read value.
      * @param listener       MegaRequestListener to track this request
      */
-    public void setLastReadNotification(int notificationId, MegaRequestListenerInterface listener) {
+    public void setLastReadNotification(uint32_t notificationId, MegaRequestListenerInterface listener) {
         megaApi.setLastReadNotification(notificationId, createDelegateRequestListener(listener));
     }
 
