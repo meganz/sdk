@@ -69,9 +69,7 @@ const dstime TransferSlot::PROGRESSTIMEOUT = 10;
 #endif
 
 const m_off_t TransferSlot::MAX_REQ_SIZE_NEW_RAID = 2 * 1024 * 1024; // 2 MB for each raidpart
-#define NUM_CONNECTIONS_NEW_RAID 4 // Used as a temp fix for tests -until we have a way to change the value on megaCmd-
-
-const m_off_t TransferSlot::MIN_FILESIZE_FOR_NEWRAID = 15 * 1024 * 1024; // 15 MB
+const m_off_t TransferSlot::UPPER_FILESIZE_LIMIT_FOR_SMALLER_CHUNKS = 25 * 1024 * 1024; // 25 MB
 const m_off_t TransferSlot::MIN_FILESIZE_FOR_MULTIPLE_CONNECTIONS = 131072 + 1; // 128 KB + 1 -> legacy value
 const m_off_t TransferSlot::MAX_GAP_SIZE = 256 * 1024 * 1024; // 256 MB
 
@@ -151,12 +149,12 @@ bool TransferSlot::createconnectionsonce()
         }
 
         connections = transferbuf.isRaid() ? RAIDPARTS : transfer->size >= MIN_FILESIZE_FOR_MULTIPLE_CONNECTIONS ? transfer->client->connections[transfer->type] : 1;
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
         if (transfer->size >= MIN_FILESIZE_FOR_MULTIPLE_CONNECTIONS && transferbuf.isNewRaid())
         {
-            // Need this until there is a way to change it on megaCMD
-            connections = NUM_CONNECTIONS_NEW_RAID;
             DEBUG_TEST_HOOK_NUMBER_OF_CONNECTIONS(connections, transfer->client->connections[transfer->type])
         }
+#endif
         LOG_debug << "Populating transfer slot with " << connections << " connections, max request size of " << maxRequestSize << " bytes [transferbuf.isNewRaid() = " << transferbuf.isNewRaid() << "] [isDownload = " << (transfer->type == GET) << "]";
         reqs.resize(connections);
         mReqSpeeds.resize(connections);

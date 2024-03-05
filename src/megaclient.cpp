@@ -3576,22 +3576,31 @@ void MegaClient::dispatchTransfers()
         unsigned added = 0;
         bool hasVeryBig = false;
 
-        void addexisting(m_off_t size, m_off_t progressed)
+        void addexisting(m_off_t size, m_off_t progressed, unsigned transferWeight)
         {
             remainingsum += size - progressed;
-            total += 1;
+            total += transferWeight;
             if (size > 100 * 1024 * 1024 && (size - progressed) > 5 * 1024 * 1024)
             {
                 hasVeryBig = true;
             }
         }
-        void addnew(m_off_t size)
+        void addnew(m_off_t size, unsigned transferWeight)
         {
-            addexisting(size, 0);
-            added += 1;
+            addexisting(size, 0, transferWeight);
+            added += transferWeight;
         }
     };
     std::array<counter, 6> counters;
+
+    auto calcTransferWeight = [this](Transfer* t) -> unsigned
+    {
+        if (t->tempurls.size() != RAIDPARTS)
+        {
+            return 1;
+        }
+        return httpio->downloadSpeed < (20 * 1024 * 1024) ? 3 : 1; // 20 MB/s (~200Mbps)
+    };
 
     // Determine average speed and total amount of data remaining for the given direction/size-category
     // We prepare data for put/get in index 0..1, and the put/get/big/small combinations in index 2..5
@@ -3599,8 +3608,8 @@ void MegaClient::dispatchTransfers()
     {
         assert(ts->transfer->type == PUT || ts->transfer->type == GET);
         TransferCategory tc(ts->transfer);
-        counters[tc.index()].addexisting(ts->transfer->size, ts->progressreported);
-        counters[tc.directionIndex()].addexisting(ts->transfer->size,  ts->progressreported);
+        counters[tc.index()].addexisting(ts->transfer->size, ts->progressreported, calcTransferWeight(ts->transfer));
+        counters[tc.directionIndex()].addexisting(ts->transfer->size, ts->progressreported, calcTransferWeight(ts->transfer));
     }
 
     std::function<bool(direction_t)> continueDirection = [&counters](direction_t putget) {
@@ -3620,7 +3629,7 @@ void MegaClient::dispatchTransfers()
             return true;
         };
 
-    std::function<bool(Transfer*)> testAddTransferFunction = [&counters, this](Transfer* t)
+    std::function<bool(Transfer*)> testAddTransferFunction = [&counters, this, &calcTransferWeight](Transfer* t)
         {
             TransferCategory tc(t);
 
@@ -3641,8 +3650,8 @@ void MegaClient::dispatchTransfers()
                 return false;
             }
 
-            counters[tc.index()].addnew(t->size);
-            counters[tc.directionIndex()].addnew(t->size);
+            counters[tc.index()].addnew(t->size, calcTransferWeight(t));
+            counters[tc.directionIndex()].addnew(t->size, calcTransferWeight(t));
 
             return true;
         };
