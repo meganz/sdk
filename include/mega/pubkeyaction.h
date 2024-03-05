@@ -40,22 +40,6 @@ public:
     virtual ~PubKeyAction() { }
 };
 
-class MEGA_API PubKeyActionCreateShare : public PubKeyAction
-{
-    handle h;   // node to create share on
-    accesslevel_t a;    // desired access level
-    string selfemail;  // optional personal representation when sharing to a non-contact
-    bool mWritable = false;
-
-    std::function<void(Error, bool writable)> completion;
-
-public:
-    void proc(MegaClient*, User*);
-
-    PubKeyActionCreateShare(handle, accesslevel_t, int, bool writable, const char*,
-	    std::function<void(Error, bool writable)> completion);
-};
-
 class MEGA_API PubKeyActionSendShareKey : public PubKeyAction
 {
     handle sh;  // share node the key was requested on

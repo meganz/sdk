@@ -1916,8 +1916,6 @@ CommandSetShare::CommandSetShare(MegaClient* client, std::shared_ptr<Node> n, Us
 {
     byte auth[SymmCipher::BLOCKSIZE];
     byte key[SymmCipher::KEYLENGTH];
-    byte asymmkey[AsymmCipher::MAXKEYLENGTH];
-    int t = 0;
 
     tag = ctag;
 
@@ -1947,34 +1945,11 @@ CommandSetShare::CommandSetShare(MegaClient* client, std::shared_ptr<Node> n, Us
 
     if (a != ACCESS_UNKNOWN)
     {
-        if (!client->mKeyManager.isSecure() && !client->mKeyManager.isShareKeyTrusted(n->nodehandle))
-        {
-            // securely store/transmit share key
-            // by creating a symmetrically (for the sharer) and an asymmetrically
-            // (for the sharee) encrypted version
-            memcpy(key, n->sharekey->key, sizeof key);
-            memcpy(asymmkey, key, sizeof key);
-
-            client->key.ecb_encrypt(key);
-            arg("ok", key, sizeof key);
-
-            if (u && u->pubk.isvalid())
-            {
-                t = u->pubk.encrypt(client->rng, asymmkey, SymmCipher::KEYLENGTH, asymmkey, sizeof asymmkey);
-            }
-
-            // outgoing handle authentication
-            client->handleauth(sh, auth);
-            arg("ha", auth, sizeof auth);
-        }
-        else
-        {
-            // TODO: dummy key/handleauth - FIXME: remove when the server allows it
-            memset(key, 0, sizeof key);
-            memset(auth, 0, sizeof auth);
-            arg("ok", key, sizeof key);
-            arg("ha", auth, sizeof auth);
-        }
+        // TODO: dummy key/handleauth - FIXME: remove when the server allows it
+        memset(key, 0, sizeof key);
+        memset(auth, 0, sizeof auth);
+        arg("ok", key, sizeof key);
+        arg("ha", auth, sizeof auth);
     }
 
     beginarray("s");
@@ -1987,11 +1962,6 @@ CommandSetShare::CommandSetShare(MegaClient* client, std::shared_ptr<Node> n, Us
     if (a != ACCESS_UNKNOWN)
     {
         arg("r", a);
-
-        if (!client->mKeyManager.isSecure() && u && u->pubk.isvalid() && t)
-        {
-            arg("k", asymmkey, t);
-        }
     }
 
     endobject();

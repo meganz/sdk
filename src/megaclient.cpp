@@ -351,23 +351,6 @@ bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, in
         }
 
         delete[] buf;
-
-        // RSA-encrypted nodekeys shall no longer be rewritten
-        // by clients with secure=true
-        if (!mKeyManager.isSecure())
-        {
-            if (!ISUNDEF(node))
-            {
-                if (type == FOLDERNODE)
-                {
-                    sharekeyrewrite.push_back(node);
-                }
-                else // FILENODE
-                {
-                    nodekeyrewrite.push_back(node);
-                }
-            }
-        }
     }
     else
     {
@@ -436,7 +419,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                 LOG_warn << "Attempt to create dislocated outbound share foiled: " << toNodeHandle(s->h);
                 auth = false;
             }
-            else if (!mKeyManager.isSecure() || !mKeyManager.generation())
+            else if (!mKeyManager.generation())
             {
                 byte buf[SymmCipher::KEYLENGTH];
 
@@ -480,30 +463,6 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                 }
                 n->sharekey.reset(new SymmCipher(s->key));
                 skreceived = true;
-
-                // Save the new sharekey in mKeyManager
-                // (it will happen for shares created with old clients
-                // or while mKeyManager.isSecure() is false)
-                if (mKeyManager.generation() && legacyKey) // no need to add the share key if it's already there
-                {
-                    // This shouldn't happen if isSecure() is true, because in that case
-                    // the keys arriving here should only come from mKeyManager
-                    assert(!mKeyManager.isSecure());
-
-                    handle nodehandle = n->nodehandle;
-                    bool outgoing = s->outgoing;
-                    LOG_debug << "Adding legacy key to ^!keys for " << (outgoing ? "outshare " : "inshare ") << toNodeHandle(nodehandle);
-                    mKeyManager.commit(
-                    [this, nodehandle, newShareKey, outgoing]()
-                    {
-                        // Changes to apply in the commit
-                        mKeyManager.addShareKey(nodehandle, newShareKey);
-                        if (!outgoing)
-                        {
-                            mKeyManager.removePendingInShare(toNodeHandle(nodehandle));
-                        }
-                    }); // No completion callback
-                }
             }
         }
     }
@@ -4763,21 +4722,7 @@ bool MegaClient::procsc()
                             if (!mKeyManager.generation())
                             {
                                 assert(!mKeyManager.getPostRegistration());
-                                if (mKeyManager.isSecure())
-                                {
-                                    app->upgrading_security();
-                                }
-                                else // -> upgrade automatically and silently
-                                {
-                                    upgradeSecurity([this](Error e)
-                                    {
-                                        if (e != API_OK)
-                                        {
-                                            LOG_err << "Failed to upgrade security. Error: " << e;
-                                            sendevent(99466, "KeyMgr / (auto) Upgrade security failed");
-                                        }
-                                    });
-                                }
+                                app->upgrading_security();
                             }
                             else
                             {
@@ -6174,7 +6119,7 @@ bool MegaClient::sc_shares()
                     k = ok;
                 }
 
-                if (!k || (mKeyManager.isSecure() && mKeyManager.generation())) // Same logic as below but without using the key
+                if (!k || mKeyManager.generation()) // Same logic as below but without using the key
                 {
                     if (!(!ISUNDEF(oh) && (!ISUNDEF(uh) || !ISUNDEF(p))))
                     {
@@ -6182,7 +6127,7 @@ bool MegaClient::sc_shares()
                     }
 
                     if(outbound && ou != me && r == ACCESS_UNKNOWN // Sharee abandoned the share.
-                        && mKeyManager.isSecure() && mKeyManager.generation() // ^!keys in use
+                        && mKeyManager.generation() // ^!keys in use
                         && statecurrent)
                     {
                         // Clear the in-use bit for the share key in ^!keys if it was the last sharee
@@ -9430,7 +9375,7 @@ int MegaClient::readnode(JSON* j, int notify, putsource_t source, vector<NewNode
                     }
                     else
                     {
-                        if (!mKeyManager.isSecure() || !mKeyManager.generation())
+                        if (!mKeyManager.generation())
                         {
                             if (sk)
                             {
@@ -9611,7 +9556,7 @@ void MegaClient::readokelement(JSON* j)
                     return;
                 }
 
-                if (!mKeyManager.isSecure() || !mKeyManager.generation())   // insecure or secure client but not migrated yet
+                if (!mKeyManager.generation())   // insecure or secure client but not migrated yet
                 {
                     if (!k)
                     {
@@ -10101,27 +10046,11 @@ void MegaClient::applykeys()
 
 void MegaClient::sendkeyrewrites()
 {
-    if (mKeyManager.isSecure())
+    if (sharekeyrewrite.size() || nodekeyrewrite.size())
     {
-        if (sharekeyrewrite.size() || nodekeyrewrite.size())
-        {
-            LOG_err << "Skipped to send key rewrites (secured client)";
-            assert(false);
-            sharekeyrewrite.clear();
-            nodekeyrewrite.clear();
-        }
-        return;
-    }
-
-    if (sharekeyrewrite.size())
-    {
-        reqs.add(new CommandShareKeyUpdate(this, &sharekeyrewrite));
+        LOG_err << "Skipped to send key rewrites (secured client)";
+        assert(false);
         sharekeyrewrite.clear();
-    }
-
-    if (nodekeyrewrite.size())
-    {
-        reqs.add(new CommandNodeKeyUpdate(this, &nodekeyrewrite));
         nodekeyrewrite.clear();
     }
 }
@@ -11210,41 +11139,7 @@ bool MegaClient::discardnotifieduser(User *u)
 void MegaClient::procsr(JSON* j)
 {
     // insecure functionality - disable
-    if (mKeyManager.isSecure())
-    {
-        j->storeobject();
-        return;
-    }
-
-    User* u;
-    handle sh, uh;
-
-    if (!j->enterarray())
-    {
-        return;
-    }
-
-    while (j->ishandle() && (sh = j->gethandle()))
-    {
-        if (nodebyhandle(sh))
-        {
-            // process pending requests
-            while (j->ishandle(USERHANDLE) && (uh = j->gethandle(USERHANDLE)))
-            {
-                if ((u = finduser(uh)))
-                {
-                    queuepubkeyreq(u, ::mega::make_unique<PubKeyActionSendShareKey>(sh));
-                }
-            }
-        }
-        else
-        {
-            // unknown node: skip
-            while (j->ishandle(USERHANDLE) && j->gethandle(USERHANDLE));
-        }
-    }
-
-    j->leavearray();
+    j->storeobject();
 }
 
 void MegaClient::clearKeys()
@@ -11647,12 +11542,6 @@ void MegaClient::setshare(std::shared_ptr<Node> n, const char* user, accesslevel
                 delete u;
             }
         }));
-        return;
-    }
-
-    if (!mKeyManager.isSecure())
-    {
-        queuepubkeyreq(user, ::mega::make_unique<PubKeyActionCreateShare>(n->nodehandle, a, tag, writable, personal_representation, std::move(completion)));
         return;
     }
 
@@ -20340,7 +20229,7 @@ void KeyManager::init(const string& prEd25519, const string& prCu25519, const st
         assert(mClient.loggedin() == EPHEMERALACCOUNTPLUSPLUS);
     }
 
-    if (mSecure && !mPostRegistration)
+    if (!mPostRegistration)
     {
         // We request the upgrade after nodes_current to be able to migrate shares
         // mClient.app->upgrading_security();
@@ -20420,11 +20309,8 @@ bool KeyManager::isValidKeysContainer(const KeyManager& km)
 
         // block updates of ^!keys attribute and notify the app, so it can
         // warn about the potential attack and block user's interface
-        if (isSecure())
-        {
-            mDowngradeAttack = true;
-            mClient.app->downgrade_attack();
-        }
+        mDowngradeAttack = true;
+        mClient.app->downgrade_attack();
         return false;
     }
 
@@ -20674,7 +20560,7 @@ bool KeyManager::addShareKey(handle sharehandle, std::string shareKey, bool shar
     }
 
     ShareKeyFlags flags;
-    flags[ShareKeyFlagsId::TRUSTED] = sharedSecurely && isSecure();
+    flags[ShareKeyFlagsId::TRUSTED] = sharedSecurely;
 
     mShareKeys[sharehandle] = pair<string, ShareKeyFlags>(shareKey, flags);
     return true;

@@ -7358,12 +7358,6 @@ bool MegaApiImpl::contactVerificationWarningEnabled()
     return client->mKeyManager.getContactVerificationWarning();
 }
 
-void MegaApiImpl::setSecureFlag(bool enable)
-{
-    SdkMutexGuard m(sdkMutex);
-    client->mKeyManager.setSecureFlag(enable);
-}
-
 void MegaApiImpl::setManualVerificationFlag(bool enable)
 {
     SdkMutexGuard m(sdkMutex);

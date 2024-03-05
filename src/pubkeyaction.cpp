@@ -89,55 +89,6 @@ void PubKeyActionSendShareKey::proc(MegaClient* client, User* u)
     }
 }
 
-void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
-{
-    assert(!client->mKeyManager.isSecure());
-    // This class can be removed as soon as isSecure() is true
-    // It's the same as the isSecure() code path in MegaClient::setshare
-    // but having the public RSA key of the target to send the
-    // share key also using the old method
-
-    std::shared_ptr<Node> n;
-
-    // node vanished: bail
-    if (!(n = client->nodebyhandle(h)))
-    {
-        completion(API_ENOENT, mWritable);
-        return;
-    }
-
-    // We need to copy the user if it's temporary because
-    // it will be deleted when this function finishes
-    User *user = u;
-    if (u && u->isTemporary)
-    {
-        user = new User(u->email.c_str());
-        user->set(u->show, u->ctime);
-        user->uid = u->uid;
-        user->userhandle = u->userhandle;
-        user->pubk = u->pubk;
-        user->isTemporary = true;
-    }
-
-    client->setShareCompletion(n.get(), user, a, mWritable, selfemail.c_str(), tag, std::move(completion));
-}
-
-// share node sh with access level sa
-PubKeyActionCreateShare::PubKeyActionCreateShare(handle sh, accesslevel_t sa, int ctag, bool writable, const char* personal_representation, std::function<void(Error, bool writeable)> f)
-{
-    h = sh;
-    a = sa;
-    tag = ctag;
-    mWritable = writable;
-    completion = std::move(f);
-    assert(completion);
-
-    if (personal_representation)
-    {
-        selfemail = personal_representation;
-    }
-}
-
 void PubKeyActionNotifyApp::proc(MegaClient *client, User *u)
 {
     client->app->pubkey_result(u);

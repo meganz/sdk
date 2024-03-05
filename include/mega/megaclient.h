@@ -288,7 +288,6 @@ public:
 
     // --- Getters / Setters ----
 
-    bool isSecure() const { return mSecure; }
     uint32_t generation() const;
     string privEd25519() const;
     string privCu25519() const;
@@ -336,9 +335,6 @@ public:
 
     // Enable/disable the warnings for shares with non-verified contacts.
     void setContactVerificationWarning(bool enabled);
-
-    // this method allows to change the feature-flag for testing purposes
-    void setSecureFlag(bool enabled) { mSecure = enabled; }
 
     // this method allows to change the manual verification feature-flag for testing purposes
     void setManualVerificationFlag(bool enabled) { mManualVerification = enabled; }
@@ -390,9 +386,6 @@ private:
 
     // key used to encrypt/decrypt the ^!keys attribute (derived from Master Key)
     SymmCipher mKey;
-
-    // client is considered to exchange keys in a secure way (requires credential's verification)
-    bool mSecure = true;
 
     // true if user needs to manually verify contact's credentials to encrypt/decrypt share keys
     bool mManualVerification = false;
