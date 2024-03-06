@@ -3569,6 +3569,7 @@ void MegaClient::dispatchTransfers()
 
     CodeCounter::ScopeTimer ccst(performanceStats.dispatchTransfers);
 
+    static unsigned raidCounter = 0;
     struct counter
     {
         m_off_t remainingsum = 0;
@@ -3593,11 +3594,11 @@ void MegaClient::dispatchTransfers()
     };
     std::array<counter, 6> counters;
 
-    auto calcTransferWeight = [this](Transfer* t) -> unsigned
+    auto calcTransferWeight = [this]() -> unsigned
     {
-        if (t->tempurls.size() != RAIDPARTS)
+        if (raidCounter >= (MAXTRANSFERS/6))
         {
-            return 1;
+            return 3;
         }
         return httpio->downloadSpeed < (20 * 1024 * 1024) ? 3 : 1; // 20 MB/s (~200Mbps)
     };
@@ -3607,10 +3608,22 @@ void MegaClient::dispatchTransfers()
     for (TransferSlot* ts : tslots)
     {
         assert(ts->transfer->type == PUT || ts->transfer->type == GET);
+        if (ts->transfer->type == GET)
+        {
+            if (!ts->transfer->tempurls.empty() && ts->transferbuf.isNewRaid())
+            {
+                if (raidCounter < (MAXTRANSFERS/6)) raidCounter += 1;
+            }
+            else
+            {
+                if (raidCounter > 1) raidCounter -= 1;
+            }
+        }
         TransferCategory tc(ts->transfer);
-        counters[tc.index()].addexisting(ts->transfer->size, ts->progressreported, calcTransferWeight(ts->transfer));
-        counters[tc.directionIndex()].addexisting(ts->transfer->size, ts->progressreported, calcTransferWeight(ts->transfer));
+        counters[tc.index()].addexisting(ts->transfer->size, ts->progressreported, calcTransferWeight());
+        counters[tc.directionIndex()].addexisting(ts->transfer->size, ts->progressreported, calcTransferWeight());
     }
+    if (tslots.empty()) raidCounter = 0;
 
     std::function<bool(direction_t)> continueDirection = [&counters](direction_t putget) {
 
@@ -3650,8 +3663,8 @@ void MegaClient::dispatchTransfers()
                 return false;
             }
 
-            counters[tc.index()].addnew(t->size, calcTransferWeight(t));
-            counters[tc.directionIndex()].addnew(t->size, calcTransferWeight(t));
+            counters[tc.index()].addnew(t->size, calcTransferWeight());
+            counters[tc.directionIndex()].addnew(t->size, calcTransferWeight());
 
             return true;
         };
