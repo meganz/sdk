@@ -1487,7 +1487,7 @@ public:
 
 // API supports user/node attributes up to 16KB. This constant is used to restrict clients sending larger values
 static constexpr size_t MAX_NODE_ATTRIBUTE_SIZE = 64 * 1024;        // 64kB
-static constexpr size_t MAX_USER_VAR_SIZE = 16 * 1024 * 1024;       // 16MB  - User attributes whose second character is ! or ~ (per example *!dn, ^!keys", ...)
+static constexpr size_t MAX_USER_VAR_SIZE = 16 * 1024 * 1024;       // 16MB - User attributes whose second character is ! or ~ (per example *!dn, ^!keys", ...)
 static constexpr size_t MAX_USER_ATTRIBUTE_SIZE = 64 * 1024;        // 64kB  - Other user attributes
 static constexpr size_t MAX_FILE_ATTRIBUTE_SIZE = 16 * 1024 * 1024; // 16MB
 
