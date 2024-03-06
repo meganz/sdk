@@ -1997,7 +1997,7 @@ string getLinkFromMailbox(const string& exe,         // Python
         const auto& attemptTime = std::chrono::system_clock::now();
         auto timeSinceEmail = std::chrono::duration_cast<std::chrono::seconds>(attemptTime - timeOfEmail).count() + 20;
         output = runProgram(command + ' ' + to_string(timeSinceEmail), PROG_OUTPUT_TYPE::TEXT); // Run Python script
-        if (!output.empty() || i > 180000 / deltaMs) // 3 minute maximum wait
+        if (!output.empty() || i > 180000) // 3 minute maximum wait
             break;
     }
 
