@@ -1050,8 +1050,8 @@ MegaHandle SdkTest::createChatWithChecks(const unsigned int creatorIndex,
                                          const unsigned int timeout_sec)
 {
     std::unique_ptr<MegaTextChatPeerList> invitedPeers(MegaTextChatPeerList::createInstance());
-    std::set<MegaHandle> allParticipantsHandles(
-        {mApi[creatorIndex].megaApi->getMyUserHandleBinary()});
+    std::set<MegaHandle> allParticipantsHandles{
+        mApi[creatorIndex].megaApi->getMyUserHandleBinary()};
     for (auto ind: invitedIndices)
     {
         auto uh = mApi[ind].megaApi->getMyUserHandleBinary();
