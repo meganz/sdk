@@ -23974,7 +23974,8 @@ public:
  *  - ID.
  *  - Title.
  *  - Description.
- *  - Image name for the notification.
+ *  - Name of the main image for the notification.
+ *  - Name of the icon for the notification.
  *  - Default static path for the notification image.
  *  - Timestamp of when the notification became available to the user.
  *  - Timestamp of when the notification will expire.
@@ -24021,14 +24022,24 @@ public:
     virtual const char* getDescription() const = 0;
 
     /**
-     * @brief Get the image name for this notification.
+     * @brief Get the name of the main image for this notification.
      *
      * The caller does not take the ownership of the const char* object.
      * The const char* object is valid as long as the current MegaNotification object is valid too.
      *
-     * @return the image name for this notification, always not-null.
+     * @return the name of the main image for this notification, always not-null.
      */
     virtual const char* getImageName() const = 0;
+
+    /**
+     * @brief Get the name of the icon for this notification.
+     *
+     * The caller does not take the ownership of the const char* object.
+     * The const char* object is valid as long as the current MegaNotification object is valid too.
+     *
+     * @return the name of the icon for this notification, always not-null.
+     */
+    virtual const char* getIconName() const = 0;
 
     /**
      * @brief Get the default static path of the image associated with this notification.
@@ -24089,7 +24100,7 @@ public:
      * This copy is meant to be used from another scope which must survive the actual owner of this MegaNotification object.
      * The caller takes the ownership of the new MegaNotification object.
      *
-     * @return MegaNotification* with the copied MegaNotification object.
+     * @return MegaNotification* of the copied object.
      */
     virtual MegaNotification* copy() const = 0;
 };

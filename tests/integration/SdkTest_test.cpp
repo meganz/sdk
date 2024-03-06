@@ -18141,6 +18141,21 @@ TEST_F(SdkTest, DynamicMessageNotifs)
     ASSERT_THAT(notificationList2, ::testing::NotNull());
     ASSERT_EQ(notificationList2->size(), 1u);
 
+    // validate complete notification
+    const MegaNotification* notification = notificationList2->get(0);
+    ASSERT_EQ(notification->getID(), 1);
+    ASSERT_STRNE(notification->getTitle(), "");
+    ASSERT_STRNE(notification->getDescription(), "");
+    ASSERT_STRNE(notification->getImageName(), "");
+    //ASSERT_STRNE(notification->getIconName(), "");
+    ASSERT_STRNE(notification->getImagePath(), "");
+    ASSERT_NE(notification->getStart(), 0);
+    ASSERT_NE(notification->getEnd(), 0);
+    ASSERT_THAT(notification->getCallToAction1(), ::testing::NotNull());
+    ASSERT_NE(notification->getCallToAction1()->size(), 0);
+    ASSERT_THAT(notification->getCallToAction2(), ::testing::NotNull());
+    ASSERT_NE(notification->getCallToAction2()->size(), 0);
+
     // Set last-read-notification
     const uint32_t lastReadNotifId = numeric_limits<uint32_t>::max() - 2; // dummy value
     RequestTracker setLastReadNotifTracker(megaApi[0].get());
