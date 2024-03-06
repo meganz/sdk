@@ -7820,18 +7820,21 @@ void MegaClient::sc_pk()
 
             mKeyManager.promotePendingShares();
         },
-        [this, lastcompleted]()
+        [this, lastcompleted](error e)
         {
-            LOG_debug << "All pending keys were processed";
-            reqs.add(new CommandPendingKeys(this, lastcompleted, [] (Error e)
+            if (e == API_OK)
             {
-                if (e)
+                LOG_debug << "All pending keys were processed";
+                reqs.add(new CommandPendingKeys(this, lastcompleted, [] (Error e)
                 {
-                    LOG_err << "Error deleting pending keys";
-                    return;
-                }
-                LOG_debug << "Pending keys deleted";
-            }));
+                    if (e)
+                    {
+                        LOG_err << "Error deleting pending keys";
+                        return;
+                    }
+                    LOG_debug << "Pending keys deleted";
+                }));
+            }
         });
     }));
 }
@@ -11513,9 +11516,11 @@ void MegaClient::upgradeSecurity(std::function<void(Error)> completion)
         // putua shouldn't fail in this case. Otherwise, another client would have upgraded the account
         // at the same time and therefore we wouldn't have to apply the changes again.
     },
-    [this, completion]()
+    [this, completion](error e)
     {
-        completion(API_OK);
+        completion(e);
+
+        if (e) return;
 
         // Get pending keys for inshares
         fetchContactsKeys();
@@ -11536,9 +11541,9 @@ void MegaClient::setContactVerificationWarning(bool enabled, std::function<void(
         {
             mKeyManager.setContactVerificationWarning(enabled);
         },
-        [completion]()
+        [completion](error e)
         {
-            if (completion) completion(API_OK);
+            if (completion) completion(e);
         });
 }
 
@@ -11590,9 +11595,9 @@ void MegaClient::openShareDialog(Node* n, std::function<void(Error)> completion)
             // Changes to apply in the commit
             mKeyManager.addShareKey(nodehandle, shareKey, true);
         },
-        [completion]()
+        [completion](error e)
         {
-            completion(API_OK);
+            completion(e);
         });
     }
     else
@@ -11642,9 +11647,9 @@ void MegaClient::setshare(std::shared_ptr<Node> n, const char* user, accesslevel
                         mKeyManager.setSharekeyInUse(nodehandle, false);
 
                     },
-                    [completion, e, writable]()
+                    [completion, e, writable](error commitError)
                     {
-                        completion(e, writable);
+                        completion(commitError, writable);
                     });
                 }
                 else
@@ -11758,9 +11763,9 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
                     {
                         mKeyManager.setSharekeyInUse(nodehandle, true);
                     },
-                    [completion, e, writable]()
+                    [completion, e, writable](error commitError)
                     {
-                        completion(e, writable);
+                        completion(commitError, writable);
                     });
                 }
                 else
@@ -11807,9 +11812,14 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
                 mKeyManager.addPendingOutShare(nodehandle, uid);
             }
         },
-        [completeShare]()
+        [completeShare, completion, user, writable](error e)
         {
-            completeShare();
+            if (e == API_OK) completeShare();
+            else
+            {
+                completion(e, writable);
+                if (user && user->isTemporary) delete user;
+            }
         });
         return;
     }
@@ -15280,9 +15290,9 @@ error MegaClient::verifyCredentials(handle uh, std::function<void (Error)> compl
         std::string serializedAuthring = authring.serializeForJS();
         mKeyManager.setAuthRing(serializedAuthring);
     },
-    [completion]()
+    [completion](error e)
     {
-        completion(API_OK);
+        completion(e);
     });
 
     return API_OK;
@@ -15344,11 +15354,11 @@ error MegaClient::resetCredentials(handle uh, std::function<void(Error)> complet
         // Changes to apply in the commit
         mKeyManager.setAuthRing(serializedAuthring);
     },
-    [completion]()
+    [completion](error e)
     {
         if (completion)
         {
-            completion(API_OK);
+            completion(e);
         }
         return;
     });
@@ -21003,7 +21013,7 @@ void KeyManager::loadShareKeys()
     }
 }
 
-void KeyManager::commit(std::function<void ()> applyChanges, std::function<void ()> completion)
+void KeyManager::commit(std::function<void ()> applyChanges, std::function<void (error e)> completion)
 {
     LOG_debug << "[keymgr] New update requested";
     if (mVersion == 0)
@@ -21012,12 +21022,12 @@ void KeyManager::commit(std::function<void ()> applyChanges, std::function<void 
         assert(false);
         if (completion)
         {
-            completion();
+            completion(API_EINTERNAL);
         }
         return;
     }
 
-    nextQueue.push_back(std::pair<std::function<void()>, std::function<void()>>(std::move(applyChanges), std::move(completion)));
+    nextQueue.push_back(std::pair<std::function<void()>, std::function<void(error e)>>(std::move(applyChanges), std::move(completion)));
     if (activeQueue.size())
     {
         LOG_debug << "[keymgr] Another commit is in progress. Queued updates: " << nextQueue.size();
@@ -21193,16 +21203,14 @@ void KeyManager::tryCommit(Error e, std::function<void ()> completion)
         else if (e == API_EARGS) LOG_debug << "[keymgr] Commit aborted, keys too large?" << tmp;
         else LOG_debug << "[keymgr] Commit aborted (downgrade attack)" << tmp;
 
-        if (e == API_OK)    // only assume ^!keys was updated if it actually was updated
+        for (auto &activeCommit : activeQueue)
         {
-            for (auto &activeCommit : activeQueue)
+            if (activeCommit.second)
             {
-                if (activeCommit.second)
-                {
-                    activeCommit.second(); // Run update completion callback
-                }
+                activeCommit.second(e); // Run update completion callback
             }
         }
+
         activeQueue = {};
 
         completion();   // -> nextCommit() or log "No more updates in the queue"

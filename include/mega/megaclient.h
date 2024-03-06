@@ -325,7 +325,7 @@ public:
 
     void loadShareKeys();
 
-    void commit(std::function<void()> applyChanges, std::function<void()> completion = nullptr);
+    void commit(std::function<void()> applyChanges, std::function<void (error e)> completion = nullptr);
     void reset();
 
     // returns a formatted string, for logging purposes
@@ -344,8 +344,8 @@ public:
     void setManualVerificationFlag(bool enabled) { mManualVerification = enabled; }
 
 protected:
-    std::deque<std::pair<std::function<void()>, std::function<void()>>> nextQueue;
-    std::deque<std::pair<std::function<void()>, std::function<void()>>> activeQueue;
+    std::deque<std::pair<std::function<void()>, std::function<void(error e)>>> nextQueue;
+    std::deque<std::pair<std::function<void()>, std::function<void(error e)>>> activeQueue;
 
     void nextCommit();
     void tryCommit(Error e, std::function<void ()> completion);
