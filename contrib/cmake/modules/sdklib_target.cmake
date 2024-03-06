@@ -187,9 +187,14 @@ target_sources_conditional(SDKlib
     PRIVATE
     include/mega/win32/gfx/worker/comms.h
     include/mega/win32/gfx/worker/comms_client.h
-    src/gfx/isolatedprocess.cpp # only windows ATM
     src/win32/gfx/worker/comms.cpp
     src/win32/gfx/worker/comms_client.cpp
+)
+
+target_sources_conditional(SDKlib
+    FLAG ENABLE_ISOLATED_GFX
+    PRIVATE
+    src/gfx/isolatedprocess.cpp
 )
 
 target_sources_conditional(SDKlib
