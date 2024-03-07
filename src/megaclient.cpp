@@ -3596,12 +3596,15 @@ void MegaClient::dispatchTransfers()
 
     auto calcTransferWeight = [this]() -> unsigned
     {
+        /*
         if (raidCounter >= (MAXTRANSFERS/6))
         {
             LOG_debug << "[calcTransferWeight] raidCounter = " << raidCounter << ", >= " << (MAXTRANSFERS/6) << " -> return 3";
             return 3;
         }
-        return 1; //httpio->downloadSpeed < (20 * 1024 * 1024) ? 3 : 1; // 20 MB/s (~200Mbps)
+        return httpio->downloadSpeed < (20 * 1024 * 1024) ? 3 : 1; // 20 MB/s (~200Mbps)
+        */
+       return 1;
     };
 
     // Determine average speed and total amount of data remaining for the given direction/size-category
@@ -3633,22 +3636,41 @@ void MegaClient::dispatchTransfers()
         raidCounter = 0;
     }
 
-    std::function<bool(direction_t)> continueDirection = [&counters](direction_t putget) {
+    std::function<bool(direction_t)> continueDirection = [this, &counters](direction_t putget)
+    {
+        // Define the minimum and maximum scaling factors
+        const unsigned int minScalingFactor = 2000;
+        const unsigned int maxScalingFactor = 16000;
+        
+        // Define the minimum and maximum size limits
+        const unsigned int minSize = 12; // Adjusted minimum size
+        const unsigned int maxSize = MAXTRANSFERS; // Maximum limit for the queue size (32)
+
+        // Map throughput to the range [0, 1]
+        m_off_t throughputInKBPerSec = httpio->downloadSpeed / 1024; // KB/s
+        double normalizedThroughput = (double)(throughputInKBPerSec - minScalingFactor) / (maxScalingFactor - minScalingFactor);
+
+        // Calculate the dynamic transfer queue size using a linear scaling
+        unsigned int size = minSize + (unsigned int)(normalizedThroughput * (maxSize - minSize));
+
+        // Ensure that the calculated size does not exceed the maximum limit
+        unsigned int customLimit = std::min(size, maxSize);
+        LOG_debug << "[ContinueDirection] customLimit = " << customLimit << " [throughput = " << (throughputInKBPerSec) << " KB/s]";
 
             // hard limit on puts/gets
-            if (counters[putget].total >= MAXTRANSFERS)
+            if (counters[putget].total >= customLimit) //MAXTRANSFERS)
             {
                 return false;
             }
 
             // only request half the max at most, to get a quicker response from the API and get overlap with transfers going
-            if (counters[putget].added >= MAXTRANSFERS/2)
+            if (counters[putget].added >= customLimit/2) // MAXTRANSFERS/2)
             {
                 return false;
             }
 
             return true;
-        };
+    };
 
     std::function<bool(Transfer*)> testAddTransferFunction = [&counters, this, &calcTransferWeight](Transfer* t)
         {
