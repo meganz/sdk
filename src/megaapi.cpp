@@ -1189,6 +1189,11 @@ const MegaNotificationList* MegaRequest::getMegaNotifications() const
     return nullptr;
 }
 
+const MegaNodeTree* MegaRequest::getMegaNodeTree() const
+{
+    return nullptr;
+}
+
 MegaTransfer::~MegaTransfer() { }
 
 MegaTransfer *MegaTransfer::copy()

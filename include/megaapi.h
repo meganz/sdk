@@ -5387,6 +5387,19 @@ class MegaRequest
          * @return non-null pointer if a valid MegaApi functionality has been called, nullptr otherwise.
          */
         virtual const MegaNotificationList* getMegaNotifications() const;
+
+        /**
+         * @brief Get node tree after its creation
+         *
+         * This value is valid only for the following requests:
+         * - MegaApi::createNodeTree
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * @return non-null pointer if a valid MegaApi functionality has been called, nullptr otherwise.
+         */
+        virtual const MegaNodeTree* getMegaNodeTree() const;
 };
 
 /**
@@ -9586,6 +9599,7 @@ public:
                                         MegaHandle sourceHandle = INVALID_HANDLE);
     virtual MegaNodeTree* getNodeTreeChild() const = 0;
     virtual MegaHandle getNodeHandle() const = 0;
+    virtual MegaNodeTree* copy() const = 0;
 };
 
 class MegaCompleteUploadData
@@ -9598,6 +9612,7 @@ public:
     static MegaCompleteUploadData* createInstance(const char* fingerprint,
                                                   const char* string64UploadToken,
                                                   const char* string64FileKey);
+    virtual MegaCompleteUploadData* copy() const = 0;
 };
 
 class MegaApiImpl;
@@ -22359,6 +22374,7 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getParentHandle - Returns the node handle of the parent node in the tree
+         * - MegaRequest::getMegaNodeTree - Returns the Node Tree result after its creation
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EARGS - Parameters are incorrect.

@@ -1665,6 +1665,9 @@ class MegaRequestPrivate : public MegaRequest
         const MegaNotificationList* getMegaNotifications() const override;
         void setMegaNotifications(MegaNotificationList* megaNotifications);
 
+        const MegaNodeTree* getMegaNodeTree() const override;
+        void setMegaNodeTree(MegaNodeTree* megaNodeTree);
+
 protected:
         std::shared_ptr<AccountDetails> accountDetails;
         MegaPricingPrivate *megaPricing;
@@ -1727,6 +1730,7 @@ protected:
 #endif // ENABLE_SYNC
 
         unique_ptr<MegaNotificationList> mMegaNotifications;
+        unique_ptr<MegaNodeTree> mMegaNodeTree;
 
     public:
         shared_ptr<ExecuteOnce> functionToExecute;
@@ -4982,6 +4986,7 @@ public:
     MegaHandle getNodeHandle() const override;
     void setNodeHandle(const MegaHandle& nodeHandle);
     const MegaHandle& getSourceHandle() const { return mSourceHandle; }
+    MegaNodeTree* copy() const override;
 
 private:
     std::unique_ptr<MegaNodeTree> mNodeTreeChild;
@@ -5009,6 +5014,7 @@ public:
     const std::string& getFingerprint() const;
     const std::string& getString64UploadToken() const;
     const std::string& getString64FileKey() const;
+    MegaCompleteUploadData* copy() const override;
 
 private:
     std::string mFingerprint;
