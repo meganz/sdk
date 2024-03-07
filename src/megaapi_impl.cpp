@@ -37924,13 +37924,22 @@ MegaNodeTreePrivate::MegaNodeTreePrivate(MegaNodeTree* nodeTreeChild,
                                          const MegaCompleteUploadData* completeUploadData,
                                          MegaHandle sourceHandle,
                                          MegaHandle nodeHandle):
-    mNodeTreeChild{nodeTreeChild},
+    mNodeTreeChild{nullptr},
     mName{name},
     mS4AttributeValue{s4AttributeValue},
-    mCompleteUploadData{completeUploadData},
+    mCompleteUploadData{nullptr},
     mSourceHandle{sourceHandle},
     mNodeHandle{nodeHandle}
-{}
+{
+    if(nodeTreeChild)
+    {
+        mNodeTreeChild.reset(nodeTreeChild->copy());
+    }
+    if(completeUploadData)
+    {
+        mCompleteUploadData.reset(completeUploadData->copy());
+    }
+}
 
 MegaNodeTree* MegaNodeTreePrivate::getNodeTreeChild() const
 {
