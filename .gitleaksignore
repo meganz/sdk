@@ -176,3 +176,5 @@ src/megaapi_impl.cpp:private-key:12805
 tests/unit/Crypto_test.cpp:generic-api-key:31
 src/megaapi_impl.cpp:private-key:12805
 src/megaapi_impl.cpp:private-key:12804
+src/megaapi_impl.cpp:private-key:13098
+src/megaapi_impl.cpp:private-key:12833
