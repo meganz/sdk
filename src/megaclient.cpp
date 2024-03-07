@@ -3598,9 +3598,10 @@ void MegaClient::dispatchTransfers()
     {
         if (raidCounter >= (MAXTRANSFERS/6))
         {
+            LOG_debug << "[calcTransferWeight] raidCounter = " << raidCounter << ", >= " << (MAXTRANSFERS/6) << " -> return 3";
             return 3;
         }
-        return httpio->downloadSpeed < (20 * 1024 * 1024) ? 3 : 1; // 20 MB/s (~200Mbps)
+        return 1; //httpio->downloadSpeed < (20 * 1024 * 1024) ? 3 : 1; // 20 MB/s (~200Mbps)
     };
 
     // Determine average speed and total amount of data remaining for the given direction/size-category
@@ -3610,20 +3611,27 @@ void MegaClient::dispatchTransfers()
         assert(ts->transfer->type == PUT || ts->transfer->type == GET);
         if (ts->transfer->type == GET)
         {
-            if (!ts->transfer->tempurls.empty() && ts->transferbuf.isNewRaid())
+            if (!ts->transfer->tempurls.empty())
             {
-                if (raidCounter < (MAXTRANSFERS/6)) raidCounter += 1;
-            }
-            else
-            {
-                if (raidCounter > 1) raidCounter -= 1;
+                if (ts->transferbuf.isNewRaid()) // Raid
+                {
+                    if (raidCounter < (MAXTRANSFERS/6)) raidCounter += 1;
+                }
+                else // Old raid or non-raid
+                {
+                    if (raidCounter > 1) raidCounter -= 1;
+                }
             }
         }
         TransferCategory tc(ts->transfer);
         counters[tc.index()].addexisting(ts->transfer->size, ts->progressreported, calcTransferWeight());
         counters[tc.directionIndex()].addexisting(ts->transfer->size, ts->progressreported, calcTransferWeight());
     }
-    if (tslots.empty()) raidCounter = 0;
+    if (tslots.empty())
+    {
+        if (raidCounter != 0) { LOG_debug << "[MegaClient::dispatchTransfers] reset raidCounter to 0!!! [raidCounter = " << raidCounter << "]"; }
+        raidCounter = 0;
+    }
 
     std::function<bool(direction_t)> continueDirection = [&counters](direction_t putget) {
 
