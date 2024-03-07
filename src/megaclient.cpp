@@ -19081,6 +19081,8 @@ error MegaClient::readSingleNodeMetadata(JSON& j, SetElement::NodeMetadata& eln)
             if (!j.storeobject(&eln.at))
             {
                 LOG_err << "Sets: Failed to read node attributes";
+                assert(false);
+                return API_EINTERNAL;
             }
             break;
 
@@ -19088,6 +19090,8 @@ error MegaClient::readSingleNodeMetadata(JSON& j, SetElement::NodeMetadata& eln)
             if (!j.storeobject(&eln.fa))
             {
                 LOG_err << "Sets: Failed to read file attributes";
+                assert(false);
+                return API_EINTERNAL;
             }
             break;
 
