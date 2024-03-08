@@ -3569,15 +3569,14 @@ void MegaClient::dispatchTransfers()
 
     CodeCounter::ScopeTimer ccst(performanceStats.dispatchTransfers);
 
-    static unsigned raidCounter = 0;
     struct counter
     {
         m_off_t remainingsum = 0;
-        unsigned total = 0;
-        unsigned added = 0;
+        double total = 0;
+        double added = 0;
         bool hasVeryBig = false;
 
-        void addexisting(m_off_t size, m_off_t progressed, unsigned transferWeight)
+        void addexisting(m_off_t size, m_off_t progressed, double transferWeight)
         {
             remainingsum += size - progressed;
             total += transferWeight;
@@ -3586,7 +3585,7 @@ void MegaClient::dispatchTransfers()
                 hasVeryBig = true;
             }
         }
-        void addnew(m_off_t size, unsigned transferWeight)
+        void addnew(m_off_t size, double transferWeight)
         {
             addexisting(size, 0, transferWeight);
             added += transferWeight;
@@ -3594,17 +3593,50 @@ void MegaClient::dispatchTransfers()
     };
     std::array<counter, 6> counters;
 
-    auto calcTransferWeight = [this]() -> unsigned
+    auto calcDynamicQueueLimit = [this]() -> unsigned
     {
-        /*
-        if (raidCounter >= (MAXTRANSFERS/6))
+        // Define the minimum and maximum scaling factors
+        const int minScalingFactor = 2000; // KB/s
+        const int maxScalingFactor = 16000; // KB/s
+
+        // Define the minimum and maximum size limits
+        const int minSize = 12; // Adjusted minimum size
+        const int maxSize = MAXTRANSFERS; // Maximum limit for the queue size
+
+        const int threshold = 8000; // Threshold to activate the additional term
+        m_off_t throughputInKBPerSec = httpio->downloadSpeed / 1024; // KB/s
+
+        // Adjust growth rate before the threshold
+        double scaleFactor = (double)(throughputInKBPerSec - minScalingFactor) / (threshold - minScalingFactor);
+        scaleFactor *= 0.2;
+        double size = minSize + (maxSize - minSize) * (1 - exp(-scaleFactor));
+        size = std::min(size, (double)maxSize);
+
+        if (throughputInKBPerSec >= threshold)
         {
-            LOG_debug << "[calcTransferWeight] raidCounter = " << raidCounter << ", >= " << (MAXTRANSFERS/6) << " -> return 3";
-            return 3;
+            double minSizeAfterThreshold = size;
+            scaleFactor = (double)(throughputInKBPerSec - threshold) / (maxScalingFactor - threshold);
+
+            // Calculate size using exponential function after the threshold
+            double additionalTerm = 20 * log(1 + (double)(throughputInKBPerSec - threshold) / threshold);
+            double sizeAfterThreshold = minSizeAfterThreshold + (maxSize - minSizeAfterThreshold) * (1 - exp(-scaleFactor)) + additionalTerm;
+            size = std::min(sizeAfterThreshold, (double)maxSize); // Adjusting the size after the threshold to be maximum maxSize
         }
-        return httpio->downloadSpeed < (20 * 1024 * 1024) ? 3 : 1; // 20 MB/s (~200Mbps)
-        */
-       return 1;
+
+        LOG_verbose << "[calcDynamicQueueSize] customLimit = " << size << " [throughput = " << (throughputInKBPerSec) << " KB/s]";
+        return (unsigned)size;
+    };
+
+    auto calcTransferWeight = [this, &calcDynamicQueueLimit]() -> double
+    {
+        if (raidTransfersCounter >= (MAXTRANSFERS/6)) // 1/5 of the hard limit
+        {
+            auto dynamicQueueLimit = calcDynamicQueueLimit();
+            double transferWeight = static_cast<double>(MAXTRANSFERS) / static_cast<double>(dynamicQueueLimit); 
+            LOG_debug << "[calcTransferWeight] raidTransfersCounter = " << raidTransfersCounter << ", >= " << (MAXTRANSFERS/6) << " -> transferWeight = " << transferWeight << " [dynamicQueueLimit = " << dynamicQueueLimit << "]";
+            return transferWeight;
+        }
+        return 1;
     };
 
     // Determine average speed and total amount of data remaining for the given direction/size-category
@@ -3618,11 +3650,11 @@ void MegaClient::dispatchTransfers()
             {
                 if (ts->transferbuf.isNewRaid()) // Raid
                 {
-                    if (raidCounter < (MAXTRANSFERS/6)) raidCounter += 1;
+                    if (raidTransfersCounter < (MAXTRANSFERS/6)) raidTransfersCounter += 1; // Keep the counter within the limit to avoid overrepresentation: 1/5 of max transfers
                 }
                 else // Old raid or non-raid
                 {
-                    if (raidCounter > 1) raidCounter -= 1;
+                    if (raidTransfersCounter > 1) raidTransfersCounter -= 1;
                 }
             }
         }
@@ -3632,39 +3664,20 @@ void MegaClient::dispatchTransfers()
     }
     if (tslots.empty())
     {
-        if (raidCounter != 0) { LOG_debug << "[MegaClient::dispatchTransfers] reset raidCounter to 0!!! [raidCounter = " << raidCounter << "]"; }
-        raidCounter = 0;
+        if (raidTransfersCounter != 0) { LOG_debug << "[MegaClient::dispatchTransfers] reset raidTransfersCounter to 0!!! [raidTransfersCounter = " << raidTransfersCounter << "]"; }
+        raidTransfersCounter = 0;
     }
 
     std::function<bool(direction_t)> continueDirection = [this, &counters](direction_t putget)
     {
-        // Define the minimum and maximum scaling factors
-        const unsigned int minScalingFactor = 2000;
-        const unsigned int maxScalingFactor = 16000;
-        
-        // Define the minimum and maximum size limits
-        const unsigned int minSize = 12; // Adjusted minimum size
-        const unsigned int maxSize = MAXTRANSFERS; // Maximum limit for the queue size (32)
-
-        // Map throughput to the range [0, 1]
-        m_off_t throughputInKBPerSec = httpio->downloadSpeed / 1024; // KB/s
-        double normalizedThroughput = (double)(throughputInKBPerSec - minScalingFactor) / (maxScalingFactor - minScalingFactor);
-
-        // Calculate the dynamic transfer queue size using a linear scaling
-        unsigned int size = minSize + (unsigned int)(normalizedThroughput * (maxSize - minSize));
-
-        // Ensure that the calculated size does not exceed the maximum limit
-        unsigned int customLimit = std::min(size, maxSize);
-        LOG_debug << "[ContinueDirection] customLimit = " << customLimit << " [throughput = " << (throughputInKBPerSec) << " KB/s]";
-
             // hard limit on puts/gets
-            if (counters[putget].total >= customLimit) //MAXTRANSFERS)
+            if (static_cast<int>(std::round(counters[putget].total)) >= MAXTRANSFERS)
             {
                 return false;
             }
 
             // only request half the max at most, to get a quicker response from the API and get overlap with transfers going
-            if (counters[putget].added >= customLimit/2) // MAXTRANSFERS/2)
+            if (static_cast<int>(std::round(counters[putget].added)) >= MAXTRANSFERS/2)
             {
                 return false;
             }
