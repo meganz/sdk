@@ -3606,34 +3606,51 @@ void MegaClient::dispatchTransfers()
         const int threshold = 8000; // Threshold to activate the additional term
         m_off_t throughputInKBPerSec = httpio->downloadSpeed / 1024; // KB/s
 
-        // Adjust growth rate before the threshold
-        double scaleFactor = (double)(throughputInKBPerSec - minScalingFactor) / (threshold - minScalingFactor);
+        // Use an expontential function to obtain a very low growth rate before the threshold
+        double scaleFactor = static_cast<double>(throughputInKBPerSec - minScalingFactor) / (threshold - minScalingFactor);
         scaleFactor *= 0.2;
         double size = minSize + (maxSize - minSize) * (1 - exp(-scaleFactor));
-        size = std::min(size, (double)maxSize);
+        size = std::min(size, static_cast<double>(maxSize));
 
         if (throughputInKBPerSec >= threshold)
         {
             double minSizeAfterThreshold = size;
-            scaleFactor = (double)(throughputInKBPerSec - threshold) / (maxScalingFactor - threshold);
+            scaleFactor = static_cast<double>(throughputInKBPerSec - threshold) / (maxScalingFactor - threshold);
 
-            // Calculate size using exponential function after the threshold
-            double additionalTerm = 20 * log(1 + (double)(throughputInKBPerSec - threshold) / threshold);
+            // Calculate size using exponential function with an additional term for a high growth rate after the threshold
+            double additionalTerm = 20 * log(1 + static_cast<double>(throughputInKBPerSec - threshold) / threshold);
             double sizeAfterThreshold = minSizeAfterThreshold + (maxSize - minSizeAfterThreshold) * (1 - exp(-scaleFactor)) + additionalTerm;
-            size = std::min(sizeAfterThreshold, (double)maxSize); // Adjusting the size after the threshold to be maximum maxSize
+            size = std::min(sizeAfterThreshold, static_cast<double>(maxSize));
         }
 
         LOG_verbose << "[calcDynamicQueueSize] customLimit = " << size << " [throughput = " << (throughputInKBPerSec) << " KB/s]";
-        return (unsigned)size;
+        return static_cast<unsigned>(size);
     };
 
     auto calcTransferWeight = [this, &calcDynamicQueueLimit]() -> double
     {
         if (raidTransfersCounter >= (MAXTRANSFERS/6)) // 1/5 of the hard limit
         {
-            auto dynamicQueueLimit = calcDynamicQueueLimit();
+            double averageFileSize = 0;
+            for (TransferSlot* ts : tslots)
+            {
+                averageFileSize += ((ts->transfer->size) / (tslots.size())); // Take into account VERY LARGE FILE SIZES, that's why I divide for each iteration and not at the end
+            }
+            unsigned dynamicQueueLimit;
+            if (averageFileSize <= (2 * 1024 * 1024)) // 2MB
+            {
+#if defined(__ANDROID__) || defined(USE_IOS)
+                dynamicQueueLimit = MAXTRANSFERS;
+#else
+                dynamicQueueLimit = 40;
+#endif
+            }
+            else
+            {
+                dynamicQueueLimit = calcDynamicQueueLimit();
+            }
             double transferWeight = static_cast<double>(MAXTRANSFERS) / static_cast<double>(dynamicQueueLimit); 
-            LOG_debug << "[calcTransferWeight] raidTransfersCounter = " << raidTransfersCounter << ", >= " << (MAXTRANSFERS/6) << " -> transferWeight = " << transferWeight << " [dynamicQueueLimit = " << dynamicQueueLimit << "]";
+            LOG_debug << "[calcTransferWeight] raidTransfersCounter = " << raidTransfersCounter << ", >= " << (MAXTRANSFERS/6) << " -> transferWeight = " << transferWeight << " [dynamicQueueLimit = " << dynamicQueueLimit << "] [averageFileSize = " << (averageFileSize / 1024) << " KBs]";
             return transferWeight;
         }
         return 1;
