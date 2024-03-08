@@ -9556,7 +9556,7 @@ void MegaClient::readokelement(JSON* j)
                     return;
                 }
 
-                if (!mKeyManager.generation())   // insecure or secure client but not migrated yet
+                if (!mKeyManager.generation())   // client not migrated yet
                 {
                     if (!k)
                     {
@@ -10041,16 +10041,10 @@ void MegaClient::applykeys()
 
     mNodeManager.applyKeys(uint32_t(mAppliedKeyNodeCount + noKeyExpected));
 
-    sendkeyrewrites();
-}
-
-void MegaClient::sendkeyrewrites()
-{
-    if (sharekeyrewrite.size() || nodekeyrewrite.size())
+    if (!nodekeyrewrite.empty())
     {
         LOG_err << "Skipped to send key rewrites (secured client)";
-        assert(false);
-        sharekeyrewrite.clear();
+        assert(nodekeyrewrite.empty());
         nodekeyrewrite.clear();
     }
 }

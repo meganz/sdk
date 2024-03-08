@@ -1795,10 +1795,8 @@ public:
     // send updates to app when the storage size changes
     int64_t mNotifiedSumSize = 0;
 
-    // TODO: obsolete if "secure"
     // asymmetric to symmetric key rewriting
     handle_vector nodekeyrewrite;
-    handle_vector sharekeyrewrite;
 
     static const char* const EXPORTEDLINK;
 
@@ -2105,9 +2103,6 @@ public:
 
     // apply keys
     void applykeys();
-
-    // send andy key rewrites prepared when keys were applied
-    void sendkeyrewrites();
 
     // symmetric password challenge
     int checktsid(byte* sidbuf, unsigned len);
