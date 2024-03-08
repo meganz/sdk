@@ -3597,13 +3597,13 @@ void MegaClient::dispatchTransfers()
     {
         // Define the minimum and maximum scaling factors
         const int minScalingFactor = 2000; // KB/s
-        const int maxScalingFactor = 16000; // KB/s
+        const int maxScalingFactor = 20000; //16000; // KB/s
 
         // Define the minimum and maximum size limits
         const int minSize = 12; // Adjusted minimum size
         const int maxSize = MAXTRANSFERS; // Maximum limit for the queue size
 
-        const int threshold = 8000; // Threshold to activate the additional term
+        const int threshold = 12000; //8000; // Threshold (KB/S) to activate the additional term
         m_off_t throughputInKBPerSec = httpio->downloadSpeed / 1024; // KB/s
 
         // Use an expontential function to obtain a very low growth rate before the threshold
@@ -3634,7 +3634,7 @@ void MegaClient::dispatchTransfers()
             double averageFileSize = 0;
             for (TransferSlot* ts : tslots)
             {
-                averageFileSize += ((ts->transfer->size) / (tslots.size())); // Take into account VERY LARGE FILE SIZES, that's why I divide for each iteration and not at the end
+                averageFileSize += (static_cast<double>(ts->transfer->size) / static_cast<double>(tslots.size())); // Take into account VERY LARGE FILE SIZES, that's why I divide for each iteration and not at the end
             }
             unsigned dynamicQueueLimit;
             if (averageFileSize <= (2 * 1024 * 1024)) // 2MB
@@ -3688,13 +3688,13 @@ void MegaClient::dispatchTransfers()
     std::function<bool(direction_t)> continueDirection = [this, &counters](direction_t putget)
     {
             // hard limit on puts/gets
-            if (static_cast<int>(std::round(counters[putget].total)) >= MAXTRANSFERS)
+            if (static_cast<unsigned>(std::round(counters[putget].total)) >= MAXTRANSFERS)
             {
                 return false;
             }
 
             // only request half the max at most, to get a quicker response from the API and get overlap with transfers going
-            if (static_cast<int>(std::round(counters[putget].added)) >= MAXTRANSFERS/2)
+            if (static_cast<unsigned>(std::round(counters[putget].added)) >= MAXTRANSFERS/2)
             {
                 return false;
             }
