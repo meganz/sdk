@@ -1874,43 +1874,6 @@ bool CommandLogin::procresult(Result r, JSON& json)
     }
 }
 
-CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient*, handle sh, const char* uid, const byte* key, int len)
-{
-    cmd("k");
-    beginarray("sr");
-
-    element(sh, MegaClient::NODEHANDLE);
-    element(uid);
-    element(key, len);
-
-    endarray();
-}
-
-CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient* client, handle_vector* v)
-{
-    shared_ptr<Node> n;
-    byte sharekey[SymmCipher::KEYLENGTH];
-
-    cmd("k");
-    beginarray("sr");
-
-    for (size_t i = v->size(); i--;)
-    {
-        handle h = (*v)[i];
-
-        if ((n = client->nodebyhandle(h)) && n->sharekey)
-        {
-            client->key.ecb_encrypt(n->sharekey->key, sharekey, SymmCipher::KEYLENGTH);
-
-            element(h, MegaClient::NODEHANDLE);
-            element(client->me, MegaClient::USERHANDLE);
-            element(sharekey, SymmCipher::KEYLENGTH);
-        }
-    }
-
-    endarray();
-}
-
 // add/remove share; include node share keys if new share
 CommandSetShare::CommandSetShare(MegaClient* client, std::shared_ptr<Node> n, User* u, accesslevel_t a, bool newshare, const char* msg, bool writable, const char* personal_representation, int ctag, std::function<void(Error, bool writable)> f)
 {

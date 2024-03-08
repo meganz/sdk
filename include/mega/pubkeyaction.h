@@ -40,16 +40,6 @@ public:
     virtual ~PubKeyAction() { }
 };
 
-class MEGA_API PubKeyActionSendShareKey : public PubKeyAction
-{
-    handle sh;  // share node the key was requested on
-
-public:
-    void proc(MegaClient*, User*);
-
-    PubKeyActionSendShareKey(handle);
-};
-
 class MEGA_API PubKeyActionPutNodes : public PubKeyAction
 {
     vector<NewNode> nn;    // nodes to add

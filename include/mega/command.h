@@ -492,15 +492,6 @@ public:
     bool procresult(Result, JSON&) override { return true; }
 };
 
-class MEGA_API CommandShareKeyUpdate : public Command
-{
-public:
-    CommandShareKeyUpdate(MegaClient*, handle, const char*, const byte*, int);
-    CommandShareKeyUpdate(MegaClient*, handle_vector*);
-
-    bool procresult(Result, JSON&) override { return true; }
-};
-
 class MEGA_API CommandKeyCR : public Command
 {
     bool procresult(Result, JSON&) override { return true; }

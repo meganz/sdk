@@ -66,29 +66,6 @@ void PubKeyActionPutNodes::proc(MegaClient* client, User* u)
     }
 }
 
-// sharekey distribution request for handle h
-PubKeyActionSendShareKey::PubKeyActionSendShareKey(handle h)
-{
-    sh = h;
-}
-
-void PubKeyActionSendShareKey::proc(MegaClient* client, User* u)
-{
-    std::shared_ptr<Node> n;
-
-    // only the share owner distributes share keys
-    if (u && u->pubk.isvalid() && (n = client->nodebyhandle(sh)) && n->sharekey && client->checkaccess(n.get(), OWNER))
-    {
-        int t;
-        byte buf[AsymmCipher::MAXKEYLENGTH];
-
-        if ((t = u->pubk.encrypt(client->rng, n->sharekey->key, SymmCipher::KEYLENGTH, buf, sizeof buf)))
-        {
-            client->reqs.add(new CommandShareKeyUpdate(client, sh, u->uid.c_str(), buf, t));
-        }
-    }
-}
-
 void PubKeyActionNotifyApp::proc(MegaClient *client, User *u)
 {
     client->app->pubkey_result(u);
