@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file tests/sdk_test.cpp
  * @brief Mega SDK test file
  *
