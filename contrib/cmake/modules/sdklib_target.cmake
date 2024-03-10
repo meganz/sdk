@@ -11,6 +11,7 @@ set(SDKLIB_HEADERS
     include/megaapi_impl.h
     include/mega/transferslot.h
     include/mega/thread/libuvthread.h
+    include/mega/clock.h
     include/mega/command.h
     include/mega/thread.h
     include/mega/json.h

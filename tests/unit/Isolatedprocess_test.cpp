@@ -3,32 +3,16 @@
 
 #include "gtest/gtest.h"
 #include "mega/gfx/isolatedprocess.h"
+#include "mega/clock.h"
 
 #include <chrono>
 
-using std::chrono::time_point;
+using mega::ScopedSteadyClock;
 using std::chrono::seconds;
-using std::chrono::system_clock;
-namespace
-{
-class DurationCounter
-{
-public:
-    seconds duration() const;
-private:
-    time_point<system_clock> mStart{system_clock::now()};
-};
-
-seconds DurationCounter::duration() const
-{
-    return std::chrono::duration_cast<seconds>(system_clock::now() - mStart);
-}
-
-}
 
 TEST(Isolatedprocess, CancelableSleeperCanBecancelledInNoTime)
 {
-    DurationCounter counter;
+    ScopedSteadyClock counter;
 
     mega::CancellableSleeper sleeper;
     std::thread t ([&sleeper](){
@@ -41,7 +25,7 @@ TEST(Isolatedprocess, CancelableSleeperCanBecancelledInNoTime)
 
     // cancel should be done immediately, but we don't want a
     // too short number that the result could be affected by disturbance.
-    ASSERT_TRUE(counter.duration() < seconds(10));
+    ASSERT_TRUE(counter.passedTime() < seconds(10));
 }
 
 #if defined(WIN32)
@@ -50,12 +34,12 @@ TEST(Isolatedprocess, CancelableSleeperCanBecancelledInNoTime)
 //
 TEST(Isolatedprocess, GfxWorkerHelloBeaterCanGracefullyShutdownInNoTime)
 {
-    DurationCounter counter;
+    ScopedSteadyClock counter;
     {
         mega::HelloBeater beater(seconds(60), "__"); //long enough
     }
     // cancel should be done immediately, but we don't want a
     // too short number that the result could be affected by disturbance.
-    ASSERT_TRUE(counter.duration() < seconds(10));
+    ASSERT_TRUE(counter.passedTime() < seconds(10));
 }
 #endif
