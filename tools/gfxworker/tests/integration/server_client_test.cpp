@@ -116,11 +116,11 @@ TEST_F(ServerClientTest, RunHelloRequestResponseSuccessfully)
         ).runHello("")
     );
 
-    // EXPECT_TRUE(
-    //     GfxClient(
-    //         mega::make_unique<GfxCommunicationsClient>(mPipeName)
-    //     ).runShutDown()
-    // );
+    EXPECT_TRUE(
+        GfxClient(
+            mega::make_unique<GfxCommunicationsClient>(mPipeName)
+        ).runShutDown()
+    );
 
     if (serverThread.joinable())
     {
