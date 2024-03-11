@@ -16750,7 +16750,7 @@ TEST_F(SdkTest, CreateNodeTreeWithOneDirectoryAndNoS4Attribute)
     nodeTree.reset();
     ASSERT_THAT(requestTracker.waitForResult(),
                 ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
-    auto resultNodeTree = requestTracker.request->getMegaNodeTree();
+    const MegaNodeTree* resultNodeTree = requestTracker.request->getMegaNodeTree();
     ASSERT_THAT(resultNodeTree, ::testing::NotNull());
 
     // Check result
@@ -16790,7 +16790,7 @@ TEST_F(SdkTest, CreateNodeTreeWithOneDirectoryAndS4Attribute)
     nodeTree.reset();
     ASSERT_THAT(requestTracker.waitForResult(),
                 ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
-    auto resultNodeTree = requestTracker.request->getMegaNodeTree();
+    const MegaNodeTree* resultNodeTree = requestTracker.request->getMegaNodeTree();
     ASSERT_THAT(resultNodeTree, ::testing::NotNull());
 
     // Check result
@@ -16846,7 +16846,7 @@ TEST_F(SdkTest, CreateNodeTreeWithOneFile)
     nodeTree.reset();
     ASSERT_THAT(requestTracker.waitForResult(),
                 ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
-    auto resultNodeTree = requestTracker.request->getMegaNodeTree();
+    const MegaNodeTree* resultNodeTree = requestTracker.request->getMegaNodeTree();
     ASSERT_THAT(resultNodeTree, ::testing::NotNull());
 
     // Check result
@@ -16894,7 +16894,7 @@ TEST_F(SdkTest, CreateNodeTreeToCopyExistingSource)
     rootnode.reset();
     ASSERT_THAT(requestTracker.waitForResult(),
                 ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
-    auto resultNodeTree = requestTracker.request->getMegaNodeTree();
+    const MegaNodeTree* resultNodeTree = requestTracker.request->getMegaNodeTree();
     ASSERT_THAT(resultNodeTree, ::testing::NotNull());
 
     std::unique_ptr<MegaNode> newNodeCopy{ megaApi[apiIndex]->getNodeByHandle(resultNodeTree->getNodeHandle()) };
@@ -16941,7 +16941,7 @@ TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectories)
     nodeTreeLevel0.reset();
     ASSERT_THAT(requestTracker.waitForResult(),
                 ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
-    auto resultNodeTree = requestTracker.request->getMegaNodeTree();
+    const MegaNodeTree* resultNodeTree = requestTracker.request->getMegaNodeTree();
     ASSERT_THAT(resultNodeTree, ::testing::NotNull());
 
     // Check result
@@ -17029,7 +17029,7 @@ TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectoriesAndOneFileAtTheEnd)
     nodeTreeLevel0.reset();
     ASSERT_THAT(requestTracker.waitForResult(),
                 ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
-    auto resultNodeTree = requestTracker.request->getMegaNodeTree();
+    const MegaNodeTree* resultNodeTree = requestTracker.request->getMegaNodeTree();
     ASSERT_THAT(resultNodeTree, ::testing::NotNull());
 
     // Check result
@@ -17102,7 +17102,7 @@ TEST_F(SdkTest, CreateNodeTreeVersionUsingIdenticalUploadData)
     megaApi[apiIndex]->createNodeTree(parentNode.get(), fileTreeFromData.get(), &requestTrackerFirstTree);
     ASSERT_THAT(requestTrackerFirstTree.waitForResult(),
                 ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
-    auto resultNodeTree1 = requestTrackerFirstTree.request->getMegaNodeTree();
+    const MegaNodeTree* resultNodeTree1 = requestTrackerFirstTree.request->getMegaNodeTree();
     ASSERT_THAT(resultNodeTree1, ::testing::NotNull());
     ASSERT_NE(resultNodeTree1->getNodeHandle(), INVALID_HANDLE);
 
@@ -17125,7 +17125,7 @@ TEST_F(SdkTest, CreateNodeTreeVersionUsingIdenticalUploadData)
     megaApi[apiIndex]->createNodeTree(parentNode.get(), fileTreeFromData2.get(), &requestTrackerSecondTree);
     ASSERT_THAT(requestTrackerSecondTree.waitForResult(),
                 ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
-    auto resultNodeTree2 = requestTrackerSecondTree.request->getMegaNodeTree();
+    const MegaNodeTree* resultNodeTree2 = requestTrackerSecondTree.request->getMegaNodeTree();
     ASSERT_THAT(resultNodeTree2, ::testing::NotNull());
 
     // Confirm there's still only 1 version
@@ -17187,7 +17187,7 @@ TEST_F(SdkTest, CreateNodeTreeVersionUsingIdenticalSourceFile)
     nodeTree.reset();
     ASSERT_THAT(requestTracker.waitForResult(),
                 ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
-    auto resultNodeTree = requestTracker.request->getMegaNodeTree();
+    const MegaNodeTree* resultNodeTree = requestTracker.request->getMegaNodeTree();
     ASSERT_THAT(resultNodeTree, ::testing::NotNull());
 
     // Confirm there's still only 1 version
@@ -17244,7 +17244,7 @@ TEST_F(SdkTest, CreateNodeTreeVersionUsingDifferentUploadData)
     megaApi[apiIndex]->createNodeTree(parentNode.get(), fileTreeFromData.get(), &requestTrackerFirstTree);
     ASSERT_THAT(requestTrackerFirstTree.waitForResult(),
                 ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
-    auto resultNodeTree1 = requestTrackerFirstTree.request->getMegaNodeTree();
+    const MegaNodeTree* resultNodeTree1 = requestTrackerFirstTree.request->getMegaNodeTree();
     ASSERT_THAT(resultNodeTree1, ::testing::NotNull());
     ASSERT_NE(resultNodeTree1->getNodeHandle(), INVALID_HANDLE);
 
@@ -17276,7 +17276,7 @@ TEST_F(SdkTest, CreateNodeTreeVersionUsingDifferentUploadData)
     megaApi[apiIndex]->createNodeTree(parentNode.get(), fileTreeFromData2.get(), &requestTrackerSecondTree);
     ASSERT_THAT(requestTrackerSecondTree.waitForResult(),
                 ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
-    auto resultNodeTree2 = requestTrackerSecondTree.request->getMegaNodeTree();
+    const MegaNodeTree* resultNodeTree2 = requestTrackerSecondTree.request->getMegaNodeTree();
     ASSERT_THAT(resultNodeTree2, ::testing::NotNull());
     ASSERT_NE(resultNodeTree2->getNodeHandle(), INVALID_HANDLE);
 
@@ -17347,7 +17347,7 @@ TEST_F(SdkTest, CreateNodeTreeVersionUsingDifferentSourceFile)
     megaApi[apiIndex]->createNodeTree(rootNode.get(), nodeTree.get(), &requestTracker);
     ASSERT_THAT(requestTracker.waitForResult(),
                 ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
-    auto resultNodeTree = requestTracker.request->getMegaNodeTree();
+    const MegaNodeTree* resultNodeTree = requestTracker.request->getMegaNodeTree();
     ASSERT_THAT(resultNodeTree, ::testing::NotNull());
 
     // Confirm there are 2 versions now

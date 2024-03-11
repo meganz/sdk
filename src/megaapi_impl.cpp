@@ -26400,7 +26400,7 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
     request->setMegaNodeTree(nodeTree ? nodeTree->copy() : nullptr);
     request->performRequest = [this, request]()
     {
-        if (request->getParentHandle() == INVALID_HANDLE || request->getMegaNodeTree() == nullptr)
+        if (request->getParentHandle() == INVALID_HANDLE || !request->getMegaNodeTree())
         {
             LOG_err << "Failed to create node tree: Missing arguments";
             return API_EARGS;
@@ -26558,7 +26558,7 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
         }
 
         auto result{
-            [this, nodeTree, request](const Error& error, targettype_t, vector<NewNode>& newNodes, bool, int)
+            [this, request, nodeTree](const Error& error, targettype_t, vector<NewNode>& newNodes, bool, int)
             {
                 size_t i{};
                 auto tmpNodeTree{dynamic_cast<MegaNodeTreePrivate*>(nodeTree)};
@@ -37918,24 +37918,22 @@ MegaVpnCredentials* MegaVpnCredentialsPrivate::copy() const
 }
 /* MegaVpnCredentials END */
 
-MegaNodeTreePrivate::MegaNodeTreePrivate(MegaNodeTree* nodeTreeChild,
+MegaNodeTreePrivate::MegaNodeTreePrivate(const MegaNodeTree* nodeTreeChild,
                                          const std::string& name,
                                          const std::string& s4AttributeValue,
                                          const MegaCompleteUploadData* completeUploadData,
                                          MegaHandle sourceHandle,
                                          MegaHandle nodeHandle):
-    mNodeTreeChild{nullptr},
     mName{name},
     mS4AttributeValue{s4AttributeValue},
-    mCompleteUploadData{nullptr},
     mSourceHandle{sourceHandle},
     mNodeHandle{nodeHandle}
 {
-    if(nodeTreeChild)
+    if (nodeTreeChild)
     {
         mNodeTreeChild.reset(nodeTreeChild->copy());
     }
-    if(completeUploadData)
+    if (completeUploadData)
     {
         mCompleteUploadData.reset(completeUploadData->copy());
     }
@@ -37974,10 +37972,10 @@ void MegaNodeTreePrivate::setNodeHandle(const MegaHandle& nodeHandle)
 MegaNodeTree* MegaNodeTreePrivate::copy() const
 {
     MegaNodeTreePrivate* megaNodeTreeCopy = new MegaNodeTreePrivate(
-        mNodeTreeChild ? mNodeTreeChild->copy() : nullptr,
+        mNodeTreeChild.get(),
         mName,
         mS4AttributeValue,
-        mCompleteUploadData ? mCompleteUploadData->copy() : nullptr,
+        mCompleteUploadData.get(),
         mSourceHandle,
         mNodeHandle
     );

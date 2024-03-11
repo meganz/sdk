@@ -5397,7 +5397,7 @@ class MegaRequest
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
          *
-         * @return non-null pointer if a valid MegaApi functionality has been called, nullptr otherwise.
+         * @return non-null pointer if a valid MegaApi functionality has been called, null otherwise.
          */
         virtual const MegaNodeTree* getMegaNodeTree() const;
 };

@@ -4972,7 +4972,7 @@ private:
 class MegaNodeTreePrivate: public MegaNodeTree
 {
 public:
-    MegaNodeTreePrivate(MegaNodeTree* nodeTreeChild,
+    MegaNodeTreePrivate(const MegaNodeTree* nodeTreeChild,
                         const std::string& name,
                         const std::string& s4AttributeValue,
                         const MegaCompleteUploadData* completeUploadData,
