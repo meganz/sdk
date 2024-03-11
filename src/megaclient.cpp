@@ -3601,9 +3601,13 @@ void MegaClient::dispatchTransfers()
 
         // Define the minimum and maximum size limits
         const int minSize = 12; // Adjusted minimum size
-        const int maxSize = MAXTRANSFERS; // Maximum limit for the queue size
+#if defined(__ANDROID__) || defined(USE_IOS)
+        const int maxSize = MAXTRANSFERS - 10; // Maximum limit for the queue size
+#else
+        const int maxSize = MAXTRANSFERS + 10; // Maximum limit for the queue size
+#endif
 
-        const int threshold = 12000; //8000; // Threshold (KB/S) to activate the additional term
+        const int threshold = 16000; //8000; // Threshold (KB/S) to activate the additional term
         m_off_t throughputInKBPerSec = httpio->downloadSpeed / 1024; // KB/s
 
         // Use an expontential function to obtain a very low growth rate before the threshold
@@ -3640,10 +3644,14 @@ void MegaClient::dispatchTransfers()
             if (averageFileSize <= (2 * 1024 * 1024)) // 2MB
             {
 #if defined(__ANDROID__) || defined(USE_IOS)
-                dynamicQueueLimit = MAXTRANSFERS;
+                dynamicQueueLimit = MAXTRANSFERS - 10;
 #else
-                dynamicQueueLimit = 40;
+                dynamicQueueLimit = MAXTRANSFERS + 10;
 #endif
+            }
+            else if (averageFileSize >= (7.5 * 1024 * 1024))
+            {
+                dynamicQueueLimit = 12;
             }
             else
             {
