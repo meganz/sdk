@@ -170,9 +170,6 @@ TEST_F(ServerClientTest, RunSupportformatsRequestResponseSuccessfully)
     }
 }
 
-#if defined(WIN32)
-
-
 TEST_F(ServerClientTest, RunCommandsReturnFalseWhileServerIsNotRunning)
 {
     EXPECT_FALSE(
@@ -191,5 +188,3 @@ TEST_F(ServerClientTest, RunCommandsReturnFalseWhileServerIsNotRunning)
         ).runGfxTask("anyimagename.jpg", dimensions, images)
     );
 }
-
-#endif
