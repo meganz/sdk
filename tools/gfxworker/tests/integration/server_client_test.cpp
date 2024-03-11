@@ -53,8 +53,6 @@ protected:
     std::string mName; // Used as pipe name on Windows, domain socket name on Linux
 };
 
-#if defined(WIN32)
-
 TEST_F(ServerClientTest, RunGfxTaskSuccessfully)
 {
     Server server(
@@ -95,8 +93,6 @@ TEST_F(ServerClientTest, RunGfxTaskSuccessfully)
         serverThread.join();
     }
 }
-
-#endif
 
 TEST_F(ServerClientTest, RunHelloRequestResponseSuccessfully)
 {
