@@ -24,7 +24,7 @@ bool isPollError(int event)
 
 bool isRetryErrorNo(int errorNo)
 {
-    return errorNo == EAGAIN || errorNo == EINTR;
+    return errorNo == EAGAIN || errorNo == EWOULDBLOCK || errorNo == EINTR;
 }
 
 error_code poll(std::vector<struct pollfd> fds, milliseconds timeout)
@@ -85,6 +85,11 @@ error_code pollForWrite(int fd, milliseconds timeout)
     return pollFd(fd, POLLOUT, timeout);
 }
 
+error_code pollForAccept(int fd, milliseconds timeout)
+{
+    return pollFd(fd, POLLIN, timeout);
+}
+
 error_code write(int fd, const void* data, size_t n, milliseconds timeout)
 {
     size_t offset = 0;
@@ -106,7 +111,7 @@ error_code write(int fd, const void* data, size_t n, milliseconds timeout)
         {
             return error_code{errno, system_category()}; // error
         }
-        else 
+        else
         {
             offset += static_cast<size_t>(written);      // success
         }
@@ -130,7 +135,7 @@ error_code read(int fd, void* buf, size_t count, milliseconds timeout)
 
         // Read
         size_t remaining = count - offset;
-        ssize_t hasRead = ::read(fd, static_cast<char *>(buf) + offset, remaining); 
+        ssize_t hasRead = ::read(fd, static_cast<char *>(buf) + offset, remaining);
         if (hasRead < 0 && isRetryErrorNo(errno))
         {
             continue;                                    // Again
@@ -146,6 +151,32 @@ error_code read(int fd, void* buf, size_t count, milliseconds timeout)
     }
 
     return error_code{};
+}
+
+std::pair<error_code, std::unique_ptr<Socket>> accept(int listeningFd, milliseconds timeout)
+{
+    do {
+        auto errorCode = posix_utils::pollForAccept(listeningFd, timeout);
+        if (errorCode)
+        {
+            return {errorCode, nullptr};   // error
+        }
+
+        auto dataSocket = std::make_unique<Socket>(::accept(listeningFd, nullptr, nullptr), "server");
+        if (!dataSocket->isValid() && isRetryErrorNo(errno))
+        {
+            LOG_err << "Fail to accept: " << errno;     // retry
+            continue;
+        }
+        else if (!dataSocket->isValid())
+        {
+            return {error_code{errno, system_category()}, nullptr}; // error
+        }
+        else
+        {
+            return {error_code{}, std::move(dataSocket)};                         // success
+        }
+    }while (true);
 }
 
 }

@@ -1,12 +1,14 @@
 #include "posix/server.h"
+#include "gfx/worker/comms.h"
 #include "processor.h"
 
-#include "mega/posix/gfx/worker/comms.h"
 #include "mega/logging.h"
 
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <poll.h>
+
+#include <memory>
 #include <system_error>
 #include <vector>
 
@@ -31,48 +33,30 @@ void ServerPosix::operator()()
 
 void ServerPosix::serverListeningLoop()
 {
-    int connSocket = listen(mName);
+    auto socket = listen(mName);
 
-    if (connSocket < 0) return;
+    if (!socket || !socket->isValid()) return;
     
+    auto socketFd = socket->fd();
     for (;;) 
     {
-        // Poll
-        std::vector<struct pollfd> fds {
-            {.fd = connSocket, .events = POLLIN}
-        };
-
-        if (auto errorCode = posix_utils::poll(fds, mWaitMs); errorCode == std::errc::timed_out)
+        auto [errorCode, dataSocket] = posix_utils::accept(socketFd, mWaitMs);
+        if (errorCode == std::errc::timed_out)
         {
-            LOG_info << "No more requests. Exit listening loop";
+            LOG_info << "Exit listening loop, No more requests.";
             break;
         }
         else if (errorCode)
         {
-            LOG_info << "Error. Exit listening loop";
+            LOG_info << "Exit listening loop, Error: " << errorCode.message();
             break;
         }
 
-        // Accept connections
-        auto& connFd = fds[0];
-        if (posix_utils::isPollError(connFd.revents))
-        {
-            LOG_info << "Poll connSocket receives error event " << connFd.revents;
-            continue;
-        }
-
-        int dataSocket = ::accept(connSocket, nullptr, nullptr);
-        if (dataSocket < 0)
-        {
-            LOG_err << "Fail to accept: " << errno;
-            continue;
-        }
-
-        // Process reqeusts
+        // Process requests
         bool stopRunning = false;
         if (mRequestProcessor)
         {
-            stopRunning = mRequestProcessor->process(mega::make_unique<Socket>(dataSocket, "server"));
+            stopRunning = mRequestProcessor->process(std::move(dataSocket));
         }
         if (stopRunning)
         {
@@ -82,7 +66,7 @@ void ServerPosix::serverListeningLoop()
     }
 }
 
-int ServerPosix::listen(const std::string& name)
+std::unique_ptr<Socket> ServerPosix::listen(const std::string& name)
 {
     struct sockaddr_un un;
 
@@ -92,15 +76,15 @@ int ServerPosix::listen(const std::string& name)
     if (name.size() >= max_size)
     {
         LOG_err << "unix domain socket name is too long, " << name;
-        return -1;
+        return nullptr;
     }
 
     // create a UNIX domain socket
-    int fd = -1;
-    if ((fd = ::socket(AF_UNIX, SOCK_STREAM, 0)) < 0)
+    auto socket = std::make_unique<Socket>(::socket(AF_UNIX, SOCK_STREAM, 0), "server");
+    if (!socket->isValid())
     {
         LOG_err << "fail to create a UNIX domain socket: " << name << " errno: " << errno;
-        return -2;
+        return nullptr;
     }
 
     // the name might exists due to crash
@@ -117,24 +101,22 @@ int ServerPosix::listen(const std::string& name)
     strncpy(un.sun_path, name.c_str(), max_size);
 
     // bind name
-    if (::bind(fd, reinterpret_cast<struct sockaddr*>(&un), sizeof(un)) == -1)
+    if (::bind(socket->fd(), reinterpret_cast<struct sockaddr*>(&un), sizeof(un)) == -1)
     {
         LOG_err << "fail to bind UNIX domain socket name: " << name << " errno: " << errno;
-        close(fd);
-        return -3;
+        return nullptr;
     }
 
     // listen
-    if (::listen(fd, MAX_QUEUE_LEN) < 0)
+    if (::listen(socket->fd(), MAX_QUEUE_LEN) < 0)
     {
         LOG_err << "fail to listen UNIX domain socket name: " << name << " errno: " << errno;
-        close(fd);
-        return -4;
+        return nullptr;
     }
 
     LOG_verbose << "listening on UNIX domain socket name: " << name;
 
-    return fd;
+    return socket;
 }
 
 

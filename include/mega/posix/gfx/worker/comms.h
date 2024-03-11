@@ -8,14 +8,12 @@
 #include <chrono>
 namespace mega {
 namespace gfx {
+
+class Socket;
 namespace posix_utils
 {
 
-// Check if it contains poll error events
-bool isPollError(int event);
-
-// Poll fds with retries on EINTR case
-std::error_code poll(std::vector<struct pollfd> fds, std::chrono::milliseconds timeout);
+std::pair<std::error_code, std::unique_ptr<Socket>> accept(int listeningFd, std::chrono::milliseconds timeout);
 
 }
 class Socket : public IEndpoint

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "mega/posix/gfx/worker/comms.h"
+
 #include <chrono>
 #include <memory>
 #include <system_error>
@@ -33,7 +35,7 @@ private:
 
     void serverListeningLoop();
 
-    static int listen(const std::string& name);
+    static std::unique_ptr<Socket> listen(const std::string& name);
 
     std::unique_ptr<RequestProcessor> mRequestProcessor;
 
