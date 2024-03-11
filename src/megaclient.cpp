@@ -3607,12 +3607,12 @@ void MegaClient::dispatchTransfers()
         const int maxSize = MAXTRANSFERS + 10; // Maximum limit for the queue size
 #endif
 
-        const int threshold = 16000; //8000; // Threshold (KB/S) to activate the additional term
+        const int threshold = 16500; //8000; // Threshold (KB/S) to activate the additional term
         m_off_t throughputInKBPerSec = httpio->downloadSpeed / 1024; // KB/s
 
         // Use an expontential function to obtain a very low growth rate before the threshold
         double scaleFactor = static_cast<double>(throughputInKBPerSec - minScalingFactor) / (threshold - minScalingFactor);
-        scaleFactor *= 0.2;
+        scaleFactor *= 0.12;
         double size = minSize + (maxSize - minSize) * (1 - exp(-scaleFactor));
         size = std::min(size, static_cast<double>(maxSize));
 
@@ -3658,7 +3658,7 @@ void MegaClient::dispatchTransfers()
                 dynamicQueueLimit = calcDynamicQueueLimit();
             }
             double transferWeight = static_cast<double>(MAXTRANSFERS) / static_cast<double>(dynamicQueueLimit); 
-            LOG_debug << "[calcTransferWeight] raidTransfersCounter = " << raidTransfersCounter << ", >= " << (MAXTRANSFERS/6) << " -> transferWeight = " << transferWeight << " [dynamicQueueLimit = " << dynamicQueueLimit << "] [averageFileSize = " << (averageFileSize / 1024) << " KBs]";
+            LOG_debug << "[calcTransferWeight] raidTransfersCounter = " << raidTransfersCounter << ", >= " << (MAXTRANSFERS/6) << " -> transferWeight = " << transferWeight << " [tslots = " << tslots.size() << "] [dynamicQueueLimit = " << dynamicQueueLimit << "] [averageFileSize = " << (averageFileSize / 1024) << " KBs]";
             return transferWeight;
         }
         return 1;
@@ -3684,8 +3684,9 @@ void MegaClient::dispatchTransfers()
             }
         }
         TransferCategory tc(ts->transfer);
-        counters[tc.index()].addexisting(ts->transfer->size, ts->progressreported, calcTransferWeight());
-        counters[tc.directionIndex()].addexisting(ts->transfer->size, ts->progressreported, calcTransferWeight());
+        auto transferWeight = calcTransferWeight();
+        counters[tc.index()].addexisting(ts->transfer->size, ts->progressreported, transferWeight);
+        counters[tc.directionIndex()].addexisting(ts->transfer->size, ts->progressreported, transferWeight);
     }
     if (tslots.empty())
     {
@@ -3695,6 +3696,7 @@ void MegaClient::dispatchTransfers()
 
     std::function<bool(direction_t)> continueDirection = [this, &counters](direction_t putget)
     {
+        LOG_debug << "[continueDirection] counters[putget].total = " << std::round(counters[putget].total) << ", counters[putget].added = " << std::round(counters[putget].added) << ", MAXTRANSFERS = " << MAXTRANSFERS;
             // hard limit on puts/gets
             if (static_cast<unsigned>(std::round(counters[putget].total)) >= MAXTRANSFERS)
             {
@@ -3731,8 +3733,9 @@ void MegaClient::dispatchTransfers()
                 return false;
             }
 
-            counters[tc.index()].addnew(t->size, calcTransferWeight());
-            counters[tc.directionIndex()].addnew(t->size, calcTransferWeight());
+            auto transferWeight = calcTransferWeight();
+            counters[tc.index()].addnew(t->size, transferWeight);
+            counters[tc.directionIndex()].addnew(t->size, transferWeight);
 
             return true;
         };
