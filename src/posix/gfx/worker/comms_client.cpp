@@ -3,6 +3,7 @@
 #include "mega/posix/gfx/worker/comms_client.h"
 #include "mega/gfx/worker/comms.h"
 #include "mega/types.h"
+#include <asm-generic/errno.h>
 #include <memory>
 
 namespace mega {
@@ -33,14 +34,13 @@ CommError PosixGfxCommunicationsClient::connect(std::unique_ptr<IEndpoint>& endp
 
 CommError PosixGfxCommunicationsClient::toCommError(int error) const
 {
-    if (error < 0)
+    if (error == ECONNREFUSED)
+    {
+        return CommError::NOT_EXIST;
+    }
+    else
     {
         return CommError::ERR;
-    }
-    else 
-    {
-        return CommError::OK;
-    
     }
 }
 
