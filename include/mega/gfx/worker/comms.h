@@ -22,7 +22,7 @@
 #include <memory>
 #include <functional>
 #include <limits>
-
+#include <chrono>
 namespace mega {
 namespace gfx {
 
@@ -38,6 +38,11 @@ public:
     explicit operator DWORD() const
     {
         return isForever() ? INFINITE : static_cast<DWORD>(mValue);
+    }
+#else
+    explicit operator std::chrono::milliseconds() const
+    {
+        return isForever() ? std::chrono::milliseconds{-1} : std::chrono::milliseconds{mValue};
     }
 #endif
 private:

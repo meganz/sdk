@@ -193,6 +193,15 @@ target_sources_conditional(SDKlib
 )
 
 target_sources_conditional(SDKlib
+    FLAG UNIX AND ENABLE_ISOLATED_GFX
+    PRIVATE
+    include/mega/posix/gfx/worker/comms.h
+    include/mega/posix/gfx/worker/comms_client.h
+    src/posix/gfx/worker/comms.cpp
+    src/posix/gfx/worker/comms_client.cpp
+)
+
+target_sources_conditional(SDKlib
     FLAG ENABLE_ISOLATED_GFX
     PRIVATE
     src/gfx/isolatedprocess.cpp

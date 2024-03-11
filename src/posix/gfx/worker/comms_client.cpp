@@ -1,0 +1,48 @@
+#include "gfx/worker/comms.h"
+#include "mega/logging.h"
+#include "mega/posix/gfx/worker/comms_client.h"
+#include "mega/gfx/worker/comms.h"
+#include "mega/types.h"
+#include <memory>
+
+namespace mega {
+namespace gfx {
+
+CommError PosixGfxCommunicationsClient::connect(std::unique_ptr<IEndpoint>& endpoint)
+{
+    auto socket = std::make_unique<Socket>(::socket(AF_UNIX, SOCK_STREAM, 0), "client");
+    if (!socket->isValid()) {
+        LOG_err << "socket error: " << errno;
+        return toCommError(errno);
+    }
+
+    struct sockaddr_un addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sun_family = AF_UNIX;
+    strncpy(addr.sun_path, mName.c_str(), sizeof(addr.sun_path) - 1);
+
+    if (::connect(socket->fd(), (const struct sockaddr *) &addr, sizeof(addr)) == -1)
+    {
+        LOG_err << "connect error: " << errno;
+        return toCommError(errno);
+    }
+
+    endpoint = std::move(socket);
+    return CommError::OK;
+}
+
+CommError PosixGfxCommunicationsClient::toCommError(int error) const
+{
+    if (error < 0)
+    {
+        return CommError::ERR;
+    }
+    else 
+    {
+        return CommError::OK;
+    
+    }
+}
+
+}
+}

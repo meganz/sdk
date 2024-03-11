@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <memory>
 #include <system_error>
 #include <string>
@@ -40,7 +41,7 @@ private:
 
     static const int MAX_QUEUE_LEN;
 
-    // DWORD       mWaitMs;
+    const std::chrono::milliseconds mWaitMs{60000};
 };
 
 } //namespace gfx
