@@ -1793,6 +1793,9 @@ public:
     // transfer tslots
     transferslot_list tslots;
 
+    // raid transfers counter
+    unsigned raidTransfersCounter{};
+
     // keep track of next transfer slot timeout
     BackoffTimerGroupTracker transferSlotsBackoff;
 
