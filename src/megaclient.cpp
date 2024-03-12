@@ -3593,21 +3593,26 @@ void MegaClient::dispatchTransfers()
     };
     std::array<counter, 6> counters;
 
+    // Exponential function to calculate the maximum transfer queue size
+    // This function uses a threshold (in KB/s) so the function has two different behaviors:
+    // 1. Before the threshold, the function grows slowly from the minSize to the maxSize
+    // 2. After the threshold, the function grows very quickly to the maxSize
+    // This allows us to optimize the queue limit based on throughput.
     auto calcDynamicQueueLimit = [this]() -> unsigned
     {
         // Define the minimum and maximum scaling factors
         const int minScalingFactor = 2000; // KB/s
-        const int maxScalingFactor = 20000; //16000; // KB/s
+        const int maxScalingFactor = 20000; // KB/s
 
         // Define the minimum and maximum size limits
         const int minSize = 12; // Adjusted minimum size
 #if defined(__ANDROID__) || defined(USE_IOS)
         const int maxSize = MAXTRANSFERS - 10; // Maximum limit for the queue size
 #else
-        const int maxSize = MAXTRANSFERS; // + 10; // Maximum limit for the queue size
+        const int maxSize = MAXTRANSFERS;
 #endif
 
-        const int threshold = 16500; //8000; // Threshold (KB/S) to activate the additional term
+        const int threshold = 16500; // Threshold (KB/S) to activate the additional term -> before this threshold, dynamic size grows slowly from minSize to maxSize. After the threshold, it will quickly grow to maxSize.
         m_off_t throughputInKBPerSec = httpio->downloadSpeed / 1024; // KB/s
 
         // Use an expontential function to obtain a very low growth rate before the threshold
@@ -3627,7 +3632,7 @@ void MegaClient::dispatchTransfers()
             size = std::min(sizeAfterThreshold, static_cast<double>(maxSize));
         }
 
-        LOG_verbose << "[calcDynamicQueueSize] customLimit = " << size << " [throughput = " << (throughputInKBPerSec) << " KB/s]";
+        //LOG_verbose << "[calcDynamicQueueSize] customLimit = " << size << " [throughput = " << (throughputInKBPerSec) << " KB/s]";
         return static_cast<unsigned>(size);
     };
 
@@ -3649,18 +3654,12 @@ void MegaClient::dispatchTransfers()
                 dynamicQueueLimit = MAXTRANSFERS + 10;
 #endif
             }
-            /*
-            else if (averageFileSize >= (7.5 * 1024 * 1024))
-            {
-                dynamicQueueLimit = 12;
-            }
-            */
             else
             {
                 dynamicQueueLimit = calcDynamicQueueLimit();
             }
             double transferWeight = static_cast<double>(MAXTRANSFERS) / static_cast<double>(dynamicQueueLimit); 
-            LOG_debug << "[calcTransferWeight] raidTransfersCounter = " << raidTransfersCounter << ", >= " << (MAXTRANSFERS/6) << " -> transferWeight = " << transferWeight << " [tslots = " << tslots.size() << "] [dynamicQueueLimit = " << dynamicQueueLimit << "] [averageFileSize = " << (averageFileSize / 1024) << " KBs]";
+            //LOG_verbose << "[calcTransferWeight] raidTransfersCounter = " << raidTransfersCounter << ", >= " << (MAXTRANSFERS/6) << " -> transferWeight = " << transferWeight << " [tslots = " << tslots.size() << "] [dynamicQueueLimit = " << dynamicQueueLimit << "] [averageFileSize = " << (averageFileSize / 1024) << " KBs]";
             return transferWeight;
         }
         return 1;
@@ -3692,13 +3691,16 @@ void MegaClient::dispatchTransfers()
     }
     if (tslots.empty())
     {
-        if (raidTransfersCounter != 0) { LOG_debug << "[MegaClient::dispatchTransfers] reset raidTransfersCounter to 0!!! [raidTransfersCounter = " << raidTransfersCounter << "]"; }
+        if (raidTransfersCounter != 0) { LOG_verbose << "[MegaClient::dispatchTransfers] reset raidTransfersCounter to 0!!! [raidTransfersCounter = " << raidTransfersCounter << "]"; }
         raidTransfersCounter = 0;
     }
 
     std::function<bool(direction_t)> continueDirection = [this, &counters](direction_t putget)
     {
-        LOG_debug << "[continueDirection] counters[putget].total = " << std::round(counters[putget].total) << ", counters[putget].added = " << std::round(counters[putget].added) << ", MAXTRANSFERS = " << MAXTRANSFERS;
+        if (Waiter::ds % 50 == 0) // Every 5 secs
+        {
+            LOG_verbose << "[continueDirection] counters[putget].total = " << std::round(counters[putget].total) << ", counters[putget].added = " << std::round(counters[putget].added) << ", MAXTRANSFERS = " << MAXTRANSFERS << " [tslots = " << tslots.size() << "]";;
+        }
             // hard limit on puts/gets
             if (static_cast<unsigned>(std::round(counters[putget].total)) >= MAXTRANSFERS)
             {
