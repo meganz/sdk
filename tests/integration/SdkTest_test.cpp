@@ -840,7 +840,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
     case MegaRequest::TYPE_GET_PRICING:
         mApi[apiIndex].mMegaPricing.reset(mApi[apiIndex].lastError == API_OK ? request->getPricing() : nullptr);
         mApi[apiIndex].mMegaCurrency.reset(mApi[apiIndex].lastError == API_OK ? request->getCurrency() : nullptr);
-            break;
+        break;
 
 #ifdef ENABLE_CHAT
     case MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING:
@@ -16873,10 +16873,16 @@ TEST_F(SdkTest, CreateNodeTreeWithOneDirectoryAndNoS4Attribute)
     std::unique_ptr<MegaNodeTree> nodeTree{
         MegaNodeTree::createInstance(nullptr, directoryName.c_str(), nullptr, nullptr)};
 
-    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, parentNode.get(), nodeTree.get()));
+    RequestTracker requestTracker(megaApi[apiIndex].get());
+    megaApi[apiIndex]->createNodeTree(parentNode.get(), nodeTree.get(), &requestTracker);
+    nodeTree.reset();
+    ASSERT_THAT(requestTracker.waitForResult(),
+                ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
+    const MegaNodeTree* resultNodeTree = requestTracker.request->getMegaNodeTree();
+    ASSERT_THAT(resultNodeTree, ::testing::NotNull());
 
     // Check result
-    const auto directoryNodeHandle{nodeTree->getNodeHandle()};
+    const auto directoryNodeHandle{resultNodeTree->getNodeHandle()};
     std::unique_ptr<MegaNode> directoryNode{
         megaApi[apiIndex]->getNodeByHandle(directoryNodeHandle)};
     ASSERT_THAT(directoryNode, ::testing::NotNull());
@@ -16907,10 +16913,16 @@ TEST_F(SdkTest, CreateNodeTreeWithOneDirectoryAndS4Attribute)
                                                                         s4AttributeValue.c_str(),
                                                                         nullptr)};
 
-    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, parentNode.get(), nodeTree.get()));
+    RequestTracker requestTracker(megaApi[apiIndex].get());
+    megaApi[apiIndex]->createNodeTree(parentNode.get(), nodeTree.get(), &requestTracker);
+    nodeTree.reset();
+    ASSERT_THAT(requestTracker.waitForResult(),
+                ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
+    const MegaNodeTree* resultNodeTree = requestTracker.request->getMegaNodeTree();
+    ASSERT_THAT(resultNodeTree, ::testing::NotNull());
 
     // Check result
-    const auto directoryNodeHandle{nodeTree->getNodeHandle()};
+    const auto directoryNodeHandle{resultNodeTree->getNodeHandle()};
     std::unique_ptr<MegaNode> directoryNode{
         megaApi[apiIndex]->getNodeByHandle(directoryNodeHandle)};
     ASSERT_THAT(directoryNode, ::testing::NotNull());
@@ -16957,10 +16969,16 @@ TEST_F(SdkTest, CreateNodeTreeWithOneFile)
     std::unique_ptr<MegaNodeTree> nodeTree{
         MegaNodeTree::createInstance(nullptr, IMAGEFILE.c_str(), nullptr, completeUploadData)};
 
-    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, parentNode.get(), nodeTree.get()));
+    RequestTracker requestTracker(megaApi[apiIndex].get());
+    megaApi[apiIndex]->createNodeTree(parentNode.get(), nodeTree.get(), &requestTracker);
+    nodeTree.reset();
+    ASSERT_THAT(requestTracker.waitForResult(),
+                ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
+    const MegaNodeTree* resultNodeTree = requestTracker.request->getMegaNodeTree();
+    ASSERT_THAT(resultNodeTree, ::testing::NotNull());
 
     // Check result
-    const auto fileNodeHandle{nodeTree->getNodeHandle()};
+    const auto fileNodeHandle{resultNodeTree->getNodeHandle()};
     std::unique_ptr<MegaNode> fileNode{megaApi[apiIndex]->getNodeByHandle(fileNodeHandle)};
     ASSERT_THAT(fileNode, ::testing::NotNull());
     ASSERT_STREQ(IMAGEFILE.c_str(), fileNode->getName());
@@ -16998,8 +17016,16 @@ TEST_F(SdkTest, CreateNodeTreeToCopyExistingSource)
     string fileCopy = UPFILE + "_copy";
     std::unique_ptr<MegaNodeTree> nodeTree{
         MegaNodeTree::createInstance(nullptr, fileCopy.c_str(), nullptr, nullptr, newNode->getHandle()) };
-    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, rootnode.get(), nodeTree.get()));
-    std::unique_ptr<MegaNode> newNodeCopy{ megaApi[apiIndex]->getNodeByHandle(nodeTree->getNodeHandle()) };
+
+    RequestTracker requestTracker(megaApi[apiIndex].get());
+    megaApi[apiIndex]->createNodeTree(rootnode.get(), nodeTree.get(), &requestTracker);
+    rootnode.reset();
+    ASSERT_THAT(requestTracker.waitForResult(),
+                ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
+    const MegaNodeTree* resultNodeTree = requestTracker.request->getMegaNodeTree();
+    ASSERT_THAT(resultNodeTree, ::testing::NotNull());
+
+    std::unique_ptr<MegaNode> newNodeCopy{ megaApi[apiIndex]->getNodeByHandle(resultNodeTree->getNodeHandle()) };
     ASSERT_THAT(newNodeCopy, ::testing::NotNull());
     ASSERT_STREQ(newNodeCopy->getName(), fileCopy.c_str());
     ASSERT_EQ(newNodeCopy->getSize(), newNode->getSize());
@@ -17038,23 +17064,29 @@ TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectories)
                                      nullptr,
                                      nullptr)};
 
-    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, parentNode.get(), nodeTreeLevel0.get()));
+    RequestTracker requestTracker(megaApi[apiIndex].get());
+    megaApi[apiIndex]->createNodeTree(parentNode.get(), nodeTreeLevel0.get(), &requestTracker);
+    nodeTreeLevel0.reset();
+    ASSERT_THAT(requestTracker.waitForResult(),
+                ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
+    const MegaNodeTree* resultNodeTree = requestTracker.request->getMegaNodeTree();
+    ASSERT_THAT(resultNodeTree, ::testing::NotNull());
 
     // Check result
-    const auto directoryNodeHandleLevel0{nodeTreeLevel0->getNodeHandle()};
+    const auto directoryNodeHandleLevel0{resultNodeTree->getNodeHandle()};
     std::unique_ptr<MegaNode> directoryNodeLevel0{
         megaApi[apiIndex]->getNodeByHandle(directoryNodeHandleLevel0)};
     ASSERT_THAT(directoryNodeLevel0, ::testing::NotNull());
     ASSERT_STREQ(directoryNameLevel0.c_str(), directoryNodeLevel0->getName());
 
-    const auto directoryNodeHandleLevel1{nodeTreeLevel1->getNodeHandle()};
+    const auto directoryNodeHandleLevel1{resultNodeTree->getNodeTreeChild()->getNodeHandle()};
     std::unique_ptr<MegaNode> directoryNodeLevel1{
         megaApi[apiIndex]->getNodeByHandle(directoryNodeHandleLevel1)};
     ASSERT_THAT(directoryNodeLevel1, ::testing::NotNull());
     ASSERT_STREQ(directoryNameLevel1.c_str(), directoryNodeLevel1->getName());
     ASSERT_EQ(directoryNodeLevel1->getParentHandle(), directoryNodeLevel0->getHandle());
 
-    const auto directoryNodeHandleLevel2{nodeTreeLevel2->getNodeHandle()};
+    const auto directoryNodeHandleLevel2{resultNodeTree->getNodeTreeChild()->getNodeTreeChild()->getNodeHandle()};
     std::unique_ptr<MegaNode> directoryNodeLevel2{
         megaApi[apiIndex]->getNodeByHandle(directoryNodeHandleLevel2)};
     ASSERT_THAT(directoryNodeLevel2, ::testing::NotNull());
@@ -17120,28 +17152,34 @@ TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectoriesAndOneFileAtTheEnd)
                                      nullptr,
                                      nullptr)};
 
-    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, parentNode.get(), nodeTreeLevel0.get()));
+    RequestTracker requestTracker(megaApi[apiIndex].get());
+    megaApi[apiIndex]->createNodeTree(parentNode.get(), nodeTreeLevel0.get(), &requestTracker);
+    nodeTreeLevel0.reset();
+    ASSERT_THAT(requestTracker.waitForResult(),
+                ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
+    const MegaNodeTree* resultNodeTree = requestTracker.request->getMegaNodeTree();
+    ASSERT_THAT(resultNodeTree, ::testing::NotNull());
 
     // Check result
-    const auto directoryNodeHandleLevel0{nodeTreeLevel0->getNodeHandle()};
+    const auto directoryNodeHandleLevel0{resultNodeTree->getNodeHandle()};
     std::unique_ptr<MegaNode> directoryNodeLevel0{
         megaApi[apiIndex]->getNodeByHandle(directoryNodeHandleLevel0)};
     ASSERT_THAT(directoryNodeLevel0, ::testing::NotNull());
     ASSERT_STREQ(directoryNameLevel0.c_str(), directoryNodeLevel0->getName());
 
-    const auto directoryNodeHandleLevel1{nodeTreeLevel1->getNodeHandle()};
+    const auto directoryNodeHandleLevel1{resultNodeTree->getNodeTreeChild()->getNodeHandle()};
     std::unique_ptr<MegaNode> directoryNodeLevel1{
         megaApi[apiIndex]->getNodeByHandle(directoryNodeHandleLevel1)};
     ASSERT_THAT(directoryNodeLevel1, ::testing::NotNull());
     ASSERT_STREQ(directoryNameLevel1.c_str(), directoryNodeLevel1->getName());
 
-    const auto directoryNodeHandleLevel2{nodeTreeLevel2->getNodeHandle()};
+    const auto directoryNodeHandleLevel2{resultNodeTree->getNodeTreeChild()->getNodeTreeChild()->getNodeHandle()};
     std::unique_ptr<MegaNode> directoryNodeLevel2{
         megaApi[apiIndex]->getNodeByHandle(directoryNodeHandleLevel2)};
     ASSERT_THAT(directoryNodeLevel2, ::testing::NotNull());
     ASSERT_STREQ(directoryNameLevel2.c_str(), directoryNodeLevel2->getName());
 
-    const auto fileNodeHandle{nodeTreeLevel3->getNodeHandle()};
+    const auto fileNodeHandle{resultNodeTree->getNodeTreeChild()->getNodeTreeChild()->getNodeTreeChild()->getNodeHandle()};
     std::unique_ptr<MegaNode> fileNode{megaApi[apiIndex]->getNodeByHandle(fileNodeHandle)};
     ASSERT_THAT(fileNode, ::testing::NotNull());
     ASSERT_STREQ(IMAGEFILE.c_str(), fileNode->getName());
@@ -17187,11 +17225,17 @@ TEST_F(SdkTest, CreateNodeTreeVersionUsingIdenticalUploadData)
                                                string64FileKey.c_str());
     std::unique_ptr<MegaNodeTree> fileTreeFromData {
         MegaNodeTree::createInstance(nullptr, PUBLICFILE.c_str(), nullptr, uploadData) };
-    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, parentNode.get(), fileTreeFromData.get()));
-    ASSERT_NE(fileTreeFromData->getNodeHandle(), INVALID_HANDLE);
+
+    RequestTracker requestTrackerFirstTree(megaApi[apiIndex].get());
+    megaApi[apiIndex]->createNodeTree(parentNode.get(), fileTreeFromData.get(), &requestTrackerFirstTree);
+    ASSERT_THAT(requestTrackerFirstTree.waitForResult(),
+                ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
+    const MegaNodeTree* resultNodeTree1 = requestTrackerFirstTree.request->getMegaNodeTree();
+    ASSERT_THAT(resultNodeTree1, ::testing::NotNull());
+    ASSERT_NE(resultNodeTree1->getNodeHandle(), INVALID_HANDLE);
 
     // Ensure there's only 1 version
-    std::unique_ptr<MegaNode> fileNode{ megaApi[apiIndex]->getNodeByHandle(fileTreeFromData->getNodeHandle()) };
+    std::unique_ptr<MegaNode> fileNode{ megaApi[apiIndex]->getNodeByHandle(resultNodeTree1->getNodeHandle()) };
     ASSERT_THAT(fileNode, ::testing::NotNull());
     std::unique_ptr<MegaNodeList> allVersions{ megaApi[apiIndex]->getVersions(fileNode.get()) };
     ASSERT_THAT(allVersions, ::testing::NotNull());
@@ -17204,15 +17248,21 @@ TEST_F(SdkTest, CreateNodeTreeVersionUsingIdenticalUploadData)
                                                string64FileKey.c_str());
     std::unique_ptr<MegaNodeTree> fileTreeFromData2 {
         MegaNodeTree::createInstance(nullptr, PUBLICFILE.c_str(), nullptr, uploadData2) };
-    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, parentNode.get(), fileTreeFromData2.get()));
+
+    RequestTracker requestTrackerSecondTree(megaApi[apiIndex].get());
+    megaApi[apiIndex]->createNodeTree(parentNode.get(), fileTreeFromData2.get(), &requestTrackerSecondTree);
+    ASSERT_THAT(requestTrackerSecondTree.waitForResult(),
+                ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
+    const MegaNodeTree* resultNodeTree2 = requestTrackerSecondTree.request->getMegaNodeTree();
+    ASSERT_THAT(resultNodeTree2, ::testing::NotNull());
 
     // Confirm there's still only 1 version
-    std::unique_ptr<MegaNode> fileNode2{ megaApi[apiIndex]->getNodeByHandle(fileTreeFromData2->getNodeHandle()) };
+    std::unique_ptr<MegaNode> fileNode2{ megaApi[apiIndex]->getNodeByHandle(resultNodeTree2->getNodeHandle()) };
     ASSERT_THAT(fileNode2, ::testing::NotNull());
     std::unique_ptr<MegaNodeList> allVersions2{ megaApi[apiIndex]->getVersions(fileNode2.get()) };
     ASSERT_THAT(allVersions2, ::testing::NotNull());
     ASSERT_EQ(allVersions2->size(), 1);
-    ASSERT_EQ(fileTreeFromData2->getNodeHandle(), fileTreeFromData->getNodeHandle());
+    ASSERT_EQ(resultNodeTree2->getNodeHandle(), resultNodeTree1->getNodeHandle());
 }
 
 /**
@@ -17259,10 +17309,17 @@ TEST_F(SdkTest, CreateNodeTreeVersionUsingIdenticalSourceFile)
     // Create a new version of the initial file using its copy as source
     std::unique_ptr<MegaNodeTree> nodeTree{
         MegaNodeTree::createInstance(nullptr, UPFILE.c_str(), nullptr, nullptr, upNodeCopy->getHandle()) };
-    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, rootNode.get(), nodeTree.get()));
+
+    RequestTracker requestTracker(megaApi[apiIndex].get());
+    megaApi[apiIndex]->createNodeTree(rootNode.get(), nodeTree.get(), &requestTracker);
+    nodeTree.reset();
+    ASSERT_THAT(requestTracker.waitForResult(),
+                ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
+    const MegaNodeTree* resultNodeTree = requestTracker.request->getMegaNodeTree();
+    ASSERT_THAT(resultNodeTree, ::testing::NotNull());
 
     // Confirm there's still only 1 version
-    std::unique_ptr<MegaNode> upNodeVersion{ megaApi[apiIndex]->getNodeByHandle(nodeTree->getNodeHandle()) };
+    std::unique_ptr<MegaNode> upNodeVersion{ megaApi[apiIndex]->getNodeByHandle(resultNodeTree->getNodeHandle()) };
     ASSERT_THAT(upNodeVersion, ::testing::NotNull());
     std::unique_ptr<MegaNodeList> allVersions2{ megaApi[apiIndex]->getVersions(upNodeVersion.get()) };
     ASSERT_THAT(allVersions2, ::testing::NotNull());
@@ -17310,11 +17367,17 @@ TEST_F(SdkTest, CreateNodeTreeVersionUsingDifferentUploadData)
                                                string64FileKey.c_str());
     std::unique_ptr<MegaNodeTree> fileTreeFromData {
         MegaNodeTree::createInstance(nullptr, PUBLICFILE.c_str(), nullptr, uploadData) };
-    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, parentNode.get(), fileTreeFromData.get()));
-    ASSERT_NE(fileTreeFromData->getNodeHandle(), INVALID_HANDLE);
+
+    RequestTracker requestTrackerFirstTree(megaApi[apiIndex].get());
+    megaApi[apiIndex]->createNodeTree(parentNode.get(), fileTreeFromData.get(), &requestTrackerFirstTree);
+    ASSERT_THAT(requestTrackerFirstTree.waitForResult(),
+                ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
+    const MegaNodeTree* resultNodeTree1 = requestTrackerFirstTree.request->getMegaNodeTree();
+    ASSERT_THAT(resultNodeTree1, ::testing::NotNull());
+    ASSERT_NE(resultNodeTree1->getNodeHandle(), INVALID_HANDLE);
 
     // Ensure there's only 1 version
-    std::unique_ptr<MegaNode> fileNode{ megaApi[apiIndex]->getNodeByHandle(fileTreeFromData->getNodeHandle()) };
+    std::unique_ptr<MegaNode> fileNode{ megaApi[apiIndex]->getNodeByHandle(resultNodeTree1->getNodeHandle()) };
     ASSERT_THAT(fileNode, ::testing::NotNull());
     std::unique_ptr<MegaNodeList> allVersions{ megaApi[apiIndex]->getVersions(fileNode.get()) };
     ASSERT_THAT(allVersions, ::testing::NotNull());
@@ -17336,17 +17399,24 @@ TEST_F(SdkTest, CreateNodeTreeVersionUsingDifferentUploadData)
                                                string64FileKey.c_str());
     std::unique_ptr<MegaNodeTree> fileTreeFromData2 {
         MegaNodeTree::createInstance(nullptr, PUBLICFILE.c_str(), nullptr, uploadData2) };
-    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, parentNode.get(), fileTreeFromData2.get()));
+
+    RequestTracker requestTrackerSecondTree(megaApi[apiIndex].get());
+    megaApi[apiIndex]->createNodeTree(parentNode.get(), fileTreeFromData2.get(), &requestTrackerSecondTree);
+    ASSERT_THAT(requestTrackerSecondTree.waitForResult(),
+                ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
+    const MegaNodeTree* resultNodeTree2 = requestTrackerSecondTree.request->getMegaNodeTree();
+    ASSERT_THAT(resultNodeTree2, ::testing::NotNull());
+    ASSERT_NE(resultNodeTree2->getNodeHandle(), INVALID_HANDLE);
 
     // Confirm there are 2 versions now
-    std::unique_ptr<MegaNode> fileNode2{ megaApi[apiIndex]->getNodeByHandle(fileTreeFromData2->getNodeHandle()) };
+    std::unique_ptr<MegaNode> fileNode2{ megaApi[apiIndex]->getNodeByHandle(resultNodeTree2->getNodeHandle()) };
     ASSERT_THAT(fileNode2, ::testing::NotNull());
     std::unique_ptr<MegaNodeList> allVersions2{ megaApi[apiIndex]->getVersions(fileNode2.get()) };
     ASSERT_THAT(allVersions2, ::testing::NotNull());
     ASSERT_EQ(allVersions2->size(), 2);
-    ASSERT_EQ(allVersions2->get(1)->getHandle(), fileTreeFromData->getNodeHandle());
-    ASSERT_EQ(allVersions2->get(0)->getHandle(), fileTreeFromData2->getNodeHandle());
-    ASSERT_NE(fileTreeFromData2->getNodeHandle(), fileTreeFromData->getNodeHandle());
+    ASSERT_EQ(allVersions2->get(1)->getHandle(), resultNodeTree1->getNodeHandle());
+    ASSERT_EQ(allVersions2->get(0)->getHandle(), resultNodeTree2->getNodeHandle());
+    ASSERT_NE(resultNodeTree2->getNodeHandle(), resultNodeTree1->getNodeHandle());
 }
 
 /**
@@ -17400,10 +17470,16 @@ TEST_F(SdkTest, CreateNodeTreeVersionUsingDifferentSourceFile)
     // Create a new version of the initial file using a different file as source
     std::unique_ptr<MegaNodeTree> nodeTree{
         MegaNodeTree::createInstance(nullptr, UPFILE.c_str(), nullptr, nullptr, pubHandle) };
-    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, rootNode.get(), nodeTree.get()));
+
+    RequestTracker requestTracker(megaApi[apiIndex].get());
+    megaApi[apiIndex]->createNodeTree(rootNode.get(), nodeTree.get(), &requestTracker);
+    ASSERT_THAT(requestTracker.waitForResult(),
+                ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
+    const MegaNodeTree* resultNodeTree = requestTracker.request->getMegaNodeTree();
+    ASSERT_THAT(resultNodeTree, ::testing::NotNull());
 
     // Confirm there are 2 versions now
-    std::unique_ptr<MegaNode> upNodeVersion{ megaApi[apiIndex]->getNodeByHandle(nodeTree->getNodeHandle()) };
+    std::unique_ptr<MegaNode> upNodeVersion{ megaApi[apiIndex]->getNodeByHandle(resultNodeTree->getNodeHandle()) };
     ASSERT_THAT(upNodeVersion, ::testing::NotNull());
     std::unique_ptr<MegaNodeList> allVersions2{ megaApi[apiIndex]->getVersions(upNodeVersion.get()) };
     ASSERT_THAT(allVersions2, ::testing::NotNull());
