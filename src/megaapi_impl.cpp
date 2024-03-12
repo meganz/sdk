@@ -6048,7 +6048,7 @@ std::unique_ptr<MegaGfxProviderPrivate> MegaGfxProviderPrivate::createIsolatedIn
     const std::string& pipeName,
     const std::string& executable)
 {
-#ifdef _WIN32
+#ifdef ENABLE_ISOLATED_GFX
     auto process = ::mega::make_unique<GfxIsolatedProcess>(pipeName, executable);
     auto provider = ::mega::make_unique<GfxProviderIsolatedProcess>(std::move(process));
     return ::mega::make_unique<MegaGfxProviderPrivate>(std::move(provider));
@@ -8619,7 +8619,7 @@ bool MegaApiImpl::hasToForceUpload(const Node &node, const MegaTransferPrivate &
     bool hasThumbnail = (Node::hasfileattribute(&node.fileattrstring, GfxProc::THUMBNAIL) != 0);
     string name = node.displayname();
     LocalPath lp = LocalPath::fromRelativePath(name);
-    bool isMedia = gfxAccess->isgfx(lp) || gfxAccess->isvideo(lp);
+    bool isMedia = gfxAccess && (gfxAccess->isgfx(lp) || gfxAccess->isvideo(lp));
     bool canForceUpload = transfer.isForceNewUpload();
     bool isPdf = name.find(".pdf") != string::npos;
 
@@ -20957,8 +20957,7 @@ error MegaApiImpl::performRequest_setAttrFile(MegaRequestPrivate* request)
 
                 string fileattr;
                 appendFileAttribute(fileattr, type, fileattrhandle);
-
-                client->reqs.add(new CommandAttachFA(client, node->nodehandle, fatype(type), fileattr, request->getTag()));
+                client->putFileAttributes(node->nodehandle, fatype(type), fileattr, request->getTag());
             }
             else
             {

@@ -295,7 +295,7 @@ namespace
                             unsigned workerThreadCount,
                             const int clientType = MegaApi::CLIENT_TYPE_DEFAULT)
     {
-    #ifdef WIN32
+    #ifdef ENABLE_ISOLATED_GFX
         auto gfxworkerPath = sdk_test::getTestDataDir() / "gfxworker.exe";
         std::unique_ptr<MegaGfxProvider> provider{
             MegaGfxProvider::createIsolatedInstance(newPipeName().c_str(), gfxworkerPath.string().c_str())
@@ -1014,6 +1014,7 @@ void SdkTest::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
     delete list;
 
     mApi[apiIndex].chatUpdated = true;
+    mApi[apiIndex].callCustomCallbackCheck(mApi[apiIndex].megaApi->getMyUserHandleBinary());
 }
 
 void SdkTest::createChat(bool group, MegaTextChatPeerList *peers, int timeout)
@@ -1030,6 +1031,105 @@ void SdkTest::createChat(bool group, MegaTextChatPeerList *peers, int timeout)
     ASSERT_EQ(API_OK, mApi[apiIndex].lastError) << "Chat creation failed (error: " << mApi[apiIndex].lastError << ")";
 }
 
+/**
+ * @brief Aux function to get a set of handles from a list of peers
+ */
+static std::set<MegaHandle> peerListToHandleSet(const MegaTextChatPeerList *peers)
+{
+    std::set<MegaHandle> result;
+    for (int i = 0 ; i < peers->size(); ++i)
+    {
+        result.insert(peers->getPeerHandle(i));
+    }
+    return result;
+}
+
+MegaHandle SdkTest::createChatWithChecks(const unsigned int creatorIndex,
+                                         const std::vector<unsigned int>& invitedIndices,
+                                         const bool group,
+                                         const unsigned int timeout_sec)
+{
+    std::unique_ptr<MegaTextChatPeerList> invitedPeers(MegaTextChatPeerList::createInstance());
+    std::set<MegaHandle> allParticipantsHandles{
+        mApi[creatorIndex].megaApi->getMyUserHandleBinary()};
+    for (auto ind: invitedIndices)
+    {
+        auto uh = mApi[ind].megaApi->getMyUserHandleBinary();
+        invitedPeers->addPeer(uh, PRIV_STANDARD);
+        allParticipantsHandles.insert(uh);
+    }
+    // Function to check that a chat is created with the given specs
+    auto isChatOK = [group, &allParticipantsHandles](const MegaTextChat& chat,
+                                                     const MegaHandle receiverHandle) -> bool
+    {
+        if (chat.isGroup() != group)
+        {
+            return false;
+        }
+        const MegaTextChatPeerList* receivedPeers = chat.getPeerList();
+        if (!receivedPeers ||
+            static_cast<size_t>(receivedPeers->size()) != allParticipantsHandles.size() - 1)
+        {
+            return false;
+        }
+        auto participantsHandle = peerListToHandleSet(receivedPeers);
+        participantsHandle.insert(receiverHandle);
+        return participantsHandle == allParticipantsHandles;
+    };
+    // Register a callback and a boolean for each participant
+    std::vector<std::pair<std::shared_ptr<std::function<void()>>, bool>> customChecksAndResults(
+        allParticipantsHandles.size());
+    std::vector<unsigned int> allParticipantsIndices(invitedIndices);
+    allParticipantsIndices.push_back(creatorIndex);
+
+    for (unsigned int i = 0; i < allParticipantsIndices.size(); ++i)
+    {
+        customChecksAndResults.push_back({std::make_shared<std::function<void()>>(), false});
+        auto userInd = allParticipantsIndices[i];
+        MegaHandle receiverHandle = mApi[userInd].megaApi->getMyUserHandleBinary();
+        auto customCheck = customChecksAndResults.back().first;
+        *customCheck = [this, userInd, i, receiverHandle, &customChecksAndResults, &isChatOK]()
+        {
+            const auto& chats = mApi[userInd].chats;
+            customChecksAndResults[i].second = std::any_of(
+                chats.begin(),
+                chats.end(),
+                [receiverHandle, &isChatOK](const auto& pair)
+                {
+                    return isChatOK(*pair.second, receiverHandle);
+                });
+        };
+        mApi[userInd].customCallbackCheck[receiverHandle] = customCheck;
+    }
+
+    // Check that the chatid is properly set in the onRequestFinish callback. Set initial value
+    mApi[creatorIndex].chatid = INVALID_HANDLE;
+    megaApi[creatorIndex]->createChat(group, invitedPeers.get());
+
+    bool hasRequestFinished = waitForEvent(
+        [this, creatorIndex]()
+        {
+            return mApi[creatorIndex].chatid != INVALID_HANDLE;
+        },
+        timeout_sec);
+    if (!hasRequestFinished)
+    {
+        EXPECT_TRUE(false) << "Chat creation onRequestFinish not called after " << timeout_sec
+                           << "seconds";
+        return INVALID_HANDLE;
+    }
+
+    for (unsigned int i = 0; i < allParticipantsIndices.size(); ++i)
+    {
+        if (!waitForResponse(&customChecksAndResults[i].second, timeout_sec))
+        {
+            EXPECT_TRUE(false) << "Chat update not received for user " << allParticipantsIndices[i]
+                               << " after " << timeout_sec << " seconds";
+            return INVALID_HANDLE;
+        }
+    }
+    return mApi[creatorIndex].chatid;
+}
 #endif
 
 void SdkTest::onEvent(MegaApi* s, MegaEvent *event)
@@ -1341,6 +1441,21 @@ void SdkTest::getAccountsForTest(unsigned howMany, bool fetchNodes, const int cl
 
     if (fetchNodes) fetchNodesForAccounts(howMany);
 
+    for (unsigned index = 0; index < howMany; ++index)
+    {
+        auto rt = ::mega::make_unique<RequestTracker>(megaApi[index].get());
+        megaApi[index]->getUserAttribute(37 /*ATTR_KEYS*/, rt.get());
+        rt->waitForResult();
+        std::string b64Value{rt->request->getText()};
+        std::string binValue = Base64::atob(b64Value);
+        if (binValue.size() > MAX_USER_VAR_SIZE - 512) // limit almost exceeded, tests will start failing soon
+        {
+            out() << "Account " << megaApi[index]->getMyEmail() << " has a ^!keys of " << binValue.size() << " bytes";
+            out() << "Please, DevOps, park this account";
+            ASSERT_FALSE(true);
+        }
+    }
+
     // In case the last test exited without cleaning up (eg, debugging etc)
     Cleanup();
     out() << "Test setup done, test starts";
@@ -1401,6 +1516,19 @@ void SdkTest::inviteTestAccount(const unsigned invitorIndex, const unsigned invi
 {
     //--- Add account as contact ---
     mApi[inviteIndex].contactRequestUpdated = false;
+
+    std::unique_ptr<MegaUser> contact(mApi[invitorIndex].megaApi->getContact(mApi[inviteIndex].email.c_str()));
+    if (contact)
+    {
+        if (contact->getVisibility() == MegaUser::VISIBILITY_VISIBLE)
+        {
+            LOG_warn << mApi[inviteIndex].email.c_str() << " is inviting " << mApi[inviteIndex].email.c_str() << " but they are already contacts";
+        }
+        else if (contact->getVisibility() == MegaUser::VISIBILITY_HIDDEN)
+        {
+            LOG_info << mApi[inviteIndex].email.c_str() << " is inviting " << mApi[inviteIndex].email.c_str() << " They were contacts in the past";
+        }
+    }
 
     // Watcher for the new contact visibility
     bool contactRightVisibility = false;
@@ -1997,7 +2125,7 @@ string getLinkFromMailbox(const string& exe,         // Python
         const auto& attemptTime = std::chrono::system_clock::now();
         auto timeSinceEmail = std::chrono::duration_cast<std::chrono::seconds>(attemptTime - timeOfEmail).count() + 20;
         output = runProgram(command + ' ' + to_string(timeSinceEmail), PROG_OUTPUT_TYPE::TEXT); // Run Python script
-        if (!output.empty() || i > 180000 / deltaMs) // 3 minute maximum wait
+        if (!output.empty() || i > 180000) // 3 minute maximum wait
             break;
     }
 
@@ -16325,7 +16453,7 @@ TEST_F(SdkTest, SdkTesResumeSessionInFolderLinkDeleted)
         << "Logout did not happen after " << timeoutInSeconds  << " seconds";
 }
 
-#if defined(WIN32)
+#if defined(ENABLE_ISOLATED_GFX)
 class SdkTestGfx : public SdkTest
 {
 protected:
@@ -17772,27 +17900,12 @@ TEST_F(SdkTest, GiveRemoveChatAccess)
     mApi[guest].chats.clear();
 
     // Send and accept a new contact request
-
     string message = "Hi contact. This is a testing message";
     inviteTestAccount(host, guest, message);
 
     // Create chat between new contacts
-
-    auto numChatsHost = mApi[host].chats.size();
-    auto numChatsGuest = mApi[guest].chats.size();
-    mApi[guest].chatUpdated = false;
-    std::unique_ptr<MegaTextChatPeerList> peers(MegaTextChatPeerList::createInstance());
-    peers->addPeer(megaApi[guest]->getMyUser()->getHandle(), PRIV_STANDARD);
-
-    createChat(true, peers.get());
-
-    ASSERT_TRUE(waitForResponse(&mApi[guest].chatUpdated))
-            << "Chat update not received after " << maxTimeout << " seconds";
-    ASSERT_TRUE(mApi[guest].chatUpdated) << "The peer didn't receive notification of the chat creation";
-    ASSERT_EQ(mApi[host].chats.size(), numChatsHost+1) << "Unexpected received number of chats";
-    ASSERT_EQ(mApi[guest].chats.size(), numChatsGuest+1) << "Unexpected received number of chats";
-
-    MegaHandle chatId = mApi[host].chatid;
+    MegaHandle chatId = createChatWithChecks(0, {1}, true);
+    ASSERT_NE(chatId, INVALID_HANDLE) << "Something went wrong when creating the group chat room";
 
     // Update test file
 

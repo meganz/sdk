@@ -441,5 +441,6 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 typedef long long time_t;
 typedef long long uint64_t;
 typedef long long int64_t;
+typedef long long uint32_t;
 
 %include "megaapi.h"

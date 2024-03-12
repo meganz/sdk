@@ -2786,7 +2786,7 @@ public:
     virtual int getShard() const;
 
     /**
-     * @brief getPeerList Returns the full user list and privileges (including yourself).
+     * @brief getPeerList Returns the full user list and privileges (excluding yourself).
      *
      * The MegaTextChat retains the ownership of the returned MetaTextChatPeerList. It will
      * be only valid until the MegaTextChat is deleted.

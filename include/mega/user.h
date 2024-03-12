@@ -145,6 +145,7 @@ public:
     static int needversioning(attr_t at);
     static char scope(attr_t at);
     static bool isAuthring(attr_t at);
+    static size_t getMaxAttributeSize(attr_t at);
 
     enum {
         PWD_LAST_SUCCESS = 0x01,
