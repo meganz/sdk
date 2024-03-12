@@ -47,9 +47,11 @@ private:
 class SocketUtils
 {
 public:
-    static std::pair<std::error_code, int> accept(int listeningFd, std::chrono::milliseconds timeout);
-
     static std::filesystem::path toSocketPath(const std::string& name);
+
+    static std::pair<std::error_code, int> listen(const std::string& name);
+
+    static std::pair<std::error_code, int> accept(int listeningFd, std::chrono::milliseconds timeout);
 
     //
     // Read until count bytes or timeout
@@ -57,8 +59,6 @@ public:
     static std::error_code read(int fd, void* buf, size_t count, std::chrono::milliseconds timeout);
 
     static std::error_code write(int fd, const void* data, size_t n, std::chrono::milliseconds timeout);
-
-    static std::unique_ptr<Socket> listen(const std::string& name);
 
 private:
     static bool isRetryErrorNo(int errorNo);
