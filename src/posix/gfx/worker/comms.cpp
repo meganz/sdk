@@ -134,28 +134,28 @@ error_code SocketUtils::pollForAccept(int fd, milliseconds timeout)
     return pollFd(fd, POLLIN, timeout);
 }
 
-std::pair<error_code, std::unique_ptr<Socket>> SocketUtils::accept(int listeningFd, milliseconds timeout)
+std::pair<error_code, int> SocketUtils::accept(int listeningFd, milliseconds timeout)
 {
     do {
         auto errorCode = pollForAccept(listeningFd, timeout);
         if (errorCode)
         {
-            return {errorCode, nullptr};   // error
+            return {errorCode, -1};   // error
         }
 
-        auto dataSocket = std::make_unique<Socket>(::accept(listeningFd, nullptr, nullptr), "server");
-        if (!dataSocket->isValid() && isRetryErrorNo(errno))
+        auto dataSocket = ::accept(listeningFd, nullptr, nullptr);
+        if (dataSocket < 0 && isRetryErrorNo(errno))
         {
-            LOG_err << "Fail to accept: " << errno;     // retry
+            LOG_info << "Retry accept due to errno: " << errno; // retry
             continue;
         }
-        else if (!dataSocket->isValid())
+        else if (dataSocket < 0)
         {
-            return {error_code{errno, system_category()}, nullptr}; // error
+            return {error_code{errno, system_category()}, -1};  // error
         }
         else
         {
-            return {error_code{}, std::move(dataSocket)};                         // success
+            return {error_code{}, dataSocket};                  // success
         }
     } while (true);
 }

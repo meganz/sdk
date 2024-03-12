@@ -47,7 +47,7 @@ private:
 class SocketUtils
 {
 public:
-    static std::pair<std::error_code, std::unique_ptr<Socket>> accept(int listeningFd, std::chrono::milliseconds timeout);
+    static std::pair<std::error_code, int> accept(int listeningFd, std::chrono::milliseconds timeout);
 
     static std::filesystem::path toSocketPath(const std::string& name);
 

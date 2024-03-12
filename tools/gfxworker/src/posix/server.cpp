@@ -26,14 +26,14 @@ void ServerPosix::operator()()
 
 void ServerPosix::serverListeningLoop()
 {
-    auto socket = SocketUtils::listen(mName);
+    auto listenSocket = SocketUtils::listen(mName);
 
-    if (!socket || !socket->isValid()) return;
+    if (!listenSocket || !listenSocket->isValid()) return;
     
-    auto socketFd = socket->fd();
+    auto listenFd = listenSocket->fd();
     for (;;) 
     {
-        auto [errorCode, dataSocket] = SocketUtils::accept(socketFd, mWaitMs);
+        auto [errorCode, dataFd] = SocketUtils::accept(listenFd, mWaitMs);
         if (errorCode == std::errc::timed_out)
         {
             LOG_info << "Exit listening loop, No more requests.";
@@ -44,6 +44,9 @@ void ServerPosix::serverListeningLoop()
             LOG_info << "Exit listening loop, Error: " << errorCode.message();
             break;
         }
+
+        // Take ownership
+        auto dataSocket = std::make_unique<Socket>(dataFd, "server");
 
         // Process requests
         bool stopRunning = false;
