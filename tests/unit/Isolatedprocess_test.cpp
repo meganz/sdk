@@ -28,7 +28,6 @@ TEST(Isolatedprocess, CancelableSleeperCanBecancelledInNoTime)
     ASSERT_TRUE(counter.passedTime() < seconds(10));
 }
 
-#if defined(WIN32)
 //
 // Test hellobeater can be shutdown quickly
 //
@@ -42,4 +41,3 @@ TEST(Isolatedprocess, GfxWorkerHelloBeaterCanGracefullyShutdownInNoTime)
     // too short number that the result could be affected by disturbance.
     ASSERT_TRUE(counter.passedTime() < seconds(10));
 }
-#endif

@@ -17,10 +17,11 @@ CommError PosixGfxCommunicationsClient::connect(std::unique_ptr<IEndpoint>& endp
         return toCommError(errno);
     }
 
+    auto socketPath = posix_utils::toSocketPath(mName);
     struct sockaddr_un addr;
     memset(&addr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, mName.c_str(), sizeof(addr.sun_path) - 1);
+    strncpy(addr.sun_path, socketPath.c_str(), sizeof(addr.sun_path) - 1);
 
     if (::connect(socket->fd(), (const struct sockaddr *) &addr, sizeof(addr)) == -1)
     {
@@ -34,13 +35,16 @@ CommError PosixGfxCommunicationsClient::connect(std::unique_ptr<IEndpoint>& endp
 
 CommError PosixGfxCommunicationsClient::toCommError(int error) const
 {
-    if (error == ECONNREFUSED)
-    {
-        return CommError::NOT_EXIST;
-    }
-    else
-    {
-        return CommError::ERR;
+    switch (error) {
+        case ENOENT:        // case socket hasn't been created yet
+        case ECONNREFUSED:  // case socket is created, but server is not listenning
+        {
+            return CommError::NOT_EXIST;
+        }
+        default:
+        {
+            return CommError::ERR;
+        }
     }
 }
 

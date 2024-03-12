@@ -11,6 +11,9 @@
 #include <memory>
 #include <system_error>
 #include <vector>
+#include <filesystem>
+
+namespace fs = std::filesystem;
 
 namespace mega {
 namespace gfx {
@@ -72,10 +75,11 @@ std::unique_ptr<Socket> ServerPosix::listen(const std::string& name)
 
     // check name
     // extra 1 for null terminated
+    auto socketPath = posix_utils::toSocketPath(name);
     size_t max_size = sizeof(un.sun_path) - 1;
-    if (name.size() >= max_size)
+    if (strlen(socketPath.c_str()) >= max_size)
     {
-        LOG_err << "unix domain socket name is too long, " << name;
+        LOG_err << "unix domain socket name is too long, " << socketPath.string();
         return nullptr;
     }
 
@@ -90,31 +94,35 @@ std::unique_ptr<Socket> ServerPosix::listen(const std::string& name)
     // the name might exists due to crash
     // another possiblity is a server with same name already exists
     // fail to unlink is not an error: such as not exists as for most cases
-    if (::unlink(name.c_str()) < 0)
+    if (::unlink(socketPath.c_str()) < 0)
     {
-        LOG_info << "fail to unlink: " << name << " errno: " << errno;
+        LOG_info << "fail to unlink: " << socketPath.string() << " errno: " << errno;
     }
+
+    // create path
+    std::error_code errorCode;
+    fs::create_directories(socketPath.parent_path(), errorCode);
 
     // fill address
     memset(&un, 0, sizeof(un));
     un.sun_family = AF_UNIX;
-    strncpy(un.sun_path, name.c_str(), max_size);
+    strncpy(un.sun_path, socketPath.c_str(), max_size);
 
     // bind name
     if (::bind(socket->fd(), reinterpret_cast<struct sockaddr*>(&un), sizeof(un)) == -1)
     {
-        LOG_err << "fail to bind UNIX domain socket name: " << name << " errno: " << errno;
+        LOG_err << "fail to bind UNIX domain socket name: " << socketPath.string() << " errno: " << errno;
         return nullptr;
     }
 
     // listen
     if (::listen(socket->fd(), MAX_QUEUE_LEN) < 0)
     {
-        LOG_err << "fail to listen UNIX domain socket name: " << name << " errno: " << errno;
+        LOG_err << "fail to listen UNIX domain socket name: " << socketPath.string() << " errno: " << errno;
         return nullptr;
     }
 
-    LOG_verbose << "listening on UNIX domain socket name: " << name;
+    LOG_verbose << "listening on UNIX domain socket name: " << socketPath.string();
 
     return socket;
 }

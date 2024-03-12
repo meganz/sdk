@@ -13,6 +13,8 @@
 
 #ifdef _WIN32
 #include "mega/win32/gfx/worker/comms_client.h"
+#else
+#include "mega/posix/gfx/worker/comms_client.h"
 #endif
 
 using std::chrono::milliseconds;
@@ -129,14 +131,12 @@ bool GfxClient::runSupportFormats(std::string& formats, std::string& videoformat
     }
 }
 
-GfxClient GfxClient::create(const std::string& pipeName)
+GfxClient GfxClient::create(const std::string& endpointName)
 {
 #ifdef _WIN32
-    return GfxClient(mega::make_unique<WinGfxCommunicationsClient>(pipeName));
+    return GfxClient(mega::make_unique<WinGfxCommunicationsClient>(endpointName));
 #else
-    // To implement
-    (void)pipeName;
-    return GfxClient(nullptr);
+    return GfxClient(std::make_unique<PosixGfxCommunicationsClient>(endpointName));
 #endif
 }
 

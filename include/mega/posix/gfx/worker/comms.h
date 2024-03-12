@@ -6,6 +6,7 @@
 
 #include <system_error>
 #include <chrono>
+#include <filesystem>
 namespace mega {
 namespace gfx {
 
@@ -14,6 +15,8 @@ namespace posix_utils
 {
 
 std::pair<std::error_code, std::unique_ptr<Socket>> accept(int listeningFd, std::chrono::milliseconds timeout);
+
+std::filesystem::path toSocketPath(const std::string& name);
 
 }
 class Socket : public IEndpoint

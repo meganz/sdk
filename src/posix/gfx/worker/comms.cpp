@@ -2,10 +2,12 @@
 #include "mega/logging.h"
 #include "mega/clock.h"
 
+#include <filesystem>
 #include <poll.h>
 
 #include <chrono>
 #include <system_error>
+#include <unistd.h>
 
 using std::chrono::milliseconds;
 
@@ -16,6 +18,12 @@ namespace posix_utils
 using std::chrono::duration_cast;
 using std::error_code;
 using std::system_category;
+using std::filesystem::path;
+
+path toSocketPath(const std::string& name)
+{
+    return path{"/tmp"} / ("MegaLimited" + std::to_string(getuid()))  / name;
+}
 
 bool isPollError(int event)
 {
