@@ -22374,7 +22374,7 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getParentHandle - Returns the node handle of the parent node in the tree
-         * - MegaRequest::getMegaNodeTree - Returns the Node Tree result after its creation
+         * - MegaRequest::getMegaNodeTree - Returns the Node Tree updated after it was created
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EARGS - Parameters are incorrect.
