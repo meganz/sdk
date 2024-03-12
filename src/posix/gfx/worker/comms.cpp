@@ -143,21 +143,27 @@ error_code read(int fd, void* buf, size_t count, milliseconds timeout)
 
         // Read
         size_t remaining = count - offset;
-        ssize_t hasRead = ::read(fd, static_cast<char *>(buf) + offset, remaining);
-        if (hasRead < 0 && isRetryErrorNo(errno))
+        ssize_t bytesRead = ::read(fd, static_cast<char *>(buf) + offset, remaining);
+
+        if (bytesRead < 0 && isRetryErrorNo(errno))
         {
-            continue;                                    // Again
+            continue;                                    // retry
         }
-        else if (hasRead < 0)
+        else if (bytesRead < 0)
         {
             return error_code{errno, system_category()}; // error
         }
+        else if (bytesRead == 0 && offset < count)
+        {
+            return error_code{ECONNABORTED, system_category()}; // end of file and not read all needed
+        }
         else
         {
-            offset += static_cast<size_t>(hasRead);      // success
+            offset += static_cast<size_t>(bytesRead);      // success
         }
     }
 
+    // Success
     return error_code{};
 }
 

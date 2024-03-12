@@ -23,6 +23,7 @@
 #include "stdfs.h"
 #include "SdkTest_test.h"
 #include "gtest_common.h"
+#include "mega/types.h"
 #include "mega/testhooks.h"
 
 #include "gmock/gmock-matchers.h"
@@ -289,6 +290,15 @@ namespace
         return oss.str();
     }
 
+    std::string executableName(const std::string& name)
+    {
+    #ifdef WIN32
+        return name + ".exe";
+    #else
+        return name;
+    #endif
+    }
+
     MegaApiTest* newMegaApi(const char* appKey,
                             const char* basePath,
                             const char* userAgent,
@@ -296,7 +306,7 @@ namespace
                             const int clientType = MegaApi::CLIENT_TYPE_DEFAULT)
     {
     #ifdef ENABLE_ISOLATED_GFX
-        auto gfxworkerPath = sdk_test::getTestDataDir() / "gfxworker.exe";
+        auto gfxworkerPath = sdk_test::getTestDataDir() / executableName("gfxworker");
         std::unique_ptr<MegaGfxProvider> provider{
             MegaGfxProvider::createIsolatedInstance(newPipeName().c_str(), gfxworkerPath.string().c_str())
         };
