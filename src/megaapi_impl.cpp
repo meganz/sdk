@@ -26558,7 +26558,9 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
         }
 
         auto result{
-            [this, request, nodeTree](const Error& error, targettype_t, vector<NewNode>& newNodes, bool, int)
+            [this, 
+             request, 
+             nodeTree](const Error& error, targettype_t, vector<NewNode>& newNodes, bool, int)
             {
                 size_t i{};
                 auto tmpNodeTree{dynamic_cast<MegaNodeTreePrivate*>(nodeTree)};
