@@ -5028,6 +5028,7 @@ public:
     const char* getTitle() const override { return mNotification.title.c_str(); }
     const char* getDescription() const override { return mNotification.description.c_str(); }
     const char* getImageName() const override { return mNotification.imageName.c_str(); }
+    const char* getIconName() const override { return mNotification.iconName.c_str(); }
     const char* getImagePath() const override { return mNotification.imagePath.c_str(); }
     int64_t getStart() const override { return mNotification.start; }
     int64_t getEnd() const override { return mNotification.end; }
