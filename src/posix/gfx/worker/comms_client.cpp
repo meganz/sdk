@@ -17,7 +17,7 @@ CommError PosixGfxCommunicationsClient::connect(std::unique_ptr<IEndpoint>& endp
         return toCommError(errno);
     }
 
-    auto socketPath = posix_utils::toSocketPath(mName);
+    auto socketPath = SocketUtils::toSocketPath(mName);
     struct sockaddr_un addr;
     memset(&addr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;

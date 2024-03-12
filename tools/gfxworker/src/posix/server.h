@@ -1,10 +1,7 @@
 #pragma once
 
-#include "mega/posix/gfx/worker/comms.h"
-
 #include <chrono>
 #include <memory>
-#include <system_error>
 #include <string>
 
 namespace mega {
@@ -31,17 +28,12 @@ public:
 
     void operator()();
 private:
-    const static std::error_code OK;
 
     void serverListeningLoop();
-
-    static std::unique_ptr<Socket> listen(const std::string& name);
 
     std::unique_ptr<RequestProcessor> mRequestProcessor;
 
     std::string mName;
-
-    static const int MAX_QUEUE_LEN;
 
     const std::chrono::milliseconds mWaitMs{60000};
 };

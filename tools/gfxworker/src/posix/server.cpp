@@ -3,22 +3,12 @@
 #include "processor.h"
 
 #include "mega/logging.h"
-
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <poll.h>
+#include "mega/posix/gfx/worker/comms.h"
 
 #include <memory>
-#include <system_error>
-#include <vector>
-#include <filesystem>
-
-namespace fs = std::filesystem;
 
 namespace mega {
 namespace gfx {
-
-const int ServerPosix::MAX_QUEUE_LEN = 10;
 
 ServerPosix::ServerPosix(std::unique_ptr<RequestProcessor> requestProcessor,
                                                            const std::string& name,
@@ -36,14 +26,14 @@ void ServerPosix::operator()()
 
 void ServerPosix::serverListeningLoop()
 {
-    auto socket = listen(mName);
+    auto socket = SocketUtils::listen(mName);
 
     if (!socket || !socket->isValid()) return;
     
     auto socketFd = socket->fd();
     for (;;) 
     {
-        auto [errorCode, dataSocket] = posix_utils::accept(socketFd, mWaitMs);
+        auto [errorCode, dataSocket] = SocketUtils::accept(socketFd, mWaitMs);
         if (errorCode == std::errc::timed_out)
         {
             LOG_info << "Exit listening loop, No more requests.";
@@ -68,65 +58,6 @@ void ServerPosix::serverListeningLoop()
         }
     }
 }
-
-std::unique_ptr<Socket> ServerPosix::listen(const std::string& name)
-{
-    struct sockaddr_un un;
-
-    // check name
-    // extra 1 for null terminated
-    auto socketPath = posix_utils::toSocketPath(name);
-    size_t max_size = sizeof(un.sun_path) - 1;
-    if (strlen(socketPath.c_str()) >= max_size)
-    {
-        LOG_err << "unix domain socket name is too long, " << socketPath.string();
-        return nullptr;
-    }
-
-    // create a UNIX domain socket
-    auto socket = std::make_unique<Socket>(::socket(AF_UNIX, SOCK_STREAM, 0), "server");
-    if (!socket->isValid())
-    {
-        LOG_err << "fail to create a UNIX domain socket: " << name << " errno: " << errno;
-        return nullptr;
-    }
-
-    // the name might exists due to crash
-    // another possiblity is a server with same name already exists
-    // fail to unlink is not an error: such as not exists as for most cases
-    if (::unlink(socketPath.c_str()) < 0)
-    {
-        LOG_info << "fail to unlink: " << socketPath.string() << " errno: " << errno;
-    }
-
-    // create path
-    std::error_code errorCode;
-    fs::create_directories(socketPath.parent_path(), errorCode);
-
-    // fill address
-    memset(&un, 0, sizeof(un));
-    un.sun_family = AF_UNIX;
-    strncpy(un.sun_path, socketPath.c_str(), max_size);
-
-    // bind name
-    if (::bind(socket->fd(), reinterpret_cast<struct sockaddr*>(&un), sizeof(un)) == -1)
-    {
-        LOG_err << "fail to bind UNIX domain socket name: " << socketPath.string() << " errno: " << errno;
-        return nullptr;
-    }
-
-    // listen
-    if (::listen(socket->fd(), MAX_QUEUE_LEN) < 0)
-    {
-        LOG_err << "fail to listen UNIX domain socket name: " << socketPath.string() << " errno: " << errno;
-        return nullptr;
-    }
-
-    LOG_verbose << "listening on UNIX domain socket name: " << socketPath.string();
-
-    return socket;
-}
-
 
 }
 }

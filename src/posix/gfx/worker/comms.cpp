@@ -10,32 +10,68 @@
 #include <unistd.h>
 
 using std::chrono::milliseconds;
-
-namespace mega {
-namespace gfx {
-namespace posix_utils
-{
-using std::chrono::duration_cast;
 using std::error_code;
+using std::chrono::duration_cast;
 using std::system_category;
 using std::filesystem::path;
 
-path toSocketPath(const std::string& name)
+namespace fs = std::filesystem;
+namespace mega {
+namespace gfx {
+
+Socket::Socket(Socket&& other)
 {
-    return path{"/tmp"} / ("MegaLimited" + std::to_string(getuid()))  / name;
+    this->mSocket = other.mSocket;
+    this->mName = std::move(other.mName);
+    other.mSocket = -1;
 }
 
-bool isPollError(int event)
+Socket::~Socket()
 {
-    return event & (POLLERR | POLLHUP | POLLNVAL);
+    if (isValid())
+    {
+        ::close(mSocket);
+        LOG_verbose << "socket " << mName << "_" << mSocket << " closed";
+    }
 }
 
-bool isRetryErrorNo(int errorNo)
+bool Socket::doWrite(const void* data, size_t n, TimeoutMs timeout)
+{
+    const auto errorCode = SocketUtils::write(mSocket, data, n, static_cast<milliseconds>(timeout));
+    if (errorCode)
+    {
+        LOG_err << "Write to socket " << mName << "_" << mSocket << " error: " <<  errorCode.message();
+    }
+
+    return !errorCode;
+}
+
+bool Socket::doRead(void* out, size_t n, TimeoutMs timeout)
+{
+    const auto errorCode = SocketUtils::read(mSocket, out, n, static_cast<milliseconds>(timeout));
+    if (errorCode)
+    {
+        LOG_err << "read from socket " << mName << "_" << mSocket << " error: " << errorCode.message();
+    }
+    return !errorCode;
+}
+
+bool SocketUtils::isRetryErrorNo(int errorNo)
 {
     return errorNo == EAGAIN || errorNo == EWOULDBLOCK || errorNo == EINTR;
 }
 
-error_code poll(std::vector<struct pollfd> fds, milliseconds timeout)
+path SocketUtils::toSocketPath(const std::string& name)
+{
+    return path{"/tmp"} / ("MegaLimited" + std::to_string(getuid()))  / name;
+}
+
+bool SocketUtils::isPollError(int event)
+{
+    return event & (POLLERR | POLLHUP | POLLNVAL);
+}
+
+error_code SocketUtils::poll(std::vector<struct pollfd> fds, milliseconds timeout)
 {
     // Remaining timeout in case of EINTR
     const ScopedSteadyClock clock;
@@ -61,7 +97,7 @@ error_code poll(std::vector<struct pollfd> fds, milliseconds timeout)
     return error_code{};
 }
 
-error_code pollFd(int fd, short events, milliseconds timeout)
+error_code SocketUtils::pollFd(int fd, short events, milliseconds timeout)
 {
     // Poll
     std::vector<struct pollfd> fds{
@@ -83,22 +119,48 @@ error_code pollFd(int fd, short events, milliseconds timeout)
     return error_code{};
 }
 
-error_code pollForRead(int fd, milliseconds timeout)
+error_code SocketUtils::pollForRead(int fd, milliseconds timeout)
 {
     return pollFd(fd, POLLIN, timeout);
 }
 
-error_code pollForWrite(int fd, milliseconds timeout)
+error_code SocketUtils::pollForWrite(int fd, milliseconds timeout)
 {
     return pollFd(fd, POLLOUT, timeout);
 }
 
-error_code pollForAccept(int fd, milliseconds timeout)
+error_code SocketUtils::pollForAccept(int fd, milliseconds timeout)
 {
     return pollFd(fd, POLLIN, timeout);
 }
 
-error_code write(int fd, const void* data, size_t n, milliseconds timeout)
+std::pair<error_code, std::unique_ptr<Socket>> SocketUtils::accept(int listeningFd, milliseconds timeout)
+{
+    do {
+        auto errorCode = pollForAccept(listeningFd, timeout);
+        if (errorCode)
+        {
+            return {errorCode, nullptr};   // error
+        }
+
+        auto dataSocket = std::make_unique<Socket>(::accept(listeningFd, nullptr, nullptr), "server");
+        if (!dataSocket->isValid() && isRetryErrorNo(errno))
+        {
+            LOG_err << "Fail to accept: " << errno;     // retry
+            continue;
+        }
+        else if (!dataSocket->isValid())
+        {
+            return {error_code{errno, system_category()}, nullptr}; // error
+        }
+        else
+        {
+            return {error_code{}, std::move(dataSocket)};                         // success
+        }
+    } while (true);
+}
+
+error_code SocketUtils::write(int fd, const void* data, size_t n, milliseconds timeout)
 {
     size_t offset = 0;
     while (offset < n) {
@@ -131,7 +193,7 @@ error_code write(int fd, const void* data, size_t n, milliseconds timeout)
 //
 // Read until count bytes or timeout
 //
-error_code read(int fd, void* buf, size_t count, milliseconds timeout)
+error_code SocketUtils::read(int fd, void* buf, size_t count, milliseconds timeout)
 {
     size_t offset = 0;
     while (offset < count) {
@@ -167,69 +229,63 @@ error_code read(int fd, void* buf, size_t count, milliseconds timeout)
     return error_code{};
 }
 
-std::pair<error_code, std::unique_ptr<Socket>> accept(int listeningFd, milliseconds timeout)
+std::unique_ptr<Socket> SocketUtils::listen(const std::string& name)
 {
-    do {
-        auto errorCode = posix_utils::pollForAccept(listeningFd, timeout);
-        if (errorCode)
-        {
-            return {errorCode, nullptr};   // error
-        }
+    constexpr int MAX_QUEUE_LEN = 10;
+    struct sockaddr_un un;
 
-        auto dataSocket = std::make_unique<Socket>(::accept(listeningFd, nullptr, nullptr), "server");
-        if (!dataSocket->isValid() && isRetryErrorNo(errno))
-        {
-            LOG_err << "Fail to accept: " << errno;     // retry
-            continue;
-        }
-        else if (!dataSocket->isValid())
-        {
-            return {error_code{errno, system_category()}, nullptr}; // error
-        }
-        else
-        {
-            return {error_code{}, std::move(dataSocket)};                         // success
-        }
-    }while (true);
-}
-
-}
-
-Socket::Socket(Socket&& other)
-{
-    this->mSocket = other.mSocket;
-    this->mName = std::move(other.mName);
-    other.mSocket = -1;
-}
-
-Socket::~Socket()
-{
-    if (isValid())
+    // check name
+    // extra 1 for null terminated
+    auto socketPath = SocketUtils::toSocketPath(name);
+    size_t max_size = sizeof(un.sun_path) - 1;
+    if (strlen(socketPath.c_str()) >= max_size)
     {
-        ::close(mSocket);
-        LOG_verbose << "socket " << mName << "_" << mSocket << " closed";
-    }
-}
-
-bool Socket::doWrite(const void* data, size_t n, TimeoutMs timeout)
-{
-    const auto errorCode = posix_utils::write(mSocket, data, n, static_cast<milliseconds>(timeout));
-    if (errorCode)
-    {
-        LOG_err << "Write to socket " << mName << "_" << mSocket << " error: " <<  errorCode.message();
+        LOG_err << "unix domain socket name is too long, " << socketPath.string();
+        return nullptr;
     }
 
-    return !errorCode;
-}
-
-bool Socket::doRead(void* out, size_t n, TimeoutMs timeout)
-{
-    const auto errorCode = posix_utils::read(mSocket, out, n, static_cast<milliseconds>(timeout));
-    if (errorCode)
+    // create a UNIX domain socket
+    auto socket = std::make_unique<Socket>(::socket(AF_UNIX, SOCK_STREAM, 0), "server");
+    if (!socket->isValid())
     {
-        LOG_err << "read from socket " << mName << "_" << mSocket << " error: " << errorCode.message();
+        LOG_err << "fail to create a UNIX domain socket: " << name << " errno: " << errno;
+        return nullptr;
     }
-    return !errorCode;
+
+    // the name might exists due to crash
+    // another possiblity is a server with same name already exists
+    // fail to unlink is not an error: such as not exists as for most cases
+    if (::unlink(socketPath.c_str()) < 0)
+    {
+        LOG_info << "fail to unlink: " << socketPath.string() << " errno: " << errno;
+    }
+
+    // create path
+    std::error_code errorCode;
+    fs::create_directories(socketPath.parent_path(), errorCode);
+
+    // fill address
+    memset(&un, 0, sizeof(un));
+    un.sun_family = AF_UNIX;
+    strncpy(un.sun_path, socketPath.c_str(), max_size);
+
+    // bind name
+    if (::bind(socket->fd(), reinterpret_cast<struct sockaddr*>(&un), sizeof(un)) == -1)
+    {
+        LOG_err << "fail to bind UNIX domain socket name: " << socketPath.string() << " errno: " << errno;
+        return nullptr;
+    }
+
+    // listen
+    if (::listen(socket->fd(), MAX_QUEUE_LEN) < 0)
+    {
+        LOG_err << "fail to listen UNIX domain socket name: " << socketPath.string() << " errno: " << errno;
+        return nullptr;
+    }
+
+    LOG_verbose << "listening on UNIX domain socket name: " << socketPath.string();
+
+    return socket;
 }
 
 } // end of namespace
