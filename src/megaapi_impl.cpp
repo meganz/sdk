@@ -26558,8 +26558,8 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
         }
 
         auto result{
-            [this, 
-             request, 
+            [this,
+             request,
              nodeTree](const Error& error, targettype_t, vector<NewNode>& newNodes, bool, int)
             {
                 size_t i{};
