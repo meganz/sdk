@@ -44,6 +44,7 @@ else {
 }
 
 SOURCES += \
+../../../../tests/unit/Arguments_test.cpp \
 ../../../../tests/unit/AttrMap_test.cpp \
 ../../../../tests/unit/ChunkMacMap_test.cpp \
 ../../../../tests/unit/Commands_test.cpp \
@@ -65,7 +66,7 @@ SOURCES += \
 ../../../../tests/unit/User_test.cpp \
 ../../../../tests/unit/utils.cpp \
 ../../../../tests/unit/utils_test.cpp \
-../../../../tests/integration/process.cpp
+../../../../tests/unit/CacheLRU_test.cpp
 
 HEADERS += \
 ../../../../tests/unit/constants.h \

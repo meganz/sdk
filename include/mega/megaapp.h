@@ -101,7 +101,10 @@ struct MEGA_API MegaApp
     virtual void setelements_updated(SetElement**, int) { }
 
     // nodes have been updated
-    virtual void nodes_updated(Node**, int) { }
+    virtual void nodes_updated(sharedNode_vector*, int) { }
+
+    // new actionpackets arrived with a new sequence tag
+    virtual void sequencetag_update(const string&) { }
 
     // nodes have been updated
     virtual void pcrs_updated(PendingContactRequest**, int) { }
@@ -142,9 +145,6 @@ struct MEGA_API MegaApp
 #ifndef NDEBUG
     // So that tests can make a change as soon as a cloud node is moved.
     virtual void move_begin(const LocalPath&, const LocalPath&) { };
-
-    // So that tests can make a change as soon as a putnodes is sent.
-    virtual void putnodes_begin(const LocalPath&) { };
 #endif // ! NDEBUG
 
     // node addition has failed
@@ -301,13 +301,20 @@ struct MEGA_API MegaApp
     virtual void transfer_update(Transfer*) { }
     virtual void transfer_complete(Transfer*) { }
 
+    // ----- sync callbacks below, which occur on the syncs thread
+    // ----- (other callbacks occur on the client thread)
+
     // sync status updates and events
     virtual void syncupdate_stateconfig(const SyncConfig& config) { }
     virtual void syncupdate_stats(handle backupId, const PerSyncStats&) { }
     virtual void syncupdate_syncing(bool) { }
     virtual void syncupdate_scanning(bool) { }
-    virtual void syncupdate_local_lockretry(bool) { }
+    virtual void syncupdate_stalled(bool) { }
+    virtual void syncupdate_conflicts(bool) { }
+    virtual void syncupdate_totalstalls(bool) { }
+    virtual void syncupdate_totalconflicts(bool) { }
     virtual void syncupdate_treestate(const SyncConfig &, const LocalPath&, treestate_t, nodetype_t) { }
+    virtual bool isSyncStalledChanged() { return false; } // flag for syncupdate_totalstalls or syncupdate_totalstalls is set
 
 #ifdef DEBUG
     // Called right before the sync engine processes a filesystem notification.
@@ -315,17 +322,6 @@ struct MEGA_API MegaApp
                                         int queue,
                                         const Notification& notification) { };
 #endif // DEBUG
-
-    // sync filename filter
-    virtual bool sync_syncable(Sync*, const char*, LocalPath&, Node*)
-    {
-        return true;
-    }
-
-    virtual bool sync_syncable(Sync*, const char*, LocalPath&)
-    {
-        return true;
-    }
 
     // after a root node of a sync changed its path
     virtual void syncupdate_remote_root_changed(const SyncConfig &) { }
@@ -341,6 +337,9 @@ struct MEGA_API MegaApp
 
     // after a sync has been removed
     virtual void sync_removed(const SyncConfig& config) { }
+
+    // ----- that's the end of the sync callbacks, which occur on the syncs thread
+    // ----- (other callbacks occur on the client thread)
 
     // Notify fatal errors (ie. DB, node unserialization, ...) to apps
     virtual void notifyError(const char*, ErrorReason) { }

@@ -54,15 +54,6 @@ typedef int64_t m_off_t;
 
 namespace mega {
 
-// opaque filesystem fingerprint (eg on windows, volume serial number).  Let's make it a proper type so the compiler helps us not mix it up with other IDs
-struct fsfp_t
-{
-    uint64_t id = 0;
-    fsfp_t() {}
-    fsfp_t(uint64_t i) : id(i) {}
-    operator bool() { return id != 0; }
-};
-
 // within ::mega namespace, byte is unsigned char (avoids ambiguity when std::byte from c++17 and perhaps other defined ::byte are available)
 #if defined(USE_CRYPTOPP) && (CRYPTOPP_VERSION >= 600) && ((__cplusplus >= 201103L) || (__RPCNDR_H_VERSION__ == 500))
 using byte = CryptoPP::byte;
@@ -349,8 +340,10 @@ typedef list<struct File*> file_list;
 
 // node types:
 typedef enum {
+    TYPE_NESTED_MOUNT = -5,
+    TYPE_SYMLINK = -4,
     TYPE_DONOTSYNC = -3,
-    TYPE_SPECIAL = -2,
+    TYPE_SPECIAL = -2, // but not include SYMLINK
     TYPE_UNKNOWN = -1,
     FILENODE = 0,    // FILE - regular file nodes
     FOLDERNODE,      // FOLDER - regular folder nodes
@@ -378,6 +371,8 @@ typedef enum { MIME_TYPE_UNKNOWN    = 0,
                MIME_TYPE_ARCHIVE    = 7,    // archiveExtensions
                MIME_TYPE_PROGRAM    = 8,    // programExtensions
                MIME_TYPE_MISC       = 9,    // miscExtensions
+               MIME_TYPE_SPREADSHEET = 10,  // spreadsheetExtensions
+               MIME_TYPE_ALL_DOCS   = 11,   // any of {document, pdf, presentation, spreadsheet}
              } MimeType_t;
 
 typedef enum { LBL_UNKNOWN = 0, LBL_RED = 1, LBL_ORANGE = 2, LBL_YELLOW = 3, LBL_GREEN = 4,
@@ -436,8 +431,7 @@ typedef enum { OPCA_ADD = 0, OPCA_DELETE, OPCA_REMIND} opcactions_t;
 // operations for incoming pending contacts
 typedef enum { IPCA_ACCEPT = 0, IPCA_DENY, IPCA_IGNORE} ipcactions_t;
 
-
-typedef vector<Node*> node_vector;
+typedef vector<std::shared_ptr<Node> > sharedNode_vector;
 
 // contact visibility:
 // HIDDEN - not shown
@@ -451,14 +445,6 @@ typedef map<pair<UploadHandle, fatype>, pair<handle, int> > fa_map;
 
 
 enum class SyncRunState { Pending, Loading, Run, Pause, Suspend, Disable };
-
-typedef enum {
-    SYNC_DISABLED = -3, //user disabled (if no syncError, otherwise automatically disabled . i.e SYNC_TEMPORARY_DISABLED)
-    SYNC_FAILED = -2,
-    SYNC_CANCELED = -1, // being deleted
-    SYNC_INITIALSCAN = 0,
-    SYNC_ACTIVE
-} syncstate_t;
 
 typedef enum
 {
@@ -509,7 +495,7 @@ enum SyncError {
     UNKNOWN_TEMPORARY_ERROR = 24,           // Unknown temporary error
     TOO_MANY_ACTION_PACKETS = 25,           // Too many changes in account, local state discarded
     LOGGED_OUT = 26,                        // Logged out
-    WHOLE_ACCOUNT_REFETCHED = 27,           // The whole account was reloaded, missed actionpacket changes could not have been applied
+    //WHOLE_ACCOUNT_REFETCHED = 27,         // obsolete. was: The whole account was reloaded, missed actionpacket changes could not have been applied
     MISSING_PARENT_NODE = 28,               // Setting a new parent to a parent whose LocalNode is missing its corresponding Node crossref
     BACKUP_MODIFIED = 29,                   // Backup has been externally modified.
     BACKUP_SOURCE_NOT_BELOW_DRIVE = 30,     // Backup source path not below drive path.
@@ -544,25 +530,41 @@ typedef enum { SYNCDEL_NONE, SYNCDEL_DELETED, SYNCDEL_INFLIGHT, SYNCDEL_BIN,
 
 typedef vector<LocalNode*> localnode_vector;
 
-typedef map<handle, LocalNode*> handlelocalnode_map;
+// fsid is not necessarily unique because multiple filesystems may be involved
+// Hence, we use a multimap and check other parameters too when looking for a match.
+typedef multimap<handle, LocalNode*> fsid_localnode_map;
+
+// A similar type for looking up LocalNode by node handle, analagously
+// Keep the type separate by inheriting
+typedef multimap<NodeHandle, LocalNode*> nodehandle_localnode_map;
 
 typedef set<LocalNode*> localnode_set;
 
 typedef multimap<uint32_t, LocalNode*> idlocalnode_map;
 
-struct UnlinkOrDebris {
-    bool unlink = false;
-    bool debris = false;
-    bool canChangeVault = false;
-    UnlinkOrDebris(bool u, bool d, bool v) : unlink(u), debris(d), canChangeVault(v) {}
-};
+#ifdef USE_INOTIFY
 
-typedef map<Node*, UnlinkOrDebris> unlink_or_debris_set;
+using WatchEntry = pair<LocalNode*, handle>;
+using WatchMap = multimap<int, WatchEntry>;
+using WatchMapIterator = WatchMap::iterator;
 
+#endif // USE_INOTIFY
+
+enum WatchResult
+{
+    // Unable to add a watch due to bad path, etc.
+    WR_FAILURE,
+    // Unable to add a watch due to resource limits.
+    WR_FATAL,
+    // Successfully added a watch.
+    WR_SUCCESS
+}; // WatchResult
+
+typedef set<Node*> node_set;
 
 // enumerates a node's children
 // FIXME: switch to forward_list once C++11 becomes more widely available
-typedef list<Node*> node_list;
+typedef list<std::shared_ptr<Node> > sharedNode_list;
 
 // undefined node handle
 const handle UNDEF = ~(handle)0;
@@ -764,6 +766,12 @@ typedef enum {
     ATTR_KEYS = 37,                         // private, non-encrypted (but encrypted to derived key from MK) - binary blob, non-versioned
     ATTR_APPS_PREFS = 38,                   // private - byte array - versioned (apps preferences)
     ATTR_CC_PREFS   = 39,                   // private - byte array - versioned (content consumption preferences)
+    ATTR_VISIBLE_WELCOME_DIALOG = 40,       // private - non-encrypted - byte array - non-versioned
+    ATTR_VISIBLE_TERMS_OF_SERVICE = 41,     // private - non-encrypted - byte array - non-versioned
+    ATTR_PWM_BASE = 42,                     // private, non-encrypted (fully controlled by API) - char array in B64 - non-versioned
+    ATTR_ENABLE_TEST_NOTIFICATIONS = 43,    // private - non-encrypted - char array - non-versioned
+    ATTR_LAST_READ_NOTIFICATION = 44,       // private - non-encrypted - char array - non-versioned
+    ATTR_LAST_ACTIONED_BANNER = 45,         // private - non-encrypted - char array - non-versioned
 
 } attr_t;
 typedef map<attr_t, string> userattr_map;
@@ -835,7 +843,7 @@ struct recentaction
     handle parent;
     bool updated;
     bool media;
-    node_vector nodes;
+    sharedNode_vector nodes;
 };
 typedef vector<recentaction> recentactions_vector;
 
@@ -1075,12 +1083,12 @@ public:
 
     // getters
     ChatOptions_t value() const             { return mChatOptions; }
-    bool areEqual(ChatOptions_t val)        { return mChatOptions == val; }
+    bool areEqual(ChatOptions_t val) const  { return mChatOptions == val; }
     bool speakRequest() const               { return mChatOptions & kSpeakRequest; }
     bool waitingRoom() const                { return mChatOptions & kWaitingRoom; }
     bool openInvite() const                 { return mChatOptions & kOpenInvite; }
-    bool isValid()                          { return static_cast<unsigned int>(mChatOptions) <= static_cast<unsigned int>(maxValidValue); }
-    bool isEmpty()                          { return mChatOptions == kEmpty; }
+    bool isValid() const                    { return static_cast<unsigned int>(mChatOptions) <= static_cast<unsigned int>(maxValidValue); }
+    bool isEmpty() const                    { return mChatOptions == kEmpty; }
 
 protected:
     ChatOptions_t mChatOptions = kEmpty;
@@ -1098,64 +1106,64 @@ enum VersioningOption
     UseServerVersioningFlag   // One of those two will occur, based on the API's current state of that flag
 };
 
-// cross reference pointers.  For the case where two classes have pointers to each other, and they should
-// either always be NULL or if one refers to the other, the other refers to the one.
-// This class makes sure that the two pointers are always consistent, and also prevents copy/move (unless the pointers are NULL)
-template<class TO, class FROM>
-FROM*& crossref_other_ptr_ref(TO* s);  // to be supplied for each pair of classes (to assign to the right member thereof) (gets around circular declarations)
+enum class SyncWaitReason {
+    NoReason = 0,
+    FileIssue,
+    MoveOrRenameCannotOccur,
+    DeleteOrMoveWaitingOnScanning,
+    DeleteWaitingOnMoves,
+    UploadIssue,
+    DownloadIssue,
+    CannotCreateFolder,
+    CannotPerformDeletion,
+    SyncItemExceedsSupportedTreeDepth,
+    FolderMatchedAgainstFile,
+    LocalAndRemoteChangedSinceLastSyncedState_userMustChoose,
+    LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose,
+    NamesWouldClashWhenSynced,
 
-template <class  TO, class  FROM>
-class MEGA_API  crossref_ptr
-{
-    friend class crossref_ptr<FROM, TO>;
-
-    template<class A, class B>
-    friend B*& crossref_other_ptr_ref(A* s);  // friend so that specialization can access `ptr`
-
-    TO* ptr = nullptr;
-
-public:
-    crossref_ptr() = default;
-
-    ~crossref_ptr()
-    {
-        reset();
-    }
-
-    void crossref(TO* to, FROM* from)
-    {
-        assert(to && from);
-        assert(ptr == nullptr);
-        assert( !(crossref_other_ptr_ref<TO, FROM>(to)) );
-        ptr = to;
-        crossref_other_ptr_ref<TO, FROM>(ptr) = from;
-    }
-
-    void reset()
-    {
-        if (ptr)
-        {
-            assert( !!(crossref_other_ptr_ref<TO, FROM>(ptr)) );
-            crossref_other_ptr_ref<TO, FROM>(ptr) = nullptr;
-            ptr = nullptr;
-        }
-    }
-
-    void store_unchecked(TO* p) { ptr = p; }
-    TO*  release_unchecked() { auto p = ptr; ptr = nullptr; return p;  }
-
-    TO* get()              { return ptr; }
-    TO* operator->() const { assert(ptr != (void*)~0); return ptr; }
-    operator TO*() const   { assert(ptr != (void*)~0); return ptr; }
-
-    // no copying
-    crossref_ptr(const crossref_ptr&) = delete;
-    void operator=(const crossref_ptr&) = delete;
-
-    // only allow move if the pointers are null (check at runtime with assert)
-    crossref_ptr(crossref_ptr&& p) { assert(!p.ptr); }
-    void operator=(crossref_ptr&& p) { assert(!p.ptr); ptr = p; }
+    SyncWaitReason_LastPlusOne
 };
+
+enum class PathProblem : unsigned short {
+    NoProblem = 0,
+    FileChangingFrequently,
+    IgnoreRulesUnknown,
+    DetectedHardLink,
+    DetectedSymlink,
+    DetectedSpecialFile,
+    DifferentFileOrFolderIsAlreadyPresent,
+    ParentFolderDoesNotExist,
+    FilesystemErrorDuringOperation,
+    NameTooLongForFilesystem,
+    CannotFingerprintFile,
+    DestinationPathInUnresolvedArea,
+    MACVerificationFailure,
+    DeletedOrMovedByUser,
+    FileFolderDeletedByUser,
+    MoveToDebrisFolderFailed,
+    IgnoreFileMalformed,
+    FilesystemErrorListingFolder,
+    FilesystemErrorIdentifyingFolderContent,
+    UndecryptedCloudNode,
+    WaitingForScanningToComplete,
+    WaitingForAnotherMoveToComplete,
+    SourceWasMovedElsewhere,
+    FilesystemCannotStoreThisName,
+    CloudNodeInvalidFingerprint,
+
+    PutnodeDeferredByController,
+    PutnodeCompletionDeferredByController,
+    PutnodeCompletionPending,
+    UploadDeferredByController,
+
+    DetectedNestedMount,
+
+    PathProblem_LastPlusOne
+};
+
+const char* syncWaitReasonDebugString(SyncWaitReason r);
+const char* syncPathProblemDebugString(PathProblem r);
 
 class CancelToken
 {
@@ -1216,6 +1224,20 @@ public:
 
 typedef std::map<NodeHandle, Node*> nodePtr_map;
 
+enum ExclusionState : unsigned char
+{
+    // Node's definitely excluded.
+    ES_EXCLUDED,
+    // Node's definitely included.
+    ES_INCLUDED,
+    // Node has an indeterminate exclusion state.
+    ES_UNKNOWN,
+    // No rule matched (so a higher level .megaignore should be checked)
+    ES_UNMATCHED
+}; // ExclusionState
+
+
+
 #ifdef ENABLE_CHAT
 
 class ScheduledFlags;
@@ -1229,6 +1251,12 @@ using textchat_vector = vector<TextChat*>;
 static constexpr int sfu_invalid_id = -1;
 
 #endif // ENABLE_CHAT
+
+// Opaque filesystem fingerprint.
+class fsfp_t;
+
+// Convenience.
+using fsfp_ptr_t = std::shared_ptr<fsfp_t>;
 
 } // namespace mega
 
@@ -1457,6 +1485,26 @@ public:
 
 } // detail
 
+// API supports user/node attributes up to 16KB. This constant is used to restrict clients sending larger values
+static constexpr size_t MAX_NODE_ATTRIBUTE_SIZE = 64 * 1024;        // 64kB
+static constexpr size_t MAX_USER_VAR_SIZE = 16 * 1024 * 1024;       // 16MB - User attributes whose second character is ! or ~ (per example *!dn, ^!keys", ...)
+static constexpr size_t MAX_USER_ATTRIBUTE_SIZE = 64 * 1024;        // 64kB  - Other user attributes
+static constexpr size_t MAX_FILE_ATTRIBUTE_SIZE = 16 * 1024 * 1024; // 16MB
+
+
 using detail::CheckableMutex;
+
+// For convenience.
+#ifdef USE_IOS
+
+#define IOS_ONLY(i) i
+#define IOS_OR_POSIX(i, p) i
+
+#else  // USE_IOS
+
+#define IOS_ONLY(i)
+#define IOS_OR_POSIX(i, p) p
+
+#endif // ! USE_IOS
 
 #endif

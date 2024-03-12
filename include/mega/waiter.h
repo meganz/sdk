@@ -37,6 +37,7 @@ struct MEGA_API EventTrigger
     {
         return 0;
     }
+    virtual ~EventTrigger() = default;
 };
 
 // wait for events

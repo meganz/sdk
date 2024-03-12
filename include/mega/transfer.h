@@ -44,6 +44,51 @@ struct TransferCategory
 
 class TransferDbCommitter;
 
+#ifdef ENABLE_SYNC
+class TransferBackstop
+{
+    // A class to help track transfers that completed but haven't had
+    // putnodes sent yet, and may be abandoned by the owning sync.  If
+    // that happens, we still need to inform the app about the transfer final state.
+
+    mutex m;
+
+    // map by transfer tag
+    map<int, shared_ptr<SyncTransfer_inClient>> pendingPutnodes;
+
+public:
+
+    void remember(int tag, shared_ptr<SyncTransfer_inClient> wp)
+    {
+        lock_guard<mutex> g(m);
+        pendingPutnodes[tag] = move(wp);
+    }
+
+    void forget(int tag)
+    {
+        lock_guard<mutex> g(m);
+        pendingPutnodes.erase(tag);
+    }
+
+    vector<shared_ptr<SyncTransfer_inClient>> getAbandoned()
+    {
+        lock_guard<mutex> g(m);
+        vector<shared_ptr<SyncTransfer_inClient>> v;
+        v.reserve(pendingPutnodes.size());
+        for (auto i = pendingPutnodes.begin(); i != pendingPutnodes.end(); )
+        {
+            if (i->second.use_count() == 1)
+            {
+                v.push_back(i->second);
+                i = pendingPutnodes.erase(i);
+            }
+            else ++i;
+       }
+       return v;
+    }
+};
+#endif
+
 // pending/active up/download ordered by file fingerprint (size - mtime - sparse CRC)
 struct MEGA_API Transfer : public FileFingerprint
 {
@@ -57,7 +102,7 @@ struct MEGA_API Transfer : public FileFingerprint
     // file is removed
     file_list files;
 
-    unique_ptr<FileDistributor> downloadDistributor;
+    shared_ptr<FileDistributor> downloadDistributor;
 
     // failures/backoff
     unsigned failcount;
@@ -159,6 +204,12 @@ struct MEGA_API Transfer : public FileFingerprint
 
     // whether the Transfer needs to remove itself from the list it's in (for quick shutdown we can skip)
     bool mOptimizedDelete = false;
+
+    // whether it is a Transfer for support (i.e., an upload for the Support team)
+    bool isForSupport() const;
+
+    // whether the transfer is a Sync upload transfer
+    bool mIsSyncUpload = false;
 
 private:
     FileDistributor::TargetNameExistsResolution toTargetNameExistsResolution(CollisionResolution resolution);

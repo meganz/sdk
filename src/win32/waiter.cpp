@@ -62,6 +62,7 @@ int WinWaiter::wait()
 
     if (index <= MAXIMUM_WAIT_OBJECTS)
     {
+        assert(!handles.empty());
         DWORD dwWaitResult = WaitForMultipleObjectsEx((DWORD)index, &handles.front(), FALSE, maxds * 100, TRUE);
         assert(dwWaitResult != WAIT_FAILED);
 

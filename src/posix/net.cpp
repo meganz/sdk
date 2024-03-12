@@ -1466,7 +1466,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
     }
     else
     {
-        if (req->out->size() < size_t(SimpleLogger::maxPayloadLogSize))
+        if (req->out->size() < size_t(SimpleLogger::getMaxPayloadLogSize()))
         {
             LOG_debug << httpctx->req->logname << "Sending " << req->out->size() << ": " << DirectMessage(req->out->c_str(), req->out->size())
                       << " (at ds: " << Waiter::ds << ")";
@@ -1474,9 +1474,9 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         else
         {
             LOG_debug << httpctx->req->logname << "Sending " << req->out->size() << ": "
-                      << DirectMessage(req->out->c_str(), static_cast<size_t>(SimpleLogger::maxPayloadLogSize / 2))
+                      << DirectMessage(req->out->c_str(), static_cast<size_t>(SimpleLogger::getMaxPayloadLogSize() / 2))
                       << " [...] "
-                      << DirectMessage(req->out->c_str() + req->out->size() - SimpleLogger::maxPayloadLogSize / 2, static_cast<size_t>(SimpleLogger::maxPayloadLogSize / 2));
+                      << DirectMessage(req->out->c_str() + req->out->size() - SimpleLogger::getMaxPayloadLogSize() / 2, static_cast<size_t>(SimpleLogger::getMaxPayloadLogSize() / 2));
         }
     }
 
@@ -2339,7 +2339,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                     }
                     else
                     {
-                        if (req->in.size() < size_t(SimpleLogger::maxPayloadLogSize))
+                        if (req->in.size() < size_t(SimpleLogger::getMaxPayloadLogSize()))
                         {
                             LOG_debug << req->logname << "Received " << req->in.size() << ": " << DirectMessage(req->in.c_str(), req->in.size())
                                       << " (at ds: " << Waiter::ds << ")";
@@ -2347,9 +2347,9 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                         else
                         {
                             LOG_debug << req->logname << "Received " << req->in.size() << ": "
-                                      << DirectMessage(req->in.c_str(), static_cast<size_t>(SimpleLogger::maxPayloadLogSize / 2))
+                                      << DirectMessage(req->in.c_str(), static_cast<size_t>(SimpleLogger::getMaxPayloadLogSize() / 2))
                                       << " [...] "
-                                      << DirectMessage(req->in.c_str() + req->in.size() - SimpleLogger::maxPayloadLogSize / 2, static_cast<size_t>(SimpleLogger::maxPayloadLogSize / 2));
+                                      << DirectMessage(req->in.c_str() + req->in.size() - SimpleLogger::getMaxPayloadLogSize() / 2, static_cast<size_t>(SimpleLogger::getMaxPayloadLogSize() / 2));
                         }
                     }
                 }
@@ -2577,7 +2577,7 @@ size_t CurlHttpIO::read_data(void* ptr, size_t size, size_t nmemb, void* source)
         bool isApi = (req->type == REQ_JSON);
         if (!isApi)
         {
-            long maxbytes = long( (httpio->maxspeed[PUT] - httpio->uploadSpeed) * (SpeedController::SPEED_MEAN_MAX_INTERVAL_DS / 10) - httpio->partialdata[PUT] );
+            long maxbytes = long( ((httpio->maxspeed[PUT] - httpio->uploadSpeed) * SpeedController::SPEED_MEAN_CIRCULAR_BUFFER_SIZE_SECONDS) - httpio->partialdata[PUT] );
             if (maxbytes <= 0)
             {
                 httpio->pausedrequests[PUT].insert(httpctx->curl);
@@ -2613,7 +2613,7 @@ size_t CurlHttpIO::write_data(void* ptr, size_t size, size_t nmemb, void* target
             bool isApi = (req->type == REQ_JSON);
             if (!isApi && !isUpload)
             {
-                if ((httpio->downloadSpeed + 10 * (httpio->partialdata[GET] + len) / SpeedController::SPEED_MEAN_MAX_INTERVAL_DS) > httpio->maxspeed[GET])
+                if ((httpio->downloadSpeed + ((httpio->partialdata[GET] + len) / static_cast<m_off_t>(SpeedController::SPEED_MEAN_CIRCULAR_BUFFER_SIZE_SECONDS))) > httpio->maxspeed[GET])
                 {
                     CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
                     httpio->pausedrequests[GET].insert(httpctx->curl);

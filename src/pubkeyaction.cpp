@@ -74,10 +74,10 @@ PubKeyActionSendShareKey::PubKeyActionSendShareKey(handle h)
 
 void PubKeyActionSendShareKey::proc(MegaClient* client, User* u)
 {
-    Node* n;
+    std::shared_ptr<Node> n;
 
     // only the share owner distributes share keys
-    if (u && u->pubk.isvalid() && (n = client->nodebyhandle(sh)) && n->sharekey && client->checkaccess(n, OWNER))
+    if (u && u->pubk.isvalid() && (n = client->nodebyhandle(sh)) && n->sharekey && client->checkaccess(n.get(), OWNER))
     {
         int t;
         byte buf[AsymmCipher::MAXKEYLENGTH];
@@ -97,7 +97,7 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
     // but having the public RSA key of the target to send the
     // share key also using the old method
 
-    Node* n;
+    std::shared_ptr<Node> n;
 
     // node vanished: bail
     if (!(n = client->nodebyhandle(h)))
@@ -119,7 +119,7 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
         user->isTemporary = true;
     }
 
-    client->setShareCompletion(n, user, a, mWritable, selfemail.c_str(), tag, std::move(completion));
+    client->setShareCompletion(n.get(), user, a, mWritable, selfemail.c_str(), tag, std::move(completion));
 }
 
 // share node sh with access level sa

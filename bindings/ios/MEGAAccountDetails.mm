@@ -49,51 +49,47 @@ using namespace mega;
     }
 }
 
-- (instancetype)clone {
-    return self.accountDetails ? [[MEGAAccountDetails alloc] initWithMegaAccountDetails:self.accountDetails->copy() cMemoryOwn:YES] : nil;
-}
-
-- (MegaAccountDetails *)getCPtr {
+- (nullable MegaAccountDetails *)getCPtr {
     return self.accountDetails;
 }
 
-- (NSNumber *)storageUsed {
-    return self.accountDetails ? [[NSNumber alloc] initWithLongLong:self.accountDetails->getStorageUsed()] : nil;
+- (long long)storageUsed {
+    return self.accountDetails ? self.accountDetails->getStorageUsed(): -1;
 }
 
 - (long long)versionStorageUsed {
-    return self.accountDetails ? self.accountDetails->getVersionStorageUsed() : 0;
+    return self.accountDetails ? self.accountDetails->getVersionStorageUsed(): -1;
 }
 
-- (NSNumber *)storageMax {
-    return self.accountDetails ? [[NSNumber alloc] initWithLongLong:self.accountDetails->getStorageMax()] : nil;
+- (long long)storageMax {
+    return self.accountDetails ? self.accountDetails->getStorageMax(): -1;
 }
 
-- (NSNumber *)transferOwnUsed {
-    return self.accountDetails ? [[NSNumber alloc] initWithLongLong:self.accountDetails->getTransferOwnUsed()] : nil;
+- (long long)transferOwnUsed {
+    return self.accountDetails ? self.accountDetails->getTransferOwnUsed(): -1;
 }
 
-- (NSNumber *)transferMax {
-    return self.accountDetails ? [[NSNumber alloc] initWithLongLong:self.accountDetails->getTransferMax()] : nil;
+- (long long)transferMax {
+    return self.accountDetails ? self.accountDetails->getTransferMax(): -1;
 }
 
 - (MEGAAccountType)type {
-    return (MEGAAccountType) (self.accountDetails ? self.accountDetails->getProLevel() : 0);
+    return (MEGAAccountType) (self.accountDetails ? self.accountDetails->getProLevel(): 0);
 }
 
 - (NSInteger)proExpiration {
-    return self.accountDetails ? self.accountDetails->getProExpiration() : 0;
+    return self.accountDetails ? self.accountDetails->getProExpiration(): -1;
 }
 
 - (MEGASubscriptionStatus)subscriptionStatus {
-    return (MEGASubscriptionStatus) (self.accountDetails ? self.accountDetails->getSubscriptionStatus() : 0);
+    return (MEGASubscriptionStatus) (self.accountDetails ? self.accountDetails->getSubscriptionStatus(): -1);
 }
 
 - (NSInteger)subscriptionRenewTime {
-    return self.accountDetails ? self.accountDetails->getSubscriptionRenewTime() : 0;
+    return self.accountDetails ? self.accountDetails->getSubscriptionRenewTime(): -1;
 }
 
-- (NSString *)subscriptionMethod {
+- (nullable NSString *)subscriptionMethod {
     const char *val = self.accountDetails ? self.accountDetails->getSubscriptionMethod() : nil;
     if (!val) return nil;
     
@@ -104,10 +100,10 @@ using namespace mega;
 }
 
 - (MEGAPaymentMethod)subscriptionMethodId {
-    return (MEGAPaymentMethod) (self.accountDetails ? self.accountDetails->getSubscriptionMethodId() : 0);
+    return (MEGAPaymentMethod) (self.accountDetails ? self.accountDetails->getSubscriptionMethodId(): -1);
 }
 
-- (NSString *)subscriptionCycle {
+- (nullable NSString *)subscriptionCycle {
     const char *val = self.accountDetails ? self.accountDetails->getSubscriptionCycle() : nil;
     if (!val) return nil;
     
@@ -118,30 +114,30 @@ using namespace mega;
 }
 
 - (NSInteger)numberUsageItems {
-    return self.accountDetails ? self.accountDetails->getNumUsageItems() : 0;
+    return self.accountDetails ? self.accountDetails->getNumUsageItems(): -1;
 }
 
-- (NSNumber *)storageUsedForHandle:(uint64_t)handle {
-    return self.accountDetails ? [[NSNumber alloc] initWithLongLong:self.accountDetails->getStorageUsed(handle)] : nil;
+- (long long)storageUsedForHandle:(uint64_t)handle {
+    return self.accountDetails ? self.accountDetails->getStorageUsed(handle): -1;
 }
 
-- (NSNumber *)numberFilesForHandle:(uint64_t)handle {
-    return self.accountDetails ? [[NSNumber alloc] initWithLongLong:self.accountDetails->getNumFiles(handle)] : nil;
+- (long long)numberFilesForHandle:(uint64_t)handle {
+    return self.accountDetails ? self.accountDetails->getNumFiles(handle): -1;
 }
 
-- (NSNumber *)numberFoldersForHandle:(uint64_t)handle {
-    return self.accountDetails ? [[NSNumber alloc] initWithLongLong:self.accountDetails->getNumFolders(handle)] : nil;
+- (long long)numberFoldersForHandle:(uint64_t)handle {
+    return self.accountDetails ? self.accountDetails->getNumFolders(handle): -1;
 }
 
 - (long long)versionStorageUsedForHandle:(uint64_t)handle {
-    return self.accountDetails ? self.accountDetails->getVersionStorageUsed(handle) : 0;
+    return self.accountDetails ? self.accountDetails->getVersionStorageUsed(handle): -1;
 }
 
 - (long long)numberOfVersionFilesForHandle:(uint64_t)handle {
-    return self.accountDetails ? self.accountDetails->getNumVersionFiles(handle) : 0;
+    return self.accountDetails ? self.accountDetails->getNumVersionFiles(handle): -1;
 }
 
-+ (NSString *)stringForAccountType:(MEGAAccountType)accountType {
++ (nullable NSString *)stringForAccountType:(MEGAAccountType)accountType {
     NSString *result;
     switch (accountType) {
         case MEGAAccountTypeFree:

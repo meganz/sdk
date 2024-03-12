@@ -1,3 +1,42 @@
+import groovy.json.JsonSlurperClassic
+
+// Uploads a file to a Gitlab project
+// Requires env.GITLAB_BASE_URL
+String uploadFileToGitLab(String fileName, String projectId) {
+    String link = ""
+    String response = ""
+    withCredentials([string(credentialsId: 'gitlab-api-token', variable: 'TOKEN')]) {
+        response = sh(script: "curl -s --request POST --header 'PRIVATE-TOKEN:$TOKEN' --form file=@${fileName} ${env.GITLAB_BASE_URL}/api/v4/projects/${projectId}/uploads", returnStdout: true).trim()
+    }
+    link = new JsonSlurperClassic().parseText(response).markdown
+    echo "Logs uploaded to: ${link}"
+    return link
+}
+
+// Downloads the console log from this Jenkins build
+void downloadJenkinsConsoleLog(String fileName) {
+    withCredentials([usernameColonPassword(credentialsId: 'jenkins-ro', variable: 'CREDENTIALS')]) {
+        sh "curl -u '${CREDENTIALS}' ${BUILD_URL}consoleText -o ${fileName}"
+    }
+}
+
+// Downloads the logs of the build, uploads them to the gitlab project
+// And return the URL
+String getLogsUrl(String projectId) {
+    String message = ""
+    String fileName = "build.log"
+    String logUrl = ""
+    downloadJenkinsConsoleLog(fileName)
+    return uploadFileToGitLab(fileName, projectId)
+}
+
+// Post a failure message in MR
+void commentFailedBuild() {
+    logUrl = getLogsUrl(env.PROJECT_ID)
+    addGitLabMRComment(comment: ":red_circle: ${currentBuild.projectName} :green_apple: <b>SDK iOS</b> FAILURE  :worried:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}<br/>Logs: ${logUrl}" )
+    updateGitlabCommitStatus(name: 'Build iOS', state: 'failed')
+}
+
 pipeline {
     agent { label 'osx && arm64' }
 
@@ -37,10 +76,10 @@ pipeline {
                         }
                     }
                     post{
-                        always {
-                            script{                        
-                                if (currentBuild.currentResult == 'FAILURE'){
-                                    addGitLabMRComment(comment: ":red_circle: ${env.JOB_NAME} FAILURE when getting the additional build parameters :worried:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
+                        failure {
+                            node ('ci-debian-11-64') { // We need and agent able to download logs from Jenkins. This one is allowed.
+                                script {
+                                    commentFailedBuild()
                                 }
                             }
                         }
@@ -59,10 +98,10 @@ pipeline {
                         }
                     }
                     post{
-                        always {
-                            script{                        
-                                if (currentBuild.currentResult == 'FAILURE'){
-                                    addGitLabMRComment(comment: ":red_circle: ${env.JOB_NAME} FAILURE when getting the MEGAchat branch :worried:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
+                        failure {
+                            node ('ci-debian-11-64') { // We need and agent able to download logs from Jenkins. This one is allowed.
+                                script {
+                                    commentFailedBuild()
                                 }
                             }
                         }
@@ -81,10 +120,10 @@ pipeline {
                         }
                     }
                     post{
-                        always {
-                            script{                        
-                                if (currentBuild.currentResult == 'FAILURE'){
-                                    addGitLabMRComment(comment: ":red_circle: ${env.JOB_NAME} FAILURE when getting the iOS branch :worried:<br/>Build results: [Jenkins [${env.JOB_NAME} ${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}" )
+                        failure {
+                            node ('ci-debian-11-64') { // We need and agent able to download logs from Jenkins. This one is allowed.
+                                script {
+                                    commentFailedBuild()
                                 }
                             }
                         }
@@ -179,10 +218,6 @@ pipeline {
                     addGitLabMRComment(comment: ":white_check_mark: ${currentBuild.projectName} :green_apple: <b>SDK iOS</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
                     updateGitlabCommitStatus(name: 'Build iOS', state: 'success')
                 }                                
-                if (currentBuild.currentResult == 'FAILURE'){
-                    addGitLabMRComment(comment: ":red_circle: ${currentBuild.projectName} :green_apple: <b>SDK iOS</b> FAILURE  :worried:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
-                    updateGitlabCommitStatus(name: 'Build iOS', state: 'failed')
-                }
                 if (currentBuild.currentResult == 'ABORTED'){
                     addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} :green_apple: <b>SDK iOS</b> ABORTED  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
                     updateGitlabCommitStatus(name: 'Build iOS', state: 'canceled')
@@ -190,6 +225,13 @@ pipeline {
                 if (currentBuild.currentResult == 'UNSTABLE'){
                     addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} :green_apple: <b>SDK iOS</b> UNSTABLE  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${env.GIT_COMMIT}" )
                     updateGitlabCommitStatus(name: 'Build iOS', state: 'failed')
+                }
+            }
+        }
+        failure {
+            node ('ci-debian-11-64') { // We need and agent able to download logs from Jenkins. This one is allowed.
+                script {
+                    commentFailedBuild()
                 }
             }
         }

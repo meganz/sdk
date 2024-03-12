@@ -51,17 +51,21 @@ CONFIG += c++17
 QMAKE_CXXFLAGS+=-std=c++17
 
 SOURCES += \
-../../../../tests/integration/main.cpp \
-../../../../tests/integration/process.cpp \
-../../../../tests/integration/SdkTest_test.cpp \
-../../../../tests/integration/Sync_test.cpp
+$$MEGASDK_BASE_PATH/tests/gtest_common.cpp \
+$$MEGASDK_BASE_PATH/tests/integration/main.cpp \
+$$MEGASDK_BASE_PATH/tests/integration/SdkTest_test.cpp \
+$$MEGASDK_BASE_PATH/tests/integration/sdk_test_utils.cpp \
+$$MEGASDK_BASE_PATH/tests/integration/Sync_test.cpp
 
 HEADERS += \
-../../../../tests/integration/test.h \
-../../../../tests/integration/process.h \
-../../../../tests/integration/SdkTest_test.h
+$$MEGASDK_BASE_PATH/tests/gtest_common.h \
+$$MEGASDK_BASE_PATH/tests/integration/test.h \
+$$MEGASDK_BASE_PATH/tests/integration/sdk_test_utils.h \
+$$MEGASDK_BASE_PATH/tests/integration/SdkTest_test.h
 
-copydata.commands = $(COPY_DIR) $$shell_path($$PWD/../../../../tests/integration/test-data/*) $$shell_path($$OUT_PWD)
+INCLUDEPATH += $$MEGASDK_BASE_PATH/tests
+
+copydata.commands = $(COPY_DIR) $$shell_path($$MEGASDK_BASE_PATH/tests/integration/test-data/*) $$shell_path($$OUT_PWD)
 first.depends = $(first) copydata
 export(first.depends)
 export(copydata.commands)

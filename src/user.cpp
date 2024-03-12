@@ -25,6 +25,10 @@
 #include "mega/base64.h"
 
 namespace mega {
+
+constexpr char User::NO_VERSION[];
+constexpr char User::NON_EXISTING[];
+
 User::User(const char* cemail)
 {
     userhandle = UNDEF;
@@ -402,7 +406,7 @@ void User::setattr(attr_t at, string *av, string *v)
         attrs[at] = *av;
     }
 
-    attrsv[at] = v ? *v : "N";
+    attrsv[at] = v ? *v : NO_VERSION;
 }
 
 void User::invalidateattr(attr_t at)
@@ -439,6 +443,25 @@ int User::updateattr(attr_t at, std::string *av, std::string *v)
 
     setattr(at, av, v);
     return 1;
+}
+
+bool User::nonExistingAttribute(attr_t at) const
+{
+    auto it = attrsv.find(at);
+    if (it != attrsv.end() && it->second == NON_EXISTING)
+    {
+        assert(attrs.find(at) == attrs.end());
+        return true;
+    }
+
+    return false;
+}
+
+void User::setNonExistingAttribute(attr_t at)
+{
+    // Set special value (-9) at attrsv map to indicate that attribute doesn't exist
+    assert(attrs.find(at) == attrs.end());
+    attrsv[at] = NON_EXISTING;
 }
 
 // returns the value if there is value (even if it's invalid by now)
@@ -623,6 +646,30 @@ string User::attr2string(attr_t type)
             attrname = "*!ccPref";
             break;
 
+        case ATTR_VISIBLE_WELCOME_DIALOG:
+            attrname = "^!weldlg";
+            break;
+
+        case ATTR_VISIBLE_TERMS_OF_SERVICE:
+            attrname = "^!tos";
+            break;
+
+        case ATTR_PWM_BASE:
+            attrname = "pwmh";
+            break;
+
+        case ATTR_ENABLE_TEST_NOTIFICATIONS:
+            attrname = "^!tnotif";
+            break;
+
+        case ATTR_LAST_READ_NOTIFICATION:
+            attrname = "^!lnotif";
+            break;
+
+        case ATTR_LAST_ACTIONED_BANNER:
+            attrname = "^!lbannr";
+            break;
+
         case ATTR_UNKNOWN:  // empty string
             break;
     }
@@ -786,6 +833,30 @@ string User::attr2longname(attr_t type)
     case ATTR_CC_PREFS:
         longname = "CC_PREFS";
         break;
+
+    case ATTR_VISIBLE_WELCOME_DIALOG:
+        longname = "VISIBLE_WELCOME_DIALOG";
+        break;
+
+    case ATTR_VISIBLE_TERMS_OF_SERVICE:
+        longname = "VISIBLE_TERMS_OF_SERVICE";
+        break;
+
+    case ATTR_PWM_BASE:
+        longname = "PWM_BASE";
+        break;
+
+    case ATTR_ENABLE_TEST_NOTIFICATIONS:
+        longname = "ENABLE_TEST_NOTIFICATIONS";
+        break;
+
+    case ATTR_LAST_READ_NOTIFICATION:
+        longname = "LAST_READ_NOTIFICATION";
+        break;
+
+    case ATTR_LAST_ACTIONED_BANNER:
+        longname = "LAST_ACTIONED_BANNER";
+        break;
     }
 
     return longname;
@@ -942,6 +1013,26 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_CC_PREFS;
     }
+    else if(!strcmp(name, "^!weldlg"))
+    {
+        return ATTR_VISIBLE_WELCOME_DIALOG;
+    }
+    else if(!strcmp(name, "^!tos"))
+    {
+        return ATTR_VISIBLE_TERMS_OF_SERVICE;
+    }
+    else if(!strcmp(name, "^!tnotif"))
+    {
+        return ATTR_ENABLE_TEST_NOTIFICATIONS;
+    }
+    else if(!strcmp(name, "^!lnotif"))
+    {
+        return ATTR_LAST_READ_NOTIFICATION;
+    }
+    else if(!strcmp(name, "^!lbannr"))
+    {
+        return ATTR_LAST_ACTIONED_BANNER;
+    }
     else
     {
         return ATTR_UNKNOWN;   // attribute not recognized
@@ -990,6 +1081,11 @@ int User::needversioning(attr_t at)
         case ATTR_KEYS:
         case ATTR_APPS_PREFS:
         case ATTR_CC_PREFS:
+        case ATTR_VISIBLE_WELCOME_DIALOG:
+        case ATTR_VISIBLE_TERMS_OF_SERVICE:
+        case ATTR_ENABLE_TEST_NOTIFICATIONS:
+        case ATTR_LAST_READ_NOTIFICATION:
+        case ATTR_LAST_ACTIONED_BANNER:
             return 1;
 
         case ATTR_STORAGE_STATE: //putua is forbidden for this attribute
@@ -1038,6 +1134,12 @@ char User::scope(attr_t at)
         case ATTR_COOKIE_SETTINGS:
         case ATTR_MY_BACKUPS_FOLDER:
         case ATTR_KEYS:
+        case ATTR_VISIBLE_WELCOME_DIALOG:
+        case ATTR_VISIBLE_TERMS_OF_SERVICE:
+        case ATTR_PWM_BASE:
+        case ATTR_ENABLE_TEST_NOTIFICATIONS:
+        case ATTR_LAST_READ_NOTIFICATION:
+        case ATTR_LAST_ACTIONED_BANNER:
             return '^';
 
         default:
@@ -1048,6 +1150,17 @@ char User::scope(attr_t at)
 bool User::isAuthring(attr_t at)
 {
     return (at == ATTR_AUTHRING || at == ATTR_AUTHCU255);
+}
+
+size_t User::getMaxAttributeSize(attr_t at)
+{
+    std::string attributeName = attr2string(at);
+    if (attributeName.size() > 2 && (attributeName[1] == '!' || attributeName[1] == '~'))
+    {
+        return MAX_USER_VAR_SIZE;
+    }
+
+    return MAX_USER_ATTRIBUTE_SIZE;
 }
 
 bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int size, string *newValue)
@@ -1474,6 +1587,18 @@ bool User::setChanged(attr_t at)
 
         case ATTR_CC_PREFS:
             changed.ccPrefs = true;
+            break;
+
+        case ATTR_ENABLE_TEST_NOTIFICATIONS:
+            changed.enableTestNotifications = true;
+            break;
+
+        case ATTR_LAST_READ_NOTIFICATION:
+            changed.lastReadNotification = true;
+            break;
+
+        case ATTR_LAST_ACTIONED_BANNER:
+            changed.lastActionedBanner = true;
             break;
 
         default:

@@ -60,6 +60,26 @@ string toNodeHandle(NodeHandle nodeHandle)
     return toNodeHandle(nodeHandle.as8byte());
 }
 
+NodeHandle toNodeHandle(const byte* data)
+{
+    NodeHandle ret;
+    if (data)
+    {
+        handle h = 0;  // most significant non-used-for-the-handle bytes must be zeroed
+        memcpy(&h, data, MegaClient::NODEHANDLE);
+        ret.set6byte(h);
+    }
+
+    return ret;
+}
+
+NodeHandle toNodeHandle(const std::string* data)
+{
+    if(data) return toNodeHandle(reinterpret_cast<const byte*>(data->c_str()));
+
+    return NodeHandle{};
+}
+
 string toHandle(handle h)
 {
     char base64Handle[14];
@@ -197,6 +217,13 @@ void CacheableWriter::serializestring(const string& field)
     dest.append(field.data(), ll);
 }
 
+void CacheableWriter::serializestring_u32(const string& field)
+{
+    uint32_t ll = (uint32_t)field.size();
+    dest.append((char*)&ll, sizeof(ll));
+    dest.append(field.data(), ll);
+}
+
 void CacheableWriter::serializecompressedu64(uint64_t field)
 {
     byte buf[sizeof field+1];
@@ -250,11 +277,6 @@ void CacheableWriter::serializenodehandle(handle field)
 void CacheableWriter::serializeNodeHandle(NodeHandle field)
 {
     serializenodehandle(field.as8byte());
-}
-
-void CacheableWriter::serializefsfp(fsfp_t field)
-{
-    dest.append((char*)&field.id, sizeof(field.id));
 }
 
 void CacheableWriter::serializebool(bool field)
@@ -333,6 +355,30 @@ bool CacheableReader::unserializestring(string& s)
     }
 
     unsigned short len = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(len);
+
+    if (ptr + len > end)
+    {
+        return false;
+    }
+
+    if (len)
+    {
+        s.assign(ptr, len);
+    }
+    ptr += len;
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializestring_u32(string& s)
+{
+    if (ptr + sizeof(uint32_t) > end)
+    {
+        return false;
+    }
+
+    uint32_t len = MemAccess::get<uint32_t>(ptr);
     ptr += sizeof(len);
 
     if (ptr + len > end)
@@ -857,18 +903,6 @@ bool CacheableReader::unserializeNodeHandle(NodeHandle& field)
     handle h;
     if (!unserializenodehandle(h)) return false;
     field.set6byte(h);
-    return true;
-}
-
-bool CacheableReader::unserializefsfp(fsfp_t& field)
-{
-    if (ptr + sizeof(fsfp_t) > end)
-    {
-        return false;
-    }
-    field.id = MemAccess::get<uint64_t>(ptr);
-    ptr += sizeof(uint64_t);
-    fieldnum += 1;
     return true;
 }
 
@@ -1891,7 +1925,7 @@ bool Utils::hasenv(const std::string &key)
     return r;
 }
 
-std::string Utils::getenv(const std::string& key, const std::string& def) 
+std::string Utils::getenv(const std::string& key, const std::string& def)
 {
     bool found = false;
     string r = getenv(key, &found);
@@ -1913,7 +1947,7 @@ std::string Utils::getenv(const std::string& key, bool* out_found)\
         if (out_found) *out_found = false;
         return "";
     }
-    else 
+    else
     {
         if (out_found) *out_found = true;
 
@@ -2824,7 +2858,7 @@ bool readLines(const std::string& input, string_vector& destination)
         while (delim < end && *delim != '\r' && *delim != '\n')
         {
             ++delim;
-            whitespace += std::isspace(*whitespace) > 0;
+            whitespace += is_space(*whitespace);
         }
 
         if (delim != whitespace)
@@ -2892,6 +2926,72 @@ bool wildcardMatch(const char *pszString, const char *pszMatch)
     }
     return !*pszMatch;
 }
+
+const char* syncWaitReasonDebugString(SyncWaitReason r)
+{
+    switch(r)
+    {
+        case SyncWaitReason::NoReason:                                      return "NoReason";
+        case SyncWaitReason::FileIssue:                                     return "FileIssue";
+        case SyncWaitReason::MoveOrRenameCannotOccur:                       return "MoveOrRenameCannotOccur";
+        case SyncWaitReason::DeleteOrMoveWaitingOnScanning:                 return "DeleteOrMoveWaitingOnScanning";
+        case SyncWaitReason::DeleteWaitingOnMoves:                          return "DeleteWaitingOnMoves";
+        case SyncWaitReason::UploadIssue:                                   return "UploadIssue";
+        case SyncWaitReason::DownloadIssue:                                 return "DownloadIssue";
+        case SyncWaitReason::CannotCreateFolder:                            return "CannotCreateFolder";
+        case SyncWaitReason::CannotPerformDeletion:                         return "CannotPerformDeletion";
+        case SyncWaitReason::SyncItemExceedsSupportedTreeDepth:             return "SyncItemExceedsSupportedTreeDepth";
+        case SyncWaitReason::FolderMatchedAgainstFile:                      return "FolderMatchedAgainstFile";
+        case SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose: return "BothChangedSinceLastSynced";
+        case SyncWaitReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose: return "LocalAndRemotePreviouslyUnsyncedDiffer";
+        case SyncWaitReason::NamesWouldClashWhenSynced:                     return "NamesWouldClashWhenSynced";
+
+        case SyncWaitReason::SyncWaitReason_LastPlusOne: break;
+    }
+    return "<out of range>";
+}
+
+const char* syncPathProblemDebugString(PathProblem r)
+{
+    switch (r)
+    {
+    case PathProblem::NoProblem: return "NoProblem";
+    case PathProblem::FileChangingFrequently: return "FileChangingFrequently";
+    case PathProblem::IgnoreRulesUnknown: return "IgnoreRulesUnknown";
+    case PathProblem::DetectedHardLink: return "DetectedHardLink";
+    case PathProblem::DetectedSymlink: return "DetectedSymlink";
+    case PathProblem::DetectedSpecialFile: return "DetectedSpecialFile";
+    case PathProblem::DifferentFileOrFolderIsAlreadyPresent: return "DifferentFileOrFolderIsAlreadyPresent";
+    case PathProblem::ParentFolderDoesNotExist: return "ParentFolderDoesNotExist";
+    case PathProblem::FilesystemErrorDuringOperation: return "FilesystemErrorDuringOperation";
+    case PathProblem::NameTooLongForFilesystem: return "NameTooLongForFilesystem";
+    case PathProblem::CannotFingerprintFile: return "CannotFingerprintFile";
+    case PathProblem::DestinationPathInUnresolvedArea: return "DestinationPathInUnresolvedArea";
+    case PathProblem::MACVerificationFailure: return "MACVerificationFailure";
+    case PathProblem::DeletedOrMovedByUser: return "DeletedOrMovedByUser";
+    case PathProblem::FileFolderDeletedByUser: return "FileFolderDeletedByUser";
+    case PathProblem::MoveToDebrisFolderFailed: return "MoveToDebrisFolderFailed";
+    case PathProblem::IgnoreFileMalformed: return "IgnoreFileMalformed";
+    case PathProblem::FilesystemErrorListingFolder: return "FilesystemErrorListingFolder";
+    case PathProblem::FilesystemErrorIdentifyingFolderContent: return "FilesystemErrorIdentifyingFolderContent";
+    case PathProblem::UndecryptedCloudNode: return "UndecryptedCloudNode";
+    case PathProblem::WaitingForScanningToComplete: return "WaitingForScanningToComplete";
+    case PathProblem::WaitingForAnotherMoveToComplete: return "WaitingForAnotherMoveToComplete";
+    case PathProblem::SourceWasMovedElsewhere: return "SourceWasMovedElsewhere";
+    case PathProblem::FilesystemCannotStoreThisName: return "FilesystemCannotStoreThisName";
+    case PathProblem::CloudNodeInvalidFingerprint: return "CloudNodeInvalidFingerprint";
+
+    case PathProblem::PutnodeDeferredByController: return "PutnodeDeferredByController";
+    case PathProblem::PutnodeCompletionDeferredByController: return "PutnodeCompletionDeferredByController";
+    case PathProblem::PutnodeCompletionPending: return "PutnodeCompletionPending";
+    case PathProblem::UploadDeferredByController: return "UploadDeferredByController";
+
+    case PathProblem::DetectedNestedMount: return "DetectedNestedMount";
+
+    case PathProblem::PathProblem_LastPlusOne: break;
+    }
+    return "<out of range>";
+};
 
 UploadHandle UploadHandle::next()
 {
@@ -3047,7 +3147,7 @@ bool platformSetRLimitNumFile(int newNumFileLimit)
             LOG_err << "Error calling setrlimit: " << e;
             return false;
         }
-        else 
+        else
         {
             LOG_info << "rlimit for NOFILE is: " << rl.rlim_cur;
         }
@@ -3223,6 +3323,27 @@ const char* toString(retryreason_t reason)
     assert(false && "Unknown retry reason");
 
     return "RETRY_UNKNOWN";
+}
+
+
+bool is_space(unsigned int ch)
+{
+    return std::isspace(static_cast<unsigned char>(ch));
+}
+
+bool is_digit(unsigned int ch)
+{
+    return std::isdigit(static_cast<unsigned char>(ch));
+}
+
+// Get the current process ID
+unsigned long getCurrentPid()
+{
+#ifdef WIN32
+    return GetCurrentProcessId();
+#else
+    return getpid();
+#endif
 }
 
 } // namespace mega

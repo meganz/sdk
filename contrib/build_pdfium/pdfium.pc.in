@@ -9,5 +9,5 @@ Description: pdfium library
 Version: @VERSION@
 
 Requires:
-Libs: -L${libdir} -Lpdfium
+Libs: -L${libdir} -lpdfium
 Cflags: -I${includedir}

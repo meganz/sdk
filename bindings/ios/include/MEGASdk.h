@@ -56,6 +56,10 @@
 #import "MEGAScheduledCopyDelegate.h"
 #import "BackUpState.h"
 #import "BackUpSubState.h"
+#import "MEGASearchFilter.h"
+#import "MEGASearchFilterTimeFrame.h"
+#import "PasswordNodeData.h"
+#import "MEGANotification.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -94,6 +98,13 @@ typedef NS_ENUM (NSInteger, MEGANodeFormatType) {
     MEGANodeFormatTypeAudio,
     MEGANodeFormatTypeVideo,
     MEGANodeFormatTypeDocument,
+    MEGANodeFormatTypePdf,
+    MEGANodeFormatTypePresentation,
+    MEGANodeFormatTypeArchive,
+    MEGANodeFormatTypeProgram,
+    MEGANodeFormatTypeMisc,
+    MEGANodeFormatTypeSpreadsheet,
+    MEGANodeFormatTypeAllDocs
 };
 
 typedef NS_ENUM (NSInteger, MEGAFolderTargetType) {
@@ -148,6 +159,7 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
     MEGAUserAttributeNoCallKit               = 36, // private - byte array
     MEGAUserAttributeAppsPreferences         = 38, // private - byte array - versioned (apps preferences)
     MEGAUserAttributeContentConsumptionPreferences = 39, // private - byte array - versioned (content consumption preferences)
+    MEGAUserAttributeLastReadNotification    = 44, // private - char array
 };
 
 typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
@@ -155,7 +167,8 @@ typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
     MEGANodeAttributeCoordinates    = 1,
     MEGANodeAttributeOriginalFingerprint = 2,
     MEGANodeAttributeLabel = 3,
-    MEGANodeAttributeFav = 4
+    MEGANodeAttributeFav = 4,
+    MEGANodeAttributeSen = 6
 };
 
 typedef NS_ENUM(NSInteger, MEGASetAttribute) {
@@ -483,6 +496,17 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * YES if enabled, NO otherwise.
  */
 @property (readonly, nonatomic, getter=isContactVerificationWarningEnabled) BOOL isContactVerificationWarningEnabled;
+
+/**
+ * @brief Check if the logged in account is considered new
+ *
+ * This will NOT return a valid value until the callback onEvent with
+ * type EventMiscFlagsReady is received. You can also rely on the completion of
+ * a fetchnodes to check this value.
+ *
+ * YES if account is considered new. Otherwise, NO.
+ */
+@property (readonly, nonatomic, getter=isNewAccount) BOOL newAccount;
 
 #pragma mark - Business
 
@@ -2627,6 +2651,70 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  */
 - (void)acknowledgeUserAlerts;
 
+#pragma mark - Notifications
+
+/**
+ * @brief Set last read notification for Notification Center
+ *
+ * The type associated with this request is MEGARequestTypeSetAttrUser
+ * 
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeLastReadNotification
+ * - [MEGARequest number] - Returns the ID to be set as last read
+ *
+ * Note that any notifications with ID equal to or less than the given one will be marked as seen
+ * in Notification Center.
+ *
+ * @param notificationId ID of the notification to be set as last read. Value `0` is an invalid ID.
+ * Passing `0` will clear a previously set last read value.
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setLastReadNotificationWithNotificationId:(uint32_t)notificationId delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get last read notification for Notification Center
+ *
+ * The type associated with this request is MEGARequestTypeSetAttrUser
+ *
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeLastReadNotification
+ *
+ * When onRequestFinish received MEGAErrorTypeApiOk, valid data in the MegaRequest object is:
+ * - [MEGARequest number] - Returns the ID of the last read Notification
+ * Note that when the ID returned here was `0` it means that no ID was set as last read.
+ * Note that the value returned here should be treated like a 32bit unsigned int.
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getLastReadNotificationWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get the list of IDs for enabled notifications
+ *
+ * You take the ownership of the returned value
+ *
+ * @return List of IDs for enabled notifications
+ */
+- (nullable MEGAIntegerList *)getEnabledNotifications;
+
+/**
+ * @brief Get list of available notifications for Notification Center
+ *
+ * The associated request type with this request is MEGARequestTypeGetNotifications
+ *
+ * When onRequestFinish received MEGAErrorTypeApiOk, valid data in the MegaRequest object is:
+ * - [MegaRequest megaNotifications] - Returns the list of notifications
+ *
+ * When onRequestFinish errored, the error code associated to the MegaError can be:
+ * - MEGAErrorTypeApiENoent - No such notifications exist, and MegaRequest::getMegaNotifications
+ *   will return a non-null, empty list.
+ * - MEGAErrorTypeApiEAccess - No user was logged in.
+ * - MEGAErrorTypeApiEInternal - Received answer could not be read.
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getNotificationsWithDelegate:(id<MEGARequestDelegate>)delegate;
+
 #pragma mark - Filesystem changes Requests
 
 /**
@@ -3300,6 +3388,26 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
 - (void)publicNodeForMegaFileLink:(NSString *)megaFileLink delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
+ * @brief Get downloads urls for a node
+ *
+ * The associated request type with this request is MEGARequestTypeGetDownloadUrls
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk
+ * - [MEGARequest name] - Returns semicolon-separated download URL(s) to the file
+ * - [MEGARequest link] - Returns semicolon-separated IPv4 of the server in the URL(s)
+ * -  [MEGARequest text] - Returns semicolon-separated IPv6 of the server in the URL(s)
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue
+ *
+ * @param node Node to get the downloads URLs
+ * @param singleUrl Always return one URL (even for raided files)
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getDownloadUrl:(MEGANode *)node singleUrl:(BOOL)singleUrl delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
  * @brief Get a MEGANode from a public link to a file.
  *
  * A public node can be imported using [MEGASdk copyNode:newParent:] or downloaded using [MEGASdk startDownloadNode:localPath:].
@@ -3437,6 +3545,40 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  */
 - (void)setNodeFavourite:(MEGANode *)node favourite:(BOOL)favourite;
 
+/**
+ * @brief Mark a node as sensitive
+ *
+ * @note Descendants will inherit the sensitive property.
+ *
+ * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest numDetails] - Returns 1 if node is set as favourite, otherwise return 0
+ * - [MEGARequest flag] - Returns YES (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeSen
+ *
+ * @param node Node that will receive the information.
+ * @param sensitive if true set node as sensitive, otherwise remove the attribute
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setNodeSensitive:(MEGANode *)node sensitive:(BOOL)sensitive delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Mark a node as sensitive
+ *
+ * @note Descendants will inherit the sensitive property.
+ *
+ * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest numDetails] - Returns 1 if node is set as favourite, otherwise return 0
+ * - [MEGARequest flag] - Returns YES (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeSen
+ *
+ * @param node Node that will receive the information.
+ * @param sensitive if true set node as sensitive, otherwise remove the attribute
+ */
+- (void)setNodeSensitive:(MEGANode *)node sensitive:(BOOL)sensitive;
 
 /**
  * @brief Get a list of favourite nodes.
@@ -3494,9 +3636,10 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * - MEGAErrorTypeApiEAccess - Permissions Error
  *
  * @param name the name that should be given to the new Set
+ * @param type the type that should be given to the new Set
  * @param delegate MEGARequestDelegate to track this request
  */
--(void)createSet:(nullable NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
+-(void)createSet:(nullable NSString *)name type:(MEGASetType)type delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Generate a public link of a Set in MEGA
@@ -4441,25 +4584,29 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
 + (nullable NSString *)avatarSecondaryColorForBase64UserHandle:(nullable NSString *)base64UserHandle;
 
 /**
- * @brief Set the avatar of the MEGA account.
+ * @brief Set/Remove the avatar of the MEGA account
  *
  * The associated request type with this request is MEGARequestTypeSetAttrFile.
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest file] - Returns the source path
  *
  * @param sourceFilePath Source path of the file that will be set as avatar.
+ * If nil, the existing avatar will be removed (if any). 
  * @param delegate Delegate to track this request.
+ * In case the avatar never existed before, removing the avatar returns MEGAErrorApiENoent.
  */
 - (void)setAvatarUserWithSourceFilePath:(nullable NSString *)sourceFilePath delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
- * @brief Set the avatar of the MEGA account.
+ * @brief Set/Remove the avatar of the MEGA account
  *
  * The associated request type with this request is MEGARequestTypeSetAttrFile.
  * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest file] - Returns the source path
+ * - [MEGARequest file] - Returns the source path (optional)
  *
  * @param sourceFilePath Source path of the file that will be set as avatar.
+ * If nil, the existing avatar will be removed (if any).
+ * In case the avatar never existed before, removing the avatar returns MEGAErrorApiENoent.
  */
 - (void)setAvatarUserWithSourceFilePath:(nullable NSString *)sourceFilePath;
 
@@ -5720,6 +5867,28 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  *
  */
 - (void)isMasterKeyExported;
+
+/**
+ * @brief Get Terms of Service for VPN visibility.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest access] - Returns YES if the Terms Of Service should be visible for user
+ *
+ * If the corresponding user attribute is not set yet, the request will fail with the
+ * error code MEGAErrorTypeApiENoent.
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getVisibleTermsOfServiceWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Set Terms of Service for VPN visibility.
+ *
+ * @param visible True to set Terms of Service visibility on, false otherwise.
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setVisibleTermsOfService:(BOOL)visible delegate:(id<MEGARequestDelegate>)delegate;
 
 #ifdef ENABLE_CHAT
 
@@ -7975,6 +8144,15 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
 - (BOOL)isNodeInRubbish:(MEGANode *)node;
 
 /**
+* @brief Ascertain if the node is marked as sensitive or a descendent of such
+*
+* see [MEGANode isMarkedSensitive] to see if the node is sensitive
+*
+* @param node node to inspect
+*/
+-(BOOL)isNodeInheritingSensitivity:(MEGANode *)node;
+
+/**
  * @brief Search nodes containing a search string in their name.
  *
  * The search is case-insensitive.
@@ -7987,6 +8165,35 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * @return List of nodes that contain the desired string in their name.
  */
 - (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString recursive:(BOOL)recursive;
+
+
+/**
+ * @brief Search nodes with applied filter recursively.
+ *
+ * The search is case-insensitive.
+ *
+ * @param filter Filter we should apply to the current search.
+ * @param orderType Order type we should applyto the current search.
+ * NO if you want to seach in the children of the node only
+ *
+ * @return List of nodes that contain the desired string in their name.
+ */
+- (MEGANodeList *)searchWith:(MEGASearchFilter *)filter orderType:(MEGASortOrderType)orderType cancelToken:(MEGACancelToken *)cancelToken;
+
+
+/**
+ * @brief Search nodes with applied filter non-recursively.
+ *
+ * The search is case-insensitive.
+ *
+ * @param filter Filter we should apply to the current search.
+ * @param orderType Order type we should applyto the current search.
+ * NO if you want to seach in the children of the node only
+ *
+ * @return List of nodes that contain the desired string in their name.
+ */
+- (MEGANodeList *)searchNonRecursivelyWith:(MEGASearchFilter *)filter  orderType:(MEGASortOrderType)orderType cancelToken:(MEGACancelToken *)cancelToken;
+
 
 /**
  * @brief Search nodes containing a search string in their name.
@@ -8147,6 +8354,13 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * - MEGANodeFormatTypeAudio = 2
  * - MEGANodeFormatTypeVideo = 3
  * - MEGANodeFormatTypeDocument = 4
+ * - MEGANodeFormatTypePdf = 5,
+ * - MEGANodeFormatTypePresentation = 6,
+ * - MEGANodeFormatTypeArchive = 7,
+ * - MEGANodeFormatTypeProgram = 8,
+ * - MEGANodeFormatTypeMisc = 9,
+ * - MEGANodeFormatTypeSpreadsheet = 10,
+ * - MEGANodeFormatTypeAllDocs = 11
  *
  * @param folderTargetType Target type where this method will search
  * Valid values for this parameter are
@@ -9912,8 +10126,29 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * - name - Returns device name.
  *
  * @param delegate MEGARequestDelegate to track this request
+ *
+ * @deprecated This version of the function is deprecated. Please use the non-deprecated one below.
  */
-- (void)getDeviceNameWithDelegate:(id<MEGARequestDelegate>)delegate;
+- (void)getDeviceNameWithDelegate:(id<MEGARequestDelegate>)delegate __attribute__((deprecated("Use [MEGASdk getDeviceName:delegate] instead of this function.")));
+
+/**
+ * @brief Returns the name previously set for a device
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - paramType - Returns the attribute type MEGAUserAttributeDeviceNames
+ * - text - Returns passed device id (or the value returned by deviceId()
+ * if deviceId was initially passed as null).
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - name - Returns device name.
+ *
+ * @param deviceId The id of the device to get the name for. If null, the value returned
+ * by deviceId() will be used instead.
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getDeviceName:(nullable NSString *)deviceId delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Sets device name
@@ -10211,6 +10446,72 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  */
 - (void)checkVpnCredentialWithUserPubKey:(NSString *)userPubKey delegate:(id<MEGARequestDelegate>)delegate;
 
+#pragma mark - Password Manager
+
+/**
+ * @brief Get Password Manager Base folder node from the MEGA account
+ *
+ * The associated request type with this request is MegaRequest::TYPE_CREATE_PASSWORD_MANAGER_BASE
+ * Valid data in the MegaRequest object received on callbacks:
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MegaError::API_OK:
+ * - MegaRequest::getNodeHandle - Handle of the folder
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getPasswordManagerBaseWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+ /**
+ * @brief Returns true if provided MegaHandle is of a Password Node Folder
+ *
+ * A folder is considered a Password Node Folder if Password Manager Base is its
+ * ancestor.
+ *
+ * @param node MegaHandle of the node to check if it is a Password Node Folder
+ */
+- (BOOL)isPasswordNodeFolderWithHandle:(MEGAHandle)node;
+
+/**
+ * @brief Create a new Password Node in your Password Manager tree
+ *
+ * The associated request type with this request is MegaRequest::TYPE_CREATE_PASSWORD_NODE
+ * Valid data in the MegaRequest object received on callbacks:
+ * - MegaRequest::getParentHandle - Handle of the parent provided as an argument
+ * - MegaRequest::getName - name for the new Password Node provided as an argument
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MegaError::API_OK:
+ * - MegaRequest::getNodeHandle - Handle of the new Password Node
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+ *
+ * @param name Name for the new Password Node
+ * @param data The data of the new Password Node
+ * @param parent Parent folder for the new Password Node
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)createPasswordNodeWithName:(NSString *)name data:(PasswordNodeData *)data parent:(MEGAHandle)parent delegate:(id<MEGARequestDelegate>)delegate;
+
+ /**
+ * @brief Update a Password Node in the MEGA account according to the parameters
+ *
+ * The associated request type with this request is MegaRequest::TYPE_UPDATE_PASSWORD_NODE
+ * Valid data in the MegaRequest object received on callbacks:
+ * - MegaRequest::getNodeHandle - handle provided of the Password Node to update
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+ *
+ * @param node Node to modify
+ * @param newData The new data of the Password Node to update
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)updatePasswordNodeWithHandle:(MEGAHandle)node newData:(PasswordNodeData *)newData delegate:(id<MEGARequestDelegate>)delegate;
 
 @end
 

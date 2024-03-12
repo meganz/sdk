@@ -1,4 +1,6 @@
 
+CONFIG += object_parallel_to_source
+
 MEGASDK_BASE_PATH = $$PWD/../../
 
 # Define MEGA_USE_C_ARES by default. Allow disabling c-ares code
@@ -31,7 +33,8 @@ debug:macx:MI_DEBUG_SUFFIX = "_debug"
 debug:win32:MI_DEBUG_SUFFIX = "d"
 
 VPATH += $$MEGASDK_BASE_PATH
-SOURCES += src/attrmap.cpp \
+SOURCES += src/arguments.cpp \
+    src/attrmap.cpp \
     src/backofftimer.cpp \
     src/base64.cpp \
     src/command.cpp \
@@ -46,6 +49,7 @@ SOURCES += src/attrmap.cpp \
     src/json.cpp \
     src/megaclient.cpp \
     src/node.cpp \
+    src/process.cpp \
     src/pubkeyaction.cpp \
     src/request.cpp \
     src/serialize64.cpp \
@@ -54,6 +58,7 @@ SOURCES += src/attrmap.cpp \
     src/share.cpp \
     src/sharenodekeys.cpp \
     src/sync.cpp \
+    src/syncfilter.cpp \
     src/transfer.cpp \
     src/transferslot.cpp \
     src/treeproc.cpp \
@@ -69,6 +74,9 @@ SOURCES += src/attrmap.cpp \
     src/crypto/sodium.cpp  \
     src/db/sqlite.cpp  \
     src/gfx/external.cpp \
+    src/gfx/worker/commands.cpp \
+    src/gfx/worker/command_serializer.cpp \
+    src/gfx/worker/client.cpp \
     src/mega_utf8proc.cpp \
     src/mega_ccronexpr.cpp \
     src/mega_evt_tls.cpp \
@@ -190,7 +198,7 @@ CONFIG(USE_LIBUV) {
     vcpkg:INCLUDEPATH_EXTERNAL += $$THIRDPARTY_VCPKG_PATH/include/libuv
     !vcpkg:INCLUDEPATH_EXTERNAL += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libuv
     win32 {
-        LIBS += -llibuv -lIphlpapi -lUserenv -lpsapi
+        LIBS += -llibuv -lIphlpapi -lUserenv -lpsapi -ldbghelp
     }
 
     unix:!macx {
@@ -198,21 +206,19 @@ CONFIG(USE_LIBUV) {
         LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libuv.a
        }
        else {
-        vcpkg:LIBS += -llibuv
-        else:LIBS += -luv
+        LIBS += -luv
        }
     }
 
     macx {
-        vcpkg:LIBS += -llibuv
-        !vcpkg:LIBS += -luv
+        LIBS += -luv
     }
 }
 
 CONFIG(USE_MEDIAINFO) {
     DEFINES += USE_MEDIAINFO UNICODE
 
-    vcpkg:LIBS += -lmediainfo$$MI_DEBUG_SUFFIX -lzen$$MI_DEBUG_SUFFIX 
+    vcpkg:LIBS += -lmediainfo$$MI_DEBUG_SUFFIX -lzen$$MI_DEBUG_SUFFIX -ltinyxml2
     vcpkg:win32:LIBS += -lzlib$$DEBUG_SUFFIX
     vcpkg:!win32:LIBS += -lz
 
@@ -433,6 +439,7 @@ SOURCES += src/posix/net.cpp  \
 
 HEADERS  += include/mega.h \
             include/mega/account.h \
+            include/mega/arguments.h \
             include/mega/attrmap.h \
             include/mega/backofftimer.h \
             include/mega/base64.h \
@@ -449,6 +456,7 @@ HEADERS  += include/mega.h \
             include/mega/megaapp.h \
             include/mega/megaclient.h \
             include/mega/node.h \
+            include/mega/process.h \
             include/mega/pubkeyaction.h \
             include/mega/request.h \
             include/mega/serialize64.h \
@@ -457,6 +465,7 @@ HEADERS  += include/mega.h \
             include/mega/share.h \
             include/mega/sharenodekeys.h \
             include/mega/sync.h \
+            include/mega/syncfilter.h \
             include/mega/heartbeats.h \
             include/mega/transfer.h \
             include/mega/transferslot.h \
@@ -476,6 +485,12 @@ HEADERS  += include/mega.h \
             include/mega/gfx/freeimage.h \
             include/mega/gfx/gfx_pdfium.h \
             include/mega/gfx/external.h \
+            include/mega/gfx/isolatedprocess.h \
+            include/mega/gfx/worker/tasks.h \
+            include/mega/gfx/worker/commands.h \
+            include/mega/gfx/worker/comms.h \
+            include/mega/gfx/worker/command_serializer.h \
+            include/mega/gfx/worker/client.h \
             include/mega/thread.h \
             include/mega/thread/cppthread.h \
             include/megaapi.h \
@@ -610,7 +625,7 @@ vcpkg {
     release:LIBS += -L"$$THIRDPARTY_VCPKG_PATH/lib"
     debug:LIBS += -L"$$THIRDPARTY_VCPKG_PATH/debug/lib"
 
-    win32:LIBS += -llibsodium -lcryptopp-static -lzlib$$DEBUG_SUFFIX
+    win32:LIBS += -llibsodium -lcryptopp -lzlib$$DEBUG_SUFFIX
     else:LIBS += -lsodium -lcryptopp -lz
     win32:DEFINES += SODIUM_STATIC
     LIBS += -lsqlite3
@@ -694,7 +709,7 @@ win32 {
      LIBS += -lpcre
     }
 
-    LIBS += -lshlwapi -lws2_32 -luser32 
+    LIBS += -lshlwapi -lws2_32 -luser32
     !vcpkg:LIBS += -lsodium -lcryptopp -lzlibstat
 
     DEFINES += NOMINMAX
@@ -704,7 +719,7 @@ win32 {
 
 unix:!macx {
    INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/posix
-   LIBS += -lsqlite3 -lrt
+   LIBS += -lrt
 
    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a) {
     LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a
@@ -732,7 +747,7 @@ unix:!macx {
     LIBS +=  $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcrypto.a
    }
    else {
-    LIBS += -lcrypto 
+    LIBS += -lcrypto
    }
 
    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcryptopp.a) {
@@ -741,6 +756,13 @@ unix:!macx {
    else {
     LIBS += -lcryptopp
    }
+
+    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsqlite3.a) {
+     LIBS +=  $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsqlite3.a
+    }
+    else {
+     LIBS += -lsqlite3
+    }
 
    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a) {
     LIBS +=  $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a
@@ -776,7 +798,7 @@ macx {
    SOURCES += $$MEGASDK_BASE_PATH/src/osx/fs.cpp
 
    INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/osx
-   INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/posix   
+   INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/posix
 
    OBJECTIVE_SOURCES += $$MEGASDK_BASE_PATH/src/osx/osxutils.mm
 
@@ -795,20 +817,20 @@ macx {
     LIBS += -lpcre
    }
 
-   DEFINES += _DARWIN_FEATURE_64_BIT_INODE CRYPTOPP_DISABLE_ASM
+   DEFINES += _DARWIN_FEATURE_64_BIT_INODE
 
    !vcpkg:LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a \
                     $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsodium.a -lcryptopp
    LIBS += -lz
-   
+
    !vcpkg:CONFIG(USE_OPENSSL) {
     INCLUDEPATH_EXTERNAL += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/openssl
     LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libssl.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcrypto.a
    }
 
    LIBS += -framework SystemConfiguration
-   
-   vcpkg:LIBS += -liconv -framework CoreServices -framework CoreFoundation -framework AudioUnit -framework AudioToolbox -framework CoreAudio -framework CoreMedia -framework VideoToolbox -framework ImageIO -framework CoreVideo 
+
+   vcpkg:LIBS += -liconv -framework CoreServices -framework CoreFoundation -framework AudioUnit -framework AudioToolbox -framework CoreAudio -framework CoreMedia -framework VideoToolbox -framework ImageIO -framework CoreVideo
 
     clang {
         COMPILER_VERSION = $$system("$$QMAKE_CXX -dumpversion | cut -d'.' -f1")
@@ -841,6 +863,15 @@ CONFIG(USE_DRIVE_NOTIFICATIONS) {
         SOURCES += src/osx/drivenotifyosx.cpp
         LIBS += -framework DiskArbitration -framework CoreFoundation
     }
+}
+
+# gfx worker platform settings
+win32 {
+    HEADERS += include/mega/win32/gfx/worker/comms.h
+    HEADERS += include/mega/win32/gfx/worker/comms_client.h
+    SOURCES += src/win32/gfx/worker/comms.cpp
+    SOURCES += src/win32/gfx/worker/comms_client.cpp
+    SOURCES += src/gfx/isolatedprocess.cpp
 }
 
 # Add include paths as system libs to avoid warnings from external libraries.

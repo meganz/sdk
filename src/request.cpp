@@ -44,15 +44,13 @@ size_t Request::size() const
     return cmds.size();
 }
 
-string Request::get(bool& suppressSID, MegaClient* client, char reqidCounter[10], string& idempotenceId) const
+string Request::get(MegaClient* client, char reqidCounter[10], string& idempotenceId) const
 {
     if (cachedJSON.empty())
     {
         // concatenate all command objects, resulting in an API request
         string& req = cachedJSON;
         req = "[";
-
-        cachedSuppressSID = true; // only if all commands in batch are suppressSID
 
         map<string, int> counts;
 
@@ -61,7 +59,6 @@ string Request::get(bool& suppressSID, MegaClient* client, char reqidCounter[10]
             req.append(i ? ",{" : "{");
             req.append(cmds[i]->getJSON(client));
             req.append("}");
-            cachedSuppressSID = cachedSuppressSID && cmds[i]->suppressSID;
             ++counts[cmds[i]->commandStr];
         }
 
@@ -91,7 +88,6 @@ string Request::get(bool& suppressSID, MegaClient* client, char reqidCounter[10]
     // once we send the commands, any retry must be for exactly
     // the same JSON, or idempotence will not work properly
     LOG_debug << "Req command counts: " << cachedCounts;
-    suppressSID = cachedSuppressSID;
     idempotenceId = cachedIdempotenceId;
     return cachedJSON;
 }
@@ -114,6 +110,50 @@ bool Request::processCmdJSON(Command* cmd, bool couldBeError, JSON& json)
     else
     {
         return cmd->procresult(Command::CmdItem, json);
+    }
+}
+
+bool Request::processSeqTag(Command* cmd, bool withJSON, bool& parsedOk, bool inSeqTagArray, JSON& processingJson)
+{
+    string st;
+    processingJson.storeobject(&st);
+
+    if (inSeqTagArray)
+    {
+        if (*processingJson.pos == ',') ++processingJson.pos;
+    }
+
+    // In normal operation, we get called once to figure out the `st` to watch out for in sc json (else case below)
+    // then the sc processing will process actionpackets up to and including the one(s) with that `st`
+    // and only after that, call us a second time (with mCurrentSeqtagSeen true), and we will execute the if block.
+    // And one additional case to consider, before we start the sc channel, it's ok to send non-actionpacket (ie, non-st) requests (hence scsn check)
+
+    if (cmd->client->mCurrentSeqtag == st ||
+        !cmd->client->scsn.ready())  // if we have not started the sc channel, we won't receive the matching st, so ignore st until we do
+    {
+        if (!cmd->client->scsn.ready())
+        {
+            LOG_verbose << "Processing command result regardless of st as we don't have scsn yet. " << st << cmd->client->mCurrentSeqtag;
+        }
+
+        assert(cmd->client->mCurrentSeqtagSeen || !cmd->client->scsn.ready());
+        cmd->client->mCurrentSeqtag.clear();
+        cmd->client->mCurrentSeqtagSeen = false;
+        parsedOk = withJSON ? processCmdJSON(cmd, false, processingJson)
+                            : cmd->procresult(Command::Result(Command::CmdError, API_OK), processingJson); // just an `st` returned is implicitly successful
+        return true;
+    }
+    else
+    {
+        // result processing paused until we encounter and process actionpackets matching client->mCurrentSeqtag
+        cmd->client->mPriorSeqTag = cmd->client->mCurrentSeqtag;
+        cmd->client->mCurrentSeqtag = st;
+        cmd->client->mCurrentSeqtagSeen = false;
+        cmd->client->mCurrentSeqtagCmdtag = cmd->tag;
+        assert(cmd->client->mPriorSeqTag.size() < cmd->client->mCurrentSeqtag.size() ||
+              (cmd->client->mPriorSeqTag.size() == cmd->client->mCurrentSeqtag.size() &&
+               cmd->client->mPriorSeqTag < cmd->client->mCurrentSeqtag));
+        return false;
     }
 }
 
@@ -203,10 +243,42 @@ void Request::process(MegaClient* client)
 
         if (*processingJson.pos == ',') ++processingJson.pos;
 
-        Error e;
-        if (cmd->checkError(e, processingJson))
+        if (cmd->mSeqtagArray && processingJson.enterarray())
         {
-            parsedOk = cmd->procresult(Command::Result(Command::CmdError, e), processingJson);
+            // Some commands need to return seqtag and also some JSON,
+            // in which case they are in an array with `st` first, and the JSON second
+            // Some commands might or might not produce `st`.  And might return a string.
+            // So in the case of success with a string return, but no `st`, the array is [0, "returnValue"]
+            // If the command failed, there is no array, just the error code
+            assert(cmd->mV3);
+            assert(*processingJson.pos == '0' || *processingJson.pos == '\"');
+            if (*processingJson.pos == '0' && *(processingJson.pos+1) == ',')
+            {
+                processingJson.pos += 2;
+                parsedOk = processCmdJSON(cmd, false, processingJson);
+            }
+            else if (!processSeqTag(cmd, true, parsedOk, true, processingJson)) // executes the command's procresult if we match the seqtag
+            {
+                // we need to wait for sc processing to catch up with the seqtag we just read
+                json = cmdJSON;
+                return;
+            }
+
+            if (parsedOk && !processingJson.leavearray())
+            {
+                LOG_err << "Invalid seqtag array";
+                parsedOk = false;
+            }
+        }
+        else if (mV3 && *processingJson.pos == '"')
+        {
+            // For v3 commands, a string result is a string which is a seqtag.
+            if (!processSeqTag(cmd, false, parsedOk, false, processingJson))
+            {
+                // we need to wait for sc processing to catch up with the seqtag we just read
+                json = cmdJSON;
+                return;
+            }
         }
         else
         {
@@ -298,11 +370,11 @@ void Request::swap(Request& r)
 {
     // we use swap to move between queues, but process only after it gets into the completedreqs
     cmds.swap(r.cmds);
+    std::swap(mV3, r.mV3);
 
     std::swap(cachedJSON, r.cachedJSON);
     std::swap(cachedIdempotenceId, r.cachedIdempotenceId);
     std::swap(cachedCounts, r.cachedCounts);
-    std::swap(cachedSuppressSID, r.cachedSuppressSID);
 
     // Although swap would usually swap all fields, these must be empty anyway
     // If swap was used when these were active, we would be moving needed info out of the request-in-progress
@@ -353,6 +425,16 @@ void RequestDispatcher::add(Command *c)
         nextreqs.push_back(Request());
     }
 
+    if (!nextreqs.back().empty() && nextreqs.back().mV3 != c->mV3)
+    {
+        LOG_debug << "Starting an additional Request for v3 transition " << c->mV3;
+        nextreqs.push_back(Request());
+    }
+    if (nextreqs.back().empty())
+    {
+        nextreqs.back().mV3 = c->mV3;
+    }
+
     nextreqs.back().add(c);
     if (c->batchSeparately)
     {
@@ -376,10 +458,16 @@ bool RequestDispatcher::readyToSend() const
 
 bool RequestDispatcher::cmdsInflight() const
 {
-    return !inflightreq.empty() && inflightFailReason == RETRY_NONE;
+    // stays true even through network errors, -3, retries, etc until we get that response
+    return !inflightreq.empty();
 }
 
-string RequestDispatcher::serverrequest(bool& suppressSID, bool &includesFetchingNodes, bool& v3, MegaClient* client, string& idempotenceId)
+Command* RequestDispatcher::getCurrentCommand(bool currSeqtagSeen)
+{
+    return currSeqtagSeen ? inflightreq.getCurrentCommand() : nullptr;
+}
+
+string RequestDispatcher::serverrequest(bool &includesFetchingNodes, bool& v3, MegaClient* client, string& idempotenceId)
 {
     if (!inflightreq.empty() && inflightFailReason != RETRY_NONE)
     {
@@ -397,8 +485,9 @@ string RequestDispatcher::serverrequest(bool& suppressSID, bool &includesFetchin
             nextreqs.push_back(Request());
         }
     }
-    string requestJSON = inflightreq.get(suppressSID, client, reqid, idempotenceId);
+    string requestJSON = inflightreq.get(client, reqid, idempotenceId);
     includesFetchingNodes = inflightreq.isFetchNodes();
+    v3 = inflightreq.mV3;
 #ifdef MEGA_MEASURE_CODE
     csRequestsSent += inflightreq.size();
     csBatchesSent += 1;
@@ -432,7 +521,6 @@ void RequestDispatcher::serverresponse(std::string&& movestring, MegaClient *cli
     processing = true;
     inflightreq.serverresponse(std::move(movestring), client);
     inflightreq.process(client);
-    assert(inflightreq.empty());
     processing = false;
     if (clearWhenSafe)
     {
@@ -466,6 +554,18 @@ void RequestDispatcher::servererror(const std::string& e, MegaClient *client)
     inflightreq.process(client);
     assert(inflightreq.empty());
     inflightFailReason = RETRY_NONE;
+    processing = false;
+    if (clearWhenSafe)
+    {
+        clear();
+    }
+}
+
+void RequestDispatcher::continueProcessing(MegaClient* client)
+{
+    assert(!inflightreq.empty());
+    processing = true;
+    inflightreq.process(client);
     processing = false;
     if (clearWhenSafe)
     {

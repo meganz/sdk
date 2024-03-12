@@ -2,32 +2,45 @@
 
 /* Define to enable chat */
 #ifndef ENABLE_CHAT
-#cmakedefine ENABLE_CHAT
+#cmakedefine ENABLE_CHAT 1
 #endif
 
 /* Defined if sync subsystem is enabled */
 #ifndef ENABLE_SYNC
-#cmakedefine ENABLE_SYNC
+#cmakedefine ENABLE_SYNC 1
+#endif
+
+#ifndef ENABLE_LOG_PERFORMANCE
+#cmakedefine ENABLE_LOG_PERFORMANCE 1
+#endif
+
+#ifndef ENABLE_DRIVE_NOTIFICATIONS
+#cmakedefine ENABLE_DRIVE_NOTIFICATIONS 1
 #endif
 
 /* Define to use FreeImage library. */
-#ifndef USE_FREEIMAGE 
-#cmakedefine USE_FREEIMAGE 
+#ifndef USE_FREEIMAGE
+#cmakedefine USE_FREEIMAGE 1
 #endif
 
 #ifndef HAVE_FREEIMAGECONFIG_H
-#cmakedefine HAVE_FREEIMAGECONFIG_H
+#cmakedefine HAVE_FREEIMAGECONFIG_H 1
 #endif
 
 #if defined(USE_FREEIMAGE) && defined(HAVE_FREEIMAGECONFIG_H)
 #include "FreeImageConfig.h"  // for FREEIMAGE_LIB setting
 #endif
 
+/* Define to enable isolated GFX process. */
+#ifndef ENABLE_ISOLATED_GFX
+#cmakedefine ENABLE_ISOLATED_GFX 1
+#endif
+
 /* Define to indicate AIO presence in librt */
-#cmakedefine HAVE_AIO_RT
+#cmakedefine HAVE_AIO_RT 1
 
 /* Define to 1 if you have the <dirent.h> header file, and it defines `DIR'. */
-#cmakedefine HAVE_DIRENT_H
+#cmakedefine HAVE_DIRENT_H 1
 
 #if !defined(_WIN32) && !defined(__APPLE__)
 /* Define to 1 if you have the `fdopendir' function. */
@@ -36,20 +49,31 @@
 
 /* Define to use FFMPEG */
 #ifndef HAVE_FFMPEG
-#cmakedefine HAVE_FFMPEG 
+#cmakedefine HAVE_FFMPEG 1
+#endif
+
+/* Define to use PDFIUM */
+#ifndef HAVE_PDFIUM
+#cmakedefine HAVE_PDFIUM 1
 #endif
 
 /* Define to 1 if you have the <inttypes.h> header file. */
-#cmakedefine HAVE_INTTYPES_H
+#cmakedefine HAVE_INTTYPES_H 1
 
 /* Define to 1 if you have the <glob.h> header file. */
-#cmakedefine HAVE_GLOB_H
+#cmakedefine HAVE_GLOB_H 1
 
 /* Define to use libraw */
 #cmakedefine HAVE_LIBRAW 1
 
 /* Define to use libuv */
 #cmakedefine HAVE_LIBUV 1
+
+/* Define to use CURL */
+#cmakedefine USE_CURL 1
+
+/* Define to not use readline */
+#cmakedefine NO_READLINE 1
 
 /* Define to 1 if you have the <malloc.h> header file. */
 #define HAVE_MALLOC_H 1
@@ -202,7 +226,7 @@
 #cmakedefine UNICODE 1
 
 /* Define to use c-ares */
-#define USE_CARES 1
+#cmakedefine MEGA_USE_C_ARES 1
 
 /* Define to use libcryptopp */
 #cmakedefine USE_CRYPTOPP 1
@@ -232,6 +256,9 @@
 
 /* Defined if pthreads are available */
 #cmakedefine USE_PTHREAD 1
+
+/* Defined if cppthreads are available */
+#cmakedefine USE_CPPTHREAD 1
 
 /* Define to use libsodium */
 #cmakedefine USE_SODIUM 1

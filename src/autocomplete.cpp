@@ -567,7 +567,7 @@ bool WholeNumber::addCompletions(ACState& s)
     {
         for (char c : s.word().s)
         {
-            if (!isdigit(c))
+            if (!is_digit(c))
             {
                 return true;
             }
@@ -584,7 +584,7 @@ bool WholeNumber::match(ACState& s) const
     {
         for (char c : s.word().s)
         {
-            if (!isdigit(c))
+            if (!is_digit(c))
             {
                 return false;
             }
@@ -691,7 +691,7 @@ MegaFS::MegaFS(bool files, bool folders, MegaClient* c, ::mega::NodeHandle* curD
 {
 }
 
-Node* addShareRootCompletions(ACState& s, MegaClient* client, string& pathprefix)
+shared_ptr<Node> addShareRootCompletions(ACState& s, MegaClient* client, string& pathprefix)
 {
     const string& path = s.word().s;
     string::size_type t = path.find_first_of(":/");
@@ -710,7 +710,7 @@ Node* addShareRootCompletions(ACState& s, MegaClient* client, string& pathprefix
                 string::size_type pos = path.find_first_of("/", t + 1);
                 for (handle h : u.second.sharing)
                 {
-                    if (Node* n = client->nodebyhandle(h))
+                    if (shared_ptr<Node> n = client->nodebyhandle(h))
                     {
                         if (pos == string::npos)
                         {
@@ -735,7 +735,7 @@ bool MegaFS::addCompletions(ACState& s)
     {
         if (client && cwd)
         {
-            Node* n = NULL;
+            shared_ptr<Node> n;
             std::string pathprefix;
             if (!s.word().s.empty() && s.word().s[0] == '/')
             {
@@ -790,8 +790,8 @@ bool MegaFS::addCompletions(ACState& s)
                 }
                 else
                 {
-                    Node* nodematch = NULL;
-                    for (Node* subnode : client->getChildren(n))
+                    shared_ptr<Node> nodematch = NULL;
+                    for (auto& subnode : client->getChildren(n.get()))
                     {
                         if (subnode->type == FOLDERNODE && subnode->displayname() == folderName)
                         {
@@ -813,7 +813,7 @@ bool MegaFS::addCompletions(ACState& s)
                 // iterate specified folder
                 if (n)
                 {
-                    for (Node* subnode : client->getChildren(n))
+                    for (auto& subnode : client->getChildren(n.get()))
                     {
                         if ((reportFolders && subnode->type == FOLDERNODE) ||
                             (reportFiles && subnode->type == FILENODE))

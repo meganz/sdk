@@ -27,6 +27,7 @@
 #include "mega/command.h"
 #include "mega/logging.h"
 #include "mega/heartbeats.h"
+#include "mega/megaapp.h"
 
 namespace mega {
 
@@ -325,7 +326,7 @@ void File::completed(Transfer* t, putsource_t source)
 
     if (t->type == PUT)
     {
-        sendPutnodesOfUpload(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(), nullptr, nullptr, nullptr, false);
+        sendPutnodesOfUpload(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(), nullptr, nullptr, false);
     }
 }
 
@@ -333,10 +334,8 @@ void File::completed(Transfer* t, putsource_t source)
 void File::sendPutnodesOfUpload(MegaClient* client, UploadHandle fileAttrMatchHandle, const UploadToken& ultoken,
                         const FileNodeKey& filekey, putsource_t source, NodeHandle ovHandle,
                         CommandPutNodes::Completion&& completion,
-                        LocalNode* l, const m_time_t* overrideMtime, bool canChangeVault)
+                        const m_time_t* overrideMtime, bool canChangeVault)
 {
-    assert(!!l == syncxfer);
-
     vector<NewNode> newnodes(1);
     NewNode* newnode = &newnodes[0];
 
@@ -355,15 +354,9 @@ void File::sendPutnodesOfUpload(MegaClient* client, UploadHandle fileAttrMatchHa
     newnode->nodekey.assign((char*)&filekey, FILENODEKEYLENGTH);
     newnode->type = FILENODE;
     newnode->parenthandle = UNDEF;
-#ifdef ENABLE_SYNC
-    if (l)
-    {
-        l->newnode.crossref(newnode, l);
-        newnode->syncid = l->syncid;
-    }
-#endif
+
     AttrMap attrs;
-    MegaClient::honorPreviousVersionAttrs(previousNode, attrs);
+    MegaClient::honorPreviousVersionAttrs(previousNode.get(), attrs);
 
     // store filename
     attrs.map['n'] = name;
@@ -390,33 +383,19 @@ void File::sendPutnodesOfUpload(MegaClient* client, UploadHandle fileAttrMatchHa
     else
     {
         NodeHandle th = h;
-#ifdef ENABLE_SYNC
-        if (l)
-        {
-            // tag the previous version in the synced folder (if any) or move to SyncDebris
-            if (l->node && l->node->parent && l->node->parent->localnode)
-            {
-                if (client->versions_disabled)
-                {
-                    client->movetosyncdebris(l->node, l->sync->inshare, l->sync->isBackup());
-                    client->execsyncdeletions();
-                }
-                else
-                {
-                    newnode->ovhandle = l->node->nodeHandle();
-                }
-            }
 
-            client->syncadding++;
+
+        if (syncxfer)
+        {
+            newnode->ovhandle = ovHandle;
         }
-#endif
-        if (mVersioningOption != NoVersioning &&
-            newnode->ovhandle.isUndef())
+        else if (mVersioningOption != NoVersioning)  // todo: resolve clash with mVersioningOption vs fixNameConflicts
         {
             // for manual upload, let the API apply the `ov` according to the global versions_disabled flag.
             // with versions on, the API will make the ov the first version of this new node
             // with versions off, the API will permanently delete `ov`, replacing it with this (and attaching the ov's old versions)
-            if (Node* ovNode = client->getovnode(client->nodeByHandle(th), &name))
+            std::shared_ptr<Node> n = client->nodeByHandle(th);
+            if (std::shared_ptr<Node> ovNode = client->getovnode(n.get(), &name))
             {
                 newnode->ovhandle = ovNode->nodeHandle();
             }
@@ -523,7 +502,7 @@ void File::displayname(string* dname)
     }
     else
     {
-        Node* n;
+        shared_ptr<Node> n;
 
         if ((n = transfer->client->nodeByHandle(h)))
         {
@@ -546,164 +525,287 @@ string File::displayname()
 }
 
 #ifdef ENABLE_SYNC
-SyncFileGet::SyncFileGet(Sync* csync, Node* cn, const LocalPath& clocalname, bool fromInshare)
+
+void SyncTransfer_inClient::terminated(error e)
 {
-    sync = csync;
+    File::terminated(e);
 
-    n = cn;
-    h = n->nodeHandle();
-    *(FileFingerprint*)this = *n;
-
-    syncxfer = true;
-    fromInsycShare = fromInshare;
-    n->syncget = this;
-
-    setLocalname(clocalname);
-
-    sync->threadSafeState->transferBegin(GET, size);
-}
-
-SyncFileGet::~SyncFileGet()
-{
-    if (n)
+    if (e == API_EOVERQUOTA)
     {
-        n->syncget = NULL;
+        syncThreadSafeState->client()->syncs.disableSyncByBackupId(syncThreadSafeState->backupId(), FOREIGN_TARGET_OVERSTORAGE, false, true, nullptr);
     }
+
+    wasTerminated = true;
+    selfKeepAlive.reset();  // deletes this object! (if abandoned by sync)
 }
 
-// create sync-specific temp download directory and set unique filename
-void SyncFileGet::prepare(FileSystemAccess&)
+void SyncTransfer_inClient::completed(Transfer* t, putsource_t source)
 {
-    if (transfer->localfilename.empty())
-    {
-        LocalPath tmpname = LocalPath::fromRelativeName("tmp", *sync->client->fsaccess, sync->mFilesystemType);
+    assert(source == PUTNODES_SYNC);
 
-        if (!sync->tmpfa)
-        {
-            sync->tmpfa = sync->client->fsaccess->newfileaccess();
+    // do not allow the base class to submit putnodes immediately
+    //File::completed(t, source);
 
-            int i = 3;
-            while (i--)
+    wasCompleted = true;
+    selfKeepAlive.reset();  // deletes this object! (if abandoned by sync)
+}
+
+void SyncUpload_inClient::completed(Transfer* t, putsource_t source)
+{
+    // Keep the info required for putnodes and wait for
+    // the sync thread to validate and activate the putnodes
+
+    uploadHandle = t->uploadhandle;
+    uploadToken = *t->ultoken;
+    fileNodeKey = t->filekey;
+
+    SyncTransfer_inClient::completed(t, source);
+}
+
+void SyncUpload_inClient::sendPutnodesOfUpload(MegaClient* client, NodeHandle ovHandle)
+{
+    // Always called from the client thread
+    weak_ptr<SyncThreadsafeState> stts = syncThreadSafeState;
+
+    // So we know whether it's safe to update putnodesCompleted.
+    weak_ptr<SyncUpload_inClient> self = shared_from_this();
+
+    // since we are now sending putnodes, no need to remember puts to inform the client on abandonment
+    syncThreadSafeState->client()->transferBackstop.forget(tag);
+
+    File::sendPutnodesOfUpload(client,
+        uploadHandle,
+        uploadToken,
+        fileNodeKey,
+        PUTNODES_SYNC,
+        ovHandle,
+        [self, stts, client](const Error& e, targettype_t t, vector<NewNode>& nn, bool targetOverride, int tag){
+            // Is the originating transfer still alive?
+            if (auto s = self.lock())
             {
-                LOG_verbose << "Creating tmp folder";
-                transfer->localfilename = sync->localdebris;
-                sync->client->fsaccess->mkdirlocal(transfer->localfilename, true, true);
+                // Then track the result of its putnodes request.
+                s->putnodesFailed = e != API_OK;
 
-                transfer->localfilename.appendWithSeparator(tmpname, true);
-                sync->client->fsaccess->mkdirlocal(transfer->localfilename, false, true);
-
-                // lock it
-                LocalPath lockname = LocalPath::fromRelativeName("lock", *sync->client->fsaccess, sync->mFilesystemType);
-                transfer->localfilename.appendWithSeparator(lockname, true);
-
-                if (sync->tmpfa->fopen(transfer->localfilename, false, true, FSLogging::logOnError))
+                // Capture the handle if the putnodes was successful.
+                if (!s->putnodesFailed)
                 {
-                    break;
+                    assert(!nn.empty());
+                    s->putnodesResultHandle.set6byte(nn.front().mAddedHandle);
+                }
+
+                // Let the engine know the putnodes has completed.
+                s->wasPutnodesCompleted.store(true);
+            }
+
+            if (auto s = stts.lock())
+            {
+                if (e == API_EACCESS)
+                {
+                    client->sendevent(99402, "API_EACCESS putting node in sync transfer", 0);
+                }
+                else if (e == API_EOVERQUOTA)
+                {
+                    client->syncs.disableSyncByBackupId(s->backupId(),  FOREIGN_TARGET_OVERSTORAGE, false, true, nullptr);
                 }
             }
 
-            // if we failed to create the tmp dir three times in a row, fall
-            // back to the sync's root
-            if (i < 0)
+            // since we used a completion function, putnodes_result is not called.
+            // but the intermediate layer still needs that in order to call the client app back:
+            client->app->putnodes_result(e, t, nn, targetOverride, tag);
+
+        }, nullptr, syncThreadSafeState->mCanChangeVault);
+}
+
+void SyncUpload_inClient::sendPutnodesToCloneNode(MegaClient* client, NodeHandle ovHandle, Node* nodeToClone)
+{
+    // Always called from the client thread
+    weak_ptr<SyncThreadsafeState> stts = syncThreadSafeState;
+
+    // So we know whether it's safe to update putnodesCompleted.
+    weak_ptr<SyncUpload_inClient> self = shared_from_this();
+
+    File::sendPutnodesToCloneNode(client,
+        nodeToClone,
+        PUTNODES_SYNC,
+        ovHandle,
+        [self, stts, client](const Error& e, targettype_t t, vector<NewNode>& nn, bool targetOverride, int tag){
+            // Is the originating transfer still alive?
+            if (auto s = self.lock())
             {
-                sync->tmpfa.reset();
+                // Then track the result of its putnodes request.
+                s->putnodesFailed = e != API_OK;
+
+                // Capture the handle if the putnodes was successful.
+                if (!s->putnodesFailed)
+                {
+                    assert(!nn.empty());
+                    s->putnodesResultHandle.set6byte(nn.front().mAddedHandle);
+                }
+
+                // Let the engine know the putnodes has completed.
+                s->wasPutnodesCompleted.store(true);
             }
-        }
 
-        if (sync->tmpfa)
-        {
-            transfer->localfilename = sync->localdebris;
-            transfer->localfilename.appendWithSeparator(tmpname, true);
-        }
-        else
-        {
-            transfer->localfilename = sync->localroot->getLocalname();
-        }
-
-        LocalPath tmpfilename = LocalPath::tmpNameLocal();
-        transfer->localfilename.appendWithSeparator(tmpfilename, true);
-    }
-
-    if (n->parent && n->parent->localnode)
-    {
-        n->parent->localnode->treestate(TREESTATE_SYNCING);
-    }
-}
-
-bool SyncFileGet::failed(error e, MegaClient* client)
-{
-    bool retry = File::failed(e, client);
-
-    if (n->parent && n->parent->localnode)
-    {
-        n->parent->localnode->treestate(TREESTATE_PENDING);
-
-        if (!retry && (e == API_EBLOCKED || e == API_EKEY))
-        {
-            if (e == API_EKEY)
+            if (auto s = stts.lock())
             {
-                assert(client == n->parent->client);
-                int creqtag = n->parent->client->reqtag;
-                n->parent->client->reqtag = 0;
-                n->parent->client->sendevent(99433, "Undecryptable file");
-                n->parent->client->reqtag = creqtag;
+                if (e == API_EACCESS)
+                {
+                    client->sendevent(99402, "API_EACCESS putting node in sync transfer", 0);
+                }
+                else if (e == API_EOVERQUOTA)
+                {
+                    client->syncs.disableSyncByBackupId(s->backupId(),  FOREIGN_TARGET_OVERSTORAGE, false, true, nullptr);
+                }
             }
-            n->parent->client->movetosyncdebris(n, fromInsycShare, n->parent->localnode->sync->isBackup());
-        }
-    }
-
-    return retry;
+        }, syncThreadSafeState->mCanChangeVault);
 }
 
-void SyncFileGet::progress()
+SyncUpload_inClient::SyncUpload_inClient(NodeHandle targetFolder, const LocalPath& fullPath,
+        const string& nodeName, const FileFingerprint& ff, shared_ptr<SyncThreadsafeState> stss,
+        handle fsid, const LocalPath& localname, bool fromInshare)
 {
-    File::progress();
-    if (n->parent && n->parent->localnode && n->parent->localnode->ts != TREESTATE_SYNCING)
+    *static_cast<FileFingerprint*>(this) = ff;
+
+    // normalized name (UTF-8 with unescaped special chars)
+    // todo: we did unescape them though?
+    name = nodeName;
+
+    // setting the full path means it works like a normal non-sync transfer
+    setLocalname(fullPath);
+
+    h = targetFolder;
+
+    hprivate = false;
+    hforeign = false;
+    syncxfer = true;
+    fromInsycShare = fromInshare;
+    temporaryfile = false;
+    chatauth = nullptr;
+    transfer = nullptr;
+    tag = 0;
+
+    syncThreadSafeState = move(stss);
+    syncThreadSafeState->transferBegin(PUT, size);
+
+    sourceFsid = fsid;
+    sourceLocalname = localname;
+}
+
+SyncUpload_inClient::~SyncUpload_inClient()
+{
+    if (!wasTerminated && !wasCompleted)
     {
-        n->parent->localnode->treestate(TREESTATE_SYNCING);
+        assert(wasRequesterAbandoned);
+        transfer = nullptr;  // don't try to remove File from Transfer from the wrong thread
     }
-}
 
-// update localname (parent's localnode)
-void SyncFileGet::updatelocalname()
-{
-    attr_map::iterator ait;
-
-    if ((ait = n->attrs.map.find('n')) != n->attrs.map.end())
+    if (wasCompleted && wasPutnodesCompleted)
     {
-        if (n->parent && n->parent->localnode)
-        {
-            LocalPath ln = n->parent->localnode->getLocalPath();
-            ln.appendWithSeparator(LocalPath::fromRelativeName(ait->second, *sync->client->fsaccess, sync->mFilesystemType), true);
-            setLocalname(ln);
-        }
+        syncThreadSafeState->transferComplete(PUT, size);
     }
-}
-
-// add corresponding LocalNode (by path), then self-destruct
-void SyncFileGet::completed(Transfer*, putsource_t source)
-{
-    sync->threadSafeState->transferComplete(GET, size);
-
-    LocalPath ln = getLocalname();
-    LocalNode *ll = sync->checkpath(NULL, &ln, nullptr, nullptr, false, nullptr);
-    if (ll && ll != (LocalNode*)~0 && n
-            && (*(FileFingerprint *)ll) == (*(FileFingerprint *)n))
+    else
     {
-        LOG_debug << "LocalNode created, associating with remote Node";
-        ll->setnode(n);
-        ll->treestate(TREESTATE_SYNCED);
-        ll->sync->statecacheadd(ll);
-        ll->sync->cachenodes();
+        syncThreadSafeState->transferFailed(PUT, size);
     }
-    delete this;
+
+    if (!uploadHandle.isUndef())
+    {
+        // Remove file attributes if they weren't removed upon ~Transfer destructor
+        syncThreadSafeState->client()->fileAttributesUploading.erase(uploadHandle);
+    }
+
+    if (putnodesStarted)
+    {
+        syncThreadSafeState->removeExpectedUpload(h, name);
+    }
 }
 
-void SyncFileGet::terminated(error e)
+void SyncUpload_inClient::prepare(FileSystemAccess&)
 {
-    sync->threadSafeState->transferFailed(GET, size);
+    transfer->localfilename = getLocalname();
 
-    delete this;
+    // is this transfer in progress? update file's filename.
+    if (transfer->slot && transfer->slot->fa && !transfer->slot->fa->nonblocking_localname.empty())
+    {
+        transfer->slot->fa->updatelocalname(transfer->localfilename, false);
+    }
+
+    //todo: localNode.treestate(TREESTATE_SYNCING);
 }
+
+SyncDownload_inClient::SyncDownload_inClient(CloudNode& n, const LocalPath& clocalname, bool fromInshare,
+        shared_ptr<SyncThreadsafeState> stss, const FileFingerprint& overwriteFF)
+{
+    h = n.handle;
+    *(FileFingerprint*)this = n.fingerprint;
+    okToOverwriteFF = overwriteFF;
+
+    syncxfer = true;
+    fromInsycShare = fromInshare;
+
+    setLocalname(clocalname);
+
+    syncThreadSafeState = move(stss);
+    syncThreadSafeState->transferBegin(GET, size);
+}
+
+SyncDownload_inClient::~SyncDownload_inClient()
+{
+    if (!wasTerminated && !wasCompleted)
+    {
+        assert(wasRequesterAbandoned);
+        transfer = nullptr;  // don't try to remove File from Transfer from the wrong thread
+    }
+
+    if (!wasDistributed && downloadDistributor)
+        downloadDistributor->removeTarget();
+
+    if (wasCompleted)
+    {
+        syncThreadSafeState->transferComplete(GET, size);
+    }
+    else
+    {
+        syncThreadSafeState->transferFailed(GET, size);
+    }
+}
+
+void SyncDownload_inClient::prepare(FileSystemAccess& fsaccess)
+{
+    if (transfer->localfilename.empty())
+    {
+        // set unique filename in sync-specific temp download directory
+        transfer->localfilename = syncThreadSafeState->syncTmpFolder();
+        transfer->localfilename.appendWithSeparator(LocalPath::tmpNameLocal(), true);
+
+    }
+}
+
+bool SyncDownload_inClient::failed(error e, MegaClient* mc)
+{
+    // Squirrel away the error for later use.
+    mError = e;
+
+    // Should we retry the download?
+    if (File::failed(e, mc))
+        return true;
+
+    // MAC validation error?
+    if (e == API_EKEY)
+        mc->sendevent(99433, "Undecryptable file", 0);
+
+    // TODO: this seems wrong, but is probably just carried over from the old sync logic.  Surely we should stall for this case rather than auto-delete?
+    // Blocked file?
+    if (e == API_EBLOCKED)
+    {
+        // Still exists in the cloud?
+        if (auto n = mc->nodeByHandle(h))
+            mc->movetosyncdebris(n.get(), fromInsycShare, nullptr, syncThreadSafeState->mCanChangeVault);
+    }
+
+    return false;
+}
+
+
 #endif
 } // namespace

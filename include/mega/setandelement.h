@@ -241,9 +241,13 @@ namespace mega {
     class Set : public CommonSE, public Cacheable
     {
     public:
+        using SetType = uint8_t;
+
         Set() = default;
-        Set(handle id, handle publicId, std::string&& key, handle user, string_map&& attrs)
-            : CommonSE(id, std::move(key), std::move(attrs)), mPublicId(publicId), mUser(user) {}
+        Set(handle id, handle publicId, std::string&& key, handle user, string_map&& attrs,
+            SetType type = TYPE_ALBUM)
+            : CommonSE(id, std::move(key), std::move(attrs)), mPublicId(publicId), mUser(user),
+              mType(type) {}
 
         // return public id of the set
         const handle& publicId() const { return mPublicId; }
@@ -257,6 +261,9 @@ namespace mega {
         // get creation timestamp
         const m_time_t& cts() const { return mCTs; }
 
+        // get Set type
+        SetType type() const { return mType; }
+
         // set public id of the set (Set exported); UNDEF received when disabled
         void setPublicId(handle pid) { mPublicId = pid; }
 
@@ -268,6 +275,9 @@ namespace mega {
 
         // set creation timestamp
         void setCTs(m_time_t ts) { mCTs = ts; }
+
+        // set Set type
+        void setType(SetType t) { mType = t; }
 
         // replace internal parameters with the ones of 's', and mark any CH_XXX change
         bool updateWith(Set&& s);
@@ -303,10 +313,19 @@ namespace mega {
             CH_SIZE
         };
 
+        enum : SetType
+        {
+            TYPE_ALBUM = 0,
+            TYPE_PLAYLIST,
+
+            TYPE_SIZE
+        };
+
     private:
         handle mPublicId = UNDEF;
         handle mUser = UNDEF;
         m_time_t mCTs = 0; // creation timestamp
+        SetType mType = TYPE_ALBUM;
 
         std::bitset<CH_SIZE> mChanges;
 

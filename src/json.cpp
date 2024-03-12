@@ -501,11 +501,9 @@ const char* JSON::getvalue()
     return r;
 }
 
-fsfp_t JSON::getfsfp()
+std::uint64_t JSON::getfsfp()
 {
-    fsfp_t fsfp;
-    fsfp.id = gethandle(sizeof(fsfp_t));
-    return fsfp;
+    return gethandle(sizeof(std::uint64_t));
 }
 
 uint64_t JSON::getuint64()
@@ -524,7 +522,7 @@ uint64_t JSON::getuint64()
         ptr++;
     }
 
-    if (!std::isdigit(*ptr))
+    if (!is_digit(*ptr))
     {
         LOG_err << "Parse error (getuint64)";
         return std::numeric_limits<uint64_t>::max();
@@ -784,7 +782,7 @@ string JSON::stripWhitespace(const char* text)
             result.append(temp);
             result.push_back('"');
         }
-        else if (std::isspace(*reader.pos))
+        else if (is_space(*reader.pos))
             ++reader.pos;
         else
             result.push_back(*reader.pos++);
@@ -864,7 +862,7 @@ void JSONWriter::arg_B64(const char* n, const string& data)
     arg(n, (const byte*)data.data(), int(data.size()));
 }
 
-void JSONWriter::arg_fsfp(const char* n, fsfp_t fp)
+void JSONWriter::arg_fsfp(const char* n, std::uint64_t fp)
 {
     arg(n, (const byte*)&fp, int(sizeof(fp)));
 }
@@ -1099,6 +1097,20 @@ m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)>
     if (hasFailed() || hasFinished())
     {
         return 0;
+    }
+
+    if (filters)
+    {
+        auto filterit = filters->find("<");
+        if (filterit != filters->end())
+        {
+            JSON jsonData("");
+            auto& callback = filterit->second;
+            if (!callback(&jsonData))
+            {
+                LOG_err << "Error starting the processing of a chunk";
+            }
+        }
     }
 
     mPos = data;
@@ -1389,6 +1401,11 @@ m_off_t JSONSplitter::processChunk(std::map<string, std::function<bool (JSON *)>
         }
     }
 
+    if (filters && !chunkProcessingFinishedSuccessfully(filters))
+    {
+        LOG_err << "Error finishing the processing of a chunk";
+    }
+
     mProcessedBytes = mPos - mLastPos;
     m_off_t consumedBytes = mLastPos - data;
 
@@ -1462,9 +1479,29 @@ void JSONSplitter::parseError(std::map<string, std::function<bool (JSON *)> > *f
             auto& callback = filterit->second;
             callback(&jsonData);
         }
+
+        if (!chunkProcessingFinishedSuccessfully(filters))
+        {
+            LOG_err << "Error finishing the processing of a chunk after error";
+        }
     }
     mFailed = true;
     assert(false);
+}
+
+bool JSONSplitter::chunkProcessingFinishedSuccessfully(std::map<std::string, std::function<bool(JSON*)>>* filters)
+{
+    auto filterit = filters->find(">");
+    if (filterit != filters->end())
+    {
+        JSON jsonData("");
+        auto& callback = filterit->second;
+        if (!callback(&jsonData))
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 } // namespace

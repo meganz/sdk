@@ -101,14 +101,14 @@ try
             const fs::path vcpkgTripletDir = vcpkgDir / "triplets";
             const fs::path tripletFile = triplet + ".cmake";
 
-            if (fs::exists(sdkRootPath / "contrib" / "cmake" / "vcpkg_extra_triplets" / tripletFile))
+            if (fs::exists(sdkRootPath / "contrib" / "cmake" / "vcpkg_overlay_triplets" / tripletFile))
             {
                 if (fs::exists(vcpkgTripletDir / tripletFile))
                 {
                     fs::remove(vcpkgTripletDir / tripletFile);
                 }
                 cout << "Copying triplet from SDK: " << triplet << endl;
-                fs::copy(sdkRootPath / "contrib" / "cmake" / "vcpkg_extra_triplets" / tripletFile, vcpkgTripletDir / tripletFile);
+                fs::copy(sdkRootPath / "contrib" / "cmake" / "vcpkg_overlay_triplets" / tripletFile, vcpkgTripletDir / tripletFile);
             }
             else if (!fs::exists(vcpkgTripletDir / tripletFile) && !fs::exists(vcpkgTripletDir / "community" / tripletFile))
             {

@@ -21,11 +21,13 @@ endif()
 add_definitions(-DCMS_NO_REGISTER_KEYWORD -DUNICODE -DNOMINMAX -DUSE_LIBJPEG_TURBO -DPNG_PREFIX  -DUSE_SYSTEM_ICUUC -DUSE_SYSTEM_LIBJPEG -DUSE_SYSTEM_LCMS2 -DUSE_SYSTEM_ZLIB -DUSE_SYSTEM_LIBOPENJPEG2 -DOPJ_STATIC -DDEFINE_PS_TABLES)
 # no skia, V8, or xfa (xfa seems to require V8 anyway)
 
-find_package(OpenJPEG      REQUIRED)
-find_package(lcms          REQUIRED)
-find_package(JPEG          REQUIRED)
-find_package(BZip2         REQUIRED)
-find_package(libpng        REQUIRED)
+find_package(OpenJPEG          REQUIRED)
+find_package(lcms              REQUIRED)
+find_package(JPEG              REQUIRED)
+find_package(BZip2             REQUIRED)
+find_package(libpng            REQUIRED)
+find_package(Freetype          REQUIRED)
+find_package(ICU COMPONENTS uc REQUIRED)
 
 include_directories(
     ${JPEG_INCLUDE_DIRS}
@@ -612,6 +614,14 @@ target_include_directories(pdfium
         $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/public> # For the top level projects.
         $<INSTALL_INTERFACE:include> # For the external projects.
     )
+
+target_link_libraries(pdfium
+    openjp2
+    JPEG::JPEG
+    ${BZIP2_LIBRARIES}
+    Freetype::Freetype
+    ICU::uc
+)
 
 file(GLOB_RECURSE PUB_HEADERS "public/*.h" "public/cpp/*.h")
 

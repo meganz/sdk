@@ -80,11 +80,11 @@ public:
     bool getChildrenFromType(NodeHandle parentHandle, nodetype_t nodeType, std::vector<std::pair<NodeHandle, NodeSerialized>>& children, mega::CancelToken cancelFlag) override;
     uint64_t getNumberOfChildren(NodeHandle parentHandle) override;
     // If a cancelFlag is passed, it must be kept alive until this method returns.
-    bool getChildren(const mega::NodeSearchFilter& filter, std::vector<std::pair<NodeHandle, NodeSerialized>>& children, CancelToken cancelFlag) override;
-    bool searchNodes(const mega::NodeSearchFilter& filter, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag) override;
+    bool getChildren(const mega::NodeSearchFilter& filter, int order, std::vector<std::pair<NodeHandle, NodeSerialized>>& children, CancelToken cancelFlag, const NodeSearchPage& page) override;
+    bool searchNodes(const mega::NodeSearchFilter& filter, int order, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag, const NodeSearchPage& page) override;
 
     bool getNodesByFingerprint(const std::string& fingerprint, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
-    bool getNodeByFingerprint(const std::string& fingerprint, mega::NodeSerialized& node) override;
+    bool getNodeByFingerprint(const std::string& fingerprint, mega::NodeSerialized& node, NodeHandle& handle) override;
     bool getRecentNodes(unsigned maxcount, m_time_t since, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
     bool getFavouritesHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) override;
     bool childNodeByNameType(NodeHandle parentHanlde, const std::string& name, nodetype_t nodeType, std::pair<NodeHandle, NodeSerialized>& node) override;
@@ -119,6 +119,10 @@ public:
     // It checks if received mimetype is the same as extension extracted from file name
     static void userIsMimetype(sqlite3_context* context, int argc, sqlite3_value** argv);
 
+    // Method called when query uses 'getmimetype'
+    // Gets the mimetype corresponding to the file extension
+    static void userGetMimetype(sqlite3_context* context, int argc, sqlite3_value** argv);
+
 private:
     // Iterate over a SQL query row by row and fill the map
     // Allow at least the following containers:
@@ -135,8 +139,8 @@ private:
     sqlite3_stmt* mStmtChildrenFromType = nullptr;
 
     sqlite3_stmt* mStmtNumChildren = nullptr;
-    sqlite3_stmt* mStmtGetChildren = nullptr;
-    sqlite3_stmt* mStmtSearchNodes = nullptr;
+    std::map<size_t, sqlite3_stmt*> mStmtGetChildren;
+    std::map<size_t, sqlite3_stmt*> mStmtSearchNodes;
 
     sqlite3_stmt* mStmtNodesByFp = nullptr;
     sqlite3_stmt* mStmtNodeByFp = nullptr;
@@ -182,6 +186,39 @@ private:
     bool openDBAndCreateStatecache(sqlite3 **db, FileSystemAccess& fsAccess, const string& name, mega::LocalPath &dbPath, const int flags);
     bool renameDBFiles(mega::FileSystemAccess& fsAccess, mega::LocalPath& legacyPath, mega::LocalPath& dbPath);
     void removeDBFiles(mega::FileSystemAccess& fsAccess, mega::LocalPath& dbPath);
+
+    // functionality for adding columns to existing table, and copying data to them
+    struct NewColumn
+    {
+        NewColumn(string&& n, string&& t, int id) : name(std::move(n)), type(std::move(t)), migrationId(id) {}
+
+        string name;
+        string type;
+        int migrationId;
+    };
+    bool addAndPopulateColumns(sqlite3* db, vector<NewColumn>&& newCols);
+    bool stripExistingColumns(sqlite3* db, vector<NewColumn>& cols);
+    bool addColumn(sqlite3* db, const string& name, const string& type);
+    bool migrateDataToColumns(sqlite3* db, vector<NewColumn>&& cols);
+};
+
+class OrderByClause
+{
+public:
+    static std::string get(int order, int sqlParamIndex);
+    static size_t getId(int order);
+
+private:
+    enum {
+        DEFAULT_ASC = 1, DEFAULT_DESC,
+        SIZE_ASC, SIZE_DESC,
+        CTIME_ASC, CTIME_DESC,
+        MTIME_ASC, MTIME_DESC,
+        LABEL_ASC = 17, LABEL_DESC,
+        FAV_ASC, FAV_DESC
+    };
+
+    static std::bitset<3> getDescendingDirs(int order);
 };
 
 } // namespace

@@ -631,7 +631,7 @@ void UserAlert::DeletedShare::updateEmail(MegaClient* mc)
 {
     Base::updateEmail(mc);
 
-    if (Node* n = mc->nodebyhandle(folderHandle))
+    if (std::shared_ptr<Node> n = mc->nodebyhandle(folderHandle))
     {
         folderPath = n->displaypath();
         folderName = n->displayname();
@@ -1227,7 +1227,7 @@ void UserAlert::Takedown::text(string& header, string& title, MegaClient* mc)
     const char* typestring = "node";
     string name;
 
-    Node* node = mc->nodebyhandle(nodeHandle);
+    std::shared_ptr<Node> node = mc->nodebyhandle(nodeHandle);
     if (node)
     {
         if (node->type == FOLDERNODE)
@@ -2097,7 +2097,7 @@ void UserAlerts::noteSharedNode(handle user, int type, m_time_t ts, Node* n, nam
         if (!ISUNDEF(ignoreNodesUnderShare) && (alertType != UserAlert::type_d))
         {
             // don't make alerts on files/folders already in the new share
-            for (Node* p = n; p != NULL; p = p->parent)
+            for (Node* p = n; p != NULL; p = p->parent.get())
             {
                 if (p->nodehandle == ignoreNodesUnderShare)
                     return;

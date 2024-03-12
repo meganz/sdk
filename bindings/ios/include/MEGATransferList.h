@@ -21,6 +21,8 @@
 #import <Foundation/Foundation.h>
 #import "MEGATransfer.h"
 
+NS_ASSUME_NONNULL_BEGIN
+
 /**
  * @brief List of MEGATransfer objects.
  *
@@ -33,7 +35,7 @@
 /**
  * @brief The number of MEGATransfer objects in the list.
  */
-@property (readonly, nonatomic) NSNumber *size;
+@property (readonly, nonatomic) NSInteger size;
 
 /**
  * @brief The MEGATransfer at the position index in the MEGATransferList.
@@ -43,6 +45,8 @@
  * @param index Position of the MEGATransfer that we want to get for the list.
  * @return MEGATransfer at the position index in the list.
  */
-- (MEGATransfer *)transferAtIndex:(NSInteger)index;
+- (nullable MEGATransfer *)transferAtIndex:(NSInteger)index;
+
+NS_ASSUME_NONNULL_END
 
 @end

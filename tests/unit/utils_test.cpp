@@ -29,7 +29,7 @@
 #include <mega/db.h>
 #include <mega/db/sqlite.h>
 #include <mega/json.h>
-#include "../integration/process.h"
+#include <mega/process.h>
 
 TEST(utils, hashCombine_integer)
 {
@@ -68,6 +68,35 @@ TEST(utils, readLines)
     ASSERT_TRUE(::mega::readLines(input, output));
     ASSERT_EQ(output.size(), expected.size());
     ASSERT_TRUE(std::equal(expected.begin(), expected.end(), output.begin()));
+}
+
+TEST(Filesystem, EscapesControlCharactersIfNecessary)
+{
+    using namespace mega;
+
+    FSACCESS_CLASS fsAccess;
+
+    // Cloud should never receive unescaped control characters.
+    // If it does, make sure we escape accordingly.
+    const string input("\0\r\n", 3);
+
+    // Most restrictive escaping policy.
+    {
+        string name = input;
+
+        fsAccess.escapefsincompatible(&name, FS_UNKNOWN);
+
+        ASSERT_EQ(name, "%00%0d%0a");
+    }
+
+    // Least restrictive escaping policy.
+    {
+        string name = input;
+
+        fsAccess.escapefsincompatible(&name, FS_EXT);
+
+        ASSERT_EQ(name, "%00\r\n");
+    }
 }
 
 TEST(Filesystem, EscapesReservedCharacters)

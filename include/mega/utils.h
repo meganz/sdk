@@ -45,6 +45,8 @@ namespace mega {
 
 std::string toNodeHandle(handle nodeHandle);
 std::string toNodeHandle(NodeHandle nodeHandle);
+NodeHandle toNodeHandle(const byte* data);  // consider moving functionality to NodeHandle
+NodeHandle toNodeHandle(const std::string* data);
 std::string toHandle(handle h);
 std::pair<bool, TypeOfLink> toTypeOfLink (nodetype_t type);
 #define LOG_NODEHANDLE(x) toNodeHandle(x)
@@ -601,6 +603,7 @@ struct CacheableWriter
     void serializecstr(const char* field, bool storeNull);  // may store the '\0' also for backward compatibility. Only use for utf8!  (std::string storing double byte chars will only store 1 byte)
     void serializepstr(const string* field);  // uses string size() not strlen
     void serializestring(const string& field);
+    void serializestring_u32(const string& field); // use uint32_t for the size field
     void serializecompressedu64(uint64_t field);
     void serializecompressedi64(int64_t field) { serializecompressedu64(static_cast<uint64_t>(field)); }
 
@@ -615,7 +618,6 @@ struct CacheableWriter
     void serializehandle(handle field);
     void serializenodehandle(handle field);
     void serializeNodeHandle(NodeHandle field);
-    void serializefsfp(fsfp_t field);
     void serializebool(bool field);
     void serializebyte(byte field);
     void serializedouble(double field);
@@ -637,6 +639,7 @@ struct CacheableReader
     bool unserializebinary(byte* data, size_t len);
     bool unserializecstr(string& s, bool removeNull); // set removeNull if this field stores the terminating '\0' at the end
     bool unserializestring(string& s);
+    bool unserializestring_u32(string& s);
     bool unserializecompressedu64(uint64_t& field);
     bool unserializecompressedi64(int64_t& field) { return unserializecompressedu64(reinterpret_cast<uint64_t&>(field)); }
 
@@ -653,7 +656,6 @@ struct CacheableReader
     bool unserializehandle(handle& s);
     bool unserializenodehandle(handle& s);
     bool unserializeNodeHandle(NodeHandle& s);
-    bool unserializefsfp(fsfp_t& s);
     bool unserializebool(bool& s);
     bool unserializechunkmacs(chunkmac_map& m);
     bool unserializefingerprint(FileFingerprint& fp);
@@ -1070,6 +1072,15 @@ string connDirectionToStr(direction_t directionType);
 
 // Translate retry reason into a human-friendly string.
 const char* toString(retryreason_t reason);
+
+
+// Wrapper functions for std::isspace and std::isdigit
+// Not considering EOF values
+bool is_space(unsigned int ch);
+bool is_digit(unsigned int ch);
+
+// Get the current process ID
+unsigned long getCurrentPid();
 
 } // namespace mega
 

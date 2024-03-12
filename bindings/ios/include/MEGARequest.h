@@ -35,6 +35,9 @@
 #import "MEGASet.h"
 #import "MEGASetElement.h"
 #import "MEGAVPNCredentials.h"
+#import "MEGANotificationList.h"
+
+NS_ASSUME_NONNULL_BEGIN
 
 typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeLogin,
@@ -214,6 +217,7 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypePutVPNCredentials,
     MEGARequestTypeDeleteVPNCredentials,
     MEGARequestTypeCheckVPNCredentials,
+    MEGARequestTypeGetNotifications,
     TotalOfRequestTypes
 };
 
@@ -256,7 +260,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * You don't have to free the returned pointer
  *
  */
-@property (readonly, nonatomic) NSString *requestString;
+@property (readonly, nonatomic, nullable) NSString *requestString;
 
 /**
  * @brief The handle of a node related to the request.
@@ -302,7 +306,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * - [MEGASdk getPaymentIdForProductHandle:] - Returns the payment link
  *
  */
-@property (readonly, nonatomic) NSString *link;
+@property (readonly, nonatomic, nullable) NSString *link;
 
 /**
  * @brief The handle of a parent node related to the request.
@@ -323,7 +327,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * - [MEGASdk fastLoginWithSession:] - Returns session key used to access the account
  *
  */
-@property (readonly, nonatomic) NSString *sessionKey;
+@property (readonly, nonatomic, nullable) NSString *sessionKey;
 
 /**
  * @brief A name related to the request.
@@ -339,7 +343,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * - [MEGASdk confirmAccountWithLink:password:] - Returns the name of the user
  *
  */
-@property (readonly, nonatomic) NSString *name;
+@property (readonly, nonatomic, nullable) NSString *name;
 
 /**
  * @brief An email related to the request.
@@ -360,7 +364,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * - [MEGASdk confirmAccountWithLink:password:] - Returns the name of the user
  *
  */
-@property (readonly, nonatomic) NSString *email;
+@property (readonly, nonatomic, nullable) NSString *email;
 
 /**
  * @brief A password related to the request.
@@ -373,7 +377,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * - [MEGASdk changePassword:newPassword:]  - Returns the old password of the account (first parameter)
  *
  */
-@property (readonly, nonatomic) NSString *password;
+@property (readonly, nonatomic, nullable) NSString *password;
 
 /**
  * @brief A new password related to the request.
@@ -382,7 +386,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * - [MEGASdk changePassword:newPassword:]  - Returns the old password of the account (first parameter)
  *
  */
-@property (readonly, nonatomic) NSString *newPassword;
+@property (readonly, nonatomic, nullable) NSString *newPassword;
 
 /**
  * @brief An access level related to the request.
@@ -407,7 +411,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * - [MEGASdk setAvatarUserWithSourceFilePath:] - Returns the source path for the avatar
  *
  */
-@property (readonly, nonatomic) NSString *file;
+@property (readonly, nonatomic, nullable) NSString *file;
 
 /**
  * @brief Number of times that a request has temporarily failed.
@@ -423,7 +427,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * @return Public node related to the request
  *
  */
-@property (readonly, nonatomic) MEGANode *publicNode;
+@property (readonly, nonatomic, nullable) MEGANode *publicNode;
 
 /**
  * @brief The type of parameter related to the request.
@@ -445,7 +449,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * - [MEGASdk reportDebugEventWithText:] - Returns the debug message
  *
  */
-@property (readonly, nonatomic) NSString *text;
+@property (readonly, nonatomic, nullable) NSString *text;
 
 /**
  * @brief Number related to this request
@@ -455,7 +459,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * - [MEGASdk submitFeedbackWithRating:comment:] - Returns the rating for the app
  *
  */
-@property (readonly, nonatomic) NSNumber *number;
+@property (readonly, nonatomic) long long number;
 
 /**
  * @brief A flag related to the request.
@@ -470,12 +474,12 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
 /**
  * @brief Number of transferred bytes during the request.
  */
-@property (readonly, nonatomic) NSNumber *transferredBytes;
+@property (readonly, nonatomic) long long transferredBytes;
 
 /**
  * @brief Number of bytes that the SDK will have to transfer to finish the request.
  */
-@property (readonly, nonatomic) NSNumber *totalBytes;
+@property (readonly, nonatomic) long long totalBytes;
 
 /**
  * @brief Details related to the MEGA account.
@@ -485,7 +489,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * - [MEGASdk getAccountDetails] - Details of the MEGA account
  *
  */
-@property (readonly, nonatomic) MEGAAccountDetails *megaAccountDetails;
+@property (readonly, nonatomic, nullable) MEGAAccountDetails *megaAccountDetails;
 
 /**
  * @brief Available pricing plans to upgrade a MEGA account.
@@ -495,7 +499,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * - [MEGASdk getPricing] - Returns the available pricing plans
  *
  */
-@property (readonly, nonatomic) MEGAPricing *pricing;
+@property (readonly, nonatomic, nullable) MEGAPricing *pricing;
 
 /**
  * @brief Currency data related to prices
@@ -504,7 +508,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * error code is MEGAErrorTypeApiOk:
  * - [MEGASdk getPricing] - Returns the currency data related to prices
  */
-@property (readonly, nonatomic) MEGACurrency *currency;
+@property (readonly, nonatomic, nullable) MEGACurrency *currency;
 
 /**
  * @brief Details related to the MEGA Achievements of this account
@@ -514,7 +518,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * - [MEGASdk getMegaAchievements] - Details of the MEGA Achievements of this account
  *
  */
-@property (readonly, nonatomic) MEGAAchievementsDetails *megaAchievementsDetails;
+@property (readonly, nonatomic, nullable) MEGAAchievementsDetails *megaAchievementsDetails;
 
 /**
  * @brief Get details about timezones and the current default
@@ -527,7 +531,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  *
  * @return Details about timezones and the current default
  */
-@property (readonly, nonatomic) MEGATimeZoneDetails *megaTimeZoneDetails;
+@property (readonly, nonatomic, nullable) MEGATimeZoneDetails *megaTimeZoneDetails;
 
 /**
  * @brief Information about the contents of a folder
@@ -537,7 +541,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * - [MEGASdk getFolderInfoForNode:] - Returns the information related to the folder
  *
  */
-@property (readonly, nonatomic) MEGAFolderInfo *megaFolderInfo;
+@property (readonly, nonatomic, nullable) MEGAFolderInfo *megaFolderInfo;
 
 /**
  * @brief Returns settings for push notifications
@@ -546,7 +550,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * error code is MEGAErrorTypeApiOk:
  * - [MEGASdk getPushNotificationSettingsWithDelegate] - Returns settings for push notifications
 */
-@property (readonly, nonatomic) MEGAPushNotificationSettings *megaPushNotificationSettings;
+@property (readonly, nonatomic, nullable) MEGAPushNotificationSettings *megaPushNotificationSettings;
 
 /**
  * @brief Tag of a transfer related to the request.
@@ -565,7 +569,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
 /**
  * @brief Returns a dictionary of mega string list.
  */
-@property (readonly, nonatomic) NSDictionary<NSString *, MEGAStringList*> *megaStringListDictionary;
+@property (readonly, nonatomic, nullable) NSDictionary<NSString *, MEGAStringList*> *megaStringListDictionary;
 
 /**
  * @brief Returns the attribute values as dictionary with key and value as string.
@@ -575,13 +579,13 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  *
  * @return Dictionary containing the key-value pairs of the attribute as string.
  */
-@property (readonly, nonatomic) NSDictionary<NSString *, NSString*> *megaStringDictionary;
+@property (readonly, nonatomic, nullable) NSDictionary<NSString *, NSString*> *megaStringDictionary;
 
 /**
  * @brief Gets the string table response from a request mapped into a collection of NSArray of NSStrings.
  *
  */
-@property (readonly, nonatomic) NSArray<NSArray<NSString *> *> *stringTableArray;
+@property (readonly, nonatomic, nullable) NSArray<NSArray<NSString *> *> *stringTableArray;
 
 
 /**
@@ -591,13 +595,13 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * - [MEGASdk getBanners:] - Obtains the user's banner in MEGA.
  *
  */
-@property (readonly, nonatomic) MEGABannerList *bannerList;
+@property (readonly, nonatomic, nullable) MEGABannerList *bannerList;
 
 /**
  * @brief Array of MEGAHandle (NSNumber)
  *
  */
-@property (readonly, nonatomic) NSArray<NSNumber *> *megaHandleArray;
+@property (readonly, nonatomic, nullable) NSArray<NSNumber *> *megaHandleArray;
 
 /// Array of recent actions buckets
 /// 
@@ -607,7 +611,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
 /// 
 /// - [MEGASdk getRecentActionsAsyncSinceDays:maxNodes:]
 /// 
-@property (readonly, nonatomic) NSArray<MEGARecentActionBucket *> *recentActionsBuckets;
+@property (readonly, nonatomic, nullable) NSArray<MEGARecentActionBucket *> *recentActionsBuckets;
 
 /// Array of all registered backups of the current use
 ///
@@ -615,7 +619,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
 ///
 /// - [MEGASdk getBackupInfo:]
 ///
-@property (readonly, nonatomic) NSArray<MEGABackupInfo *> *backupInfoList;
+@property (readonly, nonatomic, nullable) NSArray<MEGABackupInfo *> *backupInfoList;
 
 /**
  * @brief Returns a MEGASet explicitly fetched from online API (typically using 'aft' command)
@@ -625,7 +629,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  *
  * @return requested MEGASet or nil if not found
  */
-@property (readonly, nonatomic) MEGASet *set;
+@property (readonly, nonatomic, nullable) MEGASet *set;
 
 /**
  * @brief Returns the list of elements, part of the MEGASetElement explicitly fetched from online API (typically using 'aft' command)
@@ -635,7 +639,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  *
  * @return list of elements in the requested MEGASet, or nil if Set not found
  */
-@property (readonly, nonatomic) NSArray<MEGASetElement *> *elementsInSet;
+@property (readonly, nonatomic, nullable) NSArray<MEGASetElement *> *elementsInSet;
 
 /**
  * @brief Returns the string list
@@ -645,7 +649,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  *
  *  @return an object of MEGAStringList
  */
-@property (readonly, nonatomic) MEGAStringList *megaStringList;
+@property (readonly, nonatomic, nullable) MEGAStringList *megaStringList;
 
 /**
  * @brief Container class to store and load Mega VPN credentials data.
@@ -658,19 +662,18 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  *
  *  @return an object of MEGAVPNCredentials
  */
-@property (readonly, nonatomic) MEGAVPNCredentials *megaVpnCredentials;
+@property (readonly, nonatomic, nullable) MEGAVPNCredentials *megaVpnCredentials;
 
 /**
- * @brief Creates a copy of this MEGARequest object
+ * @brief Get list of available notifications for Notification Center
  *
- * The resulting object is fully independent of the source MEGARequest,
- * it contains a copy of all internal attributes, so it will be valid after
- * the original object is deleted.
+ * This value is valid only for the following requests:
+ * - [MEGASdk getNotificationsWithDelegate]
  *
- * You are the owner of the returned object
- *
- * @return Copy of the MEGARequest object
+ * @return an object of MEGANotificationList or nil if not found
  */
-- (instancetype)clone;
+@property (readonly, nonatomic, nullable) MEGANotificationList *megaNotifications;
 
 @end
+
+NS_ASSUME_NONNULL_END

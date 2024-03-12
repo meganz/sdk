@@ -40,6 +40,11 @@ struct attr_map : map<nameid, string>
     {
         m.swap(*this);
     }
+
+    bool contains(nameid k) const
+    {
+        return this->find(k) != this->end();
+    }
 };
 
 struct MEGA_API AttrMap
@@ -60,6 +65,9 @@ struct MEGA_API AttrMap
 
     // export as JSON string
     void getjson(string*) const;
+
+    // import from JSON string
+    void fromjson(const char* buf);
 
     // export as raw binary serialize
     void serialize(string*) const;

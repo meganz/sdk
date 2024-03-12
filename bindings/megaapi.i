@@ -362,6 +362,7 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaEvent::copy;
 %newobject mega::MegaSync::copy;
 %newobject mega::MegaSyncStats::copy;
+%newobject mega::MegaRecentActionBucket::copy;
 %newobject mega::MegaContactRequest::copy;
 %newobject mega::MegaContactRequestList::copy;
 %newobject mega::MegaStringList::copy;
@@ -409,6 +410,7 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaApi::getFingerprint;
 %newobject mega::MegaApi::getNodeByFingerprint;
 %newobject mega::MegaApi::getNodesByFingerprint;
+%newobject mega::MegaApi::getNodesByOriginalFingerprint;
 %newobject mega::MegaApi::getExportableNodeByFingerprint;
 %newobject mega::MegaApi::getCRC;
 %newobject mega::MegaApi::getNodeByCRC;
@@ -434,8 +436,11 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 
 %newobject mega::MegaApi::getMimeType;
 
+%newobject mega::MegaNode::PasswordNodeData::createInstance;
+
 typedef long long time_t;
 typedef long long uint64_t;
 typedef long long int64_t;
+typedef long long uint32_t;
 
 %include "megaapi.h"

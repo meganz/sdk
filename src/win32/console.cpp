@@ -332,7 +332,7 @@ void ConsoleModel::autoComplete(bool forwards, unsigned consoleWidth)
 
 static bool isWordBoundary(size_t i, const std::wstring s)
 {
-    return i == 0 || i >= s.size() || isspace(s[i - 1]) && !isspace(s[i + 1]);
+    return i == 0 || i >= s.size() || is_space(s[i - 1]) && !is_space(s[i + 1]);
 }
 
 int ConsoleModel::detectWordBoundary(int start, bool forward)

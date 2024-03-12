@@ -32,6 +32,7 @@
 #include "megafs.h"
 
 #include <cassert>
+#include <tuple>
 
 #ifdef TARGET_OS_MAC
 #include "mega/osx/osxutils.h"
@@ -48,10 +49,10 @@ FSLogging FSLogging::noLogging(eNoLogging);
 FSLogging FSLogging::logOnError(eLogOnError);
 FSLogging FSLogging::logExceptFileNotFound(eLogExceptFileNotFound);
 
-bool FSLogging::doLog(int os_errorcode, FileAccess& fsaccess)
+bool FSLogging::doLog(int os_errorcode)
 {
     return setting == eLogOnError ||
-          (setting == eLogExceptFileNotFound && !fsaccess.isErrorFileNotFound(os_errorcode));
+          (setting == eLogExceptFileNotFound && !isFileNotFound(os_errorcode));
 }
 
 namespace detail {
@@ -222,6 +223,136 @@ int compareUtf(UnicodeCodepointIterator<CharT> first1, bool unescaping1,
 
 } // detail
 
+fsfp_t::fsfp_t(std::uint64_t fingerprint,
+               std::string uuid)
+  : mFingerprint(fingerprint)
+  , mUUID(std::move(uuid))
+{
+}
+
+fsfp_t::operator bool() const
+{
+    return mFingerprint;
+}
+
+bool fsfp_t::operator!() const
+{
+    return !mFingerprint;
+}
+
+bool fsfp_t::operator==(const fsfp_t& rhs) const
+{
+    return mFingerprint == rhs.mFingerprint
+           && mUUID == rhs.mUUID;
+}
+
+bool fsfp_t::operator<(const fsfp_t& rhs) const
+{
+    return std::tie(mFingerprint, mUUID)
+           < std::tie(rhs.mFingerprint, rhs.mUUID);
+}
+
+bool fsfp_t::operator!=(const fsfp_t& rhs) const
+{
+    return !operator==(rhs);
+}
+
+bool fsfp_t::equivalent(const fsfp_t& rhs) const
+{
+    return mFingerprint == rhs.mFingerprint
+           && (mUUID.empty() || mUUID == rhs.mUUID);
+}
+
+std::uint64_t fsfp_t::fingerprint() const
+{
+    return mFingerprint;
+}
+
+void fsfp_t::reset()
+{
+    operator=(fsfp_t());
+}
+
+const std::string& fsfp_t::uuid() const
+{
+    return mUUID;
+}
+
+std::string fsfp_t::toString() const
+{
+    std::ostringstream ostream;
+
+    ostream << "(fingerprint: "
+            << mFingerprint
+            << ", uuid: "
+            << (mUUID.empty() ? "undefined" : mUUID.c_str())
+            << ")";
+
+    return ostream.str();
+}
+
+bool fsfp_tracker_t::Less::operator()(const fsfp_t* lhs,
+                                      const fsfp_t* rhs) const
+{
+    return lhs != rhs && *lhs < *rhs;
+}
+
+fsfp_ptr_t fsfp_tracker_t::add(const fsfp_t& id)
+{
+    // Do we already know about this ID?
+    auto i = mFingerprints.find(&id);
+
+    // IDs already tracked.
+    if (i != mFingerprints.end())
+    {
+        // Increment reference count.
+        ++i->second.second;
+
+        // Return reference to caller.
+        return i->second.first;
+    }
+
+    // Instantiate ID.
+    auto ptr = std::make_shared<fsfp_t>(id);
+
+    // Add ID to map.
+    mFingerprints.emplace(std::piecewise_construct,
+                        std::forward_as_tuple(ptr.get()),
+                        std::forward_as_tuple(ptr, 1));
+
+    // Return reference to caller.
+    return ptr;
+}
+
+fsfp_ptr_t fsfp_tracker_t::get(const fsfp_t& id) const
+{
+    // Do we know about this ID?
+    auto i = mFingerprints.find(&id);
+
+    // Don't know about this ID.
+    if (i == mFingerprints.end())
+        return nullptr;
+
+    // Return reference to caller.
+    return i->second.first;
+}
+
+bool fsfp_tracker_t::remove(const fsfp_t& id)
+{
+    // Do we know about this ID?
+    auto i = mFingerprints.find(&id);
+
+    // Don't know about this ID.
+    if (i == mFingerprints.end())
+        return false;
+
+    // Remove ID if reference count drops to zero.
+    if (!--i->second.second)
+        mFingerprints.erase(i);
+
+    // Let caller know we removed an ID reference.
+    return true;
+}
 
 int compareUtf(const string& s1, bool unescaping1, const string& s2, bool unescaping2, bool caseInsensitive)
 {
@@ -528,8 +659,9 @@ void LocalPath::normalizeAbsolute()
             localpath.substr(0,4) != L"\\\\.\\")
         {
             // However, it turns out, \\?\UNC\<server>\etc  can allow us to operate on paths with trailing spaces and other things Explorer doesn't like, which just \\server\ does not
-            assert(localpath.substr(0,8) != L"\\\\?\\UNC\\");
-            localpath.insert(2, L"?\\UNC\\");
+            {
+                localpath.insert(2, L"?\\UNC\\");
+            }
         }
     }
     else
@@ -597,10 +729,6 @@ bool LocalPath::invariant() const
 }
 
 FileSystemAccess::FileSystemAccess()
-#ifdef ENABLE_SYNC
-    : notifyerr(false)
-    , notifyfailed(false)
-#endif
 {
 }
 
@@ -714,10 +842,38 @@ FileSystemType FileSystemAccess::getlocalfstype(const LocalPath& path) const
     return FS_UNKNOWN;
 }
 
-// Group different filesystems types in families, according to its restricted charsets
-bool FileSystemAccess::islocalfscompatible(unsigned char c, bool, FileSystemType) const
+bool FileSystemAccess::islocalfscompatible(const int character, const FileSystemType type) const
 {
-    return c >= ' ' && !strchr("\\/:?\"<>|*", c);
+    // NUL is always escaped.
+    if (!character)
+    {
+        return false;
+    }
+
+    // it turns out that escaping the escape % character doesn't interact well with the
+    // existing sync code, should an older megasync etc be running in the same account
+    // so let's leave this aspect the same as the old system, for now at least.
+
+    // Filesystem-specific policies.
+    switch (type)
+    {
+    case FS_APFS:
+    case FS_HFS:
+        return character != ':' && character != '/';
+    case FS_EXT:
+    case FS_F2FS:
+    case FS_XFS:
+        return character != '/';
+    case FS_EXFAT:
+    case FS_FAT32:
+    case FS_FUSE:
+    case FS_NTFS:
+    case FS_SDCARDFS:
+    case FS_LIFS:
+    case FS_UNKNOWN:
+    default:
+        return !(std::iscntrl(character) || strchr("\\/:?\"<>|*", character));
+    }
 }
 
 // replace characters that are not allowed in local fs names with a %xx escape sequence
@@ -743,7 +899,7 @@ void FileSystemAccess::escapefsincompatible(string* name, FileSystemType fileSys
         c = static_cast<unsigned char>((*name)[i]);
         utf8seqsize = Utils::utf8SequenceSize(c);
         assert(utf8seqsize);
-        if (utf8seqsize == 1 && !islocalfscompatible(c, true, fileSystemType))
+        if (utf8seqsize == 1 && !islocalfscompatible(c, fileSystemType))
         {
             snprintf(buf, sizeof(buf), "%%%02x", c);
             name->replace(i, 1, buf);
@@ -856,16 +1012,14 @@ bool FileSystemAccess::fileExistsAt(const LocalPath& path)
 #ifdef ENABLE_SYNC
 
 // default DirNotify: no notification available
-DirNotify::DirNotify(const LocalPath& clocalbasepath, const LocalPath& cignore, Sync* s)
+DirNotify::DirNotify(const LocalPath& rootPath)
 {
-    assert(!clocalbasepath.empty());
-    localbasepath = clocalbasepath;
-    ignore = cignore;
+    assert(!rootPath.empty());
+    localbasepath = rootPath;
 
     mFailed = 1;
     mFailReason = "Not initialized";
     mErrorCount = 0;
-    sync = s;
 }
 
 
@@ -888,36 +1042,23 @@ int DirNotify::getFailed(string& reason)
 
 bool DirNotify::empty()
 {
-    for (auto& q : notifyq)
-    {
-        if (!q.empty())
-        {
-            return false;
-        }
-    }
-
-    return true;
+    return fsEventq.empty();
 }
 
 // notify base LocalNode + relative path/filename
-void DirNotify::notify(notifyqueue queue, LocalNode* node, LocalPath&& path, bool immediate, bool recursive)
+void DirNotify::notify(NotificationDeque& q, LocalNode* l, Notification::ScanRequirement sr, LocalPath&& path, bool immediate)
 {
     // We may be executing on a thread here so we can't access the LocalNode data structures.  Queue everything, and
     // filter when the notifications are processed.  Also, queueing it here is faster than logging the decision anyway.
-    auto timestamp = immediate ? 0 : Waiter::ds;
 
-    notifyq[queue].pushBack(Notification(timestamp, std::move(path), node, recursive));
-
-#ifdef ENABLE_SYNC
-    sync->client->syncactivity |= queue == DIREVENTS || queue == EXTRA;
-#endif // ENABLE_SYNC
+    Notification n(immediate ? 0 : Waiter::ds, sr, std::move(path), l);
+    q.pushBack(std::move(n));
 }
 
-DirNotify* FileSystemAccess::newdirnotify(const LocalPath& localpath, const LocalPath& ignore, Waiter*, LocalNode* syncroot)
+DirNotify* FileSystemAccess::newdirnotify(LocalNode&, const LocalPath& rootPath, Waiter*)
 {
-    return new DirNotify(localpath, ignore, syncroot->sync);
+    return new DirNotify(rootPath);
 }
-
 #endif  // ENABLE_SYNC
 
 FileAccess::FileAccess(Waiter *waiter)
@@ -938,12 +1079,12 @@ bool FileAccess::fopen(const LocalPath& name, FSLogging fsl)
 {
     updatelocalname(name, true);
 
-    bool r = sysstat(&mtime, &size, FSLogging::noLogging);
-    if (!r && fsl.doLog(errorcode, *this))
+    fopenSucceeded = sysstat(&mtime, &size, FSLogging::noLogging);
+    if (!fopenSucceeded && fsl.doLog(errorcode))
     {
-        LOG_err << "Unable to FileAccess::fopen('" << name << "'): sysstat() failed: error code: " << errorcode << ": " << getErrorMessage(errorcode);
+        LOG_err << "Unable to FileAccess::fopen('" << name << "'): sysstat() failed: error code: " << errorcode << ": " << FileSystemAccess::getErrorMessage(errorcode);
     }
-    return r;
+    return fopenSucceeded;
 }
 
 bool FileAccess::isfile(const LocalPath& path)
@@ -971,10 +1112,10 @@ bool FileAccess::openf(FSLogging fsl)
     m_off_t curr_size;
     if (!sysstat(&curr_mtime, &curr_size, FSLogging::noLogging))
     {
-        if (fsl.doLog(errorcode, *this))
+        if (fsl.doLog(errorcode))
         {
             LOG_err << "Error opening file handle (sysstat) '"
-                << nonblocking_localname << "': errorcode " << errorcode << ": " << getErrorMessage(errorcode);
+                << nonblocking_localname << "': errorcode " << errorcode << ": " << FileSystemAccess::getErrorMessage(errorcode);
         }
         return false;
     }
@@ -988,10 +1129,10 @@ bool FileAccess::openf(FSLogging fsl)
     }
 
     bool r = sysopen(false, FSLogging::noLogging);
-    if (!r && fsl.doLog(errorcode, *this)) {
+    if (!r && fsl.doLog(errorcode)) {
         // file may have been deleted just now
         LOG_err << "Error opening file handle (sysopen) '"
-                << nonblocking_localname << "': errorcode " << errorcode << ": " << getErrorMessage(errorcode);
+                << nonblocking_localname << "': errorcode " << errorcode << ": " << FileSystemAccess::getErrorMessage(errorcode);
     }
     return r;
 }
@@ -1052,9 +1193,9 @@ bool FileAccess::asyncopenf(FSLogging fsl)
     m_off_t curr_size = 0;
     if (!sysstat(&curr_mtime, &curr_size, FSLogging::noLogging))
     {
-        if (fsl.doLog(errorcode, *this))
+        if (fsl.doLog(errorcode))
         {
-            LOG_err << "Error opening async file handle (sysstat): '" << nonblocking_localname << "': " << errorcode << ": " << getErrorMessage(errorcode);
+            LOG_err << "Error opening async file handle (sysstat): '" << nonblocking_localname << "': " << errorcode << ": " << FileSystemAccess::getErrorMessage(errorcode);
         }
         return false;
     }
@@ -1073,9 +1214,9 @@ bool FileAccess::asyncopenf(FSLogging fsl)
     {
         isAsyncOpened = true;
     }
-    else if (fsl.doLog(errorcode, *this))
+    else if (fsl.doLog(errorcode))
     {
-        LOG_err << "Error opening async file handle (sysopen): '" << nonblocking_localname << "': " << errorcode << ": " << getErrorMessage(errorcode);
+        LOG_err << "Error opening async file handle (sysopen): '" << nonblocking_localname << "': " << errorcode << ": " << FileSystemAccess::getErrorMessage(errorcode);
     }
     return result;
 }
@@ -1244,11 +1385,6 @@ AsyncIOContext::~AsyncIOContext()
     {
         fa->asyncclosef();
     }
-}
-
-std::string FileAccess::getErrorMessage(int error) const
-{
-    return std::to_string(error);
 }
 
 void AsyncIOContext::finish()
@@ -1525,12 +1661,6 @@ size_t LocalPath::getLeafnameByteIndex() const
     return p;
 }
 
-bool LocalPath::backEqual(size_t bytePos, const LocalPath& compareTo) const
-{
-    auto n = compareTo.localpath.size();
-    return bytePos + n == localpath.size() && !localpath.compare(bytePos, n, compareTo.localpath);
-}
-
 LocalPath LocalPath::subpathFrom(size_t bytePos) const
 {
     assert(invariant());
@@ -1789,11 +1919,7 @@ std::atomic<unsigned> LocalPath_tmpNameLocal_counter{};
 LocalPath LocalPath::tmpNameLocal()
 {
     char buf[128];
-#ifdef WIN32
-    snprintf(buf, sizeof(buf), ".getxfer.%lu.%u.mega", (unsigned long)GetCurrentProcessId(), ++LocalPath_tmpNameLocal_counter);
-#else
-    snprintf(buf, sizeof(buf), ".getxfer.%lu.%u.mega", (unsigned long)getpid(), ++LocalPath_tmpNameLocal_counter);
-#endif
+    snprintf(buf, sizeof(buf), ".getxfer.%lu.%u.mega", getCurrentPid(), ++LocalPath_tmpNameLocal_counter);
     return LocalPath::fromRelativePath(buf);
 }
 
@@ -1873,6 +1999,30 @@ ScopedLengthRestore::~ScopedLengthRestore()
     path.localpath.resize(length);
 };
 
+#ifdef ENABLE_SYNC
+bool Notification::fromDebris(const Sync& sync) const
+{
+    // Must not be the root.
+    if (path.empty()) return false;
+
+    // Must have an associated local node.
+    if (!localnode) return false;
+
+    // Assume this filtering has been done at a higher level.
+    assert(!invalidated());
+
+    // Emitted from sync root?
+    if (localnode->parent) return false;
+
+    // Contained with debris?
+    return sync.localdebrisname.isContainingPathOf(path);
+}
+
+bool Notification::invalidated() const
+{
+    return localnode == (LocalNode*)~0;
+}
+#endif
 
 LocalPath FileNameGenerator::suffixWithN(FileAccess* fa, const LocalPath& localname)
 {

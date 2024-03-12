@@ -92,7 +92,7 @@ public:
 
     static BackupType getSyncType(const SyncConfig& config);
     static CommandBackupPut::SPState getSyncState (const UnifiedSync &, bool pauseDown, bool pauseUp);
-    static CommandBackupPut::SPState getSyncState(SyncError error, syncstate_t state, bool pauseDown, bool pauseUp);
+    static CommandBackupPut::SPState getSyncState(SyncError error, SyncRunState, bool pauseDown, bool pauseUp);
     static CommandBackupPut::SPState getSyncState(const SyncConfig& config, bool pauseDown, bool pauseUp);
     static handle getDriveId(const UnifiedSync&);
 
