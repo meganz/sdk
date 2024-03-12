@@ -4,15 +4,12 @@ macro(process_vcpkg_libraries overlays_path)
 
     # Use internal VCPKG tools
     set(VCPKG_BOOTSTRAP_OPTIONS "-disableMetrics")
-    foreach(ovpath IN ITEMS ${overlays_path})
-        if(NOT "${ovpath}/vcpkg_overlay_ports" IN_LIST VCPKG_OVERLAY_PORTS)
-            list(APPEND VCPKG_OVERLAY_PORTS "${ovpath}/vcpkg_overlay_ports")
-        endif()
-        if(NOT "${ovpath}/vcpkg_overlay_triplets" IN_LIST VCPKG_OVERLAY_TRIPLETS)
-            list(APPEND VCPKG_OVERLAY_TRIPLETS "${ovpath}/vcpkg_overlay_triplets")
-        endif()
+    foreach(path IN ITEMS ${overlays_path})
+        list(APPEND VCPKG_OVERLAY_PORTS "${path}/vcpkg_overlay_ports")
+        list(APPEND VCPKG_OVERLAY_TRIPLETS "${path}/vcpkg_overlay_triplets")
     endforeach()
-
+    list(REMOVE_DUPLICATES VCPKG_OVERLAY_PORTS)
+    list(REMOVE_DUPLICATES VCPKG_OVERLAY_TRIPLETS)
 
     if(NOT VCPKG_TARGET_TRIPLET)
         # Try to guess the triplet if it is not set.
