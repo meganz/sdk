@@ -2465,9 +2465,9 @@ void SqliteAccountState::userIsMimetype(sqlite3_context* context, int argc, sqli
     if (name.size() && mimetype)
     {
         std::string ext;
-        result = (Node::getExtension(ext, name) &&
-                  Node::isOfMimetype(static_cast<MimeType_t>(mimetype), ext))
-                 || (ext.empty() && mimetype == MimeType_t::MIME_TYPE_OTHERS);
+        result = ((!Node::getExtension(ext, name) || ext.empty()) &&
+                  mimetype == MimeType_t::MIME_TYPE_OTHERS) ||
+                 Node::isOfMimetype(static_cast<MimeType_t>(mimetype), ext);
 
     }
 
