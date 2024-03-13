@@ -10513,6 +10513,17 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  */
 - (void)updatePasswordNodeWithHandle:(MEGAHandle)node newData:(PasswordNodeData *)newData delegate:(id<MEGARequestDelegate>)delegate;
 
+/**
+ * @brief Generates a random string password based on the provided criteria.
+ *
+ * @param includeCapitalLetters Whether to include capital letters in the password.
+ * @param includeDigits Whether to include digits in the password.
+ * @param includeSymbols Whether to include symbols in the password.
+ * @param length The length of the password to be generated.
+ * @return A randomly generated password string.
+ */
+- (NSString *)generateRandomPasswordWithCapitalLetters:(BOOL)includeCapitalLetters digits:(BOOL)includeDigits symbols:(BOOL)includeSymbols length:(int)length;
+
 @end
 
 NS_ASSUME_NONNULL_END
