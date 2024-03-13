@@ -174,7 +174,10 @@ pipeline {
                             ulimit -c unlimited
 
                             if [ -z \"${TESTS_PARALLEL}\" ]; then
-                                ${megachat_sources_workspace}/build/MEGAchatTests/megachat_tests --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${GTEST_FILTER} ${GTEST_REPEAT} || FAILED=1
+                                # Sequential run
+                                ${megachat_sources_workspace}/build/MEGAchatTests/megachat_tests --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${GTEST_FILTER} ${GTEST_REPEAT} &
+                                pid=\$!
+                                wait \$pid || FAILED=1
                             else
                                 # Parallel run
                                 ${megachat_sources_workspace}/build/MEGAchatTests/megachat_tests --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${GTEST_FILTER} ${GTEST_REPEAT} ${TESTS_PARALLEL} 2>&1 | tee tests.stdout
@@ -182,22 +185,47 @@ pipeline {
                             fi
 
                             if [ -n \"\$FAILED\" ]; then
-                                echo "Test failed with status \$FAILED"
+                                if [ -z \"${TESTS_PARALLEL}\" ]; then
+                                    # Sequential run
+                                    coreFiles=\"test_pid_\$pid/core\"
+                                else
+                                    # Parallel run
+                                    procFailed=`grep \"<< PROCESS\" tests.stdout | sed 's/.*PID:\\([0-9]*\\).*/\\1/'`
+                                    if [ -n \"\$procFailed\" ]; then
+                                        for i in \$procFailed; do
+                                            coreFiles=\"\$coreFiles test_pid_\$i/core\"
+                                        done
+                                    fi
+                                fi
+                            fi
+
+                            if [ -n \"\$coreFiles\" ]; then
                                 maxTime=10
                                 startTime=`date +%s`
-
-                                # Only a single core file can be handled, for either sequential or parallel run
-                                while [ \$( expr `date +%s` - \$startTime ) -lt \$maxTime ]; do
-                                    if [ -e \"core\" ]; then
-                                        echo "Processing core dump..."
-                                        echo thread apply all bt > backtrace
-                                        echo quit >> backtrace
-                                        gdb -q ${megachat_sources_workspace}/build/MEGAchatTests/megachat_tests core -x ${megachat_sources_workspace}/build/subfolder/backtrace
-                                        tar chvzf core.tar.gz core megachat_tests
-                                        break
-                                    fi
+                                coresProcessed=0
+                                coresTotal=`echo \$coreFiles | wc -w`
+                                # While there are pending cores
+                                while [ \$coresProcessed -lt \$coresTotal ] && [ \$( expr `date +%s` - \$startTime ) -lt \$maxTime ]; do
+                                    echo "Waiting for core dumps..."
                                     sleep 1
+                                    for i in \$coreFiles; do
+                                        if [ -e \"\$i\" ] && [ -z \"\$( lsof \$i 2>/dev/null )\" ]; then
+                                            echo
+                                            echo
+                                            echo \"Processing core dump \$i :: \$(grep `echo \$i | sed 's#test_pid_\\([0-9].*\\)/core#\\1#'` tests.stdout)\"
+                                            echo thread apply all bt > ${megachat_sources_workspace}/build/backtrace
+                                            echo quit >> ${megachat_sources_workspace}/build/backtrace
+                                            gdb -q ${megachat_sources_workspace}/build/MEGAchatTests/megachat_tests \$i -x ${megachat_sources_workspace}/build/backtrace
+                                            tar rf core.tar \$i
+                                            coresProcessed=`expr \$coresProcessed + 1`
+                                            coreFiles=`echo \$coreFiles | sed -e \"s#\$i##\"`
+                                        fi
+                                    done
                                 done
+                                if [ -e core.tar ]; then
+                                    tar rf core.tar -C ${megachat_sources_workspace}/build/MEGAchatTests/ megachat_tests
+                                    gzip core.tar
+                                fi
                             fi
 
                             gzip -c test.log > test_${BUILD_ID}.log.gz || :

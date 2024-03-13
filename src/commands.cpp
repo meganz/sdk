@@ -979,6 +979,15 @@ const char* CommandSetAttr::getJSON(MegaClient* client)
             mNode.reset();
             generationError = API_EKEY;
         }
+
+        if (at.size() > MAX_NODE_ATTRIBUTE_SIZE)
+        {
+            client->sendevent(99484, "Node attribute exceed maximun size");
+            LOG_err << "Node attribute exceed maximun size";
+            h.setUndef();  // dummy command to generate an error, with no effect
+            mNode.reset();
+            generationError =  API_EARGS;
+        }
     }
     else
     {
@@ -4290,6 +4299,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                                             if (!json.storeobject())
                                             {
                                                 mCompletion(NULL, NULL, NULL, API_EINTERNAL);
+                                                json.leavearray();
                                                 return false;
                                             }
                                     }
@@ -5059,7 +5069,6 @@ CommandGetMiscFlags::CommandGetMiscFlags(MegaClient *client)
 
     // this one can get the smsve flag when the account is blocked (if it's in a batch by itself)
     batchSeparately = true;
-    suppressSID = true;
 
     tag = client->reqtag;
 }
@@ -6183,8 +6192,14 @@ bool CommandSetKeyPair::procresult(Result r, JSON& json)
 }
 
 // fetch full node tree
-CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache, bool loadSyncs)
+CommandFetchNodes::CommandFetchNodes(MegaClient* client,
+                                     int tag,
+                                     bool nocache,
+                                     bool loadSyncs,
+                                     const NodeHandle partialFetchRoot)
 {
+    assert(client);
+
     cmd("f");
     arg("c", 1);
     arg("r", 1);
@@ -6192,6 +6207,12 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache, 
     if (!nocache)
     {
         arg("ca", 1);
+    }
+
+    if (client->isClientType(MegaClient::ClientType::PASSWORD_MANAGER))
+    {
+        arg("n", partialFetchRoot);
+        arg("part", 1);
     }
 
     // The servers are more efficient with this command when it's the only one in the batch
@@ -11418,6 +11439,10 @@ bool CommandGetNotifications::procresult(Result r, JSON& json)
 
             case MAKENAMEID3('i', 'm', 'g'):
                 json.storeobject(&notification.imageName);
+                break;
+
+            case MAKENAMEID4('i', 'c', 'o', 'n'):
+                json.storeobject(&notification.iconName);
                 break;
 
             case MAKENAMEID3('d', 's', 'p'):

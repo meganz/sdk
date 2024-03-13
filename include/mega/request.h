@@ -43,14 +43,13 @@ private:
     mutable string cachedJSON;
     mutable string cachedIdempotenceId;
     mutable string cachedCounts;
-    mutable bool cachedSuppressSID = false;
 
 public:
     void add(Command*);
 
     size_t size() const;
 
-    string get(bool& suppressSID, MegaClient* client, char reqidCounter[10], string& idempotenceId) const;
+    string get(MegaClient* client, char reqidCounter[10], string& idempotenceId) const;
 
     void serverresponse(string&& movestring, MegaClient*);
     void servererror(const std::string &e, MegaClient* client);
@@ -111,10 +110,9 @@ public:
 
     /**
      * @brief get the set of commands to be sent to the server (could be a retry)
-     * @param suppressSID
      * @param includesFetchingNodes set to whether the commands include fetch nodes
      */
-    string serverrequest(bool& suppressSID, bool &includesFetchingNodes, bool& v3, MegaClient* client, string& idempotenceId);
+    string serverrequest(bool &includesFetchingNodes, bool& v3, MegaClient* client, string& idempotenceId);
 
     // Once we get a successful reply from the server, call this to complete everything
     // Since we need to support idempotence, we cannot add anything more to the in-progress request

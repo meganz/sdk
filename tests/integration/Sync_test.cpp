@@ -1142,8 +1142,8 @@ std::set<string> declaredTestAccounts;
 
 StandardClientInUse ClientManager::getCleanStandardClient(int loginIndex, fs::path workingFolder)
 {
-    EXPECT_TRUE(loginIndex >= 0) << "ClientManager::getCleanStandardClient(): invalid number of test account to setup " << loginIndex << " is < 0";
-    EXPECT_TRUE(loginIndex <= gMaxAccounts) << "ClientManager::getCleanStandardClient(): too many test accounts requested " << loginIndex << " is > " << gMaxAccounts;
+    EXPECT_GE(loginIndex, 0) << "ClientManager::getCleanStandardClient(): negative client index requested";
+    EXPECT_LE(loginIndex, gMaxAccounts) << "ClientManager::getCleanStandardClient(): invalid client index requested";
 
     for (auto i = clients[loginIndex].begin(); i != clients[loginIndex].end(); ++i)
     {
@@ -1164,20 +1164,7 @@ StandardClientInUse ClientManager::getCleanStandardClient(int loginIndex, fs::pa
     string user = getenv(envVarAccount[loginIndex].c_str());
     if (declaredTestAccounts.find(user) == declaredTestAccounts.end())
     {
-        // show the email/pass so we can (a) log into the account and see what's happening
-        // and (b) add a signal to terminate very long jenkins test runs if they are already failing badly
-        string pass = getenv(envVarPass[loginIndex].c_str());
-
-        // modify pass so that it's not obscured in jenkins output... somehow it recognizes it and substitutes [*******] in the console output
-        string obfuscatedPass;
-        for (auto c : pass)
-        {
-            obfuscatedPass += "/";
-            obfuscatedPass += c;
-            obfuscatedPass += "\\";
-        }
-
-        cout << "Using test account " << loginIndex << " " << user << " " << obfuscatedPass << endl;
+        LOG_debug << "Using test account " << loginIndex << " " << user;
         declaredTestAccounts.insert(user);
     }
 
