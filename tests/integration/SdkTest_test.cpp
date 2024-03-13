@@ -16041,7 +16041,7 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
                                                nullptr /*cancelToken*/)) << "Cannot upload " << PUBLICFILE << " as " << orgFile;
 
     const char unkownExtensionFile[] = "test.err";
-    MegaHandle handleUnkownExtensionFile = UNDEF;
+    MegaHandle handleUnkownExtensionFile = INVALID_HANDLE;
     ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handleUnkownExtensionFile, PUBLICFILE.c_str(),
                                                rootnode.get(),
                                                unkownExtensionFile /*fileName*/,
@@ -16049,18 +16049,16 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
                                                nullptr /*appData*/,
                                                false   /*isSourceTemporary*/,
                                                false   /*startFirst*/,
-                                               nullptr /*cancelToken*/)) << "Cannot upload " << PUBLICFILE << " as " << orgFile;
+                                               nullptr /*cancelToken*/)) << "Cannot upload " << PUBLICFILE << " as " << unkownExtensionFile;
+    std::unique_ptr<MegaNode> unkownExtensionNode(megaApi[0]->getNodeByHandle(handleUnkownExtensionFile));
+    ASSERT_THAT(unkownExtensionNode, ::testing::NotNull());
 
     const char withouExtensionFile[] = "test";
-    MegaHandle handleWithoutExtensionFile = UNDEF;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handleWithoutExtensionFile, PUBLICFILE.c_str(),
-                                               rootnode.get(),
-                                               withouExtensionFile /*fileName*/,
-                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                               nullptr /*appData*/,
-                                               false   /*isSourceTemporary*/,
-                                               false   /*startFirst*/,
-                                               nullptr /*cancelToken*/)) << "Cannot upload " << PUBLICFILE << " as " << orgFile;
+    RequestTracker nodeCopyTracker(megaApi[0].get());
+    megaApi[0]->copyNode(unkownExtensionNode.get(), rootnode.get(), withouExtensionFile, &nodeCopyTracker);
+    ASSERT_EQ(API_OK, nodeCopyTracker.waitForResult())
+        << "Could not copy " << unkownExtensionFile << " as " << withouExtensionFile;
+    MegaHandle handleWithoutExtensionFile = nodeCopyTracker.getNodeHandle();
 
     std::unique_ptr<MegaSearchFilter> filterResults(MegaSearchFilter::createInstance());
 
