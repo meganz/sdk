@@ -1,14 +1,12 @@
 #include "mega/posix/gfx/worker/socket_utils.h"
 #include "mega/logging.h"
 #include "mega/clock.h"
-#include <sys/un.h>
 
 #include <filesystem>
 #include <poll.h>
 
 #include <chrono>
 #include <system_error>
-#include <unistd.h>
 
 using std::chrono::milliseconds;
 using std::error_code;
@@ -35,11 +33,9 @@ bool isPollError(int event)
 // Pool a group of file descriptors. It deals with EINTR.
 error_code poll(std::vector<struct pollfd> fds, milliseconds timeout)
 {
-    // Remaining timeout in case of EINTR
     const mega::ScopedSteadyClock clock;
-    milliseconds remaining{timeout};
-
-    int ret = 0;
+    milliseconds                  remaining{timeout};  //Remaining timeout in case of EINTR
+    int                           ret = 0;
     do
     {
         ret = ::poll(fds.data(), fds.size(), static_cast<int>(timeout.count()));
@@ -59,6 +55,7 @@ error_code poll(std::vector<struct pollfd> fds, milliseconds timeout)
     return error_code{};
 }
 
+// Pool a single file descriptor
 error_code pollFd(int fd, short events, milliseconds timeout)
 {
     // Poll
@@ -101,26 +98,27 @@ constexpr size_t maxSocketPathLength()
     return sizeof(sockaddr_un::sun_path) - 1;
 }
 
-error_code doBindAndListen(int fd, const std::string& fullPath)
+// Bind the fd on the socketPath and listen on it
+error_code doBindAndListen(int fd, const std::string& socketPath)
 {
     constexpr int QUEUE_LEN = 10;
 
     struct sockaddr_un un;
     memset(&un, 0, sizeof(un));
     un.sun_family = AF_UNIX;
-    strncpy(un.sun_path, fullPath.c_str(), maxSocketPathLength());
+    strncpy(un.sun_path, socketPath.c_str(), maxSocketPathLength());
 
     // Bind name
     if (::bind(fd, reinterpret_cast<struct sockaddr*>(&un), sizeof(un)) == -1)
     {
-        LOG_err << "fail to bind UNIX domain socket name: " << fullPath << " errno: " << errno;
+        LOG_err << "fail to bind UNIX domain socket name: " << socketPath << " errno: " << errno;
         return error_code{errno, system_category()};
     }
 
     // Listen
     if (::listen(fd, QUEUE_LEN) < 0)
     {
-        LOG_err << "fail to listen UNIX domain socket name: " << fullPath << " errno: " << errno;
+        LOG_err << "fail to listen UNIX domain socket name: " << socketPath << " errno: " << errno;
         return error_code{errno, system_category()};
     }
 
@@ -140,13 +138,13 @@ fs::path SocketUtils::toSocketPath(const std::string& name)
 std::pair<error_code, int> SocketUtils::accept(int listeningFd, milliseconds timeout)
 {
     do {
-        auto errorCode = pollForAccept(listeningFd, timeout);
+        const auto errorCode = pollForAccept(listeningFd, timeout);
         if (errorCode)
         {
             return {errorCode, -1};   // error
         }
 
-        auto dataSocket = ::accept(listeningFd, nullptr, nullptr);
+        const auto dataSocket = ::accept(listeningFd, nullptr, nullptr);
         if (dataSocket < 0 && isRetryErrorNo(errno))
         {
             LOG_info << "Retry accept due to errno: " << errno; // retry
@@ -168,14 +166,14 @@ error_code SocketUtils::write(int fd, const void* data, size_t n, milliseconds t
     size_t offset = 0;
     while (offset < n) {
         // Poll
-        if (auto errorCode = pollForWrite(fd, timeout); errorCode)
+        if (const auto errorCode = pollForWrite(fd, timeout))
         {
             return errorCode;
         }
 
         // Write
-        size_t remaining = n - offset;
-        ssize_t written = ::write(fd, static_cast<const char *>(data) + offset, remaining);
+        const size_t remaining = n - offset;
+        const ssize_t written = ::write(fd, static_cast<const char *>(data) + offset, remaining);
         if (written < 0 && isRetryErrorNo(errno))
         {
             continue;                                    // retry
@@ -193,19 +191,19 @@ error_code SocketUtils::write(int fd, const void* data, size_t n, milliseconds t
     return error_code{};
 }
 
-error_code SocketUtils::read(int fd, void* buf, size_t count, milliseconds timeout)
+error_code SocketUtils::read(int fd, void* buf, size_t n, milliseconds timeout)
 {
     size_t offset = 0;
-    while (offset < count) {
+    while (offset < n) {
         // Poll
-        if (auto errorCode = pollForRead(fd, timeout); errorCode)
+        if (const auto errorCode = pollForRead(fd, timeout); errorCode)
         {
             return errorCode;
         }
 
         // Read
-        size_t remaining = count - offset;
-        ssize_t bytesRead = ::read(fd, static_cast<char *>(buf) + offset, remaining);
+        const size_t remaining = n - offset;
+        const ssize_t bytesRead = ::read(fd, static_cast<char *>(buf) + offset, remaining);
 
         if (bytesRead < 0 && isRetryErrorNo(errno))
         {
@@ -215,7 +213,7 @@ error_code SocketUtils::read(int fd, void* buf, size_t count, milliseconds timeo
         {
             return error_code{errno, system_category()}; // error
         }
-        else if (bytesRead == 0 && offset < count)
+        else if (bytesRead == 0 && offset < n)
         {
             return error_code{ECONNABORTED, system_category()}; // end of file and not read all needed
         }
@@ -258,7 +256,7 @@ std::pair<error_code, int> SocketUtils::listen(const fs::path& socketPath)
     }
 
     // Bind and Listen on
-    if (auto error_code = doBindAndListen(fd, socketPath.string()))
+    if (const auto error_code = doBindAndListen(fd, socketPath.string()))
     {
         ::close(fd);
         return { error_code, -1};
