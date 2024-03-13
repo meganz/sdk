@@ -10514,15 +10514,16 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
 - (void)updatePasswordNodeWithHandle:(MEGAHandle)node newData:(PasswordNodeData *)newData delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
- * @brief Generates a random string password based on the provided criteria.
+ * @brief Generate a new pseudo-randomly characters-based password
  *
- * @param includeCapitalLetters Whether to include capital letters in the password.
- * @param includeDigits Whether to include digits in the password.
- * @param includeSymbols Whether to include symbols in the password.
- * @param length The length of the password to be generated.
- * @return A randomly generated password string.
+ * @param includeCapitalLetters indicating if at least 1 upper case letter shall be included
+ * @param includeDigits indicating if at least 1 digit shall be included
+ * @param includeSymbols bool indicating if at least 1 symbol from !@#$%^&*() shall be included
+ * @param length unsigned int with the number of characters that will be included.
+ *        Minimum valid length is 8 and maximum valid is 64.
+ * @return newly generated password string, or nil if the password generation fails due to invalid parameters.
  */
-- (NSString *)generateRandomPasswordWithCapitalLetters:(BOOL)includeCapitalLetters digits:(BOOL)includeDigits symbols:(BOOL)includeSymbols length:(int)length;
++ (nullable NSString *)generateRandomPasswordWithCapitalLetters:(BOOL)includeCapitalLetters digits:(BOOL)includeDigits symbols:(BOOL)includeSymbols length:(int)length;
 
 @end
 
