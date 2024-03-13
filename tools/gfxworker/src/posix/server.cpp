@@ -1,9 +1,10 @@
 #include "posix/server.h"
-#include "gfx/worker/comms.h"
 #include "processor.h"
 
 #include "mega/logging.h"
+#include "mega/gfx/worker/comms.h"
 #include "mega/posix/gfx/worker/comms.h"
+#include "mega/posix/gfx/worker/socket_utils.h"
 
 #include <memory>
 

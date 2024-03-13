@@ -197,8 +197,10 @@ target_sources_conditional(SDKlib
     PRIVATE
     include/mega/posix/gfx/worker/comms.h
     include/mega/posix/gfx/worker/comms_client.h
+    include/mega/posix/gfx/worker/socket_utils.h
     src/posix/gfx/worker/comms.cpp
     src/posix/gfx/worker/comms_client.cpp
+    src/posix/gfx/worker/socket_utils.cpp
 )
 
 target_sources_conditional(SDKlib
