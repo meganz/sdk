@@ -66,9 +66,6 @@ public:
     // true if the command returns strings, arrays or objects, but a seqtag is (optionally) also required. In example: ["seqtag"/error, <JSON from before v3>]
     bool mSeqtagArray = false;
 
-    // some commands are guaranteed to work if we query without specifying a SID (eg. gmf)
-    bool suppressSID;
-
     // filters for JSON parsing in streaming
     std::map<std::string, std::function<bool(JSON *)>> mFilters;
 
@@ -466,7 +463,11 @@ public:
     bool procresult(Result, JSON&) override;
     bool parsingFinished();
 
-    CommandFetchNodes(MegaClient*, int tag, bool nocache, bool loadSyncs);
+    CommandFetchNodes(MegaClient*,
+                      int tag,
+                      bool nocache,
+                      bool loadSyncs,
+                      const NodeHandle partialFetchRoot = NodeHandle{});
     ~CommandFetchNodes();
 
 protected:

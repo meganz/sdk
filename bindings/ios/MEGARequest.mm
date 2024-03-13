@@ -37,6 +37,7 @@
 #import "MEGABackupInfo+init.h"
 #import "MEGAVPNCredentials.h"
 #import "MEGAVPNCredentials+init.h"
+#import "MEGANotificationList+init.h"
 
 using namespace mega;
 
@@ -336,6 +337,10 @@ using namespace mega;
 
 - (nullable MEGAVPNCredentials *)megaVpnCredentials {
     return self.megaRequest ? [[MEGAVPNCredentials alloc] initWithMegaVpnCredentials:self.megaRequest->getMegaVpnCredentials()->copy() cMemoryOwn:YES] : nil;
+}
+
+- (nullable MEGANotificationList*)megaNotifications {
+    return self.megaRequest ? [[MEGANotificationList alloc] initWithMegaNotificationList:self.megaRequest->getMegaNotifications()->copy() cMemoryOwn:YES] : nil;
 }
 
 @end

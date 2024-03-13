@@ -2544,14 +2544,14 @@ void MegaClient::exec()
                     pendingcs->logname = clientname + "cs ";
                     pendingcs_serverBusySent = false;
 
-                    bool suppressSID, v3;
+                    bool v3;
                     string idempotenceId;
-                    *pendingcs->out = reqs.serverrequest(suppressSID, pendingcs->includesFetchingNodes, v3, this, idempotenceId);
+                    *pendingcs->out = reqs.serverrequest(pendingcs->includesFetchingNodes, v3, this, idempotenceId);
 
                     pendingcs->posturl = httpio->APIURL;
                     pendingcs->posturl.append("cs?id=");
                     pendingcs->posturl.append(idempotenceId);
-                    pendingcs->posturl.append(getAuthURI(suppressSID));
+                    pendingcs->posturl.append(getAuthURI());
                     pendingcs->posturl.append(appkey);
 
                     pendingcs->posturl.append(v3 ? "&v=3" : "&v=2");
@@ -2837,7 +2837,14 @@ void MegaClient::exec()
                 pendingsc->protect = true;
                 pendingsc->posturl.append("?sn=");
                 pendingsc->posturl.append(scsn.text());
-                pendingsc->posturl.append(getAuthURI(false, true));
+                // folder links should not send "sid" to avoid receiving packets unrelated to the folder link
+                bool suppressSID = loggedIntoFolder() ? true : false;
+                pendingsc->posturl.append(getAuthURI(suppressSID, true));
+
+                if (isClientType(ClientType::PASSWORD_MANAGER))
+                {
+                    pendingsc->posturl.append(getPartialAPs());
+                }
 
                 pendingsc->type = REQ_JSON;
                 pendingsc->post(this);
@@ -7918,18 +7925,21 @@ void MegaClient::sc_pk()
 
             mKeyManager.promotePendingShares();
         },
-        [this, lastcompleted]()
+        [this, lastcompleted](error e)
         {
-            LOG_debug << "All pending keys were processed";
-            reqs.add(new CommandPendingKeys(this, lastcompleted, [] (Error e)
+            if (e == API_OK)
             {
-                if (e)
+                LOG_debug << "All pending keys were processed";
+                reqs.add(new CommandPendingKeys(this, lastcompleted, [] (Error e)
                 {
-                    LOG_err << "Error deleting pending keys";
-                    return;
-                }
-                LOG_debug << "Pending keys deleted";
-            }));
+                    if (e)
+                    {
+                        LOG_err << "Error deleting pending keys";
+                        return;
+                    }
+                    LOG_debug << "Pending keys deleted";
+                }));
+            }
         });
     }));
 }
@@ -8559,6 +8569,21 @@ error MegaClient::setattr(std::shared_ptr<Node> n, attr_map&& updates, CommandSe
         return API_EACCESS;
     }
 
+    if (SymmCipher* cipher = n->nodecipher())
+    {
+        std::string at;
+        AttrMap attributeMap;
+        attributeMap.map = updates;
+        attributeMap.getjson(&at);
+        makeattr(cipher, &at, at.c_str(), int(at.size()));
+        if (at.size() > MAX_NODE_ATTRIBUTE_SIZE)
+        {
+            sendevent(99484, "Node attribute exceed maximun size");
+            LOG_err << "Node attribute exceed maximun size";
+            return API_EARGS;
+        }
+    }
+
     // Check and delete invalid fav attributes
     if (n->firstancestor()->getShareType() == ShareType_t::IN_SHARES) // Avoid an inshare to be tagged as favourite by the sharee
     {
@@ -8698,6 +8723,21 @@ void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes, int tag,
     }
 
     queuepubkeyreq(user, ::mega::make_unique<PubKeyActionPutNodes>(std::move(newnodes), tag, std::move(completion)));
+}
+
+void MegaClient::putFileAttributes(handle h, fatype t, const string& encryptedAttributes, int tag)
+{
+    std::shared_ptr<Node> node = mNodeManager.getNodeByHandle(NodeHandle().set6byte(h));
+    if (node && node->fileattrstring.size() + encryptedAttributes.size() >= MAX_FILE_ATTRIBUTE_SIZE)
+    {
+        sendevent(99485, "Exceeded size for file attribute");
+        LOG_err << "Exceede size for file attribute: " << t;
+        restag = tag;
+        app->putfa_result(h, t, API_EARGS);
+        return;
+    }
+
+    reqs.add(new CommandAttachFA(this, h, t, encryptedAttributes, tag));
 }
 
 // returns 1 if node has accesslevel a or better, 0 otherwise
@@ -9893,6 +9933,7 @@ void MegaClient::readipc(JSON *j)
                     default:
                        if (!j->storeobject())
                        {
+                            j->leavearray();
                             return;
                        }
                 }
@@ -9976,6 +10017,7 @@ void MegaClient::readopc(JSON *j)
                     default:
                        if (!j->storeobject())
                        {
+                            j->leavearray();
                             return;
                        }
                 }
@@ -10089,6 +10131,7 @@ bool MegaClient::procph(JSON *j)
         if (e != 1)
         {
             LOG_err << "Parsing error in procph: " << e;
+            j->leavearray();
             return false;
         }
     }
@@ -10227,6 +10270,7 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
         if (e != 1)
         {
             LOG_err << "Parsing error in readusers: " << e;
+            j->leavearray();
             return false;
         }
     }
@@ -11581,9 +11625,11 @@ void MegaClient::upgradeSecurity(std::function<void(Error)> completion)
         // putua shouldn't fail in this case. Otherwise, another client would have upgraded the account
         // at the same time and therefore we wouldn't have to apply the changes again.
     },
-    [this, completion]()
+    [this, completion](error e)
     {
-        completion(API_OK);
+        completion(e);
+
+        if (e) return;
 
         // Get pending keys for inshares
         fetchContactsKeys();
@@ -11604,9 +11650,9 @@ void MegaClient::setContactVerificationWarning(bool enabled, std::function<void(
         {
             mKeyManager.setContactVerificationWarning(enabled);
         },
-        [completion]()
+        [completion](error e)
         {
-            if (completion) completion(API_OK);
+            if (completion) completion(e);
         });
 }
 
@@ -11658,9 +11704,9 @@ void MegaClient::openShareDialog(Node* n, std::function<void(Error)> completion)
             // Changes to apply in the commit
             mKeyManager.addShareKey(nodehandle, shareKey, true);
         },
-        [completion]()
+        [completion](error e)
         {
-            completion(API_OK);
+            completion(e);
         });
     }
     else
@@ -11710,9 +11756,9 @@ void MegaClient::setshare(std::shared_ptr<Node> n, const char* user, accesslevel
                         mKeyManager.setSharekeyInUse(nodehandle, false);
 
                     },
-                    [completion, e, writable]()
+                    [completion, e, writable](error commitError)
                     {
-                        completion(e, writable);
+                        completion(commitError, writable);
                     });
                 }
                 else
@@ -11826,9 +11872,9 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
                     {
                         mKeyManager.setSharekeyInUse(nodehandle, true);
                     },
-                    [completion, e, writable]()
+                    [completion, e, writable](error commitError)
                     {
-                        completion(e, writable);
+                        completion(commitError, writable);
                     });
                 }
                 else
@@ -11875,9 +11921,14 @@ void MegaClient::setShareCompletion(Node *n, User *user, accesslevel_t a, bool w
                 mKeyManager.addPendingOutShare(nodehandle, uid);
             }
         },
-        [completeShare]()
+        [completeShare, completion, user, writable](error e)
         {
-            completeShare();
+            if (e == API_OK) completeShare();
+            else
+            {
+                completion(e, writable);
+                if (user && user->isTemporary) delete user;
+            }
         });
         return;
     }
@@ -12124,6 +12175,14 @@ void MegaClient::putua(attr_t at, const byte* av, unsigned avl, int ctag, handle
         return;
     }
 
+    if (avl >= User::getMaxAttributeSize(at))
+    {
+        sendevent(99483, "User attribute exceeds maximum size");
+        LOG_err << "User attribute exceeds maximum size: " << User::attr2string(at);
+        restag = tag;
+        return completion(API_EARGS);
+    }
+
     if (!needversion)
     {
         reqs.add(new CommandPutUA(this, at, av, avl, tag, lastPublicHandle, phtype, ts, std::move(completion)));
@@ -12174,6 +12233,15 @@ void MegaClient::putua(userattr_map *attrs, int ctag, std::function<void (Error)
         {
             restag = tag;
             return completion(API_EEXPIRED);
+        }
+
+        if (it->second.size() >= User::getMaxAttributeSize(type))
+        {
+            sendevent(99483, "User attribute exceeds maximum size");
+            LOG_err << "User attribute exceeds maximum size: " << User::attr2string(it->first);
+            restag = tag;
+            completion(API_EARGS);
+            return;
         }
     }
 
@@ -12535,6 +12603,7 @@ void MegaClient::proccr(JSON* j)
         else
         {
             LOG_err << "Malformed SNK CR - nodes part";
+            j->leavearray();
             return;
         }
 
@@ -12546,6 +12615,7 @@ void MegaClient::proccr(JSON* j)
         else
         {
             LOG_err << "Malformed CR - linkage part";
+            j->leavearray();
             return;
         }
     }
@@ -12564,11 +12634,15 @@ void MegaClient::procsnk(JSON* j)
         {
             if (ISUNDEF((sh = j->gethandle())))
             {
+                j->leavearray();
+                j->leavearray();
                 return;
             }
 
             if (ISUNDEF((nh = j->gethandle())))
             {
+                j->leavearray();
+                j->leavearray();
                 return;
             }
 
@@ -14448,7 +14522,8 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
 
                 // FetchNodes procresult() needs some data from `ug` (or it may try to make new Sync User Attributes for example)
                 // So only submit the request after `ug` completes, otherwise everything is interleaved
-                reqs.add(new CommandFetchNodes(this, fetchtag, nocache, loadSyncs));
+                const auto partialFetchRoot = isClientType(ClientType::PASSWORD_MANAGER) ? getPasswordManagerBase() : NodeHandle{};
+                reqs.add(new CommandFetchNodes(this, fetchtag, nocache, loadSyncs, partialFetchRoot));
             });
 
             fetchtimezone();
@@ -15331,9 +15406,9 @@ error MegaClient::verifyCredentials(handle uh, std::function<void (Error)> compl
         std::string serializedAuthring = authring.serializeForJS();
         mKeyManager.setAuthRing(serializedAuthring);
     },
-    [completion]()
+    [completion](error e)
     {
-        completion(API_OK);
+        completion(e);
     });
 
     return API_OK;
@@ -15395,11 +15470,11 @@ error MegaClient::resetCredentials(handle uh, std::function<void(Error)> complet
         // Changes to apply in the commit
         mKeyManager.setAuthRing(serializedAuthring);
     },
-    [completion]()
+    [completion](error e)
     {
         if (completion)
         {
-            completion(API_OK);
+            completion(e);
         }
         return;
     });
@@ -17537,6 +17612,7 @@ userpriv_vector *MegaClient::readuserpriv(JSON *j)
                         if(uh == UNDEF || priv == PRIV_UNKNOWN)
                         {
                             delete userpriv;
+                            j->leavearray();
                             return NULL;
                         }
 
@@ -17553,6 +17629,7 @@ userpriv_vector *MegaClient::readuserpriv(JSON *j)
                         if (!j->storeobject())
                         {
                             delete userpriv;
+                            j->leavearray();
                             return NULL;
                         }
                         break;
@@ -19034,6 +19111,7 @@ error MegaClient::readElements(JSON& j, map<handle, elementsmap_t>& elements)
         error e = readElement(j, el);
         if (e)
         {
+            j.leavearray();
             return e;
         }
         handle sid = el.set();
@@ -19124,6 +19202,7 @@ error MegaClient::readAllNodeMetadata(JSON& j, map<handle, SetElement::NodeMetad
         error e = readSingleNodeMetadata(j, eln);
         if (e)
         {
+            j.leavearray();
             return e;
         }
         nodes.emplace(eln.h, std::move(eln));
@@ -19157,6 +19236,8 @@ error MegaClient::readSingleNodeMetadata(JSON& j, SetElement::NodeMetadata& eln)
             if (!j.storeobject(&eln.at))
             {
                 LOG_err << "Sets: Failed to read node attributes";
+                assert(false);
+                return API_EINTERNAL;
             }
             break;
 
@@ -19164,6 +19245,8 @@ error MegaClient::readSingleNodeMetadata(JSON& j, SetElement::NodeMetadata& eln)
             if (!j.storeobject(&eln.fa))
             {
                 LOG_err << "Sets: Failed to read file attributes";
+                assert(false);
+                return API_EINTERNAL;
             }
             break;
 
@@ -20185,6 +20268,17 @@ void MegaClient::preparePasswordNodeData(attr_map& attrs, const AttrMap& data) c
     attrs[AttrMap::string2nameid(NODE_ATTR_PASSWORD_MANAGER)] = std::move(jsonData);
 }
 
+std::string MegaClient::getPartialAPs()
+{
+    std::string ret;
+    if (isClientType(ClientType::PASSWORD_MANAGER))
+    {
+        ret = "&e=" + toNodeHandle(getPasswordManagerBase()) + "&ir=1";
+    }
+
+    return ret;
+}
+
 void MegaClient::createPasswordManagerBase(int rTag, CommandCreatePasswordManagerBase::Completion cbRequest)
 {
     LOG_info << "Password Manager: Requesting pwmh creation to server";
@@ -20464,7 +20558,8 @@ bool KeyManager::fromKeysContainer(const string &data)
     }
 
     // validate received data and update local values
-    if (success && isValidKeysContainer(km))
+    if (success) success = isValidKeysContainer(km);
+    if (success)
     {
         updateValues(km);
     }
@@ -21053,7 +21148,7 @@ void KeyManager::loadShareKeys()
     }
 }
 
-void KeyManager::commit(std::function<void ()> applyChanges, std::function<void ()> completion)
+void KeyManager::commit(std::function<void ()> applyChanges, std::function<void (error e)> completion)
 {
     LOG_debug << "[keymgr] New update requested";
     if (mVersion == 0)
@@ -21062,12 +21157,12 @@ void KeyManager::commit(std::function<void ()> applyChanges, std::function<void 
         assert(false);
         if (completion)
         {
-            completion();
+            completion(API_EINTERNAL);
         }
         return;
     }
 
-    nextQueue.push_back(std::pair<std::function<void()>, std::function<void()>>(std::move(applyChanges), std::move(completion)));
+    nextQueue.push_back(std::pair<std::function<void()>, std::function<void(error e)>>(std::move(applyChanges), std::move(completion)));
     if (activeQueue.size())
     {
         LOG_debug << "[keymgr] Another commit is in progress. Queued updates: " << nextQueue.size();
@@ -21235,27 +21330,31 @@ void KeyManager::nextCommit()
 
 void KeyManager::tryCommit(Error e, std::function<void ()> completion)
 {
-    if (!e || mDowngradeAttack)
+    if (!e || mDowngradeAttack || e == API_EARGS)
     {
-        LOG_debug << (!e
-                     ? "[keymgr] Commit completed"
-                     : "[keymgr] Commit aborted (downgrade attack)")
-                  << " with " << activeQueue.size() << " updates";
+        const std::string tmp(" with " + std::to_string(activeQueue.size()) + " updates");
+
+        if (e == API_OK) LOG_debug << "[keymgr] Commit completed" << tmp;
+        else if (e == API_EARGS) LOG_debug << "[keymgr] Commit aborted, keys too large?" << tmp;
+        else LOG_debug << "[keymgr] Commit aborted (downgrade attack)" << tmp;
+
         for (auto &activeCommit : activeQueue)
         {
             if (activeCommit.second)
             {
-                activeCommit.second(); // Run update completion callback
+                activeCommit.second(e); // Run update completion callback
             }
         }
+
         activeQueue = {};
 
-        completion();
+        completion();   // -> nextCommit() or log "No more updates in the queue"
         return;
     }
 
     LOG_debug << "[keymgr] " << (e == API_EINCOMPLETE ? "Starting" : "Retrying")
               << " commit with " << activeQueue.size() << " updates";
+
     for (auto &activeCommit : activeQueue)
     {
         if (activeCommit.first)
@@ -21301,7 +21400,7 @@ void KeyManager::updateAttribute(std::function<void (Error)> completion)
         [completion](error err)
         {
             LOG_err << "[keymgr] Error getting the value of ^!keys (" << err << ")";
-            completion(API_EEXPIRED);
+            completion(err);
         },
         [completion](byte*, unsigned, attr_t)
         {

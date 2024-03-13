@@ -2786,7 +2786,7 @@ public:
     virtual int getShard() const;
 
     /**
-     * @brief getPeerList Returns the full user list and privileges (including yourself).
+     * @brief getPeerList Returns the full user list and privileges (excluding yourself).
      *
      * The MegaTextChat retains the ownership of the returned MetaTextChatPeerList. It will
      * be only valid until the MegaTextChat is deleted.
@@ -5387,6 +5387,19 @@ class MegaRequest
          * @return non-null pointer if a valid MegaApi functionality has been called, nullptr otherwise.
          */
         virtual const MegaNotificationList* getMegaNotifications() const;
+
+        /**
+         * @brief Get node tree after its creation
+         *
+         * This value is valid only for the following requests:
+         * - MegaApi::createNodeTree
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * @return non-null pointer if a valid MegaApi functionality has been called, null otherwise.
+         */
+        virtual const MegaNodeTree* getMegaNodeTree() const;
 };
 
 /**
@@ -9412,8 +9425,8 @@ public:
     virtual void byLocationHandle(MegaHandle ancestorHandle);
 
     /**
-     * @brief Set option for retrieving nodes below a particular predefined location.
-     * If not set, nodes will not be restricted to a particular location and it will behave like using SEARCH_TARGET_ALL.
+     * @brief Set option for searching nodes below predefined locations.
+     * If not set, it will behave like using SEARCH_TARGET_ALL.
      *
      * @note When called, it will cancel any previous setting done by calling byLocationHandle().
      *
@@ -9422,8 +9435,9 @@ public:
      * - SEARCH_TARGET_INSHARE = 0
      * - SEARCH_TARGET_OUTSHARE = 1
      * - SEARCH_TARGET_PUBLICLINK = 2
-     * - SEARCH_TARGET_ROOTNODE = 3 --> search in Cloud and Vault rootnodes
-     * - SEARCH_TARGET_ALL = 4
+     * - SEARCH_TARGET_ROOTNODE = 3 --> search under Cloud and Vault rootnodes
+     * - SEARCH_TARGET_ALL = 4 --> by default search under Cloud, Vault, Rubbish and among INSHARE-s;
+     *   if an ancestor was explicitly set via byLocationHandle(), search under that particular ancestor
      */
     virtual void byLocation(int locationType);
 
@@ -9521,6 +9535,56 @@ public:
     virtual int64_t byModificationTimeUpperLimit() const;
 };
 
+/**
+ * @brief Store pagination options used in searches @see MegaApi::search, MegaApi::getChildren.
+ *
+ */
+class MegaSearchPage
+{
+protected:
+    MegaSearchPage();
+
+public:
+    /**
+     * @brief Creates a new instance of MegaSearchPage
+     *
+     * @param startingOffset The first position in the list of results to be included in the returned page (starts from 0).
+     * @param size The maximum number of results included in the page, or 0 to return all (remaining) results
+     *
+     * @return A pointer of current type, a superclass of the private object
+     */
+    static MegaSearchPage* createInstance(size_t startingOffset, size_t size);
+
+    /**
+     * @brief Create a copy of this instance.
+     *
+     * The resulted instance is fully independent of the source instance,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original instance was deleted.
+     *
+     * You are the owner of the returned instance
+     *
+     * @return Copy of the current instance
+     */
+    virtual MegaSearchPage* copy() const;
+
+    virtual ~MegaSearchPage();
+
+    /**
+     * @brief Return the first position in the list of results to be included in the returned page (starts from 0)
+     *
+     * @return first position in the list of results to be included in the returned page (starts from 0)
+     */
+    virtual size_t startingOffset() const;
+
+    /**
+     * @brief Return the maximum number of results included in the page, or 0 to return all (remaining) results
+     *
+     * @return maximum number of results included in the page, or 0 to return all (remaining) results
+     */
+    virtual size_t size() const;
+};
+
 class MegaNodeTree
 {
 protected:
@@ -9528,13 +9592,14 @@ protected:
 
 public:
     virtual ~MegaNodeTree() = default;
-    static MegaNodeTree* createInstance(MegaNodeTree* nodeTreeChild,
-                                        const char* name,
-                                        const char* s4AttributeValue,
-                                        const MegaCompleteUploadData* completeUploadData,
+    static MegaNodeTree* createInstance(MegaNodeTree* nodeTreeChild,                      // takes ownership !
+                                        const char* name,                                 // ownership left with the caller
+                                        const char* s4AttributeValue,                     // ownership left with the caller
+                                        const MegaCompleteUploadData* completeUploadData, // takes ownership !
                                         MegaHandle sourceHandle = INVALID_HANDLE);
     virtual MegaNodeTree* getNodeTreeChild() const = 0;
     virtual MegaHandle getNodeHandle() const = 0;
+    virtual MegaNodeTree* copy() const = 0;
 };
 
 class MegaCompleteUploadData
@@ -9547,6 +9612,7 @@ public:
     static MegaCompleteUploadData* createInstance(const char* fingerprint,
                                                   const char* string64UploadToken,
                                                   const char* string64FileKey);
+    virtual MegaCompleteUploadData* copy() const = 0;
 };
 
 class MegaApiImpl;
@@ -9688,16 +9754,16 @@ class MegaApi
             // ATTR_UNSHAREABLE_KEY = 26         // it's internal for SDK, not exposed to apps
             USER_ATTR_ALIAS = 27,                // private - byte array
             USER_ATTR_DEVICE_NAMES = 30,         // private - byte array
-            USER_ATTR_MY_BACKUPS_FOLDER = 31,    // protected - char array in B64
+            USER_ATTR_MY_BACKUPS_FOLDER = 31,    // protected - char array in B64 - non-versioned
             // USER_ATTR_BACKUP_NAMES = 32,      // (deprecated) private - byte array
-            USER_ATTR_COOKIE_SETTINGS = 33,      // private - byte array
+            USER_ATTR_COOKIE_SETTINGS = 33,      // private - byte array - non-versioned
             USER_ATTR_JSON_SYNC_CONFIG_DATA = 34,// private - byte array
             // USER_ATTR_DRIVE_NAMES = 35,       // (merged with USER_ATTR_DEVICE_NAMES and removed) private - byte array
             USER_ATTR_NO_CALLKIT = 36,           // private - byte array
             USER_ATTR_APPS_PREFS = 38,           // private - byte array - versioned
             USER_ATTR_CC_PREFS   = 39,           // private - byte array - versioned
-            USER_ATTR_VISIBLE_WELCOME_DIALOG = 40, // private - byte array - versioned
-            USER_ATTR_VISIBLE_TERMS_OF_SERVICE = 41, // private - byte array - versioned
+            USER_ATTR_VISIBLE_WELCOME_DIALOG = 40, // private - non-encrypted - byte array - non-versioned
+            USER_ATTR_VISIBLE_TERMS_OF_SERVICE = 41, // private - non-encrypted - byte array - non-versioned
             USER_ATTR_PWM_BASE = 42,             // private non-encrypted (fully controlled by API) - char array in B64
             USER_ATTR_ENABLE_TEST_NOTIFICATIONS = 43, // private - non-encrypted - char array - non-versioned
             USER_ATTR_LAST_READ_NOTIFICATION = 44, // private - non-encrypted - char array - non-versioned
@@ -16893,7 +16959,7 @@ class MegaApi
          *
          * @return List with found children as MegaNode objects
          */
-        MegaNodeList* getChildren(const MegaSearchFilter *filter, int order = ORDER_NONE, MegaCancelToken *cancelToken = nullptr);
+        MegaNodeList* getChildren(const MegaSearchFilter *filter, int order = ORDER_NONE, MegaCancelToken *cancelToken = nullptr, const MegaSearchPage* searchPage = nullptr);
 
         /**
          * @brief Get all children of a list of MegaNodes
@@ -17997,7 +18063,7 @@ class MegaApi
          *
          * @return List with found nodes as MegaNode objects
          */
-        MegaNodeList* search(const MegaSearchFilter* filter, int order = ORDER_NONE, MegaCancelToken* cancelToken = nullptr);
+        MegaNodeList* search(const MegaSearchFilter* filter, int order = ORDER_NONE, MegaCancelToken* cancelToken = nullptr, const MegaSearchPage* searchPage = nullptr);
 
         /**
          * @brief Search nodes containing a search string in their name
@@ -22272,10 +22338,11 @@ class MegaApi
         /**
          * @brief Get Welcome dialog visibility.
          *
-         * The associated request type with this request is
-         * MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG.
+         * The type associated with this request is MegaRequest::TYPE_GET_ATTR_USER
          *
-         * Valid data in the MegaRequest object received on callbacks:
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG
          * - MegaRequest::getFlag - Returns the Welcome dialog visibility.
          *
          * If the corresponding user attribute is not set yet, the request will fail with the error
@@ -22288,8 +22355,11 @@ class MegaApi
         /**
          * @brief Set Welcome dialog visibility.
          *
-         * The associated request type with this request is
-         * MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG.
+         * The type associated with this request is MegaRequest::TYPE_SET_ATTR_USER
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG
          *
          * @param visible True to set the Welcome dialog visible, false otherwise.
          * @param listener MegaRequestListener to track this request.
@@ -22304,6 +22374,7 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getParentHandle - Returns the node handle of the parent node in the tree
+         * - MegaRequest::getMegaNodeTree - Returns the Node Tree updated after it was created
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EARGS - Parameters are incorrect.
@@ -22319,11 +22390,11 @@ class MegaApi
         /**
          * @brief Get Terms of Service for VPN visibility.
          *
-         * The associated request type with this request is
-         * MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE.
+         * The type associated with this request is MegaRequest::TYPE_GET_ATTR_USER
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE
          * - MegaRequest::getFlag - Returns Terms of Service for VPN visibility.
          *
          * If the corresponding user attribute is not set yet, the request will fail with the error
@@ -22336,8 +22407,10 @@ class MegaApi
         /**
          * @brief Set Terms of Service for VPN visibility.
          *
-         * The associated request type with this request is
-         * MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE.
+         * The type associated with this request is MegaRequest::TYPE_SET_ATTR_USER
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE
          *
          * @param visible True to set Terms of Service visibility on, false otherwise.
          * @param listener MegaRequestListener to track this request.
@@ -22357,6 +22430,7 @@ class MegaApi
          * @brief Enable test notifications
          *
          * The type associated with this request is MegaRequest::TYPE_SET_ATTR_USER
+         *
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_ENABLE_TEST_NOTIFICATIONS
          * - MegaRequest::getMegaIntegerList - Returns a list containing the notification IDs to be enabled
@@ -22388,6 +22462,7 @@ class MegaApi
          * @brief Set last read notification for Notification Center
          *
          * The type associated with this request is MegaRequest::TYPE_SET_ATTR_USER
+         *
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_LAST_READ_NOTIFICATION
          * - MegaRequest::getNumber - Returns the ID to be set as last read
@@ -22405,6 +22480,7 @@ class MegaApi
          * @brief Get last read notification for Notification Center
          *
          * The type associated with this request is MegaRequest::TYPE_GET_ATTR_USER
+         *
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_LAST_READ_NOTIFICATION
          *
@@ -22421,6 +22497,7 @@ class MegaApi
          * @brief Set last actioned banner for Notification Center
          *
          * The type associated with this request is MegaRequest::TYPE_SET_ATTR_USER
+         *
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_LAST_ACTIONED_BANNER
          * - MegaRequest::getNumber - Returns the ID to be set as last actioned banner
@@ -22435,6 +22512,7 @@ class MegaApi
          * @brief Get last actioned banner for Notification Center
          *
          * The type associated with this request is MegaRequest::TYPE_GET_ATTR_USER
+         *
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_LAST_ACTIONED_BANNER
          *
@@ -23912,7 +23990,8 @@ public:
  *  - ID.
  *  - Title.
  *  - Description.
- *  - Image name for the notification.
+ *  - Name of the main image for the notification.
+ *  - Name of the icon for the notification.
  *  - Default static path for the notification image.
  *  - Timestamp of when the notification became available to the user.
  *  - Timestamp of when the notification will expire.
@@ -23959,14 +24038,24 @@ public:
     virtual const char* getDescription() const = 0;
 
     /**
-     * @brief Get the image name for this notification.
+     * @brief Get the name of the main image for this notification.
      *
      * The caller does not take the ownership of the const char* object.
      * The const char* object is valid as long as the current MegaNotification object is valid too.
      *
-     * @return the image name for this notification, always not-null.
+     * @return the name of the main image for this notification, always not-null.
      */
     virtual const char* getImageName() const = 0;
+
+    /**
+     * @brief Get the name of the icon for this notification.
+     *
+     * The caller does not take the ownership of the const char* object.
+     * The const char* object is valid as long as the current MegaNotification object is valid too.
+     *
+     * @return the name of the icon for this notification, always not-null.
+     */
+    virtual const char* getIconName() const = 0;
 
     /**
      * @brief Get the default static path of the image associated with this notification.
@@ -24027,7 +24116,7 @@ public:
      * This copy is meant to be used from another scope which must survive the actual owner of this MegaNotification object.
      * The caller takes the ownership of the new MegaNotification object.
      *
-     * @return MegaNotification* with the copied MegaNotification object.
+     * @return MegaNotification* of the copied object.
      */
     virtual MegaNotification* copy() const = 0;
 };

@@ -94,9 +94,8 @@ public:
     bool getChildrenFromType(NodeHandle parentHandle, nodetype_t nodeType, std::vector<std::pair<NodeHandle, NodeSerialized>>& children, mega::CancelToken cancelFlag) override;
     uint64_t getNumberOfChildren(NodeHandle parentHandle) override;
     // If a cancelFlag is passed, it must be kept alive until this method returns.
-    bool getChildren(const mega::NodeSearchFilter& filter, int order, std::vector<std::pair<NodeHandle, NodeSerialized>>& children, CancelToken cancelFlag) override;
-    bool searchNodes(const mega::NodeSearchFilter& filter, int order, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag) override;
-    bool searchNodeShares(const mega::NodeSearchFilter& filter, int order, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag) override;
+    bool getChildren(const mega::NodeSearchFilter& filter, int order, std::vector<std::pair<NodeHandle, NodeSerialized>>& children, CancelToken cancelFlag, const NodeSearchPage& page) override;
+    bool searchNodes(const mega::NodeSearchFilter& filter, int order, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag, const NodeSearchPage& page) override;
 
     /**
      * @deprecated
@@ -191,9 +190,8 @@ private:
     sqlite3_stmt* mStmtChildrenFromType = nullptr;
 
     sqlite3_stmt* mStmtNumChildren = nullptr;
-    std::map<int, sqlite3_stmt*> mStmtGetChildren;
-    std::map<int, sqlite3_stmt*> mStmtSearchNodes;
-    std::map<int, sqlite3_stmt*> mStmtSearchNodeShares;
+    std::map<size_t, sqlite3_stmt*> mStmtGetChildren;
+    std::map<size_t, sqlite3_stmt*> mStmtSearchNodes;
 
     /** @deprecated */
     sqlite3_stmt* mStmtNodeByName = nullptr;
@@ -270,11 +268,11 @@ private:
     bool migrateDataToColumns(sqlite3* db, vector<NewColumn>&& cols);
 };
 
-class OrderBy2Clause
+class OrderByClause
 {
 public:
     static std::string get(int order, int sqlParamIndex);
-    static int getId(int order);
+    static size_t getId(int order);
 
 private:
     enum {
@@ -286,7 +284,7 @@ private:
         FAV_ASC, FAV_DESC
     };
 
-    static std::pair<bool, bool> getDescendingDirs(int order);
+    static std::bitset<3> getDescendingDirs(int order);
 };
 
 } // namespace
