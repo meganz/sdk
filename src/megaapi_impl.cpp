@@ -11268,14 +11268,10 @@ bool MegaApiImpl::isPendingShare(MegaNode *megaNode)
 
 sharedNode_vector MegaApiImpl::getOutShares()
 {
-    MegaSearchFilterPrivate filter;
-    filter.byLocation(MegaApi::SEARCH_TARGET_OUTSHARE);
-    sharedNode_vector outshares = searchInNodeManager(&filter, MegaApi::ORDER_NONE, CancelToken(), nullptr);
+    sharedNode_vector outshares = client->mNodeManager.getNodesWithOutShares();
 
     // Avoid duplicate nodes present in both outshares and pending shares
-    MegaSearchFilterPrivate filterPendingOutShares;
-    filter.byLocation(MegaApi::SEARCH_TARGET_PENDING_OUTSHARE);
-    sharedNode_vector pendingShares = searchInNodeManager(&filterPendingOutShares, MegaApi::ORDER_NONE, CancelToken(), nullptr);
+    sharedNode_vector pendingShares = client->mNodeManager.getNodesWithPendingOutShares();
     for (auto& pendingShare : pendingShares)
     {
         bool found = false;
@@ -11415,9 +11411,7 @@ MegaShareList *MegaApiImpl::getPendingOutShares()
 {
     SdkMutexGuard guard(sdkMutex);
 
-    MegaSearchFilterPrivate filter;
-    filter.byLocation(MegaApi::SEARCH_TARGET_PENDING_OUTSHARE);
-    sharedNode_vector nodes = searchInNodeManager(&filter, MegaApi::ORDER_NONE, CancelToken(), nullptr);
+    sharedNode_vector nodes = client->mNodeManager.getNodesWithPendingOutShares();
     vector<handle> handles;
     vector<Share *> shares;
     vector<byte> verified;
@@ -11483,9 +11477,7 @@ MegaNodeList *MegaApiImpl::getPublicLinks(int order)
 {
     SdkMutexGuard g(sdkMutex);
 
-    MegaSearchFilterPrivate filter;
-    filter.byLocation(MegaApi::SEARCH_TARGET_PUBLICLINK);
-    sharedNode_vector nodes = searchInNodeManager(&filter, order, CancelToken(), nullptr);
+    sharedNode_vector nodes = client->mNodeManager.getNodesWithLinks();
     return new MegaNodeListPrivate(nodes);
 }
 

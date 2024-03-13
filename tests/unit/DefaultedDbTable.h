@@ -69,6 +69,11 @@ public:
         //throw NotImplemented(__func__);
     }
 
+    bool getNodesWithSharesOrLink(std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&, mega::ShareType_t) override
+    {
+        return false;
+    }
+
     bool getChildrenFromType(mega::NodeHandle parentHandle, mega::nodetype_t nodeType, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& children, mega::CancelToken cancelFlag) override
     {
         return false;

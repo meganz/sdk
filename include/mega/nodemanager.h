@@ -165,6 +165,11 @@ public:
     // Load from DB if it's necessary
     sharedNode_vector getRootNodes();
 
+    sharedNode_vector getNodesWithInShares(); // both, top-level and nested ones
+    sharedNode_vector getNodesWithOutShares();
+    sharedNode_vector getNodesWithPendingOutShares();
+    sharedNode_vector getNodesWithLinks();
+
     std::vector<NodeHandle> getFavouritesNodeHandles(NodeHandle node, uint32_t count);
     size_t getNumberOfChildrenFromNode(NodeHandle parentHandle);
 
@@ -333,7 +338,6 @@ private:
     shared_ptr<Node> getNodeInRAM(NodeHandle handle);
     void saveNodeInRAM(std::shared_ptr<Node> node, bool isRootnode, MissingParentNodes& missingParentNodes);    // takes ownership
 
-    /** @deprecated */
     sharedNode_vector getNodesWithSharesOrLink_internal(ShareType_t shareType);
 
     enum OperationType

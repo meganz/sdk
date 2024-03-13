@@ -1300,6 +1300,31 @@ bool SqliteAccountState::getRootNodes(std::vector<std::pair<NodeHandle, NodeSeri
     return result;
 }
 
+bool SqliteAccountState::getNodesWithSharesOrLink(std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes, ShareType_t shareType)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    sqlite3_stmt *stmt = nullptr;
+    bool result = false;
+    int sqlResult = sqlite3_prepare_v2(db, "SELECT nodehandle, counter, node FROM nodes WHERE share & ? != 0", -1, &stmt, NULL);
+    if (sqlResult == SQLITE_OK)
+    {
+        if ((sqlResult = sqlite3_bind_int(stmt, 1, static_cast<int>(shareType))) == SQLITE_OK)
+        {
+            result = processSqlQueryNodes(stmt, nodes);
+        }
+    }
+
+    errorHandler(sqlResult, "Get nodes with shares or link", false);
+
+    sqlite3_finalize(stmt);
+
+    return result;
+}
+
 bool SqliteAccountState::getChildrenFromType(NodeHandle parentHandle, nodetype_t nodeType, std::vector<std::pair<NodeHandle, NodeSerialized> >& children, CancelToken cancelFlag)
 {
     if (!db)

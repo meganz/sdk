@@ -571,6 +571,30 @@ sharedNode_vector NodeManager::searchNodes_internal(const NodeSearchFilter& filt
     return nodes;
 }
 
+sharedNode_vector NodeManager::getNodesWithInShares()
+{
+    LockGuard g(mMutex);
+    return getNodesWithSharesOrLink_internal(ShareType_t::IN_SHARES);
+}
+
+sharedNode_vector NodeManager::getNodesWithOutShares()
+{
+    LockGuard g(mMutex);
+    return getNodesWithSharesOrLink_internal(ShareType_t::OUT_SHARES);
+}
+
+sharedNode_vector NodeManager::getNodesWithPendingOutShares()
+{
+    LockGuard g(mMutex);
+    return getNodesWithSharesOrLink_internal(ShareType_t::PENDING_OUTSHARES);
+}
+
+sharedNode_vector NodeManager::getNodesWithLinks()
+{
+    LockGuard g(mMutex);
+    return getNodesWithSharesOrLink_internal(ShareType_t::LINK);
+}
+
 sharedNode_vector NodeManager::getNodesByFingerprint(FileFingerprint &fingerprint)
 {
     LockGuard g(mMutex);
@@ -862,6 +886,22 @@ sharedNode_vector NodeManager::getRootNodes_internal()
     }
 
     return nodes;
+}
+
+sharedNode_vector NodeManager::getNodesWithSharesOrLink_internal(ShareType_t shareType)
+{
+    assert(mMutex.owns_lock());
+
+    if (!mTable || mNodes.empty())
+    {
+        //assert(false);
+        return sharedNode_vector();
+    }
+
+    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    mTable->getNodesWithSharesOrLink(nodesFromTable, shareType);
+
+    return processUnserializedNodes(nodesFromTable);
 }
 
 shared_ptr<Node> NodeManager::getNodeFromNodeSerialized(const NodeSerialized &nodeSerialized)
