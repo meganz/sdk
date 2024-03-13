@@ -6745,19 +6745,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransferBestCase)
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
 
-    std::string url30MB = "/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns"; //https://mega.nz/file/zAJnUTYD#8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns
-    std::string url120MB = "/#!tzp2CbhY!r_P2GPTnH92_T2iMXMVa5gj6Y9hp1t4zrDP-uqBn_B0"; //https://mega.nz/file/tzp2CbhY#r_P2GPTnH92_T2iMXMVa5gj6Y9hp1t4zrDP-uqBn_B0
-    std::string url1GB = "/#!NmQ2AAJL!-zxJfqByFT2Fh_mMEguFTxRLjxMPgkRblV9e-xpnNzA"; //https://mega.nz/file/NmQ2AAJL#-zxJfqByFT2Fh_mMEguFTxRLjxMPgkRblV9e-xpnNzA
-    std::string url10GB = "/#!hrgGHYBQ!PefsCS6CRC6sFWQhIVMesZcY5m68OMzgcCkqkV5B5PI"; // https://mega.nz/file/hrgGHYBQ#PefsCS6CRC6sFWQhIVMesZcY5m68OMzgcCkqkV5B5PI
-    std::string url100GB = "/#!AqIEkKDT!wQloQwp5YEzOG4Vns5AX36o7WUubs_ZhfVP6S4tr3E8"; //https://mega.nz/file/AqIEkKDT#wQloQwp5YEzOG4Vns5AX36o7WUubs_ZhfVP6S4tr3E8
-    std::string urlWebrtc = "/#!A4pxxQoJ!OoAuL0SKIGuWkw6iSrSPHRMF0-Ri7BSF64IDeIWq-qs"; //https://mega.nz/file/A4pxxQoJ#OoAuL0SKIGuWkw6iSrSPHRMF0-Ri7BSF64IDeIWq-qs
-    std::string urlVideoraided = "/#!p6RxjDoS!YU2QxH0kGNe8Md91-VF1nF-ZdwYak0o71yXtmCBHczw";
-    std::string url120MBvideo = "/#!BuJFGQSC!r_P2GPTnH92_T2iMXMVa5gj6Y9hp1t4zrDP-uqBn_B0";
-    std::string url17MBvideo = "/#!hrZFCBwD!05dQh4en_lKi5CKJzhPWpNBBDniEwfcAz6eX4Iii4JA";
-    std::string url2MBvideo = "/#!AnZQ0YoI!-S-8n6vL6PICnIVR3VDmAe3Dq-lMi7Kbp9esbXfijXQ";
-    std::string urlTest = "/#!BoY3AKYJ";
-    std::string msTest = "/#!ov4niJaY!SspyJnT5oyOvOovAFS8asXxTx2oJ-mgt9CTJWgdnuZU";
-    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+url120MBvideo, rootnode.get());
+    std::string url100MB = "/#!JzckQJ6L!X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA"; //https://mega.nz/file/JzckQJ6L#X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA
+    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+url100MB, rootnode.get());
     std::unique_ptr<MegaNode> nimported{megaApi[0]->getNodeByHandle(importHandle)};
 
 
