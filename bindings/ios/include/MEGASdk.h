@@ -10521,7 +10521,7 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * @param includeSymbols bool indicating if at least 1 symbol from !@#$%^&*() shall be included
  * @param length unsigned int with the number of characters that will be included.
  *        Minimum valid length is 8 and maximum valid is 64.
- * @return newly generated password string, or nil if the password generation fails due to invalid parameters.
+ * @return newly generated password string, or nil if the password generation fails due to invalid length parameter.
  */
 + (nullable NSString *)generateRandomPasswordWithCapitalLetters:(BOOL)includeCapitalLetters digits:(BOOL)includeDigits symbols:(BOOL)includeSymbols length:(int)length;
 
