@@ -28,7 +28,7 @@ void ServerPosix::operator()()
 void ServerPosix::serverListeningLoop()
 {
     // Listen
-    const auto [ret, listenFd] = SocketUtils::listen(mName);
+    const auto [ret, listenFd] = SocketUtils::listen(SocketUtils::toSocketPath(mName));
     if (ret)
     {
         LOG_err << "Fail to listen on " << mName << ": " << ret.message();

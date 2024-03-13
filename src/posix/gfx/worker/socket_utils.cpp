@@ -17,28 +17,26 @@ using std::system_category;
 
 namespace fs = std::filesystem;
 
-namespace mega {
-namespace gfx {
+namespace
+{
 
-bool SocketUtils::isRetryErrorNo(int errorNo)
+// Refer man pages for read, write, accept and etc.. For these errors, we can/shall retry.
+bool isRetryErrorNo(int errorNo)
 {
     return errorNo == EAGAIN || errorNo == EWOULDBLOCK || errorNo == EINTR;
 }
 
-fs::path SocketUtils::toSocketPath(const std::string& name)
-{
-    return fs::path{"/tmp"} / ("MegaLimited" + std::to_string(getuid()))  / name;
-}
-
-bool SocketUtils::isPollError(int event)
+// Refer man page for poll
+bool isPollError(int event)
 {
     return event & (POLLERR | POLLHUP | POLLNVAL);
 }
 
-error_code SocketUtils::poll(std::vector<struct pollfd> fds, milliseconds timeout)
+// Pool a group of file descriptors. It deals with EINTR.
+error_code poll(std::vector<struct pollfd> fds, milliseconds timeout)
 {
     // Remaining timeout in case of EINTR
-    const ScopedSteadyClock clock;
+    const mega::ScopedSteadyClock clock;
     milliseconds remaining{timeout};
 
     int ret = 0;
@@ -61,7 +59,7 @@ error_code SocketUtils::poll(std::vector<struct pollfd> fds, milliseconds timeou
     return error_code{};
 }
 
-error_code SocketUtils::pollFd(int fd, short events, milliseconds timeout)
+error_code pollFd(int fd, short events, milliseconds timeout)
 {
     // Poll
     std::vector<struct pollfd> fds{
@@ -83,19 +81,60 @@ error_code SocketUtils::pollFd(int fd, short events, milliseconds timeout)
     return error_code{};
 }
 
-error_code SocketUtils::pollForRead(int fd, milliseconds timeout)
+error_code pollForRead(int fd, milliseconds timeout)
 {
     return pollFd(fd, POLLIN, timeout);
 }
 
-error_code SocketUtils::pollForWrite(int fd, milliseconds timeout)
+error_code pollForWrite(int fd, milliseconds timeout)
 {
     return pollFd(fd, POLLOUT, timeout);
 }
 
-error_code SocketUtils::pollForAccept(int fd, milliseconds timeout)
+error_code pollForAccept(int fd, milliseconds timeout)
 {
     return pollFd(fd, POLLIN, timeout);
+}
+
+constexpr size_t maxSocketPathLength()
+{
+    return sizeof(sockaddr_un::sun_path) - 1;
+}
+
+error_code doBindAndListen(int fd, const std::string& fullPath)
+{
+    constexpr int QUEUE_LEN = 10;
+
+    struct sockaddr_un un;
+    memset(&un, 0, sizeof(un));
+    un.sun_family = AF_UNIX;
+    strncpy(un.sun_path, fullPath.c_str(), maxSocketPathLength());
+
+    // Bind name
+    if (::bind(fd, reinterpret_cast<struct sockaddr*>(&un), sizeof(un)) == -1)
+    {
+        LOG_err << "fail to bind UNIX domain socket name: " << fullPath << " errno: " << errno;
+        return error_code{errno, system_category()};
+    }
+
+    // Listen
+    if (::listen(fd, QUEUE_LEN) < 0)
+    {
+        LOG_err << "fail to listen UNIX domain socket name: " << fullPath << " errno: " << errno;
+        return error_code{errno, system_category()};
+    }
+
+    // Success
+    return error_code{};
+}
+
+}
+namespace mega {
+namespace gfx {
+
+fs::path SocketUtils::toSocketPath(const std::string& name)
+{
+    return fs::path{"/tmp"} / ("MegaLimited" + std::to_string(getuid()))  / name;
 }
 
 std::pair<error_code, int> SocketUtils::accept(int listeningFd, milliseconds timeout)
@@ -154,9 +193,6 @@ error_code SocketUtils::write(int fd, const void* data, size_t n, milliseconds t
     return error_code{};
 }
 
-//
-// Read until count bytes or timeout
-//
 error_code SocketUtils::read(int fd, void* buf, size_t count, milliseconds timeout)
 {
     size_t offset = 0;
@@ -193,42 +229,8 @@ error_code SocketUtils::read(int fd, void* buf, size_t count, milliseconds timeo
     return error_code{};
 }
 
-error_code SocketUtils::doBindAndListen(int fd, const std::string& fullPath)
+std::pair<error_code, int> SocketUtils::listen(const fs::path& socketPath)
 {
-    constexpr int MAX_QUEUE_LEN = 10;
-
-    struct sockaddr_un un;
-    memset(&un, 0, sizeof(un));
-    un.sun_family = AF_UNIX;
-    strncpy(un.sun_path, fullPath.c_str(), maxSocketPathLength());
-
-    // Bind name
-    if (::bind(fd, reinterpret_cast<struct sockaddr*>(&un), sizeof(un)) == -1)
-    {
-        LOG_err << "fail to bind UNIX domain socket name: " << fullPath << " errno: " << errno;
-        return error_code{errno, system_category()};
-    }
-
-    // Listen
-    if (::listen(fd, MAX_QUEUE_LEN) < 0)
-    {
-        LOG_err << "fail to listen UNIX domain socket name: " << fullPath << " errno: " << errno;
-        return error_code{errno, system_category()};
-    }
-
-    // Success
-    return error_code{};
-}
-
-constexpr size_t SocketUtils::maxSocketPathLength()
-{
-    return sizeof(sockaddr_un::sun_path) - 1;
-}
-
-std::pair<error_code, int> SocketUtils::listen(const std::string& name)
-{
-    const auto socketPath = SocketUtils::toSocketPath(name);
-
     // Check name, extra 1 for null terminated
     if (strlen(socketPath.c_str()) >= maxSocketPathLength())
     {
@@ -251,7 +253,7 @@ std::pair<error_code, int> SocketUtils::listen(const std::string& name)
     const auto fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd < 0)
     {
-        LOG_err << "fail to create a UNIX domain socket: " << name << " errno: " << errno;
+        LOG_err << "fail to create a UNIX domain socket: " << socketPath.string() << " errno: " << errno;
         return {error_code{errno, system_category()}, -1};
     }
 
