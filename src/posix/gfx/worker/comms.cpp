@@ -1,6 +1,7 @@
 #include "mega/posix/gfx/worker/comms.h"
 #include "mega/logging.h"
 #include "mega/clock.h"
+#include <sys/un.h>
 
 #include <filesystem>
 #include <poll.h>
@@ -229,22 +230,50 @@ error_code SocketUtils::read(int fd, void* buf, size_t count, milliseconds timeo
     return error_code{};
 }
 
-std::pair<error_code, int> SocketUtils::listen(const std::string& name)
+error_code SocketUtils::doBindAndListen(int fd, const std::string& fullPath)
 {
     constexpr int MAX_QUEUE_LEN = 10;
+
     struct sockaddr_un un;
+    memset(&un, 0, sizeof(un));
+    un.sun_family = AF_UNIX;
+    strncpy(un.sun_path, fullPath.c_str(), maxSocketPathLength());
+
+    // Bind name
+    if (::bind(fd, reinterpret_cast<struct sockaddr*>(&un), sizeof(un)) == -1)
+    {
+        LOG_err << "fail to bind UNIX domain socket name: " << fullPath << " errno: " << errno;
+        return error_code{errno, system_category()};
+    }
+
+    // Listen
+    if (::listen(fd, MAX_QUEUE_LEN) < 0)
+    {
+        LOG_err << "fail to listen UNIX domain socket name: " << fullPath << " errno: " << errno;
+        return error_code{errno, system_category()};
+    }
+
+    // Success
+    return error_code{};
+}
+
+constexpr size_t SocketUtils::maxSocketPathLength()
+{
+    return sizeof(sockaddr_un::sun_path) - 1;
+}
+
+std::pair<error_code, int> SocketUtils::listen(const std::string& name)
+{
+    const auto socketPath = SocketUtils::toSocketPath(name);
 
     // Check name, extra 1 for null terminated
-    const auto socketPath = SocketUtils::toSocketPath(name);
-    const size_t max_size = sizeof(un.sun_path) - 1;
-    if (strlen(socketPath.c_str()) >= max_size)
+    if (strlen(socketPath.c_str()) >= maxSocketPathLength())
     {
         LOG_err << "unix domain socket name is too long, " << socketPath.string();
         return {error_code{ENAMETOOLONG, system_category()}, -1};
     }
 
-    // the name might exists due to crash
-    // another possiblity is a server with same name already exists
+    // The name might exist
     // fail to unlink is not an error: such as not exists as for most cases
     if (::unlink(socketPath.c_str()) < 0)
     {
@@ -263,30 +292,16 @@ std::pair<error_code, int> SocketUtils::listen(const std::string& name)
         return {error_code{errno, system_category()}, -1};
     }
 
-    // Fill address
-    memset(&un, 0, sizeof(un));
-    un.sun_family = AF_UNIX;
-    strncpy(un.sun_path, socketPath.c_str(), max_size);
-
-    // Bind name
-    if (::bind(fd, reinterpret_cast<struct sockaddr*>(&un), sizeof(un)) == -1)
+    // Bind and Listen on
+    if (auto error_code = doBindAndListen(fd, socketPath.string()))
     {
-        LOG_err << "fail to bind UNIX domain socket name: " << socketPath.string() << " errno: " << errno;
         ::close(fd);
-        return {error_code{errno, system_category()}, -1};
+        return { error_code, -1};
     }
-
-    // Listen
-    if (::listen(fd, MAX_QUEUE_LEN) < 0)
-    {
-        LOG_err << "fail to listen UNIX domain socket name: " << socketPath.string() << " errno: " << errno;
-        ::close(fd);
-        return {error_code{errno, system_category()}, -1};
-    }
-
-    LOG_verbose << "listening on UNIX domain socket name: " << socketPath.string();
 
     // Success
+    LOG_verbose << "listening on UNIX domain socket name: " << socketPath.string();
+
     return {error_code{}, fd};;
 }
 

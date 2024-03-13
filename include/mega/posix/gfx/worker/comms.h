@@ -74,6 +74,10 @@ private:
     static std::error_code pollForWrite(int fd, std::chrono::milliseconds timeout);
 
     static std::error_code pollForAccept(int fd, std::chrono::milliseconds timeout);
+
+    static std::error_code doBindAndListen(int fd, const std::string& fullPath);
+
+    static constexpr size_t maxSocketPathLength();
 };
 
 } // end of namespace
