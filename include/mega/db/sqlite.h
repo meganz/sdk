@@ -116,10 +116,6 @@ public:
             const UChar32 uEsc         /* The escape character */
           );
 
-    // Method called when query use method 'ismimetype'
-    // It checks if received mimetype is the same as extension extracted from file name
-    static void userIsMimetype(sqlite3_context* context, int argc, sqlite3_value** argv);
-
     // Method called when query uses 'getmimetype'
     // Gets the mimetype corresponding to the file extension
     static void userGetMimetype(sqlite3_context* context, int argc, sqlite3_value** argv);

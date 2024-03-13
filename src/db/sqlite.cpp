@@ -192,14 +192,6 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
         return nullptr;
     }
 
-    result = sqlite3_create_function(db, "ismimetype", 2, SQLITE_ANY,0, &SqliteAccountState::userIsMimetype, 0, 0);
-    if (result)
-    {
-        LOG_err << "Data base error(sqlite3_create_function userIsMimetype): " << sqlite3_errmsg(db);
-        sqlite3_close(db);
-        return nullptr;
-    }
-
     return new SqliteAccountState(rng,
                                 db,
                                 fsAccess,
@@ -2128,30 +2120,6 @@ int SqliteAccountState::icuLikeCompare(
     }
 
     return *zString == 0;
-}
-
-void SqliteAccountState::userIsMimetype(sqlite3_context* context, int argc, sqlite3_value** argv)
-{
-    if (argc != 2)
-    {
-        LOG_err << "Invalid parameters for user isMimetype";
-        assert(false);
-        sqlite3_result_int(context, 0);
-        return;
-    }
-
-    int result = 0;
-    std::string name = argv[0] ? reinterpret_cast<const char*>(sqlite3_value_text(argv[0])) : "";
-    int mimetype = argv[1] ? sqlite3_value_int(argv[1]) : MimeType_t::MIME_TYPE_UNKNOWN;
-    if (name.size() && mimetype)
-    {
-        std::string ext;
-        result = Node::getExtension(ext, name) &&
-                 Node::isOfMimetype(static_cast<MimeType_t>(mimetype), ext);
-
-    }
-
-    sqlite3_result_int(context, result);
 }
 
 void SqliteAccountState::userGetMimetype(sqlite3_context* context, int argc, sqlite3_value** argv)
