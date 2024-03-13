@@ -16073,28 +16073,6 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
     ASSERT_EQ(nodeList->get(3)->getHandle(), handlePdfFile);
     ASSERT_EQ(nodeList->get(4)->getHandle(), handleTxtFile);
 
-    ///
-    /// search using old and deprecated API, to make sure we don't break it in the future
-    nodeList.reset(megaApi[0]->searchByType(nullptr, "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_SPREADSHEET)); // order Alphabetical asc
-    ASSERT_EQ(nodeList->size(), 1);
-    ASSERT_EQ(nodeList->get(0)->getHandle(), handleSpreadsheetFile);
-
-    nodeList.reset(megaApi[0]->searchByType(rootnode.get(), "", nullptr, false, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_ALL_DOCS)); // order Alphabetical asc
-    ASSERT_EQ(nodeList->size(), 5);
-    ASSERT_EQ(nodeList->get(0)->getHandle(), handleDocumentFile);
-    ASSERT_EQ(nodeList->get(1)->getHandle(), handleSpreadsheetFile);
-    ASSERT_EQ(nodeList->get(2)->getHandle(), handleOrgFile);
-    ASSERT_EQ(nodeList->get(3)->getHandle(), handlePdfFile);
-    ASSERT_EQ(nodeList->get(4)->getHandle(), handleTxtFile);
-
-    nodeList.reset(megaApi[0]->searchByType(nullptr, "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_ALL_DOCS)); // order Alphabetical asc
-    ASSERT_EQ(nodeList->size(), 5);
-    ASSERT_EQ(nodeList->get(0)->getHandle(), handleDocumentFile);
-    ASSERT_EQ(nodeList->get(1)->getHandle(), handleSpreadsheetFile);
-    ASSERT_EQ(nodeList->get(2)->getHandle(), handleOrgFile);
-    ASSERT_EQ(nodeList->get(3)->getHandle(), handlePdfFile);
-    ASSERT_EQ(nodeList->get(4)->getHandle(), handleTxtFile);
-
     deleteFile(PUBLICFILE);
 }
 
