@@ -73,6 +73,16 @@ const unsigned MegaClient::MAXTOTALTRANSFERS = 48;
 // maximum number of concurrent transfers (uploads or downloads)
 const unsigned MegaClient::MAXTRANSFERS = 32;
 
+// minimum maximum number of concurrent transfers for dynamic calculation
+const unsigned MegaClient::MIN_MAXTRANSFERS = 12;
+
+// maximum number of concurrent raided transfers for mobile
+const unsigned MegaClient::MAX_RAIDTRANSFERS_FOR_MOBILE = std::max<unsigned>(MAXTRANSFERS - 10, MIN_MAXTRANSFERS);
+
+// meaningful portion of the maximum transfer queue size to consider raid representation
+// i.e., there must be at least this number of raid transfers to let us predict whether the next download transfer will be raided or non-raided
+const unsigned MegaClient::MEANINGFUL_PORTION_OF_MAXTRANSFERS_QUEUE_FOR_RAID_PREDICTIVE_SYSTEM = std::max<unsigned>(MAXTRANSFERS / 6, 1);
+
 // maximum number of queued putfa before halting the upload queue
 const int MegaClient::MAXQUEUEDFA = 30;
 
@@ -3612,19 +3622,25 @@ void MegaClient::dispatchTransfers()
         const int maxScalingFactor = 20000; // KB/s
 
         // Define the minimum and maximum size limits
-        const int minSize = 12; // Adjusted minimum size
+        const int minSize = MIN_MAXTRANSFERS; // Adjusted minimum size
 #if defined(__ANDROID__) || defined(USE_IOS)
-        const int maxSize = MAXTRANSFERS - 10; // Maximum limit for the queue size
+        const int maxSize = static_cast<int>(MAX_RAIDTRANSFERS_FOR_MOBILE); // Maximum limit for the queue size
 #else
         const int maxSize = MAXTRANSFERS;
 #endif
 
         const int threshold = 16500; // Threshold (KB/S) to activate the additional term -> before this threshold, dynamic size grows slowly from minSize to maxSize. After the threshold, it will quickly grow to maxSize.
-        m_off_t throughputInKBPerSec = httpio->downloadSpeed / 1024; // KB/s
+        if (threshold <= minScalingFactor)
+        {
+            LOG_err << "[calcDynamicQueueLimit] threshold (" << threshold << ") IS SMALLER OR EQUAL minScalingFactor(" << minScalingFactor << ") !!!!!!!!!! This must be fixed!!!!";
+            assert(false && "[calcDynamicQueueLimit] thresold <= minScalingFactor!");
+            return maxSize;
+        }
 
         // Use an expontential function to obtain a very low growth rate before the threshold
-        double scaleFactor = static_cast<double>(throughputInKBPerSec - minScalingFactor) / (threshold - minScalingFactor);
-        scaleFactor *= 0.12;
+        m_off_t throughputInKBPerSec = httpio->downloadSpeed / 1024; // KB/s
+        const double reductiveGrowthMultiplier = 0.12; // This allows us to keep the scaling factor within a very low growth rate
+        double scaleFactor = (static_cast<double>(throughputInKBPerSec - minScalingFactor) / (threshold - minScalingFactor)) * reductiveGrowthMultiplier;
         double size = minSize + (maxSize - minSize) * (1 - exp(-scaleFactor));
         size = std::min(size, static_cast<double>(maxSize));
 
@@ -3645,7 +3661,7 @@ void MegaClient::dispatchTransfers()
 
     auto calcTransferWeight = [this, &calcDynamicQueueLimit]() -> double
     {
-        if (raidTransfersCounter >= (MAXTRANSFERS/6)) // 1/5 of the hard limit
+        if (raidTransfersCounter >= MEANINGFUL_PORTION_OF_MAXTRANSFERS_QUEUE_FOR_RAID_PREDICTIVE_SYSTEM) // 1/6 of the hard limit
         {
             double averageFileSize = 0;
             for (TransferSlot* ts : tslots)
@@ -3653,10 +3669,11 @@ void MegaClient::dispatchTransfers()
                 averageFileSize += (static_cast<double>(ts->transfer->size) / static_cast<double>(tslots.size())); // Take into account VERY LARGE FILE SIZES, that's why I divide for each iteration and not at the end
             }
             unsigned dynamicQueueLimit;
-            if (averageFileSize <= (2 * 1024 * 1024)) // 2MB
+            const unsigned maxAverageFilesizeForFixedLimit = 2 * 1024 * 1024; // 2MB, it's better to used a fixed limit (and a larger queue max size) for transfer queues whose average filesize is smaller than this value
+            if (static_cast<unsigned>(averageFileSize) <= maxAverageFilesizeForFixedLimit) // Truncate double averageFileSize (2,x MB ≡ 2MB)
             {
 #if defined(__ANDROID__) || defined(USE_IOS)
-                dynamicQueueLimit = MAXTRANSFERS - 10;
+                dynamicQueueLimit = MAX_RAIDTRANSFERS_FOR_MOBILE;
 #else
                 dynamicQueueLimit = MAXTRANSFERS + 10;
 #endif
@@ -3666,7 +3683,7 @@ void MegaClient::dispatchTransfers()
                 dynamicQueueLimit = calcDynamicQueueLimit();
             }
             double transferWeight = static_cast<double>(MAXTRANSFERS) / static_cast<double>(dynamicQueueLimit); 
-            //LOG_verbose << "[calcTransferWeight] raidTransfersCounter = " << raidTransfersCounter << ", >= " << (MAXTRANSFERS/6) << " -> transferWeight = " << transferWeight << " [tslots = " << tslots.size() << "] [dynamicQueueLimit = " << dynamicQueueLimit << "] [averageFileSize = " << (averageFileSize / 1024) << " KBs]";
+            //LOG_verbose << "[calcTransferWeight] raidTransfersCounter = " << raidTransfersCounter << ", >= " << MEANINGFUL_PORTION_OF_MAXTRANSFERS_QUEUE_FOR_RAID_PREDICTIVE_SYSTEM << " -> transferWeight = " << transferWeight << " [tslots = " << tslots.size() << "] [dynamicQueueLimit = " << dynamicQueueLimit << "] [averageFileSize = " << (averageFileSize / 1024) << " KBs]";
             return transferWeight;
         }
         return 1;
@@ -3683,10 +3700,13 @@ void MegaClient::dispatchTransfers()
             {
                 if (ts->transferbuf.isNewRaid()) // Raid
                 {
-                    if (raidTransfersCounter < (MAXTRANSFERS/6)) raidTransfersCounter += 1; // Keep the counter within the limit to avoid overrepresentation: 1/5 of max transfers
+                    // Keep the counter within the limit to avoid overrepresentation: 1/6 of max transfers
+                    // i.e., if the counter has already reached that value, we don't continue increasing it
+                    if (raidTransfersCounter < MEANINGFUL_PORTION_OF_MAXTRANSFERS_QUEUE_FOR_RAID_PREDICTIVE_SYSTEM) raidTransfersCounter += 1;
                 }
                 else // Old raid or non-raid
                 {
+                    // As we kept the raid counter within a max limit (1/6), we obtain an accurate representation by decreasing the counter every time we find a non-raid transfer.
                     if (raidTransfersCounter > 1) raidTransfersCounter -= 1;
                 }
             }
@@ -3704,7 +3724,7 @@ void MegaClient::dispatchTransfers()
 
     std::function<bool(direction_t)> continueDirection = [this, &counters](direction_t putget)
     {
-        if (Waiter::ds % 50 == 0) // Every 5 secs
+        if (Waiter::ds % 50 == 0) // Avoid to log too frequently, do it every 5 secs
         {
             LOG_verbose << "[continueDirection] counters[putget].total = " << std::round(counters[putget].total) << ", counters[putget].added = " << std::round(counters[putget].added) << ", MAXTRANSFERS = " << MAXTRANSFERS << " [tslots = " << tslots.size() << "]";;
         }
