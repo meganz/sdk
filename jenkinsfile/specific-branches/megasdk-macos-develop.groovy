@@ -43,63 +43,73 @@ pipeline {
                 BUILD_DIR = "build_dir"  
                 }
             steps{
-                lock(label: 'SDK_Concurrent_Test_Accounts', variable: 'ACCOUNTS_COMBINATION', quantity: 1, resource: null){
-                    script{
-                        env.MEGA_EMAIL = "${env.ACCOUNTS_COMBINATION}"
-                        echo "${env.ACCOUNTS_COMBINATION}"
-                    }
-                    sh "echo Running tests"
-                    sh """#!/bin/zsh
-                    set -x
-                    cd ${env.BUILD_DIR}
+                script {
+                    def lockLabel = ''
+                    if ("${APIURL_TO_TEST}" == 'https://g.api.mega.co.nz/') {
+                        lockLabel = 'SDK_Concurrent_Test_Accounts'
+                    } else if ("${APIURL_TO_TEST}" == 'https://staging.api.mega.co.nz/') {
+                        lockLabel = 'SDK_Concurrent_Test_Accounts_Staging'
+                    } else {
+                        error("Wrong APIURL: ${APIURL_TO_TEST}")                        
+                    }                    
+                    lock(label: lockLabel, variable: 'ACCOUNTS_COMBINATION', quantity: 1, resource: null){
+                        script{
+                            env.MEGA_EMAIL = "${env.ACCOUNTS_COMBINATION}"
+                            echo "${env.ACCOUNTS_COMBINATION}"
+                        }
+                        sh "echo Running tests"
+                        sh """#!/bin/zsh
+                        set -x
+                        cd ${env.BUILD_DIR}
 
-                    ./tests/unit/test_unit &
-                    pid=\$!
-                    wait \$pid || FAILED=1
+                        ./tests/unit/test_unit &
+                        pid=\$!
+                        wait \$pid || FAILED=1
 
-                    if [ -z \"\$FAILED\" ]; then
-                        if [ -z \"${TESTS_PARALLEL}\" ]; then
-                            # Sequential run
-                            ./tests/integration/test_integration --CI --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} &
-                            pid=\$!
-                            wait \$pid || FAILED=2
-                        else
-                            # Parallel run
-                            ./tests/integration/test_integration --CI --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${TESTS_PARALLEL} 2>&1 | tee tests.stdout
-                            [ \"\${pipestatus[1]}\" != \"0\" ] && FAILED=2
-                        fi
-                    fi
-
-                    if [ -n \"\$FAILED\" ]; then
-                        if [ \"\$FAILED\" -eq 1 ]; then
-                            procFailed=\$pid
-                        else # FAILED=2
+                        if [ -z \"\$FAILED\" ]; then
                             if [ -z \"${TESTS_PARALLEL}\" ]; then
                                 # Sequential run
-                                procFailed=\$pid
+                                ./tests/integration/test_integration --CI --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} &
+                                pid=\$!
+                                wait \$pid || FAILED=2
                             else
                                 # Parallel run
-                                procFailed=`grep \"<< PROCESS\" tests.stdout | sed 's/.*PID:\\([0-9]*\\).*/\\1/' | tr '\\n' ' '`
+                                ./tests/integration/test_integration --CI --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${TESTS_PARALLEL} 2>&1 | tee tests.stdout
+                                [ \"\${pipestatus[1]}\" != \"0\" ] && FAILED=2
                             fi
                         fi
-                        if [ -n \"\$procFailed\" ]; then
-                            sleep 10
-                            for i in `echo \$procFailed`; do
-                                last_core=`grep \"test_.*\$i\" -rn \$HOME/Library/Logs/DiagnosticReports | cut -d':' -f1`
-                                if [ -n \"\$last_core\" ]; then
-                                    cat \"\$last_core\"
-                                    rm \"\$last_core\"
-                                fi
-                            done
-                        fi
-                    fi
 
-                    gzip -c test_integration.log > test_integration_${BUILD_ID}.log.gz || :
-                    rm test_integration.log || :
-                    if [ -n \"\$FAILED\" ]; then
-                        exit \"\$FAILED\"
-                    fi
-                    """
+                        if [ -n \"\$FAILED\" ]; then
+                            if [ \"\$FAILED\" -eq 1 ]; then
+                                procFailed=\$pid
+                            else # FAILED=2
+                                if [ -z \"${TESTS_PARALLEL}\" ]; then
+                                    # Sequential run
+                                    procFailed=\$pid
+                                else
+                                    # Parallel run
+                                    procFailed=`grep \"<< PROCESS\" tests.stdout | sed 's/.*PID:\\([0-9]*\\).*/\\1/' | tr '\\n' ' '`
+                                fi
+                            fi
+                            if [ -n \"\$procFailed\" ]; then
+                                sleep 10
+                                for i in `echo \$procFailed`; do
+                                    last_core=`grep \"test_.*\$i\" -rn \$HOME/Library/Logs/DiagnosticReports | cut -d':' -f1`
+                                    if [ -n \"\$last_core\" ]; then
+                                        cat \"\$last_core\"
+                                        rm \"\$last_core\"
+                                    fi
+                                done
+                            fi
+                        fi
+
+                        gzip -c test_integration.log > test_integration_${BUILD_ID}.log.gz || :
+                        rm test_integration.log || :
+                        if [ -n \"\$FAILED\" ]; then
+                            exit \"\$FAILED\"
+                        fi
+                        """
+                    }
                 }
             }
         }

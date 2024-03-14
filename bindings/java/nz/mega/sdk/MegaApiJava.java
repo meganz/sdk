@@ -12640,6 +12640,37 @@ public class MegaApiJava {
     }
 
     /**
+     * @brief Get list of available notifications for Notification Center
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_NOTIFICATIONS.
+     *
+     * When onRequestFinish received MegaError::API_OK, valid data in the MegaRequest object is:
+     * - MegaRequest::getMegaNotifications - Returns the list of notifications
+     *
+     * When onRequestFinish errored, the error code associated to the MegaError can be:
+     * - MegaError::API_ENOENT - No such notifications exist, and MegaRequest::getMegaNotifications
+     *   will return a non-null, empty list.
+     * - MegaError::API_EACCESS - No user was logged in.
+     * - MegaError::API_EINTERNAL - Received answer could not be read.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getNotifications(MegaRequestListenerInterface listener) {
+        megaApi.getNotifications(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * @brief Get the list of IDs for enabled notifications
+     *
+     * You take the ownership of the returned value
+     *
+     * @return List of IDs for enabled notifications
+     */
+    public MegaIntegerList getEnabledNotifications(){
+        return megaApi.getEnabledNotifications();
+    }
+
+    /**
      * Initiate an asynchronous request to receive stalled issues.
      *
      * Use MegaRequestListenerInterface to subscribe for result.
