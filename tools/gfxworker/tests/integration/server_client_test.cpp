@@ -4,13 +4,7 @@
 #include "processor.h"
 
 #include "mega/gfx.h"
-
-#if defined(WIN32)
-#include "mega/win32/gfx/worker/comms_client.h"
-#else
-#include "mega/posix/gfx/worker/comms_client.h"
-#endif
-
+#include "mega/gfx/worker/comms_client.h"
 #include "mega/gfx/worker/client.h"
 #include "mega/utils.h"
 
@@ -22,17 +16,10 @@
 #include <vector>
 #include <cstdlib>
 
-#if defined(WIN32)
-using GfxCommunicationsClient = mega::gfx::WinGfxCommunicationsClient;
-#else
-using GfxCommunicationsClient = mega::gfx::PosixGfxCommunicationsClient;
-#endif
-
 using mega::gfx::Server;
 using mega::gfx::RequestProcessor;
-using mega::gfx::GfxProcessor;
 using mega::gfx::GfxClient;
-using mega::gfx::IEndpoint;
+using mega::gfx::GfxCommunicationsClient;
 using mega::GfxDimension;
 using mega::LocalPath;
 using mega::getCurrentPid;

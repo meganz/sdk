@@ -1,10 +1,10 @@
 #include "gfx/worker/comms.h"
+
 #include "mega/logging.h"
 #include "mega/posix/gfx/worker/comms_client.h"
 #include "mega/posix/gfx/worker/socket_utils.h"
 #include "mega/gfx/worker/comms.h"
-#include "mega/types.h"
-#include <asm-generic/errno.h>
+
 #include <memory>
 
 namespace mega {

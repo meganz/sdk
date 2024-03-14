@@ -2,6 +2,7 @@
 #include "mega/gfx/worker/command_serializer.h"
 #include "mega/gfx/worker/commands.h"
 #include "mega/gfx/worker/comms.h"
+#include "mega/gfx/worker/comms_client.h"
 #include "mega/logging.h"
 #include "mega/filesystem.h"
 #include "mega/types.h"
@@ -11,11 +12,6 @@
 #include <tuple>
 #include <unordered_set>
 
-#ifdef _WIN32
-#include "mega/win32/gfx/worker/comms_client.h"
-#else
-#include "mega/posix/gfx/worker/comms_client.h"
-#endif
 
 using std::chrono::milliseconds;
 namespace mega {
@@ -133,11 +129,7 @@ bool GfxClient::runSupportFormats(std::string& formats, std::string& videoformat
 
 GfxClient GfxClient::create(const std::string& endpointName)
 {
-#ifdef _WIN32
-    return GfxClient(mega::make_unique<WinGfxCommunicationsClient>(endpointName));
-#else
-    return GfxClient(std::make_unique<PosixGfxCommunicationsClient>(endpointName));
-#endif
+    return GfxClient(std::make_unique<GfxCommunicationsClient>(endpointName));
 }
 
 //

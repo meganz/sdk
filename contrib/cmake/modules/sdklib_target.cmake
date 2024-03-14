@@ -206,6 +206,7 @@ target_sources_conditional(SDKlib
 target_sources_conditional(SDKlib
     FLAG ENABLE_ISOLATED_GFX
     PRIVATE
+    include/mega/gfx/worker/comms_client.h
     src/gfx/isolatedprocess.cpp
 )
 

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "mega/gfx/worker/comms.h"
-#include "mega/posix/gfx/worker/comms.h"
 
 namespace mega {
 namespace gfx {
