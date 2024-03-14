@@ -2,8 +2,8 @@
 #define MEGA_MAJOR_VERSION 5
 #endif
 #ifndef MEGA_MINOR_VERSION
-#define MEGA_MINOR_VERSION 2
+#define MEGA_MINOR_VERSION 3
 #endif
 #ifndef MEGA_MICRO_VERSION
-#define MEGA_MICRO_VERSION 4
+#define MEGA_MICRO_VERSION 0
 #endif

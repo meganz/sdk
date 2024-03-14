@@ -35,6 +35,7 @@
 #import "MEGASet.h"
 #import "MEGASetElement.h"
 #import "MEGAVPNCredentials.h"
+#import "MEGANotificationList.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -216,6 +217,7 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypePutVPNCredentials,
     MEGARequestTypeDeleteVPNCredentials,
     MEGARequestTypeCheckVPNCredentials,
+    MEGARequestTypeGetNotifications,
     TotalOfRequestTypes
 };
 
@@ -661,6 +663,16 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  *  @return an object of MEGAVPNCredentials
  */
 @property (readonly, nonatomic, nullable) MEGAVPNCredentials *megaVpnCredentials;
+
+/**
+ * @brief Get list of available notifications for Notification Center
+ *
+ * This value is valid only for the following requests:
+ * - [MEGASdk getNotificationsWithDelegate]
+ *
+ * @return an object of MEGANotificationList or nil if not found
+ */
+@property (readonly, nonatomic, nullable) MEGANotificationList *megaNotifications;
 
 @end
 

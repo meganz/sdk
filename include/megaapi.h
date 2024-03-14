@@ -97,6 +97,7 @@ class MegaSyncStallList;
 class MegaVpnCredentials;
 class MegaNodeTree;
 class MegaCompleteUploadData;
+class MegaNotificationList;
 
 #if defined(SWIG)
     #define MEGA_DEPRECATED
@@ -250,6 +251,48 @@ public:
     virtual const char* supportedVideoFormats();
 
     virtual ~MegaGfxProcessor();
+};
+
+/**
+ * @brief Represents a GFX provider with a hidden implementation and interfaces for creating different GFX providers.
+ *
+ * There are three interfaces available for creating various GFX providers:
+ * - @see MegaGfxProvider::createIsolatedInstance
+ * - @see MegaGfxProvider::createExternalInstance
+ * - @see MegaGfxProvider::createInternalInstance
+ *
+ * You can use one of these interfaces to create a GFX provider and provide it to the SDK within the MegaApi::MegaApi
+ * constructor. Subsequently, the SDK will utilize the GFX provider for generating thumbnails and previews when needed.
+ * For more details, refer to @see MegaApi::MegaApi.
+ */
+class MegaGfxProvider
+{
+public:
+    virtual ~MegaGfxProvider();
+
+    /**
+    * @brief Create a graphics processor that implemented and run in an isolated process.
+    *
+    * Note: Currently, only Windows is supported.
+    *
+    * @param pipeName The unique named pipe's name used for communicating with the isolated process.
+    * @param executable The executable path.
+    */
+    static MegaGfxProvider* createIsolatedInstance(const char* pipeName,
+                                                   const char* executable);
+
+    /**
+    * @brief Create a graphics processor that use your implementations @see MegaGfxProcessor.
+    *
+    * @param processor Your own implementation
+    */
+    static MegaGfxProvider* createExternalInstance(MegaGfxProcessor* processor);
+
+    /**
+    * @brief Create a graphics processor that utilizes the SDK's implementation and runs in the same
+    * process as the caller.
+    */
+    static MegaGfxProvider* createInternalInstance();
 };
 
 /**
@@ -4432,7 +4475,8 @@ class MegaRequest
             TYPE_CREATE_PASSWORD_MANAGER_BASE                               = 182,
             TYPE_CREATE_PASSWORD_NODE                                       = 183,
             TYPE_UPDATE_PASSWORD_NODE                                       = 184,
-            TOTAL_OF_REQUEST_TYPES                                          = 185,
+            TYPE_GET_NOTIFICATIONS                                          = 185,
+            TOTAL_OF_REQUEST_TYPES                                          = 186,
         };
 
         virtual ~MegaRequest();
@@ -5330,6 +5374,19 @@ class MegaRequest
          * @return MegaVpnCredentials* if there are any VPN credentials for the user, nullptr otherwise.
          */
         virtual MegaVpnCredentials* getMegaVpnCredentials() const;
+
+        /**
+         * @brief Get list of available notifications for Notification Center
+         *
+         * This value is valid only for the following requests:
+         * - MegaApi::getNotifications
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * @return non-null pointer if a valid MegaApi functionality has been called, nullptr otherwise.
+         */
+        virtual const MegaNotificationList* getMegaNotifications() const;
 };
 
 /**
@@ -9355,8 +9412,8 @@ public:
     virtual void byLocationHandle(MegaHandle ancestorHandle);
 
     /**
-     * @brief Set option for retrieving nodes below a particular predefined location.
-     * If not set, nodes will not be restricted to a particular location and it will behave like using SEARCH_TARGET_ALL.
+     * @brief Set option for searching nodes below predefined locations.
+     * If not set, it will behave like using SEARCH_TARGET_ALL.
      *
      * @note When called, it will cancel any previous setting done by calling byLocationHandle().
      *
@@ -9365,8 +9422,9 @@ public:
      * - SEARCH_TARGET_INSHARE = 0
      * - SEARCH_TARGET_OUTSHARE = 1
      * - SEARCH_TARGET_PUBLICLINK = 2
-     * - SEARCH_TARGET_ROOTNODE = 3 --> search in Cloud and Vault rootnodes
-     * - SEARCH_TARGET_ALL = 4
+     * - SEARCH_TARGET_ROOTNODE = 3 --> search under Cloud and Vault rootnodes
+     * - SEARCH_TARGET_ALL = 4 --> by default search under Cloud, Vault, Rubbish and among INSHARE-s;
+     *   if an ancestor was explicitly set via byLocationHandle(), search under that particular ancestor
      */
     virtual void byLocation(int locationType);
 
@@ -9464,6 +9522,56 @@ public:
     virtual int64_t byModificationTimeUpperLimit() const;
 };
 
+/**
+ * @brief Store pagination options used in searches @see MegaApi::search, MegaApi::getChildren.
+ *
+ */
+class MegaSearchPage
+{
+protected:
+    MegaSearchPage();
+
+public:
+    /**
+     * @brief Creates a new instance of MegaSearchPage
+     *
+     * @param startingOffset The first position in the list of results to be included in the returned page (starts from 0).
+     * @param size The maximum number of results included in the page, or 0 to return all (remaining) results
+     *
+     * @return A pointer of current type, a superclass of the private object
+     */
+    static MegaSearchPage* createInstance(size_t startingOffset, size_t size);
+
+    /**
+     * @brief Create a copy of this instance.
+     *
+     * The resulted instance is fully independent of the source instance,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original instance was deleted.
+     *
+     * You are the owner of the returned instance
+     *
+     * @return Copy of the current instance
+     */
+    virtual MegaSearchPage* copy() const;
+
+    virtual ~MegaSearchPage();
+
+    /**
+     * @brief Return the first position in the list of results to be included in the returned page (starts from 0)
+     *
+     * @return first position in the list of results to be included in the returned page (starts from 0)
+     */
+    virtual size_t startingOffset() const;
+
+    /**
+     * @brief Return the maximum number of results included in the page, or 0 to return all (remaining) results
+     *
+     * @return maximum number of results included in the page, or 0 to return all (remaining) results
+     */
+    virtual size_t size() const;
+};
+
 class MegaNodeTree
 {
 protected:
@@ -9471,10 +9579,11 @@ protected:
 
 public:
     virtual ~MegaNodeTree() = default;
-    static MegaNodeTree* createInstance(MegaNodeTree* nodeTreeChild,
-                                        const char* name,
-                                        const char* s4AttributeValue,
-                                        const MegaCompleteUploadData* completeUploadData);
+    static MegaNodeTree* createInstance(MegaNodeTree* nodeTreeChild,                      // takes ownership !
+                                        const char* name,                                 // ownership left with the caller
+                                        const char* s4AttributeValue,                     // ownership left with the caller
+                                        const MegaCompleteUploadData* completeUploadData, // takes ownership !
+                                        MegaHandle sourceHandle = INVALID_HANDLE);
     virtual MegaNodeTree* getNodeTreeChild() const = 0;
     virtual MegaHandle getNodeHandle() const = 0;
 };
@@ -9630,17 +9739,20 @@ class MegaApi
             // ATTR_UNSHAREABLE_KEY = 26         // it's internal for SDK, not exposed to apps
             USER_ATTR_ALIAS = 27,                // private - byte array
             USER_ATTR_DEVICE_NAMES = 30,         // private - byte array
-            USER_ATTR_MY_BACKUPS_FOLDER = 31,    // protected - char array in B64
+            USER_ATTR_MY_BACKUPS_FOLDER = 31,    // protected - char array in B64 - non-versioned
             // USER_ATTR_BACKUP_NAMES = 32,      // (deprecated) private - byte array
-            USER_ATTR_COOKIE_SETTINGS = 33,      // private - byte array
+            USER_ATTR_COOKIE_SETTINGS = 33,      // private - byte array - non-versioned
             USER_ATTR_JSON_SYNC_CONFIG_DATA = 34,// private - byte array
             // USER_ATTR_DRIVE_NAMES = 35,       // (merged with USER_ATTR_DEVICE_NAMES and removed) private - byte array
             USER_ATTR_NO_CALLKIT = 36,           // private - byte array
             USER_ATTR_APPS_PREFS = 38,           // private - byte array - versioned
             USER_ATTR_CC_PREFS   = 39,           // private - byte array - versioned
-            USER_ATTR_VISIBLE_WELCOME_DIALOG = 40, // private - byte array - versioned
-            USER_ATTR_VISIBLE_TERMS_OF_SERVICE = 41, // private - byte array - versioned
+            USER_ATTR_VISIBLE_WELCOME_DIALOG = 40, // private - non-encrypted - byte array - non-versioned
+            USER_ATTR_VISIBLE_TERMS_OF_SERVICE = 41, // private - non-encrypted - byte array - non-versioned
             USER_ATTR_PWM_BASE = 42,             // private non-encrypted (fully controlled by API) - char array in B64
+            USER_ATTR_ENABLE_TEST_NOTIFICATIONS = 43, // private - non-encrypted - char array - non-versioned
+            USER_ATTR_LAST_READ_NOTIFICATION = 44, // private - non-encrypted - char array - non-versioned
+            USER_ATTR_LAST_ACTIONED_BANNER = 45, // private - non-encrypted - char array - non-versioned
         };
 
         enum {
@@ -9844,7 +9956,34 @@ class MegaApi
          */
         MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1, int clientType = CLIENT_TYPE_DEFAULT);
 
-#ifdef HAVE_MEGAAPI_RPC
+        /**
+         * @brief MegaApi Constructor that uses a given GFX provider
+         *
+         * The SDK attach thumbnails and previews to all uploaded images. To generate them, it needs a graphics provider.
+         * @see MegaGfxProvider
+         *
+         * @param appKey AppKey of your application
+         * You can pass NULL to this parameter if you don't have one. AppKey is currently no longer required.
+         *
+         * @param provider Graphics processing provider. The SDK will use it to generate previews and thumbnails. Once MegaApi returns, the provider
+         * couldn't be reused and the caller should release it.
+         *
+         * @param basePath Base path to store the local cache
+         * If you pass NULL to this parameter, the SDK won't use any local cache.
+         *
+         * @param userAgent User agent to use in network requests
+         * If you pass NULL to this parameter, a default user agent will be used
+         *
+         * @param workerThreadCount The number of worker threads for encryption or other operations
+         * Using worker threads means that synchronous function calls on MegaApi will be blocked less,
+         * and uploads and downloads can proceed more quickly on very fast connections.
+         *
+         * @param clientType Client type (default, VPN or Password Manager) enables SDK to function differently
+         *
+         */
+        MegaApi(const char *appKey, MegaGfxProvider* provider, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1, int clientType = CLIENT_TYPE_DEFAULT);
+
+        #ifdef HAVE_MEGAAPI_RPC
         MegaApi();
 #endif
         virtual ~MegaApi();
@@ -14699,6 +14838,21 @@ class MegaApi
         int getPasswordStrength(const char *password);
 
         /**
+         * @brief Generate a new pseudo-randomly characters-based password
+         *
+         * You take ownership of the returned value.
+         * Use delete[] to free it.
+         *
+         * @param t bool indicating if at least 1 upper case letter shall be included
+         * @param t bool indicating if at least 1 digit shall be included
+         * @param t bool indicating if at least 1 symbol from !@#$%^&*() shall be included
+         * @param length unsigned int with the number of characters that will be included.
+         *        Minimum valid length is 8 and maximum valid is 64.
+         * @return Null-terminated char string containing the newly generated password.
+         */
+        static char* generateRandomCharsPassword(bool useUpper, bool useDigit, bool useSymbol, unsigned int length);
+
+        /**
          * @brief Submit feedback about the app
          *
          * The associated request type with this request is MegaRequest::TYPE_SUBMIT_FEEDBACK
@@ -16790,7 +16944,7 @@ class MegaApi
          *
          * @return List with found children as MegaNode objects
          */
-        MegaNodeList* getChildren(const MegaSearchFilter *filter, int order = ORDER_NONE, MegaCancelToken *cancelToken = nullptr);
+        MegaNodeList* getChildren(const MegaSearchFilter *filter, int order = ORDER_NONE, MegaCancelToken *cancelToken = nullptr, const MegaSearchPage* searchPage = nullptr);
 
         /**
          * @brief Get all children of a list of MegaNodes
@@ -17894,7 +18048,7 @@ class MegaApi
          *
          * @return List with found nodes as MegaNode objects
          */
-        MegaNodeList* search(const MegaSearchFilter* filter, int order = ORDER_NONE, MegaCancelToken* cancelToken = nullptr);
+        MegaNodeList* search(const MegaSearchFilter* filter, int order = ORDER_NONE, MegaCancelToken* cancelToken = nullptr, const MegaSearchPage* searchPage = nullptr);
 
         /**
          * @brief Search nodes containing a search string in their name
@@ -22169,10 +22323,11 @@ class MegaApi
         /**
          * @brief Get Welcome dialog visibility.
          *
-         * The associated request type with this request is
-         * MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG.
+         * The type associated with this request is MegaRequest::TYPE_GET_ATTR_USER
          *
-         * Valid data in the MegaRequest object received on callbacks:
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG
          * - MegaRequest::getFlag - Returns the Welcome dialog visibility.
          *
          * If the corresponding user attribute is not set yet, the request will fail with the error
@@ -22185,8 +22340,11 @@ class MegaApi
         /**
          * @brief Set Welcome dialog visibility.
          *
-         * The associated request type with this request is
-         * MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG.
+         * The type associated with this request is MegaRequest::TYPE_SET_ATTR_USER
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_VISIBLE_WELCOME_DIALOG
          *
          * @param visible True to set the Welcome dialog visible, false otherwise.
          * @param listener MegaRequestListener to track this request.
@@ -22216,11 +22374,11 @@ class MegaApi
         /**
          * @brief Get Terms of Service for VPN visibility.
          *
-         * The associated request type with this request is
-         * MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE.
+         * The type associated with this request is MegaRequest::TYPE_GET_ATTR_USER
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE
          * - MegaRequest::getFlag - Returns Terms of Service for VPN visibility.
          *
          * If the corresponding user attribute is not set yet, the request will fail with the error
@@ -22233,13 +22391,123 @@ class MegaApi
         /**
          * @brief Set Terms of Service for VPN visibility.
          *
-         * The associated request type with this request is
-         * MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE.
+         * The type associated with this request is MegaRequest::TYPE_SET_ATTR_USER
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_VISIBLE_TERMS_OF_SERVICE
          *
          * @param visible True to set Terms of Service visibility on, false otherwise.
          * @param listener MegaRequestListener to track this request.
          */
         void setVisibleTermsOfService(bool visible, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Get the list of IDs for enabled notifications
+         *
+         * You take the ownership of the returned value
+         *
+         * @return List of IDs for enabled notifications
+         */
+        MegaIntegerList* getEnabledNotifications();
+
+        /**
+         * @brief Enable test notifications
+         *
+         * The type associated with this request is MegaRequest::TYPE_SET_ATTR_USER
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_ENABLE_TEST_NOTIFICATIONS
+         * - MegaRequest::getMegaIntegerList - Returns a list containing the notification IDs to be enabled
+         *
+         * @param notificationIds list of IDs for the notifications to be enabled
+         * @param listener MegaRequestListener to track this request
+         */
+        void enableTestNotifications(const MegaIntegerList* notificationIds, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Get list of available notifications for Notification Center
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_NOTIFICATIONS.
+         *
+         * When onRequestFinish received MegaError::API_OK, valid data in the MegaRequest object is:
+         * - MegaRequest::getMegaNotifications - Returns the list of notifications
+         *
+         * When onRequestFinish errored, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT - No such notifications exist, and MegaRequest::getMegaNotifications
+         *   will return a non-null, empty list.
+         * - MegaError::API_EACCESS - No user was logged in.
+         * - MegaError::API_EINTERNAL - Received answer could not be read.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getNotifications(MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Set last read notification for Notification Center
+         *
+         * The type associated with this request is MegaRequest::TYPE_SET_ATTR_USER
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_LAST_READ_NOTIFICATION
+         * - MegaRequest::getNumber - Returns the ID to be set as last read
+         *
+         * Note that any notifications with ID equal to or less than the given one will be marked as seen
+         * in Notification Center.
+         *
+         * @param notificationId ID of the notification to be set as last read. Value `0` is an invalid ID.
+         * Passing `0` will clear a previously set last read value.
+         * @param listener MegaRequestListener to track this request
+         */
+        void setLastReadNotification(uint32_t notificationId, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Get last read notification for Notification Center
+         *
+         * The type associated with this request is MegaRequest::TYPE_GET_ATTR_USER
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_LAST_READ_NOTIFICATION
+         *
+         * When onRequestFinish received MegaError::API_OK, valid data in the MegaRequest object is:
+         * - MegaRequest::getNumber - Returns the ID of the last read Notification
+         * Note that when the ID returned here was `0` it means that no ID was set as last read.
+         * Note that the value returned here should be treated like a 32bit unsigned int.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getLastReadNotification(MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Set last actioned banner for Notification Center
+         *
+         * The type associated with this request is MegaRequest::TYPE_SET_ATTR_USER
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_LAST_ACTIONED_BANNER
+         * - MegaRequest::getNumber - Returns the ID to be set as last actioned banner
+         *
+         * @param notificationId ID for which the last banner was actioned. Value `0` is an invalid ID.
+         * Passing `0` will clear a previously set last actioned banner.
+         * @param listener MegaRequestListener to track this request
+         */
+        void setLastActionedBanner(uint32_t notificationId, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Get last actioned banner for Notification Center
+         *
+         * The type associated with this request is MegaRequest::TYPE_GET_ATTR_USER
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_LAST_ACTIONED_BANNER
+         *
+         * When onRequestFinish received MegaError::API_OK, valid data in the MegaRequest object is:
+         * - MegaRequest::getNumber - Returns the ID of the last actioned banner
+         * Note that when the ID returned here was `0` it means that no ID was set as last actioned banner.
+         * Note that the value returned here should be treated like a 32bit unsigned int.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getLastActionedBanner(MegaRequestListener* listener = nullptr);
 
  protected:
         MegaApiImpl *pImpl = nullptr;
@@ -23614,29 +23882,29 @@ public:
 
     /**
      * @brief Get the SlotIDs occupied by the user.
-     * 
+     *
      * The caller takes the ownership of the MegaIntegerList object.
-     * 
-     * @return A pointer to a MegaIntegerList with the SlotIDs. 
+     *
+     * @return A pointer to a MegaIntegerList with the SlotIDs.
      */
     virtual MegaIntegerList* getSlotIDs() const = 0;
 
     /**
      * @brief Get the list of the available VPN regions.
-     * 
+     *
      * This object is a copy of the one owned by the MegaVpnCredentials object.
      * The caller takes the ownership of the MegaStringList object.
-     * 
-     * @return A pointer to a MegaStringList with the VPN regions. 
+     *
+     * @return A pointer to a MegaStringList with the VPN regions.
      */
     virtual MegaStringList* getVpnRegions() const = 0;
 
     /**
      * @brief Get the IPv4 associated with the VPN credentials of a SlotID.
-     * 
+     *
      * The caller does not take the ownership of the const char* object.
      * The const char* object is valid as long as the current MegaVpnCredentials object is valid too.
-     * 
+     *
      * @param slotID The SlotID associated with the VPN credentials.
      * @return const char* with the IPv4 if the SlotID has a valid VPN credential, nullptr otherwise.
      */
@@ -23644,10 +23912,10 @@ public:
 
     /**
      * @brief Get the IPv6 associated with the VPN credentials of a SlotID.
-     * 
+     *
      * The caller does not take the ownership of the const char* object.
      * The const char* object is valid as long as the current MegaVpnCredentials object is valid too.
-     * 
+     *
      * @param slotID The SlotID associated with the VPN credentials.
      * @return const char* with the IPv6 if the SlotID has a valid VPN credential, nullptr otherwise.
      */
@@ -23669,10 +23937,10 @@ public:
 
     /**
      * @brief Get the ClusterID associated with the VPN credentials of a SlotID.
-     * 
+     *
      * The caller does not take the ownership of the const char* object.
      * The const char* object is valid as long as the current MegaVpnCredentials object is valid too.
-     * 
+     *
      * @param slotID The SlotID associated with the VPN credentials.
      * @return int with the ClusterID if the SlotID has a valid VPN credential, -1 otherwise.
      */
@@ -23680,10 +23948,10 @@ public:
 
     /**
      * @brief Get the Cluster Public Key associated with a ClusterID.
-     * 
+     *
      * The caller does not take the ownership of the const char* object.
      * The const char* object is valid as long as the current MegaVpnCredentials object is valid too.
-     * 
+     *
      * @param clusterID The ClusterID used on any of the VPN credentials.
      * @return const char* with the Cluster Public Key if the ClusterID exists, nullptr otherwise.
      */
@@ -23691,13 +23959,175 @@ public:
 
     /**
      * @brief Copy the MegaVpnCredentials object.
-     * 
+     *
      * This copy is meant to be used from another scope which must survive the actual owner of this MegaVpnCredentials object.
      * The caller takes the ownership of the new MegaVpnCredentials object.
-     * 
+     *
      * @return MegaVpnCredentials* with the copied MegaVpnCredentials object.
      */
     virtual MegaVpnCredentials* copy() const = 0;
+};
+
+/**
+ * @brief Container class to store all information of a notification.
+ *
+ *  - ID.
+ *  - Title.
+ *  - Description.
+ *  - Image name for the notification.
+ *  - Default static path for the notification image.
+ *  - Timestamp of when the notification became available to the user.
+ *  - Timestamp of when the notification will expire.
+ *  - Whether it should show a banner or only render a notification.
+ *  - Metadata for the first call-to-action ("link" and "text" attributes).
+ *  - Metadata for the second call-to-action ("link" and "text" attributes).
+ *
+ * Objects of this class are immutable.
+ */
+class MegaNotification
+{
+protected:
+    MegaNotification() = default;
+
+public:
+
+    virtual ~MegaNotification() = default;
+
+    /**
+     * @brief Get the ID associated with this notification.
+     *
+     * @return the ID associated with this notification.
+     */
+    virtual int64_t getID() const = 0;
+
+    /**
+     * @brief Get the title of this notification.
+     *
+     * The caller does not take the ownership of the const char* object.
+     * The const char* object is valid as long as the current MegaNotification object is valid too.
+     *
+     * @return the title of this notification, always not-null.
+     */
+    virtual const char* getTitle() const = 0;
+
+    /**
+     * @brief Get the description for this notification.
+     *
+     * The caller does not take the ownership of the const char* object.
+     * The const char* object is valid as long as the current MegaNotification object is valid too.
+     *
+     * @return the description for this notification, always not-null.
+     */
+    virtual const char* getDescription() const = 0;
+
+    /**
+     * @brief Get the image name for this notification.
+     *
+     * The caller does not take the ownership of the const char* object.
+     * The const char* object is valid as long as the current MegaNotification object is valid too.
+     *
+     * @return the image name for this notification, always not-null.
+     */
+    virtual const char* getImageName() const = 0;
+
+    /**
+     * @brief Get the default static path of the image associated with this notification.
+     *
+     * The caller does not take the ownership of the const char* object.
+     * The const char* object is valid as long as the current MegaNotification object is valid too.
+     *
+     * @return the default static path of the image associated with this notification, always not-null.
+     */
+    virtual const char* getImagePath() const = 0;
+
+    /**
+     * @brief Get the timestamp of when the notification became available to the user.
+     *
+     * @return the timestamp of when the notification became available to the user.
+     */
+    virtual int64_t getStart() const = 0;
+
+    /**
+     * @brief Get the timestamp of when the notification will expire.
+     *
+     * @return the timestamp of when the notification will expire.
+     */
+    virtual int64_t getEnd() const = 0;
+
+    /**
+     * @brief Report whether it should show a banner or only render a notification.
+     *
+     * @return whether it should show a banner or only render a notification.
+     */
+    virtual bool showBanner() const = 0;
+
+    /**
+     * @brief Get metadata for the first call to action, represented by attributes "link" and "text",
+     * and their corresponding values.
+     *
+     * The caller does not take the ownership of the returned object.
+     * The returned object is valid as long as the current MegaNotification object is valid too.
+     *
+     * @return metadata for the first call to action, always not-null.
+     */
+    virtual const MegaStringMap* getCallToAction1() const = 0;
+
+    /**
+     * @brief Get metadata for the second call-to-action, represented by attributes "link" and "text",
+     * and their corresponding values.
+     *
+     * The caller does not take the ownership of the returned object.
+     * The returned object is valid as long as the current MegaNotification object is valid too.
+     *
+     * @return metadata for the second call-to-action, always not-null.
+     */
+    virtual const MegaStringMap* getCallToAction2() const = 0;
+
+    /**
+     * @brief Copy the MegaNotification object.
+     *
+     * This copy is meant to be used from another scope which must survive the actual owner of this MegaNotification object.
+     * The caller takes the ownership of the new MegaNotification object.
+     *
+     * @return MegaNotification* with the copied MegaNotification object.
+     */
+    virtual MegaNotification* copy() const = 0;
+};
+
+/**
+ * @brief List of MegaNotification objects
+ *
+ * A MegaNotificationList has the ownership of the MegaNotification objects that it contains, so they will be
+ * only valid until the MegaNotificationList is deleted. If you want to retain a MegaNotification returned by
+ * a MegaNotificationList, use MegaNotification::copy().
+ *
+ * Objects of this class are immutable.
+ */
+class MegaNotificationList
+{
+public:
+    /**
+     * @brief Returns the MegaNotification at position i in the list
+     *
+     * The MegaNotificationList retains the ownership of the returned MegaNotification. It will be only valid until
+     * the MegaNotificationList is deleted. If you want to retain a MegaNotification returned by this function,
+     * use MegaNotification::copy().
+     *
+     * If the index is >= the size of the list, this function returns NULL.
+     *
+     * @param i Position of the MegaNotification that we want to get from the list
+     * @return MegaNotification at position i in the list
+     */
+    virtual const MegaNotification* get(unsigned i) const = 0;
+
+    /**
+     * @brief Returns the number of MegaNotification-s in the list
+     * @return number of MegaNotification-s in the list
+     */
+    virtual unsigned size() const = 0;
+
+    virtual MegaNotificationList* copy() const = 0;
+    virtual ~MegaNotificationList() = default;
 };
 }
 

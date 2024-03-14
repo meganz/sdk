@@ -12,6 +12,7 @@ target_sources(test_unit
     utils.h
 
     main.cpp
+    Arguments_test.cpp
     AttrMap_test.cpp
     CacheLRU_test.cpp
     ChunkMacMap_test.cpp
@@ -20,6 +21,7 @@ target_sources(test_unit
     FileFingerprint_test.cpp
     File_test.cpp
     FsNode.cpp
+    GfxCommands_test.cpp
     Logging_test.cpp
     MediaProperties_test.cpp
     MegaApi_test.cpp
@@ -34,6 +36,12 @@ target_sources(test_unit
     User_test.cpp
     utils.cpp
     utils_test.cpp
+)
+
+target_sources_conditional(test_unit
+    FLAG WIN32
+    PRIVATE
+    Isolatedprocess_test.cpp
 )
 
 # Link with SDKlib
