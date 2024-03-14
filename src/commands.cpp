@@ -2304,10 +2304,7 @@ bool CommandSetPendingContact::procresult(Result r, JSON& json)
                 client->notifypcr(pcr);
 
                 // remove pending shares related to the deleted PCR
-                NodeSearchFilter nf;
-                nf.setIncludedShares(ShareType_t::PENDING_OUTSHARES);
-                NodeSearchPage page{0, 0};
-                sharedNode_vector nodes = client->mNodeManager.searchNodes(nf, 0, CancelToken(), page);
+                sharedNode_vector nodes = client->mNodeManager.getNodesWithPendingOutShares();
                 for (auto& n : nodes)
                 {
                     if (n->pendingshares && n->pendingshares->find(pcr->id) != n->pendingshares->end())

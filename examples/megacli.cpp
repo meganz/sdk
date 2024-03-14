@@ -1908,9 +1908,7 @@ static void listallshares()
 {
     cout << "Outgoing shared folders:" << endl;
 
-    NodeSearchFilter outsharesNf;
-    outsharesNf.setIncludedShares(ShareType_t::OUT_SHARES);
-    sharedNode_vector outshares = client->mNodeManager.searchNodes(outsharesNf, 0 /*Order none*/, CancelToken(), NodeSearchPage{0, 0});
+    sharedNode_vector outshares = client->mNodeManager.getNodesWithOutShares();
     for (auto& share : outshares)
     {
         listnodeshares(share.get(), false);
@@ -1945,9 +1943,7 @@ static void listallshares()
     cout << "Pending outgoing shared folders:" << endl;
 
     // pending outgoing
-    NodeSearchFilter pendingOutSharesNf;
-    pendingOutSharesNf.setIncludedShares(ShareType_t::PENDING_OUTSHARES);
-    sharedNode_vector pendingoutshares = client->mNodeManager.searchNodes(pendingOutSharesNf, 0 /*Order none*/, CancelToken(), NodeSearchPage{0, 0});
+    sharedNode_vector pendingoutshares = client->mNodeManager.getNodesWithPendingOutShares();
     for (auto& share : pendingoutshares)
     {
         listnodependingshares(share.get());
@@ -1955,9 +1951,7 @@ static void listallshares()
 
     cout << "Public folder links:" << endl;
 
-    NodeSearchFilter publicLinkNf;
-    publicLinkNf.setIncludedShares(ShareType_t::LINK);
-    sharedNode_vector links = client->mNodeManager.searchNodes(publicLinkNf, 0 /*Order none*/, CancelToken(), NodeSearchPage{0, 0});
+    sharedNode_vector links = client->mNodeManager.getNodesWithLinks();
     for (auto& share : links)
     {
         listnodeshares(share.get(), true);
@@ -9068,12 +9062,11 @@ void DemoApp::nodes_updated(sharedNode_vector* nodes, int count)
     }
     else
     {
-        sharedNode_vector nodes = client->mNodeManager.getRootNodes();
-        NodeSearchFilter insharesNf;
-        insharesNf.setIncludedShares(ShareType_t::IN_SHARES);
-        sharedNode_vector inshares = client->mNodeManager.searchNodes(insharesNf, 0 /*Order none*/, CancelToken(), NodeSearchPage{0, 0});
-        nodes.insert(nodes.end(), inshares.begin(), inshares.end());
-        for (auto& node : nodes)
+        sharedNode_vector rootNodes = client->mNodeManager.getRootNodes();
+
+        sharedNode_vector inshares = client->mNodeManager.getNodesWithInShares();
+        rootNodes.insert(rootNodes.end(), inshares.begin(), inshares.end());
+        for (auto& node : rootNodes)
         {
             if (!node->parent) // No take account nested inshares
             {
@@ -11471,9 +11464,7 @@ void exec_numberofnodes(autocomplete::ACState &s)
     cout << "Total nodes: " << numberOfNodes << endl;
     cout << "Total nodes in RAM: " << client->mNodeManager.getNumberNodesInRam() << endl << endl;
 
-    NodeSearchFilter outsharesNf;
-    outsharesNf.setIncludedShares(ShareType_t::OUT_SHARES);
-    cout << "Number of outShares: " << client->mNodeManager.searchNodes(outsharesNf, 0 /*Order none*/, CancelToken(), NodeSearchPage{0, 0}).size();
+    cout << "Number of outShares: " << client->mNodeManager.getNodesWithOutShares().size();
 }
 
 void exec_numberofchildren(autocomplete::ACState &s)

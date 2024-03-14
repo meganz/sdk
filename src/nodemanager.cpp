@@ -1384,9 +1384,7 @@ bool NodeManager::loadNodes_internal()
 
     sharedNode_vector rootnodes = getRootNodes_internal();
     // We can't base in `user.sharing` because it's set yet. We have to get from DB
-    NodeSearchFilter nf;
-    nf.setIncludedShares(IN_SHARES);
-    sharedNode_vector inshares = searchNodes_internal(nf, 0 /*Order none*/, CancelToken(), NodeSearchPage{0, 0}); // it includes nested inshares
+    sharedNode_vector inshares = getNodesWithSharesOrLink_internal(ShareType_t::IN_SHARES);  // it includes nested inshares // it includes nested inshares
 
     for (auto &node : rootnodes)
     {

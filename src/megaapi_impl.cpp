@@ -11474,8 +11474,10 @@ MegaNodeList *MegaApiImpl::getPublicLinks(int order)
 {
     SdkMutexGuard g(sdkMutex);
 
-    sharedNode_vector nodes = client->mNodeManager.getNodesWithLinks();
-    return new MegaNodeListPrivate(nodes);
+    sharedNode_vector vNodes = client->mNodeManager.getNodesWithLinks();
+    sortByComparatorFunction(vNodes, order, *client);
+    return new MegaNodeListPrivate(vNodes);
+
 }
 
 MegaContactRequestList *MegaApiImpl::getIncomingContactRequests()
