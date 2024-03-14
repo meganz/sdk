@@ -218,6 +218,15 @@ typedef enum ErrorCodes : int
     LOCAL_ENOSPC = -1000,           ///< Insufficient space
     LOCAL_ETIMEOUT = -1001,         ///< A request timed out.
     LOCAL_ABANDONED = -1002,        ///< Request abandoned due to local logout.
+
+    API_FUSE_EBADF = -2000,
+    API_FUSE_EISDIR = -2001,
+    API_FUSE_ENAMETOOLONG = -2002,
+    API_FUSE_ENOTDIR = -2003,
+    API_FUSE_ENOTEMPTY = -2004,
+    API_FUSE_ENOTFOUND = -2005,
+    API_FUSE_EPERM = -2006,
+    API_FUSE_EROFS = -2007,
 } error;
 
 class Error
@@ -518,6 +527,7 @@ enum SyncError {
     FILESYSTEM_FILE_IDS_ARE_UNSTABLE = 45,  // On MAC in particular, the FSID of a file in an exFAT drive can and does change spontaneously and frequently
     FILESYSTEM_ID_UNAVAILABLE = 46,         // If we can't get a filesystem's id
     UNABLE_TO_RETRIEVE_DEVICE_ID = 47,      // Unable to retrieve the ID of current device
+    LOCAL_PATH_MOUNTED = 48,                // The local path is a FUSE mount.
 };
 
 enum SyncWarning {

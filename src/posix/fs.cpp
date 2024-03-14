@@ -183,7 +183,6 @@ auto LocalPath::asPlatformEncoded(bool) const -> string_type
 {
     return localpath;
 }
-
 bool LocalPath::isRootPath() const
 {
     if (isFromRoot)

@@ -305,6 +305,28 @@ File *File::unserialize(string *d)
     return file;
 }
 
+bool File::isFuseTransfer() const
+{
+    return false;
+}
+
+void File::logicalPath(LocalPath logicalPath)
+{
+    std::lock_guard<std::mutex> guard(localname_mutex);
+
+    mLogicalPath = std::move(logicalPath);
+}
+
+LocalPath File::logicalPath() const
+{
+    std::lock_guard<std::mutex> guard(localname_mutex);
+
+    if (mLogicalPath.empty())
+        return localname_multithreaded;
+
+    return mLogicalPath;
+}
+
 void File::prepare(FileSystemAccess&)
 {
     transfer->localfilename = getLocalname();

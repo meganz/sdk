@@ -1035,7 +1035,7 @@ already_built()
     local file=$status_dir/$name.success
 
     test $incremental -eq 1 \
-         -a "$(cat $file)" = "$hash" \
+         -a "$(cat $file 2> /dev/null)" = "$hash" \
       && echo "$name already built" \
       && return
 
@@ -1298,6 +1298,7 @@ display_help() {
     echo " -E : Treat compiler warnings as errors for the SDK code)"
     echo " -G : Build GoogleTest (if CMake is present)"
     echo " -T : Build integration tests"
+    echo " -F : Enable FUSE support (libfuse)"
     echo ""
 }
 
@@ -1311,7 +1312,7 @@ main() {
     local_dir=$work_dir
     status_dir=$work_dir
 
-    while getopts ":habcdefgiIlLm:nNo:p:rRsS:tuvyx:XC:O:wWqz0EGT" opt; do
+    while getopts ":habcdefgiIlLm:nNo:p:rRsS:tuvyx:XC:O:wWqz0EGTF" opt; do
         case $opt in
             h)
                 display_help $0

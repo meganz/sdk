@@ -10,6 +10,16 @@
 #include "sdk_test_utils.h"
 #include "test.h"
 
+#include <mega/fuse/common/mount_result.h>
+#include <mega/fuse/common/service.h>
+
+// If running in Jenkins, we use its working folder.  But for local manual testing, use a convenient location
+#define LOCAL_TEST_FOLDER_NAME "mega_tests"
+#ifdef WIN32
+    #define LOCAL_TEST_FOLDER (string("c:\\tmp\\") + LOCAL_TEST_FOLDER_NAME)
+#else
+    #define LOCAL_TEST_FOLDER (string(getenv("HOME")) + "/" + LOCAL_TEST_FOLDER_NAME)
+#endif
 
 fs::path LINK_EXTRACT_SCRIPT = "email_processor.py";
 
@@ -482,7 +492,7 @@ protected:
     {
         cout << buildAlignedHelpString("  $MEGA_REAL_EMAIL", {"mega.co.nz email account to recevied account creation emails"}) << '\n';
         cout << buildAlignedHelpString("  $MEGA_REAL_PWD",   {"Password for Mega email account"}) << '\n';
-        cout << buildAlignedHelpString("  $WORKSPACE",       {"Where to base tests"}) << '\n';
+        cout << buildAlignedHelpString("  $WORKSPACE",       {"Where to base tests, defaults to " + LOCAL_TEST_FOLDER + " when not set"}) << '\n';
     }
 };
 
@@ -516,9 +526,6 @@ int main (int argc, char *argv[])
 
     remove(gLogName.c_str());
 
-    // For GTestParallelRunner.
-    TestFS testFS(argVals);
-
     if (argVals.isMainProcWithWorkers())
     {
         // Don't run tests, only manage subprocesses.
@@ -526,7 +533,10 @@ int main (int argc, char *argv[])
         // If --EMAIL-POOL runtime arg is missing, email template will be taken from MEGA_EMAIL env var.
         // Password for all emails built from template will be taken from MEGA_PWD env var.
         // If it did not get an email template, it'll use 1 single subprocess with the existing env vars.
-        return GTestParallelRunner(argVals).run();
+        GTestParallelRunner pr(std::move(argVals));
+        string testBase = (TestFS::GetBaseFolder() / "pid_").u8string(); // see TestFS::GetProcessFolder()
+        pr.useWorkerOutputPathForPid(std::move(testBase));
+        return pr.run();
     }
 
     if (!argVals.getCustomApiUrl().empty())
@@ -564,6 +574,7 @@ int main (int argc, char *argv[])
     SimpleLogger::setOutputClass(&megaLogger);
 
     // delete old test folders, created during previous runs
+    TestFS testFS;
     testFS.ClearProcessFolder();
     testFS.ChangeToProcessFolder();
 
@@ -624,33 +635,31 @@ int main (int argc, char *argv[])
 
 using namespace std;
 
-const RuntimeArgValues* TestFS::mArguments = nullptr;
-
 fs::path TestFS::GetBaseFolder()
 {
-    // Sanity.
-    assert(mArguments);
-
-    return fs::u8path(mArguments->getWorkspace());
+    const char* jenkins_folder = getenv("WORKSPACE");
+    fs::path base = jenkins_folder ? fs::path(jenkins_folder) : fs::path(LOCAL_TEST_FOLDER);
+    return base;
 }
 
 fs::path TestFS::GetProcessFolder()
 {
-    // Sanity.
-    assert(mArguments);
-
-    return fs::u8path(mArguments->getWorkspace(getCurrentPid()));
+    fs::path testBase = GetBaseFolder() / ("pid_" + std::to_string(getCurrentPid()));
+    return testBase;
 }
 
 fs::path TestFS::GetTestFolder()
 {
-    return GetProcessFolder() / "test";
+    fs::path testpath = GetProcessFolder() / "test";
+    return testpath;
 }
+
 
 fs::path TestFS::GetTrashFolder()
 {
     return GetProcessFolder() / "trash";
 }
+
 
 void TestFS::DeleteFolder(fs::path folder)
 {

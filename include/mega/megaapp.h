@@ -24,6 +24,9 @@
 
 #include <mega/types.h>
 
+// FUSE.
+#include <mega/fuse/common/mount_event_forward.h>
+
 namespace mega {
 
 struct Notification;
@@ -434,6 +437,9 @@ struct MEGA_API MegaApp
 
     // External drive notifications
     virtual void drive_presence_changed(bool appeared, const LocalPath& driveRoot) { }
+
+    // Called when a mount has been added, disabled, enabled or removed.
+    virtual void onFuseEvent(const fuse::MountEvent&) { }
 };
 } // namespace
 

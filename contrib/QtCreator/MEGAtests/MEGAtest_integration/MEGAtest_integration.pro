@@ -1,7 +1,6 @@
 CONFIG(debug, debug|release) {
     CONFIG -= debug release
     CONFIG += debug
-    CONFIG += ENABLE_WERROR_COMPILATION
 }
 CONFIG(release, debug|release) {
     CONFIG -= debug release
@@ -77,3 +76,4 @@ macx {
     else:QMAKE_MACOSX_DEPLOYMENT_TARGET = 10.15
     LIBS += -framework Cocoa
 }
+

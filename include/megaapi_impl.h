@@ -50,6 +50,11 @@
 #include "mega/gfx/GfxProcCG.h"
 #endif
 
+// FUSE
+#include <mega/fuse/common/mount_flags.h>
+#include <mega/fuse/common/mount_result.h>
+#include <mega/fuse/common/service_flags.h>
+
 ////////////////////////////// SETTINGS //////////////////////////////
 ////////// Support for threads and mutexes
 //Choose one of these options.
@@ -135,10 +140,12 @@ public:
     MegaErrorPrivate(int errorCode, long long value);
 
     MegaErrorPrivate(const Error &err);
+    MegaErrorPrivate(fuse::MountResult result);
     MegaErrorPrivate(const MegaError &megaError);
     ~MegaErrorPrivate() override;
     MegaError* copy() const override;
     int getErrorCode() const override;
+    int getMountResult() const override;
     long long getValue() const override;
     bool hasExtraInfo() const override;
     long long getUserStatus() const override;
@@ -152,6 +159,7 @@ private:
     long long mValue = 0;
     long long mUserStatus = MegaError::UserErrorCode::USER_ETD_UNKNOWN;
     long long mLinkStatus = MegaError::LinkErrorCode::LINK_UNKNOWN;
+    fuse::MountResult mMountResult = fuse::MOUNT_SUCCESS;
 };
 
 class MegaTransferPrivate;
@@ -3174,6 +3182,65 @@ class MegaApiImpl : public MegaApp
         MegaTransferList *getChildTransfers(int transferTag);
         MegaTransferList *getTansfersByFolderTag(int folderTransferTag);
 
+        // FUSE
+        using FuseEventHandler =
+          void (MegaListener::*)(MegaApi*, const char*, int);
+
+        // Add a new mount.
+        void addMount(const MegaMount* mount, MegaRequestListener* listener);
+
+        // Disable an enabled mount.
+        void disableMount(const char* path,
+                          MegaRequestListener* listener,
+                          bool remember);
+
+        // Enable a disabled mount.
+        void enableMount(const char* path,
+                         MegaRequestListener* listener,
+                         bool remember);
+
+        // Retrieve FUSE flags.
+        MegaFuseFlags* getFUSEFlags();
+
+        // Broadcast a mount event.
+        void fireOnFuseEvent(FuseEventHandler handler,
+                             const fuse::MountEvent& event);
+
+        // Retrieve a mount's flags.
+        MegaMountFlags* getMountFlags(const char* path);
+
+        // Retrieve a mount's description.
+        MegaMount* getMountInfo(const char* path);
+
+        // Retrieve the path of all mounts associated with a given name.
+        MegaStringList* getMountPaths(const char* name);
+
+        // Retrieve a list of all (enabled) mounts.
+        MegaMountList* listMounts(bool enabled);
+
+        // Called when FUSE wants to broadcast a mount event.
+        void onFuseEvent(const fuse::MountEvent& event) override;
+
+        // Query whether a file is in FUSE's file cache.
+        bool isCached(const char* path);
+
+        // Query whether FUSE is supported on this platform.
+        bool isFUSESupported();
+
+        // Query whether a mount is enabled.
+        bool isMountEnabled(const char* path);
+
+        // Remove a disabled mount.
+        void removeMount(const char* path, MegaRequestListener* listener);
+
+        // Update FUSE flags.
+        void setFUSEFlags(const MegaFuseFlags& flags);
+
+        // Update a mount's flags.
+        void setMountFlags(const MegaMountFlags* flags,
+                           const char* path,
+                           MegaRequestListener* listener);
+
         //Sets and Elements
         void putSet(MegaHandle sid, int optionFlags, const char* name, MegaHandle cover,
                     int type, MegaRequestListener* listener = nullptr);
@@ -5092,6 +5159,169 @@ public:
 private:
     vector<MegaNotificationPrivate> mNotifications;
 };
+
+class MegaFuseExecutorFlagsPrivate
+  : public MegaFuseExecutorFlags
+{
+    fuse::TaskExecutorFlags& mFlags;
+
+public:
+    MegaFuseExecutorFlagsPrivate(fuse::TaskExecutorFlags& flags);
+
+    size_t getMinThreadCount() const override;
+
+    size_t getMaxThreadCount() const override;
+
+    size_t getMaxThreadIdleTime() const override;
+
+    bool setMaxThreadCount(size_t max) override;
+
+    void setMinThreadCount(size_t min) override;
+
+    void setMaxThreadIdleTime(size_t max) override;
+}; // MegaFuseExecutorFlagsPrivate
+
+class MegaFuseInodeCacheFlagsPrivate
+  : public MegaFuseInodeCacheFlags
+{
+    fuse::InodeCacheFlags& mFlags;
+
+public:
+    explicit MegaFuseInodeCacheFlagsPrivate(fuse::InodeCacheFlags& flags);
+
+    size_t getCleanAgeThreshold() const override;
+
+    size_t getCleanInterval() const override;
+
+    size_t getCleanSizeThreshold() const override;
+
+    size_t getMaxSize() const override;
+
+    void setCleanAgeThreshold(std::size_t seconds) override;
+
+    void setCleanInterval(std::size_t seconds) override;
+
+    void setCleanSizeThreshold(std::size_t size) override;
+
+    void setMaxSize(std::size_t size) override;
+}; // MegaFuseExecutorFlagsPrivate
+
+class MegaFuseFlagsPrivate
+  : public MegaFuseFlags
+{
+    fuse::ServiceFlags mFlags;
+    MegaFuseInodeCacheFlagsPrivate mInodeCacheFlags;
+    MegaFuseExecutorFlagsPrivate mMountExecutorFlags;
+    MegaFuseExecutorFlagsPrivate mSubsystemExecutorFlags;
+
+public:
+    MegaFuseFlagsPrivate(const fuse::ServiceFlags& flags);
+
+    MegaFuseFlags* copy() const override;
+
+    const fuse::ServiceFlags& getFlags() const;
+
+    size_t getFlushDelay() const override;
+
+    int getLogLevel() const override;
+
+    MegaFuseInodeCacheFlags* getInodeCacheFlags() override;
+
+    MegaFuseExecutorFlags* getMountExecutorFlags() override;
+
+    MegaFuseExecutorFlags* getSubsystemExecutorFlags() override;
+
+    void setFlushDelay(size_t seconds) override;
+
+    void setLogLevel(int level) override;
+}; // MegaFuseFlagsPrivate
+
+using MegaMountFlagsPtr = std::unique_ptr<MegaMountFlags>;
+using MegaMountPtr = std::unique_ptr<MegaMount>;
+using MegaMountPtrVector = std::vector<MegaMountPtr>;
+
+class MegaMountPrivate
+  : public MegaMount
+{
+    MegaMountFlagsPtr mFlags;
+    MegaHandle mHandle;
+    std::string mPath;
+
+public:
+    MegaMountPrivate();
+
+    MegaMountPrivate(const fuse::MountInfo& info);
+
+    MegaMountPrivate(const MegaMountPrivate& other);
+
+    fuse::MountInfo asInfo() const;
+
+    MegaMount* copy() const override;
+
+    MegaMountFlags* getFlags() const override;
+
+    MegaHandle getHandle() const override;
+
+    const char* getPath() const override;
+
+    void setFlags(const MegaMountFlags* flags) override;
+
+    void setHandle(MegaHandle handle) override;
+    
+    void setPath(const char* path) override;
+}; // MegaMountPrivate
+
+class MegaMountFlagsPrivate
+  : public MegaMountFlags
+{
+    fuse::MountFlags mFlags;
+
+public:
+    MegaMountFlagsPrivate() = default;
+
+    MegaMountFlagsPrivate(const fuse::MountFlags& flags);
+
+    MegaMountFlagsPrivate(const MegaMountFlagsPrivate& other) = default;
+
+    MegaMountFlags* copy() const override;
+
+    bool getEnableAtStartup() const override;
+
+    const fuse::MountFlags& getFlags() const;
+
+    const char* getName() const override;
+
+    bool getPersistent() const override;
+
+    bool getReadOnly() const override;
+
+    void setEnableAtStartup(bool enable) override;
+
+    void setName(const char* name) override;
+
+    void setPersistent(bool persistent) override;
+
+    void setReadOnly(bool readOnly) override;
+
+}; // MegaMountFlagsPrivate
+
+class MegaMountListPrivate
+  : public MegaMountList
+{
+    MegaMountPtrVector mMounts;
+
+public:
+    MegaMountListPrivate(fuse::MountInfoVector&& mounts);
+
+    MegaMountListPrivate(const MegaMountListPrivate& other);
+
+    MegaMountList* copy() const override;
+
+    const MegaMount* get(size_t index) const override;
+
+    size_t size() const override;
+}; // MegaMountListPrivate
+
 }
 
 #endif //MEGAAPI_IMPL_H

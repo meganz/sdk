@@ -303,10 +303,11 @@ if test "x$enable_java" = "xyes" || test "x$enable_python" = "xyes" || test "x$e
     enable_sync=no
 fi
 
-if test x$enable_sync = xyes; then
+AS_IF([test "x$enable_sync" = "xyes" ], [
     AC_DEFINE(ENABLE_SYNC, 1, [Defined if sync subsystem is enabled])
-fi
+])
 
+AM_CONDITIONAL([ENABLE_SYNC], [test "x$enable_sync" = "xyes"])
 
 # Drive Notifications
 AC_ARG_ENABLE(drive-notifications,
@@ -1866,7 +1867,6 @@ if test "x$icu" = "xtrue" ; then
     AC_DEFINE(HAVE_ICU, [1], [Define to have icu ])
 fi
 
-USE_FUSE=0
 # if Examples are enables, check for specific libraries
 if test "x$enable_examples" = "xyes" ; then
     #termcap
@@ -2003,72 +2003,7 @@ if test "x$enable_examples" = "xyes" ; then
       AC_SUBST(RL_LDFLAGS)
       AC_SUBST(RL_LIBS)
       AC_SUBST(RL_CXXFLAGS)
-
-    # FUSE
-    AC_MSG_CHECKING(for FUSE)
-    AC_ARG_WITH(fuse,
-      AS_HELP_STRING(--with-fuse=PATH, base of FUSE installation),
-      [AC_MSG_RESULT($with_fuse)
-       case $with_fuse in
-       no)
-         ;;
-       yes)
-        CXXFLAGS="$CXXFLAGS -D_FILE_OFFSET_BITS=64"
-        CPPFLAGS="$CPPFLAGS -D_FILE_OFFSET_BITS=64"
-
-        AC_CHECK_HEADERS([fuse.h], [USE_FUSE=1], [
-            AC_MSG_ERROR([fuse.h header not found or not usable])])
-
-        AC_CHECK_LIB([fuse], [fuse_main], [FUSE_LIBS="-lfuse"], [
-            AC_MSG_ERROR([FUSE library is required for the sample client.])])
-
-        FUSE_CXXFLAGS="-D_FILE_OFFSET_BITS=64 -std=c++11"
-
-        CXXFLAGS=$SAVE_CXXFLAGS
-        CPPFLAGS=$SAVE_CPPFLAGS
-         ;;
-       *)
-
-        LDFLAGS="-L$with_fuse/lib $LDFLAGS"
-        CXXFLAGS="-I$with_fuse/include $CXXFLAGS -D_FILE_OFFSET_BITS=64"
-        CPPFLAGS="-I$with_fuse/include $CPPFLAGS -D_FILE_OFFSET_BITS=64"
-
-        AC_CHECK_HEADERS([fuse.h], [
-            USE_FUSE=1
-            FUSE_LDFLAGS="-L$with_fuse/lib "
-            FUSE_CXXFLAGS="-I$with_fuse/include -D_FILE_OFFSET_BITS=64 -std=c++11"],
-            [AC_MSG_ERROR([fuse.h header not found or not usable])]
-        )
-
-        AC_CHECK_LIB([fuse], [fuse_main], [FUSE_LIBS="-lfuse"], [
-            AC_MSG_ERROR([FUSE library is required for the sample client.])])
-
-        #restore
-        LDFLAGS=$SAVE_LDFLAGS
-        CXXFLAGS=$SAVE_CXXFLAGS
-        CPPFLAGS=$SAVE_CPPFLAGS
-        ;;
-       esac
-      ],
-      [AC_MSG_RESULT([--with-fuse not specified])
-        CXXFLAGS="$CXXFLAGS -D_FILE_OFFSET_BITS=64"
-        AC_CHECK_HEADERS([fuse.h], [
-            USE_FUSE=1
-            FUSE_CXXFLAGS="-D_FILE_OFFSET_BITS=64 -std=c++11"],
-            [USE_FUSE=0]
-        )
-        AC_CHECK_LIB([fuse], [fuse_main], [FUSE_LIBS="-lfuse"], [USE_FUSE=0])
-        CXXFLAGS=$SAVE_CXXFLAGS
-      ]
-      )
-
-      AC_SUBST(FUSE_LDFLAGS)
-      AC_SUBST(FUSE_LIBS)
-      AC_SUBST(FUSE_CXXFLAGS)
 fi
-
-AC_SUBST(USE_FUSE)
-AM_CONDITIONAL([BUILD_FUSE_EXAMPLE], [test "x$USE_FUSE" = "x1"])
 
 if test "x$WIN32" = "xyes" ; then
     AC_MSG_CHECKING(for WinHTTP)
@@ -2277,6 +2212,7 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   example apps:     $enable_examples
   Perf Logger:      $enable_log_performance
   Drive Notif:      $enable_drive_notifications
+  FUSE:             $enable_fuse
   MEGA_USE_C_ARES:  $enable_mega_c_ares
 
   inotify:          $enable_inotify
@@ -2306,5 +2242,4 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   LIBRAW:           $LIBRAW_CXXFLAGS $LIBRAW_LDFLAGS $LIBRAW_LIBS
   LIBMEDIAINFO:     $LIBMEDIAINFO_CXXFLAGS $LIBMEDIAINFO_LDFLAGS $LIBMEDIAINFO_LIBS
   FFMPEG:           $FFMPEG_CXXFLAGS $FFMPEG_LDFLAGS $FFMPEG_LIBS
-
 ])

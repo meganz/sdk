@@ -93,22 +93,9 @@ LogStream out();
 
 enum { THREADS_PER_MEGACLIENT = 3 };
 
-
-namespace mega {
-
-class RuntimeArgValues;
-
-} // mega
-
 class TestFS
 {
 public:
-    // So we can retrieve any user-specified workspace path.
-    TestFS(const RuntimeArgValues& arguments)
-    {
-        mArguments = &arguments;
-    }
-
     // these getters should return std::filesystem::path type, when C++17 will become mandatory
     
     // $WORKSPACE or hard coded path
@@ -116,7 +103,6 @@ public:
     static fs::path GetBaseFolder();
 
     // PID specific directory
-    static fs::path GetProcessFolder(const std::string& pid);
     static fs::path GetProcessFolder();
 
     // directory for "test" within the process folder, often created and deleted per test
@@ -134,10 +120,8 @@ private:
     void DeleteFolder(fs::path folder);
 
     std::vector<std::thread> m_cleaners;
-    
-    // So we can retrieve any user-specified workspace path.
-    static const RuntimeArgValues* mArguments;
 };
+
 void moveToTrash(const fs::path& p);
 fs::path makeNewTestRoot();
 

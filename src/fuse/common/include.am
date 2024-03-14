@@ -1,0 +1,49 @@
+src_libmega_la_CXXFLAGS += -I$(abs_srcdir)/src/fuse/common
+
+# Always needed.
+src_libmega_la_SOURCES += \
+    src/fuse/common/activity_monitor.cpp \
+    src/fuse/common/any_lock_set.cpp \
+    src/fuse/common/bind_handle.cpp \
+    src/fuse/common/client.cpp \
+    src/fuse/common/client_adapter.cpp \
+    src/fuse/common/database.cpp \
+    src/fuse/common/inode_info.cpp \
+    src/fuse/common/log_level.cpp \
+    src/fuse/common/logger.cpp \
+    src/fuse/common/mount_event_type.cpp \
+    src/fuse/common/mount_event.cpp \
+    src/fuse/common/mount_flags.cpp \
+    src/fuse/common/mount_info.cpp \
+    src/fuse/common/mount_result.cpp \
+    src/fuse/common/normalized_path.cpp \
+    src/fuse/common/pending_callbacks.cpp \
+    src/fuse/common/query.cpp \
+    src/fuse/common/scoped_query.cpp \
+    src/fuse/common/service_context.cpp \
+    src/fuse/common/service.cpp \
+    src/fuse/common/shared_mutex.cpp \
+    src/fuse/common/task_executor.cpp \
+    src/fuse/common/task_queue.cpp \
+    src/fuse/common/transaction.cpp \
+    src/fuse/common/utility.cpp
+
+if ENABLE_SYNC
+
+src_libmega_la_SOURCES += \
+    src/fuse/common/client_adapter_with_sync.cpp
+
+else
+
+src_libmega_la_SOURCES += \
+    src/fuse/common/client_adapter_without_sync.cpp
+
+endif
+
+if BUILD_TESTS
+
+tests_test_integration_CXXFLAGS += -I$(abs_srcdir)/src/fuse/common
+tests_test_unit_CXXFLAGS += -I$(abs_srcdir)/src/fuse/common
+
+endif BUILD_TESTS
+

@@ -1,0 +1,3 @@
+include src/fuse/common/include.am
+include src/fuse/unsupported/include.am
+

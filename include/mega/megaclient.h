@@ -43,6 +43,10 @@
 #include "setandelement.h"
 #include "nodemanager.h"
 
+// FUSE support.
+#include <mega/fuse/common/client_adapter.h>
+#include <mega/fuse/common/service.h>
+
 namespace mega {
 
 class Logger;
@@ -2698,6 +2702,12 @@ public:
     void setEnabledNotifications(std::vector<uint32_t>&& notifs) { mEnabledNotifications = std::move(notifs); }
     const std::vector<uint32_t>& getEnabledNotifications() const { return mEnabledNotifications; }
     void getNotifications(CommandGetNotifications::ResultFunc onResult);
+
+    // FUSE client adapter.
+    fuse::ClientAdapter mFuseClientAdapter;
+
+    // FUSE service.
+    fuse::Service mFuseService;
 
 private:
     // Last known capacity retrieved from the cloud.

@@ -32,6 +32,8 @@
 #include "mega/heartbeats.h"
 #include "mega/testhooks.h"
 
+#include <mega/fuse/common/normalized_path.h>
+
 #undef min // avoid issues with std::min and std::max
 #undef max
 
@@ -1656,6 +1658,8 @@ MegaClient::MegaClient(MegaApp* a, shared_ptr<Waiter> w, HttpIO* h, DbAccess* d,
    , mKeyManager(*this)
    , mClientType(clientType)
    , mJourneyId(fsaccess, dbaccess ? dbaccess->rootPath() : LocalPath())
+   , mFuseClientAdapter(*this)
+   , mFuseService(mFuseClientAdapter)
 {
     mNodeManager.reset();
     sctable.reset();
@@ -3021,6 +3025,9 @@ void MegaClient::exec()
 
 #endif
 
+        // Dispatch FUSE client-side requests.
+        mFuseClientAdapter.dispatch();
+
         notifypurge();
 
         if (!badhostcs && badhosts.size() && btbadhost.armed())
@@ -4358,6 +4365,38 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
         removeCaches();
     }
 
+    // Deinitialize the FUSE Client Adapter.
+    //
+    // Keep in mind that at this point, FUSE mounts may be active and one or
+    // more threads may be executing in the client when this call is made.
+    //
+    // That is, some threads may be in the process of asking the client for
+    // information about some node, trying to start an upload or even be
+    // waiting on the completion of a download.
+    //
+    // What this call does, is execute any tasks queued for execution and
+    // sets a marker so that in the future if a thread queues a task for
+    // execution, that task completes immediately as if it were cancelled.
+    //
+    // The marker also ensures that threads no longer come into the client
+    // proper when trying to learn something about a node. Instead, all
+    // requests for information for some node fail as it the node didn't
+    // exist.
+    //
+    // While many threads may be in the client when call begins, all such
+    // threads will have escaped by the time the call completes.
+    //
+    // Note, however, that when this completes, some threads may still be
+    // waiting for the completion of some task such as a transfer or a
+    // client-server request such as a putnodes.
+    //
+    // Threads blocked on some transfer will be awoken later when the
+    // client tears down the transfer queues.
+    //
+    // Threads blocked on some request like putnodes will be awoken below
+    // when all pending requests are "abandoned."
+    mFuseClientAdapter.deinitialize();
+
     sctable.reset();
     mNodeManager.setTable(nullptr);
     pendingsccommit = false;
@@ -4429,12 +4468,14 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     freeq(GET);  // freeq after closetc due to optimizations
     freeq(PUT);
 
-    // Abandon any pending requests.
-    reqs.abandon(*this);
+    // Deinitialize the FUSE Service.
+    mFuseService.deinitialize();
 
     purgenodesusersabortsc(false);
     userid = 0;
     mNodeManager.reset();
+
+    reqs.clear();
 
     delete pendingcs;
     pendingcs = NULL;
@@ -4774,6 +4815,7 @@ bool MegaClient::procsc()
 
                         statecurrent = true;
                         app->nodes_current();
+                        mFuseService.current();
                         LOG_debug << "Cloud node tree up to date";
 
 #ifdef ENABLE_SYNC
@@ -16103,6 +16145,18 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
 
     rootpath = syncConfig.getLocalPath();
     rootpath.trimNonDriveTrailingSeparator();
+
+    // Make sure the user isn't trying to sync a FUSE mount.
+    if (!mFuseService.syncable(rootpath))
+    {
+        LOG_warn << "Trying to sync above (below) a FUSE mount: "
+                 << rootpath;
+
+        syncConfig.mError = LOCAL_PATH_MOUNTED;
+        syncConfig.mEnabled = false;
+
+        return API_EFAILED;
+    }
 
     isnetwork = false;
     if (!fsaccess->issyncsupported(rootpath, isnetwork, syncConfig.mError, syncConfig.mWarning))

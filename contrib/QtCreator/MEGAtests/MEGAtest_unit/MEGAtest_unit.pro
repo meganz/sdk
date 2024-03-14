@@ -1,7 +1,6 @@
 CONFIG(debug, debug|release) {
     CONFIG -= debug release
     CONFIG += debug
-    CONFIG += ENABLE_WERROR_COMPILATION
 }
 CONFIG(release, debug|release) {
     CONFIG -= debug release
@@ -81,3 +80,4 @@ HEADERS += \
 macx {
     LIBS += -framework Cocoa
 }
+
