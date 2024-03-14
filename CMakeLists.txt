@@ -132,6 +132,16 @@ include(configuration)
 ## Start loading targets
 include(sdklib_target)
 
+# Load Qt bindings
+if(ENABLE_QT_BINDINGS)
+    add_subdirectory(bindings/qt)
+endif()
+
+# windows only at the moment
+if(WIN32)
+    add_subdirectory(tools/gfxworker)
+endif()
+
 ## Load examples and tests
 if(ENABLE_SDKLIB_EXAMPLES)
     add_subdirectory(examples)

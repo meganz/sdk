@@ -30,6 +30,7 @@
 #import "MEGANodeList+init.h"
 #import "MEGAUserList+init.h"
 #import "MEGAUserAlertList+init.h"
+#import "MEGAIntegerList+init.h"
 #import "MEGAStringList+init.h"
 #import "MEGAError+init.h"
 #import "MEGAShareList+init.h"
@@ -1197,6 +1198,34 @@ using namespace mega;
 - (void)acknowledgeUserAlerts {
     if (self.megaApi) {
         self.megaApi->acknowledgeUserAlerts();
+    }
+}
+
+#pragma mark - Notifications
+
+- (void)getLastReadNotificationWithDelegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->getLastReadNotification([self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (void)setLastReadNotificationWithNotificationId:(uint32_t)notificationId delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->setLastReadNotification(notificationId, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (nullable MEGAIntegerList *)getEnabledNotifications {
+    if (self.megaApi == nil) return nil;
+
+    MegaIntegerList* enabledNotifications = self.megaApi->getEnabledNotifications();
+    
+    return enabledNotifications != nil ? [[MEGAIntegerList alloc] initWithMegaIntegerList:enabledNotifications cMemoryOwn:YES] : nil;
+}
+
+- (void)getNotificationsWithDelegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->getNotifications([self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
     }
 }
 

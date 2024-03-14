@@ -74,49 +74,58 @@ pipeline {
                 timeout(time: 300, unit: 'MINUTES')
             }
             steps{
-                lock(label: 'SDK_Concurrent_Test_Accounts', variable: 'ACCOUNTS_COMBINATION', quantity: 1, resource: null){
-                    dir("${megachat_sources_workspace}/build/subfolder"){
-                        script{
-                            env.MEGA_EMAIL0 = "${env.ACCOUNTS_COMBINATION}"
-                            echo "${env.ACCOUNTS_COMBINATION}"
+                script {
+                    def lockLabel = ''
+                    if ("${APIURL_TO_TEST}" == 'https://g.api.mega.co.nz/') {
+                        lockLabel = 'SDK_Concurrent_Test_Accounts'
+                    } else if ("${APIURL_TO_TEST}" == 'https://staging.api.mega.co.nz/') {
+                        lockLabel = 'SDK_Concurrent_Test_Accounts_Staging'
+                    } else {
+                        error("Wrong APIURL: ${APIURL_TO_TEST}")                        
+                    }
+                    lock(label: lockLabel, variable: 'ACCOUNTS_COMBINATION', quantity: 1, resource: null){
+                        dir("${megachat_sources_workspace}/build/subfolder"){
+                            script{
+                                env.MEGA_EMAIL0 = "${env.ACCOUNTS_COMBINATION}"
+                                echo "${env.ACCOUNTS_COMBINATION}"
+                            }
+                            sh """#!/bin/bash
+                            ulimit -c unlimited
+
+                            if [ -z \"${TESTS_PARALLEL}\" ]; then
+                                ${megachat_sources_workspace}/build/MEGAchatTests/megachat_tests --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} || FAILED=1
+                            else
+                                # Parallel run
+                                ${megachat_sources_workspace}/build/MEGAchatTests/megachat_tests --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${TESTS_PARALLEL} 2>&1 | tee tests.stdout
+                                [ \"\${PIPESTATUS[0]}\" != \"0\" ] && FAILED=1
+                            fi
+
+                            if [ -n \"\$FAILED\" ]; then
+                                echo "Test failed with status \$FAILED"
+                                maxTime=10
+                                startTime=`date +%s`
+
+                                # Only a single core file can be handled, for either sequential or parallel run
+                                while [ \$( expr `date +%s` - \$startTime ) -lt \$maxTime ]; do
+                                    if [ -e \"core\" ]; then
+                                        echo "Processing core dump..."
+                                        echo thread apply all bt > backtrace
+                                        echo quit >> backtrace
+                                        gdb -q ${megachat_sources_workspace}/build/MEGAchatTests/megachat_tests core -x ${megachat_sources_workspace}/build/subfolder/backtrace
+                                        tar chvzf core.tar.gz core megachat_tests
+                                        break
+                                    fi
+                                    sleep 1
+                                done
+                            fi
+
+                            gzip -c test.log > test_${BUILD_ID}.log.gz || :
+                            rm test.log || :
+                            if [ ! -z \"\$FAILED\" ]; then
+                                false
+                            fi
+                            """
                         }
-                        sh "ln -sfr ${megachat_sources_workspace}/build/MEGAchatTests/megachat_tests megachat_tests"
-                        sh """#!/bin/bash
-                        ulimit -c unlimited
-
-                        if [ -z \"${TESTS_PARALLEL}\" ]; then
-                            ./megachat_tests --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} || FAILED=1
-                        else
-                            # Parallel run
-                            ./megachat_tests --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${TESTS_PARALLEL} 2>&1 | tee tests.stdout
-                            [ \"\${PIPESTATUS[0]}\" != \"0\" ] && FAILED=1
-                        fi
-
-                        if [ -n \"\$FAILED\" ]; then
-                            echo "Test failed with status \$FAILED"
-                            maxTime=10
-                            startTime=`date +%s`
-
-                            # Only a single core file can be handled, for either sequential or parallel run
-                            while [ \$( expr `date +%s` - \$startTime ) -lt \$maxTime ]; do
-                                if [ -e \"core\" ]; then
-                                    echo "Processing core dump..."
-                                    echo thread apply all bt > backtrace
-                                    echo quit >> backtrace
-                                    gdb -q ./megachat_tests core -x ${megachat_sources_workspace}/build/subfolder/backtrace
-                                    tar chvzf core.tar.gz core megachat_tests
-                                    break
-                                fi
-                                sleep 1
-                            done
-                        fi
-
-                        gzip -c test.log > test_${BUILD_ID}.log.gz || :
-                        rm test.log || :
-                        if [ ! -z \"\$FAILED\" ]; then
-                            false
-                        fi
-                        """
                     }
                 }
             }
