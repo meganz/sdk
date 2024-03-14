@@ -11441,6 +11441,10 @@ bool CommandGetNotifications::procresult(Result r, JSON& json)
                 json.storeobject(&notification.imageName);
                 break;
 
+            case MAKENAMEID4('i', 'c', 'o', 'n'):
+                json.storeobject(&notification.iconName);
+                break;
+
             case MAKENAMEID3('d', 's', 'p'):
                 json.storeobject(&notification.imagePath);
                 break;

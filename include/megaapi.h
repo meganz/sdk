@@ -5387,6 +5387,19 @@ class MegaRequest
          * @return non-null pointer if a valid MegaApi functionality has been called, nullptr otherwise.
          */
         virtual const MegaNotificationList* getMegaNotifications() const;
+
+        /**
+         * @brief Get node tree after its creation
+         *
+         * This value is valid only for the following requests:
+         * - MegaApi::createNodeTree
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * @return non-null pointer if a valid MegaApi functionality has been called, null otherwise.
+         */
+        virtual const MegaNodeTree* getMegaNodeTree() const;
 };
 
 /**
@@ -9388,6 +9401,7 @@ public:
      * - MegaApi::FILE_TYPE_MISC = 9
      * - MegaApi::FILE_TYPE_SPREADSHEET = 10
      * - MegaApi::FILE_TYPE_ALL_DOCS = 11  --> any of {DOCUMENT, PDF, PRESENTATION, SPREADSHEET}
+     * - MegaApi::FILE_TYPE_OTHERS = 12
      */
     virtual void byCategory(int mimeType);
 
@@ -9586,6 +9600,7 @@ public:
                                         MegaHandle sourceHandle = INVALID_HANDLE);
     virtual MegaNodeTree* getNodeTreeChild() const = 0;
     virtual MegaHandle getNodeHandle() const = 0;
+    virtual MegaNodeTree* copy() const = 0;
 };
 
 class MegaCompleteUploadData
@@ -9598,6 +9613,7 @@ public:
     static MegaCompleteUploadData* createInstance(const char* fingerprint,
                                                   const char* string64UploadToken,
                                                   const char* string64FileKey);
+    virtual MegaCompleteUploadData* copy() const = 0;
 };
 
 class MegaApiImpl;
@@ -16760,7 +16776,8 @@ class MegaApi
                FILE_TYPE_MISC,
                FILE_TYPE_SPREADSHEET,
                FILE_TYPE_ALL_DOCS,    // any of {DOCUMENT, PDF, PRESENTATION, SPREADSHEET}
-               FILE_TYPE_LAST = FILE_TYPE_ALL_DOCS,
+               FILE_TYPE_OTHERS,
+               FILE_TYPE_LAST = FILE_TYPE_OTHERS,
              };
 
         enum { SEARCH_TARGET_INSHARE = 0,
@@ -22360,6 +22377,7 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getParentHandle - Returns the node handle of the parent node in the tree
+         * - MegaRequest::getMegaNodeTree - Returns the Node Tree updated after it was created
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EARGS - Parameters are incorrect.
@@ -23975,7 +23993,8 @@ public:
  *  - ID.
  *  - Title.
  *  - Description.
- *  - Image name for the notification.
+ *  - Name of the main image for the notification.
+ *  - Name of the icon for the notification.
  *  - Default static path for the notification image.
  *  - Timestamp of when the notification became available to the user.
  *  - Timestamp of when the notification will expire.
@@ -24022,14 +24041,24 @@ public:
     virtual const char* getDescription() const = 0;
 
     /**
-     * @brief Get the image name for this notification.
+     * @brief Get the name of the main image for this notification.
      *
      * The caller does not take the ownership of the const char* object.
      * The const char* object is valid as long as the current MegaNotification object is valid too.
      *
-     * @return the image name for this notification, always not-null.
+     * @return the name of the main image for this notification, always not-null.
      */
     virtual const char* getImageName() const = 0;
+
+    /**
+     * @brief Get the name of the icon for this notification.
+     *
+     * The caller does not take the ownership of the const char* object.
+     * The const char* object is valid as long as the current MegaNotification object is valid too.
+     *
+     * @return the name of the icon for this notification, always not-null.
+     */
+    virtual const char* getIconName() const = 0;
 
     /**
      * @brief Get the default static path of the image associated with this notification.
@@ -24090,7 +24119,7 @@ public:
      * This copy is meant to be used from another scope which must survive the actual owner of this MegaNotification object.
      * The caller takes the ownership of the new MegaNotification object.
      *
-     * @return MegaNotification* with the copied MegaNotification object.
+     * @return MegaNotification* of the copied object.
      */
     virtual MegaNotification* copy() const = 0;
 };

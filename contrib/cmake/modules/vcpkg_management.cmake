@@ -4,8 +4,12 @@ macro(process_vcpkg_libraries overlays_path)
 
     # Use internal VCPKG tools
     set(VCPKG_BOOTSTRAP_OPTIONS "-disableMetrics")
-    list(APPEND VCPKG_OVERLAY_TRIPLETS "${overlays_path}/vcpkg_overlay_triplets")
-    list(APPEND VCPKG_OVERLAY_PORTS "${overlays_path}/vcpkg_overlay_ports")
+    foreach(path IN ITEMS ${overlays_path})
+        list(APPEND VCPKG_OVERLAY_PORTS "${path}/vcpkg_overlay_ports")
+        list(APPEND VCPKG_OVERLAY_TRIPLETS "${path}/vcpkg_overlay_triplets")
+    endforeach()
+    list(REMOVE_DUPLICATES VCPKG_OVERLAY_PORTS)
+    list(REMOVE_DUPLICATES VCPKG_OVERLAY_TRIPLETS)
 
     if(NOT VCPKG_TARGET_TRIPLET)
         # Try to guess the triplet if it is not set.
@@ -64,5 +68,7 @@ macro(process_vcpkg_libraries overlays_path)
 
     set(CMAKE_TOOLCHAIN_FILE ${CMAKE_TOOLCHAIN_FILE} ${VCPKG_TOOLCHAIN_PATH})
     message(STATUS "Using VCPKG dependencies. VCPKG base path: ${VCPKG_ROOT} and tripplet ${VCPKG_TARGET_TRIPLET}")
+    message(STATUS "Overlay for VCPKG ports: ${VCPKG_OVERLAY_PORTS}")
+    message(STATUS "Overlay for VCPKG triplets: ${VCPKG_OVERLAY_TRIPLETS}")
 
 endmacro()

@@ -490,7 +490,8 @@ struct DynamicMessageNotification
     int64_t id = 0;
     std::string title;
     std::string description;
-    std::string imageName;
+    std::string imageName; // main notification image
+    std::string iconName;
     std::string imagePath;
     int64_t start = 0;
     int64_t end = 0;
@@ -1915,6 +1916,9 @@ public:
 
     // determine if the file is a spreadsheet.
     bool nodeIsSpreadsheet(const Node* n) const;
+
+    // determine if the file is not in any of the other file types.
+    bool nodeIsOtherType(const Node* n) const;
 
     // functions for determining whether we can clone a node instead of upload
     // or whether two files are the same so we can just upload/download the data once

@@ -1665,6 +1665,9 @@ class MegaRequestPrivate : public MegaRequest
         const MegaNotificationList* getMegaNotifications() const override;
         void setMegaNotifications(MegaNotificationList* megaNotifications);
 
+        const MegaNodeTree* getMegaNodeTree() const override;
+        void setMegaNodeTree(MegaNodeTree* megaNodeTree);
+
 protected:
         std::shared_ptr<AccountDetails> accountDetails;
         MegaPricingPrivate *megaPricing;
@@ -1727,6 +1730,7 @@ protected:
 #endif // ENABLE_SYNC
 
         unique_ptr<MegaNotificationList> mMegaNotifications;
+        unique_ptr<MegaNodeTree> mMegaNodeTree;
 
     public:
         shared_ptr<ExecuteOnce> functionToExecute;
@@ -4961,7 +4965,7 @@ private:
 class MegaNodeTreePrivate: public MegaNodeTree
 {
 public:
-    MegaNodeTreePrivate(MegaNodeTree* nodeTreeChild,
+    MegaNodeTreePrivate(const MegaNodeTree* nodeTreeChild,
                         const std::string& name,
                         const std::string& s4AttributeValue,
                         const MegaCompleteUploadData* completeUploadData,
@@ -4975,6 +4979,7 @@ public:
     MegaHandle getNodeHandle() const override;
     void setNodeHandle(const MegaHandle& nodeHandle);
     const MegaHandle& getSourceHandle() const { return mSourceHandle; }
+    MegaNodeTree* copy() const override;
 
 private:
     std::unique_ptr<MegaNodeTree> mNodeTreeChild;
@@ -5002,6 +5007,7 @@ public:
     const std::string& getFingerprint() const;
     const std::string& getString64UploadToken() const;
     const std::string& getString64FileKey() const;
+    MegaCompleteUploadData* copy() const override;
 
 private:
     std::string mFingerprint;
@@ -5021,6 +5027,7 @@ public:
     const char* getTitle() const override { return mNotification.title.c_str(); }
     const char* getDescription() const override { return mNotification.description.c_str(); }
     const char* getImageName() const override { return mNotification.imageName.c_str(); }
+    const char* getIconName() const override { return mNotification.iconName.c_str(); }
     const char* getImagePath() const override { return mNotification.imagePath.c_str(); }
     int64_t getStart() const override { return mNotification.start; }
     int64_t getEnd() const override { return mNotification.end; }
