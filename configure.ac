@@ -1365,6 +1365,7 @@ AM_CONDITIONAL([USE_LIBMEDIAINFO], [test "x$libmediainfo" = "xtrue"])
 #
 openssl=false
 cares=false
+rt=undef
 if test "x$WIN32" = "xno" ; then
 
     AC_ARG_WITH([poll],
@@ -1377,12 +1378,71 @@ if test "x$WIN32" = "xno" ; then
         LDFLAGS="-pthread $LDFLAGS"
     fi
 
-    # librt #TODO: allow --with-rt=...
-    AC_CHECK_LIB([rt], [aio_write], [
-    SAVE_LDFLAGS="-lrt $SAVE_LDFLAGS"
-    LDFLAGS="-lrt $LDFLAGS"
-    AC_DEFINE(HAVE_AIO_RT, [1], [Define to indicate AIO presence in librt])
-    ],
+    # librt
+    AC_MSG_CHECKING(for rt)
+    AC_ARG_WITH([rt],
+      AS_HELP_STRING(--with-rt=PATH, base of Real-time Library installation),
+      [
+       case $with_rt in
+       no)
+            AC_MSG_RESULT([no])
+
+            rt=false
+         ;;
+       yes)
+            AC_CHECK_HEADERS([aio.h], [],
+                AC_MSG_ERROR([aio.h header not found or not usable])
+            )
+            AC_CHECK_LIB(rt, [aio_write], [LIBRT_LIBS="$LIBRT_LIBS -lrt"],
+                AC_MSG_ERROR([Could not find rt library!])
+            )
+
+            AC_SUBST(LIBRT_LIBS)
+            rt=true
+         ;;
+       *)
+        # determine if library is installed
+        if test -d "$with_rt/lib"; then
+            LDFLAGS="-L$with_rt/lib $LDFLAGS"
+            CXXFLAGS="-I$with_rt/include $CXXFLAGS"
+
+            AC_CHECK_HEADERS([aio.h], [
+                LIBRT_LDFLAGS="-L$with_rt/lib"
+                LIBRT_CXXFLAGS="-I$with_rt/include"],
+                AC_MSG_ERROR([aio.h header not found or not usable])
+            )
+        
+            AC_CHECK_LIB(rt, [aio_write], [LIBRT_LIBS="$LIBRT_LIBS -lrt"],
+                AC_MSG_ERROR([Could not find rt library!])
+            )
+        else
+            AC_MSG_ERROR([Could not find rt library in "$with_rt/lib"!])
+        fi
+
+        AC_SUBST(LIBRT_LDFLAGS)
+        AC_SUBST(LIBRT_CXXFLAGS)
+        AC_SUBST(LIBRT_LIBS)
+        rt=true
+
+        #restore
+        LDFLAGS=$SAVE_LDFLAGS
+        CXXFLAGS=$SAVE_CXXFLAGS
+        ;;
+       esac
+      ],
+      [
+        AC_MSG_RESULT([--with-rt not specified])
+
+        AC_CHECK_HEADERS([aio.h], [],
+            AC_MSG_ERROR([aio.h header not found or not usable])
+        )
+        AC_CHECK_LIB(rt, [aio_write], [LIBRT_LIBS="$LIBRT_LIBS -lrt"],
+            AC_MSG_NOTICE([Could not find librt])
+        )
+
+        AC_SUBST(LIBRT_LIBS)
+        rt=true
+      ]
     )
 
     # OpenSSL
@@ -1610,6 +1670,12 @@ if test "x$WIN32" = "xno" ; then
         LIBS=$SAVE_LIBS
       ]
     )
+fi
+
+# define on all platforms
+AM_CONDITIONAL(HAVE_RT, test x$rt = xtrue)
+if test "x$rt" = "xtrue" ; then
+    AC_DEFINE(HAVE_AIO_RT, [1], [Define to indicate AIO presence in librt])
 fi
 
 # define on all platforms
@@ -2304,6 +2370,7 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   PCRE:             $PCRE_CXXFLAGS $PCRE_LDFLAGS $PCRE_LIBS
   LIBUV:            $LIBUV_CXXFLAGS $LIBUV_LDFLAGS $LIBUV_LIBS
   LIBRAW:           $LIBRAW_CXXFLAGS $LIBRAW_LDFLAGS $LIBRAW_LIBS
+  LIBRT:            $LIBRT_CXXFLAGS $LIBRT_LDFLAGS $LIBRT_LIBS
   LIBMEDIAINFO:     $LIBMEDIAINFO_CXXFLAGS $LIBMEDIAINFO_LDFLAGS $LIBMEDIAINFO_LIBS
   FFMPEG:           $FFMPEG_CXXFLAGS $FFMPEG_LDFLAGS $FFMPEG_LIBS
 
