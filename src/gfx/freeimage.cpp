@@ -401,8 +401,10 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(FileSystemAccess* fa, const LocalPat
         return false;
     }
 
-    AVPacket packet;
-    av_init_packet(&packet);
+    AVPacket* p = av_packet_alloc();
+    std::unique_ptr<AVPacket*, std::function<void(AVPacket**)>> pCleanup{ &p, [](AVPacket** pkt) { av_packet_free(pkt); } };
+
+    AVPacket& packet = *p;
     packet.data = NULL;
     packet.size = 0;
 

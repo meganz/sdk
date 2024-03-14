@@ -31,7 +31,7 @@
 
 namespace mega {
 // bitmap graphics processor
-class MEGA_API GfxProviderFreeImage : public IGfxProvider
+class MEGA_API GfxProviderFreeImage : public IGfxLocalProvider
 {
 #ifdef FREEIMAGE_LIB
     static std::mutex libFreeImageInitializedMutex;

@@ -44,15 +44,13 @@ size_t Request::size() const
     return cmds.size();
 }
 
-string Request::get(bool& suppressSID, MegaClient* client, char reqidCounter[10], string& idempotenceId) const
+string Request::get(MegaClient* client, char reqidCounter[10], string& idempotenceId) const
 {
     if (cachedJSON.empty())
     {
         // concatenate all command objects, resulting in an API request
         string& req = cachedJSON;
         req = "[";
-
-        cachedSuppressSID = true; // only if all commands in batch are suppressSID
 
         map<string, int> counts;
 
@@ -61,7 +59,6 @@ string Request::get(bool& suppressSID, MegaClient* client, char reqidCounter[10]
             req.append(i ? ",{" : "{");
             req.append(cmds[i]->getJSON(client));
             req.append("}");
-            cachedSuppressSID = cachedSuppressSID && cmds[i]->suppressSID;
             ++counts[cmds[i]->commandStr];
         }
 
@@ -91,7 +88,6 @@ string Request::get(bool& suppressSID, MegaClient* client, char reqidCounter[10]
     // once we send the commands, any retry must be for exactly
     // the same JSON, or idempotence will not work properly
     LOG_debug << "Req command counts: " << cachedCounts;
-    suppressSID = cachedSuppressSID;
     idempotenceId = cachedIdempotenceId;
     return cachedJSON;
 }
@@ -379,7 +375,6 @@ void Request::swap(Request& r)
     std::swap(cachedJSON, r.cachedJSON);
     std::swap(cachedIdempotenceId, r.cachedIdempotenceId);
     std::swap(cachedCounts, r.cachedCounts);
-    std::swap(cachedSuppressSID, r.cachedSuppressSID);
 
     // Although swap would usually swap all fields, these must be empty anyway
     // If swap was used when these were active, we would be moving needed info out of the request-in-progress
@@ -472,7 +467,7 @@ Command* RequestDispatcher::getCurrentCommand(bool currSeqtagSeen)
     return currSeqtagSeen ? inflightreq.getCurrentCommand() : nullptr;
 }
 
-string RequestDispatcher::serverrequest(bool& suppressSID, bool &includesFetchingNodes, bool& v3, MegaClient* client, string& idempotenceId)
+string RequestDispatcher::serverrequest(bool &includesFetchingNodes, bool& v3, MegaClient* client, string& idempotenceId)
 {
     if (!inflightreq.empty() && inflightFailReason != RETRY_NONE)
     {
@@ -490,7 +485,7 @@ string RequestDispatcher::serverrequest(bool& suppressSID, bool &includesFetchin
             nextreqs.push_back(Request());
         }
     }
-    string requestJSON = inflightreq.get(suppressSID, client, reqid, idempotenceId);
+    string requestJSON = inflightreq.get(client, reqid, idempotenceId);
     includesFetchingNodes = inflightreq.isFetchNodes();
     v3 = inflightreq.mV3;
 #ifdef MEGA_MEASURE_CODE

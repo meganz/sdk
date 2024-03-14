@@ -2543,14 +2543,14 @@ void MegaClient::exec()
                     pendingcs->logname = clientname + "cs ";
                     pendingcs_serverBusySent = false;
 
-                    bool suppressSID, v3;
+                    bool v3;
                     string idempotenceId;
-                    *pendingcs->out = reqs.serverrequest(suppressSID, pendingcs->includesFetchingNodes, v3, this, idempotenceId);
+                    *pendingcs->out = reqs.serverrequest(pendingcs->includesFetchingNodes, v3, this, idempotenceId);
 
                     pendingcs->posturl = httpio->APIURL;
                     pendingcs->posturl.append("cs?id=");
                     pendingcs->posturl.append(idempotenceId);
-                    pendingcs->posturl.append(getAuthURI(suppressSID));
+                    pendingcs->posturl.append(getAuthURI());
                     pendingcs->posturl.append(appkey);
 
                     pendingcs->posturl.append(v3 ? "&v=3" : "&v=2");
@@ -2836,7 +2836,14 @@ void MegaClient::exec()
                 pendingsc->protect = true;
                 pendingsc->posturl.append("?sn=");
                 pendingsc->posturl.append(scsn.text());
-                pendingsc->posturl.append(getAuthURI(false, true));
+                // folder links should not send "sid" to avoid receiving packets unrelated to the folder link
+                bool suppressSID = loggedIntoFolder() ? true : false;
+                pendingsc->posturl.append(getAuthURI(suppressSID, true));
+
+                if (isClientType(ClientType::PASSWORD_MANAGER))
+                {
+                    pendingsc->posturl.append(getPartialAPs());
+                }
 
                 pendingsc->type = REQ_JSON;
                 pendingsc->post(this);
@@ -9795,6 +9802,7 @@ void MegaClient::readipc(JSON *j)
                     default:
                        if (!j->storeobject())
                        {
+                            j->leavearray();
                             return;
                        }
                 }
@@ -9878,6 +9886,7 @@ void MegaClient::readopc(JSON *j)
                     default:
                        if (!j->storeobject())
                        {
+                            j->leavearray();
                             return;
                        }
                 }
@@ -9991,6 +10000,7 @@ bool MegaClient::procph(JSON *j)
         if (e != 1)
         {
             LOG_err << "Parsing error in procph: " << e;
+            j->leavearray();
             return false;
         }
     }
@@ -10129,6 +10139,7 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
         if (e != 1)
         {
             LOG_err << "Parsing error in readusers: " << e;
+            j->leavearray();
             return false;
         }
     }
@@ -12437,6 +12448,7 @@ void MegaClient::proccr(JSON* j)
         else
         {
             LOG_err << "Malformed SNK CR - nodes part";
+            j->leavearray();
             return;
         }
 
@@ -12448,6 +12460,7 @@ void MegaClient::proccr(JSON* j)
         else
         {
             LOG_err << "Malformed CR - linkage part";
+            j->leavearray();
             return;
         }
     }
@@ -12466,11 +12479,15 @@ void MegaClient::procsnk(JSON* j)
         {
             if (ISUNDEF((sh = j->gethandle())))
             {
+                j->leavearray();
+                j->leavearray();
                 return;
             }
 
             if (ISUNDEF((nh = j->gethandle())))
             {
+                j->leavearray();
+                j->leavearray();
                 return;
             }
 
@@ -14350,7 +14367,8 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
 
                 // FetchNodes procresult() needs some data from `ug` (or it may try to make new Sync User Attributes for example)
                 // So only submit the request after `ug` completes, otherwise everything is interleaved
-                reqs.add(new CommandFetchNodes(this, fetchtag, nocache, loadSyncs));
+                const auto partialFetchRoot = isClientType(ClientType::PASSWORD_MANAGER) ? getPasswordManagerBase() : NodeHandle{};
+                reqs.add(new CommandFetchNodes(this, fetchtag, nocache, loadSyncs, partialFetchRoot));
             });
 
             fetchtimezone();
@@ -17439,6 +17457,7 @@ userpriv_vector *MegaClient::readuserpriv(JSON *j)
                         if(uh == UNDEF || priv == PRIV_UNKNOWN)
                         {
                             delete userpriv;
+                            j->leavearray();
                             return NULL;
                         }
 
@@ -17455,6 +17474,7 @@ userpriv_vector *MegaClient::readuserpriv(JSON *j)
                         if (!j->storeobject())
                         {
                             delete userpriv;
+                            j->leavearray();
                             return NULL;
                         }
                         break;
@@ -18936,6 +18956,7 @@ error MegaClient::readElements(JSON& j, map<handle, elementsmap_t>& elements)
         error e = readElement(j, el);
         if (e)
         {
+            j.leavearray();
             return e;
         }
         handle sid = el.set();
@@ -19026,6 +19047,7 @@ error MegaClient::readAllNodeMetadata(JSON& j, map<handle, SetElement::NodeMetad
         error e = readSingleNodeMetadata(j, eln);
         if (e)
         {
+            j.leavearray();
             return e;
         }
         nodes.emplace(eln.h, std::move(eln));
@@ -20087,6 +20109,17 @@ void MegaClient::preparePasswordNodeData(attr_map& attrs, const AttrMap& data) c
     attrs[AttrMap::string2nameid(NODE_ATTR_PASSWORD_MANAGER)] = std::move(jsonData);
 }
 
+std::string MegaClient::getPartialAPs()
+{
+    std::string ret;
+    if (isClientType(ClientType::PASSWORD_MANAGER))
+    {
+        ret = "&e=" + toNodeHandle(getPasswordManagerBase()) + "&ir=1";
+    }
+
+    return ret;
+}
+
 void MegaClient::createPasswordManagerBase(int rTag, CommandCreatePasswordManagerBase::Completion cbRequest)
 {
     LOG_info << "Password Manager: Requesting pwmh creation to server";
@@ -20159,6 +20192,66 @@ error MegaClient::updatePasswordNode(NodeHandle nh, std::unique_ptr<AttrMap> new
 
     const bool canChangeVault = true;
     return setattr(pwdNode, std::move(updates), std::move(cb), canChangeVault);
+}
+
+std::string MegaClient::generatePasswordChars(const bool useUpper,
+                                              const bool useDigits,
+                                              const bool useSymbols,
+                                              const unsigned int length)
+{
+    if (length < 8 || length > 64)
+    {
+        LOG_err << "Characters-based password generation requested for invalid length. "
+                << "Valid length range is [8, 64]";
+        return std::string{};
+    }
+
+    static const std::string lowerCase = "abcdefghijklmnopqrstuvwxyz";
+    static const std::string upperCase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    static const std::string digits = "0123456789";
+    static const std::string symbols = "!@#$%^&*()";
+
+    std::string pwd;
+    pwd.reserve(length);
+
+    std::random_device rd;
+    std::mt19937 gen(rd()); // Mersenne Twister generator
+    const auto appendOneRandom = [&pwd, &gen](const std::string& src)
+    {
+        std::uniform_int_distribution<> dis(0, static_cast<int>(src.size() - 1));
+        pwd += src[static_cast<size_t>(dis(gen))];
+    };
+
+    std::string pool = lowerCase;
+    appendOneRandom(lowerCase);
+    if (useUpper)
+    {
+        appendOneRandom(upperCase); // Make sure there is at least 1
+        pool += upperCase;
+    }
+    if (useDigits)
+    {
+        appendOneRandom(digits);
+        pool += digits;
+    }
+    if (useSymbols)
+    {
+        appendOneRandom(symbols);
+        pool += symbols;
+    }
+
+    std::uniform_int_distribution<> dis(0, static_cast<int>(pool.size() - 1));
+    for (auto i = pwd.size(); i < length; ++i) pwd += pool[static_cast<size_t>(dis(gen))];
+
+    // We shuffle to avoid the first mandatory types
+    std::shuffle(std::begin(pwd), std::end(pwd), gen);
+
+    return pwd;
+}
+
+void MegaClient::getNotifications(CommandGetNotifications::ResultFunc onResult)
+{
+    reqs.add(new CommandGetNotifications(this, onResult));
 }
 
 FetchNodesStats::FetchNodesStats()

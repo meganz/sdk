@@ -226,8 +226,18 @@ public:
     MegaApiTest(const char* appKey,
                 const char* basePath = nullptr,
                 const char* userAgent = nullptr,
-                unsigned workerThreadCount = 1):
-        MegaApi(appKey, basePath, userAgent, workerThreadCount)
+                unsigned workerThreadCount = 1,
+                const int clientType = MegaApi::CLIENT_TYPE_DEFAULT):
+        MegaApi(appKey, basePath, userAgent, workerThreadCount, clientType)
+    {}
+
+    MegaApiTest(const char* appKey,
+                MegaGfxProvider* provider,
+                const char* basePath = nullptr,
+                const char* userAgent = nullptr,
+                unsigned workerThreadCount = 1,
+                const int clientType = MegaApi::CLIENT_TYPE_DEFAULT):
+        MegaApi(appKey, provider, basePath, userAgent, workerThreadCount, clientType)
     {}
 
     MegaClient* getClient()
@@ -267,6 +277,9 @@ public:
         bool accountUpdated;
         bool nodeUpdated; // flag to check specific updates for a node (upon onNodesUpdate)
 
+        // A map to store custom functions to be called inside callbacks
+        std::map<MegaHandle, std::weak_ptr<std::function<void()>>> customCallbackCheck;
+
         bool userAlertsUpdated;
         std::unique_ptr<MegaUserAlertList> userAlertList;
 
@@ -285,6 +298,28 @@ public:
         MegaHandle chatid;          // last chat added
         MegaHandle schedId;         // last scheduled meeting added
 #endif
+
+        /**
+         * @brief Ensures that the access to the customCallbackCheck map and the posterior function
+         * call is properly managed.
+         */
+        void callCustomCallbackCheck(const MegaHandle userHandle)
+        {
+            auto it = customCallbackCheck.find(userHandle);
+            if (it == customCallbackCheck.end())
+            {
+                return;
+            }
+            auto funPtr = it->second.lock();
+            if (funPtr)
+            {
+                (*funPtr)();
+            }
+            else
+            {
+                customCallbackCheck.erase(it);
+            }
+        }
 
         void receiveEvent(MegaEvent* e)
         {
@@ -616,8 +651,14 @@ public:
     void deleteFolder(string foldername);
 
     void fetchNodesForAccounts(const unsigned howMany);
-    void getAccountsForTest(unsigned howMany = 1, bool fetchNodes = true);
-    void configureTestInstance(unsigned index, const std::string& email, const std::string pass, bool checkCredentials = true);
+    void getAccountsForTest(unsigned howMany = 1,
+                            bool fetchNodes = true,
+                            const int clientType = MegaApi::CLIENT_TYPE_DEFAULT);
+    void configureTestInstance(unsigned index,
+                               const std::string& email,
+                               const std::string pass,
+                               bool checkCredentials = true,
+                               const int clientType = MegaApi::CLIENT_TYPE_DEFAULT);
     void releaseMegaApi(unsigned int apiIndex);
 
     void inviteTestAccount(const unsigned invitorIndex, const unsigned inviteIndex, const string &message);

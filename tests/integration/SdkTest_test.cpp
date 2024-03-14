@@ -28,6 +28,7 @@
 #include "gmock/gmock-matchers.h"
 
 #include <algorithm>
+#include <cctype>
 
 #define SSTR( x ) static_cast< const std::ostringstream & >( \
         (  std::ostringstream() << std::dec << x ) ).str()
@@ -187,14 +188,6 @@ bool WaitFor(const std::function<bool()>& predicate, unsigned timeoutMs)
     return false;
 }
 
-MegaApiTest* newMegaApi(const char* appKey,
-                        const char* basePath,
-                        const char* userAgent,
-                        unsigned workerThreadCount)
-{
-    return new MegaApiTest(appKey, basePath, userAgent, workerThreadCount);
-}
-
 enum { USERALERT_ARRIVAL_MILLISEC = 1000 };
 
 #ifdef _WIN32
@@ -261,6 +254,8 @@ namespace
 
     // cURL Callback function to write downloaded data to a stream
     // See https://curl.se/libcurl/c/CURLOPT_WRITEFUNCTION.html
+    // See https://github.com/curl/curl/pull/9874 returning CURL_WRITEFUNC_ERROR
+    //     is better than 0 on errors.
     size_t writeData(void *ptr, size_t size, size_t nmemb, std::ofstream *stream)
     {
         if (stream->write((char*)ptr, size * nmemb))
@@ -269,9 +264,53 @@ namespace
         }
         else
         {
-            return CURL_WRITEFUNC_ERROR;
+            #ifdef CURL_WRITEFUNC_ERROR
+                return CURL_WRITEFUNC_ERROR;
+            #else
+                return 0;
+            #endif
         }
     }
+
+    //
+    // Get a new pipe name without conflicts with any running instances
+    // under the following situations:
+    //      1. Jenkins can run multiple test jobs at the same time
+    //      2. A test job can run tests in parallel
+    // Use current process ID so names are unique between different jobs (processes)
+    // Use a static incremental counter so names are unique in the same job (process)
+    std::string newPipeName()
+    {
+        static std::atomic_int counter{0};
+        int current = counter++;
+
+        std::ostringstream oss;
+        oss << "test_integration_" << getCurrentPid() << "_" << current;
+        return oss.str();
+    }
+
+    MegaApiTest* newMegaApi(const char* appKey,
+                            const char* basePath,
+                            const char* userAgent,
+                            unsigned workerThreadCount,
+                            const int clientType = MegaApi::CLIENT_TYPE_DEFAULT)
+    {
+    #ifdef WIN32
+        auto gfxworkerPath = sdk_test::getTestDataDir() / "gfxworker.exe";
+        std::unique_ptr<MegaGfxProvider> provider{
+            MegaGfxProvider::createIsolatedInstance(newPipeName().c_str(), gfxworkerPath.string().c_str())
+        };
+        return new MegaApiTest(appKey,
+                               provider.get(),
+                               basePath,
+                               userAgent,
+                               workerThreadCount,
+                               clientType);
+    #else
+        return new MegaApiTest(appKey, basePath, userAgent, workerThreadCount, clientType);
+    #endif
+    }
+
 }
 
 std::map<size_t, std::string> gSessionIDs;
@@ -873,6 +912,7 @@ void SdkTest::onUsersUpdate(MegaApi* api, MegaUserList *users)
     if (!users)
         return;
 
+    auto& currentPerApi = mApi[static_cast<size_t>(apiIndex)];
     for (int i = 0; i < users->size(); i++)
     {
         MegaUser *u = users->get(i);
@@ -881,14 +921,15 @@ void SdkTest::onUsersUpdate(MegaApi* api, MegaUserList *users)
                 || u->hasChanged(MegaUser::CHANGE_TYPE_FIRSTNAME)
                 || u->hasChanged(MegaUser::CHANGE_TYPE_LASTNAME))
         {
-            mApi[apiIndex].userUpdated = true;
+            currentPerApi.userUpdated = true;
         }
         else
         {
             // Contact is removed from main account
-            mApi[apiIndex].requestFlags[MegaRequest::TYPE_REMOVE_CONTACT] = true;
-            mApi[apiIndex].userUpdated = true;
+            currentPerApi.requestFlags[MegaRequest::TYPE_REMOVE_CONTACT] = true;
+            currentPerApi.userUpdated = true;
         }
+        currentPerApi.callCustomCallbackCheck(u->getHandle());
     }
 }
 
@@ -913,6 +954,15 @@ void SdkTest::onSetElementsUpdate(MegaApi* api, MegaSetElementList* elements)
 {
     int apiIndex = getApiIndex(api);
     if (apiIndex < 0 || !elements || !elements->size()) return;
+
+    for (unsigned int i = 0; i < elements->size(); ++i)
+    {
+        if (!elements->get(i)->getChanges())
+        {
+            LOG_err << "GlobalListener::onSetElementsUpdate no change received for elements[" << i << "]";
+            return;
+        }
+    }
 
     mApi[apiIndex].setElementUpdated = true;
 }
@@ -1236,7 +1286,7 @@ void SdkTest::fetchNodesForAccounts(const unsigned howMany)
     }
 }
 
-void SdkTest::getAccountsForTest(unsigned howMany, bool fetchNodes)
+void SdkTest::getAccountsForTest(unsigned howMany, bool fetchNodes, const int clientType)
 {
     EXPECT_TRUE(howMany > 0) << "SdkTest::getAccountsForTest(): invalid number of test account to setup " << howMany << " is < 0";
     EXPECT_TRUE(howMany <= (unsigned)gMaxAccounts) << "SdkTest::getAccountsForTest(): too many test accounts requested " << howMany << " is > " << gMaxAccounts;
@@ -1254,7 +1304,8 @@ void SdkTest::getAccountsForTest(unsigned howMany, bool fetchNodes)
         const char *pass = getenv(envVarPass[index].c_str());
         ASSERT_NE(pass, nullptr);
 
-        configureTestInstance(index, email, pass);
+        static const bool checkCredentials = true; // default value
+        configureTestInstance(index, email, pass, checkCredentials, clientType);
 
         if (!gResumeSessions || gSessionIDs[index].empty() || gSessionIDs[index] == "invalid")
         {
@@ -1295,7 +1346,11 @@ void SdkTest::getAccountsForTest(unsigned howMany, bool fetchNodes)
     out() << "Test setup done, test starts";
 }
 
-void SdkTest::configureTestInstance(unsigned index, const string &email, const string pass, bool checkCredentials)
+void SdkTest::configureTestInstance(unsigned index,
+                                    const string& email,
+                                    const string pass,
+                                    bool checkCredentials,
+                                    const int clientType)
 {
     ASSERT_GT(mApi.size(), index) << "Invalid mApi size";
     ASSERT_GT(megaApi.size(), index) << "Invalid megaApi size";
@@ -1309,7 +1364,7 @@ void SdkTest::configureTestInstance(unsigned index, const string &email, const s
         ASSERT_FALSE(mApi[index].pwd.empty()) << "Set test account " << index << " password at the environment variable $" << envVarPass[index];
     }
 
-    megaApi[index].reset(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(index).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
+    megaApi[index].reset(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(index).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT), clientType));
     mApi[index].megaApi = megaApi[index].get();
 
     // helps with restoring logging after tests that fiddle with log level
@@ -1317,7 +1372,6 @@ void SdkTest::configureTestInstance(unsigned index, const string &email, const s
 
     megaApi[index]->setLoggingName(to_string(index).c_str());
     megaApi[index]->addListener(this);    // TODO: really should be per api
-
 }
 
 void SdkTest::releaseMegaApi(unsigned int apiIndex)
@@ -1347,6 +1401,20 @@ void SdkTest::inviteTestAccount(const unsigned invitorIndex, const unsigned invi
 {
     //--- Add account as contact ---
     mApi[inviteIndex].contactRequestUpdated = false;
+
+    // Watcher for the new contact visibility
+    bool contactRightVisibility = false;
+    auto visibilityCheck = std::make_shared<std::function<void()>>(
+        [this, &invitorIndex, &inviteIndex, &contactRightVisibility]()
+        {
+            std::unique_ptr<MegaUser> contact(
+                mApi[invitorIndex].megaApi->getContact(mApi[inviteIndex].email.c_str()));
+            contactRightVisibility =
+                contact && contact->getVisibility() == MegaUser::VISIBILITY_VISIBLE;
+        });
+    MegaHandle invitedUserHandler = mApi[inviteIndex].megaApi->getMyUserHandleBinary();
+    mApi[invitorIndex].customCallbackCheck[invitedUserHandler] = visibilityCheck;
+
     ASSERT_NO_FATAL_FAILURE(inviteContact(invitorIndex, mApi[inviteIndex].email, message, MegaContactRequest::INVITE_ACTION_ADD));
     ASSERT_TRUE(waitForResponse(&mApi[inviteIndex].contactRequestUpdated))   // at the target side (auxiliar account)
             << "Contact request creation not received after " << maxTimeout << " seconds";
@@ -1360,11 +1428,15 @@ void SdkTest::inviteTestAccount(const unsigned invitorIndex, const unsigned invi
             << "Contact request creation not received after " << maxTimeout << " seconds";
     mApi[inviteIndex].cr.reset();
 
-    std::unique_ptr<MegaUser> contact(mApi[invitorIndex].megaApi->getContact(mApi[inviteIndex].email.c_str()));
-    if (!contact || contact->getVisibility() != MegaUser::VISIBILITY_VISIBLE)
+    bool hasExpectedVisibility = waitForResponse(&contactRightVisibility);
+    if (!hasExpectedVisibility)
     {
-        ASSERT_TRUE(contact) << "Invalid contact";
-        ASSERT_TRUE(contact->getVisibility() == MegaUser::VISIBILITY_VISIBLE) << "Invalid contact visibility";
+        std::unique_ptr<MegaUser>
+            contact(mApi[invitorIndex].megaApi->getContact(mApi[inviteIndex].email.c_str()));
+        ASSERT_TRUE(contact) << "Invalid contact after " << maxTimeout << " seconds";
+        ASSERT_EQ(contact->getVisibility(), MegaUser::VISIBILITY_VISIBLE)
+            << "Invalid contact visibility after " << maxTimeout << " seconds";
+        ASSERT_TRUE(hasExpectedVisibility) << "The contact has the correct visibility but the timeout of " << maxTimeout << " seconds was exceeded";
     }
 }
 
@@ -11862,6 +11934,38 @@ TEST_F(SdkTest, SearchNodesByModificationTime)
     ASSERT_EQ(results->get(0)->getName(), fileName1);
     ASSERT_EQ(results->get(1)->getName(), fileName2);
 
+    // getChildren(), repeat last using pagination
+    unique_ptr<MegaSearchPage> p(MegaSearchPage::createInstance(0, 1));
+    results.reset(megaApi[0]->getChildren(f.get(), MegaApi::ORDER_DEFAULT_ASC, nullptr, p.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getName(), fileName1);
+
+    p.reset(MegaSearchPage::createInstance(0, 2));
+    results.reset(megaApi[0]->getChildren(f.get(), MegaApi::ORDER_DEFAULT_ASC, nullptr, p.get()));
+    ASSERT_EQ(results->size(), 2);
+    ASSERT_EQ(results->get(0)->getName(), fileName1);
+    ASSERT_EQ(results->get(1)->getName(), fileName2);
+
+    p.reset(MegaSearchPage::createInstance(0, 3));
+    results.reset(megaApi[0]->getChildren(f.get(), MegaApi::ORDER_DEFAULT_ASC, nullptr, p.get()));
+    ASSERT_EQ(results->size(), 2);
+    ASSERT_EQ(results->get(0)->getName(), fileName1);
+    ASSERT_EQ(results->get(1)->getName(), fileName2);
+
+    p.reset(MegaSearchPage::createInstance(1, 1));
+    results.reset(megaApi[0]->getChildren(f.get(), MegaApi::ORDER_DEFAULT_ASC, nullptr, p.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getName(), fileName2);
+
+    p.reset(MegaSearchPage::createInstance(1, 2));
+    results.reset(megaApi[0]->getChildren(f.get(), MegaApi::ORDER_DEFAULT_ASC, nullptr, p.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getName(), fileName2);
+
+    p.reset(MegaSearchPage::createInstance(2, 14));
+    results.reset(megaApi[0]->getChildren(f.get(), MegaApi::ORDER_DEFAULT_ASC, nullptr, p.get()));
+    ASSERT_EQ(results->size(), 0);
+
     // search()
     f->byLocationHandle(INVALID_HANDLE);
     f->byModificationTime(fileMTime1 - 100, fileMTimeR + 1);
@@ -11890,6 +11994,38 @@ TEST_F(SdkTest, SearchNodesByModificationTime)
     ASSERT_EQ(results->size(), 2);
     ASSERT_EQ(results->get(0)->getName(), fileName2);
     ASSERT_EQ(results->get(1)->getName(), fileNameAtRoot);
+
+    // search(), repeat last using pagination
+    p.reset(MegaSearchPage::createInstance(0, 1));
+    results.reset(megaApi[0]->search(f.get(), MegaApi::ORDER_DEFAULT_ASC, nullptr, p.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getName(), fileName2);
+
+    p.reset(MegaSearchPage::createInstance(0, 2));
+    results.reset(megaApi[0]->search(f.get(), MegaApi::ORDER_DEFAULT_ASC, nullptr, p.get()));
+    ASSERT_EQ(results->size(), 2);
+    ASSERT_EQ(results->get(0)->getName(), fileName2);
+    ASSERT_EQ(results->get(1)->getName(), fileNameAtRoot);
+
+    p.reset(MegaSearchPage::createInstance(0, 3));
+    results.reset(megaApi[0]->search(f.get(), MegaApi::ORDER_DEFAULT_ASC, nullptr, p.get()));
+    ASSERT_EQ(results->size(), 2);
+    ASSERT_EQ(results->get(0)->getName(), fileName2);
+    ASSERT_EQ(results->get(1)->getName(), fileNameAtRoot);
+
+    p.reset(MegaSearchPage::createInstance(1, 1));
+    results.reset(megaApi[0]->search(f.get(), MegaApi::ORDER_DEFAULT_ASC, nullptr, p.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getName(), fileNameAtRoot);
+
+    p.reset(MegaSearchPage::createInstance(1, 2));
+    results.reset(megaApi[0]->search(f.get(), MegaApi::ORDER_DEFAULT_ASC, nullptr, p.get()));
+    ASSERT_EQ(results->size(), 1);
+    ASSERT_EQ(results->get(0)->getName(), fileNameAtRoot);
+
+    p.reset(MegaSearchPage::createInstance(2, 14));
+    results.reset(megaApi[0]->search(f.get(), MegaApi::ORDER_DEFAULT_ASC, nullptr, p.get()));
+    ASSERT_EQ(results->size(), 0);
 
     deleteFile(fileName1);
 }
@@ -16189,6 +16325,103 @@ TEST_F(SdkTest, SdkTesResumeSessionInFolderLinkDeleted)
         << "Logout did not happen after " << timeoutInSeconds  << " seconds";
 }
 
+#if defined(WIN32)
+class SdkTestGfx : public SdkTest
+{
+protected:
+    void SetUp() override;
+
+    void TearDown() override;
+
+    static constexpr const char* CRASH_IMAGE = "crash.pct";
+
+    static constexpr const char* CRASH_THUMBNAIL = "crash_thumbnail.jpg";
+
+    static constexpr const char* CRASH_PREVIEW = "crash_preview.jpg";
+
+    static constexpr const char* INVALID_IMAGE = "invalid.jpg";
+
+    static constexpr const char* INVALID_THUMBNAIL = "invalid_thumbnail.jpg";
+};
+
+void SdkTestGfx::SetUp()
+{
+    SdkTest::SetUp();
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+}
+
+void SdkTestGfx::TearDown()
+{
+    SdkTest::TearDown();
+}
+
+/**
+ * @brief GfxProcessingContinueSuccessfullyAfterCrash
+ *          1. create thumbnail successfully
+ *          2. create thumbnail and preview of a image which causes a gfx process crash.
+ *          3. create preview still successfully after the crash
+ *          4. create thumbnail of a not valid image expects false.
+ *
+ * @ Note:
+ *          Basically a createThumbnail/createPreview might fail due to the following reason:
+ *          
+ *          1. The GFX process was already crashed (not running), therefore the error is 
+ *             the pipe couldn't be connected
+ *          2. The GFX process crashed while processing, therefore the error is others.
+ *          
+ *          For the 1st case, we'll retry so it is handled. For the 2nd case, we don't retry as
+ *          we don't want to retry processing bad images which cause a crash. We have problems 
+ *          here because gfxworker process uses multiple thread model.        
+ *             When it is processing multiple GFX calls and crashes, we don't know which call is 
+ *          processing bad images. So simply all calls are not retried.
+ *             When the previous call results in a crash, the following immediate call may still
+ *             connect to the pipe as the crash takes time to shutdown the whole process. Therefore
+ *             the second call is dropped as well though it should be retried.
+ *
+ *          It has been discussed and we don't want to deal with these known problem at the moment
+ *          as we want to start with simple. It happens rarely and the side effect is limited (thumbnail lost).
+ *          We'll improve it when we find it is necessary.
+ */
+TEST_F(SdkTestGfx, GfxProcessingContinueSuccessfullyAfterCrash)
+{
+    LOG_info << "___TEST GfxProcessingContinueSuccessfullyAfterCrash";
+
+    MegaApi* api = megaApi[0].get();
+
+    // 1. Create a thumbnail successfully
+    sdk_test::copyFileFromTestData(IMAGEFILE);
+    ASSERT_TRUE(api->createThumbnail(IMAGEFILE.c_str(), THUMBNAIL.c_str())) << "create thumbnail should succeed";
+
+    // 2. Create thumbnail and preview of a image which result in a crash
+    // the image is selected by testing, thus not guaranteed. we'd either
+    // find another media file or need another alternative if it couldn't
+    // consistently result in a crash
+
+    // Get the test media file
+    const std::string source{"test-data/gfx-processing-crash/SNC-2406_Almotassem%20invoice%2015021001.pct"};
+    fs::path destination{CRASH_IMAGE};
+    ASSERT_TRUE(getFileFromArtifactory(source, destination));
+    ASSERT_TRUE(fs::exists(destination));
+
+    // Gfx process would crash due to the bad media file
+    ASSERT_FALSE(api->createThumbnail(CRASH_IMAGE, CRASH_THUMBNAIL));
+    ASSERT_FALSE(api->createPreview(CRASH_IMAGE, CRASH_PREVIEW));
+
+    // Don't make a call too quickly. Workaround: see note in test case desription
+    std::this_thread::sleep_for(std::chrono::milliseconds{200});
+
+    // 3. Create a preview successfully
+    ASSERT_TRUE(api->createPreview(IMAGEFILE.c_str(), PREVIEW.c_str())) << "create preview should succeed";
+
+    // 4. Create thumbnail of a not valid image
+    sdk_test::copyFileFromTestData(std::string(INVALID_IMAGE));
+    ASSERT_FALSE(api->createThumbnail(INVALID_IMAGE, INVALID_THUMBNAIL)) << "create invalid image's thumbnail should fail";
+
+    LOG_info << "___TEST GfxProcessingContinueSuccessfullyAfterCrash end___";
+}
+#endif
+
 class SdkTestAvatar : public SdkTest
 {
 protected:
@@ -16383,7 +16616,7 @@ TEST_F(SdkTest, CreateNodeTreeWithMalformedNodeTree)
     std::unique_ptr<MegaNode> parentNode{megaApi[apiIndex]->getRootNode()};
     ASSERT_THAT(parentNode, ::testing::NotNull());
 
-    // Create node tree
+    // Create node tree with both child-tree and upload-data
     auto nodeTreeChild{MegaNodeTree::createInstance(nullptr, nullptr, nullptr, nullptr)};
 
     const auto completeUploadData{
@@ -16393,6 +16626,52 @@ TEST_F(SdkTest, CreateNodeTreeWithMalformedNodeTree)
         MegaNodeTree::createInstance(nodeTreeChild, nullptr, nullptr, completeUploadData)};
 
     ASSERT_EQ(API_EARGS, synchronousCreateNodeTree(apiIndex, parentNode.get(), nodeTree.get()));
+}
+
+/**
+ * @brief Create node tree with source-handle and child-tree
+ */
+TEST_F(SdkTest, CreateNodeTreeWithSourceHandleAndChildTree)
+{
+    const unsigned int numberOfTestInstances{ 1 };
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfTestInstances));
+
+    const unsigned int apiIndex{ 0 };
+
+    std::unique_ptr<MegaNode> parentNode{ megaApi[apiIndex]->getRootNode() };
+    ASSERT_THAT(parentNode, ::testing::NotNull());
+
+    // Create node tree with source-handle and child-tree
+    MegaHandle sourceHandle = parentNode->getHandle(); // not important, any dummy (but valid) value will do
+    MegaNodeTree* childTree{ MegaNodeTree::createInstance(nullptr, nullptr, nullptr, nullptr) };
+
+    std::unique_ptr<MegaNodeTree> treeWithSourceAndChild{
+        MegaNodeTree::createInstance(childTree, nullptr, nullptr, nullptr, sourceHandle) };
+
+    ASSERT_EQ(API_EARGS, synchronousCreateNodeTree(apiIndex, parentNode.get(), treeWithSourceAndChild.get()));
+}
+
+/**
+ * @brief Create node tree with source-handle and upload-data
+ */
+TEST_F(SdkTest, CreateNodeTreeWithSourceHandleAndUploadData)
+{
+    const unsigned int numberOfTestInstances{ 1 };
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfTestInstances));
+
+    const unsigned int apiIndex{ 0 };
+
+    std::unique_ptr<MegaNode> parentNode{ megaApi[apiIndex]->getRootNode() };
+    ASSERT_THAT(parentNode, ::testing::NotNull());
+
+    // Create node tree with both source-handle and upload-data
+    MegaHandle sourceHandle = parentNode->getHandle(); // not important, any dummy (but valid) value will do
+    const auto* uploadData{ MegaCompleteUploadData::createInstance(nullptr, nullptr, nullptr) };
+
+    std::unique_ptr<MegaNodeTree> treeWithSourceAndUploadData{
+        MegaNodeTree::createInstance(nullptr, nullptr, nullptr, uploadData, sourceHandle) };
+
+    ASSERT_EQ(API_EARGS, synchronousCreateNodeTree(apiIndex, parentNode.get(), treeWithSourceAndUploadData.get()));
 }
 
 /**
@@ -16413,6 +16692,37 @@ TEST_F(SdkTest, CreateNodeTreeWithOneDirectoryWithoutName)
         MegaNodeTree::createInstance(nullptr, nullptr, nullptr, nullptr)};
 
     ASSERT_EQ(API_EARGS, synchronousCreateNodeTree(apiIndex, parentNode.get(), nodeTree.get()));
+}
+
+/**
+ * @brief Create node tree with directory as source
+ *
+ * Attempt to copy directory/
+ * to              directory_copy/
+ */
+TEST_F(SdkTest, CreateNodeTreeWithDirectoryAsSource)
+{
+    const unsigned int numberOfTestInstances{ 1 };
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfTestInstances));
+
+    const unsigned int apiIndex{ 0 };
+
+    std::unique_ptr<MegaNode> rootNode{ megaApi[apiIndex]->getRootNode() };
+    ASSERT_THAT(rootNode, ::testing::NotNull());
+
+    // Create directory
+    const std::string directoryName{ "directory" };
+    MegaHandle directoryHandle = createFolder(apiIndex, directoryName.c_str(), rootNode.get());
+    ASSERT_NE(directoryHandle, INVALID_HANDLE);
+
+    std::unique_ptr<MegaNode> directoryNode{ megaApi[apiIndex]->getNodeByHandle(directoryHandle) };
+    ASSERT_THAT(directoryNode, ::testing::NotNull());
+
+    // attempt to copy a source directory
+    string directoryNameCopy = directoryName + "_copy";
+    std::unique_ptr<MegaNodeTree> directoryTreeCopy{
+        MegaNodeTree::createInstance(nullptr, directoryNameCopy.c_str(), nullptr, nullptr, directoryHandle) };
+    ASSERT_EQ(API_EARGS, synchronousCreateNodeTree(apiIndex, rootNode.get(), directoryTreeCopy.get()));
 }
 
 /**
@@ -16530,6 +16840,44 @@ TEST_F(SdkTest, CreateNodeTreeWithOneFile)
 }
 
 /**
+ * @brief Create node tree to copy existing source file
+ */
+TEST_F(SdkTest, CreateNodeTreeToCopyExistingSource)
+{
+    const unsigned int numberOfTestInstances{ 1 };
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(numberOfTestInstances));
+
+    const unsigned int apiIndex{ 0 };
+
+    // File upload
+    std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
+    ASSERT_TRUE(createFile(UPFILE, false)) << "Couldn't create " << UPFILE;
+
+    MegaHandle uploadedNode = UNDEF;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &uploadedNode, UPFILE.c_str(),
+        rootnode.get(),
+        nullptr /*fileName*/,
+        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+        nullptr /*appData*/,
+        false   /*isSourceTemporary*/,
+        false   /*startFirst*/,
+        nullptr /*cancelToken*/)) << "Cannot upload " << UPFILE;
+
+    std::unique_ptr<MegaNode> newNode(megaApi[0]->getNodeByHandle(uploadedNode));
+    ASSERT_THAT(newNode, ::testing::NotNull());
+
+    // Create a copy of the already existing file
+    string fileCopy = UPFILE + "_copy";
+    std::unique_ptr<MegaNodeTree> nodeTree{
+        MegaNodeTree::createInstance(nullptr, fileCopy.c_str(), nullptr, nullptr, newNode->getHandle()) };
+    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, rootnode.get(), nodeTree.get()));
+    std::unique_ptr<MegaNode> newNodeCopy{ megaApi[apiIndex]->getNodeByHandle(nodeTree->getNodeHandle()) };
+    ASSERT_THAT(newNodeCopy, ::testing::NotNull());
+    ASSERT_STREQ(newNodeCopy->getName(), fileCopy.c_str());
+    ASSERT_EQ(newNodeCopy->getSize(), newNode->getSize());
+}
+
+/**
  * @brief Create node tree with multiple levels of directories
  *
  * directory_0/directory_1/directory_2/
@@ -16576,12 +16924,14 @@ TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectories)
         megaApi[apiIndex]->getNodeByHandle(directoryNodeHandleLevel1)};
     ASSERT_THAT(directoryNodeLevel1, ::testing::NotNull());
     ASSERT_STREQ(directoryNameLevel1.c_str(), directoryNodeLevel1->getName());
+    ASSERT_EQ(directoryNodeLevel1->getParentHandle(), directoryNodeLevel0->getHandle());
 
     const auto directoryNodeHandleLevel2{nodeTreeLevel2->getNodeHandle()};
     std::unique_ptr<MegaNode> directoryNodeLevel2{
         megaApi[apiIndex]->getNodeByHandle(directoryNodeHandleLevel2)};
     ASSERT_THAT(directoryNodeLevel2, ::testing::NotNull());
     ASSERT_STREQ(directoryNameLevel2.c_str(), directoryNodeLevel2->getName());
+    ASSERT_EQ(directoryNodeLevel2->getParentHandle(), directoryNodeLevel1->getHandle());
 }
 
 /**
@@ -16671,6 +17021,271 @@ TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectoriesAndOneFileAtTheEnd)
 }
 
 /**
+ * @brief Create node tree version using identical upload data.
+ *
+ * The handle of the existing file should be returned, and no new version should be added.
+ */
+TEST_F(SdkTest, CreateNodeTreeVersionUsingIdenticalUploadData)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const unsigned apiIndex = 0;
+
+    // Prepare the file to upload
+    createFile(PUBLICFILE.c_str(), false);
+    const int64_t fileSize = getFilesize(PUBLICFILE);
+    string encryptedFile = PUBLICFILE + "_encr";
+    std::string fingerprint;
+    std::string string64UploadToken;
+    std::string string64FileKey;
+
+    // Upload file, incomplete
+    ASSERT_NO_FATAL_FAILURE(synchronousMediaUploadIncomplete(apiIndex,
+                                                             fileSize,
+                                                             PUBLICFILE.c_str(),
+                                                             encryptedFile.c_str(),
+                                                             fingerprint,
+                                                             string64UploadToken,
+                                                             string64FileKey));
+
+    // Prepare destination
+    std::unique_ptr<MegaNode> parentNode{ megaApi[apiIndex]->getRootNode() };
+    ASSERT_THAT(parentNode, ::testing::NotNull());
+
+    // Create node tree from uploaded data
+    const MegaCompleteUploadData* uploadData =
+        MegaCompleteUploadData::createInstance(fingerprint.c_str(),
+                                               string64UploadToken.c_str(),
+                                               string64FileKey.c_str());
+    std::unique_ptr<MegaNodeTree> fileTreeFromData {
+        MegaNodeTree::createInstance(nullptr, PUBLICFILE.c_str(), nullptr, uploadData) };
+    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, parentNode.get(), fileTreeFromData.get()));
+    ASSERT_NE(fileTreeFromData->getNodeHandle(), INVALID_HANDLE);
+
+    // Ensure there's only 1 version
+    std::unique_ptr<MegaNode> fileNode{ megaApi[apiIndex]->getNodeByHandle(fileTreeFromData->getNodeHandle()) };
+    ASSERT_THAT(fileNode, ::testing::NotNull());
+    std::unique_ptr<MegaNodeList> allVersions{ megaApi[apiIndex]->getVersions(fileNode.get()) };
+    ASSERT_THAT(allVersions, ::testing::NotNull());
+    ASSERT_EQ(allVersions->size(), 1);
+
+    // Attempt to create another node tree from the same data
+    const MegaCompleteUploadData* uploadData2 =
+        MegaCompleteUploadData::createInstance(fingerprint.c_str(),
+                                               string64UploadToken.c_str(),
+                                               string64FileKey.c_str());
+    std::unique_ptr<MegaNodeTree> fileTreeFromData2 {
+        MegaNodeTree::createInstance(nullptr, PUBLICFILE.c_str(), nullptr, uploadData2) };
+    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, parentNode.get(), fileTreeFromData2.get()));
+
+    // Confirm there's still only 1 version
+    std::unique_ptr<MegaNode> fileNode2{ megaApi[apiIndex]->getNodeByHandle(fileTreeFromData2->getNodeHandle()) };
+    ASSERT_THAT(fileNode2, ::testing::NotNull());
+    std::unique_ptr<MegaNodeList> allVersions2{ megaApi[apiIndex]->getVersions(fileNode2.get()) };
+    ASSERT_THAT(allVersions2, ::testing::NotNull());
+    ASSERT_EQ(allVersions2->size(), 1);
+    ASSERT_EQ(fileTreeFromData2->getNodeHandle(), fileTreeFromData->getNodeHandle());
+}
+
+/**
+ * @brief Create node tree version using identical source file.
+ *
+ * The handle of the existing file should be returned, and no new version should be added.
+ */
+TEST_F(SdkTest, CreateNodeTreeVersionUsingIdenticalSourceFile)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const unsigned apiIndex = 0;
+
+    // File upload
+    std::unique_ptr<MegaNode> rootNode{ megaApi[apiIndex]->getRootNode() };
+    ASSERT_TRUE(createFile(UPFILE, false)) << "Couldn't create " << UPFILE;
+
+    MegaHandle upHandle = INVALID_HANDLE;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &upHandle, UPFILE.c_str(),
+        rootNode.get(),
+        nullptr /*fileName*/,
+        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+        nullptr /*appData*/,
+        false   /*isSourceTemporary*/,
+        false   /*startFirst*/,
+        nullptr /*cancelToken*/)) << "Cannot upload " << UPFILE;
+    ASSERT_NE(upHandle, INVALID_HANDLE);
+
+    // Ensure there's only 1 version
+    std::unique_ptr<MegaNode> upNode(megaApi[0]->getNodeByHandle(upHandle));
+    ASSERT_THAT(upNode, ::testing::NotNull());
+    std::unique_ptr<MegaNodeList> allVersions{ megaApi[apiIndex]->getVersions(upNode.get()) };
+    ASSERT_THAT(allVersions, ::testing::NotNull());
+    ASSERT_EQ(allVersions->size(), 1);
+
+    // Make a copy of the file
+    string fileCopy = UPFILE + "_copy";
+    RequestTracker nodeCopyTracker(megaApi[apiIndex].get());
+    megaApi[apiIndex]->copyNode(upNode.get(), rootNode.get(), fileCopy.c_str(), &nodeCopyTracker);
+    ASSERT_EQ(API_OK, nodeCopyTracker.waitForResult());
+    ASSERT_NE(nodeCopyTracker.getNodeHandle(), INVALID_HANDLE);
+    std::unique_ptr<MegaNode> upNodeCopy(megaApi[0]->getNodeByHandle(nodeCopyTracker.getNodeHandle()));
+
+    // Create a new version of the initial file using its copy as source
+    std::unique_ptr<MegaNodeTree> nodeTree{
+        MegaNodeTree::createInstance(nullptr, UPFILE.c_str(), nullptr, nullptr, upNodeCopy->getHandle()) };
+    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, rootNode.get(), nodeTree.get()));
+
+    // Confirm there's still only 1 version
+    std::unique_ptr<MegaNode> upNodeVersion{ megaApi[apiIndex]->getNodeByHandle(nodeTree->getNodeHandle()) };
+    ASSERT_THAT(upNodeVersion, ::testing::NotNull());
+    std::unique_ptr<MegaNodeList> allVersions2{ megaApi[apiIndex]->getVersions(upNodeVersion.get()) };
+    ASSERT_THAT(allVersions2, ::testing::NotNull());
+    ASSERT_EQ(allVersions2->size(), 1);
+    ASSERT_EQ(upNodeVersion->getHandle(), upNode->getHandle());
+}
+
+/**
+ * @brief Create node tree version using different upload data.
+ *
+ * A new handle should be returned, a new version should be added, and the handle of
+ * the existing file should correspond to the previous version.
+ */
+TEST_F(SdkTest, CreateNodeTreeVersionUsingDifferentUploadData)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const unsigned apiIndex = 0;
+
+    // Prepare the file to upload
+    createFile(PUBLICFILE.c_str(), false);
+    const int64_t fileSize = getFilesize(PUBLICFILE);
+    string encryptedFile = PUBLICFILE + "_encr";
+    std::string fingerprint;
+    std::string string64UploadToken;
+    std::string string64FileKey;
+
+    // Upload file, incomplete
+    ASSERT_NO_FATAL_FAILURE(synchronousMediaUploadIncomplete(apiIndex,
+                                                             fileSize,
+                                                             PUBLICFILE.c_str(),
+                                                             encryptedFile.c_str(),
+                                                             fingerprint,
+                                                             string64UploadToken,
+                                                             string64FileKey));
+
+    // Prepare destination
+    std::unique_ptr<MegaNode> parentNode{ megaApi[apiIndex]->getRootNode() };
+    ASSERT_THAT(parentNode, ::testing::NotNull());
+
+    // Create node tree from uploaded data
+    const MegaCompleteUploadData* uploadData =
+        MegaCompleteUploadData::createInstance(fingerprint.c_str(),
+                                               string64UploadToken.c_str(),
+                                               string64FileKey.c_str());
+    std::unique_ptr<MegaNodeTree> fileTreeFromData {
+        MegaNodeTree::createInstance(nullptr, PUBLICFILE.c_str(), nullptr, uploadData) };
+    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, parentNode.get(), fileTreeFromData.get()));
+    ASSERT_NE(fileTreeFromData->getNodeHandle(), INVALID_HANDLE);
+
+    // Ensure there's only 1 version
+    std::unique_ptr<MegaNode> fileNode{ megaApi[apiIndex]->getNodeByHandle(fileTreeFromData->getNodeHandle()) };
+    ASSERT_THAT(fileNode, ::testing::NotNull());
+    std::unique_ptr<MegaNodeList> allVersions{ megaApi[apiIndex]->getVersions(fileNode.get()) };
+    ASSERT_THAT(allVersions, ::testing::NotNull());
+    ASSERT_EQ(allVersions->size(), 1);
+
+    // Upload file again, incomplete
+    ASSERT_NO_FATAL_FAILURE(synchronousMediaUploadIncomplete(apiIndex,
+                                                             fileSize,
+                                                             PUBLICFILE.c_str(),
+                                                             encryptedFile.c_str(),
+                                                             fingerprint,
+                                                             string64UploadToken,
+                                                             string64FileKey));
+
+    // Create node tree from the new data
+    const MegaCompleteUploadData* uploadData2 =
+        MegaCompleteUploadData::createInstance(fingerprint.c_str(),
+                                               string64UploadToken.c_str(),
+                                               string64FileKey.c_str());
+    std::unique_ptr<MegaNodeTree> fileTreeFromData2 {
+        MegaNodeTree::createInstance(nullptr, PUBLICFILE.c_str(), nullptr, uploadData2) };
+    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, parentNode.get(), fileTreeFromData2.get()));
+
+    // Confirm there are 2 versions now
+    std::unique_ptr<MegaNode> fileNode2{ megaApi[apiIndex]->getNodeByHandle(fileTreeFromData2->getNodeHandle()) };
+    ASSERT_THAT(fileNode2, ::testing::NotNull());
+    std::unique_ptr<MegaNodeList> allVersions2{ megaApi[apiIndex]->getVersions(fileNode2.get()) };
+    ASSERT_THAT(allVersions2, ::testing::NotNull());
+    ASSERT_EQ(allVersions2->size(), 2);
+    ASSERT_EQ(allVersions2->get(1)->getHandle(), fileTreeFromData->getNodeHandle());
+    ASSERT_EQ(allVersions2->get(0)->getHandle(), fileTreeFromData2->getNodeHandle());
+    ASSERT_NE(fileTreeFromData2->getNodeHandle(), fileTreeFromData->getNodeHandle());
+}
+
+/**
+ * @brief Create node tree version using different source file.
+ *
+ * A new handle should be returned, a new version should be added, and the handle of
+ * the existing file should correspond to the previous version.
+ */
+TEST_F(SdkTest, CreateNodeTreeVersionUsingDifferentSourceFile)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const unsigned apiIndex = 0;
+
+    // File upload
+    std::unique_ptr<MegaNode> rootNode{ megaApi[apiIndex]->getRootNode() };
+    ASSERT_TRUE(createFile(UPFILE, false, "UPFILE")) << "Couldn't create " << UPFILE;
+
+    MegaHandle upHandle = INVALID_HANDLE;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &upHandle, UPFILE.c_str(),
+        rootNode.get(),
+        nullptr /*fileName*/,
+        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+        nullptr /*appData*/,
+        false   /*isSourceTemporary*/,
+        false   /*startFirst*/,
+        nullptr /*cancelToken*/)) << "Cannot upload " << UPFILE;
+    ASSERT_NE(upHandle, INVALID_HANDLE);
+
+    // Ensure there's only 1 version
+    std::unique_ptr<MegaNode> upNode(megaApi[0]->getNodeByHandle(upHandle));
+    ASSERT_THAT(upNode, ::testing::NotNull());
+    std::unique_ptr<MegaNodeList> allVersions{ megaApi[apiIndex]->getVersions(upNode.get()) };
+    ASSERT_THAT(allVersions, ::testing::NotNull());
+    ASSERT_EQ(allVersions->size(), 1);
+
+    // File 2 upload
+    ASSERT_TRUE(createFile(PUBLICFILE, false, "PUBLICFILE")) << "Couldn't create " << PUBLICFILE;
+
+    MegaHandle pubHandle = INVALID_HANDLE;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &pubHandle, PUBLICFILE.c_str(),
+        rootNode.get(),
+        nullptr /*fileName*/,
+        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+        nullptr /*appData*/,
+        false   /*isSourceTemporary*/,
+        false   /*startFirst*/,
+        nullptr /*cancelToken*/)) << "Cannot upload " << PUBLICFILE;
+    ASSERT_NE(pubHandle, INVALID_HANDLE);
+
+    // Create a new version of the initial file using a different file as source
+    std::unique_ptr<MegaNodeTree> nodeTree{
+        MegaNodeTree::createInstance(nullptr, UPFILE.c_str(), nullptr, nullptr, pubHandle) };
+    ASSERT_EQ(API_OK, synchronousCreateNodeTree(apiIndex, rootNode.get(), nodeTree.get()));
+
+    // Confirm there are 2 versions now
+    std::unique_ptr<MegaNode> upNodeVersion{ megaApi[apiIndex]->getNodeByHandle(nodeTree->getNodeHandle()) };
+    ASSERT_THAT(upNodeVersion, ::testing::NotNull());
+    std::unique_ptr<MegaNodeList> allVersions2{ megaApi[apiIndex]->getVersions(upNodeVersion.get()) };
+    ASSERT_THAT(allVersions2, ::testing::NotNull());
+    ASSERT_EQ(allVersions2->size(), 2);
+    ASSERT_EQ(allVersions2->get(1)->getHandle(), upHandle);
+    ASSERT_EQ(allVersions2->get(0)->getHandle(), upNodeVersion->getHandle());
+    ASSERT_NE(upNodeVersion->getHandle(), upHandle);
+}
+
+/**
  * @brief TEST_F SdkTestPasswordManager
  *
  * Tests MEGA Password Manager functionality.
@@ -16709,7 +17324,8 @@ TEST_F(SdkTest, SdkTestPasswordManager)
     LOG_debug << "# U1: special logging in sequence";
     const unsigned userIdx = 0, totalAccounts = 1;
     LOG_debug << "\t# log in without fetching nodes";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(totalAccounts, false));
+    ASSERT_NO_FATAL_FAILURE(
+        getAccountsForTest(totalAccounts, false, MegaApi::CLIENT_TYPE_PASSWORD_MANAGER));
 
     LOG_debug << "\t# get Password Manager Base node handle; it will be created if it didn't exist";
     RequestTracker rt2 {megaApi[userIdx].get()};
@@ -17162,8 +17778,8 @@ TEST_F(SdkTest, GiveRemoveChatAccess)
 
     // Create chat between new contacts
 
-    long unsigned int numChatsHost = mApi[host].chats.size();
-    long unsigned int numChatsGuest = mApi[guest].chats.size();
+    auto numChatsHost = mApi[host].chats.size();
+    auto numChatsGuest = mApi[guest].chats.size();
     mApi[guest].chatUpdated = false;
     std::unique_ptr<MegaTextChatPeerList> peers(MegaTextChatPeerList::createInstance());
     peers->addPeer(megaApi[guest]->getMyUser()->getHandle(), PRIV_STANDARD);
@@ -17219,4 +17835,261 @@ TEST_F(SdkTest, GetFileFromArtifactorySuccessfully)
     ASSERT_TRUE(getFileFromArtifactory(relativeUrl, output));
     ASSERT_TRUE(fs::exists(output));
     fs::remove(output);
+}
+
+TEST_F(SdkTest, GenerateRandomCharsPassword)
+{
+    LOG_debug << "### Test characters-based random passwords generation";
+    bool useUpper = false;
+    bool useDigits = false;
+    bool useSymbols = false;
+    const unsigned int minLength = 8, maxLength = 64;
+    const unsigned int length = 10;
+
+    LOG_debug << "# Test out-of-bounds password generation request";
+    std::unique_ptr<char[]> pwd{
+        MegaApi::generateRandomCharsPassword(useUpper, useDigits, useSymbols, minLength - 1)};
+    ASSERT_FALSE(pwd);
+    pwd.reset(MegaApi::generateRandomCharsPassword(useUpper, useDigits, useSymbols, maxLength + 1));
+    ASSERT_FALSE(pwd);
+
+    const auto validatePassword =
+        [&useUpper, &useDigits, &useSymbols]
+        (const std::string& pwd) -> bool
+    {
+        bool lowerFound = false;
+        bool upperFound = false;
+        bool digitFound = false;
+        bool symbolFound = false;
+        const std::set<char> validSymbols {'!','@','#','$','%','^','&','*','(',')'};
+
+        for (auto c : pwd)
+        {
+            if (!upperFound && std::isupper(c))
+            {
+                if (!useUpper) return false;
+                upperFound = true;
+            }
+
+            if (!digitFound && std::isdigit(c))
+            {
+                if (!useDigits) return false;
+                digitFound = true;
+            }
+
+            if (!symbolFound && validSymbols.count(c))
+            {
+                if (!useSymbols) return false;
+                symbolFound = true;
+            }
+
+            if (!lowerFound && std::islower(c)) lowerFound = true;
+        }
+
+        return lowerFound && (useUpper == upperFound) &&
+               (useDigits == digitFound) && (useSymbols == symbolFound);
+    };
+
+    LOG_debug << "\t# Test only lower case characters";
+    useUpper = useDigits = useSymbols = false;
+    pwd.reset(MegaApi::generateRandomCharsPassword(useUpper, useDigits, useSymbols, length));
+    ASSERT_TRUE(pwd);
+    ASSERT_TRUE(std::strlen(pwd.get()) == length);
+    ASSERT_TRUE(validatePassword(pwd.get())) << "Invalid generated password " << pwd.get();
+
+    LOG_debug << "\t# Test lower and upper case characters only";
+    useDigits = useSymbols = false;
+    useUpper = true;
+    pwd.reset(MegaApi::generateRandomCharsPassword(useUpper, useDigits, useSymbols, length));
+    ASSERT_TRUE(pwd);
+    ASSERT_TRUE(std::strlen(pwd.get()) == length);
+    ASSERT_TRUE(validatePassword(pwd.get())) << "Invalid generated password " << pwd.get();
+
+    LOG_debug << "\t# Test lower and digits only";
+    useUpper = useSymbols = false;
+    useDigits = true;
+    pwd.reset(MegaApi::generateRandomCharsPassword(useUpper, useDigits, useSymbols, length));
+    ASSERT_TRUE(pwd);
+    ASSERT_TRUE(std::strlen(pwd.get()) == length);
+    ASSERT_TRUE(validatePassword(pwd.get())) << "Invalid generated password " << pwd.get();
+
+    LOG_debug << "\t# Test lower and symbols only";
+    useUpper = useDigits = false;
+    useSymbols = true;
+    pwd.reset(MegaApi::generateRandomCharsPassword(useUpper, useDigits, useSymbols, length));
+    ASSERT_TRUE(pwd);
+    ASSERT_TRUE(std::strlen(pwd.get()) == length);
+    ASSERT_TRUE(validatePassword(pwd.get())) << "Invalid generated password " << pwd.get();
+
+    LOG_debug << "\t# Test lower, upper, and digits";
+    useSymbols = false;
+    useUpper = useDigits = true;
+    pwd.reset(MegaApi::generateRandomCharsPassword(useUpper, useDigits, useSymbols, length));
+    ASSERT_TRUE(pwd);
+    ASSERT_TRUE(std::strlen(pwd.get()) == length);
+    ASSERT_TRUE(validatePassword(pwd.get())) << "Invalid generated password " << pwd.get();
+
+    LOG_debug << "\t# Test lower, upper, and symbols";
+    useDigits = false;
+    useUpper = useSymbols = true;
+    pwd.reset(MegaApi::generateRandomCharsPassword(useUpper, useDigits, useSymbols, length));
+    ASSERT_TRUE(pwd);
+    ASSERT_TRUE(std::strlen(pwd.get()) == length);
+    ASSERT_TRUE(validatePassword(pwd.get())) << "Invalid generated password " << pwd.get();
+
+    LOG_debug << "\t# Test lower, digits, and symbols";
+    useUpper = false;
+    useDigits = useSymbols = true;
+    pwd.reset(MegaApi::generateRandomCharsPassword(useUpper, useDigits, useSymbols, length));
+    ASSERT_TRUE(pwd);
+    ASSERT_TRUE(std::strlen(pwd.get()) == length);
+    ASSERT_TRUE(validatePassword(pwd.get())) << "Invalid generated password " << pwd.get();
+
+    LOG_debug << "\t# Test lower, upper, digits, and symbols";
+    useUpper = useDigits = useSymbols = true;
+    pwd.reset(MegaApi::generateRandomCharsPassword(useUpper, useDigits, useSymbols, length));
+    ASSERT_TRUE(pwd);
+    ASSERT_TRUE(std::strlen(pwd.get()) == length);
+    ASSERT_TRUE(validatePassword(pwd.get())) << "Invalid generated password " << pwd.get();
+}
+
+/**
+ * @brief Enable test-notifications by setting their IDs in "^!tnotif".
+ * Get enabled-notifications (from cmd("ug")."notifs").
+ * Get the complete notifications (using cmd("gnotif")).
+ * Set and get the last-read-notification ("^!lnotif").
+ * Set and get the last-actioned-banner ("^!lbannr").
+ */
+TEST_F(SdkTest, DynamicMessageNotifs)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Sending a null list of test-notifications should fail
+    RequestTracker nullNotifsTracker(megaApi[0].get());
+    megaApi[0]->enableTestNotifications(nullptr, &nullNotifsTracker);
+    ASSERT_EQ(nullNotifsTracker.waitForResult(), API_EARGS);
+
+    // Clear any test-notifications that may be leftovers from previous tests
+    unique_ptr<MegaIntegerList> ids{ MegaIntegerList::createInstance() };
+    RequestTracker clearNotifsTracker(megaApi[0].get());
+    megaApi[0]->enableTestNotifications(ids.get(), &clearNotifsTracker); // clear "^!tnotif"
+    ASSERT_EQ(clearNotifsTracker.waitForResult(), API_OK);
+
+    // Clear last-read-notification
+    RequestTracker clearLastReadNotifTracker(megaApi[0].get());
+    megaApi[0]->setLastReadNotification(0, &clearLastReadNotifTracker); // clear "^!lnotif"
+    ASSERT_EQ(clearLastReadNotifTracker.waitForResult(), API_OK);
+
+    // Clear last-actioned-banner
+    RequestTracker clearLastActionedBannerTracker(megaApi[0].get());
+    megaApi[0]->setLastActionedBanner(0, &clearLastActionedBannerTracker); // clear "^!lbannr"
+    ASSERT_EQ(clearLastActionedBannerTracker.waitForResult(), API_OK);
+
+    // Get last-read-notification (not previously set)
+    RequestTracker getLastReadNotifTracker(megaApi[0].get());
+    megaApi[0]->getLastReadNotification(&getLastReadNotifTracker); // get "^!lnotif"
+    ASSERT_EQ(getLastReadNotifTracker.waitForResult(), API_OK);
+    ASSERT_EQ(static_cast<uint32_t>(getLastReadNotifTracker.request->getNumber()), 0u);
+
+    // Fetch user data ("ug" command), and cache IDs of enabled-notifications (ug.notifs).
+    RequestTracker userDataTracker(megaApi[0].get());
+    megaApi[0]->getUserData(&userDataTracker);
+    ASSERT_EQ(userDataTracker.waitForResult(), API_OK);
+
+    // Get IDs of enabled-notifications, which are composed of
+    // - IDs of test-notifications: IDs of notifications that should already exist, enabled as
+    //   requested by the user;
+    // - IDs of always-enabled notifications: IDs of notifications that already exist and are
+    //   always enabled regardless of not being requested by the user.
+    unique_ptr<MegaIntegerList> defaultNotifs{ megaApi[0]->getEnabledNotifications() }; // get IDs cached fom ug.notifs
+    ASSERT_THAT(defaultNotifs, ::testing::NotNull());
+    ASSERT_GE(defaultNotifs->size(), 0);
+
+    // Get the complete notifications
+    RequestTracker gnotifTracker(megaApi[0].get());
+    megaApi[0]->getNotifications(&gnotifTracker); // send "gnotif" and process its response
+    ASSERT_THAT(gnotifTracker.waitForResult(),
+        ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
+    const auto* notificationList = gnotifTracker.request->getMegaNotifications();
+    ASSERT_THAT(notificationList, ::testing::NotNull());
+    ASSERT_EQ(notificationList->size(), 0u);
+
+    // Enable some test-notifications.
+    // IDs 1,2,3,4,5 have been reserved to be "^!tnotif" only notifications.
+    // However, only notification with ID 1 existed at the time of writing this test
+    ids->add(1);
+    ids->add(numeric_limits<uint32_t>::max() - 1); // dummy
+
+    RequestTracker notifsTracker(megaApi[0].get());
+    megaApi[0]->enableTestNotifications(ids.get(), &notifsTracker); // set "^!tnotif"
+    ASSERT_EQ(notifsTracker.waitForResult(), API_OK);
+
+    // Fetch user data ("ug" command), and cache IDs of enabled-notifications (ug.notifs).
+    RequestTracker userDataTracker2(megaApi[0].get());
+    megaApi[0]->getUserData(&userDataTracker2); // get ug.notifs again
+    ASSERT_EQ(userDataTracker2.waitForResult(), API_OK);
+
+    // Get IDs of enabled-notifications
+    unique_ptr<MegaIntegerList> enabledNotifs{ megaApi[0]->getEnabledNotifications() };
+    ASSERT_THAT(enabledNotifs, ::testing::NotNull());
+    ASSERT_EQ(enabledNotifs->size(), 1); // only IDs of existing notifications will be there, dummy IDs will not be included
+    ASSERT_EQ(enabledNotifs->get(0), 1);
+
+    // Get the complete notifications (corresponding only to existing IDs)
+    RequestTracker gnotifTracker2(megaApi[0].get());
+    megaApi[0]->getNotifications(&gnotifTracker2); // send "gnotif" and process its response
+    ASSERT_EQ(gnotifTracker2.waitForResult(), API_OK);
+    const auto* notificationList2 = gnotifTracker2.request->getMegaNotifications();
+    ASSERT_THAT(notificationList2, ::testing::NotNull());
+    ASSERT_EQ(notificationList2->size(), 1u);
+
+    // Set last-read-notification
+    const uint32_t lastReadNotifId = numeric_limits<uint32_t>::max() - 2; // dummy value
+    RequestTracker setLastReadNotifTracker(megaApi[0].get());
+    megaApi[0]->setLastReadNotification(lastReadNotifId, &setLastReadNotifTracker); // set "^!lnotif"
+    ASSERT_EQ(setLastReadNotifTracker.waitForResult(), API_OK);
+
+    // Get last-read-notification
+    RequestTracker getLastReadNotifTracker2(megaApi[0].get());
+    megaApi[0]->getLastReadNotification(&getLastReadNotifTracker2); // get "^!lnotif"
+    ASSERT_EQ(getLastReadNotifTracker2.waitForResult(), API_OK);
+    ASSERT_EQ(static_cast<uint32_t>(getLastReadNotifTracker2.request->getNumber()), lastReadNotifId);
+
+    // Clear a previusly set last-read-notification
+    RequestTracker clearLastReadNotifTracker2(megaApi[0].get());
+    megaApi[0]->setLastReadNotification(0, &clearLastReadNotifTracker2); // clear "^!lnotif"
+    ASSERT_EQ(clearLastReadNotifTracker2.waitForResult(), API_OK);
+
+    // Set last-actioned-banner
+    const uint32_t lastActionedBannerId = numeric_limits<uint32_t>::max() - 3; // dummy value
+    RequestTracker setLastActionedBannerTracker(megaApi[0].get());
+    megaApi[0]->setLastActionedBanner(lastActionedBannerId, &setLastActionedBannerTracker); // set "^!lbannr"
+    ASSERT_EQ(setLastActionedBannerTracker.waitForResult(), API_OK);
+
+    // Get last-actioned-banner
+    RequestTracker getLastActionedBannerTracker2(megaApi[0].get());
+    megaApi[0]->getLastActionedBanner(&getLastActionedBannerTracker2); // get "^!lbannr"
+    ASSERT_EQ(getLastActionedBannerTracker2.waitForResult(), API_OK);
+    ASSERT_EQ(static_cast<uint32_t>(getLastActionedBannerTracker2.request->getNumber()), lastActionedBannerId);
+
+    // Clear a previously set last-actioned-banner
+    RequestTracker clearLastActionedBannerTracker2(megaApi[0].get());
+    megaApi[0]->setLastActionedBanner(0, &clearLastActionedBannerTracker2); // clear "^!lbannr"
+    ASSERT_EQ(clearLastActionedBannerTracker2.waitForResult(), API_OK);
+
+    // Clear test-notifications
+    ids.reset(MegaIntegerList::createInstance());
+    RequestTracker clearNotifsTracker2(megaApi[0].get());
+    megaApi[0]->enableTestNotifications(ids.get(), &clearNotifsTracker2); // clear "^!tnotif"
+    ASSERT_EQ(clearNotifsTracker2.waitForResult(), API_OK);
+
+    // Fetch user data ("ug" command), and cache IDs of enabled-notifications (ug.notifs).
+    RequestTracker userDataTracker3(megaApi[0].get());
+    megaApi[0]->getUserData(&userDataTracker3);
+    ASSERT_EQ(userDataTracker3.waitForResult(), API_OK);
+
+    // Get IDs of enabled-notifications
+    defaultNotifs.reset(megaApi[0]->getEnabledNotifications()); // get cached value of ug.notifs
+    ASSERT_THAT(defaultNotifs, ::testing::NotNull());
+    ASSERT_EQ(defaultNotifs->size(), 0);
 }
