@@ -788,6 +788,7 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/mega_ccronexpr.h
             ${MegaDir}/include/mega/testhooks.h
             ${MegaDir}/include/mega/share.h
+            ${MegaDir}/include/mega/raidproxy.h
             ${MegaDir}/include/mega/win32/megafs.h
             ${MegaDir}/include/mega/win32/meganet.h
             ${MegaDir}/include/mega/win32/megaconsolewaiter.h
@@ -814,6 +815,7 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/filesystem.h
             ${MegaDir}/include/mega/backofftimer.h
             ${MegaDir}/include/mega/raid.h
+            ${MegaDir}/include/mega/raidproxy.h
             ${MegaDir}/include/mega/logging.h
             ${MegaDir}/include/mega/file.h
             ${MegaDir}/include/mega/sync.h
@@ -866,6 +868,7 @@ add_library(Mega STATIC
             ${MegaDir}/src/proxy.cpp
             ${MegaDir}/src/pubkeyaction.cpp
             ${MegaDir}/src/raid.cpp
+            ${MegaDir}/src/raidproxy.cpp
             ${MegaDir}/src/request.cpp
             ${MegaDir}/src/serialize64.cpp
             ${MegaDir}/src/nodemanager.cpp

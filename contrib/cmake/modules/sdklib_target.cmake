@@ -57,6 +57,7 @@ set(SDKLIB_HEADERS
     include/mega/filesystem.h
     include/mega/backofftimer.h
     include/mega/raid.h
+    include/mega/raidproxy.h
     include/mega/logging.h
     include/mega/file.h
     include/mega/sync.h
@@ -116,6 +117,7 @@ set(SDKLIB_SOURCES
     src/proxy.cpp
     src/pubkeyaction.cpp
     src/raid.cpp
+    src/raidproxy.cpp
     src/request.cpp
     src/serialize64.cpp
     src/nodemanager.cpp

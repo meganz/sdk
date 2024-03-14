@@ -83,6 +83,7 @@ SOURCES += src/arguments.cpp \
     src/mega_zxcvbn.cpp \
     src/mediafileattribute.cpp \
     src/raid.cpp \
+    src/raidproxy.cpp \
     src/testhooks.cpp \
     src/heartbeats.cpp
 
@@ -503,9 +504,9 @@ HEADERS  += include/mega.h \
             include/mega/mega_zxcvbn.h \
             include/mega/mediafileattribute.h \
             include/mega/raid.h \
+            include/mega/raidproxy.h \
             include/mega/testhooks.h \
             include/mega/drivenotify.h
-
 CONFIG(USE_MEGAAPI) {
     HEADERS += bindings/qt/QTMegaRequestListener.h \
             bindings/qt/QTMegaTransferListener.h \

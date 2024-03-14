@@ -1458,6 +1458,16 @@ public:
     // maximum number of concurrent transfers (uploads or downloads)
     static const unsigned MAXTRANSFERS;
 
+    // minimum maximum number of concurrent transfers for dynamic calculation
+    static const unsigned MIN_MAXTRANSFERS;
+
+    // maximum number of concurrent raided transfers for mobile
+    static const unsigned MAX_RAIDTRANSFERS_FOR_MOBILE;
+
+    // meaningful portion of the maximum transfer queue size to consider raid representation
+    // i.e., there must be at least this number of raid transfers to let us predict whether the next download transfer will be raided or non-raided
+    static const unsigned MEANINGFUL_PORTION_OF_MAXTRANSFERS_QUEUE_FOR_RAID_PREDICTIVE_SYSTEM;
+
     // maximum number of queued putfa before halting the upload queue
     static const int MAXQUEUEDFA;
 
@@ -1795,6 +1805,9 @@ public:
 
     // transfer tslots
     transferslot_list tslots;
+
+    // raid transfers counter
+    unsigned raidTransfersCounter{};
 
     // keep track of next transfer slot timeout
     BackoffTimerGroupTracker transferSlotsBackoff;

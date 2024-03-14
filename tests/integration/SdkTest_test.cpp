@@ -6432,9 +6432,22 @@ namespace mega
 
         static void onSetIsRaid(::mega::RaidBufferManager* tbm)
         {
-            isRaid = tbm->isRaid();
+            isRaid = tbm->isRaid() || tbm->isNewRaid();
             isRaidKnown = true;
             onSetIsRaid_morechunks(tbm);
+        }
+
+        static void onLimitMaxReqSize(m_off_t& maxReqSize) // Only valid for TransferBufferManager
+        {
+            auto oldMaxRequestSize = maxReqSize;
+            maxReqSize = std::min<m_off_t>(maxReqSize, 1024 * 1024);
+            LOG_info << "onLimitMaxReqSize: adjusted maxRequestSize from " << oldMaxRequestSize << " to " << maxReqSize;
+        }
+
+        static void onHookNumberOfConnections(int& connections, int clientNumberOfConnections) // Only valid for TransferBufferManager
+        {
+            LOG_info << "onLimitMaxReqSize: adjusted number of connections from " << connections << " to " << clientNumberOfConnections;
+            connections = clientNumberOfConnections;
         }
 
         static bool resetForTests()
@@ -6523,7 +6536,12 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
     // smaller chunk sizes so we can get plenty of pauses
     #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     globalMegaTestHooks.onSetIsRaid = ::mega::DebugTestHook::onSetIsRaid_morechunks;
+    globalMegaTestHooks.onLimitMaxReqSize = ::mega::DebugTestHook::onLimitMaxReqSize;
+    globalMegaTestHooks.onHookNumberOfConnections = ::mega::DebugTestHook::onHookNumberOfConnections;
     #endif
+
+    ASSERT_EQ(API_OK, doSetMaxConnections(0, 2)) << "doSetMaxConnections failed or took more than 1 minute";
+    LOG_debug << "For raidTests: client max connections set to 2";
 
     // plain cloudraid download
     {
@@ -6569,7 +6587,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
     // cloudraid download with periodic full exit and resume from session ID
     // plain cloudraid download
     {
-        megaApi[0]->setMaxDownloadSpeed(32 * 1024 * 1024 * 8 / 30); // should take 30 seconds, not counting exit/resume session
+        megaApi[0]->setMaxDownloadSpeed(1024 * 1024);
         mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
         megaApi[0]->startDownload(nimported.get(),
                                   filename.c_str(),
@@ -6622,7 +6640,9 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
                     megaApi[0].reset(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
                     mApi[0].megaApi = megaApi[0].get();
                     megaApi[0]->addListener(this);
-                    megaApi[0]->setMaxDownloadSpeed(32 * 1024 * 1024 * 8 / 30); // should take 30 seconds, not counting exit/resume session
+                    megaApi[0]->setMaxDownloadSpeed(1024 * 1024);
+                    ASSERT_EQ(API_OK, doSetMaxConnections(0, 2)) << "doSetMaxConnections failed or took more than 1 minute";
+                    LOG_debug << "For raidTests: client max connections set to 2";
 
                     t.pause();
                     ASSERT_NO_FATAL_FAILURE(resumeSession(sessionId.c_str()));
@@ -6677,13 +6697,20 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     globalMegaTestHooks.onHttpReqPost = DebugTestHook::onHttpReqPost404Or403;
     globalMegaTestHooks.onSetIsRaid = DebugTestHook::onSetIsRaid_morechunks;
+    globalMegaTestHooks.onLimitMaxReqSize = ::mega::DebugTestHook::onLimitMaxReqSize;
+    globalMegaTestHooks.onHookNumberOfConnections = ::mega::DebugTestHook::onHookNumberOfConnections;
 #endif
+
+    megaApi[0]->setMaxDownloadSpeed(1024 * 1024);
+    ASSERT_EQ(API_OK, doSetMaxConnections(0, 2)) << "doSetMaxConnections failed or took more than 1 minute";
+    LOG_debug << "For raidTests: client max connections set to 2";
 
     // plain cloudraid download
     {
         onTransferUpdate_progress = 0;
         onTransferUpdate_filesize = 0;
         mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
+        const auto& downloadStartTime = std::chrono::system_clock::now();
         megaApi[0]->startDownload(nimported.get(),
                                   filename.c_str(),
                                   nullptr  /*customName*/,
@@ -6694,8 +6721,13 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
                                   MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
                                   false    /* undelete */);
 
-        ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 180)) << "Cloudraid download with 404 and 403 errors time out (180 seconds)";
+        unsigned int transfer_timeout_in_seconds = 180;
+        //unsigned int transfer_timeout_in_seconds = 15;
+        ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], transfer_timeout_in_seconds)) << "Cloudraid download with 404 and 403 errors time out (180 seconds)";
         ASSERT_EQ(API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
+        const auto& downloadEndTime = std::chrono::system_clock::now();
+        auto downloadTime = std::chrono::duration_cast<std::chrono::milliseconds>(downloadEndTime - downloadStartTime).count();
+        LOG_debug << "[SdkTestCloudRaidTransferWithConnectionFailures] downloadTime = " << downloadTime << " ms, size = " << nimported->getSize() << "" << " [speed = " << (nimported->getSize() / downloadTime) << " B/s]";
         ASSERT_GE(onTransferUpdate_filesize, 0u);
         ASSERT_TRUE(onTransferUpdate_progress == onTransferUpdate_filesize);
         ASSERT_LT(DebugTestHook::countdownTo404, 0);
@@ -6704,6 +6736,48 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+}
+
+TEST_F(SdkTest, SdkTestCloudraidTransferBestCase)
+{
+    LOG_info << "___TEST Cloudraid transfers bet case___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+
+    std::string url100MB = "/#!JzckQJ6L!X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA"; //https://mega.nz/file/JzckQJ6L#X_p0u26-HOTenAG0rATFhKdxYx-rOV1U6YHYhnz2nsA
+    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+url100MB, rootnode.get());
+    std::unique_ptr<MegaNode> nimported{megaApi[0]->getNodeByHandle(importHandle)};
+
+
+    string filename = DOTSLASH "cloudraid_downloaded_file.sdktest";
+    deleteFile(filename.c_str());
+
+    // plain cloudraid download
+    {
+        onTransferUpdate_progress = 0;
+        onTransferUpdate_filesize = 0;
+        mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
+        const auto& downloadStartTime = std::chrono::system_clock::now();
+        megaApi[0]->startDownload(nimported.get(),
+                                  filename.c_str(),
+                                  nullptr  /*customName*/,
+                                  nullptr  /*appData*/,
+                                  false    /*startFirst*/,
+                                  nullptr  /*cancelToken*/,
+                                  MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                                  MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution */,
+                                  false /* undelete */);
+
+        unsigned int transfer_timeout_in_seconds = 180;
+        ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], transfer_timeout_in_seconds)) << "Cloudraid download Best Case (without forced errors) time out (180 seconds)";
+        ASSERT_EQ(API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
+        const auto& downloadEndTime = std::chrono::system_clock::now();
+        auto downloadTime = std::chrono::duration_cast<std::chrono::milliseconds>(downloadEndTime - downloadStartTime).count();
+        LOG_debug << "[SdkTestCloudRaidTransferBestCase] downloadTime = " << downloadTime << " ms, size = " << nimported->getSize() << "" << " [speed = " << (((nimported->getSize() / downloadTime) * 1000) / 1024) << " KB/s]";
+        ASSERT_GE(onTransferUpdate_filesize, 0u);
+        ASSERT_TRUE(onTransferUpdate_progress == onTransferUpdate_filesize);
+    }
 }
 #endif
 
@@ -6738,7 +6812,12 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     globalMegaTestHooks.onHttpReqPost = DebugTestHook::onHttpReqPostTimeout;
     globalMegaTestHooks.onSetIsRaid = DebugTestHook::onSetIsRaid_morechunks;
+    globalMegaTestHooks.onLimitMaxReqSize = ::mega::DebugTestHook::onLimitMaxReqSize;
+    globalMegaTestHooks.onHookNumberOfConnections = ::mega::DebugTestHook::onHookNumberOfConnections;
 #endif
+
+    ASSERT_EQ(API_OK, doSetMaxConnections(0, 2)) << "doSetMaxConnections failed or took more than 1 minute";
+    LOG_info << "For raidTests: client max connections set to 3";
 
     // plain cloudraid download
     {
@@ -6793,7 +6872,12 @@ TEST_F(SdkTest, SdkTestCloudraidTransferResume)
     // contiguous progress to serialize - and resume - after logout+login
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     globalMegaTestHooks.onSetIsRaid = ::mega::DebugTestHook::onSetIsRaid_morechunks;
+    globalMegaTestHooks.onLimitMaxReqSize = ::mega::DebugTestHook::onLimitMaxReqSize;
+    globalMegaTestHooks.onHookNumberOfConnections = ::mega::DebugTestHook::onHookNumberOfConnections;
 #endif
+
+    ASSERT_EQ(API_OK, doSetMaxConnections(0, 2)) << "doSetMaxConnections failed or took more than 1 minute";
+    LOG_info << "For raidTests: client max connections set to 2";
 
     string downloadedFile = DOTSLASH "cloudraid_downloaded_file.sdktest";
     deleteFile(downloadedFile.c_str());
@@ -6830,6 +6914,9 @@ TEST_F(SdkTest, SdkTestCloudraidTransferResume)
     onTransferStart_progress = 0;
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+
+    ASSERT_EQ(API_OK, doSetMaxConnections(0, 4)) << "doSetMaxConnections failed or took more than 1 minute";
+    LOG_info << "For raidTests: client max connections set to 4";
 
     //  3. Check download resumption
     timer.reset();
@@ -7065,7 +7152,7 @@ struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
         }
         else
         {
-            if (0 != memcmp(receiveBuf, compareDecryptedData + file_start_offset, receiveBufPos))
+            if (compareDecryptedData && 0 != memcmp(receiveBuf, compareDecryptedData + file_start_offset, receiveBufPos))
                 comparedEqual = false;
             completedSuccessfully = true;
         }
@@ -7085,7 +7172,7 @@ struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
         memcpy(receiveBuf + receiveBufPos, buffer, size);
         receiveBufPos += size;
 
-        if (0 != memcmp(receiveBuf, compareDecryptedData + file_start_offset, receiveBufPos))
+        if (compareDecryptedData && 0 != memcmp(receiveBuf, compareDecryptedData + file_start_offset, receiveBufPos))
             comparedEqual = false;
 
         return true;
@@ -7109,9 +7196,8 @@ CheckStreamedFile_MegaTransferListener* StreamRaidFilePart(MegaApi* megaApi, m_o
 }
 
 
-
 /**
-* @brief TEST_F SdkCloudraidStreamingSoakTest
+* @brief TEST_F SdkTestCloudraidStreamingSoakTest
 *
 * Stream random portions of the well-known file for 10 minutes, while randomly varying
 *       raid / non-raid
@@ -7122,9 +7208,9 @@ CheckStreamedFile_MegaTransferListener* StreamRaidFilePart(MegaApi* megaApi, m_o
 */
 
 
-TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
+TEST_F(SdkTest, SdkTestCloudraidStreamingSoakTest)
 {
-    LOG_info << "___TEST SdkCloudraidStreamingSoakTest";
+    LOG_info << "___TEST SdkTestCloudraidStreamingSoakTest";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED

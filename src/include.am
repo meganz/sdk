@@ -44,6 +44,7 @@ src_libmega_la_SOURCES += src/node.cpp
 src_libmega_la_SOURCES += src/process.cpp
 src_libmega_la_SOURCES += src/pubkeyaction.cpp
 src_libmega_la_SOURCES += src/raid.cpp
+src_libmega_la_SOURCES += src/raidproxy.cpp
 src_libmega_la_SOURCES += src/testhooks.cpp
 src_libmega_la_SOURCES += src/request.cpp
 src_libmega_la_SOURCES += src/serialize64.cpp
