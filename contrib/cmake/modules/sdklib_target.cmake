@@ -42,6 +42,12 @@ set(SDKLIB_HEADERS
     include/mega/gfx/freeimage.h
     include/mega/gfx/gfx_pdfium.h
     include/mega/gfx/external.h
+    include/mega/gfx/isolatedprocess.h
+    include/mega/gfx/worker/tasks.h
+    include/mega/gfx/worker/commands.h
+    include/mega/gfx/worker/comms.h
+    include/mega/gfx/worker/command_serializer.h
+    include/mega/gfx/worker/client.h
     include/mega/pubkeyaction.h
     include/mega/mega_http_parser.h
     include/mega/waiter.h
@@ -61,6 +67,7 @@ set(SDKLIB_HEADERS
     include/mega/transfer.h
     include/mega/config-android.h
     include/mega/treeproc.h
+    include/mega/arguments.h
     include/mega/attrmap.h
     include/mega/sharenodekeys.h
     include/mega/request.h
@@ -75,6 +82,7 @@ set(SDKLIB_HEADERS
 set(SDKLIB_SOURCES
     src/megaapi.cpp
     src/megaapi_impl.cpp
+    src/arguments.cpp
     src/attrmap.cpp
     src/autocomplete.cpp
     src/backofftimer.cpp
@@ -90,6 +98,9 @@ set(SDKLIB_SOURCES
     src/gfx/external.cpp
     src/gfx/freeimage.cpp
     src/gfx/gfx_pdfium.cpp
+    src/gfx/worker/client.cpp
+    src/gfx/worker/commands.cpp
+    src/gfx/worker/command_serializer.cpp
     src/http.cpp
     src/json.cpp
     src/logging.cpp
@@ -162,10 +173,15 @@ target_sources_conditional(SDKlib
 target_sources_conditional(SDKlib
     FLAG WIN32
     PRIVATE
+    include/mega/win32/gfx/worker/comms.h
+    include/mega/win32/gfx/worker/comms_client.h
+    src/gfx/isolatedprocess.cpp # only windows ATM
     src/win32/console.cpp
     src/win32/consolewaiter.cpp
     src/win32/fs.cpp
     # src/win32/net.cpp # when not using curl. # TODO Remove support for winhttp?
+    src/win32/gfx/worker/comms.cpp
+    src/win32/gfx/worker/comms_client.cpp
     src/win32/waiter.cpp
 )
 

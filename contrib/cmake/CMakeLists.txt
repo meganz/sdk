@@ -632,6 +632,14 @@ if(WIN32)
         SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles} ${MegaDir}/include/mega/win32/drivenotifywin.h ${MegaDir}/src/win32/drivenotifywin.cpp)
     ENDIF(USE_DRIVE_NOTIFICATIONS)
 
+    # gfx worker related
+    SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles}
+                                   ${MegaDir}/include/mega/win32/gfx/worker/comms.h
+                                   ${MegaDir}/include/mega/win32/gfx/worker/comms_client.h
+                                   ${MegaDir}/src/gfx/isolatedprocess.cpp # only windows ATM
+                                   ${MegaDir}/src/win32/gfx/worker/comms.cpp
+                                   ${MegaDir}/src/win32/gfx/worker/comms_client.cpp)
+
 ELSE(WIN32)
 
     set(USE_PTHREAD 1)
@@ -724,7 +732,12 @@ add_definitions( -DHAVE_CONFIG_H) #otherwise, it won't be included in Windows bu
 
 SET(Mega_CryptoFiles ${MegaDir}/src/crypto/cryptopp.cpp ${MegaDir}/src/crypto/sodium.cpp)
 SET(Mega_DbFiles ${MegaDir}/src/db/sqlite.cpp ${MegaDir}/src/db/sqlite.cpp )
-SET(Mega_GfxFiles ${MegaDir}/src/gfx/external.cpp ${MegaDir}/src/gfx/freeimage.cpp ${MegaDir}/src/gfx/gfx_pdfium.cpp)
+SET(Mega_GfxFiles ${MegaDir}/src/gfx/external.cpp
+                  ${MegaDir}/src/gfx/freeimage.cpp
+                  ${MegaDir}/src/gfx/gfx_pdfium.cpp
+                  ${MegaDir}/src/gfx/worker/commands.cpp
+                  ${MegaDir}/src/gfx/worker/command_serializer.cpp
+                  ${MegaDir}/src/gfx/worker/client.cpp)
 
 add_library(Mega STATIC
             ${MegaDir}/include/megaapi.h
@@ -735,6 +748,7 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/thread/posixthread.h
             ${MegaDir}/include/mega/thread/libuvthread.h
             ${MegaDir}/include/mega/process.h
+            ${MegaDir}/include/mega/arguments.h
             ${MegaDir}/include/mega/command.h
             ${MegaDir}/include/mega/config.h
             ${MegaDir}/include/mega/thread.h
@@ -785,6 +799,12 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/gfx/freeimage.h
             ${MegaDir}/include/mega/gfx/gfx_pdfium.h
             ${MegaDir}/include/mega/gfx/external.h
+            ${MegaDir}/include/mega/gfx/isolatedprocess.h
+            ${MegaDir}/include/mega/gfx/worker/tasks.h
+            ${MegaDir}/include/mega/gfx/worker/commands.h
+            ${MegaDir}/include/mega/gfx/worker/comms.h
+            ${MegaDir}/include/mega/gfx/worker/command_serializer.h
+            ${MegaDir}/include/mega/gfx/worker/client.h
             ${MegaDir}/include/mega/pubkeyaction.h
             ${MegaDir}/include/mega/mega_http_parser.h
             ${MegaDir}/include/mega/waiter.h
@@ -815,6 +835,7 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/mega_glob.h
             ${MegaDir}/include/mega/drivenotify.h
             ${MegaDir}/include/mega.h
+            ${MegaDir}/src/arguments.cpp
             ${MegaDir}/src/attrmap.cpp
             ${MegaDir}/src/autocomplete.cpp
             ${MegaDir}/src/backofftimer.cpp
@@ -1018,7 +1039,15 @@ endif()
 
 if (NOT IOS)
 #test apps
+if (WIN32)
+    SET(Mega_PlatformSpecificUnitTestFiles
+        ${MegaDir}/tests/unit/GfxCommands_test.cpp
+        ${MegaDir}/tests/unit/Isolatedprocess_test.cpp
+    )
+endif()
+
 add_executable(test_unit
+    ${MegaDir}/tests/unit/Arguments_test.cpp
     ${MegaDir}/tests/unit/AttrMap_test.cpp
     ${MegaDir}/tests/unit/ChunkMacMap_test.cpp
     ${MegaDir}/tests/unit/Commands_test.cpp
@@ -1050,6 +1079,7 @@ add_executable(test_unit
     ${MegaDir}/tests/unit/utils.h
     ${MegaDir}/tests/unit/utils_test.cpp
     ${MegaDir}/tests/unit/CacheLRU_test.cpp
+    ${Mega_PlatformSpecificUnitTestFiles}
 )
 
 add_executable(test_integration
@@ -1135,3 +1165,4 @@ else()
         message(STATUS, "CMAKE_CXX_FLAGS_DEBUG: ${CMAKE_CXX_FLAGS_DEBUG}")
     endif(ENABLE_WERROR)
 endif()
+

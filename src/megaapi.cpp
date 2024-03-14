@@ -1184,6 +1184,11 @@ MegaVpnCredentials* MegaRequest::getMegaVpnCredentials() const
     return nullptr;
 }
 
+const MegaNotificationList* MegaRequest::getMegaNotifications() const
+{
+    return nullptr;
+}
+
 MegaTransfer::~MegaTransfer() { }
 
 MegaTransfer *MegaTransfer::copy()
@@ -1908,9 +1913,14 @@ MegaApi::MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *ba
     pImpl = new MegaApiImpl(this, appKey, processor, basePath, userAgent, workerThreadCount, clientType);
 }
 
+MegaApi::MegaApi(const char *appKey, MegaGfxProvider* provider, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType)
+{
+    pImpl = new MegaApiImpl(this, appKey, provider, basePath, userAgent, workerThreadCount, clientType);
+}
+
 MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent, unsigned workerThreadCount, int clientType)
 {
-    pImpl = new MegaApiImpl(this, appKey, nullptr, basePath, userAgent, workerThreadCount, clientType);
+    pImpl = new MegaApiImpl(this, appKey, static_cast<MegaGfxProcessor*>(nullptr), basePath, userAgent, workerThreadCount, clientType);
 }
 
 #ifdef HAVE_MEGAAPI_RPC
@@ -3287,6 +3297,11 @@ int MegaApi::getPasswordStrength(const char *password)
     return pImpl->getPasswordStrength(password);
 }
 
+char* MegaApi::generateRandomCharsPassword(bool uU, bool uD, bool uS, unsigned int l)
+{
+    return MegaApiImpl::generateRandomCharsPassword(uU, uD, uS, l);
+}
+
 void MegaApi::submitFeedback(int rating, const char *comment, MegaRequestListener* listener)
 {
     pImpl->submitFeedback(rating, comment, listener);
@@ -4229,9 +4244,9 @@ char *MegaApi::base32ToBase64(const char *base32)
     return result;
 }
 
-MegaNodeList* MegaApi::search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
+MegaNodeList* MegaApi::search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken, const MegaSearchPage* searchPage)
 {
-    return pImpl->search(filter, order, convertToCancelToken(cancelToken));
+    return pImpl->search(filter, order, convertToCancelToken(cancelToken), searchPage);
 }
 
 MegaNodeList* MegaApi::search(MegaNode* n, const char* searchString, bool recursive, int order)
@@ -4434,9 +4449,9 @@ int MegaApi::getNumChildFolders(MegaNode* parent)
 	return pImpl->getNumChildFolders(parent);
 }
 
-MegaNodeList *MegaApi::getChildren(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
+MegaNodeList *MegaApi::getChildren(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken, const MegaSearchPage* searchPage)
 {
-    return pImpl->getChildren(filter, order, convertToCancelToken(cancelToken));
+    return pImpl->getChildren(filter, order, convertToCancelToken(cancelToken), searchPage);
 }
 
 MegaNodeList *MegaApi::getChildren(MegaNode* p, int order, MegaCancelToken* cancelToken)
@@ -5864,6 +5879,41 @@ void MegaApi::createNodeTree(const MegaNode* parentNode,
     pImpl->createNodeTree(parentNode, nodeTree, listener);
 }
 
+MegaIntegerList* MegaApi::getEnabledNotifications()
+{
+    return pImpl->getEnabledNotifications();
+}
+
+void MegaApi::enableTestNotifications(const MegaIntegerList* notificationIds, MegaRequestListener* listener)
+{
+    pImpl->enableTestNotifications(notificationIds, listener);
+}
+
+void MegaApi::getNotifications(MegaRequestListener* listener)
+{
+    pImpl->getNotifications(listener);
+}
+
+void MegaApi::setLastReadNotification(uint32_t notificationId, MegaRequestListener* listener)
+{
+    pImpl->setLastReadNotification(notificationId, listener);
+}
+
+void MegaApi::getLastReadNotification(MegaRequestListener* listener)
+{
+    pImpl->getLastReadNotification(listener);
+}
+
+void MegaApi::setLastActionedBanner(uint32_t notificationId, MegaRequestListener* listener)
+{
+    pImpl->setLastActionedBanner(notificationId, listener);
+}
+
+void MegaApi::getLastActionedBanner(MegaRequestListener* listener)
+{
+    pImpl->getLastActionedBanner(listener);
+}
+
 /* END MEGAAPI */
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)
@@ -6797,6 +6847,34 @@ int64_t MegaSearchFilter::byModificationTimeUpperLimit() const
     return 0;
 }
 
+MegaSearchPage::MegaSearchPage()
+{
+}
+
+MegaSearchPage* MegaSearchPage::createInstance(size_t startingOffset, size_t size)
+{
+    return new MegaSearchPagePrivate(startingOffset, size);
+}
+
+MegaSearchPage* MegaSearchPage::copy() const
+{
+    return nullptr;
+}
+
+MegaSearchPage::~MegaSearchPage()
+{
+}
+
+size_t MegaSearchPage::startingOffset() const
+{
+    return 0u;
+}
+
+size_t MegaSearchPage::size() const
+{
+    return 0u;
+}
+
 MegaApiLock::MegaApiLock(MegaApiImpl* ptr, bool lock) : api(ptr)
 {
     if (lock)
@@ -6838,7 +6916,6 @@ void MegaApiLock::unlockOnce()
         locked = false;
     }
 }
-
 
 #ifdef ENABLE_CHAT
 MegaTextChatPeerList * MegaTextChatPeerList::createInstance()
@@ -7738,13 +7815,15 @@ MegaVpnCredentials* MegaVpnCredentials::copy() const
 MegaNodeTree* MegaNodeTree::createInstance(MegaNodeTree* nodeTreeChild,
                                            const char* name,
                                            const char* s4AttributeValue,
-                                           const MegaCompleteUploadData* completeUploadData)
+                                           const MegaCompleteUploadData* completeUploadData,
+                                           MegaHandle sourceHandle)
 {
     return new MegaNodeTreePrivate(nodeTreeChild,
                                    name ? name : "",
                                    s4AttributeValue ? s4AttributeValue : "",
                                    completeUploadData,
-                                   UNDEF);
+                                   sourceHandle,
+                                   INVALID_HANDLE);
 }
 
 MegaCompleteUploadData* MegaCompleteUploadData::createInstance(const char* fingerprint,
@@ -7755,4 +7834,28 @@ MegaCompleteUploadData* MegaCompleteUploadData::createInstance(const char* finge
                                              string64UploadToken ? string64UploadToken : "",
                                              string64FileKey ? string64FileKey : "");
 }
+
+MegaGfxProvider::~MegaGfxProvider() = default;
+
+MegaGfxProvider* MegaGfxProvider::createIsolatedInstance(
+    const char* pipeName,
+    const char* executable)
+{
+    auto provider = MegaGfxProviderPrivate::createIsolatedInstance(
+        std::string(pipeName ? pipeName : ""),
+        std::string(executable ? executable : ""));
+
+    return provider.release();
+}
+
+MegaGfxProvider* MegaGfxProvider::createExternalInstance(MegaGfxProcessor* processor)
+{
+    return MegaGfxProviderPrivate::createExternalInstance(processor).release();
+}
+
+MegaGfxProvider* MegaGfxProvider::createInternalInstance()
+{
+    return MegaGfxProviderPrivate::createInternalInstance().release();
+}
+
 }

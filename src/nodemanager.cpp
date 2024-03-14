@@ -380,13 +380,13 @@ sharedNode_list NodeManager::getChildren_internal(const Node *parent, CancelToke
     return childrenList;
 }
 
-sharedNode_vector NodeManager::getChildren(const NodeSearchFilter& filter, int order, CancelToken cancelFlag)
+sharedNode_vector NodeManager::getChildren(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page)
 {
     LockGuard g(mMutex);
-    return getChildren_internal(filter, order, cancelFlag);
+    return getChildren_internal(filter, order, cancelFlag, page);
 }
 
-sharedNode_vector NodeManager::getChildren_internal(const NodeSearchFilter& filter, int order, CancelToken cancelFlag)
+sharedNode_vector NodeManager::getChildren_internal(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page)
 {
     assert(mMutex.owns_lock());
 
@@ -409,12 +409,12 @@ sharedNode_vector NodeManager::getChildren_internal(const NodeSearchFilter& filt
 
     // db look-up
     vector<pair<NodeHandle, NodeSerialized>> nodesFromTable;
-    if (!mTable->getChildren(filter, order, nodesFromTable, cancelFlag))
+    if (!mTable->getChildren(filter, order, nodesFromTable, cancelFlag, page))
     {
         return sharedNode_vector();
     }
 
-    sharedNode_vector nodes = processUnserializedNodes(nodesFromTable, filter, cancelFlag);
+    sharedNode_vector nodes = processUnserializedNodes(nodesFromTable, cancelFlag);
 
     return nodes;
 }
@@ -494,8 +494,23 @@ uint64_t NodeManager::getNodeCount_internal()
     if (!mClient.loggedIntoFolder() && roots.size())
     {
         // Root nodes aren't taken into consideration as part of node counters
-        count += 3;
-        assert(!rootnodes.files.isUndef() && !rootnodes.vault.isUndef() && !rootnodes.rubbish.isUndef());
+        if (mClient.isClientType(MegaClient::ClientType::DEFAULT))
+        {
+            count += 3;
+            assert(!rootnodes.files.isUndef() && !rootnodes.vault.isUndef() &&
+                   !rootnodes.rubbish.isUndef());
+        }
+        else if (mClient.isClientType(MegaClient::ClientType::PASSWORD_MANAGER))
+        {
+            count += 1;
+            assert(!rootnodes.vault.isUndef());
+        }
+        else
+        {
+            LOG_err << "Unexpected MegaClient type (" << static_cast<int>(mClient.getClientType())
+                    << ") requested nodes count";
+            assert(false);
+        }
     }
 
 #ifndef NDEBUG
@@ -512,13 +527,13 @@ uint64_t NodeManager::getNodeCount_internal()
     return count;
 }
 
-sharedNode_vector NodeManager::searchNodes(const NodeSearchFilter& filter, int order, CancelToken cancelFlag)
+sharedNode_vector NodeManager::searchNodes(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page)
 {
     LockGuard g(mMutex);
-    return searchNodes_internal(filter, order, cancelFlag);
+    return searchNodes_internal(filter, order, cancelFlag, page);
 }
 
-sharedNode_vector NodeManager::searchNodes_internal(const NodeSearchFilter& filter, int order, CancelToken cancelFlag)
+sharedNode_vector NodeManager::searchNodes_internal(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page)
 {
     assert(mMutex.owns_lock());
 
@@ -531,7 +546,7 @@ sharedNode_vector NodeManager::searchNodes_internal(const NodeSearchFilter& filt
 
     // small optimization to possibly skip the db look-up
     const vector<handle>& ancestors = filter.byAncestorHandles();
-    if (filter.bySensitivity() &&
+    if (filter.bySensitivity() && filter.includedShares() == NO_SHARES &&
         std::all_of(ancestors.begin(), ancestors.end(), [this](handle a)
         {
             shared_ptr<Node> node = getNodeByHandle_internal(NodeHandle().set6byte(a));
@@ -543,15 +558,12 @@ sharedNode_vector NodeManager::searchNodes_internal(const NodeSearchFilter& filt
 
     // db look-up
     vector<pair<NodeHandle, NodeSerialized>> nodesFromTable;
-    bool searched = (filter.byShareType() == NO_SHARES) ?
-                    mTable->searchNodes(filter, order, nodesFromTable, cancelFlag) :
-                    mTable->searchNodeShares(filter, order, nodesFromTable, cancelFlag);
-    if (!searched)
+    if (!mTable->searchNodes(filter, order, nodesFromTable, cancelFlag, page))
     {
         return sharedNode_vector();
     }
 
-    sharedNode_vector nodes = processUnserializedNodes(nodesFromTable, filter, cancelFlag);
+    sharedNode_vector nodes = processUnserializedNodes(nodesFromTable, cancelFlag);
 
     return nodes;
 }
@@ -900,19 +912,37 @@ sharedNode_vector NodeManager::getRootNodes_internal()
 
     if (mNodes.size()) // nodes already loaded from DB
     {
-        std::shared_ptr<Node> rootNode = rootnodes.mRootNodes[ROOTNODE];
-        assert(rootNode && "Root node should be defined");
-        nodes.push_back(std::move(rootNode));
-
-        if (!mClient.loggedIntoFolder())
+        const auto loadVault = [this, &nodes]() -> void
         {
             std::shared_ptr<Node> inBox = rootnodes.mRootNodes[VAULTNODE];
-            assert(inBox && "Vault node node should be defined (except logged into folder link)");
+            assert(inBox && "Vault node should be defined (except logged into folder link)");
             nodes.push_back(std::move(inBox));
+        };
 
-            std::shared_ptr<Node> rubbish = rootnodes.mRootNodes[RUBBISHNODE];
-            assert(rubbish && "Rubbishbin node node should be defined (except logged into folder link)");
-            nodes.push_back(std::move(rubbish));
+        if (mClient.isClientType(MegaClient::ClientType::DEFAULT))
+        {
+            std::shared_ptr<Node> rootNode = rootnodes.mRootNodes[ROOTNODE];
+            assert(rootNode && "Root node should be defined");
+            nodes.push_back(std::move(rootNode));
+
+            if (!mClient.loggedIntoFolder())
+            {
+                loadVault();
+
+                std::shared_ptr<Node> rubbish = rootnodes.mRootNodes[RUBBISHNODE];
+                assert(rubbish &&
+                       "Rubbishbin node should be defined (except logged into folder link)");
+                nodes.push_back(std::move(rubbish));
+            }
+        }
+        else if (mClient.isClientType(MegaClient::ClientType::PASSWORD_MANAGER))
+        {
+            loadVault();
+        }
+        else
+        {
+            LOG_warn << "Unexpected MegaClient type " << static_cast<int>(mClient.getClientType());
+            assert(false);
         }
     }
     else    // nodes not loaded yet
@@ -2048,7 +2078,7 @@ sharedNode_vector NodeManager::getRootNodesAndInshares()
     return rootnodes;
 }
 
-sharedNode_vector NodeManager::processUnserializedNodes(const vector<pair<NodeHandle, NodeSerialized>>& nodesFromTable, const NodeSearchFilter& filter, CancelToken cancelFlag)
+sharedNode_vector NodeManager::processUnserializedNodes(const vector<pair<NodeHandle, NodeSerialized>>& nodesFromTable, CancelToken cancelFlag)
 {
     assert(mMutex.owns_lock());
 
