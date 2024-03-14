@@ -158,7 +158,7 @@ Usage:
 #if defined(ENABLE_ISOLATED_GFX)
 R"(
   -e=arg               Use the isolated gfx processor. This gives executable binary path
-  -n=arg               Pipe name (default: mega_gfxworker_megacli)
+  -n=arg               Endpoint name (default: mega_gfxworker_megacli)
 )"
 #endif
 ;
@@ -166,7 +166,7 @@ struct Config
 {
     std::string executable;
 
-    std::string pipeName;
+    std::string endpointName;
 
     std::string clientType;
 
@@ -187,8 +187,8 @@ Config Config::fromArguments(const Arguments& arguments)
         throw std::runtime_error("Couldn't find Executable: " + config.executable);
     }
 
-    // pipe name
-    config.pipeName  = arguments.getValue("-n", "mega_gfxworker_megacli");
+    // endpoint name
+    config.endpointName  = arguments.getValue("-n", "mega_gfxworker_megacli");
 #endif
 
     config.clientType = arguments.getValue("-c", "default");
@@ -201,7 +201,7 @@ static std::unique_ptr<IGfxProvider> createGfxProvider(const Config& config)
 #if defined(ENABLE_ISOLATED_GFX)
     if (!config.executable.empty())
     {
-        auto process = ::mega::make_unique<GfxIsolatedProcess>(config.pipeName, config.executable);
+        auto process = ::mega::make_unique<GfxIsolatedProcess>(config.endpointName, config.executable);
         return ::mega::make_unique<GfxProviderIsolatedProcess>(std::move(process));
     }
     else

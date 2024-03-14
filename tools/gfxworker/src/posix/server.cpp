@@ -12,10 +12,10 @@ namespace mega {
 namespace gfx {
 
 ServerPosix::ServerPosix(std::unique_ptr<RequestProcessor> requestProcessor,
-                                                           const std::string& name,
+                                                           const std::string& socketName,
                                                            unsigned short aliveSeconds)
     : mRequestProcessor{std::move(requestProcessor)}
-    , mName{name}
+    , mSocketName{socketName}
     , mWaitMs{ aliveSeconds == 0 ? -1 : aliveSeconds * 1000} // negative is infinitely
 {
 }
@@ -28,10 +28,10 @@ void ServerPosix::operator()()
 void ServerPosix::serverListeningLoop()
 {
     // Listen
-    const auto [ret, listenFd] = SocketUtils::listen(SocketUtils::toSocketPath(mName));
+    const auto [ret, listenFd] = SocketUtils::listen(SocketUtils::toSocketPath(mSocketName));
     if (ret)
     {
-        LOG_err << "Fail to listen on " << mName << ": " << ret.message();
+        LOG_err << "Fail to listen on " << mSocketName << ": " << ret.message();
         return;
     }
 

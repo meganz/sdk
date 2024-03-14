@@ -69,9 +69,9 @@ private:
 class HelloBeater
 {
 public:
-    HelloBeater(const std::chrono::seconds& period, const std::string& pipeName)
+    HelloBeater(const std::chrono::seconds& period, const std::string& endpointName)
         : mPeriod(period)
-        , mPipeName(pipeName)
+        , mEndpointName(endpointName)
     {
         mThread = std::thread(&HelloBeater::beat, this);
     }
@@ -91,7 +91,7 @@ private:
 
     std::chrono::seconds mPeriod;
 
-    std::string mPipeName;
+    std::string mEndpointName;
 };
 
 // This lauches the process and keep it running using beater
@@ -99,24 +99,24 @@ class GfxIsolatedProcess
 {
 public:
     // Notes: beatIntervalSeconds would be set to minimum 3 if not
-    GfxIsolatedProcess(const std::string& pipeName,
+    GfxIsolatedProcess(const std::string& endpointName,
                        const std::string& executable,
                        unsigned int beatIntervalSeconds);
 
-    GfxIsolatedProcess(const std::string& pipeName,
+    GfxIsolatedProcess(const std::string& endpointName,
                        const std::string& executable);
 
-    const std::string& pipeName() const { return mPipeName; }
+    const std::string& endpointName() const { return mEndpointName; }
 private:
     // this hide the detail of the isolated process command options and also provides the default value that callers
     // don't need to supply
-    static std::vector<std::string> formatArguments(const std::string& pipeName,
+    static std::vector<std::string> formatArguments(const std::string& endpointName,
                                                     const std::string& executable,
                                                     unsigned int keepAliveInSeconds);
 
     static const unsigned int MIN_ALIVE_SECONDS;
 
-    std::string mPipeName;
+    std::string mEndpointName;
 
     AutoStartLauncher mLauncher;
 
@@ -168,7 +168,7 @@ private:
 
     std::unique_ptr<GfxIsolatedProcess> mProcess;
 
-    std::string mPipeName;
+    std::string mEndpointName;
 };
 
 }

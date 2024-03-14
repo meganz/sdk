@@ -274,13 +274,13 @@ namespace
     }
 
     //
-    // Get a new pipe name without conflicts with any running instances
+    // Get a new endpoint name without conflicts with any running instances
     // under the following situations:
     //      1. Jenkins can run multiple test jobs at the same time
     //      2. A test job can run tests in parallel
     // Use current process ID so names are unique between different jobs (processes)
     // Use a static incremental counter so names are unique in the same job (process)
-    std::string newPipeName()
+    std::string newEndpointName()
     {
         static std::atomic_int counter{0};
         int current = counter++;
@@ -308,7 +308,7 @@ namespace
     #ifdef ENABLE_ISOLATED_GFX
         auto gfxworkerPath = sdk_test::getTestDataDir() / executableName("gfxworker");
         std::unique_ptr<MegaGfxProvider> provider{
-            MegaGfxProvider::createIsolatedInstance(newPipeName().c_str(), gfxworkerPath.string().c_str())
+            MegaGfxProvider::createIsolatedInstance(newEndpointName().c_str(), gfxworkerPath.string().c_str())
         };
         return new MegaApiTest(appKey,
                                provider.get(),

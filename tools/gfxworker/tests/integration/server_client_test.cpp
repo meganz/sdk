@@ -47,17 +47,17 @@ protected:
     {
         std::ostringstream oss;
         oss << "MEGA_GFXWOKER_UNIT_TEST_" << getCurrentPid();
-        mName = oss.str();
+        mEndpointName = oss.str();
     }
 
-    std::string mName; // Used as pipe name on Windows, domain socket name on Linux
+    std::string mEndpointName; // Used as pipe name on Windows, domain socket name on Linux
 };
 
 TEST_F(ServerClientTest, RunGfxTaskSuccessfully)
 {
     Server server(
         ::mega::make_unique<RequestProcessor>(),
-        mName
+        mEndpointName
     );
 
     std::thread serverThread(std::ref(server));
@@ -74,7 +74,7 @@ TEST_F(ServerClientTest, RunGfxTaskSuccessfully)
 
     EXPECT_TRUE(
         GfxClient(
-            mega::make_unique<GfxCommunicationsClient>(mName)
+            mega::make_unique<GfxCommunicationsClient>(mEndpointName)
         ).runGfxTask(jpgImage.toPath(false), dimensions, images)
     );
     EXPECT_EQ(images.size(), 2);
@@ -84,7 +84,7 @@ TEST_F(ServerClientTest, RunGfxTaskSuccessfully)
     // shutdown
     EXPECT_TRUE(
         GfxClient(
-            mega::make_unique<GfxCommunicationsClient>(mName)
+            mega::make_unique<GfxCommunicationsClient>(mEndpointName)
         ).runShutDown()
     );
 
@@ -98,7 +98,7 @@ TEST_F(ServerClientTest, RunHelloRequestResponseSuccessfully)
 {
     Server server(
         ::mega::make_unique<RequestProcessor>(),
-        mName
+        mEndpointName
     );
 
     std::thread serverThread(std::ref(server));
@@ -108,13 +108,13 @@ TEST_F(ServerClientTest, RunHelloRequestResponseSuccessfully)
 
     EXPECT_TRUE(
         GfxClient(
-            mega::make_unique<GfxCommunicationsClient>(mName)
+            mega::make_unique<GfxCommunicationsClient>(mEndpointName)
         ).runHello("")
     );
 
     EXPECT_TRUE(
         GfxClient(
-            mega::make_unique<GfxCommunicationsClient>(mName)
+            mega::make_unique<GfxCommunicationsClient>(mEndpointName)
         ).runShutDown()
     );
 
@@ -128,7 +128,7 @@ TEST_F(ServerClientTest, RunSupportformatsRequestResponseSuccessfully)
 {
     Server server(
         ::mega::make_unique<RequestProcessor>(),
-        mName
+        mEndpointName
     );
 
     std::thread serverThread(std::ref(server));
@@ -137,7 +137,7 @@ TEST_F(ServerClientTest, RunSupportformatsRequestResponseSuccessfully)
     std::string formats, videoformats;
     EXPECT_TRUE(
         GfxClient(
-            mega::make_unique<GfxCommunicationsClient>(mName)
+            mega::make_unique<GfxCommunicationsClient>(mEndpointName)
         ).runSupportFormats(formats, videoformats)
     );
 
@@ -156,7 +156,7 @@ TEST_F(ServerClientTest, RunSupportformatsRequestResponseSuccessfully)
 
     EXPECT_TRUE(
         GfxClient(
-            mega::make_unique<GfxCommunicationsClient>(mName)
+            mega::make_unique<GfxCommunicationsClient>(mEndpointName)
         ).runShutDown()
     );
 
@@ -170,7 +170,7 @@ TEST_F(ServerClientTest, RunCommandsReturnFalseWhileServerIsNotRunning)
 {
     EXPECT_FALSE(
         GfxClient(
-            mega::make_unique<GfxCommunicationsClient>(mName)
+            mega::make_unique<GfxCommunicationsClient>(mEndpointName)
         ).runShutDown()
     );
 
@@ -180,7 +180,7 @@ TEST_F(ServerClientTest, RunCommandsReturnFalseWhileServerIsNotRunning)
 
     EXPECT_FALSE(
         GfxClient(
-            mega::make_unique<GfxCommunicationsClient>(mName)
+            mega::make_unique<GfxCommunicationsClient>(mEndpointName)
         ).runGfxTask("anyimagename.jpg", dimensions, images)
     );
 }

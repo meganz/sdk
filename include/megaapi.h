@@ -273,12 +273,12 @@ public:
     /**
     * @brief Create a graphics processor that implemented and run in an isolated process.
     *
-    * Note: Currently, only Windows is supported.
+    * Note: Windows, Linux are supported.
     *
-    * @param pipeName The unique named pipe's name used for communicating with the isolated process.
+    * @param endpointName The unique name used for communicating with the isolated process.
     * @param executable The executable path.
     */
-    static MegaGfxProvider* createIsolatedInstance(const char* pipeName,
+    static MegaGfxProvider* createIsolatedInstance(const char* endpointName,
                                                    const char* executable);
 
     /**

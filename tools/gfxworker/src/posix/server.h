@@ -17,13 +17,13 @@ public:
      * @brief A server listening on the named pipe for alive seconds
      *
      * @param requestProcessor the request processor
-     * @param name the name of the pipe
+     * @param socketName the socket name
      * @param aliveSeconds keep alive if the sever hasn't receive any request for
      *                     the given seconds. 0 mean keeping infinitely running even
      *                     if there is no request coming.
      */
     ServerPosix(std::unique_ptr<RequestProcessor> requestProcessor,
-                                 const std::string& name = "mega_gfxworker",
+                                 const std::string& socketName = "mega_gfxworker",
                                  unsigned short aliveSeconds = 60);
 
     void operator()();
@@ -33,7 +33,7 @@ private:
 
     std::unique_ptr<RequestProcessor> mRequestProcessor;
 
-    std::string mName;
+    std::string mSocketName;
 
     const std::chrono::milliseconds mWaitMs{60000};
 };
