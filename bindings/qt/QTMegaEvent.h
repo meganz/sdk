@@ -47,7 +47,7 @@ public:
     QTMegaEvent(MegaApi *megaApi, Type type);
     ~QTMegaEvent() override;
 
-    MegaApi *getMegaApi();
+    MegaApi *getMegaApi() const;
     MegaRequest* getRequest();
     MegaTransfer* getTransfer();
     MegaError* getError();

@@ -246,9 +246,16 @@ public:
     // returns the internal representation copied into a string buffer, for backward compatibility
     string platformEncoded() const;
 
+    // Returns a reference to the string's internal representation.
+    //
+    // Mostly useful when we need to call platform-specific functions and
+    // don't want to incur the cost of a copy.
+    auto asPlatformEncoded(bool stripPrefix) const -> string_type;
+
     bool empty() const;
     void clear();
     void truncate(size_t bytePos);
+
     LocalPath leafName() const;
 
     /*
@@ -328,6 +335,17 @@ public:
     wchar_t driveLetter();
 #endif
 
+    // Does this path represent a filesystem root?
+    //
+    // Relative paths are never considered to be a root path.
+    //
+    // On UNIX systems, this predicate returns true if and only if the
+    // path denotes /.
+    //
+    // On Windows systems, this predicate returns true if and only if the
+    // path specifies a drive such as C:\.
+    bool isRootPath() const;
+
     // Generates a name for a temporary file
     static LocalPath tmpNameLocal();
 
@@ -344,6 +362,23 @@ public:
     {
         return localpath;
     }
+
+    bool extension(std::string& extension) const
+    {
+        return extensionOf(localpath, extension);
+    }
+
+    std::string extension() const
+    {
+        return extensionOf(localpath);
+    }
+
+    // Check if this path is "related" to another.
+    //
+    // Two paths are related if:
+    // - They are effectively identical.
+    // - One path contains another.
+    bool related(const LocalPath& other) const;
 };
 
 inline std::ostream& operator<<(std::ostream& os, const LocalPath& p)
@@ -704,11 +739,21 @@ struct MEGA_API FileAccess
     // After calling openf(), make sure to close the file again quickly with closef().
     void closef();
 
+    // Close an already open file.
+    virtual void fclose() = 0;
+
     // absolute position write
     virtual bool fwrite(const byte *, unsigned, m_off_t) = 0;
 
+    // Stat an already open file.
+    virtual bool fstat(m_time_t& modified, m_off_t& size) = 0;
+
+    // Convenience version of the above.
+    // Updates mtime and size.
+    bool fstat();
+
     // Truncate a file.
-    virtual bool ftruncate() = 0;
+    virtual bool ftruncate(m_off_t size = 0) = 0;
 
     FileAccess(Waiter *waiter);
     virtual ~FileAccess();
@@ -911,7 +956,10 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual bool chdirlocal(LocalPath&) const = 0;
 
     // obtain lowercased extension
-    virtual bool getextension(const LocalPath&, std::string&) const = 0;
+    static bool getextension(const LocalPath& path, std::string& extension)
+    {
+        return path.extension(extension);
+    }
 
     // check if synchronization is supported for a specific path
     virtual bool issyncsupported(const LocalPath&, bool&, SyncError&, SyncWarning&) = 0;

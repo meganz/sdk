@@ -1630,6 +1630,9 @@ void MegaClient::init()
 
     mScDbStateRecord = ScDbStateRecord();
     mLastReceivedScSeqTag.clear();
+
+    // Reset last known capacity.
+    mLastKnownCapacity = -1;
 }
 
 MegaClient::MegaClient(MegaApp* a, shared_ptr<Waiter> w, HttpIO* h, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount, ClientType clientType)
@@ -3178,9 +3181,7 @@ int MegaClient::preparewait()
 
         // newly queued transfers
         if (nextDispatchTransfersDs)
-        {
-            nds = nextDispatchTransfersDs > Waiter::ds ? nextDispatchTransfersDs : Waiter::ds;
-        }
+            nds = std::max(nextDispatchTransfersDs, Waiter::ds.load());
 
         for (pendinghttp_map::iterator it = pendinghttp.begin(); it != pendinghttp.end(); it++)
         {
@@ -4428,11 +4429,12 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     freeq(GET);  // freeq after closetc due to optimizations
     freeq(PUT);
 
+    // Abandon any pending requests.
+    reqs.abandon(*this);
+
     purgenodesusersabortsc(false);
     userid = 0;
     mNodeManager.reset();
-
-    reqs.clear();
 
     delete pendingcs;
     pendingcs = NULL;
@@ -7826,6 +7828,9 @@ void MegaClient::sc_sqac()
                     LOG_warn << "Missing GB allowance in `sqac` action packet";
                 }
 
+                // Invalidate cached storage info.
+                mLastKnownCapacity = -1;
+
                 getuserdata(0);
                 return;
 
@@ -10663,14 +10668,25 @@ error MegaClient::folderaccess(const char *folderlink, const char * authKey)
     return e;
 }
 
-void MegaClient::prelogin(const char *email)
+void MegaClient::prelogin(const char *email, CommandPrelogin::Completion completion)
 {
-    reqs.add(new CommandPrelogin(this, email));
+    // Convenience.
+    using std::bind;
+    using namespace std::placeholders;
+
+    // Invoke app callback if no completion has been specified.
+    if (!completion)
+        completion = bind(&MegaApp::prelogin_result, app, _1, _2, _3, _4);
+
+    reqs.add(new CommandPrelogin(this, std::move(completion), email));
 }
 
 // create new session
-void MegaClient::login(const char* email, const byte* pwkey, const char* pin)
+void MegaClient::login(const char* email, const byte* pwkey, const char* pin, CommandLogin::Completion completion)
 {
+    if (!completion)
+        completion = std::bind(&MegaApp::login_result, app, std::placeholders::_1);
+
     string lcemail(email);
 
     key.setkey((byte*)pwkey);
@@ -10680,39 +10696,48 @@ void MegaClient::login(const char* email, const byte* pwkey, const char* pin)
     byte sek[SymmCipher::KEYLENGTH];
     rng.genblock(sek, sizeof sek);
 
-    reqs.add(new CommandLogin(this, email, (byte*)&emailhash, sizeof(emailhash), sek, 0, pin));
+    reqs.add(new CommandLogin(this, std::move(completion), email, (byte*)&emailhash, sizeof(emailhash), sek, 0, pin));
 }
 
 // create new session (v2)
-void MegaClient::login2(const char *email, const char *password, string *salt, const char *pin)
+void MegaClient::login2(const char *email, const char *password, const string *salt, const char *pin, CommandLogin::Completion completion)
 {
+    if (!completion)
+        completion = std::bind(&MegaApp::login_result, app, std::placeholders::_1);
+
     string bsalt;
     Base64::atob(*salt, bsalt);
 
     vector<byte> derivedKey = deriveKey(password, bsalt, 2 * SymmCipher::KEYLENGTH);
 
-    login2(email, derivedKey.data(), pin);
+    login2(email, derivedKey.data(), pin, std::move(completion));
 }
 
-void MegaClient::login2(const char *email, const byte *derivedKey, const char* pin)
+void MegaClient::login2(const char *email, const byte *derivedKey, const char* pin, CommandLogin::Completion completion)
 {
+    if (!completion)
+        completion = std::bind(&MegaApp::login_result, app, std::placeholders::_1);
+
     key.setkey((byte*)derivedKey);
     const byte *authKey = derivedKey + SymmCipher::KEYLENGTH;
 
     byte sek[SymmCipher::KEYLENGTH];
     rng.genblock(sek, sizeof sek);
 
-    reqs.add(new CommandLogin(this, email, authKey, SymmCipher::KEYLENGTH, sek, 0, pin));
+    reqs.add(new CommandLogin(this, std::move(completion), email, authKey, SymmCipher::KEYLENGTH, sek, 0, pin));
 }
 
-void MegaClient::fastlogin(const char* email, const byte* pwkey, uint64_t emailhash)
+void MegaClient::fastlogin(const char* email, const byte* pwkey, uint64_t emailhash, CommandLogin::Completion completion)
 {
+    if (!completion)
+        completion = std::bind(&MegaApp::login_result, app, std::placeholders::_1);
+
     key.setkey((byte*)pwkey);
 
     byte sek[SymmCipher::KEYLENGTH];
     rng.genblock(sek, sizeof sek);
 
-    reqs.add(new CommandLogin(this, email, (byte*)&emailhash, sizeof(emailhash), sek));
+    reqs.add(new CommandLogin(this, std::move(completion), email, (byte*)&emailhash, sizeof(emailhash), sek));
 }
 
 void MegaClient::getuserdata(int tag, std::function<void(string*, string*, string*, error)> completion)
@@ -10733,8 +10758,11 @@ void MegaClient::getpubkey(const char *user)
 }
 
 // resume session - load state from local cache, if available
-void MegaClient::login(string session)
+void MegaClient::login(string session, CommandLogin::Completion completion)
 {
+    if (!completion)
+        completion = std::bind(&MegaApp::login_result, app, std::placeholders::_1);
+
     int sessionversion = 0;
     if (session.size() == sizeof key.key + SIDLEN + 1)
     {
@@ -10743,7 +10771,7 @@ void MegaClient::login(string session)
         if (sessionversion != 1)
         {
             restag = reqtag;
-            app->login_result(API_EARGS);
+            completion(API_EARGS);
             return;
         }
 
@@ -10760,7 +10788,7 @@ void MegaClient::login(string session)
         byte sek[SymmCipher::KEYLENGTH];
         rng.genblock(sek, sizeof sek);
 
-        reqs.add(new CommandLogin(this, NULL, NULL, 0, sek, sessionversion));
+        reqs.add(new CommandLogin(this, std::move(completion), NULL, NULL, 0, sek, sessionversion));
         fetchtimezone();
     }
     else if (!session.empty() && session[0] == 2)
@@ -10786,7 +10814,7 @@ void MegaClient::login(string session)
             cr.hasdataleft())
         {
             restag = reqtag;
-            app->login_result(API_EARGS);
+            completion(API_EARGS);
         }
         else
         {
@@ -10795,7 +10823,7 @@ void MegaClient::login(string session)
 
             if (mNodeManager.getRootNodeFiles().isUndef())
             {
-                app->login_result(API_EARGS);
+                completion(API_EARGS);
             }
             else
             {
@@ -10806,7 +10834,7 @@ void MegaClient::login(string session)
                 key.setkey(k, FOLDERNODE);
                 checkForResumeableSCDatabase();
                 openStatusTable(true);
-                app->login_result(API_OK);
+                completion(API_OK);
                 reportLoggedInChanges();
             }
         }
@@ -10814,7 +10842,7 @@ void MegaClient::login(string session)
     else
     {
         restag = reqtag;
-        app->login_result(API_EARGS);
+        completion(API_EARGS);
     }
 }
 
@@ -12305,12 +12333,14 @@ void MegaClient::getUserEmail(const char *uid)
     reqs.add(new CommandGetUserEmail(this, uid));
 }
 
-void MegaClient::loginResult(error e, std::function<void()> onLoginOk)
+void MegaClient::loginResult(CommandLogin::Completion completion,
+                             error e,
+                             std::function<void()> onLoginOk)
 {
     if (e != API_OK)
     {
         mV1PswdVault.reset(); // clear this before the app knows that login is done, might improve security
-        app->login_result(e);
+        completion(e);
         return;
     }
 
@@ -12334,7 +12364,7 @@ void MegaClient::loginResult(error e, std::function<void()> onLoginOk)
                     sendevent(99475, msg);
 
                     // report successful login, even if upgrade failed; user data was not affected, so apps can continue running
-                    app->login_result(API_OK);
+                    completion(API_OK);
                     if (onLoginOk)
                     {
                         onLoginOk();
@@ -12342,7 +12372,7 @@ void MegaClient::loginResult(error e, std::function<void()> onLoginOk)
                     return;
                 }
 
-                upgradeAccountToV2(pwd, restag, [this, onLoginOk](error e)
+                upgradeAccountToV2(pwd, restag, [this, completion, onLoginOk](error e)
                     {
                         // handle upgrade result
                         if (e == API_EEXIST)
@@ -12350,10 +12380,10 @@ void MegaClient::loginResult(error e, std::function<void()> onLoginOk)
                             LOG_debug << "Account upgrade to V2 failed with EEXIST. It must have been upgraded in the meantime. Fetching user data again.";
 
                             // upgrade done in the meantime by different client; get account details again
-                            getuserdata(restag, [this, onLoginOk](string*, string*, string*, error e)
+                            getuserdata(restag, [this, completion, onLoginOk](string*, string*, string*, error e)
                                 {
                                     error loginErr = e == API_OK ? API_OK : API_EINTERNAL;
-                                    app->login_result(loginErr); // if error, report for login too because user data is inconsistent now
+                                    completion(loginErr); // if error, report for login too because user data is inconsistent now
 
                                     if (e != API_OK)
                                     {
@@ -12379,7 +12409,7 @@ void MegaClient::loginResult(error e, std::function<void()> onLoginOk)
                             }
 
                             // report successful login, even if upgrade failed; user data was not affected, so apps can continue running
-                            app->login_result(API_OK);
+                            completion(API_OK);
                             if (onLoginOk)
                             {
                                 onLoginOk();
@@ -12394,7 +12424,7 @@ void MegaClient::loginResult(error e, std::function<void()> onLoginOk)
     }
 
     // V2, or V1 without mandatory requirements for upgrade
-    app->login_result(API_OK);
+    completion(API_OK);
     if (onLoginOk)
     {
         onLoginOk();
@@ -13249,6 +13279,49 @@ void MegaClient::getaccountdetails(std::shared_ptr<AccountDetails> ad, bool stor
     {
         reqs.add(new CommandGetUserSessions(this, ad));
     }
+}
+
+void MegaClient::getstorageinfo(CommandGetStorageInfo::Completion completion)
+{
+    assert(completion);
+
+    // Haven't cached any info from the cloud.
+    if (mLastKnownCapacity < 0)
+    {
+        auto wrapper = [this](CommandGetStorageInfo::Completion& completion,
+                              const StorageInfo& info,
+                              Error result) {
+            // Latch the account's capacity.
+            if (result == API_OK)
+                mLastKnownCapacity = info.mCapacity;
+
+            // Forward result to user callback.
+            completion(info, result);
+        }; // wrapper
+
+        completion = std::bind(std::move(wrapper),
+                               std::move(completion),
+                               std::placeholders::_1,
+                               std::placeholders::_2);
+
+
+        return reqs.add(new CommandGetStorageInfo(*this, std::move(completion)));
+    }
+
+    // Ask the NM for our root node's storage info.
+    auto counter = mNodeManager.getCounterOfRootNodes();
+
+    StorageInfo info;
+
+    // Populate info based on counter and cached state.
+    info.mUsed = counter.storage + counter.versionStorage;
+    info.mCapacity = mLastKnownCapacity;
+
+    if (info.mCapacity >= info.mUsed)
+        info.mAvailable = info.mCapacity - info.mUsed;
+
+    // Forward info to caller.
+    completion(info, API_OK);
 }
 
 void MegaClient::querytransferquota(m_off_t size)

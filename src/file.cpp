@@ -406,7 +406,10 @@ void File::sendPutnodesOfUpload(MegaClient* client, UploadHandle fileAttrMatchHa
                                              mVersioningOption,
                                              std::move(newnodes),
                                              tag,
-                                             source, nullptr, std::move(completion), canChangeVault));
+                                             source,
+                                             nullptr,
+                                             std::move(completion),
+                                             canChangeVault));
     }
 }
 
@@ -464,7 +467,10 @@ void File::sendPutnodesToCloneNode(MegaClient* client, Node* nodeToClone,
                                              mVersioningOption,
                                              std::move(newnodes),
                                              tag,
-                                             source, nullptr, std::move(completion), canChangeVault));
+                                             source,
+                                             nullptr,
+                                             std::move(completion),
+                                             canChangeVault));
     }
 }
 

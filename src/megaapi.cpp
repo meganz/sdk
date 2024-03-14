@@ -7818,7 +7818,6 @@ MegaCurrency *MegaCurrency::copy()
     return nullptr;
 }
 
-
 /* MegaVpnCredentials BEGIN */
 MegaVpnCredentials::MegaVpnCredentials()
 {

@@ -1587,6 +1587,27 @@ public:
     SyncControllerPtr syncController() const;
 
     bool isSyncStalled(handle backupId) const;
+
+    // Check if any active syncs match the specified predicate.
+    template<typename Predicate>
+    bool anySyncMatching(Predicate&& predicate)
+    {
+        // Already on sync thread so just perform the query.
+        if (onSyncThread())
+            return syncMatching(predicate);
+
+        // So we can wait for the engine's result.
+        std::promise<bool> notifier;
+
+        // Ask the sync engine to perform our query.
+        queueSync([&]() {
+            // Check if any syncs match our predicate.
+            notifier.set_value(syncMatching(predicate));
+        }, "anySyncMatching");
+
+        // Let the caller know if any syncs match our predicate.
+        return notifier.get_future().get();
+    }
 };
 
 class OverlayIconCachedPaths

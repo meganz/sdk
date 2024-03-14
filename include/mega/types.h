@@ -100,14 +100,19 @@ using std::wstring;
 #endif
 
 // forward declaration
+struct AccountDetails;
+struct AchievementsDetails;
 struct AttrMap;
 class BackoffTimer;
 class Command;
 class CommandPubKeyRequest;
+struct BusinessPlan;
+struct CurrencyData;
 struct DirectRead;
 struct DirectReadNode;
 struct DirectReadSlot;
 struct FileAccess;
+struct FileSystemAccess;
 struct FileAttributeFetch;
 struct FileAttributeFetchChannel;
 struct FileFingerprint;
@@ -132,6 +137,7 @@ struct PendingContactRequest;
 class TransferList;
 struct Achievement;
 class SyncConfig;
+class LocalPath;
 
 namespace UserAlert
 {
@@ -211,6 +217,7 @@ typedef enum ErrorCodes : int
     API_EPAYWALL = -29,             ///< Over Disk Quota Paywall
     LOCAL_ENOSPC = -1000,           ///< Insufficient space
     LOCAL_ETIMEOUT = -1001,         ///< A request timed out.
+    LOCAL_ABANDONED = -1002,        ///< Request abandoned due to local logout.
 } error;
 
 class Error
@@ -1220,7 +1227,12 @@ enum ExclusionState : unsigned char
     ES_UNMATCHED
 }; // ExclusionState
 
-
+struct StorageInfo
+{
+    m_off_t mAvailable = 0;
+    m_off_t mCapacity = 0;
+    m_off_t mUsed = 0;
+}; // StorageInfo
 
 #ifdef ENABLE_CHAT
 
@@ -1241,6 +1253,32 @@ class fsfp_t;
 
 // Convenience.
 using fsfp_ptr_t = std::shared_ptr<fsfp_t>;
+
+// Convenience.
+using FileAccessPtr = std::unique_ptr<FileAccess>;
+using FileAccessSharedPtr = std::shared_ptr<FileAccess>;
+using FileAccessWeakPtr = std::weak_ptr<FileAccess>;
+
+template<typename T>
+using FromNodeHandleMap = std::map<NodeHandle, T>;
+
+using NodeHandleQueue = std::deque<NodeHandle>;
+using NodeHandleSet = std::set<NodeHandle>;
+using NodeHandleVector = std::vector<NodeHandle>;
+
+// For metaprogramming.
+template<typename T>
+struct IsPath;
+
+// Convenience.
+template<typename P, typename T>
+struct EnableIfPath
+  : std::enable_if<IsPath<P>::value, T>
+{
+}; // EnableIfPath<P, T>
+
+template<typename T>
+using FromStringMap = std::map<std::string, T>;
 
 } // namespace mega
 

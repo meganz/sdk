@@ -20,7 +20,7 @@
  */
 
 #include "sdk_test_utils.h"
-#include "stdfs.h"
+#include "../stdfs.h"
 #include "SdkTest_test.h"
 #include "gtest_common.h"
 #include "mega/types.h"
@@ -2166,7 +2166,7 @@ bool SdkTest::getFileFromURL(const std::string& url, const fs::path& dstPath)
     // Open file to save downloaded data
     std::ofstream ofs(dstPath, std::ios::binary | std::ios::out);
     if (!ofs) {
-        LOG_err << "Error opening file for writing:" << dstPath;
+        LOG_err << "Error opening file for writing:" << dstPath.u8string();
         return false;
     }
 
@@ -2184,11 +2184,11 @@ bool SdkTest::getFileFromURL(const std::string& url, const fs::path& dstPath)
     ofs.close();
     if (!ofs)
     {
-        LOG_verbose << "Error closing file:" << dstPath;
+        LOG_verbose << "Error closing file:" << dstPath.u8string();
         return false;
     }
 
-    LOG_verbose << "File " << dstPath << " downloaded successfully";
+    LOG_verbose << "File " << dstPath.u8string() << " downloaded successfully";
     return true;
 }
 
@@ -16587,6 +16587,8 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
     }
 }
 
+#ifdef ENABLE_SYNC
+
 /**
  * @brief TEST_F SdkTestMoveToSyncDebris
  *   - add syncs with folder and file
@@ -16653,6 +16655,8 @@ TEST_F(SdkTest, SdkTestMoveToSyncDebris)
 
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), base));
 }
+
+#endif // ENABLE_SYNC
 
 /**
  * @brief SdkTesResumeSessionInFolderLinkDeleted

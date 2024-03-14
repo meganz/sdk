@@ -12,6 +12,8 @@ target_sources(test_tools
     sdk_test_utils.cpp
 )
 
+target_compile_definitions(test_tools PRIVATE NOMINMAX)
+
 target_link_libraries(test_tools PRIVATE MEGA::SDKlib)
 
 target_include_directories(test_tools

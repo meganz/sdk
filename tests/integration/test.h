@@ -19,7 +19,7 @@
 
 #include <mega.h>
 #include <megaapi_impl.h>
-#include "stdfs.h"
+#include "../stdfs.h"
 
 using namespace ::mega;
 using namespace ::std;
@@ -93,9 +93,22 @@ LogStream out();
 
 enum { THREADS_PER_MEGACLIENT = 3 };
 
+
+namespace mega {
+
+class RuntimeArgValues;
+
+} // mega
+
 class TestFS
 {
 public:
+    // So we can retrieve any user-specified workspace path.
+    TestFS(const RuntimeArgValues& arguments)
+    {
+        mArguments = &arguments;
+    }
+
     // these getters should return std::filesystem::path type, when C++17 will become mandatory
     
     // $WORKSPACE or hard coded path
@@ -103,6 +116,7 @@ public:
     static fs::path GetBaseFolder();
 
     // PID specific directory
+    static fs::path GetProcessFolder(const std::string& pid);
     static fs::path GetProcessFolder();
 
     // directory for "test" within the process folder, often created and deleted per test
@@ -120,120 +134,15 @@ private:
     void DeleteFolder(fs::path folder);
 
     std::vector<std::thread> m_cleaners;
+    
+    // So we can retrieve any user-specified workspace path.
+    static const RuntimeArgValues* mArguments;
 };
-
 void moveToTrash(const fs::path& p);
 fs::path makeNewTestRoot();
 
 std::unique_ptr<::mega::FileSystemAccess> makeFsAccess();
 fs::path makeReusableClientFolder(const string& subfolder);
-#ifdef ENABLE_SYNC
-
-template<typename T>
-using shared_promise = std::shared_ptr<promise<T>>;
-
-using PromiseBoolSP     = shared_promise<bool>;
-using PromiseErrorSP    = shared_promise<Error>;
-using PromiseHandleSP   = shared_promise<handle>;
-using PromiseStringSP   = shared_promise<string>;
-using PromiseUnsignedSP = shared_promise<unsigned>;
-
-struct Model
-{
-    // records what we think the tree should look like after sync so we can confirm it
-
-    struct ModelNode
-    {
-        enum nodetype { file, folder };
-        nodetype type = folder;
-        string mCloudName;
-        string mFsName;
-        string name;
-        string content;
-        vector<unique_ptr<ModelNode>> kids;
-        ModelNode* parent = nullptr;
-        bool changed = false;
-        bool fsOnly = false;
-
-        ModelNode() = default;
-
-        ModelNode(const ModelNode& other);
-        ModelNode& fsName(const string& name);
-        const string& fsName() const;
-        ModelNode& cloudName(const string& name);
-        const string& cloudName() const;
-        void generate(const fs::path& path, bool force);
-        string path() const;
-        string fsPath() const;
-        ModelNode* addkid();
-        ModelNode* addkid(unique_ptr<ModelNode>&& p);
-        bool typematchesnodetype(nodetype_t nodetype) const;
-        void print(string prefix="");
-        std::unique_ptr<ModelNode> clone();
-    };
-
-    Model();
-    Model(const Model& other);
-    Model& operator=(const Model& rhs);
-    ModelNode* addfile(const string& path, const string& content);
-    ModelNode* addfile(const string& path);
-    ModelNode* addfolder(const string& path);
-    ModelNode* addnode(const string& path, ModelNode::nodetype type);
-    ModelNode* copynode(const string& src, const string& dst);
-    unique_ptr<ModelNode> makeModelSubfolder(const string& utf8Name);
-    unique_ptr<ModelNode> makeModelSubfile(const string& utf8Name, string content = {});
-    unique_ptr<ModelNode> buildModelSubdirs(const string& prefix, int n, int recurselevel, int filesperdir);
-    ModelNode* childnodebyname(ModelNode* n, const std::string& s);
-    ModelNode* findnode(string path, ModelNode* startnode = nullptr);
-    unique_ptr<ModelNode> removenode(const string& path);
-    bool movenode(const string& sourcepath, const string& destpath);
-    bool movetosynctrash(unique_ptr<ModelNode>&& node, const string& syncrootpath);
-    bool movetosynctrash(const string& path, const string& syncrootpath);
-    void ensureLocalDebrisTmpLock(const string& syncrootpath);
-    bool removesynctrash(const string& syncrootpath, const string& subpath = "");
-    void emulate_rename(std::string nodepath, std::string newname);
-    void emulate_move(std::string nodepath, std::string newparentpath);
-    void emulate_copy(std::string nodepath, std::string newparentpath);
-    void emulate_rename_copy(std::string nodepath, std::string newparentpath, std::string newname);
-    void emulate_delete(std::string nodepath);
-    void generate(const fs::path& path, bool force = false);
-    void swap(Model& other);
-    unique_ptr<ModelNode> root;
-};
-
-struct StandardClient;
-
-class CloudItem
-{
-public:
-    CloudItem(const Node* node);
-
-    CloudItem(const Node& node);
-
-    CloudItem(const string& path, bool fromRoot = false);
-
-    CloudItem(const char* path, bool fromRoot = false);
-
-    CloudItem(const NodeHandle& nodeHandle);
-
-    CloudItem(handle nodeHandle);
-
-    std::shared_ptr<Node> resolve(StandardClient& client) const;
-
-private:
-    NodeHandle mNodeHandle;
-    string mPath;
-    bool mFromRoot = false;
-}; // CloudItem
-
-struct SyncOptions
-{
-    string drivePath = string(1, '\0');
-    string excludePath;
-    bool legacyExclusionsEligible = false;
-    bool isBackup = false;
-    bool uploadIgnoreFile = false;
-}; // SyncOptions
 
 class RequestRetryRecorder
 {
@@ -408,6 +317,114 @@ public:
               << toString(mReason);
     }
 }; // RequestRetryTracker
+
+#ifdef ENABLE_SYNC
+
+template<typename T>
+using shared_promise = std::shared_ptr<promise<T>>;
+
+using PromiseBoolSP     = shared_promise<bool>;
+using PromiseErrorSP    = shared_promise<Error>;
+using PromiseHandleSP   = shared_promise<handle>;
+using PromiseStringSP   = shared_promise<string>;
+using PromiseUnsignedSP = shared_promise<unsigned>;
+
+struct Model
+{
+    // records what we think the tree should look like after sync so we can confirm it
+
+    struct ModelNode
+    {
+        enum nodetype { file, folder };
+        nodetype type = folder;
+        string mCloudName;
+        string mFsName;
+        string name;
+        string content;
+        vector<unique_ptr<ModelNode>> kids;
+        ModelNode* parent = nullptr;
+        bool changed = false;
+        bool fsOnly = false;
+
+        ModelNode() = default;
+
+        ModelNode(const ModelNode& other);
+        ModelNode& fsName(const string& name);
+        const string& fsName() const;
+        ModelNode& cloudName(const string& name);
+        const string& cloudName() const;
+        void generate(const fs::path& path, bool force);
+        string path() const;
+        string fsPath() const;
+        ModelNode* addkid();
+        ModelNode* addkid(unique_ptr<ModelNode>&& p);
+        bool typematchesnodetype(nodetype_t nodetype) const;
+        void print(string prefix="");
+        std::unique_ptr<ModelNode> clone();
+    };
+
+    Model();
+    Model(const Model& other);
+    Model& operator=(const Model& rhs);
+    ModelNode* addfile(const string& path, const string& content);
+    ModelNode* addfile(const string& path);
+    ModelNode* addfolder(const string& path);
+    ModelNode* addnode(const string& path, ModelNode::nodetype type);
+    ModelNode* copynode(const string& src, const string& dst);
+    unique_ptr<ModelNode> makeModelSubfolder(const string& utf8Name);
+    unique_ptr<ModelNode> makeModelSubfile(const string& utf8Name, string content = {});
+    unique_ptr<ModelNode> buildModelSubdirs(const string& prefix, int n, int recurselevel, int filesperdir);
+    ModelNode* childnodebyname(ModelNode* n, const std::string& s);
+    ModelNode* findnode(string path, ModelNode* startnode = nullptr);
+    unique_ptr<ModelNode> removenode(const string& path);
+    bool movenode(const string& sourcepath, const string& destpath);
+    bool movetosynctrash(unique_ptr<ModelNode>&& node, const string& syncrootpath);
+    bool movetosynctrash(const string& path, const string& syncrootpath);
+    void ensureLocalDebrisTmpLock(const string& syncrootpath);
+    bool removesynctrash(const string& syncrootpath, const string& subpath = "");
+    void emulate_rename(std::string nodepath, std::string newname);
+    void emulate_move(std::string nodepath, std::string newparentpath);
+    void emulate_copy(std::string nodepath, std::string newparentpath);
+    void emulate_rename_copy(std::string nodepath, std::string newparentpath, std::string newname);
+    void emulate_delete(std::string nodepath);
+    void generate(const fs::path& path, bool force = false);
+    void swap(Model& other);
+    unique_ptr<ModelNode> root;
+};
+
+struct StandardClient;
+
+class CloudItem
+{
+public:
+    CloudItem(const Node* node);
+
+    CloudItem(const Node& node);
+
+    CloudItem(const string& path, bool fromRoot = false);
+
+    CloudItem(const char* path, bool fromRoot = false);
+
+    CloudItem(const NodeHandle& nodeHandle);
+
+    CloudItem(handle nodeHandle);
+
+    std::shared_ptr<Node> resolve(StandardClient& client) const;
+
+private:
+    NodeHandle mNodeHandle;
+    string mPath;
+    bool mFromRoot = false;
+}; // CloudItem
+
+struct SyncOptions
+{
+    string drivePath = string(1, '\0');
+    string excludePath;
+    bool legacyExclusionsEligible = false;
+    bool isBackup = false;
+    bool uploadIgnoreFile = false;
+}; // SyncOptions
 
 class StandardSyncController
   : public SyncController

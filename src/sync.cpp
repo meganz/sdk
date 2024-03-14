@@ -6287,8 +6287,6 @@ void Syncs::loadSyncConfigsOnFetchnodesComplete(bool resetSyncConfigStore)
 {
     assert(!onSyncThread());
 
-    // Double check the client only calls us once (per session) for this
-    assert(!mSyncsLoaded);
     if (mSyncsLoaded) return;
     mSyncsLoaded = true;
 

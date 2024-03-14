@@ -339,6 +339,9 @@ public:
     // this method allows to change the manual verification feature-flag for testing purposes
     void setManualVerificationFlag(bool enabled) { mManualVerification = enabled; }
 
+    // query whether manual verification is required.
+    bool getManualVerificationFlag() const { return mManualVerification; }
+
 protected:
     std::deque<std::pair<std::function<void()>, std::function<void(error e)>>> nextQueue;
     std::deque<std::pair<std::function<void()>, std::function<void(error e)>>> activeQueue;
@@ -604,25 +607,27 @@ public:
     void setkeypair();
 
     // prelogin: e-mail
-    void prelogin(const char*);
+    void prelogin(const char* email, CommandPrelogin::Completion completion = nullptr);
 
     // user login: e-mail, pwkey
-    void login(const char*, const byte*, const char* = NULL);
+    void login(const char*, const byte*, const char* = NULL, CommandLogin::Completion completion = nullptr);
 
     // user login: e-mail, password, salt
-    void login2(const char*, const char*, string *, const char* = NULL);
+    void login2(const char*, const char*, const string *, const char* = NULL, CommandLogin::Completion completion = nullptr);
 
     // user login: e-mail, derivedkey, 2FA pin
-    void login2(const char*, const byte*, const char* = NULL);
+    void login2(const char*, const byte*, const char* = NULL, CommandLogin::Completion completion = nullptr);
 
     // user login: e-mail, pwkey, emailhash
-    void fastlogin(const char*, const byte*, uint64_t);
+    void fastlogin(const char*, const byte*, uint64_t, CommandLogin::Completion completion = nullptr);
 
     // session login: binary session, bytecount
-    void login(string session);
+    void login(string session, CommandLogin::Completion completion = nullptr);
 
     // handle login result, and allow further actions when successful
-    void loginResult(error e, std::function<void()> onLoginOk = nullptr);
+    void loginResult(CommandLogin::Completion completion,
+                     error e,
+                     std::function<void()> onLoginOk = nullptr);
 
     // check password
     error validatepwd(const char* pswd);
@@ -739,6 +744,9 @@ public:
 
     // retrieve user details
     void getaccountdetails(std::shared_ptr<AccountDetails>, bool, bool, bool, bool, bool, bool, int source = -1);
+
+    // Get user storage information.
+    void getstorageinfo(CommandGetStorageInfo::Completion completion);
 
     // check if the available bandwidth quota is enough to transfer an amount of bytes
     void querytransferquota(m_off_t size);
@@ -1649,10 +1657,10 @@ public:
     int fetchnodestag;
 
     // set true after fetchnodes and catching up on actionpackets, stays true after that.
-    bool statecurrent;
+    std::atomic<bool> statecurrent;
 
     // actionpackets are up to date (similar to statecurrent but false if in the middle of spoonfeeding etc)
-    bool actionpacketsCurrent;
+    std::atomic<bool> actionpacketsCurrent;
 
     // This flag is used to ensure we load Syncs just once per user session, even if a fetchnodes reload occurs after the first one
     bool syncsAlreadyLoadedOnStatecurrent = false;
@@ -2690,6 +2698,10 @@ public:
     void setEnabledNotifications(std::vector<uint32_t>&& notifs) { mEnabledNotifications = std::move(notifs); }
     const std::vector<uint32_t>& getEnabledNotifications() const { return mEnabledNotifications; }
     void getNotifications(CommandGetNotifications::ResultFunc onResult);
+
+private:
+    // Last known capacity retrieved from the cloud.
+    m_off_t mLastKnownCapacity = -1;
 };
 
 } // namespace

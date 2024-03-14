@@ -202,9 +202,9 @@ pipeline {
                                                         echo \"Processing core dump \$i :: \$(grep `echo \$i | sed 's#pid_\\([0-9].*\\)/core#\\1#'` tests.stdout)\"
                                                         echo thread apply all bt > backtrace
                                                         echo quit >> backtrace
-                                                        [ \"\$FAILED\" = \"1\" ] && gdb -q ./tests/unit/test_unit \$i -x ${linux_sources_workspace}/backtrace
-                                                        [ \"\$FAILED\" = \"2\" ] && gdb -q \$GFXWORKER_TEST_PATH \$i -x ${linux_sources_workspace}/backtrace
-                                                        [ \"\$FAILED\" = \"3\" ] && gdb -q ./tests/integration/test_integration \$i -x ${linux_sources_workspace}/backtrace
+                                                        [ \"\$FAILED\" = \"1\" ] && gdb -q ./tests/unit/test_unit \$i -x backtrace
+                                                        [ \"\$FAILED\" = \"2\" ] && gdb -q \$GFXWORKER_TEST_PATH \$i -x backtrace
+                                                        [ \"\$FAILED\" = \"3\" ] && gdb -q ./tests/integration/test_integration \$i -x backtrace
                                                         tar rf core.tar \$i
                                                         coresProcessed=`expr \$coresProcessed + 1`
                                                         coreFiles=`echo \$coreFiles | sed -e \"s#\$i##\"`

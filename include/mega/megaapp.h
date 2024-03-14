@@ -22,7 +22,7 @@
 #ifndef MEGA_APP_H
 #define MEGA_APP_H 1
 
-#include "types.h"
+#include <mega/types.h>
 
 namespace mega {
 

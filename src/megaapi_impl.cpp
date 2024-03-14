@@ -12815,7 +12815,8 @@ void MegaApiImpl::file_added(File *f)
     if (!transfer)
     {
         transfer = new MegaTransferPrivate(t->type);
-        transfer->setSyncTransfer(true);
+
+        transfer->setSyncTransfer(f->syncxfer);
 
         if (t->type == GET)
         {
@@ -15200,7 +15201,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
     }
     else
     {
-        fileName = "CRYPTO_ERROR";
+        fileName = Node::CRYPTO_ERROR;
         request->setFlag(true);
         isNodeKeyDecrypted = false;
     }
@@ -18878,11 +18879,11 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                             attr_map::iterator ait = node->attrs.map.find('n');
                             if (ait == node->attrs.map.end())
                             {
-                                name = LocalPath::fromRelativePath("CRYPTO_ERROR");
+                                name = LocalPath::fromRelativePath(Node::CRYPTO_ERROR);
                             }
                             else if(!ait->second.size())
                             {
-                                name = LocalPath::fromRelativePath("BLANK");
+                                name = LocalPath::fromRelativePath(Node::BLANK);
                             }
                             else
                             {
@@ -27161,6 +27162,15 @@ void RequestQueue::push(MegaRequestPrivate *request)
     requests.push_back(request);
 }
 
+void RequestQueue::push(std::unique_ptr<MegaRequestPrivate> request)
+{
+    std::lock_guard<std::mutex> guard(mutex);
+
+    requests.push_back(request.get());
+
+    request.release();
+}
+
 void RequestQueue::push_front(MegaRequestPrivate *request)
 {
     std::lock_guard<std::mutex> g(mutex);
@@ -29820,12 +29830,14 @@ const char *MegaScheduledCopyController::getPeriodString() const
 void MegaScheduledCopyController::setPeriod(const int64_t &value)
 {
     period = value;
+
     if (value != -1)
     {
-        this->offsetds=m_time(NULL)*10 - Waiter::ds;
-        this->startTime = lastbackuptime?(lastbackuptime+period-offsetds):Waiter::ds;
-        if (this->startTime < Waiter::ds)
-            this->startTime = Waiter::ds;
+        auto ds = static_cast<int64_t>(Waiter::ds.load());
+
+        offsetds  = m_time(NULL) * 10 - ds;
+        startTime = lastbackuptime ? lastbackuptime + period - offsetds : ds;
+        startTime = std::max(startTime, ds);
     }
 }
 

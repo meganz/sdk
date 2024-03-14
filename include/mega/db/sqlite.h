@@ -233,7 +233,7 @@ public:
 
     LocalPath databasePath(const FileSystemAccess& fsAccess,
                            const string& name,
-                           const int version) const;
+                           const int version) const override;
 
     // Note: for proper adjustment of legacy versions, 'sctable' should be the first DB to be opened
     // In this way, when it's called with other DB (statusTable, tctable, ...), DbAccess::currentDbVersion has been

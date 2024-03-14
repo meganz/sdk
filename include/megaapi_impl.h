@@ -2483,6 +2483,7 @@ class RequestQueue
     public:
         RequestQueue();
         void push(MegaRequestPrivate *request);
+        void push(std::unique_ptr<MegaRequestPrivate> request);
         void push_front(MegaRequestPrivate *request);
         MegaRequestPrivate * pop();
         MegaRequestPrivate * front();

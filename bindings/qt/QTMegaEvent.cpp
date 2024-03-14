@@ -39,7 +39,7 @@ QTMegaEvent::~QTMegaEvent()
 #endif
 }
 
-MegaApi *QTMegaEvent::getMegaApi()
+MegaApi *QTMegaEvent::getMegaApi() const
 {
     return megaApi;
 }

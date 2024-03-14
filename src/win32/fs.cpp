@@ -97,6 +97,64 @@ private:
     HANDLE mHandle;
 };
 
+auto LocalPath::asPlatformEncoded(bool skipPrefix) const -> string_type
+{
+    // Caller wants the prefix intact.
+    if (!skipPrefix)
+        return localpath;
+
+    // Path doesn't begin with the prefix.
+    if (localpath.size() < 4 || localpath.compare(0, 4, L"\\\\?\\"))
+        return localpath;
+
+    // Path doesn't begin wih the UNC prefix.
+    if (localpath.size() < 8 || localpath.compare(4, 4, L"UNC\\"))
+        return localpath.substr(4);
+
+    return localpath.substr(8);
+}
+
+bool LocalPath::isRootPath() const
+{
+    if (!isFromRoot)
+        return false;
+
+    static const std::wstring prefix = L"\\\\?\\";
+
+    std::size_t length = localpath.size();
+    std::size_t offset = 0;
+
+    // Skip namespace prefix if present.
+    if (localpath.size() > prefix.size()
+        && !localpath.compare(0, prefix.size(), prefix))
+        offset = prefix.size();
+
+    // Path is too short to contain a drive letter.
+    if (offset + 2 > localpath.size())
+        return false;
+
+    // Convenience.
+    std::wint_t drive = localpath[offset++];
+
+    // Drive letter's outside domain of wchar_t.
+    if (drive < WCHAR_MIN || drive > WCHAR_MAX)
+        return false;
+
+    // Drive letter isn't actually a drive letter.
+    if (!std::iswalpha(drive))
+        return false;
+
+    // Path doesn't contain drive letter separator.
+    if (localpath[offset++] != L':')
+        return false;
+
+    // Path must end with a directory separator.
+    if (length > offset)
+        return localpath[offset++] == L'\\' && length == offset;
+
+    return true;
+}
+
 void FileSystemAccess::setMinimumDirectoryPermissions(int)
 {
 }
@@ -195,15 +253,7 @@ WinFileAccess::WinFileAccess(Waiter *w) : FileAccess(w)
 
 WinFileAccess::~WinFileAccess()
 {
-    if (hFile != INVALID_HANDLE_VALUE)
-    {
-        CloseHandle(hFile);
-        assert(hFind == INVALID_HANDLE_VALUE);
-    }
-    else if (hFind != INVALID_HANDLE_VALUE)
-    {
-        FindClose(hFind);
-    }
+    fclose();
 }
 
 bool WinFileAccess::sysread(byte* dst, unsigned len, m_off_t pos)
@@ -234,6 +284,22 @@ bool WinFileAccess::sysread(byte* dst, unsigned len, m_off_t pos)
         return false;
     }
     return true;
+}
+
+void WinFileAccess::fclose()
+{
+    if (hFile != INVALID_HANDLE_VALUE)
+    {
+        CloseHandle(hFile);
+        assert(hFind == INVALID_HANDLE_VALUE);
+    }
+    else if (hFind != INVALID_HANDLE_VALUE)
+    {
+        FindClose(hFind);
+    }
+
+    hFile = INVALID_HANDLE_VALUE;
+    hFind = INVALID_HANDLE_VALUE;
 }
 
 bool WinFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
@@ -273,14 +339,14 @@ bool WinFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
      return true;
 }
 
-bool WinFileAccess::ftruncate()
+bool WinFileAccess::ftruncate(m_off_t size)
 {
-    LARGE_INTEGER zero;
+    assert(size >= 0);
 
-    zero.QuadPart = 0x0;
+    auto& position = reinterpret_cast<LARGE_INTEGER&>(size);
 
     // Set the file pointer to the start of the file.
-    if (SetFilePointerEx(hFile, zero, nullptr, FILE_BEGIN))
+    if (SetFilePointerEx(hFile, position, nullptr, FILE_BEGIN))
     {
         // Truncate the file.
         if (SetEndOfFile(hFile))
@@ -291,6 +357,9 @@ bool WinFileAccess::ftruncate()
 
     // Why couldn't we truncate the file?
     auto error = GetLastError();
+
+    // Latch the error.
+    errorcode = error;
 
     // Is it a transient error?
     retry = WinFileSystemAccess::istransient(error);
@@ -316,6 +385,38 @@ m_time_t FileTime_to_POSIX(FILETIME* ft)
     FileSystemAccess::captimestamp(&t);
 
     return t;
+}
+
+bool WinFileAccess::fstat(m_time_t& modified, m_off_t& size)
+{
+    BY_HANDLE_FILE_INFORMATION info;
+
+    // Try and retrieve information the currently open file.
+    if (!GetFileInformationByHandle(hFile, &info))
+    {
+        // Couldn't get information about the file.
+        auto error = GetLastError();
+
+        // Latch the error.
+        errorcode = error;
+
+        // Was the error transient?
+        retry = WinFileSystemAccess::istransient(error);
+
+        // Let the caller know we couldn't get the file's info.
+        return false;
+    }
+
+    LARGE_INTEGER temp;
+
+    temp.LowPart = info.nFileSizeLow;
+    temp.HighPart = info.nFileSizeHigh;
+
+    modified = FileTime_to_POSIX(&info.ftLastWriteTime);
+    size = temp.QuadPart;
+
+    // Let the caller know we've retrieved the file's info.
+    return true;
 }
 
 bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size, FSLogging fsl)
@@ -704,10 +805,20 @@ bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write,
         }
     }
 
+    auto desiredAccess = 0u;
+
+    // Caller's interested in reading.
+    if (read)
+        desiredAccess |= GENERIC_READ;
+
+    // Caller's interested in writing.
+    if (write)
+        desiredAccess |= GENERIC_WRITE;
+
     // (race condition between GetFileAttributesEx()/FindFirstFile() possible -
     // fixable with the current Win32 API?)
     hFile = CreateFileW(namePath.localpath.c_str(),
-                        read ? GENERIC_READ : (write ? GENERIC_WRITE : 0),
+                        desiredAccess,
                         FILE_SHARE_WRITE | FILE_SHARE_READ,
                         NULL,
                         !write ? OPEN_EXISTING : OPEN_ALWAYS,
@@ -1120,39 +1231,6 @@ bool WinFileSystemAccess::chdirlocal(LocalPath& namePath) const
     assert(namePath.isAbsolute());
     int r = SetCurrentDirectoryW(namePath.localpath.c_str());
     return r;
-}
-
-// return lowercased ASCII file extension, including the . separator
-bool WinFileSystemAccess::getextension(const LocalPath& filenamePath, std::string &extension) const
-{
-    const wchar_t* ptr = filenamePath.localpath.data() + filenamePath.localpath.size();
-
-    char c;
-    size_t i, j;
-    size_t size = filenamePath.localpath.size();
-
-    for (i = 0; i < size; i++)
-    {
-        if (*--ptr == '.')
-        {
-            extension.reserve(i+1);
-
-            for (j = 0; j <= i; j++)
-            {
-                if (*ptr < '.' || *ptr > 'z') return false;
-
-                c = (char)*(ptr++);
-
-                // tolower()
-                if (c >= 'A' && c <= 'Z') c |= ' ';
-
-                extension.push_back(c);
-            }
-			return true;
-		}
-	}
-
-    return false;
 }
 
 bool WinFileSystemAccess::expanselocalpath(const LocalPath& pathArg, LocalPath& absolutepathArg)
