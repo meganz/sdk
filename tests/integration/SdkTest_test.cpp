@@ -8103,6 +8103,11 @@ TEST_F(SdkTest, SdkSensitiveNodes)
     list.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_EQ(list->size(), 1); // non sensitive files (recursive exclude)
     ASSERT_EQ(list->get(0)->getName(), nsfilename);
+
+    filterResults.reset(MegaSearchFilter::createInstance());
+    filterResults->byCategory(MegaApi::FILE_TYPE_OTHERS);
+    list.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC));
+    ASSERT_EQ(list->size(), 0);
 }
 
 TEST_F(SdkTest, SdkDeviceNames)
@@ -16035,6 +16040,26 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
                                                false   /*startFirst*/,
                                                nullptr /*cancelToken*/)) << "Cannot upload " << PUBLICFILE << " as " << orgFile;
 
+    const char unkownExtensionFile[] = "test.err";
+    MegaHandle handleUnkownExtensionFile = INVALID_HANDLE;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &handleUnkownExtensionFile, PUBLICFILE.c_str(),
+                                               rootnode.get(),
+                                               unkownExtensionFile /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload " << PUBLICFILE << " as " << unkownExtensionFile;
+    std::unique_ptr<MegaNode> unkownExtensionNode(megaApi[0]->getNodeByHandle(handleUnkownExtensionFile));
+    ASSERT_THAT(unkownExtensionNode, ::testing::NotNull());
+
+    const char withouExtensionFile[] = "test";
+    RequestTracker nodeCopyTracker(megaApi[0].get());
+    megaApi[0]->copyNode(unkownExtensionNode.get(), rootnode.get(), withouExtensionFile, &nodeCopyTracker);
+    ASSERT_EQ(API_OK, nodeCopyTracker.waitForResult())
+        << "Could not copy " << unkownExtensionFile << " as " << withouExtensionFile;
+    MegaHandle handleWithoutExtensionFile = nodeCopyTracker.getNodeHandle();
+
     std::unique_ptr<MegaSearchFilter> filterResults(MegaSearchFilter::createInstance());
 
     filterResults->byCategory(MegaApi::FILE_TYPE_PROGRAM);
@@ -16073,6 +16098,12 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
     ASSERT_EQ(nodeList->get(3)->getHandle(), handlePdfFile);
     ASSERT_EQ(nodeList->get(4)->getHandle(), handleTxtFile);
 
+    filterResults->byCategory(MegaApi::FILE_TYPE_OTHERS); // none of {PHOTO, VIDEO, AUDIO, MISC, PROGRAM, DOCUMENT, PDF, PRESENTATION, SPREADSHEET}
+    nodeList.reset(megaApi[0]->search(filterResults.get(), MegaApi::ORDER_DEFAULT_ASC)); // order Alphabetical asc
+    ASSERT_EQ(nodeList->size(), 2);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), handleWithoutExtensionFile);
+    ASSERT_EQ(nodeList->get(1)->getHandle(), handleUnkownExtensionFile);
+
     ///
     /// search using old and deprecated API, to make sure we don't break it in the future
     nodeList.reset(megaApi[0]->searchByType(nullptr, "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_SPREADSHEET)); // order Alphabetical asc
@@ -16094,6 +16125,12 @@ TEST_F(SdkTest, SdkTestGetNodeByMimetype)
     ASSERT_EQ(nodeList->get(2)->getHandle(), handleOrgFile);
     ASSERT_EQ(nodeList->get(3)->getHandle(), handlePdfFile);
     ASSERT_EQ(nodeList->get(4)->getHandle(), handleTxtFile);
+
+    nodeList.reset(megaApi[0]->searchByType(nullptr, "", nullptr, true, MegaApi::ORDER_DEFAULT_ASC, MegaApi::FILE_TYPE_OTHERS));
+    ASSERT_EQ(nodeList->size(), 2);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), handleWithoutExtensionFile);
+    ASSERT_EQ(nodeList->get(1)->getHandle(), handleUnkownExtensionFile);
+
 
     deleteFile(PUBLICFILE);
 }
