@@ -17826,8 +17826,10 @@ MegaNodeList* MegaApiImpl::getChildrenFromType(MegaNode* p, int type, int order,
 
     SdkMutexGuard guard(sdkMutex);
 
-    sharedNode_vector childrenNodes = client->mNodeManager.getChildrenFromType(NodeHandle().set6byte(p->getHandle()), static_cast<nodetype_t>(type), cancelToken);
-    sortByComparatorFunction(childrenNodes, order, *client);
+    NodeSearchFilter filter;
+    filter.byAncestors(std::vector<handle>{p->getHandle(), INVALID_HANDLE, INVALID_HANDLE});
+    filter.byNodeType(static_cast<nodetype_t>(type));
+    sharedNode_vector childrenNodes = client->mNodeManager.getChildren(filter, order, cancelToken, NodeSearchPage{0, 0});
 
     return new MegaNodeListPrivate(childrenNodes);
 }

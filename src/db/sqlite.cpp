@@ -1317,47 +1317,6 @@ bool SqliteAccountState::getNodesWithSharesOrLink(std::vector<std::pair<NodeHand
     return result;
 }
 
-bool SqliteAccountState::getChildrenFromType(NodeHandle parentHandle, nodetype_t nodeType, std::vector<std::pair<NodeHandle, NodeSerialized> >& children, CancelToken cancelFlag)
-{
-    if (!db)
-    {
-        return false;
-    }
-
-    if (cancelFlag.exists())
-    {
-        sqlite3_progress_handler(db, NUM_VIRTUAL_MACHINE_INSTRUCTIONS, SqliteAccountState::progressHandler, static_cast<void*>(&cancelFlag));
-    }
-
-    int sqlResult = SQLITE_OK;
-
-    if (!mStmtChildrenFromType)
-    {
-        sqlResult = sqlite3_prepare_v2(db, "SELECT nodehandle, counter, node FROM nodes WHERE parenthandle = ? AND type = ?", -1, &mStmtChildrenFromType, NULL);
-    }
-
-    bool result = false;
-    if (sqlResult == SQLITE_OK)
-    {
-        if ((sqlResult = sqlite3_bind_int64(mStmtChildrenFromType, 1, parentHandle.as8byte())) == SQLITE_OK)
-        {
-            if ((sqlResult = sqlite3_bind_int(mStmtChildrenFromType, 2, nodeType)) == SQLITE_OK)
-            {
-                result = processSqlQueryNodes(mStmtChildrenFromType, children);
-            }
-        }
-    }
-
-    // unregister the handler (no-op if not registered)
-    sqlite3_progress_handler(db, -1, nullptr, nullptr);
-
-    errorHandler(sqlResult, "Get children from type", true);
-
-    sqlite3_reset(mStmtChildrenFromType);
-
-    return result;
-}
-
 uint64_t SqliteAccountState::getNumberOfChildren(NodeHandle parentHandle)
 {
     if (!db)

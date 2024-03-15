@@ -74,10 +74,6 @@ public:
         return false;
     }
 
-    bool getChildrenFromType(mega::NodeHandle parentHandle, mega::nodetype_t nodeType, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& children, mega::CancelToken cancelFlag) override
-    {
-        return false;
-    }
     uint64_t getNumberOfChildren(mega::NodeHandle parentHandle) override
     {
         return 0;

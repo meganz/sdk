@@ -12465,6 +12465,9 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     ASSERT_EQ(numberFolderLevel1, megaApi[0]->getNumChildFolders(rootnodeA.get()));
     ASSERT_EQ(numberFolderLevel1, megaApi[1]->getNumChildFolders(rootnodeB.get()));
 
+    std::unique_ptr<MegaNodeList> rootChildrenList(megaApi[0]->getChildrenFromType(rootnodeA.get(), FOLDERNODE));
+    ASSERT_EQ(rootChildrenList->size(), numberFolderLevel1);
+
     // --- UserA Check folder info from root node ---
     ASSERT_EQ(MegaError::API_OK, synchronousFolderInfo(0, rootnodeA.get())) << "Cannot get Folder Info";
     int numberTotalOfFiles = numberFolderLevel1 * numberFolderLevel2 * numberFiles + initialFolderInfo1->getNumFiles();
@@ -12621,6 +12624,12 @@ TEST_F(SdkTest, SdkNodesOnDemand)
         {
             ASSERT_NE(childrenHandles.find(childrenList->get(childIndex)->getHandle()), childrenHandles.end());
         }
+
+        std::unique_ptr<MegaNodeList> fileChildrenList(megaApi[0]->getChildrenFromType(node.get(), FILENODE));
+        ASSERT_EQ(fileChildrenList->size(), childrenList->size());
+
+        std::unique_ptr<MegaNodeList> folderChildrenList(megaApi[0]->getChildrenFromType(node.get(), FOLDERNODE));
+        ASSERT_EQ(folderChildrenList->size(), 0);
     }
 
     // --- UserA remove a folder ---

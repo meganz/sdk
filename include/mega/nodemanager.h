@@ -61,6 +61,7 @@ public:
     const std::string& byName() const { return mNameFilter; }
     void byName(const std::string& name) { mNameFilter = name; }
     nodetype_t byNodeType() const { return mNodeType; }
+    void byNodeType(nodetype_t nodeType) { assert(nodeType >= nodetype_t::FILENODE && nodeType <= nodetype_t::FOLDERNODE); mNodeType = nodeType; };
     MimeType_t byCategory() const { return mMimeCategory; }
     bool bySensitivity() const { return mExcludeSensitive; }
     void bySensitivity(bool excludeSensitive) { mExcludeSensitive = excludeSensitive; }
@@ -140,9 +141,6 @@ public:
     sharedNode_list getChildren(const Node *parent, CancelToken cancelToken = CancelToken());
 
     sharedNode_vector getChildren(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page);
-
-    // read children from type (folder or file) from DB and load them in memory
-    sharedNode_vector getChildrenFromType(const NodeHandle &parent, nodetype_t type, CancelToken cancelToken);
 
     // get up to "maxcount" nodes, not older than "since", ordered by creation time
     // Note: nodes are read from DB and loaded in memory
@@ -402,7 +400,6 @@ private:
 
     std::shared_ptr<Node> getNodeByHandle_internal(NodeHandle handle);
     sharedNode_list getChildren_internal(const Node *parent, CancelToken cancelToken = CancelToken());
-    sharedNode_vector getChildrenFromType_internal(const NodeHandle& parent, nodetype_t type, CancelToken cancelToken);
     sharedNode_vector getRecentNodes_internal(unsigned maxcount, m_time_t since);
 
     sharedNode_vector getNodesByFingerprint_internal(FileFingerprint& fingerprint);

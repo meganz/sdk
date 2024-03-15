@@ -421,32 +421,6 @@ sharedNode_vector NodeManager::getChildren_internal(const NodeSearchFilter& filt
     return nodes;
 }
 
-sharedNode_vector NodeManager::getChildrenFromType(const NodeHandle& parent, nodetype_t type, CancelToken cancelToken)
-{
-    LockGuard g(mMutex);
-    return getChildrenFromType_internal(parent, type, cancelToken);
-}
-
-sharedNode_vector NodeManager::getChildrenFromType_internal(const NodeHandle& parent, nodetype_t type, CancelToken cancelToken)
-{
-    assert(mMutex.owns_lock());
-
-    if (!mTable || mNodes.empty())
-    {
-        return sharedNode_vector();
-    }
-
-    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
-    mTable->getChildrenFromType(parent, type, nodesFromTable, cancelToken);
-
-    if (cancelToken.isCancelled())
-    {
-        return  sharedNode_vector();
-    }
-
-    return processUnserializedNodes(nodesFromTable, NodeHandle(), cancelToken);
-}
-
 sharedNode_vector NodeManager::getRecentNodes(unsigned maxcount, m_time_t since)
 {
     LockGuard g(mMutex);
