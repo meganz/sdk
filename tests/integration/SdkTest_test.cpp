@@ -397,7 +397,7 @@ void SdkTest::Cleanup()
         {
             // avoid removing the same contact again in a 2nd client of the same account (actionpackets from the first may not have arrived yet)
             // or removing via the other account, again the original disconnection may not have arrived by actionpacket yet
-            string email1 = string(megaApi[nApi]->getMyEmail());
+            string email1 = string(std::unique_ptr<char[]>{megaApi[nApi]->getMyEmail()}.get());
             string email2 = string(contacts->get(i)->getEmail());
             if (alreadyRemoved.find(email1+email2) != alreadyRemoved.end()) continue;
             if (alreadyRemoved.find(email2+email1) != alreadyRemoved.end()) continue;
@@ -429,7 +429,7 @@ void SdkTest::Cleanup()
 
                 if (auto email = os->getUser())
                 {
-                    string email1 = string(megaApi[nApi]->getMyEmail());
+                    string email1 = string(std::unique_ptr<char[]>{megaApi[nApi]->getMyEmail()}.get());
                     if (alreadyRemoved.find(email1+email) != alreadyRemoved.end()) continue;
                     if (alreadyRemoved.find(email+email1) != alreadyRemoved.end()) continue;
                     alreadyRemoved.insert(email1+email);
@@ -467,7 +467,7 @@ void SdkTest::Cleanup()
 
                 if (auto email = os->getUser())
                 {
-                    string email1 = string(megaApi[nApi]->getMyEmail());
+                    string email1 = string(std::unique_ptr<char[]>{megaApi[nApi]->getMyEmail()}.get());
                     if (alreadyRemoved.find(email1+email) != alreadyRemoved.end()) continue;
                     if (alreadyRemoved.find(email+email1) != alreadyRemoved.end()) continue;
                     alreadyRemoved.insert(email1+email);
@@ -1450,7 +1450,7 @@ void SdkTest::getAccountsForTest(unsigned howMany, bool fetchNodes, const int cl
         std::string binValue = Base64::atob(b64Value);
         if (binValue.size() > MAX_USER_VAR_SIZE - 512) // limit almost exceeded, tests will start failing soon
         {
-            out() << "Account " << megaApi[index]->getMyEmail() << " has a ^!keys of " << binValue.size() << " bytes";
+            out() << "Account " << std::unique_ptr<char[]>{megaApi[index]->getMyEmail()}.get() << " has a ^!keys of " << binValue.size() << " bytes";
             out() << "Please, DevOps, park this account";
             ASSERT_FALSE(true);
         }
@@ -2318,7 +2318,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
         string changelink = getLinkFromMailbox(pyExe, bufScript.string(), realAccount, bufRealPswd, changedTestAcc, MegaClient::verifyLinkPrefix(), timeOfChangeEmail);
         ASSERT_FALSE(changelink.empty()) << "Change email account link was not found.";
 
-        ASSERT_STRCASEEQ(newTestAcc.c_str(), megaApi[0]->getMyEmail()) << "email changed prematurely";
+        ASSERT_STRCASEEQ(newTestAcc.c_str(), std::unique_ptr<char[]>{megaApi[0]->getMyEmail()}.get()) << "email changed prematurely";
         ASSERT_EQ(synchronousConfirmChangeEmail(0, changelink.c_str(), newTestPwd), MegaError::API_OK) << "confirmChangeEmail failed";
     }
 
@@ -2327,12 +2327,12 @@ TEST_F(SdkTest, SdkTestCreateAccount)
         unique_ptr<RequestTracker> userDataTracker = ::mega::make_unique<RequestTracker>(megaApi[1].get());
         megaApi[1]->getUserData(userDataTracker.get());
         ASSERT_EQ(API_OK, userDataTracker->waitForResult()) << " Failed to get user data at auxiliar account";
-        ASSERT_EQ(changedTestAcc, megaApi[1]->getMyEmail()) << "Email update error at auxiliar account";
+        ASSERT_EQ(changedTestAcc, std::unique_ptr<char[]>{megaApi[1]->getMyEmail()}.get()) << "Email update error at auxiliar account";
         logout(1, false, maxTimeout);
     }
 
     // Login using new email
-    ASSERT_STRCASEEQ(changedTestAcc.c_str(), megaApi[0]->getMyEmail()) << "email not changed correctly";
+    ASSERT_STRCASEEQ(changedTestAcc.c_str(), std::unique_ptr<char[]>{megaApi[0]->getMyEmail()}.get()) << "email not changed correctly";
     {
         unique_ptr<RequestTracker> loginTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->login(changedTestAcc.c_str(), newTestPwd, loginTracker.get());
@@ -2346,7 +2346,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
         ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes after change password for account " << changedTestAcc.c_str();
     }
 
-    ASSERT_STRCASEEQ(changedTestAcc.c_str(), megaApi[0]->getMyEmail()) << "my email not set correctly after changed";
+    ASSERT_STRCASEEQ(changedTestAcc.c_str(), std::unique_ptr<char[]>{megaApi[0]->getMyEmail()}.get()) << "my email not set correctly after changed";
 
 
     // delete the account
