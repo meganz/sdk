@@ -18143,6 +18143,7 @@ class MegaApi
          * - for recursive searches use search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
          * - for non-recursive searches use getChildren(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
          */
+        MEGA_DEPRECATED
         MegaNodeList* search(MegaNode* node, const char* searchString, bool recursive = 1, int order = ORDER_NONE);
 
         /**
@@ -18226,6 +18227,7 @@ class MegaApi
          * - for recursive searches use search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
          * - for non-recursive searches use getChildren(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
          */
+        MEGA_DEPRECATED
         MegaNodeList* search(MegaNode* node, const char* searchString, MegaCancelToken *cancelToken, bool recursive = 1, int order = ORDER_NONE);
 
         /**
@@ -18305,6 +18307,7 @@ class MegaApi
          *
          * @obsolete use search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
          */
+        MEGA_DEPRECATED
         MegaNodeList* search(const char* searchString, int order = ORDER_NONE);
 
         /**
@@ -18389,6 +18392,7 @@ class MegaApi
          *
          * @obsolete use search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
          */
+        MEGA_DEPRECATED
         MegaNodeList* search(const char* searchString, MegaCancelToken *cancelToken, int order = ORDER_NONE);
 
         /**
@@ -18469,6 +18473,7 @@ class MegaApi
          *
          * @obsolete use search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
          */
+        MEGA_DEPRECATED
         MegaNodeList* searchOnInShares(const char *searchString, MegaCancelToken *cancelToken, int order = ORDER_NONE);
 
         /**
@@ -18549,6 +18554,7 @@ class MegaApi
          *
          * @obsolete use search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
          */
+        MEGA_DEPRECATED
         MegaNodeList* searchOnOutShares(const char *searchString, MegaCancelToken *cancelToken, int order = ORDER_NONE);
 
         /**
@@ -18629,6 +18635,7 @@ class MegaApi
          *
          * @obsolete use search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
          */
+        MEGA_DEPRECATED
         MegaNodeList* searchOnPublicLinks(const char *searchString, MegaCancelToken *cancelToken, int order = ORDER_NONE);
 
         /**
@@ -18743,6 +18750,7 @@ class MegaApi
          * - for recursive searches use search(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
          * - for non-recursive searches use getChildren(const MegaSearchFilter* filter, int order, MegaCancelToken* cancelToken)
          */
+        MEGA_DEPRECATED
         MegaNodeList* searchByType(MegaNode *node, const char *searchString, MegaCancelToken *cancelToken, bool recursive = true, int order = ORDER_NONE, int mimeType = FILE_TYPE_DEFAULT, int target = SEARCH_TARGET_ALL, bool includeSensitive = true);
 
         /**
