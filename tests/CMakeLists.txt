@@ -1,10 +1,9 @@
-
-## Common interface target for test tools
-add_library(test_tools INTERFACE)
+# Common interface target for test tools
+add_library(test_tools STATIC)
 add_library(MEGA::test_tools ALIAS test_tools)
 
 target_sources(test_tools
-    INTERFACE
+    PRIVATE
     gtest_common.h
     sdk_test_utils.h
     stdfs.h
@@ -13,8 +12,10 @@ target_sources(test_tools
     sdk_test_utils.cpp
 )
 
+target_link_libraries(test_tools PRIVATE MEGA::SDKlib)
+
 target_include_directories(test_tools
-    INTERFACE
+    PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
