@@ -1,6 +1,6 @@
 #pragma once
 
-#include "mega/gfx/worker/comms.h"
+#include "mega/gfx/worker/comms_client_common.h"
 #include <windows.h>
 
 namespace mega {

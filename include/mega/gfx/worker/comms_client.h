@@ -11,7 +11,6 @@
 #include "mega/posix/gfx/worker/comms_client.h"
 #endif
 
-
 namespace mega {
 namespace gfx {
 
@@ -23,4 +22,3 @@ using GfxCommunicationsClient = PosixGfxCommunicationsClient;
 
 }
 }
-

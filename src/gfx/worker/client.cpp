@@ -2,7 +2,6 @@
 #include "mega/gfx/worker/command_serializer.h"
 #include "mega/gfx/worker/commands.h"
 #include "mega/gfx/worker/comms.h"
-#include "mega/gfx/worker/comms_client.h"
 #include "mega/logging.h"
 #include "mega/filesystem.h"
 #include "mega/types.h"
@@ -16,6 +15,11 @@
 using std::chrono::milliseconds;
 namespace mega {
 namespace gfx {
+
+GfxClient::GfxClient(std::unique_ptr<IGfxCommunicationsClient> comms) : mComms{std::move(comms)}
+{
+        assert(mComms);
+}
 
 bool GfxClient::runHello(const std::string& text)
 {

@@ -96,13 +96,5 @@ enum class CommError: uint8_t
     TIMEOUT         = 3,
 };
 
-class IGfxCommunicationsClient
-{
-public:
-    virtual ~IGfxCommunicationsClient() = default;
-
-    virtual CommError connect(std::unique_ptr<IEndpoint>& endpoint) = 0;
-};
-
 } //namespace gfx
 } //namespace mega
