@@ -12222,13 +12222,6 @@ sharedNode_vector MegaApiImpl::searchInNodeManager(const MegaSearchFilter* filte
     return results;
 }
 
-MegaNodeList* MegaApiImpl::search(MegaNode*, const char*, CancelToken, bool, int, int, int, bool)
-{
-    // This method is deprecated and it shouldn't be used
-    assert(false);
-    return new MegaNodeListPrivate();
-}
-
 long long MegaApiImpl::getSize(MegaNode *n)
 {
     if(!n) return 0;
