@@ -10,7 +10,7 @@
 namespace mega {
 namespace gfx {
 
-CommError PosixGfxCommunicationsClient::connect(std::unique_ptr<IEndpoint>& endpoint)
+CommError GfxCommunicationsClient::connect(std::unique_ptr<IEndpoint>& endpoint)
 {
     auto socket = std::make_unique<Socket>(::socket(AF_UNIX, SOCK_STREAM, 0), "client");
     if (!socket->isValid()) {
@@ -34,7 +34,7 @@ CommError PosixGfxCommunicationsClient::connect(std::unique_ptr<IEndpoint>& endp
     return CommError::OK;
 }
 
-CommError PosixGfxCommunicationsClient::toCommError(int error) const
+CommError GfxCommunicationsClient::toCommError(int error) const
 {
     switch (error) {
         case ENOENT:        // case socket hasn't been created yet

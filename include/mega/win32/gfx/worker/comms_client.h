@@ -6,10 +6,10 @@
 namespace mega {
 namespace gfx {
 
-class WinGfxCommunicationsClient : public IGfxCommunicationsClient
+class GfxCommunicationsClient : public IGfxCommunicationsClient
 {
 public:
-    WinGfxCommunicationsClient(const std::string& pipeName)
+    GfxCommunicationsClient(const std::string& pipeName)
         : mPipeName(pipeName)
     {
 

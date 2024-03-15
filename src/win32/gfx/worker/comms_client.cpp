@@ -15,7 +15,7 @@ private:
     Type type() const { return Type::Client; }
 };
 
-CommError WinGfxCommunicationsClient::doConnect(LPCTSTR pipeName, HANDLE &hPipe)
+CommError GfxCommunicationsClient::doConnect(LPCTSTR pipeName, HANDLE &hPipe)
 {
     CommError error = CommError::ERR;
     hPipe = INVALID_HANDLE_VALUE;
@@ -61,7 +61,7 @@ CommError WinGfxCommunicationsClient::doConnect(LPCTSTR pipeName, HANDLE &hPipe)
     return error;
 }
 
-CommError WinGfxCommunicationsClient::connect(std::unique_ptr<IEndpoint>& endpoint)
+CommError GfxCommunicationsClient::connect(std::unique_ptr<IEndpoint>& endpoint)
 {
     const auto fullPipeName = win_utils::toFullPipeName(mPipeName);
     HANDLE hPipe = INVALID_HANDLE_VALUE;
@@ -70,7 +70,7 @@ CommError WinGfxCommunicationsClient::connect(std::unique_ptr<IEndpoint>& endpoi
     return error;
 }
 
-CommError WinGfxCommunicationsClient::toCommError(DWORD winError) const
+CommError GfxCommunicationsClient::toCommError(DWORD winError) const
 {
     switch (winError) {
     case ERROR_SUCCESS:

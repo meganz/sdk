@@ -5,10 +5,10 @@
 namespace mega {
 namespace gfx {
 
-class PosixGfxCommunicationsClient : public IGfxCommunicationsClient
+class GfxCommunicationsClient : public IGfxCommunicationsClient
 {
 public:
-    PosixGfxCommunicationsClient(const std::string& name)
+    GfxCommunicationsClient(const std::string& name)
         : mName(name)
     {
 
