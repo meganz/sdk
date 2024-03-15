@@ -1,20 +1,10 @@
 #pragma once
 
 #include "mega/gfx/worker/comms.h"
-#include "mega/win32/gfx/worker/comms.h"
 #include <windows.h>
 
 namespace mega {
 namespace gfx {
-
-class ClientNamedPipe : public NamedPipe
-{
-public:
-    ClientNamedPipe(HANDLE h) : NamedPipe(h, "client") {}
-
-private:
-    Type type() const { return Type::Client; }
-};
 
 class WinGfxCommunicationsClient : public IGfxCommunicationsClient
 {

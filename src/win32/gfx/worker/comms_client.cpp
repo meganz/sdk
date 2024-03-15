@@ -1,9 +1,19 @@
 #include "mega/logging.h"
 #include "mega/win32/gfx/worker/comms_client.h"
 #include "mega/gfx/worker/comms.h"
+#include "mega/win32/gfx/worker/comms.h"
 
 namespace mega {
 namespace gfx {
+
+class ClientNamedPipe : public NamedPipe
+{
+public:
+    ClientNamedPipe(HANDLE h) : NamedPipe(h, "client") {}
+
+private:
+    Type type() const { return Type::Client; }
+};
 
 CommError WinGfxCommunicationsClient::doConnect(LPCTSTR pipeName, HANDLE &hPipe)
 {
