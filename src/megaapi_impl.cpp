@@ -12196,8 +12196,7 @@ sharedNode_vector MegaApiImpl::searchInNodeManager(const MegaSearchFilter* filte
 {
     ShareType_t shareType = filter->byLocation() == MegaApi::SEARCH_TARGET_INSHARE ? IN_SHARES :
                             (filter->byLocation() == MegaApi::SEARCH_TARGET_OUTSHARE ? OUT_SHARES :
-                            (filter->byLocation() == MegaApi::SEARCH_TARGET_PUBLICLINK ? LINK :
-                            (filter->byLocation() == MegaApi::SEARCH_TARGET_PENDING_OUTSHARE ? PENDING_OUTSHARES : NO_SHARES)));
+                            (filter->byLocation() == MegaApi::SEARCH_TARGET_PUBLICLINK ? LINK : NO_SHARES));
 
     NodeSearchFilter nf;
     nf.copyFrom(*filter, shareType);

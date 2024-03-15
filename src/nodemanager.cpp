@@ -333,8 +333,7 @@ sharedNode_list NodeManager::getChildren_internal(const Node *parent, CancelToke
 
         std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
         NodeSearchFilter nf;
-        std::vector<handle> locations{parent->nodehandle, UNDEF, UNDEF};
-        nf.setLocationHandles(locations);
+        nf.byAncestors(std::vector<handle>{parent->nodehandle, UNDEF, UNDEF});
         mTable->getChildren(nf, 0 /*Order none*/, nodesFromTable, cancelToken, NodeSearchPage{0, 0});
         if (cancelToken.isCancelled())
         {

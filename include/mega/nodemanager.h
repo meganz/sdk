@@ -69,7 +69,6 @@ public:
     const std::vector<handle>& byAncestorHandles() const { return mLocationHandles; }
     // non-recursive look-ups (getChildren)
     handle byParentHandle() const { assert(!mLocationHandles.empty()); return mLocationHandles[0]; }
-    void setLocationHandles(std::vector<handle>& locationHandles) { assert(locationHandles.size() == 3); mLocationHandles = locationHandles; }
 
     // recursive look-ups (searchNodes): type of shares to be included when searching;
     // non-recursive look-ups (getChildren): ignored.
