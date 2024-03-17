@@ -23,6 +23,16 @@ struct SocketUtils
     static std::filesystem::path toSocketPath(const std::string& name);
 
     /**
+     * @brief It creates a stream socket and connects to a UNIX domain socket server.
+     *
+     * @param socketPath The socket path that the server is listening on
+     *
+     * @return A pair of an error_code and a file descriptior. On Success, 0 error_code and a valid file descriptor
+     *         pair is returned. On error, a non-zero error_code and -1 pair is returned.
+     */
+    static std::pair<std::error_code, int> connect(const std::filesystem::path& socketPath);
+
+    /**
      * @brief It creates a stream UNIX domain socket, binds on the socketPath and listen on it.
      *
      * @param socketPath The socket path to bind on

@@ -7,6 +7,7 @@
 
 #include <chrono>
 #include <system_error>
+#include <unistd.h>
 
 using std::chrono::milliseconds;
 using std::error_code;
@@ -111,14 +112,14 @@ error_code doBindAndListen(int fd, const std::string& socketPath)
     // Bind name
     if (::bind(fd, reinterpret_cast<struct sockaddr*>(&un), sizeof(un)) == -1)
     {
-        LOG_err << "fail to bind UNIX domain socket name: " << socketPath << " errno: " << errno;
+        LOG_err << "Fail to bind UNIX domain socket name: " << socketPath << " errno: " << errno;
         return error_code{errno, system_category()};
     }
 
     // Listen
     if (::listen(fd, QUEUE_LEN) < 0)
     {
-        LOG_err << "fail to listen UNIX domain socket name: " << socketPath << " errno: " << errno;
+        LOG_err << "Fail to listen UNIX domain socket name: " << socketPath << " errno: " << errno;
         return error_code{errno, system_category()};
     }
 
@@ -225,6 +226,29 @@ error_code SocketUtils::read(int fd, void* buf, size_t n, milliseconds timeout)
 
     // Success
     return error_code{};
+}
+
+std::pair<error_code, int>  SocketUtils::connect(const fs::path& socketPath)
+{
+    auto fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
+    if (fd < 0) {
+        LOG_err << "Fail to create a UNIX domain socket: " << socketPath.string() << " errno: " << errno;
+        return {error_code{errno, system_category()}, -1};
+    }
+
+    struct sockaddr_un addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sun_family = AF_UNIX;
+    strncpy(addr.sun_path, socketPath.c_str(), maxSocketPathLength());
+
+    if (::connect(fd, (const struct sockaddr *) &addr, sizeof(addr)) < 0)
+    {
+        LOG_err << "Fail to connect " << socketPath.string() << " errno: " << errno;
+        ::close(fd);
+        return {error_code{errno, system_category()}, -1};
+    }
+
+    return {error_code{}, fd};
 }
 
 std::pair<error_code, int> SocketUtils::listen(const fs::path& socketPath)
