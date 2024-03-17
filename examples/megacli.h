@@ -302,6 +302,7 @@ void exec_cancelsignup(autocomplete::ACState& s);
 void exec_session(autocomplete::ACState& s);
 void exec_mount(autocomplete::ACState& s);
 void exec_ls(autocomplete::ACState& s);
+void exec_stat(autocomplete::ACState& s);
 void exec_cd(autocomplete::ACState& s);
 void exec_pwd(autocomplete::ACState& s);
 void exec_lcd(autocomplete::ACState& s);
