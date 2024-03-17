@@ -2143,6 +2143,235 @@ static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstre
     }
 }
 
+struct FolderStat
+{
+    uint64_t nBytes = 0;
+    uint64_t nFiles = 0;
+    uint64_t nFileVersions = 0;
+    uint64_t nFolders = 0;
+    uint64_t nPasswordNodes = 0;
+    uint64_t nPasswordNodeFolders = 0;
+    uint64_t nFoldersSharedWithMe = 0;
+
+    uint64_t nSharedFolders_Temporal = 0;
+    uint64_t nSharedFolders_Permanent = 0;
+    uint64_t nSharedFolderUsers = 0;
+    uint64_t nSharedFolderUsers_Pending = 0;
+
+    uint64_t nSharedFileLinks_Temporal = 0;
+    uint64_t nSharedFileLinks_Permanent = 0;
+    uint64_t nDeleted = 0;
+
+public:
+    explicit
+    FolderStat(bool show_shares, bool show_passinfo)
+        : m_show_shares(show_shares)
+        , m_show_passinfo(show_passinfo)
+    {
+    }
+
+    FolderStat& operator+=(const FolderStat& rhs)
+    {
+        nBytes += rhs.nBytes;
+        nFiles += rhs.nFiles;
+        nFileVersions += rhs.nFileVersions;
+        nFolders += rhs.nFolders;
+        nFoldersSharedWithMe += rhs.nFoldersSharedWithMe;
+        nPasswordNodes += rhs.nPasswordNodes;
+        nPasswordNodeFolders += rhs.nPasswordNodeFolders;
+        nSharedFolders_Temporal += rhs.nSharedFolders_Temporal;
+        nSharedFolders_Permanent += rhs.nSharedFolders_Permanent;
+        nSharedFolderUsers += rhs.nSharedFolderUsers;
+        nSharedFolderUsers_Pending += rhs.nSharedFolderUsers_Pending;
+        nSharedFileLinks_Temporal += rhs.nSharedFileLinks_Temporal;
+        nSharedFileLinks_Permanent += rhs.nSharedFileLinks_Permanent;
+        nDeleted += rhs.nDeleted;
+
+        return *this;
+    }
+
+    friend std::ostream& operator<<(std::ostream& os, const FolderStat& rhs)
+    {
+        os << "{"
+           << " nBytes: " << rhs.nBytes
+           << ", nFiles: " << rhs.nFiles
+           << ", nFileVersions: " << rhs.nFileVersions
+           << ", nFolders: " << rhs.nFolders
+           << ", nDeleted: " << rhs.nDeleted;
+
+        if (rhs.m_show_passinfo)
+        {
+           os << ", nPasswordNodes: " << rhs.nPasswordNodes
+              << ", nPasswordNodeFolders: " << rhs.nPasswordNodeFolders;
+        }
+
+        if (rhs.m_show_shares)
+        {
+            os << ", nFoldersSharedWithMe: " << rhs.nFoldersSharedWithMe
+               << ", nSharedFolders_Temporal: " << rhs.nSharedFolders_Temporal
+               << ", nSharedFolders_Permanent: " << rhs.nSharedFolders_Permanent
+               << ", nSharedFolderUsers: " << rhs.nSharedFolderUsers
+               << ", nSharedFolderUsers_Pending: " << rhs.nSharedFolderUsers_Pending
+               << ", nSharedFileLinks_Temporal: " << rhs.nSharedFileLinks_Temporal
+               << ", nSharedFileLinks_Permanent: " << rhs.nSharedFileLinks_Permanent;
+        }
+
+        os << " }";
+
+        return os;
+    }
+
+private:
+    bool m_show_shares = false;
+    bool m_show_passinfo = false;
+};
+
+static FolderStat dumptreestats(
+        Node* n,
+        bool list_dirs,
+        bool list_files,
+        bool show_shares,
+        bool show_passinfo,
+        int depth,
+        const char* title,
+        ofstream* toFile
+    )
+{
+    FolderStat stat{show_shares, show_passinfo};
+    std::ostream& stream = toFile ? *toFile : cout;
+    string titleTmp;
+
+    switch (n->type)
+    {
+        case FILENODE:
+        {
+            stat.nFiles += 1;
+            stat.nBytes += n->size;
+
+            sharedNode_list nodeChildren = client->mNodeManager.getChildren(n);
+            if (nodeChildren.size())
+            {
+                Node *version = n;
+                size_t i = 0;
+                while (nodeChildren.size() && (version = nodeChildren.back().get()))
+                {
+                    i++;
+                    nodeChildren = client->mNodeManager.getChildren(version);
+                }
+
+                stat.nFileVersions += i;
+            }
+
+            if (n->plink)
+            {
+                if (n->plink->ets)
+                {
+                    stat.nSharedFileLinks_Temporal += 1;
+                }
+                else
+                {
+                    stat.nSharedFileLinks_Permanent += 1;
+                }
+            }
+
+            break;
+        }
+
+        case FOLDERNODE:
+        {
+            if (n->isPasswordNode())            stat.nPasswordNodes += 1;
+            else if (n->isPasswordNodeFolder()) stat.nPasswordNodeFolders += 1;
+            else                                stat.nFolders += 1;
+
+            if (n->plink)
+            {
+                if (n->plink->ets)
+                {
+                    stat.nSharedFolders_Temporal += 1;
+                }
+                else
+                {
+                    stat.nSharedFolders_Permanent += 1;
+                }
+            }
+
+            if(n->outshares)
+            {
+                size_t i = 0;
+                for (share_map::iterator it = n->outshares->begin(); it != n->outshares->end(); it++)
+                {
+                    if (it->first)
+                    {
+                        ++i;
+                    }
+                }
+
+                stat.nSharedFolderUsers += i;
+            }
+
+            if (n->pendingshares)
+            {
+                size_t i = 0;
+                for (share_map::iterator it = n->pendingshares->begin(); it != n->pendingshares->end(); it++)
+                {
+                    if (it->first)
+                    {
+                        ++i;
+                    }
+                }
+
+                stat.nSharedFolderUsers_Pending += i;
+            }
+
+            if (n->inshare)
+            {
+                stat.nFoldersSharedWithMe += 1;
+            }
+
+            break;
+        }
+
+        default:
+            if (depth != 0)
+                stream << "unsupported type, please upgrade\n";
+    }
+
+    stat.nDeleted += n->changed.removed ? 1 : 0;
+
+    if (n->type != FILENODE)
+    {
+        for (auto& node : client->getChildren(n))
+        {
+            FolderStat cur_stat = dumptreestats(
+                                        node.get(),
+                                        list_dirs,
+                                        list_files,
+                                        show_shares,
+                                        show_passinfo,
+                                        depth + 1,
+                                        NULL,
+                                        toFile
+                                    );
+
+            stat += cur_stat;
+        }
+
+        if (list_dirs || depth == 0)
+        {
+            stream << n->displaypath() << ": " << stat << "\n";
+        }
+    }
+    else
+    {
+        if (list_files || depth == 0)
+        {
+            stream << n->displaypath() << ": " << stat << "\n";
+        }
+    }
+
+    return stat;
+}
+
 #ifdef USE_FILESYSTEM
 static void local_dumptree(const fs::path& de, int recurse, int depth = 0)
 {
@@ -4036,6 +4265,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_session, sequence(text("session"), opt(sequence(text("autoresume"), opt(param("id"))))));
     p->Add(exec_mount, sequence(text("mount")));
     p->Add(exec_ls, sequence(text("ls"), opt(flag("-R")), opt(sequence(flag("-tofile"), param("filename"))), opt(remoteFSFolder(client, &cwd))));
+    p->Add(exec_stat, sequence(text("stat"), opt(either(flag("-s"), flag("-a"))), opt(flag("-S")), opt(flag("-P")), opt(sequence(flag("-tofile"), param("filename"))), opt(remoteFSFolder(client, &cwd))));
     p->Add(exec_cd, sequence(text("cd"), opt(remoteFSFolder(client, &cwd))));
     p->Add(exec_pwd, sequence(text("pwd")));
     p->Add(exec_lcd, sequence(text("lcd"), opt(localFSFolder())));
@@ -4716,6 +4946,51 @@ void exec_ls(autocomplete::ACState& s)
     if (n)
     {
         dumptree(n.get(), recursive, 0, NULL, toFileFlag ? &toFile : nullptr);
+    }
+}
+
+void exec_stat(autocomplete::ACState& s)
+{
+    std::shared_ptr<Node> n;
+    string toFilename;
+    const bool toFileFlag = s.extractflagparam("-tofile", toFilename);
+    const bool summarize = s.extractflag("-s");
+    const bool list_all = s.extractflag("-a");
+    const bool show_shares = s.extractflag("-S");
+    const bool show_passinfo = s.extractflag("-P");
+
+    ofstream toFile;
+    if (toFileFlag)
+    {
+        toFile.open(toFilename);
+    }
+
+    if (s.words.size() > 1)
+    {
+        n = nodebypath(s.words[1].s.c_str());
+    }
+    else
+    {
+        n = client->nodeByHandle(cwd);
+    }
+
+    if (n)
+    {
+        assert(!(summarize == true && list_all == true));
+
+        const bool list_dirs = summarize ? false : true;
+        const bool list_files = list_all ? true : false;
+
+        dumptreestats(
+                n.get(),
+                list_dirs,
+                list_files,
+                show_shares,
+                show_passinfo,
+                0,
+                nullptr,
+                toFileFlag ? &toFile : nullptr
+            );
     }
 }
 

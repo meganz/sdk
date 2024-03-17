@@ -303,6 +303,7 @@ target_compile_definitions(SDKlib
     $<$<BOOL:${ENABLE_CHAT}>:ENABLE_CHAT>
     $<$<BOOL:${ENABLE_SYNC}>:ENABLE_SYNC>
     $<$<BOOL:${USE_LIBUV}>:HAVE_LIBUV>
+    $<$<BOOL:${USE_FREEIMAGE}>:USE_FREEIMAGE>
 )
 
 set_target_properties(SDKlib PROPERTIES
