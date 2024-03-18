@@ -48,7 +48,8 @@ error_code poll(std::vector<struct pollfd> fds, milliseconds timeout)
         LOG_err << "Fail to poll: " << errno;
         return error_code{errno, system_category()};
     }
-    else if (ret == 0)
+
+    if (ret == 0)
     {
         return error_code{ETIMEDOUT, system_category()};
     }
@@ -146,19 +147,21 @@ std::pair<error_code, int> SocketUtils::accept(int listeningFd, milliseconds tim
         }
 
         const auto dataSocket = ::accept(listeningFd, nullptr, nullptr);
-        if (dataSocket < 0 && isRetryErrorNo(errno))
+
+        // Success
+        if (dataSocket >= 0)
         {
-            LOG_info << "Retry accept due to errno: " << errno; // retry
-            continue;
+            return {error_code{}, dataSocket};
         }
-        else if (dataSocket < 0)
+
+        // Non retry error
+        if (dataSocket < 0 && !isRetryErrorNo(errno))
         {
             return {error_code{errno, system_category()}, -1};  // error
         }
-        else
-        {
-            return {error_code{}, dataSocket};                  // success
-        }
+
+        // Retry error (dataSocket < 0 && isRetryErrorNo(errno)
+        LOG_info << "Retry accept due to errno: " << errno;
     } while (true);
 }
 
@@ -176,18 +179,21 @@ error_code SocketUtils::write(int fd, const void* data, size_t n, milliseconds t
         // Write
         const size_t remaining = n - offset;
         const ssize_t written = ::write(fd, static_cast<const char *>(data) + offset, remaining);
-        if (written < 0 && isRetryErrorNo(errno))
-        {
-            continue;                                    // retry
-        }
-        else if (written < 0)
+
+        // Non retry errors
+        if (written < 0 && !isRetryErrorNo(errno))
         {
             LOG_err << "Fail to write, errno: " << errno;
-            return error_code{errno, system_category()}; // error
+            return error_code{errno, system_category()};
         }
-        else
+
+        // Note: retry errors, continue
+        // (written < 0 && isRetryErrorNo(errno))
+
+        // success
+        if (written > 0)
         {
-            offset += static_cast<size_t>(written);      // success
+            offset += static_cast<size_t>(written);
         }
     }
 
@@ -209,23 +215,27 @@ error_code SocketUtils::read(int fd, void* buf, size_t n, milliseconds timeout)
         const size_t remaining = n - offset;
         const ssize_t bytesRead = ::read(fd, static_cast<char *>(buf) + offset, remaining);
 
-        if (bytesRead < 0 && isRetryErrorNo(errno))
-        {
-            continue;                                    // retry
-        }
-        else if (bytesRead < 0)
+         // None retry errors
+        if (bytesRead < 0 && !isRetryErrorNo(errno))
         {
             LOG_err << "Fail to read, errno: " << errno;
-            return error_code{errno, system_category()}; // error
+            return error_code{errno, system_category()};
         }
-        else if (bytesRead == 0 && offset < n)
+
+        // End of file and not read all needed
+        if (bytesRead == 0 && offset < n)
         {
             LOG_err << "Fail to read, aborted";
-            return error_code{ECONNABORTED, system_category()}; // end of file and not read all needed
+            return error_code{ECONNABORTED, system_category()};
         }
-        else
+
+        // Note: retry error, continue
+        // (bytesRead < 0 && isRetryErrorNo(errno))
+
+        // Success
+        if (bytesRead > 0)
         {
-            offset += static_cast<size_t>(bytesRead);      // success
+            offset += static_cast<size_t>(bytesRead);
         }
     }
 
