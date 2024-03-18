@@ -45,7 +45,7 @@ error_code poll(std::vector<struct pollfd> fds, milliseconds timeout)
 
     if (ret < 0)
     {
-        LOG_err << "Error in poll: " << errno;
+        LOG_err << "Fail to poll: " << errno;
         return error_code{errno, system_category()};
     }
     else if (ret == 0)
@@ -169,6 +169,7 @@ error_code SocketUtils::write(int fd, const void* data, size_t n, milliseconds t
         // Poll
         if (const auto errorCode = pollForWrite(fd, timeout))
         {
+            LOG_err << "Fail to pollForWrite, " << errorCode.message();
             return errorCode;
         }
 
@@ -181,6 +182,7 @@ error_code SocketUtils::write(int fd, const void* data, size_t n, milliseconds t
         }
         else if (written < 0)
         {
+            LOG_err << "Fail to write, errno: " << errno;
             return error_code{errno, system_category()}; // error
         }
         else
@@ -199,6 +201,7 @@ error_code SocketUtils::read(int fd, void* buf, size_t n, milliseconds timeout)
         // Poll
         if (const auto errorCode = pollForRead(fd, timeout); errorCode)
         {
+            LOG_err << "Fail to pollForRead, " << errorCode.message();
             return errorCode;
         }
 
@@ -212,10 +215,12 @@ error_code SocketUtils::read(int fd, void* buf, size_t n, milliseconds timeout)
         }
         else if (bytesRead < 0)
         {
+            LOG_err << "Fail to read, errno: " << errno;
             return error_code{errno, system_category()}; // error
         }
         else if (bytesRead == 0 && offset < n)
         {
+            LOG_err << "Fail to read, aborted";
             return error_code{ECONNABORTED, system_category()}; // end of file and not read all needed
         }
         else
@@ -256,7 +261,7 @@ std::pair<error_code, int> SocketUtils::listen(const fs::path& socketPath)
     // Check name, extra 1 for null terminated
     if (strlen(socketPath.c_str()) >= maxSocketPathLength())
     {
-        LOG_err << "unix domain socket name is too long, " << socketPath.string();
+        LOG_err << "Unix domain socket name is too long, " << socketPath.string();
         return {error_code{ENAMETOOLONG, system_category()}, -1};
     }
 
@@ -264,7 +269,7 @@ std::pair<error_code, int> SocketUtils::listen(const fs::path& socketPath)
     // fail to unlink is not an error: such as not exists as for most cases
     if (::unlink(socketPath.c_str()) < 0)
     {
-        LOG_info << "fail to unlink: " << socketPath.string() << " errno: " << errno;
+        LOG_info << "Fail to unlink: " << socketPath.string() << " errno: " << errno;
     }
 
     // Create path
@@ -275,7 +280,7 @@ std::pair<error_code, int> SocketUtils::listen(const fs::path& socketPath)
     const auto fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd < 0)
     {
-        LOG_err << "fail to create a UNIX domain socket: " << socketPath.string() << " errno: " << errno;
+        LOG_err << "Fail to create a UNIX domain socket: " << socketPath.string() << " errno: " << errno;
         return {error_code{errno, system_category()}, -1};
     }
 
@@ -287,7 +292,7 @@ std::pair<error_code, int> SocketUtils::listen(const fs::path& socketPath)
     }
 
     // Success
-    LOG_verbose << "listening on UNIX domain socket name: " << socketPath.string();
+    LOG_verbose << "Listening on UNIX domain socket name: " << socketPath.string();
 
     return {error_code{}, fd};;
 }

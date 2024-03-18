@@ -19,11 +19,6 @@ public:
 
     int fd() const { return mSocket; }
 protected:
-    enum class Type
-    {
-        Client,
-        Server
-    };
 
     // file descriptor to the socket
     int mSocket{-1};

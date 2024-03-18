@@ -100,7 +100,6 @@ set(SDKLIB_SOURCES
     src/gfx/external.cpp
     src/gfx/freeimage.cpp
     src/gfx/gfx_pdfium.cpp
-    src/gfx/worker/client.cpp
     src/gfx/worker/commands.cpp
     src/gfx/worker/command_serializer.cpp
     src/http.cpp
@@ -193,7 +192,7 @@ target_sources_conditional(SDKlib
 )
 
 target_sources_conditional(SDKlib
-    FLAG UNIX AND ENABLE_ISOLATED_GFX
+    FLAG LINUX AND ENABLE_ISOLATED_GFX
     PRIVATE
     include/mega/posix/gfx/worker/comms.h
     include/mega/posix/gfx/worker/comms_client.h
@@ -209,6 +208,7 @@ target_sources_conditional(SDKlib
     include/mega/gfx/worker/comms_client_common.h
     include/mega/gfx/worker/comms_client.h
     src/gfx/isolatedprocess.cpp
+    src/gfx/worker/client.cpp
 )
 
 target_sources_conditional(SDKlib

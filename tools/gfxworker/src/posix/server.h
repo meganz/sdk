@@ -14,7 +14,7 @@ class ServerPosix
 public:
 
     /**
-     * @brief A server listening on the named pipe for alive seconds
+     * @brief A server listening on the named unix domain socket for alive seconds
      *
      * @param requestProcessor the request processor
      * @param socketName the socket name

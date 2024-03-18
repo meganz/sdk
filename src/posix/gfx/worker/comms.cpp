@@ -20,7 +20,7 @@ Socket::~Socket()
     if (isValid())
     {
         ::close(mSocket);
-        LOG_verbose << "socket " << mName << "_" << mSocket << " closed";
+        LOG_verbose << "Socket " << mName << "_" << mSocket << " closed";
     }
 }
 
@@ -40,7 +40,7 @@ bool Socket::doRead(void* out, size_t n, TimeoutMs timeout)
     const auto errorCode = SocketUtils::read(mSocket, out, n, static_cast<milliseconds>(timeout));
     if (errorCode)
     {
-        LOG_err << "read from socket " << mName << "_" << mSocket << " error: " << errorCode.message();
+        LOG_err << "Read from socket " << mName << "_" << mSocket << " error: " << errorCode.message();
     }
     return !errorCode;
 }

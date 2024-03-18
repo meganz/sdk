@@ -13,7 +13,7 @@ namespace gfx {
 struct SocketUtils
 {
     /**
-     * @brief It composes a valid path for the unix domain socket from the name 
+     * @brief Compose a valid path for the unix domain socket from the name 
      *        in the format /tmp/MegaLimited<uid>/name. <uid> is the real user id.
      *
      * @param name a valid file name
@@ -23,7 +23,7 @@ struct SocketUtils
     static std::filesystem::path toSocketPath(const std::string& name);
 
     /**
-     * @brief It creates a stream socket and connects to a UNIX domain socket server.
+     * @brief Create a stream socket and connect it to a UNIX domain socket server.
      *
      * @param socketPath The socket path that the server is listening on
      *
@@ -33,7 +33,7 @@ struct SocketUtils
     static std::pair<std::error_code, int> connect(const std::filesystem::path& socketPath);
 
     /**
-     * @brief It creates a stream UNIX domain socket, binds on the socketPath and listen on it.
+     * @brief Create a stream UNIX domain socket, bind it on the socketPath and listen on it.
      *
      * @param socketPath The socket path to bind on
      *
@@ -43,7 +43,7 @@ struct SocketUtils
     static std::pair<std::error_code, int> listen(const std::filesystem::path& socketPath);
 
     /**
-     * @brief It accepts on the listening file descriptor with timeout
+     * @brief Accept on the listening file descriptor with timeout
      *
      * @param listeningFd The listening file descriptor
      *
