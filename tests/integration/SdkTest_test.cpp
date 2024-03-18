@@ -31,7 +31,7 @@
 #include <algorithm>
 #include <cctype>
 
-#if !defined (WIN32)
+#if !defined(WIN32) && defined(ENABLE_ISOLATED_GFX)
 #include "mega/posix/gfx/worker/socket_utils.h"
 using ::mega::gfx::SocketUtils;
 #endif
@@ -355,7 +355,7 @@ MegaApiTest::MegaApiTest(const std::string& endpointName,
 
 MegaApiTest::~MegaApiTest()
 {
-#if !defined (WIN32)
+#if !defined(WIN32) && defined(ENABLE_ISOLATED_GFX)
     // Clean up socket file if it has been created
     if (!mEndpointName.empty())
     {

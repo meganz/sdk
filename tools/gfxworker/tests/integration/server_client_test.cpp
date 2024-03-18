@@ -25,7 +25,7 @@ using mega::getCurrentPid;
 using mega_test::ExecutableDir;
 using namespace std::chrono_literals;
 
-#if !defined(WIN32)
+#if !defined(WIN32) && defined(ENABLE_ISOLATED_GFX)
 #include <mega/posix/gfx/worker/socket_utils.h>
 #include <filesystem>
 using mega::gfx::SocketUtils;
@@ -44,7 +44,7 @@ protected:
 
     void TearDown() override
     {
-    #if !defined(WIN32)
+    #if !defined(WIN32) && defined(ENABLE_ISOLATED_GFX)
         // Clean up socket file on UNIX
         fs::remove(SocketUtils::toSocketPath(mEndpointName));
     #endif
