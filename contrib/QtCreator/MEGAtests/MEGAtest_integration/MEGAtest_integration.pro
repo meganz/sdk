@@ -52,15 +52,15 @@ QMAKE_CXXFLAGS+=-std=c++17
 
 SOURCES += \
 $$MEGASDK_BASE_PATH/tests/gtest_common.cpp \
+$$MEGASDK_BASE_PATH/tests/sdk_test_utils.cpp \
 $$MEGASDK_BASE_PATH/tests/integration/main.cpp \
 $$MEGASDK_BASE_PATH/tests/integration/SdkTest_test.cpp \
-$$MEGASDK_BASE_PATH/tests/integration/sdk_test_utils.cpp \
 $$MEGASDK_BASE_PATH/tests/integration/Sync_test.cpp
 
 HEADERS += \
 $$MEGASDK_BASE_PATH/tests/gtest_common.h \
+$$MEGASDK_BASE_PATH/tests/sdk_test_utils.h \
 $$MEGASDK_BASE_PATH/tests/integration/test.h \
-$$MEGASDK_BASE_PATH/tests/integration/sdk_test_utils.h \
 $$MEGASDK_BASE_PATH/tests/integration/SdkTest_test.h
 
 INCLUDEPATH += $$MEGASDK_BASE_PATH/tests

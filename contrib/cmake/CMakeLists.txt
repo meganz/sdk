@@ -1088,9 +1088,9 @@ add_executable(test_unit
 add_executable(test_integration
     ${MegaDir}/tests/gtest_common.cpp
     ${MegaDir}/tests/gtest_common.h
+    ${MegaDir}/tests/sdk_test_utils.cpp
+    ${MegaDir}/tests/sdk_test_utils.h
     ${MegaDir}/tests/integration/main.cpp
-    ${MegaDir}/tests/integration/sdk_test_utils.cpp
-    ${MegaDir}/tests/integration/sdk_test_utils.h
     ${MegaDir}/tests/integration/SdkTest_test.cpp
     ${MegaDir}/tests/integration/SdkTest_test.h
     ${MegaDir}/tests/integration/Sync_test.cpp
