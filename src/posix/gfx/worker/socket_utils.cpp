@@ -64,7 +64,7 @@ error_code pollFd(int fd, short events, milliseconds timeout)
         {.fd = fd, .events = events, .revents = 0}
     };
 
-    if (auto errorCode = poll(fds, timeout); errorCode)
+    if (auto errorCode = poll(fds, timeout))
     {
         return errorCode;
     }
@@ -199,7 +199,7 @@ error_code SocketUtils::read(int fd, void* buf, size_t n, milliseconds timeout)
     size_t offset = 0;
     while (offset < n) {
         // Poll
-        if (const auto errorCode = pollForRead(fd, timeout); errorCode)
+        if (const auto errorCode = pollForRead(fd, timeout))
         {
             LOG_err << "Fail to pollForRead, " << errorCode.message();
             return errorCode;
