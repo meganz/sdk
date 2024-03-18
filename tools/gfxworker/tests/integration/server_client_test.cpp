@@ -6,6 +6,7 @@
 #include "mega/gfx.h"
 #include "mega/win32/gfx/worker/comms_client.h"
 #include "mega/gfx/worker/client.h"
+#include "mega/utils.h"
 
 #include <gtest/gtest.h>
 
@@ -24,6 +25,7 @@ using mega::gfx::GfxClient;
 using mega::gfx::IEndpoint;
 using mega::GfxDimension;
 using mega::LocalPath;
+using mega::getCurrentPid;
 using mega_test::ExecutableDir;
 using namespace std::chrono_literals;
 
@@ -33,7 +35,9 @@ class ServerClientTest : public testing::Test
 protected:
     void SetUp() override
     {
-        mPipeName = "MEGA_GFXWOKER_UNIT_TEST";
+        std::ostringstream oss;
+        oss << "MEGA_GFXWOKER_UNIT_TEST_" << getCurrentPid();
+        mPipeName = oss.str();
     }
 
     std::string mPipeName;

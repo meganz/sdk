@@ -3,28 +3,22 @@ add_executable(test_integration)
 target_sources(test_integration
     PRIVATE
     SdkTest_test.h
-    stdfs.h
     test.h
-    sdk_test_utils.h
-    ../gtest_common.h
 
     main.cpp
     SdkTest_test.cpp
     Sync_test.cpp
-    sdk_test_utils.cpp
-    ../gtest_common.cpp
-)
-
-target_include_directories(test_integration
-    PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../
 )
 
 # Link with SDKlib
 target_link_libraries(test_integration PRIVATE MEGA::SDKlib)
 
-# Link with the common interface library for the tests.
-target_link_libraries(test_integration PRIVATE test_common)
+# Link with the common and tools interface libraries for the tests.
+target_link_libraries(test_integration
+    PRIVATE
+    MEGA::test_tools
+    MEGA::test_common
+)
 
 # Adjust compilation flags for warnings and errors
 target_platform_compile_options(
