@@ -4,7 +4,6 @@
 #include "processor.h"
 
 #include "mega/gfx.h"
-#include "mega/gfx/worker/comms_client.h"
 #include "mega/gfx/worker/client.h"
 #include "mega/utils.h"
 
@@ -26,6 +25,12 @@ using mega::getCurrentPid;
 using mega_test::ExecutableDir;
 using namespace std::chrono_literals;
 
+#if !defined(WIN32)
+#include <mega/posix/gfx/worker/socket_utils.h>
+#include <filesystem>
+using mega::gfx::SocketUtils;
+namespace fs = std::filesystem;
+#endif
 
 class ServerClientTest : public testing::Test
 {
@@ -35,6 +40,14 @@ protected:
         std::ostringstream oss;
         oss << "MEGA_GFXWOKER_UNIT_TEST_" << getCurrentPid();
         mEndpointName = oss.str();
+    }
+
+    void TearDown() override
+    {
+    #if !defined(WIN32)
+        // Clean up socket file on UNIX
+        fs::remove(SocketUtils::toSocketPath(mEndpointName));
+    #endif
     }
 
     std::string mEndpointName; // Used as pipe name on Windows, domain socket name on Linux

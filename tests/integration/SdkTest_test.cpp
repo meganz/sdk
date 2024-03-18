@@ -31,6 +31,11 @@
 #include <algorithm>
 #include <cctype>
 
+#if !defined (WIN32)
+#include "mega/posix/gfx/worker/socket_utils.h"
+using ::mega::gfx::SocketUtils;
+#endif
+
 #define SSTR( x ) static_cast< const std::ostringstream & >( \
         (  std::ostringstream() << std::dec << x ) ).str()
 
@@ -307,10 +312,12 @@ namespace
     {
     #ifdef ENABLE_ISOLATED_GFX
         auto gfxworkerPath = sdk_test::getTestDataDir() / executableName("gfxworker");
+        auto endpointName = newEndpointName();
         std::unique_ptr<MegaGfxProvider> provider{
-            MegaGfxProvider::createIsolatedInstance(newEndpointName().c_str(), gfxworkerPath.string().c_str())
+            MegaGfxProvider::createIsolatedInstance(endpointName.c_str(), gfxworkerPath.string().c_str())
         };
-        return new MegaApiTest(appKey,
+        return new MegaApiTest(endpointName,
+                               appKey,
                                provider.get(),
                                basePath,
                                userAgent,
@@ -324,6 +331,44 @@ namespace
 }
 
 std::map<size_t, std::string> gSessionIDs;
+
+MegaApiTest::MegaApiTest(const char* appKey,
+                         const char* basePath,
+                         const char* userAgent,
+                         unsigned workerThreadCount,
+                         const int clientType):
+    MegaApi(appKey, basePath, userAgent, workerThreadCount, clientType)
+{
+}
+
+MegaApiTest::MegaApiTest(const std::string& endpointName,
+                         const char* appKey,
+                         MegaGfxProvider* provider,
+                         const char* basePath,
+                         const char* userAgent,
+                         unsigned workerThreadCount,
+                         const int clientType):
+    MegaApi(appKey, provider, basePath, userAgent, workerThreadCount, clientType),
+    mEndpointName(endpointName)
+{
+}
+
+MegaApiTest::~MegaApiTest()
+{
+#if !defined (WIN32)
+    // Clean up socket file if it has been created
+    if (!mEndpointName.empty())
+    {
+        fs::remove(SocketUtils::toSocketPath(mEndpointName));
+    }
+#endif
+}
+
+MegaClient* MegaApiTest::getClient()
+{
+    return pImpl->getMegaClient();
+}
+
 
 void SdkTest::SetUp()
 {
