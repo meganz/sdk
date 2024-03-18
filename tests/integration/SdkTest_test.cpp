@@ -311,8 +311,8 @@ namespace
                             const int clientType = MegaApi::CLIENT_TYPE_DEFAULT)
     {
     #ifdef ENABLE_ISOLATED_GFX
-        auto gfxworkerPath = sdk_test::getTestDataDir() / executableName("gfxworker");
-        auto endpointName = newEndpointName();
+        const auto gfxworkerPath = sdk_test::getTestDataDir() / executableName("gfxworker");
+        const auto endpointName = newEndpointName();
         std::unique_ptr<MegaGfxProvider> provider{
             MegaGfxProvider::createIsolatedInstance(endpointName.c_str(), gfxworkerPath.string().c_str())
         };
