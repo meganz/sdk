@@ -23,8 +23,8 @@ public:
      *                     if there is no request coming.
      */
     ServerPosix(std::unique_ptr<RequestProcessor> requestProcessor,
-                                 const std::string& socketName = "mega_gfxworker",
-                                 unsigned short aliveSeconds = 60);
+                const std::string& socketName = "mega_gfxworker",
+                unsigned short aliveSeconds = 60);
 
     void operator()();
 private:

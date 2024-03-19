@@ -12,8 +12,8 @@ namespace mega {
 namespace gfx {
 
 ServerPosix::ServerPosix(std::unique_ptr<RequestProcessor> requestProcessor,
-                                                           const std::string& socketName,
-                                                           unsigned short aliveSeconds)
+                         const std::string& socketName,
+                         unsigned short aliveSeconds)
     : mRequestProcessor{std::move(requestProcessor)}
     , mSocketName{socketName}
     , mWaitMs{ aliveSeconds == 0 ? -1 : aliveSeconds * 1000} // negative is infinitely
@@ -47,7 +47,8 @@ void ServerPosix::serverListeningLoop()
             LOG_info << "Exit listening loop, No more requests.";
             break;
         }
-        else if (errorCode)
+
+        if (errorCode)
         {
             LOG_info << "Exit listening loop, Error: " << errorCode.message();
             break;
