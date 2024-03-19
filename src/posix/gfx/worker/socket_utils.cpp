@@ -288,14 +288,10 @@ std::pair<error_code, int>  SocketUtils::connect(const fs::path& socketPath)
 
 std::pair<error_code, int> SocketUtils::listen(const fs::path& socketPath)
 {
-    // The name might exist
-    // fail to unlink is not an error: such as not exists as for most cases
-    if (::unlink(socketPath.c_str()) < 0)
-    {
-        LOG_info << "Fail to unlink: " << socketPath.string() << " errno: " << errno;
-    }
+    // Try to remove, it may not exist
+    fs::remove(socketPath);
 
-    // Create path
+    // Try to create path, it may already exist
     std::error_code errorCode;
     fs::create_directories(socketPath.parent_path(), errorCode);
 
