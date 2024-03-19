@@ -2,6 +2,7 @@
 #include "mega/logging.h"
 #include "mega/clock.h"
 
+#include <cassert>
 #include <filesystem>
 #include <poll.h>
 
@@ -143,7 +144,7 @@ std::pair<error_code, int> SocketUtils::accept(int listeningFd, milliseconds tim
         const auto errorCode = pollForAccept(listeningFd, timeout);
         if (errorCode)
         {
-            return {errorCode, -1};   // error
+            return {errorCode, -1};
         }
 
         const auto dataSocket = ::accept(listeningFd, nullptr, nullptr);
@@ -154,13 +155,16 @@ std::pair<error_code, int> SocketUtils::accept(int listeningFd, milliseconds tim
             return {error_code{}, dataSocket};
         }
 
-        // Non retry error
-        if (dataSocket < 0 && !isRetryErrorNo(errno))
+        assert(dataSocket < 0);
+
+        // None retry error
+        if (!isRetryErrorNo(errno))
         {
-            return {error_code{errno, system_category()}, -1};  // error
+            return {error_code{errno, system_category()}, -1};
         }
 
-        // Retry error (dataSocket < 0 && isRetryErrorNo(errno)
+        // Retry error
+        assert(isRetryErrorNo(errno));
         LOG_info << "Retry accept due to errno: " << errno;
     } while (true);
 }
@@ -187,14 +191,15 @@ error_code SocketUtils::write(int fd, const void* data, size_t n, milliseconds t
             return error_code{errno, system_category()};
         }
 
-        // Note: retry errors, continue
-        // (written < 0 && isRetryErrorNo(errno))
-
-        // success
-        if (written > 0)
+        // Note: retry errors
+        if (written < 0 && isRetryErrorNo(errno))
         {
-            offset += static_cast<size_t>(written);
+            continue;
         }
+
+        // Success
+        assert(written >= 0);
+        offset += static_cast<size_t>(written);
     }
 
     return error_code{};
@@ -222,6 +227,12 @@ error_code SocketUtils::read(int fd, void* buf, size_t n, milliseconds timeout)
             return error_code{errno, system_category()};
         }
 
+        // Retry error, continue
+        if (bytesRead < 0 && isRetryErrorNo(errno))
+        {
+            continue;
+        }
+
         // End of file and not read all needed
         if (bytesRead == 0 && offset < n)
         {
@@ -229,14 +240,9 @@ error_code SocketUtils::read(int fd, void* buf, size_t n, milliseconds timeout)
             return error_code{ECONNABORTED, system_category()};
         }
 
-        // Note: retry error, continue
-        // (bytesRead < 0 && isRetryErrorNo(errno))
-
         // Success
-        if (bytesRead > 0)
-        {
-            offset += static_cast<size_t>(bytesRead);
-        }
+        assert(bytesRead >= 0);
+        offset += static_cast<size_t>(bytesRead);
     }
 
     // Success
