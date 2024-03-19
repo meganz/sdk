@@ -288,11 +288,11 @@ std::pair<error_code, int>  SocketUtils::connect(const fs::path& socketPath)
 
 std::pair<error_code, int> SocketUtils::listen(const fs::path& socketPath)
 {
+    std::error_code errorCode;
     // Try to remove, it may not exist
-    fs::remove(socketPath);
+    fs::remove(socketPath, errorCode);
 
     // Try to create path, it may already exist
-    std::error_code errorCode;
     fs::create_directories(socketPath.parent_path(), errorCode);
 
     // Create a UNIX domain socket
