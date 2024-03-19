@@ -420,33 +420,42 @@ void SdkTest::Cleanup()
     {
         if (megaApi[nApi])
         {
-
             // Delete any inshares
             unique_ptr<MegaShareList> inshares(megaApi[nApi]->getInSharesList());
             for (int i = 0; i < inshares->size(); ++i)
             {
-                auto os = inshares->get(i);
+                LOG_debug << "[SdkTest::Cleanup] megaApi[" << nApi << "] [InShare = " << i << "] Inshare detected!";
+                auto in = inshares->get(i);
+                if (!in)
+                {
+                    LOG_debug << "[SdkTest::Cleanup] megaApi[" << nApi << "] [InShare = " << i << "] MegaShare object is null, skipping...";
+                    continue;
+                }
 
-                if (auto email = os->getUser())
+                if (auto email = in->getUser())
                 {
                     string email1 = string(std::unique_ptr<char[]>{megaApi[nApi]->getMyEmail()}.get());
-                    if (alreadyRemoved.find(email1+email) != alreadyRemoved.end()) continue;
-                    if (alreadyRemoved.find(email+email1) != alreadyRemoved.end()) continue;
-                    alreadyRemoved.insert(email1+email);
+                    if ((alreadyRemoved.find(email1+email) == alreadyRemoved.end()) &&
+                       (alreadyRemoved.find(email+email1) == alreadyRemoved.end()))
+                    {
+                        LOG_debug << "[SdkTest::Cleanup] megaApi[" << nApi << "] [InShare = " << i << "] Removing inshare's contact (also add '" << string(email1+email) << "' as alreadyRemoved)...";
+                        alreadyRemoved.insert(email1+email);
 
-                    unique_ptr<MegaUser> shareUser(megaApi[nApi]->getContact(email));
-                    if (shareUser)
-                    {
-                        auto result = synchronousRemoveContact(nApi, shareUser.get());
-                        if (result != API_OK)  LOG_err << "Could not remove inshare's contact " << email << " from megaapi " << nApi;
-                    }
-                    else
-                    {
-                        out() << "InShare " << i << " has user " << email << " but the corresponding user does not exist";
+                        unique_ptr<MegaUser> shareUser(megaApi[nApi]->getContact(email));
+                        if (shareUser)
+                        {
+                            auto result = synchronousRemoveContact(nApi, shareUser.get());
+                            if (result != API_OK) LOG_err << "megaApi[" << nApi << "] [InShare = " << i << "] Could not remove inshare's contact " << email << " from megaapi";
+                        }
+                        else
+                        {
+                            out() << "megaApi[" << nApi << "] [InShare = " << i << "] InShare has user " << email << " but the corresponding user does not exist";
+                        }
                     }
                 }
 
-                unique_ptr<MegaNode> n(megaApi[nApi]->getNodeByHandle(os->getNodeHandle()));
+                LOG_debug << "[SdkTest::Cleanup] megaApi[" << nApi << "] [InShare = " << i << "] Removing inshare...";
+                unique_ptr<MegaNode> n(megaApi[nApi]->getNodeByHandle(in->getNodeHandle()));
                 if (n)
                 {
                     RequestTracker rt(megaApi[nApi].get());
@@ -455,6 +464,7 @@ void SdkTest::Cleanup()
 
                     ASSERT_EQ(API_OK, rt.waitForResult(300)) << "remove of inshare folder failed or took more than 5 minutes";
                 }
+                else { LOG_debug << "[SdkTest::Cleanup] megaApi[" << nApi << "] [InShare = " << i << "] No node found!!!"; }
             }
 
 
@@ -463,27 +473,37 @@ void SdkTest::Cleanup()
             unique_ptr<MegaShareList> outshares(megaApi[nApi]->getOutShares());
             for (int i = 0; i < outshares->size(); ++i)
             {
+                LOG_debug << "[SdkTest::Cleanup] megaApi[" << nApi << "] [OutShare = " << i << "] OutShare detected!";
                 auto os = outshares->get(i);
+                if (!os)
+                {
+                    LOG_debug << "[SdkTest::Cleanup] megaApi[" << nApi << "] [OutShare = " << i << "] MegaShare object is null, skipping...";
+                    continue;
+                }
 
                 if (auto email = os->getUser())
                 {
                     string email1 = string(std::unique_ptr<char[]>{megaApi[nApi]->getMyEmail()}.get());
-                    if (alreadyRemoved.find(email1+email) != alreadyRemoved.end()) continue;
-                    if (alreadyRemoved.find(email+email1) != alreadyRemoved.end()) continue;
-                    alreadyRemoved.insert(email1+email);
+                    if ((alreadyRemoved.find(email1+email) == alreadyRemoved.end()) &&
+                       (alreadyRemoved.find(email+email1) == alreadyRemoved.end()))
+                    {
+                        LOG_debug << "[SdkTest::Cleanup] megaApi[" << nApi << "] [OutShare = " << i << "] Removing outshare's contact (also add '" << string(email1+email) << "' as alreadyRemoved)...";
+                        alreadyRemoved.insert(email1+email);
 
-                    unique_ptr<MegaUser> shareUser(megaApi[nApi]->getContact(email));
-                    if (shareUser)
-                    {
-                        auto result = synchronousRemoveContact(nApi, shareUser.get());
-                        if (result != API_OK)  LOG_err << "Could not remove outshare's contact " << email << " from megaapi " << nApi;
-                    }
-                    else
-                    {
-                        out() << "OutShare " << i << " has user " << email << " but the corresponding user does not exist";
+                        unique_ptr<MegaUser> shareUser(megaApi[nApi]->getContact(email));
+                        if (shareUser)
+                        {
+                            auto result = synchronousRemoveContact(nApi, shareUser.get());
+                            if (result != API_OK)  LOG_err << "megaApi[" << nApi << "] [OutShare = " << i << "] Could not remove outshare's contact " << email << " from megaapi " << nApi;
+                        }
+                        else
+                        {
+                            out() << "megaApi[" << nApi << "] [OutShare = " << i << "] OutShare has user " << email << " but the corresponding user does not exist";
+                        }
                     }
                 }
 
+                LOG_debug << "[SdkTest::Cleanup] megaApi[" << nApi << "] [OutShare = " << i << "] Removing outshare...";
                 unique_ptr<MegaNode> n(megaApi[nApi]->getNodeByHandle(os->getNodeHandle()));
                 if (n)
                 {
@@ -493,6 +513,7 @@ void SdkTest::Cleanup()
 
                     ASSERT_EQ(API_OK, rt.waitForResult(300)) << "unshare of file/folder failed or took more than 5 minutes";
                 }
+                else { LOG_debug << "[SdkTest::Cleanup] megaApi[" << nApi << "] [OutShare = " << i << "] No node found!!!"; }
             }
 
 
