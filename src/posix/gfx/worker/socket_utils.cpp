@@ -98,7 +98,7 @@ error_code pollForAccept(int fd, milliseconds timeout)
 
 constexpr size_t maxSocketPathLength()
 {
-    return sizeof(sockaddr_un::sun_path) - 1;
+    return sizeof(sockaddr_un::sun_path);
 }
 
 // Bind the fd on the socketPath and listen on it
@@ -106,13 +106,20 @@ error_code doBindAndListen(int fd, const std::string& socketPath)
 {
     constexpr int QUEUE_LEN = 10;
 
-    struct sockaddr_un un;
-    memset(&un, 0, sizeof(un));
-    un.sun_family = AF_UNIX;
-    strncpy(un.sun_path, socketPath.c_str(), maxSocketPathLength());
+    // Extra 1 for null terminated
+    if (socketPath.size() > maxSocketPathLength() - 1)
+    {
+        LOG_err << "Unix domain socket name is too long, " << socketPath;
+        return error_code{ENAMETOOLONG, system_category()};
+    }
+
+    struct sockaddr_un addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sun_family = AF_UNIX;
+    strncpy(addr.sun_path, socketPath.c_str(), maxSocketPathLength());
 
     // Bind name
-    if (::bind(fd, reinterpret_cast<struct sockaddr*>(&un), sizeof(un)) == -1)
+    if (::bind(fd, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) == -1)
     {
         LOG_err << "Fail to bind UNIX domain socket name: " << socketPath << " errno: " << errno;
         return error_code{errno, system_category()};
@@ -251,6 +258,13 @@ error_code SocketUtils::read(int fd, void* buf, size_t n, milliseconds timeout)
 
 std::pair<error_code, int>  SocketUtils::connect(const fs::path& socketPath)
 {
+    // Extra 1 for null terminated
+    if (strlen(socketPath.c_str()) > maxSocketPathLength() - 1)
+    {
+        LOG_err << "Unix domain socket name is too long, " << socketPath.string();
+        return {error_code{ENAMETOOLONG, system_category()}, -1};
+    }
+
     auto fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd < 0) {
         LOG_err << "Fail to create a UNIX domain socket: " << socketPath.string() << " errno: " << errno;
@@ -274,13 +288,6 @@ std::pair<error_code, int>  SocketUtils::connect(const fs::path& socketPath)
 
 std::pair<error_code, int> SocketUtils::listen(const fs::path& socketPath)
 {
-    // Check name, extra 1 for null terminated
-    if (strlen(socketPath.c_str()) >= maxSocketPathLength())
-    {
-        LOG_err << "Unix domain socket name is too long, " << socketPath.string();
-        return {error_code{ENAMETOOLONG, system_category()}, -1};
-    }
-
     // The name might exist
     // fail to unlink is not an error: such as not exists as for most cases
     if (::unlink(socketPath.c_str()) < 0)
