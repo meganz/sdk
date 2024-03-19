@@ -434,7 +434,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
             {
                 mS4 = it->second;
             }
-            else if (it->first == AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_MANAGER))
+            else if (it->first == AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_MANAGER) || it->first == AttrMap::string2nameid(AttrMap::NODE_ATTRIBUTE_DESCRIPTION))
             {
                 if (!mOfficialAttrs) mOfficialAttrs = make_unique<attr_map>();
 
@@ -863,6 +863,11 @@ double MegaNodePrivate::getLatitude()
 double MegaNodePrivate::getLongitude()
 {
     return longitude;
+}
+
+const char* MegaNodePrivate::getDescription()
+{
+    return getOfficialAttr(AttrMap::NODE_ATTRIBUTE_DESCRIPTION);
 }
 
 int64_t MegaNodePrivate::getSize()
@@ -8055,6 +8060,28 @@ void MegaApiImpl::setNodeCoordinates(MegaNode *node, bool unshareable, double la
     request->setTransferTag(lat);
     request->setNumDetails(lon);
     request->setAccess(unshareable);
+    request->setFlag(true);     // official attribute (otherwise it would go in the custom section)
+
+    request->performRequest = [this, request]()
+    {
+        return performRequest_setAttrNode(request);
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setNodeDescription(MegaNode* node, const char* description, MegaRequestListener* listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_NODE, listener);
+
+    if(node)
+    {
+        request->setNodeHandle(node->getHandle());
+    }
+
+    request->setParamType(MegaApi::NODE_ATTR_DESCRIPTION);
+    request->setText(description);
     request->setFlag(true);     // official attribute (otherwise it would go in the custom section)
 
     request->performRequest = [this, request]()
@@ -21139,10 +21166,11 @@ error MegaApiImpl::performRequest_setAttrNode(MegaRequestPrivate* request)
                             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
                         }, false);
                 }
-                else if (type == MegaApi::NODE_ATTR_S4)
+                else if (type == MegaApi::NODE_ATTR_S4 || type == MegaApi::NODE_ATTR_DESCRIPTION)
                 {
+                    std::string attributeName = (type == MegaApi::NODE_ATTR_S4) ? "s4" : AttrMap::NODE_ATTRIBUTE_DESCRIPTION;
                     const char* attrValue = request->getText();
-                    attrUpdates[AttrMap::string2nameid("s4")] = attrValue ? attrValue : "";
+                    attrUpdates[AttrMap::string2nameid(attributeName.c_str())] = attrValue ? attrValue : "";
                 }
                 else
                 {
