@@ -20,6 +20,7 @@ using std::chrono::seconds;
 using std::chrono::duration_cast;
 using std::chrono::time_point;
 using std::chrono::steady_clock;
+using namespace std::chrono_literals;
 
 namespace
 {
@@ -255,12 +256,12 @@ bool AutoStartLauncher::startLaunchLoopThread()
 void AutoStartLauncher::exitLaunchLoopThread()
 {
     milliseconds backOff(10);
-    while (mThreadIsRunning && backOff < seconds(15))
+    while (mThreadIsRunning && backOff < 15s)
     {
         // shutdown the started process
         if (mShutdowner) mShutdowner();
         std::this_thread::sleep_for(backOff);
-        backOff += milliseconds(10);
+        backOff += 10ms;
     }
 }
 
@@ -306,16 +307,12 @@ void CancellableSleeper::cancel()
     mCv.notify_all();
 }
 
-//
-// keepAliveInSeconds default 10 seconds, minimum MIN_ALIVE_SECONDS
-//
 GfxIsolatedProcess::Params::Params(const std::string &endpointName,
                                    const std::string &executable,
-                                   unsigned int keepAliveInSeconds = 10)
+                                   std::chrono::seconds keepAliveInSeconds)
     : endpointName(endpointName)
     , executable(executable)
     , keepAliveInSeconds(std::max(MIN_ALIVE_SECONDS, keepAliveInSeconds))
-
 {
 }
 
@@ -328,7 +325,7 @@ std::vector<std::string> GfxIsolatedProcess::Params::toArgs() const
     std::vector<std::string> commandArgs = {
         absolutePath.toPath(false),
         "-n=" + endpointName,
-        "-l=" + std::to_string(keepAliveInSeconds * 3)
+        "-l=" + std::to_string(keepAliveInSeconds.count() * 3)
     };
 
     return commandArgs;

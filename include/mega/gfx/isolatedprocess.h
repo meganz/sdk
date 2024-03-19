@@ -101,9 +101,12 @@ public:
     class Params
     {
     public:
+        //
+        // keepAliveInSeconds default 10 seconds. It also ensure the minimum MIN_ALIVE_SECONDS
+        //
         Params(const std::string &endpointName,
                const std::string &executable,
-               unsigned int keepAliveInSeconds);
+               std::chrono::seconds keepAliveInSeconds  = std::chrono::seconds(10));
 
         // Convert to args used to launch isolated process
         std::vector<std::string> toArgs() const;
@@ -115,10 +118,10 @@ public:
         std::string  executable;
 
         // The interval in seconds to keep the server alive
-        unsigned int keepAliveInSeconds;
+        std::chrono::seconds keepAliveInSeconds;
     private:
 
-        static constexpr unsigned int MIN_ALIVE_SECONDS{3};
+        static constexpr std::chrono::seconds MIN_ALIVE_SECONDS{3};
     };
 
     GfxIsolatedProcess(const Params& params);
