@@ -42,7 +42,7 @@ class EmailProcessor:
 
     def get_message_from_email(self, to, delta=360):
         """Get message from email."""
-
+        methodCallTimeStamp = time.time()
         # sort all emails sent to the right address, newest first
         result, data = self.mail.sort('REVERSE DATE', 'UTF-8', '(To "{}")'.format(to))
         if len(data[0]) == 0:
@@ -64,7 +64,7 @@ class EmailProcessor:
                     break
             else:
                 assert dt, 'timestamp not found from email header'
-            elapsed = time.time() - float(dt)
+            elapsed = methodCallTimeStamp - float(dt)
             if elapsed > delta:
                 continue
             for m in msg.walk():
