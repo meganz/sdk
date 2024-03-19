@@ -98,23 +98,36 @@ private:
 class GfxIsolatedProcess
 {
 public:
-    // Notes: beatIntervalSeconds would be set to minimum 3 if not
-    GfxIsolatedProcess(const std::string& endpointName,
-                       const std::string& executable,
-                       unsigned int beatIntervalSeconds);
+    class Params
+    {
+    public:
+        Params(const std::string &endpointName,
+               const std::string &executable,
+               unsigned int keepAliveInSeconds);
+
+        // Convert to args used to launch isolated process
+        std::vector<std::string> toArgs() const;
+
+        // The pipe name in Windows or the unix domain socket name in UNIX
+        std::string  endpointName;
+
+        // The executable file path
+        std::string  executable;
+
+        // The interval in seconds to keep the server alive
+        unsigned int keepAliveInSeconds;
+    private:
+
+        static constexpr unsigned int MIN_ALIVE_SECONDS{3};
+    };
+
+    GfxIsolatedProcess(const Params& params);
 
     GfxIsolatedProcess(const std::string& endpointName,
                        const std::string& executable);
 
     const std::string& endpointName() const { return mEndpointName; }
 private:
-    // this hide the detail of the isolated process command options and also provides the default value that callers
-    // don't need to supply
-    static std::vector<std::string> formatArguments(const std::string& endpointName,
-                                                    const std::string& executable,
-                                                    unsigned int keepAliveInSeconds);
-
-    static const unsigned int MIN_ALIVE_SECONDS;
 
     std::string mEndpointName;
 
