@@ -1993,8 +1993,9 @@ string getLinkFromMailbox(const string& exe,         // Python
     {
         WaitMillisec(deltaMs);
 
-        // get time interval to look for emails, add some seconds to account for the connection and other delays
-        constexpr int safetyDelaySecs = 20;
+        // get time interval to look for emails, add some seconds to account for delays related to
+        // the python script call
+        constexpr int safetyDelaySecs = 5;
         const auto& attemptTime = std::chrono::system_clock::now();
         auto timeSinceEmail = std::chrono::duration_cast<std::chrono::seconds>(attemptTime - timeOfEmail).count() + safetyDelaySecs;
         output = runProgram(command + ' ' + to_string(timeSinceEmail), PROG_OUTPUT_TYPE::TEXT); // Run Python script
