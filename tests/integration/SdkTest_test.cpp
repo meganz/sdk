@@ -1982,7 +1982,7 @@ string getLinkFromMailbox(const string& exe,         // Python
                           const string& realPswd,    // password for user@host.domain
                           const string& toAddr,      // user+testnewaccount@host.domain
                           const string& intent,      // confirm / delete
-                          const chrono::system_clock::time_point& timeOfEmail)
+                          const chrono::steady_clock::time_point& timeOfEmail)
 {
     string command = exe + " \"" + script + "\" \"" + realAccount + "\" \"" + realPswd + "\" \"" + toAddr + "\" " + intent;
     string output;
@@ -1996,7 +1996,7 @@ string getLinkFromMailbox(const string& exe,         // Python
         // get time interval to look for emails, add some seconds to account for delays related to
         // the python script call
         constexpr int safetyDelaySecs = 5;
-        const auto& attemptTime = std::chrono::system_clock::now();
+        const auto attemptTime = std::chrono::steady_clock::now();
         auto timeSinceEmail = std::chrono::duration_cast<std::chrono::seconds>(attemptTime - timeOfEmail).count() + safetyDelaySecs;
         output = runProgram(command + ' ' + to_string(timeSinceEmail), PROG_OUTPUT_TYPE::TEXT); // Run Python script
         if (!output.empty() || i > 180000 / deltaMs) // 3 minute maximum wait
@@ -2097,7 +2097,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     const char* origTestPwd = "TestPswd!@#$"; // maybe this should be logged too, changed later
 
     // save point in time for account init
-    chrono::time_point<chrono::system_clock>  timeOfConfirmEmail = std::chrono::system_clock::now();
+    chrono::time_point timeOfConfirmEmail = std::chrono::steady_clock::now();
 
     // Create an ephemeral session internally and send a confirmation link to email
     ASSERT_EQ(API_OK, synchronousCreateAccount(0, newTestAcc.c_str(), origTestPwd, "MyFirstname", "MyLastname"));
@@ -2144,7 +2144,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     // test resetting the password
     // ---------------------------
 
-    chrono::time_point<chrono::system_clock> timeOfResetEmail = chrono::system_clock::now();
+    chrono::time_point timeOfResetEmail = chrono::steady_clock::now();
     ASSERT_EQ(synchronousResetPassword(0, newTestAcc.c_str(), true), MegaError::API_OK) << "resetPassword failed";
 
     // Get cancel account link from the mailbox
@@ -2185,7 +2185,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     }
 
     const string changedTestAcc = Utils::replace(newTestAcc, "@", "-new@");
-    chrono::time_point<chrono::system_clock> timeOfChangeEmail = chrono::system_clock::now();
+    chrono::time_point timeOfChangeEmail = chrono::steady_clock::now();
     ASSERT_EQ(synchronousChangeEmail(0, changedTestAcc.c_str()), MegaError::API_OK) << "changeEmail failed";
 
     {
@@ -2227,7 +2227,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     // ------------------
 
     // Request cancel account link
-    chrono::time_point<chrono::system_clock>  timeOfDeleteEmail = std::chrono::system_clock::now();
+    chrono::time_point timeOfDeleteEmail = chrono::steady_clock::now();
     {
         unique_ptr<RequestTracker> cancelLinkTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->cancelAccount(cancelLinkTracker.get());
