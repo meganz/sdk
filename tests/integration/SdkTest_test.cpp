@@ -16275,6 +16275,7 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
     ASSERT_EQ(API_ENOENT, doDelVpnCredential(0, 200))  << "Wrong error when deleting VPN credentials from unused slotID 200";
     ASSERT_EQ(API_ENOENT, doDelVpnCredential(0, 3000)) << "Wrong error when deleting VPN credentials from unused slotID 3000";
     bool usingProductionServer = g_APIURL_default.find("staging") == string::npos;
+    LOG_debug << "[SdkTestMegaVpnCredentials] Using " << string(usingProductionServer ? "PRODUCTION" : "STAGING") << " server";
 
     int result;
 
