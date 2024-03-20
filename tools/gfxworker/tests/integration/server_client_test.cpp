@@ -1,5 +1,6 @@
 #include "executable_dir.h"
 
+#include "mega/logging.h"
 #include "server.h"
 #include "processor.h"
 
@@ -10,6 +11,7 @@
 #include <gtest/gtest.h>
 
 #include <memory>
+#include <system_error>
 #include <thread>
 #include <chrono>
 #include <vector>
@@ -46,7 +48,10 @@ protected:
     {
     #if !defined(WIN32) && defined(ENABLE_ISOLATED_GFX)
         // Clean up socket file on UNIX
-        fs::remove(SocketUtils::toSocketPath(mEndpointName));
+        if (std::error_code errorCode = SocketUtils::removeSocketFile(mEndpointName))
+        {
+            LOG_err << "Fail to remove socket path " << mEndpointName << ": " << errorCode.message();
+        }
     #endif
     }
 

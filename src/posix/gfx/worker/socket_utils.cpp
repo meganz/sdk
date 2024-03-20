@@ -136,6 +136,20 @@ error_code doBindAndListen(int fd, const std::string& socketPath)
     return error_code{};
 }
 
+std::error_code createDirectories(const fs::path& directory)
+{
+    std::error_code errorCode;
+    fs::create_directories(directory, errorCode);
+    return errorCode;
+}
+
+std::error_code removePath(const fs::path& path)
+{
+    std::error_code errorCode;
+    fs::remove(path, errorCode);
+    return errorCode;
+}
+
 }
 namespace mega {
 namespace gfx {
@@ -143,6 +157,11 @@ namespace gfx {
 fs::path SocketUtils::toSocketPath(const std::string& name)
 {
     return fs::path{"/tmp"} / ("MegaLimited" + std::to_string(getuid()))  / name;
+}
+
+std::error_code SocketUtils::removeSocketFile(const std::string& name)
+{
+    return removePath(toSocketPath(name));
 }
 
 std::pair<error_code, int> SocketUtils::accept(int listeningFd, milliseconds timeout)
@@ -288,12 +307,11 @@ std::pair<error_code, int>  SocketUtils::connect(const fs::path& socketPath)
 
 std::pair<error_code, int> SocketUtils::listen(const fs::path& socketPath)
 {
-    std::error_code errorCode;
     // Try to remove, it may not exist
-    fs::remove(socketPath, errorCode);
+    removePath(socketPath);
 
     // Try to create path, it may already exist
-    fs::create_directories(socketPath.parent_path(), errorCode);
+    createDirectories(socketPath.parent_path());
 
     // Create a UNIX domain socket
     const auto fd = ::socket(AF_UNIX, SOCK_STREAM, 0);

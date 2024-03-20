@@ -23,6 +23,17 @@ struct SocketUtils
     static std::filesystem::path toSocketPath(const std::string& name);
 
     /**
+     * @brief Remove the socket file from file system
+     *
+     * @param name a valid file name
+     *
+     * @return On success, 0 value is set in error_code. On failure, a none zero error_code is returned.
+     *
+     * @see toSocketPath about how the path is composed
+     */
+    static std::error_code removeSocketFile(const std::string& name);
+
+    /**
      * @brief Create a stream socket and connect it to a UNIX domain socket server.
      *
      * @param socketPath The socket path that the server is listening on

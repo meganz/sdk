@@ -357,9 +357,11 @@ MegaApiTest::~MegaApiTest()
 {
 #if !defined(WIN32) && defined(ENABLE_ISOLATED_GFX)
     // Clean up socket file if it has been created
-    if (!mEndpointName.empty())
+    if (mEndpointName.empty()) return;
+
+    if (std::error_code errorCode = SocketUtils::removeSocketFile(mEndpointName))
     {
-        fs::remove(SocketUtils::toSocketPath(mEndpointName));
+        LOG_err << "Fail to remove socket path " << mEndpointName << ": " << errorCode.message();
     }
 #endif
 }
