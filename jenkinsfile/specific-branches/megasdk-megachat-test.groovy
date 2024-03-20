@@ -130,5 +130,10 @@ pipeline {
                 }
             }
         }
-    }     
+    }
+    post {
+        always {
+            archiveArtifacts artifacts: '*.log.gz', fingerprint: true
+        }
+    }
 }
