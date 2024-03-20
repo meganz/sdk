@@ -12179,7 +12179,7 @@ void exec_setnodedescription(autocomplete::ACState& s)
     if (std::shared_ptr<Node> n = nodebypath(s.words[1].s.c_str()))
     {
         AttrMap attrMap;
-        attrMap.map[AttrMap::string2nameid(AttrMap::NODE_ATTRIBUTE_DESCRIPTION)] = s.words[2].s.c_str();
+        attrMap.map[AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_DESCRIPTION)] = s.words[2].s.c_str();
         client->setattr(n, std::move(attrMap.map), [](NodeHandle h, Error e)
         {
             if (e == API_OK)
@@ -12198,7 +12198,7 @@ void exec_getnodedescription(autocomplete::ACState& s)
 {
     if (std::shared_ptr<Node> n = nodebypath(s.words[1].s.c_str()))
     {
-        auto it = n->attrs.map.find(AttrMap::string2nameid(AttrMap::NODE_ATTRIBUTE_DESCRIPTION));
+        auto it = n->attrs.map.find(AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_DESCRIPTION));
         if (it != n->attrs.map.end())
         {
             cout << "   Description: " << it->second << endl;

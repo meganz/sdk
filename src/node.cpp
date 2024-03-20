@@ -836,7 +836,7 @@ void Node::setattr()
         const auto pwdNameid = AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_MANAGER);
         changed.pwd = attrs.hasDifferentValue(pwdNameid, oldAttrs.map);
 
-        const auto descriptionNameid = AttrMap::string2nameid(AttrMap::NODE_ATTRIBUTE_DESCRIPTION);
+        const auto descriptionNameid = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_DESCRIPTION);
         changed.description = attrs.hasDifferentValue(descriptionNameid, oldAttrs.map);
 
         setfingerprint();
