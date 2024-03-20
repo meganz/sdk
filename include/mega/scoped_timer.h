@@ -8,7 +8,7 @@ namespace mega {
 // T can be steady_clock, system_clock or high_resolution_clock
 //
 template<typename T>
-class ScopedClock
+class ScopedTimer
 {
 public:
     using time_point = typename T::time_point;
@@ -22,6 +22,6 @@ private:
     time_point mStart{T::now()};
 };
 
-using ScopedSteadyClock = ScopedClock<std::chrono::steady_clock>;
+using ScopedSteadyTimer = ScopedTimer<std::chrono::steady_clock>;
 
 }

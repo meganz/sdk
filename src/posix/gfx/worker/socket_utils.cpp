@@ -1,6 +1,6 @@
 #include "mega/posix/gfx/worker/socket_utils.h"
 #include "mega/logging.h"
-#include "mega/clock.h"
+#include "mega/scoped_timer.h"
 
 #include <cassert>
 #include <filesystem>
@@ -35,13 +35,13 @@ bool isPollError(int event)
 // Pool a group of file descriptors. It deals with EINTR.
 error_code poll(std::vector<struct pollfd> fds, milliseconds timeout)
 {
-    const mega::ScopedSteadyClock clock;
+    const mega::ScopedSteadyTimer timer;
     milliseconds                  remaining{timeout};  //Remaining timeout in case of EINTR
     int                           ret = 0;
     do
     {
         ret = ::poll(fds.data(), fds.size(), static_cast<int>(timeout.count()));
-        remaining -= duration_cast<milliseconds>(clock.passedTime());
+        remaining -= duration_cast<milliseconds>(timer.passedTime());
     } while (ret < 0 && errno == EINTR && remaining > milliseconds{0});
 
     if (ret < 0)

@@ -16,7 +16,6 @@ target_sources(test_unit
     AttrMap_test.cpp
     CacheLRU_test.cpp
     ChunkMacMap_test.cpp
-    Clock_test.cpp
     Commands_test.cpp
     Crypto_test.cpp
     FileFingerprint_test.cpp
@@ -28,6 +27,7 @@ target_sources(test_unit
     MegaApi_test.cpp
     PayCrypter_test.cpp
     PendingContactRequest_test.cpp
+    Scoped_timer_test.cpp
     Serialization_test.cpp
     Share_test.cpp
     Sync_conflict_test.cpp

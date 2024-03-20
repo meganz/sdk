@@ -3,16 +3,16 @@
 
 #include "gtest/gtest.h"
 #include "mega/gfx/isolatedprocess.h"
-#include "mega/clock.h"
+#include "mega/scoped_timer.h"
 
 #include <chrono>
 
-using mega::ScopedSteadyClock;
+using mega::ScopedSteadyTimer;
 using std::chrono::seconds;
 
 TEST(Isolatedprocess, CancelableSleeperCanBecancelledInNoTime)
 {
-    ScopedSteadyClock counter;
+    ScopedSteadyTimer timer;
 
     mega::CancellableSleeper sleeper;
     std::thread t ([&sleeper](){
@@ -25,7 +25,7 @@ TEST(Isolatedprocess, CancelableSleeperCanBecancelledInNoTime)
 
     // cancel should be done immediately, but we don't want a
     // too short number that the result could be affected by disturbance.
-    ASSERT_TRUE(counter.passedTime() < seconds(10));
+    ASSERT_TRUE(timer.passedTime() < seconds(10));
 }
 
 //
@@ -33,11 +33,11 @@ TEST(Isolatedprocess, CancelableSleeperCanBecancelledInNoTime)
 //
 TEST(Isolatedprocess, GfxWorkerHelloBeaterCanGracefullyShutdownInNoTime)
 {
-    ScopedSteadyClock counter;
+    ScopedSteadyTimer timer;
     {
         mega::HelloBeater beater(seconds(60), "__"); //long enough
     }
     // cancel should be done immediately, but we don't want a
     // too short number that the result could be affected by disturbance.
-    ASSERT_TRUE(counter.passedTime() < seconds(10));
+    ASSERT_TRUE(timer.passedTime() < seconds(10));
 }
