@@ -18441,13 +18441,18 @@ TEST_F(SdkTest, SdkNodeDescription)
     string filename = "test.txt";
     createFile(filename, false);
     MegaHandle mh = 0;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &mh, filename.data(), rootnodeA.get(),
-                                               nullptr /*fileName*/,
-                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                               nullptr /*appData*/,
-                                               false   /*isSourceTemporary*/,
-                                               false   /*startFirst*/,
-                                               nullptr /*cancelToken*/)) << "Cannot upload a test file";
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &mh,
+                            filename.data(),
+                            rootnodeA.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot upload a test file";
 
     auto changeNodeDescription = [this](MegaHandle nodeHandle, const char* description)
     {

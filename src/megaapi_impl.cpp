@@ -434,7 +434,8 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
             {
                 mS4 = it->second;
             }
-            else if (it->first == AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_MANAGER) || it->first == AttrMap::string2nameid(AttrMap::NODE_ATTRIBUTE_DESCRIPTION))
+            else if (it->first == AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_MANAGER) ||
+                     it->first == AttrMap::string2nameid(AttrMap::NODE_ATTRIBUTE_DESCRIPTION))
             {
                 if (!mOfficialAttrs) mOfficialAttrs = make_unique<attr_map>();
 
@@ -8071,18 +8072,20 @@ void MegaApiImpl::setNodeCoordinates(MegaNode *node, bool unshareable, double la
     waiter->notify();
 }
 
-void MegaApiImpl::setNodeDescription(MegaNode* node, const char* description, MegaRequestListener* listener)
+void MegaApiImpl::setNodeDescription(MegaNode* node,
+                                     const char* description,
+                                     MegaRequestListener* listener)
 {
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_NODE, listener);
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_NODE, listener);
 
-    if(node)
+    if (node)
     {
         request->setNodeHandle(node->getHandle());
     }
 
     request->setParamType(MegaApi::NODE_ATTR_DESCRIPTION);
     request->setText(description);
-    request->setFlag(true);     // official attribute (otherwise it would go in the custom section)
+    request->setFlag(true); // official attribute (otherwise it would go in the custom section)
 
     request->performRequest = [this, request]()
     {
@@ -21166,11 +21169,13 @@ error MegaApiImpl::performRequest_setAttrNode(MegaRequestPrivate* request)
                             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
                         }, false);
                 }
-                else if (type == MegaApi::NODE_ATTR_S4 || type == MegaApi::NODE_ATTR_DESCRIPTION)
+                else if (bool isTypeS4 = (type == MegaApi::NODE_ATTR_S4);
+                         isTypeS4 || type == MegaApi::NODE_ATTR_DESCRIPTION)
                 {
-                    std::string attributeName = (type == MegaApi::NODE_ATTR_S4) ? "s4" : AttrMap::NODE_ATTRIBUTE_DESCRIPTION;
+                    const char* attributeName =
+                        isTypeS4 ? "s4" : AttrMap::NODE_ATTRIBUTE_DESCRIPTION;
                     const char* attrValue = request->getText();
-                    attrUpdates[AttrMap::string2nameid(attributeName.c_str())] = attrValue ? attrValue : "";
+                    attrUpdates[AttrMap::string2nameid(attributeName)] = attrValue ? attrValue : "";
                 }
                 else
                 {
