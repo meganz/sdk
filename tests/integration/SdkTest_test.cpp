@@ -18455,7 +18455,8 @@ TEST_F(SdkTest, SdkNodeDescription)
     auto changeNodeDescription = [this](MegaHandle nodeHandle, const char* description)
     {
         bool check = false;
-        mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(nodeHandle, MegaNode::CHANGE_TYPE_DESCRIPTION, check);
+        mApi[0].mOnNodesUpdateCompletion =
+            createOnNodesUpdateLambda(nodeHandle, MegaNode::CHANGE_TYPE_DESCRIPTION, check);
         RequestTracker trackerSetDescription(megaApi[0].get());
         std::unique_ptr<MegaNode> testNode(megaApi[0]->getNodeByHandle(nodeHandle));
         megaApi[0]->setNodeDescription(testNode.get(), description, &trackerSetDescription);
@@ -18464,7 +18465,8 @@ TEST_F(SdkTest, SdkNodeDescription)
             << "Node hasn't updated description after " << maxTimeout << " seconds";
         resetOnNodeUpdateCompletionCBs();
 
-        std::unique_ptr<MegaNode>node(megaApi[0]->getNodeByHandle(nodeHandle));
+        std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(nodeHandle));
+        ASSERT_TRUE(node);
         const char* nodeDescription = node->getDescription();
         if (description == nullptr || nodeDescription == nullptr)
         {
@@ -18479,7 +18481,7 @@ TEST_F(SdkTest, SdkNodeDescription)
     std::string description("Description");
     changeNodeDescription(mh, description.c_str());
 
-    std::unique_ptr<char>session(dumpSession());
+    std::unique_ptr<char> session(dumpSession());
     locallogout(0);
     resumeSession(session.get());
     fetchnodes(0);
@@ -18487,7 +18489,12 @@ TEST_F(SdkTest, SdkNodeDescription)
     auto& target = mApi[0];
     target.resetlastEvent();
     // make sure that client is up to date (upon logout, recent changes might not be committed to DB)
-    ASSERT_TRUE(WaitFor([&target](){ return target.lastEventsContain(MegaEvent::EVENT_NODES_CURRENT); }, 10000))
+    ASSERT_TRUE(WaitFor(
+        [&target]()
+        {
+            return target.lastEventsContain(MegaEvent::EVENT_NODES_CURRENT);
+        },
+        10000))
         << "Timeout expired to receive actionpackets";
 
     std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(mh));
