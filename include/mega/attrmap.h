@@ -85,6 +85,8 @@ struct MEGA_API AttrMap
 
     // determine if attrId differs between the 2 maps
     bool hasDifferentValue(nameid attrId, const attr_map& other) const;
+
+    static constexpr char NODE_ATTRIBUTE_DESCRIPTION[] = "des";
 };
 } // namespace
 
