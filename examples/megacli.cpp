@@ -4080,6 +4080,8 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_numberofnodes, sequence(text("nn")));
     p->Add(exec_numberofchildren, sequence(text("nc"), opt(remoteFSPath(client, &cwd))));
     p->Add(exec_searchbyname, sequence(text("sbn"), param("name"), opt(param("nodeHandle")), opt(flag("-norecursive")), opt(flag("-nosensitive"))));
+    p->Add(exec_setnodedescription, sequence(text("setnodedescription"), remoteFSPath(client, &cwd), param("description")));
+    p->Add(exec_getnodedescription, sequence(text("getnodedescription"), remoteFSPath(client, &cwd)));
 
 
 #ifdef ENABLE_SYNC
@@ -4396,7 +4398,6 @@ autocomplete::ACN autocompleteSyntax()
                                     opt(flag("-useDigits")),
                                     opt(flag("-useSymbols")))
                         )));
-
 
     return autocompleteTemplate = std::move(p);
 }
@@ -12170,5 +12171,41 @@ void exec_generatepassword(autocomplete::ACState& s)
 
         if (pwd.empty()) cout << "Error generating the password. Please check the logs (if active)\n";
         else cout << "Characers-based password successfully generated: " << pwd << "\n";
+    }
+}
+
+void exec_setnodedescription(autocomplete::ACState& s)
+{
+    if (std::shared_ptr<Node> n = nodebypath(s.words[1].s.c_str()))
+    {
+        AttrMap attrMap;
+        attrMap.map[AttrMap::string2nameid(AttrMap::NODE_ATTRIBUTE_DESCRIPTION)] = s.words[2].s.c_str();
+        client->setattr(n, std::move(attrMap.map), [](NodeHandle h, Error e)
+        {
+            if (e == API_OK)
+                cout << "Description set correctly" << endl;
+            else
+                cout << "Error setting description: " << e << "  Node: " << h << endl;
+        }, false);
+    }
+    else
+    {
+        cout << s.words[1].s << ": No such file or directory" << endl;
+    }
+}
+
+void exec_getnodedescription(autocomplete::ACState& s)
+{
+    if (std::shared_ptr<Node> n = nodebypath(s.words[1].s.c_str()))
+    {
+        auto it = n->attrs.map.find(AttrMap::string2nameid(AttrMap::NODE_ATTRIBUTE_DESCRIPTION));
+        if (it != n->attrs.map.end())
+        {
+            cout << "   Description: " << it->second << endl;
+        }
+        else
+        {
+            cout << "   Description not set " << endl;
+        }
     }
 }
