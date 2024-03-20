@@ -18451,20 +18451,25 @@ TEST_F(SdkTest, SdkNodeDescription)
 
     auto changeNodeDescription = [this](MegaHandle nodeHandle, const char* description)
     {
+        bool check = false;
+        mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(nodeHandle, MegaNode::CHANGE_TYPE_DESCRIPTION, check);
         RequestTracker trackerSetDescription(megaApi[0].get());
         std::unique_ptr<MegaNode> testNode(megaApi[0]->getNodeByHandle(nodeHandle));
         megaApi[0]->setNodeDescription(testNode.get(), description, &trackerSetDescription);
         ASSERT_EQ(trackerSetDescription.waitForResult(), API_OK);
-        // TODO: At SDK-3769 wait for onNodesUpdate with specific change
-        ASSERT_TRUE(waitForEvent([description, nodeHandle, this]()
-        {
-            std::unique_ptr<MegaNode>node(megaApi[0]->getNodeByHandle(nodeHandle));
-            const char* nodeDescription = node->getDescription();
-            if (description == nullptr || nodeDescription == nullptr)
-                return description == nodeDescription;
+        ASSERT_TRUE(waitForResponse(&check))
+            << "Node hasn't updated description after " << maxTimeout << " seconds";
+        resetOnNodeUpdateCompletionCBs();
 
-            return strcmp(description, node->getDescription()) == 0;
-        }));
+        std::unique_ptr<MegaNode>node(megaApi[0]->getNodeByHandle(nodeHandle));
+        const char* nodeDescription = node->getDescription();
+        if (description == nullptr || nodeDescription == nullptr)
+        {
+            ASSERT_EQ(description, nodeDescription);
+            return;
+        }
+
+        ASSERT_EQ(strcmp(description, node->getDescription()), 0);
     };
 
     // Set description

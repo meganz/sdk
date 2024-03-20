@@ -522,6 +522,7 @@ class MegaNode
             CHANGE_TYPE_COUNTER         = 0x2000,
             CHANGE_TYPE_SENSITIVE       = 0x4000,
             CHANGE_TYPE_PWD             = 0x8000,
+            CHANGE_TYPE_DESCRIPTION     = 0x10000,
         };
 
         /**
