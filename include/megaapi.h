@@ -1030,6 +1030,9 @@ class MegaNode
          * - MegaNode::CHANGE_TYPE_PWD             = 0x8000
          * Check if any Password Node Data value for this node changed
          *
+         * - MegaNode::CHANGE_TYPE_DESCRIPTION     = 0x10000
+         * Check if description for this node has changed
+         *
          * @return true if this node has an specific change
          */
         virtual bool hasChanged(uint64_t changeType);
@@ -1086,6 +1089,9 @@ class MegaNode
          *
          * - MegaNode::CHANGE_TYPE_PWD             = 0x8000
          * Check if any Password Node Data value for this node changed
+         *
+         * - MegaNode::CHANGE_TYPE_DESCRIPTION     = 0x10000
+         * Check if description for this node has changed
          *
          */
         virtual uint64_t getChanges();
