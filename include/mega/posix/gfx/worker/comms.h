@@ -24,9 +24,10 @@ private:
 
     bool doRead(void* data, size_t n, TimeoutMs timeout) override;
 
-    // file descriptor to the socket
+    // File descriptor to the socket
     int mSocket{-1};
 
+    // A name describes the socket and is used in logs.
     std::string mName;
 };
 

@@ -7,7 +7,7 @@ namespace gfx {
 
 CommError GfxCommunicationsClient::connect(std::unique_ptr<IEndpoint>& endpoint)
 {
-    auto [errorCode, fd] = SocketUtils::connect(SocketUtils::toSocketPath(mName));
+    auto [errorCode, fd] = SocketUtils::connect(SocketUtils::toSocketPath(mSocketName));
     if (errorCode)
     {
         return toCommError(errorCode.value());
