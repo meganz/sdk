@@ -199,7 +199,7 @@ Config Config::fromArguments(const Arguments& arguments)
 static std::unique_ptr<IGfxProvider> createGfxProvider(const Config& config)
 {
 #if defined(ENABLE_ISOLATED_GFX)
-    if (!config.executable.empty())
+    if (!config.executable.empty() && !config.endpointName.empty())
     {
         auto process = ::mega::make_unique<GfxIsolatedProcess>(config.endpointName, config.executable);
         return ::mega::make_unique<GfxProviderIsolatedProcess>(std::move(process));
