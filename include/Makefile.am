@@ -64,7 +64,8 @@ nobase_libmegainclude_HEADERS = \
 	mega/gfx/worker/command_serializer.h \
 	mega/gfx/worker/client.h \
 	mega/raid.h \
-	mega/mediafileattribute.h
+	mega/mediafileattribute.h \
+	mega/raidproxy.h
 
 if BUILD_MEGAAPI
 nobase_libmegainclude_HEADERS += megaapi.h megaapi_impl.h

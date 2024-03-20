@@ -57,6 +57,7 @@ set(SDKLIB_HEADERS
     include/mega/filesystem.h
     include/mega/backofftimer.h
     include/mega/raid.h
+    include/mega/raidproxy.h
     include/mega/logging.h
     include/mega/file.h
     include/mega/sync.h
@@ -116,6 +117,7 @@ set(SDKLIB_SOURCES
     src/proxy.cpp
     src/pubkeyaction.cpp
     src/raid.cpp
+    src/raidproxy.cpp
     src/request.cpp
     src/serialize64.cpp
     src/nodemanager.cpp
@@ -173,16 +175,21 @@ target_sources_conditional(SDKlib
 target_sources_conditional(SDKlib
     FLAG WIN32
     PRIVATE
-    include/mega/win32/gfx/worker/comms.h
-    include/mega/win32/gfx/worker/comms_client.h
-    src/gfx/isolatedprocess.cpp # only windows ATM
     src/win32/console.cpp
     src/win32/consolewaiter.cpp
     src/win32/fs.cpp
     # src/win32/net.cpp # when not using curl. # TODO Remove support for winhttp?
+    src/win32/waiter.cpp
+)
+
+target_sources_conditional(SDKlib
+    FLAG WIN32 AND ENABLE_ISOLATED_GFX
+    PRIVATE
+    include/mega/win32/gfx/worker/comms.h
+    include/mega/win32/gfx/worker/comms_client.h
+    src/gfx/isolatedprocess.cpp # only windows ATM
     src/win32/gfx/worker/comms.cpp
     src/win32/gfx/worker/comms_client.cpp
-    src/win32/waiter.cpp
 )
 
 target_sources_conditional(SDKlib

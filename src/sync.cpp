@@ -12005,10 +12005,14 @@ void Syncs::syncLoop()
         lastRecurseMs = unsigned(std::chrono::duration_cast<std::chrono::milliseconds>(
                         std::chrono::high_resolution_clock::now() - recurseStart).count());
 
-        LOG_verbose << "recursiveSync took ms: " << lastRecurseMs
-                    << (skippedForScanning ? " (" + std::to_string(skippedForScanning)+ " skipped due to ongoing scanning)" : "")
-                    << (mSyncFlags->noProgressCount ? " no progress count: " + std::to_string(mSyncFlags->noProgressCount) : "")
-                    << (earlyExit ? " (earlyExit)" : "");
+        const int noProgressCountLoggingFrequency = 500; // Log this every 500 counts
+        if (!skippedForScanning && !earlyExit && mSyncFlags->noProgressCount && (mSyncFlags->noProgressCount % noProgressCountLoggingFrequency == 0))
+        {
+            LOG_verbose << "recursiveSync took ms: " << lastRecurseMs
+                        << (skippedForScanning ? " (" + std::to_string(skippedForScanning)+ " skipped due to ongoing scanning)" : "")
+                        << (mSyncFlags->noProgressCount ? " no progress count: " + std::to_string(mSyncFlags->noProgressCount) : "")
+                        << (earlyExit ? " (earlyExit)" : "");
+        }
 
 
         waiter->bumpds();

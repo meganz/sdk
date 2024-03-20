@@ -492,6 +492,12 @@ bool Node::isOfMimetype(MimeType_t mimetype, const string& ext)
         return Node::isSpreadsheet(ext);
     case MimeType_t::MIME_TYPE_ALL_DOCS:
         return Node::isDocument(ext) || Node::isPdf(ext) || Node::isPresentation(ext) || Node::isSpreadsheet(ext);
+    case MimeType_t::MIME_TYPE_OTHERS:
+        return ext.empty() ||
+               !(Node::isPhoto(ext) || Node::isAudio(ext) || Node::isVideo(ext) ||
+                 Node::isDocument(ext) || Node::isPdf(ext) || Node::isPresentation(ext) ||
+                 Node::isArchive(ext) || Node::isProgram(ext) || Node::isMiscellaneous(ext) ||
+                 Node::isSpreadsheet(ext));
     default:
         return false;
     }
@@ -509,7 +515,7 @@ MimeType_t Node::getMimetype(const std::string& ext)
     if (isArchive(ext))       return MimeType_t::MIME_TYPE_ARCHIVE;
     if (isProgram(ext))       return MimeType_t::MIME_TYPE_PROGRAM;
     if (isMiscellaneous(ext)) return MimeType_t::MIME_TYPE_MISC;
-    return MimeType_t::MIME_TYPE_UNKNOWN;
+    return MimeType_t::MIME_TYPE_OTHERS;
 }
 
 nameid Node::getExtensionNameId(const std::string& ext)
@@ -1098,7 +1104,7 @@ bool Node::isIncludedForMimetype(MimeType_t mimetype, bool checkPreview) const
     std::string extension;
     if (!getExtension(extension, displayname()))
     {
-        return false;
+        return MimeType_t::MIME_TYPE_OTHERS == mimetype;
     }
 
     return Node::isOfMimetype(mimetype, extension);

@@ -325,7 +325,7 @@ public:
 
     void loadShareKeys();
 
-    void commit(std::function<void()> applyChanges, std::function<void()> completion = nullptr);
+    void commit(std::function<void()> applyChanges, std::function<void (error e)> completion = nullptr);
     void reset();
 
     // returns a formatted string, for logging purposes
@@ -344,8 +344,8 @@ public:
     void setManualVerificationFlag(bool enabled) { mManualVerification = enabled; }
 
 protected:
-    std::deque<std::pair<std::function<void()>, std::function<void()>>> nextQueue;
-    std::deque<std::pair<std::function<void()>, std::function<void()>>> activeQueue;
+    std::deque<std::pair<std::function<void()>, std::function<void(error e)>>> nextQueue;
+    std::deque<std::pair<std::function<void()>, std::function<void(error e)>>> activeQueue;
 
     void nextCommit();
     void tryCommit(Error e, std::function<void ()> completion);
@@ -490,7 +490,8 @@ struct DynamicMessageNotification
     int64_t id = 0;
     std::string title;
     std::string description;
-    std::string imageName;
+    std::string imageName; // main notification image
+    std::string iconName;
     std::string imagePath;
     int64_t start = 0;
     int64_t end = 0;
@@ -836,6 +837,8 @@ public:
 
     // send files/folders to user
     void putnodes(const char*, vector<NewNode>&&, int tag, CommandPutNodes::Completion&& completion = nullptr);
+
+    void putFileAttributes(handle h, fatype t, const std::string& encryptedAttributes, int tag);
 
     // attach file attribute to upload or node handle
     bool putfa(NodeOrUploadHandle, fatype, SymmCipher*, int tag, std::unique_ptr<string>);
@@ -1455,6 +1458,16 @@ public:
     // maximum number of concurrent transfers (uploads or downloads)
     static const unsigned MAXTRANSFERS;
 
+    // minimum maximum number of concurrent transfers for dynamic calculation
+    static const unsigned MIN_MAXTRANSFERS;
+
+    // maximum number of concurrent raided transfers for mobile
+    static const unsigned MAX_RAIDTRANSFERS_FOR_MOBILE;
+
+    // meaningful portion of the maximum transfer queue size to consider raid representation
+    // i.e., there must be at least this number of raid transfers to let us predict whether the next download transfer will be raided or non-raided
+    static const unsigned MEANINGFUL_PORTION_OF_MAXTRANSFERS_QUEUE_FOR_RAID_PREDICTIVE_SYSTEM;
+
     // maximum number of queued putfa before halting the upload queue
     static const int MAXQUEUEDFA;
 
@@ -1793,6 +1806,9 @@ public:
     // transfer tslots
     transferslot_list tslots;
 
+    // raid transfers counter
+    unsigned raidTransfersCounter{};
+
     // keep track of next transfer slot timeout
     BackoffTimerGroupTracker transferSlotsBackoff;
 
@@ -1913,6 +1929,9 @@ public:
 
     // determine if the file is a spreadsheet.
     bool nodeIsSpreadsheet(const Node* n) const;
+
+    // determine if the file is not in any of the other file types.
+    bool nodeIsOtherType(const Node* n) const;
 
     // functions for determining whether we can clone a node instead of upload
     // or whether two files are the same so we can just upload/download the data once
@@ -2595,6 +2614,7 @@ private:
 
     // Password Manager - private
     void preparePasswordNodeData(attr_map& attrs, const AttrMap& data) const;
+    std::string getPartialAPs();
 
 public:
 

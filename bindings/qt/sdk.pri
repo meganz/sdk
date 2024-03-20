@@ -83,6 +83,7 @@ SOURCES += src/arguments.cpp \
     src/mega_zxcvbn.cpp \
     src/mediafileattribute.cpp \
     src/raid.cpp \
+    src/raidproxy.cpp \
     src/testhooks.cpp \
     src/heartbeats.cpp
 
@@ -198,7 +199,7 @@ CONFIG(USE_LIBUV) {
     vcpkg:INCLUDEPATH_EXTERNAL += $$THIRDPARTY_VCPKG_PATH/include/libuv
     !vcpkg:INCLUDEPATH_EXTERNAL += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libuv
     win32 {
-        LIBS += -llibuv -lIphlpapi -lUserenv -lpsapi
+        LIBS += -llibuv -lIphlpapi -lUserenv -lpsapi -ldbghelp
     }
 
     unix:!macx {
@@ -206,14 +207,12 @@ CONFIG(USE_LIBUV) {
         LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libuv.a
        }
        else {
-        vcpkg:LIBS += -llibuv
-        else:LIBS += -luv
+        LIBS += -luv
        }
     }
 
     macx {
-        vcpkg:LIBS += -llibuv
-        !vcpkg:LIBS += -luv
+        LIBS += -luv
     }
 }
 
@@ -505,9 +504,9 @@ HEADERS  += include/mega.h \
             include/mega/mega_zxcvbn.h \
             include/mega/mediafileattribute.h \
             include/mega/raid.h \
+            include/mega/raidproxy.h \
             include/mega/testhooks.h \
             include/mega/drivenotify.h
-
 CONFIG(USE_MEGAAPI) {
     HEADERS += bindings/qt/QTMegaRequestListener.h \
             bindings/qt/QTMegaTransferListener.h \

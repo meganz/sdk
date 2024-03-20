@@ -576,7 +576,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
         ENDIF(USE_SQLITE)
 
         IF(USE_LIBUV)
-            ImportStdVcpkgLibrary(uv       libuv libuv liblibuv liblibuv)
+            ImportStdVcpkgLibrary(uv       libuv libuv libuv libuv)
         ENDIF(USE_LIBUV)
 
         IF(USE_PCRE)
@@ -612,7 +612,7 @@ if(WIN32)
     SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/$<IF:${USE_CURL},wincurl,win32>)
     SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} ws2_32 winhttp Shlwapi Secur32.lib  $<$<OR:${USE_CURL},${USE_WEBRTC}>:Wldap32.lib> )
     IF(USE_LIBUV)
-        SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} Kernel32.lib Iphlpapi.lib Userenv.lib Psapi.lib )
+        SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} Kernel32.lib Iphlpapi.lib Userenv.lib Psapi.lib DbgHelp.lib )
     ENDIF(USE_LIBUV)
     IF(HAVE_FFMPEG)
         SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} Mfplat.lib mfuuid.LIB strmiids.LIB)
@@ -788,6 +788,7 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/mega_ccronexpr.h
             ${MegaDir}/include/mega/testhooks.h
             ${MegaDir}/include/mega/share.h
+            ${MegaDir}/include/mega/raidproxy.h
             ${MegaDir}/include/mega/win32/megafs.h
             ${MegaDir}/include/mega/win32/meganet.h
             ${MegaDir}/include/mega/win32/megaconsolewaiter.h
@@ -814,6 +815,7 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/filesystem.h
             ${MegaDir}/include/mega/backofftimer.h
             ${MegaDir}/include/mega/raid.h
+            ${MegaDir}/include/mega/raidproxy.h
             ${MegaDir}/include/mega/logging.h
             ${MegaDir}/include/mega/file.h
             ${MegaDir}/include/mega/sync.h
@@ -866,6 +868,7 @@ add_library(Mega STATIC
             ${MegaDir}/src/proxy.cpp
             ${MegaDir}/src/pubkeyaction.cpp
             ${MegaDir}/src/raid.cpp
+            ${MegaDir}/src/raidproxy.cpp
             ${MegaDir}/src/request.cpp
             ${MegaDir}/src/serialize64.cpp
             ${MegaDir}/src/nodemanager.cpp
@@ -1085,9 +1088,9 @@ add_executable(test_unit
 add_executable(test_integration
     ${MegaDir}/tests/gtest_common.cpp
     ${MegaDir}/tests/gtest_common.h
+    ${MegaDir}/tests/sdk_test_utils.cpp
+    ${MegaDir}/tests/sdk_test_utils.h
     ${MegaDir}/tests/integration/main.cpp
-    ${MegaDir}/tests/integration/sdk_test_utils.cpp
-    ${MegaDir}/tests/integration/sdk_test_utils.h
     ${MegaDir}/tests/integration/SdkTest_test.cpp
     ${MegaDir}/tests/integration/SdkTest_test.h
     ${MegaDir}/tests/integration/Sync_test.cpp
