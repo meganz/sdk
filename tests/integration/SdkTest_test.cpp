@@ -18426,6 +18426,9 @@ TEST_F(SdkTest, DynamicMessageNotifs)
  * Steps:
  *  - Create file and upload
  *  - Set description
+ *  - Locallogout
+ *  - Resume
+ *  - Check description
  *  - Update description
  *  - Remove description
  *
@@ -18473,7 +18476,23 @@ TEST_F(SdkTest, SdkNodeDescription)
     };
 
     // Set description
-    changeNodeDescription(mh, "Description");
+    std::string description("Description");
+    changeNodeDescription(mh, description.c_str());
+
+    std::unique_ptr<char>session(dumpSession());
+    locallogout(0);
+    resumeSession(session.get());
+    fetchnodes(0);
+
+    auto& target = mApi[0];
+    target.resetlastEvent();
+    // make sure that client is up to date (upon logout, recent changes might not be committed to DB)
+    ASSERT_TRUE(WaitFor([&target](){ return target.lastEventsContain(MegaEvent::EVENT_NODES_CURRENT); }, 10000))
+        << "Timeout expired to receive actionpackets";
+
+    std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(mh));
+    ASSERT_TRUE(node);
+    ASSERT_EQ(description, node->getDescription());
 
     // Update description
     changeNodeDescription(mh, "Description modified");
