@@ -979,6 +979,15 @@ const char* CommandSetAttr::getJSON(MegaClient* client)
             mNode.reset();
             generationError = API_EKEY;
         }
+
+        if (at.size() > MAX_NODE_ATTRIBUTE_SIZE)
+        {
+            client->sendevent(99484, "Node attribute exceed maximun size");
+            LOG_err << "Node attribute exceed maximun size";
+            h.setUndef();  // dummy command to generate an error, with no effect
+            mNode.reset();
+            generationError =  API_EARGS;
+        }
     }
     else
     {
@@ -11430,6 +11439,10 @@ bool CommandGetNotifications::procresult(Result r, JSON& json)
 
             case MAKENAMEID3('i', 'm', 'g'):
                 json.storeobject(&notification.imageName);
+                break;
+
+            case MAKENAMEID4('i', 'c', 'o', 'n'):
+                json.storeobject(&notification.iconName);
                 break;
 
             case MAKENAMEID3('d', 's', 'p'):

@@ -39,7 +39,7 @@ target_sources(test_unit
 )
 
 target_sources_conditional(test_unit
-    FLAG WIN32
+    FLAG ENABLE_ISOLATED_GFX
     PRIVATE
     Isolatedprocess_test.cpp
 )
@@ -48,7 +48,7 @@ target_sources_conditional(test_unit
 target_link_libraries(test_unit PRIVATE MEGA::SDKlib)
 
 # Link with the common interface library for the tests.
-target_link_libraries(test_unit PRIVATE test_common)
+target_link_libraries(test_unit PRIVATE MEGA::test_common)
 
 # Adjust compilation flags for warnings and errors
 target_platform_compile_options(

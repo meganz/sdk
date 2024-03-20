@@ -155,7 +155,7 @@ Usage:
   -h                   Show help
   -v                   Verbose
   -c=arg               Client type. default|vpn|password_manager (default: default))"
-#if defined(WIN32)
+#if defined(ENABLE_ISOLATED_GFX)
 R"(
   -e=arg               Use the isolated gfx processor. This gives executable binary path
   -n=arg               Pipe name (default: mega_gfxworker_megacli)
@@ -177,7 +177,7 @@ Config Config::fromArguments(const Arguments& arguments)
 {
     Config config;
 
-#if defined(WIN32)
+#if defined(ENABLE_ISOLATED_GFX)
     // executable
     config.executable = arguments.getValue("-e", "");
 
@@ -198,7 +198,7 @@ Config Config::fromArguments(const Arguments& arguments)
 
 static std::unique_ptr<IGfxProvider> createGfxProvider(const Config& config)
 {
-#if defined(_WIN32)
+#if defined(ENABLE_ISOLATED_GFX)
     if (!config.executable.empty())
     {
         auto process = ::mega::make_unique<GfxIsolatedProcess>(config.pipeName, config.executable);
