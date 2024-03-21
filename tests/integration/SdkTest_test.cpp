@@ -18479,7 +18479,7 @@ TEST_F(SdkTest, SdkNodeDescription)
             return;
         }
 
-        ASSERT_EQ(strcmp(description, node->getDescription()), 0);
+        ASSERT_STREQ(description, node->getDescription());
     };
 
     // Set description

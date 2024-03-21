@@ -12186,11 +12186,12 @@ void exec_nodedescription(autocomplete::ACState& s)
 
     const bool removeDescription = s.extractflag("-remove");
     const bool setDescription = s.extractflag("-set");
+    const auto descNameId = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_DESCRIPTION);
 
-    auto modifyDescription = [](const std::string& description, std::shared_ptr<Node> n)
+    auto modifyDescription = [descNameId](const std::string& description, std::shared_ptr<Node> n)
     {
         AttrMap attrMap;
-        attrMap.map[AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_DESCRIPTION)] = description;
+        attrMap.map[descNameId] = description;
         client->setattr(
             n,
             std::move(attrMap.map),
@@ -12214,8 +12215,7 @@ void exec_nodedescription(autocomplete::ACState& s)
     }
     else
     {
-        auto it = n->attrs.map.find(AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_DESCRIPTION));
-        if (it != n->attrs.map.end())
+              if (auto it = n->attrs.map.find(descNameId); it != n->attrs.map.end())
         {
             cout << "Description: " << it->second << endl;
         }
