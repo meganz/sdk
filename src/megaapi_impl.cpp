@@ -435,7 +435,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
                 mS4 = it->second;
             }
             else if (it->first == AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_MANAGER) ||
-                     it->first == AttrMap::string2nameid(AttrMap::NODE_ATTRIBUTE_DESCRIPTION))
+                     it->first == AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_DESCRIPTION))
             {
                 if (!mOfficialAttrs) mOfficialAttrs = make_unique<attr_map>();
 
@@ -520,6 +520,10 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     if (node->changed.pwd)
     {
         this->changed |= MegaNode::CHANGE_TYPE_PWD;
+    }
+    if (node->changed.description)
+    {
+        this->changed |= MegaNode::CHANGE_TYPE_DESCRIPTION;
     }
 
     this->thumbnailAvailable = (node->hasfileattribute(0) != 0);
@@ -868,7 +872,7 @@ double MegaNodePrivate::getLongitude()
 
 const char* MegaNodePrivate::getDescription()
 {
-    return getOfficialAttr(AttrMap::NODE_ATTRIBUTE_DESCRIPTION);
+    return getOfficialAttr(MegaClient::NODE_ATTRIBUTE_DESCRIPTION);
 }
 
 int64_t MegaNodePrivate::getSize()
@@ -21173,7 +21177,7 @@ error MegaApiImpl::performRequest_setAttrNode(MegaRequestPrivate* request)
                          isTypeS4 || type == MegaApi::NODE_ATTR_DESCRIPTION)
                 {
                     const char* attributeName =
-                        isTypeS4 ? "s4" : AttrMap::NODE_ATTRIBUTE_DESCRIPTION;
+                        isTypeS4 ? "s4" : MegaClient::NODE_ATTRIBUTE_DESCRIPTION;
                     const char* attrValue = request->getText();
                     attrUpdates[AttrMap::string2nameid(attributeName)] = attrValue ? attrValue : "";
                 }

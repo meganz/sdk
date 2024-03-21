@@ -18426,6 +18426,9 @@ TEST_F(SdkTest, DynamicMessageNotifs)
  * Steps:
  *  - Create file and upload
  *  - Set description
+ *  - Locallogout
+ *  - Resume
+ *  - Check description
  *  - Update description
  *  - Remove description
  *
@@ -18456,24 +18459,52 @@ TEST_F(SdkTest, SdkNodeDescription)
 
     auto changeNodeDescription = [this](MegaHandle nodeHandle, const char* description)
     {
+        bool check = false;
+        mApi[0].mOnNodesUpdateCompletion =
+            createOnNodesUpdateLambda(nodeHandle, MegaNode::CHANGE_TYPE_DESCRIPTION, check);
         RequestTracker trackerSetDescription(megaApi[0].get());
         std::unique_ptr<MegaNode> testNode(megaApi[0]->getNodeByHandle(nodeHandle));
         megaApi[0]->setNodeDescription(testNode.get(), description, &trackerSetDescription);
         ASSERT_EQ(trackerSetDescription.waitForResult(), API_OK);
-        // TODO: At SDK-3769 wait for onNodesUpdate with specific change
-        ASSERT_TRUE(waitForEvent([description, nodeHandle, this]()
-        {
-            std::unique_ptr<MegaNode>node(megaApi[0]->getNodeByHandle(nodeHandle));
-            const char* nodeDescription = node->getDescription();
-            if (description == nullptr || nodeDescription == nullptr)
-                return description == nodeDescription;
+        ASSERT_TRUE(waitForResponse(&check))
+            << "Node hasn't updated description after " << maxTimeout << " seconds";
+        resetOnNodeUpdateCompletionCBs();
 
-            return strcmp(description, node->getDescription()) == 0;
-        }));
+        std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(nodeHandle));
+        ASSERT_TRUE(node);
+        const char* nodeDescription = node->getDescription();
+        if (description == nullptr || nodeDescription == nullptr)
+        {
+            ASSERT_EQ(description, nodeDescription);
+            return;
+        }
+
+        ASSERT_STREQ(description, node->getDescription());
     };
 
     // Set description
-    changeNodeDescription(mh, "Description");
+    std::string description("Description");
+    changeNodeDescription(mh, description.c_str());
+
+    std::unique_ptr<char> session(dumpSession());
+    locallogout(0);
+    resumeSession(session.get());
+    fetchnodes(0);
+
+    auto& target = mApi[0];
+    target.resetlastEvent();
+    // make sure that client is up to date (upon logout, recent changes might not be committed to DB)
+    ASSERT_TRUE(WaitFor(
+        [&target]()
+        {
+            return target.lastEventsContain(MegaEvent::EVENT_NODES_CURRENT);
+        },
+        10000))
+        << "Timeout expired to receive actionpackets";
+
+    std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(mh));
+    ASSERT_TRUE(node);
+    ASSERT_EQ(description, node->getDescription());
 
     // Update description
     changeNodeDescription(mh, "Description modified");

@@ -750,6 +750,8 @@ public:
     // check if the available bandwidth quota is enough to transfer an amount of bytes
     void querytransferquota(m_off_t size);
 
+    static constexpr char NODE_ATTRIBUTE_DESCRIPTION[] = "des";
+
     // update node attributes
     error setattr(std::shared_ptr<Node>, attr_map&& updates, CommandSetAttr::Completion&& c, bool canChangeVault);
 
