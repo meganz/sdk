@@ -12213,15 +12213,12 @@ void exec_nodedescription(autocomplete::ACState& s)
     {
         modifyDescription(s.words[2].s, n);
     }
+    else if (auto it = n->attrs.map.find(descNameId); it != n->attrs.map.end())
+    {
+        cout << "Description: " << it->second << endl;
+    }
     else
     {
-              if (auto it = n->attrs.map.find(descNameId); it != n->attrs.map.end())
-        {
-            cout << "Description: " << it->second << endl;
-        }
-        else
-        {
-            cout << "Description not set " << endl;
-        }
+        cout << "Description not set\n";
     }
 }
