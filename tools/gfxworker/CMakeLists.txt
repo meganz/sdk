@@ -19,7 +19,7 @@ target_sources_conditional(libgfxworker
 )
 
 target_sources_conditional(libgfxworker
-    FLAG LINUX
+    FLAG UNIX
     PRIVATE
     src/posix/server.h
     src/posix/server.cpp
