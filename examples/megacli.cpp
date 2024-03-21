@@ -4080,9 +4080,10 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_numberofnodes, sequence(text("nn")));
     p->Add(exec_numberofchildren, sequence(text("nc"), opt(remoteFSPath(client, &cwd))));
     p->Add(exec_searchbyname, sequence(text("sbn"), param("name"), opt(param("nodeHandle")), opt(flag("-norecursive")), opt(flag("-nosensitive"))));
-    p->Add(exec_setnodedescription, sequence(text("setnodedescription"), remoteFSPath(client, &cwd), param("description")));
-    p->Add(exec_getnodedescription, sequence(text("getnodedescription"), remoteFSPath(client, &cwd)));
-
+    p->Add(exec_nodedescription,
+           sequence(text("nodedescription"),
+                    remoteFSPath(client, &cwd),
+                    opt(either(flag("-remove"), sequence(flag("-set"), param("description"))))));
 
 #ifdef ENABLE_SYNC
     p->Add(exec_setdevicename, sequence(text("setdevicename"), param("device_name")));
@@ -12174,38 +12175,53 @@ void exec_generatepassword(autocomplete::ACState& s)
     }
 }
 
-void exec_setnodedescription(autocomplete::ACState& s)
+void exec_nodedescription(autocomplete::ACState& s)
 {
-    if (std::shared_ptr<Node> n = nodebypath(s.words[1].s.c_str()))
-    {
-        AttrMap attrMap;
-        attrMap.map[AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_DESCRIPTION)] = s.words[2].s.c_str();
-        client->setattr(n, std::move(attrMap.map), [](NodeHandle h, Error e)
-        {
-            if (e == API_OK)
-                cout << "Description set correctly" << endl;
-            else
-                cout << "Error setting description: " << e << "  Node: " << h << endl;
-        }, false);
-    }
-    else
+    std::shared_ptr<Node> n = nodebypath(s.words[1].s.c_str());
+    if (!n)
     {
         cout << s.words[1].s << ": No such file or directory" << endl;
+        return;
     }
-}
 
-void exec_getnodedescription(autocomplete::ACState& s)
-{
-    if (std::shared_ptr<Node> n = nodebypath(s.words[1].s.c_str()))
+    const bool removeDescription = s.extractflag("-remove");
+    const bool setDescription = s.extractflag("-set");
+
+    auto modifyDescription = [](const std::string& description, std::shared_ptr<Node> n)
+    {
+        AttrMap attrMap;
+        attrMap.map[AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_DESCRIPTION)] = description;
+        client->setattr(
+            n,
+            std::move(attrMap.map),
+            [](NodeHandle h, Error e)
+            {
+                if (e == API_OK)
+                    cout << "Description modified correctly" << endl;
+                else
+                    cout << "Error modifying description: " << e << "  Node: " << h << endl;
+            },
+            false);
+    };
+
+    if (removeDescription)
+    {
+        modifyDescription("", n);
+    }
+    else if (setDescription)
+    {
+        modifyDescription(s.words[2].s, n);
+    }
+    else
     {
         auto it = n->attrs.map.find(AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_DESCRIPTION));
         if (it != n->attrs.map.end())
         {
-            cout << "   Description: " << it->second << endl;
+            cout << "Description: " << it->second << endl;
         }
         else
         {
-            cout << "   Description not set " << endl;
+            cout << "Description not set " << endl;
         }
     }
 }
