@@ -15,7 +15,7 @@ public:
 
     }
 
-    CommError connect(std::unique_ptr<IEndpoint>& endpoint) override;
+    std::pair<CommError, std::unique_ptr<IEndpoint>> connect() override;
 
 private:
     CommError doConnect(LPCTSTR pipeName, HANDLE &hPipe);

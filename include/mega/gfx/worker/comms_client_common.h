@@ -1,6 +1,9 @@
 #pragma once
 
 #include "mega/gfx/worker/comms.h"
+
+#include <utility>
+
 namespace mega {
 namespace gfx {
 
@@ -9,7 +12,7 @@ class IGfxCommunicationsClient
 public:
     virtual ~IGfxCommunicationsClient() = default;
 
-    virtual CommError connect(std::unique_ptr<IEndpoint>& endpoint) = 0;
+    virtual std::pair<CommError, std::unique_ptr<IEndpoint>> connect() = 0;
 };
 
 }

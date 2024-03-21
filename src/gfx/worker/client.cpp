@@ -151,14 +151,13 @@ bool GfxClient::isRetryError(CommError error) const
 std::unique_ptr<IEndpoint> GfxClient::connectWithRetry(milliseconds backoff, unsigned int maxRetries)
 {
     unsigned int loop = 0;
-    std::unique_ptr<IEndpoint> endpoint;
     do {
-        CommError error = mComms->connect(endpoint);
+        auto [error, endpoint] = mComms->connect();
 
         // connected
         if (endpoint)
         {
-            return endpoint;
+            return std::move(endpoint); // endpoint is reference
         }
 
         if (++loop > maxRetries)

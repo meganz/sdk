@@ -5,16 +5,16 @@
 namespace mega {
 namespace gfx {
 
-CommError GfxCommunicationsClient::connect(std::unique_ptr<IEndpoint>& endpoint)
+std::pair<CommError, std::unique_ptr<IEndpoint>> GfxCommunicationsClient::connect()
 {
     auto [errorCode, fd] = SocketUtils::connect(SocketUtils::toSocketPath(mSocketName));
     if (errorCode)
     {
-        return toCommError(errorCode.value());
+        return {toCommError(errorCode.value()), nullptr};
     }
 
-    endpoint = std::make_unique<Socket>(fd, "client");
-    return CommError::OK;
+    std::unique_ptr<IEndpoint> endpoint = std::make_unique<Socket>(fd, "client");
+    return {CommError::OK, std::move(endpoint)};
 }
 
 CommError GfxCommunicationsClient::toCommError(int error) const
