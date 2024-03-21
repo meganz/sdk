@@ -3711,7 +3711,13 @@ bool CommandDelUA::procresult(Result r, JSON& json)
     return true;
 }
 
-CommandSendDevCommand::CommandSendDevCommand(MegaClient *client, const char *command, const char *email, long long q, int bs, int us)
+CommandSendDevCommand::CommandSendDevCommand(MegaClient* client,
+                                             const char* command,
+                                             const char* email,
+                                             long long q,
+                                             int bs,
+                                             int us,
+                                             const char* cp)
 {
     cmd("dev");
 
@@ -3732,6 +3738,13 @@ CommandSendDevCommand::CommandSendDevCommand(MegaClient *client, const char *com
     else if ((strcmp(command, "us") == 0))
     {
         arg("s", us);
+    }
+    else if ((strcmp(command, "abs") == 0))
+    {
+        assert(cp);
+
+        if (cp) arg("c", cp);
+        arg("g", us);
     }
     tag = client->reqtag;
 }

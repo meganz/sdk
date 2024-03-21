@@ -888,7 +888,12 @@ public:
     void delua(const char* an);
 
     // send dev command for testing
-    void senddevcommand(const char *command, const char *email, long long q = 0, int bs = 0, int us = 0);
+    void senddevcommand(const char* command,
+                        const char* email,
+                        long long q = 0,
+                        int bs = 0,
+                        int us = 0,
+                        const char* abs_c = nullptr);
 #endif
 
     // delete or block an existing contact
