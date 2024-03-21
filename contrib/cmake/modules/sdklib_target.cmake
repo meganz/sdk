@@ -43,12 +43,6 @@ set(SDKLIB_HEADERS
     include/mega/gfx/freeimage.h
     include/mega/gfx/gfx_pdfium.h
     include/mega/gfx/external.h
-    include/mega/gfx/isolatedprocess.h
-    include/mega/gfx/worker/tasks.h
-    include/mega/gfx/worker/commands.h
-    include/mega/gfx/worker/comms.h
-    include/mega/gfx/worker/command_serializer.h
-    include/mega/gfx/worker/client.h
     include/mega/pubkeyaction.h
     include/mega/mega_http_parser.h
     include/mega/waiter.h
@@ -100,8 +94,6 @@ set(SDKLIB_SOURCES
     src/gfx/external.cpp
     src/gfx/freeimage.cpp
     src/gfx/gfx_pdfium.cpp
-    src/gfx/worker/commands.cpp
-    src/gfx/worker/command_serializer.cpp
     src/http.cpp
     src/json.cpp
     src/logging.cpp
@@ -205,10 +197,18 @@ target_sources_conditional(SDKlib
 target_sources_conditional(SDKlib
     FLAG ENABLE_ISOLATED_GFX
     PRIVATE
+    include/mega/gfx/isolatedprocess.h
+    include/mega/gfx/worker/tasks.h
+    include/mega/gfx/worker/commands.h
+    include/mega/gfx/worker/comms.h
+    include/mega/gfx/worker/command_serializer.h
+    include/mega/gfx/worker/client.h
     include/mega/gfx/worker/comms_client_common.h
     include/mega/gfx/worker/comms_client.h
     src/gfx/isolatedprocess.cpp
     src/gfx/worker/client.cpp
+    src/gfx/worker/commands.cpp
+    src/gfx/worker/command_serializer.cpp
 )
 
 target_sources_conditional(SDKlib

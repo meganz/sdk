@@ -23,7 +23,6 @@
 #include "mega/arguments.h"
 #include "mega/filesystem.h"
 #include "mega/gfx.h"
-#include "mega/gfx/worker/client.h"
 #include "megacli.h"
 #include <chrono>
 #include <exception>
@@ -69,7 +68,10 @@
 #ifdef USE_FREEIMAGE
 #include "mega/gfx/freeimage.h"
 #endif
+
+#ifdef ENABLE_ISOLATED_GFX
 #include "mega/gfx/isolatedprocess.h"
+#endif
 
 #ifdef WIN32
 #include <winioctl.h>
