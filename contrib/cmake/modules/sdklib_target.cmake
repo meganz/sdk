@@ -147,11 +147,17 @@ target_sources(SDKlib
 target_sources_conditional(SDKlib
     FLAG WIN32 AND USE_CURL
     PRIVATE
-    include/mega/wincurl/megafs.h # win32/megafs.h
-    include/mega/wincurl/megaconsolewaiter.h # win32/megaconsolewaiter.h
-    include/mega/wincurl/megaconsole.h # win32/megaconsole.h
-    include/mega/wincurl/megawaiter.h # win32/megawaiter.h
-    include/mega/wincurl/meganet.h # posix/meganet.h
+    include/mega/wincurl/megafs.h # it includes win32/megafs.h
+    include/mega/wincurl/megaconsolewaiter.h # it includes win32/megaconsolewaiter.h
+    include/mega/wincurl/megaconsole.h # it includes win32/megaconsole.h
+    include/mega/wincurl/megawaiter.h # it includes win32/megawaiter.h
+    include/mega/wincurl/meganet.h # it includes posix/meganet.h
+
+    src/wincurl/fs.cpp # it includes win32/fs.cpp
+    src/wincurl/consolewaiter.cpp # it includes win32/consolewaiter.cpp
+    src/wincurl/console.cpp # it includes win32/console.cpp
+    src/wincurl/waiter.cpp # it includes win32/waiter.cpp
+    src/wincurl/net.cpp # it includes posix/net.cpp
 )
 
 target_sources_conditional(SDKlib
@@ -162,16 +168,18 @@ target_sources_conditional(SDKlib
     include/mega/win32/megaconsole.h
     include/mega/win32/megawaiter.h
     include/mega/win32/meganet.h
+
+    src/win32/fs.cpp
+    src/win32/consolewaiter.cpp
+    src/win32/console.cpp
+    src/win32/waiter.cpp
+    src/win32/net.cpp
 )
 
 target_sources_conditional(SDKlib
     FLAG WIN32
     PRIVATE
-    src/win32/console.cpp
-    src/win32/consolewaiter.cpp
-    src/win32/fs.cpp
-    # src/win32/net.cpp # when not using curl. # TODO Remove support for winhttp?
-    src/win32/waiter.cpp
+    include/mega/win32/megasys.h
 )
 
 target_sources_conditional(SDKlib
@@ -220,17 +228,13 @@ target_sources_conditional(SDKlib
     include/mega/posix/megafs.h
     include/mega/posix/megaconsolewaiter.h
     include/mega/posix/meganet.h
+    include/mega/posix/megasys.h
 
     src/posix/waiter.cpp
     src/thread/posixthread.cpp
     src/posix/console.cpp
     src/posix/fs.cpp
     src/posix/consolewaiter.cpp
-)
-
-target_sources_conditional(SDKlib
-    FLAG UNIX OR (WIN32 AND USE_CURL)
-    PRIVATE
     src/posix/net.cpp
 )
 
