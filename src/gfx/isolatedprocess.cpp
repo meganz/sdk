@@ -85,6 +85,16 @@ const char* GfxProviderIsolatedProcess::Formats::videoformats() const
     return (mIsValid && !mVideoformats.empty()) ? mVideoformats.c_str() : nullptr;
 }
 
+std::unique_ptr<GfxProviderIsolatedProcess> GfxProviderIsolatedProcess::create(
+    const std::string &endpointName,
+    const std::string &executable)
+{
+    if (endpointName.empty() || executable.empty()) return nullptr;
+
+    auto process = ::mega::make_unique<GfxIsolatedProcess>(endpointName, executable);
+    return ::mega::make_unique<GfxProviderIsolatedProcess>(std::move(process));
+}
+
 void GfxProviderIsolatedProcess::Formats::setOnce(const std::string& formats, const std::string& videoformats)
 {
     const std::lock_guard<std::mutex> l(mMutex);

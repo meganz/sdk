@@ -6063,8 +6063,7 @@ std::unique_ptr<MegaGfxProviderPrivate> MegaGfxProviderPrivate::createIsolatedIn
     const std::string& executable)
 {
 #ifdef ENABLE_ISOLATED_GFX
-    auto process = ::mega::make_unique<GfxIsolatedProcess>(endpointName, executable);
-    auto provider = ::mega::make_unique<GfxProviderIsolatedProcess>(std::move(process));
+    auto provider = GfxProviderIsolatedProcess::create(endpointName, executable);
     return ::mega::make_unique<MegaGfxProviderPrivate>(std::move(provider));
 #else
     (void)endpointName, (void)executable;

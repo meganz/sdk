@@ -201,17 +201,13 @@ Config Config::fromArguments(const Arguments& arguments)
 static std::unique_ptr<IGfxProvider> createGfxProvider(const Config& config)
 {
 #if defined(ENABLE_ISOLATED_GFX)
-    if (!config.executable.empty() && !config.endpointName.empty())
+    if (auto provider = GfxProviderIsolatedProcess::create(config.endpointName, config.executable))
     {
-        auto process = ::mega::make_unique<GfxIsolatedProcess>(config.endpointName, config.executable);
-        return ::mega::make_unique<GfxProviderIsolatedProcess>(std::move(process));
+        return provider;
     }
-    else
 #endif
-    {
-        (void) config;
-        return IGfxProvider::createInternalGfxProvider();
-    }
+    (void) config;
+    return IGfxProvider::createInternalGfxProvider();
 }
 
 #ifdef ENABLE_SYNC

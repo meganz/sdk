@@ -153,6 +153,8 @@ public:
 
     const char* supportedvideoformats() override;
 
+    static std::unique_ptr<GfxProviderIsolatedProcess> create(const std::string &endpointName,
+                                                              const std::string &executable);
 private:
 
     // thread safe formats accessor
