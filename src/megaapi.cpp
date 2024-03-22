@@ -452,6 +452,11 @@ double MegaNode::getLongitude()
     return INVALID_COORDINATE;
 }
 
+const char* MegaNode::getDescription()
+{
+    return NULL;
+}
+
 char *MegaNode::getBase64Handle()
 {
     return NULL;
@@ -2871,6 +2876,11 @@ void MegaApi::setNodeCoordinates(MegaNode *node, double latitude, double longitu
 void MegaApi::setUnshareableNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener)
 {
     pImpl->setNodeCoordinates(node, true, latitude, longitude, listener);
+}
+
+void MegaApi::setNodeDescription(MegaNode* node, const char* description, MegaRequestListener* listener)
+{
+    pImpl->setNodeDescription(node, description, listener);
 }
 
 void MegaApi::exportNode(MegaNode *node, MegaRequestListener *listener)

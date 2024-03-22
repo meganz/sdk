@@ -595,6 +595,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         int getVideocodecid() override;
         double getLatitude() override;
         double getLongitude() override;
+        const char* getDescription() override;
         char *getBase64Handle() override;
         int64_t getSize() override;
         int64_t getCreationTime() override;
@@ -3066,6 +3067,7 @@ class MegaApiImpl : public MegaApp
         void getFavourites(MegaNode* node, int count, MegaRequestListener* listener = nullptr);
         void setNodeSensitive(MegaNode* node, bool sensitive, MegaRequestListener* listener);
         void setNodeCoordinates(MegaNode *node, bool unshareable, double latitude, double longitude, MegaRequestListener *listener = NULL);
+        void setNodeDescription(MegaNode* node, const char* description, MegaRequestListener* listener = NULL);
         void exportNode(MegaNode *node, int64_t expireTime, bool writable, bool megaHosted, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
