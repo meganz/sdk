@@ -44,5 +44,5 @@ private:
     bool mDone = false;
 };
 
-} // end of namespace
+} // namespace
 }

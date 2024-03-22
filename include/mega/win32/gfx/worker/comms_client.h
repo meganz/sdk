@@ -30,5 +30,5 @@ private:
     std::string mPipeName;
 };
 
-} // end of namespace
+} // namespace
 }

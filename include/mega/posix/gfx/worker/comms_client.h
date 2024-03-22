@@ -23,5 +23,5 @@ private:
     std::string mSocketName;
 };
 
-} // end of namespace
+} // namespace
 }

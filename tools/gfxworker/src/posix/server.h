@@ -38,5 +38,5 @@ private:
     const std::chrono::milliseconds mWaitMs{60000};
 };
 
-} //namespace gfx
-} //namespace mega
+} // namespace
+}

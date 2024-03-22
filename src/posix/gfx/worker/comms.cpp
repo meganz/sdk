@@ -45,5 +45,5 @@ bool Socket::doRead(void* out, size_t n, TimeoutMs timeout)
     return !errorCode;
 }
 
-} // end of namespace
+} // namespace
 }

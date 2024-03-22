@@ -334,5 +334,5 @@ std::pair<error_code, int> SocketUtils::listen(const fs::path& socketPath)
     return {error_code{}, fd};;
 }
 
-} // end of namespace
+} // namespace
 }

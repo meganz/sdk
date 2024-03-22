@@ -98,5 +98,5 @@ struct SocketUtils
     static std::error_code write(int fd, const void* data, size_t n, std::chrono::milliseconds timeout);
 };
 
-} // end of namespace
+} // namespace
 }

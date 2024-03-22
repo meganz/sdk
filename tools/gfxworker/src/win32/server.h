@@ -58,5 +58,5 @@ private:
     DWORD       mWaitMs = INFINITE;
 };
 
-} //namespace gfx
-} //namespace mega
+} // namespace
+}

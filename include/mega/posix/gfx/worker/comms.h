@@ -31,5 +31,5 @@ private:
     std::string mName;
 };
 
-} // end of namespace
+} // namespace
 }
