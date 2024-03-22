@@ -166,9 +166,7 @@ pipeline {
                                 fi
                             fi
                             if [ -n \"\$FAILED\" ]; then
-                                if [ \"\$FAILED\" -eq 1 ]; then
-                                    coreFiles=core
-                                elif [ \"\$FAILED\" -eq 2 ]; then
+                                if [ \"\$FAILED\" -le 2 ]; then
                                     coreFiles=core
                                 else # FAILED=3
                                     if [ -z \"${TESTS_PARALLEL}\" ]; then
