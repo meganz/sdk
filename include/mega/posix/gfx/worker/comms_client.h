@@ -9,10 +9,7 @@ namespace gfx {
 class GfxCommunicationsClient : public IGfxCommunicationsClient
 {
 public:
-    GfxCommunicationsClient(const std::string& socketName)
-        : mSocketName(socketName)
-    {
-    }
+    GfxCommunicationsClient(const std::string& socketName);
 
     std::pair<CommError, std::unique_ptr<IEndpoint>> connect() override;
 

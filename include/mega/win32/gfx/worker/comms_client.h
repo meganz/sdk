@@ -9,10 +9,7 @@ namespace gfx {
 class GfxCommunicationsClient : public IGfxCommunicationsClient
 {
 public:
-    GfxCommunicationsClient(const std::string& pipeName)
-        : mPipeName(pipeName)
-    {
-    }
+    GfxCommunicationsClient(const std::string& pipeName);
 
     // Connect to the server
     // On success, a CommError::OK and a valid endpoint pair is returned

@@ -5,6 +5,11 @@
 namespace mega {
 namespace gfx {
 
+GfxCommunicationsClient::GfxCommunicationsClient(const std::string& socketName)
+    : mSocketName(socketName)
+{
+}
+
 std::pair<CommError, std::unique_ptr<IEndpoint>> GfxCommunicationsClient::connect()
 {
     auto [errorCode, fd] = SocketUtils::connect(SocketUtils::toSocketPath(mSocketName));

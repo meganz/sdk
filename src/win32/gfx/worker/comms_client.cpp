@@ -15,6 +15,11 @@ private:
     Type type() const { return Type::Client; }
 };
 
+GfxCommunicationsClient::GfxCommunicationsClient(const std::string& pipeName)
+    : mPipeName(pipeName)
+{
+}
+
 std::pair<CommError, HANDLE> GfxCommunicationsClient::doConnect(LPCTSTR pipeName)
 {
     CommError error = CommError::ERR;
