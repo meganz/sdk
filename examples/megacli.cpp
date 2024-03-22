@@ -1469,7 +1469,7 @@ void DemoApp::senddevcommand_result(int value)
 
 void exec_devcommand(autocomplete::ACState& s)
 {
-    const std::string_view subcommand {s.words[1].s.c_str()};
+    const std::string_view subcommand {s.words[1].s};
 
     std::string email;
     const bool isEmailProvided = s.extractflagparam("-e", email);
@@ -1490,7 +1490,7 @@ void exec_devcommand(autocomplete::ACState& s)
         {
             std::cout << "devcommand abs is missing required";
             std::for_each(std::begin(req), std::end(req), printElement);
-            std::cout << " missing\n";
+            std::cout << " options\n";
             return;
         }
 
@@ -1513,7 +1513,7 @@ void exec_devcommand(autocomplete::ACState& s)
         {
             std::cout << "devcommand " << subcommand << " will ignore unrequired";
             std::for_each(std::begin(param), std::end(param), printElement);
-            std::cout << " provided\n";
+            std::cout << " provided options\n";
         }
 
         client->senddevcommand(subcommand.data(), isEmailProvided ? email.c_str() : nullptr);
