@@ -32,7 +32,7 @@ bool isPollError(int event)
     return event & (POLLERR | POLLHUP | POLLNVAL);
 }
 
-// Pool a group of file descriptors. It deals with EINTR.
+// Poll a group of file descriptors. It deals with EINTR.
 error_code poll(std::vector<struct pollfd> fds, milliseconds timeout)
 {
     const mega::ScopedSteadyTimer timer;
@@ -58,7 +58,7 @@ error_code poll(std::vector<struct pollfd> fds, milliseconds timeout)
     return error_code{};
 }
 
-// Pool a single file descriptor
+// Poll a single file descriptor
 error_code pollFd(int fd, short events, milliseconds timeout)
 {
     // Poll
