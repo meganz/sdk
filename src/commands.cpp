@@ -10798,49 +10798,61 @@ bool CommandFetchAds::procresult(Command::Result r, JSON& json)
     }
 
     bool error = false;
-
-    while (json.enterobject() && !error)
+    for (auto adUnit = std::begin(mAdUnits); adUnit != std::end(mAdUnits) && !error; ++adUnit)
     {
-        std::string id;
-        std::string iu;
-        bool exit = false;
-        while (!exit)
+        if (json.isnumeric())
         {
-            switch (json.getnameid())
-            {
-                case MAKENAMEID2('i', 'd'):
-                    json.storeobject(&id);
-                    break;
-
-                case MAKENAMEID3('s', 'r', 'c'):
-                    json.storeobject(&iu);
-                    break;
-
-                case EOO:
-                    exit = true;
-                    if (!id.empty() && !iu.empty())
-                    {
-                        result[id] = iu;
-                    }
-                    else
-                    {
-                        error = true;
-                        result.clear();
-                    }
-                    break;
-
-                default:
-                    if (!json.storeobject())
-                    {
-                        result.clear();
-                        mCompletion(API_EINTERNAL, result);
-                        return false;
-                    }
-                    break;
-            }
+            // -9 or any other error for the provided ad unit (error results order must match)
+            result[*adUnit] = std::to_string(json.getint());
         }
+        else if (json.enterobject())
+        {
+            std::string id;
+            std::string iu;
+            bool exit = false;
+            while (!exit)
+            {
+                switch (json.getnameid())
+                {
+                    case MAKENAMEID2('i', 'd'):
+                        json.storeobject(&id);
+                        break;
 
-        json.leaveobject();
+                    case MAKENAMEID3('s', 'r', 'c'):
+                        json.storeobject(&iu);
+                        break;
+
+                    case EOO:
+                        exit = true;
+                        if (!id.empty() && !iu.empty())
+                        {
+                            assert(id == *adUnit);
+                            result[id] = iu;
+                        }
+                        else
+                        {
+                            error = true;
+                            result.clear();
+                        }
+                        break;
+
+                    default:
+                        if (!json.storeobject())
+                        {
+                            result.clear();
+                            mCompletion(API_EINTERNAL, result);
+                            return false;
+                        }
+                        break;
+                }
+            }
+            json.leaveobject();
+        }
+        else
+        {
+            result.clear();
+            error = true;
+        }
     }
 
     mCompletion((error ? API_EINTERNAL : API_OK), result);
@@ -10849,7 +10861,7 @@ bool CommandFetchAds::procresult(Command::Result r, JSON& json)
 }
 
 CommandFetchAds::CommandFetchAds(MegaClient* client, int adFlags, const std::vector<std::string> &adUnits, handle publicHandle, CommandFetchAdsCompletion completion)
-    : mCompletion(completion)
+    : mCompletion(completion), mAdUnits(adUnits)
 {
     cmd("adf");
     arg("ad", adFlags);
