@@ -190,7 +190,7 @@ Config Config::fromArguments(const Arguments& arguments)
     }
 
     // endpoint name
-    config.endpointName  = arguments.getValue("-n", "mega_gfxworker_megacli");
+    config.endpointName = arguments.getValue("-n", "mega_gfxworker_megacli");
 #endif
 
     config.clientType = arguments.getValue("-c", "default");

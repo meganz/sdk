@@ -72,7 +72,7 @@ Config Config::fromArguments(const Arguments& arguments)
     config.queueSize = std::max<size_t>(1, config.queueSize);
 
     // endpoint name
-    config.endpointName  = arguments.getValue("-n", "mega_gfxworker");
+    config.endpointName = arguments.getValue("-n", "mega_gfxworker");
 
     // log directory
     config.logDirectory = arguments.getValue("-d", ".");
