@@ -1023,6 +1023,8 @@ if(IOS)
     )
 endif()
 
+if (NOT IOS)
+#test apps
 add_executable(test_unit
     ${MegaDir}/tests/unit/Arguments_test.cpp
     ${MegaDir}/tests/unit/AttrMap_test.cpp
