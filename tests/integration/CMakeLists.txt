@@ -10,6 +10,12 @@ target_sources(test_integration
     Sync_test.cpp
 )
 
+target_sources_conditional(test_integration
+    FLAG ENABLE_ISOLATED_GFX
+    PRIVATE
+    IsolatedGfx_test.cpp
+)
+
 # Link with SDKlib
 target_link_libraries(test_integration PRIVATE MEGA::SDKlib)
 
