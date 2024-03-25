@@ -1082,6 +1082,12 @@ bool is_digit(unsigned int ch);
 // Get the current process ID
 unsigned long getCurrentPid();
 
+// Check whether a key is a zerokey
+// This applies to keys whose length is:
+// SymmCipher:BLOCKSIZE (16) (used for generator keys, ex: Transfer::transferkey; also folder node keys and general node keys)
+// FILENODEKEYLENGTH (32 or 2*SymmCipher::BLOCKSIZE) -> AES32 file/node keys
+bool isZeroKey(const byte* key, size_t keySize);
+
 } // namespace mega
 
 #endif // MEGA_UTILS_H

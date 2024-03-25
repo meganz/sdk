@@ -1160,9 +1160,11 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
 
         if (!client->loggedIntoWritableFolder())
         {
+            assert(!nn[i].hasZeroKey()); // Add this assert here to avoid extra checks in production -> we will have a check and logs if this fails within CommandPutNode::procresult
             if (nn[i].nodekey.size() <= sizeof key)
             {
                 client->key.ecb_encrypt((byte*)nn[i].nodekey.data(), key, nn[i].nodekey.size());
+                assert(!isZeroKey(key, FILENODEKEYLENGTH));
                 arg("k", key, int(nn[i].nodekey.size()));
             }
             else
@@ -1274,7 +1276,24 @@ bool CommandPutNodes::procresult(Result r, JSON& json)
                 assert(arrayIndex < nn.size());
                 if (arrayIndex < nn.size())
                 {
-                    nn[arrayIndex++].mError = error(json.getint());
+                    nn[arrayIndex].mError = error(json.getint());
+                    if (nn[arrayIndex].mError == API_EKEY)
+                    {
+                        // Check if the error was due to a zerokey.
+                        // We check this here to avoid a lot of unnecessary checks within CommandPutNodes constructor, where we send the key.
+                        // For the constructor we just add asserts for the debug mode. Here we can add checks and logs.
+                        if (nn[arrayIndex].hasZeroKey())
+                        {
+                            LOG_err << "[CommandPutNodes] New Node failed with API_EKEY has a zerokey!!!!"  << " [index = " << arrayIndex << ", handle = " << nn[arrayIndex].nodehandle << ", NodeHandle = " << nn[arrayIndex].nodeHandle() << "]";
+                            assert(false && "New Node which failed with API_EKEY has a zerokey!!!!");
+                            // sendevent? The API already sends an event for this scenario
+                        }
+                        else
+                        {
+                            LOG_warn << "[CommandPutNodes] New Node failed with API_EKEY !!" << " [index = " << arrayIndex << ", handle = " << nn[arrayIndex].nodehandle << ", NodeHandle = " << nn[arrayIndex].nodeHandle() << "]";
+                        }
+                    }
+                    arrayIndex++;
                 }
             }
             else
@@ -3793,6 +3812,7 @@ CommandNodeKeyUpdate::CommandNodeKeyUpdate(MegaClient* client, handle_vector* v)
         if ((n = client->nodebyhandle(h)))
         {
             client->key.ecb_encrypt((byte*)n->nodekey().data(), nodekey, n->nodekey().size());
+            assert(!n->hasZeroKey());
 
             element(h, MegaClient::NODEHANDLE);
             element(nodekey, int(n->nodekey().size()));
