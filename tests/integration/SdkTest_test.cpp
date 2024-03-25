@@ -311,6 +311,35 @@ namespace
     #endif
     }
 
+    enum class HasIcon
+    {
+        YES,
+        NO
+    };
+
+    void validateNotification(const MegaNotification* notification, int64_t id, HasIcon hasIcon)
+    {
+        ASSERT_EQ(notification->getID(), id);
+        ASSERT_STRNE(notification->getTitle(), "");
+        ASSERT_STRNE(notification->getDescription(), "");
+        ASSERT_STRNE(notification->getImageName(), "");
+        if (hasIcon == HasIcon::NO)
+        {
+            ASSERT_STREQ(notification->getIconName(), "");
+        }
+        else
+        {
+            ASSERT_STRNE(notification->getIconName(), "");
+        }
+        ASSERT_STRNE(notification->getImagePath(), "");
+        ASSERT_NE(notification->getStart(), 0);
+        ASSERT_NE(notification->getEnd(), 0);
+        ASSERT_THAT(notification->getCallToAction1(), ::testing::NotNull());
+        ASSERT_NE(notification->getCallToAction1()->size(), 0);
+        ASSERT_THAT(notification->getCallToAction2(), ::testing::NotNull());
+        ASSERT_NE(notification->getCallToAction2()->size(), 0);
+    };
+
 }
 
 std::map<size_t, std::string> gSessionIDs;
@@ -18225,8 +18254,10 @@ TEST_F(SdkTest, DynamicMessageNotifs)
 
     // Enable some test-notifications.
     // IDs 1,2,3,4,5 have been reserved to be "^!tnotif" only notifications.
-    // However, only notification with ID 1 existed at the time of writing this test
-    ids->add(1);
+    // Notification with ID 1~4 existed at the time of writing this test
+    // Notification with ID 2 has icon
+    ids->add(1);                                   // add notification with ID 1 
+    ids->add(2);                                   // add notification with ID 2
     ids->add(numeric_limits<uint32_t>::max() - 1); // dummy
 
     RequestTracker notifsTracker(megaApi[0].get());
@@ -18241,8 +18272,9 @@ TEST_F(SdkTest, DynamicMessageNotifs)
     // Get IDs of enabled-notifications
     unique_ptr<MegaIntegerList> enabledNotifs{ megaApi[0]->getEnabledNotifications() };
     ASSERT_THAT(enabledNotifs, ::testing::NotNull());
-    ASSERT_EQ(enabledNotifs->size(), 1); // only IDs of existing notifications will be there, dummy IDs will not be included
+    ASSERT_EQ(enabledNotifs->size(), 2); // only IDs of existing notifications will be there, dummy IDs will not be included
     ASSERT_EQ(enabledNotifs->get(0), 1);
+    ASSERT_EQ(enabledNotifs->get(1), 2);
 
     // Get the complete notifications (corresponding only to existing IDs)
     RequestTracker gnotifTracker2(megaApi[0].get());
@@ -18250,22 +18282,11 @@ TEST_F(SdkTest, DynamicMessageNotifs)
     ASSERT_EQ(gnotifTracker2.waitForResult(), API_OK);
     const auto* notificationList2 = gnotifTracker2.request->getMegaNotifications();
     ASSERT_THAT(notificationList2, ::testing::NotNull());
-    ASSERT_EQ(notificationList2->size(), 1u);
+    ASSERT_EQ(notificationList2->size(), 2u);
 
-    // validate complete notification
-    const MegaNotification* notification = notificationList2->get(0);
-    ASSERT_EQ(notification->getID(), 1);
-    ASSERT_STRNE(notification->getTitle(), "");
-    ASSERT_STRNE(notification->getDescription(), "");
-    ASSERT_STRNE(notification->getImageName(), "");
-    //ASSERT_STRNE(notification->getIconName(), "");
-    ASSERT_STRNE(notification->getImagePath(), "");
-    ASSERT_NE(notification->getStart(), 0);
-    ASSERT_NE(notification->getEnd(), 0);
-    ASSERT_THAT(notification->getCallToAction1(), ::testing::NotNull());
-    ASSERT_NE(notification->getCallToAction1()->size(), 0);
-    ASSERT_THAT(notification->getCallToAction2(), ::testing::NotNull());
-    ASSERT_NE(notification->getCallToAction2()->size(), 0);
+    // validate complete notifications
+    ASSERT_NO_FATAL_FAILURE(validateNotification(notificationList2->get(0), 1, HasIcon::NO));
+    ASSERT_NO_FATAL_FAILURE(validateNotification(notificationList2->get(1), 2, HasIcon::YES));
 
     // Set last-read-notification
     const uint32_t lastReadNotifId = numeric_limits<uint32_t>::max() - 2; // dummy value
