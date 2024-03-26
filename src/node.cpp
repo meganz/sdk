@@ -839,6 +839,9 @@ void Node::setattr()
         const auto descriptionNameid = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_DESCRIPTION);
         changed.description = attrs.hasDifferentValue(descriptionNameid, oldAttrs.map);
 
+        const auto tagsNameid = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_TAGS);
+        changed.tags = attrs.hasDifferentValue(tagsNameid, oldAttrs.map);
+
         setfingerprint();
 
         delete[] buf;

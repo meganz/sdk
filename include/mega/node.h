@@ -346,6 +346,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
         bool pwd : 1;
         bool description : 1;
+        bool tags : 1;
     } changed;
 
 

@@ -526,6 +526,10 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     {
         this->changed |= MegaNode::CHANGE_TYPE_DESCRIPTION;
     }
+    if (node->changed.tags)
+    {
+        this->changed |= MegaNode::CHANGE_TYPE_TAGS;
+    }
 
     this->thumbnailAvailable = (node->hasfileattribute(0) != 0);
     this->previewAvailable = (node->hasfileattribute(1) != 0);

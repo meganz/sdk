@@ -18564,11 +18564,17 @@ TEST_F(SdkTest, SdkNodeTag)
     {
         std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(nodeHandle));
         EXPECT_TRUE(node);
+        bool check = false;
+        mApi[0].mOnNodesUpdateCompletion =
+            createOnNodesUpdateLambda(nodeHandle, MegaNode::CHANGE_TYPE_TAGS, check);
         RequestTracker trackerAddTag(megaApi[0].get());
         megaApi[0]->addNodeTag(node.get(), tag.c_str(), &trackerAddTag);
         ErrorCodes error = trackerAddTag.waitForResult();
         if (error != API_OK)
             return error;
+
+        EXPECT_TRUE(waitForResponse(&check))
+            << "Node hasn't updated tags after " << maxTimeout << " seconds";
 
         node.reset(megaApi[0]->getNodeByHandle(nodeHandle));
         EXPECT_TRUE(node);
@@ -18581,11 +18587,17 @@ TEST_F(SdkTest, SdkNodeTag)
     {
         std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(nodeHandle));
         EXPECT_TRUE(node);
+        bool check = false;
+        mApi[0].mOnNodesUpdateCompletion =
+            createOnNodesUpdateLambda(nodeHandle, MegaNode::CHANGE_TYPE_TAGS, check);
         RequestTracker trackerAddTag(megaApi[0].get());
         megaApi[0]->removeNodeTag(node.get(), tag.c_str(), &trackerAddTag);
         ErrorCodes error = trackerAddTag.waitForResult();
         if (error != API_OK)
             return error;
+
+        EXPECT_TRUE(waitForResponse(&check))
+            << "Node hasn't updated tags after " << maxTimeout << " seconds";
 
         node.reset(megaApi[0]->getNodeByHandle(nodeHandle));
         EXPECT_TRUE(node);
@@ -18598,11 +18610,17 @@ TEST_F(SdkTest, SdkNodeTag)
     {
         std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(nodeHandle));
         EXPECT_TRUE(node);
+        bool check = false;
+        mApi[0].mOnNodesUpdateCompletion =
+            createOnNodesUpdateLambda(nodeHandle, MegaNode::CHANGE_TYPE_TAGS, check);
         RequestTracker trackerAddTag(megaApi[0].get());
         megaApi[0]->updateNodeTag(node.get(), tag.c_str(), oldTag.c_str(), &trackerAddTag);
         ErrorCodes error = trackerAddTag.waitForResult();
         if (error != API_OK)
             return error;
+
+        EXPECT_TRUE(waitForResponse(&check))
+            << "Node hasn't updated tags after " << maxTimeout << " seconds";
 
         node.reset(megaApi[0]->getNodeByHandle(nodeHandle));
         EXPECT_TRUE(node);
