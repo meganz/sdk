@@ -3361,13 +3361,13 @@ bool isZeroKey(const byte* key, size_t keySize)
         assert(FILENODEKEYLENGTH == SymmCipher::BLOCKSIZE * 2);
         // Check if the lower 16 bytes (0-15) are equal to the higher 16 bytes (16-31)
         // This will be true either if the key is all zeros or it was generated with a 16-byte zero key (for example, the transferkey was a zerokey).
-        return std::memcmp(&key[0], &key[SymmCipher::BLOCKSIZE], SymmCipher::BLOCKSIZE) == 0;
+        return std::memcmp(key /*key[0-15]*/, key + SymmCipher::BLOCKSIZE /*key[16-31]*/, SymmCipher::BLOCKSIZE) == 0;
     }
     else if (keySize == SymmCipher::BLOCKSIZE) // 16 (transfer key, client master key, etc)
     {
         // Check if all bytes are zero (zerokey)
-        byte zeroKey[SymmCipher::BLOCKSIZE] = {};
-        return std::memcmp(&key[0], zeroKey, SymmCipher::BLOCKSIZE) == 0;
+        static const byte zeroKey[SymmCipher::BLOCKSIZE] = {};
+        return std::memcmp(key, zeroKey, SymmCipher::BLOCKSIZE) == 0;
     }
 
     // Invalid key size, consider it non-zero
