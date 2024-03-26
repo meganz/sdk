@@ -12476,9 +12476,14 @@ void MegaClient::delua(const char *an)
     }
 }
 
-void MegaClient::senddevcommand(const char *command, const char *email, long long q, int bs, int us)
+void MegaClient::senddevcommand(const char* command,
+                                const char* email,
+                                long long q,
+                                int bs,
+                                int us,
+                                const char* abs_c)
 {
-    reqs.add(new CommandSendDevCommand(this, command, email, q, bs, us));
+    reqs.add(new CommandSendDevCommand(this, command, email, q, bs, us, abs_c));
 }
 #endif
 

@@ -32,6 +32,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 #include "mega/testhooks.h"
 
@@ -1468,13 +1469,55 @@ void DemoApp::senddevcommand_result(int value)
 
 void exec_devcommand(autocomplete::ACState& s)
 {
-    const char *email = nullptr;
-    if (s.words.size() == 3)
+    const std::string_view subcommand {s.words[1].s};
+
+    std::string email;
+    const bool isEmailProvided = s.extractflagparam("-e", email);
+    std::string campaign;
+    const bool isCampaingProvided = s.extractflagparam("-c", campaign);
+    std::string groupId;
+    const bool isGroupIdProvided = s.extractflagparam("-g", groupId);
+
+    const auto printElement = [](const auto& p){ std::cout << " " << p; };
+    if (subcommand == "abs")
     {
-        email = s.words[2].s.c_str();
+        if (isEmailProvided) std::cout << "devcommand abs will ignore unrequired -e provided\n";
+
+        std::vector<std::string> req;
+        if (!isCampaingProvided) req.emplace_back("-c");
+        if (!isGroupIdProvided) req.emplace_back("-g");
+        if (!req.empty())
+        {
+            std::cout << "devcommand abs is missing required";
+            std::for_each(std::begin(req), std::end(req), printElement);
+            std::cout << " options\n";
+            return;
+        }
+
+        size_t l;
+        const int g = std::stoi(groupId, &l); // it's okay throwing in megacli for non-numeric
+        if(l != groupId.size())
+        {
+            std::cout << "abs param -g must be a natural number: " << groupId << " provided\n";
+            return;
+        }
+
+        client->senddevcommand(subcommand.data(), nullptr, 0, 0, g, campaign.c_str());
     }
-    const char *subcommand = s.words[1].s.c_str();
-    client->senddevcommand(subcommand, email);
+    else
+    {
+        std::vector<std::string> param;
+        if (isCampaingProvided) param.emplace_back("-c");
+        if (isGroupIdProvided) param.emplace_back("-g");
+        if (!param.empty())
+        {
+            std::cout << "devcommand " << subcommand << " will ignore unrequired";
+            std::for_each(std::begin(param), std::end(param), printElement);
+            std::cout << " provided options\n";
+        }
+
+        client->senddevcommand(subcommand.data(), isEmailProvided ? email.c_str() : nullptr);
+    }
 }
 #endif
 
@@ -4196,7 +4239,10 @@ autocomplete::ACN autocompleteSyntax()
                                                                           sequence(text("load"), localFSFile())))));
 #ifdef DEBUG
     p->Add(exec_delua, sequence(text("delua"), param("attrname")));
-    p->Add(exec_devcommand, sequence(text("devcommand"), param("subcommand"), opt(param("email"))));
+    p->Add(exec_devcommand, sequence(text("devcommand"), param("subcommand"),
+                                     opt(sequence(flag("-e"), param("email"))),
+                                     opt(sequence(flag("-c"), param("campaign"),
+                                                  flag("-g"), param("group_id")))));
 #endif
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     p->Add(exec_simulatecondition, sequence(text("simulatecondition"), opt(text("ETOOMANY"))));
