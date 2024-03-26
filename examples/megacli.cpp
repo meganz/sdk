@@ -4085,6 +4085,11 @@ autocomplete::ACN autocompleteSyntax()
                     remoteFSPath(client, &cwd),
                     opt(either(flag("-remove"), sequence(flag("-set"), param("description"))))));
 
+    p->Add(exec_nodeTag,
+           sequence(text("nodetag"),
+                    remoteFSPath(client, &cwd),
+                    opt(either(sequence(flag("-remove"), param("tag")), sequence(flag("-add"), param("tag")), sequence(flag("-update"), param("newtag"), param("oldtag"))))));
+
 #ifdef ENABLE_SYNC
     p->Add(exec_setdevicename, sequence(text("setdevicename"), param("device_name")));
     p->Add(exec_getdevicename, sequence(text("getdevicename")));
@@ -12220,5 +12225,60 @@ void exec_nodedescription(autocomplete::ACState& s)
     else
     {
         cout << "Description not set\n";
+    }
+}
+
+void exec_nodeTag(autocomplete::ACState& s)
+{
+    std::shared_ptr<Node> n = nodebypath(s.words[1].s.c_str());
+    if (!n)
+    {
+        cout << s.words[1].s << ": No such file or directory\n";
+        return;
+    }
+
+    const bool removeTag = s.extractflag("-remove");
+    const bool addTag = s.extractflag("-add");
+    const bool updateTag = s.extractflag("-update");
+    const auto tagNameId = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_TAGS);
+
+    if (removeTag)
+    {
+        client->removeTagFromNode(n,
+                                s.words[2].s,
+                                [](NodeHandle h, Error e)
+                                {
+                                    if (e == API_OK)
+                                        cout << "Tag removed correctly\n";;
+                                });
+    }
+    else if (addTag)
+    {
+        client->addTagToNode(n,
+                             s.words[2].s,
+                             [](NodeHandle h, Error e)
+                             {
+                                 if (e == API_OK)
+                                     cout << "Tag added correctly\n";
+                             });
+    }
+    else if (updateTag)
+    {
+        client->updateTagNode(n,
+                                s.words[2].s,
+                                s.words[3].s,
+                                [](NodeHandle h, Error e)
+                                {
+                                    if (e == API_OK)
+                                        cout << "Tag updated correctly\n";
+                                });
+    }
+    else if (auto it = n->attrs.map.find(tagNameId); it != n->attrs.map.end())
+    {
+        cout << "Tags: " << it->second << endl;
+    }
+    else
+    {
+        cout << "None tag is defined\n";
     }
 }
