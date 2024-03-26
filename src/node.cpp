@@ -3114,7 +3114,7 @@ void LocalNode::queueClientUpload(shared_ptr<SyncUpload_inClient> upload, Versio
                     if (cloneNode->hasZeroKey())
                     {
                         LOG_warn << "Clone node key is a zero key!!!!!!!!! -> avoiding cloning node to regenerate the key [cloneNode path = '" << cloneNode->displaypath() << "', sourceLocalname = '" << upload->sourceLocalname << "']";
-                        assert(false && "Clone node key is a zero key!!!!!!!!!");
+                        mc.sendevent(99486, "Node has a zerokey");
                         cloneNode = nullptr;
                     }
                     break;
