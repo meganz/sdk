@@ -77,6 +77,29 @@ struct CloudNode
     bool isIgnoreFile() const;
 };
 
+// new node for putnodes()
+struct MEGA_API NewNode : public NodeCore
+{
+    string nodekey;
+
+    newnodesource_t source = NEW_NODE;
+
+    NodeHandle ovhandle;
+    UploadHandle uploadhandle;
+    UploadToken uploadtoken;
+
+    std::unique_ptr<string> fileattributes;
+
+    // versioning used for this new node, forced at server's side regardless the account's value
+    VersioningOption mVersioningOption = NoVersioning;
+    bool added = false;           // set true when the actionpacket arrives
+    bool canChangeVault = false;
+    handle mAddedHandle = UNDEF;  // updated as actionpacket arrives
+    error mError = API_OK;        // per-node error (updated in cs response)
+
+    bool hasZeroKey() const;
+};
+
 struct MEGA_API PublicLink
 {
     handle ph;
@@ -473,29 +496,6 @@ inline bool Node::hasZeroKey(const string& nodekeydata)
 }
 
 // END MEGA_API Node
-
-// new node for putnodes()
-struct MEGA_API NewNode : public NodeCore
-{
-    string nodekey;
-
-    newnodesource_t source = NEW_NODE;
-
-    NodeHandle ovhandle;
-    UploadHandle uploadhandle;
-    UploadToken uploadtoken;
-
-    std::unique_ptr<string> fileattributes;
-
-    // versioning used for this new node, forced at server's side regardless the account's value
-    VersioningOption mVersioningOption = NoVersioning;
-    bool added = false;           // set true when the actionpacket arrives
-    bool canChangeVault = false;
-    handle mAddedHandle = UNDEF;  // updated as actionpacket arrives
-    error mError = API_OK;        // per-node error (updated in cs response)
-
-    bool hasZeroKey() const { return Node::hasZeroKey(nodekey); }
-};
 
 class NodeData
 {

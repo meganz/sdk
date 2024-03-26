@@ -1860,6 +1860,10 @@ std::unique_ptr<Node> NodeData::createNode(MegaClient& client, bool fromOldCache
     return n;
 }
 
+bool NewNode::hasZeroKey() const
+{
+    return Node::hasZeroKey(nodekey);
+}
 
 PublicLink::PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown, const char *authKey)
 {
