@@ -1164,7 +1164,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
             if (nn[i].nodekey.size() <= sizeof key)
             {
                 client->key.ecb_encrypt((byte*)nn[i].nodekey.data(), key, nn[i].nodekey.size());
-                assert(!isZeroKey(key, FILENODEKEYLENGTH));
+                assert(!SymmCipher::isZeroKey(key, FILENODEKEYLENGTH));
                 arg("k", key, int(nn[i].nodekey.size()));
             }
             else

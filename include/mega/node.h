@@ -463,13 +463,13 @@ inline bool Node::keyApplied() const
 
 inline bool Node::hasZeroKey() const
 {
-    return keyApplied() && isZeroKey(reinterpret_cast<const byte*>(nodekeydata.data()), nodekeydata.size());
+    return keyApplied() && SymmCipher::isZeroKey(reinterpret_cast<const byte*>(nodekeydata.data()), nodekeydata.size());
 }
 
 inline bool Node::hasZeroKey(const string& nodekeydata)
 {
     return ((nodekeydata.size() == FILENODEKEYLENGTH) || (nodekeydata.size() == FOLDERNODEKEYLENGTH)) &&
-            isZeroKey(reinterpret_cast<const byte*>(nodekeydata.data()), nodekeydata.size());
+            SymmCipher::isZeroKey(reinterpret_cast<const byte*>(nodekeydata.data()), nodekeydata.size());
 }
 
 // END MEGA_API Node
