@@ -1257,6 +1257,7 @@ bool CommandPutNodes::procresult(Result r, JSON& json)
         // If the first three nodes failed, the response would be e.g. [-9,-9,-9].  Success is []
         // If the second and third node failed, the response would change to {"1":-9,"2":-9}.
 
+        Error newNodeError(API_OK);
         unsigned arrayIndex = 0;
         for (;;)
         {
@@ -1277,20 +1278,25 @@ bool CommandPutNodes::procresult(Result r, JSON& json)
                 if (arrayIndex < nn.size())
                 {
                     nn[arrayIndex].mError = error(json.getint());
-                    if (nn[arrayIndex].mError == API_EKEY)
+                    if (nn[arrayIndex].mError != API_OK)
                     {
-                        // Check if the error was due to a zerokey.
-                        // We check this here to avoid a lot of unnecessary checks within CommandPutNodes constructor, where we send the key.
-                        // For the constructor we just add asserts for the debug mode. Here we can add checks and logs.
-                        if (nn[arrayIndex].hasZeroKey())
+                        newNodeError = nn[arrayIndex].mError;
+                        LOG_debug << "[CommandPutNodes] New Node failed with " << newNodeError << " [newnode index = " << arrayIndex << ", handle = " << nn[arrayIndex].nodehandle << ", NodeHandle = " << nn[arrayIndex].nodeHandle() << "]";
+                        if (nn[arrayIndex].mError == API_EKEY)
                         {
-                            LOG_err << "[CommandPutNodes] New Node failed with API_EKEY has a zerokey!!!!"  << " [index = " << arrayIndex << ", handle = " << nn[arrayIndex].nodehandle << ", NodeHandle = " << nn[arrayIndex].nodeHandle() << "]";
-                            assert(false && "New Node which failed with API_EKEY has a zerokey!!!!");
-                            // sendevent? The API already sends an event for this scenario
-                        }
-                        else
-                        {
-                            LOG_warn << "[CommandPutNodes] New Node failed with API_EKEY !!" << " [index = " << arrayIndex << ", handle = " << nn[arrayIndex].nodehandle << ", NodeHandle = " << nn[arrayIndex].nodeHandle() << "]";
+                            // Check if the error was due to a zerokey.
+                            // We check this here to avoid a lot of unnecessary checks within CommandPutNodes constructor, where we send the key.
+                            // For the constructor we just add asserts for the debug mode. Here we can add checks and logs.
+                            if (nn[arrayIndex].hasZeroKey())
+                            {
+                                LOG_err << "[CommandPutNodes] New Node failed with API_EKEY has a zerokey!!!!"  << " [newnode index = " << arrayIndex << ", handle = " << nn[arrayIndex].nodehandle << ", NodeHandle = " << nn[arrayIndex].nodeHandle() << "]";
+                                assert(false && "New Node which failed with API_EKEY has a zerokey!!!!");
+                                // sendevent? The API already sends an event for this scenario
+                            }
+                            else
+                            {
+                                LOG_warn << "[CommandPutNodes] New Node failed with API_EKEY !!" << " [newnode index = " << arrayIndex << ", handle = " << nn[arrayIndex].nodehandle << ", NodeHandle = " << nn[arrayIndex].nodeHandle() << "]";
+                            }
                         }
                     }
                     arrayIndex++;
@@ -1341,7 +1347,8 @@ bool CommandPutNodes::procresult(Result r, JSON& json)
         shared_ptr<Node> tempNode = !nn.empty() ? client->nodebyhandle(nn.front().mAddedHandle) : nullptr;
         bool targetOverride = (tempNode.get() && NodeHandle().set6byte(tempNode->parenthandle) != targethandle);
 
-        performAppCallback(emptyResponse ? API_ENOENT : API_OK, nn, targetOverride);
+        performAppCallback(emptyResponse ? ((newNodeError != API_OK) ? static_cast<error>(newNodeError) : API_ENOENT) : // Add last new node error if there is any, otherwise API_ENOENT
+                                            API_OK, nn, targetOverride);
         return true;
     }
     else
