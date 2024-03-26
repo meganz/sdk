@@ -19601,7 +19601,6 @@ error MegaApiImpl::performRequest_tagNode(MegaRequestPrivate* request)
 {
     std::shared_ptr<Node> node = client->nodebyhandle(request->getNodeHandle());
     int operation = request->getParamType();
-    error e = API_OK;
 
     if (!node)
     {
@@ -19631,7 +19630,6 @@ error MegaApiImpl::performRequest_tagNode(MegaRequestPrivate* request)
                                             fireOnRequestFinish(request,
                                                                 make_unique<MegaErrorPrivate>(e));
                                         });
-            break;
         }
         case MegaApi::TAG_NODE_REMOVE:
         {
@@ -19642,7 +19640,6 @@ error MegaApiImpl::performRequest_tagNode(MegaRequestPrivate* request)
                 {
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
                 });
-            break;
         }
         case MegaApi::TAG_NODE_UPDATE:
         {
@@ -19661,13 +19658,10 @@ error MegaApiImpl::performRequest_tagNode(MegaRequestPrivate* request)
                 {
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
                 });
-            break;
         }
-        default:
-            return API_EARGS;
     }
 
-    return e;
+    return API_EARGS;
 }
 
 void MegaApiImpl::multiFactorAuthCheck(const char* email, MegaRequestListener* listener)
