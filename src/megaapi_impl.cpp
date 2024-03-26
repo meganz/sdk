@@ -435,7 +435,8 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
                 mS4 = it->second;
             }
             else if (it->first == AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_MANAGER) ||
-                     it->first == AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_DESCRIPTION))
+                     it->first == AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_DESCRIPTION) ||
+                     it->first == AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_TAGS))
             {
                 if (!mOfficialAttrs) mOfficialAttrs = make_unique<attr_map>();
 
@@ -873,6 +874,21 @@ double MegaNodePrivate::getLongitude()
 const char* MegaNodePrivate::getDescription()
 {
     return getOfficialAttr(MegaClient::NODE_ATTRIBUTE_DESCRIPTION);
+}
+
+MegaStringList* MegaNodePrivate::getTags()
+{
+    const char* str = getOfficialAttr(MegaClient::NODE_ATTRIBUTE_TAGS);
+    std::string tags = str ? str : "";
+
+    std::set<std::string> tokens = MegaClient::splitString(tags, MegaClient::TAG_DELIMITER);
+    MegaStringListPrivate* stringList = new MegaStringListPrivate();
+    for (const auto& token : tokens)
+    {
+        stringList->add(token.c_str());
+    }
+
+    return stringList;
 }
 
 int64_t MegaNodePrivate::getSize()
@@ -8094,6 +8110,70 @@ void MegaApiImpl::setNodeDescription(MegaNode* node,
     request->performRequest = [this, request]()
     {
         return performRequest_setAttrNode(request);
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::addNodeTag(MegaNode* node, const char* tag, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_TAG_NODE, listener);
+
+    if (node)
+    {
+        request->setNodeHandle(node->getHandle());
+    }
+
+    request->setParamType(MegaApi::TAG_NODE_SET);
+    request->setText(tag);
+
+    request->performRequest = [this, request]()
+    {
+        return performRequest_tagNode(request);
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::removeNodeTag(MegaNode* node, const char* tag, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_TAG_NODE, listener);
+
+    if (node)
+    {
+        request->setNodeHandle(node->getHandle());
+    }
+
+    request->setParamType(MegaApi::TAG_NODE_REMOVE);
+    request->setText(tag);
+
+    request->performRequest = [this, request]()
+    {
+        return performRequest_tagNode(request);
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::updateNodeTag(MegaNode* node, const char* newTag, const char* oldTag, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_TAG_NODE, listener);
+
+    if (node)
+    {
+        request->setNodeHandle(node->getHandle());
+    }
+
+    request->setParamType(MegaApi::TAG_NODE_UPDATE);
+    request->setText(newTag);
+    request->setName(oldTag);
+
+    request->performRequest = [this, request]()
+    {
+        return performRequest_tagNode(request);
     };
 
     requestQueue.push(request);
@@ -19515,6 +19595,79 @@ error MegaApiImpl::performRequest_login(MegaRequestPrivate* request)
             }
 
             return e;
+}
+
+error MegaApiImpl::performRequest_tagNode(MegaRequestPrivate* request)
+{
+    std::shared_ptr<Node> node = client->nodebyhandle(request->getNodeHandle());
+    int operation = request->getParamType();
+    error e = API_OK;
+
+    if (!node)
+    {
+        return API_EARGS;
+    }
+
+    if (!request->getText())
+    {
+        return API_EARGS;
+    }
+
+    std::string tag = request->getText();
+
+    if (tag.find(MegaClient::TAG_DELIMITER) != std::string::npos)
+    {
+        return API_EARGS;
+    }
+
+    switch (operation)
+    {
+        case MegaApi::TAG_NODE_SET:
+        {
+            return client->addTagToNode(node,
+                                        tag,
+                                        [this, request](NodeHandle, Error e)
+                                        {
+                                            fireOnRequestFinish(request,
+                                                                make_unique<MegaErrorPrivate>(e));
+                                        });
+            break;
+        }
+        case MegaApi::TAG_NODE_REMOVE:
+        {
+            return client->removeTagFromNode(
+                node,
+                tag,
+                [this, request](NodeHandle, Error e)
+                {
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                });
+            break;
+        }
+        case MegaApi::TAG_NODE_UPDATE:
+        {
+            if (!request->getName())
+            {
+                return API_EARGS;
+            }
+
+            std::string oldTag = request->getName();
+
+            return client->updateTagNode(
+                node,
+                tag,
+                oldTag,
+                [this, request](NodeHandle, Error e)
+                {
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                });
+            break;
+        }
+        default:
+            return API_EARGS;
+    }
+
+    return e;
 }
 
 void MegaApiImpl::multiFactorAuthCheck(const char* email, MegaRequestListener* listener)

@@ -8576,6 +8576,115 @@ void MegaClient::makeattr(SymmCipher* key, const std::unique_ptr<string>& attrst
     makeattr(key, attrstring.get(), json, l);
 }
 
+error MegaClient::addTagToNode(std::shared_ptr<Node> node,
+                         const string& tag,
+                         CommandSetAttr::Completion&& c)
+{
+    nameid tagNameid = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_TAGS);
+    std::string tags = node->attrs.map[tagNameid];
+    std::set<std::string> tokens = splitString(tags, TAG_DELIMITER);
+
+    if (tokens.find(tag) != tokens.end())
+    {
+        return API_EEXIST;
+    }
+
+    if (tags.size()) // first tag, delimeter isnt' required
+    {
+        tags.push_back(TAG_DELIMITER);
+    }
+
+    tags.append(tag);
+    AttrMap map;
+    map.map[tagNameid] = std::move(tags);
+    setattr(node, std::move(map.map), std::move(c), false);
+
+    return API_OK;
+}
+
+error MegaClient::removeTagFromNode(std::shared_ptr<Node> node,
+                            const string& tag,
+                            CommandSetAttr::Completion&& c)
+{
+    nameid tagNameid = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_TAGS);
+    std::string tags = node->attrs.map[tagNameid];
+    std::set<std::string> tokens = splitString(tags, TAG_DELIMITER);
+
+    auto it = tokens.find(tag);
+    if (it == tokens.end())
+    {
+        return API_ENOENT;
+    }
+
+    tokens.erase(it);
+    std::string str;
+    if (tokens.size())
+    {
+        for (const auto& token: tokens)
+        {
+            str.append(token).push_back(TAG_DELIMITER);
+        }
+
+        str.pop_back(); // remove last delimiter
+    }
+
+    AttrMap map;
+    map.map[tagNameid] = std::move(str);
+    setattr(node, std::move(map.map), std::move(c), false);
+
+    return API_OK;
+}
+
+error MegaClient::updateTagNode(std::shared_ptr<Node> node,
+                            const string& newTag,
+                            const string& oldTag,
+                            CommandSetAttr::Completion&& c)
+{
+    nameid tagNameid = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_TAGS);
+    std::string tags = node->attrs.map[tagNameid];
+    std::set<std::string> tokens = splitString(tags, TAG_DELIMITER);
+
+    if (tokens.find(newTag) != tokens.end())
+    {
+        return API_EEXIST;
+    }
+
+    auto it = tokens.find(oldTag);
+    if (it == tokens.end())
+    {
+        return API_ENOENT;
+    }
+
+    tokens.erase(it);
+    std::string str;
+    tokens.insert(newTag);
+    for (const auto& token: tokens)
+    {
+        str.append(token).push_back(TAG_DELIMITER);
+    }
+
+    str.pop_back(); // remove last delimiter
+
+    AttrMap map;
+    map.map[tagNameid] = std::move(str);
+    setattr(node, std::move(map.map), std::move(c), false);
+
+    return API_OK;
+}
+
+std::set<std::string> MegaClient::splitString(const string& str, char delimiter)
+{
+    std::set<std::string> tokens;
+    std::string token;
+    std::istringstream tokenStream(str);
+    while (std::getline(tokenStream, token, delimiter))
+    {
+        tokens.insert(token);
+    }
+
+    return tokens;
+}
+
 // update node attributes
 error MegaClient::setattr(std::shared_ptr<Node> n, attr_map&& updates, CommandSetAttr::Completion&& c, bool canChangeVault)
 {

@@ -457,6 +457,11 @@ const char* MegaNode::getDescription()
     return NULL;
 }
 
+MegaStringList* MegaNode::getTags()
+{
+    return NULL;
+}
+
 char *MegaNode::getBase64Handle()
 {
     return NULL;
@@ -2881,6 +2886,21 @@ void MegaApi::setUnshareableNodeCoordinates(MegaNode *node, double latitude, dou
 void MegaApi::setNodeDescription(MegaNode* node, const char* description, MegaRequestListener* listener)
 {
     pImpl->setNodeDescription(node, description, listener);
+}
+
+void MegaApi::addNodeTag(MegaNode* node, const char* tag, MegaRequestListener* listener)
+{
+    pImpl->addNodeTag(node, tag, listener);
+}
+
+void MegaApi::removeNodeTag(MegaNode* node, const char* tag, MegaRequestListener* listener)
+{
+    pImpl->removeNodeTag(node, tag, listener);
+}
+
+void MegaApi::updateNodeTag(MegaNode* node, const char* newTag, const char* oldTag, MegaRequestListener* listener)
+{
+    pImpl->updateNodeTag(node, newTag, oldTag, listener);
 }
 
 void MegaApi::exportNode(MegaNode *node, MegaRequestListener *listener)

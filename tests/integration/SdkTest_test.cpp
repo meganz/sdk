@@ -18508,3 +18508,127 @@ TEST_F(SdkTest, SdkNodeDescription)
 
     deleteFile(filename);
 }
+
+/**
+ * @brief SdkNodeTag
+ * Steps:
+ *  - Create file and upload
+ *  - Add tag1 -> API_OK
+ *  - Add tag2 -> API_OK
+ *  - Add tag3 -> API_OK
+ *  - Add tag1 -> API_EEXIST
+ *  - Remove tag2 -> API_OK
+ *  - Remove tag2 -> API_ENOENT
+ *  - Update tag1 to tagUpdated -> API_OK
+ *  - Update tag1 to tagUpdated -> API_ENOENT
+ */
+TEST_F(SdkTest, SdkNodeTag)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    LOG_info << "___TEST SdkNodeTag___";
+
+    unique_ptr<MegaNode> rootnodeA(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootnodeA);
+
+    string filename = "test.txt";
+    createFile(filename, false);
+    MegaHandle mh = 0;
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &mh,
+                            filename.data(),
+                            rootnodeA.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot upload a test file";
+
+    auto checkTag = [](MegaNode* node, const std::string& tag)
+    {
+        std::unique_ptr<MegaStringList> tags(node->getTags());
+        for (int i = 0; i < tags->size(); i++)
+        {
+            if (tag == tags->get(i))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    };
+
+    auto addTag = [this, checkTag](MegaHandle nodeHandle, const std::string& tag) -> ErrorCodes
+    {
+        std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(nodeHandle));
+        EXPECT_TRUE(node);
+        RequestTracker trackerAddTag(megaApi[0].get());
+        megaApi[0]->addNodeTag(node.get(), tag.c_str(), &trackerAddTag);
+        ErrorCodes error = trackerAddTag.waitForResult();
+        if (error != API_OK)
+            return error;
+
+        node.reset(megaApi[0]->getNodeByHandle(nodeHandle));
+        EXPECT_TRUE(node);
+        std::unique_ptr<MegaStringList> tags(node->getTags());
+
+        return checkTag(node.get(), tag) ? API_OK : API_ENOENT;
+    };
+
+    auto removeTag = [this, checkTag](MegaHandle nodeHandle, const std::string& tag) -> ErrorCodes
+    {
+        std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(nodeHandle));
+        EXPECT_TRUE(node);
+        RequestTracker trackerAddTag(megaApi[0].get());
+        megaApi[0]->removeNodeTag(node.get(), tag.c_str(), &trackerAddTag);
+        ErrorCodes error = trackerAddTag.waitForResult();
+        if (error != API_OK)
+            return error;
+
+        node.reset(megaApi[0]->getNodeByHandle(nodeHandle));
+        EXPECT_TRUE(node);
+        std::unique_ptr<MegaStringList> tags(node->getTags());
+
+        return !checkTag(node.get(), tag) ? API_OK : API_EEXIST;
+    };
+
+    auto updateTag = [this, checkTag](MegaHandle nodeHandle, const std::string& tag, const std::string& oldTag) -> ErrorCodes
+    {
+        std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(nodeHandle));
+        EXPECT_TRUE(node);
+        RequestTracker trackerAddTag(megaApi[0].get());
+        megaApi[0]->updateNodeTag(node.get(), tag.c_str(), oldTag.c_str(), &trackerAddTag);
+        ErrorCodes error = trackerAddTag.waitForResult();
+        if (error != API_OK)
+            return error;
+
+        node.reset(megaApi[0]->getNodeByHandle(nodeHandle));
+        EXPECT_TRUE(node);
+        std::unique_ptr<MegaStringList> tags(node->getTags());
+
+        return (checkTag(node.get(), tag) && !checkTag(node.get(), oldTag)) ? API_OK : API_EEXIST;
+    };
+
+    std::string tag1 = "tag1";
+    std::string tag2 = "tag2";
+    std::string tag3 = "tag3";
+    std::string tagUpdated = "tagUpdated";
+    std::string tagUpdated2 = "tagUpdated2";
+
+    ASSERT_EQ(addTag(mh, tag1), API_OK);
+    ASSERT_EQ(addTag(mh, tag2), API_OK);
+    ASSERT_EQ(addTag(mh, tag3), API_OK);
+    ASSERT_EQ(addTag(mh, tag1), API_EEXIST);
+    ASSERT_EQ(addTag(mh, "tag,tag"), API_EARGS);
+
+    ASSERT_EQ(removeTag(mh, tag2), API_OK);
+    ASSERT_EQ(removeTag(mh, tag2), API_ENOENT);
+
+    ASSERT_EQ(updateTag(mh, tagUpdated, tag1), API_OK);
+    ASSERT_EQ(updateTag(mh, tagUpdated, tag2), API_EEXIST);  // New tag already exists
+    ASSERT_EQ(updateTag(mh, tagUpdated2, tag1), API_ENOENT); // Old tag doesn't exist
+
+    deleteFile(filename);
+}
