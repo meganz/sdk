@@ -1281,23 +1281,8 @@ bool CommandPutNodes::procresult(Result r, JSON& json)
                     if (nn[arrayIndex].mError != API_OK)
                     {
                         newNodeError = nn[arrayIndex].mError;
-                        LOG_debug << "[CommandPutNodes] New Node failed with " << newNodeError << " [newnode index = " << arrayIndex << ", handle = " << nn[arrayIndex].nodehandle << ", NodeHandle = " << nn[arrayIndex].nodeHandle() << "]";
-                        if (nn[arrayIndex].mError == API_EKEY)
-                        {
-                            // Check if the error was due to a zerokey.
-                            // We check this here to avoid a lot of unnecessary checks within CommandPutNodes constructor, where we send the key.
-                            // For the constructor we just add asserts for the debug mode. Here we can add checks and logs.
-                            if (nn[arrayIndex].hasZeroKey())
-                            {
-                                LOG_err << "[CommandPutNodes] New Node failed with API_EKEY has a zerokey!!!!"  << " [newnode index = " << arrayIndex << ", handle = " << nn[arrayIndex].nodehandle << ", NodeHandle = " << nn[arrayIndex].nodeHandle() << "]";
-                                assert(false && "New Node which failed with API_EKEY has a zerokey!!!!");
-                                // sendevent? The API already sends an event for this scenario
-                            }
-                            else
-                            {
-                                LOG_warn << "[CommandPutNodes] New Node failed with API_EKEY !!" << " [newnode index = " << arrayIndex << ", handle = " << nn[arrayIndex].nodehandle << ", NodeHandle = " << nn[arrayIndex].nodeHandle() << "]";
-                            }
-                        }
+                        LOG_debug << "[CommandPutNodes] New Node failed with " << newNodeError << " [newnode index = " << arrayIndex << ", NodeHandle = " << nn[arrayIndex].nodeHandle() << "]";
+                        assert(((nn[arrayIndex].mError != API_EKEY) || !nn[arrayIndex].hasZeroKey()) && "New Node which failed with API_EKEY has a zerokey!!!!");
                     }
                     arrayIndex++;
                 }
