@@ -4088,7 +4088,9 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_nodeTag,
            sequence(text("nodetag"),
                     remoteFSPath(client, &cwd),
-                    opt(either(sequence(flag("-remove"), param("tag")), sequence(flag("-add"), param("tag")), sequence(flag("-update"), param("newtag"), param("oldtag"))))));
+                    opt(either(sequence(flag("-remove"), param("tag")),
+                               sequence(flag("-add"), param("tag")),
+                               sequence(flag("-update"), param("newtag"), param("oldtag"))))));
 
 #ifdef ENABLE_SYNC
     p->Add(exec_setdevicename, sequence(text("setdevicename"), param("device_name")));
@@ -12245,12 +12247,12 @@ void exec_nodeTag(autocomplete::ACState& s)
     if (removeTag)
     {
         client->removeTagFromNode(n,
-                                s.words[2].s,
-                                [](NodeHandle h, Error e)
-                                {
-                                    if (e == API_OK)
-                                        cout << "Tag removed correctly\n";;
-                                });
+                                  s.words[2].s,
+                                  [](NodeHandle h, Error e)
+                                  {
+                                      if (e == API_OK)
+                                          cout << "Tag removed correctly\n";
+                                  });
     }
     else if (addTag)
     {
@@ -12265,13 +12267,13 @@ void exec_nodeTag(autocomplete::ACState& s)
     else if (updateTag)
     {
         client->updateTagNode(n,
-                                s.words[2].s,
-                                s.words[3].s,
-                                [](NodeHandle h, Error e)
-                                {
-                                    if (e == API_OK)
-                                        cout << "Tag updated correctly\n";
-                                });
+                              s.words[2].s,
+                              s.words[3].s,
+                              [](NodeHandle h, Error e)
+                              {
+                                  if (e == API_OK)
+                                      cout << "Tag updated correctly\n";
+                              });
     }
     else if (auto it = n->attrs.map.find(tagNameId); it != n->attrs.map.end())
     {

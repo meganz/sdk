@@ -1047,7 +1047,7 @@ class MegaNode
          * Check if description for this node has changed
          *
          * - MegaNode::CHANGE_TYPE_TAGS            = 0x20000
-         * Check if tags for this node has changed
+         * Check if tags for this node have changed
          *
          * @return true if this node has an specific change
          */
@@ -1110,7 +1110,7 @@ class MegaNode
          * Check if description for this node has changed
          *
          * - MegaNode::CHANGE_TYPE_TAGS            = 0x20000
-         * Check if tags for this node has changed
+         * Check if tags for this node have changed
          *
          */
         virtual uint64_t getChanges();
