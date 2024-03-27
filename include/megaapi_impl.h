@@ -4208,6 +4208,11 @@ private:
         error copyTreeFromOwnedNode(shared_ptr<Node> node, const char *newName, shared_ptr<Node> target, vector<NewNode>& treeCopy);
         error performRequest_login(MegaRequestPrivate* request);
         error performRequest_tagNode(MegaRequestPrivate* request);
+        void CRUDNodeTagOperation(MegaNode* node,
+                                  int operationType,
+                                  const char* tag,
+                                  const char* oldTag,
+                                  MegaRequestListener* listener);
 
         error performTransferRequest_cancelTransfer(MegaRequestPrivate* request, TransferDbCommitter& committer);
         error performTransferRequest_moveTransfer(MegaRequestPrivate* request, TransferDbCommitter& committer);

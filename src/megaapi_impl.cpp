@@ -8118,66 +8118,17 @@ void MegaApiImpl::setNodeDescription(MegaNode* node,
 
 void MegaApiImpl::addNodeTag(MegaNode* node, const char* tag, MegaRequestListener* listener)
 {
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_TAG_NODE, listener);
-
-    if (node)
-    {
-        request->setNodeHandle(node->getHandle());
-    }
-
-    request->setParamType(MegaApi::TAG_NODE_SET);
-    request->setText(tag);
-
-    request->performRequest = [this, request]()
-    {
-        return performRequest_tagNode(request);
-    };
-
-    requestQueue.push(request);
-    waiter->notify();
+    CRUDNodeTagOperation(node, MegaApi::TAG_NODE_SET, tag, nullptr, listener);
 }
 
 void MegaApiImpl::removeNodeTag(MegaNode* node, const char* tag, MegaRequestListener* listener)
 {
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_TAG_NODE, listener);
-
-    if (node)
-    {
-        request->setNodeHandle(node->getHandle());
-    }
-
-    request->setParamType(MegaApi::TAG_NODE_REMOVE);
-    request->setText(tag);
-
-    request->performRequest = [this, request]()
-    {
-        return performRequest_tagNode(request);
-    };
-
-    requestQueue.push(request);
-    waiter->notify();
+    CRUDNodeTagOperation(node, MegaApi::TAG_NODE_REMOVE, tag, nullptr, listener);
 }
 
 void MegaApiImpl::updateNodeTag(MegaNode* node, const char* newTag, const char* oldTag, MegaRequestListener* listener)
 {
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_TAG_NODE, listener);
-
-    if (node)
-    {
-        request->setNodeHandle(node->getHandle());
-    }
-
-    request->setParamType(MegaApi::TAG_NODE_UPDATE);
-    request->setText(newTag);
-    request->setName(oldTag);
-
-    request->performRequest = [this, request]()
-    {
-        return performRequest_tagNode(request);
-    };
-
-    requestQueue.push(request);
-    waiter->notify();
+    CRUDNodeTagOperation(node, MegaApi::TAG_NODE_UPDATE, newTag, oldTag, listener);
 }
 
 void MegaApiImpl::exportNode(MegaNode *node, int64_t expireTime, bool writable, bool megaHosted, MegaRequestListener *listener)
@@ -19662,6 +19613,32 @@ error MegaApiImpl::performRequest_tagNode(MegaRequestPrivate* request)
     }
 
     return API_EARGS;
+}
+
+void MegaApiImpl::CRUDNodeTagOperation(MegaNode* node,
+                                       int operationType,
+                                       const char* tag,
+                                       const char* oldTag,
+                                       MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_TAG_NODE, listener);
+
+    if (node)
+    {
+        request->setNodeHandle(node->getHandle());
+    }
+
+    request->setParamType(operationType);
+    request->setText(tag);
+    request->setName(oldTag);
+
+    request->performRequest = [this, request]()
+    {
+        return performRequest_tagNode(request);
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void MegaApiImpl::multiFactorAuthCheck(const char* email, MegaRequestListener* listener)

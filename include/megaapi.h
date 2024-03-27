@@ -13655,6 +13655,8 @@ class MegaApi
          * ',' is an invalid character to be used in a tag. If it is contained in the tag,
          * onRequestFinish will be called with the error code MegaError::API_EARGS.
          *
+         * If tag already exists, onRequestFinish will be called with the error code MegaError::API_EEXISTS
+         *
          * If the MEGA account is a business account and its status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
@@ -13672,6 +13674,8 @@ class MegaApi
          * - MegaRequest::getNodeHandle - Returns the handle of the node that received the tag
          * - MegaRequest::getParamType - Returns operation type (0 - Add tag, 1 - Temove tag, 2 - Update tag)
          * - MegaRequest::getText - Returns tag
+         *
+         * If tag doesn't exist, onRequestFinish will be called with the error code MegaError::API_ENOENT
          *
          * If the MEGA account is a business account and its status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.
@@ -13692,7 +13696,11 @@ class MegaApi
          * - MegaRequest::getText - Returns new tag
          * - MegaRequest::getName - Returns old tag
          *
-         * ',' is an invalid character to be used in a tag
+         * ',' is an invalid character to be used in a tag. If it is contained in the tag,
+         * onRequestFinish will be called with the error code MegaError::API_EARGS.
+         *
+         * If newTag already exists, onRequestFinish will be called with the error code MegaError::API_EEXISTS
+         * If oldTag doesn't exist, onRequestFinish will be called with the error code MegaError::API_ENOENT
          *
          * If the MEGA account is a business account and its status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.

@@ -768,7 +768,11 @@ public:
     error updateTagNode(std::shared_ptr<Node>, const std::string& newTag, const std::string& oldTag, CommandSetAttr::Completion&& c);
 
     static std::set<std::string> splitString(const std::string& str, char delimiter);
+private:
+    template<typename Iter>
+    static std::string joinStrings(const Iter begin, const Iter end, const std::string& separator);
 
+public:
     // check node access level
     int checkaccess(Node*, accesslevel_t);
 

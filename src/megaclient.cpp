@@ -8617,16 +8617,7 @@ error MegaClient::removeTagFromNode(std::shared_ptr<Node> node,
     }
 
     tokens.erase(it);
-    std::string str;
-    if (tokens.size())
-    {
-        for (const auto& token: tokens)
-        {
-            str.append(token).push_back(TAG_DELIMITER);
-        }
-
-        str.pop_back(); // remove last delimiter
-    }
+    std::string str = joinStrings(tokens.begin(), tokens.end(), std::string{TAG_DELIMITER});
 
     AttrMap map;
     map.map[tagNameid] = std::move(str);
@@ -8656,14 +8647,7 @@ error MegaClient::updateTagNode(std::shared_ptr<Node> node,
     }
 
     tokens.erase(it);
-    std::string str;
-    tokens.insert(newTag);
-    for (const auto& token: tokens)
-    {
-        str.append(token).push_back(TAG_DELIMITER);
-    }
-
-    str.pop_back(); // remove last delimiter
+    std::string str = joinStrings(tokens.begin(), tokens.end(), std::string{TAG_DELIMITER});
 
     AttrMap map;
     map.map[tagNameid] = std::move(str);
@@ -8683,6 +8667,23 @@ std::set<std::string> MegaClient::splitString(const string& str, char delimiter)
     }
 
     return tokens;
+}
+
+template<typename Iter>
+std::string MegaClient::joinStrings(const Iter begin, const Iter end, const std::string& separator)
+{
+    Iter position = begin;
+    std::string result;
+    if (position != end)
+    {
+        result += *position++;
+    }
+
+    while (position != end)
+    {
+        result += separator + *position++;
+    }
+    return result;
 }
 
 // update node attributes
