@@ -8635,7 +8635,8 @@ error MegaClient::updateTagNode(std::shared_ptr<Node> node,
     std::string tags = node->attrs.map[tagNameid];
     std::set<std::string> tokens = splitString(tags, TAG_DELIMITER);
 
-    if (tokens.find(newTag) != tokens.end())
+    auto [elementIt, success] = tokens.insert(newTag);
+    if (!success)
     {
         return API_EEXIST;
     }
