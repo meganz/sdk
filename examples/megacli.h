@@ -401,6 +401,7 @@ void exec_help(autocomplete::ACState& s);
 void exec_quit(autocomplete::ACState& s);
 void exec_find(autocomplete::ACState& s);
 void exec_nodedescription(autocomplete::ACState& s);
+void exec_nodeTag(autocomplete::ACState& s);
 #ifdef USE_FILESYSTEM
 void exec_treecompare(autocomplete::ACState& s);
 void exec_querytransferquota(autocomplete::ACState& s);

@@ -751,6 +751,8 @@ public:
     void querytransferquota(m_off_t size);
 
     static constexpr char NODE_ATTRIBUTE_DESCRIPTION[] = "des";
+    static constexpr char NODE_ATTRIBUTE_TAGS[] = "t";
+    static constexpr char TAG_DELIMITER = ',';
 
     // update node attributes
     error setattr(std::shared_ptr<Node>, attr_map&& updates, CommandSetAttr::Completion&& c, bool canChangeVault);
@@ -761,6 +763,16 @@ public:
     // convenience version of the above (frequently we are passing a NodeBase's attrstring)
     static void makeattr(SymmCipher*, const std::unique_ptr<string>&, const char*, int = -1);
 
+    error addTagToNode(std::shared_ptr<Node> node, const std::string& tag, CommandSetAttr::Completion&& c);
+    error removeTagFromNode(std::shared_ptr<Node> node, const std::string& tag, CommandSetAttr::Completion&& c);
+    error updateTagNode(std::shared_ptr<Node>, const std::string& newTag, const std::string& oldTag, CommandSetAttr::Completion&& c);
+
+    static std::set<std::string> splitString(const std::string& str, char delimiter);
+private:
+    template<typename Iter>
+    static std::string joinStrings(const Iter begin, const Iter end, const std::string& separator);
+
+public:
     // check node access level
     int checkaccess(Node*, accesslevel_t);
 
