@@ -4506,7 +4506,7 @@ class MegaRequest
             TYPE_CREATE_PASSWORD_NODE                                       = 183,
             TYPE_UPDATE_PASSWORD_NODE                                       = 184,
             TYPE_GET_NOTIFICATIONS                                          = 185,
-            TYPE_TAG_NODE                                                  = 186,
+            TYPE_TAG_NODE                                                   = 186,
             TOTAL_OF_REQUEST_TYPES                                          = 187,
         };
 
@@ -13652,7 +13652,8 @@ class MegaApi
          * - MegaRequest::getParamType - Returns operation type (0 - Add tag, 1 - Remove tag, 2 - Update tag)
          * - MegaRequest::getText - Returns tag
          *
-         * ',' is an invalid character to be used in a tag
+         * ',' is an invalid character to be used in a tag. If it is contained in the tag,
+         * onRequestFinish will be called with the error code MegaError::API_EARGS.
          *
          * If the MEGA account is a business account and its status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.
@@ -13702,9 +13703,9 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void updateNodeTag(MegaNode* node,
-                       const char* newTag,
-                       const char* oldTag,
-                       MegaRequestListener* listener = NULL);
+                           const char* newTag,
+                           const char* oldTag,
+                           MegaRequestListener* listener = NULL);
 
         /**
          * @brief Generate a public link of a file/folder in MEGA

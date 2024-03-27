@@ -8577,8 +8577,8 @@ void MegaClient::makeattr(SymmCipher* key, const std::unique_ptr<string>& attrst
 }
 
 error MegaClient::addTagToNode(std::shared_ptr<Node> node,
-                         const string& tag,
-                         CommandSetAttr::Completion&& c)
+                               const string& tag,
+                               CommandSetAttr::Completion&& c)
 {
     nameid tagNameid = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_TAGS);
     std::string tags = node->attrs.map[tagNameid];
@@ -8603,8 +8603,8 @@ error MegaClient::addTagToNode(std::shared_ptr<Node> node,
 }
 
 error MegaClient::removeTagFromNode(std::shared_ptr<Node> node,
-                            const string& tag,
-                            CommandSetAttr::Completion&& c)
+                                    const string& tag,
+                                    CommandSetAttr::Completion&& c)
 {
     nameid tagNameid = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_TAGS);
     std::string tags = node->attrs.map[tagNameid];
@@ -8636,9 +8636,9 @@ error MegaClient::removeTagFromNode(std::shared_ptr<Node> node,
 }
 
 error MegaClient::updateTagNode(std::shared_ptr<Node> node,
-                            const string& newTag,
-                            const string& oldTag,
-                            CommandSetAttr::Completion&& c)
+                                const string& newTag,
+                                const string& oldTag,
+                                CommandSetAttr::Completion&& c)
 {
     nameid tagNameid = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_TAGS);
     std::string tags = node->attrs.map[tagNameid];

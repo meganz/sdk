@@ -18517,10 +18517,12 @@ TEST_F(SdkTest, SdkNodeDescription)
  *  - Add tag2 -> API_OK
  *  - Add tag3 -> API_OK
  *  - Add tag1 -> API_EEXIST
+ *  - Add tag,tag -> API_EARGS
  *  - Remove tag2 -> API_OK
  *  - Remove tag2 -> API_ENOENT
  *  - Update tag1 to tagUpdated -> API_OK
- *  - Update tag1 to tagUpdated -> API_ENOENT
+ *  - Update tag2 to tagUpdated -> API_EEXIST
+ *  - Update tag1 to tagUpdated2 -> API_ENOENT
  */
 TEST_F(SdkTest, SdkNodeTag)
 {
