@@ -9168,6 +9168,62 @@ public class MegaApiJava {
     }
 
     /**
+     * @brief Search nodes and allow filtering the results.
+     * The search is case-insensitive.
+     *
+     * You take the ownership of the returned value.
+     *
+     * @param filter Container for filtering options, cannot be null
+     * @param order Order for the returned list
+     * Valid values for this parameter are:
+     * - MegaApi::ORDER_NONE = 0
+     * Undefined order
+     *
+     * - MegaApi::ORDER_DEFAULT_ASC = 1
+     * Folders first in alphabetical order, then files in the same order
+     *
+     * - MegaApi::ORDER_DEFAULT_DESC = 2
+     * Files first in reverse alphabetical order, then folders in the same order
+     *
+     * - MegaApi::ORDER_SIZE_ASC = 3
+     * Sort by size, ascending
+     *
+     * - MegaApi::ORDER_SIZE_DESC = 4
+     * Sort by size, descending
+     *
+     * - MegaApi::ORDER_CREATION_ASC = 5
+     * Sort by creation time in MEGA, ascending
+     *
+     * - MegaApi::ORDER_CREATION_DESC = 6
+     * Sort by creation time in MEGA, descending
+     *
+     * - MegaApi::ORDER_MODIFICATION_ASC = 7
+     * Sort by modification time of the original file, ascending
+     *
+     * - MegaApi::ORDER_MODIFICATION_DESC = 8
+     * Sort by modification time of the original file, descending
+     *
+     * - MegaApi::ORDER_LABEL_ASC = 17
+     * Sort by color label, ascending. With this order, folders are returned first, then files
+     *
+     * - MegaApi::ORDER_LABEL_DESC = 18
+     * Sort by color label, descending. With this order, folders are returned first, then files
+     *
+     * - MegaApi::ORDER_FAV_ASC = 19
+     * Sort nodes with favourite attr first. With this order, folders are returned first, then files
+     *
+     * - MegaApi::ORDER_FAV_DESC = 20
+     * Sort nodes with favourite attr last. With this order, folders are returned first, then files
+     *
+     * @param cancelToken MegaCancelToken to be able to cancel the search at any time.
+     *
+     * @return List with found nodes as MegaNode objects
+     */
+    public ArrayList<MegaNode> search(MegaSearchFilter filter, int order, MegaCancelToken cancelToken) {
+        return nodeListToArray(megaApi.search(filter, order, cancelToken));
+    }
+
+    /**
      * Search nodes containing a search string in their name
      * <p>
      * The search is case-insensitive.
