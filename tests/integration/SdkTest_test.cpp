@@ -18254,7 +18254,7 @@ TEST_F(SdkTest, DynamicMessageNotifs)
 
     // Enable some test-notifications.
     // IDs 1,2,3,4,5 have been reserved to be "^!tnotif" only notifications.
-    // Notification with ID 1~4 existed at the time of writing this test
+    // Notifications with IDs 1~4 existed at the time of writing this test
     // Notification with ID 2 has icon
     ids->add(1);                                   // add notification with ID 1 
     ids->add(2);                                   // add notification with ID 2
