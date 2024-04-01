@@ -8641,13 +8641,12 @@ error MegaClient::updateTagNode(std::shared_ptr<Node> node,
         return API_EEXIST;
     }
 
-    auto it = tokens.find(oldTag);
-    if (it == tokens.end())
+    auto removedElements = tokens.erase(oldTag);
+    if (!removedElements)
     {
         return API_ENOENT;
     }
 
-    tokens.erase(it);
     std::string str = joinStrings(tokens.begin(), tokens.end(), std::string{TAG_DELIMITER});
 
     AttrMap map;
