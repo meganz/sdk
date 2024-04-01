@@ -333,7 +333,7 @@ sharedNode_list NodeManager::getChildren_internal(const Node *parent, CancelToke
 
         std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
         NodeSearchFilter nf;
-        nf.byAncestors(std::vector<handle>{parent->nodehandle, UNDEF, UNDEF});
+        nf.byAncestors({parent->nodehandle, UNDEF, UNDEF});
         mTable->getChildren(nf, 0 /*Order none*/, nodesFromTable, cancelToken, NodeSearchPage{0, 0});
         if (cancelToken.isCancelled())
         {
@@ -1357,7 +1357,7 @@ bool NodeManager::loadNodes_internal()
 
     sharedNode_vector rootnodes = getRootNodes_internal();
     // We can't base in `user.sharing` because it's set yet. We have to get from DB
-    sharedNode_vector inshares = getNodesWithSharesOrLink_internal(ShareType_t::IN_SHARES);  // it includes nested inshares // it includes nested inshares
+    sharedNode_vector inshares = getNodesWithSharesOrLink_internal(ShareType_t::IN_SHARES);  // it includes nested inshares
 
     for (auto &node : rootnodes)
     {

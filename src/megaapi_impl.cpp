@@ -7432,6 +7432,7 @@ MegaShareList *MegaApiImpl::getUnverifiedOutShares(int order)
     SdkMutexGuard guard(sdkMutex);
 
     sharedNode_vector outshares = client->mNodeManager.getNodesWithOutShares();
+
     // Avoid duplicate nodes present in both outshares and pending shares
     sharedNode_vector pendingShares = client->mNodeManager.getNodesWithPendingOutShares();
     for (auto& pendingShare : pendingShares)
@@ -11488,7 +11489,6 @@ MegaNodeList *MegaApiImpl::getPublicLinks(int order)
     sharedNode_vector vNodes = client->mNodeManager.getNodesWithLinks();
     sortByComparatorFunction(vNodes, order, *client);
     return new MegaNodeListPrivate(vNodes);
-
 }
 
 MegaContactRequestList *MegaApiImpl::getIncomingContactRequests()
@@ -12197,7 +12197,6 @@ sharedNode_vector MegaApiImpl::searchInNodeManager(const MegaSearchFilter* filte
     ShareType_t shareType = filter->byLocation() == MegaApi::SEARCH_TARGET_INSHARE ? IN_SHARES :
                             (filter->byLocation() == MegaApi::SEARCH_TARGET_OUTSHARE ? OUT_SHARES :
                             (filter->byLocation() == MegaApi::SEARCH_TARGET_PUBLICLINK ? LINK : NO_SHARES));
-
     NodeSearchFilter nf;
     nf.copyFrom(*filter, shareType);
 
@@ -17820,7 +17819,7 @@ MegaNodeList* MegaApiImpl::getChildrenFromType(MegaNode* p, int type, int order,
     SdkMutexGuard guard(sdkMutex);
 
     NodeSearchFilter filter;
-    filter.byAncestors(std::vector<handle>{p->getHandle(), INVALID_HANDLE, INVALID_HANDLE});
+    filter.byAncestors({p->getHandle(), UNDEF, UNDEF});
     filter.byNodeType(static_cast<nodetype_t>(type));
     sharedNode_vector childrenNodes = client->mNodeManager.getChildren(filter, order, cancelToken, NodeSearchPage{0, 0});
 

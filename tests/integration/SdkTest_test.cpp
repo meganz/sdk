@@ -12465,7 +12465,11 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     ASSERT_EQ(numberFolderLevel1, megaApi[0]->getNumChildFolders(rootnodeA.get()));
     ASSERT_EQ(numberFolderLevel1, megaApi[1]->getNumChildFolders(rootnodeB.get()));
 
-    std::unique_ptr<MegaNodeList> rootChildrenList(megaApi[0]->getChildrenFromType(rootnodeA.get(), FOLDERNODE));
+
+    std::unique_ptr<MegaSearchFilter>filterResults(MegaSearchFilter::createInstance());
+    filterResults->byLocationHandle(rootnodeA->getHandle());
+    filterResults->byNodeType(FOLDERNODE);
+    std::unique_ptr<MegaNodeList> rootChildrenList(megaApi[0]->getChildren(filterResults.get()));
     ASSERT_EQ(rootChildrenList->size(), numberFolderLevel1);
 
     // --- UserA Check folder info from root node ---
@@ -12502,7 +12506,7 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     ASSERT_NE(nodeSameFingerPrint.get(), nullptr);
 
     // --- UserA get node by name ---
-    std::unique_ptr<MegaSearchFilter> filterResults(MegaSearchFilter::createInstance());
+    filterResults.reset(MegaSearchFilter::createInstance());
     filterResults->byName(fileNameToSearch.c_str());
     std::unique_ptr<MegaNodeList> searchList(megaApi[0]->search(filterResults.get()));
     ASSERT_EQ(searchList->size(), 1);
@@ -12625,10 +12629,16 @@ TEST_F(SdkTest, SdkNodesOnDemand)
             ASSERT_NE(childrenHandles.find(childrenList->get(childIndex)->getHandle()), childrenHandles.end());
         }
 
-        std::unique_ptr<MegaNodeList> fileChildrenList(megaApi[0]->getChildrenFromType(node.get(), FILENODE));
+        filterResults.reset(MegaSearchFilter::createInstance());
+        filterResults->byLocationHandle(node->getHandle());
+        filterResults->byNodeType(FILENODE);
+        std::unique_ptr<MegaNodeList> fileChildrenList(megaApi[0]->getChildren(filterResults.get()));
         ASSERT_EQ(fileChildrenList->size(), childrenList->size());
 
-        std::unique_ptr<MegaNodeList> folderChildrenList(megaApi[0]->getChildrenFromType(node.get(), FOLDERNODE));
+        filterResults.reset(MegaSearchFilter::createInstance());
+        filterResults->byLocationHandle(node->getHandle());
+        filterResults->byNodeType(FOLDERNODE);
+        std::unique_ptr<MegaNodeList> folderChildrenList(megaApi[0]->getChildren(filterResults.get()));
         ASSERT_EQ(folderChildrenList->size(), 0);
     }
 

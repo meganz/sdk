@@ -477,7 +477,7 @@ TEST(CacheLRU, searchNode) // processUnserializedNodes
 
     // No found at LRU
     mega::NodeSearchFilter searchFilter;
-    searchFilter.byAncestors(std::vector<mega::handle>{rootNode.nodehandle, mega::UNDEF, mega::UNDEF});
+    searchFilter.byAncestors({rootNode.nodehandle, mega::UNDEF, mega::UNDEF});
     searchFilter.byName(names.front());
     mega::sharedNode_vector nodes(client->mNodeManager.searchNodes(searchFilter, 0 /*order None*/, mega::CancelToken(), mega::NodeSearchPage{0, 0}));
     ASSERT_EQ(nodes.size(), 1);

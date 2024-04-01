@@ -11516,7 +11516,7 @@ void exec_searchbyname(autocomplete::ACState &s)
         }
 
         NodeSearchFilter filter;
-        filter.byAncestors(std::vector<handle>{nodeHandle.as8byte(), UNDEF, UNDEF});
+        filter.byAncestors({nodeHandle.as8byte(), UNDEF, UNDEF});
         filter.byName(s.words[1].s);
         filter.bySensitivity(!noSensitive);
 
