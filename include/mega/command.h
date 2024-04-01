@@ -1811,6 +1811,7 @@ typedef std::function<void(Error, string_map)> CommandFetchAdsCompletion;
 class MEGA_API CommandFetchAds : public Command
 {
     CommandFetchAdsCompletion mCompletion;
+    std::vector<std::string> mAdUnits;
 public:
     bool procresult(Result, JSON&) override;
 
