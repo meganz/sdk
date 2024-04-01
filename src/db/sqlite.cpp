@@ -1208,8 +1208,8 @@ bool SqliteAccountState::put(Node *node)
     if (!mStmtPutNode)
     {
         sqlResult = sqlite3_prepare_v2(db, "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, "
-                                           "name, fingerprint, origFingerprint, type, size, share, fav, ctime, mtime, flags, counter, node, label) "
-                                           "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &mStmtPutNode, NULL);
+                                           "name, fingerprint, origFingerprint, type, size, share, fav, ctime, mtime, flags, counter, node, label, description, tags) "
+                                           "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &mStmtPutNode, NULL);
     }
 
     if (sqlResult == SQLITE_OK)
@@ -1258,6 +1258,37 @@ bool SqliteAccountState::put(Node *node)
         auto labelIt = node->attrs.map.find(labelId);
         int label = (labelIt == node->attrs.map.end()) ? LBL_UNKNOWN : std::atoi(labelIt->second.c_str());
         sqlite3_bind_int(mStmtPutNode, 15, label);
+
+        nameid descriptionId = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_DESCRIPTION);
+        if (auto descriptionIt = node->attrs.map.find(descriptionId);
+            descriptionIt != node->attrs.map.end())
+        {
+            const std::string& description = descriptionIt->second;
+            sqlite3_bind_text(mStmtPutNode,
+                              16,
+                              description.c_str(),
+                              static_cast<int>(description.length()),
+                              SQLITE_STATIC);
+        }
+        else
+        {
+            sqlite3_bind_null(mStmtPutNode, 16);
+        }
+
+        nameid tagId = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_TAGS);
+        if (auto tagIt = node->attrs.map.find(tagId); tagIt != node->attrs.map.end())
+        {
+            const std::string& tag = tagIt->second;
+            sqlite3_bind_text(mStmtPutNode,
+                              17,
+                              tag.c_str(),
+                              static_cast<int>(tag.length()),
+                              SQLITE_STATIC);
+        }
+        else
+        {
+            sqlite3_bind_null(mStmtPutNode, 17);
+        }
 
         sqlResult = sqlite3_step(mStmtPutNode);
     }
