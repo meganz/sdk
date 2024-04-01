@@ -484,6 +484,8 @@ public:
 
     m_time_t getMtime();
     int getLabel();
+    std::string getDescription();
+    std::string getTags();
     handle getHandle();
 
     std::unique_ptr<Node> createNode(MegaClient& client, bool fromOldCache, std::list<std::unique_ptr<NewShare>>& ownNewshares);
@@ -495,6 +497,8 @@ public:
         COMPONENT_ATTRS,
         COMPONENT_MTIME,
         COMPONENT_LABEL,
+        COMPONENT_DESCRIPTION,
+        COMPONENT_TAGS,
     };
 
 private:

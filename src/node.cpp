@@ -1779,6 +1779,33 @@ int NodeData::getLabel()
     return attrIt == mAttrs.map.end() ? LBL_UNKNOWN : std::atoi(attrIt->second.c_str());
 }
 
+string NodeData::getDescription()
+{
+    if (readFailed())
+    {
+        return std::string();
+    }
+
+    static const nameid descriptionId =
+        AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_DESCRIPTION);
+    auto attrIt = mAttrs.map.find(descriptionId);
+
+    return attrIt == mAttrs.map.end() ? std::string() : attrIt->second.c_str();
+}
+
+string NodeData::getTags()
+{
+    if (readFailed())
+    {
+        return std::string();
+    }
+
+    static const nameid tagId = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_TAGS);
+    auto attrIt = mAttrs.map.find(tagId);
+
+    return attrIt == mAttrs.map.end() ? std::string() : attrIt->second.c_str();
+}
+
 handle NodeData::getHandle()
 {
     if (readFailed())
