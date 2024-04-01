@@ -9346,8 +9346,11 @@ TEST_F(SdkTest, FetchAds)
     const std::string dummyAd {"dummyAdUnit"};
     stringList->add(dummyAd.c_str());
     tr = asyncFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get(), INVALID_HANDLE);
-    const bool isUserAllowedToFetchAds =
-        megaApi[0]->getABTestValue("adse") == 1 || megaApi[0]->getABTestValue("adsi") == 1;
+    const auto ab_adse = megaApi[0]->getABTestValue("adse");
+    const auto ab_adsi = megaApi[0]->getABTestValue("adsi");
+    LOG_debug << "Account 0 " << megaApi[0]->getMyUserHandle() << " (" << megaApi[0]->getMyEmail()
+              << ") ab_adse: " << ab_adse << " ab_adsi: " << ab_adsi;
+    const bool isUserAllowedToFetchAds = ab_adse > 0u || ab_adsi > 0u;
     if (isUserAllowedToFetchAds)
     {
         ASSERT_EQ(API_OK, tr->waitForResult()) << "Fetch Ads request failed when it wasn't expected";
