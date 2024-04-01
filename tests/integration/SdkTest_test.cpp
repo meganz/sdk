@@ -9343,8 +9343,8 @@ TEST_F(SdkTest, FetchAds)
     std::unique_ptr<MegaStringList> stringList = std::unique_ptr<MegaStringList>(MegaStringList::createInstance());
     std::unique_ptr<RequestTracker> tr = asyncFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get(), INVALID_HANDLE);
     ASSERT_EQ(API_EARGS, tr->waitForResult()) << "Fetch Ads succeeded with invalid arguments";
-    const std::string_view dummyAd {"dummyAdUnit"};
-    stringList->add(dummyAd.data());
+    const std::string dummyAd {"dummyAdUnit"};
+    stringList->add(dummyAd.c_str());
     tr = asyncFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get(), INVALID_HANDLE);
     const bool isUserAllowedToFetchAds =
         megaApi[0]->getABTestValue("adse") == 1 || megaApi[0]->getABTestValue("adsi") == 1;
@@ -9354,7 +9354,7 @@ TEST_F(SdkTest, FetchAds)
         ASSERT_TRUE(tr->request);
         auto ads = tr->request->getMegaStringMap();
         ASSERT_TRUE(ads && ads->size() == 1);
-        ASSERT_STREQ(ads->get(dummyAd.data()), "-9") << "Fetch Ads should have received -9 for dummy Ad case";
+        ASSERT_STREQ(ads->get(dummyAd.c_str()), "-9") << "Fetch Ads should have received -9 for dummy Ad case";
     }
     else
     {
