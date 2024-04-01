@@ -21304,9 +21304,15 @@ error MegaApiImpl::performRequest_setAttrNode(MegaRequestPrivate* request)
                 else if (bool isTypeS4 = (type == MegaApi::NODE_ATTR_S4);
                          isTypeS4 || type == MegaApi::NODE_ATTR_DESCRIPTION)
                 {
+                    const char* attrValue = request->getText();
+                    if (type == MegaApi::NODE_ATTR_DESCRIPTION && attrValue &&
+                        strlen(attrValue) > MegaApi::MAX_NODE_DESCRIPTION_SIZE)
+                    {
+                        return API_EARGS;
+                    }
+
                     const char* attributeName =
                         isTypeS4 ? "s4" : MegaClient::NODE_ATTRIBUTE_DESCRIPTION;
-                    const char* attrValue = request->getText();
                     attrUpdates[AttrMap::string2nameid(attributeName)] = attrValue ? attrValue : "";
                 }
                 else
