@@ -18406,6 +18406,8 @@ TEST_F(SdkTest, SdkNodeDescription)
     // Update description
     changeNodeDescription(mh, "Description modified");
 
+    changeNodeDescription(mh, "Description with line break\n Other line\n and other more");
+
     // Remove description
     changeNodeDescription(mh, nullptr);
 
