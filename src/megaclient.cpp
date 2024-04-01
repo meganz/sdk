@@ -314,7 +314,7 @@ string MegaClient::generateViewId(PrnGen& rng)
     return Utils::uint64ToHexString(viewId);
 }
 
-// decrypt key (symmetric or asymmetric), rewrite asymmetric to symmetric key
+// decrypt key (symmetric or asymmetric)
 bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, int type, handle node)
 {
     int sl;
@@ -330,7 +330,7 @@ bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, in
 
     if (sl > 4 * FILENODEKEYLENGTH / 3 + 1)
     {
-        // RSA-encrypted key - decrypt and update on the server to save space & client CPU time
+        // RSA-encrypted key - decrypt
         sl = sl / 4 * 3 + 3;
 
         if (sl > 4096)
