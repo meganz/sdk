@@ -885,7 +885,7 @@ MegaStringList* MegaNodePrivate::getTags()
     const char* str = getOfficialAttr(MegaClient::NODE_ATTRIBUTE_TAGS);
     std::string tags = str ? str : "";
 
-    std::set<std::string> tokens = MegaClient::splitString(tags, MegaClient::TAG_DELIMITER);
+    std::set<std::string> tokens = splitString(tags, MegaClient::TAG_DELIMITER);
     MegaStringListPrivate* stringList = new MegaStringListPrivate();
     for (const auto& token : tokens)
     {

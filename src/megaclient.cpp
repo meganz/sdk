@@ -8657,36 +8657,6 @@ error MegaClient::updateTagNode(std::shared_ptr<Node> node,
     return API_OK;
 }
 
-std::set<std::string> MegaClient::splitString(const string& str, char delimiter)
-{
-    std::set<std::string> tokens;
-    std::string token;
-    std::istringstream tokenStream(str);
-    while (std::getline(tokenStream, token, delimiter))
-    {
-        tokens.insert(token);
-    }
-
-    return tokens;
-}
-
-template<typename Iter>
-std::string MegaClient::joinStrings(const Iter begin, const Iter end, const std::string& separator)
-{
-    Iter position = begin;
-    std::string result;
-    if (position != end)
-    {
-        result += *position++;
-    }
-
-    while (position != end)
-    {
-        result += separator + *position++;
-    }
-    return result;
-}
-
 // update node attributes
 error MegaClient::setattr(std::shared_ptr<Node> n, attr_map&& updates, CommandSetAttr::Completion&& c, bool canChangeVault)
 {
