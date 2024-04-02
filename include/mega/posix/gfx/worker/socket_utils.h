@@ -16,16 +16,16 @@ struct SocketUtils
      * @brief Compose a valid path for the unix domain socket from the name 
      *        in the format /tmp/MegaLimited<uid>/name. <uid> is the real user id.
      *
-     * @param name a valid file name
+     * @param name A valid file name
      *
-     * @return a path
+     * @return A path
      */
     static std::filesystem::path toSocketPath(const std::string& name);
 
     /**
      * @brief Remove the socket file from file system
      *
-     * @param name a valid file name
+     * @param name A valid file name
      *
      * @return On success, 0 value is set in error_code. On failure, a none zero error_code is returned.
      *
