@@ -18,7 +18,7 @@ namespace gfx {
 
 GfxClient::GfxClient(std::unique_ptr<IGfxCommunicationsClient> comms) : mComms{std::move(comms)}
 {
-        assert(mComms);
+    assert(mComms);
 }
 
 bool GfxClient::runHello(const std::string& text)
