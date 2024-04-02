@@ -72,7 +72,7 @@ error_code pollFd(int fd, short events, milliseconds timeout)
     }
 
     // check if the poll returns an error event
-    auto& polledFd = fds[0];
+    const auto& polledFd = fds.front();
     if (isPollError(polledFd.revents))
     {
         return error_code{ECONNABORTED, system_category()};
