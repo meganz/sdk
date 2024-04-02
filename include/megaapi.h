@@ -17100,6 +17100,7 @@ class MegaApi
          * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+         * @param searchPage Container for pagination options; if null, all results will be returned
          *
          * @return List with found children as MegaNode objects
          */
@@ -18204,6 +18205,7 @@ class MegaApi
          * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @param cancelToken MegaCancelToken to be able to cancel the search at any time.
+         * @param searchPage Container for pagination options; if null, all results will be returned
          *
          * @return List with found nodes as MegaNode objects
          */
