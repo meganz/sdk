@@ -113,8 +113,7 @@ error_code doBindAndListen(int fd, const std::string& socketPath)
         return error_code{ENAMETOOLONG, system_category()};
     }
 
-    struct sockaddr_un addr;
-    memset(&addr, 0, sizeof(addr));
+    sockaddr_un addr{};
     addr.sun_family = AF_UNIX;
     strncpy(addr.sun_path, socketPath.c_str(), maxSocketPathLength());
 
@@ -290,8 +289,7 @@ std::pair<error_code, int>  SocketUtils::connect(const fs::path& socketPath)
         return {error_code{errno, system_category()}, -1};
     }
 
-    struct sockaddr_un addr;
-    memset(&addr, 0, sizeof(addr));
+    sockaddr_un addr{};
     addr.sun_family = AF_UNIX;
     strncpy(addr.sun_path, socketPath.c_str(), maxSocketPathLength());
 
