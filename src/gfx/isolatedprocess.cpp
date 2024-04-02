@@ -317,8 +317,8 @@ void CancellableSleeper::cancel()
     mCv.notify_all();
 }
 
-GfxIsolatedProcess::Params::Params(const std::string &endpointName,
-                                   const std::string &executable,
+GfxIsolatedProcess::Params::Params(const std::string& endpointName,
+                                   const std::string& executable,
                                    std::chrono::seconds keepAliveInSeconds)
     : endpointName(endpointName)
     , executable(executable)
