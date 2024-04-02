@@ -8709,7 +8709,18 @@ bool MegaApiImpl::hasToForceUpload(const Node &node, const MegaTransferPrivate &
     bool canForceUpload = transfer.isForceNewUpload();
     bool isPdf = name.find(".pdf") != string::npos;
 
-    return canForceUpload && (isMedia || isPdf) && !(hasPreview && hasThumbnail);
+    if (canForceUpload && (isMedia || isPdf) && !(hasPreview && hasThumbnail))
+    {
+        return true;
+    }
+    if (node.hasZeroKey())
+    {
+        // If the node has a zerokey, we need to discard it, regardless other conditions.
+        LOG_warn << "[MegaApiImpl::hasToForceUpload] Node has a zerokey, forcing a new upload..." << " [handle = " << node.nodeHandle() << "]";
+        client->sendevent(99486, "Node has a zerokey");
+        return true;
+    }
+    return false;
 }
 
 void MegaApiImpl::moveTransferUp(int transferTag, MegaRequestListener *listener)

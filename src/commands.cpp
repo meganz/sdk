@@ -1160,9 +1160,11 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
 
         if (!client->loggedIntoWritableFolder())
         {
+            assert(!nn[i].hasZeroKey()); // Add this assert here to avoid extra checks in production -> we will have a check and logs if this fails within CommandPutNode::procresult
             if (nn[i].nodekey.size() <= sizeof key)
             {
                 client->key.ecb_encrypt((byte*)nn[i].nodekey.data(), key, nn[i].nodekey.size());
+                assert(!SymmCipher::isZeroKey(key, FILENODEKEYLENGTH));
                 arg("k", key, int(nn[i].nodekey.size()));
             }
             else
@@ -1255,6 +1257,7 @@ bool CommandPutNodes::procresult(Result r, JSON& json)
         // If the first three nodes failed, the response would be e.g. [-9,-9,-9].  Success is []
         // If the second and third node failed, the response would change to {"1":-9,"2":-9}.
 
+        Error newNodeError(API_OK);
         unsigned arrayIndex = 0;
         for (;;)
         {
@@ -1274,7 +1277,14 @@ bool CommandPutNodes::procresult(Result r, JSON& json)
                 assert(arrayIndex < nn.size());
                 if (arrayIndex < nn.size())
                 {
-                    nn[arrayIndex++].mError = error(json.getint());
+                    nn[arrayIndex].mError = error(json.getint());
+                    if (nn[arrayIndex].mError != API_OK)
+                    {
+                        newNodeError = nn[arrayIndex].mError;
+                        LOG_debug << "[CommandPutNodes] New Node failed with " << newNodeError << " [newnode index = " << arrayIndex << ", NodeHandle = " << nn[arrayIndex].nodeHandle() << "]";
+                        assert(((nn[arrayIndex].mError != API_EKEY) || !nn[arrayIndex].hasZeroKey()) && "New Node which failed with API_EKEY has a zerokey!!!!");
+                    }
+                    arrayIndex++;
                 }
             }
             else
@@ -1322,7 +1332,8 @@ bool CommandPutNodes::procresult(Result r, JSON& json)
         shared_ptr<Node> tempNode = !nn.empty() ? client->nodebyhandle(nn.front().mAddedHandle) : nullptr;
         bool targetOverride = (tempNode.get() && NodeHandle().set6byte(tempNode->parenthandle) != targethandle);
 
-        performAppCallback(emptyResponse ? API_ENOENT : API_OK, nn, targetOverride);
+        performAppCallback(emptyResponse ? ((newNodeError != API_OK) ? static_cast<error>(newNodeError) : API_ENOENT) : // Add last new node error if there is any, otherwise API_ENOENT
+                                            API_OK, nn, targetOverride);
         return true;
     }
     else
@@ -3806,6 +3817,7 @@ CommandNodeKeyUpdate::CommandNodeKeyUpdate(MegaClient* client, handle_vector* v)
         if ((n = client->nodebyhandle(h)))
         {
             client->key.ecb_encrypt((byte*)n->nodekey().data(), nodekey, n->nodekey().size());
+            assert(!n->hasZeroKey());
 
             element(h, MegaClient::NODEHANDLE);
             element(nodekey, int(n->nodekey().size()));
