@@ -107,7 +107,7 @@ error_code doBindAndListen(int fd, const std::string& socketPath)
     constexpr int QUEUE_LEN = 10;
 
     // Extra 1 for null terminated
-    if (socketPath.size() > maxSocketPathLength() - 1)
+    if (socketPath.size() + 1 > maxSocketPathLength())
     {
         LOG_err << "Unix domain socket name is too long, " << socketPath;
         return error_code{ENAMETOOLONG, system_category()};
@@ -278,7 +278,7 @@ error_code SocketUtils::read(int fd, void* buf, size_t n, milliseconds timeout)
 std::pair<error_code, int>  SocketUtils::connect(const fs::path& socketPath)
 {
     // Extra 1 for null terminated
-    if (strlen(socketPath.c_str()) > maxSocketPathLength() - 1)
+    if (socketPath.native().size() + 1 > maxSocketPathLength())
     {
         LOG_err << "Unix domain socket name is too long, " << socketPath.string();
         return {error_code{ENAMETOOLONG, system_category()}, -1};
