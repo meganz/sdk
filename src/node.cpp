@@ -1779,7 +1779,7 @@ int NodeData::getLabel()
     return attrIt == mAttrs.map.end() ? LBL_UNKNOWN : std::atoi(attrIt->second.c_str());
 }
 
-string NodeData::getDescription()
+std::string NodeData::getDescription()
 {
     if (readFailed())
     {
@@ -1793,7 +1793,7 @@ string NodeData::getDescription()
     return attrIt == mAttrs.map.end() ? std::string() : attrIt->second.c_str();
 }
 
-string NodeData::getTags()
+std::string NodeData::getTags()
 {
     if (readFailed())
     {

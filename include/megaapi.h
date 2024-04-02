@@ -13639,8 +13639,8 @@ class MegaApi
          * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_DESCRIPTION
          * - MegaRequest::getText - Returns node description
          *
-         * Maximun description size is MAX_NODE_DESCRIPTION_SIZE. In case of pass a description with higher size,
-         * API_EARGS will be returned
+         * If the size of the description is greater than MAX_NODE_DESCRIPTION_SIZE, onRequestFinish will be
+         * called with the error code MegaError::API_EARGS.
          *
          * If the MEGA account is a business account and its status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.
