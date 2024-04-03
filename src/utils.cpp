@@ -2055,7 +2055,7 @@ struct tm* m_localtime(m_time_t ttime, struct tm *dt)
 {
     // works for 32 or 64 bit time_t
     time_t t = time_t(ttime);
-#if (__cplusplus >= 201103L) && defined (__STDC_LIB_EXT1__) && defined(__STDC_WANT_LIB_EXT1__)
+#if defined (__STDC_LIB_EXT1__) && defined(__STDC_WANT_LIB_EXT1__)
     localtime_s(&t, dt);
 #elif _MSC_VER >= 1400 || defined(__MINGW32__) // MSVCRT (2005+): std::localtime is threadsafe
     struct tm *newtm = localtime(&t);
@@ -2079,7 +2079,7 @@ struct tm* m_gmtime(m_time_t ttime, struct tm *dt)
 {
     // works for 32 or 64 bit time_t
     time_t t = time_t(ttime);
-#if (__cplusplus >= 201103L) && defined (__STDC_LIB_EXT1__) && defined(__STDC_WANT_LIB_EXT1__)
+#if defined (__STDC_LIB_EXT1__) && defined(__STDC_WANT_LIB_EXT1__)
     gmtime_s(&t, dt);
 #elif _MSC_VER >= 1400 || defined(__MINGW32__) // MSVCRT (2005+): std::gmtime is threadsafe
     struct tm *newtm = gmtime(&t);

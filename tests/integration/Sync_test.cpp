@@ -250,11 +250,7 @@ bool createFile(const fs::path& path, const void* data, const size_t data_length
 
 bool createFile(const fs::path &path, const void *data, const size_t data_length)
 {
-#if (__cplusplus >= 201700L)
     ofstream ostream(path, ios::binary);
-#else
-    ofstream ostream(path.u8string(), ios::binary);
-#endif
 
     LOG_verbose << "Creating local data file at " << path.u8string() << ", length " << data_length;
 

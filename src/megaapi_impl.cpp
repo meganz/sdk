@@ -7249,7 +7249,7 @@ void MegaApiImpl::loop()
             updateBackups();
             if (sendPendingTransfers(nullptr))
             {
-                yield();
+                std::this_thread::yield();
             }
             sendPendingRequests();
             sendPendingScRequest();
@@ -19142,15 +19142,6 @@ error MegaApiImpl::processAbortBackupRequest(MegaRequestPrivate *request)
     }
 }
 
-void MegaApiImpl::yield()
-{
-#if __cplusplus >= 201100L
-    std::this_thread::yield();
-#elif !defined(_WIN32)
-    sched_yield();
-#endif
-}
-
 static void appendFileAttribute(string& s, int n, MegaHandle h)
 {
     if (h != INVALID_HANDLE)
@@ -19283,7 +19274,7 @@ void MegaApiImpl::sendPendingRequests()
         {
             committer.commitNow();
             g.unlock();
-            yield();
+            std::this_thread::yield();
             g.lock();
             lastRequestConsecutive = 0;
         }
@@ -36528,9 +36519,7 @@ MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(const int freq, const int i
                                                      const MegaIntegerMap* byMonthWeekDay)
     : mScheduledRules(mega::make_unique<ScheduledRules>(
                           isValidFreq(freq) ? freq : FREQ_INVALID,
-                          isValidInterval(interval) ? interval : int{INTERVAL_INVALID},
-                          //                                     ^^^^^^^^^^^^^^^^^^^^^
-                          // int workaroud due to ODR-use requirement in C++11 (dropped from C++17)
+                          isValidInterval(interval) ? interval : INTERVAL_INVALID,
                           isValidUntil(until) ? until : MEGA_INVALID_TIMESTAMP,
                           byWeekDay ? unique_ptr<MegaSmallIntVector>(
                                   dynamic_cast<const MegaIntegerListPrivate*>(byWeekDay)->toByteList()

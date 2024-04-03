@@ -211,11 +211,7 @@ namespace
         {
             string filename = "file" + to_string(i) + "_" + prefix;
             fs::path fp = p / fs::u8path(filename);
-#if (__cplusplus >= 201700L)
             ofstream fs(fp/*, ios::binary*/);
-#else
-            ofstream fs(fp.u8string()/*, ios::binary*/);
-#endif
             fs << filename;
         }
 

@@ -18580,7 +18580,7 @@ void MegaClient::putSet(Set&& s, std::function<void(Error, const Set*)> completi
         s.setKey(encrSetKey);
 
         // encrypt Set key with master key
-        if (!key.cbc_encrypt((byte*)&encrSetKey[0], encrSetKey.size())) // in c++17 and beyond it should use encrSetKey.data()
+        if (!key.cbc_encrypt((byte*)encrSetKey.data(), encrSetKey.size()))
         {
             LOG_err << "Sets: Failed to encrypt Set key with master key.";
             if (completion)

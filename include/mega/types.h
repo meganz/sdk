@@ -55,7 +55,7 @@ typedef int64_t m_off_t;
 namespace mega {
 
 // within ::mega namespace, byte is unsigned char (avoids ambiguity when std::byte from c++17 and perhaps other defined ::byte are available)
-#if defined(USE_CRYPTOPP) && (CRYPTOPP_VERSION >= 600) && ((__cplusplus >= 201103L) || (__RPCNDR_H_VERSION__ == 500))
+#if defined(USE_CRYPTOPP) && (CRYPTOPP_VERSION >= 600)
 using byte = CryptoPP::byte;
 #elif __RPCNDR_H_VERSION__ != 500
 typedef unsigned char byte;
