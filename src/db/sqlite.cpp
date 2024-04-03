@@ -1581,6 +1581,7 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int o
                                                                 ',' + std::to_string(MIME_TYPE_SPREADSHEET) + "))"
                                               " OR mimetype = ?8))) "
                                  "AND (?11 = 0 OR (name REGEXP ?9)) "
+                                 "AND (?14 = 0 OR (description REGEXP ?15)) "
                                  // Leading and trailing '*' will be added to argument '?' so we are looking for substrings containing name
                                  // Our REGEXP implementation is case insensitive
 
@@ -1609,11 +1610,15 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int o
         const string& nameFilter = filter.byName();
         bool matchWildcard = std::any_of(nameFilter.begin(), nameFilter.end(), [](const char& c) { return c != '*'; });
         const string& wildCardName = matchWildcard ? '*' + filter.byName() + '*' : nameFilter;
+        const string& byDescription = filter.byDescription();
+        string descriptionFilter = '*' + byDescription + '*';
         if ((sqlResult = sqlite3_bind_text(stmt, 9, wildCardName.c_str(), static_cast<int>(wildCardName.length()), SQLITE_STATIC)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int(stmt, 10, order)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int(stmt, 11, matchWildcard)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int64(stmt, 12, page.size() ? static_cast<sqlite3_int64>(page.size()) : -1)) == SQLITE_OK &&
-            (sqlResult = sqlite3_bind_int64(stmt, 13, page.startingOffset())) == SQLITE_OK)
+            (sqlResult = sqlite3_bind_int64(stmt, 13, page.startingOffset())) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 14, static_cast<int>(byDescription.size()))) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_text(stmt, 15, descriptionFilter.c_str(), static_cast<int>(descriptionFilter.size()), SQLITE_STATIC)) == SQLITE_OK)
         {
             result = processSqlQueryNodes(stmt, children);
         }
@@ -1662,7 +1667,7 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
                       " AND nodehandle IN (SELECT nodehandle FROM nodes WHERE share = ?7)))";
 
         string columnsForNodeAndFilters =
-            "nodehandle, parenthandle, flags, name, type, counter, node, size, ctime, mtime, share, mimetype, fav, label";
+            "nodehandle, parenthandle, flags, name, type, counter, node, size, ctime, mtime, share, mimetype, fav, label, description";
 
         string nodesOfShares =
             "nodesOfShares(" + columnsForNodeAndFilters + ") \n"
@@ -1677,7 +1682,7 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
                 "WHERE parenthandle IN (SELECT nodehandle FROM ancestors) \n"
                 "UNION ALL \n"
                 "SELECT N.nodehandle, N.parenthandle, N.flags, N.name, N.type, N.counter, N.node, "
-                "N.size, N.ctime, N.mtime, N.share, N.mimetype, N.fav, N.label \n"
+                "N.size, N.ctime, N.mtime, N.share, N.mimetype, N.fav, N.label, N.description \n"
                 "FROM nodes AS N \n"
                 "INNER JOIN nodesCTE AS P \n"
                         "ON (N.parenthandle = P.nodehandle \n"
@@ -1701,7 +1706,8 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
                                            ',' + std::to_string(MIME_TYPE_PRESENTATION) +
                                            ',' + std::to_string(MIME_TYPE_SPREADSHEET) + "))"
                          " OR mimetype = ?8))) \n"
-            "AND (?13 = 0 OR (name REGEXP ?9))";
+            "AND (?13 = 0 OR (name REGEXP ?9)) \n"
+            "AND (?17 = 0 OR (description REGEXP ?18))";
             // Leading and trailing '*' will be added to argument '?' so we are looking for substrings containing name
             // Our REGEXP implementation is case insensitive
 
@@ -1751,6 +1757,8 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
         const string& byName = filter.byName();
         bool matchWildcard = std::any_of(byName.begin(), byName.end(), [](const char& c) { return c != '*'; });
         const string& nameFilter = matchWildcard ? '*' + byName + '*' : byName;
+        const string& byDescription = filter.byDescription();
+        string descriptionFilter = '*' + byDescription + '*';
         if ((sqlResult = sqlite3_bind_text(stmt, 9, nameFilter.c_str(), static_cast<int>(nameFilter.size()), SQLITE_STATIC)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int(stmt, 10, order)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int64(stmt, 11, filter.byAncestorHandles()[0])) == SQLITE_OK &&
@@ -1758,7 +1766,9 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
             (sqlResult = sqlite3_bind_int(stmt, 13, matchWildcard)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int64(stmt, 14, page.size() ? static_cast<sqlite3_int64>(page.size()) : -1)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int64(stmt, 15, page.startingOffset())) == SQLITE_OK &&
-            (sqlResult = sqlite3_bind_int64(stmt, 16, filter.byAncestorHandles()[2])) == SQLITE_OK)
+            (sqlResult = sqlite3_bind_int64(stmt, 16, filter.byAncestorHandles()[2])) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_int(stmt, 17, static_cast<int>(byDescription.size()))) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_text(stmt, 18, descriptionFilter.c_str(), static_cast<int>(descriptionFilter.size()), SQLITE_STATIC)) == SQLITE_OK)
         {
             result = processSqlQueryNodes(stmt, nodes);
         }

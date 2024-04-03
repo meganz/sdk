@@ -6882,6 +6882,15 @@ int64_t MegaSearchFilter::byModificationTimeUpperLimit() const
     return 0;
 }
 
+void MegaSearchFilter::byDescription(const char* /*searchString*/)
+{
+}
+
+const char* MegaSearchFilter::byDescription() const
+{
+    return nullptr;
+}
+
 MegaSearchPage::MegaSearchPage()
 {
 }

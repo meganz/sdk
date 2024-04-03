@@ -18380,8 +18380,35 @@ TEST_F(SdkTest, SdkNodeDescription)
     };
 
     // Set description
-    std::string description("Description");
+    std::string description("This is a test description to search in their contains");
     changeNodeDescription(mh, description.c_str());
+
+    std::string descriptionFilter{"search"};
+    std::string descriptionFilterNoFind{"searchin"};
+    std::string descriptionWithoutCapitalLetter("this");
+
+    std::unique_ptr<MegaSearchFilter> filter(MegaSearchFilter::createInstance());
+    filter->byDescription(descriptionFilter.c_str());
+    std::unique_ptr<MegaNodeList> nodeList(megaApi[0]->search(filter.get()));
+    ASSERT_EQ(nodeList->size(), 1);
+
+    std::unique_ptr<MegaSearchFilter> filterChildren(MegaSearchFilter::createInstance());
+    filterChildren->byDescription(descriptionFilter.c_str());
+    filterChildren->byLocationHandle(rootnodeA->getHandle());
+    nodeList.reset(megaApi[0]->getChildren(filterChildren.get()));
+    ASSERT_EQ(nodeList->size(), 1);
+
+    filter->byDescription(descriptionFilterNoFind.c_str());
+    nodeList.reset(megaApi[0]->search(filter.get()));
+    ASSERT_EQ(nodeList->size(), 0);
+
+    filterChildren->byDescription(descriptionFilterNoFind.c_str());
+    nodeList.reset(megaApi[0]->getChildren(filterChildren.get()));
+    ASSERT_EQ(nodeList->size(), 0);
+
+    filter->byDescription(descriptionWithoutCapitalLetter.c_str());
+    nodeList.reset(megaApi[0]->search(filter.get()));
+    ASSERT_EQ(nodeList->size(), 1);
 
     std::unique_ptr<char> session(dumpSession());
     locallogout(0);

@@ -9572,6 +9572,20 @@ public:
      * @return upper limit modification timestamp set for restricting node search to, or 0 if not set
      */
     virtual int64_t byModificationTimeUpperLimit() const;
+
+    /**
+     * @brief Set option for filtering by contains in description.
+     *
+     * @param searchString Contains string to be searched at nodes description
+     */
+    virtual void byDescription(const char* searchString);
+
+    /**
+     * @brief Return the string used for filtering by description.
+     *
+     * @return string set for filtering by name, or empty string ("") if not set
+     */
+    virtual const char* byDescription() const;
 };
 
 /**
