@@ -104,8 +104,8 @@ public:
         //
         // keepAliveInSeconds default 10 seconds. It also ensure the minimum MIN_ALIVE_SECONDS
         //
-        Params(const std::string &endpointName,
-               const std::string &executable,
+        Params(const std::string& endpointName,
+               const std::string& executable,
                std::chrono::seconds keepAliveInSeconds  = std::chrono::seconds(10));
 
         // Convert to args used to launch isolated process
