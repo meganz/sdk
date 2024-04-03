@@ -6601,7 +6601,7 @@ public class MegaApiJava {
      * @return Null-terminated char string containing the newly generated password.
      */
     public static String generateRandomCharsPassword(boolean useUpper, boolean useDigit, boolean useSymbol, int length) {
-        return megaApi.generateRandomCharsPassword(useUpper, useDigit, useSymbol, length);
+        return MegaApi.generateRandomCharsPassword(useUpper, useDigit, useSymbol, length);
     }
 
     /**
