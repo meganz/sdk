@@ -133,17 +133,7 @@ pipeline {
             steps{
                 script {
                     def lockLabel = ''
-                    def sdkConcurrentTestAccountsUrls = [
-                        'https://g.api.mega.co.nz/',
-                        'https://bt1.api.mega.co.nz:444',
-                        'https://bt1.api.mega.co.nz/',
-                        'https://bt2.api.mega.co.nz/',
-                        'https://bt3.api.mega.co.nz/',
-                        'https://bt4.api.mega.co.nz/',
-                        'https://bt5.api.mega.co.nz/',
-                        'https://bt6.api.mega.co.nz/'
-                    ]
-                    if (sdkConcurrentTestAccountsUrls.contains(APIURL_TO_TEST)) {
+                    if ("${APIURL_TO_TEST}" == 'https://g.api.mega.co.nz/') {
                         lockLabel = 'SDK_Concurrent_Test_Accounts'
                     } else if ("${APIURL_TO_TEST}" == 'https://staging.api.mega.co.nz/') {
                         lockLabel = 'SDK_Concurrent_Test_Accounts_Staging'
