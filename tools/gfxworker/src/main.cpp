@@ -1,5 +1,5 @@
 #include "processor.h"
-#include "server_win32.h"
+#include "server.h"
 #include "logger.h"
 
 #include "mega.h"
@@ -13,7 +13,7 @@
 
 using mega::gfx::GfxProcessor;
 using mega::gfx::RequestProcessor;
-using mega::gfx::ServerWin32;
+using mega::gfx::Server;
 using mega::gfx::MegaFileLogger;
 using mega::ArgumentsParser;
 using mega::Arguments;
@@ -35,9 +35,9 @@ Usage:
   -q=arg               The size of this queue determines the capacity for
                        pending requests when all threads in the pool are
                        busy. Minimum 1 (default: 10)
-  -n=arg               Pipe name (default: mega_gfxworker)
+  -n=arg               Endpoint name (default: mega_gfxworker)
   -d=arg               Log directory (default: .)
-  -f=arg               Log filename (default: mega.gfxworker.<pipeName>.log)
+  -f=arg               Log filename (default: mega.gfxworker.<endpointName>.log)
 )";
 
 struct Config
@@ -48,7 +48,7 @@ struct Config
 
     size_t queueSize;
 
-    std::string pipeName;
+    std::string endpointName;
 
     std::string logDirectory;
 
@@ -71,14 +71,14 @@ Config Config::fromArguments(const Arguments& arguments)
     config.queueSize = static_cast<size_t>(std::stoi(arguments.getValue("-q", "10")));
     config.queueSize = std::max<size_t>(1, config.queueSize);
 
-    // pipe name
-    config.pipeName  = arguments.getValue("-n", "mega_gfxworker");
+    // endpoint name
+    config.endpointName = arguments.getValue("-n", "mega_gfxworker");
 
     // log directory
     config.logDirectory = arguments.getValue("-d", ".");
 
     // log file name
-    config.logFilename = arguments.getValue("-f", "mega.gfxworker." + config.pipeName + ".log");
+    config.logFilename = arguments.getValue("-f", "mega.gfxworker." + config.endpointName + ".log");
 
     return config;
 }
@@ -141,15 +141,15 @@ int main(int argc, char** argv)
                                      false);
 
     LOG_info << "Gfxworker server starting"
-             << ", pipe name: " << config.pipeName
+             << ", endpoint name: " << config.endpointName
              << ", threads: " << config.threadCount
              << ", queue size: " << config.queueSize
              << ", live in seconds: " << config.keepAliveInSeconds;
 
     // start server
-    ServerWin32 server(
+    Server server(
         ::mega::make_unique<RequestProcessor>(config.threadCount, config.queueSize),
-        config.pipeName,
+        config.endpointName,
         config.keepAliveInSeconds
     );
 

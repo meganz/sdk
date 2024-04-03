@@ -23,12 +23,18 @@
 #include "stdfs.h"
 #include "SdkTest_test.h"
 #include "gtest_common.h"
+#include "mega/types.h"
 #include "mega/testhooks.h"
 
 #include "gmock/gmock-matchers.h"
 
 #include <algorithm>
 #include <cctype>
+
+#if !defined(WIN32) && defined(ENABLE_ISOLATED_GFX)
+#include "mega/posix/gfx/worker/socket_utils.h"
+using ::mega::gfx::SocketUtils;
+#endif
 
 #define SSTR( x ) static_cast< const std::ostringstream & >( \
         (  std::ostringstream() << std::dec << x ) ).str()
@@ -273,13 +279,13 @@ namespace
     }
 
     //
-    // Get a new pipe name without conflicts with any running instances
+    // Get a new endpoint name without conflicts with any running instances
     // under the following situations:
     //      1. Jenkins can run multiple test jobs at the same time
     //      2. A test job can run tests in parallel
     // Use current process ID so names are unique between different jobs (processes)
     // Use a static incremental counter so names are unique in the same job (process)
-    std::string newPipeName()
+    std::string newEndpointName()
     {
         static std::atomic_int counter{0};
         int current = counter++;
@@ -289,6 +295,15 @@ namespace
         return oss.str();
     }
 
+    std::string executableName(const std::string& name)
+    {
+    #ifdef WIN32
+        return name + ".exe";
+    #else
+        return name;
+    #endif
+    }
+
     MegaApiTest* newMegaApi(const char* appKey,
                             const char* basePath,
                             const char* userAgent,
@@ -296,11 +311,13 @@ namespace
                             const int clientType = MegaApi::CLIENT_TYPE_DEFAULT)
     {
     #ifdef ENABLE_ISOLATED_GFX
-        auto gfxworkerPath = sdk_test::getTestDataDir() / "gfxworker.exe";
+        const auto gfxworkerPath = sdk_test::getTestDataDir() / executableName("gfxworker");
+        const auto endpointName = newEndpointName();
         std::unique_ptr<MegaGfxProvider> provider{
-            MegaGfxProvider::createIsolatedInstance(newPipeName().c_str(), gfxworkerPath.string().c_str())
+            MegaGfxProvider::createIsolatedInstance(endpointName.c_str(), gfxworkerPath.string().c_str())
         };
-        return new MegaApiTest(appKey,
+        return new MegaApiTest(endpointName,
+                               appKey,
                                provider.get(),
                                basePath,
                                userAgent,
@@ -343,6 +360,46 @@ namespace
 }
 
 std::map<size_t, std::string> gSessionIDs;
+
+MegaApiTest::MegaApiTest(const char* appKey,
+                         const char* basePath,
+                         const char* userAgent,
+                         unsigned workerThreadCount,
+                         const int clientType):
+    MegaApi(appKey, basePath, userAgent, workerThreadCount, clientType)
+{
+}
+
+MegaApiTest::MegaApiTest(const std::string& endpointName,
+                         const char* appKey,
+                         MegaGfxProvider* provider,
+                         const char* basePath,
+                         const char* userAgent,
+                         unsigned workerThreadCount,
+                         const int clientType):
+    MegaApi(appKey, provider, basePath, userAgent, workerThreadCount, clientType),
+    mEndpointName(endpointName)
+{
+}
+
+MegaApiTest::~MegaApiTest()
+{
+#if !defined(WIN32) && defined(ENABLE_ISOLATED_GFX)
+    // Clean up socket file if it has been created
+    if (mEndpointName.empty()) return;
+
+    if (std::error_code errorCode = SocketUtils::removeSocketFile(mEndpointName))
+    {
+        LOG_err << "Failed to remove socket path " << mEndpointName << ": " << errorCode.message();
+    }
+#endif
+}
+
+MegaClient* MegaApiTest::getClient()
+{
+    return pImpl->getMegaClient();
+}
+
 
 void SdkTest::SetUp()
 {

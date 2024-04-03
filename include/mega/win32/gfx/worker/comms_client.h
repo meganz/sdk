@@ -1,39 +1,31 @@
 #pragma once
 
-#include "mega/gfx/worker/comms.h"
-#include "mega/win32/gfx/worker/comms.h"
+#include "mega/gfx/worker/comms_client_common.h"
 #include <windows.h>
 
 namespace mega {
 namespace gfx {
 
-class ClientNamedPipe : public NamedPipe
+class GfxCommunicationsClient : public IGfxCommunicationsClient
 {
 public:
-    ClientNamedPipe(HANDLE h) : NamedPipe(h, "client") {}
+    GfxCommunicationsClient(const std::string& pipeName);
+
+    // Connect to the server
+    // On success, a CommError::OK and a valid endpoint pair is returned
+    // On failure, a CommError error and nullptr pair is returned
+    std::pair<CommError, std::unique_ptr<IEndpoint>> connect() override;
 
 private:
-    Type type() const { return Type::Client; }
-};
-
-class WinGfxCommunicationsClient : public IGfxCommunicationsClient
-{
-public:
-    WinGfxCommunicationsClient(const std::string& pipeName)
-        : mPipeName(pipeName)
-    {
-
-    }
-
-    CommError connect(std::unique_ptr<IEndpoint>& endpoint) override;
-
-private:
-    CommError doConnect(LPCTSTR pipeName, HANDLE &hPipe);
+    // Do connection to the named pipe server
+    // On success, a CommError::OK and a valid handle pair is returned
+    // On failure, a CommError error and INVALID_HANDLE_VALUE pair is returned
+    std::pair<CommError, HANDLE> doConnect(LPCTSTR pipeName);
 
     CommError toCommError(DWORD winError) const;
 
     std::string mPipeName;
 };
 
-} // end of namespace
+} // namespace
 }

@@ -140,23 +140,32 @@ pipeline {
                             cd ${env.BUILD_DIR}
 
                             ./tests/unit/test_unit || FAILED=1
-                            
+
+                            if [ -z \"\$FAILED\" ]; then
+                                GFXWORKER_TEST_DIR=./tools/gfxworker/tests/integration/
+                                GFXWORKER_TEST_NAME=gfxworker_test_integration
+                                GFXWORKER_TEST_PATH=\"\$GFXWORKER_TEST_DIR\$GFXWORKER_TEST_NAME\"
+                                if [ -f \"\$GFXWORKER_TEST_PATH\" ]; then
+                                    \$GFXWORKER_TEST_PATH || FAILED=2
+                                fi
+                            fi
+
                             if [ -z \"\$FAILED\" ]; then
                                 if [ -z \"${TESTS_PARALLEL}\" ]; then
                                     # Sequential run
                                     ./tests/integration/test_integration --CI --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${GTEST_FILTER} ${GTEST_REPEAT} &
                                     pid=\$!
-                                    wait \$pid || FAILED=2
+                                    wait \$pid || FAILED=3
                                 else
                                     # Parallel run
                                     ./tests/integration/test_integration --CI --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${GTEST_FILTER} ${GTEST_REPEAT} ${TESTS_PARALLEL} 2>&1 | tee tests.stdout
-                                    [ \"\${PIPESTATUS[0]}\" != \"0\" ] && FAILED=2
+                                    [ \"\${PIPESTATUS[0]}\" != \"0\" ] && FAILED=3
                                 fi
                             fi
                             if [ -n \"\$FAILED\" ]; then
-                                if [ \"\$FAILED\" -eq 1 ]; then
+                                if [ \"\$FAILED\" -le 2 ]; then
                                     coreFiles=core
-                                else # FAILED=2
+                                else # FAILED=3
                                     if [ -z \"${TESTS_PARALLEL}\" ]; then
                                         # Sequential run
                                         coreFiles=\"pid_\$pid/core\"
@@ -186,7 +195,8 @@ pipeline {
                                                 echo thread apply all bt > backtrace
                                                 echo quit >> backtrace
                                                 [ \"\$FAILED\" = \"1\" ] && gdb -q ./tests/unit/test_unit \$i -x ${linux_sources_workspace}/backtrace
-                                                [ \"\$FAILED\" = \"2\" ] && gdb -q ./tests/integration/test_integration \$i -x ${linux_sources_workspace}/backtrace
+                                                [ \"\$FAILED\" = \"2\" ] && gdb -q \$GFXWORKER_TEST_PATH \$i -x ${linux_sources_workspace}/backtrace
+                                                [ \"\$FAILED\" = \"3\" ] && gdb -q ./tests/integration/test_integration \$i -x ${linux_sources_workspace}/backtrace
                                                 tar rf core.tar \$i
                                                 coresProcessed=`expr \$coresProcessed + 1`
                                                 coreFiles=`echo \$coreFiles | sed -e \"s#\$i##\"`
@@ -195,7 +205,8 @@ pipeline {
                                     done
                                     if [ -e core.tar ]; then
                                         [ \"\$FAILED\" = \"1\" ] && tar rf core.tar -C ./tests/unit/ test_unit
-                                        [ \"\$FAILED\" = \"2\" ] && tar rf core.tar -C ./tests/integration/ test_integration
+                                        [ \"\$FAILED\" = \"2\" ] && tar rf core.tar -C \$GFXWORKER_TEST_DIR \$GFXWORKER_TEST_NAME
+                                        [ \"\$FAILED\" = \"3\" ] && tar rf core.tar -C ./tests/integration/ test_integration
                                         gzip core.tar
                                     fi
                                 fi

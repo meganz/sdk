@@ -23,7 +23,6 @@
 #include "mega/arguments.h"
 #include "mega/filesystem.h"
 #include "mega/gfx.h"
-#include "mega/gfx/worker/client.h"
 #include "megacli.h"
 #include <chrono>
 #include <exception>
@@ -70,7 +69,10 @@
 #ifdef USE_FREEIMAGE
 #include "mega/gfx/freeimage.h"
 #endif
+
+#ifdef ENABLE_ISOLATED_GFX
 #include "mega/gfx/isolatedprocess.h"
+#endif
 
 #ifdef WIN32
 #include <winioctl.h>
@@ -159,7 +161,7 @@ Usage:
 #if defined(ENABLE_ISOLATED_GFX)
 R"(
   -e=arg               Use the isolated gfx processor. This gives executable binary path
-  -n=arg               Pipe name (default: mega_gfxworker_megacli)
+  -n=arg               Endpoint name (default: mega_gfxworker_megacli)
 )"
 #endif
 ;
@@ -167,7 +169,7 @@ struct Config
 {
     std::string executable;
 
-    std::string pipeName;
+    std::string endpointName;
 
     std::string clientType;
 
@@ -188,8 +190,8 @@ Config Config::fromArguments(const Arguments& arguments)
         throw std::runtime_error("Couldn't find Executable: " + config.executable);
     }
 
-    // pipe name
-    config.pipeName  = arguments.getValue("-n", "mega_gfxworker_megacli");
+    // endpoint name
+    config.endpointName = arguments.getValue("-n", "mega_gfxworker_megacli");
 #endif
 
     config.clientType = arguments.getValue("-c", "default");
@@ -197,20 +199,15 @@ Config Config::fromArguments(const Arguments& arguments)
     return config;
 }
 
-static std::unique_ptr<IGfxProvider> createGfxProvider(const Config& config)
+static std::unique_ptr<IGfxProvider> createGfxProvider([[maybe_unused]] const Config& config)
 {
 #if defined(ENABLE_ISOLATED_GFX)
-    if (!config.executable.empty())
+    if (auto provider = GfxProviderIsolatedProcess::create(config.endpointName, config.executable))
     {
-        auto process = ::mega::make_unique<GfxIsolatedProcess>(config.pipeName, config.executable);
-        return ::mega::make_unique<GfxProviderIsolatedProcess>(std::move(process));
+        return provider;
     }
-    else
 #endif
-    {
-        (void) config;
-        return IGfxProvider::createInternalGfxProvider();
-    }
+    return IGfxProvider::createInternalGfxProvider();
 }
 
 #ifdef ENABLE_SYNC

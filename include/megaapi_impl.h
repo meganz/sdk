@@ -2853,7 +2853,7 @@ public:
 
     std::unique_ptr<::mega::IGfxProvider> releaseProvider() { return std::move(mProvider); }
 
-    static std::unique_ptr<MegaGfxProviderPrivate> createIsolatedInstance(const std::string& pipeName,
+    static std::unique_ptr<MegaGfxProviderPrivate> createIsolatedInstance(const std::string& endpointName,
                                                                           const std::string& executable);
 
     static std::unique_ptr<MegaGfxProviderPrivate> createExternalInstance(MegaGfxProcessor* processor);

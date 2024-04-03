@@ -7873,12 +7873,15 @@ MegaCompleteUploadData* MegaCompleteUploadData::createInstance(const char* finge
 MegaGfxProvider::~MegaGfxProvider() = default;
 
 MegaGfxProvider* MegaGfxProvider::createIsolatedInstance(
-    const char* pipeName,
+    const char* endpointName,
     const char* executable)
 {
+    if (!endpointName || !executable) return nullptr;
+
     auto provider = MegaGfxProviderPrivate::createIsolatedInstance(
-        std::string(pipeName ? pipeName : ""),
-        std::string(executable ? executable : ""));
+        std::string(endpointName),
+        std::string(executable)
+    );
 
     return provider.release();
 }

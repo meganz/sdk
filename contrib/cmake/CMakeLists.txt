@@ -632,14 +632,6 @@ if(WIN32)
         SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles} ${MegaDir}/include/mega/win32/drivenotifywin.h ${MegaDir}/src/win32/drivenotifywin.cpp)
     ENDIF(USE_DRIVE_NOTIFICATIONS)
 
-    # gfx worker related
-    SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles}
-                                   ${MegaDir}/include/mega/win32/gfx/worker/comms.h
-                                   ${MegaDir}/include/mega/win32/gfx/worker/comms_client.h
-                                   ${MegaDir}/src/gfx/isolatedprocess.cpp # only windows ATM
-                                   ${MegaDir}/src/win32/gfx/worker/comms.cpp
-                                   ${MegaDir}/src/win32/gfx/worker/comms_client.cpp)
-
 ELSE(WIN32)
 
     set(USE_PTHREAD 1)
@@ -734,10 +726,7 @@ SET(Mega_CryptoFiles ${MegaDir}/src/crypto/cryptopp.cpp ${MegaDir}/src/crypto/so
 SET(Mega_DbFiles ${MegaDir}/src/db/sqlite.cpp ${MegaDir}/src/db/sqlite.cpp )
 SET(Mega_GfxFiles ${MegaDir}/src/gfx/external.cpp
                   ${MegaDir}/src/gfx/freeimage.cpp
-                  ${MegaDir}/src/gfx/gfx_pdfium.cpp
-                  ${MegaDir}/src/gfx/worker/commands.cpp
-                  ${MegaDir}/src/gfx/worker/command_serializer.cpp
-                  ${MegaDir}/src/gfx/worker/client.cpp)
+                  ${MegaDir}/src/gfx/gfx_pdfium.cpp)
 
 add_library(Mega STATIC
             ${MegaDir}/include/megaapi.h
@@ -800,12 +789,6 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/gfx/freeimage.h
             ${MegaDir}/include/mega/gfx/gfx_pdfium.h
             ${MegaDir}/include/mega/gfx/external.h
-            ${MegaDir}/include/mega/gfx/isolatedprocess.h
-            ${MegaDir}/include/mega/gfx/worker/tasks.h
-            ${MegaDir}/include/mega/gfx/worker/commands.h
-            ${MegaDir}/include/mega/gfx/worker/comms.h
-            ${MegaDir}/include/mega/gfx/worker/command_serializer.h
-            ${MegaDir}/include/mega/gfx/worker/client.h
             ${MegaDir}/include/mega/pubkeyaction.h
             ${MegaDir}/include/mega/mega_http_parser.h
             ${MegaDir}/include/mega/waiter.h
@@ -1042,13 +1025,6 @@ endif()
 
 if (NOT IOS)
 #test apps
-if (WIN32)
-    SET(Mega_PlatformSpecificUnitTestFiles
-        ${MegaDir}/tests/unit/GfxCommands_test.cpp
-        ${MegaDir}/tests/unit/Isolatedprocess_test.cpp
-    )
-endif()
-
 add_executable(test_unit
     ${MegaDir}/tests/unit/Arguments_test.cpp
     ${MegaDir}/tests/unit/AttrMap_test.cpp
@@ -1082,7 +1058,6 @@ add_executable(test_unit
     ${MegaDir}/tests/unit/utils.h
     ${MegaDir}/tests/unit/utils_test.cpp
     ${MegaDir}/tests/unit/CacheLRU_test.cpp
-    ${Mega_PlatformSpecificUnitTestFiles}
 )
 
 add_executable(test_integration
