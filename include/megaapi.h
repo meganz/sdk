@@ -9583,7 +9583,7 @@ public:
     /**
      * @brief Return the string used for filtering by description.
      *
-     * @return string set for filtering by name, or empty string ("") if not set
+     * @return string set for filtering by description, or empty string ("") if not set
      */
     virtual const char* byDescription() const;
 };
