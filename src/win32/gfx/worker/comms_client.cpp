@@ -70,7 +70,7 @@ std::pair<CommError, std::unique_ptr<IEndpoint>> GfxCommunicationsClient::connec
 {
     const auto fullPipeName = win_utils::toFullPipeName(mPipeName);
 
-    auto [error, hPipe]  = doConnect(fullPipeName.c_str());
+    auto [error, hPipe] = doConnect(fullPipeName.c_str());
 
     // Error
     if (error != CommError::OK)
