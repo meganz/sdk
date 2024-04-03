@@ -196,15 +196,14 @@ std::pair<error_code, int> SocketUtils::accept(int listeningFd, milliseconds tim
 
         assert(dataSocket < 0);
 
-        // None retry error
+        // None retry errors
         if (!isRetryErrorNo(errno))
         {
             return {error_code{errno, system_category()}, -1};
         }
 
-        // Retry error
+        // Retry errors
         assert(isRetryErrorNo(errno));
-        LOG_info << "Retry accept due to errno: " << errno;
     } while (true);
 }
 
@@ -230,7 +229,7 @@ error_code SocketUtils::write(int fd, const void* data, size_t n, milliseconds t
             return error_code{errno, system_category()};
         }
 
-        // Note: retry errors
+        // Retry errors
         if (written < 0 && isRetryErrorNo(errno))
         {
             continue;
@@ -266,7 +265,7 @@ error_code SocketUtils::read(int fd, void* buf, size_t n, milliseconds timeout)
             return error_code{errno, system_category()};
         }
 
-        // Retry error, continue
+        // Retry errors
         if (bytesRead < 0 && isRetryErrorNo(errno))
         {
             continue;
