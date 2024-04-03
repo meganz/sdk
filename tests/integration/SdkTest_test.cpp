@@ -361,7 +361,7 @@ MegaApiTest::~MegaApiTest()
 
     if (std::error_code errorCode = SocketUtils::removeSocketFile(mEndpointName))
     {
-        LOG_err << "Fail to remove socket path " << mEndpointName << ": " << errorCode.message();
+        LOG_err << "Failed to remove socket path " << mEndpointName << ": " << errorCode.message();
     }
 #endif
 }

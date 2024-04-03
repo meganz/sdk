@@ -46,7 +46,7 @@ error_code poll(std::vector<struct pollfd> fds, milliseconds timeout)
 
     if (ret < 0)
     {
-        LOG_err << "Fail to poll: " << errno;
+        LOG_err << "Failed to poll: " << errno;
         return error_code{errno, system_category()};
     }
 
@@ -134,14 +134,14 @@ error_code doBindAndListen(int fd, const std::string& socketPath)
     // Bind name
     if (::bind(fd, reinterpret_cast<const struct sockaddr*>(&addr), sizeof(addr)) == -1)
     {
-        LOG_err << "Fail to bind UNIX domain socket name: " << socketPath << " errno: " << errno;
+        LOG_err << "Failed to bind UNIX domain socket name: " << socketPath << " errno: " << errno;
         return error_code{errno, system_category()};
     }
 
     // Listen
     if (::listen(fd, QUEUE_LEN) < 0)
     {
-        LOG_err << "Fail to listen UNIX domain socket name: " << socketPath << " errno: " << errno;
+        LOG_err << "Failed to listen UNIX domain socket name: " << socketPath << " errno: " << errno;
         return error_code{errno, system_category()};
     }
 
@@ -215,7 +215,7 @@ error_code SocketUtils::write(int fd, const void* data, size_t n, milliseconds t
         // Poll
         if (const auto errorCode = pollForWrite(fd, timeout))
         {
-            LOG_err << "Fail to pollForWrite, " << errorCode.message();
+            LOG_err << "Failed to pollForWrite, " << errorCode.message();
             return errorCode;
         }
 
@@ -226,7 +226,7 @@ error_code SocketUtils::write(int fd, const void* data, size_t n, milliseconds t
         // Non retry errors
         if (written < 0 && !isRetryErrorNo(errno))
         {
-            LOG_err << "Fail to write, errno: " << errno;
+            LOG_err << "Failed to write, errno: " << errno;
             return error_code{errno, system_category()};
         }
 
@@ -251,7 +251,7 @@ error_code SocketUtils::read(int fd, void* buf, size_t n, milliseconds timeout)
         // Poll
         if (const auto errorCode = pollForRead(fd, timeout))
         {
-            LOG_err << "Fail to pollForRead, " << errorCode.message();
+            LOG_err << "Failed to pollForRead, " << errorCode.message();
             return errorCode;
         }
 
@@ -262,7 +262,7 @@ error_code SocketUtils::read(int fd, void* buf, size_t n, milliseconds timeout)
          // None retry errors
         if (bytesRead < 0 && !isRetryErrorNo(errno))
         {
-            LOG_err << "Fail to read, errno: " << errno;
+            LOG_err << "Failed to read, errno: " << errno;
             return error_code{errno, system_category()};
         }
 
@@ -275,7 +275,7 @@ error_code SocketUtils::read(int fd, void* buf, size_t n, milliseconds timeout)
         // End of file and not read all needed
         if (bytesRead == 0 && offset < n)
         {
-            LOG_err << "Fail to read, aborted";
+            LOG_err << "Failed to read, aborted";
             return error_code{ECONNABORTED, system_category()};
         }
 
@@ -299,7 +299,7 @@ std::pair<error_code, int>  SocketUtils::connect(const fs::path& socketPath)
 
     auto fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd < 0) {
-        LOG_err << "Fail to create a UNIX domain socket: " << socketPath.string() << " errno: " << errno;
+        LOG_err << "Failed to create a UNIX domain socket: " << socketPath.string() << " errno: " << errno;
         return {error_code{errno, system_category()}, -1};
     }
 
@@ -307,7 +307,7 @@ std::pair<error_code, int>  SocketUtils::connect(const fs::path& socketPath)
 
     if (::connect(fd, reinterpret_cast<const struct sockaddr*>(&addr), sizeof(addr)) < 0)
     {
-        LOG_err << "Fail to connect " << socketPath.string() << " errno: " << errno;
+        LOG_err << "Failed to connect " << socketPath.string() << " errno: " << errno;
         ::close(fd);
         return {error_code{errno, system_category()}, -1};
     }
@@ -327,7 +327,7 @@ std::pair<error_code, int> SocketUtils::listen(const fs::path& socketPath)
     const auto fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd < 0)
     {
-        LOG_err << "Fail to create a UNIX domain socket: " << socketPath.string() << " errno: " << errno;
+        LOG_err << "Failed to create a UNIX domain socket: " << socketPath.string() << " errno: " << errno;
         return {error_code{errno, system_category()}, -1};
     }
 

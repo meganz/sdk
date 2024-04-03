@@ -31,7 +31,7 @@ void ServerPosix::serverListeningLoop()
     const auto [ret, listenFd] = SocketUtils::listen(SocketUtils::toSocketPath(mSocketName));
     if (ret)
     {
-        LOG_err << "Fail to listen on " << mSocketName << ": " << ret.message();
+        LOG_err << "Failed to listen on " << mSocketName << ": " << ret.message();
         return;
     }
 
