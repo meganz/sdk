@@ -101,6 +101,22 @@ constexpr size_t maxSocketPathLength()
     return sizeof(sockaddr_un::sun_path);
 }
 
+// The caller should check that the socketPath does not exceed the capability of sun_path
+// to avoid truncation
+sockaddr_un initSocketAddr(const std::string& socketPath)
+{
+    // Zero initialization with the address family value AF_UNIX
+    sockaddr_un addr{};
+    addr.sun_family = AF_UNIX;
+
+    // Calculate the count for copying and leave one for null
+    size_t count = std::min(socketPath.size(), maxSocketPathLength() - 1);
+
+    std::copy_n(socketPath.begin(), count, addr.sun_path);
+
+    return addr;
+}
+
 // Bind the fd on the socketPath and listen on it
 error_code doBindAndListen(int fd, const std::string& socketPath)
 {
@@ -113,12 +129,10 @@ error_code doBindAndListen(int fd, const std::string& socketPath)
         return error_code{ENAMETOOLONG, system_category()};
     }
 
-    sockaddr_un addr{};
-    addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, socketPath.c_str(), maxSocketPathLength());
+    auto addr = initSocketAddr(socketPath);
 
     // Bind name
-    if (::bind(fd, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) == -1)
+    if (::bind(fd, reinterpret_cast<const struct sockaddr*>(&addr), sizeof(addr)) == -1)
     {
         LOG_err << "Fail to bind UNIX domain socket name: " << socketPath << " errno: " << errno;
         return error_code{errno, system_category()};
@@ -289,11 +303,9 @@ std::pair<error_code, int>  SocketUtils::connect(const fs::path& socketPath)
         return {error_code{errno, system_category()}, -1};
     }
 
-    sockaddr_un addr{};
-    addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, socketPath.c_str(), maxSocketPathLength());
+    auto addr = initSocketAddr(socketPath.native());
 
-    if (::connect(fd, (const struct sockaddr *) &addr, sizeof(addr)) < 0)
+    if (::connect(fd, reinterpret_cast<const struct sockaddr*>(&addr), sizeof(addr)) < 0)
     {
         LOG_err << "Fail to connect " << socketPath.string() << " errno: " << errno;
         ::close(fd);
