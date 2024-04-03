@@ -2816,8 +2816,8 @@ public:
     int64_t byCreationTimeUpperLimit() const override { return mCreationUpperLimit; }
     int64_t byModificationTimeLowerLimit() const override { return mModificationLowerLimit; }
     int64_t byModificationTimeUpperLimit() const override { return mModificationUpperLimit; }
-    virtual void byDescription(const char* searchString) override;
-    virtual const char* byDescription() const override { return mDescriptionFilter.c_str(); }
+    void byDescription(const char* searchString) override;
+    const char* byDescription() const override { return mDescriptionFilter.c_str(); }
 
 private:
     std::string mNameFilter;
