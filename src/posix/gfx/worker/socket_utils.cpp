@@ -179,7 +179,8 @@ std::error_code SocketUtils::removeSocketFile(const std::string& name)
 
 std::pair<error_code, int> SocketUtils::accept(int listeningFd, milliseconds timeout)
 {
-    do {
+    do
+    {
         const auto errorCode = pollForAccept(listeningFd, timeout);
         if (errorCode)
         {
@@ -210,7 +211,8 @@ std::pair<error_code, int> SocketUtils::accept(int listeningFd, milliseconds tim
 error_code SocketUtils::write(int fd, const void* data, size_t n, milliseconds timeout)
 {
     size_t offset = 0;
-    while (offset < n) {
+    while (offset < n)
+    {
         // Poll
         if (const auto errorCode = pollForWrite(fd, timeout))
         {
@@ -246,7 +248,8 @@ error_code SocketUtils::write(int fd, const void* data, size_t n, milliseconds t
 error_code SocketUtils::read(int fd, void* buf, size_t n, milliseconds timeout)
 {
     size_t offset = 0;
-    while (offset < n) {
+    while (offset < n)
+    {
         // Poll
         if (const auto errorCode = pollForRead(fd, timeout))
         {
