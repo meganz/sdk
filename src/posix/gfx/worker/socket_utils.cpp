@@ -325,25 +325,27 @@ std::pair<error_code, int> SocketUtils::listen(const fs::path& socketPath)
     // Try to create path, it may already exist
     createDirectories(socketPath.parent_path());
 
+    const auto socketPathStr = socketPath.string();
+
     // Create a UNIX domain socket
     const auto fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd < 0)
     {
-        LOG_err << "Failed to create a UNIX domain socket: " << socketPath.string() << " errno: " << errno;
+        LOG_err << "Failed to create a UNIX domain socket: " << socketPathStr << " errno: " << errno;
         return {error_code{errno, system_category()}, -1};
     }
 
     // Bind and Listen on
-    if (const auto error_code = doBindAndListen(fd, socketPath.string()))
+    if (const auto error_code = doBindAndListen(fd, socketPathStr))
     {
         ::close(fd);
         return { error_code, -1};
     }
 
     // Success
-    LOG_verbose << "Listening on UNIX domain socket name: " << socketPath.string();
+    LOG_verbose << "Listening on UNIX domain socket name: " << socketPathStr;
 
-    return {error_code{}, fd};;
+    return {error_code{}, fd};
 }
 
 } // namespace
