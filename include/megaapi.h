@@ -9787,6 +9787,44 @@ public:
     virtual MegaCompleteUploadData* copy() const = 0;
 };
 
+/**
+ * @brief Store information of an A/B Test or Feature flag
+ *
+ * @see MegaApi::getFlag.
+ */
+class MegaFlag
+{
+public:
+    virtual ~MegaFlag() = default;
+
+    /**
+     * @brief Possible flag types.
+     */
+    enum // 1:1 with enum values from internal implementation
+    {
+        FLAG_TYPE_INVALID = 0,
+        FLAG_TYPE_AB_TEST = 1,
+        FLAG_TYPE_FEATURE = 2,
+    };
+
+    /**
+     * @brief Get the type of the flag
+     *
+     * @param startingOffset The first position in the list of results to be included in the returned page (starts from 0).
+     * @param size The maximum number of results included in the page, or 0 to return all (remaining) results
+     *
+     * @return The type of the flag. Possible values are ony of the FLAG_TYPE_x values.
+     */
+    virtual uint32_t getType() const = 0;
+
+    /**
+     * @brief Get the group of the flag
+     *
+     * @return The group of the flag. Any value greater than 0 means the flag is active.
+     */
+    virtual uint32_t getGroup() const = 0;
+};
+
 class MegaApiImpl;
 
 /**
@@ -23023,6 +23061,24 @@ class MegaApi
         void setMountFlags(const MegaMountFlags* flags,
                            const char* path,
                            MegaRequestListener* listener);
+
+        /**
+         * @brief Get the type and value for the flag with the given name,
+         * if present among either A/B Test or Feature flags.
+         *
+         * If found among A/B Test flags and commit was true, also inform the API
+         * that a user has become relevant for that A/B Test flag, in which case
+         * the associated request type with this request is MegaRequest::TYPE_AB_TEST_ACTIVE
+         * and valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getText - Returns the flag passed as parameter
+         *
+         * @param flagName Name or key of the value to be retrieved (and possibly be sent to API as active).
+         * @param commit Determine whether an A/B Test flag will be sent to API as active.
+         * @param listener MegaRequestListener to track this request, ignored if commit was false
+         *
+         * @return A MegaFlag instance with the type and value of the flag.
+         */
+        MegaFlag* getFlag(const char* flagName, bool commit = true, MegaRequestListener* listener = nullptr);
 
  protected:
         MegaApiImpl *pImpl = nullptr;
