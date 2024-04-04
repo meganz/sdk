@@ -7729,7 +7729,7 @@ void MegaClient::sc_uec()
                 {
                     LOG_warn << "Missing user handle in `uec` action packet";
                 }
-                if (u == me && email.size()) mapuser(me, email.c_str());
+                if (u == me && email.size()) setEmail(ownuser(), email);
                 app->account_updated();
                 app->notify_confirm_user_email(u, email.c_str());
                 ephemeralSession = false;
