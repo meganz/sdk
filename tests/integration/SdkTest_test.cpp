@@ -16999,6 +16999,18 @@ TEST_F(SdkTest, CreateNodeTreeWithOneDirectoryAndS4Attribute)
     ASSERT_STREQ(s4AttributeValue.c_str(), directoryNode->getS4());
 }
 
+template <typename TP>
+std::time_t time_point_To_time_t(TP tp)
+{
+    using namespace std::chrono;
+    // In C++17, time_point used system_clock on POSIX and a custom TrivialClock in VS, which have different
+    // epoch start. The latter has no way to convert a timestamp to time_t (like system_clock::to_time_t()).
+    // This was improved in C++20, but we're not there yet.
+    // With no portable way of converting time_point to time_t, let's try this workaround:
+    auto platformTP = time_point_cast<system_clock::duration>(tp - TP::clock::now() + system_clock::now());
+    return system_clock::to_time_t(platformTP);
+}
+
 /**
  * @brief Create node tree with one file
  *
@@ -17057,10 +17069,9 @@ TEST_F(SdkTest, CreateNodeTreeWithOneFile)
     ASSERT_STREQ(fileNode->getFingerprint(), fingerprint.c_str());
 
     // Check that mtime was kept
-    auto fsa = std::make_unique<FSACCESS_CLASS>();
-    auto fa = fsa->newfileaccess();
-    ASSERT_TRUE(fa->fopen(LocalPath::fromRelativePath(IMAGEFILE_C.c_str()), FSLogging::logOnError));
-    ASSERT_EQ(fa->mtime, fileNode->getModificationTime());
+    auto modtime = std::filesystem::last_write_time(IMAGEFILE_C);
+    auto modtime_t = time_point_To_time_t(modtime);
+    ASSERT_EQ(modtime_t, fileNode->getModificationTime());
 }
 
 /**
