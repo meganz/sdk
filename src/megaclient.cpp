@@ -7729,6 +7729,7 @@ void MegaClient::sc_uec()
                 {
                     LOG_warn << "Missing user handle in `uec` action packet";
                 }
+                if (u == me && email.size()) mapuser(me, email.c_str());
                 app->account_updated();
                 app->notify_confirm_user_email(u, email.c_str());
                 ephemeralSession = false;
@@ -11119,11 +11120,7 @@ void MegaClient::mapuser(handle uh, const char* email)
         // if mapping a different email, remove old index
         if (strcmp(u->email.c_str(), nuid.c_str()))
         {
-            if (u->email.size())
-            {
-                umindex.erase(u->email);
-            }
-
+            umindex.erase(u->email);
             JSON::copystring(&u->email, nuid.c_str());
         }
 
@@ -11194,12 +11191,6 @@ void MegaClient::discarduser(handle uh, bool discardnotified)
 {
     User *u = finduser(uh);
     dodiscarduser(u, discardnotified);
-}
-
-void MegaClient::discarduser(const char *email)
-{
-    User *u = finduser(email);
-    dodiscarduser(u, true);
 }
 
 PendingContactRequest* MegaClient::findpcr(handle p)
