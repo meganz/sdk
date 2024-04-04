@@ -7847,7 +7847,7 @@ MegaVpnCredentials* MegaVpnCredentials::copy() const
 }
 /* MegaVpnCredentials END */
 
-MegaNodeTree* MegaNodeTree::createInstance(MegaNodeTree* nodeTreeChild,
+MegaNodeTree* MegaNodeTree::createInstance(const MegaNodeTree* nodeTreeChild,
                                            const char* name,
                                            const char* s4AttributeValue,
                                            const MegaCompleteUploadData* completeUploadData,
