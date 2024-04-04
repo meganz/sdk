@@ -1611,7 +1611,7 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int o
         bool matchWildcard = std::any_of(nameFilter.begin(), nameFilter.end(), [](const char& c) { return c != '*'; });
         const string& wildCardName = matchWildcard ? '*' + filter.byName() + '*' : nameFilter;
         const string& byDescription = filter.byDescription();
-        string descriptionFilter = '*' + byDescription + '*';
+        string descriptionFilter = '*' + byDescription + '*'; // Add wild cards to allow partial searches
         if ((sqlResult = sqlite3_bind_text(stmt, 9, wildCardName.c_str(), static_cast<int>(wildCardName.length()), SQLITE_STATIC)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int(stmt, 10, order)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int(stmt, 11, matchWildcard)) == SQLITE_OK &&

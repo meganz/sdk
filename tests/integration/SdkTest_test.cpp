@@ -18384,9 +18384,6 @@ TEST_F(SdkTest, SdkNodeDescription)
     changeNodeDescription(mh, description.c_str());
 
     std::string descriptionFilter{"search"};
-    std::string descriptionFilterNoFind{"searchin"};
-    std::string descriptionWithoutCapitalLetter("this");
-
     std::unique_ptr<MegaSearchFilter> filter(MegaSearchFilter::createInstance());
     filter->byDescription(descriptionFilter.c_str());
     std::unique_ptr<MegaNodeList> nodeList(megaApi[0]->search(filter.get()));
@@ -18398,6 +18395,7 @@ TEST_F(SdkTest, SdkNodeDescription)
     nodeList.reset(megaApi[0]->getChildren(filterChildren.get()));
     ASSERT_EQ(nodeList->size(), 1);
 
+    std::string descriptionFilterNoFind{"searchin"};
     filter->byDescription(descriptionFilterNoFind.c_str());
     nodeList.reset(megaApi[0]->search(filter.get()));
     ASSERT_EQ(nodeList->size(), 0);
@@ -18406,6 +18404,7 @@ TEST_F(SdkTest, SdkNodeDescription)
     nodeList.reset(megaApi[0]->getChildren(filterChildren.get()));
     ASSERT_EQ(nodeList->size(), 0);
 
+    std::string descriptionWithoutCapitalLetter("this");
     filter->byDescription(descriptionWithoutCapitalLetter.c_str());
     nodeList.reset(megaApi[0]->search(filter.get()));
     ASSERT_EQ(nodeList->size(), 1);
