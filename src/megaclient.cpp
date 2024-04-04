@@ -8641,13 +8641,12 @@ error MegaClient::updateTagNode(std::shared_ptr<Node> node,
         return API_EEXIST;
     }
 
-    auto it = tokens.find(oldTag);
-    if (it == tokens.end())
+    auto removedElements = tokens.erase(oldTag);
+    if (!removedElements)
     {
         return API_ENOENT;
     }
 
-    tokens.erase(it);
     std::string str = joinStrings(tokens.begin(), tokens.end(), std::string{TAG_DELIMITER});
 
     AttrMap map;
@@ -8655,36 +8654,6 @@ error MegaClient::updateTagNode(std::shared_ptr<Node> node,
     setattr(node, std::move(map.map), std::move(c), false);
 
     return API_OK;
-}
-
-std::set<std::string> MegaClient::splitString(const string& str, char delimiter)
-{
-    std::set<std::string> tokens;
-    std::string token;
-    std::istringstream tokenStream(str);
-    while (std::getline(tokenStream, token, delimiter))
-    {
-        tokens.insert(token);
-    }
-
-    return tokens;
-}
-
-template<typename Iter>
-std::string MegaClient::joinStrings(const Iter begin, const Iter end, const std::string& separator)
-{
-    Iter position = begin;
-    std::string result;
-    if (position != end)
-    {
-        result += *position++;
-    }
-
-    while (position != end)
-    {
-        result += separator + *position++;
-    }
-    return result;
 }
 
 // update node attributes

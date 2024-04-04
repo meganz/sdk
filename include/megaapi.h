@@ -9968,6 +9968,7 @@ class MegaApi
 
         static constexpr int64_t INVALID_CUSTOM_MOD_TIME = -1;
         static constexpr int CHAT_OPTIONS_EMPTY = 0;
+        static constexpr int MAX_NODE_DESCRIPTION_SIZE = 3000;
 
         /**
          * @brief Constructor suitable for most applications
@@ -13637,6 +13638,9 @@ class MegaApi
          * - MegaRequest::getFlag - Returns true (official attribute)
          * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_DESCRIPTION
          * - MegaRequest::getText - Returns node description
+         *
+         * If the size of the description is greater than MAX_NODE_DESCRIPTION_SIZE, onRequestFinish will be
+         * called with the error code MegaError::API_EARGS.
          *
          * If the MEGA account is a business account and its status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.

@@ -3336,6 +3336,19 @@ bool is_digit(unsigned int ch)
     return std::isdigit(static_cast<unsigned char>(ch));
 }
 
+std::set<std::string> splitString(const string& str, char delimiter)
+{
+    std::set<std::string> tokens;
+    std::string token;
+    std::istringstream tokenStream(str);
+    while (std::getline(tokenStream, token, delimiter))
+    {
+        tokens.insert(token);
+    }
+
+    return tokens;
+}
+
 // Get the current process ID
 unsigned long getCurrentPid()
 {

@@ -21,6 +21,8 @@
 
 #include "mega.h"
 
+#include <variant>
+
 #ifdef USE_SQLITE
 namespace mega {
 
@@ -149,7 +151,7 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
                       "parenthandle int64, name text, fingerprint BLOB, origFingerprint BLOB, "
                       "type tinyint, mimetype tinyint AS (getmimetype(name)) VIRTUAL, size int64, share tinyint, fav tinyint, "
                       "ctime int64, mtime int64 DEFAULT 0, flags int64, counter BLOB NOT NULL, node BLOB NOT NULL, "
-                      "label tinyint DEFAULT 0)";
+                      "label tinyint DEFAULT 0, description text, tags text)";
     int result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
     if (result)
     {
@@ -164,6 +166,8 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
         {"mtime", "int64 DEFAULT 0", NodeData::COMPONENT_MTIME},
         {"label", "tinyint DEFAULT 0", NodeData::COMPONENT_LABEL},
         {"mimetype", "tinyint AS (getmimetype(name)) VIRTUAL", NodeData::COMPONENT_NONE},
+        {"description", "text", NodeData::COMPONENT_DESCRIPTION},
+        {"tags", "text", NodeData::COMPONENT_TAGS},
     };
 
     if (!addAndPopulateColumns(db, std::move(newCols)))
@@ -436,7 +440,7 @@ bool SqliteDbAccess::migrateDataToColumns(sqlite3* db, vector<NewColumn>&& cols)
     }
 
     // extract values to be copied
-    map<handle, map<int /*COMPONENT*/, int64_t>> newValues;
+    map<handle, map<int /*COMPONENT*/, std::variant<int64_t, std::string>>> newValues;
     while (sqlite3_step(stmt) == SQLITE_ROW)
     {
         const char* blob = static_cast<const char*>(sqlite3_column_blob(stmt, 1));
@@ -448,7 +452,7 @@ bool SqliteDbAccess::migrateDataToColumns(sqlite3* db, vector<NewColumn>&& cols)
         int l = LBL_UNKNOWN;
         // When migrating data, the first non-default value will create the entry for that node,
         // while other non-default values will avoid the search by reusing the same container.
-        map<int, int64_t>* newNodeValues = nullptr;
+        map<int, std::variant<int64_t, std::string>>* newNodeValues = nullptr;
 
         if (dataToMigrate.find(NodeData::COMPONENT_MTIME) != dataToMigrate.end() &&
             (mtime = nd.getMtime()))
@@ -468,6 +472,27 @@ bool SqliteDbAccess::migrateDataToColumns(sqlite3* db, vector<NewColumn>&& cols)
                 newNodeValues = &newValues[nh];
             }
             newNodeValues->emplace(NodeData::COMPONENT_LABEL, l);
+        }
+
+        std::string description = nd.getDescription();
+        if (dataToMigrate.find(NodeData::COMPONENT_DESCRIPTION) != dataToMigrate.end() &&
+            description.size())
+        {
+            if (!newNodeValues)
+            {
+                newNodeValues = &newValues[nh];
+            }
+            newNodeValues->emplace(NodeData::COMPONENT_DESCRIPTION, description);
+        }
+
+        std::string tags = nd.getTags();
+        if (dataToMigrate.find(NodeData::COMPONENT_TAGS) != dataToMigrate.end() && tags.size())
+        {
+            if (!newNodeValues)
+            {
+                newNodeValues = &newValues[nh];
+            }
+            newNodeValues->emplace(NodeData::COMPONENT_TAGS, tags);
         }
     }
     sqlite3_finalize(stmt);
@@ -503,11 +528,46 @@ bool SqliteDbAccess::migrateDataToColumns(sqlite3* db, vector<NewColumn>&& cols)
     {
         for (const auto& values : update.second)
         {
-            if (sqlite3_bind_int64(stmt, dataToMigrate[values.first], values.second) != SQLITE_OK)
+            if (values.first == NodeData::COMPONENT_MTIME ||
+                values.first == NodeData::COMPONENT_LABEL)
             {
-                LOG_err << "Db error during migration while binding value to column: " << sqlite3_errmsg(db);
-                sqlite3_finalize(stmt);
-                return false;
+                const int64_t* value = std::get_if<int64_t>(&values.second);
+                if (!value)
+                {
+                    LOG_err << "Unexpectect type at std::variant, it should be int64_t";
+                    assert(false);
+                    return false;
+                }
+
+                if (sqlite3_bind_int64(stmt, dataToMigrate[values.first], *value) != SQLITE_OK)
+                {
+                    LOG_err << "Db error during migration while binding value to column: "
+                            << sqlite3_errmsg(db);
+                    sqlite3_finalize(stmt);
+                    return false;
+                }
+            }
+            else if (values.first == NodeData::COMPONENT_DESCRIPTION ||
+                     values.first == NodeData::COMPONENT_TAGS)
+            {
+                const std::string* text = std::get_if<std::string>(&values.second);
+                if (!text)
+                {
+                    LOG_err << "Unexpectect type at std::variant, it should be std::string";
+                    assert(false);
+                    return false;
+                }
+                if (sqlite3_bind_text(stmt,
+                                      dataToMigrate[values.first],
+                                      text->c_str(),
+                                      static_cast<int>(text->length()),
+                                      SQLITE_STATIC) != SQLITE_OK)
+                {
+                    LOG_err << "Db error during migration while binding value to column: "
+                            << sqlite3_errmsg(db);
+                    sqlite3_finalize(stmt);
+                    return false;
+                }
             }
         }
 
@@ -1148,8 +1208,8 @@ bool SqliteAccountState::put(Node *node)
     if (!mStmtPutNode)
     {
         sqlResult = sqlite3_prepare_v2(db, "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, "
-                                           "name, fingerprint, origFingerprint, type, size, share, fav, ctime, mtime, flags, counter, node, label) "
-                                           "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &mStmtPutNode, NULL);
+                                           "name, fingerprint, origFingerprint, type, size, share, fav, ctime, mtime, flags, counter, node, label, description, tags) "
+                                           "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &mStmtPutNode, NULL);
     }
 
     if (sqlResult == SQLITE_OK)
@@ -1198,6 +1258,37 @@ bool SqliteAccountState::put(Node *node)
         auto labelIt = node->attrs.map.find(labelId);
         int label = (labelIt == node->attrs.map.end()) ? LBL_UNKNOWN : std::atoi(labelIt->second.c_str());
         sqlite3_bind_int(mStmtPutNode, 15, label);
+
+        nameid descriptionId = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_DESCRIPTION);
+        if (auto descriptionIt = node->attrs.map.find(descriptionId);
+            descriptionIt != node->attrs.map.end())
+        {
+            const std::string& description = descriptionIt->second;
+            sqlite3_bind_text(mStmtPutNode,
+                              16,
+                              description.c_str(),
+                              static_cast<int>(description.length()),
+                              SQLITE_STATIC);
+        }
+        else
+        {
+            sqlite3_bind_null(mStmtPutNode, 16);
+        }
+
+        nameid tagId = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_TAGS);
+        if (auto tagIt = node->attrs.map.find(tagId); tagIt != node->attrs.map.end())
+        {
+            const std::string& tag = tagIt->second;
+            sqlite3_bind_text(mStmtPutNode,
+                              17,
+                              tag.c_str(),
+                              static_cast<int>(tag.length()),
+                              SQLITE_STATIC);
+        }
+        else
+        {
+            sqlite3_bind_null(mStmtPutNode, 17);
+        }
 
         sqlResult = sqlite3_step(mStmtPutNode);
     }
