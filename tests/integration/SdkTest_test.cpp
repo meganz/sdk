@@ -16871,13 +16871,13 @@ TEST_F(SdkTest, CreateNodeTreeWithMalformedNodeTree)
     ASSERT_THAT(parentNode, ::testing::NotNull());
 
     // Create node tree with both child-tree and upload-data
-    auto nodeTreeChild{MegaNodeTree::createInstance(nullptr, nullptr, nullptr, nullptr)};
+    std::unique_ptr<MegaNodeTree> nodeTreeChild{MegaNodeTree::createInstance(nullptr, nullptr, nullptr, nullptr)};
 
-    const auto completeUploadData{
+    std::unique_ptr<const MegaCompleteUploadData> completeUploadData{
         MegaCompleteUploadData::createInstance(nullptr, nullptr, nullptr)};
 
     std::unique_ptr<MegaNodeTree> nodeTree{
-        MegaNodeTree::createInstance(nodeTreeChild, nullptr, nullptr, completeUploadData)};
+        MegaNodeTree::createInstance(nodeTreeChild.get(), nullptr, nullptr, completeUploadData.get())};
 
     ASSERT_EQ(API_EARGS, synchronousCreateNodeTree(apiIndex, parentNode.get(), nodeTree.get()));
 }
@@ -16897,10 +16897,10 @@ TEST_F(SdkTest, CreateNodeTreeWithSourceHandleAndChildTree)
 
     // Create node tree with source-handle and child-tree
     MegaHandle sourceHandle = parentNode->getHandle(); // not important, any dummy (but valid) value will do
-    MegaNodeTree* childTree{ MegaNodeTree::createInstance(nullptr, nullptr, nullptr, nullptr) };
+    std::unique_ptr<MegaNodeTree> childTree{ MegaNodeTree::createInstance(nullptr, nullptr, nullptr, nullptr) };
 
     std::unique_ptr<MegaNodeTree> treeWithSourceAndChild{
-        MegaNodeTree::createInstance(childTree, nullptr, nullptr, nullptr, sourceHandle) };
+        MegaNodeTree::createInstance(childTree.get(), nullptr, nullptr, nullptr, sourceHandle) };
 
     ASSERT_EQ(API_EARGS, synchronousCreateNodeTree(apiIndex, parentNode.get(), treeWithSourceAndChild.get()));
 }
@@ -16920,10 +16920,11 @@ TEST_F(SdkTest, CreateNodeTreeWithSourceHandleAndUploadData)
 
     // Create node tree with both source-handle and upload-data
     MegaHandle sourceHandle = parentNode->getHandle(); // not important, any dummy (but valid) value will do
-    const auto* uploadData{ MegaCompleteUploadData::createInstance(nullptr, nullptr, nullptr) };
+    std::unique_ptr<const MegaCompleteUploadData> uploadData{
+        MegaCompleteUploadData::createInstance(nullptr, nullptr, nullptr) };
 
     std::unique_ptr<MegaNodeTree> treeWithSourceAndUploadData{
-        MegaNodeTree::createInstance(nullptr, nullptr, nullptr, uploadData, sourceHandle) };
+        MegaNodeTree::createInstance(nullptr, nullptr, nullptr, uploadData.get(), sourceHandle) };
 
     ASSERT_EQ(API_EARGS, synchronousCreateNodeTree(apiIndex, parentNode.get(), treeWithSourceAndUploadData.get()));
 }
@@ -17087,13 +17088,13 @@ TEST_F(SdkTest, CreateNodeTreeWithOneFile)
     std::unique_ptr<MegaNode> parentNode{megaApi[apiIndex]->getRootNode()};
     ASSERT_THAT(parentNode, ::testing::NotNull());
 
-    const auto completeUploadData{
+    std::unique_ptr<const MegaCompleteUploadData> completeUploadData{
         MegaCompleteUploadData::createInstance(fingerprint.c_str(),
                                                string64UploadToken.c_str(),
                                                string64FileKey.c_str())};
 
     std::unique_ptr<MegaNodeTree> nodeTree{
-        MegaNodeTree::createInstance(nullptr, IMAGEFILE.c_str(), nullptr, completeUploadData)};
+        MegaNodeTree::createInstance(nullptr, IMAGEFILE.c_str(), nullptr, completeUploadData.get())};
 
     RequestTracker requestTracker(megaApi[apiIndex].get());
     megaApi[apiIndex]->createNodeTree(parentNode.get(), nodeTree.get(), &requestTracker);
@@ -17174,18 +17175,19 @@ TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectories)
 
     // Create node tree
     const std::string directoryNameLevel2{"directory_2"};
-    auto nodeTreeLevel2{
+    std::unique_ptr<MegaNodeTree> nodeTreeLevel2{
         MegaNodeTree::createInstance(nullptr, directoryNameLevel2.c_str(), nullptr, nullptr)};
 
     const std::string directoryNameLevel1{"directory_1"};
-    auto nodeTreeLevel1{MegaNodeTree::createInstance(nodeTreeLevel2,
-                                                     directoryNameLevel1.c_str(),
-                                                     nullptr,
-                                                     nullptr)};
+    std::unique_ptr<MegaNodeTree> nodeTreeLevel1{
+        MegaNodeTree::createInstance(nodeTreeLevel2.get(),
+                                     directoryNameLevel1.c_str(),
+                                     nullptr,
+                                     nullptr)};
 
     const std::string directoryNameLevel0{"directory_0"};
     std::unique_ptr<MegaNodeTree> nodeTreeLevel0{
-        MegaNodeTree::createInstance(nodeTreeLevel1,
+        MegaNodeTree::createInstance(nodeTreeLevel1.get(),
                                      directoryNameLevel0.c_str(),
                                      nullptr,
                                      nullptr)};
@@ -17251,29 +17253,31 @@ TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectoriesAndOneFileAtTheEnd)
                                                              string64FileKey));
 
     // Create node tree
-    const auto completeUploadData{
+    std::unique_ptr<const MegaCompleteUploadData> completeUploadData{
         MegaCompleteUploadData::createInstance(fingerprint.c_str(),
                                                string64UploadToken.c_str(),
                                                string64FileKey.c_str())};
 
-    auto nodeTreeLevel3{
-        MegaNodeTree::createInstance(nullptr, IMAGEFILE.c_str(), nullptr, completeUploadData)};
+    std::unique_ptr<MegaNodeTree> nodeTreeLevel3{
+        MegaNodeTree::createInstance(nullptr, IMAGEFILE.c_str(), nullptr, completeUploadData.get())};
 
     const std::string directoryNameLevel2{"directory_2"};
-    auto nodeTreeLevel2{MegaNodeTree::createInstance(nodeTreeLevel3,
-                                                     directoryNameLevel2.c_str(),
-                                                     nullptr,
-                                                     nullptr)};
+    std::unique_ptr<MegaNodeTree> nodeTreeLevel2{
+        MegaNodeTree::createInstance(nodeTreeLevel3.get(),
+                                     directoryNameLevel2.c_str(),
+                                     nullptr,
+                                     nullptr)};
 
     const std::string directoryNameLevel1{"directory_1"};
-    auto nodeTreeLevel1{MegaNodeTree::createInstance(nodeTreeLevel2,
-                                                     directoryNameLevel1.c_str(),
-                                                     nullptr,
-                                                     nullptr)};
+    std::unique_ptr<MegaNodeTree> nodeTreeLevel1{
+        MegaNodeTree::createInstance(nodeTreeLevel2.get(),
+                                     directoryNameLevel1.c_str(),
+                                     nullptr,
+                                     nullptr)};
 
     const std::string directoryNameLevel0{"directory_0"};
     std::unique_ptr<MegaNodeTree> nodeTreeLevel0{
-        MegaNodeTree::createInstance(nodeTreeLevel1,
+        MegaNodeTree::createInstance(nodeTreeLevel1.get(),
                                      directoryNameLevel0.c_str(),
                                      nullptr,
                                      nullptr)};
@@ -17345,12 +17349,12 @@ TEST_F(SdkTest, CreateNodeTreeVersionUsingIdenticalUploadData)
     ASSERT_THAT(parentNode, ::testing::NotNull());
 
     // Create node tree from uploaded data
-    const MegaCompleteUploadData* uploadData =
+    std::unique_ptr<const MegaCompleteUploadData> uploadData{
         MegaCompleteUploadData::createInstance(fingerprint.c_str(),
                                                string64UploadToken.c_str(),
-                                               string64FileKey.c_str());
+                                               string64FileKey.c_str()) };
     std::unique_ptr<MegaNodeTree> fileTreeFromData {
-        MegaNodeTree::createInstance(nullptr, PUBLICFILE.c_str(), nullptr, uploadData) };
+        MegaNodeTree::createInstance(nullptr, PUBLICFILE.c_str(), nullptr, uploadData.get()) };
 
     RequestTracker requestTrackerFirstTree(megaApi[apiIndex].get());
     megaApi[apiIndex]->createNodeTree(parentNode.get(), fileTreeFromData.get(), &requestTrackerFirstTree);
@@ -17368,12 +17372,12 @@ TEST_F(SdkTest, CreateNodeTreeVersionUsingIdenticalUploadData)
     ASSERT_EQ(allVersions->size(), 1);
 
     // Attempt to create another node tree from the same data
-    const MegaCompleteUploadData* uploadData2 =
+    std::unique_ptr<const MegaCompleteUploadData> uploadData2{
         MegaCompleteUploadData::createInstance(fingerprint.c_str(),
                                                string64UploadToken.c_str(),
-                                               string64FileKey.c_str());
+                                               string64FileKey.c_str()) };
     std::unique_ptr<MegaNodeTree> fileTreeFromData2 {
-        MegaNodeTree::createInstance(nullptr, PUBLICFILE.c_str(), nullptr, uploadData2) };
+        MegaNodeTree::createInstance(nullptr, PUBLICFILE.c_str(), nullptr, uploadData2.get()) };
 
     RequestTracker requestTrackerSecondTree(megaApi[apiIndex].get());
     megaApi[apiIndex]->createNodeTree(parentNode.get(), fileTreeFromData2.get(), &requestTrackerSecondTree);
@@ -17487,12 +17491,12 @@ TEST_F(SdkTest, CreateNodeTreeVersionUsingDifferentUploadData)
     ASSERT_THAT(parentNode, ::testing::NotNull());
 
     // Create node tree from uploaded data
-    const MegaCompleteUploadData* uploadData =
+    std::unique_ptr<const MegaCompleteUploadData> uploadData{
         MegaCompleteUploadData::createInstance(fingerprint.c_str(),
                                                string64UploadToken.c_str(),
-                                               string64FileKey.c_str());
+                                               string64FileKey.c_str()) };
     std::unique_ptr<MegaNodeTree> fileTreeFromData {
-        MegaNodeTree::createInstance(nullptr, PUBLICFILE.c_str(), nullptr, uploadData) };
+        MegaNodeTree::createInstance(nullptr, PUBLICFILE.c_str(), nullptr, uploadData.get()) };
 
     RequestTracker requestTrackerFirstTree(megaApi[apiIndex].get());
     megaApi[apiIndex]->createNodeTree(parentNode.get(), fileTreeFromData.get(), &requestTrackerFirstTree);
@@ -17519,12 +17523,12 @@ TEST_F(SdkTest, CreateNodeTreeVersionUsingDifferentUploadData)
                                                              string64FileKey));
 
     // Create node tree from the new data
-    const MegaCompleteUploadData* uploadData2 =
+    std::unique_ptr<const MegaCompleteUploadData> uploadData2{
         MegaCompleteUploadData::createInstance(fingerprint.c_str(),
                                                string64UploadToken.c_str(),
-                                               string64FileKey.c_str());
+                                               string64FileKey.c_str()) };
     std::unique_ptr<MegaNodeTree> fileTreeFromData2 {
-        MegaNodeTree::createInstance(nullptr, PUBLICFILE.c_str(), nullptr, uploadData2) };
+        MegaNodeTree::createInstance(nullptr, PUBLICFILE.c_str(), nullptr, uploadData2.get()) };
 
     RequestTracker requestTrackerSecondTree(megaApi[apiIndex].get());
     megaApi[apiIndex]->createNodeTree(parentNode.get(), fileTreeFromData2.get(), &requestTrackerSecondTree);
