@@ -6588,6 +6588,23 @@ public class MegaApiJava {
     }
 
     /**
+     * @brief Generate a new pseudo-randomly characters-based password
+     *
+     * You take ownership of the returned value.
+     * Use delete[] to free it.
+     *
+     * @param useUpper  boolean indicating if at least 1 upper case letter shall be included
+     * @param useDigit  boolean indicating if at least 1 digit shall be included
+     * @param useSymbol boolean indicating if at least 1 symbol from !@#$%^&*() shall be included
+     * @param length    int with the number of characters that will be included.
+     *                  Minimum valid length is 8 and maximum valid is 64.
+     * @return Null-terminated char string containing the newly generated password.
+     */
+    public static String generateRandomCharsPassword(boolean useUpper, boolean useDigit, boolean useSymbol, int length) {
+        return MegaApi.generateRandomCharsPassword(useUpper, useDigit, useSymbol, length);
+    }
+
+    /**
      * Send events to the stats server
      * <p>
      * The associated request type with this request is MegaRequest::TYPE_SEND_EVENT
