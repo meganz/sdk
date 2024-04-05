@@ -12405,6 +12405,13 @@ class MegaApi
          */
         bool contactVerificationWarningEnabled();
 
+       /**
+        * @deprecated This function no longer does anything, and calls to it
+        * can simply be removed
+        */
+        MEGA_DEPRECATED
+        void setSecureFlag(bool enable);
+
         /**
          * @brief Allows to change the hardcoded value of the "Manual Verification" flag
          *
