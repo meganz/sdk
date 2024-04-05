@@ -16999,16 +16999,16 @@ TEST_F(SdkTest, CreateNodeTreeWithOneDirectoryAndS4Attribute)
     ASSERT_STREQ(s4AttributeValue.c_str(), directoryNode->getS4());
 }
 
-template <typename TP>
-std::time_t time_point_To_time_t(TP tp)
+template <typename T>
+std::time_t timePointToTimeT(T timePoint)
 {
     using namespace std::chrono;
-    // In C++17, time_point used system_clock on POSIX and a custom TrivialClock in VS, which have different
-    // epoch start. The latter has no way to convert a timestamp to time_t (like system_clock::to_time_t()).
+    // In C++17, time_point used system_clock on POSIX and a custom TrivialClock in VS, which had different
+    // epoch start. The latter had no way to convert a timestamp to time_t (like system_clock::to_time_t()).
     // This was improved in C++20, but we're not there yet.
     // With no portable way of converting time_point to time_t, let's try this workaround:
-    auto platformTP = time_point_cast<system_clock::duration>(tp - TP::clock::now() + system_clock::now());
-    return system_clock::to_time_t(platformTP);
+    auto portableTimePoint = time_point_cast<system_clock::duration>(timePoint - T::clock::now() + system_clock::now());
+    return system_clock::to_time_t(portableTimePoint);
 }
 
 /**
@@ -17070,7 +17070,7 @@ TEST_F(SdkTest, CreateNodeTreeWithOneFile)
 
     // Check that mtime was kept
     auto modtime = std::filesystem::last_write_time(IMAGEFILE_C);
-    auto modtime_t = time_point_To_time_t(modtime);
+    auto modtime_t = timePointToTimeT(modtime);
     ASSERT_EQ(modtime_t, fileNode->getModificationTime());
 }
 
