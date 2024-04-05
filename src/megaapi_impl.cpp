@@ -26688,7 +26688,8 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
                     if (std::shared_ptr<Node> ovn = ovLocation ? client->getovnode(ovLocation.get(), &name) : nullptr)
                     {
                         auto ovfp = ovn->attrs.map.find('c');
-                        if (ovfp != ovn->attrs.map.end() && ovfp->second == completeUploadData->getFingerprint())
+                        if (ovfp != ovn->attrs.map.end() &&
+                            ovfp->second == MegaNodePrivate::removeAppPrefixFromFingerprint(completeUploadData->getFingerprint().c_str()))
                         {
                             tmpNodeTree->setNodeHandle(ovn->nodeHandle().as8byte());
                             request->setNodeHandle(tmpNodeTree->getNodeHandle());
@@ -26729,7 +26730,7 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
                 // Set fingerprint
                 if (completeUploadData)
                 {
-                    attributes.map['c'] = completeUploadData->getFingerprint();
+                    attributes.map['c'] = MegaNodePrivate::removeAppPrefixFromFingerprint(completeUploadData->getFingerprint().c_str());
                 }
 
                 // Set attributes
