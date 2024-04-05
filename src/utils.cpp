@@ -1292,26 +1292,6 @@ bool PayCrypter::hybridEncrypt(const string *cleartext, const byte *pubkdata, in
     return true;
 }
 
-#ifdef _WIN32
-int mega_snprintf(char *s, size_t n, const char *format, ...)
-{
-    va_list args;
-    int ret;
-
-    if (!s || n <= 0)
-    {
-        return -1;
-    }
-
-    va_start(args, format);
-    ret = vsnprintf(s, n, format, args);
-    va_end(args);
-
-    s[n - 1] = '\0'; // correct in snpritnf() in VS 2019
-    return ret;
-}
-#endif
-
 string * TLVstore::tlvRecordsToContainer(PrnGen &rng, SymmCipher *key, encryptionsetting_t encSetting)
 {
     // decide nonce/IV and auth. tag lengths based on the `mode`
