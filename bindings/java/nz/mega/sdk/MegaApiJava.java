@@ -230,7 +230,7 @@ public class MegaApiJava {
     public final static int FILE_TYPE_PHOTO = MegaApi.FILE_TYPE_PHOTO;
     public final static int FILE_TYPE_AUDIO = MegaApi.FILE_TYPE_AUDIO;
     public final static int FILE_TYPE_VIDEO = MegaApi.FILE_TYPE_VIDEO;
-    public final static int FILE_TYPE_ALL_DOCS = MegaApi.FILE_TYPE_ALL_DOCS;
+    public final static int FILE_TYPE_DOCUMENT = MegaApi.FILE_TYPE_DOCUMENT;
     public final static int FILE_TYPE_PDF = MegaApi.FILE_TYPE_PDF;
     public final static int FILE_TYPE_PRESENTATION = MegaApi.FILE_TYPE_PRESENTATION;
     public final static int FILE_TYPE_ARCHIVE = MegaApi.FILE_TYPE_ARCHIVE;
