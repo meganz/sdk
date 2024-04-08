@@ -2457,6 +2457,29 @@ bool Sync::checkForCompletedCloudMovedToDebris(SyncRow& row, SyncRow& parentRow,
     return false;
 }
 
+bool Sync::mightSyncHaveMoves() const
+{
+    if (!mUnifiedSync.mConfig.mError)
+    {
+        if (localroot->scanRequired())
+        {
+            SYNC_verbose << syncname << " scan still required for this sync -> consider might have moves as true";
+            return true;
+        }
+        if (syncs.mSyncFlags->isInitialPass)
+        {
+            SYNC_verbose << syncname << " it is still the initial pass -> consider might have moves as true";
+            return true;
+        }
+        if (localroot->mightHaveMoves())
+        {
+            SYNC_verbose << syncname << " might have pending moves";
+            return true;
+        }
+    }
+    return false;
+}
+
 bool Sync::processCompletedUploadFromHere(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult, shared_ptr<SyncUpload_inClient> upload)
 {
     // we already checked that the upload including putnodes completed before calling here.
@@ -9041,7 +9064,7 @@ bool Sync::resolve_delSyncNode(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
         // we detected a local deletion here, and applied that deletion in the cloud too.  Ok to delete this LocalNode.
         SYNC_verbose << syncname << "Deleting Localnode (deletedFS)" << logTriplet(row, fullPath);
     }
-    else if (syncs.mSyncFlags->movesWereComplete)
+    else if (!mightSyncHaveMoves())
     {
         // Since moves are complete, we can remove this LocalNode now, it can't be part of any move anymore
         // Up to that point, we should not remove it or we won't be able to detect clashing moves of the same node.
@@ -9834,7 +9857,7 @@ bool Sync::resolve_cloudNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& ful
         SYNC_verbose << syncname << "FS item already removed: " << logTriplet(row, fullPath);
         monitor.noResult();
     }
-    else if (syncs.mSyncFlags->movesWereComplete)
+    else if (!mightSyncHaveMoves())
     {
         if (isBackup())
         {
@@ -10293,7 +10316,7 @@ bool Sync::resolve_fsNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& fullPa
             {fullPath.localPath, PathProblem::DeletedOrMovedByUser},
             {}));
     }
-    else if (syncs.mSyncFlags->movesWereComplete ||
+    else if (!mightSyncHaveMoves() ||
              row.isIgnoreFile())  // ignore files do not participate in move logic
     {
         if (!row.syncNode->rareRO().removeNodeHere)
@@ -11852,6 +11875,14 @@ void Syncs::syncLoop()
             mSyncFlags->reachableNodesAllScannedThisPass = true;
             mSyncFlags->movesWereComplete = scanningCompletePreviously && !mightAnySyncsHaveMoves();
             mSyncFlags->noProgress = mSyncFlags->reachableNodesAllScannedLastPass;
+            if (!scanningCompletePreviously || !mSyncFlags->scanningWasComplete || !mSyncFlags->reachableNodesAllScannedLastPass || !mSyncFlags->movesWereComplete || !mSyncFlags->noProgress)
+            {
+                LOG_verbose << "[SyncLoop] scanningCompletePreviously = " << scanningCompletePreviously
+                            << ", scanningWasComplete = " << mSyncFlags->scanningWasComplete
+                            << ", reachableNodesAllScannedLastPass = " << mSyncFlags->reachableNodesAllScannedLastPass
+                            << ", movesWereComplete = " << mSyncFlags->movesWereComplete
+                            << ", noProgress = " << mSyncFlags->noProgress;
+            }
         }
 
         unsigned skippedForScanning = 0;
@@ -12114,7 +12145,7 @@ bool Syncs::isAnySyncScanning_inThread()
     return false;
 }
 
-bool Syncs::mightAnySyncsHaveMoves()
+bool Syncs::mightAnySyncsHaveMoves() const
 {
     assert(onSyncThread());
 
@@ -12122,9 +12153,7 @@ bool Syncs::mightAnySyncsHaveMoves()
     {
         if (Sync* sync = us->mSync.get())
         {
-            if (!us->mConfig.mError &&
-                (sync->localroot->mightHaveMoves()
-                    || sync->localroot->scanRequired()))
+            if (sync->mightSyncHaveMoves())
             {
                 return true;
             }

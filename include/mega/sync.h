@@ -539,6 +539,7 @@ public:
     bool processCompletedUploadFromHere(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult, shared_ptr<SyncUpload_inClient>);
     bool checkForCompletedFolderCreateHere(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult);
     bool checkForCompletedCloudMovedToDebris(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult);
+    bool mightSyncHaveMoves() const;
 
     void recursiveCollectNameConflicts(SyncRow& row, SyncPath& fullPath, list<NameConflict>* ncs, size_t& count, size_t& limit);
     void recursiveCollectNameConflicts(list<NameConflict>* conflicts, size_t* count = nullptr, size_t* limit = nullptr);
@@ -1249,7 +1250,7 @@ private:
 
     void proclocaltree(LocalNode* n, LocalTreeProc* tp);
 
-    bool mightAnySyncsHaveMoves();
+    bool mightAnySyncsHaveMoves() const;
     bool isAnySyncSyncing();
     bool isAnySyncScanning_inThread();
 
