@@ -2405,7 +2405,6 @@ CommandEnumerateQuotaItems::CommandEnumerateQuotaItems(MegaClient* client)
     arg("nf", 3);
     arg("b", 1);    // support for Business accounts
     arg("p", 1);    // support for Pro Flexi
-    arg("f", 1);    // retrieve feature plans
     tag = client->reqtag;
 }
 
