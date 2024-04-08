@@ -9788,7 +9788,7 @@ public:
 };
 
 /**
- * @brief Store information of an A/B Test or Feature flag
+ * @brief Store information of an A/B Test or a Feature flag
  *
  * @see MegaApi::getFlag.
  */
@@ -9810,10 +9810,7 @@ public:
     /**
      * @brief Get the type of the flag
      *
-     * @param startingOffset The first position in the list of results to be included in the returned page (starts from 0).
-     * @param size The maximum number of results included in the page, or 0 to return all (remaining) results
-     *
-     * @return The type of the flag. Possible values are ony of the FLAG_TYPE_x values.
+     * @return The type of the flag. Possible values are any of the FLAG_TYPE_x values.
      */
     virtual uint32_t getType() const = 0;
 
