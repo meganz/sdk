@@ -1913,7 +1913,7 @@ bool Sync::checkLocalPathForMovesRenames(SyncRow& row, SyncRow& parentRow, SyncP
 
             // Has the engine completed all pending scans?
             if (problem == PathProblem::NoProblem
-                && !syncs.mSyncFlags->scanningWasComplete)
+                && !scanningWasComplete())
                 problem = PathProblem::WaitingForScanningToComplete;
 
             LocalNode* other = nullptr;
@@ -2457,18 +2457,29 @@ bool Sync::checkForCompletedCloudMovedToDebris(SyncRow& row, SyncRow& parentRow,
     return false;
 }
 
+bool Sync::isSyncScanning() const
+{
+    if (!mUnifiedSync.mConfig.mError &&
+        localroot->scanRequired())
+    {
+        SYNC_verbose << syncname << " scan still required for this sync";
+        return true;
+    }
+    return false;
+}
+
 bool Sync::mightSyncHaveMoves() const
 {
     if (!mUnifiedSync.mConfig.mError)
     {
+        if (!mScanningWasCompletePreviously)
+        {
+            SYNC_verbose << syncname << " scan was not complete previously for this sync -> consider might have moves as true";
+            return true;
+        }
         if (localroot->scanRequired())
         {
             SYNC_verbose << syncname << " scan still required for this sync -> consider might have moves as true";
-            return true;
-        }
-        if (syncs.mSyncFlags->isInitialPass)
-        {
-            SYNC_verbose << syncname << " it is still the initial pass -> consider might have moves as true";
             return true;
         }
         if (localroot->mightHaveMoves())
@@ -2478,6 +2489,23 @@ bool Sync::mightSyncHaveMoves() const
         }
     }
     return false;
+}
+
+bool Sync::setScanningWasComplete()
+{
+    mScanningWasCompletePreviously = mScanningWasComplete && !syncs.mSyncFlags->isInitialPass;
+    mScanningWasComplete = !isSyncScanning();
+    return mScanningWasComplete;
+}
+
+void Sync::unsetScanningWasComplete()
+{
+    mScanningWasComplete = false;
+}
+
+bool Sync::scanningWasComplete() const
+{
+    return mScanningWasComplete;
 }
 
 bool Sync::processCompletedUploadFromHere(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult, shared_ptr<SyncUpload_inClient> upload)
@@ -9079,7 +9107,7 @@ bool Sync::resolve_delSyncNode(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
         string fsElsewhereLocation;
         bool sourceFsidExclusionUnknown = false;
 
-        if (!syncs.mSyncFlags->scanningWasComplete)
+        if (!scanningWasComplete())
         {
             fsNodeIsElsewhere = true;
         }
@@ -10104,7 +10132,7 @@ bool Syncs::findLocalNodeByNodeHandle(NodeHandle h, LocalNode*& sourceSyncNodeOr
             LOG_verbose << mClient.clientname << "findLocalNodeByNodeHandle - unknown exclusion after fsid lookup";
         }
 
-        if (!sourceSyncNodeCurrent && !mSyncFlags->scanningWasComplete)
+        if (!sourceSyncNodeCurrent && !sourceSyncNodeOriginal->sync->scanningWasComplete())
         {
             unsureDueToIncompleteScanning = true;
         }
@@ -10304,7 +10332,7 @@ bool Sync::resolve_fsNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& fullPa
         }
 
     }
-    else if (!syncs.mSyncFlags->scanningWasComplete &&
+    else if (!scanningWasComplete() &&
              !row.isIgnoreFile())  // ignore files do not participate in move logic
     {
         SYNC_verbose << syncname << "Wait for scanning to finish before confirming fsid " << toHandle(row.syncNode->fsid_lastSynced) << " deleted or moved: " << logTriplet(row, fullPath);
@@ -11869,15 +11897,15 @@ void Syncs::syncLoop()
         if (!lastLoopEarlyExit)
         {
             // we need one pass with recursiveSync() after scanning is complete, to be sure there are no moves left.
-            auto scanningCompletePreviously = mSyncFlags->scanningWasComplete && !mSyncFlags->isInitialPass;
-            mSyncFlags->scanningWasComplete = !isAnySyncScanning_inThread();
+            auto scanningWasCompletePreviously = mSyncFlags->scanningWasComplete && !mSyncFlags->isInitialPass;
+            mSyncFlags->scanningWasComplete = !setSyncsScanningWasComplete_inThread();
             mSyncFlags->reachableNodesAllScannedLastPass = mSyncFlags->reachableNodesAllScannedThisPass && !mSyncFlags->isInitialPass;
             mSyncFlags->reachableNodesAllScannedThisPass = true;
-            mSyncFlags->movesWereComplete = scanningCompletePreviously && !mightAnySyncsHaveMoves();
+            mSyncFlags->movesWereComplete = scanningWasCompletePreviously && !mightAnySyncsHaveMoves();
             mSyncFlags->noProgress = mSyncFlags->reachableNodesAllScannedLastPass;
-            if (!scanningCompletePreviously || !mSyncFlags->scanningWasComplete || !mSyncFlags->reachableNodesAllScannedLastPass || !mSyncFlags->movesWereComplete || !mSyncFlags->noProgress)
+            if (!scanningWasCompletePreviously || !mSyncFlags->scanningWasComplete || !mSyncFlags->reachableNodesAllScannedLastPass || !mSyncFlags->movesWereComplete || !mSyncFlags->noProgress)
             {
-                LOG_verbose << "[SyncLoop] scanningCompletePreviously = " << scanningCompletePreviously
+                LOG_verbose << "[SyncLoop] scanningWasCompletePreviously = " << scanningWasCompletePreviously
                             << ", scanningWasComplete = " << mSyncFlags->scanningWasComplete
                             << ", reachableNodesAllScannedLastPass = " << mSyncFlags->reachableNodesAllScannedLastPass
                             << ", movesWereComplete = " << mSyncFlags->movesWereComplete
@@ -12064,6 +12092,7 @@ void Syncs::syncLoop()
 
         if (earlyExit)
         {
+            unsetSyncsScanningWasComplete_inThread();
             mSyncFlags->scanningWasComplete = false;
             mSyncFlags->reachableNodesAllScannedThisPass = false;
         }
@@ -12107,7 +12136,7 @@ void Syncs::syncLoop()
     }
 }
 
-bool Syncs::isAnySyncSyncing()
+bool Syncs::isAnySyncSyncing() const
 {
     assert(onSyncThread());
 
@@ -12127,7 +12156,7 @@ bool Syncs::isAnySyncSyncing()
     return false;
 }
 
-bool Syncs::isAnySyncScanning_inThread()
+bool Syncs::isAnySyncScanning_inThread() const
 {
     assert(onSyncThread());
 
@@ -12135,14 +12164,41 @@ bool Syncs::isAnySyncScanning_inThread()
     {
         if (Sync* sync = us->mSync.get())
         {
-            if (!us->mConfig.mError &&
-                sync->localroot->scanRequired())
+            if (sync->isSyncScanning())
             {
                 return true;
             }
         }
     }
     return false;
+}
+
+bool Syncs::setSyncsScanningWasComplete_inThread()
+{
+    assert(onSyncThread());
+
+    bool isAnySyncScanning = false;
+    for (auto& us : mSyncVec)
+    {
+        if (Sync* sync = us->mSync.get())
+        {
+            isAnySyncScanning |= !sync->setScanningWasComplete();
+        }
+    }
+    return isAnySyncScanning;
+}
+
+void Syncs::unsetSyncsScanningWasComplete_inThread()
+{
+    assert(onSyncThread());
+
+    for (auto& us : mSyncVec)
+    {
+        if (Sync* sync = us->mSync.get())
+        {
+            sync->unsetScanningWasComplete();
+        }
+    }
 }
 
 bool Syncs::mightAnySyncsHaveMoves() const
