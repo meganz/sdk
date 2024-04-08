@@ -541,15 +541,18 @@ public:
     bool checkForCompletedCloudMovedToDebris(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, bool& rowResult);
     // Whether the local root node has a scan required.
     bool isSyncScanning() const;
-    // Whether the local root node has a scan required or pending moves.
-    // Also returns true if mScanningWasCompletePreviously flag is false.
-    bool mightSyncHaveMoves() const;
     // Check if the current sync is scanning, and set the scanningWasComplete depending on it.
     // Also sets scanningWasCompletePreviously if scanningWasComplete is true and it is not the initial pass for syncs.
-    bool setScanningWasComplete();
+    bool checkScanningWasComplete();
     // Clear scanningWasComplete flag without any further checks.
     void unsetScanningWasComplete();
     bool scanningWasComplete() const;
+    // Sets movesWereComplete flag if:
+    // mScanningWasCompletePreviously flag is false
+    // The local root node does not have a scan required
+    // The local root node does not have pending moves.
+    bool checkMovesWereComplete();
+    bool movesWereComplete() const;
 
     void recursiveCollectNameConflicts(SyncRow& row, SyncPath& fullPath, list<NameConflict>* ncs, size_t& count, size_t& limit);
     void recursiveCollectNameConflicts(list<NameConflict>* conflicts, size_t* count = nullptr, size_t* limit = nullptr);
@@ -574,6 +577,7 @@ private:
     unsigned mLastDailyDateTimeDebrisCounter = 0;
     bool mScanningWasComplete{};
     bool mScanningWasCompletePreviously{};
+    bool mMovesWereComplete{};
 
 public:
     // does the filesystem have stable IDs? (FAT does not)
@@ -1262,10 +1266,10 @@ private:
 
     void proclocaltree(LocalNode* n, LocalTreeProc* tp);
 
-    bool mightAnySyncsHaveMoves() const;
+    bool checkSyncsMovesWereComplete(); // Iterate through syncs, calling Sync::checkMovesgWereComplete(). Returns false if any sync returns false.
     bool isAnySyncSyncing() const;
     bool isAnySyncScanning_inThread() const;
-    bool setSyncsScanningWasComplete_inThread(); // Iterate through syncs, calling Sync::setScanningWasComplete(). Returns false if any sync returns false.
+    bool checkSyncsScanningWasComplete_inThread(); // Iterate through syncs, calling Sync::checkScanningWasComplete(). Returns false if any sync returns false.
     void unsetSyncsScanningWasComplete_inThread(); // Unset scanningWasComplete flag for every sync.
 
     // actually start the sync (on sync thread)
