@@ -8217,6 +8217,71 @@ public class MegaApiJava {
     }
 
     /**
+     * @brief Get children of a particular parent or a predefined location, and allow filtering
+     * the results. @see MegaSearchFilter
+     * The look-up is case-insensitive.
+     * For invalid filtering options, this function returns an empty list.
+     *
+     * You take the ownership of the returned value
+     *
+     * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+     * to MegaCancelToken::setCancelFlag(true).
+     *
+     * @param filter Container for filtering options. In order to be considered valid it must
+     * - be not null
+     * - have valid ancestor handle (different than INVALID_HANDLE) set by calling byLocationHandle(),
+     *   and in consequence it must have default value for location (SEARCH_TARGET_ALL)
+     * @param order Order for the returned list
+     * Valid values for this parameter are:
+     * - MegaApi::ORDER_NONE = 0
+     * Undefined order
+     *
+     * - MegaApi::ORDER_DEFAULT_ASC = 1
+     * Folders first in alphabetical order, then files in the same order
+     *
+     * - MegaApi::ORDER_DEFAULT_DESC = 2
+     * Files first in reverse alphabetical order, then folders in the same order
+     *
+     * - MegaApi::ORDER_SIZE_ASC = 3
+     * Sort by size, ascending
+     *
+     * - MegaApi::ORDER_SIZE_DESC = 4
+     * Sort by size, descending
+     *
+     * - MegaApi::ORDER_CREATION_ASC = 5
+     * Sort by creation time in MEGA, ascending
+     *
+     * - MegaApi::ORDER_CREATION_DESC = 6
+     * Sort by creation time in MEGA, descending
+     *
+     * - MegaApi::ORDER_MODIFICATION_ASC = 7
+     * Sort by modification time of the original file, ascending
+     *
+     * - MegaApi::ORDER_MODIFICATION_DESC = 8
+     * Sort by modification time of the original file, descending
+     *
+     * - MegaApi::ORDER_LABEL_ASC = 17
+     * Sort by color label, ascending. With this order, folders are returned first, then files
+     *
+     * - MegaApi::ORDER_LABEL_DESC = 18
+     * Sort by color label, descending. With this order, folders are returned first, then files
+     *
+     * - MegaApi::ORDER_FAV_ASC = 19
+     * Sort nodes with favourite attr first. With this order, folders are returned first, then files
+     *
+     * - MegaApi::ORDER_FAV_DESC = 20
+     * Sort nodes with favourite attr last. With this order, folders are returned first, then files
+     *
+     * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+     * @param searchPage Container for pagination options; if null, all results will be returned
+     *
+     * @return List with found children as MegaNode objects
+     */
+    public ArrayList<MegaNode> getChildren(MegaSearchFilter filter, int order, MegaCancelToken cancelToken, MegaSearchPage searchPage) {
+        return nodeListToArray(megaApi.getChildren(filter, order, cancelToken, searchPage));
+    }
+
+    /**
      * Get all children of a MegaNode
      * <p>
      * If the parent node doesn't exist or it isn't a folder, this function
