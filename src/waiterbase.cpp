@@ -23,7 +23,7 @@
 
 namespace mega {
 
-std::atomic<dstime> Waiter::ds{};
+std::atomic<dstime> Waiter::ds{0};
 
 void Waiter::init(dstime ds)
 {

@@ -1960,7 +1960,7 @@ void StandardClient::threadloop()
         }
 
         client.waiter->bumpds();
-        dstime t5 = client.waiter->ds;
+        dstime t5 = client.waiter->ds.load();
         if (t5 - t4 > 20) LOG_debug << "injected functions took ds: " << t5 - t4;
 
         if ((r & Waiter::NEEDEXEC))
@@ -1969,7 +1969,7 @@ void StandardClient::threadloop()
         }
 
         client.waiter->bumpds();
-        dstime t6 = client.waiter->ds;
+        dstime t6 = client.waiter->ds.load();
         if (t6 - t5 > 20) LOG_debug << "exec took ds: " << t6 - t5;
 
     }
