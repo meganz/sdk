@@ -8649,7 +8649,7 @@ void DemoApp::ephemeral_result(handle uh, const byte* pw)
         cout << Base64::btoa(session) << endl;
     }
 
-    client->fetchnodes(false, true, false);
+    client->fetchnodes(false, false, false);
 }
 
 void DemoApp::cancelsignup_result(error)
@@ -9168,8 +9168,8 @@ void DemoApp::notify_confirm_user_email(handle user, const char *email)
 {
     if (client->loggedin() == EPHEMERALACCOUNT || client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
     {
-        LOG_debug << "Account has been confirmed with user " << user << " and email " << email << ". Proceed to login with credentials.";
-        cout << "Account has been confirmed with user " << toHandle(user) << " and email " << email << ". Proceed to login with credentials.";
+        LOG_debug << "Account has been confirmed with user " << toHandle(user) << " and email " << email << ". Proceed to login with credentials.";
+        cout << "Account has been confirmed with user " << toHandle(user) << " and email " << email << ". Proceed to login with credentials." << endl;
     }
 }
 
