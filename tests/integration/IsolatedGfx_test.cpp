@@ -8,7 +8,9 @@ protected:
 
     void TearDown() override;
 
-    static constexpr const char* CRASH_IMAGE = "crash.pct";
+    static constexpr const char* SOURCE = "test-data/gfx-processing-crash/SNC-2462__17D1439.tif";
+
+    static constexpr const char* CRASH_IMAGE = "crash.tif";
 
     static constexpr const char* CRASH_THUMBNAIL = "crash_thumbnail.jpg";
 
@@ -80,9 +82,8 @@ TEST_F(SdkTestIsolatedGfx, GfxProcessingContinueSuccessfullyAfterCrash)
     // consistently result in a crash
 
     // Get the test media file
-    const std::string source{"test-data/gfx-processing-crash/SNC-2406_Almotassem%20invoice%2015021001.pct"};
     fs::path destination{CRASH_IMAGE};
-    ASSERT_TRUE(getFileFromArtifactory(source, destination));
+    ASSERT_TRUE(getFileFromArtifactory(SOURCE, destination));
     ASSERT_TRUE(fs::exists(destination));
 
     // Gfx process would crash due to the bad media file
