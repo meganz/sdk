@@ -2045,12 +2045,6 @@ string Utils::trim(const string& str, const string& trimchrs)
     return str.substr(s, e - s + 1);
 }
 
-long long abs(long long n)
-{
-    // for pre-c++11 where this version is not defined yet
-    return n >= 0 ? n : -n;
-}
-
 struct tm* m_localtime(m_time_t ttime, struct tm *dt)
 {
     // works for 32 or 64 bit time_t

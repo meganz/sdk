@@ -162,7 +162,7 @@ struct Utf8Rdbuf : public streambuf
 
 void ConsoleModel::addInputChar(wchar_t c)
 {
-    insertPos = std::clamp(insertPos, static_cast<size_t>(0), buffer.size());
+    insertPos = std::clamp(insertPos, 0, buffer.size());
     if (c == 13)
     {
         buffer.push_back(c);
@@ -271,7 +271,7 @@ void ConsoleModel::deleteHistorySearchChars(size_t n)
 
 void ConsoleModel::redrawInputLine(int p)
 {
-    insertPos = std::clamp(p, 0, (int)buffer.size());
+    insertPos = std::clamp(p, 0, buffer.size());
     redrawInputLineNeeded = true;
 }
 
@@ -307,7 +307,7 @@ void ConsoleModel::autoComplete(bool forwards, unsigned consoleWidth)
         buffer = WinConsole::toUtf16String(autocompleteState.line);
         newlinesBuffered = false;
         size_t u16InsertPos = WinConsole::toUtf16String(autocompleteState.line.substr(0, autocompleteState.wordPos.second)).size();
-        insertPos = std::clamp(u16InsertPos, static_cast<size_t>(0), buffer.size());
+        insertPos = std::clamp(u16InsertPos, 0, buffer.size());
         redrawInputLineNeeded = true;
     }
 #endif
@@ -320,7 +320,7 @@ static bool isWordBoundary(size_t i, const std::wstring s)
 
 int ConsoleModel::detectWordBoundary(int start, bool forward)
 {
-    start = std::clamp(start, 0, (int)buffer.size());
+    start = std::clamp(start, 0, buffer.size());
     do
     {
         start += (forward ? 1 : -1);
@@ -330,8 +330,8 @@ int ConsoleModel::detectWordBoundary(int start, bool forward)
 
 void ConsoleModel::deleteCharRange(int start, int end)
 {
-    start = std::clamp(start, 0, (int)buffer.size());
-    end = std::clamp(end, 0, (int)buffer.size());
+    start = std::clamp(start, 0, buffer.size());
+    end = std::clamp(end, 0, buffer.size());
     if (start < end)
     {
         buffer.erase(start, end - start);
@@ -354,7 +354,7 @@ void ConsoleModel::performLineEditingAction(lineEditAction action, unsigned cons
     }
 
     int pos = (int)insertPos;
-    int bufSize = (int)buffer.size();
+    int bufSize = buffer.size();
 
     switch (action)
     {
@@ -411,7 +411,7 @@ bool ConsoleModel::checkForCompletedInputLine(std::wstring& ws)
 
 std::wstring ConsoleModel::getInputLineToCursor()
 {
-    insertPos = std::clamp(insertPos, static_cast<size_t>(0), buffer.size());
+    insertPos = std::clamp(insertPos, 0, buffer.size());
     return buffer.substr(0, insertPos);
 }
 #endif

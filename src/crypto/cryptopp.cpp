@@ -177,11 +177,11 @@ bool SymmCipher::cbc_encrypt_pkcs_padding(const string *data, const byte *iv, st
 
         // Create sink.
         unique_ptr<StringSink> sink =
-            mega::make_unique<StringSink>(*result);
+            std::make_unique<StringSink>(*result);
 
         // Create transform.
         unique_ptr<Transformation> xfrm =
-            mega::make_unique<Transformation>(aescbc_e,
+            std::make_unique<Transformation>(aescbc_e,
                 sink.get(),
                 Transformation::PKCS_PADDING);
 
@@ -217,11 +217,11 @@ bool SymmCipher::cbc_decrypt_pkcs_padding(const std::string* data, const byte* i
 
         // Create sink.
         unique_ptr<StringSink> sink =
-          mega::make_unique<StringSink>(*result);
+          std::make_unique<StringSink>(*result);
         
         // Create transform.
         unique_ptr<Transformation> xfrm =
-          mega::make_unique<Transformation>(aescbc_d,
+          std::make_unique<Transformation>(aescbc_d,
                                             sink.get(),
                                             Transformation::PKCS_PADDING);
 
@@ -261,11 +261,11 @@ bool SymmCipher::cbc_decrypt_pkcs_padding(const byte* data,
 
         // Create sink.
         unique_ptr<StringSink> sink =
-          mega::make_unique<StringSink>(*result);
+          std::make_unique<StringSink>(*result);
         
         // Create transform.
         unique_ptr<Transformation> xfrm =
-          mega::make_unique<Transformation>(aescbc_d,
+          std::make_unique<Transformation>(aescbc_d,
                                             sink.get(),
                                             Transformation::PKCS_PADDING);
 

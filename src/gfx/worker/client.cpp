@@ -132,7 +132,7 @@ bool GfxClient::runSupportFormats(std::string& formats, std::string& videoformat
 GfxClient GfxClient::create(const std::string& pipeName)
 {
 #ifdef _WIN32
-    return GfxClient(mega::make_unique<WinGfxCommunicationsClient>(pipeName));
+    return GfxClient(std::make_unique<WinGfxCommunicationsClient>(pipeName));
 #else
     // To implement
     (void)pipeName;

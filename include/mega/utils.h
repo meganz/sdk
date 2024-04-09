@@ -491,9 +491,6 @@ public:
     static void unsetenv(const std::string& key);
 };
 
-// for pre-c++11 where this version is not defined yet.
-long long abs(long long n);
-
 extern m_time_t m_time(m_time_t* tt = NULL);
 extern struct tm* m_localtime(m_time_t, struct tm *dt);
 extern struct tm* m_gmtime(m_time_t, struct tm *dt);
@@ -935,7 +932,7 @@ public:
             return false;
         }
 
-        (void)get();
+        [[maybe_unused]] auto result = get();
 
         return true;
     }

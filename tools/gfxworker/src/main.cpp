@@ -148,7 +148,7 @@ int main(int argc, char** argv)
 
     // start server
     ServerWin32 server(
-        ::mega::make_unique<RequestProcessor>(config.threadCount, config.queueSize),
+        std::make_unique<RequestProcessor>(config.threadCount, config.queueSize),
         config.pipeName,
         config.keepAliveInSeconds
     );

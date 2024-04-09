@@ -25,12 +25,8 @@
 #include <mega/megaclient.h>
 #include <cassert>
 #include <algorithm>
-
-#if !defined(__MINGW32__) && !defined(__ANDROID__) && (!defined(__GNUC__) || (__GNUC__*100+__GNUC_MINOR__) >= 503)
-    #define HAVE_FILESYSTEM
-    #include <filesystem>
-    namespace fs = std::filesystem;
-#endif
+#include <filesystem>
+namespace fs = std::filesystem;
 
 namespace mega {
 namespace autocomplete {
@@ -596,7 +592,6 @@ bool LocalFS::addCompletions(ACState& s)
 {
     if (s.atCursor())
     {
-#ifdef HAVE_FILESYSTEM
         fs::path searchPath = fs::u8path(s.word().s + (s.word().s.empty() || (s.word().s.back() == '\\'  || s.word().s.back() == '/' ) ? "*" : ""));
 #ifdef WIN32
         char sep = (!s.word().s.empty() && s.word().s.find('/') != string::npos ) ?'/':'\\';
@@ -633,9 +628,6 @@ bool LocalFS::addCompletions(ACState& s)
                 }
             }
         }
-#else
-// todo: implement local directory listing for any platforms without std::filsystem, if it turns out to be needed
-#endif
         return true;
     }
     else

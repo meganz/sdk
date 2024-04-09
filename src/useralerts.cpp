@@ -235,7 +235,7 @@ bool UserAlert::Base::serialize(string* d) const
 
 unique_ptr<UserAlert::Base::Persistent> UserAlert::Base::readBase(CacheableReader& r)
 {
-    auto p = make_unique<Persistent>();
+    auto p = std::make_unique<Persistent>();
     if (r.unserializecompressedi64(p->timestamp)
         && r.unserializehandle(p->userHandle)
         && r.unserializestring(p->userEmail)

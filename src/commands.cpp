@@ -2485,7 +2485,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                         return false;
                     }
 
-                    currencyData = mega::make_unique<CurrencyData>();
+                    currencyData = std::make_unique<CurrencyData>();
                     readingL = true;
 
                     while (!finished)
@@ -2588,7 +2588,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                         return false;
                     }
 
-                    bizPlan = mega::make_unique<BusinessPlan>();
+                    bizPlan = std::make_unique<BusinessPlan>();
 
                     bool readingBd = true;
                     while (readingBd)
@@ -11344,7 +11344,7 @@ bool CommandCreatePasswordManagerBase::procresult(Result r, JSON &json)
             json.storeobject(&key);
             break;
         case 'a':
-            attrString = make_unique<std::string>();
+            attrString = std::make_unique<std::string>();
             json.storeobject(attrString.get());
             break;
         case 't':

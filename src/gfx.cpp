@@ -41,9 +41,9 @@ const std::vector<GfxDimension> GfxProc::DIMENSIONS_AVATAR = {
 std::unique_ptr<IGfxProvider> IGfxProvider::createInternalGfxProvider()
 {
 #if USE_FREEIMAGE
-    return ::mega::make_unique<::mega::GfxProviderFreeImage>();
+    return std::make_unique<::mega::GfxProviderFreeImage>();
 #elif USE_IOS
-    return ::mega::make_unique<GfxProviderCG>();
+    return std::make_unique<GfxProviderCG>();
 #else
     return nullptr;
 #endif

@@ -551,16 +551,16 @@ class MegaNodePrivate : public MegaNode, public Cacheable
     {
     public:
         PNDataPrivate(const char* p, const char* n, const char* url, const char* un)
-            : mPwd {p ? make_unique<std::string>(p) : nullptr},
-              mNotes {n ? make_unique<std::string>(n) : nullptr},
-              mURL {url ? make_unique<std::string>(url) : nullptr},
-              mUserName {un ? make_unique<std::string>(un) : nullptr}
+            : mPwd {p ? std::make_unique<std::string>(p) : nullptr},
+              mNotes {n ? std::make_unique<std::string>(n) : nullptr},
+              mURL {url ? std::make_unique<std::string>(url) : nullptr},
+              mUserName {un ? std::make_unique<std::string>(un) : nullptr}
             {}
 
-        virtual void setPassword(const char* pwd) override { mPwd.reset(); if (pwd) mPwd = make_unique<std::string>(pwd); }
-        virtual void setNotes(const char* n)      override { mNotes.reset(); if (n) mNotes = make_unique<std::string>(n); }
-        virtual void setUrl(const char* u)        override { mURL.reset(); if (u) mURL = make_unique<std::string>(u); }
-        virtual void setUserName(const char* un)  override { mUserName.reset(); if (un) mUserName = make_unique<std::string>(un); }
+        virtual void setPassword(const char* pwd) override { mPwd.reset(); if (pwd) mPwd = std::make_unique<std::string>(pwd); }
+        virtual void setNotes(const char* n)      override { mNotes.reset(); if (n) mNotes = std::make_unique<std::string>(n); }
+        virtual void setUrl(const char* u)        override { mURL.reset(); if (u) mURL = std::make_unique<std::string>(u); }
+        virtual void setUserName(const char* un)  override { mUserName.reset(); if (un) mUserName = std::make_unique<std::string>(un); }
 
         virtual const char* password() const override { return mPwd ? mPwd->c_str() : nullptr; }
         virtual const char* notes() const    override { return mNotes ? mNotes->c_str(): nullptr; }
