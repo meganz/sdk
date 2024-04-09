@@ -2049,21 +2049,9 @@ struct tm* m_localtime(m_time_t ttime, struct tm *dt)
 {
     // works for 32 or 64 bit time_t
     time_t t = time_t(ttime);
-#if defined (__STDC_LIB_EXT1__) && defined(__STDC_WANT_LIB_EXT1__)
+#ifdef WIN32
     localtime_s(&t, dt);
-#elif _MSC_VER >= 1400 || defined(__MINGW32__) // MSVCRT (2005+): std::localtime is threadsafe
-    struct tm *newtm = localtime(&t);
-    if (newtm)
-    {
-        memcpy(dt, newtm, sizeof(struct tm));
-    }
-    else
-    {
-        memset(dt, 0, sizeof(struct tm));
-    }
-#elif _WIN32
-#error "localtime is not thread safe in this compiler; please use a later one"
-#else //POSIX
+#else
     localtime_r(&t, dt);
 #endif
     return dt;
@@ -2073,21 +2061,9 @@ struct tm* m_gmtime(m_time_t ttime, struct tm *dt)
 {
     // works for 32 or 64 bit time_t
     time_t t = time_t(ttime);
-#if defined (__STDC_LIB_EXT1__) && defined(__STDC_WANT_LIB_EXT1__)
+#ifdef WIN32
     gmtime_s(&t, dt);
-#elif _MSC_VER >= 1400 || defined(__MINGW32__) // MSVCRT (2005+): std::gmtime is threadsafe
-    struct tm *newtm = gmtime(&t);
-    if (newtm)
-    {
-        memcpy(dt, newtm, sizeof(struct tm));
-    }
-    else
-    {
-        memset(dt, 0, sizeof(struct tm));
-    }
-#elif _WIN32
-#error "gmtime is not thread safe in this compiler; please use a later one"
-#else //POSIX
+#else
     gmtime_r(&t, dt);
 #endif
     return dt;
