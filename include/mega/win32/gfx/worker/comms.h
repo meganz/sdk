@@ -66,5 +66,5 @@ private:
     OVERLAPPED mOverlapped;
 };
 
-} // end of namespace
+} // namespace
 }

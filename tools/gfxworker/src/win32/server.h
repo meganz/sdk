@@ -33,10 +33,9 @@ public:
      *                           the given seconds. 0 mean keeping infinitely running even
      *                           if there is no request coming.
      */
-    ServerWin32(
-        std::unique_ptr<RequestProcessor> requestProcessor,
-        const std::string& pipeName = "mega_gfxworker",
-        unsigned short keepAliveInSeconds = 60)
+    ServerWin32(std::unique_ptr<RequestProcessor> requestProcessor,
+                const std::string& pipeName = "mega_gfxworker",
+                unsigned short keepAliveInSeconds = 60)
         : mRequestProcessor(std::move(requestProcessor))
         , mPipeName(pipeName)
     {
@@ -59,5 +58,5 @@ private:
     DWORD       mWaitMs = INFINITE;
 };
 
-} //namespace gfx
-} //namespace mega
+} // namespace
+}

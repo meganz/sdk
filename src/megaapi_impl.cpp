@@ -29,7 +29,10 @@
 #include "megaapi_impl.h"
 #include "megaapi.h"
 #include "mega/mediafileattribute.h"
+
+#ifdef ENABLE_ISOLATED_GFX
 #include "mega/gfx/isolatedprocess.h"
+#endif
 
 #include <iomanip>
 #include <algorithm>
@@ -434,7 +437,9 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
             {
                 mS4 = it->second;
             }
-            else if (it->first == AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_MANAGER))
+            else if (it->first == AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_MANAGER) ||
+                     it->first == AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_DESCRIPTION) ||
+                     it->first == AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_TAGS))
             {
                 if (!mOfficialAttrs) mOfficialAttrs = make_unique<attr_map>();
 
@@ -519,6 +524,14 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     if (node->changed.pwd)
     {
         this->changed |= MegaNode::CHANGE_TYPE_PWD;
+    }
+    if (node->changed.description)
+    {
+        this->changed |= MegaNode::CHANGE_TYPE_DESCRIPTION;
+    }
+    if (node->changed.tags)
+    {
+        this->changed |= MegaNode::CHANGE_TYPE_TAGS;
     }
 
     this->thumbnailAvailable = (node->hasfileattribute(0) != 0);
@@ -863,6 +876,26 @@ double MegaNodePrivate::getLatitude()
 double MegaNodePrivate::getLongitude()
 {
     return longitude;
+}
+
+const char* MegaNodePrivate::getDescription()
+{
+    return getOfficialAttr(MegaClient::NODE_ATTRIBUTE_DESCRIPTION);
+}
+
+MegaStringList* MegaNodePrivate::getTags()
+{
+    const char* str = getOfficialAttr(MegaClient::NODE_ATTRIBUTE_TAGS);
+    std::string tags = str ? str : "";
+
+    std::set<std::string> tokens = splitString(tags, MegaClient::TAG_DELIMITER);
+    MegaStringListPrivate* stringList = new MegaStringListPrivate();
+    for (const auto& token : tokens)
+    {
+        stringList->add(token.c_str());
+    }
+
+    return stringList;
 }
 
 int64_t MegaNodePrivate::getSize()
@@ -3853,6 +3886,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
     this->mStringList.reset(request->mStringList ? request->mStringList->copy() : nullptr);
     this->mMegaVpnCredentials.reset(request->mMegaVpnCredentials ? request->mMegaVpnCredentials->copy() : nullptr);
     this->mMegaNotifications.reset(request->mMegaNotifications ? request->mMegaNotifications->copy() : nullptr);
+    this->mMegaNodeTree.reset(request->mMegaNodeTree ? request->mMegaNodeTree->copy() : nullptr);
 }
 
 std::shared_ptr<AccountDetails> MegaRequestPrivate::getAccountDetails() const
@@ -4718,6 +4752,16 @@ const MegaNotificationList* MegaRequestPrivate::getMegaNotifications() const
 void MegaRequestPrivate::setMegaNotifications(MegaNotificationList* megaNotifications)
 {
     mMegaNotifications.reset(megaNotifications);
+}
+
+const MegaNodeTree* MegaRequestPrivate::getMegaNodeTree() const
+{
+    return mMegaNodeTree.get();
+}
+
+void MegaRequestPrivate::setMegaNodeTree(MegaNodeTree* megaNodeTree)
+{
+    mMegaNodeTree.reset(megaNodeTree);
 }
 
 MegaBannerPrivate::MegaBannerPrivate(std::tuple<int, std::string, std::string, std::string, std::string, std::string, std::string>&& details)
@@ -6045,15 +6089,14 @@ MegaSearchFilterPrivate* MegaSearchFilterPrivate::copy() const
 }
 
 std::unique_ptr<MegaGfxProviderPrivate> MegaGfxProviderPrivate::createIsolatedInstance(
-    const std::string& pipeName,
+    const std::string& endpointName,
     const std::string& executable)
 {
 #ifdef ENABLE_ISOLATED_GFX
-    auto process = ::mega::make_unique<GfxIsolatedProcess>(pipeName, executable);
-    auto provider = ::mega::make_unique<GfxProviderIsolatedProcess>(std::move(process));
+    auto provider = GfxProviderIsolatedProcess::create(endpointName, executable);
     return ::mega::make_unique<MegaGfxProviderPrivate>(std::move(provider));
 #else
-    (void)pipeName, (void)executable;
+    (void)endpointName, (void)executable;
     return nullptr;
 #endif
 }
@@ -8049,6 +8092,45 @@ void MegaApiImpl::setNodeCoordinates(MegaNode *node, bool unshareable, double la
     waiter->notify();
 }
 
+void MegaApiImpl::setNodeDescription(MegaNode* node,
+                                     const char* description,
+                                     MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_NODE, listener);
+
+    if (node)
+    {
+        request->setNodeHandle(node->getHandle());
+    }
+
+    request->setParamType(MegaApi::NODE_ATTR_DESCRIPTION);
+    request->setText(description);
+    request->setFlag(true); // official attribute (otherwise it would go in the custom section)
+
+    request->performRequest = [this, request]()
+    {
+        return performRequest_setAttrNode(request);
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::addNodeTag(MegaNode* node, const char* tag, MegaRequestListener* listener)
+{
+    CRUDNodeTagOperation(node, MegaApi::TAG_NODE_SET, tag, nullptr, listener);
+}
+
+void MegaApiImpl::removeNodeTag(MegaNode* node, const char* tag, MegaRequestListener* listener)
+{
+    CRUDNodeTagOperation(node, MegaApi::TAG_NODE_REMOVE, tag, nullptr, listener);
+}
+
+void MegaApiImpl::updateNodeTag(MegaNode* node, const char* newTag, const char* oldTag, MegaRequestListener* listener)
+{
+    CRUDNodeTagOperation(node, MegaApi::TAG_NODE_UPDATE, newTag, oldTag, listener);
+}
+
 void MegaApiImpl::exportNode(MegaNode *node, int64_t expireTime, bool writable, bool megaHosted, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_EXPORT, listener);
@@ -8623,7 +8705,18 @@ bool MegaApiImpl::hasToForceUpload(const Node &node, const MegaTransferPrivate &
     bool canForceUpload = transfer.isForceNewUpload();
     bool isPdf = name.find(".pdf") != string::npos;
 
-    return canForceUpload && (isMedia || isPdf) && !(hasPreview && hasThumbnail);
+    if (canForceUpload && (isMedia || isPdf) && !(hasPreview && hasThumbnail))
+    {
+        return true;
+    }
+    if (node.hasZeroKey())
+    {
+        // If the node has a zerokey, we need to discard it, regardless other conditions.
+        LOG_warn << "[MegaApiImpl::hasToForceUpload] Node has a zerokey, forcing a new upload..." << " [handle = " << node.nodeHandle() << "]";
+        client->sendevent(99486, "Node has a zerokey");
+        return true;
+    }
+    return false;
 }
 
 void MegaApiImpl::moveTransferUp(int transferTag, MegaRequestListener *listener)
@@ -12068,6 +12161,8 @@ bool MegaApiImpl::isValidTypeNode(const Node *node, int type) const
         case MegaApi::FILE_TYPE_ALL_DOCS:
             return client->nodeIsDocument(node) || client->nodeIsPdf(node) ||
                    client->nodeIsPresentation(node) || client->nodeIsSpreadsheet(node);
+        case MegaApi::FILE_TYPE_OTHERS:
+            return client->nodeIsOtherType(node);
         case MegaApi::FILE_TYPE_DEFAULT:
         default:
             return true;
@@ -19464,6 +19559,99 @@ error MegaApiImpl::performRequest_login(MegaRequestPrivate* request)
             return e;
 }
 
+error MegaApiImpl::performRequest_tagNode(MegaRequestPrivate* request)
+{
+    std::shared_ptr<Node> node = client->nodebyhandle(request->getNodeHandle());
+    int operation = request->getParamType();
+
+    if (!node)
+    {
+        return API_EARGS;
+    }
+
+    if (!request->getText())
+    {
+        return API_EARGS;
+    }
+
+    std::string tag = request->getText();
+
+    if (tag.find(MegaClient::TAG_DELIMITER) != std::string::npos)
+    {
+        return API_EARGS;
+    }
+
+    switch (operation)
+    {
+        case MegaApi::TAG_NODE_SET:
+        {
+            return client->addTagToNode(node,
+                                        tag,
+                                        [this, request](NodeHandle, Error e)
+                                        {
+                                            fireOnRequestFinish(request,
+                                                                make_unique<MegaErrorPrivate>(e));
+                                        });
+        }
+        case MegaApi::TAG_NODE_REMOVE:
+        {
+            return client->removeTagFromNode(
+                node,
+                tag,
+                [this, request](NodeHandle, Error e)
+                {
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                });
+        }
+        case MegaApi::TAG_NODE_UPDATE:
+        {
+            if (!request->getName())
+            {
+                return API_EARGS;
+            }
+
+            std::string oldTag = request->getName();
+
+            return client->updateTagNode(
+                node,
+                tag,
+                oldTag,
+                [this, request](NodeHandle, Error e)
+                {
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                });
+        }
+    }
+
+    return API_EARGS;
+}
+
+void MegaApiImpl::CRUDNodeTagOperation(MegaNode* node,
+                                       int operationType,
+                                       const char* tag,
+                                       const char* oldTag,
+                                       MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_TAG_NODE, listener);
+
+    if (node)
+    {
+        request->setNodeHandle(node->getHandle());
+    }
+
+    request->setParamType(operationType);
+    request->setText(tag);
+    request->setName(oldTag);
+
+    request->performRequest = [this, request]()
+    {
+        return performRequest_tagNode(request);
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::multiFactorAuthCheck(const char* email, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_MULTI_FACTOR_AUTH_CHECK, listener);
@@ -21120,10 +21308,19 @@ error MegaApiImpl::performRequest_setAttrNode(MegaRequestPrivate* request)
                             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
                         }, false);
                 }
-                else if (type == MegaApi::NODE_ATTR_S4)
+                else if (bool isTypeS4 = (type == MegaApi::NODE_ATTR_S4);
+                         isTypeS4 || type == MegaApi::NODE_ATTR_DESCRIPTION)
                 {
                     const char* attrValue = request->getText();
-                    attrUpdates[AttrMap::string2nameid("s4")] = attrValue ? attrValue : "";
+                    if (type == MegaApi::NODE_ATTR_DESCRIPTION && attrValue &&
+                        strlen(attrValue) > MegaApi::MAX_NODE_DESCRIPTION_SIZE)
+                    {
+                        return API_EARGS;
+                    }
+
+                    const char* attributeName =
+                        isTypeS4 ? "s4" : MegaClient::NODE_ATTRIBUTE_DESCRIPTION;
+                    attrUpdates[AttrMap::string2nameid(attributeName)] = attrValue ? attrValue : "";
                 }
                 else
                 {
@@ -26398,9 +26595,10 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
 {
     auto request{new MegaRequestPrivate(MegaRequest::TYPE_CREATE_NODE_TREE, listener)};
     request->setParentHandle(parentNode ? parentNode->getHandle() : INVALID_HANDLE);
-    request->performRequest = [this, nodeTree, request]()
+    request->setMegaNodeTree(nodeTree ? nodeTree->copy() : nullptr);
+    request->performRequest = [this, request]()
     {
-        if (request->getParentHandle() == INVALID_HANDLE || !nodeTree)
+        if (request->getParentHandle() == INVALID_HANDLE || !request->getMegaNodeTree())
         {
             LOG_err << "Failed to create node tree: Missing arguments";
             return API_EARGS;
@@ -26408,12 +26606,13 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
 
         // Check for old versions when copying directly to parentNode
         // (not to a newly created intermediary folder).
-        shared_ptr<Node> ovLocation{ nodeTree->getNodeTreeChild() ? nullptr : client->nodebyhandle(request->getParentHandle()) };
+        shared_ptr<Node> ovLocation{ request->getMegaNodeTree()->getNodeTreeChild() ? nullptr : client->nodebyhandle(request->getParentHandle()) };
 
         std::vector<NewNode> newNodes;
 
         handle tmpNodeHandle{1};
         handle tmpParentNodeHandle{UNDEF};
+        MegaNodeTree* nodeTree = request->getMegaNodeTree()->copy();
         for (auto tmpNodeTree{dynamic_cast<MegaNodeTreePrivate*>(nodeTree)}; tmpNodeTree;
              tmpNodeTree = dynamic_cast<MegaNodeTreePrivate*>(tmpNodeTree->getNodeTreeChild()))
         {
@@ -26445,6 +26644,7 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
                         assert(!treeToCopy.empty()); // never empty because other error should have been reported in that case
                         tmpNodeTree->setNodeHandle(treeToCopy[0].ovhandle.as8byte());
                         request->setNodeHandle(tmpNodeTree->getNodeHandle());
+                        request->setMegaNodeTree(nodeTree);
                         fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
                         return API_OK;
                     }
@@ -26482,10 +26682,12 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
                     if (std::shared_ptr<Node> ovn = ovLocation ? client->getovnode(ovLocation.get(), &name) : nullptr)
                     {
                         auto ovfp = ovn->attrs.map.find('c');
-                        if (ovfp != ovn->attrs.map.end() && ovfp->second == completeUploadData->getFingerprint())
+                        if (ovfp != ovn->attrs.map.end() &&
+                            ovfp->second == MegaNodePrivate::removeAppPrefixFromFingerprint(completeUploadData->getFingerprint().c_str()))
                         {
                             tmpNodeTree->setNodeHandle(ovn->nodeHandle().as8byte());
                             request->setNodeHandle(tmpNodeTree->getNodeHandle());
+                            request->setMegaNodeTree(nodeTree);
                             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
                             return API_OK;
                         }
@@ -26522,7 +26724,7 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
                 // Set fingerprint
                 if (completeUploadData)
                 {
-                    attributes.map['c'] = completeUploadData->getFingerprint();
+                    attributes.map['c'] = MegaNodePrivate::removeAppPrefixFromFingerprint(completeUploadData->getFingerprint().c_str());
                 }
 
                 // Set attributes
@@ -26571,6 +26773,7 @@ void MegaApiImpl::createNodeTree(const MegaNode* parentNode,
                     tmpNodeTree =
                         dynamic_cast<MegaNodeTreePrivate*>(tmpNodeTree->getNodeTreeChild());
                 }
+                request->setMegaNodeTree(nodeTree);
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(error));
             }};
 
@@ -37916,19 +38119,26 @@ MegaVpnCredentials* MegaVpnCredentialsPrivate::copy() const
 }
 /* MegaVpnCredentials END */
 
-MegaNodeTreePrivate::MegaNodeTreePrivate(MegaNodeTree* nodeTreeChild,
+MegaNodeTreePrivate::MegaNodeTreePrivate(const MegaNodeTree* nodeTreeChild,
                                          const std::string& name,
                                          const std::string& s4AttributeValue,
                                          const MegaCompleteUploadData* completeUploadData,
                                          MegaHandle sourceHandle,
                                          MegaHandle nodeHandle):
-    mNodeTreeChild{nodeTreeChild},
     mName{name},
     mS4AttributeValue{s4AttributeValue},
-    mCompleteUploadData{completeUploadData},
     mSourceHandle{sourceHandle},
     mNodeHandle{nodeHandle}
-{}
+{
+    if (nodeTreeChild)
+    {
+        mNodeTreeChild.reset(nodeTreeChild->copy());
+    }
+    if (completeUploadData)
+    {
+        mCompleteUploadData.reset(completeUploadData->copy());
+    }
+}
 
 MegaNodeTree* MegaNodeTreePrivate::getNodeTreeChild() const
 {
@@ -37960,6 +38170,20 @@ void MegaNodeTreePrivate::setNodeHandle(const MegaHandle& nodeHandle)
     mNodeHandle = nodeHandle;
 }
 
+MegaNodeTree* MegaNodeTreePrivate::copy() const
+{
+    MegaNodeTreePrivate* megaNodeTreeCopy = new MegaNodeTreePrivate(
+        mNodeTreeChild.get(),
+        mName,
+        mS4AttributeValue,
+        mCompleteUploadData.get(),
+        mSourceHandle,
+        mNodeHandle
+    );
+
+    return megaNodeTreeCopy;
+}
+
 MegaCompleteUploadDataPrivate::MegaCompleteUploadDataPrivate(const std::string& fingerprint,
                                                              const std::string& string64UploadToken,
                                                              const std::string& string64FileKey):
@@ -37981,6 +38205,11 @@ const std::string& MegaCompleteUploadDataPrivate::getString64UploadToken() const
 const std::string& MegaCompleteUploadDataPrivate::getString64FileKey() const
 {
     return mString64FileKey;
+}
+
+MegaCompleteUploadData* MegaCompleteUploadDataPrivate::copy() const
+{
+    return new MegaCompleteUploadDataPrivate(*this);
 }
 
 } // namespace mega

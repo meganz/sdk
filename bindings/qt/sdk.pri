@@ -74,15 +74,13 @@ SOURCES += src/arguments.cpp \
     src/crypto/sodium.cpp  \
     src/db/sqlite.cpp  \
     src/gfx/external.cpp \
-    src/gfx/worker/commands.cpp \
-    src/gfx/worker/command_serializer.cpp \
-    src/gfx/worker/client.cpp \
     src/mega_utf8proc.cpp \
     src/mega_ccronexpr.cpp \
     src/mega_evt_tls.cpp \
     src/mega_zxcvbn.cpp \
     src/mediafileattribute.cpp \
     src/raid.cpp \
+    src/raidproxy.cpp \
     src/testhooks.cpp \
     src/heartbeats.cpp
 
@@ -485,12 +483,6 @@ HEADERS  += include/mega.h \
             include/mega/gfx/freeimage.h \
             include/mega/gfx/gfx_pdfium.h \
             include/mega/gfx/external.h \
-            include/mega/gfx/isolatedprocess.h \
-            include/mega/gfx/worker/tasks.h \
-            include/mega/gfx/worker/commands.h \
-            include/mega/gfx/worker/comms.h \
-            include/mega/gfx/worker/command_serializer.h \
-            include/mega/gfx/worker/client.h \
             include/mega/thread.h \
             include/mega/thread/cppthread.h \
             include/megaapi.h \
@@ -503,9 +495,9 @@ HEADERS  += include/mega.h \
             include/mega/mega_zxcvbn.h \
             include/mega/mediafileattribute.h \
             include/mega/raid.h \
+            include/mega/raidproxy.h \
             include/mega/testhooks.h \
             include/mega/drivenotify.h
-
 CONFIG(USE_MEGAAPI) {
     HEADERS += bindings/qt/QTMegaRequestListener.h \
             bindings/qt/QTMegaTransferListener.h \
@@ -863,15 +855,6 @@ CONFIG(USE_DRIVE_NOTIFICATIONS) {
         SOURCES += src/osx/drivenotifyosx.cpp
         LIBS += -framework DiskArbitration -framework CoreFoundation
     }
-}
-
-# gfx worker platform settings
-win32 {
-    HEADERS += include/mega/win32/gfx/worker/comms.h
-    HEADERS += include/mega/win32/gfx/worker/comms_client.h
-    SOURCES += src/win32/gfx/worker/comms.cpp
-    SOURCES += src/win32/gfx/worker/comms_client.cpp
-    SOURCES += src/gfx/isolatedprocess.cpp
 }
 
 # Add include paths as system libs to avoid warnings from external libraries.

@@ -23,7 +23,6 @@
 #include "mega/arguments.h"
 #include "mega/filesystem.h"
 #include "mega/gfx.h"
-#include "mega/gfx/worker/client.h"
 #include "megacli.h"
 #include <chrono>
 #include <exception>
@@ -32,6 +31,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 #include "mega/testhooks.h"
 
@@ -69,7 +69,10 @@
 #ifdef USE_FREEIMAGE
 #include "mega/gfx/freeimage.h"
 #endif
+
+#ifdef ENABLE_ISOLATED_GFX
 #include "mega/gfx/isolatedprocess.h"
+#endif
 
 #ifdef WIN32
 #include <winioctl.h>
@@ -158,7 +161,7 @@ Usage:
 #if defined(ENABLE_ISOLATED_GFX)
 R"(
   -e=arg               Use the isolated gfx processor. This gives executable binary path
-  -n=arg               Pipe name (default: mega_gfxworker_megacli)
+  -n=arg               Endpoint name (default: mega_gfxworker_megacli)
 )"
 #endif
 ;
@@ -166,7 +169,7 @@ struct Config
 {
     std::string executable;
 
-    std::string pipeName;
+    std::string endpointName;
 
     std::string clientType;
 
@@ -187,8 +190,8 @@ Config Config::fromArguments(const Arguments& arguments)
         throw std::runtime_error("Couldn't find Executable: " + config.executable);
     }
 
-    // pipe name
-    config.pipeName  = arguments.getValue("-n", "mega_gfxworker_megacli");
+    // endpoint name
+    config.endpointName = arguments.getValue("-n", "mega_gfxworker_megacli");
 #endif
 
     config.clientType = arguments.getValue("-c", "default");
@@ -196,20 +199,15 @@ Config Config::fromArguments(const Arguments& arguments)
     return config;
 }
 
-static std::unique_ptr<IGfxProvider> createGfxProvider(const Config& config)
+static std::unique_ptr<IGfxProvider> createGfxProvider([[maybe_unused]] const Config& config)
 {
 #if defined(ENABLE_ISOLATED_GFX)
-    if (!config.executable.empty())
+    if (auto provider = GfxProviderIsolatedProcess::create(config.endpointName, config.executable))
     {
-        auto process = ::mega::make_unique<GfxIsolatedProcess>(config.pipeName, config.executable);
-        return ::mega::make_unique<GfxProviderIsolatedProcess>(std::move(process));
+        return provider;
     }
-    else
 #endif
-    {
-        (void) config;
-        return IGfxProvider::createInternalGfxProvider();
-    }
+    return IGfxProvider::createInternalGfxProvider();
 }
 
 #ifdef ENABLE_SYNC
@@ -1468,13 +1466,55 @@ void DemoApp::senddevcommand_result(int value)
 
 void exec_devcommand(autocomplete::ACState& s)
 {
-    const char *email = nullptr;
-    if (s.words.size() == 3)
+    const std::string_view subcommand {s.words[1].s};
+
+    std::string email;
+    const bool isEmailProvided = s.extractflagparam("-e", email);
+    std::string campaign;
+    const bool isCampaingProvided = s.extractflagparam("-c", campaign);
+    std::string groupId;
+    const bool isGroupIdProvided = s.extractflagparam("-g", groupId);
+
+    const auto printElement = [](const auto& p){ std::cout << " " << p; };
+    if (subcommand == "abs")
     {
-        email = s.words[2].s.c_str();
+        if (isEmailProvided) std::cout << "devcommand abs will ignore unrequired -e provided\n";
+
+        std::vector<std::string> req;
+        if (!isCampaingProvided) req.emplace_back("-c");
+        if (!isGroupIdProvided) req.emplace_back("-g");
+        if (!req.empty())
+        {
+            std::cout << "devcommand abs is missing required";
+            std::for_each(std::begin(req), std::end(req), printElement);
+            std::cout << " options\n";
+            return;
+        }
+
+        size_t l;
+        const int g = std::stoi(groupId, &l); // it's okay throwing in megacli for non-numeric
+        if(l != groupId.size())
+        {
+            std::cout << "abs param -g must be a natural number: " << groupId << " provided\n";
+            return;
+        }
+
+        client->senddevcommand(subcommand.data(), nullptr, 0, 0, g, campaign.c_str());
     }
-    const char *subcommand = s.words[1].s.c_str();
-    client->senddevcommand(subcommand, email);
+    else
+    {
+        std::vector<std::string> param;
+        if (isCampaingProvided) param.emplace_back("-c");
+        if (isGroupIdProvided) param.emplace_back("-g");
+        if (!param.empty())
+        {
+            std::cout << "devcommand " << subcommand << " will ignore unrequired";
+            std::for_each(std::begin(param), std::end(param), printElement);
+            std::cout << " provided options\n";
+        }
+
+        client->senddevcommand(subcommand.data(), isEmailProvided ? email.c_str() : nullptr);
+    }
 }
 #endif
 
@@ -4080,7 +4120,17 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_numberofnodes, sequence(text("nn")));
     p->Add(exec_numberofchildren, sequence(text("nc"), opt(remoteFSPath(client, &cwd))));
     p->Add(exec_searchbyname, sequence(text("sbn"), param("name"), opt(param("nodeHandle")), opt(flag("-norecursive")), opt(flag("-nosensitive"))));
+    p->Add(exec_nodedescription,
+           sequence(text("nodedescription"),
+                    remoteFSPath(client, &cwd),
+                    opt(either(flag("-remove"), sequence(flag("-set"), param("description"))))));
 
+    p->Add(exec_nodeTag,
+           sequence(text("nodetag"),
+                    remoteFSPath(client, &cwd),
+                    opt(either(sequence(flag("-remove"), param("tag")),
+                               sequence(flag("-add"), param("tag")),
+                               sequence(flag("-update"), param("newtag"), param("oldtag"))))));
 
 #ifdef ENABLE_SYNC
     p->Add(exec_setdevicename, sequence(text("setdevicename"), param("device_name")));
@@ -4193,7 +4243,10 @@ autocomplete::ACN autocompleteSyntax()
                                                                           sequence(text("load"), localFSFile())))));
 #ifdef DEBUG
     p->Add(exec_delua, sequence(text("delua"), param("attrname")));
-    p->Add(exec_devcommand, sequence(text("devcommand"), param("subcommand"), opt(param("email"))));
+    p->Add(exec_devcommand, sequence(text("devcommand"), param("subcommand"),
+                                     opt(sequence(flag("-e"), param("email"))),
+                                     opt(sequence(flag("-c"), param("campaign"),
+                                                  flag("-g"), param("group_id")))));
 #endif
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     p->Add(exec_simulatecondition, sequence(text("simulatecondition"), opt(text("ETOOMANY"))));
@@ -4395,7 +4448,6 @@ autocomplete::ACN autocompleteSyntax()
                                     opt(flag("-useDigits")),
                                     opt(flag("-useSymbols")))
                         )));
-
 
     return autocompleteTemplate = std::move(p);
 }
@@ -8596,7 +8648,7 @@ void DemoApp::ephemeral_result(handle uh, const byte* pw)
         cout << Base64::btoa(session) << endl;
     }
 
-    client->fetchnodes(false, true, false);
+    client->fetchnodes(false, false, false);
 }
 
 void DemoApp::cancelsignup_result(error)
@@ -9115,8 +9167,8 @@ void DemoApp::notify_confirm_user_email(handle user, const char *email)
 {
     if (client->loggedin() == EPHEMERALACCOUNT || client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
     {
-        LOG_debug << "Account has been confirmed with user " << user << " and email " << email << ". Proceed to login with credentials.";
-        cout << "Account has been confirmed with user " << toHandle(user) << " and email " << email << ". Proceed to login with credentials.";
+        LOG_debug << "Account has been confirmed with user " << toHandle(user) << " and email " << email << ". Proceed to login with credentials.";
+        cout << "Account has been confirmed with user " << toHandle(user) << " and email " << email << ". Proceed to login with credentials." << endl;
     }
 }
 
@@ -12155,5 +12207,108 @@ void exec_generatepassword(autocomplete::ACState& s)
 
         if (pwd.empty()) cout << "Error generating the password. Please check the logs (if active)\n";
         else cout << "Characers-based password successfully generated: " << pwd << "\n";
+    }
+}
+
+void exec_nodedescription(autocomplete::ACState& s)
+{
+    std::shared_ptr<Node> n = nodebypath(s.words[1].s.c_str());
+    if (!n)
+    {
+        cout << s.words[1].s << ": No such file or directory" << endl;
+        return;
+    }
+
+    const bool removeDescription = s.extractflag("-remove");
+    const bool setDescription = s.extractflag("-set");
+    const auto descNameId = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_DESCRIPTION);
+
+    auto modifyDescription = [descNameId](const std::string& description, std::shared_ptr<Node> n)
+    {
+        AttrMap attrMap;
+        attrMap.map[descNameId] = description;
+        client->setattr(
+            n,
+            std::move(attrMap.map),
+            [](NodeHandle h, Error e)
+            {
+                if (e == API_OK)
+                    cout << "Description modified correctly" << endl;
+                else
+                    cout << "Error modifying description: " << e << "  Node: " << h << endl;
+            },
+            false);
+    };
+
+    if (removeDescription)
+    {
+        modifyDescription("", n);
+    }
+    else if (setDescription)
+    {
+        modifyDescription(s.words[2].s, n);
+    }
+    else if (auto it = n->attrs.map.find(descNameId); it != n->attrs.map.end())
+    {
+        cout << "Description: " << it->second << endl;
+    }
+    else
+    {
+        cout << "Description not set\n";
+    }
+}
+
+void exec_nodeTag(autocomplete::ACState& s)
+{
+    std::shared_ptr<Node> n = nodebypath(s.words[1].s.c_str());
+    if (!n)
+    {
+        cout << s.words[1].s << ": No such file or directory\n";
+        return;
+    }
+
+    const bool removeTag = s.extractflag("-remove");
+    const bool addTag = s.extractflag("-add");
+    const bool updateTag = s.extractflag("-update");
+    const auto tagNameId = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_TAGS);
+
+    if (removeTag)
+    {
+        client->removeTagFromNode(n,
+                                  s.words[2].s,
+                                  [](NodeHandle h, Error e)
+                                  {
+                                      if (e == API_OK)
+                                          cout << "Tag removed correctly\n";
+                                  });
+    }
+    else if (addTag)
+    {
+        client->addTagToNode(n,
+                             s.words[2].s,
+                             [](NodeHandle h, Error e)
+                             {
+                                 if (e == API_OK)
+                                     cout << "Tag added correctly\n";
+                             });
+    }
+    else if (updateTag)
+    {
+        client->updateTagNode(n,
+                              s.words[2].s,
+                              s.words[3].s,
+                              [](NodeHandle h, Error e)
+                              {
+                                  if (e == API_OK)
+                                      cout << "Tag updated correctly\n";
+                              });
+    }
+    else if (auto it = n->attrs.map.find(tagNameId); it != n->attrs.map.end())
+    {
+        cout << "Tags: " << it->second << endl;
+    }
+    else
+    {
+        cout << "None tag is defined\n";
     }
 }

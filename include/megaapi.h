@@ -273,12 +273,12 @@ public:
     /**
     * @brief Create a graphics processor that implemented and run in an isolated process.
     *
-    * Note: Currently, only Windows is supported.
+    * Note: Windows, Linux are supported.
     *
-    * @param pipeName The unique named pipe's name used for communicating with the isolated process.
+    * @param endpointName The unique name used for communicating with the isolated process.
     * @param executable The executable path.
     */
-    static MegaGfxProvider* createIsolatedInstance(const char* pipeName,
+    static MegaGfxProvider* createIsolatedInstance(const char* endpointName,
                                                    const char* executable);
 
     /**
@@ -522,6 +522,8 @@ class MegaNode
             CHANGE_TYPE_COUNTER         = 0x2000,
             CHANGE_TYPE_SENSITIVE       = 0x4000,
             CHANGE_TYPE_PWD             = 0x8000,
+            CHANGE_TYPE_DESCRIPTION     = 0x10000,
+            CHANGE_TYPE_TAGS            = 0x20000,
         };
 
         /**
@@ -814,6 +816,29 @@ class MegaNode
         virtual double getLongitude();
 
         /**
+         * @brief Get the attribute of the node representing the description
+         *
+         * The purpose of this attribute is to store the node description.
+         *
+         * The MegaNode object retains the ownership of the returned string. It will be valid until
+         * the MegaNode object is deleted.
+         *
+         * @return Node description
+         */
+        virtual const char* getDescription();
+
+        /**
+         * @brief Get a list of tags from a node
+         *
+         * These tags are stored as a node attribute
+         *
+         * You take the ownership of the returned value.
+         *
+         * @return List of tags from the node
+         */
+        virtual MegaStringList* getTags();
+
+        /**
          * @brief Returns the handle of this MegaNode in a Base64-encoded string
          *
          * You take the ownership of the returned string.
@@ -1018,6 +1043,12 @@ class MegaNode
          * - MegaNode::CHANGE_TYPE_PWD             = 0x8000
          * Check if any Password Node Data value for this node changed
          *
+         * - MegaNode::CHANGE_TYPE_DESCRIPTION     = 0x10000
+         * Check if description for this node has changed
+         *
+         * - MegaNode::CHANGE_TYPE_TAGS            = 0x20000
+         * Check if tags for this node have changed
+         *
          * @return true if this node has an specific change
          */
         virtual bool hasChanged(uint64_t changeType);
@@ -1074,6 +1105,12 @@ class MegaNode
          *
          * - MegaNode::CHANGE_TYPE_PWD             = 0x8000
          * Check if any Password Node Data value for this node changed
+         *
+         * - MegaNode::CHANGE_TYPE_DESCRIPTION     = 0x10000
+         * Check if description for this node has changed
+         *
+         * - MegaNode::CHANGE_TYPE_TAGS            = 0x20000
+         * Check if tags for this node have changed
          *
          */
         virtual uint64_t getChanges();
@@ -4476,7 +4513,8 @@ class MegaRequest
             TYPE_CREATE_PASSWORD_NODE                                       = 183,
             TYPE_UPDATE_PASSWORD_NODE                                       = 184,
             TYPE_GET_NOTIFICATIONS                                          = 185,
-            TOTAL_OF_REQUEST_TYPES                                          = 186,
+            TYPE_TAG_NODE                                                   = 186,
+            TOTAL_OF_REQUEST_TYPES                                          = 187,
         };
 
         virtual ~MegaRequest();
@@ -5387,6 +5425,19 @@ class MegaRequest
          * @return non-null pointer if a valid MegaApi functionality has been called, nullptr otherwise.
          */
         virtual const MegaNotificationList* getMegaNotifications() const;
+
+        /**
+         * @brief Get node tree after its creation
+         *
+         * This value is valid only for the following requests:
+         * - MegaApi::createNodeTree
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * @return non-null pointer if a valid MegaApi functionality has been called, null otherwise.
+         */
+        virtual const MegaNodeTree* getMegaNodeTree() const;
 };
 
 /**
@@ -9388,6 +9439,7 @@ public:
      * - MegaApi::FILE_TYPE_MISC = 9
      * - MegaApi::FILE_TYPE_SPREADSHEET = 10
      * - MegaApi::FILE_TYPE_ALL_DOCS = 11  --> any of {DOCUMENT, PDF, PRESENTATION, SPREADSHEET}
+     * - MegaApi::FILE_TYPE_OTHERS = 12
      */
     virtual void byCategory(int mimeType);
 
@@ -9579,13 +9631,14 @@ protected:
 
 public:
     virtual ~MegaNodeTree() = default;
-    static MegaNodeTree* createInstance(MegaNodeTree* nodeTreeChild,                      // takes ownership !
-                                        const char* name,                                 // ownership left with the caller
-                                        const char* s4AttributeValue,                     // ownership left with the caller
-                                        const MegaCompleteUploadData* completeUploadData, // takes ownership !
+    static MegaNodeTree* createInstance(const MegaNodeTree* nodeTreeChild,
+                                        const char* name,
+                                        const char* s4AttributeValue,
+                                        const MegaCompleteUploadData* completeUploadData,
                                         MegaHandle sourceHandle = INVALID_HANDLE);
     virtual MegaNodeTree* getNodeTreeChild() const = 0;
     virtual MegaHandle getNodeHandle() const = 0;
+    virtual MegaNodeTree* copy() const = 0;
 };
 
 class MegaCompleteUploadData
@@ -9598,6 +9651,7 @@ public:
     static MegaCompleteUploadData* createInstance(const char* fingerprint,
                                                   const char* string64UploadToken,
                                                   const char* string64FileKey);
+    virtual MegaCompleteUploadData* copy() const = 0;
 };
 
 class MegaApiImpl;
@@ -9762,7 +9816,8 @@ class MegaApi
             NODE_ATTR_LABEL = 3,
             NODE_ATTR_FAV = 4, // "fav"
             NODE_ATTR_S4 = 5,
-            NODE_ATTR_SEN = 6 // "sen"
+            NODE_ATTR_SEN = 6, // "sen"
+            NODE_ATTR_DESCRIPTION = 7,
         };
 
         enum {
@@ -9904,8 +9959,16 @@ class MegaApi
             OPTION_ELEMENT_ORDER        = (1 << 2),
         };
 
+        enum
+        {
+            TAG_NODE_SET             = 0,
+            TAG_NODE_REMOVE          = 1,
+            TAG_NODE_UPDATE          = 2,
+        };
+
         static constexpr int64_t INVALID_CUSTOM_MOD_TIME = -1;
         static constexpr int CHAT_OPTIONS_EMPTY = 0;
+        static constexpr int MAX_NODE_DESCRIPTION_SIZE = 3000;
 
         /**
          * @brief Constructor suitable for most applications
@@ -13553,6 +13616,105 @@ class MegaApi
         void setUnshareableNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Set node description as a node attribute
+         *
+         * To remove node description, set description to NULL
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node that received the attribute
+         * - MegaRequest::getFlag - Returns true (official attribute)
+         * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_DESCRIPTION
+         * - MegaRequest::getText - Returns node description
+         *
+         * If the size of the description is greater than MAX_NODE_DESCRIPTION_SIZE, onRequestFinish will be
+         * called with the error code MegaError::API_EARGS.
+         *
+         * If the MEGA account is a business account and its status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param node Node that will receive the information.
+         * @param description Node description
+         * @param listener MegaRequestListener to track this request
+         */
+        void setNodeDescription(MegaNode* node,
+                                const char* description,
+                                MegaRequestListener* listener = NULL);
+
+
+        /**
+         * @brief Add new tag stored as node attribute
+         *
+         * The associated request type with this request is MegaRequest::TYPE_TAG_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node that received the tag
+         * - MegaRequest::getParamType - Returns operation type (0 - Add tag, 1 - Remove tag, 2 - Update tag)
+         * - MegaRequest::getText - Returns tag
+         *
+         * ',' is an invalid character to be used in a tag. If it is contained in the tag,
+         * onRequestFinish will be called with the error code MegaError::API_EARGS.
+         *
+         * If tag already exists, onRequestFinish will be called with the error code MegaError::API_EEXISTS
+         *
+         * If the MEGA account is a business account and its status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param node Node that will receive the information.
+         * @param tag New tag
+         * @param listener MegaRequestListener to track this request
+         */
+        void addNodeTag(MegaNode* node, const char* tag, MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Remove a tag stored as a node attribute
+         *
+         * The associated request type with this request is MegaRequest::TYPE_TAG_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node that received the tag
+         * - MegaRequest::getParamType - Returns operation type (0 - Add tag, 1 - Temove tag, 2 - Update tag)
+         * - MegaRequest::getText - Returns tag
+         *
+         * If tag doesn't exist, onRequestFinish will be called with the error code MegaError::API_ENOENT
+         *
+         * If the MEGA account is a business account and its status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param node Node that will receive the information.
+         * @param tag Tag to be removed
+         * @param listener MegaRequestListener to track this request
+         */
+        void removeNodeTag(MegaNode* node, const char* tag, MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Update a tag stored as a node attribute
+         *
+         * The associated request type with this request is MegaRequest::TYPE_TAG_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node that received the tag
+         * - MegaRequest::getParamType - Returns operation type (0 - Add tag, 1 - Temove tag, 2 - Update tag)
+         * - MegaRequest::getText - Returns new tag
+         * - MegaRequest::getName - Returns old tag
+         *
+         * ',' is an invalid character to be used in a tag. If it is contained in the tag,
+         * onRequestFinish will be called with the error code MegaError::API_EARGS.
+         *
+         * If newTag already exists, onRequestFinish will be called with the error code MegaError::API_EEXISTS
+         * If oldTag doesn't exist, onRequestFinish will be called with the error code MegaError::API_ENOENT
+         *
+         * If the MEGA account is a business account and its status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param node Node that will receive the information.
+         * @param newTag New tag value
+         * @param oldTag Old tag value
+         * @param listener MegaRequestListener to track this request
+         */
+        void updateNodeTag(MegaNode* node,
+                           const char* newTag,
+                           const char* oldTag,
+                           MegaRequestListener* listener = NULL);
+
+        /**
          * @brief Generate a public link of a file/folder in MEGA
          *
          * The associated request type with this request is MegaRequest::TYPE_EXPORT
@@ -16748,7 +16910,8 @@ class MegaApi
                FILE_TYPE_MISC,
                FILE_TYPE_SPREADSHEET,
                FILE_TYPE_ALL_DOCS,    // any of {DOCUMENT, PDF, PRESENTATION, SPREADSHEET}
-               FILE_TYPE_LAST = FILE_TYPE_ALL_DOCS,
+               FILE_TYPE_OTHERS,
+               FILE_TYPE_LAST = FILE_TYPE_OTHERS,
              };
 
         enum { SEARCH_TARGET_INSHARE = 0,
@@ -16929,6 +17092,7 @@ class MegaApi
          * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+         * @param searchPage Container for pagination options; if null, all results will be returned
          *
          * @return List with found children as MegaNode objects
          */
@@ -18033,6 +18197,7 @@ class MegaApi
          * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @param cancelToken MegaCancelToken to be able to cancel the search at any time.
+         * @param searchPage Container for pagination options; if null, all results will be returned
          *
          * @return List with found nodes as MegaNode objects
          */
@@ -22347,6 +22512,7 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getParentHandle - Returns the node handle of the parent node in the tree
+         * - MegaRequest::getMegaNodeTree - Returns the Node Tree updated after it was created
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EARGS - Parameters are incorrect.
@@ -23962,7 +24128,8 @@ public:
  *  - ID.
  *  - Title.
  *  - Description.
- *  - Image name for the notification.
+ *  - Name of the main image for the notification.
+ *  - Name of the icon for the notification.
  *  - Default static path for the notification image.
  *  - Timestamp of when the notification became available to the user.
  *  - Timestamp of when the notification will expire.
@@ -24009,14 +24176,24 @@ public:
     virtual const char* getDescription() const = 0;
 
     /**
-     * @brief Get the image name for this notification.
+     * @brief Get the name of the main image for this notification.
      *
      * The caller does not take the ownership of the const char* object.
      * The const char* object is valid as long as the current MegaNotification object is valid too.
      *
-     * @return the image name for this notification, always not-null.
+     * @return the name of the main image for this notification, always not-null.
      */
     virtual const char* getImageName() const = 0;
+
+    /**
+     * @brief Get the name of the icon for this notification.
+     *
+     * The caller does not take the ownership of the const char* object.
+     * The const char* object is valid as long as the current MegaNotification object is valid too.
+     *
+     * @return the name of the icon for this notification, always not-null.
+     */
+    virtual const char* getIconName() const = 0;
 
     /**
      * @brief Get the default static path of the image associated with this notification.
@@ -24077,7 +24254,7 @@ public:
      * This copy is meant to be used from another scope which must survive the actual owner of this MegaNotification object.
      * The caller takes the ownership of the new MegaNotification object.
      *
-     * @return MegaNotification* with the copied MegaNotification object.
+     * @return MegaNotification* of the copied object.
      */
     virtual MegaNotification* copy() const = 0;
 };

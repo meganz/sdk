@@ -452,6 +452,16 @@ double MegaNode::getLongitude()
     return INVALID_COORDINATE;
 }
 
+const char* MegaNode::getDescription()
+{
+    return NULL;
+}
+
+MegaStringList* MegaNode::getTags()
+{
+    return NULL;
+}
+
 char *MegaNode::getBase64Handle()
 {
     return NULL;
@@ -1185,6 +1195,11 @@ MegaVpnCredentials* MegaRequest::getMegaVpnCredentials() const
 }
 
 const MegaNotificationList* MegaRequest::getMegaNotifications() const
+{
+    return nullptr;
+}
+
+const MegaNodeTree* MegaRequest::getMegaNodeTree() const
 {
     return nullptr;
 }
@@ -2865,6 +2880,26 @@ void MegaApi::setNodeCoordinates(MegaNode *node, double latitude, double longitu
 void MegaApi::setUnshareableNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener)
 {
     pImpl->setNodeCoordinates(node, true, latitude, longitude, listener);
+}
+
+void MegaApi::setNodeDescription(MegaNode* node, const char* description, MegaRequestListener* listener)
+{
+    pImpl->setNodeDescription(node, description, listener);
+}
+
+void MegaApi::addNodeTag(MegaNode* node, const char* tag, MegaRequestListener* listener)
+{
+    pImpl->addNodeTag(node, tag, listener);
+}
+
+void MegaApi::removeNodeTag(MegaNode* node, const char* tag, MegaRequestListener* listener)
+{
+    pImpl->removeNodeTag(node, tag, listener);
+}
+
+void MegaApi::updateNodeTag(MegaNode* node, const char* newTag, const char* oldTag, MegaRequestListener* listener)
+{
+    pImpl->updateNodeTag(node, newTag, oldTag, listener);
 }
 
 void MegaApi::exportNode(MegaNode *node, MegaRequestListener *listener)
@@ -7811,7 +7846,7 @@ MegaVpnCredentials* MegaVpnCredentials::copy() const
 }
 /* MegaVpnCredentials END */
 
-MegaNodeTree* MegaNodeTree::createInstance(MegaNodeTree* nodeTreeChild,
+MegaNodeTree* MegaNodeTree::createInstance(const MegaNodeTree* nodeTreeChild,
                                            const char* name,
                                            const char* s4AttributeValue,
                                            const MegaCompleteUploadData* completeUploadData,
@@ -7837,12 +7872,15 @@ MegaCompleteUploadData* MegaCompleteUploadData::createInstance(const char* finge
 MegaGfxProvider::~MegaGfxProvider() = default;
 
 MegaGfxProvider* MegaGfxProvider::createIsolatedInstance(
-    const char* pipeName,
+    const char* endpointName,
     const char* executable)
 {
+    if (!endpointName || !executable) return nullptr;
+
     auto provider = MegaGfxProviderPrivate::createIsolatedInstance(
-        std::string(pipeName ? pipeName : ""),
-        std::string(executable ? executable : ""));
+        std::string(endpointName),
+        std::string(executable)
+    );
 
     return provider.release();
 }

@@ -84,5 +84,5 @@ void ThreadPool::asyncThreadLoop()
     }
 }
 
-} // end namespace gfx
-} // end namespace mega
+} // namespace
+}

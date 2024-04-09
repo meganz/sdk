@@ -4125,4 +4125,12 @@ using namespace mega;
     }
 }
 
++ (nullable NSString *)generateRandomPasswordWithCapitalLetters:(BOOL)includeCapitalLetters digits:(BOOL)includeDigits symbols:(BOOL)includeSymbols length:(int)length {
+    const char *result = MegaApi::generateRandomCharsPassword(includeCapitalLetters, includeDigits, includeSymbols, length);
+    if (!result) return nil;
+    NSString *password = [NSString stringWithUTF8String:result];
+    delete [] result;
+    return password;
+}
+
 @end

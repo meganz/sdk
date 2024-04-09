@@ -1,49 +1,68 @@
 #include "executable_dir.h"
 
-#include "server_win32.h"
+#include "mega/logging.h"
+#include "server.h"
 #include "processor.h"
 
 #include "mega/gfx.h"
-#include "mega/win32/gfx/worker/comms_client.h"
 #include "mega/gfx/worker/client.h"
+#include "mega/utils.h"
 
 #include <gtest/gtest.h>
 
 #include <memory>
+#include <system_error>
 #include <thread>
 #include <chrono>
 #include <vector>
 #include <cstdlib>
 
-
-using mega::gfx::ServerWin32;
-using mega::gfx::WinGfxCommunicationsClient;
+using mega::gfx::Server;
 using mega::gfx::RequestProcessor;
-using mega::gfx::GfxProcessor;
 using mega::gfx::GfxClient;
-using mega::gfx::IEndpoint;
+using mega::gfx::GfxCommunicationsClient;
 using mega::GfxDimension;
 using mega::LocalPath;
+using mega::getCurrentPid;
 using mega_test::ExecutableDir;
 using namespace std::chrono_literals;
 
+#if !defined(WIN32) && defined(ENABLE_ISOLATED_GFX)
+#include "mega/posix/gfx/worker/socket_utils.h"
+#include <filesystem>
+
+using mega::gfx::SocketUtils;
+#endif
 
 class ServerClientTest : public testing::Test
 {
 protected:
     void SetUp() override
     {
-        mPipeName = "MEGA_GFXWOKER_UNIT_TEST";
+        std::ostringstream oss;
+        oss << "MEGA_GFXWOKER_UNIT_TEST_" << getCurrentPid();
+        mEndpointName = oss.str();
     }
 
-    std::string mPipeName;
+    void TearDown() override
+    {
+    #if !defined(WIN32) && defined(ENABLE_ISOLATED_GFX)
+        // Clean up socket file on UNIX
+        if (std::error_code errorCode = SocketUtils::removeSocketFile(mEndpointName))
+        {
+            LOG_err << "Failed to remove socket path " << mEndpointName << ": " << errorCode.message();
+        }
+    #endif
+    }
+
+    std::string mEndpointName; // Used as pipe name on Windows, domain socket name on Linux
 };
 
 TEST_F(ServerClientTest, RunGfxTaskSuccessfully)
 {
-    ServerWin32 server(
+    Server server(
         ::mega::make_unique<RequestProcessor>(),
-        mPipeName
+        mEndpointName
     );
 
     std::thread serverThread(std::ref(server));
@@ -60,7 +79,7 @@ TEST_F(ServerClientTest, RunGfxTaskSuccessfully)
 
     EXPECT_TRUE(
         GfxClient(
-            mega::make_unique<WinGfxCommunicationsClient>(mPipeName)
+            mega::make_unique<GfxCommunicationsClient>(mEndpointName)
         ).runGfxTask(jpgImage.toPath(false), dimensions, images)
     );
     EXPECT_EQ(images.size(), 2);
@@ -70,7 +89,7 @@ TEST_F(ServerClientTest, RunGfxTaskSuccessfully)
     // shutdown
     EXPECT_TRUE(
         GfxClient(
-            mega::make_unique<WinGfxCommunicationsClient>(mPipeName)
+            mega::make_unique<GfxCommunicationsClient>(mEndpointName)
         ).runShutDown()
     );
 
@@ -82,25 +101,25 @@ TEST_F(ServerClientTest, RunGfxTaskSuccessfully)
 
 TEST_F(ServerClientTest, RunHelloRequestResponseSuccessfully)
 {
-    ServerWin32 server(
+    Server server(
         ::mega::make_unique<RequestProcessor>(),
-        mPipeName
+        mEndpointName
     );
 
     std::thread serverThread(std::ref(server));
 
     // allow server starting up as runHello doesn't have connect retry
-    std::this_thread::sleep_for(100ms);
+    std::this_thread::sleep_for(1000ms);
 
     EXPECT_TRUE(
         GfxClient(
-            mega::make_unique<WinGfxCommunicationsClient>(mPipeName)
+            mega::make_unique<GfxCommunicationsClient>(mEndpointName)
         ).runHello("")
     );
 
     EXPECT_TRUE(
         GfxClient(
-            mega::make_unique<WinGfxCommunicationsClient>(mPipeName)
+            mega::make_unique<GfxCommunicationsClient>(mEndpointName)
         ).runShutDown()
     );
 
@@ -112,9 +131,9 @@ TEST_F(ServerClientTest, RunHelloRequestResponseSuccessfully)
 
 TEST_F(ServerClientTest, RunSupportformatsRequestResponseSuccessfully)
 {
-    ServerWin32 server(
+    Server server(
         ::mega::make_unique<RequestProcessor>(),
-        mPipeName
+        mEndpointName
     );
 
     std::thread serverThread(std::ref(server));
@@ -123,7 +142,7 @@ TEST_F(ServerClientTest, RunSupportformatsRequestResponseSuccessfully)
     std::string formats, videoformats;
     EXPECT_TRUE(
         GfxClient(
-            mega::make_unique<WinGfxCommunicationsClient>(mPipeName)
+            mega::make_unique<GfxCommunicationsClient>(mEndpointName)
         ).runSupportFormats(formats, videoformats)
     );
 
@@ -142,7 +161,7 @@ TEST_F(ServerClientTest, RunSupportformatsRequestResponseSuccessfully)
 
     EXPECT_TRUE(
         GfxClient(
-            mega::make_unique<WinGfxCommunicationsClient>(mPipeName)
+            mega::make_unique<GfxCommunicationsClient>(mEndpointName)
         ).runShutDown()
     );
 
@@ -156,7 +175,7 @@ TEST_F(ServerClientTest, RunCommandsReturnFalseWhileServerIsNotRunning)
 {
     EXPECT_FALSE(
         GfxClient(
-            mega::make_unique<WinGfxCommunicationsClient>(mPipeName)
+            mega::make_unique<GfxCommunicationsClient>(mEndpointName)
         ).runShutDown()
     );
 
@@ -166,7 +185,7 @@ TEST_F(ServerClientTest, RunCommandsReturnFalseWhileServerIsNotRunning)
 
     EXPECT_FALSE(
         GfxClient(
-            mega::make_unique<WinGfxCommunicationsClient>(mPipeName)
+            mega::make_unique<GfxCommunicationsClient>(mEndpointName)
         ).runGfxTask("anyimagename.jpg", dimensions, images)
     );
 }

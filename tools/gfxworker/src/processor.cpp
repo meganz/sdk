@@ -198,5 +198,5 @@ void RequestProcessor::processSupportFormats(IEndpoint* endpoint)
     writer.writeCommand(&response, WRITE_TIMEOUT);
 }
 
-} //namespace server
-} //namespace gfx
+} // namespace
+}

@@ -483,7 +483,8 @@ struct DynamicMessageNotification
     int64_t id = 0;
     std::string title;
     std::string description;
-    std::string imageName;
+    std::string imageName; // main notification image
+    std::string iconName;
     std::string imagePath;
     int64_t start = 0;
     int64_t end = 0;
@@ -742,6 +743,10 @@ public:
     // check if the available bandwidth quota is enough to transfer an amount of bytes
     void querytransferquota(m_off_t size);
 
+    static constexpr char NODE_ATTRIBUTE_DESCRIPTION[] = "des";
+    static constexpr char NODE_ATTRIBUTE_TAGS[] = "t";
+    static constexpr char TAG_DELIMITER = ',';
+
     // update node attributes
     error setattr(std::shared_ptr<Node>, attr_map&& updates, CommandSetAttr::Completion&& c, bool canChangeVault);
 
@@ -751,6 +756,11 @@ public:
     // convenience version of the above (frequently we are passing a NodeBase's attrstring)
     static void makeattr(SymmCipher*, const std::unique_ptr<string>&, const char*, int = -1);
 
+    error addTagToNode(std::shared_ptr<Node> node, const std::string& tag, CommandSetAttr::Completion&& c);
+    error removeTagFromNode(std::shared_ptr<Node> node, const std::string& tag, CommandSetAttr::Completion&& c);
+    error updateTagNode(std::shared_ptr<Node>, const std::string& newTag, const std::string& oldTag, CommandSetAttr::Completion&& c);
+
+public:
     // check node access level
     int checkaccess(Node*, accesslevel_t);
 
@@ -880,7 +890,12 @@ public:
     void delua(const char* an);
 
     // send dev command for testing
-    void senddevcommand(const char *command, const char *email, long long q = 0, int bs = 0, int us = 0);
+    void senddevcommand(const char* command,
+                        const char* email,
+                        long long q = 0,
+                        int bs = 0,
+                        int us = 0,
+                        const char* abs_c = nullptr);
 #endif
 
     // delete or block an existing contact
@@ -1450,6 +1465,16 @@ public:
     // maximum number of concurrent transfers (uploads or downloads)
     static const unsigned MAXTRANSFERS;
 
+    // minimum maximum number of concurrent transfers for dynamic calculation
+    static const unsigned MIN_MAXTRANSFERS;
+
+    // maximum number of concurrent raided transfers for mobile
+    static const unsigned MAX_RAIDTRANSFERS_FOR_MOBILE;
+
+    // meaningful portion of the maximum transfer queue size to consider raid representation
+    // i.e., there must be at least this number of raid transfers to let us predict whether the next download transfer will be raided or non-raided
+    static const unsigned MEANINGFUL_PORTION_OF_MAXTRANSFERS_QUEUE_FOR_RAID_PREDICTIVE_SYSTEM;
+
     // maximum number of queued putfa before halting the upload queue
     static const int MAXQUEUEDFA;
 
@@ -1788,6 +1813,9 @@ public:
     // transfer tslots
     transferslot_list tslots;
 
+    // raid transfers counter
+    unsigned raidTransfersCounter{};
+
     // keep track of next transfer slot timeout
     BackoffTimerGroupTracker transferSlotsBackoff;
 
@@ -1906,6 +1934,9 @@ public:
 
     // determine if the file is a spreadsheet.
     bool nodeIsSpreadsheet(const Node* n) const;
+
+    // determine if the file is not in any of the other file types.
+    bool nodeIsOtherType(const Node* n) const;
 
     // functions for determining whether we can clone a node instead of upload
     // or whether two files are the same so we can just upload/download the data once

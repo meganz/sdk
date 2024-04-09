@@ -85,7 +85,6 @@
 #include <shellapi.h>
 
 #define atoll _atoi64
-#define snprintf mega_snprintf
 #define strncasecmp _strnicmp
 #define strtoull _strtoui64
 #if _MSC_VER <= 1800 && !defined (__MINGW32__)// Visual Studio 2013
