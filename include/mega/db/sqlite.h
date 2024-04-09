@@ -171,6 +171,8 @@ public:
     // Gets the mimetype corresponding to the file extension
     static void userGetMimetype(sqlite3_context* context, int argc, sqlite3_value** argv);
 
+    static void userIsContained(sqlite3_context* context, int argc, sqlite3_value** argv);
+
 private:
     // Iterate over a SQL query row by row and fill the map
     // Allow at least the following containers:

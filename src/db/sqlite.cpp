@@ -204,6 +204,14 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
         return nullptr;
     }
 
+    result = sqlite3_create_function(db, "isContained", 2, SQLITE_ANY,0, &SqliteAccountState::userIsContained, 0, 0);
+    if (result)
+    {
+        LOG_err << "Data base error(sqlite3_create_function userIsContained): " << sqlite3_errmsg(db);
+        sqlite3_close(db);
+        return nullptr;
+    }
+
     return new SqliteAccountState(rng,
                                 db,
                                 fsAccess,
@@ -1581,7 +1589,7 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int o
                                                                 ',' + std::to_string(MIME_TYPE_SPREADSHEET) + "))"
                                               " OR mimetype = ?8))) "
                                  "AND (?11 = 0 OR (name REGEXP ?9)) "
-                                 "AND (?14 = 0 OR (description REGEXP ?15)) "
+                                 "AND (?14 = 0 OR isContained(?15, description)) "
                                  // Leading and trailing '*' will be added to argument '?' so we are looking for substrings containing name
                                  // Our REGEXP implementation is case insensitive
 
@@ -1610,15 +1618,13 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter, int o
         const string& nameFilter = filter.byName();
         bool matchWildcard = std::any_of(nameFilter.begin(), nameFilter.end(), [](const char& c) { return c != '*'; });
         const string& wildCardName = matchWildcard ? '*' + filter.byName() + '*' : nameFilter;
-        const string& byDescription = filter.byDescription();
-        string descriptionFilter = '*' + byDescription + '*'; // Add wild cards to allow partial searches
         if ((sqlResult = sqlite3_bind_text(stmt, 9, wildCardName.c_str(), static_cast<int>(wildCardName.length()), SQLITE_STATIC)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int(stmt, 10, order)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int(stmt, 11, matchWildcard)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int64(stmt, 12, page.size() ? static_cast<sqlite3_int64>(page.size()) : -1)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int64(stmt, 13, page.startingOffset())) == SQLITE_OK &&
-            (sqlResult = sqlite3_bind_int(stmt, 14, static_cast<int>(byDescription.size()))) == SQLITE_OK &&
-            (sqlResult = sqlite3_bind_text(stmt, 15, descriptionFilter.c_str(), static_cast<int>(descriptionFilter.size()), SQLITE_STATIC)) == SQLITE_OK)
+            (sqlResult = sqlite3_bind_int(stmt, 14, static_cast<int>(filter.byDescription().size()))) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_text(stmt, 15, filter.byDescription().c_str(), static_cast<int>(filter.byDescription().size()), SQLITE_STATIC)) == SQLITE_OK)
         {
             result = processSqlQueryNodes(stmt, children);
         }
@@ -1707,7 +1713,7 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
                                            ',' + std::to_string(MIME_TYPE_SPREADSHEET) + "))"
                          " OR mimetype = ?8))) \n"
             "AND (?13 = 0 OR (name REGEXP ?9)) \n"
-            "AND (?17 = 0 OR (description REGEXP ?18))";
+            "AND (?17 = 0 OR isContained(?18, description))";
             // Leading and trailing '*' will be added to argument '?' so we are looking for substrings containing name
             // Our REGEXP implementation is case insensitive
 
@@ -1757,8 +1763,6 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
         const string& byName = filter.byName();
         bool matchWildcard = std::any_of(byName.begin(), byName.end(), [](const char& c) { return c != '*'; });
         const string& nameFilter = matchWildcard ? '*' + byName + '*' : byName;
-        const string& byDescription = filter.byDescription();
-        string descriptionFilter = '*' + byDescription + '*';
         if ((sqlResult = sqlite3_bind_text(stmt, 9, nameFilter.c_str(), static_cast<int>(nameFilter.size()), SQLITE_STATIC)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int(stmt, 10, order)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int64(stmt, 11, filter.byAncestorHandles()[0])) == SQLITE_OK &&
@@ -1767,8 +1771,8 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter, int order, 
             (sqlResult = sqlite3_bind_int64(stmt, 14, page.size() ? static_cast<sqlite3_int64>(page.size()) : -1)) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int64(stmt, 15, page.startingOffset())) == SQLITE_OK &&
             (sqlResult = sqlite3_bind_int64(stmt, 16, filter.byAncestorHandles()[2])) == SQLITE_OK &&
-            (sqlResult = sqlite3_bind_int(stmt, 17, static_cast<int>(byDescription.size()))) == SQLITE_OK &&
-            (sqlResult = sqlite3_bind_text(stmt, 18, descriptionFilter.c_str(), static_cast<int>(descriptionFilter.size()), SQLITE_STATIC)) == SQLITE_OK)
+            (sqlResult = sqlite3_bind_int(stmt, 17, static_cast<int>(filter.byDescription().size()))) == SQLITE_OK &&
+            (sqlResult = sqlite3_bind_text(stmt, 18, filter.byDescription().c_str(), static_cast<int>(filter.byDescription().size()), SQLITE_STATIC)) == SQLITE_OK)
         {
             result = processSqlQueryNodes(stmt, nodes);
         }
@@ -2419,7 +2423,7 @@ void SqliteAccountState::userRegexp(sqlite3_context* context, int argc, sqlite3_
     const uint8_t* dataBaseName = static_cast<const uint8_t*>(sqlite3_value_text(argv[1]));
     if (dataBaseName && pattern)
     {
-        int result = SqliteAccountState::icuLikeCompare(pattern, dataBaseName, 0);
+        int result = icuLikeCompare(pattern, dataBaseName, 0);
         sqlite3_result_int(context, result);
     }
 }
@@ -2464,8 +2468,8 @@ int SqliteAccountState::icuLikeCompare(
         const UChar32 uEsc)         // The escape character
 {
     // Define Linux wildcards
-    static const uint32_t MATCH_ONE = (uint32_t)'?';
-    static const uint32_t MATCH_ALL = (uint32_t)'*';
+    static const uint32_t MATCH_ONE = (uint32_t)WILDCARD_MATCH_ONE;
+    static const uint32_t MATCH_ALL = (uint32_t)WILDCARD_MATCH_ALL;
 
     int prevEscape = 0;     //True if the previous character was uEsc
 
@@ -2590,6 +2594,33 @@ void SqliteAccountState::userGetMimetype(sqlite3_context* context, int argc, sql
     int result = (fileName && *fileName && Node::getExtension(ext, fileName) && !ext.empty()) ?
                  Node::getMimetype(ext) : MimeType_t::MIME_TYPE_OTHERS;
     sqlite3_result_int(context, result);
+}
+
+void SqliteAccountState::userIsContained(sqlite3_context* context, int argc, sqlite3_value** argv)
+{
+    if (argc != 2)
+    {
+        LOG_err << "Invalid parameters for userIsContained";
+        assert(false);
+        sqlite3_result_int(context, 0);
+        return;
+    }
+
+    std::string stringToMatch(reinterpret_cast<const char*>(sqlite3_value_text(argv[0])));
+
+    std::string stringAddingWildcards{WILDCARD_MATCH_ALL};
+    stringAddingWildcards.append(std::move(escapeWildCards(stringToMatch)));
+    stringAddingWildcards.push_back(WILDCARD_MATCH_ALL);
+
+    const uint8_t* pattern = reinterpret_cast<const uint8_t*>(stringAddingWildcards.c_str());
+    const uint8_t* dataBaseName = static_cast<const uint8_t*>(sqlite3_value_text(argv[1]));
+    if (dataBaseName && pattern)
+    {
+        int result = icuLikeCompare(pattern, dataBaseName, ESCAPE_CHARACTER);
+        sqlite3_result_int(context, result);
+    }
+
+    sqlite3_result_int(context, 0);
 }
 
 std::string OrderByClause::get(int order, int sqlParamIndex)

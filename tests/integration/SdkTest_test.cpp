@@ -18437,6 +18437,21 @@ TEST_F(SdkTest, SdkNodeDescription)
     // Remove description
     changeNodeDescription(mh, nullptr);
 
+    changeNodeDescription(mh, "This is a description with *starts* to test if it's found correctly");
+
+    MegaHandle nodeCopiedHandle = UNDEF;
+    ASSERT_EQ(API_OK, doCopyNode(0, &nodeCopiedHandle, node.get(), rootnodeA.get(), "test2.txt")) << "Cannot create a copy of a node";
+
+    changeNodeDescription(nodeCopiedHandle, "This is a description without starts to test if it's found correctly");
+
+    filter->byDescription("start");
+    nodeList.reset(megaApi[0]->search(filter.get()));
+    ASSERT_EQ(nodeList->size(), 2);
+
+    filter->byDescription("*star");
+    nodeList.reset(megaApi[0]->search(filter.get()));
+    ASSERT_EQ(nodeList->size(), 1);
+
     deleteFile(filename);
 }
 
