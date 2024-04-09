@@ -36515,19 +36515,19 @@ MegaTextChatListPrivate::MegaTextChatListPrivate(textchat_map *list)
 }
 
 MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate()
-    : mScheduledFlags(mega::make_unique<ScheduledFlags>())
+    : mScheduledFlags(std::make_unique<ScheduledFlags>())
 {}
 
 MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate(const unsigned long numericValue)
-    : mScheduledFlags(mega::make_unique<ScheduledFlags>(numericValue))
+    : mScheduledFlags(std::make_unique<ScheduledFlags>(numericValue))
 {}
 
 MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate(const MegaScheduledFlagsPrivate *flags)
-    : mScheduledFlags(mega::make_unique<ScheduledFlags>(flags ? flags->getNumericValue() : ScheduledFlags::schedEmptyFlags))
+    : mScheduledFlags(std::make_unique<ScheduledFlags>(flags ? flags->getNumericValue() : ScheduledFlags::schedEmptyFlags))
 {}
 
 MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate(const ScheduledFlags* flags)
-    : mScheduledFlags(mega::make_unique<ScheduledFlags>(flags ? flags->getNumericValue() : ScheduledFlags::schedEmptyFlags))
+    : mScheduledFlags(std::make_unique<ScheduledFlags>(flags ? flags->getNumericValue() : ScheduledFlags::schedEmptyFlags))
 {}
 
 void MegaScheduledFlagsPrivate::reset()                             { mScheduledFlags->reset(); }
@@ -36546,7 +36546,7 @@ unique_ptr<ScheduledFlags> MegaScheduledFlagsPrivate::getSdkScheduledFlags() con
 MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(const int freq, const int interval, const MegaTimeStamp until,
                                                      const MegaIntegerList* byWeekDay, const MegaIntegerList* byMonthDay,
                                                      const MegaIntegerMap* byMonthWeekDay)
-    : mScheduledRules(mega::make_unique<ScheduledRules>(
+    : mScheduledRules(std::make_unique<ScheduledRules>(
                           isValidFreq(freq) ? freq : FREQ_INVALID,
                           isValidInterval(interval) ? interval : int{INTERVAL_INVALID},
                           //                                     ^^^^^^^^^^^^^^^^^^^^^
@@ -36633,7 +36633,7 @@ MegaScheduledMeetingPrivate::MegaScheduledMeetingPrivate(const MegaHandle chatid
                                                          MegaHandle parentSchedId, MegaHandle organizerUserId, int cancelled,
                                                          const char* attributes, MegaTimeStamp overrides,
                                                          const MegaScheduledFlags* flags, const MegaScheduledRules* rules)
-    : mScheduledMeeting(mega::make_unique<ScheduledMeeting>(
+    : mScheduledMeeting(std::make_unique<ScheduledMeeting>(
                             chatid,
                             timezone ? timezone : std::string(),
                             startDateTime, endDateTime,
