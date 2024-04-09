@@ -3663,13 +3663,13 @@ void exec_timelocal(autocomplete::ACState& s)
 
             if (!get)
             {
-                if (::mega::abs(set_time - fp.mtime) <= 2)
+                if (abs(set_time - fp.mtime) <= 2)
                 {
-                    cout << "mtime read back is within 2 seconds, so success. Actual difference: " << ::mega::abs(set_time - fp.mtime) << endl;
+                    cout << "mtime read back is within 2 seconds, so success. Actual difference: " << abs(set_time - fp.mtime) << endl;
                 }
                 else
                 {
-                    cout << "ERROR Silent failure in setmtimelocal, difference is " << ::mega::abs(set_time - fp.mtime) << endl;
+                    cout << "ERROR Silent failure in setmtimelocal, difference is " << abs(set_time - fp.mtime) << endl;
                 }
             }
         }
@@ -4462,7 +4462,7 @@ bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
         if (!folders)
         {
             TransferDbCommitter committer(client->tctable);
-            auto file = ::mega::make_unique<AppFileGet>(n, NodeHandle(), nullptr, -1, 0, nullptr, nullptr, localpath.u8string());
+            auto file = std::make_unique<AppFileGet>(n, NodeHandle(), nullptr, -1, 0, nullptr, nullptr, localpath.u8string());
             error result = startxfer(committer, std::move(file), *n, client->nextreqtag());
             queued += result == API_OK ? 1 : 0;
         }
@@ -4510,7 +4510,7 @@ bool regexget(const string& expression, Node* n, unsigned& queued)
                 {
                     if (regex_search(string(node->displayname()), re))
                     {
-                        auto file = ::mega::make_unique<AppFileGet>(node.get());
+                        auto file = std::make_unique<AppFileGet>(node.get());
                         error result = startxfer(committer, std::move(file), *node, client->nextreqtag());
                         queued += result == API_OK ? 1 : 0;
                     }
@@ -5295,7 +5295,7 @@ void exec_get(autocomplete::ACState& s)
                         cout << "Initiating download..." << endl;
 
                         TransferDbCommitter committer(client->tctable);
-                        auto file = ::mega::make_unique<AppFileGet>(nullptr, NodeHandle().set6byte(ph), (byte*)key, size, 0, filename, fingerprint);
+                        auto file = std::make_unique<AppFileGet>(nullptr, NodeHandle().set6byte(ph), (byte*)key, size, 0, filename, fingerprint);
                         startxfer(committer, std::move(file), *filename, client->nextreqtag());
                     }
 
@@ -5344,7 +5344,7 @@ void exec_get(autocomplete::ACState& s)
                 // queue specified file...
                 if (n->type == FILENODE)
                 {
-                    auto f = ::mega::make_unique<AppFileGet>(n.get());
+                    auto f = std::make_unique<AppFileGet>(n.get());
 
                     string::size_type index = s.words[1].s.find(":");
                     // node from public folder link
@@ -5368,7 +5368,7 @@ void exec_get(autocomplete::ACState& s)
                     {
                         if (node->type == FILENODE)
                         {
-                            auto f = ::mega::make_unique<AppFileGet>(node.get());
+                            auto f = std::make_unique<AppFileGet>(node.get());
                             startxfer(committer, std::move(f), *node.get(), client->nextreqtag());
                         }
                     }
@@ -9971,7 +9971,7 @@ int main(int argc, char* argv[])
     if (gfx) gfx->startProcessingThread();
 
     // Needed so we can get the cwd.
-    auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
+    auto fsAccess = std::make_unique<FSACCESS_CLASS>();
 
 #ifdef __APPLE__
     // Try and raise the file descriptor limit as high as we can.
@@ -11350,7 +11350,7 @@ void exec_setsandelements(autocomplete::ACState& s)
         cout << "\tInitiating download..." << endl;
 
         TransferDbCommitter committer(client->tctable);
-        auto file = ::mega::make_unique<AppFileGet>(nullptr,
+        auto file = std::make_unique<AppFileGet>(nullptr,
                                                     NodeHandle().set6byte(element->node()),
                                                     reinterpret_cast<const byte*>(element->key().c_str()), fileSize, tm,
                                                     &fileName, &fingerprint);
@@ -11958,7 +11958,7 @@ void exec_passwordmanager(autocomplete::ACState& s)
     {
         // patch to allow setting to null taking into account that extractflag doesn't accept ""
         const string EMPTY = "EMPTY";
-        auto pwdData = make_unique<AttrMap>();
+        auto pwdData = std::make_unique<AttrMap>();
         if (!pwd.empty())
         {
             if (pwd == EMPTY) pwd.clear();
