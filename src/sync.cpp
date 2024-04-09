@@ -12148,6 +12148,8 @@ bool Syncs::isAnySyncSyncing() const
 {
     assert(onSyncThread());
 
+    lock_guard<mutex> guard(mSyncVecMutex);
+
     for (auto& us : mSyncVec)
     {
         if (Sync* sync = us->mSync.get())
@@ -12168,6 +12170,8 @@ bool Syncs::isAnySyncScanning_inThread() const
 {
     assert(onSyncThread());
 
+    lock_guard<mutex> guard(mSyncVecMutex);
+
     for (auto& us : mSyncVec)
     {
         if (Sync* sync = us->mSync.get())
@@ -12185,6 +12189,8 @@ bool Syncs::checkSyncsScanningWasComplete_inThread()
 {
     assert(onSyncThread());
 
+    lock_guard<mutex> guard(mSyncVecMutex);
+
     bool allSyncsScanningWereComplete = true;
     for (auto& us : mSyncVec)
     {
@@ -12200,6 +12206,8 @@ void Syncs::unsetSyncsScanningWasComplete_inThread()
 {
     assert(onSyncThread());
 
+    lock_guard<mutex> guard(mSyncVecMutex);
+
     for (auto& us : mSyncVec)
     {
         if (Sync* sync = us->mSync.get())
@@ -12212,6 +12220,8 @@ void Syncs::unsetSyncsScanningWasComplete_inThread()
 bool Syncs::checkSyncsMovesWereComplete()
 {
     assert(onSyncThread());
+
+    lock_guard<mutex> guard(mSyncVecMutex);
 
     bool allSyncsMovesWereComplete = true;
     for (auto& us : mSyncVec)
