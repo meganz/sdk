@@ -7847,6 +7847,7 @@ void MegaClient::sc_uec()
                 {
                     LOG_warn << "Missing user handle in `uec` action packet";
                 }
+                if (u == me && email.size()) setEmail(ownuser(), email);
                 app->account_updated();
                 app->notify_confirm_user_email(u, email.c_str());
                 ephemeralSession = false;
@@ -8641,13 +8642,12 @@ error MegaClient::updateTagNode(std::shared_ptr<Node> node,
         return API_EEXIST;
     }
 
-    auto it = tokens.find(oldTag);
-    if (it == tokens.end())
+    auto removedElements = tokens.erase(oldTag);
+    if (!removedElements)
     {
         return API_ENOENT;
     }
 
-    tokens.erase(it);
     std::string str = joinStrings(tokens.begin(), tokens.end(), std::string{TAG_DELIMITER});
 
     AttrMap map;
@@ -8655,36 +8655,6 @@ error MegaClient::updateTagNode(std::shared_ptr<Node> node,
     setattr(node, std::move(map.map), std::move(c), false);
 
     return API_OK;
-}
-
-std::set<std::string> MegaClient::splitString(const string& str, char delimiter)
-{
-    std::set<std::string> tokens;
-    std::string token;
-    std::istringstream tokenStream(str);
-    while (std::getline(tokenStream, token, delimiter))
-    {
-        tokens.insert(token);
-    }
-
-    return tokens;
-}
-
-template<typename Iter>
-std::string MegaClient::joinStrings(const Iter begin, const Iter end, const std::string& separator)
-{
-    Iter position = begin;
-    std::string result;
-    if (position != end)
-    {
-        result += *position++;
-    }
-
-    while (position != end)
-    {
-        result += separator + *position++;
-    }
-    return result;
 }
 
 // update node attributes
@@ -11348,11 +11318,7 @@ void MegaClient::mapuser(handle uh, const char* email)
         // if mapping a different email, remove old index
         if (strcmp(u->email.c_str(), nuid.c_str()))
         {
-            if (u->email.size())
-            {
-                umindex.erase(u->email);
-            }
-
+            umindex.erase(u->email);
             JSON::copystring(&u->email, nuid.c_str());
         }
 
@@ -11423,12 +11389,6 @@ void MegaClient::discarduser(handle uh, bool discardnotified)
 {
     User *u = finduser(uh);
     dodiscarduser(u, discardnotified);
-}
-
-void MegaClient::discarduser(const char *email)
-{
-    User *u = finduser(email);
-    dodiscarduser(u, true);
 }
 
 PendingContactRequest* MegaClient::findpcr(handle p)

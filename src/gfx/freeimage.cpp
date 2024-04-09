@@ -41,12 +41,6 @@ typedef const char freeimage_filename_char_t;
 
 #ifdef HAVE_FFMPEG
 extern "C" {
-#ifdef _WIN32
-#pragma warning(disable:4996)
-#pragma warning(push)
-#pragma warning(disable:4242)
-#pragma warning(disable:4244)
-#endif
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
 #include <libswscale/swscale.h>
@@ -54,9 +48,6 @@ extern "C" {
 #include <libavutil/mathematics.h>
 #include <libavutil/display.h>
 #include <libavutil/imgutils.h>
-#ifdef _WIN32
-#pragma warning(pop)
-#endif
 }
 #endif
 

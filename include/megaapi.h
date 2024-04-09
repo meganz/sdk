@@ -271,12 +271,12 @@ public:
     /**
     * @brief Create a graphics processor that implemented and run in an isolated process.
     *
-    * Note: Currently, only Windows is supported.
+    * Note: Windows, Linux are supported.
     *
-    * @param pipeName The unique named pipe's name used for communicating with the isolated process.
+    * @param endpointName The unique name used for communicating with the isolated process.
     * @param executable The executable path.
     */
-    static MegaGfxProvider* createIsolatedInstance(const char* pipeName,
+    static MegaGfxProvider* createIsolatedInstance(const char* endpointName,
                                                    const char* executable);
 
     /**
@@ -9629,10 +9629,10 @@ protected:
 
 public:
     virtual ~MegaNodeTree() = default;
-    static MegaNodeTree* createInstance(MegaNodeTree* nodeTreeChild,                      // takes ownership !
-                                        const char* name,                                 // ownership left with the caller
-                                        const char* s4AttributeValue,                     // ownership left with the caller
-                                        const MegaCompleteUploadData* completeUploadData, // takes ownership !
+    static MegaNodeTree* createInstance(const MegaNodeTree* nodeTreeChild,
+                                        const char* name,
+                                        const char* s4AttributeValue,
+                                        const MegaCompleteUploadData* completeUploadData,
                                         MegaHandle sourceHandle = INVALID_HANDLE);
     virtual MegaNodeTree* getNodeTreeChild() const = 0;
     virtual MegaHandle getNodeHandle() const = 0;
@@ -9966,6 +9966,7 @@ class MegaApi
 
         static constexpr int64_t INVALID_CUSTOM_MOD_TIME = -1;
         static constexpr int CHAT_OPTIONS_EMPTY = 0;
+        static constexpr int MAX_NODE_DESCRIPTION_SIZE = 3000;
 
         /**
          * @brief Constructor suitable for most applications
@@ -13636,6 +13637,9 @@ class MegaApi
          * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_DESCRIPTION
          * - MegaRequest::getText - Returns node description
          *
+         * If the size of the description is greater than MAX_NODE_DESCRIPTION_SIZE, onRequestFinish will be
+         * called with the error code MegaError::API_EARGS.
+         *
          * If the MEGA account is a business account and its status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
@@ -17098,6 +17102,7 @@ class MegaApi
          * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+         * @param searchPage Container for pagination options; if null, all results will be returned
          *
          * @return List with found children as MegaNode objects
          */
@@ -18202,6 +18207,7 @@ class MegaApi
          * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @param cancelToken MegaCancelToken to be able to cancel the search at any time.
+         * @param searchPage Container for pagination options; if null, all results will be returned
          *
          * @return List with found nodes as MegaNode objects
          */

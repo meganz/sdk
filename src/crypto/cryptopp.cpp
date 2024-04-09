@@ -639,6 +639,36 @@ void SymmCipher::incblock(byte* dst, unsigned len)
     }
 }
 
+bool SymmCipher::isZeroKey(const byte* key, size_t keySize)
+{
+    if (!key)
+    {
+        // Invalid key pointer, consider it non-zero
+        LOG_warn << "[SymmCipher::isZeroKey] invalid key pointer";
+        assert(false && "[SymmCipher::isZeroKey] invalid key pointer");
+        return false;
+    }
+
+    if (keySize == FILENODEKEYLENGTH) // 32 (filekey, nodekey, etc)
+    {
+        static_assert(FILENODEKEYLENGTH == SymmCipher::BLOCKSIZE * 2);
+        // Check if the lower 16 bytes (0-15) are equal to the higher 16 bytes (16-31)
+        // This will be true either if the key is all zeros or it was generated with a 16-byte zero key (for example, the transferkey was a zerokey).
+        return std::memcmp(key /*key[0-15]*/, key + SymmCipher::BLOCKSIZE /*key[16-31]*/, SymmCipher::BLOCKSIZE) == 0;
+    }
+    else if (keySize == SymmCipher::BLOCKSIZE) // 16 (transfer key, client master key, etc)
+    {
+        // Check if all bytes are zero (zerokey)
+        static const byte zeroKey[SymmCipher::BLOCKSIZE] = {};
+        return std::memcmp(key, zeroKey, SymmCipher::BLOCKSIZE) == 0;
+    }
+
+    // Invalid key size, consider it non-zero
+    LOG_warn << "[SymmCipher::isZeroKey] used a keySize(" << keySize << ") different from 32 and 16 -> function will return false";
+    assert(false && "SymmCipher::isZeroKey used a keySize different from 32 and 16");
+    return false;
+}
+
 SymmCipher::SymmCipher(const SymmCipher &ref)
 {
     setkey(ref.key);

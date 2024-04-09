@@ -59,5 +59,5 @@ private:
     const static TimeoutMs WRITE_TIMEOUT;
 };
 
-} //namespace gfx
-} //namespace mega
+} // namespace
+}

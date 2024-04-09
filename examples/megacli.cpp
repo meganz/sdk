@@ -23,7 +23,6 @@
 #include "mega/arguments.h"
 #include "mega/filesystem.h"
 #include "mega/gfx.h"
-#include "mega/gfx/worker/client.h"
 #include "megacli.h"
 #include <chrono>
 #include <exception>
@@ -50,15 +49,30 @@
 #include <readline/history.h>
 #endif
 
-#include <filesystem>
-namespace fs = std::filesystem;
+#if (__cplusplus >= 201703L)
+    #include <filesystem>
+    namespace fs = std::filesystem;
+    #define USE_FILESYSTEM
+#elif !defined(__MINGW32__) && !defined(__ANDROID__) && (!defined(__GNUC__) || (__GNUC__*100+__GNUC_MINOR__) >= 503)
+#define USE_FILESYSTEM
+#ifdef WIN32
+    #include <filesystem>
+    namespace fs = std::experimental::filesystem;
+#else
+    #include <experimental/filesystem>
+    namespace fs = std::experimental::filesystem;
+#endif
+#endif
 
 #include <regex>
 
 #ifdef USE_FREEIMAGE
 #include "mega/gfx/freeimage.h"
 #endif
+
+#ifdef ENABLE_ISOLATED_GFX
 #include "mega/gfx/isolatedprocess.h"
+#endif
 
 #ifdef WIN32
 #include <winioctl.h>
@@ -147,7 +161,7 @@ Usage:
 #if defined(ENABLE_ISOLATED_GFX)
 R"(
   -e=arg               Use the isolated gfx processor. This gives executable binary path
-  -n=arg               Pipe name (default: mega_gfxworker_megacli)
+  -n=arg               Endpoint name (default: mega_gfxworker_megacli)
 )"
 #endif
 ;
@@ -155,7 +169,7 @@ struct Config
 {
     std::string executable;
 
-    std::string pipeName;
+    std::string endpointName;
 
     std::string clientType;
 
@@ -176,8 +190,8 @@ Config Config::fromArguments(const Arguments& arguments)
         throw std::runtime_error("Couldn't find Executable: " + config.executable);
     }
 
-    // pipe name
-    config.pipeName  = arguments.getValue("-n", "mega_gfxworker_megacli");
+    // endpoint name
+    config.endpointName = arguments.getValue("-n", "mega_gfxworker_megacli");
 #endif
 
     config.clientType = arguments.getValue("-c", "default");
@@ -188,16 +202,12 @@ Config Config::fromArguments(const Arguments& arguments)
 static std::unique_ptr<IGfxProvider> createGfxProvider([[maybe_unused]] const Config& config)
 {
 #if defined(ENABLE_ISOLATED_GFX)
-    if (!config.executable.empty())
+    if (auto provider = GfxProviderIsolatedProcess::create(config.endpointName, config.executable))
     {
-        auto process = std::make_unique<GfxIsolatedProcess>(config.pipeName, config.executable);
-        return std::make_unique<GfxProviderIsolatedProcess>(std::move(process));
+        return provider;
     }
-    else
 #endif
-    {
-        return IGfxProvider::createInternalGfxProvider();
-    }
+    return IGfxProvider::createInternalGfxProvider();
 }
 
 #ifdef ENABLE_SYNC
@@ -2173,6 +2183,7 @@ static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstre
     }
 }
 
+#ifdef USE_FILESYSTEM
 static void local_dumptree(const fs::path& de, int recurse, int depth = 0)
 {
     if (depth)
@@ -2205,6 +2216,7 @@ static void local_dumptree(const fs::path& de, int recurse, int depth = 0)
         }
     }
 }
+#endif
 
 static void nodepath(NodeHandle h, string* path)
 {
@@ -2896,6 +2908,7 @@ bool typematchesnodetype(nodetype_t pathtype, nodetype_t nodetype)
     }
 }
 
+#ifdef USE_FILESYSTEM
 bool recursiveCompare(Node* mn, fs::path p)
 {
     nodetype_t pathtype = fs::is_directory(p) ? FOLDERNODE : fs::is_regular_file(p) ? FILENODE : TYPE_UNKNOWN;
@@ -2964,7 +2977,7 @@ bool recursiveCompare(Node* mn, fs::path p)
         return false;
     };
 }
-
+#endif
 std::shared_ptr<Node> nodeFromRemotePath(const string& s)
 {
     std::shared_ptr<Node> n;
@@ -3050,6 +3063,7 @@ void setAppendAndUploadOnCompletedUploads(string local_path, int count, bool all
 
 std::deque<std::function<void()>> mainloopActions;
 
+#ifdef USE_FILESYSTEM
 fs::path pathFromLocalPath(const string& s, bool mustexist)
 {
     fs::path p = s.empty() ? fs::current_path() : fs::u8path(s);
@@ -3385,6 +3399,8 @@ void exec_lrenamereplace(autocomplete::ACState& s)
     }
 }
 
+#endif
+
 void exec_getcloudstorageused(autocomplete::ACState&)
 {
     if (client->loggedin() != FULLACCOUNT && !client->loggedIntoFolder())
@@ -3647,13 +3663,13 @@ void exec_timelocal(autocomplete::ACState& s)
 
             if (!get)
             {
-                if (std::abs(set_time - fp.mtime) <= 2)
+                if (::mega::abs(set_time - fp.mtime) <= 2)
                 {
-                    cout << "mtime read back is within 2 seconds, so success. Actual difference: " << std::abs(set_time - fp.mtime) << endl;
+                    cout << "mtime read back is within 2 seconds, so success. Actual difference: " << ::mega::abs(set_time - fp.mtime) << endl;
                 }
                 else
                 {
-                    cout << "ERROR Silent failure in setmtimelocal, difference is " << std::abs(set_time - fp.mtime) << endl;
+                    cout << "ERROR Silent failure in setmtimelocal, difference is " << ::mega::abs(set_time - fp.mtime) << endl;
                 }
             }
         }
@@ -4064,9 +4080,11 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_pwd, sequence(text("pwd")));
     p->Add(exec_lcd, sequence(text("lcd"), opt(localFSFolder())));
     p->Add(exec_llockfile, sequence(text("llockfile"), opt(flag("-read")), opt(flag("-write")), opt(flag("-unlock")), localFSFile()));
+#ifdef USE_FILESYSTEM
     p->Add(exec_lls, sequence(text("lls"), opt(flag("-R")), opt(localFSFolder())));
     p->Add(exec_lpwd, sequence(text("lpwd")));
     p->Add(exec_lmkdir, sequence(text("lmkdir"), localFSFolder()));
+#endif
     p->Add(exec_import, sequence(text("import"), exportedLink(true, false)));
     p->Add(exec_folderlinkinfo, sequence(text("folderlink"), opt(param("link"))));
 
@@ -4077,7 +4095,11 @@ autocomplete::ACN autocompleteSyntax()
 
     p->Add(exec_put, sequence(text("put"), opt(flag("-r")), opt(flag("-noversion")), opt(flag("-version")), opt(flag("-versionreplace")), opt(flag("-allowduplicateversions")), localFSPath("localpattern"), opt(either(remoteFSPath(client, &cwd, "dst"),param("dstemail")))));
     p->Add(exec_putq, sequence(text("putq"), repeat(either(flag("-active"), flag("-all"), flag("-count"))), opt(param("cancelslot"))));
+#ifdef USE_FILESYSTEM
     p->Add(exec_get, sequence(text("get"), opt(sequence(flag("-r"), opt(flag("-foldersonly")))), remoteFSPath(client, &cwd), opt(sequence(param("offset"), opt(param("length"))))));
+#else
+    p->Add(exec_get, sequence(text("get"), remoteFSPath(client, &cwd), opt(sequence(param("offset"), opt(param("length"))))));
+#endif
     p->Add(exec_get, sequence(text("get"), flag("-re"), param("regularexpression")));
     p->Add(exec_get, sequence(text("get"), exportedLink(true, false), opt(sequence(param("offset"), opt(param("length"))))));
     p->Add(exec_getq, sequence(text("getq"), repeat(either(flag("-active"), flag("-all"), flag("-count"))), opt(param("cancelslot"))));
@@ -4319,6 +4341,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_codeTimings, sequence(text("codetimings"), opt(flag("-reset"))));
 #endif
 
+#ifdef USE_FILESYSTEM
     p->Add(exec_treecompare, sequence(text("treecompare"), localFSPath(), remoteFSPath(client, &cwd)));
     p->Add(exec_generatetestfilesfolders, sequence(text("generatetestfilesfolders"),
         repeat(either(  sequence(flag("-folderdepth"), param("depth")),
@@ -4337,6 +4360,7 @@ autocomplete::ACN autocompleteSyntax()
             sequence(flag("-filesize"), param("size")),
             sequence(flag("-nameprefix"), param("prefix")))), localFSFolder("localworkingfolder"), remoteFSFolder(client, &cwd, "remoteworkingfolder")));
 
+#endif
     p->Add(exec_querytransferquota, sequence(text("querytransferquota"), param("filesize")));
     p->Add(exec_getcloudstorageused, sequence(text("getcloudstorageused")));
     p->Add(exec_getuserquota, sequence(text("getuserquota"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro")))));
@@ -4429,6 +4453,8 @@ autocomplete::ACN autocompleteSyntax()
     return autocompleteTemplate = std::move(p);
 }
 
+
+#ifdef USE_FILESYSTEM
 bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
 {
     if (n->type == FILENODE)
@@ -4436,7 +4462,7 @@ bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
         if (!folders)
         {
             TransferDbCommitter committer(client->tctable);
-            auto file = std::make_unique<AppFileGet>(n, NodeHandle(), nullptr, -1, 0, nullptr, nullptr, localpath.u8string());
+            auto file = ::mega::make_unique<AppFileGet>(n, NodeHandle(), nullptr, -1, 0, nullptr, nullptr, localpath.u8string());
             error result = startxfer(committer, std::move(file), *n, client->nextreqtag());
             queued += result == API_OK ? 1 : 0;
         }
@@ -4467,6 +4493,7 @@ bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
     }
     return true;
 }
+#endif
 
 bool regexget(const string& expression, Node* n, unsigned& queued)
 {
@@ -4483,7 +4510,7 @@ bool regexget(const string& expression, Node* n, unsigned& queued)
                 {
                     if (regex_search(string(node->displayname()), re))
                     {
-                        auto file = std::make_unique<AppFileGet>(node.get());
+                        auto file = ::mega::make_unique<AppFileGet>(node.get());
                         error result = startxfer(committer, std::move(file), *node, client->nextreqtag());
                         queued += result == API_OK ? 1 : 0;
                     }
@@ -5170,6 +5197,7 @@ void exec_get(autocomplete::ACState& s)
     string regularexpression;
     if (s.extractflag("-r"))
     {
+#ifdef USE_FILESYSTEM
         // recursive get.  create local folder structure first, then queue transfer of all files
         bool foldersonly = s.extractflag("-foldersonly");
 
@@ -5195,6 +5223,9 @@ void exec_get(autocomplete::ACState& s)
                 }
             }
         }
+#else
+        cout << "Sorry, -r not supported yet" << endl;
+#endif
     }
     else if (s.extractflagparam("-re", regularexpression))
     {
@@ -5264,7 +5295,7 @@ void exec_get(autocomplete::ACState& s)
                         cout << "Initiating download..." << endl;
 
                         TransferDbCommitter committer(client->tctable);
-                        auto file = std::make_unique<AppFileGet>(nullptr, NodeHandle().set6byte(ph), (byte*)key, size, 0, filename, fingerprint);
+                        auto file = ::mega::make_unique<AppFileGet>(nullptr, NodeHandle().set6byte(ph), (byte*)key, size, 0, filename, fingerprint);
                         startxfer(committer, std::move(file), *filename, client->nextreqtag());
                     }
 
@@ -5313,7 +5344,7 @@ void exec_get(autocomplete::ACState& s)
                 // queue specified file...
                 if (n->type == FILENODE)
                 {
-                    auto f = std::make_unique<AppFileGet>(n.get());
+                    auto f = ::mega::make_unique<AppFileGet>(n.get());
 
                     string::size_type index = s.words[1].s.find(":");
                     // node from public folder link
@@ -5337,7 +5368,7 @@ void exec_get(autocomplete::ACState& s)
                     {
                         if (node->type == FILENODE)
                         {
-                            auto f = std::make_unique<AppFileGet>(node.get());
+                            auto f = ::mega::make_unique<AppFileGet>(node.get());
                             startxfer(committer, std::move(f), *node.get(), client->nextreqtag());
                         }
                     }
@@ -5675,12 +5706,14 @@ void exec_llockfile(autocomplete::ACState& s)
 #endif
 }
 
+#ifdef USE_FILESYSTEM
 void exec_lls(autocomplete::ACState& s)
 {
     bool recursive = s.extractflag("-R");
     fs::path ls_folder = s.words.size() > 1 ? fs::u8path(s.words[1].s) : fs::current_path();
     std::error_code ec;
-    [[maybe_unused]] auto status = fs::status(ls_folder, ec);
+    auto status = fs::status(ls_folder, ec);
+    (void)status;
     if (ec)
     {
         cerr << ec.message() << endl;
@@ -5694,6 +5727,7 @@ void exec_lls(autocomplete::ACState& s)
         local_dumptree(ls_folder, recursive);
     }
 }
+#endif
 
 void exec_ipc(autocomplete::ACState& s)
 {
@@ -5846,10 +5880,13 @@ void exec_syncrescan(autocomplete::ACState& s)
 
 #endif
 
+#ifdef USE_FILESYSTEM
 void exec_lpwd(autocomplete::ACState& s)
 {
     cout << fs::current_path().u8string() << endl;
 }
+#endif
+
 
 void exec_test(autocomplete::ACState& s)
 {
@@ -7619,6 +7656,7 @@ void exec_alerts(autocomplete::ACState& s)
     }
 }
 
+#ifdef USE_FILESYSTEM
 void exec_lmkdir(autocomplete::ACState& s)
 {
     std::error_code ec;
@@ -7627,6 +7665,7 @@ void exec_lmkdir(autocomplete::ACState& s)
         cerr << "Create directory failed: " << ec.message() << endl;
     }
 }
+#endif
 
 void exec_recover(autocomplete::ACState& s)
 {
@@ -8610,7 +8649,7 @@ void DemoApp::ephemeral_result(handle uh, const byte* pw)
         cout << Base64::btoa(session) << endl;
     }
 
-    client->fetchnodes(false, true, false);
+    client->fetchnodes(false, false, false);
 }
 
 void DemoApp::cancelsignup_result(error)
@@ -9129,8 +9168,8 @@ void DemoApp::notify_confirm_user_email(handle user, const char *email)
 {
     if (client->loggedin() == EPHEMERALACCOUNT || client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
     {
-        LOG_debug << "Account has been confirmed with user " << user << " and email " << email << ". Proceed to login with credentials.";
-        cout << "Account has been confirmed with user " << toHandle(user) << " and email " << email << ". Proceed to login with credentials.";
+        LOG_debug << "Account has been confirmed with user " << toHandle(user) << " and email " << email << ". Proceed to login with credentials.";
+        cout << "Account has been confirmed with user " << toHandle(user) << " and email " << email << ". Proceed to login with credentials." << endl;
     }
 }
 
@@ -9848,7 +9887,7 @@ static void registerSignalHandlers()
 
     for (int signal : signals)
     {
-        [[maybe_unused]] auto result = sigaction(signal, &action, nullptr);
+        (void)sigaction(signal, &action, nullptr);
     }
 }
 
@@ -9932,7 +9971,7 @@ int main(int argc, char* argv[])
     if (gfx) gfx->startProcessingThread();
 
     // Needed so we can get the cwd.
-    auto fsAccess = std::make_unique<FSACCESS_CLASS>();
+    auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
 
 #ifdef __APPLE__
     // Try and raise the file descriptor limit as high as we can.
@@ -11311,7 +11350,7 @@ void exec_setsandelements(autocomplete::ACState& s)
         cout << "\tInitiating download..." << endl;
 
         TransferDbCommitter committer(client->tctable);
-        auto file = std::make_unique<AppFileGet>(nullptr,
+        auto file = ::mega::make_unique<AppFileGet>(nullptr,
                                                     NodeHandle().set6byte(element->node()),
                                                     reinterpret_cast<const byte*>(element->key().c_str()), fileSize, tm,
                                                     &fileName, &fingerprint);
@@ -11919,7 +11958,7 @@ void exec_passwordmanager(autocomplete::ACState& s)
     {
         // patch to allow setting to null taking into account that extractflag doesn't accept ""
         const string EMPTY = "EMPTY";
-        auto pwdData = std::make_unique<AttrMap>();
+        auto pwdData = make_unique<AttrMap>();
         if (!pwd.empty())
         {
             if (pwd == EMPTY) pwd.clear();

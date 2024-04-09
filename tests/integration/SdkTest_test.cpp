@@ -23,12 +23,18 @@
 #include "stdfs.h"
 #include "SdkTest_test.h"
 #include "gtest_common.h"
+#include "mega/types.h"
 #include "mega/testhooks.h"
 
 #include "gmock/gmock-matchers.h"
 
 #include <algorithm>
 #include <cctype>
+
+#if !defined(WIN32) && defined(ENABLE_ISOLATED_GFX)
+#include "mega/posix/gfx/worker/socket_utils.h"
+using ::mega::gfx::SocketUtils;
+#endif
 
 #define SSTR( x ) static_cast< const std::ostringstream & >( \
         (  std::ostringstream() << std::dec << x ) ).str()
@@ -265,13 +271,13 @@ namespace
     }
 
     //
-    // Get a new pipe name without conflicts with any running instances
+    // Get a new endpoint name without conflicts with any running instances
     // under the following situations:
     //      1. Jenkins can run multiple test jobs at the same time
     //      2. A test job can run tests in parallel
     // Use current process ID so names are unique between different jobs (processes)
     // Use a static incremental counter so names are unique in the same job (process)
-    std::string newPipeName()
+    std::string newEndpointName()
     {
         static std::atomic_int counter{0};
         int current = counter++;
@@ -281,6 +287,15 @@ namespace
         return oss.str();
     }
 
+    std::string executableName(const std::string& name)
+    {
+    #ifdef WIN32
+        return name + ".exe";
+    #else
+        return name;
+    #endif
+    }
+
     MegaApiTest* newMegaApi(const char* appKey,
                             const char* basePath,
                             const char* userAgent,
@@ -288,11 +303,13 @@ namespace
                             const int clientType = MegaApi::CLIENT_TYPE_DEFAULT)
     {
     #ifdef ENABLE_ISOLATED_GFX
-        auto gfxworkerPath = sdk_test::getTestDataDir() / "gfxworker.exe";
+        const auto gfxworkerPath = sdk_test::getTestDataDir() / executableName("gfxworker");
+        const auto endpointName = newEndpointName();
         std::unique_ptr<MegaGfxProvider> provider{
-            MegaGfxProvider::createIsolatedInstance(newPipeName().c_str(), gfxworkerPath.string().c_str())
+            MegaGfxProvider::createIsolatedInstance(endpointName.c_str(), gfxworkerPath.string().c_str())
         };
-        return new MegaApiTest(appKey,
+        return new MegaApiTest(endpointName,
+                               appKey,
                                provider.get(),
                                basePath,
                                userAgent,
@@ -303,9 +320,78 @@ namespace
     #endif
     }
 
+    enum class HasIcon
+    {
+        YES,
+        NO
+    };
+
+    void validateNotification(const MegaNotification* notification, int64_t id, HasIcon hasIcon)
+    {
+        ASSERT_EQ(notification->getID(), id);
+        ASSERT_STRNE(notification->getTitle(), "");
+        ASSERT_STRNE(notification->getDescription(), "");
+        ASSERT_STRNE(notification->getImageName(), "");
+        if (hasIcon == HasIcon::NO)
+        {
+            ASSERT_STREQ(notification->getIconName(), "");
+        }
+        else
+        {
+            ASSERT_STRNE(notification->getIconName(), "");
+        }
+        ASSERT_STRNE(notification->getImagePath(), "");
+        ASSERT_NE(notification->getStart(), 0);
+        ASSERT_NE(notification->getEnd(), 0);
+        ASSERT_THAT(notification->getCallToAction1(), ::testing::NotNull());
+        ASSERT_NE(notification->getCallToAction1()->size(), 0);
+        ASSERT_THAT(notification->getCallToAction2(), ::testing::NotNull());
+        ASSERT_NE(notification->getCallToAction2()->size(), 0);
+    };
+
 }
 
 std::map<size_t, std::string> gSessionIDs;
+
+MegaApiTest::MegaApiTest(const char* appKey,
+                         const char* basePath,
+                         const char* userAgent,
+                         unsigned workerThreadCount,
+                         const int clientType):
+    MegaApi(appKey, basePath, userAgent, workerThreadCount, clientType)
+{
+}
+
+MegaApiTest::MegaApiTest(const std::string& endpointName,
+                         const char* appKey,
+                         MegaGfxProvider* provider,
+                         const char* basePath,
+                         const char* userAgent,
+                         unsigned workerThreadCount,
+                         const int clientType):
+    MegaApi(appKey, provider, basePath, userAgent, workerThreadCount, clientType),
+    mEndpointName(endpointName)
+{
+}
+
+MegaApiTest::~MegaApiTest()
+{
+#if !defined(WIN32) && defined(ENABLE_ISOLATED_GFX)
+    // Clean up socket file if it has been created
+    if (mEndpointName.empty()) return;
+
+    if (std::error_code errorCode = SocketUtils::removeSocketFile(mEndpointName))
+    {
+        LOG_err << "Failed to remove socket path " << mEndpointName << ": " << errorCode.message();
+    }
+#endif
+}
+
+MegaClient* MegaApiTest::getClient()
+{
+    return pImpl->getMegaClient();
+}
+
 
 void SdkTest::SetUp()
 {
@@ -2044,8 +2130,8 @@ void SdkTest::synchronousMediaUploadIncomplete(unsigned int apiIndex,
     std::unique_ptr<char[]> suffix(req->encryptFile(filename, 0, &fileSize, fileEncrypted, false));
     ASSERT_NE(nullptr, suffix) << "Got NULL suffix after encryption";
 
+    // generated by FileFingerprint::serializefingerprint() plus MegaNodePrivate::addAppPrefixToFingerprint()
     fingerprint = megaApi[apiIndex]->getFingerprint(fileEncrypted);
-
     string finalurl(url.get());
     finalurl.append(suffix.get());
 
@@ -16777,13 +16863,13 @@ TEST_F(SdkTest, CreateNodeTreeWithMalformedNodeTree)
     ASSERT_THAT(parentNode, ::testing::NotNull());
 
     // Create node tree with both child-tree and upload-data
-    auto nodeTreeChild{MegaNodeTree::createInstance(nullptr, nullptr, nullptr, nullptr)};
+    std::unique_ptr<MegaNodeTree> nodeTreeChild{MegaNodeTree::createInstance(nullptr, nullptr, nullptr, nullptr)};
 
-    const auto completeUploadData{
+    std::unique_ptr<const MegaCompleteUploadData> completeUploadData{
         MegaCompleteUploadData::createInstance(nullptr, nullptr, nullptr)};
 
     std::unique_ptr<MegaNodeTree> nodeTree{
-        MegaNodeTree::createInstance(nodeTreeChild, nullptr, nullptr, completeUploadData)};
+        MegaNodeTree::createInstance(nodeTreeChild.get(), nullptr, nullptr, completeUploadData.get())};
 
     ASSERT_EQ(API_EARGS, synchronousCreateNodeTree(apiIndex, parentNode.get(), nodeTree.get()));
 }
@@ -16803,10 +16889,10 @@ TEST_F(SdkTest, CreateNodeTreeWithSourceHandleAndChildTree)
 
     // Create node tree with source-handle and child-tree
     MegaHandle sourceHandle = parentNode->getHandle(); // not important, any dummy (but valid) value will do
-    MegaNodeTree* childTree{ MegaNodeTree::createInstance(nullptr, nullptr, nullptr, nullptr) };
+    std::unique_ptr<MegaNodeTree> childTree{ MegaNodeTree::createInstance(nullptr, nullptr, nullptr, nullptr) };
 
     std::unique_ptr<MegaNodeTree> treeWithSourceAndChild{
-        MegaNodeTree::createInstance(childTree, nullptr, nullptr, nullptr, sourceHandle) };
+        MegaNodeTree::createInstance(childTree.get(), nullptr, nullptr, nullptr, sourceHandle) };
 
     ASSERT_EQ(API_EARGS, synchronousCreateNodeTree(apiIndex, parentNode.get(), treeWithSourceAndChild.get()));
 }
@@ -16826,10 +16912,11 @@ TEST_F(SdkTest, CreateNodeTreeWithSourceHandleAndUploadData)
 
     // Create node tree with both source-handle and upload-data
     MegaHandle sourceHandle = parentNode->getHandle(); // not important, any dummy (but valid) value will do
-    const auto* uploadData{ MegaCompleteUploadData::createInstance(nullptr, nullptr, nullptr) };
+    std::unique_ptr<const MegaCompleteUploadData> uploadData{
+        MegaCompleteUploadData::createInstance(nullptr, nullptr, nullptr) };
 
     std::unique_ptr<MegaNodeTree> treeWithSourceAndUploadData{
-        MegaNodeTree::createInstance(nullptr, nullptr, nullptr, uploadData, sourceHandle) };
+        MegaNodeTree::createInstance(nullptr, nullptr, nullptr, uploadData.get(), sourceHandle) };
 
     ASSERT_EQ(API_EARGS, synchronousCreateNodeTree(apiIndex, parentNode.get(), treeWithSourceAndUploadData.get()));
 }
@@ -16962,6 +17049,18 @@ TEST_F(SdkTest, CreateNodeTreeWithOneDirectoryAndS4Attribute)
     ASSERT_STREQ(s4AttributeValue.c_str(), directoryNode->getS4());
 }
 
+template <typename T>
+std::time_t timePointToTimeT(T timePoint)
+{
+    using namespace std::chrono;
+    // In C++17, time_point used system_clock on POSIX and a custom TrivialClock in VS, which had different
+    // epoch start. The latter had no way to convert a timestamp to time_t (like system_clock::to_time_t()).
+    // This was improved in C++20, but we're not there yet.
+    // With no portable way of converting time_point to time_t, let's try this workaround:
+    auto portableTimePoint = time_point_cast<system_clock::duration>(timePoint - T::clock::now() + system_clock::now());
+    return system_clock::to_time_t(portableTimePoint);
+}
+
 /**
  * @brief Create node tree with one file
  *
@@ -16993,13 +17092,13 @@ TEST_F(SdkTest, CreateNodeTreeWithOneFile)
     std::unique_ptr<MegaNode> parentNode{megaApi[apiIndex]->getRootNode()};
     ASSERT_THAT(parentNode, ::testing::NotNull());
 
-    const auto completeUploadData{
+    std::unique_ptr<const MegaCompleteUploadData> completeUploadData{
         MegaCompleteUploadData::createInstance(fingerprint.c_str(),
                                                string64UploadToken.c_str(),
                                                string64FileKey.c_str())};
 
     std::unique_ptr<MegaNodeTree> nodeTree{
-        MegaNodeTree::createInstance(nullptr, IMAGEFILE.c_str(), nullptr, completeUploadData)};
+        MegaNodeTree::createInstance(nullptr, IMAGEFILE.c_str(), nullptr, completeUploadData.get())};
 
     RequestTracker requestTracker(megaApi[apiIndex].get());
     megaApi[apiIndex]->createNodeTree(parentNode.get(), nodeTree.get(), &requestTracker);
@@ -17015,6 +17114,14 @@ TEST_F(SdkTest, CreateNodeTreeWithOneFile)
     ASSERT_THAT(fileNode, ::testing::NotNull());
     ASSERT_STREQ(IMAGEFILE.c_str(), fileNode->getName());
     ASSERT_EQ(fileSize, fileNode->getSize());
+
+    // Check "mega" fingerprint
+    ASSERT_STREQ(fileNode->getFingerprint(), fingerprint.c_str());
+
+    // Check that mtime was kept
+    auto modtime = std::filesystem::last_write_time(IMAGEFILE_C);
+    auto modtime_t = timePointToTimeT(modtime);
+    ASSERT_EQ(modtime_t, fileNode->getModificationTime());
 }
 
 /**
@@ -17080,18 +17187,19 @@ TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectories)
 
     // Create node tree
     const std::string directoryNameLevel2{"directory_2"};
-    auto nodeTreeLevel2{
+    std::unique_ptr<MegaNodeTree> nodeTreeLevel2{
         MegaNodeTree::createInstance(nullptr, directoryNameLevel2.c_str(), nullptr, nullptr)};
 
     const std::string directoryNameLevel1{"directory_1"};
-    auto nodeTreeLevel1{MegaNodeTree::createInstance(nodeTreeLevel2,
-                                                     directoryNameLevel1.c_str(),
-                                                     nullptr,
-                                                     nullptr)};
+    std::unique_ptr<MegaNodeTree> nodeTreeLevel1{
+        MegaNodeTree::createInstance(nodeTreeLevel2.get(),
+                                     directoryNameLevel1.c_str(),
+                                     nullptr,
+                                     nullptr)};
 
     const std::string directoryNameLevel0{"directory_0"};
     std::unique_ptr<MegaNodeTree> nodeTreeLevel0{
-        MegaNodeTree::createInstance(nodeTreeLevel1,
+        MegaNodeTree::createInstance(nodeTreeLevel1.get(),
                                      directoryNameLevel0.c_str(),
                                      nullptr,
                                      nullptr)};
@@ -17157,29 +17265,31 @@ TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectoriesAndOneFileAtTheEnd)
                                                              string64FileKey));
 
     // Create node tree
-    const auto completeUploadData{
+    std::unique_ptr<const MegaCompleteUploadData> completeUploadData{
         MegaCompleteUploadData::createInstance(fingerprint.c_str(),
                                                string64UploadToken.c_str(),
                                                string64FileKey.c_str())};
 
-    auto nodeTreeLevel3{
-        MegaNodeTree::createInstance(nullptr, IMAGEFILE.c_str(), nullptr, completeUploadData)};
+    std::unique_ptr<MegaNodeTree> nodeTreeLevel3{
+        MegaNodeTree::createInstance(nullptr, IMAGEFILE.c_str(), nullptr, completeUploadData.get())};
 
     const std::string directoryNameLevel2{"directory_2"};
-    auto nodeTreeLevel2{MegaNodeTree::createInstance(nodeTreeLevel3,
-                                                     directoryNameLevel2.c_str(),
-                                                     nullptr,
-                                                     nullptr)};
+    std::unique_ptr<MegaNodeTree> nodeTreeLevel2{
+        MegaNodeTree::createInstance(nodeTreeLevel3.get(),
+                                     directoryNameLevel2.c_str(),
+                                     nullptr,
+                                     nullptr)};
 
     const std::string directoryNameLevel1{"directory_1"};
-    auto nodeTreeLevel1{MegaNodeTree::createInstance(nodeTreeLevel2,
-                                                     directoryNameLevel1.c_str(),
-                                                     nullptr,
-                                                     nullptr)};
+    std::unique_ptr<MegaNodeTree> nodeTreeLevel1{
+        MegaNodeTree::createInstance(nodeTreeLevel2.get(),
+                                     directoryNameLevel1.c_str(),
+                                     nullptr,
+                                     nullptr)};
 
     const std::string directoryNameLevel0{"directory_0"};
     std::unique_ptr<MegaNodeTree> nodeTreeLevel0{
-        MegaNodeTree::createInstance(nodeTreeLevel1,
+        MegaNodeTree::createInstance(nodeTreeLevel1.get(),
                                      directoryNameLevel0.c_str(),
                                      nullptr,
                                      nullptr)};
@@ -17251,12 +17361,12 @@ TEST_F(SdkTest, CreateNodeTreeVersionUsingIdenticalUploadData)
     ASSERT_THAT(parentNode, ::testing::NotNull());
 
     // Create node tree from uploaded data
-    const MegaCompleteUploadData* uploadData =
+    std::unique_ptr<const MegaCompleteUploadData> uploadData{
         MegaCompleteUploadData::createInstance(fingerprint.c_str(),
                                                string64UploadToken.c_str(),
-                                               string64FileKey.c_str());
+                                               string64FileKey.c_str()) };
     std::unique_ptr<MegaNodeTree> fileTreeFromData {
-        MegaNodeTree::createInstance(nullptr, PUBLICFILE.c_str(), nullptr, uploadData) };
+        MegaNodeTree::createInstance(nullptr, PUBLICFILE.c_str(), nullptr, uploadData.get()) };
 
     RequestTracker requestTrackerFirstTree(megaApi[apiIndex].get());
     megaApi[apiIndex]->createNodeTree(parentNode.get(), fileTreeFromData.get(), &requestTrackerFirstTree);
@@ -17274,12 +17384,12 @@ TEST_F(SdkTest, CreateNodeTreeVersionUsingIdenticalUploadData)
     ASSERT_EQ(allVersions->size(), 1);
 
     // Attempt to create another node tree from the same data
-    const MegaCompleteUploadData* uploadData2 =
+    std::unique_ptr<const MegaCompleteUploadData> uploadData2{
         MegaCompleteUploadData::createInstance(fingerprint.c_str(),
                                                string64UploadToken.c_str(),
-                                               string64FileKey.c_str());
+                                               string64FileKey.c_str()) };
     std::unique_ptr<MegaNodeTree> fileTreeFromData2 {
-        MegaNodeTree::createInstance(nullptr, PUBLICFILE.c_str(), nullptr, uploadData2) };
+        MegaNodeTree::createInstance(nullptr, PUBLICFILE.c_str(), nullptr, uploadData2.get()) };
 
     RequestTracker requestTrackerSecondTree(megaApi[apiIndex].get());
     megaApi[apiIndex]->createNodeTree(parentNode.get(), fileTreeFromData2.get(), &requestTrackerSecondTree);
@@ -17393,12 +17503,12 @@ TEST_F(SdkTest, CreateNodeTreeVersionUsingDifferentUploadData)
     ASSERT_THAT(parentNode, ::testing::NotNull());
 
     // Create node tree from uploaded data
-    const MegaCompleteUploadData* uploadData =
+    std::unique_ptr<const MegaCompleteUploadData> uploadData{
         MegaCompleteUploadData::createInstance(fingerprint.c_str(),
                                                string64UploadToken.c_str(),
-                                               string64FileKey.c_str());
+                                               string64FileKey.c_str()) };
     std::unique_ptr<MegaNodeTree> fileTreeFromData {
-        MegaNodeTree::createInstance(nullptr, PUBLICFILE.c_str(), nullptr, uploadData) };
+        MegaNodeTree::createInstance(nullptr, PUBLICFILE.c_str(), nullptr, uploadData.get()) };
 
     RequestTracker requestTrackerFirstTree(megaApi[apiIndex].get());
     megaApi[apiIndex]->createNodeTree(parentNode.get(), fileTreeFromData.get(), &requestTrackerFirstTree);
@@ -17425,12 +17535,12 @@ TEST_F(SdkTest, CreateNodeTreeVersionUsingDifferentUploadData)
                                                              string64FileKey));
 
     // Create node tree from the new data
-    const MegaCompleteUploadData* uploadData2 =
+    std::unique_ptr<const MegaCompleteUploadData> uploadData2{
         MegaCompleteUploadData::createInstance(fingerprint.c_str(),
                                                string64UploadToken.c_str(),
-                                               string64FileKey.c_str());
+                                               string64FileKey.c_str()) };
     std::unique_ptr<MegaNodeTree> fileTreeFromData2 {
-        MegaNodeTree::createInstance(nullptr, PUBLICFILE.c_str(), nullptr, uploadData2) };
+        MegaNodeTree::createInstance(nullptr, PUBLICFILE.c_str(), nullptr, uploadData2.get()) };
 
     RequestTracker requestTrackerSecondTree(megaApi[apiIndex].get());
     megaApi[apiIndex]->createNodeTree(parentNode.get(), fileTreeFromData2.get(), &requestTrackerSecondTree);
@@ -18237,8 +18347,10 @@ TEST_F(SdkTest, DynamicMessageNotifs)
 
     // Enable some test-notifications.
     // IDs 1,2,3,4,5 have been reserved to be "^!tnotif" only notifications.
-    // However, only notification with ID 1 existed at the time of writing this test
-    ids->add(1);
+    // Notifications with IDs 1~4 existed at the time of writing this test
+    // Notification with ID 2 has icon
+    ids->add(1);                                   // add notification with ID 1 
+    ids->add(2);                                   // add notification with ID 2
     ids->add(numeric_limits<uint32_t>::max() - 1); // dummy
 
     RequestTracker notifsTracker(megaApi[0].get());
@@ -18253,8 +18365,9 @@ TEST_F(SdkTest, DynamicMessageNotifs)
     // Get IDs of enabled-notifications
     unique_ptr<MegaIntegerList> enabledNotifs{ megaApi[0]->getEnabledNotifications() };
     ASSERT_THAT(enabledNotifs, ::testing::NotNull());
-    ASSERT_EQ(enabledNotifs->size(), 1); // only IDs of existing notifications will be there, dummy IDs will not be included
+    ASSERT_EQ(enabledNotifs->size(), 2); // only IDs of existing notifications will be there, dummy IDs will not be included
     ASSERT_EQ(enabledNotifs->get(0), 1);
+    ASSERT_EQ(enabledNotifs->get(1), 2);
 
     // Get the complete notifications (corresponding only to existing IDs)
     RequestTracker gnotifTracker2(megaApi[0].get());
@@ -18262,22 +18375,11 @@ TEST_F(SdkTest, DynamicMessageNotifs)
     ASSERT_EQ(gnotifTracker2.waitForResult(), API_OK);
     const auto* notificationList2 = gnotifTracker2.request->getMegaNotifications();
     ASSERT_THAT(notificationList2, ::testing::NotNull());
-    ASSERT_EQ(notificationList2->size(), 1u);
+    ASSERT_EQ(notificationList2->size(), 2u);
 
-    // validate complete notification
-    const MegaNotification* notification = notificationList2->get(0);
-    ASSERT_EQ(notification->getID(), 1);
-    ASSERT_STRNE(notification->getTitle(), "");
-    ASSERT_STRNE(notification->getDescription(), "");
-    ASSERT_STRNE(notification->getImageName(), "");
-    //ASSERT_STRNE(notification->getIconName(), "");
-    ASSERT_STRNE(notification->getImagePath(), "");
-    ASSERT_NE(notification->getStart(), 0);
-    ASSERT_NE(notification->getEnd(), 0);
-    ASSERT_THAT(notification->getCallToAction1(), ::testing::NotNull());
-    ASSERT_NE(notification->getCallToAction1()->size(), 0);
-    ASSERT_THAT(notification->getCallToAction2(), ::testing::NotNull());
-    ASSERT_NE(notification->getCallToAction2()->size(), 0);
+    // validate complete notifications
+    ASSERT_NO_FATAL_FAILURE(validateNotification(notificationList2->get(0), 1, HasIcon::NO));
+    ASSERT_NO_FATAL_FAILURE(validateNotification(notificationList2->get(1), 2, HasIcon::YES));
 
     // Set last-read-notification
     const uint32_t lastReadNotifId = numeric_limits<uint32_t>::max() - 2; // dummy value
@@ -18417,6 +18519,8 @@ TEST_F(SdkTest, SdkNodeDescription)
 
     // Update description
     changeNodeDescription(mh, "Description modified");
+
+    changeNodeDescription(mh, "Description with line break\n Other line\n and other more");
 
     // Remove description
     changeNodeDescription(mh, nullptr);

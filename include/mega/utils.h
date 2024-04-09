@@ -256,8 +256,6 @@ struct MEGA_API MemAccess
 };
 
 #ifdef _WIN32
-int mega_snprintf(char *s, size_t n, const char *format, ...);
-
 // get the Windows error message in UTF-8
 std::string winErrorMessage(DWORD error);
 
@@ -1075,6 +1073,25 @@ const char* toString(retryreason_t reason);
 // Not considering EOF values
 bool is_space(unsigned int ch);
 bool is_digit(unsigned int ch);
+
+std::set<std::string> splitString(const std::string& str, char delimiter);
+
+template<typename Iter>
+std::string joinStrings(const Iter begin, const Iter end, const std::string& separator)
+{
+    Iter position = begin;
+    std::string result;
+    if (position != end)
+    {
+        result += *position++;
+    }
+
+    while (position != end)
+    {
+        result += separator + *position++;
+    }
+    return result;
+}
 
 // Get the current process ID
 unsigned long getCurrentPid();

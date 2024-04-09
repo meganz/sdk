@@ -21,12 +21,12 @@ target_sources(test_unit
     FileFingerprint_test.cpp
     File_test.cpp
     FsNode.cpp
-    GfxCommands_test.cpp
     Logging_test.cpp
     MediaProperties_test.cpp
     MegaApi_test.cpp
     PayCrypter_test.cpp
     PendingContactRequest_test.cpp
+    Scoped_timer_test.cpp
     Serialization_test.cpp
     Share_test.cpp
     Sync_conflict_test.cpp
@@ -42,6 +42,7 @@ target_sources_conditional(test_unit
     FLAG ENABLE_ISOLATED_GFX
     PRIVATE
     Isolatedprocess_test.cpp
+    GfxCommands_test.cpp
 )
 
 # Link with SDKlib

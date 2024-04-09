@@ -227,23 +227,23 @@ public:
                 const char* basePath = nullptr,
                 const char* userAgent = nullptr,
                 unsigned workerThreadCount = 1,
-                const int clientType = MegaApi::CLIENT_TYPE_DEFAULT):
-        MegaApi(appKey, basePath, userAgent, workerThreadCount, clientType)
-    {}
+                const int clientType = MegaApi::CLIENT_TYPE_DEFAULT);
 
-    MegaApiTest(const char* appKey,
+    MegaApiTest(const std::string& endpointName,
+                const char* appKey,
                 MegaGfxProvider* provider,
                 const char* basePath = nullptr,
                 const char* userAgent = nullptr,
                 unsigned workerThreadCount = 1,
-                const int clientType = MegaApi::CLIENT_TYPE_DEFAULT):
-        MegaApi(appKey, provider, basePath, userAgent, workerThreadCount, clientType)
-    {}
+                const int clientType = MegaApi::CLIENT_TYPE_DEFAULT);
 
-    MegaClient* getClient()
-    {
-        return pImpl->getMegaClient();
-    }
+    ~MegaApiTest();
+
+    MegaClient* getClient();
+
+private:
+    // the endpoint name for isolated gfx
+    std::string mEndpointName;
 };
 
 // Fixture class with common code for most of tests

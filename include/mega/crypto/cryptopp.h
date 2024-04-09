@@ -434,6 +434,19 @@ public:
 
     static void incblock(byte*, unsigned = BLOCKSIZE);
 
+    /**
+     * @brief Check whether a key is a zerokey, or was generated with a zerokey
+     *
+     * This applies to keys whose length is:
+     * SymmCipher:BLOCKSIZE (16) (used for generator keys, ex: Transfer::transferkey; also folder node keys and general node keys)
+     * FILENODEKEYLENGTH (32 or 2*SymmCipher::BLOCKSIZE) -> AES32 file/node keys
+     *
+     * @param key Encryption/Decryption key
+     * @param keySize Encryption/Decryption key length (expected BLOCKSIZE or BLOCKSIZE*2)
+     * @return true if the key is a zero key or was generated with a zero key
+    */
+    static bool isZeroKey(const byte* key, size_t keySize);
+
     SymmCipher() { }
     SymmCipher(const SymmCipher& ref);
     SymmCipher& operator=(const SymmCipher& ref);

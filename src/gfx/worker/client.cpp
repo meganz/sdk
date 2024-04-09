@@ -11,13 +11,15 @@
 #include <tuple>
 #include <unordered_set>
 
-#ifdef _WIN32
-#include "mega/win32/gfx/worker/comms_client.h"
-#endif
 
 using std::chrono::milliseconds;
 namespace mega {
 namespace gfx {
+
+GfxClient::GfxClient(std::unique_ptr<IGfxCommunicationsClient> comms) : mComms{std::move(comms)}
+{
+    assert(mComms);
+}
 
 bool GfxClient::runHello(const std::string& text)
 {
@@ -129,15 +131,9 @@ bool GfxClient::runSupportFormats(std::string& formats, std::string& videoformat
     }
 }
 
-GfxClient GfxClient::create(const std::string& pipeName)
+GfxClient GfxClient::create(const std::string& endpointName)
 {
-#ifdef _WIN32
-    return GfxClient(std::make_unique<WinGfxCommunicationsClient>(pipeName));
-#else
-    // To implement
-    (void)pipeName;
-    return GfxClient(nullptr);
-#endif
+    return GfxClient(std::make_unique<GfxCommunicationsClient>(endpointName));
 }
 
 //
@@ -155,14 +151,14 @@ bool GfxClient::isRetryError(CommError error) const
 std::unique_ptr<IEndpoint> GfxClient::connectWithRetry(milliseconds backoff, unsigned int maxRetries)
 {
     unsigned int loop = 0;
-    std::unique_ptr<IEndpoint> endpoint;
-    do {
-        CommError error = mComms->connect(endpoint);
+    do
+    {
+        auto [error, endpoint] = mComms->connect();
 
         // connected
         if (endpoint)
         {
-            return endpoint;
+            return std::move(endpoint); // endpoint is reference
         }
 
         if (++loop > maxRetries)
@@ -179,7 +175,7 @@ std::unique_ptr<IEndpoint> GfxClient::connectWithRetry(milliseconds backoff, uns
         {
             return nullptr;
         }
-    }while (true);
+    } while (true);
 }
 
 std::unique_ptr<IEndpoint> GfxClient::connect()

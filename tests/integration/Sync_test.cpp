@@ -1132,8 +1132,6 @@ std::shared_ptr<Node> CloudItem::resolve(StandardClient& client) const
     return client.drillchildnodebyname(root, mPath);
 }
 
-std::set<string> declaredTestAccounts;
-
 StandardClientInUse ClientManager::getCleanStandardClient(int loginIndex, fs::path workingFolder)
 {
     EXPECT_GE(loginIndex, 0) << "ClientManager::getCleanStandardClient(): negative client index requested";
@@ -1154,13 +1152,6 @@ StandardClientInUse ClientManager::getCleanStandardClient(int loginIndex, fs::pa
     fs::path localAccountRoot = makeReusableClientFolder(clientname);
     shared_ptr<StandardClient> c(
             new StandardClient(localAccountRoot, "client" + clientname, workingFolder));
-
-    string user = getenv(envVarAccount[loginIndex].c_str());
-    if (declaredTestAccounts.find(user) == declaredTestAccounts.end())
-    {
-        LOG_debug << "Using test account " << loginIndex << " " << user;
-        declaredTestAccounts.insert(user);
-    }
 
     clients[loginIndex].push_back(StandardClientInUseEntry(false, c, clientname, loginIndex));
     c->login_reset(envVarAccount[loginIndex], envVarPass[loginIndex], false, false);

@@ -1779,6 +1779,33 @@ int NodeData::getLabel()
     return attrIt == mAttrs.map.end() ? LBL_UNKNOWN : std::atoi(attrIt->second.c_str());
 }
 
+std::string NodeData::getDescription()
+{
+    if (readFailed())
+    {
+        return std::string();
+    }
+
+    static const nameid descriptionId =
+        AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_DESCRIPTION);
+    auto attrIt = mAttrs.map.find(descriptionId);
+
+    return attrIt == mAttrs.map.end() ? std::string() : attrIt->second.c_str();
+}
+
+std::string NodeData::getTags()
+{
+    if (readFailed())
+    {
+        return std::string();
+    }
+
+    static const nameid tagId = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_TAGS);
+    auto attrIt = mAttrs.map.find(tagId);
+
+    return attrIt == mAttrs.map.end() ? std::string() : attrIt->second.c_str();
+}
+
 handle NodeData::getHandle()
 {
     if (readFailed())
@@ -1863,6 +1890,10 @@ std::unique_ptr<Node> NodeData::createNode(MegaClient& client, bool fromOldCache
     return n;
 }
 
+bool NewNode::hasZeroKey() const
+{
+    return Node::hasZeroKey(nodekey);
+}
 
 PublicLink::PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown, const char *authKey)
 {
@@ -3110,6 +3141,12 @@ void LocalNode::queueClientUpload(shared_ptr<SyncUpload_inClient> upload, Versio
                 if (mc.treatAsIfFileDataEqual(*n, ext1, *upload, ext2))
                 {
                     cloneNode = n.get();
+                    if (cloneNode->hasZeroKey())
+                    {
+                        LOG_warn << "Clone node key is a zero key!! Avoid cloning node to generate a new key [cloneNode path = '" << cloneNode->displaypath() << "', sourceLocalname = '" << upload->sourceLocalname << "']";
+                        mc.sendevent(99486, "Node has a zerokey");
+                        cloneNode = nullptr;
+                    }
                     break;
                 }
             }
