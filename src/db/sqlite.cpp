@@ -2606,21 +2606,23 @@ void SqliteAccountState::userIsContained(sqlite3_context* context, int argc, sql
         return;
     }
 
-    std::string stringToMatch(reinterpret_cast<const char*>(sqlite3_value_text(argv[0])));
+    const uint8_t* descriptionToCheck = static_cast<const uint8_t*>(sqlite3_value_text(argv[0]));
+    const uint8_t* dataBaseName = static_cast<const uint8_t*>(sqlite3_value_text(argv[1]));
+    if (!dataBaseName || !descriptionToCheck)
+    {
+        sqlite3_result_int(context, 0);
+        return;
+    }
+
+    std::string stringToMatch(reinterpret_cast<const char*>(descriptionToCheck));
 
     std::string stringAddingWildcards{WILDCARD_MATCH_ALL};
     stringAddingWildcards.append(std::move(escapeWildCards(stringToMatch)));
     stringAddingWildcards.push_back(WILDCARD_MATCH_ALL);
 
     const uint8_t* pattern = reinterpret_cast<const uint8_t*>(stringAddingWildcards.c_str());
-    const uint8_t* dataBaseName = static_cast<const uint8_t*>(sqlite3_value_text(argv[1]));
-    if (dataBaseName && pattern)
-    {
-        int result = icuLikeCompare(pattern, dataBaseName, ESCAPE_CHARACTER);
-        sqlite3_result_int(context, result);
-    }
-
-    sqlite3_result_int(context, 0);
+    int result = icuLikeCompare(pattern, dataBaseName, ESCAPE_CHARACTER);
+    sqlite3_result_int(context, result);
 }
 
 std::string OrderByClause::get(int order, int sqlParamIndex)
