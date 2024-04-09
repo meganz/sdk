@@ -2405,6 +2405,7 @@ CommandEnumerateQuotaItems::CommandEnumerateQuotaItems(MegaClient* client)
     arg("nf", 3);
     arg("b", 1);    // support for Business accounts
     arg("p", 1);    // support for Pro Flexi
+    arg("ft", 1);   // support for Feature plans
     tag = client->reqtag;
 }
 
@@ -2424,6 +2425,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
         int prolevel = -1, gbstorage = -1, gbtransfer = -1, months = -1, type = -1;
         unsigned amount = 0, amountMonth = 0, localPrice = 0;
         string description;
+        map<string, uint32_t> features;
         string ios_id;
         string android_id;
 
@@ -2498,7 +2500,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                     }
                     break;
                 }
-                case MAKENAMEID2('i', 't'): // 0 -> for all Pro level plans; 1 -> for Business plan
+                case MAKENAMEID2('i', 't'): // 0 -> for all Pro level plans; 1 -> for Business plan; 2 -> for Feature plan
                     type = static_cast<int>(json.getint());
                     break;
 //                case MAKENAMEID2('i', 'b'): // for "it":1 (business plans), 0 -> Pro Flexi; 1 -> Business plan
@@ -2528,6 +2530,27 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                     buf = json.getvalue();
                     JSON::copystring(&description, buf);
                     break;
+                case 'f': // i.e. "f": { "vpn": 1 }
+                {
+                    if (!json.enterobject())
+                    {
+                        LOG_err << "Failed to parse Feature-plans response, enter `f` object";
+                        client->app->enumeratequotaitems_result(API_EINTERNAL);
+                        return false;
+                    }
+                    string key, value;
+                    while (json.storeKeyValueFromObject(key, value))
+                    {
+                        features[key] = std::stoul(value);
+                    }
+                    if (!json.leaveobject())
+                    {
+                        LOG_err << "Failed to parse Feature-plans response, leave `f` object";
+                        client->app->enumeratequotaitems_result(API_EINTERNAL);
+                        return false;
+                    }
+                    break;
+                }
                 case MAKENAMEID3('i', 'o', 's'):
                     buf = json.getvalue();
                     JSON::copystring(&ios_id, buf);
@@ -2774,7 +2797,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
         {
             client->app->enumeratequotaitems_result(type, product, prolevel, gbstorage,
                                                     gbtransfer, months, amount, amountMonth, localPrice,
-                                                    description.c_str(), ios_id.c_str(), android_id.c_str(),
+                                                    description.c_str(), std::move(features), ios_id.c_str(), android_id.c_str(),
                                                     std::move(bizPlan));
         }
     }

@@ -6391,6 +6391,11 @@ bool MegaPricing::isBusinessType(int)
     return false;
 }
 
+bool MegaPricing::isFeaturePlan(int) const
+{
+    return false;
+}
+
 int MegaPricing::getAmountMonth(int)
 {
     return 0;
@@ -6454,6 +6459,11 @@ unsigned int MegaPricing::getLocalPricePerTransfer(int)
 int MegaPricing::getGBPerTransfer(int)
 {
     return 0;
+}
+
+MegaStringIntegerMap* MegaPricing::getFeatures(int productIndex) const
+{
+    return nullptr;
 }
 
 const char *MegaCurrency::getCurrencySymbol()

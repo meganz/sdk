@@ -9962,6 +9962,7 @@ void DemoApp::enumeratequotaitems_result(unsigned type,
                                          unsigned amountMonth,
                                          unsigned localPrice,
                                          const char* description,
+                                         map<string, uint32_t>&& features,
                                          const char* iosId,
                                          const char* androidId,
                                          std::unique_ptr<BusinessPlan> businessPlan)
@@ -9976,6 +9977,18 @@ void DemoApp::enumeratequotaitems_result(unsigned type,
         cout << "\tAmount: " << amount << "\n";
         cout << "\tAmount per month: " << amountMonth << "\n";
         cout << "\tLocal price: " << localPrice << "\n";
+        cout << "\tFeatures:\n";
+        if (features.empty())
+        {
+            cout << "\t\t[none]\n";
+        }
+        else
+        {
+            for (const auto& f : features)
+            {
+                cout << "\t\t" << f.first << ": " << f.second << '\n';
+            }
+        }
         cout << "\tiOS ID: " << iosId << "\n";
         cout << "\tAndroid ID: " << androidId << endl;
     }

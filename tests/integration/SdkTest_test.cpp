@@ -19427,3 +19427,31 @@ TEST_F(SdkTest, SdkTestVPN)
         ASSERT_EQ(origName, getNameTracker.request->getText());
     }
 }
+
+TEST_F(SdkTest, GetFeaturePlans)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    LOG_info << "___TEST GetFeaturePlans___";
+
+    int err = synchronousGetPricing(0);
+    ASSERT_EQ(err, API_OK) << "synchronousGetPricing() failed: " << MegaError::getErrorString(err);
+
+    for (int i = 0; i < mApi[0].mMegaPricing->getNumProducts(); ++i)
+    {
+        if (mApi[0].mMegaPricing->isFeaturePlan(i))
+        {
+            ASSERT_NE(mApi[0].mMegaPricing->getHandle(i), INVALID_HANDLE);
+            ASSERT_EQ(mApi[0].mMegaPricing->getProLevel(i), 99999);
+            ASSERT_NE(mApi[0].mMegaPricing->getMonths(i), 0);
+            ASSERT_NE(mApi[0].mMegaPricing->getAmount(i), 0);
+            ASSERT_STRNE(mApi[0].mMegaPricing->getDescription(i), "");
+
+            std::unique_ptr<MegaStringIntegerMap> features{ mApi[0].mMegaPricing->getFeatures(i) };
+            ASSERT_NE(features->size(), 0);
+
+            ASSERT_STRNE(mApi[0].mMegaPricing->getIosID(i), "");
+            ASSERT_STRNE(mApi[0].mMegaPricing->getAndroidID(i), "");
+            ASSERT_NE(mApi[0].mMegaPricing->getAmountMonth(i), 0);
+        }
+    }
+}
