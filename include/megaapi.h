@@ -9586,6 +9586,20 @@ public:
      * @return string set for filtering by description, or empty string ("") if not set
      */
     virtual const char* byDescription() const;
+
+    /**
+     * @brief Set option for filtering by tag
+     *
+     * @param searchString Contains string to be searched at nodes tags
+     */
+    virtual void byTag(const char* searchString);
+
+    /**
+     * @brief Return the string used for filtering by tag.
+     *
+     * @return string set for filtering by tag, or empty string ("") if not set
+     */
+    virtual const char* byTag() const;
 };
 
 /**
@@ -13680,6 +13694,8 @@ class MegaApi
          * onRequestFinish will be called with the error code MegaError::API_EARGS.
          *
          * If tag already exists, onRequestFinish will be called with the error code MegaError::API_EEXISTS
+         * If number of tags exceed the maximum number of tags (10),
+         * onRequestFinish will be called with the error code MegaError::API_ETOOMANY
          *
          * If the MEGA account is a business account and its status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.

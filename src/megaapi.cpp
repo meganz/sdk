@@ -6891,6 +6891,15 @@ const char* MegaSearchFilter::byDescription() const
     return nullptr;
 }
 
+void MegaSearchFilter::byTag(const char* /*searchString*/)
+{
+}
+
+const char* MegaSearchFilter::byTag() const
+{
+    return nullptr;
+}
+
 MegaSearchPage::MegaSearchPage()
 {
 }

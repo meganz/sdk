@@ -8576,6 +8576,22 @@ void MegaClient::makeattr(SymmCipher* key, const std::unique_ptr<string>& attrst
     makeattr(key, attrstring.get(), json, l);
 }
 
+std::set<std::string>::iterator getTagPosition(std::set<std::string>& tokens, const std::string& tag)
+{
+    for (auto it = tokens.begin(); it != tokens.end(); it++)
+    {
+        std::string escapedWidlCards = escapeWildCards(tag.c_str());
+        const uint8_t* pattern = reinterpret_cast<const uint8_t*>(escapedWidlCards.c_str());
+        const uint8_t* matchString = reinterpret_cast<const uint8_t*>(it->c_str());
+        if (icuLikeCompare(pattern, matchString, '\\'))
+        {
+            return it;
+        }
+    }
+
+    return tokens.end();
+}
+
 error MegaClient::addTagToNode(std::shared_ptr<Node> node,
                                const string& tag,
                                CommandSetAttr::Completion&& c)
@@ -8584,7 +8600,12 @@ error MegaClient::addTagToNode(std::shared_ptr<Node> node,
     std::string tags = node->attrs.map[tagNameid];
     std::set<std::string> tokens = splitString(tags, TAG_DELIMITER);
 
-    if (tokens.find(tag) != tokens.end())
+    if (tokens.size() == MAX_NUMBER_TAGS)
+    {
+        return API_ETOOMANY;
+    }
+
+    if (getTagPosition(tokens, tag) != tokens.end())
     {
         return API_EEXIST;
     }
@@ -8610,13 +8631,13 @@ error MegaClient::removeTagFromNode(std::shared_ptr<Node> node,
     std::string tags = node->attrs.map[tagNameid];
     std::set<std::string> tokens = splitString(tags, TAG_DELIMITER);
 
-    auto it = tokens.find(tag);
-    if (it == tokens.end())
+    auto tagPosition = getTagPosition(tokens, tag);
+    if (tagPosition == tokens.end())
     {
         return API_ENOENT;
     }
 
-    tokens.erase(it);
+    tokens.erase(tagPosition);
     std::string str = joinStrings(tokens.begin(), tokens.end(), std::string{TAG_DELIMITER});
 
     AttrMap map;
@@ -8635,17 +8656,21 @@ error MegaClient::updateTagNode(std::shared_ptr<Node> node,
     std::string tags = node->attrs.map[tagNameid];
     std::set<std::string> tokens = splitString(tags, TAG_DELIMITER);
 
-    auto [elementIt, success] = tokens.insert(newTag);
-    if (!success)
+    auto tagPosition = getTagPosition(tokens, oldTag);
+    if (tagPosition == tokens.end())
+    {
+        return API_ENOENT;
+    }
+
+    tokens.erase(tagPosition);
+
+    tagPosition = getTagPosition(tokens, newTag);
+    if (tagPosition != tokens.end())
     {
         return API_EEXIST;
     }
 
-    auto removedElements = tokens.erase(oldTag);
-    if (!removedElements)
-    {
-        return API_ENOENT;
-    }
+    tokens.insert(newTag);
 
     std::string str = joinStrings(tokens.begin(), tokens.end(), std::string{TAG_DELIMITER});
 

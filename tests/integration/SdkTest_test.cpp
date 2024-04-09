@@ -18589,12 +18589,73 @@ TEST_F(SdkTest, SdkNodeTag)
     ASSERT_EQ(addTag(mh, tag1), API_EEXIST);
     ASSERT_EQ(addTag(mh, "tag,tag"), API_EARGS);
 
+    //Search a tag in the middle of tags
+    std::unique_ptr<MegaSearchFilter> filter(MegaSearchFilter::createInstance());
+    filter->byTag(tag2.c_str());
+    std::unique_ptr<MegaNodeList> nodeList(megaApi[0]->search(filter.get()));
+    ASSERT_EQ(nodeList->size(), 1);
+
+    //Search a tag at beginning of the tags
+    filter->byTag(tag1.c_str());
+    nodeList.reset(megaApi[0]->search(filter.get()));
+    ASSERT_EQ(nodeList->size(), 1);
+
+    //Search a tag at end of the tags
+    filter->byTag(tag3.c_str());
+    nodeList.reset(megaApi[0]->search(filter.get()));
+    ASSERT_EQ(nodeList->size(), 1);
+
+    std::string tagNoFind = "ta";
+    filter->byTag(tagNoFind.c_str());
+    nodeList.reset(megaApi[0]->search(filter.get()));
+    ASSERT_EQ(nodeList->size(), 0);
+
+    std::string tagNoFindWithWildCard = "t*g";
+    filter->byTag(tagNoFindWithWildCard.c_str());
+    nodeList.reset(megaApi[0]->search(filter.get()));
+    ASSERT_EQ(nodeList->size(), 0);
+
+    std::unique_ptr<MegaSearchFilter> filterChildren(MegaSearchFilter::createInstance());
+    filterChildren->byTag(tag2.c_str());
+    filterChildren->byLocationHandle(rootnodeA->getHandle());
+    nodeList.reset(megaApi[0]->getChildren(filterChildren.get()));
+    ASSERT_EQ(nodeList->size(), 1);
+
+    filterChildren->byTag(tag1.c_str());
+    nodeList.reset(megaApi[0]->getChildren(filterChildren.get()));
+    ASSERT_EQ(nodeList->size(), 1);
+
+    filterChildren->byTag(tag3.c_str());
+    nodeList.reset(megaApi[0]->getChildren(filterChildren.get()));
+    ASSERT_EQ(nodeList->size(), 1);
+
     ASSERT_EQ(removeTag(mh, tag2), API_OK);
     ASSERT_EQ(removeTag(mh, tag2), API_ENOENT);
 
+    filter->byTag(tag2.c_str());
+    nodeList.reset(megaApi[0]->search(filter.get()));
+    ASSERT_EQ(nodeList->size(), 0);
+
     ASSERT_EQ(updateTag(mh, tagUpdated, tag1), API_OK);
-    ASSERT_EQ(updateTag(mh, tagUpdated, tag2), API_EEXIST);  // New tag already exists
+
+    ASSERT_EQ(updateTag(mh, tagUpdated, tag3), API_EEXIST);  // New tag already exists
     ASSERT_EQ(updateTag(mh, tagUpdated2, tag1), API_ENOENT); // Old tag doesn't exist
+
+    ASSERT_EQ(removeTag(mh, tagUpdated), API_OK);
+
+    // Search a tag with only one tag
+    filter->byTag(tag3.c_str());
+    nodeList.reset(megaApi[0]->search(filter.get()));
+    ASSERT_EQ(nodeList->size(), 1);
+
+    std::string tag4 = "Ñaa";
+    std::string tag4Lowercase = "ñaa";
+    ASSERT_EQ(addTag(mh, tag4), API_OK);
+    filter->byTag(tag4Lowercase.c_str());
+    nodeList.reset(megaApi[0]->search(filter.get()));
+    ASSERT_EQ(nodeList->size(), 1);
+
+    ASSERT_EQ(addTag(mh, tag4Lowercase), API_EEXIST);
 
     deleteFile(filename);
 }

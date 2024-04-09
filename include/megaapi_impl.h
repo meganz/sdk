@@ -2818,6 +2818,8 @@ public:
     int64_t byModificationTimeUpperLimit() const override { return mModificationUpperLimit; }
     void byDescription(const char* searchString) override;
     const char* byDescription() const override { return mDescriptionFilter.c_str(); }
+    void byTag(const char* searchString) override;
+    const char* byTag() const override { return mTag.c_str(); }
 
 private:
     std::string mNameFilter;
@@ -2831,6 +2833,7 @@ private:
     int64_t mModificationLowerLimit = 0;
     int64_t mModificationUpperLimit = 0;
     std::string mDescriptionFilter;
+    std::string mTag;
 };
 
 class MegaSearchPagePrivate : public MegaSearchPage

@@ -25,11 +25,6 @@
 
 #include "mega/db.h"
 
-#include <sqlite3.h>
-
-// Include ICU headers
-#include <unicode/uchar.h>
-
 namespace mega {
 
 class MEGA_API SqliteDbTable : public DbTable
@@ -158,10 +153,6 @@ public:
     // If the progress callback returns non-zero, the operation is interrupted
     static int progressHandler(void *);
     static void userRegexp(sqlite3_context* context, int argc, sqlite3_value** argv);
-    static int icuLikeCompare(const uint8_t *zPattern,   /* LIKE pattern */
-            const uint8_t *zString,    /* The UTF-8 string to compare against */
-            const UChar32 uEsc         /* The escape character */
-          );
 
     // Method called when query use method 'ismimetype'
     // It checks if received mimetype is the same as extension extracted from file name
@@ -172,6 +163,8 @@ public:
     static void userGetMimetype(sqlite3_context* context, int argc, sqlite3_value** argv);
 
     static void userIsContained(sqlite3_context* context, int argc, sqlite3_value** argv);
+
+    static void userMatchTag(sqlite3_context* context, int argc, sqlite3_value** argv);
 
 private:
     // Iterate over a SQL query row by row and fill the map
