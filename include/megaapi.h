@@ -3620,12 +3620,12 @@ public:
     virtual MegaStringList* getKeys() const = 0;
 
     /**
-     * @brief Returns a list with the value of the provided key
+     * @brief Returns a list of values for the provided key
      *
      * You take the ownership of the returned value
      *
      * @param key Key of the element that you want to get from the map
-     * @return A MegaIntegerList containing the list with the value for the provided key
+     * @return A MegaIntegerList containing the list of values for the provided key
      */
     virtual MegaIntegerList* get(const char* key) const = 0;
 

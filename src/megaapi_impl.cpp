@@ -28145,12 +28145,12 @@ const char *MegaPricingPrivate::getAndroidID(int productIndex)
 
 bool MegaPricingPrivate::isBusinessType(int productIndex)
 {
-    return isType(productIndex, PlanType::BUSINESS);
+    return isType(productIndex, 1);
 }
 
 bool MegaPricingPrivate::isFeaturePlan(int productIndex) const
 {
-    return isType(productIndex, PlanType::FEATURE);
+    return isType(productIndex, 2);
 }
 
 bool MegaPricingPrivate::isType(int productIndex, unsigned t) const
@@ -28322,12 +28322,12 @@ MegaStringIntegerMap* MegaPricingPrivate::getFeatures(int productIndex) const
         return nullptr;
     }
 
-    MegaStringIntegerMapPrivate* returnFeatures = new MegaStringIntegerMapPrivate();
-    for (const auto& feature: features[productIndex])
+    MegaStringIntegerMapPrivate* feats = new MegaStringIntegerMapPrivate();
+    for (const auto& f : features[productIndex])
     {
-        returnFeatures->set(feature.first, feature.second);
+        feats->set(f.first, f.second);
     }
-    return returnFeatures;
+    return feats;
 }
 
 MegaCurrencyPrivate::~MegaCurrencyPrivate()
