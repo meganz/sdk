@@ -2542,14 +2542,14 @@ void SqliteAccountState::userIsContained(sqlite3_context* context, int argc, sql
     patternsToCheck.push_back(stringAddingWildcards);
 
     // tag in the middle ...,tag,...
-    stringAddingWildcards = WILDCARD_MATCH_ALL + MegaClient::TAG_DELIMITER +
+    stringAddingWildcards = std::string() + WILDCARD_MATCH_ALL + MegaClient::TAG_DELIMITER +
                             stringAfterEscapeWidCards + MegaClient::TAG_DELIMITER +
                             WILDCARD_MATCH_ALL;
     patternsToCheck.push_back(stringAddingWildcards);
 
-    //tag at the end ...,tag
+    // tag at the end ...,tag
     stringAddingWildcards =
-        WILDCARD_MATCH_ALL + MegaClient::TAG_DELIMITER + stringAfterEscapeWidCards;
+        std::string() + WILDCARD_MATCH_ALL + MegaClient::TAG_DELIMITER + stringAfterEscapeWidCards;
     patternsToCheck.push_back(stringAddingWildcards);
 
     for (const std::string& element: patternsToCheck)
