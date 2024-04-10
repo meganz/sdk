@@ -930,7 +930,7 @@ public:
             return false;
         }
 
-        [[maybe_unused]] auto result = get();
+        get();
 
         return true;
     }

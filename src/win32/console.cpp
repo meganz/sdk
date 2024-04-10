@@ -353,7 +353,7 @@ void ConsoleModel::performLineEditingAction(lineEditAction action, unsigned cons
         searchingHistory = false;
     }
 
-    int pos = (int)insertPos;
+    int pos = insertPos;
     int bufSize = buffer.size();
 
     switch (action)

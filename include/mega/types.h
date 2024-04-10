@@ -1382,9 +1382,7 @@ public:
 
     void unlock()
     {
-        [[maybe_unused]] auto id = std::this_thread::get_id();
-
-        assert(mOwner == id);
+        assert(mOwner == std::this_thread::get_id());
 
         mOwner = std::thread::id();
         mMutex.unlock();
@@ -1450,12 +1448,10 @@ public:
 
     void unlock()
     {
-        [[maybe_unused]] auto id = std::this_thread::get_id();
-
         std::lock_guard<Spinlock> guard(mLock);
 
         assert(mCount);
-        assert(mOwner == id);
+        assert(mOwner == std::this_thread::get_id());
 
         if (!--mCount)
             mOwner = std::thread::id();

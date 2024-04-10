@@ -10028,10 +10028,10 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 
     LOG_verbose << " SyncResumptionAfterFetchNodes : syncying folders";
 
-    [[maybe_unused]] handle backupId1 = syncFolder(sync1Path);
-    [[maybe_unused]] handle backupId2 = syncFolder(sync2Path);
-    [[maybe_unused]] handle backupId3 = syncFolder(sync3Path);
-    [[maybe_unused]] handle backupId4 = syncFolder(sync4Path);
+    handle backupId1 = syncFolder(sync1Path);
+    handle backupId2 = syncFolder(sync2Path);
+    handle backupId3 = syncFolder(sync3Path);
+    handle backupId4 = syncFolder(sync4Path);
 
     ASSERT_TRUE(checkSyncOK(sync1Path));
     ASSERT_TRUE(checkSyncOK(sync2Path));
