@@ -5391,27 +5391,18 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
                 break;
 
             case MAKENAMEID8('f', 'e', 'a', 't', 'u', 'r', 'e', 's'):
-                if (!json.enterarray())
+                if (json.enterarray())
                 {
-                    LOG_err << "Failed to parse GetUserQuota response, enter `features` object";
-                    client->app->account_details(details.get(), API_EINTERNAL);
-                    return false;
-                }
+                    while (json.enterarray())
+                    {
+                        m_time_t expiryTs = json.getint();
+                        string featurreId = json.getvalue();
+                        details->features.push_back({expiryTs, featurreId});
 
-                while (json.enterarray())
-                {
-                    int64_t expiryTimestamp = json.getint();
-                    string featurreId = json.getvalue();
-                    details->activeFeatures.push_back({expiryTimestamp, featurreId});
+                        json.leavearray();
+                    }
 
                     json.leavearray();
-                }
-
-                if (!json.leavearray())
-                {
-                    LOG_err << "Failed to parse GetUserQuota response, leave `features` object";
-                    client->app->account_details(details.get(), API_EINTERNAL);
-                    return false;
                 }
                 break;
 
@@ -5432,7 +5423,7 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
                 string key, value;
                 while (json.storeKeyValueFromObject(key, value))
                 {
-                    details->sfeatures[key] = static_cast<unsigned>(std::stoul(value));
+                    details->sfeatures[key] = std::stoul(value);
                 }
                 if (!json.leaveobject())
                 {

@@ -27902,16 +27902,16 @@ bool MegaAccountDetailsPrivate::isTemporalBandwidthValid()
     return details.transfer_hist_valid;
 }
 
-int MegaAccountDetailsPrivate::getNumActiveFeatures() const
+int MegaAccountDetailsPrivate::getNumFeatures() const
 {
-    return static_cast<int>(details.activeFeatures.size());
+    return static_cast<int>(details.features.size());
 }
 
-MegaAccountFeature* MegaAccountDetailsPrivate::getActiveFeature(int featureIndex) const
+MegaAccountFeature* MegaAccountDetailsPrivate::getFeature(int i) const
 {
-    if (static_cast<size_t>(featureIndex) < details.activeFeatures.size())
+    if (static_cast<size_t>(i) < details.features.size())
     {
-        return MegaAccountFeaturePrivate::fromAccountFeature(&(details.activeFeatures[featureIndex]));
+        return MegaAccountFeaturePrivate::fromAccountFeature(&(details.features[i]));
     }
     return nullptr;
 }
@@ -28796,7 +28796,7 @@ MegaAccountFeaturePrivate::MegaAccountFeaturePrivate(const AccountFeature* featu
 
 int64_t MegaAccountFeaturePrivate::getExpiry() const
 {
-    return mFeature.expiryTimestamp;
+    return mFeature.expiryTs;
 }
 
 char* MegaAccountFeaturePrivate::getId() const

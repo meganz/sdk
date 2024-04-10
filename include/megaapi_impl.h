@@ -1902,8 +1902,8 @@ class MegaAccountDetailsPrivate : public MegaAccountDetails
         long long getTemporalBandwidth() override;
         bool isTemporalBandwidthValid() override;
 
-        int getNumActiveFeatures() const override;
-        MegaAccountFeature* getActiveFeature(int featureIndex) const override;
+        int getNumFeatures() const override;
+        MegaAccountFeature* getFeature(int i) const override;
         int64_t getSubscriptionLevel() const override;
         MegaStringIntegerMap* getSubscriptionFeatures() const override;
 

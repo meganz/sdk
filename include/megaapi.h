@@ -23664,18 +23664,18 @@ public:
     virtual ~MegaAccountFeature() = default;
 
     /**
-     * @brief Get the expiry timestamp
+     * @brief Get the expiry timstamp
      *
-     * @return Expiry timestamp
+     * @return Expiry timstamp
      */
     virtual int64_t getExpiry() const = 0;
 
     /**
-     * @brief Get the ID of this feature
+     * @brief Get the id of this feature
      *
      * You take the ownership of the returned value
      *
-     * @return ID of this feature
+     * @return Id of this feature
      */
     virtual char* getId() const = 0;
 };
@@ -24021,23 +24021,23 @@ public:
     virtual bool isTemporalBandwidthValid();
 
     /**
-     * @brief Get the number of active MegaAccountFeature-s in the account
+     * @brief Get the number of MegaAccountFeature objects associated with the account
      *
-     * You can use MegaAccountDetails::getActiveFeature to get each of those objects.
+     * You can use MegaAccountDetails::getFeature to get each of those objects.
      *
      * @return Number of MegaAccountFeature objects
      */
-    virtual int getNumActiveFeatures() const = 0;
+    virtual int getNumFeatures() const = 0;
 
     /**
      * @brief Returns the MegaAccountFeature object associated with an index
      *
      * You take the ownership of the returned value
      *
-     * @param featureIndex Index of the object
+     * @param i Index of the object
      * @return MegaAccountFeature object
      */
-    virtual MegaAccountFeature* getActiveFeature(int featureIndex) const = 0;
+    virtual MegaAccountFeature* getFeature(int i) const = 0;
 
     /**
      * @brief Get feature account level for feature related subscriptions

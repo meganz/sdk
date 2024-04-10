@@ -19468,20 +19468,20 @@ TEST_F(SdkTest, GetUserFeatures)
     megaApi[0]->getAccountDetails(&accDetailsTracker);
     ASSERT_EQ(accDetailsTracker.waitForResult(), API_OK) << "Failed to get account details";
 
-    std::unique_ptr<MegaAccountDetails> accountDetails(accDetailsTracker.request->getMegaAccountDetails());
-    ASSERT_TRUE(accountDetails) << "Missing account details";
+    std::unique_ptr<MegaAccountDetails> accDtls(accDetailsTracker.request->getMegaAccountDetails());
+    ASSERT_TRUE(accDtls) << "Missing account details";
 
-    if (accountDetails->getProLevel() == MegaAccountDetails::ACCOUNT_TYPE_FREE)
+    if (accDtls->getProLevel() == MegaAccountDetails::ACCOUNT_TYPE_FREE)
     {
-        ASSERT_EQ(accountDetails->getNumActiveFeatures(), 0);
-        ASSERT_EQ(accountDetails->getSubscriptionLevel(), 0);
+        ASSERT_EQ(accDtls->getNumFeatures(), 0);
+        ASSERT_EQ(accDtls->getSubscriptionLevel(), 0);
     }
     else
     {
-        ASSERT_GT(accountDetails->getNumActiveFeatures(), 0);
-        if (accountDetails->getSubscriptionLevel())
+        ASSERT_GT(accDtls->getNumFeatures(), 0);
+        if (accDtls->getSubscriptionLevel())
         {
-            std::unique_ptr<MegaStringIntegerMap> subscriptionFeatures{ accountDetails->getSubscriptionFeatures() };
+            std::unique_ptr<MegaStringIntegerMap> subscriptionFeatures{ accDtls->getSubscriptionFeatures() };
             ASSERT_GT(subscriptionFeatures->size(), 0);
         }
     }
