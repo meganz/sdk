@@ -753,7 +753,6 @@ public:
     static constexpr char NODE_ATTRIBUTE_DESCRIPTION[] = "des";
     static constexpr char NODE_ATTRIBUTE_TAGS[] = "t";
     static constexpr char TAG_DELIMITER = ',';
-    static constexpr int MAX_NODE_DESCRIPTION_SIZE = 3000;
     static constexpr uint32_t MAX_NUMBER_TAGS = 10;
 
     // update node attributes

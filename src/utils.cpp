@@ -3352,6 +3352,7 @@ std::set<std::string> splitString(const string& str, char delimiter)
 std::string escapeWildCards(const std::string& pattern)
 {
     std::string newString;
+    newString.reserve(pattern.size());
     for (unsigned int i = 0; i < pattern.length(); i++)
     {
         char character = pattern[i];
