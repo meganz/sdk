@@ -171,6 +171,7 @@ public:
     // Gets the mimetype corresponding to the file extension
     static void userGetMimetype(sqlite3_context* context, int argc, sqlite3_value** argv);
 
+    // Check if string (pattern) is contained at data base column from type text
     static void userIsContained(sqlite3_context* context, int argc, sqlite3_value** argv);
 
 private:

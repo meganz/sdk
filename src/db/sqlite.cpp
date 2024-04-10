@@ -2420,10 +2420,10 @@ void SqliteAccountState::userRegexp(sqlite3_context* context, int argc, sqlite3_
     }
 
     const uint8_t* pattern = static_cast<const uint8_t*>(sqlite3_value_text(argv[0]));
-    const uint8_t* dataBaseName = static_cast<const uint8_t*>(sqlite3_value_text(argv[1]));
-    if (dataBaseName && pattern)
+    const uint8_t* nameFromDataBase = static_cast<const uint8_t*>(sqlite3_value_text(argv[1]));
+    if (nameFromDataBase && pattern)
     {
-        int result = icuLikeCompare(pattern, dataBaseName, 0);
+        int result = icuLikeCompare(pattern, nameFromDataBase, 0);
         sqlite3_result_int(context, result);
     }
 }
@@ -2607,8 +2607,8 @@ void SqliteAccountState::userIsContained(sqlite3_context* context, int argc, sql
     }
 
     const uint8_t* descriptionToCheck = static_cast<const uint8_t*>(sqlite3_value_text(argv[0]));
-    const uint8_t* dataBaseName = static_cast<const uint8_t*>(sqlite3_value_text(argv[1]));
-    if (!dataBaseName || !descriptionToCheck)
+    const uint8_t* descriptionFromDataBase = static_cast<const uint8_t*>(sqlite3_value_text(argv[1]));
+    if (!descriptionFromDataBase || !descriptionToCheck)
     {
         sqlite3_result_int(context, 0);
         return;
@@ -2616,12 +2616,11 @@ void SqliteAccountState::userIsContained(sqlite3_context* context, int argc, sql
 
     std::string stringToMatch(reinterpret_cast<const char*>(descriptionToCheck));
 
-    std::string stringAddingWildcards{WILDCARD_MATCH_ALL};
-    stringAddingWildcards.append(std::move(escapeWildCards(stringToMatch)));
-    stringAddingWildcards.push_back(WILDCARD_MATCH_ALL);
+    std::string stringAddingWildcards =
+        WILDCARD_MATCH_ALL + escapeWildCards(stringToMatch) + WILDCARD_MATCH_ALL;
 
     const uint8_t* pattern = reinterpret_cast<const uint8_t*>(stringAddingWildcards.c_str());
-    int result = icuLikeCompare(pattern, dataBaseName, ESCAPE_CHARACTER);
+    int result = icuLikeCompare(pattern, descriptionFromDataBase, ESCAPE_CHARACTER);
     sqlite3_result_int(context, result);
 }
 
