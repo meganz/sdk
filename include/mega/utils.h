@@ -1109,7 +1109,7 @@ static constexpr char ESCAPE_CHARACTER = '\\';
 
 std::string escapeWildCards(const std::string& pattern);
 
-// Check if two string are equal without take account if they are lower or higher case
+// Check if two string(possible multibyte characters) are equal without take account if they are lower or higher case
 // 1 if they are equal
 int icuLikeCompare(const uint8_t *zPattern,   /* LIKE pattern */
                           const uint8_t *zString,    /* The UTF-8 string to compare against */

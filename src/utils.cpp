@@ -3406,8 +3406,9 @@ int icuLikeCompare(
     const UChar32 uEsc)         // The escape character
 {
     // Define Linux wildcards
-    static const uint32_t MATCH_ONE = (uint32_t)WILDCARD_MATCH_ONE;
-    static const uint32_t MATCH_ALL = (uint32_t)WILDCARD_MATCH_ALL;
+    static const uint32_t MATCH_ONE = static_cast<uint32_t>(WILDCARD_MATCH_ONE);
+    static const uint32_t MATCH_ALL = static_cast<uint32_t>(WILDCARD_MATCH_ALL);
+
 
     int prevEscape = 0;     //True if the previous character was uEsc
 

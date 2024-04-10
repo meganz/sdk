@@ -164,6 +164,8 @@ public:
 
     static void userIsContained(sqlite3_context* context, int argc, sqlite3_value** argv);
 
+    // Check if string (pattern - argv[0]) is part of tags stored at data base column (argv[1])
+    // only one tag, at beginning, at the end or in the middle
     static void userMatchTag(sqlite3_context* context, int argc, sqlite3_value** argv);
 
 private:
