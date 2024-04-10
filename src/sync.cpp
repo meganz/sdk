@@ -3386,7 +3386,7 @@ bool Sync::movetolocaldebris(const LocalPath& localpath)
     }
 
     // initially try wih the same sequence number as last time, to avoid making large numbers of these when possible
-    targetFolder = localdebris;
+    LocalPath targetFolderWithDate = targetFolder;
     targetFolder.appendWithSeparator(LocalPath::fromRelativePath(
         datetime + std::to_string(mLastDailyDateTimeDebrisCounter)), false);
 
@@ -3406,7 +3406,7 @@ bool Sync::movetolocaldebris(const LocalPath& localpath)
     // if that fails, try with the sequence incremented, that should be a new, empty folder with no filename clash possible
     ++mLastDailyDateTimeDebrisCounter;
 
-    targetFolder = localdebris;
+    targetFolder = targetFolderWithDate;
     targetFolder.appendWithSeparator(LocalPath::fromRelativePath(
         datetime + std::to_string(mLastDailyDateTimeDebrisCounter)), true);
 
