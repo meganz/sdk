@@ -2522,8 +2522,8 @@ void SqliteAccountState::userIsContained(sqlite3_context* context, int argc, sql
     }
 
     const uint8_t* tagToCheck = static_cast<const uint8_t*>(sqlite3_value_text(argv[0]));
-    const uint8_t* dataBaseName = static_cast<const uint8_t*>(sqlite3_value_text(argv[1]));
-    if (!dataBaseName || !tagToCheck)
+    const uint8_t* tagsFromDataBase = static_cast<const uint8_t*>(sqlite3_value_text(argv[1]));
+    if (!tagsFromDataBase || !tagToCheck)
     {
         sqlite3_result_int(context, 0);
         return;
@@ -2554,7 +2554,7 @@ void SqliteAccountState::userIsContained(sqlite3_context* context, int argc, sql
     for (const std::string& element: patternsToCheck)
     {
         const uint8_t* pattern = reinterpret_cast<const uint8_t*>(element.c_str());
-        if (int result = icuLikeCompare(pattern, dataBaseName, ESCAPE_CHARACTER); result)
+        if (int result = icuLikeCompare(pattern, tagsFromDataBase, ESCAPE_CHARACTER); result)
         {
             sqlite3_result_int(context, result);
             return;
