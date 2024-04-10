@@ -274,7 +274,6 @@ void ConsoleModel::redrawInputLine(int p)
     insertPos = std::clamp<size_t>(p, 0, buffer.size());
     redrawInputLineNeeded = true;
 }
-
 void ConsoleModel::autoComplete(bool forwards, unsigned consoleWidth)
 {   
 #ifdef HAVE_AUTOCOMPLETE
@@ -320,7 +319,7 @@ static bool isWordBoundary(size_t i, const std::wstring s)
 
 int ConsoleModel::detectWordBoundary(int start, bool forward)
 {
-    start = std::clamp<size_t>(start, 0, buffer.size());
+    start = static_cast<int>(std::clamp<size_t>(start, 0, buffer.size()));
     do
     {
         start += (forward ? 1 : -1);
@@ -330,8 +329,8 @@ int ConsoleModel::detectWordBoundary(int start, bool forward)
 
 void ConsoleModel::deleteCharRange(int start, int end)
 {
-    start = std::clamp<size_t>(start, 0, buffer.size());
-    end = std::clamp<size_t>(end, 0, buffer.size());
+    start = static_cast<int>(std::clamp<size_t>(start, 0, buffer.size()));
+    end = static_cast<int>(std::clamp<size_t>(end, 0, buffer.size()));
     if (start < end)
     {
         buffer.erase(start, end - start);
