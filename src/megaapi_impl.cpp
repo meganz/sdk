@@ -21311,7 +21311,7 @@ error MegaApiImpl::performRequest_setAttrNode(MegaRequestPrivate* request)
                 {
                     const char* attrValue = request->getText();
                     if (type == MegaApi::NODE_ATTR_DESCRIPTION && attrValue &&
-                        strlen(attrValue) > MegaClient::MAX_NODE_DESCRIPTION_SIZE)
+                        strlen(attrValue) > MegaApi::MAX_NODE_DESCRIPTION_SIZE)
                     {
                         return API_EARGS;
                     }
