@@ -2532,24 +2532,15 @@ void SqliteAccountState::userIsContained(sqlite3_context* context, int argc, sql
 
     std::string stringAfterEscapeWidCards{escapeWildCards(reinterpret_cast<const char*>(tagToCheck))};
 
+    std::vector<std::string> patternsToCheck;
     // only one tag
-    const uint8_t* pattern = reinterpret_cast<const uint8_t*>(stringAfterEscapeWidCards.c_str());
-    if (int result = icuLikeCompare(pattern, dataBaseName, ESCAPE_CHARACTER); result)
-    {
-        sqlite3_result_int(context, result);
-        return;
-    }
+    patternsToCheck.push_back(stringAfterEscapeWidCards);
 
     // tag at start tag,...
     std::string stringAddingWildcards{stringAfterEscapeWidCards};
     stringAddingWildcards.push_back(MegaClient::TAG_DELIMITER);
     stringAddingWildcards.push_back(WILDCARD_MATCH_ALL);
-    pattern = reinterpret_cast<const uint8_t*>(stringAddingWildcards.c_str());
-    if (int result = icuLikeCompare(pattern, dataBaseName, ESCAPE_CHARACTER); result)
-    {
-        sqlite3_result_int(context, result);
-        return;
-    }
+    patternsToCheck.push_back(stringAddingWildcards);
 
     // tag in the middle ...,tag,...
     stringAddingWildcards = WILDCARD_MATCH_ALL;
@@ -2557,22 +2548,22 @@ void SqliteAccountState::userIsContained(sqlite3_context* context, int argc, sql
     stringAddingWildcards.append(stringAfterEscapeWidCards);
     stringAddingWildcards.push_back(MegaClient::TAG_DELIMITER);
     stringAddingWildcards.push_back(WILDCARD_MATCH_ALL);
-    pattern = reinterpret_cast<const uint8_t*>(stringAddingWildcards.c_str());
-    if (int result = icuLikeCompare(pattern, dataBaseName, ESCAPE_CHARACTER); result)
-    {
-        sqlite3_result_int(context, result);
-        return;
-    }
+    patternsToCheck.push_back(stringAddingWildcards);
 
     //tag at the end ...,tag
     stringAddingWildcards = WILDCARD_MATCH_ALL;
     stringAddingWildcards.push_back(MegaClient::TAG_DELIMITER);
     stringAddingWildcards.append(stringAfterEscapeWidCards);
-    pattern = reinterpret_cast<const uint8_t*>(stringAddingWildcards.c_str());
-    if (int result = icuLikeCompare(pattern, dataBaseName, ESCAPE_CHARACTER); result)
+    patternsToCheck.push_back(stringAddingWildcards);
+
+    for (const std::string& element: patternsToCheck)
     {
-        sqlite3_result_int(context, result);
-        return;
+        const uint8_t* pattern = reinterpret_cast<const uint8_t*>(element.c_str());
+        if (int result = icuLikeCompare(pattern, dataBaseName, ESCAPE_CHARACTER); result)
+        {
+            sqlite3_result_int(context, result);
+            return;
+        }
     }
 
     sqlite3_result_int(context, 0);
