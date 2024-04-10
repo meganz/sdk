@@ -370,7 +370,7 @@ void ConsoleModel::performLineEditingAction(lineEditAction action, unsigned cons
         searchingHistory = false;
     }
 
-    int pos = static_cast<int>(staticinsertPos);
+    int pos = static_cast<int>(insertPos);
     int bufSize = static_cast<int>(buffer.size());
 
     switch (action)
