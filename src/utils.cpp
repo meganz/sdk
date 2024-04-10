@@ -2028,7 +2028,7 @@ string Utils::trim(const string& str, const string& trimchrs)
 struct tm* m_localtime(m_time_t ttime, struct tm *dt)
 {
     // works for 32 or 64 bit time_t
-    time_t t = time_t(ttime);
+    const time_t t = static_cast<time_t>(ttime);
 #ifdef _WIN32
     localtime_s(&t, dt);
 #else
@@ -2040,7 +2040,7 @@ struct tm* m_localtime(m_time_t ttime, struct tm *dt)
 struct tm* m_gmtime(m_time_t ttime, struct tm *dt)
 {
     // works for 32 or 64 bit time_t
-    time_t t = time_t(ttime);
+    const time_t t = static_cast<time_t>(ttime);
 #ifdef _WIN32
     gmtime_s(&t, dt);
 #else
