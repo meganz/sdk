@@ -23656,6 +23656,31 @@ public:
 };
 
 /**
+ * @brief Details about a MEGA feature
+ */
+class MegaAccountFeature
+{
+public:
+    virtual ~MegaAccountFeature() = default;
+
+    /**
+     * @brief Get the expiry timstamp
+     *
+     * @return Expiry timstamp
+     */
+    virtual int64_t getExpiry() const = 0;
+
+    /**
+     * @brief Get the id of this feature
+     *
+     * You take the ownership of the returned value
+     *
+     * @return Id of this feature
+     */
+    virtual char* getId() const = 0;
+};
+
+/**
  * @brief Details about a MEGA account
  */
 class MegaAccountDetails
@@ -23994,6 +24019,41 @@ public:
      * @return True if the temporal bandwidth is valid, otherwise false
      */
     virtual bool isTemporalBandwidthValid();
+
+    /**
+     * @brief Get the number of MegaAccountFeature objects associated with the account
+     *
+     * You can use MegaAccountDetails::getFeature to get each of those objects.
+     *
+     * @return Number of MegaAccountFeature objects
+     */
+    virtual int getNumFeatures() const = 0;
+
+    /**
+     * @brief Returns the MegaAccountFeature object associated with an index
+     *
+     * You take the ownership of the returned value
+     *
+     * @param i Index of the object
+     * @return MegaAccountFeature object
+     */
+    virtual MegaAccountFeature* getFeature(int i) const = 0;
+
+    /**
+     * @brief Get feature account level for feature related subscriptions
+     *
+     * @return Level for feature related subscriptions
+     */
+    virtual int64_t getSubscriptionLevel() const = 0;
+
+    /**
+     * @brief Get subscription features for this account
+     *
+     * You take the ownership of the returned value
+     *
+     * @return Subscription features for this account. The value of each feature should be treated as a 32bit unsigned int
+     */
+    virtual MegaStringIntegerMap* getSubscriptionFeatures() const = 0;
 };
 
 class MegaCurrency

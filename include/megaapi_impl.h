@@ -1842,6 +1842,19 @@ private:
     AccountTransaction transaction;
 };
 
+class MegaAccountFeaturePrivate : public MegaAccountFeature
+{
+public:
+    static MegaAccountFeaturePrivate* fromAccountFeature(const AccountFeature* feature);
+
+    int64_t getExpiry() const override;
+    char* getId() const override;
+
+private:
+    MegaAccountFeaturePrivate(const AccountFeature* feature);
+    AccountFeature mFeature;
+};
+
 class MegaAccountDetailsPrivate : public MegaAccountDetails
 {
     public:
@@ -1888,6 +1901,11 @@ class MegaAccountDetailsPrivate : public MegaAccountDetails
         int getTemporalBandwidthInterval() override;
         long long getTemporalBandwidth() override;
         bool isTemporalBandwidthValid() override;
+
+        int getNumFeatures() const override;
+        MegaAccountFeature* getFeature(int i) const override;
+        int64_t getSubscriptionLevel() const override;
+        MegaStringIntegerMap* getSubscriptionFeatures() const override;
 
     private:
         MegaAccountDetailsPrivate(AccountDetails *details);

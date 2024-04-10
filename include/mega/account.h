@@ -61,6 +61,12 @@ struct MEGA_API AccountTransaction
     double delta;
 };
 
+struct MEGA_API AccountFeature
+{
+    m_time_t expiryTs = 0;
+    string featureId;
+};
+
 
 // subtree's total storage footprint (excluding the root folder itself)
 struct MEGA_API NodeStorage
@@ -116,6 +122,11 @@ struct MEGA_API AccountDetails
     vector<AccountSession> sessions;
     vector<AccountPurchase> purchases;
     vector<AccountTransaction> transactions;
+
+    // Features
+    vector<AccountFeature> features;
+    m_off_t slevel = 0;  // feature account level for feature related subscriptions
+    map<string, uint32_t> sfeatures; // subscription features, populated when slevel > 0
 };
 
 // award classes with the award values the class is supposed to get

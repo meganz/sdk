@@ -19455,3 +19455,34 @@ TEST_F(SdkTest, GetFeaturePlans)
         }
     }
 }
+
+/**
+ * @brief GetUserFeatures
+ */
+TEST_F(SdkTest, GetUserFeatures)
+{
+    LOG_info << "___TEST GetUserFeatures___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    RequestTracker accDetailsTracker(megaApi[0].get());
+    megaApi[0]->getAccountDetails(&accDetailsTracker);
+    ASSERT_EQ(accDetailsTracker.waitForResult(), API_OK) << "Failed to get account details";
+
+    std::unique_ptr<MegaAccountDetails> accDtls(accDetailsTracker.request->getMegaAccountDetails());
+    ASSERT_TRUE(accDtls) << "Missing account details";
+
+    if (accDtls->getProLevel() == MegaAccountDetails::ACCOUNT_TYPE_FREE)
+    {
+        ASSERT_EQ(accDtls->getNumFeatures(), 0);
+        ASSERT_EQ(accDtls->getSubscriptionLevel(), 0);
+    }
+    else
+    {
+        ASSERT_GT(accDtls->getNumFeatures(), 0);
+        if (accDtls->getSubscriptionLevel())
+        {
+            std::unique_ptr<MegaStringIntegerMap> subscriptionFeatures{ accDtls->getSubscriptionFeatures() };
+            ASSERT_GT(subscriptionFeatures->size(), 0);
+        }
+    }
+}

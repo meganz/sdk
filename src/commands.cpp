@@ -5390,6 +5390,49 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
                 uslw = int(json.getint());
                 break;
 
+            case MAKENAMEID8('f', 'e', 'a', 't', 'u', 'r', 'e', 's'):
+                if (json.enterarray())
+                {
+                    while (json.enterarray())
+                    {
+                        m_time_t expiryTs = json.getint();
+                        string featurreId = json.getvalue();
+                        details->features.push_back({expiryTs, featurreId});
+
+                        json.leavearray();
+                    }
+
+                    json.leavearray();
+                }
+                break;
+
+            case MAKENAMEID6('s', 'l', 'e', 'v', 'e', 'l'):
+                // feature account level for feature related subscriptions
+                details->slevel = json.getint();
+                break;
+
+            case MAKENAMEID8('s', 'f', 'e', 'a', 't', 'u', 'r', 'e'):
+            // subscription features
+            {
+                if (!json.enterobject())
+                {
+                    LOG_err << "Failed to parse GetUserQuota response, enter `sfeature` object";
+                    client->app->account_details(details.get(), API_EINTERNAL);
+                    return false;
+                }
+                string key, value;
+                while (json.storeKeyValueFromObject(key, value))
+                {
+                    details->sfeatures[key] = std::stoul(value);
+                }
+                if (!json.leaveobject())
+                {
+                    LOG_err << "Failed to parse GetUserQuota response, leave `sfeature` object";
+                    client->app->account_details(details.get(), API_EINTERNAL);
+                    return false;
+                }
+                break;
+            }
             case EOO:
                 assert(!mStorage || (got_storage && got_storage_used) || client->loggedIntoFolder());
 

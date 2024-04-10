@@ -27902,6 +27902,35 @@ bool MegaAccountDetailsPrivate::isTemporalBandwidthValid()
     return details.transfer_hist_valid;
 }
 
+int MegaAccountDetailsPrivate::getNumFeatures() const
+{
+    return static_cast<int>(details.features.size());
+}
+
+MegaAccountFeature* MegaAccountDetailsPrivate::getFeature(int i) const
+{
+    if (static_cast<size_t>(i) < details.features.size())
+    {
+        return MegaAccountFeaturePrivate::fromAccountFeature(&(details.features[i]));
+    }
+    return nullptr;
+}
+
+int64_t MegaAccountDetailsPrivate::getSubscriptionLevel() const
+{
+    return details.slevel;
+}
+
+MegaStringIntegerMap* MegaAccountDetailsPrivate::getSubscriptionFeatures() const
+{
+    MegaStringIntegerMapPrivate* subscriptionFeatures = new MegaStringIntegerMapPrivate();
+    for (const auto& f : details.sfeatures)
+    {
+        subscriptionFeatures->set(f.first, f.second);
+    }
+    return subscriptionFeatures;
+}
+
 MegaErrorPrivate::MegaErrorPrivate(int errorCode)
     : MegaError(errorCode)
 {
@@ -28748,6 +28777,31 @@ double MegaAccountTransactionPrivate::getAmount() const
 MegaAccountTransactionPrivate::MegaAccountTransactionPrivate(const AccountTransaction *transaction)
 {
     this->transaction = *transaction;
+}
+
+
+MegaAccountFeaturePrivate* MegaAccountFeaturePrivate::fromAccountFeature(const AccountFeature* feature)
+{
+    return new MegaAccountFeaturePrivate(feature);
+}
+
+MegaAccountFeaturePrivate::MegaAccountFeaturePrivate(const AccountFeature* feature)
+{
+    assert(feature);
+    if (feature)
+    {
+        mFeature = *feature;
+    }
+}
+
+int64_t MegaAccountFeaturePrivate::getExpiry() const
+{
+    return mFeature.expiryTs;
+}
+
+char* MegaAccountFeaturePrivate::getId() const
+{
+    return MegaApi::strdup(mFeature.featureId.c_str());
 }
 
 
