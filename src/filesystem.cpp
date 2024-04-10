@@ -98,7 +98,7 @@ UnicodeCodepointIterator<CharT> skipPrefix(const UnicodeCodepointIterator<CharT>
     {
     case '.':
     case '?':
-        [[maybe_unused]] auto result = i.get();
+        i.get();
         break;
     default:
         return it;

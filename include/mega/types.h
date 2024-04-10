@@ -53,8 +53,8 @@ typedef char __static_check_01__[sizeof(bool) == sizeof(char) ? 1 : -1];
 typedef int64_t m_off_t;
 
 namespace mega {
-// within ::mega namespace, byte is unsigned char (avoids ambiguity when std::byte from c++17 and perhaps other defined ::byte are available)
-typedef unsigned char byte;
+    // within ::mega namespace, byte is unsigned char (avoids ambiguity when std::byte from c++17 and perhaps other defined ::byte are available)
+    using byte = unsigned char;
 }
 
 #ifdef USE_CRYPTOPP
@@ -70,7 +70,6 @@ typedef unsigned char byte;
 #include <chrono>
 #include <mutex>
 #include <thread>
-#include <forward_list>
 
 namespace mega {
 

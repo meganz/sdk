@@ -761,7 +761,7 @@ byte* Node::decryptattr(SymmCipher* key, const char* attrstring, size_t attrstrl
     if (attrstrlen)
     {
         int l = int(attrstrlen * 3 / 4 + 3);
-        std::unique_ptr<byte[]> buf(new byte[l]); // std::make_unique<> does not support T[] specialisation
+        auto buf = std::make_unique<byte[]>(l);
 
         l = Base64::atob(attrstring, buf.get(), l);
 

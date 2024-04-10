@@ -2029,7 +2029,7 @@ struct tm* m_localtime(m_time_t ttime, struct tm *dt)
 {
     // works for 32 or 64 bit time_t
     time_t t = time_t(ttime);
-#ifdef WIN32
+#ifdef _WIN32
     localtime_s(&t, dt);
 #else
     localtime_r(&t, dt);
@@ -2041,7 +2041,7 @@ struct tm* m_gmtime(m_time_t ttime, struct tm *dt)
 {
     // works for 32 or 64 bit time_t
     time_t t = time_t(ttime);
-#ifdef WIN32
+#ifdef _WIN32
     gmtime_s(&t, dt);
 #else
     gmtime_r(&t, dt);
@@ -2599,7 +2599,7 @@ std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &
     static const unsigned int SZ_1024K = 1l << 20;
     static const unsigned int SZ_128K  = 128l << 10;
 
-    std::unique_ptr<byte[]> buffer(new byte[SZ_1024K + SymmCipher::BLOCKSIZE]);
+    auto buffer = std::make_unique<byte[]>(SZ_1024K + SymmCipher::BLOCKSIZE);
     chunkmac_map chunkMacs;
     unsigned int chunkLength = 0;
     m_off_t current = 0;

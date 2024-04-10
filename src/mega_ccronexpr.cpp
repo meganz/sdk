@@ -114,7 +114,6 @@ void cronFree(void* p);
 
 struct tm* cron_time(time_t* date, [[maybe_unused]] struct tm* out) {
 #ifdef __MINGW32__
-    out; /* To avoid unused warning */
     return gmtime(date);
 #else /* __MINGW32__ */
 #ifdef _WIN32

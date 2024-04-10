@@ -13585,7 +13585,7 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
     bool isFolder = (strstr(link, "#F!") || strstr(link, "folder/"));
     handle ph;
     size_t linkKeySize = isFolder ? FOLDERNODEKEYLENGTH : FILENODEKEYLENGTH;
-    std::unique_ptr<byte[]> linkKey(new byte[linkKeySize]);
+    auto linkKey = std::make_unique<byte[]>(linkKeySize);
     error e = parsepubliclink(link, ph, linkKey.get(), (isFolder ? TypeOfLink::FOLDER : TypeOfLink::FILE));
     if (e == API_OK)
     {

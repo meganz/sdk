@@ -1121,7 +1121,7 @@ string MegaNodePrivate::removeAppPrefixFromFingerprint(const char* appFpParam, m
     {
         m_off_t nSize = 0;
         int len = sizeof(nSize);
-        std::unique_ptr<byte[]> buf (new byte[len]);
+        auto buf = std::make_unique<byte[]>(len);
         Base64::atob(appFp.c_str() + 1, buf.get(), len);
         int l = Serialize64::unserialize(buf.get(), len, (uint64_t*)&nSize);
         if (l <= 0)
