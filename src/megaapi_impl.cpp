@@ -2335,6 +2335,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
     }
     break;
     case UserAlert::type_psts:
+    case UserAlert::type_psts_v2:
     {
         UserAlert::Payment* p = static_cast<UserAlert::Payment*>(b);
         type = p->success ? TYPE_PAYMENT_SUCCEEDED : TYPE_PAYMENT_FAILED;

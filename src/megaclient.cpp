@@ -5067,8 +5067,9 @@ bool MegaClient::procsc()
                                 sc_userattr();
                                 break;
 
-                            case MAKENAMEID4('p', 's', 't', 's'):
-                                if (sc_upgrade())
+                            case UserAlert::type_psts:
+                            case UserAlert::type_psts_v2:
+                                if (sc_upgrade(name))
                                 {
                                     app->account_updated();
                                     abortbackoff(true);
@@ -6407,7 +6408,7 @@ bool MegaClient::sc_shares()
     }
 }
 
-bool MegaClient::sc_upgrade()
+bool MegaClient::sc_upgrade(nameid paymentType)
 {
     string result;
     bool success = false;
@@ -6437,7 +6438,7 @@ bool MegaClient::sc_upgrade()
             case EOO:
                 if ((itemclass == 0 || itemclass == 1) && statecurrent)
                 {
-                    useralerts.add(new UserAlert::Payment(success, proNumber, m_time(), useralerts.nextId()));
+                    useralerts.add(new UserAlert::Payment(success, proNumber, m_time(), useralerts.nextId(), paymentType));
                 }
                 return success;
 

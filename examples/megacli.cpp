@@ -8319,7 +8319,11 @@ void exec_alerts(autocomplete::ACState& s)
         }
         else if (s.words[1].s == "test_payment")
         {
-            client->useralerts.add(new UserAlert::Payment(true, 1, time(NULL) + 86000 * 1, client->useralerts.nextId()));
+            client->useralerts.add(new UserAlert::Payment(true, 1, time(NULL) + 86000 * 1, client->useralerts.nextId(), UserAlert::type_psts));
+        }
+        else if (s.words[1].s == "test_payment_v2")
+        {
+            client->useralerts.add(new UserAlert::Payment(true, 1, time(NULL) + 86000 * 1, client->useralerts.nextId(), UserAlert::type_psts_v2));
         }
         else if (atoi(s.words[1].s.c_str()) > 0)
         {
