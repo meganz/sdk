@@ -27,8 +27,8 @@ using namespace mega;
 // (test vectors from 'tlvstore_test.js', in Webclient)
 TEST(Crypto, AES_GCM)
 {
-//    string keyStr = "dGQhii+B7+eLLHRiOA690w==";   // Base64
-    string keyStr = "dGQhii-B7-eLLHRiOA690w";     // Base64 URL encoding
+//    string keyStr = "dGQhii+B7+eLLHRiOA690w==";   //gitleaks:allow
+    string keyStr = "dGQhii-B7-eLLHRiOA690w";     //gitleaks:allow Base64 URL encoding
     unsigned keyLen = SymmCipher::KEYLENGTH;
     byte* keyBytes = new byte[keyLen];
     keyLen = Base64::atob(keyStr.data(), keyBytes, keyLen);

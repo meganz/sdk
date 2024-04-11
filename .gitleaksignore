@@ -2,3 +2,5 @@
 550acd1bfb59c2d043dd6d206c391cbcf68b3abe:src/node.cpp:generic-api-key:246
 ade68484b40d2bf8d5194c7b4a824348227d96da:tests/integration/SdkTest_test.cpp:generic-api-key:5835
 ce7b5bae383680bfe8ebb6af6d3733235401b2db:src/megaapi_impl.cpp:private-key:8262
+f88c248ed4d1d880ec2b5e18e9be0b3e2210231d:tests/crypto_test.cpp:generic-api-key:33
+1a153e18996ffb0cf8d4bf037c3111d1e680057d:tests/tests.cpp:generic-api-key:59

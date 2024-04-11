@@ -470,14 +470,6 @@ keywords = [
     "key","api","token","secret","client","passwd","password","auth","access",
 ]
 
-[rules.allowlist]
-regexes = [
-    '''dGQhii-B7-eLLHRiOA690w''',                      # string to test crypto algos
-    '''dGQhii+B7+eLLHRiOA690w==''',                    # string to test crypto algos
-    '''0123456789ABCDEF0123456789ABCDEF''',            # String used in a test for sym cypher
-    '''pu(Cu|Ed)255SetOK''',                           # Some variables names
-    '''8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns''', # Part of the url of a public chat used in tests
-]
 stopwords = [
     "000000",
     "aaaaaa",
