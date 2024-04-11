@@ -1191,7 +1191,7 @@ bool Node::applykey()
             if (h != me)
             {
                 // this is a share node handle - check if share key is available
-                if (client->mKeyManager.isSecure() && client->mKeyManager.generation())
+                if (client->mKeyManager.generation())
                 {
                     std::string key = client->mKeyManager.getShareKey(h);
                     if (key.size())

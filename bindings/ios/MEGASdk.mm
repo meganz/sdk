@@ -1813,12 +1813,6 @@ using namespace mega;
     }
 }
 
-- (void)setShareSecureFlag:(BOOL)enable {
-    if (self.megaApi) {
-        self.megaApi->setSecureFlag(enable);
-    }
-}
-
 #pragma mark - Attributes Requests
 
 - (void)getThumbnailNode:(MEGANode *)node destinationFilePath:(NSString *)destinationFilePath delegate:(id<MEGARequestDelegate>)delegate {
