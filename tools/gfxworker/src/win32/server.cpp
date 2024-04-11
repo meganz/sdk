@@ -129,7 +129,7 @@ void ServerWin32::serverListeningLoop()
         }
         else if (mRequestProcessor)
         {
-            stopRunning = mRequestProcessor->process(mega::make_unique<ServerNamedPipe>(hPipe));
+            stopRunning = mRequestProcessor->process(std::make_unique<ServerNamedPipe>(hPipe));
         }
 
         if (stopRunning)

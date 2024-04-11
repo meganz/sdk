@@ -217,11 +217,7 @@ namespace
         {
             string filename = "file" + to_string(i) + "_" + prefix;
             fs::path fp = p / fs::u8path(filename);
-#if (__cplusplus >= 201700L)
             ofstream fs(fp/*, ios::binary*/);
-#else
-            ofstream fs(fp.u8string()/*, ios::binary*/);
-#endif
             fs << filename;
         }
 
@@ -245,11 +241,7 @@ namespace
         }
 
         fs::path fp = path / fs::u8path(name);
-#if (__cplusplus >= 201700L)
         ofstream fs(fp/*, ios::binary*/);
-#else
-        ofstream fs(fp.u8string()/*, ios::binary*/);
-#endif
         if (byteSize)
         {
             fs.seekp((byteSize << 10) - 1);
@@ -1550,7 +1542,7 @@ void SdkTest::getAccountsForTest(unsigned howMany, bool fetchNodes, const int cl
 
     for (unsigned index = 0; index < howMany; ++index)
     {
-        auto rt = ::mega::make_unique<RequestTracker>(megaApi[index].get());
+        auto rt = std::make_unique<RequestTracker>(megaApi[index].get());
         megaApi[index]->getUserAttribute(37 /*ATTR_KEYS*/, rt.get());
         rt->waitForResult();
         std::string b64Value{rt->request->getText()};
@@ -2364,14 +2356,14 @@ TEST_F(SdkTest, SdkTestCreateAccount)
 
     // Login to the new account
     {
-        unique_ptr<RequestTracker> loginTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+        unique_ptr<RequestTracker> loginTracker = std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->login(newTestAcc.c_str(), origTestPwd, loginTracker.get());
         ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account " << newTestAcc.c_str();
     }
 
     // fetchnodes // needed internally to fill in user details, including email
     {
-        unique_ptr<RequestTracker>  fetchnodesTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+        unique_ptr<RequestTracker>  fetchnodesTracker = std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->fetchNodes(fetchnodesTracker.get());
         ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes for account " << newTestAcc.c_str();
     }
@@ -2394,14 +2386,14 @@ TEST_F(SdkTest, SdkTestCreateAccount)
 
     // Login using new password
     {
-        unique_ptr<RequestTracker> loginTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+        unique_ptr<RequestTracker> loginTracker = std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->login(newTestAcc.c_str(), newTestPwd, loginTracker.get());
         ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account after change password with new password " << newTestAcc.c_str();
     }
 
     // fetchnodes - needed internally to fill in user details, to allow cancelAccount() to work
     {
-        unique_ptr<RequestTracker> fetchnodesTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+        unique_ptr<RequestTracker> fetchnodesTracker = std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->fetchNodes(fetchnodesTracker.get());
         ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes after change password for account " << newTestAcc.c_str();
     }
@@ -2414,7 +2406,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     mApi.resize(2);
     ASSERT_NO_FATAL_FAILURE(configureTestInstance(1, newTestAcc, newTestPwd));
     {
-        unique_ptr<RequestTracker> loginTracker = ::mega::make_unique<RequestTracker>(megaApi[1].get());
+        unique_ptr<RequestTracker> loginTracker = std::make_unique<RequestTracker>(megaApi[1].get());
         megaApi[1]->login(newTestAcc.c_str(), newTestPwd, loginTracker.get());
         ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to auxiliar account ";
     }
@@ -2433,7 +2425,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
 
     {
         // Check if our own email is updated after receive ug at auxiliar instance
-        unique_ptr<RequestTracker> userDataTracker = ::mega::make_unique<RequestTracker>(megaApi[1].get());
+        unique_ptr<RequestTracker> userDataTracker = std::make_unique<RequestTracker>(megaApi[1].get());
         megaApi[1]->getUserData(userDataTracker.get());
         ASSERT_EQ(API_OK, userDataTracker->waitForResult()) << " Failed to get user data at auxiliar account";
         ASSERT_EQ(changedTestAcc, std::unique_ptr<char[]>{megaApi[1]->getMyEmail()}.get()) << "Email update error at auxiliar account";
@@ -2443,14 +2435,14 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     // Login using new email
     ASSERT_STRCASEEQ(changedTestAcc.c_str(), std::unique_ptr<char[]>{megaApi[0]->getMyEmail()}.get()) << "email not changed correctly";
     {
-        unique_ptr<RequestTracker> loginTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+        unique_ptr<RequestTracker> loginTracker = std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->login(changedTestAcc.c_str(), newTestPwd, loginTracker.get());
         ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account after change email with new email " << changedTestAcc.c_str();
     }
 
     // fetchnodes - needed internally to fill in user details, to allow cancelAccount() to work
     {
-        unique_ptr<RequestTracker> fetchnodesTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+        unique_ptr<RequestTracker> fetchnodesTracker = std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->fetchNodes(fetchnodesTracker.get());
         ASSERT_EQ(API_OK, fetchnodesTracker->waitForResult()) << " Failed to fetchnodes after change password for account " << changedTestAcc.c_str();
     }
@@ -2464,7 +2456,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     // Request cancel account link
     chrono::time_point timeOfDeleteEmail = chrono::steady_clock::now();
     {
-        unique_ptr<RequestTracker> cancelLinkTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+        unique_ptr<RequestTracker> cancelLinkTracker = std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->cancelAccount(cancelLinkTracker.get());
         ASSERT_EQ(API_OK, cancelLinkTracker->waitForResult()) << " Failed to request cancel link for account " << changedTestAcc.c_str();
     }
@@ -2475,7 +2467,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
         ASSERT_FALSE(deleteLink.empty()) << "Cancel account link was not found.";
 
         // Use cancel account link
-        unique_ptr<RequestTracker> useCancelLinkTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
+        unique_ptr<RequestTracker> useCancelLinkTracker = std::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->confirmCancelAccount(deleteLink.c_str(), newTestPwd, useCancelLinkTracker.get());
         // Allow API_ESID beside API_OK, due to the race between sc and cs channels
         ASSERT_PRED3([](int t, int v1, int v2) { return t == v1 || t == v2; }, useCancelLinkTracker->waitForResult(), API_OK, API_ESID)
@@ -2635,7 +2627,7 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
 
     FileFingerprint ffp;
     {
-        auto fsa = ::mega::make_unique<FSACCESS_CLASS>();
+        auto fsa = std::make_unique<FSACCESS_CLASS>();
         auto fa = fsa->newfileaccess();
         ASSERT_TRUE(fa->fopen(LocalPath::fromAbsolutePath(filename1.c_str()), FSLogging::logOnError));
         ASSERT_TRUE(ffp.genfingerprint(fa.get()));
@@ -5418,7 +5410,7 @@ TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
         std::map<std::string, FileAccessFields > plain_follow_fopen;
         std::map<std::string, FileAccessFields > iterate_follow_fopen;
 
-        auto fsa = ::mega::make_unique<FSACCESS_CLASS>();
+        auto fsa = std::make_unique<FSACCESS_CLASS>();
         auto localdir = fspathToLocal(iteratePath);
 
         std::unique_ptr<FileAccess> fopen_directory(fsa->newfileaccess(false));  // false = don't follow symlinks
@@ -6394,7 +6386,7 @@ TEST_F(SdkTest, SdkTestFingerprint)
         "GA4CWmAdW1TwQ-bddEIKTmSDv0b2QQAypo7",
     };
 
-    auto fsa = ::mega::make_unique<FSACCESS_CLASS>();
+    auto fsa = std::make_unique<FSACCESS_CLASS>();
     string name = "testfile";
     LocalPath localname = LocalPath::fromAbsolutePath(name);
 
@@ -10036,10 +10028,10 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 
     LOG_verbose << " SyncResumptionAfterFetchNodes : syncying folders";
 
-    handle backupId1 = syncFolder(sync1Path);  (void)backupId1;
+    handle backupId1 = syncFolder(sync1Path);
     handle backupId2 = syncFolder(sync2Path);
-    handle backupId3 = syncFolder(sync3Path);  (void)backupId3;
-    handle backupId4 = syncFolder(sync4Path);  (void)backupId4;
+    handle backupId3 = syncFolder(sync3Path);
+    handle backupId4 = syncFolder(sync4Path);
 
     ASSERT_TRUE(checkSyncOK(sync1Path));
     ASSERT_TRUE(checkSyncOK(sync2Path));
@@ -10177,14 +10169,14 @@ TEST_F(SdkTest, MidSessionEtoomanyWithSync)
 
     // The secondary instance needs to use staging to send a devcommand
     megaApi[1]->changeApiUrl("https://staging.api.mega.co.nz/");
-    auto loginTracker = ::mega::make_unique<RequestTracker>(megaApi[1].get());
+    auto loginTracker = std::make_unique<RequestTracker>(megaApi[1].get());
     megaApi[1]->login(email, pass, loginTracker.get());
     ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account " << email;
 
     PerApi& target = mApi[0];
     target.resetlastEvent();
 
-    auto devCommandTracker = ::mega::make_unique<RequestTracker>(megaApi[1].get());
+    auto devCommandTracker = std::make_unique<RequestTracker>(megaApi[1].get());
     megaApi[1]->sendDevCommand("fr", nullptr, devCommandTracker.get());
     auto errorCode = devCommandTracker->waitForResult();
     ASSERT_TRUE(errorCode == API_OK || errorCode == API_EACCESS) << " Error in devcommand " << errorCode;
@@ -12529,7 +12521,7 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     mApi.resize(2);
     megaApi.resize(2);
     configureTestInstance(1, email, pass); // index 1 = User B
-    auto loginTracker = ::mega::make_unique<RequestTracker>(megaApi[1].get());
+    auto loginTracker = std::make_unique<RequestTracker>(megaApi[1].get());
     megaApi[1]->login(email, pass, loginTracker.get());
     ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account " << email;
     ASSERT_NO_FATAL_FAILURE(fetchnodes(1));
@@ -12966,7 +12958,7 @@ TEST_F(SdkTest, SdkNodesOnDemandVersions)
     mApi.resize(2);
     megaApi.resize(2);
     configureTestInstance(1, email, pass); // index 1 = User B
-    auto loginTracker = ::mega::make_unique<RequestTracker>(megaApi[1].get());
+    auto loginTracker = std::make_unique<RequestTracker>(megaApi[1].get());
     megaApi[1]->login(email, pass, loginTracker.get());
     ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account " << email;
     ASSERT_NO_FATAL_FAILURE(fetchnodes(1));
@@ -15773,7 +15765,7 @@ TEST_F(SdkTest, SdkTestFilePermissions)
 
     auto openFile = [this, &filename](bool readF, bool writeF) -> bool
     {
-        auto fsa = ::mega::make_unique<FSACCESS_CLASS>();
+        auto fsa = std::make_unique<FSACCESS_CLASS>();
         fs::path filePath = fs::current_path() / filename.c_str();
         LocalPath localfilePath = fspathToLocal(filePath);
 
@@ -15885,7 +15877,7 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
 
     auto openFolderAndFiles = [this, &foldername, &nimported](bool readF, bool writeF) -> bool
     {
-        auto fsa = ::mega::make_unique<FSACCESS_CLASS>();
+        auto fsa = std::make_unique<FSACCESS_CLASS>();
         fs::path dirPath = fs::current_path() / foldername.c_str();
         auto localDirPath = fspathToLocal(dirPath);
 
@@ -15898,7 +15890,7 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
             {
                 if (childrenList->get(childIndex)->isFile())
                 {
-                    auto filesa = ::mega::make_unique<FSACCESS_CLASS>();
+                    auto filesa = std::make_unique<FSACCESS_CLASS>();
                     fs::path filePath = dirPath / childrenList->get(childIndex)->getName();
                     auto localfilePath = fspathToLocal(filePath);
                     std::unique_ptr<FileAccess> plain_fopen_fa(filesa->newfileaccess(false));

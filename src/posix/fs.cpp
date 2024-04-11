@@ -384,7 +384,7 @@ void PosixFileAccess::asyncopfinished(sigval sigev_value)
 }
 #endif
 
-void PosixFileAccess::asyncsysopen(AsyncIOContext *context)
+void PosixFileAccess::asyncsysopen([[maybe_unused]] AsyncIOContext *context)
 {
 #ifdef HAVE_AIO_RT
     context->failed = !fopen(context->openPath, context->access & AsyncIOContext::ACCESS_READ,
@@ -399,12 +399,10 @@ void PosixFileAccess::asyncsysopen(AsyncIOContext *context)
     {
         context->userCallback(context->userData);
     }
-#else
-    (void)context; // avoid unused parameter warning
 #endif
 }
 
-void PosixFileAccess::asyncsysread(AsyncIOContext *context)
+void PosixFileAccess::asyncsysread([[maybe_unused]] AsyncIOContext *context)
 {
 #ifdef HAVE_AIO_RT
     if (!context)
@@ -450,12 +448,10 @@ void PosixFileAccess::asyncsysread(AsyncIOContext *context)
             posixContext->userCallback(posixContext->userData);
         }
     }
-#else
-    (void)context; // avoid unused parameter warning
 #endif
 }
 
-void PosixFileAccess::asyncsyswrite(AsyncIOContext *context)
+void PosixFileAccess::asyncsyswrite([[maybe_unused]] AsyncIOContext *context)
 {
 #ifdef HAVE_AIO_RT
     if (!context)
@@ -502,8 +498,6 @@ void PosixFileAccess::asyncsyswrite(AsyncIOContext *context)
             posixContext->userCallback(posixContext->userData);
         }
     }
-#else
-    (void)context; // avoid unused parameter warning
 #endif
 }
 

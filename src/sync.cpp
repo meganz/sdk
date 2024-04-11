@@ -3888,7 +3888,7 @@ void UnifiedSync::changedConfigState(bool save, bool notifyApp)
 Syncs::Syncs(MegaClient& mc)
   : waiter(new WAIT_CLASS)
   , mClient(mc)
-  , fsaccess(::mega::make_unique<FSACCESS_CLASS>())
+  , fsaccess(std::make_unique<FSACCESS_CLASS>())
   , mSyncFlags(new SyncFlags)
   , mScanService(new ScanService())
 {
@@ -4072,12 +4072,9 @@ void Syncs::getSyncStatusInfo(handle backupID,
     // Is it up to the client to call the completion function?
     if (completionInClient)
         completion = [completion, this](SV info) {
-            // Necessary as we can't move-capture before C++14.
-            auto temp = std::make_shared<SV>(std::move(info));
-
             // Delegate to the user's completion function.
-            queueClient([completion, temp](MC&, DBTC&) mutable {
-                completion(std::move(*temp));
+            queueClient([completion, info = std::move(info)](MC&, DBTC&) mutable {
+                completion(std::move(info));
             });
         };
 
@@ -5042,7 +5039,7 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
     }
 
     // Create and initialize context.
-    ContextPtr context = make_unique<Context>();
+    ContextPtr context = std::make_unique<Context>();
 
     context->mClient = &mClient;
     context->mCompletion = std::move(completion);

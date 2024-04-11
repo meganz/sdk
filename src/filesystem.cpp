@@ -98,7 +98,7 @@ UnicodeCodepointIterator<CharT> skipPrefix(const UnicodeCodepointIterator<CharT>
     {
     case '.':
     case '?':
-        (void)i.get();
+        i.get();
         break;
     default:
         return it;
@@ -979,7 +979,7 @@ std::unique_ptr<LocalPath> FileSystemAccess::fsShortname(const LocalPath& localn
     LocalPath s;
     if (getsname(localname, s))
     {
-        return ::mega::make_unique<LocalPath>(std::move(s));
+        return std::make_unique<LocalPath>(std::move(s));
     }
     return nullptr;
 }

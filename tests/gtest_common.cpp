@@ -26,7 +26,7 @@ bool ProcessWithInterceptedOutput::run(const vector<string>& args, const unorder
     }
 
     // clean-up for previous run
-    mProc = make_unique<Process>();
+    mProc = std::make_unique<Process>();
     mOutBuffer.clear();
     mErrBuffer.clear();
     mExitReported = false;

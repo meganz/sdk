@@ -101,10 +101,8 @@ class MegaNotificationList;
 
 #if defined(SWIG)
     #define MEGA_DEPRECATED
-#elif defined(WIN32)
-    #define MEGA_DEPRECATED [[deprecated]]
 #else
-    #define MEGA_DEPRECATED
+    #define MEGA_DEPRECATED [[deprecated]]
 #endif
 
 /**

@@ -1365,7 +1365,7 @@ m_off_t CloudRaid::transferred(const std::shared_ptr<HttpReqXfer>& req) const
 
 bool CloudRaid::init(TransferSlot* tslot, MegaClient* client, int connections)
 {
-    m_pImpl = ::mega::make_unique<CloudRaidImpl>(tslot, client, static_cast<uint8_t>(connections));
+    m_pImpl = std::make_unique<CloudRaidImpl>(tslot, client, static_cast<uint8_t>(connections));
     mShown = m_pImpl != nullptr;
     return mShown;
 }

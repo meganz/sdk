@@ -87,21 +87,21 @@ std::unique_ptr<ICommand> ICommand::factory(CommandType type)
     switch (type)
     {
     case CommandType::NEW_GFX:
-        return mega::make_unique<CommandNewGfx>();
+        return std::make_unique<CommandNewGfx>();
     case CommandType::NEW_GFX_RESPONSE:
-        return mega::make_unique<CommandNewGfxResponse>();
+        return std::make_unique<CommandNewGfxResponse>();
     case CommandType::SHUTDOWN:
-        return mega::make_unique<CommandShutDown>();
+        return std::make_unique<CommandShutDown>();
     case CommandType::SHUTDOWN_RESPONSE:
-        return mega::make_unique<CommandShutDownResponse>();
+        return std::make_unique<CommandShutDownResponse>();
     case CommandType::HELLO:
-        return mega::make_unique<CommandHello>();
+        return std::make_unique<CommandHello>();
     case CommandType::HELLO_RESPONSE:
-        return mega::make_unique<CommandHelloResponse>();
+        return std::make_unique<CommandHelloResponse>();
     case CommandType::SUPPORT_FORMATS:
-        return mega::make_unique<CommandSupportFormats>();
+        return std::make_unique<CommandSupportFormats>();
     case CommandType::SUPPORT_FORMATS_RESPONSE:
-        return mega::make_unique<CommandSupportFormatsResponse>();
+        return std::make_unique<CommandSupportFormatsResponse>();
     default:
         assert(false);
         return nullptr;

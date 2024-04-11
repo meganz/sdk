@@ -341,7 +341,7 @@ sharedNode_list NodeManager::getChildren_internal(const Node *parent, CancelToke
 
         if (!nodesFromTable.empty() && !parent->mNodePosition->second.mChildren)
         {
-            parent->mNodePosition->second.mChildren = ::mega::make_unique<std::map<NodeHandle, NodeManagerNode*>>();
+            parent->mNodePosition->second.mChildren = std::make_unique<std::map<NodeHandle, NodeManagerNode*>>();
         }
 
         for (const auto& nodeSerializedIt : nodesFromTable)
@@ -2013,7 +2013,7 @@ void NodeManager::addChild_internal(NodeHandle parent, NodeHandle child, Node* n
     // The NodeManagerNode could have been added in add node, only update the child
     if (!pair.first->second.mChildren)
     {
-        pair.first->second.mChildren = ::mega::make_unique<std::map<NodeHandle,  NodeManagerNode*>>();
+        pair.first->second.mChildren = std::make_unique<std::map<NodeHandle,  NodeManagerNode*>>();
     }
 
     NodeManagerNode *nodeManagerNode = nullptr;

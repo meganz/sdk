@@ -2025,31 +2025,13 @@ string Utils::trim(const string& str, const string& trimchrs)
     return str.substr(s, e - s + 1);
 }
 
-long long abs(long long n)
-{
-    // for pre-c++11 where this version is not defined yet
-    return n >= 0 ? n : -n;
-}
-
 struct tm* m_localtime(m_time_t ttime, struct tm *dt)
 {
     // works for 32 or 64 bit time_t
-    time_t t = time_t(ttime);
-#if (__cplusplus >= 201103L) && defined (__STDC_LIB_EXT1__) && defined(__STDC_WANT_LIB_EXT1__)
-    localtime_s(&t, dt);
-#elif _MSC_VER >= 1400 || defined(__MINGW32__) // MSVCRT (2005+): std::localtime is threadsafe
-    struct tm *newtm = localtime(&t);
-    if (newtm)
-    {
-        memcpy(dt, newtm, sizeof(struct tm));
-    }
-    else
-    {
-        memset(dt, 0, sizeof(struct tm));
-    }
-#elif _WIN32
-#error "localtime is not thread safe in this compiler; please use a later one"
-#else //POSIX
+    time_t t = static_cast<time_t>(ttime);
+#ifdef _WIN32
+    localtime_s(dt, &t);
+#else
     localtime_r(&t, dt);
 #endif
     return dt;
@@ -2058,22 +2040,10 @@ struct tm* m_localtime(m_time_t ttime, struct tm *dt)
 struct tm* m_gmtime(m_time_t ttime, struct tm *dt)
 {
     // works for 32 or 64 bit time_t
-    time_t t = time_t(ttime);
-#if (__cplusplus >= 201103L) && defined (__STDC_LIB_EXT1__) && defined(__STDC_WANT_LIB_EXT1__)
-    gmtime_s(&t, dt);
-#elif _MSC_VER >= 1400 || defined(__MINGW32__) // MSVCRT (2005+): std::gmtime is threadsafe
-    struct tm *newtm = gmtime(&t);
-    if (newtm)
-    {
-        memcpy(dt, newtm, sizeof(struct tm));
-    }
-    else
-    {
-        memset(dt, 0, sizeof(struct tm));
-    }
-#elif _WIN32
-#error "gmtime is not thread safe in this compiler; please use a later one"
-#else //POSIX
+    time_t t = static_cast<time_t>(ttime);
+#ifdef _WIN32
+    gmtime_s(dt, &t);
+#else
     gmtime_r(&t, dt);
 #endif
     return dt;
@@ -2629,7 +2599,7 @@ std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &
     static const unsigned int SZ_1024K = 1l << 20;
     static const unsigned int SZ_128K  = 128l << 10;
 
-    std::unique_ptr<byte[]> buffer(new byte[SZ_1024K + SymmCipher::BLOCKSIZE]);
+    auto buffer = std::make_unique<byte[]>(SZ_1024K + SymmCipher::BLOCKSIZE);
     chunkmac_map chunkMacs;
     unsigned int chunkLength = 0;
     m_off_t current = 0;

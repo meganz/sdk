@@ -91,8 +91,8 @@ std::unique_ptr<GfxProviderIsolatedProcess> GfxProviderIsolatedProcess::create(
 {
     if (endpointName.empty() || executable.empty()) return nullptr;
 
-    auto process = ::mega::make_unique<GfxIsolatedProcess>(endpointName, executable);
-    return ::mega::make_unique<GfxProviderIsolatedProcess>(std::move(process));
+    auto process = std::make_unique<GfxIsolatedProcess>(endpointName, executable);
+    return std::make_unique<GfxProviderIsolatedProcess>(std::move(process));
 }
 
 void GfxProviderIsolatedProcess::Formats::setOnce(const std::string& formats, const std::string& videoformats)

@@ -54,18 +54,18 @@ ScheduledRules::ScheduledRules(const int freq, const int interval, const m_time_
     : mFreq(isValidFreq(freq) ? static_cast<freq_type_t>(freq) : FREQ_INVALID),
       mInterval(isValidInterval(interval) ? interval : INTERVAL_INVALID),
       mUntil(isValidUntil(until) ? until : mega_invalid_timestamp),
-      mByWeekDay(byWeekDay ? mega::make_unique<rules_vector>(*byWeekDay) : nullptr),
-      mByMonthDay(byMonthDay ? mega::make_unique<rules_vector>(*byMonthDay) : nullptr),
-      mByMonthWeekDay(byMonthWeekDay ? mega::make_unique<rules_map>(*byMonthWeekDay) : nullptr)
+      mByWeekDay(byWeekDay ? std::make_unique<rules_vector>(*byWeekDay) : nullptr),
+      mByMonthDay(byMonthDay ? std::make_unique<rules_vector>(*byMonthDay) : nullptr),
+      mByMonthWeekDay(byMonthWeekDay ? std::make_unique<rules_map>(*byMonthWeekDay) : nullptr)
 {}
 
 ScheduledRules::ScheduledRules(const ScheduledRules* rules)
     : mFreq(isValidFreq(rules->freq()) ? rules->freq() : FREQ_INVALID),
       mInterval(isValidInterval(rules->interval()) ? rules->interval() : INTERVAL_INVALID),
       mUntil(rules->until()),
-      mByWeekDay(rules->byWeekDay() ? mega::make_unique<rules_vector>(*rules->byWeekDay()) : nullptr),
-      mByMonthDay(rules->byMonthDay() ? mega::make_unique<rules_vector>(*rules->byMonthDay()) : nullptr),
-      mByMonthWeekDay(rules->byMonthWeekDay() ? mega::make_unique<rules_map>(*rules->byMonthWeekDay()) : nullptr)
+      mByWeekDay(rules->byWeekDay() ? std::make_unique<rules_vector>(*rules->byWeekDay()) : nullptr),
+      mByMonthDay(rules->byMonthDay() ? std::make_unique<rules_vector>(*rules->byMonthDay()) : nullptr),
+      mByMonthWeekDay(rules->byMonthWeekDay() ? std::make_unique<rules_map>(*rules->byMonthWeekDay()) : nullptr)
 {}
 
 const char* ScheduledRules::freqToString () const
@@ -646,7 +646,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
             return NULL;
         }
 
-        userpriv = make_unique<userpriv_vector>();
+        userpriv = std::make_unique<userpriv_vector>();
 
         for (unsigned short i = 0; i < ll; i++)
         {
@@ -907,7 +907,7 @@ void TextChat::addUserPrivileges(handle uid, privilege_t p)
 {
     if (!userpriv)
     {
-        userpriv = make_unique<userpriv_vector>();
+        userpriv = std::make_unique<userpriv_vector>();
     }
     userpriv->emplace_back(uid, p);
 }

@@ -8768,7 +8768,7 @@ void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes, int tag,
         return;
     }
 
-    queuepubkeyreq(user, ::mega::make_unique<PubKeyActionPutNodes>(std::move(newnodes), tag, std::move(completion)));
+    queuepubkeyreq(user, std::make_unique<PubKeyActionPutNodes>(std::move(newnodes), tag, std::move(completion)));
 }
 
 void MegaClient::putFileAttributes(handle h, fatype t, const string& encryptedAttributes, int tag)
@@ -10709,7 +10709,7 @@ void MegaClient::getmiscflags()
 
 void MegaClient::getpubkey(const char *user)
 {
-    queuepubkeyreq(user, ::mega::make_unique<PubKeyActionNotifyApp>(reqtag));
+    queuepubkeyreq(user, std::make_unique<PubKeyActionNotifyApp>(reqtag));
 }
 
 // resume session - load state from local cache, if available
@@ -14990,7 +14990,7 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
             assert(false);
             return API_ETEMPUNAVAIL;
         }
-        aux = make_unique<AuthRing>(it->second);    // make a copy, once saved in API, it is updated
+        aux = std::make_unique<AuthRing>(it->second);    // make a copy, once saved in API, it is updated
         authring = aux.get();
     }
 
@@ -15099,7 +15099,7 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
             assert(false);
             return API_ETEMPUNAVAIL;
         }
-        aux = make_unique<AuthRing>(it->second);    // make a copy, once saved in API, it is updated
+        aux = std::make_unique<AuthRing>(it->second);    // make a copy, once saved in API, it is updated
         authring = aux.get();
     }
 
@@ -19865,7 +19865,7 @@ error MegaClient::fetchPublicSet(const char* publicSetLink,
         }
 
         // 1. setup member mPreviewSet: publicId, key, publicSetLink
-        mPreviewSet = mega::make_unique<SetLink>();
+        mPreviewSet = std::make_unique<SetLink>();
         mPreviewSet->mPublicId = publicSetId;
         mPreviewSet->mPublicKey.assign(reinterpret_cast<char*>(publicSetKey.data()), publicSetKey.size());
         mPreviewSet->mPublicLink.assign(publicSetLink);
@@ -20148,7 +20148,7 @@ Error MegaClient::sendABTestActive(const char* flag, CommandABTestActive::Comple
 /* Mega VPN methods BEGIN */
 StringKeyPair MegaClient::generateVpnKeyPair()
 {
-    auto vpnKey = ::mega::make_unique<ECDH>();
+    auto vpnKey = std::make_unique<ECDH>();
     if (!vpnKey->initializationOK)
     {
         LOG_err << "Initialization of keys Cu25519 and/or Ed25519 failed";
@@ -20267,7 +20267,7 @@ void MegaClient::createPasswordManagerBase(int rTag, CommandCreatePasswordManage
 {
     LOG_info << "Password Manager: Requesting pwmh creation to server";
 
-    auto newNode = make_unique<NewNode>();
+    auto newNode = std::make_unique<NewNode>();
     const bool canChangeVault = true;
     const std::string defaultBaseFolderName = "My Passwords";  // arbitrary default name, eventually updatable by client apps
     putnodes_prepareOneFolder(newNode.get(), defaultBaseFolderName, canChangeVault);
