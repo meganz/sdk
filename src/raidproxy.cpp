@@ -1173,10 +1173,6 @@ m_off_t RaidReq::readdata(byte* buf, m_off_t len)
                         LOG_warn << "CloudRAID feed stuck [lastDataTime = " << (lastDataOffset/10) << " secs, haddata = " << mHaddata << "] [hangingSources = " << (int)hanging << "] [this = " << this << "]";
                     }
                 }
-                else
-                {
-                    LOG_verbose << "CloudRAID reached soft limit for reporting feed stuck, but there are no hanging sources, so limit is increased to hard limit [lastDataTime = " << (lastDataOffset/10) << " secs, haddata = " << mHaddata << "] [soft limit = " << (LASTDATA_DSTIME_FOR_REPORTING_FEED_STUCK/10) << " secs, hard limit = " << (LASTDATA_DSTIME_FOR_REPORTING_FEED_STUCK_WITH_NO_HANGING_SOURCES/10) << " secs] [this = " << this << "]";
-                }
             }
         }
     } while (new_completed > old_completed && t > 0 && lenCompleted < len);
