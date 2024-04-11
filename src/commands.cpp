@@ -1894,50 +1894,11 @@ bool CommandLogin::procresult(Result r, JSON& json)
     }
 }
 
-CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient*, handle sh, const char* uid, const byte* key, int len)
-{
-    cmd("k");
-    beginarray("sr");
-
-    element(sh, MegaClient::NODEHANDLE);
-    element(uid);
-    element(key, len);
-
-    endarray();
-}
-
-CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient* client, handle_vector* v)
-{
-    shared_ptr<Node> n;
-    byte sharekey[SymmCipher::KEYLENGTH];
-
-    cmd("k");
-    beginarray("sr");
-
-    for (size_t i = v->size(); i--;)
-    {
-        handle h = (*v)[i];
-
-        if ((n = client->nodebyhandle(h)) && n->sharekey)
-        {
-            client->key.ecb_encrypt(n->sharekey->key, sharekey, SymmCipher::KEYLENGTH);
-
-            element(h, MegaClient::NODEHANDLE);
-            element(client->me, MegaClient::USERHANDLE);
-            element(sharekey, SymmCipher::KEYLENGTH);
-        }
-    }
-
-    endarray();
-}
-
 // add/remove share; include node share keys if new share
 CommandSetShare::CommandSetShare(MegaClient* client, std::shared_ptr<Node> n, User* u, accesslevel_t a, bool newshare, const char* msg, bool writable, const char* personal_representation, int ctag, std::function<void(Error, bool writable)> f)
 {
     byte auth[SymmCipher::BLOCKSIZE];
     byte key[SymmCipher::KEYLENGTH];
-    byte asymmkey[AsymmCipher::MAXKEYLENGTH];
-    int t = 0;
 
     tag = ctag;
 
@@ -1967,34 +1928,11 @@ CommandSetShare::CommandSetShare(MegaClient* client, std::shared_ptr<Node> n, Us
 
     if (a != ACCESS_UNKNOWN)
     {
-        if (!client->mKeyManager.isSecure() && !client->mKeyManager.isShareKeyTrusted(n->nodehandle))
-        {
-            // securely store/transmit share key
-            // by creating a symmetrically (for the sharer) and an asymmetrically
-            // (for the sharee) encrypted version
-            memcpy(key, n->sharekey->key, sizeof key);
-            memcpy(asymmkey, key, sizeof key);
-
-            client->key.ecb_encrypt(key);
-            arg("ok", key, sizeof key);
-
-            if (u && u->pubk.isvalid())
-            {
-                t = u->pubk.encrypt(client->rng, asymmkey, SymmCipher::KEYLENGTH, asymmkey, sizeof asymmkey);
-            }
-
-            // outgoing handle authentication
-            client->handleauth(sh, auth);
-            arg("ha", auth, sizeof auth);
-        }
-        else
-        {
-            // TODO: dummy key/handleauth - FIXME: remove when the server allows it
-            memset(key, 0, sizeof key);
-            memset(auth, 0, sizeof auth);
-            arg("ok", key, sizeof key);
-            arg("ha", auth, sizeof auth);
-        }
+        // TODO: dummy key/handleauth - FIXME: remove when the server allows it
+        memset(key, 0, sizeof key);
+        memset(auth, 0, sizeof auth);
+        arg("ok", key, sizeof key);
+        arg("ha", auth, sizeof auth);
     }
 
     beginarray("s");
@@ -2007,11 +1945,6 @@ CommandSetShare::CommandSetShare(MegaClient* client, std::shared_ptr<Node> n, Us
     if (a != ACCESS_UNKNOWN)
     {
         arg("r", a);
-
-        if (!client->mKeyManager.isSecure() && u && u->pubk.isvalid() && t)
-        {
-            arg("k", asymmkey, t);
-        }
     }
 
     endobject();

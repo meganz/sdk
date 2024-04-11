@@ -3269,24 +3269,6 @@ public class MegaApiJava {
     }
 
     /**
-     * Allows to change the hardcoded value of the "secure" flag
-     * <p>
-     * With this feature flag set, the client will manage encryption keys for
-     * shared folders in a secure way. Legacy clients won't be able to decrypt
-     * shared folders created with this flag enabled.
-     * <p>
-     * Manual verification of credentials of users (both sharers AND sharees) is
-     * required in order to decrypt shared folders correctly.
-     *
-     * @param enable New value of the flag
-     *               Note: This flag should be changed before login+fetchnodes. Otherwise, it may
-     *               result on unexpected behavior.
-     */
-    public void setSecureFlag(boolean enable) {
-        megaApi.setSecureFlag(enable);
-    }
-
-    /**
      * Creates a new share key for the node if there is no share key already created.
      * <p>
      * Call it before starting any new share.

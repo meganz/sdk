@@ -2608,9 +2608,8 @@ bool MegaApi::contactVerificationWarningEnabled()
     return pImpl->contactVerificationWarningEnabled();
 }
 
-void MegaApi::setSecureFlag(bool enable)
+void MegaApi::setSecureFlag([[maybe_unused]] bool enable)
 {
-    pImpl->setSecureFlag(enable);
 }
 
 void MegaApi::setManualVerificationFlag(bool enable)
