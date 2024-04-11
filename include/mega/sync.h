@@ -1337,7 +1337,7 @@ private:
         // Sanity.
         assert(onSyncThread());
 
-        lock_guard<mutex> guard(mSyncVecMutex);
+        lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
 
         for (auto& i : mSyncVec)
         {
@@ -1463,7 +1463,7 @@ private:
     unique_ptr<SyncConfigIOContext> mSyncConfigIOContext;
 
     // Sometimes the Client needs a list of the sync configs, we provide it by copy (mutex for thread safety of course)
-    mutable mutex mSyncVecMutex;
+    mutable std::recursive_mutex mSyncVecMutex;
     vector<unique_ptr<UnifiedSync>> mSyncVec;
 
     // unload the Sync (remove from RAM and data structures), its config will be flushed to disk
