@@ -7809,7 +7809,7 @@ bool Sync::syncItem_checkBackupCloudNameClash(SyncRow& row, SyncRow& parentRow, 
                 {
                     return true;  // concentrate on the delete until that is done
                 }
-                LOG_debug << syncname << "Completed duplicate backup cloud item to cloud sync debris but some dupes remain (" << rn->succeeded << "): " << fullPath.cloudPath << logTriplet(row, fullPath);
+                LOG_debug << syncname << "[Sync::syncItem_checkBackupCloudNameClash] Completed duplicate backup cloud item to cloud sync debris but some dupes remain (" << rn->succeeded << "): " << fullPath.cloudPath << logTriplet(row, fullPath);
                 rn.reset();
             }
         }
@@ -7832,7 +7832,7 @@ bool Sync::syncItem_checkBackupCloudNameClash(SyncRow& row, SyncRow& parentRow, 
         // set up the operation and pass it to the client thread, track the operation by removeNodeHere
         if (cn)
         {
-            LOG_debug << syncname << "Moving duplicate backup cloud item to cloud sync debris: " << cn->handle << " " << cn->name << " " << fullPath.cloudPath << logTriplet(row, fullPath);
+            LOG_debug << syncname << "[Sync::syncItem_checkBackupCloudNameClash] Moving duplicate backup cloud item to cloud sync debris: " << cn->handle << " " << cn->name << " " << fullPath.cloudPath << logTriplet(row, fullPath);
             bool fromInshare = inshare;
             auto debrisNodeHandle = cn->handle;
 
@@ -7846,7 +7846,7 @@ bool Sync::syncItem_checkBackupCloudNameClash(SyncRow& row, SyncRow& parentRow, 
                     {
                         mc.movetosyncdebris(n.get(), fromInshare, [deletePtr](NodeHandle, Error e){
 
-                            LOG_debug << "Sync backup duplicate delete to sync debris completed: " << e << " " << deletePtr->pathDeleting;
+                            LOG_debug << "[Sync::syncItem_checkBackupCloudNameClash] Sync backup duplicate delete to sync debris completed: " << e << " " << deletePtr->pathDeleting;
 
                             if (e) deletePtr->failed = true;
                             else deletePtr->succeeded = true;
@@ -7855,10 +7855,17 @@ bool Sync::syncItem_checkBackupCloudNameClash(SyncRow& row, SyncRow& parentRow, 
                     }
                 });
 
-            // Remember that the delete is going on, so we don't do anything else until that resolves
-            // We will detach the synced-fsid side on final completion of this operation.  If we do so
-            // earier, the logic will evaluate that updated state too soon, perhaps resulting in downsync.
-            row.syncNode->rare().removeNodeHere = deletePtr;
+            if (row.syncNode)
+            {
+                // Remember that the delete is going on, so we don't do anything else until that resolves
+                // We will detach the synced-fsid side on final completion of this operation.  If we do so
+                // earier, the logic will evaluate that updated state too soon, perhaps resulting in downsync.
+                row.syncNode->rare().removeNodeHere = deletePtr;
+            }
+            else
+            {
+                LOG_debug << "[Sync::syncItem_checkBackupCloudNameClash] No row.syncNode -> avoid assigning deletePtr to row.syncNode->rare().removeNodeHere";
+            }
             return true;
         }
     }
@@ -12005,10 +12012,14 @@ void Syncs::syncLoop()
         lastRecurseMs = unsigned(std::chrono::duration_cast<std::chrono::milliseconds>(
                         std::chrono::high_resolution_clock::now() - recurseStart).count());
 
-        LOG_verbose << "recursiveSync took ms: " << lastRecurseMs
-                    << (skippedForScanning ? " (" + std::to_string(skippedForScanning)+ " skipped due to ongoing scanning)" : "")
-                    << (mSyncFlags->noProgressCount ? " no progress count: " + std::to_string(mSyncFlags->noProgressCount) : "")
-                    << (earlyExit ? " (earlyExit)" : "");
+        const int noProgressCountLoggingFrequency = 500; // Log this every 500 counts
+        if (!skippedForScanning && !earlyExit && mSyncFlags->noProgressCount && (mSyncFlags->noProgressCount % noProgressCountLoggingFrequency == 0))
+        {
+            LOG_verbose << "recursiveSync took ms: " << lastRecurseMs
+                        << (skippedForScanning ? " (" + std::to_string(skippedForScanning)+ " skipped due to ongoing scanning)" : "")
+                        << (mSyncFlags->noProgressCount ? " no progress count: " + std::to_string(mSyncFlags->noProgressCount) : "")
+                        << (earlyExit ? " (earlyExit)" : "");
+        }
 
 
         waiter->bumpds();

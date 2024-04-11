@@ -4221,23 +4221,6 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  */
 - (void)openShareDialog:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
 
-/**
- * @brief Allows to change the hardcoded value of the "secure" flag
- *
- * With this feature flag set, the client will manage encryption keys for
- * shared folders in a secure way. Legacy clients won't be able to decrypt
- * shared folders created with this flag enabled.
- *
- * Manual verification of credentials of users (both sharers AND sharees) is
- * required in order to decrypt shared folders correctly.
- *
- * @note This flag should be changed before login+fetchnodes. Otherwise, it may
- * result on unexpected behavior.
- *
- * @param enable New value of the flag
- */
-- (void)setShareSecureFlag:(BOOL)enable;
-
 #pragma mark - Attributes Requests
 
 /**
@@ -10512,6 +10495,18 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  * @param delegate MEGARequestDelegate to track this request
  */
 - (void)updatePasswordNodeWithHandle:(MEGAHandle)node newData:(PasswordNodeData *)newData delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Generate a new pseudo-randomly characters-based password
+ *
+ * @param includeCapitalLetters indicating if at least 1 upper case letter shall be included
+ * @param includeDigits indicating if at least 1 digit shall be included
+ * @param includeSymbols bool indicating if at least 1 symbol from !@#$%^&*() shall be included
+ * @param length unsigned int with the number of characters that will be included.
+ *        Minimum valid length is 8 and maximum valid is 64.
+ * @return newly generated password string, or nil if the password generation fails due to invalid length parameter.
+ */
++ (nullable NSString *)generateRandomPasswordWithCapitalLetters:(BOOL)includeCapitalLetters digits:(BOOL)includeDigits symbols:(BOOL)includeSymbols length:(int)length;
 
 @end
 

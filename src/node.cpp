@@ -492,6 +492,12 @@ bool Node::isOfMimetype(MimeType_t mimetype, const string& ext)
         return Node::isSpreadsheet(ext);
     case MimeType_t::MIME_TYPE_ALL_DOCS:
         return Node::isDocument(ext) || Node::isPdf(ext) || Node::isPresentation(ext) || Node::isSpreadsheet(ext);
+    case MimeType_t::MIME_TYPE_OTHERS:
+        return ext.empty() ||
+               !(Node::isPhoto(ext) || Node::isAudio(ext) || Node::isVideo(ext) ||
+                 Node::isDocument(ext) || Node::isPdf(ext) || Node::isPresentation(ext) ||
+                 Node::isArchive(ext) || Node::isProgram(ext) || Node::isMiscellaneous(ext) ||
+                 Node::isSpreadsheet(ext));
     default:
         return false;
     }
@@ -509,7 +515,7 @@ MimeType_t Node::getMimetype(const std::string& ext)
     if (isArchive(ext))       return MimeType_t::MIME_TYPE_ARCHIVE;
     if (isProgram(ext))       return MimeType_t::MIME_TYPE_PROGRAM;
     if (isMiscellaneous(ext)) return MimeType_t::MIME_TYPE_MISC;
-    return MimeType_t::MIME_TYPE_UNKNOWN;
+    return MimeType_t::MIME_TYPE_OTHERS;
 }
 
 nameid Node::getExtensionNameId(const std::string& ext)
@@ -830,6 +836,12 @@ void Node::setattr()
         const auto pwdNameid = AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_MANAGER);
         changed.pwd = attrs.hasDifferentValue(pwdNameid, oldAttrs.map);
 
+        const auto descriptionNameid = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_DESCRIPTION);
+        changed.description = attrs.hasDifferentValue(descriptionNameid, oldAttrs.map);
+
+        const auto tagsNameid = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_TAGS);
+        changed.tags = attrs.hasDifferentValue(tagsNameid, oldAttrs.map);
+
         setfingerprint();
 
         delete[] buf;
@@ -1098,7 +1110,7 @@ bool Node::isIncludedForMimetype(MimeType_t mimetype, bool checkPreview) const
     std::string extension;
     if (!getExtension(extension, displayname()))
     {
-        return false;
+        return MimeType_t::MIME_TYPE_OTHERS == mimetype;
     }
 
     return Node::isOfMimetype(mimetype, extension);
@@ -1179,7 +1191,7 @@ bool Node::applykey()
             if (h != me)
             {
                 // this is a share node handle - check if share key is available
-                if (client->mKeyManager.isSecure() && client->mKeyManager.generation())
+                if (client->mKeyManager.generation())
                 {
                     std::string key = client->mKeyManager.getShareKey(h);
                     if (key.size())
@@ -1767,6 +1779,33 @@ int NodeData::getLabel()
     return attrIt == mAttrs.map.end() ? LBL_UNKNOWN : std::atoi(attrIt->second.c_str());
 }
 
+std::string NodeData::getDescription()
+{
+    if (readFailed())
+    {
+        return std::string();
+    }
+
+    static const nameid descriptionId =
+        AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_DESCRIPTION);
+    auto attrIt = mAttrs.map.find(descriptionId);
+
+    return attrIt == mAttrs.map.end() ? std::string() : attrIt->second.c_str();
+}
+
+std::string NodeData::getTags()
+{
+    if (readFailed())
+    {
+        return std::string();
+    }
+
+    static const nameid tagId = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_TAGS);
+    auto attrIt = mAttrs.map.find(tagId);
+
+    return attrIt == mAttrs.map.end() ? std::string() : attrIt->second.c_str();
+}
+
 handle NodeData::getHandle()
 {
     if (readFailed())
@@ -1851,6 +1890,10 @@ std::unique_ptr<Node> NodeData::createNode(MegaClient& client, bool fromOldCache
     return n;
 }
 
+bool NewNode::hasZeroKey() const
+{
+    return Node::hasZeroKey(nodekey);
+}
 
 PublicLink::PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown, const char *authKey)
 {
@@ -3098,6 +3141,12 @@ void LocalNode::queueClientUpload(shared_ptr<SyncUpload_inClient> upload, Versio
                 if (mc.treatAsIfFileDataEqual(*n, ext1, *upload, ext2))
                 {
                     cloneNode = n.get();
+                    if (cloneNode->hasZeroKey())
+                    {
+                        LOG_warn << "Clone node key is a zero key!! Avoid cloning node to generate a new key [cloneNode path = '" << cloneNode->displaypath() << "', sourceLocalname = '" << upload->sourceLocalname << "']";
+                        mc.sendevent(99486, "Node has a zerokey");
+                        cloneNode = nullptr;
+                    }
                     break;
                 }
             }

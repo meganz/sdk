@@ -18,8 +18,9 @@
 
 #pragma once
 
+#include "mega/gfx.h"
 #include "mega/gfx/worker/comms.h"
-#include "mega/gfx/worker/tasks.h"
+#include "mega/gfx/worker/comms_client.h"
 
 #include <memory>
 #include <vector>
@@ -42,10 +43,7 @@ public:
      * ownership of the provided object.
      *
      */
-    GfxClient(std::unique_ptr<IGfxCommunicationsClient> comms) : mComms{std::move(comms)}
-    {
-        assert(mComms);
-    }
+    GfxClient(std::unique_ptr<IGfxCommunicationsClient> comms);
 
     bool runHello(const std::string& text);
 
@@ -57,7 +55,7 @@ public:
 
     bool runSupportFormats(std::string& formats, std::string& videoformats);
 
-    static GfxClient create(const std::string& pipeName);
+    static GfxClient create(const std::string& endpointName);
 
 private:
 

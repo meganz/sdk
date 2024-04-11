@@ -595,6 +595,8 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         int getVideocodecid() override;
         double getLatitude() override;
         double getLongitude() override;
+        const char* getDescription() override;
+        MegaStringList* getTags() override;
         char *getBase64Handle() override;
         int64_t getSize() override;
         int64_t getCreationTime() override;
@@ -1665,6 +1667,9 @@ class MegaRequestPrivate : public MegaRequest
         const MegaNotificationList* getMegaNotifications() const override;
         void setMegaNotifications(MegaNotificationList* megaNotifications);
 
+        const MegaNodeTree* getMegaNodeTree() const override;
+        void setMegaNodeTree(MegaNodeTree* megaNodeTree);
+
 protected:
         std::shared_ptr<AccountDetails> accountDetails;
         MegaPricingPrivate *megaPricing;
@@ -1727,6 +1732,7 @@ protected:
 #endif // ENABLE_SYNC
 
         unique_ptr<MegaNotificationList> mMegaNotifications;
+        unique_ptr<MegaNodeTree> mMegaNodeTree;
 
     public:
         shared_ptr<ExecuteOnce> functionToExecute;
@@ -2847,7 +2853,7 @@ public:
 
     std::unique_ptr<::mega::IGfxProvider> releaseProvider() { return std::move(mProvider); }
 
-    static std::unique_ptr<MegaGfxProviderPrivate> createIsolatedInstance(const std::string& pipeName,
+    static std::unique_ptr<MegaGfxProviderPrivate> createIsolatedInstance(const std::string& endpointName,
                                                                           const std::string& executable);
 
     static std::unique_ptr<MegaGfxProviderPrivate> createExternalInstance(MegaGfxProcessor* processor);
@@ -3008,7 +3014,6 @@ class MegaApiImpl : public MegaApp
         void sendFileToUser(MegaNode *node, const char* email, MegaRequestListener *listener = NULL);
         void upgradeSecurity(MegaRequestListener* listener = NULL);
         bool contactVerificationWarningEnabled();
-        void setSecureFlag(bool enable);
         void setManualVerificationFlag(bool enable);
         void openShareDialog(MegaNode *node, MegaRequestListener *listener = NULL);
         void share(MegaNode *node, MegaUser* user, int level, MegaRequestListener *listener = NULL);
@@ -3062,6 +3067,14 @@ class MegaApiImpl : public MegaApp
         void getFavourites(MegaNode* node, int count, MegaRequestListener* listener = nullptr);
         void setNodeSensitive(MegaNode* node, bool sensitive, MegaRequestListener* listener);
         void setNodeCoordinates(MegaNode *node, bool unshareable, double latitude, double longitude, MegaRequestListener *listener = NULL);
+        void setNodeDescription(MegaNode* node, const char* description, MegaRequestListener* listener = NULL);
+        void addNodeTag(MegaNode* node, const char* tag, MegaRequestListener* listener = NULL);
+        void removeNodeTag(MegaNode* node, const char* tag, MegaRequestListener* listener = NULL);
+        void updateNodeTag(MegaNode* node,
+                       const char* newTag,
+                       const char* oldTag,
+                       MegaRequestListener* listener = NULL);
+
         void exportNode(MegaNode *node, int64_t expireTime, bool writable, bool megaHosted, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
@@ -4193,6 +4206,12 @@ private:
         error performRequest_copy(MegaRequestPrivate* request);
         error copyTreeFromOwnedNode(shared_ptr<Node> node, const char *newName, shared_ptr<Node> target, vector<NewNode>& treeCopy);
         error performRequest_login(MegaRequestPrivate* request);
+        error performRequest_tagNode(MegaRequestPrivate* request);
+        void CRUDNodeTagOperation(MegaNode* node,
+                                  int operationType,
+                                  const char* tag,
+                                  const char* oldTag,
+                                  MegaRequestListener* listener);
 
         error performTransferRequest_cancelTransfer(MegaRequestPrivate* request, TransferDbCommitter& committer);
         error performTransferRequest_moveTransfer(MegaRequestPrivate* request, TransferDbCommitter& committer);
@@ -4968,7 +4987,7 @@ private:
 class MegaNodeTreePrivate: public MegaNodeTree
 {
 public:
-    MegaNodeTreePrivate(MegaNodeTree* nodeTreeChild,
+    MegaNodeTreePrivate(const MegaNodeTree* nodeTreeChild,
                         const std::string& name,
                         const std::string& s4AttributeValue,
                         const MegaCompleteUploadData* completeUploadData,
@@ -4982,6 +5001,7 @@ public:
     MegaHandle getNodeHandle() const override;
     void setNodeHandle(const MegaHandle& nodeHandle);
     const MegaHandle& getSourceHandle() const { return mSourceHandle; }
+    MegaNodeTree* copy() const override;
 
 private:
     std::unique_ptr<MegaNodeTree> mNodeTreeChild;
@@ -5009,6 +5029,7 @@ public:
     const std::string& getFingerprint() const;
     const std::string& getString64UploadToken() const;
     const std::string& getString64FileKey() const;
+    MegaCompleteUploadData* copy() const override;
 
 private:
     std::string mFingerprint;
@@ -5028,6 +5049,7 @@ public:
     const char* getTitle() const override { return mNotification.title.c_str(); }
     const char* getDescription() const override { return mNotification.description.c_str(); }
     const char* getImageName() const override { return mNotification.imageName.c_str(); }
+    const char* getIconName() const override { return mNotification.iconName.c_str(); }
     const char* getImagePath() const override { return mNotification.imagePath.c_str(); }
     int64_t getStart() const override { return mNotification.start; }
     int64_t getEnd() const override { return mNotification.end; }

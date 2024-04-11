@@ -227,23 +227,23 @@ public:
                 const char* basePath = nullptr,
                 const char* userAgent = nullptr,
                 unsigned workerThreadCount = 1,
-                const int clientType = MegaApi::CLIENT_TYPE_DEFAULT):
-        MegaApi(appKey, basePath, userAgent, workerThreadCount, clientType)
-    {}
+                const int clientType = MegaApi::CLIENT_TYPE_DEFAULT);
 
-    MegaApiTest(const char* appKey,
+    MegaApiTest(const std::string& endpointName,
+                const char* appKey,
                 MegaGfxProvider* provider,
                 const char* basePath = nullptr,
                 const char* userAgent = nullptr,
                 unsigned workerThreadCount = 1,
-                const int clientType = MegaApi::CLIENT_TYPE_DEFAULT):
-        MegaApi(appKey, provider, basePath, userAgent, workerThreadCount, clientType)
-    {}
+                const int clientType = MegaApi::CLIENT_TYPE_DEFAULT);
 
-    MegaClient* getClient()
-    {
-        return pImpl->getMegaClient();
-    }
+    ~MegaApiTest();
+
+    MegaClient* getClient();
+
+private:
+    // the endpoint name for isolated gfx
+    std::string mEndpointName;
 };
 
 // Fixture class with common code for most of tests
@@ -695,8 +695,28 @@ public:
 
 #ifdef ENABLE_CHAT
     void createChat(bool group, MegaTextChatPeerList *peers, int timeout = maxTimeout);
+
+    /**
+     * @brief Creates a chat room from the mApi[creatorIndex] account waiting for all the events to
+     * finish before returning. It uses EXPECT in the implementation to check everything finished
+     * properly and print error messages in case something is wrong. This means you don't need to
+     * call this method with ASSERT_NO_FATAL_FAILURE but you need to check that te return value is
+     * not equal to INVALID_HANDLE.
+     *
+     * @param creatorIndex The index of the account to call the creatChat method from
+     * @param invitedIndices A vector with the indices of the accounts that will be invited to the
+     * chat. creatorIndex should not be inside the vector.
+     * @param group If true a group chat room is created, else a 1on1
+     * @param timeout_sec The max time to wait for each response in seconds. 10 minutes by default
+     * @return The chatId of the created chat room. INVALID_HANDLE if something went wrong.
+     */
+    MegaHandle createChatWithChecks(const unsigned int creatorIndex,
+                                    const std::vector<unsigned int>& invitedIndices,
+                                    const bool group,
+                                    const unsigned int timeout_sec = maxTimeout);
 #endif
 
+    template<typename ... requestArgs> bool doSetMaxConnections(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setMaxConnections(args..., &rt); return rt.waitForResult(); }
     /**
      * @brief Download a file from a URL using cURL
      *

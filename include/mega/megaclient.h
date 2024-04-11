@@ -288,7 +288,6 @@ public:
 
     // --- Getters / Setters ----
 
-    bool isSecure() const { return mSecure; }
     uint32_t generation() const;
     string privEd25519() const;
     string privCu25519() const;
@@ -325,7 +324,7 @@ public:
 
     void loadShareKeys();
 
-    void commit(std::function<void()> applyChanges, std::function<void()> completion = nullptr);
+    void commit(std::function<void()> applyChanges, std::function<void (error e)> completion = nullptr);
     void reset();
 
     // returns a formatted string, for logging purposes
@@ -337,15 +336,12 @@ public:
     // Enable/disable the warnings for shares with non-verified contacts.
     void setContactVerificationWarning(bool enabled);
 
-    // this method allows to change the feature-flag for testing purposes
-    void setSecureFlag(bool enabled) { mSecure = enabled; }
-
     // this method allows to change the manual verification feature-flag for testing purposes
     void setManualVerificationFlag(bool enabled) { mManualVerification = enabled; }
 
 protected:
-    std::deque<std::pair<std::function<void()>, std::function<void()>>> nextQueue;
-    std::deque<std::pair<std::function<void()>, std::function<void()>>> activeQueue;
+    std::deque<std::pair<std::function<void()>, std::function<void(error e)>>> nextQueue;
+    std::deque<std::pair<std::function<void()>, std::function<void(error e)>>> activeQueue;
 
     void nextCommit();
     void tryCommit(Error e, std::function<void ()> completion);
@@ -390,9 +386,6 @@ private:
 
     // key used to encrypt/decrypt the ^!keys attribute (derived from Master Key)
     SymmCipher mKey;
-
-    // client is considered to exchange keys in a secure way (requires credential's verification)
-    bool mSecure = true;
 
     // true if user needs to manually verify contact's credentials to encrypt/decrypt share keys
     bool mManualVerification = false;
@@ -490,7 +483,8 @@ struct DynamicMessageNotification
     int64_t id = 0;
     std::string title;
     std::string description;
-    std::string imageName;
+    std::string imageName; // main notification image
+    std::string iconName;
     std::string imagePath;
     int64_t start = 0;
     int64_t end = 0;
@@ -749,6 +743,10 @@ public:
     // check if the available bandwidth quota is enough to transfer an amount of bytes
     void querytransferquota(m_off_t size);
 
+    static constexpr char NODE_ATTRIBUTE_DESCRIPTION[] = "des";
+    static constexpr char NODE_ATTRIBUTE_TAGS[] = "t";
+    static constexpr char TAG_DELIMITER = ',';
+
     // update node attributes
     error setattr(std::shared_ptr<Node>, attr_map&& updates, CommandSetAttr::Completion&& c, bool canChangeVault);
 
@@ -758,6 +756,11 @@ public:
     // convenience version of the above (frequently we are passing a NodeBase's attrstring)
     static void makeattr(SymmCipher*, const std::unique_ptr<string>&, const char*, int = -1);
 
+    error addTagToNode(std::shared_ptr<Node> node, const std::string& tag, CommandSetAttr::Completion&& c);
+    error removeTagFromNode(std::shared_ptr<Node> node, const std::string& tag, CommandSetAttr::Completion&& c);
+    error updateTagNode(std::shared_ptr<Node>, const std::string& newTag, const std::string& oldTag, CommandSetAttr::Completion&& c);
+
+public:
     // check node access level
     int checkaccess(Node*, accesslevel_t);
 
@@ -837,6 +840,8 @@ public:
     // send files/folders to user
     void putnodes(const char*, vector<NewNode>&&, int tag, CommandPutNodes::Completion&& completion = nullptr);
 
+    void putFileAttributes(handle h, fatype t, const std::string& encryptedAttributes, int tag);
+
     // attach file attribute to upload or node handle
     bool putfa(NodeOrUploadHandle, fatype, SymmCipher*, int tag, std::unique_ptr<string>);
 
@@ -885,7 +890,12 @@ public:
     void delua(const char* an);
 
     // send dev command for testing
-    void senddevcommand(const char *command, const char *email, long long q = 0, int bs = 0, int us = 0);
+    void senddevcommand(const char* command,
+                        const char* email,
+                        long long q = 0,
+                        int bs = 0,
+                        int us = 0,
+                        const char* abs_c = nullptr);
 #endif
 
     // delete or block an existing contact
@@ -1455,6 +1465,16 @@ public:
     // maximum number of concurrent transfers (uploads or downloads)
     static const unsigned MAXTRANSFERS;
 
+    // minimum maximum number of concurrent transfers for dynamic calculation
+    static const unsigned MIN_MAXTRANSFERS;
+
+    // maximum number of concurrent raided transfers for mobile
+    static const unsigned MAX_RAIDTRANSFERS_FOR_MOBILE;
+
+    // meaningful portion of the maximum transfer queue size to consider raid representation
+    // i.e., there must be at least this number of raid transfers to let us predict whether the next download transfer will be raided or non-raided
+    static const unsigned MEANINGFUL_PORTION_OF_MAXTRANSFERS_QUEUE_FOR_RAID_PREDICTIVE_SYSTEM;
+
     // maximum number of queued putfa before halting the upload queue
     static const int MAXQUEUEDFA;
 
@@ -1793,6 +1813,9 @@ public:
     // transfer tslots
     transferslot_list tslots;
 
+    // raid transfers counter
+    unsigned raidTransfersCounter{};
+
     // keep track of next transfer slot timeout
     BackoffTimerGroupTracker transferSlotsBackoff;
 
@@ -1802,10 +1825,8 @@ public:
     // send updates to app when the storage size changes
     int64_t mNotifiedSumSize = 0;
 
-    // TODO: obsolete if "secure"
     // asymmetric to symmetric key rewriting
     handle_vector nodekeyrewrite;
-    handle_vector sharekeyrewrite;
 
     static const char* const EXPORTEDLINK;
 
@@ -1913,6 +1934,9 @@ public:
 
     // determine if the file is a spreadsheet.
     bool nodeIsSpreadsheet(const Node* n) const;
+
+    // determine if the file is not in any of the other file types.
+    bool nodeIsOtherType(const Node* n) const;
 
     // functions for determining whether we can clone a node instead of upload
     // or whether two files are the same so we can just upload/download the data once
@@ -2112,9 +2136,6 @@ public:
 
     // apply keys
     void applykeys();
-
-    // send andy key rewrites prepared when keys were applied
-    void sendkeyrewrites();
 
     // symmetric password challenge
     int checktsid(byte* sidbuf, unsigned len);
