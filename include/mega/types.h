@@ -882,14 +882,6 @@ typedef enum {
     REASON_ERROR_DB_INDEX_OVERFLOW  = 4,
 } ErrorReason;
 
-// Prior to C++17 support we had a template which would work for C++11 and C++14+ compilations. This template is now adapted so we directly use std::make_unique before we rename all references to mega::make_unique.
-template<class T, class... constructorArgs>
-unique_ptr<T> make_unique(constructorArgs&&... args)
-{
-    return std::make_unique<T>(std::forward<constructorArgs>(args)...);
-}
-
-
 //#define MEGA_MEASURE_CODE   // uncomment this to track time spent in major subsystems, and log it every 2 minutes, with extra control from megacli
 
 namespace CodeCounter
