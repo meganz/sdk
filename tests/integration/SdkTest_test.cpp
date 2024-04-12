@@ -18615,6 +18615,11 @@ TEST_F(SdkTest, SdkNodeTag)
     nodeList.reset(megaApi[0]->search(filter.get()));
     ASSERT_EQ(nodeList->size(), 0);
 
+    std::string tagNoFindWithCombi = tag1 + "," + tag2;
+    filter->byTag(tagNoFindWithCombi.c_str());
+    nodeList.reset(megaApi[0]->search(filter.get()));
+    ASSERT_EQ(nodeList->size(), 0);
+
     std::unique_ptr<MegaSearchFilter> filterChildren(MegaSearchFilter::createInstance());
     filterChildren->byTag(tag2.c_str());
     filterChildren->byLocationHandle(rootnodeA->getHandle());

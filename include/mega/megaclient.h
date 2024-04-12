@@ -768,6 +768,8 @@ public:
     error removeTagFromNode(std::shared_ptr<Node> node, const std::string& tag, CommandSetAttr::Completion&& c);
     error updateTagNode(std::shared_ptr<Node>, const std::string& newTag, const std::string& oldTag, CommandSetAttr::Completion&& c);
 
+    static std::set<std::string>::iterator getTagPosition(std::set<std::string>& tokens, const std::string& tag);
+
 public:
     // check node access level
     int checkaccess(Node*, accesslevel_t);

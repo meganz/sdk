@@ -165,8 +165,8 @@ public:
     // Check if string (pattern - argv[0]) is contained at data base column from type text (argv[1])
     static void userIsContained(sqlite3_context* context, int argc, sqlite3_value** argv);
 
-    // Check if string (pattern - argv[0]) is part of tags stored at data base column (argv[1])
-    // only one tag, at beginning, at the end or in the middle
+    // Check if a tag (string - argv[0]) is contained in the stored list of tags
+    //(string with the tags delimited by TAG_DELIMITER - argv[1]).
     static void userMatchTag(sqlite3_context* context, int argc, sqlite3_value** argv);
 
 private:

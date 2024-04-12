@@ -8576,20 +8576,18 @@ void MegaClient::makeattr(SymmCipher* key, const std::unique_ptr<string>& attrst
     makeattr(key, attrstring.get(), json, l);
 }
 
-std::set<std::string>::iterator getTagPosition(std::set<std::string>& tokens, const std::string& tag)
+std::set<std::string>::iterator MegaClient::getTagPosition(std::set<std::string>& tokens, const std::string& tag)
 {
-    for (auto it = tokens.begin(); it != tokens.end(); it++)
-    {
-        std::string escapedWidlCards = escapeWildCards(tag.c_str());
-        const uint8_t* pattern = reinterpret_cast<const uint8_t*>(escapedWidlCards.c_str());
-        const uint8_t* matchString = reinterpret_cast<const uint8_t*>(it->c_str());
-        if (icuLikeCompare(pattern, matchString, '\\'))
-        {
-            return it;
-        }
-    }
-
-    return tokens.end();
+    std::string escapedWidlCards = escapeWildCards(tag.c_str());
+    const uint8_t* pattern = reinterpret_cast<const uint8_t*>(escapedWidlCards.c_str());
+    return std::find_if(tokens.begin(),
+                        tokens.end(),
+                        [pattern](const std::string& token)
+                        {
+                            const uint8_t* tokenU8 =
+                                reinterpret_cast<const uint8_t*>(token.c_str());
+                            return icuLikeCompare(pattern, tokenU8, '\\');
+                        });
 }
 
 error MegaClient::addTagToNode(std::shared_ptr<Node> node,

@@ -2529,39 +2529,10 @@ void SqliteAccountState::userIsContained(sqlite3_context* context, int argc, sql
         return;
     }
 
-    std::string stringAfterEscapeWidCards{escapeWildCards(reinterpret_cast<const char*>(tagToCheck))};
-
-    std::vector<std::string> patternsToCheck;
-    // only one tag
-    patternsToCheck.push_back(stringAfterEscapeWidCards);
-
-    // tag at start tag,...
-    std::string stringAddingWildcards =
-        stringAfterEscapeWidCards + MegaClient::TAG_DELIMITER + WILDCARD_MATCH_ALL;
-    patternsToCheck.push_back(stringAddingWildcards);
-
-    // tag in the middle ...,tag,...
-    stringAddingWildcards = std::string() + WILDCARD_MATCH_ALL + MegaClient::TAG_DELIMITER +
-                            stringAfterEscapeWidCards + MegaClient::TAG_DELIMITER +
-                            WILDCARD_MATCH_ALL;
-    patternsToCheck.push_back(stringAddingWildcards);
-
-    // tag at the end ...,tag
-    stringAddingWildcards =
-        std::string() + WILDCARD_MATCH_ALL + MegaClient::TAG_DELIMITER + stringAfterEscapeWidCards;
-    patternsToCheck.push_back(stringAddingWildcards);
-
-    for (const std::string& element: patternsToCheck)
-    {
-        const uint8_t* pattern = reinterpret_cast<const uint8_t*>(element.c_str());
-        if (int result = icuLikeCompare(pattern, tagsFromDataBase, ESCAPE_CHARACTER); result)
-        {
-            sqlite3_result_int(context, result);
-            return;
-        }
-    }
-
-    sqlite3_result_int(context, 0);
+    std::string tags{reinterpret_cast<const char*>(tagsFromDataBase)};
+    std::set<std::string> tokens = splitString(tags, MegaClient::TAG_DELIMITER);
+    std::string tag{reinterpret_cast<const char*>(tagToCheck)};
+    sqlite3_result_int(context, MegaClient::getTagPosition(tokens, tag) != tokens.end());
 }
 
 std::string OrderByClause::get(int order, int sqlParamIndex)
