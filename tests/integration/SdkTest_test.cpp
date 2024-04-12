@@ -18444,7 +18444,7 @@ TEST_F(SdkTest, SdkNodeDescription)
 
     changeNodeDescription(nodeCopiedHandle, "This is a description without stars to test if it's found correctly");
 
-    filter->byDescription("start");
+    filter->byDescription("stars");
     nodeList.reset(megaApi[0]->search(filter.get()));
     ASSERT_EQ(nodeList->size(), 2);
 
