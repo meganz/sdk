@@ -595,6 +595,8 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         int getVideocodecid() override;
         double getLatitude() override;
         double getLongitude() override;
+        const char* getDescription() override;
+        MegaStringList* getTags() override;
         char *getBase64Handle() override;
         int64_t getSize() override;
         int64_t getCreationTime() override;
@@ -3066,6 +3068,14 @@ class MegaApiImpl : public MegaApp
         void getFavourites(MegaNode* node, int count, MegaRequestListener* listener = nullptr);
         void setNodeSensitive(MegaNode* node, bool sensitive, MegaRequestListener* listener);
         void setNodeCoordinates(MegaNode *node, bool unshareable, double latitude, double longitude, MegaRequestListener *listener = NULL);
+        void setNodeDescription(MegaNode* node, const char* description, MegaRequestListener* listener = NULL);
+        void addNodeTag(MegaNode* node, const char* tag, MegaRequestListener* listener = NULL);
+        void removeNodeTag(MegaNode* node, const char* tag, MegaRequestListener* listener = NULL);
+        void updateNodeTag(MegaNode* node,
+                       const char* newTag,
+                       const char* oldTag,
+                       MegaRequestListener* listener = NULL);
+
         void exportNode(MegaNode *node, int64_t expireTime, bool writable, bool megaHosted, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
@@ -4197,6 +4207,12 @@ private:
         error performRequest_copy(MegaRequestPrivate* request);
         error copyTreeFromOwnedNode(shared_ptr<Node> node, const char *newName, shared_ptr<Node> target, vector<NewNode>& treeCopy);
         error performRequest_login(MegaRequestPrivate* request);
+        error performRequest_tagNode(MegaRequestPrivate* request);
+        void CRUDNodeTagOperation(MegaNode* node,
+                                  int operationType,
+                                  const char* tag,
+                                  const char* oldTag,
+                                  MegaRequestListener* listener);
 
         error performTransferRequest_cancelTransfer(MegaRequestPrivate* request, TransferDbCommitter& committer);
         error performTransferRequest_moveTransfer(MegaRequestPrivate* request, TransferDbCommitter& committer);

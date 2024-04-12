@@ -440,7 +440,13 @@ class MEGA_API CommandSendDevCommand : public Command
 public:
     bool procresult(Result, JSON&) override;
 
-    CommandSendDevCommand(MegaClient*, const char* command, const char* email = NULL, long long = 0, int = 0, int = 0);
+    CommandSendDevCommand(MegaClient*,
+                          const char* command,
+                          const char* email = NULL,
+                          long long = 0,
+                          int = 0,
+                          int = 0,
+                          const char* = nullptr);
 };
 #endif
 
@@ -1805,6 +1811,7 @@ typedef std::function<void(Error, string_map)> CommandFetchAdsCompletion;
 class MEGA_API CommandFetchAds : public Command
 {
     CommandFetchAdsCompletion mCompletion;
+    std::vector<std::string> mAdUnits;
 public:
     bool procresult(Result, JSON&) override;
 

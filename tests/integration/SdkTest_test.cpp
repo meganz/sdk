@@ -2131,7 +2131,7 @@ string getLinkFromMailbox(const string& exe,         // Python
                           const string& realPswd,    // password for user@host.domain
                           const string& toAddr,      // user+testnewaccount@host.domain
                           const string& intent,      // confirm / delete
-                          const chrono::system_clock::time_point& timeOfEmail)
+                          const chrono::steady_clock::time_point& timeOfEmail)
 {
     string command = exe + " \"" + script + "\" \"" + realAccount + "\" \"" + realPswd + "\" \"" + toAddr + "\" " + intent;
     string output;
@@ -2142,9 +2142,11 @@ string getLinkFromMailbox(const string& exe,         // Python
     {
         WaitMillisec(deltaMs);
 
-        // get time interval to look for emails, add some seconds to account for the connection and other delays
-        const auto& attemptTime = std::chrono::system_clock::now();
-        auto timeSinceEmail = std::chrono::duration_cast<std::chrono::seconds>(attemptTime - timeOfEmail).count() + 20;
+        // get time interval to look for emails, add some seconds to account for delays related to
+        // the python script call
+        constexpr int safetyDelaySecs = 5;
+        const auto attemptTime = std::chrono::steady_clock::now();
+        auto timeSinceEmail = std::chrono::duration_cast<std::chrono::seconds>(attemptTime - timeOfEmail).count() + safetyDelaySecs;
         output = runProgram(command + ' ' + to_string(timeSinceEmail), PROG_OUTPUT_TYPE::TEXT); // Run Python script
         if (!output.empty() || i > 180000) // 3 minute maximum wait
             break;
@@ -2244,7 +2246,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     const char* origTestPwd = "TestPswd!@#$"; // maybe this should be logged too, changed later
 
     // save point in time for account init
-    chrono::time_point<chrono::system_clock>  timeOfConfirmEmail = std::chrono::system_clock::now();
+    chrono::time_point timeOfConfirmEmail = std::chrono::steady_clock::now();
 
     // Create an ephemeral session internally and send a confirmation link to email
     ASSERT_EQ(API_OK, synchronousCreateAccount(0, newTestAcc.c_str(), origTestPwd, "MyFirstname", "MyLastname"));
@@ -2291,8 +2293,8 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     // test resetting the password
     // ---------------------------
 
+    chrono::time_point timeOfResetEmail = chrono::steady_clock::now();
     ASSERT_EQ(synchronousResetPassword(0, newTestAcc.c_str(), true), MegaError::API_OK) << "resetPassword failed";
-    chrono::time_point<chrono::system_clock> timeOfResetEmail = chrono::system_clock::now();
 
     // Get cancel account link from the mailbox
     const char* newTestPwd = "PassAndGotHerPhoneNumber!#$**!";
@@ -2332,7 +2334,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     }
 
     const string changedTestAcc = Utils::replace(newTestAcc, "@", "-new@");
-    chrono::time_point<chrono::system_clock> timeOfChangeEmail = chrono::system_clock::now();
+    chrono::time_point timeOfChangeEmail = chrono::steady_clock::now();
     ASSERT_EQ(synchronousChangeEmail(0, changedTestAcc.c_str()), MegaError::API_OK) << "changeEmail failed";
 
     {
@@ -2374,7 +2376,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     // ------------------
 
     // Request cancel account link
-    chrono::time_point<chrono::system_clock>  timeOfDeleteEmail = std::chrono::system_clock::now();
+    chrono::time_point timeOfDeleteEmail = chrono::steady_clock::now();
     {
         unique_ptr<RequestTracker> cancelLinkTracker = ::mega::make_unique<RequestTracker>(megaApi[0].get());
         megaApi[0]->cancelAccount(cancelLinkTracker.get());
@@ -9341,18 +9343,38 @@ TEST_F(SdkTest, FetchAds)
     std::unique_ptr<MegaStringList> stringList = std::unique_ptr<MegaStringList>(MegaStringList::createInstance());
     std::unique_ptr<RequestTracker> tr = asyncFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get(), INVALID_HANDLE);
     ASSERT_EQ(API_EARGS, tr->waitForResult()) << "Fetch Ads succeeded with invalid arguments";
-    stringList->add("dummyAdUnit");
+    const std::string dummyAd {"dummyAdUnit"};
+    stringList->add(dummyAd.c_str());
     tr = asyncFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get(), INVALID_HANDLE);
-    ASSERT_EQ(API_ENOENT, tr->waitForResult()) << "Fetch Ads didn't fail when it was expected to (dummy Ad case)";
-    const MegaStringMap* ads = tr->request->getMegaStringMap();
-    ASSERT_FALSE(ads) << "Fetch Ads should have been nullptr due to expected error code `request`";
-    const char valiAdSlot[] = "ANDFB";
-    stringList.reset(MegaStringList::createInstance());
-    stringList->add(valiAdSlot);
-    tr = asyncFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get(), INVALID_HANDLE);
-    ASSERT_EQ(API_ENOENT, tr->waitForResult()) << "Fetch Ads didn't fail when it was expected to (correct Ad case)";
-    ads = tr->request->getMegaStringMap();
-    ASSERT_FALSE(ads) << "Fetch Ads should have been nullptr to expected error code in `request`";
+    const auto ab_adse = megaApi[0]->getABTestValue("adse");
+    const auto ab_adsi = megaApi[0]->getABTestValue("adsi");
+    LOG_debug << "Account 0 " << megaApi[0]->getMyUserHandle() << " (" << megaApi[0]->getMyEmail()
+              << ") ab_adse: " << ab_adse << " ab_adsi: " << ab_adsi;
+    const bool isUserAllowedToFetchAds = ab_adse > 0u || ab_adsi > 0u;
+    if (isUserAllowedToFetchAds)
+    {
+        ASSERT_EQ(API_OK, tr->waitForResult()) << "Fetch Ads request failed when it wasn't expected";
+        ASSERT_TRUE(tr->request);
+        auto ads = tr->request->getMegaStringMap();
+        ASSERT_TRUE(ads && ads->size() == 1);
+        ASSERT_STREQ(ads->get(dummyAd.c_str()), "-9") << "Fetch Ads should have received -9 for dummy Ad case";
+    }
+    else
+    {
+        ASSERT_EQ(API_ENOENT, tr->waitForResult()) << "Fetch Ads didn't fail when it was expected to (dummy Ad case)";
+        const MegaStringMap* ads = tr->request->getMegaStringMap();
+        ASSERT_FALSE(ads)
+            << "Fetch Ads should have been nullptr due to expected error code `request`";
+        const char valiAdSlot[] = "ANDFB";
+        stringList.reset(MegaStringList::createInstance());
+        stringList->add(valiAdSlot);
+        tr = asyncFetchAds(0, MegaApi::ADS_FORCE_ADS, stringList.get(), INVALID_HANDLE);
+        ASSERT_EQ(API_ENOENT, tr->waitForResult())
+            << "Fetch Ads didn't fail when it was expected to (correct Ad case)";
+        ads = tr->request->getMegaStringMap();
+        ASSERT_FALSE(ads)
+            << "Fetch Ads should have been nullptr to expected error code in `request`";
+    }
 
     // TODO: LOG_debug << "\t# Test suite 2: Fetching ads with containing-ads account";
 }
@@ -16274,7 +16296,6 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
     ASSERT_EQ(API_ENOENT, doDelVpnCredential(0, 149))  << "Wrong error when deleting VPN credentials from unused slotID 149";
     ASSERT_EQ(API_ENOENT, doDelVpnCredential(0, 200))  << "Wrong error when deleting VPN credentials from unused slotID 200";
     ASSERT_EQ(API_ENOENT, doDelVpnCredential(0, 3000)) << "Wrong error when deleting VPN credentials from unused slotID 3000";
-    bool usingProductionServer = g_APIURL_default.find("staging") == string::npos;
 
     int result;
 
@@ -16344,19 +16365,9 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
         }
         else
         {
-            if (usingProductionServer)
-            {
-                ASSERT_EQ(API_EACCESS, result) << "adding a new VPN credential on a free account return wrong error (using production)";
-                ASSERT_EQ(slotID, 0);
-                ASSERT_EQ(API_EARGS, doDelVpnCredential(0, slotID)) << "deleting non-existing VPN credentials from slotID " << slotID << " returned wrong error (using production)";
-            }
-            else
-            {
-                // NOTE: by Sep 2023, the API allows free accounts to create VPN credentials temporary, during development of the feature.
-                // In production, it returns EACCESS (as it will in staging later on)
-                ASSERT_EQ(API_OK, result) << "adding a new VPN credential on a free account failed (using staging)";
-                ASSERT_GT(slotID, 0);
-            }
+            ASSERT_EQ(API_EACCESS, result) << "adding a new VPN credential on a free account return wrong error";
+            ASSERT_EQ(slotID, 0);
+            ASSERT_EQ(API_EARGS, doDelVpnCredential(0, slotID)) << "deleting non-existing VPN credentials from slotID " << slotID << " returned wrong error";
         }
 
         // 3-b) Check nonexistent VPN credentials
@@ -16415,19 +16426,10 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
             }
             else
             {
-                if (usingProductionServer)
-                {
-                    ASSERT_EQ(API_ENOENT, result) << "getting the VPN credentials for a free account returned wrong error (using production)";
-                    ASSERT_FALSE(megaVpnCredentials) << "MegaVpnCredentials is NOT NULL for a free account (using production)";
-                    ASSERT_EQ(slotID, 0);
-                    ASSERT_EQ(API_EARGS, doDelVpnCredential(0, slotID)) << "deleting non-existing VPN credentials from slotID " << slotID << " returned wrong error (using production)";
-                }
-                else
-                {
-                    ASSERT_EQ(API_OK, result) << "getting the VPN credentials for a free account failed (using staging)";
-                    ASSERT_GT(slotID, 0);
-                    ASSERT_TRUE(megaVpnCredentials) << "MegaVpnCredentials is NULL for a free account (using staging)";
-                }
+                ASSERT_EQ(API_ENOENT, result) << "getting the VPN credentials for a free account returned wrong error";
+                ASSERT_FALSE(megaVpnCredentials) << "MegaVpnCredentials is NOT NULL for a free account";
+                ASSERT_EQ(slotID, 0);
+                ASSERT_EQ(API_EARGS, doDelVpnCredential(0, slotID)) << "deleting non-existing VPN credentials from slotID " << slotID << " returned wrong error";
             }
         }
 
@@ -16450,16 +16452,7 @@ TEST_F(SdkTest, SdkTestMegaVpnCredentials)
 
         // 6) Delete VPN credentials from an unoccupied slot. Expecting ENOENT: SlotID is empty
         result = doDelVpnCredential(0, slotID);
-
-        if (usingProductionServer)
-        {
-            ASSERT_EQ(API_ENOENT, result) << "deleting the VPN credentials from unused slotID " << slotID << " returned wrong error (using production)";
-        }
-        else
-        {
-            ASSERT_EQ(API_OK, result) << "deleting the VPN credentials from slotID " << slotID << " failed (using staging)";
-            ASSERT_EQ(API_ENOENT, doDelVpnCredential(0, slotID)) << "deleting the VPN credentials again from slotID " << slotID << " returned wrong error (using staging)";
-        }
+        ASSERT_EQ(API_ENOENT, result) << "deleting the VPN credentials from unused slotID " << slotID << " returned wrong error";
 
         // 7) Delete VPN credentials from an invalid slot. Expecting EARGS: SlotID is not valid
         slotID = -1;
@@ -16596,103 +16589,6 @@ TEST_F(SdkTest, SdkTesResumeSessionInFolderLinkDeleted)
     ASSERT_TRUE(waitForResponse(&requestFlag, timeoutInSeconds))
         << "Logout did not happen after " << timeoutInSeconds  << " seconds";
 }
-
-#if defined(ENABLE_ISOLATED_GFX)
-class SdkTestGfx : public SdkTest
-{
-protected:
-    void SetUp() override;
-
-    void TearDown() override;
-
-    static constexpr const char* CRASH_IMAGE = "crash.pct";
-
-    static constexpr const char* CRASH_THUMBNAIL = "crash_thumbnail.jpg";
-
-    static constexpr const char* CRASH_PREVIEW = "crash_preview.jpg";
-
-    static constexpr const char* INVALID_IMAGE = "invalid.jpg";
-
-    static constexpr const char* INVALID_THUMBNAIL = "invalid_thumbnail.jpg";
-};
-
-void SdkTestGfx::SetUp()
-{
-    SdkTest::SetUp();
-
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-}
-
-void SdkTestGfx::TearDown()
-{
-    SdkTest::TearDown();
-}
-
-/**
- * @brief GfxProcessingContinueSuccessfullyAfterCrash
- *          1. create thumbnail successfully
- *          2. create thumbnail and preview of a image which causes a gfx process crash.
- *          3. create preview still successfully after the crash
- *          4. create thumbnail of a not valid image expects false.
- *
- * @ Note:
- *          Basically a createThumbnail/createPreview might fail due to the following reason:
- *          
- *          1. The GFX process was already crashed (not running), therefore the error is 
- *             the pipe couldn't be connected
- *          2. The GFX process crashed while processing, therefore the error is others.
- *          
- *          For the 1st case, we'll retry so it is handled. For the 2nd case, we don't retry as
- *          we don't want to retry processing bad images which cause a crash. We have problems 
- *          here because gfxworker process uses multiple thread model.        
- *             When it is processing multiple GFX calls and crashes, we don't know which call is 
- *          processing bad images. So simply all calls are not retried.
- *             When the previous call results in a crash, the following immediate call may still
- *             connect to the pipe as the crash takes time to shutdown the whole process. Therefore
- *             the second call is dropped as well though it should be retried.
- *
- *          It has been discussed and we don't want to deal with these known problem at the moment
- *          as we want to start with simple. It happens rarely and the side effect is limited (thumbnail lost).
- *          We'll improve it when we find it is necessary.
- */
-TEST_F(SdkTestGfx, GfxProcessingContinueSuccessfullyAfterCrash)
-{
-    LOG_info << "___TEST GfxProcessingContinueSuccessfullyAfterCrash";
-
-    MegaApi* api = megaApi[0].get();
-
-    // 1. Create a thumbnail successfully
-    sdk_test::copyFileFromTestData(IMAGEFILE);
-    ASSERT_TRUE(api->createThumbnail(IMAGEFILE.c_str(), THUMBNAIL.c_str())) << "create thumbnail should succeed";
-
-    // 2. Create thumbnail and preview of a image which result in a crash
-    // the image is selected by testing, thus not guaranteed. we'd either
-    // find another media file or need another alternative if it couldn't
-    // consistently result in a crash
-
-    // Get the test media file
-    const std::string source{"test-data/gfx-processing-crash/SNC-2406_Almotassem%20invoice%2015021001.pct"};
-    fs::path destination{CRASH_IMAGE};
-    ASSERT_TRUE(getFileFromArtifactory(source, destination));
-    ASSERT_TRUE(fs::exists(destination));
-
-    // Gfx process would crash due to the bad media file
-    ASSERT_FALSE(api->createThumbnail(CRASH_IMAGE, CRASH_THUMBNAIL));
-    ASSERT_FALSE(api->createPreview(CRASH_IMAGE, CRASH_PREVIEW));
-
-    // Don't make a call too quickly. Workaround: see note in test case desription
-    std::this_thread::sleep_for(std::chrono::milliseconds{200});
-
-    // 3. Create a preview successfully
-    ASSERT_TRUE(api->createPreview(IMAGEFILE.c_str(), PREVIEW.c_str())) << "create preview should succeed";
-
-    // 4. Create thumbnail of a not valid image
-    sdk_test::copyFileFromTestData(std::string(INVALID_IMAGE));
-    ASSERT_FALSE(api->createThumbnail(INVALID_IMAGE, INVALID_THUMBNAIL)) << "create invalid image's thumbnail should fail";
-
-    LOG_info << "___TEST GfxProcessingContinueSuccessfullyAfterCrash end___";
-}
-#endif
 
 class SdkTestAvatar : public SdkTest
 {
@@ -18440,4 +18336,242 @@ TEST_F(SdkTest, DynamicMessageNotifs)
     defaultNotifs.reset(megaApi[0]->getEnabledNotifications()); // get cached value of ug.notifs
     ASSERT_THAT(defaultNotifs, ::testing::NotNull());
     ASSERT_EQ(defaultNotifs->size(), 0);
+}
+
+/**
+ * @brief SdkNodeDescription
+ * Steps:
+ *  - Create file and upload
+ *  - Set description
+ *  - Locallogout
+ *  - Resume
+ *  - Check description
+ *  - Update description
+ *  - Remove description
+ *
+ */
+TEST_F(SdkTest, SdkNodeDescription)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    LOG_info << "___TEST SdkNodeDescription___";
+
+    unique_ptr<MegaNode> rootnodeA(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootnodeA);
+
+    string filename = "test.txt";
+    createFile(filename, false);
+    MegaHandle mh = 0;
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &mh,
+                            filename.data(),
+                            rootnodeA.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot upload a test file";
+
+    auto changeNodeDescription = [this](MegaHandle nodeHandle, const char* description)
+    {
+        bool check = false;
+        mApi[0].mOnNodesUpdateCompletion =
+            createOnNodesUpdateLambda(nodeHandle, MegaNode::CHANGE_TYPE_DESCRIPTION, check);
+        RequestTracker trackerSetDescription(megaApi[0].get());
+        std::unique_ptr<MegaNode> testNode(megaApi[0]->getNodeByHandle(nodeHandle));
+        megaApi[0]->setNodeDescription(testNode.get(), description, &trackerSetDescription);
+        ASSERT_EQ(trackerSetDescription.waitForResult(), API_OK);
+        ASSERT_TRUE(waitForResponse(&check))
+            << "Node hasn't updated description after " << maxTimeout << " seconds";
+        resetOnNodeUpdateCompletionCBs();
+
+        std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(nodeHandle));
+        ASSERT_TRUE(node);
+        const char* nodeDescription = node->getDescription();
+        if (description == nullptr || nodeDescription == nullptr)
+        {
+            ASSERT_EQ(description, nodeDescription);
+            return;
+        }
+
+        ASSERT_STREQ(description, node->getDescription());
+    };
+
+    // Set description
+    std::string description("Description");
+    changeNodeDescription(mh, description.c_str());
+
+    std::unique_ptr<char> session(dumpSession());
+    locallogout(0);
+    resumeSession(session.get());
+    fetchnodes(0);
+
+    auto& target = mApi[0];
+    target.resetlastEvent();
+    // make sure that client is up to date (upon logout, recent changes might not be committed to DB)
+    ASSERT_TRUE(WaitFor(
+        [&target]()
+        {
+            return target.lastEventsContain(MegaEvent::EVENT_NODES_CURRENT);
+        },
+        10000))
+        << "Timeout expired to receive actionpackets";
+
+    std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(mh));
+    ASSERT_TRUE(node);
+    ASSERT_EQ(description, node->getDescription());
+
+    // Update description
+    changeNodeDescription(mh, "Description modified");
+
+    // Remove description
+    changeNodeDescription(mh, nullptr);
+
+    deleteFile(filename);
+}
+
+/**
+ * @brief SdkNodeTag
+ * Steps:
+ *  - Create file and upload
+ *  - Add tag1 -> API_OK
+ *  - Add tag2 -> API_OK
+ *  - Add tag3 -> API_OK
+ *  - Add tag1 -> API_EEXIST
+ *  - Add tag,tag -> API_EARGS
+ *  - Remove tag2 -> API_OK
+ *  - Remove tag2 -> API_ENOENT
+ *  - Update tag1 to tagUpdated -> API_OK
+ *  - Update tag2 to tagUpdated -> API_EEXIST
+ *  - Update tag1 to tagUpdated2 -> API_ENOENT
+ */
+TEST_F(SdkTest, SdkNodeTag)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    LOG_info << "___TEST SdkNodeTag___";
+
+    unique_ptr<MegaNode> rootnodeA(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootnodeA);
+
+    string filename = "test.txt";
+    createFile(filename, false);
+    MegaHandle mh = 0;
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &mh,
+                            filename.data(),
+                            rootnodeA.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot upload a test file";
+
+    auto checkTag = [](MegaNode* node, const std::string& tag)
+    {
+        std::unique_ptr<MegaStringList> tags(node->getTags());
+        for (int i = 0; i < tags->size(); i++)
+        {
+            if (tag == tags->get(i))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    };
+
+    auto addTag = [this, checkTag](MegaHandle nodeHandle, const std::string& tag) -> ErrorCodes
+    {
+        std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(nodeHandle));
+        EXPECT_TRUE(node);
+        bool check = false;
+        mApi[0].mOnNodesUpdateCompletion =
+            createOnNodesUpdateLambda(nodeHandle, MegaNode::CHANGE_TYPE_TAGS, check);
+        RequestTracker trackerAddTag(megaApi[0].get());
+        megaApi[0]->addNodeTag(node.get(), tag.c_str(), &trackerAddTag);
+        ErrorCodes error = trackerAddTag.waitForResult();
+        if (error != API_OK)
+            return error;
+
+        EXPECT_TRUE(waitForResponse(&check))
+            << "Node hasn't updated tags after " << maxTimeout << " seconds";
+
+        node.reset(megaApi[0]->getNodeByHandle(nodeHandle));
+        EXPECT_TRUE(node);
+        std::unique_ptr<MegaStringList> tags(node->getTags());
+
+        return checkTag(node.get(), tag) ? API_OK : API_ENOENT;
+    };
+
+    auto removeTag = [this, checkTag](MegaHandle nodeHandle, const std::string& tag) -> ErrorCodes
+    {
+        std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(nodeHandle));
+        EXPECT_TRUE(node);
+        bool check = false;
+        mApi[0].mOnNodesUpdateCompletion =
+            createOnNodesUpdateLambda(nodeHandle, MegaNode::CHANGE_TYPE_TAGS, check);
+        RequestTracker trackerAddTag(megaApi[0].get());
+        megaApi[0]->removeNodeTag(node.get(), tag.c_str(), &trackerAddTag);
+        ErrorCodes error = trackerAddTag.waitForResult();
+        if (error != API_OK)
+            return error;
+
+        EXPECT_TRUE(waitForResponse(&check))
+            << "Node hasn't updated tags after " << maxTimeout << " seconds";
+
+        node.reset(megaApi[0]->getNodeByHandle(nodeHandle));
+        EXPECT_TRUE(node);
+        std::unique_ptr<MegaStringList> tags(node->getTags());
+
+        return !checkTag(node.get(), tag) ? API_OK : API_EEXIST;
+    };
+
+    auto updateTag = [this, checkTag](MegaHandle nodeHandle, const std::string& tag, const std::string& oldTag) -> ErrorCodes
+    {
+        std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(nodeHandle));
+        EXPECT_TRUE(node);
+        bool check = false;
+        mApi[0].mOnNodesUpdateCompletion =
+            createOnNodesUpdateLambda(nodeHandle, MegaNode::CHANGE_TYPE_TAGS, check);
+        RequestTracker trackerAddTag(megaApi[0].get());
+        megaApi[0]->updateNodeTag(node.get(), tag.c_str(), oldTag.c_str(), &trackerAddTag);
+        ErrorCodes error = trackerAddTag.waitForResult();
+        if (error != API_OK)
+            return error;
+
+        EXPECT_TRUE(waitForResponse(&check))
+            << "Node hasn't updated tags after " << maxTimeout << " seconds";
+
+        node.reset(megaApi[0]->getNodeByHandle(nodeHandle));
+        EXPECT_TRUE(node);
+        std::unique_ptr<MegaStringList> tags(node->getTags());
+
+        return (checkTag(node.get(), tag) && !checkTag(node.get(), oldTag)) ? API_OK : API_EEXIST;
+    };
+
+    std::string tag1 = "tag1";
+    std::string tag2 = "tag2";
+    std::string tag3 = "tag3";
+    std::string tagUpdated = "tagUpdated";
+    std::string tagUpdated2 = "tagUpdated2";
+
+    ASSERT_EQ(addTag(mh, tag1), API_OK);
+    ASSERT_EQ(addTag(mh, tag2), API_OK);
+    ASSERT_EQ(addTag(mh, tag3), API_OK);
+    ASSERT_EQ(addTag(mh, tag1), API_EEXIST);
+    ASSERT_EQ(addTag(mh, "tag,tag"), API_EARGS);
+
+    ASSERT_EQ(removeTag(mh, tag2), API_OK);
+    ASSERT_EQ(removeTag(mh, tag2), API_ENOENT);
+
+    ASSERT_EQ(updateTag(mh, tagUpdated, tag1), API_OK);
+    ASSERT_EQ(updateTag(mh, tagUpdated, tag2), API_EEXIST);  // New tag already exists
+    ASSERT_EQ(updateTag(mh, tagUpdated2, tag1), API_ENOENT); // Old tag doesn't exist
+
+    deleteFile(filename);
 }

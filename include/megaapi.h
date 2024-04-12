@@ -522,6 +522,8 @@ class MegaNode
             CHANGE_TYPE_COUNTER         = 0x2000,
             CHANGE_TYPE_SENSITIVE       = 0x4000,
             CHANGE_TYPE_PWD             = 0x8000,
+            CHANGE_TYPE_DESCRIPTION     = 0x10000,
+            CHANGE_TYPE_TAGS            = 0x20000,
         };
 
         /**
@@ -814,6 +816,29 @@ class MegaNode
         virtual double getLongitude();
 
         /**
+         * @brief Get the attribute of the node representing the description
+         *
+         * The purpose of this attribute is to store the node description.
+         *
+         * The MegaNode object retains the ownership of the returned string. It will be valid until
+         * the MegaNode object is deleted.
+         *
+         * @return Node description
+         */
+        virtual const char* getDescription();
+
+        /**
+         * @brief Get a list of tags from a node
+         *
+         * These tags are stored as a node attribute
+         *
+         * You take the ownership of the returned value.
+         *
+         * @return List of tags from the node
+         */
+        virtual MegaStringList* getTags();
+
+        /**
          * @brief Returns the handle of this MegaNode in a Base64-encoded string
          *
          * You take the ownership of the returned string.
@@ -1018,6 +1043,12 @@ class MegaNode
          * - MegaNode::CHANGE_TYPE_PWD             = 0x8000
          * Check if any Password Node Data value for this node changed
          *
+         * - MegaNode::CHANGE_TYPE_DESCRIPTION     = 0x10000
+         * Check if description for this node has changed
+         *
+         * - MegaNode::CHANGE_TYPE_TAGS            = 0x20000
+         * Check if tags for this node have changed
+         *
          * @return true if this node has an specific change
          */
         virtual bool hasChanged(uint64_t changeType);
@@ -1074,6 +1105,12 @@ class MegaNode
          *
          * - MegaNode::CHANGE_TYPE_PWD             = 0x8000
          * Check if any Password Node Data value for this node changed
+         *
+         * - MegaNode::CHANGE_TYPE_DESCRIPTION     = 0x10000
+         * Check if description for this node has changed
+         *
+         * - MegaNode::CHANGE_TYPE_TAGS            = 0x20000
+         * Check if tags for this node have changed
          *
          */
         virtual uint64_t getChanges();
@@ -4476,7 +4513,8 @@ class MegaRequest
             TYPE_CREATE_PASSWORD_NODE                                       = 183,
             TYPE_UPDATE_PASSWORD_NODE                                       = 184,
             TYPE_GET_NOTIFICATIONS                                          = 185,
-            TOTAL_OF_REQUEST_TYPES                                          = 186,
+            TYPE_TAG_NODE                                                   = 186,
+            TOTAL_OF_REQUEST_TYPES                                          = 187,
         };
 
         virtual ~MegaRequest();
@@ -9778,7 +9816,8 @@ class MegaApi
             NODE_ATTR_LABEL = 3,
             NODE_ATTR_FAV = 4, // "fav"
             NODE_ATTR_S4 = 5,
-            NODE_ATTR_SEN = 6 // "sen"
+            NODE_ATTR_SEN = 6, // "sen"
+            NODE_ATTR_DESCRIPTION = 7,
         };
 
         enum {
@@ -9918,6 +9957,13 @@ class MegaApi
             CREATE_ELEMENT              = (1 << 0),
             OPTION_ELEMENT_NAME         = (1 << 1),
             OPTION_ELEMENT_ORDER        = (1 << 2),
+        };
+
+        enum
+        {
+            TAG_NODE_SET             = 0,
+            TAG_NODE_REMOVE          = 1,
+            TAG_NODE_UPDATE          = 2,
         };
 
         static constexpr int64_t INVALID_CUSTOM_MOD_TIME = -1;
@@ -13581,6 +13627,102 @@ class MegaApi
         void setUnshareableNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Set node description as a node attribute
+         *
+         * To remove node description, set description to NULL
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node that received the attribute
+         * - MegaRequest::getFlag - Returns true (official attribute)
+         * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_DESCRIPTION
+         * - MegaRequest::getText - Returns node description
+         *
+         * If the MEGA account is a business account and its status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param node Node that will receive the information.
+         * @param description Node description
+         * @param listener MegaRequestListener to track this request
+         */
+        void setNodeDescription(MegaNode* node,
+                                const char* description,
+                                MegaRequestListener* listener = NULL);
+
+
+        /**
+         * @brief Add new tag stored as node attribute
+         *
+         * The associated request type with this request is MegaRequest::TYPE_TAG_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node that received the tag
+         * - MegaRequest::getParamType - Returns operation type (0 - Add tag, 1 - Remove tag, 2 - Update tag)
+         * - MegaRequest::getText - Returns tag
+         *
+         * ',' is an invalid character to be used in a tag. If it is contained in the tag,
+         * onRequestFinish will be called with the error code MegaError::API_EARGS.
+         *
+         * If tag already exists, onRequestFinish will be called with the error code MegaError::API_EEXISTS
+         *
+         * If the MEGA account is a business account and its status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param node Node that will receive the information.
+         * @param tag New tag
+         * @param listener MegaRequestListener to track this request
+         */
+        void addNodeTag(MegaNode* node, const char* tag, MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Remove a tag stored as a node attribute
+         *
+         * The associated request type with this request is MegaRequest::TYPE_TAG_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node that received the tag
+         * - MegaRequest::getParamType - Returns operation type (0 - Add tag, 1 - Temove tag, 2 - Update tag)
+         * - MegaRequest::getText - Returns tag
+         *
+         * If tag doesn't exist, onRequestFinish will be called with the error code MegaError::API_ENOENT
+         *
+         * If the MEGA account is a business account and its status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param node Node that will receive the information.
+         * @param tag Tag to be removed
+         * @param listener MegaRequestListener to track this request
+         */
+        void removeNodeTag(MegaNode* node, const char* tag, MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Update a tag stored as a node attribute
+         *
+         * The associated request type with this request is MegaRequest::TYPE_TAG_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node that received the tag
+         * - MegaRequest::getParamType - Returns operation type (0 - Add tag, 1 - Temove tag, 2 - Update tag)
+         * - MegaRequest::getText - Returns new tag
+         * - MegaRequest::getName - Returns old tag
+         *
+         * ',' is an invalid character to be used in a tag. If it is contained in the tag,
+         * onRequestFinish will be called with the error code MegaError::API_EARGS.
+         *
+         * If newTag already exists, onRequestFinish will be called with the error code MegaError::API_EEXISTS
+         * If oldTag doesn't exist, onRequestFinish will be called with the error code MegaError::API_ENOENT
+         *
+         * If the MEGA account is a business account and its status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param node Node that will receive the information.
+         * @param newTag New tag value
+         * @param oldTag Old tag value
+         * @param listener MegaRequestListener to track this request
+         */
+        void updateNodeTag(MegaNode* node,
+                           const char* newTag,
+                           const char* oldTag,
+                           MegaRequestListener* listener = NULL);
+
+        /**
          * @brief Generate a public link of a file/folder in MEGA
          *
          * The associated request type with this request is MegaRequest::TYPE_EXPORT
@@ -16958,6 +17100,7 @@ class MegaApi
          * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+         * @param searchPage Container for pagination options; if null, all results will be returned
          *
          * @return List with found children as MegaNode objects
          */
@@ -18062,6 +18205,7 @@ class MegaApi
          * Sort nodes with favourite attr last. With this order, folders are returned first, then files
          *
          * @param cancelToken MegaCancelToken to be able to cancel the search at any time.
+         * @param searchPage Container for pagination options; if null, all results will be returned
          *
          * @return List with found nodes as MegaNode objects
          */

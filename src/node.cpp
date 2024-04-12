@@ -836,6 +836,12 @@ void Node::setattr()
         const auto pwdNameid = AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_MANAGER);
         changed.pwd = attrs.hasDifferentValue(pwdNameid, oldAttrs.map);
 
+        const auto descriptionNameid = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_DESCRIPTION);
+        changed.description = attrs.hasDifferentValue(descriptionNameid, oldAttrs.map);
+
+        const auto tagsNameid = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_TAGS);
+        changed.tags = attrs.hasDifferentValue(tagsNameid, oldAttrs.map);
+
         setfingerprint();
 
         delete[] buf;
@@ -1857,6 +1863,10 @@ std::unique_ptr<Node> NodeData::createNode(MegaClient& client, bool fromOldCache
     return n;
 }
 
+bool NewNode::hasZeroKey() const
+{
+    return Node::hasZeroKey(nodekey);
+}
 
 PublicLink::PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown, const char *authKey)
 {
@@ -3104,6 +3114,12 @@ void LocalNode::queueClientUpload(shared_ptr<SyncUpload_inClient> upload, Versio
                 if (mc.treatAsIfFileDataEqual(*n, ext1, *upload, ext2))
                 {
                     cloneNode = n.get();
+                    if (cloneNode->hasZeroKey())
+                    {
+                        LOG_warn << "Clone node key is a zero key!! Avoid cloning node to generate a new key [cloneNode path = '" << cloneNode->displaypath() << "', sourceLocalname = '" << upload->sourceLocalname << "']";
+                        mc.sendevent(99486, "Node has a zerokey");
+                        cloneNode = nullptr;
+                    }
                     break;
                 }
             }

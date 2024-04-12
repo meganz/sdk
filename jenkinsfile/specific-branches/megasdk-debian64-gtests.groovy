@@ -113,6 +113,7 @@ pipeline {
     }
     post {
         always {
+            archiveArtifacts artifacts: 'build_dir/*.log.gz', fingerprint: true
             deleteDir() /* clean up our workspace */
         }
     }

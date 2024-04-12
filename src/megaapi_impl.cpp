@@ -434,7 +434,9 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
             {
                 mS4 = it->second;
             }
-            else if (it->first == AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_MANAGER))
+            else if (it->first == AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_MANAGER) ||
+                     it->first == AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_DESCRIPTION) ||
+                     it->first == AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_TAGS))
             {
                 if (!mOfficialAttrs) mOfficialAttrs = make_unique<attr_map>();
 
@@ -519,6 +521,14 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     if (node->changed.pwd)
     {
         this->changed |= MegaNode::CHANGE_TYPE_PWD;
+    }
+    if (node->changed.description)
+    {
+        this->changed |= MegaNode::CHANGE_TYPE_DESCRIPTION;
+    }
+    if (node->changed.tags)
+    {
+        this->changed |= MegaNode::CHANGE_TYPE_TAGS;
     }
 
     this->thumbnailAvailable = (node->hasfileattribute(0) != 0);
@@ -863,6 +873,26 @@ double MegaNodePrivate::getLatitude()
 double MegaNodePrivate::getLongitude()
 {
     return longitude;
+}
+
+const char* MegaNodePrivate::getDescription()
+{
+    return getOfficialAttr(MegaClient::NODE_ATTRIBUTE_DESCRIPTION);
+}
+
+MegaStringList* MegaNodePrivate::getTags()
+{
+    const char* str = getOfficialAttr(MegaClient::NODE_ATTRIBUTE_TAGS);
+    std::string tags = str ? str : "";
+
+    std::set<std::string> tokens = MegaClient::splitString(tags, MegaClient::TAG_DELIMITER);
+    MegaStringListPrivate* stringList = new MegaStringListPrivate();
+    for (const auto& token : tokens)
+    {
+        stringList->add(token.c_str());
+    }
+
+    return stringList;
 }
 
 int64_t MegaNodePrivate::getSize()
@@ -8066,6 +8096,45 @@ void MegaApiImpl::setNodeCoordinates(MegaNode *node, bool unshareable, double la
     waiter->notify();
 }
 
+void MegaApiImpl::setNodeDescription(MegaNode* node,
+                                     const char* description,
+                                     MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_NODE, listener);
+
+    if (node)
+    {
+        request->setNodeHandle(node->getHandle());
+    }
+
+    request->setParamType(MegaApi::NODE_ATTR_DESCRIPTION);
+    request->setText(description);
+    request->setFlag(true); // official attribute (otherwise it would go in the custom section)
+
+    request->performRequest = [this, request]()
+    {
+        return performRequest_setAttrNode(request);
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::addNodeTag(MegaNode* node, const char* tag, MegaRequestListener* listener)
+{
+    CRUDNodeTagOperation(node, MegaApi::TAG_NODE_SET, tag, nullptr, listener);
+}
+
+void MegaApiImpl::removeNodeTag(MegaNode* node, const char* tag, MegaRequestListener* listener)
+{
+    CRUDNodeTagOperation(node, MegaApi::TAG_NODE_REMOVE, tag, nullptr, listener);
+}
+
+void MegaApiImpl::updateNodeTag(MegaNode* node, const char* newTag, const char* oldTag, MegaRequestListener* listener)
+{
+    CRUDNodeTagOperation(node, MegaApi::TAG_NODE_UPDATE, newTag, oldTag, listener);
+}
+
 void MegaApiImpl::exportNode(MegaNode *node, int64_t expireTime, bool writable, bool megaHosted, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_EXPORT, listener);
@@ -8640,7 +8709,18 @@ bool MegaApiImpl::hasToForceUpload(const Node &node, const MegaTransferPrivate &
     bool canForceUpload = transfer.isForceNewUpload();
     bool isPdf = name.find(".pdf") != string::npos;
 
-    return canForceUpload && (isMedia || isPdf) && !(hasPreview && hasThumbnail);
+    if (canForceUpload && (isMedia || isPdf) && !(hasPreview && hasThumbnail))
+    {
+        return true;
+    }
+    if (node.hasZeroKey())
+    {
+        // If the node has a zerokey, we need to discard it, regardless other conditions.
+        LOG_warn << "[MegaApiImpl::hasToForceUpload] Node has a zerokey, forcing a new upload..." << " [handle = " << node.nodeHandle() << "]";
+        client->sendevent(99486, "Node has a zerokey");
+        return true;
+    }
+    return false;
 }
 
 void MegaApiImpl::moveTransferUp(int transferTag, MegaRequestListener *listener)
@@ -19483,6 +19563,99 @@ error MegaApiImpl::performRequest_login(MegaRequestPrivate* request)
             return e;
 }
 
+error MegaApiImpl::performRequest_tagNode(MegaRequestPrivate* request)
+{
+    std::shared_ptr<Node> node = client->nodebyhandle(request->getNodeHandle());
+    int operation = request->getParamType();
+
+    if (!node)
+    {
+        return API_EARGS;
+    }
+
+    if (!request->getText())
+    {
+        return API_EARGS;
+    }
+
+    std::string tag = request->getText();
+
+    if (tag.find(MegaClient::TAG_DELIMITER) != std::string::npos)
+    {
+        return API_EARGS;
+    }
+
+    switch (operation)
+    {
+        case MegaApi::TAG_NODE_SET:
+        {
+            return client->addTagToNode(node,
+                                        tag,
+                                        [this, request](NodeHandle, Error e)
+                                        {
+                                            fireOnRequestFinish(request,
+                                                                make_unique<MegaErrorPrivate>(e));
+                                        });
+        }
+        case MegaApi::TAG_NODE_REMOVE:
+        {
+            return client->removeTagFromNode(
+                node,
+                tag,
+                [this, request](NodeHandle, Error e)
+                {
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                });
+        }
+        case MegaApi::TAG_NODE_UPDATE:
+        {
+            if (!request->getName())
+            {
+                return API_EARGS;
+            }
+
+            std::string oldTag = request->getName();
+
+            return client->updateTagNode(
+                node,
+                tag,
+                oldTag,
+                [this, request](NodeHandle, Error e)
+                {
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                });
+        }
+    }
+
+    return API_EARGS;
+}
+
+void MegaApiImpl::CRUDNodeTagOperation(MegaNode* node,
+                                       int operationType,
+                                       const char* tag,
+                                       const char* oldTag,
+                                       MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_TAG_NODE, listener);
+
+    if (node)
+    {
+        request->setNodeHandle(node->getHandle());
+    }
+
+    request->setParamType(operationType);
+    request->setText(tag);
+    request->setName(oldTag);
+
+    request->performRequest = [this, request]()
+    {
+        return performRequest_tagNode(request);
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::multiFactorAuthCheck(const char* email, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_MULTI_FACTOR_AUTH_CHECK, listener);
@@ -21139,10 +21312,13 @@ error MegaApiImpl::performRequest_setAttrNode(MegaRequestPrivate* request)
                             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
                         }, false);
                 }
-                else if (type == MegaApi::NODE_ATTR_S4)
+                else if (bool isTypeS4 = (type == MegaApi::NODE_ATTR_S4);
+                         isTypeS4 || type == MegaApi::NODE_ATTR_DESCRIPTION)
                 {
+                    const char* attributeName =
+                        isTypeS4 ? "s4" : MegaClient::NODE_ATTRIBUTE_DESCRIPTION;
                     const char* attrValue = request->getText();
-                    attrUpdates[AttrMap::string2nameid("s4")] = attrValue ? attrValue : "";
+                    attrUpdates[AttrMap::string2nameid(attributeName)] = attrValue ? attrValue : "";
                 }
                 else
                 {

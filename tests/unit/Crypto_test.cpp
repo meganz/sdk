@@ -349,3 +349,47 @@ TEST(Crypto, SymmCipher_xorblock_block_unaligned)
 
     ASSERT_EQ(memcmp(dest, result, sizeof(dest)), 0);
 }
+
+// Test SymmCipher::isZeroKey
+//
+// Test whether a key is a zerokey or generated with a zerokey
+// Use different data structures (byte[], byte*, std::vector<byte>, std::string)
+//
+// 1) Test a 16-byte key all zeros - isZeroKey should be true
+// 2) Test a 16-byte key all ones - isZeroKey should be false
+// 3) Test a 32-byte key all zeros - isZeroKey should be true
+// 4) Test a 32-byte key all ones - isZeroKey should be true
+// 5) Test a 32-byte key half zeros, half ones - isZeroKey should be false
+// 6) Test a 32-byte key: "0123456789ABCDEF0123456789ABCDEF" - isZeroKey should be true
+TEST(Crypto, SymmCipher_isZeroKey)
+{
+    // 1) Test a 16-byte key all zeros - isZeroKey should be true
+    byte key_test1[SymmCipher::BLOCKSIZE] = {};
+    ASSERT_EQ(SymmCipher::isZeroKey(key_test1, SymmCipher::BLOCKSIZE), true);
+
+    // 2) Test a 16-byte key all ones - isZeroKey should be false
+    auto key_test2 = std::make_unique<byte[]>(SymmCipher::BLOCKSIZE);
+    std::memset(key_test2.get(), 1, SymmCipher::BLOCKSIZE);
+    ASSERT_EQ(SymmCipher::isZeroKey(key_test2.get(), SymmCipher::BLOCKSIZE), false);
+
+    // 3) Test a 32-byte key all zeros - isZeroKey should be true
+    std::vector<byte> key_test3(FILENODEKEYLENGTH, 0);
+    ASSERT_EQ(SymmCipher::isZeroKey(key_test3.data(), FILENODEKEYLENGTH), true);
+
+    // 4) Test a 32-byte key all ones - isZeroKey should be true
+    std::string key_test4(FILENODEKEYLENGTH, 1);
+    ASSERT_EQ(SymmCipher::isZeroKey(reinterpret_cast<byte*>(key_test4.data()), FILENODEKEYLENGTH), true);
+
+    // 5) Test a 32-byte key half zeros, half ones - isZeroKey should be false
+    byte key_test5[FILENODEKEYLENGTH];
+    std::memset(key_test5, 0, SymmCipher::BLOCKSIZE);
+    std::memset(key_test5 + SymmCipher::BLOCKSIZE, 1, SymmCipher::BLOCKSIZE);
+    ASSERT_EQ(SymmCipher::isZeroKey(key_test5, FILENODEKEYLENGTH), false);
+
+    // 6) Test a 32-byte key: "0123456789ABCDEF0123456789ABCDEF" - isZeroKey should be true
+    std::string key_test6;
+    key_test6.resize(FILENODEKEYLENGTH);
+    key_test6.replace(0, SymmCipher::BLOCKSIZE, "0123456789ABCDEF");
+    key_test6.replace(SymmCipher::BLOCKSIZE, SymmCipher::BLOCKSIZE, "0123456789ABCDEF");
+    ASSERT_EQ(SymmCipher::isZeroKey(reinterpret_cast<byte*>(key_test6.data()), FILENODEKEYLENGTH), true);
+}
