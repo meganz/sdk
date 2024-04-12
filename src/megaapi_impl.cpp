@@ -6083,6 +6083,11 @@ void MegaSearchFilterPrivate::byModificationTime(int64_t lowerLimit, int64_t upp
     mModificationUpperLimit = upperLimit;
 }
 
+void MegaSearchFilterPrivate::byDescription(const char* searchString)
+{
+    mDescriptionFilter = searchString ? searchString : string();
+}
+
 MegaSearchFilterPrivate* MegaSearchFilterPrivate::copy() const
 {
     return new MegaSearchFilterPrivate(*this);

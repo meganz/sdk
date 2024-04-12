@@ -18494,8 +18494,34 @@ TEST_F(SdkTest, SdkNodeDescription)
     };
 
     // Set description
-    std::string description("Description");
+    std::string description("This is a test description to search in their contains");
     changeNodeDescription(mh, description.c_str());
+
+    std::string descriptionFilter{"search"};
+    std::unique_ptr<MegaSearchFilter> filter(MegaSearchFilter::createInstance());
+    filter->byDescription(descriptionFilter.c_str());
+    std::unique_ptr<MegaNodeList> nodeList(megaApi[0]->search(filter.get()));
+    ASSERT_EQ(nodeList->size(), 1);
+
+    std::unique_ptr<MegaSearchFilter> filterChildren(MegaSearchFilter::createInstance());
+    filterChildren->byDescription(descriptionFilter.c_str());
+    filterChildren->byLocationHandle(rootnodeA->getHandle());
+    nodeList.reset(megaApi[0]->getChildren(filterChildren.get()));
+    ASSERT_EQ(nodeList->size(), 1);
+
+    std::string descriptionFilterNoFind{"searchin"};
+    filter->byDescription(descriptionFilterNoFind.c_str());
+    nodeList.reset(megaApi[0]->search(filter.get()));
+    ASSERT_EQ(nodeList->size(), 0);
+
+    filterChildren->byDescription(descriptionFilterNoFind.c_str());
+    nodeList.reset(megaApi[0]->getChildren(filterChildren.get()));
+    ASSERT_EQ(nodeList->size(), 0);
+
+    std::string descriptionWithoutCapitalLetter("this");
+    filter->byDescription(descriptionWithoutCapitalLetter.c_str());
+    nodeList.reset(megaApi[0]->search(filter.get()));
+    ASSERT_EQ(nodeList->size(), 1);
 
     std::unique_ptr<char> session(dumpSession());
     locallogout(0);
@@ -18524,6 +18550,21 @@ TEST_F(SdkTest, SdkNodeDescription)
 
     // Remove description
     changeNodeDescription(mh, nullptr);
+
+    changeNodeDescription(mh, "This is a description with *starts* to test if it's found correctly");
+
+    MegaHandle nodeCopiedHandle = UNDEF;
+    ASSERT_EQ(API_OK, doCopyNode(0, &nodeCopiedHandle, node.get(), rootnodeA.get(), "test2.txt")) << "Cannot create a copy of a node";
+
+    changeNodeDescription(nodeCopiedHandle, "This is a description without starts to test if it's found correctly");
+
+    filter->byDescription("start");
+    nodeList.reset(megaApi[0]->search(filter.get()));
+    ASSERT_EQ(nodeList->size(), 2);
+
+    filter->byDescription("*star");
+    nodeList.reset(megaApi[0]->search(filter.get()));
+    ASSERT_EQ(nodeList->size(), 1);
 
     deleteFile(filename);
 }

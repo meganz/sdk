@@ -3299,6 +3299,24 @@ std::set<std::string> splitString(const string& str, char delimiter)
     return tokens;
 }
 
+std::string escapeWildCards(const std::string& pattern)
+{
+    std::string newString;
+    newString.reserve(pattern.size());
+    for (unsigned int i = 0; i < pattern.length(); i++)
+    {
+        char character = pattern[i];
+        if (character == WILDCARD_MATCH_ONE || character == WILDCARD_MATCH_ALL)
+        {
+            newString.push_back(ESCAPE_CHARACTER);
+        }
+
+        newString.push_back(character);
+    }
+
+    return newString;
+}
+
 // Get the current process ID
 unsigned long getCurrentPid()
 {

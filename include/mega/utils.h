@@ -1093,6 +1093,12 @@ std::string joinStrings(const Iter begin, const Iter end, const std::string& sep
     return result;
 }
 
+static constexpr char WILDCARD_MATCH_ONE = '?';
+static constexpr char WILDCARD_MATCH_ALL = '*';
+static constexpr char ESCAPE_CHARACTER = '\\';
+
+std::string escapeWildCards(const std::string& pattern);
+
 // Get the current process ID
 unsigned long getCurrentPid();
 
