@@ -18380,7 +18380,7 @@ TEST_F(SdkTest, SdkNodeDescription)
     };
 
     // Set description
-    std::string description("This is a test description to search in their contains");
+    std::string description{"This is a test description to search in its content"};
     changeNodeDescription(mh, description.c_str());
 
     std::string descriptionFilter{"search"};
@@ -18437,12 +18437,12 @@ TEST_F(SdkTest, SdkNodeDescription)
     // Remove description
     changeNodeDescription(mh, nullptr);
 
-    changeNodeDescription(mh, "This is a description with *starts* to test if it's found correctly");
+    changeNodeDescription(mh, "This is a description with *stars* to test if it's found correctly");
 
     MegaHandle nodeCopiedHandle = UNDEF;
     ASSERT_EQ(API_OK, doCopyNode(0, &nodeCopiedHandle, node.get(), rootnodeA.get(), "test2.txt")) << "Cannot create a copy of a node";
 
-    changeNodeDescription(nodeCopiedHandle, "This is a description without starts to test if it's found correctly");
+    changeNodeDescription(nodeCopiedHandle, "This is a description without stars to test if it's found correctly");
 
     filter->byDescription("start");
     nodeList.reset(megaApi[0]->search(filter.get()));

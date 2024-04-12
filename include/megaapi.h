@@ -9504,6 +9504,20 @@ public:
     virtual void byModificationTime(int64_t lowerLimit, int64_t upperLimit);
 
     /**
+     * @brief Set option for filtering by contains in description.
+     *
+     * @param searchString Contains string to be searched at nodes description
+     */
+    virtual void byDescription(const char* searchString);
+
+    /**
+     * @brief Set option for filtering by tag
+     *
+     * @param searchString Contains string to be searched at nodes tags
+     */
+    virtual void byTag(const char* searchString);
+
+    /**
      * @brief Return the string used for filtering by name.
      *
      * @return string set for filtering by name, or empty string ("") if not set
@@ -9574,25 +9588,11 @@ public:
     virtual int64_t byModificationTimeUpperLimit() const;
 
     /**
-     * @brief Set option for filtering by contains in description.
-     *
-     * @param searchString Contains string to be searched at nodes description
-     */
-    virtual void byDescription(const char* searchString);
-
-    /**
      * @brief Return the string used for filtering by description.
      *
      * @return string set for filtering by description, or empty string ("") if not set
      */
     virtual const char* byDescription() const;
-
-    /**
-     * @brief Set option for filtering by tag
-     *
-     * @param searchString Contains string to be searched at nodes tags
-     */
-    virtual void byTag(const char* searchString);
 
     /**
      * @brief Return the string used for filtering by tag.

@@ -3353,9 +3353,9 @@ std::string escapeWildCards(const std::string& pattern)
 {
     std::string newString;
     newString.reserve(pattern.size());
-    for (unsigned int i = 0; i < pattern.length(); i++)
+
+    for (const char& character : pattern)
     {
-        char character = pattern[i];
         if (character == WILDCARD_MATCH_ONE || character == WILDCARD_MATCH_ALL)
         {
             newString.push_back(ESCAPE_CHARACTER);
