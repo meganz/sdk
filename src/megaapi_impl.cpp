@@ -12200,7 +12200,11 @@ static inline int orderProLevel(int proLevel)
     switch (proLevel)
     {
     case MegaAccountDetails::ACCOUNT_TYPE_FREE: // 0
-        return -1;
+        return INT_MIN;
+    case MegaAccountDetails::ACCOUNT_TYPE_STARTER: // 11
+    case MegaAccountDetails::ACCOUNT_TYPE_BASIC: // 12
+    case MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL: // 13
+        return proLevel - ACCOUNT_TYPE_ESSENTIAL - 1;
     case MegaAccountDetails::ACCOUNT_TYPE_LITE: // 4
         return 0;
     default:
@@ -12221,9 +12225,9 @@ int MegaApiImpl::calcRecommendedProLevel(MegaPricing& pricing, MegaAccountDetail
     uint64_t bestStorageBytes = UINT64_MAX;
     for (int i = 0; i <= pricing.getNumProducts(); ++i)
     {
-        // only upgrade to lite, pro1, pro2 and pro3
+        // only upgrade to starter, basic, essential, lite, pro1, pro2 and pro3
         int planProLevel = pricing.getProLevel(i);
-        if (planProLevel < MegaAccountDetails::ACCOUNT_TYPE_PROI || planProLevel > MegaAccountDetails::ACCOUNT_TYPE_LITE)
+        if (planProLevel < MegaAccountDetails::ACCOUNT_TYPE_PROI || planProLevel > MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL)
             continue;
         // only monthly plans
         int planMonths = pricing.getMonths(i);
@@ -12239,7 +12243,7 @@ int MegaApiImpl::calcRecommendedProLevel(MegaPricing& pricing, MegaAccountDetail
         uint64_t planStorageBytes = (uint64_t)planStorageGb * (uint64_t)(1024 * 1024 * 1024);
         if (usedStorageBytes > planStorageBytes)
             continue;
-        // must be an upgrade free->lite->proi->proii->proiii
+        // must be an upgrade free->starter->basic->essential->lite->proi->proii->proiii
         int orderedPlanProLevel = orderProLevel(planProLevel);
         if (orderedCurrProLevel >= orderedPlanProLevel)
             continue;

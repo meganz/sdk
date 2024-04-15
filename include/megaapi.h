@@ -14151,6 +14151,9 @@ class MegaApi
          *     - MegaAccountDetails::ACCOUNT_TYPE_PROII = 2
          *     - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
          *     - MegaAccountDetails::ACCOUNT_TYPE_LITE = 4
+         *     - MegaAccountDetails::ACCOUNT_TYPE_STARTER = 11
+         *     - MegaAccountDetails::ACCOUNT_TYPE_BASIC = 12
+         *     - MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL = 13
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -23456,6 +23459,9 @@ public:
         ACCOUNT_TYPE_PROII = 2,
         ACCOUNT_TYPE_PROIII = 3,
         ACCOUNT_TYPE_LITE = 4,
+        ACCOUNT_TYPE_STARTER = 11,
+        ACCOUNT_TYPE_BASIC = 12,
+        ACCOUNT_TYPE_ESSENTIAL = 13,
         ACCOUNT_TYPE_BUSINESS = 100,
         ACCOUNT_TYPE_PRO_FLEXI = 101    // also known as PRO 4
     };
@@ -23477,6 +23483,9 @@ public:
      * - MegaAccountDetails::ACCOUNT_TYPE_PROII = 2
      * - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
      * - MegaAccountDetails::ACCOUNT_TYPE_LITE = 4
+     * - MegaAccountDetails::ACCOUNT_TYPE_STARTER = 11
+     * - MegaAccountDetails::ACCOUNT_TYPE_BASIC = 12
+     * - MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL = 13
      * - MegaAccountDetails::ACCOUNT_TYPE_BUSINESS = 100
      * - MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI = 101
      */
@@ -23877,6 +23886,9 @@ public:
      * - MegaAccountDetails::ACCOUNT_TYPE_PROII = 2
      * - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
      * - MegaAccountDetails::ACCOUNT_TYPE_LITE = 4
+     * - MegaAccountDetails::ACCOUNT_TYPE_STARTER = 11
+     * - MegaAccountDetails::ACCOUNT_TYPE_BASIC = 12
+     * - MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL = 13
      * - MegaAccountDetails::ACCOUNT_TYPE_BUSINESS = 100
      * - MegaAccountDetails::ACCOUNT_TYPE_PRO_FLEXI = 101
      */
