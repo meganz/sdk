@@ -25,8 +25,14 @@
 #include <mega/megaclient.h>
 #include <cassert>
 #include <algorithm>
-#include <filesystem>
-namespace fs = std::filesystem;
+
+#if __has_include(<filesystem>)
+    #include <filesystem>
+    namespace fs = std::filesystem;
+#else
+    #include <experimental/filesystem>
+    namespace fs = std::experimental::filesystem;
+#endif
 
 namespace mega {
 namespace autocomplete {
