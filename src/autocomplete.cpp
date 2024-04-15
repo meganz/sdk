@@ -26,12 +26,12 @@
 #include <cassert>
 #include <algorithm>
 
-#if __has_include(<filesystem>)
-    #include <filesystem>
-    namespace fs = std::filesystem;
-#else
+#ifdef __APPLE__
     #include <experimental/filesystem>
     namespace fs = std::experimental::filesystem;
+#else
+    #include <filesystem>
+    namespace fs = std::filesystem;
 #endif
 
 namespace mega {
