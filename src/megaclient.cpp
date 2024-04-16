@@ -8576,20 +8576,6 @@ void MegaClient::makeattr(SymmCipher* key, const std::unique_ptr<string>& attrst
     makeattr(key, attrstring.get(), json, l);
 }
 
-std::set<std::string>::iterator MegaClient::getTagPosition(std::set<std::string>& tokens, const std::string& tag)
-{
-    std::string escapedWidlCards = escapeWildCards(tag.c_str());
-    const uint8_t* pattern = reinterpret_cast<const uint8_t*>(escapedWidlCards.c_str());
-    return std::find_if(tokens.begin(),
-                        tokens.end(),
-                        [pattern](const std::string& token)
-                        {
-                            const uint8_t* tokenU8 =
-                                reinterpret_cast<const uint8_t*>(token.c_str());
-                            return icuLikeCompare(pattern, tokenU8, '\\');
-                        });
-}
-
 error MegaClient::addTagToNode(std::shared_ptr<Node> node,
                                const string& tag,
                                CommandSetAttr::Completion&& c)
@@ -8614,6 +8600,12 @@ error MegaClient::addTagToNode(std::shared_ptr<Node> node,
     }
 
     tags.append(tag);
+
+    if (tags.size() > MAX_TAGS_SIZE)
+    {
+        return API_EARGS;
+    }
+
     AttrMap map;
     map.map[tagNameid] = std::move(tags);
     setattr(node, std::move(map.map), std::move(c), false);
@@ -8671,6 +8663,11 @@ error MegaClient::updateTagNode(std::shared_ptr<Node> node,
     tokens.insert(newTag);
 
     std::string str = joinStrings(tokens.begin(), tokens.end(), std::string{TAG_DELIMITER});
+
+    if (str.size() > MAX_TAGS_SIZE)
+    {
+        return API_EARGS;
+    }
 
     AttrMap map;
     map.map[tagNameid] = std::move(str);

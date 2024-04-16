@@ -754,6 +754,7 @@ public:
     static constexpr char NODE_ATTRIBUTE_TAGS[] = "t";
     static constexpr char TAG_DELIMITER = ',';
     static constexpr uint32_t MAX_NUMBER_TAGS = 10;
+    static constexpr uint32_t MAX_TAGS_SIZE = 3000;
 
     // update node attributes
     error setattr(std::shared_ptr<Node>, attr_map&& updates, CommandSetAttr::Completion&& c, bool canChangeVault);
@@ -767,8 +768,6 @@ public:
     error addTagToNode(std::shared_ptr<Node> node, const std::string& tag, CommandSetAttr::Completion&& c);
     error removeTagFromNode(std::shared_ptr<Node> node, const std::string& tag, CommandSetAttr::Completion&& c);
     error updateTagNode(std::shared_ptr<Node>, const std::string& newTag, const std::string& oldTag, CommandSetAttr::Completion&& c);
-
-    static std::set<std::string>::iterator getTagPosition(std::set<std::string>& tokens, const std::string& tag);
 
 public:
     // check node access level

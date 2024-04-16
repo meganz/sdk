@@ -25,6 +25,8 @@
 
 #include "mega/db.h"
 
+#include <sqlite3.h>
+
 namespace mega {
 
 class MEGA_API SqliteDbTable : public DbTable

@@ -2532,7 +2532,7 @@ void SqliteAccountState::userIsContained(sqlite3_context* context, int argc, sql
     std::string tags{reinterpret_cast<const char*>(tagsFromDataBase)};
     std::set<std::string> tokens = splitString(tags, MegaClient::TAG_DELIMITER);
     std::string tag{reinterpret_cast<const char*>(tagToCheck)};
-    sqlite3_result_int(context, MegaClient::getTagPosition(tokens, tag) != tokens.end());
+    sqlite3_result_int(context, getTagPosition(tokens, tag) != tokens.end());
 }
 
 std::string OrderByClause::get(int order, int sqlParamIndex)

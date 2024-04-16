@@ -3367,6 +3367,20 @@ std::string escapeWildCards(const std::string& pattern)
     return newString;
 }
 
+std::set<std::string>::iterator getTagPosition(std::set<std::string>& tokens, const std::string& tag)
+{
+    std::string escapedWidlCards = escapeWildCards(tag.c_str());
+    const uint8_t* pattern = reinterpret_cast<const uint8_t*>(escapedWidlCards.c_str());
+    return std::find_if(tokens.begin(),
+                        tokens.end(),
+                        [pattern](const std::string& token)
+                        {
+                            const uint8_t* tokenU8 =
+                                reinterpret_cast<const uint8_t*>(token.c_str());
+                            return icuLikeCompare(pattern, tokenU8, '\\');
+                        });
+}
+
 // This code has been taken from sqlite repository (https://www.sqlite.org/src/file?name=ext/icu/icu.c)
 
 /*
@@ -3385,26 +3399,25 @@ static const unsigned char icuUtf8Trans1[] = {
     0x00, 0x01, 0x02, 0x03, 0x00, 0x01, 0x00, 0x00,
 };
 
-#define SQLITE_ICU_READ_UTF8(zIn, c)                      \
+#define SQLITE_ICU_READ_UTF8(zIn, c)                  \
 c = *(zIn++);                                         \
-    if (c>=0xc0){                                         \
-        c = icuUtf8Trans1[c-0xc0];                            \
-        while ((*zIn & 0xc0)==0x80){                          \
-            c = (c<<6) + (0x3f & *(zIn++));                       \
-    }                                                         \
+    if (c>=0xc0){                                     \
+        c = icuUtf8Trans1[c-0xc0];                    \
+        while ((*zIn & 0xc0)==0x80){                  \
+            c = (c<<6) + (0x3f & *(zIn++));           \
+    }                                                 \
 }
 
-#define SQLITE_ICU_SKIP_UTF8(zIn)                        \
-assert(*zIn);                                        \
-    if (*(zIn++)>=0xc0){                                 \
-        while ((*zIn & 0xc0)==0x80){zIn++;}                  \
+#define SQLITE_ICU_SKIP_UTF8(zIn)                     \
+assert(*zIn);                                         \
+    if (*(zIn++)>=0xc0){                              \
+        while ((*zIn & 0xc0)==0x80){zIn++;}           \
 }
 
 
-int icuLikeCompare(
-    const uint8_t *zPattern,   // LIKE pattern
-    const uint8_t *zString,    // The UTF-8 string to compare against
-    const UChar32 uEsc)         // The escape character
+int icuLikeCompare(const uint8_t *zPattern,   // LIKE pattern
+                   const uint8_t *zString,    // The UTF-8 string to compare against
+                   const UChar32 uEsc)        // The escape character
 {
     // Define Linux wildcards
     static const uint32_t MATCH_ONE = static_cast<uint32_t>(WILDCARD_MATCH_ONE);

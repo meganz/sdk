@@ -9513,6 +9513,9 @@ public:
     /**
      * @brief Set option for filtering by tag
      *
+     * @note ',' is an invalid character, it shouldn't be used as part of searchString. If used,
+     * empty list will be returned
+     *
      * @param searchString Contains string to be searched at nodes tags
      */
     virtual void byTag(const char* searchString);
@@ -13694,7 +13697,11 @@ class MegaApi
          * ',' is an invalid character to be used in a tag. If it is contained in the tag,
          * onRequestFinish will be called with the error code MegaError::API_EARGS.
          *
+         * If the length of all tags is higher than 3000 onRequestFinish will be called with
+         * the error code MegaError::API_EARGS
+         *
          * If tag already exists, onRequestFinish will be called with the error code MegaError::API_EEXISTS
+         *
          * If number of tags exceed the maximum number of tags (10),
          * onRequestFinish will be called with the error code MegaError::API_ETOOMANY
          *
@@ -13739,6 +13746,9 @@ class MegaApi
          *
          * ',' is an invalid character to be used in a tag. If it is contained in the tag,
          * onRequestFinish will be called with the error code MegaError::API_EARGS.
+         *
+         * If the length of all tags is higher than 3000 characters onRequestFinish will be called with
+         * the error code MegaError::API_EARGS
          *
          * If newTag already exists, onRequestFinish will be called with the error code MegaError::API_EEXISTS
          * If oldTag doesn't exist, onRequestFinish will be called with the error code MegaError::API_ENOENT
