@@ -32,6 +32,9 @@
 #include "mega/mega_utf8proc.h"
 #undef SSIZE_MAX
 
+// Include ICU headers
+#include <unicode/uchar.h>
+
 namespace mega {
 // convert 1...8 character ID to int64 integer (endian agnostic)
 #define MAKENAMEID1(a) (nameid)(a)
@@ -1098,6 +1101,14 @@ static constexpr char WILDCARD_MATCH_ALL = '*';
 static constexpr char ESCAPE_CHARACTER = '\\';
 
 std::string escapeWildCards(const std::string& pattern);
+
+std::set<std::string>::iterator getTagPosition(std::set<std::string>& tokens, const std::string& tag);
+
+// Check if two string (possible multibyte characters) are equal without take account if they are lower or higher case
+// 1 if they are equal
+int icuLikeCompare(const uint8_t* zPattern, /* LIKE pattern */
+                   const uint8_t* zString, /* The UTF-8 string to compare against */
+                   const UChar32 uEsc); /* The escape character */
 
 // Get the current process ID
 unsigned long getCurrentPid();

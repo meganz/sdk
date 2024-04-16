@@ -6088,6 +6088,11 @@ void MegaSearchFilterPrivate::byDescription(const char* searchString)
     mDescriptionFilter = searchString ? searchString : string();
 }
 
+void MegaSearchFilterPrivate::byTag(const char* searchString)
+{
+    mTag = searchString ? searchString : string();
+}
+
 MegaSearchFilterPrivate* MegaSearchFilterPrivate::copy() const
 {
     return new MegaSearchFilterPrivate(*this);

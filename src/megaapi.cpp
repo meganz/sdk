@@ -6831,6 +6831,14 @@ void MegaSearchFilter::byModificationTime(int64_t /*lowerLimit*/, int64_t /*uppe
 {
 }
 
+void MegaSearchFilter::byDescription(const char* /*searchString*/)
+{
+}
+
+void MegaSearchFilter::byTag(const char* /*searchString*/)
+{
+}
+
 const char* MegaSearchFilter::byName() const
 {
     return nullptr;
@@ -6881,11 +6889,12 @@ int64_t MegaSearchFilter::byModificationTimeUpperLimit() const
     return 0;
 }
 
-void MegaSearchFilter::byDescription(const char* /*searchString*/)
+const char* MegaSearchFilter::byDescription() const
 {
+    return nullptr;
 }
 
-const char* MegaSearchFilter::byDescription() const
+const char* MegaSearchFilter::byTag() const
 {
     return nullptr;
 }

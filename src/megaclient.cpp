@@ -8530,7 +8530,12 @@ error MegaClient::addTagToNode(std::shared_ptr<Node> node,
     std::string tags = node->attrs.map[tagNameid];
     std::set<std::string> tokens = splitString(tags, TAG_DELIMITER);
 
-    if (tokens.find(tag) != tokens.end())
+    if (tokens.size() == MAX_NUMBER_TAGS)
+    {
+        return API_ETOOMANY;
+    }
+
+    if (getTagPosition(tokens, tag) != tokens.end())
     {
         return API_EEXIST;
     }
@@ -8541,6 +8546,12 @@ error MegaClient::addTagToNode(std::shared_ptr<Node> node,
     }
 
     tags.append(tag);
+
+    if (tags.size() > MAX_TAGS_SIZE)
+    {
+        return API_EARGS;
+    }
+
     AttrMap map;
     map.map[tagNameid] = std::move(tags);
     setattr(node, std::move(map.map), std::move(c), false);
@@ -8556,13 +8567,13 @@ error MegaClient::removeTagFromNode(std::shared_ptr<Node> node,
     std::string tags = node->attrs.map[tagNameid];
     std::set<std::string> tokens = splitString(tags, TAG_DELIMITER);
 
-    auto it = tokens.find(tag);
-    if (it == tokens.end())
+    auto tagPosition = getTagPosition(tokens, tag);
+    if (tagPosition == tokens.end())
     {
         return API_ENOENT;
     }
 
-    tokens.erase(it);
+    tokens.erase(tagPosition);
     std::string str = joinStrings(tokens.begin(), tokens.end(), std::string{TAG_DELIMITER});
 
     AttrMap map;
@@ -8581,19 +8592,28 @@ error MegaClient::updateTagNode(std::shared_ptr<Node> node,
     std::string tags = node->attrs.map[tagNameid];
     std::set<std::string> tokens = splitString(tags, TAG_DELIMITER);
 
-    auto [elementIt, success] = tokens.insert(newTag);
-    if (!success)
-    {
-        return API_EEXIST;
-    }
-
-    auto removedElements = tokens.erase(oldTag);
-    if (!removedElements)
+    auto tagPosition = getTagPosition(tokens, oldTag);
+    if (tagPosition == tokens.end())
     {
         return API_ENOENT;
     }
 
+    tokens.erase(tagPosition);
+
+    tagPosition = getTagPosition(tokens, newTag);
+    if (tagPosition != tokens.end())
+    {
+        return API_EEXIST;
+    }
+
+    tokens.insert(newTag);
+
     std::string str = joinStrings(tokens.begin(), tokens.end(), std::string{TAG_DELIMITER});
+
+    if (str.size() > MAX_TAGS_SIZE)
+    {
+        return API_EARGS;
+    }
 
     AttrMap map;
     map.map[tagNameid] = std::move(str);

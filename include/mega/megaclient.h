@@ -746,6 +746,8 @@ public:
     static constexpr char NODE_ATTRIBUTE_DESCRIPTION[] = "des";
     static constexpr char NODE_ATTRIBUTE_TAGS[] = "t";
     static constexpr char TAG_DELIMITER = ',';
+    static constexpr uint32_t MAX_NUMBER_TAGS = 10;
+    static constexpr uint32_t MAX_TAGS_SIZE = 3000;
 
     // update node attributes
     error setattr(std::shared_ptr<Node>, attr_map&& updates, CommandSetAttr::Completion&& c, bool canChangeVault);

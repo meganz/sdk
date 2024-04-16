@@ -2805,6 +2805,8 @@ public:
     void byLocation(int locationType) override;
     void byCreationTime(int64_t lowerLimit, int64_t upperLimit) override;
     void byModificationTime(int64_t lowerLimit, int64_t upperLimit) override;
+    void byDescription(const char* searchString) override;
+    void byTag(const char* searchString) override;
 
     const char* byName() const override { return mNameFilter.c_str(); }
     int byNodeType() const override { return mNodeType; }
@@ -2816,8 +2818,8 @@ public:
     int64_t byCreationTimeUpperLimit() const override { return mCreationUpperLimit; }
     int64_t byModificationTimeLowerLimit() const override { return mModificationLowerLimit; }
     int64_t byModificationTimeUpperLimit() const override { return mModificationUpperLimit; }
-    void byDescription(const char* searchString) override;
     const char* byDescription() const override { return mDescriptionFilter.c_str(); }
+    const char* byTag() const override { return mTag.c_str(); }
 
 private:
     std::string mNameFilter;
@@ -2831,6 +2833,7 @@ private:
     int64_t mModificationLowerLimit = 0;
     int64_t mModificationUpperLimit = 0;
     std::string mDescriptionFilter;
+    std::string mTag;
 };
 
 class MegaSearchPagePrivate : public MegaSearchPage

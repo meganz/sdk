@@ -9502,6 +9502,23 @@ public:
     virtual void byModificationTime(int64_t lowerLimit, int64_t upperLimit);
 
     /**
+     * @brief Set option for filtering by contains in description.
+     *
+     * @param searchString Contains string to be searched at nodes description
+     */
+    virtual void byDescription(const char* searchString);
+
+    /**
+     * @brief Set option for filtering by tag
+     *
+     * @note ',' is an invalid character, it shouldn't be used as part of searchString. If used,
+     * empty list will be returned
+     *
+     * @param searchString Contains string to be searched at nodes tags
+     */
+    virtual void byTag(const char* searchString);
+
+    /**
      * @brief Return the string used for filtering by name.
      *
      * @return string set for filtering by name, or empty string ("") if not set
@@ -9572,18 +9589,18 @@ public:
     virtual int64_t byModificationTimeUpperLimit() const;
 
     /**
-     * @brief Set option for filtering by contains in description.
-     *
-     * @param searchString Contains string to be searched at nodes description
-     */
-    virtual void byDescription(const char* searchString);
-
-    /**
      * @brief Return the string used for filtering by description.
      *
      * @return string set for filtering by description, or empty string ("") if not set
      */
     virtual const char* byDescription() const;
+
+    /**
+     * @brief Return the string used for filtering by tag.
+     *
+     * @return string set for filtering by tag, or empty string ("") if not set
+     */
+    virtual const char* byTag() const;
 };
 
 /**
@@ -13666,7 +13683,13 @@ class MegaApi
          * ',' is an invalid character to be used in a tag. If it is contained in the tag,
          * onRequestFinish will be called with the error code MegaError::API_EARGS.
          *
+         * If the length of all tags is higher than 3000 onRequestFinish will be called with
+         * the error code MegaError::API_EARGS
+         *
          * If tag already exists, onRequestFinish will be called with the error code MegaError::API_EEXISTS
+         *
+         * If number of tags exceed the maximum number of tags (10),
+         * onRequestFinish will be called with the error code MegaError::API_ETOOMANY
          *
          * If the MEGA account is a business account and its status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.
@@ -13709,6 +13732,9 @@ class MegaApi
          *
          * ',' is an invalid character to be used in a tag. If it is contained in the tag,
          * onRequestFinish will be called with the error code MegaError::API_EARGS.
+         *
+         * If the length of all tags is higher than 3000 characters onRequestFinish will be called with
+         * the error code MegaError::API_EARGS
          *
          * If newTag already exists, onRequestFinish will be called with the error code MegaError::API_EEXISTS
          * If oldTag doesn't exist, onRequestFinish will be called with the error code MegaError::API_ENOENT
