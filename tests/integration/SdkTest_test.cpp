@@ -54,6 +54,7 @@ static const string IMAGEFILE   = "logo.png";
 static const string IMAGEFILE_C = "logo.encrypted.png";
 static const string THUMBNAIL   = "logo_thumbnail.png";
 static const string PREVIEW     = "logo_preview.png";
+static const string PUBLIC_IMAGE_URL = "/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns"; //gitleaks:allow
 
 
 MegaFileSystemAccess fileSystemAccess;
@@ -6603,7 +6604,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
 
     std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
 
-    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+"/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", rootnode.get());
+    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+PUBLIC_IMAGE_URL, rootnode.get());
     MegaHandle imported_file_handle = importHandle;
 
     std::unique_ptr<MegaNode> nimported(megaApi[0]->getNodeByHandle(imported_file_handle));
@@ -6784,7 +6785,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
 
-    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+"/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", rootnode.get());
+    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+PUBLIC_IMAGE_URL, rootnode.get());
     std::unique_ptr<MegaNode> nimported{megaApi[0]->getNodeByHandle(importHandle)};
 
 
@@ -6900,7 +6901,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
 
-    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+"/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", rootnode.get());
+    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+PUBLIC_IMAGE_URL, rootnode.get());
     std::unique_ptr<MegaNode> nimported{megaApi[0]->getNodeByHandle(importHandle)};
 
 
@@ -6966,7 +6967,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferResume)
     //  3. Check download resumption
 
     //  1. Download raided file, with speed limit
-    auto importRaidHandle = importPublicLink(0, MegaClient::MEGAURL + "/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", rootnode.get());
+    auto importRaidHandle = importPublicLink(0, MegaClient::MEGAURL +PUBLIC_IMAGE_URL, rootnode.get());
     std::unique_ptr<MegaNode> cloudRaidNode{ megaApi[0]->getNodeByHandle(importRaidHandle) };
 
     // prerequisite for having smaller (thus more) raid chunks, for increasing the chances of having
@@ -7145,7 +7146,7 @@ TEST_F(SdkTest, SdkTestOverquotaCloudraid)
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
-    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+"/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns",
+    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+PUBLIC_IMAGE_URL,
                                          std::unique_ptr<MegaNode>(megaApi[0]->getRootNode()).get());
     std::unique_ptr<MegaNode> nimported(megaApi[0]->getNodeByHandle(importHandle));
 
@@ -7319,7 +7320,7 @@ TEST_F(SdkTest, SdkTestCloudraidStreamingSoakTest)
 #endif
 
     // ensure we have our standard raid test file
-    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+"/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get());
+    auto importHandle = importPublicLink(0, MegaClient::MEGAURL+PUBLIC_IMAGE_URL, std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get());
     MegaNode *nimported = megaApi[0]->getNodeByHandle(importHandle);
 
     MegaNode *rootnode = megaApi[0]->getRootNode();

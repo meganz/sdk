@@ -27,8 +27,8 @@ using namespace mega;
 // (test vectors from 'tlvstore_test.js', in Webclient)
 TEST(Crypto, AES_GCM)
 {
-//    string keyStr = "dGQhii+B7+eLLHRiOA690w==";   // Base64
-    string keyStr = "dGQhii-B7-eLLHRiOA690w";     // Base64 URL encoding
+//    string keyStr = "dGQhii+B7+eLLHRiOA690w==";   //gitleaks:allow
+    string keyStr = "dGQhii-B7-eLLHRiOA690w";     //gitleaks:allow Base64 URL encoding
     unsigned keyLen = SymmCipher::KEYLENGTH;
     byte* keyBytes = new byte[keyLen];
     keyLen = Base64::atob(keyStr.data(), keyBytes, keyLen);
@@ -360,7 +360,7 @@ TEST(Crypto, SymmCipher_xorblock_block_unaligned)
 // 3) Test a 32-byte key all zeros - isZeroKey should be true
 // 4) Test a 32-byte key all ones - isZeroKey should be true
 // 5) Test a 32-byte key half zeros, half ones - isZeroKey should be false
-// 6) Test a 32-byte key: "0123456789ABCDEF0123456789ABCDEF" - isZeroKey should be true
+// 6) Test a 32-byte key: "0123456789ABCDEF0123456789ABCDEF" - isZeroKey should be true //gitleaks:allow
 TEST(Crypto, SymmCipher_isZeroKey)
 {
     // 1) Test a 16-byte key all zeros - isZeroKey should be true
@@ -386,7 +386,7 @@ TEST(Crypto, SymmCipher_isZeroKey)
     std::memset(key_test5 + SymmCipher::BLOCKSIZE, 1, SymmCipher::BLOCKSIZE);
     ASSERT_EQ(SymmCipher::isZeroKey(key_test5, FILENODEKEYLENGTH), false);
 
-    // 6) Test a 32-byte key: "0123456789ABCDEF0123456789ABCDEF" - isZeroKey should be true
+    // 6) Test a 32-byte key: "0123456789ABCDEF0123456789ABCDEF" - isZeroKey should be true //gitleaks:allow
     std::string key_test6;
     key_test6.resize(FILENODEKEYLENGTH);
     key_test6.replace(0, SymmCipher::BLOCKSIZE, "0123456789ABCDEF");
