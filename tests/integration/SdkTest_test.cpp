@@ -7987,6 +7987,53 @@ TEST_F(SdkTest, SdkFavouriteNodes)
     ASSERT_EQ(mApi[0].getFavNodeCount(), 1u) << "synchronousGetFavourites failed...";
     unique_ptr<MegaNode> favNode(megaApi[0]->getNodeByHandle(mApi[0].getFavNode(0)));
     ASSERT_EQ(favNode->getName(), subFolder) << "synchronousGetFavourites failed with node passed nullptr";
+
+
+    LOG_debug << "\t# Set versioned node as favourite";
+    std::set<std::string> tmpFileNames = {"n1", "n2", "n3", "n4"};
+    MegaHandle fileHandle = INVALID_HANDLE;
+    std::for_each(std::begin(tmpFileNames), std::end(tmpFileNames),
+       [this, &fileHandle, folder = std::unique_ptr<MegaNode>(megaApi[0]->getRootNode())]
+       (const auto& localFileName)
+    {
+        static int vNum = 1;
+        createFile(localFileName, false, std::to_string(vNum++));
+
+        const auto prevHandle = fileHandle;
+        ASSERT_EQ(MegaError::API_OK,
+                  doStartUpload(0,
+                                &fileHandle,
+                                localFileName.c_str(),
+                                folder.get(),
+                                "versionedFileName.txt",
+                                ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                nullptr /*appData*/,
+                                false /*isSourceTemporary*/,
+                                false /*startFirst*/,
+                                nullptr /*cancelToken*/))
+            << "Cannot upload test file version #" << vNum;
+        if (prevHandle == INVALID_HANDLE)
+        {
+            ASSERT_NE(fileHandle, INVALID_HANDLE) << "Invalid handle retrieved for newly uploaded file";
+        }
+        else
+        {
+            ASSERT_NE(fileHandle, prevHandle) << "Already existing handle received";
+        }
+
+        deleteFile(localFileName);
+    });
+    unique_ptr<MegaNode> versionedFileNode(megaApi[0]->getNodeByHandle(fileHandle));
+    ASSERT_TRUE(versionedFileNode);
+    unique_ptr<MegaNodeList> allVersions(megaApi[0]->getVersions(versionedFileNode.get()));
+    ASSERT_EQ(allVersions->size(), tmpFileNames.size());
+
+    ASSERT_EQ(MegaError::API_OK, synchronousSetNodeFavourite(0, versionedFileNode.get(), true))
+        << "Setting favourite attribute for versioned file failed";
+
+    const int howMany = 0; // all nodes
+    ASSERT_EQ(MegaError::API_OK, synchronousGetFavourites(0, nullptr /*from Root*/, howMany));
+    ASSERT_EQ(mApi[0].getFavNodeCount(), 3u) << "Error counting new versioned node set as favourite";
 }
 
 // tests for Sensntive files flag on files and folders
