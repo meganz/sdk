@@ -21304,7 +21304,7 @@ error MegaApiImpl::performRequest_setAttrNode(MegaRequestPrivate* request)
                         sharedNode_list childrens = client->getChildren(current.get());
                         while (childrens.size())
                         {
-                            assert(childrens.size() != 1);
+                            assert(childrens.size() == 1);  // versions are 1-child chains
                             std::shared_ptr<Node> n = *childrens.begin();
                             client->setattr(n, attr_map(attrUpdates), nullptr, false); // no callback for these
                             childrens = client->getChildren(n.get());
