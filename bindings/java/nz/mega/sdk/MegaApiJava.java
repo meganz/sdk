@@ -12955,4 +12955,30 @@ public class MegaApiJava {
     public MegaError isNodeSyncableWithError(MegaNode megaNode) {
         return megaApi.isNodeSyncableWithError(megaNode);
     }
+
+    /**
+     * @brief Set node description as a node attribute
+     *
+     * To remove node description, set description to NULL
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that received the attribute
+     * - MegaRequest::getFlag - Returns true (official attribute)
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_DESCRIPTION
+     * - MegaRequest::getText - Returns node description
+     *
+     * If the size of the description is greater than MAX_NODE_DESCRIPTION_SIZE, onRequestFinish will be
+     * called with the error code MegaError::API_EARGS.
+     *
+     * If the MEGA account is a business account and its status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param node Node that will receive the information.
+     * @param description Node description
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setNodeDescription(MegaNode node, String description, MegaRequestListener listener){
+        megaApi.setNodeDescription(node, description, createDelegateRequestListener(listener));
+    }
 }
