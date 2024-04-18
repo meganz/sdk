@@ -14497,6 +14497,8 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
 
             // Sanity clean before getting the User Data
             resetKeyring();
+            // Make sure that our own user is defined
+            finduser(me, 1);
 
             // we need this one to ensure we have the sync config read/write key for example
             getuserdata(0, [this, fetchtag, loadSyncs, nocache](string*, string*, string*, error e)
