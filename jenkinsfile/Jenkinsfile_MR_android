@@ -82,7 +82,7 @@ pipeline {
                             }
                             post{
                                 failure {
-                                    node { label 'linux' } { // We need and agent able to download logs from Jenkins.
+                                    node('linux') { // We need and agent able to download logs from Jenkins.
                                         script {
                                             commentFailedBuild()
                                         }
@@ -104,7 +104,7 @@ pipeline {
                             }
                             post{
                                 failure {
-                                    node { label 'linux' } { // We need and agent able to download logs from Jenkins.
+                                    node('linux') { // We need and agent able to download logs from Jenkins.
                                         script {
                                             commentFailedBuild()
                                         }
@@ -126,7 +126,7 @@ pipeline {
                             }
                             post{
                                 failure {
-                                    node { label 'linux' } { // We need and agent able to download logs from Jenkins.
+                                    node('linux') { // We need and agent able to download logs from Jenkins.
                                         script {
                                             commentFailedBuild()
                                         }
@@ -182,6 +182,7 @@ pipeline {
                                             }
                                             //Clean
                                             sh "./gradlew --no-daemon --max-workers=1 clean"
+
                                             dir("app/src/main/jni/"){
                                                 sh "sed -i 's#JOBS=.*#JOBS=1#' build.sh"
                                                 sh "sed -i 's#LOG_FILE=/dev/null#LOG_FILE=/dev/stdout#g' build.sh"
@@ -361,7 +362,7 @@ pipeline {
                     }
                 }
                 failure {
-                    node { label 'linux' } { // We need and agent able to download logs from Jenkins. This one is allowed.
+                    node('linux') { // We need and agent able to download logs from Jenkins. This one is allowed.
                         script {
                             commentFailedBuild()
                         }
