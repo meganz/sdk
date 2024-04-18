@@ -51,6 +51,10 @@ public:
 #endif // ENABLE_SYNC
 
 private:
+    // This function ensures that all tasks in the dispatch
+    // queue are completed.
+    void flushDispatchQueue();
+
     // What queue executes our notification callbacks?
     dispatch_queue_t mDispatchQueue;
     

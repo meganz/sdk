@@ -302,6 +302,11 @@ int MacFileSystemAccess::checkevents(Waiter*)
     return 0;
 }
 
+void MacFileSystemAccess::flushDispatchQueue()
+{
+    dispatch_barrier_async_and_wait_f(mDispatchQueue, nullptr, [](void *){});
+}
+
 #ifdef ENABLE_SYNC
 
 bool MacFileSystemAccess::initFilesystemNotificationSystem()
@@ -425,6 +430,11 @@ MacDirNotify::~MacDirNotify()
 
     // Destroy the event stream.
     FSEventStreamRelease(mEventStream);
+
+    // Works on the queue might target for this MacDirNotify object.
+    // Or the callback is running might is owned by this MacDirNotify object.
+    // This call ensures that all tasks on the dispatch queue have been completed.
+    mOwner.flushDispatchQueue();
 
     // Let our owner know we are no longer active.
     --mOwner.mNumNotifiers;
