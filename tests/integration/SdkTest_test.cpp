@@ -18825,7 +18825,7 @@ TEST_F(SdkTest, SdkCacheLRU)
     megaApi[0]->setLRUCacheSize(500);
 
     int numberOfCopies = 100;
-    for (int i = 0; i < numberOfCopies; i++)
+    for (int i = 0; i < numberOfCopies; ++i)
     {
         MegaHandle newNodeHandle;
         std::string newName{filename + std::to_string(i)};
@@ -18847,7 +18847,7 @@ TEST_F(SdkTest, SdkCacheLRU)
     numNodeCacheLRU = megaApi[0]->getNumNodesAtCacheLRU();
     ASSERT_EQ(numNodeCacheLRU, cacheLRUSize);
 
-    for (int i = 0; i < 20; i++)
+    for (int i = 0; i < 20; ++i)
     {
         MegaHandle newNodeHandle;
         std::string newName{filename + std::to_string(numberOfCopies + i)};
