@@ -18779,3 +18779,81 @@ TEST_F(SdkTest, SdkNodeTag)
 
     deleteFile(filename);
 }
+
+/**
+ * @brief Test returned value by MegaApi::getNumNodesAtCacheLRU
+ * Steps:
+ *  - Check intial number of nodes at LRU cache
+ *  - Set cache LRU limit 500
+ *  - Add a new file and create 100 copies
+ *  - Check number of nodes at cache LRU
+ *  - Reduce size at cache LRU
+ *  - Check number of nodes at cache LRU
+ *  - Increase cache LRU size (60)
+ *  - Check number of nodes at cache LRU
+ *  - Copy same node 20 times more
+ *  - Check number of nodes at cache LRU
+ */
+TEST_F(SdkTest, SdkCacheLRU)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    LOG_info << "___TEST SdkCacheLRU___";
+
+    unique_ptr<MegaNode> rootnodeA(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootnodeA);
+
+    uint64_t initialNumberNodes = megaApi[0]->getNumNodesAtCacheLRU();
+
+    string filename = "test.txt";
+    createFile(filename, false);
+    MegaHandle mh = 0;
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &mh,
+                            filename.data(),
+                            rootnodeA.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot upload a test file";
+
+    std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(mh));
+
+    megaApi[0]->setLRUCacheSize(500);
+
+    int numberOfCopies = 100;
+    for (int i = 0; i < numberOfCopies; i++)
+    {
+        MegaHandle newNodeHandle;
+        std::string newName{filename + std::to_string(i)};
+        ASSERT_EQ(API_OK, doCopyNode(0, &newNodeHandle, node.get(), rootnodeA.get(), newName.c_str()));
+    }
+
+    uint64_t numNodeCacheLRU = megaApi[0]->getNumNodesAtCacheLRU();
+    ASSERT_EQ(numNodeCacheLRU, numberOfCopies + 1 + initialNumberNodes);  // 101 -> initial node + 100 copies
+
+    uint64_t cacheLRUSize = 50;
+    megaApi[0]->setLRUCacheSize(cacheLRUSize);
+
+    numNodeCacheLRU = megaApi[0]->getNumNodesAtCacheLRU();
+    ASSERT_EQ(numNodeCacheLRU, cacheLRUSize);
+
+    uint64_t cacheLRUNewSize = 60;
+    megaApi[0]->setLRUCacheSize(cacheLRUNewSize);
+
+    numNodeCacheLRU = megaApi[0]->getNumNodesAtCacheLRU();
+    ASSERT_EQ(numNodeCacheLRU, cacheLRUSize);
+
+    for (int i = 0; i < 20; i++)
+    {
+        MegaHandle newNodeHandle;
+        std::string newName{filename + std::to_string(numberOfCopies + i)};
+        ASSERT_EQ(API_OK, doCopyNode(0, &newNodeHandle, node.get(), rootnodeA.get(), newName.c_str()));
+    }
+
+    numNodeCacheLRU = megaApi[0]->getNumNodesAtCacheLRU();
+    ASSERT_EQ(numNodeCacheLRU, cacheLRUNewSize);
+}

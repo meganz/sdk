@@ -16925,6 +16925,13 @@ class MegaApi
          */
         void setLRUCacheSize(unsigned long long size);
 
+        /**
+         * @brief Returns number of nodes stored at cache LRU
+         *
+         * @return Number of nodes at cache LRU
+         */
+        unsigned long long getNumNodesAtCacheLRU() const;
+
         enum { ORDER_NONE = 0, ORDER_DEFAULT_ASC, ORDER_DEFAULT_DESC,
             ORDER_SIZE_ASC, ORDER_SIZE_DESC,
             ORDER_CREATION_ASC, ORDER_CREATION_DESC,

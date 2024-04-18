@@ -25518,6 +25518,11 @@ void MegaApiImpl::setLRUCacheSize(unsigned long long size)
     client->mNodeManager.setCacheLRUMaxSize(size);
 }
 
+unsigned long long MegaApiImpl::getNumNodesAtCacheLRU() const
+{
+    return client->mNodeManager.getNumNodesAtCacheLRU();
+}
+
 long long MegaApiImpl::getTotalDownloadedBytes()
 {
     return totalDownloadedBytes;
