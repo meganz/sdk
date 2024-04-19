@@ -117,8 +117,11 @@ int PosixWaiter::wait()
     }
 
 #ifdef USE_POLL
-    dstime ms = 1000 / 10 * maxds;
-
+    int timeoutInMs = ((maxds + 1) // maxds is equal to std::numeric_limits<dstime>::max()
+               || (maxds > static_cast<dstime>(std::numeric_limits<int>::max() / 100) ) // maxds would overflow milliseconds in int
+               ) ?
+                -1  // wait infinite
+              : (100 * maxds); // wait the corresponding milliseconds to maxds deciseconds
     auto total = rfds.size() +  wfds.size() +  efds.size();
     struct pollfd fds[total];
 
@@ -143,8 +146,7 @@ int PosixWaiter::wait()
         fds[polli].events = POLLEX_SET;
         polli++;
     }
-
-    numfd = poll(fds, total,  ms);
+    numfd = poll(fds, total, timeoutInMs);
 #else
     numfd = select(maxfd + 1, &rfds, &wfds, &efds, maxds + 1 ? &tv : NULL);
 #endif
