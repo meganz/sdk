@@ -4593,6 +4593,11 @@ void MegaApi::setLRUCacheSize(unsigned long long size)
     pImpl->setLRUCacheSize(size);
 }
 
+unsigned long long MegaApi::getNumNodesAtCacheLRU() const
+{
+    return pImpl->getNumNodesAtCacheLRU();
+}
+
 long long MegaApi::getTotalDownloadedBytes()
 {
     return pImpl->getTotalDownloadedBytes();

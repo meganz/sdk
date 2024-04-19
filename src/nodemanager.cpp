@@ -1752,6 +1752,7 @@ void NodeManager::setCacheLRUMaxSize(uint64_t cacheLRUMaxSize)
 
 uint64_t NodeManager::getNumNodesAtCacheLRU() const
 {
+    LockGuard g(mMutex);
     return mCacheLRU.size();
 }
 
