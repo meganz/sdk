@@ -1380,8 +1380,8 @@ bool SdkTest::synchronousTransfer(unsigned apiIndex, int type, std::function<voi
     f();
     auto result = waitForResponse(&flag, timeout);
     EXPECT_TRUE(result) << "Transfer (type " << type << ") not finished yet after " << timeout << " seconds";
-    if (!result) mApi[apiIndex].lastError = -999; // local timeout
-    if (!result) mApi[apiIndex].lastTransferError = -999; // local timeout    TODO: switch all transfer code to use lastTransferError .  Some still uses lastError
+    if (!result) mApi[apiIndex].lastError = LOCAL_ETIMEOUT; // local timeout
+    if (!result) mApi[apiIndex].lastTransferError = LOCAL_ETIMEOUT; // local timeout    TODO: switch all transfer code to use lastTransferError .  Some still uses lastError
     return result;
 }
 
@@ -1392,7 +1392,7 @@ bool SdkTest::synchronousRequest(unsigned apiIndex, int type, std::function<void
     f();
     auto result = waitForResponse(&flag, timeout);
     EXPECT_TRUE(result) << "Request (type " << type << ") failed after " << timeout << " seconds";
-    if (!result) mApi[apiIndex].lastError = -999;
+    if (!result) mApi[apiIndex].lastError = LOCAL_ETIMEOUT;
     return result;
 }
 
@@ -1947,7 +1947,7 @@ string SdkTest::createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expire
     }
     else
     {
-        bool res = API_OK != rt.result && rt.result != -999;
+        bool res = API_OK != rt.result && rt.result != LOCAL_ETIMEOUT;
         EXPECT_TRUE(res) << "Public link creation with expire time on free account (" << mApi[apiIndex].email << ") succeed, and it mustn't";
     }
 

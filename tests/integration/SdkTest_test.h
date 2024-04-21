@@ -110,7 +110,7 @@ struct TransferTracker : public ::mega::MegaTransferListener
             {
                 mApi->removeTransferListener(this);
             }
-            return static_cast<ErrorCodes>(-999); // local timeout
+            return static_cast<ErrorCodes>(LOCAL_ETIMEOUT); // local timeout
         }
         return futureResult.get();
     }
@@ -168,7 +168,7 @@ struct RequestTracker : public ::mega::MegaRequestListener
             {
                 mApi->removeRequestListener(this);
             }
-            return static_cast<ErrorCodes>(-999); // local timeout
+            return static_cast<ErrorCodes>(LOCAL_ETIMEOUT); // local timeout
         }
         return f.get();
     }
