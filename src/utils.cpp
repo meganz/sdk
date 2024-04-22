@@ -1915,7 +1915,9 @@ std::optional<std::string> Utils::getenv(const std::string& key)
     std::array<WCHAR, 32 * 1024> buf;
     wstring keyW;
     LocalPath::path2local(&key, &keyW);
-    const auto foundSize = ::GetEnvironmentVariable(keyW.c_str(), buf.data(), buf.size());
+    const auto foundSize = ::GetEnvironmentVariable(keyW.c_str(),
+                                                    buf.data(),
+                                                    static_cast<DWORD>(buf.size()));
     // Not found
     if (foundSize == 0)
     {
