@@ -26,6 +26,7 @@
 #include <condition_variable>
 #include <thread>
 #include <mutex>
+#include <optional>
 
 #include "types.h"
 #undef SSIZE_MAX
@@ -484,8 +485,7 @@ public:
     // --- environment functions that work with Unicode UTF-8 on Windows (set/unset/get) ---
 
     static bool hasenv(const std::string& key);
-    // sets *out_found if found
-    static std::string getenv(const std::string& key, bool* out_found);
+    static std::optional<std::string> getenv(const std::string& key);
     // return def if value not found
     static std::string getenv(const std::string& key, const std::string& def);
     static void setenv(const std::string& key, const std::string& value);

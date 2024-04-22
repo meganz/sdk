@@ -43,6 +43,14 @@ string runProgram(const string& command, PROG_OUTPUT_TYPE ot);
 void synchronousHttpPOSTFile(const string& url, const string& filepath, string& responsedata);
 void synchronousHttpPOSTData(const string& url, const string& senddata, string& responsedata);
 
+struct EnvVarAccount
+{
+    std::string Email;
+    std::string Password;
+
+    static EnvVarAccount get(size_t i);
+};
+
 class LogStream
 {
 public:

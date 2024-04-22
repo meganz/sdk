@@ -1900,53 +1900,39 @@ std::string Utils::replace(const std::string& str, const std::string& search, co
 
 bool Utils::hasenv(const std::string &key)
 {
-    bool r = false;
-    getenv(key, &r);
-    return r;
+    return getenv(key).has_value();
 }
 
 std::string Utils::getenv(const std::string& key, const std::string& def)
 {
-    bool found = false;
-    string r = getenv(key, &found);
-    if (!found) return def;
-    return r;
+    return getenv(key).value_or(def);
 }
 
-std::string Utils::getenv(const std::string& key, bool* out_found)\
+std::optional<std::string> Utils::getenv(const std::string& key)
 {
-    // sets *out_found to if found
 #ifdef WIN32
     // on Windows the charset is not UTF-8 by default
-    WCHAR buf[32 * 1024];
+    std::array<WCHAR, 32 * 1024> buf;
     wstring keyW;
     LocalPath::path2local(&key, &keyW);
-    DWORD size = GetEnvironmentVariable(keyW.c_str(), buf, sizeof(buf) / sizeof(buf[0]));
-    if (size == 0)
+    const auto foundSize = ::GetEnvironmentVariable(keyW.c_str(), buf.data(), buf.size());
+    // Not found
+    if (foundSize == 0)
     {
-        if (out_found) *out_found = false;
-        return "";
+        return std::nullopt;
     }
-    else
-    {
-        if (out_found) *out_found = true;
-
-        string ret;
-        wstring input(buf, size);
-        LocalPath::local2path(&input, &ret, false);
-        return ret;
-    }
+    // Found
+    string ret;
+    wstring input(buf.data(), foundSize);
+    LocalPath::local2path(&input, &ret, false);
+    return ret;
 #else
-    const char* value = ::getenv(key.c_str());
-    if (out_found)
-    {
-        *out_found = value != nullptr;
-    }
-    if (value)
+    if (const char* value = ::getenv(key.c_str()))
     {
         return value;
     }
-    return "";
+    // Not found
+    return std::nullopt;
 #endif
 }
 
