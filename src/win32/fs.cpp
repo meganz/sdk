@@ -28,8 +28,13 @@
 #include <wow64apiset.h>
 
 #if defined(_WIN32)
+#pragma push_macro("NOMINMAX")
+#ifndef NOMINMAX
+    #define NOMINMAX
+#endif
 #include <winsock2.h>
 #include <Windows.h>
+#pragma pop_macro("NOMINMAX")
 #include <winioctl.h>
 #endif
 

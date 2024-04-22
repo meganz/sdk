@@ -25,7 +25,12 @@
 #include "mega/utils.h"
 
 #ifdef WIN32
+#pragma push_macro("NOMINMAX")
+#ifndef NOMINMAX
+    #define NOMINMAX
+#endif
 #include <windows.h>
+#pragma pop_macro("NOMINMAX")
 #include <process.h>
 #else
 #include <signal.h>

@@ -21,7 +21,15 @@
 
 #include "mega.h"
 #include "megaapi.h"
+
+#pragma push_macro("NOMINMAX")
+#ifndef NOMINMAX
+    #define NOMINMAX
+#endif
+#include <winsock2.h>
 #include <windows.h>
+#pragma pop_macro("NOMINMAX")
+
 #include <conio.h>
 #include <fstream>
 #include <iomanip>

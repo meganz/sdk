@@ -39,7 +39,6 @@ if (WIN32)
     target_compile_definitions(libgfxworker
         PUBLIC
         UNICODE
-        NOMINMAX
     )
 endif()
 
