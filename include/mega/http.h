@@ -34,13 +34,6 @@
 #include <netdb.h>
 #else
 
-#pragma push_macro("NOMINMAX")
-#ifndef NOMINMAX
-    #define NOMINMAX
-#endif
-#include <winsock2.h>
-#pragma pop_macro("NOMINMAX")
-
 #pragma warning(push)
 #pragma warning( disable : 4459 )
 // um\ws2tcpip.h(738,14): warning C4459: declaration of 'Error' hides global declaration

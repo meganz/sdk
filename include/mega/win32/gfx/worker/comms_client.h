@@ -2,13 +2,6 @@
 
 #include "mega/gfx/worker/comms_client_common.h"
 
-#pragma push_macro("NOMINMAX")
-#ifndef NOMINMAX
-    #define NOMINMAX
-#endif
-#include <windows.h>
-#pragma pop_macro("NOMINMAX")
-
 namespace mega {
 namespace gfx {
 
