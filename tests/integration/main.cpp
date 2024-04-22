@@ -9,6 +9,7 @@
 
 #include "sdk_test_utils.h"
 #include "test.h"
+#include "env_var_accounts.h"
 
 #include <mega/fuse/common/mount_result.h>
 #include <mega/fuse/common/service.h>
@@ -40,19 +41,7 @@ bool gResumeSessions = false;
 bool gScanOnly = false; // will be used in SRW
 bool gManualVerification=false;
 
-// max accounts used by any test
-// update if a test starts using more
-int gMaxAccounts = 3;
 std::string USER_AGENT = "Integration Tests with GoogleTest framework";
-
-string_vector envVarAccount = {"MEGA_EMAIL", "MEGA_EMAIL_AUX", "MEGA_EMAIL_AUX2"};
-string_vector envVarPass    = {"MEGA_PWD",   "MEGA_PWD_AUX",   "MEGA_PWD_AUX2"};
-
-EnvVarAccount EnvVarAccount::get(size_t i)
-{
-    assert(i < envVarAccount.size() && i < envVarPass.size());
-    return {Utils::getenv(envVarAccount[i], ""), Utils::getenv(envVarPass[i], "")};
-}
 
 void WaitMillisec(unsigned n)
 {
@@ -555,12 +544,7 @@ public:
 
 int main (int argc, char *argv[])
 {
-    assert(envVarAccount.size() == envVarPass.size());
-    vector<pair<string, string>> accEnvVArs;
-    std::transform(envVarAccount.begin(), envVarAccount.end(), envVarPass.begin(), std::back_inserter(accEnvVArs),
-        [](const string& a, const string& p) { return std::make_pair(a, p); });
-
-    SdkRuntimeArgValues argVals(vector<string>(argv, argv + argc), std::move(accEnvVArs));
+    SdkRuntimeArgValues argVals(vector<string>(argv, argv + argc), getEnvVarAccounts().cloneVarNames());
     if (argVals.isHelp())
     {
         argVals.printHelp();

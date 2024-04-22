@@ -21,6 +21,7 @@
 
 #include "sdk_test_utils.h"
 #include "../stdfs.h"
+#include "env_var_accounts.h"
 #include "SdkTest_test.h"
 #include "gtest_common.h"
 #include "mega/types.h"
@@ -1488,8 +1489,9 @@ void SdkTest::fetchNodesForAccounts(const unsigned howMany)
 
 void SdkTest::getAccountsForTest(unsigned howMany, bool fetchNodes, const int clientType)
 {
+    auto maxAccounts = getEnvVarAccounts().size();
     EXPECT_TRUE(howMany > 0) << "SdkTest::getAccountsForTest(): invalid number of test account to setup " << howMany << " is < 0";
-    EXPECT_TRUE(howMany <= (unsigned)gMaxAccounts) << "SdkTest::getAccountsForTest(): too many test accounts requested " << howMany << " is > " << gMaxAccounts;
+    EXPECT_TRUE(howMany <= maxAccounts) << "SdkTest::getAccountsForTest(): too many test accounts requested " << howMany << " is > " << maxAccounts;
     out() << "Test setting up for " << howMany << " accounts ";
 
     megaApi.resize(howMany);
@@ -1498,7 +1500,7 @@ void SdkTest::getAccountsForTest(unsigned howMany, bool fetchNodes, const int cl
     trackers.resize(howMany);
     for (unsigned index = 0; index < howMany; ++index)
     {
-        const auto [email, pass] = EnvVarAccount::get(index);
+        const auto [email, pass] = getEnvVarAccounts().getVarValues(index);
         ASSERT_FALSE(email.empty() || pass.empty());
 
         static const bool checkCredentials = true; // default value
@@ -1572,8 +1574,9 @@ void SdkTest::configureTestInstance(unsigned index,
         mApi[index].email = email;
         mApi[index].pwd = pass;
 
-        ASSERT_FALSE(mApi[index].email.empty()) << "Set test account " << index << " username at the environment variable $" << envVarAccount[index];
-        ASSERT_FALSE(mApi[index].pwd.empty()) << "Set test account " << index << " password at the environment variable $" << envVarPass[index];
+        const auto& [emailVarName, passVarName] = getEnvVarAccounts().getVarNames(index);
+        ASSERT_FALSE(mApi[index].email.empty()) << "Set test account " << index << " username at the environment variable $" << emailVarName;
+        ASSERT_FALSE(mApi[index].pwd.empty()) << "Set test account " << index << " password at the environment variable $" << passVarName;
     }
 
     megaApi[index].reset(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(index).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT), clientType));
@@ -2314,7 +2317,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     const string realEmail(bufRealEmail); // user@host.domain
     string::size_type pos = realEmail.find('@');
     const string realAccount = realEmail.substr(0, pos); // user
-    [[maybe_unused]]const auto [testEmail, _] = EnvVarAccount::get(0);
+    [[maybe_unused]]const auto [testEmail, _] = getEnvVarAccounts().getVarValues(0);
     const string newTestAcc = realAccount + '+' +
                               testEmail.substr(0, testEmail.find("@")) + '+' +
                               getUniqueAlias() + realEmail.substr(pos); // user+testUser+rand20210919@host.domain
@@ -2536,8 +2539,7 @@ TEST_F(SdkTest, SdkTestKillSession)
       std::unique_ptr<MegaAccountSession>;
 
     // Make sure environment variable are restored.
-    auto accounts = makeScopedValue(envVarAccount, string_vector(2, "MEGA_EMAIL"));
-    auto passwords = makeScopedValue(envVarPass, string_vector(2, "MEGA_PWD"));
+    auto accounts = makeScopedValue(getEnvVarAccounts(), EnvVarAccounts{2, {"MEGA_EMAIL", "MEGA_PWD"}});
 
     // prevent reusing a session for the wrong client
     gSessionIDs[1] = "invalid";
@@ -4977,7 +4979,7 @@ TEST_F(SdkTest, SdkTestShares)
 
 
     // --- Import folder public link ---
-    const auto [email, pass] = EnvVarAccount::get(2);
+    const auto [email, pass] = getEnvVarAccounts().getVarValues(2);
     ASSERT_FALSE(email.empty() || pass.empty());
     mApi.resize(3);
     megaApi.resize(3);
@@ -10202,7 +10204,7 @@ TEST_F(SdkTest, MidSessionEtoomanyWithSync)
     ASSERT_EQ(fs::exists(localFolderPath), true);
 
     // Secondary instance with the same account to force an ETOOMANY action packet
-    const auto [email, pass] = EnvVarAccount::get(0);
+    const auto [email, pass] = getEnvVarAccounts().getVarValues(0);
     ASSERT_FALSE(email.empty() || pass.empty());
     mApi.resize(2);
     megaApi.resize(2);
@@ -12555,7 +12557,7 @@ TEST_F(SdkTest, SdkNodesOnDemand)
 
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     // --- Load User B as account 1
-    const auto [email, pass] = EnvVarAccount::get(0);
+    const auto [email, pass] = getEnvVarAccounts().getVarValues(0);
     ASSERT_FALSE(email.empty() || pass.empty());
     mApi.resize(2);
     megaApi.resize(2);
@@ -12990,7 +12992,7 @@ TEST_F(SdkTest, SdkNodesOnDemandVersions)
 
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     // --- Load User B as account 1
-    const auto [email, pass] = EnvVarAccount::get(0);
+    const auto [email, pass] = getEnvVarAccounts().getVarValues(0);
     ASSERT_FALSE(email.empty() || pass.empty());
     mApi.resize(2);
     megaApi.resize(2);

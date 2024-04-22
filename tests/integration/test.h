@@ -24,10 +24,6 @@
 using namespace ::mega;
 using namespace ::std;
 
-
-extern string_vector envVarAccount;
-extern string_vector envVarPass;
-
 std::string logTime();
 void WaitMillisec(unsigned n);
 
@@ -42,14 +38,6 @@ string runProgram(const string& command, PROG_OUTPUT_TYPE ot);
 // platform specific Http POST
 void synchronousHttpPOSTFile(const string& url, const string& filepath, string& responsedata);
 void synchronousHttpPOSTData(const string& url, const string& senddata, string& responsedata);
-
-struct EnvVarAccount
-{
-    std::string Email;
-    std::string Password;
-
-    static EnvVarAccount get(size_t i);
-};
 
 class LogStream
 {
@@ -94,7 +82,6 @@ private:
 extern std::string USER_AGENT;
 extern bool gResumeSessions;
 extern bool gScanOnly;
-extern int gMaxAccounts;
 extern bool gManualVerification;
 
 LogStream out();

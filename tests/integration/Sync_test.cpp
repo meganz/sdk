@@ -22,6 +22,7 @@
 // Many of these tests are still being worked on.
 
 #include "test.h"
+#include "env_var_accounts.h"
 #include "gtest_common.h"
 
 #define DEFAULTWAIT std::chrono::seconds(20)
@@ -1135,7 +1136,7 @@ std::shared_ptr<Node> CloudItem::resolve(StandardClient& client) const
 StandardClientInUse ClientManager::getCleanStandardClient(int loginIndex, fs::path workingFolder)
 {
     EXPECT_GE(loginIndex, 0) << "ClientManager::getCleanStandardClient(): negative client index requested";
-    EXPECT_LE(loginIndex, gMaxAccounts) << "ClientManager::getCleanStandardClient(): invalid client index requested";
+    EXPECT_LE(loginIndex, getEnvVarAccounts().size()) << "ClientManager::getCleanStandardClient(): invalid client index requested";
 
     for (auto i = clients[loginIndex].begin(); i != clients[loginIndex].end(); ++i)
     {
@@ -1154,7 +1155,8 @@ StandardClientInUse ClientManager::getCleanStandardClient(int loginIndex, fs::pa
             new StandardClient(localAccountRoot, "client" + clientname, workingFolder));
 
     clients[loginIndex].push_back(StandardClientInUseEntry(false, c, clientname, loginIndex));
-    c->login_reset(envVarAccount[loginIndex], envVarPass[loginIndex], false, false);
+    const auto& [emailVarName, passVarName] = getEnvVarAccounts().getVarNames(loginIndex);
+    c->login_reset(emailVarName, passVarName, false, false);
 
     c->cleanupForTestReuse(loginIndex);
 
@@ -4267,7 +4269,7 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
 
     if (client.nodeByPath("/abort_jenkins_test_run"))
     {
-        [[maybe_unused]]const auto [user, _] = EnvVarAccount::get(loginIndex);
+        [[maybe_unused]]const auto [user, _] = getEnvVarAccounts().getVarValues(loginIndex);
         cout << "Detected node /abort_jenkins_test_run in account " << user << ", aborting test run" << endl;
         out() << "Detected node /abort_jenkins_test_run in account " << user << ", aborting test run";
         WaitMillisec(100);
