@@ -10045,8 +10045,11 @@ class MegaApi
          *
          * @param clientType Client type (default, VPN or Password Manager) enables SDK to function differently
          *
+         * @deprecated This version of the function is deprecated. Please use MegaGfxProvider::createExternalInstance
+         * and the non-deprecated one below.
          */
-        MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1, int clientType = CLIENT_TYPE_DEFAULT);
+   MEGA_DEPRECATED
+   MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1, int clientType = CLIENT_TYPE_DEFAULT);
 
         /**
          * @brief MegaApi Constructor that uses a given GFX provider
