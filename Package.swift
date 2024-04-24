@@ -28,7 +28,6 @@ let package = Package(
                            "libzen"],
             path: "./",
             exclude: [
-                "Package.swift",
                 "bindings",
                 "contrib",
                 "doc",
