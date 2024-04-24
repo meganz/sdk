@@ -341,8 +341,7 @@ endif()
 
 if(WIN32)
     target_link_libraries(SDKlib PRIVATE
-        ws2_32 winhttp Shlwapi Secur32.lib crypt32.lib
-        $<$<BOOL:${USE_CURL}>:Wldap32.lib>
+        ws2_32 winhttp Shlwapi Secur32.lib crypt32.lib Wldap32.lib
         $<$<BOOL:${USE_LIBUV}>:Kernel32.lib Iphlpapi.lib Userenv.lib Psapi.lib>
         $<$<BOOL:${USE_FFMPEG}>:Mfplat.lib mfuuid.lib strmiids.lib>
         $<$<BOOL:${ENABLE_DRIVE_NOTIFICATIONS}>:wbemuuid>
