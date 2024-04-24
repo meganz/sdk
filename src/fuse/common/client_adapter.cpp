@@ -1404,6 +1404,9 @@ void ClientUpload::bound(BoundCallback callback,
     // Assume we couldn't bind the content to a name.
     ErrorOr<NodeHandle> handle = result;
 
+    // Mark upload as having been completed.
+    mStatus.store(SF_COMPLETED);
+
     // Content was actually bound to a name.
     if (result == API_OK)
         handle = NodeHandle().set6byte(nodes.front().mAddedHandle);
