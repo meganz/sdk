@@ -1,10 +1,10 @@
-from argparse import ArgumentParser
+import argparse
 from lib.utils import get_mega_env_vars
 from lib.release_process import ReleaseProcess
 
 
 # runtime arguments
-parser = ArgumentParser()
+parser = argparse.ArgumentParser()
 parser.add_argument(
     "-r",
     "--release-version",
@@ -29,25 +29,31 @@ parser.add_argument(
     help="Name of private develop branch (i.e. develop)",
     required=True,
 )
+parser.add_argument(
+    "-n",
+    "--no-file-update",
+    action=argparse.BooleanOptionalAction,
+    help="No file update (i.e. for projects that do not store version in a file)",
 )
 parser.add_argument(
     "-o",
     "--private-git-remote-name",
-    help="Name of private repository git remote (i.e. origin)",
+    help="Name of private repository's git remote (i.e. origin). Ignored if -n was given",
 )
 parser.add_argument(
     "-u",
     "--private-git-remote-url",
-    help="URL of private repository git remote (i.e. git@foo.bar:proj:proj.git)",
+    help="URL of private repository's git remote (i.e. git@foo.bar:proj:proj.git). Ignored if -n was given",
 )
 args = parser.parse_args()
 
+if not args.no_file_update:
+    assert args.private_git_remote_name is not None, "  -o argument missing"
+    assert args.private_git_remote_url is not None, "  -u argument missing"
 
 # environment variables
 mega_env_vars = get_mega_env_vars(
     "MEGA_GITLAB_TOKEN",
-    "MEGA_GPG_KEYGRIP",
-    "MEGA_GPG_PASSWORD",
 )
 
 
