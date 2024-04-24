@@ -143,3 +143,61 @@ class ReleaseProcess:
             self._remote_private_repo.delete_branch(new_branch)
             raise ValueError("Failed to merge MR with local changes")
         print("v MR merged for version upgrade", flush=True)
+
+    # STEP 3: Create "release/vX.Y.Z" branch
+    def create_release_branch(self):
+        if self._remote_private_repo is None:
+            self._remote_private_repo = GitLabRepository(
+                self._private_host_url, self._gitlab_token, self._project_name
+            )
+        self._version_v_prefixed = f"v{self._new_version}"
+        self._release_branch = f"release/{self._version_v_prefixed}"
+
+        print("Creating branch", self._release_branch, flush=True)
+        self._remote_private_repo.create_branch(
+            self._release_branch, self._private_branch
+        )
+        print("v Created branch", self._release_branch)
+
+    # STEP 4: Create rc tag "vX.Y.Z-rc.1" from branch "release/vX.Y.Z"
+    def create_rc_tag(self):
+        assert self._remote_private_repo is not None
+        assert self._version_v_prefixed is not None
+        assert self._release_branch is not None
+        self._rc_tag = f"{self._version_v_prefixed}-rc.1"
+
+        print("Creating tag", self._rc_tag, flush=True)
+        try:
+            self._remote_private_repo.create_tag(self._rc_tag, self._release_branch)
+        except Exception:
+            self._remote_private_repo.delete_branch(self._release_branch)
+            raise ValueError(f"Failed to create tag {self._rc_tag}")
+        print("v Created tag", self._rc_tag)
+
+    # STEP 5: Open MR to merge branch "release/vX.Y.Z" into public branch (don't merge)
+    def open_mr_for_release_branch(self, public_branch: str):
+        assert self._remote_private_repo is not None
+        assert self._release_branch is not None
+        assert self._rc_tag is not None
+        print(
+            f"Opening MR to merge {self._release_branch} into {public_branch}",
+            flush=True,
+        )
+        mr_id, _ = self._remote_private_repo.open_mr(
+            f"Update SDK version to {self._new_version}",
+            self._release_branch,
+            public_branch,
+            ["Release"],
+        )
+        if mr_id == 0:
+            self._remote_private_repo.close_mr(mr_id)
+            self._remote_private_repo.delete_branch(self._release_branch)
+            self._remote_private_repo.delete_tag(self._rc_tag)
+            raise ValueError(
+                f"Failed to open MR to merge {self._release_branch} into {public_branch}"
+            )
+        print(f"v Opened MR to merge {self._release_branch} into {public_branch}")
+        print(
+            "  **** Do NOT merge this MR until the release will be closed (dependent apps are live)!!",
+            flush=True,
+        )

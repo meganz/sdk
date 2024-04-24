@@ -1,5 +1,5 @@
 from gitlab import Gitlab  # python-gitlab
-from gitlab.v4.objects import MergeRequest
+from gitlab.v4.objects import Project, MergeRequest
 import time
 
 
@@ -9,7 +9,10 @@ class GitLabRepository:  # use gitlab API
     - open MR
     - merge MR
     - close MR
+    - create branch
     - delete branch
+    - create tag
+    - delete tag
     """
 
     def __init__(self, url: str, gitlab_token: str, project_name: str):
@@ -29,7 +32,7 @@ class GitLabRepository:  # use gitlab API
             raise NameError(
                 f"{len(valid_projects)} projects found with name {project_name}"
             )
-        self._project = valid_projects[0]
+        self._project: Project = valid_projects[0]
 
         # create label if missing
         label_name = "Release"
@@ -120,5 +123,16 @@ class GitLabRepository:  # use gitlab API
                 mr.state_event = "close"
                 mr.save()
 
+    def create_branch(self, name: str, target: str):
+        branch = self._project.branches.create({"branch": name, "ref": target})
+        assert branch is not None
+
     def delete_branch(self, name: str):
         self._project.branches.delete(name)
+
+    def create_tag(self, name: str, target: str):
+        tag = self._project.tags.create({"tag_name": name, "ref": target})
+        assert tag is not None
+
+    def delete_tag(self, name: str):
+        tag = self._project.tags.delete(name)

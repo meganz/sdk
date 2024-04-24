@@ -30,6 +30,12 @@ parser.add_argument(
     required=True,
 )
 parser.add_argument(
+    "-m",
+    "--public-git-target-branch",
+    help="Name of public target branch (i.e. master)",
+    required=True,
+)
+parser.add_argument(
     "-n",
     "--no-file-update",
     action=argparse.BooleanOptionalAction,
@@ -81,3 +87,15 @@ if not args.no_file_update:
         args.private_git_remote_url,
         "task/update-sdk-version",
     )
+
+
+# STEP 3: Create branch "release/vX.Y.Z"
+release_branch = release.create_release_branch()
+
+
+# STEP 4: Create rc tag "vX.Y.Z-rc.1" from branch "release/vX.Y.Z"
+release.create_rc_tag()
+
+
+# STEP 5: Open MR from branch "release/vX.Y.Z" to public branch (don't merge)
+release.open_mr_for_release_branch(args.public_git_target_branch)
