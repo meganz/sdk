@@ -33,13 +33,6 @@ else()
     target_link_libraries(test_common INTERFACE PkgConfig::gmock PkgConfig::gtest)
 endif()
 
-if(WIN32)
-    target_compile_definitions(test_common
-        INTERFACE
-            NOMINMAX # TODO Fix locally
-    )
-endif()
-
 if(ENABLE_SDKLIB_TESTS) # This file is also loaded for MEGAchat tests.
     add_subdirectory(integration)
     add_subdirectory(unit)

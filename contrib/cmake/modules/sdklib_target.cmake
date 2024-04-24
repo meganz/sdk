@@ -317,7 +317,6 @@ if (WIN32)
             _CRT_SECURE_NO_WARNINGS # warning in mega_ccronexpr
             $<$<BOOL:${USE_CPPTHREAD}>:USE_CPPTHREAD>
             UNICODE
-            NOMINMAX # TODO Fix locally
     )
 
     # Increase number of sections in .obj files. (megaapi_impl.cpp, Sync_test.cpp, ...)

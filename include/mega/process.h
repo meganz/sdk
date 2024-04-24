@@ -25,7 +25,6 @@
 #include "mega/utils.h"
 
 #ifdef WIN32
-#include <windows.h>
 #include <process.h>
 #else
 #include <signal.h>

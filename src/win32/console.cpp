@@ -21,7 +21,7 @@
 
 #include "mega.h"
 #include "megaapi.h"
-#include <windows.h>
+
 #include <conio.h>
 #include <fstream>
 #include <iomanip>

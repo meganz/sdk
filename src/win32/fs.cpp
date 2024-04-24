@@ -28,8 +28,6 @@
 #include <wow64apiset.h>
 
 #if defined(_WIN32)
-#include <winsock2.h>
-#include <Windows.h>
 #include <winioctl.h>
 #endif
 
