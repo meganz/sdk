@@ -39,9 +39,9 @@ def _check_gpg_pass_caching():
             while line := f.readline():
                 if line.strip() == allow_preset_passphrase:
                     return
-            f.write(f"\n${allow_preset_passphrase}\n")
+            f.write(f"\n{allow_preset_passphrase}\n")
     else:
-        gpg_conf.write_text(f"${allow_preset_passphrase}\n")
+        gpg_conf.write_text(f"{allow_preset_passphrase}\n")
 
     assert subprocess.run(
         ["gpg-connect-agent", "reloadagent", "/bye"], stdout=subprocess.DEVNULL

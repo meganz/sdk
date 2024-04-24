@@ -27,7 +27,7 @@ class GitLabRepository:  # use gitlab API
             raise NameError(f"No project found with name {project_name}")
         if len(valid_projects) != 1:
             raise NameError(
-                f"${len(valid_projects)} projects found with name {project_name}"
+                f"{len(valid_projects)} projects found with name {project_name}"
             )
         self._project = valid_projects[0]
 

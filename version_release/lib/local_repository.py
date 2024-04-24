@@ -20,7 +20,7 @@ class LocalRepository:  # use raw git commands
             ["git", "remote", "-v"], stderr=subprocess.STDOUT
         )
         remotes = byte_output.decode("utf-8").splitlines()
-        assert type(remotes) is list, f"Error:\n  git remote -v\n  ${remotes}"
+        assert type(remotes) is list, f"Error:\n  git remote -v\n  {remotes}"
 
         escaped_url = re.escape(url)
         remote_push = remote_fetch = False
@@ -42,14 +42,14 @@ class LocalRepository:  # use raw git commands
         byte_output = subprocess.check_output(["git", "diff", "--shortstat"])
         assert (
             len(byte_output) == 0
-        ), f'Found unstaged changes:\n${byte_output.decode("utf-8")}'
+        ), f'Found unstaged changes:\n{byte_output.decode("utf-8")}'
 
         byte_output = subprocess.check_output(
             ["git", "diff", "--shortstat", "--cached"]
         )
         assert (
             len(byte_output) == 0
-        ), f'Found staged changes:\n${byte_output.decode("utf-8")}'
+        ), f'Found staged changes:\n{byte_output.decode("utf-8")}'
 
     def _get_current_branch(self) -> str:
         byte_output = subprocess.check_output(["git", "branch", "--show-current"])
@@ -63,7 +63,7 @@ class LocalRepository:  # use raw git commands
             subprocess.run(["git", "switch", target_branch])
             assert (
                 self._get_current_branch() == target_branch
-            ), f"Failed to switch to branch ${target_branch}"
+            ), f"Failed to switch to branch {target_branch}"
 
     def sync_current_branch(self, remote: str):
         my_branch = self._get_current_branch()

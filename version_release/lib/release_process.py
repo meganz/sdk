@@ -20,6 +20,7 @@ class ReleaseProcess:
         self._remote_private_repo: GitLabRepository | None = None
         self._local_repo: LocalRepository | None = None
 
+    # STEP 2: update version in local file
     def update_version_in_local_file(
         self,
         gpg_keygrip: str,
@@ -51,7 +52,7 @@ class ReleaseProcess:
         new_version: str,
     ):
         version = new_version.split(".")
-        assert len(version) == 3, "Invalid requested version: ${new_version}"
+        assert len(version) == 3, f"Invalid requested version: {new_version}"
 
         # read old version
         oldMajor = oldMinor = oldMicro = 0
@@ -102,7 +103,7 @@ class ReleaseProcess:
             self._local_repo.commit_changes_to_new_branch(
                 f"Update SDK version to {new_version}", new_branch
             )
-            print("v Changes committed to ", new_branch, flush=True)
+            print("v Changes committed to", new_branch, flush=True)
             self._local_repo.push_branch(remote_name, new_branch)
             print(f"v Branch {new_branch} pushed", flush=True)
         except AssertionError:
