@@ -17,8 +17,8 @@ class ReleaseProcess:
         self._gitlab_token = gitlab_token
         self._private_host_url = private_host_url
         self._private_branch = private_branch
-        self._remote_private_repo: GitLabRepository | None = None
         self._local_repo: LocalRepository | None = None
+        self._remote_private_repo: GitLabRepository | None = None
 
     # STEP 2: update version in local file
     def update_version_in_local_file(

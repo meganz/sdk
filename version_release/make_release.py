@@ -6,11 +6,29 @@ from lib.release_process import ReleaseProcess
 # runtime arguments
 parser = ArgumentParser()
 parser.add_argument(
-    "-r", "--release-version", help="Version to be created and released (i.e. 1.0.0)"
+    "-r",
+    "--release-version",
+    help="Version to be created and released (i.e. 1.0.0)",
+    required=True,
 )
-parser.add_argument("-p", "--project-name", help="Project name (i.e. SDK)")
 parser.add_argument(
-    "-l", "--private-git-url", help="URL of private repository (i.e. https://foo.bar)"
+    "-p",
+    "--project-name",
+    help="Project name (i.e. SDK)",
+    required=True,
+)
+parser.add_argument(
+    "-l",
+    "--private-git-host-url",
+    help="URL of private repository (i.e. https://foo.bar)",
+    required=True,
+)
+parser.add_argument(
+    "-d",
+    "--private-git-develop-branch",
+    help="Name of private develop branch (i.e. develop)",
+    required=True,
+)
 )
 parser.add_argument(
     "-o",
@@ -21,11 +39,6 @@ parser.add_argument(
     "-u",
     "--private-git-remote-url",
     help="URL of private repository git remote (i.e. git@foo.bar:proj:proj.git)",
-)
-parser.add_argument(
-    "-d",
-    "--private-git-target-branch",
-    help="Name of private git target branch (i.e. develop)",
 )
 args = parser.parse_args()
 
@@ -42,8 +55,8 @@ mega_env_vars = get_mega_env_vars(
 release = ReleaseProcess(
     args.project_name,
     mega_env_vars["MEGA_GITLAB_TOKEN"],
-    args.private_git_url,
-    args.private_git_target_branch,
+    args.private_git_host_url,
+    args.private_git_develop_branch,
 )
 
 
