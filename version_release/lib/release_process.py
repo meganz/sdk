@@ -12,6 +12,7 @@ class ReleaseProcess:
         gitlab_token: str,
         private_host_url: str,
         private_branch: str,
+        new_version: str,
     ):
         self._project_name = project_name
         self._gitlab_token = gitlab_token
@@ -19,6 +20,7 @@ class ReleaseProcess:
         self._private_branch = private_branch
         self._local_repo: LocalRepository | None = None
         self._remote_private_repo: GitLabRepository | None = None
+        self._new_version = new_version
 
     # STEP 2: update version in local file
     def update_version_in_local_file(
@@ -28,13 +30,12 @@ class ReleaseProcess:
         private_remote_name: str,
         private_remote_url: str,
         new_branch: str,
-        new_version: str,
     ):
         setup_gpg_signing(gpg_keygrip, gpg_password)
         self._prepare_local_repo(private_remote_name, private_remote_url)
-        self._change_version_in_file(new_version)
-        self._push_to_new_branch(new_version, new_branch, private_remote_name)
-        self._merge_local_changes(new_version, new_branch)
+        self._change_version_in_file(self._new_version)
+        self._push_to_new_branch(self._new_version, new_branch, private_remote_name)
+        self._merge_local_changes(self._new_version, new_branch)
 
     def _prepare_local_repo(
         self,

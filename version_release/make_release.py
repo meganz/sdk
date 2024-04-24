@@ -63,15 +63,21 @@ release = ReleaseProcess(
     mega_env_vars["MEGA_GITLAB_TOKEN"],
     args.private_git_host_url,
     args.private_git_develop_branch,
-)
-
-
-# STEP 2: update version in local file
-release.update_version_in_local_file(
-    mega_env_vars["MEGA_GPG_KEYGRIP"],
-    mega_env_vars["MEGA_GPG_PASSWORD"],
-    args.private_git_remote_name,
-    args.private_git_remote_url,
-    "task/update-sdk-version",
     args.release_version,
 )
+
+
+if not args.no_file_update:
+    # STEP 2: update version in local file
+    mega_env_vars = get_mega_env_vars(
+        "MEGA_GPG_KEYGRIP",
+        "MEGA_GPG_PASSWORD",
+    )
+
+    release.update_version_in_local_file(
+        mega_env_vars["MEGA_GPG_KEYGRIP"],
+        mega_env_vars["MEGA_GPG_PASSWORD"],
+        args.private_git_remote_name,
+        args.private_git_remote_url,
+        "task/update-sdk-version",
+    )
