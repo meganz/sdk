@@ -1196,5 +1196,55 @@ bool createFile(const fs::path& path,
 
 std::string randomData(const std::size_t length);
 
+#ifndef _WIN32
+// Helper class to handle directory permissions
+class PermissionHandler
+{
+    std::string mDPath;
+    std::optional<struct stat> mOriginalPermissions{std::nullopt};
+    bool mPermissionsRemoved{false};
+
+public:
+    explicit PermissionHandler(const std::string& dPath) : mDPath(dPath)
+    {
+        struct stat st;
+        if (!stat(mDPath.c_str(), &st))
+        {
+            mOriginalPermissions = st;
+        }
+        else { LOG_debug << "Failed to retrieve original permissions for directory: '" << mDPath << "'"; }
+
+    }
+    ~PermissionHandler() { restorePermissions(); }
+
+    // Method to remove specific permissions
+    bool removePermissions(mode_t permissionToRemove)
+    {
+        if (!mOriginalPermissions) { LOG_debug << "Original permissions needed"; return false; }
+        if (mPermissionsRemoved) { LOG_debug << "Permissions were already removed before, they should be restored first"; return false; }
+    
+        mode_t newMode = mOriginalPermissions->st_mode & ~permissionToRemove;
+        mPermissionsRemoved = !chmod(mDPath.c_str(), newMode);
+        LOG_debug << "Folder permissions " << (mPermissionsRemoved ? "" : "COULD NOT BE ") << "removed for directory: " << mDPath << "'";
+        return mPermissionsRemoved;
+    }
+
+    bool restorePermissions()
+    {
+        if (!mOriginalPermissions) { LOG_debug << "Original permissions needed"; return false; }
+        if (!mPermissionsRemoved) return true;
+    
+        mPermissionsRemoved = chmod(mDPath.c_str(), mOriginalPermissions->st_mode); // chmod returns 0 when successful -> mPermissionRemoved is then reset to false
+        LOG_debug << "Folder permissions " << (!mPermissionsRemoved ? "" : "COULD NOT BE ") << "restored for directory: " << mDPath << "'";
+        return mPermissionsRemoved == false;
+    }
+
+    bool originalPermissionsAvailable() const
+    {
+        return mOriginalPermissions.has_value();
+    }
+};
+#endif
+
 #endif // TEST_H
 

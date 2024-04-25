@@ -17047,40 +17047,32 @@ TEST_F(SyncTest, ChangingDirectoryPermissions)
     // Make sure everything made it to the cloud.
     ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
 
-    // Remove execute permissions from the directory.
     const auto dPath = (client->fsBasePath / "s" / "d").u8string();
-    ASSERT_EQ(chmod(dPath.c_str(), S_IRUSR | S_IWUSR), 0);
+
+    // Use PermissionsHandler to handle directory permissions
+    PermissionHandler dirPermissionHandler(dPath);
+    ASSERT_TRUE(dirPermissionHandler.originalPermissionsAvailable()) << "Failed to retrieve original permissions for directory";
+
+    // Remove execute permissions from the directory
+    ASSERT_TRUE(dirPermissionHandler.removePermissions(S_IXUSR | S_IXGRP | S_IXOTH)) << "Execution permissions could not be removed";
 
     client->triggerPeriodicScanEarly(id);
 
-    // Define a lambda function to perform assertion after restoring permissions
-    auto assertAndRestoreIfFails = [&dPath](bool assertionCondition, const std::string& errorMessage)
-    {
-        if (!assertionCondition)
-        {
-            // Restore execute permissions to the directory.
-            const std::string restorePermissionsFailedErrorMessage = " - And execute permissions could not be restored to the directory!!!";
-            bool restorePermissionsSuccess = (chmod(dPath.c_str(), S_IRUSR | S_IWUSR | S_IXUSR) == 0);
-            ASSERT_TRUE(assertionCondition) << errorMessage
-                                            << (restorePermissionsSuccess ? "" : restorePermissionsFailedErrorMessage);
-        }
-    };
-
     // Wait for the engine to detect a stall.
-    assertAndRestoreIfFails(client->waitFor(SyncStallState(true), DEFAULTWAIT), "wait for sync stall state reached the timeout!");
+    ASSERT_TRUE(client->waitFor(SyncStallState(true), DEFAULTWAIT));
 
     // Make sure we've stalled for the right reason.
     SyncStallInfo stalls;
-    assertAndRestoreIfFails(client->client.syncs.syncStallDetected(stalls), "sync stall detection failed!");
-    assertAndRestoreIfFails(stalls.cloud.empty(), "cloud stalls list is not empty!");
-    assertAndRestoreIfFails(stalls.local.size() == 1u, "local stalls list size is not 1!");
-    assertAndRestoreIfFails(stalls.local.begin()->second.reason == SyncWaitReason::FileIssue, "local stall reason is incorrect!");
+    ASSERT_TRUE(client->client.syncs.syncStallDetected(stalls));
+    ASSERT_TRUE(stalls.cloud.empty());
+    ASSERT_EQ(stalls.local.size(), 1u);
+    ASSERT_EQ(stalls.local.begin()->second.reason, SyncWaitReason::FileIssue);
 
     // Make sure d/f is still present in the cloud.
-    assertAndRestoreIfFails(client->waitFor(SyncRemoteNodePresent("s/d/f"), TIMEOUT), "wait for SyncRemoteNodePresent(\"s/d/f\") reached the timeout!");
+    ASSERT_TRUE(client->waitFor(SyncRemoteNodePresent("s/d/f"), TIMEOUT));
 
     // Restore execute permissions to the directory.
-    ASSERT_EQ(chmod(dPath.c_str(), S_IRUSR | S_IWUSR | S_IXUSR), 0) << " execute permissions could not be restored to the directory !!!";
+    ASSERT_TRUE(dirPermissionHandler.restorePermissions()) << "Restoring execution permissions failed!!";
 
     client->triggerPeriodicScanEarly(id);
 
@@ -17088,7 +17080,7 @@ TEST_F(SyncTest, ChangingDirectoryPermissions)
     ASSERT_TRUE(client->waitFor(SyncStallState(false), TIMEOUT));
 
     // Remove read permissions from the directory.
-    ASSERT_EQ(chmod(dPath.c_str(), S_IWUSR | S_IXUSR), 0);
+    ASSERT_TRUE(dirPermissionHandler.removePermissions(S_IRUSR | S_IRGRP | S_IROTH)) << "Read permissions could not be removed";
 
     client->triggerPeriodicScanEarly(id);
 
@@ -17105,7 +17097,7 @@ TEST_F(SyncTest, ChangingDirectoryPermissions)
     ASSERT_TRUE(client->waitFor(SyncRemoteNodePresent("s/d/f"), TIMEOUT));
 
     // Restore read permissions.
-    ASSERT_EQ(chmod(dPath.c_str(), S_IRUSR | S_IWUSR | S_IXUSR), 0);
+    ASSERT_TRUE(dirPermissionHandler.restorePermissions()) << "Restoring read permissions failed!!";
 
     client->triggerPeriodicScanEarly(id);
 
