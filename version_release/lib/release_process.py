@@ -14,12 +14,11 @@ class ReleaseProcess:
         private_branch: str,
         new_version: str,
     ):
-        self._project_name = project_name
-        self._gitlab_token = gitlab_token
-        self._private_host_url = private_host_url
         self._private_branch = private_branch
         self._local_repo: LocalRepository | None = None
-        self._remote_private_repo: GitLabRepository | None = None
+        self._remote_private_repo = GitLabRepository(
+            private_host_url, gitlab_token, project_name
+        )
         self._new_version = new_version
 
     # STEP 2: update version in local file
@@ -119,9 +118,6 @@ class ReleaseProcess:
         new_version: str,
         new_branch: str,
     ):
-        self._remote_private_repo = GitLabRepository(
-            self._private_host_url, self._gitlab_token, self._project_name
-        )
         mr_id, mr_url = self._remote_private_repo.open_mr(
             f"Update SDK version to {new_version}", new_branch, self._private_branch
         )
@@ -146,10 +142,6 @@ class ReleaseProcess:
 
     # STEP 3: Create "release/vX.Y.Z" branch
     def create_release_branch(self):
-        if self._remote_private_repo is None:
-            self._remote_private_repo = GitLabRepository(
-                self._private_host_url, self._gitlab_token, self._project_name
-            )
         self._version_v_prefixed = f"v{self._new_version}"
         self._release_branch = f"release/{self._version_v_prefixed}"
 
@@ -187,7 +179,7 @@ class ReleaseProcess:
             f"Update SDK version to {self._new_version}",
             self._release_branch,
             public_branch,
-            ["Release"],
+            "Release",
         )
         if mr_id == 0:
             self._remote_private_repo.close_mr(mr_id)

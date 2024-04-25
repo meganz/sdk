@@ -20,7 +20,7 @@ class LocalRepository:  # use raw git commands
             ["git", "remote", "-v"], stderr=subprocess.STDOUT
         )
         remotes = byte_output.decode("utf-8").splitlines()
-        assert type(remotes) is list, f"Error:\n  git remote -v\n  {remotes}"
+        assert isinstance(remotes, list), f"Error:\n  git remote -v\n  {remotes}"
 
         escaped_url = re.escape(url)
         remote_push = remote_fetch = False

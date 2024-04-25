@@ -1,6 +1,7 @@
 from gitlab import Gitlab  # python-gitlab
-from gitlab.v4.objects import Project, MergeRequest
+from gitlab.v4.objects import Project, ProjectMergeRequest
 import time
+from typing import cast
 
 
 class GitLabRepository:  # use gitlab API
@@ -26,13 +27,11 @@ class GitLabRepository:  # use gitlab API
         valid_projects = [
             p for p in gl.projects.list(iterator=True) if p.name == project_name
         ]
-        if not valid_projects:
-            raise NameError(f"No project found with name {project_name}")
         if len(valid_projects) != 1:
             raise NameError(
                 f"{len(valid_projects)} projects found with name {project_name}"
             )
-        self._project: Project = valid_projects[0]
+        self._project = cast(Project, valid_projects[0])
 
         # create label if missing
         label_name = "Release"
@@ -40,10 +39,7 @@ class GitLabRepository:  # use gitlab API
             print(
                 f"WARNING: Label {label_name} did not exist. Attempting to create it..."
             )
-            if not self._project.labels.create(
-                {"name": label_name, "color": "#8899aa"}
-            ):
-                raise IOError(f"Unable to create the label {label_name}")
+            self._project.labels.create({"name": label_name, "color": "#8899aa"})
 
     def _get_id_of_open_mr(self, mr_title: str, mr_source: str, mr_target: str) -> int:
         mrs = self._project.mergerequests.list(
@@ -77,10 +73,6 @@ class GitLabRepository:  # use gitlab API
             }
         )
 
-        if not mr:
-            print("Failed to create MR")
-            return 0, ""
-
         return mr.iid, mr.web_url
 
     def merge_mr(self, mr_id: int, wait_seconds: int) -> bool:
@@ -90,18 +82,17 @@ class GitLabRepository:  # use gitlab API
             return True
         return False
 
-    def _wait_for_mr_approval(self, mr_id: int, seconds: int) -> MergeRequest | None:
-        if not self._project:
-            print("Invalid repository. No project defined")
-            return None
+    def _wait_for_mr_approval(
+        self, mr_id: int, seconds: int
+    ) -> ProjectMergeRequest | None:
 
-        mr: MergeRequest | None = None
+        go_sleep = False
         sleep_interval = 2
         for _ in range(int(seconds / sleep_interval + 1)):
-            if mr:
+            if go_sleep:
                 time.sleep(sleep_interval)
             mr = self._project.mergerequests.get(mr_id)
-            if not mr or mr.state != "opened":
+            if mr.state != "opened":
                 print("MR waiting for approval not found")
                 return None
             if (
@@ -112,6 +103,7 @@ class GitLabRepository:  # use gitlab API
                 and not mr.has_conflicts
             ):
                 return mr
+            go_sleep = True
 
         print("Timeout waiting for MR approval")
         return None
@@ -119,9 +111,8 @@ class GitLabRepository:  # use gitlab API
     def close_mr(self, mr_id: int):
         if self._project:
             mr = self._project.mergerequests.get(mr_id)
-            if mr:
-                mr.state_event = "close"
-                mr.save()
+            mr.state_event = "close"
+            mr.save()
 
     def create_branch(self, name: str, target: str):
         branch = self._project.branches.create({"branch": name, "ref": target})
@@ -135,4 +126,4 @@ class GitLabRepository:  # use gitlab API
         assert tag is not None
 
     def delete_tag(self, name: str):
-        tag = self._project.tags.delete(name)
+        self._project.tags.delete(name)
