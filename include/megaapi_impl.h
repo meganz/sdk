@@ -75,8 +75,8 @@ class MegaSemaphore : public CppSemaphore {};
 
 #ifdef WIN32
     class MegaHttpIO : public CurlHttpIO {};
-	class MegaFileSystemAccess : public WinFileSystemAccess {};
-	class MegaWaiter : public WinWaiter {};
+    class MegaFileSystemAccess : public WinFileSystemAccess {};
+    class MegaWaiter : public WinWaiter {};
 #else
     class MegaHttpIO : public CurlHttpIO {};
     class MegaWaiter : public PosixWaiter {};
