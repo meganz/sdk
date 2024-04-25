@@ -82,6 +82,12 @@ namespace ac = ::mega::autocomplete;
 
 #include <iomanip>
 
+// FUSE
+#include <mega/fuse/common/mount_info.h>
+#include <mega/fuse/common/mount_result.h>
+#include <mega/fuse/common/normalized_path.h>
+#include <mega/fuse/common/service_flags.h>
+
 using namespace mega;
 using std::cout;
 using std::cerr;
@@ -4052,6 +4058,597 @@ void exec_syncoutput(autocomplete::ACState& s)
 }
 #endif
 
+static void exec_fusedb(autocomplete::ACState& state)
+{
+    using namespace fuse;
+
+    // Upgrade or downgrade?
+    auto function = ([&]() {
+        if (state.words[2].s == "downgrade")
+            return &fuse::Service::downgrade;
+
+        return &fuse::Service::upgrade;
+    })();
+
+    // What version are we moving to?
+    auto version = ([&]() {
+        std::istringstream istream(state.words[4].s);
+        std::size_t result = 0;
+
+        istream >> result;
+
+        return result;
+    })();
+
+    // Try and downgrade / upgrade the specified database.
+    auto path = localPathArg(state.words[3].s);
+    auto result = (client->mFuseService.*function)(path, version);
+
+    if (result != MOUNT_SUCCESS)
+    {
+        std::cerr << "Unable to "
+                  << state.words[2].s
+                  << " the database \""
+                  << state.words[3].s
+                  << "\" to version "
+                  << state.words[4].s
+                  << ": "
+                  << toString(result)
+                  << std::endl;
+
+        return;
+    }
+
+    auto command = state.words[2].s;
+
+    command.front() =
+      static_cast<char>(std::toupper(command.front()));
+
+    std::cout << command
+              << "d database \""
+              << state.words[3].s
+              << "\" to version "
+              << state.words[4].s
+              << std::endl;
+}
+
+static bool isFullAccount(const std::string& message)
+{
+    if (client->loggedin() == FULLACCOUNT)
+        return true;
+
+    std::cerr << message << std::endl;
+
+    return false;
+}
+
+static void exec_fuseflags(autocomplete::ACState& state)
+{
+    using std::chrono::seconds;
+    using std::stoul;
+
+    auto parseCacheFlags = [&](fuse::InodeCacheFlags& flags) {
+        std::string ageThreshold;
+        std::string interval;
+        std::string maxSize;
+        std::string sizeThreshold;
+
+        state.extractflagparam("-cache-clean-age-threshold", ageThreshold);
+        state.extractflagparam("-cache-clean-interval", interval);
+        state.extractflagparam("-cache-clean-size-threshold", sizeThreshold);
+        state.extractflagparam("-cache-max-size", maxSize);
+
+        if (!ageThreshold.empty())
+            flags.mCleanAgeThreshold = seconds(stoul(ageThreshold));
+
+        if (!interval.empty())
+            flags.mCleanInterval = seconds(stoul(interval));
+
+        if (!maxSize.empty())
+            flags.mMaxSize = stoul(maxSize);
+
+        if (!sizeThreshold.empty())
+            flags.mCleanSizeThreshold = stoul(sizeThreshold);
+    }; // parseCacheFlags
+
+    auto parseExecutorFlags =
+      [&](fuse::TaskExecutorFlags& flags, const std::string& type) {
+        std::string idle;
+        std::string max;
+        std::string min;
+
+        state.extractflagparam("-" + type + "-max-thread-count", max);
+        state.extractflagparam("-" + type + "-max-thread-idle-time", idle);
+        state.extractflagparam("-" + type + "-min-thread-count", min);
+
+        if (!idle.empty())
+            flags.mIdleTime = seconds(stoul(idle));
+
+        if (!max.empty())
+            flags.mMaxWorkers = stoul(max);
+
+        if (!min.empty())
+            flags.mMinWorkers = stoul(min);
+    }; // parseExecutorFlags
+
+    std::string flushDelay;
+    std::string logLevel;
+
+    state.extractflagparam("-flush-delay", flushDelay);
+    state.extractflagparam("-log-level", logLevel);
+
+    auto flags = client->mFuseService.serviceFlags();
+
+    if (!flushDelay.empty())
+        flags.mFlushDelay = std::chrono::seconds(std::stoul(flushDelay));
+
+    if (!logLevel.empty())
+        flags.mLogLevel = fuse::toLogLevel(logLevel);
+
+    parseCacheFlags(flags.mInodeCacheFlags);
+    parseExecutorFlags(flags.mMountExecutorFlags, "mount");
+    parseExecutorFlags(flags.mServiceExecutorFlags, "service");
+
+    client->mFuseService.serviceFlags(flags);
+
+    std::cout << "Cache Clean Age Threshold: "
+              << flags.mInodeCacheFlags.mCleanAgeThreshold.count()
+              << "\n"
+              << "Cache Clean Interval: "
+              << flags.mInodeCacheFlags.mCleanInterval.count()
+              << "\n"
+              << "Cache Clean Size Threshold: "
+              << flags.mInodeCacheFlags.mCleanSizeThreshold
+              << "\n"
+              << "Cache Max Size: "
+              << flags.mInodeCacheFlags.mMaxSize
+              << "\n"
+              << "Flush Delay: "
+              << flags.mFlushDelay.count()
+              << "s\n"
+              << "Log Level: "
+              << toString(flags.mLogLevel)
+              << "\n"
+              << "Mount Max Thread Count: "
+              << flags.mMountExecutorFlags.mMaxWorkers
+              << "\n"
+              << "Mount Max Thread Idle Time: "
+              << flags.mMountExecutorFlags.mIdleTime.count()
+              << "s\n"
+              << "Mount Min Thread Count: "
+              << flags.mMountExecutorFlags.mMinWorkers
+              << "\n"
+              << "Service Max Thread Count: "
+              << flags.mServiceExecutorFlags.mMaxWorkers
+              << "\n"
+              << "Service Max Thread Idle Time: "
+              << flags.mServiceExecutorFlags.mIdleTime.count()
+              << "s\n"
+              << "Service Min Thread Count: "
+              << flags.mServiceExecutorFlags.mMinWorkers
+              << std::endl;
+}
+
+static void exec_fusemountadd(autocomplete::ACState& state)
+{
+    if (!isFullAccount("You must be logged in to add a FUSE mount."))
+        return;
+
+    using namespace fuse;
+
+    MountInfo info;
+
+    state.extractflagparam("-name", info.mFlags.mName);
+
+    info.mFlags.mPersistent = state.extractflag("-persistent");
+    info.mFlags.mReadOnly = state.extractflag("-read-only");
+
+    const auto sourcePath = state.words[3].s;
+    const auto sourceNode = nodebypath(sourcePath.c_str());
+
+    if (!sourceNode)
+    {
+        std::cerr << "Unable to add a mount against \""
+                  << sourcePath
+                  << "\" as the node does not exist."
+                  << std::endl;
+        return;
+    }
+
+    if (info.mFlags.mName.empty())
+    {
+        info.mFlags.mName = sourceNode->displayname();
+
+        if (!sourceNode->parent)
+            info.mFlags.mName = "MEGA";
+    }
+
+    auto targetPath = state.words[4].s;
+
+    info.mHandle = sourceNode->nodeHandle();
+    info.mPath = localPathArg(targetPath);
+
+    auto result = client->mFuseService.add(info);
+
+    if (result != MOUNT_SUCCESS)
+    {
+        std::cerr << "Failed to add mount against \""
+                  << sourcePath
+                  << "\" at \""
+                  << targetPath
+                  << "\": "
+                  << toString(result)
+                  << std::endl;
+
+        return;
+    }
+
+    std::cout << "Successfully added mount against \""
+              << sourcePath
+              << "\" at \""
+              << targetPath
+              << "\"."
+              << std::endl;
+}
+
+static void exec_fusemountdisable(autocomplete::ACState& state)
+{
+    if (!isFullAccount("You must be logged in to disable FUSE mounts."))
+        return;
+
+    using namespace fuse;
+
+    auto name = std::string();
+    auto path = std::string();
+
+    if (state.extractflagparam("-name", name))
+    {
+        auto paths = client->mFuseService.paths(name);
+
+        if (paths.size() > 1)
+        {
+            std::cerr << "Multiple mounts are associated with the name \""
+                      << name
+                      << "\"."
+                      << std::endl;
+
+            return;
+        }
+
+        if (paths.empty())
+        {
+            std::cerr << "There are no mounts named \""
+                      << name
+                      << "\"."
+                      << std::endl;
+
+            return;
+        }
+
+        path = paths.front().toPath(false);
+    }
+
+    state.extractflagparam("-path", path);
+
+    auto callback = [=](MountResult result) {
+        if (result == MOUNT_SUCCESS)
+        {
+            std::cout << "Successfully disabled mount \""
+                      << path
+                      << "\"."
+                      << std::endl;
+            return;
+        }
+
+        std::cerr << "Failed to disable mount \""
+                  << path
+                  << "\": "
+                  << toString(result)
+                  << std::endl;
+    };
+
+    auto remember = state.extractflag("-remember");
+
+    client->mFuseService.disable(std::move(callback),
+                                 localPathArg(path),
+                                 remember);
+}
+
+static void exec_fusemountenable(autocomplete::ACState& state)
+{
+    if (!isFullAccount("You must be logged in to enable FUSE mounts."))
+        return;
+
+    using fuse::MOUNT_SUCCESS;
+
+    auto name = std::string();
+    auto path = std::string();
+
+    if (state.extractflagparam("-name", name))
+    {
+        auto paths = client->mFuseService.paths(name);
+
+        if (paths.size() > 1)
+        {
+            std::cerr << "Multiple mounts are associated with the name \""
+                      << name
+                      << "\"."
+                      << std::endl;
+
+            return;
+        }
+
+        if (paths.empty())
+        {
+            std::cerr << "There are no mounts named \""
+                      << name
+                      << "\"."
+                      << std::endl;
+
+            return;
+        }
+
+        path = paths.front().toPath(false);
+    }
+
+    state.extractflagparam("-path", path);
+
+    auto remember = state.extractflag("-remember");
+
+    auto result = client->mFuseService.enable(localPathArg(path), remember);
+
+    if (result == MOUNT_SUCCESS)
+    {
+        std::cout << "Successfully enabled mount at \""
+                  << path
+                  << "\"."
+                  << std::endl;
+
+        return;
+    }
+
+    std::cerr << "Failed to enable mount at \""
+              << path
+              << "\": "
+              << toString(result)
+              << std::endl;
+}
+
+static void exec_fusemountflags(autocomplete::ACState& state)
+{
+    if (!isFullAccount("You must be logged in to alter FUSE mount flags."))
+        return;
+
+    auto name = std::string();
+    auto path = std::string();
+
+    if (state.extractflagparam("-by-name", name))
+    {
+        auto paths = client->mFuseService.paths(name);
+
+        if (paths.size() > 1)
+        {
+            std::cerr << "Multiple mounts are associated with the name \""
+                      << name
+                      << "\"."
+                      << std::endl;
+
+            return;
+        }
+
+        if (paths.empty())
+        {
+            std::cerr << "There are no mounts named \""
+                      << name
+                      << "\"."
+                      << std::endl;
+
+            return;
+        }
+
+        path = paths.front().toPath(false);
+    }
+
+    state.extractflagparam("-by-path", path);
+
+    auto flags = client->mFuseService.flags(localPathArg(path));
+
+    if (!flags)
+    {
+        std::cerr << "Couldn't retrieve flags for mount at \""
+                  << path
+                  << "\"."
+                  << std::endl;
+
+        return;
+    }
+
+    auto disabled = state.extractflag("-disabled-at-startup");
+    auto enabled  = state.extractflag("-enabled-at-startup");
+
+    if (disabled && enabled)
+    {
+        std::cerr << "A mount is either disabled or enabled at startup."
+                  << std::endl;
+
+        return;
+    }
+
+    flags->mEnableAtStartup |= enabled;
+    flags->mEnableAtStartup &= !disabled;
+    flags->mPersistent |= enabled || disabled;
+
+    state.extractflagparam("-name", flags->mName);
+
+    auto readOnly = state.extractflag("-read-only");
+    auto writable = state.extractflag("-writable");
+
+    if (readOnly && writable)
+    {
+        std::cerr << "A mount is either read-only or writable."
+                  << std::endl;
+
+        return;
+    }
+
+    flags->mReadOnly |= readOnly;
+    flags->mReadOnly &= !writable;
+
+    auto persistent = state.extractflag("-persistent");
+    auto transient  = state.extractflag("-transient");
+
+    if (persistent && transient)
+    {
+        std::cerr << "A mount is either persistent or transient."
+                  << std::endl;
+
+        return;
+    }
+
+    flags->mPersistent |= persistent;
+    flags->mPersistent &= !transient;
+
+    auto result = client->mFuseService.flags(localPathArg(path), *flags);
+
+    if (result != fuse::MOUNT_SUCCESS)
+    {
+        std::cerr << "Unable to update mount flags: "
+                  << toString(result)
+                  << std::endl;
+
+        return;
+    }
+
+    std::cout << "Enabled at startup: "
+              << flags->mEnableAtStartup
+              << "\n"
+              << "Name: "
+              << flags->mName
+              << "\n"
+              << "Persistent: "
+              << flags->mPersistent
+              << "\n"
+              << "Read-Only: "
+              << flags->mReadOnly
+              << std::endl;
+}
+
+static void exec_fusemountlist(autocomplete::ACState& state)
+{
+    if (!isFullAccount("You must be logged in to list FUSE mounts."))
+        return;
+
+    auto active = state.extractflag("-only-active");
+    auto mounts = client->mFuseService.get(active);
+
+    if (mounts.empty())
+    {
+        std::cout << "There are no FUSE mounts."
+                  << std::endl;
+        return;
+    }
+
+    for (auto i = 0u; i < mounts.size(); ++i)
+    {
+        const auto& info = mounts[i];
+
+        auto sourceNode = client->nodeByHandle(info.mHandle);
+        std::string sourcePath = "N/A";
+
+        if (sourceNode)
+            sourcePath = sourceNode->displaypath();
+
+        std::cout << "Mount #"
+                  << (i + 1)
+                  << ":\n"
+                  << "  Enabled at Startup: "
+                  << (info.mFlags.mEnableAtStartup ? "Yes" : "No")
+                  << "\n"
+                  << "  Enabled: "
+                  << client->mFuseService.enabled(info.mPath)
+                  << "\n"
+                  << "  Name: \""
+                  << info.mFlags.mName
+                  << "\"\n"
+                  << "  Read "
+                  << (info.mFlags.mReadOnly ? "Only" : "Write")
+                  << "\n"
+                  << "  Source Handle: "
+                  << toNodeHandle(info.mHandle)
+                  << "\n"
+                  << "  Source Path: "
+                  << sourcePath
+                  << "\n"
+                  << "  Target Path: "
+                  << info.mPath.toPath(true)
+                  << "\n"
+                  << std::endl;
+    }
+
+    std::cout << "Listed "
+              << mounts.size()
+              << " FUSE mount(s)."
+              << std::endl;
+}
+
+static void exec_fusemountremove(autocomplete::ACState& state)
+{
+    if (!isFullAccount("You must be logged in to remove a FUSE mount."))
+        return;
+
+    using namespace fuse;
+
+    auto name = std::string();
+    auto path = std::string();
+
+    if (state.extractflagparam("-name", name))
+    {
+        auto paths = client->mFuseService.paths(name);
+
+        if (paths.size() > 1)
+        {
+            std::cerr << "Multiple mounts are associated with the name \""
+                      << name
+                      << "\"."
+                      << std::endl;
+
+            return;
+        }
+
+        if (paths.empty())
+        {
+            std::cerr << "There are no mounts named \""
+                      << name
+                      << "\"."
+                      << std::endl;
+
+            return;
+        }
+
+        path = paths.front().toPath(false);
+    }
+
+    state.extractflagparam("-path", path);
+
+    auto result = client->mFuseService.remove(localPathArg(path));
+
+    if (result == MOUNT_SUCCESS)
+    {
+        std::cout << "Successfully removed mount against \""
+                  << path
+                  << "\"."
+                  << std::endl;
+
+        return;
+    }
+
+    std::cerr << "Failed to remove mount against \""
+              << path
+              << "\": "
+              << toString(result)
+              << std::endl;
+}
+
 MegaCLILogger gLogger;
 
 autocomplete::ACN autocompleteSyntax()
@@ -4449,6 +5046,107 @@ autocomplete::ACN autocompleteSyntax()
                                     opt(flag("-useSymbols")))
                         )));
 
+    p->Add(exec_fusedb,
+           sequence(text("fuse"),
+                    text("db"),
+                    either(text("downgrade"),
+                           text("upgrade")),
+                    localFSFile("database"),
+                    wholenumber(0)));
+
+    p->Add(exec_fuseflags,
+           sequence(text("fuse"),
+                    text("flags"),
+                    repeat(either(sequence(flag("-cache-clean-age-threshold"),
+                                           wholenumber("seconds", 5 * 60)),
+                                  sequence(flag("-cache-clean-interval"),
+                                           wholenumber("seconds", 5 * 60)),
+                                  sequence(flag("-cache-clean-size-threshold"),
+                                           wholenumber("count", 64)),
+                                  sequence(flag("-cache-max-size"),
+                                           wholenumber("count", 256)),
+                                  sequence(flag("-flush-delay"),
+                                           wholenumber("seconds", 4)),
+                                  sequence(flag("-log-level"),
+                                           either(text("DEBUG"),
+                                                  text("ERROR"),
+                                                  text("INFO"),
+                                                  text("WARNING"))),
+                                  sequence(flag("-mount-max-thread-count"),
+                                           wholenumber("count", 16)),
+                                  sequence(flag("-mount-max-thread-idle-time"),
+                                           wholenumber("seconds", 16)),
+                                  sequence(flag("-mount-min-thread-count"),
+                                           wholenumber("count", 0)),
+                                  sequence(flag("-service-max-thread-count"),
+                                           wholenumber("count", 16)),
+                                  sequence(flag("-service-max-thread-idle-time"),
+                                           wholenumber("seconds", 16)),
+                                  sequence(flag("-service-min-thread-count"),
+                                           wholenumber("count", 0))))));
+
+    p->Add(exec_fusemountadd,
+           sequence(text("fuse"),
+                    text("mount"),
+                    text("add"),
+                    repeat(either(sequence(flag("-name"),
+                                           param("name")),
+                                  flag("-persistent"),
+                                  flag("-read-only"))),
+                    remoteFSFolder(client, &cwd, "source"),
+                    localFSFolder("target")));
+
+    p->Add(exec_fusemountdisable,
+           sequence(text("fuse"),
+                    text("mount"),
+                    text("disable"),
+                    sequence(either(sequence(flag("-name"),
+                                             param("name")),
+                                    sequence(flag("-path"),
+                                             localFSFolder("target"))),
+                             opt(flag("-remember")))));
+
+    p->Add(exec_fusemountenable,
+           sequence(text("fuse"),
+                    text("mount"),
+                    text("enable"),
+                    sequence(either(sequence(flag("-name"),
+                                             param("name")),
+                                    sequence(flag("-path"),
+                                             localFSFolder("target"))),
+                             opt(flag("-remember")))));
+
+    p->Add(exec_fusemountflags,
+           sequence(text("fuse"),
+                    text("mount"),
+                    text("flags"),
+                    either(sequence(flag("-by-name"),
+                                    param("name")),
+                           sequence(flag("-by-path"),
+                                    localFSFolder("target"))),
+                    repeat(either(flag("-disabled-at-startup"),
+                                  flag("-enabled-at-startup"),
+                                  sequence(flag("-name"),
+                                           param("name")),
+                                  flag("-persistent"),
+                                  flag("-read-only"),
+                                  flag("-transient"),
+                                  flag("-writable")))));
+
+    p->Add(exec_fusemountlist,
+           sequence(text("fuse"),
+                    text("mount"),
+                    text("list"),
+                    opt(flag("-only-active"))));
+
+    p->Add(exec_fusemountremove,
+           sequence(text("fuse"),
+                    text("mount"),
+                    text("remove"),
+                    either(sequence(flag("-name"),
+                                    param("name")),
+                           sequence(flag("-path"),
+                                    localFSFolder("target")))));
     return autocompleteTemplate = std::move(p);
 }
 

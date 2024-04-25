@@ -1,0 +1,21 @@
+src_libmega_la_CXXFLAGS += -I$(abs_srcdir)/src/fuse/supported
+
+if BUILD_TESTS
+
+tests_test_integration_CXXFLAGS += -I$(abs_srcdir)/src/fuse/supported
+tests_test_unit_CXXFLAGS += -I$(abs_srcdir)/src/fuse/supported
+
+endif BUILD_TESTS
+
+src_libmega_la_SOURCES += \
+    src/fuse/supported/context.cpp \
+    src/fuse/supported/file_context.cpp \
+    src/fuse/supported/service_context.cpp \
+    src/fuse/supported/service.cpp \
+    src/fuse/supported/unmounter.cpp
+
+tests_test_integration_SOURCES += \
+    src/fuse/supported/testing/platform_tests.cpp
+
+include src/fuse/supported/posix/include.am
+

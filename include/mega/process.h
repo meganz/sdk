@@ -95,6 +95,11 @@ private:
         AutoFileHandle() {}
         AutoFileHandle(HandleType ih) : h(ih) {}
 
+        ~AutoFileHandle()
+        {
+            close();
+        }
+
         void close()
         {
             if (h != UNSET)

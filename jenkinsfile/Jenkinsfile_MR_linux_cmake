@@ -110,7 +110,7 @@ pipeline {
                             sh "rm -rf ${BUILD_DIR}; mkdir ${BUILD_DIR}"
                             //Build SDK
                             sh "echo Building SDK"
-                            sh "cmake -DENABLE_SDKLIB_WERROR=ON -DENABLE_CHAT=ON -DCMAKE_BUILD_TYPE=Debug -DVCPKG_ROOT=${VCPKGPATH} ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=ON \
+                            sh "cmake -DENABLE_SDKLIB_WERROR=ON -DENABLE_CHAT=ON -DWITH_FUSE=1 -DCMAKE_BUILD_TYPE=Debug -DVCPKG_ROOT=${VCPKGPATH} ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=ON \
                             -S ${linux_sources_workspace} -B ${linux_sources_workspace}/${BUILD_DIR}"
                             sh "cmake --build ${linux_sources_workspace}/${BUILD_DIR} -j1"
                         }
@@ -202,9 +202,9 @@ pipeline {
                                                         echo \"Processing core dump \$i :: \$(grep `echo \$i | sed 's#pid_\\([0-9].*\\)/core#\\1#'` tests.stdout)\"
                                                         echo thread apply all bt > backtrace
                                                         echo quit >> backtrace
-                                                        [ \"\$FAILED\" = \"1\" ] && gdb -q ./tests/unit/test_unit \$i -x ${linux_sources_workspace}/backtrace
-                                                        [ \"\$FAILED\" = \"2\" ] && gdb -q \$GFXWORKER_TEST_PATH \$i -x ${linux_sources_workspace}/backtrace
-                                                        [ \"\$FAILED\" = \"3\" ] && gdb -q ./tests/integration/test_integration \$i -x ${linux_sources_workspace}/backtrace
+                                                        [ \"\$FAILED\" = \"1\" ] && gdb -q ./tests/unit/test_unit \$i -x backtrace
+                                                        [ \"\$FAILED\" = \"2\" ] && gdb -q \$GFXWORKER_TEST_PATH \$i -x backtrace
+                                                        [ \"\$FAILED\" = \"3\" ] && gdb -q ./tests/integration/test_integration \$i -x backtrace
                                                         tar rf core.tar \$i
                                                         coresProcessed=`expr \$coresProcessed + 1`
                                                         coreFiles=`echo \$coreFiles | sed -e \"s#\$i##\"`
@@ -229,6 +229,15 @@ pipeline {
                                 }
                             }
                         }
+                    }
+
+                    post {
+                        always {
+                            dir("${env.WORKSPACE}/src/fuse/supported/posix/scripts") {
+                                println "Attempting to clean up any stale MEGA-FS mounts"
+                                sh "./cleanup.sh '${env.WORKSPACE}'"
+                            }
+                        } 
                     }
                 }
             }

@@ -1144,3 +1144,6 @@ else()
     endif(ENABLE_WERROR)
 endif()
 
+# FUSE support.
+include(${MegaDir}/src/fuse/CMakeLists.txt)
+

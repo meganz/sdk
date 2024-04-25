@@ -493,6 +493,8 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Syncing of exFAT, FAT32, FUSE and LIFS file systems is not supported by MEGA on macOS.";
     case FILESYSTEM_ID_UNAVAILABLE:
         return "Could not get the filesystem's ID.";
+    case LOCAL_PATH_MOUNTED:
+        return "Local path is a FUSE mount.";
     default:
         return "Undefined error";
     }
@@ -6287,8 +6289,6 @@ void Syncs::loadSyncConfigsOnFetchnodesComplete(bool resetSyncConfigStore)
 {
     assert(!onSyncThread());
 
-    // Double check the client only calls us once (per session) for this
-    assert(!mSyncsLoaded);
     if (mSyncsLoaded) return;
     mSyncsLoaded = true;
 

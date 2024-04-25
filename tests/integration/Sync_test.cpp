@@ -1877,13 +1877,13 @@ void StandardClient::threadloop()
         int r;
 
         client.waiter->bumpds();
-        dstime t1 = client.waiter->ds;
+        dstime t1 = client.waiter->ds.load();
 
         {
             std::lock_guard<std::recursive_mutex> lg(clientMutex);
 
             client.waiter->bumpds();
-            dstime t1a = client.waiter->ds;
+            dstime t1a = client.waiter->ds.load();
             if (t1a - t1 > 20) LOG_debug << "lock for preparewait took ds: " << t1a - t1;
 
             r = client.preparewait();
@@ -1891,7 +1891,7 @@ void StandardClient::threadloop()
         assert(r == 0 || r == Waiter::NEEDEXEC);
 
         client.waiter->bumpds();
-        dstime t2 = client.waiter->ds;
+        dstime t2 = client.waiter->ds.load();
         if (t2 - t1 > 20) LOG_debug << "lock and preparewait took ds: " << t2 - t1;
 
 
@@ -1902,25 +1902,25 @@ void StandardClient::threadloop()
         }
 
         client.waiter->bumpds();
-        dstime t3 = client.waiter->ds;
+        dstime t3 = client.waiter->ds.load();
         if (t3 - t2 > 20) LOG_debug << "dowait took ds: " << t3 - t2;
 
         std::lock_guard<std::recursive_mutex> lg(clientMutex);
 
         client.waiter->bumpds();
-        dstime t3a = client.waiter->ds;
+        dstime t3a = client.waiter->ds.load();
         if (t3a - t3 > 20) LOG_debug << "lock for exec took ds: " << t3a - t3;
 
         r |= client.checkevents();
         assert(r == 0 || r == Waiter::NEEDEXEC);
 
         client.waiter->bumpds();
-        dstime t4 = client.waiter->ds;
+        dstime t4 = client.waiter->ds.load();
         if (t4 - t3a > 20) LOG_debug << "checkevents took ds: " << t4 - t3a;
 
         {
             client.waiter->bumpds();
-            auto start = client.waiter->ds;
+            auto start = client.waiter->ds.load();
             std::lock_guard<mutex> g(functionDoneMutex);
             string sourcefile;
             int sourceline = -1;
@@ -1947,7 +1947,7 @@ void StandardClient::threadloop()
                 r |= Waiter::NEEDEXEC;
             }
             client.waiter->bumpds();
-            auto end = client.waiter->ds;
+            auto end = client.waiter->ds.load();
             if (end - start > 200)
             {
                 // note that in Debug builds (for windows at least), prep for logging in can take 15 seconds in pbkdf2.DeriveKey
@@ -5914,7 +5914,7 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderPlain)
     // just so we are exercising most of that code path somewhere
     clientA1->fetchnodes(false, false, true);
 
-    clientA1->waitFor([&](StandardClient& sc) { return sc.client.actionpacketsCurrent; }, std::chrono::seconds(60));
+    clientA1->waitFor([&](StandardClient& sc) { return sc.client.actionpacketsCurrent.load(); }, std::chrono::seconds(60));
 
     ASSERT_TRUE(CatchupClients(clientA1, clientA2));
 

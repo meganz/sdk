@@ -3467,5 +3467,94 @@ unsigned long getCurrentPid()
 #endif
 }
 
+template<typename StringType>
+auto extensionOf(const StringType& path, std::string& extension)
+  -> typename std::enable_if<IsStringType<StringType>::value, bool>::type
+{
+    // Ensure destination is empty.
+    extension.clear();
+
+    // Try and determine where the file's extension begins.
+    auto i = path.find_last_of('.');
+
+    // File doesn't contain any extension.
+    if (i == path.npos)
+        return false;
+
+    // Assume remainder of path is a valid extension.
+    extension.reserve(path.size() - i);
+
+    // Copy extension from path, making sure each character is lowercased.
+    while (i < path.size())
+    {
+        // Latch character.
+        auto character = static_cast<char>(path[i++]);
+
+        // Invalid extension character.
+        if (character < '.' || character > 'z')
+            return extension.clear(), false;
+
+        // Push lowercase character.
+        extension.push_back(character | ' ');
+    }
+
+    // Let the caller know we extracted the path's extension.
+    return true;
+}
+
+template<typename StringType>
+auto extensionOf(const StringType& path)
+  -> typename std::enable_if<IsStringType<StringType>::value, std::string>::type
+{
+    std::string extension;
+
+    extensionOf(path, extension);
+
+    return extension;
+}
+
+// So getExtension(...)'s definition doesn't have to be in the headers.
+template bool extensionOf(const std::string&, std::string&);
+template bool extensionOf(const std::wstring&, std::string&);
+
+template std::string extensionOf(const std::string&);
+template std::string extensionOf(const std::wstring&);
+
+SplitResult split(const char* begin, const char* end, char delimiter)
+{
+    SplitResult result;
+
+    // Assume string doesn't contain the delimiter.
+    result.first.first   = begin;
+    result.first.second  = end - begin;
+    result.second.first  = nullptr;
+    result.second.second = 0;
+
+    // Search for the delimiter.
+    auto* current = std::find(begin, end, delimiter);
+
+    // String contains the delimiter.
+    if (current != end)
+    {
+        // Tweak result as necessary.
+        result.first.second  = current - begin;
+        result.second.first  = current;
+        result.second.second = end - current;
+    }
+
+    // Return result to caller.
+    return result;
+}
+
+SplitResult split(const char* begin, std::size_t size, char delimiter)
+{
+    return split(begin, begin + size, delimiter);
+}
+
+SplitResult split(const std::string& value, char delimiter)
+{
+    return split(value.data(), value.size(), delimiter);
+}
+
 } // namespace mega
 

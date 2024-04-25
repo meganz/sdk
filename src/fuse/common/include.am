@@ -1,0 +1,102 @@
+src_libmega_la_CXXFLAGS += -I$(abs_srcdir)/src/fuse/common
+
+# Always needed.
+src_libmega_la_SOURCES += \
+    src/fuse/common/activity_monitor.cpp \
+    src/fuse/common/any_lock_set.cpp \
+    src/fuse/common/bind_handle.cpp \
+    src/fuse/common/client.cpp \
+    src/fuse/common/client_adapter.cpp \
+    src/fuse/common/database.cpp \
+    src/fuse/common/inode_info.cpp \
+    src/fuse/common/log_level.cpp \
+    src/fuse/common/logger.cpp \
+    src/fuse/common/mount_event_type.cpp \
+    src/fuse/common/mount_event.cpp \
+    src/fuse/common/mount_flags.cpp \
+    src/fuse/common/mount_info.cpp \
+    src/fuse/common/mount_result.cpp \
+    src/fuse/common/normalized_path.cpp \
+    src/fuse/common/pending_callbacks.cpp \
+    src/fuse/common/query.cpp \
+    src/fuse/common/scoped_query.cpp \
+    src/fuse/common/service_context.cpp \
+    src/fuse/common/service.cpp \
+    src/fuse/common/shared_mutex.cpp \
+    src/fuse/common/task_executor.cpp \
+    src/fuse/common/task_queue.cpp \
+    src/fuse/common/transaction.cpp \
+    src/fuse/common/utility.cpp
+
+if ENABLE_SYNC
+
+src_libmega_la_SOURCES += \
+    src/fuse/common/client_adapter_with_sync.cpp
+
+else
+
+src_libmega_la_SOURCES += \
+    src/fuse/common/client_adapter_without_sync.cpp
+
+endif
+
+if BUILD_TESTS
+
+tests_test_integration_CXXFLAGS += -I$(abs_srcdir)/src/fuse/common
+tests_test_unit_CXXFLAGS += -I$(abs_srcdir)/src/fuse/common
+
+endif BUILD_TESTS
+
+if WITH_FUSE
+
+# Only needed if a concrete backend is being built.
+src_libmega_la_SOURCES += \
+    src/fuse/common/database_builder.cpp \
+    src/fuse/common/date_time.cpp \
+    src/fuse/common/directory_inode.cpp \
+    src/fuse/common/file_cache.cpp \
+    src/fuse/common/file_extension_db.cpp \
+    src/fuse/common/file_info.cpp \
+    src/fuse/common/file_inode.cpp \
+    src/fuse/common/file_io_context.cpp \
+    src/fuse/common/inode_cache.cpp \
+    src/fuse/common/inode_db.cpp \
+    src/fuse/common/inode_id.cpp \
+    src/fuse/common/inode.cpp \
+    src/fuse/common/mount_db.cpp \
+    src/fuse/common/mount_inode_id.cpp \
+    src/fuse/common/mount.cpp
+
+if BUILD_TESTS
+
+tests_test_integration_SOURCES += \
+    src/fuse/common/testing/client.cpp \
+    src/fuse/common/testing/cloud_path.cpp \
+    src/fuse/common/testing/common_tests.cpp \
+    src/fuse/common/testing/directory.cpp \
+    src/fuse/common/testing/file.cpp \
+    src/fuse/common/testing/mock_client.cpp \
+    src/fuse/common/testing/model.cpp \
+    src/fuse/common/testing/mount_event_observer.cpp \
+    src/fuse/common/testing/mount_tests.cpp \
+    src/fuse/common/testing/parameters.cpp \
+    src/fuse/common/testing/path.cpp \
+    src/fuse/common/testing/printers.cpp \
+    src/fuse/common/testing/real_client.cpp \
+    src/fuse/common/testing/test.cpp \
+    src/fuse/common/testing/test_base.cpp \
+    src/fuse/common/testing/utility.cpp
+
+if ENABLE_SYNC
+
+tests_test_integration_SOURCES += \
+    src/fuse/common/testing/sync_tests.cpp
+
+endif ENABLE_SYNC
+
+tests_test_unit_SOURCES += \
+    src/fuse/common/testing/shared_mutex_tests.cpp
+
+endif BUILD_TESTS
+endif WITH_FUSE
+

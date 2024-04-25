@@ -262,6 +262,12 @@ class SimpleLogger
     }
 
     template<typename T>
+    void logValue(const std::atomic<T>& value)
+    {
+        logValue(value.load());
+    }
+
+    template<typename T>
     typename std::enable_if<std::is_enum<T>::value>::type
     logValue(const T value)
     {

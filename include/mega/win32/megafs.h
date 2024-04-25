@@ -73,7 +73,6 @@ public:
     bool mkdirlocal(const LocalPath&, bool hidden, bool logAlreadyExistsError) override;
     bool setmtimelocal(const LocalPath&, m_time_t) override;
     bool chdirlocal(LocalPath&) const override;
-    bool getextension(const LocalPath&, string&) const override;
     bool expanselocalpath(const LocalPath& path, LocalPath& absolutepath) override;
 
     void addevents(Waiter*, int) override;
@@ -176,9 +175,12 @@ public:
                     bool async, DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck, LocalPath* actualLeafNameIfDifferent);
     void updatelocalname(const LocalPath&, bool force) override;
     bool fread(string *, unsigned, unsigned, m_off_t);
+    void fclose() override;
     bool fwrite(const byte *, unsigned, m_off_t);
 
-    bool ftruncate() override;
+    bool fstat(m_time_t& modified, m_off_t& size) override;
+
+    bool ftruncate(m_off_t size) override;
 
     bool sysread(byte *, unsigned, m_off_t) override;
     bool sysstat(m_time_t*, m_off_t*, FSLogging) override;

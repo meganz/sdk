@@ -64,6 +64,11 @@
 
 #include "mega/mega_zxcvbn.h"
 
+// FUSE
+#include <mega/fuse/common/mount_event_type.h>
+#include <mega/fuse/common/mount_event.h>
+#include <mega/fuse/common/mount_info.h>
+
 namespace {
 
 using ::mega::IGfxProvider;
@@ -4715,6 +4720,13 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CREATE_PASSWORD_NODE: return "CREATE_PASSWORD_NODE";
         case TYPE_UPDATE_PASSWORD_NODE: return "UPDATE_PASSWORD_NODE";
         case TYPE_GET_NOTIFICATIONS: return "GET_NOTIFICATIONS";
+
+        // FUSE requests.
+        case TYPE_ADD_MOUNT:       return "TYPE_ADD_MOUNT";
+        case TYPE_DISABLE_MOUNT:   return "TYPE_DISABLE_MOUNT";
+        case TYPE_ENABLE_MOUNT:    return "TYPE_ENABLE_MOUNT";
+        case TYPE_REMOVE_MOUNT:    return "TYPE_REMOVE_MOUNT";
+        case TYPE_SET_MOUNT_FLAGS: return "TYPE_SET_MOUNT_FLAGS";
     }
     return "UNKNOWN";
 }
@@ -12815,7 +12827,8 @@ void MegaApiImpl::file_added(File *f)
     if (!transfer)
     {
         transfer = new MegaTransferPrivate(t->type);
-        transfer->setSyncTransfer(true);
+
+        transfer->setSyncTransfer(f->syncxfer);
 
         if (t->type == GET)
         {
@@ -12826,7 +12839,10 @@ void MegaApiImpl::file_added(File *f)
             transfer->setParentHandle(f->h.as8byte());
         }
 
-        string path = f->getLocalname().toPath(false);
+        // Extract the transfer's logical path.
+        auto path = f->logicalPath().toPath(false);
+
+        // Set the transfer's raw path.
         transfer->setPath(path.c_str());
     }
 
@@ -12868,20 +12884,15 @@ void MegaApiImpl::file_removed(File *f, const Error &e)
 
 void MegaApiImpl::file_complete(File *f)
 {
-    MegaTransferPrivate* transfer = getMegaTransferPrivate(f->tag);
-    if (transfer)
-    {
-        if (f->transfer->type == GET)
-        {
-            // The final name can change when downloads are complete
-            // if there is another file in the same path
+    auto* transfer = getMegaTransferPrivate(f->tag);
 
-            string path = f->getLocalname().toPath(false);
-            transfer->setPath(path.c_str());
-        }
+    if (!transfer)
+        return;
 
-        processTransferComplete(f->transfer, transfer);
-    }
+    if (!f->isFuseTransfer() && f->transfer->type == GET)
+        transfer->setPath(f->getLocalname().toPath(false).c_str());
+
+    processTransferComplete(f->transfer, transfer);
 }
 
 void MegaApiImpl::transfer_complete(Transfer *t)
@@ -15200,7 +15211,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
     }
     else
     {
-        fileName = "CRYPTO_ERROR";
+        fileName = Node::CRYPTO_ERROR;
         request->setFlag(true);
         isNodeKeyDecrypted = false;
     }
@@ -18878,11 +18889,11 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                             attr_map::iterator ait = node->attrs.map.find('n');
                             if (ait == node->attrs.map.end())
                             {
-                                name = LocalPath::fromRelativePath("CRYPTO_ERROR");
+                                name = LocalPath::fromRelativePath(Node::CRYPTO_ERROR);
                             }
                             else if(!ait->second.size())
                             {
-                                name = LocalPath::fromRelativePath("BLANK");
+                                name = LocalPath::fromRelativePath(Node::BLANK);
                             }
                             else
                             {
@@ -25856,6 +25867,292 @@ void MegaApiImpl::drive_presence_changed(bool appeared, const LocalPath& driveRo
 }
 #endif
 
+void MegaApiImpl::addMount(const MegaMount* mount, MegaRequestListener* listener)
+{
+    assert(listener);
+    assert(mount);
+
+    auto request = std::make_unique<MegaRequestPrivate>(MegaRequest::TYPE_ADD_MOUNT);
+
+    request->setFile(mount->getPath());
+    request->setListener(listener);
+
+    auto execute = [this](const fuse::MountInfo& info, MegaRequestPrivate& request) {
+        auto result = client->mFuseService.add(info);
+        auto error = std::make_unique<MegaErrorPrivate>(result);
+
+        fireOnRequestFinish(&request, std::move(error));
+
+        return API_OK;
+    };
+
+    request->performRequest =
+      std::bind(std::move(execute),
+                static_cast<const MegaMountPrivate*>(mount)->asInfo(),
+                std::ref(*request));
+
+    requestQueue.push(std::move(request));
+
+    waiter->notify();
+}
+
+void MegaApiImpl::disableMount(const char* path,
+                               MegaRequestListener* listener,
+                               bool remember)
+{
+    assert(listener);
+    assert(path);
+
+    auto request = std::make_unique<MegaRequestPrivate>(MegaRequest::TYPE_DISABLE_MOUNT);
+
+    request->setFile(path);
+    request->setListener(listener);
+
+    auto execute = [remember, this](MegaRequestPrivate& request) {
+        using namespace fuse;
+
+        auto callback = [this](MegaRequestPrivate& request, MountResult result) {
+            auto error = std::make_unique<MegaErrorPrivate>(result);
+
+            fireOnRequestFinish(&request, std::move(error));
+        };
+
+        auto path = LocalPath::fromAbsolutePath(request.getFile());
+
+        client->mFuseService.disable(std::bind(std::move(callback),
+                                               std::ref(request),
+                                               std::placeholders::_1),
+                                     path,
+                                     remember);
+
+        return API_OK;
+    };
+
+    request->performRequest =
+      std::bind(std::move(execute), std::ref(*request));
+
+    requestQueue.push(std::move(request));
+
+    waiter->notify();
+}
+
+void MegaApiImpl::enableMount(const char* path,
+                              MegaRequestListener* listener,
+                              bool remember)
+{
+    assert(listener);
+    assert(path);
+
+    auto request = std::make_unique<MegaRequestPrivate>(MegaRequest::TYPE_ENABLE_MOUNT);
+
+    request->setFile(path);
+    request->setListener(listener);
+
+    auto execute = [remember, this](MegaRequestPrivate& request) {
+        auto path = LocalPath::fromAbsolutePath(request.getFile());
+        auto result = client->mFuseService.enable(path, remember);
+        auto error = std::make_unique<MegaErrorPrivate>(result);
+
+        fireOnRequestFinish(&request, std::move(error));
+
+        return API_OK;
+    };
+
+    request->performRequest =
+      std::bind(std::move(execute), std::ref(*request));
+
+    requestQueue.push(std::move(request));
+
+    waiter->notify();
+}
+
+void MegaApiImpl::fireOnFuseEvent(FuseEventHandler handler,
+                                  const fuse::MountEvent& event)
+{
+    // No listeners? No need to translate the path.
+    if (listeners.empty())
+        return;
+
+    // Latch path and result.
+    auto path = event.mPath.toPath(false);
+    auto result = static_cast<int>(event.mResult);
+
+    // Signal listeners.
+    for (auto* listener : listeners)
+        (listener->*handler)(api, path.c_str(), result);
+}
+
+MegaMountFlags* MegaApiImpl::getMountFlags(const char* path)
+{
+    SdkMutexGuard guard(sdkMutex);
+
+    assert(path);
+
+    auto path_ = LocalPath::fromAbsolutePath(path);
+    auto flags = client->mFuseService.flags(path_);
+
+    if (flags)
+        return new MegaMountFlagsPrivate(*flags);
+
+    return nullptr;
+}
+
+MegaMount* MegaApiImpl::getMountInfo(const char* path)
+{
+    SdkMutexGuard guard(sdkMutex);
+
+    assert(path);
+
+    auto path_ = LocalPath::fromAbsolutePath(path);
+    auto info = client->mFuseService.get(path_);
+
+    if (info)
+        return new MegaMountPrivate(*info);
+
+    return nullptr;
+}
+
+MegaStringList* MegaApiImpl::getMountPaths(const char* name)
+{
+    SdkMutexGuard guard(sdkMutex);
+
+    std::vector<std::string> paths;
+
+    for (const auto& path : client->mFuseService.paths(name))
+        paths.emplace_back(path.toPath(false));
+
+    return new MegaStringListPrivate(std::move(paths));
+}
+
+MegaMountList* MegaApiImpl::listMounts(bool enabled)
+{
+    SdkMutexGuard guard(sdkMutex);
+
+    auto mounts = client->mFuseService.get(enabled);
+
+    return new MegaMountListPrivate(std::move(mounts));
+}
+
+void MegaApiImpl::onFuseEvent(const fuse::MountEvent& event) 
+{
+    static const FuseEventHandler handlers[] = {
+        &MegaListener::onMountAdded,
+        &MegaListener::onMountChanged,
+        &MegaListener::onMountDisabled,
+        &MegaListener::onMountEnabled,
+        &MegaListener::onMountRemoved
+    }; // handlers
+
+    // Sanity.
+    assert(&handlers[event.mType] < std::end(handlers));
+
+    // Broadcast the event.
+    fireOnFuseEvent(handlers[event.mType], event);
+}
+
+bool MegaApiImpl::isCached(const char* path)
+{
+    assert(path);
+
+    SdkMutexGuard guard(sdkMutex);
+
+    return client->mFuseService.cached(LocalPath::fromPlatformEncodedAbsolute(path));
+}
+
+bool MegaApiImpl::isFUSESupported()
+{
+    SdkMutexGuard guard(sdkMutex);
+
+    return client->mFuseService.supported();
+}
+
+bool MegaApiImpl::isMountEnabled(const char* path)
+{
+    assert(path);
+
+    SdkMutexGuard gaurd(sdkMutex);
+
+    return client->mFuseService.enabled(LocalPath::fromAbsolutePath(path));
+}
+
+void MegaApiImpl::removeMount(const char* path, MegaRequestListener* listener)
+{
+    assert(listener);
+    assert(path);
+
+    auto request = std::make_unique<MegaRequestPrivate>(MegaRequest::TYPE_REMOVE_MOUNT);
+
+    request->setFile(path);
+    request->setListener(listener);
+
+    auto execute = [this](MegaRequestPrivate& request) {
+        auto path = LocalPath::fromAbsolutePath(request.getFile());
+        auto result = client->mFuseService.remove(path);
+        auto error = std::make_unique<MegaErrorPrivate>(result);
+
+        fireOnRequestFinish(&request, std::move(error));
+
+        return API_OK;
+    };
+
+    request->performRequest =
+      std::bind(std::move(execute), std::ref(*request));
+
+    requestQueue.push(std::move(request));
+
+    waiter->notify();
+}
+
+void MegaApiImpl::setFUSEFlags(const MegaFuseFlags& flags)
+{
+    SdkMutexGuard guard(sdkMutex);
+
+    auto& flags_ = reinterpret_cast<const MegaFuseFlagsPrivate&>(flags);
+
+    client->mFuseService.serviceFlags(flags_.getFlags());
+}
+
+MegaFuseFlags* MegaApiImpl::getFUSEFlags()
+{
+    SdkMutexGuard guard(sdkMutex);
+
+    return new MegaFuseFlagsPrivate(client->mFuseService.serviceFlags());
+}
+
+void MegaApiImpl::setMountFlags(const MegaMountFlags* flags,
+                                const char* path,
+                                MegaRequestListener* listener)
+{
+    assert(flags);
+    assert(listener);
+    assert(path);
+
+    auto request = std::make_unique<MegaRequestPrivate>(MegaRequest::TYPE_SET_MOUNT_FLAGS);
+
+    request->setFile(path);
+    request->setListener(listener);
+
+    auto execute = [this](const fuse::MountFlags& flags,
+                          MegaRequestPrivate& request) {
+        auto path = LocalPath::fromAbsolutePath(request.getFile());
+        auto result = client->mFuseService.flags(path, flags);
+        auto error = std::make_unique<MegaErrorPrivate>(result);
+
+        fireOnRequestFinish(&request, std::move(error));
+
+        return API_OK;
+    };
+
+    request->performRequest =
+      std::bind(std::move(execute),
+                static_cast<const MegaMountFlagsPrivate*>(flags)->getFlags(),
+                std::ref(*request));
+
+    requestQueue.push(std::move(request));
+
+    waiter->notify();
+}
+
 //
 // Sets and Elements
 //
@@ -27161,6 +27458,15 @@ void RequestQueue::push(MegaRequestPrivate *request)
     requests.push_back(request);
 }
 
+void RequestQueue::push(std::unique_ptr<MegaRequestPrivate> request)
+{
+    std::lock_guard<std::mutex> guard(mutex);
+
+    requests.push_back(request.get());
+
+    request.release();
+}
+
 void RequestQueue::push_front(MegaRequestPrivate *request)
 {
     std::lock_guard<std::mutex> g(mutex);
@@ -27531,6 +27837,12 @@ MegaErrorPrivate::MegaErrorPrivate(const Error& err)
 {
 }
 
+MegaErrorPrivate::MegaErrorPrivate(fuse::MountResult result)
+  : MegaError(result == fuse::MOUNT_SUCCESS ? API_OK : API_EFAILED)
+  , mMountResult(result)
+{
+}
+
 MegaErrorPrivate::MegaErrorPrivate(const MegaError &megaError)
     : MegaError(megaError.getErrorCode())
     , mValue(megaError.getValue())
@@ -27552,6 +27864,11 @@ MegaError* MegaErrorPrivate::copy() const
 int MegaErrorPrivate::getErrorCode() const
 {
     return errorCode;
+}
+
+int MegaErrorPrivate::getMountResult() const
+{
+    return static_cast<int>(mMountResult);
 }
 
 long long MegaErrorPrivate::getValue() const
@@ -29820,12 +30137,14 @@ const char *MegaScheduledCopyController::getPeriodString() const
 void MegaScheduledCopyController::setPeriod(const int64_t &value)
 {
     period = value;
+
     if (value != -1)
     {
-        this->offsetds=m_time(NULL)*10 - Waiter::ds;
-        this->startTime = lastbackuptime?(lastbackuptime+period-offsetds):Waiter::ds;
-        if (this->startTime < Waiter::ds)
-            this->startTime = Waiter::ds;
+        auto ds = static_cast<int64_t>(Waiter::ds.load());
+
+        offsetds  = m_time(NULL) * 10 - ds;
+        startTime = lastbackuptime ? lastbackuptime + period - offsetds : ds;
+        startTime = std::max(startTime, ds);
     }
 }
 
@@ -38225,6 +38544,321 @@ const std::string& MegaCompleteUploadDataPrivate::getString64FileKey() const
 MegaCompleteUploadData* MegaCompleteUploadDataPrivate::copy() const
 {
     return new MegaCompleteUploadDataPrivate(*this);
+}
+
+MegaFuseExecutorFlagsPrivate::MegaFuseExecutorFlagsPrivate(fuse::TaskExecutorFlags& flags)
+  : MegaFuseExecutorFlags()
+  , mFlags(flags)
+{
+}
+
+size_t MegaFuseExecutorFlagsPrivate::getMinThreadCount() const
+{
+    return mFlags.mMinWorkers;
+}
+
+size_t MegaFuseExecutorFlagsPrivate::getMaxThreadCount() const
+{
+    return mFlags.mMaxWorkers;
+}
+
+size_t MegaFuseExecutorFlagsPrivate::getMaxThreadIdleTime() const
+{
+    return static_cast<size_t>(mFlags.mIdleTime.count());
+}
+
+bool MegaFuseExecutorFlagsPrivate::setMaxThreadCount(size_t max)
+{
+    if (!max)
+        return false;
+
+    mFlags.mMaxWorkers = max;
+
+    return true;
+}
+
+void MegaFuseExecutorFlagsPrivate::setMinThreadCount(size_t min)
+{
+    mFlags.mMinWorkers = min;
+}
+
+void MegaFuseExecutorFlagsPrivate::setMaxThreadIdleTime(size_t max)
+{
+    mFlags.mIdleTime = std::chrono::seconds(max);
+}
+
+MegaFuseInodeCacheFlagsPrivate::MegaFuseInodeCacheFlagsPrivate(fuse::InodeCacheFlags& flags)
+  : MegaFuseInodeCacheFlags()
+  , mFlags(flags)
+{
+}
+
+size_t MegaFuseInodeCacheFlagsPrivate::getCleanAgeThreshold() const
+{
+    return mFlags.mCleanAgeThreshold.count();
+}
+
+size_t MegaFuseInodeCacheFlagsPrivate::getCleanInterval() const
+{
+    return mFlags.mCleanInterval.count();
+}
+
+size_t MegaFuseInodeCacheFlagsPrivate::getCleanSizeThreshold() const
+{
+    return mFlags.mCleanSizeThreshold;
+}
+
+size_t MegaFuseInodeCacheFlagsPrivate::getMaxSize() const
+{
+    return mFlags.mMaxSize;
+}
+
+void MegaFuseInodeCacheFlagsPrivate::setCleanAgeThreshold(std::size_t seconds)
+{
+    mFlags.mCleanAgeThreshold = std::chrono::seconds(seconds);
+}
+
+void MegaFuseInodeCacheFlagsPrivate::setCleanInterval(std::size_t seconds)
+{
+    mFlags.mCleanInterval = std::chrono::seconds(seconds);
+}
+
+void MegaFuseInodeCacheFlagsPrivate::setCleanSizeThreshold(std::size_t size)
+{
+    mFlags.mCleanSizeThreshold = size;
+}
+
+void MegaFuseInodeCacheFlagsPrivate::setMaxSize(std::size_t size)
+{
+    mFlags.mMaxSize = size;
+}
+
+MegaFuseFlagsPrivate::MegaFuseFlagsPrivate(const fuse::ServiceFlags& flags)
+  : MegaFuseFlags()
+  , mFlags(flags)
+  , mInodeCacheFlags(mFlags.mInodeCacheFlags)
+  , mMountExecutorFlags(mFlags.mMountExecutorFlags)
+  , mSubsystemExecutorFlags(mFlags.mServiceExecutorFlags)
+{
+}
+
+MegaFuseFlags* MegaFuseFlagsPrivate::copy() const
+{
+    return new MegaFuseFlagsPrivate(mFlags);
+}
+
+const fuse::ServiceFlags& MegaFuseFlagsPrivate::getFlags() const
+{
+    return mFlags;
+}
+
+size_t MegaFuseFlagsPrivate::getFlushDelay() const
+{
+    return mFlags.mFlushDelay.count();
+}
+
+int MegaFuseFlagsPrivate::getLogLevel() const
+{
+    return static_cast<int>(mFlags.mLogLevel);
+}
+
+MegaFuseInodeCacheFlags* MegaFuseFlagsPrivate::getInodeCacheFlags()
+{
+    return &mInodeCacheFlags;
+}
+
+MegaFuseExecutorFlags* MegaFuseFlagsPrivate::getMountExecutorFlags()
+{
+    return &mMountExecutorFlags;
+}
+
+MegaFuseExecutorFlags* MegaFuseFlagsPrivate::getSubsystemExecutorFlags()
+{
+    return &mSubsystemExecutorFlags;
+}
+
+void MegaFuseFlagsPrivate::setFlushDelay(size_t seconds)
+{
+    mFlags.mFlushDelay = std::chrono::seconds(seconds);
+}
+
+void MegaFuseFlagsPrivate::setLogLevel(int level)
+{
+    mFlags.mLogLevel = static_cast<fuse::LogLevel>(level);
+}
+
+MegaMountPrivate::MegaMountPrivate()
+  : MegaMount()
+  , mFlags(std::make_unique<MegaMountFlagsPrivate>())
+  , mHandle(UNDEF)
+  , mPath()
+{
+}
+
+MegaMountPrivate::MegaMountPrivate(const fuse::MountInfo& info)
+  : MegaMount()
+  , mFlags(std::make_unique<MegaMountFlagsPrivate>(info.mFlags))
+  , mHandle(info.mHandle.as8byte())
+  , mPath(info.mPath.toPath(false))
+{
+}
+
+MegaMountPrivate::MegaMountPrivate(const MegaMountPrivate& other)
+  : MegaMount(other)
+  , mFlags(other.mFlags->copy())
+  , mHandle(other.mHandle)
+  , mPath(other.mPath)
+{
+}
+
+fuse::MountInfo MegaMountPrivate::asInfo() const
+{
+    fuse::MountInfo info;
+
+    info.mFlags = static_cast<MegaMountFlagsPrivate&>(*mFlags).getFlags();
+    info.mHandle.set6byte(mHandle);
+    info.mPath = LocalPath::fromAbsolutePath(mPath);
+
+    return info;
+}
+
+MegaMount* MegaMountPrivate::copy() const
+{
+    return new MegaMountPrivate(*this);
+}
+
+MegaMountFlags* MegaMountPrivate::getFlags() const
+{
+    return mFlags.get();
+}
+
+MegaHandle MegaMountPrivate::getHandle() const
+{
+    return mHandle;
+}
+
+const char* MegaMountPrivate::getPath() const
+{
+    return mPath.c_str();
+}
+
+void MegaMountPrivate::setFlags(const MegaMountFlags* flags)
+{
+    assert(flags);
+
+    mFlags.reset(flags->copy());
+}
+
+void MegaMountPrivate::setHandle(MegaHandle handle)
+{
+    mHandle = handle;
+}
+
+void MegaMountPrivate::setPath(const char* path)
+{
+    assert(path);
+
+    mPath = path;
+}
+
+MegaMountFlagsPrivate::MegaMountFlagsPrivate(const fuse::MountFlags& flags)
+  : MegaMountFlags()
+  , mFlags(flags)
+{
+}
+
+MegaMountFlags* MegaMountFlagsPrivate::copy() const
+{
+    return new MegaMountFlagsPrivate(*this);
+}
+
+bool MegaMountFlagsPrivate::getEnableAtStartup() const
+{
+    return mFlags.mEnableAtStartup;
+}
+
+const fuse::MountFlags& MegaMountFlagsPrivate::getFlags() const
+{
+    return mFlags;
+}
+
+const char* MegaMountFlagsPrivate::getName() const
+{
+    return mFlags.mName.c_str();
+}
+
+bool MegaMountFlagsPrivate::getPersistent() const
+{
+    return mFlags.mPersistent;
+}
+
+bool MegaMountFlagsPrivate::getReadOnly() const
+{
+    return mFlags.mReadOnly;
+}
+
+void MegaMountFlagsPrivate::setEnableAtStartup(bool enable)
+{
+    mFlags.mEnableAtStartup = enable;
+    mFlags.mPersistent |= true;
+}
+
+void MegaMountFlagsPrivate::setName(const char* name)
+{
+    assert(name);
+
+    mFlags.mName = name;
+}
+
+void MegaMountFlagsPrivate::setPersistent(bool persistent)
+{
+    mFlags.mEnableAtStartup &= persistent;
+    mFlags.mPersistent = persistent;
+}
+
+void MegaMountFlagsPrivate::setReadOnly(bool readOnly)
+{
+    mFlags.mReadOnly = readOnly;
+}
+
+MegaMountListPrivate::MegaMountListPrivate(fuse::MountInfoVector&& mounts)
+  : MegaMountList()
+  , mMounts()
+{
+    for (auto& m : mounts)
+    {
+        auto mount = std::make_unique<MegaMountPrivate>(std::move(m));
+
+        mMounts.emplace_back(std::move(mount));
+    }
+}
+
+MegaMountListPrivate::MegaMountListPrivate(const MegaMountListPrivate& other)
+  : MegaMountList()
+  , mMounts()
+{
+    mMounts.reserve(other.mMounts.size());
+
+    for (const auto& m : other.mMounts)
+        mMounts.emplace_back(m->copy());
+}
+
+MegaMountList* MegaMountListPrivate::copy() const
+{
+    return new MegaMountListPrivate(*this);
+}
+
+const MegaMount* MegaMountListPrivate::get(size_t index) const
+{
+    if (index < mMounts.size())
+        return mMounts[index].get();
+
+    return nullptr;
+}
+
+size_t MegaMountListPrivate::size() const
+{
+    return mMounts.size();
 }
 
 } // namespace mega

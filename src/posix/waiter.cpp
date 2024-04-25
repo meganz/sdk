@@ -27,7 +27,6 @@
 #endif
 
 namespace mega {
-dstime Waiter::ds;
 
 PosixWaiter::PosixWaiter()
 {

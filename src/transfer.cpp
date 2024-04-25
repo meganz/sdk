@@ -450,11 +450,10 @@ void Transfer::failed(const Error& e, TransferDbCommitter& committer, dstime tim
     {
         // Remove files with foreign targets, if transfer failed with a (foreign) storage overquota
         if (e == API_EOVERQUOTA
-                && !timeleft
-                && client->isForeignNode((*it)->h))
+            && ((*it)->isFuseTransfer()
+                || (!timeleft && client->isForeignNode((*it)->h))))
         {
-            File *f = (*it++);
-            removeTransferFile(API_EOVERQUOTA, f, &committer);
+            removeTransferFile(e, *it++, &committer);
             continue;
         }
 

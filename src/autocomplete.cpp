@@ -534,8 +534,9 @@ std::ostream& Either::describe(std::ostream& s) const
     return s;
 }
 
-WholeNumber::WholeNumber(size_t def_val)
-    : defaultvalue(def_val)
+WholeNumber::WholeNumber(const std::string& description, size_t defaultValue)
+  : defaultvalue(defaultValue)
+  , description(description)
 {
 }
 
@@ -581,7 +582,7 @@ bool WholeNumber::match(ACState& s) const
 
 std::ostream& WholeNumber::describe(std::ostream& s) const
 {
-    return s << "N";
+    return s << description;
 }
 
 
@@ -1408,9 +1409,14 @@ ACN repeat(ACN n)
 }
 
 
-ACN wholenumber(size_t defaultvalue)
+ACN wholenumber(const std::string& description, size_t defaultValue)
 {
-    return std::make_shared<WholeNumber>(defaultvalue);
+    return std::make_shared<WholeNumber>(description, defaultValue);
+}
+
+ACN wholenumber(size_t defaultValue)
+{
+    return wholenumber("N", defaultValue);
 }
 
 ACN localFSPath(const std::string descriptionPrefix)
