@@ -271,7 +271,7 @@ public:
     /**
     * @brief Create a graphics processor that implemented and run in an isolated process.
     *
-    * Note: Windows, Linux are supported.
+    * Note: Windows, Linux, MacOS are supported.
     *
     * @param endpointName The unique name used for communicating with the isolated process.
     * @param executable The executable path.
