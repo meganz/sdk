@@ -23,7 +23,6 @@
 #include "mega/arguments.h"
 #include "mega/filesystem.h"
 #include "mega/gfx.h"
-#include "mega/gfx/worker/client.h"
 #include "megacli.h"
 #include <chrono>
 #include <exception>
@@ -70,7 +69,10 @@
 #ifdef USE_FREEIMAGE
 #include "mega/gfx/freeimage.h"
 #endif
+
+#ifdef ENABLE_ISOLATED_GFX
 #include "mega/gfx/isolatedprocess.h"
+#endif
 
 #ifdef WIN32
 #include <winioctl.h>
@@ -159,7 +161,7 @@ Usage:
 #if defined(ENABLE_ISOLATED_GFX)
 R"(
   -e=arg               Use the isolated gfx processor. This gives executable binary path
-  -n=arg               Pipe name (default: mega_gfxworker_megacli)
+  -n=arg               Endpoint name (default: mega_gfxworker_megacli)
 )"
 #endif
 ;
@@ -167,7 +169,7 @@ struct Config
 {
     std::string executable;
 
-    std::string pipeName;
+    std::string endpointName;
 
     std::string clientType;
 
@@ -188,8 +190,8 @@ Config Config::fromArguments(const Arguments& arguments)
         throw std::runtime_error("Couldn't find Executable: " + config.executable);
     }
 
-    // pipe name
-    config.pipeName  = arguments.getValue("-n", "mega_gfxworker_megacli");
+    // endpoint name
+    config.endpointName = arguments.getValue("-n", "mega_gfxworker_megacli");
 #endif
 
     config.clientType = arguments.getValue("-c", "default");
@@ -197,20 +199,15 @@ Config Config::fromArguments(const Arguments& arguments)
     return config;
 }
 
-static std::unique_ptr<IGfxProvider> createGfxProvider(const Config& config)
+static std::unique_ptr<IGfxProvider> createGfxProvider([[maybe_unused]] const Config& config)
 {
 #if defined(ENABLE_ISOLATED_GFX)
-    if (!config.executable.empty())
+    if (auto provider = GfxProviderIsolatedProcess::create(config.endpointName, config.executable))
     {
-        auto process = ::mega::make_unique<GfxIsolatedProcess>(config.pipeName, config.executable);
-        return ::mega::make_unique<GfxProviderIsolatedProcess>(std::move(process));
+        return provider;
     }
-    else
 #endif
-    {
-        (void) config;
-        return IGfxProvider::createInternalGfxProvider();
-    }
+    return IGfxProvider::createInternalGfxProvider();
 }
 
 #ifdef ENABLE_SYNC
@@ -3666,13 +3663,13 @@ void exec_timelocal(autocomplete::ACState& s)
 
             if (!get)
             {
-                if (::mega::abs(set_time - fp.mtime) <= 2)
+                if (abs(set_time - fp.mtime) <= 2)
                 {
-                    cout << "mtime read back is within 2 seconds, so success. Actual difference: " << ::mega::abs(set_time - fp.mtime) << endl;
+                    cout << "mtime read back is within 2 seconds, so success. Actual difference: " << abs(set_time - fp.mtime) << endl;
                 }
                 else
                 {
-                    cout << "ERROR Silent failure in setmtimelocal, difference is " << ::mega::abs(set_time - fp.mtime) << endl;
+                    cout << "ERROR Silent failure in setmtimelocal, difference is " << abs(set_time - fp.mtime) << endl;
                 }
             }
         }
@@ -4262,7 +4259,6 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_killsession, sequence(text("killsession"), either(text("all"), param("sessionid"))));
     p->Add(exec_whoami, sequence(text("whoami"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro"), flag("-transactions"), flag("-purchases"), flag("-sessions")))));
     p->Add(exec_verifycredentials, sequence(text("credentials"), either(text("show"), text("status"), text("verify"), text("reset")), opt(contactEmail(client))));
-    p->Add(exec_secure, sequence(text("secure"), opt(either(flag("-on"), flag("-off")))));
     p->Add(exec_manualverif, sequence(text("verification"), opt(either(flag("-on"), flag("-off")))));
     p->Add(exec_passwd, sequence(text("passwd")));
     p->Add(exec_reset, sequence(text("reset"), contactEmail(client), opt(text("mk"))));
@@ -4465,7 +4461,7 @@ bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
         if (!folders)
         {
             TransferDbCommitter committer(client->tctable);
-            auto file = ::mega::make_unique<AppFileGet>(n, NodeHandle(), nullptr, -1, 0, nullptr, nullptr, localpath.u8string());
+            auto file = std::make_unique<AppFileGet>(n, NodeHandle(), nullptr, -1, 0, nullptr, nullptr, localpath.u8string());
             error result = startxfer(committer, std::move(file), *n, client->nextreqtag());
             queued += result == API_OK ? 1 : 0;
         }
@@ -4513,7 +4509,7 @@ bool regexget(const string& expression, Node* n, unsigned& queued)
                 {
                     if (regex_search(string(node->displayname()), re))
                     {
-                        auto file = ::mega::make_unique<AppFileGet>(node.get());
+                        auto file = std::make_unique<AppFileGet>(node.get());
                         error result = startxfer(committer, std::move(file), *node, client->nextreqtag());
                         queued += result == API_OK ? 1 : 0;
                     }
@@ -5298,7 +5294,7 @@ void exec_get(autocomplete::ACState& s)
                         cout << "Initiating download..." << endl;
 
                         TransferDbCommitter committer(client->tctable);
-                        auto file = ::mega::make_unique<AppFileGet>(nullptr, NodeHandle().set6byte(ph), (byte*)key, size, 0, filename, fingerprint);
+                        auto file = std::make_unique<AppFileGet>(nullptr, NodeHandle().set6byte(ph), (byte*)key, size, 0, filename, fingerprint);
                         startxfer(committer, std::move(file), *filename, client->nextreqtag());
                     }
 
@@ -5347,7 +5343,7 @@ void exec_get(autocomplete::ACState& s)
                 // queue specified file...
                 if (n->type == FILENODE)
                 {
-                    auto f = ::mega::make_unique<AppFileGet>(n.get());
+                    auto f = std::make_unique<AppFileGet>(n.get());
 
                     string::size_type index = s.words[1].s.find(":");
                     // node from public folder link
@@ -5371,7 +5367,7 @@ void exec_get(autocomplete::ACState& s)
                     {
                         if (node->type == FILENODE)
                         {
-                            auto f = ::mega::make_unique<AppFileGet>(node.get());
+                            auto f = std::make_unique<AppFileGet>(node.get());
                             startxfer(committer, std::move(f), *node.get(), client->nextreqtag());
                         }
                     }
@@ -8652,7 +8648,7 @@ void DemoApp::ephemeral_result(handle uh, const byte* pw)
         cout << Base64::btoa(session) << endl;
     }
 
-    client->fetchnodes(false, true, false);
+    client->fetchnodes(false, false, false);
 }
 
 void DemoApp::cancelsignup_result(error)
@@ -9171,8 +9167,8 @@ void DemoApp::notify_confirm_user_email(handle user, const char *email)
 {
     if (client->loggedin() == EPHEMERALACCOUNT || client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
     {
-        LOG_debug << "Account has been confirmed with user " << user << " and email " << email << ". Proceed to login with credentials.";
-        cout << "Account has been confirmed with user " << toHandle(user) << " and email " << email << ". Proceed to login with credentials.";
+        LOG_debug << "Account has been confirmed with user " << toHandle(user) << " and email " << email << ". Proceed to login with credentials.";
+        cout << "Account has been confirmed with user " << toHandle(user) << " and email " << email << ". Proceed to login with credentials." << endl;
     }
 }
 
@@ -9974,7 +9970,7 @@ int main(int argc, char* argv[])
     if (gfx) gfx->startProcessingThread();
 
     // Needed so we can get the cwd.
-    auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
+    auto fsAccess = std::make_unique<FSACCESS_CLASS>();
 
 #ifdef __APPLE__
     // Try and raise the file descriptor limit as high as we can.
@@ -11353,7 +11349,7 @@ void exec_setsandelements(autocomplete::ACState& s)
         cout << "\tInitiating download..." << endl;
 
         TransferDbCommitter committer(client->tctable);
-        auto file = ::mega::make_unique<AppFileGet>(nullptr,
+        auto file = std::make_unique<AppFileGet>(nullptr,
                                                     NodeHandle().set6byte(element->node()),
                                                     reinterpret_cast<const byte*>(element->key().c_str()), fileSize, tm,
                                                     &fileName, &fingerprint);
@@ -11580,20 +11576,6 @@ void exec_searchbyname(autocomplete::ACState &s)
             cout << "Node: " << node->nodeHandle() << "    Name: " << node->displayname() << endl;
         }
     }
-}
-
-void exec_secure(autocomplete::ACState &s)
-{
-    if (s.extractflag("-on"))
-    {
-        client->mKeyManager.setSecureFlag(true);
-    }
-    else if (s.extractflag("-off"))
-    {
-        client->mKeyManager.setSecureFlag(false);
-    }
-
-    cout << "Secure flag: " << (client->mKeyManager.isSecure() ? "true" : "false") << endl;
 }
 
 void exec_manualverif(autocomplete::ACState &s)
@@ -11961,7 +11943,7 @@ void exec_passwordmanager(autocomplete::ACState& s)
     {
         // patch to allow setting to null taking into account that extractflag doesn't accept ""
         const string EMPTY = "EMPTY";
-        auto pwdData = make_unique<AttrMap>();
+        auto pwdData = std::make_unique<AttrMap>();
         if (!pwd.empty())
         {
             if (pwd == EMPTY) pwd.clear();

@@ -551,16 +551,16 @@ class MegaNodePrivate : public MegaNode, public Cacheable
     {
     public:
         PNDataPrivate(const char* p, const char* n, const char* url, const char* un)
-            : mPwd {p ? make_unique<std::string>(p) : nullptr},
-              mNotes {n ? make_unique<std::string>(n) : nullptr},
-              mURL {url ? make_unique<std::string>(url) : nullptr},
-              mUserName {un ? make_unique<std::string>(un) : nullptr}
+            : mPwd {p ? std::make_unique<std::string>(p) : nullptr},
+              mNotes {n ? std::make_unique<std::string>(n) : nullptr},
+              mURL {url ? std::make_unique<std::string>(url) : nullptr},
+              mUserName {un ? std::make_unique<std::string>(un) : nullptr}
             {}
 
-        virtual void setPassword(const char* pwd) override { mPwd.reset(); if (pwd) mPwd = make_unique<std::string>(pwd); }
-        virtual void setNotes(const char* n)      override { mNotes.reset(); if (n) mNotes = make_unique<std::string>(n); }
-        virtual void setUrl(const char* u)        override { mURL.reset(); if (u) mURL = make_unique<std::string>(u); }
-        virtual void setUserName(const char* un)  override { mUserName.reset(); if (un) mUserName = make_unique<std::string>(un); }
+        virtual void setPassword(const char* pwd) override { mPwd.reset(); if (pwd) mPwd = std::make_unique<std::string>(pwd); }
+        virtual void setNotes(const char* n)      override { mNotes.reset(); if (n) mNotes = std::make_unique<std::string>(n); }
+        virtual void setUrl(const char* u)        override { mURL.reset(); if (u) mURL = std::make_unique<std::string>(u); }
+        virtual void setUserName(const char* un)  override { mUserName.reset(); if (un) mUserName = std::make_unique<std::string>(un); }
 
         virtual const char* password() const override { return mPwd ? mPwd->c_str() : nullptr; }
         virtual const char* notes() const    override { return mNotes ? mNotes->c_str(): nullptr; }
@@ -2805,6 +2805,8 @@ public:
     void byLocation(int locationType) override;
     void byCreationTime(int64_t lowerLimit, int64_t upperLimit) override;
     void byModificationTime(int64_t lowerLimit, int64_t upperLimit) override;
+    void byDescription(const char* searchString) override;
+    void byTag(const char* searchString) override;
 
     const char* byName() const override { return mNameFilter.c_str(); }
     int byNodeType() const override { return mNodeType; }
@@ -2816,6 +2818,8 @@ public:
     int64_t byCreationTimeUpperLimit() const override { return mCreationUpperLimit; }
     int64_t byModificationTimeLowerLimit() const override { return mModificationLowerLimit; }
     int64_t byModificationTimeUpperLimit() const override { return mModificationUpperLimit; }
+    const char* byDescription() const override { return mDescriptionFilter.c_str(); }
+    const char* byTag() const override { return mTag.c_str(); }
 
 private:
     std::string mNameFilter;
@@ -2828,6 +2832,8 @@ private:
     int64_t mCreationUpperLimit = 0;
     int64_t mModificationLowerLimit = 0;
     int64_t mModificationUpperLimit = 0;
+    std::string mDescriptionFilter;
+    std::string mTag;
 };
 
 class MegaSearchPagePrivate : public MegaSearchPage
@@ -2853,7 +2859,7 @@ public:
 
     std::unique_ptr<::mega::IGfxProvider> releaseProvider() { return std::move(mProvider); }
 
-    static std::unique_ptr<MegaGfxProviderPrivate> createIsolatedInstance(const std::string& pipeName,
+    static std::unique_ptr<MegaGfxProviderPrivate> createIsolatedInstance(const std::string& endpointName,
                                                                           const std::string& executable);
 
     static std::unique_ptr<MegaGfxProviderPrivate> createExternalInstance(MegaGfxProcessor* processor);
@@ -3014,7 +3020,6 @@ class MegaApiImpl : public MegaApp
         void sendFileToUser(MegaNode *node, const char* email, MegaRequestListener *listener = NULL);
         void upgradeSecurity(MegaRequestListener* listener = NULL);
         bool contactVerificationWarningEnabled();
-        void setSecureFlag(bool enable);
         void setManualVerificationFlag(bool enable);
         void openShareDialog(MegaNode *node, MegaRequestListener *listener = NULL);
         void share(MegaNode *node, MegaUser* user, int level, MegaRequestListener *listener = NULL);

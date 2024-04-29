@@ -761,7 +761,7 @@ byte* Node::decryptattr(SymmCipher* key, const char* attrstring, size_t attrstrl
     if (attrstrlen)
     {
         int l = int(attrstrlen * 3 / 4 + 3);
-        std::unique_ptr<byte[]> buf(new byte[l]); // ::mega::make_unique<> does not support T[] specialisation
+        auto buf = std::make_unique<byte[]>(l);
 
         l = Base64::atob(attrstring, buf.get(), l);
 
@@ -1191,7 +1191,7 @@ bool Node::applykey()
             if (h != me)
             {
                 // this is a share node handle - check if share key is available
-                if (client->mKeyManager.isSecure() && client->mKeyManager.generation())
+                if (client->mKeyManager.generation())
                 {
                     std::string key = client->mKeyManager.getShareKey(h);
                     if (key.size())
@@ -1779,6 +1779,33 @@ int NodeData::getLabel()
     return attrIt == mAttrs.map.end() ? LBL_UNKNOWN : std::atoi(attrIt->second.c_str());
 }
 
+std::string NodeData::getDescription()
+{
+    if (readFailed())
+    {
+        return std::string();
+    }
+
+    static const nameid descriptionId =
+        AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_DESCRIPTION);
+    auto attrIt = mAttrs.map.find(descriptionId);
+
+    return attrIt == mAttrs.map.end() ? std::string() : attrIt->second.c_str();
+}
+
+std::string NodeData::getTags()
+{
+    if (readFailed())
+    {
+        return std::string();
+    }
+
+    static const nameid tagId = AttrMap::string2nameid(MegaClient::NODE_ATTRIBUTE_TAGS);
+    auto attrIt = mAttrs.map.find(tagId);
+
+    return attrIt == mAttrs.map.end() ? std::string() : attrIt->second.c_str();
+}
+
 handle NodeData::getHandle()
 {
     if (readFailed())
@@ -1797,7 +1824,7 @@ std::unique_ptr<Node> NodeData::createNode(MegaClient& client, bool fromOldCache
         return nullptr;
     }
 
-    unique_ptr<Node> n = mega::make_unique<Node>(client, NodeHandle().set6byte(mHandle), NodeHandle().set6byte(mParentHandle),
+    unique_ptr<Node> n = std::make_unique<Node>(client, NodeHandle().set6byte(mHandle), NodeHandle().set6byte(mParentHandle),
                                                  mType, mSize, mUserHandle, mFileAttributes.c_str(), mCtime);
 
     // read inshare, outshares, or pending shares
@@ -3058,7 +3085,7 @@ FSNode LocalNode::getLastSyncedFSDetails() const
 
     FSNode n;
     n.localname = localname;
-    n.shortname = slocalname ? make_unique<LocalPath>(*slocalname): nullptr;
+    n.shortname = slocalname ? std::make_unique<LocalPath>(*slocalname): nullptr;
     n.type = type;
     n.fsid = fsid_lastSynced;
     n.isSymlink = false;  // todo: store localndoes for symlinks but don't use them?
@@ -3072,7 +3099,7 @@ FSNode LocalNode::getScannedFSDetails() const
 {
     FSNode n;
     n.localname = localname;
-    n.shortname = slocalname ? make_unique<LocalPath>(*slocalname): nullptr;
+    n.shortname = slocalname ? std::make_unique<LocalPath>(*slocalname): nullptr;
     n.type = type;
     n.fsid = fsid_asScanned;
     n.isSymlink = false;  // todo: store localndoes for symlinks but don't use them?
@@ -3408,7 +3435,7 @@ bool LocalNodeCore::read(const string& source, uint32_t& parentID)
 
 unique_ptr<LocalNode> LocalNode::unserialize(Sync& sync, const string& source, uint32_t& parentID)
 {
-    auto node = ::mega::make_unique<LocalNode>(&sync);
+    auto node = std::make_unique<LocalNode>(&sync);
 
     if (!node->read(source, parentID))
         return nullptr;

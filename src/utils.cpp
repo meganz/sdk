@@ -1292,26 +1292,6 @@ bool PayCrypter::hybridEncrypt(const string *cleartext, const byte *pubkdata, in
     return true;
 }
 
-#ifdef _WIN32
-int mega_snprintf(char *s, size_t n, const char *format, ...)
-{
-    va_list args;
-    int ret;
-
-    if (!s || n <= 0)
-    {
-        return -1;
-    }
-
-    va_start(args, format);
-    ret = vsnprintf(s, n, format, args);
-    va_end(args);
-
-    s[n - 1] = '\0'; // correct in snpritnf() in VS 2019
-    return ret;
-}
-#endif
-
 string * TLVstore::tlvRecordsToContainer(PrnGen &rng, SymmCipher *key, encryptionsetting_t encSetting)
 {
     // decide nonce/IV and auth. tag lengths based on the `mode`
@@ -2045,31 +2025,13 @@ string Utils::trim(const string& str, const string& trimchrs)
     return str.substr(s, e - s + 1);
 }
 
-long long abs(long long n)
-{
-    // for pre-c++11 where this version is not defined yet
-    return n >= 0 ? n : -n;
-}
-
 struct tm* m_localtime(m_time_t ttime, struct tm *dt)
 {
     // works for 32 or 64 bit time_t
-    time_t t = time_t(ttime);
-#if (__cplusplus >= 201103L) && defined (__STDC_LIB_EXT1__) && defined(__STDC_WANT_LIB_EXT1__)
-    localtime_s(&t, dt);
-#elif _MSC_VER >= 1400 || defined(__MINGW32__) // MSVCRT (2005+): std::localtime is threadsafe
-    struct tm *newtm = localtime(&t);
-    if (newtm)
-    {
-        memcpy(dt, newtm, sizeof(struct tm));
-    }
-    else
-    {
-        memset(dt, 0, sizeof(struct tm));
-    }
-#elif _WIN32
-#error "localtime is not thread safe in this compiler; please use a later one"
-#else //POSIX
+    time_t t = static_cast<time_t>(ttime);
+#ifdef _WIN32
+    localtime_s(dt, &t);
+#else
     localtime_r(&t, dt);
 #endif
     return dt;
@@ -2078,22 +2040,10 @@ struct tm* m_localtime(m_time_t ttime, struct tm *dt)
 struct tm* m_gmtime(m_time_t ttime, struct tm *dt)
 {
     // works for 32 or 64 bit time_t
-    time_t t = time_t(ttime);
-#if (__cplusplus >= 201103L) && defined (__STDC_LIB_EXT1__) && defined(__STDC_WANT_LIB_EXT1__)
-    gmtime_s(&t, dt);
-#elif _MSC_VER >= 1400 || defined(__MINGW32__) // MSVCRT (2005+): std::gmtime is threadsafe
-    struct tm *newtm = gmtime(&t);
-    if (newtm)
-    {
-        memcpy(dt, newtm, sizeof(struct tm));
-    }
-    else
-    {
-        memset(dt, 0, sizeof(struct tm));
-    }
-#elif _WIN32
-#error "gmtime is not thread safe in this compiler; please use a later one"
-#else //POSIX
+    time_t t = static_cast<time_t>(ttime);
+#ifdef _WIN32
+    gmtime_s(dt, &t);
+#else
     gmtime_r(&t, dt);
 #endif
     return dt;
@@ -2649,7 +2599,7 @@ std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &
     static const unsigned int SZ_1024K = 1l << 20;
     static const unsigned int SZ_128K  = 128l << 10;
 
-    std::unique_ptr<byte[]> buffer(new byte[SZ_1024K + SymmCipher::BLOCKSIZE]);
+    auto buffer = std::make_unique<byte[]>(SZ_1024K + SymmCipher::BLOCKSIZE);
     chunkmac_map chunkMacs;
     unsigned int chunkLength = 0;
     m_off_t current = 0;
@@ -3334,6 +3284,177 @@ bool is_space(unsigned int ch)
 bool is_digit(unsigned int ch)
 {
     return std::isdigit(static_cast<unsigned char>(ch));
+}
+
+std::set<std::string> splitString(const string& str, char delimiter)
+{
+    std::set<std::string> tokens;
+    std::string token;
+    std::istringstream tokenStream(str);
+    while (std::getline(tokenStream, token, delimiter))
+    {
+        tokens.insert(token);
+    }
+
+    return tokens;
+}
+
+std::string escapeWildCards(const std::string& pattern)
+{
+    std::string newString;
+    newString.reserve(pattern.size());
+
+    for (const char& character : pattern)
+    {
+        if (character == WILDCARD_MATCH_ONE || character == WILDCARD_MATCH_ALL)
+        {
+            newString.push_back(ESCAPE_CHARACTER);
+        }
+
+        newString.push_back(character);
+    }
+
+    return newString;
+}
+
+std::set<std::string>::iterator getTagPosition(std::set<std::string>& tokens, const std::string& tag)
+{
+    std::string escapedWidlCards = escapeWildCards(tag.c_str());
+    const uint8_t* pattern = reinterpret_cast<const uint8_t*>(escapedWidlCards.c_str());
+    return std::find_if(tokens.begin(),
+                        tokens.end(),
+                        [pattern](const std::string& token)
+                        {
+                            const uint8_t* tokenU8 =
+                                reinterpret_cast<const uint8_t*>(token.c_str());
+                            return icuLikeCompare(pattern, tokenU8, '\\');
+                        });
+}
+
+// This code has been taken from sqlite repository (https://www.sqlite.org/src/file?name=ext/icu/icu.c)
+
+/*
+** This lookup table is used to help decode the first byte of
+** a multi-byte UTF8 character. It is copied here from SQLite source
+** code file utf8.c.
+*/
+static const unsigned char icuUtf8Trans1[] = {
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+    0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+    0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
+    0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+    0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+    0x00, 0x01, 0x02, 0x03, 0x00, 0x01, 0x00, 0x00,
+};
+
+#define SQLITE_ICU_READ_UTF8(zIn, c)                  \
+c = *(zIn++);                                         \
+    if (c>=0xc0){                                     \
+        c = icuUtf8Trans1[c-0xc0];                    \
+        while ((*zIn & 0xc0)==0x80){                  \
+            c = (c<<6) + (0x3f & *(zIn++));           \
+    }                                                 \
+}
+
+#define SQLITE_ICU_SKIP_UTF8(zIn)                     \
+assert(*zIn);                                         \
+    if (*(zIn++)>=0xc0){                              \
+        while ((*zIn & 0xc0)==0x80){zIn++;}           \
+}
+
+
+int icuLikeCompare(const uint8_t *zPattern,   // LIKE pattern
+                   const uint8_t *zString,    // The UTF-8 string to compare against
+                   const UChar32 uEsc)        // The escape character
+{
+    // Define Linux wildcards
+    static const uint32_t MATCH_ONE = static_cast<uint32_t>(WILDCARD_MATCH_ONE);
+    static const uint32_t MATCH_ALL = static_cast<uint32_t>(WILDCARD_MATCH_ALL);
+
+
+    int prevEscape = 0;     //True if the previous character was uEsc
+
+    while (1)
+    {
+        // Read (and consume) the next character from the input pattern.
+        uint32_t uPattern;
+        SQLITE_ICU_READ_UTF8(zPattern, uPattern);
+        if(uPattern == 0)
+            break;
+
+        /* There are now 4 possibilities:
+        **
+        **     1. uPattern is an unescaped match-all character "*",
+        **     2. uPattern is an unescaped match-one character "?",
+        **     3. uPattern is an unescaped escape character, or
+        **     4. uPattern is to be handled as an ordinary character
+        */
+        if (uPattern == MATCH_ALL && !prevEscape && uPattern != (uint32_t)uEsc)
+        {
+            // Case 1
+            uint8_t c;
+
+            // Skip any MATCH_ALL or MATCH_ONE characters that follow a
+            // MATCH_ALL. For each MATCH_ONE, skip one character in the
+            // test string
+            while ((c = *zPattern) == MATCH_ALL || c == MATCH_ONE)
+            {
+                if (c == MATCH_ONE)
+                {
+                    if (*zString == 0) return 0;
+                    SQLITE_ICU_SKIP_UTF8(zString);
+                }
+
+                zPattern++;
+            }
+
+            if (*zPattern == 0)
+                return 1;
+
+            while (*zString)
+            {
+                if (icuLikeCompare(zPattern, zString, uEsc))
+                {
+                    return 1;
+                }
+
+                SQLITE_ICU_SKIP_UTF8(zString);
+            }
+
+            return 0;
+        }
+        else if (uPattern == MATCH_ONE && !prevEscape && uPattern != (uint32_t)uEsc)
+        {
+            // Case 2
+            if( *zString==0 ) return 0;
+            SQLITE_ICU_SKIP_UTF8(zString);
+
+        }
+        else if (uPattern == (uint32_t)uEsc && !prevEscape)
+        {
+            // Case 3
+            prevEscape = 1;
+
+        }
+        else
+        {
+            // Case 4
+            uint32_t uString;
+            SQLITE_ICU_READ_UTF8(zString, uString);
+            uString = (uint32_t)u_foldCase((UChar32)uString, U_FOLD_CASE_DEFAULT);
+            uPattern = (uint32_t)u_foldCase((UChar32)uPattern, U_FOLD_CASE_DEFAULT);
+            if (uString != uPattern)
+            {
+                return 0;
+            }
+
+            prevEscape = 0;
+        }
+    }
+
+    return *zString == 0;
 }
 
 // Get the current process ID

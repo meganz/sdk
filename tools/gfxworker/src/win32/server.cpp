@@ -1,4 +1,4 @@
-#include "server_win32.h"
+#include "win32/server.h"
 #include "processor.h"
 
 #include "mega/logging.h"
@@ -129,7 +129,7 @@ void ServerWin32::serverListeningLoop()
         }
         else if (mRequestProcessor)
         {
-            stopRunning = mRequestProcessor->process(mega::make_unique<ServerNamedPipe>(hPipe));
+            stopRunning = mRequestProcessor->process(std::make_unique<ServerNamedPipe>(hPipe));
         }
 
         if (stopRunning)

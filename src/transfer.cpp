@@ -1768,7 +1768,7 @@ bool DirectReadSlot::doio()
 
                         if (!req)
                         {
-                            mReqs[connectionNum] = make_unique<HttpReq>(true);
+                            mReqs[connectionNum] = std::make_unique<HttpReq>(true);
                         }
 
                         if (!mDr->drbuf.isRaid())
@@ -1952,7 +1952,7 @@ DirectReadSlot::DirectReadSlot(DirectRead* cdr)
     assert(mDr->drbuf.isRaid() ? (numReqs == RAIDPARTS) : 1);
     for (size_t i = numReqs; i--; )
     {
-        mReqs.push_back(make_unique<HttpReq>(true));
+        mReqs.push_back(std::make_unique<HttpReq>(true));
         mReqs.back()->status = REQ_READY;
         mReqs.back()->type = REQ_BINARY;
     }

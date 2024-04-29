@@ -2608,9 +2608,8 @@ bool MegaApi::contactVerificationWarningEnabled()
     return pImpl->contactVerificationWarningEnabled();
 }
 
-void MegaApi::setSecureFlag(bool enable)
+void MegaApi::setSecureFlag([[maybe_unused]] bool enable)
 {
-    pImpl->setSecureFlag(enable);
 }
 
 void MegaApi::setManualVerificationFlag(bool enable)
@@ -6832,6 +6831,14 @@ void MegaSearchFilter::byModificationTime(int64_t /*lowerLimit*/, int64_t /*uppe
 {
 }
 
+void MegaSearchFilter::byDescription(const char* /*searchString*/)
+{
+}
+
+void MegaSearchFilter::byTag(const char* /*searchString*/)
+{
+}
+
 const char* MegaSearchFilter::byName() const
 {
     return nullptr;
@@ -6880,6 +6887,16 @@ int64_t MegaSearchFilter::byModificationTimeLowerLimit() const
 int64_t MegaSearchFilter::byModificationTimeUpperLimit() const
 {
     return 0;
+}
+
+const char* MegaSearchFilter::byDescription() const
+{
+    return nullptr;
+}
+
+const char* MegaSearchFilter::byTag() const
+{
+    return nullptr;
 }
 
 MegaSearchPage::MegaSearchPage()
@@ -7847,7 +7864,7 @@ MegaVpnCredentials* MegaVpnCredentials::copy() const
 }
 /* MegaVpnCredentials END */
 
-MegaNodeTree* MegaNodeTree::createInstance(MegaNodeTree* nodeTreeChild,
+MegaNodeTree* MegaNodeTree::createInstance(const MegaNodeTree* nodeTreeChild,
                                            const char* name,
                                            const char* s4AttributeValue,
                                            const MegaCompleteUploadData* completeUploadData,
@@ -7873,12 +7890,15 @@ MegaCompleteUploadData* MegaCompleteUploadData::createInstance(const char* finge
 MegaGfxProvider::~MegaGfxProvider() = default;
 
 MegaGfxProvider* MegaGfxProvider::createIsolatedInstance(
-    const char* pipeName,
+    const char* endpointName,
     const char* executable)
 {
+    if (!endpointName || !executable) return nullptr;
+
     auto provider = MegaGfxProviderPrivate::createIsolatedInstance(
-        std::string(pipeName ? pipeName : ""),
-        std::string(executable ? executable : ""));
+        std::string(endpointName),
+        std::string(executable)
+    );
 
     return provider.release();
 }

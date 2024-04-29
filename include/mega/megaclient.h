@@ -288,7 +288,6 @@ public:
 
     // --- Getters / Setters ----
 
-    bool isSecure() const { return mSecure; }
     uint32_t generation() const;
     string privEd25519() const;
     string privCu25519() const;
@@ -336,9 +335,6 @@ public:
 
     // Enable/disable the warnings for shares with non-verified contacts.
     void setContactVerificationWarning(bool enabled);
-
-    // this method allows to change the feature-flag for testing purposes
-    void setSecureFlag(bool enabled) { mSecure = enabled; }
 
     // this method allows to change the manual verification feature-flag for testing purposes
     void setManualVerificationFlag(bool enabled) { mManualVerification = enabled; }
@@ -390,9 +386,6 @@ private:
 
     // key used to encrypt/decrypt the ^!keys attribute (derived from Master Key)
     SymmCipher mKey;
-
-    // client is considered to exchange keys in a secure way (requires credential's verification)
-    bool mSecure = true;
 
     // true if user needs to manually verify contact's credentials to encrypt/decrypt share keys
     bool mManualVerification = false;
@@ -753,6 +746,8 @@ public:
     static constexpr char NODE_ATTRIBUTE_DESCRIPTION[] = "des";
     static constexpr char NODE_ATTRIBUTE_TAGS[] = "t";
     static constexpr char TAG_DELIMITER = ',';
+    static constexpr uint32_t MAX_NUMBER_TAGS = 10;
+    static constexpr uint32_t MAX_TAGS_SIZE = 3000;
 
     // update node attributes
     error setattr(std::shared_ptr<Node>, attr_map&& updates, CommandSetAttr::Completion&& c, bool canChangeVault);
@@ -766,11 +761,6 @@ public:
     error addTagToNode(std::shared_ptr<Node> node, const std::string& tag, CommandSetAttr::Completion&& c);
     error removeTagFromNode(std::shared_ptr<Node> node, const std::string& tag, CommandSetAttr::Completion&& c);
     error updateTagNode(std::shared_ptr<Node>, const std::string& newTag, const std::string& oldTag, CommandSetAttr::Completion&& c);
-
-    static std::set<std::string> splitString(const std::string& str, char delimiter);
-private:
-    template<typename Iter>
-    static std::string joinStrings(const Iter begin, const Iter end, const std::string& separator);
 
 public:
     // check node access level
@@ -1837,10 +1827,8 @@ public:
     // send updates to app when the storage size changes
     int64_t mNotifiedSumSize = 0;
 
-    // TODO: obsolete if "secure"
     // asymmetric to symmetric key rewriting
     handle_vector nodekeyrewrite;
-    handle_vector sharekeyrewrite;
 
     static const char* const EXPORTEDLINK;
 
@@ -2150,9 +2138,6 @@ public:
 
     // apply keys
     void applykeys();
-
-    // send andy key rewrites prepared when keys were applied
-    void sendkeyrewrites();
 
     // symmetric password challenge
     int checktsid(byte* sidbuf, unsigned len);

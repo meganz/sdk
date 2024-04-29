@@ -4221,23 +4221,6 @@ typedef NS_ENUM(NSInteger, AdsFlag) {
  */
 - (void)openShareDialog:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
 
-/**
- * @brief Allows to change the hardcoded value of the "secure" flag
- *
- * With this feature flag set, the client will manage encryption keys for
- * shared folders in a secure way. Legacy clients won't be able to decrypt
- * shared folders created with this flag enabled.
- *
- * Manual verification of credentials of users (both sharers AND sharees) is
- * required in order to decrypt shared folders correctly.
- *
- * @note This flag should be changed before login+fetchnodes. Otherwise, it may
- * result on unexpected behavior.
- *
- * @param enable New value of the flag
- */
-- (void)setShareSecureFlag:(BOOL)enable;
-
 #pragma mark - Attributes Requests
 
 /**

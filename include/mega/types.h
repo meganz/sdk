@@ -53,14 +53,8 @@ typedef char __static_check_01__[sizeof(bool) == sizeof(char) ? 1 : -1];
 typedef int64_t m_off_t;
 
 namespace mega {
-
-// within ::mega namespace, byte is unsigned char (avoids ambiguity when std::byte from c++17 and perhaps other defined ::byte are available)
-#if defined(USE_CRYPTOPP) && (CRYPTOPP_VERSION >= 600) && ((__cplusplus >= 201103L) || (__RPCNDR_H_VERSION__ == 500))
-using byte = CryptoPP::byte;
-#elif __RPCNDR_H_VERSION__ != 500
-typedef unsigned char byte;
-
-#endif
+    // within ::mega namespace, byte is unsigned char (avoids ambiguity when std::byte from c++17 and perhaps other defined ::byte are available)
+    using byte = unsigned char;
 }
 
 #ifdef USE_CRYPTOPP
@@ -564,7 +558,6 @@ enum WatchResult
 typedef set<Node*> node_set;
 
 // enumerates a node's children
-// FIXME: switch to forward_list once C++11 becomes more widely available
 typedef list<std::shared_ptr<Node> > sharedNode_list;
 
 // undefined node handle
@@ -888,16 +881,6 @@ typedef enum {
     REASON_ERROR_DB_FULL            = 3,
     REASON_ERROR_DB_INDEX_OVERFLOW  = 4,
 } ErrorReason;
-
-// inside 'mega' namespace, since use C++11 and can't rely on C++14 yet, provide make_unique for the most common case.
-// This keeps our syntax small, while making sure the compiler ensures the object is deleted when no longer used.
-// Sometimes there will be ambiguity about std::make_unique vs mega::make_unique if cpp files "use namespace std", in which case specify ::mega::.
-// It's better that we use the same one in older and newer compilers so we detect any issues.
-template<class T, class... constructorArgs>
-unique_ptr<T> make_unique(constructorArgs&&... args)
-{
-    return (unique_ptr<T>(new T(std::forward<constructorArgs>(args)...)));
-}
 
 //#define MEGA_MEASURE_CODE   // uncomment this to track time spent in major subsystems, and log it every 2 minutes, with extra control from megacli
 
@@ -1398,14 +1381,10 @@ public:
 
     void unlock()
     {
-        auto id = std::this_thread::get_id();
-
-        assert(mOwner == id);
+        assert(mOwner == std::this_thread::get_id());
 
         mOwner = std::thread::id();
         mMutex.unlock();
-
-        static_cast<void>(id);
     }
 }; // CheckableMutex<T, false>
 
@@ -1468,19 +1447,15 @@ public:
 
     void unlock()
     {
-        auto id = std::this_thread::get_id();
-
         std::lock_guard<Spinlock> guard(mLock);
 
         assert(mCount);
-        assert(mOwner == id);
+        assert(mOwner == std::this_thread::get_id());
 
         if (!--mCount)
             mOwner = std::thread::id();
 
         mMutex.unlock();
-
-        static_cast<void>(id);
     }
 }; // CheckableMutex<T, true>
 

@@ -32,6 +32,9 @@
 #include "mega/mega_utf8proc.h"
 #undef SSIZE_MAX
 
+// Include ICU headers
+#include <unicode/uchar.h>
+
 namespace mega {
 // convert 1...8 character ID to int64 integer (endian agnostic)
 #define MAKENAMEID1(a) (nameid)(a)
@@ -256,8 +259,6 @@ struct MEGA_API MemAccess
 };
 
 #ifdef _WIN32
-int mega_snprintf(char *s, size_t n, const char *format, ...);
-
 // get the Windows error message in UTF-8
 std::string winErrorMessage(DWORD error);
 
@@ -490,9 +491,6 @@ public:
     static void setenv(const std::string& key, const std::string& value);
     static void unsetenv(const std::string& key);
 };
-
-// for pre-c++11 where this version is not defined yet.
-long long abs(long long n);
 
 extern m_time_t m_time(m_time_t* tt = NULL);
 extern struct tm* m_localtime(m_time_t, struct tm *dt);
@@ -935,7 +933,7 @@ public:
             return false;
         }
 
-        (void)get();
+        get();
 
         return true;
     }
@@ -1078,6 +1076,39 @@ const char* toString(retryreason_t reason);
 // Not considering EOF values
 bool is_space(unsigned int ch);
 bool is_digit(unsigned int ch);
+
+std::set<std::string> splitString(const std::string& str, char delimiter);
+
+template<typename Iter>
+std::string joinStrings(const Iter begin, const Iter end, const std::string& separator)
+{
+    Iter position = begin;
+    std::string result;
+    if (position != end)
+    {
+        result += *position++;
+    }
+
+    while (position != end)
+    {
+        result += separator + *position++;
+    }
+    return result;
+}
+
+static constexpr char WILDCARD_MATCH_ONE = '?';
+static constexpr char WILDCARD_MATCH_ALL = '*';
+static constexpr char ESCAPE_CHARACTER = '\\';
+
+std::string escapeWildCards(const std::string& pattern);
+
+std::set<std::string>::iterator getTagPosition(std::set<std::string>& tokens, const std::string& tag);
+
+// Check if two string (possible multibyte characters) are equal without take account if they are lower or higher case
+// 1 if they are equal
+int icuLikeCompare(const uint8_t* zPattern, /* LIKE pattern */
+                   const uint8_t* zString, /* The UTF-8 string to compare against */
+                   const UChar32 uEsc); /* The escape character */
 
 // Get the current process ID
 unsigned long getCurrentPid();

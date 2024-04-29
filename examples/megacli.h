@@ -352,7 +352,6 @@ void exec_putbps(autocomplete::ACState& s);
 void exec_killsession(autocomplete::ACState& s);
 void exec_whoami(autocomplete::ACState& s);
 void exec_verifycredentials(autocomplete::ACState& s);
-void exec_secure(autocomplete::ACState& s);
 void exec_manualverif(autocomplete::ACState &s);
 void exec_passwd(autocomplete::ACState& s);
 void exec_reset(autocomplete::ACState& s);
@@ -402,10 +401,8 @@ void exec_quit(autocomplete::ACState& s);
 void exec_find(autocomplete::ACState& s);
 void exec_nodedescription(autocomplete::ACState& s);
 void exec_nodeTag(autocomplete::ACState& s);
-#ifdef USE_FILESYSTEM
 void exec_treecompare(autocomplete::ACState& s);
 void exec_querytransferquota(autocomplete::ACState& s);
-#endif
 void exec_metamac(autocomplete::ACState& s);
 void exec_resetverifiedphonenumber(autocomplete::ACState& s);
 void exec_banner(autocomplete::ACState& s);

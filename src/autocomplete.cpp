@@ -27,26 +27,9 @@
 #include <algorithm>
 
 #if !defined(__MINGW32__) && !defined(__ANDROID__) && (!defined(__GNUC__) || (__GNUC__*100+__GNUC_MINOR__) >= 503)
-
-#define HAVE_FILESYSTEM
-
-#if (__cplusplus >= 201700L)
-    #if __has_include(<filesystem>)
-        #include <filesystem>
-        namespace fs = std::filesystem;
-    #else
-        #include <experimental/filesystem>
-        namespace fs = std::experimental::filesystem;
-    #endif
-#else
-#ifdef WIN32
+    #define HAVE_FILESYSTEM
     #include <filesystem>
-    namespace fs = std::experimental::filesystem;
-#else
-    #include <experimental/filesystem>
-    namespace fs = std::experimental::filesystem;
-#endif
-#endif
+    namespace fs = std::filesystem;
 #endif
 
 namespace mega {

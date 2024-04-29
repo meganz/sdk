@@ -11,6 +11,7 @@ set(SDKLIB_HEADERS
     include/megaapi_impl.h
     include/mega/transferslot.h
     include/mega/thread/libuvthread.h
+    include/mega/scoped_timer.h
     include/mega/command.h
     include/mega/thread.h
     include/mega/json.h
@@ -42,12 +43,6 @@ set(SDKLIB_HEADERS
     include/mega/gfx/freeimage.h
     include/mega/gfx/gfx_pdfium.h
     include/mega/gfx/external.h
-    include/mega/gfx/isolatedprocess.h
-    include/mega/gfx/worker/tasks.h
-    include/mega/gfx/worker/commands.h
-    include/mega/gfx/worker/comms.h
-    include/mega/gfx/worker/command_serializer.h
-    include/mega/gfx/worker/client.h
     include/mega/pubkeyaction.h
     include/mega/mega_http_parser.h
     include/mega/waiter.h
@@ -99,9 +94,6 @@ set(SDKLIB_SOURCES
     src/gfx/external.cpp
     src/gfx/freeimage.cpp
     src/gfx/gfx_pdfium.cpp
-    src/gfx/worker/client.cpp
-    src/gfx/worker/commands.cpp
-    src/gfx/worker/command_serializer.cpp
     src/http.cpp
     src/json.cpp
     src/logging.cpp
@@ -187,9 +179,36 @@ target_sources_conditional(SDKlib
     PRIVATE
     include/mega/win32/gfx/worker/comms.h
     include/mega/win32/gfx/worker/comms_client.h
-    src/gfx/isolatedprocess.cpp # only windows ATM
     src/win32/gfx/worker/comms.cpp
     src/win32/gfx/worker/comms_client.cpp
+)
+
+target_sources_conditional(SDKlib
+    FLAG UNIX AND ENABLE_ISOLATED_GFX
+    PRIVATE
+    include/mega/posix/gfx/worker/comms.h
+    include/mega/posix/gfx/worker/comms_client.h
+    include/mega/posix/gfx/worker/socket_utils.h
+    src/posix/gfx/worker/comms.cpp
+    src/posix/gfx/worker/comms_client.cpp
+    src/posix/gfx/worker/socket_utils.cpp
+)
+
+target_sources_conditional(SDKlib
+    FLAG ENABLE_ISOLATED_GFX
+    PRIVATE
+    include/mega/gfx/isolatedprocess.h
+    include/mega/gfx/worker/tasks.h
+    include/mega/gfx/worker/commands.h
+    include/mega/gfx/worker/comms.h
+    include/mega/gfx/worker/command_serializer.h
+    include/mega/gfx/worker/client.h
+    include/mega/gfx/worker/comms_client_common.h
+    include/mega/gfx/worker/comms_client.h
+    src/gfx/isolatedprocess.cpp
+    src/gfx/worker/client.cpp
+    src/gfx/worker/commands.cpp
+    src/gfx/worker/command_serializer.cpp
 )
 
 target_sources_conditional(SDKlib

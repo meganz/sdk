@@ -101,10 +101,8 @@ class MegaNotificationList;
 
 #if defined(SWIG)
     #define MEGA_DEPRECATED
-#elif defined(WIN32)
-    #define MEGA_DEPRECATED [[deprecated]]
 #else
-    #define MEGA_DEPRECATED
+    #define MEGA_DEPRECATED [[deprecated]]
 #endif
 
 /**
@@ -273,12 +271,12 @@ public:
     /**
     * @brief Create a graphics processor that implemented and run in an isolated process.
     *
-    * Note: Currently, only Windows is supported.
+    * Note: Windows, Linux are supported.
     *
-    * @param pipeName The unique named pipe's name used for communicating with the isolated process.
+    * @param endpointName The unique name used for communicating with the isolated process.
     * @param executable The executable path.
     */
-    static MegaGfxProvider* createIsolatedInstance(const char* pipeName,
+    static MegaGfxProvider* createIsolatedInstance(const char* endpointName,
                                                    const char* executable);
 
     /**
@@ -9504,6 +9502,23 @@ public:
     virtual void byModificationTime(int64_t lowerLimit, int64_t upperLimit);
 
     /**
+     * @brief Set option for filtering by contains in description.
+     *
+     * @param searchString Contains string to be searched at nodes description
+     */
+    virtual void byDescription(const char* searchString);
+
+    /**
+     * @brief Set option for filtering by tag
+     *
+     * @note ',' is an invalid character, it shouldn't be used as part of searchString. If used,
+     * empty list will be returned
+     *
+     * @param searchString Contains string to be searched at nodes tags
+     */
+    virtual void byTag(const char* searchString);
+
+    /**
      * @brief Return the string used for filtering by name.
      *
      * @return string set for filtering by name, or empty string ("") if not set
@@ -9572,6 +9587,20 @@ public:
      * @return upper limit modification timestamp set for restricting node search to, or 0 if not set
      */
     virtual int64_t byModificationTimeUpperLimit() const;
+
+    /**
+     * @brief Return the string used for filtering by description.
+     *
+     * @return string set for filtering by description, or empty string ("") if not set
+     */
+    virtual const char* byDescription() const;
+
+    /**
+     * @brief Return the string used for filtering by tag.
+     *
+     * @return string set for filtering by tag, or empty string ("") if not set
+     */
+    virtual const char* byTag() const;
 };
 
 /**
@@ -9631,10 +9660,10 @@ protected:
 
 public:
     virtual ~MegaNodeTree() = default;
-    static MegaNodeTree* createInstance(MegaNodeTree* nodeTreeChild,                      // takes ownership !
-                                        const char* name,                                 // ownership left with the caller
-                                        const char* s4AttributeValue,                     // ownership left with the caller
-                                        const MegaCompleteUploadData* completeUploadData, // takes ownership !
+    static MegaNodeTree* createInstance(const MegaNodeTree* nodeTreeChild,
+                                        const char* name,
+                                        const char* s4AttributeValue,
+                                        const MegaCompleteUploadData* completeUploadData,
                                         MegaHandle sourceHandle = INVALID_HANDLE);
     virtual MegaNodeTree* getNodeTreeChild() const = 0;
     virtual MegaHandle getNodeHandle() const = 0;
@@ -9968,6 +9997,7 @@ class MegaApi
 
         static constexpr int64_t INVALID_CUSTOM_MOD_TIME = -1;
         static constexpr int CHAT_OPTIONS_EMPTY = 0;
+        static constexpr int MAX_NODE_DESCRIPTION_SIZE = 3000;
 
         /**
          * @brief Constructor suitable for most applications
@@ -12467,23 +12497,11 @@ class MegaApi
          */
         bool contactVerificationWarningEnabled();
 
-        /**
-         * @brief Allows to change the hardcoded value of the "secure" flag
-         *
-         * With this feature flag set, the client will manage encryption keys exchange for
-         * shared folders in a secure way. Legacy clients won't be able to decrypt
-         * shared folders created with this flag enabled.
-         *
-         * Manual verification of credentials of users (both sharers AND sharees) is
-         * required in order to decrypt shared folders correctly if, also, the
-         * "Manual Verification" flag is set to true.
-         * @see MegaApi::setManualVerification for more information.
-         *
-         * @note This flag should be changed before login+fetchnodes. Otherwise, it may
-         * result on unexpected behavior.
-         *
-         * @param enable New value of the flag
-         */
+       /**
+        * @deprecated This function no longer does anything, and calls to it
+        * can simply be removed
+        */
+        MEGA_DEPRECATED
         void setSecureFlag(bool enable);
 
         /**
@@ -13638,6 +13656,9 @@ class MegaApi
          * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_DESCRIPTION
          * - MegaRequest::getText - Returns node description
          *
+         * If the size of the description is greater than MAX_NODE_DESCRIPTION_SIZE, onRequestFinish will be
+         * called with the error code MegaError::API_EARGS.
+         *
          * If the MEGA account is a business account and its status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
@@ -13662,7 +13683,13 @@ class MegaApi
          * ',' is an invalid character to be used in a tag. If it is contained in the tag,
          * onRequestFinish will be called with the error code MegaError::API_EARGS.
          *
+         * If the length of all tags is higher than 3000 onRequestFinish will be called with
+         * the error code MegaError::API_EARGS
+         *
          * If tag already exists, onRequestFinish will be called with the error code MegaError::API_EEXISTS
+         *
+         * If number of tags exceed the maximum number of tags (10),
+         * onRequestFinish will be called with the error code MegaError::API_ETOOMANY
          *
          * If the MEGA account is a business account and its status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.
@@ -13705,6 +13732,9 @@ class MegaApi
          *
          * ',' is an invalid character to be used in a tag. If it is contained in the tag,
          * onRequestFinish will be called with the error code MegaError::API_EARGS.
+         *
+         * If the length of all tags is higher than 3000 characters onRequestFinish will be called with
+         * the error code MegaError::API_EARGS
          *
          * If newTag already exists, onRequestFinish will be called with the error code MegaError::API_EEXISTS
          * If oldTag doesn't exist, onRequestFinish will be called with the error code MegaError::API_ENOENT

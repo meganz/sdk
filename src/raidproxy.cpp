@@ -650,15 +650,18 @@ m_off_t PartFetcher::progress() const
     progressCount = totalReadAhead +
                     reqsProgress +
                     rr->mPartpos[part]; // Consecutive part data for not completed raidlines (i.e., other parts still not finished)
-    if (progressCount &&
-        (mPos + reqsProgress) == rr->mPaddedpartsize)
+    if (progressCount)
     {
         // Parts are padded to paddedpartsize, so we can only count as much as sourcesize (which is the real data size for that part).
-        assert(part != rr->unusedPart()); // If there is progress, it shouldn't be the unused part
-        auto partIndex = part == 0 ? rr->unusedPart() : part; // Parity must get the sourcesize of the unused part (for example, if part 5 is the unused, it can be smaller than part 0, so we must adjust the progress)
-        m_off_t paddedOffsetToSubstract = rr->mPaddedpartsize - rr->mFetcher[partIndex].mSourcesize;
-        progressCount -= paddedOffsetToSubstract;
-        assert ((progressCount + (rr->mDataline * RAIDSECTOR)) == rr->mFetcher[partIndex].mSourcesize);
+        assert(part != rr->unusedPart()); // If there is progress, this part shouldn't be the unused one.
+        auto partIndex = part == 0 ? rr->unusedPart() : part; // Parity must get the sourcesize of the unused part (for example, if part 5 is the unused one, it can be smaller than part 0, so we must adjust the progress)
+        m_off_t paddedOffsetToSubtract = (mPos + reqsProgress) - rr->mFetcher[partIndex].mSourcesize;
+        if (paddedOffsetToSubtract > 0) // The current position is above the source size, subtract it.
+        {
+            assert((mPos + reqsProgress) <= rr->mPaddedpartsize);
+            progressCount -= paddedOffsetToSubtract;
+            assert ((progressCount + (rr->mDataline * RAIDSECTOR)) == rr->mFetcher[partIndex].mSourcesize);
+        }
     }
     assert(progressCount >= 0);
     return progressCount;
@@ -1169,10 +1172,6 @@ m_off_t RaidReq::readdata(byte* buf, m_off_t len)
                         mReported = true;
                         LOG_warn << "CloudRAID feed stuck [lastDataTime = " << (lastDataOffset/10) << " secs, haddata = " << mHaddata << "] [hangingSources = " << (int)hanging << "] [this = " << this << "]";
                     }
-                }
-                else
-                {
-                    LOG_verbose << "CloudRAID reached soft limit for reporting feed stuck, but there are no hanging sources, so limit is increased to hard limit [lastDataTime = " << (lastDataOffset/10) << " secs, haddata = " << mHaddata << "] [soft limit = " << (LASTDATA_DSTIME_FOR_REPORTING_FEED_STUCK/10) << " secs, hard limit = " << (LASTDATA_DSTIME_FOR_REPORTING_FEED_STUCK_WITH_NO_HANGING_SOURCES/10) << " secs] [this = " << this << "]";
                 }
             }
         }
