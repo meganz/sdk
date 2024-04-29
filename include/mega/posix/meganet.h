@@ -19,8 +19,7 @@
  * program.
  */
 
-#ifndef HTTPIO_CLASS
-#define HTTPIO_CLASS CurlHttpIO
+#pragma once
 
 #include "mega.h"
 
@@ -294,5 +293,3 @@ struct MEGA_API CurlDNSEntry
 };
 
 } // namespace
-
-#endif

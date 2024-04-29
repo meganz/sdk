@@ -9986,7 +9986,7 @@ int main(int argc, char* argv[])
 
     fsAccess.reset();
 
-    auto httpIO = new HTTPIO_CLASS;
+    auto httpIO = new CurlHttpIO;
 
 #ifdef WIN32
     auto waiter = std::make_shared<CONSOLE_WAIT_CLASS>(static_cast<CONSOLE_CLASS*>(console));
