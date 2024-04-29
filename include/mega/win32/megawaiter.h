@@ -35,8 +35,6 @@ class MEGA_API WinWaiter : public Waiter
     size_t index = 0;
 
 public:
-    PCRITICAL_SECTION pcsHTTP;
-
     int wait();
 
     bool addhandle(HANDLE handle, int);
