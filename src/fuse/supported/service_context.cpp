@@ -104,14 +104,14 @@ ErrorOr<InodeInfo> ServiceContext::describe(const NormalizedPath& path) const
 
     // No enabled mount contains this path.
     if (!mount)
-        return API_ENOENT;
+        return unexpected(API_ENOENT);
 
     // Try and locate the inode associated with this path.
     auto result = mInodeDB.lookup(relativePath, mount->mHandle);
 
     // We couldn't find the inode.
     if (result.second != API_OK)
-        return result.second;
+        return unexpected(result.second);
 
     // Retrieve the inode's description.
     auto info = result.first->info();

@@ -398,8 +398,8 @@ TEST_F(FUSEMountTests, disable_when_source_removed)
     ASSERT_TRUE(result == API_ENOENT || result == API_OK);
 
     auto handle = ClientW()->makeDirectory("t", "/");
-    ASSERT_EQ(handle.error(), API_OK);
-    ASSERT_EQ(ClientW()->makeDirectory("sentinel", "/t").error(), API_OK);
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+    ASSERT_EQ(ClientW()->makeDirectory("sentinel", "/t").errorOr(API_OK), API_OK);
 
     MountInfo mount;
 
@@ -527,7 +527,7 @@ TEST_F(FUSEMountTests, enable_fails_when_source_is_unknown)
     ASSERT_TRUE(result == API_ENOENT || result == API_OK);
 
     auto handle = ClientW()->makeDirectory("t", "/");
-    ASSERT_EQ(handle.error(), API_OK);
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
 
     MountInfo mount;
 

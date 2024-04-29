@@ -576,7 +576,7 @@ ErrorOr<NodeInfo> ClientAdapter::get(NodeHandle handle) const
 
     // Client's being torn down.
     if (mDeinitialized)
-        return API_ENOENT;
+        return unexpected(API_ENOENT);
 
     // Acquire RNT lock.
     std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
@@ -586,7 +586,7 @@ ErrorOr<NodeInfo> ClientAdapter::get(NodeHandle handle) const
 
     // Node doesn't exist.
     if (!node)
-        return API_ENOENT;
+        return unexpected(API_ENOENT);
 
     // Return description to caller.
     return describe(*node);
@@ -600,7 +600,7 @@ ErrorOr<NodeInfo> ClientAdapter::get(NodeHandle parent,
 
     // Client's being torn down.
     if (mDeinitialized)
-        return API_ENOENT;
+        return unexpected(API_ENOENT);
 
     // Acquire RNT lock.
     std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
@@ -610,7 +610,7 @@ ErrorOr<NodeInfo> ClientAdapter::get(NodeHandle parent,
         return describe(*node);
 
     // Parent or child doesn't exist.
-    return API_ENOENT;
+    return unexpected(API_ENOENT);
 }
 
 NodeHandle ClientAdapter::handle(NodeHandle parent,
@@ -683,7 +683,7 @@ void ClientAdapter::makeDirectory(MakeDirectoryCallback callback,
                    const Task& task) {
         // Client's being torn down.
         if (task.cancelled())
-            return callback(API_EINCOMPLETE);
+            return callback(unexpected(API_EINCOMPLETE));
 
         NewNodeVector nodes(1);
 
@@ -697,7 +697,7 @@ void ClientAdapter::makeDirectory(MakeDirectoryCallback callback,
                           Error result) {
             // Couldn't make the directory.
             if (result != API_OK)
-                return callback(result);
+                return callback(unexpected(result));
 
             // Convenience.
             auto handle = NodeHandle().set6byte(nodes[0].mAddedHandle);
@@ -707,7 +707,7 @@ void ClientAdapter::makeDirectory(MakeDirectoryCallback callback,
 
             // Node doesn't exist.
             if (!node)
-                return callback(API_EINTERNAL);
+                return callback(unexpected(API_EINTERNAL));
 
             // Transmit node's description to caller.
             callback(describe(*node));
@@ -934,14 +934,14 @@ void ClientAdapter::storageInfo(StorageInfoCallback callback)
                               const Task& task) {
         // Client's being torn down.
         if (task.cancelled())
-            return callback(API_EINCOMPLETE);
+            return callback(unexpected(API_EINCOMPLETE));
 
         // Forward result to user callback.
         auto retrieved = [=](StorageInfoCallback& callback,
                             const StorageInfo& info,
                             Error result) {
             if (result != API_OK)
-                return callback(result);
+                return callback(unexpected(result));
 
             callback(info);
         }; // retrieved
@@ -1395,7 +1395,7 @@ void ClientUpload::bound(BoundCallback callback,
                          Error result)
 {
     // Assume we couldn't bind the content to a name.
-    ErrorOr<NodeHandle> handle = result;
+    ErrorOr<NodeHandle> handle = unexpected(result);
 
     // Mark upload as having been completed.
     mStatus.store(SF_COMPLETED);
@@ -1480,7 +1480,7 @@ void ClientUpload::terminated(mega::error result)
     mStatus |= SF_COMPLETED;
 
     // Let the user know the upload failed.
-    mCallback(mResult);
+    mCallback(unexpected(mResult));
 
     // Let ourselves be destroyed.
     mSelf.reset();

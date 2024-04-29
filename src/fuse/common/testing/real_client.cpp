@@ -325,7 +325,7 @@ ErrorOr<std::string> RealClient::prelogin(const std::string& email)
     auto completion = [notifier](error result, std::string* salt) {
         // Couldn't perform prelogin.
         if (result != API_OK)
-            return notifier->set_value(result);
+            return notifier->set_value(unexpected(result));
 
         // Transmit salt to caller.
         notifier->set_value(*salt);
@@ -516,7 +516,7 @@ auto RealClient::invite(const std::string& email) -> ErrorOr<InvitePtr>
             return notifier->set_value(std::make_unique<RealInvite>(*this, id));
 
         // Couldn't send invitation.
-        notifier->set_value(result);
+        notifier->set_value(unexpected(result));
     }; // invited
 
     // Send the invite.

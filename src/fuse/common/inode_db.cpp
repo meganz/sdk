@@ -1064,7 +1064,7 @@ ErrorOr<MakeInodeResult> InodeDB::makeDirectory(const platform::Mount&,
 
     // Couldn't create the directory.
     if (!result)
-        return result.error();
+        return unexpected(result.error());
 
     // Convenience.
     auto info = std::move(*result);
@@ -1103,7 +1103,7 @@ ErrorOr<MakeInodeResult> InodeDB::makeFile(const platform::Mount& mount,
 
     // Couldn't add a new file to the cache.
     if (!fileInfo)
-        return fileInfo.error();
+        return unexpected(fileInfo.error());
 
     // Create a description of our new file.
     NodeInfo info;

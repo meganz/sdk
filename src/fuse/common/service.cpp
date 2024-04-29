@@ -70,7 +70,7 @@ ErrorOr<InodeInfo> Service::describe(const NormalizedPath& path) const
     if (mContext)
         return mContext->describe(path);
 
-    return API_ENOENT;
+    return unexpected(API_ENOENT);
 }
 
 void Service::disable(MountDisabledCallback callback,
