@@ -10006,7 +10006,7 @@ int main(int argc, char* argv[])
     auto clientType = getClientTypeFromArgs(config.clientType);
 
     // instantiate app components: the callback processor (DemoApp),
-    // the HTTP I/O engine (WinHttpIO) and the MegaClient itself
+    // the HTTP I/O engine and the MegaClient itself
     client = new MegaClient(demoApp,
                             waiter,
                             httpIO,
