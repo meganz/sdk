@@ -77,8 +77,19 @@ void DatabaseBuilder::downgrade(std::size_t target)
         auto* i = &downgrades[current];
         auto* j = &downgrades[target];
 
-        for ( ; i > j; --i)
+        for (; i > j; --current, --i)
+        {
+            assert(*i);
+
+            FUSEDebugF("Downgrading database to version %zu", current - 1);
+
             (*i)(query);
+
+            query = "delete from version where version = :version";
+
+            query.param(":version") = current;
+            query.execute();
+        }
     });
 }
 
