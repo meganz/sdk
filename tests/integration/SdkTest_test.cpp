@@ -2068,12 +2068,11 @@ void SdkTest::synchronousMediaUpload(unsigned int apiIndex, int64_t fileSize, co
     ASSERT_NE(nullptr, url) << "Got NULL media upload URL";
     ASSERT_NE('\0', url[0]) << "Got empty media upload URL";
 
-    // encrypt file contents and get URL suffix
+    // encrypt file contents with the file key and get URL suffix
     std::unique_ptr<char[]> suffix(req->encryptFile(filename, 0, &fileSize, fileEncrypted, false));
     ASSERT_NE(nullptr, suffix) << "Got NULL suffix after encryption";
 
-    std::unique_ptr<char[]> fingerprint(megaApi[apiIndex]->getFingerprint(fileEncrypted));
-    std::unique_ptr<char[]> fingerprintOrig(megaApi[apiIndex]->getFingerprint(filename));
+    std::unique_ptr<char[]> fingerprint(megaApi[apiIndex]->getFingerprint(filename));
 
     // PUT thumbnail and preview if params exists
     if (fileThumbnail)
@@ -2100,7 +2099,7 @@ void SdkTest::synchronousMediaUpload(unsigned int apiIndex, int64_t fileSize, co
 
     std::unique_ptr<char[]> base64UploadToken(megaApi[0]->binaryToBase64(binaryUploadToken.data(), binaryUploadToken.length()));
 
-    err = synchronousMediaUploadComplete(apiIndex, req.get(), fileOutput, rootnode.get(), fingerprint.get(), fingerprintOrig.get(), base64UploadToken.get(), nullptr);
+    err = synchronousMediaUploadComplete(apiIndex, req.get(), fileOutput, rootnode.get(), fingerprint.get(), nullptr, base64UploadToken.get(), nullptr);
 
     ASSERT_EQ(API_OK, err) << "Cannot complete media upload (error: " << err << ")";
 }
