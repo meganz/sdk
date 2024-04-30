@@ -434,7 +434,7 @@ Error Client::login(std::size_t accountIndex)
         return API_EFAILED;
 
     // Extract email, password from environment.
-    auto [email, password] = getEnvVarAccounts().getVarValues(accountIndex);
+    const auto [email, password] = getEnvVarAccounts().getVarValues(accountIndex);
 
     // Email and/or password isn't present.
     if (email.empty() || password.empty())

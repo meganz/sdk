@@ -1900,15 +1900,17 @@ std::string Utils::replace(const std::string& str, const std::string& search, co
 
 bool Utils::hasenv(const std::string &key)
 {
-    return getenv(key).has_value();
+    [[maybe_unused]] const auto [_, hasValue] = getenv(key);
+    return hasValue;
 }
 
 std::string Utils::getenv(const std::string& key, const std::string& def)
 {
-    return getenv(key).value_or(def);
+    const auto [value, hasValue] = getenv(key);
+    return hasValue ? value : def;
 }
 
-std::optional<std::string> Utils::getenv(const std::string& key)
+std::pair<std::string, bool> Utils::getenv(const std::string& key)
 {
 #ifdef WIN32
     // on Windows the charset is not UTF-8 by default
@@ -1921,20 +1923,20 @@ std::optional<std::string> Utils::getenv(const std::string& key)
     // Not found
     if (foundSize == 0)
     {
-        return std::nullopt;
+        return {"", false};
     }
     // Found
     string ret;
     wstring input(buf.data(), foundSize);
     LocalPath::local2path(&input, &ret, false);
-    return ret;
+    return {std::move(ret), true};
 #else
     if (const char* value = ::getenv(key.c_str()))
     {
-        return value;
+        return {value, true};
     }
     // Not found
-    return std::nullopt;
+    return {"", false};
 #endif
 }
 

@@ -22,7 +22,7 @@ std::string getLocalTestFolder()
     return std::string("c:\\tmp\\") + folderName;
 #else
     // Should always find HOME on Posix, but use "." as backup
-    return Utils::getenv("HOME").value_or(".") + "/" + folderName;
+    return Utils::getenv("HOME", ".") + "/" + folderName;
 #endif
 
 }

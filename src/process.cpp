@@ -38,9 +38,9 @@ Process::EnvironmentChanger::EnvironmentChanger(const unordered_map<string, stri
 {
     for (auto& i : env)
     {
-        if (auto val = Utils::getenv(i.first))
+        if (const auto [val, hasValue] = Utils::getenv(i.first); hasValue)
         {
-            saved[i.first] = val.value();
+            saved[i.first] = val;
         }
         else 
         {
