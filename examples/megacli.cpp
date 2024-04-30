@@ -10684,7 +10684,7 @@ int main(int argc, char* argv[])
 
     fsAccess.reset();
 
-    auto httpIO = new HTTPIO_CLASS;
+    auto httpIO = new CurlHttpIO;
 
 #ifdef WIN32
     auto waiter = std::make_shared<CONSOLE_WAIT_CLASS>(static_cast<CONSOLE_CLASS*>(console));
@@ -10704,7 +10704,7 @@ int main(int argc, char* argv[])
     auto clientType = getClientTypeFromArgs(config.clientType);
 
     // instantiate app components: the callback processor (DemoApp),
-    // the HTTP I/O engine (WinHttpIO) and the MegaClient itself
+    // the HTTP I/O engine and the MegaClient itself
     client = new MegaClient(demoApp,
                             waiter,
                             httpIO,

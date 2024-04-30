@@ -27,7 +27,6 @@ namespace mega {
 WinWaiter::WinWaiter()
 {
     externalEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
-    pcsHTTP = NULL;
 }
 
 WinWaiter::~WinWaiter()
@@ -49,13 +48,6 @@ void Waiter::bumpds()
 // network layer)
 int WinWaiter::wait()
 {
-    // only allow interaction of asynccallback() with the main process while
-    // waiting (because WinHTTP is threaded)
-    if (pcsHTTP)
-    {
-        LeaveCriticalSection(pcsHTTP);
-    }
-
     int r = 0;
     addhandle(externalEvent, NEEDEXEC);
 
@@ -89,11 +81,6 @@ int WinWaiter::wait()
 
     index = 0;
 
-
-    if (pcsHTTP)
-    {
-        EnterCriticalSection(pcsHTTP);
-    }
     return r;
 }
 

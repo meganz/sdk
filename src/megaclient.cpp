@@ -18479,7 +18479,6 @@ std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Wai
         << " transfer starts/finishes: " << transferStarts << " " << transferFinishes << "\n"
         << " transfer temperror/fails: " << transferTempErrors << " " << transferFails << "\n"
         << " nowait reason: immedate: " << prepwaitImmediate << " zero: " << prepwaitZero << " httpio: " << prepwaitHttpio << " fsaccess: " << prepwaitFsaccess << " nonzero waits: " << nonzeroWait << "\n";
-#ifdef USE_CURL
     if (auto curlhttpio = dynamic_cast<CurlHttpIO*>(httpio))
     {
         s << curlhttpio->countCurlHttpIOAddevents.report(reset) << "\n"
@@ -18492,7 +18491,6 @@ std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Wai
 #endif
             << curlhttpio->countProcessCurlEventsCode.report(reset) << "\n";
     }
-#endif
 #ifdef WIN32
     s << " waiter nonzero timeout: " << static_cast<WinWaiter*>(waiter)->performanceStats.waitTimedoutNonzero
       << " zero timeout: " << static_cast<WinWaiter*>(waiter)->performanceStats.waitTimedoutZero

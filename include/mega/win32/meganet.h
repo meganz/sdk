@@ -1,8 +1,8 @@
 /**
  * @file mega/win32/meganet.h
- * @brief Win32 network access layer (using WinHTTP)
+ * @brief POSIX network access layer (using cURL)
  *
- * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
+ * (c) 2013-2015 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -19,85 +19,4 @@
  * program.
  */
 
-#ifndef HTTPIO_CLASS
-#define HTTPIO_CLASS WinHttpIO
-#define DONT_RELEASE_HTTPIO
-
-#include "zlib.h"
-#include "mega.h"
-
-typedef LPVOID HINTERNET;   // from <winhttp.h>
-
-// MinGW shipped winhttp.h does not have these two flags
-#ifdef __MINGW32__
-#ifndef WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1
-#define WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1 0x00000200
-#endif
-#ifndef WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2
-#define WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2 0x00000800
-#endif
-#endif
-
-namespace mega {
-extern bool debug;
-
-class MEGA_API WinHttpIO: public HttpIO
-{
-    CRITICAL_SECTION csHTTP;
-    HANDLE hWakeupEvent;
-
-protected:
-    WinWaiter* waiter;
-    HINTERNET hSession;
-    string proxyUsername;
-    string proxyPassword;
-
-public:
-    static const unsigned HTTP_POST_CHUNK_SIZE = 16384;
-
-    static VOID CALLBACK asynccallback(HINTERNET, DWORD_PTR, DWORD,
-                                       LPVOID lpvStatusInformation,
-                                       DWORD dwStatusInformationLength);
-
-    void updatedstime();
-
-    void post(HttpReq*, const char* = 0, unsigned = 0);
-    void cancel(HttpReq*);
-
-    m_off_t postpos(void*);
-
-    bool doio(void);
-
-    void addevents(Waiter*, int);
-
-    void lock();
-    void unlock();
-
-    void httpevent();
-
-    void setuseragent(string*);
-    void setproxy(Proxy *);
-
-    WinHttpIO();
-    ~WinHttpIO();
-};
-
-struct MEGA_API WinHttpContext
-{
-    HINTERNET hRequest;
-    HINTERNET hConnect;
-
-    HttpReq* req;                   // backlink to underlying HttpReq
-    WinHttpIO* httpio;              // backlink to application-wide WinHttpIO object
-
-    unsigned postpos;
-    unsigned postlen;
-    const char* postdata;
-    
-    bool gzip;
-    z_stream z;
-    string zin;
-};
-} // namespace
-
-#endif
+#include "mega/posix/meganet.h"

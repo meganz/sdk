@@ -23581,7 +23581,7 @@ void MegaApiImpl::setProxySettings(MegaProxy* proxySettings, MegaRequestListener
 
     string localurl;
 
-#if defined(_WIN32) && defined(USE_CURL)
+#if defined(_WIN32)
     localurl = url;
 #else
     LocalPath::path2local(&url, &localurl);
@@ -23597,7 +23597,7 @@ void MegaApiImpl::setProxySettings(MegaProxy* proxySettings, MegaRequestListener
 
         string localusername;
 
-#if defined(_WIN32) && defined(USE_CURL)
+#if defined(_WIN32)
         localusername = username;
 #else
         LocalPath::path2local(&username, &localusername);
@@ -23609,7 +23609,7 @@ void MegaApiImpl::setProxySettings(MegaProxy* proxySettings, MegaRequestListener
 
         string localpassword;
 
-#if defined(_WIN32) && defined(USE_CURL)
+#if defined(_WIN32)
         localpassword = password;
 #else
         LocalPath::path2local(&password, &localpassword);

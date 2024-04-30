@@ -1318,7 +1318,7 @@ StandardClient::StandardClient(const fs::path& basepath, const string& name, con
       gfx(std::make_unique<GFX_CLASS>()),
 #endif
       client_dbaccess_path(ensureDir(basepath / name))
-    , httpio(new HTTPIO_CLASS)
+    , httpio(new CurlHttpIO)
     , client(this,
                 waiter,
                 httpio.get(),
