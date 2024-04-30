@@ -45,6 +45,8 @@ public:
     Field field(const std::string& name);
     Field field(const char* name);
 
+    std::uint64_t lastID() const;
+
     Parameter param(const std::string& name);
     Parameter param(const char* name);
 
