@@ -3810,13 +3810,7 @@ using namespace mega;
     }
 }
 
-- (void)setDeviceName:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate {
-    if (self.megaApi) {
-        self.megaApi->setDeviceName(name.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
-    }
-}
-
-- (void)renameDevice:(NSString *)deviceId newName:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate {
+- (void)renameDevice:(nullable NSString *)deviceId newName:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->setDeviceName(deviceId.UTF8String, name.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
     }
