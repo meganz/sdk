@@ -250,7 +250,7 @@ std::vector<std::string> IGfxLocalProvider::generateImages(FileSystemAccess* fa,
         0,
         [](int max, const GfxDimension& d) { return std::max(max, std::max(d.w(), d.h())); });
 
-    if (readbitmap(fa, localfilepath, maxDimension))
+    if (readbitmap(localfilepath, maxDimension))
     {
         for (unsigned int i = 0; i < dimensions.size(); ++i)
         {

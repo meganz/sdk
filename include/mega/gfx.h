@@ -128,7 +128,7 @@ public: // read and store bitmap
                                                     const std::vector<GfxDimension>& dimensions) override;
 
 private:
-    virtual bool readbitmap(FileSystemAccess*, const LocalPath&, int) = 0;
+    virtual bool readbitmap(const LocalPath&, int) = 0;
 
     // resize stored bitmap and store result as JPEG
     virtual bool resizebitmap(int, int, string* result) = 0;
