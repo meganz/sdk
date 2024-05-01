@@ -17054,7 +17054,7 @@ TEST_F(SyncTest, ChangingDirectoryPermissions)
     ASSERT_TRUE(dirPermissionHandler.originalPermissionsAvailable()) << "Failed to retrieve original permissions for directory";
 
     // Remove execute permissions from the directory
-    ASSERT_TRUE(dirPermissionHandler.removePermissions(S_IXUSR | S_IXGRP | S_IXOTH)) << "Execution permissions could not be removed";
+    ASSERT_TRUE(dirPermissionHandler.removePermissions(fs::perms::owner_exec | fs::perms::group_exec | fs::perms::others_exec)) << "Execution permissions could not be removed";
 
     client->triggerPeriodicScanEarly(id);
 
@@ -17080,7 +17080,7 @@ TEST_F(SyncTest, ChangingDirectoryPermissions)
     ASSERT_TRUE(client->waitFor(SyncStallState(false), TIMEOUT));
 
     // Remove read permissions from the directory.
-    ASSERT_TRUE(dirPermissionHandler.removePermissions(S_IRUSR | S_IRGRP | S_IROTH)) << "Read permissions could not be removed";
+    ASSERT_TRUE(dirPermissionHandler.removePermissions(fs::perms::owner_read | fs::perms::group_read | fs::perms::others_read)) << "Read permissions could not be removed";
 
     client->triggerPeriodicScanEarly(id);
 

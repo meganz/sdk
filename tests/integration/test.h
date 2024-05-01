@@ -1196,47 +1196,78 @@ bool createFile(const fs::path& path,
 
 std::string randomData(const std::size_t length);
 
+
 #ifndef _WIN32
 // Helper class to handle directory permissions
 class PermissionHandler
 {
-    std::string mDPath;
-    std::optional<struct stat> mOriginalPermissions{std::nullopt};
+    fs::path mDPath;
+    std::optional<fs::perms> mOriginalPermissions{std::nullopt};
     bool mPermissionsRemoved{false};
 
 public:
     explicit PermissionHandler(const std::string& dPath) : mDPath(dPath)
     {
-        struct stat st;
-        if (!stat(mDPath.c_str(), &st))
+        try
         {
-            mOriginalPermissions = st;
+            // Retrieve and store the current permissions
+            mOriginalPermissions = fs::status(mDPath).permissions();
         }
-        else { LOG_debug << "Failed to retrieve original permissions for directory: '" << mDPath << "'"; }
-
+        catch (const fs::filesystem_error& e)
+        {
+            LOG_debug << "Failed to retrieve original permissions for directory: '" << mDPath << "': " << e.what();
+        }
     }
+
     ~PermissionHandler() { restorePermissions(); }
 
-    // Method to remove specific permissions
-    bool removePermissions(mode_t permissionToRemove)
+    bool removePermissions(fs::perms permissionsToRemove)
     {
-        if (!mOriginalPermissions) { LOG_debug << "Original permissions needed"; return false; }
-        if (mPermissionsRemoved) { LOG_debug << "Permissions were already removed before, they should be restored first"; return false; }
-    
-        mode_t newMode = mOriginalPermissions->st_mode & ~permissionToRemove;
-        mPermissionsRemoved = !chmod(mDPath.c_str(), newMode);
-        LOG_debug << "Folder permissions " << (mPermissionsRemoved ? "" : "COULD NOT BE ") << "removed for directory: " << mDPath << "'";
+        if (!mOriginalPermissions)
+        {
+            LOG_debug << "Original permissions needed";
+            return false;
+        }
+        if (mPermissionsRemoved)
+        {
+            LOG_debug << "Permissions were already removed before, they should be restored first";
+            return false;
+        }
+
+        try
+        {
+            fs::permissions(mDPath, *mOriginalPermissions & ~permissionsToRemove, fs::perm_options::replace);
+            mPermissionsRemoved = true;
+            LOG_verbose << "Successfuly removed permissions for directory: " << mDPath;
+        }
+        catch (const fs::filesystem_error& e)
+        {
+            LOG_debug << "Failed to remove permissions for directory: " << mDPath << " with error: " << e.what();
+            mPermissionsRemoved = false;
+        }
         return mPermissionsRemoved;
     }
 
     bool restorePermissions()
     {
-        if (!mOriginalPermissions) { LOG_debug << "Original permissions needed"; return false; }
+        if (!mOriginalPermissions)
+        {
+            LOG_debug << "Original permissions needed";
+            return false;
+        }
         if (!mPermissionsRemoved) return true;
-    
-        mPermissionsRemoved = chmod(mDPath.c_str(), mOriginalPermissions->st_mode); // chmod returns 0 when successful -> mPermissionRemoved is then reset to false
-        LOG_debug << "Folder permissions " << (!mPermissionsRemoved ? "" : "COULD NOT BE ") << "restored for directory: " << mDPath << "'";
-        return mPermissionsRemoved == false;
+
+        try
+        {
+            fs::permissions(mDPath, *mOriginalPermissions, fs::perm_options::replace);
+            mPermissionsRemoved = false; // This restores the flag, as the permissions have been restored too.
+            LOG_verbose << "Successfuly restored permissions for directory: " << mDPath;
+        }
+        catch (const fs::filesystem_error& e)
+        {
+            LOG_debug << "Failed to restore permissions for directory: " << mDPath << " with error: " << e.what();
+        }
+        return !mPermissionsRemoved;
     }
 
     bool originalPermissionsAvailable() const
