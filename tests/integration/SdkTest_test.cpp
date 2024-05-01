@@ -21,6 +21,7 @@
 
 #include "sdk_test_utils.h"
 #include "../stdfs.h"
+#include "env_var_accounts.h"
 #include "SdkTest_test.h"
 #include "gtest_common.h"
 #include "mega/types.h"
@@ -1488,8 +1489,9 @@ void SdkTest::fetchNodesForAccounts(const unsigned howMany)
 
 void SdkTest::getAccountsForTest(unsigned howMany, bool fetchNodes, const int clientType)
 {
+    auto maxAccounts = getEnvVarAccounts().size();
     EXPECT_TRUE(howMany > 0) << "SdkTest::getAccountsForTest(): invalid number of test account to setup " << howMany << " is < 0";
-    EXPECT_TRUE(howMany <= (unsigned)gMaxAccounts) << "SdkTest::getAccountsForTest(): too many test accounts requested " << howMany << " is > " << gMaxAccounts;
+    EXPECT_TRUE(howMany <= maxAccounts) << "SdkTest::getAccountsForTest(): too many test accounts requested " << howMany << " is > " << maxAccounts;
     out() << "Test setting up for " << howMany << " accounts ";
 
     megaApi.resize(howMany);
@@ -1498,11 +1500,8 @@ void SdkTest::getAccountsForTest(unsigned howMany, bool fetchNodes, const int cl
     trackers.resize(howMany);
     for (unsigned index = 0; index < howMany; ++index)
     {
-        const char *email = getenv(envVarAccount[index].c_str());
-        ASSERT_NE(email, nullptr);
-
-        const char *pass = getenv(envVarPass[index].c_str());
-        ASSERT_NE(pass, nullptr);
+        const auto [email, pass] = getEnvVarAccounts().getVarValues(index);
+        ASSERT_FALSE(email.empty() || pass.empty());
 
         static const bool checkCredentials = true; // default value
         configureTestInstance(index, email, pass, checkCredentials, clientType);
@@ -1575,8 +1574,9 @@ void SdkTest::configureTestInstance(unsigned index,
         mApi[index].email = email;
         mApi[index].pwd = pass;
 
-        ASSERT_FALSE(mApi[index].email.empty()) << "Set test account " << index << " username at the environment variable $" << envVarAccount[index];
-        ASSERT_FALSE(mApi[index].pwd.empty()) << "Set test account " << index << " password at the environment variable $" << envVarPass[index];
+        const auto& [emailVarName, passVarName] = getEnvVarAccounts().getVarNames(index);
+        ASSERT_FALSE(mApi[index].email.empty()) << "Set test account " << index << " username at the environment variable $" << emailVarName;
+        ASSERT_FALSE(mApi[index].pwd.empty()) << "Set test account " << index << " password at the environment variable $" << passVarName;
     }
 
     megaApi[index].reset(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(index).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT), clientType));
@@ -2285,10 +2285,10 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     LOG_info << "___TEST Create account___";
 
     // Make sure the new account details have been set up
-    const char* bufRealEmail = getenv("MEGA_REAL_EMAIL"); // user@host.domain
-    const char* bufRealPswd = getenv("MEGA_REAL_PWD"); // email password of user@host.domain
+    const auto bufRealEmail = Utils::getenv("MEGA_REAL_EMAIL", ""); // user@host.domain
+    const auto bufRealPswd = Utils::getenv("MEGA_REAL_PWD", ""); // email password of user@host.domain
     fs::path bufScript = getLinkExtractSrciptPath();
-    ASSERT_TRUE(bufRealEmail && bufRealPswd) <<
+    ASSERT_TRUE(!bufRealEmail.empty() && !bufRealPswd.empty()) <<
         "MEGA_REAL_EMAIL, MEGA_REAL_PWD env vars must all be defined";
 
     // test that Python 3 was installed
@@ -2316,7 +2316,7 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     const string realEmail(bufRealEmail); // user@host.domain
     string::size_type pos = realEmail.find('@');
     const string realAccount = realEmail.substr(0, pos); // user
-    const string testEmail = getenv(envVarAccount[0].c_str());
+    [[maybe_unused]]const auto [testEmail, _] = getEnvVarAccounts().getVarValues(0);
     const string newTestAcc = realAccount + '+' +
                               testEmail.substr(0, testEmail.find("@")) + '+' +
                               getUniqueAlias() + realEmail.substr(pos); // user+testUser+rand20210919@host.domain
@@ -2538,8 +2538,7 @@ TEST_F(SdkTest, SdkTestKillSession)
       std::unique_ptr<MegaAccountSession>;
 
     // Make sure environment variable are restored.
-    auto accounts = makeScopedValue(envVarAccount, string_vector(2, "MEGA_EMAIL"));
-    auto passwords = makeScopedValue(envVarPass, string_vector(2, "MEGA_PWD"));
+    auto accounts = makeScopedValue(getEnvVarAccounts(), EnvVarAccounts{2, {"MEGA_EMAIL", "MEGA_PWD"}});
 
     // prevent reusing a session for the wrong client
     gSessionIDs[1] = "invalid";
@@ -4979,10 +4978,8 @@ TEST_F(SdkTest, SdkTestShares)
 
 
     // --- Import folder public link ---
-    const char* email = getenv(envVarAccount[2].c_str());
-    ASSERT_NE(email, nullptr);
-    const char* pass = getenv(envVarPass[2].c_str());
-    ASSERT_NE(pass, nullptr);
+    const auto [email, pass] = getEnvVarAccounts().getVarValues(2);
+    ASSERT_FALSE(email.empty() || pass.empty());
     mApi.resize(3);
     megaApi.resize(3);
     configureTestInstance(2, email, pass);
@@ -4995,7 +4992,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_TRUE(authorizedFolderNode) << "Failed to authorize folder node from link " << nodelink6;
     logout(2, false, 20);
 
-    auto loginTracker = asyncRequestLogin(2, email, pass);
+    auto loginTracker = asyncRequestLogin(2, email.c_str(), pass.c_str());
     ASSERT_EQ(loginTracker->waitForResult(), API_OK) << "Failed to login with " << email;
     ASSERT_NO_FATAL_FAILURE(fetchnodes(2));
     std::unique_ptr<MegaNode> rootNode2(megaApi[2]->getRootNode());
@@ -10206,10 +10203,8 @@ TEST_F(SdkTest, MidSessionEtoomanyWithSync)
     ASSERT_EQ(fs::exists(localFolderPath), true);
 
     // Secondary instance with the same account to force an ETOOMANY action packet
-    const char *email = getenv(envVarAccount[0].c_str());
-    ASSERT_NE(email, nullptr);
-    const char *pass = getenv(envVarPass[0].c_str());
-    ASSERT_NE(pass, nullptr);
+    const auto [email, pass] = getEnvVarAccounts().getVarValues(0);
+    ASSERT_FALSE(email.empty() || pass.empty());
     mApi.resize(2);
     megaApi.resize(2);
     configureTestInstance(1, email, pass);
@@ -10217,7 +10212,7 @@ TEST_F(SdkTest, MidSessionEtoomanyWithSync)
     // The secondary instance needs to use staging to send a devcommand
     megaApi[1]->changeApiUrl("https://staging.api.mega.co.nz/");
     auto loginTracker = std::make_unique<RequestTracker>(megaApi[1].get());
-    megaApi[1]->login(email, pass, loginTracker.get());
+    megaApi[1]->login(email.c_str(), pass.c_str(), loginTracker.get());
     ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account " << email;
 
     PerApi& target = mApi[0];
@@ -12561,15 +12556,13 @@ TEST_F(SdkTest, SdkNodesOnDemand)
 
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     // --- Load User B as account 1
-    const char *email = getenv(envVarAccount[0].c_str());
-    ASSERT_NE(email, nullptr);
-    const char *pass = getenv(envVarPass[0].c_str());
-    ASSERT_NE(pass, nullptr);
+    const auto [email, pass] = getEnvVarAccounts().getVarValues(0);
+    ASSERT_FALSE(email.empty() || pass.empty());
     mApi.resize(2);
     megaApi.resize(2);
     configureTestInstance(1, email, pass); // index 1 = User B
     auto loginTracker = std::make_unique<RequestTracker>(megaApi[1].get());
-    megaApi[1]->login(email, pass, loginTracker.get());
+    megaApi[1]->login(email.c_str(), pass.c_str(), loginTracker.get());
     ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account " << email;
     ASSERT_NO_FATAL_FAILURE(fetchnodes(1));
 
@@ -12998,15 +12991,13 @@ TEST_F(SdkTest, SdkNodesOnDemandVersions)
 
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     // --- Load User B as account 1
-    const char *email = getenv(envVarAccount[0].c_str());
-    ASSERT_NE(email, nullptr);
-    const char *pass = getenv(envVarPass[0].c_str());
-    ASSERT_NE(pass, nullptr);
+    const auto [email, pass] = getEnvVarAccounts().getVarValues(0);
+    ASSERT_FALSE(email.empty() || pass.empty());
     mApi.resize(2);
     megaApi.resize(2);
     configureTestInstance(1, email, pass); // index 1 = User B
     auto loginTracker = std::make_unique<RequestTracker>(megaApi[1].get());
-    megaApi[1]->login(email, pass, loginTracker.get());
+    megaApi[1]->login(email.c_str(), pass.c_str(), loginTracker.get());
     ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to login to account " << email;
     ASSERT_NO_FATAL_FAILURE(fetchnodes(1));
 
