@@ -184,7 +184,7 @@ public:
     // handle is uploadhandle or nodehandle
     // - must respect JPEG EXIF rotation tag
     // - must save at 85% quality (120*120 pixel result: ~4 KB)
-    int gendimensionsputfa(FileAccess*, const LocalPath&, NodeOrUploadHandle, SymmCipher*, int missingattr);
+    int gendimensionsputfa(const LocalPath&, NodeOrUploadHandle, SymmCipher*, int missingattr);
 
     // FIXME: read dynamically from API server
     typedef enum { THUMBNAIL, PREVIEW } meta_t;

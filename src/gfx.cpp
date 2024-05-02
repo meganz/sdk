@@ -321,7 +321,7 @@ void IGfxLocalProvider::transform(int& w, int& h, int& rw, int& rh, int& px, int
 }
 
 // load bitmap image, generate all designated sizes, attach to specified upload/node handle
-int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, const LocalPath& localfilename, NodeOrUploadHandle th, SymmCipher* key, int missing)
+int GfxProc::gendimensionsputfa(const LocalPath& localfilename, NodeOrUploadHandle th, SymmCipher* key, int missing)
 {
     LOG_debug << "Creating thumb/preview for " << localfilename;
 
