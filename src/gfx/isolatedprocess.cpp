@@ -113,7 +113,6 @@ GfxProviderIsolatedProcess::GfxProviderIsolatedProcess(std::unique_ptr<GfxIsolat
 }
 
 std::vector<std::string> GfxProviderIsolatedProcess::generateImages(
-    FileSystemAccess* fa,
     const LocalPath& localfilepath,
     const std::vector<GfxDimension>& dimensions)
 {

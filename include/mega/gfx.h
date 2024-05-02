@@ -102,8 +102,7 @@ public:
     // It generates thumbnails for the file at localfilepath. The function will return
     // the same number of thumbnails as the size of dimensions vector. On error it will
     // return a vector of empty strings.
-    virtual std::vector<std::string> generateImages(FileSystemAccess* fa,
-                                                    const LocalPath& localfilepath,
+    virtual std::vector<std::string> generateImages(const LocalPath& localfilepath,
                                                     const std::vector<GfxDimension>& dimensions) = 0;
 
     // list of supported extensions (NULL if no pre-filtering is needed)
@@ -123,8 +122,7 @@ class MEGA_API IGfxLocalProvider : public IGfxProvider
 public: // read and store bitmap
     virtual ~IGfxLocalProvider() = default;
 
-    virtual std::vector<std::string> generateImages(FileSystemAccess* fa,
-                                                    const LocalPath& localfilepath,
+    virtual std::vector<std::string> generateImages(const LocalPath& localfilepath,
                                                     const std::vector<GfxDimension>& dimensions) override;
 
 private:
