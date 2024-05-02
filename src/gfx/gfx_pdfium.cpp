@@ -20,6 +20,7 @@
  */
 
 #include "mega/gfx/gfx_pdfium.h"
+#include "mega.h"
 
 #ifdef HAVE_PDFIUM
 
