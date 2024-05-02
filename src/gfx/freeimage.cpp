@@ -383,8 +383,8 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int size
         seek_target = av_rescale_q(formatContext->duration / 5, av_get_time_base_q(), videoStream->time_base);
     }
 
-    string extension;
-    if (FileSystemAccess::getextension(imagePath, extension)
+    string extension = imagePath.extension();
+    if (!extension.empty()
             && strcmp(extension.c_str(),".mp3") && seek_target > 0
             && av_seek_frame(formatContext, videoStreamIdx, seek_target, AVSEEK_FLAG_BACKWARD) < 0)
     {
@@ -575,8 +575,7 @@ bool GfxProviderFreeImage::readbitmap(const LocalPath& localname, int size)
 {
 
     bool bitmapLoaded = false;
-    string extension;
-    if (FileSystemAccess::getextension(localname, extension))
+    if (string extension = localname.extension(); !extension.empty())
     {
 #ifdef USE_MEDIAINFO
         if (MediaProperties::isMediaFilenameExtAudio(extension))
