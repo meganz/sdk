@@ -24,10 +24,6 @@
 using namespace ::mega;
 using namespace ::std;
 
-
-extern string_vector envVarAccount;
-extern string_vector envVarPass;
-
 std::string logTime();
 void WaitMillisec(unsigned n);
 
@@ -86,7 +82,6 @@ private:
 extern std::string USER_AGENT;
 extern bool gResumeSessions;
 extern bool gScanOnly;
-extern int gMaxAccounts;
 extern bool gManualVerification;
 
 LogStream out();

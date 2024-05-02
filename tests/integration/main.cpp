@@ -1,7 +1,7 @@
 ﻿#include "mega.h"
 #include "mega/filesystem.h"
 #include "gtest_common.h"
-#include <stdio.h>
+#include <cstdio>
 #include <fstream>
 #ifdef WIN32
 #include <winhttp.h>
@@ -9,17 +9,23 @@
 
 #include "sdk_test_utils.h"
 #include "test.h"
+#include "env_var_accounts.h"
 
 #include <mega/fuse/common/mount_result.h>
 #include <mega/fuse/common/service.h>
 
 // If running in Jenkins, we use its working folder.  But for local manual testing, use a convenient location
-#define LOCAL_TEST_FOLDER_NAME "mega_tests"
+std::string getLocalTestFolder()
+{
+    const std::string folderName{"mega_tests"};
 #ifdef WIN32
-    #define LOCAL_TEST_FOLDER (string("c:\\tmp\\") + LOCAL_TEST_FOLDER_NAME)
+    return std::string("c:\\tmp\\") + folderName;
 #else
-    #define LOCAL_TEST_FOLDER (string(getenv("HOME")) + "/" + LOCAL_TEST_FOLDER_NAME)
+    // Should always find HOME on Posix, but use "." as backup
+    return Utils::getenv("HOME", ".") + "/" + folderName;
 #endif
+
+}
 
 fs::path LINK_EXTRACT_SCRIPT = "email_processor.py";
 
@@ -35,13 +41,7 @@ bool gResumeSessions = false;
 bool gScanOnly = false; // will be used in SRW
 bool gManualVerification=false;
 
-// max accounts used by any test
-// update if a test starts using more
-int gMaxAccounts = 3;
 std::string USER_AGENT = "Integration Tests with GoogleTest framework";
-
-string_vector envVarAccount = {"MEGA_EMAIL", "MEGA_EMAIL_AUX", "MEGA_EMAIL_AUX2"};
-string_vector envVarPass    = {"MEGA_PWD",   "MEGA_PWD_AUX",   "MEGA_PWD_AUX2"};
 
 void WaitMillisec(unsigned n)
 {
@@ -238,7 +238,7 @@ void synchronousHttpPOSTFile(const string& url, const string& filepath, string& 
     synchronousHttpPOSTData(url, loadfile(filepath), responsedata);
 #else
     string command = "curl -s --data-binary @";
-    command.append(filepath).append(" ").append(url.c_str());
+    command.append(filepath).append(" ").append(url);
     responsedata = runProgram(command, PROG_OUTPUT_TYPE::BINARY);
 #endif
 }
@@ -492,7 +492,7 @@ protected:
     {
         cout << buildAlignedHelpString("  $MEGA_REAL_EMAIL", {"mega.co.nz email account to recevied account creation emails"}) << '\n';
         cout << buildAlignedHelpString("  $MEGA_REAL_PWD",   {"Password for Mega email account"}) << '\n';
-        cout << buildAlignedHelpString("  $WORKSPACE",       {"Where to base tests, defaults to " + LOCAL_TEST_FOLDER + " when not set"}) << '\n';
+        cout << buildAlignedHelpString("  $WORKSPACE",       {"Where to base tests, defaults to " + getLocalTestFolder() + " when not set"}) << '\n';
     }
 };
 
@@ -544,12 +544,7 @@ public:
 
 int main (int argc, char *argv[])
 {
-    assert(envVarAccount.size() == envVarPass.size());
-    vector<pair<string, string>> accEnvVArs;
-    std::transform(envVarAccount.begin(), envVarAccount.end(), envVarPass.begin(), std::back_inserter(accEnvVArs),
-        [](const string& a, const string& p) { return std::make_pair(a, p); });
-
-    SdkRuntimeArgValues argVals(vector<string>(argv, argv + argc), std::move(accEnvVArs));
+    SdkRuntimeArgValues argVals(vector<string>(argv, argv + argc), getEnvVarAccounts().cloneVarNames());
     if (argVals.isHelp())
     {
         argVals.printHelp();
@@ -686,9 +681,7 @@ using namespace std;
 
 fs::path TestFS::GetBaseFolder()
 {
-    const char* jenkins_folder = getenv("WORKSPACE");
-    fs::path base = jenkins_folder ? fs::path(jenkins_folder) : fs::path(LOCAL_TEST_FOLDER);
-    return base;
+    return fs::path{Utils::getenv("WORKSPACE", getLocalTestFolder())};
 }
 
 fs::path TestFS::GetProcessFolder()
@@ -766,7 +759,7 @@ void TestFS::ClearProcessFolder()
     FSACCESS_CLASS fsaccess;
     unique_ptr<DirAccess> dir(fsaccess.newdiraccess());
     
-    LocalPath lbase = LocalPath::fromAbsolutePath(base.string().c_str());
+    LocalPath lbase = LocalPath::fromAbsolutePath(base.string());
     lbase.appendWithSeparator(LocalPath::fromRelativePath("*"), false);
     if (!dir->dopen(&lbase, nullptr, true))
         throw runtime_error("Can not read directory '" + lbase.toPath(false) + "'");

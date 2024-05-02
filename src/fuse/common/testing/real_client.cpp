@@ -418,7 +418,7 @@ RealClient::RealClient(const Path& databasePath,
   , mClientLock()
   , mClientTerminate{false}
   , mClientThread()
-  , mHTTPIO(new HTTPIO_CLASS())
+  , mHTTPIO(new CurlHttpIO())
   , mPendingRequests()
   , mWaiter(std::make_shared<WAIT_CLASS>())
 {

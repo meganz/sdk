@@ -22,6 +22,7 @@
 // Many of these tests are still being worked on.
 
 #include "test.h"
+#include "env_var_accounts.h"
 #include "gtest_common.h"
 
 #define DEFAULTWAIT std::chrono::seconds(20)
@@ -1135,7 +1136,7 @@ std::shared_ptr<Node> CloudItem::resolve(StandardClient& client) const
 StandardClientInUse ClientManager::getCleanStandardClient(int loginIndex, fs::path workingFolder)
 {
     EXPECT_GE(loginIndex, 0) << "ClientManager::getCleanStandardClient(): negative client index requested";
-    EXPECT_LE(loginIndex, gMaxAccounts) << "ClientManager::getCleanStandardClient(): invalid client index requested";
+    EXPECT_LE(loginIndex, getEnvVarAccounts().size()) << "ClientManager::getCleanStandardClient(): invalid client index requested";
 
     for (auto i = clients[loginIndex].begin(); i != clients[loginIndex].end(); ++i)
     {
@@ -1154,7 +1155,8 @@ StandardClientInUse ClientManager::getCleanStandardClient(int loginIndex, fs::pa
             new StandardClient(localAccountRoot, "client" + clientname, workingFolder));
 
     clients[loginIndex].push_back(StandardClientInUseEntry(false, c, clientname, loginIndex));
-    c->login_reset(envVarAccount[loginIndex], envVarPass[loginIndex], false, false);
+    const auto& [emailVarName, passVarName] = getEnvVarAccounts().getVarNames(loginIndex);
+    c->login_reset(emailVarName, passVarName, false, false);
 
     c->cleanupForTestReuse(loginIndex);
 
@@ -1988,7 +1990,7 @@ catch (...)
 
 void StandardClient::preloginFromEnv(const string& userenv, PromiseBoolSP pb)
 {
-    string user = getenv(userenv.c_str());
+    const string user = Utils::getenv(userenv, "");
 
     ASSERT_FALSE(user.empty());
 
@@ -2000,8 +2002,8 @@ void StandardClient::preloginFromEnv(const string& userenv, PromiseBoolSP pb)
 
 void StandardClient::loginFromEnv(const string& userenv, const string& pwdenv, PromiseBoolSP pb)
 {
-    string user = getenv(userenv.c_str());
-    string pwd = getenv(pwdenv.c_str());
+    const string user = Utils::getenv(userenv, "");
+    const string pwd = Utils::getenv(pwdenv, "");
 
     ASSERT_FALSE(user.empty());
     ASSERT_FALSE(pwd.empty());
@@ -4267,7 +4269,7 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
 
     if (client.nodeByPath("/abort_jenkins_test_run"))
     {
-        string user = getenv(envVarAccount[loginIndex].c_str());
+        [[maybe_unused]]const auto [user, _] = getEnvVarAccounts().getVarValues(loginIndex);
         cout << "Detected node /abort_jenkins_test_run in account " << user << ", aborting test run" << endl;
         out() << "Detected node /abort_jenkins_test_run in account " << user << ", aborting test run";
         WaitMillisec(100);
@@ -18007,12 +18009,12 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
                 return client.ipcr(id);
             };
         };
-        auto contactRequestFnished = [](string& email) {
+        auto contactRequestFnished = [](const string& email) {
             return [&email](StandardClient& client) {
                 return !client.opcr(email);
             };
         };
-        auto contactVerificationFinished = [](string& email) {
+        auto contactVerificationFinished = [](const string& email) {
             return [&email](StandardClient& client) {
                 return client.isverified(email);
             };
@@ -18021,9 +18023,9 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
         // Convenience helper.
         auto contactAdd = [&](StandardClient& client, const string& name) {
             // Get our hands on the contact's email.
-            string email = getenv(name.c_str());
+            const string email = Utils::getenv(name, "");
             // Get main client email.
-            string email0 = getenv("MEGA_EMAIL");
+            const string email0 = Utils::getenv("MEGA_EMAIL", "");
 
             // Are we already associated with this contact?
             if (client0.iscontact(email))
@@ -18108,7 +18110,7 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
 
     // Share the test root with client 1.
     ASSERT_EQ(client0.opensharedialog(*r), API_OK);
-    ASSERT_EQ(client0.share(*r, getenv("MEGA_EMAIL_AUX"), FULL), API_OK);
+    ASSERT_EQ(client0.share(*r, Utils::getenv("MEGA_EMAIL_AUX", ""), FULL), API_OK);
     ASSERT_TRUE(client1.waitFor(SyncRemoteNodePresent(*r), std::chrono::seconds(90)));
 
     // Reset to avoid keeping a shared_ptr<Node>
@@ -18117,7 +18119,7 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
 
     // Share the sync root with client 2.
     ASSERT_EQ(client0.opensharedialog(sh), API_OK);
-    ASSERT_EQ(client0.share(sh, getenv("MEGA_EMAIL_AUX2"), FULL), API_OK);
+    ASSERT_EQ(client0.share(sh, Utils::getenv("MEGA_EMAIL_AUX2", ""), FULL), API_OK);
     ASSERT_TRUE(client2.waitFor(SyncRemoteNodePresent(sh), std::chrono::seconds(90)));
 
     // Add and start a new sync.
