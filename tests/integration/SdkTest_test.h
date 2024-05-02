@@ -272,6 +272,7 @@ public:
 
         // flags to monitor the updates of nodes/users/sets/set-elements/PCRs due to actionpackets
         bool userUpdated;
+        bool userFirstNameUpdated = false;
         bool setUpdated;
         bool setElementUpdated;
         bool contactRequestUpdated;

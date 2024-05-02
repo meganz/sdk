@@ -6163,6 +6163,18 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
     assert(client);
 
     cmd("f");
+
+    // The servers are more efficient with this command when it's the only one in the batch
+    batchSeparately = true;
+
+    this->tag = tag;
+
+    if (client->isClientType(MegaClient::ClientType::VPN))
+    {
+        arg("mc", 1); // the only arg supported by VPN
+        return;
+    }
+
     arg("c", 1);
     arg("r", 1);
 
@@ -6177,13 +6189,8 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client,
         arg("part", 1);
     }
 
-    // The servers are more efficient with this command when it's the only one in the batch
-    batchSeparately = true;
-
     // Whether we should (re)load the sync config database on request completion.
     mLoadSyncs = loadSyncs;
-
-    this->tag = tag;
 
     ///////////////////////////////////
     // Filters for parsing in streaming

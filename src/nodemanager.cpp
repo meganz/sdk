@@ -942,7 +942,7 @@ sharedNode_vector NodeManager::getRootNodes_internal()
         {
             loadVault();
         }
-        else
+        else if (!mClient.isClientType(MegaClient::ClientType::VPN))
         {
             LOG_warn << "Unexpected MegaClient type " << static_cast<int>(mClient.getClientType());
             assert(false);

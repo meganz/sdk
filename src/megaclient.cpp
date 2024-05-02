@@ -2547,7 +2547,8 @@ void MegaClient::exec()
                     if (pendingcs->includesFetchingNodes && !mNodeManager.hasCacheLoaded())
                     {
                         // Currently only fetchnodes requests can take advantage of chunked processing
-                        pendingcs->mChunked = true;
+                        // However VPN client shouldn't need it, because it'll receive a minimal response
+                        pendingcs->mChunked = !isClientType(ClientType::VPN);
                     }
 
                     performanceStats.csRequestWaitTime.start();
