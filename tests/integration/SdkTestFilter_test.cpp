@@ -22,16 +22,16 @@ struct NodeCommonInfo
     bool fav = false;
 };
 
-struct FileInfo: public NodeCommonInfo
+struct FileNodeInfo: public NodeCommonInfo
 {
     unsigned int size = 0;
     int64_t mtime = ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME;
 
-    FileInfo(const std::string& _name,
-             const std::optional<unsigned int>& _label = std::nullopt,
-             const bool _fav = false,
-             const unsigned int _size = 0,
-             const std::chrono::seconds secondsSinceMod = 0s):
+    FileNodeInfo(const std::string& _name,
+                 const std::optional<unsigned int>& _label = std::nullopt,
+                 const bool _fav = false,
+                 const unsigned int _size = 0,
+                 const std::chrono::seconds secondsSinceMod = 0s):
         NodeCommonInfo{_name, _label, _fav},
         size(_size)
     {
@@ -43,25 +43,25 @@ struct FileInfo: public NodeCommonInfo
     }
 };
 
-struct DirInfo;
+struct DirNodeInfo;
 
-typedef std::variant<FileInfo, DirInfo> NodeInfo;
+typedef std::variant<FileNodeInfo, DirNodeInfo> NodeInfo;
 
-struct DirInfo: public NodeCommonInfo
+struct DirNodeInfo: public NodeCommonInfo
 {
     std::vector<NodeInfo> childs{};
 
-    DirInfo(const std::string& _name,
-            const std::vector<NodeInfo>& _childs = {},
-            const std::optional<unsigned int>& _label = std::nullopt,
-            const bool _fav = false):
+    DirNodeInfo(const std::string& _name,
+                const std::vector<NodeInfo>& _childs = {},
+                const std::optional<unsigned int>& _label = std::nullopt,
+                const bool _fav = false):
         NodeCommonInfo{_name, _label, _fav},
         childs(_childs)
     {}
 };
 
 // Needed forward declaration for recursive call
-void processDirChildName(const DirInfo&, std::vector<std::string>&);
+void processDirChildName(const DirNodeInfo&, std::vector<std::string>&);
 
 /**
  * @brief Put the name of the node and their children (if any) in the given vector
@@ -72,7 +72,7 @@ void processNodeName(const NodeInfo& node, std::vector<std::string>& names)
         [&names](const auto& arg)
         {
             names.push_back(arg.name);
-            if constexpr (std::is_same_v<decltype(arg), const DirInfo&>)
+            if constexpr (std::is_same_v<decltype(arg), const DirNodeInfo&>)
             {
                 processDirChildName(arg, names);
             }
@@ -83,7 +83,7 @@ void processNodeName(const NodeInfo& node, std::vector<std::string>& names)
 /**
  * @brief Aux function to call inside the visitor. Puts the names of the children in names.
  */
-void processDirChildName(const DirInfo& dir, std::vector<std::string>& names)
+void processDirChildName(const DirNodeInfo& dir, std::vector<std::string>& names)
 {
     for (const auto& child: dir.childs)
     {
@@ -167,18 +167,18 @@ public:
     static constexpr std::string_view ROOT_TEST_NODE_DIR = "SDK_TEST_FILTER_AUX_DIR";
 
     const std::vector<NodeInfo> ELEMENTS{
-        FileInfo("testFile1", MegaNode::NODE_LBL_RED),
-        DirInfo("Dir1",
-                {FileInfo("testFile2", MegaNode::NODE_LBL_ORANGE, true, 15, 100s),
-                 FileInfo("testFile3", MegaNode::NODE_LBL_YELLOW, false, 35, 500s),
-                 DirInfo("Dir11",
-                         {
-                             FileInfo("testFile4"),
-                         })},
-                MegaNode::NODE_LBL_PURPLE,
-                true),
-        DirInfo("Dir2", {FileInfo("testFile5", MegaNode::NODE_LBL_BLUE, true, 20, 200s)}),
-        FileInfo("testFile6", {}, true, 10, 300s),
+        FileNodeInfo("testFile1", MegaNode::NODE_LBL_RED),
+        DirNodeInfo("Dir1",
+                    {FileNodeInfo("testFile2", MegaNode::NODE_LBL_ORANGE, true, 15, 100s),
+                     FileNodeInfo("testFile3", MegaNode::NODE_LBL_YELLOW, false, 35, 500s),
+                     DirNodeInfo("Dir11",
+                                 {
+                                     FileNodeInfo("testFile4"),
+                                 })},
+                    MegaNode::NODE_LBL_PURPLE,
+                    true),
+        DirNodeInfo("Dir2", {FileNodeInfo("testFile5", MegaNode::NODE_LBL_BLUE, true, 20, 200s)}),
+        FileNodeInfo("testFile6", {}, true, 10, 300s),
     };
 
     void SetUp() override
@@ -248,7 +248,7 @@ protected:
     /**
      * @brief Creates a file node as a child of the rootnode using the input info.
      */
-    void createNode(const FileInfo& fileInfo, MegaNode* rootnode)
+    void createNode(const FileNodeInfo& fileInfo, MegaNode* rootnode)
     {
         bool check = false;
         mApi[0].mOnNodesUpdateCompletion =
@@ -280,7 +280,7 @@ protected:
     /**
      * @brief Creates a directory node as a child of the rootnode using the input info.
      */
-    void createNode(const DirInfo& dirInfo, MegaNode* rootnode)
+    void createNode(const DirNodeInfo& dirInfo, MegaNode* rootnode)
     {
         auto dirNode = createRemoteDir(dirInfo.name, rootnode);
         ASSERT_TRUE(dirNode) << "Unable to create directory node with name: " << dirInfo.name;
