@@ -29,7 +29,7 @@ void GfxProviderExternal::setProcessor(MegaGfxProcessor *processor)
 	this->processor = processor;
 }
 
-bool GfxProviderExternal::readbitmap(FileSystemAccess* /*fa*/, const LocalPath& localname, int /*size*/)
+bool GfxProviderExternal::readbitmap(const LocalPath& localname, int /*size*/)
 {
     if(!processor) return false;
 

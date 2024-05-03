@@ -57,7 +57,7 @@ const char* GfxProviderCG::supportedvideoformats() {
     return NULL;
 }
 
-bool GfxProviderCG::readbitmap(FileSystemAccess* fa, const LocalPath& path, int size) {
+bool GfxProviderCG::readbitmap(const LocalPath& path, int size) {
     // Convenience.
     using mega::detail::AdjustBasePathResult;
     using mega::detail::adjustBasePath;
