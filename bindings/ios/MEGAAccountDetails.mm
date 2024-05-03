@@ -168,6 +168,15 @@ using namespace mega;
             result = @"Pro Flexi";
             break;
             
+        case MEGAAccountTypeStarter:
+            result = @"Starter";
+            
+        case MEGAAccountTypeBasic:
+            result = @"Basic";
+            
+        case MEGAAccountTypeEssential:
+            result = @"Essential";
+            
         default:
             result = @"Unknown";
             break;
