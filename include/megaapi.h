@@ -17122,6 +17122,9 @@ class MegaApi
          *
          * @param parent Parent node
          * @param order Order for the returned list
+         *
+         * Note: Folders will always be first except when sorting by size, creation or modification time
+         *
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
@@ -17130,7 +17133,7 @@ class MegaApi
          * Folders first in alphabetical order, then files in the same order
          *
          * - MegaApi::ORDER_DEFAULT_DESC = 2
-         * Files first in reverse alphabetical order, then folders in the same order
+         * Folders first in reverse alphabetical order, then files in the same order
          *
          * - MegaApi::ORDER_SIZE_ASC = 3
          * Sort by size, ascending
@@ -17201,6 +17204,9 @@ class MegaApi
          * - have valid ancestor handle (different than INVALID_HANDLE) set by calling byLocationHandle(),
          *   and in consequence it must have default value for location (SEARCH_TARGET_ALL)
          * @param order Order for the returned list
+         *
+         * Note: Folders will always be first except when sorting by size, creation or modification time
+         *
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
@@ -17209,7 +17215,7 @@ class MegaApi
          * Folders first in alphabetical order, then files in the same order
          *
          * - MegaApi::ORDER_DEFAULT_DESC = 2
-         * Files first in reverse alphabetical order, then folders in the same order
+         * Folders first in reverse alphabetical order, then files in the same order
          *
          * - MegaApi::ORDER_SIZE_ASC = 3
          * Sort by size, ascending
@@ -17258,6 +17264,9 @@ class MegaApi
          *
          * @param parentNodes List of parent nodes
          * @param order Order for the returned list
+         *
+         * Note: Folders will always be first except when sorting by size, creation or modification time
+         *
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
@@ -17266,7 +17275,7 @@ class MegaApi
          * Folders first in alphabetical order, then files in the same order
          *
          * - MegaApi::ORDER_DEFAULT_DESC = 2
-         * Files first in reverse alphabetical order, then folders in the same order
+         * Folders first in reverse alphabetical order, then files in the same order
          *
          * - MegaApi::ORDER_SIZE_ASC = 3
          * Sort by size, ascending
@@ -17364,6 +17373,9 @@ class MegaApi
          * @param parent Parent node
          * @param type Type of the node.
          * @param order Order for the returned list
+         *
+         * Note: Folders will always be first except when sorting by size, creation or modification time
+         *
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
@@ -17372,7 +17384,7 @@ class MegaApi
          * Folders first in alphabetical order, then files in the same order
          *
          * - MegaApi::ORDER_DEFAULT_DESC = 2
-         * Files first in reverse alphabetical order, then folders in the same order
+         * Folders first in reverse alphabetical order, then files in the same order
          *
          * - MegaApi::ORDER_SIZE_ASC = 3
          * Sort by size, ascending
@@ -18306,6 +18318,9 @@ class MegaApi
          *
          * @param filter Container for filtering options, cannot be null
          * @param order Order for the returned list
+         *
+         * Note: Folders will always be first except when sorting by size, creation or modification time
+         *
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
@@ -18314,7 +18329,7 @@ class MegaApi
          * Folders first in alphabetical order, then files in the same order
          *
          * - MegaApi::ORDER_DEFAULT_DESC = 2
-         * Files first in reverse alphabetical order, then folders in the same order
+         * Folders first in reverse alphabetical order, then files in the same order
          *
          * - MegaApi::ORDER_SIZE_ASC = 3
          * Sort by size, ascending
@@ -18365,6 +18380,9 @@ class MegaApi
          * @param recursive True if you want to search recursively in the node tree.
          * False if you want to search in the children of the node only
          * @param order Order for the returned list
+         *
+         * Note: Folders will always be first except when sorting by size, creation or modification time
+         *
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
@@ -18373,7 +18391,7 @@ class MegaApi
          * Folders first in alphabetical order, then files in the same order
          *
          * - MegaApi::ORDER_DEFAULT_DESC = 2
-         * Files first in reverse alphabetical order, then folders in the same order
+         * Folders first in reverse alphabetical order, then files in the same order
          *
          * - MegaApi::ORDER_SIZE_ASC = 3
          * Sort by size, ascending
@@ -18448,6 +18466,9 @@ class MegaApi
          * @param recursive True if you want to search recursively in the node tree.
          * False if you want to search in the children of the node only
          * @param order Order for the returned list
+         *
+         * Note: Folders will always be first except when sorting by size, creation or modification time
+         *
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
@@ -18456,7 +18477,7 @@ class MegaApi
          * Folders first in alphabetical order, then files in the same order
          *
          * - MegaApi::ORDER_DEFAULT_DESC = 2
-         * Files first in reverse alphabetical order, then folders in the same order
+         * Folders first in reverse alphabetical order, then files in the same order
          *
          * - MegaApi::ORDER_SIZE_ASC = 3
          * Sort by size, ascending
@@ -18529,6 +18550,9 @@ class MegaApi
          *
          * @param searchString Search string. The search is case-insensitive
          * @param order Order for the returned list
+         *
+         * Note: Folders will always be first except when sorting by size, creation or modification time
+         *
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
@@ -18537,7 +18561,7 @@ class MegaApi
          * Folders first in alphabetical order, then files in the same order
          *
          * - MegaApi::ORDER_DEFAULT_DESC = 2
-         * Files first in reverse alphabetical order, then folders in the same order
+         * Folders first in reverse alphabetical order, then files in the same order
          *
          * - MegaApi::ORDER_SIZE_ASC = 3
          * Sort by size, ascending
@@ -18613,6 +18637,9 @@ class MegaApi
          * @param searchString Search string. The search is case-insensitive
          * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
          * @param order Order for the returned list
+         *
+         * Note: Folders will always be first except when sorting by size, creation or modification time
+         *
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
@@ -18621,7 +18648,7 @@ class MegaApi
          * Folders first in alphabetical order, then files in the same order
          *
          * - MegaApi::ORDER_DEFAULT_DESC = 2
-         * Files first in reverse alphabetical order, then folders in the same order
+         * Folders first in reverse alphabetical order, then files in the same order
          *
          * - MegaApi::ORDER_SIZE_ASC = 3
          * Sort by size, ascending
@@ -18693,6 +18720,9 @@ class MegaApi
          * @param searchString Search string. The search is case-insensitive
          * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
          * @param order Order for the returned list
+         *
+         * Note: Folders will always be first except when sorting by size, creation or modification time
+         *
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
@@ -18701,7 +18731,7 @@ class MegaApi
          * Folders first in alphabetical order, then files in the same order
          *
          * - MegaApi::ORDER_DEFAULT_DESC = 2
-         * Files first in reverse alphabetical order, then folders in the same order
+         * Folders first in reverse alphabetical order, then files in the same order
          *
          * - MegaApi::ORDER_SIZE_ASC = 3
          * Sort by size, ascending
@@ -18773,6 +18803,9 @@ class MegaApi
          * @param searchString Search string. The search is case-insensitive
          * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
          * @param order Order for the returned list
+         *
+         * Note: Folders will always be first except when sorting by size, creation or modification time
+         *
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
@@ -18781,7 +18814,7 @@ class MegaApi
          * Folders first in alphabetical order, then files in the same order
          *
          * - MegaApi::ORDER_DEFAULT_DESC = 2
-         * Files first in reverse alphabetical order, then folders in the same order
+         * Folders first in reverse alphabetical order, then files in the same order
          *
          * - MegaApi::ORDER_SIZE_ASC = 3
          * Sort by size, ascending
@@ -18853,6 +18886,9 @@ class MegaApi
          * @param searchString Search string. The search is case-insensitive
          * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
          * @param order Order for the returned list
+         *
+         * Note: Folders will always be first except when sorting by size, creation or modification time
+         *
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
@@ -18861,7 +18897,7 @@ class MegaApi
          * Folders first in alphabetical order, then files in the same order
          *
          * - MegaApi::ORDER_DEFAULT_DESC = 2
-         * Files first in reverse alphabetical order, then folders in the same order
+         * Folders first in reverse alphabetical order, then files in the same order
          *
          * - MegaApi::ORDER_SIZE_ASC = 3
          * Sort by size, ascending
@@ -18955,6 +18991,9 @@ class MegaApi
          * @param recursive True if you want to search recursively in the node tree.
          * False if you want to search in the children of the node only
          * @param order Order for the returned list
+         *
+         * Note: Folders will always be first except when sorting by size, creation or modification time
+         *
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
          * Undefined order
@@ -18963,7 +19002,7 @@ class MegaApi
          * Folders first in alphabetical order, then files in the same order
          *
          * - MegaApi::ORDER_DEFAULT_DESC = 2
-         * Files first in reverse alphabetical order, then folders in the same order
+         * Folders first in reverse alphabetical order, then files in the same order
          *
          * - MegaApi::ORDER_SIZE_ASC = 3
          * Sort by size, ascending
