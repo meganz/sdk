@@ -46,11 +46,11 @@ public:
     // BGRA format, 4 bytes per pixel (32bits), byte order: blue, green, red, alpha.
     // init() is called internally if library is not initialized.
     // workingDirFolder : Path to create a temporary file.
-    static unique_ptr<char[]> readBitmapFromPdf(int &w, int &h, int &orientation, const LocalPath &path, FileSystemAccess* fa, const LocalPath &workingDirFolder);
+    static unique_ptr<char[]> readBitmapFromPdf(int &w, int &h, int &orientation, const LocalPath &path, const LocalPath &workingDirFolder);
 #else
     // Returns a bitmap in BGRA format, 4 bytes per pixel (32bits), byte order: blue, green, red, alpha.
     // init() is called internally if library is not initialized.
-    static unique_ptr<char[]> readBitmapFromPdf(int &w, int &h, int &orientation, const LocalPath &path, FileSystemAccess* fa);
+    static unique_ptr<char[]> readBitmapFromPdf(int &w, int &h, int &orientation, const LocalPath &path);
 #endif
     // It decreases the initializations internal counter and destroys the library once it reaches zero.
     static void destroy();

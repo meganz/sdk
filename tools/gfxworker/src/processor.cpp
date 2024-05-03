@@ -56,9 +56,7 @@ GfxTaskResult GfxProcessor::process(const GfxTask& task)
 
     // generate thumbnails
     LOG_info << "generate for, " << path;
-    auto images = mGfxProvider->generateImages(&mFaccess,
-                                               path,
-                                               sortedDimensions);
+    auto images = mGfxProvider->generateImages(path, sortedDimensions);
 
     // assign back to original order
     for (int i = 0; i < images.size(); ++i)
