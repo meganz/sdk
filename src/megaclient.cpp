@@ -3626,10 +3626,11 @@ void MegaClient::dispatchTransfers()
         return static_cast<unsigned>(size);
     };
 
-    auto calcTransferWeight = [this, &calcDynamicQueueLimit](mega::direction_t transferDirection) -> double
+    auto calcTransferWeight = [this, &calcDynamicQueueLimit](mega::direction_t transferDirection, bool forceDynamicLimit = false) -> double
     {
         if (transferDirection == GET &&
-            raidTransfersCounter >= MEANINGFUL_PORTION_OF_MAXTRANSFERS_QUEUE_FOR_RAID_PREDICTIVE_SYSTEM) // 1/6 of the hard limit
+            ((raidTransfersCounter >= MEANINGFUL_PORTION_OF_MAXTRANSFERS_QUEUE_FOR_RAID_PREDICTIVE_SYSTEM) // 1/6 of the hard limit
+            || forceDynamicLimit))
         {
             double averageFileSize = 0;
             for (TransferSlot* ts : tslots)
@@ -3662,6 +3663,8 @@ void MegaClient::dispatchTransfers()
     for (TransferSlot* ts : tslots)
     {
         assert(ts->transfer->type == PUT || ts->transfer->type == GET);
+        double transferWeightKnown = 0.0;
+        TransferCategory tc(ts->transfer);
         if (ts->transfer->type == GET)
         {
             if (!ts->transfer->tempurls.empty())
@@ -3671,16 +3674,17 @@ void MegaClient::dispatchTransfers()
                     // Keep the counter within the limit to avoid overrepresentation: 1/6 of max transfers
                     // i.e., if the counter has already reached that value, we don't continue increasing it
                     if (raidTransfersCounter < MEANINGFUL_PORTION_OF_MAXTRANSFERS_QUEUE_FOR_RAID_PREDICTIVE_SYSTEM) raidTransfersCounter += 1;
+                    transferWeightKnown = calcTransferWeight(tc.direction, true); // We already know this transfer is raided, force the dynamic calculation
                 }
                 else // Old raid or non-raid
                 {
                     // As we kept the raid counter within a max limit (1/6), we obtain an accurate representation by decreasing the counter every time we find a non-raid transfer.
                     if (raidTransfersCounter > 1) raidTransfersCounter -= 1;
+                    transferWeightKnown = 1.0; // We alredy know this transfer is non-raided, the weight should be 1.
                 }
             }
         }
-        TransferCategory tc(ts->transfer);
-        auto transferWeight = calcTransferWeight(tc.direction);
+        auto transferWeight = transferWeightKnown != 0.0 ? transferWeightKnown : calcTransferWeight(tc.direction);
         counters[tc.index()].addexisting(ts->transfer->size, ts->progressreported, transferWeight);
         counters[tc.directionIndex()].addexisting(ts->transfer->size, ts->progressreported, transferWeight);
     }
