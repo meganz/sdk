@@ -3590,11 +3590,7 @@ void MegaClient::dispatchTransfers()
 
         // Define the minimum and maximum size limits
         const int minSize = MIN_MAXTRANSFERS; // Adjusted minimum size
-#if defined(__ANDROID__) || defined(USE_IOS)
-        const int maxSize = static_cast<int>(MAX_RAIDTRANSFERS_FOR_MOBILE); // Maximum limit for the queue size
-#else
         const int maxSize = MAXTRANSFERS;
-#endif
 
         const int threshold = 16500; // Threshold (KB/S) to activate the additional term -> before this threshold, dynamic size grows slowly from minSize to maxSize. After the threshold, it will quickly grow to maxSize.
         if (threshold <= minScalingFactor)
@@ -3605,7 +3601,7 @@ void MegaClient::dispatchTransfers()
         }
 
         // Use an expontential function to obtain a very low growth rate before the threshold
-        m_off_t throughputInKBPerSec = httpio->downloadSpeed / 1024; // KB/s
+        m_off_t throughputInKBPerSec = std::min<m_off_t>(httpio->downloadSpeed / 1024, minScalingFactor); // KB/s
         const double reductiveGrowthMultiplier = 0.12; // This allows us to keep the scaling factor within a very low growth rate
         double scaleFactor = (static_cast<double>(throughputInKBPerSec - minScalingFactor) / (threshold - minScalingFactor)) * reductiveGrowthMultiplier;
         double size = minSize + (maxSize - minSize) * (1 - exp(-scaleFactor));
@@ -3623,7 +3619,11 @@ void MegaClient::dispatchTransfers()
         }
 
         //LOG_verbose << "[calcDynamicQueueSize] customLimit = " << size << " [throughput = " << (throughputInKBPerSec) << " KB/s]";
+#if defined(__ANDROID__) || defined(USE_IOS)
+        return std::min<unsigned>(static_cast<unsigned>(size), MAX_RAIDTRANSFERS_FOR_MOBILE);
+#else
         return static_cast<unsigned>(size);
+#endif
     };
 
     auto calcTransferWeight = [this, &calcDynamicQueueLimit](mega::direction_t transferDirection, bool forceDynamicLimit = false) -> double
