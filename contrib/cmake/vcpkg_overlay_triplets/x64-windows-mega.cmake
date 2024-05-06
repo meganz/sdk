@@ -22,12 +22,7 @@ set(VCPKG_TARGET_ARCHITECTURE x64)
 # use dynamic C and CPP libraries (needed if we use any DLLs, eg Qt)
 set(VCPKG_CRT_LINKAGE dynamic)
 
-if(PORT MATCHES "ffmpeg" OR
-   PORT MATCHES "openssl" OR
-   PORT MATCHES "curl" OR
-   PORT MATCHES "sdl1" OR
-   PORT MATCHES "qt5-" OR
-   PORT MATCHES "c-ares")
+if(PORT MATCHES "ffmpeg")
     # build this library as DLL (usually because it is LGPL licensed)
     set(VCPKG_LIBRARY_LINKAGE dynamic)
 else()
