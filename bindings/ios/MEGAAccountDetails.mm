@@ -170,12 +170,15 @@ using namespace mega;
             
         case MEGAAccountTypeStarter:
             result = @"Starter";
+            break;
             
         case MEGAAccountTypeBasic:
             result = @"Basic";
+            break;
             
         case MEGAAccountTypeEssential:
             result = @"Essential";
+            break;
             
         default:
             result = @"Unknown";
