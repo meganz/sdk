@@ -11835,23 +11835,29 @@ bool MegaApiImpl::isValidTypeNode(const Node *node, int type) const
 }
 
 // map to an ACCOUNT_* value to an int that can be compared:
-// free -> lite -> proi -> proii -> proiii
+// free -> starter -> basic -> essential -> lite -> proi -> proii -> proiii
 // the ACCOUNT_* values are out of order
 // int proLevel is a MegaAccountDetails::ACCOUNT_*
 static inline int orderProLevel(int proLevel)
 {
     switch (proLevel)
     {
-    case MegaAccountDetails::ACCOUNT_TYPE_FREE: // 0
-        return INT_MIN;
-    case MegaAccountDetails::ACCOUNT_TYPE_STARTER: // 11
-    case MegaAccountDetails::ACCOUNT_TYPE_BASIC: // 12
-    case MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL: // 13
-        return proLevel - ACCOUNT_TYPE_ESSENTIAL - 1;
-    case MegaAccountDetails::ACCOUNT_TYPE_LITE: // 4
-        return 0;
-    default:
-        return proLevel; // 1..3
+        case MegaAccountDetails::ACCOUNT_TYPE_STARTER:
+            return 1;
+        case MegaAccountDetails::ACCOUNT_TYPE_BASIC:
+            return 2;
+        case MegaAccountDetails::ACCOUNT_TYPE_ESSENTIAL:
+            return 3;
+        case MegaAccountDetails::ACCOUNT_TYPE_LITE:
+            return 4;
+        case MegaAccountDetails::ACCOUNT_TYPE_PROI:
+            return 5;
+        case MegaAccountDetails::ACCOUNT_TYPE_PROII:
+            return 6;
+        case MegaAccountDetails::ACCOUNT_TYPE_PROIII:
+            return 7;
+        default:
+            return 0;
     }
 }
 
