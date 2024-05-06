@@ -3626,9 +3626,10 @@ void MegaClient::dispatchTransfers()
         return static_cast<unsigned>(size);
     };
 
-    auto calcTransferWeight = [this, &calcDynamicQueueLimit]() -> double
+    auto calcTransferWeight = [this, &calcDynamicQueueLimit](mega::direction_t transferDirection) -> double
     {
-        if (raidTransfersCounter >= MEANINGFUL_PORTION_OF_MAXTRANSFERS_QUEUE_FOR_RAID_PREDICTIVE_SYSTEM) // 1/6 of the hard limit
+        if (transferDirection == GET &&
+            raidTransfersCounter >= MEANINGFUL_PORTION_OF_MAXTRANSFERS_QUEUE_FOR_RAID_PREDICTIVE_SYSTEM) // 1/6 of the hard limit
         {
             double averageFileSize = 0;
             for (TransferSlot* ts : tslots)
@@ -3679,7 +3680,7 @@ void MegaClient::dispatchTransfers()
             }
         }
         TransferCategory tc(ts->transfer);
-        auto transferWeight = calcTransferWeight();
+        auto transferWeight = calcTransferWeight(tc.direction);
         counters[tc.index()].addexisting(ts->transfer->size, ts->progressreported, transferWeight);
         counters[tc.directionIndex()].addexisting(ts->transfer->size, ts->progressreported, transferWeight);
     }
@@ -3731,7 +3732,7 @@ void MegaClient::dispatchTransfers()
                 return false;
             }
 
-            auto transferWeight = calcTransferWeight();
+            auto transferWeight = calcTransferWeight(tc.direction);
             counters[tc.index()].addnew(t->size, transferWeight);
             counters[tc.directionIndex()].addnew(t->size, transferWeight);
 
