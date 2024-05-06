@@ -112,7 +112,7 @@ pipeline {
                             sh "echo Building SDK"
                             sh "cmake -DENABLE_SDKLIB_WERROR=ON -DENABLE_CHAT=ON -DWITH_FUSE=1 -DCMAKE_BUILD_TYPE=Debug -DVCPKG_ROOT=${VCPKGPATH} ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=ON \
                             -S ${linux_sources_workspace} -B ${linux_sources_workspace}/${BUILD_DIR}"
-                            sh "cmake --build ${linux_sources_workspace}/${BUILD_DIR} -j1"
+                            sh "cmake --build ${linux_sources_workspace}/${BUILD_DIR} -j2"
                         }
                     }
                 }
