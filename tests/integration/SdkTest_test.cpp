@@ -3960,6 +3960,11 @@ protected:
 
     MegaHandle getHandle(const std::string& path) const;
 
+    void verifyCredentials(unsigned inviterIndex,
+                           const PerApi& inviter,
+                           unsigned inviteeIndex,
+                           const PerApi& invitee);
+
     void createNewContactAndVerify();
 
     void createOutgoingShare();
@@ -3993,32 +3998,51 @@ MegaHandle SdkTestShares::getHandle(const std::string& path) const
     return mHandles.at(path);
 }
 
+void SdkTestShares::verifyCredentials(unsigned inviterIndex,
+                                      const PerApi& inviter,
+                                      unsigned inviteeIndex,
+                                      const PerApi& invitee)
+{
+    if (!gManualVerification)
+        return;
+
+    if (!areCredentialsVerified(inviterIndex, invitee.email))
+    {
+        SdkTest::verifyCredentials(inviterIndex, invitee.email);
+    }
+
+    if (!areCredentialsVerified(inviteeIndex, inviter.email))
+    {
+        SdkTest::verifyCredentials(inviteeIndex, inviter.email);
+    }
+}
+
 void SdkTestShares::createNewContactAndVerify()
 {
+    auto& inviter = mApi[mInviter];
+    auto& invitee = mApi[mInvitee];
+
+    // Invite
     const string message = "Hi contact. Let's share some stuff";
+    invitee.contactRequestUpdated = false;
+    ASSERT_NO_FATAL_FAILURE( inviteContact(mInviter, invitee.email, message, MegaContactRequest::INVITE_ACTION_ADD) );
+    EXPECT_TRUE(waitForResponse(&invitee.contactRequestUpdated, 10u))
+            << "Contact request creation not received by the invitee after 10 seconds";
 
-    mApi[1].contactRequestUpdated = false;
-    ASSERT_NO_FATAL_FAILURE( inviteContact(0, mApi[1].email, message, MegaContactRequest::INVITE_ACTION_ADD) );
-    EXPECT_TRUE( waitForResponse(&mApi[1].contactRequestUpdated, 10u) )   // at the target side (auxiliar account)
-            << "Contact request creation not received after 10 seconds";
+    // Get the the contact request
+    EXPECT_NO_FATAL_FAILURE(getContactRequest(mInvitee, false));
 
+    // Accept the request
+    inviter.contactRequestUpdated = invitee.contactRequestUpdated = false;
+    EXPECT_NO_FATAL_FAILURE(replyContact(invitee.cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT));
+    EXPECT_TRUE( waitForResponse(&invitee.contactRequestUpdated, 10u) )
+            << "Contact request creation not received by the invitee after 10 seconds";
+    EXPECT_TRUE( waitForResponse(&inviter.contactRequestUpdated, 10u) )
+            << "Contact request creation not received by the inviter after 10 seconds";
+    invitee.cr.reset();
 
-    EXPECT_NO_FATAL_FAILURE( getContactRequest(1, false) );
-
-    mApi[0].contactRequestUpdated = mApi[1].contactRequestUpdated = false;
-    EXPECT_NO_FATAL_FAILURE( replyContact(mApi[1].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT) );
-    EXPECT_TRUE( waitForResponse(&mApi[1].contactRequestUpdated, 10u) )   // at the target side (auxiliar account)
-            << "Contact request creation not received after 10 seconds";
-    EXPECT_TRUE( waitForResponse(&mApi[0].contactRequestUpdated, 10u) )   // at the source side (main account)
-            << "Contact request creation not received after 10 seconds";
-
-    mApi[1].cr.reset();
-
-    if (gManualVerification)
-    {
-        if (!areCredentialsVerified(0, mApi[1].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(0, mApi[1].email));}
-        if (!areCredentialsVerified(1, mApi[0].email)) {ASSERT_NO_FATAL_FAILURE(verifyCredentials(1, mApi[0].email));}
-    }
+    // Verify credential
+    ASSERT_NO_FATAL_FAILURE(verifyCredentials(mInviter, inviter, mInvitee, invitee));
 }
 
 void SdkTestShares::createOutgoingShare()
