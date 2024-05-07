@@ -3949,6 +3949,75 @@ bool SdkTest::checkAlert(int apiIndex, const string& title, handle h, int64_t n,
     return ok;
 }
 
+class SdkTestShares : public SdkTest
+{
+protected:
+    void SetUp() override;
+
+    void TearDown() override;
+
+    void createNodeTrees(MegaHandle& hfolder);
+
+    static constexpr const char* FOLDER_NAME = "Shared-folder";
+
+};
+
+void SdkTestShares::SetUp()
+{
+    SdkTest::SetUp();
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+}
+
+void SdkTestShares::TearDown()
+{
+    SdkTest::TearDown();
+}
+
+// Initialize a test scenario : create some folders/files to share
+
+// Create some nodes to share
+//  |--Shared-folder
+//    |--subfolder
+//      |--file.txt
+//    |--file.txt
+void SdkTestShares::createNodeTrees(MegaHandle& hfolder)
+{
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    //char foldername1[64] = "Shared-folder";
+    hfolder = createFolder(0, FOLDER_NAME, rootnode.get());
+    ASSERT_NE(hfolder, UNDEF);
+
+    // std::unique_ptr<MegaNode> n1(megaApi[0]->getNodeByHandle(hfolder));
+    // ASSERT_NE(n1.get(), nullptr);
+
+    std::string subfolderName{"subfolder"};
+    MegaHandle subfolder = createFolder(0, subfolderName.c_str(), std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder)}.get());
+    ASSERT_NE(subfolder, UNDEF);
+
+    // not a large file since don't need to test transfers here
+    ASSERT_TRUE(createFile(PUBLICFILE.c_str(), false)) << "Couldn't create " << PUBLICFILE.c_str();
+
+    MegaHandle hfile1 = UNDEF;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &hfile1, PUBLICFILE.c_str(),
+                                                        std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder)}.get(),
+                                                        nullptr /*fileName*/,
+                                                        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                                        nullptr /*appData*/,
+                                                        false   /*isSourceTemporary*/,
+                                                        false   /*startFirst*/,
+                                                        nullptr /*cancelToken*/)) << "Cannot upload a test file";
+
+    MegaHandle hfile2 = UNDEF;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &hfile2, PUBLICFILE.c_str(),
+                                                        std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(subfolder)}.get(),
+                                                        nullptr /*fileName*/,
+                                                        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                                        nullptr /*appData*/,
+                                                        false   /*isSourceTemporary*/,
+                                                        false   /*startFirst*/,
+                                                        nullptr /*cancelToken*/)) << "Cannot upload a second test file";
+}
 
 /**
  * @brief TEST_F SdkTestShares2
@@ -5178,7 +5247,7 @@ TEST_F(SdkTest, DISABLED_SdkTestShares3)
 }
 
 /**
- * @brief TEST_F SdkTestShares4
+ * @brief TEST_F TestPublicFolderLinksWithShares
  *
  * Initialize a test scenario by:
  *
@@ -5201,58 +5270,19 @@ TEST_F(SdkTest, DISABLED_SdkTestShares3)
  * - Import folder public link
  * - Remove the folder public link
  */
-TEST_F(SdkTest, SdkTestShares4)
+TEST_F(SdkTestShares, TestPublicFolderLinksWithShares)
 {
-    LOG_info << "___TEST Shares 4___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    LOG_info << "___TEST TestPublicFolderLinksWithShares";
 
     MegaShareList *sl;
     MegaShare *s;
     MegaNodeList *nl;
     MegaNode *n;
 
-    // Initialize a test scenario : create some folders/files to share
-
-    // Create some nodes to share
-    //  |--Shared-folder
-    //    |--subfolder
-    //      |--file.txt
-    //    |--file.txt
-
-    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
-    char foldername1[64] = "Shared-folder";
-    MegaHandle hfolder1 = createFolder(0, foldername1, rootnode.get());
-    ASSERT_NE(hfolder1, UNDEF);
-
+    MegaHandle hfolder1;
+    ASSERT_NO_FATAL_FAILURE((createNodeTrees(hfolder1)));
     std::unique_ptr<MegaNode> n1(megaApi[0]->getNodeByHandle(hfolder1));
     ASSERT_NE(n1.get(), nullptr);
-
-    char foldername2[64] = "subfolder";
-    MegaHandle hfolder2 = createFolder(0, foldername2, std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder1)}.get());
-    ASSERT_NE(hfolder2, UNDEF);
-
-    // not a large file since don't need to test transfers here
-    ASSERT_TRUE(createFile(PUBLICFILE.c_str(), false)) << "Couldn't create " << PUBLICFILE.c_str();
-
-    MegaHandle hfile1 = UNDEF;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &hfile1, PUBLICFILE.c_str(),
-                                                        std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder1)}.get(),
-                                                        nullptr /*fileName*/,
-                                                        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                                        nullptr /*appData*/,
-                                                        false   /*isSourceTemporary*/,
-                                                        false   /*startFirst*/,
-                                                        nullptr /*cancelToken*/)) << "Cannot upload a test file";
-
-    MegaHandle hfile2 = UNDEF;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &hfile2, PUBLICFILE.c_str(),
-                                                        std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder2)}.get(),
-                                                        nullptr /*fileName*/,
-                                                        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                                        nullptr /*appData*/,
-                                                        false   /*isSourceTemporary*/,
-                                                        false   /*startFirst*/,
-                                                        nullptr /*cancelToken*/)) << "Cannot upload a second test file";
 
     // Initialize a test scenario: create a new contact to share to and verify credentials
 
@@ -5330,7 +5360,7 @@ TEST_F(SdkTest, SdkTestShares4)
     n = nl->get(0);
 
     ASSERT_EQ(hfolder1, n->getHandle()) << "Wrong node handle of incoming share";
-    ASSERT_STREQ(foldername1, n->getName()) << "Wrong folder name of incoming share";
+    ASSERT_STREQ(FOLDER_NAME, n->getName()) << "Wrong folder name of incoming share";
     ASSERT_EQ(API_OK, megaApi[1]->checkAccess(n, MegaShare::ACCESS_FULL).getErrorCode()) << "Wrong access level of incoming share";
     ASSERT_TRUE(n->isInShare()) << "Wrong sharing information at incoming share";
     ASSERT_TRUE(n->isShared()) << "Wrong sharing information at incoming share";
