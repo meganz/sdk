@@ -2554,8 +2554,8 @@ std::string OrderByClause::get(int order, int sqlParamIndex)
         "WHEN " + std::to_string(FAV_DESC)     + " THEN type \n";  // folders first
     // Second sorting field
     static const std::string fieldToSort2 =
-        "WHEN " + std::to_string(DEFAULT_ASC)  + " THEN name \n"
-        "WHEN " + std::to_string(DEFAULT_DESC) + " THEN name \n"
+        "WHEN " + std::to_string(DEFAULT_ASC)  + " THEN name COLLATE NOCASE \n"
+        "WHEN " + std::to_string(DEFAULT_DESC) + " THEN name COLLATE NOCASE \n"
         "WHEN " + std::to_string(LABEL_ASC)    + " THEN label \n"
         "WHEN " + std::to_string(LABEL_DESC)   + " THEN label \n"
         "WHEN " + std::to_string(FAV_ASC)      + " THEN fav \n"

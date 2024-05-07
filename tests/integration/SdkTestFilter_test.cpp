@@ -179,6 +179,7 @@ public:
                     true),
         DirNodeInfo("Dir2", {FileNodeInfo("testFile5", MegaNode::NODE_LBL_BLUE, true, 20, 200s)}),
         FileNodeInfo("testFile6", {}, true, 10, 300s),
+        FileNodeInfo("TestFile5Uppercase"),
     };
 
     void SetUp() override
@@ -380,14 +381,21 @@ TEST_F(SdkTestFilter, SdkGetNodesInOrder)
         << "Unexpected sorting for ORDER_NONE";
 
     // Alphabetical, dirs first
-    std::vector<std::string_view> expected{"Dir1", "Dir11", "Dir2", "testFile1", "testFile6"};
+    std::vector<std::string_view> expected{"Dir1",
+                                           "Dir11",
+                                           "Dir2",
+                                           "testFile1",
+                                           "testFile5",
+                                           "TestFile5Uppercase",
+                                           "testFile6"};
     searchResults.reset(megaApi[0]->search(filteringInfo.get(), MegaApi::ORDER_DEFAULT_ASC));
     ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
     EXPECT_THAT(toNamesVector(*searchResults), ContainsInOrder(expected))
         << "Unexpected sorting for ORDER_DEFAULT_ASC";
 
     // Alphabetical inverted, dirs first
-    expected = {"Dir2", "Dir11", "Dir1", "testFile6", "testFile1"};
+    expected =
+        {"Dir2", "Dir11", "Dir1", "testFile6", "TestFile5Uppercase", "testFile5", "testFile1"};
     searchResults.reset(megaApi[0]->search(filteringInfo.get(), MegaApi::ORDER_DEFAULT_DESC));
     ASSERT_THAT(searchResults, NotNull()) << "serach() returned a nullptr";
     EXPECT_THAT(toNamesVector(*searchResults), ContainsInOrder(expected))
