@@ -14546,13 +14546,10 @@ void MegaApiImpl::putfa_result(handle h, fatype, error e)
     fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
 }
 
-<<<<<<< HEAD
 void MegaApiImpl::enumeratequotaitems_result(unsigned type, handle product, unsigned prolevel,
     int gbstorage, int gbtransfer, unsigned months, unsigned amount, unsigned amountMonth, unsigned localPrice,
-    const char* description, map<string, uint32_t>&& features, const char* iosid, const char* androidid, std::unique_ptr<BusinessPlan> bizPlan)
-=======
-void MegaApiImpl::enumeratequotaitems_result(unsigned type, handle product, unsigned prolevel, int gbstorage, int gbtransfer, unsigned months, unsigned amount, unsigned amountMonth, unsigned localPrice, const char* description, const char* iosid, const char* androidid, unsigned int testCategory, std::unique_ptr<BusinessPlan> bizPlan)
->>>>>>> 535a87400 (Parse new tc filed for utqa command)
+    const char* description, map<string, uint32_t>&& features, const char* iosid, const char* androidid, 
+    unsigned int testCategory, std::unique_ptr<BusinessPlan> bizPlan)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
@@ -14564,13 +14561,9 @@ void MegaApiImpl::enumeratequotaitems_result(unsigned type, handle product, unsi
         return;
     }
 
-<<<<<<< HEAD
     request->addProduct(type, product, prolevel, gbstorage, gbtransfer, months,
         amount, amountMonth, localPrice, description, std::move(features),
-        iosid, androidid, std::move(bizPlan));
-=======
-    request->addProduct(type, product, prolevel, gbstorage, gbtransfer, months, amount, amountMonth, localPrice, description, iosid, androidid, testCategory, std::move(bizPlan));
->>>>>>> 535a87400 (Parse new tc filed for utqa command)
+        iosid, androidid, testCategory, std::move(bizPlan));
 }
 
 void MegaApiImpl::enumeratequotaitems_result(unique_ptr<CurrencyData> currencyData)
@@ -28186,27 +28179,17 @@ MegaPricing *MegaPricingPrivate::copy()
         std::unique_ptr<BusinessPlan> bizPlan(mBizPlan[i] ? new BusinessPlan(*mBizPlan[i]) : nullptr);
 
         megaPricing->addProduct(type[i], handles[i], proLevel[i], gbStorage[i], gbTransfer[i],
-<<<<<<< HEAD
                                 months[i], amount[i], amountMonth[i], mLocalPrice[i], description[i],
                                 decltype(features)::value_type(features[i]), // make a copy
-                                iosId[i], androidId[i], std::move(bizPlan));
-=======
-                                months[i], amount[i], amountMonth[i],
-                                mLocalPrice[i],
-                                description[i], iosId[i], androidId[i],
-                                mTestCategory[i], std::move(bizPlan));
->>>>>>> 535a87400 (Parse new tc filed for utqa command)
+                                iosId[i], androidId[i], mTestCategory[i], std::move(bizPlan));
     }
 
     return megaPricing;
 }
 
 void MegaPricingPrivate::addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer, int months, int amount, int amountMonth,
-<<<<<<< HEAD
-                                    unsigned localPrice, const char* description, map<string, uint32_t>&& features, const char* iosid, const char* androidid, std::unique_ptr<BusinessPlan> bizPlan)
-=======
-                                    unsigned localPrice, const char* description, const char* iosid, const char* androidid, unsigned int testCategory, std::unique_ptr<BusinessPlan> bizPlan)
->>>>>>> 535a87400 (Parse new tc filed for utqa command)
+                                    unsigned localPrice, const char* description, map<string, uint32_t>&& features, const char* iosid, const char* androidid, 
+                                    unsigned int testCategory, std::unique_ptr<BusinessPlan> bizPlan)
 {
     this->type.push_back(type);
     this->handles.push_back(product);
@@ -28349,6 +28332,14 @@ MegaStringIntegerMap* MegaPricingPrivate::getFeatures(int productIndex) const
         returnFeatures->set(feature.first, feature.second);
     }
     return returnFeatures;
+}
+
+unsigned int MegaPricingPrivate::getTestCategory(int productIndex)
+{
+    if((unsigned)productIndex < mTestCategory.size())
+        return mTestCategory[productIndex];
+
+    return 0;
 }
 
 MegaCurrencyPrivate::~MegaCurrencyPrivate()

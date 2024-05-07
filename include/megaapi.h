@@ -24372,6 +24372,14 @@ public:
      * @return Features of this product. The value of each feature should be treated as a 32bit unsigned int
      */
     virtual MegaStringIntegerMap* getFeatures(int productIndex) const;
+
+    /**
+     * @brief Get test category bitmap of a product
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return test category bitmap
+     */
+    virtual unsigned int getTestCategory(int productIndex);
+
 };
 
 /**

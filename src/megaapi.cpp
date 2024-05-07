@@ -6486,6 +6486,11 @@ const char *MegaCurrency::getLocalCurrencyName()
     return nullptr;
 }
 
+unsigned int MegaPricing::getTestCategory(int)
+{
+    return 0;
+}
+
 #ifdef ENABLE_SYNC
 MegaSync::~MegaSync() { }
 
