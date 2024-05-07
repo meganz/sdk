@@ -2,6 +2,7 @@ import re
 from lib.local_repository import LocalRepository
 from lib.private_repository import GitLabRepository
 from lib.sign_commits import setup_gpg_signing
+from lib.version_management import JiraProject
 
 
 class ReleaseProcess:
@@ -19,6 +20,7 @@ class ReleaseProcess:
         self._remote_private_repo = GitLabRepository(
             private_host_url, gitlab_token, project_name
         )
+        self._project_name = project_name
         self._new_version = new_version
 
     # STEP 2: update version in local file
@@ -193,3 +195,14 @@ class ReleaseProcess:
             "  **** Do NOT merge this MR until the release will be closed (dependent apps are live)!!",
             flush=True,
         )
+
+    # STEP 6: Update and rename previous NextRelease version; create new NextRelease version
+    def manage_versions(self, url: str, user: str, password: str, apps: str):
+        self._jira = JiraProject(url, user, password, self._project_name)
+
+        self._jira.update_current_version(
+            self._new_version,  # i.e. "X.Y.Z"
+            apps,  # i.e. "iOS A.B / Android C.D / MEGAsync E.F.G"
+        )
+
+        self._jira.create_new_version()

@@ -1,7 +1,7 @@
 import argparse
-from lib.utils import get_mega_env_vars
 from lib.release_process import ReleaseProcess
-
+from lib.version_management import JiraProject
+from lib.utils import get_mega_env_vars
 
 # runtime arguments
 parser = argparse.ArgumentParser()
@@ -20,7 +20,7 @@ parser.add_argument(
 parser.add_argument(
     "-l",
     "--private-git-host-url",
-    help="URL of private repository (i.e. https://foo.bar)",
+    help="URL of private repository (i.e. https://code.foo.bar)",
     required=True,
 )
 parser.add_argument(
@@ -51,6 +51,17 @@ parser.add_argument(
     "--private-git-remote-url",
     help="URL of private repository's git remote (i.e. git@foo.bar:proj:proj.git). Ignored if -n was given",
 )
+parser.add_argument(
+    "-j",
+    "--project-management-url",
+    help="URL of project management tool (i.e. https://jira.foo.bar)",
+    required=True,
+)
+parser.add_argument(
+    "-t",
+    "--target-apps",
+    help='Apps and versions that use this release (i.e. "Android 1.0.1 / iOS 1.2 / MEGAsync 9.9.9")',
+)
 args = parser.parse_args()
 
 if not args.no_file_update:
@@ -60,6 +71,8 @@ if not args.no_file_update:
 # environment variables
 mega_env_vars = get_mega_env_vars(
     "MEGA_GITLAB_TOKEN",
+    "MEGA_JIRA_USER",
+    "MEGA_JIRA_PASSWORD",
 )
 
 
@@ -75,7 +88,7 @@ release = ReleaseProcess(
 
 if not args.no_file_update:
     # STEP 2: update version in local file
-    mega_env_vars = get_mega_env_vars(
+    mega_env_vars |= get_mega_env_vars(
         "MEGA_GPG_KEYGRIP",
         "MEGA_GPG_PASSWORD",
     )
@@ -99,3 +112,12 @@ release.create_rc_tag()
 
 # STEP 5: Open MR from branch "release/vX.Y.Z" to public branch (don't merge)
 release.open_mr_for_release_branch(args.public_git_target_branch)
+
+
+# STEP 6: Rename previous NextRelease version; create new NextRelease version
+release.manage_versions(
+    args.project_management_url,
+    mega_env_vars["MEGA_JIRA_USER"],
+    mega_env_vars["MEGA_JIRA_PASSWORD"],
+    args.target_apps.strip('"'),
+)

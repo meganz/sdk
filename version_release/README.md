@@ -15,27 +15,32 @@ For signing commits, GPG needs the following
 export MEGA_GPG_KEYGRIP=BAR    # KEYGRIP of your gpg key (see below how to find it); required only when a source file will be edited
 export MEGA_GPG_PASSWORD=BAZZ  # password corresponding to the KEYGRIP (the one used to sign any commit); required only when a source file will be edited
 ```
+For Jira
+```sh
+export MEGA_JIRA_USER=Fred     # Jira user
+export MEGA_JIRA_PASSWORD=Thud # Jira password
+```
 
 From current directory run one of the following:
 
 \# will edit [../include/mega/version.h](../include/mega/version.h) to update the version
 ```sh
-python3 ./make_release.py -r <version> -p <project-name> -l <private-repo-url> -o <private-remote-name> -u <private-remote-url> -d <private-branch-name> -m <public-branch-name>
+python3 ./make_release.py -r <release-version> -p <project-name> -l <private-git-host-url> -o <private-git-remote-name> -u <private-git-remote-url> -d <private-git-develop-branch> -m <public-git-target-branch> -j <project-management-url> -t <target-apps>
 ```
 
 \# no source file will be edited (so less mandatory args, and dealing with gpg stuff not required)
 ```sh
-python3 ./make_release.py -r <version> -p <project-name> -l <private-repo-url> -n -d <private-branch-name> -m <public-branch-name>
+python3 ./make_release.py -r <release-version> -p <project-name> -l <private-git-host-url> -n -d <private-git-develop-branch> -m <public-git-target-branch> -j <project-management-url> -t <target-apps>
 ```
 
 Example:
 
 ```sh
 # will edit source file(s) to update the version
-python3 ./make_release.py -r 1.0.0 -p SDK -l https://foo.bar -o origin -u https://foo.bar/sdk/sdk.git -d develop -m master
+python3 ./make_release.py -r 1.0.0 -p SDK -l https://code.foo.bar -o origin -u https://foo.bar/sdk/sdk.git -d develop -m master -j https://jira.foo.bar -t "Android 1.0.1 / iOS 1.2 / MEGAsync 9.9.9"
 
 # no source file will be edited (so less mandatory args, and dealing with gpg stuff not required)
-python3 ./make_release.py -r 1.0.0 -p MEGAchat -l https://foo.bar -n -d develop -m master
+python3 ./make_release.py -r 1.0.0 -p MEGAchat -l https://code.foo.bar -n -d develop -m master -j https://jira.foo.bar -t "Android 1.0.1 / iOS 1.2 / MEGAsync 9.9.9"
 ```
 
 
@@ -48,7 +53,7 @@ These should only be needed once.
 * Install `Python 3`. The script was written on top of Python 3.12.2, just in case an older version would fail to run it.
 * Install `pip`. Something like `python3 -m ensurepip --upgrade` should work.
 * Install module `python-gitlab`. It worked with `python3 -m pip install python-gitlab`. For other install methods it didn't see the module.
-
+* Install module `jira`. It worked directly with `pip install jira`.
 
 ### gitlab stuff
 * [Create a personal access token](https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html#create-a-personal-access-token) with scopes `api`, `read_api`, `read_user`, `create_runner`, `read_repository`, `write_repository`.
