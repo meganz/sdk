@@ -87,7 +87,7 @@ release = ReleaseProcess(
 
 
 if not args.no_file_update:
-    # STEP 2: update version in local file
+    # STEP 3: update version in local file
     mega_env_vars |= get_mega_env_vars(
         "MEGA_GPG_KEYGRIP",
         "MEGA_GPG_PASSWORD",
@@ -102,19 +102,19 @@ if not args.no_file_update:
     )
 
 
-# STEP 3: Create branch "release/vX.Y.Z"
+# STEP 4: Create branch "release/vX.Y.Z"
 release_branch = release.create_release_branch()
 
 
-# STEP 4: Create rc tag "vX.Y.Z-rc.1" from branch "release/vX.Y.Z"
+# STEP 5: Create rc tag "vX.Y.Z-rc.1" from branch "release/vX.Y.Z"
 release.create_rc_tag()
 
 
-# STEP 5: Open MR from branch "release/vX.Y.Z" to public branch (don't merge)
+# STEP 6: Open MR from branch "release/vX.Y.Z" to public branch (don't merge)
 release.open_mr_for_release_branch(args.public_git_target_branch)
 
 
-# STEP 6: Rename previous NextRelease version; create new NextRelease version
+# STEP 7: Rename previous NextRelease version; create new NextRelease version
 release.manage_versions(
     args.project_management_url,
     mega_env_vars["MEGA_JIRA_USER"],

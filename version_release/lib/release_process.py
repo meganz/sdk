@@ -23,7 +23,7 @@ class ReleaseProcess:
         self._project_name = project_name
         self._new_version = new_version
 
-    # STEP 2: update version in local file
+    # STEP 3: update version in local file
     def update_version_in_local_file(
         self,
         gpg_keygrip: str,
@@ -142,7 +142,7 @@ class ReleaseProcess:
             raise ValueError("Failed to merge MR with local changes")
         print("v MR merged for version upgrade", flush=True)
 
-    # STEP 3: Create "release/vX.Y.Z" branch
+    # STEP 4: Create "release/vX.Y.Z" branch
     def create_release_branch(self):
         self._version_v_prefixed = f"v{self._new_version}"
         self._release_branch = f"release/{self._version_v_prefixed}"
@@ -153,7 +153,7 @@ class ReleaseProcess:
         )
         print("v Created branch", self._release_branch)
 
-    # STEP 4: Create rc tag "vX.Y.Z-rc.1" from branch "release/vX.Y.Z"
+    # STEP 5: Create rc tag "vX.Y.Z-rc.1" from branch "release/vX.Y.Z"
     def create_rc_tag(self):
         assert self._remote_private_repo is not None
         assert self._version_v_prefixed is not None
@@ -168,7 +168,7 @@ class ReleaseProcess:
             raise ValueError(f"Failed to create tag {self._rc_tag}")
         print("v Created tag", self._rc_tag)
 
-    # STEP 5: Open MR to merge branch "release/vX.Y.Z" into public branch (don't merge)
+    # STEP 6: Open MR to merge branch "release/vX.Y.Z" into public branch (don't merge)
     def open_mr_for_release_branch(self, public_branch: str):
         assert self._remote_private_repo is not None
         assert self._release_branch is not None
@@ -196,7 +196,7 @@ class ReleaseProcess:
             flush=True,
         )
 
-    # STEP 6: Update and rename previous NextRelease version; create new NextRelease version
+    # STEP 7: Update and rename previous NextRelease version; create new NextRelease version
     def manage_versions(self, url: str, user: str, password: str, apps: str):
         self._jira = JiraProject(url, user, password, self._project_name)
 
