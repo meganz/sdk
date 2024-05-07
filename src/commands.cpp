@@ -2424,6 +2424,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
         handle product = UNDEF;
         int prolevel = -1, gbstorage = -1, gbtransfer = -1, months = -1, type = -1;
         unsigned amount = 0, amountMonth = 0, localPrice = 0;
+        unsigned int testCategory = 0; // Bitmap. Bit 0 set (int value 1) is standard plan, other bits are defined by API.
         string description;
         map<string, uint32_t> features;
         string ios_id;
@@ -2750,6 +2751,9 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                     json.leaveobject();
                     break;
                 }
+                case MAKENAMEID2('t', 'c'):
+                    testCategory = json.getuint32();
+                    break;
                 case EOO:
                     if (type < 0
                             || ISUNDEF(product)
@@ -2757,6 +2761,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                             || (months < 0)
                             || currency.empty()
                             || description.empty()
+                            || !testCategory
                             // only available for Pro plans, not for Business
                             || (!type && gbstorage < 0)
                             || (!type && gbtransfer < 0)
@@ -2798,7 +2803,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
             client->app->enumeratequotaitems_result(type, product, prolevel, gbstorage,
                                                     gbtransfer, months, amount, amountMonth, localPrice,
                                                     description.c_str(), std::move(features), ios_id.c_str(), android_id.c_str(),
-                                                    std::move(bizPlan));
+                                                    testCategory, std::move(bizPlan));
         }
     }
 

@@ -1569,7 +1569,7 @@ class MegaRequestPrivate : public MegaRequest
         void addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer,
                         int months, int amount, int amountMonth, int localPrice,
                         const char *description, std::map<std::string, uint32_t>&& features, const char *iosid, const char *androidid,
-                        std::unique_ptr<BusinessPlan>);
+                        unsigned int testCategory, std::unique_ptr<BusinessPlan>);
         void setCurrency(std::unique_ptr<CurrencyData> currencyData);
         void setProxy(Proxy *proxy);
         Proxy *getProxy();
@@ -1964,7 +1964,7 @@ public:
     void addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer,
                     int months, int amount, int amountMonth, unsigned localPrice,
                     const char *description, std::map<std::string, uint32_t>&& features, const char *iosid, const char *androidid,
-                    std::unique_ptr<BusinessPlan>);
+                    unsigned int testCategory, std::unique_ptr<BusinessPlan>);
 
 private:
     enum PlanType : unsigned
@@ -1989,6 +1989,7 @@ private:
     vector<map<string, uint32_t>> features;
     vector<const char *> iosId;
     vector<const char *> androidId;
+    vector<unsigned int> mTestCategory;
 
     std::vector<std::unique_ptr<BusinessPlan>> mBizPlan;
 };
@@ -4096,7 +4097,8 @@ private:
         void enumeratequotaitems_result(unsigned type, handle product, unsigned prolevel, int gbstorage, int gbtransfer,
                                         unsigned months, unsigned amount, unsigned amountMonth, unsigned localPrice,
                                         const char* description, std::map<std::string, uint32_t>&& features,
-                                        const char* iosid, const char* androidid, std::unique_ptr<BusinessPlan>) override;
+                                        const char* iosid, const char* androidid, 
+                                        unsigned int testCategory, std::unique_ptr<BusinessPlan>) override;
         void enumeratequotaitems_result(unique_ptr<CurrencyData>) override;
         void enumeratequotaitems_result(error e) override;
         void additem_result(error) override;
