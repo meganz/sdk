@@ -9969,6 +9969,7 @@ void DemoApp::enumeratequotaitems_result(unsigned type,
                                          map<string, uint32_t>&& features,
                                          const char* iosId,
                                          const char* androidId,
+                                         unsigned int testCategory,
                                          std::unique_ptr<BusinessPlan> businessPlan)
 {
     if (type == 0) // Pro level plan
@@ -9994,7 +9995,8 @@ void DemoApp::enumeratequotaitems_result(unsigned type,
             }
         }
         cout << "\tiOS ID: " << iosId << "\n";
-        cout << "\tAndroid ID: " << androidId << endl;
+        cout << "\tAndroid ID: " << androidId << "\n";
+        cout << "\tTest Category: " << testCategory << endl;
     }
     else // Business plan
     {
@@ -10009,7 +10011,8 @@ void DemoApp::enumeratequotaitems_result(unsigned type,
         cout << "\tGigabytes per storage: " << businessPlan->gbPerStorage << "\n";
         cout << "\tPrice per transfer: " << businessPlan->pricePerTransfer << "\n";
         cout << "\tLocal price per transfer: " << businessPlan->localPricePerTransfer << "\n";
-        cout << "\tGigabytes per transfer: " << businessPlan->gbPerTransfer << endl;
+        cout << "\tGigabytes per transfer: " << businessPlan->gbPerTransfer << "\n";
+        cout << "\tTest Category: " << testCategory << endl;
     }
 }
 

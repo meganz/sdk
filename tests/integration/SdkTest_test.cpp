@@ -8120,6 +8120,14 @@ TEST_F(SdkTest, SdkGetPricing)
     ASSERT_TRUE(err == API_OK) << "Get pricing failed (error: " << err << ")";
 
     ASSERT_TRUE(strcmp(mApi[0].mMegaCurrency->getCurrencyName(), "EUR") == 0) << "Unexpected currency";
+
+    ASSERT_GT(mApi[0].mMegaPricing->getNumProducts(), 0) << "No products available";
+    for (int i = 0; i < mApi[0].mMegaPricing->getNumProducts(); ++i)
+    {
+        ASSERT_TRUE(mApi[0].mMegaPricing->getDescription(i)) << "Product description is empty";
+        ASSERT_GT(mApi[0].mMegaPricing->getTestCategory(i), 0) << "Invalid value for test category in product \""
+                                                              << mApi[0].mMegaPricing->getDescription(i) << "\"";
+    }
 }
 
 TEST_F(SdkTest, SdkGetBanners)
