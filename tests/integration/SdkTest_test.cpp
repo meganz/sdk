@@ -4025,7 +4025,7 @@ void SdkTestShares::createNewContactAndVerify()
     // Invite
     const string message = "Hi contact. Let's share some stuff";
     invitee.contactRequestUpdated = false;
-    ASSERT_NO_FATAL_FAILURE( inviteContact(mInviter, invitee.email, message, MegaContactRequest::INVITE_ACTION_ADD) );
+    ASSERT_NO_FATAL_FAILURE(inviteContact(mInviter, invitee.email, message, MegaContactRequest::INVITE_ACTION_ADD));
     EXPECT_TRUE(waitForResponse(&invitee.contactRequestUpdated, 10u))
             << "Contact request creation not received by the invitee after 10 seconds";
 
@@ -4047,36 +4047,38 @@ void SdkTestShares::createNewContactAndVerify()
 
 void SdkTestShares::createOutgoingShare()
 {
+    auto& inviter = mApi[mInviter];
+    auto& invitee = mApi[mInvitee];
+    const auto inviterApi = megaApi[0].get();
+
     const MegaHandle hfolder = getHandle("/sharedfolder");
-    std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(hfolder));
+    std::unique_ptr<MegaNode> node(inviterApi->getNodeByHandle(hfolder));
 
-    // --- Create a new outgoing share ---
-    bool check2;
-    bool check1;
-    mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(hfolder, MegaNode::CHANGE_TYPE_OUTSHARE, check1);
-    mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(hfolder, MegaNode::CHANGE_TYPE_INSHARE, check2);
-    ASSERT_NO_FATAL_FAILURE(shareFolder(node.get(), mApi[1].email.c_str(), MegaShare::ACCESS_FULL));
-    ASSERT_TRUE(waitForResponse(&check1)) // at the target side (main account)
-        << "Node update not received after " << maxTimeout << " seconds";
-    ASSERT_TRUE(waitForResponse(&check2)) // at the target side (auxiliar account)
-        << "Node update not received after " << maxTimeout << " seconds";
+    // Create a new outgoing share
+    bool inshareCheck = false;
+    bool outshareCheck = false;
+    inviter.mOnNodesUpdateCompletion = createOnNodesUpdateLambda(hfolder, MegaNode::CHANGE_TYPE_OUTSHARE, outshareCheck);
+    invitee.mOnNodesUpdateCompletion = createOnNodesUpdateLambda(hfolder, MegaNode::CHANGE_TYPE_INSHARE, inshareCheck);
+    ASSERT_NO_FATAL_FAILURE(shareFolder(node.get(), invitee.email.c_str(), MegaShare::ACCESS_FULL));
+    ASSERT_TRUE(waitForResponse(&outshareCheck))
+        << "Node update not received by the inviter(sharer) after " << maxTimeout << " seconds";
+    ASSERT_TRUE(waitForResponse(&inshareCheck))
+        << "Node update not received by the invitee(sharee) after " << maxTimeout << " seconds";
+    resetOnNodeUpdateCompletionCBs(); // Important to reset
+    ASSERT_EQ(outshareCheck, true);
+    ASSERT_EQ(inshareCheck, true);
 
-    // Important to reset
-    resetOnNodeUpdateCompletionCBs();
-    ASSERT_EQ(check1, true);
-    ASSERT_EQ(check2, true);
-
-    // --- Check the outgoing share ---
-    const std::unique_ptr<MegaShareList> shareList{megaApi[0]->getOutShares()};
+    // Check the outgoing share
+    const std::unique_ptr<MegaShareList> shareList{inviterApi->getOutShares()};
     ASSERT_EQ(1, shareList->size()) << "Outgoing share failed";
 
     const auto share = shareList->get(0);
     ASSERT_EQ(MegaShare::ACCESS_FULL, share->getAccess()) << "Wrong access level of outgoing share";
     ASSERT_EQ(hfolder, share->getNodeHandle()) << "Wrong node handle of outgoing share";
-    ASSERT_STRCASEEQ(mApi[1].email.c_str(), share->getUser()) << "Wrong email address of outgoing share";
+    ASSERT_STRCASEEQ(invitee.email.c_str(), share->getUser()) << "Wrong email address of outgoing share";
 
     // Get an updated version of the node
-    node.reset(megaApi[0]->getNodeByHandle(hfolder));
+    node.reset(inviterApi->getNodeByHandle(hfolder));
     ASSERT_TRUE(node->isShared()) << "Wrong sharing information at outgoing share";
     ASSERT_TRUE(node->isOutShare()) << "Wrong sharing information at outgoing share";
 }
@@ -18766,7 +18768,7 @@ TEST_F(SdkTest, DynamicMessageNotifs)
     // IDs 1,2,3,4,5 have been reserved to be "^!tnotif" only notifications.
     // Notifications with IDs 1~4 existed at the time of writing this test
     // Notification with ID 2 has icon
-    ids->add(1);                                   // add notification with ID 1 
+    ids->add(1);                                   // add notification with ID 1
     ids->add(2);                                   // add notification with ID 2
     ids->add(numeric_limits<uint32_t>::max() - 1); // dummy
 
