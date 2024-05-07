@@ -15998,22 +15998,22 @@ TEST_F(SdkTest, GetRecommendedProLevel)
 
     int level = -1;
     int err = synchronousGetRecommendedProLevel(0, level);
-    ASSERT_EQ(err, API_OK) << "synchronousGetRecommendedProLevel() failed: " << err << ": " << MegaError::getErrorString(err);
+    ASSERT_EQ(err, API_OK) << "Get Recommended Pro Level failed: " << MegaError::getErrorString(err);
     err = synchronousGetPricing(0);
-    ASSERT_EQ(err, API_OK) << "synchronousGetPricing() failed: " << err << ": " << MegaError::getErrorString(err);
+    ASSERT_EQ(err, API_OK) << "Get Pricing failed: " << MegaError::getErrorString(err);
 
-    bool liteAvailable = false;
+    bool starterAvailable = false;
     for (int i = 0; i < mApi[0].mMegaPricing->getNumProducts(); ++i)
     {
-        if (mApi[0].mMegaPricing->getProLevel(i) == MegaAccountDetails::ACCOUNT_TYPE_LITE)
+        if (mApi[0].mMegaPricing->getProLevel(i) == MegaAccountDetails::ACCOUNT_TYPE_STARTER)
         {
-            LOG_debug << "GetRecommendedProLevel: ACCOUNT_TYPE_LITE is available.";
-            liteAvailable = true;
+            starterAvailable = true;
             break;
         }
     }
 
-    ASSERT_EQ(level, liteAvailable ? MegaAccountDetails::ACCOUNT_TYPE_LITE : MegaAccountDetails::ACCOUNT_TYPE_PROI);
+    ASSERT_TRUE(starterAvailable) << "Starter plan not available !";
+    ASSERT_EQ(level, MegaAccountDetails::ACCOUNT_TYPE_STARTER);
 }
 
 /**
