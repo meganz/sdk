@@ -24,8 +24,17 @@ class GitLabRepository:  # use gitlab API
         gl.auth()
 
         # find project by name
+        possible_projects = gl.projects.list(
+            search=project_name, simple=True, iterator=True
+        )
+        # There can be multiple projects with the same name, at least in different namespaces.
+        # The one we care about apparently is in a namespace of type "group".
+        # So far filtering by namespace type was enough, otherwise we might need to provide
+        # the exact namespace or directly the project id.
         valid_projects = [
-            p for p in gl.projects.list(iterator=True) if p.name == project_name
+            p
+            for p in possible_projects
+            if p.name == project_name and p.namespace["kind"] == "group"
         ]
         if len(valid_projects) != 1:
             raise NameError(
@@ -33,7 +42,7 @@ class GitLabRepository:  # use gitlab API
             )
         self._project = cast(Project, valid_projects[0])
 
-        # create label if missing
+        # create Release label if missing
         label_name = "Release"
         if label_name not in [l.name for l in self._project.labels.list(iterator=True)]:
             print(
