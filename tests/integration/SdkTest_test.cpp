@@ -3969,6 +3969,10 @@ protected:
 
     void createOutgoingShare();
 
+    void getAndCheckInshare();
+
+    void createOnePublicLinkAndCheck(MegaHandle hfolder, std::string& nodeLink);
+
     static constexpr const char* FOLDER_NAME = "sharedfolder";
 
 private:
@@ -4057,7 +4061,7 @@ void SdkTestShares::createNewContactAndVerify()
 void SdkTestShares::createOutgoingShare()
 {
     const MegaHandle hfolder = getHandle("/sharedfolder");
-    std::unique_ptr<MegaNode> node(mInviterApi->getNodeByHandle(hfolder));
+    std::unique_ptr<MegaNode> node{mInviterApi->getNodeByHandle(hfolder)};
 
     // Create a new outgoing share
     bool inshareCheck = false;
@@ -4087,6 +4091,52 @@ void SdkTestShares::createOutgoingShare()
     ASSERT_TRUE(node->isOutShare()) << "Wrong sharing information at outgoing share";
 }
 
+// Get and Check only one incoming share
+void SdkTestShares::getAndCheckInshare()
+{
+    const std::unique_ptr<MegaShareList> shareList{megaApi[1]->getInSharesList()};
+    ASSERT_EQ(1, shareList->size()) << "Incoming share not received in auxiliar account";
+
+    // Wait for the inshare node to be decrypted
+    const MegaHandle hfolder = getHandle("/sharedfolder");
+    auto descryptedPred = [this, hfolder]()
+    {
+        return std::unique_ptr<MegaNode>(mInviteeApi->getNodeByHandle(hfolder))->isNodeKeyDecrypted();
+    };
+    ASSERT_TRUE(WaitFor(descryptedPred, 60 * 1000));
+
+    const std::unique_ptr<MegaUser> contact(mInviteeApi->getContact(mInviter->email.c_str()));
+    const std::unique_ptr<MegaNodeList> inshareNodes{mInviteeApi->getInShares(contact.get())};
+    ASSERT_EQ(1, inshareNodes->size()) << "Incoming share not received in auxiliar account";
+    const auto thisInshareNode = inshareNodes->get(0);
+    ASSERT_EQ(hfolder, thisInshareNode->getHandle()) << "Wrong node handle of incoming share";
+    ASSERT_STREQ("sharedfolder", thisInshareNode->getName()) << "Wrong folder name of incoming share";
+    ASSERT_EQ(API_OK, mInviteeApi->checkAccess(thisInshareNode, MegaShare::ACCESS_FULL).getErrorCode()) << "Wrong access level of incoming share";
+    ASSERT_TRUE(thisInshareNode->isInShare()) << "Wrong sharing information at incoming share";
+    ASSERT_TRUE(thisInshareNode->isShared()) << "Wrong sharing information at incoming share";
+}
+
+void SdkTestShares::createOnePublicLinkAndCheck(MegaHandle hfolder, std::string& nodeLink)
+{
+    std::unique_ptr<MegaNode> nfolder(megaApi[0]->getNodeByHandle(hfolder));
+
+    string nodelink5 = createPublicLink(0, nfolder.get(), 0, maxTimeout, mApi[0].accountDetails->getProLevel() == 0);
+    // The created link is stored in this->link at onRequestFinish()
+
+    // Get a fresh snapshot of the node and check it's actually exported
+    nfolder.reset(megaApi[0]->getNodeByHandle(hfolder));
+    ASSERT_TRUE(nfolder->isExported()) << "Node is not exported, must be exported";
+    ASSERT_FALSE(nfolder->isTakenDown()) << "Public link is taken down, it mustn't";
+
+    nfolder.reset(megaApi[0]->getNodeByHandle(hfolder));
+    ASSERT_STREQ(nodelink5.c_str(), std::unique_ptr<char[]>(nfolder->getPublicLink()).get()) << "Wrong public link from MegaNode";
+
+    // Regenerate the same link should not trigger a new request
+    string nodelink6 = createPublicLink(0, nfolder.get(), 0, maxTimeout, mApi[0].accountDetails->getProLevel() == 0);
+    ASSERT_STREQ(nodelink5.c_str(), nodelink6.c_str()) << "Wrong public link after link update";
+
+    nodeLink = nodelink6;
+}
 // Initialize a test scenario : create some folders/files to share
 // Create some nodes to share
 //  |--sharedfolder
@@ -5397,9 +5447,6 @@ TEST_F(SdkTestShares, TestPublicFolderLinksWithShares)
     LOG_info << "___TEST TestPublicFolderLinksWithShares";
 
     MegaShareList *sl;
-    // MegaShare *s;
-    MegaNodeList *nl;
-    MegaNode *n;
 
     ASSERT_NO_FATAL_FAILURE(createNodeTrees());
     MegaHandle hfolder1 = getHandle("/sharedfolder");
@@ -5409,52 +5456,33 @@ TEST_F(SdkTestShares, TestPublicFolderLinksWithShares)
     // Initialize a test scenario: create a new contact to share to and verify credentials
     ASSERT_NO_FATAL_FAILURE(createNewContactAndVerify());
 
+    // --- Create a new outgoing share ---
     ASSERT_NO_FATAL_FAILURE(createOutgoingShare());
-    // // --- Create a new outgoing share ---
-    bool check2;
-    bool check1;
 
     // --- Check the incoming share ---
-
-    sl = megaApi[1]->getInSharesList();
-    ASSERT_EQ(1, sl->size()) << "Incoming share not received in auxiliar account";
-    delete sl;
-
-    // Wait for the inshare node to be decrypted
-    ASSERT_TRUE(WaitFor([this, &n1]() { return unique_ptr<MegaNode>(megaApi[1]->getNodeByHandle(n1->getHandle()))->isNodeKeyDecrypted(); }, 60*1000));
-
-    std::unique_ptr<MegaUser> contact(megaApi[1]->getContact(mApi[0].email.c_str()));
-    nl = megaApi[1]->getInShares(contact.get());
-    ASSERT_EQ(1, nl->size()) << "Incoming share not received in auxiliar account";
-    n = nl->get(0);
-
-    ASSERT_EQ(hfolder1, n->getHandle()) << "Wrong node handle of incoming share";
-    ASSERT_STREQ("sharedfolder", n->getName()) << "Wrong folder name of incoming share";
-    ASSERT_EQ(API_OK, megaApi[1]->checkAccess(n, MegaShare::ACCESS_FULL).getErrorCode()) << "Wrong access level of incoming share";
-    ASSERT_TRUE(n->isInShare()) << "Wrong sharing information at incoming share";
-    ASSERT_TRUE(n->isShared()) << "Wrong sharing information at incoming share";
-
+    ASSERT_NO_FATAL_FAILURE(getAndCheckInshare());
 
     ASSERT_EQ(API_OK, synchronousGetSpecificAccountDetails(0, true, true, true)) << "Cannot get account details";
 
     // --- Create a folder public link ---
-
-    std::unique_ptr<MegaNode> nfolder1(megaApi[0]->getNodeByHandle(hfolder1));
-
-    string nodelink5 = createPublicLink(0, nfolder1.get(), 0, maxTimeout, mApi[0].accountDetails->getProLevel() == 0);
-    // The created link is stored in this->link at onRequestFinish()
-
-    // Get a fresh snapshot of the node and check it's actually exported
-    nfolder1.reset(megaApi[0]->getNodeByHandle(hfolder1));
-    ASSERT_TRUE(nfolder1->isExported()) << "Node is not exported, must be exported";
-    ASSERT_FALSE(nfolder1->isTakenDown()) << "Public link is taken down, it mustn't";
-
-    nfolder1.reset(megaApi[0]->getNodeByHandle(hfolder1));
-    ASSERT_STREQ(nodelink5.c_str(), std::unique_ptr<char[]>(nfolder1->getPublicLink()).get()) << "Wrong public link from MegaNode";
-
-    // Regenerate the same link should not trigger a new request
-    string nodelink6 = createPublicLink(0, nfolder1.get(), 0, maxTimeout, mApi[0].accountDetails->getProLevel() == 0);
-    ASSERT_STREQ(nodelink5.c_str(), nodelink6.c_str()) << "Wrong public link after link update";
+    std::string nodelink6;
+    ASSERT_NO_FATAL_FAILURE(createOnePublicLinkAndCheck(hfolder1, nodelink6));
+    // std::unique_ptr<MegaNode> nfolder1(megaApi[0]->getNodeByHandle(hfolder1));
+    //
+    // string nodelink5 = createPublicLink(0, nfolder1.get(), 0, maxTimeout, mApi[0].accountDetails->getProLevel() == 0);
+    // // The created link is stored in this->link at onRequestFinish()
+    //
+    // // Get a fresh snapshot of the node and check it's actually exported
+    // nfolder1.reset(megaApi[0]->getNodeByHandle(hfolder1));
+    // ASSERT_TRUE(nfolder1->isExported()) << "Node is not exported, must be exported";
+    // ASSERT_FALSE(nfolder1->isTakenDown()) << "Public link is taken down, it mustn't";
+    //
+    // nfolder1.reset(megaApi[0]->getNodeByHandle(hfolder1));
+    // ASSERT_STREQ(nodelink5.c_str(), std::unique_ptr<char[]>(nfolder1->getPublicLink()).get()) << "Wrong public link from MegaNode";
+    //
+    // // Regenerate the same link should not trigger a new request
+    // string nodelink6 = createPublicLink(0, nfolder1.get(), 0, maxTimeout, mApi[0].accountDetails->getProLevel() == 0);
+    // ASSERT_STREQ(nodelink5.c_str(), nodelink6.c_str()) << "Wrong public link after link update";
 
 
     // --- Import folder public link ---
@@ -5484,14 +5512,15 @@ TEST_F(SdkTestShares, TestPublicFolderLinksWithShares)
 
     // --- Remove a public link ---
 
-    MegaHandle removedLinkHandle = removePublicLink(0, nfolder1.get());
+    MegaHandle removedLinkHandle = removePublicLink(0, n1.get());
 
-    nfolder1 = std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(removedLinkHandle)};
-    ASSERT_FALSE(nfolder1->isPublic()) << "Public link removal failed (still public)";
+    n1 = std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(removedLinkHandle)};
+    ASSERT_FALSE(n1->isPublic()) << "Public link removal failed (still public)";
 
 
     // --- Revoke access to an outgoing share ---
-
+    bool check2;
+    bool check1;
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(hfolder1, MegaNode::CHANGE_TYPE_OUTSHARE, check1);
     mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(hfolder1, MegaNode::CHANGE_TYPE_REMOVED, check2);
     ASSERT_NO_FATAL_FAILURE( shareFolder(n1.get(), mApi[1].email.c_str(), MegaShare::ACCESS_UNKNOWN) );
@@ -5511,23 +5540,25 @@ TEST_F(SdkTestShares, TestPublicFolderLinksWithShares)
 
     // --- Create a folder public link ---
 
-    nfolder1.reset(megaApi[0]->getNodeByHandle(hfolder1));
+    // nfolder1.reset(megaApi[0]->getNodeByHandle(hfolder1));
+    //
+    // nodelink5 = createPublicLink(0, nfolder1.get(), 0, maxTimeout, mApi[0].accountDetails->getProLevel() == 0);
+    // // The created link is stored in this->link at onRequestFinish()
+    //
+    // // Get a fresh snapshot of the node and check it's actually exported
+    // nfolder1.reset(megaApi[0]->getNodeByHandle(hfolder1));
+    // ASSERT_TRUE(nfolder1->isExported()) << "Node is not exported, must be exported";
+    // ASSERT_FALSE(nfolder1->isTakenDown()) << "Public link is taken down, it mustn't";
+    //
+    // nfolder1.reset(megaApi[0]->getNodeByHandle(hfolder1));
+    // ASSERT_STREQ(nodelink5.c_str(), std::unique_ptr<char[]>(nfolder1->getPublicLink()).get()) << "Wrong public link from MegaNode";
+    //
+    //
+    // // Regenerate the same link should not trigger a new request
+    // nodelink6 = createPublicLink(0, nfolder1.get(), 0, maxTimeout, mApi[0].accountDetails->getProLevel() == 0);
+    // ASSERT_STREQ(nodelink5.c_str(), nodelink6.c_str()) << "Wrong public link after link update";
 
-    nodelink5 = createPublicLink(0, nfolder1.get(), 0, maxTimeout, mApi[0].accountDetails->getProLevel() == 0);
-    // The created link is stored in this->link at onRequestFinish()
-
-    // Get a fresh snapshot of the node and check it's actually exported
-    nfolder1.reset(megaApi[0]->getNodeByHandle(hfolder1));
-    ASSERT_TRUE(nfolder1->isExported()) << "Node is not exported, must be exported";
-    ASSERT_FALSE(nfolder1->isTakenDown()) << "Public link is taken down, it mustn't";
-
-    nfolder1.reset(megaApi[0]->getNodeByHandle(hfolder1));
-    ASSERT_STREQ(nodelink5.c_str(), std::unique_ptr<char[]>(nfolder1->getPublicLink()).get()) << "Wrong public link from MegaNode";
-
-
-    // Regenerate the same link should not trigger a new request
-    nodelink6 = createPublicLink(0, nfolder1.get(), 0, maxTimeout, mApi[0].accountDetails->getProLevel() == 0);
-    ASSERT_STREQ(nodelink5.c_str(), nodelink6.c_str()) << "Wrong public link after link update";
+    ASSERT_NO_FATAL_FAILURE(createOnePublicLinkAndCheck(hfolder1, nodelink6));
 
     loginFolderTracker = asyncRequestLoginToFolder(2, nodelink6.c_str());
     ASSERT_EQ(loginFolderTracker->waitForResult(), API_OK) << "Failed to login to folder " << nodelink6;
@@ -5549,9 +5580,9 @@ TEST_F(SdkTestShares, TestPublicFolderLinksWithShares)
     EXPECT_TRUE(importedNode) << "Imported node not found";
 
     // --- Remove a public link ---
-    removedLinkHandle = removePublicLink(0, nfolder1.get());
-    nfolder1 = std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(removedLinkHandle)};
-    ASSERT_FALSE(nfolder1->isPublic()) << "Public link removal failed (still public)";
+    removedLinkHandle = removePublicLink(0, n1.get());
+    n1 = std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(removedLinkHandle)};
+    ASSERT_FALSE(n1->isPublic()) << "Public link removal failed (still public)";
 }
 
 TEST_F(SdkTest, SdkTestShareKeys)
