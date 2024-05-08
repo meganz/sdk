@@ -3973,6 +3973,8 @@ protected:
 
     void createOnePublicLinkAndCheck(MegaHandle hfolder, std::string& nodeLink);
 
+    void importPublicLinkAndCheck(const std::string& nodeLink);
+
     static constexpr const char* FOLDER_NAME = "sharedfolder";
 
     std::unordered_map<std::string, MegaHandle> mHandles;
@@ -3994,6 +3996,10 @@ protected:
     // Guest account
     static constexpr unsigned   mGuestIndex{2};
 
+    PerApi*                     mGuest{nullptr};
+
+    MegaApiTest*                mGuestApi{nullptr};
+
     std::string                 mGuestEmail;
 
     std::string                 mGuestPass;
@@ -4009,8 +4015,6 @@ void SdkTestShares::SetUp()
     // Guest for accessing the public link, No login in SetUp
     const auto [email, pass] = getEnvVarAccounts().getVarValues(mGuestIndex);
     ASSERT_FALSE(email.empty() || pass.empty());
-    mGuestEmail = email;
-    mGuestPass = pass;
     mApi.resize(mGuestIndex + 1);
     megaApi.resize(mGuestIndex + 1);
     configureTestInstance(mGuestIndex, email, pass);
@@ -4018,8 +4022,12 @@ void SdkTestShares::SetUp()
     // Convenience
     mInviter = &mApi[mInviterIndex];
     mInvitee = &mApi[mInviteeIndex];
+    mGuest   = &mApi[mGuestIndex];
     mInviterApi = megaApi[mInviterIndex].get();
     mInviteeApi = megaApi[mInviteeIndex].get();
+    mGuestApi   = megaApi[mGuestIndex].get();
+    mGuestEmail = email;
+    mGuestPass = pass;
 }
 
 void SdkTestShares::TearDown()
@@ -4138,7 +4146,8 @@ void SdkTestShares::getAndCheckInshare()
 void SdkTestShares::createOnePublicLinkAndCheck(MegaHandle hfolder, std::string& nodeLink)
 {
     std::unique_ptr<MegaNode> nfolder{mInviterApi->getNodeByHandle(hfolder)};
-    const bool isFreeAccount = mInviter->accountDetails->getProLevel() == 0;
+    const bool isFreeAccount =
+        mInviter->accountDetails->getProLevel() == MegaAccountDetails::ACCOUNT_TYPE_FREE;
 
     // Create a public link
     nodeLink = createPublicLink(mInviterIndex, nfolder.get(), 0, maxTimeout, isFreeAccount);
@@ -4154,6 +4163,36 @@ void SdkTestShares::createOnePublicLinkAndCheck(MegaHandle hfolder, std::string&
     ASSERT_EQ(nodeLink,
               createPublicLink(mInviterIndex, nfolder.get(), 0, maxTimeout, isFreeAccount))
         << "Wrong public link after link update";
+}
+
+void SdkTestShares::importPublicLinkAndCheck(const std::string& nodeLink)
+{
+    // Login to the folder and fetchnodes
+    auto loginFolderTracker = asyncRequestLoginToFolder(mGuestIndex, nodeLink.c_str());
+    ASSERT_EQ(loginFolderTracker->waitForResult(), API_OK) << "Failed to login to folder " << nodeLink;
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(mGuestIndex));
+
+    // Authorize the node
+    std::unique_ptr<MegaNode> folderNodeToImport(mGuestApi->getRootNode());
+    ASSERT_TRUE(folderNodeToImport) << "Failed to get folder node to import from link " << nodeLink;
+    std::unique_ptr<MegaNode> authorizedFolderNode(mGuestApi->authorizeNode(folderNodeToImport.get()));
+    ASSERT_TRUE(authorizedFolderNode) << "Failed to authorize folder node from link " << nodeLink;
+
+    // Logout the folder
+    logout(mGuestIndex, false, 20);
+
+    // Login with guest and fetch nodes
+    auto loginTracker = asyncRequestLogin(mGuestIndex, mGuestEmail.c_str(), mGuestPass.c_str());
+    ASSERT_EQ(loginTracker->waitForResult(), API_OK) << "Failed to login with " << mGuestEmail;
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(mGuestIndex));
+
+    // Copy(import) the public folder (authorized) to the root of the account
+    std::unique_ptr<MegaNode> rootNode(mGuestApi->getRootNode());
+    RequestTracker nodeCopyTracker(mGuestApi);
+    mGuestApi->copyNode(authorizedFolderNode.get(), rootNode.get(), nullptr, &nodeCopyTracker);
+    EXPECT_EQ(nodeCopyTracker.waitForResult(), API_OK) << "Failed to copy node to import";
+    std::unique_ptr<MegaNode> importedNode(mGuestApi->getNodeByPath(authorizedFolderNode->getName(), rootNode.get()));
+    EXPECT_TRUE(importedNode) << "Imported node not found";
 }
 
 // Initialize a test scenario : create some folders/files to share
@@ -5469,7 +5508,7 @@ TEST_F(SdkTestShares, TestPublicFolderLinksWithShares)
 
     ASSERT_NO_FATAL_FAILURE(createNodeTrees());
     MegaHandle hfolder1 = getHandle("/sharedfolder");
-    std::unique_ptr<MegaNode> n1(megaApi[0]->getNodeByHandle(hfolder1));
+    std::unique_ptr<MegaNode> n1(mInviterApi->getNodeByHandle(hfolder1));
     ASSERT_NE(n1.get(), nullptr);
 
     // Initialize a test scenario: create a new contact to share to and verify credentials
@@ -5481,37 +5520,19 @@ TEST_F(SdkTestShares, TestPublicFolderLinksWithShares)
     // --- Check the incoming share ---
     ASSERT_NO_FATAL_FAILURE(getAndCheckInshare());
 
-    ASSERT_EQ(API_OK, synchronousGetSpecificAccountDetails(0, true, true, true)) << "Cannot get account details";
+    ASSERT_EQ(API_OK, synchronousGetSpecificAccountDetails(mInviterIndex, true, true, true)) << "Cannot get account details";
 
     // --- Create a folder public link ---
     std::string nodeLink;
     ASSERT_NO_FATAL_FAILURE(createOnePublicLinkAndCheck(hfolder1, nodeLink));
 
     // --- Import folder public link ---
-    auto loginFolderTracker = asyncRequestLoginToFolder(2, nodeLink.c_str());
-    ASSERT_EQ(loginFolderTracker->waitForResult(), API_OK) << "Failed to login to folder " << nodeLink;
-    ASSERT_NO_FATAL_FAILURE(fetchnodes(2));
-    std::unique_ptr<MegaNode> folderNodeToImport(megaApi[2]->getRootNode());
-    ASSERT_TRUE(folderNodeToImport) << "Failed to get folder node to import from link " << nodeLink;
-    std::unique_ptr<MegaNode> authorizedFolderNode(megaApi[2]->authorizeNode(folderNodeToImport.get()));
-    ASSERT_TRUE(authorizedFolderNode) << "Failed to authorize folder node from link " << nodeLink;
-    logout(2, false, 20);
-
-    auto loginTracker = asyncRequestLogin(2, mGuestEmail.c_str(), mGuestPass.c_str());
-    ASSERT_EQ(loginTracker->waitForResult(), API_OK) << "Failed to login with " << mGuestEmail;
-    ASSERT_NO_FATAL_FAILURE(fetchnodes(2));
-    std::unique_ptr<MegaNode> rootNode2(megaApi[2]->getRootNode());
-    RequestTracker nodeCopyTracker(megaApi[2].get());
-    megaApi[2]->copyNode(authorizedFolderNode.get(), rootNode2.get(), nullptr, &nodeCopyTracker);
-    EXPECT_EQ(nodeCopyTracker.waitForResult(), API_OK) << "Failed to copy node to import";
-    std::unique_ptr<MegaNode> importedNode(megaApi[2]->getNodeByPath(authorizedFolderNode->getName(), rootNode2.get()));
-    EXPECT_TRUE(importedNode) << "Imported node not found";
+    ASSERT_NO_FATAL_FAILURE(importPublicLinkAndCheck(nodeLink));
 
     // --- Remove a public link ---
+    MegaHandle removedLinkHandle = removePublicLink(mInviterIndex, n1.get());
 
-    MegaHandle removedLinkHandle = removePublicLink(0, n1.get());
-
-    n1 = std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(removedLinkHandle)};
+    n1 = std::unique_ptr<MegaNode>{mInviterApi->getNodeByHandle(removedLinkHandle)};
     ASSERT_FALSE(n1->isPublic()) << "Public link removal failed (still public)";
 
 
@@ -5538,24 +5559,7 @@ TEST_F(SdkTestShares, TestPublicFolderLinksWithShares)
     // --- Create a folder public link ---
     ASSERT_NO_FATAL_FAILURE(createOnePublicLinkAndCheck(hfolder1, nodeLink));
 
-    loginFolderTracker = asyncRequestLoginToFolder(2, nodeLink.c_str());
-    ASSERT_EQ(loginFolderTracker->waitForResult(), API_OK) << "Failed to login to folder " << nodeLink;
-    ASSERT_NO_FATAL_FAILURE(fetchnodes(2));
-    folderNodeToImport.reset(megaApi[2]->getRootNode());
-    ASSERT_TRUE(folderNodeToImport) << "Failed to get folder node to import from link " << nodeLink;
-    authorizedFolderNode.reset(megaApi[2]->authorizeNode(folderNodeToImport.get()));
-    ASSERT_TRUE(authorizedFolderNode) << "Failed to authorize folder node from link " << nodeLink;
-    logout(2, false, 20);
-
-    loginTracker = asyncRequestLogin(2, mGuestEmail.c_str(), mGuestPass.c_str());
-    ASSERT_EQ(loginTracker->waitForResult(), API_OK) << "Failed to login with " << mGuestEmail;
-    ASSERT_NO_FATAL_FAILURE(fetchnodes(2));
-    rootNode2.reset(megaApi[2]->getRootNode());
-    RequestTracker nodeCopyTracker2(megaApi[2].get());
-    megaApi[2]->copyNode(authorizedFolderNode.get(), rootNode2.get(), nullptr, &nodeCopyTracker2);
-    EXPECT_EQ(nodeCopyTracker2.waitForResult(), API_OK) << "Failed to copy node to import";
-    importedNode.reset(megaApi[2]->getNodeByPath(authorizedFolderNode->getName(), rootNode2.get()));
-    EXPECT_TRUE(importedNode) << "Imported node not found";
+    ASSERT_NO_FATAL_FAILURE(importPublicLinkAndCheck(nodeLink));
 
     // --- Remove a public link ---
     removedLinkHandle = removePublicLink(0, n1.get());
