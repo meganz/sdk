@@ -20,6 +20,8 @@
   ],
   "default-features": [
     "avcodec",
+    "avdevice",
+    "avfilter",
     "avformat",
     "swresample",
     "swscale"
