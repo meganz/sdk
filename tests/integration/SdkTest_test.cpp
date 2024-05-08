@@ -3961,9 +3961,9 @@ protected:
     MegaHandle getHandle(const std::string& path) const;
 
     void verifyCredentials(unsigned inviterIndex,
-                           const PerApi& inviter,
+                           const PerApi* inviter,
                            unsigned inviteeIndex,
-                           const PerApi& invitee);
+                           const PerApi* invitee);
 
     void createNewContactAndVerify();
 
@@ -3974,11 +3974,17 @@ protected:
 private:
     std::unordered_map<std::string, MegaHandle> mHandles;
 
-    // Account, api index
-    static constexpr unsigned mInviter{0};
+    static constexpr unsigned   mInviterIndex{0};
 
-    // Account, api index
-    static constexpr unsigned mInvitee{1};
+    PerApi*                     mInviter{nullptr};
+
+    MegaApiTest*                mInviterApi{nullptr};
+
+    static constexpr unsigned   mInviteeIndex{1};
+
+    PerApi*                     mInvitee{nullptr};
+
+    MegaApiTest*                mInviteeApi{nullptr};
 };
 
 void SdkTestShares::SetUp()
@@ -3986,6 +3992,11 @@ void SdkTestShares::SetUp()
     SdkTest::SetUp();
 
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+
+    mInviter = &mApi[mInviterIndex];
+    mInvitee = &mApi[mInviteeIndex];
+    mInviterApi = megaApi[mInviterIndex].get();
+    mInviteeApi = megaApi[mInviteeIndex].get();
 }
 
 void SdkTestShares::TearDown()
@@ -3999,67 +4010,61 @@ MegaHandle SdkTestShares::getHandle(const std::string& path) const
 }
 
 void SdkTestShares::verifyCredentials(unsigned inviterIndex,
-                                      const PerApi& inviter,
+                                      const PerApi* inviter,
                                       unsigned inviteeIndex,
-                                      const PerApi& invitee)
+                                      const PerApi* invitee)
 {
     if (!gManualVerification)
         return;
 
-    if (!areCredentialsVerified(inviterIndex, invitee.email))
+    if (!areCredentialsVerified(inviterIndex, invitee->email))
     {
-        SdkTest::verifyCredentials(inviterIndex, invitee.email);
+        SdkTest::verifyCredentials(inviterIndex, invitee->email);
     }
 
-    if (!areCredentialsVerified(inviteeIndex, inviter.email))
+    if (!areCredentialsVerified(inviteeIndex, inviter->email))
     {
-        SdkTest::verifyCredentials(inviteeIndex, inviter.email);
+        SdkTest::verifyCredentials(inviteeIndex, inviter->email);
     }
 }
 
 void SdkTestShares::createNewContactAndVerify()
 {
-    auto& inviter = mApi[mInviter];
-    auto& invitee = mApi[mInvitee];
-
     // Invite
     const string message = "Hi contact. Let's share some stuff";
-    invitee.contactRequestUpdated = false;
-    ASSERT_NO_FATAL_FAILURE(inviteContact(mInviter, invitee.email, message, MegaContactRequest::INVITE_ACTION_ADD));
-    EXPECT_TRUE(waitForResponse(&invitee.contactRequestUpdated, 10u))
+    mInvitee->contactRequestUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(inviteContact(mInviterIndex, mInvitee->email, message, MegaContactRequest::INVITE_ACTION_ADD));
+    EXPECT_TRUE(waitForResponse(&mInvitee->contactRequestUpdated, 10u))
             << "Contact request creation not received by the invitee after 10 seconds";
 
     // Get the the contact request
-    EXPECT_NO_FATAL_FAILURE(getContactRequest(mInvitee, false));
+    EXPECT_NO_FATAL_FAILURE(getContactRequest(mInviteeIndex, false));
 
     // Accept the request
-    inviter.contactRequestUpdated = invitee.contactRequestUpdated = false;
-    EXPECT_NO_FATAL_FAILURE(replyContact(invitee.cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT));
-    EXPECT_TRUE( waitForResponse(&invitee.contactRequestUpdated, 10u) )
+    mInviter->contactRequestUpdated = false;
+    mInviter->contactRequestUpdated = false;
+    EXPECT_NO_FATAL_FAILURE(replyContact(mInvitee->cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT));
+    EXPECT_TRUE( waitForResponse(&mInvitee->contactRequestUpdated, 10u) )
             << "Contact request creation not received by the invitee after 10 seconds";
-    EXPECT_TRUE( waitForResponse(&inviter.contactRequestUpdated, 10u) )
+    EXPECT_TRUE( waitForResponse(&mInviter->contactRequestUpdated, 10u) )
             << "Contact request creation not received by the inviter after 10 seconds";
-    invitee.cr.reset();
+    mInviter->cr.reset();
 
     // Verify credential
-    ASSERT_NO_FATAL_FAILURE(verifyCredentials(mInviter, inviter, mInvitee, invitee));
+    ASSERT_NO_FATAL_FAILURE(verifyCredentials(mInviterIndex, mInviter, mInviteeIndex, mInvitee));
 }
 
 void SdkTestShares::createOutgoingShare()
 {
-    auto& inviter = mApi[mInviter];
-    auto& invitee = mApi[mInvitee];
-    const auto inviterApi = megaApi[0].get();
-
     const MegaHandle hfolder = getHandle("/sharedfolder");
-    std::unique_ptr<MegaNode> node(inviterApi->getNodeByHandle(hfolder));
+    std::unique_ptr<MegaNode> node(mInviterApi->getNodeByHandle(hfolder));
 
     // Create a new outgoing share
     bool inshareCheck = false;
     bool outshareCheck = false;
-    inviter.mOnNodesUpdateCompletion = createOnNodesUpdateLambda(hfolder, MegaNode::CHANGE_TYPE_OUTSHARE, outshareCheck);
-    invitee.mOnNodesUpdateCompletion = createOnNodesUpdateLambda(hfolder, MegaNode::CHANGE_TYPE_INSHARE, inshareCheck);
-    ASSERT_NO_FATAL_FAILURE(shareFolder(node.get(), invitee.email.c_str(), MegaShare::ACCESS_FULL));
+    mInviter->mOnNodesUpdateCompletion = createOnNodesUpdateLambda(hfolder, MegaNode::CHANGE_TYPE_OUTSHARE, outshareCheck);
+    mInvitee->mOnNodesUpdateCompletion = createOnNodesUpdateLambda(hfolder, MegaNode::CHANGE_TYPE_INSHARE, inshareCheck);
+    ASSERT_NO_FATAL_FAILURE(shareFolder(node.get(), mInvitee->email.c_str(), MegaShare::ACCESS_FULL));
     ASSERT_TRUE(waitForResponse(&outshareCheck))
         << "Node update not received by the inviter(sharer) after " << maxTimeout << " seconds";
     ASSERT_TRUE(waitForResponse(&inshareCheck))
@@ -4069,16 +4074,15 @@ void SdkTestShares::createOutgoingShare()
     ASSERT_EQ(inshareCheck, true);
 
     // Check the outgoing share
-    const std::unique_ptr<MegaShareList> shareList{inviterApi->getOutShares()};
+    const std::unique_ptr<MegaShareList> shareList{mInviterApi->getOutShares()};
     ASSERT_EQ(1, shareList->size()) << "Outgoing share failed";
-
     const auto share = shareList->get(0);
     ASSERT_EQ(MegaShare::ACCESS_FULL, share->getAccess()) << "Wrong access level of outgoing share";
     ASSERT_EQ(hfolder, share->getNodeHandle()) << "Wrong node handle of outgoing share";
-    ASSERT_STRCASEEQ(invitee.email.c_str(), share->getUser()) << "Wrong email address of outgoing share";
+    ASSERT_STRCASEEQ(mInvitee->email.c_str(), share->getUser()) << "Wrong email address of outgoing share";
 
     // Get an updated version of the node
-    node.reset(inviterApi->getNodeByHandle(hfolder));
+    node.reset(mInviterApi->getNodeByHandle(hfolder));
     ASSERT_TRUE(node->isShared()) << "Wrong sharing information at outgoing share";
     ASSERT_TRUE(node->isOutShare()) << "Wrong sharing information at outgoing share";
 }
@@ -4091,34 +4095,29 @@ void SdkTestShares::createOutgoingShare()
 //    |--file.txt
 void SdkTestShares::createNodeTrees()
 {
-    const auto api = megaApi[mInviter].get();
-
-    std::unique_ptr<MegaNode> rootnode{api->getRootNode()};
+    const std::unique_ptr<MegaNode> rootnode{mInviterApi->getRootNode()};
     const MegaHandle hfolder = mHandles["/sharedfolder"] = createFolder(
-        mInviter,
+        mInviterIndex,
         "sharedfolder",
         rootnode.get());
     ASSERT_NE(hfolder, UNDEF);
 
-    // std::unique_ptr<MegaNode> n1(megaApi[0]->getNodeByHandle(hfolder));
-    // ASSERT_NE(n1.get(), nullptr);
-
     const MegaHandle subfolder = mHandles["/sharedfolder/subfolder"] = createFolder(
-        mInviter,
+        mInviterIndex,
         "subfolder",
-        std::unique_ptr<MegaNode>{api->getNodeByHandle(hfolder)}.get());
+        std::unique_ptr<MegaNode>{mInviterApi->getNodeByHandle(hfolder)}.get());
     ASSERT_NE(subfolder, UNDEF);
 
     // Create a local file
-    ASSERT_TRUE(createFile(PUBLICFILE.c_str(), false)) << "Couldn't create " << PUBLICFILE.c_str();
+    ASSERT_TRUE(createFile("file.txt", false)) << "Couldn't create " << "file.txt";
 
     // Create a node /sharefolder/file.txt by uploading
     MegaHandle hfile = UNDEF;
     ASSERT_EQ(MegaError::API_OK,
-              doStartUpload(mInviter,
+              doStartUpload(mInviterIndex,
                             &hfile,
                             "file.txt",
-                            std::unique_ptr<MegaNode>{api->getNodeByHandle(hfolder)}.get(),
+                            std::unique_ptr<MegaNode>{mInviterApi->getNodeByHandle(hfolder)}.get(),
                             nullptr /*fileName*/,
                             ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
                             nullptr /*appData*/,
@@ -4129,10 +4128,10 @@ void SdkTestShares::createNodeTrees()
 
     // Create a node /sharedfolder/subfolder/file.txt by uploading
     ASSERT_EQ(MegaError::API_OK,
-              doStartUpload(mInviter,
+              doStartUpload(mInviterIndex,
                             &hfile,
                             "file.txt",
-                            std::unique_ptr<MegaNode>{api->getNodeByHandle(subfolder)}.get(),
+                            std::unique_ptr<MegaNode>{mInviterApi->getNodeByHandle(subfolder)}.get(),
                             nullptr /*fileName*/,
                             ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
                             nullptr /*appData*/,
