@@ -166,7 +166,7 @@ pipeline {
                                 lockLabel = 'SDK_Concurrent_Test_Accounts_Staging'
                             }
                             lock(label: lockLabel, variable: 'ACCOUNTS_COMBINATION', quantity: 1, resource: null){
-                                dir("${megachat_sources_workspace}/${BUILD_DIR}"){
+                                dir("${megachat_sources_workspace}"){
                                     script{
                                         env.MEGA_EMAIL0 = "${env.ACCOUNTS_COMBINATION}"
                                         echo "${env.ACCOUNTS_COMBINATION}"
@@ -177,12 +177,12 @@ pipeline {
                                         ulimit -c unlimited
                                         if [ -z \"${TESTS_PARALLEL}\" ]; then
                                             # Sequential run
-                                            tests/sdk_test/megachat_tests --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${GTEST_FILTER} ${GTEST_REPEAT} &
+                                            ${env.BUILD_DIR}/tests/sdk_test/megachat_tests --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${GTEST_FILTER} ${GTEST_REPEAT} &
                                             pid=\$!
                                             wait \$pid || FAILED=1
                                         else
                                             # Parallel run
-                                            tests/sdk_test/megachat_tests --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${GTEST_FILTER} ${GTEST_REPEAT} ${TESTS_PARALLEL} 2>&1 | tee tests.stdout
+                                            ${env.BUILD_DIR}/tests/sdk_test/megachat_tests --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${GTEST_FILTER} ${GTEST_REPEAT} ${TESTS_PARALLEL} 2>&1 | tee tests.stdout
                                             [ \"\${PIPESTATUS[0]}\" != \"0\" ] && FAILED=1
                                         fi
 
@@ -217,7 +217,7 @@ pipeline {
                                                         echo \"Processing core dump \$i :: \$(grep `echo \$i | sed 's#test_pid_\\([0-9].*\\)/core#\\1#'` tests.stdout)\"
                                                         echo thread apply all bt > backtrace
                                                         echo quit >> backtrace
-                                                        gdb -q tests/sdk_test/megachat_tests \$i -x backtrace
+                                                        gdb -q ${env.BUILD_DIR}/tests/sdk_test/megachat_tests \$i -x backtrace
                                                         tar rf core.tar \$i
                                                         coresProcessed=`expr \$coresProcessed + 1`
                                                         coreFiles=`echo \$coreFiles | sed -e \"s#\$i##\"`
@@ -225,7 +225,7 @@ pipeline {
                                                 done
                                             done
                                             if [ -e core.tar ]; then
-                                                tar rf core.tar -C tests/sdk_test/ megachat_tests
+                                                tar rf core.tar -C ${env.BUILD_DIR}/tests/sdk_test/ megachat_tests
                                                 gzip core.tar
                                             fi
                                         fi
@@ -244,7 +244,7 @@ pipeline {
             }
             post{
                 always {
-                    archiveArtifacts artifacts: 'build/subfolder/test*.log*, build/subfolder/core.tar.gz', fingerprint: true
+                    archiveArtifacts artifacts: 'test*.log*, core.tar.gz', fingerprint: true
                     script{
                         if (currentBuild.currentResult == 'SUCCESS'){
                             updateGitlabCommitStatus(name: 'Build & test MEGAchat', state: 'success')
