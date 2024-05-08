@@ -112,7 +112,7 @@ pipeline {
                             sh "echo Building SDK"
                             sh "cmake -DENABLE_SDKLIB_WERROR=ON -DENABLE_CHAT=ON -DWITH_FUSE=1 -DCMAKE_BUILD_TYPE=Debug -DVCPKG_ROOT=${VCPKGPATH} ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=ON \
                             -S ${linux_sources_workspace} -B ${linux_sources_workspace}/${BUILD_DIR}"
-                            sh "cmake --build ${linux_sources_workspace}/${BUILD_DIR} -j1"
+                            sh "cmake --build ${linux_sources_workspace}/${BUILD_DIR} -j2"
                         }
                     }
                 }
@@ -145,12 +145,11 @@ pipeline {
                                     sh """#!/bin/bash
                                     set -x
                                     ulimit -c unlimited
-                                    cd ${env.BUILD_DIR}
 
-                                    ./tests/unit/test_unit || FAILED=1
+                                    ${env.BUILD_DIR}/tests/unit/test_unit || FAILED=1
 
                                     if [ -z \"\$FAILED\" ]; then
-                                        GFXWORKER_TEST_DIR=./tools/gfxworker/tests/integration/
+                                        GFXWORKER_TEST_DIR=${env.BUILD_DIR}/tools/gfxworker/tests/integration/
                                         GFXWORKER_TEST_NAME=gfxworker_test_integration
                                         GFXWORKER_TEST_PATH=\"\$GFXWORKER_TEST_DIR\$GFXWORKER_TEST_NAME\"
                                         if [ -f \"\$GFXWORKER_TEST_PATH\" ]; then
@@ -161,12 +160,12 @@ pipeline {
                                     if [ -z \"\$FAILED\" ]; then
                                         if [ -z \"${TESTS_PARALLEL}\" ]; then
                                             # Sequential run
-                                            ./tests/integration/test_integration --CI --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${GTEST_FILTER} ${GTEST_REPEAT} &
+                                            ${env.BUILD_DIR}/tests/integration/test_integration --CI --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${GTEST_FILTER} ${GTEST_REPEAT} &
                                             pid=\$!
                                             wait \$pid || FAILED=3
                                         else
                                             # Parallel run
-                                            ./tests/integration/test_integration --CI --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${GTEST_FILTER} ${GTEST_REPEAT} ${TESTS_PARALLEL} 2>&1 | tee tests.stdout
+                                            ${env.BUILD_DIR}/tests/integration/test_integration --CI --USERAGENT:${env.USER_AGENT_TESTS} --APIURL:${APIURL_TO_TEST} ${GTEST_FILTER} ${GTEST_REPEAT} ${TESTS_PARALLEL} 2>&1 | tee tests.stdout
                                             [ \"\${PIPESTATUS[0]}\" != \"0\" ] && FAILED=3
                                         fi
                                     fi
@@ -202,9 +201,9 @@ pipeline {
                                                         echo \"Processing core dump \$i :: \$(grep `echo \$i | sed 's#pid_\\([0-9].*\\)/core#\\1#'` tests.stdout)\"
                                                         echo thread apply all bt > backtrace
                                                         echo quit >> backtrace
-                                                        [ \"\$FAILED\" = \"1\" ] && gdb -q ./tests/unit/test_unit \$i -x backtrace
+                                                        [ \"\$FAILED\" = \"1\" ] && gdb -q ${env.BUILD_DIR}/tests/unit/test_unit \$i -x backtrace
                                                         [ \"\$FAILED\" = \"2\" ] && gdb -q \$GFXWORKER_TEST_PATH \$i -x backtrace
-                                                        [ \"\$FAILED\" = \"3\" ] && gdb -q ./tests/integration/test_integration \$i -x backtrace
+                                                        [ \"\$FAILED\" = \"3\" ] && gdb -q ${env.BUILD_DIR}/tests/integration/test_integration \$i -x backtrace
                                                         tar rf core.tar \$i
                                                         coresProcessed=`expr \$coresProcessed + 1`
                                                         coreFiles=`echo \$coreFiles | sed -e \"s#\$i##\"`
@@ -212,9 +211,9 @@ pipeline {
                                                 done
                                             done
                                             if [ -e core.tar ]; then
-                                                [ \"\$FAILED\" = \"1\" ] && tar rf core.tar -C ./tests/unit/ test_unit
+                                                [ \"\$FAILED\" = \"1\" ] && tar rf core.tar -C ${env.BUILD_DIR}/tests/unit/ test_unit
                                                 [ \"\$FAILED\" = \"2\" ] && tar rf core.tar -C \$GFXWORKER_TEST_DIR \$GFXWORKER_TEST_NAME
-                                                [ \"\$FAILED\" = \"3\" ] && tar rf core.tar -C ./tests/integration/ test_integration
+                                                [ \"\$FAILED\" = \"3\" ] && tar rf core.tar -C ${env.BUILD_DIR}/tests/integration/ test_integration
                                                 gzip core.tar
                                             fi
                                         fi
@@ -243,7 +242,7 @@ pipeline {
             }
             post{
                 always {
-                    archiveArtifacts artifacts: 'build_dir/test_integration*, build_dir/core.tar.gz', fingerprint: true
+                    archiveArtifacts artifacts: 'test_integration*, core.tar.gz', fingerprint: true
                     script{
                         if (currentBuild.currentResult == 'SUCCESS'){
                             updateGitlabCommitStatus(name: 'build & test linux', state: 'success')
