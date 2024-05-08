@@ -5,6 +5,7 @@
 
 #include "gmock/gmock.h"
 #include "megaapi.h"
+#include "sdk_test_utils.h"
 #include "SdkTest_test.h"
 
 #include <optional>
@@ -102,37 +103,6 @@ std::vector<std::string> getNodeNames(const NodeInfo& node)
     processNodeName(node, result);
     return result;
 }
-
-/**
- * @class LocalTempFile
- * @brief Helper class to apply RAII when creating a file locally
- *
- */
-struct LocalTempFile
-{
-    LocalTempFile(const fs::path& _filePath, const unsigned int fileSizeBytes):
-        filePath(_filePath)
-    {
-        std::ofstream outFile(filePath, std::ios::binary);
-        if (!outFile.is_open())
-        {
-            throw std::runtime_error("Can't open the file: " + _filePath.string());
-        }
-        std::vector<char> buffer(fileSizeBytes, 0);
-        outFile.write(buffer.data(), static_cast<std::streamsize>(buffer.size()));
-    }
-
-    ~LocalTempFile()
-    {
-        if (fs::exists(filePath))
-        {
-            fs::remove(filePath);
-        }
-    }
-
-private:
-    fs::path filePath;
-};
 
 /**
  * @brief Aux function to get a vector with the names of the nodes in a given MegaNodeList
@@ -254,7 +224,7 @@ protected:
         bool check = false;
         mApi[0].mOnNodesUpdateCompletion =
             createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW, check);
-        LocalTempFile localFile(fileInfo.name, fileInfo.size);
+        sdk_test::LocalTempFile localFile(fileInfo.name, fileInfo.size);
         MegaHandle file1Handle = 0;
         ASSERT_EQ(MegaError::API_OK,
                   doStartUpload(0,

@@ -28,4 +28,17 @@ void setTestDataDir(const fs::path& dataDir);
  */
 void copyFileFromTestData(fs::path filename, fs::path destination = ".");
 
+/**
+ * @class LocalTempFile
+ * @brief Helper class to apply RAII when creating a file locally
+ */
+class LocalTempFile
+{
+public:
+    LocalTempFile(const fs::path& _filePath, const unsigned int fileSizeBytes);
+    ~LocalTempFile();
+
+private:
+    fs::path filePath;
+};
 }
