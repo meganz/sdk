@@ -1562,7 +1562,7 @@ void SdkTest::getAccountsForTest(unsigned howMany, bool fetchNodes, const int cl
 
 void SdkTest::configureTestInstance(unsigned index,
                                     const string& email,
-                                    const string pass,
+                                    const string& pass,
                                     bool checkCredentials,
                                     const int clientType)
 {
@@ -3975,28 +3975,47 @@ protected:
 
     static constexpr const char* FOLDER_NAME = "sharedfolder";
 
-private:
     std::unordered_map<std::string, MegaHandle> mHandles;
 
+    // Inviter account
     static constexpr unsigned   mInviterIndex{0};
 
     PerApi*                     mInviter{nullptr};
 
     MegaApiTest*                mInviterApi{nullptr};
 
+    // Invitee account
     static constexpr unsigned   mInviteeIndex{1};
 
     PerApi*                     mInvitee{nullptr};
 
     MegaApiTest*                mInviteeApi{nullptr};
+
+    // Guest account
+    static constexpr unsigned   mGuestIndex{2};
+
+    std::string                 mGuestEmail;
+
+    std::string                 mGuestPass;
 };
 
 void SdkTestShares::SetUp()
 {
     SdkTest::SetUp();
 
+    // Accounts for Inviter and Invitee
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
+    // Guest for accessing the public link, No login in SetUp
+    const auto [email, pass] = getEnvVarAccounts().getVarValues(mGuestIndex);
+    ASSERT_FALSE(email.empty() || pass.empty());
+    mGuestEmail = email;
+    mGuestPass = pass;
+    mApi.resize(mGuestIndex + 1);
+    megaApi.resize(mGuestIndex + 1);
+    configureTestInstance(mGuestIndex, email, pass);
+
+    // Convenience
     mInviter = &mApi[mInviterIndex];
     mInvitee = &mApi[mInviteeIndex];
     mInviterApi = megaApi[mInviterIndex].get();
@@ -4118,25 +4137,25 @@ void SdkTestShares::getAndCheckInshare()
 
 void SdkTestShares::createOnePublicLinkAndCheck(MegaHandle hfolder, std::string& nodeLink)
 {
-    std::unique_ptr<MegaNode> nfolder(megaApi[0]->getNodeByHandle(hfolder));
+    std::unique_ptr<MegaNode> nfolder{mInviterApi->getNodeByHandle(hfolder)};
+    const bool isFreeAccount = mInviter->accountDetails->getProLevel() == 0;
 
-    string nodelink5 = createPublicLink(0, nfolder.get(), 0, maxTimeout, mApi[0].accountDetails->getProLevel() == 0);
-    // The created link is stored in this->link at onRequestFinish()
+    // Create a public link
+    nodeLink = createPublicLink(mInviterIndex, nfolder.get(), 0, maxTimeout, isFreeAccount);
 
     // Get a fresh snapshot of the node and check it's actually exported
-    nfolder.reset(megaApi[0]->getNodeByHandle(hfolder));
+    nfolder.reset(mInviterApi->getNodeByHandle(hfolder));
     ASSERT_TRUE(nfolder->isExported()) << "Node is not exported, must be exported";
     ASSERT_FALSE(nfolder->isTakenDown()) << "Public link is taken down, it mustn't";
-
-    nfolder.reset(megaApi[0]->getNodeByHandle(hfolder));
-    ASSERT_STREQ(nodelink5.c_str(), std::unique_ptr<char[]>(nfolder->getPublicLink()).get()) << "Wrong public link from MegaNode";
+    ASSERT_STREQ(nodeLink.c_str(), std::unique_ptr<char[]>(nfolder->getPublicLink()).get())
+        << "Wrong public link from MegaNode";
 
     // Regenerate the same link should not trigger a new request
-    string nodelink6 = createPublicLink(0, nfolder.get(), 0, maxTimeout, mApi[0].accountDetails->getProLevel() == 0);
-    ASSERT_STREQ(nodelink5.c_str(), nodelink6.c_str()) << "Wrong public link after link update";
-
-    nodeLink = nodelink6;
+    ASSERT_EQ(nodeLink,
+              createPublicLink(mInviterIndex, nfolder.get(), 0, maxTimeout, isFreeAccount))
+        << "Wrong public link after link update";
 }
+
 // Initialize a test scenario : create some folders/files to share
 // Create some nodes to share
 //  |--sharedfolder
@@ -5465,43 +5484,21 @@ TEST_F(SdkTestShares, TestPublicFolderLinksWithShares)
     ASSERT_EQ(API_OK, synchronousGetSpecificAccountDetails(0, true, true, true)) << "Cannot get account details";
 
     // --- Create a folder public link ---
-    std::string nodelink6;
-    ASSERT_NO_FATAL_FAILURE(createOnePublicLinkAndCheck(hfolder1, nodelink6));
-    // std::unique_ptr<MegaNode> nfolder1(megaApi[0]->getNodeByHandle(hfolder1));
-    //
-    // string nodelink5 = createPublicLink(0, nfolder1.get(), 0, maxTimeout, mApi[0].accountDetails->getProLevel() == 0);
-    // // The created link is stored in this->link at onRequestFinish()
-    //
-    // // Get a fresh snapshot of the node and check it's actually exported
-    // nfolder1.reset(megaApi[0]->getNodeByHandle(hfolder1));
-    // ASSERT_TRUE(nfolder1->isExported()) << "Node is not exported, must be exported";
-    // ASSERT_FALSE(nfolder1->isTakenDown()) << "Public link is taken down, it mustn't";
-    //
-    // nfolder1.reset(megaApi[0]->getNodeByHandle(hfolder1));
-    // ASSERT_STREQ(nodelink5.c_str(), std::unique_ptr<char[]>(nfolder1->getPublicLink()).get()) << "Wrong public link from MegaNode";
-    //
-    // // Regenerate the same link should not trigger a new request
-    // string nodelink6 = createPublicLink(0, nfolder1.get(), 0, maxTimeout, mApi[0].accountDetails->getProLevel() == 0);
-    // ASSERT_STREQ(nodelink5.c_str(), nodelink6.c_str()) << "Wrong public link after link update";
-
+    std::string nodeLink;
+    ASSERT_NO_FATAL_FAILURE(createOnePublicLinkAndCheck(hfolder1, nodeLink));
 
     // --- Import folder public link ---
-    const auto [email, pass] = getEnvVarAccounts().getVarValues(2);
-    ASSERT_FALSE(email.empty() || pass.empty());
-    mApi.resize(3);
-    megaApi.resize(3);
-    configureTestInstance(2, email, pass);
-    auto loginFolderTracker = asyncRequestLoginToFolder(2, nodelink6.c_str());
-    ASSERT_EQ(loginFolderTracker->waitForResult(), API_OK) << "Failed to login to folder " << nodelink6;
+    auto loginFolderTracker = asyncRequestLoginToFolder(2, nodeLink.c_str());
+    ASSERT_EQ(loginFolderTracker->waitForResult(), API_OK) << "Failed to login to folder " << nodeLink;
     ASSERT_NO_FATAL_FAILURE(fetchnodes(2));
     std::unique_ptr<MegaNode> folderNodeToImport(megaApi[2]->getRootNode());
-    ASSERT_TRUE(folderNodeToImport) << "Failed to get folder node to import from link " << nodelink6;
+    ASSERT_TRUE(folderNodeToImport) << "Failed to get folder node to import from link " << nodeLink;
     std::unique_ptr<MegaNode> authorizedFolderNode(megaApi[2]->authorizeNode(folderNodeToImport.get()));
-    ASSERT_TRUE(authorizedFolderNode) << "Failed to authorize folder node from link " << nodelink6;
+    ASSERT_TRUE(authorizedFolderNode) << "Failed to authorize folder node from link " << nodeLink;
     logout(2, false, 20);
 
-    auto loginTracker = asyncRequestLogin(2, email.c_str(), pass.c_str());
-    ASSERT_EQ(loginTracker->waitForResult(), API_OK) << "Failed to login with " << email;
+    auto loginTracker = asyncRequestLogin(2, mGuestEmail.c_str(), mGuestPass.c_str());
+    ASSERT_EQ(loginTracker->waitForResult(), API_OK) << "Failed to login with " << mGuestEmail;
     ASSERT_NO_FATAL_FAILURE(fetchnodes(2));
     std::unique_ptr<MegaNode> rootNode2(megaApi[2]->getRootNode());
     RequestTracker nodeCopyTracker(megaApi[2].get());
@@ -5539,38 +5536,19 @@ TEST_F(SdkTestShares, TestPublicFolderLinksWithShares)
     delete sl;
 
     // --- Create a folder public link ---
+    ASSERT_NO_FATAL_FAILURE(createOnePublicLinkAndCheck(hfolder1, nodeLink));
 
-    // nfolder1.reset(megaApi[0]->getNodeByHandle(hfolder1));
-    //
-    // nodelink5 = createPublicLink(0, nfolder1.get(), 0, maxTimeout, mApi[0].accountDetails->getProLevel() == 0);
-    // // The created link is stored in this->link at onRequestFinish()
-    //
-    // // Get a fresh snapshot of the node and check it's actually exported
-    // nfolder1.reset(megaApi[0]->getNodeByHandle(hfolder1));
-    // ASSERT_TRUE(nfolder1->isExported()) << "Node is not exported, must be exported";
-    // ASSERT_FALSE(nfolder1->isTakenDown()) << "Public link is taken down, it mustn't";
-    //
-    // nfolder1.reset(megaApi[0]->getNodeByHandle(hfolder1));
-    // ASSERT_STREQ(nodelink5.c_str(), std::unique_ptr<char[]>(nfolder1->getPublicLink()).get()) << "Wrong public link from MegaNode";
-    //
-    //
-    // // Regenerate the same link should not trigger a new request
-    // nodelink6 = createPublicLink(0, nfolder1.get(), 0, maxTimeout, mApi[0].accountDetails->getProLevel() == 0);
-    // ASSERT_STREQ(nodelink5.c_str(), nodelink6.c_str()) << "Wrong public link after link update";
-
-    ASSERT_NO_FATAL_FAILURE(createOnePublicLinkAndCheck(hfolder1, nodelink6));
-
-    loginFolderTracker = asyncRequestLoginToFolder(2, nodelink6.c_str());
-    ASSERT_EQ(loginFolderTracker->waitForResult(), API_OK) << "Failed to login to folder " << nodelink6;
+    loginFolderTracker = asyncRequestLoginToFolder(2, nodeLink.c_str());
+    ASSERT_EQ(loginFolderTracker->waitForResult(), API_OK) << "Failed to login to folder " << nodeLink;
     ASSERT_NO_FATAL_FAILURE(fetchnodes(2));
     folderNodeToImport.reset(megaApi[2]->getRootNode());
-    ASSERT_TRUE(folderNodeToImport) << "Failed to get folder node to import from link " << nodelink6;
+    ASSERT_TRUE(folderNodeToImport) << "Failed to get folder node to import from link " << nodeLink;
     authorizedFolderNode.reset(megaApi[2]->authorizeNode(folderNodeToImport.get()));
-    ASSERT_TRUE(authorizedFolderNode) << "Failed to authorize folder node from link " << nodelink6;
+    ASSERT_TRUE(authorizedFolderNode) << "Failed to authorize folder node from link " << nodeLink;
     logout(2, false, 20);
 
-    loginTracker = asyncRequestLogin(2, email.c_str(), pass.c_str());
-    ASSERT_EQ(loginTracker->waitForResult(), API_OK) << "Failed to login with " << email;
+    loginTracker = asyncRequestLogin(2, mGuestEmail.c_str(), mGuestPass.c_str());
+    ASSERT_EQ(loginTracker->waitForResult(), API_OK) << "Failed to login with " << mGuestEmail;
     ASSERT_NO_FATAL_FAILURE(fetchnodes(2));
     rootNode2.reset(megaApi[2]->getRootNode());
     RequestTracker nodeCopyTracker2(megaApi[2].get());
