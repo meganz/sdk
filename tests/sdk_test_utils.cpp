@@ -1,5 +1,7 @@
 #include "sdk_test_utils.h"
 
+#include <fstream>
+#include <vector>
 
 namespace sdk_test
 {
@@ -34,4 +36,23 @@ void copyFileFromTestData(fs::path filename, fs::path destination)
     fs::copy_file(source, destination);
 }
 
+LocalTempFile::LocalTempFile(const fs::path& _filePath, const unsigned int fileSizeBytes):
+    filePath(_filePath)
+{
+    std::ofstream outFile(filePath, std::ios::binary);
+    if (!outFile.is_open())
+    {
+        throw std::runtime_error("Can't open the file: " + _filePath.string());
+    }
+    std::vector<char> buffer(fileSizeBytes, 0);
+    outFile.write(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+}
+
+LocalTempFile::~LocalTempFile()
+{
+    if (fs::exists(filePath))
+    {
+        fs::remove(filePath);
+    }
+}
 }
