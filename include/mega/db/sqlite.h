@@ -258,6 +258,7 @@ private:
     class MigrateType
     {
     public:
+        virtual ~MigrateType() = default;
         virtual bool bindToDb(sqlite3_stmt* stmt, const std::map<int, int>& lookupId) const = 0;
         virtual bool hasValidValue() const = 0;
     };
