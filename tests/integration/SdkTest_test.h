@@ -155,6 +155,7 @@ struct RequestTracker : public ::mega::MegaRequestListener
 
         result = ErrorCodes(e->getErrorCode());
         this->request.reset(request->copy());
+        assert(this->request->getType() != MegaRequest::TYPE_ADD_SYNC || this->request->getNumDetails() <= SyncError::NO_SYNC_ERROR || this->request->getNumDetails() == e->getSyncError());
         finished = true;
         promiseResult.set_value(static_cast<ErrorCodes>(result));
     }

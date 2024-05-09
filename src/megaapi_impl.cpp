@@ -25486,13 +25486,13 @@ void MegaApiImpl::addSyncByRequest(MegaRequestPrivate* request, SyncConfig syncC
                 if (revertOnError)
                 {
                     // deletes backup root node, if we created one but then couldn't finish configuring
-                    revertOnError([this, request, e](){
-                        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+                    revertOnError([this, request, e, se](){
+                        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e, se));
                     });
                 }
                 else
                 {
-                    fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+                    fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e, se));
                 }
             }
             else
@@ -25501,7 +25501,7 @@ void MegaApiImpl::addSyncByRequest(MegaRequestPrivate* request, SyncConfig syncC
 
                 auto sync = std::make_unique<MegaSyncPrivate>(createdConfig, client);
 
-                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e, se));
             }
         }, "", basePath);
 }
@@ -27854,7 +27854,7 @@ MegaErrorPrivate::MegaErrorPrivate(fuse::MountResult result)
 }
 
 MegaErrorPrivate::MegaErrorPrivate(const MegaError &megaError)
-    : MegaError(megaError.getErrorCode())
+    : MegaError(megaError)
     , mValue(megaError.getValue())
     , mUserStatus(megaError.getUserStatus())
     , mLinkStatus(megaError.getLinkStatus())
