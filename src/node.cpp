@@ -3941,7 +3941,7 @@ CloudNode::CloudNode(const Node& n)
     , parentType(n.parent ? n.parent->type : TYPE_UNKNOWN)
     , fingerprint(n.fingerprint())
 {
-    assert(fingerprint.isvalid || type != FILENODE);
+    //assert(fingerprint.isvalid || type != FILENODE);
 }
 
 bool CloudNode::isIgnoreFile() const

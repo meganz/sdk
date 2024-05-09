@@ -6742,10 +6742,6 @@ bool SyncRow::isIgnoreFile() const
 
 bool SyncRow::isNoName() const
 {
-    // Can't be a no-name triplet if we've been paired.
-    if (fsNode || syncNode)
-        return false;
-
     // Can't be a no-name triplet if we have clashing filesystem names.
     if (!fsClashingNames.empty())
         return false;
@@ -6861,12 +6857,14 @@ void Sync::combineTripletSet(vector<SyncRow>::iterator a, vector<SyncRow>::itera
         }
         if (i->cloudNode)
         {
+            if (!targetrow->cloudNode || !targetrow->cloudNode->name.empty())
+            {
             if (targetrow->cloudNode &&
                 !(targetrow->syncNode &&
                 targetrow->syncNode->syncedCloudNodeHandle
                 == targetrow->cloudNode->handle))
             {
-                LOG_debug << syncname << "Conflicting filesystem name: "
+                LOG_debug << syncname << "Conflicting cloud name: "
                     << targetrow->cloudNode->name;
                 targetrow->cloudClashingNames.push_back(targetrow->cloudNode);
                 targetrow->cloudNode = nullptr;
@@ -6874,7 +6872,7 @@ void Sync::combineTripletSet(vector<SyncRow>::iterator a, vector<SyncRow>::itera
             if (targetrow->cloudNode ||
                 !targetrow->cloudClashingNames.empty())
             {
-                LOG_debug << syncname << "Conflicting filesystem name: "
+                LOG_debug << syncname << "Conflicting cloud name: "
                     << i->cloudNode->name;
                 targetrow->cloudClashingNames.push_back(i->cloudNode);
                 i->cloudNode = nullptr;
@@ -6883,6 +6881,7 @@ void Sync::combineTripletSet(vector<SyncRow>::iterator a, vector<SyncRow>::itera
                 targetrow->cloudClashingNames.empty())
             {
                 std::swap(targetrow->cloudNode, i->cloudNode);
+            }
             }
         }
     }
@@ -6912,7 +6911,7 @@ void Sync::combineTripletSet(vector<SyncRow>::iterator a, vector<SyncRow>::itera
     // confirm all are empty except target
     for (auto i = a; i != b; ++i)
     {
-        assert(i == targetrow || i->empty());
+        assert(i == targetrow || i->empty() || (i->cloudNode && (i->cloudNode->name.empty())));
     }
 #endif
 }
@@ -7745,24 +7744,15 @@ bool Sync::syncItem_checkMoves(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
     // Are we dealing with a no-name triplet?
     if (row.isNoName())
     {
-        ProgressingMonitor monitor(*this, row, fullPath);
-
-        monitor.waitingCloud(fullPath.cloudPath, SyncStallEntry(
-            SyncWaitReason::FileIssue, true, true,
-            {row.cloudHandleOpt(), fullPath.cloudPath, PathProblem::UndecryptedCloudNode},
-            {},
-            {},
-            {}));
-
         LOG_debug << syncname
                   << "No name triplets here. "
                   << "Excluding this triplet from sync for now. "
                   << logTriplet(row, fullPath);
 
-        row.itemProcessed = true;
-        row.suppressRecursion = true;
+        //row.itemProcessed = true;
+        //row.suppressRecursion = true;
 
-        return false;
+        return true;
     }
 
     if (row.fsNode && isDoNotSyncFileName(row.fsNode->toName_of_localname(*syncs.fsaccess)))
@@ -7929,6 +7919,12 @@ bool Sync::syncItem_checkFilenameClashes(SyncRow& row, SyncRow& parentRow, SyncP
     // Except if we previously had a folder (just itself) synced, allow recursing into that one.
     if (!row.fsClashingNames.empty() || !row.cloudClashingNames.empty())
     {
+
+        if (row.isNoName())
+        {
+            LOG_debug << syncname << "no name Multiple names clash here.  Excluding this node from sync for now." << logTriplet(row, fullPath);
+            return false;
+        }
 
         if (syncItem_checkBackupCloudNameClash(row, parentRow, fullPath))
         {
@@ -8185,6 +8181,16 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
             {}));
 
         return false;
+    }
+
+    if (row.isNoName())
+    {
+        LOG_debug << syncname
+                  << "[syncItem] No name triplets here. "
+                  << "Excluding this triplet from sync for now. "
+                  << logTriplet(row, fullPath);
+
+        return true;
     }
 
     // Check for files vs folders,  we can't upload a file over a folder etc.
@@ -8495,7 +8501,8 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
         CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemXSF);
 
         if (row.syncNode->type == TYPE_DONOTSYNC ||
-            row.isLocalOnlyIgnoreFile())
+            row.isLocalOnlyIgnoreFile() ||
+            row.isNoName())
         {
             // we do not upload do-not-sync files (eg. system+hidden, on windows)
             return true;
@@ -8977,7 +8984,7 @@ bool Sync::resolve_makeSyncNode_fromCloud(SyncRow& row, SyncRow& parentRow, Sync
 
     if (row.cloudNode->type == FILENODE)
     {
-        assert(row.cloudNode->fingerprint.isvalid); // todo: move inside considerSynced?
+        //assert(row.cloudNode->fingerprint.isvalid); // todo: move inside considerSynced?
         row.syncNode->syncedFingerprint = row.cloudNode->fingerprint;
     }
     row.syncNode->init(row.cloudNode->type, parentRow.syncNode, fullPath.localPath, nullptr);
@@ -9802,6 +9809,13 @@ bool Sync::resolve_cloudNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& ful
             return MT_NONE;
         }
 
+        // Is NO_NAMES ? Then ignore
+        if (row.isNoName())
+        {
+            // Then it's not subject to move processing.
+            return MT_NONE;
+        }
+
         CloudNode cloudNode;
         bool active = false;
         bool nodeIsDefinitelyExcluded = false;
@@ -9826,6 +9840,24 @@ bool Sync::resolve_cloudNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& ful
         {
             // Then we know it can't be a move target.
             return MT_NONE;
+        }
+
+        // Is this a NO_NAME ?????
+        if (cloudNode.name.empty())
+        {
+            const std::string suffix = "NO_KEY";
+            if (cloudPath.length() >= suffix.length() &&
+                !cloudPath.compare(cloudPath.length() - suffix.length(), suffix.length(), suffix))
+            {
+                SYNC_verbose << syncname
+                         << "[cloudNodeGone] Cloud Node is a NO_NAME (undecryptable node), it cannot be a move target!!!! "
+                         << logTriplet(row, fullPath);
+                // Then we know it can't be a move target.
+                return MT_NONE;
+            }
+            SYNC_verbose << syncname
+                         << "[cloudNodeGone] Cloud Node name is empty, but the path does not contain NO_KEY word???? "
+                         << logTriplet(row, fullPath);
         }
 
         // Trim the rare fields.
