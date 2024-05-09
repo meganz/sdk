@@ -253,15 +253,93 @@ private:
     bool renameDBFiles(mega::FileSystemAccess& fsAccess, mega::LocalPath& legacyPath, mega::LocalPath& dbPath);
     void removeDBFiles(mega::FileSystemAccess& fsAccess, mega::LocalPath& dbPath);
 
+    // We should add new type for every new column that was added to DB
+    // This new type have to inherit from `MigrateType`
+    class MigrateType
+    {
+    public:
+        virtual bool bindToDb(sqlite3_stmt* stmt, const std::map<int, int>& lookupId) const = 0;
+        virtual bool hasValidValue() const = 0;
+    };
+
+    class MTimeType: public MigrateType
+    {
+    public:
+        MTimeType(m_time_t value);
+        bool bindToDb(sqlite3_stmt* stmt, const std::map<int, int>& lookupId) const override;
+        static std::unique_ptr<MigrateType> fromNodeData(NodeData& nd);
+        bool hasValidValue() const override;
+        static constexpr auto COMPONENT = NodeData::COMPONENT_MTIME;
+
+    private:
+        m_time_t mValue;
+    };
+
+    class LabelType: public MigrateType
+    {
+    public:
+        LabelType(int value);
+        bool bindToDb(sqlite3_stmt* stmt, const std::map<int, int>& lookupId) const override;
+        static std::unique_ptr<MigrateType> fromNodeData(NodeData& nd);
+        bool hasValidValue() const override;
+        static constexpr auto COMPONENT = NodeData::COMPONENT_LABEL;
+
+    private:
+        int mValue;
+    };
+
+    class DescriptionType: public MigrateType
+    {
+    public:
+        DescriptionType(const std::string& value);
+        bool bindToDb(sqlite3_stmt* stmt, const std::map<int, int>& lookupId) const override;
+        static std::unique_ptr<MigrateType> fromNodeData(NodeData& nd);
+        bool hasValidValue() const override;
+        static constexpr auto COMPONENT = NodeData::COMPONENT_DESCRIPTION;
+
+    private:
+        std::string mValue;
+    };
+
+    class TagsType: public MigrateType
+    {
+    public:
+        TagsType(const std::string& value);
+        bool bindToDb(sqlite3_stmt* stmt, const std::map<int, int>& lookupId) const override;
+        static std::unique_ptr<SqliteDbAccess::MigrateType> fromNodeData(NodeData& nd);
+        bool hasValidValue() const override;
+        static constexpr auto COMPONENT = NodeData::COMPONENT_TAGS;
+
+    private:
+        std::string mValue;
+    };
+
     // functionality for adding columns to existing table, and copying data to them
     struct NewColumn
     {
-        NewColumn(string&& n, string&& t, int id) : name(std::move(n)), type(std::move(t)), migrationId(id) {}
-
+        NewColumn(string&& n,
+                  string&& t,
+                  int id,
+                  std::function<bool(NodeData&, std::vector<std::unique_ptr<MigrateType>>&)>
+                      migrateOperation);
         string name;
         string type;
         int migrationId;
+        // Method to extract info from NodeData and add it to vector
+        std::function<bool(NodeData&, std::vector<std::unique_ptr<MigrateType>>&)>
+            mMigrateOperation;
+
+        template<typename T>
+        static bool extractDataFromNodeData(NodeData& nd,
+                                            std::vector<std::unique_ptr<MigrateType>>& newValues)
+        {
+            std::unique_ptr<MigrateType> val = T::fromNodeData(nd);
+            bool hasValidValue = val->hasValidValue();
+            newValues.push_back(std::move(val));
+            return hasValidValue;
+        }
     };
+
     bool addAndPopulateColumns(sqlite3* db, vector<NewColumn>&& newCols);
     bool stripExistingColumns(sqlite3* db, vector<NewColumn>& cols);
     bool addColumn(sqlite3* db, const string& name, const string& type);
