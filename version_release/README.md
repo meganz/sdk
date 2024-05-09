@@ -43,6 +43,11 @@ python3 ./make_release.py -r 1.0.0 -p SDK -l https://code.foo.bar -o origin -u h
 python3 ./make_release.py -r 1.0.0 -p MEGAchat -l https://code.foo.bar -n -d develop -m master -j https://jira.foo.bar -t "Android 1.0.1 / iOS 1.2 / MEGAsync 9.9.9"
 ```
 
+Running the following will also provide complete information:
+```sh
+python3 ./make_release.py -h
+```
+
 
 ## Prerequisites
 
