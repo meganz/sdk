@@ -3969,15 +3969,15 @@ protected:
 
     void createOutgoingShare();
 
-    void getAndCheckInshare();
+    void getInshare();
 
-    void createOnePublicLinkAndCheck(MegaHandle hfolder, std::string& nodeLink);
+    void createOnePublicLink(MegaHandle hfolder, std::string& nodeLink);
 
-    void importPublicLinkAndCheck(const std::string& nodeLink);
+    void importPublicLink(const std::string& nodeLink);
 
     void RevokeOutShares(MegaHandle hfolder);
 
-    static constexpr const char* FOLDER_NAME = "sharedfolder";
+    void revokePublicLink(MegaHandle hfolder);
 
     std::unordered_map<std::string, MegaHandle> mHandles;
 
@@ -4121,7 +4121,7 @@ void SdkTestShares::createOutgoingShare()
 }
 
 // Get and Check only one incoming share
-void SdkTestShares::getAndCheckInshare()
+void SdkTestShares::getInshare()
 {
     const std::unique_ptr<MegaShareList> shareList{megaApi[1]->getInSharesList()};
     ASSERT_EQ(1, shareList->size()) << "Incoming share not received in auxiliar account";
@@ -4145,7 +4145,7 @@ void SdkTestShares::getAndCheckInshare()
     ASSERT_TRUE(thisInshareNode->isShared()) << "Wrong sharing information at incoming share";
 }
 
-void SdkTestShares::createOnePublicLinkAndCheck(MegaHandle hfolder, std::string& nodeLink)
+void SdkTestShares::createOnePublicLink(MegaHandle hfolder, std::string& nodeLink)
 {
     std::unique_ptr<MegaNode> nfolder{mInviterApi->getNodeByHandle(hfolder)};
     const bool isFreeAccount =
@@ -4167,7 +4167,7 @@ void SdkTestShares::createOnePublicLinkAndCheck(MegaHandle hfolder, std::string&
         << "Wrong public link after link update";
 }
 
-void SdkTestShares::importPublicLinkAndCheck(const std::string& nodeLink)
+void SdkTestShares::importPublicLink(const std::string& nodeLink)
 {
     // Login to the folder and fetchnodes
     auto loginFolderTracker = asyncRequestLoginToFolder(mGuestIndex, nodeLink.c_str());
@@ -4221,6 +4221,17 @@ void SdkTestShares::RevokeOutShares(MegaHandle hfolder)
 
     const std::unique_ptr<MegaShareList> sl{megaApi[0]->getOutShares()};
     ASSERT_EQ(0, sl->size()) << "Outgoing share revocation failed";
+}
+
+void SdkTestShares::revokePublicLink(MegaHandle hfolder)
+{
+    // Remove
+    std::unique_ptr<MegaNode> node(mInviterApi->getNodeByHandle(hfolder));
+    const MegaHandle removedLinkHandle = removePublicLink(mInviterIndex, node.get());
+
+    // Get a fresh node and check
+    node.reset(mInviterApi->getNodeByHandle(removedLinkHandle));
+    ASSERT_FALSE(node->isPublic()) << "Public link removal failed (still public)";
 }
 
 // Initialize a test scenario : create some folders/files to share
@@ -5538,31 +5549,27 @@ TEST_F(SdkTestShares, TestPublicFolderLinksWithShares)
 
     ASSERT_NO_FATAL_FAILURE(createOutgoingShare());
 
-    ASSERT_NO_FATAL_FAILURE(getAndCheckInshare());
+    ASSERT_NO_FATAL_FAILURE(getInshare());
 
     ASSERT_EQ(API_OK, synchronousGetSpecificAccountDetails(mInviterIndex, true, true, true))
         << "Cannot get account details";
 
-    MegaHandle hfolder = getHandle("/sharedfolder");
+    const MegaHandle hfolder = getHandle("/sharedfolder");
+
     std::string nodeLink;
-    ASSERT_NO_FATAL_FAILURE(createOnePublicLinkAndCheck(hfolder, nodeLink));
+    ASSERT_NO_FATAL_FAILURE(createOnePublicLink(hfolder, nodeLink));
 
-    ASSERT_NO_FATAL_FAILURE(importPublicLinkAndCheck(nodeLink));
+    ASSERT_NO_FATAL_FAILURE(importPublicLink(nodeLink));
 
-    std::unique_ptr<MegaNode> n1(mInviterApi->getNodeByHandle(hfolder));
-    MegaHandle removedLinkHandle = removePublicLink(mInviterIndex, n1.get());
-    n1.reset(mInviterApi->getNodeByHandle(removedLinkHandle));
-    ASSERT_FALSE(n1->isPublic()) << "Public link removal failed (still public)";
+    ASSERT_NO_FATAL_FAILURE(revokePublicLink(hfolder));
 
     ASSERT_NO_FATAL_FAILURE(RevokeOutShares(hfolder));
 
-    ASSERT_NO_FATAL_FAILURE(createOnePublicLinkAndCheck(hfolder, nodeLink));
+    ASSERT_NO_FATAL_FAILURE(createOnePublicLink(hfolder, nodeLink));
 
-    ASSERT_NO_FATAL_FAILURE(importPublicLinkAndCheck(nodeLink));
+    ASSERT_NO_FATAL_FAILURE(importPublicLink(nodeLink));
 
-    removedLinkHandle = removePublicLink(0, n1.get());
-    n1 = std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(removedLinkHandle)};
-    ASSERT_FALSE(n1->isPublic()) << "Public link removal failed (still public)";
+    ASSERT_NO_FATAL_FAILURE(revokePublicLink(hfolder));
 }
 
 TEST_F(SdkTest, SdkTestShareKeys)
