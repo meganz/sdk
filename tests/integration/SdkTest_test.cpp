@@ -3975,6 +3975,8 @@ protected:
 
     void importPublicLinkAndCheck(const std::string& nodeLink);
 
+    void RevokeOutShares(MegaHandle hfolder);
+
     static constexpr const char* FOLDER_NAME = "sharedfolder";
 
     std::unordered_map<std::string, MegaHandle> mHandles;
@@ -4193,6 +4195,32 @@ void SdkTestShares::importPublicLinkAndCheck(const std::string& nodeLink)
     EXPECT_EQ(nodeCopyTracker.waitForResult(), API_OK) << "Failed to copy node to import";
     std::unique_ptr<MegaNode> importedNode(mGuestApi->getNodeByPath(authorizedFolderNode->getName(), rootNode.get()));
     EXPECT_TRUE(importedNode) << "Imported node not found";
+}
+
+// Revoke access to an outgoing shares
+void SdkTestShares::RevokeOutShares(MegaHandle hfolder)
+{
+    const std::unique_ptr<MegaNode> node{mInviterApi->getNodeByHandle(hfolder)};
+    bool inshareCheck = false;
+    bool outshareCheck = false;
+    mInviter->mOnNodesUpdateCompletion =
+        createOnNodesUpdateLambda(hfolder, MegaNode::CHANGE_TYPE_OUTSHARE, outshareCheck);
+    mInvitee->mOnNodesUpdateCompletion =
+        createOnNodesUpdateLambda(hfolder, MegaNode::CHANGE_TYPE_REMOVED, inshareCheck);
+    ASSERT_NO_FATAL_FAILURE(
+        shareFolder(node.get(), mInvitee->email.c_str(), MegaShare::ACCESS_UNKNOWN));
+    ASSERT_TRUE(waitForResponse(&outshareCheck)) // at the target side (main account)
+        << "Node update not received by the inviter after " << maxTimeout << " seconds";
+    ASSERT_TRUE(waitForResponse(&inshareCheck)) // at the target side (auxiliar account)
+        << "Node update not received by the invitee after " << maxTimeout << " seconds";
+
+    // important to reset
+    resetOnNodeUpdateCompletionCBs();
+    ASSERT_EQ(outshareCheck, true);
+    ASSERT_EQ(inshareCheck, true);
+
+    const std::unique_ptr<MegaShareList> sl{megaApi[0]->getOutShares()};
+    ASSERT_EQ(0, sl->size()) << "Outgoing share revocation failed";
 }
 
 // Initialize a test scenario : create some folders/files to share
@@ -5504,64 +5532,34 @@ TEST_F(SdkTestShares, TestPublicFolderLinksWithShares)
 {
     LOG_info << "___TEST TestPublicFolderLinksWithShares";
 
-    MegaShareList *sl;
-
     ASSERT_NO_FATAL_FAILURE(createNodeTrees());
-    MegaHandle hfolder1 = getHandle("/sharedfolder");
-    std::unique_ptr<MegaNode> n1(mInviterApi->getNodeByHandle(hfolder1));
-    ASSERT_NE(n1.get(), nullptr);
 
-    // Initialize a test scenario: create a new contact to share to and verify credentials
     ASSERT_NO_FATAL_FAILURE(createNewContactAndVerify());
 
-    // --- Create a new outgoing share ---
     ASSERT_NO_FATAL_FAILURE(createOutgoingShare());
 
-    // --- Check the incoming share ---
     ASSERT_NO_FATAL_FAILURE(getAndCheckInshare());
 
-    ASSERT_EQ(API_OK, synchronousGetSpecificAccountDetails(mInviterIndex, true, true, true)) << "Cannot get account details";
+    ASSERT_EQ(API_OK, synchronousGetSpecificAccountDetails(mInviterIndex, true, true, true))
+        << "Cannot get account details";
 
-    // --- Create a folder public link ---
+    MegaHandle hfolder = getHandle("/sharedfolder");
     std::string nodeLink;
-    ASSERT_NO_FATAL_FAILURE(createOnePublicLinkAndCheck(hfolder1, nodeLink));
+    ASSERT_NO_FATAL_FAILURE(createOnePublicLinkAndCheck(hfolder, nodeLink));
 
-    // --- Import folder public link ---
     ASSERT_NO_FATAL_FAILURE(importPublicLinkAndCheck(nodeLink));
 
-    // --- Remove a public link ---
+    std::unique_ptr<MegaNode> n1(mInviterApi->getNodeByHandle(hfolder));
     MegaHandle removedLinkHandle = removePublicLink(mInviterIndex, n1.get());
-
-    n1 = std::unique_ptr<MegaNode>{mInviterApi->getNodeByHandle(removedLinkHandle)};
+    n1.reset(mInviterApi->getNodeByHandle(removedLinkHandle));
     ASSERT_FALSE(n1->isPublic()) << "Public link removal failed (still public)";
 
+    ASSERT_NO_FATAL_FAILURE(RevokeOutShares(hfolder));
 
-    // --- Revoke access to an outgoing share ---
-    bool check2;
-    bool check1;
-    mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(hfolder1, MegaNode::CHANGE_TYPE_OUTSHARE, check1);
-    mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(hfolder1, MegaNode::CHANGE_TYPE_REMOVED, check2);
-    ASSERT_NO_FATAL_FAILURE( shareFolder(n1.get(), mApi[1].email.c_str(), MegaShare::ACCESS_UNKNOWN) );
-    ASSERT_TRUE( waitForResponse(&check1) )   // at the target side (main account)
-            << "Node update not received after " << maxTimeout << " seconds";
-    ASSERT_TRUE( waitForResponse(&check2) )   // at the target side (auxiliar account)
-            << "Node update not received after " << maxTimeout << " seconds";
-
-    // important to reset
-    resetOnNodeUpdateCompletionCBs();
-    ASSERT_EQ(check1, true);
-    ASSERT_EQ(check2, true);
-
-    sl = megaApi[0]->getOutShares();
-    ASSERT_EQ(0, sl->size()) << "Outgoing share revocation failed";
-    delete sl;
-
-    // --- Create a folder public link ---
-    ASSERT_NO_FATAL_FAILURE(createOnePublicLinkAndCheck(hfolder1, nodeLink));
+    ASSERT_NO_FATAL_FAILURE(createOnePublicLinkAndCheck(hfolder, nodeLink));
 
     ASSERT_NO_FATAL_FAILURE(importPublicLinkAndCheck(nodeLink));
 
-    // --- Remove a public link ---
     removedLinkHandle = removePublicLink(0, n1.get());
     n1 = std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(removedLinkHandle)};
     ASSERT_FALSE(n1->isPublic()) << "Public link removal failed (still public)";
