@@ -4024,12 +4024,12 @@ void SdkTestShares::SetUp()
     // Convenience
     mSharer = &mApi[mSharerIndex];
     mSharee = &mApi[mShareeIndex];
-    mGuest   = &mApi[mGuestIndex];
+    mGuest  = &mApi[mGuestIndex];
     mSharerApi = megaApi[mSharerIndex].get();
     mShareeApi = megaApi[mShareeIndex].get();
-    mGuestApi   = megaApi[mGuestIndex].get();
+    mGuestApi  = megaApi[mGuestIndex].get();
     mGuestEmail = email;
-    mGuestPass = pass;
+    mGuestPass  = pass;
 }
 
 void SdkTestShares::TearDown()
@@ -4066,9 +4066,12 @@ void SdkTestShares::createNewContactAndVerify()
     // Invite
     const string message = "Hi contact. Let's share some stuff";
     mSharee->contactRequestUpdated = false;
-    ASSERT_NO_FATAL_FAILURE(inviteContact(mSharerIndex, mSharee->email, message, MegaContactRequest::INVITE_ACTION_ADD));
+    ASSERT_NO_FATAL_FAILURE(inviteContact(mSharerIndex,
+                                          mSharee->email,
+                                          message,
+                                          MegaContactRequest::INVITE_ACTION_ADD));
     EXPECT_TRUE(waitForResponse(&mSharee->contactRequestUpdated, 10u))
-            << "Contact request creation not received by the sharee after 10 seconds";
+        << "Contact request creation not received by the sharee after 10 seconds";
 
     // Get the the contact request
     EXPECT_NO_FATAL_FAILURE(getContactRequest(mShareeIndex, false));
@@ -4076,11 +4079,12 @@ void SdkTestShares::createNewContactAndVerify()
     // Accept the request
     mSharer->contactRequestUpdated = false;
     mSharer->contactRequestUpdated = false;
-    EXPECT_NO_FATAL_FAILURE(replyContact(mSharee->cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT));
-    EXPECT_TRUE( waitForResponse(&mSharee->contactRequestUpdated, 10u) )
-            << "Contact request creation not received by the sharee after 10 seconds";
-    EXPECT_TRUE( waitForResponse(&mSharer->contactRequestUpdated, 10u) )
-            << "Contact request creation not received by the sharer after 10 seconds";
+    EXPECT_NO_FATAL_FAILURE(
+        replyContact(mSharee->cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT));
+    EXPECT_TRUE(waitForResponse(&mSharee->contactRequestUpdated, 10u))
+        << "Contact request creation not received by the sharee after 10 seconds";
+    EXPECT_TRUE(waitForResponse(&mSharer->contactRequestUpdated, 10u))
+        << "Contact request creation not received by the sharer after 10 seconds";
     mSharer->cr.reset();
 
     // Verify credential
@@ -4094,9 +4098,12 @@ void SdkTestShares::createOutgoingShare(MegaHandle hfolder)
     // Create a new outgoing share
     bool inshareCheck = false;
     bool outshareCheck = false;
-    mSharer->mOnNodesUpdateCompletion = createOnNodesUpdateLambda(hfolder, MegaNode::CHANGE_TYPE_OUTSHARE, outshareCheck);
-    mSharee->mOnNodesUpdateCompletion = createOnNodesUpdateLambda(hfolder, MegaNode::CHANGE_TYPE_INSHARE, inshareCheck);
-    ASSERT_NO_FATAL_FAILURE(shareFolder(node.get(), mSharee->email.c_str(), MegaShare::ACCESS_FULL));
+    mSharer->mOnNodesUpdateCompletion =
+        createOnNodesUpdateLambda(hfolder, MegaNode::CHANGE_TYPE_OUTSHARE, outshareCheck);
+    mSharee->mOnNodesUpdateCompletion =
+        createOnNodesUpdateLambda(hfolder, MegaNode::CHANGE_TYPE_INSHARE, inshareCheck);
+    ASSERT_NO_FATAL_FAILURE(
+        shareFolder(node.get(), mSharee->email.c_str(), MegaShare::ACCESS_FULL));
     ASSERT_TRUE(waitForResponse(&outshareCheck))
         << "Node update not received by the sharer after " << maxTimeout << " seconds";
     ASSERT_TRUE(waitForResponse(&inshareCheck))
@@ -4111,7 +4118,8 @@ void SdkTestShares::createOutgoingShare(MegaHandle hfolder)
     const auto share = shareList->get(0);
     ASSERT_EQ(MegaShare::ACCESS_FULL, share->getAccess()) << "Wrong access level of outgoing share";
     ASSERT_EQ(hfolder, share->getNodeHandle()) << "Wrong node handle of outgoing share";
-    ASSERT_STRCASEEQ(mSharee->email.c_str(), share->getUser()) << "Wrong email address of outgoing share";
+    ASSERT_STRCASEEQ(mSharee->email.c_str(), share->getUser())
+        << "Wrong email address of outgoing share";
 
     // Get an updated version of the node
     node.reset(mSharerApi->getNodeByHandle(hfolder));
@@ -4128,7 +4136,8 @@ void SdkTestShares::getInshare(MegaHandle hfolder)
     // Wait for the inshare node to be decrypted
     auto descryptedPred = [this, hfolder]()
     {
-        return std::unique_ptr<MegaNode>(mShareeApi->getNodeByHandle(hfolder))->isNodeKeyDecrypted();
+        return std::unique_ptr<MegaNode>(mShareeApi->getNodeByHandle(hfolder))
+            ->isNodeKeyDecrypted();
     };
     ASSERT_TRUE(WaitFor(descryptedPred, 60 * 1000));
 
@@ -4137,8 +4146,11 @@ void SdkTestShares::getInshare(MegaHandle hfolder)
     ASSERT_EQ(1, inshareNodes->size()) << "Incoming share not received in auxiliar account";
     const auto thisInshareNode = inshareNodes->get(0);
     ASSERT_EQ(hfolder, thisInshareNode->getHandle()) << "Wrong node handle of incoming share";
-    ASSERT_STREQ("sharedfolder", thisInshareNode->getName()) << "Wrong folder name of incoming share";
-    ASSERT_EQ(API_OK, mShareeApi->checkAccess(thisInshareNode, MegaShare::ACCESS_FULL).getErrorCode()) << "Wrong access level of incoming share";
+    ASSERT_STREQ("sharedfolder", thisInshareNode->getName())
+        << "Wrong folder name of incoming share";
+    ASSERT_EQ(API_OK,
+              mShareeApi->checkAccess(thisInshareNode, MegaShare::ACCESS_FULL).getErrorCode())
+        << "Wrong access level of incoming share";
     ASSERT_TRUE(thisInshareNode->isInShare()) << "Wrong sharing information at incoming share";
     ASSERT_TRUE(thisInshareNode->isShared()) << "Wrong sharing information at incoming share";
 }
@@ -4160,8 +4172,7 @@ void SdkTestShares::createOnePublicLink(MegaHandle hfolder, std::string& nodeLin
         << "Wrong public link from MegaNode";
 
     // Regenerate the same link should not trigger a new request
-    ASSERT_EQ(nodeLink,
-              createPublicLink(mSharerIndex, nfolder.get(), 0, maxTimeout, isFreeAccount))
+    ASSERT_EQ(nodeLink, createPublicLink(mSharerIndex, nfolder.get(), 0, maxTimeout, isFreeAccount))
         << "Wrong public link after link update";
 }
 
@@ -4169,13 +4180,15 @@ void SdkTestShares::importPublicLink(const std::string& nodeLink)
 {
     // Login to the folder and fetchnodes
     auto loginFolderTracker = asyncRequestLoginToFolder(mGuestIndex, nodeLink.c_str());
-    ASSERT_EQ(loginFolderTracker->waitForResult(), API_OK) << "Failed to login to folder " << nodeLink;
+    ASSERT_EQ(loginFolderTracker->waitForResult(), API_OK)
+        << "Failed to login to folder " << nodeLink;
     ASSERT_NO_FATAL_FAILURE(fetchnodes(mGuestIndex));
 
     // Authorize the node
     std::unique_ptr<MegaNode> folderNodeToImport(mGuestApi->getRootNode());
     ASSERT_TRUE(folderNodeToImport) << "Failed to get folder node to import from link " << nodeLink;
-    std::unique_ptr<MegaNode> authorizedFolderNode(mGuestApi->authorizeNode(folderNodeToImport.get()));
+    std::unique_ptr<MegaNode> authorizedFolderNode(
+        mGuestApi->authorizeNode(folderNodeToImport.get()));
     ASSERT_TRUE(authorizedFolderNode) << "Failed to authorize folder node from link " << nodeLink;
 
     // Logout the folder
@@ -4191,7 +4204,8 @@ void SdkTestShares::importPublicLink(const std::string& nodeLink)
     RequestTracker nodeCopyTracker(mGuestApi);
     mGuestApi->copyNode(authorizedFolderNode.get(), rootNode.get(), nullptr, &nodeCopyTracker);
     EXPECT_EQ(nodeCopyTracker.waitForResult(), API_OK) << "Failed to copy node to import";
-    std::unique_ptr<MegaNode> importedNode(mGuestApi->getNodeByPath(authorizedFolderNode->getName(), rootNode.get()));
+    std::unique_ptr<MegaNode> importedNode(
+        mGuestApi->getNodeByPath(authorizedFolderNode->getName(), rootNode.get()));
     EXPECT_TRUE(importedNode) << "Imported node not found";
 }
 
@@ -4241,20 +4255,22 @@ void SdkTestShares::revokePublicLink(MegaHandle hfolder)
 void SdkTestShares::createNodeTrees()
 {
     const std::unique_ptr<MegaNode> rootnode{mSharerApi->getRootNode()};
-    const MegaHandle hfolder = mHandles["/sharedfolder"] = createFolder(
-        mSharerIndex,
-        "sharedfolder",
-        rootnode.get());
+    const MegaHandle hfolder = mHandles["/sharedfolder"] =
+        createFolder(mSharerIndex, "sharedfolder", rootnode.get());
     ASSERT_NE(hfolder, UNDEF);
 
-    const MegaHandle subfolder = mHandles["/sharedfolder/subfolder"] = createFolder(
-        mSharerIndex,
-        "subfolder",
-        std::unique_ptr<MegaNode>{mSharerApi->getNodeByHandle(hfolder)}.get());
+    const std::unique_ptr<MegaNode> node{mSharerApi->getNodeByHandle(hfolder)};
+    ASSERT_TRUE(node);
+
+    const MegaHandle subfolder = mHandles["/sharedfolder/subfolder"] =
+        createFolder(mSharerIndex,
+                     "subfolder",
+                     node.get());
     ASSERT_NE(subfolder, UNDEF);
 
     // Create a local file
-    ASSERT_TRUE(createFile("file.txt", false)) << "Couldn't create " << "file.txt";
+    ASSERT_TRUE(createFile("file.txt", false)) << "Couldn't create "
+                                               << "file.txt";
 
     // Create a node /sharefolder/file.txt by uploading
     MegaHandle hfile = UNDEF;
@@ -4262,13 +4278,14 @@ void SdkTestShares::createNodeTrees()
               doStartUpload(mSharerIndex,
                             &hfile,
                             "file.txt",
-                            std::unique_ptr<MegaNode>{mSharerApi->getNodeByHandle(hfolder)}.get(),
+                            node.get(),
                             nullptr /*fileName*/,
                             ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
                             nullptr /*appData*/,
                             false /*isSourceTemporary*/,
                             false /*startFirst*/,
-                            nullptr /*cancelToken*/)) << "Cannot upload a test file";
+                            nullptr /*cancelToken*/))
+        << "Cannot upload a test file";
     mHandles["/sharedfolder/file.txt"] = hfile;
 
     // Create a node /sharedfolder/subfolder/file.txt by uploading
@@ -4276,13 +4293,14 @@ void SdkTestShares::createNodeTrees()
               doStartUpload(mSharerIndex,
                             &hfile,
                             "file.txt",
-                            std::unique_ptr<MegaNode>{mSharerApi->getNodeByHandle(subfolder)}.get(),
+                            node.get(),
                             nullptr /*fileName*/,
                             ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
                             nullptr /*appData*/,
                             false /*isSourceTemporary*/,
                             false /*startFirst*/,
-                            nullptr /*cancelToken*/)) << "Cannot upload a second test file";
+                            nullptr /*cancelToken*/))
+        << "Cannot upload a second test file";
     mHandles["/sharedfolder/subfolder/file.txt"] = hfile;
 }
 
@@ -5532,7 +5550,7 @@ TEST_F(SdkTestShares, TestPublicFolderLinksWithShares)
 
     const MegaHandle hfolder = getHandle("/sharedfolder");
 
-    // Create shares
+    // Create share on the folder
     ASSERT_NO_FATAL_FAILURE(createNewContactAndVerify());
 
     ASSERT_NO_FATAL_FAILURE(createOutgoingShare(hfolder));
